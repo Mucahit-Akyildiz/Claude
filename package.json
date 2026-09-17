@@ -1,0 +1,7 @@
+{
+  "name": "restoran-yonetim-sistemi",
+  "private": true,
+  "dependencies": {
+    "iyzipay": "^2.0.55"
+  }
+}

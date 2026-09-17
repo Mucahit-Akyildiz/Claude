@@ -150,7 +150,9 @@
 /* ====== BURAYI KENDİ SUPABASE BİLGİLERİNİZLE DOLDURUN ====== */
 const SUPABASE_URL = 'https://dveybagnrgofxkqangvo.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_7gHhsaPYOzOddFnpjntPKw_S3Mgg3V8';
-const PAYMENT_INITIALIZE_URL = SUPABASE_URL + '/functions/v1/payment-initialize';
+/* Ödeme başlatma artık Supabase Edge Function yerine Vercel'deki /api üzerinden yapılıyor
+   (iyzico'nun sandbox sunucusu Supabase'in bulut IP aralığından gelen istekleri reddediyordu). */
+const PAYMENT_INITIALIZE_URL = '/api/payment-initialize';
 /* ============================================================ */
 
 const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -500,13 +502,19 @@ async function doVerifySignup(){
   APP.pendingSignup = null;
   const restaurantId = data && data[0] ? data[0].restaurant_id : null;
   if(!restaurantId){ errBox.textContent = 'Kayıt oluştu ama ödeme sayfasına yönlendirilemedi'; return; }
-  // Hesap onaylandı ama ödeme yapılana kadar pasif - ödeme başlatma isteğini kimlikli şekilde atıp
-  // dönen ödeme sayfası adresine biz kendimiz yönlendiriyoruz (böylece tarayıcı adres çubuğu ile
-  // doğrudan gidişte kaybolan kimlik başlığı sorunu yaşanmıyor).
-  let payUrl = PAYMENT_INITIALIZE_URL + '?restaurant_id=' + encodeURIComponent(restaurantId);
-  if(p.promo){ payUrl += '&promo=' + encodeURIComponent(p.promo); }
+  // Hesap onaylandı ama ödeme yapılana kadar pasif - ödeme başlatma isteğini atıp
+  // dönen ödeme sayfası adresine biz kendimiz yönlendiriyoruz.
   try{
-    const res = await fetch(payUrl, { headers: { 'Authorization': 'Bearer ' + SUPABASE_KEY, 'apikey': SUPABASE_KEY } });
+    const res = await fetch(PAYMENT_INITIALIZE_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        restaurant_id: restaurantId,
+        package_id: APP.selectedPackage,
+        promo: p.promo || null,
+        buyer: { name: p.name, email: p.email, phone: p.phone }
+      })
+    });
     const payData = await res.json();
     if(!res.ok || !payData.paymentPageUrl){
       errBox.textContent = 'Ödeme başlatılamadı: ' + (payData.errorMessage || payData.message || JSON.stringify(payData));
