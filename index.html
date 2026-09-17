@@ -504,17 +504,10 @@ async function doVerifySignup(){
   if(!restaurantId){ errBox.textContent = 'Kayıt oluştu ama ödeme sayfasına yönlendirilemedi'; return; }
   // Hesap onaylandı ama ödeme yapılana kadar pasif - ödeme başlatma isteğini atıp
   // dönen ödeme sayfası adresine biz kendimiz yönlendiriyoruz.
+  let payUrl = PAYMENT_INITIALIZE_URL + '?restaurant_id=' + encodeURIComponent(restaurantId);
+  if(p.promo){ payUrl += '&promo=' + encodeURIComponent(p.promo); }
   try{
-    const res = await fetch(PAYMENT_INITIALIZE_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        restaurant_id: restaurantId,
-        package_id: APP.selectedPackage,
-        promo: p.promo || null,
-        buyer: { name: p.name, email: p.email, phone: p.phone }
-      })
-    });
+    const res = await fetch(payUrl);
     const payData = await res.json();
     if(!res.ok || !payData.paymentPageUrl){
       errBox.textContent = 'Ödeme başlatılamadı: ' + (payData.errorMessage || payData.message || JSON.stringify(payData));
