@@ -32,7 +32,8 @@ create table if not exists stations (
   id uuid primary key default gen_random_uuid(),
   restaurant_id uuid not null references restaurants(id) on delete cascade,
   name text not null,
-  color text default '#8b93a3'
+  color text default '#8b93a3',
+  icon text not null default '🍳'
 );
 
 create table if not exists zones (
@@ -369,7 +370,7 @@ begin
   s := _session_check(p_token);
   return (
     select json_build_object(
-      'stations', (select coalesce(json_agg(json_build_object('id', id, 'name', name, 'color', color)), '[]'::json) from stations where restaurant_id = s.restaurant_id),
+      'stations', (select coalesce(json_agg(json_build_object('id', id, 'name', name, 'color', color, 'icon', icon)), '[]'::json) from stations where restaurant_id = s.restaurant_id),
       'zones', (
         select coalesce(json_agg(json_build_object(
           'id', z.id, 'name', z.name,
@@ -712,24 +713,25 @@ $$;
 grant execute on function delete_staff_user to anon;
 
 -- ---------- İSTASYONLAR ----------
-create or replace function upsert_station(p_token uuid, p_id uuid, p_name text, p_color text)
+create or replace function upsert_station(p_token uuid, p_id uuid, p_name text, p_color text, p_icon text default null)
 returns uuid
 language plpgsql
 security definer
 as $$
-declare s staff_sessions%rowtype; v_id uuid;
+declare s staff_sessions%rowtype; v_id uuid; v_icon text;
 begin
   s := _session_check(p_token, 'manager');
+  v_icon := coalesce(nullif(p_icon, ''), '🍳');
   if p_id is null then
-    insert into stations (restaurant_id, name, color) values (s.restaurant_id, p_name, p_color) returning id into v_id;
+    insert into stations (restaurant_id, name, color, icon) values (s.restaurant_id, p_name, p_color, v_icon) returning id into v_id;
   else
-    update stations set name = p_name, color = p_color where id = p_id and restaurant_id = s.restaurant_id;
+    update stations set name = p_name, color = p_color, icon = v_icon where id = p_id and restaurant_id = s.restaurant_id;
     v_id := p_id;
   end if;
   return v_id;
 end;
 $$;
-grant execute on function upsert_station to anon;
+grant execute on function upsert_station(uuid, uuid, text, text, text) to anon;
 
 create or replace function delete_station(p_token uuid, p_id uuid)
 returns void language plpgsql security definer as $$

@@ -577,7 +577,7 @@ async function renderKitchenView(main, session){
   if(!APP.kitchenStation){
     stopKitchenPolling();
     main.innerHTML = `<h1>Mutfak Ekranı</h1><p class="muted">İstasyon seçin</p><div class="home-grid">` +
-      APP.config.stations.map(s => `<div class="card" style="border-left:4px solid ${s.color}" onclick="pickKitchenStation('${s.id}')"><div class="icon">🍳</div><h3>${escapeHtml(s.name)}</h3></div>`).join('') +
+      APP.config.stations.map(s => `<div class="card" style="border-left:4px solid ${s.color}" onclick="pickKitchenStation('${s.id}')"><div class="icon">${escapeHtml(s.icon||'🍳')}</div><h3>${escapeHtml(s.name)}</h3></div>`).join('') +
       `</div>`;
     return;
   }
@@ -1658,15 +1658,22 @@ async function saveRecipe(productId){
 }
 
 /* --- İstasyonlar --- */
+const STATION_ICON_CHOICES = ['🍳','🍕','🍔','🍖','🥩','🍗','🍟','🌭','🥪','🌮','🥗','🍜','🍲','🍝','🍣','🍱','🥟','🍞','🥐','🧁','🍰','🍦','☕','🍵','🧋','🍹','🍺','🥤','🔥','🔪'];
+function stationIconSelectHtml(id, current){
+  return `<select id="${id}" style="font-size:20px;padding:4px;">` +
+    STATION_ICON_CHOICES.map(ic => `<option value="${ic}" ${ic===current?'selected':''}>${ic}</option>`).join('') +
+    `</select>`;
+}
 function renderStationsSettings(el, session){
   el.innerHTML = `<div class="box" style="max-width:none;">
     <h2>Mutfak İstasyonları</h2>
     <div class="settings-table-wrap">
     <table class="settings-table">
-      <thead><tr><th>İstasyon Adı</th><th>Renk</th><th></th></tr></thead>
+      <thead><tr><th>İkon</th><th>İstasyon Adı</th><th>Renk</th><th></th></tr></thead>
       <tbody>
       ${APP.config.stations.map(s => `
         <tr>
+          <td style="width:70px;">${stationIconSelectHtml('st_icon_'+s.id, s.icon||'🍳')}</td>
           <td class="col-name"><input value="${escapeHtml(s.name)}" id="st_name_${s.id}"></td>
           <td style="width:60px;"><input type="color" value="${s.color}" id="st_color_${s.id}" style="padding:2px;height:36px;"></td>
           <td>
@@ -1679,7 +1686,8 @@ function renderStationsSettings(el, session){
     </div>
     <div class="add-row-panel">
       <p>Yeni İstasyon Ekle</p>
-      <div style="display:grid;grid-template-columns:2fr auto;gap:10px;align-items:end;">
+      <div style="display:grid;grid-template-columns:auto 2fr auto;gap:10px;align-items:end;">
+        <div class="field-group"><label>İkon</label>${stationIconSelectHtml('newStIcon','🍳')}</div>
         <div class="field-group"><label>İstasyon Adı</label><input id="newStName" placeholder="örn. Fırın"></div>
         <div class="field-group"><label>Renk</label><input type="color" id="newStColor" value="#b6a48d" style="height:44px;padding:2px;"></div>
       </div>
@@ -1691,7 +1699,8 @@ async function saveStation(id){
   const session = getSession();
   const name = document.getElementById('st_name_'+id).value.trim();
   const color = document.getElementById('st_color_'+id).value;
-  const { error } = await sb.rpc('upsert_station', { p_token: session.session_token, p_id: id, p_name: name, p_color: color });
+  const icon = document.getElementById('st_icon_'+id).value;
+  const { error } = await sb.rpc('upsert_station', { p_token: session.session_token, p_id: id, p_name: name, p_color: color, p_icon: icon });
   if(error){ alert(error.message); return; }
   renderSettingsView(document.getElementById('main'), session);
 }
@@ -1699,8 +1708,9 @@ async function addStation(){
   const session = getSession();
   const name = document.getElementById('newStName').value.trim();
   const color = document.getElementById('newStColor').value;
+  const icon = document.getElementById('newStIcon').value;
   if(!name) return;
-  const { error } = await sb.rpc('upsert_station', { p_token: session.session_token, p_id: null, p_name: name, p_color: color });
+  const { error } = await sb.rpc('upsert_station', { p_token: session.session_token, p_id: null, p_name: name, p_color: color, p_icon: icon });
   if(error){ alert(error.message); return; }
   renderSettingsView(document.getElementById('main'), session);
 }
