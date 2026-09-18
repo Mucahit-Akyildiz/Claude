@@ -98,6 +98,11 @@ module.exports = async function handler(req, res) {
     const priceStr = price.toFixed(2);
     const basketId = 'pkg_' + restaurant.package_id + '_' + Date.now();
 
+    // iyzico gsmNumber icin ulke koduyla birlikte "+90..." formati bekliyor;
+    // "Geçersiz istek" (errorCode 11) hatasinin bir sebebi bu olabilir.
+    const phoneDigits = String(restaurant.phone || '').replace(/\D/g, '').replace(/^90/, '').replace(/^0/, '');
+    const gsmNumber = '+90' + phoneDigits;
+
     const body = {
       locale: 'tr',
       conversationId: restaurantId,
@@ -111,11 +116,13 @@ module.exports = async function handler(req, res) {
       buyer: {
         id: restaurant.id,
         name: restaurant.name,
-        surname: '-',
-        gsmNumber: restaurant.phone,
+        surname: 'Yetkilisi',
+        gsmNumber: gsmNumber,
         email: restaurant.email,
-        identityNumber: '11111111111',
-        registrationAddress: '-',
+        // Sandbox test kimlik no (iyzico'nun kendi ornek kodlarinda kullandigi,
+        // checksum dogrulamasindan gecen deger) - "11111111111" gecersiz kabul ediliyordu.
+        identityNumber: '74300864791',
+        registrationAddress: 'Belirtilmedi Mah. Belirtilmedi Sk. No:1',
         city: 'Istanbul',
         country: 'Turkey',
         ip: (req.headers['x-forwarded-for'] || '85.34.78.112').toString().split(',')[0].trim(),
@@ -124,13 +131,13 @@ module.exports = async function handler(req, res) {
         contactName: restaurant.name,
         city: 'Istanbul',
         country: 'Turkey',
-        address: '-',
+        address: 'Belirtilmedi Mah. Belirtilmedi Sk. No:1',
       },
       billingAddress: {
         contactName: restaurant.name,
         city: 'Istanbul',
         country: 'Turkey',
-        address: '-',
+        address: 'Belirtilmedi Mah. Belirtilmedi Sk. No:1',
       },
       basketItems: [
         {
