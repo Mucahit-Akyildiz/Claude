@@ -521,8 +521,8 @@ begin
     limit 1;
 
   if v_order_id is null then
-    select coalesce(max(daily_number), 0) + 1 into v_daily_number
-      from orders where restaurant_id = s.restaurant_id and created_at::date = now()::date;
+    select coalesce(max(o.daily_number), 0) + 1 into v_daily_number
+      from orders o where o.restaurant_id = s.restaurant_id and o.created_at::date = now()::date;
 
     insert into orders (restaurant_id, table_id, kind, status, daily_number)
     values (s.restaurant_id, p_table_id, 'dine_in', 'open', v_daily_number)
