@@ -152,6 +152,8 @@
   .ticket-item{display:flex;justify-content:space-between;font-size:13px;margin:1.5mm 0;}
   .ticket-item .qty{font-weight:800;margin-right:6px;}
   .ticket-note{font-size:11px;font-style:italic;padding-left:20px;}
+  .ticket-paper{background:#fff;color:#000;font-family:'Courier New',monospace;padding:14px;width:302px;box-shadow:0 2px 10px rgba(0,0,0,.15);}
+  .ticket-paper.pw58{width:219px;}
 </style>
 <script>
   // Sayfa boyanmadan önce doğru temayı uygula (yanıp sönmeyi önler)
@@ -1032,19 +1034,27 @@ function renderPrinterSettingsView(main, session){
 
     <div class="box" style="max-width:none;">
       <h2>Fiş Tasarımı</h2>
-      <div style="display:grid;grid-template-columns:1fr 2fr;gap:10px;align-items:end;max-width:520px;">
-        <div class="field-group"><label>Kağıt Genişliği</label>
-          <select id="td_width">
-            <option value="58" ${design.width==='58'?'selected':''}>58mm</option>
-            <option value="80" ${design.width==='80'?'selected':''}>80mm</option>
-          </select>
+      <div style="display:flex;gap:24px;flex-wrap:wrap;align-items:flex-start;">
+        <div style="flex:1;min-width:260px;">
+          <div class="field-group"><label>Kağıt Genişliği</label>
+            <select id="td_width" oninput="updateTicketPreview()">
+              <option value="58" ${design.width==='58'?'selected':''}>58mm</option>
+              <option value="80" ${design.width==='80'?'selected':''}>80mm</option>
+            </select>
+          </div>
+          <div class="field-group" style="margin-top:10px;"><label>Fiş Başlığında Ek Not (opsiyonel)</label>
+            <input id="td_header" value="${escapeHtml(design.header||'')}" placeholder="örn. Şube: Merkez" oninput="updateTicketPreview()"></div>
+          <div class="field-group" style="margin-top:10px;"><label>Fiş Altında Ek Not (opsiyonel)</label>
+            <input id="td_footer" value="${escapeHtml(design.footer||'')}" placeholder="örn. Afiyet olsun!" oninput="updateTicketPreview()"></div>
+          <button style="margin-top:12px;max-width:200px;" onclick="saveTicketDesign()">Tasarımı Kaydet</button>
+        </div>
+        <div>
+          <p class="muted" style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;margin:0 0 8px;">Önizleme</p>
+          <div id="ticketPreviewWrap" style="background:#e9e9ec;border-radius:10px;padding:16px;display:flex;justify-content:center;">
+            <div id="ticketPreview"></div>
+          </div>
         </div>
       </div>
-      <div class="field-group" style="margin-top:10px;max-width:520px;"><label>Fiş Başlığında Ek Not (opsiyonel)</label>
-        <input id="td_header" value="${escapeHtml(design.header||'')}" placeholder="örn. Şube: Merkez"></div>
-      <div class="field-group" style="margin-top:10px;max-width:520px;"><label>Fiş Altında Ek Not (opsiyonel)</label>
-        <input id="td_footer" value="${escapeHtml(design.footer||'')}" placeholder="örn. Afiyet olsun!"></div>
-      <button style="margin-top:12px;max-width:200px;" onclick="saveTicketDesign()">Tasarımı Kaydet</button>
     </div>
 
     <div class="box" style="max-width:none;">
@@ -1097,6 +1107,7 @@ function renderPrinterSettingsView(main, session){
       </p>
     </div>
   `;
+  updateTicketPreview();
 }
 function saveTicketDesign(){
   setTicketDesign({
@@ -1238,8 +1249,12 @@ async function printKitchenTicket(tableName, items, printerOverride){
   // Varsayilan / yedek yol: tarayicinin yazdirma penceresi.
   const el = document.getElementById('printArea');
   el.className = design.width==='58' ? 'pw58' : '';
+  el.innerHTML = buildTicketHtml(restaurantName, tableName, items, design);
+  setTimeout(() => window.print(), 100);
+}
+function buildTicketHtml(restaurantName, tableName, items, design){
   const now = new Date();
-  el.innerHTML = `
+  return `
     <div class="ticket-title">${escapeHtml(restaurantName)}</div>
     ${design.header ? `<div class="ticket-meta">${escapeHtml(design.header)}</div>` : ''}
     <div class="ticket-meta">${escapeHtml(tableName)}<br>${now.toLocaleDateString('tr-TR')} ${now.toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'})}</div>
@@ -1251,7 +1266,21 @@ async function printKitchenTicket(tableName, items, printerOverride){
     <div class="ticket-line"></div>
     ${design.footer ? `<div class="ticket-meta">${escapeHtml(design.footer)}</div>` : ''}
   `;
-  setTimeout(() => window.print(), 100);
+}
+function updateTicketPreview(){
+  const el = document.getElementById('ticketPreview');
+  if(!el) return;
+  const width = document.getElementById('td_width').value;
+  const header = document.getElementById('td_header').value.trim();
+  const footer = document.getElementById('td_footer').value.trim();
+  const session = getSession();
+  const sampleItems = [
+    { qty:2, name:'Izgara Köfte', note:'Az pişmiş' },
+    { qty:1, name:'Ayran' },
+    { qty:1, name:'Mevsim Salata', note:'Sossuz' },
+  ];
+  el.className = 'ticket-paper' + (width==='58' ? ' pw58' : '');
+  el.innerHTML = buildTicketHtml(session ? session.restaurant_name : 'İŞLETME ADI', 'Masa 3', sampleItems, { header, footer });
 }
 async function cancelTableOrder(tableId){
   if(!confirm('Bu masadaki siparişi iptal etmek istediğinize emin misiniz?')) return;
