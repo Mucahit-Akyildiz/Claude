@@ -24,10 +24,13 @@ function hmacHex(key, message) {
   return crypto.createHmac('sha256', key).update(message).digest('hex');
 }
 
-function iyzicoAuthHeaders(body) {
+// iyzico IYZWSv2: imza randomKey + uriPath + gövde (JSON) üzerinden hesaplanır.
+// uriPath, tam adresin yol kısmıdır (ör. "/payment/iyzipos/checkoutform/initialize/auth/ecom") -
+// bu eksik olursa iyzico "Geçersiz imza" (invalid signature) hatası döner.
+function iyzicoAuthHeaders(uriPath, body) {
   const bodyStr = JSON.stringify(body);
   const rk = randomKey();
-  const signature = hmacHex(IYZICO_SECRET_KEY, rk + bodyStr);
+  const signature = hmacHex(IYZICO_SECRET_KEY, rk + uriPath + bodyStr);
   const authParams = `apiKey:${IYZICO_API_KEY}&randomKey:${rk}&signature:${signature}`;
   const b64 = Buffer.from(authParams).toString('base64');
   return {
@@ -140,8 +143,9 @@ module.exports = async function handler(req, res) {
       ],
     };
 
-    const headers = iyzicoAuthHeaders(body);
-    const iyzicoUrl = `${IYZICO_BASE_URL}/payment/iyzipos/checkoutform/initialize/auth/ecom`;
+    const uriPath = '/payment/iyzipos/checkoutform/initialize/auth/ecom';
+    const headers = iyzicoAuthHeaders(uriPath, body);
+    const iyzicoUrl = `${IYZICO_BASE_URL}${uriPath}`;
 
     let response = null;
     let lastErr = null;

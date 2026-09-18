@@ -23,10 +23,11 @@ function randomKey() {
 function hmacHex(key, message) {
   return crypto.createHmac('sha256', key).update(message).digest('hex');
 }
-function iyzicoAuthHeaders(body) {
+// iyzico IYZWSv2: imza randomKey + uriPath + gövde (JSON) üzerinden hesaplanır.
+function iyzicoAuthHeaders(uriPath, body) {
   const bodyStr = JSON.stringify(body);
   const rk = randomKey();
-  const signature = hmacHex(IYZICO_SECRET_KEY, rk + bodyStr);
+  const signature = hmacHex(IYZICO_SECRET_KEY, rk + uriPath + bodyStr);
   const authParams = `apiKey:${IYZICO_API_KEY}&randomKey:${rk}&signature:${signature}`;
   const b64 = Buffer.from(authParams).toString('base64');
   return {
@@ -50,9 +51,10 @@ module.exports = async function handler(req, res) {
   const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
 
   try {
+    const uriPath = '/payment/iyzipos/checkoutform/auth/detail';
     const body = { locale: 'tr', token };
-    const headers = iyzicoAuthHeaders(body);
-    const response = await fetch(`${IYZICO_BASE_URL}/payment/iyzipos/checkoutform/auth/detail`, {
+    const headers = iyzicoAuthHeaders(uriPath, body);
+    const response = await fetch(`${IYZICO_BASE_URL}${uriPath}`, {
       method: 'POST',
       headers,
       body: JSON.stringify(body),
