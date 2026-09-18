@@ -418,11 +418,12 @@ begin
   return (
     select coalesce(json_agg(json_build_object(
       'order_id', o.id, 'table_id', o.table_id, 'kind', o.kind, 'created_at', o.created_at,
+      'daily_number', o.daily_number,
       'items', (
         select coalesce(json_agg(json_build_object(
           'id', oi.id, 'name', oi.name, 'price', oi.price, 'cost', oi.cost,
           'qty', oi.qty, 'status', oi.status, 'note', oi.note,
-          'station_id', p.station_id
+          'station_id', p.station_id, 'added_at', oi.added_at
         )), '[]'::json)
         from order_items oi left join products p on p.id = oi.product_id
         where oi.order_id = o.id
@@ -495,27 +496,36 @@ grant execute on function adjust_stock to anon;
 -- ---------- SİPARİŞ AKIŞI ----------
 -- Stok artık burada değil, ürün sepete eklenirken (adjust_stock ile) düşürülüyor;
 -- bu fonksiyon sadece siparişi kaydeder.
-create or replace function send_order(p_token uuid, p_table_id uuid, p_items json)
-returns uuid
+-- daily_number: gunluk (created_at::date bazinda) sifirlanan siparis numarasi,
+-- sadece YENI bir masa siparisi acilirken atanir - mutfak fisinde gosteriliyor.
+alter table orders add column if not exists daily_number int;
+
+drop function if exists send_order(uuid, uuid, json);
+create function send_order(p_token uuid, p_table_id uuid, p_items json)
+returns table(order_id uuid, daily_number int)
 language plpgsql
 security definer
 as $$
 declare
   s staff_sessions%rowtype;
   v_order_id uuid;
+  v_daily_number int;
   item json;
   v_qty int;
   v_product_id uuid;
 begin
   s := _session_check(p_token);
 
-  select id into v_order_id from orders
-    where restaurant_id = s.restaurant_id and table_id = p_table_id and status = 'open'
+  select o.id, o.daily_number into v_order_id, v_daily_number from orders o
+    where o.restaurant_id = s.restaurant_id and o.table_id = p_table_id and o.status = 'open'
     limit 1;
 
   if v_order_id is null then
-    insert into orders (restaurant_id, table_id, kind, status)
-    values (s.restaurant_id, p_table_id, 'dine_in', 'open')
+    select coalesce(max(daily_number), 0) + 1 into v_daily_number
+      from orders where restaurant_id = s.restaurant_id and created_at::date = now()::date;
+
+    insert into orders (restaurant_id, table_id, kind, status, daily_number)
+    values (s.restaurant_id, p_table_id, 'dine_in', 'open', v_daily_number)
     returning id into v_order_id;
   end if;
 
@@ -532,7 +542,7 @@ begin
     );
   end loop;
 
-  return v_order_id;
+  return query select v_order_id, v_daily_number;
 end;
 $$;
 grant execute on function send_order to anon;
