@@ -1718,18 +1718,14 @@ async function removeTable(id){
 
 /* --- Ürünler --- */
 function renderProductsSettings(el, session){
-  el.innerHTML = `<div class="box" style="max-width:none;">
-    <h2>Ürünler</h2>
-    <p class="muted" style="text-align:left;margin:0 0 16px;">Stok alanını boş bırakırsanız o ürün için stok takibi yapılmaz. "Kapat" ile bir ürünü geçici olarak siparişe kapatabilirsiniz.</p>
-    <div class="settings-table-wrap">
-    <table class="settings-table">
-      <thead><tr><th>Ürün Adı</th><th>İstasyon</th><th>Fiyat</th><th>Maliyet</th><th>Stok</th><th>Durum</th><th></th></tr></thead>
-      <tbody>
-      ${APP.config.products.map(p => `
+  const stations = APP.config.stations || [];
+  const products = APP.config.products || [];
+
+  const rowsFor = (list) => list.map(p => `
         <tr>
           <td class="col-name"><input value="${escapeHtml(p.name)}" id="pr_name_${p.id}"></td>
           <td class="col-name"><select id="pr_st_${p.id}">
-            ${APP.config.stations.map(s => `<option value="${s.id}" ${s.id===p.station_id?'selected':''}>${escapeHtml(s.name)}</option>`).join('')}
+            ${stations.map(s => `<option value="${s.id}" ${s.id===p.station_id?'selected':''}>${escapeHtml(s.name)}</option>`).join('')}
           </select></td>
           <td class="col-num"><input type="number" value="${p.price}" id="pr_price_${p.id}"></td>
           <td class="col-num"><input type="number" value="${p.cost}" id="pr_cost_${p.id}"></td>
@@ -1747,10 +1743,26 @@ function renderProductsSettings(el, session){
             <button class="sbtn" style="background:var(--accent2);color:var(--btn-ink);" onclick="openRecipeModal('${p.id}')">Reçete</button>
             <button class="sbtn" style="background:var(--red);color:var(--btn-ink);" onclick="removeProduct('${p.id}')">Sil</button>
           </td>
-        </tr>`).join('')}
-      </tbody>
-    </table>
-    </div>
+        </tr>`).join('');
+
+  const groupHtml = (title, colorDot, list) => list.length===0 ? '' : `
+    <div style="margin-bottom:22px;">
+      <h3 style="display:flex;align-items:center;gap:8px;font-size:14px;margin:0 0 10px;">${colorDot?`<span style="width:10px;height:10px;border-radius:50%;background:${colorDot};display:inline-block;flex-shrink:0;"></span>`:''}${escapeHtml(title)}<span class="muted" style="font-weight:400;">(${list.length})</span></h3>
+      <div class="settings-table-wrap">
+      <table class="settings-table">
+        <thead><tr><th>Ürün Adı</th><th>İstasyon</th><th>Fiyat</th><th>Maliyet</th><th>Stok</th><th>Durum</th><th></th></tr></thead>
+        <tbody>${rowsFor(list)}</tbody>
+      </table>
+      </div>
+    </div>`;
+
+  const unassigned = products.filter(p => !stations.some(s => s.id===p.station_id));
+
+  el.innerHTML = `<div class="box" style="max-width:none;">
+    <h2>Ürünler</h2>
+    <p class="muted" style="text-align:left;margin:0 0 16px;">Stok alanını boş bırakırsanız o ürün için stok takibi yapılmaz. "Kapat" ile bir ürünü geçici olarak siparişe kapatabilirsiniz.</p>
+    ${stations.map(s => groupHtml(s.name, s.color, products.filter(p => p.station_id===s.id))).join('')}
+    ${groupHtml('İstasyonsuz', null, unassigned)}
 
     <div class="add-row-panel">
       <p>Yeni Ürün Ekle</p>
