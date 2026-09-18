@@ -39,6 +39,18 @@ function iyzicoAuthHeaders(uriPath, body) {
   };
 }
 
+// payment-initialize.js'teki ile ayni: odeme basarisiz olursa, odemeden ONCE olusturulan
+// pasif isletme kaydini geri alir (cascade ile payments/app_users da silinir), boylece
+// kullanici ayni isletme koduyla hemen tekrar deneyebilir.
+async function rollbackRegistration(supabase, restaurantId) {
+  try {
+    await supabase.from('app_users').delete().eq('restaurant_id', restaurantId);
+    await supabase.from('restaurants').delete().eq('id', restaurantId);
+  } catch (e) {
+    console.error('rollbackRegistration basarisiz:', e);
+  }
+}
+
 module.exports = async function handler(req, res) {
   const loginUrl = process.env.APP_LOGIN_URL || '/';
   const token = req.method === 'POST' ? (req.body || {}).token : req.query.token;
@@ -51,8 +63,22 @@ module.exports = async function handler(req, res) {
   const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
 
   try {
+    // iyzico'nun checkoutform/auth/detail uc noktasi conversationId alanini da bekliyor -
+    // eksik olunca "Geçersiz istek" (errorCode 11) donuyordu. Bunu kendi kaydimizdan (token
+    // ile eslesen payments satirindan) aliyoruz, iyzico'nun cevabina guvenmeden once.
+    const { data: paymentLookup } = await supabase
+      .from('payments')
+      .select('restaurant_id, package_id')
+      .eq('provider_ref', token)
+      .maybeSingle();
+
+    if (!paymentLookup) {
+      res.redirect(302, loginUrl + '?odeme=bulunamadi');
+      return;
+    }
+
     const uriPath = '/payment/iyzipos/checkoutform/auth/detail';
-    const body = { locale: 'tr', token };
+    const body = { locale: 'tr', conversationId: paymentLookup.restaurant_id, token };
     const headers = iyzicoAuthHeaders(uriPath, body);
     const response = await fetch(`${IYZICO_BASE_URL}${uriPath}`, {
       method: 'POST',
@@ -62,17 +88,16 @@ module.exports = async function handler(req, res) {
     const result = await response.json();
 
     if (result.status !== 'success' || result.paymentStatus !== 'SUCCESS') {
-      // Teshis icin iyzico'nun tam yanitini kaydediyoruz (Vercel loglarina erisimimiz yok).
-      await supabase
-        .from('payments')
-        .update({ status: 'failed', debug_response: JSON.stringify(result) })
-        .eq('provider_ref', token);
+      // restaurants -> payments CASCADE ile bagli, rollback ile zaten silinecek - o yuzden
+      // ayrica bir "failed" guncellemesi yapmiyoruz, sadece teshis icin konsola yaziyoruz.
+      console.error('iyzico odeme dogrulamasi basarisiz:', result);
+      await rollbackRegistration(supabase, paymentLookup.restaurant_id);
       res.redirect(302, loginUrl + '?odeme=basarisiz');
       return;
     }
 
-    const restaurantId = result.conversationId;
-    const packageId = result.basketItems && result.basketItems[0] ? result.basketItems[0].id : null;
+    const restaurantId = paymentLookup.restaurant_id;
+    const packageId = paymentLookup.package_id;
     const durationDays = PACKAGE_DURATIONS[packageId] || 14;
     const expiresAt = new Date(Date.now() + durationDays * 24 * 60 * 60 * 1000).toISOString();
 
