@@ -77,7 +77,7 @@ module.exports = async function handler(req, res) {
       return;
     }
 
-    const uriPath = '/payment/iyzipos/checkoutform/auth/detail';
+    const uriPath = '/payment/iyzipos/checkoutform/auth/ecom/detail';
     const body = { locale: 'tr', conversationId: paymentLookup.restaurant_id, token };
     const headers = iyzicoAuthHeaders(uriPath, body);
     const response = await fetch(`${IYZICO_BASE_URL}${uriPath}`, {
