@@ -421,9 +421,11 @@ begin
       'items', (
         select coalesce(json_agg(json_build_object(
           'id', oi.id, 'name', oi.name, 'price', oi.price, 'cost', oi.cost,
-          'qty', oi.qty, 'status', oi.status, 'note', oi.note
+          'qty', oi.qty, 'status', oi.status, 'note', oi.note,
+          'station_id', p.station_id
         )), '[]'::json)
-        from order_items oi where oi.order_id = o.id
+        from order_items oi left join products p on p.id = oi.product_id
+        where oi.order_id = o.id
       )
     )), '[]'::json)
     from orders o

@@ -134,7 +134,7 @@
   .field-group label{font-size:11px;color:var(--muted);font-weight:600;}
   .field-group input,.field-group select{margin:0;}
 
-  /* ---- Mutfak fişi yazdırma (80mm termal fiş kağıdına uygun) ---- */
+  /* ---- Mutfak fişi yazdırma (termal fiş kağıdına uygun) ---- */
   #printArea{display:none;}
   @media print{
     body *{visibility:hidden;}
@@ -143,6 +143,7 @@
       display:block;position:fixed;top:0;left:0;width:80mm;
       font-family:'Courier New',monospace;color:#000;padding:4mm;
     }
+    #printArea.pw58{width:58mm;}
     @page{margin:0;size:80mm auto;}
   }
   .ticket-title{text-align:center;font-weight:800;font-size:15px;margin-bottom:2mm;text-transform:uppercase;}
@@ -206,6 +207,7 @@ const APP = { view:'home', config:null, selectedZone:null, draftCart:{}, liveOrd
 const NAV_ITEMS = [
   { view:'order', icon:'🍽️', label:'Sipariş Al', roles:['waiter','manager'] },
   { view:'kitchen', icon:'🧑‍🍳', label:'Mutfak Ekranı', roles:['kitchen','manager'] },
+  { view:'printerSettings', icon:'🖨️', label:'Yazıcı Ayarları', roles:['kitchen','waiter','manager'] },
   { view:'payments', icon:'💳', label:'Ödemeler', roles:['manager'] },
   { view:'reports', icon:'📊', label:'Finansal Analiz', roles:['manager'] },
   { view:'settings', icon:'⚙️', label:'Ayarlar', roles:['manager'] },
@@ -268,6 +270,7 @@ function render(){
   else if(APP.view==='payments') renderPaymentsView(main, session);
   else if(APP.view==='settings') renderSettingsView(main, session);
   else if(APP.view==='reports') renderReportsView(main, session);
+  else if(APP.view==='printerSettings') renderPrinterSettingsView(main, session);
 }
 function goToView(view){ APP.view = view; render(); }
 
@@ -571,7 +574,10 @@ async function refreshKitchenItems(session){
   const cards = [];
   APP.kitchenPendingByTable = {};
   APP.liveOrders.forEach(o => {
-    const pending = o.items.filter(i => i.status==='pending');
+    // Sadece bu istasyona ait ve henuz hazirlanmamis urunler - her masanin bu
+    // istasyona dusen urunleri tek bir kartta (masa bazinda) gruplanmis olarak gorunur.
+    // station_id atanmamis (null) urunler hicbir ekranda kaybolmasin diye her istasyonda gosterilir.
+    const pending = o.items.filter(i => i.status==='pending' && (i.station_id===APP.kitchenStation || i.station_id==null));
     if(pending.length===0) return;
     const tableName = tableNameForId(o.table_id);
     APP.kitchenPendingByTable[o.table_id] = { tableName, items: pending };
@@ -998,18 +1004,244 @@ async function confirmOrder(tableId){
   if(cfgRes.data) APP.config = cfgRes.data;
   await closeTableModal();
 }
-/* ---- Mutfak fişi yazdırma ---- */
+/* ================= YAZICI AYARLARI + MUTFAK FİŞİ ================= */
+/* Yazıcı ve tasarım ayarları bu CİHAZA/tarayıcıya özeldir (localStorage) - her
+   ekranın kendi fiziksel yazıcısı olabileceği için kasıtlı olarak veritabanında
+   değil, sadece bu cihazda tutuluyor. */
+function getTicketDesign(){
+  try{
+    return JSON.parse(localStorage.getItem('rys_ticket_design')) || { width:'80', header:'', footer:'' };
+  }catch(e){ return { width:'80', header:'', footer:'' }; }
+}
+function setTicketDesign(d){ try{ localStorage.setItem('rys_ticket_design', JSON.stringify(d)); }catch(e){} }
+function getPrinters(){
+  try{ return JSON.parse(localStorage.getItem('rys_printers')) || []; }catch(e){ return []; }
+}
+function setPrinters(list){ try{ localStorage.setItem('rys_printers', JSON.stringify(list)); }catch(e){} }
+function getActivePrinterId(){ try{ return localStorage.getItem('rys_active_printer_id') || ''; }catch(e){ return ''; } }
+function setActivePrinterId(id){ try{ localStorage.setItem('rys_active_printer_id', id||''); }catch(e){} }
+
+function renderPrinterSettingsView(main, session){
+  const design = getTicketDesign();
+  const printers = getPrinters();
+  const activeId = getActivePrinterId();
+  const usbSupported = !!(navigator.usb);
+  main.innerHTML = `
+    <h1>Yazıcı Ayarları</h1>
+    <p class="muted" style="text-align:left;">Bu ayarlar sadece <b>bu ekrana/tarayıcıya</b> özeldir — her cihazda ayrı ayrı yapılandırılır, veritabanına kaydedilmez.</p>
+
+    <div class="box" style="max-width:none;">
+      <h2>Fiş Tasarımı</h2>
+      <div style="display:grid;grid-template-columns:1fr 2fr;gap:10px;align-items:end;max-width:520px;">
+        <div class="field-group"><label>Kağıt Genişliği</label>
+          <select id="td_width">
+            <option value="58" ${design.width==='58'?'selected':''}>58mm</option>
+            <option value="80" ${design.width==='80'?'selected':''}>80mm</option>
+          </select>
+        </div>
+      </div>
+      <div class="field-group" style="margin-top:10px;max-width:520px;"><label>Fiş Başlığında Ek Not (opsiyonel)</label>
+        <input id="td_header" value="${escapeHtml(design.header||'')}" placeholder="örn. Şube: Merkez"></div>
+      <div class="field-group" style="margin-top:10px;max-width:520px;"><label>Fiş Altında Ek Not (opsiyonel)</label>
+        <input id="td_footer" value="${escapeHtml(design.footer||'')}" placeholder="örn. Afiyet olsun!"></div>
+      <button style="margin-top:12px;max-width:200px;" onclick="saveTicketDesign()">Tasarımı Kaydet</button>
+    </div>
+
+    <div class="box" style="max-width:none;">
+      <h2>Bu Ekranın Yazıcısı</h2>
+      <p class="muted" style="text-align:left;">Hangi yazıcı seçiliyse, mutfağa sipariş gönderildiğinde fiş <b>doğrudan ona</b> (pencere açmadan) gönderilmeye çalışılır. Uygun bir USB yazıcı bulunamazsa otomatik olarak tarayıcının yazdırma penceresine döner.</p>
+      <select id="activePrinterSelect" onchange="setActivePrinterId(this.value)" style="max-width:320px;">
+        <option value="" ${!activeId?'selected':''}>Tarayıcı Yazdırma Penceresi (varsayılan)</option>
+        ${printers.map(p => `<option value="${p.id}" ${p.id===activeId?'selected':''}>${escapeHtml(p.name)} (${p.type==='usb'?'USB - doğrudan':'Tarayıcı penceresi'})</option>`).join('')}
+      </select>
+    </div>
+
+    <div class="box" style="max-width:none;">
+      <h2>Yazıcılar</h2>
+      ${!usbSupported ? '<p class="muted" style="text-align:left;">⚠️ Bu tarayıcı USB yazıcı bağlantısını (WebUSB) desteklemiyor — Chrome veya Edge kullanmanız gerekiyor. Yine de "Tarayıcı Yazdırma Penceresi" tipinde yazıcı ekleyebilirsiniz.</p>' : ''}
+      <div class="settings-table-wrap">
+      <table class="settings-table">
+        <thead><tr><th>Ad</th><th>Tür</th><th></th></tr></thead>
+        <tbody>
+        ${printers.map(p => `
+          <tr>
+            <td class="col-name">${escapeHtml(p.name)}</td>
+            <td class="col-name">${p.type==='usb' ? '🔌 USB (doğrudan)' : '🖨️ Tarayıcı penceresi'}</td>
+            <td style="white-space:nowrap;">
+              ${p.type==='usb' ? `<button class="sbtn" onclick="reconnectUsbPrinter('${p.id}')">Bağlan</button>` : ''}
+              <button class="sbtn" onclick="testPrintPrinter('${p.id}')">Test Yazdır</button>
+              <button class="sbtn" style="background:var(--red);color:var(--btn-ink);" onclick="removePrinterEntry('${p.id}')">Sil</button>
+            </td>
+          </tr>`).join('')}
+        </tbody>
+      </table>
+      </div>
+      <div class="add-row-panel">
+        <p>Yeni Yazıcı Ekle</p>
+        <div style="display:grid;grid-template-columns:2fr 1.4fr auto;gap:10px;align-items:end;">
+          <div class="field-group"><label>Yazıcı Adı</label><input id="np_pname" placeholder="örn. Mutfak Yazıcısı"></div>
+          <div class="field-group"><label>Bağlantı Türü</label>
+            <select id="np_ptype">
+              <option value="browser">Tarayıcı Yazdırma Penceresi</option>
+              <option value="usb" ${usbSupported?'':'disabled'}>USB (doğrudan, deneysel)</option>
+            </select>
+          </div>
+          <button style="width:auto;" onclick="addPrinterEntry()">+ Ekle</button>
+        </div>
+      </div>
+      <p class="muted" style="text-align:left;margin-top:14px;font-size:12px;">
+        Not: USB bağlantısı her termal yazıcı modelinde garanti çalışmaz (yazıcı, standart bir USB arayüzü üzerinden
+        ham komut kabul etmelidir). Çalışmazsa "Tarayıcı Yazdırma Penceresi" seçin — bu her yazıcıda çalışır, ve
+        Chrome'u <code>--kiosk-printing</code> bayrağıyla açıp varsayılan yazıcınızı termal yazıcı yaparsanız o da
+        pencere açmadan sessizce basar.
+      </p>
+    </div>
+  `;
+}
+function saveTicketDesign(){
+  setTicketDesign({
+    width: document.getElementById('td_width').value,
+    header: document.getElementById('td_header').value.trim(),
+    footer: document.getElementById('td_footer').value.trim(),
+  });
+  alert('Tasarım kaydedildi.');
+}
+async function addPrinterEntry(){
+  const name = document.getElementById('np_pname').value.trim();
+  const type = document.getElementById('np_ptype').value;
+  if(!name){ alert('Yazıcı adı girin'); return; }
+  const id = 'p_' + Date.now();
+  let usbInfo = null;
+  if(type==='usb'){
+    try{
+      const device = await navigator.usb.requestDevice({ filters: [] });
+      usbInfo = { vendorId: device.vendorId, productId: device.productId };
+    }catch(e){
+      alert('USB yazıcı seçilmedi/eşleştirilemedi: ' + e.message);
+      return;
+    }
+  }
+  const printers = getPrinters();
+  printers.push({ id, name, type, usbInfo });
+  setPrinters(printers);
+  renderSettingsFromCurrentSession();
+}
+function removePrinterEntry(id){
+  if(!confirm('Bu yazıcıyı silmek istediğinize emin misiniz?')) return;
+  setPrinters(getPrinters().filter(p => p.id!==id));
+  if(getActivePrinterId()===id) setActivePrinterId('');
+  renderSettingsFromCurrentSession();
+}
+async function reconnectUsbPrinter(id){
+  const printers = getPrinters();
+  const p = printers.find(x => x.id===id);
+  if(!p) return;
+  try{
+    const device = await navigator.usb.requestDevice({ filters: [] });
+    p.usbInfo = { vendorId: device.vendorId, productId: device.productId };
+    setPrinters(printers);
+    alert('Yazıcı eşleştirildi: ' + device.productName || 'USB Yazıcı');
+  }catch(e){
+    alert('Eşleştirilemedi: ' + e.message);
+  }
+}
+function testPrintPrinter(id){
+  const printers = getPrinters();
+  const p = printers.find(x => x.id===id);
+  if(!p) return;
+  printKitchenTicket('TEST', [{ qty:1, name:'Test Ürünü', note:'Bu bir test fişidir' }], p);
+}
+function renderSettingsFromCurrentSession(){
+  const session = getSession();
+  if(session) renderPrinterSettingsView(document.getElementById('main'), session);
+}
+
+/* ---- ESC/POS ham komut olusturma (WebUSB dogrudan yazdirma icin) ---- */
+function escposEncodeText(text){
+  // Basit yaklasim: UTF-8 byte'lari gonderiyoruz. Turkce ozel karakterler
+  // (ç,ğ,ı,ö,ş,ü) bazi yazici modellerinde/kod sayfalarinda hatali cikabilir -
+  // yaziciniz farkli bir kod sayfasi gerektiriyorsa bildirin, ona gore ayarlarim.
+  return new TextEncoder().encode(text);
+}
+function buildEscPosTicket(restaurantName, tableName, items, design){
+  const chunks = [];
+  const push = (arr) => chunks.push(arr instanceof Uint8Array ? arr : new Uint8Array(arr));
+  push([0x1B, 0x40]); // init
+  push([0x1B, 0x61, 0x01]); // center
+  push([0x1B, 0x45, 0x01]); // bold on
+  push(escposEncodeText((restaurantName||'').toUpperCase() + '\n'));
+  push([0x1B, 0x45, 0x00]); // bold off
+  if(design.header) push(escposEncodeText(design.header + '\n'));
+  const now = new Date();
+  push(escposEncodeText(tableName + '\n'));
+  push(escposEncodeText(now.toLocaleDateString('tr-TR') + ' ' + now.toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'}) + '\n'));
+  push([0x1B, 0x61, 0x00]); // left align
+  const lineWidth = design.width==='58' ? 32 : 48;
+  push(escposEncodeText('-'.repeat(lineWidth) + '\n'));
+  items.forEach(it => {
+    push(escposEncodeText(it.qty + 'x ' + it.name + '\n'));
+    if(it.note) push(escposEncodeText('  Not: ' + it.note + '\n'));
+  });
+  push(escposEncodeText('-'.repeat(lineWidth) + '\n'));
+  if(design.footer){
+    push([0x1B, 0x61, 0x01]);
+    push(escposEncodeText(design.footer + '\n'));
+  }
+  push(escposEncodeText('\n\n\n'));
+  push([0x1D, 0x56, 0x42, 0x00]); // kagit kes
+  let total = 0; chunks.forEach(c => total += c.length);
+  const out = new Uint8Array(total);
+  let off = 0; chunks.forEach(c => { out.set(c, off); off += c.length; });
+  return out;
+}
+async function sendToUsbPrinter(printer, bytes){
+  if(!navigator.usb || !printer.usbInfo) return false;
+  try{
+    const devices = await navigator.usb.getDevices();
+    const device = devices.find(d => d.vendorId===printer.usbInfo.vendorId && d.productId===printer.usbInfo.productId);
+    if(!device) return false; // henuz izin verilmemis / bagli degil - tarayici penceresine dus
+    await device.open();
+    if(device.configuration === null) await device.selectConfiguration(1);
+    const iface = device.configuration.interfaces[0];
+    await device.claimInterface(iface.interfaceNumber);
+    const endpoint = iface.alternate.endpoints.find(e => e.direction==='out');
+    if(!endpoint) { await device.close(); return false; }
+    await device.transferOut(endpoint.endpointNumber, bytes);
+    await device.close();
+    return true;
+  }catch(e){
+    console.error('USB yazdirma basarisiz:', e);
+    return false;
+  }
+}
+
+/* ---- Mutfak fişi yazdırma (ana giris noktasi) ---- */
 function reprintKitchenTicket(tableId){
   const entry = APP.kitchenPendingByTable && APP.kitchenPendingByTable[tableId];
   if(!entry){ alert('Bu masa için bekleyen ürün kalmadı.'); return; }
   printKitchenTicket(entry.tableName, entry.items);
 }
-function printKitchenTicket(tableName, items){
+async function printKitchenTicket(tableName, items, printerOverride){
   const session = getSession();
-  const now = new Date();
+  const restaurantName = session ? session.restaurant_name : '';
+  const design = getTicketDesign();
+  const printers = getPrinters();
+  const printer = printerOverride || printers.find(p => p.id===getActivePrinterId());
+
+  if(printer && printer.type==='usb'){
+    const bytes = buildEscPosTicket(restaurantName, tableName, items, design);
+    const ok = await sendToUsbPrinter(printer, bytes);
+    if(ok) return; // basarili - tarayici penceresi ACILMADI
+    console.warn('USB yaziciya ulasilamadi, tarayici penceresine dusuluyor.');
+  }
+
+  // Varsayilan / yedek yol: tarayicinin yazdirma penceresi.
   const el = document.getElementById('printArea');
+  el.className = design.width==='58' ? 'pw58' : '';
+  const now = new Date();
   el.innerHTML = `
-    <div class="ticket-title">${escapeHtml(session ? session.restaurant_name : '')}</div>
+    <div class="ticket-title">${escapeHtml(restaurantName)}</div>
+    ${design.header ? `<div class="ticket-meta">${escapeHtml(design.header)}</div>` : ''}
     <div class="ticket-meta">${escapeHtml(tableName)}<br>${now.toLocaleDateString('tr-TR')} ${now.toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'})}</div>
     <div class="ticket-line"></div>
     ${items.map(it => `
@@ -1017,6 +1249,7 @@ function printKitchenTicket(tableName, items){
       ${it.note ? `<div class="ticket-note">Not: ${escapeHtml(it.note)}</div>` : ''}
     `).join('')}
     <div class="ticket-line"></div>
+    ${design.footer ? `<div class="ticket-meta">${escapeHtml(design.footer)}</div>` : ''}
   `;
   setTimeout(() => window.print(), 100);
 }
