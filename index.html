@@ -611,14 +611,17 @@ async function refreshKitchenItems(session){
         <b>${escapeHtml(tableName)}${o.daily_number?' <span class="muted" style="font-weight:400;font-size:12px;">#'+o.daily_number+'</span>':''}</b>
         <span style="cursor:pointer;color:var(--muted);font-size:16px;" onclick="reprintKitchenTicket('${o.table_id}')" title="Fişi tekrar yazdır">🖨️</span>
       </div>
-      ${pending.map(it => `<div class="kitchen-item-row" style="display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-top:1px dashed var(--border);gap:10px;">
-        <span>${it.qty}x ${escapeHtml(it.name)}${it.note?'<div class="muted" style="font-size:12px;font-style:italic;">'+escapeHtml(it.note)+'</div>':''}</span>
-        <span class="kitchen-timer" data-added="${it.added_at||''}" style="flex-shrink:0;">-</span>
-        <button style="width:auto;padding:8px 14px;font-size:14px;background:var(--green);color:var(--btn-ink);flex-shrink:0;" onclick="markReady('${it.id}')">Hazır</button>
+      ${pending.map(it => `<div class="kitchen-item-row" style="padding:10px 0;border-top:1px dashed var(--border);">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;">
+          <span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${it.qty}x ${escapeHtml(it.name)}</span>
+          <span class="kitchen-timer" data-added="${it.added_at||''}" style="flex-shrink:0;">-</span>
+          <button style="width:auto;padding:8px 14px;font-size:14px;background:var(--green);color:var(--btn-ink);flex-shrink:0;" onclick="markReady('${it.id}')">Hazır</button>
+        </div>
+        ${it.note?'<div class="muted" style="font-size:12px;font-style:italic;margin-top:4px;">Not: '+escapeHtml(it.note)+'</div>':''}
       </div>`).join('')}
       </div>`);
   });
-  wrap.innerHTML = cards.length ? `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px;">${cards.join('')}</div>` : '<p class="muted">Bekleyen sipariş yok.</p>';
+  wrap.innerHTML = cards.length ? `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:12px;">${cards.join('')}</div>` : '<p class="muted">Bekleyen sipariş yok.</p>';
 
   // Daha once gorulmemis (yeni gelen) urun varsa zil calsin. Ilk yuklemede calmamasi icin
   // kitchenSeenItemIds null iken sadece kayit tutulur, karsilastirma yapilmaz.
