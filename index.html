@@ -807,6 +807,14 @@ function openSplitPay(){
     <input id="splitCash" type="number" step="0.01" min="0" max="${total}" value="0" oninput="updateSplitPayPreview(${total})">
     <p id="splitCardPreview" class="muted" style="font-size:13px;">Kredi Kartı: ${money(total)}</p>
     <div style="background:var(--panel2);border-radius:10px;padding:10px;margin:10px 0;">
+      <p class="muted" style="font-size:12px;margin:0 0 6px;">Nakiti Birden Fazla Kişiye Böl (opsiyonel)</p>
+      <div style="display:flex;gap:8px;">
+        <input id="cashChargeCount" type="number" min="1" value="1" style="margin:0;">
+        <button style="width:auto;padding:8px 10px;margin:0;" onclick="genCashCharges(${total})">Parçaları Oluştur</button>
+      </div>
+      <div id="cashChargesBox" style="margin-top:8px;"></div>
+    </div>
+    <div style="background:var(--panel2);border-radius:10px;padding:10px;margin:10px 0;">
       <p class="muted" style="font-size:12px;margin:0 0 6px;">Kredi Kartını Birden Fazla Çekime Böl (opsiyonel)</p>
       <div style="display:flex;gap:8px;">
         <input id="cardChargeCount" type="number" min="1" value="1" style="margin:0;">
@@ -827,11 +835,32 @@ function calcSplitPay(total){
   updateSplitPayPreview(total);
   const cardPeople = Math.round(tp-cp);
   if(cardPeople>0){ document.getElementById('cardChargeCount').value = cardPeople; genCardCharges(total); }
+  if(cp>0){ document.getElementById('cashChargeCount').value = cp; genCashCharges(total); }
 }
 function updateSplitPayPreview(total){
   let cash = parseFloat(document.getElementById('splitCash').value)||0;
   if(cash<0) cash=0; if(cash>total) cash=total;
   document.getElementById('splitCardPreview').textContent = 'Kredi Kartı: '+money(total-cash);
+}
+function genCashCharges(total){
+  const cash = parseFloat(document.getElementById('splitCash').value)||0;
+  if(cash<=0){ alert('Bölünecek nakit tutar yok'); return; }
+  const count = Math.max(1, parseInt(document.getElementById('cashChargeCount').value)||1);
+  const base = Math.floor((cash/count)*100)/100;
+  const charges = [];
+  let sum=0;
+  for(let i=0;i<count-1;i++){ charges.push(base); sum+=base; }
+  charges.push(Math.round((cash-sum)*100)/100);
+  document.getElementById('cashChargesBox').innerHTML = charges.map((c,i) =>
+    `<div style="display:flex;gap:8px;align-items:center;margin-bottom:4px;"><span class="muted" style="width:50px;font-size:12px;">Nakit ${i+1}:</span><input class="cash-input" type="number" step="0.01" value="${c}" style="margin:0;" oninput="updateCashSum()"></div>`
+  ).join('') + `<p id="cashSumInfo" class="muted" style="font-size:12px;margin-top:6px;"></p>`;
+  updateCashSum(cash);
+}
+function updateCashSum(needed){
+  const inputs = document.querySelectorAll('.cash-input');
+  let sum=0; inputs.forEach(i => sum += parseFloat(i.value)||0);
+  const info = document.getElementById('cashSumInfo'); if(!info) return;
+  info.textContent = 'Nakit toplamı: '+money(sum)+(needed!=null?' / gerekli: '+money(needed):'');
 }
 function genCardCharges(total){
   const cash = parseFloat(document.getElementById('splitCash').value)||0;
