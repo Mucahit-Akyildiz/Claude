@@ -179,10 +179,16 @@ module.exports = async function handler(req, res) {
       }
     }
     if (!response) {
-      // Teshis icin gercek network hatasini (DNS/timeout/reset vb.) veritabanina kaydediyoruz.
-      // restaurants -> payments/app_users CASCADE silme kuraliyla bagli, o yuzden burada ayrica
-      // bir "basarisiz" payments satiri eklemiyoruz (rollback ile zaten silinecekti).
-      console.error("iyzico'ya ulaşılamadı:", lastErr);
+      // Teshis icin gercek network hatasini (DNS/timeout/reset vb.) rollback'ten etkilenmeyen
+      // ayri bir tabloya kaydediyoruz (restaurants -> payments CASCADE ile silindigi icin
+      // payments'a yazmanin bir anlami yok).
+      const errDetail = lastErr
+        ? { message: lastErr.message, code: lastErr.code, cause: lastErr.cause ? String(lastErr.cause) : null }
+        : { message: 'bilinmeyen hata' };
+      await supabase.from('payment_debug_log').insert({
+        context: 'payment-initialize:fetch_failed',
+        payload: JSON.stringify({ restaurant_id: restaurant.id, ...errDetail }),
+      });
       await rollbackRegistration(supabase, restaurant.id);
       res.status(502).json({
         errorMessage: "iyzico'ya birden fazla denemede ulaşılamadı: " + (lastErr ? lastErr.message : 'bilinmeyen hata'),
@@ -193,7 +199,10 @@ module.exports = async function handler(req, res) {
     const result = await response.json();
 
     if (result.status !== 'success' || !result.paymentPageUrl) {
-      console.error('iyzico odeme baslatma reddetti:', result);
+      await supabase.from('payment_debug_log').insert({
+        context: 'payment-initialize:iyzico_rejected',
+        payload: JSON.stringify({ restaurant_id: restaurant.id, result }),
+      });
       await rollbackRegistration(supabase, restaurant.id);
       res.status(400).json({ errorMessage: 'Odeme baslatilamadi: ' + (result.errorMessage || JSON.stringify(result)) });
       return;

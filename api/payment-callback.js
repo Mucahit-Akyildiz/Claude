@@ -88,9 +88,12 @@ module.exports = async function handler(req, res) {
     const result = await response.json();
 
     if (result.status !== 'success' || result.paymentStatus !== 'SUCCESS') {
-      // restaurants -> payments CASCADE ile bagli, rollback ile zaten silinecek - o yuzden
-      // ayrica bir "failed" guncellemesi yapmiyoruz, sadece teshis icin konsola yaziyoruz.
-      console.error('iyzico odeme dogrulamasi basarisiz:', result);
+      // restaurants -> payments CASCADE ile bagli, rollback bu satiri da silecegi icin
+      // teshis bilgisini rollback'ten etkilenmeyen ayri bir tabloya yaziyoruz.
+      await supabase.from('payment_debug_log').insert({
+        context: 'payment-callback:detail_failed',
+        payload: JSON.stringify({ token, restaurant_id: paymentLookup.restaurant_id, result }),
+      });
       await rollbackRegistration(supabase, paymentLookup.restaurant_id);
       res.redirect(302, loginUrl + '?odeme=basarisiz');
       return;
@@ -126,6 +129,14 @@ module.exports = async function handler(req, res) {
 
     res.redirect(302, loginUrl + '?odeme=basarili');
   } catch (e) {
+    try {
+      await supabase.from('payment_debug_log').insert({
+        context: 'payment-callback:exception',
+        payload: JSON.stringify({ token, message: e.message, stack: e.stack }),
+      });
+    } catch (logErr) {
+      console.error('payment_debug_log yazilamadi:', logErr);
+    }
     console.error(e);
     res.redirect(302, loginUrl + '?odeme=hata');
   }
