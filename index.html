@@ -997,7 +997,7 @@ async function confirmOrder(tableId){
     return;
   }
   APP.draftCart[tableId] = [];
-  printKitchenTicket(tableNameForId(tableId), items);
+  printKitchenTicket(tableNameForId(tableId), items, null, true);
   const [liveRes, cfgRes] = await Promise.all([
     sb.rpc('get_live_orders', { p_token: session.session_token }),
     sb.rpc('get_restaurant_config', { p_token: session.session_token })
@@ -1232,7 +1232,7 @@ function reprintKitchenTicket(tableId){
   if(!entry){ alert('Bu masa için bekleyen ürün kalmadı.'); return; }
   printKitchenTicket(entry.tableName, entry.items);
 }
-async function printKitchenTicket(tableName, items, printerOverride){
+async function printKitchenTicket(tableName, items, printerOverride, silent){
   const session = getSession();
   const restaurantName = session ? session.restaurant_name : '';
   const design = getTicketDesign();
@@ -1243,10 +1243,14 @@ async function printKitchenTicket(tableName, items, printerOverride){
     const bytes = buildEscPosTicket(restaurantName, tableName, items, design);
     const ok = await sendToUsbPrinter(printer, bytes);
     if(ok) return; // basarili - tarayici penceresi ACILMADI
-    console.warn('USB yaziciya ulasilamadi, tarayici penceresine dusuluyor.');
+    console.warn('USB yaziciya ulasilamadi.');
   }
 
-  // Varsayilan / yedek yol: tarayicinin yazdirma penceresi.
+  // silent=true (siparis onaylaninca otomatik cagri): yazici yoksa/basarisizsa
+  // ASLA tarayici penceresi acilmaz, sessizce vazgecilir. Sadece manuel
+  // "yeniden yazdir" / "test yazdir" gibi bilincli tiklamalarda pencereye dusulur.
+  if(silent) return;
+
   const el = document.getElementById('printArea');
   el.className = design.width==='58' ? 'pw58' : '';
   el.innerHTML = buildTicketHtml(restaurantName, tableName, items, design);
