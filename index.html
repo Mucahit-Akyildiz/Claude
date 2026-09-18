@@ -275,7 +275,18 @@ function render(){
   else if(APP.view==='reports') renderReportsView(main, session);
   else if(APP.view==='printerSettings') renderPrinterSettingsView(main, session);
 }
-function goToView(view){ APP.view = view; render(); }
+function todayLocalDateStr(){
+  const d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+}
+function goToView(view){
+  APP.view = view;
+  // Finansal Analiz'e her girişte, en son baktiginiz tarihi hatirlamak yerine
+  // dogrudan bugunun raporunu getirir - farkli bir tarihe bakmak isterseniz
+  // ekrandaki tarih seciciden degistirebilirsiniz.
+  if(view==='reports') APP.reportDate = todayLocalDateStr();
+  render();
+}
 
 /* ================= GİZLİ PLATFORM YÖNETİMİ (?admin=1) ================= */
 function renderAdminArea(){
@@ -1908,11 +1919,6 @@ async function removeUser(id){
 }
 
 /* ================= FİNANSAL ANALİZ ================= */
-async function openReportsView(){
-  APP.view='reports';
-  APP.reportDate = APP.reportDate || new Date().toISOString().slice(0,10);
-  render();
-}
 async function renderReportsView(main, session){
   main.innerHTML = `<h1>Finansal Analiz</h1>
     <div class="box" style="max-width:none;display:flex;justify-content:space-between;align-items:center;">
