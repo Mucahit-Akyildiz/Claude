@@ -133,6 +133,12 @@
   .field-group{display:flex;flex-direction:column;gap:4px;}
   .field-group label{font-size:11px;color:var(--muted);font-weight:600;}
   .field-group input,.field-group select{margin:0;}
+  .icon-pick-btn{width:52px;height:52px;font-size:26px;border-radius:12px;border:1.5px solid var(--border);background:var(--panel2);cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;margin:0;box-shadow:none;}
+  .icon-pick-btn:hover{border-color:var(--accent);}
+  .icon-picker-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;}
+  .icon-picker-item{aspect-ratio:1;display:flex;align-items:center;justify-content:center;font-size:24px;border-radius:12px;border:1.5px solid var(--border);background:var(--panel2);cursor:pointer;transition:transform .08s ease, border-color .15s ease;}
+  .icon-picker-item:hover{transform:scale(1.08);}
+  .icon-picker-item.selected{border-color:var(--accent);background:rgba(255,93,58,.15);}
 
   /* ---- Mutfak fişi yazdırma (termal fiş kağıdına uygun) ---- */
   #printArea{display:none;}
@@ -1659,10 +1665,34 @@ async function saveRecipe(productId){
 
 /* --- İstasyonlar --- */
 const STATION_ICON_CHOICES = ['🍳','🍕','🍔','🍖','🥩','🍗','🍟','🌭','🥪','🌮','🥗','🍜','🍲','🍝','🍣','🍱','🥟','🍞','🥐','🧁','🍰','🍦','☕','🍵','🧋','🍹','🍺','🥤','🔥','🔪'];
-function stationIconSelectHtml(id, current){
-  return `<select id="${id}" style="font-size:20px;padding:4px;">` +
-    STATION_ICON_CHOICES.map(ic => `<option value="${ic}" ${ic===current?'selected':''}>${ic}</option>`).join('') +
-    `</select>`;
+function stationIconPickerHtml(id, current){
+  const cur = current || '🍳';
+  return `<input type="hidden" id="${id}" value="${cur}">
+    <button type="button" class="icon-pick-btn" id="${id}_btn" onclick="openIconPicker('${id}')">${cur}</button>`;
+}
+function openIconPicker(targetId){
+  const current = document.getElementById(targetId).value;
+  const bg = document.createElement('div');
+  bg.id = 'iconPickerBg';
+  bg.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:200;padding:16px;';
+  bg.innerHTML = `<div style="background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:20px;max-width:360px;width:100%;max-height:80vh;overflow:auto;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+      <h3 style="margin:0;">İkon Seç</h3>
+      <span style="cursor:pointer;color:var(--muted);font-size:20px;" onclick="document.getElementById('iconPickerBg').remove()">✕</span>
+    </div>
+    <div class="icon-picker-grid">
+      ${STATION_ICON_CHOICES.map(ic => `<div class="icon-picker-item ${ic===current?'selected':''}" onclick="pickStationIcon('${targetId}','${ic}')">${ic}</div>`).join('')}
+    </div>
+  </div>`;
+  bg.addEventListener('click', (e) => { if(e.target===bg) bg.remove(); });
+  document.body.appendChild(bg);
+}
+function pickStationIcon(targetId, icon){
+  document.getElementById(targetId).value = icon;
+  const btn = document.getElementById(targetId+'_btn');
+  if(btn) btn.textContent = icon;
+  const bg = document.getElementById('iconPickerBg');
+  if(bg) bg.remove();
 }
 function renderStationsSettings(el, session){
   el.innerHTML = `<div class="box" style="max-width:none;">
@@ -1673,7 +1703,7 @@ function renderStationsSettings(el, session){
       <tbody>
       ${APP.config.stations.map(s => `
         <tr>
-          <td style="width:70px;">${stationIconSelectHtml('st_icon_'+s.id, s.icon||'🍳')}</td>
+          <td style="width:70px;">${stationIconPickerHtml('st_icon_'+s.id, s.icon||'🍳')}</td>
           <td class="col-name"><input value="${escapeHtml(s.name)}" id="st_name_${s.id}"></td>
           <td style="width:60px;"><input type="color" value="${s.color}" id="st_color_${s.id}" style="padding:2px;height:36px;"></td>
           <td>
@@ -1687,7 +1717,7 @@ function renderStationsSettings(el, session){
     <div class="add-row-panel">
       <p>Yeni İstasyon Ekle</p>
       <div style="display:grid;grid-template-columns:auto 2fr auto;gap:10px;align-items:end;">
-        <div class="field-group"><label>İkon</label>${stationIconSelectHtml('newStIcon','🍳')}</div>
+        <div class="field-group"><label>İkon</label>${stationIconPickerHtml('newStIcon','🍳')}</div>
         <div class="field-group"><label>İstasyon Adı</label><input id="newStName" placeholder="örn. Fırın"></div>
         <div class="field-group"><label>Renk</label><input type="color" id="newStColor" value="#b6a48d" style="height:44px;padding:2px;"></div>
       </div>
