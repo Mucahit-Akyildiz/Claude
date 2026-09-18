@@ -62,7 +62,11 @@ module.exports = async function handler(req, res) {
     const result = await response.json();
 
     if (result.status !== 'success' || result.paymentStatus !== 'SUCCESS') {
-      await supabase.from('payments').update({ status: 'failed' }).eq('provider_ref', token);
+      // Teshis icin iyzico'nun tam yanitini kaydediyoruz (Vercel loglarina erisimimiz yok).
+      await supabase
+        .from('payments')
+        .update({ status: 'failed', debug_response: JSON.stringify(result) })
+        .eq('provider_ref', token);
       res.redirect(302, loginUrl + '?odeme=basarisiz');
       return;
     }
