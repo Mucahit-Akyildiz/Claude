@@ -42,6 +42,18 @@ function iyzicoAuthHeaders(uriPath, body) {
   };
 }
 
+// Odeme basarisiz olursa, verify_registration_otp'nin odemeden ONCE olusturdugu pasif
+// isletme kaydini (ve yoneticisini) geri aliyoruz - yoksa kullanici ayni isletme koduyla
+// tekrar denedigine "bu kod zaten kayitli" hatasi alir ve sikisip kalir.
+async function rollbackRegistration(supabase, restaurantId) {
+  try {
+    await supabase.from('app_users').delete().eq('restaurant_id', restaurantId);
+    await supabase.from('restaurants').delete().eq('id', restaurantId);
+  } catch (e) {
+    console.error('rollbackRegistration basarisiz:', e);
+  }
+}
+
 module.exports = async function handler(req, res) {
   try {
     const restaurantId = req.method === 'GET' ? req.query.restaurant_id : (req.body || {}).restaurant_id;
@@ -168,19 +180,10 @@ module.exports = async function handler(req, res) {
     }
     if (!response) {
       // Teshis icin gercek network hatasini (DNS/timeout/reset vb.) veritabanina kaydediyoruz.
-      const errDetail = lastErr
-        ? { message: lastErr.message, code: lastErr.code, cause: lastErr.cause ? String(lastErr.cause) : null }
-        : { message: 'bilinmeyen hata' };
-      await supabase.from('payments').insert({
-        restaurant_id: restaurant.id,
-        package_id: restaurant.package_id,
-        amount: price,
-        status: 'init_failed',
-        provider_ref: null,
-        promo_code_id: appliedPromo ? appliedPromo.id : null,
-        promo_code: appliedPromo ? appliedPromo.code : null,
-        debug_response: JSON.stringify(errDetail),
-      });
+      // restaurants -> payments/app_users CASCADE silme kuraliyla bagli, o yuzden burada ayrica
+      // bir "basarisiz" payments satiri eklemiyoruz (rollback ile zaten silinecekti).
+      console.error("iyzico'ya ulaşılamadı:", lastErr);
+      await rollbackRegistration(supabase, restaurant.id);
       res.status(502).json({
         errorMessage: "iyzico'ya birden fazla denemede ulaşılamadı: " + (lastErr ? lastErr.message : 'bilinmeyen hata'),
       });
@@ -190,6 +193,8 @@ module.exports = async function handler(req, res) {
     const result = await response.json();
 
     if (result.status !== 'success' || !result.paymentPageUrl) {
+      console.error('iyzico odeme baslatma reddetti:', result);
+      await rollbackRegistration(supabase, restaurant.id);
       res.status(400).json({ errorMessage: 'Odeme baslatilamadi: ' + (result.errorMessage || JSON.stringify(result)) });
       return;
     }
