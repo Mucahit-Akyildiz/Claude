@@ -133,6 +133,24 @@
   .field-group{display:flex;flex-direction:column;gap:4px;}
   .field-group label{font-size:11px;color:var(--muted);font-weight:600;}
   .field-group input,.field-group select{margin:0;}
+
+  /* ---- Mutfak fişi yazdırma (80mm termal fiş kağıdına uygun) ---- */
+  #printArea{display:none;}
+  @media print{
+    body *{visibility:hidden;}
+    #printArea, #printArea *{visibility:visible;}
+    #printArea{
+      display:block;position:fixed;top:0;left:0;width:80mm;
+      font-family:'Courier New',monospace;color:#000;padding:4mm;
+    }
+    @page{margin:0;size:80mm auto;}
+  }
+  .ticket-title{text-align:center;font-weight:800;font-size:15px;margin-bottom:2mm;text-transform:uppercase;}
+  .ticket-meta{text-align:center;font-size:11px;margin-bottom:3mm;}
+  .ticket-line{border-top:1px dashed #000;margin:2mm 0;}
+  .ticket-item{display:flex;justify-content:space-between;font-size:13px;margin:1.5mm 0;}
+  .ticket-item .qty{font-weight:800;margin-right:6px;}
+  .ticket-note{font-size:11px;font-style:italic;padding-left:20px;}
 </style>
 <script>
   // Sayfa boyanmadan önce doğru temayı uygula (yanıp sönmeyi önler)
@@ -146,13 +164,15 @@
 </head>
 <body>
 <div id="app"></div>
+<div id="printArea"></div>
 <script>
 /* ====== BURAYI KENDİ SUPABASE BİLGİLERİNİZLE DOLDURUN ====== */
 const SUPABASE_URL = 'https://dveybagnrgofxkqangvo.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_7gHhsaPYOzOddFnpjntPKw_S3Mgg3V8';
-/* Ödeme başlatma artık Supabase Edge Function yerine Vercel'deki /api üzerinden yapılıyor
-   (iyzico'nun sandbox sunucusu Supabase'in bulut IP aralığından gelen istekleri reddediyordu). */
-const PAYMENT_INITIALIZE_URL = '/api/payment-initialize';
+/* Aylık abonelik yenileme ödemesini başlatan uç nokta (Vercel /api).
+   Kayıt sırasında artık ödeme yok (7 günlük ücretsiz deneme) - bu sadece
+   Ayarlar'daki "Öde / Yenile" akışında, oturum token'ı ile kullanılıyor. */
+const PAYMENT_RENEW_URL = '/api/payment-initialize';
 /* ============================================================ */
 
 const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -388,11 +408,23 @@ async function changeAdminPassword(){
 function goHome(){ APP.view='home'; render(); }
 
 function renderLoginScreen(app){
+  const odemeParam = new URLSearchParams(window.location.search).get('odeme');
+  const odemeMsgs = {
+    basarili: { text: '✅ Ödemeniz alındı, aboneliğiniz uzatıldı.', color: 'var(--green)' },
+    basarisiz: { text: '❌ Ödeme tamamlanamadı, tekrar deneyebilirsiniz.', color: 'var(--red)' },
+    hata: { text: '⚠️ Ödeme sırasında bir hata oluştu, tekrar deneyin.', color: 'var(--red)' },
+    eksik: { text: '⚠️ Ödeme bilgisi eksik geldi, tekrar deneyin.', color: 'var(--red)' },
+    bulunamadi: { text: '⚠️ Ödeme kaydı bulunamadı, tekrar deneyin.', color: 'var(--red)' },
+  };
+  const odemeBanner = odemeParam && odemeMsgs[odemeParam]
+    ? `<p style="text-align:center;font-weight:700;font-size:13.5px;color:${odemeMsgs[odemeParam].color};margin:0 0 14px;">${odemeMsgs[odemeParam].text}</p>`
+    : '';
   app.innerHTML = `
     <div class="center-wrap">
     <div class="box">
       <h1>Giriş Yapın</h1>
       <p class="muted">İşletme kodu, kullanıcı adı ve şifrenizle giriş yapın</p>
+      ${odemeBanner}
       <input id="codeInput" placeholder="İşletme kodu (örn. test123)" autocapitalize="none">
       <input id="userInput" placeholder="Kullanıcı adı" autocapitalize="none">
       <input id="passInput" type="password" placeholder="Şifre">
@@ -499,24 +531,12 @@ async function doVerifySignup(){
   });
   btn.disabled = false; btn.textContent = 'Doğrula ve Kaydı Tamamla';
   if(error){ errBox.textContent = error.message; return; }
+  const code = p.code;
   APP.pendingSignup = null;
-  const restaurantId = data && data[0] ? data[0].restaurant_id : null;
-  if(!restaurantId){ errBox.textContent = 'Kayıt oluştu ama ödeme sayfasına yönlendirilemedi'; return; }
-  // Hesap onaylandı ama ödeme yapılana kadar pasif - ödeme başlatma isteğini atıp
-  // dönen ödeme sayfası adresine biz kendimiz yönlendiriyoruz.
-  let payUrl = PAYMENT_INITIALIZE_URL + '?restaurant_id=' + encodeURIComponent(restaurantId);
-  if(p.promo){ payUrl += '&promo=' + encodeURIComponent(p.promo); }
-  try{
-    const res = await fetch(payUrl);
-    const payData = await res.json();
-    if(!res.ok || !payData.paymentPageUrl){
-      errBox.textContent = 'Ödeme başlatılamadı: ' + (payData.errorMessage || payData.message || JSON.stringify(payData));
-      return;
-    }
-    window.location.href = payData.paymentPageUrl;
-  }catch(err){
-    errBox.textContent = 'Ödeme sayfasına ulaşılamadı: ' + err.message;
-  }
+  // Hesap artik odeme beklemeden 7 gunluk ucretsiz deneme ile direkt aktif aciliyor.
+  APP.authScreen = 'login';
+  render();
+  alert('Kaydınız oluşturuldu! 7 günlük ücretsiz deneme süreniz başladı.\n\nİşletme kodu: ' + code + '\nŞimdi giriş yapabilirsiniz.');
 }
 
 function renderHome(main, session){
@@ -549,12 +569,17 @@ async function refreshKitchenItems(session){
   if(error){ wrap.innerHTML = '<p class="muted">Yüklenemedi: '+error.message+'</p>'; return; }
   APP.liveOrders = data || [];
   const cards = [];
+  APP.kitchenPendingByTable = {};
   APP.liveOrders.forEach(o => {
     const pending = o.items.filter(i => i.status==='pending');
     if(pending.length===0) return;
     const tableName = tableNameForId(o.table_id);
+    APP.kitchenPendingByTable[o.table_id] = { tableName, items: pending };
     cards.push(`<div style="background:var(--panel);border:1px solid var(--border);border-left:4px solid var(--accent);border-radius:12px;padding:12px;">
-      <b>${escapeHtml(tableName)}</b>
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <b>${escapeHtml(tableName)}</b>
+        <span style="cursor:pointer;color:var(--muted);font-size:16px;" onclick="reprintKitchenTicket('${o.table_id}')" title="Fişi tekrar yazdır">🖨️</span>
+      </div>
       ${pending.map(it => `<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-top:1px dashed var(--border);">
         <span>${it.qty}x ${escapeHtml(it.name)}${it.note?'<div class="muted" style="font-size:11px;font-style:italic;">'+escapeHtml(it.note)+'</div>':''}</span>
         <button style="width:auto;padding:6px 10px;font-size:12px;background:var(--green);color:var(--btn-ink);" onclick="markReady('${it.id}')">Hazır</button>
@@ -964,6 +989,7 @@ async function confirmOrder(tableId){
     return;
   }
   APP.draftCart[tableId] = [];
+  printKitchenTicket(tableNameForId(tableId), items);
   const [liveRes, cfgRes] = await Promise.all([
     sb.rpc('get_live_orders', { p_token: session.session_token }),
     sb.rpc('get_restaurant_config', { p_token: session.session_token })
@@ -971,6 +997,28 @@ async function confirmOrder(tableId){
   APP.liveOrders = liveRes.data || [];
   if(cfgRes.data) APP.config = cfgRes.data;
   await closeTableModal();
+}
+/* ---- Mutfak fişi yazdırma ---- */
+function reprintKitchenTicket(tableId){
+  const entry = APP.kitchenPendingByTable && APP.kitchenPendingByTable[tableId];
+  if(!entry){ alert('Bu masa için bekleyen ürün kalmadı.'); return; }
+  printKitchenTicket(entry.tableName, entry.items);
+}
+function printKitchenTicket(tableName, items){
+  const session = getSession();
+  const now = new Date();
+  const el = document.getElementById('printArea');
+  el.innerHTML = `
+    <div class="ticket-title">${escapeHtml(session ? session.restaurant_name : '')}</div>
+    <div class="ticket-meta">${escapeHtml(tableName)}<br>${now.toLocaleDateString('tr-TR')} ${now.toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'})}</div>
+    <div class="ticket-line"></div>
+    ${items.map(it => `
+      <div class="ticket-item"><span><span class="qty">${it.qty}x</span>${escapeHtml(it.name)}</span></div>
+      ${it.note ? `<div class="ticket-note">Not: ${escapeHtml(it.note)}</div>` : ''}
+    `).join('')}
+    <div class="ticket-line"></div>
+  `;
+  setTimeout(() => window.print(), 100);
 }
 async function cancelTableOrder(tableId){
   if(!confirm('Bu masadaki siparişi iptal etmek istediğinize emin misiniz?')) return;
@@ -1424,7 +1472,7 @@ async function removeProduct(id){
 function renderUsersSettings(el, session){
   const lic = APP.config.license;
   el.innerHTML = `<div class="box" style="max-width:none;">
-    ${lic ? `<div class="role-badge" style="display:inline-block;margin-bottom:14px;">${escapeHtml(lic.package_id)} · ${APP.config.users.length}/${lic.max_users} kullanıcı · Bitiş: ${new Date(lic.expires_at).toLocaleDateString('tr-TR')}</div>` : ''}
+    ${lic ? renderSubscriptionPanel(lic) : ''}
     <h2>Kullanıcılar</h2>
     <div class="settings-table-wrap">
     <table class="settings-table">
@@ -1458,6 +1506,53 @@ function renderUsersSettings(el, session){
     </div>
   </div>`;
 }
+/* ---- Abonelik / Aylık Ödeme (Ayarlar > Kullanıcılar üstünde) ---- */
+function renderSubscriptionPanel(lic){
+  const expires = new Date(lic.expires_at);
+  const daysLeft = Math.ceil((expires - new Date()) / (24*60*60*1000));
+  const expired = daysLeft <= 0;
+  const soon = !expired && daysLeft <= 3;
+  const color = expired ? 'var(--red)' : (soon ? 'var(--accent)' : 'var(--green)');
+  const statusText = expired
+    ? 'Süreniz doldu — devam etmek için ödeme yapın.'
+    : (daysLeft + ' gün kaldı (bitiş: ' + expires.toLocaleDateString('tr-TR') + ')');
+  return `
+    <div class="add-row-panel" style="border-color:${color};margin-bottom:16px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
+        <div>
+          <div class="role-badge" style="margin-bottom:6px;">${escapeHtml(lic.package_id)} · ${APP.config.users.length}/${lic.max_users} kullanıcı</div>
+          <div style="color:${color};font-weight:700;font-size:13.5px;">${statusText}</div>
+        </div>
+        <button id="renewBtn" style="width:auto;padding:10px 18px;margin:0;background:${color};" onclick="startRenewal()">💳 Öde / Yenile (Aylık)</button>
+      </div>
+      <div class="error" id="renewErr" style="text-align:left;margin-top:8px;"></div>
+    </div>`;
+}
+async function startRenewal(){
+  const session = getSession();
+  const btn = document.getElementById('renewBtn');
+  const errBox = document.getElementById('renewErr');
+  errBox.textContent = '';
+  btn.disabled = true; btn.textContent = 'Yönlendiriliyor...';
+  try{
+    const res = await fetch(PAYMENT_RENEW_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ p_token: session.session_token })
+    });
+    const data = await res.json();
+    if(!res.ok || !data.paymentPageUrl){
+      errBox.textContent = 'Ödeme başlatılamadı: ' + (data.errorMessage || JSON.stringify(data));
+      btn.disabled = false; btn.textContent = '💳 Öde / Yenile (Aylık)';
+      return;
+    }
+    window.location.href = data.paymentPageUrl;
+  }catch(err){
+    errBox.textContent = 'Ödeme sayfasına ulaşılamadı: ' + err.message;
+    btn.disabled = false; btn.textContent = '💳 Öde / Yenile (Aylık)';
+  }
+}
+
 async function saveUser(id){
   const session = getSession();
   const username = document.getElementById('us_name_'+id).value.trim();

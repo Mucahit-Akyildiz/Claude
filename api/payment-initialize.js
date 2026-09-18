@@ -1,7 +1,11 @@
-// Vercel serverless function: payment-initialize
-// Bir isletme icin iyzico odeme formunu baslatir, odeme sayfasi adresini JSON olarak doner.
-// Supabase Edge Function'daki orijinal payment-initialize'in birebir Vercel/Node portu
-// (Supabase'in bulut IP aralığından iyzico sandbox'ına ulaşılamadığı için taşındı).
+// Vercel serverless function: payment-initialize (ABONELIK YENILEME)
+// 7 gunluk ucretsiz denemeden sonra ya da suresi yaklasan/dolan bir isletme icin
+// AYLIK yenileme odemesini iyzico uzerinden baslatir. Kayit sirasinda cagrilmiyor
+// artik (kayit olunca hesap direkt 7 gun aktif aciliyor, bkz. verify_registration_otp).
+//
+// Guvenlik: restaurant_id client'tan alinmiyor - oturum token'i (p_token) ile
+// staff_sessions uzerinden dogrulanip oradan okunuyor, boylece sadece o
+// isletmenin giris yapmis bir yoneticisi kendi isletmesi icin odeme baslatabilir.
 const { createClient } = require('@supabase/supabase-js');
 const crypto = require('crypto');
 
@@ -10,6 +14,7 @@ const IYZICO_API_KEY = process.env.IYZICO_API_KEY;
 const IYZICO_SECRET_KEY = process.env.IYZICO_SECRET_KEY;
 const CALLBACK_URL = process.env.CALLBACK_URL; // https://<vercel-domaininiz>/api/payment-callback
 
+// Aylik fiyatlar (TL) - placeholder, gercek fiyatlariniza gore guncelleyin.
 const PACKAGE_PRICES = {
   paket1: 499,
   paket2: 999,
@@ -19,14 +24,9 @@ const PACKAGE_PRICES = {
 function randomKey() {
   return Date.now().toString() + Math.floor(Math.random() * 1000000).toString();
 }
-
 function hmacHex(key, message) {
   return crypto.createHmac('sha256', key).update(message).digest('hex');
 }
-
-// iyzico IYZWSv2: imza randomKey + uriPath + gövde (JSON) üzerinden hesaplanır.
-// uriPath, tam adresin yol kısmıdır (ör. "/payment/iyzipos/checkoutform/initialize/auth/ecom") -
-// bu eksik olursa iyzico "Geçersiz imza" (invalid signature) hatası döner.
 function iyzicoAuthHeaders(uriPath, body) {
   const bodyStr = JSON.stringify(body);
   const rk = randomKey();
@@ -42,35 +42,36 @@ function iyzicoAuthHeaders(uriPath, body) {
   };
 }
 
-// Odeme basarisiz olursa, verify_registration_otp'nin odemeden ONCE olusturdugu pasif
-// isletme kaydini (ve yoneticisini) geri aliyoruz - yoksa kullanici ayni isletme koduyla
-// tekrar denedigine "bu kod zaten kayitli" hatasi alir ve sikisip kalir.
-async function rollbackRegistration(supabase, restaurantId) {
-  try {
-    await supabase.from('app_users').delete().eq('restaurant_id', restaurantId);
-    await supabase.from('restaurants').delete().eq('id', restaurantId);
-  } catch (e) {
-    console.error('rollbackRegistration basarisiz:', e);
-  }
-}
-
 module.exports = async function handler(req, res) {
   try {
-    const restaurantId = req.method === 'GET' ? req.query.restaurant_id : (req.body || {}).restaurant_id;
-    const promoCodeRaw = req.method === 'GET' ? req.query.promo : (req.body || {}).promo;
-    const promoCode = promoCodeRaw ? String(promoCodeRaw).trim() : null;
-
-    if (!restaurantId) {
-      res.status(400).json({ errorMessage: 'restaurant_id gerekli' });
+    const token = req.method === 'GET' ? req.query.p_token : (req.body || {}).p_token;
+    if (!token) {
+      res.status(400).json({ errorMessage: 'Oturum token gerekli' });
       return;
     }
 
     const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
 
+    const { data: session } = await supabase
+      .from('staff_sessions')
+      .select('restaurant_id, role')
+      .eq('token', token)
+      .gt('expires_at', new Date().toISOString())
+      .maybeSingle();
+
+    if (!session) {
+      res.status(401).json({ errorMessage: 'Oturum geçersiz veya süresi dolmuş, tekrar giriş yapın' });
+      return;
+    }
+    if (session.role !== 'manager') {
+      res.status(403).json({ errorMessage: 'Bu işlem için yetkiniz yok' });
+      return;
+    }
+
     const { data: restaurant, error } = await supabase
       .from('restaurants')
-      .select('id, name, email, phone, package_id, code')
-      .eq('id', restaurantId)
+      .select('id, name, email, phone, package_id')
+      .eq('id', session.restaurant_id)
       .single();
 
     if (error || !restaurant) {
@@ -78,46 +79,20 @@ module.exports = async function handler(req, res) {
       return;
     }
 
-    let price = PACKAGE_PRICES[restaurant.package_id] || 0;
+    const price = PACKAGE_PRICES[restaurant.package_id] || 0;
     if (price <= 0) {
       res.status(400).json({ errorMessage: 'Gecersiz paket fiyati' });
       return;
     }
-
-    let appliedPromo = null;
-    if (promoCode) {
-      const { data: promo } = await supabase
-        .from('promo_codes')
-        .select('id, code, discount_type, discount_value, max_uses, used_count, active, expires_at')
-        .ilike('code', promoCode)
-        .maybeSingle();
-
-      if (
-        promo &&
-        promo.active &&
-        (promo.expires_at === null || new Date(promo.expires_at) > new Date()) &&
-        (promo.max_uses === null || promo.used_count < promo.max_uses)
-      ) {
-        const discount =
-          promo.discount_type === 'percent'
-            ? price * (Number(promo.discount_value) / 100)
-            : Number(promo.discount_value);
-        price = Math.max(1, price - discount);
-        appliedPromo = { id: promo.id, code: promo.code };
-      }
-    }
-
     const priceStr = price.toFixed(2);
-    const basketId = 'pkg_' + restaurant.package_id + '_' + Date.now();
+    const basketId = 'renew_' + restaurant.package_id + '_' + Date.now();
 
-    // iyzico gsmNumber icin ulke koduyla birlikte "+90..." formati bekliyor;
-    // "Geçersiz istek" (errorCode 11) hatasinin bir sebebi bu olabilir.
     const phoneDigits = String(restaurant.phone || '').replace(/\D/g, '').replace(/^90/, '').replace(/^0/, '');
     const gsmNumber = '+90' + phoneDigits;
 
     const body = {
       locale: 'tr',
-      conversationId: restaurantId,
+      conversationId: restaurant.id,
       price: priceStr,
       paidPrice: priceStr,
       currency: 'TRY',
@@ -131,8 +106,6 @@ module.exports = async function handler(req, res) {
         surname: 'Yetkilisi',
         gsmNumber: gsmNumber,
         email: restaurant.email,
-        // Sandbox test kimlik no (iyzico'nun kendi ornek kodlarinda kullandigi,
-        // checksum dogrulamasindan gecen deger) - "11111111111" gecersiz kabul ediliyordu.
         identityNumber: '74300864791',
         registrationAddress: 'Belirtilmedi Mah. Belirtilmedi Sk. No:1',
         city: 'Istanbul',
@@ -154,8 +127,8 @@ module.exports = async function handler(req, res) {
       basketItems: [
         {
           id: restaurant.package_id,
-          name: 'Restoran Yonetim Sistemi - ' + restaurant.package_id,
-          category1: 'Yazilim',
+          name: 'Restoran Yonetim Sistemi - Aylik Yenileme - ' + restaurant.package_id,
+          category1: 'Yazilim Aboneligi',
           itemType: 'VIRTUAL',
           price: priceStr,
         },
@@ -179,9 +152,6 @@ module.exports = async function handler(req, res) {
       }
     }
     if (!response) {
-      // Teshis icin gercek network hatasini (DNS/timeout/reset vb.) rollback'ten etkilenmeyen
-      // ayri bir tabloya kaydediyoruz (restaurants -> payments CASCADE ile silindigi icin
-      // payments'a yazmanin bir anlami yok).
       const errDetail = lastErr
         ? { message: lastErr.message, code: lastErr.code, cause: lastErr.cause ? String(lastErr.cause) : null }
         : { message: 'bilinmeyen hata' };
@@ -189,7 +159,6 @@ module.exports = async function handler(req, res) {
         context: 'payment-initialize:fetch_failed',
         payload: JSON.stringify({ restaurant_id: restaurant.id, ...errDetail }),
       });
-      await rollbackRegistration(supabase, restaurant.id);
       res.status(502).json({
         errorMessage: "iyzico'ya birden fazla denemede ulaşılamadı: " + (lastErr ? lastErr.message : 'bilinmeyen hata'),
       });
@@ -203,19 +172,18 @@ module.exports = async function handler(req, res) {
         context: 'payment-initialize:iyzico_rejected',
         payload: JSON.stringify({ restaurant_id: restaurant.id, result }),
       });
-      await rollbackRegistration(supabase, restaurant.id);
       res.status(400).json({ errorMessage: 'Odeme baslatilamadi: ' + (result.errorMessage || JSON.stringify(result)) });
       return;
     }
 
+    // Not: burada restaurant zaten var olan, canli/aktif bir hesap - basarisiz olsa da
+    // ASLA silinmiyor (eski kayit-oncesi-odeme akisindaki rollback burada yok kasitli).
     await supabase.from('payments').insert({
       restaurant_id: restaurant.id,
       package_id: restaurant.package_id,
       amount: price,
       status: 'pending',
       provider_ref: result.token,
-      promo_code_id: appliedPromo ? appliedPromo.id : null,
-      promo_code: appliedPromo ? appliedPromo.code : null,
     });
 
     res.status(200).json({ paymentPageUrl: result.paymentPageUrl });

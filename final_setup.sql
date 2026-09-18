@@ -296,7 +296,6 @@ declare
   v_otp_row signup_otps%rowtype;
   v_restaurant_id uuid;
   v_max_users int;
-  v_duration_days int;
 begin
   select * into v_otp_row from signup_otps
     where phone = p_phone and verified = false and expires_at > now()
@@ -316,9 +315,9 @@ begin
   update signup_otps set verified = true where id = v_otp_row.id;
 
   case p_package_id
-    when 'paket1' then v_max_users := 3;  v_duration_days := 14;
-    when 'paket2' then v_max_users := 8;  v_duration_days := 60;
-    when 'paket3' then v_max_users := 20; v_duration_days := 180;
+    when 'paket1' then v_max_users := 3;
+    when 'paket2' then v_max_users := 8;
+    when 'paket3' then v_max_users := 20;
     else raise exception 'Geçersiz paket';
   end case;
 
@@ -326,9 +325,12 @@ begin
     raise exception 'Bu işletme kodu zaten kullanılıyor, başka bir kod deneyin';
   end if;
 
-  -- Hesap, ödeme onaylanana kadar pasif kalır (aktivasyonu payment-callback Edge Function yapar).
+  -- 7 gunluk ucretsiz deneme: odeme beklemeden hesap direkt aktif aciliyor.
+  -- Deneme bitince (expires_at gecince) login_staff girisi zaten engelliyor;
+  -- devam etmek icin Ayarlar'dan aylik odeme yapip suresi uzatiliyor
+  -- (bkz. api/payment-initialize.js, api/payment-callback.js).
   insert into restaurants (name, code, package_id, max_users, is_active, expires_at, email, phone)
-  values (p_name, p_code, p_package_id, v_max_users, false, null, p_email, p_phone)
+  values (p_name, p_code, p_package_id, v_max_users, true, now() + interval '7 days', p_email, p_phone)
   returning id into v_restaurant_id;
 
   insert into app_users (restaurant_id, username, password, role)
