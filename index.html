@@ -1839,12 +1839,50 @@ function renderProductsSettings(el, session){
         <div class="field-group"><label>İstasyon</label><select id="np_station">${APP.config.stations.map(s => `<option value="${s.id}">${escapeHtml(s.name)}</option>`).join('')}</select></div>
         <div class="field-group"><label>Fiyat (₺)</label><input type="number" id="np_price" placeholder="0"></div>
         <div class="field-group"><label>Maliyet (₺)</label><input type="number" id="np_cost" placeholder="0"></div>
-        <div class="field-group"><label>Stok</label><input type="number" id="np_stock" placeholder="Sınırsız"></div>
+        <div class="field-group"><label>Stok</label><input type="number" id="np_stock" placeholder="Sınırsız (reçete eklerseniz bu alan kullanılmaz)"></div>
+      </div>
+      <div style="background:var(--panel);border-radius:10px;padding:12px;margin-top:14px;">
+        <p class="muted" style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;margin:0 0 8px;">Reçete (opsiyonel) — ürünü kaydederken hemen tanımlayın</p>
+        <div id="npRecipeItemsBox"></div>
+        ${(APP.config.ingredients||[]).length===0
+          ? '<p class="muted" style="font-size:12px;">Önce Hammaddeler sekmesinden en az bir hammadde ekleyin.</p>'
+          : `<div style="display:flex;gap:8px;margin-top:8px;">
+              <select id="npRecipeIngSelect" style="flex:1;margin:0;">
+                ${APP.config.ingredients.map(i => `<option value="${i.id}" data-unit="${i.unit}" data-name="${escapeHtml(i.name)}">${escapeHtml(i.name)} (${i.unit})</option>`).join('')}
+              </select>
+              <input type="number" step="0.01" id="npRecipeQtyInput" placeholder="Miktar" style="width:100px;margin:0;">
+              <button style="width:auto;padding:8px 12px;margin:0;" onclick="addNewProductRecipeItem()">Ekle</button>
+            </div>`}
       </div>
       <button style="margin-top:12px;max-width:220px;" onclick="addProduct()">+ Ürün Ekle</button>
     </div>
   </div>`;
+  NEW_PRODUCT_RECIPE_DRAFT = [];
+  renderNewProductRecipeItems();
 }
+let NEW_PRODUCT_RECIPE_DRAFT = [];
+function renderNewProductRecipeItems(){
+  const el = document.getElementById('npRecipeItemsBox'); if(!el) return;
+  el.innerHTML = NEW_PRODUCT_RECIPE_DRAFT.length===0 ? '<p class="muted" style="font-size:12px;">Henüz hammadde eklenmedi (reçete eklemezseniz bu ürün basit stok sayacı kullanır).</p>' :
+    NEW_PRODUCT_RECIPE_DRAFT.map((r,idx) => `
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;font-size:13px;">
+        <span>${escapeHtml(r.ingredient_name)}: <b>${r.qty_per_unit} ${r.ingredient_unit}</b></span>
+        <span style="cursor:pointer;color:var(--red);" onclick="removeNewProductRecipeItem(${idx})">✕</span>
+      </div>`).join('');
+}
+function addNewProductRecipeItem(){
+  const sel = document.getElementById('npRecipeIngSelect');
+  if(!sel || !sel.value) return;
+  const qty = parseFloat(document.getElementById('npRecipeQtyInput').value);
+  if(!qty || qty<=0){ alert('Geçerli bir miktar girin'); return; }
+  const opt = sel.options[sel.selectedIndex];
+  const existing = NEW_PRODUCT_RECIPE_DRAFT.find(r => r.ingredient_id===sel.value);
+  if(existing){ existing.qty_per_unit = qty; }
+  else{ NEW_PRODUCT_RECIPE_DRAFT.push({ ingredient_id: sel.value, qty_per_unit: qty, ingredient_name: opt.dataset.name, ingredient_unit: opt.dataset.unit }); }
+  document.getElementById('npRecipeQtyInput').value = '';
+  renderNewProductRecipeItems();
+}
+function removeNewProductRecipeItem(idx){ NEW_PRODUCT_RECIPE_DRAFT.splice(idx,1); renderNewProductRecipeItems(); }
 async function saveProduct(id){
   const session = getSession();
   const prod = APP.config.products.find(p => p.id===id);
@@ -1877,8 +1915,14 @@ async function addProduct(){
   const stockRaw = document.getElementById('np_stock').value.trim();
   const stock = stockRaw==='' ? null : parseInt(stockRaw,10);
   if(!name) return;
-  const { error } = await sb.rpc('upsert_product', { p_token: session.session_token, p_id: null, p_station_id: stationId, p_name: name, p_price: price, p_cost: cost, p_stock: stock, p_available: true });
+  const { data: newId, error } = await sb.rpc('upsert_product', { p_token: session.session_token, p_id: null, p_station_id: stationId, p_name: name, p_price: price, p_cost: cost, p_stock: stock, p_available: true });
   if(error){ alert(error.message); return; }
+  if(newId && NEW_PRODUCT_RECIPE_DRAFT.length>0){
+    const items = NEW_PRODUCT_RECIPE_DRAFT.map(r => ({ ingredient_id: r.ingredient_id, qty_per_unit: r.qty_per_unit }));
+    const { error: recError } = await sb.rpc('set_recipe', { p_token: session.session_token, p_product_id: newId, p_items: items });
+    if(recError){ alert('Ürün eklendi ama reçete kaydedilemedi: ' + recError.message); }
+  }
+  NEW_PRODUCT_RECIPE_DRAFT = [];
   renderSettingsView(document.getElementById('main'), session);
 }
 async function removeProduct(id){
