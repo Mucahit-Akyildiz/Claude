@@ -149,17 +149,31 @@ module.exports = async function handler(req, res) {
 
     let response = null;
     let lastErr = null;
-    for (let attempt = 0; attempt < 3; attempt++) {
+    for (let attempt = 0; attempt < 5; attempt++) {
       try {
         response = await fetch(iyzicoUrl, { method: 'POST', headers, body: JSON.stringify(body) });
         lastErr = null;
         break;
       } catch (e) {
         lastErr = e;
-        await new Promise((r) => setTimeout(r, 400 * (attempt + 1)));
+        await new Promise((r) => setTimeout(r, 1000 * (attempt + 1)));
       }
     }
     if (!response) {
+      // Teshis icin gercek network hatasini (DNS/timeout/reset vb.) veritabanina kaydediyoruz.
+      const errDetail = lastErr
+        ? { message: lastErr.message, code: lastErr.code, cause: lastErr.cause ? String(lastErr.cause) : null }
+        : { message: 'bilinmeyen hata' };
+      await supabase.from('payments').insert({
+        restaurant_id: restaurant.id,
+        package_id: restaurant.package_id,
+        amount: price,
+        status: 'init_failed',
+        provider_ref: null,
+        promo_code_id: appliedPromo ? appliedPromo.id : null,
+        promo_code: appliedPromo ? appliedPromo.code : null,
+        debug_response: JSON.stringify(errDetail),
+      });
       res.status(502).json({
         errorMessage: "iyzico'ya birden fazla denemede ulaşılamadı: " + (lastErr ? lastErr.message : 'bilinmeyen hata'),
       });
