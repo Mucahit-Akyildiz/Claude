@@ -841,9 +841,12 @@ function updateSplitPayPreview(total){
   let cash = parseFloat(document.getElementById('splitCash').value)||0;
   if(cash<0) cash=0; if(cash>total) cash=total;
   document.getElementById('splitCardPreview').textContent = 'Kredi Kartı: '+money(total-cash);
+  const cashBox = document.getElementById('cashChargesBox'); if(cashBox) cashBox.innerHTML = '';
+  const cardBox = document.getElementById('cardChargesBox'); if(cardBox) cardBox.innerHTML = '';
 }
 function genCashCharges(total){
-  const cash = parseFloat(document.getElementById('splitCash').value)||0;
+  let cash = parseFloat(document.getElementById('splitCash').value)||0;
+  if(cash<0) cash=0; if(cash>total) cash=total;
   if(cash<=0){ alert('Bölünecek nakit tutar yok'); return; }
   const count = Math.max(1, parseInt(document.getElementById('cashChargeCount').value)||1);
   const base = Math.floor((cash/count)*100)/100;
