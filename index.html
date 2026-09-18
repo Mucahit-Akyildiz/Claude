@@ -155,6 +155,9 @@
   .ticket-note{font-size:11px;font-style:italic;padding-left:20px;}
   .ticket-paper{background:#fff;color:#000;font-family:'Courier New',monospace;padding:14px;width:302px;box-shadow:0 2px 10px rgba(0,0,0,.15);}
   .ticket-paper.pw58{width:219px;}
+  .kitchen-timer{font-size:12px;font-weight:700;color:var(--muted);font-variant-numeric:tabular-nums;}
+  .kitchen-timer.kt-warn{color:var(--accent);}
+  .kitchen-timer.kt-danger{color:var(--red);}
 </style>
 <script>
   // Sayfa boyanmadan önce doğru temayı uygula (yanıp sönmeyi önler)
@@ -285,6 +288,8 @@ function goToView(view){
   // dogrudan bugunun raporunu getirir - farkli bir tarihe bakmak isterseniz
   // ekrandaki tarih seciciden degistirebilirsiniz.
   if(view==='reports') APP.reportDate = todayLocalDateStr();
+  // Mutfak ekranindan cikinca arka plandaki yenileme/sayac calismaya devam etmesin.
+  if(view!=='kitchen') stopKitchenPolling();
   render();
 }
 
@@ -569,6 +574,7 @@ async function renderKitchenView(main, session){
     APP.config = data;
   }
   if(!APP.kitchenStation){
+    stopKitchenPolling();
     main.innerHTML = `<h1>Mutfak Ekranı</h1><p class="muted">İstasyon seçin</p><div class="home-grid">` +
       APP.config.stations.map(s => `<div class="card" style="border-left:4px solid ${s.color}" onclick="pickKitchenStation('${s.id}')"><div class="icon">🍳</div><h3>${escapeHtml(s.name)}</h3></div>`).join('') +
       `</div>`;
@@ -578,7 +584,9 @@ async function renderKitchenView(main, session){
   main.innerHTML = `<div style="display:flex;justify-content:space-between;"><h1>🍳 ${escapeHtml(station.name)}</h1>
     <button class="ghost-btn" onclick="APP.kitchenStation=null;render();">İstasyon Değiştir</button></div>
     <div id="kitchenWrap"></div>`;
+  APP.kitchenSeenItemIds = null; // yeni istasyona gecince onceki urunler icin zil calmasin
   await refreshKitchenItems(session);
+  startKitchenPolling(session);
 }
 async function refreshKitchenItems(session){
   const { data, error } = await sb.rpc('get_live_orders', { p_token: session.session_token });
@@ -587,12 +595,14 @@ async function refreshKitchenItems(session){
   APP.liveOrders = data || [];
   const cards = [];
   APP.kitchenPendingByTable = {};
+  const currentIds = new Set();
   APP.liveOrders.forEach(o => {
     // Sadece bu istasyona ait ve henuz hazirlanmamis urunler - her masanin bu
     // istasyona dusen urunleri tek bir kartta (masa bazinda) gruplanmis olarak gorunur.
     // station_id atanmamis (null) urunler hicbir ekranda kaybolmasin diye her istasyonda gosterilir.
     const pending = o.items.filter(i => i.status==='pending' && (i.station_id===APP.kitchenStation || i.station_id==null));
     if(pending.length===0) return;
+    pending.forEach(it => currentIds.add(it.id));
     const tableName = tableNameForId(o.table_id);
     APP.kitchenPendingByTable[o.table_id] = { tableName, items: pending, dailyNumber: o.daily_number };
     cards.push(`<div style="background:var(--panel);border:1px solid var(--border);border-left:4px solid var(--accent);border-radius:12px;padding:12px;">
@@ -600,19 +610,76 @@ async function refreshKitchenItems(session){
         <b>${escapeHtml(tableName)}${o.daily_number?' <span class="muted" style="font-weight:400;font-size:12px;">#'+o.daily_number+'</span>':''}</b>
         <span style="cursor:pointer;color:var(--muted);font-size:16px;" onclick="reprintKitchenTicket('${o.table_id}')" title="Fişi tekrar yazdır">🖨️</span>
       </div>
-      ${pending.map(it => `<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-top:1px dashed var(--border);">
+      ${pending.map(it => `<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-top:1px dashed var(--border);gap:8px;">
         <span>${it.qty}x ${escapeHtml(it.name)}${it.note?'<div class="muted" style="font-size:11px;font-style:italic;">'+escapeHtml(it.note)+'</div>':''}</span>
-        <button style="width:auto;padding:6px 10px;font-size:12px;background:var(--green);color:var(--btn-ink);" onclick="markReady('${it.id}')">Hazır</button>
+        <span class="kitchen-timer" data-added="${it.added_at||''}" style="flex-shrink:0;">-</span>
+        <button style="width:auto;padding:6px 10px;font-size:12px;background:var(--green);color:var(--btn-ink);flex-shrink:0;" onclick="markReady('${it.id}')">Hazır</button>
       </div>`).join('')}
       </div>`);
   });
   wrap.innerHTML = cards.length ? `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px;">${cards.join('')}</div>` : '<p class="muted">Bekleyen sipariş yok.</p>';
+
+  // Daha once gorulmemis (yeni gelen) urun varsa zil calsin. Ilk yuklemede calmamasi icin
+  // kitchenSeenItemIds null iken sadece kayit tutulur, karsilastirma yapilmaz.
+  if(APP.kitchenSeenItemIds){
+    let hasNew = false;
+    currentIds.forEach(id => { if(!APP.kitchenSeenItemIds.has(id)) hasNew = true; });
+    if(hasNew) playKitchenBell();
+  }
+  APP.kitchenSeenItemIds = currentIds;
+  updateKitchenTimers();
 }
 function tableNameForId(tableId){
   for(const z of APP.config.zones){ const t = z.tables.find(t=>t.id===tableId); if(t) return t.name; }
   return 'Masa';
 }
 async function pickKitchenStation(id){ APP.kitchenStation=id; render(); }
+
+/* ---- Mutfak: canli sayac + yeni siparis zili ---- */
+function stopKitchenPolling(){
+  if(APP.kitchenPollInterval){ clearInterval(APP.kitchenPollInterval); APP.kitchenPollInterval=null; }
+  if(APP.kitchenTimerInterval){ clearInterval(APP.kitchenTimerInterval); APP.kitchenTimerInterval=null; }
+}
+function startKitchenPolling(session){
+  stopKitchenPolling();
+  // Yeni siparisleri yakalamak icin arka planda periyodik yenileme (websocket/canli
+  // abonelik kurulmadigi icin en basit ve guvenilir yontem bu).
+  APP.kitchenPollInterval = setInterval(() => {
+    if(APP.view==='kitchen' && APP.kitchenStation) refreshKitchenItems(session);
+  }, 8000);
+  APP.kitchenTimerInterval = setInterval(updateKitchenTimers, 1000);
+}
+function updateKitchenTimers(){
+  document.querySelectorAll('.kitchen-timer[data-added]').forEach(el => {
+    const added = el.dataset.added;
+    if(!added){ el.textContent='-'; return; }
+    const secs = Math.max(0, Math.floor((Date.now() - new Date(added).getTime())/1000));
+    const mm = Math.floor(secs/60), ss = secs%60;
+    el.textContent = mm + ':' + String(ss).padStart(2,'0');
+    el.classList.toggle('kt-warn', secs>=120 && secs<300);
+    el.classList.toggle('kt-danger', secs>=300);
+  });
+}
+let KITCHEN_AUDIO_CTX = null;
+function playKitchenBell(){
+  try{
+    KITCHEN_AUDIO_CTX = KITCHEN_AUDIO_CTX || new (window.AudioContext || window.webkitAudioContext)();
+    const ctx = KITCHEN_AUDIO_CTX;
+    if(ctx.state==='suspended') ctx.resume();
+    [880, 1320].forEach((freq, i) => {
+      const t0 = ctx.currentTime + i*0.18;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(0.0001, t0);
+      gain.gain.exponentialRampToValueAtTime(0.3, t0+0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t0+0.35);
+      osc.connect(gain); gain.connect(ctx.destination);
+      osc.start(t0); osc.stop(t0+0.4);
+    });
+  }catch(e){ console.warn('Zil sesi çalınamadı:', e); }
+}
 async function markReady(itemId){
   const session = getSession();
   const { error } = await sb.rpc('mark_item_ready', { p_token: session.session_token, p_order_item_id: itemId });
@@ -1374,6 +1441,7 @@ async function doLogin(){
 }
 async function doLogout(){
   const session = getSession();
+  stopKitchenPolling();
   clearSession();
   render();
   if(session && session.session_token){
