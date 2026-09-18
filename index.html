@@ -205,7 +205,7 @@ function isAdminMode(){
   return new URLSearchParams(window.location.search).get('admin')==='1' || !!getAdminSession();
 }
 
-const APP = { view:'home', config:null, selectedZone:null, draftCart:{}, liveOrders:[], authScreen:'login', selectedPackage:'paket1', pendingSignup:null, adminView:'promos' };
+const APP = { view:'home', config:null, selectedZone:null, draftCart:{}, liveOrders:[], authScreen:'login', selectedPackage:'paket1', pendingSignup:null, adminView:'promos', settingsTab:'stations' };
 
 const NAV_ITEMS = [
   { view:'order', icon:'🍽️', label:'Sipariş Al', roles:['waiter','manager'] },
@@ -1385,23 +1385,26 @@ function escapeHtml(s){
 }
 
 /* ================= AYARLAR ================= */
-async function openSettingsView(){ APP.view='settings'; APP.settingsTab='stations'; render(); }
 async function renderSettingsView(main, session){
   const { data, error } = await sb.rpc('get_restaurant_config', { p_token: session.session_token });
   if(error){ main.innerHTML = '<h1>Ayarlar</h1><p class="muted">Yüklenemedi: '+error.message+'</p>'; return; }
   APP.config = data;
   main.innerHTML = `<h1>Ayarlar</h1>
     <div class="tabs">
-      <div class="tab ${APP.settingsTab==='stations'?'active':''}" onclick="setSettingsTab('stations')">İstasyonlar</div>
-      <div class="tab ${APP.settingsTab==='zones'?'active':''}" onclick="setSettingsTab('zones')">Bölgeler & Masalar</div>
-      <div class="tab ${APP.settingsTab==='products'?'active':''}" onclick="setSettingsTab('products')">Ürünler</div>
-      <div class="tab ${APP.settingsTab==='ingredients'?'active':''}" onclick="setSettingsTab('ingredients')">Hammaddeler</div>
-      <div class="tab ${APP.settingsTab==='users'?'active':''}" onclick="setSettingsTab('users')">Kullanıcılar</div>
+      <div class="tab ${APP.settingsTab==='stations'?'active':''}" data-tab="stations" onclick="setSettingsTab('stations')">İstasyonlar</div>
+      <div class="tab ${APP.settingsTab==='zones'?'active':''}" data-tab="zones" onclick="setSettingsTab('zones')">Bölgeler & Masalar</div>
+      <div class="tab ${APP.settingsTab==='products'?'active':''}" data-tab="products" onclick="setSettingsTab('products')">Ürünler</div>
+      <div class="tab ${APP.settingsTab==='ingredients'?'active':''}" data-tab="ingredients" onclick="setSettingsTab('ingredients')">Hammaddeler</div>
+      <div class="tab ${APP.settingsTab==='users'?'active':''}" data-tab="users" onclick="setSettingsTab('users')">Kullanıcılar</div>
     </div>
     <div id="settingsContent"></div>`;
   renderSettingsContent(session);
 }
-function setSettingsTab(tab){ APP.settingsTab = tab; renderSettingsContent(getSession()); }
+function setSettingsTab(tab){
+  APP.settingsTab = tab;
+  document.querySelectorAll('.tabs .tab[data-tab]').forEach(el => el.classList.toggle('active', el.dataset.tab===tab));
+  renderSettingsContent(getSession());
+}
 function renderSettingsContent(session){
   const el = document.getElementById('settingsContent'); if(!el) return;
   if(APP.settingsTab==='stations') renderStationsSettings(el, session);
