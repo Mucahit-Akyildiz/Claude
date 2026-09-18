@@ -853,6 +853,48 @@ end;
 $$;
 grant execute on function delete_ingredient to anon;
 
+-- Bir hammaddeyi hangi urunlerin, ne kadar (porsiyon basi) kullandigini TEK EKRANDAN
+-- ayarlar (hammadde tarafindan bakis). Listede olmayan urunlerden bu hammaddeyi
+-- kaldirir, o urunlerin BASKA hammaddelerine dokunmaz.
+create or replace function set_ingredient_usage(p_token uuid, p_ingredient_id uuid, p_usages json)
+returns void
+language plpgsql
+security definer
+as $$
+declare
+  s staff_sessions%rowtype;
+  usage json;
+  v_product_id uuid;
+  v_qty numeric;
+  v_used_ids uuid[] := '{}';
+begin
+  s := _session_check(p_token, 'manager');
+  if not exists(select 1 from ingredients where id = p_ingredient_id and restaurant_id = s.restaurant_id) then
+    raise exception 'Hammadde bulunamadı';
+  end if;
+
+  for usage in select * from json_array_elements(p_usages)
+  loop
+    v_product_id := (usage->>'product_id')::uuid;
+    v_qty := (usage->>'qty_per_unit')::numeric;
+    if v_qty is not null and v_qty > 0 and exists(select 1 from products where id = v_product_id and restaurant_id = s.restaurant_id) then
+      insert into product_ingredients (product_id, ingredient_id, qty_per_unit)
+      values (v_product_id, p_ingredient_id, v_qty)
+      on conflict (product_id, ingredient_id) do update set qty_per_unit = excluded.qty_per_unit;
+      v_used_ids := array_append(v_used_ids, v_product_id);
+    end if;
+  end loop;
+
+  delete from product_ingredients pi
+    using products p
+    where pi.ingredient_id = p_ingredient_id
+      and pi.product_id = p.id
+      and p.restaurant_id = s.restaurant_id
+      and not (pi.product_id = any(v_used_ids));
+end;
+$$;
+grant execute on function set_ingredient_usage to anon;
+
 -- Bir ürünün reçetesini (hangi hammaddeden porsiyon başına ne kadar tükettiğini) baştan yazar.
 create or replace function set_recipe(p_token uuid, p_product_id uuid, p_items json)
 returns void
