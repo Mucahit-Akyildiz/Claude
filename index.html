@@ -225,6 +225,7 @@ const NAV_ITEMS = [
   { view:'order', icon:'🍽️', label:'Sipariş Al', roles:['waiter','manager'] },
   { view:'kitchen', icon:'🧑‍🍳', label:'Mutfak Ekranı', roles:['kitchen','manager'] },
   { view:'printerSettings', icon:'🖨️', label:'Yazıcı Ayarları', roles:['kitchen','waiter','manager'] },
+  { view:'notificationSettings', icon:'🔔', label:'Bildirim Ayarları', roles:['kitchen','waiter','manager'] },
   { view:'payments', icon:'💳', label:'Ödemeler', roles:['manager'] },
   { view:'reports', icon:'📊', label:'Finansal Analiz', roles:['manager'] },
   { view:'settings', icon:'⚙️', label:'Ayarlar', roles:['manager'] },
@@ -288,6 +289,7 @@ function render(){
   else if(APP.view==='settings') renderSettingsView(main, session);
   else if(APP.view==='reports') renderReportsView(main, session);
   else if(APP.view==='printerSettings') renderPrinterSettingsView(main, session);
+  else if(APP.view==='notificationSettings') renderNotificationSettingsView(main, session);
 }
 function todayLocalDateStr(){
   const d = new Date();
@@ -1128,7 +1130,7 @@ function addToDraft(tableId, productId){
   const draft = APP.draftCart[tableId];
   const existing = draft.find(i => i.product_id===productId);
   if(existing){ existing.qty += 1; }
-  else{ draft.push({ product_id:productId, name:prod.name, price:prod.price, cost:prod.cost, qty:1, note:'' }); }
+  else{ draft.push({ product_id:productId, name:prod.name, price:prod.price, cost:prod.cost, station_id:prod.station_id, qty:1, note:'' }); }
   applyLocalStockDelta(productId, 1);
   renderTableItems(tableId);
   const activeTab = document.querySelector('#prodStationTabs .tab.active');
@@ -1218,7 +1220,7 @@ async function confirmOrder(tableId){
   const btn = document.getElementById('confirmBtn');
   if(btn){ btn.disabled = true; btn.textContent = 'Gönderiliyor...'; }
   const session = getSession();
-  const items = draft.map(d => ({ product_id:d.product_id, name:d.name, price:d.price, cost:d.cost, qty:d.qty, note:d.note||'' }));
+  const items = draft.map(d => ({ product_id:d.product_id, name:d.name, price:d.price, cost:d.cost, station_id:d.station_id, qty:d.qty, note:d.note||'' }));
   const { data: sendData, error } = await sb.rpc('send_order', { p_token: session.session_token, p_table_id: tableId, p_items: items });
   if(error){
     alert('Sipariş gönderilemedi: ' + error.message);
@@ -1229,7 +1231,7 @@ async function confirmOrder(tableId){
   const dailyNumber = sendData && sendData[0] ? sendData[0].daily_number : null;
   const nowIso = new Date().toISOString();
   const itemsForTicket = items.map(it => ({ ...it, added_at: nowIso }));
-  printKitchenTicket(tableNameForId(tableId), itemsForTicket, null, true, dailyNumber);
+  printKitchenTicketGrouped(tableNameForId(tableId), itemsForTicket, true, dailyNumber);
   const [liveRes, cfgRes] = await Promise.all([
     sb.rpc('get_live_orders', { p_token: session.session_token }),
     sb.rpc('get_restaurant_config', { p_token: session.session_token })
@@ -1254,6 +1256,25 @@ function getPrinters(){
 function setPrinters(list){ try{ localStorage.setItem('rys_printers', JSON.stringify(list)); }catch(e){} }
 function getActivePrinterId(){ try{ return localStorage.getItem('rys_active_printer_id') || ''; }catch(e){ return ''; } }
 function setActivePrinterId(id){ try{ localStorage.setItem('rys_active_printer_id', id||''); }catch(e){} }
+function getStationPrinterMap(){
+  try{ return JSON.parse(localStorage.getItem('rys_station_printers')) || {}; }catch(e){ return {}; }
+}
+function setStationPrinterMap(map){ try{ localStorage.setItem('rys_station_printers', JSON.stringify(map)); }catch(e){} }
+function setStationPrinter(stationId, printerId){
+  const map = getStationPrinterMap();
+  if(printerId) map[stationId] = printerId; else delete map[stationId];
+  setStationPrinterMap(map);
+  showToast('Kaydedildi ✓');
+}
+function resolvePrinterForStation(stationId){
+  const printers = getPrinters();
+  const map = getStationPrinterMap();
+  if(stationId && map[stationId]){
+    const p = printers.find(x => x.id===map[stationId]);
+    if(p) return p;
+  }
+  return printers.find(p => p.id===getActivePrinterId()) || null;
+}
 function getKitchenBellSounds(){
   try{ return JSON.parse(localStorage.getItem('rys_bell_sounds')) || { default:null, perStation:{} }; }
   catch(e){ return { default:null, perStation:{} }; }
@@ -1273,6 +1294,7 @@ function renderPrinterSettingsView(main, session){
   const design = getTicketDesign();
   const printers = getPrinters();
   const activeId = getActivePrinterId();
+  const stationPrinterMap = getStationPrinterMap();
   const usbSupported = !!(navigator.usb);
   main.innerHTML = `
     <h1>Yazıcı Ayarları</h1>
@@ -1354,6 +1376,35 @@ function renderPrinterSettingsView(main, session){
     </div>
 
     <div class="box" style="max-width:none;">
+      <h2>İstasyon → Yazıcı Eşleştirme</h2>
+      <p class="muted" style="text-align:left;">Her istasyonun ürünleri hangi yazıcıya basılsın? Örneğin Çayhane'nin ürünleri (çay, su, tiramisu gibi) bir yazıcıya, Izgara'nın ürünleri (döner, köfte gibi) başka bir yazıcıya gidebilir. Bir istasyona yazıcı seçmezseniz o istasyonun fişi "Bu Ekranın Yazıcısı" seçimini kullanır. Sipariş onaylandığında her istasyon için ayrı bir fiş kendi yazıcısına gönderilir.</p>
+      <div class="settings-table-wrap">
+      <table class="settings-table">
+        <thead><tr><th>İstasyon</th><th>Yazıcı</th></tr></thead>
+        <tbody>
+        ${APP.config.stations.map(s => `
+          <tr>
+            <td class="col-name">${escapeHtml(s.icon||'🍳')} ${escapeHtml(s.name)}</td>
+            <td>
+              <select onchange="setStationPrinter('${s.id}', this.value)">
+                <option value="">Varsayılan (Bu Ekranın Yazıcısı)</option>
+                ${printers.map(p => `<option value="${p.id}" ${stationPrinterMap[s.id]===p.id?'selected':''}>${escapeHtml(p.name)}</option>`).join('')}
+              </select>
+            </td>
+          </tr>`).join('')}
+        </tbody>
+      </table>
+      </div>
+    </div>
+  `;
+  updateTicketPreview();
+}
+function renderNotificationSettingsView(main, session){
+  main.innerHTML = `
+    <h1>Bildirim Ayarları</h1>
+    <p class="muted" style="text-align:left;">Bu ayarlar sadece <b>bu ekrana/tarayıcıya</b> özeldir — her cihazda ayrı ayrı yapılandırılır, veritabanına kaydedilmez.</p>
+
+    <div class="box" style="max-width:none;">
       <h2>🔔 Bildirim Sesi (Yeni Sipariş Zili)</h2>
       <p class="muted" style="text-align:left;">Mutfağa yeni bir sipariş düştüğünde bu ekranda çalacak sesi özelleştirebilirsiniz. Bir istasyon seçip kendi ses dosyanızı yükleyerek o istasyona özel bir zil sesi de tanımlayabilirsiniz (örn. Izgara için ayrı, Çayhane için ayrı).</p>
       <div class="field-group" style="max-width:320px;"><label>Kapsam</label>
@@ -1378,7 +1429,6 @@ function renderPrinterSettingsView(main, session){
       </p>
     </div>
   `;
-  updateTicketPreview();
   updateBellScopeStatus();
 }
 function currentBellScope(){ const el = document.getElementById('bellScopeSelect'); return el ? el.value : ''; }
@@ -1541,7 +1591,21 @@ async function sendToUsbPrinter(printer, bytes){
 function reprintKitchenTicket(tableId){
   const entry = APP.kitchenPendingByTable && APP.kitchenPendingByTable[tableId];
   if(!entry){ alert('Bu masa için bekleyen ürün kalmadı.'); return; }
-  printKitchenTicket(entry.tableName, entry.items, null, false, entry.dailyNumber);
+  printKitchenTicketGrouped(entry.tableName, entry.items, false, entry.dailyNumber);
+}
+/* Ürünleri istasyona göre gruplar, her istasyonun fişini o istasyona atanmış
+   yazıcıya (atanmamışsa "Bu Ekranın Yazıcısı"na) ayrı ayrı gönderir. */
+async function printKitchenTicketGrouped(tableName, items, silent, dailyNumber){
+  const groups = {};
+  items.forEach(it => {
+    const key = it.station_id || '';
+    if(!groups[key]) groups[key] = [];
+    groups[key].push(it);
+  });
+  for(const key of Object.keys(groups)){
+    const printer = resolvePrinterForStation(key || null);
+    await printKitchenTicket(tableName, groups[key], printer, silent, dailyNumber);
+  }
 }
 async function printKitchenTicket(tableName, items, printerOverride, silent, dailyNumber){
   const session = getSession();
