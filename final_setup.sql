@@ -164,18 +164,26 @@ create or replace function _cleanup_sessions() returns void language sql as $$
   delete from staff_sessions where expires_at < now() - interval '1 day';
 $$;
 
--- Her fonksiyonun başında çağıracağı doğrulama: token geçerli mi, rol yeterli mi
+-- Her fonksiyonun başında çağıracağı doğrulama: token geçerli mi, rol yeterli mi,
+-- işletmenin deneme/abonelik süresi dolmuş mu (dolmuşsa TÜM işlemler burada kesilir).
 create or replace function _session_check(p_token uuid, p_required_role text default null)
 returns staff_sessions
 language plpgsql
 security definer
+set search_path = public, pg_temp
 as $$
 declare
   s staff_sessions%rowtype;
+  v_active boolean;
+  v_expires timestamptz;
 begin
   select * into s from staff_sessions where token = p_token and expires_at > now();
   if s.token is null then
     raise exception 'Oturum geçersiz veya süresi dolmuş, tekrar giriş yapın';
+  end if;
+  select is_active, expires_at into v_active, v_expires from restaurants where id = s.restaurant_id;
+  if not coalesce(v_active, false) or (v_expires is not null and v_expires <= now()) then
+    raise exception 'ABONELIK_SURESI_DOLDU';
   end if;
   if p_required_role is not null and s.role <> p_required_role and s.role <> 'manager' then
     raise exception 'Bu işlem için yetkiniz yok';
@@ -188,36 +196,67 @@ $$;
 alter table restaurants add column if not exists max_users int not null default 3;
 
 -- ---------- GİRİŞ / ÇIKIŞ ----------
+-- Önce kimlik doğrulanır, SONRA abonelik durumu kontrol edilir - böylece
+-- istemci "hatalı giriş" ile "ödeme gerekiyor"u ayırt edip doğru ekranı
+-- gösterebilir (bkz. verify_restaurant_credentials, ödeme akışı için).
 create or replace function login_staff(p_code text, p_username text, p_password text)
 returns table(session_token uuid, user_id uuid, restaurant_id uuid, role text, restaurant_name text)
 language plpgsql
 security definer
+set search_path = public, pg_temp
 as $$
 declare
   v_user app_users%rowtype;
-  v_restaurant_name text;
+  v_restaurant restaurants%rowtype;
   v_token uuid;
 begin
-  select u.* into v_user
-    from app_users u
-    join restaurants r on r.id = u.restaurant_id
-    where r.code = p_code and u.username = p_username
-      and r.is_active = true and (r.expires_at is null or r.expires_at > now());
+  select r.* into v_restaurant from restaurants r where r.code = p_code;
+  if v_restaurant.id is not null then
+    select u.* into v_user from app_users u where u.restaurant_id = v_restaurant.id and u.username = p_username;
+  end if;
 
   if v_user.id is null or v_user.password is distinct from crypt(p_password, v_user.password) then
     return;
   end if;
 
-  select r.name into v_restaurant_name from restaurants r where r.id = v_user.restaurant_id;
+  if not coalesce(v_restaurant.is_active, false) or (v_restaurant.expires_at is not null and v_restaurant.expires_at <= now()) then
+    raise exception 'ABONELIK_SURESI_DOLDU';
+  end if;
 
   insert into staff_sessions (user_id, restaurant_id, username, role)
   values (v_user.id, v_user.restaurant_id, v_user.username, v_user.role)
   returning token into v_token;
 
-  return query select v_token, v_user.id, v_user.restaurant_id, v_user.role, v_restaurant_name;
+  return query select v_token, v_user.id, v_user.restaurant_id, v_user.role, v_restaurant.name;
 end;
 $$;
 grant execute on function login_staff to anon;
+
+-- Oturum olmadan (giriş engellenmişken) sahiplik doğrulaması - "kilitli
+-- kaldım, ödeme yapıp devam etmek istiyorum" akışı için. Sadece manager
+-- rolü, sadece doğru şifreyle çalışır; aktif/süresi-dolmuş farketmez.
+create or replace function verify_restaurant_credentials(p_code text, p_username text, p_password text)
+returns table(restaurant_id uuid, package_id text, restaurant_name text, is_active boolean, expires_at timestamptz)
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  v_user app_users%rowtype;
+  v_restaurant restaurants%rowtype;
+begin
+  select r.* into v_restaurant from restaurants r where r.code = p_code;
+  if v_restaurant.id is not null then
+    select u.* into v_user from app_users u
+      where u.restaurant_id = v_restaurant.id and u.username = p_username and u.role = 'manager';
+  end if;
+  if v_user.id is null or v_user.password is distinct from crypt(p_password, v_user.password) then
+    return;
+  end if;
+  return query select v_restaurant.id, v_restaurant.package_id, v_restaurant.name, v_restaurant.is_active, v_restaurant.expires_at;
+end;
+$$;
+grant execute on function verify_restaurant_credentials to anon;
 
 create or replace function logout_staff(p_token uuid)
 returns void language sql security definer as $$
@@ -232,6 +271,39 @@ create table if not exists platform_settings (
   key text primary key,
   value text
 );
+
+-- Paket fiyatları (aylık, TL) - platform_settings içinde tutulur, ?admin=1
+-- ekranından değiştirilebilir; api/payment-initialize.js gerçek zamanlı okur.
+insert into platform_settings (key, value) values
+  ('price_paket1', '499'),
+  ('price_paket2', '999'),
+  ('price_paket3', '2499')
+on conflict (key) do nothing;
+
+create or replace function get_package_prices()
+returns json
+language sql
+security definer
+set search_path = public, pg_temp
+as $$
+  select json_object_agg(key, value) from platform_settings where key in ('price_paket1','price_paket2','price_paket3');
+$$;
+grant execute on function get_package_prices to anon;
+
+create or replace function set_package_prices(p_token uuid, p_paket1 numeric, p_paket2 numeric, p_paket3 numeric)
+returns void
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+begin
+  perform _platform_admin_check(p_token);
+  insert into platform_settings (key, value) values
+    ('price_paket1', p_paket1::text), ('price_paket2', p_paket2::text), ('price_paket3', p_paket3::text)
+  on conflict (key) do update set value = excluded.value;
+end;
+$$;
+grant execute on function set_package_prices to anon;
 
 alter table restaurants add column if not exists email text;
 alter table restaurants add column if not exists phone text;
