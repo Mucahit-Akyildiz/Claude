@@ -177,6 +177,19 @@
   .ticket-note{font-size:11px;font-style:italic;padding-left:20px;}
   .ticket-paper{background:#fff;color:#000;font-family:'Courier New',monospace;padding:14px;width:302px;box-shadow:0 2px 10px rgba(0,0,0,.15);}
   .ticket-paper.pw58{width:219px;}
+  .ticket-meta.ticket-rich{text-align:left;}
+  .ticket-rich b,.ticket-rich strong{font-weight:800;}
+
+  /* ---- Fiş başlığı/altı için Word tarzı zengin metin araç çubuğu ---- */
+  .rte-toolbar{display:flex;flex-wrap:wrap;align-items:center;gap:4px;background:var(--panel2);border:1.5px solid var(--border);border-bottom:none;border-radius:10px 10px 0 0;padding:6px 8px;}
+  .rte-btn{width:auto;flex:none;padding:5px 10px;margin:0;background:var(--panel);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;font-weight:700;box-shadow:none;line-height:1.2;}
+  .rte-btn:hover{border-color:var(--accent);}
+  .rte-sep{width:1px;align-self:stretch;background:var(--border);margin:0 2px;}
+  .rte-select{width:auto;margin:0;padding:5px 8px;font-size:12px;background:var(--panel);border:1px solid var(--border);border-radius:6px;color:var(--text);}
+  .rte-color{width:30px;height:30px;padding:2px;margin:0;border:1px solid var(--border);border-radius:6px;background:var(--panel);cursor:pointer;}
+  .rte-box{min-height:44px;background:#fff;color:#000;border:1.5px solid var(--border);border-radius:0 0 10px 10px;padding:9px 12px;font-size:13px;line-height:1.4;outline:none;}
+  .rte-box:focus{border-color:var(--accent);}
+  .rte-box:empty:before{content:attr(data-placeholder);color:#999;}
   .ticket-bold, .ticket-bold *{font-weight:700 !important;}
   .kitchen-item-row{font-size:16px;}
   .kitchen-timer{font-size:18px;font-weight:800;color:var(--green);font-variant-numeric:tabular-nums;}
@@ -1375,6 +1388,12 @@ function getTicketDesign(){
     // Termal yazıcılarda ince/normal ağırlıklı yazı çoğunlukla silik/soluk
     // çıkıyor - bu yüzden aksi (false) kaydedilmediği sürece varsayılan kalın.
     bold: d.bold !== false,
+    // Yazıcının kağıda basacağı kenarlıklar (mm) - içerik bu kadar boşluktan
+    // sonra başlar/biter.
+    marginTop: d.marginTop!=null ? d.marginTop : 4,
+    marginRight: d.marginRight!=null ? d.marginRight : 4,
+    marginBottom: d.marginBottom!=null ? d.marginBottom : 4,
+    marginLeft: d.marginLeft!=null ? d.marginLeft : 4,
   };
 }
 function setTicketDesign(d){ try{ localStorage.setItem('rys_ticket_design', JSON.stringify(d)); }catch(e){} }
@@ -1384,6 +1403,60 @@ function applyTicketDesignStyle(el, design, baseClass){
   if(design.bold) cls += (cls?' ':'')+'ticket-bold';
   el.className = cls;
   el.style.fontFamily = ticketFontStack(design.fontFamily);
+  const mt = design.marginTop!=null ? design.marginTop : 4;
+  const mr = design.marginRight!=null ? design.marginRight : 4;
+  const mb = design.marginBottom!=null ? design.marginBottom : 4;
+  const ml = design.marginLeft!=null ? design.marginLeft : 4;
+  el.style.padding = mt+'mm '+mr+'mm '+mb+'mm '+ml+'mm';
+}
+/* Fiş başlığı/altı notu için Word tarzı basit zengin metin araç çubuğu.
+   document.execCommand eski/deprecated ama Chromium tabanlı tüm hedeflerde
+   (Chrome/Edge/Electron) hâlâ çalışıyor ve tek-dosya mimariye ek kütüphane
+   eklemeden bold/italic/hizalama/yazı tipi/boyut/renk desteği veriyor. */
+let TICKET_RTE_SAVED_RANGE = {};
+document.addEventListener('selectionchange', () => {
+  const sel = window.getSelection();
+  if(!sel || sel.rangeCount===0) return;
+  const range = sel.getRangeAt(0);
+  const node = range.commonAncestorContainer;
+  const startEl = node.nodeType===1 ? node : node.parentElement;
+  const box = startEl && startEl.closest ? startEl.closest('.rte-box') : null;
+  if(box) TICKET_RTE_SAVED_RANGE[box.id] = range.cloneRange();
+});
+function ticketRteToolbarHtml(targetId){
+  return `
+    <button type="button" class="rte-btn" title="Kalın" onmousedown="event.preventDefault()" onclick="applyTicketRte('${targetId}','bold')"><b>K</b></button>
+    <button type="button" class="rte-btn" title="İtalik" onmousedown="event.preventDefault()" onclick="applyTicketRte('${targetId}','italic')"><i>İ</i></button>
+    <button type="button" class="rte-btn" title="Altı Çizili" onmousedown="event.preventDefault()" onclick="applyTicketRte('${targetId}','underline')"><u>A</u></button>
+    <span class="rte-sep"></span>
+    <button type="button" class="rte-btn" title="Sola Yasla" onmousedown="event.preventDefault()" onclick="applyTicketRte('${targetId}','justifyLeft')">⯇</button>
+    <button type="button" class="rte-btn" title="Ortala" onmousedown="event.preventDefault()" onclick="applyTicketRte('${targetId}','justifyCenter')">☰</button>
+    <button type="button" class="rte-btn" title="Sağa Yasla" onmousedown="event.preventDefault()" onclick="applyTicketRte('${targetId}','justifyRight')">⯈</button>
+    <span class="rte-sep"></span>
+    <select class="rte-select" title="Yazı Tipi" onmousedown="event.preventDefault()" onchange="applyTicketRte('${targetId}','fontName',this.value)">
+      ${Object.keys(TICKET_FONTS).map(f => `<option value="${f}">${f}</option>`).join('')}
+    </select>
+    <select class="rte-select" title="Yazı Boyutu" onmousedown="event.preventDefault()" onchange="applyTicketRte('${targetId}','fontSize',this.value)">
+      <option value="2">Küçük</option>
+      <option value="3" selected>Normal</option>
+      <option value="5">Büyük</option>
+      <option value="7">Çok Büyük</option>
+    </select>
+    <input type="color" class="rte-color" title="Yazı Rengi" value="#000000" onmousedown="event.preventDefault()" onchange="applyTicketRte('${targetId}','foreColor',this.value)">
+  `;
+}
+function applyTicketRte(targetId, cmd, value){
+  const el = document.getElementById(targetId);
+  if(!el) return;
+  el.focus();
+  const saved = TICKET_RTE_SAVED_RANGE[targetId];
+  if(saved){
+    const sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(saved);
+  }
+  document.execCommand(cmd, false, value);
+  updateTicketPreview();
 }
 function getPrinters(){
   try{ return JSON.parse(localStorage.getItem('rys_printers')) || []; }catch(e){ return []; }
@@ -1461,21 +1534,34 @@ async function renderPrinterSettingsView(main, session){
               <option value="80" ${design.width==='80'?'selected':''}>80mm</option>
             </select>
           </div>
-          <div class="field-group" style="margin-top:10px;"><label>Fiş Başlığında Ek Not (opsiyonel)</label>
-            <input id="td_header" value="${escapeHtml(design.header||'')}" placeholder="örn. Şube: Merkez" oninput="updateTicketPreview()"></div>
-          <div class="field-group" style="margin-top:10px;"><label>Fiş Altında Ek Not (opsiyonel)</label>
-            <input id="td_footer" value="${escapeHtml(design.footer||'')}" placeholder="örn. Afiyet olsun!" oninput="updateTicketPreview()"></div>
-          <div class="field-group" style="margin-top:10px;"><label>Yazı Tipi</label>
+          <div class="field-group" style="margin-top:10px;"><label>Yazı Tipi (ürün satırları)</label>
             <select id="td_font" oninput="updateTicketPreview()">
               ${Object.keys(TICKET_FONTS).map(f => `<option value="${f}" ${design.fontFamily===f?'selected':''}>${f}</option>`).join('')}
             </select>
           </div>
           <div class="field-group" style="margin-top:10px;display:flex;align-items:center;gap:8px;">
             <input type="checkbox" id="td_bold" ${design.bold?'checked':''} oninput="updateTicketPreview()" style="width:auto;margin:0;">
-            <label style="margin:0;" for="td_bold">Kalın Yazı</label>
+            <label style="margin:0;" for="td_bold">Kalın Yazı (ürün satırları)</label>
           </div>
           <p class="muted" style="text-align:left;font-size:11.5px;margin-top:4px;">Çıktı silik/soluk çıkıyorsa "Kalın Yazı"yı işaretli bırakın — termal yazıcılarda ince yazı genelde net basmıyor.</p>
-          <button style="margin-top:12px;max-width:200px;" onclick="saveTicketDesign()">Tasarımı Kaydet</button>
+
+          <label style="display:block;margin-top:16px;font-size:12.5px;font-weight:700;color:var(--muted);">Fiş Başlığında Ek Not (opsiyonel)</label>
+          <div class="rte-toolbar" data-target="td_header">${ticketRteToolbarHtml('td_header')}</div>
+          <div id="td_header" class="rte-box" contenteditable="true" data-placeholder="örn. Şube: Merkez" oninput="updateTicketPreview()">${design.header||''}</div>
+
+          <label style="display:block;margin-top:14px;font-size:12.5px;font-weight:700;color:var(--muted);">Fiş Altında Ek Not (opsiyonel)</label>
+          <div class="rte-toolbar" data-target="td_footer">${ticketRteToolbarHtml('td_footer')}</div>
+          <div id="td_footer" class="rte-box" contenteditable="true" data-placeholder="örn. Afiyet olsun!" oninput="updateTicketPreview()">${design.footer||''}</div>
+
+          <label style="display:block;margin-top:16px;font-size:12.5px;font-weight:700;color:var(--muted);">Yazıcı Kenar Boşlukları (mm)</label>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:6px;">
+            <div class="field-group"><label>Üst</label><input id="td_mtop" type="number" min="0" max="30" step="0.5" value="${design.marginTop}" oninput="updateTicketPreview()"></div>
+            <div class="field-group"><label>Alt</label><input id="td_mbottom" type="number" min="0" max="30" step="0.5" value="${design.marginBottom}" oninput="updateTicketPreview()"></div>
+            <div class="field-group"><label>Sol</label><input id="td_mleft" type="number" min="0" max="30" step="0.5" value="${design.marginLeft}" oninput="updateTicketPreview()"></div>
+            <div class="field-group"><label>Sağ</label><input id="td_mright" type="number" min="0" max="30" step="0.5" value="${design.marginRight}" oninput="updateTicketPreview()"></div>
+          </div>
+
+          <button style="margin-top:16px;max-width:200px;" onclick="saveTicketDesign()">Tasarımı Kaydet</button>
         </div>
         <div>
           <p class="muted" style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;margin:0 0 8px;">Önizleme</p>
@@ -1681,10 +1767,14 @@ function testBellSound(){ playKitchenBell(currentBellScope() || null); }
 function saveTicketDesign(){
   setTicketDesign({
     width: document.getElementById('td_width').value,
-    header: document.getElementById('td_header').value.trim(),
-    footer: document.getElementById('td_footer').value.trim(),
+    header: document.getElementById('td_header').innerHTML.trim(),
+    footer: document.getElementById('td_footer').innerHTML.trim(),
     fontFamily: document.getElementById('td_font').value,
     bold: document.getElementById('td_bold').checked,
+    marginTop: parseFloat(document.getElementById('td_mtop').value) || 0,
+    marginRight: parseFloat(document.getElementById('td_mright').value) || 0,
+    marginBottom: parseFloat(document.getElementById('td_mbottom').value) || 0,
+    marginLeft: parseFloat(document.getElementById('td_mleft').value) || 0,
   });
   showToast('Kaydedildi ✓');
 }
@@ -1789,16 +1879,30 @@ function escposEncodeText(text){
   // yaziciniz farkli bir kod sayfasi gerektiriyorsa bildirin, ona gore ayarlarim.
   return new TextEncoder().encode(text);
 }
+/* Fiş başlığı/altı notu artık zengin metin (execCommand'in ürettiği
+   <div>/<b>/<font> vb. HTML) olarak saklanıyor - USB (ESC/POS) yazdırma ham
+   metin bekliyor, HTML biçimlendirmeyi gösteremiyor. Etiketleri atıp satır
+   sonlarını koruyarak düz metne çeviriyoruz. */
+function ticketRichToPlainText(html){
+  if(!html) return '';
+  const tmp = document.createElement('div');
+  tmp.innerHTML = html;
+  tmp.querySelectorAll('div,p').forEach(el => el.insertAdjacentText('beforeend', '\n'));
+  tmp.querySelectorAll('br').forEach(el => el.replaceWith('\n'));
+  return (tmp.textContent || '').replace(/\n+$/, '').trim();
+}
 function buildEscPosTicket(restaurantName, tableName, items, design, dailyNumber){
   const chunks = [];
   const push = (arr) => chunks.push(arr instanceof Uint8Array ? arr : new Uint8Array(arr));
   const lineWidth = design.width==='58' ? 32 : 48;
+  const headerText = ticketRichToPlainText(design.header);
+  const footerText = ticketRichToPlainText(design.footer);
   push([0x1B, 0x40]); // init
   push([0x1B, 0x61, 0x01]); // center
   push([0x1B, 0x45, 0x01]); // bold on
   push(escposEncodeText((restaurantName||'').toUpperCase() + '\n'));
   push([0x1B, 0x45, 0x00]); // bold off
-  if(design.header) push(escposEncodeText(design.header + '\n'));
+  if(headerText) push(escposEncodeText(headerText + '\n'));
   const now = new Date();
   push(escposEncodeText((dailyNumber ? ('Sipariş No: '+dailyNumber+' · ') : '') + tableName + '\n'));
   push(escposEncodeText(now.toLocaleDateString('tr-TR') + '\n'));
@@ -1816,9 +1920,9 @@ function buildEscPosTicket(restaurantName, tableName, items, design, dailyNumber
   });
   push(escposEncodeText('-'.repeat(lineWidth) + '\n'));
   if(design.bold) push([0x1B, 0x45, 0x00]);
-  if(design.footer){
+  if(footerText){
     push([0x1B, 0x61, 0x01]);
-    push(escposEncodeText(design.footer + '\n'));
+    push(escposEncodeText(footerText + '\n'));
   }
   push(escposEncodeText('\n\n\n'));
   push([0x1D, 0x56, 0x42, 0x00]); // kagit kes
@@ -1945,7 +2049,7 @@ function buildTicketHtml(restaurantName, tableName, items, design, dailyNumber){
   const now = new Date();
   return `
     <div class="ticket-title">${escapeHtml(restaurantName)}</div>
-    ${design.header ? `<div class="ticket-meta">${escapeHtml(design.header)}</div>` : ''}
+    ${design.header ? `<div class="ticket-meta ticket-rich">${design.header}</div>` : ''}
     <div class="ticket-meta">${dailyNumber?('Sipariş No: '+dailyNumber+' · '):''}${escapeHtml(tableName)}</div>
     <div class="ticket-meta">${now.toLocaleDateString('tr-TR')}</div>
     <div class="ticket-line"></div>
@@ -1954,17 +2058,21 @@ function buildTicketHtml(restaurantName, tableName, items, design, dailyNumber){
       ${it.note ? `<div class="ticket-note">Not: ${escapeHtml(it.note)}</div>` : ''}
     `).join('')}
     <div class="ticket-line"></div>
-    ${design.footer ? `<div class="ticket-meta">${escapeHtml(design.footer)}</div>` : ''}
+    ${design.footer ? `<div class="ticket-meta ticket-rich">${design.footer}</div>` : ''}
   `;
 }
 function updateTicketPreview(){
   const el = document.getElementById('ticketPreview');
   if(!el) return;
   const width = document.getElementById('td_width').value;
-  const header = document.getElementById('td_header').value.trim();
-  const footer = document.getElementById('td_footer').value.trim();
+  const header = document.getElementById('td_header').innerHTML.trim();
+  const footer = document.getElementById('td_footer').innerHTML.trim();
   const fontFamily = document.getElementById('td_font').value;
   const bold = document.getElementById('td_bold').checked;
+  const marginTop = parseFloat(document.getElementById('td_mtop').value) || 0;
+  const marginRight = parseFloat(document.getElementById('td_mright').value) || 0;
+  const marginBottom = parseFloat(document.getElementById('td_mbottom').value) || 0;
+  const marginLeft = parseFloat(document.getElementById('td_mleft').value) || 0;
   const session = getSession();
   const t1 = new Date(Date.now() - 6*60000).toISOString();
   const t2 = new Date().toISOString();
@@ -1973,7 +2081,7 @@ function updateTicketPreview(){
     { qty:1, name:'Ayran', added_at:t1 },
     { qty:1, name:'Mevsim Salata', note:'Sossuz', added_at:t2 },
   ];
-  applyTicketDesignStyle(el, { width, fontFamily, bold }, 'ticket-paper');
+  applyTicketDesignStyle(el, { width, fontFamily, bold, marginTop, marginRight, marginBottom, marginLeft }, 'ticket-paper');
   el.innerHTML = buildTicketHtml(session ? session.restaurant_name : 'İŞLETME ADI', 'Masa 3', sampleItems, { header, footer }, 12);
 }
 async function cancelTableOrder(tableId){
