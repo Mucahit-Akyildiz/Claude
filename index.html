@@ -822,42 +822,55 @@ function primeKitchenAudio(){
   }catch(e){}
   try{ const a = new Audio(); a.volume = 0; a.play().catch(()=>{}); }catch(e){}
 }
-/* Tüm zil ön ayarları ortak bir DynamicsCompressor üzerinden çalınır - bu
-   sayede tek tek osilatör kazançlarını (gain) 1.0'a (dijital tavan) kadar
-   çıkarabiliyoruz, compressor tepeleri yumuşatıp sert kırpılma/çatlama
-   olmadan algılanan sesi belirgin şekilde yükseltiyor ("zil sesi çok
-   düşük" şikayeti için). */
-let BELL_COMPRESSOR = null, BELL_COMPRESSOR_CTX = null;
+/* Tüm zil ön ayarları 3 katmanlı bir zincirden geçer:
+   1) comp: birden fazla kısmi/nota üst üste bindiğinde toplam seviyeyi kontrol altında tutar.
+   2) makeup: compressor'ın düşürdüğü seviyeyi geri kazanır - sadece compressor eklemek
+      sesi YÜKSELTMEZ, tam tersine tepe noktalarını kırptığı için ortalama seviyeyi
+      düşürebilir; "hala düşük" şikayeti bu yüzdendi. Burada seviye ~+15dB geri kazanılıyor.
+   3) limiter: makeup gain sonrası oluşabilecek kırpılmayı/çatlamayı önleyen sert bir
+      son limiter - sesi dijital tavana yapıştırıp algılanan yüksekliği maksimize eder. */
+let BELL_CHAIN = null, BELL_CHAIN_CTX = null;
 function getBellCompressor(ctx){
-  if(BELL_COMPRESSOR && BELL_COMPRESSOR_CTX===ctx) return BELL_COMPRESSOR;
+  if(BELL_CHAIN && BELL_CHAIN_CTX===ctx) return BELL_CHAIN;
   const comp = ctx.createDynamicsCompressor();
-  comp.threshold.value = -20; comp.knee.value = 10; comp.ratio.value = 14;
-  comp.attack.value = 0.002; comp.release.value = 0.18;
-  comp.connect(ctx.destination);
-  BELL_COMPRESSOR = comp; BELL_COMPRESSOR_CTX = ctx;
+  comp.threshold.value = -24; comp.knee.value = 6; comp.ratio.value = 12;
+  comp.attack.value = 0.003; comp.release.value = 0.15;
+  const makeup = ctx.createGain();
+  makeup.gain.value = 5.5;
+  const limiter = ctx.createDynamicsCompressor();
+  limiter.threshold.value = -1; limiter.knee.value = 0; limiter.ratio.value = 20;
+  limiter.attack.value = 0.001; limiter.release.value = 0.08;
+  comp.connect(makeup); makeup.connect(limiter); limiter.connect(ctx.destination);
+  BELL_CHAIN = comp; BELL_CHAIN_CTX = ctx;
   return comp;
 }
 /* Tek bir "çan" notası: temel ton + iki uyumlu üst kısmi (bell partial)
-   katmanlanır. Tek başına kare/testere dalga yerine bu katmanlı sinüs/üçgen
-   yapısı hem daha yüksek/belirgin algılanıyor hem de kulağı yormuyor
-   ("sesler kötü/rahatsız edici, daha dikkat çekici ama rahatsız etmeyen
-   sesler koy" geri bildirimi için). */
+   katmanlanır, temel ve ilk kısmi de hafifçe detune edilmiş ikili (unison)
+   osilatörlerle çalınır - bu, modern bildirim seslerinde (Slack/Teams/iOS
+   tarzı) kullanılan "geniş/parlak" chorus etkisini verir. Tek başına kare/
+   testere dalga yerine bu katmanlı sinüs/üçgen yapısı hem daha yüksek/
+   belirgin algılanıyor hem de kulağı yormuyor. */
 function scheduleBellTone(ctx, freq, t0, dur, peakGain){
   const partials = [
-    {ratio:1,    gain:1.0,  type:'sine'},
-    {ratio:2.01, gain:0.4,  type:'sine'},
-    {ratio:2.76, gain:0.22, type:'triangle'},
+    {ratio:1,    gain:1.0,  type:'sine',     detune:7},
+    {ratio:2.01, gain:0.42, type:'sine',     detune:5},
+    {ratio:2.76, gain:0.22, type:'triangle', detune:0},
   ];
   partials.forEach(p => {
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.type = p.type;
-    osc.frequency.value = freq*p.ratio;
-    gain.gain.setValueAtTime(0.0001, t0);
-    gain.gain.exponentialRampToValueAtTime(Math.max(0.0005, peakGain*p.gain), t0+0.012);
-    gain.gain.exponentialRampToValueAtTime(0.0001, t0+dur);
-    osc.connect(gain); gain.connect(getBellCompressor(ctx));
-    osc.start(t0); osc.stop(t0+dur+0.05);
+    const voices = p.detune ? [-p.detune, p.detune] : [0];
+    voices.forEach(cents => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = p.type;
+      osc.frequency.value = freq*p.ratio;
+      if(cents) osc.detune.value = cents;
+      const g = peakGain*p.gain/voices.length;
+      gain.gain.setValueAtTime(0.0001, t0);
+      gain.gain.exponentialRampToValueAtTime(Math.max(0.0005, g), t0+0.01);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t0+dur);
+      osc.connect(gain); gain.connect(getBellCompressor(ctx));
+      osc.start(t0); osc.stop(t0+dur+0.05);
+    });
   });
 }
 const BELL_PRESETS = {
