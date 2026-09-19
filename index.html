@@ -1446,7 +1446,7 @@ function renderPrinterSettingsView(main, session){
             <td>
               <select onchange="setStationPrinter('${s.id}', this.value)">
                 <option value="">Varsayılan (Bu Ekranın Yazıcısı)</option>
-                ${printers.map(p => `<option value="${p.id}" ${stationPrinterMap[s.id]===p.id?'selected':''}>${escapeHtml(p.name)}</option>`).join('')}
+                ${printers.map(p => `<option value="${p.id}" ${stationPrinterMap[s.id]===p.id?'selected':''}>${escapeHtml(p.name)} (${p.type==='usb'?'USB - doğrudan':'Tarayıcı penceresi'})</option>`).join('')}
               </select>
             </td>
           </tr>`).join('')}
@@ -1721,6 +1721,8 @@ async function printKitchenTicket(tableName, items, printerOverride, silent, dai
     if(silent) showToast('⚠️ "'+printer.name+'" yazıcısına fiş gönderilemedi, bağlantıyı kontrol edin');
   } else if(!printer && silent){
     showToast('⚠️ Fiş yazdırılamadı: bu ekran/istasyon için yazıcı seçili değil');
+  } else if(printer && printer.type!=='usb' && silent){
+    showToast('⚠️ "'+printer.name+'" bir USB yazıcısı değil, otomatik/sessiz yazdırılamıyor (Yazıcı Ayarları\'ndan USB tipli bir yazıcı seçin)');
   }
 
   // silent=true (siparis onaylaninca otomatik cagri): yazici yoksa/basarisizsa
