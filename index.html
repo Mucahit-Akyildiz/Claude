@@ -139,6 +139,10 @@
   .icon-picker-item{aspect-ratio:1;display:flex;align-items:center;justify-content:center;font-size:24px;border-radius:12px;border:1.5px solid var(--border);background:var(--panel2);cursor:pointer;transition:transform .08s ease, border-color .15s ease;}
   .icon-picker-item:hover{transform:scale(1.08);}
   .icon-picker-item.selected{border-color:var(--accent);background:rgba(255,93,58,.15);}
+  .prod-pick-card{transition:transform .06s ease, border-color .1s ease;-webkit-tap-highlight-color:transparent;}
+  .prod-pick-card:active{transform:scale(.95);border-color:var(--accent);}
+  .qty-btn{width:32px;height:32px;padding:0;margin:0;flex-shrink:0;border-radius:8px;background:var(--panel);border:1.5px solid var(--border);color:var(--text);font-weight:800;font-size:16px;box-shadow:none;}
+  .qty-btn:active{transform:scale(.92);}
 
   /* ---- Mutfak fişi yazdırma (termal fiş kağıdına uygun) ---- */
   #printArea{display:none;}
@@ -1033,7 +1037,7 @@ function renderProductPick(stationId, tableId){
     else if(stock!=null && stock<=0) badge = '<div style="margin-top:4px;font-size:11px;color:var(--red);">Stok Yok</div>';
     else if(stock!=null && stock<=10) badge = '<div style="margin-top:4px;font-size:11px;color:var(--accent);">Son '+stock+' porsiyon</div>';
     return `
-    <div style="background:var(--panel2);border:1px solid var(--border);border-radius:10px;padding:10px;font-size:13px;${off?'opacity:.4;cursor:not-allowed;':'cursor:pointer;'}" ${off?'':`onclick="addToDraft('${tableId}','${p.id}')"`}>
+    <div class="prod-pick-card" style="background:var(--panel2);border:1px solid var(--border);border-radius:10px;padding:12px 10px;font-size:13.5px;${off?'opacity:.4;cursor:not-allowed;':'cursor:pointer;'}" ${off?'':`onclick="addToDraft('${tableId}','${p.id}')"`}>
       <div style="font-weight:700;">${escapeHtml(p.name)}</div><div class="muted" style="font-size:12px;">${money(p.price)}</div>${badge}
     </div>`;
   }).join('') : '<p class="muted">Bu istasyonda ürün yok.</p>';
@@ -1042,37 +1046,101 @@ async function refreshConfigKeepDraft(session){
   const { data } = await sb.rpc('get_restaurant_config', { p_token: session.session_token });
   if(data) APP.config = data;
 }
-async function addToDraft(tableId, productId){
+/* Sunucudaki get_restaurant_config'in stok hesabını (floor(min(hammadde stok/oran))) client tarafında
+   birebir tekrar üretir, böylece her tıklamada tam config'i yeniden çekmeye gerek kalmaz. */
+function applyLocalStockDelta(productId, delta){
+  const prod = APP.config.products.find(p => p.id===productId);
+  if(!prod) return;
+  if(prod.recipe && prod.recipe.length>0){
+    const touchedIngredientIds = new Set();
+    prod.recipe.forEach(r => {
+      const ing = APP.config.ingredients.find(i => i.id===r.ingredient_id);
+      if(ing){ ing.stock -= r.qty_per_unit*delta; touchedIngredientIds.add(ing.id); }
+    });
+    APP.config.products.forEach(p => {
+      if(!p.recipe || !p.recipe.some(r => touchedIngredientIds.has(r.ingredient_id))) return;
+      let minQty = null;
+      p.recipe.forEach(r => {
+        if(r.qty_per_unit<=0) return;
+        const ing = APP.config.ingredients.find(i => i.id===r.ingredient_id);
+        if(!ing) return;
+        const q = Math.floor(ing.stock / r.qty_per_unit);
+        if(minQty===null || q<minQty) minQty = q;
+      });
+      p.available_qty = minQty;
+    });
+  } else if(prod.stock!=null){
+    prod.stock -= delta;
+  }
+}
+let _configResyncTimer = null;
+function scheduleConfigResync(tableId){
+  clearTimeout(_configResyncTimer);
+  _configResyncTimer = setTimeout(async () => {
+    const session = getSession();
+    if(!session) return;
+    await refreshConfigKeepDraft(session);
+    const bg = document.getElementById('tableModalBg');
+    if(bg && bg.dataset.tableId===tableId){
+      const activeTab = document.querySelector('#prodStationTabs .tab.active');
+      if(activeTab) renderProductPick(activeTab.dataset.st, tableId);
+    }
+  }, 1500);
+}
+function addToDraft(tableId, productId){
   const prod = APP.config.products.find(p => p.id===productId);
   if(!prod) return;
   if(prod.available===false){ alert('Bu ürün şu anda satışta değil'); return; }
   const stock = effectiveStock(prod);
   if(stock!=null && stock<=0){ alert('Bu üründe stok kalmadı'); return; }
-  const session = getSession();
-  // Stok, ürün sepete düşer düşmez anında azaltılır (reçeteliyse hammaddelerden, değilse ürünün kendi stoğundan).
-  const { error } = await sb.rpc('adjust_stock', { p_token: session.session_token, p_product_id: productId, p_delta: -1 });
-  if(error){ alert('Eklenemedi: '+error.message); return; }
-  await refreshConfigKeepDraft(session);
   const draft = APP.draftCart[tableId];
   const existing = draft.find(i => i.product_id===productId);
   if(existing){ existing.qty += 1; }
   else{ draft.push({ product_id:productId, name:prod.name, price:prod.price, cost:prod.cost, qty:1, note:'' }); }
+  applyLocalStockDelta(productId, 1);
   renderTableItems(tableId);
   const activeTab = document.querySelector('#prodStationTabs .tab.active');
   if(activeTab) renderProductPick(activeTab.dataset.st, tableId);
+  // Sepete ekleme ekranda anında görünür; stok düşümü arka planda sunucuya gönderilir.
+  const session = getSession();
+  sb.rpc('adjust_stock', { p_token: session.session_token, p_product_id: productId, p_delta: -1 }).then(({error}) => {
+    if(!error){ scheduleConfigResync(tableId); return; }
+    alert('Ürün eklenemedi, sepetten çıkarıldı: '+error.message);
+    const d = APP.draftCart[tableId];
+    const it = d.find(i => i.product_id===productId);
+    if(it){ it.qty -= 1; if(it.qty<=0) d.splice(d.indexOf(it),1); }
+    applyLocalStockDelta(productId, -1);
+    renderTableItems(tableId);
+    const t = document.querySelector('#prodStationTabs .tab.active');
+    if(t) renderProductPick(t.dataset.st, tableId);
+  });
 }
 async function changeDraftQty(tableId, idx, delta){
   const draft = APP.draftCart[tableId];
   if(!draft[idx]) return;
-  const session = getSession();
-  const { error } = await sb.rpc('adjust_stock', { p_token: session.session_token, p_product_id: draft[idx].product_id, p_delta: -delta });
-  if(error){ alert(error.message); return; }
-  await refreshConfigKeepDraft(session);
-  draft[idx].qty += delta;
-  if(draft[idx].qty<=0) draft.splice(idx,1);
+  const item = draft[idx];
+  const productId = item.product_id;
+  item.qty += delta;
+  if(item.qty<=0) draft.splice(idx,1);
+  applyLocalStockDelta(productId, delta);
   renderTableItems(tableId);
   const activeTab = document.querySelector('#prodStationTabs .tab.active');
   if(activeTab) renderProductPick(activeTab.dataset.st, tableId);
+  const session = getSession();
+  const { error } = await sb.rpc('adjust_stock', { p_token: session.session_token, p_product_id: productId, p_delta: -delta });
+  if(error){
+    alert(error.message);
+    const d = APP.draftCart[tableId];
+    const existing = d.find(i => i.product_id===productId);
+    if(existing){ existing.qty -= delta; if(existing.qty<=0) d.splice(d.indexOf(existing),1); }
+    else if(delta<0){ d.push({ ...item, qty:-delta }); }
+    applyLocalStockDelta(productId, -delta);
+    renderTableItems(tableId);
+    const t = document.querySelector('#prodStationTabs .tab.active');
+    if(t) renderProductPick(t.dataset.st, tableId);
+    return;
+  }
+  scheduleConfigResync(tableId);
 }
 function renderTableItems(tableId){
   const sentWrap = document.getElementById('sentItemsWrap');
@@ -1092,12 +1160,15 @@ function renderTableItems(tableId){
     draftWrap.innerHTML = `<div style="border:1px dashed var(--accent);border-radius:10px;padding:10px;margin:10px 0;">
       <p style="font-weight:700;color:var(--accent);margin-top:0;">Sepet (Gönderilmedi)</p>` +
       draft.map((it,idx) => { total += it.price*it.qty; return `
-        <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border);font-size:13px;">
-          <span>${escapeHtml(it.name)}</span>
-          <span>
-            <button onclick="changeDraftQty('${tableId}',${idx},-1)" style="width:24px;">-</button>
-            ${it.qty}
-            <button onclick="changeDraftQty('${tableId}',${idx},1)" style="width:24px;">+</button>
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);font-size:13.5px;">
+          <div>
+            <div>${escapeHtml(it.name)}</div>
+            <div class="muted" style="font-size:12px;">${money(it.price*it.qty)}</div>
+          </div>
+          <span style="display:flex;align-items:center;gap:8px;">
+            <button class="qty-btn" onclick="changeDraftQty('${tableId}',${idx},-1)">-</button>
+            <span style="min-width:16px;text-align:center;font-weight:700;">${it.qty}</span>
+            <button class="qty-btn" onclick="changeDraftQty('${tableId}',${idx},1)">+</button>
           </span>
         </div>`; }).join('') +
       `<div style="text-align:right;font-weight:700;margin-top:8px;">Toplam: ${money(total)}</div>
