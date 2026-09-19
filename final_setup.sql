@@ -67,7 +67,13 @@ create table if not exists orders (
   kind text not null default 'dine_in',
   label text,
   status text not null default 'open',
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  -- Sipariş Etiketleri (Personel Yemeği, İkram vb. - ayarlardan özelleştirilir)
+  tags text[] not null default '{}',
+  -- Paket Servis siparişleri için (table_id null olduğunda kullanılır)
+  customer_name text,
+  customer_phone text,
+  note text
 );
 
 create table if not exists order_items (
@@ -80,7 +86,9 @@ create table if not exists order_items (
   qty int not null,
   status text not null default 'pending',
   note text,
-  added_at timestamptz not null default now()
+  added_at timestamptz not null default now(),
+  -- Ürün bazlı kısmi ödeme desteği: bu ürün için ödeme alınmış mı
+  paid boolean not null default false
 );
 
 create table if not exists sales_history (
@@ -88,6 +96,9 @@ create table if not exists sales_history (
   restaurant_id uuid not null references restaurants(id) on delete cascade,
   order_id uuid,
   table_name text,
+  -- Ödeme anındaki sipariş etiketleri/türü (rapor filtrelemesi için kopyalanır)
+  tags text[] not null default '{}',
+  kind text not null default 'dine_in',
   subtotal numeric,
   discount_amount numeric default 0,
   total numeric not null,
@@ -359,6 +370,67 @@ create table if not exists product_ingredients (
   unique(product_id, ingredient_id)
 );
 
+-- ---------- SİPARİŞ ETİKETLERİ (Personel Yemeği, İkram vb.) ----------
+-- Sipariş al ekranında gösterilecek, sayısı/etiketleri ayarlardan
+-- özelleştirilebilen checkbox tanımları. Bir siparişte işaretlenirlerse stok
+-- yine düşer ama Finansal Analiz'deki ciro/kârdan hariç tutulur (bkz.
+-- get_sales_history ve pay_order_items).
+create table if not exists order_flag_defs (
+  id uuid primary key default gen_random_uuid(),
+  restaurant_id uuid not null references restaurants(id) on delete cascade,
+  label text not null,
+  sort_order int not null default 0,
+  created_at timestamptz not null default now()
+);
+alter table order_flag_defs enable row level security;
+
+create or replace function create_order_flag(p_token uuid, p_label text)
+returns uuid
+language plpgsql
+security definer
+as $$
+declare
+  s staff_sessions%rowtype;
+  new_id uuid;
+  v_max int;
+begin
+  s := _session_check(p_token, 'manager');
+  select coalesce(max(sort_order),0)+1 into v_max from order_flag_defs where restaurant_id = s.restaurant_id;
+  insert into order_flag_defs (restaurant_id, label, sort_order)
+  values (s.restaurant_id, trim(p_label), v_max)
+  returning id into new_id;
+  return new_id;
+end;
+$$;
+grant execute on function create_order_flag to anon;
+
+create or replace function rename_order_flag(p_token uuid, p_flag_id uuid, p_label text)
+returns void
+language plpgsql
+security definer
+as $$
+declare s staff_sessions%rowtype;
+begin
+  s := _session_check(p_token, 'manager');
+  update order_flag_defs set label = trim(p_label)
+    where id = p_flag_id and restaurant_id = s.restaurant_id;
+end;
+$$;
+grant execute on function rename_order_flag to anon;
+
+create or replace function delete_order_flag(p_token uuid, p_flag_id uuid)
+returns void
+language plpgsql
+security definer
+as $$
+declare s staff_sessions%rowtype;
+begin
+  s := _session_check(p_token, 'manager');
+  delete from order_flag_defs where id = p_flag_id and restaurant_id = s.restaurant_id;
+end;
+$$;
+grant execute on function delete_order_flag to anon;
+
 create or replace function get_restaurant_config(p_token uuid)
 returns json
 language plpgsql
@@ -378,6 +450,7 @@ begin
         )), '[]'::json)
         from zones z where z.restaurant_id = s.restaurant_id
       ),
+      'order_flags', (select coalesce(json_agg(json_build_object('id', id, 'label', label) order by sort_order), '[]'::json) from order_flag_defs where restaurant_id = s.restaurant_id),
       'products', (
         select coalesce(json_agg(json_build_object(
           'id', p.id, 'name', p.name, 'price', p.price, 'cost', p.cost,
@@ -419,11 +492,12 @@ begin
   return (
     select coalesce(json_agg(json_build_object(
       'order_id', o.id, 'table_id', o.table_id, 'kind', o.kind, 'created_at', o.created_at,
-      'daily_number', o.daily_number,
+      'daily_number', o.daily_number, 'tags', o.tags,
+      'customer_name', o.customer_name, 'customer_phone', o.customer_phone, 'note', o.note,
       'items', (
         select coalesce(json_agg(json_build_object(
           'id', oi.id, 'name', oi.name, 'price', oi.price, 'cost', oi.cost,
-          'qty', oi.qty, 'status', oi.status, 'note', oi.note,
+          'qty', oi.qty, 'status', oi.status, 'note', oi.note, 'paid', oi.paid,
           'station_id', p.station_id, 'added_at', oi.added_at
         )), '[]'::json)
         from order_items oi left join products p on p.id = oi.product_id
@@ -502,7 +576,7 @@ grant execute on function adjust_stock to anon;
 alter table orders add column if not exists daily_number int;
 
 drop function if exists send_order(uuid, uuid, json);
-create function send_order(p_token uuid, p_table_id uuid, p_items json)
+create function send_order(p_token uuid, p_table_id uuid, p_items json, p_tags text[] default '{}')
 returns table(order_id uuid, daily_number int)
 language plpgsql
 security definer
@@ -525,9 +599,11 @@ begin
     select coalesce(max(o.daily_number), 0) + 1 into v_daily_number
       from orders o where o.restaurant_id = s.restaurant_id and o.created_at::date = now()::date;
 
-    insert into orders (restaurant_id, table_id, kind, status, daily_number)
-    values (s.restaurant_id, p_table_id, 'dine_in', 'open', v_daily_number)
+    insert into orders (restaurant_id, table_id, kind, status, daily_number, tags)
+    values (s.restaurant_id, p_table_id, 'dine_in', 'open', v_daily_number, coalesce(p_tags,'{}'))
     returning id into v_order_id;
+  else
+    update orders set tags = coalesce(p_tags,'{}') where id = v_order_id;
   end if;
 
   for item in select * from json_array_elements(p_items)
@@ -547,6 +623,68 @@ begin
 end;
 $$;
 grant execute on function send_order to anon;
+
+-- ---------- PAKET SERVİS SİPARİŞİ ----------
+-- table_id=null, kind='takeaway'; müşteri adı/telefonu/notu tutulur.
+-- p_order_id verilirse (aynı paket siparişe ürün eklenirken) mevcut açık
+-- siparişe ekler, verilmezse yeni bir paket siparişi açar.
+create or replace function send_takeaway_order(
+  p_token uuid, p_items json, p_order_id uuid default null,
+  p_customer_name text default null, p_customer_phone text default null,
+  p_note text default null, p_tags text[] default '{}'
+)
+returns table(order_id uuid, daily_number int)
+language plpgsql
+security definer
+as $$
+declare
+  s staff_sessions%rowtype;
+  v_order_id uuid;
+  v_daily_number int;
+  item json;
+  v_qty int;
+  v_product_id uuid;
+begin
+  s := _session_check(p_token);
+
+  if p_order_id is not null then
+    select o.id, o.daily_number into v_order_id, v_daily_number from orders o
+      where o.id = p_order_id and o.restaurant_id = s.restaurant_id and o.status = 'open';
+    if v_order_id is null then
+      raise exception 'Paket sipariş bulunamadı veya kapatılmış';
+    end if;
+    update orders set
+      tags = coalesce(p_tags,'{}'),
+      customer_name = coalesce(p_customer_name, customer_name),
+      customer_phone = coalesce(p_customer_phone, customer_phone),
+      note = coalesce(p_note, note)
+      where id = v_order_id;
+  else
+    select coalesce(max(o.daily_number), 0) + 1 into v_daily_number
+      from orders o where o.restaurant_id = s.restaurant_id and o.created_at::date = now()::date;
+
+    insert into orders (restaurant_id, table_id, kind, status, daily_number, tags, customer_name, customer_phone, note)
+    values (s.restaurant_id, null, 'takeaway', 'open', v_daily_number, coalesce(p_tags,'{}'), p_customer_name, p_customer_phone, p_note)
+    returning id into v_order_id;
+  end if;
+
+  for item in select * from json_array_elements(p_items)
+  loop
+    v_product_id := (item->>'product_id')::uuid;
+    v_qty := (item->>'qty')::int;
+
+    insert into order_items (order_id, product_id, name, price, cost, qty, status, note)
+    values (
+      v_order_id, v_product_id, item->>'name',
+      (item->>'price')::numeric, (item->>'cost')::numeric, v_qty,
+      'pending', item->>'note'
+    );
+  end loop;
+
+  return query select v_order_id, v_daily_number;
+end;
+$$;
+grant execute on function send_takeaway_order to anon;
 
 create or replace function cancel_order(p_token uuid, p_order_id uuid)
 returns void
@@ -595,12 +733,18 @@ $$;
 grant execute on function mark_item_ready to anon;
 
 -- ---------- ÖDEME ----------
-create or replace function close_bill(
+-- close_bill'in yerini aldı: p_item_ids verilirse SADECE o ürünler için ödeme
+-- alınır (kısmi/ürün bazlı ödeme), verilmezse (null) hesaptaki tüm ödenmemiş
+-- ürünler için ödeme alınır (eski close_bill davranışıyla aynı). Hesaptaki
+-- tüm ürünler ödenince sipariş otomatik kapanır.
+drop function if exists close_bill(uuid, uuid, text, numeric, numeric, numeric, text, numeric);
+
+create or replace function pay_order_items(
   p_token uuid, p_order_id uuid, p_payment_method text,
   p_cash numeric, p_card numeric,
-  p_discount_amount numeric default 0, p_discount_type text default null, p_discount_value numeric default 0
+  p_discount_amount numeric default 0, p_item_ids uuid[] default null
 )
-returns uuid
+returns json
 language plpgsql
 security definer
 as $$
@@ -610,27 +754,40 @@ declare
   v_cost numeric;
   v_table_name text;
   v_hist_id uuid;
+  v_tags text[];
+  v_kind text;
+  v_remaining int;
 begin
   s := _session_check(p_token, 'manager');
 
+  if p_item_ids is null then
+    select array_agg(id) into p_item_ids from order_items
+      where order_id = p_order_id and paid = false;
+  end if;
+
   select coalesce(sum(price*qty),0), coalesce(sum(cost*qty),0)
     into v_subtotal, v_cost
-    from order_items where order_id = p_order_id;
+    from order_items where order_id = p_order_id and id = any(p_item_ids);
 
-  select rt.name into v_table_name
+  select rt.name, o.tags, o.kind into v_table_name, v_tags, v_kind
     from orders o left join restaurant_tables rt on rt.id = o.table_id
     where o.id = p_order_id and o.restaurant_id = s.restaurant_id;
 
-  insert into sales_history (restaurant_id, order_id, table_name, subtotal, discount_amount, total, cost, payment_method, cash_amount, card_amount)
-  values (s.restaurant_id, p_order_id, coalesce(v_table_name,'Paket'), v_subtotal, p_discount_amount, v_subtotal-p_discount_amount, v_cost, p_payment_method, p_cash, p_card)
+  insert into sales_history (restaurant_id, order_id, table_name, subtotal, discount_amount, total, cost, payment_method, cash_amount, card_amount, tags, kind)
+  values (s.restaurant_id, p_order_id, coalesce(v_table_name,'Paket'), v_subtotal, p_discount_amount, v_subtotal-p_discount_amount, v_cost, p_payment_method, p_cash, p_card, coalesce(v_tags,'{}'), coalesce(v_kind,'dine_in'))
   returning id into v_hist_id;
 
-  update orders set status='closed' where id = p_order_id and restaurant_id = s.restaurant_id;
+  update order_items set paid = true where order_id = p_order_id and id = any(p_item_ids);
 
-  return v_hist_id;
+  select count(*) into v_remaining from order_items where order_id = p_order_id and paid = false;
+  if v_remaining = 0 then
+    update orders set status='closed' where id = p_order_id and restaurant_id = s.restaurant_id;
+  end if;
+
+  return json_build_object('history_id', v_hist_id, 'order_closed', v_remaining=0, 'remaining_items', v_remaining);
 end;
 $$;
-grant execute on function close_bill to anon;
+grant execute on function pay_order_items to anon;
 
 create or replace function get_sales_history(p_token uuid, p_date date)
 returns json
@@ -643,7 +800,7 @@ begin
   return (
     select coalesce(json_agg(row_to_json(h)), '[]'::json)
     from (
-      select id, table_name, subtotal, discount_amount, total, cost, payment_method, cash_amount, card_amount, closed_at
+      select id, table_name, subtotal, discount_amount, total, cost, payment_method, cash_amount, card_amount, closed_at, tags, kind
       from sales_history
       where restaurant_id = s.restaurant_id
         and closed_at >= p_date::timestamptz
