@@ -1306,5 +1306,39 @@ $$;
 grant execute on function toggle_promo_code to anon;
 
 -- ============================================================
+-- GÜVENLİK SIKILAŞTIRMASI (Supabase security advisor taraması sonrası)
+-- 1) payment_debug_log: RLS KAPALIYDI ve anon/authenticated rollerine tam
+--    CRUD (select/insert/update/delete/truncate) yetkisi verilmişti -
+--    yani herkese açık publishable anon key'i olan HERKES tüm işletmelerin
+--    ödeme hata ayıklama loglarını (iyzico yanıtları, hata mesajları,
+--    restaurant_id'ler) okuyabiliyor, değiştirebiliyor, silebiliyordu.
+--    RLS açıldı (policy yok = anon/authenticated için tamamen kapalı);
+--    api/payment-*.js zaten SERVICE_ROLE_KEY kullanıyor, RLS'yi atlar,
+--    bu yüzden loglama işlevi etkilenmez.
+-- 2) SECURITY DEFINER fonksiyonlarının tamamında (42 adet) search_path
+--    sabitlenmedi (mutable search_path) - bu, potansiyel bir arama yolu
+--    (search_path) saldırısına karşı sertleştirme önlemidir.
+-- ============================================================
+alter table payment_debug_log enable row level security;
+
+do $$
+declare
+  r record;
+begin
+  for r in
+    select p.oid::regprocedure::text as sig
+    from pg_proc p
+    join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public'
+      and not exists (
+        select 1 from unnest(coalesce(p.proconfig, '{}'::text[])) c
+        where c like 'search_path=%'
+      )
+  loop
+    execute format('alter function public.%s set search_path = public, pg_temp;', r.sig);
+  end loop;
+end $$;
+
+-- ============================================================
 -- BİTTİ. Buraya kadar hatasız çalıştıysa kurulum tamamlanmıştır.
 -- ============================================================
