@@ -822,67 +822,47 @@ function primeKitchenAudio(){
   }catch(e){}
   try{ const a = new Audio(); a.volume = 0; a.play().catch(()=>{}); }catch(e){}
 }
-/* Tüm zil ön ayarları 4 katmanlı bir zincirden geçer (mastering zinciri gibi -
-   her katman "algılanan yükseklik"i bir önceki katmanın bıraktığı yerden
-   daha da artırır, sonuncusu kırpılmayı/çatlamayı engeller):
-   1) comp: birden fazla kısmi/nota üst üste bindiğinde toplam seviyeyi kontrol altında tutar.
-   2) makeup: compressor'ın düşürdüğü seviyeyi fazlasıyla geri kazanır (~+18dB) - sinyali
-      bilinçli olarak sert şekilde "sürer" (drive), bu da ortalama (RMS) yüksekliği artırır.
-   3) shaper: bu sürülmüş sinyali yumuşak (tanh tabanlı) bir doygunluk eğrisinden geçirir -
-      sert dijital kırpılma yerine sıcak/dolgun bir "yoğunluk" katar, bu da algılanan sesi
-      daha da yükseltir ama kulağı tırmalamaz.
-   4) limiter: en sonda kalan tepe noktalarını dijital tavana ($$\approx$$0dBFS) yapıştıran
-      sert bir son limiter - hiçbir kırpılma/çatlama olmadan mümkün olan en yüksek seviye. */
+/* Tüm zil ön ayarları 3 katmanlı, ÖLÇÜLÜ bir zincirden geçer. Not: bir önceki
+   sürümde makeup gain + sert doygunluk (waveshaper) katmanı birlikte çok agresif
+   sürüyordu - birden fazla osilatör/nota üst üste bindiğinde bu, "cızırtı"
+   olarak duyulan gerçek dijital kırpılma/intermodülasyon bozulmasına yol
+   açıyordu. O katman tamamen kaldırıldı; burada sadece compressor + ölçülü
+   bir kazanım (makeup) + yumuşak bir son limiter var - temiz ama önceki
+   (ilk) sürümden belirgin şekilde daha yüksek. */
 let BELL_CHAIN = null, BELL_CHAIN_CTX = null;
-const BELL_SATURATION_CURVE = (() => {
-  const n = 2048, curve = new Float32Array(n), k = 2.2;
-  for(let i=0;i<n;i++){ const x = (i/(n-1))*2-1; curve[i] = Math.tanh(k*x)/Math.tanh(k); }
-  return curve;
-})();
 function getBellCompressor(ctx){
   if(BELL_CHAIN && BELL_CHAIN_CTX===ctx) return BELL_CHAIN;
   const comp = ctx.createDynamicsCompressor();
-  comp.threshold.value = -26; comp.knee.value = 6; comp.ratio.value = 14;
-  comp.attack.value = 0.003; comp.release.value = 0.15;
+  comp.threshold.value = -20; comp.knee.value = 8; comp.ratio.value = 8;
+  comp.attack.value = 0.005; comp.release.value = 0.2;
   const makeup = ctx.createGain();
-  makeup.gain.value = 8.5;
-  const shaper = ctx.createWaveShaper();
-  shaper.curve = BELL_SATURATION_CURVE;
-  shaper.oversample = '4x';
+  makeup.gain.value = 3.0;
   const limiter = ctx.createDynamicsCompressor();
-  limiter.threshold.value = -0.3; limiter.knee.value = 0; limiter.ratio.value = 20;
-  limiter.attack.value = 0.0006; limiter.release.value = 0.05;
-  comp.connect(makeup); makeup.connect(shaper); shaper.connect(limiter); limiter.connect(ctx.destination);
+  limiter.threshold.value = -2; limiter.knee.value = 4; limiter.ratio.value = 10;
+  limiter.attack.value = 0.004; limiter.release.value = 0.2;
+  comp.connect(makeup); makeup.connect(limiter); limiter.connect(ctx.destination);
   BELL_CHAIN = comp; BELL_CHAIN_CTX = ctx;
   return comp;
 }
 /* Tek bir "çan" notası: temel ton + iki uyumlu üst kısmi (bell partial)
-   katmanlanır, temel ve ilk kısmi de hafifçe detune edilmiş ikili (unison)
-   osilatörlerle çalınır - bu, modern bildirim seslerinde (Slack/Teams/iOS
-   tarzı) kullanılan "geniş/parlak" chorus etkisini verir. Tek başına kare/
-   testere dalga yerine bu katmanlı sinüs/üçgen yapısı hem daha yüksek/
-   belirgin algılanıyor hem de kulağı yormuyor. */
+   katmanlanır. Tek başına kare/testere dalga yerine bu katmanlı sinüs/üçgen
+   yapısı hem daha belirgin algılanıyor hem de kulağı yormuyor. */
 function scheduleBellTone(ctx, freq, t0, dur, peakGain){
   const partials = [
-    {ratio:1,    gain:1.0,  type:'sine',     detune:7},
-    {ratio:2.01, gain:0.42, type:'sine',     detune:5},
-    {ratio:2.76, gain:0.22, type:'triangle', detune:0},
+    {ratio:1,    gain:1.0,  type:'sine'},
+    {ratio:2.01, gain:0.4,  type:'sine'},
+    {ratio:2.76, gain:0.22, type:'triangle'},
   ];
   partials.forEach(p => {
-    const voices = p.detune ? [-p.detune, p.detune] : [0];
-    voices.forEach(cents => {
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type = p.type;
-      osc.frequency.value = freq*p.ratio;
-      if(cents) osc.detune.value = cents;
-      const g = peakGain*p.gain/voices.length;
-      gain.gain.setValueAtTime(0.0001, t0);
-      gain.gain.exponentialRampToValueAtTime(Math.max(0.0005, g), t0+0.01);
-      gain.gain.exponentialRampToValueAtTime(0.0001, t0+dur);
-      osc.connect(gain); gain.connect(getBellCompressor(ctx));
-      osc.start(t0); osc.stop(t0+dur+0.05);
-    });
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = p.type;
+    osc.frequency.value = freq*p.ratio;
+    gain.gain.setValueAtTime(0.0001, t0);
+    gain.gain.exponentialRampToValueAtTime(Math.max(0.0005, peakGain*p.gain), t0+0.012);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t0+dur);
+    osc.connect(gain); gain.connect(getBellCompressor(ctx));
+    osc.start(t0); osc.stop(t0+dur+0.05);
   });
 }
 const BELL_PRESETS = {
