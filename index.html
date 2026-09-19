@@ -1548,9 +1548,15 @@ async function addPrinterEntry(){
     }
   }
   const printers = getPrinters();
+  const isFirstPrinter = printers.length===0;
   printers.push({ id, name, type, usbInfo });
   setPrinters(printers);
+  // Ilk eklenen yazici otomatik olarak "Bu Ekranin Yazicisi" yapilir, boylece
+  // sadece listeye eklenip hicbir yerde secilmedigi icin sessizce kullanilmama
+  // durumu (kullanici siparis verdiginde hicbir sey basmadan gecmesi) onlenir.
+  if(isFirstPrinter) setActivePrinterId(id);
   renderSettingsFromCurrentSession();
+  showToast(isFirstPrinter ? 'Yazıcı eklendi ve bu ekranın yazıcısı yapıldı ✓' : 'Yazıcı eklendi ✓');
 }
 function removePrinterEntry(id){
   if(!confirm('Bu yazıcıyı silmek istediğinize emin misiniz?')) return;
@@ -1676,6 +1682,9 @@ async function printKitchenTicket(tableName, items, printerOverride, silent, dai
     const ok = await sendToUsbPrinter(printer, bytes);
     if(ok) return; // basarili - tarayici penceresi ACILMADI
     console.warn('USB yaziciya ulasilamadi.');
+    if(silent) showToast('⚠️ "'+printer.name+'" yazıcısına fiş gönderilemedi, bağlantıyı kontrol edin');
+  } else if(!printer && silent){
+    showToast('⚠️ Fiş yazdırılamadı: bu ekran/istasyon için yazıcı seçili değil');
   }
 
   // silent=true (siparis onaylaninca otomatik cagri): yazici yoksa/basarisizsa
