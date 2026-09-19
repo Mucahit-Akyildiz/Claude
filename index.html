@@ -175,7 +175,7 @@
   .ticket-line{border-top:1px dashed #000;margin:2mm 0;}
   .ticket-item{display:flex;justify-content:space-between;font-size:13px;margin:1.5mm 0;}
   .ticket-item .qty{font-weight:800;margin-right:6px;}
-  .ticket-time{font-size:11px;color:#555;white-space:nowrap;margin-left:8px;}
+  .ticket-time{font-size:11px;color:#000;white-space:nowrap;margin-left:8px;}
   .ticket-note{font-size:11px;font-style:italic;padding-left:20px;}
   .ticket-paper{background:#fff;color:#000;font-family:'Courier New',monospace;padding:14px;width:302px;box-shadow:0 2px 10px rgba(0,0,0,.15);}
   .ticket-paper.pw58{width:219px;}
@@ -1786,7 +1786,10 @@ async function renderPrinterSettingsView(main, session){
   const usbSupported = !!(navigator.usb);
   main.innerHTML = `
     <h1>Yazıcı Ayarları</h1>
-    <p class="muted" style="text-align:left;">Bu ayarlar sadece <b>bu ekrana/tarayıcıya</b> özeldir — her cihazda ayrı ayrı yapılandırılır, veritabanına kaydedilmez.</p>
+    <div style="background:rgba(212,162,78,.1);border:1.5px solid var(--accent);border-radius:10px;padding:12px 14px;margin-bottom:16px;text-align:left;">
+      <p style="margin:0;font-weight:700;font-size:13px;">⚠️ Bu sayfadaki tüm ayarlar (Fiş Tasarımı, Yazıcılar, İstasyon Eşleştirme) sadece <u>şu an bu ekranı açtığınız cihazda</u> geçerlidir.</p>
+      <p class="muted" style="margin:6px 0 0;text-align:left;font-size:12px;">Fiş, yazıcının fiziksel olarak bağlı olduğu bilgisayardan basılır. Ayarları başka bir cihazda (örn. ofis bilgisayarı/telefon) değiştirip kaydettiyseniz, çıktıya hiç yansımaz — <b>aynı ayarları yazıcının bağlı olduğu bilgisayarda da açıp kaydetmeniz gerekir.</b></p>
+    </div>
 
     <div class="box" style="max-width:none;">
       <h2>Fiş Tasarımı</h2>
