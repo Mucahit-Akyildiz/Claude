@@ -599,7 +599,8 @@ begin
 
   if v_order_id is null then
     select coalesce(max(o.daily_number), 0) + 1 into v_daily_number
-      from orders o where o.restaurant_id = s.restaurant_id and o.created_at::date = now()::date;
+      from orders o where o.restaurant_id = s.restaurant_id
+        and (o.created_at at time zone 'Europe/Istanbul')::date = (now() at time zone 'Europe/Istanbul')::date;
 
     insert into orders (restaurant_id, table_id, kind, status, daily_number, tags)
     values (s.restaurant_id, p_table_id, 'dine_in', 'open', v_daily_number, coalesce(p_tags,'{}'))
@@ -663,7 +664,8 @@ begin
       where id = v_order_id;
   else
     select coalesce(max(o.daily_number), 0) + 1 into v_daily_number
-      from orders o where o.restaurant_id = s.restaurant_id and o.created_at::date = now()::date;
+      from orders o where o.restaurant_id = s.restaurant_id
+        and (o.created_at at time zone 'Europe/Istanbul')::date = (now() at time zone 'Europe/Istanbul')::date;
 
     insert into orders (restaurant_id, table_id, kind, status, daily_number, tags, customer_name, customer_phone, note)
     values (s.restaurant_id, null, 'takeaway', 'open', v_daily_number, coalesce(p_tags,'{}'), p_customer_name, p_customer_phone, p_note)
@@ -853,8 +855,8 @@ begin
       left join stations st on st.id = p.station_id
       where o.restaurant_id = s.restaurant_id
         and oi.paid = true
-        and oi.paid_at >= p_date::timestamptz
-        and oi.paid_at < (p_date + 1)::timestamptz
+        and oi.paid_at >= (p_date::timestamp at time zone 'Europe/Istanbul')
+        and oi.paid_at < ((p_date + 1)::timestamp at time zone 'Europe/Istanbul')
         and (o.tags is null or array_length(o.tags,1) is null)
       group by oi.product_id, oi.name, p.station_id, st.name
     ) r
@@ -877,8 +879,8 @@ begin
       select id, table_name, subtotal, discount_amount, total, cost, payment_method, cash_amount, card_amount, closed_at, tags, kind
       from sales_history
       where restaurant_id = s.restaurant_id
-        and closed_at >= p_date::timestamptz
-        and closed_at < (p_date + 1)::timestamptz
+        and closed_at >= (p_date::timestamp at time zone 'Europe/Istanbul')
+        and closed_at < ((p_date + 1)::timestamp at time zone 'Europe/Istanbul')
       order by closed_at desc
     ) h
   );

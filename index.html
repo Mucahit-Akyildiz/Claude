@@ -209,6 +209,17 @@
   .chip-row{display:flex;gap:8px;flex-wrap:wrap;}
   .chip-btn{width:auto;padding:7px 14px;margin:0;font-size:12.5px;font-weight:600;background:var(--panel);border:1.5px solid var(--border);color:var(--text);box-shadow:none;border-radius:999px;}
   .chip-btn:hover{border-color:var(--accent);filter:none;}
+  /* ---- Zil sesi seçim kartları (Bildirim Ayarları) ---- */
+  .bell-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:10px;margin-top:6px;}
+  .bell-card{position:relative;display:flex;flex-direction:column;align-items:center;gap:6px;padding:16px 10px 12px;border-radius:14px;border:1.5px solid var(--border);background:var(--panel2);cursor:pointer;transition:border-color .15s ease,background .15s ease,transform .1s ease;text-align:center;}
+  .bell-card:hover{border-color:var(--accent);transform:translateY(-1px);}
+  .bell-card.active{border-color:var(--accent);background:rgba(184,134,58,.12);}
+  .bell-card-icon{font-size:26px;line-height:1;}
+  .bell-card-name{font-size:12.5px;font-weight:600;line-height:1.3;}
+  .bell-card.active .bell-card-name{font-weight:700;}
+  .bell-card-check{position:absolute;top:8px;right:8px;width:18px;height:18px;border-radius:50%;background:var(--accent);color:var(--btn-ink);font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;}
+  .bell-card-play{width:34px;height:34px;border-radius:50%;border:none;background:var(--accent);color:var(--btn-ink);font-size:13px;display:flex;align-items:center;justify-content:center;cursor:pointer;margin-top:2px;box-shadow:none;padding:0;}
+  .bell-card-play:hover{filter:brightness(1.08);}
   .ticket-bold, .ticket-bold *{font-weight:700 !important;}
   .kitchen-item-row{font-size:16px;}
   .kitchen-timer{font-size:18px;font-weight:800;color:var(--green);font-variant-numeric:tabular-nums;}
@@ -826,64 +837,61 @@ function getBellCompressor(ctx){
   BELL_COMPRESSOR = comp; BELL_COMPRESSOR_CTX = ctx;
   return comp;
 }
-function scheduleBellTone(ctx, freq, t0, dur, peakGain, waveType){
-  const osc = ctx.createOscillator();
-  const gain = ctx.createGain();
-  osc.type = waveType || 'sine';
-  osc.frequency.value = freq;
-  gain.gain.setValueAtTime(0.0001, t0);
-  gain.gain.exponentialRampToValueAtTime(peakGain, t0+0.02);
-  gain.gain.exponentialRampToValueAtTime(0.0001, t0+dur);
-  osc.connect(gain); gain.connect(getBellCompressor(ctx));
-  osc.start(t0); osc.stop(t0+dur+0.05);
-}
-/* Alarm sireni gibi kayan (frekansı zamanla değişen) tonlar için. */
-function scheduleBellSweep(ctx, freqFrom, freqTo, t0, dur, peakGain, waveType){
-  const osc = ctx.createOscillator();
-  const gain = ctx.createGain();
-  osc.type = waveType || 'sawtooth';
-  osc.frequency.setValueAtTime(freqFrom, t0);
-  osc.frequency.linearRampToValueAtTime(freqTo, t0+dur);
-  gain.gain.setValueAtTime(0.0001, t0);
-  gain.gain.exponentialRampToValueAtTime(peakGain, t0+0.03);
-  gain.gain.exponentialRampToValueAtTime(0.0001, t0+dur);
-  osc.connect(gain); gain.connect(getBellCompressor(ctx));
-  osc.start(t0); osc.stop(t0+dur+0.05);
+/* Tek bir "çan" notası: temel ton + iki uyumlu üst kısmi (bell partial)
+   katmanlanır. Tek başına kare/testere dalga yerine bu katmanlı sinüs/üçgen
+   yapısı hem daha yüksek/belirgin algılanıyor hem de kulağı yormuyor
+   ("sesler kötü/rahatsız edici, daha dikkat çekici ama rahatsız etmeyen
+   sesler koy" geri bildirimi için). */
+function scheduleBellTone(ctx, freq, t0, dur, peakGain){
+  const partials = [
+    {ratio:1,    gain:1.0,  type:'sine'},
+    {ratio:2.01, gain:0.4,  type:'sine'},
+    {ratio:2.76, gain:0.22, type:'triangle'},
+  ];
+  partials.forEach(p => {
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = p.type;
+    osc.frequency.value = freq*p.ratio;
+    gain.gain.setValueAtTime(0.0001, t0);
+    gain.gain.exponentialRampToValueAtTime(Math.max(0.0005, peakGain*p.gain), t0+0.012);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t0+dur);
+    osc.connect(gain); gain.connect(getBellCompressor(ctx));
+    osc.start(t0); osc.stop(t0+dur+0.05);
+  });
 }
 const BELL_PRESETS = {
-  classic: { name: 'Klasik Çan', play: (ctx) => {
-    [880, 1320].forEach((f,i) => scheduleBellTone(ctx, f, ctx.currentTime+i*0.18, 0.4, 1.0));
+  classic: { name: 'Klasik Çan', icon: '🔔', play: (ctx) => {
+    [880, 1320].forEach((f,i) => scheduleBellTone(ctx, f, ctx.currentTime+i*0.18, 0.45, 1.3));
   }},
-  ding_dong: { name: 'Ding Dong', play: (ctx) => {
-    scheduleBellTone(ctx, 1046, ctx.currentTime, 0.55, 1.0);
-    scheduleBellTone(ctx, 784, ctx.currentTime+0.4, 0.65, 1.0);
+  ding_dong: { name: 'Ding Dong', icon: '🛎️', play: (ctx) => {
+    scheduleBellTone(ctx, 1046, ctx.currentTime, 0.6, 1.3);
+    scheduleBellTone(ctx, 784, ctx.currentTime+0.4, 0.7, 1.3);
   }},
-  triple_beep: { name: 'Üçlü Bip (Acil)', play: (ctx) => {
-    [0,0.16,0.32].forEach(d => scheduleBellTone(ctx, 1500, ctx.currentTime+d, 0.13, 1.0, 'square'));
+  triple_ding: { name: 'Üçlü Ding (Dikkat Çekici)', icon: '✨', play: (ctx) => {
+    [0,0.15,0.3].forEach(d => scheduleBellTone(ctx, 1568, ctx.currentTime+d, 0.22, 1.3));
   }},
-  chord: { name: 'Yumuşak Akor', play: (ctx) => {
-    [523.25, 659.25, 784].forEach((f,i) => scheduleBellTone(ctx, f, ctx.currentTime+i*0.05, 0.65, 0.95));
+  chord: { name: 'Yumuşak Akor', icon: '🎹', play: (ctx) => {
+    [523.25, 659.25, 784].forEach((f,i) => scheduleBellTone(ctx, f, ctx.currentTime+i*0.05, 0.7, 1.15));
   }},
-  bell_run: { name: 'Çınlama', play: (ctx) => {
-    [660, 880, 1100, 1320].forEach((f,i) => scheduleBellTone(ctx, f, ctx.currentTime+i*0.09, 0.32, 1.0));
+  bell_run: { name: 'Çınlama', icon: '🎐', play: (ctx) => {
+    [660, 880, 1100, 1320].forEach((f,i) => scheduleBellTone(ctx, f, ctx.currentTime+i*0.09, 0.35, 1.3));
   }},
-  siren: { name: 'Alarm Sireni (En Yüksek)', play: (ctx) => {
-    scheduleBellSweep(ctx, 600, 1300, ctx.currentTime, 0.3, 1.0, 'sawtooth');
-    scheduleBellSweep(ctx, 1300, 600, ctx.currentTime+0.3, 0.3, 1.0, 'sawtooth');
-    scheduleBellSweep(ctx, 600, 1300, ctx.currentTime+0.6, 0.3, 1.0, 'sawtooth');
+  alert: { name: 'Dikkat Zili (Acil)', icon: '🚨', play: (ctx) => {
+    [0,0.22,0.44,0.66].forEach((d,i) => scheduleBellTone(ctx, i%2===0?1318:988, ctx.currentTime+d, 0.24, 1.4));
   }},
-  gong: { name: 'Güçlü Gong', play: (ctx) => {
-    scheduleBellTone(ctx, 196, ctx.currentTime, 1.2, 1.0, 'triangle');
-    scheduleBellTone(ctx, 294, ctx.currentTime, 1.1, 0.85, 'triangle');
+  gong: { name: 'Güçlü Gong', icon: '🥁', play: (ctx) => {
+    scheduleBellTone(ctx, 130.8, ctx.currentTime, 1.3, 1.3);
+    scheduleBellTone(ctx, 196, ctx.currentTime, 1.1, 0.9);
   }},
-  xylophone: { name: 'Ksilofon', play: (ctx) => {
-    [988, 1319, 1568, 2093].forEach((f,i) => scheduleBellTone(ctx, f, ctx.currentTime+i*0.09, 0.22, 1.0, 'triangle'));
+  xylophone: { name: 'Ksilofon', icon: '🎼', play: (ctx) => {
+    [988, 1319, 1568, 2093].forEach((f,i) => scheduleBellTone(ctx, f, ctx.currentTime+i*0.09, 0.25, 1.3));
   }},
-  fanfare: { name: 'Trompet Çağrısı', play: (ctx) => {
-    [523, 523, 784].forEach((f,i) => scheduleBellTone(ctx, f, ctx.currentTime+i*0.14, i===2?0.5:0.12, 1.0, 'sawtooth'));
+  fanfare: { name: 'Trompet Çağrısı', icon: '📯', play: (ctx) => {
+    [523, 523, 784].forEach((f,i) => scheduleBellTone(ctx, f, ctx.currentTime+i*0.14, i===2?0.55:0.14, 1.3));
   }},
-  double_knock: { name: 'Çift Vuruş', play: (ctx) => {
-    [0,0.25].forEach(d => scheduleBellTone(ctx, 220, ctx.currentTime+d, 0.18, 1.0, 'square'));
+  double_knock: { name: 'Çift Vuruş', icon: '👊', play: (ctx) => {
+    [0,0.25].forEach(d => scheduleBellTone(ctx, 174.6, ctx.currentTime+d, 0.22, 1.3));
   }},
 };
 function playBellPresetById(id){
@@ -2133,7 +2141,7 @@ async function renderNotificationSettingsView(main, session){
       </div>
       <p id="bellScopeStatus" class="muted" style="margin:10px 0;font-size:13px;"></p>
       <div class="field-group"><label>Hazır Zil Sesleri</label></div>
-      <div id="bellPresetList" style="display:flex;flex-direction:column;gap:8px;margin-top:6px;max-width:420px;"></div>
+      <div id="bellPresetList" class="bell-grid"></div>
       <p class="muted" style="font-size:12px;margin:14px 0 6px;">İsterseniz kendi ses dosyanızı da yükleyebilirsiniz (yukarıdaki hazır seslerin yerine kullanılır):</p>
       <div style="display:flex;gap:10px;flex-wrap:wrap;">
         <label class="sbtn" style="width:auto;cursor:pointer;display:inline-flex;align-items:center;">
@@ -2172,13 +2180,13 @@ function renderBellPresetList(){
   const val = scope ? sounds.perStation[scope] : sounds.default;
   const activePresetId = (val && typeof val==='object' && val.preset) ? val.preset : (!val ? 'classic' : null);
   el.innerHTML = Object.keys(BELL_PRESETS).map(id => {
+    const p = BELL_PRESETS[id];
     const active = id===activePresetId;
-    return `<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 12px;border-radius:10px;border:1.5px solid ${active?'var(--accent)':'var(--border)'};background:${active?'rgba(184,134,58,.1)':'var(--panel2)'};">
-      <span style="font-weight:${active?'700':'500'};">${active?'✓ ':''}${escapeHtml(BELL_PRESETS[id].name)}</span>
-      <span style="display:flex;gap:6px;">
-        <button class="sbtn" style="width:auto;" onclick="playBellPresetById('${id}')">▶️ Dinle</button>
-        <button class="sbtn" style="width:auto;background:var(--accent);color:var(--btn-ink);" onclick="selectBellPreset('${id}')">Seç</button>
-      </span>
+    return `<div class="bell-card ${active?'active':''}" onclick="selectBellPreset('${id}')">
+      ${active?'<span class="bell-card-check">✓</span>':''}
+      <div class="bell-card-icon">${p.icon||'🔔'}</div>
+      <div class="bell-card-name">${escapeHtml(p.name)}</div>
+      <button type="button" class="bell-card-play" onclick="event.stopPropagation();playBellPresetById('${id}')" title="Dinle">▶</button>
     </div>`;
   }).join('');
 }
