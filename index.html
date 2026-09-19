@@ -2877,7 +2877,9 @@ async function renderReportContent(session){
     `<table style="width:100%;border-collapse:collapse;"><thead><tr style="text-align:left;color:var(--muted);font-size:12px;"><th>Saat</th><th>Masa</th><th>Tutar</th><th>İndirim</th><th>Ödeme</th></tr></thead><tbody>` +
     hist.map(o => {
       const t = new Date(o.closed_at).toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'});
-      const methodLabel = {cash:'Nakit', card:'Kredi Kartı'}[o.payment_method] || o.payment_method;
+      const methodLabel = o.payment_method==='split'
+        ? ('Bölünmüş (💵 '+money(o.cash_amount||0)+' + 💳 '+money(o.card_amount||0)+')')
+        : ({cash:'Nakit', card:'Kredi Kartı'}[o.payment_method] || o.payment_method);
       const discTxt = o.discount_amount>0 ? ('-'+money(o.discount_amount)) : '-';
       return `<tr><td style="padding:6px 4px;border-top:1px solid var(--border);">${t}</td>
         <td style="padding:6px 4px;border-top:1px solid var(--border);">${escapeHtml(o.table_name||'')}</td>
