@@ -151,6 +151,7 @@
   /* ---- Mutfak fişi yazdırma (termal fiş kağıdına uygun) ---- */
   #printArea{display:none;}
   @media print{
+    body{background:#fff !important;visibility:hidden;}
     body *{visibility:hidden;}
     #printArea, #printArea *{visibility:visible;}
     #printArea{

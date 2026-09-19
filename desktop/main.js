@@ -57,8 +57,12 @@ ipcMain.handle('silent-print', async (event, { printerName } = {}) => {
   return new Promise((resolve) => {
     win.webContents.print(
       {
+        // printBackground:false - fis sadece siyah metin/cizgi iceriyor, arka
+        // plan grafigi gerekmiyor. true yapilirsa sayfanin koyu tema arka
+        // plani da (body arkasinda kalan kisim) yazicidan cikip fisi simsiyah
+        // bastirabiliyordu.
         silent: true,
-        printBackground: true,
+        printBackground: false,
         deviceName: printerName || undefined,
         margins: { marginType: 'none' },
       },
