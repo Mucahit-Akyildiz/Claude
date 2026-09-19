@@ -611,6 +611,13 @@ async function refreshKitchenItems(session){
   const cards = [];
   APP.kitchenPendingByTable = {};
   const currentIds = new Set();
+  // Yazicinin fiziksel olarak bu istasyonun kendi bilgisayarina bagli olabilmesi
+  // (mutfak icin ayri bilgisayar, cayhane icin ayri bilgisayar gibi) nedeniyle fis
+  // yazdirma artik siparis onaylanirken degil, burada - o istasyonun kendi ekraninda
+  // yeni bir urun ilk kez gorundugunde - tetikleniyor (WebUSB sadece ayni cihaza
+  // fiziksel olarak bagli yaziciya erisebilir).
+  const isFirstLoad = !APP.kitchenSeenItemIds;
+  const newItemsByTable = {};
   APP.liveOrders.forEach(o => {
     // Sadece bu istasyona ait ve henuz hazirlanmamis urunler - her masanin bu
     // istasyona dusen urunleri tek bir kartta (masa bazinda) gruplanmis olarak gorunur.
@@ -620,6 +627,10 @@ async function refreshKitchenItems(session){
     pending.forEach(it => currentIds.add(it.id));
     const tableName = tableNameForId(o.table_id);
     APP.kitchenPendingByTable[o.table_id] = { tableName, items: pending, dailyNumber: o.daily_number };
+    if(!isFirstLoad){
+      const freshItems = pending.filter(it => !APP.kitchenSeenItemIds.has(it.id));
+      if(freshItems.length>0) newItemsByTable[o.table_id] = { tableName, dailyNumber: o.daily_number, items: freshItems };
+    }
     cards.push(`<div style="background:var(--panel);border:1px solid var(--border);border-left:4px solid var(--accent);border-radius:12px;padding:12px;">
       <div style="display:flex;justify-content:space-between;align-items:center;">
         <b>${escapeHtml(tableName)}${o.daily_number?' <span class="muted" style="font-weight:400;font-size:12px;">#'+o.daily_number+'</span>':''}</b>
@@ -637,12 +648,14 @@ async function refreshKitchenItems(session){
   });
   wrap.innerHTML = cards.length ? `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:12px;">${cards.join('')}</div>` : '<p class="muted">Bekleyen sipariş yok.</p>';
 
-  // Daha once gorulmemis (yeni gelen) urun varsa zil calsin. Ilk yuklemede calmamasi icin
-  // kitchenSeenItemIds null iken sadece kayit tutulur, karsilastirma yapilmaz.
-  if(APP.kitchenSeenItemIds){
-    let hasNew = false;
-    currentIds.forEach(id => { if(!APP.kitchenSeenItemIds.has(id)) hasNew = true; });
-    if(hasNew) playKitchenBell(APP.kitchenStation);
+  // Daha once gorulmemis (yeni gelen) urun varsa zil calsin ve fisini bu istasyonun
+  // kendi yazicisina yazdir. Ilk yuklemede (isFirstLoad) hicbiri tetiklenmez.
+  const hasNew = Object.keys(newItemsByTable).length>0;
+  if(hasNew){
+    playKitchenBell(APP.kitchenStation);
+    Object.values(newItemsByTable).forEach(entry => {
+      printKitchenTicketGrouped(entry.tableName, entry.items, true, entry.dailyNumber);
+    });
   }
   APP.kitchenSeenItemIds = currentIds;
   updateKitchenTimers();
@@ -1273,10 +1286,10 @@ async function confirmOrder(tableId){
     return;
   }
   APP.draftCart[tableId] = [];
-  const dailyNumber = sendData && sendData[0] ? sendData[0].daily_number : null;
-  const nowIso = new Date().toISOString();
-  const itemsForTicket = items.map(it => ({ ...it, added_at: nowIso }));
-  printKitchenTicketGrouped(tableNameForId(tableId), itemsForTicket, true, dailyNumber);
+  // Not: Fis burada (siparis alan cihazda) degil, ilgili istasyonun kendi mutfak
+  // ekraninda (yazicisi ona fiziksel olarak bagli oldugu icin) otomatik yazdiriliyor
+  // - bkz. refreshKitchenItems. Farkli fiziksel bilgisayarlara bagli birden fazla
+  // yazici oldugunda WebUSB sadece o an acik olan cihaza takili yaziciya erisebilir.
   const [liveRes, cfgRes] = await Promise.all([
     sb.rpc('get_live_orders', { p_token: session.session_token }),
     sb.rpc('get_restaurant_config', { p_token: session.session_token })
