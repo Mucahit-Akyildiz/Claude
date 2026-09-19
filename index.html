@@ -259,6 +259,7 @@ const APP = { view:'home', config:null, selectedZone:null, draftCart:{}, liveOrd
 
 const NAV_ITEMS = [
   { view:'order', icon:'🍽️', label:'Sipariş Al', roles:['waiter','manager'] },
+  { view:'packages', icon:'📦', label:'Paket Servis', roles:['waiter','manager'] },
   { view:'kitchen', icon:'🧑‍🍳', label:'Mutfak Ekranı', roles:['kitchen','manager'] },
   { view:'printerSettings', icon:'🖨️', label:'Yazıcı Ayarları', roles:['kitchen','waiter','manager'] },
   { view:'notificationSettings', icon:'🔔', label:'Bildirim Ayarları', roles:['kitchen','waiter','manager'] },
@@ -321,6 +322,7 @@ function render(){
   const main = document.getElementById('main');
   if(APP.view==='home') renderHome(main, session);
   else if(APP.view==='order') renderOrderView(main, session);
+  else if(APP.view==='packages') renderPackagesView(main, session);
   else if(APP.view==='kitchen') renderKitchenView(main, session);
   else if(APP.view==='payments') renderPaymentsView(main, session);
   else if(APP.view==='settings') renderSettingsView(main, session);
@@ -340,7 +342,7 @@ function goToView(view){
   if(view==='reports') APP.reportDate = todayLocalDateStr();
   // Mutfak ekranindan cikinca arka plandaki yenileme/sayac calismaya devam etmesin.
   if(view!=='kitchen') stopKitchenPolling();
-  if(view!=='order') stopOrderPolling();
+  if(view!=='order' && view!=='packages') stopOrderPolling();
   render();
 }
 
@@ -662,22 +664,24 @@ async function refreshKitchenItems(session){
   const isFirstLoad = !APP.kitchenSeenItemIds;
   const newItemsByTable = {};
   APP.liveOrders.forEach(o => {
-    // Sadece bu istasyona ait ve henuz hazirlanmamis urunler - her masanin bu
-    // istasyona dusen urunleri tek bir kartta (masa bazinda) gruplanmis olarak gorunur.
+    // Sadece bu istasyona ait ve henuz hazirlanmamis urunler - her siparisin bu
+    // istasyona dusen urunleri tek bir kartta gruplanmis olarak gorunur. Kartlar
+    // order_id ile anahtarlanir (table_id Paket Servis siparislerinde null/ortak
+    // oldugu icin table_id kullanmak birden fazla paket siparisini karistirirdi).
     // station_id atanmamis (null) urunler hicbir ekranda kaybolmasin diye her istasyonda gosterilir.
     const pending = o.items.filter(i => i.status==='pending' && (i.station_id===APP.kitchenStation || i.station_id==null));
     if(pending.length===0) return;
     pending.forEach(it => currentIds.add(it.id));
-    const tableName = tableNameForId(o.table_id);
-    APP.kitchenPendingByTable[o.table_id] = { tableName, items: pending, dailyNumber: o.daily_number };
+    const tableName = orderDisplayName(o);
+    APP.kitchenPendingByTable[o.order_id] = { tableName, items: pending, dailyNumber: o.daily_number };
     if(!isFirstLoad){
       const freshItems = pending.filter(it => !APP.kitchenSeenItemIds.has(it.id));
-      if(freshItems.length>0) newItemsByTable[o.table_id] = { tableName, dailyNumber: o.daily_number, items: freshItems };
+      if(freshItems.length>0) newItemsByTable[o.order_id] = { tableName, dailyNumber: o.daily_number, items: freshItems };
     }
-    cards.push(`<div class="kitchen-card" data-table-id="${o.table_id}" style="border-left:4px solid var(--accent);border-radius:12px;padding:12px;">
+    cards.push(`<div class="kitchen-card" data-order-id="${o.order_id}" style="border-left:4px solid var(--accent);border-radius:12px;padding:12px;">
       <div style="display:flex;justify-content:space-between;align-items:center;">
         <b>${escapeHtml(tableName)}${o.daily_number?' <span class="muted" style="font-weight:400;font-size:12px;">#'+o.daily_number+'</span>':''}</b>
-        <span style="cursor:pointer;color:var(--muted);font-size:16px;" onclick="reprintKitchenTicket('${o.table_id}')" title="Fişi tekrar yazdır">🖨️</span>
+        <span style="cursor:pointer;color:var(--muted);font-size:16px;" onclick="reprintKitchenTicket('${o.order_id}')" title="Fişi tekrar yazdır">🖨️</span>
       </div>
       ${pending.map(it => `<div class="kitchen-item-row" style="padding:10px 0;border-top:1px dashed var(--border);">
         <div style="display:grid;grid-template-columns:1fr 64px auto;align-items:center;gap:10px;">
@@ -687,7 +691,7 @@ async function refreshKitchenItems(session){
         </div>
         ${it.note?'<div class="muted" style="font-size:12px;font-style:italic;margin-top:4px;">Not: '+escapeHtml(it.note)+'</div>':''}
       </div>`).join('')}
-      <button style="margin-top:10px;background:var(--green);color:var(--btn-ink);" onclick="markAllReady('${o.table_id}')">✅ Hepsi Hazır</button>
+      <button style="margin-top:10px;background:var(--green);color:var(--btn-ink);" onclick="markAllReady('${o.order_id}')">✅ Hepsi Hazır</button>
       </div>`);
   });
   wrap.innerHTML = cards.length ? `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:12px;">${cards.join('')}</div>` : '<p class="muted">Bekleyen sipariş yok.</p>';
@@ -708,6 +712,10 @@ async function refreshKitchenItems(session){
 function tableNameForId(tableId){
   for(const z of APP.config.zones){ const t = z.tables.find(t=>t.id===tableId); if(t) return t.name; }
   return 'Masa';
+}
+function orderDisplayName(o){
+  if(o.kind==='takeaway') return '📦 Paket' + (o.customer_name ? ' - '+o.customer_name : '');
+  return tableNameForId(o.table_id);
 }
 async function pickKitchenStation(id){ primeKitchenAudio(); APP.kitchenStation=id; render(); }
 
@@ -846,33 +854,51 @@ async function renderPaymentsView(main, session){
   document.getElementById('payStatus').textContent = '';
   const allTables = APP.config.zones.flatMap(z => z.tables);
   const grid = document.getElementById('payGrid');
-  const occupiedRows = allTables.map(t => {
+  const tableRows = allTables.map(t => {
     const order = liveOrderForTable(t.id);
-    if(!order || order.items.length===0) return null;
-    const total = order.items.reduce((s,i) => s+i.price*i.qty, 0);
-    return `<div class="table-cell" style="cursor:pointer;background:rgba(244,63,94,.14);border-color:var(--red);color:var(--red);" onclick="openPayModal('${order.order_id}','${t.id}','${escapeHtml(t.name)}')">
+    const unpaid = order ? order.items.filter(i=>!i.paid) : [];
+    if(unpaid.length===0) return null;
+    const total = unpaid.reduce((s,i) => s+i.price*i.qty, 0);
+    return `<div class="table-cell" style="cursor:pointer;background:rgba(244,63,94,.14);border-color:var(--red);color:var(--red);" onclick="openPayModal('${order.order_id}','${escapeHtml(t.name)}')">
       ${escapeHtml(t.name)}<div style="font-size:11px;margin-top:4px;font-weight:400;">${money(total)}</div></div>`;
   }).filter(Boolean);
+  const pkgRows = (APP.liveOrders||[]).filter(o => o.kind==='takeaway' && o.items.filter(i=>!i.paid).length>0).map(o => {
+    const unpaid = o.items.filter(i=>!i.paid);
+    const total = unpaid.reduce((s,i)=>s+i.price*i.qty,0);
+    const label = o.customer_name || ('Paket #'+(o.daily_number||''));
+    return `<div class="table-cell" style="cursor:pointer;background:rgba(244,63,94,.14);border-color:var(--red);color:var(--red);" onclick="openPayModal('${o.order_id}','${escapeHtml('📦 '+label)}')">
+      📦 ${escapeHtml(label)}<div style="font-size:11px;margin-top:4px;font-weight:400;">${money(total)}</div></div>`;
+  });
+  const occupiedRows = tableRows.concat(pkgRows);
   grid.innerHTML = occupiedRows.length ? occupiedRows.join('') : '<p class="muted">Açık hesap yok.</p>';
 }
-function openPayModal(orderId, tableId, tableName){
+/* Ödenecek ürünler işaretlenebilir - sadece işaretli ürünlerin tutarı için
+   ödeme alınır, geri kalanlar hesapta açık kalır (kısmi/ürün bazlı ödeme). */
+let PAY_SELECTED_ITEM_IDS = [];
+function openPayModal(orderId, tableName){
   const order = APP.liveOrders.find(o => o.order_id===orderId);
-  let total = 0;
-  const itemsHtml = order.items.map(it => { total += it.price*it.qty; return `
-    <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);font-size:13px;">
-      <span>${escapeHtml(it.name)} x${it.qty}</span><span>${money(it.price*it.qty)}</span>
-    </div>`; }).join('');
+  if(!order) return;
+  const unpaidItems = order.items.filter(i => !i.paid);
+  PAY_SELECTED_ITEM_IDS = unpaidItems.map(i => i.id);
+  const subtotal = unpaidItems.reduce((s,i)=>s+i.price*i.qty,0);
+  const itemsHtml = unpaidItems.map(it => `
+    <label style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border);font-size:13px;cursor:pointer;gap:8px;">
+      <span style="display:flex;align-items:center;gap:8px;"><input type="checkbox" class="payitem-cb" data-item-id="${it.id}" checked style="width:auto;margin:0;" onchange="togglePayItem('${it.id}',this.checked)">${escapeHtml(it.name)} x${it.qty}</span>
+      <span>${money(it.price*it.qty)}</span>
+    </label>`).join('');
   const bg = document.createElement('div');
   bg.id = 'payModalBg';
   bg.dataset.orderId = orderId;
-  bg.dataset.subtotal = String(total);
+  bg.dataset.tableName = tableName;
+  bg.dataset.subtotal = String(subtotal);
   bg.dataset.discountAmount = '0';
   bg.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:100;padding:16px;';
   bg.onclick = (e) => { if(e.target===bg) bg.remove(); };
   bg.innerHTML = `<div style="background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:20px;max-width:380px;width:100%;max-height:88vh;overflow:auto;">
     <div style="display:flex;justify-content:space-between;"><h2 style="margin:0;">${escapeHtml(tableName)}</h2><span style="cursor:pointer;color:var(--muted);" onclick="document.getElementById('payModalBg').remove()">✕</span></div>
-    ${itemsHtml}
-    <div style="text-align:right;color:var(--muted);font-size:13px;margin-top:10px;">Ara Toplam: ${money(total)}</div>
+    ${unpaidItems.length>1 ? `<div style="display:flex;justify-content:flex-end;margin-top:6px;"><button style="width:auto;padding:4px 10px;margin:0;font-size:12px;background:transparent;border:1px solid var(--border);color:var(--muted);box-shadow:none;" onclick="toggleAllPayItems()">Tümünü Seç/Kaldır</button></div>` : ''}
+    <div id="payItemsWrap" style="margin-top:6px;">${itemsHtml}</div>
+    <div style="text-align:right;color:var(--muted);font-size:13px;margin-top:10px;" id="paySubtotalLine">Ara Toplam: ${money(subtotal)}</div>
     <div style="background:var(--panel2);border-radius:10px;padding:10px;margin:10px 0;">
       <p class="muted" style="font-size:12px;margin:0 0 6px;">İndirim (opsiyonel)</p>
       <div style="display:flex;gap:8px;">
@@ -885,27 +911,55 @@ function openPayModal(orderId, tableId, tableName){
       </div>
       <p id="discInfo" class="muted" style="font-size:12px;margin:6px 0 0;">İndirim yok</p>
     </div>
-    <div style="text-align:right;font-weight:800;font-size:20px;margin:10px 0;" id="payFinalTotal">Ödenecek: ${money(total)}</div>
+    <div style="text-align:right;font-weight:800;font-size:20px;margin:10px 0;" id="payFinalTotal">Ödenecek: ${money(subtotal)}</div>
     <button style="background:var(--green);color:var(--btn-ink);margin-bottom:8px;" onclick="finishPaymentFull('cash')">💵 Nakit</button>
     <button style="background:var(--accent2);color:var(--btn-ink);margin-bottom:8px;" onclick="finishPaymentFull('card')">💳 Kredi Kartı</button>
     <button style="background:transparent;border:1px solid var(--border);color:var(--text);" onclick="openSplitPay()">➗ Bölünmüş Ödeme</button>
   </div>`;
   document.body.appendChild(bg);
 }
+function togglePayItem(itemId, checked){
+  const idx = PAY_SELECTED_ITEM_IDS.indexOf(itemId);
+  if(checked && idx===-1) PAY_SELECTED_ITEM_IDS.push(itemId);
+  else if(!checked && idx!==-1) PAY_SELECTED_ITEM_IDS.splice(idx,1);
+  recomputePaySelection();
+}
+function toggleAllPayItems(){
+  const boxes = document.querySelectorAll('.payitem-cb');
+  const allChecked = Array.from(boxes).every(b => b.checked);
+  boxes.forEach(b => { b.checked = !allChecked; });
+  const bg = document.getElementById('payModalBg');
+  const order = APP.liveOrders.find(o => o.order_id===bg.dataset.orderId);
+  PAY_SELECTED_ITEM_IDS = allChecked ? [] : order.items.filter(i=>!i.paid).map(i=>i.id);
+  recomputePaySelection();
+}
+function recomputePaySelection(){
+  const bg = document.getElementById('payModalBg'); if(!bg) return;
+  const order = APP.liveOrders.find(o => o.order_id===bg.dataset.orderId);
+  const selected = order.items.filter(i => PAY_SELECTED_ITEM_IDS.includes(i.id));
+  const subtotal = selected.reduce((s,i)=>s+i.price*i.qty,0);
+  bg.dataset.subtotal = String(subtotal);
+  document.getElementById('paySubtotalLine').textContent = 'Ara Toplam: '+money(subtotal);
+  // İndirim varsa yeni seçime göre yeniden hesaplanır (yüzdeyse orana göre, tutarsa ara toplamı geçmeyecek şekilde).
+  const discType = bg.dataset.discountType;
+  const discValue = parseFloat(bg.dataset.discountValue||0);
+  let discAmount = 0;
+  if(discType==='percent') discAmount = subtotal*discValue/100;
+  else if(discType==='amount') discAmount = discValue;
+  if(discAmount>subtotal) discAmount = subtotal;
+  bg.dataset.discountAmount = String(discAmount);
+  const discInfo = document.getElementById('discInfo');
+  if(discInfo) discInfo.textContent = discAmount>0 ? ('İndirim: -'+money(discAmount)+(discType==='percent'?' (%'+discValue+')':'')) : 'İndirim yok';
+  document.getElementById('payFinalTotal').textContent = 'Ödenecek: '+money(subtotal-discAmount);
+}
 function applyPayDiscount(){
   const bg = document.getElementById('payModalBg');
-  const subtotal = parseFloat(bg.dataset.subtotal);
   const type = document.getElementById('discType').value;
   let val = parseFloat(document.getElementById('discValue').value)||0;
   if(val<0) val=0;
-  let discAmount = type==='percent' ? subtotal*val/100 : val;
-  if(discAmount>subtotal) discAmount = subtotal;
-  bg.dataset.discountAmount = String(discAmount);
   bg.dataset.discountType = type;
   bg.dataset.discountValue = String(val);
-  const final = subtotal - discAmount;
-  document.getElementById('discInfo').textContent = discAmount>0 ? ('İndirim: -'+money(discAmount)+(type==='percent'?' (%'+val+')':'')) : 'İndirim yok';
-  document.getElementById('payFinalTotal').textContent = 'Ödenecek: '+money(final);
+  recomputePaySelection();
 }
 function payFinalTotal(){
   const bg = document.getElementById('payModalBg');
@@ -914,12 +968,14 @@ function payFinalTotal(){
 async function finishPaymentFull(method){
   const bg = document.getElementById('payModalBg');
   const orderId = bg.dataset.orderId;
+  if(PAY_SELECTED_ITEM_IDS.length===0){ alert('Ödeme almak için en az bir ürün seçin'); return; }
   const total = Math.round(payFinalTotal()*100)/100;
-  await finishPayment(orderId, method, total, method==='cash'?total:0, method==='card'?total:0, parseFloat(bg.dataset.discountAmount||0));
+  await finishPayment(orderId, method, total, method==='cash'?total:0, method==='card'?total:0, parseFloat(bg.dataset.discountAmount||0), PAY_SELECTED_ITEM_IDS.slice());
 }
 function openSplitPay(){
   const bg = document.getElementById('payModalBg');
   const orderId = bg.dataset.orderId;
+  if(PAY_SELECTED_ITEM_IDS.length===0){ alert('Ödeme almak için en az bir ürün seçin'); return; }
   const total = Math.round(payFinalTotal()*100)/100;
   const discountAmount = parseFloat(bg.dataset.discountAmount||0);
   bg.remove();
@@ -1026,17 +1082,34 @@ async function confirmSplitPay(orderId, total, discountAmount){
   if(cash<0) cash=0; if(cash>total) cash=total;
   const card = Math.round((total-cash)*100)/100;
   document.getElementById('splitPayBg').remove();
-  await finishPayment(orderId, 'split', total, cash, card, discountAmount);
+  await finishPayment(orderId, 'split', total, cash, card, discountAmount, PAY_SELECTED_ITEM_IDS.slice());
 }
-async function finishPayment(orderId, method, total, cash, card, discountAmount){
+async function finishPayment(orderId, method, total, cash, card, discountAmount, itemIds){
   const session = getSession();
-  const { error } = await sb.rpc('close_bill', {
+  const { data, error } = await sb.rpc('pay_order_items', {
     p_token: session.session_token, p_order_id: orderId, p_payment_method: method,
-    p_cash: cash, p_card: card, p_discount_amount: discountAmount||0
+    p_cash: cash, p_card: card, p_discount_amount: discountAmount||0, p_item_ids: itemIds||null
   });
   if(error){ alert('Ödeme kaydedilemedi: '+error.message); return; }
   const bg = document.getElementById('payModalBg'); if(bg) bg.remove();
-  renderPaymentsView(document.getElementById('main'), session);
+  const { data: liveData } = await sb.rpc('get_live_orders', { p_token: session.session_token });
+  APP.liveOrders = liveData || [];
+  if(data && data.order_closed===false){
+    // Kısmi ödeme: hesaptaki geri kalan ürünler için ödeme ekranı hemen tekrar açılır.
+    showToast('Ödeme alındı ✓ (kalan ürünler için hesap açık kaldı)');
+    const remainingOrder = APP.liveOrders.find(o => o.order_id===orderId);
+    if(remainingOrder){
+      const label = remainingOrder.kind==='takeaway'
+        ? ('📦 '+(remainingOrder.customer_name || ('Paket #'+(remainingOrder.daily_number||''))))
+        : tableNameForId(remainingOrder.table_id);
+      openPayModal(orderId, label);
+    } else {
+      renderPaymentsView(document.getElementById('main'), session);
+    }
+  } else {
+    showToast('Ödeme alındı ✓');
+    renderPaymentsView(document.getElementById('main'), session);
+  }
 }
 
 async function openOrderView(){
@@ -1076,14 +1149,15 @@ function startOrderPolling(session){
   // hazırlanıyor/hazır) başka bir cihazdan geldiği için otomatik yenilenmez -
   // bu yüzden burada da kitchen ekranındaki gibi periyodik arka plan yenileme var.
   APP.orderPollInterval = setInterval(() => {
-    if(APP.view==='order') refreshOrderLiveStatus(session);
+    if(APP.view==='order' || APP.view==='packages') refreshOrderLiveStatus(session);
   }, 5000);
 }
 async function refreshOrderLiveStatus(session){
   const { data, error } = await sb.rpc('get_live_orders', { p_token: session.session_token });
   if(error) return;
   APP.liveOrders = data || [];
-  renderTableGrid();
+  if(APP.view==='order') renderTableGrid();
+  if(APP.view==='packages') renderPackageGrid();
   const bg = document.getElementById('tableModalBg');
   if(bg && bg.dataset.tableId) renderTableItems(bg.dataset.tableId);
 }
@@ -1095,6 +1169,12 @@ function renderZoneTabs(){
 }
 function selectZone(id){ APP.selectedZone = id; renderZoneTabs(); renderTableGrid(); }
 function liveOrderForTable(tableId){
+  // Paket Servis siparişleri table_id'siz olduğu için sözde bir kimlikle
+  // ('pkg_<order_id>') temsil ediliyor - bu durumda order_id ile eşleştirilir.
+  if(typeof tableId==='string' && tableId.indexOf('pkg_')===0 && tableId!=='pkg_new'){
+    const orderId = tableId.slice(4);
+    return (APP.liveOrders||[]).find(o => o.order_id===orderId);
+  }
   return (APP.liveOrders||[]).find(o => o.table_id===tableId);
 }
 function renderTableGrid(){
@@ -1115,6 +1195,35 @@ function renderTableGrid(){
     return `<div class="table-cell" style="${occupied?'background:rgba(244,63,94,.14);border-color:var(--red);color:var(--red);':''}" onclick="openTableModal('${t.id}','${escapeHtml(t.name)}')">
       ${escapeHtml(t.name)}<div style="font-size:11px;margin-top:4px;font-weight:400;">${sub}</div></div>`;
   }).join('');
+}
+
+/* ---- Sipariş Etiketleri (Personel Yemeği, İkram vb.) - masa/paket penceresinde checkbox'lar ---- */
+function orderFlagsHtml(pseudoId){
+  const flags = APP.config.order_flags || [];
+  if(flags.length===0) return '';
+  if(!APP.orderFlagSelections) APP.orderFlagSelections = {};
+  if(!APP.orderFlagSelections[pseudoId]){
+    const existing = liveOrderForTable(pseudoId);
+    APP.orderFlagSelections[pseudoId] = (existing && existing.tags) ? existing.tags.slice() : [];
+  }
+  const sel = APP.orderFlagSelections[pseudoId];
+  return `<div style="margin-top:14px;padding:10px 12px;background:var(--panel2);border-radius:10px;">
+    <p class="muted" style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;margin:0 0 8px;">Sipariş Etiketleri</p>
+    <div style="display:flex;flex-wrap:wrap;gap:12px;">
+      ${flags.map(f => `<label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;">
+        <input type="checkbox" style="width:auto;margin:0;" ${sel.includes(f.label)?'checked':''} onchange="toggleOrderFlag('${pseudoId}','${escapeHtml(f.label)}',this.checked)">
+        ${escapeHtml(f.label)}
+      </label>`).join('')}
+    </div>
+  </div>`;
+}
+function toggleOrderFlag(pseudoId, label, checked){
+  if(!APP.orderFlagSelections) APP.orderFlagSelections = {};
+  if(!APP.orderFlagSelections[pseudoId]) APP.orderFlagSelections[pseudoId] = [];
+  const sel = APP.orderFlagSelections[pseudoId];
+  const idx = sel.indexOf(label);
+  if(checked && idx===-1) sel.push(label);
+  else if(!checked && idx!==-1) sel.splice(idx,1);
 }
 
 /* ---- Masa penceresi: ürün ekle, sepete at, mutfağa gönder ---- */
@@ -1138,6 +1247,7 @@ function openTableModal(tableId, tableName){
       </div>
       <div id="sentItemsWrap" style="margin-top:14px;"></div>
       <div id="draftItemsWrap"></div>
+      ${orderFlagsHtml(tableId)}
       <div style="display:flex;gap:10px;margin-top:16px;">
         <button class="ghost-btn" style="flex:1;margin-top:0;color:var(--red);border-color:var(--red);" onclick="cancelTableOrder('${tableId}')">🗑️ İptal Et</button>
         <button id="confirmBtn" style="flex:1;margin-top:0;" disabled onclick="confirmOrder('${tableId}')">✅ Onayla ve Gönder</button>
@@ -1176,6 +1286,84 @@ async function releaseDraftStock(tableId){
     scheduleConfigResync(tableId);
   }).catch(e => console.error(e));
 }
+/* ================= PAKET SERVİS ================= */
+/* Masa siparişleriyle aynı sepet/ürün-seçim/mutfağa-gönderme altyapısını
+   kullanır - tek fark "tableId" yerine 'pkg_new' (yeni sipariş) veya
+   'pkg_<order_id>' (mevcut açık paket sipariş) sözde kimliği kullanılması.
+   liveOrderForTable, renderProductPick, renderTableItems, addToDraft,
+   changeDraftQty, cancelTableOrder, clearDraftCart bu kimliklerle zaten
+   generic çalışıyor - bkz. liveOrderForTable. */
+async function renderPackagesView(main, session){
+  main.innerHTML = `<h1>📦 Paket Servis</h1><p class="muted" id="pkgStatus">Yükleniyor...</p><div class="table-grid" id="packageGrid"></div>`;
+  const [cfgRes, liveRes] = await Promise.all([
+    APP.config ? Promise.resolve({data:APP.config}) : sb.rpc('get_restaurant_config', { p_token: session.session_token }),
+    sb.rpc('get_live_orders', { p_token: session.session_token })
+  ]);
+  const statusEl = document.getElementById('pkgStatus');
+  if(cfgRes.error || liveRes.error){
+    statusEl.textContent = 'Veri yüklenemedi: ' + ((cfgRes.error||liveRes.error).message);
+    statusEl.style.color = 'var(--red)';
+    return;
+  }
+  if(!APP.config) APP.config = cfgRes.data;
+  APP.liveOrders = liveRes.data || [];
+  statusEl.textContent = '';
+  renderPackageGrid();
+  startOrderPolling(session);
+}
+function renderPackageGrid(){
+  const el = document.getElementById('packageGrid'); if(!el) return;
+  const pkgOrders = (APP.liveOrders||[]).filter(o => o.kind==='takeaway');
+  const cards = pkgOrders.map(o => {
+    const total = o.items.reduce((s,i) => s+i.price*i.qty, 0);
+    const allReady = o.items.length>0 && o.items.every(i => i.status==='ready');
+    const label = o.customer_name || ('Paket #'+(o.daily_number||''));
+    return `<div class="table-cell" style="cursor:pointer;background:rgba(244,63,94,.14);border-color:var(--red);color:var(--red);" onclick="openPackageModal('pkg_${o.order_id}')">
+      📦 ${escapeHtml(label)}<div style="font-size:11px;margin-top:4px;font-weight:400;">${o.items.length} ürün - ${allReady?'Hazır':'hazırlanıyor'} · ${money(total)}</div></div>`;
+  });
+  cards.push(`<div class="table-cell" style="cursor:pointer;" onclick="openPackageModal('pkg_new')">➕<div style="font-size:11px;margin-top:4px;font-weight:400;">Yeni Paket Sipariş</div></div>`);
+  el.innerHTML = cards.join('');
+}
+function openPackageModal(pseudoId){
+  if(!APP.draftCart) APP.draftCart = {};
+  if(!APP.draftCart[pseudoId]) APP.draftCart[pseudoId] = [];
+  const existing = pseudoId==='pkg_new' ? null : liveOrderForTable(pseudoId);
+  const bg = document.createElement('div');
+  bg.id = 'tableModalBg';
+  bg.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:flex-start;justify-content:center;z-index:100;padding:28px 16px 16px;overflow-y:auto;';
+  bg.onclick = (e) => { if(e.target===bg) closeTableModal(); };
+  bg.innerHTML = `
+    <div style="background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:20px;max-width:480px;width:100%;max-height:88vh;overflow:auto;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+        <h2 style="margin:0;">📦 ${existing ? escapeHtml(existing.customer_name || ('Paket #'+(existing.daily_number||''))) : 'Yeni Paket Sipariş'}</h2>
+        <span style="cursor:pointer;color:var(--muted);font-size:20px;" onclick="closeTableModal()">✕</span>
+      </div>
+      <div class="field-group"><label>Müşteri Adı</label><input id="pkgCustName" placeholder="örn. Ahmet Bey" value="${escapeHtml((existing&&existing.customer_name)||'')}"></div>
+      <div class="field-group"><label>Telefon</label><input id="pkgCustPhone" placeholder="örn. 5551234567" value="${escapeHtml((existing&&existing.customer_phone)||'')}"></div>
+      <div class="field-group"><label>Not</label><input id="pkgNote" placeholder="örn. Yan sokak, 2. kat" value="${escapeHtml((existing&&existing.note)||'')}"></div>
+      <div style="margin-top:10px;">
+        <p style="font-weight:700;margin-bottom:8px;">Ürün Ekle</p>
+        <div class="tabs" id="prodStationTabs"></div>
+        <div id="prodPick" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px;"></div>
+      </div>
+      <div id="sentItemsWrap" style="margin-top:14px;"></div>
+      <div id="draftItemsWrap"></div>
+      ${orderFlagsHtml(pseudoId)}
+      <div style="display:flex;gap:10px;margin-top:16px;">
+        <button class="ghost-btn" style="flex:1;margin-top:0;color:var(--red);border-color:var(--red);" onclick="cancelTableOrder('${pseudoId}')" ${existing?'':'disabled'}>🗑️ İptal Et</button>
+        <button id="confirmBtn" style="flex:1;margin-top:0;" disabled onclick="confirmOrder('${pseudoId}')">✅ Onayla ve Gönder</button>
+      </div>
+    </div>`;
+  document.body.appendChild(bg);
+  bg.dataset.tableId = pseudoId;
+  const stations = APP.config.stations;
+  document.getElementById('prodStationTabs').innerHTML = stations.map((s,i) =>
+    `<div class="tab ${i===0?'active':''}" data-st="${s.id}" onclick="pickStationTab('${s.id}')">${escapeHtml(s.name)}</div>`
+  ).join('');
+  renderProductPick(stations[0] ? stations[0].id : null, pseudoId);
+  renderTableItems(pseudoId);
+}
+
 function pickStationTab(stId){
   document.querySelectorAll('#prodStationTabs .tab').forEach(t => t.classList.toggle('active', t.dataset.st===stId));
   const tableId = document.getElementById('tableModalBg').dataset.tableId;
@@ -1346,13 +1534,33 @@ async function confirmOrder(tableId){
   if(btn){ btn.disabled = true; btn.textContent = 'Gönderiliyor...'; }
   const session = getSession();
   const items = draft.map(d => ({ product_id:d.product_id, name:d.name, price:d.price, cost:d.cost, station_id:d.station_id, qty:d.qty, note:d.note||'' }));
-  const { data: sendData, error } = await sb.rpc('send_order', { p_token: session.session_token, p_table_id: tableId, p_items: items });
+  const tags = (APP.orderFlagSelections && APP.orderFlagSelections[tableId]) || [];
+  const isPkg = typeof tableId==='string' && tableId.indexOf('pkg_')===0;
+  let error;
+  if(isPkg){
+    const existingOrderId = tableId==='pkg_new' ? null : tableId.slice(4);
+    const nameEl = document.getElementById('pkgCustName');
+    const phoneEl = document.getElementById('pkgCustPhone');
+    const noteEl = document.getElementById('pkgNote');
+    const res = await sb.rpc('send_takeaway_order', {
+      p_token: session.session_token, p_order_id: existingOrderId, p_items: items,
+      p_customer_name: nameEl ? (nameEl.value.trim()||null) : null,
+      p_customer_phone: phoneEl ? (phoneEl.value.trim()||null) : null,
+      p_note: noteEl ? (noteEl.value.trim()||null) : null,
+      p_tags: tags
+    });
+    error = res.error;
+  } else {
+    const res = await sb.rpc('send_order', { p_token: session.session_token, p_table_id: tableId, p_items: items, p_tags: tags });
+    error = res.error;
+  }
   if(error){
     alert('Sipariş gönderilemedi: ' + error.message);
     if(btn){ btn.disabled = false; btn.textContent = '✅ Siparişi Onayla ve Mutfağa Gönder'; }
     return;
   }
   APP.draftCart[tableId] = [];
+  delete APP.orderFlagSelections?.[tableId];
   // Not: Fis burada (siparis alan cihazda) degil, ilgili istasyonun kendi mutfak
   // ekraninda (yazicisi ona fiziksel olarak bagli oldugu icin) otomatik yazdiriliyor
   // - bkz. refreshKitchenItems. Farkli fiziksel bilgisayarlara bagli birden fazla
@@ -1364,6 +1572,7 @@ async function confirmOrder(tableId){
   APP.liveOrders = liveRes.data || [];
   if(cfgRes.data) APP.config = cfgRes.data;
   await closeTableModal();
+  if(isPkg && APP.view==='packages') renderPackagesView(document.getElementById('main'), session);
 }
 /* ================= YAZICI AYARLARI + MUTFAK FİŞİ ================= */
 /* Yazıcı ve tasarım ayarları bu CİHAZA/tarayıcıya özeldir (localStorage) - her
@@ -2101,6 +2310,7 @@ async function cancelTableOrder(tableId){
   APP.liveOrders = liveRes.data || [];
   if(cfgRes.data) APP.config = cfgRes.data;
   await closeTableModal();
+  if(typeof tableId==='string' && tableId.indexOf('pkg_')===0 && APP.view==='packages') renderPackagesView(document.getElementById('main'), session);
 }
 /* Sadece henüz mutfağa gönderilmemiş sepeti boşaltır; masaya ait onaylı/gönderilmiş sipariş etkilenmez. */
 async function clearDraftCart(tableId){
@@ -2204,6 +2414,7 @@ async function renderSettingsView(main, session){
       <div class="tab ${APP.settingsTab==='products'?'active':''}" data-tab="products" onclick="setSettingsTab('products')">Ürünler</div>
       <div class="tab ${APP.settingsTab==='ingredients'?'active':''}" data-tab="ingredients" onclick="setSettingsTab('ingredients')">Hammaddeler</div>
       <div class="tab ${APP.settingsTab==='users'?'active':''}" data-tab="users" onclick="setSettingsTab('users')">Kullanıcılar</div>
+      <div class="tab ${APP.settingsTab==='flags'?'active':''}" data-tab="flags" onclick="setSettingsTab('flags')">Sipariş Etiketleri</div>
     </div>
     <div id="settingsContent"></div>`;
   renderSettingsContent(session);
@@ -2219,7 +2430,64 @@ function renderSettingsContent(session){
   else if(APP.settingsTab==='zones') renderZonesSettings(el, session);
   else if(APP.settingsTab==='products') renderProductsSettings(el, session);
   else if(APP.settingsTab==='ingredients') renderIngredientsSettings(el, session);
+  else if(APP.settingsTab==='flags') renderOrderFlagsSettings(el, session);
   else renderUsersSettings(el, session);
+}
+
+/* --- Sipariş Etiketleri (Personel Yemeği, İkram vb. checkbox'lar) --- */
+function renderOrderFlagsSettings(el, session){
+  const flags = APP.config.order_flags || [];
+  el.innerHTML = `<div class="box" style="max-width:none;">
+    <h2>Sipariş Etiketleri</h2>
+    <p class="muted" style="text-align:left;margin:0 0 16px;">Sipariş al ekranında, siparişi mutfağa göndermeden önce işaretlenebilecek checkbox'lar (örn. "Personel Yemeği", "İkram"). İşaretlenen siparişlerde stok yine düşer, ama Finansal Analiz'deki ciro/net kârdan hariç tutulup ayrı bir toplam olarak gösterilir. İstediğiniz kadar etiket ekleyebilirsiniz.</p>
+    <div class="settings-table-wrap">
+    <table class="settings-table">
+      <thead><tr><th>Etiket</th><th></th></tr></thead>
+      <tbody>
+      ${flags.map(f => `
+        <tr>
+          <td class="col-name"><input value="${escapeHtml(f.label)}" id="flag_label_${f.id}"></td>
+          <td style="white-space:nowrap;">
+            <button class="sbtn" onclick="saveOrderFlag('${f.id}')">Kaydet</button>
+            <button class="sbtn" style="background:var(--red);color:var(--btn-ink);" onclick="removeOrderFlag('${f.id}')">Sil</button>
+          </td>
+        </tr>`).join('')}
+      ${flags.length===0 ? '<tr><td colspan="2" class="muted" style="padding:10px 4px;">Henüz etiket eklenmedi.</td></tr>' : ''}
+      </tbody>
+    </table>
+    </div>
+    <div class="add-row-panel">
+      <p>Yeni Etiket Ekle</p>
+      <div style="display:flex;gap:10px;align-items:end;">
+        <div class="field-group" style="flex:1;"><label>Etiket Adı</label><input id="nf_label" placeholder="örn. Personel Yemeği"></div>
+        <button style="max-width:160px;" onclick="addOrderFlag()">+ Etiket Ekle</button>
+      </div>
+    </div>
+  </div>`;
+}
+async function saveOrderFlag(id){
+  const session = getSession();
+  const label = document.getElementById('flag_label_'+id).value.trim();
+  if(!label) return;
+  const { error } = await sb.rpc('rename_order_flag', { p_token: session.session_token, p_flag_id: id, p_label: label });
+  if(error){ alert(error.message); return; }
+  await renderSettingsView(document.getElementById('main'), session);
+  showToast('Kaydedildi ✓');
+}
+async function addOrderFlag(){
+  const session = getSession();
+  const label = document.getElementById('nf_label').value.trim();
+  if(!label) return;
+  const { error } = await sb.rpc('create_order_flag', { p_token: session.session_token, p_label: label });
+  if(error){ alert(error.message); return; }
+  await renderSettingsView(document.getElementById('main'), session);
+}
+async function removeOrderFlag(id){
+  if(!confirm('Bu etiket silinsin mi?')) return;
+  const session = getSession();
+  const { error } = await sb.rpc('delete_order_flag', { p_token: session.session_token, p_flag_id: id });
+  if(error){ alert(error.message); return; }
+  await renderSettingsView(document.getElementById('main'), session);
 }
 
 /* --- Hammaddeler (reçete tabanlı stok) --- */
@@ -2842,11 +3110,17 @@ async function renderReportContent(session){
   if(error){ el.innerHTML = '<p class="muted">Yüklenemedi: '+error.message+'</p>'; return; }
   const hist = data || [];
 
-  let totalRevenue=0, totalCost=0, totalCash=0, totalCard=0, totalDiscount=0, discountedCount=0;
+  // Sipariş Etiketleri (Personel Yemeği, İkram vb.) işaretlenmiş hesaplar ciro/net
+  // kârdan hariç tutulur - stok yine düşmüş olsa da bunlar gerçek satış değildir.
+  // Nakit/Kart toplamları ise kasa mutabakatı için TÜM hesaplardan (etiketli dahil)
+  // hesaplanmaya devam eder.
+  const untaggedHist = hist.filter(o => !o.tags || o.tags.length===0);
+  const taggedHist = hist.filter(o => o.tags && o.tags.length>0);
+
+  let totalRevenue=0, totalCost=0, totalCash=0, totalCard=0, totalDiscount=0, discountedCount=0, taggedTotal=0;
   const hourStats = {};
-  hist.forEach(o => {
+  untaggedHist.forEach(o => {
     totalRevenue += Number(o.total); totalCost += Number(o.cost);
-    totalCash += Number(o.cash_amount||0); totalCard += Number(o.card_amount||0);
     totalDiscount += Number(o.discount_amount||0);
     if(o.discount_amount>0) discountedCount++;
     const hr = new Date(o.closed_at).getHours();
@@ -2854,6 +3128,8 @@ async function renderReportContent(session){
     hourStats[hr].count += 1;
     hourStats[hr].revenue += Number(o.total);
   });
+  taggedHist.forEach(o => { taggedTotal += Number(o.total); });
+  hist.forEach(o => { totalCash += Number(o.cash_amount||0); totalCard += Number(o.card_amount||0); });
   const profit = totalRevenue - totalCost;
 
   const hourKeys = Object.keys(hourStats).map(Number).sort((a,b)=>a-b);
@@ -2881,8 +3157,12 @@ async function renderReportContent(session){
         ? ('Bölünmüş (💵 '+money(o.cash_amount||0)+' + 💳 '+money(o.card_amount||0)+')')
         : ({cash:'Nakit', card:'Kredi Kartı'}[o.payment_method] || o.payment_method);
       const discTxt = o.discount_amount>0 ? ('-'+money(o.discount_amount)) : '-';
+      const tagBadge = (o.tags && o.tags.length>0)
+        ? ` <span style="background:rgba(234,179,8,.15);color:#eab308;border-radius:6px;padding:2px 6px;font-size:11px;font-weight:700;">${o.tags.map(x=>escapeHtml(x)).join(', ')}</span>`
+        : '';
+      const nameTxt = (o.kind==='takeaway'?'📦 ':'') + escapeHtml(o.table_name||'');
       return `<tr><td style="padding:6px 4px;border-top:1px solid var(--border);">${t}</td>
-        <td style="padding:6px 4px;border-top:1px solid var(--border);">${escapeHtml(o.table_name||'')}</td>
+        <td style="padding:6px 4px;border-top:1px solid var(--border);">${nameTxt}${tagBadge}</td>
         <td style="padding:6px 4px;border-top:1px solid var(--border);">${money(o.total)}</td>
         <td style="padding:6px 4px;border-top:1px solid var(--border);">${discTxt}</td>
         <td style="padding:6px 4px;border-top:1px solid var(--border);">${methodLabel}</td></tr>`;
@@ -2899,6 +3179,7 @@ async function renderReportContent(session){
       <div class="box" style="text-align:center;"><div style="font-size:20px;font-weight:800;color:var(--green);">${money(totalCash)}</div><div class="muted" style="font-size:12px;">💵 Nakit${totalRevenue?' ('+Math.round(totalCash/totalRevenue*100)+'%)':''}</div></div>
       <div class="box" style="text-align:center;"><div style="font-size:20px;font-weight:800;color:var(--accent2);">${money(totalCard)}</div><div class="muted" style="font-size:12px;">💳 Kredi Kartı${totalRevenue?' ('+Math.round(totalCard/totalRevenue*100)+'%)':''}</div></div>
       <div class="box" style="text-align:center;"><div style="font-size:20px;font-weight:800;color:var(--accent);">${money(totalDiscount)}</div><div class="muted" style="font-size:12px;">🏷️ İndirim (${discountedCount} hesap)</div></div>
+      <div class="box" style="text-align:center;"><div style="font-size:20px;font-weight:800;color:#eab308;">${money(taggedTotal)}</div><div class="muted" style="font-size:12px;">🏷️ Personel/İkram (${taggedHist.length} hesap, ciroya dahil değil)</div></div>
     </div>
     <div class="box" style="max-width:none;"><h2>Saatlik Yoğunluk${peakHour!==null?' <span class="muted" style="font-size:12px;font-weight:400;">(en yoğun: '+(peakHour<10?'0'+peakHour:peakHour)+':00 🔥)</span>':''}</h2>${hourlyHtml}</div>
     <div class="box" style="max-width:none;"><h2>Kapatılan Hesaplar</h2>${billsHtml}</div>
