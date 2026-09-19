@@ -53,7 +53,14 @@
   .app-shell{display:flex;min-height:100vh;}
   .sidebar{width:230px;flex-shrink:0;background:var(--sb-bg);color:var(--sb-text);display:flex;flex-direction:column;position:sticky;top:0;height:100vh;overflow-y:auto;overflow-x:hidden;transition:width .18s ease;}
   .sidebar.collapsed{width:74px;}
-  .sidebar .sb-top{display:flex;align-items:center;justify-content:space-between;padding:18px 14px 16px;border-bottom:1px solid var(--sb-border);}
+  .app-brand-row{display:flex;align-items:center;gap:8px;padding:16px 14px 0;}
+  .app-brand-row .app-brand-icon{font-size:20px;line-height:1;}
+  .app-brand-row .app-brand-text{font-weight:800;font-size:14px;letter-spacing:.03em;color:var(--sb-accent);text-transform:uppercase;white-space:nowrap;overflow:hidden;}
+  .sidebar.collapsed .app-brand-row{justify-content:center;padding:16px 8px 0;}
+  .sidebar.collapsed .app-brand-row .app-brand-text{display:none;}
+  .auth-brand{display:flex;align-items:center;justify-content:center;gap:9px;margin-bottom:18px;font-weight:800;font-size:23px;letter-spacing:-.02em;color:var(--accent);}
+  .auth-brand .app-brand-icon{font-size:30px;}
+  .sidebar .sb-top{display:flex;align-items:center;justify-content:space-between;padding:12px 14px 16px;border-bottom:1px solid var(--sb-border);}
   .sidebar .sb-brand{font-weight:800;font-size:15px;cursor:pointer;letter-spacing:-.01em;white-space:nowrap;overflow:hidden;}
   .sb-collapse-btn{width:30px;height:30px;padding:0;margin:0;flex-shrink:0;border-radius:8px;background:rgba(255,255,255,.07);color:var(--sb-muted);box-shadow:none;font-size:14px;}
   .sb-collapse-btn:hover{background:rgba(255,255,255,.14);color:#fff;}
@@ -82,7 +89,7 @@
   @media (max-width:820px){
     .app-shell{flex-direction:column;}
     .sidebar,.sidebar.collapsed{width:100%;height:auto;position:sticky;flex-direction:row;align-items:center;overflow-x:auto;overflow-y:visible;}
-    .sidebar .sb-top,.sidebar .sb-user{display:none;}
+    .sidebar .sb-top,.sidebar .sb-user,.sidebar .app-brand-row{display:none;}
     .sidebar nav{flex-direction:row;padding:8px;gap:6px;}
     .sidebar.collapsed .sb-item{justify-content:flex-start;padding:9px 12px;}
     .sidebar.collapsed .label{display:inline;}
@@ -170,6 +177,7 @@
   .ticket-note{font-size:11px;font-style:italic;padding-left:20px;}
   .ticket-paper{background:#fff;color:#000;font-family:'Courier New',monospace;padding:14px;width:302px;box-shadow:0 2px 10px rgba(0,0,0,.15);}
   .ticket-paper.pw58{width:219px;}
+  .ticket-bold, .ticket-bold *{font-weight:700 !important;}
   .kitchen-item-row{font-size:16px;}
   .kitchen-timer{font-size:18px;font-weight:800;color:var(--green);font-variant-numeric:tabular-nums;}
   .kitchen-timer.kt-warn{color:#eab308;}
@@ -265,6 +273,7 @@ function render(){
   app.innerHTML = `
     <div class="app-shell">
       <aside class="sidebar ${collapsed?'collapsed':''}">
+        <div class="app-brand-row"><span class="app-brand-icon">⭐</span><span class="app-brand-text">YıldızPOS</span></div>
         <div class="sb-top">
           <div class="sb-brand" onclick="goHome()"><span class="label">${escapeHtml(session.restaurant_name)}</span></div>
           <button class="sb-collapse-btn" onclick="toggleSidebar()" title="Menüyü daralt/genişlet">${collapsed?'»':'«'}</button>
@@ -462,6 +471,8 @@ function renderLoginScreen(app){
     : '';
   app.innerHTML = `
     <div class="center-wrap">
+    <div>
+    <div class="auth-brand"><span class="app-brand-icon">⭐</span><span>YıldızPOS</span></div>
     <div class="box">
       <h1>Giriş Yapın</h1>
       <p class="muted">İşletme kodu, kullanıcı adı ve şifrenizle giriş yapın</p>
@@ -475,6 +486,7 @@ function renderLoginScreen(app){
         <a href="#" style="color:var(--accent);" onclick="APP.authScreen='signup';render();return false;">Kayıt Ol / Paket Seç</a>
       </p>
     </div>
+    </div>
     </div>`;
   document.getElementById('passInput').addEventListener('keydown', function(e){
     if(e.key==='Enter') doLogin();
@@ -484,6 +496,8 @@ function renderLoginScreen(app){
 function renderSignupScreen(app){
   app.innerHTML = `
     <div class="center-wrap">
+    <div>
+    <div class="auth-brand"><span class="app-brand-icon">⭐</span><span>YıldızPOS</span></div>
     <div class="box" style="max-width:520px;">
       <h1 id="signupTitle">Yeni İşletme Kaydı</h1>
       <p class="muted" id="signupSub">İşletmenizi kaydedip paketinizi seçin.</p>
@@ -508,6 +522,7 @@ function renderSignupScreen(app){
       <p class="muted" style="text-align:center;margin-top:14px;font-size:13px;">
         Zaten hesabınız var mı? <a href="#" style="color:var(--accent);" onclick="APP.authScreen='login';render();return false;">Giriş Yap</a>
       </p>
+    </div>
     </div>
     </div>`;
   renderPkgCards();
@@ -1331,12 +1346,35 @@ async function confirmOrder(tableId){
 /* Yazıcı ve tasarım ayarları bu CİHAZA/tarayıcıya özeldir (localStorage) - her
    ekranın kendi fiziksel yazıcısı olabileceği için kasıtlı olarak veritabanında
    değil, sadece bu cihazda tutuluyor. */
+const TICKET_FONTS = {
+  'Courier New': "'Courier New', Courier, monospace",
+  'Consolas': "Consolas, 'Courier New', monospace",
+  'Arial': "Arial, Helvetica, sans-serif",
+  'Verdana': "Verdana, Geneva, sans-serif",
+  'Tahoma': "Tahoma, Geneva, sans-serif",
+};
+function ticketFontStack(key){ return TICKET_FONTS[key] || TICKET_FONTS['Courier New']; }
 function getTicketDesign(){
-  try{
-    return JSON.parse(localStorage.getItem('rys_ticket_design')) || { width:'80', header:'', footer:'' };
-  }catch(e){ return { width:'80', header:'', footer:'' }; }
+  let d = {};
+  try{ d = JSON.parse(localStorage.getItem('rys_ticket_design')) || {}; }catch(e){ d = {}; }
+  return {
+    width: d.width || '80',
+    header: d.header || '',
+    footer: d.footer || '',
+    fontFamily: d.fontFamily && TICKET_FONTS[d.fontFamily] ? d.fontFamily : 'Courier New',
+    // Termal yazıcılarda ince/normal ağırlıklı yazı çoğunlukla silik/soluk
+    // çıkıyor - bu yüzden aksi (false) kaydedilmediği sürece varsayılan kalın.
+    bold: d.bold !== false,
+  };
 }
 function setTicketDesign(d){ try{ localStorage.setItem('rys_ticket_design', JSON.stringify(d)); }catch(e){} }
+function applyTicketDesignStyle(el, design, baseClass){
+  let cls = baseClass || '';
+  if(design.width==='58') cls += (cls?' ':'')+'pw58';
+  if(design.bold) cls += (cls?' ':'')+'ticket-bold';
+  el.className = cls;
+  el.style.fontFamily = ticketFontStack(design.fontFamily);
+}
 function getPrinters(){
   try{ return JSON.parse(localStorage.getItem('rys_printers')) || []; }catch(e){ return []; }
 }
@@ -1417,6 +1455,16 @@ async function renderPrinterSettingsView(main, session){
             <input id="td_header" value="${escapeHtml(design.header||'')}" placeholder="örn. Şube: Merkez" oninput="updateTicketPreview()"></div>
           <div class="field-group" style="margin-top:10px;"><label>Fiş Altında Ek Not (opsiyonel)</label>
             <input id="td_footer" value="${escapeHtml(design.footer||'')}" placeholder="örn. Afiyet olsun!" oninput="updateTicketPreview()"></div>
+          <div class="field-group" style="margin-top:10px;"><label>Yazı Tipi</label>
+            <select id="td_font" oninput="updateTicketPreview()">
+              ${Object.keys(TICKET_FONTS).map(f => `<option value="${f}" ${design.fontFamily===f?'selected':''}>${f}</option>`).join('')}
+            </select>
+          </div>
+          <div class="field-group" style="margin-top:10px;display:flex;align-items:center;gap:8px;">
+            <input type="checkbox" id="td_bold" ${design.bold?'checked':''} oninput="updateTicketPreview()" style="width:auto;margin:0;">
+            <label style="margin:0;" for="td_bold">Kalın Yazı</label>
+          </div>
+          <p class="muted" style="text-align:left;font-size:11.5px;margin-top:4px;">Çıktı silik/soluk çıkıyorsa "Kalın Yazı"yı işaretli bırakın — termal yazıcılarda ince yazı genelde net basmıyor.</p>
           <button style="margin-top:12px;max-width:200px;" onclick="saveTicketDesign()">Tasarımı Kaydet</button>
         </div>
         <div>
@@ -1625,6 +1673,8 @@ function saveTicketDesign(){
     width: document.getElementById('td_width').value,
     header: document.getElementById('td_header').value.trim(),
     footer: document.getElementById('td_footer').value.trim(),
+    fontFamily: document.getElementById('td_font').value,
+    bold: document.getElementById('td_bold').checked,
   });
   showToast('Kaydedildi ✓');
 }
@@ -1743,6 +1793,9 @@ function buildEscPosTicket(restaurantName, tableName, items, design, dailyNumber
   push(escposEncodeText((dailyNumber ? ('Sipariş No: '+dailyNumber+' · ') : '') + tableName + '\n'));
   push(escposEncodeText(now.toLocaleDateString('tr-TR') + '\n'));
   push([0x1B, 0x61, 0x00]); // left align
+  // Termal yazıcılarda ince yazı çoğunlukla silik/soluk çıkıyor - Kalın Yazı
+  // ayarı açıksa ürün satırları da bold basılır (bkz. Yazıcı Ayarları > Fiş Tasarımı).
+  if(design.bold) push([0x1B, 0x45, 0x01]);
   push(escposEncodeText('-'.repeat(lineWidth) + '\n'));
   items.forEach(it => {
     const timeStr = formatItemTime(it);
@@ -1752,6 +1805,7 @@ function buildEscPosTicket(restaurantName, tableName, items, design, dailyNumber
     if(it.note) push(escposEncodeText('  Not: ' + it.note + '\n'));
   });
   push(escposEncodeText('-'.repeat(lineWidth) + '\n'));
+  if(design.bold) push([0x1B, 0x45, 0x00]);
   if(design.footer){
     push([0x1B, 0x61, 0x01]);
     push(escposEncodeText(design.footer + '\n'));
@@ -1832,7 +1886,7 @@ async function printKitchenTicket(tableName, items, printerOverride, silent, dai
     // sistemi yazicisina (Windows/macOS), hicbir pencere/onay gostermeden,
     // WebUSB veya kiosk-printing bayragina gerek kalmadan basar.
     const el = document.getElementById('printArea');
-    el.className = design.width==='58' ? 'pw58' : '';
+    applyTicketDesignStyle(el, design);
     el.innerHTML = buildTicketHtml(restaurantName, tableName, items, design, dailyNumber);
     await new Promise(r => setTimeout(r, 80));
     const result = await window.electronAPI.silentPrint(printer.osPrinterName);
@@ -1853,7 +1907,7 @@ async function printKitchenTicket(tableName, items, printerOverride, silent, dai
     // acilip bu yazici o bilgisayarda VARSAYILAN yazici yapilirsa,
     // window.print() hicbir pencere/onay gostermeden dogrudan basar.
     const el = document.getElementById('printArea');
-    el.className = design.width==='58' ? 'pw58' : '';
+    applyTicketDesignStyle(el, design);
     el.innerHTML = buildTicketHtml(restaurantName, tableName, items, design, dailyNumber);
     setTimeout(() => window.print(), 100);
     return;
@@ -1869,7 +1923,7 @@ async function printKitchenTicket(tableName, items, printerOverride, silent, dai
   if(silent) return;
 
   const el = document.getElementById('printArea');
-  el.className = design.width==='58' ? 'pw58' : '';
+  applyTicketDesignStyle(el, design);
   el.innerHTML = buildTicketHtml(restaurantName, tableName, items, design, dailyNumber);
   setTimeout(() => window.print(), 100);
 }
@@ -1899,6 +1953,8 @@ function updateTicketPreview(){
   const width = document.getElementById('td_width').value;
   const header = document.getElementById('td_header').value.trim();
   const footer = document.getElementById('td_footer').value.trim();
+  const fontFamily = document.getElementById('td_font').value;
+  const bold = document.getElementById('td_bold').checked;
   const session = getSession();
   const t1 = new Date(Date.now() - 6*60000).toISOString();
   const t2 = new Date().toISOString();
@@ -1907,7 +1963,7 @@ function updateTicketPreview(){
     { qty:1, name:'Ayran', added_at:t1 },
     { qty:1, name:'Mevsim Salata', note:'Sossuz', added_at:t2 },
   ];
-  el.className = 'ticket-paper' + (width==='58' ? ' pw58' : '');
+  applyTicketDesignStyle(el, { width, fontFamily, bold }, 'ticket-paper');
   el.innerHTML = buildTicketHtml(session ? session.restaurant_name : 'İŞLETME ADI', 'Masa 3', sampleItems, { header, footer }, 12);
 }
 async function cancelTableOrder(tableId){
