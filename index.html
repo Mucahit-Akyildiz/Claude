@@ -822,25 +822,37 @@ function primeKitchenAudio(){
   }catch(e){}
   try{ const a = new Audio(); a.volume = 0; a.play().catch(()=>{}); }catch(e){}
 }
-/* Tüm zil ön ayarları 3 katmanlı bir zincirden geçer:
+/* Tüm zil ön ayarları 4 katmanlı bir zincirden geçer (mastering zinciri gibi -
+   her katman "algılanan yükseklik"i bir önceki katmanın bıraktığı yerden
+   daha da artırır, sonuncusu kırpılmayı/çatlamayı engeller):
    1) comp: birden fazla kısmi/nota üst üste bindiğinde toplam seviyeyi kontrol altında tutar.
-   2) makeup: compressor'ın düşürdüğü seviyeyi geri kazanır - sadece compressor eklemek
-      sesi YÜKSELTMEZ, tam tersine tepe noktalarını kırptığı için ortalama seviyeyi
-      düşürebilir; "hala düşük" şikayeti bu yüzdendi. Burada seviye ~+15dB geri kazanılıyor.
-   3) limiter: makeup gain sonrası oluşabilecek kırpılmayı/çatlamayı önleyen sert bir
-      son limiter - sesi dijital tavana yapıştırıp algılanan yüksekliği maksimize eder. */
+   2) makeup: compressor'ın düşürdüğü seviyeyi fazlasıyla geri kazanır (~+18dB) - sinyali
+      bilinçli olarak sert şekilde "sürer" (drive), bu da ortalama (RMS) yüksekliği artırır.
+   3) shaper: bu sürülmüş sinyali yumuşak (tanh tabanlı) bir doygunluk eğrisinden geçirir -
+      sert dijital kırpılma yerine sıcak/dolgun bir "yoğunluk" katar, bu da algılanan sesi
+      daha da yükseltir ama kulağı tırmalamaz.
+   4) limiter: en sonda kalan tepe noktalarını dijital tavana ($$\approx$$0dBFS) yapıştıran
+      sert bir son limiter - hiçbir kırpılma/çatlama olmadan mümkün olan en yüksek seviye. */
 let BELL_CHAIN = null, BELL_CHAIN_CTX = null;
+const BELL_SATURATION_CURVE = (() => {
+  const n = 2048, curve = new Float32Array(n), k = 2.2;
+  for(let i=0;i<n;i++){ const x = (i/(n-1))*2-1; curve[i] = Math.tanh(k*x)/Math.tanh(k); }
+  return curve;
+})();
 function getBellCompressor(ctx){
   if(BELL_CHAIN && BELL_CHAIN_CTX===ctx) return BELL_CHAIN;
   const comp = ctx.createDynamicsCompressor();
-  comp.threshold.value = -24; comp.knee.value = 6; comp.ratio.value = 12;
+  comp.threshold.value = -26; comp.knee.value = 6; comp.ratio.value = 14;
   comp.attack.value = 0.003; comp.release.value = 0.15;
   const makeup = ctx.createGain();
-  makeup.gain.value = 5.5;
+  makeup.gain.value = 8.5;
+  const shaper = ctx.createWaveShaper();
+  shaper.curve = BELL_SATURATION_CURVE;
+  shaper.oversample = '4x';
   const limiter = ctx.createDynamicsCompressor();
-  limiter.threshold.value = -1; limiter.knee.value = 0; limiter.ratio.value = 20;
-  limiter.attack.value = 0.001; limiter.release.value = 0.08;
-  comp.connect(makeup); makeup.connect(limiter); limiter.connect(ctx.destination);
+  limiter.threshold.value = -0.3; limiter.knee.value = 0; limiter.ratio.value = 20;
+  limiter.attack.value = 0.0006; limiter.release.value = 0.05;
+  comp.connect(makeup); makeup.connect(shaper); shaper.connect(limiter); limiter.connect(ctx.destination);
   BELL_CHAIN = comp; BELL_CHAIN_CTX = ctx;
   return comp;
 }
