@@ -298,7 +298,7 @@ function isAdminMode(){
 
 /* Sayfa geçişlerinde/veri beklenirken tam ekran marka logosu (splash
    ekranıyla birebir aynı görsel) gösterir - AMA SADECE bekleme belirli bir
-   eşiği (varsayılan 220ms) aşarsa; kısa süren (çoğu) istekte hiç
+   eşiği (varsayılan 1000ms) aşarsa; kısa süren (çoğu) istekte hiç
    görünmeden biter, "yanıp sönme" olmaz. beginLoadingWatch/endLoadingWatch
    çifti her zaman birlikte çağrılmalı (withLoadingOverlay bunu otomatik
    yapar); iç içe/çakışan çağrılar bir sayaçla (LOADING_WATCH_DEPTH) takip
@@ -313,7 +313,7 @@ function beginLoadingWatch(delayMs){
     LOADING_WATCH_SHOWN = true;
     const el = document.getElementById('loadingOverlay');
     if(el) el.classList.add('show');
-  }, delayMs==null?220:delayMs);
+  }, delayMs==null?1000:delayMs);
 }
 function endLoadingWatch(){
   LOADING_WATCH_DEPTH = Math.max(0, LOADING_WATCH_DEPTH-1);
