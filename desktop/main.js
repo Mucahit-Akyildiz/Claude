@@ -7,7 +7,7 @@ const path = require('path');
 // masaüstü kullanıcılarına da yansıyor. Bu kabuğun tek eklediği şey: preload.js
 // üzerinden sunulan, işletim sisteminin kendi yazıcısına PENCERE AÇMADAN
 // (silent:true) doğrudan basabilen bir köprü (window.electronAPI).
-const APP_URL = process.env.RESTORAN_APP_URL || 'https://restoran-red-three.vercel.app';
+const APP_URL = process.env.ELVORA_APP_URL || 'https://elvorapos.vercel.app';
 // Paketlenmiş (kurulmuş) uygulamada exe/dmg ikonu electron-builder'ın
 // build/icon.ico|icns dosyasından geliyor; bu burada ayrıca "npm start" ile
 // paketlenmemiş çalıştırıldığında pencere/taşıma çubuğu ikonunun de aynı

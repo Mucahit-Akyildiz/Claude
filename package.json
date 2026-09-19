@@ -1,5 +1,5 @@
 {
-  "name": "restoran-yonetim-sistemi",
+  "name": "elvora",
   "private": true,
   "dependencies": {
     "@supabase/supabase-js": "^2"
