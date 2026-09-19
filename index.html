@@ -1665,11 +1665,21 @@ function buildEscPosTicket(restaurantName, tableName, items, design, dailyNumber
   let off = 0; chunks.forEach(c => { out.set(c, off); off += c.length; });
   return out;
 }
-async function sendToUsbPrinter(printer, bytes){
+let _usbPrintQueue = Promise.resolve();
+/* Ayni USB yaziciya esZamanli (concurrent) erisim denemeleri "interface claim
+   edilemedi" hatasina yol acabiliyor (ozellikle art arda gelen siparislerde) -
+   tum yazdirma istekleri burada siraya alinip tek tek isleniyor. */
+function sendToUsbPrinter(printer, bytes){
+  const task = _usbPrintQueue.then(() => sendToUsbPrinterNow(printer, bytes));
+  _usbPrintQueue = task.catch(() => {});
+  return task;
+}
+async function sendToUsbPrinterNow(printer, bytes){
   if(!navigator.usb || !printer.usbInfo) return false;
+  let device = null;
   try{
     const devices = await navigator.usb.getDevices();
-    const device = devices.find(d => d.vendorId===printer.usbInfo.vendorId && d.productId===printer.usbInfo.productId);
+    device = devices.find(d => d.vendorId===printer.usbInfo.vendorId && d.productId===printer.usbInfo.productId);
     if(!device) return false; // henuz izin verilmemis / bagli degil - tarayici penceresine dus
     await device.open();
     if(device.configuration === null) await device.selectConfiguration(1);
@@ -1682,6 +1692,8 @@ async function sendToUsbPrinter(printer, bytes){
     return true;
   }catch(e){
     console.error('USB yazdirma basarisiz:', e);
+    // Cihaz acik kalip sonraki denemeleri de kilitlemesin diye elden geldigince kapat.
+    if(device && device.opened){ try{ await device.close(); }catch(e2){} }
     return false;
   }
 }
