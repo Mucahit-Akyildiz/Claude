@@ -1699,14 +1699,23 @@ function getTicketDesign(){
     timeBold: d.timeBold !== false,
     showHeaderTime: !!d.showHeaderTime,
     // Fişin farklı bölümlerinin yazı renkleri (hepsi termal yazıcıda net
-    // basması için varsayılan olarak tam siyah).
+    // basması için varsayılan olarak tam siyah), boyutları (px) ve harf
+    // stilleri (normal/BÜYÜK/küçük/İlk Harf Büyük) - tam özelleştirme.
     colorTitle: d.colorTitle || '#000000',
     colorText: d.colorText || '#000000',
     colorNote: d.colorNote || '#000000',
     colorTime: d.colorTime || '#000000',
+    sizeTitle: d.sizeTitle!=null ? d.sizeTitle : 15,
+    sizeText: d.sizeText!=null ? d.sizeText : 13,
+    sizeNote: d.sizeNote!=null ? d.sizeNote : 11,
+    sizeTime: d.sizeTime!=null ? d.sizeTime : 11,
+    transformTitle: d.transformTitle || 'uppercase',
+    transformText: d.transformText || 'none',
+    transformNote: d.transformNote || 'none',
+    transformTime: d.transformTime || 'none',
   };
 }
-const TICKET_DESIGN_DEFAULTS = { width:'80', header:'', footer:'', fontFamily:'Courier New', bold:true, marginTop:4, marginRight:4, marginBottom:4, marginLeft:4, showOrderNumber:true, showItemTime:true, copies:1, timeFormat:'24', timeBold:true, showHeaderTime:false, colorTitle:'#000000', colorText:'#000000', colorNote:'#000000', colorTime:'#000000' };
+const TICKET_DESIGN_DEFAULTS = { width:'80', header:'', footer:'', fontFamily:'Courier New', bold:true, marginTop:4, marginRight:4, marginBottom:4, marginLeft:4, showOrderNumber:true, showItemTime:true, copies:1, timeFormat:'24', timeBold:true, showHeaderTime:false, colorTitle:'#000000', colorText:'#000000', colorNote:'#000000', colorTime:'#000000', sizeTitle:15, sizeText:13, sizeNote:11, sizeTime:11, transformTitle:'uppercase', transformText:'none', transformNote:'none', transformTime:'none' };
 function setTicketDesign(d){ try{ localStorage.setItem('rys_ticket_design', JSON.stringify(d)); }catch(e){} }
 function applyTicketDesignStyle(el, design, baseClass){
   let cls = baseClass || '';
@@ -1734,6 +1743,28 @@ document.addEventListener('selectionchange', () => {
   const box = startEl && startEl.closest ? startEl.closest('.rte-box') : null;
   if(box) TICKET_RTE_SAVED_RANGE[box.id] = range.cloneRange();
 });
+/* Fişin bir bölümü (Başlık/Genel Metin/Ürün Notu/Saat) için renk+boyut+harf
+   stili kontrollerini tek satırda üretir - "tasarımı komple özelleştirebilme" isteği. */
+function ticketTypographyRowHtml(design, key, label, isLast){
+  const t = design['transform'+key] || 'none';
+  return `
+    <div style="display:grid;grid-template-columns:1fr 70px 1fr;gap:8px;align-items:end;padding:10px 0;${isLast?'':'border-bottom:1px solid var(--border);'}">
+      <div class="field-group" style="margin:0;"><label>${label}</label>
+        <input type="color" id="td_color${key}" value="${design['color'+key]}" oninput="updateTicketPreview()" style="height:40px;padding:4px;">
+      </div>
+      <div class="field-group" style="margin:0;"><label>Boyut</label>
+        <input type="number" id="td_size${key}" min="6" max="40" value="${design['size'+key]}" oninput="updateTicketPreview()" style="padding:9px 6px;text-align:center;">
+      </div>
+      <div class="field-group" style="margin:0;"><label>Harf Stili</label>
+        <select id="td_transform${key}" oninput="updateTicketPreview()">
+          <option value="none" ${t==='none'?'selected':''}>Normal</option>
+          <option value="uppercase" ${t==='uppercase'?'selected':''}>BÜYÜK HARF</option>
+          <option value="lowercase" ${t==='lowercase'?'selected':''}>küçük harf</option>
+          <option value="capitalize" ${t==='capitalize'?'selected':''}>İlk Harf Büyük</option>
+        </select>
+      </div>
+    </div>`;
+}
 function ticketRteToolbarHtml(targetId){
   return `
     <button type="button" class="rte-btn" title="Kalın" onmousedown="event.preventDefault()" onclick="applyTicketRte('${targetId}','bold')"><b>K</b></button>
@@ -1900,16 +1931,11 @@ async function renderPrinterSettingsView(main, session){
 
           <div class="settings-section">
             <p class="settings-section-title">⏰ Saat Ayarı</p>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
-              <div class="field-group"><label>Saat Formatı</label>
-                <select id="td_timeFormat" oninput="updateTicketPreview()">
-                  <option value="24" ${design.timeFormat==='24'?'selected':''}>24 Saat (17:05)</option>
-                  <option value="12" ${design.timeFormat==='12'?'selected':''}>12 Saat (05:05 ÖS)</option>
-                </select>
-              </div>
-              <div class="field-group"><label>Saat Rengi</label>
-                <input type="color" id="td_colorTime" value="${design.colorTime}" oninput="updateTicketPreview()" style="height:44px;padding:4px;">
-              </div>
+            <div class="field-group"><label>Saat Formatı</label>
+              <select id="td_timeFormat" oninput="updateTicketPreview()">
+                <option value="24" ${design.timeFormat==='24'?'selected':''}>24 Saat (17:05)</option>
+                <option value="12" ${design.timeFormat==='12'?'selected':''}>12 Saat (05:05 ÖS)</option>
+              </select>
             </div>
             <div class="toggle-row" style="border-bottom:none;">
               <div><div class="toggle-label">Saat Kalın Yazılsın</div><div class="toggle-desc">"Kalın Yazı" ürün adı ayarından bağımsız — saat silik çıkıyorsa açık bırakın.</div></div>
@@ -1918,19 +1944,13 @@ async function renderPrinterSettingsView(main, session){
           </div>
 
           <div class="settings-section">
-            <p class="settings-section-title">🎨 Renkler</p>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
-              <div class="field-group"><label>Başlık (işletme adı)</label>
-                <input type="color" id="td_colorTitle" value="${design.colorTitle}" oninput="updateTicketPreview()" style="height:44px;padding:4px;">
-              </div>
-              <div class="field-group"><label>Genel Metin</label>
-                <input type="color" id="td_colorText" value="${design.colorText}" oninput="updateTicketPreview()" style="height:44px;padding:4px;">
-              </div>
-              <div class="field-group"><label>Ürün Notu</label>
-                <input type="color" id="td_colorNote" value="${design.colorNote}" oninput="updateTicketPreview()" style="height:44px;padding:4px;">
-              </div>
-            </div>
-            <p class="muted" style="text-align:left;font-size:11.5px;margin-top:8px;">Renkleri koyu tutun — termal yazıcılar açık/pastel renkleri çoğunlukla hiç basamaz veya çok silik basar.</p>
+            <p class="settings-section-title">🎨 Yazı Tipi Özelleştirme</p>
+            <p class="muted" style="text-align:left;font-size:11.5px;margin:0 0 4px;">Fişin her bölümü için renk, boyut ve harf stilini ayrı ayrı belirleyin.</p>
+            ${ticketTypographyRowHtml(design,'Title','Başlık (işletme adı)')}
+            ${ticketTypographyRowHtml(design,'Text','Genel Metin (tarih, masa, ürünler)')}
+            ${ticketTypographyRowHtml(design,'Note','Ürün Notu')}
+            ${ticketTypographyRowHtml(design,'Time','Saat', true)}
+            <p class="muted" style="text-align:left;font-size:11.5px;margin-top:10px;">Renkleri koyu, boyutları makul tutun — termal yazıcılar açık/pastel renkleri veya çok büyük yazıları net basamayabilir.</p>
           </div>
 
           <div class="settings-section">
@@ -2154,6 +2174,17 @@ function resetBellSound(){
   updateBellScopeStatus();
 }
 function testBellSound(){ playKitchenBell(currentBellScope() || null); }
+/* Başlık/Genel Metin/Ürün Notu/Saat için renk+boyut+harf-stili alanlarını
+   tek seferde okur (Kaydet ve canlı önizleme ikisi de kullanıyor). */
+function readTicketTypography(){
+  const out = {};
+  ['Title','Text','Note','Time'].forEach(key => {
+    out['color'+key] = document.getElementById('td_color'+key).value;
+    out['size'+key] = parseInt(document.getElementById('td_size'+key).value) || undefined;
+    out['transform'+key] = document.getElementById('td_transform'+key).value;
+  });
+  return out;
+}
 function saveTicketDesign(){
   setTicketDesign({
     width: document.getElementById('td_width').value,
@@ -2171,10 +2202,7 @@ function saveTicketDesign(){
     showHeaderTime: document.getElementById('td_showHeaderTime').checked,
     timeFormat: document.getElementById('td_timeFormat').value,
     timeBold: document.getElementById('td_timeBold').checked,
-    colorTitle: document.getElementById('td_colorTitle').value,
-    colorText: document.getElementById('td_colorText').value,
-    colorNote: document.getElementById('td_colorNote').value,
-    colorTime: document.getElementById('td_colorTime').value,
+    ...readTicketTypography(),
   });
   showToast('Kaydedildi ✓');
 }
@@ -2477,26 +2505,32 @@ function formatItemTime(it, design){
   const hour12 = !!(design && design.timeFormat==='12');
   return t.toLocaleTimeString('tr-TR', hour12 ? {hour:'2-digit', minute:'2-digit', hour12:true} : {hour:'2-digit', minute:'2-digit'});
 }
+/* Fişin bir bölümü için renk/boyut/harf-stili özelleştirmesini tek bir
+   inline style dizgesine çevirir - hepsi !important, çünkü .ticket-bold
+   gibi genel kurallar da !important kullanıyor ve inline stil bunlardan
+   önceliklidir (aksi halde örn. Kalın Yazı açıkken renk/boyut geçersiz kalırdı). */
+function ticketPartStyle(design, key){
+  const color = design['color'+key] || '#000000';
+  const size = design['size'+key];
+  const transform = design['transform'+key] || 'none';
+  return `color:${color} !important;`+(size?`font-size:${size}px !important;`:'')+`text-transform:${transform} !important;`;
+}
 function buildTicketHtml(restaurantName, tableName, items, design, dailyNumber){
   const now = new Date();
   const showOrderNumber = design.showOrderNumber !== false;
   const showItemTime = design.showItemTime !== false;
   const showHeaderTime = !!design.showHeaderTime;
-  const colorTitle = design.colorTitle || '#000000';
-  const colorText = design.colorText || '#000000';
-  const colorNote = design.colorNote || '#000000';
-  const colorTime = design.colorTime || '#000000';
   const timeWeight = design.timeBold===false ? '400' : '700';
   const dateLine = now.toLocaleDateString('tr-TR') + (showHeaderTime ? (' ' + formatItemTime({added_at: now.toISOString()}, design)) : '');
   return `
-    <div class="ticket-title" style="color:${colorTitle} !important;">${escapeHtml(restaurantName)}</div>
+    <div class="ticket-title" style="${ticketPartStyle(design,'Title')}">${escapeHtml(restaurantName)}</div>
     ${design.header ? `<div class="ticket-meta ticket-rich">${design.header}</div>` : ''}
-    <div class="ticket-meta" style="color:${colorText} !important;">${(showOrderNumber && dailyNumber)?('Sipariş No: '+dailyNumber+' · '):''}${escapeHtml(tableName)}</div>
-    <div class="ticket-meta" style="color:${colorText} !important;">${dateLine}</div>
+    <div class="ticket-meta" style="${ticketPartStyle(design,'Text')}">${(showOrderNumber && dailyNumber)?('Sipariş No: '+dailyNumber+' · '):''}${escapeHtml(tableName)}</div>
+    <div class="ticket-meta" style="${ticketPartStyle(design,'Text')}">${dateLine}</div>
     <div class="ticket-line"></div>
     ${items.map(it => `
-      <div class="ticket-item" style="color:${colorText} !important;"><span><span class="qty">${it.qty}x</span>${escapeHtml(it.name)}</span>${showItemTime?`<span class="ticket-time" style="color:${colorTime} !important;font-weight:${timeWeight} !important;">${formatItemTime(it, design)}</span>`:''}</div>
-      ${it.note ? `<div class="ticket-note" style="color:${colorNote} !important;">Not: ${escapeHtml(it.note)}</div>` : ''}
+      <div class="ticket-item" style="${ticketPartStyle(design,'Text')}"><span><span class="qty">${it.qty}x</span>${escapeHtml(it.name)}</span>${showItemTime?`<span class="ticket-time" style="${ticketPartStyle(design,'Time')}font-weight:${timeWeight} !important;">${formatItemTime(it, design)}</span>`:''}</div>
+      ${it.note ? `<div class="ticket-note" style="${ticketPartStyle(design,'Note')}">Not: ${escapeHtml(it.note)}</div>` : ''}
     `).join('')}
     <div class="ticket-line"></div>
     ${design.footer ? `<div class="ticket-meta ticket-rich">${design.footer}</div>` : ''}
@@ -2519,10 +2553,7 @@ function updateTicketPreview(){
   const showHeaderTime = document.getElementById('td_showHeaderTime').checked;
   const timeFormat = document.getElementById('td_timeFormat').value;
   const timeBold = document.getElementById('td_timeBold').checked;
-  const colorTitle = document.getElementById('td_colorTitle').value;
-  const colorText = document.getElementById('td_colorText').value;
-  const colorNote = document.getElementById('td_colorNote').value;
-  const colorTime = document.getElementById('td_colorTime').value;
+  const typography = readTicketTypography();
   const session = getSession();
   const t1 = new Date(Date.now() - 6*60000).toISOString();
   const t2 = new Date().toISOString();
@@ -2532,7 +2563,7 @@ function updateTicketPreview(){
     { qty:1, name:'Mevsim Salata', note:'Sossuz', added_at:t2 },
   ];
   applyTicketDesignStyle(el, { width, fontFamily, bold, marginTop, marginRight, marginBottom, marginLeft }, 'ticket-paper');
-  el.innerHTML = buildTicketHtml(session ? session.restaurant_name : 'İŞLETME ADI', 'Masa 3', sampleItems, { header, footer, showOrderNumber, showItemTime, showHeaderTime, timeFormat, timeBold, colorTitle, colorText, colorNote, colorTime }, 12);
+  el.innerHTML = buildTicketHtml(session ? session.restaurant_name : 'İŞLETME ADI', 'Masa 3', sampleItems, { header, footer, showOrderNumber, showItemTime, showHeaderTime, timeFormat, timeBold, ...typography }, 12);
 }
 async function cancelTableOrder(tableId){
   if(!confirm('Bu masadaki siparişi (mutfağa gönderilenler dahil) tamamen iptal etmek istediğinize emin misiniz?')) return;
