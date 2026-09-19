@@ -695,32 +695,55 @@ function primeKitchenAudio(){
   }catch(e){}
   try{ const a = new Audio(); a.volume = 0; a.play().catch(()=>{}); }catch(e){}
 }
-function playKitchenBell(stationId){
-  const customUrl = resolveBellSoundUrl(stationId);
-  if(customUrl){
-    try{
-      const audio = new Audio(customUrl);
-      audio.play().catch(e => console.warn('Zil sesi çalınamadı:', e));
-      return;
-    }catch(e){ console.warn('Zil sesi çalınamadı:', e); }
-  }
+function scheduleBellTone(ctx, freq, t0, dur, peakGain, waveType){
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.type = waveType || 'sine';
+  osc.frequency.value = freq;
+  gain.gain.setValueAtTime(0.0001, t0);
+  gain.gain.exponentialRampToValueAtTime(peakGain, t0+0.02);
+  gain.gain.exponentialRampToValueAtTime(0.0001, t0+dur);
+  osc.connect(gain); gain.connect(ctx.destination);
+  osc.start(t0); osc.stop(t0+dur+0.05);
+}
+const BELL_PRESETS = {
+  classic: { name: 'Klasik Çan', play: (ctx) => {
+    [880, 1320].forEach((f,i) => scheduleBellTone(ctx, f, ctx.currentTime+i*0.18, 0.4, 0.8));
+  }},
+  ding_dong: { name: 'Ding Dong', play: (ctx) => {
+    scheduleBellTone(ctx, 1046, ctx.currentTime, 0.55, 0.85);
+    scheduleBellTone(ctx, 784, ctx.currentTime+0.4, 0.65, 0.85);
+  }},
+  triple_beep: { name: 'Üçlü Bip (Acil)', play: (ctx) => {
+    [0,0.16,0.32].forEach(d => scheduleBellTone(ctx, 1500, ctx.currentTime+d, 0.13, 0.85, 'square'));
+  }},
+  chord: { name: 'Yumuşak Akor', play: (ctx) => {
+    [523.25, 659.25, 784].forEach((f,i) => scheduleBellTone(ctx, f, ctx.currentTime+i*0.05, 0.65, 0.6));
+  }},
+  bell_run: { name: 'Çınlama', play: (ctx) => {
+    [660, 880, 1100, 1320].forEach((f,i) => scheduleBellTone(ctx, f, ctx.currentTime+i*0.09, 0.32, 0.75));
+  }},
+};
+function playBellPresetById(id){
   try{
     KITCHEN_AUDIO_CTX = KITCHEN_AUDIO_CTX || new (window.AudioContext || window.webkitAudioContext)();
     const ctx = KITCHEN_AUDIO_CTX;
     if(ctx.state==='suspended') ctx.resume();
-    [880, 1320].forEach((freq, i) => {
-      const t0 = ctx.currentTime + i*0.18;
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type = 'sine';
-      osc.frequency.value = freq;
-      gain.gain.setValueAtTime(0.0001, t0);
-      gain.gain.exponentialRampToValueAtTime(0.3, t0+0.02);
-      gain.gain.exponentialRampToValueAtTime(0.0001, t0+0.35);
-      osc.connect(gain); gain.connect(ctx.destination);
-      osc.start(t0); osc.stop(t0+0.4);
-    });
+    (BELL_PRESETS[id] || BELL_PRESETS.classic).play(ctx);
   }catch(e){ console.warn('Zil sesi çalınamadı:', e); }
+}
+function playKitchenBell(stationId){
+  const setting = resolveBellSetting(stationId);
+  if(typeof setting === 'string' && setting){
+    try{
+      const audio = new Audio(setting);
+      audio.volume = 1.0;
+      audio.play().catch(e => console.warn('Zil sesi çalınamadı:', e));
+      return;
+    }catch(e){ console.warn('Zil sesi çalınamadı:', e); }
+  }
+  const presetId = (setting && setting.preset) || 'classic';
+  playBellPresetById(presetId);
 }
 async function markReady(itemId){
   const session = getSession();
@@ -1283,11 +1306,10 @@ function setKitchenBellSounds(obj){
   try{ localStorage.setItem('rys_bell_sounds', JSON.stringify(obj)); }
   catch(e){ alert('Ses kaydedilemedi (depolama alanı yetersiz olabilir): '+e.message); }
 }
-function resolveBellSoundUrl(stationId){
+function resolveBellSetting(stationId){
   const sounds = getKitchenBellSounds();
   if(stationId && sounds.perStation && sounds.perStation[stationId]) return sounds.perStation[stationId];
-  if(sounds.default) return sounds.default;
-  return null;
+  return sounds.default || null;
 }
 
 function renderPrinterSettingsView(main, session){
@@ -1414,12 +1436,15 @@ function renderNotificationSettingsView(main, session){
         </select>
       </div>
       <p id="bellScopeStatus" class="muted" style="margin:10px 0;font-size:13px;"></p>
+      <div class="field-group"><label>Hazır Zil Sesleri</label></div>
+      <div id="bellPresetList" style="display:flex;flex-direction:column;gap:8px;margin-top:6px;max-width:420px;"></div>
+      <p class="muted" style="font-size:12px;margin:14px 0 6px;">İsterseniz kendi ses dosyanızı da yükleyebilirsiniz (yukarıdaki hazır seslerin yerine kullanılır):</p>
       <div style="display:flex;gap:10px;flex-wrap:wrap;">
         <label class="sbtn" style="width:auto;cursor:pointer;display:inline-flex;align-items:center;">
           🎵 Ses Dosyası Yükle
           <input id="bellFileInput" type="file" accept="audio/*" style="display:none;" onchange="uploadBellSound()">
         </label>
-        <button class="sbtn" style="width:auto;" onclick="testBellSound()">▶️ Test Et</button>
+        <button class="sbtn" style="width:auto;" onclick="testBellSound()">▶️ Seçili Sesi Test Et</button>
         <button class="sbtn" style="width:auto;background:var(--red);color:var(--btn-ink);" onclick="resetBellSound()">Sıfırla (Varsayılan Zil)</button>
       </div>
       <p class="muted" style="text-align:left;margin-top:14px;font-size:12px;">
@@ -1436,8 +1461,40 @@ function updateBellScopeStatus(){
   const statusEl = document.getElementById('bellScopeStatus'); if(!statusEl) return;
   const scope = currentBellScope();
   const sounds = getKitchenBellSounds();
-  const has = scope ? !!sounds.perStation[scope] : !!sounds.default;
-  statusEl.textContent = has ? '✓ Bu kapsam için özel ses yüklü.' : 'Bu kapsam için özel ses yok, varsayılan zil sesi çalınacak.';
+  const val = scope ? sounds.perStation[scope] : sounds.default;
+  let text;
+  if(!val) text = 'Bu kapsam için varsayılan zil ("' + BELL_PRESETS.classic.name + '") çalınacak.';
+  else if(typeof val==='string') text = '✓ Bu kapsam için yüklediğiniz özel ses dosyası çalınacak.';
+  else text = '✓ Bu kapsam için "' + (BELL_PRESETS[val.preset] ? BELL_PRESETS[val.preset].name : val.preset) + '" sesi seçili.';
+  statusEl.textContent = text;
+  renderBellPresetList();
+}
+function renderBellPresetList(){
+  const el = document.getElementById('bellPresetList'); if(!el) return;
+  const scope = currentBellScope();
+  const sounds = getKitchenBellSounds();
+  const val = scope ? sounds.perStation[scope] : sounds.default;
+  const activePresetId = (val && typeof val==='object' && val.preset) ? val.preset : (!val ? 'classic' : null);
+  el.innerHTML = Object.keys(BELL_PRESETS).map(id => {
+    const active = id===activePresetId;
+    return `<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 12px;border-radius:10px;border:1.5px solid ${active?'var(--accent)':'var(--border)'};background:${active?'rgba(255,93,58,.1)':'var(--panel2)'};">
+      <span style="font-weight:${active?'700':'500'};">${active?'✓ ':''}${escapeHtml(BELL_PRESETS[id].name)}</span>
+      <span style="display:flex;gap:6px;">
+        <button class="sbtn" style="width:auto;" onclick="playBellPresetById('${id}')">▶️ Dinle</button>
+        <button class="sbtn" style="width:auto;background:var(--accent);color:var(--btn-ink);" onclick="selectBellPreset('${id}')">Seç</button>
+      </span>
+    </div>`;
+  }).join('');
+}
+function selectBellPreset(presetId){
+  const sounds = getKitchenBellSounds();
+  const scope = currentBellScope();
+  if(!sounds.perStation) sounds.perStation = {};
+  const val = { preset: presetId };
+  if(scope) sounds.perStation[scope] = val; else sounds.default = val;
+  setKitchenBellSounds(sounds);
+  updateBellScopeStatus();
+  showToast('Kaydedildi ✓');
 }
 function uploadBellSound(){
   const input = document.getElementById('bellFileInput');
