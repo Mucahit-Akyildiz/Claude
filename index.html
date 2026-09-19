@@ -1657,9 +1657,20 @@ function getTicketDesign(){
     showOrderNumber: d.showOrderNumber !== false,
     showItemTime: d.showItemTime !== false,
     copies: d.copies!=null ? Math.max(1, Math.min(5, d.copies)) : 1,
+    // Saat ayarları: ürün satırındaki saatin biçimi/kalınlığı, genel "Kalın
+    // Yazı"dan bağımsız olarak ayrıca ayarlanabiliyor.
+    timeFormat: d.timeFormat==='12' ? '12' : '24',
+    timeBold: d.timeBold !== false,
+    showHeaderTime: !!d.showHeaderTime,
+    // Fişin farklı bölümlerinin yazı renkleri (hepsi termal yazıcıda net
+    // basması için varsayılan olarak tam siyah).
+    colorTitle: d.colorTitle || '#000000',
+    colorText: d.colorText || '#000000',
+    colorNote: d.colorNote || '#000000',
+    colorTime: d.colorTime || '#000000',
   };
 }
-const TICKET_DESIGN_DEFAULTS = { width:'80', header:'', footer:'', fontFamily:'Courier New', bold:true, marginTop:4, marginRight:4, marginBottom:4, marginLeft:4, showOrderNumber:true, showItemTime:true, copies:1 };
+const TICKET_DESIGN_DEFAULTS = { width:'80', header:'', footer:'', fontFamily:'Courier New', bold:true, marginTop:4, marginRight:4, marginBottom:4, marginLeft:4, showOrderNumber:true, showItemTime:true, copies:1, timeFormat:'24', timeBold:true, showHeaderTime:false, colorTitle:'#000000', colorText:'#000000', colorNote:'#000000', colorTime:'#000000' };
 function setTicketDesign(d){ try{ localStorage.setItem('rys_ticket_design', JSON.stringify(d)); }catch(e){} }
 function applyTicketDesignStyle(el, design, baseClass){
   let cls = baseClass || '';
@@ -1836,6 +1847,10 @@ async function renderPrinterSettingsView(main, session){
                 <div class="toggle-label">Ürün Saatlerini Göster</div>
                 <label class="toggle-switch"><input type="checkbox" id="td_showItemTime" ${design.showItemTime?'checked':''} oninput="updateTicketPreview()"><span class="slider"></span></label>
               </div>
+              <div class="toggle-row">
+                <div class="toggle-label">Fişin Üstünde Saat Göster</div>
+                <label class="toggle-switch"><input type="checkbox" id="td_showHeaderTime" ${design.showHeaderTime?'checked':''} oninput="updateTicketPreview()"><span class="slider"></span></label>
+              </div>
               <div class="toggle-row" style="border-bottom:none;">
                 <div><div class="toggle-label">Kopya Sayısı</div><div class="toggle-desc">Masaüstü uygulaması/USB yazıcıda her fiş bu kadar kez basılır.</div></div>
                 <div style="display:flex;align-items:center;gap:8px;">
@@ -1845,6 +1860,41 @@ async function renderPrinterSettingsView(main, session){
                 </div>
               </div>
             </div>
+          </div>
+
+          <div class="settings-section">
+            <p class="settings-section-title">⏰ Saat Ayarı</p>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+              <div class="field-group"><label>Saat Formatı</label>
+                <select id="td_timeFormat" oninput="updateTicketPreview()">
+                  <option value="24" ${design.timeFormat==='24'?'selected':''}>24 Saat (17:05)</option>
+                  <option value="12" ${design.timeFormat==='12'?'selected':''}>12 Saat (05:05 ÖS)</option>
+                </select>
+              </div>
+              <div class="field-group"><label>Saat Rengi</label>
+                <input type="color" id="td_colorTime" value="${design.colorTime}" oninput="updateTicketPreview()" style="height:44px;padding:4px;">
+              </div>
+            </div>
+            <div class="toggle-row" style="border-bottom:none;">
+              <div><div class="toggle-label">Saat Kalın Yazılsın</div><div class="toggle-desc">"Kalın Yazı" ürün adı ayarından bağımsız — saat silik çıkıyorsa açık bırakın.</div></div>
+              <label class="toggle-switch"><input type="checkbox" id="td_timeBold" ${design.timeBold?'checked':''} oninput="updateTicketPreview()"><span class="slider"></span></label>
+            </div>
+          </div>
+
+          <div class="settings-section">
+            <p class="settings-section-title">🎨 Renkler</p>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+              <div class="field-group"><label>Başlık (işletme adı)</label>
+                <input type="color" id="td_colorTitle" value="${design.colorTitle}" oninput="updateTicketPreview()" style="height:44px;padding:4px;">
+              </div>
+              <div class="field-group"><label>Genel Metin</label>
+                <input type="color" id="td_colorText" value="${design.colorText}" oninput="updateTicketPreview()" style="height:44px;padding:4px;">
+              </div>
+              <div class="field-group"><label>Ürün Notu</label>
+                <input type="color" id="td_colorNote" value="${design.colorNote}" oninput="updateTicketPreview()" style="height:44px;padding:4px;">
+              </div>
+            </div>
+            <p class="muted" style="text-align:left;font-size:11.5px;margin-top:8px;">Renkleri koyu tutun — termal yazıcılar açık/pastel renkleri çoğunlukla hiç basamaz veya çok silik basar.</p>
           </div>
 
           <div class="settings-section">
@@ -2082,6 +2132,13 @@ function saveTicketDesign(){
     showOrderNumber: document.getElementById('td_showOrderNumber').checked,
     showItemTime: document.getElementById('td_showItemTime').checked,
     copies: parseInt(document.getElementById('td_copiesVal').textContent) || 1,
+    showHeaderTime: document.getElementById('td_showHeaderTime').checked,
+    timeFormat: document.getElementById('td_timeFormat').value,
+    timeBold: document.getElementById('td_timeBold').checked,
+    colorTitle: document.getElementById('td_colorTitle').value,
+    colorText: document.getElementById('td_colorText').value,
+    colorNote: document.getElementById('td_colorNote').value,
+    colorTime: document.getElementById('td_colorTime').value,
   });
   showToast('Kaydedildi ✓');
 }
@@ -2229,15 +2286,16 @@ function buildEscPosTicket(restaurantName, tableName, items, design, dailyNumber
   const now = new Date();
   const showOrderNumber = design.showOrderNumber !== false;
   const showItemTime = design.showItemTime !== false;
+  const headerDateLine = now.toLocaleDateString('tr-TR') + (design.showHeaderTime ? (' ' + formatItemTime({added_at: now.toISOString()}, design)) : '');
   push(escposEncodeText(((showOrderNumber && dailyNumber) ? ('Sipariş No: '+dailyNumber+' · ') : '') + tableName + '\n'));
-  push(escposEncodeText(now.toLocaleDateString('tr-TR') + '\n'));
+  push(escposEncodeText(headerDateLine + '\n'));
   push([0x1B, 0x61, 0x00]); // left align
   // Termal yazıcılarda ince yazı çoğunlukla silik/soluk çıkıyor - Kalın Yazı
   // ayarı açıksa ürün satırları da bold basılır (bkz. Yazıcı Ayarları > Fiş Tasarımı).
   if(design.bold) push([0x1B, 0x45, 0x01]);
   push(escposEncodeText('-'.repeat(lineWidth) + '\n'));
   items.forEach(it => {
-    const timeStr = showItemTime ? formatItemTime(it) : '';
+    const timeStr = showItemTime ? formatItemTime(it, design) : '';
     const left = it.qty + 'x ' + it.name;
     const pad = Math.max(1, lineWidth - left.length - timeStr.length);
     push(escposEncodeText(left + (showItemTime ? (' '.repeat(pad) + timeStr) : '') + '\n'));
@@ -2378,23 +2436,31 @@ async function printKitchenTicket(tableName, items, printerOverride, silent, dai
   el.innerHTML = buildTicketHtml(restaurantName, tableName, items, design, dailyNumber);
   setTimeout(() => window.print(), 100);
 }
-function formatItemTime(it){
+function formatItemTime(it, design){
   const t = it.added_at ? new Date(it.added_at) : new Date();
-  return t.toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'});
+  const hour12 = !!(design && design.timeFormat==='12');
+  return t.toLocaleTimeString('tr-TR', hour12 ? {hour:'2-digit', minute:'2-digit', hour12:true} : {hour:'2-digit', minute:'2-digit'});
 }
 function buildTicketHtml(restaurantName, tableName, items, design, dailyNumber){
   const now = new Date();
   const showOrderNumber = design.showOrderNumber !== false;
   const showItemTime = design.showItemTime !== false;
+  const showHeaderTime = !!design.showHeaderTime;
+  const colorTitle = design.colorTitle || '#000000';
+  const colorText = design.colorText || '#000000';
+  const colorNote = design.colorNote || '#000000';
+  const colorTime = design.colorTime || '#000000';
+  const timeWeight = design.timeBold===false ? '400' : '700';
+  const dateLine = now.toLocaleDateString('tr-TR') + (showHeaderTime ? (' ' + formatItemTime({added_at: now.toISOString()}, design)) : '');
   return `
-    <div class="ticket-title">${escapeHtml(restaurantName)}</div>
+    <div class="ticket-title" style="color:${colorTitle} !important;">${escapeHtml(restaurantName)}</div>
     ${design.header ? `<div class="ticket-meta ticket-rich">${design.header}</div>` : ''}
-    <div class="ticket-meta">${(showOrderNumber && dailyNumber)?('Sipariş No: '+dailyNumber+' · '):''}${escapeHtml(tableName)}</div>
-    <div class="ticket-meta">${now.toLocaleDateString('tr-TR')}</div>
+    <div class="ticket-meta" style="color:${colorText} !important;">${(showOrderNumber && dailyNumber)?('Sipariş No: '+dailyNumber+' · '):''}${escapeHtml(tableName)}</div>
+    <div class="ticket-meta" style="color:${colorText} !important;">${dateLine}</div>
     <div class="ticket-line"></div>
     ${items.map(it => `
-      <div class="ticket-item"><span><span class="qty">${it.qty}x</span>${escapeHtml(it.name)}</span>${showItemTime?`<span class="ticket-time">${formatItemTime(it)}</span>`:''}</div>
-      ${it.note ? `<div class="ticket-note">Not: ${escapeHtml(it.note)}</div>` : ''}
+      <div class="ticket-item" style="color:${colorText} !important;"><span><span class="qty">${it.qty}x</span>${escapeHtml(it.name)}</span>${showItemTime?`<span class="ticket-time" style="color:${colorTime} !important;font-weight:${timeWeight} !important;">${formatItemTime(it, design)}</span>`:''}</div>
+      ${it.note ? `<div class="ticket-note" style="color:${colorNote} !important;">Not: ${escapeHtml(it.note)}</div>` : ''}
     `).join('')}
     <div class="ticket-line"></div>
     ${design.footer ? `<div class="ticket-meta ticket-rich">${design.footer}</div>` : ''}
@@ -2414,6 +2480,13 @@ function updateTicketPreview(){
   const marginLeft = parseFloat(document.getElementById('td_mleft').value) || 0;
   const showOrderNumber = document.getElementById('td_showOrderNumber').checked;
   const showItemTime = document.getElementById('td_showItemTime').checked;
+  const showHeaderTime = document.getElementById('td_showHeaderTime').checked;
+  const timeFormat = document.getElementById('td_timeFormat').value;
+  const timeBold = document.getElementById('td_timeBold').checked;
+  const colorTitle = document.getElementById('td_colorTitle').value;
+  const colorText = document.getElementById('td_colorText').value;
+  const colorNote = document.getElementById('td_colorNote').value;
+  const colorTime = document.getElementById('td_colorTime').value;
   const session = getSession();
   const t1 = new Date(Date.now() - 6*60000).toISOString();
   const t2 = new Date().toISOString();
@@ -2423,7 +2496,7 @@ function updateTicketPreview(){
     { qty:1, name:'Mevsim Salata', note:'Sossuz', added_at:t2 },
   ];
   applyTicketDesignStyle(el, { width, fontFamily, bold, marginTop, marginRight, marginBottom, marginLeft }, 'ticket-paper');
-  el.innerHTML = buildTicketHtml(session ? session.restaurant_name : 'İŞLETME ADI', 'Masa 3', sampleItems, { header, footer, showOrderNumber, showItemTime }, 12);
+  el.innerHTML = buildTicketHtml(session ? session.restaurant_name : 'İŞLETME ADI', 'Masa 3', sampleItems, { header, footer, showOrderNumber, showItemTime, showHeaderTime, timeFormat, timeBold, colorTitle, colorText, colorNote, colorTime }, 12);
 }
 async function cancelTableOrder(tableId){
   if(!confirm('Bu masadaki siparişi (mutfağa gönderilenler dahil) tamamen iptal etmek istediğinize emin misiniz?')) return;
