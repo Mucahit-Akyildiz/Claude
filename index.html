@@ -144,6 +144,9 @@
   .qty-btn{width:32px;height:32px;padding:0;margin:0;flex-shrink:0;border-radius:8px;background:var(--panel);border:1.5px solid var(--border);color:var(--text);font-weight:800;font-size:16px;box-shadow:none;}
   .qty-btn:active{transform:scale(.92);}
   @keyframes notifSlideIn{ from{opacity:0;transform:translateX(24px);} to{opacity:1;transform:translateX(0);} }
+  .kitchen-card{background:var(--panel);border:1px solid var(--border);transition:background-color .3s ease, border-color .3s ease;}
+  .kitchen-card.kc-warn{background:rgba(234,179,8,.08);border-color:rgba(234,179,8,.45);}
+  .kitchen-card.kc-danger{background:rgba(244,63,94,.10);border-color:rgba(244,63,94,.5);}
 
   /* ---- Mutfak fişi yazdırma (termal fiş kağıdına uygun) ---- */
   #printArea{display:none;}
@@ -632,7 +635,7 @@ async function refreshKitchenItems(session){
       const freshItems = pending.filter(it => !APP.kitchenSeenItemIds.has(it.id));
       if(freshItems.length>0) newItemsByTable[o.table_id] = { tableName, dailyNumber: o.daily_number, items: freshItems };
     }
-    cards.push(`<div style="background:var(--panel);border:1px solid var(--border);border-left:4px solid var(--accent);border-radius:12px;padding:12px;">
+    cards.push(`<div class="kitchen-card" data-table-id="${o.table_id}" style="border-left:4px solid var(--accent);border-radius:12px;padding:12px;">
       <div style="display:flex;justify-content:space-between;align-items:center;">
         <b>${escapeHtml(tableName)}${o.daily_number?' <span class="muted" style="font-weight:400;font-size:12px;">#'+o.daily_number+'</span>':''}</b>
         <span style="cursor:pointer;color:var(--muted);font-size:16px;" onclick="reprintKitchenTicket('${o.table_id}')" title="Fişi tekrar yazdır">🖨️</span>
@@ -645,6 +648,7 @@ async function refreshKitchenItems(session){
         </div>
         ${it.note?'<div class="muted" style="font-size:12px;font-style:italic;margin-top:4px;">Not: '+escapeHtml(it.note)+'</div>':''}
       </div>`).join('')}
+      <button style="margin-top:10px;background:var(--green);color:var(--btn-ink);" onclick="markAllReady('${o.table_id}')">✅ Hepsi Hazır</button>
       </div>`);
   });
   wrap.innerHTML = cards.length ? `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:12px;">${cards.join('')}</div>` : '<p class="muted">Bekleyen sipariş yok.</p>';
@@ -699,6 +703,17 @@ function updateKitchenTimers(){
       APP.kitchenLateWarned.add(itemId);
       showToast('⏰ ' + (el.dataset.name||'Bir sipariş') + ' 15 dakikayı geçti!');
     }
+  });
+  // Kartin arka plani, icindeki en gec kalmis urunun rengine gore hafifce tonlanir.
+  document.querySelectorAll('.kitchen-card').forEach(card => {
+    const timers = card.querySelectorAll('.kitchen-timer');
+    let worst = 'ok';
+    timers.forEach(t => {
+      if(t.classList.contains('kt-danger')) worst = 'danger';
+      else if(t.classList.contains('kt-warn') && worst!=='danger') worst = 'warn';
+    });
+    card.classList.toggle('kc-warn', worst==='warn');
+    card.classList.toggle('kc-danger', worst==='danger');
   });
 }
 let KITCHEN_AUDIO_CTX = null;
@@ -765,6 +780,17 @@ async function markReady(itemId){
   const session = getSession();
   const { error } = await sb.rpc('mark_item_ready', { p_token: session.session_token, p_order_item_id: itemId });
   if(error){ alert('Hata: '+error.message); return; }
+  await refreshKitchenItems(session);
+}
+async function markAllReady(tableId){
+  const entry = APP.kitchenPendingByTable && APP.kitchenPendingByTable[tableId];
+  if(!entry || entry.items.length===0) return;
+  const session = getSession();
+  const results = await Promise.all(entry.items.map(it =>
+    sb.rpc('mark_item_ready', { p_token: session.session_token, p_order_item_id: it.id })
+  ));
+  const failed = results.some(r => r.error);
+  if(failed) alert('Bazı ürünler hazır işaretlenemedi.');
   await refreshKitchenItems(session);
 }
 
