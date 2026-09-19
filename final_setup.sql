@@ -88,7 +88,9 @@ create table if not exists order_items (
   note text,
   added_at timestamptz not null default now(),
   -- Ürün bazlı kısmi ödeme desteği: bu ürün için ödeme alınmış mı
-  paid boolean not null default false
+  paid boolean not null default false,
+  -- Ürün satış raporunun (get_product_sales) tarihe göre filtrelemesi için
+  paid_at timestamptz
 );
 
 create table if not exists sales_history (
@@ -777,7 +779,7 @@ begin
   values (s.restaurant_id, p_order_id, coalesce(v_table_name,'Paket'), v_subtotal, p_discount_amount, v_subtotal-p_discount_amount, v_cost, p_payment_method, p_cash, p_card, coalesce(v_tags,'{}'), coalesce(v_kind,'dine_in'))
   returning id into v_hist_id;
 
-  update order_items set paid = true where order_id = p_order_id and id = any(p_item_ids);
+  update order_items set paid = true, paid_at = now() where order_id = p_order_id and id = any(p_item_ids);
 
   select count(*) into v_remaining from order_items where order_id = p_order_id and paid = false;
   if v_remaining = 0 then
@@ -788,6 +790,44 @@ begin
 end;
 $$;
 grant execute on function pay_order_items to anon;
+
+-- Ürün bazlı satış raporu: bir tarihte ödenen ürünleri ürüne göre gruplar.
+-- Sipariş Etiketleri işaretli (Personel/İkram) siparişlerin ürünleri, Finansal
+-- Analiz'in geri kalanıyla tutarlı olması için hariç tutulur.
+create or replace function get_product_sales(p_token uuid, p_date date)
+returns json
+language plpgsql
+security definer
+as $$
+declare s staff_sessions%rowtype;
+begin
+  s := _session_check(p_token, 'manager');
+  return (
+    select coalesce(json_agg(row_to_json(r) order by r.revenue desc), '[]'::json)
+    from (
+      select
+        oi.product_id,
+        oi.name,
+        p.station_id,
+        st.name as station_name,
+        sum(oi.qty)::int as qty,
+        sum(oi.price*oi.qty) as revenue,
+        sum(oi.cost*oi.qty) as cost
+      from order_items oi
+      join orders o on o.id = oi.order_id
+      left join products p on p.id = oi.product_id
+      left join stations st on st.id = p.station_id
+      where o.restaurant_id = s.restaurant_id
+        and oi.paid = true
+        and oi.paid_at >= p_date::timestamptz
+        and oi.paid_at < (p_date + 1)::timestamptz
+        and (o.tags is null or array_length(o.tags,1) is null)
+      group by oi.product_id, oi.name, p.station_id, st.name
+    ) r
+  );
+end;
+$$;
+grant execute on function get_product_sales to anon;
 
 create or replace function get_sales_history(p_token uuid, p_date date)
 returns json

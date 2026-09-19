@@ -192,6 +192,23 @@
   .rte-box{min-height:44px;background:#fff;color:#000;border:1.5px solid var(--border);border-radius:0 0 10px 10px;padding:9px 12px;font-size:13px;line-height:1.4;outline:none;}
   .rte-box:focus{border-color:var(--accent);}
   .rte-box:empty:before{content:attr(data-placeholder);color:#999;}
+
+  /* ---- Modern gruplu ayar kartları (Fiş Tasarımı vb.) ---- */
+  .settings-section{background:var(--panel2);border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin-top:14px;}
+  .settings-section:first-child{margin-top:0;}
+  .settings-section-title{display:flex;align-items:center;gap:8px;font-weight:700;font-size:13px;margin:0 0 12px;color:var(--text);}
+  .toggle-row{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:9px 0;border-bottom:1px solid var(--border);}
+  .toggle-row .toggle-label{font-size:13px;font-weight:600;}
+  .toggle-row .toggle-desc{font-size:11px;color:var(--muted);margin-top:2px;line-height:1.4;}
+  .toggle-switch{position:relative;display:inline-block;width:42px;height:24px;flex-shrink:0;}
+  .toggle-switch input{opacity:0;width:0;height:0;position:absolute;}
+  .toggle-switch .slider{position:absolute;inset:0;background:var(--border);border-radius:999px;cursor:pointer;transition:background .15s ease;}
+  .toggle-switch .slider:before{content:'';position:absolute;width:18px;height:18px;left:3px;top:3px;background:#fff;border-radius:50%;transition:transform .15s ease;box-shadow:0 1px 3px rgba(0,0,0,.3);}
+  .toggle-switch input:checked + .slider{background:var(--accent);}
+  .toggle-switch input:checked + .slider:before{transform:translateX(18px);}
+  .chip-row{display:flex;gap:8px;flex-wrap:wrap;}
+  .chip-btn{width:auto;padding:7px 14px;margin:0;font-size:12.5px;font-weight:600;background:var(--panel);border:1.5px solid var(--border);color:var(--text);box-shadow:none;border-radius:999px;}
+  .chip-btn:hover{border-color:var(--accent);filter:none;}
   .ticket-bold, .ticket-bold *{font-weight:700 !important;}
   .kitchen-item-row{font-size:16px;}
   .kitchen-timer{font-size:18px;font-weight:800;color:var(--green);font-variant-numeric:tabular-nums;}
@@ -1637,8 +1654,12 @@ function getTicketDesign(){
     marginRight: d.marginRight!=null ? d.marginRight : 4,
     marginBottom: d.marginBottom!=null ? d.marginBottom : 4,
     marginLeft: d.marginLeft!=null ? d.marginLeft : 4,
+    showOrderNumber: d.showOrderNumber !== false,
+    showItemTime: d.showItemTime !== false,
+    copies: d.copies!=null ? Math.max(1, Math.min(5, d.copies)) : 1,
   };
 }
+const TICKET_DESIGN_DEFAULTS = { width:'80', header:'', footer:'', fontFamily:'Courier New', bold:true, marginTop:4, marginRight:4, marginBottom:4, marginLeft:4, showOrderNumber:true, showItemTime:true, copies:1 };
 function setTicketDesign(d){ try{ localStorage.setItem('rys_ticket_design', JSON.stringify(d)); }catch(e){} }
 function applyTicketDesignStyle(el, design, baseClass){
   let cls = baseClass || '';
@@ -1770,43 +1791,80 @@ async function renderPrinterSettingsView(main, session){
     <div class="box" style="max-width:none;">
       <h2>Fiş Tasarımı</h2>
       <div style="display:flex;gap:24px;flex-wrap:wrap;align-items:flex-start;">
-        <div style="flex:1;min-width:260px;">
-          <div class="field-group"><label>Kağıt Genişliği</label>
-            <select id="td_width" oninput="updateTicketPreview()">
-              <option value="58" ${design.width==='58'?'selected':''}>58mm</option>
-              <option value="80" ${design.width==='80'?'selected':''}>80mm</option>
-            </select>
-          </div>
-          <div class="field-group" style="margin-top:10px;"><label>Yazı Tipi (ürün satırları)</label>
-            <select id="td_font" oninput="updateTicketPreview()">
-              ${Object.keys(TICKET_FONTS).map(f => `<option value="${f}" ${design.fontFamily===f?'selected':''}>${f}</option>`).join('')}
-            </select>
-          </div>
-          <div class="field-group" style="margin-top:10px;display:flex;align-items:center;gap:8px;">
-            <input type="checkbox" id="td_bold" ${design.bold?'checked':''} oninput="updateTicketPreview()" style="width:auto;margin:0;">
-            <label style="margin:0;" for="td_bold">Kalın Yazı (ürün satırları)</label>
-          </div>
-          <p class="muted" style="text-align:left;font-size:11.5px;margin-top:4px;">Çıktı silik/soluk çıkıyorsa "Kalın Yazı"yı işaretli bırakın — termal yazıcılarda ince yazı genelde net basmıyor.</p>
+        <div style="flex:1;min-width:280px;">
 
-          <label style="display:block;margin-top:16px;font-size:12.5px;font-weight:700;color:var(--muted);">Fiş Başlığında Ek Not (opsiyonel)</label>
-          <div class="rte-toolbar" data-target="td_header">${ticketRteToolbarHtml('td_header')}</div>
-          <div id="td_header" class="rte-box" contenteditable="true" data-placeholder="örn. Şube: Merkez" oninput="updateTicketPreview()">${design.header||''}</div>
-
-          <label style="display:block;margin-top:14px;font-size:12.5px;font-weight:700;color:var(--muted);">Fiş Altında Ek Not (opsiyonel)</label>
-          <div class="rte-toolbar" data-target="td_footer">${ticketRteToolbarHtml('td_footer')}</div>
-          <div id="td_footer" class="rte-box" contenteditable="true" data-placeholder="örn. Afiyet olsun!" oninput="updateTicketPreview()">${design.footer||''}</div>
-
-          <label style="display:block;margin-top:16px;font-size:12.5px;font-weight:700;color:var(--muted);">Yazıcı Kenar Boşlukları (mm)</label>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:6px;">
-            <div class="field-group"><label>Üst</label><input id="td_mtop" type="number" min="0" max="30" step="0.5" value="${design.marginTop}" oninput="updateTicketPreview()"></div>
-            <div class="field-group"><label>Alt</label><input id="td_mbottom" type="number" min="0" max="30" step="0.5" value="${design.marginBottom}" oninput="updateTicketPreview()"></div>
-            <div class="field-group"><label>Sol</label><input id="td_mleft" type="number" min="0" max="30" step="0.5" value="${design.marginLeft}" oninput="updateTicketPreview()"></div>
-            <div class="field-group"><label>Sağ</label><input id="td_mright" type="number" min="0" max="30" step="0.5" value="${design.marginRight}" oninput="updateTicketPreview()"></div>
+          <div class="settings-section">
+            <p class="settings-section-title">📄 Kağıt &amp; Yazı Tipi</p>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+              <div class="field-group"><label>Kağıt Genişliği</label>
+                <select id="td_width" oninput="updateTicketPreview()">
+                  <option value="58" ${design.width==='58'?'selected':''}>58mm</option>
+                  <option value="80" ${design.width==='80'?'selected':''}>80mm</option>
+                </select>
+              </div>
+              <div class="field-group"><label>Yazı Tipi (ürün satırları)</label>
+                <select id="td_font" oninput="updateTicketPreview()">
+                  ${Object.keys(TICKET_FONTS).map(f => `<option value="${f}" ${design.fontFamily===f?'selected':''}>${f}</option>`).join('')}
+                </select>
+              </div>
+            </div>
+            <div class="toggle-row" style="border-bottom:none;padding-bottom:0;">
+              <div><div class="toggle-label">Kalın Yazı (ürün satırları)</div><div class="toggle-desc">Çıktı silik/soluk çıkıyorsa açık bırakın — termal yazıcılarda ince yazı genelde net basmıyor.</div></div>
+              <label class="toggle-switch"><input type="checkbox" id="td_bold" ${design.bold?'checked':''} oninput="updateTicketPreview()"><span class="slider"></span></label>
+            </div>
           </div>
 
-          <button style="margin-top:16px;max-width:200px;" onclick="saveTicketDesign()">Tasarımı Kaydet</button>
+          <div class="settings-section">
+            <p class="settings-section-title">✍️ Fiş İçeriği</p>
+            <label style="display:block;font-size:12.5px;font-weight:700;color:var(--muted);">Fiş Başlığında Ek Not (opsiyonel)</label>
+            <div class="rte-toolbar" data-target="td_header">${ticketRteToolbarHtml('td_header')}</div>
+            <div id="td_header" class="rte-box" contenteditable="true" data-placeholder="örn. Şube: Merkez" oninput="updateTicketPreview()">${design.header||''}</div>
+
+            <label style="display:block;margin-top:14px;font-size:12.5px;font-weight:700;color:var(--muted);">Fiş Altında Ek Not (opsiyonel)</label>
+            <div class="rte-toolbar" data-target="td_footer">${ticketRteToolbarHtml('td_footer')}</div>
+            <div id="td_footer" class="rte-box" contenteditable="true" data-placeholder="örn. Afiyet olsun!" oninput="updateTicketPreview()">${design.footer||''}</div>
+
+            <div style="margin-top:14px;">
+              <div class="toggle-row">
+                <div class="toggle-label">Sipariş Numarasını Göster</div>
+                <label class="toggle-switch"><input type="checkbox" id="td_showOrderNumber" ${design.showOrderNumber?'checked':''} oninput="updateTicketPreview()"><span class="slider"></span></label>
+              </div>
+              <div class="toggle-row">
+                <div class="toggle-label">Ürün Saatlerini Göster</div>
+                <label class="toggle-switch"><input type="checkbox" id="td_showItemTime" ${design.showItemTime?'checked':''} oninput="updateTicketPreview()"><span class="slider"></span></label>
+              </div>
+              <div class="toggle-row" style="border-bottom:none;">
+                <div><div class="toggle-label">Kopya Sayısı</div><div class="toggle-desc">Masaüstü uygulaması/USB yazıcıda her fiş bu kadar kez basılır.</div></div>
+                <div style="display:flex;align-items:center;gap:8px;">
+                  <button type="button" class="chip-btn" style="padding:4px 12px;" onclick="stepTicketCopies(-1)">−</button>
+                  <span id="td_copiesVal" style="min-width:14px;text-align:center;font-weight:700;">${design.copies}</span>
+                  <button type="button" class="chip-btn" style="padding:4px 12px;" onclick="stepTicketCopies(1)">+</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="settings-section">
+            <p class="settings-section-title">📐 Yazıcı Kenar Boşlukları</p>
+            <div class="chip-row" style="margin-bottom:10px;">
+              <button type="button" class="chip-btn" onclick="applyMarginPreset(2)">Dar (2mm)</button>
+              <button type="button" class="chip-btn" onclick="applyMarginPreset(4)">Normal (4mm)</button>
+              <button type="button" class="chip-btn" onclick="applyMarginPreset(8)">Geniş (8mm)</button>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+              <div class="field-group"><label>Üst</label><input id="td_mtop" type="number" min="0" max="30" step="0.5" value="${design.marginTop}" oninput="updateTicketPreview()"></div>
+              <div class="field-group"><label>Alt</label><input id="td_mbottom" type="number" min="0" max="30" step="0.5" value="${design.marginBottom}" oninput="updateTicketPreview()"></div>
+              <div class="field-group"><label>Sol</label><input id="td_mleft" type="number" min="0" max="30" step="0.5" value="${design.marginLeft}" oninput="updateTicketPreview()"></div>
+              <div class="field-group"><label>Sağ</label><input id="td_mright" type="number" min="0" max="30" step="0.5" value="${design.marginRight}" oninput="updateTicketPreview()"></div>
+            </div>
+          </div>
+
+          <div style="display:flex;gap:10px;margin-top:16px;">
+            <button style="flex:1;margin-top:0;" onclick="saveTicketDesign()">Tasarımı Kaydet</button>
+            <button class="ghost-btn" style="flex:1;margin-top:0;" onclick="resetTicketDesign()">Varsayılana Sıfırla</button>
+          </div>
         </div>
-        <div>
+        <div style="position:sticky;top:16px;">
           <p class="muted" style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;margin:0 0 8px;">Önizleme</p>
           <div id="ticketPreviewWrap" style="background:#e9e9ec;border-radius:10px;padding:16px;display:flex;justify-content:center;">
             <div id="ticketPreview"></div>
@@ -2018,8 +2076,27 @@ function saveTicketDesign(){
     marginRight: parseFloat(document.getElementById('td_mright').value) || 0,
     marginBottom: parseFloat(document.getElementById('td_mbottom').value) || 0,
     marginLeft: parseFloat(document.getElementById('td_mleft').value) || 0,
+    showOrderNumber: document.getElementById('td_showOrderNumber').checked,
+    showItemTime: document.getElementById('td_showItemTime').checked,
+    copies: parseInt(document.getElementById('td_copiesVal').textContent) || 1,
   });
   showToast('Kaydedildi ✓');
+}
+function resetTicketDesign(){
+  if(!confirm('Fiş tasarımı varsayılan ayarlara sıfırlansın mı?')) return;
+  setTicketDesign(TICKET_DESIGN_DEFAULTS);
+  renderPrinterSettingsView(document.getElementById('main'), getSession());
+  showToast('Varsayılana sıfırlandı ✓');
+}
+function stepTicketCopies(delta){
+  const el = document.getElementById('td_copiesVal');
+  const next = Math.max(1, Math.min(5, (parseInt(el.textContent)||1) + delta));
+  el.textContent = next;
+  updateTicketPreview();
+}
+function applyMarginPreset(mm){
+  ['td_mtop','td_mbottom','td_mleft','td_mright'].forEach(id => { document.getElementById(id).value = mm; });
+  updateTicketPreview();
 }
 let ELECTRON_PRINTERS_CACHE = null;
 async function getElectronPrintersCached(forceRefresh){
@@ -2147,7 +2224,9 @@ function buildEscPosTicket(restaurantName, tableName, items, design, dailyNumber
   push([0x1B, 0x45, 0x00]); // bold off
   if(headerText) push(escposEncodeText(headerText + '\n'));
   const now = new Date();
-  push(escposEncodeText((dailyNumber ? ('Sipariş No: '+dailyNumber+' · ') : '') + tableName + '\n'));
+  const showOrderNumber = design.showOrderNumber !== false;
+  const showItemTime = design.showItemTime !== false;
+  push(escposEncodeText(((showOrderNumber && dailyNumber) ? ('Sipariş No: '+dailyNumber+' · ') : '') + tableName + '\n'));
   push(escposEncodeText(now.toLocaleDateString('tr-TR') + '\n'));
   push([0x1B, 0x61, 0x00]); // left align
   // Termal yazıcılarda ince yazı çoğunlukla silik/soluk çıkıyor - Kalın Yazı
@@ -2155,10 +2234,10 @@ function buildEscPosTicket(restaurantName, tableName, items, design, dailyNumber
   if(design.bold) push([0x1B, 0x45, 0x01]);
   push(escposEncodeText('-'.repeat(lineWidth) + '\n'));
   items.forEach(it => {
-    const timeStr = formatItemTime(it);
+    const timeStr = showItemTime ? formatItemTime(it) : '';
     const left = it.qty + 'x ' + it.name;
     const pad = Math.max(1, lineWidth - left.length - timeStr.length);
-    push(escposEncodeText(left + ' '.repeat(pad) + timeStr + '\n'));
+    push(escposEncodeText(left + (showItemTime ? (' '.repeat(pad) + timeStr) : '') + '\n'));
     if(it.note) push(escposEncodeText('  Not: ' + it.note + '\n'));
   });
   push(escposEncodeText('-'.repeat(lineWidth) + '\n'));
@@ -2238,6 +2317,8 @@ async function printKitchenTicket(tableName, items, printerOverride, silent, dai
   const printers = getPrinters();
   const printer = printerOverride || printers.find(p => p.id===getActivePrinterId());
 
+  const copies = Math.max(1, Math.min(5, design.copies||1));
+
   if(printer && printer.type==='electron' && isDesktopApp()){
     // Masaustu uygulamasinin native yazdirma koprusu - herhangi bir isletim
     // sistemi yazicisina (Windows/macOS), hicbir pencere/onay gostermeden,
@@ -2246,13 +2327,23 @@ async function printKitchenTicket(tableName, items, printerOverride, silent, dai
     applyTicketDesignStyle(el, design);
     el.innerHTML = buildTicketHtml(restaurantName, tableName, items, design, dailyNumber);
     await new Promise(r => setTimeout(r, 80));
-    const result = await window.electronAPI.silentPrint(printer.osPrinterName);
-    if(result && result.success) return;
-    console.warn('Masaustu uygulamasi yazdirma basarisiz:', result && result.errorType);
-    if(silent) showToast('⚠️ "'+printer.name+'" yazıcısına fiş gönderilemedi'+(result&&result.errorType?' — '+result.errorType:'')+'. Yazıcı bağlantısını kontrol edin');
+    for(let c=0;c<copies;c++){
+      const result = await window.electronAPI.silentPrint(printer.osPrinterName);
+      if(!result || !result.success){
+        console.warn('Masaustu uygulamasi yazdirma basarisiz:', result && result.errorType);
+        if(silent) showToast('⚠️ "'+printer.name+'" yazıcısına fiş gönderilemedi'+(result&&result.errorType?' — '+result.errorType:'')+'. Yazıcı bağlantısını kontrol edin');
+        return;
+      }
+    }
     return;
   } else if(printer && printer.type==='usb'){
-    const bytes = buildEscPosTicket(restaurantName, tableName, items, design, dailyNumber);
+    let bytes = buildEscPosTicket(restaurantName, tableName, items, design, dailyNumber);
+    if(copies>1){
+      const single = bytes;
+      const combined = new Uint8Array(single.length*copies);
+      for(let c=0;c<copies;c++) combined.set(single, c*single.length);
+      bytes = combined;
+    }
     const ok = await sendToUsbPrinter(printer, bytes);
     if(ok) return; // basarili - tarayici penceresi ACILMADI
     console.warn('USB yaziciya ulasilamadi.');
@@ -2290,14 +2381,16 @@ function formatItemTime(it){
 }
 function buildTicketHtml(restaurantName, tableName, items, design, dailyNumber){
   const now = new Date();
+  const showOrderNumber = design.showOrderNumber !== false;
+  const showItemTime = design.showItemTime !== false;
   return `
     <div class="ticket-title">${escapeHtml(restaurantName)}</div>
     ${design.header ? `<div class="ticket-meta ticket-rich">${design.header}</div>` : ''}
-    <div class="ticket-meta">${dailyNumber?('Sipariş No: '+dailyNumber+' · '):''}${escapeHtml(tableName)}</div>
+    <div class="ticket-meta">${(showOrderNumber && dailyNumber)?('Sipariş No: '+dailyNumber+' · '):''}${escapeHtml(tableName)}</div>
     <div class="ticket-meta">${now.toLocaleDateString('tr-TR')}</div>
     <div class="ticket-line"></div>
     ${items.map(it => `
-      <div class="ticket-item"><span><span class="qty">${it.qty}x</span>${escapeHtml(it.name)}</span><span class="ticket-time">${formatItemTime(it)}</span></div>
+      <div class="ticket-item"><span><span class="qty">${it.qty}x</span>${escapeHtml(it.name)}</span>${showItemTime?`<span class="ticket-time">${formatItemTime(it)}</span>`:''}</div>
       ${it.note ? `<div class="ticket-note">Not: ${escapeHtml(it.note)}</div>` : ''}
     `).join('')}
     <div class="ticket-line"></div>
@@ -2316,6 +2409,8 @@ function updateTicketPreview(){
   const marginRight = parseFloat(document.getElementById('td_mright').value) || 0;
   const marginBottom = parseFloat(document.getElementById('td_mbottom').value) || 0;
   const marginLeft = parseFloat(document.getElementById('td_mleft').value) || 0;
+  const showOrderNumber = document.getElementById('td_showOrderNumber').checked;
+  const showItemTime = document.getElementById('td_showItemTime').checked;
   const session = getSession();
   const t1 = new Date(Date.now() - 6*60000).toISOString();
   const t2 = new Date().toISOString();
@@ -2325,7 +2420,7 @@ function updateTicketPreview(){
     { qty:1, name:'Mevsim Salata', note:'Sossuz', added_at:t2 },
   ];
   applyTicketDesignStyle(el, { width, fontFamily, bold, marginTop, marginRight, marginBottom, marginLeft }, 'ticket-paper');
-  el.innerHTML = buildTicketHtml(session ? session.restaurant_name : 'İŞLETME ADI', 'Masa 3', sampleItems, { header, footer }, 12);
+  el.innerHTML = buildTicketHtml(session ? session.restaurant_name : 'İŞLETME ADI', 'Masa 3', sampleItems, { header, footer, showOrderNumber, showItemTime }, 12);
 }
 async function cancelTableOrder(tableId){
   if(!confirm('Bu masadaki siparişi (mutfağa gönderilenler dahil) tamamen iptal etmek istediğinize emin misiniz?')) return;
@@ -3129,15 +3224,31 @@ async function removeUser(id){
 
 /* ================= FİNANSAL ANALİZ ================= */
 async function renderReportsView(main, session){
+  if(!APP.config){
+    const { data } = await sb.rpc('get_restaurant_config', { p_token: session.session_token });
+    if(data) APP.config = data;
+  }
   main.innerHTML = `<h1>Finansal Analiz</h1>
     <div class="box" style="max-width:none;display:flex;justify-content:space-between;align-items:center;">
       <span class="muted">Tarih Seç</span>
       <input type="date" id="reportDateInput" value="${APP.reportDate}" onchange="changeReportDate(this.value)">
     </div>
+    <div class="tabs" id="reportTabs">
+      <div class="tab ${(APP.reportTab||'summary')==='summary'?'active':''}" data-tab="summary" onclick="setReportTab('summary')">Genel Özet</div>
+      <div class="tab ${APP.reportTab==='products'?'active':''}" data-tab="products" onclick="setReportTab('products')">📦 Ürün İstatistikleri</div>
+    </div>
     <div id="reportContent"><p class="muted">Yükleniyor...</p></div>`;
-  await renderReportContent(session);
+  await renderReportTabContent(session);
 }
-function changeReportDate(v){ APP.reportDate = v; renderReportContent(getSession()); }
+function setReportTab(tab){
+  APP.reportTab = tab;
+  document.querySelectorAll('#reportTabs .tab').forEach(t => t.classList.toggle('active', t.dataset.tab===tab));
+  renderReportTabContent(getSession());
+}
+function changeReportDate(v){ APP.reportDate = v; renderReportTabContent(getSession()); }
+function renderReportTabContent(session){
+  return (APP.reportTab||'summary')==='products' ? renderProductStatsContent(session) : renderReportContent(session);
+}
 async function renderReportContent(session){
   const el = document.getElementById('reportContent'); if(!el) return;
   const { data, error } = await sb.rpc('get_sales_history', { p_token: session.session_token, p_date: APP.reportDate });
@@ -3217,6 +3328,64 @@ async function renderReportContent(session){
     </div>
     <div class="box" style="max-width:none;"><h2>Saatlik Yoğunluk${peakHour!==null?' <span class="muted" style="font-size:12px;font-weight:400;">(en yoğun: '+(peakHour<10?'0'+peakHour:peakHour)+':00 🔥)</span>':''}</h2>${hourlyHtml}</div>
     <div class="box" style="max-width:none;"><h2>Kapatılan Hesaplar</h2>${billsHtml}</div>
+  `;
+}
+/* --- Ürün İstatistikleri sekmesi: hangi üründen ne kadar satıldığı,
+   istasyona göre filtrelenebilen, çoktan aza sıralı bar grafiği --- */
+async function renderProductStatsContent(session){
+  const el = document.getElementById('reportContent'); if(!el) return;
+  const { data, error } = await sb.rpc('get_product_sales', { p_token: session.session_token, p_date: APP.reportDate });
+  if(error){ el.innerHTML = '<p class="muted">Yüklenemedi: '+error.message+'</p>'; return; }
+  const rows = data || [];
+  const stations = (APP.config && APP.config.stations) || [];
+  if(!APP.productStatsSort) APP.productStatsSort = 'revenue';
+  if(APP.productStatsStation===undefined) APP.productStatsStation = '';
+
+  const filtered = APP.productStatsStation ? rows.filter(r => r.station_id===APP.productStatsStation) : rows;
+  const sorted = filtered.slice().sort((a,b) => APP.productStatsSort==='qty' ? b.qty-a.qty : Number(b.revenue)-Number(a.revenue));
+  const totalQty = filtered.reduce((s,r) => s+r.qty, 0);
+  const totalRev = filtered.reduce((s,r) => s+Number(r.revenue), 0);
+  const maxVal = sorted.length ? (APP.productStatsSort==='qty' ? sorted[0].qty : Number(sorted[0].revenue)) : 0;
+  const top = sorted[0];
+
+  const barsHtml = sorted.length===0 ? '<p class="muted">Bu tarihte / bu filtrede satış yok.</p>' : sorted.map((r,idx) => {
+    const val = APP.productStatsSort==='qty' ? r.qty : Number(r.revenue);
+    const pct = maxVal ? Math.round(val/maxVal*100) : 0;
+    const isTop = idx===0;
+    return `<div style="margin-bottom:10px;">
+      <div style="display:flex;justify-content:space-between;align-items:baseline;font-size:13px;margin-bottom:4px;gap:8px;">
+        <span style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${isTop?'🏆 ':''}${escapeHtml(r.name)}${r.station_name?' <span class="muted" style="font-weight:400;font-size:11px;">('+escapeHtml(r.station_name)+')</span>':''}</span>
+        <span class="muted" style="white-space:nowrap;">${r.qty} adet · ${money(r.revenue)}</span>
+      </div>
+      <div style="background:var(--panel2);border-radius:6px;height:16px;overflow:hidden;">
+        <div style="width:${pct}%;height:100%;background:${isTop?'var(--accent)':'var(--accent2)'};transition:width .3s ease;"></div>
+      </div>
+    </div>`;
+  }).join('');
+
+  el.innerHTML = `
+    <div class="home-grid" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr));">
+      <div class="box" style="text-align:center;"><div style="font-size:22px;font-weight:800;">${filtered.length}</div><div class="muted" style="font-size:12px;">Satılan Ürün Çeşidi</div></div>
+      <div class="box" style="text-align:center;"><div style="font-size:22px;font-weight:800;">${totalQty}</div><div class="muted" style="font-size:12px;">Toplam Adet</div></div>
+      <div class="box" style="text-align:center;"><div style="font-size:22px;font-weight:800;">${money(totalRev)}</div><div class="muted" style="font-size:12px;">Toplam Ciro</div></div>
+      <div class="box" style="text-align:center;"><div style="font-size:15px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${top?escapeHtml(top.name):'-'}</div><div class="muted" style="font-size:12px;">🏆 En Çok Satan</div></div>
+    </div>
+    <div class="box" style="max-width:none;">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:14px;">
+        <h2 style="margin:0;">Ürün Satışları</h2>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <select id="psStationFilter" style="width:auto;margin:0;padding:8px 12px;" onchange="APP.productStatsStation=this.value;renderProductStatsContent(getSession());">
+            <option value="">Tüm İstasyonlar</option>
+            ${stations.map(s => `<option value="${s.id}" ${APP.productStatsStation===s.id?'selected':''}>${escapeHtml(s.name)}</option>`).join('')}
+          </select>
+          <select id="psSortBy" style="width:auto;margin:0;padding:8px 12px;" onchange="APP.productStatsSort=this.value;renderProductStatsContent(getSession());">
+            <option value="revenue" ${APP.productStatsSort==='revenue'?'selected':''}>Ciroya Göre Sırala</option>
+            <option value="qty" ${APP.productStatsSort==='qty'?'selected':''}>Adete Göre Sırala</option>
+          </select>
+        </div>
+      </div>
+      ${barsHtml}
+    </div>
   `;
 }
 
