@@ -1383,7 +1383,17 @@ function resolveBellSetting(stationId){
   return sounds.default || null;
 }
 
-function renderPrinterSettingsView(main, session){
+async function renderPrinterSettingsView(main, session){
+  // Mutfak rolündeki kullanıcıların menüsünde "Sipariş Al"/"Ayarlar" yok -
+  // bu yüzden APP.config hiç yüklenmemiş olabilir (istasyon listesi burada
+  // kullanılıyor). Eksikse burada da yüklenir; önceden bu eksiklik sayfanın
+  // hiç açılmamasına/"geç gelmesine" yol açıyordu.
+  if(!APP.config){
+    main.innerHTML = '<h1>Yazıcı Ayarları</h1><p class="muted">Yükleniyor...</p>';
+    const { data, error } = await sb.rpc('get_restaurant_config', { p_token: session.session_token });
+    if(error){ main.innerHTML = '<h1>Yazıcı Ayarları</h1><p class="muted">Yüklenemedi: '+error.message+'</p>'; return; }
+    APP.config = data;
+  }
   const design = getTicketDesign();
   const printers = getPrinters();
   const activeId = getActivePrinterId();
@@ -1501,7 +1511,13 @@ function renderPrinterSettingsView(main, session){
   updateTicketPreview();
   onNewPrinterTypeChange();
 }
-function renderNotificationSettingsView(main, session){
+async function renderNotificationSettingsView(main, session){
+  if(!APP.config){
+    main.innerHTML = '<h1>Bildirim Ayarları</h1><p class="muted">Yükleniyor...</p>';
+    const { data, error } = await sb.rpc('get_restaurant_config', { p_token: session.session_token });
+    if(error){ main.innerHTML = '<h1>Bildirim Ayarları</h1><p class="muted">Yüklenemedi: '+error.message+'</p>'; return; }
+    APP.config = data;
+  }
   main.innerHTML = `
     <h1>Bildirim Ayarları</h1>
     <p class="muted" style="text-align:left;">Bu ayarlar sadece <b>bu ekrana/tarayıcıya</b> özeldir — her cihazda ayrı ayrı yapılandırılır, veritabanına kaydedilmez.</p>
@@ -1612,7 +1628,13 @@ function saveTicketDesign(){
   });
   showToast('Kaydedildi ✓');
 }
-async function onNewPrinterTypeChange(){
+let ELECTRON_PRINTERS_CACHE = null;
+async function getElectronPrintersCached(forceRefresh){
+  if(ELECTRON_PRINTERS_CACHE && !forceRefresh) return ELECTRON_PRINTERS_CACHE;
+  ELECTRON_PRINTERS_CACHE = await window.electronAPI.listPrinters();
+  return ELECTRON_PRINTERS_CACHE;
+}
+async function onNewPrinterTypeChange(forceRefresh){
   const type = document.getElementById('np_ptype').value;
   const wrap = document.getElementById('npElectronWrap');
   if(!wrap) return;
@@ -1621,9 +1643,17 @@ async function onNewPrinterTypeChange(){
     wrap.innerHTML = '<p class="muted" style="font-size:12px;">Bu seçenek sadece Masaüstü Uygulaması içinde çalışır. Şu an tarayıcıdasınız — yine de ekleyebilirsiniz, uygulamayı kurup o bilgisayarda giriş yaptığınızda devreye girer.</p><label>İşletim Sistemi Yazıcısı Adı (opsiyonel)</label><input id="np_osprinter" placeholder="örn. POS-80C">';
     return;
   }
-  wrap.innerHTML = '<label>İşletim Sistemi Yazıcısı</label><select id="np_osprinter"><option value="">Yükleniyor...</option></select>';
+  // Yazici listesi (Electron IPC ile isletim sistemine sorulur) bir kez
+  // cache'lenir - menu her acildiginda yeniden sormak gecikme hissi
+  // yaratiyordu. "Yenile" ile elle tazelenebilir.
+  const cached = ELECTRON_PRINTERS_CACHE;
+  wrap.innerHTML = '<label>İşletim Sistemi Yazıcısı</label><div style="display:flex;gap:8px;"><select id="np_osprinter" style="flex:1;">'+(cached?'':'<option value="">Yükleniyor...</option>')+'</select><button type="button" class="sbtn" style="width:auto;" onclick="onNewPrinterTypeChange(true)">🔄 Yenile</button></div>';
+  if(cached){
+    const sel = document.getElementById('np_osprinter');
+    sel.innerHTML = cached.length ? cached.map(p => `<option value="${escapeHtml(p.name)}" ${p.isDefault?'selected':''}>${escapeHtml(p.displayName||p.name)}${p.isDefault?' (varsayılan)':''}</option>`).join('') : '<option value="">Yazıcı bulunamadı</option>';
+  }
   try{
-    const list = await window.electronAPI.listPrinters();
+    const list = await getElectronPrintersCached(forceRefresh);
     const sel = document.getElementById('np_osprinter');
     if(!sel) return;
     sel.innerHTML = list.length ? list.map(p => `<option value="${escapeHtml(p.name)}" ${p.isDefault?'selected':''}>${escapeHtml(p.displayName||p.name)}${p.isDefault?' (varsayılan)':''}</option>`).join('') : '<option value="">Yazıcı bulunamadı</option>';
