@@ -3,9 +3,14 @@
 // AYLIK yenileme odemesini iyzico uzerinden baslatir. Kayit sirasinda cagrilmiyor
 // artik (kayit olunca hesap direkt 7 gun aktif aciliyor, bkz. verify_registration_otp).
 //
-// Guvenlik: restaurant_id client'tan alinmiyor - oturum token'i (p_token) ile
-// staff_sessions uzerinden dogrulanip oradan okunuyor, boylece sadece o
-// isletmenin giris yapmis bir yoneticisi kendi isletmesi icin odeme baslatabilir.
+// Guvenlik: restaurant_id client'tan dogrudan alinmiyor, iki yoldan biriyle
+// dogrulanip sunucu tarafinda bulunuyor:
+//  1) p_token: hala gecerli bir staff_sessions oturumu var (Ayarlar > Ode/Yenile).
+//  2) p_code + p_username + p_password: oturum artik yok (abonelik suresi
+//     dolunca login_staff girisi zaten engelliyor) - bu durumda
+//     verify_restaurant_credentials RPC'si ile sahiplik (sadece manager,
+//     dogru sifre) dogrulanir; aktif/suresi-dolmus olmasi onemli degil,
+//     zaten amac tam da kilitli kalan bir hesabi odemeyle acmak.
 const { createClient } = require('@supabase/supabase-js');
 const crypto = require('crypto');
 
@@ -14,8 +19,9 @@ const IYZICO_API_KEY = process.env.IYZICO_API_KEY;
 const IYZICO_SECRET_KEY = process.env.IYZICO_SECRET_KEY;
 const CALLBACK_URL = process.env.CALLBACK_URL; // https://<vercel-domaininiz>/api/payment-callback
 
-// Aylik fiyatlar (TL) - placeholder, gercek fiyatlariniza gore guncelleyin.
-const PACKAGE_PRICES = {
+// Varsayilan fiyatlar (TL) - platform_settings'te (price_paket1/2/3) tanimli
+// bir deger varsa o kullanilir (bkz. get_package_prices RPC / admin ekrani).
+const DEFAULT_PACKAGE_PRICES = {
   paket1: 499,
   paket2: 999,
   paket3: 2499,
@@ -44,34 +50,51 @@ function iyzicoAuthHeaders(uriPath, body) {
 
 module.exports = async function handler(req, res) {
   try {
-    const token = req.method === 'GET' ? req.query.p_token : (req.body || {}).p_token;
-    if (!token) {
-      res.status(400).json({ errorMessage: 'Oturum token gerekli' });
-      return;
-    }
+    const params = req.method === 'GET' ? req.query : (req.body || {});
+    const { p_token: token, p_code: code, p_username: username, p_password: password } = params;
 
     const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
 
-    const { data: session } = await supabase
-      .from('staff_sessions')
-      .select('restaurant_id, role')
-      .eq('token', token)
-      .gt('expires_at', new Date().toISOString())
-      .maybeSingle();
+    let restaurantId = null;
 
-    if (!session) {
-      res.status(401).json({ errorMessage: 'Oturum geçersiz veya süresi dolmuş, tekrar giriş yapın' });
-      return;
-    }
-    if (session.role !== 'manager') {
-      res.status(403).json({ errorMessage: 'Bu işlem için yetkiniz yok' });
+    if (token) {
+      const { data: session } = await supabase
+        .from('staff_sessions')
+        .select('restaurant_id, role')
+        .eq('token', token)
+        .gt('expires_at', new Date().toISOString())
+        .maybeSingle();
+
+      if (!session) {
+        res.status(401).json({ errorMessage: 'Oturum geçersiz veya süresi dolmuş, tekrar giriş yapın' });
+        return;
+      }
+      if (session.role !== 'manager') {
+        res.status(403).json({ errorMessage: 'Bu işlem için yetkiniz yok' });
+        return;
+      }
+      restaurantId = session.restaurant_id;
+    } else if (code && username && password) {
+      // Oturum yok (abonelik süresi dolunca login_staff girişi zaten
+      // engelliyor) - sahiplik kod+kullanıcı adı+şifre ile doğrulanır.
+      const { data: rows, error: verifyErr } = await supabase.rpc('verify_restaurant_credentials', {
+        p_code: code, p_username: username, p_password: password,
+      });
+      const row = Array.isArray(rows) ? rows[0] : rows;
+      if (verifyErr || !row) {
+        res.status(401).json({ errorMessage: 'İşletme kodu, kullanıcı adı veya şifre hatalı' });
+        return;
+      }
+      restaurantId = row.restaurant_id;
+    } else {
+      res.status(400).json({ errorMessage: 'Oturum token veya işletme kimlik bilgileri gerekli' });
       return;
     }
 
     const { data: restaurant, error } = await supabase
       .from('restaurants')
       .select('id, name, email, phone, package_id')
-      .eq('id', session.restaurant_id)
+      .eq('id', restaurantId)
       .single();
 
     if (error || !restaurant) {
@@ -79,7 +102,15 @@ module.exports = async function handler(req, res) {
       return;
     }
 
-    const price = PACKAGE_PRICES[restaurant.package_id] || 0;
+    const { data: priceRows } = await supabase
+      .from('platform_settings')
+      .select('key, value')
+      .in('key', ['price_paket1', 'price_paket2', 'price_paket3']);
+    const livePrices = {};
+    (priceRows || []).forEach((r) => { livePrices[r.key.replace('price_', '')] = Number(r.value); });
+    const packagePrices = { ...DEFAULT_PACKAGE_PRICES, ...livePrices };
+
+    const price = packagePrices[restaurant.package_id] || 0;
     if (price <= 0) {
       res.status(400).json({ errorMessage: 'Gecersiz paket fiyati' });
       return;

@@ -123,6 +123,17 @@
   main{display:block;width:100%;}
   .muted{color:var(--muted);}
   .home-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:14px;margin-top:22px;}
+  /* Kayıt ekranındaki paket kartları - her zaman yan yana (3 sütun), dar
+     ekranda da sıkışık ama okunur kalması için ayrı/daha küçük bir grid. */
+  .pkg-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:14px;}
+  .pkg-card{background:var(--panel);border:1.5px solid var(--border);border-radius:12px;padding:12px 8px;cursor:pointer;text-align:center;transition:border-color .15s ease,background .15s ease;}
+  .pkg-card:hover{border-color:var(--accent);}
+  .pkg-card.selected{border-color:var(--accent);background:rgba(184,134,58,.12);}
+  .pkg-card .pkg-icon{font-size:20px;}
+  .pkg-card h3{font-size:13px;margin:4px 0 2px;}
+  .pkg-card p{font-size:11px;color:var(--muted);margin:0 0 6px;line-height:1.3;}
+  .pkg-card .pkg-price{font-size:12.5px;font-weight:700;color:var(--accent);}
+  .pkg-card .pkg-price small{font-weight:500;color:var(--muted);font-size:10.5px;}
   .card{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:20px;cursor:pointer;transition:transform .15s ease, border-color .15s ease, box-shadow .15s ease;}
   .card:hover{border-color:var(--accent);transform:translateY(-3px);box-shadow:var(--shadow);}
   .card .icon{font-size:28px;margin-bottom:8px;}
@@ -271,12 +282,30 @@ const PAYMENT_RENEW_URL = '/api/payment-initialize';
 /* ============================================================ */
 
 const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+/* Her RPC çağrısının ortak geçiş noktası: sunucu tarafında (_session_check)
+   işletmenin deneme/abonelik süresi dolduğu tespit edilirse tüm RPC'ler
+   'ABONELIK_SURESI_DOLDU' hatasıyla döner. Burada tek bir yerden yakalanıp
+   uygulama genelinde (hangi ekranda olursa olsun) "Abonelik Süresi Doldu"
+   ekranına yönlendirilir - her sb.rpc çağrısına tek tek eklemek yerine. */
+const _sbRpc = sb.rpc.bind(sb);
+sb.rpc = function(fn, args){
+  return _sbRpc(fn, args).then(res => {
+    if(res && res.error && res.error.message === 'ABONELIK_SURESI_DOLDU'){
+      handleSubscriptionExpired();
+    }
+    return res;
+  });
+};
 
 const ROLE_LABELS = { waiter:'Garson', kitchen:'Mutfak', manager:'Yönetici' };
+/* Tüm paketler AYNI 7 günlük ücretsiz deneme ile başlar (bkz.
+   verify_registration_otp) - paketler arasındaki fark kullanıcı sayısı
+   limiti ve deneme sonrası aylık fiyat (bkz. get_package_prices,
+   platform admin ekranından düzenlenir). */
 const PACKAGES = {
-  paket1: {id:'paket1', name:'Paket 1 - Başlangıç', maxUsers:3, durationDays:14, desc:'1 Yönetici + 1 Mutfak + 1 Garson. 2 hafta.'},
-  paket2: {id:'paket2', name:'Paket 2 - Standart', maxUsers:8, durationDays:60, desc:'8 kullanıcıya kadar. 2 ay.'},
-  paket3: {id:'paket3', name:'Paket 3 - Profesyonel', maxUsers:20, durationDays:180, desc:'20 kullanıcıya kadar. 6 ay.'}
+  paket1: {id:'paket1', name:'Başlangıç', maxUsers:3, desc:'1 Yönetici + 1 Mutfak + 1 Garson'},
+  paket2: {id:'paket2', name:'Standart', maxUsers:8, desc:'8 kullanıcıya kadar'},
+  paket3: {id:'paket3', name:'Profesyonel', maxUsers:20, desc:'20 kullanıcıya kadar'}
 };
 
 function getSession(){
@@ -285,6 +314,17 @@ function getSession(){
 }
 function setSession(s){ sessionStorage.setItem('staff_session', JSON.stringify(s)); }
 function clearSession(){ sessionStorage.removeItem('staff_session'); }
+/* Herhangi bir RPC çağrısı 'ABONELIK_SURESI_DOLDU' ile dönerse (bkz. sb.rpc
+   sarmalayıcısı) buradan tetiklenir - oturum aynı anda birden fazla istek
+   başarısız olsa bile ekran sadece bir kez değişsin diye bayrakla korunur. */
+let SUBSCRIPTION_EXPIRED_SHOWN = false;
+function handleSubscriptionExpired(){
+  if(SUBSCRIPTION_EXPIRED_SHOWN) return;
+  SUBSCRIPTION_EXPIRED_SHOWN = true;
+  clearSession();
+  APP.authScreen = 'expired';
+  render();
+}
 
 function getAdminSession(){
   try{ return JSON.parse(sessionStorage.getItem('platform_admin_session')||'null'); }
@@ -363,6 +403,7 @@ function render(){
   const session = getSession();
   if(!session){
     if(APP.authScreen==='signup') renderSignupScreen(app);
+    else if(APP.authScreen==='expired') renderExpiredScreen(app);
     else renderLoginScreen(app);
     return;
   }
@@ -439,8 +480,24 @@ function renderAdminArea(){
         <button class="ghost-btn" onclick="doAdminLogout()">Çıkış</button>
       </div>
     </header>
-    <div class="content-inner"><main id="main"></main></div>`;
-  renderPromoAdmin(document.getElementById('main'), admin);
+    <div class="content-inner">
+      <div class="tabs" id="adminTabs">
+        <div class="tab ${(APP.adminView||'promos')==='promos'?'active':''}" data-tab="promos" onclick="setAdminView('promos')">Promosyon Kodları</div>
+        <div class="tab ${APP.adminView==='pricing'?'active':''}" data-tab="pricing" onclick="setAdminView('pricing')">💳 Paket Fiyatları</div>
+      </div>
+      <main id="main"></main>
+    </div>`;
+  renderAdminTabContent(admin);
+}
+function setAdminView(v){
+  APP.adminView = v;
+  document.querySelectorAll('#adminTabs .tab').forEach(t => t.classList.toggle('active', t.dataset.tab===v));
+  renderAdminTabContent(getAdminSession());
+}
+function renderAdminTabContent(admin){
+  const main = document.getElementById('main');
+  if((APP.adminView||'promos')==='pricing') renderPricingAdmin(main, admin);
+  else renderPromoAdmin(main, admin);
 }
 function renderAdminLogin(app){
   app.innerHTML = `<div class="center-wrap"><div class="box">
@@ -470,6 +527,46 @@ function doAdminLogout(){ clearAdminSession(); render(); }
 async function renderPromoAdmin(main, admin){
   main.innerHTML = `<h1>Promosyon Kodları</h1><div id="promoContent"></div>`;
   await withLoadingOverlay(refreshPromoList(admin));
+}
+/* Paket fiyatları (aylık, TL) - platform_settings'te tutulur, get_package_prices
+   ile herkes (kayıt/yenileme ekranları) okuyabilir, sadece platform admin
+   set_package_prices ile değiştirebilir. */
+async function renderPricingAdmin(main, admin){
+  main.innerHTML = `<h1>💳 Paket Fiyatları</h1><div id="pricingContent"></div>`;
+  const el = document.getElementById('pricingContent');
+  const { data, error } = await withLoadingOverlay(sb.rpc('get_package_prices'));
+  if(error){ el.innerHTML = '<p class="muted">Yüklenemedi: '+error.message+'</p>'; return; }
+  const prices = data || {};
+  el.innerHTML = `
+    <div class="box" style="max-width:520px;">
+      <p class="muted" style="text-align:left;">Bu fiyatlar, işletmelerin 7 günlük ücretsiz denemesi bittikten sonra
+        ödeyeceği AYLIK tutarlardır - kayıt ve yenileme ekranlarında canlı olarak gösterilir.</p>
+      ${Object.values(PACKAGES).map(p => `
+        <div class="field-group"><label>${escapeHtml(p.name)} (${escapeHtml(p.desc)}) - Aylık Fiyat (TL)</label>
+          <input id="price_${p.id}" type="number" min="0" step="1" value="${Number(prices['price_'+p.id])||0}"></div>
+      `).join('')}
+      <button style="margin-top:10px;" onclick="savePackagePrices()" id="savePriceBtn">Fiyatları Kaydet</button>
+      <div class="error" id="pricingErr"></div>
+    </div>`;
+}
+async function savePackagePrices(){
+  const admin = getAdminSession();
+  const errBox = document.getElementById('pricingErr');
+  const btn = document.getElementById('savePriceBtn');
+  errBox.textContent = '';
+  const vals = {};
+  for(const p of Object.values(PACKAGES)){
+    const v = Number(document.getElementById('price_'+p.id).value);
+    if(!(v>0)){ errBox.textContent = 'Tüm fiyatlar 0\'dan büyük olmalı'; return; }
+    vals[p.id] = v;
+  }
+  btn.disabled = true; btn.textContent = 'Kaydediliyor...';
+  const { error } = await sb.rpc('set_package_prices', {
+    p_token: admin.session_token, p_paket1: vals.paket1, p_paket2: vals.paket2, p_paket3: vals.paket3
+  });
+  btn.disabled = false; btn.textContent = 'Fiyatları Kaydet';
+  if(error){ errBox.textContent = error.message; return; }
+  showToast('Fiyatlar kaydedildi ✓');
 }
 async function refreshPromoList(admin){
   const el = document.getElementById('promoContent'); if(!el) return;
@@ -594,12 +691,68 @@ function renderLoginScreen(app){
   });
 }
 
+/* Deneme/abonelik süresi dolan işletmeler buraya düşer - hem doLogin()
+   girişte ABONELIK_SURESI_DOLDU yakalarsa (bkz. login_staff), hem de zaten
+   içerideyken bir işlem sırasında süre dolarsa (bkz. sb.rpc sarmalayıcısı,
+   handleSubscriptionExpired). Artık oturum yok, bu yüzden ödeme başlatmak
+   için kod+kullanıcı adı+şifre yeniden istenir (verify_restaurant_credentials
+   ile sahiplik doğrulanır, aktif/süresi-dolmuş olması önemli değil). */
+function renderExpiredScreen(app){
+  const prefill = APP.expiredPrefill || {};
+  app.innerHTML = `
+    <div class="center-wrap">
+    <div>
+    <div class="auth-brand"><img src="/assets/images/logo.png" alt="Elvora" class="auth-brand-logo"><span>Elvora</span></div>
+    <div class="box">
+      <h1>⏰ Deneme Süreniz / Aboneliğiniz Sona Erdi</h1>
+      <p class="muted">Devam etmek için işletme bilgilerinizle ödemenizi tamamlayın - onaylanır onaylanmaz tekrar giriş yapabilirsiniz.</p>
+      <input id="exCode" placeholder="İşletme kodu" autocapitalize="none" value="${escapeHtml(prefill.code||'')}">
+      <input id="exUser" placeholder="Yönetici kullanıcı adı" autocapitalize="none" value="${escapeHtml(prefill.username||'')}">
+      <input id="exPass" type="password" placeholder="Yönetici şifresi">
+      <button id="exPayBtn" onclick="startRenewalPayment()">💳 Ödemeye Geç</button>
+      <div class="error" id="exErr"></div>
+      <p class="muted" style="text-align:center;margin-top:16px;font-size:13px;">
+        <a href="#" style="color:var(--accent);" onclick="APP.authScreen='login';render();return false;">← Girişe Dön</a>
+      </p>
+    </div>
+    </div>
+    </div>`;
+  APP.expiredPrefill = null;
+}
+async function startRenewalPayment(){
+  const code = document.getElementById('exCode').value.trim();
+  const username = document.getElementById('exUser').value.trim();
+  const password = document.getElementById('exPass').value;
+  const errBox = document.getElementById('exErr');
+  const btn = document.getElementById('exPayBtn');
+  errBox.textContent = '';
+  if(!code || !username || !password){ errBox.textContent = 'Tüm alanları doldurun'; return; }
+  btn.disabled = true; btn.textContent = 'Yönlendiriliyor...';
+  try{
+    const res = await fetch(PAYMENT_RENEW_URL, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ p_code: code, p_username: username, p_password: password })
+    });
+    const result = await res.json();
+    if(!res.ok || !result.paymentPageUrl){
+      errBox.textContent = result.errorMessage || 'Ödeme başlatılamadı';
+      btn.disabled = false; btn.textContent = '💳 Ödemeye Geç';
+      return;
+    }
+    window.location.href = result.paymentPageUrl;
+  }catch(e){
+    errBox.textContent = 'Beklenmeyen bir hata oluştu';
+    btn.disabled = false; btn.textContent = '💳 Ödemeye Geç';
+  }
+}
+
 function renderSignupScreen(app){
   app.innerHTML = `
     <div class="center-wrap">
     <div>
     <div class="auth-brand"><img src="/assets/images/logo.png" alt="Elvora" class="auth-brand-logo"><span>Elvora</span></div>
-    <div class="box" style="max-width:520px;">
+    <div class="box" style="max-width:560px;">
       <h1 id="signupTitle">Yeni İşletme Kaydı</h1>
       <p class="muted" id="signupSub">İşletmenizi kaydedip paketinizi seçin.</p>
       <div id="signupStep1">
@@ -610,8 +763,9 @@ function renderSignupScreen(app){
         <input id="suAdminUser" placeholder="Yönetici kullanıcı adı" autocapitalize="none">
         <input id="suAdminPass" type="password" placeholder="Yönetici şifresi">
         <input id="suPromo" placeholder="İndirim kodu (varsa)" autocapitalize="none" style="text-transform:uppercase;">
-        <div id="pkgCards" class="home-grid" style="margin-top:14px;"></div>
-        <button style="margin-top:16px;" onclick="doStartSignup()" id="signupBtn">Doğrulama Kodu Gönder</button>
+        <div id="pkgCards" class="pkg-grid"></div>
+        <button style="margin-top:16px;" onclick="doStartSignup()" id="signupBtn">🎁 7 Günlük Ücretsiz Dene</button>
+        <p class="muted" style="text-align:center;font-size:11.5px;margin-top:6px;">Kart bilgisi istenmez. Deneme süresi dolunca seçtiğiniz paketin aylık ücretiyle devam edebilirsiniz.</p>
       </div>
       <div id="signupStep2" style="display:none;">
         <p class="muted" id="otpInfo" style="text-align:center;"></p>
@@ -626,14 +780,31 @@ function renderSignupScreen(app){
     </div>
     </div>
     </div>`;
+  loadPackagePricesThenRenderCards();
+}
+/* Paket fiyatları platform admin ekranından değiştirilebildiği için sabit
+   değil - kayıt ekranı her açıldığında canlı okunur (bkz. get_package_prices). */
+async function loadPackagePricesThenRenderCards(){
+  if(!APP.packagePrices){
+    try{
+      const { data } = await sb.rpc('get_package_prices');
+      APP.packagePrices = data || {};
+    }catch(e){ APP.packagePrices = {}; }
+  }
   renderPkgCards();
 }
 function renderPkgCards(){
   const el = document.getElementById('pkgCards'); if(!el) return;
-  el.innerHTML = Object.values(PACKAGES).map(p => `
-    <div class="card" style="${APP.selectedPackage===p.id?'border-color:var(--accent);background:rgba(184,134,58,.12);':''}" onclick="APP.selectedPackage='${p.id}';renderPkgCards();">
-      <div class="icon">${APP.selectedPackage===p.id?'✅':'📦'}</div><h3>${p.name}</h3><p>${p.desc}</p>
-    </div>`).join('');
+  const prices = APP.packagePrices || {};
+  el.innerHTML = Object.values(PACKAGES).map(p => {
+    const price = Number(prices['price_'+p.id]) || 0;
+    return `<div class="pkg-card ${APP.selectedPackage===p.id?'selected':''}" onclick="APP.selectedPackage='${p.id}';renderPkgCards();">
+      <div class="pkg-icon">${APP.selectedPackage===p.id?'✅':'📦'}</div>
+      <h3>${escapeHtml(p.name)}</h3>
+      <p>${escapeHtml(p.desc)}</p>
+      <div class="pkg-price">${price?money(price):'—'}<br><small>/ay (7 gün ücretsiz)</small></div>
+    </div>`;
+  }).join('');
 }
 function backToSignupForm(){
   document.getElementById('signupStep1').style.display='block';
@@ -2716,11 +2887,17 @@ async function doLogin(){
     return;
   }
   btn.disabled = true; btn.textContent = 'Giriş yapılıyor...';
+  // Kimlik bilgileri doğruysa ama deneme/abonelik süresi dolmuşsa, sb.rpc
+  // sarmalayıcısı otomatik olarak "Abonelik Süresi Doldu" ekranına
+  // yönlendirir - bu bilgiler orada önceden doldurulmuş görünsün diye
+  // istek atılmadan önce hazırlanıyor.
+  APP.expiredPrefill = { code, username };
   try{
     const { data, error } = await sb.rpc('login_staff', {
       p_code: code, p_username: username, p_password: password
     });
     if(error){
+      if(error.message === 'ABONELIK_SURESI_DOLDU') return; // ekran zaten değişti (sb.rpc sarmalayıcısı)
       console.error(error);
       errBox.textContent = 'Bağlantı hatası: ' + error.message;
       return;
