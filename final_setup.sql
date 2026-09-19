@@ -735,16 +735,21 @@ $$;
 grant execute on function mark_item_ready to anon;
 
 -- ---------- ÖDEME ----------
--- close_bill'in yerini aldı: p_item_ids verilirse SADECE o ürünler için ödeme
--- alınır (kısmi/ürün bazlı ödeme), verilmezse (null) hesaptaki tüm ödenmemiş
--- ürünler için ödeme alınır (eski close_bill davranışıyla aynı). Hesaptaki
--- tüm ürünler ödenince sipariş otomatik kapanır.
+-- close_bill'in yerini aldı: p_item_qtys verilirse SADECE o ürün ADETLERİ
+-- için ödeme alınır (örn. 4 Izgara Köfte'den 1 tanesi), verilmezse (null)
+-- hesaptaki tüm ödenmemiş ürünler tam olarak ödenir (eski close_bill
+-- davranışıyla aynı). Bir satırın adedinin bir kısmı seçilirse, o kadarlık
+-- yeni ve ödenmiş bir satır oluşturulur, orijinal satırın adedi azaltılır
+-- (kalanı hesapta açık kalır) - mutfak durumunu (status/added_at/not) korur.
+-- Hesaptaki tüm ürünler ödenince sipariş otomatik kapanır.
 drop function if exists close_bill(uuid, uuid, text, numeric, numeric, numeric, text, numeric);
+drop function if exists pay_order_items(uuid, uuid, text, numeric, numeric, numeric, uuid[]);
 
 create or replace function pay_order_items(
   p_token uuid, p_order_id uuid, p_payment_method text,
   p_cash numeric, p_card numeric,
-  p_discount_amount numeric default 0, p_item_ids uuid[] default null
+  p_discount_amount numeric default 0,
+  p_item_qtys jsonb default null
 )
 returns json
 language plpgsql
@@ -759,17 +764,46 @@ declare
   v_tags text[];
   v_kind text;
   v_remaining int;
+  v_entry jsonb;
+  v_row order_items%rowtype;
+  v_req_qty int;
+  v_new_id uuid;
+  v_paid_item_ids uuid[] := '{}';
 begin
   s := _session_check(p_token, 'manager');
 
-  if p_item_ids is null then
-    select array_agg(id) into p_item_ids from order_items
+  if p_item_qtys is null then
+    select array_agg(id) into v_paid_item_ids from order_items
       where order_id = p_order_id and paid = false;
+  else
+    for v_entry in select * from jsonb_array_elements(p_item_qtys)
+    loop
+      select * into v_row from order_items
+        where id = (v_entry->>'item_id')::uuid and order_id = p_order_id and paid = false;
+      if v_row.id is null then continue; end if;
+
+      v_req_qty := least((v_entry->>'qty')::int, v_row.qty);
+      if v_req_qty <= 0 then continue; end if;
+
+      if v_req_qty >= v_row.qty then
+        v_paid_item_ids := v_paid_item_ids || v_row.id;
+      else
+        insert into order_items (order_id, product_id, name, price, cost, qty, status, note, added_at)
+        values (v_row.order_id, v_row.product_id, v_row.name, v_row.price, v_row.cost, v_req_qty, v_row.status, v_row.note, v_row.added_at)
+        returning id into v_new_id;
+        v_paid_item_ids := v_paid_item_ids || v_new_id;
+        update order_items set qty = qty - v_req_qty where id = v_row.id;
+      end if;
+    end loop;
+  end if;
+
+  if array_length(v_paid_item_ids,1) is null then
+    raise exception 'Ödeme alınacak ürün/adet seçilmedi';
   end if;
 
   select coalesce(sum(price*qty),0), coalesce(sum(cost*qty),0)
     into v_subtotal, v_cost
-    from order_items where order_id = p_order_id and id = any(p_item_ids);
+    from order_items where order_id = p_order_id and id = any(v_paid_item_ids);
 
   select rt.name, o.tags, o.kind into v_table_name, v_tags, v_kind
     from orders o left join restaurant_tables rt on rt.id = o.table_id
@@ -779,7 +813,7 @@ begin
   values (s.restaurant_id, p_order_id, coalesce(v_table_name,'Paket'), v_subtotal, p_discount_amount, v_subtotal-p_discount_amount, v_cost, p_payment_method, p_cash, p_card, coalesce(v_tags,'{}'), coalesce(v_kind,'dine_in'))
   returning id into v_hist_id;
 
-  update order_items set paid = true, paid_at = now() where order_id = p_order_id and id = any(p_item_ids);
+  update order_items set paid = true, paid_at = now() where id = any(v_paid_item_ids);
 
   select count(*) into v_remaining from order_items where order_id = p_order_id and paid = false;
   if v_remaining = 0 then

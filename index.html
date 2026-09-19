@@ -890,8 +890,14 @@ async function renderPaymentsView(main, session){
   if(!APP.config) APP.config = cfgRes.data;
   APP.liveOrders = liveRes.data || [];
   document.getElementById('payStatus').textContent = '';
+  renderPayGrid();
+}
+/* Grid'i (masa/paket kartları + tutarları) APP.liveOrders'tan yeniden çizer -
+   sunucuya yeniden sormadan, herhangi bir ödeme al(n)dığında hemen
+   çağrılabilir (örn. ödeme modalı açıkken arkadaki kartın tutarı da güncellensin diye). */
+function renderPayGrid(){
+  const grid = document.getElementById('payGrid'); if(!grid) return;
   const allTables = APP.config.zones.flatMap(z => z.tables);
-  const grid = document.getElementById('payGrid');
   const tableRows = allTables.map(t => {
     const order = liveOrderForTable(t.id);
     const unpaid = order ? order.items.filter(i=>!i.paid) : [];
@@ -910,20 +916,30 @@ async function renderPaymentsView(main, session){
   const occupiedRows = tableRows.concat(pkgRows);
   grid.innerHTML = occupiedRows.length ? occupiedRows.join('') : '<p class="muted">Açık hesap yok.</p>';
 }
-/* Ödenecek ürünler işaretlenebilir - sadece işaretli ürünlerin tutarı için
-   ödeme alınır, geri kalanlar hesapta açık kalır (kısmi/ürün bazlı ödeme). */
-let PAY_SELECTED_ITEM_IDS = [];
+/* Ödenecek ürünler adet bazında seçilebilir (örn. 4 Izgara Köfte'den sadece
+   1'i) - sadece seçilen adetlerin tutarı için ödeme alınır, geri kalanı
+   hesapta açık kalır (kısmi/ürün-adet bazlı ödeme). itemId -> seçili adet. */
+let PAY_SELECTED_QTYS = {};
 function openPayModal(orderId, tableName){
   const order = APP.liveOrders.find(o => o.order_id===orderId);
   if(!order) return;
   const unpaidItems = order.items.filter(i => !i.paid);
-  PAY_SELECTED_ITEM_IDS = unpaidItems.map(i => i.id);
+  PAY_SELECTED_QTYS = {};
+  unpaidItems.forEach(i => { PAY_SELECTED_QTYS[i.id] = i.qty; });
   const subtotal = unpaidItems.reduce((s,i)=>s+i.price*i.qty,0);
   const itemsHtml = unpaidItems.map(it => `
-    <label style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border);font-size:13px;cursor:pointer;gap:8px;">
-      <span style="display:flex;align-items:center;gap:8px;"><input type="checkbox" class="payitem-cb" data-item-id="${it.id}" checked style="width:auto;margin:0;" onchange="togglePayItem('${it.id}',this.checked)">${escapeHtml(it.name)} x${it.qty}</span>
-      <span>${money(it.price*it.qty)}</span>
-    </label>`).join('');
+    <div style="padding:8px 0;border-bottom:1px solid var(--border);font-size:13px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
+        <span>${escapeHtml(it.name)} <span class="muted" style="font-size:11px;">(${money(it.price)}/adet)</span></span>
+        <span class="pay-item-subtotal" data-item-id="${it.id}" style="font-weight:600;">${money(it.price*it.qty)}</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;margin-top:6px;">
+        <button type="button" class="qty-btn" onclick="stepPayItemQty('${it.id}',-1)">-</button>
+        <span class="pay-item-qty" data-item-id="${it.id}" style="min-width:20px;text-align:center;font-weight:700;">${it.qty}</span>
+        <button type="button" class="qty-btn" onclick="stepPayItemQty('${it.id}',1)">+</button>
+        <span class="muted" style="font-size:11px;">/ ${it.qty} adet</span>
+      </div>
+    </div>`).join('');
   const bg = document.createElement('div');
   bg.id = 'payModalBg';
   bg.dataset.orderId = orderId;
@@ -956,26 +972,42 @@ function openPayModal(orderId, tableName){
   </div>`;
   document.body.appendChild(bg);
 }
-function togglePayItem(itemId, checked){
-  const idx = PAY_SELECTED_ITEM_IDS.indexOf(itemId);
-  if(checked && idx===-1) PAY_SELECTED_ITEM_IDS.push(itemId);
-  else if(!checked && idx!==-1) PAY_SELECTED_ITEM_IDS.splice(idx,1);
+function stepPayItemQty(itemId, delta){
+  const bg = document.getElementById('payModalBg'); if(!bg) return;
+  const order = APP.liveOrders.find(o => o.order_id===bg.dataset.orderId);
+  const item = order && order.items.find(i => i.id===itemId);
+  if(!item) return;
+  const next = Math.max(0, Math.min(item.qty, (PAY_SELECTED_QTYS[itemId]||0) + delta));
+  PAY_SELECTED_QTYS[itemId] = next;
+  const qtyEl = document.querySelector('.pay-item-qty[data-item-id="'+itemId+'"]');
+  if(qtyEl) qtyEl.textContent = next;
+  const subEl = document.querySelector('.pay-item-subtotal[data-item-id="'+itemId+'"]');
+  if(subEl) subEl.textContent = money(item.price*next);
   recomputePaySelection();
 }
 function toggleAllPayItems(){
-  const boxes = document.querySelectorAll('.payitem-cb');
-  const allChecked = Array.from(boxes).every(b => b.checked);
-  boxes.forEach(b => { b.checked = !allChecked; });
-  const bg = document.getElementById('payModalBg');
+  const bg = document.getElementById('payModalBg'); if(!bg) return;
   const order = APP.liveOrders.find(o => o.order_id===bg.dataset.orderId);
-  PAY_SELECTED_ITEM_IDS = allChecked ? [] : order.items.filter(i=>!i.paid).map(i=>i.id);
+  const unpaid = order.items.filter(i => !i.paid);
+  const allSelected = unpaid.every(i => (PAY_SELECTED_QTYS[i.id]||0) === i.qty);
+  unpaid.forEach(i => {
+    PAY_SELECTED_QTYS[i.id] = allSelected ? 0 : i.qty;
+    const qtyEl = document.querySelector('.pay-item-qty[data-item-id="'+i.id+'"]');
+    if(qtyEl) qtyEl.textContent = PAY_SELECTED_QTYS[i.id];
+    const subEl = document.querySelector('.pay-item-subtotal[data-item-id="'+i.id+'"]');
+    if(subEl) subEl.textContent = money(i.price*PAY_SELECTED_QTYS[i.id]);
+  });
   recomputePaySelection();
+}
+function buildPayItemQtys(){
+  return Object.keys(PAY_SELECTED_QTYS)
+    .filter(id => PAY_SELECTED_QTYS[id]>0)
+    .map(id => ({ item_id: id, qty: PAY_SELECTED_QTYS[id] }));
 }
 function recomputePaySelection(){
   const bg = document.getElementById('payModalBg'); if(!bg) return;
   const order = APP.liveOrders.find(o => o.order_id===bg.dataset.orderId);
-  const selected = order.items.filter(i => PAY_SELECTED_ITEM_IDS.includes(i.id));
-  const subtotal = selected.reduce((s,i)=>s+i.price*i.qty,0);
+  const subtotal = order.items.reduce((s,i) => s + i.price*(PAY_SELECTED_QTYS[i.id]||0), 0);
   bg.dataset.subtotal = String(subtotal);
   document.getElementById('paySubtotalLine').textContent = 'Ara Toplam: '+money(subtotal);
   // İndirim varsa yeni seçime göre yeniden hesaplanır (yüzdeyse orana göre, tutarsa ara toplamı geçmeyecek şekilde).
@@ -1006,14 +1038,15 @@ function payFinalTotal(){
 async function finishPaymentFull(method){
   const bg = document.getElementById('payModalBg');
   const orderId = bg.dataset.orderId;
-  if(PAY_SELECTED_ITEM_IDS.length===0){ alert('Ödeme almak için en az bir ürün seçin'); return; }
+  const itemQtys = buildPayItemQtys();
+  if(itemQtys.length===0){ alert('Ödeme almak için en az bir ürün/adet seçin'); return; }
   const total = Math.round(payFinalTotal()*100)/100;
-  await finishPayment(orderId, method, total, method==='cash'?total:0, method==='card'?total:0, parseFloat(bg.dataset.discountAmount||0), PAY_SELECTED_ITEM_IDS.slice());
+  await finishPayment(orderId, method, total, method==='cash'?total:0, method==='card'?total:0, parseFloat(bg.dataset.discountAmount||0), itemQtys);
 }
 function openSplitPay(){
   const bg = document.getElementById('payModalBg');
   const orderId = bg.dataset.orderId;
-  if(PAY_SELECTED_ITEM_IDS.length===0){ alert('Ödeme almak için en az bir ürün seçin'); return; }
+  if(buildPayItemQtys().length===0){ alert('Ödeme almak için en az bir ürün/adet seçin'); return; }
   const total = Math.round(payFinalTotal()*100)/100;
   const discountAmount = parseFloat(bg.dataset.discountAmount||0);
   bg.remove();
@@ -1120,18 +1153,21 @@ async function confirmSplitPay(orderId, total, discountAmount){
   if(cash<0) cash=0; if(cash>total) cash=total;
   const card = Math.round((total-cash)*100)/100;
   document.getElementById('splitPayBg').remove();
-  await finishPayment(orderId, 'split', total, cash, card, discountAmount, PAY_SELECTED_ITEM_IDS.slice());
+  await finishPayment(orderId, 'split', total, cash, card, discountAmount, buildPayItemQtys());
 }
-async function finishPayment(orderId, method, total, cash, card, discountAmount, itemIds){
+async function finishPayment(orderId, method, total, cash, card, discountAmount, itemQtys){
   const session = getSession();
   const { data, error } = await sb.rpc('pay_order_items', {
     p_token: session.session_token, p_order_id: orderId, p_payment_method: method,
-    p_cash: cash, p_card: card, p_discount_amount: discountAmount||0, p_item_ids: itemIds||null
+    p_cash: cash, p_card: card, p_discount_amount: discountAmount||0, p_item_qtys: itemQtys||null
   });
   if(error){ alert('Ödeme kaydedilemedi: '+error.message); return; }
   const bg = document.getElementById('payModalBg'); if(bg) bg.remove();
   const { data: liveData } = await sb.rpc('get_live_orders', { p_token: session.session_token });
   APP.liveOrders = liveData || [];
+  // Ödeme al(n)dığı an, arkadaki masa/paket kartlarının tutarı da hemen
+  // güncellensin diye grid'i her durumda (kısmi/tam) yeniden çiziyoruz.
+  if(APP.view==='payments') renderPayGrid();
   if(data && data.order_closed===false){
     // Kısmi ödeme: hesaptaki geri kalan ürünler için ödeme ekranı hemen tekrar açılır.
     showToast('Ödeme alındı ✓ (kalan ürünler için hesap açık kaldı)');
@@ -1141,12 +1177,12 @@ async function finishPayment(orderId, method, total, cash, card, discountAmount,
         ? ('📦 '+(remainingOrder.customer_name || ('Paket #'+(remainingOrder.daily_number||''))))
         : tableNameForId(remainingOrder.table_id);
       openPayModal(orderId, label);
-    } else {
+    } else if(APP.view!=='payments') {
       renderPaymentsView(document.getElementById('main'), session);
     }
   } else {
     showToast('Ödeme alındı ✓');
-    renderPaymentsView(document.getElementById('main'), session);
+    if(APP.view!=='payments') renderPaymentsView(document.getElementById('main'), session);
   }
 }
 
