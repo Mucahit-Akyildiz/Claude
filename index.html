@@ -664,7 +664,7 @@ function startKitchenPolling(session){
   // abonelik kurulmadigi icin en basit ve guvenilir yontem bu).
   APP.kitchenPollInterval = setInterval(() => {
     if(APP.view==='kitchen' && APP.kitchenStation) refreshKitchenItems(session);
-  }, 8000);
+  }, 4000);
   APP.kitchenTimerInterval = setInterval(updateKitchenTimers, 1000);
 }
 function updateKitchenTimers(){
