@@ -26,17 +26,21 @@
     },
     "win": {
       "target": "nsis",
-      "publisherName": "YıldızPOS"
+      "publisherName": "YıldızPOS",
+      "icon": "build/icon.ico"
     },
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
       "shortcutName": "YıldızPOS",
-      "artifactName": "YildizPOS-Kurulum-${version}.${ext}"
+      "artifactName": "YildizPOS-Kurulum-${version}.${ext}",
+      "installerIcon": "build/icon.ico",
+      "uninstallerIcon": "build/icon.ico"
     },
     "mac": {
       "target": "dmg",
-      "category": "public.app-category.business"
+      "category": "public.app-category.business",
+      "icon": "build/icon.icns"
     },
     "dmg": {
       "artifactName": "YildizPOS-${version}.${ext}"

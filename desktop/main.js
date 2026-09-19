@@ -1,4 +1,5 @@
 const { app, BrowserWindow, ipcMain, Menu } = require('electron');
+const path = require('path');
 
 // Masaüstü uygulaması, ayrı bir kopya değil - canlı web uygulamasını (Vercel'de
 // yayınlanan) kendi penceresinde açıyor. Böylece index.html'de yapılan her
@@ -7,6 +8,11 @@ const { app, BrowserWindow, ipcMain, Menu } = require('electron');
 // üzerinden sunulan, işletim sisteminin kendi yazıcısına PENCERE AÇMADAN
 // (silent:true) doğrudan basabilen bir köprü (window.electronAPI).
 const APP_URL = process.env.RESTORAN_APP_URL || 'https://restoran-red-three.vercel.app';
+// Paketlenmiş (kurulmuş) uygulamada exe/dmg ikonu electron-builder'ın
+// build/icon.ico|icns dosyasından geliyor; bu burada ayrıca "npm start" ile
+// paketlenmemiş çalıştırıldığında pencere/taşıma çubuğu ikonunun de aynı
+// logo olması için.
+const ICON_PATH = path.join(__dirname, 'build', 'icon.png');
 
 let mainWindow = null;
 
@@ -17,6 +23,7 @@ function createWindow() {
     minWidth: 900,
     minHeight: 600,
     title: 'YıldızPOS',
+    icon: ICON_PATH,
     webPreferences: {
       preload: require('path').join(__dirname, 'preload.js'),
       contextIsolation: true,
