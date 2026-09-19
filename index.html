@@ -654,7 +654,8 @@ async function refreshKitchenItems(session){
   if(hasNew){
     playKitchenBell(APP.kitchenStation);
     Object.values(newItemsByTable).forEach(entry => {
-      printKitchenTicketGrouped(entry.tableName, entry.items, true, entry.dailyNumber);
+      printKitchenTicketGrouped(entry.tableName, entry.items, true, entry.dailyNumber)
+        .catch(e => { console.error('Fiş yazdırma hatası:', e); showToast('⚠️ Fiş yazdırılırken beklenmeyen bir hata oluştu'); });
     });
   }
   APP.kitchenSeenItemIds = currentIds;
@@ -677,7 +678,7 @@ function startKitchenPolling(session){
   // abonelik kurulmadigi icin en basit ve guvenilir yontem bu).
   APP.kitchenPollInterval = setInterval(() => {
     if(APP.view==='kitchen' && APP.kitchenStation) refreshKitchenItems(session);
-  }, 4000);
+  }, 2000);
   APP.kitchenTimerInterval = setInterval(updateKitchenTimers, 1000);
 }
 function updateKitchenTimers(){
