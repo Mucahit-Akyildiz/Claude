@@ -822,24 +822,26 @@ function primeKitchenAudio(){
   }catch(e){}
   try{ const a = new Audio(); a.volume = 0; a.play().catch(()=>{}); }catch(e){}
 }
-/* Tüm zil ön ayarları 3 katmanlı, ÖLÇÜLÜ bir zincirden geçer. Not: bir önceki
-   sürümde makeup gain + sert doygunluk (waveshaper) katmanı birlikte çok agresif
-   sürüyordu - birden fazla osilatör/nota üst üste bindiğinde bu, "cızırtı"
-   olarak duyulan gerçek dijital kırpılma/intermodülasyon bozulmasına yol
-   açıyordu. O katman tamamen kaldırıldı; burada sadece compressor + ölçülü
-   bir kazanım (makeup) + yumuşak bir son limiter var - temiz ama önceki
-   (ilk) sürümden belirgin şekilde daha yüksek. */
+/* Tüm zil ön ayarları 3 katmanlı, ÖLÇÜLÜ bir zincirden geçer.
+   ÖNEMLİ: cızırtının asıl kaynağı bu zincir değil, kaynaktaki (osilatör)
+   ses seviyesiydi - her nota 3 uyumlu kısmi (partial) üst üste bindiği için
+   toplam tepe genliği kazanç*1.62'ye ulaşıyordu; kazanç 1.3-1.4 iken bu,
+   dijital tavanın (1.0) iki katını buluyor ve compressor'ın tepki (attack)
+   süresi yetişemeden gerçek kırpılmaya yol açıyordu. Şimdi kaynak
+   seviyeleri (BELL_PRESETS içindeki kazanımlar) güvenli aralığa çekildi;
+   buradaki zincir sadece o temiz sinyali biraz daha yükseltip son bir
+   güvenlik limiteriyle korumaya devam ediyor. */
 let BELL_CHAIN = null, BELL_CHAIN_CTX = null;
 function getBellCompressor(ctx){
   if(BELL_CHAIN && BELL_CHAIN_CTX===ctx) return BELL_CHAIN;
   const comp = ctx.createDynamicsCompressor();
-  comp.threshold.value = -20; comp.knee.value = 8; comp.ratio.value = 8;
-  comp.attack.value = 0.005; comp.release.value = 0.2;
+  comp.threshold.value = -10; comp.knee.value = 6; comp.ratio.value = 4;
+  comp.attack.value = 0.008; comp.release.value = 0.2;
   const makeup = ctx.createGain();
-  makeup.gain.value = 3.0;
+  makeup.gain.value = 1.6;
   const limiter = ctx.createDynamicsCompressor();
-  limiter.threshold.value = -2; limiter.knee.value = 4; limiter.ratio.value = 10;
-  limiter.attack.value = 0.004; limiter.release.value = 0.2;
+  limiter.threshold.value = -1; limiter.knee.value = 3; limiter.ratio.value = 12;
+  limiter.attack.value = 0.003; limiter.release.value = 0.15;
   comp.connect(makeup); makeup.connect(limiter); limiter.connect(ctx.destination);
   BELL_CHAIN = comp; BELL_CHAIN_CTX = ctx;
   return comp;
@@ -867,36 +869,36 @@ function scheduleBellTone(ctx, freq, t0, dur, peakGain){
 }
 const BELL_PRESETS = {
   classic: { name: 'Klasik Çan', icon: '🔔', play: (ctx) => {
-    [880, 1320].forEach((f,i) => scheduleBellTone(ctx, f, ctx.currentTime+i*0.18, 0.45, 1.3));
+    [880, 1320].forEach((f,i) => scheduleBellTone(ctx, f, ctx.currentTime+i*0.18, 0.45, 0.6));
   }},
   ding_dong: { name: 'Ding Dong', icon: '🛎️', play: (ctx) => {
-    scheduleBellTone(ctx, 1046, ctx.currentTime, 0.6, 1.3);
-    scheduleBellTone(ctx, 784, ctx.currentTime+0.4, 0.7, 1.3);
+    scheduleBellTone(ctx, 1046, ctx.currentTime, 0.6, 0.6);
+    scheduleBellTone(ctx, 784, ctx.currentTime+0.4, 0.7, 0.6);
   }},
   triple_ding: { name: 'Üçlü Ding (Dikkat Çekici)', icon: '✨', play: (ctx) => {
-    [0,0.15,0.3].forEach(d => scheduleBellTone(ctx, 1568, ctx.currentTime+d, 0.22, 1.3));
+    [0,0.15,0.3].forEach(d => scheduleBellTone(ctx, 1568, ctx.currentTime+d, 0.22, 0.6));
   }},
   chord: { name: 'Yumuşak Akor', icon: '🎹', play: (ctx) => {
-    [523.25, 659.25, 784].forEach((f,i) => scheduleBellTone(ctx, f, ctx.currentTime+i*0.05, 0.7, 1.15));
+    [523.25, 659.25, 784].forEach((f,i) => scheduleBellTone(ctx, f, ctx.currentTime+i*0.05, 0.7, 0.55));
   }},
   bell_run: { name: 'Çınlama', icon: '🎐', play: (ctx) => {
-    [660, 880, 1100, 1320].forEach((f,i) => scheduleBellTone(ctx, f, ctx.currentTime+i*0.09, 0.35, 1.3));
+    [660, 880, 1100, 1320].forEach((f,i) => scheduleBellTone(ctx, f, ctx.currentTime+i*0.09, 0.35, 0.6));
   }},
   alert: { name: 'Dikkat Zili (Acil)', icon: '🚨', play: (ctx) => {
-    [0,0.22,0.44,0.66].forEach((d,i) => scheduleBellTone(ctx, i%2===0?1318:988, ctx.currentTime+d, 0.24, 1.4));
+    [0,0.22,0.44,0.66].forEach((d,i) => scheduleBellTone(ctx, i%2===0?1318:988, ctx.currentTime+d, 0.24, 0.62));
   }},
   gong: { name: 'Güçlü Gong', icon: '🥁', play: (ctx) => {
-    scheduleBellTone(ctx, 130.8, ctx.currentTime, 1.3, 1.3);
-    scheduleBellTone(ctx, 196, ctx.currentTime, 1.1, 0.9);
+    scheduleBellTone(ctx, 130.8, ctx.currentTime, 1.3, 0.6);
+    scheduleBellTone(ctx, 196, ctx.currentTime, 1.1, 0.45);
   }},
   xylophone: { name: 'Ksilofon', icon: '🎼', play: (ctx) => {
-    [988, 1319, 1568, 2093].forEach((f,i) => scheduleBellTone(ctx, f, ctx.currentTime+i*0.09, 0.25, 1.3));
+    [988, 1319, 1568, 2093].forEach((f,i) => scheduleBellTone(ctx, f, ctx.currentTime+i*0.09, 0.25, 0.6));
   }},
   fanfare: { name: 'Trompet Çağrısı', icon: '📯', play: (ctx) => {
-    [523, 523, 784].forEach((f,i) => scheduleBellTone(ctx, f, ctx.currentTime+i*0.14, i===2?0.55:0.14, 1.3));
+    [523, 523, 784].forEach((f,i) => scheduleBellTone(ctx, f, ctx.currentTime+i*0.14, i===2?0.55:0.14, 0.6));
   }},
   double_knock: { name: 'Çift Vuruş', icon: '👊', play: (ctx) => {
-    [0,0.25].forEach(d => scheduleBellTone(ctx, 174.6, ctx.currentTime+d, 0.22, 1.3));
+    [0,0.25].forEach(d => scheduleBellTone(ctx, 174.6, ctx.currentTime+d, 0.22, 0.6));
   }},
 };
 function playBellPresetById(id){
