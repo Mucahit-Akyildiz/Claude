@@ -811,6 +811,21 @@ function primeKitchenAudio(){
   }catch(e){}
   try{ const a = new Audio(); a.volume = 0; a.play().catch(()=>{}); }catch(e){}
 }
+/* Tüm zil ön ayarları ortak bir DynamicsCompressor üzerinden çalınır - bu
+   sayede tek tek osilatör kazançlarını (gain) 1.0'a (dijital tavan) kadar
+   çıkarabiliyoruz, compressor tepeleri yumuşatıp sert kırpılma/çatlama
+   olmadan algılanan sesi belirgin şekilde yükseltiyor ("zil sesi çok
+   düşük" şikayeti için). */
+let BELL_COMPRESSOR = null, BELL_COMPRESSOR_CTX = null;
+function getBellCompressor(ctx){
+  if(BELL_COMPRESSOR && BELL_COMPRESSOR_CTX===ctx) return BELL_COMPRESSOR;
+  const comp = ctx.createDynamicsCompressor();
+  comp.threshold.value = -20; comp.knee.value = 10; comp.ratio.value = 14;
+  comp.attack.value = 0.002; comp.release.value = 0.18;
+  comp.connect(ctx.destination);
+  BELL_COMPRESSOR = comp; BELL_COMPRESSOR_CTX = ctx;
+  return comp;
+}
 function scheduleBellTone(ctx, freq, t0, dur, peakGain, waveType){
   const osc = ctx.createOscillator();
   const gain = ctx.createGain();
@@ -819,25 +834,56 @@ function scheduleBellTone(ctx, freq, t0, dur, peakGain, waveType){
   gain.gain.setValueAtTime(0.0001, t0);
   gain.gain.exponentialRampToValueAtTime(peakGain, t0+0.02);
   gain.gain.exponentialRampToValueAtTime(0.0001, t0+dur);
-  osc.connect(gain); gain.connect(ctx.destination);
+  osc.connect(gain); gain.connect(getBellCompressor(ctx));
+  osc.start(t0); osc.stop(t0+dur+0.05);
+}
+/* Alarm sireni gibi kayan (frekansı zamanla değişen) tonlar için. */
+function scheduleBellSweep(ctx, freqFrom, freqTo, t0, dur, peakGain, waveType){
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.type = waveType || 'sawtooth';
+  osc.frequency.setValueAtTime(freqFrom, t0);
+  osc.frequency.linearRampToValueAtTime(freqTo, t0+dur);
+  gain.gain.setValueAtTime(0.0001, t0);
+  gain.gain.exponentialRampToValueAtTime(peakGain, t0+0.03);
+  gain.gain.exponentialRampToValueAtTime(0.0001, t0+dur);
+  osc.connect(gain); gain.connect(getBellCompressor(ctx));
   osc.start(t0); osc.stop(t0+dur+0.05);
 }
 const BELL_PRESETS = {
   classic: { name: 'Klasik Çan', play: (ctx) => {
-    [880, 1320].forEach((f,i) => scheduleBellTone(ctx, f, ctx.currentTime+i*0.18, 0.4, 0.8));
+    [880, 1320].forEach((f,i) => scheduleBellTone(ctx, f, ctx.currentTime+i*0.18, 0.4, 1.0));
   }},
   ding_dong: { name: 'Ding Dong', play: (ctx) => {
-    scheduleBellTone(ctx, 1046, ctx.currentTime, 0.55, 0.85);
-    scheduleBellTone(ctx, 784, ctx.currentTime+0.4, 0.65, 0.85);
+    scheduleBellTone(ctx, 1046, ctx.currentTime, 0.55, 1.0);
+    scheduleBellTone(ctx, 784, ctx.currentTime+0.4, 0.65, 1.0);
   }},
   triple_beep: { name: 'Üçlü Bip (Acil)', play: (ctx) => {
-    [0,0.16,0.32].forEach(d => scheduleBellTone(ctx, 1500, ctx.currentTime+d, 0.13, 0.85, 'square'));
+    [0,0.16,0.32].forEach(d => scheduleBellTone(ctx, 1500, ctx.currentTime+d, 0.13, 1.0, 'square'));
   }},
   chord: { name: 'Yumuşak Akor', play: (ctx) => {
-    [523.25, 659.25, 784].forEach((f,i) => scheduleBellTone(ctx, f, ctx.currentTime+i*0.05, 0.65, 0.6));
+    [523.25, 659.25, 784].forEach((f,i) => scheduleBellTone(ctx, f, ctx.currentTime+i*0.05, 0.65, 0.95));
   }},
   bell_run: { name: 'Çınlama', play: (ctx) => {
-    [660, 880, 1100, 1320].forEach((f,i) => scheduleBellTone(ctx, f, ctx.currentTime+i*0.09, 0.32, 0.75));
+    [660, 880, 1100, 1320].forEach((f,i) => scheduleBellTone(ctx, f, ctx.currentTime+i*0.09, 0.32, 1.0));
+  }},
+  siren: { name: 'Alarm Sireni (En Yüksek)', play: (ctx) => {
+    scheduleBellSweep(ctx, 600, 1300, ctx.currentTime, 0.3, 1.0, 'sawtooth');
+    scheduleBellSweep(ctx, 1300, 600, ctx.currentTime+0.3, 0.3, 1.0, 'sawtooth');
+    scheduleBellSweep(ctx, 600, 1300, ctx.currentTime+0.6, 0.3, 1.0, 'sawtooth');
+  }},
+  gong: { name: 'Güçlü Gong', play: (ctx) => {
+    scheduleBellTone(ctx, 196, ctx.currentTime, 1.2, 1.0, 'triangle');
+    scheduleBellTone(ctx, 294, ctx.currentTime, 1.1, 0.85, 'triangle');
+  }},
+  xylophone: { name: 'Ksilofon', play: (ctx) => {
+    [988, 1319, 1568, 2093].forEach((f,i) => scheduleBellTone(ctx, f, ctx.currentTime+i*0.09, 0.22, 1.0, 'triangle'));
+  }},
+  fanfare: { name: 'Trompet Çağrısı', play: (ctx) => {
+    [523, 523, 784].forEach((f,i) => scheduleBellTone(ctx, f, ctx.currentTime+i*0.14, i===2?0.5:0.12, 1.0, 'sawtooth'));
+  }},
+  double_knock: { name: 'Çift Vuruş', play: (ctx) => {
+    [0,0.25].forEach(d => scheduleBellTone(ctx, 220, ctx.currentTime+d, 0.18, 1.0, 'square'));
   }},
 };
 function playBellPresetById(id){
