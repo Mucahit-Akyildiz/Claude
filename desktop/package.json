@@ -1,9 +1,9 @@
 {
-  "name": "restoran-yonetim-sistemi-desktop",
+  "name": "yildizpos-desktop",
   "version": "1.0.0",
-  "description": "Restoran Yönetim Sistemi - Masaüstü Uygulaması (Windows / macOS)",
+  "description": "YıldızPOS - Restoran Yönetim Sistemi Masaüstü Uygulaması",
   "main": "main.js",
-  "author": "Restoran Yönetim Sistemi",
+  "author": "YıldızPOS",
   "license": "UNLICENSED",
   "scripts": {
     "start": "electron .",
@@ -14,8 +14,9 @@
     "electron-builder": "^25.1.8"
   },
   "build": {
-    "appId": "com.restoranyonetim.desktop",
-    "productName": "Restoran Yonetim Sistemi",
+    "appId": "com.yildizpos.desktop",
+    "productName": "YildizPOS",
+    "copyright": "Copyright © 2026 YıldızPOS",
     "files": [
       "main.js",
       "preload.js"
@@ -24,15 +25,21 @@
       "output": "dist"
     },
     "win": {
-      "target": "nsis"
+      "target": "nsis",
+      "publisherName": "YıldızPOS"
     },
     "nsis": {
       "oneClick": false,
-      "allowToChangeInstallationDirectory": true
+      "allowToChangeInstallationDirectory": true,
+      "shortcutName": "YıldızPOS",
+      "artifactName": "YildizPOS-Kurulum-${version}.${ext}"
     },
     "mac": {
       "target": "dmg",
       "category": "public.app-category.business"
+    },
+    "dmg": {
+      "artifactName": "YildizPOS-${version}.${ext}"
     }
   }
 }

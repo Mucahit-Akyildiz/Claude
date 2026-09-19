@@ -16,7 +16,7 @@ function createWindow() {
     height: 880,
     minWidth: 900,
     minHeight: 600,
-    title: 'Restoran Yönetim Sistemi',
+    title: 'YıldızPOS',
     webPreferences: {
       preload: require('path').join(__dirname, 'preload.js'),
       contextIsolation: true,
