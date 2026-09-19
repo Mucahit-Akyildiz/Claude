@@ -24,7 +24,7 @@ jobs:
       - run: npx electron-builder --win --publish never
       - uses: actions/upload-artifact@v4
         with:
-          name: restoran-windows
+          name: elvora-windows
           path: desktop/dist/*.exe
 
   build-mac:
@@ -41,5 +41,5 @@ jobs:
       - run: npx electron-builder --mac --publish never
       - uses: actions/upload-artifact@v4
         with:
-          name: restoran-mac
+          name: elvora-mac
           path: desktop/dist/*.dmg

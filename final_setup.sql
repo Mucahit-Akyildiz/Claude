@@ -139,7 +139,7 @@ begin
 end $$;
 
 -- ============================================================
--- RESTORAN YÖNETİM SİSTEMİ - SON KURULUM (güvenlik + ayarlar)
+-- ELVORA - SON KURULUM (güvenlik + ayarlar)
 -- Bu betik tamamen tekrar-çalıştırılabilir şekilde yazıldı.
 -- Baştan sona, sırayla tek seferde çalıştırın.
 -- ============================================================

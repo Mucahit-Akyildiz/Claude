@@ -1,9 +1,9 @@
 {
-  "name": "yildizpos-desktop",
+  "name": "elvora-desktop",
   "version": "1.0.0",
-  "description": "YıldızPOS - Restoran Yönetim Sistemi Masaüstü Uygulaması",
+  "description": "Elvora - Restoran Yönetim Sistemi Masaüstü Uygulaması",
   "main": "main.js",
-  "author": "YıldızPOS",
+  "author": "Elvora",
   "license": "UNLICENSED",
   "scripts": {
     "start": "electron .",
@@ -14,9 +14,9 @@
     "electron-builder": "^25.1.8"
   },
   "build": {
-    "appId": "com.yildizpos.desktop",
-    "productName": "YildizPOS",
-    "copyright": "Copyright © 2026 YıldızPOS",
+    "appId": "com.elvora.desktop",
+    "productName": "Elvora",
+    "copyright": "Copyright © 2026 Elvora",
     "files": [
       "main.js",
       "preload.js"
@@ -26,14 +26,14 @@
     },
     "win": {
       "target": "nsis",
-      "publisherName": "YıldızPOS",
+      "publisherName": "Elvora",
       "icon": "build/icon.ico"
     },
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
-      "shortcutName": "YıldızPOS",
-      "artifactName": "YildizPOS-Kurulum-${version}.${ext}",
+      "shortcutName": "Elvora",
+      "artifactName": "Elvora-Kurulum-${version}.${ext}",
       "installerIcon": "build/icon.ico",
       "uninstallerIcon": "build/icon.ico"
     },
@@ -43,7 +43,7 @@
       "icon": "build/icon.icns"
     },
     "dmg": {
-      "artifactName": "YildizPOS-${version}.${ext}"
+      "artifactName": "Elvora-${version}.${ext}"
     }
   }
 }

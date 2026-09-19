@@ -22,7 +22,7 @@ function createWindow() {
     height: 880,
     minWidth: 900,
     minHeight: 600,
-    title: 'YıldızPOS',
+    title: 'Elvora',
     icon: ICON_PATH,
     webPreferences: {
       preload: require('path').join(__dirname, 'preload.js'),
