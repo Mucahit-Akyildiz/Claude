@@ -303,6 +303,7 @@ function goToView(view){
   if(view==='reports') APP.reportDate = todayLocalDateStr();
   // Mutfak ekranindan cikinca arka plandaki yenileme/sayac calismaya devam etmesin.
   if(view!=='kitchen') stopKitchenPolling();
+  if(view!=='order') stopOrderPolling();
   render();
 }
 
@@ -984,6 +985,27 @@ async function renderOrderView(main, session){
   APP.selectedZone = APP.selectedZone || APP.config.zones[0].id;
   renderZoneTabs();
   renderTableGrid();
+  startOrderPolling(session);
+}
+function stopOrderPolling(){
+  if(APP.orderPollInterval){ clearInterval(APP.orderPollInterval); APP.orderPollInterval=null; }
+}
+function startOrderPolling(session){
+  stopOrderPolling();
+  // Mutfaktan "Hazır" işaretlenince Sipariş Al ekranındaki masa kartları (X ürün
+  // hazırlanıyor/hazır) başka bir cihazdan geldiği için otomatik yenilenmez -
+  // bu yüzden burada da kitchen ekranındaki gibi periyodik arka plan yenileme var.
+  APP.orderPollInterval = setInterval(() => {
+    if(APP.view==='order') refreshOrderLiveStatus(session);
+  }, 5000);
+}
+async function refreshOrderLiveStatus(session){
+  const { data, error } = await sb.rpc('get_live_orders', { p_token: session.session_token });
+  if(error) return;
+  APP.liveOrders = data || [];
+  renderTableGrid();
+  const bg = document.getElementById('tableModalBg');
+  if(bg && bg.dataset.tableId) renderTableItems(bg.dataset.tableId);
 }
 function renderZoneTabs(){
   const el = document.getElementById('zoneTabs'); if(!el) return;
