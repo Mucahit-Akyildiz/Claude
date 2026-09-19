@@ -596,6 +596,7 @@ async function renderKitchenView(main, session){
     <button class="ghost-btn" onclick="APP.kitchenStation=null;render();">İstasyon Değiştir</button></div>
     <div id="kitchenWrap"></div>`;
   APP.kitchenSeenItemIds = null; // yeni istasyona gecince onceki urunler icin zil calmasin
+  APP.kitchenLateWarned = new Set();
   await refreshKitchenItems(session);
   startKitchenPolling(session);
 }
@@ -624,7 +625,7 @@ async function refreshKitchenItems(session){
       ${pending.map(it => `<div class="kitchen-item-row" style="padding:10px 0;border-top:1px dashed var(--border);">
         <div style="display:grid;grid-template-columns:1fr 64px auto;align-items:center;gap:10px;">
           <span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${it.qty}x ${escapeHtml(it.name)}</span>
-          <span class="kitchen-timer" data-added="${it.added_at||''}" style="text-align:center;">-</span>
+          <span class="kitchen-timer" data-added="${it.added_at||''}" data-id="${it.id}" data-name="${escapeHtml(tableName+' - '+it.qty+'x '+it.name)}" style="text-align:center;">-</span>
           <button style="width:auto;padding:8px 14px;font-size:14px;background:var(--green);color:var(--btn-ink);" onclick="markReady('${it.id}')">Hazır</button>
         </div>
         ${it.note?'<div class="muted" style="font-size:12px;font-style:italic;margin-top:4px;">Not: '+escapeHtml(it.note)+'</div>':''}
@@ -638,7 +639,7 @@ async function refreshKitchenItems(session){
   if(APP.kitchenSeenItemIds){
     let hasNew = false;
     currentIds.forEach(id => { if(!APP.kitchenSeenItemIds.has(id)) hasNew = true; });
-    if(hasNew) playKitchenBell();
+    if(hasNew) playKitchenBell(APP.kitchenStation);
   }
   APP.kitchenSeenItemIds = currentIds;
   updateKitchenTimers();
@@ -647,7 +648,7 @@ function tableNameForId(tableId){
   for(const z of APP.config.zones){ const t = z.tables.find(t=>t.id===tableId); if(t) return t.name; }
   return 'Masa';
 }
-async function pickKitchenStation(id){ APP.kitchenStation=id; render(); }
+async function pickKitchenStation(id){ primeKitchenAudio(); APP.kitchenStation=id; render(); }
 
 /* ---- Mutfak: canli sayac + yeni siparis zili ---- */
 function stopKitchenPolling(){
@@ -664,6 +665,7 @@ function startKitchenPolling(session){
   APP.kitchenTimerInterval = setInterval(updateKitchenTimers, 1000);
 }
 function updateKitchenTimers(){
+  if(!APP.kitchenLateWarned) APP.kitchenLateWarned = new Set();
   document.querySelectorAll('.kitchen-timer[data-added]').forEach(el => {
     const added = el.dataset.added;
     if(!added){ el.textContent='-'; return; }
@@ -673,10 +675,33 @@ function updateKitchenTimers(){
     // 0-10 dk yesil (varsayilan), 10-15 dk sari, 15 dk+ kirmizi.
     el.classList.toggle('kt-warn', secs>=600 && secs<900);
     el.classList.toggle('kt-danger', secs>=900);
+    // 15 dakikayi gectiginde, urun basina bir kez uyari mesaji goster.
+    const itemId = el.dataset.id;
+    if(secs>=900 && itemId && !APP.kitchenLateWarned.has(itemId)){
+      APP.kitchenLateWarned.add(itemId);
+      showToast('⏰ ' + (el.dataset.name||'Bir sipariş') + ' 15 dakikayı geçti!');
+    }
   });
 }
 let KITCHEN_AUDIO_CTX = null;
-function playKitchenBell(){
+/* Tarayicilar bir kullanici tiklamasi olmadan ses calmayi engeller; istasyon secimi
+   gibi gercek bir tiklama aninda AudioContext'i "kilidini acmak" icin onceden calistirilir. */
+function primeKitchenAudio(){
+  try{
+    KITCHEN_AUDIO_CTX = KITCHEN_AUDIO_CTX || new (window.AudioContext || window.webkitAudioContext)();
+    if(KITCHEN_AUDIO_CTX.state==='suspended') KITCHEN_AUDIO_CTX.resume();
+  }catch(e){}
+  try{ const a = new Audio(); a.volume = 0; a.play().catch(()=>{}); }catch(e){}
+}
+function playKitchenBell(stationId){
+  const customUrl = resolveBellSoundUrl(stationId);
+  if(customUrl){
+    try{
+      const audio = new Audio(customUrl);
+      audio.play().catch(e => console.warn('Zil sesi çalınamadı:', e));
+      return;
+    }catch(e){ console.warn('Zil sesi çalınamadı:', e); }
+  }
   try{
     KITCHEN_AUDIO_CTX = KITCHEN_AUDIO_CTX || new (window.AudioContext || window.webkitAudioContext)();
     const ctx = KITCHEN_AUDIO_CTX;
@@ -1012,13 +1037,17 @@ async function releaseDraftStock(tableId){
   const draft = APP.draftCart[tableId];
   if(!draft || draft.length===0) return;
   const session = getSession();
-  for(const item of draft){
-    try{ await sb.rpc('adjust_stock', { p_token: session.session_token, p_product_id: item.product_id, p_delta: item.qty }); }
-    catch(e){ console.error(e); }
-  }
+  const items = draft.slice();
+  // Sepet ve stok göstergeleri anında (iyimser) güncellenir; sunucuya stok geri
+  // ekleme istekleri paralel ve arka planda gider, işlemi bekletmez.
   APP.draftCart[tableId] = [];
-  const { data } = await sb.rpc('get_restaurant_config', { p_token: session.session_token });
-  if(data) APP.config = data;
+  items.forEach(item => applyLocalStockDelta(item.product_id, -item.qty));
+  Promise.all(items.map(item =>
+    sb.rpc('adjust_stock', { p_token: session.session_token, p_product_id: item.product_id, p_delta: item.qty })
+  )).then(results => {
+    if(results.some(r => r.error)) console.error('Bazı stoklar geri eklenemedi, sunucu ile senkronize ediliyor.');
+    scheduleConfigResync(tableId);
+  }).catch(e => console.error(e));
 }
 function pickStationTab(stId){
   document.querySelectorAll('#prodStationTabs .tab').forEach(t => t.classList.toggle('active', t.dataset.st===stId));
@@ -1225,6 +1254,20 @@ function getPrinters(){
 function setPrinters(list){ try{ localStorage.setItem('rys_printers', JSON.stringify(list)); }catch(e){} }
 function getActivePrinterId(){ try{ return localStorage.getItem('rys_active_printer_id') || ''; }catch(e){ return ''; } }
 function setActivePrinterId(id){ try{ localStorage.setItem('rys_active_printer_id', id||''); }catch(e){} }
+function getKitchenBellSounds(){
+  try{ return JSON.parse(localStorage.getItem('rys_bell_sounds')) || { default:null, perStation:{} }; }
+  catch(e){ return { default:null, perStation:{} }; }
+}
+function setKitchenBellSounds(obj){
+  try{ localStorage.setItem('rys_bell_sounds', JSON.stringify(obj)); }
+  catch(e){ alert('Ses kaydedilemedi (depolama alanı yetersiz olabilir): '+e.message); }
+}
+function resolveBellSoundUrl(stationId){
+  const sounds = getKitchenBellSounds();
+  if(stationId && sounds.perStation && sounds.perStation[stationId]) return sounds.perStation[stationId];
+  if(sounds.default) return sounds.default;
+  return null;
+}
 
 function renderPrinterSettingsView(main, session){
   const design = getTicketDesign();
@@ -1309,16 +1352,78 @@ function renderPrinterSettingsView(main, session){
         pencere açmadan sessizce basar.
       </p>
     </div>
+
+    <div class="box" style="max-width:none;">
+      <h2>🔔 Bildirim Sesi (Yeni Sipariş Zili)</h2>
+      <p class="muted" style="text-align:left;">Mutfağa yeni bir sipariş düştüğünde bu ekranda çalacak sesi özelleştirebilirsiniz. Bir istasyon seçip kendi ses dosyanızı yükleyerek o istasyona özel bir zil sesi de tanımlayabilirsiniz (örn. Izgara için ayrı, Çayhane için ayrı).</p>
+      <div class="field-group" style="max-width:320px;"><label>Kapsam</label>
+        <select id="bellScopeSelect" onchange="updateBellScopeStatus()">
+          <option value="">Varsayılan (istasyona özel ses yoksa kullanılır)</option>
+          ${APP.config.stations.map(s => `<option value="${s.id}">${escapeHtml(s.icon||'🍳')} ${escapeHtml(s.name)}</option>`).join('')}
+        </select>
+      </div>
+      <p id="bellScopeStatus" class="muted" style="margin:10px 0;font-size:13px;"></p>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;">
+        <label class="sbtn" style="width:auto;cursor:pointer;display:inline-flex;align-items:center;">
+          🎵 Ses Dosyası Yükle
+          <input id="bellFileInput" type="file" accept="audio/*" style="display:none;" onchange="uploadBellSound()">
+        </label>
+        <button class="sbtn" style="width:auto;" onclick="testBellSound()">▶️ Test Et</button>
+        <button class="sbtn" style="width:auto;background:var(--red);color:var(--btn-ink);" onclick="resetBellSound()">Sıfırla (Varsayılan Zil)</button>
+      </div>
+      <p class="muted" style="text-align:left;margin-top:14px;font-size:12px;">
+        Not: Dosya boyutu en fazla 800KB olmalı (kısa bir bildirim sesi yeterlidir). Tarayıcılar otomatik ses çalmayı
+        kısıtladığı için, bu ekranda bir istasyon seçtiğinizde (mutfak ekranında) ses izni otomatik olarak alınır —
+        sekmeyi hiç tıklamadan açık bıraktıysanız ilk sipariş zili çalmayabilir.
+      </p>
+    </div>
   `;
   updateTicketPreview();
+  updateBellScopeStatus();
 }
+function currentBellScope(){ const el = document.getElementById('bellScopeSelect'); return el ? el.value : ''; }
+function updateBellScopeStatus(){
+  const statusEl = document.getElementById('bellScopeStatus'); if(!statusEl) return;
+  const scope = currentBellScope();
+  const sounds = getKitchenBellSounds();
+  const has = scope ? !!sounds.perStation[scope] : !!sounds.default;
+  statusEl.textContent = has ? '✓ Bu kapsam için özel ses yüklü.' : 'Bu kapsam için özel ses yok, varsayılan zil sesi çalınacak.';
+}
+function uploadBellSound(){
+  const input = document.getElementById('bellFileInput');
+  const file = input.files[0];
+  if(!file) return;
+  if(file.size > 800*1024){ alert('Ses dosyası çok büyük (maks. 800KB). Daha kısa/küçük bir dosya seçin.'); input.value=''; return; }
+  const reader = new FileReader();
+  reader.onload = () => {
+    const sounds = getKitchenBellSounds();
+    const scope = currentBellScope();
+    if(!sounds.perStation) sounds.perStation = {};
+    if(scope) sounds.perStation[scope] = reader.result;
+    else sounds.default = reader.result;
+    setKitchenBellSounds(sounds);
+    updateBellScopeStatus();
+    input.value = '';
+    showToast('Kaydedildi ✓');
+  };
+  reader.readAsDataURL(file);
+}
+function resetBellSound(){
+  const scope = currentBellScope();
+  const sounds = getKitchenBellSounds();
+  if(scope){ if(sounds.perStation) delete sounds.perStation[scope]; }
+  else sounds.default = null;
+  setKitchenBellSounds(sounds);
+  updateBellScopeStatus();
+}
+function testBellSound(){ playKitchenBell(currentBellScope() || null); }
 function saveTicketDesign(){
   setTicketDesign({
     width: document.getElementById('td_width').value,
     header: document.getElementById('td_header').value.trim(),
     footer: document.getElementById('td_footer').value.trim(),
   });
-  alert('Tasarım kaydedildi.');
+  showToast('Kaydedildi ✓');
 }
 async function addPrinterEntry(){
   const name = document.getElementById('np_pname').value.trim();
@@ -1528,6 +1633,20 @@ async function clearDraftCart(tableId){
   if(activeTab) renderProductPick(activeTab.dataset.st, tableId);
 }
 function money(n){ return (Math.round((n||0)*100)/100).toLocaleString('tr-TR',{minimumFractionDigits:2,maximumFractionDigits:2})+' TL'; }
+function showToast(msg){
+  let el = document.getElementById('toastMsg');
+  if(!el){
+    el = document.createElement('div');
+    el.id = 'toastMsg';
+    el.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--green);color:var(--btn-ink);padding:12px 22px;border-radius:10px;font-weight:700;font-size:14px;z-index:300;box-shadow:0 4px 16px rgba(0,0,0,.35);opacity:0;transition:opacity .2s ease;pointer-events:none;max-width:90vw;text-align:center;';
+    document.body.appendChild(el);
+  }
+  el.textContent = msg;
+  clearTimeout(el._hideTimer);
+  el.style.opacity = '0';
+  requestAnimationFrame(() => { requestAnimationFrame(() => { el.style.opacity = '1'; }); });
+  el._hideTimer = setTimeout(() => { el.style.opacity = '0'; }, 1800);
+}
 
 async function doLogin(){
   const code = document.getElementById('codeInput').value.trim();
@@ -1661,6 +1780,7 @@ async function saveIngredient(id){
   const { error } = await sb.rpc('upsert_ingredient', { p_token: session.session_token, p_id: id, p_name: name, p_unit: unit, p_stock: stock });
   if(error){ alert(error.message); return; }
   renderSettingsView(document.getElementById('main'), session);
+  showToast('Kaydedildi ✓');
 }
 async function addIngredient(){
   const session = getSession();
@@ -1723,6 +1843,7 @@ async function saveIngredientUsage(ingredientId){
   const { error } = await sb.rpc('set_ingredient_usage', { p_token: session.session_token, p_ingredient_id: ingredientId, p_usages: usages });
   if(error){ alert(error.message); return; }
   document.getElementById('ingUsageModalBg').remove();
+  showToast('Kaydedildi ✓');
   renderSettingsView(document.getElementById('main'), session);
 }
 
@@ -1854,6 +1975,7 @@ async function saveStation(id){
   const { error } = await sb.rpc('upsert_station', { p_token: session.session_token, p_id: id, p_name: name, p_color: color, p_icon: icon });
   if(error){ alert(error.message); return; }
   renderSettingsView(document.getElementById('main'), session);
+  showToast('Kaydedildi ✓');
 }
 async function addStation(){
   const session = getSession();
@@ -1914,6 +2036,7 @@ async function saveZone(id){
   const { error } = await sb.rpc('upsert_zone', { p_token: session.session_token, p_id: id, p_name: name });
   if(error){ alert(error.message); return; }
   renderSettingsView(document.getElementById('main'), session);
+  showToast('Kaydedildi ✓');
 }
 async function addZone(){
   const session = getSession();
@@ -2062,6 +2185,7 @@ async function saveProduct(id){
   const { error } = await sb.rpc('upsert_product', { p_token: session.session_token, p_id: id, p_station_id: stationId, p_name: name, p_price: price, p_cost: cost, p_stock: stock, p_available: prod.available!==false });
   if(error){ alert(error.message); return; }
   renderSettingsView(document.getElementById('main'), session);
+  showToast('Kaydedildi ✓');
 }
 async function toggleProductAvailable(id){
   const session = getSession();
@@ -2192,6 +2316,7 @@ async function saveUser(id){
   const { error } = await sb.rpc('update_staff_user', { p_token: session.session_token, p_user_id: id, p_username: username, p_password: password||null, p_role: role });
   if(error){ alert(error.message); return; }
   renderSettingsView(document.getElementById('main'), session);
+  showToast('Kaydedildi ✓');
 }
 async function addUser(){
   const session = getSession();
