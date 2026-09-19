@@ -979,8 +979,10 @@ function openTableModal(tableId, tableName){
         <h2 style="margin:0;">${escapeHtml(tableName)}</h2>
         <span style="cursor:pointer;color:var(--muted);font-size:20px;" onclick="closeTableModal()">✕</span>
       </div>
-      <div id="sentItemsWrap"></div>
-      <div id="draftItemsWrap"></div>
+      <div id="cartScrollWrap" style="max-height:38vh;overflow-y:auto;">
+        <div id="sentItemsWrap"></div>
+        <div id="draftItemsWrap"></div>
+      </div>
       <div style="margin-top:14px;">
         <p style="font-weight:700;margin-bottom:8px;">Ürün Ekle</p>
         <div class="tabs" id="prodStationTabs"></div>
