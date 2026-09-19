@@ -1,0 +1,38 @@
+{
+  "name": "restoran-yonetim-sistemi-desktop",
+  "version": "1.0.0",
+  "description": "Restoran Yönetim Sistemi - Masaüstü Uygulaması (Windows / macOS)",
+  "main": "main.js",
+  "author": "Restoran Yönetim Sistemi",
+  "license": "UNLICENSED",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --win --mac"
+  },
+  "devDependencies": {
+    "electron": "^32.0.0",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "com.restoranyonetim.desktop",
+    "productName": "Restoran Yonetim Sistemi",
+    "files": [
+      "main.js",
+      "preload.js"
+    ],
+    "directories": {
+      "output": "dist"
+    },
+    "win": {
+      "target": "nsis"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    },
+    "mac": {
+      "target": "dmg",
+      "category": "public.app-category.business"
+    }
+  }
+}

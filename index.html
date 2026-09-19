@@ -1355,8 +1355,10 @@ function setStationPrinter(stationId, printerId){
 function printerTypeLabel(type){
   if(type==='usb') return 'USB - doğrudan';
   if(type==='silent-browser') return 'Sessiz Tarayıcı Yazdırma (kiosk-printing)';
+  if(type==='electron') return 'Masaüstü Uygulaması (sessiz)';
   return 'Tarayıcı penceresi';
 }
+function isDesktopApp(){ return !!(window.electronAPI && window.electronAPI.isElectron); }
 function resolvePrinterForStation(stationId){
   const printers = getPrinters();
   const map = getStationPrinterMap();
@@ -1434,7 +1436,7 @@ function renderPrinterSettingsView(main, session){
         ${printers.map(p => `
           <tr>
             <td class="col-name">${escapeHtml(p.name)}</td>
-            <td class="col-name">${p.type==='usb' ? '🔌 USB (doğrudan)' : (p.type==='silent-browser' ? '🤫 Sessiz Tarayıcı Yazdırma' : '🖨️ Tarayıcı penceresi')}</td>
+            <td class="col-name">${p.type==='usb' ? '🔌 USB (doğrudan)' : (p.type==='silent-browser' ? '🤫 Sessiz Tarayıcı Yazdırma' : (p.type==='electron' ? '💻 Masaüstü Uygulaması' : '🖨️ Tarayıcı penceresi'))}${p.type==='electron' && p.osPrinterName ? ' <span class="muted">('+escapeHtml(p.osPrinterName)+')</span>' : ''}</td>
             <td style="white-space:nowrap;">
               ${p.type==='usb' ? `<button class="sbtn" onclick="reconnectUsbPrinter('${p.id}')">Bağlan</button>` : ''}
               <button class="sbtn" onclick="testPrintPrinter('${p.id}')">Test Yazdır</button>
@@ -1444,29 +1446,32 @@ function renderPrinterSettingsView(main, session){
         </tbody>
       </table>
       </div>
+      ${!isDesktopApp() ? `<p class="muted" style="text-align:left;margin-top:10px;font-size:12px;background:var(--panel2);border-radius:8px;padding:10px;">💻 Bu ekran şu an tarayıcıda açık. <b>Masaüstü Uygulaması</b> (Windows/macOS) yazıcıya hiçbir pencere açmadan, ekstra ayara gerek kalmadan basabiliyor — kurulursa "Masaüstü Uygulaması" tipini seçebilirsiniz.</p>` : ''}
       <div class="add-row-panel">
         <p>Yeni Yazıcı Ekle</p>
         <div style="display:grid;grid-template-columns:2fr 1.4fr auto;gap:10px;align-items:end;">
           <div class="field-group"><label>Yazıcı Adı</label><input id="np_pname" placeholder="örn. Mutfak Yazıcısı"></div>
           <div class="field-group"><label>Bağlantı Türü</label>
-            <select id="np_ptype">
-              <option value="browser">Tarayıcı Yazdırma Penceresi (her seferinde açılır)</option>
+            <select id="np_ptype" onchange="onNewPrinterTypeChange()">
+              <option value="electron" ${isDesktopApp()?'selected':''}>Masaüstü Uygulaması (sessiz, önerilir)</option>
+              <option value="browser" ${isDesktopApp()?'':'selected'}>Tarayıcı Yazdırma Penceresi (her seferinde açılır)</option>
               <option value="usb" ${usbSupported?'':'disabled'}>USB (doğrudan, deneysel - küçük termal fiş yazıcıları için)</option>
               <option value="silent-browser">Sessiz Tarayıcı Yazdırma (normal/ofis yazıcıları için, kiosk-printing gerekir)</option>
             </select>
           </div>
           <button style="width:auto;" onclick="addPrinterEntry()">+ Ekle</button>
         </div>
+        <div id="npElectronWrap" class="field-group" style="margin-top:10px;"></div>
       </div>
       <p class="muted" style="text-align:left;margin-top:14px;font-size:12px;">
         Not: <b>USB (doğrudan)</b> yalnızca standart bir USB arayüzü üzerinden ham komut kabul eden küçük termal
         fiş yazıcılarında çalışır — Xerox, HP, Canon gibi normal/ofis yazıcılarının USB arayüzü işletim sisteminin
         kendi sürücüsünde olduğu için tarayıcı (WebUSB) bu tür yazıcılara asla erişemez, "USB" tipini seçseniz bile
-        çalışmaz. Normal bir yazıcınız varsa <b>"Sessiz Tarayıcı Yazdırma"</b> seçin ve o bilgisayarda şunları yapın:
-        (1) bu yazıcıyı işletim sisteminde <b>varsayılan yazıcı</b> yapın, (2) Chrome/Edge'i
-        <code>--kiosk-printing</code> bayrağıyla başlatın (kısayolun hedefine ekleyin, örn.
-        <code>"...\chrome.exe" --kiosk-printing</code>). Bu ayarlandıktan sonra sipariş onaylanınca hiçbir pencere
-        açılmadan doğrudan o yazıcıya basar.
+        çalışmaz. Normal bir yazıcınız varsa ve masaüstü uygulamasını kuramıyorsanız <b>"Sessiz Tarayıcı Yazdırma"</b>
+        seçin ve o bilgisayarda şunları yapın: (1) bu yazıcıyı işletim sisteminde <b>varsayılan yazıcı</b> yapın,
+        (2) Chrome/Edge'i <code>--kiosk-printing</code> bayrağıyla başlatın (kısayolun hedefine ekleyin, örn.
+        <code>"...\chrome.exe" --kiosk-printing</code>). <b>Masaüstü Uygulaması</b> kuruluysa bu iki adıma hiç gerek
+        kalmadan aynı şekilde sessizce basar.
       </p>
     </div>
 
@@ -1493,6 +1498,7 @@ function renderPrinterSettingsView(main, session){
     </div>
   `;
   updateTicketPreview();
+  onNewPrinterTypeChange();
 }
 function renderNotificationSettingsView(main, session){
   main.innerHTML = `
@@ -1605,12 +1611,33 @@ function saveTicketDesign(){
   });
   showToast('Kaydedildi ✓');
 }
+async function onNewPrinterTypeChange(){
+  const type = document.getElementById('np_ptype').value;
+  const wrap = document.getElementById('npElectronWrap');
+  if(!wrap) return;
+  if(type!=='electron'){ wrap.innerHTML=''; return; }
+  if(!isDesktopApp()){
+    wrap.innerHTML = '<p class="muted" style="font-size:12px;">Bu seçenek sadece Masaüstü Uygulaması içinde çalışır. Şu an tarayıcıdasınız — yine de ekleyebilirsiniz, uygulamayı kurup o bilgisayarda giriş yaptığınızda devreye girer.</p><label>İşletim Sistemi Yazıcısı Adı (opsiyonel)</label><input id="np_osprinter" placeholder="örn. POS-80C">';
+    return;
+  }
+  wrap.innerHTML = '<label>İşletim Sistemi Yazıcısı</label><select id="np_osprinter"><option value="">Yükleniyor...</option></select>';
+  try{
+    const list = await window.electronAPI.listPrinters();
+    const sel = document.getElementById('np_osprinter');
+    if(!sel) return;
+    sel.innerHTML = list.length ? list.map(p => `<option value="${escapeHtml(p.name)}" ${p.isDefault?'selected':''}>${escapeHtml(p.displayName||p.name)}${p.isDefault?' (varsayılan)':''}</option>`).join('') : '<option value="">Yazıcı bulunamadı</option>';
+  }catch(e){
+    const sel = document.getElementById('np_osprinter');
+    if(sel) sel.innerHTML = '<option value="">Yazıcı listesi alınamadı</option>';
+  }
+}
 async function addPrinterEntry(){
   const name = document.getElementById('np_pname').value.trim();
   const type = document.getElementById('np_ptype').value;
   if(!name){ alert('Yazıcı adı girin'); return; }
   const id = 'p_' + Date.now();
   let usbInfo = null;
+  let osPrinterName = null;
   if(type==='usb'){
     try{
       const device = await navigator.usb.requestDevice({ filters: [] });
@@ -1619,10 +1646,13 @@ async function addPrinterEntry(){
       alert('USB yazıcı seçilmedi/eşleştirilemedi: ' + e.message);
       return;
     }
+  } else if(type==='electron'){
+    const osSel = document.getElementById('np_osprinter');
+    osPrinterName = osSel ? osSel.value.trim() : '';
   }
   const printers = getPrinters();
   const isFirstPrinter = printers.length===0;
-  printers.push({ id, name, type, usbInfo });
+  printers.push({ id, name, type, usbInfo, osPrinterName: osPrinterName || null });
   setPrinters(printers);
   // Ilk eklenen yazici otomatik olarak "Bu Ekranin Yazicisi" yapilir, boylece
   // sadece listeye eklenip hicbir yerde secilmedigi icin sessizce kullanilmama
@@ -1766,7 +1796,20 @@ async function printKitchenTicket(tableName, items, printerOverride, silent, dai
   const printers = getPrinters();
   const printer = printerOverride || printers.find(p => p.id===getActivePrinterId());
 
-  if(printer && printer.type==='usb'){
+  if(printer && printer.type==='electron' && isDesktopApp()){
+    // Masaustu uygulamasinin native yazdirma koprusu - herhangi bir isletim
+    // sistemi yazicisina (Windows/macOS), hicbir pencere/onay gostermeden,
+    // WebUSB veya kiosk-printing bayragina gerek kalmadan basar.
+    const el = document.getElementById('printArea');
+    el.className = design.width==='58' ? 'pw58' : '';
+    el.innerHTML = buildTicketHtml(restaurantName, tableName, items, design, dailyNumber);
+    await new Promise(r => setTimeout(r, 80));
+    const result = await window.electronAPI.silentPrint(printer.osPrinterName);
+    if(result && result.success) return;
+    console.warn('Masaustu uygulamasi yazdirma basarisiz:', result && result.errorType);
+    if(silent) showToast('⚠️ "'+printer.name+'" yazıcısına fiş gönderilemedi'+(result&&result.errorType?' — '+result.errorType:'')+'. Yazıcı bağlantısını kontrol edin');
+    return;
+  } else if(printer && printer.type==='usb'){
     const bytes = buildEscPosTicket(restaurantName, tableName, items, design, dailyNumber);
     const ok = await sendToUsbPrinter(printer, bytes);
     if(ok) return; // basarili - tarayici penceresi ACILMADI
@@ -1786,7 +1829,7 @@ async function printKitchenTicket(tableName, items, printerOverride, silent, dai
   } else if(!printer && silent){
     showToast('⚠️ Fiş yazdırılamadı: bu ekran/istasyon için yazıcı seçili değil');
   } else if(printer && printer.type==='browser' && silent){
-    showToast('⚠️ "'+printer.name+'" sessiz/otomatik yazdırma için ayarlanmamış (bu tür her seferinde yazdırma penceresi açar) — Yazıcı Ayarları\'ndan "Sessiz Tarayıcı Yazdırma (kiosk-printing)" veya USB tipini kullanın');
+    showToast('⚠️ "'+printer.name+'" sessiz/otomatik yazdırma için ayarlanmamış (bu tür her seferinde yazdırma penceresi açar) — Yazıcı Ayarları\'ndan "Masaüstü Uygulaması", "Sessiz Tarayıcı Yazdırma (kiosk-printing)" veya USB tipini kullanın');
   }
 
   // silent=true (siparis onaylaninca otomatik cagri): yazici yoksa/basarisizsa

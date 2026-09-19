@@ -1,0 +1,68 @@
+const { app, BrowserWindow, ipcMain, Menu } = require('electron');
+
+// Masaüstü uygulaması, ayrı bir kopya değil - canlı web uygulamasını (Vercel'de
+// yayınlanan) kendi penceresinde açıyor. Böylece index.html'de yapılan her
+// güncelleme, uygulamayı yeniden paketlemeye gerek kalmadan otomatik olarak
+// masaüstü kullanıcılarına da yansıyor. Bu kabuğun tek eklediği şey: preload.js
+// üzerinden sunulan, işletim sisteminin kendi yazıcısına PENCERE AÇMADAN
+// (silent:true) doğrudan basabilen bir köprü (window.electronAPI).
+const APP_URL = process.env.RESTORAN_APP_URL || 'https://restoran-red-three.vercel.app';
+
+let mainWindow = null;
+
+function createWindow() {
+  mainWindow = new BrowserWindow({
+    width: 1360,
+    height: 880,
+    minWidth: 900,
+    minHeight: 600,
+    title: 'Restoran Yönetim Sistemi',
+    webPreferences: {
+      preload: require('path').join(__dirname, 'preload.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: false,
+    },
+  });
+  mainWindow.setMenuBarVisibility(false);
+  mainWindow.loadURL(APP_URL);
+}
+
+app.whenReady().then(() => {
+  Menu.setApplicationMenu(null);
+  createWindow();
+  app.on('activate', () => {
+    if (BrowserWindow.getAllWindows().length === 0) createWindow();
+  });
+});
+
+app.on('window-all-closed', () => {
+  if (process.platform !== 'darwin') app.quit();
+});
+
+// Bu bilgisayarda işletim sisteminin tanıdığı yazıcıların listesini döner
+// (Yazıcı Ayarları'ndaki "İşletim Sistemi Yazıcısı" seçim listesi için).
+ipcMain.handle('list-printers', async (event) => {
+  const win = BrowserWindow.fromWebContents(event.sender) || mainWindow;
+  const printers = await win.webContents.getPrintersAsync();
+  return printers.map((p) => ({ name: p.name, displayName: p.displayName, isDefault: !!p.isDefault }));
+});
+
+// O an #printArea içine render edilmiş fiş HTML'ini, hiçbir pencere/onay
+// göstermeden doğrudan belirtilen (veya işletim sistemi varsayılanı) yazıcıya
+// gönderir. Electron'un native yazdırma API'si bunu destekliyor - tarayıcıdaki
+// gibi bir bayrağa (--kiosk-printing) veya WebUSB'ye ihtiyaç yok.
+ipcMain.handle('silent-print', async (event, { printerName } = {}) => {
+  const win = BrowserWindow.fromWebContents(event.sender) || mainWindow;
+  return new Promise((resolve) => {
+    win.webContents.print(
+      {
+        silent: true,
+        printBackground: true,
+        deviceName: printerName || undefined,
+        margins: { marginType: 'none' },
+      },
+      (success, errorType) => resolve({ success, errorType: success ? null : errorType })
+    );
+  });
+});
