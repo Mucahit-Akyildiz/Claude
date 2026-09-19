@@ -979,16 +979,17 @@ function openTableModal(tableId, tableName){
         <h2 style="margin:0;">${escapeHtml(tableName)}</h2>
         <span style="cursor:pointer;color:var(--muted);font-size:20px;" onclick="closeTableModal()">✕</span>
       </div>
-      <div id="cartScrollWrap" style="max-height:38vh;overflow-y:auto;">
-        <div id="sentItemsWrap"></div>
-        <div id="draftItemsWrap"></div>
-      </div>
-      <div style="margin-top:14px;">
+      <div>
         <p style="font-weight:700;margin-bottom:8px;">Ürün Ekle</p>
         <div class="tabs" id="prodStationTabs"></div>
         <div id="prodPick" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px;"></div>
       </div>
-      <button class="ghost-btn" style="width:100%;margin-top:16px;color:var(--red);border-color:var(--red);" onclick="cancelTableOrder('${tableId}')">🗑️ Siparişi İptal Et</button>
+      <div id="sentItemsWrap" style="margin-top:14px;"></div>
+      <div id="draftItemsWrap"></div>
+      <div style="display:flex;gap:10px;margin-top:16px;">
+        <button class="ghost-btn" style="flex:1;margin-top:0;color:var(--red);border-color:var(--red);" onclick="cancelTableOrder('${tableId}')">🗑️ İptal Et</button>
+        <button id="confirmBtn" style="flex:1;margin-top:0;" disabled onclick="confirmOrder('${tableId}')">✅ Onayla ve Gönder</button>
+      </div>
     </div>`;
   document.body.appendChild(bg);
   bg.dataset.tableId = tableId;
@@ -1174,9 +1175,10 @@ function renderTableItems(tableId){
           </span>
         </div>`; }).join('') +
       `<div style="text-align:right;font-weight:700;margin-top:8px;">Toplam: ${money(total)}</div>
-      <button id="confirmBtn" style="margin-top:8px;" onclick="confirmOrder('${tableId}')">✅ Siparişi Onayla ve Mutfağa Gönder</button>
       </div>`;
   }
+  const confirmBtn = document.getElementById('confirmBtn');
+  if(confirmBtn) confirmBtn.disabled = draft.length===0;
 }
 async function confirmOrder(tableId){
   const draft = APP.draftCart[tableId];
