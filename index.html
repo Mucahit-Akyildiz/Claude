@@ -143,6 +143,7 @@
   .prod-pick-card:active{transform:scale(.95);border-color:var(--accent);}
   .qty-btn{width:32px;height:32px;padding:0;margin:0;flex-shrink:0;border-radius:8px;background:var(--panel);border:1.5px solid var(--border);color:var(--text);font-weight:800;font-size:16px;box-shadow:none;}
   .qty-btn:active{transform:scale(.92);}
+  @keyframes notifSlideIn{ from{opacity:0;transform:translateX(24px);} to{opacity:1;transform:translateX(0);} }
 
   /* ---- Mutfak fişi yazdırma (termal fiş kağıdına uygun) ---- */
   #printArea{display:none;}
@@ -1674,23 +1675,27 @@ function sendToUsbPrinter(printer, bytes){
   _usbPrintQueue = task.catch(() => {});
   return task;
 }
+let LAST_USB_ERROR = null;
 async function sendToUsbPrinterNow(printer, bytes){
-  if(!navigator.usb || !printer.usbInfo) return false;
+  if(!navigator.usb){ LAST_USB_ERROR = 'Bu tarayıcı WebUSB desteklemiyor'; return false; }
+  if(!printer.usbInfo){ LAST_USB_ERROR = 'Bu yazıcı için USB eşleştirme bilgisi yok'; return false; }
   let device = null;
   try{
     const devices = await navigator.usb.getDevices();
     device = devices.find(d => d.vendorId===printer.usbInfo.vendorId && d.productId===printer.usbInfo.productId);
-    if(!device) return false; // henuz izin verilmemis / bagli degil - tarayici penceresine dus
+    if(!device){ LAST_USB_ERROR = 'Yazıcı bu tarayıcıda yetkilendirilmemiş görünüyor (Yazıcılar listesinde "Bağlan"a tekrar basın)'; return false; }
     await device.open();
     if(device.configuration === null) await device.selectConfiguration(1);
     const iface = device.configuration.interfaces[0];
     await device.claimInterface(iface.interfaceNumber);
     const endpoint = iface.alternate.endpoints.find(e => e.direction==='out');
-    if(!endpoint) { await device.close(); return false; }
+    if(!endpoint){ LAST_USB_ERROR = 'Yazıcıda veri gönderme ucu (OUT endpoint) bulunamadı'; await device.close(); return false; }
     await device.transferOut(endpoint.endpointNumber, bytes);
     await device.close();
+    LAST_USB_ERROR = null;
     return true;
   }catch(e){
+    LAST_USB_ERROR = (e && e.message) ? e.message : String(e);
     console.error('USB yazdirma basarisiz:', e);
     // Cihaz acik kalip sonraki denemeleri de kilitlemesin diye elden geldigince kapat.
     if(device && device.opened){ try{ await device.close(); }catch(e2){} }
@@ -1730,7 +1735,7 @@ async function printKitchenTicket(tableName, items, printerOverride, silent, dai
     const ok = await sendToUsbPrinter(printer, bytes);
     if(ok) return; // basarili - tarayici penceresi ACILMADI
     console.warn('USB yaziciya ulasilamadi.');
-    if(silent) showToast('⚠️ "'+printer.name+'" yazıcısına fiş gönderilemedi, bağlantıyı kontrol edin');
+    if(silent) showToast('⚠️ "'+printer.name+'" yazıcısına fiş gönderilemedi'+(LAST_USB_ERROR?' — '+LAST_USB_ERROR:'')+'. Bağlantıyı kontrol edin');
   } else if(!printer && silent){
     showToast('⚠️ Fiş yazdırılamadı: bu ekran/istasyon için yazıcı seçili değil');
   } else if(printer && printer.type!=='usb' && silent){
@@ -1813,19 +1818,28 @@ async function clearDraftCart(tableId){
   if(activeTab) renderProductPick(activeTab.dataset.st, tableId);
 }
 function money(n){ return (Math.round((n||0)*100)/100).toLocaleString('tr-TR',{minimumFractionDigits:2,maximumFractionDigits:2})+' TL'; }
+/* Sağ üstte, yeni bildirimler altta birikerek duran bir bildirim yığını.
+   Hata/uyarı (⚠️ ile başlayanlar) en az 1 dakika ekranda kalır, başarı
+   bildirimleri (Kaydedildi vb.) kısa süre sonra kendiliğinden kaybolur. */
 function showToast(msg){
-  let el = document.getElementById('toastMsg');
-  if(!el){
-    el = document.createElement('div');
-    el.id = 'toastMsg';
-    el.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--green);color:var(--btn-ink);padding:12px 22px;border-radius:10px;font-weight:700;font-size:14px;z-index:300;box-shadow:0 4px 16px rgba(0,0,0,.35);opacity:0;transition:opacity .2s ease;pointer-events:none;max-width:90vw;text-align:center;';
-    document.body.appendChild(el);
+  let stack = document.getElementById('notifStack');
+  if(!stack){
+    stack = document.createElement('div');
+    stack.id = 'notifStack';
+    stack.style.cssText = 'position:fixed;top:16px;right:16px;z-index:400;display:flex;flex-direction:column;gap:8px;max-width:340px;width:calc(100vw - 32px);';
+    document.body.appendChild(stack);
   }
-  el.textContent = msg;
-  clearTimeout(el._hideTimer);
-  el.style.opacity = '0';
-  requestAnimationFrame(() => { requestAnimationFrame(() => { el.style.opacity = '1'; }); });
-  el._hideTimer = setTimeout(() => { el.style.opacity = '0'; }, 1800);
+  const isWarning = msg.indexOf('⚠️')===0;
+  const card = document.createElement('div');
+  card.style.cssText = 'background:var(--panel);border:1px solid var(--border);border-left:4px solid '+(isWarning?'var(--red)':'var(--green)')+';border-radius:10px;padding:10px 30px 10px 14px;font-size:13px;line-height:1.4;box-shadow:0 4px 16px rgba(0,0,0,.35);position:relative;animation:notifSlideIn .18s ease;';
+  card.textContent = msg;
+  const closeBtn = document.createElement('span');
+  closeBtn.textContent = '✕';
+  closeBtn.style.cssText = 'position:absolute;top:8px;right:10px;cursor:pointer;color:var(--muted);font-size:13px;line-height:1;';
+  closeBtn.onclick = () => card.remove();
+  card.appendChild(closeBtn);
+  stack.appendChild(card);
+  setTimeout(() => { if(card.parentNode) card.remove(); }, isWarning ? 60000 : 4000);
 }
 
 async function doLogin(){
