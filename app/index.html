@@ -56,12 +56,12 @@
   .sidebar{width:230px;flex-shrink:0;background:var(--sb-bg);color:var(--sb-text);display:flex;flex-direction:column;position:sticky;top:0;height:100vh;overflow-y:auto;overflow-x:hidden;transition:width .18s ease;}
   .sidebar.collapsed{width:74px;}
   .app-brand-row{display:flex;align-items:center;gap:10px;padding:16px 14px 0;}
-  .app-brand-logo{width:42px;height:42px;object-fit:cover;border-radius:11px;flex-shrink:0;filter:drop-shadow(0 2px 5px rgba(0,0,0,.35));}
+  .app-brand-logo{width:42px;height:42px;object-fit:contain;border-radius:11px;flex-shrink:0;filter:drop-shadow(0 2px 5px rgba(0,0,0,.35));}
   .app-brand-row .app-brand-text{font-weight:800;font-size:14.5px;letter-spacing:.03em;text-transform:uppercase;color:var(--sb-text);white-space:nowrap;overflow:hidden;}
   .sidebar.collapsed .app-brand-row{justify-content:center;padding:16px 8px 0;}
   .sidebar.collapsed .app-brand-row .app-brand-text{display:none;}
   .auth-brand{display:flex;align-items:center;justify-content:center;gap:11px;margin-bottom:18px;font-weight:800;font-size:23px;letter-spacing:.02em;text-transform:uppercase;color:var(--text);}
-  .auth-brand-logo{width:44px;height:44px;object-fit:cover;border-radius:12px;flex-shrink:0;filter:drop-shadow(0 2px 6px rgba(0,0,0,.3));}
+  .auth-brand-logo{width:44px;height:44px;object-fit:contain;border-radius:12px;flex-shrink:0;filter:drop-shadow(0 2px 6px rgba(0,0,0,.3));}
   /* ---- Açılış ekranı (Splash Screen): uygulama ilk yüklenirken kısa
      süreliğine tam ekran marka görseli - resmi 3D logo (assets/images/logo.webp). ---- */
   .splash-screen{position:fixed;inset:0;z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;background:linear-gradient(180deg,#122e29 0%,#0b1c1a 100%);opacity:1;transition:opacity .5s ease;}
