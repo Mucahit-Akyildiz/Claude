@@ -28,6 +28,11 @@ jobs:
           java-version: 21
 
       - uses: android-actions/setup-android@v3
+        with:
+          # Varsayılan paket listesi artık kaldırılmış eski bir 'tools'
+          # paketini de kurmaya çalışıp hata veriyordu - sadece gerçekten
+          # ihtiyaç duyulan paketleri açıkça belirtiyoruz.
+          packages: 'platform-tools platforms;android-34 build-tools;34.0.0'
 
       - run: npm install
       - run: npx cap sync android
