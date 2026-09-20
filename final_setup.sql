@@ -170,7 +170,7 @@ create or replace function _session_check(p_token uuid, p_required_role text def
 returns staff_sessions
 language plpgsql
 security definer
-set search_path = public, pg_temp
+set search_path = public, extensions, pg_temp
 as $$
 declare
   s staff_sessions%rowtype;
@@ -203,7 +203,7 @@ create or replace function login_staff(p_code text, p_username text, p_password 
 returns table(session_token uuid, user_id uuid, restaurant_id uuid, role text, restaurant_name text)
 language plpgsql
 security definer
-set search_path = public, pg_temp
+set search_path = public, extensions, pg_temp
 as $$
 declare
   v_user app_users%rowtype;
@@ -239,7 +239,7 @@ create or replace function verify_restaurant_credentials(p_code text, p_username
 returns table(restaurant_id uuid, package_id text, restaurant_name text, is_active boolean, expires_at timestamptz)
 language plpgsql
 security definer
-set search_path = public, pg_temp
+set search_path = public, extensions, pg_temp
 as $$
 declare
   v_user app_users%rowtype;
@@ -284,7 +284,7 @@ create or replace function get_package_prices()
 returns json
 language sql
 security definer
-set search_path = public, pg_temp
+set search_path = public, extensions, pg_temp
 as $$
   select json_object_agg(key, value) from platform_settings where key in ('price_paket1','price_paket2','price_paket3');
 $$;
@@ -294,7 +294,7 @@ create or replace function set_package_prices(p_token uuid, p_paket1 numeric, p_
 returns void
 language plpgsql
 security definer
-set search_path = public, pg_temp
+set search_path = public, extensions, pg_temp
 as $$
 begin
   perform _platform_admin_check(p_token);
@@ -1407,7 +1407,7 @@ begin
         where c like 'search_path=%'
       )
   loop
-    execute format('alter function public.%s set search_path = public, pg_temp;', r.sig);
+    execute format('alter function public.%s set search_path = public, extensions, pg_temp;', r.sig);
   end loop;
 end $$;
 
