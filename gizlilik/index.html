@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gizlilik Politikası — Elvora</title>
+<link rel="icon" type="image/png" href="/assets/images/favicon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0e1013; --panel:#181b22; --border:#2c313d;
+    --text:#f1f3f7; --muted:#93a0b3; --accent:#d4a24e;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;font-family:'Plus Jakarta Sans',-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--text);-webkit-font-smoothing:antialiased;}
+  a{color:var(--accent);}
+  nav{border-bottom:1px solid var(--border);}
+  nav .wrap{max-width:760px;margin:0 auto;padding:0 24px;display:flex;align-items:center;gap:10px;height:64px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;font-size:16px;}
+  nav img{width:28px;height:28px;object-fit:contain;}
+  main{max-width:760px;margin:0 auto;padding:48px 24px 80px;}
+  h1{font-size:28px;font-weight:800;margin:0 0 6px;}
+  .updated{color:var(--muted);font-size:13px;margin:0 0 36px;}
+  h2{font-size:18px;font-weight:700;margin:34px 0 10px;}
+  p,li{font-size:14.5px;line-height:1.7;color:var(--text);}
+  ul{padding-left:20px;}
+  .muted{color:var(--muted);}
+  footer{border-top:1px solid var(--border);padding:24px;text-align:center;color:var(--muted);font-size:13px;}
+</style>
+</head>
+<body>
+<nav><div class="wrap"><img src="/assets/images/logo.png" alt="Elvora"> Elvora</div></nav>
+<main>
+  <h1>Gizlilik Politikası</h1>
+  <p class="updated">Son güncelleme: 20 Eylül 2026</p>
+
+  <p>Bu Gizlilik Politikası, Elvora restoran yönetim sistemini ("Elvora", "Hizmet") kullanan işletmelerin ve bu işletmelerin personelinin kişisel verilerinin nasıl toplandığını, kullanıldığını ve korunduğunu açıklar.</p>
+
+  <h2>1. Topladığımız Veriler</h2>
+  <p>Hizmeti kullanırken aşağıdaki bilgiler toplanabilir:</p>
+  <ul>
+    <li><b>İşletme bilgileri:</b> işletme adı, e-posta, telefon numarası, işletme kodu.</li>
+    <li><b>Personel hesap bilgileri:</b> kullanıcı adı, şifre (şifrelenmiş olarak saklanır), rol (yönetici/garson/mutfak).</li>
+    <li><b>Sipariş ve satış verileri:</b> ürün, masa, sipariş notu, tutar, ödeme yöntemi.</li>
+    <li><b>Paket servis müşteri bilgileri:</b> müşteri adı ve telefon numarası (yalnızca ilgili siparişle ilişkili olarak).</li>
+    <li><b>Ödeme işlemleri:</b> abonelik yenileme ödemeleri iyzico üzerinden işlenir; kart bilgileriniz bizim sunucularımızda saklanmaz, doğrudan iyzico'nun güvenli altyapısında işlenir.</li>
+  </ul>
+
+  <h2>2. Verileri Nasıl Kullanıyoruz</h2>
+  <ul>
+    <li>Hizmeti sağlamak ve işletmenizin sipariş/ödeme süreçlerini yönetmenize yardımcı olmak,</li>
+    <li>Hesap doğrulama (kayıt sırasında e-posta ile gönderilen tek kullanımlık kod),</li>
+    <li>Abonelik ve ödeme süreçlerini yürütmek,</li>
+    <li>Hizmeti geliştirmek ve teknik sorunları gidermek.</li>
+  </ul>
+
+  <h2>3. Verilerin Paylaşımı</h2>
+  <p>Verileriniz aşağıdaki hizmet sağlayıcılarla, yalnızca Hizmeti sunabilmek için gerekli ölçüde paylaşılır:</p>
+  <ul>
+    <li><b>Supabase</b> — veritabanı barındırma,</li>
+    <li><b>Vercel</b> — uygulama barındırma,</li>
+    <li><b>iyzico</b> — ödeme işleme,</li>
+    <li><b>Resend</b> — kayıt doğrulama e-postalarının gönderimi.</li>
+  </ul>
+  <p>Verileriniz hiçbir şekilde üçüncü taraflara pazarlama amacıyla satılmaz veya kiralanmaz.</p>
+
+  <h2>4. Veri Güvenliği</h2>
+  <p>Şifreler geri döndürülemez şekilde (bcrypt) şifrelenerek saklanır. Veritabanı erişimi, her işletmenin yalnızca kendi verilerine erişebildiği bir yetkilendirme modeliyle korunur.</p>
+
+  <h2>5. Veri Saklama</h2>
+  <p>Verileriniz, hesabınız aktif olduğu sürece ve yasal yükümlülüklerin gerektirdiği süre boyunca saklanır. Hesap kapatma talebinde bulunmak için bizimle iletişime geçebilirsiniz.</p>
+
+  <h2>6. Haklarınız (KVKK)</h2>
+  <p>6698 sayılı Kişisel Verilerin Korunması Kanunu kapsamında; verilerinizin işlenip işlenmediğini öğrenme, işlenmişse buna ilişkin bilgi talep etme, düzeltilmesini veya silinmesini isteme haklarına sahipsiniz. Taleplerinizi aşağıdaki iletişim adresinden iletebilirsiniz.</p>
+
+  <h2>7. İletişim</h2>
+  <p>Gizlilikle ilgili sorularınız için: <a href="mailto:destek@elvorapos.com">destek@elvorapos.com</a></p>
+
+  <p class="muted">Bu politika, Hizmet güncellendikçe zaman zaman revize edilebilir. Önemli değişikliklerde sizi bilgilendireceğiz.</p>
+</main>
+<footer>© 2026 Elvora. Tüm hakları saklıdır. · <a href="/">Ana Sayfa</a></footer>
+</body>
+</html>

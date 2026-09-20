@@ -3,7 +3,7 @@
   "appName": "Elvora",
   "webDir": "www",
   "server": {
-    "url": "https://elvorapos.vercel.app",
+    "url": "https://www.elvorapos.com/app/",
     "cleartext": false,
     "androidScheme": "https"
   },
