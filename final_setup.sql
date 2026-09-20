@@ -1412,5 +1412,31 @@ begin
 end $$;
 
 -- ============================================================
+-- PERFORMANS: foreign key sütunlarında eksik indeksler (Supabase
+-- performance advisor taraması) - bu uygulama çok kiracılı (multi-tenant)
+-- ve HEMEN HEMEN HER sorgu restaurant_id'ye göre filtreliyor; bu indeksler
+-- olmadan işletme/sipariş sayısı arttıkça sorgular yavaşlar.
+-- ============================================================
+create index if not exists idx_ingredients_restaurant_id on ingredients(restaurant_id);
+create index if not exists idx_order_flag_defs_restaurant_id on order_flag_defs(restaurant_id);
+create index if not exists idx_order_items_order_id on order_items(order_id);
+create index if not exists idx_order_items_product_id on order_items(product_id);
+create index if not exists idx_orders_restaurant_id on orders(restaurant_id);
+create index if not exists idx_orders_table_id on orders(table_id);
+create index if not exists idx_payments_promo_code_id on payments(promo_code_id);
+create index if not exists idx_payments_restaurant_id on payments(restaurant_id);
+create index if not exists idx_platform_admin_sessions_admin_id on platform_admin_sessions(admin_id);
+create index if not exists idx_product_ingredients_ingredient_id on product_ingredients(ingredient_id);
+create index if not exists idx_products_restaurant_id on products(restaurant_id);
+create index if not exists idx_products_station_id on products(station_id);
+create index if not exists idx_restaurant_tables_restaurant_id on restaurant_tables(restaurant_id);
+create index if not exists idx_restaurant_tables_zone_id on restaurant_tables(zone_id);
+create index if not exists idx_sales_history_restaurant_id on sales_history(restaurant_id);
+create index if not exists idx_staff_sessions_restaurant_id on staff_sessions(restaurant_id);
+create index if not exists idx_staff_sessions_user_id on staff_sessions(user_id);
+create index if not exists idx_stations_restaurant_id on stations(restaurant_id);
+create index if not exists idx_zones_restaurant_id on zones(restaurant_id);
+
+-- ============================================================
 -- BİTTİ. Buraya kadar hatasız çalıştıysa kurulum tamamlanmıştır.
 -- ============================================================
