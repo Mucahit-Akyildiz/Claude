@@ -1,0 +1,14 @@
+{
+  "appId": "com.elvora.app",
+  "appName": "Elvora",
+  "webDir": "www",
+  "server": {
+    "url": "https://elvorapos.vercel.app",
+    "cleartext": false,
+    "androidScheme": "https"
+  },
+  "android": {
+    "allowMixedContent": false
+  },
+  "backgroundColor": "#0b1c1a"
+}

@@ -1,0 +1,19 @@
+node_modules/
+
+# Android
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+android/.idea/
+android/captures/
+android/*.iml
+
+# iOS
+ios/App/Pods/
+ios/App/output/
+ios/App/build/
+ios/App/DerivedData/
+ios/.xcode.env.local
+
+.DS_Store
