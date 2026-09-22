@@ -83,6 +83,8 @@
   .sidebar .sb-brand{font-weight:800;font-size:15px;cursor:pointer;letter-spacing:-.01em;white-space:nowrap;overflow:hidden;}
   .sb-collapse-btn{width:30px;height:30px;padding:0;margin:0;flex-shrink:0;border-radius:8px;background:var(--sb-overlay);color:var(--sb-muted);box-shadow:none;font-size:14px;}
   .sb-collapse-btn:hover{background:var(--sb-overlay-2);color:var(--sb-text);}
+  .sb-mobile-close{display:none;width:30px;height:30px;padding:0;margin:0;flex-shrink:0;align-items:center;justify-content:center;border-radius:8px;background:var(--sb-overlay);color:var(--sb-muted);box-shadow:none;font-size:15px;}
+  .sb-mobile-close:hover{background:var(--sb-overlay-2);color:var(--sb-text);}
   .sidebar .sb-user{padding:14px 20px;border-bottom:1px solid var(--sb-border);white-space:nowrap;overflow:hidden;}
   .sidebar .sb-user .name{font-weight:700;font-size:13.5px;}
   .sidebar .sb-user .role{color:var(--sb-muted);font-size:11.5px;margin-top:2px;}
@@ -105,18 +107,53 @@
   .sidebar.collapsed .sb-logout{width:36px;height:36px;padding:0;display:flex;align-items:center;justify-content:center;border-radius:10px;}
   .content-area{flex:1;min-width:0;}
   .content-inner{max-width:1100px;margin:0 auto;padding:26px;width:100%;}
+  /* ---- Mobil üst çubuk + açılır/kayar menü (drawer) ----
+     Sidebar'ı yatay kaydırmalı bir şerit olarak sıkıştırmak yerine, telefonda
+     sabit bir üst çubuk (hamburger + işletme adı) ve dokunmayla açılan tam
+     boy bir kayar menü kullanılıyor - hem daha güvenilir dokunma/tıklama
+     (yatay kaydırmalı barda tap'ler scroll ile karışıp kayboluyordu), hem de
+     daha tanıdık bir mobil gezinme deseni. ---- */
+  .mobile-topbar{display:none;}
+  .sidebar-backdrop{display:none;}
   @media (max-width:820px){
     .app-shell{flex-direction:column;}
-    .sidebar,.sidebar.collapsed{width:100%;height:auto;position:sticky;flex-direction:row;align-items:center;overflow-x:auto;overflow-y:visible;}
-    .sidebar .sb-top,.sidebar .sb-user,.sidebar .app-brand-row{display:none;}
-    .sidebar nav{flex-direction:row;padding:8px;gap:6px;}
-    .sidebar.collapsed .sb-item{justify-content:flex-start;padding:9px 12px;}
+    .mobile-topbar{
+      display:flex;align-items:center;gap:12px;padding:12px 16px;
+      background:var(--sb-bg);color:var(--sb-text);border-bottom:1px solid var(--sb-border);
+      position:sticky;top:0;z-index:90;
+    }
+    .mobile-menu-btn{
+      width:38px;height:38px;flex-shrink:0;padding:0;margin:0;border-radius:10px;
+      background:var(--sb-overlay);color:var(--sb-text);font-size:18px;box-shadow:none;
+    }
+    .mobile-menu-btn:hover{background:var(--sb-overlay-2);}
+    .mobile-topbar-title{flex:1;font-weight:700;font-size:14.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    .mobile-topbar-logo{width:30px;height:30px;object-fit:contain;flex-shrink:0;}
+
+    .sidebar,.sidebar.collapsed{
+      position:fixed;top:0;left:0;height:100%;width:82%;max-width:300px;
+      flex-direction:column;transform:translateX(-100%);transition:transform .22s ease;
+      z-index:110;box-shadow:0 0 40px rgba(0,0,0,.4);
+    }
+    .sidebar.mobile-open,.sidebar.collapsed.mobile-open{transform:translateX(0);}
+    .sidebar .sb-top,.sidebar .sb-user,.sidebar .app-brand-row{display:flex;}
+    .sidebar.collapsed .app-brand-row .app-brand-text{display:inline;}
+    .sb-collapse-btn{display:none;}
+    .sb-mobile-close{display:flex;}
+    .sidebar nav{flex-direction:column;padding:12px;gap:4px;}
+    .sidebar.collapsed .sb-item{justify-content:flex-start;padding:11px 14px;}
     .sidebar.collapsed .label{display:inline;}
-    .sb-item{border-left:none;border-bottom:3px solid transparent;white-space:nowrap;padding:9px 12px;}
-    .sb-item.active{border-left-color:transparent;border-bottom-color:var(--sb-accent);}
-    .sidebar .sb-bottom{flex-direction:row;padding:8px 10px;border-top:none;border-left:1px solid var(--sb-border);}
+    .sb-item{border-left:3px solid transparent;border-bottom:none;white-space:nowrap;padding:11px 14px;}
+    .sb-item.active{border-left-color:var(--sb-accent);border-bottom-color:transparent;}
+    .sidebar .sb-bottom{flex-direction:column;align-items:stretch;padding:12px 14px 16px;border-top:1px solid var(--sb-border);border-left:none;}
     .sidebar.collapsed .theme-toggle{display:flex;}
-    .theme-toggle{width:90px;}
+
+    .sidebar-backdrop{
+      display:block;position:fixed;inset:0;background:rgba(10,12,13,.55);
+      opacity:0;pointer-events:none;transition:opacity .2s ease;z-index:100;
+    }
+    .sidebar-backdrop.show{opacity:1;pointer-events:auto;}
+    .content-inner{padding:18px;}
   }
 
   header.topbar{display:flex;align-items:center;justify-content:space-between;padding:14px 22px;background:var(--panel);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:40;box-shadow:0 2px 12px rgba(0,0,0,.08);}
@@ -296,6 +333,8 @@ sb.rpc = function(fn, args){
   return _sbRpc(fn, args).then(res => {
     if(res && res.error && res.error.message === 'ABONELIK_SURESI_DOLDU'){
       handleSubscriptionExpired();
+    } else if(res && res.error && res.error.message === 'Oturum geçersiz veya süresi dolmuş, tekrar giriş yapın'){
+      handleSessionInvalidated();
     }
     return res;
   });
@@ -327,6 +366,21 @@ function handleSubscriptionExpired(){
   SUBSCRIPTION_EXPIRED_SHOWN = true;
   clearSession();
   APP.authScreen = 'expired';
+  render();
+}
+/* Bir kullanıcı aynı anda yalnızca bir cihazdan giriş yapabilir (bkz.
+   login_staff) - başka bir cihazdan giriş yapılınca bu oturumun token'ı
+   sunucuda silinir, bir sonraki RPC çağrısında _session_check bunu
+   yakalar (bkz. sb.rpc sarmalayıcısı) ve buraya düşer. getSession() zaten
+   boşsa (örn. az önce elle çıkış yapıldıysa) tekrar tekrar tetiklenmesin
+   diye kontrol ediliyor. */
+function handleSessionInvalidated(){
+  if(!getSession()) return;
+  clearSession();
+  stopKitchenPolling();
+  stopOrderPolling();
+  APP.authScreen = 'login';
+  APP.sessionKicked = true;
   render();
 }
 
@@ -375,7 +429,7 @@ async function withLoadingOverlay(promise, delayMs){
   finally{ endLoadingWatch(); }
 }
 
-const APP = { view:'home', config:null, selectedZone:null, draftCart:{}, liveOrders:[], authScreen:'login', selectedPackage:'paket1', pendingSignup:null, adminView:'promos', settingsTab:'stations' };
+const APP = { view:'home', config:null, selectedZone:null, draftCart:{}, liveOrders:[], authScreen:'login', selectedPackage:'paket1', pendingSignup:null, adminView:'promos', settingsTab:'stations', mobileNavOpen:false };
 
 const NAV_ITEMS = [
   { view:'order', icon:'🍽️', label:'Sipariş Al', roles:['waiter','manager'] },
@@ -399,6 +453,11 @@ function toggleSidebar(){
   try{ localStorage.setItem('rys_sidebar', collapsed?'collapsed':'open'); }catch(e){}
   render();
 }
+/* Telefonda sidebar sabit bir şerit yerine kayar bir menü (drawer) olarak
+   açılıyor - açma/kapama sadece bellekte tutuluyor (localStorage'a yazmaya
+   gerek yok, her sayfa yüklemesinde kapalı başlaması yeterli). */
+function toggleMobileNav(){ APP.mobileNavOpen = !APP.mobileNavOpen; render(); }
+function closeMobileNav(){ if(APP.mobileNavOpen){ APP.mobileNavOpen = false; render(); } }
 
 function render(){
   if(isAdminMode()){ renderAdminArea(); return; }
@@ -417,11 +476,18 @@ function render(){
   const items = NAV_ITEMS.filter(i => i.roles.includes(session.role));
   app.innerHTML = `
     <div class="app-shell">
-      <aside class="sidebar ${collapsed?'collapsed':''}">
+      <div class="mobile-topbar">
+        <button class="mobile-menu-btn" onclick="toggleMobileNav()" aria-label="Menü">☰</button>
+        <img src="/assets/images/logo.webp" alt="Letayif" class="mobile-topbar-logo">
+        <div class="mobile-topbar-title">${escapeHtml(session.restaurant_name)}</div>
+      </div>
+      <div class="sidebar-backdrop ${APP.mobileNavOpen?'show':''}" onclick="closeMobileNav()"></div>
+      <aside class="sidebar ${collapsed?'collapsed':''} ${APP.mobileNavOpen?'mobile-open':''}">
         <div class="app-brand-row"><img src="/assets/images/logo.webp" alt="Letayif" class="app-brand-logo"><span class="app-brand-text">Letayif</span></div>
         <div class="sb-top">
           <div class="sb-brand" onclick="goHome()"><span class="label">${escapeHtml(session.restaurant_name)}</span></div>
           <button class="sb-collapse-btn" onclick="toggleSidebar()" title="Menüyü daralt/genişlet">${collapsed?'»':'«'}</button>
+          <button class="sb-mobile-close" onclick="closeMobileNav()" aria-label="Menüyü kapat">✕</button>
         </div>
         <div class="sb-user">
           <div class="name">${escapeHtml(session.username)}</div>
@@ -464,6 +530,8 @@ function goToView(view){
   // Mutfak ekranindan cikinca arka plandaki yenileme/sayac calismaya devam etmesin.
   if(view!=='kitchen') stopKitchenPolling();
   if(view!=='order' && view!=='packages') stopOrderPolling();
+  // Telefonda bir menü öğesine dokununca kayar menü otomatik kapansın.
+  APP.mobileNavOpen = false;
   render();
 }
 
@@ -488,6 +556,7 @@ function renderAdminArea(){
       <div class="tabs" id="adminTabs">
         <div class="tab ${(APP.adminView||'promos')==='promos'?'active':''}" data-tab="promos" onclick="setAdminView('promos')">Promosyon Kodları</div>
         <div class="tab ${APP.adminView==='pricing'?'active':''}" data-tab="pricing" onclick="setAdminView('pricing')">💳 Paket Fiyatları</div>
+        <div class="tab ${APP.adminView==='restaurants'?'active':''}" data-tab="restaurants" onclick="setAdminView('restaurants')">🏬 İşletmeler</div>
       </div>
       <main id="main"></main>
     </div>`;
@@ -501,6 +570,7 @@ function setAdminView(v){
 function renderAdminTabContent(admin){
   const main = document.getElementById('main');
   if((APP.adminView||'promos')==='pricing') renderPricingAdmin(main, admin);
+  else if(APP.adminView==='restaurants') renderRestaurantsAdmin(main, admin);
   else renderPromoAdmin(main, admin);
 }
 function renderAdminLogin(app){
@@ -572,6 +642,162 @@ async function savePackagePrices(){
   if(error){ errBox.textContent = error.message; return; }
   showToast('Fiyatlar kaydedildi ✓');
 }
+
+/* ---- İşletmeler (tenant analiz/raporu): tüm işletmelerin kayıt tarihi,
+   aktiflik durumu, paketi, son aktifliği ve ciro özetini tek ekranda
+   gösterir; platform admin buradan işletmeleri aktif/pasif edebilir
+   (bkz. admin_list_restaurants, admin_platform_summary,
+   admin_set_restaurant_active, admin_restaurant_daily_stats). ---- */
+function statCard(label, value, color){
+  return `<div class="card" style="cursor:default;">
+    <div class="muted" style="font-size:11px;text-transform:uppercase;letter-spacing:.04em;font-weight:700;">${escapeHtml(label)}</div>
+    <div style="font-size:22px;font-weight:800;margin-top:6px;${color?'color:'+color+';':''}">${value}</div>
+  </div>`;
+}
+/* admin_*_stats fonksiyonları hiç aktivite yoksa 'epoch' (1970) döndürür -
+   bu "hiç kullanılmadı" anlamına gelir, göreli zaman yerine "Hiç" yazılır. */
+function fmtRelativeTime(iso){
+  if(!iso) return 'Hiç';
+  const d = new Date(iso);
+  if(isNaN(d.getTime()) || d.getFullYear() < 2000) return 'Hiç';
+  const diffMin = Math.floor((Date.now() - d.getTime())/60000);
+  if(diffMin < 1) return 'Az önce';
+  if(diffMin < 60) return diffMin+' dk önce';
+  const diffH = Math.floor(diffMin/60);
+  if(diffH < 24) return diffH+' sa önce';
+  const diffD = Math.floor(diffH/24);
+  if(diffD < 30) return diffD+' gün önce';
+  return d.toLocaleDateString('tr-TR');
+}
+function renderDailyRevenueChart(days){
+  const w = 760, h = 160, padBottom = 22, padTop = 10;
+  const maxVal = Math.max(1, ...days.map(d => Number(d.revenue)||0));
+  const gap = 3;
+  const barW = (w/days.length) - gap;
+  const bars = days.map((d,i) => {
+    const val = Number(d.revenue)||0;
+    const bh = maxVal>0 ? (val/maxVal) * (h-padTop-padBottom) : 0;
+    const x = i*(barW+gap);
+    const y = h - padBottom - bh;
+    const dateLabel = new Date(d.day+'T00:00:00').toLocaleDateString('tr-TR',{day:'2-digit',month:'2-digit'});
+    return `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${barW.toFixed(1)}" height="${Math.max(bh,1).toFixed(1)}" rx="3" fill="var(--accent)"><title>${dateLabel}: ${money(val)} (${d.order_count} sipariş)</title></rect>`;
+  }).join('');
+  return `<svg viewBox="0 0 ${w} ${h}" width="100%" height="140" preserveAspectRatio="none" style="overflow:visible;display:block;">
+    <line x1="0" y1="${h-padBottom}" x2="${w}" y2="${h-padBottom}" stroke="var(--border)" stroke-width="1"/>
+    ${bars}
+  </svg>
+  <div class="muted" style="display:flex;justify-content:space-between;font-size:11px;margin-top:4px;">
+    <span>${new Date(days[0].day+'T00:00:00').toLocaleDateString('tr-TR')}</span>
+    <span>${new Date(days[days.length-1].day+'T00:00:00').toLocaleDateString('tr-TR')}</span>
+  </div>`;
+}
+async function renderRestaurantsAdmin(main, admin){
+  main.innerHTML = `<h1>🏬 İşletmeler</h1><div id="restContent"></div>`;
+  await withLoadingOverlay(refreshRestaurantsList(admin));
+}
+async function refreshRestaurantsList(admin){
+  const el = document.getElementById('restContent'); if(!el) return;
+  const [{ data: summary, error: sErr }, { data: list, error: lErr }] = await Promise.all([
+    sb.rpc('admin_platform_summary', { p_token: admin.session_token }),
+    sb.rpc('admin_list_restaurants', { p_token: admin.session_token })
+  ]);
+  const err = sErr || lErr;
+  if(err){
+    if(err.message.includes('geçersiz')){ clearAdminSession(); render(); return; }
+    el.innerHTML = '<p class="muted">Yüklenemedi: '+err.message+'</p>'; return;
+  }
+  const s = summary || {};
+  const restaurants = list || [];
+  APP.adminRestaurants = restaurants;
+  el.innerHTML = `
+    <div class="home-grid" style="margin-top:0;margin-bottom:22px;">
+      ${statCard('Toplam İşletme', s.total_restaurants)}
+      ${statCard('Aktif', s.active_restaurants, 'var(--green)')}
+      ${statCard('Pasif', s.inactive_restaurants, s.inactive_restaurants>0?'var(--red)':null)}
+      ${statCard('Süresi Dolmuş', s.expired_restaurants, s.expired_restaurants>0?'var(--red)':null)}
+      ${statCard('Bugün Yeni Kayıt', s.signups_today)}
+      ${statCard('Son 7 Gün Yeni Kayıt', s.signups_7d)}
+      ${statCard('Bugünkü Ciro (tüm işletmeler)', money(s.revenue_today))}
+      ${statCard('Toplam Ciro (tüm zamanlar)', money(s.revenue_lifetime))}
+    </div>
+    ${restaurants.length===0 ? '<p class="muted">Henüz kayıtlı işletme yok.</p>' : `
+    <div class="settings-table-wrap">
+      <table class="settings-table">
+        <thead><tr>
+          <th>İşletme</th><th>Kod</th><th>Paket</th><th>Kullanıcı</th><th>Durum</th>
+          <th>Kayıt Tarihi</th><th>Son Aktiflik</th><th>Bugün</th><th>Son 7 Gün</th><th>Toplam Ciro</th><th></th>
+        </tr></thead>
+        <tbody>
+        ${restaurants.map(r => {
+          const pkg = PACKAGES[r.package_id];
+          const expired = r.expires_at && new Date(r.expires_at) <= new Date();
+          let statusBadge;
+          if(!r.is_active) statusBadge = '<span class="role-badge" style="color:var(--red);border-color:var(--red);">Pasif</span>';
+          else if(expired) statusBadge = '<span class="role-badge" style="color:var(--red);border-color:var(--red);">Süresi Dolmuş</span>';
+          else statusBadge = '<span class="role-badge" style="color:var(--green);border-color:var(--green);">Aktif</span>';
+          return `
+          <tr>
+            <td class="col-name"><b style="cursor:pointer;color:var(--accent);" onclick="showRestaurantDetail('${r.id}')" title="Günlük ciro grafiğini göster">${escapeHtml(r.name)}</b></td>
+            <td class="col-name">${escapeHtml(r.code||'—')}</td>
+            <td class="col-name">${pkg?escapeHtml(pkg.name):escapeHtml(r.package_id)}</td>
+            <td class="col-name">${r.user_count}/${r.max_users}</td>
+            <td>${statusBadge}</td>
+            <td class="col-name">${new Date(r.created_at).toLocaleDateString('tr-TR')}</td>
+            <td class="col-name">${fmtRelativeTime(r.last_activity)}</td>
+            <td class="col-name">${money(r.revenue_today)}</td>
+            <td class="col-name">${money(r.revenue_7d)}</td>
+            <td class="col-name">${money(r.revenue_lifetime)}</td>
+            <td style="white-space:nowrap;">
+              <button class="sbtn" style="${r.is_active?'background:var(--red);color:var(--btn-ink);':''}" onclick="toggleRestaurantActive('${r.id}', ${!r.is_active})">${r.is_active?'Pasif Et':'Aktif Et'}</button>
+            </td>
+          </tr>
+          <tr id="detail_${r.id}" style="display:none;"><td colspan="11" style="background:var(--panel);border-radius:12px;padding:0;">
+            <div id="detailBody_${r.id}"></div>
+          </td></tr>`;
+        }).join('')}
+        </tbody>
+      </table>
+    </div>`}
+  `;
+}
+async function showRestaurantDetail(id){
+  const row = document.getElementById('detail_'+id);
+  if(!row) return;
+  const wasOpen = row.style.display !== 'none';
+  document.querySelectorAll('[id^="detail_"]').forEach(r => { if(r!==row) r.style.display = 'none'; });
+  if(wasOpen){ row.style.display = 'none'; return; }
+  row.style.display = 'table-row';
+  const body = document.getElementById('detailBody_'+id);
+  body.innerHTML = '<p class="muted" style="padding:14px;">Yükleniyor...</p>';
+  const admin = getAdminSession();
+  const { data, error } = await sb.rpc('admin_restaurant_daily_stats', { p_token: admin.session_token, p_restaurant_id: id });
+  if(error){ body.innerHTML = '<p class="muted" style="padding:14px;">Yüklenemedi: '+error.message+'</p>'; return; }
+  const days = data || [];
+  if(days.length===0){ body.innerHTML = '<p class="muted" style="padding:14px;">Veri yok.</p>'; return; }
+  const totalRevenue = days.reduce((sum,d) => sum + Number(d.revenue||0), 0);
+  const totalOrders = days.reduce((sum,d) => sum + Number(d.order_count||0), 0);
+  const restaurant = (APP.adminRestaurants||[]).find(r => r.id===id);
+  body.innerHTML = `
+    <div style="padding:18px;">
+      <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:10px;flex-wrap:wrap;gap:8px;">
+        <h3 style="margin:0;font-size:15px;">Son 30 Gün${restaurant?' - '+escapeHtml(restaurant.name):''}</h3>
+        <span class="muted" style="font-size:13px;">${totalOrders} sipariş · ${money(totalRevenue)} toplam</span>
+      </div>
+      ${renderDailyRevenueChart(days)}
+    </div>`;
+}
+async function toggleRestaurantActive(id, makeActive){
+  const msg = makeActive
+    ? 'Bu işletmeyi aktif etmek istediğinize emin misiniz?'
+    : 'Bu işletmeyi pasif etmek istediğinize emin misiniz? Personel giriş yapamaz hale gelir.';
+  if(!confirm(msg)) return;
+  const admin = getAdminSession();
+  const { error } = await sb.rpc('admin_set_restaurant_active', { p_token: admin.session_token, p_restaurant_id: id, p_active: makeActive });
+  if(error){ alert(error.message); return; }
+  showToast(makeActive ? 'İşletme aktif edildi ✓' : 'İşletme pasif edildi ✓');
+  refreshRestaurantsList(admin);
+}
+
 async function refreshPromoList(admin){
   const el = document.getElementById('promoContent'); if(!el) return;
   const { data, error } = await sb.rpc('list_promo_codes', { p_token: admin.session_token });
@@ -657,7 +883,7 @@ async function changeAdminPassword(){
   document.getElementById('newAdminPass').value = '';
 }
 
-function goHome(){ APP.view='home'; render(); }
+function goHome(){ APP.view='home'; APP.mobileNavOpen = false; render(); }
 
 function renderLoginScreen(app){
   const odemeParam = new URLSearchParams(window.location.search).get('odeme');
@@ -671,6 +897,10 @@ function renderLoginScreen(app){
   const odemeBanner = odemeParam && odemeMsgs[odemeParam]
     ? `<p style="text-align:center;font-weight:700;font-size:13.5px;color:${odemeMsgs[odemeParam].color};margin:0 0 14px;">${odemeMsgs[odemeParam].text}</p>`
     : '';
+  const kickedBanner = APP.sessionKicked
+    ? `<p style="text-align:center;font-weight:700;font-size:13.5px;color:var(--red);margin:0 0 14px;">⚠️ Bu hesapla başka bir cihazdan giriş yapıldığı için oturumunuz kapatıldı.</p>`
+    : '';
+  APP.sessionKicked = false;
   app.innerHTML = `
     <div class="center-wrap">
     <div>
@@ -679,6 +909,7 @@ function renderLoginScreen(app){
       <h1>Giriş Yapın</h1>
       <p class="muted">İşletme kodu, kullanıcı adı ve şifrenizle giriş yapın</p>
       ${odemeBanner}
+      ${kickedBanner}
       <input id="codeInput" placeholder="İşletme kodu (örn. test123)" autocapitalize="none">
       <input id="userInput" placeholder="Kullanıcı adı" autocapitalize="none">
       <input id="passInput" type="password" placeholder="Şifre">
