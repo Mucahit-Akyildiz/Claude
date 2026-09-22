@@ -7,7 +7,7 @@ const path = require('path');
 // masaüstü kullanıcılarına da yansıyor. Bu kabuğun tek eklediği şey: preload.js
 // üzerinden sunulan, işletim sisteminin kendi yazıcısına PENCERE AÇMADAN
 // (silent:true) doğrudan basabilen bir köprü (window.electronAPI).
-const APP_URL = process.env.ELVORA_APP_URL || 'https://www.elvorapos.com/app/';
+const APP_URL = process.env.LETAYIF_APP_URL || 'https://www.letayif.com/app/';
 // Paketlenmiş (kurulmuş) uygulamada exe/dmg ikonu electron-builder'ın
 // build/icon.ico|icns dosyasından geliyor; bu burada ayrıca "npm start" ile
 // paketlenmemiş çalıştırıldığında pencere/taşıma çubuğu ikonunun de aynı
@@ -22,7 +22,7 @@ function createWindow() {
     height: 880,
     minWidth: 900,
     minHeight: 600,
-    title: 'Elvora',
+    title: 'Letayif',
     icon: ICON_PATH,
     webPreferences: {
       preload: require('path').join(__dirname, 'preload.js'),

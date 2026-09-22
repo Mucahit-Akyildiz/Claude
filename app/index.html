@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Elvora</title>
+<title>Letayif</title>
 <link rel="icon" type="image/png" href="/assets/images/favicon.png">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -11,7 +11,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
   /* ---- Sidebar: sabit, marka rengi, temadan bağımsız ---- */
-  /* Renk paleti Elvora logosundaki facetli mücevherle (koyu zümrüt + altın) eşleşiyor. */
+  /* Renk paleti Letayif logosundaki facetli mücevherle (koyu zümrüt + altın) eşleşiyor. */
   :root{
     --sb-bg: linear-gradient(180deg,#122e29 0%,#0b1c1a 100%);
     --sb-text:#eef5f1; --sb-muted:#8fb0a6; --sb-border:rgba(255,255,255,.08);
@@ -263,11 +263,11 @@
 </head>
 <body>
 <div id="splashScreen" class="splash-screen">
-  <img src="/assets/images/logo.webp" alt="Elvora" class="splash-logo">
-  <div class="splash-name">ELVORA</div>
+  <img src="/assets/images/logo.webp" alt="Letayif" class="splash-logo">
+  <div class="splash-name">LETAYIF</div>
 </div>
 <div id="loadingOverlay" class="splash-screen">
-  <img src="/assets/images/logo.webp" alt="Elvora" class="splash-logo">
+  <img src="/assets/images/logo.webp" alt="Letayif" class="splash-logo">
 </div>
 <div id="app"></div>
 <div id="printArea"></div>
@@ -414,7 +414,7 @@ function render(){
   app.innerHTML = `
     <div class="app-shell">
       <aside class="sidebar ${collapsed?'collapsed':''}">
-        <div class="app-brand-row"><img src="/assets/images/logo.webp" alt="Elvora" class="app-brand-logo"><span class="app-brand-text">Elvora</span></div>
+        <div class="app-brand-row"><img src="/assets/images/logo.webp" alt="Letayif" class="app-brand-logo"><span class="app-brand-text">Letayif</span></div>
         <div class="sb-top">
           <div class="sb-brand" onclick="goHome()"><span class="label">${escapeHtml(session.restaurant_name)}</span></div>
           <button class="sb-collapse-btn" onclick="toggleSidebar()" title="Menüyü daralt/genişlet">${collapsed?'»':'«'}</button>
@@ -670,7 +670,7 @@ function renderLoginScreen(app){
   app.innerHTML = `
     <div class="center-wrap">
     <div>
-    <div class="auth-brand"><img src="/assets/images/logo.webp" alt="Elvora" class="auth-brand-logo"><span>Elvora</span></div>
+    <div class="auth-brand"><img src="/assets/images/logo.webp" alt="Letayif" class="auth-brand-logo"><span>Letayif</span></div>
     <div class="box">
       <h1>Giriş Yapın</h1>
       <p class="muted">İşletme kodu, kullanıcı adı ve şifrenizle giriş yapın</p>
@@ -702,7 +702,7 @@ function renderExpiredScreen(app){
   app.innerHTML = `
     <div class="center-wrap">
     <div>
-    <div class="auth-brand"><img src="/assets/images/logo.webp" alt="Elvora" class="auth-brand-logo"><span>Elvora</span></div>
+    <div class="auth-brand"><img src="/assets/images/logo.webp" alt="Letayif" class="auth-brand-logo"><span>Letayif</span></div>
     <div class="box">
       <h1>⏰ Deneme Süreniz / Aboneliğiniz Sona Erdi</h1>
       <p class="muted">Devam etmek için işletme bilgilerinizle ödemenizi tamamlayın - onaylanır onaylanmaz tekrar giriş yapabilirsiniz.</p>
@@ -751,7 +751,7 @@ function renderSignupScreen(app){
   app.innerHTML = `
     <div class="center-wrap">
     <div>
-    <div class="auth-brand"><img src="/assets/images/logo.webp" alt="Elvora" class="auth-brand-logo"><span>Elvora</span></div>
+    <div class="auth-brand"><img src="/assets/images/logo.webp" alt="Letayif" class="auth-brand-logo"><span>Letayif</span></div>
     <div class="box" style="max-width:560px;">
       <h1 id="signupTitle">Yeni İşletme Kaydı</h1>
       <p class="muted" id="signupSub">İşletmenizi kaydedip paketinizi seçin.</p>

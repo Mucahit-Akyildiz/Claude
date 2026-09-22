@@ -1,4 +1,4 @@
-package com.elvora.app;
+package com.letayif.app;
 
 import com.getcapacitor.BridgeActivity;
 

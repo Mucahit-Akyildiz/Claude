@@ -1,9 +1,9 @@
 {
-  "name": "elvora-desktop",
+  "name": "letayif-desktop",
   "version": "1.0.0",
-  "description": "Elvora - Restoran Yönetim Sistemi Masaüstü Uygulaması",
+  "description": "Letayif - Restoran Yönetim Sistemi Masaüstü Uygulaması",
   "main": "main.js",
-  "author": "Elvora",
+  "author": "Letayif",
   "license": "UNLICENSED",
   "scripts": {
     "start": "electron .",
@@ -14,9 +14,9 @@
     "electron-builder": "^25.1.8"
   },
   "build": {
-    "appId": "com.elvora.desktop",
-    "productName": "Elvora",
-    "copyright": "Copyright © 2026 Elvora",
+    "appId": "com.letayif.desktop",
+    "productName": "Letayif",
+    "copyright": "Copyright © 2026 Letayif",
     "files": [
       "main.js",
       "preload.js"
@@ -26,14 +26,14 @@
     },
     "win": {
       "target": "nsis",
-      "publisherName": "Elvora",
+      "publisherName": "Letayif",
       "icon": "build/icon.ico"
     },
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
-      "shortcutName": "Elvora",
-      "artifactName": "Elvora-Kurulum-${version}.${ext}",
+      "shortcutName": "Letayif",
+      "artifactName": "Letayif-Kurulum-${version}.${ext}",
       "installerIcon": "build/icon.ico",
       "uninstallerIcon": "build/icon.ico"
     },
@@ -43,7 +43,7 @@
       "icon": "build/icon.icns"
     },
     "dmg": {
-      "artifactName": "Elvora-${version}.${ext}"
+      "artifactName": "Letayif-${version}.${ext}"
     }
   }
 }

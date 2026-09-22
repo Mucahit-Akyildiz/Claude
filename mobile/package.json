@@ -1,7 +1,7 @@
 {
-  "name": "elvora-mobile",
+  "name": "letayif-mobile",
   "version": "1.0.0",
-  "description": "Elvora - Restoran Yönetim Sistemi Mobil Uygulaması (Android/iOS)",
+  "description": "Letayif - Restoran Yönetim Sistemi Mobil Uygulaması (Android/iOS)",
   "private": true,
   "scripts": {
     "sync": "cap sync"

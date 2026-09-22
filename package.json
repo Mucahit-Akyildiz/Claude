@@ -1,5 +1,5 @@
 {
-  "name": "elvora",
+  "name": "letayif",
   "private": true,
   "dependencies": {
     "@supabase/supabase-js": "^2"

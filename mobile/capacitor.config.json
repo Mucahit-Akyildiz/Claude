@@ -1,9 +1,9 @@
 {
-  "appId": "com.elvora.app",
-  "appName": "Elvora",
+  "appId": "com.letayif.app",
+  "appName": "Letayif",
   "webDir": "www",
   "server": {
-    "url": "https://www.elvorapos.com/app/",
+    "url": "https://www.letayif.com/app/",
     "cleartext": false,
     "androidScheme": "https"
   },
