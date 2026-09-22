@@ -1,5 +1,11 @@
 apply plugin: 'com.android.application'
 
+// Yayın imzalama bilgileri ortam değişkenlerinden okunur (GitHub Actions secret'ları).
+// Değişkenler yoksa (ör. yerel bir geliştirme derlemesi) release derlemesi imzasız kalır.
+def releaseKeystorePath = System.getenv("LETAYIF_KEYSTORE_PATH")
+def releaseKeystoreFile = releaseKeystorePath ? file(releaseKeystorePath) : null
+def hasReleaseSigning = releaseKeystoreFile != null && releaseKeystoreFile.exists()
+
 android {
     namespace "com.letayif.app"
     compileSdk rootProject.ext.compileSdkVersion
@@ -16,10 +22,23 @@ android {
             ignoreAssetsPattern '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    signingConfigs {
+        if (hasReleaseSigning) {
+            release {
+                storeFile releaseKeystoreFile
+                storePassword System.getenv("LETAYIF_KEYSTORE_PASSWORD")
+                keyAlias System.getenv("LETAYIF_KEY_ALIAS")
+                keyPassword System.getenv("LETAYIF_KEY_PASSWORD")
+            }
+        }
+    }
     buildTypes {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            if (hasReleaseSigning) {
+                signingConfig signingConfigs.release
+            }
         }
     }
 }

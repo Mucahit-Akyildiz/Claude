@@ -32,7 +32,7 @@ jobs:
           # Varsayılan paket listesi artık kaldırılmış eski bir 'tools'
           # paketini de kurmaya çalışıp hata veriyordu - sadece gerçekten
           # ihtiyaç duyulan paketleri açıkça belirtiyoruz.
-          packages: 'platform-tools platforms;android-34 build-tools;34.0.0'
+          packages: 'platform-tools platforms;android-35 build-tools;35.0.0'
 
       - run: npm install
       - run: npx cap sync android
@@ -47,3 +47,26 @@ jobs:
         with:
           name: letayif-android-apk
           path: mobile/android/app/build/outputs/apk/debug/app-debug.apk
+
+      - name: Yayın keystore'unu çöz
+        if: ${{ secrets.LETAYIF_KEYSTORE_BASE64 != '' }}
+        working-directory: mobile/android/app
+        run: echo "${{ secrets.LETAYIF_KEYSTORE_BASE64 }}" | base64 -d > release.keystore
+
+      - name: İmzalı AAB derle (Play Store için)
+        if: ${{ secrets.LETAYIF_KEYSTORE_BASE64 != '' }}
+        working-directory: mobile/android
+        env:
+          LETAYIF_KEYSTORE_PATH: app/release.keystore
+          LETAYIF_KEYSTORE_PASSWORD: ${{ secrets.LETAYIF_KEYSTORE_PASSWORD }}
+          LETAYIF_KEY_ALIAS: ${{ secrets.LETAYIF_KEY_ALIAS }}
+          LETAYIF_KEY_PASSWORD: ${{ secrets.LETAYIF_KEY_PASSWORD }}
+        run: |
+          chmod +x gradlew
+          ./gradlew bundleRelease --no-daemon
+
+      - uses: actions/upload-artifact@v4
+        if: ${{ secrets.LETAYIF_KEYSTORE_BASE64 != '' }}
+        with:
+          name: letayif-android-aab
+          path: mobile/android/app/build/outputs/bundle/release/app-release.aab
