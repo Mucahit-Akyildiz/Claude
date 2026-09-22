@@ -10,29 +10,30 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
-  /* ---- Sidebar: sabit, marka rengi, temadan bağımsız ---- */
-  /* Renk paleti Letayif logosundaki facetli mücevherle (koyu zümrüt + altın) eşleşiyor. */
-  :root{
-    --sb-bg: linear-gradient(180deg,#122e29 0%,#0b1c1a 100%);
-    --sb-text:#eef5f1; --sb-muted:#8fb0a6; --sb-border:rgba(255,255,255,.08);
-    --sb-active:#1c4a3f; --sb-accent:#d4a24e;
-    --radius:18px;
+  /* ---- Marka paleti: Grafit #25282B, Derin Camgöbeği #008FA8,
+     Şampanya Altını #C9A45C, Gümüş #BFC3C6, Krem #F7F7F5 ---- */
+  :root{ --radius:18px; }
+  /* ---- Açık tema (varsayılan - marka kimliğinin asıl hali) ---- */
+  :root, :root[data-theme="light"]{
+    --bg:#f7f7f5; --panel:#ffffff; --panel2:#eef1f1; --border:#dfe3e2;
+    --text:#25282b; --muted:#5d6568;
+    --accent:#008fa8; --accent2:#c9a45c; --green:#0d7a4f; --red:#c0392b;
+    --btn-ink:#ffffff;
+    --shadow:0 10px 24px rgba(37,40,43,.08);
+    --sb-bg: linear-gradient(180deg,#ffffff 0%,#f0f2f1 100%);
+    --sb-text:#25282b; --sb-muted:#697273; --sb-border:rgba(37,40,43,.10);
+    --sb-active:#e3f2f5; --sb-accent:#008fa8; --sb-overlay:rgba(37,40,43,.06); --sb-overlay-2:rgba(37,40,43,.12);
   }
-  /* ---- Koyu tema (varsayılan) ---- */
-  :root, :root[data-theme="dark"]{
-    --bg:#14161c; --panel:#1c1f27; --panel2:#262a35; --border:#333947;
-    --text:#f1f3f7; --muted:#8b93a3;
-    --accent:#b8863a; --accent2:#1f9c82; --green:#22c55e; --red:#f43f5e;
+  /* ---- Koyu tema ---- */
+  :root[data-theme="dark"]{
+    --bg:#181c1e; --panel:#20262a; --panel2:#2a3136; --border:#39424a;
+    --text:#f1f3f7; --muted:#93a0a3;
+    --accent:#00b6d4; --accent2:#d4b06e; --green:#22c55e; --red:#f43f5e;
     --btn-ink:#ffffff;
     --shadow:0 10px 28px rgba(0,0,0,.35);
-  }
-  /* ---- Açık tema ---- */
-  :root[data-theme="light"]{
-    --bg:#f4f5f9; --panel:#ffffff; --panel2:#eef0f5; --border:#e1e4ec;
-    --text:#181a20; --muted:#697083;
-    --accent:#a8752e; --accent2:#0d7a63; --green:#16a34a; --red:#e11d48;
-    --btn-ink:#ffffff;
-    --shadow:0 10px 24px rgba(20,20,40,.08);
+    --sb-bg: linear-gradient(180deg,#1c2226 0%,#12171a 100%);
+    --sb-text:#eef5f1; --sb-muted:#8fb0a6; --sb-border:rgba(255,255,255,.08);
+    --sb-active:#1c4a4f; --sb-accent:#00b6d4; --sb-overlay:rgba(255,255,255,.06); --sb-overlay-2:rgba(255,255,255,.14);
   }
   *{box-sizing:border-box;}
   body{margin:0;font-family:'Plus Jakarta Sans',-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--text);-webkit-font-smoothing:antialiased;transition:background .2s ease,color .2s ease;}
@@ -41,7 +42,7 @@
   h1{font-size:22px;margin:0 0 4px;font-weight:800;letter-spacing:-.01em;}
   p.muted{color:var(--muted);text-align:center;font-size:13.5px;margin:0 0 22px;line-height:1.5;}
   input,select{width:100%;background:var(--panel2);border:1.5px solid var(--border);color:var(--text);border-radius:12px;padding:12px 14px;font-size:14.5px;margin-bottom:10px;font-family:inherit;transition:border-color .15s ease, box-shadow .15s ease;}
-  input:focus,select:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(184,134,58,.18);}
+  input:focus,select:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(0,143,168,.18);}
   button{width:100%;padding:13px;border:none;border-radius:12px;background:var(--accent);color:var(--btn-ink);font-weight:700;font-size:14.5px;cursor:pointer;margin-top:6px;font-family:inherit;transition:filter .15s ease, transform .08s ease;box-shadow:0 3px 0 rgba(0,0,0,.18);}
   button:hover{filter:brightness(1.08);}
   button:active{transform:translateY(2px);box-shadow:0 1px 0 rgba(0,0,0,.18);}
@@ -64,10 +65,10 @@
   .auth-brand-logo{width:44px;height:44px;object-fit:contain;border-radius:12px;flex-shrink:0;filter:drop-shadow(0 2px 6px rgba(0,0,0,.3));}
   /* ---- Açılış ekranı (Splash Screen): uygulama ilk yüklenirken kısa
      süreliğine tam ekran marka görseli - resmi 3D logo (assets/images/logo.webp). ---- */
-  .splash-screen{position:fixed;inset:0;z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;background:linear-gradient(180deg,#122e29 0%,#0b1c1a 100%);opacity:1;transition:opacity .5s ease;}
+  .splash-screen{position:fixed;inset:0;z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;background:var(--sb-bg);opacity:1;transition:opacity .5s ease;}
   .splash-screen.splash-fade{opacity:0;pointer-events:none;}
-  .splash-logo{width:132px;height:auto;border-radius:24px;filter:drop-shadow(0 8px 24px rgba(0,0,0,.5));animation:splashPop .6s cubic-bezier(.2,.9,.3,1.3);}
-  .splash-name{font-weight:800;font-size:19px;letter-spacing:.12em;text-transform:uppercase;color:#f0e6d8;animation:splashFadeUp .6s ease .15s both;}
+  .splash-logo{width:132px;height:auto;border-radius:24px;filter:drop-shadow(0 8px 24px rgba(37,40,43,.25));animation:splashPop .6s cubic-bezier(.2,.9,.3,1.3);}
+  .splash-name{font-weight:800;font-size:19px;letter-spacing:.12em;text-transform:uppercase;color:var(--sb-text);animation:splashFadeUp .6s ease .15s both;}
   @keyframes splashPop{from{opacity:0;transform:scale(.85);}to{opacity:1;transform:scale(1);}}
   @keyframes splashFadeUp{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:translateY(0);}}
   /* ---- Sayfa içi yükleme göstergesi: veri beklenirken - ama SADECE
@@ -78,22 +79,22 @@
   #loadingOverlay.show{display:flex;}
   .sidebar .sb-top{display:flex;align-items:center;justify-content:space-between;padding:12px 14px 16px;border-bottom:1px solid var(--sb-border);}
   .sidebar .sb-brand{font-weight:800;font-size:15px;cursor:pointer;letter-spacing:-.01em;white-space:nowrap;overflow:hidden;}
-  .sb-collapse-btn{width:30px;height:30px;padding:0;margin:0;flex-shrink:0;border-radius:8px;background:rgba(255,255,255,.07);color:var(--sb-muted);box-shadow:none;font-size:14px;}
-  .sb-collapse-btn:hover{background:rgba(255,255,255,.14);color:#fff;}
+  .sb-collapse-btn{width:30px;height:30px;padding:0;margin:0;flex-shrink:0;border-radius:8px;background:var(--sb-overlay);color:var(--sb-muted);box-shadow:none;font-size:14px;}
+  .sb-collapse-btn:hover{background:var(--sb-overlay-2);color:var(--sb-text);}
   .sidebar .sb-user{padding:14px 20px;border-bottom:1px solid var(--sb-border);white-space:nowrap;overflow:hidden;}
   .sidebar .sb-user .name{font-weight:700;font-size:13.5px;}
   .sidebar .sb-user .role{color:var(--sb-muted);font-size:11.5px;margin-top:2px;}
   .sidebar nav{flex:1;padding:14px 12px;display:flex;flex-direction:column;gap:4px;}
   .sb-item{display:flex;align-items:center;gap:10px;padding:11px 14px;border-radius:12px;color:var(--sb-muted);font-size:13.5px;font-weight:600;cursor:pointer;transition:all .15s ease;border-left:3px solid transparent;white-space:nowrap;overflow:hidden;}
   .sb-item .ic{font-size:16px;width:20px;text-align:center;flex-shrink:0;}
-  .sb-item:hover{background:rgba(255,255,255,.05);color:var(--sb-text);}
-  .sb-item.active{background:var(--sb-active);color:#fff;border-left-color:var(--sb-accent);}
+  .sb-item:hover{background:var(--sb-overlay);color:var(--sb-text);}
+  .sb-item.active{background:var(--sb-active);color:var(--sb-accent);border-left-color:var(--sb-accent);}
   .sidebar .sb-bottom{padding:14px 16px 18px;border-top:1px solid var(--sb-border);display:flex;flex-direction:column;gap:8px;}
-  .theme-toggle{display:flex;background:rgba(255,255,255,.06);border-radius:999px;padding:3px;gap:2px;overflow:hidden;}
+  .theme-toggle{display:flex;background:var(--sb-overlay);border-radius:999px;padding:3px;gap:2px;overflow:hidden;}
   .theme-toggle button{flex:1;margin:0;padding:7px 0;font-size:12px;background:transparent;color:var(--sb-muted);box-shadow:none;border-radius:999px;white-space:nowrap;}
   .theme-toggle button.active{background:var(--sb-accent);color:#fff;}
   .sb-logout{background:transparent;border:1px solid var(--sb-border);color:var(--sb-muted);box-shadow:none;font-size:13px;white-space:nowrap;overflow:hidden;}
-  .sb-logout:hover{border-color:var(--sb-accent);color:#fff;}
+  .sb-logout:hover{border-color:var(--sb-accent);color:var(--sb-accent);}
   .sidebar.collapsed .label,.sidebar.collapsed .sb-user,.sidebar.collapsed .sb-brand-text{display:none;}
   .sidebar.collapsed .sb-top{justify-content:center;padding:18px 8px 16px;}
   .sidebar.collapsed .sb-item{justify-content:center;padding:11px 0;}
@@ -128,7 +129,7 @@
   .pkg-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:14px;}
   .pkg-card{background:var(--panel);border:1.5px solid var(--border);border-radius:12px;padding:12px 8px;cursor:pointer;text-align:center;transition:border-color .15s ease,background .15s ease;}
   .pkg-card:hover{border-color:var(--accent);}
-  .pkg-card.selected{border-color:var(--accent);background:rgba(184,134,58,.12);}
+  .pkg-card.selected{border-color:var(--accent);background:rgba(0,143,168,.12);}
   .pkg-card .pkg-icon{font-size:20px;}
   .pkg-card h3{font-size:13px;margin:4px 0 2px;}
   .pkg-card p{font-size:11px;color:var(--muted);margin:0 0 6px;line-height:1.3;}
@@ -172,7 +173,7 @@
   .icon-picker-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;}
   .icon-picker-item{aspect-ratio:1;display:flex;align-items:center;justify-content:center;font-size:24px;border-radius:12px;border:1.5px solid var(--border);background:var(--panel2);cursor:pointer;transition:transform .08s ease, border-color .15s ease;}
   .icon-picker-item:hover{transform:scale(1.08);}
-  .icon-picker-item.selected{border-color:var(--accent);background:rgba(184,134,58,.15);}
+  .icon-picker-item.selected{border-color:var(--accent);background:rgba(0,143,168,.15);}
   .prod-pick-card{transition:transform .06s ease, border-color .1s ease;-webkit-tap-highlight-color:transparent;}
   .prod-pick-card:active{transform:scale(.95);border-color:var(--accent);}
   .qty-btn{width:32px;height:32px;padding:0;margin:0;flex-shrink:0;border-radius:8px;background:var(--panel);border:1.5px solid var(--border);color:var(--text);font-weight:800;font-size:16px;box-shadow:none;}
@@ -238,7 +239,7 @@
   .bell-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:10px;margin-top:6px;}
   .bell-card{position:relative;display:flex;flex-direction:column;align-items:center;gap:6px;padding:16px 10px 12px;border-radius:14px;border:1.5px solid var(--border);background:var(--panel2);cursor:pointer;transition:border-color .15s ease,background .15s ease,transform .1s ease;text-align:center;}
   .bell-card:hover{border-color:var(--accent);transform:translateY(-1px);}
-  .bell-card.active{border-color:var(--accent);background:rgba(184,134,58,.12);}
+  .bell-card.active{border-color:var(--accent);background:rgba(0,143,168,.12);}
   .bell-card-icon{font-size:26px;line-height:1;}
   .bell-card-name{font-size:12.5px;font-weight:600;line-height:1.3;}
   .bell-card.active .bell-card-name{font-weight:700;}
@@ -255,7 +256,7 @@
   // Sayfa boyanmadan önce doğru temayı uygula (yanıp sönmeyi önler)
   (function(){
     try{
-      var t = localStorage.getItem('rys_theme') || 'dark';
+      var t = localStorage.getItem('rys_theme') || 'light';
       document.documentElement.setAttribute('data-theme', t);
     }catch(e){}
   })();
@@ -383,7 +384,7 @@ const NAV_ITEMS = [
   { view:'reports', icon:'📊', label:'Finansal Analiz', roles:['manager'] },
   { view:'settings', icon:'⚙️', label:'Ayarlar', roles:['manager'] },
 ];
-function getTheme(){ try{ return localStorage.getItem('rys_theme')||'dark'; }catch(e){ return 'dark'; } }
+function getTheme(){ try{ return localStorage.getItem('rys_theme')||'light'; }catch(e){ return 'light'; } }
 function setTheme(t){
   try{ localStorage.setItem('rys_theme', t); }catch(e){}
   document.documentElement.setAttribute('data-theme', t);
@@ -2121,7 +2122,7 @@ async function renderPrinterSettingsView(main, session){
   const usbSupported = !!(navigator.usb);
   main.innerHTML = `
     <h1>Yazıcı Ayarları</h1>
-    <div style="background:rgba(212,162,78,.1);border:1.5px solid var(--accent);border-radius:10px;padding:12px 14px;margin-bottom:16px;text-align:left;">
+    <div style="background:rgba(0,143,168,.1);border:1.5px solid var(--accent);border-radius:10px;padding:12px 14px;margin-bottom:16px;text-align:left;">
       <p style="margin:0;font-weight:700;font-size:13px;">⚠️ Bu sayfadaki tüm ayarlar (Fiş Tasarımı, Yazıcılar, İstasyon Eşleştirme) sadece <u>şu an bu ekranı açtığınız cihazda</u> geçerlidir.</p>
       <p class="muted" style="margin:6px 0 0;text-align:left;font-size:12px;">Fiş, yazıcının fiziksel olarak bağlı olduğu bilgisayardan basılır. Ayarları başka bir cihazda (örn. ofis bilgisayarı/telefon) değiştirip kaydettiyseniz, çıktıya hiç yansımaz — <b>aynı ayarları yazıcının bağlı olduğu bilgisayarda da açıp kaydetmeniz gerekir.</b></p>
     </div>
@@ -3693,7 +3694,7 @@ async function renderReportContent(session){
       const pct = maxCount ? Math.round(hs.count/maxCount*100) : 0;
       const isPeak = h===peakHour;
       const label = (h<10?'0'+h:h)+':00-'+((h+1)%24<10?'0'+((h+1)%24):(h+1)%24)+':00';
-      return `<tr style="${isPeak?'background:rgba(212,162,78,.08);':''}"><td style="padding:6px 4px;border-top:1px solid var(--border);">${label}${isPeak?' 🔥':''}</td>
+      return `<tr style="${isPeak?'background:rgba(0,143,168,.08);':''}"><td style="padding:6px 4px;border-top:1px solid var(--border);">${label}${isPeak?' 🔥':''}</td>
         <td style="padding:6px 4px;border-top:1px solid var(--border);">${hs.count}</td>
         <td style="padding:6px 4px;border-top:1px solid var(--border);">${money(hs.revenue)}</td>
         <td style="padding:6px 4px;border-top:1px solid var(--border);"><div style="background:var(--panel2);border-radius:6px;height:14px;min-width:70px;overflow:hidden;"><div style="width:${pct}%;height:100%;background:${isPeak?'var(--accent)':'var(--accent2)'};"></div></div></td></tr>`;
