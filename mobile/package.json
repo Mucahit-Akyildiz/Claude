@@ -1,7 +1,7 @@
 {
-  "name": "letayif-mobile",
+  "name": "peyktan-mobile",
   "version": "1.0.0",
-  "description": "Letayif - Restoran Yönetim Sistemi Mobil Uygulaması (Android/iOS)",
+  "description": "Peyktan - Restoran Yönetim Sistemi Mobil Uygulaması (Android/iOS)",
   "private": true,
   "scripts": {
     "sync": "cap sync"

@@ -1,5 +1,5 @@
 {
-  "name": "letayif",
+  "name": "peyktan",
   "private": true,
   "dependencies": {
     "@supabase/supabase-js": "^2"

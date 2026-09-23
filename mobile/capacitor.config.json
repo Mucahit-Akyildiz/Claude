@@ -1,9 +1,9 @@
 {
-  "appId": "com.letayif.app",
-  "appName": "Letayif",
+  "appId": "com.peyktan.app",
+  "appName": "Peyktan",
   "webDir": "www",
   "server": {
-    "url": "https://www.letayif.com/app/",
+    "url": "https://www.peyktan.com/app/",
     "cleartext": false,
     "androidScheme": "https"
   },

@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">Letayif</string>
-    <string name="title_activity_main">Letayif</string>
-    <string name="package_name">com.letayif.app</string>
-    <string name="custom_url_scheme">com.letayif.app</string>
+    <string name="app_name">Peyktan</string>
+    <string name="title_activity_main">Peyktan</string>
+    <string name="package_name">com.peyktan.app</string>
+    <string name="custom_url_scheme">com.peyktan.app</string>
 </resources>

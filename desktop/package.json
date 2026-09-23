@@ -1,9 +1,9 @@
 {
-  "name": "letayif-desktop",
+  "name": "peyktan-desktop",
   "version": "1.0.0",
-  "description": "Letayif - Restoran Yönetim Sistemi Masaüstü Uygulaması",
+  "description": "Peyktan - Restoran Yönetim Sistemi Masaüstü Uygulaması",
   "main": "main.js",
-  "author": "Letayif",
+  "author": "Peyktan",
   "license": "UNLICENSED",
   "scripts": {
     "start": "electron .",
@@ -14,9 +14,9 @@
     "electron-builder": "^25.1.8"
   },
   "build": {
-    "appId": "com.letayif.desktop",
-    "productName": "Letayif",
-    "copyright": "Copyright © 2026 Letayif",
+    "appId": "com.peyktan.desktop",
+    "productName": "Peyktan",
+    "copyright": "Copyright © 2026 Peyktan",
     "files": [
       "main.js",
       "preload.js"
@@ -26,14 +26,14 @@
     },
     "win": {
       "target": "nsis",
-      "publisherName": "Letayif",
+      "publisherName": "Peyktan",
       "icon": "build/icon.ico"
     },
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
-      "shortcutName": "Letayif",
-      "artifactName": "Letayif-Kurulum-${version}.${ext}",
+      "shortcutName": "Peyktan",
+      "artifactName": "Peyktan-Kurulum-${version}.${ext}",
       "installerIcon": "build/icon.ico",
       "uninstallerIcon": "build/icon.ico"
     },
@@ -43,7 +43,7 @@
       "icon": "build/icon.icns"
     },
     "dmg": {
-      "artifactName": "Letayif-${version}.${ext}"
+      "artifactName": "Peyktan-${version}.${ext}"
     }
   }
 }

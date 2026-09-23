@@ -7,10 +7,10 @@ def releaseKeystoreFile = releaseKeystorePath ? file(releaseKeystorePath) : null
 def hasReleaseSigning = releaseKeystoreFile != null && releaseKeystoreFile.exists()
 
 android {
-    namespace "com.letayif.app"
+    namespace "com.peyktan.app"
     compileSdk rootProject.ext.compileSdkVersion
     defaultConfig {
-        applicationId "com.letayif.app"
+        applicationId "com.peyktan.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1

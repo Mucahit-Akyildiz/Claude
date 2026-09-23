@@ -1,4 +1,4 @@
-package com.letayif.app;
+package com.peyktan.app;
 
 import com.getcapacitor.BridgeActivity;
 
