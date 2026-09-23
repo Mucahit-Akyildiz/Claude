@@ -1399,7 +1399,7 @@ async function refreshKitchenItems(session){
           <span class="kitchen-timer" data-added="${it.added_at||''}" data-id="${it.id}" data-name="${escapeHtml(tableName+' - '+it.qty+'x '+it.name)}" style="text-align:center;">-</span>
           <button style="width:auto;padding:8px 14px;font-size:14px;background:var(--green);color:var(--btn-ink);" onclick="markReady('${it.id}')">Hazır</button>
         </div>
-        ${it.note?'<div class="muted" style="font-size:12px;font-style:italic;margin-top:4px;">Not: '+escapeHtml(it.note)+'</div>':''}
+        ${it.note?'<div class="muted" style="font-size:12px;font-style:italic;margin-top:4px;overflow-wrap:anywhere;word-break:break-word;">Not: '+escapeHtml(it.note)+'</div>':''}
       </div>`).join('')}
       <button style="margin-top:10px;background:var(--green);color:var(--btn-ink);" onclick="markAllReady('${o.order_id}')">✅ Hepsi Hazır</button>
       </div>`);
