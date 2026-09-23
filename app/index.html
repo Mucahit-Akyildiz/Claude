@@ -349,7 +349,24 @@ sb.rpc = function(fn, args){
   });
 };
 
-const ROLE_LABELS = { waiter:'Garson', kitchen:'Mutfak', manager:'Yönetici' };
+/* Konfigüre edilebilir izin anahtarları - manager_upsert_role'daki izin
+   listesiyle birebir aynı olmalı (bkz. Supabase migration). 'reports' ve
+   rol yönetiminin kendisi kasıtlı olarak bu listede YOK: finansal analiz
+   ekranı ayrı bir şifre kapısıyla korunuyor, rol yönetimi ise sadece
+   Yönetici'ye (is_system) açık - hiçbir özel role verilemez. */
+const PERMISSION_LABELS = {
+  order: 'Sipariş Al',
+  packages: 'Paket Servis',
+  kitchen: 'Mutfak Ekranı',
+  payments: 'Ödemeler',
+  settings_stations: 'Ayarlar · İstasyonlar',
+  settings_zones: 'Ayarlar · Bölgeler & Masalar',
+  settings_products: 'Ayarlar · Ürünler',
+  settings_ingredients: 'Ayarlar · Hammaddeler',
+  settings_users: 'Ayarlar · Kullanıcılar',
+  settings_flags: 'Ayarlar · Sipariş Etiketleri',
+};
+function hasPerm(session, perm){ return (session.permissions||[]).includes(perm); }
 /* Tüm paketler AYNI 7 günlük ücretsiz deneme ile başlar (bkz.
    verify_registration_otp) - paketler arasındaki fark kullanıcı sayısı
    limiti ve deneme sonrası aylık fiyat. Paketler artık sabit kodlanmış
@@ -451,15 +468,26 @@ async function withLoadingOverlay(promise, delayMs){
 const APP = { view:'home', config:null, selectedZone:null, draftCart:{}, liveOrders:[], authScreen:'login', selectedPackage:null, pendingSignup:null, adminView:'promos', settingsTab:'stations', mobileNavOpen:false };
 
 const NAV_ITEMS = [
-  { view:'order', icon:'🍽️', label:'Sipariş Al', roles:['waiter','manager'] },
-  { view:'packages', icon:'📦', label:'Paket Servis', roles:['waiter','manager'] },
-  { view:'kitchen', icon:'🧑‍🍳', label:'Mutfak Ekranı', roles:['kitchen','manager'] },
-  { view:'printerSettings', icon:'🖨️', label:'Yazıcı Ayarları', roles:['kitchen','waiter','manager'] },
-  { view:'notificationSettings', icon:'🔔', label:'Bildirim Ayarları', roles:['kitchen','waiter','manager'] },
-  { view:'payments', icon:'💳', label:'Ödemeler', roles:['manager'] },
-  { view:'reports', icon:'📊', label:'Finansal Analiz', roles:['manager'] },
-  { view:'settings', icon:'⚙️', label:'Ayarlar', roles:['manager'] },
+  { view:'order', icon:'🍽️', label:'Sipariş Al', perm:'order' },
+  { view:'packages', icon:'📦', label:'Paket Servis', perm:'packages' },
+  { view:'kitchen', icon:'🧑‍🍳', label:'Mutfak Ekranı', perm:'kitchen' },
+  { view:'printerSettings', icon:'🖨️', label:'Yazıcı Ayarları' },
+  { view:'notificationSettings', icon:'🔔', label:'Bildirim Ayarları' },
+  { view:'payments', icon:'💳', label:'Ödemeler', perm:'payments' },
+  { view:'reports', icon:'📊', label:'Finansal Analiz' },
+  { view:'settings', icon:'⚙️', label:'Ayarlar' },
 ];
+/* printerSettings/notificationSettings her personel için her zaman
+   görünür (izin gerektirmez). reports sadece Yönetici'ye (is_manager)
+   görünür - ayrıca içine girerken ayrı bir şifre istenir (bkz.
+   renderReportsView). settings, en az bir settings_* iznine sahip
+   herkese görünür; sekmeler içeride yine izne göre filtrelenir. */
+function navItemVisible(item, session){
+  if(item.view==='reports') return !!session.isManager;
+  if(item.view==='settings') return session.isManager || (session.permissions||[]).some(p => p.startsWith('settings_'));
+  if(!item.perm) return true;
+  return hasPerm(session, item.perm);
+}
 function getTheme(){ try{ return localStorage.getItem('rys_theme')||'light'; }catch(e){ return 'light'; } }
 function setTheme(t){
   try{ localStorage.setItem('rys_theme', t); }catch(e){}
@@ -493,7 +521,7 @@ function render(){
 
   const theme = getTheme();
   const collapsed = getSidebarCollapsed();
-  const items = NAV_ITEMS.filter(i => i.roles.includes(session.role));
+  const items = NAV_ITEMS.filter(i => navItemVisible(i, session));
   app.innerHTML = `
     <div class="app-shell">
       <div class="mobile-topbar">
@@ -511,7 +539,7 @@ function render(){
         </div>
         <div class="sb-user">
           <div class="name">${escapeHtml(session.username)}</div>
-          <div class="role">${ROLE_LABELS[session.role] || session.role}</div>
+          <div class="role">${escapeHtml((session.role_names||[]).join(' + ') || '')}</div>
         </div>
         <nav>
           ${items.map(i => `<div class="sb-item ${APP.view===i.view?'active':''}" onclick="goToView('${i.view}')" title="${i.label}"><span class="ic">${i.icon}</span><span class="label">${i.label}</span></div>`).join('')}
@@ -3385,10 +3413,15 @@ async function doLogin(){
       session_token: row.session_token,
       user_id: row.user_id,
       restaurant_id: row.restaurant_id,
-      role: row.role,
+      role_names: row.role_names || [],
+      permissions: row.permissions || [],
+      isManager: !!row.is_manager,
       restaurant_name: row.restaurant_name,
       username: username
     });
+    APP.reportsUnlocked = false;
+    APP.reportsGateScreen = null;
+    APP.config = null;
     render();
   }catch(err){
     console.error(err);
@@ -3411,18 +3444,28 @@ function escapeHtml(s){
 }
 
 /* ================= AYARLAR ================= */
+/* Her sekme ilgili settings_* iznini gerektirir; Roller sekmesi ise
+   sadece Yönetici'ye (is_manager) açık - bir role bu yetkiyi vermek
+   mümkün değil (bkz. manager_upsert_role'un izin backend'i). */
+const SETTINGS_TABS = [
+  { tab:'stations', perm:'settings_stations', label:'İstasyonlar' },
+  { tab:'zones', perm:'settings_zones', label:'Bölgeler & Masalar' },
+  { tab:'products', perm:'settings_products', label:'Ürünler' },
+  { tab:'ingredients', perm:'settings_ingredients', label:'Hammaddeler' },
+  { tab:'users', perm:'settings_users', label:'Kullanıcılar' },
+  { tab:'flags', perm:'settings_flags', label:'Sipariş Etiketleri' },
+  { tab:'roles', managerOnly:true, label:'Roller' },
+];
+function settingsTabVisible(t, session){ return t.managerOnly ? !!session.isManager : hasPerm(session, t.perm); }
 async function renderSettingsView(main, session){
   const { data, error } = await sb.rpc('get_restaurant_config', { p_token: session.session_token });
   if(error){ main.innerHTML = '<h1>Ayarlar</h1><p class="muted">Yüklenemedi: '+error.message+'</p>'; return; }
   APP.config = data;
+  const visibleTabs = SETTINGS_TABS.filter(t => settingsTabVisible(t, session));
+  if(!visibleTabs.some(t => t.tab===APP.settingsTab)) APP.settingsTab = visibleTabs.length ? visibleTabs[0].tab : null;
   main.innerHTML = `<h1>Ayarlar</h1>
     <div class="tabs">
-      <div class="tab ${APP.settingsTab==='stations'?'active':''}" data-tab="stations" onclick="setSettingsTab('stations')">İstasyonlar</div>
-      <div class="tab ${APP.settingsTab==='zones'?'active':''}" data-tab="zones" onclick="setSettingsTab('zones')">Bölgeler & Masalar</div>
-      <div class="tab ${APP.settingsTab==='products'?'active':''}" data-tab="products" onclick="setSettingsTab('products')">Ürünler</div>
-      <div class="tab ${APP.settingsTab==='ingredients'?'active':''}" data-tab="ingredients" onclick="setSettingsTab('ingredients')">Hammaddeler</div>
-      <div class="tab ${APP.settingsTab==='users'?'active':''}" data-tab="users" onclick="setSettingsTab('users')">Kullanıcılar</div>
-      <div class="tab ${APP.settingsTab==='flags'?'active':''}" data-tab="flags" onclick="setSettingsTab('flags')">Sipariş Etiketleri</div>
+      ${visibleTabs.map(t => `<div class="tab ${APP.settingsTab===t.tab?'active':''}" data-tab="${t.tab}" onclick="setSettingsTab('${t.tab}')">${t.label}</div>`).join('')}
     </div>
     <div id="settingsContent"></div>`;
   renderSettingsContent(session);
@@ -3434,11 +3477,13 @@ function setSettingsTab(tab){
 }
 function renderSettingsContent(session){
   const el = document.getElementById('settingsContent'); if(!el) return;
+  if(!APP.settingsTab){ el.innerHTML = '<p class="muted">Görüntüleme yetkiniz olan bir ayar bölümü yok.</p>'; return; }
   if(APP.settingsTab==='stations') renderStationsSettings(el, session);
   else if(APP.settingsTab==='zones') renderZonesSettings(el, session);
   else if(APP.settingsTab==='products') renderProductsSettings(el, session);
   else if(APP.settingsTab==='ingredients') renderIngredientsSettings(el, session);
   else if(APP.settingsTab==='flags') renderOrderFlagsSettings(el, session);
+  else if(APP.settingsTab==='roles') renderRolesSettings(el, session);
   else renderUsersSettings(el, session);
 }
 
@@ -3989,6 +4034,30 @@ async function removeProduct(id){
 }
 
 /* --- Kullanıcılar --- */
+/* Bir kullanıcıya en fazla 2 rol atanabilir (bkz. app_users.role_ids
+   CHECK kısıtı ve create_staff_user/update_staff_user). Rol seçimi
+   checkbox listesi olarak gösteriliyor, tek <select> yerine - çünkü
+   artık roller sabit 3 tane değil, yöneticinin Roller sekmesinde
+   tanımladığı sayıda ve isimde olabiliyor. */
+function roleCheckboxes(idPrefix, selectedIds){
+  const roles = (APP.config.roles||[]);
+  return roles.map(r => `
+    <label style="display:flex;align-items:center;gap:6px;font-weight:400;font-size:13px;margin-bottom:4px;">
+      <input type="checkbox" id="${idPrefix}_role_${r.id}" value="${r.id}" data-roles-group="${idPrefix}" ${selectedIds.includes(r.id)?'checked':''} style="width:auto;margin:0;" onchange="enforceMaxTwoRoles('${idPrefix}')">
+      ${escapeHtml(r.name)}
+    </label>`).join('');
+}
+function enforceMaxTwoRoles(idPrefix){
+  const boxes = Array.from(document.querySelectorAll(`input[data-roles-group="${idPrefix}"]`));
+  const checked = boxes.filter(b => b.checked);
+  if(checked.length > 2){
+    alert('Bir kullanıcıya en fazla 2 rol atanabilir');
+    checked[checked.length-1].checked = false;
+  }
+}
+function selectedRoleIds(idPrefix){
+  return Array.from(document.querySelectorAll(`input[data-roles-group="${idPrefix}"]:checked`)).map(b => b.value);
+}
 function renderUsersSettings(el, session){
   const lic = APP.config.license;
   el.innerHTML = `<div class="box" style="max-width:none;">
@@ -3996,17 +4065,13 @@ function renderUsersSettings(el, session){
     <h2>Kullanıcılar</h2>
     <div class="settings-table-wrap">
     <table class="settings-table">
-      <thead><tr><th>Kullanıcı Adı</th><th>Yeni Şifre</th><th>Rol</th><th></th></tr></thead>
+      <thead><tr><th>Kullanıcı Adı</th><th>Yeni Şifre</th><th>Roller (en fazla 2)</th><th></th></tr></thead>
       <tbody>
       ${APP.config.users.map(u => `
         <tr>
           <td class="col-name"><input value="${escapeHtml(u.username)}" id="us_name_${u.id}"></td>
           <td class="col-name"><input type="password" placeholder="(değiştirmek için yaz)" id="us_pass_${u.id}"></td>
-          <td class="col-name"><select id="us_role_${u.id}">
-            <option value="waiter" ${u.role==='waiter'?'selected':''}>Garson</option>
-            <option value="kitchen" ${u.role==='kitchen'?'selected':''}>Mutfak</option>
-            <option value="manager" ${u.role==='manager'?'selected':''}>Yönetici</option>
-          </select></td>
+          <td class="col-name">${roleCheckboxes('us_'+u.id, u.role_ids||[])}</td>
           <td>
             <button class="sbtn" onclick="saveUser('${u.id}')">Kaydet</button>
             <button class="sbtn" style="background:var(--red);color:var(--btn-ink);" onclick="removeUser('${u.id}')">Sil</button>
@@ -4017,15 +4082,93 @@ function renderUsersSettings(el, session){
     </div>
     <div class="add-row-panel">
       <p>Yeni Kullanıcı Ekle</p>
-      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;align-items:end;">
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;align-items:start;">
         <div class="field-group"><label>Kullanıcı Adı</label><input id="nu_name" placeholder="örn. ahmet"></div>
         <div class="field-group"><label>Şifre</label><input id="nu_pass" placeholder="Şifre"></div>
-        <div class="field-group"><label>Rol</label><select id="nu_role"><option value="waiter">Garson</option><option value="kitchen">Mutfak</option><option value="manager">Yönetici</option></select></div>
+        <div class="field-group"><label>Roller (en fazla 2)</label>${roleCheckboxes('nu', [])}</div>
       </div>
       <button style="margin-top:12px;max-width:220px;" onclick="addUser()">+ Kullanıcı Ekle</button>
     </div>
   </div>`;
 }
+
+/* --- Roller: yönetici rolleri kendisi ekleyip/çıkarabilir, hangi role
+   hangi ekranların açık olduğuna kendisi karar verir (bkz.
+   manager_upsert_role/manager_delete_role). Yönetici rolü (is_system)
+   salt okunur - tüm ekranlara erişimi sabit ve değiştirilemez. */
+function permissionCheckboxes(idPrefix, selectedPerms){
+  return Object.keys(PERMISSION_LABELS).map(key => `
+    <label style="display:flex;align-items:center;gap:6px;font-weight:400;font-size:13px;margin-bottom:4px;">
+      <input type="checkbox" id="${idPrefix}_perm_${key}" value="${key}" data-perms-group="${idPrefix}" ${selectedPerms.includes(key)?'checked':''} style="width:auto;margin:0;">
+      ${PERMISSION_LABELS[key]}
+    </label>`).join('');
+}
+function selectedPermissions(idPrefix){
+  return Array.from(document.querySelectorAll(`input[data-perms-group="${idPrefix}"]:checked`)).map(b => b.value);
+}
+function renderRolesSettings(el, session){
+  const roles = APP.config.roles || [];
+  el.innerHTML = `<div class="box" style="max-width:none;">
+    <h2>Roller</h2>
+    <p class="muted" style="margin-top:-8px;margin-bottom:16px;">Hangi rolün hangi ekranlara erişebileceğini burada belirleyin. Yönetici rolü tüm ekranlara erişebilir ve değiştirilemez.</p>
+    <div class="settings-table-wrap">
+    <table class="settings-table">
+      <thead><tr><th>Rol Adı</th><th>Ekran İzinleri</th><th>Kullanıcı Sayısı</th><th></th></tr></thead>
+      <tbody>
+      ${roles.map(r => r.is_system ? `
+        <tr>
+          <td class="col-name">${escapeHtml(r.name)} <span class="role-badge" style="margin-left:6px;">Sistem</span></td>
+          <td><span class="muted">Tüm ekranlar</span></td>
+          <td>${r.user_count}</td>
+          <td></td>
+        </tr>` : `
+        <tr>
+          <td class="col-name"><input value="${escapeHtml(r.name)}" id="role_name_${r.id}"></td>
+          <td>${permissionCheckboxes('role_'+r.id, r.permissions||[])}</td>
+          <td>${r.user_count}</td>
+          <td>
+            <button class="sbtn" onclick="saveRole('${r.id}')">Kaydet</button>
+            <button class="sbtn" style="background:var(--red);color:var(--btn-ink);" onclick="deleteRole('${r.id}')">Sil</button>
+          </td>
+        </tr>`).join('')}
+      </tbody>
+    </table>
+    </div>
+    <div class="add-row-panel">
+      <p>Yeni Rol Ekle</p>
+      <div class="field-group" style="max-width:280px;"><label>Rol Adı</label><input id="new_role_name" placeholder="örn. Kasiyer"></div>
+      <div style="margin-top:10px;">${permissionCheckboxes('new_role', [])}</div>
+      <button style="margin-top:12px;max-width:220px;" onclick="createRole()">+ Rol Ekle</button>
+    </div>
+  </div>`;
+}
+async function saveRole(id){
+  const session = getSession();
+  const name = document.getElementById('role_name_'+id).value.trim();
+  const perms = selectedPermissions('role_'+id);
+  if(!name){ alert('Rol adı gerekli'); return; }
+  const { error } = await sb.rpc('manager_upsert_role', { p_token: session.session_token, p_id: id, p_name: name, p_permissions: perms });
+  if(error){ alert(error.message); return; }
+  renderSettingsView(document.getElementById('main'), session);
+  showToast('Kaydedildi ✓');
+}
+async function createRole(){
+  const session = getSession();
+  const name = document.getElementById('new_role_name').value.trim();
+  const perms = selectedPermissions('new_role');
+  if(!name){ alert('Rol adı gerekli'); return; }
+  const { error } = await sb.rpc('manager_upsert_role', { p_token: session.session_token, p_id: null, p_name: name, p_permissions: perms });
+  if(error){ alert(error.message); return; }
+  renderSettingsView(document.getElementById('main'), session);
+}
+async function deleteRole(id){
+  if(!confirm('Bu rolü silmek istediğinize emin misiniz?')) return;
+  const session = getSession();
+  const { error } = await sb.rpc('manager_delete_role', { p_token: session.session_token, p_id: id });
+  if(error){ alert(error.message); return; }
+  renderSettingsView(document.getElementById('main'), session);
+}
+
 /* ---- Abonelik / Aylık Ödeme (Ayarlar > Kullanıcılar üstünde) ---- */
 function renderSubscriptionPanel(lic){
   const expires = new Date(lic.expires_at);
@@ -4077,8 +4220,9 @@ async function saveUser(id){
   const session = getSession();
   const username = document.getElementById('us_name_'+id).value.trim();
   const password = document.getElementById('us_pass_'+id).value;
-  const role = document.getElementById('us_role_'+id).value;
-  const { error } = await sb.rpc('update_staff_user', { p_token: session.session_token, p_user_id: id, p_username: username, p_password: password||null, p_role: role });
+  const roleIds = selectedRoleIds('us_'+id);
+  if(roleIds.length===0){ alert('En az 1 rol seçmelisiniz'); return; }
+  const { error } = await sb.rpc('update_staff_user', { p_token: session.session_token, p_user_id: id, p_username: username, p_password: password||null, p_role_ids: roleIds });
   if(error){ alert(error.message); return; }
   renderSettingsView(document.getElementById('main'), session);
   showToast('Kaydedildi ✓');
@@ -4087,9 +4231,10 @@ async function addUser(){
   const session = getSession();
   const username = document.getElementById('nu_name').value.trim();
   const password = document.getElementById('nu_pass').value;
-  const role = document.getElementById('nu_role').value;
+  const roleIds = selectedRoleIds('nu');
   if(!username || !password) return;
-  const { error } = await sb.rpc('create_staff_user', { p_token: session.session_token, p_username: username, p_password: password, p_role: role });
+  if(roleIds.length===0){ alert('En az 1 rol seçmelisiniz'); return; }
+  const { error } = await sb.rpc('create_staff_user', { p_token: session.session_token, p_username: username, p_password: password, p_role_ids: roleIds });
   if(error){ alert(error.message); return; }
   renderSettingsView(document.getElementById('main'), session);
 }
@@ -4102,10 +4247,167 @@ async function removeUser(id){
 }
 
 /* ================= FİNANSAL ANALİZ ================= */
+/* Finansal Analiz ekranı yönetici için bile ayrı bir şifreyle korunuyor
+   (bkz. kullanıcı isteği). Şifre işletme bazlı tek bir ortak sır olarak
+   restaurants.reports_password_hash içinde tutuluyor (bkz.
+   set_reports_password/verify_reports_password). Kilit APP.reportsUnlocked
+   içinde bellekte tutulur - sayfa yenilenince veya çıkış yapılınca
+   tekrar şifre istenir. */
+function renderReportsGate(main, session){
+  const passwordSet = APP.config && APP.config.license && APP.config.license.reports_password_set;
+  if(!passwordSet) return renderReportsSetPasswordGate(main, session);
+  if(APP.reportsGateScreen === 'forgot1' || APP.reportsGateScreen === 'forgot2') return renderReportsForgotGate(main, session);
+  return renderReportsEnterGate(main, session);
+}
+function renderReportsEnterGate(main, session){
+  main.innerHTML = `<h1>Finansal Analiz</h1>
+    <div class="box" style="max-width:420px;">
+      <p class="muted">Bu ekrana erişmek için finansal analiz şifresini girin.</p>
+      <div class="pw-field-wrap">
+        <input type="password" id="rpEnterPass" placeholder="Şifre" onkeydown="if(event.key==='Enter')doUnlockReports();">
+        <button type="button" class="pw-eye-btn" onclick="toggleReportsPassVisibility('rpEnterPass')" title="Şifreyi göster/gizle">👁️</button>
+      </div>
+      <button id="rpEnterBtn" onclick="doUnlockReports()">Görüntüle</button>
+      <div class="error" id="rpErr"></div>
+      <p class="muted" style="text-align:center;margin-top:14px;font-size:13px;">
+        <a href="#" style="color:var(--accent);" onclick="APP.reportsGateScreen='forgot1';renderReportsGate(document.getElementById('main'),getSession());return false;">Şifremi Unuttum</a>
+      </p>
+    </div>`;
+}
+async function doUnlockReports(){
+  const session = getSession();
+  const errBox = document.getElementById('rpErr');
+  errBox.textContent = '';
+  const password = document.getElementById('rpEnterPass').value;
+  if(!password){ errBox.textContent = 'Şifre girin'; return; }
+  const btn = document.getElementById('rpEnterBtn');
+  btn.disabled = true; btn.textContent = 'Kontrol ediliyor...';
+  const { data, error } = await sb.rpc('verify_reports_password', { p_token: session.session_token, p_password: password });
+  btn.disabled = false; btn.textContent = 'Görüntüle';
+  if(error){ errBox.textContent = error.message; return; }
+  if(!data){ errBox.textContent = 'Şifre hatalı'; return; }
+  APP.reportsUnlocked = true;
+  renderReportsView(document.getElementById('main'), session);
+}
+function renderReportsSetPasswordGate(main, session){
+  main.innerHTML = `<h1>Finansal Analiz</h1>
+    <div class="box" style="max-width:420px;">
+      <p class="muted">Bu ekranı korumak için bir şifre belirleyin. Bu şifreyi bilen herhangi bir yönetici finansal verileri görüntüleyebilir.</p>
+      <div class="pw-field-wrap">
+        <input type="password" id="rpSetPass" placeholder="Yeni şifre">
+        <button type="button" class="pw-eye-btn" onclick="toggleReportsPassVisibility('rpSetPass','rpSetPass2')" title="Şifreyi göster/gizle">👁️</button>
+      </div>
+      <div class="pw-field-wrap">
+        <input type="password" id="rpSetPass2" placeholder="Yeni şifre (tekrar)">
+        <button type="button" class="pw-eye-btn" onclick="toggleReportsPassVisibility('rpSetPass','rpSetPass2')" title="Şifreyi göster/gizle">👁️</button>
+      </div>
+      <button id="rpSetBtn" onclick="doSetReportsPassword()">Şifreyi Belirle</button>
+      <div class="error" id="rpErr"></div>
+    </div>`;
+}
+async function doSetReportsPassword(){
+  const session = getSession();
+  const errBox = document.getElementById('rpErr');
+  errBox.textContent = '';
+  const p1 = document.getElementById('rpSetPass').value;
+  const p2 = document.getElementById('rpSetPass2').value;
+  if(!p1 || p1.length<4){ errBox.textContent = 'En az 4 karakter bir şifre girin'; return; }
+  if(p1 !== p2){ errBox.textContent = 'Girdiğiniz şifreler eşleşmiyor'; return; }
+  const btn = document.getElementById('rpSetBtn');
+  btn.disabled = true; btn.textContent = 'Kaydediliyor...';
+  const { error } = await sb.rpc('set_reports_password', { p_token: session.session_token, p_new_password: p1 });
+  btn.disabled = false; btn.textContent = 'Şifreyi Belirle';
+  if(error){ errBox.textContent = error.message; return; }
+  APP.config.license.reports_password_set = true;
+  APP.reportsUnlocked = true;
+  renderReportsView(document.getElementById('main'), session);
+}
+function renderReportsForgotGate(main, session){
+  const step = APP.reportsGateScreen === 'forgot2' ? 2 : 1;
+  main.innerHTML = `<h1>Finansal Analiz</h1>
+    <div class="box" style="max-width:420px;">
+      <p class="muted" id="rpFgSub">${step===1
+        ? 'İşletmenizin kayıtlı e-postasına bir doğrulama kodu gönderelim.'
+        : 'E-postanıza gönderilen kodu ve yeni şifrenizi girin.'}</p>
+      <div id="rpFgStep1" style="display:${step===1?'block':'none'};">
+        <button id="rpFgSendBtn" onclick="doStartReportsPasswordReset()">Kod Gönder</button>
+      </div>
+      <div id="rpFgStep2" style="display:${step===2?'block':'none'};">
+        <p class="muted" id="rpFgOtpInfo" style="text-align:center;"></p>
+        <input id="rpFgOtp" placeholder="6 haneli kod" maxlength="6" style="text-align:center;font-size:20px;letter-spacing:4px;">
+        <div class="pw-field-wrap">
+          <input type="password" id="rpFgNewPass" placeholder="Yeni şifre">
+          <button type="button" class="pw-eye-btn" onclick="toggleReportsPassVisibility('rpFgNewPass','rpFgNewPass2')" title="Şifreyi göster/gizle">👁️</button>
+        </div>
+        <div class="pw-field-wrap">
+          <input type="password" id="rpFgNewPass2" placeholder="Yeni şifre (tekrar)">
+          <button type="button" class="pw-eye-btn" onclick="toggleReportsPassVisibility('rpFgNewPass','rpFgNewPass2')" title="Şifreyi göster/gizle">👁️</button>
+        </div>
+        <button id="rpFgVerifyBtn" onclick="doVerifyReportsPasswordReset()">Şifreyi Güncelle</button>
+      </div>
+      <div class="error" id="rpErr"></div>
+      <p class="muted" style="text-align:center;margin-top:14px;font-size:13px;">
+        <a href="#" style="color:var(--accent);" onclick="APP.reportsGateScreen=null;renderReportsGate(document.getElementById('main'),getSession());return false;">← Şifreyle Gir</a>
+      </p>
+    </div>`;
+}
+function toggleReportsPassVisibility(id1, id2){
+  const f1 = document.getElementById(id1);
+  const f2 = id2 ? document.getElementById(id2) : null;
+  const showing = f1.type === 'text';
+  const nextType = showing ? 'password' : 'text';
+  f1.type = nextType; if(f2) f2.type = nextType;
+  const wrap = f1.closest('.box');
+  if(wrap) wrap.querySelectorAll('.pw-eye-btn').forEach(b => {
+    if(!f2 || b.closest('.pw-field-wrap').contains(f1) || b.closest('.pw-field-wrap').contains(f2)) b.textContent = showing ? '👁️' : '🙈';
+  });
+}
+async function doStartReportsPasswordReset(){
+  const session = getSession();
+  const errBox = document.getElementById('rpErr');
+  errBox.textContent = '';
+  const btn = document.getElementById('rpFgSendBtn');
+  btn.disabled = true; btn.textContent = 'Gönderiliyor...';
+  const { data, error } = await sb.rpc('start_reports_password_reset', { p_token: session.session_token });
+  btn.disabled = false; btn.textContent = 'Kod Gönder';
+  if(error){ errBox.textContent = error.message; return; }
+  APP.reportsGateScreen = 'forgot2';
+  renderReportsGate(document.getElementById('main'), session);
+  const otpInfo = document.getElementById('rpFgOtpInfo');
+  if(data && data.sent){
+    otpInfo.textContent = 'İşletmenizin kayıtlı e-postasına gönderilen 6 haneli kodu girin.';
+  } else {
+    otpInfo.innerHTML = 'E-posta gönderimi henüz ayarlanmadığı için test kodu: <b>' + escapeHtml((data||{}).test_otp||'') + '</b>';
+  }
+}
+async function doVerifyReportsPasswordReset(){
+  const session = getSession();
+  const errBox = document.getElementById('rpErr');
+  errBox.textContent = '';
+  const otp = document.getElementById('rpFgOtp').value.trim();
+  const newPass = document.getElementById('rpFgNewPass').value;
+  const newPass2 = document.getElementById('rpFgNewPass2').value;
+  if(!otp){ errBox.textContent = 'Kodu girin'; return; }
+  if(!newPass || newPass.length<4){ errBox.textContent = 'En az 4 karakter bir şifre girin'; return; }
+  if(newPass !== newPass2){ errBox.textContent = 'Girdiğiniz şifreler eşleşmiyor'; return; }
+  const btn = document.getElementById('rpFgVerifyBtn');
+  btn.disabled = true; btn.textContent = 'Güncelleniyor...';
+  const { error } = await sb.rpc('verify_reports_password_reset', { p_token: session.session_token, p_otp: otp, p_new_password: newPass });
+  btn.disabled = false; btn.textContent = 'Şifreyi Güncelle';
+  if(error){ errBox.textContent = error.message; return; }
+  APP.reportsGateScreen = null;
+  APP.reportsUnlocked = true;
+  showToast('Finansal analiz şifresi güncellendi ✓');
+  renderReportsView(document.getElementById('main'), session);
+}
 async function renderReportsView(main, session){
   if(!APP.config){
     const { data } = await withLoadingOverlay(sb.rpc('get_restaurant_config', { p_token: session.session_token }));
     if(data) APP.config = data;
+  }
+  if(!APP.reportsUnlocked){
+    renderReportsGate(main, session);
+    return;
   }
   main.innerHTML = `<h1>Finansal Analiz</h1>
     <div class="box" style="max-width:none;display:flex;justify-content:space-between;align-items:center;">
