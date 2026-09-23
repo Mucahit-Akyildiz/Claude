@@ -2300,6 +2300,17 @@ function renderTableItems(tableId){
         <span>${escapeHtml(it.name)} x${it.qty} ${it.status==='ready'?'<span style="color:var(--green);">✓ Hazır</span>':'<span class="muted">Hazırlanıyor</span>'}</span>
       </div>`).join('');
   } else { sentWrap.innerHTML = ''; }
+  // Sepet (draftCart) tamamen yerel/gönderilmemiş bir durum, başka bir
+  // cihazdan değişmez - bu yüzden kullanıcı şu an bir not alanına
+  // yazıyorsa (bkz. arka plan canlı durum yenilemesi, refreshOrderLiveStatus,
+  // 5 saniyede bir bu fonksiyonu çağırıyor) sepeti yeniden çizip
+  // imleci/odağı kaybetmeyelim - yazması bitince zaten bir sonraki
+  // yenilemede veya bir sepet işlemiyle güncellenir.
+  if(draftWrap.contains(document.activeElement) && document.activeElement.tagName==='INPUT'){
+    const confirmBtn = document.getElementById('confirmBtn');
+    if(confirmBtn) confirmBtn.disabled = draft.length===0;
+    return;
+  }
   if(draft.length===0){
     draftWrap.innerHTML = order && order.items.length>0 ? '' : '<p class="muted">Henüz ürün eklenmedi.</p>';
   } else {
