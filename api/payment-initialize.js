@@ -19,14 +19,6 @@ const IYZICO_API_KEY = process.env.IYZICO_API_KEY;
 const IYZICO_SECRET_KEY = process.env.IYZICO_SECRET_KEY;
 const CALLBACK_URL = process.env.CALLBACK_URL; // https://<vercel-domaininiz>/api/payment-callback
 
-// Varsayilan fiyatlar (TL) - platform_settings'te (price_paket1/2/3) tanimli
-// bir deger varsa o kullanilir (bkz. get_package_prices RPC / admin ekrani).
-const DEFAULT_PACKAGE_PRICES = {
-  paket1: 499,
-  paket2: 999,
-  paket3: 2499,
-};
-
 function randomKey() {
   return Date.now().toString() + Math.floor(Math.random() * 1000000).toString();
 }
@@ -102,15 +94,12 @@ module.exports = async function handler(req, res) {
       return;
     }
 
-    const { data: priceRows } = await supabase
-      .from('platform_settings')
-      .select('key, value')
-      .in('key', ['price_paket1', 'price_paket2', 'price_paket3']);
-    const livePrices = {};
-    (priceRows || []).forEach((r) => { livePrices[r.key.replace('price_', '')] = Number(r.value); });
-    const packagePrices = { ...DEFAULT_PACKAGE_PRICES, ...livePrices };
-
-    const price = packagePrices[restaurant.package_id] || 0;
+    const { data: pkgRow } = await supabase
+      .from('packages')
+      .select('price')
+      .eq('id', restaurant.package_id)
+      .maybeSingle();
+    const price = Number(pkgRow && pkgRow.price) || 0;
     if (price <= 0) {
       res.status(400).json({ errorMessage: 'Gecersiz paket fiyati' });
       return;

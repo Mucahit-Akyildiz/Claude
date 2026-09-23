@@ -173,28 +173,7 @@
       <p>Her paket 7 gün ücretsiz denemeyle başlar. Kredi kartı gerekmez.</p>
     </div>
     <div class="pricing-grid" id="pricingGrid">
-      <div class="price-card">
-        <h3>Başlangıç</h3>
-        <div class="amount">—</div>
-        <p class="desc">1 Yönetici + 1 Mutfak + 1 Garson</p>
-        <ul><li>3 kullanıcıya kadar</li><li>Tüm temel özellikler</li></ul>
-        <a class="btn btn-outline" style="width:100%;" href="/app/?signup=1">Dene</a>
-      </div>
-      <div class="price-card popular">
-        <span class="badge">EN ÇOK TERCİH EDİLEN</span>
-        <h3>Standart</h3>
-        <div class="amount">—</div>
-        <p class="desc">Büyüyen işletmeler için</p>
-        <ul><li>8 kullanıcıya kadar</li><li>Tüm temel özellikler</li></ul>
-        <a class="btn btn-primary" style="width:100%;" href="/app/?signup=1">Dene</a>
-      </div>
-      <div class="price-card">
-        <h3>Profesyonel</h3>
-        <div class="amount">—</div>
-        <p class="desc">Çok şubeli/yoğun işletmeler için</p>
-        <ul><li>20 kullanıcıya kadar</li><li>Tüm temel özellikler</li></ul>
-        <a class="btn btn-outline" style="width:100%;" href="/app/?signup=1">Dene</a>
-      </div>
+      <p style="grid-column:1/-1;text-align:center;color:var(--muted);">Yükleniyor...</p>
     </div>
   </div>
 </section>
@@ -249,15 +228,26 @@
   const SUPABASE_KEY = 'sb_publishable_7gHhsaPYOzOddFnpjntPKw_S3Mgg3V8';
   const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
   function money(n){ return (Math.round((n||0)*100)/100).toLocaleString('tr-TR',{minimumFractionDigits:0,maximumFractionDigits:2}); }
-  sb.rpc('get_package_prices').then(({data}) => {
-    if(!data) return;
-    const amounts = document.querySelectorAll('#pricingGrid .amount');
-    const keys = ['price_paket1','price_paket2','price_paket3'];
-    amounts.forEach((el, i) => {
-      const v = Number(data[keys[i]]);
-      if(v) el.innerHTML = money(v) + ' <small>TL/ay</small>';
-    });
-  }).catch(()=>{});
+  function escapeHtml(s){ const d = document.createElement('div'); d.textContent = s||''; return d.innerHTML; }
+  // Paketler platform admin panelinden eklenip/silinebildiği için sabit
+  // değil - burada canlı okunup kart olarak render ediliyor (bkz. list_packages).
+  sb.rpc('list_packages').then(({data}) => {
+    const grid = document.getElementById('pricingGrid');
+    const packages = data || [];
+    if(packages.length===0){ grid.innerHTML = ''; return; }
+    grid.innerHTML = packages.map(p => `
+      <div class="price-card ${p.is_popular?'popular':''}">
+        ${p.is_popular ? '<span class="badge">EN ÇOK TERCİH EDİLEN</span>' : ''}
+        <h3>${escapeHtml(p.name)}</h3>
+        <div class="amount">${p.price ? money(p.price)+' <small>TL/ay</small>' : '—'}</div>
+        <p class="desc">${escapeHtml(p.description)}</p>
+        <ul><li>${p.max_users} kullanıcıya kadar</li><li>Tüm temel özellikler</li></ul>
+        <a class="btn ${p.is_popular?'btn-primary':'btn-outline'}" style="width:100%;" href="/app/?signup=1">Dene</a>
+      </div>`).join('');
+  }).catch(()=>{
+    const grid = document.getElementById('pricingGrid');
+    if(grid) grid.innerHTML = '<p style="grid-column:1/-1;text-align:center;color:var(--muted);">Fiyatlar şu anda yüklenemedi.</p>';
+  });
 </script>
 </body>
 </html>
