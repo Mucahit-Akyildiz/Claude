@@ -43,6 +43,11 @@
   p.muted{color:var(--muted);text-align:center;font-size:13.5px;margin:0 0 22px;line-height:1.5;}
   input,select{width:100%;background:var(--panel2);border:1.5px solid var(--border);color:var(--text);border-radius:12px;padding:12px 14px;font-size:14.5px;margin-bottom:10px;font-family:inherit;transition:border-color .15s ease, box-shadow .15s ease;}
   input:focus,select:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(0,143,168,.18);}
+  .pw-field-wrap{position:relative;}
+  .pw-field-wrap input{padding-right:44px;}
+  .pw-eye-btn{position:absolute;right:5px;top:50%;transform:translateY(-50%);width:32px;height:32px;padding:0;margin:0;border-radius:8px;background:transparent;color:var(--muted);box-shadow:none;font-size:15px;display:flex;align-items:center;justify-content:center;}
+  .pw-eye-btn:hover{background:var(--panel2);color:var(--text);filter:none;transform:translateY(-50%);}
+  .pw-eye-btn:active{transform:translateY(-50%);box-shadow:none;}
   button{width:100%;padding:13px;border:none;border-radius:12px;background:var(--accent);color:var(--btn-ink);font-weight:700;font-size:14.5px;cursor:pointer;margin-top:6px;font-family:inherit;transition:filter .15s ease, transform .08s ease;box-shadow:0 3px 0 rgba(0,0,0,.18);}
   button:hover{filter:brightness(1.08);}
   button:active{transform:translateY(2px);box-shadow:0 1px 0 rgba(0,0,0,.18);}
@@ -843,9 +848,17 @@ async function refreshPromoList(admin){
     </div>
     <div class="add-row-panel" style="margin-top:20px;">
       <p>Şifrenizi Değiştirin</p>
-      <div style="display:flex;gap:10px;">
-        <input type="password" id="newAdminPass" placeholder="Yeni şifre" style="flex:1;margin:0;">
-        <button style="width:auto;padding:10px 16px;margin:0;" onclick="changeAdminPassword()">Güncelle</button>
+      <div style="display:flex;flex-direction:column;gap:10px;max-width:420px;">
+        <div class="pw-field-wrap">
+          <input type="password" id="newAdminPass" placeholder="Yeni şifre" style="margin:0;">
+          <button type="button" class="pw-eye-btn" onclick="toggleAdminPassVisibility()" title="Şifreyi göster/gizle">👁️</button>
+        </div>
+        <div class="pw-field-wrap">
+          <input type="password" id="newAdminPass2" placeholder="Yeni şifre (tekrar)" style="margin:0;">
+          <button type="button" class="pw-eye-btn" onclick="toggleAdminPassVisibility()" title="Şifreyi göster/gizle">👁️</button>
+        </div>
+        <div class="error" id="adminPassErr" style="text-align:left;margin:0;min-height:0;"></div>
+        <button style="width:auto;padding:10px 16px;margin:0;align-self:flex-start;" onclick="changeAdminPassword()">Güncelle</button>
       </div>
     </div>
   `;
@@ -877,14 +890,27 @@ async function deletePromo(id){
   if(error){ alert(error.message); return; }
   refreshPromoList(admin);
 }
+function toggleAdminPassVisibility(){
+  const f1 = document.getElementById('newAdminPass');
+  const f2 = document.getElementById('newAdminPass2');
+  const showing = f1.type === 'text';
+  const nextType = showing ? 'password' : 'text';
+  f1.type = nextType; f2.type = nextType;
+  document.querySelectorAll('.pw-eye-btn').forEach(b => b.textContent = showing ? '👁️' : '🙈');
+}
 async function changeAdminPassword(){
   const admin = getAdminSession();
+  const errBox = document.getElementById('adminPassErr');
+  errBox.textContent = '';
   const newPass = document.getElementById('newAdminPass').value;
-  if(!newPass || newPass.length<4){ alert('En az 4 karakter bir şifre girin'); return; }
+  const newPass2 = document.getElementById('newAdminPass2').value;
+  if(!newPass || newPass.length<4){ errBox.textContent = 'En az 4 karakter bir şifre girin'; return; }
+  if(newPass !== newPass2){ errBox.textContent = 'Girdiğiniz şifreler eşleşmiyor'; return; }
   const { error } = await sb.rpc('change_platform_admin_password', { p_token: admin.session_token, p_new_password: newPass });
-  if(error){ alert(error.message); return; }
-  alert('Şifreniz güncellendi.');
+  if(error){ errBox.textContent = error.message; return; }
+  showToast('Şifreniz güncellendi ✓');
   document.getElementById('newAdminPass').value = '';
+  document.getElementById('newAdminPass2').value = '';
 }
 
 function goHome(){ APP.view='home'; APP.mobileNavOpen = false; render(); }
