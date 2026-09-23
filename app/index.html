@@ -1659,7 +1659,7 @@ function renderPayGrid(){
     const unpaid = o.items.filter(i=>!i.paid);
     const total = unpaid.reduce((s,i)=>s+i.price*i.qty,0);
     const label = o.customer_name || ('Paket #'+(o.daily_number||''));
-    return `<div class="table-cell" style="cursor:pointer;background:rgba(244,63,94,.14);border-color:var(--red);color:var(--red);" onclick="openPayModal('${o.order_id}','${escapeHtml('📦 '+label)}')">
+    return `<div class="table-cell" style="cursor:pointer;background:rgba(244,63,94,.14);border-color:var(--red);color:var(--red);overflow-wrap:anywhere;word-break:break-word;" onclick="openPayModal('${o.order_id}','${escapeHtml('📦 '+label)}')">
       📦 ${escapeHtml(label)}<div style="font-size:11px;margin-top:4px;font-weight:400;">${money(total)}</div></div>`;
   });
   const occupiedRows = tableRows.concat(pkgRows);
@@ -1698,7 +1698,7 @@ function openPayModal(orderId, tableName){
   bg.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:100;padding:16px;';
   bg.onclick = (e) => { if(e.target===bg) bg.remove(); };
   bg.innerHTML = `<div style="background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:20px;max-width:380px;width:100%;max-height:88vh;overflow:auto;">
-    <div style="display:flex;justify-content:space-between;"><h2 style="margin:0;">${escapeHtml(tableName)}</h2><span style="cursor:pointer;color:var(--muted);" onclick="document.getElementById('payModalBg').remove()">✕</span></div>
+    <div style="display:flex;justify-content:space-between;gap:10px;"><h2 style="margin:0;overflow-wrap:anywhere;word-break:break-word;">${escapeHtml(tableName)}</h2><span style="cursor:pointer;color:var(--muted);flex-shrink:0;" onclick="document.getElementById('payModalBg').remove()">✕</span></div>
     ${unpaidItems.length>1 ? `<div style="display:flex;justify-content:flex-end;margin-top:6px;"><button style="width:auto;padding:4px 10px;margin:0;font-size:12px;background:transparent;border:1px solid var(--border);color:var(--muted);box-shadow:none;" onclick="toggleAllPayItems()">Tümünü Seç/Kaldır</button></div>` : ''}
     <div id="payItemsWrap" style="margin-top:6px;">${itemsHtml}</div>
     <div style="text-align:right;color:var(--muted);font-size:13px;margin-top:10px;" id="paySubtotalLine">Ara Toplam: ${money(subtotal)}</div>
