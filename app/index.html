@@ -2118,7 +2118,7 @@ function renderPackageGrid(){
     const total = o.items.reduce((s,i) => s+i.price*i.qty, 0);
     const allReady = o.items.length>0 && o.items.every(i => i.status==='ready');
     const label = o.customer_name || ('Paket #'+(o.daily_number||''));
-    return `<div class="table-cell" style="cursor:pointer;background:rgba(244,63,94,.14);border-color:var(--red);color:var(--red);" onclick="openPackageModal('pkg_${o.order_id}')">
+    return `<div class="table-cell" style="cursor:pointer;background:rgba(244,63,94,.14);border-color:var(--red);color:var(--red);overflow-wrap:anywhere;word-break:break-word;" onclick="openPackageModal('pkg_${o.order_id}')">
       📦 ${escapeHtml(label)}<div style="font-size:11px;margin-top:4px;font-weight:400;">${o.items.length} ürün - ${allReady?'Hazır':'hazırlanıyor'} · ${money(total)}</div></div>`;
   });
   cards.push(`<div class="table-cell" style="cursor:pointer;" onclick="openPackageModal('pkg_new')">➕<div style="font-size:11px;margin-top:4px;font-weight:400;">Yeni Paket Sipariş</div></div>`);
@@ -2135,7 +2135,7 @@ function openPackageModal(pseudoId){
   bg.innerHTML = `
     <div style="background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:20px;max-width:480px;width:100%;max-height:88vh;overflow:auto;">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
-        <h2 style="margin:0;">📦 ${existing ? escapeHtml(existing.customer_name || ('Paket #'+(existing.daily_number||''))) : 'Yeni Paket Sipariş'}</h2>
+        <h2 style="margin:0;overflow-wrap:anywhere;word-break:break-word;">📦 ${existing ? escapeHtml(existing.customer_name || ('Paket #'+(existing.daily_number||''))) : 'Yeni Paket Sipariş'}</h2>
         <span style="cursor:pointer;color:var(--muted);font-size:20px;" onclick="closeTableModal()">✕</span>
       </div>
       <div class="field-group"><label>Müşteri Adı</label><input id="pkgCustName" placeholder="örn. Ahmet Bey" value="${escapeHtml((existing&&existing.customer_name)||'')}"></div>
