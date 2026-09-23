@@ -486,6 +486,7 @@ function render(){
   if(!session){
     if(APP.authScreen==='signup') renderSignupScreen(app);
     else if(APP.authScreen==='expired') renderExpiredScreen(app);
+    else if(APP.authScreen==='forgot') renderForgotPasswordScreen(app);
     else renderLoginScreen(app);
     return;
   }
@@ -1042,7 +1043,10 @@ function renderLoginScreen(app){
       <input id="passInput" type="password" placeholder="Şifre">
       <button id="loginBtn" onclick="doLogin()">Giriş Yap</button>
       <div class="error" id="errBox"></div>
-      <p class="muted" style="text-align:center;margin-top:16px;font-size:13px;">Yeni işletme misiniz?
+      <p class="muted" style="text-align:center;margin-top:14px;font-size:13px;">
+        <a href="#" style="color:var(--accent);" onclick="APP.authScreen='forgot';APP.forgotStep=1;render();return false;">Şifremi Unuttum</a>
+      </p>
+      <p class="muted" style="text-align:center;margin-top:2px;font-size:13px;">Yeni işletme misiniz?
         <a href="#" style="color:var(--accent);" onclick="APP.authScreen='signup';render();return false;">Kayıt Ol / Paket Seç</a>
       </p>
     </div>
@@ -1107,6 +1111,104 @@ async function startRenewalPayment(){
     errBox.textContent = 'Beklenmeyen bir hata oluştu';
     btn.disabled = false; btn.textContent = '💳 Ödemeye Geç';
   }
+}
+
+/* ---- Şifremi Unuttum ----
+   1. adım: işletme kodu + kullanıcı adı -> işletmenin kayıtlı e-postasına
+   6 haneli kod gönderilir (start_password_reset, start_registration'daki
+   Resend gönderimiyle birebir aynı mekanizma).
+   2. adım: kod + yeni şifre (iki kez, göster/gizle ile) -> doğrulanıp
+   şifre güncellenir, kullanıcının tüm oturumları kapatılır. */
+function renderForgotPasswordScreen(app){
+  const step = APP.forgotStep || 1;
+  app.innerHTML = `
+    <div class="center-wrap">
+    <div>
+    <div class="auth-brand"><img src="/assets/images/logo.webp" alt="Letayif" class="auth-brand-logo"><span class="name">Letayif</span></div>
+    <div class="box">
+      <h1>Şifremi Unuttum</h1>
+      <p class="muted" id="forgotSub">${step===1
+        ? 'İşletme kodunuzu ve kullanıcı adınızı girin, kayıtlı e-postanıza doğrulama kodu gönderelim.'
+        : 'E-postanıza gönderilen kodu ve yeni şifrenizi girin.'}</p>
+      <div id="forgotStep1" style="display:${step===1?'block':'none'};">
+        <input id="fpCode" placeholder="İşletme kodu (örn. test123)" autocapitalize="none" value="${escapeHtml((APP.pendingReset||{}).code||'')}">
+        <input id="fpUser" placeholder="Kullanıcı adı" autocapitalize="none" value="${escapeHtml((APP.pendingReset||{}).username||'')}">
+        <button id="fpSendBtn" onclick="doStartPasswordReset()">Kod Gönder</button>
+      </div>
+      <div id="forgotStep2" style="display:${step===2?'block':'none'};">
+        <p class="muted" id="fpOtpInfo" style="text-align:center;"></p>
+        <input id="fpOtp" placeholder="6 haneli kod" maxlength="6" style="text-align:center;font-size:20px;letter-spacing:4px;">
+        <div class="pw-field-wrap">
+          <input type="password" id="fpNewPass" placeholder="Yeni şifre">
+          <button type="button" class="pw-eye-btn" onclick="toggleForgotPassVisibility()" title="Şifreyi göster/gizle">👁️</button>
+        </div>
+        <div class="pw-field-wrap">
+          <input type="password" id="fpNewPass2" placeholder="Yeni şifre (tekrar)">
+          <button type="button" class="pw-eye-btn" onclick="toggleForgotPassVisibility()" title="Şifreyi göster/gizle">👁️</button>
+        </div>
+        <button id="fpVerifyBtn" onclick="doVerifyPasswordReset()">Şifreyi Güncelle</button>
+        <button class="ghost-btn" style="width:100%;margin-top:10px;" onclick="APP.forgotStep=1;render();">← Bilgileri Düzenle</button>
+      </div>
+      <div class="error" id="fpErr"></div>
+      <p class="muted" style="text-align:center;margin-top:14px;font-size:13px;">
+        <a href="#" style="color:var(--accent);" onclick="APP.authScreen='login';render();return false;">← Girişe Dön</a>
+      </p>
+    </div>
+    </div>
+    </div>`;
+}
+function toggleForgotPassVisibility(){
+  const f1 = document.getElementById('fpNewPass');
+  const f2 = document.getElementById('fpNewPass2');
+  const showing = f1.type === 'text';
+  const nextType = showing ? 'password' : 'text';
+  f1.type = nextType; f2.type = nextType;
+  document.querySelectorAll('#forgotStep2 .pw-eye-btn').forEach(b => b.textContent = showing ? '👁️' : '🙈');
+}
+async function doStartPasswordReset(){
+  const errBox = document.getElementById('fpErr');
+  errBox.textContent = '';
+  const code = document.getElementById('fpCode').value.trim();
+  const username = document.getElementById('fpUser').value.trim();
+  if(!code || !username){ errBox.textContent = 'İşletme kodu ve kullanıcı adı gerekli'; return; }
+  const btn = document.getElementById('fpSendBtn');
+  btn.disabled = true; btn.textContent = 'Gönderiliyor...';
+  const { data, error } = await sb.rpc('start_password_reset', { p_code: code, p_username: username });
+  btn.disabled = false; btn.textContent = 'Kod Gönder';
+  if(error){ errBox.textContent = error.message; return; }
+  APP.pendingReset = { code, username };
+  APP.forgotStep = 2;
+  render();
+  const otpInfo = document.getElementById('fpOtpInfo');
+  if(data && data.sent){
+    otpInfo.textContent = 'İşletmenizin kayıtlı e-postasına gönderilen 6 haneli kodu girin.';
+  } else {
+    // Resend API anahtarı henüz ayarlanmadıysa (bkz. platform_settings.resend_api_key)
+    // e-posta gerçekten gönderilmez, test kodu burada gösterilir.
+    otpInfo.innerHTML = 'E-posta gönderimi henüz ayarlanmadığı için test kodu: <b>' + escapeHtml((data||{}).test_otp||'') + '</b>';
+  }
+}
+async function doVerifyPasswordReset(){
+  const errBox = document.getElementById('fpErr');
+  errBox.textContent = '';
+  const pending = APP.pendingReset || {};
+  const otp = document.getElementById('fpOtp').value.trim();
+  const newPass = document.getElementById('fpNewPass').value;
+  const newPass2 = document.getElementById('fpNewPass2').value;
+  if(!otp){ errBox.textContent = 'Kodu girin'; return; }
+  if(!newPass || newPass.length<4){ errBox.textContent = 'En az 4 karakter bir şifre girin'; return; }
+  if(newPass !== newPass2){ errBox.textContent = 'Girdiğiniz şifreler eşleşmiyor'; return; }
+  const btn = document.getElementById('fpVerifyBtn');
+  btn.disabled = true; btn.textContent = 'Güncelleniyor...';
+  const { error } = await sb.rpc('verify_password_reset', {
+    p_code: pending.code, p_username: pending.username, p_otp: otp, p_new_password: newPass
+  });
+  btn.disabled = false; btn.textContent = 'Şifreyi Güncelle';
+  if(error){ errBox.textContent = error.message; return; }
+  APP.pendingReset = null;
+  APP.authScreen = 'login';
+  showToast('Şifreniz güncellendi, şimdi giriş yapabilirsiniz ✓');
+  render();
 }
 
 function renderSignupScreen(app){
