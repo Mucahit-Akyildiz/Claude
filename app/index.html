@@ -227,9 +227,18 @@
   .qty-btn{width:32px;height:32px;padding:0;margin:0;flex-shrink:0;border-radius:8px;background:var(--panel);border:1.5px solid var(--border);color:var(--text);font-weight:800;font-size:16px;box-shadow:none;}
   .qty-btn:active{transform:scale(.92);}
   @keyframes notifSlideIn{ from{opacity:0;transform:translateX(24px);} to{opacity:1;transform:translateX(0);} }
-  .kitchen-card{background:var(--panel);border:1px solid var(--border);transition:background-color .3s ease, border-color .3s ease;}
-  .kitchen-card.kc-warn{background:rgba(234,179,8,.08);border-color:rgba(234,179,8,.45);}
-  .kitchen-card.kc-danger{background:rgba(244,63,94,.10);border-color:rgba(244,63,94,.5);}
+  @keyframes notifSlideInLeft{ from{opacity:0;transform:translateX(-24px);} to{opacity:1;transform:translateX(0);} }
+  .kitchen-card{background:var(--panel);border:1px solid var(--border);border-left:4px solid var(--accent);border-radius:12px;padding:12px;transition:background-color .3s ease, border-color .3s ease, box-shadow .3s ease;}
+  .kitchen-card.kc-warn{background:rgba(234,179,8,.08);border-color:rgba(234,179,8,.45);border-left-color:#eab308;}
+  .kitchen-card.kc-danger{background:rgba(244,63,94,.16);border-color:var(--red);border-left-color:var(--red);animation:kcPulse 1.6s ease-in-out infinite;}
+  @keyframes kcPulse{
+    0%,100%{box-shadow:0 0 0 2px rgba(244,63,94,.22),0 4px 14px rgba(244,63,94,.2);}
+    50%{box-shadow:0 0 0 5px rgba(244,63,94,.4),0 4px 20px rgba(244,63,94,.4);}
+  }
+  .kc-late-badge{display:none;color:var(--red);font-weight:800;font-size:11.5px;margin-left:8px;letter-spacing:.3px;}
+  .kitchen-card.kc-danger .kc-late-badge{display:inline;}
+  .kitchen-item-row.ki-warn .kitchen-item-name{color:#eab308;font-weight:700;}
+  .kitchen-item-row.ki-danger .kitchen-item-name{color:var(--red);font-weight:800;}
 
   /* ---- Mutfak fişi yazdırma (termal fiş kağıdına uygun) ---- */
   #printArea{display:none;}
@@ -1416,14 +1425,14 @@ async function refreshKitchenItems(session){
       const freshItems = pending.filter(it => !APP.kitchenSeenItemIds.has(it.id));
       if(freshItems.length>0) newItemsByTable[o.order_id] = { tableName, dailyNumber: o.daily_number, items: freshItems };
     }
-    cards.push(`<div class="kitchen-card" data-order-id="${o.order_id}" style="border-left:4px solid var(--accent);border-radius:12px;padding:12px;">
+    cards.push(`<div class="kitchen-card" data-order-id="${o.order_id}">
       <div style="display:flex;justify-content:space-between;align-items:center;">
-        <b>${escapeHtml(tableName)}${o.daily_number?' <span class="muted" style="font-weight:400;font-size:12px;">#'+o.daily_number+'</span>':''}</b>
+        <b>${escapeHtml(tableName)}${o.daily_number?' <span class="muted" style="font-weight:400;font-size:12px;">#'+o.daily_number+'</span>':''}<span class="kc-late-badge">⏰ GECİKTİ</span></b>
         <span style="cursor:pointer;color:var(--muted);font-size:16px;" onclick="reprintKitchenTicket('${o.order_id}')" title="Fişi tekrar yazdır">🖨️</span>
       </div>
       ${pending.map(it => `<div class="kitchen-item-row" style="padding:10px 0;border-top:1px dashed var(--border);">
         <div style="display:grid;grid-template-columns:1fr 64px auto;align-items:center;gap:10px;">
-          <span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${it.qty}x ${escapeHtml(it.name)}</span>
+          <span class="kitchen-item-name" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${it.qty}x ${escapeHtml(it.name)}</span>
           <span class="kitchen-timer" data-added="${it.added_at||''}" data-id="${it.id}" data-name="${escapeHtml(tableName+' - '+it.qty+'x '+it.name)}" style="text-align:center;">-</span>
           <button style="width:auto;padding:8px 14px;font-size:14px;background:var(--green);color:var(--btn-ink);" onclick="markReady('${it.id}')">Hazır</button>
         </div>
@@ -1461,6 +1470,7 @@ async function pickKitchenStation(id){ primeKitchenAudio(); APP.kitchenStation=i
 function stopKitchenPolling(){
   if(APP.kitchenPollInterval){ clearInterval(APP.kitchenPollInterval); APP.kitchenPollInterval=null; }
   if(APP.kitchenTimerInterval){ clearInterval(APP.kitchenTimerInterval); APP.kitchenTimerInterval=null; }
+  if(APP.kitchenReminderInterval){ clearInterval(APP.kitchenReminderInterval); APP.kitchenReminderInterval=null; }
 }
 function startKitchenPolling(session){
   stopKitchenPolling();
@@ -1470,6 +1480,11 @@ function startKitchenPolling(session){
     if(APP.view==='kitchen' && APP.kitchenStation) refreshKitchenItems(session);
   }, 2000);
   APP.kitchenTimerInterval = setInterval(updateKitchenTimers, 1000);
+  // 15 dakikayi gecmis, hala hazir verilmemis siparisler icin sol tarafta
+  // (sag ustteki tek seferlik uyaridan ayri) her 3 dakikada bir tekrarlanan
+  // hatirlatma - mutfak ekranindan uzaklasilsa/personel gozden kacirsa bile
+  // gec kalmis siparisler unutulmasin diye.
+  APP.kitchenReminderInterval = setInterval(checkLateOrdersReminder, 180000);
 }
 function updateKitchenTimers(){
   if(!APP.kitchenLateWarned) APP.kitchenLateWarned = new Set();
@@ -1482,11 +1497,19 @@ function updateKitchenTimers(){
     // 0-10 dk yesil (varsayilan), 10-15 dk sari, 15 dk+ kirmizi.
     el.classList.toggle('kt-warn', secs>=600 && secs<900);
     el.classList.toggle('kt-danger', secs>=900);
-    // 15 dakikayi gectiginde, urun basina bir kez uyari mesaji goster.
+    // Urun adi da (sadece sayac degil) ayni renge boyansin diye satirin
+    // kendisine de ayni durum sinifi uygulanir.
+    const row = el.closest('.kitchen-item-row');
+    if(row){
+      row.classList.toggle('ki-warn', secs>=600 && secs<900);
+      row.classList.toggle('ki-danger', secs>=900);
+    }
+    // 15 dakikayi gectiginde, urun basina bir kez sag ustte uyari mesaji
+    // goster - en az 30 saniye ekranda kalsin diye suresi acikca veriliyor.
     const itemId = el.dataset.id;
     if(secs>=900 && itemId && !APP.kitchenLateWarned.has(itemId)){
       APP.kitchenLateWarned.add(itemId);
-      showToast('⏰ ' + (el.dataset.name||'Bir sipariş') + ' 15 dakikayı geçti!');
+      showToast('⏰ ' + (el.dataset.name||'Bir sipariş') + ' 15 dakikayı geçti!', 30000);
     }
   });
   // Kartin arka plani, icindeki en gec kalmis urunun rengine gore hafifce tonlanir.
@@ -1500,6 +1523,17 @@ function updateKitchenTimers(){
     card.classList.toggle('kc-warn', worst==='warn');
     card.classList.toggle('kc-danger', worst==='danger');
   });
+}
+/* Hala hazir verilmemis (15 dk+ gecikmis) urunleri sol tarafta toplu bir
+   bildirimle hatirlatir - startKitchenPolling icinde 3 dakikada bir cagrilir. */
+function checkLateOrdersReminder(){
+  if(APP.view!=='kitchen' || !APP.kitchenStation) return;
+  const names = Array.from(document.querySelectorAll('.kitchen-timer.kt-danger[data-added]'))
+    .map(el => el.dataset.name)
+    .filter(Boolean);
+  if(names.length===0) return;
+  const shown = names.slice(0,3).join(', ') + (names.length>3 ? ' ve ' + (names.length-3) + ' tane daha' : '');
+  showToast('⏰ Hâlâ hazır değil: ' + shown, 30000, 'left');
 }
 let KITCHEN_AUDIO_CTX = null;
 /* Tarayicilar bir kullanici tiklamasi olmadan ses calmayi engeller; istasyon secimi
@@ -3353,20 +3387,25 @@ async function clearDraftCart(tableId){
   if(activeTab) renderProductPick(activeTab.dataset.st, tableId);
 }
 function money(n){ return (Math.round((n||0)*100)/100).toLocaleString('tr-TR',{minimumFractionDigits:2,maximumFractionDigits:2})+' TL'; }
-/* Sağ üstte, yeni bildirimler altta birikerek duran bir bildirim yığını.
-   Hata/uyarı (⚠️ ile başlayanlar) en az 1 dakika ekranda kalır, başarı
-   bildirimleri (Kaydedildi vb.) kısa süre sonra kendiliğinden kaybolur. */
-function showToast(msg){
-  let stack = document.getElementById('notifStack');
+/* Varsayılan olarak sağ üstte, yeni bildirimler altta birikerek duran bir
+   bildirim yığını (position:'left' verilirse sol üstte ayrı bir yığın
+   kullanılır - örn. mutfakta gecikmiş sipariş hatırlatmaları). Hata/uyarı
+   (⚠️ ile başlayanlar) varsayılan olarak en az 1 dakika ekranda kalır,
+   başarı bildirimleri (Kaydedildi vb.) kısa süre sonra kendiliğinden
+   kaybolur; durationMs verilirse bu varsayılanın yerine geçer. */
+function showToast(msg, durationMs, position){
+  const isLeft = position==='left';
+  const stackId = isLeft ? 'notifStackLeft' : 'notifStack';
+  let stack = document.getElementById(stackId);
   if(!stack){
     stack = document.createElement('div');
-    stack.id = 'notifStack';
-    stack.style.cssText = 'position:fixed;top:16px;right:16px;z-index:400;display:flex;flex-direction:column;gap:8px;max-width:340px;width:calc(100vw - 32px);';
+    stack.id = stackId;
+    stack.style.cssText = 'position:fixed;top:16px;'+(isLeft?'left':'right')+':16px;z-index:400;display:flex;flex-direction:column;gap:8px;max-width:340px;width:calc(100vw - 32px);';
     document.body.appendChild(stack);
   }
-  const isWarning = msg.indexOf('⚠️')===0;
+  const isWarning = msg.indexOf('⚠️')===0 || msg.indexOf('⏰')===0;
   const card = document.createElement('div');
-  card.style.cssText = 'background:var(--panel);border:1px solid var(--border);border-left:4px solid '+(isWarning?'var(--red)':'var(--green)')+';border-radius:10px;padding:10px 30px 10px 14px;font-size:13px;line-height:1.4;box-shadow:0 4px 16px rgba(0,0,0,.35);position:relative;animation:notifSlideIn .18s ease;';
+  card.style.cssText = 'background:var(--panel);border:1px solid var(--border);border-left:4px solid '+(isWarning?'var(--red)':'var(--green)')+';border-radius:10px;padding:10px 30px 10px 14px;font-size:13px;line-height:1.4;box-shadow:0 4px 16px rgba(0,0,0,.35);position:relative;animation:'+(isLeft?'notifSlideInLeft':'notifSlideIn')+' .18s ease;';
   card.textContent = msg;
   const closeBtn = document.createElement('span');
   closeBtn.textContent = '✕';
@@ -3374,7 +3413,8 @@ function showToast(msg){
   closeBtn.onclick = () => card.remove();
   card.appendChild(closeBtn);
   stack.appendChild(card);
-  setTimeout(() => { if(card.parentNode) card.remove(); }, isWarning ? 60000 : 4000);
+  const dur = durationMs!=null ? durationMs : (isWarning ? 60000 : 4000);
+  setTimeout(() => { if(card.parentNode) card.remove(); }, dur);
 }
 
 async function doLogin(){
