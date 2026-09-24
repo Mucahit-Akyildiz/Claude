@@ -374,6 +374,9 @@ const PERMISSION_LABELS = {
   settings_ingredients: 'Ayarlar · Hammaddeler',
   settings_users: 'Ayarlar · Kullanıcılar',
   settings_flags: 'Ayarlar · Sipariş Etiketleri',
+  crm: 'Müşteriler (CRM)',
+  reservations: 'Rezervasyonlar',
+  purchasing: 'Tedarikçi & Satın Alma',
 };
 function hasPerm(session, perm){ return (session.permissions||[]).includes(perm); }
 /* Tüm paketler AYNI 7 günlük ücretsiz deneme ile başlar (bkz.
@@ -480,6 +483,9 @@ const NAV_ITEMS = [
   { view:'order', icon:'🍽️', label:'Sipariş Al', perm:'order' },
   { view:'packages', icon:'📦', label:'Paket Servis', perm:'packages' },
   { view:'kitchen', icon:'🧑‍🍳', label:'Mutfak Ekranı', perm:'kitchen' },
+  { view:'reservations', icon:'📅', label:'Rezervasyonlar', perm:'reservations' },
+  { view:'crm', icon:'👥', label:'Müşteriler', perm:'crm' },
+  { view:'purchasing', icon:'🚚', label:'Tedarikçi & Satın Alma', perm:'purchasing' },
   { view:'printerSettings', icon:'🖨️', label:'Yazıcı Ayarları' },
   { view:'notificationSettings', icon:'🔔', label:'Bildirim Ayarları' },
   { view:'payments', icon:'💳', label:'Ödemeler', perm:'payments' },
@@ -573,6 +579,9 @@ function render(){
   else if(APP.view==='reports') renderReportsView(main, session);
   else if(APP.view==='printerSettings') renderPrinterSettingsView(main, session);
   else if(APP.view==='notificationSettings') renderNotificationSettingsView(main, session);
+  else if(APP.view==='reservations') renderReservationsView(main, session);
+  else if(APP.view==='crm') renderCrmView(main, session);
+  else if(APP.view==='purchasing') renderPurchasingView(main, session);
 }
 function todayLocalDateStr(){
   const d = new Date();
@@ -1729,6 +1738,10 @@ function openPayModal(orderId, tableName){
   bg.dataset.tableName = tableName;
   bg.dataset.subtotal = String(subtotal);
   bg.dataset.discountAmount = '0';
+  bg.dataset.tipAmount = '0';
+  bg.dataset.redeemPoints = '0';
+  bg.dataset.customerId = '';
+  bg.dataset.customerPoints = '0';
   bg.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:100;padding:16px;';
   bg.onclick = (e) => { if(e.target===bg) bg.remove(); };
   bg.innerHTML = `<div style="background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:20px;max-width:380px;width:100%;max-height:88vh;overflow:auto;">
@@ -1748,12 +1761,95 @@ function openPayModal(orderId, tableName){
       </div>
       <p id="discInfo" class="muted" style="font-size:12px;margin:6px 0 0;">İndirim yok</p>
     </div>
+    <div style="background:var(--panel2);border-radius:10px;padding:10px;margin:10px 0;">
+      <p class="muted" style="font-size:12px;margin:0 0 6px;">Bahşiş (opsiyonel)</p>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
+        <button type="button" style="width:auto;padding:6px 10px;margin:0;font-size:12px;background:transparent;border:1px solid var(--border);color:var(--text);box-shadow:none;" onclick="applyTipPercent(5)">%5</button>
+        <button type="button" style="width:auto;padding:6px 10px;margin:0;font-size:12px;background:transparent;border:1px solid var(--border);color:var(--text);box-shadow:none;" onclick="applyTipPercent(10)">%10</button>
+        <button type="button" style="width:auto;padding:6px 10px;margin:0;font-size:12px;background:transparent;border:1px solid var(--border);color:var(--text);box-shadow:none;" onclick="applyTipPercent(15)">%15</button>
+        <input id="tipValue" type="number" min="0" step="0.01" placeholder="Tutar" style="flex:1;min-width:80px;margin:0;" oninput="applyTipAmount(this.value)">
+      </div>
+      <p id="tipInfo" class="muted" style="font-size:12px;margin:6px 0 0;">Bahşiş yok</p>
+    </div>
+    <div style="background:var(--panel2);border-radius:10px;padding:10px;margin:10px 0;">
+      <p class="muted" style="font-size:12px;margin:0 0 6px;">Müşteri (opsiyonel)</p>
+      <div style="display:flex;gap:8px;">
+        <input id="payCustomerPhone" placeholder="Telefon ile ara" style="flex:1;margin:0;">
+        <button type="button" style="width:auto;padding:8px 12px;margin:0;" onclick="lookupPayCustomer()">Bul</button>
+      </div>
+      <p id="payCustomerInfo" class="muted" style="font-size:12px;margin:6px 0 0;">Müşteri seçilmedi</p>
+      <div id="payRedeemWrap" style="display:none;margin-top:8px;">
+        <input id="payRedeemPoints" type="number" min="0" step="1" placeholder="Kullanılacak puan" style="margin:0;" oninput="applyRedeemPoints(this.value)">
+      </div>
+    </div>
     <div style="text-align:right;font-weight:800;font-size:20px;margin:10px 0;" id="payFinalTotal">Ödenecek: ${money(subtotal)}</div>
     <button style="background:var(--green);color:var(--btn-ink);margin-bottom:8px;" onclick="finishPaymentFull('cash')">💵 Nakit</button>
     <button style="background:var(--accent2);color:var(--btn-ink);margin-bottom:8px;" onclick="finishPaymentFull('card')">💳 Kredi Kartı</button>
     <button style="background:transparent;border:1px solid var(--border);color:var(--text);" onclick="openSplitPay()">➗ Bölünmüş Ödeme</button>
   </div>`;
   document.body.appendChild(bg);
+}
+function applyTipPercent(pct){
+  const bg = document.getElementById('payModalBg');
+  const subtotal = parseFloat(bg.dataset.subtotal);
+  const discAmount = parseFloat(bg.dataset.discountAmount||0);
+  const base = Math.max(0, subtotal-discAmount);
+  const tip = Math.round(base*pct/100*100)/100;
+  bg.dataset.tipAmount = String(tip);
+  document.getElementById('tipValue').value = tip;
+  document.getElementById('tipInfo').textContent = 'Bahşiş: '+money(tip)+' (%'+pct+')';
+  updatePayFinalTotalLine();
+}
+function applyTipAmount(v){
+  const bg = document.getElementById('payModalBg');
+  let tip = parseFloat(v)||0;
+  if(tip<0) tip=0;
+  bg.dataset.tipAmount = String(tip);
+  document.getElementById('tipInfo').textContent = tip>0 ? 'Bahşiş: '+money(tip) : 'Bahşiş yok';
+  updatePayFinalTotalLine();
+}
+async function lookupPayCustomer(){
+  const bg = document.getElementById('payModalBg');
+  const phone = document.getElementById('payCustomerPhone').value.trim();
+  const infoEl = document.getElementById('payCustomerInfo');
+  const redeemWrap = document.getElementById('payRedeemWrap');
+  if(!phone){ infoEl.textContent = 'Telefon girin'; return; }
+  const session = getSession();
+  const { data, error } = await sb.rpc('get_customer_by_phone', { p_token: session.session_token, p_phone: phone });
+  if(error || !data){
+    infoEl.textContent = 'Müşteri bulunamadı';
+    bg.dataset.customerId = '';
+    bg.dataset.customerPoints = '0';
+    bg.dataset.redeemPoints = '0';
+    redeemWrap.style.display = 'none';
+    updatePayFinalTotalLine();
+    return;
+  }
+  bg.dataset.customerId = data.id;
+  bg.dataset.customerPoints = String(data.points_balance||0);
+  infoEl.textContent = data.name + ' · ' + data.points_balance + ' puan';
+  const loyalty = (APP.config && APP.config.loyalty) || {};
+  if(loyalty.enabled && data.points_balance>0){
+    redeemWrap.style.display = 'block';
+    document.getElementById('payRedeemPoints').max = data.points_balance;
+  } else {
+    redeemWrap.style.display = 'none';
+  }
+}
+function applyRedeemPoints(v){
+  const bg = document.getElementById('payModalBg');
+  let pts = parseFloat(v)||0;
+  const maxPts = parseFloat(bg.dataset.customerPoints||0);
+  if(pts<0) pts=0; if(pts>maxPts) pts=maxPts;
+  bg.dataset.redeemPoints = String(pts);
+  recomputePaySelection();
+}
+function updatePayFinalTotalLine(){
+  const bg = document.getElementById('payModalBg'); if(!bg) return;
+  const net = payFinalTotal();
+  const tip = parseFloat(bg.dataset.tipAmount||0);
+  const el = document.getElementById('payFinalTotal');
+  if(el) el.textContent = 'Ödenecek: '+money(net+tip)+(tip>0?' (bahşiş dahil)':'');
 }
 function stepPayItemQty(itemId, delta){
   const bg = document.getElementById('payModalBg'); if(!bg) return;
@@ -1803,7 +1899,7 @@ function recomputePaySelection(){
   bg.dataset.discountAmount = String(discAmount);
   const discInfo = document.getElementById('discInfo');
   if(discInfo) discInfo.textContent = discAmount>0 ? ('İndirim: -'+money(discAmount)+(discType==='percent'?' (%'+discValue+')':'')) : 'İndirim yok';
-  document.getElementById('payFinalTotal').textContent = 'Ödenecek: '+money(subtotal-discAmount);
+  updatePayFinalTotalLine();
 }
 function applyPayDiscount(){
   const bg = document.getElementById('payModalBg');
@@ -1816,7 +1912,11 @@ function applyPayDiscount(){
 }
 function payFinalTotal(){
   const bg = document.getElementById('payModalBg');
-  return parseFloat(bg.dataset.subtotal) - parseFloat(bg.dataset.discountAmount||0);
+  const subtotal = parseFloat(bg.dataset.subtotal);
+  const discountAmount = parseFloat(bg.dataset.discountAmount||0);
+  const redeemPoints = parseFloat(bg.dataset.redeemPoints||0);
+  const pointValue = (APP.config && APP.config.loyalty && APP.config.loyalty.point_value) || 1;
+  return Math.max(0, subtotal - discountAmount - redeemPoints*pointValue);
 }
 async function finishPaymentFull(method){
   const bg = document.getElementById('payModalBg');
@@ -1824,14 +1924,22 @@ async function finishPaymentFull(method){
   const itemQtys = buildPayItemQtys();
   if(itemQtys.length===0){ alert('Ödeme almak için en az bir ürün/adet seçin'); return; }
   const total = Math.round(payFinalTotal()*100)/100;
-  await finishPayment(orderId, method, total, method==='cash'?total:0, method==='card'?total:0, parseFloat(bg.dataset.discountAmount||0), itemQtys);
+  const tip = parseFloat(bg.dataset.tipAmount||0);
+  const amountWithTip = Math.round((total+tip)*100)/100;
+  const customerId = bg.dataset.customerId || null;
+  const redeemPoints = parseFloat(bg.dataset.redeemPoints||0);
+  await finishPayment(orderId, method, total, method==='cash'?amountWithTip:0, method==='card'?amountWithTip:0, parseFloat(bg.dataset.discountAmount||0), itemQtys, tip, customerId, redeemPoints);
 }
 function openSplitPay(){
   const bg = document.getElementById('payModalBg');
   const orderId = bg.dataset.orderId;
   if(buildPayItemQtys().length===0){ alert('Ödeme almak için en az bir ürün/adet seçin'); return; }
-  const total = Math.round(payFinalTotal()*100)/100;
+  const itemTotal = Math.round(payFinalTotal()*100)/100;
+  const tip = parseFloat(bg.dataset.tipAmount||0);
+  const total = Math.round((itemTotal+tip)*100)/100;
   const discountAmount = parseFloat(bg.dataset.discountAmount||0);
+  const customerId = bg.dataset.customerId || '';
+  const redeemPoints = parseFloat(bg.dataset.redeemPoints||0);
   bg.remove();
   const sbg = document.createElement('div');
   sbg.id = 'splitPayBg';
@@ -1839,7 +1947,7 @@ function openSplitPay(){
   sbg.onclick = (e) => { if(e.target===sbg) sbg.remove(); };
   sbg.innerHTML = `<div style="background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:20px;max-width:380px;width:100%;max-height:88vh;overflow:auto;">
     <div style="display:flex;justify-content:space-between;"><h2 style="margin:0;">Bölünmüş Ödeme</h2><span style="cursor:pointer;color:var(--muted);" onclick="document.getElementById('splitPayBg').remove()">✕</span></div>
-    <p class="muted">Ödenecek Tutar: ${money(total)}</p>
+    <p class="muted">Ödenecek Tutar: ${money(total)}${tip>0?' (bahşiş dahil: '+money(tip)+')':''}</p>
     <div style="background:var(--panel2);border-radius:10px;padding:10px;margin:10px 0;">
       <p class="muted" style="font-size:12px;margin:0 0 6px;">Kişi Sayısına Göre Hesapla (opsiyonel)</p>
       <div style="display:flex;gap:8px;">
@@ -1867,7 +1975,7 @@ function openSplitPay(){
       </div>
       <div id="cardChargesBox" style="margin-top:8px;"></div>
     </div>
-    <button style="background:var(--accent);" onclick="confirmSplitPay('${orderId}',${total},${discountAmount})">Onayla</button>
+    <button style="background:var(--accent);" onclick="confirmSplitPay('${orderId}',${total},${discountAmount},${tip},'${customerId}',${redeemPoints})">Onayla</button>
   </div>`;
   document.body.appendChild(sbg);
 }
@@ -1931,18 +2039,19 @@ function updateCcSum(needed){
   const info = document.getElementById('ccSumInfo'); if(!info) return;
   info.textContent = 'Çekimler toplamı: '+money(sum)+(needed!=null?' / gerekli: '+money(needed):'');
 }
-async function confirmSplitPay(orderId, total, discountAmount){
+async function confirmSplitPay(orderId, total, discountAmount, tipAmount, customerId, redeemPoints){
   let cash = parseFloat(document.getElementById('splitCash').value)||0;
   if(cash<0) cash=0; if(cash>total) cash=total;
   const card = Math.round((total-cash)*100)/100;
   document.getElementById('splitPayBg').remove();
-  await finishPayment(orderId, 'split', total, cash, card, discountAmount, buildPayItemQtys());
+  await finishPayment(orderId, 'split', total, cash, card, discountAmount, buildPayItemQtys(), tipAmount, customerId||null, redeemPoints);
 }
-async function finishPayment(orderId, method, total, cash, card, discountAmount, itemQtys){
+async function finishPayment(orderId, method, total, cash, card, discountAmount, itemQtys, tipAmount, customerId, redeemPoints){
   const session = getSession();
   const { data, error } = await sb.rpc('pay_order_items', {
     p_token: session.session_token, p_order_id: orderId, p_payment_method: method,
-    p_cash: cash, p_card: card, p_discount_amount: discountAmount||0, p_item_qtys: itemQtys||null
+    p_cash: cash, p_card: card, p_discount_amount: discountAmount||0, p_item_qtys: itemQtys||null,
+    p_tip_amount: tipAmount||0, p_customer_id: customerId||null, p_redeem_points: redeemPoints||0
   });
   if(error){ alert('Ödeme kaydedilemedi: '+error.message); return; }
   const bg = document.getElementById('payModalBg'); if(bg) bg.remove();
@@ -1974,7 +2083,7 @@ async function openOrderView(){
   render();
 }
 async function renderOrderView(main, session){
-  main.innerHTML = `<h1>Sipariş Al</h1><div class="muted" id="orderStatus"></div><div class="tabs" id="zoneTabs"></div><div class="table-grid" id="tableGrid"></div>`;
+  main.innerHTML = `<h1>Sipariş Al</h1><div class="muted" id="orderStatus"></div><div id="customerReqBanner"></div><div class="tabs" id="zoneTabs"></div><div class="table-grid" id="tableGrid"></div>`;
   const [cfgRes, liveRes] = await withLoadingOverlay(Promise.all([
     sb.rpc('get_restaurant_config', { p_token: session.session_token }),
     sb.rpc('get_live_orders', { p_token: session.session_token })
@@ -1995,6 +2104,7 @@ async function renderOrderView(main, session){
   APP.selectedZone = APP.selectedZone || APP.config.zones[0].id;
   renderZoneTabs();
   renderTableGrid();
+  refreshCustomerOrderRequests(session);
   startOrderPolling(session);
 }
 function stopOrderPolling(){
@@ -2017,6 +2127,52 @@ async function refreshOrderLiveStatus(session){
   if(APP.view==='packages') renderPackageGrid();
   const bg = document.getElementById('tableModalBg');
   if(bg && bg.dataset.tableId) renderTableItems(bg.dataset.tableId);
+  if(APP.view==='order') refreshCustomerOrderRequests(session);
+}
+/* Müşterinin /menu/ sayfasından gönderdiği sipariş istekleri (bkz.
+   submit_customer_order_request) Sipariş Al ekranının üstünde bir
+   bildirim şeridinde toplanır - personel onaylayana kadar mutfağa
+   düşmez (bkz. approve_customer_order_request, fiyat/ürün her zaman
+   sunucu tarafında products tablosundan doğrulanır, müşteriden gelen
+   fiyat asla güvenilmez). */
+async function refreshCustomerOrderRequests(session){
+  const banner = document.getElementById('customerReqBanner'); if(!banner) return;
+  const { data, error } = await sb.rpc('list_customer_order_requests', { p_token: session.session_token });
+  if(error) return;
+  APP.customerRequests = data || [];
+  if(APP.customerRequests.length===0){ banner.innerHTML = ''; return; }
+  banner.innerHTML = `<div class="box" style="max-width:none;border-color:var(--accent);background:rgba(0,143,168,.08);">
+    <h2 style="margin:0 0 8px;">📱 Müşteri Sipariş İstekleri (${APP.customerRequests.length})</h2>
+    ${APP.customerRequests.map(r => `
+      <div style="padding:8px 0;border-top:1px dashed var(--border);">
+        <div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;">
+          <b style="overflow-wrap:anywhere;word-break:break-word;">${escapeHtml(r.table_name)}${r.customer_name?' · '+escapeHtml(r.customer_name):''}</b>
+          <span class="muted" style="font-size:12px;">${new Date(r.created_at).toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'})}</span>
+        </div>
+        <div style="font-size:13px;margin-top:4px;">
+          ${r.items.map(it => `${it.qty}x ${escapeHtml(it.name||'?')}${it.note?' <span class="muted">('+escapeHtml(it.note)+')</span>':''}`).join(', ')}
+        </div>
+        <div style="margin-top:8px;">
+          <button class="sbtn" style="background:var(--green);color:var(--btn-ink);" onclick="approveCustomerRequest('${r.id}')">✅ Onayla</button>
+          <button class="sbtn" style="background:var(--red);color:var(--btn-ink);" onclick="rejectCustomerRequest('${r.id}')">✕ Reddet</button>
+        </div>
+      </div>`).join('')}
+  </div>`;
+}
+async function approveCustomerRequest(id){
+  const session = getSession();
+  const { error } = await sb.rpc('approve_customer_order_request', { p_token: session.session_token, p_request_id: id });
+  if(error){ alert(error.message); return; }
+  showToast('Sipariş onaylandı, mutfağa iletildi ✓');
+  refreshCustomerOrderRequests(session);
+  refreshOrderLiveStatus(session);
+}
+async function rejectCustomerRequest(id){
+  if(!confirm('Bu isteği reddetmek istediğinize emin misiniz?')) return;
+  const session = getSession();
+  const { error } = await sb.rpc('reject_customer_order_request', { p_token: session.session_token, p_request_id: id });
+  if(error){ alert(error.message); return; }
+  refreshCustomerOrderRequests(session);
 }
 function renderZoneTabs(){
   const el = document.getElementById('zoneTabs'); if(!el) return;
@@ -3495,6 +3651,7 @@ const SETTINGS_TABS = [
   { tab:'flags', perm:'settings_flags', label:'Sipariş Etiketleri' },
   { tab:'users', perm:'settings_users', label:'Kullanıcılar' },
   { tab:'roles', managerOnly:true, label:'Roller' },
+  { tab:'integrations', managerOnly:true, label:'Entegrasyonlar' },
 ];
 function settingsTabVisible(t, session){ return t.managerOnly ? !!session.isManager : hasPerm(session, t.perm); }
 async function renderSettingsView(main, session){
@@ -3524,6 +3681,7 @@ function renderSettingsContent(session){
   else if(APP.settingsTab==='ingredients') renderIngredientsSettings(el, session);
   else if(APP.settingsTab==='flags') renderOrderFlagsSettings(el, session);
   else if(APP.settingsTab==='roles') renderRolesSettings(el, session);
+  else if(APP.settingsTab==='integrations') renderIntegrationsSettings(el, session);
   else renderUsersSettings(el, session);
 }
 
@@ -3867,7 +4025,9 @@ function renderZonesSettings(el, session){
         </div>
         <div style="margin-top:10px;display:flex;flex-wrap:wrap;gap:6px;">
           ${z.tables.map(t => `<span style="background:var(--panel);border:1px solid var(--border);border-radius:999px;padding:5px 10px;font-size:12px;display:flex;align-items:center;gap:6px;">
-            ${escapeHtml(t.name)} <span style="cursor:pointer;color:var(--red);" onclick="removeTable('${t.id}')">✕</span></span>`).join('')}
+            ${escapeHtml(t.name)}
+            <span style="cursor:pointer;color:var(--accent);" title="QR Menü Kodu" onclick="showTableQr('${escapeHtml(t.name)}','${t.qr_token}')">▦</span>
+            <span style="cursor:pointer;color:var(--red);" onclick="removeTable('${t.id}')">✕</span></span>`).join('')}
         </div>
         <div style="display:flex;gap:8px;margin-top:10px;">
           <input id="newTable_${z.id}" placeholder="Yeni masa adı" style="flex:1;">
@@ -3921,6 +4081,26 @@ async function removeTable(id){
   const { error } = await sb.rpc('delete_table', { p_token: session.session_token, p_id: id });
   if(error){ alert(friendlyDeleteError(error.message)); return; }
   renderSettingsView(document.getElementById('main'), session);
+}
+/* Her masanın kendi QR token'ı var (bkz. restaurant_tables.qr_token) - bu
+   linki tarayan müşteri login gerektirmeyen /menu/ sayfasında o masanın
+   menüsünü görür ve sipariş isteği gönderebilir (bkz. get_public_menu/
+   submit_customer_order_request, personel tarafında onay için bkz.
+   refreshCustomerOrderRequests). */
+function showTableQr(tableName, qrToken){
+  const url = window.location.origin + '/menu/?t=' + qrToken;
+  const qrImgUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=260x260&data=' + encodeURIComponent(url);
+  const bg = document.createElement('div');
+  bg.id = 'tableQrModalBg';
+  bg.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:100;padding:16px;';
+  bg.onclick = (e) => { if(e.target===bg) bg.remove(); };
+  bg.innerHTML = `<div style="background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:20px;max-width:320px;width:100%;text-align:center;">
+    <div style="display:flex;justify-content:space-between;"><h2 style="margin:0;">${escapeHtml(tableName)}</h2><span style="cursor:pointer;color:var(--muted);" onclick="document.getElementById('tableQrModalBg').remove()">✕</span></div>
+    <img src="${qrImgUrl}" alt="QR" style="width:100%;max-width:260px;margin:14px 0;border-radius:8px;background:#fff;padding:8px;">
+    <p class="muted" style="font-size:12px;overflow-wrap:anywhere;word-break:break-word;">${escapeHtml(url)}</p>
+    <button style="margin-top:8px;" onclick="navigator.clipboard.writeText('${url}').then(()=>showToast('Link kopyalandı ✓'))">🔗 Linki Kopyala</button>
+  </div>`;
+  document.body.appendChild(bg);
 }
 
 /* --- Ürünler --- */
@@ -4209,6 +4389,81 @@ async function deleteRole(id){
   renderSettingsView(document.getElementById('main'), session);
 }
 
+/* --- Entegrasyonlar: ÖKC/e-Fatura ve pazaryeri (Yemeksepeti/Trendyol/Getir)
+   API kimlik bilgileri burada sadece güvenli şekilde SAKLANIR - gerçek bir
+   dış servis çağrısı yapılmıyor. Bir e-fatura entegratörüyle (Foriba,
+   İzibiz, Logo, Nesbilgi vb.) sözleşme yapılıp API bilgileri elde
+   edildiğinde veya pazaryerlerinden onaylı işletme/API erişimi
+   sağlandığında, bu ekrandan girilen anahtarlar üzerinden gerçek
+   bağlantı ayrıca kodlanmalı (backend'de sadece ayarları okuyan/yazan
+   RPC'ler var: get_integration_settings/update_efatura_settings/
+   update_marketplace_settings). */
+async function renderIntegrationsSettings(el, session){
+  const { data, error } = await sb.rpc('get_integration_settings', { p_token: session.session_token });
+  if(error){ el.innerHTML = '<p class="muted">Yüklenemedi: '+error.message+'</p>'; return; }
+  el.innerHTML = `<div class="box" style="max-width:none;">
+    <h2>ÖKC / e-Fatura Entegrasyonu</h2>
+    <p class="muted" style="margin-top:-6px;">Bu bölüm şu an sadece kimlik bilgilerinizi güvenli şekilde saklar. Gerçek bağlantı, bir e-fatura entegratörüyle (Foriba, İzibiz, Logo, Nesbilgi vb.) sözleşme yapıldıktan sonra aktif hale getirilir.</p>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;max-width:500px;">
+      <div class="field-group"><label>Entegratör</label>
+        <select id="int_efatura_provider">
+          <option value="">Seçilmedi</option>
+          <option value="foriba" ${data.efatura_provider==='foriba'?'selected':''}>Foriba</option>
+          <option value="izibiz" ${data.efatura_provider==='izibiz'?'selected':''}>İzibiz</option>
+          <option value="logo" ${data.efatura_provider==='logo'?'selected':''}>Logo</option>
+          <option value="nesbilgi" ${data.efatura_provider==='nesbilgi'?'selected':''}>Nesbilgi</option>
+          <option value="other" ${data.efatura_provider==='other'?'selected':''}>Diğer</option>
+        </select>
+      </div>
+      <div class="field-group"><label>API Anahtarı</label><input id="int_efatura_key" type="password" placeholder="${data.efatura_configured?'(değiştirmek için yaz)':'API anahtarı'}"></div>
+    </div>
+    <label style="display:flex;align-items:center;gap:8px;font-weight:600;margin-top:10px;">
+      <input type="checkbox" id="int_efatura_enabled" ${data.efatura_enabled?'checked':''} style="width:auto;margin:0;"> Aktif
+    </label>
+    <p class="muted" style="font-size:12px;margin-top:6px;">${data.efatura_configured ? '✓ API anahtarı kayıtlı' : 'Henüz API anahtarı girilmedi'}</p>
+    <button style="margin-top:12px;max-width:220px;" onclick="saveEfaturaSettings()">Kaydet</button>
+  </div>
+  <div class="box" style="max-width:none;">
+    <h2>Pazaryeri Entegrasyonu</h2>
+    <p class="muted" style="margin-top:-6px;">Yemeksepeti, Trendyol Yemek ve Getir Yemek siparişlerini tek ekrandan almak için gereken altyapı. Gerçek bağlantı için ilgili platformdan onaylı işletme/API erişimi gerekir.</p>
+    <div style="display:grid;grid-template-columns:1fr;gap:10px;max-width:500px;">
+      <div class="field-group"><label>Yemeksepeti API Anahtarı</label><input id="int_ys_key" type="password" placeholder="${data.marketplace_yemeksepeti_configured?'(değiştirmek için yaz)':'API anahtarı'}"></div>
+      <div class="field-group"><label>Trendyol Yemek API Anahtarı</label><input id="int_ty_key" type="password" placeholder="${data.marketplace_trendyol_configured?'(değiştirmek için yaz)':'API anahtarı'}"></div>
+      <div class="field-group"><label>Getir Yemek API Anahtarı</label><input id="int_gt_key" type="password" placeholder="${data.marketplace_getir_configured?'(değiştirmek için yaz)':'API anahtarı'}"></div>
+    </div>
+    <label style="display:flex;align-items:center;gap:8px;font-weight:600;margin-top:10px;">
+      <input type="checkbox" id="int_marketplace_enabled" ${data.marketplace_enabled?'checked':''} style="width:auto;margin:0;"> Aktif
+    </label>
+    <p class="muted" style="font-size:12px;margin-top:6px;">
+      ${data.marketplace_yemeksepeti_configured?'✓ Yemeksepeti':'✗ Yemeksepeti'} ·
+      ${data.marketplace_trendyol_configured?'✓ Trendyol Yemek':'✗ Trendyol Yemek'} ·
+      ${data.marketplace_getir_configured?'✓ Getir Yemek':'✗ Getir Yemek'}
+    </p>
+    <button style="margin-top:12px;max-width:220px;" onclick="saveMarketplaceSettings()">Kaydet</button>
+  </div>`;
+}
+async function saveEfaturaSettings(){
+  const session = getSession();
+  const provider = document.getElementById('int_efatura_provider').value || null;
+  const key = document.getElementById('int_efatura_key').value;
+  const enabled = document.getElementById('int_efatura_enabled').checked;
+  const { error } = await sb.rpc('update_efatura_settings', { p_token: session.session_token, p_provider: provider, p_api_key: key||null, p_enabled: enabled });
+  if(error){ alert(error.message); return; }
+  renderSettingsContent(session);
+  showToast('Kaydedildi ✓');
+}
+async function saveMarketplaceSettings(){
+  const session = getSession();
+  const ys = document.getElementById('int_ys_key').value;
+  const ty = document.getElementById('int_ty_key').value;
+  const gt = document.getElementById('int_gt_key').value;
+  const enabled = document.getElementById('int_marketplace_enabled').checked;
+  const { error } = await sb.rpc('update_marketplace_settings', { p_token: session.session_token, p_yemeksepeti_key: ys||null, p_trendyol_key: ty||null, p_getir_key: gt||null, p_enabled: enabled });
+  if(error){ alert(error.message); return; }
+  renderSettingsContent(session);
+  showToast('Kaydedildi ✓');
+}
+
 /* ---- Abonelik / Aylık Ödeme (Ayarlar > Kullanıcılar üstünde) ---- */
 function renderSubscriptionPanel(lic){
   const expires = new Date(lic.expires_at);
@@ -4483,7 +4738,7 @@ async function renderReportContent(session){
   const untaggedHist = hist.filter(o => !o.tags || o.tags.length===0);
   const taggedHist = hist.filter(o => o.tags && o.tags.length>0);
 
-  let totalRevenue=0, totalCost=0, totalCash=0, totalCard=0, totalDiscount=0, discountedCount=0, taggedTotal=0;
+  let totalRevenue=0, totalCost=0, totalCash=0, totalCard=0, totalDiscount=0, discountedCount=0, taggedTotal=0, totalTip=0;
   const hourStats = {};
   untaggedHist.forEach(o => {
     totalRevenue += Number(o.total); totalCost += Number(o.cost);
@@ -4495,7 +4750,7 @@ async function renderReportContent(session){
     hourStats[hr].revenue += Number(o.total);
   });
   taggedHist.forEach(o => { taggedTotal += Number(o.total); });
-  hist.forEach(o => { totalCash += Number(o.cash_amount||0); totalCard += Number(o.card_amount||0); });
+  hist.forEach(o => { totalCash += Number(o.cash_amount||0); totalCard += Number(o.card_amount||0); totalTip += Number(o.tip_amount||0); });
   const profit = totalRevenue - totalCost;
 
   const hourKeys = Object.keys(hourStats).map(Number).sort((a,b)=>a-b);
@@ -4546,6 +4801,7 @@ async function renderReportContent(session){
       <div class="box" style="text-align:center;"><div style="font-size:20px;font-weight:800;color:var(--accent2);">${money(totalCard)}</div><div class="muted" style="font-size:12px;">💳 Kredi Kartı${totalRevenue?' ('+Math.round(totalCard/totalRevenue*100)+'%)':''}</div></div>
       <div class="box" style="text-align:center;"><div style="font-size:20px;font-weight:800;color:var(--accent);">${money(totalDiscount)}</div><div class="muted" style="font-size:12px;">🏷️ İndirim (${discountedCount} hesap)</div></div>
       <div class="box" style="text-align:center;"><div style="font-size:20px;font-weight:800;color:#eab308;">${money(taggedTotal)}</div><div class="muted" style="font-size:12px;">🏷️ Personel/İkram (${taggedHist.length} hesap, ciroya dahil değil)</div></div>
+      <div class="box" style="text-align:center;"><div style="font-size:20px;font-weight:800;color:var(--accent);">${money(totalTip)}</div><div class="muted" style="font-size:12px;">💰 Bahşiş</div></div>
     </div>
     <div class="box" style="max-width:none;"><h2>Saatlik Yoğunluk${peakHour!==null?' <span class="muted" style="font-size:12px;font-weight:400;">(en yoğun: '+(peakHour<10?'0'+peakHour:peakHour)+':00 🔥)</span>':''}</h2>${hourlyHtml}</div>
     <div class="box" style="max-width:none;"><h2>Kapatılan Hesaplar</h2>${billsHtml}</div>
@@ -4608,6 +4864,484 @@ async function renderProductStatsContent(session){
       ${barsHtml}
     </div>
   `;
+}
+
+/* ================= REZERVASYONLAR & BEKLEME LİSTESİ ================= */
+async function renderReservationsView(main, session){
+  main.innerHTML = `<h1>Rezervasyonlar</h1>
+    <div class="tabs" id="resvTabs">
+      <div class="tab ${(APP.resvTab||'reservations')==='reservations'?'active':''}" data-tab="reservations" onclick="setResvTab('reservations')">Rezervasyonlar</div>
+      <div class="tab ${APP.resvTab==='waitlist'?'active':''}" data-tab="waitlist" onclick="setResvTab('waitlist')">Bekleme Listesi</div>
+    </div>
+    <div id="resvContent"></div>`;
+  await renderResvTabContent(session);
+}
+function setResvTab(tab){
+  APP.resvTab = tab;
+  document.querySelectorAll('#resvTabs .tab').forEach(t => t.classList.toggle('active', t.dataset.tab===tab));
+  renderResvTabContent(getSession());
+}
+function renderResvTabContent(session){
+  return (APP.resvTab||'reservations')==='waitlist' ? renderWaitlistContent(session) : renderReservationsContent(session);
+}
+const RESV_STATUS_LABELS = { pending:'Bekliyor', confirmed:'Onaylandı', seated:'Oturdu', cancelled:'İptal', no_show:'Gelmedi' };
+async function renderReservationsContent(session){
+  const el = document.getElementById('resvContent'); if(!el) return;
+  if(!APP.config){ const { data } = await withLoadingOverlay(sb.rpc('get_restaurant_config', { p_token: session.session_token })); if(data) APP.config = data; }
+  const { data, error } = await withLoadingOverlay(sb.rpc('list_reservations', { p_token: session.session_token, p_date: null }));
+  if(error){ el.innerHTML = '<p class="muted">Yüklenemedi: '+error.message+'</p>'; return; }
+  const rows = data || [];
+  const allTables = (APP.config.zones||[]).flatMap(z => z.tables);
+  el.innerHTML = `<div class="box" style="max-width:none;">
+    <h2>Rezervasyonlar</h2>
+    <div class="settings-table-wrap">
+    <table class="settings-table">
+      <thead><tr><th>Müşteri</th><th>Telefon</th><th>Kişi</th><th>Zaman</th><th>Masa</th><th>Durum</th><th></th></tr></thead>
+      <tbody>
+      ${rows.map(r => `
+        <tr>
+          <td class="col-name">${escapeHtml(r.customer_name)}${r.notes?'<div class="muted" style="font-size:11px;overflow-wrap:anywhere;word-break:break-word;">'+escapeHtml(r.notes)+'</div>':''}</td>
+          <td>${escapeHtml(r.phone||'-')}</td>
+          <td>${r.party_size}</td>
+          <td>${new Date(r.reservation_time).toLocaleString('tr-TR',{dateStyle:'short',timeStyle:'short'})}</td>
+          <td>${escapeHtml(r.table_name||'-')}</td>
+          <td><select onchange="changeReservationStatus('${r.id}',this.value)">
+            ${Object.keys(RESV_STATUS_LABELS).map(s => `<option value="${s}" ${r.status===s?'selected':''}>${RESV_STATUS_LABELS[s]}</option>`).join('')}
+          </select></td>
+          <td><button class="sbtn" style="background:var(--red);color:var(--btn-ink);" onclick="removeReservation('${r.id}')">Sil</button></td>
+        </tr>`).join('')}
+      ${rows.length===0?'<tr><td colspan="7" class="muted" style="text-align:center;">Yaklaşan rezervasyon yok.</td></tr>':''}
+      </tbody>
+    </table>
+    </div>
+    <div class="add-row-panel">
+      <p>Yeni Rezervasyon</p>
+      <div style="display:grid;grid-template-columns:1fr 1fr 90px 1fr 1fr;gap:10px;align-items:end;">
+        <div class="field-group"><label>Müşteri Adı</label><input id="rv_name" placeholder="örn. Zeynep Hanım"></div>
+        <div class="field-group"><label>Telefon</label><input id="rv_phone" placeholder="05xx..."></div>
+        <div class="field-group"><label>Kişi</label><input id="rv_party" type="number" min="1" value="2"></div>
+        <div class="field-group"><label>Tarih & Saat</label><input id="rv_time" type="datetime-local"></div>
+        <div class="field-group"><label>Masa (opsiyonel)</label><select id="rv_table"><option value="">-</option>${allTables.map(t => `<option value="${t.id}">${escapeHtml(t.name)}</option>`).join('')}</select></div>
+      </div>
+      <div class="field-group" style="margin-top:10px;"><label>Not</label><input id="rv_notes" placeholder="opsiyonel"></div>
+      <button style="margin-top:12px;max-width:220px;" onclick="addReservation()">+ Rezervasyon Ekle</button>
+    </div>
+  </div>`;
+}
+async function addReservation(){
+  const session = getSession();
+  const name = document.getElementById('rv_name').value.trim();
+  const phone = document.getElementById('rv_phone').value.trim();
+  const party = parseInt(document.getElementById('rv_party').value)||2;
+  const timeVal = document.getElementById('rv_time').value;
+  const tableId = document.getElementById('rv_table').value || null;
+  const notes = document.getElementById('rv_notes').value.trim();
+  if(!name || !timeVal){ alert('Müşteri adı ve zaman gerekli'); return; }
+  const { error } = await sb.rpc('upsert_reservation', { p_token: session.session_token, p_id: null, p_customer_name: name, p_phone: phone||null, p_party_size: party, p_reservation_time: new Date(timeVal).toISOString(), p_table_id: tableId, p_notes: notes||null });
+  if(error){ alert(error.message); return; }
+  renderReservationsContent(session);
+  showToast('Rezervasyon eklendi ✓');
+}
+async function changeReservationStatus(id, status){
+  const session = getSession();
+  const { error } = await sb.rpc('set_reservation_status', { p_token: session.session_token, p_id: id, p_status: status });
+  if(error){ alert(error.message); return; }
+  showToast('Durum güncellendi ✓');
+}
+async function removeReservation(id){
+  if(!confirm('Bu rezervasyonu silmek istediğinize emin misiniz?')) return;
+  const session = getSession();
+  const { error } = await sb.rpc('delete_reservation', { p_token: session.session_token, p_id: id });
+  if(error){ alert(error.message); return; }
+  renderReservationsContent(session);
+}
+async function renderWaitlistContent(session){
+  const el = document.getElementById('resvContent'); if(!el) return;
+  const { data, error } = await withLoadingOverlay(sb.rpc('list_waitlist', { p_token: session.session_token }));
+  if(error){ el.innerHTML = '<p class="muted">Yüklenemedi: '+error.message+'</p>'; return; }
+  const rows = data || [];
+  el.innerHTML = `<div class="box" style="max-width:none;">
+    <h2>Bekleme Listesi</h2>
+    <div class="settings-table-wrap">
+    <table class="settings-table">
+      <thead><tr><th>Müşteri</th><th>Telefon</th><th>Kişi</th><th>Bekleme</th><th>Katılım</th><th></th></tr></thead>
+      <tbody>
+      ${rows.map(w => `
+        <tr>
+          <td class="col-name">${escapeHtml(w.customer_name)}</td>
+          <td>${escapeHtml(w.phone||'-')}</td>
+          <td>${w.party_size}</td>
+          <td>${w.quoted_wait_minutes?w.quoted_wait_minutes+' dk':'-'}</td>
+          <td>${new Date(w.joined_at).toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'})}</td>
+          <td>
+            <button class="sbtn" onclick="changeWaitlistStatus('${w.id}','seated')">Oturdu</button>
+            <button class="sbtn" style="background:var(--red);color:var(--btn-ink);" onclick="changeWaitlistStatus('${w.id}','cancelled')">İptal</button>
+          </td>
+        </tr>`).join('')}
+      ${rows.length===0?'<tr><td colspan="6" class="muted" style="text-align:center;">Bekleyen müşteri yok.</td></tr>':''}
+      </tbody>
+    </table>
+    </div>
+    <div class="add-row-panel">
+      <p>Bekleme Listesine Ekle</p>
+      <div style="display:grid;grid-template-columns:1fr 1fr 90px 120px;gap:10px;align-items:end;">
+        <div class="field-group"><label>Müşteri Adı</label><input id="wl_name" placeholder="örn. Mehmet Bey"></div>
+        <div class="field-group"><label>Telefon</label><input id="wl_phone" placeholder="05xx..."></div>
+        <div class="field-group"><label>Kişi</label><input id="wl_party" type="number" min="1" value="2"></div>
+        <div class="field-group"><label>Tahmini Bekleme (dk)</label><input id="wl_wait" type="number" min="0" placeholder="15"></div>
+      </div>
+      <button style="margin-top:12px;max-width:220px;" onclick="addWaitlistEntry()">+ Ekle</button>
+    </div>
+  </div>`;
+}
+async function addWaitlistEntry(){
+  const session = getSession();
+  const name = document.getElementById('wl_name').value.trim();
+  const phone = document.getElementById('wl_phone').value.trim();
+  const party = parseInt(document.getElementById('wl_party').value)||2;
+  const wait = document.getElementById('wl_wait').value ? parseInt(document.getElementById('wl_wait').value) : null;
+  if(!name){ alert('Müşteri adı gerekli'); return; }
+  const { error } = await sb.rpc('add_waitlist_entry', { p_token: session.session_token, p_customer_name: name, p_phone: phone||null, p_party_size: party, p_quoted_wait_minutes: wait });
+  if(error){ alert(error.message); return; }
+  renderWaitlistContent(session);
+  showToast('Bekleme listesine eklendi ✓');
+}
+async function changeWaitlistStatus(id, status){
+  const session = getSession();
+  const { error } = await sb.rpc('set_waitlist_status', { p_token: session.session_token, p_id: id, p_status: status });
+  if(error){ alert(error.message); return; }
+  renderWaitlistContent(session);
+}
+
+/* ================= CRM / SADAKAT ================= */
+async function renderCrmView(main, session){
+  if(!APP.config){ const { data } = await withLoadingOverlay(sb.rpc('get_restaurant_config', { p_token: session.session_token })); if(data) APP.config = data; }
+  const { data, error } = await withLoadingOverlay(sb.rpc('list_customers', { p_token: session.session_token, p_search: APP.crmSearch||null }));
+  const rows = error ? [] : (data||[]);
+  APP.crmRows = rows;
+  const loyalty = APP.config.loyalty || { enabled:false, spend_per_point:10, point_value:1 };
+  main.innerHTML = `<h1>Müşteriler</h1>
+    ${session.isManager ? `
+    <div class="box" style="max-width:none;">
+      <h2>Sadakat Programı</h2>
+      <label style="display:flex;align-items:center;gap:8px;font-weight:600;margin-bottom:10px;">
+        <input type="checkbox" id="loy_enabled" ${loyalty.enabled?'checked':''} style="width:auto;margin:0;"> Sadakat puanları aktif
+      </label>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;max-width:420px;">
+        <div class="field-group"><label>Kaç TL harcamada 1 puan</label><input id="loy_spend" type="number" min="1" step="0.01" value="${loyalty.spend_per_point}"></div>
+        <div class="field-group"><label>1 puan kaç TL indirim</label><input id="loy_value" type="number" min="0" step="0.01" value="${loyalty.point_value}"></div>
+      </div>
+      <button style="margin-top:12px;max-width:220px;" onclick="saveLoyaltySettings()">Kaydet</button>
+    </div>` : ''}
+    <div class="box" style="max-width:none;">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
+        <h2 style="margin:0;">Müşteri Listesi</h2>
+        <input id="crmSearchInput" placeholder="İsim veya telefon ara..." style="max-width:260px;" value="${escapeHtml(APP.crmSearch||'')}" oninput="debouncedCrmSearch(this.value)">
+      </div>
+      <div class="settings-table-wrap">
+      <table class="settings-table">
+        <thead><tr><th>Ad</th><th>Telefon</th><th>Puan</th><th>Ziyaret</th><th>Toplam Harcama</th><th>Son Ziyaret</th><th></th></tr></thead>
+        <tbody>
+        ${rows.map(c => `
+          <tr>
+            <td class="col-name">${escapeHtml(c.name)}</td>
+            <td>${escapeHtml(c.phone||'-')}</td>
+            <td>${c.points_balance}</td>
+            <td>${c.total_visits}</td>
+            <td>${money(c.total_spent)}</td>
+            <td>${c.last_visit_at ? new Date(c.last_visit_at).toLocaleDateString('tr-TR') : '-'}</td>
+            <td>
+              <button class="sbtn" onclick="editCustomer('${c.id}')">Düzenle</button>
+              <button class="sbtn" style="background:var(--red);color:var(--btn-ink);" onclick="removeCustomer('${c.id}')">Sil</button>
+            </td>
+          </tr>`).join('')}
+        ${rows.length===0?'<tr><td colspan="7" class="muted" style="text-align:center;">Müşteri yok.</td></tr>':''}
+        </tbody>
+      </table>
+      </div>
+      <div class="add-row-panel">
+        <p id="crmFormTitle">Yeni Müşteri Ekle</p>
+        <input type="hidden" id="crm_edit_id">
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;">
+          <div class="field-group"><label>Ad Soyad</label><input id="crm_name" placeholder="örn. Ahmet Yılmaz"></div>
+          <div class="field-group"><label>Telefon</label><input id="crm_phone" placeholder="05xx..."></div>
+          <div class="field-group"><label>E-posta</label><input id="crm_email" placeholder="opsiyonel"></div>
+        </div>
+        <div class="field-group" style="margin-top:10px;"><label>Not</label><input id="crm_notes" placeholder="opsiyonel"></div>
+        <button style="margin-top:12px;max-width:220px;" onclick="saveCrmCustomer()">Kaydet</button>
+      </div>
+    </div>`;
+}
+let CRM_SEARCH_TIMER = null;
+function debouncedCrmSearch(v){
+  APP.crmSearch = v;
+  clearTimeout(CRM_SEARCH_TIMER);
+  CRM_SEARCH_TIMER = setTimeout(async () => {
+    await renderCrmView(document.getElementById('main'), getSession());
+    const inp = document.getElementById('crmSearchInput');
+    if(inp){ inp.focus(); inp.setSelectionRange(inp.value.length, inp.value.length); }
+  }, 350);
+}
+function editCustomer(id){
+  const c = (APP.crmRows||[]).find(x => x.id===id); if(!c) return;
+  document.getElementById('crm_edit_id').value = c.id;
+  document.getElementById('crm_name').value = c.name;
+  document.getElementById('crm_phone').value = c.phone||'';
+  document.getElementById('crm_email').value = c.email||'';
+  document.getElementById('crm_notes').value = c.notes||'';
+  document.getElementById('crmFormTitle').textContent = 'Müşteriyi Düzenle';
+}
+async function saveCrmCustomer(){
+  const session = getSession();
+  const id = document.getElementById('crm_edit_id').value || null;
+  const name = document.getElementById('crm_name').value.trim();
+  const phone = document.getElementById('crm_phone').value.trim();
+  const email = document.getElementById('crm_email').value.trim();
+  const notes = document.getElementById('crm_notes').value.trim();
+  if(!name){ alert('Müşteri adı gerekli'); return; }
+  const { error } = await sb.rpc('upsert_customer', { p_token: session.session_token, p_id: id, p_name: name, p_phone: phone||null, p_email: email||null, p_notes: notes||null });
+  if(error){ alert(error.message); return; }
+  renderCrmView(document.getElementById('main'), session);
+  showToast(id ? 'Güncellendi ✓' : 'Müşteri eklendi ✓');
+}
+async function removeCustomer(id){
+  if(!confirm('Bu müşteriyi silmek istediğinize emin misiniz?')) return;
+  const session = getSession();
+  const { error } = await sb.rpc('delete_customer', { p_token: session.session_token, p_id: id });
+  if(error){ alert(error.message); return; }
+  renderCrmView(document.getElementById('main'), session);
+}
+async function saveLoyaltySettings(){
+  const session = getSession();
+  const enabled = document.getElementById('loy_enabled').checked;
+  const spend = parseFloat(document.getElementById('loy_spend').value);
+  const value = parseFloat(document.getElementById('loy_value').value);
+  if(!spend || spend<=0){ alert('Puan başına harcama tutarı 0\'dan büyük olmalı'); return; }
+  const { error } = await sb.rpc('update_loyalty_settings', { p_token: session.session_token, p_enabled: enabled, p_spend_per_point: spend, p_point_value: value });
+  if(error){ alert(error.message); return; }
+  APP.config.loyalty = { enabled, spend_per_point: spend, point_value: value };
+  showToast('Sadakat ayarları kaydedildi ✓');
+}
+
+/* ================= TEDARİKÇİ & SATIN ALMA ================= */
+async function renderPurchasingView(main, session){
+  main.innerHTML = `<h1>Tedarikçi & Satın Alma</h1>
+    <div class="tabs" id="purchTabs">
+      <div class="tab ${(APP.purchTab||'orders')==='orders'?'active':''}" data-tab="orders" onclick="setPurchTab('orders')">Satın Alma Siparişleri</div>
+      <div class="tab ${APP.purchTab==='suppliers'?'active':''}" data-tab="suppliers" onclick="setPurchTab('suppliers')">Tedarikçiler</div>
+    </div>
+    <div id="purchContent"></div>`;
+  await renderPurchTabContent(session);
+}
+function setPurchTab(tab){
+  APP.purchTab = tab;
+  document.querySelectorAll('#purchTabs .tab').forEach(t => t.classList.toggle('active', t.dataset.tab===tab));
+  renderPurchTabContent(getSession());
+}
+function renderPurchTabContent(session){
+  return (APP.purchTab||'orders')==='suppliers' ? renderSuppliersContent(session) : renderPurchaseOrdersContent(session);
+}
+async function renderSuppliersContent(session){
+  const el = document.getElementById('purchContent'); if(!el) return;
+  const { data, error } = await withLoadingOverlay(sb.rpc('list_suppliers', { p_token: session.session_token }));
+  const rows = error ? [] : (data||[]);
+  APP.supplierRows = rows;
+  el.innerHTML = `<div class="box" style="max-width:none;">
+    <h2>Tedarikçiler</h2>
+    <div class="settings-table-wrap">
+    <table class="settings-table">
+      <thead><tr><th>Ad</th><th>Telefon</th><th>E-posta</th><th>Adres</th><th></th></tr></thead>
+      <tbody>
+      ${rows.map(s => `
+        <tr>
+          <td class="col-name">${escapeHtml(s.name)}</td>
+          <td>${escapeHtml(s.phone||'-')}</td>
+          <td>${escapeHtml(s.email||'-')}</td>
+          <td>${escapeHtml(s.address||'-')}</td>
+          <td>
+            <button class="sbtn" onclick="editSupplier('${s.id}')">Düzenle</button>
+            <button class="sbtn" style="background:var(--red);color:var(--btn-ink);" onclick="removeSupplier('${s.id}')">Sil</button>
+          </td>
+        </tr>`).join('')}
+      ${rows.length===0?'<tr><td colspan="5" class="muted" style="text-align:center;">Tedarikçi yok.</td></tr>':''}
+      </tbody>
+    </table>
+    </div>
+    <div class="add-row-panel">
+      <p id="supFormTitle">Yeni Tedarikçi Ekle</p>
+      <input type="hidden" id="sup_edit_id">
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;">
+        <div class="field-group"><label>Ad</label><input id="sup_name" placeholder="örn. ABC Gıda Toptan"></div>
+        <div class="field-group"><label>Telefon</label><input id="sup_phone" placeholder="opsiyonel"></div>
+        <div class="field-group"><label>E-posta</label><input id="sup_email" placeholder="opsiyonel"></div>
+      </div>
+      <div class="field-group" style="margin-top:10px;"><label>Adres</label><input id="sup_address" placeholder="opsiyonel"></div>
+      <button style="margin-top:12px;max-width:220px;" onclick="saveSupplier()">Kaydet</button>
+    </div>
+  </div>`;
+}
+function editSupplier(id){
+  const s = (APP.supplierRows||[]).find(x => x.id===id); if(!s) return;
+  document.getElementById('sup_edit_id').value = s.id;
+  document.getElementById('sup_name').value = s.name;
+  document.getElementById('sup_phone').value = s.phone||'';
+  document.getElementById('sup_email').value = s.email||'';
+  document.getElementById('sup_address').value = s.address||'';
+  document.getElementById('supFormTitle').textContent = 'Tedarikçiyi Düzenle';
+}
+async function saveSupplier(){
+  const session = getSession();
+  const id = document.getElementById('sup_edit_id').value || null;
+  const name = document.getElementById('sup_name').value.trim();
+  if(!name){ alert('Tedarikçi adı gerekli'); return; }
+  const { error } = await sb.rpc('upsert_supplier', { p_token: session.session_token, p_id: id, p_name: name,
+    p_phone: document.getElementById('sup_phone').value.trim()||null,
+    p_email: document.getElementById('sup_email').value.trim()||null,
+    p_address: document.getElementById('sup_address').value.trim()||null,
+    p_notes: null });
+  if(error){ alert(error.message); return; }
+  renderSuppliersContent(session);
+  showToast('Kaydedildi ✓');
+}
+async function removeSupplier(id){
+  if(!confirm('Bu tedarikçiyi silmek istediğinize emin misiniz?')) return;
+  const session = getSession();
+  const { error } = await sb.rpc('delete_supplier', { p_token: session.session_token, p_id: id });
+  if(error){ alert(error.message); return; }
+  renderSuppliersContent(session);
+}
+const PO_STATUS_LABELS = { draft:'Taslak', ordered:'Sipariş Verildi', received:'Teslim Alındı', cancelled:'İptal' };
+async function renderPurchaseOrdersContent(session){
+  const el = document.getElementById('purchContent'); if(!el) return;
+  if(!APP.config){ const { data } = await withLoadingOverlay(sb.rpc('get_restaurant_config', { p_token: session.session_token })); if(data) APP.config = data; }
+  const [poRes, supRes] = await withLoadingOverlay(Promise.all([
+    sb.rpc('list_purchase_orders', { p_token: session.session_token }),
+    sb.rpc('list_suppliers', { p_token: session.session_token })
+  ]));
+  const rows = poRes.error ? [] : (poRes.data||[]);
+  const suppliers = supRes.data || [];
+  if(!APP.poDraftItems) APP.poDraftItems = [];
+  el.innerHTML = `<div class="box" style="max-width:none;">
+    <h2>Satın Alma Siparişleri</h2>
+    <div class="settings-table-wrap">
+    <table class="settings-table">
+      <thead><tr><th>Tedarikçi</th><th>Durum</th><th>Sipariş Tarihi</th><th>Beklenen</th><th>Tutar</th><th></th></tr></thead>
+      <tbody>
+      ${rows.map(p => `
+        <tr>
+          <td class="col-name">${escapeHtml(p.supplier_name||'-')}</td>
+          <td><span class="role-badge" style="${p.status==='received'?'color:var(--green);border-color:var(--green);':p.status==='cancelled'?'color:var(--red);border-color:var(--red);':''}">${PO_STATUS_LABELS[p.status]||p.status}</span></td>
+          <td>${p.order_date}</td>
+          <td>${p.expected_date||'-'}</td>
+          <td>${money(p.total_amount)}</td>
+          <td>
+            ${p.status!=='received' && p.status!=='cancelled' ? `<button class="sbtn" onclick="openReceivePOModal('${p.id}')">Teslim Al</button>` : ''}
+            ${p.status==='draft' ? `<button class="sbtn" onclick="markPOOrdered('${p.id}')">Sipariş Ver</button><button class="sbtn" style="background:var(--red);color:var(--btn-ink);" onclick="removePO('${p.id}')">Sil</button>` : ''}
+          </td>
+        </tr>`).join('')}
+      ${rows.length===0?'<tr><td colspan="6" class="muted" style="text-align:center;">Sipariş yok.</td></tr>':''}
+      </tbody>
+    </table>
+    </div>
+    <div class="add-row-panel">
+      <p>Yeni Satın Alma Siparişi</p>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+        <div class="field-group"><label>Tedarikçi</label><select id="po_supplier"><option value="">-</option>${suppliers.map(s => `<option value="${s.id}">${escapeHtml(s.name)}</option>`).join('')}</select></div>
+        <div class="field-group"><label>Beklenen Tarih</label><input id="po_expected" type="date"></div>
+      </div>
+      <div id="poItemsWrap" style="margin-top:10px;">${renderPoDraftItemsHtml()}</div>
+      <button type="button" class="ghost-btn" style="max-width:200px;margin-top:6px;" onclick="addPoDraftItemRow()">+ Hammadde Ekle</button>
+      <div class="field-group" style="margin-top:10px;"><label>Not</label><input id="po_notes" placeholder="opsiyonel"></div>
+      <button style="margin-top:12px;max-width:220px;" onclick="createPurchaseOrder()">Sipariş Oluştur</button>
+    </div>
+  </div>`;
+}
+function renderPoDraftItemsHtml(){
+  const ingredients = (APP.config && APP.config.ingredients) || [];
+  if(APP.poDraftItems.length===0) return '<p class="muted" style="font-size:13px;">Henüz hammadde eklenmedi.</p>';
+  return APP.poDraftItems.map((it, idx) => `
+    <div style="display:grid;grid-template-columns:1fr 100px 100px 32px;gap:8px;align-items:center;margin-bottom:6px;">
+      <select onchange="APP.poDraftItems[${idx}].ingredient_id=this.value">
+        ${ingredients.map(ig => `<option value="${ig.id}" ${it.ingredient_id===ig.id?'selected':''}>${escapeHtml(ig.name)} (${escapeHtml(ig.unit)})</option>`).join('')}
+      </select>
+      <input type="number" min="0" step="0.01" placeholder="Miktar" value="${it.quantity||''}" oninput="APP.poDraftItems[${idx}].quantity=this.value">
+      <input type="number" min="0" step="0.01" placeholder="Birim Fiyat" value="${it.unit_cost||''}" oninput="APP.poDraftItems[${idx}].unit_cost=this.value">
+      <button type="button" class="qty-btn" onclick="removePoDraftItemRow(${idx})">✕</button>
+    </div>`).join('');
+}
+function addPoDraftItemRow(){
+  const ingredients = (APP.config && APP.config.ingredients) || [];
+  if(ingredients.length===0){ alert('Önce Ayarlar > Hammaddeler kısmından hammadde ekleyin'); return; }
+  APP.poDraftItems.push({ ingredient_id: ingredients[0].id, quantity:'', unit_cost:'' });
+  document.getElementById('poItemsWrap').innerHTML = renderPoDraftItemsHtml();
+}
+function removePoDraftItemRow(idx){
+  APP.poDraftItems.splice(idx,1);
+  document.getElementById('poItemsWrap').innerHTML = renderPoDraftItemsHtml();
+}
+async function createPurchaseOrder(){
+  const session = getSession();
+  const supplierId = document.getElementById('po_supplier').value || null;
+  const expected = document.getElementById('po_expected').value || null;
+  const notes = document.getElementById('po_notes').value.trim() || null;
+  const items = (APP.poDraftItems||[]).filter(it => it.ingredient_id && parseFloat(it.quantity) > 0)
+    .map(it => ({ ingredient_id: it.ingredient_id, quantity: parseFloat(it.quantity), unit_cost: parseFloat(it.unit_cost)||0 }));
+  if(items.length===0){ alert('En az bir hammadde ekleyin'); return; }
+  const { error } = await sb.rpc('upsert_purchase_order', { p_token: session.session_token, p_id: null, p_supplier_id: supplierId, p_expected_date: expected, p_notes: notes, p_items: items });
+  if(error){ alert(error.message); return; }
+  APP.poDraftItems = [];
+  renderPurchaseOrdersContent(session);
+  showToast('Sipariş oluşturuldu ✓');
+}
+async function markPOOrdered(id){
+  const session = getSession();
+  const { error } = await sb.rpc('set_purchase_order_status', { p_token: session.session_token, p_id: id, p_status: 'ordered' });
+  if(error){ alert(error.message); return; }
+  renderPurchaseOrdersContent(session);
+}
+async function removePO(id){
+  if(!confirm('Bu siparişi silmek istediğinize emin misiniz?')) return;
+  const session = getSession();
+  const { error } = await sb.rpc('delete_purchase_order', { p_token: session.session_token, p_id: id });
+  if(error){ alert(error.message); return; }
+  renderPurchaseOrdersContent(session);
+}
+async function openReceivePOModal(id){
+  const session = getSession();
+  const { data, error } = await sb.rpc('get_purchase_order', { p_token: session.session_token, p_id: id });
+  if(error){ alert(error.message); return; }
+  const items = data.items || [];
+  const bg = document.createElement('div');
+  bg.id = 'receivePOModalBg';
+  bg.dataset.poId = id;
+  bg.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:100;padding:16px;';
+  bg.onclick = (e) => { if(e.target===bg) bg.remove(); };
+  bg.innerHTML = `<div style="background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:20px;max-width:420px;width:100%;max-height:88vh;overflow:auto;">
+    <div style="display:flex;justify-content:space-between;"><h2 style="margin:0;">Teslim Al</h2><span style="cursor:pointer;color:var(--muted);" onclick="document.getElementById('receivePOModalBg').remove()">✕</span></div>
+    <div id="receivePOItemsWrap" style="margin-top:10px;">
+    ${items.map(it => `
+      <div style="padding:8px 0;border-bottom:1px solid var(--border);">
+        <div style="display:flex;justify-content:space-between;font-size:13px;"><span>${escapeHtml(it.ingredient_name)}</span><span class="muted">${it.received_quantity}/${it.quantity} ${escapeHtml(it.ingredient_unit)}</span></div>
+        <input type="number" min="0" step="0.01" max="${it.quantity - it.received_quantity}" placeholder="Teslim alınan miktar" data-item-id="${it.id}" class="recv-qty-input" style="margin-top:4px;">
+      </div>`).join('')}
+    </div>
+    <button style="margin-top:12px;" onclick="confirmReceivePO()">Teslim Alındı Olarak Kaydet</button>
+  </div>`;
+  document.body.appendChild(bg);
+}
+async function confirmReceivePO(){
+  const bg = document.getElementById('receivePOModalBg');
+  const poId = bg.dataset.poId;
+  const receipts = Array.from(bg.querySelectorAll('.recv-qty-input'))
+    .map(inp => ({ item_id: inp.dataset.itemId, quantity: parseFloat(inp.value)||0 }))
+    .filter(r => r.quantity > 0);
+  if(receipts.length===0){ alert('En az bir kalem için miktar girin'); return; }
+  const session = getSession();
+  const { error } = await sb.rpc('receive_purchase_order_items', { p_token: session.session_token, p_id: poId, p_receipts: receipts });
+  if(error){ alert(error.message); return; }
+  bg.remove();
+  renderPurchaseOrdersContent(session);
+  showToast('Teslim alındı, stok güncellendi ✓');
 }
 
 /* Tanıtım sitesinden (/) "Ücretsiz Dene" butonuyla gelenler doğrudan kayıt
