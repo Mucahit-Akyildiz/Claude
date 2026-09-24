@@ -2148,6 +2148,7 @@ async function renderOrderView(main, session){
 }
 function stopOrderPolling(){
   if(APP.orderPollInterval){ clearInterval(APP.orderPollInterval); APP.orderPollInterval=null; }
+  if(APP.readyOrderReminderInterval){ clearInterval(APP.readyOrderReminderInterval); APP.readyOrderReminderInterval=null; }
 }
 function startOrderPolling(session){
   stopOrderPolling();
@@ -2157,6 +2158,23 @@ function startOrderPolling(session){
   APP.orderPollInterval = setInterval(() => {
     if(APP.view==='order' || APP.view==='packages') refreshOrderLiveStatus(session);
   }, 5000);
+  // Siparişi alan personel, hazırlanmış ama henüz ödenmemiş/teslim
+  // edilmemiş siparişini unutmasın diye Sipariş Al ekranındayken kendi
+  // aldığı siparişler için 1 dakikada bir hatırlatma gösterilir - sadece
+  // o siparişi alan kişiye gider (bkz. orders.created_by, send_order'da
+  // oturumdan otomatik kaydediliyor).
+  APP.readyOrderReminderInterval = setInterval(() => checkReadyOrdersReminder(session), 60000);
+}
+function checkReadyOrdersReminder(session){
+  if(APP.view!=='order') return;
+  const myReady = (APP.liveOrders||[]).filter(o =>
+    o.created_by === session.user_id &&
+    (o.items||[]).some(i => i.status==='ready' && !i.paid)
+  );
+  if(myReady.length===0) return;
+  const labels = myReady.map(o => orderDisplayName(o));
+  const shown = labels.slice(0,3).join(', ') + (labels.length>3 ? ' ve ' + (labels.length-3) + ' tane daha' : '');
+  showToast('🔔 Hazır, teslim bekleyen siparişiniz var: ' + shown, 30000);
 }
 async function refreshOrderLiveStatus(session){
   const { data, error } = await sb.rpc('get_live_orders', { p_token: session.session_token });
