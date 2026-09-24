@@ -73,6 +73,7 @@ async function dispatchCustomerOrderRequests(supabase) {
         title: '📱 Yeni müşteri sipariş isteği',
         body: shown,
         url: '/app/',
+        view: 'order',
         tag: 'customer-order-request',
       });
 
@@ -171,6 +172,7 @@ module.exports = async function handler(req, res) {
         title: '🔔 Hazır sipariş bekliyor',
         body: shown,
         url: '/app/',
+        view: 'order',
         tag: 'ready-orders',
       });
       try {

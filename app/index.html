@@ -2238,7 +2238,7 @@ async function refreshCustomerOrderRequests(session){
     if(newOnes.length>0){
       const labels = newOnes.map(r => (r.table_name||'Masa') + (r.customer_name?' · '+r.customer_name:''));
       const shown = labels.slice(0,3).join(', ') + (labels.length>3 ? ' ve ' + (labels.length-3) + ' tane daha' : '');
-      showToast('📱 Yeni müşteri sipariş isteği: ' + shown, 20000);
+      showToast('📱 Yeni müşteri sipariş isteği: ' + shown, 20000, null, () => goToView('order'));
     }
   }
   CUSTOMER_REQ_NOTIFIED_IDS = currentIds;
@@ -3742,7 +3742,7 @@ function money(n){ return (Math.round((n||0)*100)/100).toLocaleString('tr-TR',{m
    (⚠️ ile başlayanlar) varsayılan olarak en az 1 dakika ekranda kalır,
    başarı bildirimleri (Kaydedildi vb.) kısa süre sonra kendiliğinden
    kaybolur; durationMs verilirse bu varsayılanın yerine geçer. */
-function showToast(msg, durationMs, position){
+function showToast(msg, durationMs, position, onClick){
   const isLeft = position==='left';
   const stackId = isLeft ? 'notifStackLeft' : 'notifStack';
   let stack = document.getElementById(stackId);
@@ -3754,12 +3754,13 @@ function showToast(msg, durationMs, position){
   }
   const isWarning = msg.indexOf('⚠️')===0 || msg.indexOf('⏰')===0;
   const card = document.createElement('div');
-  card.style.cssText = 'background:var(--panel);border:1px solid var(--border);border-left:4px solid '+(isWarning?'var(--red)':'var(--green)')+';border-radius:10px;padding:10px 30px 10px 14px;font-size:13px;line-height:1.4;box-shadow:0 4px 16px rgba(0,0,0,.35);position:relative;animation:'+(isLeft?'notifSlideInLeft':'notifSlideIn')+' .18s ease;';
+  card.style.cssText = 'background:var(--panel);border:1px solid var(--border);border-left:4px solid '+(isWarning?'var(--red)':'var(--green)')+';border-radius:10px;padding:10px 30px 10px 14px;font-size:13px;line-height:1.4;box-shadow:0 4px 16px rgba(0,0,0,.35);position:relative;animation:'+(isLeft?'notifSlideInLeft':'notifSlideIn')+' .18s ease;'+(onClick?'cursor:pointer;':'');
   card.textContent = msg;
+  if(onClick) card.onclick = () => { card.remove(); onClick(); };
   const closeBtn = document.createElement('span');
   closeBtn.textContent = '✕';
   closeBtn.style.cssText = 'position:absolute;top:8px;right:10px;cursor:pointer;color:var(--muted);font-size:13px;line-height:1;';
-  closeBtn.onclick = () => card.remove();
+  closeBtn.onclick = (ev) => { ev.stopPropagation(); card.remove(); };
   card.appendChild(closeBtn);
   stack.appendChild(card);
   const dur = durationMs!=null ? durationMs : (isWarning ? 60000 : 4000);
@@ -3811,6 +3812,7 @@ async function doLogin(){
     APP.reportsUnlocked = false;
     APP.reportsGateScreen = null;
     APP.config = null;
+    applyDeepLinkView();
     render();
   }catch(err){
     console.error(err);
@@ -5714,11 +5716,32 @@ async function confirmReceivePO(){
   showToast('Teslim alındı, stok güncellendi ✓');
 }
 
+/* Push bildirimine (bkz. sw.js) ya da bir toast'a tıklanınca ilgili
+   ekrana gidilsin diye (?view=order gibi) - sadece izin verilen bir
+   NAV_ITEMS görünümüyse ve oturum varsa uygulanır, aksi halde sessizce
+   yok sayılır. Hem sayfa ilk açılışında (uygulama zaten oturumluyken
+   bir push linkiyle açılmışsa) hem başarılı girişten sonra kullanılır. */
+function applyDeepLinkView(){
+  const session = getSession(); if(!session) return;
+  const view = new URLSearchParams(window.location.search).get('view');
+  if(!view) return;
+  const item = NAV_ITEMS.find(i => i.view===view);
+  if(item && navItemVisible(item, session)) APP.view = view;
+}
 /* Tanıtım sitesinden (/) "Ücretsiz Dene" butonuyla gelenler doğrudan kayıt
    ekranında açılsın diye (?signup=1) - normal ?admin=1 gibi tek seferlik
    bir URL parametresi, oturum durumuyla ilgisi yok. */
 if(!getSession() && new URLSearchParams(window.location.search).get('signup')==='1') APP.authScreen = 'signup';
+applyDeepLinkView();
 render();
+/* Push bildirimine tıklanınca zaten açık olan bir sekme varsa (bkz.
+   sw.js notificationclick), sayfa yeniden yüklenmeden ilgili ekrana
+   geçmek için service worker'dan gelen mesaj burada dinlenir. */
+if('serviceWorker' in navigator){
+  navigator.serviceWorker.addEventListener('message', (event) => {
+    if(event.data && event.data.type==='peyktan-navigate' && event.data.view) goToView(event.data.view);
+  });
+}
 // Servis çalışanı izin istemeden erkenden kaydedilir (bildirim izni ayrı,
 // kullanıcının Bildirim Ayarları'ndaki butona tıklamasıyla istenir) - böylece
 // push aboneliği daha önce açılmışsa ilk andan itibaren hazır olur.
