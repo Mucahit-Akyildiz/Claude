@@ -1746,42 +1746,48 @@ function openPayModal(orderId, tableName){
   bg.dataset.isBirthdayToday = '0';
   bg.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:100;padding:16px;';
   bg.onclick = (e) => { if(e.target===bg) bg.remove(); };
-  bg.innerHTML = `<div style="background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:20px;max-width:380px;width:100%;max-height:88vh;overflow:auto;">
+  bg.innerHTML = `<div style="background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:20px;max-width:760px;width:100%;max-height:88vh;overflow:auto;">
     <div style="display:flex;justify-content:space-between;gap:10px;"><h2 style="margin:0;overflow-wrap:anywhere;word-break:break-word;">${escapeHtml(tableName)}</h2><span style="cursor:pointer;color:var(--muted);flex-shrink:0;" onclick="document.getElementById('payModalBg').remove()">✕</span></div>
     ${unpaidItems.length>1 ? `<div style="display:flex;justify-content:flex-end;margin-top:6px;"><button style="width:auto;padding:4px 10px;margin:0;font-size:12px;background:transparent;border:1px solid var(--border);color:var(--muted);box-shadow:none;" onclick="toggleAllPayItems()">Tümünü Seç/Kaldır</button></div>` : ''}
     <div id="payItemsWrap" style="margin-top:6px;">${itemsHtml}</div>
     <div style="text-align:right;color:var(--muted);font-size:13px;margin-top:10px;" id="paySubtotalLine">Ara Toplam: ${money(subtotal)}</div>
-    <div style="background:var(--panel2);border-radius:10px;padding:10px;margin:10px 0;">
-      <p class="muted" style="font-size:12px;margin:0 0 6px;">İndirim (opsiyonel)</p>
-      <div style="display:flex;gap:8px;">
-        <input id="discValue" type="number" min="0" step="0.01" placeholder="0" style="flex:1;margin:0;">
-        <select id="discType" style="width:70px;padding:0 6px;">
-          <option value="percent">%</option>
-          <option value="amount">₺</option>
-        </select>
-        <button style="width:auto;padding:8px 12px;margin:0;" onclick="applyPayDiscount()">Uygula</button>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px;margin:10px 0;align-items:start;">
+      <div style="background:var(--panel2);border-radius:10px;padding:10px;">
+        <p class="muted" style="font-size:12px;margin:0 0 6px;">İndirim (opsiyonel)</p>
+        <div style="display:flex;gap:8px;">
+          <input id="discValue" type="number" min="0" step="0.01" placeholder="0" style="flex:1;margin:0;">
+          <select id="discType" style="width:70px;padding:0 6px;">
+            <option value="percent">%</option>
+            <option value="amount">₺</option>
+          </select>
+          <button style="width:auto;padding:8px 12px;margin:0;" onclick="applyPayDiscount()">Uygula</button>
+        </div>
+        <p id="discInfo" class="muted" style="font-size:12px;margin:6px 0 0;">İndirim yok</p>
       </div>
-      <p id="discInfo" class="muted" style="font-size:12px;margin:6px 0 0;">İndirim yok</p>
-    </div>
-    <div style="background:var(--panel2);border-radius:10px;padding:10px;margin:10px 0;">
-      <p class="muted" style="font-size:12px;margin:0 0 6px;">Bahşiş (opsiyonel)</p>
-      <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
-        <button type="button" style="width:auto;padding:6px 10px;margin:0;font-size:12px;background:transparent;border:1px solid var(--border);color:var(--text);box-shadow:none;" onclick="applyTipPercent(5)">%5</button>
-        <button type="button" style="width:auto;padding:6px 10px;margin:0;font-size:12px;background:transparent;border:1px solid var(--border);color:var(--text);box-shadow:none;" onclick="applyTipPercent(10)">%10</button>
-        <button type="button" style="width:auto;padding:6px 10px;margin:0;font-size:12px;background:transparent;border:1px solid var(--border);color:var(--text);box-shadow:none;" onclick="applyTipPercent(15)">%15</button>
-        <input id="tipValue" type="number" min="0" step="0.01" placeholder="Tutar" style="flex:1;min-width:80px;margin:0;" oninput="applyTipAmount(this.value)">
+      <div style="background:var(--panel2);border-radius:10px;padding:10px;">
+        <p class="muted" style="font-size:12px;margin:0 0 6px;">Bahşiş (opsiyonel)</p>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
+          <button type="button" style="width:auto;padding:6px 10px;margin:0;font-size:12px;background:transparent;border:1px solid var(--border);color:var(--text);box-shadow:none;" onclick="applyTipPercent(5)">%5</button>
+          <button type="button" style="width:auto;padding:6px 10px;margin:0;font-size:12px;background:transparent;border:1px solid var(--border);color:var(--text);box-shadow:none;" onclick="applyTipPercent(10)">%10</button>
+          <button type="button" style="width:auto;padding:6px 10px;margin:0;font-size:12px;background:transparent;border:1px solid var(--border);color:var(--text);box-shadow:none;" onclick="applyTipPercent(15)">%15</button>
+          <input id="tipValue" type="number" min="0" step="0.01" placeholder="Tutar" style="flex:1;min-width:80px;margin:0;" oninput="applyTipAmount(this.value)">
+        </div>
+        <p id="tipInfo" class="muted" style="font-size:12px;margin:6px 0 0;">Bahşiş yok</p>
+        <div style="border-top:1px dashed var(--border);margin-top:10px;padding-top:10px;">
+          <label class="muted" style="font-size:12px;display:block;margin-bottom:4px;">Alınan Nakit (opsiyonel) — üstü bahşiş olur</label>
+          <input id="cashReceivedInput" type="number" min="0" step="0.01" placeholder="örn. 5000" style="margin:0;" oninput="handleCashReceivedInput(this.value)">
+        </div>
       </div>
-      <p id="tipInfo" class="muted" style="font-size:12px;margin:6px 0 0;">Bahşiş yok</p>
-    </div>
-    <div style="background:var(--panel2);border-radius:10px;padding:10px;margin:10px 0;">
-      <p class="muted" style="font-size:12px;margin:0 0 6px;">Müşteri (opsiyonel)</p>
-      <div style="display:flex;gap:8px;">
-        <input id="payCustomerPhone" placeholder="Telefon ile ara" style="flex:1;margin:0;">
-        <button type="button" style="width:auto;padding:8px 12px;margin:0;" onclick="lookupPayCustomer()">Bul</button>
-      </div>
-      <p id="payCustomerInfo" class="muted" style="font-size:12px;margin:6px 0 0;">Müşteri seçilmedi</p>
-      <div id="payRedeemWrap" style="display:none;margin-top:8px;">
-        <input id="payRedeemPoints" type="number" min="0" step="1" placeholder="Kullanılacak puan" style="margin:0;" oninput="applyRedeemPoints(this.value)">
+      <div style="background:var(--panel2);border-radius:10px;padding:10px;">
+        <p class="muted" style="font-size:12px;margin:0 0 6px;">Müşteri (opsiyonel)</p>
+        <div style="display:flex;gap:8px;">
+          <input id="payCustomerPhone" placeholder="Telefon ile ara" style="flex:1;margin:0;">
+          <button type="button" style="width:auto;padding:8px 12px;margin:0;" onclick="lookupPayCustomer()">Bul</button>
+        </div>
+        <p id="payCustomerInfo" class="muted" style="font-size:12px;margin:6px 0 0;">Müşteri seçilmedi</p>
+        <div id="payRedeemWrap" style="display:none;margin-top:8px;">
+          <input id="payRedeemPoints" type="number" min="0" step="1" placeholder="Kullanılacak puan" style="margin:0;" oninput="applyRedeemPoints(this.value)">
+        </div>
       </div>
     </div>
     <div style="text-align:right;font-weight:800;font-size:20px;margin:10px 0;" id="payFinalTotal">Ödenecek: ${money(subtotal)}</div>
@@ -1800,6 +1806,7 @@ function applyTipPercent(pct){
   bg.dataset.tipAmount = String(tip);
   document.getElementById('tipValue').value = tip;
   document.getElementById('tipInfo').textContent = 'Bahşiş: '+money(tip)+' (%'+pct+')';
+  syncCashReceivedFromTip();
   updatePayFinalTotalLine();
 }
 function applyTipAmount(v){
@@ -1808,6 +1815,29 @@ function applyTipAmount(v){
   if(tip<0) tip=0;
   bg.dataset.tipAmount = String(tip);
   document.getElementById('tipInfo').textContent = tip>0 ? 'Bahşiş: '+money(tip) : 'Bahşiş yok';
+  syncCashReceivedFromTip();
+  updatePayFinalTotalLine();
+}
+/* "Müşteriden Alınan Nakit" alanı ile bahşiş alanı birbirini senkronize
+   eder - hangisine yazılırsa diğeri ona göre güncellenir, ikisi de aynı
+   şeyi (bahşiş tutarını) farklı bir açıdan ifade ediyor. */
+function syncCashReceivedFromTip(){
+  const bg = document.getElementById('payModalBg');
+  const receivedInput = document.getElementById('cashReceivedInput');
+  if(!receivedInput || document.activeElement===receivedInput) return;
+  const tip = parseFloat(bg.dataset.tipAmount||0);
+  const due = payFinalTotal();
+  receivedInput.value = tip>0 ? (Math.round((due+tip)*100)/100) : '';
+}
+function handleCashReceivedInput(v){
+  const bg = document.getElementById('payModalBg');
+  const received = parseFloat(v)||0;
+  const due = payFinalTotal();
+  const tip = received>due ? Math.round((received-due)*100)/100 : 0;
+  bg.dataset.tipAmount = String(tip);
+  const tipValueInput = document.getElementById('tipValue');
+  if(tipValueInput && document.activeElement!==tipValueInput) tipValueInput.value = tip || '';
+  document.getElementById('tipInfo').textContent = tip>0 ? 'Bahşiş: '+money(tip)+' (alınan nakitten hesaplandı)' : 'Bahşiş yok';
   updatePayFinalTotalLine();
 }
 async function lookupPayCustomer(){
