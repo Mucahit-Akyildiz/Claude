@@ -596,6 +596,7 @@ function goToView(view){
   // Mutfak ekranindan cikinca arka plandaki yenileme/sayac calismaya devam etmesin.
   if(view!=='kitchen') stopKitchenPolling();
   if(view!=='order' && view!=='packages') stopOrderPolling();
+  if(view!=='reservations') stopWaitlistTimerInterval();
   // Telefonda bir menü öğesine dokununca kayar menü otomatik kapansın.
   APP.mobileNavOpen = false;
   render();
@@ -4981,7 +4982,7 @@ async function renderWaitlistContent(session){
           <td class="col-name">${escapeHtml(w.customer_name)}</td>
           <td>${escapeHtml(w.phone||'-')}</td>
           <td>${w.party_size}</td>
-          <td>${w.quoted_wait_minutes?w.quoted_wait_minutes+' dk':'-'}</td>
+          <td><span class="waitlist-timer" data-joined="${w.joined_at}" data-quoted="${w.quoted_wait_minutes||''}">-</span></td>
           <td>${new Date(w.joined_at).toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'})}</td>
           <td>
             <button class="sbtn" onclick="changeWaitlistStatus('${w.id}','seated')">Oturdu</button>
@@ -5003,6 +5004,48 @@ async function renderWaitlistContent(session){
       <button style="margin-top:12px;max-width:220px;" onclick="addWaitlistEntry()">+ Ekle</button>
     </div>
   </div>`;
+  updateWaitlistTimers();
+  startWaitlistTimerInterval();
+}
+/* Bekleme listesindeki "Bekleme" sütunu, katılım zamanı + tahmini bekleme
+   süresinden canlı bir geri sayım olarak hesaplanır (kalan dakika azalır,
+   süre dolunca kaç dakika geciktiği kırmızı gösterilir) - mutfak
+   ekranındaki canlı sayaçla aynı desen (bkz. updateKitchenTimers). */
+let WAITLIST_TIMER_INTERVAL = null;
+function startWaitlistTimerInterval(){
+  stopWaitlistTimerInterval();
+  WAITLIST_TIMER_INTERVAL = setInterval(() => {
+    if(APP.view==='reservations' && (APP.resvTab||'reservations')==='waitlist') updateWaitlistTimers();
+    else stopWaitlistTimerInterval();
+  }, 1000);
+}
+function stopWaitlistTimerInterval(){
+  if(WAITLIST_TIMER_INTERVAL){ clearInterval(WAITLIST_TIMER_INTERVAL); WAITLIST_TIMER_INTERVAL=null; }
+}
+function updateWaitlistTimers(){
+  document.querySelectorAll('.waitlist-timer[data-joined]').forEach(el => {
+    const joined = el.dataset.joined;
+    if(!joined){ el.textContent = '-'; return; }
+    const elapsedMin = (Date.now() - new Date(joined).getTime())/60000;
+    const quotedRaw = el.dataset.quoted;
+    if(quotedRaw){
+      const quoted = parseFloat(quotedRaw);
+      const remaining = quoted - elapsedMin;
+      if(remaining > 0){
+        el.textContent = Math.ceil(remaining) + ' dk kaldı';
+        el.style.color = remaining<=5 ? '#eab308' : '';
+        el.style.fontWeight = remaining<=5 ? '700' : '';
+      } else {
+        el.textContent = Math.round(Math.abs(remaining)) + ' dk gecikti';
+        el.style.color = 'var(--red)';
+        el.style.fontWeight = '800';
+      }
+    } else {
+      el.textContent = Math.round(elapsedMin) + ' dk bekliyor';
+      el.style.color = '';
+      el.style.fontWeight = '';
+    }
+  });
 }
 async function addWaitlistEntry(){
   const session = getSession();
