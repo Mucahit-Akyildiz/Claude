@@ -52,7 +52,7 @@ module.exports = async function handler(req, res) {
     if (token) {
       const { data: session } = await supabase
         .from('staff_sessions')
-        .select('restaurant_id, role')
+        .select('restaurant_id, user_id')
         .eq('token', token)
         .gt('expires_at', new Date().toISOString())
         .maybeSingle();
@@ -61,7 +61,25 @@ module.exports = async function handler(req, res) {
         res.status(401).json({ errorMessage: 'Oturum geçersiz veya süresi dolmuş, tekrar giriş yapın' });
         return;
       }
-      if (session.role !== 'manager') {
+      // 'role' sütunu dinamik rol/izin sistemine geçilirken kaldırıldı -
+      // yöneticilik artık app_users.role_ids üzerinden roles.is_system'a
+      // bakılarak doğrulanıyor (bkz. Supabase'deki is_system kontrol deseni).
+      const { data: userRow } = await supabase
+        .from('app_users')
+        .select('role_ids')
+        .eq('id', session.user_id)
+        .maybeSingle();
+      let isManager = false;
+      if (userRow && userRow.role_ids && userRow.role_ids.length) {
+        const { data: roleRows } = await supabase
+          .from('roles')
+          .select('is_system')
+          .in('id', userRow.role_ids)
+          .eq('is_system', true)
+          .limit(1);
+        isManager = !!(roleRows && roleRows.length);
+      }
+      if (!isManager) {
         res.status(403).json({ errorMessage: 'Bu işlem için yetkiniz yok' });
         return;
       }
