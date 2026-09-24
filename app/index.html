@@ -1742,6 +1742,7 @@ function openPayModal(orderId, tableName){
   bg.dataset.redeemPoints = '0';
   bg.dataset.customerId = '';
   bg.dataset.customerPoints = '0';
+  bg.dataset.isBirthdayToday = '0';
   bg.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:100;padding:16px;';
   bg.onclick = (e) => { if(e.target===bg) bg.remove(); };
   bg.innerHTML = `<div style="background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:20px;max-width:380px;width:100%;max-height:88vh;overflow:auto;">
@@ -1821,20 +1822,25 @@ async function lookupPayCustomer(){
     bg.dataset.customerId = '';
     bg.dataset.customerPoints = '0';
     bg.dataset.redeemPoints = '0';
+    bg.dataset.isBirthdayToday = '0';
     redeemWrap.style.display = 'none';
     updatePayFinalTotalLine();
     return;
   }
   bg.dataset.customerId = data.id;
   bg.dataset.customerPoints = String(data.points_balance||0);
-  infoEl.textContent = data.name + ' · ' + data.points_balance + ' puan';
+  bg.dataset.isBirthdayToday = data.is_birthday_today ? '1' : '0';
   const loyalty = (APP.config && APP.config.loyalty) || {};
+  const birthdayPct = loyalty.birthday_discount_percent || 0;
+  infoEl.textContent = data.name + ' · ' + data.points_balance + ' puan' +
+    (data.is_birthday_today && birthdayPct>0 ? ' · 🎂 Bugün doğum günü! %'+birthdayPct+' indirim uygulanacak' : '');
   if(loyalty.enabled && data.points_balance>0){
     redeemWrap.style.display = 'block';
     document.getElementById('payRedeemPoints').max = data.points_balance;
   } else {
     redeemWrap.style.display = 'none';
   }
+  recomputePaySelection();
 }
 function applyRedeemPoints(v){
   const bg = document.getElementById('payModalBg');
@@ -1916,7 +1922,9 @@ function payFinalTotal(){
   const discountAmount = parseFloat(bg.dataset.discountAmount||0);
   const redeemPoints = parseFloat(bg.dataset.redeemPoints||0);
   const pointValue = (APP.config && APP.config.loyalty && APP.config.loyalty.point_value) || 1;
-  return Math.max(0, subtotal - discountAmount - redeemPoints*pointValue);
+  const afterDiscounts = Math.max(0, subtotal - discountAmount - redeemPoints*pointValue);
+  const birthdayPct = bg.dataset.isBirthdayToday==='1' ? ((APP.config && APP.config.loyalty && APP.config.loyalty.birthday_discount_percent) || 0) : 0;
+  return Math.max(0, afterDiscounts - afterDiscounts*birthdayPct/100);
 }
 async function finishPaymentFull(method){
   const bg = document.getElementById('payModalBg');
@@ -4738,12 +4746,13 @@ async function renderReportContent(session){
   const untaggedHist = hist.filter(o => !o.tags || o.tags.length===0);
   const taggedHist = hist.filter(o => o.tags && o.tags.length>0);
 
-  let totalRevenue=0, totalCost=0, totalCash=0, totalCard=0, totalDiscount=0, discountedCount=0, taggedTotal=0, totalTip=0;
+  let totalRevenue=0, totalCost=0, totalCash=0, totalCard=0, totalDiscount=0, discountedCount=0, taggedTotal=0, totalTip=0, totalBirthdayDiscount=0, birthdayCount=0;
   const hourStats = {};
   untaggedHist.forEach(o => {
     totalRevenue += Number(o.total); totalCost += Number(o.cost);
     totalDiscount += Number(o.discount_amount||0);
     if(o.discount_amount>0) discountedCount++;
+    if(o.birthday_discount_amount>0){ totalBirthdayDiscount += Number(o.birthday_discount_amount); birthdayCount++; }
     const hr = new Date(o.closed_at).getHours();
     if(!hourStats[hr]) hourStats[hr] = {count:0, revenue:0};
     hourStats[hr].count += 1;
@@ -4802,6 +4811,7 @@ async function renderReportContent(session){
       <div class="box" style="text-align:center;"><div style="font-size:20px;font-weight:800;color:var(--accent);">${money(totalDiscount)}</div><div class="muted" style="font-size:12px;">🏷️ İndirim (${discountedCount} hesap)</div></div>
       <div class="box" style="text-align:center;"><div style="font-size:20px;font-weight:800;color:#eab308;">${money(taggedTotal)}</div><div class="muted" style="font-size:12px;">🏷️ Personel/İkram (${taggedHist.length} hesap, ciroya dahil değil)</div></div>
       <div class="box" style="text-align:center;"><div style="font-size:20px;font-weight:800;color:var(--accent);">${money(totalTip)}</div><div class="muted" style="font-size:12px;">💰 Bahşiş</div></div>
+      <div class="box" style="text-align:center;"><div style="font-size:20px;font-weight:800;color:var(--accent2);">${money(totalBirthdayDiscount)}</div><div class="muted" style="font-size:12px;">🎂 Doğum Günü İndirimi (${birthdayCount} hesap)</div></div>
     </div>
     <div class="box" style="max-width:none;"><h2>Saatlik Yoğunluk${peakHour!==null?' <span class="muted" style="font-size:12px;font-weight:400;">(en yoğun: '+(peakHour<10?'0'+peakHour:peakHour)+':00 🔥)</span>':''}</h2>${hourlyHtml}</div>
     <div class="box" style="max-width:none;"><h2>Kapatılan Hesaplar</h2>${billsHtml}</div>
@@ -5019,7 +5029,7 @@ async function renderCrmView(main, session){
   const { data, error } = await withLoadingOverlay(sb.rpc('list_customers', { p_token: session.session_token, p_search: APP.crmSearch||null }));
   const rows = error ? [] : (data||[]);
   APP.crmRows = rows;
-  const loyalty = APP.config.loyalty || { enabled:false, spend_per_point:10, point_value:1 };
+  const loyalty = APP.config.loyalty || { enabled:false, spend_per_point:10, point_value:1, birthday_discount_percent:0 };
   main.innerHTML = `<h1>Müşteriler</h1>
     ${session.isManager ? `
     <div class="box" style="max-width:none;">
@@ -5031,6 +5041,8 @@ async function renderCrmView(main, session){
         <div class="field-group"><label>Kaç TL harcamada 1 puan</label><input id="loy_spend" type="number" min="1" step="0.01" value="${loyalty.spend_per_point}"></div>
         <div class="field-group"><label>1 puan kaç TL indirim</label><input id="loy_value" type="number" min="0" step="0.01" value="${loyalty.point_value}"></div>
       </div>
+      <div class="field-group" style="margin-top:10px;max-width:220px;"><label>🎂 Doğum günü indirimi (%)</label><input id="loy_birthday_pct" type="number" min="0" max="100" step="1" value="${loyalty.birthday_discount_percent||0}"></div>
+      <p class="muted" style="font-size:12px;margin:6px 0 0;">Müşterinin doğum günü kaydedilmişse, o gün ödeme alırken bu yüzde otomatik indirim olarak uygulanır (0 = kapalı).</p>
       <button style="margin-top:12px;max-width:220px;" onclick="saveLoyaltySettings()">Kaydet</button>
     </div>` : ''}
     <div class="box" style="max-width:none;">
@@ -5040,12 +5052,13 @@ async function renderCrmView(main, session){
       </div>
       <div class="settings-table-wrap">
       <table class="settings-table">
-        <thead><tr><th>Ad</th><th>Telefon</th><th>Puan</th><th>Ziyaret</th><th>Toplam Harcama</th><th>Son Ziyaret</th><th></th></tr></thead>
+        <thead><tr><th>Ad</th><th>Telefon</th><th>🎂 Doğum Günü</th><th>Puan</th><th>Ziyaret</th><th>Toplam Harcama</th><th>Son Ziyaret</th><th></th></tr></thead>
         <tbody>
         ${rows.map(c => `
           <tr>
             <td class="col-name">${escapeHtml(c.name)}</td>
             <td>${escapeHtml(c.phone||'-')}</td>
+            <td>${c.birthday ? new Date(c.birthday+'T00:00:00').toLocaleDateString('tr-TR') : '-'}</td>
             <td>${c.points_balance}</td>
             <td>${c.total_visits}</td>
             <td>${money(c.total_spent)}</td>
@@ -5055,17 +5068,18 @@ async function renderCrmView(main, session){
               <button class="sbtn" style="background:var(--red);color:var(--btn-ink);" onclick="removeCustomer('${c.id}')">Sil</button>
             </td>
           </tr>`).join('')}
-        ${rows.length===0?'<tr><td colspan="7" class="muted" style="text-align:center;">Müşteri yok.</td></tr>':''}
+        ${rows.length===0?'<tr><td colspan="8" class="muted" style="text-align:center;">Müşteri yok.</td></tr>':''}
         </tbody>
       </table>
       </div>
       <div class="add-row-panel">
         <p id="crmFormTitle">Yeni Müşteri Ekle</p>
         <input type="hidden" id="crm_edit_id">
-        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;">
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:10px;">
           <div class="field-group"><label>Ad Soyad</label><input id="crm_name" placeholder="örn. Ahmet Yılmaz"></div>
           <div class="field-group"><label>Telefon</label><input id="crm_phone" placeholder="05xx..."></div>
           <div class="field-group"><label>E-posta</label><input id="crm_email" placeholder="opsiyonel"></div>
+          <div class="field-group"><label>🎂 Doğum Günü</label><input id="crm_birthday" type="date"></div>
         </div>
         <div class="field-group" style="margin-top:10px;"><label>Not</label><input id="crm_notes" placeholder="opsiyonel"></div>
         <button style="margin-top:12px;max-width:220px;" onclick="saveCrmCustomer()">Kaydet</button>
@@ -5089,6 +5103,7 @@ function editCustomer(id){
   document.getElementById('crm_phone').value = c.phone||'';
   document.getElementById('crm_email').value = c.email||'';
   document.getElementById('crm_notes').value = c.notes||'';
+  document.getElementById('crm_birthday').value = c.birthday||'';
   document.getElementById('crmFormTitle').textContent = 'Müşteriyi Düzenle';
 }
 async function saveCrmCustomer(){
@@ -5098,8 +5113,9 @@ async function saveCrmCustomer(){
   const phone = document.getElementById('crm_phone').value.trim();
   const email = document.getElementById('crm_email').value.trim();
   const notes = document.getElementById('crm_notes').value.trim();
+  const birthday = document.getElementById('crm_birthday').value || null;
   if(!name){ alert('Müşteri adı gerekli'); return; }
-  const { error } = await sb.rpc('upsert_customer', { p_token: session.session_token, p_id: id, p_name: name, p_phone: phone||null, p_email: email||null, p_notes: notes||null });
+  const { error } = await sb.rpc('upsert_customer', { p_token: session.session_token, p_id: id, p_name: name, p_phone: phone||null, p_email: email||null, p_notes: notes||null, p_birthday: birthday });
   if(error){ alert(error.message); return; }
   renderCrmView(document.getElementById('main'), session);
   showToast(id ? 'Güncellendi ✓' : 'Müşteri eklendi ✓');
@@ -5116,10 +5132,12 @@ async function saveLoyaltySettings(){
   const enabled = document.getElementById('loy_enabled').checked;
   const spend = parseFloat(document.getElementById('loy_spend').value);
   const value = parseFloat(document.getElementById('loy_value').value);
+  const birthdayPct = parseFloat(document.getElementById('loy_birthday_pct').value)||0;
   if(!spend || spend<=0){ alert('Puan başına harcama tutarı 0\'dan büyük olmalı'); return; }
-  const { error } = await sb.rpc('update_loyalty_settings', { p_token: session.session_token, p_enabled: enabled, p_spend_per_point: spend, p_point_value: value });
+  if(birthdayPct<0 || birthdayPct>100){ alert('Doğum günü indirimi 0-100 arasında olmalı'); return; }
+  const { error } = await sb.rpc('update_loyalty_settings', { p_token: session.session_token, p_enabled: enabled, p_spend_per_point: spend, p_point_value: value, p_birthday_discount_percent: birthdayPct });
   if(error){ alert(error.message); return; }
-  APP.config.loyalty = { enabled, spend_per_point: spend, point_value: value };
+  APP.config.loyalty = { enabled, spend_per_point: spend, point_value: value, birthday_discount_percent: birthdayPct };
   showToast('Sadakat ayarları kaydedildi ✓');
 }
 
@@ -5295,9 +5313,10 @@ async function createPurchaseOrder(){
 }
 async function markPOOrdered(id){
   const session = getSession();
-  const { error } = await sb.rpc('set_purchase_order_status', { p_token: session.session_token, p_id: id, p_status: 'ordered' });
+  const { data, error } = await sb.rpc('set_purchase_order_status', { p_token: session.session_token, p_id: id, p_status: 'ordered' });
   if(error){ alert(error.message); return; }
   renderPurchaseOrdersContent(session);
+  showToast(data && data.email_sent ? 'Sipariş verildi, tedarikçiye e-posta gönderildi ✓' : 'Sipariş verildi (tedarikçiye e-posta gönderilmedi — e-posta adresi kayıtlı değil ya da e-posta sistemi henüz ayarlanmadı)');
 }
 async function removePO(id){
   if(!confirm('Bu siparişi silmek istediğinize emin misiniz?')) return;
