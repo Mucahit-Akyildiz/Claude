@@ -16,6 +16,15 @@ const ICON_PATH = path.join(__dirname, 'build', 'icon.png');
 
 let mainWindow = null;
 
+// nodeIntegration:false + contextIsolation:true zaten Node erisimini kapatiyor;
+// buradaki navigasyon kisitlamasi ayrica bir savunma katmani - peyktan.com disina
+// (orn. sayfa icinde bir yere tiklanip) yonlendirilmeye/yeni pencere acilmaya
+// calisilirsa engellenir, tik olursa sistem tarayicisinda acilir.
+const ALLOWED_ORIGIN = new URL(APP_URL).origin;
+function isAllowedUrl(url) {
+  try { return new URL(url).origin === ALLOWED_ORIGIN; } catch (e) { return false; }
+}
+
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1360,
@@ -32,6 +41,13 @@ function createWindow() {
     },
   });
   mainWindow.setMenuBarVisibility(false);
+  mainWindow.webContents.on('will-navigate', (event, url) => {
+    if (!isAllowedUrl(url)) event.preventDefault();
+  });
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    if (!isAllowedUrl(url)) require('electron').shell.openExternal(url);
+    return { action: 'deny' };
+  });
   mainWindow.loadURL(APP_URL);
 }
 
