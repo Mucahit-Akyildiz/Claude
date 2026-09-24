@@ -3492,8 +3492,8 @@ const SETTINGS_TABS = [
   { tab:'zones', perm:'settings_zones', label:'Bölgeler & Masalar' },
   { tab:'products', perm:'settings_products', label:'Ürünler' },
   { tab:'ingredients', perm:'settings_ingredients', label:'Hammaddeler' },
-  { tab:'users', perm:'settings_users', label:'Kullanıcılar' },
   { tab:'flags', perm:'settings_flags', label:'Sipariş Etiketleri' },
+  { tab:'users', perm:'settings_users', label:'Kullanıcılar' },
   { tab:'roles', managerOnly:true, label:'Roller' },
 ];
 function settingsTabVisible(t, session){ return t.managerOnly ? !!session.isManager : hasPerm(session, t.perm); }
