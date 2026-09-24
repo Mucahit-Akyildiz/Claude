@@ -4864,6 +4864,8 @@ async function renderReportsView(main, session){
     <div class="tabs" id="reportTabs">
       <div class="tab ${(APP.reportTab||'summary')==='summary'?'active':''}" data-tab="summary" onclick="setReportTab('summary')">Genel Özet</div>
       <div class="tab ${APP.reportTab==='products'?'active':''}" data-tab="products" onclick="setReportTab('products')">📦 Ürün İstatistikleri</div>
+      <div class="tab ${APP.reportTab==='staff'?'active':''}" data-tab="staff" onclick="setReportTab('staff')">👤 Personel Analizleri</div>
+      <div class="tab ${APP.reportTab==='customers'?'active':''}" data-tab="customers" onclick="setReportTab('customers')">🧑‍🤝‍🧑 Müşteri Analizleri</div>
     </div>
     <div id="reportContent"></div>`;
   await renderReportTabContent(session);
@@ -4875,7 +4877,11 @@ function setReportTab(tab){
 }
 function changeReportDate(v){ APP.reportDate = v; renderReportTabContent(getSession()); }
 function renderReportTabContent(session){
-  return (APP.reportTab||'summary')==='products' ? renderProductStatsContent(session) : renderReportContent(session);
+  const tab = APP.reportTab||'summary';
+  if(tab==='products') return renderProductStatsContent(session);
+  if(tab==='staff') return renderStaffAnalyticsContent(session);
+  if(tab==='customers') return renderCustomerAnalyticsContent(session);
+  return renderReportContent(session);
 }
 async function renderReportContent(session){
   const el = document.getElementById('reportContent'); if(!el) return;
@@ -5038,6 +5044,105 @@ async function renderProductStatsContent(session){
       ${barsHtml}
     </div>
   `;
+}
+
+/* --- Personel Analizleri sekmesi: hangi personel hangi saatte kaç sipariş
+   aldı / kaç ödeme aldı - masa siparişleri ile ödemeler ayrı tablolarda --- */
+function buildHourlyPivotTable(rows){
+  const staffSet = new Set(); const hourSet = new Set();
+  rows.forEach(r => { staffSet.add(r.staff_name); hourSet.add(r.hour); });
+  const staffNames = [...staffSet].sort((a,b) => a.localeCompare(b,'tr'));
+  const hours = [...hourSet].sort((a,b) => a-b);
+  if(staffNames.length===0) return '<p class="muted">Bu tarihte veri yok.</p>';
+  const lookup = {};
+  rows.forEach(r => { lookup[r.staff_name+'_'+r.hour] = r.count; });
+  const totalsByStaff = {}; staffNames.forEach(n => totalsByStaff[n]=0);
+  const totalsByHour = {}; hours.forEach(h => totalsByHour[h]=0);
+  let grandTotal = 0;
+  rows.forEach(r => { totalsByStaff[r.staff_name]+=r.count; totalsByHour[r.hour]+=r.count; grandTotal+=r.count; });
+  const hourLabel = h => (h<10?'0'+h:h)+':00';
+  return `<div class="settings-table-wrap"><table class="settings-table" style="font-size:13px;">
+    <thead><tr><th>Personel</th>${hours.map(h => `<th style="text-align:center;">${hourLabel(h)}</th>`).join('')}<th style="text-align:center;font-weight:800;">Toplam</th></tr></thead>
+    <tbody>
+    ${staffNames.map(name => `<tr><td class="col-name">${escapeHtml(name)}</td>${hours.map(h => {
+      const v = lookup[name+'_'+h]||0;
+      return `<td style="text-align:center;${v?'':'color:var(--muted);'}">${v||'-'}</td>`;
+    }).join('')}<td style="text-align:center;font-weight:700;">${totalsByStaff[name]}</td></tr>`).join('')}
+    <tr style="border-top:2px solid var(--border);font-weight:700;"><td class="col-name">Toplam</td>${hours.map(h => `<td style="text-align:center;">${totalsByHour[h]}</td>`).join('')}<td style="text-align:center;">${grandTotal}</td></tr>
+    </tbody>
+  </table></div>`;
+}
+async function renderStaffAnalyticsContent(session){
+  const el = document.getElementById('reportContent'); if(!el) return;
+  const { data, error } = await withLoadingOverlay(sb.rpc('get_staff_hourly_stats', { p_token: session.session_token, p_date: APP.reportDate }));
+  if(error){ el.innerHTML = '<p class="muted">Yüklenemedi: '+error.message+'</p>'; return; }
+  const ordersByHour = (data && data.orders_by_hour) || [];
+  const paymentsByHour = (data && data.payments_by_hour) || [];
+  el.innerHTML = `
+    <div class="box" style="max-width:none;">
+      <h2>🍽️ Saatlik Sipariş Alma</h2>
+      <p class="muted" style="font-size:12px;margin-top:-6px;">Personelin hangi saatte kaç masa/paket siparişi aldığı (siparişin oluşturulma saatine göre).</p>
+      ${buildHourlyPivotTable(ordersByHour)}
+    </div>
+    <div class="box" style="max-width:none;">
+      <h2>💳 Saatlik Alınan Ödeme</h2>
+      <p class="muted" style="font-size:12px;margin-top:-6px;">Personelin hangi saatte kaç ödeme aldığı / hesap kapattığı.</p>
+      ${buildHourlyPivotTable(paymentsByHour)}
+    </div>
+  `;
+}
+
+/* --- Müşteri Analizleri sekmesi: Müşteriler'deki analiz özellikleri
+   (arama, toplam harcama, son ziyaret, doğum günü, ziyaret sayısı) burada --- */
+async function renderCustomerAnalyticsContent(session){
+  const el = document.getElementById('reportContent'); if(!el) return;
+  const { data, error } = await withLoadingOverlay(sb.rpc('get_customer_analytics', { p_token: session.session_token, p_search: APP.customerAnalyticsSearch||null }));
+  if(error){ el.innerHTML = '<p class="muted">Yüklenemedi: '+error.message+'</p>'; return; }
+  const rows = data || [];
+  const totalSpent = rows.reduce((s,c) => s+Number(c.total_spent||0), 0);
+  const totalVisits = rows.reduce((s,c) => s+Number(c.total_visits||0), 0);
+  const avgSpent = rows.length ? totalSpent/rows.length : 0;
+  el.innerHTML = `
+    <div class="home-grid" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr));">
+      <div class="box" style="text-align:center;"><div style="font-size:22px;font-weight:800;">${rows.length}</div><div class="muted" style="font-size:12px;">Müşteri</div></div>
+      <div class="box" style="text-align:center;"><div style="font-size:22px;font-weight:800;">${money(totalSpent)}</div><div class="muted" style="font-size:12px;">Toplam Harcama</div></div>
+      <div class="box" style="text-align:center;"><div style="font-size:22px;font-weight:800;">${money(avgSpent)}</div><div class="muted" style="font-size:12px;">Ortalama Harcama</div></div>
+      <div class="box" style="text-align:center;"><div style="font-size:22px;font-weight:800;">${totalVisits}</div><div class="muted" style="font-size:12px;">Toplam Ziyaret</div></div>
+    </div>
+    <div class="box" style="max-width:none;">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:10px;">
+        <h2 style="margin:0;">Müşteri Analizleri</h2>
+        <input id="custAnalyticsSearchInput" placeholder="İsim veya telefon ara..." style="max-width:260px;" value="${escapeHtml(APP.customerAnalyticsSearch||'')}" oninput="debouncedCustomerAnalyticsSearch(this.value)">
+      </div>
+      <div class="settings-table-wrap">
+      <table class="settings-table">
+        <thead><tr><th>Ad</th><th>Telefon</th><th>🎂 Doğum Günü</th><th>Puan</th><th>Ziyaret</th><th>Toplam Harcama</th><th>Son Ziyaret</th></tr></thead>
+        <tbody>
+        ${rows.map(c => `
+          <tr>
+            <td class="col-name">${escapeHtml(c.name)}</td>
+            <td>${escapeHtml(c.phone||'-')}</td>
+            <td>${c.birthday ? new Date(c.birthday+'T00:00:00').toLocaleDateString('tr-TR') : '-'}</td>
+            <td>${c.points_balance}</td>
+            <td>${c.total_visits}</td>
+            <td>${money(c.total_spent)}</td>
+            <td>${c.last_visit_at ? new Date(c.last_visit_at).toLocaleDateString('tr-TR') : '-'}</td>
+          </tr>`).join('')}
+        ${rows.length===0?'<tr><td colspan="7" class="muted" style="text-align:center;">Müşteri yok.</td></tr>':''}
+        </tbody>
+      </table>
+      </div>
+    </div>`;
+}
+let CUST_ANALYTICS_SEARCH_TIMER = null;
+function debouncedCustomerAnalyticsSearch(v){
+  APP.customerAnalyticsSearch = v;
+  clearTimeout(CUST_ANALYTICS_SEARCH_TIMER);
+  CUST_ANALYTICS_SEARCH_TIMER = setTimeout(async () => {
+    await renderCustomerAnalyticsContent(getSession());
+    const inp = document.getElementById('custAnalyticsSearchInput');
+    if(inp){ inp.focus(); inp.setSelectionRange(inp.value.length, inp.value.length); }
+  }, 350);
 }
 
 /* ================= REZERVASYONLAR & BEKLEME LİSTESİ ================= */
@@ -5256,25 +5361,22 @@ async function renderCrmView(main, session){
         <h2 style="margin:0;">Müşteri Listesi</h2>
         <input id="crmSearchInput" placeholder="İsim veya telefon ara..." style="max-width:260px;" value="${escapeHtml(APP.crmSearch||'')}" oninput="debouncedCrmSearch(this.value)">
       </div>
+      <p class="muted" style="font-size:12px;margin:-4px 0 10px;">Harcama/ziyaret/doğum günü gibi detaylı analizler için <b>Finansal Analiz &gt; Müşteri Analizleri</b> sekmesine bakın.</p>
       <div class="settings-table-wrap">
       <table class="settings-table">
-        <thead><tr><th>Ad</th><th>Telefon</th><th>🎂 Doğum Günü</th><th>Puan</th><th>Ziyaret</th><th>Toplam Harcama</th><th>Son Ziyaret</th><th></th></tr></thead>
+        <thead><tr><th>Ad</th><th>Telefon</th><th>Puan</th><th></th></tr></thead>
         <tbody>
         ${rows.map(c => `
           <tr>
             <td class="col-name">${escapeHtml(c.name)}</td>
             <td>${escapeHtml(c.phone||'-')}</td>
-            <td>${c.birthday ? new Date(c.birthday+'T00:00:00').toLocaleDateString('tr-TR') : '-'}</td>
             <td>${c.points_balance}</td>
-            <td>${c.total_visits}</td>
-            <td>${money(c.total_spent)}</td>
-            <td>${c.last_visit_at ? new Date(c.last_visit_at).toLocaleDateString('tr-TR') : '-'}</td>
             <td>
               <button class="sbtn" onclick="editCustomer('${c.id}')">Düzenle</button>
               <button class="sbtn" style="background:var(--red);color:var(--btn-ink);" onclick="removeCustomer('${c.id}')">Sil</button>
             </td>
           </tr>`).join('')}
-        ${rows.length===0?'<tr><td colspan="8" class="muted" style="text-align:center;">Müşteri yok.</td></tr>':''}
+        ${rows.length===0?'<tr><td colspan="4" class="muted" style="text-align:center;">Müşteri yok.</td></tr>':''}
         </tbody>
       </table>
       </div>
