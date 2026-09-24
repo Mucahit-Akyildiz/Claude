@@ -4793,6 +4793,25 @@ async function renderReportContent(session){
   hist.forEach(o => { totalCash += Number(o.cash_amount||0); totalCard += Number(o.card_amount||0); totalTip += Number(o.tip_amount||0); });
   const profit = totalRevenue - totalCost;
 
+  // Personel bazlı: siparişi kim aldı (aynı siparişin kısmi ödemelerinde
+  // tekrar sayılmasın diye order_id ile tekilleştirilir), bahşişi kim
+  // topladı (ödemeyi alan kişi - bkz. pay_order_items'taki staff_user_id).
+  const staffStats = {};
+  const getStaffRow = (name) => {
+    if(!staffStats[name]) staffStats[name] = { ordersTaken: new Set(), tipCollected: 0 };
+    return staffStats[name];
+  };
+  hist.forEach(o => {
+    if(o.order_taken_by_name) getStaffRow(o.order_taken_by_name).ordersTaken.add(o.order_id);
+    if(o.staff_name && Number(o.tip_amount||0)>0) getStaffRow(o.staff_name).tipCollected += Number(o.tip_amount||0);
+  });
+  const staffNames = Object.keys(staffStats).sort((a,b) => staffStats[b].tipCollected-staffStats[a].tipCollected);
+  const staffRowsHtml = staffNames.length===0 ? '<p class="muted">Bu tarihte veri yok.</p>' :
+    `<table style="width:100%;border-collapse:collapse;"><thead><tr style="text-align:left;color:var(--muted);font-size:12px;"><th>Personel</th><th>Aldığı Sipariş</th><th>Topladığı Bahşiş</th></tr></thead><tbody>` +
+    staffNames.map(name => `<tr><td style="padding:6px 4px;border-top:1px solid var(--border);">${escapeHtml(name)}</td>
+      <td style="padding:6px 4px;border-top:1px solid var(--border);">${staffStats[name].ordersTaken.size}</td>
+      <td style="padding:6px 4px;border-top:1px solid var(--border);">${money(staffStats[name].tipCollected)}</td></tr>`).join('') + '</tbody></table>';
+
   const hourKeys = Object.keys(hourStats).map(Number).sort((a,b)=>a-b);
   let peakHour = null;
   hourKeys.forEach(h => { if(peakHour===null || hourStats[h].count>hourStats[peakHour].count) peakHour=h; });
@@ -4845,6 +4864,7 @@ async function renderReportContent(session){
       <div class="box" style="text-align:center;"><div style="font-size:20px;font-weight:800;color:var(--accent2);">${money(totalBirthdayDiscount)}</div><div class="muted" style="font-size:12px;">🎂 Doğum Günü İndirimi (${birthdayCount} hesap)</div></div>
     </div>
     <div class="box" style="max-width:none;"><h2>Saatlik Yoğunluk${peakHour!==null?' <span class="muted" style="font-size:12px;font-weight:400;">(en yoğun: '+(peakHour<10?'0'+peakHour:peakHour)+':00 🔥)</span>':''}</h2>${hourlyHtml}</div>
+    <div class="box" style="max-width:none;"><h2>👤 Personel Performansı</h2>${staffRowsHtml}</div>
     <div class="box" style="max-width:none;"><h2>Kapatılan Hesaplar</h2>${billsHtml}</div>
   `;
 }
