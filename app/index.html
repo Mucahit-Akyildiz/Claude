@@ -5060,7 +5060,7 @@ function buildHourlyPivotTable(rows){
   const totalsByHour = {}; hours.forEach(h => totalsByHour[h]=0);
   let grandTotal = 0;
   rows.forEach(r => { totalsByStaff[r.staff_name]+=r.count; totalsByHour[r.hour]+=r.count; grandTotal+=r.count; });
-  const hourLabel = h => (h<10?'0'+h:h)+':00';
+  const hourLabel = h => (h<10?'0'+h:h)+':00-'+((h+1)%24<10?'0'+((h+1)%24):(h+1)%24)+':00';
   return `<div class="settings-table-wrap"><table class="settings-table" style="font-size:13px;">
     <thead><tr><th>Personel</th>${hours.map(h => `<th style="text-align:center;">${hourLabel(h)}</th>`).join('')}<th style="text-align:center;font-weight:800;">Toplam</th></tr></thead>
     <tbody>
