@@ -338,6 +338,10 @@ const SUPABASE_KEY = 'sb_publishable_7gHhsaPYOzOddFnpjntPKw_S3Mgg3V8';
    Kayıt sırasında artık ödeme yok (7 günlük ücretsiz deneme) - bu sadece
    Ayarlar'daki "Öde / Yenile" akışında, oturum token'ı ile kullanılıyor. */
 const PAYMENT_RENEW_URL = '/api/payment-initialize';
+/* Web Push için genel (public) VAPID anahtarı - gizli değil, tarayıcıya
+   push aboneliği açarken kullanılır. Özel anahtar sadece Vercel'deki
+   /api/dispatch-ready-pushes fonksiyonunda (ortam değişkeni olarak). */
+const VAPID_PUBLIC_KEY = 'BKpcu5qzPNhqv04tRdQKxs8j9PSAKoLIIS4AdVEqwWKMfV-c9wu9l7n64bFdisvQDxTpzjvODlaYk7DjOsSG8Dg';
 /* ============================================================ */
 
 const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -3082,6 +3086,13 @@ async function renderNotificationSettingsView(main, session){
     <p class="muted" style="text-align:left;">Bu ayarlar sadece <b>bu ekrana/tarayıcıya</b> özeldir — her cihazda ayrı ayrı yapılandırılır, veritabanına kaydedilmez.</p>
 
     <div class="box" style="max-width:none;">
+      <h2>📱 Push Bildirimleri (Uygulama Kapalıyken de)</h2>
+      <p class="muted" style="text-align:left;">Açarsanız, hazır bekleyen siparişiniz olduğunda bu cihaza — tarayıcı/uygulama kapalı olsa bile — bildirim göndeririz.</p>
+      <p id="pushStatusText" class="muted" style="font-size:13px;margin:10px 0;"></p>
+      <button id="pushToggleBtn" style="max-width:260px;" onclick="togglePushNotifications()">Kontrol ediliyor...</button>
+    </div>
+
+    <div class="box" style="max-width:none;">
       <h2>🔔 Bildirim Sesi (Yeni Sipariş Zili)</h2>
       <p class="muted" style="text-align:left;">Mutfağa yeni bir sipariş düştüğünde bu ekranda çalacak sesi özelleştirebilirsiniz. Bir istasyon seçip kendi ses dosyanızı yükleyerek o istasyona özel bir zil sesi de tanımlayabilirsiniz (örn. Izgara için ayrı, Çayhane için ayrı).</p>
       <div class="field-group" style="max-width:320px;"><label>Kapsam</label>
@@ -3110,6 +3121,90 @@ async function renderNotificationSettingsView(main, session){
     </div>
   `;
   updateBellScopeStatus();
+  initPushUI();
+}
+/* ---- Web Push: uygulama/tarayıcı kapalıyken de bildirim ---- */
+function urlBase64ToUint8Array(base64String){
+  const padding = '='.repeat((4 - base64String.length % 4) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const rawData = atob(base64);
+  const outputArray = new Uint8Array(rawData.length);
+  for(let i=0;i<rawData.length;i++) outputArray[i] = rawData.charCodeAt(i);
+  return outputArray;
+}
+async function registerServiceWorker(){
+  if(!('serviceWorker' in navigator)) return null;
+  try{ return await navigator.serviceWorker.register('/app/sw.js'); }
+  catch(e){ return null; }
+}
+async function initPushUI(){
+  const btn = document.getElementById('pushToggleBtn');
+  const statusText = document.getElementById('pushStatusText');
+  if(!btn || !statusText) return;
+  if(!('serviceWorker' in navigator) || !('PushManager' in window)){
+    statusText.textContent = 'Bu tarayıcı/cihaz push bildirimlerini desteklemiyor.';
+    btn.style.display = 'none';
+    return;
+  }
+  if(Notification.permission === 'denied'){
+    statusText.textContent = 'Bildirim izni engellenmiş. Tarayıcı/site ayarlarından izin vermeniz gerekiyor.';
+    btn.style.display = 'none';
+    return;
+  }
+  const reg = await registerServiceWorker();
+  const sub = reg ? await reg.pushManager.getSubscription() : null;
+  updatePushUI(!!sub);
+}
+function updatePushUI(subscribed){
+  const btn = document.getElementById('pushToggleBtn');
+  const statusText = document.getElementById('pushStatusText');
+  if(!btn || !statusText) return;
+  if(subscribed){
+    statusText.textContent = '✓ Bu cihazda push bildirimleri açık.';
+    btn.textContent = 'Bildirimleri Kapat';
+  } else {
+    statusText.textContent = 'Bu cihazda push bildirimleri kapalı.';
+    btn.textContent = 'Bildirimleri Aç';
+  }
+}
+async function togglePushNotifications(){
+  const statusText = document.getElementById('pushStatusText');
+  const session = getSession();
+  const reg = await registerServiceWorker();
+  if(!reg){ statusText.textContent = 'Servis çalışanı (service worker) kaydedilemedi.'; return; }
+  const existing = await reg.pushManager.getSubscription();
+  if(existing){
+    await sb.rpc('remove_push_subscription', { p_token: session.session_token, p_endpoint: existing.endpoint });
+    await existing.unsubscribe();
+    updatePushUI(false);
+    showToast('Push bildirimleri kapatıldı');
+    return;
+  }
+  const permission = await Notification.requestPermission();
+  if(permission !== 'granted'){
+    statusText.textContent = 'Bildirim izni verilmedi.';
+    return;
+  }
+  let sub;
+  try{
+    sub = await reg.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
+    });
+  }catch(e){
+    statusText.textContent = 'Abonelik oluşturulamadı: ' + e.message;
+    return;
+  }
+  const subJson = sub.toJSON();
+  const { error } = await sb.rpc('save_push_subscription', {
+    p_token: session.session_token,
+    p_endpoint: subJson.endpoint,
+    p_p256dh: subJson.keys.p256dh,
+    p_auth: subJson.keys.auth
+  });
+  if(error){ statusText.textContent = 'Kaydedilemedi: ' + error.message; return; }
+  updatePushUI(true);
+  showToast('Push bildirimleri açıldı ✓');
 }
 function currentBellScope(){ const el = document.getElementById('bellScopeSelect'); return el ? el.value : ''; }
 function updateBellScopeStatus(){
@@ -5479,6 +5574,10 @@ async function confirmReceivePO(){
    bir URL parametresi, oturum durumuyla ilgisi yok. */
 if(!getSession() && new URLSearchParams(window.location.search).get('signup')==='1') APP.authScreen = 'signup';
 render();
+// Servis çalışanı izin istemeden erkenden kaydedilir (bildirim izni ayrı,
+// kullanıcının Bildirim Ayarları'ndaki butona tıklamasıyla istenir) - böylece
+// push aboneliği daha önce açılmışsa ilk andan itibaren hazır olur.
+if('serviceWorker' in navigator) registerServiceWorker();
 /* Açılış ekranı (splash): render() içerik arkada hazırlanırken kısa bir
    marka anı göstermek için en az ~700ms ekranda kalır, sonra solarak kaybolur. */
 setTimeout(() => {
