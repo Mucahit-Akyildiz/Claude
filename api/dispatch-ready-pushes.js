@@ -194,6 +194,45 @@ async function dispatchLateKitchenItems(supabase) {
   return { sent, items: notifiedIds.length };
 }
 
+// Personelin Bildirim Ayarları ekranındaki "Test Bildirimi Gönder" butonuyla
+// tetiklenir - cron/15 dk beklemeden, o an push aboneliği olan cihaza aninda
+// bir test bildirimi gonderir. Diger dispatch fonksiyonlarinin aksine hatalari
+// yutmaz, oldugu gibi dondurur - boylece "gonderildi ama gelmedi" durumunda
+// gercek sebep (orn. abonelik gecersiz, VAPID hatasi) ekranda gorulebilir.
+async function dispatchTestPush(supabase, userId) {
+  const { data: subs, error } = await supabase
+    .from('push_subscriptions')
+    .select('*')
+    .eq('user_id', userId);
+  if (error) return { sent: 0, total: 0, error: error.message };
+  if (!subs || subs.length === 0) return { sent: 0, total: 0, note: 'no subscriptions for this user' };
+
+  const payload = JSON.stringify({
+    title: '🔔 Test Bildirimi',
+    body: 'Push bildirimleri bu cihazda çalışıyor!',
+    url: '/app/',
+    tag: 'test-push',
+  });
+
+  let sent = 0;
+  const errors = [];
+  for (const sub of subs) {
+    try {
+      await webpush.sendNotification(
+        { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
+        payload
+      );
+      sent++;
+    } catch (e) {
+      errors.push({ id: sub.id, statusCode: e && e.statusCode, message: e && e.message });
+      if (e && (e.statusCode === 404 || e.statusCode === 410)) {
+        await supabase.from('push_subscriptions').delete().eq('id', sub.id);
+      }
+    }
+  }
+  return { sent, total: subs.length, errors: errors.length ? errors : undefined };
+}
+
 module.exports = async function handler(req, res) {
   try {
     if (req.method !== 'POST') {
@@ -212,6 +251,18 @@ module.exports = async function handler(req, res) {
 
     const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
     const mode = (req.body && req.body.mode) || 'both';
+
+    if (mode === 'test_push') {
+      const userId = req.body && req.body.user_id;
+      if (!userId) {
+        res.status(400).json({ error: 'user_id required' });
+        return;
+      }
+      const result = await dispatchTestPush(supabase, userId);
+      res.status(200).json(result);
+      return;
+    }
+
     const doReadyOrders = mode === 'ready_orders_only' || mode === 'both';
     const doCustomerRequests = mode === 'customer_requests_only' || mode === 'both';
     const doLateKitchen = mode === 'late_kitchen_only' || mode === 'both';

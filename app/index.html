@@ -3833,7 +3833,11 @@ async function renderNotificationSettingsView(main, session){
       <h2>📱 Push Bildirimleri (Uygulama Kapalıyken de)</h2>
       <p class="muted" style="text-align:left;">Açarsanız, hazır bekleyen siparişiniz olduğunda bu cihaza — tarayıcı/uygulama kapalı olsa bile — bildirim göndeririz.</p>
       <p id="pushStatusText" class="muted" style="font-size:13px;margin:10px 0;"></p>
-      <button id="pushToggleBtn" style="max-width:260px;" onclick="togglePushNotifications()">Kontrol ediliyor...</button>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;">
+        <button id="pushToggleBtn" style="max-width:260px;" onclick="togglePushNotifications()">Kontrol ediliyor...</button>
+        <button id="testPushBtn" class="sbtn" style="width:auto;max-width:260px;" onclick="sendTestPush()">🔔 Test Bildirimi Gönder</button>
+      </div>
+      <p id="testPushResult" class="muted" style="font-size:12px;margin-top:8px;"></p>
     </div>
 
     <div class="box" style="max-width:none;">
@@ -3954,6 +3958,27 @@ async function togglePushNotifications(){
   if(error){ setStatus('Kaydedilemedi: ' + error.message); return; }
   updatePushUI(true);
   showToast('Push bildirimleri açıldı ✓');
+}
+/* Cron'un 5 dk'lık döngüsünü beklemeden aninda bir test push'u tetikler -
+   "gönderildi ama cihaza gelmedi" durumunda sorunun sunucu tarafında mı
+   (abonelik/VAPID) yoksa cihaz/işletim sistemi bildirim izninde mi olduğunu
+   ayırt etmeye yarar. */
+async function sendTestPush(){
+  const resultEl = document.getElementById('testPushResult');
+  const btn = document.getElementById('testPushBtn');
+  const session = getSession();
+  const reg = await registerServiceWorker();
+  const existing = reg ? await reg.pushManager.getSubscription() : null;
+  if(!existing){
+    resultEl.textContent = 'Bu cihazda push bildirimleri açık değil - önce "Bildirimleri Aç" butonuna basın.';
+    return;
+  }
+  btn.disabled = true; btn.textContent = 'Gönderiliyor...';
+  resultEl.textContent = '';
+  const { error } = await sb.rpc('send_test_push', { p_token: session.session_token });
+  btn.disabled = false; btn.textContent = '🔔 Test Bildirimi Gönder';
+  if(error){ resultEl.textContent = 'Gönderilemedi: ' + error.message; return; }
+  resultEl.textContent = 'Test isteği gönderildi ✓ Birkaç saniye içinde bir bildirim görmelisiniz. Gelmezse: tarayıcının/işletim sisteminin bu site için bildirim iznini (kilit simgesi → Bildirimler → İzin Ver) ve bilgisayarınızın "Rahatsız Etmeyin/Odaklanma" modunun kapalı olduğunu kontrol edin.';
 }
 /* ---- Girişten sonra otomatik "Bildirimleri açmak ister misiniz?" istemi ----
    Ayarlar > Bildirimler'e gidip butona basmayı beklemek yerine, karar
