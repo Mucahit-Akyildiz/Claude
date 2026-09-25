@@ -147,51 +147,54 @@ module.exports = async function handler(req, res) {
       ordersByStaff.get(o.created_by).push(label);
     }
 
-    if (ordersByStaff.size === 0) {
-      res.status(200).json({ sent: 0 });
-      return;
-    }
-
-    const userIds = [...ordersByStaff.keys()];
-    const { data: subs, error: subsErr } = await supabase
-      .from('push_subscriptions')
-      .select('*')
-      .in('user_id', userIds);
-    if (subsErr) {
-      res.status(500).json({ error: subsErr.message });
-      return;
-    }
-
+    // ONEMLI: hazir siparis olmasa bile (ordersByStaff bos olsa bile) asagidaki
+    // musteri siparis istegi kontrolu MUTLAKA calismali - erken bir "return"
+    // burada bu ikinci kontrolu tamamen atlatan bir hataya yol acmisti (bkz.
+    // git gecmisi): hazir bekleyen urun yoksa QR siparis bildirimleri hic
+    // gonderilmiyordu. Bu yuzden iki kontrol de birbirinden bagimsiz calisip
+    // sonunda TEK bir yanitta birlestiriliyor.
     let sent = 0;
-    const staleIds = [];
-    await Promise.all((subs || []).map(async (sub) => {
-      const labels = ordersByStaff.get(sub.user_id) || [];
-      if (labels.length === 0) return;
-      const shown = labels.slice(0, 3).join(', ') + (labels.length > 3 ? ' ve ' + (labels.length - 3) + ' tane daha' : '');
-      const payload = JSON.stringify({
-        title: '🔔 Hazır sipariş bekliyor',
-        body: shown,
-        url: '/app/',
-        view: 'order',
-        tag: 'ready-orders',
-      });
-      try {
-        await webpush.sendNotification(
-          { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
-          payload
-        );
-        sent++;
-      } catch (e) {
-        // 404/410: abonelik artik gecerli degil (tarayici verisi silinmis,
-        // bildirim izni geri alinmis vb.) - sessizce temizlenir.
-        if (e && (e.statusCode === 404 || e.statusCode === 410)) {
-          staleIds.push(sub.id);
-        }
+    if (ordersByStaff.size > 0) {
+      const userIds = [...ordersByStaff.keys()];
+      const { data: subs, error: subsErr } = await supabase
+        .from('push_subscriptions')
+        .select('*')
+        .in('user_id', userIds);
+      if (subsErr) {
+        res.status(500).json({ error: subsErr.message });
+        return;
       }
-    }));
 
-    if (staleIds.length > 0) {
-      await supabase.from('push_subscriptions').delete().in('id', staleIds);
+      const staleIds = [];
+      await Promise.all((subs || []).map(async (sub) => {
+        const labels = ordersByStaff.get(sub.user_id) || [];
+        if (labels.length === 0) return;
+        const shown = labels.slice(0, 3).join(', ') + (labels.length > 3 ? ' ve ' + (labels.length - 3) + ' tane daha' : '');
+        const payload = JSON.stringify({
+          title: '🔔 Hazır sipariş bekliyor',
+          body: shown,
+          url: '/app/',
+          view: 'order',
+          tag: 'ready-orders',
+        });
+        try {
+          await webpush.sendNotification(
+            { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
+            payload
+          );
+          sent++;
+        } catch (e) {
+          // 404/410: abonelik artik gecerli degil (tarayici verisi silinmis,
+          // bildirim izni geri alinmis vb.) - sessizce temizlenir.
+          if (e && (e.statusCode === 404 || e.statusCode === 410)) {
+            staleIds.push(sub.id);
+          }
+        }
+      }));
+
+      if (staleIds.length > 0) {
+        await supabase.from('push_subscriptions').delete().in('id', staleIds);
+      }
     }
 
     const custReqResult = await dispatchCustomerOrderRequests(supabase);
