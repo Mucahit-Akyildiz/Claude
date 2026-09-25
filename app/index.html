@@ -205,6 +205,13 @@
   .table-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(112px,1fr));gap:12px;}
   .table-cell{border-radius:16px;padding:18px 10px;text-align:center;border:1.5px solid var(--border);background:var(--panel2);color:var(--muted);font-weight:700;transition:transform .12s ease;}
   .table-cell:hover{transform:translateY(-2px);}
+  .floorplan-canvas{position:relative;background:var(--panel2);border:1px solid var(--border);border-radius:14px;min-height:420px;overflow:auto;touch-action:none;}
+  .floorplan-table{position:absolute;width:86px;height:86px;border-radius:16px;border:1.5px solid var(--border);background:var(--panel);color:var(--muted);font-weight:700;font-size:12.5px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;cursor:pointer;user-select:none;transition:transform .1s ease,box-shadow .1s ease;padding:4px;}
+  .floorplan-table:hover{transform:translateY(-2px);}
+  .floorplan-table.occupied{background:rgba(244,63,94,.14);border-color:var(--red);color:var(--red);}
+  .floorplan-table.dragging{cursor:grabbing;box-shadow:0 6px 18px rgba(0,0,0,.25);z-index:5;transition:none;}
+  .floorplan-table .fp-sub{font-size:10px;font-weight:400;margin-top:3px;opacity:.85;}
+  .floorplan-editor .floorplan-table{cursor:grab;}
   .ghost-btn{background:transparent;border:1.5px solid var(--border);color:var(--muted);width:auto;padding:9px 15px;margin:0;box-shadow:none;font-weight:600;}
   .ghost-btn:hover{border-color:var(--accent);color:var(--text);filter:none;}
   .center-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px;}
@@ -2291,7 +2298,13 @@ async function openOrderView(){
   render();
 }
 async function renderOrderView(main, session){
-  main.innerHTML = `<h1>Sipariş Al</h1><div class="muted" id="orderStatus"></div><div id="customerReqBanner"></div><div class="tabs" id="zoneTabs"></div><div class="table-grid" id="tableGrid"></div>`;
+  main.innerHTML = `<h1>Sipariş Al</h1><div class="muted" id="orderStatus"></div><div id="customerReqBanner"></div>
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+      <div class="tabs" id="zoneTabs" style="margin:16px 0 0;"></div>
+      <button type="button" style="width:auto;padding:7px 12px;margin:0;background:transparent;border:1px solid var(--border);color:var(--text);box-shadow:none;font-size:12.5px;" onclick="toggleOrderTableViewMode()" id="tableViewModeBtn">${APP.orderTableViewMode==='floorplan'?'📋 Liste Görünümü':'🗺️ Kat Planı'}</button>
+    </div>
+    <div class="table-grid" id="tableGrid" style="margin-top:12px;"></div>
+    <div id="tableFloorPlan" class="floorplan-canvas" style="display:none;margin-top:12px;padding:14px;"></div>`;
   const [cfgRes, liveRes] = await withLoadingOverlay(Promise.all([
     sb.rpc('get_restaurant_config', { p_token: session.session_token }),
     sb.rpc('get_live_orders', { p_token: session.session_token })
@@ -2477,23 +2490,62 @@ function liveOrderForTable(tableId){
   }
   return (APP.liveOrders||[]).find(o => o.table_id===tableId);
 }
+function tableStatus(t){
+  const order = liveOrderForTable(t.id);
+  const draft = (APP.draftCart && APP.draftCart[t.id]) || [];
+  let sub = 'Boş';
+  let occupied = false;
+  if(order && order.items.length>0){
+    occupied = true;
+    const allReady = order.items.every(i => i.status==='ready');
+    sub = order.items.length + ' ürün - ' + (allReady?'Hazır':'hazırlanıyor');
+  }
+  if(draft.length>0){ sub += (occupied?' + ':'') + draft.length+' üründe sepette'; occupied = true; }
+  return { sub, occupied };
+}
+/* İki görünüm var: basit liste (table-grid) ve sürükle-bırak ile
+   yerleştirilmiş görsel kat planı (bkz. Ayarlar > Kat Planı ve
+   update_table_positions RPC'si). Yönetici konumları belirlemediyse
+   (hepsi varsayılan 20,20 ise) kat planı boş/üst üste görünür - bu
+   yüzden buton her zaman görünür ama kat planı ayarlanmamışsa liste
+   görünümü varsayılan kalır. */
+function toggleOrderTableViewMode(){
+  APP.orderTableViewMode = APP.orderTableViewMode==='floorplan' ? 'grid' : 'floorplan';
+  const btn = document.getElementById('tableViewModeBtn');
+  if(btn) btn.textContent = APP.orderTableViewMode==='floorplan' ? '📋 Liste Görünümü' : '🗺️ Kat Planı';
+  renderTableGrid();
+}
 function renderTableGrid(){
-  const el = document.getElementById('tableGrid'); if(!el) return;
+  const gridEl = document.getElementById('tableGrid');
+  const fpEl = document.getElementById('tableFloorPlan');
   const zone = APP.config.zones.find(z => z.id===APP.selectedZone);
+  if(APP.orderTableViewMode==='floorplan'){
+    if(gridEl) gridEl.style.display = 'none';
+    if(fpEl) fpEl.style.display = 'block';
+    renderTableFloorPlan(zone, fpEl);
+    return;
+  }
+  if(gridEl) gridEl.style.display = 'grid';
+  if(fpEl) fpEl.style.display = 'none';
+  const el = gridEl; if(!el) return;
   if(!zone || zone.tables.length===0){ el.innerHTML = '<p class="muted">Bu bölgede masa yok.</p>'; return; }
   el.innerHTML = zone.tables.map(t => {
-    const order = liveOrderForTable(t.id);
-    const draft = (APP.draftCart && APP.draftCart[t.id]) || [];
-    let sub = 'Boş';
-    let occupied = false;
-    if(order && order.items.length>0){
-      occupied = true;
-      const allReady = order.items.every(i => i.status==='ready');
-      sub = order.items.length + ' ürün - ' + (allReady?'Hazır':'hazırlanıyor');
-    }
-    if(draft.length>0){ sub += (occupied?' + ':'') + draft.length+' üründe sepette'; occupied = true; }
+    const { sub, occupied } = tableStatus(t);
     return `<div class="table-cell" style="${occupied?'background:rgba(244,63,94,.14);border-color:var(--red);color:var(--red);':''}" onclick="openTableModal('${t.id}','${escapeHtml(t.name)}')">
       ${escapeHtml(t.name)}<div style="font-size:11px;margin-top:4px;font-weight:400;">${sub}</div></div>`;
+  }).join('');
+}
+function renderTableFloorPlan(zone, el){
+  if(!el) return;
+  if(!zone || zone.tables.length===0){ el.innerHTML = '<p class="muted" style="padding:10px;">Bu bölgede masa yok.</p>'; return; }
+  const maxX = Math.max(200, ...zone.tables.map(t => Number(t.pos_x||0)+110));
+  const maxY = Math.max(300, ...zone.tables.map(t => Number(t.pos_y||0)+110));
+  el.style.minWidth = maxX+'px';
+  el.style.minHeight = maxY+'px';
+  el.innerHTML = zone.tables.map(t => {
+    const { sub, occupied } = tableStatus(t);
+    return `<div class="floorplan-table ${occupied?'occupied':''}" style="left:${Number(t.pos_x||0)}px;top:${Number(t.pos_y||0)}px;" onclick="openTableModal('${t.id}','${escapeHtml(t.name)}')">
+      ${escapeHtml(t.name)}<div class="fp-sub">${sub}</div></div>`;
   }).join('');
 }
 
@@ -4097,6 +4149,7 @@ function escapeHtml(s){
 const SETTINGS_TABS = [
   { tab:'stations', perm:'settings_stations', label:'İstasyonlar' },
   { tab:'zones', perm:'settings_zones', label:'Bölgeler & Masalar' },
+  { tab:'floorplan', perm:'settings_zones', label:'🗺️ Kat Planı' },
   { tab:'products', perm:'settings_products', label:'Ürünler' },
   { tab:'ingredients', perm:'settings_ingredients', label:'Hammaddeler' },
   { tab:'flags', perm:'settings_flags', label:'Sipariş Etiketleri' },
@@ -4129,6 +4182,7 @@ function renderSettingsContent(session){
   if(!APP.settingsTab){ el.innerHTML = '<p class="muted">Görüntüleme yetkiniz olan bir ayar bölümü yok.</p>'; return; }
   if(APP.settingsTab==='stations') renderStationsSettings(el, session);
   else if(APP.settingsTab==='zones') renderZonesSettings(el, session);
+  else if(APP.settingsTab==='floorplan') renderFloorPlanSettings(el, session);
   else if(APP.settingsTab==='products') renderProductsSettings(el, session);
   else if(APP.settingsTab==='ingredients') renderIngredientsSettings(el, session);
   else if(APP.settingsTab==='flags') renderOrderFlagsSettings(el, session);
@@ -4534,6 +4588,63 @@ async function removeTable(id){
   const { error } = await sb.rpc('delete_table', { p_token: session.session_token, p_id: id });
   if(error){ alert(friendlyDeleteError(error.message)); return; }
   renderSettingsView(document.getElementById('main'), session);
+}
+/* --- Kat Planı: masaları sürükle-bırak ile yerleştirme (bkz.
+   update_table_positions RPC'si) - Sipariş Al ekranındaki "Kat Planı"
+   görünümü bu konumları kullanır. Pointer Capture ile sürükleme, imleç
+   masa kutusunun dışına çıksa bile events'i o kutuda tutar. --- */
+function renderFloorPlanSettings(el, session){
+  const zones = APP.config.zones || [];
+  el.innerHTML = `<div class="box" style="max-width:none;">
+    <h2>🗺️ Kat Planı</h2>
+    <p class="muted" style="margin-top:-8px;margin-bottom:16px;">Masaları sürükleyerek yerleştirin - bırakınca otomatik kaydedilir. Bu düzen, Sipariş Al ekranındaki "Kat Planı" görünümünde kullanılır.</p>
+    ${zones.map(z => `
+      <div style="margin-bottom:22px;">
+        <h3 style="margin:0 0 8px;font-size:14px;">${escapeHtml(z.name)}</h3>
+        ${z.tables.length===0 ? '<p class="muted">Bu bölgede masa yok.</p>' : `<div class="floorplan-canvas floorplan-editor" id="fpEdit_${z.id}" style="height:320px;"></div>`}
+      </div>`).join('')}
+    ${zones.length===0 ? '<p class="muted">Önce Bölgeler &amp; Masalar sekmesinden bölge/masa ekleyin.</p>' : ''}
+  </div>`;
+  zones.forEach(z => { if(z.tables.length>0) renderFloorPlanEditorCanvas(z); });
+}
+function renderFloorPlanEditorCanvas(zone){
+  const canvas = document.getElementById('fpEdit_'+zone.id); if(!canvas) return;
+  canvas.innerHTML = zone.tables.map(t => `<div class="floorplan-table" data-table-id="${t.id}" style="left:${Number(t.pos_x||0)}px;top:${Number(t.pos_y||0)}px;">${escapeHtml(t.name)}</div>`).join('');
+  canvas.querySelectorAll('.floorplan-table').forEach(elx => {
+    elx.addEventListener('pointerdown', (ev) => startTableDrag(ev, elx));
+  });
+}
+let FP_DRAG = null;
+function startTableDrag(ev, elx){
+  ev.preventDefault();
+  FP_DRAG = { elx, startX: ev.clientX, startY: ev.clientY, startLeft: parseFloat(elx.style.left)||0, startTop: parseFloat(elx.style.top)||0, tableId: elx.dataset.tableId };
+  elx.classList.add('dragging');
+  elx.setPointerCapture(ev.pointerId);
+  elx.addEventListener('pointermove', onTableDragMove);
+  elx.addEventListener('pointerup', onTableDragEnd);
+  elx.addEventListener('pointercancel', onTableDragEnd);
+}
+function onTableDragMove(ev){
+  if(!FP_DRAG) return;
+  const dx = ev.clientX - FP_DRAG.startX;
+  const dy = ev.clientY - FP_DRAG.startY;
+  FP_DRAG.elx.style.left = Math.max(0, FP_DRAG.startLeft + dx) + 'px';
+  FP_DRAG.elx.style.top = Math.max(0, FP_DRAG.startTop + dy) + 'px';
+}
+async function onTableDragEnd(ev){
+  if(!FP_DRAG) return;
+  const { elx, tableId } = FP_DRAG;
+  elx.classList.remove('dragging');
+  elx.removeEventListener('pointermove', onTableDragMove);
+  elx.removeEventListener('pointerup', onTableDragEnd);
+  elx.removeEventListener('pointercancel', onTableDragEnd);
+  const posX = Math.round(parseFloat(elx.style.left)||0);
+  const posY = Math.round(parseFloat(elx.style.top)||0);
+  FP_DRAG = null;
+  const session = getSession();
+  const { error } = await sb.rpc('update_table_positions', { p_token: session.session_token, p_positions: [{ id: tableId, pos_x: posX, pos_y: posY }] });
+  if(error){ showToast('Konum kaydedilemedi: '+error.message); return; }
+  APP.config.zones.forEach(z => z.tables.forEach(t => { if(t.id===tableId){ t.pos_x = posX; t.pos_y = posY; } }));
 }
 /* Her masanın kendi QR token'ı var (bkz. restaurant_tables.qr_token) - bu
    linki tarayan müşteri login gerektirmeyen /menu/ sayfasında o masanın
