@@ -235,21 +235,39 @@
   const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
   function money(n){ return (Math.round((n||0)*100)/100).toLocaleString('tr-TR',{minimumFractionDigits:0,maximumFractionDigits:2}); }
   function escapeHtml(s){ const d = document.createElement('div'); d.textContent = s||''; return d.innerHTML; }
+  // Platform admin > Paket Fiyatları'ndaki özellik seçim kutucuklarıyla
+  // birebir aynı anahtar/etiket eşlemesi (bkz. app/index.html'deki
+  // PACKAGE_FEATURE_LABELS) - admin bir paket için hangi özellikleri
+  // işaretlediyse burada aynı etiketlerle listelenir.
+  const PACKAGE_FEATURE_LABELS = {
+    order: 'Sipariş Al', packages: 'Paket Servis', kitchen: 'Mutfak Ekranı', payments: 'Ödemeler',
+    settings_stations: 'İstasyon Yönetimi', settings_zones: 'Bölge & Masa Yönetimi',
+    settings_products: 'Ürün Yönetimi', settings_ingredients: 'Reçete & Stok',
+    settings_users: 'Kullanıcı & Rol Yönetimi', settings_flags: 'Sipariş Etiketleri',
+    crm: 'Müşteriler & Sadakat Programı', reservations: 'Rezervasyon & Bekleme Listesi',
+    purchasing: 'Tedarikçi & Satın Alma', reports: 'Finansal Analiz',
+  };
   // Paketler platform admin panelinden eklenip/silinebildiği için sabit
   // değil - burada canlı okunup kart olarak render ediliyor (bkz. list_packages).
   sb.rpc('list_packages').then(({data}) => {
     const grid = document.getElementById('pricingGrid');
     const packages = data || [];
     if(packages.length===0){ grid.innerHTML = ''; return; }
-    grid.innerHTML = packages.map(p => `
+    grid.innerHTML = packages.map(p => {
+      const featureItems = (p.features||[]).map(f => PACKAGE_FEATURE_LABELS[f] || f);
+      return `
       <div class="price-card ${p.is_popular?'popular':''}">
         ${p.is_popular ? '<span class="badge">EN ÇOK TERCİH EDİLEN</span>' : ''}
         <h3>${escapeHtml(p.name)}</h3>
         <div class="amount">${p.price ? money(p.price)+' <small>TL/ay</small>' : '—'}</div>
         <p class="desc">${escapeHtml(p.description)}</p>
-        <ul><li>${p.max_users} kullanıcıya kadar</li><li>Tüm temel özellikler</li></ul>
+        <ul>
+          <li>${p.max_users} kullanıcıya kadar</li>
+          ${featureItems.map(label => `<li>${escapeHtml(label)}</li>`).join('')}
+        </ul>
         <a class="btn ${p.is_popular?'btn-primary':'btn-outline'}" style="width:100%;" href="/app/?signup=1">Dene</a>
-      </div>`).join('');
+      </div>`;
+    }).join('');
   }).catch(()=>{
     const grid = document.getElementById('pricingGrid');
     if(grid) grid.innerHTML = '<p style="grid-column:1/-1;text-align:center;color:var(--muted);">Fiyatlar şu anda yüklenemedi.</p>';

@@ -1,16 +1,20 @@
 // Vercel serverless function: dispatch-ready-pushes
-// pg_cron (Supabase) her dakika bu endpoint'i x-push-secret header'iyla
-// cagirir (bkz. _cron_dispatch_ready_pushes). Iki ayri bildirim turunu
-// gonderir: (1) hazirlanmis ama henuz odenmemis/teslim edilmemis
-// siparisleri bulup, o siparisi ALAN personelin (orders.created_by)
-// kayitli push aboneliklerine tekrar tekrar (her calismada) hatirlatma
-// gonderir; (2) QR menuden gelen, henuz onaylanmamis musteri siparis
-// isteklerini bulup, siparis alma yetkisi olan TUM personele TEK SEFERLIK
-// (push_notified_at ile isaretlenerek) bildirim gonderir - boylece
-// personel Siparis Al ekraninda olmasa, hatta uygulama/tarayici kapali
-// olsa bile QR siparisini kacirmaz. VAPID anahtarlari ve sifreleme burada
-// (web-push paketi), Postgres tarafinda degil - o yuzden gercek gonderim
-// mantigi bu dosyada.
+// pg_cron (Supabase) iki ayri zamanlanmis is bu endpoint'i x-push-secret
+// header'iyla cagirir, her biri body'deki 'mode' ile hangi bildirim turunu
+// istedigini belirtir: (1) _cron_dispatch_ready_pushes (her dakika,
+// mode:'ready_orders_only') - hazirlanmis ama henuz odenmemis/teslim
+// edilmemis siparisleri bulup, o siparisi ALAN personelin
+// (orders.created_by) kayitli push aboneliklerine tekrar tekrar hatirlatma
+// gonderir; (2) _cron_dispatch_customer_requests (her 20 saniyede bir,
+// mode:'customer_requests_only') - QR menuden gelen, henuz onaylanmamis
+// musteri siparis isteklerini bulup, siparis alma yetkisi olan TUM
+// personele, ONAYLANANA/REDDEDILENE KADAR TEKRAR TEKRAR (en fazla 20
+// saniyede bir) push gonderir - boylece personel Siparis Al ekraninda
+// olmasa, hatta uygulama/tarayici kapali olsa bile QR siparisini kacirmaz.
+// Iki is ayri cron job/mode kullaniyor ki 20 saniyelik sik calisma hazir
+// siparis hatirlatmasinin (kasitli olarak dakikada bir kalan) sikligini
+// etkilemesin. VAPID anahtarlari ve sifreleme burada (web-push paketi),
+// Postgres tarafinda degil - o yuzden gercek gonderim mantigi bu dosyada.
 const { createClient } = require('@supabase/supabase-js');
 const webpush = require('web-push');
 
@@ -25,17 +29,19 @@ if (VAPID_PUBLIC_KEY && VAPID_PRIVATE_KEY) {
 
 // QR menuden gelen, henuz personel tarafindan onaylanmamis/reddedilmemis
 // siparis isteklerini bulur ve siparis alma yetkisi ('order' izni ya da
-// is_system rolu) olan personele TEK SEFERLIK push gonderir - hazir
-// siparis hatirlatmasinin aksine burada tekrar tekrar gonderilmesi
-// istenmiyor, bu yuzden push_notified_at ile isaretlenip bir daha
-// secilmiyor (onaylanana/reddedilene kadar bile).
+// is_system rolu) olan personele push gonderir - bu is 20 saniyede bir
+// calistigi icin, push_notified_at 18 saniyeden eskiyse (ya da hic yoksa)
+// tekrar gonderilir; boylece onaylanana/reddedilene kadar (customer_order_
+// requests.status pending oldugu surece) tekrar tekrar bildirim gider.
 async function dispatchCustomerOrderRequests(supabase) {
-  const { data: reqs, error: reqErr } = await supabase
+  const { data: allPending, error: reqErr } = await supabase
     .from('customer_order_requests')
-    .select('id, restaurant_id, customer_name, restaurant_tables(name)')
-    .eq('status', 'pending')
-    .is('push_notified_at', null);
-  if (reqErr || !reqs || reqs.length === 0) return { sent: 0, requests: 0 };
+    .select('id, restaurant_id, customer_name, push_notified_at, restaurant_tables(name)')
+    .eq('status', 'pending');
+  if (reqErr) return { sent: 0, requests: 0 };
+  const cutoff = Date.now() - 18000;
+  const reqs = (allPending || []).filter((r) => !r.push_notified_at || new Date(r.push_notified_at).getTime() < cutoff);
+  if (reqs.length === 0) return { sent: 0, requests: 0 };
 
   const byRestaurant = new Map();
   for (const r of reqs) {
@@ -70,7 +76,7 @@ async function dispatchCustomerOrderRequests(supabase) {
       const labels = rows.map((r) => (r.restaurant_tables && r.restaurant_tables.name) || r.customer_name || 'Masa');
       const shown = labels.slice(0, 3).join(', ') + (labels.length > 3 ? ' ve ' + (labels.length - 3) + ' tane daha' : '');
       const payload = JSON.stringify({
-        title: '📱 Yeni müşteri sipariş isteği',
+        title: '📱 Onay bekleyen müşteri sipariş isteği',
         body: shown,
         url: '/app/',
         view: 'order',
@@ -119,6 +125,15 @@ module.exports = async function handler(req, res) {
     }
 
     const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
+    const mode = (req.body && req.body.mode) || 'both';
+    const doReadyOrders = mode === 'ready_orders_only' || mode === 'both';
+    const doCustomerRequests = mode === 'customer_requests_only' || mode === 'both';
+
+    if (!doReadyOrders) {
+      const custReqResult = doCustomerRequests ? await dispatchCustomerOrderRequests(supabase) : { sent: 0, requests: 0 };
+      res.status(200).json({ sent: 0, staff: 0, customer_requests: custReqResult });
+      return;
+    }
 
     // Hazir + odenmemis en az bir urunu olan, siparisi alan kisisi belli, hala acik siparisler.
     const { data: readyItems, error: itemsErr } = await supabase
@@ -197,7 +212,7 @@ module.exports = async function handler(req, res) {
       }
     }
 
-    const custReqResult = await dispatchCustomerOrderRequests(supabase);
+    const custReqResult = doCustomerRequests ? await dispatchCustomerOrderRequests(supabase) : { sent: 0, requests: 0 };
 
     res.status(200).json({ sent, staff: ordersByStaff.size, customer_requests: custReqResult });
   } catch (e) {

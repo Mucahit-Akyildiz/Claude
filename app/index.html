@@ -2241,11 +2241,11 @@ async function refreshOrderLiveStatus(session){
    düşmez (bkz. approve_customer_order_request, fiyat/ürün her zaman
    sunucu tarafında products tablosundan doğrulanır, müşteriden gelen
    fiyat asla güvenilmez). Bu fonksiyon artık ekrana bakılmaksızın
-   (bkz. startCustomerRequestPolling) periyodik çağrılıyor: Sipariş Al
-   ekranındaysa şerit güncellenir, değilse yeni bir istek geldiğinde
-   toast bildirimi gösterilir - böylece personel başka bir ekranda
-   olsa bile QR siparişini kaçırmaz. */
-let CUSTOMER_REQ_NOTIFIED_IDS = new Set();
+   (bkz. startCustomerRequestPolling) 20 saniyede bir periyodik çağrılıyor:
+   Sipariş Al ekranındaysa şerit güncellenir, değilse HENÜZ ONAYLANMAMIŞ
+   her istek için her turda tekrar tekrar toast bildirimi gösterilir -
+   personel onaylayana/reddedene kadar (tek seferlik değil, bilinçli
+   olarak) - böylece başka bir ekranda olsa bile QR siparişini kaçırmaz. */
 async function refreshCustomerOrderRequests(session){
   const { data, error } = await sb.rpc('list_customer_order_requests', { p_token: session.session_token });
   if(error) return;
@@ -2271,16 +2271,11 @@ async function refreshCustomerOrderRequests(session){
       </div>`).join('')}
   </div>`;
   }
-  const currentIds = new Set(rows.map(r => r.id));
-  if(APP.view!=='order'){
-    const newOnes = rows.filter(r => !CUSTOMER_REQ_NOTIFIED_IDS.has(r.id));
-    if(newOnes.length>0){
-      const labels = newOnes.map(r => (r.table_name||'Masa') + (r.customer_name?' · '+r.customer_name:''));
-      const shown = labels.slice(0,3).join(', ') + (labels.length>3 ? ' ve ' + (labels.length-3) + ' tane daha' : '');
-      showToast('📱 Yeni müşteri sipariş isteği: ' + shown, 20000, null, () => goToView('order'), true);
-    }
+  if(APP.view!=='order' && rows.length>0){
+    const labels = rows.map(r => (r.table_name||'Masa') + (r.customer_name?' · '+r.customer_name:''));
+    const shown = labels.slice(0,3).join(', ') + (labels.length>3 ? ' ve ' + (labels.length-3) + ' tane daha' : '');
+    showToast('📱 Onay bekleyen müşteri sipariş isteği: ' + shown, 20000, null, () => goToView('order'), true);
   }
-  CUSTOMER_REQ_NOTIFIED_IDS = currentIds;
 }
 /* Sipariş Al ekranına girilmese bile QR sipariş isteklerinin fark
    edilmesi için oturum boyunca çalışan, ekrandan bağımsız arka plan
@@ -2289,7 +2284,6 @@ let CUSTOMER_REQ_POLL_INTERVAL = null;
 function startCustomerRequestPolling(session){
   stopCustomerRequestPolling();
   if(!hasPerm(session, 'order')) return;
-  CUSTOMER_REQ_NOTIFIED_IDS = new Set();
   refreshCustomerOrderRequests(session);
   CUSTOMER_REQ_POLL_INTERVAL = setInterval(() => {
     const s = getSession();
@@ -2298,7 +2292,6 @@ function startCustomerRequestPolling(session){
 }
 function stopCustomerRequestPolling(){
   if(CUSTOMER_REQ_POLL_INTERVAL){ clearInterval(CUSTOMER_REQ_POLL_INTERVAL); CUSTOMER_REQ_POLL_INTERVAL=null; }
-  CUSTOMER_REQ_NOTIFIED_IDS = new Set();
 }
 async function approveCustomerRequest(id){
   const session = getSession();
