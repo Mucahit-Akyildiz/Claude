@@ -2353,6 +2353,13 @@ function openPayModal(orderId, tableName){
           <button style="width:auto;padding:0 14px;margin:0;" onclick="lookupPayGiftCard()">Sorgula</button>
         </div>
         <p id="payGiftCardInfo" class="hint">Kart seçilmedi</p>
+        <div id="payGiftCardPartialActions" style="display:none;margin-top:8px;">
+          <p class="hint" style="margin:0 0 6px;">Bakiye yetersiz — kartın tamamı düşülür, kalanı seçin:</p>
+          <div class="field-row" style="gap:8px;">
+            <button style="width:auto;padding:0 12px;margin:0;flex:1;" onclick="finishGiftCardPartial('cash')">💵 Kalanı Nakit</button>
+            <button style="width:auto;padding:0 12px;margin:0;flex:1;" onclick="finishGiftCardPartial('card')">💳 Kalanı Kart</button>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -2460,6 +2467,7 @@ async function lookupPayGiftCard(){
   const code = document.getElementById('payGiftCardCode').value.trim();
   const infoEl = document.getElementById('payGiftCardInfo');
   const payBtn = document.getElementById('payGiftCardPayBtn');
+  const partialBox = document.getElementById('payGiftCardPartialActions');
   if(!code){ infoEl.textContent = 'Kart kodu girin'; return; }
   const session = getSession();
   const { data, error } = await sb.rpc('check_gift_card', { p_token: session.session_token, p_code: code });
@@ -2468,12 +2476,46 @@ async function lookupPayGiftCard(){
     bg.dataset.giftCardCode = '';
     bg.dataset.giftCardBalance = '0';
     if(payBtn) payBtn.disabled = true;
+    if(partialBox) partialBox.style.display = 'none';
     return;
   }
   bg.dataset.giftCardCode = data.code;
   bg.dataset.giftCardBalance = String(data.balance);
-  infoEl.textContent = data.code + ' · Bakiye: ' + money(data.balance);
-  if(payBtn) payBtn.disabled = false;
+  const total = Math.round(payFinalTotal()*100)/100;
+  const tip = parseFloat(bg.dataset.tipAmount||0);
+  const amountWithTip = Math.round((total+tip)*100)/100;
+  const remaining = Math.round((amountWithTip - data.balance)*100)/100;
+  if(remaining > 0){
+    // Bakiye yetmiyor: tam ödeme butonu yerine, kartın tamamını düşüp
+    // kalanı nakit/kartla tamamlayan iki kısa yol gösterilir.
+    infoEl.textContent = data.code + ' · Bakiye: ' + money(data.balance) + ' (yetersiz — kalan ' + money(remaining) + ')';
+    if(payBtn) payBtn.disabled = true;
+    if(partialBox){
+      partialBox.style.display = '';
+      partialBox.querySelector('p').textContent = 'Bakiye yetersiz — ' + money(data.balance) + ' düşülür, kalan ' + money(remaining) + ' için seçin:';
+    }
+  } else {
+    infoEl.textContent = data.code + ' · Bakiye: ' + money(data.balance);
+    if(payBtn) payBtn.disabled = false;
+    if(partialBox) partialBox.style.display = 'none';
+  }
+}
+async function finishGiftCardPartial(method){
+  const bg = document.getElementById('payModalBg');
+  const orderId = bg.dataset.orderId;
+  const code = bg.dataset.giftCardCode;
+  const balance = parseFloat(bg.dataset.giftCardBalance||0);
+  if(!code){ alert('Önce bir hediye kartı sorgulayın'); return; }
+  const itemQtys = buildPayItemQtys();
+  if(itemQtys.length===0){ alert('Ödeme almak için en az bir ürün/adet seçin'); return; }
+  const total = Math.round(payFinalTotal()*100)/100;
+  const tip = parseFloat(bg.dataset.tipAmount||0);
+  const amountWithTip = Math.round((total+tip)*100)/100;
+  const giftAmount = Math.min(balance, amountWithTip);
+  const remaining = Math.round((amountWithTip - giftAmount)*100)/100;
+  const customerId = bg.dataset.customerId || null;
+  const redeemPoints = parseFloat(bg.dataset.redeemPoints||0);
+  await finishPayment(orderId, 'split', total, method==='cash'?remaining:0, method==='card'?remaining:0, parseFloat(bg.dataset.discountAmount||0), itemQtys, tip, customerId, redeemPoints, code, giftAmount);
 }
 function updatePayFinalTotalLine(){
   const bg = document.getElementById('payModalBg'); if(!bg) return;
@@ -6002,7 +6044,7 @@ async function renderReportContent(session){
   const untaggedHist = hist.filter(o => !o.tags || o.tags.length===0);
   const taggedHist = hist.filter(o => o.tags && o.tags.length>0);
 
-  let totalRevenue=0, totalCost=0, totalCash=0, totalCard=0, totalDiscount=0, discountedCount=0, taggedTotal=0, totalTip=0, totalBirthdayDiscount=0, birthdayCount=0;
+  let totalRevenue=0, totalCost=0, totalCash=0, totalCard=0, totalGiftCard=0, totalDiscount=0, discountedCount=0, taggedTotal=0, totalTip=0, totalBirthdayDiscount=0, birthdayCount=0;
   const hourStats = {};
   untaggedHist.forEach(o => {
     totalRevenue += Number(o.total); totalCost += Number(o.cost);
@@ -6015,7 +6057,7 @@ async function renderReportContent(session){
     hourStats[hr].revenue += Number(o.total);
   });
   taggedHist.forEach(o => { taggedTotal += Number(o.total); });
-  hist.forEach(o => { totalCash += Number(o.cash_amount||0); totalCard += Number(o.card_amount||0); totalTip += Number(o.tip_amount||0); });
+  hist.forEach(o => { totalCash += Number(o.cash_amount||0); totalCard += Number(o.card_amount||0); totalGiftCard += Number(o.gift_card_amount||0); totalTip += Number(o.tip_amount||0); });
   const profit = totalRevenue - totalCost;
 
   // Personel bazlı: siparişi kim aldı (aynı siparişin kısmi ödemelerinde
@@ -6058,9 +6100,10 @@ async function renderReportContent(session){
     `<table style="width:100%;border-collapse:collapse;"><thead><tr style="text-align:left;color:var(--muted);font-size:12px;"><th>Saat</th><th>Masa</th><th>Tutar</th><th>İndirim</th><th>Ödeme</th></tr></thead><tbody>` +
     hist.map(o => {
       const t = new Date(o.closed_at).toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'});
+      const giftTxt = (o.payment_method!=='gift_card' && Number(o.gift_card_amount||0)>0) ? (' + 🎁 '+money(o.gift_card_amount)) : '';
       const methodLabel = o.payment_method==='split'
-        ? ('Bölünmüş (💵 '+money(o.cash_amount||0)+' + 💳 '+money(o.card_amount||0)+')')
-        : ({cash:'Nakit', card:'Kredi Kartı'}[o.payment_method] || o.payment_method);
+        ? ('Bölünmüş (💵 '+money(o.cash_amount||0)+' + 💳 '+money(o.card_amount||0)+giftTxt+')')
+        : (({cash:'Nakit', card:'Kredi Kartı', gift_card:'Hediye Kartı'}[o.payment_method] || o.payment_method) + giftTxt);
       const discTxt = o.discount_amount>0 ? ('-'+money(o.discount_amount)) : '-';
       const tagBadge = (o.tags && o.tags.length>0)
         ? ` <span style="background:rgba(234,179,8,.15);color:#eab308;border-radius:6px;padding:2px 6px;font-size:11px;font-weight:700;">${o.tags.map(x=>escapeHtml(x)).join(', ')}</span>`
@@ -6083,6 +6126,7 @@ async function renderReportContent(session){
     <div class="home-grid" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr));">
       <div class="box" style="text-align:center;"><div style="font-size:20px;font-weight:800;color:var(--green);">${money(totalCash)}</div><div class="muted" style="font-size:12px;">💵 Nakit${totalRevenue?' ('+Math.round(totalCash/totalRevenue*100)+'%)':''}</div></div>
       <div class="box" style="text-align:center;"><div style="font-size:20px;font-weight:800;color:var(--accent2);">${money(totalCard)}</div><div class="muted" style="font-size:12px;">💳 Kredi Kartı${totalRevenue?' ('+Math.round(totalCard/totalRevenue*100)+'%)':''}</div></div>
+      <div class="box" style="text-align:center;"><div style="font-size:20px;font-weight:800;color:var(--gift);">${money(totalGiftCard)}</div><div class="muted" style="font-size:12px;">🎁 Hediye Kartı${totalRevenue?' ('+Math.round(totalGiftCard/totalRevenue*100)+'%)':''}</div></div>
       <div class="box" style="text-align:center;"><div style="font-size:20px;font-weight:800;color:var(--accent);">${money(totalDiscount)}</div><div class="muted" style="font-size:12px;">🏷️ İndirim (${discountedCount} hesap)</div></div>
       <div class="box" style="text-align:center;"><div style="font-size:20px;font-weight:800;color:#eab308;">${money(taggedTotal)}</div><div class="muted" style="font-size:12px;">🏷️ Personel/İkram (${taggedHist.length} hesap, ciroya dahil değil)</div></div>
       <div class="box" style="text-align:center;"><div style="font-size:20px;font-weight:800;color:var(--accent);">${money(totalTip)}</div><div class="muted" style="font-size:12px;">💰 Bahşiş</div></div>
