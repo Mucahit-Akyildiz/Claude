@@ -108,6 +108,92 @@ async function dispatchCustomerOrderRequests(supabase) {
   return { sent, requests: notifiedIds.length };
 }
 
+// Mutfakta 15 dakikadan uzun suredir 'pending' kalmis (henuz hazir isaretlenmemis)
+// urunleri bulur ve o restoranda 'kitchen' izni olan personelin push aboneliklerine
+// bildirim gonderir - boylece mutfak ekranindan uzaklasilsa, sekme arka plana
+// alinsa hatta tarayici kapali olsa bile gecikme fark edilir. Ayni urun icin
+// spam olmamasi adina en fazla 4 dakikada bir tekrar bildirim gider
+// (order_items.late_push_notified_at ile takip edilir).
+async function dispatchLateKitchenItems(supabase) {
+  const lateCutoff = new Date(Date.now() - 15 * 60 * 1000).toISOString();
+  const { data: lateItems, error } = await supabase
+    .from('order_items')
+    .select('id, name, added_at, late_push_notified_at, orders!inner(id, restaurant_id, status)')
+    .eq('status', 'pending')
+    .eq('orders.status', 'open')
+    .lte('added_at', lateCutoff);
+  if (error) return { sent: 0, items: 0 };
+
+  const renotifyCutoff = Date.now() - 4 * 60 * 1000;
+  const items = (lateItems || []).filter((it) => !it.late_push_notified_at || new Date(it.late_push_notified_at).getTime() < renotifyCutoff);
+  if (items.length === 0) return { sent: 0, items: 0 };
+
+  const byRestaurant = new Map();
+  for (const it of items) {
+    const rid = it.orders.restaurant_id;
+    if (!byRestaurant.has(rid)) byRestaurant.set(rid, []);
+    byRestaurant.get(rid).push(it);
+  }
+
+  let sent = 0;
+  const notifiedIds = [];
+  for (const [restaurantId, rows] of byRestaurant) {
+    const { data: appUsers } = await supabase
+      .from('app_users')
+      .select('id, role_ids')
+      .eq('restaurant_id', restaurantId);
+    const { data: roles } = await supabase
+      .from('roles')
+      .select('id, is_system, permissions')
+      .eq('restaurant_id', restaurantId);
+    const kitchenRoleIds = new Set(
+      (roles || []).filter((rl) => rl.is_system || (rl.permissions || []).includes('kitchen')).map((rl) => rl.id)
+    );
+    const staffUserIds = (appUsers || [])
+      .filter((u) => (u.role_ids || []).some((rid) => kitchenRoleIds.has(rid)))
+      .map((u) => u.id);
+
+    if (staffUserIds.length > 0) {
+      const { data: subs } = await supabase
+        .from('push_subscriptions')
+        .select('*')
+        .in('user_id', staffUserIds);
+
+      const names = rows.map((r) => r.name).filter(Boolean);
+      const shown = names.slice(0, 3).join(', ') + (names.length > 3 ? ' ve ' + (names.length - 3) + ' tane daha' : '');
+      const payload = JSON.stringify({
+        title: '⏰ Geciken sipariş',
+        body: shown + ' 15 dakikayı geçti!',
+        url: '/app/',
+        view: 'kitchen',
+        tag: 'late-kitchen-items',
+      });
+
+      await Promise.all((subs || []).map(async (sub) => {
+        try {
+          await webpush.sendNotification(
+            { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
+            payload
+          );
+          sent++;
+        } catch (e) {
+          if (e && (e.statusCode === 404 || e.statusCode === 410)) {
+            await supabase.from('push_subscriptions').delete().eq('id', sub.id);
+          }
+        }
+      }));
+    }
+
+    rows.forEach((r) => notifiedIds.push(r.id));
+  }
+
+  if (notifiedIds.length > 0) {
+    await supabase.from('order_items').update({ late_push_notified_at: new Date().toISOString() }).in('id', notifiedIds);
+  }
+
+  return { sent, items: notifiedIds.length };
+}
+
 module.exports = async function handler(req, res) {
   try {
     if (req.method !== 'POST') {
@@ -128,10 +214,12 @@ module.exports = async function handler(req, res) {
     const mode = (req.body && req.body.mode) || 'both';
     const doReadyOrders = mode === 'ready_orders_only' || mode === 'both';
     const doCustomerRequests = mode === 'customer_requests_only' || mode === 'both';
+    const doLateKitchen = mode === 'late_kitchen_only' || mode === 'both';
 
     if (!doReadyOrders) {
       const custReqResult = doCustomerRequests ? await dispatchCustomerOrderRequests(supabase) : { sent: 0, requests: 0 };
-      res.status(200).json({ sent: 0, staff: 0, customer_requests: custReqResult });
+      const lateKitchenResult = doLateKitchen ? await dispatchLateKitchenItems(supabase) : { sent: 0, items: 0 };
+      res.status(200).json({ sent: 0, staff: 0, customer_requests: custReqResult, late_kitchen: lateKitchenResult });
       return;
     }
 
@@ -213,8 +301,9 @@ module.exports = async function handler(req, res) {
     }
 
     const custReqResult = doCustomerRequests ? await dispatchCustomerOrderRequests(supabase) : { sent: 0, requests: 0 };
+    const lateKitchenResult = doLateKitchen ? await dispatchLateKitchenItems(supabase) : { sent: 0, items: 0 };
 
-    res.status(200).json({ sent, staff: ordersByStaff.size, customer_requests: custReqResult });
+    res.status(200).json({ sent, staff: ordersByStaff.size, customer_requests: custReqResult, late_kitchen: lateKitchenResult });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
