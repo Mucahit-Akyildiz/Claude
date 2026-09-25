@@ -357,6 +357,10 @@ sb.rpc = function(fn, args){
       handleSubscriptionExpired();
     } else if(res && res.error && res.error.message === 'Oturum geçersiz veya süresi dolmuş, tekrar giriş yapın'){
       handleSessionInvalidated();
+    } else if(res && res.error && res.error.message === 'PAKET_OZELLIK_YOK'){
+      // Paketinizde olmayan bir ozelligi acmaya calistiniz (bkz. _session_check'teki
+      // paket katmani) - ham hata metni yerine anlasilir bir mesaj gosterilsin.
+      res.error.message = 'Bu özellik paketinizde bulunmuyor. Yükseltmek için destek ile iletişime geçin.';
     }
     return res;
   });
@@ -382,6 +386,11 @@ const PERMISSION_LABELS = {
   reservations: 'Rezervasyonlar',
   purchasing: 'Tedarikçi & Satın Alma',
 };
+/* Paket özellik seçimi için PERMISSION_LABELS'a ek olarak 'reports' de
+   gösteriliyor (Finansal Analiz) - rol yönetiminde atanabilir bir izin
+   değil ama paket seviyesinde açık/kapalı olabiliyor (bkz. admin paket
+   ekranı, _session_check'teki paket katmanı). */
+const PACKAGE_FEATURE_LABELS = Object.assign({}, PERMISSION_LABELS, { reports: 'Finansal Analiz' });
 function hasPerm(session, perm){ return (session.permissions||[]).includes(perm); }
 /* Tüm paketler AYNI 7 günlük ücretsiz deneme ile başlar (bkz.
    verify_registration_otp) - paketler arasındaki fark kullanıcı sayısı
@@ -722,6 +731,12 @@ async function refreshPackagesAdmin(admin){
               <button class="sbtn" onclick="savePackageRow('${p.id}')">Kaydet</button>
               <button class="sbtn" style="background:var(--red);color:var(--btn-ink);" onclick="deletePackageRow('${p.id}', ${p.restaurant_count})" title="${p.restaurant_count>0?'Bu paketi kullanan işletmeler var':''}">Sil</button>
             </td>
+          </tr>
+          <tr>
+            <td colspan="9" style="padding:6px 8px 16px;border-top:none;">
+              <div class="muted" style="font-size:12px;font-weight:700;margin-bottom:6px;">Bu pakette hangi özellikler olacak:</div>
+              ${featureCheckboxesHtml('pkg_feat_'+p.id, p.features||[])}
+            </td>
           </tr>`).join('')}
         </tbody>
       </table>
@@ -735,9 +750,30 @@ async function refreshPackagesAdmin(admin){
         <div class="field-group"><label>Kullanıcı Limiti</label><input type="number" min="1" step="1" id="npkgUsers" placeholder="20"></div>
         <div class="field-group"><label>Fiyat (TL/ay)</label><input type="number" min="0" step="0.01" id="npkgPrice" placeholder="1499"></div>
       </div>
+      <div class="muted" style="font-size:12px;font-weight:700;margin:14px 0 6px;">Bu pakette hangi özellikler olacak:</div>
+      ${featureCheckboxesHtml('npkg_feat', Object.keys(PACKAGE_FEATURE_LABELS))}
       <button style="margin-top:12px;max-width:220px;" onclick="createPackage()">+ Paket Oluştur</button>
       <div class="error" id="pkgCreateErr" style="text-align:left;"></div>
     </div>`;
+}
+/* Paket düzenleme/oluşturma satırlarında ortak kullanılan özellik seçim
+   ızgarası - PACKAGE_FEATURE_LABELS'taki her anahtar için bir onay kutusu;
+   id'ler idPrefix+'_'+anahtar şeklinde, readPackageFeatures ile okunur. */
+function featureCheckboxesHtml(idPrefix, selectedFeatures){
+  const sel = new Set(selectedFeatures||[]);
+  return `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:6px 14px;">
+    ${Object.keys(PACKAGE_FEATURE_LABELS).map(key => `
+      <label style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:400;">
+        <input type="checkbox" id="${idPrefix}_${key}" ${sel.has(key)?'checked':''} style="width:16px;height:16px;">
+        ${escapeHtml(PACKAGE_FEATURE_LABELS[key])}
+      </label>`).join('')}
+  </div>`;
+}
+function readPackageFeatures(idPrefix){
+  return Object.keys(PACKAGE_FEATURE_LABELS).filter(key => {
+    const el = document.getElementById(idPrefix+'_'+key);
+    return el && el.checked;
+  });
 }
 async function savePackageRow(id){
   const admin = getAdminSession();
@@ -750,9 +786,10 @@ async function savePackageRow(id){
   if(!name){ alert('Paket adı gerekli'); return; }
   if(!(maxUsers>=1)){ alert('Kullanıcı limiti en az 1 olmalı'); return; }
   if(!(price>=0)){ alert('Fiyat negatif olamaz'); return; }
+  const features = readPackageFeatures('pkg_feat_'+id);
   const { error } = await sb.rpc('admin_upsert_package', {
     p_token: admin.session_token, p_id: id, p_name: name, p_description: desc,
-    p_max_users: maxUsers, p_price: price, p_is_popular: popular, p_active: active
+    p_max_users: maxUsers, p_price: price, p_is_popular: popular, p_active: active, p_features: features
   });
   if(error){ alert(error.message); return; }
   showToast('Paket kaydedildi ✓');
@@ -780,9 +817,10 @@ async function createPackage(){
   if(!name){ errBox.textContent = 'Paket adı gerekli'; return; }
   if(!(maxUsers>=1)){ errBox.textContent = 'Kullanıcı limiti en az 1 olmalı'; return; }
   if(!(price>=0)){ errBox.textContent = 'Fiyat negatif olamaz'; return; }
+  const features = readPackageFeatures('npkg_feat');
   const { error } = await sb.rpc('admin_upsert_package', {
     p_token: admin.session_token, p_id: id, p_name: name, p_description: desc,
-    p_max_users: maxUsers, p_price: price, p_is_popular: false, p_active: true
+    p_max_users: maxUsers, p_price: price, p_is_popular: false, p_active: true, p_features: features
   });
   if(error){ errBox.textContent = error.message; return; }
   showToast('Paket oluşturuldu ✓');
