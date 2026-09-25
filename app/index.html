@@ -104,6 +104,16 @@
   .theme-toggle button.active{background:var(--sb-accent);color:#fff;}
   .sb-logout{background:transparent;border:1px solid var(--sb-border);color:var(--sb-muted);box-shadow:none;font-size:13px;white-space:nowrap;overflow:hidden;}
   .sb-logout:hover{border-color:var(--sb-accent);color:var(--sb-accent);}
+  .shift-widget{display:flex;flex-direction:column;gap:6px;}
+  .shift-status{font-size:12px;color:var(--sb-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .shift-status.on{color:#2fae5e;}
+  .sb-shift-btn{background:transparent;border:1px solid var(--sb-border);color:var(--sb-muted);box-shadow:none;font-size:13px;white-space:nowrap;overflow:hidden;margin:0;}
+  .sb-shift-btn.in{border-color:#2fae5e;color:#2fae5e;}
+  .sb-shift-btn.in:hover{background:#2fae5e;color:#fff;}
+  .sb-shift-btn.out{border-color:var(--red);color:var(--red);}
+  .sb-shift-btn.out:hover{background:var(--red);color:#fff;}
+  .sidebar.collapsed .shift-widget .shift-status{display:none;}
+  .sidebar.collapsed .sb-shift-btn{width:36px;height:36px;padding:0;display:flex;align-items:center;justify-content:center;border-radius:10px;}
   .sidebar.collapsed .label,.sidebar.collapsed .sb-user,.sidebar.collapsed .sb-brand-text{display:none;}
   .sidebar.collapsed .sb-top{justify-content:center;padding:18px 8px 16px;}
   .sidebar.collapsed .sb-item{justify-content:center;padding:11px 0;}
@@ -442,6 +452,7 @@ function handleSessionInvalidated(){
   stopOrderPolling();
   stopCustomerRequestPolling();
   APP.customerReqPollStarted = false;
+  APP.shiftStatus = null;
   APP.authScreen = 'login';
   APP.sessionKicked = true;
   render();
@@ -553,6 +564,7 @@ function render(){
     APP.customerReqPollStarted = true;
     startCustomerRequestPolling(session);
     maybeShowPushPrompt(session);
+    refreshShiftWidget(session);
   }
   const theme = getTheme();
   const collapsed = getSidebarCollapsed();
@@ -580,6 +592,7 @@ function render(){
           ${items.map(i => `<div class="sb-item ${APP.view===i.view?'active':''}" onclick="goToView('${i.view}')" title="${i.label}"><span class="ic">${i.icon}</span><span class="label">${i.label}</span></div>`).join('')}
         </nav>
         <div class="sb-bottom">
+          <div id="shiftWidget" class="shift-widget">${shiftWidgetHtml()}</div>
           <div class="theme-toggle">
             <button class="${theme==='dark'?'active':''}" onclick="setTheme('dark')" type="button">🌙 <span class="label">Koyu</span></button>
             <button class="${theme==='light'?'active':''}" onclick="setTheme('light')" type="button">☀️ <span class="label">Açık</span></button>
@@ -2296,6 +2309,36 @@ function startCustomerRequestPolling(session){
 function stopCustomerRequestPolling(){
   if(CUSTOMER_REQ_POLL_INTERVAL){ clearInterval(CUSTOMER_REQ_POLL_INTERVAL); CUSTOMER_REQ_POLL_INTERVAL=null; }
 }
+
+/* --- Vardiya (personel giriş/çıkış) widget'ı: sidebar'da her ekranda
+   görünür, herhangi bir personel kendi vardiyasını başlatıp bitirebilir. */
+function shiftWidgetHtml(){
+  const st = APP.shiftStatus;
+  if(!st) return '<div class="shift-status">Vardiya durumu yükleniyor…</div>';
+  if(st.clocked_in){
+    const t = new Date(st.clock_in);
+    const hh = String(t.getHours()).padStart(2,'0'), mm = String(t.getMinutes()).padStart(2,'0');
+    return `<div class="shift-status on">🟢 <span class="label">Vardiyada (${hh}:${mm}'dan beri)</span></div>`
+      + `<button class="sb-shift-btn out" onclick="doClockToggle()" title="Vardiyayı Bitir">⏹<span class="label"> Vardiyayı Bitir</span></button>`;
+  }
+  return '<div class="shift-status">⚪ <span class="label">Vardiya Dışı</span></div>'
+    + '<button class="sb-shift-btn in" onclick="doClockToggle()" title="Vardiyaya Başla">▶<span class="label"> Vardiyaya Başla</span></button>';
+}
+async function refreshShiftWidget(session){
+  const { data, error } = await sb.rpc('get_my_shift_status', { p_token: session.session_token });
+  if(error) return;
+  APP.shiftStatus = data;
+  const el = document.getElementById('shiftWidget');
+  if(el) el.innerHTML = shiftWidgetHtml();
+}
+async function doClockToggle(){
+  const session = getSession(); if(!session) return;
+  const wasClockedIn = !!(APP.shiftStatus && APP.shiftStatus.clocked_in);
+  const { error } = await withLoadingOverlay(sb.rpc(wasClockedIn ? 'clock_out' : 'clock_in', { p_token: session.session_token }));
+  if(error){ showToast(error.message); return; }
+  showToast(wasClockedIn ? 'Vardiya bitti ✓' : 'Vardiya başladı ✓');
+  await refreshShiftWidget(session);
+}
 async function approveCustomerRequest(id){
   const session = getSession();
   const { error } = await sb.rpc('approve_customer_order_request', { p_token: session.session_token, p_request_id: id });
@@ -3929,6 +3972,7 @@ async function doLogout(){
   stopKitchenPolling();
   stopCustomerRequestPolling();
   APP.customerReqPollStarted = false;
+  APP.shiftStatus = null;
   clearSession();
   render();
   if(session && session.session_token){
@@ -3950,6 +3994,7 @@ const SETTINGS_TABS = [
   { tab:'ingredients', perm:'settings_ingredients', label:'Hammaddeler' },
   { tab:'flags', perm:'settings_flags', label:'Sipariş Etiketleri' },
   { tab:'users', perm:'settings_users', label:'Kullanıcılar' },
+  { tab:'shifts', perm:'settings_users', label:'Vardiyalar' },
   { tab:'roles', managerOnly:true, label:'Roller' },
   { tab:'integrations', managerOnly:true, label:'Entegrasyonlar' },
 ];
@@ -3982,6 +4027,7 @@ function renderSettingsContent(session){
   else if(APP.settingsTab==='flags') renderOrderFlagsSettings(el, session);
   else if(APP.settingsTab==='roles') renderRolesSettings(el, session);
   else if(APP.settingsTab==='integrations') renderIntegrationsSettings(el, session);
+  else if(APP.settingsTab==='shifts') renderShiftsSettings(el, session);
   else renderUsersSettings(el, session);
 }
 
@@ -4609,6 +4655,52 @@ function renderUsersSettings(el, session){
       </div>
       <button style="margin-top:12px;max-width:220px;" onclick="addUser()">+ Kullanıcı Ekle</button>
     </div>
+  </div>`;
+}
+
+/* --- Vardiyalar: personelin giriş/çıkış (clock_in/clock_out) kayıtlarını
+   yöneticinin görebildiği ekran, bkz. list_staff_shifts RPC'si. */
+function formatShiftDuration(mins){
+  if(mins===null || mins===undefined) return '—';
+  const h = Math.floor(mins/60), m = mins%60;
+  return h>0 ? (h+'sa '+m+'dk') : (m+'dk');
+}
+function formatShiftTime(iso){
+  const d = new Date(iso);
+  return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');
+}
+async function renderShiftsSettings(el, session){
+  if(!APP.shiftsDate) APP.shiftsDate = todayLocalDateStr();
+  el.innerHTML = `<div class="box" style="max-width:none;">
+    <h2>Vardiyalar</h2>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+      <span class="muted">Tarih Seç</span>
+      <input type="date" id="shiftsDateInput" value="${APP.shiftsDate}" onchange="changeShiftsDate(this.value)">
+    </div>
+    <div id="shiftsTableWrap"><p class="muted">Yükleniyor…</p></div>
+  </div>`;
+  await renderShiftsTable(session);
+}
+function changeShiftsDate(v){ APP.shiftsDate = v; renderShiftsTable(getSession()); }
+async function renderShiftsTable(session){
+  const wrap = document.getElementById('shiftsTableWrap'); if(!wrap) return;
+  const { data, error } = await withLoadingOverlay(sb.rpc('list_staff_shifts', { p_token: session.session_token, p_date: APP.shiftsDate }));
+  if(error){ wrap.innerHTML = '<p class="muted">Yüklenemedi: '+error.message+'</p>'; return; }
+  const rows = data || [];
+  if(!rows.length){ wrap.innerHTML = '<p class="muted">Bu tarihte vardiya kaydı yok.</p>'; return; }
+  wrap.innerHTML = `<div class="settings-table-wrap">
+    <table class="settings-table">
+      <thead><tr><th>Personel</th><th>Giriş</th><th>Çıkış</th><th>Süre</th></tr></thead>
+      <tbody>
+      ${rows.map(r => `
+        <tr>
+          <td class="col-name">${escapeHtml(r.username)}</td>
+          <td>${formatShiftTime(r.clock_in)}</td>
+          <td>${r.clock_out ? formatShiftTime(r.clock_out) : '<span class="muted">Devam ediyor</span>'}</td>
+          <td>${formatShiftDuration(r.duration_minutes)}</td>
+        </tr>`).join('')}
+      </tbody>
+    </table>
   </div>`;
 }
 
