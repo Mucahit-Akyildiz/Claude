@@ -1412,14 +1412,40 @@ async function renderCompanyPanel(app, companySession){
 async function renderCompanyPanelContent(companySession){
   const el = document.getElementById('companyPanelContent'); if(!el) return;
   if(!APP.companyDashboardDate) APP.companyDashboardDate = todayLocalDateStr();
+  if(!APP.companyDashboardDateTo) APP.companyDashboardDateTo = APP.companyDashboardDate;
+  if(APP.companyDashboardBranch===undefined) APP.companyDashboardBranch = '';
+  const branchFilter = APP.companyDashboardBranch || null;
   const [branchesRes, dashRes] = await withLoadingOverlay(Promise.all([
     sb.rpc('list_company_branches', { p_company_token: companySession.session_token }),
-    sb.rpc('get_company_dashboard', { p_company_token: companySession.session_token, p_date: APP.companyDashboardDate })
+    sb.rpc('get_company_dashboard', { p_company_token: companySession.session_token, p_date: APP.companyDashboardDate, p_date_to: APP.companyDashboardDateTo, p_branch_id: branchFilter })
   ]));
   if(branchesRes.error){ el.innerHTML = '<p class="muted">Yüklenemedi: '+branchesRes.error.message+'</p>'; return; }
+  if(dashRes.error){ el.innerHTML = '<p class="muted">Yüklenemedi: '+dashRes.error.message+'</p>'; return; }
   const branches = branchesRes.data || [];
-  const dash = dashRes.data || { branches: [], grand_total: 0 };
-  const dashByBranch = {}; (dash.branches||[]).forEach(b => { dashByBranch[b.id] = b; });
+  const dash = dashRes.data || { branches: [], daily: [], grand_total: 0, grand_cost: 0 };
+  const grandProfit = Number(dash.grand_total||0) - Number(dash.grand_cost||0);
+  const isSingleBranch = !!branchFilter;
+
+  const summaryRowsHtml = (dash.branches||[]).map(b => {
+    const profit = Number(b.total||0) - Number(b.cost||0);
+    return `<tr>
+      <td class="col-name">${escapeHtml(b.name)}</td>
+      <td>${b.order_count}</td>
+      <td>${money(b.total)}</td>
+      <td style="color:${profit>=0?'var(--green)':'var(--red)'};font-weight:700;">${money(profit)}</td>
+    </tr>`;
+  }).join('');
+  const dailyRowsHtml = (dash.daily||[]).map(d => {
+    const profit = Number(d.total||0) - Number(d.cost||0);
+    return `<tr>
+      <td class="col-name">${new Date(d.day).toLocaleDateString('tr-TR')}</td>
+      <td>${d.order_count}</td>
+      <td>${money(d.total)}</td>
+      <td style="color:${profit>=0?'var(--green)':'var(--red)'};font-weight:700;">${money(profit)}</td>
+    </tr>`;
+  }).join('');
+  const rowsHtml = isSingleBranch ? dailyRowsHtml : summaryRowsHtml;
+  const emptyText = isSingleBranch ? 'Bu tarih aralığında satış yok.' : 'Bu tarih aralığında satış yok.';
 
   el.innerHTML = `
     <div class="box" style="max-width:none;">
@@ -1435,29 +1461,63 @@ async function renderCompanyPanelContent(companySession){
       </div>
     </div>
     <div class="box" style="max-width:none;">
-      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:14px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:10px;">
         <h2 style="margin:0;">Konsolide Satış Raporu</h2>
-        <input type="date" value="${APP.companyDashboardDate}" onchange="changeCompanyDashboardDate(this.value)">
+        <select id="companyDashboardBranchSel" onchange="changeCompanyDashboardBranch(this.value)" style="max-width:220px;">
+          <option value="" ${!branchFilter?'selected':''}>Tüm Şubeler</option>
+          ${branches.map(b => `<option value="${b.id}" ${branchFilter===b.id?'selected':''}>${escapeHtml(b.name)}</option>`).join('')}
+        </select>
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:14px;">
+        <span class="muted">Tarih Aralığı</span>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+          <input type="date" id="companyDashboardDateInput" value="${APP.companyDashboardDate}" onchange="changeCompanyDashboardDate(this.value)">
+          <span class="muted">–</span>
+          <input type="date" id="companyDashboardDateToInput" value="${APP.companyDashboardDateTo}" onchange="changeCompanyDashboardDateTo(this.value)">
+        </div>
+      </div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px;">
+        <button type="button" class="range-preset-btn" onclick="setCompanyDashboardRangeDays(0)">Bugün</button>
+        <button type="button" class="range-preset-btn" onclick="setCompanyDashboardRangeDays(6)">Son 7 Gün</button>
+        <button type="button" class="range-preset-btn" onclick="setCompanyDashboardRangeDays(9)">Son 10 Gün</button>
+        <button type="button" class="range-preset-btn" onclick="setCompanyDashboardRangeDays(29)">Son 30 Gün</button>
       </div>
       <div class="settings-table-wrap">
         <table class="settings-table">
-          <thead><tr><th>Şube</th><th>Sipariş Sayısı</th><th>Ciro</th></tr></thead>
+          <thead><tr><th>${isSingleBranch?'Tarih':'Şube'}</th><th>Sipariş Sayısı</th><th>Ciro</th><th>Kâr</th></tr></thead>
           <tbody>
-          ${(dash.branches||[]).map(b => `
-            <tr>
-              <td class="col-name">${escapeHtml(b.name)}</td>
-              <td>${b.order_count}</td>
-              <td>${money(b.total)}</td>
-            </tr>`).join('')}
-          ${(dash.branches||[]).length===0?'<tr><td colspan="3" class="muted" style="text-align:center;">Bu tarihte satış yok.</td></tr>':''}
+          ${rowsHtml}
+          ${rowsHtml===''?'<tr><td colspan="4" class="muted" style="text-align:center;">'+emptyText+'</td></tr>':''}
           </tbody>
         </table>
       </div>
-      <div style="text-align:right;font-weight:800;font-size:18px;margin-top:10px;">Toplam: ${money(dash.grand_total)}</div>
+      <div style="display:flex;justify-content:flex-end;gap:24px;margin-top:10px;">
+        <div style="text-align:right;font-weight:800;font-size:16px;">Toplam Ciro: ${money(dash.grand_total)}</div>
+        <div style="text-align:right;font-weight:800;font-size:16px;color:${grandProfit>=0?'var(--green)':'var(--red)'};">Toplam Kâr: ${money(grandProfit)}</div>
+      </div>
     </div>`;
 }
 function changeCompanyDashboardDate(v){
   APP.companyDashboardDate = v;
+  if(APP.companyDashboardDateTo < v) APP.companyDashboardDateTo = v;
+  renderCompanyPanelContent(getCompanySession());
+}
+function changeCompanyDashboardDateTo(v){
+  APP.companyDashboardDateTo = v;
+  if(APP.companyDashboardDate > v) APP.companyDashboardDate = v;
+  renderCompanyPanelContent(getCompanySession());
+}
+function setCompanyDashboardRangeDays(daysBack){
+  const to = new Date();
+  const from = new Date(to);
+  from.setDate(from.getDate() - daysBack);
+  const fmt = (d) => d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+  APP.companyDashboardDate = fmt(from);
+  APP.companyDashboardDateTo = fmt(to);
+  renderCompanyPanelContent(getCompanySession());
+}
+function changeCompanyDashboardBranch(v){
+  APP.companyDashboardBranch = v;
   renderCompanyPanelContent(getCompanySession());
 }
 function openCreateBranchModal(){
