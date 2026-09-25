@@ -579,13 +579,20 @@ const NAV_ITEMS = [
   { view:'reports', icon:'📊', label:'Finansal Analiz' },
   { view:'settings', icon:'⚙️', label:'Ayarlar' },
 ];
-/* printerSettings/notificationSettings her personel için her zaman
-   görünür (izin gerektirmez). reports sadece Yönetici'ye (is_manager)
-   görünür - ayrıca içine girerken ayrı bir şifre istenir (bkz.
-   renderReportsView). settings, en az bir settings_* iznine sahip
-   herkese görünür; sekmeler içeride yine izne göre filtrelenir. */
+/* notificationSettings her personel için her zaman görünür (izin
+   gerektirmez, cihaza özel). printerSettings ise artık SADECE Yönetici'ye
+   açık - yazıcı seçimi/istasyon eşleştirme yine cihaza özel kalıyor (fiziksel
+   bağlantı gerektirdiği için merkezi yapılamaz) ama kimin bu ayarları
+   değiştirebileceği kısıtlandı; Fiş Tasarımı artık veritabanında saklanıyor
+   ve sadece Yönetici değiştirebiliyor (bkz. update_ticket_design), böylece
+   yöneticinin belirlediği tasarım her cihazda/fişte otomatik geçerli olur.
+   reports sadece Yönetici'ye (is_manager) görünür - ayrıca içine girerken
+   ayrı bir şifre istenir (bkz. renderReportsView). settings, en az bir
+   settings_* iznine sahip herkese görünür; sekmeler içeride yine izne göre
+   filtrelenir. */
 function navItemVisible(item, session){
   if(item.view==='reports') return !!session.isManager;
+  if(item.view==='printerSettings') return !!session.isManager;
   if(item.view==='settings') return session.isManager || (session.permissions||[]).some(p => p.startsWith('settings_'));
   if(!item.perm) return true;
   return hasPerm(session, item.perm);
@@ -3331,9 +3338,15 @@ const TICKET_FONTS = {
   'Tahoma': "Tahoma, Geneva, sans-serif",
 };
 function ticketFontStack(key){ return TICKET_FONTS[key] || TICKET_FONTS['Courier New']; }
+/* Fiş Tasarımı artık veritabanında, restoran genelinde tek bir ayar olarak
+   tutuluyor (bkz. restaurants.ticket_design, get_restaurant_config,
+   update_ticket_design) - sadece Yönetici değiştirebiliyor, ama her cihazda/
+   her personelin bastığı fişte aynı şekilde uygulanıyor. Yazıcı SEÇİMİ ve
+   istasyon eşleştirmesi ise (getPrinters/getStationPrinterMap) hâlâ cihaza
+   özel localStorage'da kalıyor - fiziksel olarak hangi yazıcının o
+   bilgisayara bağlı olduğu merkezi bir ayarla belirlenemez. */
 function getTicketDesign(){
-  let d = {};
-  try{ d = JSON.parse(localStorage.getItem('rys_ticket_design')) || {}; }catch(e){ d = {}; }
+  const d = (APP.config && APP.config.ticket_design) || {};
   return {
     width: d.width || '80',
     header: d.header || '',
@@ -3374,7 +3387,14 @@ function getTicketDesign(){
   };
 }
 const TICKET_DESIGN_DEFAULTS = { width:'80', header:'', footer:'', fontFamily:'Courier New', bold:true, marginTop:4, marginRight:4, marginBottom:4, marginLeft:4, showOrderNumber:true, showItemTime:true, copies:1, timeFormat:'24', timeBold:true, showHeaderTime:false, colorTitle:'#000000', colorText:'#000000', colorNote:'#000000', colorTime:'#000000', sizeTitle:15, sizeText:13, sizeNote:11, sizeTime:11, transformTitle:'uppercase', transformText:'none', transformNote:'none', transformTime:'none' };
-function setTicketDesign(d){ try{ localStorage.setItem('rys_ticket_design', JSON.stringify(d)); }catch(e){} }
+async function setTicketDesign(d){
+  const session = getSession();
+  const { error } = await sb.rpc('update_ticket_design', { p_token: session.session_token, p_design: d });
+  if(error){ alert(error.message); return false; }
+  if(!APP.config) APP.config = {};
+  APP.config.ticket_design = d;
+  return true;
+}
 function applyTicketDesignStyle(el, design, baseClass){
   let cls = baseClass || '';
   if(design.width==='58') cls += (cls?' ':'')+'pw58';
@@ -3520,10 +3540,10 @@ async function renderPrinterSettingsView(main, session){
   const stationPrinterMap = getStationPrinterMap();
   const usbSupported = !!(navigator.usb);
   main.innerHTML = `
-    <h1>Yazıcı Ayarları</h1>
+    <h1>Yazıcı Ayarları <span class="role-badge" style="margin-left:6px;vertical-align:middle;">Sadece Yönetici</span></h1>
     <div style="background:rgba(0,143,168,.1);border:1.5px solid var(--accent);border-radius:10px;padding:12px 14px;margin-bottom:16px;text-align:left;">
-      <p style="margin:0;font-weight:700;font-size:13px;">⚠️ Bu sayfadaki tüm ayarlar (Fiş Tasarımı, Yazıcılar, İstasyon Eşleştirme) sadece <u>şu an bu ekranı açtığınız cihazda</u> geçerlidir.</p>
-      <p class="muted" style="margin:6px 0 0;text-align:left;font-size:12px;">Fiş, yazıcının fiziksel olarak bağlı olduğu bilgisayardan basılır. Ayarları başka bir cihazda (örn. ofis bilgisayarı/telefon) değiştirip kaydettiyseniz, çıktıya hiç yansımaz — <b>aynı ayarları yazıcının bağlı olduğu bilgisayarda da açıp kaydetmeniz gerekir.</b></p>
+      <p style="margin:0;font-weight:700;font-size:13px;">✓ Fiş Tasarımı artık tüm işletmede ortak — burada kaydettiğiniz tasarım, hangi cihazdan/kim basarsa bassın her fişte aynı şekilde uygulanır.</p>
+      <p class="muted" style="margin:8px 0 0;text-align:left;font-size:12px;">⚠️ <b>Yazıcılar</b> ve <b>İstasyon → Yazıcı Eşleştirme</b> ise hâlâ <u>şu an bu ekranı açtığınız cihaza</u> özeldir (bir yazıcı fiziksel olarak hangi bilgisayara bağlıysa fiş oradan basılır, bu merkezi bir ayarla belirlenemez). Yeni bir kasa/mutfak bilgisayarı kurduğunuzda, o bilgisayarda da Yönetici olarak giriş yapıp yazıcı seçimini orada tekrar yapmanız gerekir.</p>
     </div>
 
     <div class="box" style="max-width:none;">
@@ -3975,8 +3995,8 @@ function readTicketTypography(){
   });
   return out;
 }
-function saveTicketDesign(){
-  setTicketDesign({
+async function saveTicketDesign(){
+  const ok = await setTicketDesign({
     width: document.getElementById('td_width').value,
     header: document.getElementById('td_header').innerHTML.trim(),
     footer: document.getElementById('td_footer').innerHTML.trim(),
@@ -3994,11 +4014,11 @@ function saveTicketDesign(){
     timeBold: document.getElementById('td_timeBold').checked,
     ...readTicketTypography(),
   });
-  showToast('Kaydedildi ✓');
+  if(ok) showToast('Kaydedildi ✓ (tüm cihazlarda geçerli)');
 }
-function resetTicketDesign(){
+async function resetTicketDesign(){
   if(!confirm('Fiş tasarımı varsayılan ayarlara sıfırlansın mı?')) return;
-  setTicketDesign(TICKET_DESIGN_DEFAULTS);
+  await setTicketDesign(TICKET_DESIGN_DEFAULTS);
   renderPrinterSettingsView(document.getElementById('main'), getSession());
   showToast('Varsayılana sıfırlandı ✓');
 }
