@@ -5026,32 +5026,38 @@ function pickStationIcon(targetId, icon){
 }
 function renderStationsSettings(el, session){
   el.innerHTML = `<div class="box" style="max-width:none;">
-    <h2>Mutfak İstasyonları</h2>
-    <div class="settings-table-wrap">
-    <table class="settings-table">
-      <thead><tr><th>İkon</th><th>İstasyon Adı</th><th>Renk</th><th></th></tr></thead>
-      <tbody>
-      ${APP.config.stations.map(s => `
-        <tr>
-          <td style="width:70px;">${stationIconPickerHtml('st_icon_'+s.id, s.icon||'🍳')}</td>
-          <td class="col-name"><input value="${escapeHtml(s.name)}" id="st_name_${s.id}"></td>
-          <td style="width:60px;"><input type="color" value="${s.color}" id="st_color_${s.id}" style="padding:2px;height:36px;"></td>
-          <td>
-            <button class="sbtn" onclick="saveStation('${s.id}')">Kaydet</button>
-            <button class="sbtn" style="background:var(--red);color:var(--btn-ink);" onclick="removeStation('${s.id}')">Sil</button>
-          </td>
-        </tr>`).join('')}
-      </tbody>
-    </table>
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:14px;">
+      <h2 style="margin:0;">Mutfak İstasyonları</h2>
+      <span class="muted" style="font-size:12px;">${APP.config.stations.length} istasyon</span>
     </div>
-    <div class="add-row-panel">
-      <p>Yeni İstasyon Ekle</p>
-      <div style="display:grid;grid-template-columns:auto 2fr auto;gap:10px;align-items:end;">
-        <div class="field-group"><label>İkon</label>${stationIconPickerHtml('newStIcon','🍳')}</div>
-        <div class="field-group"><label>İstasyon Adı</label><input id="newStName" placeholder="örn. Fırın"></div>
-        <div class="field-group"><label>Renk</label><input type="color" id="newStColor" value="#b6a48d" style="height:44px;padding:2px;"></div>
+    <div class="pay-options-grid">
+      ${APP.config.stations.map(s => `
+        <div class="pay-option-card" style="border-left:4px solid ${escapeHtml(s.color)};">
+          <div style="display:flex;gap:10px;align-items:center;">
+            ${stationIconPickerHtml('st_icon_'+s.id, s.icon||'🍳')}
+            <input value="${escapeHtml(s.name)}" id="st_name_${s.id}" style="flex:1;margin:0;font-weight:700;">
+          </div>
+          <div style="display:flex;gap:10px;align-items:center;margin-top:10px;">
+            <label class="hint" style="margin:0;">Renk</label>
+            <input type="color" value="${s.color}" id="st_color_${s.id}" style="padding:2px;height:36px;width:52px;margin:0;">
+          </div>
+          <div style="display:flex;gap:8px;margin-top:12px;">
+            <button class="sbtn" style="flex:1;margin:0;" onclick="saveStation('${s.id}')">Kaydet</button>
+            <button class="sbtn" style="flex:1;margin:0;background:var(--red);color:var(--btn-ink);" onclick="removeStation('${s.id}')">Sil</button>
+          </div>
+        </div>`).join('')}
+      <div class="pay-option-card" style="border:1.5px dashed var(--border);background:transparent;">
+        <h4 style="margin:0 0 10px;">➕ Yeni İstasyon</h4>
+        <div style="display:flex;gap:10px;align-items:center;">
+          ${stationIconPickerHtml('newStIcon','🍳')}
+          <input id="newStName" placeholder="örn. Fırın" style="flex:1;margin:0;">
+        </div>
+        <div style="display:flex;gap:10px;align-items:center;margin-top:10px;">
+          <label class="hint" style="margin:0;">Renk</label>
+          <input type="color" id="newStColor" value="#b6a48d" style="height:36px;width:52px;padding:2px;margin:0;">
+        </div>
+        <button style="margin-top:12px;" onclick="addStation()">+ İstasyon Ekle</button>
       </div>
-      <button style="margin-top:12px;max-width:220px;" onclick="addStation()">+ İstasyon Ekle</button>
     </div>
   </div>`;
 }
