@@ -12,6 +12,13 @@ on:
 jobs:
   build-android-apk:
     runs-on: ubuntu-latest
+    # GitHub Actions, 'if:' kosullarinda dogrudan secrets baglamina izin
+    # vermiyor ("Unrecognized named-value: 'secrets'" hatasi - is/job hic
+    # baslamadan tum çalıştırma anında basarisiz oluyordu). Bu yuzden
+    # keystore secret'ini once job seviyesinde env'e atayip asagidaki
+    # if: kosullarinda env baglamini kullaniyoruz (bu her zaman izinli).
+    env:
+      HAS_RELEASE_KEYSTORE: ${{ secrets.LETAYIF_KEYSTORE_BASE64 != '' }}
     defaults:
       run:
         working-directory: mobile
@@ -49,12 +56,12 @@ jobs:
           path: mobile/android/app/build/outputs/apk/debug/app-debug.apk
 
       - name: Yayın keystore'unu çöz
-        if: ${{ secrets.LETAYIF_KEYSTORE_BASE64 != '' }}
+        if: ${{ env.HAS_RELEASE_KEYSTORE == 'true' }}
         working-directory: mobile/android/app
         run: echo "${{ secrets.LETAYIF_KEYSTORE_BASE64 }}" | base64 -d > release.keystore
 
       - name: İmzalı AAB derle (Play Store için)
-        if: ${{ secrets.LETAYIF_KEYSTORE_BASE64 != '' }}
+        if: ${{ env.HAS_RELEASE_KEYSTORE == 'true' }}
         working-directory: mobile/android
         env:
           LETAYIF_KEYSTORE_PATH: app/release.keystore
@@ -66,7 +73,7 @@ jobs:
           ./gradlew bundleRelease --no-daemon
 
       - uses: actions/upload-artifact@v4
-        if: ${{ secrets.LETAYIF_KEYSTORE_BASE64 != '' }}
+        if: ${{ env.HAS_RELEASE_KEYSTORE == 'true' }}
         with:
           name: peyktan-android-aab
           path: mobile/android/app/build/outputs/bundle/release/app-release.aab
