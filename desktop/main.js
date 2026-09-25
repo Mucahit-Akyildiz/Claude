@@ -63,6 +63,18 @@ app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
 });
 
+// Bir bildirime (index.html'deki notifyDesktop() - Electron'un yerel
+// Notification API'sini kullanarak isletim sisteminin kendi bildirim
+// merkezinde/koseden cikan gercek bir bildirim gosterir) tiklandiginda,
+// pencere simge durumundaysa veya arka plandaysa on plana getirilir.
+ipcMain.handle('focus-window', (event) => {
+  const win = BrowserWindow.fromWebContents(event.sender) || mainWindow;
+  if (!win) return;
+  if (win.isMinimized()) win.restore();
+  win.show();
+  win.focus();
+});
+
 // Bu bilgisayarda işletim sisteminin tanıdığı yazıcıların listesini döner
 // (Yazıcı Ayarları'ndaki "İşletim Sistemi Yazıcısı" seçim listesi için).
 ipcMain.handle('list-printers', async (event) => {

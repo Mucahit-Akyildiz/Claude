@@ -1529,7 +1529,7 @@ function updateKitchenTimers(){
     const itemId = el.dataset.id;
     if(secs>=900 && itemId && !APP.kitchenLateWarned.has(itemId)){
       APP.kitchenLateWarned.add(itemId);
-      showToast('⏰ ' + (el.dataset.name||'Bir sipariş') + ' 15 dakikayı geçti!', 30000);
+      showToast('⏰ ' + (el.dataset.name||'Bir sipariş') + ' 15 dakikayı geçti!', 30000, null, () => goToView('kitchen'), true);
     }
   });
   // Kartin arka plani, icindeki en gec kalmis urunun rengine gore hafifce tonlanir.
@@ -1553,7 +1553,7 @@ function checkLateOrdersReminder(){
     .filter(Boolean);
   if(names.length===0) return;
   const shown = names.slice(0,3).join(', ') + (names.length>3 ? ' ve ' + (names.length-3) + ' tane daha' : '');
-  showToast('⏰ Hâlâ hazır değil: ' + shown, 30000, 'left');
+  showToast('⏰ Hâlâ hazır değil: ' + shown, 30000, 'left', () => goToView('kitchen'), true);
 }
 let KITCHEN_AUDIO_CTX = null;
 /* Tarayicilar bir kullanici tiklamasi olmadan ses calmayi engeller; istasyon secimi
@@ -2184,7 +2184,7 @@ function checkReadyOrdersReminder(session){
   if(myReady.length===0) return;
   const labels = myReady.map(o => orderDisplayName(o));
   const shown = labels.slice(0,3).join(', ') + (labels.length>3 ? ' ve ' + (labels.length-3) + ' tane daha' : '');
-  showToast('🔔 Hazır, teslim bekleyen siparişiniz var: ' + shown, 30000);
+  showToast('🔔 Hazır, teslim bekleyen siparişiniz var: ' + shown, 30000, null, () => goToView('order'), true);
 }
 async function refreshOrderLiveStatus(session){
   const { data, error } = await sb.rpc('get_live_orders', { p_token: session.session_token });
@@ -2238,7 +2238,7 @@ async function refreshCustomerOrderRequests(session){
     if(newOnes.length>0){
       const labels = newOnes.map(r => (r.table_name||'Masa') + (r.customer_name?' · '+r.customer_name:''));
       const shown = labels.slice(0,3).join(', ') + (labels.length>3 ? ' ve ' + (labels.length-3) + ' tane daha' : '');
-      showToast('📱 Yeni müşteri sipariş isteği: ' + shown, 20000, null, () => goToView('order'));
+      showToast('📱 Yeni müşteri sipariş isteği: ' + shown, 20000, null, () => goToView('order'), true);
     }
   }
   CUSTOMER_REQ_NOTIFIED_IDS = currentIds;
@@ -3742,7 +3742,32 @@ function money(n){ return (Math.round((n||0)*100)/100).toLocaleString('tr-TR',{m
    (⚠️ ile başlayanlar) varsayılan olarak en az 1 dakika ekranda kalır,
    başarı bildirimleri (Kaydedildi vb.) kısa süre sonra kendiliğinden
    kaybolur; durationMs verilirse bu varsayılanın yerine geçer. */
-function showToast(msg, durationMs, position, onClick){
+/* Masaüstü uygulamasında (Electron), tarayıcının Web Push'undan bağımsız
+   olarak, işletim sisteminin kendi bildirim merkezinden/köşesinden çıkan
+   GERÇEK bir bildirim gösterir - Electron'un penceresi arka planda/simge
+   durumunda bile görülebilsin diye. Web Push'un aksine gerçek bir "kapalı
+   uygulamaya bildirim" değil (Electron'da uygulama tamamen kapalıyken zaten
+   hiçbir kod çalışmıyor) - amacı sadece uygulama açıkken ekranda ondan
+   habersizken (başka pencerenin arkasında, simge durumunda) fark edilmesini
+   sağlamak. preload.js'teki window.electronAPI varlığıyla tarayıcıdan
+   ayırt ediliyor.
+   'Peyktan' başlıklı isletim sistemi bildirimi tiklaninca pencereyi one
+   getirir (window.electronAPI.focusWindow) ve varsa onClick'i cagirir. */
+function notifyDesktop(msg, onClick){
+  if(!(window.electronAPI && window.electronAPI.isElectron)) return;
+  if(!('Notification' in window)) return;
+  const fire = () => {
+    const n = new Notification('Peyktan', { body: msg, icon: '/assets/images/logo.webp' });
+    n.onclick = () => {
+      if(window.electronAPI.focusWindow) window.electronAPI.focusWindow();
+      if(onClick) onClick();
+    };
+  };
+  if(Notification.permission==='granted') fire();
+  else if(Notification.permission!=='denied') Notification.requestPermission().then(p => { if(p==='granted') fire(); });
+}
+function showToast(msg, durationMs, position, onClick, nativeNotify){
+  if(nativeNotify) notifyDesktop(msg, onClick);
   const isLeft = position==='left';
   const stackId = isLeft ? 'notifStackLeft' : 'notifStack';
   let stack = document.getElementById(stackId);
