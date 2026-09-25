@@ -212,6 +212,8 @@
   .floorplan-table.dragging{cursor:grabbing;box-shadow:0 6px 18px rgba(0,0,0,.25);z-index:5;transition:none;}
   .floorplan-table .fp-sub{font-size:10px;font-weight:400;margin-top:3px;opacity:.85;}
   .floorplan-editor .floorplan-table{cursor:grab;}
+  .range-preset-btn{width:auto;padding:6px 12px;margin:0;font-size:12px;background:transparent;border:1px solid var(--border);color:var(--text);box-shadow:none;}
+  .range-preset-btn:hover{border-color:var(--accent);color:var(--accent);}
   .ghost-btn{background:transparent;border:1.5px solid var(--border);color:var(--muted);width:auto;padding:9px 15px;margin:0;box-shadow:none;font-weight:600;}
   .ghost-btn:hover{border-color:var(--accent);color:var(--text);filter:none;}
   .center-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px;}
@@ -402,6 +404,7 @@ const PERMISSION_LABELS = {
   crm: 'Müşteriler (CRM)',
   reservations: 'Rezervasyonlar',
   purchasing: 'Tedarikçi & Satın Alma',
+  shifts: 'Vardiyalar',
 };
 /* Paket özellik seçimi için PERMISSION_LABELS'a ek olarak 'reports' de
    gösteriliyor (Finansal Analiz) - rol yönetiminde atanabilir bir izin
@@ -647,7 +650,7 @@ function goToView(view){
   // Finansal Analiz'e her girişte, en son baktiginiz tarihi hatirlamak yerine
   // dogrudan bugunun raporunu getirir - farkli bir tarihe bakmak isterseniz
   // ekrandaki tarih seciciden degistirebilirsiniz.
-  if(view==='reports') APP.reportDate = todayLocalDateStr();
+  if(view==='reports'){ APP.reportDate = todayLocalDateStr(); APP.reportDateTo = todayLocalDateStr(); }
   // Mutfak ekranindan cikinca arka plandaki yenileme/sayac calismaya devam etmesin.
   if(view!=='kitchen') stopKitchenPolling();
   if(view!=='order' && view!=='packages') stopOrderPolling();
@@ -4485,7 +4488,7 @@ const SETTINGS_TABS = [
   { tab:'ingredients', perm:'settings_ingredients', label:'Hammaddeler' },
   { tab:'flags', perm:'settings_flags', label:'Sipariş Etiketleri' },
   { tab:'users', perm:'settings_users', label:'Kullanıcılar' },
-  { tab:'shifts', perm:'settings_users', label:'Vardiyalar' },
+  { tab:'shifts', perm:'shifts', label:'Vardiyalar' },
   { tab:'roles', managerOnly:true, label:'Roller' },
   { tab:'integrations', managerOnly:true, label:'Entegrasyonlar' },
 ];
@@ -5759,10 +5762,23 @@ async function renderReportsView(main, session){
     renderReportsGate(main, session);
     return;
   }
+  if(!APP.reportDateTo) APP.reportDateTo = APP.reportDate;
   main.innerHTML = `<h1>Finansal Analiz</h1>
-    <div class="box" style="max-width:none;display:flex;justify-content:space-between;align-items:center;">
-      <span class="muted">Tarih Seç</span>
-      <input type="date" id="reportDateInput" value="${APP.reportDate}" onchange="changeReportDate(this.value)">
+    <div class="box" style="max-width:none;">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
+        <span class="muted">Tarih Aralığı</span>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+          <input type="date" id="reportDateInput" value="${APP.reportDate}" onchange="changeReportDate(this.value)">
+          <span class="muted">–</span>
+          <input type="date" id="reportDateToInput" value="${APP.reportDateTo}" onchange="changeReportDateTo(this.value)">
+        </div>
+      </div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px;">
+        <button type="button" class="range-preset-btn" onclick="setReportDateRangeDays(0)">Bugün</button>
+        <button type="button" class="range-preset-btn" onclick="setReportDateRangeDays(6)">Son 7 Gün</button>
+        <button type="button" class="range-preset-btn" onclick="setReportDateRangeDays(9)">Son 10 Gün</button>
+        <button type="button" class="range-preset-btn" onclick="setReportDateRangeDays(29)">Son 30 Gün</button>
+      </div>
     </div>
     <div class="tabs" id="reportTabs">
       <div class="tab ${(APP.reportTab||'summary')==='summary'?'active':''}" data-tab="summary" onclick="setReportTab('summary')">Genel Özet</div>
@@ -5779,7 +5795,33 @@ function setReportTab(tab){
   document.querySelectorAll('#reportTabs .tab').forEach(t => t.classList.toggle('active', t.dataset.tab===tab));
   renderReportTabContent(getSession());
 }
-function changeReportDate(v){ APP.reportDate = v; renderReportTabContent(getSession()); }
+function changeReportDate(v){
+  APP.reportDate = v;
+  if(APP.reportDateTo < v) APP.reportDateTo = v;
+  const toInput = document.getElementById('reportDateToInput'); if(toInput) toInput.value = APP.reportDateTo;
+  renderReportTabContent(getSession());
+}
+function changeReportDateTo(v){
+  APP.reportDateTo = v;
+  if(APP.reportDate > v) APP.reportDate = v;
+  const fromInput = document.getElementById('reportDateInput'); if(fromInput) fromInput.value = APP.reportDate;
+  renderReportTabContent(getSession());
+}
+function reportDateRangeLabel(){
+  if(!APP.reportDateTo || APP.reportDateTo===APP.reportDate) return APP.reportDate;
+  return APP.reportDate + ' – ' + APP.reportDateTo;
+}
+function setReportDateRangeDays(daysBack){
+  const to = new Date();
+  const from = new Date(to);
+  from.setDate(from.getDate() - daysBack);
+  const fmt = (d) => d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+  APP.reportDate = fmt(from);
+  APP.reportDateTo = fmt(to);
+  const fromInput = document.getElementById('reportDateInput'); if(fromInput) fromInput.value = APP.reportDate;
+  const toInput = document.getElementById('reportDateToInput'); if(toInput) toInput.value = APP.reportDateTo;
+  renderReportTabContent(getSession());
+}
 function renderReportTabContent(session){
   const tab = APP.reportTab||'summary';
   if(tab==='products') return renderProductStatsContent(session);
@@ -5790,7 +5832,7 @@ function renderReportTabContent(session){
 }
 async function renderReportContent(session){
   const el = document.getElementById('reportContent'); if(!el) return;
-  const { data, error } = await withLoadingOverlay(sb.rpc('get_sales_history', { p_token: session.session_token, p_date: APP.reportDate }));
+  const { data, error } = await withLoadingOverlay(sb.rpc('get_sales_history', { p_token: session.session_token, p_date: APP.reportDate, p_date_to: APP.reportDateTo }));
   if(error){ el.innerHTML = '<p class="muted">Yüklenemedi: '+error.message+'</p>'; return; }
   const hist = data || [];
 
@@ -5896,7 +5938,7 @@ async function renderReportContent(session){
    istasyona göre filtrelenebilen, çoktan aza sıralı bar grafiği --- */
 async function renderProductStatsContent(session){
   const el = document.getElementById('reportContent'); if(!el) return;
-  const { data, error } = await withLoadingOverlay(sb.rpc('get_product_sales', { p_token: session.session_token, p_date: APP.reportDate }));
+  const { data, error } = await withLoadingOverlay(sb.rpc('get_product_sales', { p_token: session.session_token, p_date: APP.reportDate, p_date_to: APP.reportDateTo }));
   if(error){ el.innerHTML = '<p class="muted">Yüklenemedi: '+error.message+'</p>'; return; }
   const rows = data || [];
   const stations = (APP.config && APP.config.stations) || [];
@@ -5979,7 +6021,7 @@ function buildHourlyPivotTable(rows){
 }
 async function renderStaffAnalyticsContent(session){
   const el = document.getElementById('reportContent'); if(!el) return;
-  const { data, error } = await withLoadingOverlay(sb.rpc('get_staff_hourly_stats', { p_token: session.session_token, p_date: APP.reportDate }));
+  const { data, error } = await withLoadingOverlay(sb.rpc('get_staff_hourly_stats', { p_token: session.session_token, p_date: APP.reportDate, p_date_to: APP.reportDateTo }));
   if(error){ el.innerHTML = '<p class="muted">Yüklenemedi: '+error.message+'</p>'; return; }
   const ordersByHour = (data && data.orders_by_hour) || [];
   const paymentsByHour = (data && data.payments_by_hour) || [];
@@ -6056,7 +6098,7 @@ function debouncedCustomerAnalyticsSearch(v){
    amaçlıdır, gerçek ödeme/dağıtım işletme dışında yapılır. */
 async function renderTipPoolContent(session){
   const el = document.getElementById('reportContent'); if(!el) return;
-  const { data, error } = await withLoadingOverlay(sb.rpc('get_tip_pool_report', { p_token: session.session_token, p_date: APP.reportDate }));
+  const { data, error } = await withLoadingOverlay(sb.rpc('get_tip_pool_report', { p_token: session.session_token, p_date: APP.reportDate, p_date_to: APP.reportDateTo }));
   if(error){ el.innerHTML = '<p class="muted">Yüklenemedi: '+error.message+'</p>'; return; }
   const shares = data.shares || [];
   const modeLabel = data.mode==='by_hours' ? 'Çalışılan Saate Göre' : 'Eşit Paylaşım';
@@ -6081,7 +6123,7 @@ async function renderTipPoolContent(session){
       <div class="box" style="text-align:center;"><div style="font-size:15px;font-weight:800;">${data.enabled ? modeLabel : 'Kapalı'}</div><div class="muted" style="font-size:12px;">Paylaşım Kuralı</div></div>
     </div>
     <div class="box" style="max-width:none;">
-      <h2>${escapeHtml(APP.reportDate)} Tarihli Paylaşım</h2>
+      <h2>${escapeHtml(reportDateRangeLabel())} Tarihli Paylaşım</h2>
       ${!data.enabled ? '<p class="muted">Bahşiş havuzu kapalı. Yönetici açarsa burada personel payları görünecek.</p>' : ''}
       <div class="settings-table-wrap">
       <table class="settings-table">
