@@ -21,6 +21,12 @@ self.addEventListener('push', (event) => {
     badge: '/assets/images/logo.webp',
     data: { url: data.url || '/app/', view: data.view || null },
     tag: data.tag || undefined,
+    // renotify:true olmadan, ayni 'tag' ile gelen bir sonraki bildirim
+    // (orn. onaylanmamis siparis icin her 20 saniyede bir tekrarlanan
+    // hatirlatma) isletim sistemi tarafindan SESSIZCE oncekinin uzerine
+    // yaziliyor - yeni bir uyari/ses/titresim olmadan. Tekrar tekrar
+    // gonderilen bildirimlerin gercekten fark edilmesi icin bu sart.
+    renotify: !!data.tag,
   };
   event.waitUntil(self.registration.showNotification(title, options));
 });
