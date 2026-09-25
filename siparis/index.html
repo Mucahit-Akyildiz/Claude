@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Online Sipariş</title>
+<link rel="icon" type="image/png" href="/assets/images/favicon.png">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#f7f7f5; --panel:#ffffff; --panel2:#eef1f1; --border:#dfe3e2;
+    --text:#25282b; --muted:#5d6568;
+    --accent:#008fa8; --accent2:#c9a45c; --green:#0d7a4f; --red:#c0392b;
+    --btn-ink:#ffffff;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --bg:#181c1e; --panel:#20262a; --panel2:#2a3136; --border:#39424a;
+      --text:#f1f3f7; --muted:#93a0a3;
+      --accent:#00b6d4; --accent2:#d4b06e; --green:#22c55e; --red:#f43f5e;
+    }
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;font-family:'Plus Jakarta Sans',-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--text);padding-bottom:90px;}
+  header{display:flex;align-items:center;gap:10px;padding:16px;background:var(--panel);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:5;}
+  header img{width:34px;height:34px;border-radius:8px;}
+  header .titles{flex:1;min-width:0;}
+  header h1{font-size:16px;margin:0;font-weight:800;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  header p{margin:0;font-size:12.5px;color:var(--muted);}
+  main{padding:14px;max-width:520px;margin:0 auto;}
+  .station-title{font-size:13px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin:18px 4px 8px;}
+  .station-title:first-child{margin-top:4px;}
+  .product-card{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:12px 14px;margin-bottom:8px;display:flex;align-items:center;gap:10px;}
+  .product-name{flex:1;min-width:0;font-weight:700;font-size:14.5px;overflow-wrap:anywhere;word-break:break-word;}
+  .product-price{color:var(--muted);font-size:13px;font-weight:600;white-space:nowrap;}
+  .qty-btn{width:32px;height:32px;flex-shrink:0;border-radius:9px;border:1.5px solid var(--border);background:var(--panel2);color:var(--text);font-weight:800;font-size:16px;display:flex;align-items:center;justify-content:center;cursor:pointer;}
+  .qty-btn:active{transform:scale(.94);}
+  .qty-val{min-width:20px;text-align:center;font-weight:800;font-size:14px;}
+  .cartbar{position:fixed;left:0;right:0;bottom:0;background:var(--panel);border-top:1px solid var(--border);padding:12px 16px;box-shadow:0 -6px 20px rgba(0,0,0,.08);display:none;}
+  .cartbar.show{display:block;}
+  .cartbar-row{display:flex;justify-content:space-between;align-items:center;max-width:520px;margin:0 auto;gap:10px;}
+  .cartbar button{background:var(--accent);color:var(--btn-ink);border:none;border-radius:12px;padding:13px 18px;font-weight:800;font-size:14.5px;cursor:pointer;flex-shrink:0;}
+  .cartbar-total{font-weight:800;font-size:15px;}
+  .center-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;text-align:center;}
+  .state-box{max-width:340px;}
+  .state-box img{width:56px;height:56px;margin-bottom:14px;border-radius:12px;}
+  .state-box h2{margin:0 0 8px;font-size:18px;}
+  .state-box p{color:var(--muted);font-size:14px;line-height:1.5;}
+  .modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;z-index:50;padding:16px;}
+  .modal{background:var(--panel);border-radius:18px;padding:20px;max-width:380px;width:100%;max-height:85vh;overflow:auto;}
+  .modal h2{margin:0 0 12px;font-size:17px;}
+  .modal input{width:100%;background:var(--panel2);border:1.5px solid var(--border);color:var(--text);border-radius:10px;padding:11px 13px;font-size:14.5px;margin-bottom:10px;font-family:inherit;}
+  .modal .item-row{display:flex;justify-content:space-between;padding:6px 0;font-size:13.5px;border-top:1px dashed var(--border);}
+  .modal button.primary{width:100%;background:var(--accent);color:var(--btn-ink);border:none;border-radius:12px;padding:13px;font-weight:800;font-size:14.5px;cursor:pointer;margin-top:8px;}
+  .modal button.ghost{width:100%;background:transparent;color:var(--text);border:1.5px solid var(--border);border-radius:12px;padding:11px;font-weight:700;font-size:13.5px;cursor:pointer;margin-top:8px;}
+  .err{color:var(--red);font-size:13px;margin-top:4px;min-height:16px;}
+  .empty-msg{color:var(--muted);text-align:center;padding:30px 0;font-size:14px;}
+  .order-type-tabs{display:flex;gap:8px;margin-bottom:12px;}
+  .order-type-tab{flex:1;text-align:center;padding:11px;border-radius:12px;border:1.5px solid var(--border);background:var(--panel2);color:var(--muted);font-weight:700;font-size:13.5px;cursor:pointer;}
+  .order-type-tab.active{background:var(--accent);color:var(--btn-ink);border-color:var(--accent);}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script>
+const SUPABASE_URL = 'https://dveybagnrgofxkqangvo.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_7gHhsaPYOzOddFnpjntPKw_S3Mgg3V8';
+const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+const RESTAURANT_CODE = new URLSearchParams(window.location.search).get('r');
+const STATE = { menu: null, cart: {}, orderType: 'pickup' };
+
+function escapeHtml(s){ const d = document.createElement('div'); d.textContent = s||''; return d.innerHTML; }
+function money(n){ return (Math.round((n||0)*100)/100).toLocaleString('tr-TR',{minimumFractionDigits:2,maximumFractionDigits:2})+' TL'; }
+
+function renderState(html){ document.getElementById('app').innerHTML = html; }
+
+async function init(){
+  if(!RESTAURANT_CODE){
+    renderState(stateBoxHtml('⚠️', 'Geçersiz Bağlantı', 'Bu sayfaya işletmenin paylaştığı online sipariş linkiyle ulaşmalısınız.'));
+    return;
+  }
+  const { data, error } = await sb.rpc('get_public_order_menu', { p_restaurant_code: RESTAURANT_CODE });
+  if(error || !data){
+    renderState(stateBoxHtml('⚠️', 'Menü Yüklenemedi', (error && error.message) || 'Bir hata oluştu, lütfen daha sonra tekrar deneyin.'));
+    return;
+  }
+  STATE.menu = data;
+  renderMenu();
+}
+function stateBoxHtml(icon, title, msg){
+  return `<div class="center-wrap"><div class="state-box"><div style="font-size:40px;">${icon}</div><h2>${escapeHtml(title)}</h2><p>${escapeHtml(msg)}</p></div></div>`;
+}
+
+function renderMenu(){
+  const m = STATE.menu;
+  const products = m.products || [];
+  if(products.length===0){
+    renderState(headerHtml() + '<main><p class="empty-msg">Şu anda menüde satışa açık ürün yok.</p></main>');
+    return;
+  }
+  const groups = {};
+  const order = [];
+  products.forEach(p => {
+    const key = p.station_name || 'Diğer';
+    if(!groups[key]){ groups[key] = []; order.push(key); }
+    groups[key].push(p);
+  });
+  const body = order.map(key => `
+    <div class="station-title">${escapeHtml(key)}</div>
+    ${groups[key].map(p => `
+      <div class="product-card">
+        <div class="product-name">${escapeHtml(p.name)}<div class="product-price">${money(p.price)}</div></div>
+        <button class="qty-btn" onclick="stepCart('${p.id}',-1)">-</button>
+        <span class="qty-val" id="qty_${p.id}">${STATE.cart[p.id]||0}</span>
+        <button class="qty-btn" onclick="stepCart('${p.id}',1)">+</button>
+      </div>`).join('')}
+  `).join('');
+  renderState(headerHtml() + `<main>${body}</main>
+    <div class="cartbar" id="cartbar">
+      <div class="cartbar-row">
+        <span class="cartbar-total" id="cartTotal">${money(0)}</span>
+        <button onclick="openCheckout()">Sepeti Gönder →</button>
+      </div>
+    </div>`);
+  updateCartBar();
+}
+function headerHtml(){
+  const m = STATE.menu;
+  return `<header>
+    <img src="/assets/images/logo.webp" alt="Peyktan">
+    <div class="titles"><h1>${escapeHtml(m.restaurant_name)}</h1><p>Online Sipariş — Gel-Al / Teslimat</p></div>
+  </header>`;
+}
+function stepCart(productId, delta){
+  const next = Math.max(0, Math.min(20, (STATE.cart[productId]||0) + delta));
+  if(next===0) delete STATE.cart[productId]; else STATE.cart[productId] = next;
+  const el = document.getElementById('qty_'+productId);
+  if(el) el.textContent = next;
+  updateCartBar();
+}
+function updateCartBar(){
+  const bar = document.getElementById('cartbar'); if(!bar) return;
+  const ids = Object.keys(STATE.cart);
+  if(ids.length===0){ bar.classList.remove('show'); return; }
+  bar.classList.add('show');
+  const products = STATE.menu.products || [];
+  let total = 0;
+  ids.forEach(id => {
+    const p = products.find(x => x.id===id);
+    if(p) total += p.price * STATE.cart[id];
+  });
+  document.getElementById('cartTotal').textContent = money(total) + ' · ' + ids.reduce((s,id)=>s+STATE.cart[id],0) + ' ürün';
+}
+function openCheckout(){
+  const ids = Object.keys(STATE.cart);
+  if(ids.length===0) return;
+  const products = STATE.menu.products || [];
+  const rows = ids.map(id => {
+    const p = products.find(x => x.id===id);
+    return p ? { p, qty: STATE.cart[id] } : null;
+  }).filter(Boolean);
+  const total = rows.reduce((s,r) => s+r.p.price*r.qty, 0);
+  const bg = document.createElement('div');
+  bg.id = 'checkoutBg';
+  bg.className = 'modal-bg';
+  bg.onclick = (e) => { if(e.target===bg) bg.remove(); };
+  bg.innerHTML = `<div class="modal">
+    <h2>Siparişi Onayla</h2>
+    <div class="order-type-tabs">
+      <div class="order-type-tab ${STATE.orderType==='pickup'?'active':''}" id="otPickup" onclick="setOrderType('pickup')">🥡 Gel-Al</div>
+      <div class="order-type-tab ${STATE.orderType==='delivery'?'active':''}" id="otDelivery" onclick="setOrderType('delivery')">🛵 Teslimat</div>
+    </div>
+    ${rows.map(r => `<div class="item-row"><span>${r.qty}x ${escapeHtml(r.p.name)}</span><span>${money(r.p.price*r.qty)}</span></div>`).join('')}
+    <div class="item-row" style="font-weight:800;border-top:1px solid var(--border);"><span>Toplam</span><span>${money(total)}</span></div>
+    <input id="ckName" placeholder="Adınız Soyadınız" style="margin-top:14px;">
+    <input id="ckPhone" type="tel" placeholder="Telefon Numaranız">
+    <input id="ckAddress" placeholder="Teslimat Adresi" style="${STATE.orderType==='delivery'?'':'display:none;'}">
+    <div class="err" id="ckErr"></div>
+    <button class="primary" id="ckSendBtn" onclick="sendPublicOrder()">Siparişi Gönder</button>
+    <button class="ghost" onclick="document.getElementById('checkoutBg').remove()">Geri Dön</button>
+  </div>`;
+  document.body.appendChild(bg);
+}
+function setOrderType(type){
+  STATE.orderType = type;
+  const pickupTab = document.getElementById('otPickup');
+  const deliveryTab = document.getElementById('otDelivery');
+  if(pickupTab) pickupTab.classList.toggle('active', type==='pickup');
+  if(deliveryTab) deliveryTab.classList.toggle('active', type==='delivery');
+  const addrInput = document.getElementById('ckAddress');
+  if(addrInput) addrInput.style.display = type==='delivery' ? 'block' : 'none';
+}
+async function sendPublicOrder(){
+  const ids = Object.keys(STATE.cart);
+  const items = ids.map(id => ({ product_id: id, qty: STATE.cart[id] }));
+  const name = document.getElementById('ckName').value.trim();
+  const phone = document.getElementById('ckPhone').value.trim();
+  const address = document.getElementById('ckAddress').value.trim();
+  const btn = document.getElementById('ckSendBtn');
+  const errEl = document.getElementById('ckErr');
+  errEl.textContent = '';
+  if(!name){ errEl.textContent = 'Adınızı girin'; return; }
+  if(!phone){ errEl.textContent = 'Telefon numaranızı girin'; return; }
+  if(STATE.orderType==='delivery' && !address){ errEl.textContent = 'Teslimat adresini girin'; return; }
+  btn.disabled = true; btn.textContent = 'Gönderiliyor...';
+  const { error } = await sb.rpc('submit_public_order', {
+    p_restaurant_code: RESTAURANT_CODE, p_order_type: STATE.orderType, p_customer_name: name,
+    p_customer_phone: phone, p_delivery_address: STATE.orderType==='delivery' ? address : null, p_items: items
+  });
+  btn.disabled = false; btn.textContent = 'Siparişi Gönder';
+  if(error){ errEl.textContent = error.message; return; }
+  STATE.cart = {};
+  const bg = document.getElementById('checkoutBg'); if(bg) bg.remove();
+  renderState(stateBoxHtml('✅', 'Siparişiniz Alındı', 'Siparişiniz işletmeye iletildi, onaylandığında hazırlanmaya başlanacak. Afiyet olsun!'));
+}
+init();
+</script>
+</body>
+</html>

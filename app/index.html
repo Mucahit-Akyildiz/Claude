@@ -2401,6 +2401,10 @@ async function refreshOrderLiveStatus(session){
    her istek için her turda tekrar tekrar toast bildirimi gösterilir -
    personel onaylayana/reddedene kadar (tek seferlik değil, bilinçli
    olarak) - böylece başka bir ekranda olsa bile QR siparişini kaçırmaz. */
+function customerRequestLabel(r){
+  if(r.table_name) return escapeHtml(r.table_name);
+  return r.order_type==='delivery' ? '🛵 Teslimat' : '🥡 Gel-Al';
+}
 async function refreshCustomerOrderRequests(session){
   const { data, error } = await sb.rpc('list_customer_order_requests', { p_token: session.session_token });
   if(error) return;
@@ -2413,9 +2417,10 @@ async function refreshCustomerOrderRequests(session){
     ${rows.map(r => `
       <div style="padding:8px 0;border-top:1px dashed var(--border);">
         <div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;">
-          <b style="overflow-wrap:anywhere;word-break:break-word;">${escapeHtml(r.table_name)}${r.customer_name?' · '+escapeHtml(r.customer_name):''}</b>
+          <b style="overflow-wrap:anywhere;word-break:break-word;">${customerRequestLabel(r)}${r.customer_name?' · '+escapeHtml(r.customer_name):''}</b>
           <span class="muted" style="font-size:12px;">${new Date(r.created_at).toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'})}</span>
         </div>
+        ${(r.customer_phone||r.delivery_address) ? `<div class="muted" style="font-size:12px;margin-top:2px;overflow-wrap:anywhere;word-break:break-word;">${r.customer_phone?'📞 '+escapeHtml(r.customer_phone):''}${r.customer_phone&&r.delivery_address?' · ':''}${r.delivery_address?'📍 '+escapeHtml(r.delivery_address):''}</div>` : ''}
         <div style="font-size:13px;margin-top:4px;">
           ${r.items.map(it => `${it.qty}x ${escapeHtml(it.name||'?')}${it.note?' <span class="muted">('+escapeHtml(it.note)+')</span>':''}`).join(', ')}
         </div>
@@ -2430,7 +2435,7 @@ async function refreshCustomerOrderRequests(session){
   // (ekran arka planda/simge durumunda/başka monitörde olabilir - şerit
   // görünür olması fiziksel olarak fark edildiği anlamına gelmez).
   if(rows.length>0){
-    const labels = rows.map(r => (r.table_name||'Masa') + (r.customer_name?' · '+r.customer_name:''));
+    const labels = rows.map(r => (r.table_name || (r.order_type==='delivery'?'Teslimat':r.order_type==='pickup'?'Gel-Al':'Masa')) + (r.customer_name?' · '+r.customer_name:''));
     const shown = labels.slice(0,3).join(', ') + (labels.length>3 ? ' ve ' + (labels.length-3) + ' tane daha' : '');
     showToast('📱 Onay bekleyen müşteri sipariş isteği: ' + shown, 20000, null, () => goToView('order'), true);
   }
@@ -5117,6 +5122,26 @@ async function renderIntegrationsSettings(el, session){
     <p class="muted" style="margin-top:-6px;">İşletmenizin Google Business Profili'ndeki "yorum yaz" linkini girin. Ödeme alma ekranında bir hesabın tamamı ödendiğinde, personele bu linke giden bir QR kod gösterme seçeneği çıkar - müşteriden telefonuyla okutup değerlendirme bırakmasını isteyebilirsiniz.</p>
     <div class="field-group" style="max-width:500px;"><label>Google Yorum Linki</label><input id="int_google_review_url" placeholder="https://g.page/r/..." value="${escapeHtml(APP.config.google_review_url||'')}"></div>
     <button style="margin-top:12px;max-width:220px;" onclick="saveGoogleReviewUrl()">Kaydet</button>
+  </div>
+  <div class="box" style="max-width:none;">
+    <h2>🛵 Dışarıdan Online Sipariş</h2>
+    <p class="muted" style="margin-top:-6px;">Masaya bağlı olmayan, gel-al veya paket teslimat siparişleri için müşterilerinizin doğrudan telefonlarından erişebileceği bir sipariş sayfası. Açtığınızda gelen sipariş istekleri, masa siparişleri gibi "Sipariş Al" ekranınızdaki bildirim şeridinde görünür ve onayladığınızda Paket Servis'e düşer.</p>
+    <label style="display:flex;align-items:center;gap:8px;font-weight:600;margin:10px 0;">
+      <input type="checkbox" id="int_online_ordering_enabled" ${APP.config.online_ordering&&APP.config.online_ordering.enabled?'checked':''} style="width:auto;margin:0;" onchange="saveOnlineOrderingSettings()"> Aktif
+    </label>
+    ${APP.config.online_ordering && APP.config.online_ordering.enabled ? onlineOrderingLinkHtml() : ''}
+  </div>`;
+}
+function onlineOrderingLinkHtml(){
+  const url = window.location.origin + '/siparis/?r=' + encodeURIComponent(APP.config.online_ordering.code);
+  const qrImgUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=' + encodeURIComponent(url);
+  return `<div style="background:var(--panel2);border-radius:10px;padding:12px;display:flex;gap:14px;align-items:center;flex-wrap:wrap;">
+    <img src="${qrImgUrl}" alt="QR" style="width:110px;height:110px;border-radius:8px;background:#fff;padding:6px;flex-shrink:0;">
+    <div style="min-width:0;flex:1;">
+      <p class="muted" style="font-size:12px;margin:0 0 6px;">Bu linki sosyal medya bio'nuza, Google İşletme profilinize ya da bir masa standına koyabilirsiniz.</p>
+      <p style="font-size:13px;overflow-wrap:anywhere;word-break:break-word;margin:0 0 8px;">${escapeHtml(url)}</p>
+      <button style="width:auto;padding:8px 12px;margin:0;" onclick="navigator.clipboard.writeText('${url}').then(()=>showToast('Link kopyalandı ✓'))">🔗 Linki Kopyala</button>
+    </div>
   </div>`;
 }
 async function saveGoogleReviewUrl(){
@@ -5126,6 +5151,16 @@ async function saveGoogleReviewUrl(){
   if(error){ alert(error.message); return; }
   APP.config.google_review_url = url || null;
   showToast('Kaydedildi ✓');
+}
+async function saveOnlineOrderingSettings(){
+  const session = getSession();
+  const enabled = document.getElementById('int_online_ordering_enabled').checked;
+  const { error } = await sb.rpc('update_online_ordering_settings', { p_token: session.session_token, p_enabled: enabled });
+  if(error){ alert(error.message); document.getElementById('int_online_ordering_enabled').checked = !enabled; return; }
+  if(!APP.config.online_ordering) APP.config.online_ordering = {};
+  APP.config.online_ordering.enabled = enabled;
+  showToast(enabled ? 'Online sipariş açıldı ✓' : 'Online sipariş kapatıldı ✓');
+  renderSettingsContent(session);
 }
 async function saveEfaturaSettings(){
   const session = getSession();
