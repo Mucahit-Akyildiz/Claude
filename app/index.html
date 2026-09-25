@@ -2271,7 +2271,10 @@ async function refreshCustomerOrderRequests(session){
       </div>`).join('')}
   </div>`;
   }
-  if(APP.view!=='order' && rows.length>0){
+  // Sipariş Al ekranındaki şerit görünür olsa bile bildirim AYRICA gösterilir
+  // (ekran arka planda/simge durumunda/başka monitörde olabilir - şerit
+  // görünür olması fiziksel olarak fark edildiği anlamına gelmez).
+  if(rows.length>0){
     const labels = rows.map(r => (r.table_name||'Masa') + (r.customer_name?' · '+r.customer_name:''));
     const shown = labels.slice(0,3).join(', ') + (labels.length>3 ? ' ve ' + (labels.length-3) + ' tane daha' : '');
     showToast('📱 Onay bekleyen müşteri sipariş isteği: ' + shown, 20000, null, () => goToView('order'), true);
