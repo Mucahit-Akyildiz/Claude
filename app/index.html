@@ -5118,6 +5118,27 @@ async function renderIntegrationsSettings(el, session){
     <button style="margin-top:12px;max-width:220px;" onclick="saveMarketplaceSettings()">Kaydet</button>
   </div>
   <div class="box" style="max-width:none;">
+    <h2>📊 Muhasebe Entegrasyonu</h2>
+    <p class="muted" style="margin-top:-6px;">Satış verilerinizi muhasebe programınıza (Logo, Mikro, Netsis vb.) otomatik aktarmak için gereken altyapı. Bu bölüm şu an sadece kimlik bilgilerinizi güvenli şekilde saklar - gerçek veri aktarımı, ilgili yazılımla sözleşme/entegrasyon onayı alındıktan sonra aktif hale getirilir.</p>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;max-width:500px;">
+      <div class="field-group"><label>Muhasebe Yazılımı</label>
+        <select id="int_accounting_provider">
+          <option value="">Seçilmedi</option>
+          <option value="logo" ${data.accounting_provider==='logo'?'selected':''}>Logo</option>
+          <option value="mikro" ${data.accounting_provider==='mikro'?'selected':''}>Mikro</option>
+          <option value="netsis" ${data.accounting_provider==='netsis'?'selected':''}>Netsis</option>
+          <option value="other" ${data.accounting_provider==='other'?'selected':''}>Diğer</option>
+        </select>
+      </div>
+      <div class="field-group"><label>API Anahtarı</label><input id="int_accounting_key" type="password" placeholder="${data.accounting_configured?'(değiştirmek için yaz)':'API anahtarı'}"></div>
+    </div>
+    <label style="display:flex;align-items:center;gap:8px;font-weight:600;margin-top:10px;">
+      <input type="checkbox" id="int_accounting_enabled" ${data.accounting_enabled?'checked':''} style="width:auto;margin:0;"> Aktif
+    </label>
+    <p class="muted" style="font-size:12px;margin-top:6px;">${data.accounting_configured ? '✓ API anahtarı kayıtlı' : 'Henüz API anahtarı girilmedi'}</p>
+    <button style="margin-top:12px;max-width:220px;" onclick="saveAccountingSettings()">Kaydet</button>
+  </div>
+  <div class="box" style="max-width:none;">
     <h2>⭐ Google Yorumları</h2>
     <p class="muted" style="margin-top:-6px;">İşletmenizin Google Business Profili'ndeki "yorum yaz" linkini girin. Ödeme alma ekranında bir hesabın tamamı ödendiğinde, personele bu linke giden bir QR kod gösterme seçeneği çıkar - müşteriden telefonuyla okutup değerlendirme bırakmasını isteyebilirsiniz.</p>
     <div class="field-group" style="max-width:500px;"><label>Google Yorum Linki</label><input id="int_google_review_url" placeholder="https://g.page/r/..." value="${escapeHtml(APP.config.google_review_url||'')}"></div>
@@ -5143,6 +5164,16 @@ function onlineOrderingLinkHtml(){
       <button style="width:auto;padding:8px 12px;margin:0;" onclick="navigator.clipboard.writeText('${url}').then(()=>showToast('Link kopyalandı ✓'))">🔗 Linki Kopyala</button>
     </div>
   </div>`;
+}
+async function saveAccountingSettings(){
+  const session = getSession();
+  const provider = document.getElementById('int_accounting_provider').value || null;
+  const key = document.getElementById('int_accounting_key').value;
+  const enabled = document.getElementById('int_accounting_enabled').checked;
+  const { error } = await sb.rpc('update_accounting_settings', { p_token: session.session_token, p_provider: provider, p_api_key: key||null, p_enabled: enabled });
+  if(error){ alert(error.message); return; }
+  renderSettingsContent(session);
+  showToast('Kaydedildi ✓');
 }
 async function saveGoogleReviewUrl(){
   const session = getSession();
