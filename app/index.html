@@ -2288,9 +2288,31 @@ async function finishPayment(orderId, method, total, cash, card, discountAmount,
       renderPaymentsView(document.getElementById('main'), session);
     }
   } else {
-    showToast('Ödeme alındı ✓');
+    if(APP.config && APP.config.google_review_url){
+      showToast('Ödeme alındı ✓ · Google yorumu için QR göstermek üzere dokunun', 8000, null, () => showGoogleReviewQr());
+    } else {
+      showToast('Ödeme alındı ✓');
+    }
     if(APP.view!=='payments') renderPaymentsView(document.getElementById('main'), session);
   }
+}
+/* --- Google Yorumları'na yönlendirme: hesap tamamen kapandığında (bkz.
+   yukarısı) personele gösterilen toast'a dokununca, müşterinin telefonuyla
+   okutabileceği bir QR kod açılır (bkz. Ayarlar > Entegrasyonlar). --- */
+function showGoogleReviewQr(){
+  const url = APP.config && APP.config.google_review_url;
+  if(!url) return;
+  const qrImgUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=260x260&data=' + encodeURIComponent(url);
+  const bg = document.createElement('div');
+  bg.id = 'googleReviewQrBg';
+  bg.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:100;padding:16px;';
+  bg.onclick = (e) => { if(e.target===bg) bg.remove(); };
+  bg.innerHTML = `<div style="background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:20px;max-width:320px;width:100%;text-align:center;">
+    <div style="display:flex;justify-content:space-between;"><h2 style="margin:0;">⭐ Bizi Değerlendirin</h2><span style="cursor:pointer;color:var(--muted);" onclick="document.getElementById('googleReviewQrBg').remove()">✕</span></div>
+    <p class="muted" style="font-size:13px;">Müşteriye telefonuyla okutması için gösterin</p>
+    <img src="${qrImgUrl}" alt="QR" style="width:100%;max-width:260px;margin:6px 0 14px;border-radius:8px;background:#fff;padding:8px;">
+  </div>`;
+  document.body.appendChild(bg);
 }
 
 async function openOrderView(){
@@ -5050,7 +5072,21 @@ async function renderIntegrationsSettings(el, session){
       ${data.marketplace_getir_configured?'✓ Getir Yemek':'✗ Getir Yemek'}
     </p>
     <button style="margin-top:12px;max-width:220px;" onclick="saveMarketplaceSettings()">Kaydet</button>
+  </div>
+  <div class="box" style="max-width:none;">
+    <h2>⭐ Google Yorumları</h2>
+    <p class="muted" style="margin-top:-6px;">İşletmenizin Google Business Profili'ndeki "yorum yaz" linkini girin. Ödeme alma ekranında bir hesabın tamamı ödendiğinde, personele bu linke giden bir QR kod gösterme seçeneği çıkar - müşteriden telefonuyla okutup değerlendirme bırakmasını isteyebilirsiniz.</p>
+    <div class="field-group" style="max-width:500px;"><label>Google Yorum Linki</label><input id="int_google_review_url" placeholder="https://g.page/r/..." value="${escapeHtml(APP.config.google_review_url||'')}"></div>
+    <button style="margin-top:12px;max-width:220px;" onclick="saveGoogleReviewUrl()">Kaydet</button>
   </div>`;
+}
+async function saveGoogleReviewUrl(){
+  const session = getSession();
+  const url = document.getElementById('int_google_review_url').value.trim();
+  const { error } = await sb.rpc('update_google_review_url', { p_token: session.session_token, p_url: url||null });
+  if(error){ alert(error.message); return; }
+  APP.config.google_review_url = url || null;
+  showToast('Kaydedildi ✓');
 }
 async function saveEfaturaSettings(){
   const session = getSession();
