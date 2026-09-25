@@ -30,6 +30,10 @@
   header .titles{flex:1;min-width:0;}
   header h1{font-size:16px;margin:0;font-weight:800;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
   header p{margin:0;font-size:12.5px;color:var(--muted);}
+  .lang-picker{display:flex;gap:4px;flex-shrink:0;}
+  .lang-btn{border:1.5px solid var(--border);background:var(--panel2);color:var(--muted);border-radius:8px;padding:5px 8px;font-size:11.5px;font-weight:700;cursor:pointer;}
+  .lang-btn.active{background:var(--accent);color:var(--btn-ink);border-color:var(--accent);}
+  html[dir="rtl"] .qty-btn,html[dir="rtl"] .cartbar-row{direction:ltr;}
   main{padding:14px;max-width:520px;margin:0 auto;}
   .station-title{font-size:13px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin:18px 4px 8px;}
   .station-title:first-child{margin-top:4px;}
@@ -70,39 +74,86 @@ const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 const QR_TOKEN = new URLSearchParams(window.location.search).get('t');
 const STATE = { menu: null, cart: {} };
 
+/* Çok dilli QR menü: ürün adları restoranın girdiği çevirilerden gelir
+   (bkz. app/index.html > Ayarlar > Ürünler > 🌐 Çeviri, get_public_menu'nün
+   döndürdüğü name_translations), arayüz metinleri ise burada sabit -
+   seçilen dil tarayıcıda hatırlanır (localStorage), her masada/ziyarette
+   tekrar sorulmaz. */
+const LANGS = [
+  { code:'tr', label:'TR' },
+  { code:'en', label:'EN' },
+  { code:'ar', label:'AR' },
+  { code:'de', label:'DE' },
+  { code:'ru', label:'RU' },
+];
+const I18N = {
+  tr: { invalidTitle:'Geçersiz Bağlantı', invalidMsg:'Bu sayfaya masadaki QR kodu okutarak ulaşmalısınız.', errorTitle:'Menü Yüklenemedi', errorMsg:'Bir hata oluştu, lütfen personelden yardım isteyin.', emptyMenu:'Şu anda menüde satışa açık ürün yok.', other:'Diğer', sendCart:'Sepeti Gönder →', items:'ürün', checkoutTitle:'Siparişi Onayla', total:'Toplam', namePlaceholder:'Adınız (opsiyonel)', sendRequest:'İsteği Gönder', sending:'Gönderiliyor...', back:'Geri Dön', successTitle:'İsteğiniz Alındı', successMsg:'Siparişiniz personelimize iletildi, onaylandığında hazırlanmaya başlanacak. Afiyet olsun!' },
+  en: { invalidTitle:'Invalid Link', invalidMsg:'Please scan the QR code on your table to reach this page.', errorTitle:'Menu Could Not Load', errorMsg:'Something went wrong, please ask a staff member for help.', emptyMenu:'There are no items available right now.', other:'Other', sendCart:'Send Cart →', items:'items', checkoutTitle:'Confirm Order', total:'Total', namePlaceholder:'Your name (optional)', sendRequest:'Send Request', sending:'Sending...', back:'Go Back', successTitle:'Request Received', successMsg:'Your order has been sent to our staff and will be prepared once approved. Enjoy your meal!' },
+  ar: { invalidTitle:'رابط غير صالح', invalidMsg:'يرجى مسح رمز QR الموجود على طاولتك للوصول إلى هذه الصفحة.', errorTitle:'تعذر تحميل القائمة', errorMsg:'حدث خطأ ما، يرجى طلب المساعدة من أحد الموظفين.', emptyMenu:'لا توجد عناصر متاحة حاليًا.', other:'أخرى', sendCart:'إرسال السلة ←', items:'عناصر', checkoutTitle:'تأكيد الطلب', total:'المجموع', namePlaceholder:'اسمك (اختياري)', sendRequest:'إرسال الطلب', sending:'جارٍ الإرسال...', back:'رجوع', successTitle:'تم استلام طلبك', successMsg:'تم إرسال طلبك إلى فريقنا وسيتم تحضيره بعد الموافقة. بالهناء والشفاء!' },
+  de: { invalidTitle:'Ungültiger Link', invalidMsg:'Bitte scannen Sie den QR-Code auf Ihrem Tisch, um diese Seite zu erreichen.', errorTitle:'Menü konnte nicht geladen werden', errorMsg:'Etwas ist schiefgelaufen, bitte fragen Sie das Personal um Hilfe.', emptyMenu:'Derzeit sind keine Artikel verfügbar.', other:'Sonstiges', sendCart:'Warenkorb senden →', items:'Artikel', checkoutTitle:'Bestellung bestätigen', total:'Gesamt', namePlaceholder:'Ihr Name (optional)', sendRequest:'Anfrage senden', sending:'Wird gesendet...', back:'Zurück', successTitle:'Anfrage erhalten', successMsg:'Ihre Bestellung wurde an unser Personal gesendet und wird nach Bestätigung zubereitet. Guten Appetit!' },
+  ru: { invalidTitle:'Недействительная ссылка', invalidMsg:'Пожалуйста, отсканируйте QR-код на вашем столике, чтобы попасть на эту страницу.', errorTitle:'Не удалось загрузить меню', errorMsg:'Что-то пошло не так, обратитесь за помощью к персоналу.', emptyMenu:'Сейчас нет доступных позиций.', other:'Другое', sendCart:'Отправить заказ →', items:'позиций', checkoutTitle:'Подтвердить заказ', total:'Итого', namePlaceholder:'Ваше имя (необязательно)', sendRequest:'Отправить запрос', sending:'Отправка...', back:'Назад', successTitle:'Запрос получен', successMsg:'Ваш заказ передан персоналу и будет готовиться после подтверждения. Приятного аппетита!' },
+};
+function getLang(){
+  try {
+    const saved = localStorage.getItem('rys_menu_lang');
+    if(saved && I18N[saved]) return saved;
+  } catch(e){}
+  return 'tr';
+}
+function setLang(code){
+  if(!I18N[code]) return;
+  try { localStorage.setItem('rys_menu_lang', code); } catch(e){}
+  STATE.lang = code;
+  document.documentElement.setAttribute('lang', code);
+  document.documentElement.setAttribute('dir', code==='ar' ? 'rtl' : 'ltr');
+  if(STATE.menu) renderMenu(); else init();
+}
+function t(key){ return (I18N[STATE.lang||'tr'] && I18N[STATE.lang||'tr'][key]) || I18N.tr[key] || key; }
+function productName(p){
+  if(STATE.lang==='tr' || !STATE.lang) return p.name;
+  return (p.name_translations && p.name_translations[STATE.lang]) || p.name;
+}
+STATE.lang = getLang();
+document.documentElement.setAttribute('lang', STATE.lang);
+document.documentElement.setAttribute('dir', STATE.lang==='ar' ? 'rtl' : 'ltr');
+
 function escapeHtml(s){ const d = document.createElement('div'); d.textContent = s||''; return d.innerHTML; }
 function money(n){ return (Math.round((n||0)*100)/100).toLocaleString('tr-TR',{minimumFractionDigits:2,maximumFractionDigits:2})+' TL'; }
+function langPickerHtml(){
+  return `<div class="lang-picker">${LANGS.map(l => `<button type="button" class="lang-btn ${STATE.lang===l.code?'active':''}" onclick="setLang('${l.code}')">${l.label}</button>`).join('')}</div>`;
+}
 
 function renderState(html){ document.getElementById('app').innerHTML = html; }
 
 async function init(){
   if(!QR_TOKEN){
-    renderState(stateBoxHtml('⚠️', 'Geçersiz Bağlantı', 'Bu sayfaya masadaki QR kodu okutarak ulaşmalısınız.'));
+    renderState(stateBoxHtml('⚠️', t('invalidTitle'), t('invalidMsg')));
     return;
   }
   const { data, error } = await sb.rpc('get_public_menu', { p_qr_token: QR_TOKEN });
   if(error || !data){
-    renderState(stateBoxHtml('⚠️', 'Menü Yüklenemedi', (error && error.message) || 'Bir hata oluştu, lütfen personelden yardım isteyin.'));
+    renderState(stateBoxHtml('⚠️', t('errorTitle'), (error && error.message) || t('errorMsg')));
     return;
   }
   STATE.menu = data;
   renderMenu();
 }
 function stateBoxHtml(icon, title, msg){
-  return `<div class="center-wrap"><div class="state-box"><div style="font-size:40px;">${icon}</div><h2>${escapeHtml(title)}</h2><p>${escapeHtml(msg)}</p></div></div>`;
+  return `<div style="padding:16px;display:flex;justify-content:flex-end;">${langPickerHtml()}</div>
+    <div class="center-wrap" style="min-height:calc(100vh - 66px);"><div class="state-box"><div style="font-size:40px;">${icon}</div><h2>${escapeHtml(title)}</h2><p>${escapeHtml(msg)}</p></div></div>`;
 }
 
 function renderMenu(){
   const m = STATE.menu;
   const products = m.products || [];
   if(products.length===0){
-    renderState(headerHtml() + '<main><p class="empty-msg">Şu anda menüde satışa açık ürün yok.</p></main>');
+    renderState(headerHtml() + '<main><p class="empty-msg">'+escapeHtml(t('emptyMenu'))+'</p></main>');
     return;
   }
   const groups = {};
   const order = [];
   products.forEach(p => {
-    const key = p.station_name || 'Diğer';
+    const key = p.station_name || t('other');
     if(!groups[key]){ groups[key] = []; order.push(key); }
     groups[key].push(p);
   });
@@ -110,7 +161,7 @@ function renderMenu(){
     <div class="station-title">${escapeHtml(key)}</div>
     ${groups[key].map(p => `
       <div class="product-card">
-        <div class="product-name">${escapeHtml(p.name)}<div class="product-price">${money(p.price)}</div></div>
+        <div class="product-name">${escapeHtml(productName(p))}<div class="product-price">${money(p.price)}</div></div>
         <button class="qty-btn" onclick="stepCart('${p.id}',-1)">-</button>
         <span class="qty-val" id="qty_${p.id}">${STATE.cart[p.id]||0}</span>
         <button class="qty-btn" onclick="stepCart('${p.id}',1)">+</button>
@@ -120,15 +171,17 @@ function renderMenu(){
     <div class="cartbar" id="cartbar">
       <div class="cartbar-row">
         <span class="cartbar-total" id="cartTotal">${money(0)}</span>
-        <button onclick="openCheckout()">Sepeti Gönder →</button>
+        <button onclick="openCheckout()">${escapeHtml(t('sendCart'))}</button>
       </div>
     </div>`);
+  updateCartBar();
 }
 function headerHtml(){
   const m = STATE.menu;
   return `<header>
     <img src="/assets/images/logo.webp" alt="Peyktan">
     <div class="titles"><h1>${escapeHtml(m.restaurant_name)}</h1><p>${escapeHtml(m.table_name)}</p></div>
+    ${langPickerHtml()}
   </header>`;
 }
 function stepCart(productId, delta){
@@ -149,7 +202,7 @@ function updateCartBar(){
     const p = products.find(x => x.id===id);
     if(p) total += p.price * STATE.cart[id];
   });
-  document.getElementById('cartTotal').textContent = money(total) + ' · ' + ids.reduce((s,id)=>s+STATE.cart[id],0) + ' ürün';
+  document.getElementById('cartTotal').textContent = money(total) + ' · ' + ids.reduce((s,id)=>s+STATE.cart[id],0) + ' ' + t('items');
 }
 function openCheckout(){
   const ids = Object.keys(STATE.cart);
@@ -165,13 +218,13 @@ function openCheckout(){
   bg.className = 'modal-bg';
   bg.onclick = (e) => { if(e.target===bg) bg.remove(); };
   bg.innerHTML = `<div class="modal">
-    <h2>Siparişi Onayla</h2>
-    ${rows.map(r => `<div class="item-row"><span>${r.qty}x ${escapeHtml(r.p.name)}</span><span>${money(r.p.price*r.qty)}</span></div>`).join('')}
-    <div class="item-row" style="font-weight:800;border-top:1px solid var(--border);"><span>Toplam</span><span>${money(total)}</span></div>
-    <input id="ckName" placeholder="Adınız (opsiyonel)" style="margin-top:14px;">
+    <h2>${escapeHtml(t('checkoutTitle'))}</h2>
+    ${rows.map(r => `<div class="item-row"><span>${r.qty}x ${escapeHtml(productName(r.p))}</span><span>${money(r.p.price*r.qty)}</span></div>`).join('')}
+    <div class="item-row" style="font-weight:800;border-top:1px solid var(--border);"><span>${escapeHtml(t('total'))}</span><span>${money(total)}</span></div>
+    <input id="ckName" placeholder="${escapeHtml(t('namePlaceholder'))}" style="margin-top:14px;">
     <div class="err" id="ckErr"></div>
-    <button class="primary" id="ckSendBtn" onclick="sendCustomerOrder()">İsteği Gönder</button>
-    <button class="ghost" onclick="document.getElementById('checkoutBg').remove()">Geri Dön</button>
+    <button class="primary" id="ckSendBtn" onclick="sendCustomerOrder()">${escapeHtml(t('sendRequest'))}</button>
+    <button class="ghost" onclick="document.getElementById('checkoutBg').remove()">${escapeHtml(t('back'))}</button>
   </div>`;
   document.body.appendChild(bg);
 }
@@ -182,13 +235,13 @@ async function sendCustomerOrder(){
   const btn = document.getElementById('ckSendBtn');
   const errEl = document.getElementById('ckErr');
   errEl.textContent = '';
-  btn.disabled = true; btn.textContent = 'Gönderiliyor...';
+  btn.disabled = true; btn.textContent = t('sending');
   const { error } = await sb.rpc('submit_customer_order_request', { p_qr_token: QR_TOKEN, p_customer_name: name||null, p_items: items });
-  btn.disabled = false; btn.textContent = 'İsteği Gönder';
+  btn.disabled = false; btn.textContent = t('sendRequest');
   if(error){ errEl.textContent = error.message; return; }
   STATE.cart = {};
   const bg = document.getElementById('checkoutBg'); if(bg) bg.remove();
-  renderState(stateBoxHtml('✅', 'İsteğiniz Alındı', 'Siparişiniz personelimize iletildi, onaylandığında hazırlanmaya başlanacak. Afiyet olsun!'));
+  renderState(stateBoxHtml('✅', t('successTitle'), t('successMsg')));
 }
 init();
 </script>

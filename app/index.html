@@ -4442,6 +4442,44 @@ async function saveRecipe(productId){
   renderSettingsView(document.getElementById('main'), session);
 }
 
+/* --- Çok dilli QR menü: ürün adının diğer dillerdeki karşılığı (opsiyonel,
+   boş bırakılırsa /menu/ sayfası Türkçe adı gösterir), bkz.
+   update_product_translations / get_public_menu. */
+const QR_MENU_LANGUAGES = [
+  { code:'en', label:'İngilizce' },
+  { code:'ar', label:'Arapça' },
+  { code:'de', label:'Almanca' },
+  { code:'ru', label:'Rusça' },
+];
+function openTranslationsModal(productId){
+  const prod = APP.config.products.find(p => p.id===productId);
+  const translations = prod.name_translations || {};
+  const bg = document.createElement('div');
+  bg.id = 'translationsModalBg';
+  bg.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:100;padding:16px;';
+  bg.onclick = (e) => { if(e.target===bg) bg.remove(); };
+  bg.innerHTML = `<div style="background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:20px;max-width:440px;width:100%;max-height:88vh;overflow:auto;">
+    <div style="display:flex;justify-content:space-between;"><h2 style="margin:0;">${escapeHtml(prod.name)} - Çeviriler</h2><span style="cursor:pointer;color:var(--muted);" onclick="document.getElementById('translationsModalBg').remove()">✕</span></div>
+    <p class="muted" style="text-align:left;">Boş bıraktığınız diller için QR menüde Türkçe ad gösterilir.</p>
+    ${QR_MENU_LANGUAGES.map(l => `<div class="field-group"><label>${l.label}</label><input id="tr_${l.code}_${productId}" value="${escapeHtml(translations[l.code]||'')}" placeholder="${escapeHtml(prod.name)}"></div>`).join('')}
+    <button style="margin-top:14px;" onclick="saveTranslations('${productId}')">Çevirileri Kaydet</button>
+  </div>`;
+  document.body.appendChild(bg);
+}
+async function saveTranslations(productId){
+  const session = getSession();
+  const translations = {};
+  QR_MENU_LANGUAGES.forEach(l => {
+    const v = document.getElementById('tr_'+l.code+'_'+productId).value.trim();
+    if(v) translations[l.code] = v;
+  });
+  const { error } = await sb.rpc('update_product_translations', { p_token: session.session_token, p_product_id: productId, p_translations: translations });
+  if(error){ alert(error.message); return; }
+  document.getElementById('translationsModalBg').remove();
+  showToast('Çeviriler kaydedildi ✓');
+  renderSettingsView(document.getElementById('main'), session);
+}
+
 /* --- İstasyonlar --- */
 const STATION_ICON_CHOICES = ['🍳','🍕','🍔','🍖','🥩','🍗','🍟','🌭','🥪','🌮','🥗','🍜','🍲','🍝','🍣','🍱','🥟','🍞','🥐','🧁','🍰','🍦','☕','🍵','🧋','🍹','🍺','🥤','🔥','🔪'];
 function stationIconPickerHtml(id, current){
@@ -4714,6 +4752,7 @@ function renderProductsSettings(el, session){
             <button class="sbtn" onclick="saveProduct('${p.id}')">Kaydet</button>
             <button class="sbtn" style="background:${p.available===false?'var(--green)':'var(--panel)'};color:${p.available===false?'var(--btn-ink)':'var(--text)'};border:1.5px solid var(--border);" onclick="toggleProductAvailable('${p.id}')">${p.available===false?'Aç':'Kapat'}</button>
             <button class="sbtn" style="background:var(--accent2);color:var(--btn-ink);" onclick="openRecipeModal('${p.id}')">Reçete</button>
+            <button class="sbtn" style="background:#6366f1;color:#fff;" onclick="openTranslationsModal('${p.id}')" title="QR menüde diğer dillerde gösterilecek isim">🌐 Çeviri</button>
             <button class="sbtn" style="background:var(--red);color:var(--btn-ink);" onclick="removeProduct('${p.id}')">Sil</button>
           </td>
         </tr>`).join('');
