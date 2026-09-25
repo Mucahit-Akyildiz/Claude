@@ -1744,8 +1744,78 @@ async function renderPaymentsView(main, session){
   ]));
   if(!APP.config) APP.config = cfgRes.data;
   APP.liveOrders = liveRes.data || [];
-  main.innerHTML = `<h1>Ödemeler</h1><div class="muted" id="payStatus"></div><div class="table-grid" id="payGrid"></div>`;
+  main.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;"><h1 style="margin:0;">Ödemeler</h1><button style="width:auto;padding:8px 14px;margin:0;background:#a855f7;color:#fff;" onclick="openGiftCardManager()">🎁 Hediye Kartları</button></div><div class="muted" id="payStatus"></div><div class="table-grid" id="payGrid"></div>`;
   renderPayGrid();
+}
+/* --- Hediye Kartları: yeni kart oluşturma (kod üretimi) ve mevcut
+   kartları arama/görme, bkz. issue_gift_card / list_gift_cards. --- */
+async function openGiftCardManager(){
+  const session = getSession();
+  const bg = document.createElement('div');
+  bg.id = 'giftCardMgrBg';
+  bg.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:100;padding:16px;';
+  bg.onclick = (e) => { if(e.target===bg) bg.remove(); };
+  bg.innerHTML = `<div style="background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:20px;max-width:640px;width:100%;max-height:88vh;overflow:auto;">
+    <div style="display:flex;justify-content:space-between;gap:10px;"><h2 style="margin:0;">🎁 Hediye Kartları</h2><span style="cursor:pointer;color:var(--muted);flex-shrink:0;" onclick="document.getElementById('giftCardMgrBg').remove()">✕</span></div>
+    <div class="add-row-panel" style="margin-top:14px;">
+      <p>Yeni Hediye Kartı Oluştur</p>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+        <div class="field-group"><label>Tutar</label><input id="gcNewAmount" type="number" min="0" step="0.01" placeholder="örn. 200"></div>
+        <div class="field-group"><label>Not (opsiyonel)</label><input id="gcNewNote" placeholder="örn. hediye"></div>
+      </div>
+      <button style="margin-top:12px;max-width:220px;" onclick="createGiftCard()">+ Kart Oluştur</button>
+      <div id="gcNewResult" style="margin-top:10px;"></div>
+    </div>
+    <div style="margin-top:18px;">
+      <input id="gcSearchInput" placeholder="Kod, müşteri adı veya telefon ara..." oninput="debouncedGiftCardSearch(this.value)">
+    </div>
+    <div id="gcListWrap" style="margin-top:10px;"><p class="muted">Yükleniyor…</p></div>
+  </div>`;
+  document.body.appendChild(bg);
+  await refreshGiftCardList(session);
+}
+async function createGiftCard(){
+  const session = getSession();
+  const amount = parseFloat(document.getElementById('gcNewAmount').value);
+  const note = document.getElementById('gcNewNote').value.trim();
+  if(!amount || amount<=0){ alert('Geçerli bir tutar girin'); return; }
+  const { data, error } = await sb.rpc('issue_gift_card', { p_token: session.session_token, p_amount: amount, p_customer_id: null, p_note: note||null });
+  if(error){ alert(error.message); return; }
+  document.getElementById('gcNewResult').innerHTML = `<div style="background:var(--panel2);border-radius:10px;padding:12px;text-align:center;">
+    <div class="muted" style="font-size:12px;">Yeni Kart Kodu</div>
+    <div style="font-size:22px;font-weight:800;letter-spacing:2px;margin:4px 0;">${escapeHtml(data.code)}</div>
+    <div class="muted" style="font-size:12px;">Bakiye: ${money(data.balance)}</div>
+  </div>`;
+  document.getElementById('gcNewAmount').value = '';
+  document.getElementById('gcNewNote').value = '';
+  showToast('Hediye kartı oluşturuldu ✓');
+  refreshGiftCardList(session);
+}
+let GC_SEARCH_TIMER = null;
+function debouncedGiftCardSearch(v){
+  clearTimeout(GC_SEARCH_TIMER);
+  GC_SEARCH_TIMER = setTimeout(() => refreshGiftCardList(getSession(), v), 350);
+}
+async function refreshGiftCardList(session, search){
+  const wrap = document.getElementById('gcListWrap'); if(!wrap) return;
+  const { data, error } = await sb.rpc('list_gift_cards', { p_token: session.session_token, p_search: search||null });
+  if(error){ wrap.innerHTML = '<p class="muted">Yüklenemedi: '+error.message+'</p>'; return; }
+  const rows = data || [];
+  if(!rows.length){ wrap.innerHTML = '<p class="muted">Hediye kartı yok.</p>'; return; }
+  wrap.innerHTML = `<div class="settings-table-wrap">
+    <table class="settings-table">
+      <thead><tr><th>Kod</th><th>Bakiye</th><th>Müşteri</th><th>Oluşturma</th></tr></thead>
+      <tbody>
+      ${rows.map(g => `
+        <tr>
+          <td class="col-name" style="font-weight:700;letter-spacing:1px;">${escapeHtml(g.code)}${!g.is_active?' <span class="muted" style="font-weight:400;">(iptal)</span>':''}</td>
+          <td>${money(g.balance)} / ${money(g.initial_balance)}</td>
+          <td>${g.customer_name ? escapeHtml(g.customer_name) : '<span class="muted">-</span>'}</td>
+          <td>${new Date(g.created_at).toLocaleDateString('tr-TR')}</td>
+        </tr>`).join('')}
+      </tbody>
+    </table>
+  </div>`;
 }
 /* Grid'i (masa/paket kartları + tutarları) APP.liveOrders'tan yeniden çizer -
    sunucuya yeniden sormadan, herhangi bir ödeme al(n)dığında hemen
@@ -1806,6 +1876,8 @@ function openPayModal(orderId, tableName){
   bg.dataset.customerId = '';
   bg.dataset.customerPoints = '0';
   bg.dataset.isBirthdayToday = '0';
+  bg.dataset.giftCardCode = '';
+  bg.dataset.giftCardBalance = '0';
   bg.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:100;padding:16px;';
   bg.onclick = (e) => { if(e.target===bg) bg.remove(); };
   bg.innerHTML = `<div style="background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:20px;max-width:760px;width:100%;max-height:88vh;overflow:auto;">
@@ -1851,10 +1923,19 @@ function openPayModal(orderId, tableName){
           <input id="payRedeemPoints" type="number" min="0" step="1" placeholder="Kullanılacak puan" style="margin:0;" oninput="applyRedeemPoints(this.value)">
         </div>
       </div>
+      <div style="background:var(--panel2);border-radius:10px;padding:10px;">
+        <p class="muted" style="font-size:12px;margin:0 0 6px;">🎁 Hediye Kartı (opsiyonel)</p>
+        <div style="display:flex;gap:8px;">
+          <input id="payGiftCardCode" placeholder="Kart kodu" style="flex:1;margin:0;text-transform:uppercase;">
+          <button type="button" style="width:auto;padding:8px 12px;margin:0;" onclick="lookupPayGiftCard()">Sorgula</button>
+        </div>
+        <p id="payGiftCardInfo" class="muted" style="font-size:12px;margin:6px 0 0;">Kart seçilmedi</p>
+      </div>
     </div>
     <div style="text-align:right;font-weight:800;font-size:20px;margin:10px 0;" id="payFinalTotal">Ödenecek: ${money(subtotal)}</div>
     <button style="background:var(--green);color:var(--btn-ink);margin-bottom:8px;" onclick="finishPaymentFull('cash')">💵 Nakit</button>
     <button style="background:var(--accent2);color:var(--btn-ink);margin-bottom:8px;" onclick="finishPaymentFull('card')">💳 Kredi Kartı</button>
+    <button style="background:#a855f7;color:#fff;margin-bottom:8px;" onclick="finishPaymentFull('gift_card')">🎁 Hediye Kartı ile Öde</button>
     <button style="background:transparent;border:1px solid var(--border);color:var(--text);" onclick="openSplitPay()">➗ Bölünmüş Ödeme</button>
   </div>`;
   document.body.appendChild(bg);
@@ -1943,6 +2024,23 @@ function applyRedeemPoints(v){
   bg.dataset.redeemPoints = String(pts);
   recomputePaySelection();
 }
+async function lookupPayGiftCard(){
+  const bg = document.getElementById('payModalBg');
+  const code = document.getElementById('payGiftCardCode').value.trim();
+  const infoEl = document.getElementById('payGiftCardInfo');
+  if(!code){ infoEl.textContent = 'Kart kodu girin'; return; }
+  const session = getSession();
+  const { data, error } = await sb.rpc('check_gift_card', { p_token: session.session_token, p_code: code });
+  if(error || !data){
+    infoEl.textContent = error ? error.message : 'Kart bulunamadı';
+    bg.dataset.giftCardCode = '';
+    bg.dataset.giftCardBalance = '0';
+    return;
+  }
+  bg.dataset.giftCardCode = data.code;
+  bg.dataset.giftCardBalance = String(data.balance);
+  infoEl.textContent = data.code + ' · Bakiye: ' + money(data.balance);
+}
 function updatePayFinalTotalLine(){
   const bg = document.getElementById('payModalBg'); if(!bg) return;
   const net = payFinalTotal();
@@ -2029,6 +2127,14 @@ async function finishPaymentFull(method){
   const amountWithTip = Math.round((total+tip)*100)/100;
   const customerId = bg.dataset.customerId || null;
   const redeemPoints = parseFloat(bg.dataset.redeemPoints||0);
+  if(method==='gift_card'){
+    const code = bg.dataset.giftCardCode;
+    const balance = parseFloat(bg.dataset.giftCardBalance||0);
+    if(!code){ alert('Önce bir hediye kartı sorgulayın'); return; }
+    if(balance < amountWithTip){ alert('Hediye kartında yeterli bakiye yok (bakiye: '+money(balance)+', gereken: '+money(amountWithTip)+')'); return; }
+    await finishPayment(orderId, method, total, 0, 0, parseFloat(bg.dataset.discountAmount||0), itemQtys, tip, customerId, redeemPoints, code, amountWithTip);
+    return;
+  }
   await finishPayment(orderId, method, total, method==='cash'?amountWithTip:0, method==='card'?amountWithTip:0, parseFloat(bg.dataset.discountAmount||0), itemQtys, tip, customerId, redeemPoints);
 }
 function openSplitPay(){
@@ -2147,12 +2253,13 @@ async function confirmSplitPay(orderId, total, discountAmount, tipAmount, custom
   document.getElementById('splitPayBg').remove();
   await finishPayment(orderId, 'split', total, cash, card, discountAmount, buildPayItemQtys(), tipAmount, customerId||null, redeemPoints);
 }
-async function finishPayment(orderId, method, total, cash, card, discountAmount, itemQtys, tipAmount, customerId, redeemPoints){
+async function finishPayment(orderId, method, total, cash, card, discountAmount, itemQtys, tipAmount, customerId, redeemPoints, giftCardCode, giftCardAmount){
   const session = getSession();
   const { data, error } = await sb.rpc('pay_order_items', {
     p_token: session.session_token, p_order_id: orderId, p_payment_method: method,
     p_cash: cash, p_card: card, p_discount_amount: discountAmount||0, p_item_qtys: itemQtys||null,
-    p_tip_amount: tipAmount||0, p_customer_id: customerId||null, p_redeem_points: redeemPoints||0
+    p_tip_amount: tipAmount||0, p_customer_id: customerId||null, p_redeem_points: redeemPoints||0,
+    p_gift_card_code: giftCardCode||null, p_gift_card_amount: giftCardAmount||0
   });
   if(error){ alert('Ödeme kaydedilemedi: '+error.message); return; }
   const bg = document.getElementById('payModalBg'); if(bg) bg.remove();
