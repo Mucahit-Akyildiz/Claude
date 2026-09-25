@@ -435,6 +435,17 @@ function getSession(){
 }
 function setSession(s){ sessionStorage.setItem('staff_session', JSON.stringify(s)); }
 function clearSession(){ sessionStorage.removeItem('staff_session'); }
+/* Şirket oturumu (şube sahibi/zincir hesabı) - şube personel oturumundan
+   (staff_session) ayrı ve bağımsız tutulur. Bir şirket sahibi bir şubeye
+   girdiğinde (bkz. enterBranch/switch_to_branch), o an için hem şirket
+   oturumu hem de normal şube personel oturumu aynı anda sessionStorage'da
+   bulunur - sidebar'daki "Şirkete Dön" butonu bunu kontrol eder. */
+function getCompanySession(){
+  try{ return JSON.parse(sessionStorage.getItem('company_session')||'null'); }
+  catch(e){ return null; }
+}
+function setCompanySession(s){ sessionStorage.setItem('company_session', JSON.stringify(s)); }
+function clearCompanySession(){ sessionStorage.removeItem('company_session'); }
 /* Herhangi bir RPC çağrısı 'ABONELIK_SURESI_DOLDU' ile dönerse (bkz. sb.rpc
    sarmalayıcısı) buradan tetiklenir - oturum aynı anda birden fazla istek
    başarısız olsa bile ekran sadece bir kez değişsin diye bayrakla korunur. */
@@ -560,9 +571,12 @@ function render(){
   const app = document.getElementById('app');
   const session = getSession();
   if(!session){
+    const companySession = getCompanySession();
+    if(companySession){ renderCompanyPanel(app, companySession); return; }
     if(APP.authScreen==='signup') renderSignupScreen(app);
     else if(APP.authScreen==='expired') renderExpiredScreen(app);
     else if(APP.authScreen==='forgot') renderForgotPasswordScreen(app);
+    else if(APP.authScreen==='companyLogin') renderCompanyLoginScreen(app);
     else renderLoginScreen(app);
     return;
   }
@@ -600,6 +614,7 @@ function render(){
         </nav>
         <div class="sb-bottom">
           <div id="shiftWidget" class="shift-widget">${shiftWidgetHtml()}</div>
+          ${getCompanySession() ? '<button class="sb-logout" onclick="returnToCompanyPanel()" title="Şirket paneline dön">🏢<span class="label"> Şirkete Dön</span></button>' : ''}
           <div class="theme-toggle">
             <button class="${theme==='dark'?'active':''}" onclick="setTheme('dark')" type="button">🌙 <span class="label">Koyu</span></button>
             <button class="${theme==='light'?'active':''}" onclick="setTheme('light')" type="button">☀️ <span class="label">Açık</span></button>
@@ -664,6 +679,7 @@ function renderAdminArea(){
         <div class="tab ${(APP.adminView||'promos')==='promos'?'active':''}" data-tab="promos" onclick="setAdminView('promos')">Promosyon Kodları</div>
         <div class="tab ${APP.adminView==='pricing'?'active':''}" data-tab="pricing" onclick="setAdminView('pricing')">💳 Paket Fiyatları</div>
         <div class="tab ${APP.adminView==='restaurants'?'active':''}" data-tab="restaurants" onclick="setAdminView('restaurants')">🏬 İşletmeler</div>
+        <div class="tab ${APP.adminView==='companies'?'active':''}" data-tab="companies" onclick="setAdminView('companies')">🏢 Şirketler</div>
       </div>
       <main id="main"></main>
     </div>`;
@@ -678,6 +694,7 @@ function renderAdminTabContent(admin){
   const main = document.getElementById('main');
   if((APP.adminView||'promos')==='pricing') renderPricingAdmin(main, admin);
   else if(APP.adminView==='restaurants') renderRestaurantsAdmin(main, admin);
+  else if(APP.adminView==='companies') renderCompaniesAdmin(main, admin);
   else renderPromoAdmin(main, admin);
 }
 function renderAdminLogin(app){
@@ -733,7 +750,7 @@ async function refreshPackagesAdmin(admin){
     <div class="settings-table-wrap">
       <table class="settings-table">
         <thead><tr>
-          <th>Kimlik</th><th>Ad</th><th>Açıklama</th><th>Kullanıcı Limiti</th><th>Fiyat (TL/ay)</th>
+          <th>Kimlik</th><th>Ad</th><th>Açıklama</th><th>Kullanıcı Limiti</th><th>Şube Limiti</th><th>Fiyat (TL/ay)</th>
           <th>Popüler</th><th>Aktif</th><th>İşletme</th><th></th>
         </tr></thead>
         <tbody>
@@ -743,6 +760,7 @@ async function refreshPackagesAdmin(admin){
             <td class="col-name"><input value="${escapeHtml(p.name)}" id="pkg_name_${p.id}"></td>
             <td class="col-name"><input value="${escapeHtml(p.description)}" id="pkg_desc_${p.id}"></td>
             <td class="col-num" style="width:90px;"><input type="number" min="1" step="1" value="${p.max_users}" id="pkg_users_${p.id}"></td>
+            <td class="col-num" style="width:90px;"><input type="number" min="1" step="1" value="${p.max_branches||1}" id="pkg_branches_${p.id}" title="Bu paketi seçen bir şirket en fazla kaç şube açabilir"></td>
             <td class="col-num" style="width:110px;"><input type="number" min="0" step="0.01" value="${p.price}" id="pkg_price_${p.id}"></td>
             <td style="text-align:center;"><input type="checkbox" id="pkg_popular_${p.id}" ${p.is_popular?'checked':''} style="width:18px;height:18px;"></td>
             <td style="text-align:center;"><input type="checkbox" id="pkg_active_${p.id}" ${p.active?'checked':''} style="width:18px;height:18px;"></td>
@@ -753,7 +771,7 @@ async function refreshPackagesAdmin(admin){
             </td>
           </tr>
           <tr>
-            <td colspan="9" style="padding:6px 8px 16px;border-top:none;">
+            <td colspan="10" style="padding:6px 8px 16px;border-top:none;">
               <div class="muted" style="font-size:12px;font-weight:700;margin-bottom:6px;">Bu pakette hangi özellikler olacak:</div>
               ${featureCheckboxesHtml('pkg_feat_'+p.id, p.features||[])}
             </td>
@@ -763,11 +781,12 @@ async function refreshPackagesAdmin(admin){
     </div>`}
     <div class="add-row-panel" style="margin-top:20px;">
       <p>Yeni Paket Oluştur</p>
-      <div style="display:grid;grid-template-columns:1fr 1fr 1.4fr 0.8fr 0.8fr;gap:10px;align-items:end;">
+      <div style="display:grid;grid-template-columns:1fr 1fr 1.4fr 0.8fr 0.8fr 0.8fr;gap:10px;align-items:end;">
         <div class="field-group"><label>Kimlik (benzersiz, örn. paket4)</label><input id="npkgId" placeholder="paket4" autocapitalize="none"></div>
         <div class="field-group"><label>Ad</label><input id="npkgName" placeholder="örn. Kurumsal"></div>
         <div class="field-group"><label>Açıklama</label><input id="npkgDesc" placeholder="örn. Çok şubeli zincirler için"></div>
         <div class="field-group"><label>Kullanıcı Limiti</label><input type="number" min="1" step="1" id="npkgUsers" placeholder="20"></div>
+        <div class="field-group"><label>Şube Limiti</label><input type="number" min="1" step="1" id="npkgBranches" placeholder="1" value="1"></div>
         <div class="field-group"><label>Fiyat (TL/ay)</label><input type="number" min="0" step="0.01" id="npkgPrice" placeholder="1499"></div>
       </div>
       <div class="muted" style="font-size:12px;font-weight:700;margin:14px 0 6px;">Bu pakette hangi özellikler olacak:</div>
@@ -800,16 +819,19 @@ async function savePackageRow(id){
   const name = document.getElementById('pkg_name_'+id).value.trim();
   const desc = document.getElementById('pkg_desc_'+id).value.trim();
   const maxUsers = Number(document.getElementById('pkg_users_'+id).value);
+  const maxBranches = Number(document.getElementById('pkg_branches_'+id).value);
   const price = Number(document.getElementById('pkg_price_'+id).value);
   const popular = document.getElementById('pkg_popular_'+id).checked;
   const active = document.getElementById('pkg_active_'+id).checked;
   if(!name){ alert('Paket adı gerekli'); return; }
   if(!(maxUsers>=1)){ alert('Kullanıcı limiti en az 1 olmalı'); return; }
+  if(!(maxBranches>=1)){ alert('Şube limiti en az 1 olmalı'); return; }
   if(!(price>=0)){ alert('Fiyat negatif olamaz'); return; }
   const features = readPackageFeatures('pkg_feat_'+id);
   const { error } = await sb.rpc('admin_upsert_package', {
     p_token: admin.session_token, p_id: id, p_name: name, p_description: desc,
-    p_max_users: maxUsers, p_price: price, p_is_popular: popular, p_active: active, p_features: features
+    p_max_users: maxUsers, p_price: price, p_is_popular: popular, p_active: active, p_features: features,
+    p_max_branches: maxBranches
   });
   if(error){ alert(error.message); return; }
   showToast('Paket kaydedildi ✓');
@@ -832,15 +854,18 @@ async function createPackage(){
   const name = document.getElementById('npkgName').value.trim();
   const desc = document.getElementById('npkgDesc').value.trim();
   const maxUsers = Number(document.getElementById('npkgUsers').value);
+  const maxBranches = Number(document.getElementById('npkgBranches').value) || 1;
   const price = Number(document.getElementById('npkgPrice').value);
   if(!id || !/^[a-z0-9_-]+$/.test(id)){ errBox.textContent = 'Kimlik sadece küçük harf/rakam/tire içerebilir'; return; }
   if(!name){ errBox.textContent = 'Paket adı gerekli'; return; }
   if(!(maxUsers>=1)){ errBox.textContent = 'Kullanıcı limiti en az 1 olmalı'; return; }
+  if(!(maxBranches>=1)){ errBox.textContent = 'Şube limiti en az 1 olmalı'; return; }
   if(!(price>=0)){ errBox.textContent = 'Fiyat negatif olamaz'; return; }
   const features = readPackageFeatures('npkg_feat');
   const { error } = await sb.rpc('admin_upsert_package', {
     p_token: admin.session_token, p_id: id, p_name: name, p_description: desc,
-    p_max_users: maxUsers, p_price: price, p_is_popular: false, p_active: true, p_features: features
+    p_max_users: maxUsers, p_price: price, p_is_popular: false, p_active: true, p_features: features,
+    p_max_branches: maxBranches
   });
   if(error){ errBox.textContent = error.message; return; }
   showToast('Paket oluşturuldu ✓');
@@ -1000,6 +1025,96 @@ async function toggleRestaurantActive(id, makeActive){
   if(error){ alert(error.message); return; }
   showToast(makeActive ? 'İşletme aktif edildi ✓' : 'İşletme pasif edildi ✓');
   refreshRestaurantsList(admin);
+}
+
+/* --- Şirketler: birden fazla şubesi olan zincirler (bkz. companies
+   tablosu). Şirket oluşturmak burada, platform yöneticisi tarafından
+   yapılır - şirket sahibi kendi kendine kayıt olamaz (bkz. login_company). --- */
+async function renderCompaniesAdmin(main, admin){
+  main.innerHTML = `<h1>🏢 Şirketler</h1><div id="companiesContent"></div>`;
+  await withLoadingOverlay(Promise.all([loadPackages(), refreshCompaniesList(admin)]));
+}
+async function refreshCompaniesList(admin){
+  const el = document.getElementById('companiesContent'); if(!el) return;
+  const { data, error } = await sb.rpc('admin_list_companies', { p_token: admin.session_token });
+  if(error){
+    if(error.message.includes('geçersiz')){ clearAdminSession(); render(); return; }
+    el.innerHTML = '<p class="muted">Yüklenemedi: '+error.message+'</p>'; return;
+  }
+  const companies = data || [];
+  el.innerHTML = `
+    <div class="add-row-panel" style="margin-bottom:22px;">
+      <p>Yeni Şirket Oluştur</p>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:10px;align-items:end;">
+        <div class="field-group"><label>Şirket Adı</label><input id="newCompanyName" placeholder="örn. Köfteci Zincir A.Ş."></div>
+        <div class="field-group"><label>Şirket Kodu</label><input id="newCompanyCode" placeholder="örn. koftecizincir" autocapitalize="none"></div>
+        <div class="field-group"><label>Şifre</label><input id="newCompanyPass" placeholder="En az 4 karakter"></div>
+        <div class="field-group"><label>Paket</label><select id="newCompanyPackage">${PACKAGES.map(p => `<option value="${p.id}">${escapeHtml(p.name)} (${p.max_branches||1} şube)</option>`).join('')}</select></div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px;">
+        <div class="field-group"><label>E-posta (opsiyonel)</label><input id="newCompanyEmail" placeholder="ornek@firma.com"></div>
+        <div class="field-group"><label>Telefon (opsiyonel)</label><input id="newCompanyPhone" placeholder="05xx xxx xx xx"></div>
+      </div>
+      <div class="error" id="newCompanyErr" style="margin-top:6px;"></div>
+      <button style="margin-top:12px;max-width:220px;" onclick="createCompanySubmit()">+ Şirket Oluştur</button>
+    </div>
+    ${companies.length===0 ? '<p class="muted">Henüz kayıtlı şirket yok.</p>' : `
+    <div class="settings-table-wrap">
+      <table class="settings-table">
+        <thead><tr><th>Şirket</th><th>Kod</th><th>Paket</th><th>Şube</th><th>Durum</th><th>Kayıt Tarihi</th><th></th></tr></thead>
+        <tbody>
+        ${companies.map(c => {
+          const pkg = PACKAGES_BY_ID[c.package_id];
+          let statusBadge = c.is_active
+            ? '<span class="role-badge" style="color:var(--green);border-color:var(--green);">Aktif</span>'
+            : '<span class="role-badge" style="color:var(--red);border-color:var(--red);">Pasif</span>';
+          return `
+          <tr>
+            <td class="col-name"><b>${escapeHtml(c.name)}</b></td>
+            <td class="col-name">${escapeHtml(c.code)}</td>
+            <td class="col-name">${pkg?escapeHtml(pkg.name):escapeHtml(c.package_id)}</td>
+            <td class="col-name">${c.branch_count}${pkg&&pkg.max_branches?'/'+pkg.max_branches:''}</td>
+            <td>${statusBadge}</td>
+            <td class="col-name">${new Date(c.created_at).toLocaleDateString('tr-TR')}</td>
+            <td style="white-space:nowrap;">
+              <button class="sbtn" style="${c.is_active?'background:var(--red);color:var(--btn-ink);':''}" onclick="toggleCompanyActive('${c.id}', ${!c.is_active})">${c.is_active?'Pasif Et':'Aktif Et'}</button>
+            </td>
+          </tr>`;
+        }).join('')}
+        </tbody>
+      </table>
+    </div>`}
+  `;
+}
+async function createCompanySubmit(){
+  const admin = getAdminSession();
+  const name = document.getElementById('newCompanyName').value.trim();
+  const code = document.getElementById('newCompanyCode').value.trim();
+  const password = document.getElementById('newCompanyPass').value;
+  const packageId = document.getElementById('newCompanyPackage').value;
+  const email = document.getElementById('newCompanyEmail').value.trim();
+  const phone = document.getElementById('newCompanyPhone').value.trim();
+  const errEl = document.getElementById('newCompanyErr');
+  errEl.textContent = '';
+  if(!name || !code || !password){ errEl.textContent = 'Şirket adı, kodu ve şifre gerekli'; return; }
+  const { error } = await sb.rpc('admin_create_company', {
+    p_token: admin.session_token, p_name: name, p_code: code, p_password: password,
+    p_package_id: packageId, p_email: email||null, p_phone: phone||null
+  });
+  if(error){ errEl.textContent = error.message; return; }
+  showToast('Şirket oluşturuldu ✓');
+  refreshCompaniesList(admin);
+}
+async function toggleCompanyActive(id, makeActive){
+  const msg = makeActive
+    ? 'Bu şirketi aktif etmek istediğinize emin misiniz?'
+    : 'Bu şirketi pasif etmek istediğinize emin misiniz? Şirket ve tüm şubeleri giriş yapamaz hale gelir.';
+  if(!confirm(msg)) return;
+  const admin = getAdminSession();
+  const { error } = await sb.rpc('admin_set_company_active', { p_token: admin.session_token, p_id: id, p_active: makeActive });
+  if(error){ alert(error.message); return; }
+  showToast(makeActive ? 'Şirket aktif edildi ✓' : 'Şirket pasif edildi ✓');
+  refreshCompaniesList(admin);
 }
 
 async function refreshPromoList(admin){
@@ -1165,12 +1280,201 @@ function renderLoginScreen(app){
       <p class="muted" style="text-align:center;margin-top:2px;font-size:13px;">Yeni işletme misiniz?
         <a href="#" style="color:var(--accent);" onclick="APP.authScreen='signup';render();return false;">Kayıt Ol / Paket Seç</a>
       </p>
+      <p class="muted" style="text-align:center;margin-top:2px;font-size:13px;">Şubeleri olan bir firma mısınız?
+        <a href="#" style="color:var(--accent);" onclick="APP.authScreen='companyLogin';render();return false;">🏢 Şirket Girişi</a>
+      </p>
     </div>
     </div>
     </div>`;
   document.getElementById('passInput').addEventListener('keydown', function(e){
     if(e.key==='Enter') doLogin();
   });
+}
+/* --- Şirket (birden fazla şubesi olan zincir) girişi --- */
+function renderCompanyLoginScreen(app){
+  app.innerHTML = `
+    <div class="center-wrap">
+    <div>
+    <div class="auth-brand"><img src="/assets/images/logo.webp" alt="Peyktan" class="auth-brand-logo"><span class="name">Peyktan</span></div>
+    <div class="box">
+      <h1>🏢 Şirket Girişi</h1>
+      <p class="muted">Birden fazla şubesi olan firmalar için - şirket kodu ve şifrenizle giriş yapın, ardından şubeler arasında geçiş yapabilirsiniz.</p>
+      <input id="companyCodeInput" placeholder="Şirket kodu" autocapitalize="none">
+      <input id="companyPassInput" type="password" placeholder="Şifre">
+      <button id="companyLoginBtn" onclick="doCompanyLogin()">Giriş Yap</button>
+      <div class="error" id="companyErrBox"></div>
+      <p class="muted" style="text-align:center;margin-top:16px;font-size:13px;">
+        <a href="#" style="color:var(--accent);" onclick="APP.authScreen='login';render();return false;">← Normal Girişe Dön</a>
+      </p>
+    </div>
+    </div>
+    </div>`;
+  document.getElementById('companyPassInput').addEventListener('keydown', function(e){
+    if(e.key==='Enter') doCompanyLogin();
+  });
+}
+async function doCompanyLogin(){
+  const code = document.getElementById('companyCodeInput').value.trim();
+  const password = document.getElementById('companyPassInput').value;
+  const errBox = document.getElementById('companyErrBox');
+  const btn = document.getElementById('companyLoginBtn');
+  errBox.textContent = '';
+  if(!code || !password){ errBox.textContent = 'Tüm alanları doldurun'; return; }
+  btn.disabled = true; btn.textContent = 'Giriş yapılıyor...';
+  try{
+    const { data, error } = await sb.rpc('login_company', { p_code: code, p_password: password });
+    if(error){ errBox.textContent = 'Bağlantı hatası: ' + error.message; return; }
+    if(!data || data.length === 0){ errBox.textContent = 'Şirket kodu veya şifre hatalı'; return; }
+    const row = data[0];
+    setCompanySession({ session_token: row.session_token, company_id: row.company_id, company_name: row.company_name, package_id: row.package_id });
+    APP.authScreen = 'login';
+    render();
+  }catch(err){
+    console.error(err);
+    errBox.textContent = 'Beklenmeyen bir hata oluştu';
+  }finally{
+    btn.disabled = false; btn.textContent = 'Giriş Yap';
+  }
+}
+function doCompanyLogout(){
+  clearCompanySession();
+  render();
+}
+/* --- Şirket Paneli: şube listesi, konsolide rapor, yeni şube ekleme --- */
+async function renderCompanyPanel(app, companySession){
+  const theme = getTheme();
+  app.innerHTML = `
+    <header class="topbar">
+      <div class="brand">🏢 ${escapeHtml(companySession.company_name)}</div>
+      <div class="right">
+        <div class="theme-toggle" style="width:150px;background:var(--panel2);border:1px solid var(--border);">
+          <button class="${theme==='dark'?'active':''}" style="color:${theme==='dark'?'':'var(--muted)'};background:${theme==='dark'?'var(--accent)':'transparent'};box-shadow:none;" onclick="setTheme('dark')" type="button">🌙 Koyu</button>
+          <button class="${theme==='light'?'active':''}" style="color:${theme==='light'?'':'var(--muted)'};background:${theme==='light'?'var(--accent)':'transparent'};box-shadow:none;" onclick="setTheme('light')" type="button">☀️ Açık</button>
+        </div>
+        <button class="ghost-btn" onclick="doCompanyLogout()">Çıkış</button>
+      </div>
+    </header>
+    <div class="content-inner content-inner-wide">
+      <div id="companyPanelContent"><p class="muted">Yükleniyor…</p></div>
+    </div>`;
+  await renderCompanyPanelContent(companySession);
+}
+async function renderCompanyPanelContent(companySession){
+  const el = document.getElementById('companyPanelContent'); if(!el) return;
+  if(!APP.companyDashboardDate) APP.companyDashboardDate = todayLocalDateStr();
+  const [branchesRes, dashRes] = await withLoadingOverlay(Promise.all([
+    sb.rpc('list_company_branches', { p_company_token: companySession.session_token }),
+    sb.rpc('get_company_dashboard', { p_company_token: companySession.session_token, p_date: APP.companyDashboardDate })
+  ]));
+  if(branchesRes.error){ el.innerHTML = '<p class="muted">Yüklenemedi: '+branchesRes.error.message+'</p>'; return; }
+  const branches = branchesRes.data || [];
+  const dash = dashRes.data || { branches: [], grand_total: 0 };
+  const dashByBranch = {}; (dash.branches||[]).forEach(b => { dashByBranch[b.id] = b; });
+
+  el.innerHTML = `
+    <div class="box" style="max-width:none;">
+      <h2>Şubeler (${branches.length})</h2>
+      <div class="table-grid">
+        ${branches.map(b => `
+          <div class="table-cell" style="cursor:pointer;text-align:left;padding:14px;" onclick="enterBranch('${b.id}')">
+            <div style="font-weight:800;font-size:14px;overflow-wrap:anywhere;word-break:break-word;">${escapeHtml(b.name)}</div>
+            <div class="muted" style="font-size:11px;margin-top:2px;">${escapeHtml(b.code)} · ${b.staff_count} personel</div>
+            <div style="font-size:12px;margin-top:6px;color:var(--accent);font-weight:700;">${money(b.revenue_today)} (bugün)</div>
+          </div>`).join('')}
+        <div class="table-cell" style="cursor:pointer;display:flex;align-items:center;justify-content:center;" onclick="openCreateBranchModal()">➕<div style="font-size:11px;margin-top:4px;font-weight:400;">Yeni Şube Ekle</div></div>
+      </div>
+    </div>
+    <div class="box" style="max-width:none;">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:14px;">
+        <h2 style="margin:0;">Konsolide Satış Raporu</h2>
+        <input type="date" value="${APP.companyDashboardDate}" onchange="changeCompanyDashboardDate(this.value)">
+      </div>
+      <div class="settings-table-wrap">
+        <table class="settings-table">
+          <thead><tr><th>Şube</th><th>Sipariş Sayısı</th><th>Ciro</th></tr></thead>
+          <tbody>
+          ${(dash.branches||[]).map(b => `
+            <tr>
+              <td class="col-name">${escapeHtml(b.name)}</td>
+              <td>${b.order_count}</td>
+              <td>${money(b.total)}</td>
+            </tr>`).join('')}
+          ${(dash.branches||[]).length===0?'<tr><td colspan="3" class="muted" style="text-align:center;">Bu tarihte satış yok.</td></tr>':''}
+          </tbody>
+        </table>
+      </div>
+      <div style="text-align:right;font-weight:800;font-size:18px;margin-top:10px;">Toplam: ${money(dash.grand_total)}</div>
+    </div>`;
+}
+function changeCompanyDashboardDate(v){
+  APP.companyDashboardDate = v;
+  renderCompanyPanelContent(getCompanySession());
+}
+function openCreateBranchModal(){
+  const bg = document.createElement('div');
+  bg.id = 'createBranchBg';
+  bg.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:100;padding:16px;';
+  bg.onclick = (e) => { if(e.target===bg) bg.remove(); };
+  bg.innerHTML = `<div style="background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:20px;max-width:380px;width:100%;">
+    <div style="display:flex;justify-content:space-between;"><h2 style="margin:0;">Yeni Şube Ekle</h2><span style="cursor:pointer;color:var(--muted);" onclick="document.getElementById('createBranchBg').remove()">✕</span></div>
+    <input id="newBranchName" placeholder="Şube adı (örn. Kadıköy Şubesi)" style="margin-top:14px;">
+    <input id="newBranchCode" placeholder="Şube kodu (örn. kadikoy2026)" autocapitalize="none">
+    <div class="error" id="newBranchErr"></div>
+    <button id="newBranchBtn" onclick="createBranchSubmit()">Şubeyi Oluştur</button>
+  </div>`;
+  document.body.appendChild(bg);
+}
+async function createBranchSubmit(){
+  const companySession = getCompanySession(); if(!companySession) return;
+  const name = document.getElementById('newBranchName').value.trim();
+  const code = document.getElementById('newBranchCode').value.trim();
+  const errEl = document.getElementById('newBranchErr');
+  const btn = document.getElementById('newBranchBtn');
+  errEl.textContent = '';
+  if(!name || !code){ errEl.textContent = 'Şube adı ve kodu gerekli'; return; }
+  btn.disabled = true; btn.textContent = 'Oluşturuluyor...';
+  const { error } = await sb.rpc('create_branch', { p_company_token: companySession.session_token, p_name: name, p_code: code });
+  btn.disabled = false; btn.textContent = 'Şubeyi Oluştur';
+  if(error){ errEl.textContent = error.message; return; }
+  const bg = document.getElementById('createBranchBg'); if(bg) bg.remove();
+  showToast('Şube oluşturuldu ✓');
+  renderCompanyPanelContent(companySession);
+}
+async function enterBranch(restaurantId){
+  const companySession = getCompanySession(); if(!companySession) return;
+  const { data, error } = await withLoadingOverlay(sb.rpc('switch_to_branch', { p_company_token: companySession.session_token, p_restaurant_id: restaurantId }));
+  if(error){ alert(error.message); return; }
+  if(!data || data.length===0){ alert('Şubeye giriş yapılamadı'); return; }
+  const row = data[0];
+  setSession({
+    session_token: row.session_token,
+    user_id: row.user_id,
+    restaurant_id: row.restaurant_id,
+    role_names: row.role_names || [],
+    permissions: row.permissions || [],
+    isManager: !!row.is_manager,
+    restaurant_name: row.restaurant_name,
+    username: '🏢 ' + companySession.company_name
+  });
+  APP.reportsUnlocked = false;
+  APP.reportsGateScreen = null;
+  APP.config = null;
+  APP.view = 'home';
+  APP.customerReqPollStarted = false;
+  render();
+}
+async function returnToCompanyPanel(){
+  const session = getSession();
+  stopKitchenPolling();
+  stopOrderPolling();
+  stopCustomerRequestPolling();
+  APP.customerReqPollStarted = false;
+  APP.shiftStatus = null;
+  clearSession();
+  render();
+  if(session && session.session_token){
+    try{ await sb.rpc('logout_staff', { p_token: session.session_token }); }catch(e){}
+  }
 }
 
 /* Deneme/abonelik süresi dolan işletmeler buraya düşer - hem doLogin()
