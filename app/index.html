@@ -5106,6 +5106,7 @@ async function renderReportsView(main, session){
       <div class="tab ${APP.reportTab==='products'?'active':''}" data-tab="products" onclick="setReportTab('products')">📦 Ürün İstatistikleri</div>
       <div class="tab ${APP.reportTab==='staff'?'active':''}" data-tab="staff" onclick="setReportTab('staff')">👤 Personel Analizleri</div>
       <div class="tab ${APP.reportTab==='customers'?'active':''}" data-tab="customers" onclick="setReportTab('customers')">🧑‍🤝‍🧑 Müşteri Analizleri</div>
+      <div class="tab ${APP.reportTab==='tips'?'active':''}" data-tab="tips" onclick="setReportTab('tips')">💰 Bahşiş Havuzu</div>
     </div>
     <div id="reportContent"></div>`;
   await renderReportTabContent(session);
@@ -5121,6 +5122,7 @@ function renderReportTabContent(session){
   if(tab==='products') return renderProductStatsContent(session);
   if(tab==='staff') return renderStaffAnalyticsContent(session);
   if(tab==='customers') return renderCustomerAnalyticsContent(session);
+  if(tab==='tips') return renderTipPoolContent(session);
   return renderReportContent(session);
 }
 async function renderReportContent(session){
@@ -5383,6 +5385,65 @@ function debouncedCustomerAnalyticsSearch(v){
     const inp = document.getElementById('custAnalyticsSearchInput');
     if(inp){ inp.focus(); inp.setSelectionRange(inp.value.length, inp.value.length); }
   }, 350);
+}
+
+/* --- Bahşiş Havuzu sekmesi: toplanan bahşişlerin, o gün vardiyada olan
+   personel arasında eşit ya da çalışılan saate göre paylaştırılmasını
+   gösterir (bkz. get_tip_pool_report / staff_shifts). Sadece raporlama
+   amaçlıdır, gerçek ödeme/dağıtım işletme dışında yapılır. */
+async function renderTipPoolContent(session){
+  const el = document.getElementById('reportContent'); if(!el) return;
+  const { data, error } = await withLoadingOverlay(sb.rpc('get_tip_pool_report', { p_token: session.session_token, p_date: APP.reportDate }));
+  if(error){ el.innerHTML = '<p class="muted">Yüklenemedi: '+error.message+'</p>'; return; }
+  const shares = data.shares || [];
+  const modeLabel = data.mode==='by_hours' ? 'Çalışılan Saate Göre' : 'Eşit Paylaşım';
+  el.innerHTML = `
+    ${session.isManager ? `
+    <div class="box" style="max-width:none;">
+      <h2>Bahşiş Havuzu Ayarları</h2>
+      <p class="muted" style="margin-top:-6px;">Açarsanız, toplanan tüm bahşişler burada seçtiğiniz kurala göre personel arasında paylaştırılır (sadece raporlama amaçlıdır - ödemeyi yine kendiniz yaparsınız).</p>
+      <label style="display:flex;align-items:center;gap:8px;font-weight:400;margin-bottom:10px;">
+        <input type="checkbox" id="tipPoolEnabled" ${data.enabled?'checked':''} style="width:auto;"> Bahşiş Havuzu Aktif
+      </label>
+      <div class="field-group" style="max-width:280px;"><label>Paylaşım Kuralı</label>
+        <select id="tipPoolMode">
+          <option value="equal" ${data.mode==='equal'?'selected':''}>Eşit Paylaşım</option>
+          <option value="by_hours" ${data.mode==='by_hours'?'selected':''}>Çalışılan Saate Göre</option>
+        </select>
+      </div>
+      <button style="margin-top:12px;max-width:220px;" onclick="saveTipPoolSettings()">Kaydet</button>
+    </div>` : ''}
+    <div class="home-grid" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr));">
+      <div class="box" style="text-align:center;"><div style="font-size:22px;font-weight:800;">${money(data.total_tip)}</div><div class="muted" style="font-size:12px;">Toplam Bahşiş</div></div>
+      <div class="box" style="text-align:center;"><div style="font-size:15px;font-weight:800;">${data.enabled ? modeLabel : 'Kapalı'}</div><div class="muted" style="font-size:12px;">Paylaşım Kuralı</div></div>
+    </div>
+    <div class="box" style="max-width:none;">
+      <h2>${escapeHtml(APP.reportDate)} Tarihli Paylaşım</h2>
+      ${!data.enabled ? '<p class="muted">Bahşiş havuzu kapalı. Yönetici açarsa burada personel payları görünecek.</p>' : ''}
+      <div class="settings-table-wrap">
+      <table class="settings-table">
+        <thead><tr><th>Personel</th><th>Çalışma Süresi</th><th>Payı</th></tr></thead>
+        <tbody>
+        ${shares.map(s => `
+          <tr>
+            <td class="col-name">${escapeHtml(s.username)}</td>
+            <td>${formatShiftDuration(s.minutes)}</td>
+            <td>${money(s.share_amount)}</td>
+          </tr>`).join('')}
+        ${shares.length===0?'<tr><td colspan="3" class="muted" style="text-align:center;">Bu tarihte vardiya kaydı yok.</td></tr>':''}
+        </tbody>
+      </table>
+      </div>
+    </div>`;
+}
+async function saveTipPoolSettings(){
+  const session = getSession();
+  const enabled = document.getElementById('tipPoolEnabled').checked;
+  const mode = document.getElementById('tipPoolMode').value;
+  const { error } = await sb.rpc('update_tip_pool_settings', { p_token: session.session_token, p_enabled: enabled, p_mode: mode });
+  if(error){ alert(error.message); return; }
+  showToast('Bahşiş havuzu ayarları kaydedildi ✓');
+  renderTipPoolContent(session);
 }
 
 /* ================= REZERVASYONLAR & BEKLEME LİSTESİ ================= */
