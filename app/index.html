@@ -17,7 +17,7 @@
   :root, :root[data-theme="light"]{
     --bg:#f7f7f5; --panel:#ffffff; --panel2:#eef1f1; --border:#dfe3e2;
     --text:#25282b; --muted:#5d6568;
-    --accent:#008fa8; --accent2:#c9a45c; --green:#0d7a4f; --red:#c0392b;
+    --accent:#008fa8; --accent2:#c9a45c; --green:#0d7a4f; --red:#c0392b; --gift:#7c5cbf;
     --btn-ink:#ffffff;
     --shadow:0 10px 24px rgba(37,40,43,.08);
     --sb-bg: linear-gradient(180deg,#ffffff 0%,#f0f2f1 100%);
@@ -28,7 +28,7 @@
   :root[data-theme="dark"]{
     --bg:#181c1e; --panel:#20262a; --panel2:#2a3136; --border:#39424a;
     --text:#f1f3f7; --muted:#93a0a3;
-    --accent:#00b6d4; --accent2:#d4b06e; --green:#22c55e; --red:#f43f5e;
+    --accent:#00b6d4; --accent2:#d4b06e; --green:#22c55e; --red:#f43f5e; --gift:#a58ae0;
     --btn-ink:#ffffff;
     --shadow:0 10px 28px rgba(0,0,0,.35);
     --sb-bg: linear-gradient(180deg,#1c2226 0%,#12171a 100%);
@@ -148,6 +148,8 @@
     .mobile-menu-btn:hover{background:var(--sb-overlay-2);}
     .mobile-topbar-title{flex:1;font-weight:700;font-size:14.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
     .mobile-topbar-logo{width:30px;height:30px;object-fit:contain;flex-shrink:0;}
+    .pay-options-grid{grid-template-columns:1fr;}
+    .pay-method-grid{grid-template-columns:1fr;}
 
     .sidebar,.sidebar.collapsed{
       position:fixed;top:0;left:0;height:100%;width:82%;max-width:300px;
@@ -214,6 +216,44 @@
   .floorplan-editor .floorplan-table{cursor:grab;}
   .range-preset-btn{width:auto;padding:6px 12px;margin:0;font-size:12px;background:transparent;border:1px solid var(--border);color:var(--text);box-shadow:none;}
   .range-preset-btn:hover{border-color:var(--accent);color:var(--accent);}
+
+  /* ---- Ödeme alma penceresi (openPayModal) ---- */
+  .pay-modal{background:var(--panel);border:1px solid var(--border);border-radius:20px;padding:24px;max-width:760px;width:100%;max-height:90vh;overflow:auto;}
+  .pay-modal-header{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;}
+  .pay-modal-header h2{margin:0;font-size:20px;overflow-wrap:anywhere;word-break:break-word;}
+  .pay-modal-close{cursor:pointer;color:var(--muted);flex-shrink:0;font-size:15px;width:30px;height:30px;border-radius:9px;display:flex;align-items:center;justify-content:center;transition:background .15s ease,color .15s ease;}
+  .pay-modal-close:hover{background:var(--panel2);color:var(--text);}
+  .pay-select-all-row{display:flex;justify-content:flex-end;margin-top:2px;}
+  .pay-select-all-btn{width:auto;padding:5px 12px;margin:0;font-size:11.5px;background:transparent;border:1px solid var(--border);color:var(--muted);box-shadow:none;}
+  .pay-items-card{background:var(--panel2);border-radius:14px;padding:2px 16px;margin-top:12px;}
+  .pay-item-row{padding:12px 0;border-bottom:1px solid var(--border);font-size:13.5px;}
+  .pay-item-row:last-child{border-bottom:none;}
+  .pay-item-row .row-top{display:flex;justify-content:space-between;align-items:center;gap:8px;}
+  .pay-item-row .row-bottom{display:flex;align-items:center;gap:10px;margin-top:8px;}
+  .pay-subtotal-row{display:flex;justify-content:space-between;color:var(--muted);font-size:13px;margin-top:12px;padding:0 4px;}
+  .pay-options-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin:14px 0;}
+  .pay-option-card{background:var(--panel2);border:1px solid var(--border);border-radius:14px;padding:14px;}
+  .pay-option-card h4{margin:0 0 10px;font-size:12px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.03em;display:flex;align-items:center;gap:6px;}
+  .pay-option-card .field-row{display:flex;gap:8px;}
+  .pay-option-card .field-row input, .pay-option-card .field-row select{margin-bottom:0;}
+  .pay-option-card .hint{font-size:11.5px;color:var(--muted);margin:8px 0 0;}
+  .pay-chip-row{display:flex;gap:6px;flex-wrap:wrap;align-items:center;}
+  .pay-chip{width:auto;padding:6px 12px;margin:0;font-size:12px;font-weight:700;background:transparent;border:1.5px solid var(--border);color:var(--text);box-shadow:none;border-radius:999px;}
+  .pay-chip:hover{border-color:var(--accent);color:var(--accent);}
+  .pay-total-banner{display:flex;justify-content:space-between;align-items:center;background:var(--panel2);border:1px solid var(--border);border-radius:14px;padding:14px 18px;margin:4px 0 16px;}
+  .pay-total-banner .label{font-size:13px;color:var(--muted);font-weight:700;}
+  .pay-total-banner .amt{font-size:23px;font-weight:800;}
+  .pay-method-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;}
+  .pay-method-btn{border:none;border-radius:14px;padding:16px;font-weight:800;font-size:14.5px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;box-shadow:none;margin:0;transition:filter .15s ease,transform .08s ease,opacity .15s ease;}
+  .pay-method-btn:hover{filter:brightness(1.06);}
+  .pay-method-btn:active{transform:translateY(1px);}
+  .pay-method-btn.cash{background:var(--green);color:var(--btn-ink);}
+  .pay-method-btn.card{background:var(--accent2);color:var(--btn-ink);}
+  .pay-method-grid.secondary{margin-top:2px;}
+  .pay-method-grid.secondary .pay-method-btn{padding:12px;font-size:13px;font-weight:700;}
+  .pay-method-btn.gift{background:var(--gift);color:#fff;}
+  .pay-method-btn.gift:disabled{opacity:.45;cursor:not-allowed;filter:none;}
+  .pay-method-btn.split{background:transparent;border:1.5px solid var(--border);color:var(--text);}
   .ghost-btn{background:transparent;border:1.5px solid var(--border);color:var(--muted);width:auto;padding:9px 15px;margin:0;box-shadow:none;font-weight:600;}
   .ghost-btn:hover{border-color:var(--accent);color:var(--text);filter:none;}
   .center-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px;}
@@ -2058,20 +2098,19 @@ async function renderPaymentsView(main, session){
   ]));
   if(!APP.config) APP.config = cfgRes.data;
   APP.liveOrders = liveRes.data || [];
-  main.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;"><h1 style="margin:0;">Ödemeler</h1><button style="width:auto;padding:8px 14px;margin:0;background:#a855f7;color:#fff;" onclick="openGiftCardManager()">🎁 Hediye Kartları</button></div><div class="muted" id="payStatus"></div><div class="table-grid" id="payGrid"></div>`;
+  main.innerHTML = `<h1>Ödemeler</h1><div class="muted" id="payStatus"></div><div class="table-grid" id="payGrid"></div>`;
   renderPayGrid();
 }
 /* --- Hediye Kartları: yeni kart oluşturma (kod üretimi) ve mevcut
-   kartları arama/görme, bkz. issue_gift_card / list_gift_cards. --- */
-async function openGiftCardManager(){
-  const session = getSession();
-  const bg = document.createElement('div');
-  bg.id = 'giftCardMgrBg';
-  bg.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:100;padding:16px;';
-  bg.onclick = (e) => { if(e.target===bg) bg.remove(); };
-  bg.innerHTML = `<div style="background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:20px;max-width:640px;width:100%;max-height:88vh;overflow:auto;">
-    <div style="display:flex;justify-content:space-between;gap:10px;"><h2 style="margin:0;">🎁 Hediye Kartları</h2><span style="cursor:pointer;color:var(--muted);flex-shrink:0;" onclick="document.getElementById('giftCardMgrBg').remove()">✕</span></div>
-    <div class="add-row-panel" style="margin-top:14px;">
+   kartları arama/görme, bkz. issue_gift_card / list_gift_cards. Ayarlar
+   sekmesi olarak yaşar - kart OLUŞTURMA burada yapılır, ödeme alırken
+   kart bakiyesiyle ÖDEME ise Ödemeler ekranındaki hesap penceresinden
+   (bkz. openPayModal > lookupPayGiftCard/finishPaymentFull). */
+async function renderGiftCardsSettings(el, session){
+  el.innerHTML = `<div class="box" style="max-width:none;">
+    <h2>🎁 Hediye Kartları</h2>
+    <p class="muted" style="text-align:left;margin:-8px 0 16px;">Burada yeni hediye kartı oluşturup mevcut kartların bakiyesini görebilirsiniz. Bir kartı ödeme olarak kullanmak için Ödemeler ekranında hesabı açıp "Hediye Kartı" alanına kodu girin.</p>
+    <div class="add-row-panel">
       <p>Yeni Hediye Kartı Oluştur</p>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
         <div class="field-group"><label>Tutar</label><input id="gcNewAmount" type="number" min="0" step="0.01" placeholder="örn. 200"></div>
@@ -2085,7 +2124,6 @@ async function openGiftCardManager(){
     </div>
     <div id="gcListWrap" style="margin-top:10px;"><p class="muted">Yükleniyor…</p></div>
   </div>`;
-  document.body.appendChild(bg);
   await refreshGiftCardList(session);
 }
 async function createGiftCard(){
@@ -2167,12 +2205,12 @@ function openPayModal(orderId, tableName){
   unpaidItems.forEach(i => { PAY_SELECTED_QTYS[i.id] = i.qty; });
   const subtotal = unpaidItems.reduce((s,i)=>s+i.price*i.qty,0);
   const itemsHtml = unpaidItems.map(it => `
-    <div style="padding:8px 0;border-bottom:1px solid var(--border);font-size:13px;">
-      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
+    <div class="pay-item-row">
+      <div class="row-top">
         <span>${escapeHtml(it.name)} <span class="muted" style="font-size:11px;">(${money(it.price)}/adet)</span></span>
-        <span class="pay-item-subtotal" data-item-id="${it.id}" style="font-weight:600;">${money(it.price*it.qty)}</span>
+        <span class="pay-item-subtotal" data-item-id="${it.id}" style="font-weight:700;">${money(it.price*it.qty)}</span>
       </div>
-      <div style="display:flex;align-items:center;gap:8px;margin-top:6px;">
+      <div class="row-bottom">
         <button type="button" class="qty-btn" onclick="stepPayItemQty('${it.id}',-1)">-</button>
         <span class="pay-item-qty" data-item-id="${it.id}" style="min-width:20px;text-align:center;font-weight:700;">${it.qty}</span>
         <button type="button" class="qty-btn" onclick="stepPayItemQty('${it.id}',1)">+</button>
@@ -2194,63 +2232,75 @@ function openPayModal(orderId, tableName){
   bg.dataset.giftCardBalance = '0';
   bg.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:100;padding:16px;';
   bg.onclick = (e) => { if(e.target===bg) bg.remove(); };
-  bg.innerHTML = `<div style="background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:20px;max-width:760px;width:100%;max-height:88vh;overflow:auto;">
-    <div style="display:flex;justify-content:space-between;gap:10px;"><h2 style="margin:0;overflow-wrap:anywhere;word-break:break-word;">${escapeHtml(tableName)}</h2><span style="cursor:pointer;color:var(--muted);flex-shrink:0;" onclick="document.getElementById('payModalBg').remove()">✕</span></div>
-    ${unpaidItems.length>1 ? `<div style="display:flex;justify-content:flex-end;margin-top:6px;"><button style="width:auto;padding:4px 10px;margin:0;font-size:12px;background:transparent;border:1px solid var(--border);color:var(--muted);box-shadow:none;" onclick="toggleAllPayItems()">Tümünü Seç/Kaldır</button></div>` : ''}
-    <div id="payItemsWrap" style="margin-top:6px;">${itemsHtml}</div>
-    <div style="text-align:right;color:var(--muted);font-size:13px;margin-top:10px;" id="paySubtotalLine">Ara Toplam: ${money(subtotal)}</div>
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px;margin:10px 0;align-items:start;">
-      <div style="background:var(--panel2);border-radius:10px;padding:10px;">
-        <p class="muted" style="font-size:12px;margin:0 0 6px;">İndirim (opsiyonel)</p>
-        <div style="display:flex;gap:8px;">
-          <input id="discValue" type="number" min="0" step="0.01" placeholder="0" style="flex:1;margin:0;">
-          <select id="discType" style="width:70px;padding:0 6px;">
+  bg.innerHTML = `<div class="pay-modal">
+    <div class="pay-modal-header">
+      <h2>${escapeHtml(tableName)}</h2>
+      <span class="pay-modal-close" onclick="document.getElementById('payModalBg').remove()">✕</span>
+    </div>
+    ${unpaidItems.length>1 ? `<div class="pay-select-all-row"><button class="pay-select-all-btn" onclick="toggleAllPayItems()">Tümünü Seç/Kaldır</button></div>` : ''}
+    <div class="pay-items-card" id="payItemsWrap">${itemsHtml}</div>
+    <div class="pay-subtotal-row" id="paySubtotalLine"><span>Ara Toplam</span><span>${money(subtotal)}</span></div>
+
+    <div class="pay-options-grid">
+      <div class="pay-option-card">
+        <h4>🏷️ İndirim</h4>
+        <div class="field-row">
+          <input id="discValue" type="number" min="0" step="0.01" placeholder="0" style="flex:1;">
+          <select id="discType" style="width:66px;padding:0 4px;">
             <option value="percent">%</option>
             <option value="amount">₺</option>
           </select>
-          <button style="width:auto;padding:8px 12px;margin:0;" onclick="applyPayDiscount()">Uygula</button>
+          <button style="width:auto;padding:0 14px;margin:0;" onclick="applyPayDiscount()">Uygula</button>
         </div>
-        <p id="discInfo" class="muted" style="font-size:12px;margin:6px 0 0;">İndirim yok</p>
+        <p id="discInfo" class="hint">İndirim yok</p>
       </div>
-      <div style="background:var(--panel2);border-radius:10px;padding:10px;">
-        <p class="muted" style="font-size:12px;margin:0 0 6px;">Bahşiş (opsiyonel)</p>
-        <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
-          <button type="button" style="width:auto;padding:6px 10px;margin:0;font-size:12px;background:transparent;border:1px solid var(--border);color:var(--text);box-shadow:none;" onclick="applyTipPercent(5)">%5</button>
-          <button type="button" style="width:auto;padding:6px 10px;margin:0;font-size:12px;background:transparent;border:1px solid var(--border);color:var(--text);box-shadow:none;" onclick="applyTipPercent(10)">%10</button>
-          <button type="button" style="width:auto;padding:6px 10px;margin:0;font-size:12px;background:transparent;border:1px solid var(--border);color:var(--text);box-shadow:none;" onclick="applyTipPercent(15)">%15</button>
+      <div class="pay-option-card">
+        <h4>💸 Bahşiş</h4>
+        <div class="pay-chip-row">
+          <button type="button" class="pay-chip" onclick="applyTipPercent(5)">%5</button>
+          <button type="button" class="pay-chip" onclick="applyTipPercent(10)">%10</button>
+          <button type="button" class="pay-chip" onclick="applyTipPercent(15)">%15</button>
           <input id="tipValue" type="number" min="0" step="0.01" placeholder="Tutar" style="flex:1;min-width:80px;margin:0;" oninput="applyTipAmount(this.value)">
         </div>
-        <p id="tipInfo" class="muted" style="font-size:12px;margin:6px 0 0;">Bahşiş yok</p>
+        <p id="tipInfo" class="hint">Bahşiş yok</p>
         <div style="border-top:1px dashed var(--border);margin-top:10px;padding-top:10px;">
-          <label class="muted" style="font-size:12px;display:block;margin-bottom:4px;">Alınan Nakit (opsiyonel) — üstü bahşiş olur</label>
+          <label class="hint" style="display:block;margin-bottom:4px;">Alınan nakit — üstü bahşiş olur</label>
           <input id="cashReceivedInput" type="number" min="0" step="0.01" placeholder="örn. 5000" style="margin:0;" oninput="handleCashReceivedInput(this.value)">
         </div>
       </div>
-      <div style="background:var(--panel2);border-radius:10px;padding:10px;">
-        <p class="muted" style="font-size:12px;margin:0 0 6px;">Müşteri (opsiyonel)</p>
-        <div style="display:flex;gap:8px;">
-          <input id="payCustomerPhone" placeholder="Telefon ile ara" style="flex:1;margin:0;">
-          <button type="button" style="width:auto;padding:8px 12px;margin:0;" onclick="lookupPayCustomer()">Bul</button>
+      <div class="pay-option-card">
+        <h4>🧑 Müşteri</h4>
+        <div class="field-row">
+          <input id="payCustomerPhone" placeholder="Telefon ile ara" style="flex:1;">
+          <button style="width:auto;padding:0 14px;margin:0;" onclick="lookupPayCustomer()">Bul</button>
         </div>
-        <p id="payCustomerInfo" class="muted" style="font-size:12px;margin:6px 0 0;">Müşteri seçilmedi</p>
+        <p id="payCustomerInfo" class="hint">Müşteri seçilmedi</p>
         <div id="payRedeemWrap" style="display:none;margin-top:8px;">
           <input id="payRedeemPoints" type="number" min="0" step="1" placeholder="Kullanılacak puan" style="margin:0;" oninput="applyRedeemPoints(this.value)">
         </div>
       </div>
-      <div style="background:var(--panel2);border-radius:10px;padding:10px;">
-        <p class="muted" style="font-size:12px;margin:0 0 6px;">🎁 Hediye Kartı (opsiyonel)</p>
-        <div style="display:flex;gap:8px;">
-          <input id="payGiftCardCode" placeholder="Kart kodu" style="flex:1;margin:0;text-transform:uppercase;">
-          <button type="button" style="width:auto;padding:8px 12px;margin:0;" onclick="lookupPayGiftCard()">Sorgula</button>
+      <div class="pay-option-card">
+        <h4>🎁 Hediye Kartı</h4>
+        <div class="field-row">
+          <input id="payGiftCardCode" placeholder="Kart kodu" style="flex:1;text-transform:uppercase;">
+          <button style="width:auto;padding:0 14px;margin:0;" onclick="lookupPayGiftCard()">Sorgula</button>
         </div>
-        <p id="payGiftCardInfo" class="muted" style="font-size:12px;margin:6px 0 0;">Kart seçilmedi</p>
+        <p id="payGiftCardInfo" class="hint">Kart seçilmedi</p>
       </div>
     </div>
-    <div style="text-align:right;font-weight:800;font-size:20px;margin:10px 0;" id="payFinalTotal">Ödenecek: ${money(subtotal)}</div>
-    <button style="background:var(--green);color:var(--btn-ink);margin-bottom:8px;" onclick="finishPaymentFull('cash')">💵 Nakit</button>
-    <button style="background:var(--accent2);color:var(--btn-ink);margin-bottom:8px;" onclick="finishPaymentFull('card')">💳 Kredi Kartı</button>
-    <button style="background:#a855f7;color:#fff;margin-bottom:8px;" onclick="finishPaymentFull('gift_card')">🎁 Hediye Kartı ile Öde</button>
-    <button style="background:transparent;border:1px solid var(--border);color:var(--text);" onclick="openSplitPay()">➗ Bölünmüş Ödeme</button>
+
+    <div class="pay-total-banner">
+      <span class="label">Ödenecek</span>
+      <span class="amt" id="payFinalTotal">${money(subtotal)}</span>
+    </div>
+    <div class="pay-method-grid">
+      <button class="pay-method-btn cash" onclick="finishPaymentFull('cash')">💵 Nakit</button>
+      <button class="pay-method-btn card" onclick="finishPaymentFull('card')">💳 Kredi Kartı</button>
+    </div>
+    <div class="pay-method-grid secondary">
+      <button class="pay-method-btn gift" id="payGiftCardPayBtn" disabled onclick="finishPaymentFull('gift_card')">🎁 Hediye Kartı ile Öde</button>
+      <button class="pay-method-btn split" onclick="openSplitPay()">➗ Bölünmüş Ödeme</button>
+    </div>
   </div>`;
   document.body.appendChild(bg);
 }
@@ -2342,6 +2392,7 @@ async function lookupPayGiftCard(){
   const bg = document.getElementById('payModalBg');
   const code = document.getElementById('payGiftCardCode').value.trim();
   const infoEl = document.getElementById('payGiftCardInfo');
+  const payBtn = document.getElementById('payGiftCardPayBtn');
   if(!code){ infoEl.textContent = 'Kart kodu girin'; return; }
   const session = getSession();
   const { data, error } = await sb.rpc('check_gift_card', { p_token: session.session_token, p_code: code });
@@ -2349,18 +2400,20 @@ async function lookupPayGiftCard(){
     infoEl.textContent = error ? error.message : 'Kart bulunamadı';
     bg.dataset.giftCardCode = '';
     bg.dataset.giftCardBalance = '0';
+    if(payBtn) payBtn.disabled = true;
     return;
   }
   bg.dataset.giftCardCode = data.code;
   bg.dataset.giftCardBalance = String(data.balance);
   infoEl.textContent = data.code + ' · Bakiye: ' + money(data.balance);
+  if(payBtn) payBtn.disabled = false;
 }
 function updatePayFinalTotalLine(){
   const bg = document.getElementById('payModalBg'); if(!bg) return;
   const net = payFinalTotal();
   const tip = parseFloat(bg.dataset.tipAmount||0);
   const el = document.getElementById('payFinalTotal');
-  if(el) el.textContent = 'Ödenecek: '+money(net+tip)+(tip>0?' (bahşiş dahil)':'');
+  if(el) el.innerHTML = money(net+tip)+(tip>0?' <span style="font-size:12px;font-weight:600;color:var(--muted);">(bahşiş dahil)</span>':'');
 }
 function stepPayItemQty(itemId, delta){
   const bg = document.getElementById('payModalBg'); if(!bg) return;
@@ -4491,6 +4544,7 @@ const SETTINGS_TABS = [
   { tab:'shifts', perm:'shifts', label:'Vardiyalar' },
   { tab:'roles', managerOnly:true, label:'Roller' },
   { tab:'integrations', managerOnly:true, label:'Entegrasyonlar' },
+  { tab:'giftcards', perm:'payments', label:'🎁 Hediye Kartları' },
 ];
 function settingsTabVisible(t, session){ return t.managerOnly ? !!session.isManager : hasPerm(session, t.perm); }
 async function renderSettingsView(main, session){
@@ -4522,6 +4576,7 @@ function renderSettingsContent(session){
   else if(APP.settingsTab==='flags') renderOrderFlagsSettings(el, session);
   else if(APP.settingsTab==='roles') renderRolesSettings(el, session);
   else if(APP.settingsTab==='integrations') renderIntegrationsSettings(el, session);
+  else if(APP.settingsTab==='giftcards') renderGiftCardsSettings(el, session);
   else if(APP.settingsTab==='shifts') renderShiftsSettings(el, session);
   else renderUsersSettings(el, session);
 }
