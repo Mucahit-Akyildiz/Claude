@@ -1183,6 +1183,7 @@ async function renderBankTransfersAdmin(main, admin){
         <div class="field-group"><label>Hesap Adı</label><input id="bankAccountName" placeholder="örn. Kopuzlar Grup Ltd. Şti."></div>
         <div class="field-group"><label>Banka</label><input id="bankName" placeholder="örn. Ziraat Bankası"></div>
       </div>
+      <div class="field-group" style="max-width:320px;margin-top:10px;"><label>Bildirim WhatsApp Numarası <span class="muted" style="font-weight:400;">("Ödemeyi Yaptım" denince buraya yönlendirilir)</span></label><input id="bankWhatsapp" placeholder="905xxxxxxxxx"></div>
       <div class="error" id="bankInfoErr"></div>
       <button style="margin-top:12px;max-width:220px;" onclick="saveBankTransferInfo()">Kaydet</button>
     </div>
@@ -1198,6 +1199,7 @@ async function renderBankTransfersAdmin(main, admin){
     document.getElementById('bankIban').value = infoData.iban || '';
     document.getElementById('bankAccountName').value = infoData.account_name || '';
     document.getElementById('bankName').value = infoData.bank_name || '';
+    document.getElementById('bankWhatsapp').value = infoData.whatsapp_number || '';
   }
   refreshBankTransferList(admin);
 }
@@ -1211,10 +1213,11 @@ async function saveBankTransferInfo(){
   const iban = document.getElementById('bankIban').value.trim();
   const accountName = document.getElementById('bankAccountName').value.trim();
   const bankName = document.getElementById('bankName').value.trim();
+  const whatsapp = document.getElementById('bankWhatsapp').value.trim();
   const errEl = document.getElementById('bankInfoErr');
   errEl.textContent = '';
   const { error } = await sb.rpc('admin_update_bank_transfer_info', {
-    p_token: admin.session_token, p_iban: iban, p_account_name: accountName, p_bank_name: bankName
+    p_token: admin.session_token, p_iban: iban, p_account_name: accountName, p_bank_name: bankName, p_whatsapp_number: whatsapp
   });
   if(error){ errEl.textContent = error.message; return; }
   showToast('Banka bilgileri kaydedildi ✓');
@@ -5890,6 +5893,7 @@ async function loadBankTransferStatus(session){
   const el = document.getElementById('bankTransferBox'); if(!el) return;
   const { data, error } = await sb.rpc('get_bank_transfer_status', { p_token: session.session_token });
   if(error){ el.innerHTML = '<p class="muted">Havale bilgisi yüklenemedi: '+error.message+'</p>'; return; }
+  APP.bankTransferStatus = data;
   if(data.pending_notice){
     const pn = data.pending_notice;
     el.innerHTML = `
@@ -5931,9 +5935,26 @@ async function submitBankTransferNotice(){
   const note = document.getElementById('bankTransferNote').value.trim();
   errBox.textContent = '';
   btn.disabled = true; btn.textContent = 'Gönderiliyor...';
+  // Popup engelleyicilere takılmamak için pencere, kullanıcı tıklamasıyla
+  // aynı anda (await'ten ÖNCE) senkron olarak açılır; adresi RPC
+  // sonuçlandıktan sonra doldurulur.
+  const waWin = window.open('', '_blank');
   const { error } = await sb.rpc('submit_bank_transfer_notice', { p_token: session.session_token, p_note: note||null });
-  if(error){ errBox.textContent = error.message; btn.disabled = false; btn.textContent = '✅ Ödemeyi Yaptım, Bildir'; return; }
+  if(error){
+    errBox.textContent = error.message; btn.disabled = false; btn.textContent = '✅ Ödemeyi Yaptım, Bildir';
+    if(waWin) waWin.close();
+    return;
+  }
   showToast('Bildirim gönderildi ✓');
+  const st = APP.bankTransferStatus || {};
+  const waNumber = (st.whatsapp_number || '').replace(/\D/g, '');
+  if(waWin && waNumber){
+    const msg = 'Merhaba, ' + (st.target_name||'') + ' için ' + money(st.amount||0) + ' tutarında havale yaptım'
+      + (note ? (' (not: '+note+')') : '') + '. Kontrol edebilir misiniz?';
+    waWin.location.href = 'https://wa.me/' + waNumber + '?text=' + encodeURIComponent(msg);
+  } else if(waWin){
+    waWin.close();
+  }
   loadBankTransferStatus(session);
 }
 
