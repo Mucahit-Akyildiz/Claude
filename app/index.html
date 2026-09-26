@@ -448,11 +448,6 @@ const PERMISSION_LABELS = {
   purchasing: 'Tedarikçi & Satın Alma',
   shifts: 'Vardiyalar',
 };
-/* Paket özellik seçimi için PERMISSION_LABELS'a ek olarak 'reports' de
-   gösteriliyor (Finansal Analiz) - rol yönetiminde atanabilir bir izin
-   değil ama paket seviyesinde açık/kapalı olabiliyor (bkz. admin paket
-   ekranı, _session_check'teki paket katmanı). */
-const PACKAGE_FEATURE_LABELS = Object.assign({}, PERMISSION_LABELS, { reports: 'Finansal Analiz', online_ordering: 'Dışarıdan Online Sipariş' });
 function hasPerm(session, perm){ return (session.permissions||[]).includes(perm); }
 /* Tüm paketler AYNI 7 günlük ücretsiz deneme ile başlar (bkz.
    verify_registration_otp) - paketler arasındaki fark kullanıcı sayısı
@@ -733,6 +728,7 @@ function renderAdminArea(){
         <div class="tab ${APP.adminView==='restaurants'?'active':''}" data-tab="restaurants" onclick="setAdminView('restaurants')">🏬 İşletmeler</div>
         <div class="tab ${APP.adminView==='companies'?'active':''}" data-tab="companies" onclick="setAdminView('companies')">🏢 Şirketler</div>
         <div class="tab ${APP.adminView==='banktransfers'?'active':''}" data-tab="banktransfers" onclick="setAdminView('banktransfers')">🏦 Havale Bildirimleri</div>
+        <div class="tab ${APP.adminView==='allfeatures'?'active':''}" data-tab="allfeatures" onclick="setAdminView('allfeatures')">🗂️ Tüm Özellikler</div>
         <div class="tab ${APP.adminView==='addons'?'active':''}" data-tab="addons" onclick="setAdminView('addons')">🧩 Eklentiler</div>
       </div>
       <main id="main"></main>
@@ -750,6 +746,7 @@ function renderAdminTabContent(admin){
   else if(APP.adminView==='restaurants') renderRestaurantsAdmin(main, admin);
   else if(APP.adminView==='companies') renderCompaniesAdmin(main, admin);
   else if(APP.adminView==='banktransfers') renderBankTransfersAdmin(main, admin);
+  else if(APP.adminView==='allfeatures') renderFeatureCatalogAdmin(main, admin);
   else if(APP.adminView==='addons') renderAddonsAdmin(main, admin);
   else renderPromoAdmin(main, admin);
 }
@@ -793,15 +790,15 @@ async function renderPricingAdmin(main, admin){
 }
 async function refreshPackagesAdmin(admin){
   const el = document.getElementById('pricingContent'); if(!el) return;
-  const [{ data, error }, { data: addonsData }] = await Promise.all([
+  const [{ data, error }, { data: featData }] = await Promise.all([
     sb.rpc('admin_list_packages', { p_token: admin.session_token }),
-    sb.rpc('admin_list_addons', { p_token: admin.session_token })
+    sb.rpc('admin_list_feature_catalog', { p_token: admin.session_token })
   ]);
   if(error){
     if(error.message.includes('geçersiz')){ clearAdminSession(); render(); return; }
     el.innerHTML = '<p class="muted">Yüklenemedi: '+error.message+'</p>'; return;
   }
-  APP.adminAddons = addonsData || [];
+  APP.featureCatalog = featData || [];
   const packages = data || [];
   el.innerHTML = `
     <p class="muted" style="text-align:left;max-width:640px;">Bu fiyatlar, işletmelerin 7 günlük ücretsiz denemesi bittikten sonra
@@ -850,37 +847,35 @@ async function refreshPackagesAdmin(admin){
         <div class="field-group"><label>Fiyat (TL/ay)</label><input type="number" min="0" step="0.01" id="npkgPrice" placeholder="1499"></div>
       </div>
       <div class="muted" style="font-size:12px;font-weight:700;margin:14px 0 6px;">Bu pakette hangi özellikler olacak:</div>
-      ${featureCheckboxesHtml('npkg_feat', Object.keys(PACKAGE_FEATURE_LABELS))}
+      ${featureCheckboxesHtml('npkg_feat', (APP.featureCatalog||[]).filter(f=>f.is_core).map(f=>f.id))}
       <button style="margin-top:12px;max-width:220px;" onclick="createPackage()">+ Paket Oluştur</button>
       <div class="error" id="pkgCreateErr" style="text-align:left;"></div>
     </div>`;
 }
 /* Paket düzenleme/oluşturma satırlarında ortak kullanılan özellik seçim
-   ızgarası - PACKAGE_FEATURE_LABELS'taki her anahtar için bir onay kutusu;
+   ızgarası - feature_catalog'daki HER özelliği kategoriye göre gruplayıp
+   gösterir (kataloğu "🗂️ Tüm Özellikler" sekmesinden yönetirsiniz);
    id'ler idPrefix+'_'+anahtar şeklinde, readPackageFeatures ile okunur. */
 function featureCheckboxesHtml(idPrefix, selectedFeatures){
   const sel = new Set(selectedFeatures||[]);
-  const addons = APP.adminAddons || [];
-  return `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:6px 14px;">
-    ${Object.keys(PACKAGE_FEATURE_LABELS).map(key => `
-      <label style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:400;">
-        <input type="checkbox" id="${idPrefix}_${key}" ${sel.has(key)?'checked':''} style="width:16px;height:16px;">
-        ${escapeHtml(PACKAGE_FEATURE_LABELS[key])}
-      </label>`).join('')}
-  </div>
-  ${addons.length>0 ? `
-  <div class="muted" style="font-size:12px;font-weight:700;margin:12px 0 6px;">🧩 Eklentiler / Entegrasyonlar <span style="font-weight:400;">(işaretlenirse bu pakette ücretsiz dahil olur, ayrıca Eklentiler'den tekil satılabilir)</span></div>
-  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:6px 14px;">
-    ${addons.map(a => `
-      <label style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:400;">
-        <input type="checkbox" id="${idPrefix}_${a.id}" ${sel.has(a.id)?'checked':''} style="width:16px;height:16px;">
-        ${escapeHtml(a.name)}${a.price>0?' <span class="muted">('+money(a.price)+'/ay)</span>':''}
-      </label>`).join('')}
-  </div>` : ''}`;
+  const features = APP.featureCatalog || [];
+  if(features.length===0) return '<p class="muted">Önce "🗂️ Tüm Özellikler" sekmesinden özellik tanımlayın.</p>';
+  const byCat = {};
+  features.forEach(f => { (byCat[f.category||'Diğer'] = byCat[f.category||'Diğer'] || []).push(f); });
+  return Object.keys(byCat).map(cat => `
+    <div style="margin-bottom:10px;">
+      <div class="muted" style="font-size:12px;font-weight:700;margin-bottom:4px;">${escapeHtml(cat)}</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:6px 14px;">
+        ${byCat[cat].map(f => `
+          <label style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:400;">
+            <input type="checkbox" id="${idPrefix}_${f.id}" ${sel.has(f.id)?'checked':''} style="width:16px;height:16px;">
+            ${escapeHtml(f.label)}${f.is_addon?' <span class="muted">(eklenti'+(f.price>0?', '+money(f.price)+'/ay':'')+')</span>':''}
+          </label>`).join('')}
+      </div>
+    </div>`).join('');
 }
 function readPackageFeatures(idPrefix){
-  const addonKeys = (APP.adminAddons||[]).map(a => a.id);
-  return [...Object.keys(PACKAGE_FEATURE_LABELS), ...addonKeys].filter(key => {
+  return (APP.featureCatalog||[]).map(f => f.id).filter(key => {
     const el = document.getElementById(idPrefix+'_'+key);
     return el && el.checked;
   });
@@ -1206,21 +1201,21 @@ async function deleteCompany(id, name){
    özelliği kullanabilir (bkz. _session_check). ---- */
 async function renderAddonsAdmin(main, admin){
   main.innerHTML = `<h1>🧩 Eklentiler</h1>
-    <p class="muted" style="margin-top:-8px;">Pakete dahil olmayan, ayrı satılabilen modüller. Bir işletme/şirkete İşletmeler ya da Şirketler sekmesindeki "🧩 Eklentiler" butonundan tekil olarak atanır.</p>
+    <p class="muted" style="margin-top:-8px;">Eklenti olarak işaretlenmiş özelliklerin fiyat/aktiflik yönetimi. Bir özelliği eklenti yapmak ya da yeni bir özellik tanımlamak için "🗂️ Tüm Özellikler" sekmesini kullanın. Bir işletme/şirkete İşletmeler ya da Şirketler sekmesindeki "🧩 Eklentiler" butonundan tekil olarak atanır.</p>
     <div id="addonsContent"></div>`;
   await refreshAddonsList(admin);
 }
 async function refreshAddonsList(admin){
   const el = document.getElementById('addonsContent'); if(!el) return;
-  const { data, error } = await sb.rpc('admin_list_addons', { p_token: admin.session_token });
+  const { data, error } = await sb.rpc('admin_list_feature_catalog', { p_token: admin.session_token });
   if(error){
     if(error.message.includes('geçersiz')){ clearAdminSession(); render(); return; }
     el.innerHTML = '<p class="muted">Yüklenemedi: '+error.message+'</p>'; return;
   }
-  const addons = data || [];
-  APP.adminAddons = addons;
+  APP.featureCatalog = data || [];
+  const addons = (data || []).filter(f => f.is_addon);
   el.innerHTML = `
-    ${addons.length===0 ? '<p class="muted">Henüz eklenti yok.</p>' : `
+    ${addons.length===0 ? '<p class="muted">Henüz eklenti olarak işaretlenmiş özellik yok. "🗂️ Tüm Özellikler" sekmesinden bir özelliği eklenti yapabilirsiniz.</p>' : `
     <div class="settings-table-wrap">
       <table class="settings-table">
         <thead><tr><th>Kimlik</th><th>Ad</th><th>Açıklama</th><th>Fiyat (₺/ay)</th><th>Aktif</th><th></th></tr></thead>
@@ -1228,74 +1223,145 @@ async function refreshAddonsList(admin){
         ${addons.map(a => `
           <tr>
             <td class="col-name"><code>${escapeHtml(a.id)}</code></td>
-            <td class="col-name"><input value="${escapeHtml(a.name)}" id="addon_name_${a.id}"></td>
+            <td class="col-name"><input value="${escapeHtml(a.label)}" id="addon_name_${a.id}"></td>
             <td class="col-name"><input value="${escapeHtml(a.description||'')}" id="addon_desc_${a.id}"></td>
             <td class="col-num" style="width:110px;"><input type="number" min="0" step="0.01" value="${a.price}" id="addon_price_${a.id}"></td>
             <td style="text-align:center;"><input type="checkbox" id="addon_active_${a.id}" ${a.active?'checked':''} style="width:18px;height:18px;"></td>
             <td style="white-space:nowrap;">
               <button class="sbtn" onclick="saveAddonRow('${a.id}')">Kaydet</button>
-              <button class="sbtn" style="background:var(--red);color:var(--btn-ink);" onclick="deleteAddon('${a.id}')">Sil</button>
             </td>
           </tr>`).join('')}
         </tbody>
       </table>
-    </div>`}
-    <div class="add-row-panel">
-      <p>Yeni Eklenti Oluştur</p>
-      <div style="display:grid;grid-template-columns:1fr 1fr 1fr 0.6fr;gap:10px;align-items:end;">
-        <div class="field-group"><label>Kimlik</label><input id="newAddonId" placeholder="örn. accounting" autocapitalize="none"></div>
-        <div class="field-group"><label>Ad</label><input id="newAddonName" placeholder="örn. Muhasebe Entegrasyonu"></div>
-        <div class="field-group"><label>Açıklama</label><input id="newAddonDesc" placeholder="opsiyonel"></div>
-        <div class="field-group"><label>Fiyat (₺/ay)</label><input type="number" id="newAddonPrice" placeholder="0"></div>
-      </div>
-      <div class="error" id="newAddonErr"></div>
-      <button style="margin-top:12px;max-width:220px;" onclick="createAddonSubmit()">+ Eklenti Oluştur</button>
-    </div>`;
+    </div>`}`;
 }
 async function saveAddonRow(id){
   const admin = getAdminSession();
+  const feat = (APP.featureCatalog||[]).find(f => f.id===id);
   const name = document.getElementById('addon_name_'+id).value.trim();
   const desc = document.getElementById('addon_desc_'+id).value.trim();
   const price = parseFloat(document.getElementById('addon_price_'+id).value) || 0;
   const active = document.getElementById('addon_active_'+id).checked;
   if(!name){ alert('Ad gerekli'); return; }
-  const { error } = await sb.rpc('admin_upsert_addon', { p_token: admin.session_token, p_id: id, p_name: name, p_description: desc||null, p_price: price, p_active: active });
+  const { error } = await sb.rpc('admin_upsert_feature', { p_token: admin.session_token, p_id: id, p_label: name, p_category: (feat&&feat.category)||'Diğer', p_is_addon: true, p_price: price, p_description: desc||null, p_active: active });
   if(error){ alert(error.message); return; }
   showToast('Eklenti kaydedildi ✓');
   refreshAddonsList(admin);
 }
-async function createAddonSubmit(){
-  const admin = getAdminSession();
-  const id = document.getElementById('newAddonId').value.trim();
-  const name = document.getElementById('newAddonName').value.trim();
-  const desc = document.getElementById('newAddonDesc').value.trim();
-  const price = parseFloat(document.getElementById('newAddonPrice').value) || 0;
-  const errEl = document.getElementById('newAddonErr');
-  errEl.textContent = '';
-  if(!id || !name){ errEl.textContent = 'Kimlik ve ad gerekli'; return; }
-  const { error } = await sb.rpc('admin_upsert_addon', { p_token: admin.session_token, p_id: id, p_name: name, p_description: desc||null, p_price: price, p_active: true });
-  if(error){ errEl.textContent = error.message; return; }
-  showToast('Eklenti oluşturuldu ✓');
-  refreshAddonsList(admin);
+/* ---- Admin Paneli > Tüm Özellikler: uygulamadaki HER özelliğin (temel
+   paket özellikleri + eklentiler) tek yerden görüldüğü, "eklenti mi?"
+   sınıflandırmasının yapıldığı ve yeni özellik tanımlanabildiği katalog
+   ekranı. Temel (is_core) özellikler eklenti yapılamaz/silinemez -
+   bunlar uygulamanın rol/izin sistemine bağlı yapısal özellikler. ---- */
+async function renderFeatureCatalogAdmin(main, admin){
+  main.innerHTML = `<h1>🗂️ Tüm Özellikler</h1>
+    <p class="muted" style="margin-top:-8px;max-width:700px;">Uygulamadaki her özellik burada listelenir. Her birini "Eklenti mi?" kutusuyla işaretleyin: işaretlenirse Eklentiler sekmesinden fiyatlandırıp tekil satabilir, işaretlemezseniz sadece Paket Fiyatları'ndan paketlere dahil edersiniz. Temel özellikler (🔒) eklenti yapılamaz ve silinemez.</p>
+    <div id="featureCatalogContent"></div>`;
+  await refreshFeatureCatalogList(admin);
 }
-async function deleteAddon(id){
-  if(!confirm('Bu eklentiyi silmek istediğinize emin misiniz? Bu eklentiye sahip tüm işletmeler/şirketler erişimi kaybeder.')) return;
+async function refreshFeatureCatalogList(admin){
+  const el = document.getElementById('featureCatalogContent'); if(!el) return;
+  const { data, error } = await sb.rpc('admin_list_feature_catalog', { p_token: admin.session_token });
+  if(error){
+    if(error.message.includes('geçersiz')){ clearAdminSession(); render(); return; }
+    el.innerHTML = '<p class="muted">Yüklenemedi: '+error.message+'</p>'; return;
+  }
+  const features = data || [];
+  APP.featureCatalog = features;
+  const byCat = {};
+  features.forEach(f => { (byCat[f.category||'Diğer'] = byCat[f.category||'Diğer'] || []).push(f); });
+  el.innerHTML = `
+    ${Object.keys(byCat).map(cat => `
+      <div style="margin-bottom:22px;">
+        <div class="muted" style="font-size:13px;font-weight:800;margin-bottom:8px;">${escapeHtml(cat)}</div>
+        <div class="settings-table-wrap">
+          <table class="settings-table">
+            <thead><tr><th>Kimlik</th><th>Ad</th><th>Açıklama</th><th>Kategori</th><th>Fiyat (₺/ay)</th><th>Aktif</th><th>Eklenti mi?</th><th></th></tr></thead>
+            <tbody>
+            ${byCat[cat].map(f => `
+              <tr>
+                <td class="col-name"><code>${escapeHtml(f.id)}</code>${f.is_core?' 🔒':''}</td>
+                <td class="col-name"><input value="${escapeHtml(f.label)}" id="feat_label_${f.id}"></td>
+                <td class="col-name"><input value="${escapeHtml(f.description||'')}" id="feat_desc_${f.id}"></td>
+                <td class="col-name"><input value="${escapeHtml(f.category||'')}" id="feat_cat_${f.id}"></td>
+                <td class="col-num" style="width:110px;"><input type="number" min="0" step="0.01" value="${f.price}" id="feat_price_${f.id}"></td>
+                <td style="text-align:center;"><input type="checkbox" id="feat_active_${f.id}" ${f.active?'checked':''} style="width:18px;height:18px;"></td>
+                <td style="text-align:center;"><input type="checkbox" id="feat_isaddon_${f.id}" ${f.is_addon?'checked':''} ${f.is_core?'disabled title="Temel özellikler eklenti yapılamaz"':''} style="width:18px;height:18px;"></td>
+                <td style="white-space:nowrap;">
+                  <button class="sbtn" onclick="saveFeatureRow('${f.id}')">Kaydet</button>
+                  ${f.is_core ? '' : `<button class="sbtn" style="background:var(--red);color:var(--btn-ink);" onclick="deleteFeatureRow('${f.id}')">Sil</button>`}
+                </td>
+              </tr>`).join('')}
+            </tbody>
+          </table>
+        </div>
+      </div>`).join('')}
+    <div class="add-row-panel">
+      <p>Yeni Özellik Ekle</p>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr 0.7fr;gap:10px;align-items:end;">
+        <div class="field-group"><label>Kimlik (benzersiz)</label><input id="newFeatId" placeholder="örn. loyalty_plus" autocapitalize="none"></div>
+        <div class="field-group"><label>Ad</label><input id="newFeatLabel" placeholder="örn. Sadakat Plus"></div>
+        <div class="field-group"><label>Açıklama</label><input id="newFeatDesc" placeholder="opsiyonel"></div>
+        <div class="field-group"><label>Kategori</label><input id="newFeatCat" placeholder="örn. Entegrasyonlar"></div>
+        <div class="field-group"><label>Fiyat (₺/ay)</label><input type="number" id="newFeatPrice" placeholder="0"></div>
+      </div>
+      <label style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:400;margin-top:10px;">
+        <input type="checkbox" id="newFeatIsAddon" checked style="width:16px;height:16px;"> Eklenti olarak işaretle (tekil satılabilir)
+      </label>
+      <div class="error" id="newFeatErr"></div>
+      <button style="margin-top:12px;max-width:220px;" onclick="createFeatureSubmit()">+ Özellik Ekle</button>
+    </div>`;
+}
+async function saveFeatureRow(id){
   const admin = getAdminSession();
-  const { error } = await sb.rpc('admin_delete_addon', { p_token: admin.session_token, p_id: id });
+  const label = document.getElementById('feat_label_'+id).value.trim();
+  const desc = document.getElementById('feat_desc_'+id).value.trim();
+  const cat = document.getElementById('feat_cat_'+id).value.trim() || 'Diğer';
+  const price = parseFloat(document.getElementById('feat_price_'+id).value) || 0;
+  const active = document.getElementById('feat_active_'+id).checked;
+  const isAddon = document.getElementById('feat_isaddon_'+id).checked;
+  if(!label){ alert('Ad gerekli'); return; }
+  const { error } = await sb.rpc('admin_upsert_feature', { p_token: admin.session_token, p_id: id, p_label: label, p_category: cat, p_is_addon: isAddon, p_price: price, p_description: desc||null, p_active: active });
   if(error){ alert(error.message); return; }
-  showToast('Eklenti silindi ✓');
-  refreshAddonsList(admin);
+  showToast('Özellik kaydedildi ✓');
+  refreshFeatureCatalogList(admin);
+}
+async function createFeatureSubmit(){
+  const admin = getAdminSession();
+  const id = document.getElementById('newFeatId').value.trim().toLowerCase();
+  const label = document.getElementById('newFeatLabel').value.trim();
+  const desc = document.getElementById('newFeatDesc').value.trim();
+  const cat = document.getElementById('newFeatCat').value.trim() || 'Diğer';
+  const price = parseFloat(document.getElementById('newFeatPrice').value) || 0;
+  const isAddon = document.getElementById('newFeatIsAddon').checked;
+  const errEl = document.getElementById('newFeatErr');
+  errEl.textContent = '';
+  if(!id || !/^[a-z0-9_-]+$/.test(id)){ errEl.textContent = 'Kimlik sadece küçük harf/rakam/tire içerebilir'; return; }
+  if(!label){ errEl.textContent = 'Ad gerekli'; return; }
+  const { error } = await sb.rpc('admin_upsert_feature', { p_token: admin.session_token, p_id: id, p_label: label, p_category: cat, p_is_addon: isAddon, p_price: price, p_description: desc||null, p_active: true });
+  if(error){ errEl.textContent = error.message; return; }
+  showToast('Özellik oluşturuldu ✓');
+  refreshFeatureCatalogList(admin);
+}
+async function deleteFeatureRow(id){
+  if(!confirm('Bu özelliği silmek istediğinize emin misiniz? Bu özelliğe sahip paketler ve eklenti atamaları etkilenir.')) return;
+  const admin = getAdminSession();
+  const { error } = await sb.rpc('admin_delete_feature', { p_token: admin.session_token, p_id: id });
+  if(error){ alert(error.message); return; }
+  showToast('Özellik silindi ✓');
+  refreshFeatureCatalogList(admin);
 }
 /* İşletmeler/Şirketler listesindeki "🧩 Eklentiler" butonu - bir hedefin
    (restaurant/company) hangi eklentilere sahip olduğunu gösterip
    açma/kapama sağlayan küçük bir pencere. */
 async function openEntitlementsModal(targetType, targetId, targetName){
   const admin = getAdminSession();
-  const [{ data: addons, error: e1 }, { data: owned, error: e2 }] = await withLoadingOverlay(Promise.all([
-    APP.adminAddons ? Promise.resolve({ data: APP.adminAddons, error: null }) : sb.rpc('admin_list_addons', { p_token: admin.session_token }),
+  const [{ data: features, error: e1 }, { data: owned, error: e2 }] = await withLoadingOverlay(Promise.all([
+    APP.featureCatalog ? Promise.resolve({ data: APP.featureCatalog, error: null }) : sb.rpc('admin_list_feature_catalog', { p_token: admin.session_token }),
     sb.rpc('admin_list_target_entitlements', { p_token: admin.session_token, p_target_type: targetType, p_target_id: targetId })
   ]));
   if(e1 || e2){ alert((e1||e2).message); return; }
+  const addons = (features||[]).filter(f => f.is_addon);
   const ownedSet = new Set(owned || []);
   const bg = document.createElement('div');
   bg.id = 'entitlementsBg';
@@ -1305,11 +1371,11 @@ async function openEntitlementsModal(targetType, targetId, targetName){
     <div style="display:flex;justify-content:space-between;align-items:center;"><h2 style="margin:0;">🧩 Eklentiler</h2><span style="cursor:pointer;color:var(--muted);font-size:20px;" onclick="document.getElementById('entitlementsBg').remove()">✕</span></div>
     <p class="muted" style="margin-top:6px;">${escapeHtml(targetName)}</p>
     <div style="display:flex;flex-direction:column;gap:8px;margin-top:10px;">
-      ${(addons||[]).length===0 ? '<p class="muted">Henüz hiç eklenti tanımlanmamış.</p>' : (addons||[]).map(a => `
+      ${addons.length===0 ? '<p class="muted">Henüz hiç eklenti tanımlanmamış.</p>' : addons.map(a => `
         <label style="display:flex;align-items:center;gap:10px;background:var(--panel2);border:1px solid var(--border);border-radius:10px;padding:10px 12px;cursor:pointer;">
           <input type="checkbox" style="width:auto;margin:0;" ${ownedSet.has(a.id)?'checked':''} onchange="setEntitlement('${targetType}','${targetId}','${a.id}',this.checked,this)">
           <div style="flex:1;">
-            <div style="font-weight:700;">${escapeHtml(a.name)}</div>
+            <div style="font-weight:700;">${escapeHtml(a.label)}</div>
             <div class="muted" style="font-size:12px;">${escapeHtml(a.description||'')} ${a.price>0?'· '+money(a.price)+'/ay':''}</div>
           </div>
         </label>`).join('')}
