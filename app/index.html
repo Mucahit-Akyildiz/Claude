@@ -5838,11 +5838,17 @@ function renderSubscriptionPanel(lic){
           <div class="role-badge" style="margin-bottom:6px;">${escapeHtml(lic.package_id)} · ${APP.config.users.length}/${lic.max_users} kullanıcı</div>
           <div style="color:${color};font-weight:700;font-size:13.5px;">${statusText}</div>
         </div>
-        <button id="renewBtn" style="width:auto;padding:10px 18px;margin:0;background:${color};" onclick="startRenewal()">💳 Öde / Yenile (Aylık)</button>
+        <div style="display:flex;align-items:center;gap:6px;">
+          <button id="renewBtn" disabled title="Kartla ödeme yakında açılacak" style="width:auto;padding:10px 18px;margin:0;opacity:.55;cursor:not-allowed;">💳 Kredi Kartı ile Öde</button>
+          <span class="role-badge" style="color:var(--accent);border-color:var(--accent);white-space:nowrap;">🔜 Yakında</span>
+        </div>
       </div>
       <div class="error" id="renewErr" style="text-align:left;margin-top:8px;"></div>
     </div>`;
 }
+/* Kredi kartı (iyzico) akışı gecici olarak kapali - "şirket" (vergi/ticari
+   kayıt) süreci tamamlanana kadar tek ödeme yolu havale bildirimi (bkz.
+   aşağıda renderBillingSettings). Buton bilinçli olarak disabled bırakıldı. */
 async function startRenewal(){
   const session = getSession();
   const btn = document.getElementById('renewBtn');
@@ -5858,13 +5864,13 @@ async function startRenewal(){
     const data = await res.json();
     if(!res.ok || !data.paymentPageUrl){
       errBox.textContent = 'Ödeme başlatılamadı: ' + (data.errorMessage || JSON.stringify(data));
-      btn.disabled = false; btn.textContent = '💳 Öde / Yenile (Aylık)';
+      btn.disabled = false; btn.textContent = '💳 Kredi Kartı ile Öde';
       return;
     }
     window.location.href = data.paymentPageUrl;
   }catch(err){
     errBox.textContent = 'Ödeme sayfasına ulaşılamadı: ' + err.message;
-    btn.disabled = false; btn.textContent = '💳 Öde / Yenile (Aylık)';
+    btn.disabled = false; btn.textContent = '💳 Kredi Kartı ile Öde';
   }
 }
 /* ---- Ayarlar > Abonelik: iyzico ile kart ödemesi çalışmıyorsa/yoksa
