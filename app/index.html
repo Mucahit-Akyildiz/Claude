@@ -1215,14 +1215,15 @@ function renderBankInfoPanel(editMode){
         ${bankInfoFieldHtml('bankAccountName', 'Hesap Adı', null, info.account_name, 'örn. Kopuzlar Grup Ltd. Şti.', editMode)}
         ${bankInfoFieldHtml('bankName', 'Banka', null, info.bank_name, 'örn. Ziraat Bankası', editMode)}
       </div>
-      <div style="max-width:320px;margin-top:10px;">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;max-width:660px;margin-top:10px;">
         ${bankInfoFieldHtml('bankWhatsapp', 'Bildirim WhatsApp Numarası', '"Ödemeyi Yaptım" denince buraya yönlendirilir', info.whatsapp_number, '905xxxxxxxxx', editMode)}
+        ${bankInfoFieldHtml('bankNotifyEmail', 'Bildirim E-postası', 'yeni bildirimde anında otomatik e-posta gider', info.notify_email, 'ornek@eposta.com', editMode)}
       </div>
       ${editMode ? `
         <div class="error" id="bankInfoErr"></div>
         <div style="display:flex;gap:8px;margin-top:12px;">
           <button style="width:auto;max-width:220px;margin:0;" onclick="saveBankTransferInfo()">Kaydet</button>
-          ${info.iban || info.account_name || info.bank_name || info.whatsapp_number ? `<button type="button" class="sbtn" style="width:auto;margin:0;" onclick="renderBankInfoPanel(false)">Vazgeç</button>` : ''}
+          ${info.iban || info.account_name || info.bank_name || info.whatsapp_number || info.notify_email ? `<button type="button" class="sbtn" style="width:auto;margin:0;" onclick="renderBankInfoPanel(false)">Vazgeç</button>` : ''}
         </div>
       ` : ''}
     </div>`;
@@ -1246,13 +1247,14 @@ async function saveBankTransferInfo(){
   const accountName = document.getElementById('bankAccountName').value.trim();
   const bankName = document.getElementById('bankName').value.trim();
   const whatsapp = document.getElementById('bankWhatsapp').value.trim();
+  const notifyEmail = document.getElementById('bankNotifyEmail').value.trim();
   const errEl = document.getElementById('bankInfoErr');
   errEl.textContent = '';
   const { error } = await sb.rpc('admin_update_bank_transfer_info', {
-    p_token: admin.session_token, p_iban: iban, p_account_name: accountName, p_bank_name: bankName, p_whatsapp_number: whatsapp
+    p_token: admin.session_token, p_iban: iban, p_account_name: accountName, p_bank_name: bankName, p_whatsapp_number: whatsapp, p_notify_email: notifyEmail
   });
   if(error){ errEl.textContent = error.message; return; }
-  APP.bankInfo = { iban, account_name: accountName, bank_name: bankName, whatsapp_number: whatsapp };
+  APP.bankInfo = { iban, account_name: accountName, bank_name: bankName, whatsapp_number: whatsapp, notify_email: notifyEmail };
   renderBankInfoPanel(false);
   showToast('Banka bilgileri kaydedildi ✓');
 }
