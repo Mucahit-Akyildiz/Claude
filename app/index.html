@@ -1223,17 +1223,17 @@ async function refreshAddonsList(admin){
     ${addons.length===0 ? '<p class="muted">Henüz eklenti yok.</p>' : `
     <div class="settings-table-wrap">
       <table class="settings-table">
-        <thead><tr><th>Kimlik</th><th>Ad</th><th>Açıklama</th><th>Fiyat</th><th>Durum</th><th></th></tr></thead>
+        <thead><tr><th>Kimlik</th><th>Ad</th><th>Açıklama</th><th>Fiyat (₺/ay)</th><th>Aktif</th><th></th></tr></thead>
         <tbody>
         ${addons.map(a => `
           <tr>
-            <td class="col-name">${escapeHtml(a.id)}</td>
-            <td class="col-name"><b>${escapeHtml(a.name)}</b></td>
-            <td class="col-name">${escapeHtml(a.description||'-')}</td>
-            <td class="col-name">${money(a.price)}</td>
-            <td>${a.active ? '<span class="role-badge" style="color:var(--green);border-color:var(--green);">Aktif</span>' : '<span class="role-badge" style="color:var(--red);border-color:var(--red);">Pasif</span>'}</td>
+            <td class="col-name"><code>${escapeHtml(a.id)}</code></td>
+            <td class="col-name"><input value="${escapeHtml(a.name)}" id="addon_name_${a.id}"></td>
+            <td class="col-name"><input value="${escapeHtml(a.description||'')}" id="addon_desc_${a.id}"></td>
+            <td class="col-num" style="width:110px;"><input type="number" min="0" step="0.01" value="${a.price}" id="addon_price_${a.id}"></td>
+            <td style="text-align:center;"><input type="checkbox" id="addon_active_${a.id}" ${a.active?'checked':''} style="width:18px;height:18px;"></td>
             <td style="white-space:nowrap;">
-              <button class="sbtn" onclick="toggleAddonActive('${a.id}', ${!a.active})">${a.active?'Pasif Et':'Aktif Et'}</button>
+              <button class="sbtn" onclick="saveAddonRow('${a.id}')">Kaydet</button>
               <button class="sbtn" style="background:var(--red);color:var(--btn-ink);" onclick="deleteAddon('${a.id}')">Sil</button>
             </td>
           </tr>`).join('')}
@@ -1252,6 +1252,18 @@ async function refreshAddonsList(admin){
       <button style="margin-top:12px;max-width:220px;" onclick="createAddonSubmit()">+ Eklenti Oluştur</button>
     </div>`;
 }
+async function saveAddonRow(id){
+  const admin = getAdminSession();
+  const name = document.getElementById('addon_name_'+id).value.trim();
+  const desc = document.getElementById('addon_desc_'+id).value.trim();
+  const price = parseFloat(document.getElementById('addon_price_'+id).value) || 0;
+  const active = document.getElementById('addon_active_'+id).checked;
+  if(!name){ alert('Ad gerekli'); return; }
+  const { error } = await sb.rpc('admin_upsert_addon', { p_token: admin.session_token, p_id: id, p_name: name, p_description: desc||null, p_price: price, p_active: active });
+  if(error){ alert(error.message); return; }
+  showToast('Eklenti kaydedildi ✓');
+  refreshAddonsList(admin);
+}
 async function createAddonSubmit(){
   const admin = getAdminSession();
   const id = document.getElementById('newAddonId').value.trim();
@@ -1264,13 +1276,6 @@ async function createAddonSubmit(){
   const { error } = await sb.rpc('admin_upsert_addon', { p_token: admin.session_token, p_id: id, p_name: name, p_description: desc||null, p_price: price, p_active: true });
   if(error){ errEl.textContent = error.message; return; }
   showToast('Eklenti oluşturuldu ✓');
-  refreshAddonsList(admin);
-}
-async function toggleAddonActive(id, makeActive){
-  const admin = getAdminSession();
-  const a = (APP.adminAddons||[]).find(x => x.id===id); if(!a) return;
-  const { error } = await sb.rpc('admin_upsert_addon', { p_token: admin.session_token, p_id: a.id, p_name: a.name, p_description: a.description, p_price: a.price, p_active: makeActive });
-  if(error){ alert(error.message); return; }
   refreshAddonsList(admin);
 }
 async function deleteAddon(id){
@@ -5873,7 +5878,7 @@ async function renderIntegrationsSettings(el, session){
   const { data, error } = await sb.rpc('get_integration_settings', { p_token: session.session_token });
   if(error){ el.innerHTML = '<p class="muted">Yüklenemedi: '+error.message+'</p>'; return; }
   el.innerHTML = `<div class="box" style="max-width:none;">
-    <h2>ÖKC / e-Fatura Entegrasyonu</h2>
+    <h2>ÖKC / e-Fatura Entegrasyonu <span class="role-badge" style="font-weight:600;">Eklenti</span></h2>
     <p class="muted" style="margin-top:-6px;">Bu bölüm şu an sadece kimlik bilgilerinizi güvenli şekilde saklar. Gerçek bağlantı, bir e-fatura entegratörüyle (Foriba, İzibiz, Logo, Nesbilgi vb.) sözleşme yapıldıktan sonra aktif hale getirilir.</p>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;max-width:500px;">
       <div class="field-group"><label>Entegratör</label>
@@ -5895,7 +5900,7 @@ async function renderIntegrationsSettings(el, session){
     <button style="margin-top:12px;max-width:220px;" onclick="saveEfaturaSettings()">Kaydet</button>
   </div>
   <div class="box" style="max-width:none;">
-    <h2>Pazaryeri Entegrasyonu</h2>
+    <h2>Pazaryeri Entegrasyonu <span class="role-badge" style="font-weight:600;">Eklenti</span></h2>
     <p class="muted" style="margin-top:-6px;">Yemeksepeti, Trendyol Yemek ve Getir Yemek siparişlerini tek ekrandan almak için gereken altyapı. Gerçek bağlantı için ilgili platformdan onaylı işletme/API erişimi gerekir.</p>
     <div style="display:grid;grid-template-columns:1fr;gap:10px;max-width:500px;">
       <div class="field-group"><label>Yemeksepeti API Anahtarı</label><input id="int_ys_key" type="password" placeholder="${data.marketplace_yemeksepeti_configured?'(değiştirmek için yaz)':'API anahtarı'}"></div>
@@ -5913,7 +5918,7 @@ async function renderIntegrationsSettings(el, session){
     <button style="margin-top:12px;max-width:220px;" onclick="saveMarketplaceSettings()">Kaydet</button>
   </div>
   <div class="box" style="max-width:none;">
-    <h2>📊 Muhasebe Entegrasyonu <span class="role-badge" style="font-weight:600;">Ek Eklenti</span></h2>
+    <h2>📊 Muhasebe Entegrasyonu <span class="role-badge" style="font-weight:600;">Eklenti</span></h2>
     <p class="muted" style="margin-top:-6px;">Satış verilerinizi muhasebe programınıza (Logo, Mikro, Netsis vb.) otomatik aktarmak için gereken altyapı. Bu bölüm şu an sadece kimlik bilgilerinizi güvenli şekilde saklar - gerçek veri aktarımı, ilgili yazılımla sözleşme/entegrasyon onayı alındıktan sonra aktif hale getirilir. Bu özellik hiçbir pakete dahil değildir, ayrı bir eklenti olarak satın alınması gerekir.</p>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;max-width:500px;">
       <div class="field-group"><label>Muhasebe Yazılımı</label>
@@ -5988,13 +5993,20 @@ async function saveOnlineOrderingSettings(){
   showToast(enabled ? 'Online sipariş açıldı ✓' : 'Online sipariş kapatıldı ✓');
   renderSettingsContent(session);
 }
+/* Paket/eklenti gerektiren bir RPC 'PAKET_OZELLIK_YOK' ile dönerse, ham
+   hata koduyla uğraştırmak yerine ilgili özelliğin adıyla anlaşılır bir
+   mesaj gösterir. */
+function friendlyPaketError(errMessage, featureLabel){
+  if(errMessage !== 'PAKET_OZELLIK_YOK') return errMessage;
+  return featureLabel + ' paketinizde/eklentilerinizde dahil değil - açmak için bizimle iletişime geçin.';
+}
 async function saveEfaturaSettings(){
   const session = getSession();
   const provider = document.getElementById('int_efatura_provider').value || null;
   const key = document.getElementById('int_efatura_key').value;
   const enabled = document.getElementById('int_efatura_enabled').checked;
   const { error } = await sb.rpc('update_efatura_settings', { p_token: session.session_token, p_provider: provider, p_api_key: key||null, p_enabled: enabled });
-  if(error){ alert(error.message); return; }
+  if(error){ alert(friendlyPaketError(error.message, 'ÖKC / e-Fatura Entegrasyonu')); return; }
   renderSettingsContent(session);
   showToast('Kaydedildi ✓');
 }
@@ -6005,7 +6017,7 @@ async function saveMarketplaceSettings(){
   const gt = document.getElementById('int_gt_key').value;
   const enabled = document.getElementById('int_marketplace_enabled').checked;
   const { error } = await sb.rpc('update_marketplace_settings', { p_token: session.session_token, p_yemeksepeti_key: ys||null, p_trendyol_key: ty||null, p_getir_key: gt||null, p_enabled: enabled });
-  if(error){ alert(error.message); return; }
+  if(error){ alert(friendlyPaketError(error.message, 'Pazaryeri Entegrasyonu')); return; }
   renderSettingsContent(session);
   showToast('Kaydedildi ✓');
 }
