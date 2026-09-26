@@ -793,11 +793,15 @@ async function renderPricingAdmin(main, admin){
 }
 async function refreshPackagesAdmin(admin){
   const el = document.getElementById('pricingContent'); if(!el) return;
-  const { data, error } = await sb.rpc('admin_list_packages', { p_token: admin.session_token });
+  const [{ data, error }, { data: addonsData }] = await Promise.all([
+    sb.rpc('admin_list_packages', { p_token: admin.session_token }),
+    sb.rpc('admin_list_addons', { p_token: admin.session_token })
+  ]);
   if(error){
     if(error.message.includes('geçersiz')){ clearAdminSession(); render(); return; }
     el.innerHTML = '<p class="muted">Yüklenemedi: '+error.message+'</p>'; return;
   }
+  APP.adminAddons = addonsData || [];
   const packages = data || [];
   el.innerHTML = `
     <p class="muted" style="text-align:left;max-width:640px;">Bu fiyatlar, işletmelerin 7 günlük ücretsiz denemesi bittikten sonra
@@ -856,16 +860,27 @@ async function refreshPackagesAdmin(admin){
    id'ler idPrefix+'_'+anahtar şeklinde, readPackageFeatures ile okunur. */
 function featureCheckboxesHtml(idPrefix, selectedFeatures){
   const sel = new Set(selectedFeatures||[]);
+  const addons = APP.adminAddons || [];
   return `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:6px 14px;">
     ${Object.keys(PACKAGE_FEATURE_LABELS).map(key => `
       <label style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:400;">
         <input type="checkbox" id="${idPrefix}_${key}" ${sel.has(key)?'checked':''} style="width:16px;height:16px;">
         ${escapeHtml(PACKAGE_FEATURE_LABELS[key])}
       </label>`).join('')}
-  </div>`;
+  </div>
+  ${addons.length>0 ? `
+  <div class="muted" style="font-size:12px;font-weight:700;margin:12px 0 6px;">🧩 Eklentiler / Entegrasyonlar <span style="font-weight:400;">(işaretlenirse bu pakette ücretsiz dahil olur, ayrıca Eklentiler'den tekil satılabilir)</span></div>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:6px 14px;">
+    ${addons.map(a => `
+      <label style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:400;">
+        <input type="checkbox" id="${idPrefix}_${a.id}" ${sel.has(a.id)?'checked':''} style="width:16px;height:16px;">
+        ${escapeHtml(a.name)}${a.price>0?' <span class="muted">('+money(a.price)+'/ay)</span>':''}
+      </label>`).join('')}
+  </div>` : ''}`;
 }
 function readPackageFeatures(idPrefix){
-  return Object.keys(PACKAGE_FEATURE_LABELS).filter(key => {
+  const addonKeys = (APP.adminAddons||[]).map(a => a.id);
+  return [...Object.keys(PACKAGE_FEATURE_LABELS), ...addonKeys].filter(key => {
     const el = document.getElementById(idPrefix+'_'+key);
     return el && el.checked;
   });
