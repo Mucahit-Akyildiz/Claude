@@ -6071,47 +6071,67 @@ async function renderReportContent(session){
   });
   const staffNames = Object.keys(staffStats).sort((a,b) => staffStats[b].tipCollected-staffStats[a].tipCollected);
   const staffRowsHtml = staffNames.length===0 ? '<p class="muted">Bu tarihte veri yok.</p>' :
-    `<table style="width:100%;border-collapse:collapse;"><thead><tr style="text-align:left;color:var(--muted);font-size:12px;"><th>Personel</th><th>Aldığı Sipariş</th><th>Topladığı Bahşiş</th></tr></thead><tbody>` +
-    staffNames.map(name => `<tr><td style="padding:6px 4px;border-top:1px solid var(--border);">${escapeHtml(name)}</td>
-      <td style="padding:6px 4px;border-top:1px solid var(--border);">${staffStats[name].ordersTaken.size}</td>
-      <td style="padding:6px 4px;border-top:1px solid var(--border);">${money(staffStats[name].tipCollected)}</td></tr>`).join('') + '</tbody></table>';
+    `<div class="settings-table-wrap"><table class="settings-table"><thead><tr><th>Personel</th><th>Aldığı Sipariş</th><th>Topladığı Bahşiş</th></tr></thead><tbody>` +
+    staffNames.map(name => `<tr><td class="col-name">${escapeHtml(name)}</td>
+      <td>${staffStats[name].ordersTaken.size}</td>
+      <td>${money(staffStats[name].tipCollected)}</td></tr>`).join('') + '</tbody></table></div>';
 
   const hourKeys = Object.keys(hourStats).map(Number).sort((a,b)=>a-b);
   let peakHour = null;
   hourKeys.forEach(h => { if(peakHour===null || hourStats[h].count>hourStats[peakHour].count) peakHour=h; });
   const maxCount = hourKeys.length ? Math.max(...hourKeys.map(h=>hourStats[h].count)) : 0;
   const hourlyHtml = hourKeys.length===0 ? '<p class="muted">Bu tarihte veri yok.</p>' :
-    `<table style="width:100%;border-collapse:collapse;"><thead><tr style="text-align:left;color:var(--muted);font-size:12px;"><th>Saat</th><th>Sipariş</th><th>Ciro</th><th>Yoğunluk</th></tr></thead><tbody>` +
+    `<div class="settings-table-wrap"><table class="settings-table"><thead><tr><th>Saat</th><th>Sipariş</th><th>Ciro</th><th>Yoğunluk</th></tr></thead><tbody>` +
     hourKeys.map(h => {
       const hs = hourStats[h];
       const pct = maxCount ? Math.round(hs.count/maxCount*100) : 0;
       const isPeak = h===peakHour;
       const label = (h<10?'0'+h:h)+':00-'+((h+1)%24<10?'0'+((h+1)%24):(h+1)%24)+':00';
-      return `<tr style="${isPeak?'background:rgba(0,143,168,.08);':''}"><td style="padding:6px 4px;border-top:1px solid var(--border);">${label}${isPeak?' 🔥':''}</td>
-        <td style="padding:6px 4px;border-top:1px solid var(--border);">${hs.count}</td>
-        <td style="padding:6px 4px;border-top:1px solid var(--border);">${money(hs.revenue)}</td>
-        <td style="padding:6px 4px;border-top:1px solid var(--border);"><div style="background:var(--panel2);border-radius:6px;height:14px;min-width:70px;overflow:hidden;"><div style="width:${pct}%;height:100%;background:${isPeak?'var(--accent)':'var(--accent2)'};"></div></div></td></tr>`;
-    }).join('') + '</tbody></table>';
+      return `<tr><td style="${isPeak?'font-weight:700;':''}">${label}${isPeak?' 🔥':''}</td>
+        <td>${hs.count}</td>
+        <td>${money(hs.revenue)}</td>
+        <td><div style="background:var(--panel);border-radius:6px;height:14px;min-width:70px;overflow:hidden;"><div style="width:${pct}%;height:100%;background:${isPeak?'var(--accent)':'var(--accent2)'};"></div></div></td></tr>`;
+    }).join('') + '</tbody></table></div>';
 
-  const billsHtml = hist.length===0 ? '<p class="muted">Bu tarihte kapatılmış hesap yok.</p>' :
-    `<table style="width:100%;border-collapse:collapse;"><thead><tr style="text-align:left;color:var(--muted);font-size:12px;"><th>Saat</th><th>Masa</th><th>Tutar</th><th>İndirim</th><th>Ödeme</th></tr></thead><tbody>` +
-    hist.map(o => {
-      const t = new Date(o.closed_at).toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'});
-      const giftTxt = (o.payment_method!=='gift_card' && Number(o.gift_card_amount||0)>0) ? (' + 🎁 '+money(o.gift_card_amount)) : '';
-      const methodLabel = o.payment_method==='split'
-        ? ('Bölünmüş (💵 '+money(o.cash_amount||0)+' + 💳 '+money(o.card_amount||0)+giftTxt+')')
-        : (({cash:'Nakit', card:'Kredi Kartı', gift_card:'Hediye Kartı'}[o.payment_method] || o.payment_method) + giftTxt);
-      const discTxt = o.discount_amount>0 ? ('-'+money(o.discount_amount)) : '-';
-      const tagBadge = (o.tags && o.tags.length>0)
-        ? ` <span style="background:rgba(234,179,8,.15);color:#eab308;border-radius:6px;padding:2px 6px;font-size:11px;font-weight:700;">${o.tags.map(x=>escapeHtml(x)).join(', ')}</span>`
-        : '';
-      const nameTxt = (o.kind==='takeaway'?'📦 ':'') + escapeHtml(o.table_name||'');
-      return `<tr><td style="padding:6px 4px;border-top:1px solid var(--border);">${t}</td>
-        <td style="padding:6px 4px;border-top:1px solid var(--border);">${nameTxt}${tagBadge}</td>
-        <td style="padding:6px 4px;border-top:1px solid var(--border);">${money(o.total)}</td>
-        <td style="padding:6px 4px;border-top:1px solid var(--border);">${discTxt}</td>
-        <td style="padding:6px 4px;border-top:1px solid var(--border);">${methodLabel}</td></tr>`;
-    }).join('') + '</tbody></table>';
+  // Kapatılan Hesaplar listesi saat/masa/ödeme biçimine göre filtrelenebilir -
+  // filtre seçenekleri o tarih aralığında GERÇEKTEN görülen değerlerden
+  // türetilir (boş/alakasız seçenek çıkmasın diye).
+  if(!APP.reportBillsFilter) APP.reportBillsFilter = { hour:'', table:'', method:'' };
+  const bf = APP.reportBillsFilter;
+  const billLabel = (o) => (o.kind==='takeaway' ? '📦 Paket' : (o.table_name||'-'));
+  const billTableOptions = [...new Set(hist.map(billLabel))].sort();
+  const billHourOptions = [...new Set(hist.map(o => new Date(o.closed_at).getHours()))].sort((a,b)=>a-b);
+  const METHOD_LABELS = { cash:'💵 Nakit', card:'💳 Kredi Kartı', gift_card:'🎁 Hediye Kartı', split:'➗ Bölünmüş' };
+  const billMethodOptions = [...new Set(hist.map(o => o.payment_method))].filter(Boolean).sort();
+
+  const filteredBills = hist.filter(o => {
+    if(bf.hour!=='' && new Date(o.closed_at).getHours()!==Number(bf.hour)) return false;
+    if(bf.table && billLabel(o)!==bf.table) return false;
+    if(bf.method && o.payment_method!==bf.method) return false;
+    return true;
+  });
+  const billsFilterActive = bf.hour!=='' || bf.table!=='' || bf.method!=='';
+
+  const billRowHtml = (o) => {
+    const t = new Date(o.closed_at).toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'});
+    const giftTxt = (o.payment_method!=='gift_card' && Number(o.gift_card_amount||0)>0) ? (' + 🎁 '+money(o.gift_card_amount)) : '';
+    const methodLabel = o.payment_method==='split'
+      ? ('Bölünmüş (💵 '+money(o.cash_amount||0)+' + 💳 '+money(o.card_amount||0)+giftTxt+')')
+      : ((METHOD_LABELS[o.payment_method] || o.payment_method) + giftTxt);
+    const discTxt = o.discount_amount>0 ? ('-'+money(o.discount_amount)) : '-';
+    const tagBadge = (o.tags && o.tags.length>0)
+      ? ` <span style="background:rgba(234,179,8,.15);color:#eab308;border-radius:6px;padding:2px 6px;font-size:11px;font-weight:700;">${o.tags.map(x=>escapeHtml(x)).join(', ')}</span>`
+      : '';
+    return `<tr><td>${t}</td>
+      <td class="col-name">${escapeHtml(billLabel(o))}${tagBadge}</td>
+      <td>${money(o.total)}</td>
+      <td>${discTxt}</td>
+      <td>${methodLabel}</td></tr>`;
+  };
+  const billsHtml = hist.length===0 ? '<p class="muted">Bu tarihte kapatılmış hesap yok.</p>'
+    : filteredBills.length===0 ? '<p class="muted">Bu filtrede kapatılmış hesap yok.</p>'
+    : `<div class="settings-table-wrap"><table class="settings-table"><thead><tr><th>Saat</th><th>Masa</th><th>Tutar</th><th>İndirim</th><th>Ödeme</th></tr></thead><tbody>` +
+      filteredBills.map(billRowHtml).join('') + '</tbody></table></div>';
 
   el.innerHTML = `
     <div class="home-grid" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr));">
@@ -6131,7 +6151,28 @@ async function renderReportContent(session){
     </div>
     <div class="box" style="max-width:none;"><h2>Saatlik Yoğunluk${peakHour!==null?' <span class="muted" style="font-size:12px;font-weight:400;">(en yoğun: '+(peakHour<10?'0'+peakHour:peakHour)+':00 🔥)</span>':''}</h2>${hourlyHtml}</div>
     <div class="box" style="max-width:none;"><h2>👤 Personel Performansı</h2>${staffRowsHtml}</div>
-    <div class="box" style="max-width:none;"><h2>Kapatılan Hesaplar</h2>${billsHtml}</div>
+    <div class="box" style="max-width:none;">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:6px;">
+        <h2 style="margin:0;">Kapatılan Hesaplar</h2>
+        <span class="muted" style="font-size:12px;">${billsFilterActive ? (filteredBills.length+' / '+hist.length+' hesap') : (hist.length+' hesap')}</span>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;">
+        <select id="billHourFilter" style="width:auto;margin:0;padding:8px 12px;" onchange="APP.reportBillsFilter.hour=this.value;renderReportTabContent(getSession());">
+          <option value="">Tüm Saatler</option>
+          ${billHourOptions.map(h => `<option value="${h}" ${bf.hour===String(h)?'selected':''}>${h<10?'0'+h:h}:00</option>`).join('')}
+        </select>
+        <select id="billTableFilter" style="width:auto;margin:0;padding:8px 12px;" onchange="APP.reportBillsFilter.table=this.value;renderReportTabContent(getSession());">
+          <option value="">Tüm Masalar</option>
+          ${billTableOptions.map(tb => `<option value="${escapeHtml(tb)}" ${bf.table===tb?'selected':''}>${escapeHtml(tb)}</option>`).join('')}
+        </select>
+        <select id="billMethodFilter" style="width:auto;margin:0;padding:8px 12px;" onchange="APP.reportBillsFilter.method=this.value;renderReportTabContent(getSession());">
+          <option value="">Tüm Ödeme Biçimleri</option>
+          ${billMethodOptions.map(m => `<option value="${m}" ${bf.method===m?'selected':''}>${METHOD_LABELS[m]||m}</option>`).join('')}
+        </select>
+        ${billsFilterActive ? `<button type="button" class="sbtn" style="width:auto;margin:0;" onclick="APP.reportBillsFilter={hour:'',table:'',method:''};renderReportTabContent(getSession());">✕ Filtreleri Temizle</button>` : ''}
+      </div>
+      ${billsHtml}
+    </div>
   `;
 }
 /* --- Ürün İstatistikleri sekmesi: hangi üründen ne kadar satıldığı,
