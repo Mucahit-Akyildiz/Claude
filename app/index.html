@@ -1255,10 +1255,44 @@ async function saveAddonRow(id){
    bunlar uygulamanın rol/izin sistemine bağlı yapısal özellikler. ---- */
 async function renderFeatureCatalogAdmin(main, admin){
   main.innerHTML = `<h1>🗂️ Tüm Özellikler</h1>
-    <p class="muted" style="margin-top:-8px;max-width:700px;">Uygulamadaki her özellik burada listelenir. Her birini "Eklenti mi?" kutusuyla işaretleyin: işaretlenirse Eklentiler sekmesinden fiyatlandırıp tekil satabilir, işaretlemezseniz sadece Paket Fiyatları'ndan paketlere dahil edersiniz. Temel özellikler (🔒) eklenti yapılamaz ve silinemez.</p>
+    <p class="muted" style="margin-top:-8px;max-width:700px;">Uygulamadaki her özellik burada listelenir. Her birini "Eklenti mi?" kutusuyla siz işaretlersiniz: işaretlenirse Eklentiler sekmesinden fiyatlandırıp tekil satabilirsiniz, işaretlemezseniz sadece Paket Fiyatları'ndan paketlere dahil edersiniz. Temel işaretli (🔒) özellikler yanlışlıkla silinmesin diye korunur ama eklenti durumunu istediğiniz gibi değiştirebilirsiniz.</p>
     <div id="featureCatalogContent"></div>`;
   await refreshFeatureCatalogList(admin);
 }
+/* Uygulamada gerçekten var olan her özelliğin referans listesi - "Tüm
+   Özellikler" sekmesindeki listeye/arama kutusuna kaynaklık eder, admin
+   buradan işaretleyip kendi isteğiyle kataloğa (feature_catalog) ekler;
+   elle kimlik/etiket yazmasına gerek kalmaz. Yeni bir özellik geliştirildiğinde
+   bu listeye eklenir - admin ne zaman ekleyeceğine kendisi karar verir. */
+const FEATURE_MASTER_LIST = [
+  { id:'order', label:'Sipariş Al', category:'Temel', description:'Masa/bölge bazlı sipariş girişi ekranı.' },
+  { id:'packages', label:'Paket Servis', category:'Temel', description:'Gel-al / paket teslimat siparişleri ekranı.' },
+  { id:'kitchen', label:'Mutfak Ekranı', category:'Temel', description:'İstasyon bazlı canlı mutfak sipariş ekranı.' },
+  { id:'payments', label:'Ödemeler', category:'Temel', description:'Hesap kapatma, nakit/kart/bölünmüş ödeme alma.' },
+  { id:'settings_stations', label:'Ayarlar · İstasyonlar', category:'Temel', description:'Mutfak istasyonlarını tanımlama.' },
+  { id:'settings_zones', label:'Ayarlar · Bölgeler & Masalar', category:'Temel', description:'Salon/bölge ve masa yönetimi.' },
+  { id:'settings_products', label:'Ayarlar · Ürünler', category:'Temel', description:'Menü/ürün yönetimi.' },
+  { id:'settings_ingredients', label:'Ayarlar · Hammaddeler', category:'Temel', description:'Reçete ve stok/hammadde yönetimi.' },
+  { id:'settings_users', label:'Ayarlar · Kullanıcılar', category:'Temel', description:'Personel ve rol yönetimi.' },
+  { id:'settings_flags', label:'Ayarlar · Sipariş Etiketleri', category:'Temel', description:'Personel yemeği/ikram gibi sipariş etiketleri.' },
+  { id:'reports', label:'Finansal Analiz', category:'Temel', description:'Satış raporları, ürün/personel istatistikleri.' },
+  { id:'shifts', label:'Vardiyalar', category:'Temel', description:'Personel vardiya/puantaj takibi.' },
+  { id:'floorplan', label:'Görsel Kat Planı', category:'Temel', description:'Masaları sürükle-bırak ile yerleştirip Sipariş Al ekranında gerçek oturma düzenini görme.' },
+  { id:'push_notifications', label:'Anlık Bildirimler (Web Push)', category:'Temel', description:'Hazır sipariş, yeni müşteri talebi gibi olaylarda uygulama kapalıyken de tarayıcı/PWA bildirimi.' },
+  { id:'crm', label:'Müşteriler (CRM)', category:'Müşteri', description:'Müşteri listesi, sadakat puanı, doğum günü indirimi.' },
+  { id:'reservations', label:'Rezervasyonlar', category:'Müşteri', description:'Rezervasyon ve bekleme listesi yönetimi.' },
+  { id:'google_reviews', label:'Google Yorumlarına Yönlendirme', category:'Müşteri', description:'Ödeme tamamlanınca müşteriye Google Business yorum linkine giden bir QR kod gösterme.' },
+  { id:'tips', label:'Bahşiş Yönetimi', category:'Ödeme', description:'Ödeme ekranında yüzde/tutar bazlı bahşiş alma, personel bazlı bahşiş raporlaması.' },
+  { id:'giftcards', label:'Hediye Kartları', category:'Ödeme', description:'Hediye kartı satışı, bakiye takibi ve ödemede kısmi/tam kullanım.' },
+  { id:'online_ordering', label:'Dışarıdan Online Sipariş', category:'Sipariş Kanalları', description:'Müşterilerin doğrudan telefonlarından erişebileceği online sipariş sayfası.' },
+  { id:'qr_ordering', label:'QR Menü ile Müşteri Siparişi', category:'Sipariş Kanalları', description:'Müşterinin masadaki QR kodu okutup kendi telefonundan menüyü görüp sipariş isteği gönderebilmesi.' },
+  { id:'multilang_menu', label:'Çok Dilli QR Menü', category:'Sipariş Kanalları', description:'QR menüde ürün adı/açıklamalarını birden fazla dilde gösterme.' },
+  { id:'purchasing', label:'Tedarikçi & Satın Alma', category:'Tedarik', description:'Tedarikçi ve satın alma sipariş yönetimi.' },
+  { id:'ticket_design', label:'Fiş Tasarımı Özelleştirme', category:'Yazıcı', description:'Fiş/makbuz üzerindeki başlık, yazı tipi, logo gibi görsel ayarları merkezi olarak özelleştirme.' },
+  { id:'efatura', label:'ÖKC / e-Fatura Entegrasyonu', category:'Entegrasyonlar', description:'Foriba, İzibiz, Logo, Nesbilgi gibi e-fatura entegratörleriyle bağlantı.' },
+  { id:'marketplace', label:'Pazaryeri Entegrasyonu', category:'Entegrasyonlar', description:'Yemeksepeti, Trendyol Yemek, Getir Yemek siparişlerini tek ekrandan almak.' },
+  { id:'accounting', label:'Muhasebe Entegrasyonu', category:'Entegrasyonlar', description:'Logo/Mikro/Netsis gibi muhasebe yazılımlarına otomatik veri aktarımı.' },
+];
 async function refreshFeatureCatalogList(admin){
   const el = document.getElementById('featureCatalogContent'); if(!el) return;
   const { data, error } = await sb.rpc('admin_list_feature_catalog', { p_token: admin.session_token });
@@ -1286,7 +1320,7 @@ async function refreshFeatureCatalogList(admin){
                 <td class="col-name"><input value="${escapeHtml(f.category||'')}" id="feat_cat_${f.id}"></td>
                 <td class="col-num" style="width:110px;"><input type="number" min="0" step="0.01" value="${f.price}" id="feat_price_${f.id}"></td>
                 <td style="text-align:center;"><input type="checkbox" id="feat_active_${f.id}" ${f.active?'checked':''} style="width:18px;height:18px;"></td>
-                <td style="text-align:center;"><input type="checkbox" id="feat_isaddon_${f.id}" ${f.is_addon?'checked':''} ${f.is_core?'disabled title="Temel özellikler eklenti yapılamaz"':''} style="width:18px;height:18px;"></td>
+                <td style="text-align:center;"><input type="checkbox" id="feat_isaddon_${f.id}" ${f.is_addon?'checked':''} style="width:18px;height:18px;"></td>
                 <td style="white-space:nowrap;">
                   <button class="sbtn" onclick="saveFeatureRow('${f.id}')">Kaydet</button>
                   ${f.is_core ? '' : `<button class="sbtn" style="background:var(--red);color:var(--btn-ink);" onclick="deleteFeatureRow('${f.id}')">Sil</button>`}
@@ -1297,20 +1331,57 @@ async function refreshFeatureCatalogList(admin){
         </div>
       </div>`).join('')}
     <div class="add-row-panel">
-      <p>Yeni Özellik Ekle</p>
-      <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr 0.7fr;gap:10px;align-items:end;">
-        <div class="field-group"><label>Kimlik (benzersiz)</label><input id="newFeatId" placeholder="örn. loyalty_plus" autocapitalize="none"></div>
-        <div class="field-group"><label>Ad</label><input id="newFeatLabel" placeholder="örn. Sadakat Plus"></div>
-        <div class="field-group"><label>Açıklama</label><input id="newFeatDesc" placeholder="opsiyonel"></div>
-        <div class="field-group"><label>Kategori</label><input id="newFeatCat" placeholder="örn. Entegrasyonlar"></div>
-        <div class="field-group"><label>Fiyat (₺/ay)</label><input type="number" id="newFeatPrice" placeholder="0"></div>
-      </div>
-      <label style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:400;margin-top:10px;">
-        <input type="checkbox" id="newFeatIsAddon" checked style="width:16px;height:16px;"> Eklenti olarak işaretle (tekil satılabilir)
-      </label>
-      <div class="error" id="newFeatErr"></div>
-      <button style="margin-top:12px;max-width:220px;" onclick="createFeatureSubmit()">+ Özellik Ekle</button>
+      <p>Kataloğa Özellik Ekle</p>
+      <p class="muted" style="margin-top:-6px;font-size:12.5px;">Aşağıdaki listeden işaretleyip "Seçilenleri Ekle"ye basın - kendi seçtiğiniz zaman, kendi seçtiğiniz özellikler eklenir. Zaten ekli olanlar işaretli/pasif görünür.</p>
+      <input id="featPickerSearch" placeholder="🔍 Özellik ara (ad, kategori)..." oninput="renderFeaturePickerList()" style="margin-bottom:10px;">
+      <div id="featPickerList" style="display:flex;flex-direction:column;gap:2px;max-height:300px;overflow:auto;background:var(--panel2);border:1px solid var(--border);border-radius:10px;padding:8px 10px;"></div>
+      <button style="margin-top:12px;max-width:220px;" onclick="addPickedFeatures()">+ Seçilenleri Ekle</button>
+      <details style="margin-top:18px;">
+        <summary style="cursor:pointer;font-weight:700;font-size:13px;color:var(--muted);">Listede yok mu? Özel özellik ekle</summary>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr 0.7fr;gap:10px;align-items:end;margin-top:12px;">
+          <div class="field-group"><label>Kimlik (benzersiz)</label><input id="newFeatId" placeholder="örn. loyalty_plus" autocapitalize="none"></div>
+          <div class="field-group"><label>Ad</label><input id="newFeatLabel" placeholder="örn. Sadakat Plus"></div>
+          <div class="field-group"><label>Açıklama</label><input id="newFeatDesc" placeholder="opsiyonel"></div>
+          <div class="field-group"><label>Kategori</label><input id="newFeatCat" placeholder="örn. Entegrasyonlar"></div>
+          <div class="field-group"><label>Fiyat (₺/ay)</label><input type="number" id="newFeatPrice" placeholder="0"></div>
+        </div>
+        <label style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:400;margin-top:10px;">
+          <input type="checkbox" id="newFeatIsAddon" style="width:16px;height:16px;"> Eklenti olarak işaretle (tekil satılabilir)
+        </label>
+        <div class="error" id="newFeatErr"></div>
+        <button style="margin-top:12px;max-width:220px;" onclick="createFeatureSubmit()">+ Özellik Ekle</button>
+      </details>
     </div>`;
+  renderFeaturePickerList();
+}
+function renderFeaturePickerList(){
+  const listEl = document.getElementById('featPickerList'); if(!listEl) return;
+  const q = (document.getElementById('featPickerSearch').value||'').trim().toLowerCase();
+  const existingIds = new Set((APP.featureCatalog||[]).map(f => f.id));
+  const items = FEATURE_MASTER_LIST.filter(f => !q || f.label.toLowerCase().includes(q) || f.category.toLowerCase().includes(q) || f.id.toLowerCase().includes(q));
+  listEl.innerHTML = items.length===0 ? '<p class="muted" style="margin:6px 0;">Eşleşen özellik yok.</p>' : items.map(f => {
+    const already = existingIds.has(f.id);
+    return `<label style="display:flex;align-items:center;gap:10px;padding:6px 4px;border-radius:6px;${already?'opacity:.55;':''}cursor:${already?'default':'pointer'};">
+      <input type="checkbox" data-feat-pick="${f.id}" ${already?'checked disabled':''} style="width:16px;height:16px;flex-shrink:0;">
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:13px;font-weight:600;">${escapeHtml(f.label)} <span class="muted" style="font-weight:400;">· ${escapeHtml(f.category)}</span>${already?' <span class="muted" style="font-weight:400;">(zaten ekli)</span>':''}</div>
+        ${f.description ? `<div class="muted" style="font-size:11.5px;">${escapeHtml(f.description)}</div>` : ''}
+      </div>
+    </label>`;
+  }).join('');
+}
+async function addPickedFeatures(){
+  const admin = getAdminSession();
+  const picked = Array.from(document.querySelectorAll('#featPickerList input[data-feat-pick]:checked:not(:disabled)')).map(el => el.dataset.featPick);
+  if(picked.length===0){ showToast('Önce en az bir özellik işaretleyin'); return; }
+  const items = FEATURE_MASTER_LIST.filter(f => picked.includes(f.id));
+  const results = await withLoadingOverlay(Promise.all(items.map(f =>
+    sb.rpc('admin_upsert_feature', { p_token: admin.session_token, p_id: f.id, p_label: f.label, p_category: f.category, p_is_addon: false, p_price: 0, p_description: f.description||null, p_active: true })
+  )));
+  const failed = results.find(r => r.error);
+  if(failed){ alert(failed.error.message); }
+  showToast(items.length+' özellik eklendi ✓');
+  refreshFeatureCatalogList(admin);
 }
 async function saveFeatureRow(id){
   const admin = getAdminSession();
