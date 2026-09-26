@@ -1319,6 +1319,7 @@ const FEATURE_MASTER_LIST = [
   { id:'efatura', label:'ÖKC / e-Fatura Entegrasyonu', category:'Entegrasyonlar', description:'Foriba, İzibiz, Logo, Nesbilgi gibi e-fatura entegratörleriyle bağlantı.' },
   { id:'marketplace', label:'Pazaryeri Entegrasyonu', category:'Entegrasyonlar', description:'Yemeksepeti, Trendyol Yemek, Getir Yemek siparişlerini tek ekrandan almak.' },
   { id:'accounting', label:'Muhasebe Entegrasyonu', category:'Entegrasyonlar', description:'Logo/Mikro/Netsis gibi muhasebe yazılımlarına otomatik veri aktarımı.' },
+  { id:'multi_branch', label:'Birden Fazla Şube', category:'Şirket', description:'Bir şirketin ikinci ve sonraki şubelerini kendi başına açabilmesi.' },
 ];
 async function refreshFeatureCatalogList(admin){
   const el = document.getElementById('featureCatalogContent'); if(!el) return;
@@ -1874,13 +1875,15 @@ async function renderCompanyPanelContent(companySession){
   if(!APP.companyDashboardDateTo) APP.companyDashboardDateTo = APP.companyDashboardDate;
   if(APP.companyDashboardBranch===undefined) APP.companyDashboardBranch = '';
   const branchFilter = APP.companyDashboardBranch || null;
-  const [branchesRes, dashRes] = await withLoadingOverlay(Promise.all([
+  const [branchesRes, dashRes, multiBranchRes] = await withLoadingOverlay(Promise.all([
     sb.rpc('list_company_branches', { p_company_token: companySession.session_token }),
-    sb.rpc('get_company_dashboard', { p_company_token: companySession.session_token, p_date: APP.companyDashboardDate, p_date_to: APP.companyDashboardDateTo, p_branch_id: branchFilter })
+    sb.rpc('get_company_dashboard', { p_company_token: companySession.session_token, p_date: APP.companyDashboardDate, p_date_to: APP.companyDashboardDateTo, p_branch_id: branchFilter }),
+    sb.rpc('company_check_entitlement', { p_company_token: companySession.session_token, p_feature_id: 'multi_branch' })
   ]));
   if(branchesRes.error){ el.innerHTML = '<p class="muted">Yüklenemedi: '+branchesRes.error.message+'</p>'; return; }
   if(dashRes.error){ el.innerHTML = '<p class="muted">Yüklenemedi: '+dashRes.error.message+'</p>'; return; }
   const branches = branchesRes.data || [];
+  const hasMultiBranch = !!multiBranchRes.data;
   const dash = dashRes.data || { branches: [], daily: [], grand_total: 0, grand_cost: 0 };
   const grandProfit = Number(dash.grand_total||0) - Number(dash.grand_cost||0);
   const isSingleBranch = !!branchFilter;
@@ -1916,7 +1919,9 @@ async function renderCompanyPanelContent(companySession){
             <div class="muted" style="font-size:11px;margin-top:2px;">${escapeHtml(b.code)} · ${b.staff_count} personel</div>
             <div style="font-size:12px;margin-top:6px;color:var(--accent);font-weight:700;">${money(b.revenue_today)} (bugün)</div>
           </div>`).join('')}
-        <div class="table-cell" style="cursor:pointer;display:flex;align-items:center;justify-content:center;" onclick="openCreateBranchModal()">➕<div style="font-size:11px;margin-top:4px;font-weight:400;">Yeni Şube Ekle</div></div>
+        ${hasMultiBranch
+          ? `<div class="table-cell" style="cursor:pointer;display:flex;align-items:center;justify-content:center;" onclick="openCreateBranchModal()">➕<div style="font-size:11px;margin-top:4px;font-weight:400;">Yeni Şube Ekle</div></div>`
+          : `<div class="table-cell" style="display:flex;flex-direction:column;align-items:center;justify-content:center;opacity:.65;cursor:default;text-align:center;padding:10px;" title="Birden fazla şube açma bir eklentidir">🔒<div style="font-size:11px;margin-top:4px;font-weight:400;">Şube Eklentisi Gerekli</div></div>`}
       </div>
     </div>
     <div class="box" style="max-width:none;">
