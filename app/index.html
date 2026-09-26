@@ -184,6 +184,8 @@
   main{display:block;width:100%;}
   .muted{color:var(--muted);}
   .home-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:14px;margin-top:22px;}
+  .stat-grid{display:flex;flex-wrap:wrap;gap:14px;margin-top:22px;}
+  .stat-grid>.box{flex:1 1 150px;}
   /* Kayıt ekranındaki paket kartları - her zaman yan yana (3 sütun), dar
      ekranda da sıkışık ama okunur kalması için ayrı/daha küçük bir grid. */
   .pkg-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:14px;}
@@ -5963,15 +5965,12 @@ async function renderReportsView(main, session){
   if(!APP.reportDateTo) APP.reportDateTo = APP.reportDate;
   main.innerHTML = `<h1>Finansal Analiz</h1>
     <div class="box" style="max-width:none;">
-      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
-        <span class="muted">Tarih Aralığı</span>
-        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-          <input type="date" id="reportDateInput" value="${APP.reportDate}" onchange="changeReportDate(this.value)">
-          <span class="muted">–</span>
-          <input type="date" id="reportDateToInput" value="${APP.reportDateTo}" onchange="changeReportDateTo(this.value)">
-        </div>
-      </div>
-      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px;">
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+        <span class="muted" style="white-space:nowrap;">Tarih Aralığı</span>
+        <input type="date" id="reportDateInput" value="${APP.reportDate}" onchange="changeReportDate(this.value)" style="width:auto;margin:0;">
+        <span class="muted">–</span>
+        <input type="date" id="reportDateToInput" value="${APP.reportDateTo}" onchange="changeReportDateTo(this.value)" style="width:auto;margin:0;">
+        <span style="width:1px;height:22px;background:var(--border);margin:0 2px;"></span>
         <button type="button" class="range-preset-btn" onclick="setReportDateRangeDays(0)">Bugün</button>
         <button type="button" class="range-preset-btn" onclick="setReportDateRangeDays(6)">Son 7 Gün</button>
         <button type="button" class="range-preset-btn" onclick="setReportDateRangeDays(9)">Son 10 Gün</button>
@@ -6134,13 +6133,13 @@ async function renderReportContent(session){
       filteredBills.map(billRowHtml).join('') + '</tbody></table></div>';
 
   el.innerHTML = `
-    <div class="home-grid" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr));">
+    <div class="stat-grid">
       <div class="box" style="text-align:center;"><div style="font-size:22px;font-weight:800;">${hist.length}</div><div class="muted" style="font-size:12px;">Kapatılan Hesap</div></div>
       <div class="box" style="text-align:center;"><div style="font-size:22px;font-weight:800;">${money(totalRevenue)}</div><div class="muted" style="font-size:12px;">Toplam Ciro</div></div>
       <div class="box" style="text-align:center;"><div style="font-size:22px;font-weight:800;">${money(totalCost)}</div><div class="muted" style="font-size:12px;">Toplam Maliyet</div></div>
       <div class="box" style="text-align:center;"><div style="font-size:22px;font-weight:800;color:${profit>=0?'var(--green)':'var(--red)'};">${money(profit)}</div><div class="muted" style="font-size:12px;">Net Kâr</div></div>
     </div>
-    <div class="home-grid" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr));">
+    <div class="stat-grid">
       <div class="box" style="text-align:center;"><div style="font-size:20px;font-weight:800;color:var(--green);">${money(totalCash)}</div><div class="muted" style="font-size:12px;">💵 Nakit${totalRevenue?' ('+Math.round(totalCash/totalRevenue*100)+'%)':''}</div></div>
       <div class="box" style="text-align:center;"><div style="font-size:20px;font-weight:800;color:var(--accent2);">${money(totalCard)}</div><div class="muted" style="font-size:12px;">💳 Kredi Kartı${totalRevenue?' ('+Math.round(totalCard/totalRevenue*100)+'%)':''}</div></div>
       <div class="box" style="text-align:center;"><div style="font-size:20px;font-weight:800;color:var(--gift);">${money(totalGiftCard)}</div><div class="muted" style="font-size:12px;">🎁 Hediye Kartı${totalRevenue?' ('+Math.round(totalGiftCard/totalRevenue*100)+'%)':''}</div></div>
@@ -6209,7 +6208,7 @@ async function renderProductStatsContent(session){
   }).join('');
 
   el.innerHTML = `
-    <div class="home-grid" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr));">
+    <div class="stat-grid">
       <div class="box" style="text-align:center;"><div style="font-size:22px;font-weight:800;">${filtered.length}</div><div class="muted" style="font-size:12px;">Satılan Ürün Çeşidi</div></div>
       <div class="box" style="text-align:center;"><div style="font-size:22px;font-weight:800;">${totalQty}</div><div class="muted" style="font-size:12px;">Toplam Adet</div></div>
       <div class="box" style="text-align:center;"><div style="font-size:22px;font-weight:800;">${money(totalRev)}</div><div class="muted" style="font-size:12px;">Toplam Ciro</div></div>
@@ -6291,7 +6290,7 @@ async function renderCustomerAnalyticsContent(session){
   const totalVisits = rows.reduce((s,c) => s+Number(c.total_visits||0), 0);
   const avgSpent = rows.length ? totalSpent/rows.length : 0;
   el.innerHTML = `
-    <div class="home-grid" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr));">
+    <div class="stat-grid">
       <div class="box" style="text-align:center;"><div style="font-size:22px;font-weight:800;">${rows.length}</div><div class="muted" style="font-size:12px;">Müşteri</div></div>
       <div class="box" style="text-align:center;"><div style="font-size:22px;font-weight:800;">${money(totalSpent)}</div><div class="muted" style="font-size:12px;">Toplam Harcama</div></div>
       <div class="box" style="text-align:center;"><div style="font-size:22px;font-weight:800;">${money(avgSpent)}</div><div class="muted" style="font-size:12px;">Ortalama Harcama</div></div>
@@ -6359,7 +6358,7 @@ async function renderTipPoolContent(session){
       </div>
       <button style="margin-top:12px;max-width:220px;" onclick="saveTipPoolSettings()">Kaydet</button>
     </div>` : ''}
-    <div class="home-grid" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr));">
+    <div class="stat-grid">
       <div class="box" style="text-align:center;"><div style="font-size:22px;font-weight:800;">${money(data.total_tip)}</div><div class="muted" style="font-size:12px;">Toplam Bahşiş</div></div>
       <div class="box" style="text-align:center;"><div style="font-size:15px;font-weight:800;">${data.enabled ? modeLabel : 'Kapalı'}</div><div class="muted" style="font-size:12px;">Paylaşım Kuralı</div></div>
     </div>
