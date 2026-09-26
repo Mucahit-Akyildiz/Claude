@@ -4542,8 +4542,15 @@ function renderBellPresetList(){
   const scope = currentBellScope();
   const sounds = getKitchenBellSounds();
   const val = scope ? sounds.perStation[scope] : sounds.default;
-  const activePresetId = (val && typeof val==='object' && val.preset) ? val.preset : (!val ? 'classic' : null);
-  el.innerHTML = Object.keys(BELL_PRESETS).map(id => {
+  const isCustomActive = typeof val==='string' && !!val;
+  const activePresetId = isCustomActive ? null : ((val && typeof val==='object' && val.preset) ? val.preset : (!val ? 'classic' : null));
+  const customCardHtml = isCustomActive ? `<div class="bell-card active">
+      <span class="bell-card-check">✓</span>
+      <div class="bell-card-icon">🎵</div>
+      <div class="bell-card-name">Yüklediğiniz Ses Dosyası</div>
+      <button type="button" class="bell-card-play" onclick="event.stopPropagation();testBellSound()" title="Dinle">▶</button>
+    </div>` : '';
+  el.innerHTML = customCardHtml + Object.keys(BELL_PRESETS).map(id => {
     const p = BELL_PRESETS[id];
     const active = id===activePresetId;
     return `<div class="bell-card ${active?'active':''}" onclick="selectBellPreset('${id}')">
