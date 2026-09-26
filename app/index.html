@@ -184,8 +184,8 @@
   main{display:block;width:100%;}
   .muted{color:var(--muted);}
   .home-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:14px;margin-top:22px;}
-  .stat-grid{display:flex;flex-wrap:wrap;gap:14px;margin-top:22px;}
-  .stat-grid>.box{flex:1 1 150px;}
+  .stat-grid{display:flex;flex-wrap:wrap;gap:12px;margin-top:22px;}
+  .stat-grid>.box{flex:1 1 130px;min-width:0;padding:18px 12px;}
   /* Kayıt ekranındaki paket kartları - her zaman yan yana (3 sütun), dar
      ekranda da sıkışık ama okunur kalması için ayrı/daha küçük bir grid. */
   .pkg-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:14px;}
@@ -674,7 +674,7 @@ function render(){
           <button class="sb-logout" onclick="doLogout()" title="Çıkış Yap">🚪<span class="label"> Çıkış Yap</span></button>
         </div>
       </aside>
-      <div class="content-area"><div class="content-inner ${APP.view==='settings'?'content-inner-wide':''}"><main id="main"></main></div></div>
+      <div class="content-area"><div class="content-inner ${(APP.view==='settings'||APP.view==='reports')?'content-inner-wide':''}"><main id="main"></main></div></div>
     </div>`;
   const main = document.getElementById('main');
   if(APP.view==='home') renderHome(main, session);
