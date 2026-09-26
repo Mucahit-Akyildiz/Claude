@@ -733,6 +733,7 @@ function renderAdminArea(){
         <div class="tab ${APP.adminView==='restaurants'?'active':''}" data-tab="restaurants" onclick="setAdminView('restaurants')">🏬 İşletmeler</div>
         <div class="tab ${APP.adminView==='companies'?'active':''}" data-tab="companies" onclick="setAdminView('companies')">🏢 Şirketler</div>
         <div class="tab ${APP.adminView==='banktransfers'?'active':''}" data-tab="banktransfers" onclick="setAdminView('banktransfers')">🏦 Havale Bildirimleri</div>
+        <div class="tab ${APP.adminView==='addons'?'active':''}" data-tab="addons" onclick="setAdminView('addons')">🧩 Eklentiler</div>
       </div>
       <main id="main"></main>
     </div>`;
@@ -749,6 +750,7 @@ function renderAdminTabContent(admin){
   else if(APP.adminView==='restaurants') renderRestaurantsAdmin(main, admin);
   else if(APP.adminView==='companies') renderCompaniesAdmin(main, admin);
   else if(APP.adminView==='banktransfers') renderBankTransfersAdmin(main, admin);
+  else if(APP.adminView==='addons') renderAddonsAdmin(main, admin);
   else renderPromoAdmin(main, admin);
 }
 function renderAdminLogin(app){
@@ -1032,6 +1034,7 @@ async function refreshRestaurantsList(admin){
             <td class="col-name">${money(r.revenue_lifetime)}</td>
             <td style="white-space:nowrap;">
               <button class="sbtn" style="${r.is_active?'background:var(--red);color:var(--btn-ink);':''}" onclick="toggleRestaurantActive('${r.id}', ${!r.is_active})">${r.is_active?'Pasif Et':'Aktif Et'}</button>
+              <button class="sbtn" onclick="openEntitlementsModal('restaurant', '${r.id}', '${escapeHtml(r.name)}')">🧩 Eklentiler</button>
             </td>
           </tr>
           <tr id="detail_${r.id}" style="display:none;"><td colspan="11" style="background:var(--panel);border-radius:12px;padding:0;">
@@ -1132,6 +1135,8 @@ async function refreshCompaniesList(admin){
             <td class="col-name">${new Date(c.created_at).toLocaleDateString('tr-TR')}</td>
             <td style="white-space:nowrap;">
               <button class="sbtn" style="${c.is_active?'background:var(--red);color:var(--btn-ink);':''}" onclick="toggleCompanyActive('${c.id}', ${!c.is_active})">${c.is_active?'Pasif Et':'Aktif Et'}</button>
+              <button class="sbtn" onclick="openEntitlementsModal('company', '${c.id}', '${escapeHtml(c.name)}')">🧩 Eklentiler</button>
+              <button class="sbtn" style="background:var(--red);color:var(--btn-ink);" onclick="deleteCompany('${c.id}', '${escapeHtml(c.name)}')">🗑️ Sil</button>
             </td>
           </tr>`;
         }).join('')}
@@ -1169,6 +1174,136 @@ async function toggleCompanyActive(id, makeActive){
   if(error){ alert(error.message); return; }
   showToast(makeActive ? 'Şirket aktif edildi ✓' : 'Şirket pasif edildi ✓');
   refreshCompaniesList(admin);
+}
+async function deleteCompany(id, name){
+  if(!confirm('"'+name+'" şirketini KALICI olarak silmek istediğinize emin misiniz?\n\nBu geri alınamaz. Bağlı şubeler silinmez, sadece şirketten ayrılıp kendi bağımsız paketlerine döner (varsa) - şirketin abonelik durumunu artık paylaşmazlar.')) return;
+  const admin = getAdminSession();
+  const { error } = await sb.rpc('admin_delete_company', { p_token: admin.session_token, p_id: id });
+  if(error){ alert(error.message); return; }
+  showToast('Şirket silindi ✓');
+  refreshCompaniesList(admin);
+}
+
+/* ---- Admin Paneli > Eklentiler: pakete bağlı olmayan, ayrı fiyatlandırılan
+   modüller (örn. Muhasebe Entegrasyonu). Buradan kataloğu yönetip, İşletmeler/
+   Şirketler listesindeki "🧩 Eklentiler" butonuyla tekil olarak açıp
+   kapatabilirsiniz - bir eklentisi olan işletme, paketinde olmasa bile o
+   özelliği kullanabilir (bkz. _session_check). ---- */
+async function renderAddonsAdmin(main, admin){
+  main.innerHTML = `<h1>🧩 Eklentiler</h1>
+    <p class="muted" style="margin-top:-8px;">Pakete dahil olmayan, ayrı satılabilen modüller. Bir işletme/şirkete İşletmeler ya da Şirketler sekmesindeki "🧩 Eklentiler" butonundan tekil olarak atanır.</p>
+    <div id="addonsContent"></div>`;
+  await refreshAddonsList(admin);
+}
+async function refreshAddonsList(admin){
+  const el = document.getElementById('addonsContent'); if(!el) return;
+  const { data, error } = await sb.rpc('admin_list_addons', { p_token: admin.session_token });
+  if(error){
+    if(error.message.includes('geçersiz')){ clearAdminSession(); render(); return; }
+    el.innerHTML = '<p class="muted">Yüklenemedi: '+error.message+'</p>'; return;
+  }
+  const addons = data || [];
+  APP.adminAddons = addons;
+  el.innerHTML = `
+    ${addons.length===0 ? '<p class="muted">Henüz eklenti yok.</p>' : `
+    <div class="settings-table-wrap">
+      <table class="settings-table">
+        <thead><tr><th>Kimlik</th><th>Ad</th><th>Açıklama</th><th>Fiyat</th><th>Durum</th><th></th></tr></thead>
+        <tbody>
+        ${addons.map(a => `
+          <tr>
+            <td class="col-name">${escapeHtml(a.id)}</td>
+            <td class="col-name"><b>${escapeHtml(a.name)}</b></td>
+            <td class="col-name">${escapeHtml(a.description||'-')}</td>
+            <td class="col-name">${money(a.price)}</td>
+            <td>${a.active ? '<span class="role-badge" style="color:var(--green);border-color:var(--green);">Aktif</span>' : '<span class="role-badge" style="color:var(--red);border-color:var(--red);">Pasif</span>'}</td>
+            <td style="white-space:nowrap;">
+              <button class="sbtn" onclick="toggleAddonActive('${a.id}', ${!a.active})">${a.active?'Pasif Et':'Aktif Et'}</button>
+              <button class="sbtn" style="background:var(--red);color:var(--btn-ink);" onclick="deleteAddon('${a.id}')">Sil</button>
+            </td>
+          </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>`}
+    <div class="add-row-panel">
+      <p>Yeni Eklenti Oluştur</p>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr 0.6fr;gap:10px;align-items:end;">
+        <div class="field-group"><label>Kimlik</label><input id="newAddonId" placeholder="örn. accounting" autocapitalize="none"></div>
+        <div class="field-group"><label>Ad</label><input id="newAddonName" placeholder="örn. Muhasebe Entegrasyonu"></div>
+        <div class="field-group"><label>Açıklama</label><input id="newAddonDesc" placeholder="opsiyonel"></div>
+        <div class="field-group"><label>Fiyat (₺/ay)</label><input type="number" id="newAddonPrice" placeholder="0"></div>
+      </div>
+      <div class="error" id="newAddonErr"></div>
+      <button style="margin-top:12px;max-width:220px;" onclick="createAddonSubmit()">+ Eklenti Oluştur</button>
+    </div>`;
+}
+async function createAddonSubmit(){
+  const admin = getAdminSession();
+  const id = document.getElementById('newAddonId').value.trim();
+  const name = document.getElementById('newAddonName').value.trim();
+  const desc = document.getElementById('newAddonDesc').value.trim();
+  const price = parseFloat(document.getElementById('newAddonPrice').value) || 0;
+  const errEl = document.getElementById('newAddonErr');
+  errEl.textContent = '';
+  if(!id || !name){ errEl.textContent = 'Kimlik ve ad gerekli'; return; }
+  const { error } = await sb.rpc('admin_upsert_addon', { p_token: admin.session_token, p_id: id, p_name: name, p_description: desc||null, p_price: price, p_active: true });
+  if(error){ errEl.textContent = error.message; return; }
+  showToast('Eklenti oluşturuldu ✓');
+  refreshAddonsList(admin);
+}
+async function toggleAddonActive(id, makeActive){
+  const admin = getAdminSession();
+  const a = (APP.adminAddons||[]).find(x => x.id===id); if(!a) return;
+  const { error } = await sb.rpc('admin_upsert_addon', { p_token: admin.session_token, p_id: a.id, p_name: a.name, p_description: a.description, p_price: a.price, p_active: makeActive });
+  if(error){ alert(error.message); return; }
+  refreshAddonsList(admin);
+}
+async function deleteAddon(id){
+  if(!confirm('Bu eklentiyi silmek istediğinize emin misiniz? Bu eklentiye sahip tüm işletmeler/şirketler erişimi kaybeder.')) return;
+  const admin = getAdminSession();
+  const { error } = await sb.rpc('admin_delete_addon', { p_token: admin.session_token, p_id: id });
+  if(error){ alert(error.message); return; }
+  showToast('Eklenti silindi ✓');
+  refreshAddonsList(admin);
+}
+/* İşletmeler/Şirketler listesindeki "🧩 Eklentiler" butonu - bir hedefin
+   (restaurant/company) hangi eklentilere sahip olduğunu gösterip
+   açma/kapama sağlayan küçük bir pencere. */
+async function openEntitlementsModal(targetType, targetId, targetName){
+  const admin = getAdminSession();
+  const [{ data: addons, error: e1 }, { data: owned, error: e2 }] = await withLoadingOverlay(Promise.all([
+    APP.adminAddons ? Promise.resolve({ data: APP.adminAddons, error: null }) : sb.rpc('admin_list_addons', { p_token: admin.session_token }),
+    sb.rpc('admin_list_target_entitlements', { p_token: admin.session_token, p_target_type: targetType, p_target_id: targetId })
+  ]));
+  if(e1 || e2){ alert((e1||e2).message); return; }
+  const ownedSet = new Set(owned || []);
+  const bg = document.createElement('div');
+  bg.id = 'entitlementsBg';
+  bg.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:100;padding:16px;';
+  bg.onclick = (e) => { if(e.target===bg) bg.remove(); };
+  bg.innerHTML = `<div style="background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:20px;max-width:420px;width:100%;max-height:85vh;overflow:auto;">
+    <div style="display:flex;justify-content:space-between;align-items:center;"><h2 style="margin:0;">🧩 Eklentiler</h2><span style="cursor:pointer;color:var(--muted);font-size:20px;" onclick="document.getElementById('entitlementsBg').remove()">✕</span></div>
+    <p class="muted" style="margin-top:6px;">${escapeHtml(targetName)}</p>
+    <div style="display:flex;flex-direction:column;gap:8px;margin-top:10px;">
+      ${(addons||[]).length===0 ? '<p class="muted">Henüz hiç eklenti tanımlanmamış.</p>' : (addons||[]).map(a => `
+        <label style="display:flex;align-items:center;gap:10px;background:var(--panel2);border:1px solid var(--border);border-radius:10px;padding:10px 12px;cursor:pointer;">
+          <input type="checkbox" style="width:auto;margin:0;" ${ownedSet.has(a.id)?'checked':''} onchange="setEntitlement('${targetType}','${targetId}','${a.id}',this.checked,this)">
+          <div style="flex:1;">
+            <div style="font-weight:700;">${escapeHtml(a.name)}</div>
+            <div class="muted" style="font-size:12px;">${escapeHtml(a.description||'')} ${a.price>0?'· '+money(a.price)+'/ay':''}</div>
+          </div>
+        </label>`).join('')}
+    </div>
+  </div>`;
+  document.body.appendChild(bg);
+}
+async function setEntitlement(targetType, targetId, addonId, enabled, checkboxEl){
+  const admin = getAdminSession();
+  checkboxEl.disabled = true;
+  const { error } = await sb.rpc('admin_set_entitlement', { p_token: admin.session_token, p_target_type: targetType, p_target_id: targetId, p_addon_id: addonId, p_enabled: enabled });
+  checkboxEl.disabled = false;
+  if(error){ alert(error.message); checkboxEl.checked = !enabled; return; }
+  showToast(enabled ? 'Eklenti açıldı ✓' : 'Eklenti kapatıldı ✓');
 }
 
 /* ---- Admin Paneli > Havale Bildirimleri: iyzico ile kart ödemesi
@@ -5763,8 +5898,8 @@ async function renderIntegrationsSettings(el, session){
     <button style="margin-top:12px;max-width:220px;" onclick="saveMarketplaceSettings()">Kaydet</button>
   </div>
   <div class="box" style="max-width:none;">
-    <h2>📊 Muhasebe Entegrasyonu</h2>
-    <p class="muted" style="margin-top:-6px;">Satış verilerinizi muhasebe programınıza (Logo, Mikro, Netsis vb.) otomatik aktarmak için gereken altyapı. Bu bölüm şu an sadece kimlik bilgilerinizi güvenli şekilde saklar - gerçek veri aktarımı, ilgili yazılımla sözleşme/entegrasyon onayı alındıktan sonra aktif hale getirilir.</p>
+    <h2>📊 Muhasebe Entegrasyonu <span class="role-badge" style="font-weight:600;">Ek Eklenti</span></h2>
+    <p class="muted" style="margin-top:-6px;">Satış verilerinizi muhasebe programınıza (Logo, Mikro, Netsis vb.) otomatik aktarmak için gereken altyapı. Bu bölüm şu an sadece kimlik bilgilerinizi güvenli şekilde saklar - gerçek veri aktarımı, ilgili yazılımla sözleşme/entegrasyon onayı alındıktan sonra aktif hale getirilir. Bu özellik hiçbir pakete dahil değildir, ayrı bir eklenti olarak satın alınması gerekir.</p>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;max-width:500px;">
       <div class="field-group"><label>Muhasebe Yazılımı</label>
         <select id="int_accounting_provider">
@@ -5816,7 +5951,7 @@ async function saveAccountingSettings(){
   const key = document.getElementById('int_accounting_key').value;
   const enabled = document.getElementById('int_accounting_enabled').checked;
   const { error } = await sb.rpc('update_accounting_settings', { p_token: session.session_token, p_provider: provider, p_api_key: key||null, p_enabled: enabled });
-  if(error){ alert(error.message); return; }
+  if(error){ alert(error.message==='PAKET_OZELLIK_YOK' ? 'Muhasebe Entegrasyonu paketinizde dahil değil - ayrı bir eklenti olarak satın almak için bizimle iletişime geçin.' : error.message); return; }
   renderSettingsContent(session);
   showToast('Kaydedildi ✓');
 }
@@ -5832,7 +5967,7 @@ async function saveOnlineOrderingSettings(){
   const session = getSession();
   const enabled = document.getElementById('int_online_ordering_enabled').checked;
   const { error } = await sb.rpc('update_online_ordering_settings', { p_token: session.session_token, p_enabled: enabled });
-  if(error){ alert(error.message); document.getElementById('int_online_ordering_enabled').checked = !enabled; return; }
+  if(error){ alert(error.message==='PAKET_OZELLIK_YOK' ? 'Dışarıdan Online Sipariş paketinizde dahil değil - paketinizi yükseltmek için bizimle iletişime geçin.' : error.message); document.getElementById('int_online_ordering_enabled').checked = !enabled; return; }
   if(!APP.config.online_ordering) APP.config.online_ordering = {};
   APP.config.online_ordering.enabled = enabled;
   showToast(enabled ? 'Online sipariş açıldı ✓' : 'Online sipariş kapatıldı ✓');
