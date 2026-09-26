@@ -732,6 +732,7 @@ function renderAdminArea(){
         <div class="tab ${APP.adminView==='pricing'?'active':''}" data-tab="pricing" onclick="setAdminView('pricing')">💳 Paket Fiyatları</div>
         <div class="tab ${APP.adminView==='restaurants'?'active':''}" data-tab="restaurants" onclick="setAdminView('restaurants')">🏬 İşletmeler</div>
         <div class="tab ${APP.adminView==='companies'?'active':''}" data-tab="companies" onclick="setAdminView('companies')">🏢 Şirketler</div>
+        <div class="tab ${APP.adminView==='banktransfers'?'active':''}" data-tab="banktransfers" onclick="setAdminView('banktransfers')">🏦 Havale Bildirimleri</div>
       </div>
       <main id="main"></main>
     </div>`;
@@ -747,6 +748,7 @@ function renderAdminTabContent(admin){
   if((APP.adminView||'promos')==='pricing') renderPricingAdmin(main, admin);
   else if(APP.adminView==='restaurants') renderRestaurantsAdmin(main, admin);
   else if(APP.adminView==='companies') renderCompaniesAdmin(main, admin);
+  else if(APP.adminView==='banktransfers') renderBankTransfersAdmin(main, admin);
   else renderPromoAdmin(main, admin);
 }
 function renderAdminLogin(app){
@@ -1167,6 +1169,103 @@ async function toggleCompanyActive(id, makeActive){
   if(error){ alert(error.message); return; }
   showToast(makeActive ? 'Şirket aktif edildi ✓' : 'Şirket pasif edildi ✓');
   refreshCompaniesList(admin);
+}
+
+/* ---- Admin Paneli > Havale Bildirimleri: iyzico ile kart ödemesi
+   alamayan işletmelerin bildirdiği havale/EFT ödemelerini platform
+   yöneticisinin onaylayıp aboneliği 30 gün uzatması. ---- */
+async function renderBankTransfersAdmin(main, admin){
+  main.innerHTML = `<h1>🏦 Havale Bildirimleri</h1>
+    <div class="add-row-panel" style="margin-bottom:22px;">
+      <p>Banka Bilgileri <span class="muted" style="font-weight:400;">(işletmelere gösterilir)</span></p>
+      <div style="display:grid;grid-template-columns:1.4fr 1fr 1fr;gap:10px;align-items:end;">
+        <div class="field-group"><label>IBAN</label><input id="bankIban" placeholder="TR00 0000 0000 0000 0000 0000 00"></div>
+        <div class="field-group"><label>Hesap Adı</label><input id="bankAccountName" placeholder="örn. Kopuzlar Grup Ltd. Şti."></div>
+        <div class="field-group"><label>Banka</label><input id="bankName" placeholder="örn. Ziraat Bankası"></div>
+      </div>
+      <div class="error" id="bankInfoErr"></div>
+      <button style="margin-top:12px;max-width:220px;" onclick="saveBankTransferInfo()">Kaydet</button>
+    </div>
+    <div class="tabs" id="btStatusTabs">
+      <div class="tab active" data-status="pending" onclick="setBtStatusFilter('pending')">Bekleyen</div>
+      <div class="tab" data-status="approved" onclick="setBtStatusFilter('approved')">Onaylanan</div>
+      <div class="tab" data-status="rejected" onclick="setBtStatusFilter('rejected')">Reddedilen</div>
+    </div>
+    <div id="btContent"></div>`;
+  APP.btStatusFilter = 'pending';
+  const { data: infoData } = await sb.rpc('admin_get_bank_transfer_info', { p_token: admin.session_token });
+  if(infoData){
+    document.getElementById('bankIban').value = infoData.iban || '';
+    document.getElementById('bankAccountName').value = infoData.account_name || '';
+    document.getElementById('bankName').value = infoData.bank_name || '';
+  }
+  refreshBankTransferList(admin);
+}
+function setBtStatusFilter(status){
+  APP.btStatusFilter = status;
+  document.querySelectorAll('#btStatusTabs .tab').forEach(t => t.classList.toggle('active', t.dataset.status===status));
+  refreshBankTransferList(getAdminSession());
+}
+async function saveBankTransferInfo(){
+  const admin = getAdminSession();
+  const iban = document.getElementById('bankIban').value.trim();
+  const accountName = document.getElementById('bankAccountName').value.trim();
+  const bankName = document.getElementById('bankName').value.trim();
+  const errEl = document.getElementById('bankInfoErr');
+  errEl.textContent = '';
+  const { error } = await sb.rpc('admin_update_bank_transfer_info', {
+    p_token: admin.session_token, p_iban: iban, p_account_name: accountName, p_bank_name: bankName
+  });
+  if(error){ errEl.textContent = error.message; return; }
+  showToast('Banka bilgileri kaydedildi ✓');
+}
+async function refreshBankTransferList(admin){
+  const el = document.getElementById('btContent'); if(!el) return;
+  const status = APP.btStatusFilter || 'pending';
+  const { data, error } = await sb.rpc('admin_list_bank_transfer_notices', { p_token: admin.session_token, p_status: status });
+  if(error){
+    if(error.message.includes('geçersiz')){ clearAdminSession(); render(); return; }
+    el.innerHTML = '<p class="muted">Yüklenemedi: '+error.message+'</p>'; return;
+  }
+  const notices = data || [];
+  if(notices.length===0){ el.innerHTML = '<p class="muted">Bu durumda bildirim yok.</p>'; return; }
+  el.innerHTML = `
+    <div class="settings-table-wrap">
+      <table class="settings-table">
+        <thead><tr><th>${status==='pending'?'Şube/Şirket':'İşletme'}</th><th>Kod</th><th>Paket</th><th>Tutar</th><th>Not</th><th>Tarih</th>${status==='pending'?'<th></th>':'<th>Admin Notu</th>'}</tr></thead>
+        <tbody>
+        ${notices.map(n => `
+          <tr>
+            <td class="col-name"><b>${escapeHtml(n.target_name)}</b> <span class="muted" style="font-size:11px;">(${n.target_type==='company'?'şirket':'işletme'})</span></td>
+            <td class="col-name">${escapeHtml(n.target_code||'-')}</td>
+            <td class="col-name">${escapeHtml(n.target_package_id)}</td>
+            <td class="col-name">${money(n.amount)}</td>
+            <td class="col-name">${n.note?escapeHtml(n.note):'-'}</td>
+            <td class="col-name">${new Date(n.created_at).toLocaleString('tr-TR')}</td>
+            ${status==='pending' ? `
+            <td style="white-space:nowrap;">
+              <button class="sbtn" onclick="reviewBankTransferNotice('${n.id}', true)">✅ Onayla</button>
+              <button class="sbtn" style="background:var(--red);color:var(--btn-ink);" onclick="reviewBankTransferNotice('${n.id}', false)">✕ Reddet</button>
+            </td>` : `<td class="col-name">${n.admin_note?escapeHtml(n.admin_note):'-'}</td>`}
+          </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>`;
+}
+async function reviewBankTransferNotice(id, approve){
+  const admin = getAdminSession();
+  let adminNote = null;
+  if(!approve){
+    adminNote = prompt('Reddetme sebebi (opsiyonel):') || null;
+  } else if(!confirm('Bu havale bildirimini onaylıyor musunuz? Onaylanınca abonelik 30 gün uzatılır.')){
+    return;
+  }
+  const { error } = await sb.rpc('admin_review_bank_transfer_notice', {
+    p_token: admin.session_token, p_notice_id: id, p_approve: approve, p_admin_note: adminNote
+  });
+  if(error){ alert(error.message); return; }
+  showToast(approve ? 'Onaylandı, abonelik uzatıldı ✓' : 'Reddedildi');
+  refreshBankTransferList(admin);
 }
 
 async function refreshPromoList(admin){
@@ -4690,6 +4789,7 @@ const SETTINGS_TABS = [
   { tab:'flags', perm:'settings_flags', label:'Sipariş Etiketleri' },
   { tab:'users', perm:'settings_users', label:'Kullanıcılar' },
   { tab:'shifts', perm:'shifts', label:'Vardiyalar' },
+  { tab:'billing', managerOnly:true, label:'💳 Abonelik' },
   { tab:'roles', managerOnly:true, label:'Roller' },
   { tab:'integrations', managerOnly:true, label:'Entegrasyonlar' },
   { tab:'giftcards', perm:'payments', label:'🎁 Hediye Kartları' },
@@ -4726,6 +4826,7 @@ function renderSettingsContent(session){
   else if(APP.settingsTab==='integrations') renderIntegrationsSettings(el, session);
   else if(APP.settingsTab==='giftcards') renderGiftCardsSettings(el, session);
   else if(APP.settingsTab==='shifts') renderShiftsSettings(el, session);
+  else if(APP.settingsTab==='billing') renderBillingSettings(el, session);
   else renderUsersSettings(el, session);
 }
 
@@ -5416,9 +5517,7 @@ function selectedRoleIds(idPrefix){
   return Array.from(document.querySelectorAll(`input[data-roles-group="${idPrefix}"]:checked`)).map(b => b.value);
 }
 function renderUsersSettings(el, session){
-  const lic = APP.config.license;
   el.innerHTML = `<div class="box" style="max-width:none;">
-    ${lic ? renderSubscriptionPanel(lic) : ''}
     <h2>Kullanıcılar</h2>
     <div class="settings-table-wrap">
     <table class="settings-table">
@@ -5767,6 +5866,69 @@ async function startRenewal(){
     errBox.textContent = 'Ödeme sayfasına ulaşılamadı: ' + err.message;
     btn.disabled = false; btn.textContent = '💳 Öde / Yenile (Aylık)';
   }
+}
+/* ---- Ayarlar > Abonelik: iyzico ile kart ödemesi çalışmıyorsa/yoksa
+   kullanılabilecek havale/EFT alternatifi. Yönetici IBAN'a gönderip
+   "Ödemeyi Yaptım" der, platform yöneticisi (Admin Paneli > Havale
+   Bildirimleri) onaylayınca abonelik otomatik 30 gün uzar. ---- */
+function renderBillingSettings(el, session){
+  const lic = APP.config.license;
+  el.innerHTML = `<div class="box" style="max-width:none;">
+    <h2>💳 Abonelik ve Ödemeler</h2>
+    ${lic ? renderSubscriptionPanel(lic) : '<p class="muted">Abonelik bilgisi bulunamadı.</p>'}
+    <div id="bankTransferBox"><p class="muted">Yükleniyor…</p></div>
+  </div>`;
+  loadBankTransferStatus(session);
+}
+async function loadBankTransferStatus(session){
+  const el = document.getElementById('bankTransferBox'); if(!el) return;
+  const { data, error } = await sb.rpc('get_bank_transfer_status', { p_token: session.session_token });
+  if(error){ el.innerHTML = '<p class="muted">Havale bilgisi yüklenemedi: '+error.message+'</p>'; return; }
+  if(data.pending_notice){
+    const pn = data.pending_notice;
+    el.innerHTML = `
+      <div class="add-row-panel" style="border-color:var(--accent);margin-top:16px;">
+        <h3 style="margin:0 0 8px;">🏦 Havale Bildirimi Gönderildi</h3>
+        <p class="muted">${money(pn.amount)} tutarındaki havale bildiriminiz ${new Date(pn.created_at).toLocaleString('tr-TR')} tarihinde alındı, platform yöneticisinin onayı bekleniyor. Onaylanınca aboneliğiniz otomatik uzayacak.</p>
+        ${pn.note ? `<p class="muted" style="font-size:12px;">Not: ${escapeHtml(pn.note)}</p>` : ''}
+      </div>`;
+    return;
+  }
+  if(!data.iban){
+    el.innerHTML = `
+      <div class="add-row-panel" style="margin-top:16px;">
+        <h3 style="margin:0 0 8px;">🏦 Havale ile Öde</h3>
+        <p class="muted">Banka bilgileri henüz tanımlanmamış. Lütfen platform yöneticisiyle iletişime geçin.</p>
+      </div>`;
+    return;
+  }
+  el.innerHTML = `
+    <div class="add-row-panel" style="margin-top:16px;">
+      <h3 style="margin:0 0 8px;">🏦 Havale ile Öde</h3>
+      <p class="muted">Kartla ödeme çalışmıyorsa aşağıdaki hesaba havale/EFT gönderip "Ödemeyi Yaptım" ile bildirin - platform yöneticisi onayladığında aboneliğiniz otomatik 30 gün uzar.</p>
+      <div style="background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin:10px 0;font-size:14px;line-height:1.8;">
+        <div><b>IBAN:</b> ${escapeHtml(data.iban)}</div>
+        <div><b>Hesap Adı:</b> ${escapeHtml(data.account_name||'-')}</div>
+        <div><b>Banka:</b> ${escapeHtml(data.bank_name||'-')}</div>
+        <div><b>Tutar:</b> ${money(data.amount)}</div>
+        <div><b>Açıklama (mutlaka yazın):</b> ${escapeHtml(data.target_name)}</div>
+      </div>
+      <input id="bankTransferNote" placeholder="İsteğe bağlı not (örn. dekont no, gönderen ad)">
+      <div class="error" id="bankTransferErr"></div>
+      <button id="bankTransferSubmitBtn" onclick="submitBankTransferNotice()">✅ Ödemeyi Yaptım, Bildir</button>
+    </div>`;
+}
+async function submitBankTransferNotice(){
+  const session = getSession();
+  const btn = document.getElementById('bankTransferSubmitBtn');
+  const errBox = document.getElementById('bankTransferErr');
+  const note = document.getElementById('bankTransferNote').value.trim();
+  errBox.textContent = '';
+  btn.disabled = true; btn.textContent = 'Gönderiliyor...';
+  const { error } = await sb.rpc('submit_bank_transfer_notice', { p_token: session.session_token, p_note: note||null });
+  if(error){ errBox.textContent = error.message; btn.disabled = false; btn.textContent = '✅ Ödemeyi Yaptım, Bildir'; return; }
+  showToast('Bildirim gönderildi ✓');
+  loadBankTransferStatus(session);
 }
 
 async function saveUser(id){
