@@ -4157,6 +4157,32 @@ function initNativeAppMode(){
   const observer = new MutationObserver(() => applyNativeTableLabels(document.body));
   observer.observe(document.body, { childList: true, subtree: true });
   if(window.Capacitor.Plugins && window.Capacitor.Plugins.PushNotifications) setupNativeFcmListeners();
+  setupNativeBackgroundTimeout();
+}
+/* ---- Arka planda 15 dk kullanılmazsa otomatik çıkış (native) ----
+   "rys_bg_at" (localStorage - sessionStorage'ın aksine uygulama tamamen
+   kapatılıp/öldürülüp yeniden açılsa bile kalıcı) uygulama arka plana her
+   geçtiğinde şimdiki zamanla güncellenir. Öne her dönüşte (App plugin'inin
+   'appStateChange' olayı YA DA soğuk başlangıç - ikisi de aynı fonksiyonu
+   çağırır) aradan 15 dk'dan fazla geçmişse doLogout() tetiklenir - bu,
+   kullanıcı uygulamayı swipe ile kapatıp süreç tamamen öldürülse bile
+   çalışır, çünkü kontrol her yeni açılışta da yapılıyor. */
+const BG_AUTO_LOGOUT_MS = 15*60*1000;
+function checkNativeBackgroundTimeout(){
+  try{
+    const bgAt = localStorage.getItem('rys_bg_at');
+    localStorage.removeItem('rys_bg_at');
+    if(bgAt && (Date.now() - Number(bgAt)) >= BG_AUTO_LOGOUT_MS && getSession()) doLogout();
+  }catch(e){}
+}
+function setupNativeBackgroundTimeout(){
+  checkNativeBackgroundTimeout();
+  const AppPlugin = window.Capacitor.Plugins && window.Capacitor.Plugins.App;
+  if(!AppPlugin) return;
+  AppPlugin.addListener('appStateChange', ({ isActive }) => {
+    if(isActive){ checkNativeBackgroundTimeout(); }
+    else { try{ localStorage.setItem('rys_bg_at', String(Date.now())); }catch(e){} }
+  });
 }
 /* ---- Native (Android/iOS) push bildirimleri: Firebase Cloud Messaging ----
    Web Push (VAPID) Android'in WebView'inde çalışmıyor (gerçek Chrome değil,
