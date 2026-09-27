@@ -10,7 +10,6 @@
 <meta name="color-scheme" content="light dark">
 <title>Peyktan</title>
 <link rel="icon" type="image/png" href="/assets/images/favicon.png">
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Poppins:wght@500;600;700;800&display=swap" rel="stylesheet">
@@ -424,6 +423,13 @@
 </div>
 <div id="app"></div>
 <div id="printArea"></div>
+<!-- Bu script eskiden <head>'de idi ve sayfanın hiçbir şeyini (açılış
+     ekranı dahil) boyayamadan önce dış (jsdelivr) bir dosyayı indirip
+     çalıştırmasını bekletiyordu - "giriş ekranı geç geliyor" şikayetinin
+     asıl sebebi buydu. Burada, gerçekten ihtiyaç duyulduğu satırın hemen
+     öncesinde olduğu için tarayıcı önce yukarıdaki tüm HTML/CSS'i
+     (açılış ekranı dahil) boyar, ancak SONRA bu script için bekler. -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
 /* ====== BURAYI KENDİ SUPABASE BİLGİLERİNİZLE DOLDURUN ====== */
 const SUPABASE_URL = 'https://dveybagnrgofxkqangvo.supabase.co';
