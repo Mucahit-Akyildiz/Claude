@@ -4693,24 +4693,48 @@ async function sendTestPush(){
    verilmemişse (izin durumu hâlâ 'default'/'prompt') girişten hemen sonra
    doğrudan izin isteğini (tarayıcı/işletim sisteminin KENDİ Aç/Reddet
    diyaloğu) tetikleyip aboneliği açıyoruz - bizim ekstra bir onay adımımız
-   yok, tek adım o sistem diyaloğu. İzin zaten verilmiş/reddedilmişse hiç
-   dokunulmaz (reddedildiyse durum 'default' olmaktan çıktığı için bir daha
-   otomatik sorulmaz). Electron'da da (window.Notification destekli) aynı
-   şekilde çalışır - masaüstünde de otomatik izin isteyip açar. */
+   yok, tek adım o sistem diyaloğu. İzin zaten verilmişse (daha önce açılmış)
+   yine de sunucudaki kaydı SESSİZCE tazeliyoruz (izin tekrar sorulmadan) -
+   çünkü aynı kullanıcıyla başka bir cihazdan giriş yapılınca login_staff
+   artık BÜTÜN push_subscriptions satırlarını temizliyor ("başka yerden
+   giriş yapılınca diğer cihaz bildirim almasın" isteği), bu da mevcut
+   cihazın kendi kaydını da siler - o kayıt burada geri yüklenmezse cihaz
+   izni açık göründüğü hâlde sessizce bildirim almaz duruma düşerdi. İzin
+   reddedilmişse hiç dokunulmaz. Electron'da da (window.Notification
+   destekli) aynı şekilde çalışır. */
 function maybeShowPushPrompt(session){
   if(!session) return;
   if(isNativeApp()){
     const PN = window.Capacitor.Plugins && window.Capacitor.Plugins.PushNotifications;
     if(!PN) return;
     PN.checkPermissions().then(perm => {
+      if(perm.receive === 'granted'){ resyncNativePushSubscription(session); return; }
       if(perm.receive !== 'prompt' && perm.receive !== 'prompt-with-rationale') return;
       togglePushNotifications();
     });
     return;
   }
   if(!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) return;
+  if(Notification.permission === 'granted'){ resyncWebPushSubscription(session); return; }
   if(Notification.permission !== 'default') return;
   togglePushNotifications();
+}
+async function resyncNativePushSubscription(session){
+  const token = await requestNativeFcmToken();
+  if(!token) return;
+  const { error } = await sb.rpc('save_fcm_token', { p_token: session.session_token, p_fcm_token: token });
+  if(!error) setSavedFcmToken(token);
+}
+async function resyncWebPushSubscription(session){
+  const reg = await registerServiceWorker();
+  if(!reg) return;
+  let sub = await reg.pushManager.getSubscription();
+  if(!sub){
+    try{ sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY) }); }
+    catch(e){ return; }
+  }
+  const subJson = sub.toJSON();
+  await sb.rpc('save_push_subscription', { p_token: session.session_token, p_endpoint: subJson.endpoint, p_p256dh: subJson.keys.p256dh, p_auth: subJson.keys.auth });
 }
 function currentBellScope(){ const el = document.getElementById('bellScopeSelect'); return el ? el.value : ''; }
 function updateBellScopeStatus(){
