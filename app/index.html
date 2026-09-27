@@ -4598,9 +4598,9 @@ function updatePushUI(subscribed){
 async function togglePushNotifications(){
   const statusText = document.getElementById('pushStatusText');
   // pushStatusText sadece Bildirim Ayarları ekranında var - bu fonksiyon
-  // artık girişten sonraki bildirim istemi banner'ından da çağrılabildiği
-  // için (bkz. acceptPushPrompt), o ekranda değilken hata/durum mesajları
-  // toast olarak gösterilir.
+  // artık girişten hemen sonra otomatik da çağrılabildiği için (bkz.
+  // maybeShowPushPrompt), o ekranda değilken hata/durum mesajları toast
+  // olarak gösterilir.
   const setStatus = (msg) => { if(statusText) statusText.textContent = msg; else showToast(msg); };
   const session = getSession();
   if(isNativeApp()){
@@ -4687,13 +4687,16 @@ async function sendTestPush(){
   if(error){ resultEl.textContent = 'Gönderilemedi: ' + error.message; return; }
   resultEl.textContent = 'Test isteği gönderildi ✓ Birkaç saniye içinde bir bildirim görmelisiniz. Gelmezse: tarayıcının/işletim sisteminin bu site için bildirim iznini (kilit simgesi → Bildirimler → İzin Ver) ve bilgisayarınızın "Rahatsız Etmeyin/Odaklanma" modunun kapalı olduğunu kontrol edin.';
 }
-/* ---- Girişten sonra otomatik "Bildirimleri açmak ister misiniz?" istemi ----
-   Ayarlar > Bildirimler'e gidip butona basmayı beklemek yerine, karar
-   verilmemişse (Notification.permission==='default') girişten hemen sonra
-   köşede bir banner gösterir. "Daha sonra" seçilirse 3 gün boyunca tekrar
-   sorulmaz; izin zaten verilmiş/reddedilmişse hiç gösterilmez. Electron'da
-   da (window.Notification destekli) aynı şekilde çalışır - masaüstünde de
-   izin isteyip açar. */
+/* ---- Girişten sonra bildirimleri otomatik açmayı dene ----
+   Ayarlar > Bildirimler'e gidip butona basmayı ya da bizim kendi
+   "açmak ister misiniz?" banner'ımıza tıklamayı beklemek yerine, karar
+   verilmemişse (izin durumu hâlâ 'default'/'prompt') girişten hemen sonra
+   doğrudan izin isteğini (tarayıcı/işletim sisteminin KENDİ Aç/Reddet
+   diyaloğu) tetikleyip aboneliği açıyoruz - bizim ekstra bir onay adımımız
+   yok, tek adım o sistem diyaloğu. İzin zaten verilmiş/reddedilmişse hiç
+   dokunulmaz (reddedildiyse durum 'default' olmaktan çıktığı için bir daha
+   otomatik sorulmaz). Electron'da da (window.Notification destekli) aynı
+   şekilde çalışır - masaüstünde de otomatik izin isteyip açar. */
 function maybeShowPushPrompt(session){
   if(!session) return;
   if(isNativeApp()){
@@ -4701,41 +4704,13 @@ function maybeShowPushPrompt(session){
     if(!PN) return;
     PN.checkPermissions().then(perm => {
       if(perm.receive !== 'prompt' && perm.receive !== 'prompt-with-rationale') return;
-      let dismissedAt = null;
-      try{ dismissedAt = localStorage.getItem('rys_push_prompt_dismissed_at'); }catch(e){}
-      if(dismissedAt && (Date.now() - Number(dismissedAt)) < 3*24*60*60*1000) return;
-      showPushPromptBanner();
+      togglePushNotifications();
     });
     return;
   }
   if(!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) return;
   if(Notification.permission !== 'default') return;
-  let dismissedAt = null;
-  try{ dismissedAt = localStorage.getItem('rys_push_prompt_dismissed_at'); }catch(e){}
-  if(dismissedAt && (Date.now() - Number(dismissedAt)) < 3*24*60*60*1000) return;
-  showPushPromptBanner();
-}
-function showPushPromptBanner(){
-  if(document.getElementById('pushPromptBanner')) return;
-  const el = document.createElement('div');
-  el.id = 'pushPromptBanner';
-  el.style.cssText = 'position:fixed;left:16px;right:16px;bottom:16px;max-width:420px;margin:0 auto;z-index:500;background:var(--panel);border:1px solid var(--border);border-left:4px solid var(--accent);border-radius:12px;padding:14px 16px;box-shadow:0 8px 28px rgba(0,0,0,.35);';
-  el.innerHTML = `
-    <div style="font-weight:700;margin-bottom:4px;">🔔 Bildirimleri açmak ister misiniz?</div>
-    <div class="muted" style="font-size:13px;margin-bottom:10px;">Yeni siparişler, hazır ürünler ve önemli hatırlatmalar için - sayfa/uygulama kapalıyken de.</div>
-    <div style="display:flex;gap:8px;">
-      <button style="flex:1;margin:0;" onclick="acceptPushPrompt()">Bildirimleri Aç</button>
-      <button class="sbtn" style="flex:1;" onclick="dismissPushPrompt()">Daha Sonra</button>
-    </div>`;
-  document.body.appendChild(el);
-}
-async function acceptPushPrompt(){
-  const el = document.getElementById('pushPromptBanner'); if(el) el.remove();
-  await togglePushNotifications();
-}
-function dismissPushPrompt(){
-  const el = document.getElementById('pushPromptBanner'); if(el) el.remove();
-  try{ localStorage.setItem('rys_push_prompt_dismissed_at', String(Date.now())); }catch(e){}
+  togglePushNotifications();
 }
 function currentBellScope(){ const el = document.getElementById('bellScopeSelect'); return el ? el.value : ''; }
 function updateBellScopeStatus(){
