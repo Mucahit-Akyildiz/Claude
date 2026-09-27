@@ -17,7 +17,7 @@
 // Postgres tarafinda degil - o yuzden gercek gonderim mantigi bu dosyada.
 const { createClient } = require('@supabase/supabase-js');
 const webpush = require('web-push');
-const { sendFcmNotification, getServiceAccount, getDiag } = require('./_fcm');
+const { sendFcmNotification, getServiceAccount } = require('./_fcm');
 
 const PUSH_DISPATCH_SECRET = process.env.PUSH_DISPATCH_SECRET;
 const VAPID_PUBLIC_KEY = process.env.VAPID_PUBLIC_KEY;
@@ -277,7 +277,6 @@ module.exports = async function handler(req, res) {
       }
       const endpoint = req.body && req.body.endpoint;
       const result = await dispatchTestPush(supabase, userId, endpoint);
-      result.fcm_diag = getDiag();
       res.status(200).json(result);
       return;
     }
