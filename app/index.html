@@ -7169,6 +7169,13 @@ async function saveTipPoolSettings(){
 
 /* ================= REZERVASYONLAR & BEKLEME LİSTESİ ================= */
 async function renderReservationsView(main, session){
+  // Rezervasyonlar/Bekleme Listesi sekmeleri arasında geçiş her seferinde
+  // ağdan yeniden çekiyordu (bkz. renderReservationsContent/renderWaitlistContent'teki
+  // önbellek) - buraya (bu görünüme) her YENİDEN girişte önbelleği sıfırlıyoruz
+  // ki en güncel veri gösterilsin, ama görünüm içinde iki sekme arasında ileri
+  // geri geçerken tekrar tekrar beklemek gerekmesin.
+  APP.reservationsCache = null;
+  APP.waitlistCache = null;
   main.innerHTML = `<h1>Rezervasyonlar</h1>
     <div class="tabs" id="resvTabs">
       <div class="tab ${(APP.resvTab||'reservations')==='reservations'?'active':''}" data-tab="reservations" onclick="setResvTab('reservations')">Rezervasyonlar</div>
@@ -7186,12 +7193,15 @@ function renderResvTabContent(session){
   return (APP.resvTab||'reservations')==='waitlist' ? renderWaitlistContent(session) : renderReservationsContent(session);
 }
 const RESV_STATUS_LABELS = { pending:'Bekliyor', confirmed:'Onaylandı', seated:'Oturdu', cancelled:'İptal', no_show:'Gelmedi' };
-async function renderReservationsContent(session){
+async function renderReservationsContent(session, forceRefresh){
   const el = document.getElementById('resvContent'); if(!el) return;
   if(!APP.config){ const { data } = await withLoadingOverlay(sb.rpc('get_restaurant_config', { p_token: session.session_token })); if(data) APP.config = data; }
-  const { data, error } = await withLoadingOverlay(sb.rpc('list_reservations', { p_token: session.session_token, p_date: null }));
-  if(error){ el.innerHTML = '<p class="muted">Yüklenemedi: '+error.message+'</p>'; return; }
-  const rows = data || [];
+  if(forceRefresh || !APP.reservationsCache){
+    const { data, error } = await withLoadingOverlay(sb.rpc('list_reservations', { p_token: session.session_token, p_date: null }));
+    if(error){ el.innerHTML = '<p class="muted">Yüklenemedi: '+error.message+'</p>'; return; }
+    APP.reservationsCache = data || [];
+  }
+  const rows = APP.reservationsCache;
   const allTables = (APP.config.zones||[]).flatMap(z => z.tables);
   el.innerHTML = `<div class="box" style="max-width:none;">
     <h2>Rezervasyonlar</h2>
@@ -7240,7 +7250,7 @@ async function addReservation(){
   if(!name || !timeVal){ alert('Müşteri adı ve zaman gerekli'); return; }
   const { error } = await sb.rpc('upsert_reservation', { p_token: session.session_token, p_id: null, p_customer_name: name, p_phone: phone||null, p_party_size: party, p_reservation_time: new Date(timeVal).toISOString(), p_table_id: tableId, p_notes: notes||null });
   if(error){ alert(error.message); return; }
-  renderReservationsContent(session);
+  renderReservationsContent(session, true);
   showToast('Rezervasyon eklendi ✓');
 }
 async function changeReservationStatus(id, status){
@@ -7254,13 +7264,16 @@ async function removeReservation(id){
   const session = getSession();
   const { error } = await sb.rpc('delete_reservation', { p_token: session.session_token, p_id: id });
   if(error){ alert(error.message); return; }
-  renderReservationsContent(session);
+  renderReservationsContent(session, true);
 }
-async function renderWaitlistContent(session){
+async function renderWaitlistContent(session, forceRefresh){
   const el = document.getElementById('resvContent'); if(!el) return;
-  const { data, error } = await withLoadingOverlay(sb.rpc('list_waitlist', { p_token: session.session_token }));
-  if(error){ el.innerHTML = '<p class="muted">Yüklenemedi: '+error.message+'</p>'; return; }
-  const rows = data || [];
+  if(forceRefresh || !APP.waitlistCache){
+    const { data, error } = await withLoadingOverlay(sb.rpc('list_waitlist', { p_token: session.session_token }));
+    if(error){ el.innerHTML = '<p class="muted">Yüklenemedi: '+error.message+'</p>'; return; }
+    APP.waitlistCache = data || [];
+  }
+  const rows = APP.waitlistCache;
   el.innerHTML = `<div class="box" style="max-width:none;">
     <h2>Bekleme Listesi</h2>
     <div class="settings-table-wrap">
@@ -7346,14 +7359,14 @@ async function addWaitlistEntry(){
   if(!name){ alert('Müşteri adı gerekli'); return; }
   const { error } = await sb.rpc('add_waitlist_entry', { p_token: session.session_token, p_customer_name: name, p_phone: phone||null, p_party_size: party, p_quoted_wait_minutes: wait });
   if(error){ alert(error.message); return; }
-  renderWaitlistContent(session);
+  renderWaitlistContent(session, true);
   showToast('Bekleme listesine eklendi ✓');
 }
 async function changeWaitlistStatus(id, status){
   const session = getSession();
   const { error } = await sb.rpc('set_waitlist_status', { p_token: session.session_token, p_id: id, p_status: status });
   if(error){ alert(error.message); return; }
-  renderWaitlistContent(session);
+  renderWaitlistContent(session, true);
 }
 
 /* ================= CRM / SADAKAT ================= */
