@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "472087419616",
+    "project_id": "peyktan",
+    "storage_bucket": "peyktan.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:472087419616:android:b73687ad2cb20a6a330e85",
+        "android_client_info": {
+          "package_name": "com.peyktan.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD5x9D8kLL6I2Z0FhQaiqtUFPI6MenLc3A"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

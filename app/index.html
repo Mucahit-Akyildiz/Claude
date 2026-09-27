@@ -4145,7 +4145,48 @@ function initNativeAppMode(){
   applyNativeTableLabels(document.body);
   const observer = new MutationObserver(() => applyNativeTableLabels(document.body));
   observer.observe(document.body, { childList: true, subtree: true });
+  if(window.Capacitor.Plugins && window.Capacitor.Plugins.PushNotifications) setupNativeFcmListeners();
 }
+/* ---- Native (Android/iOS) push bildirimleri: Firebase Cloud Messaging ----
+   Web Push (VAPID) Android'in WebView'inde çalışmıyor (gerçek Chrome değil,
+   sınırlı bir bileşen) - bu yüzden native uygulamada tamamen ayrı bir yol
+   kullanılır: @capacitor/push-notifications ile cihaz bir FCM token alır,
+   bu token push_subscriptions tablosuna platform='android-fcm' olarak
+   kaydedilir (bkz. save_fcm_token). Sunucu tarafında dispatch-ready-pushes.js
+   bu platformu görünce web-push yerine FCM HTTP v1 API'siyle gönderir.
+   Token'ı almak zaman alabileceği (native köprü + Google sunucusu) için
+   register() çağrısı ile 'registration' event'i arasında bir Promise
+   köprüsü kuruluyor; dinleyiciler initNativeAppMode'da BİR KEZ eklenir. */
+let _fcmTokenResolve = null;
+function setupNativeFcmListeners(){
+  const PN = window.Capacitor.Plugins.PushNotifications;
+  PN.addListener('registration', (token) => {
+    if(_fcmTokenResolve){ _fcmTokenResolve(token.value); _fcmTokenResolve = null; }
+  });
+  PN.addListener('registrationError', () => {
+    if(_fcmTokenResolve){ _fcmTokenResolve(null); _fcmTokenResolve = null; }
+  });
+  // Bildirime dokunulunca (uygulama arka planda/kapalıyken) ilgili ekrana
+  // git - web tarafındaki service worker'ın notificationclick mesajıyla aynı iş.
+  PN.addListener('pushNotificationActionPerformed', (action) => {
+    const data = action && action.notification && action.notification.data;
+    const session = getSession();
+    if(data && data.view && session){
+      const item = NAV_ITEMS.find(i => i.view===data.view);
+      if(item && navItemVisible(item, session)){ APP.view = data.view; render(); }
+    }
+  });
+}
+function requestNativeFcmToken(){
+  const PN = window.Capacitor.Plugins.PushNotifications;
+  return new Promise(resolve => {
+    _fcmTokenResolve = resolve;
+    PN.register();
+    setTimeout(() => { if(_fcmTokenResolve){ _fcmTokenResolve(null); _fcmTokenResolve = null; } }, 10000);
+  });
+}
+function getSavedFcmToken(){ try{ return localStorage.getItem('rys_fcm_token')||''; }catch(e){ return ''; } }
+function setSavedFcmToken(t){ try{ if(t) localStorage.setItem('rys_fcm_token', t); else localStorage.removeItem('rys_fcm_token'); }catch(e){} }
 function resolvePrinterForStation(stationId){
   const printers = getPrinters();
   const map = getStationPrinterMap();
@@ -4457,6 +4498,22 @@ async function initPushUI(){
   const btn = document.getElementById('pushToggleBtn');
   const statusText = document.getElementById('pushStatusText');
   if(!btn || !statusText) return;
+  if(isNativeApp()){
+    const PN = window.Capacitor.Plugins && window.Capacitor.Plugins.PushNotifications;
+    if(!PN){
+      statusText.textContent = 'Bu uygulama sürümü bildirim desteklemiyor, lütfen güncelleyin.';
+      btn.style.display = 'none';
+      return;
+    }
+    const perm = await PN.checkPermissions();
+    if(perm.receive === 'denied'){
+      statusText.textContent = 'Bildirim izni engellenmiş. Telefonun Ayarlar > Uygulamalar > Peyktan > Bildirimler kısmından izin vermeniz gerekiyor.';
+      btn.style.display = 'none';
+      return;
+    }
+    updatePushUI(perm.receive==='granted' && !!getSavedFcmToken());
+    return;
+  }
   if(!('serviceWorker' in navigator) || !('PushManager' in window)){
     statusText.textContent = 'Bu tarayıcı/cihaz push bildirimlerini desteklemiyor.';
     btn.style.display = 'none';
@@ -4491,6 +4548,27 @@ async function togglePushNotifications(){
   // toast olarak gösterilir.
   const setStatus = (msg) => { if(statusText) statusText.textContent = msg; else showToast(msg); };
   const session = getSession();
+  if(isNativeApp()){
+    const PN = window.Capacitor.Plugins.PushNotifications;
+    const saved = getSavedFcmToken();
+    if(saved){
+      await sb.rpc('remove_push_subscription', { p_token: session.session_token, p_endpoint: saved });
+      setSavedFcmToken('');
+      updatePushUI(false);
+      showToast('Push bildirimleri kapatıldı');
+      return;
+    }
+    const permReq = await PN.requestPermissions();
+    if(permReq.receive !== 'granted'){ setStatus('Bildirim izni verilmedi.'); return; }
+    const token = await requestNativeFcmToken();
+    if(!token){ setStatus('Cihaz kaydı alınamadı, lütfen tekrar deneyin.'); return; }
+    const { error } = await sb.rpc('save_fcm_token', { p_token: session.session_token, p_fcm_token: token });
+    if(error){ setStatus('Kaydedilemedi: ' + error.message); return; }
+    setSavedFcmToken(token);
+    updatePushUI(true);
+    showToast('Push bildirimleri açıldı ✓');
+    return;
+  }
   const reg = await registerServiceWorker();
   if(!reg){ setStatus('Servis çalışanı (service worker) kaydedilemedi.'); return; }
   const existing = await reg.pushManager.getSubscription();
@@ -4535,9 +4613,10 @@ async function sendTestPush(){
   const resultEl = document.getElementById('testPushResult');
   const btn = document.getElementById('testPushBtn');
   const session = getSession();
-  const reg = await registerServiceWorker();
-  const existing = reg ? await reg.pushManager.getSubscription() : null;
-  if(!existing){
+  const hasSubscription = isNativeApp()
+    ? !!getSavedFcmToken()
+    : !!(await registerServiceWorker().then(reg => reg ? reg.pushManager.getSubscription() : null));
+  if(!hasSubscription){
     resultEl.textContent = 'Bu cihazda push bildirimleri açık değil - önce "Bildirimleri Aç" butonuna basın.';
     return;
   }
@@ -4557,6 +4636,18 @@ async function sendTestPush(){
    izin isteyip açar. */
 function maybeShowPushPrompt(session){
   if(!session) return;
+  if(isNativeApp()){
+    const PN = window.Capacitor.Plugins && window.Capacitor.Plugins.PushNotifications;
+    if(!PN) return;
+    PN.checkPermissions().then(perm => {
+      if(perm.receive !== 'prompt' && perm.receive !== 'prompt-with-rationale') return;
+      let dismissedAt = null;
+      try{ dismissedAt = localStorage.getItem('rys_push_prompt_dismissed_at'); }catch(e){}
+      if(dismissedAt && (Date.now() - Number(dismissedAt)) < 3*24*60*60*1000) return;
+      showPushPromptBanner();
+    });
+    return;
+  }
   if(!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) return;
   if(Notification.permission !== 'default') return;
   let dismissedAt = null;

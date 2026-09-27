@@ -17,6 +17,7 @@
 // Postgres tarafinda degil - o yuzden gercek gonderim mantigi bu dosyada.
 const { createClient } = require('@supabase/supabase-js');
 const webpush = require('web-push');
+const { sendFcmNotification, getServiceAccount } = require('./_fcm');
 
 const PUSH_DISPATCH_SECRET = process.env.PUSH_DISPATCH_SECRET;
 const VAPID_PUBLIC_KEY = process.env.VAPID_PUBLIC_KEY;
@@ -25,6 +26,28 @@ const VAPID_SUBJECT = process.env.VAPID_SUBJECT || 'mailto:destek@peyktan.com';
 
 if (VAPID_PUBLIC_KEY && VAPID_PRIVATE_KEY) {
   webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
+}
+
+// push_subscriptions hem web (VAPID/web-push) hem native Android (FCM) satirlari
+// tutar - platform='android-fcm' olanlar icin _fcm.js uzerinden gonderilir,
+// digerleri (platform='web') eskisi gibi web-push ile. FCM'de token artik
+// gecersizse (invalidToken) statusCode'u 410'a esitliyoruz ki asagidaki 4
+// cagri noktasindaki mevcut "e.statusCode === 404 || 410 ise sil" temizleme
+// mantigi hic degismeden ikisinde de calissin.
+async function sendToSub(sub, payloadObj) {
+  if (sub.platform === 'android-fcm') {
+    try {
+      await sendFcmNotification(sub.endpoint, payloadObj);
+    } catch (e) {
+      if (e.invalidToken) e.statusCode = 410;
+      throw e;
+    }
+    return;
+  }
+  await webpush.sendNotification(
+    { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
+    JSON.stringify(payloadObj)
+  );
 }
 
 // QR menuden gelen, henuz personel tarafindan onaylanmamis/reddedilmemis
@@ -75,20 +98,17 @@ async function dispatchCustomerOrderRequests(supabase) {
 
       const labels = rows.map((r) => (r.restaurant_tables && r.restaurant_tables.name) || r.customer_name || 'Masa');
       const shown = labels.slice(0, 3).join(', ') + (labels.length > 3 ? ' ve ' + (labels.length - 3) + ' tane daha' : '');
-      const payload = JSON.stringify({
+      const payload = {
         title: '📱 Onay bekleyen müşteri sipariş isteği',
         body: shown,
         url: '/app/',
         view: 'order',
         tag: 'customer-order-request',
-      });
+      };
 
       await Promise.all((subs || []).map(async (sub) => {
         try {
-          await webpush.sendNotification(
-            { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
-            payload
-          );
+          await sendToSub(sub, payload);
           sent++;
         } catch (e) {
           if (e && (e.statusCode === 404 || e.statusCode === 410)) {
@@ -161,20 +181,17 @@ async function dispatchLateKitchenItems(supabase) {
 
       const names = rows.map((r) => r.name).filter(Boolean);
       const shown = names.slice(0, 3).join(', ') + (names.length > 3 ? ' ve ' + (names.length - 3) + ' tane daha' : '');
-      const payload = JSON.stringify({
+      const payload = {
         title: '⏰ Geciken sipariş',
         body: shown + ' 15 dakikayı geçti!',
         url: '/app/',
         view: 'kitchen',
         tag: 'late-kitchen-items',
-      });
+      };
 
       await Promise.all((subs || []).map(async (sub) => {
         try {
-          await webpush.sendNotification(
-            { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
-            payload
-          );
+          await sendToSub(sub, payload);
           sent++;
         } catch (e) {
           if (e && (e.statusCode === 404 || e.statusCode === 410)) {
@@ -207,21 +224,18 @@ async function dispatchTestPush(supabase, userId) {
   if (error) return { sent: 0, total: 0, error: error.message };
   if (!subs || subs.length === 0) return { sent: 0, total: 0, note: 'no subscriptions for this user' };
 
-  const payload = JSON.stringify({
+  const payload = {
     title: '🔔 Test Bildirimi',
     body: 'Push bildirimleri bu cihazda çalışıyor!',
     url: '/app/',
     tag: 'test-push',
-  });
+  };
 
   let sent = 0;
   const errors = [];
   for (const sub of subs) {
     try {
-      await webpush.sendNotification(
-        { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
-        payload
-      );
+      await sendToSub(sub, payload);
       sent++;
     } catch (e) {
       errors.push({ id: sub.id, statusCode: e && e.statusCode, message: e && e.message });
@@ -244,8 +258,8 @@ module.exports = async function handler(req, res) {
       res.status(401).json({ error: 'unauthorized' });
       return;
     }
-    if (!VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY) {
-      res.status(200).json({ sent: 0, note: 'VAPID keys not configured' });
+    if ((!VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY) && !getServiceAccount()) {
+      res.status(200).json({ sent: 0, note: 'VAPID keys ve FCM servis hesabı yapılandırılmamış' });
       return;
     }
 
@@ -324,18 +338,15 @@ module.exports = async function handler(req, res) {
         const labels = ordersByStaff.get(sub.user_id) || [];
         if (labels.length === 0) return;
         const shown = labels.slice(0, 3).join(', ') + (labels.length > 3 ? ' ve ' + (labels.length - 3) + ' tane daha' : '');
-        const payload = JSON.stringify({
+        const payload = {
           title: '🔔 Hazır sipariş bekliyor',
           body: shown,
           url: '/app/',
           view: 'order',
           tag: 'ready-orders',
-        });
+        };
         try {
-          await webpush.sendNotification(
-            { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
-            payload
-          );
+          await sendToSub(sub, payload);
           sent++;
         } catch (e) {
           // 404/410: abonelik artik gecerli degil (tarayici verisi silinmis,
