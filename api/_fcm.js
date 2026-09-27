@@ -10,6 +10,7 @@ const crypto = require('crypto');
 
 const SERVICE_ACCOUNT_JSON = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
 let _serviceAccount = null;
+let _lastParseError = null;
 function getServiceAccount() {
   if (!SERVICE_ACCOUNT_JSON) return null;
   if (_serviceAccount) return _serviceAccount;
@@ -17,8 +18,12 @@ function getServiceAccount() {
     _serviceAccount = JSON.parse(SERVICE_ACCOUNT_JSON);
     return _serviceAccount;
   } catch (e) {
+    _lastParseError = 'len=' + SERVICE_ACCOUNT_JSON.length + ' err=' + e.message;
     return null;
   }
+}
+function getDiag() {
+  return { present: !!SERVICE_ACCOUNT_JSON, len: SERVICE_ACCOUNT_JSON ? SERVICE_ACCOUNT_JSON.length : 0, parseError: _lastParseError };
 }
 
 function base64url(input) {
@@ -99,4 +104,4 @@ async function sendFcmNotification(fcmToken, payload) {
   throw err;
 }
 
-module.exports = { sendFcmNotification, getServiceAccount };
+module.exports = { sendFcmNotification, getServiceAccount, getDiag };

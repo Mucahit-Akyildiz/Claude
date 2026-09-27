@@ -4613,16 +4613,21 @@ async function sendTestPush(){
   const resultEl = document.getElementById('testPushResult');
   const btn = document.getElementById('testPushBtn');
   const session = getSession();
-  const hasSubscription = isNativeApp()
-    ? !!getSavedFcmToken()
-    : !!(await registerServiceWorker().then(reg => reg ? reg.pushManager.getSubscription() : null));
-  if(!hasSubscription){
+  // Kendi cihazının abonelik uç noktasını (native'de FCM token, webte
+  // PushSubscription.endpoint) sunucuya gönderiyoruz ki test bildirimi SADECE
+  // bu cihaza gitsin - aksi halde aynı kullanıcının başka bir cihazda (örn.
+  // hâlâ açık bir tarayıcı sekmesi) kayıtlı eski aboneliği de bildirimi alır
+  // ve "telefondan gönderdim ama tarayıcıya geldi" yanılgısına yol açar.
+  const deviceEndpoint = isNativeApp()
+    ? getSavedFcmToken()
+    : await registerServiceWorker().then(reg => reg ? reg.pushManager.getSubscription() : null).then(sub => sub ? sub.endpoint : '');
+  if(!deviceEndpoint){
     resultEl.textContent = 'Bu cihazda push bildirimleri açık değil - önce "Bildirimleri Aç" butonuna basın.';
     return;
   }
   btn.disabled = true; btn.textContent = 'Gönderiliyor...';
   resultEl.textContent = '';
-  const { error } = await sb.rpc('send_test_push', { p_token: session.session_token });
+  const { error } = await sb.rpc('send_test_push', { p_token: session.session_token, p_endpoint: deviceEndpoint });
   btn.disabled = false; btn.textContent = '🔔 Test Bildirimi Gönder';
   if(error){ resultEl.textContent = 'Gönderilemedi: ' + error.message; return; }
   resultEl.textContent = 'Test isteği gönderildi ✓ Birkaç saniye içinde bir bildirim görmelisiniz. Gelmezse: tarayıcının/işletim sisteminin bu site için bildirim iznini (kilit simgesi → Bildirimler → İzin Ver) ve bilgisayarınızın "Rahatsız Etmeyin/Odaklanma" modunun kapalı olduğunu kontrol edin.';
@@ -5283,6 +5288,30 @@ async function doLogin(){
     btn.disabled = false; btn.textContent = 'Giriş Yap';
   }
 }
+/* push_subscriptions satırı session_token'dan bağımsız, kullanıcıya kalıcı
+   olarak bağlı - logout sadece staff_sessions'ı siler, aboneliği silmezse
+   o cihaz (ya da o tarayıcı) çıkış yapıldıktan sonra da bildirim almaya
+   devam eder. Bu yüzden çıkışta, o cihazın kendi aboneliğini de kaldırıyoruz. */
+async function unsubscribePushOnLogout(session){
+  if(!session || !session.session_token) return;
+  try{
+    if(isNativeApp()){
+      const saved = getSavedFcmToken();
+      if(saved){
+        await sb.rpc('remove_push_subscription', { p_token: session.session_token, p_endpoint: saved });
+        setSavedFcmToken('');
+      }
+      return;
+    }
+    if(!('serviceWorker' in navigator)) return;
+    const reg = await navigator.serviceWorker.getRegistration();
+    const sub = reg ? await reg.pushManager.getSubscription() : null;
+    if(sub){
+      await sb.rpc('remove_push_subscription', { p_token: session.session_token, p_endpoint: sub.endpoint });
+      await sub.unsubscribe();
+    }
+  }catch(e){}
+}
 async function doLogout(){
   const session = getSession();
   stopKitchenPolling();
@@ -5292,6 +5321,7 @@ async function doLogout(){
   clearSession();
   render();
   if(session && session.session_token){
+    await unsubscribePushOnLogout(session);
     try{ await sb.rpc('logout_staff', { p_token: session.session_token }); }catch(e){}
   }
 }

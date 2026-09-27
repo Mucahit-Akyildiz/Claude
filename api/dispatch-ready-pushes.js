@@ -17,7 +17,7 @@
 // Postgres tarafinda degil - o yuzden gercek gonderim mantigi bu dosyada.
 const { createClient } = require('@supabase/supabase-js');
 const webpush = require('web-push');
-const { sendFcmNotification, getServiceAccount } = require('./_fcm');
+const { sendFcmNotification, getServiceAccount, getDiag } = require('./_fcm');
 
 const PUSH_DISPATCH_SECRET = process.env.PUSH_DISPATCH_SECRET;
 const VAPID_PUBLIC_KEY = process.env.VAPID_PUBLIC_KEY;
@@ -216,11 +216,14 @@ async function dispatchLateKitchenItems(supabase) {
 // bir test bildirimi gonderir. Diger dispatch fonksiyonlarinin aksine hatalari
 // yutmaz, oldugu gibi dondurur - boylece "gonderildi ama gelmedi" durumunda
 // gercek sebep (orn. abonelik gecersiz, VAPID hatasi) ekranda gorulebilir.
-async function dispatchTestPush(supabase, userId) {
-  const { data: subs, error } = await supabase
-    .from('push_subscriptions')
-    .select('*')
-    .eq('user_id', userId);
+async function dispatchTestPush(supabase, userId, endpoint) {
+  let query = supabase.from('push_subscriptions').select('*').eq('user_id', userId);
+  // endpoint verilmişse (normal durum - client kendi abonelik uç noktasını/FCM
+  // token'ını gönderir) sadece o cihaza gönderilir; aksi halde aynı kullanıcının
+  // (örn. hem telefon hem tarayıcıda açık olan) TÜM cihazlarına giderdi, bu da
+  // "telefondan test attım ama bildirim tarayıcıya geldi" yanılgısına yol açardı.
+  if (endpoint) query = query.eq('endpoint', endpoint);
+  const { data: subs, error } = await query;
   if (error) return { sent: 0, total: 0, error: error.message };
   if (!subs || subs.length === 0) return { sent: 0, total: 0, note: 'no subscriptions for this user' };
 
@@ -272,7 +275,9 @@ module.exports = async function handler(req, res) {
         res.status(400).json({ error: 'user_id required' });
         return;
       }
-      const result = await dispatchTestPush(supabase, userId);
+      const endpoint = req.body && req.body.endpoint;
+      const result = await dispatchTestPush(supabase, userId, endpoint);
+      result.fcm_diag = getDiag();
       res.status(200).json(result);
       return;
     }
