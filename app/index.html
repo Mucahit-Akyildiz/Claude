@@ -3,6 +3,11 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<!-- Sayfa kendi açık/koyu temasını (data-theme) zaten yönetiyor - bu meta
+     olmadan Android WebView (özellikle sistem koyu modundayken) sayfayı
+     kendi algoritmasıyla otomatik karartıp uygulamanın gerçek renklerini
+     bozuyordu; "koyu/açık tema çalışmıyor" şikayetinin asıl sebebi buydu. -->
+<meta name="color-scheme" content="light dark">
 <title>Peyktan</title>
 <link rel="icon" type="image/png" href="/assets/images/favicon.png">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>

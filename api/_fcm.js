@@ -95,7 +95,14 @@ async function sendFcmNotification(fcmToken, payload) {
           view: payload.view || '',
           tag: payload.tag || '',
         },
-        android: { priority: 'high', notification: { channel_id: 'default' } },
+        // channel_id VERİLMİYOR: 'default' diye bir bildirim kanalı cihazda hiç
+        // oluşturulmamıştı (uygulama tarafında hiçbir yerde
+        // NotificationChannel/createChannel çağrısı yok) - Android 8+'ta FCM'in
+        // bilmediği bir kanal adı verilirse bildirim SESSİZCE hiç gösterilmez
+        // (uygulamayı açınca değil, hiçbir zaman). channel_id boş bırakılınca
+        // Firebase Messaging SDK'nın kendi otomatik oluşturduğu varsayılan
+        // kanalı kullanılıyor, bu yüzden bildirim artık gerçekten görünür.
+        android: { priority: 'high' },
       },
     }),
   });
