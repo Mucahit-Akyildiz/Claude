@@ -4171,6 +4171,24 @@ function initNativeAppMode(){
 let _fcmTokenResolve = null;
 function setupNativeFcmListeners(){
   const PN = window.Capacitor.Plugins.PushNotifications;
+  // FCM mesajı sunucuda 'default' kanalına gönderiliyor (bkz. api/_fcm.js) -
+  // ama Android'de kanal cihazda ÖNCEDEN oluşturulmamışsa bildirim sessizce
+  // hiç gösterilmiyor (channel_id vermeden Firebase'in kendi otomatik
+  // kanalını kullandığımızda da bildirim görünüyordu ama o kanalda ses/
+  // titreşim ayarı yoktu). Burada importance=5 (HIGH) ve vibration:true ile
+  // KENDİ 'default' kanalımızı oluşturup sunucu tarafında yine bu kanal
+  // id'sini kullanıyoruz - hem görünür hem sesli/titreşimli olsun diye.
+  // createChannel var olan bir kanalı günceller (id aynıysa), o yüzden her
+  // native başlangıçta çağırmak güvenli/idempotent.
+  PN.createChannel({
+    id: 'default',
+    name: 'Bildirimler',
+    description: 'Sipariş ve müşteri talebi bildirimleri',
+    importance: 5,
+    visibility: 1,
+    vibration: true,
+    lights: true,
+  }).catch(() => {});
   PN.addListener('registration', (token) => {
     if(_fcmTokenResolve){ _fcmTokenResolve(token.value); _fcmTokenResolve = null; }
   });

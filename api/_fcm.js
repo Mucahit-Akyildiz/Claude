@@ -95,14 +95,14 @@ async function sendFcmNotification(fcmToken, payload) {
           view: payload.view || '',
           tag: payload.tag || '',
         },
-        // channel_id VERİLMİYOR: 'default' diye bir bildirim kanalı cihazda hiç
-        // oluşturulmamıştı (uygulama tarafında hiçbir yerde
-        // NotificationChannel/createChannel çağrısı yok) - Android 8+'ta FCM'in
-        // bilmediği bir kanal adı verilirse bildirim SESSİZCE hiç gösterilmez
-        // (uygulamayı açınca değil, hiçbir zaman). channel_id boş bırakılınca
-        // Firebase Messaging SDK'nın kendi otomatik oluşturduğu varsayılan
-        // kanalı kullanılıyor, bu yüzden bildirim artık gerçekten görünür.
-        android: { priority: 'high' },
+        // 'default' kanalı artık uygulama tarafında (bkz. app/index.html
+        // setupNativeFcmListeners -> PN.createChannel) importance HIGH,
+        // ses ve titreşim açık olarak oluşturuluyor. Bu channel_id daha önce
+        // buradan tamamen kaldırılmıştı çünkü kanal cihazda hiç yoktu ve
+        // Android bilmediği bir kanala gönderileni sessizce siliyordu; kanalı
+        // oluşturduktan sonra tekrar veriyoruz ki Firebase'in ses/titreşimi
+        // olmayan otomatik yedek kanalı yerine bizim kanalımız kullanılsın.
+        android: { priority: 'high', notification: { channel_id: 'default' } },
       },
     }),
   });
