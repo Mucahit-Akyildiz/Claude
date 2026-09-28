@@ -49,12 +49,24 @@ module.exports = async function handler(req, res) {
   try {
     const { data: paymentLookup } = await supabase
       .from('payments')
-      .select('restaurant_id, package_id')
+      .select('restaurant_id, package_id, status')
       .eq('provider_ref', token)
       .maybeSingle();
 
     if (!paymentLookup) {
       res.redirect(302, loginUrl + '?odeme=bulunamadi');
+      return;
+    }
+
+    // iyzico callback'i (yeniden deneme, kullanıcının linki iki kez açması,
+    // ya da iki isteğin tam eşzamanlı gelmesi gibi nedenlerle) aynı token
+    // için birden fazla gelebilir. Basit bir "if status==success" kontrolü
+    // iki eşzamanlı isteğin ikisini de geçirebilir (ikisi de aynı anda eski
+    // durumu okur); bunun yerine aşağıda iyzico onayından SONRA atomik bir
+    // "claim" (status='success' WHERE status<>'success') yapılıyor - sadece
+    // claim'i kazanan istek expires_at'i uzatabiliyor.
+    if (paymentLookup.status === 'success') {
+      res.redirect(302, loginUrl + '?odeme=basarili');
       return;
     }
 
@@ -80,6 +92,23 @@ module.exports = async function handler(req, res) {
 
     const restaurantId = paymentLookup.restaurant_id;
 
+    // Atomik claim: yalnızca bu isteğin bulduğu satır henüz 'success'
+    // değilse status'u değiştirebiliyor. Eşzamanlı ikinci istek 0 satır
+    // döner ve expires_at'i ikinci kez uzatmadan çıkar - böylece iyzico'nun
+    // aynı token için gönderebileceği tekrar eden/paralel callback'ler
+    // aboneliği yalnızca bir kez uzatır.
+    const { data: claimedRows } = await supabase
+      .from('payments')
+      .update({ status: 'success' })
+      .eq('provider_ref', token)
+      .neq('status', 'success')
+      .select('id');
+
+    if (!claimedRows || claimedRows.length === 0) {
+      res.redirect(302, loginUrl + '?odeme=basarili');
+      return;
+    }
+
     const { data: restaurant } = await supabase
       .from('restaurants')
       .select('expires_at')
@@ -91,7 +120,6 @@ module.exports = async function handler(req, res) {
     const newExpiresAt = new Date(base.getTime() + RENEWAL_DAYS * 24 * 60 * 60 * 1000).toISOString();
 
     await supabase.from('restaurants').update({ is_active: true, expires_at: newExpiresAt }).eq('id', restaurantId);
-    await supabase.from('payments').update({ status: 'success' }).eq('provider_ref', token);
 
     res.redirect(302, loginUrl + '?odeme=basarili');
   } catch (e) {
