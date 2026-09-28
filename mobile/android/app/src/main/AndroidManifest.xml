@@ -32,4 +32,11 @@
     <!-- Permissions -->
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Android 13+ (API 33+) bildirim gösterebilmek için bu izni MANİFESTTE
+         tanımlamayı zorunlu kılıyor - olmadan PushNotifications.requestPermissions()
+         çağrısı sistem izin penceresini hiç göstermez, bildirimler o cihazlarda
+         (hedef SDK 35 olduğu için TÜM Android 13+ kullanıcıları dahil) hiç
+         çalışmazdı. Eklentinin kendi manifesti bunu içermiyor, uygulamanın
+         eklemesi gerekiyor. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 </manifest>
