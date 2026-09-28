@@ -7246,11 +7246,10 @@ async function saveTipPoolSettings(){
 
 /* ================= REZERVASYONLAR & BEKLEME LİSTESİ ================= */
 async function renderReservationsView(main, session){
-  // Rezervasyonlar/Bekleme Listesi sekmeleri arasında geçiş her seferinde
-  // ağdan yeniden çekiyordu (bkz. renderReservationsContent/renderWaitlistContent'teki
-  // önbellek) - buraya (bu görünüme) her YENİDEN girişte önbelleği sıfırlıyoruz
-  // ki en güncel veri gösterilsin, ama görünüm içinde iki sekme arasında ileri
-  // geri geçerken tekrar tekrar beklemek gerekmesin.
+  // Bu görünüme her girişte önbellek sıfırlanır; sekmeler arası geçişte de
+  // (bkz. setResvTab) her zaman yeniden çekiliyor - böylece başka bir
+  // cihazdan/personelden gelen değişiklik (yeni rezervasyon, durum
+  // güncellemesi) her zaman görünür.
   APP.reservationsCache = null;
   APP.waitlistCache = null;
   main.innerHTML = `<h1>Rezervasyonlar</h1>
@@ -7264,10 +7263,16 @@ async function renderReservationsView(main, session){
 function setResvTab(tab){
   APP.resvTab = tab;
   document.querySelectorAll('#resvTabs .tab').forEach(t => t.classList.toggle('active', t.dataset.tab===tab));
-  renderResvTabContent(getSession());
+  // Önbellek sekmeler arasında korunuyordu (yalnızca görünüme YENİDEN
+  // girişte sıfırlanıyordu) - bu da aynı görünümü açık tutup sekme
+  // değiştiren personelin, başka bir cihazdan/başka bir personelden gelen
+  // güncellemeyi (yeni rezervasyon, durum değişikliği vb.) görememesine
+  // yol açıyordu. Rezervasyon/bekleme listesi az sayıda satır içerdiği için
+  // her sekme tıklamasında yeniden çekmenin maliyeti ihmal edilebilir.
+  renderResvTabContent(getSession(), true);
 }
-function renderResvTabContent(session){
-  return (APP.resvTab||'reservations')==='waitlist' ? renderWaitlistContent(session) : renderReservationsContent(session);
+function renderResvTabContent(session, forceRefresh){
+  return (APP.resvTab||'reservations')==='waitlist' ? renderWaitlistContent(session, forceRefresh) : renderReservationsContent(session, forceRefresh);
 }
 const RESV_STATUS_LABELS = { pending:'Bekliyor', confirmed:'Onaylandı', seated:'Oturdu', cancelled:'İptal', no_show:'Gelmedi' };
 async function renderReservationsContent(session, forceRefresh){
@@ -7334,6 +7339,11 @@ async function changeReservationStatus(id, status){
   const session = getSession();
   const { error } = await sb.rpc('set_reservation_status', { p_token: session.session_token, p_id: id, p_status: status });
   if(error){ alert(error.message); return; }
+  // changeWaitlistStatus'un aksine burada eksikti: cache yenilenmediği için
+  // (renderReservationsContent'in üstündeki forceRefresh mekanizması) durum
+  // değişikliği ekranda görünmüyor, sekmeler arası geçince eski veri geri
+  // geliyordu.
+  renderReservationsContent(session, true);
   showToast('Durum güncellendi ✓');
 }
 async function removeReservation(id){
