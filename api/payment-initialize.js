@@ -148,7 +148,11 @@ module.exports = async function handler(req, res) {
         registrationAddress: 'Belirtilmedi Mah. Belirtilmedi Sk. No:1',
         city: 'Istanbul',
         country: 'Turkey',
-        ip: (req.headers['x-forwarded-for'] || '85.34.78.112').toString().split(',')[0].trim(),
+        // x-forwarded-for eksikse (Vercel'de normalde her zaman set edilir) gerçek,
+        // başkasına ait bir IP'yi "alıcı" diye iyzico'ya bildirmemek için RFC 5737
+        // TEST-NET-3 (203.0.113.0/24) - belgeleme/örnek amaçlı ayrılmış, hiçbir
+        // gerçek kişi/kuruma ait olamayacak bir adres - fallback olarak kullanılıyor.
+        ip: (req.headers['x-forwarded-for'] || '203.0.113.1').toString().split(',')[0].trim(),
       },
       shippingAddress: {
         contactName: restaurant.name,
