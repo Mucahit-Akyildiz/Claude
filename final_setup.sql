@@ -141,7 +141,7 @@ begin
 end $$;
 
 -- ============================================================
--- ELVORA - SON KURULUM (güvenlik + ayarlar)
+-- PEYKTAN - SON KURULUM (güvenlik + ayarlar)
 -- Bu betik tamamen tekrar-çalıştırılabilir şekilde yazıldı.
 -- Baştan sona, sırayla tek seferde çalıştırın.
 -- ============================================================
