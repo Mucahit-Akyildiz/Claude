@@ -1,0 +1,161 @@
+/* Ana router (render/goToView/goHome), ana ekran (renderHome), deep-link
+   ve uygulama baslangic (bootstrap) kodu - app/index.html'den cikarildi.
+   Diger TUM modullerden SONRA yuklenmeli (her bolumun render*View
+   fonksiyonunu cagiriyor) - index.html'deki <script src> sirasinda
+   bu yuzden en sonda. Klasik <script src>. */
+function render(){
+  if(isAdminMode()){ renderAdminArea(); return; }
+
+  const app = document.getElementById('app');
+  const session = getSession();
+  if(!session){
+    const companySession = getCompanySession();
+    if(companySession){ renderCompanyPanel(app, companySession); return; }
+    if(APP.authScreen==='signup') renderSignupScreen(app);
+    else if(APP.authScreen==='expired') renderExpiredScreen(app);
+    else if(APP.authScreen==='forgot') renderForgotPasswordScreen(app);
+    else if(APP.authScreen==='companyLogin') renderCompanyLoginScreen(app);
+    else renderLoginScreen(app);
+    return;
+  }
+
+  if(!APP.customerReqPollStarted){
+    APP.customerReqPollStarted = true;
+    startCustomerRequestPolling(session);
+    maybeShowPushPrompt(session);
+    refreshShiftWidget(session);
+  }
+  const theme = getTheme();
+  const collapsed = getSidebarCollapsed();
+  const items = NAV_ITEMS.filter(i => navItemVisible(i, session));
+  app.innerHTML = `
+    <div class="app-shell">
+      <div class="mobile-topbar">
+        <button class="mobile-menu-btn" onclick="toggleMobileNav()" aria-label="Menü">☰</button>
+        <img src="/assets/images/logo.webp" alt="Peyktan" class="mobile-topbar-logo">
+        <div class="mobile-topbar-title">${escapeHtml(session.restaurant_name)}</div>
+      </div>
+      <div class="sidebar-backdrop ${APP.mobileNavOpen?'show':''}" onclick="closeMobileNav()"></div>
+      <aside class="sidebar ${collapsed?'collapsed':''} ${APP.mobileNavOpen?'mobile-open':''}">
+        <div class="app-brand-row"><img src="/assets/images/logo.webp" alt="Peyktan" class="app-brand-logo"><span class="app-brand-text">Peyktan</span></div>
+        <div class="sb-top">
+          <div class="sb-brand" onclick="goHome()"><span class="label">${escapeHtml(session.restaurant_name)}</span></div>
+          <button class="sb-collapse-btn" onclick="toggleSidebar()" title="Menüyü daralt/genişlet">${collapsed?'»':'«'}</button>
+          <button class="sb-mobile-close" onclick="closeMobileNav()" aria-label="Menüyü kapat">✕</button>
+        </div>
+        <div class="sb-user">
+          <div class="name">${escapeHtml(session.username)}</div>
+          <div class="role">${escapeHtml((session.role_names||[]).join(' + ') || '')}</div>
+        </div>
+        <nav>
+          ${items.map(i => `<div class="sb-item ${APP.view===i.view?'active':''}" onclick="goToView('${i.view}')" title="${i.label}"><span class="ic">${i.icon}</span><span class="label">${i.label}</span></div>`).join('')}
+        </nav>
+        <div class="sb-bottom">
+          <div id="shiftWidget" class="shift-widget">${shiftWidgetHtml()}</div>
+          ${getCompanySession() ? '<button class="sb-logout" onclick="returnToCompanyPanel()" title="Şirket paneline dön">🏢<span class="label"> Şirkete Dön</span></button>' : ''}
+          <div class="theme-toggle">
+            <button class="${theme==='dark'?'active':''}" onclick="setTheme('dark')" type="button">🌙 <span class="label">Koyu</span></button>
+            <button class="${theme==='light'?'active':''}" onclick="setTheme('light')" type="button">☀️ <span class="label">Açık</span></button>
+          </div>
+          <button class="sb-logout" onclick="doLogout()" title="Çıkış Yap">🚪<span class="label"> Çıkış Yap</span></button>
+        </div>
+      </aside>
+      <div class="content-area"><div class="content-inner ${(APP.view==='settings'||APP.view==='reports')?'content-inner-wide':''}"><main id="main"></main></div></div>
+    </div>`;
+  const main = document.getElementById('main');
+  if(APP.view==='home') renderHome(main, session);
+  else if(APP.view==='order') renderOrderView(main, session);
+  else if(APP.view==='packages') renderPackagesView(main, session);
+  else if(APP.view==='kitchen') renderKitchenView(main, session);
+  else if(APP.view==='payments') renderPaymentsView(main, session);
+  else if(APP.view==='settings') renderSettingsView(main, session);
+  else if(APP.view==='reports') renderReportsView(main, session);
+  else if(APP.view==='printerSettings') renderPrinterSettingsView(main, session);
+  else if(APP.view==='notificationSettings') renderNotificationSettingsView(main, session);
+  else if(APP.view==='reservations') renderReservationsView(main, session);
+  else if(APP.view==='crm') renderCrmView(main, session);
+  else if(APP.view==='purchasing') renderPurchasingView(main, session);
+}
+function todayLocalDateStr(){
+  const d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+}
+function goToView(view){
+  APP.view = view;
+  // Finansal Analiz'e her girişte, en son baktiginiz tarihi hatirlamak yerine
+  // dogrudan bugunun raporunu getirir - farkli bir tarihe bakmak isterseniz
+  // ekrandaki tarih seciciden degistirebilirsiniz.
+  if(view==='reports'){ APP.reportDate = todayLocalDateStr(); APP.reportDateTo = todayLocalDateStr(); }
+  // Mutfak ekranindan cikinca arka plandaki yenileme/sayac calismaya devam etmesin.
+  if(view!=='kitchen') stopKitchenPolling();
+  if(view!=='order' && view!=='packages') stopOrderPolling();
+  if(view!=='reservations') stopWaitlistTimerInterval();
+  // Telefonda bir menü öğesine dokununca kayar menü otomatik kapansın.
+  APP.mobileNavOpen = false;
+  render();
+}
+
+function goHome(){ APP.view='home'; APP.mobileNavOpen = false; render(); }
+
+
+function renderHome(main, session){
+  main.innerHTML = `<h1>Merhaba ${escapeHtml(session.username)} 👋</h1><p class="muted" style="text-align:left;">Sol taraftaki menüden bir bölüm seçin.</p>`;
+}
+function notReadyYet(){ alert('Bu ekran bir sonraki adımda eklenecek.'); }
+
+
+
+
+
+
+
+/* Push bildirimine (bkz. sw.js) ya da bir toast'a tıklanınca ilgili
+   ekrana gidilsin diye (?view=order gibi) - sadece izin verilen bir
+   NAV_ITEMS görünümüyse ve oturum varsa uygulanır, aksi halde sessizce
+   yok sayılır. Hem sayfa ilk açılışında (uygulama zaten oturumluyken
+   bir push linkiyle açılmışsa) hem başarılı girişten sonra kullanılır. */
+function applyDeepLinkView(){
+  const session = getSession(); if(!session) return;
+  const view = new URLSearchParams(window.location.search).get('view');
+  if(!view) return;
+  const item = NAV_ITEMS.find(i => i.view===view);
+  if(item && navItemVisible(item, session)) APP.view = view;
+}
+/* Tanıtım sitesinden (/) "Ücretsiz Dene" butonuyla gelenler doğrudan kayıt
+   ekranında açılsın diye (?signup=1) - normal ?admin=1 gibi tek seferlik
+   bir URL parametresi, oturum durumuyla ilgisi yok. */
+if(!getSession() && new URLSearchParams(window.location.search).get('signup')==='1') APP.authScreen = 'signup';
+applyDeepLinkView();
+initNativeAppMode();
+render();
+/* Push bildirimine tıklanınca zaten açık olan bir sekme varsa (bkz.
+   sw.js notificationclick), sayfa yeniden yüklenmeden ilgili ekrana
+   geçmek için service worker'dan gelen mesaj burada dinlenir. */
+if('serviceWorker' in navigator){
+  navigator.serviceWorker.addEventListener('message', (event) => {
+    if(event.data && event.data.type==='peyktan-navigate' && event.data.view) goToView(event.data.view);
+  });
+}
+// Servis çalışanı izin istemeden erkenden kaydedilir (bildirim izni ayrı,
+// kullanıcının Bildirim Ayarları'ndaki butona tıklamasıyla istenir) - böylece
+// push aboneliği daha önce açılmışsa ilk andan itibaren hazır olur.
+if('serviceWorker' in navigator) registerServiceWorker();
+/* Açılış ekranı (splash): render() içerik arkada hazırlanırken kısa bir
+   marka anı göstermek için en az ~700ms ekranda kalır, sonra solarak kaybolur.
+   Native uygulamada bu ekrandan ÖNCE zaten Android'in kendi açılış ekranı
+   (aynı tasarım - bkz. mobile/resources/splash.png) sayfa yüklenene kadar
+   gösteriliyor; o yüzden burada AYRICA 700ms'lik bir marka bekletmesi
+   yapmak "aynı ekranı art arda iki kez görmüş" hissi veriyordu. Native'de
+   render() zaten yukarıda tamamlandığı için içerik hazır - splash'i hemen,
+   sadece ani bir sıçrama olmasın diye kısa bir soluşla kaldırıyoruz. */
+if(isNativeApp()){
+  const sp = document.getElementById('splashScreen');
+  if(sp){ sp.classList.add('splash-fade'); setTimeout(() => sp.remove(), 500); }
+} else {
+  setTimeout(() => {
+    const sp = document.getElementById('splashScreen');
+    if(!sp) return;
+    sp.classList.add('splash-fade');
+    setTimeout(() => sp.remove(), 550);
+  }, 700);
+}
