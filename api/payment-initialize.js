@@ -103,12 +103,16 @@ module.exports = async function handler(req, res) {
 
     const { data: restaurant, error } = await supabase
       .from('restaurants')
-      .select('id, name, email, phone, package_id')
+      .select('id, name, email, phone, package_id, billing_identity_number')
       .eq('id', restaurantId)
       .single();
 
     if (error || !restaurant) {
       res.status(404).json({ errorMessage: 'Isletme bulunamadi' });
+      return;
+    }
+    if (!restaurant.billing_identity_number) {
+      res.status(400).json({ errorMessage: 'Fatura icin T.C. Kimlik Numaraniz eksik. Lutfen Ayarlar > Abonelik bolumunden ekleyin.' });
       return;
     }
 
@@ -144,7 +148,7 @@ module.exports = async function handler(req, res) {
         surname: 'Yetkilisi',
         gsmNumber: gsmNumber,
         email: restaurant.email,
-        identityNumber: '74300864791',
+        identityNumber: restaurant.billing_identity_number,
         registrationAddress: 'Belirtilmedi Mah. Belirtilmedi Sk. No:1',
         city: 'Istanbul',
         country: 'Turkey',
