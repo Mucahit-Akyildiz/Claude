@@ -21,9 +21,9 @@ jobs:
       - name: package.json geçerliliğini kontrol et
         run: node -e "require('./package.json')"
 
-      - name: api/*.js sözdizimi kontrolü
+      - name: api/*.js ve app/js/*.js sözdizimi kontrolü
         run: |
-          for f in $(find api -name '*.js'); do
+          for f in $(find api app/js -name '*.js'); do
             echo "checking $f"
             node --check "$f" || exit 1
           done
