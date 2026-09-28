@@ -8,8 +8,30 @@ on:
     paths:
       - 'mobile/**'
       - '.github/workflows/mobile-build.yml'
+  pull_request:
+    branches:
+      - claude/restoran-app-definition-h5e5am
+    paths:
+      - 'mobile/**'
+      - '.github/workflows/mobile-build.yml'
 
 jobs:
+  lint:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: node -e "require('./package.json')"
+      - run: |
+          for f in $(find . -name '*.js' -not -path './node_modules/*' -not -path './android/*' -not -path './ios/*'); do
+            node --check "$f" || exit 1
+          done
+
   build-android-apk:
     runs-on: ubuntu-latest
     # GitHub Actions, 'if:' kosullarinda dogrudan secrets baglamina izin

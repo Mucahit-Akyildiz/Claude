@@ -1,0 +1,45 @@
+name: Temel Kontroller (Syntax)
+
+on:
+  workflow_dispatch: {}
+  push:
+    branches:
+      - claude/restoran-app-definition-h5e5am
+  pull_request:
+    branches:
+      - claude/restoran-app-definition-h5e5am
+
+jobs:
+  syntax-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: package.json geçerliliğini kontrol et
+        run: node -e "require('./package.json')"
+
+      - name: api/*.js sözdizimi kontrolü
+        run: |
+          for f in $(find api -name '*.js'); do
+            echo "checking $f"
+            node --check "$f" || exit 1
+          done
+
+      - name: app/index.html içindeki <script> bloklarının sözdizimi kontrolü
+        run: |
+          node -e "
+            const fs = require('fs');
+            const html = fs.readFileSync('app/index.html', 'utf8');
+            const re = /<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/gi;
+            let m, i = 0, hadError = false;
+            while ((m = re.exec(html))) {
+              i++;
+              try { new Function(m[1]); }
+              catch (e) { console.error('Script block', i, 'sözdizimi hatası:', e.message); hadError = true; }
+            }
+            if (hadError) process.exit(1);
+            console.log(i + ' inline <script> bloğu kontrol edildi, sorun yok.');
+          "

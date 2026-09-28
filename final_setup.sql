@@ -1264,11 +1264,22 @@ create table if not exists platform_admin_sessions (
   expires_at timestamptz not null default now() + interval '12 hours'
 );
 
--- İlk giriş bilgisi: kullanıcı adı "admin", şifre "degistir123" - giriş yaptıktan sonra
--- Ayarlar'dan şifrenizi mutlaka değiştirin.
-insert into platform_admins (username, password)
-values ('admin', crypt('degistir123', gen_salt('bf')))
-on conflict (username) do nothing;
+-- Sabit/tahmin edilebilir bir varsayılan şifre (ör. "degistir123") burada asla
+-- yazılmamalı: bu dosya git geçmişinde kalıcıdır ve biri prod'da şifreyi
+-- değiştirmeyi unutursa admin paneli herkese açık hale gelir. Bunun yerine
+-- her kurulumda rastgele, tahmin edilemez bir ilk şifre üretilir ve SADECE
+-- bu migration'ı çalıştıran kişinin görebileceği bir NOTICE olarak basılır -
+-- ilk girişten sonra mutlaka değiştirilmelidir.
+do $$
+declare v_initial_password text := encode(gen_random_bytes(12), 'hex');
+begin
+  insert into platform_admins (username, password)
+  values ('admin', crypt(v_initial_password, gen_salt('bf')))
+  on conflict (username) do nothing;
+  if found then
+    raise notice 'Platform admin ilk şifresi: % (bunu şimdi bir yere kaydedin, tekrar gösterilmeyecek - ilk girişten sonra değiştirin)', v_initial_password;
+  end if;
+end $$;
 
 create or replace function platform_admin_login(p_username text, p_password text)
 returns table(session_token uuid)

@@ -103,7 +103,7 @@ module.exports = async function handler(req, res) {
 
     const { data: restaurant, error } = await supabase
       .from('restaurants')
-      .select('id, name, email, phone, package_id')
+      .select('id, name, email, phone, package_id, billing_identity_number')
       .eq('id', restaurantId)
       .single();
 
@@ -144,11 +144,20 @@ module.exports = async function handler(req, res) {
         surname: 'Yetkilisi',
         gsmNumber: gsmNumber,
         email: restaurant.email,
-        identityNumber: '74300864791',
+        // Restoran fatura/vergi kimlik numarasını (Ayarlar'dan) kaydetmediyse
+        // iyzico'nun kendi belgelerindeki test TCKN'sine düşülür - bu sadece
+        // sandbox/test akışını geçmek içindir, gerçek bir kişiye ait değildir,
+        // ama mali uyumluluk için restoranların bu alanı doldurması gerekir.
+        identityNumber: restaurant.billing_identity_number || '11111111111',
         registrationAddress: 'Belirtilmedi Mah. Belirtilmedi Sk. No:1',
         city: 'Istanbul',
         country: 'Turkey',
-        ip: (req.headers['x-forwarded-for'] || '85.34.78.112').toString().split(',')[0].trim(),
+        // x-forwarded-for boşsa (ör. yerel test) önce bağlantının kendi soket
+        // adresine düşülür; production'da (Vercel) x-forwarded-for zaten hep
+        // dolu olduğundan aşağıdaki sabit değere gerçekte hiç düşülmemesi
+        // beklenir - üçüncü bir kişiye ait gerçek bir IP'yi fraud skoruna
+        // sokmamak için sadece son çare olarak kalır.
+        ip: (req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '85.34.78.112').toString().split(',')[0].trim(),
       },
       shippingAddress: {
         contactName: restaurant.name,

@@ -3255,13 +3255,26 @@ async function confirmSplitPay(orderId, total, discountAmount, tipAmount, custom
   await finishPayment(orderId, 'split', total, cash, card, discountAmount, buildPayItemQtys(), tipAmount, customerId||null, redeemPoints);
 }
 async function finishPayment(orderId, method, total, cash, card, discountAmount, itemQtys, tipAmount, customerId, redeemPoints, giftCardCode, giftCardAmount){
+  // Aynı hesap için üst üste tıklama/çift dokunma pay_order_items'ı iki kez
+  // tetikleyip aynı siparişi iki kez ödenmiş gibi işleyebiliyordu (aynı anda
+  // giden iki istek de "henüz ödenmemiş" ürünleri görüp ikisi de işliyor).
+  // Bu yüzden aynı sipariş için ödeme isteği tamamlanana kadar yenisi engellenir.
+  if(!window._payInFlight) window._payInFlight = new Set();
+  if(window._payInFlight.has(orderId)){ return; }
+  window._payInFlight.add(orderId);
+  let data, error;
+  try{
+    const session = getSession();
+    ({ data, error } = await sb.rpc('pay_order_items', {
+      p_token: session.session_token, p_order_id: orderId, p_payment_method: method,
+      p_cash: cash, p_card: card, p_discount_amount: discountAmount||0, p_item_qtys: itemQtys||null,
+      p_tip_amount: tipAmount||0, p_customer_id: customerId||null, p_redeem_points: redeemPoints||0,
+      p_gift_card_code: giftCardCode||null, p_gift_card_amount: giftCardAmount||0
+    }));
+  } finally {
+    window._payInFlight.delete(orderId);
+  }
   const session = getSession();
-  const { data, error } = await sb.rpc('pay_order_items', {
-    p_token: session.session_token, p_order_id: orderId, p_payment_method: method,
-    p_cash: cash, p_card: card, p_discount_amount: discountAmount||0, p_item_qtys: itemQtys||null,
-    p_tip_amount: tipAmount||0, p_customer_id: customerId||null, p_redeem_points: redeemPoints||0,
-    p_gift_card_code: giftCardCode||null, p_gift_card_amount: giftCardAmount||0
-  });
   if(error){ alert('Ödeme kaydedilemedi: '+error.message); return; }
   const bg = document.getElementById('payModalBg'); if(bg) bg.remove();
   const { data: liveData } = await sb.rpc('get_live_orders', { p_token: session.session_token });
@@ -4322,11 +4335,11 @@ async function renderPrinterSettingsView(main, session){
             <p class="settings-section-title">✍️ Fiş İçeriği</p>
             <label style="display:block;font-size:12.5px;font-weight:700;color:var(--muted);">Fiş Başlığında Ek Not (opsiyonel)</label>
             <div class="rte-toolbar" data-target="td_header">${ticketRteToolbarHtml('td_header')}</div>
-            <div id="td_header" class="rte-box" contenteditable="true" data-placeholder="örn. Şube: Merkez" oninput="updateTicketPreview()">${design.header||''}</div>
+            <div id="td_header" class="rte-box" contenteditable="true" data-placeholder="örn. Şube: Merkez" oninput="updateTicketPreview()">${sanitizeRichHtml(design.header||'')}</div>
 
             <label style="display:block;margin-top:14px;font-size:12.5px;font-weight:700;color:var(--muted);">Fiş Altında Ek Not (opsiyonel)</label>
             <div class="rte-toolbar" data-target="td_footer">${ticketRteToolbarHtml('td_footer')}</div>
-            <div id="td_footer" class="rte-box" contenteditable="true" data-placeholder="örn. Afiyet olsun!" oninput="updateTicketPreview()">${design.footer||''}</div>
+            <div id="td_footer" class="rte-box" contenteditable="true" data-placeholder="örn. Afiyet olsun!" oninput="updateTicketPreview()">${sanitizeRichHtml(design.footer||'')}</div>
 
             <div style="margin-top:14px;">
               <div class="toggle-row">
@@ -4830,8 +4843,8 @@ function readTicketTypography(){
 async function saveTicketDesign(){
   const ok = await setTicketDesign({
     width: document.getElementById('td_width').value,
-    header: document.getElementById('td_header').innerHTML.trim(),
-    footer: document.getElementById('td_footer').innerHTML.trim(),
+    header: sanitizeRichHtml(document.getElementById('td_header').innerHTML.trim()),
+    footer: sanitizeRichHtml(document.getElementById('td_footer').innerHTML.trim()),
     fontFamily: document.getElementById('td_font').value,
     bold: document.getElementById('td_bold').checked,
     marginTop: parseFloat(document.getElementById('td_mtop').value) || 0,
@@ -5166,7 +5179,7 @@ function buildTicketHtml(restaurantName, tableName, items, design, dailyNumber){
   const dateLine = now.toLocaleDateString('tr-TR') + (showHeaderTime ? (' ' + formatItemTime({added_at: now.toISOString()}, design)) : '');
   return `
     <div class="ticket-title" style="${ticketPartStyle(design,'Title')}">${escapeHtml(restaurantName)}</div>
-    ${design.header ? `<div class="ticket-meta ticket-rich">${design.header}</div>` : ''}
+    ${design.header ? `<div class="ticket-meta ticket-rich">${sanitizeRichHtml(design.header)}</div>` : ''}
     <div class="ticket-meta" style="${ticketPartStyle(design,'Text')}">${(showOrderNumber && dailyNumber)?('Sipariş No: '+dailyNumber+' · '):''}${escapeHtml(tableName)}</div>
     <div class="ticket-meta" style="${ticketPartStyle(design,'Text')}">${dateLine}</div>
     <div class="ticket-line"></div>
@@ -5175,7 +5188,7 @@ function buildTicketHtml(restaurantName, tableName, items, design, dailyNumber){
       ${it.note ? `<div class="ticket-note" style="${ticketPartStyle(design,'Note')}">Not: ${escapeHtml(it.note)}</div>` : ''}
     `).join('')}
     <div class="ticket-line"></div>
-    ${design.footer ? `<div class="ticket-meta ticket-rich">${design.footer}</div>` : ''}
+    ${design.footer ? `<div class="ticket-meta ticket-rich">${sanitizeRichHtml(design.footer)}</div>` : ''}
   `;
 }
 function updateTicketPreview(){
@@ -5386,6 +5399,41 @@ async function doLogout(){
 }
 function escapeHtml(s){
   const d = document.createElement('div'); d.textContent = s||''; return d.innerHTML;
+}
+/* Fiş başlığı/altı notu contenteditable'dan geldiği ve her cihazda innerHTML
+   olarak basıldığı için (bkz. buildTicketHtml), kaydetmeden önce VE
+   render ederken (savunma derinliği) burada beyaz listeye alınmadan asla
+   kullanılmamalı - aksi halde kötü niyetli bir yönetici hesabı (veya ele
+   geçirilmiş bir yönetici oturumu) buraya <img onerror=...> gibi bir kod
+   yazıp her fişte/her cihazda çalışacak kalıcı bir stored XSS oluşturabilir. */
+function sanitizeRichHtml(html){
+  const ALLOWED_TAGS = new Set(['B','STRONG','I','EM','U','SPAN','BR','DIV']);
+  const ALLOWED_STYLE_PROPS = new Set(['color','font-weight','font-style','text-decoration','text-align','font-size']);
+  const tpl = document.createElement('template');
+  tpl.innerHTML = html || '';
+  function clean(node){
+    for(const child of Array.from(node.childNodes)){
+      if(child.nodeType === Node.TEXT_NODE) continue;
+      if(child.nodeType !== Node.ELEMENT_NODE){ child.remove(); continue; }
+      if(!ALLOWED_TAGS.has(child.tagName)){
+        // İzin verilmeyen etiketi (script, img, a, iframe, svg vb.) düz metnine indirger, tamamen atmaz.
+        const text = document.createTextNode(child.textContent || '');
+        child.replaceWith(text);
+        continue;
+      }
+      for(const attr of Array.from(child.attributes)){
+        if(attr.name.toLowerCase() === 'style'){
+          const safe = Array.from(child.style).filter(p => ALLOWED_STYLE_PROPS.has(p)).map(p => `${p}:${child.style.getPropertyValue(p)}`).join(';');
+          if(safe) child.setAttribute('style', safe); else child.removeAttribute('style');
+        } else {
+          child.removeAttribute(attr.name);
+        }
+      }
+      clean(child);
+    }
+  }
+  clean(tpl.content);
+  return tpl.innerHTML;
 }
 
 /* ================= AYARLAR ================= */
