@@ -466,6 +466,7 @@ function renderSignupScreen(app){
         <input id="suPhone" type="tel" placeholder="Telefon (örn. 5551234567)">
         <input id="suAdminUser" placeholder="Yönetici kullanıcı adı" autocapitalize="none">
         <input id="suAdminPass" type="password" placeholder="Yönetici şifresi">
+        <input id="suIdentityNumber" placeholder="T.C. Kimlik Numarası (fatura için)" inputmode="numeric" maxlength="11">
         <input id="suPromo" placeholder="İndirim kodu (varsa)" autocapitalize="none" style="text-transform:uppercase;">
         <div id="pkgCards" class="pkg-grid"></div>
         <label style="display:flex;align-items:flex-start;gap:8px;margin-top:14px;font-size:12.5px;line-height:1.4;cursor:pointer;">
@@ -519,6 +520,17 @@ function backToSignupForm(){
   document.getElementById('signupSub').textContent='İşletmenizi kaydedip paketinizi seçin.';
   document.getElementById('suErr').textContent='';
 }
+function isValidTcKimlikNo(num){
+  if(!/^[1-9][0-9]{10}$/.test(num)) return false;
+  const d = num.split('').map(Number);
+  const odd = d[0]+d[2]+d[4]+d[6]+d[8];
+  const even = d[1]+d[3]+d[5]+d[7];
+  const d10 = ((odd*7) - even) % 10;
+  if(((d10%10+10)%10) !== d[9]) return false;
+  const sum10 = d.slice(0,10).reduce((a,b)=>a+b,0);
+  if((sum10 % 10) !== d[10]) return false;
+  return true;
+}
 async function doStartSignup(){
   const errBox = document.getElementById('suErr');
   errBox.textContent = '';
@@ -528,10 +540,12 @@ async function doStartSignup(){
   const phone = document.getElementById('suPhone').value.trim().replace(/\s+/g,'');
   const adminUser = document.getElementById('suAdminUser').value.trim();
   const adminPass = document.getElementById('suAdminPass').value;
+  const identityNumber = document.getElementById('suIdentityNumber').value.trim();
   const promo = document.getElementById('suPromo').value.trim();
-  if(!name || !code || !email || !phone || !adminUser || !adminPass){ errBox.textContent = 'Tüm alanları doldurun'; return; }
+  if(!name || !code || !email || !phone || !adminUser || !adminPass || !identityNumber){ errBox.textContent = 'Tüm alanları doldurun'; return; }
   if(!email.includes('@')){ errBox.textContent = 'Geçerli bir e-posta girin'; return; }
   if(phone.length<10){ errBox.textContent = 'Geçerli bir telefon numarası girin'; return; }
+  if(!isValidTcKimlikNo(identityNumber)){ errBox.textContent = 'Geçerli bir T.C. Kimlik Numarası girin'; return; }
   if(!APP.selectedPackage){ errBox.textContent = 'Bir paket seçin'; return; }
   if(!document.getElementById('suPrivacyConsent').checked){ errBox.textContent = 'Devam etmek için Gizlilik Politikası\'nı kabul etmeniz gerekiyor'; return; }
   const btn = document.getElementById('signupBtn');
@@ -539,7 +553,7 @@ async function doStartSignup(){
   const { data, error } = await sb.rpc('start_registration', { p_email: email, p_phone: phone });
   btn.disabled = false; btn.textContent = 'Doğrulama Kodu Gönder';
   if(error){ errBox.textContent = error.message; return; }
-  APP.pendingSignup = { name, code, email, phone, adminUser, adminPass, promo };
+  APP.pendingSignup = { name, code, email, phone, adminUser, adminPass, identityNumber, promo };
   document.getElementById('signupStep1').style.display='none';
   document.getElementById('signupStep2').style.display='block';
   document.getElementById('signupTitle').textContent='E-postanızı Doğrulayın';
@@ -563,7 +577,8 @@ async function doVerifySignup(){
   const { data, error } = await sb.rpc('verify_registration_otp', {
     p_phone: p.phone, p_otp: otp,
     p_name: p.name, p_code: p.code, p_package_id: APP.selectedPackage, p_email: p.email,
-    p_admin_username: p.adminUser, p_admin_password: p.adminPass
+    p_admin_username: p.adminUser, p_admin_password: p.adminPass,
+    p_identity_number: p.identityNumber
   });
   btn.disabled = false; btn.textContent = 'Doğrula ve Kaydı Tamamla';
   if(error){ errBox.textContent = error.message; return; }

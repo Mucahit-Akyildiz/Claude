@@ -1112,9 +1112,43 @@ function renderBillingSettings(el, session){
   el.innerHTML = `<div class="box" style="max-width:none;">
     <h2>💳 Abonelik ve Ödemeler</h2>
     ${lic ? renderSubscriptionPanel(lic) : '<p class="muted">Abonelik bilgisi bulunamadı.</p>'}
+    <div id="billingIdentityBox">${renderBillingIdentityBox(lic)}</div>
     <div id="bankTransferBox"><p class="muted">Yükleniyor…</p></div>
   </div>`;
   loadBankTransferStatus(session);
+}
+function renderBillingIdentityBox(lic){
+  const isSet = lic && lic.billing_identity_set;
+  if(isSet && !APP.billingIdentityEditing){
+    return `<div class="add-row-panel" style="margin-top:16px;">
+      <h3 style="margin:0 0 8px;">🧾 Fatura Kimlik Bilgisi</h3>
+      <p class="muted">T.C. Kimlik Numaranız kayıtlı ✓</p>
+      <button class="ghost-btn" onclick="APP.billingIdentityEditing=true;renderBillingSettings(document.getElementById('settingsContent'),getSession());">Değiştir</button>
+    </div>`;
+  }
+  return `<div class="add-row-panel" style="margin-top:16px;">
+    <h3 style="margin:0 0 8px;">🧾 Fatura Kimlik Bilgisi</h3>
+    <p class="muted">Kart ile ödeme yapabilmek için fatura üzerinde görünecek T.C. Kimlik Numaranızı girin.</p>
+    <input id="biIdentityNumber" placeholder="T.C. Kimlik Numarası" inputmode="numeric" maxlength="11">
+    <div class="error" id="biIdentityErr"></div>
+    <button id="biIdentitySaveBtn" onclick="saveBillingIdentity()">Kaydet</button>
+  </div>`;
+}
+async function saveBillingIdentity(){
+  const session = getSession();
+  const errBox = document.getElementById('biIdentityErr');
+  const num = document.getElementById('biIdentityNumber').value.trim();
+  errBox.textContent = '';
+  if(!isValidTcKimlikNo(num)){ errBox.textContent = 'Geçerli bir T.C. Kimlik Numarası girin'; return; }
+  const btn = document.getElementById('biIdentitySaveBtn');
+  btn.disabled = true; btn.textContent = 'Kaydediliyor...';
+  const { error } = await sb.rpc('update_billing_identity', { p_token: session.session_token, p_identity_number: num });
+  btn.disabled = false; btn.textContent = 'Kaydet';
+  if(error){ errBox.textContent = error.message; return; }
+  APP.config.license.billing_identity_set = true;
+  APP.billingIdentityEditing = false;
+  showToast('Kaydedildi ✓');
+  renderBillingSettings(document.getElementById('settingsContent'), session);
 }
 async function loadBankTransferStatus(session){
   const el = document.getElementById('bankTransferBox'); if(!el) return;

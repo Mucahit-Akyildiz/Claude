@@ -846,6 +846,14 @@ declare
 begin
   s := _session_check(p_token, 'manager');
 
+  -- GÜVENLİK: p_order_id'nin çağıranın kendi restaurant_id'sine ait
+  -- olduğunu burada, herhangi bir order_items sorgusundan ÖNCE doğrula -
+  -- yoksa geçerli bir oturumu olan biri başka bir restoranın sipariş
+  -- kalemlerini "ödendi" olarak işaretleyebilir (cross-tenant BOLA).
+  if not exists (select 1 from orders where id = p_order_id and restaurant_id = s.restaurant_id) then
+    raise exception 'Sipariş bulunamadı';
+  end if;
+
   if p_item_qtys is null then
     select array_agg(id) into v_paid_item_ids from order_items
       where order_id = p_order_id and paid = false;
@@ -1264,22 +1272,16 @@ create table if not exists platform_admin_sessions (
   expires_at timestamptz not null default now() + interval '12 hours'
 );
 
--- Sabit/tahmin edilebilir bir varsayılan şifre (ör. "degistir123") burada asla
--- yazılmamalı: bu dosya git geçmişinde kalıcıdır ve biri prod'da şifreyi
--- değiştirmeyi unutursa admin paneli herkese açık hale gelir. Bunun yerine
--- her kurulumda rastgele, tahmin edilemez bir ilk şifre üretilir ve SADECE
--- bu migration'ı çalıştıran kişinin görebileceği bir NOTICE olarak basılır -
--- ilk girişten sonra mutlaka değiştirilmelidir.
-do $$
-declare v_initial_password text := encode(gen_random_bytes(12), 'hex');
-begin
-  insert into platform_admins (username, password)
-  values ('admin', crypt(v_initial_password, gen_salt('bf')))
-  on conflict (username) do nothing;
-  if found then
-    raise notice 'Platform admin ilk şifresi: % (bunu şimdi bir yere kaydedin, tekrar gösterilmeyecek - ilk girişten sonra değiştirin)', v_initial_password;
-  end if;
-end $$;
+-- GÜVENLİK: Buraya sabit/bilinen bir şifre YAZMAYIN - bu dosya repoda commit'li,
+-- sabit bir değer (eskiden "degistir123" idi) herkesin okuyabileceği bir arka
+-- kapı demektir. Aşağıdaki satır, kimsenin bilmediği/kullanamayacağı rastgele
+-- bir şifre ile 'admin' hesabını oluşturur - bu script'i çalıştırdıktan HEMEN
+-- SONRA, kendi SQL Editor'ünüzde (repoya commit ETMEDEN) şu komutla kendi
+-- şifrenizi belirleyin:
+--   update platform_admins set password = crypt('KENDİ-GÜÇLÜ-ŞİFRENİZ', gen_salt('bf')) where username = 'admin';
+insert into platform_admins (username, password)
+values ('admin', crypt(gen_random_uuid()::text, gen_salt('bf')))
+on conflict (username) do nothing;
 
 create or replace function platform_admin_login(p_username text, p_password text)
 returns table(session_token uuid)

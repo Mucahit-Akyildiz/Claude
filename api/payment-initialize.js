@@ -111,6 +111,10 @@ module.exports = async function handler(req, res) {
       res.status(404).json({ errorMessage: 'Isletme bulunamadi' });
       return;
     }
+    if (!restaurant.billing_identity_number) {
+      res.status(400).json({ errorMessage: 'Fatura icin T.C. Kimlik Numaraniz eksik. Lutfen Ayarlar > Abonelik bolumunden ekleyin.' });
+      return;
+    }
 
     const { data: pkgRow } = await supabase
       .from('packages')
@@ -144,20 +148,15 @@ module.exports = async function handler(req, res) {
         surname: 'Yetkilisi',
         gsmNumber: gsmNumber,
         email: restaurant.email,
-        // Restoran fatura/vergi kimlik numarasını (Ayarlar'dan) kaydetmediyse
-        // iyzico'nun kendi belgelerindeki test TCKN'sine düşülür - bu sadece
-        // sandbox/test akışını geçmek içindir, gerçek bir kişiye ait değildir,
-        // ama mali uyumluluk için restoranların bu alanı doldurması gerekir.
-        identityNumber: restaurant.billing_identity_number || '11111111111',
+        identityNumber: restaurant.billing_identity_number,
         registrationAddress: 'Belirtilmedi Mah. Belirtilmedi Sk. No:1',
         city: 'Istanbul',
         country: 'Turkey',
-        // x-forwarded-for boşsa (ör. yerel test) önce bağlantının kendi soket
-        // adresine düşülür; production'da (Vercel) x-forwarded-for zaten hep
-        // dolu olduğundan aşağıdaki sabit değere gerçekte hiç düşülmemesi
-        // beklenir - üçüncü bir kişiye ait gerçek bir IP'yi fraud skoruna
-        // sokmamak için sadece son çare olarak kalır.
-        ip: (req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '85.34.78.112').toString().split(',')[0].trim(),
+        // x-forwarded-for eksikse (Vercel'de normalde her zaman set edilir) gerçek,
+        // başkasına ait bir IP'yi "alıcı" diye iyzico'ya bildirmemek için RFC 5737
+        // TEST-NET-3 (203.0.113.0/24) - belgeleme/örnek amaçlı ayrılmış, hiçbir
+        // gerçek kişi/kuruma ait olamayacak bir adres - fallback olarak kullanılıyor.
+        ip: (req.headers['x-forwarded-for'] || '203.0.113.1').toString().split(',')[0].trim(),
       },
       shippingAddress: {
         contactName: restaurant.name,
