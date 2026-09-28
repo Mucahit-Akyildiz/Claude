@@ -2,7 +2,7 @@ apply plugin: 'com.android.application'
 
 // Yayın imzalama bilgileri ortam değişkenlerinden okunur (GitHub Actions secret'ları).
 // Değişkenler yoksa (ör. yerel bir geliştirme derlemesi) release derlemesi imzasız kalır.
-def releaseKeystorePath = System.getenv("LETAYIF_KEYSTORE_PATH")
+def releaseKeystorePath = System.getenv("PEYKTAN_KEYSTORE_PATH")
 def releaseKeystoreFile = releaseKeystorePath ? file(releaseKeystorePath) : null
 def hasReleaseSigning = releaseKeystoreFile != null && releaseKeystoreFile.exists()
 
@@ -26,9 +26,9 @@ android {
         if (hasReleaseSigning) {
             release {
                 storeFile releaseKeystoreFile
-                storePassword System.getenv("LETAYIF_KEYSTORE_PASSWORD")
-                keyAlias System.getenv("LETAYIF_KEY_ALIAS")
-                keyPassword System.getenv("LETAYIF_KEY_PASSWORD")
+                storePassword System.getenv("PEYKTAN_KEYSTORE_PASSWORD")
+                keyAlias System.getenv("PEYKTAN_KEY_ALIAS")
+                keyPassword System.getenv("PEYKTAN_KEY_PASSWORD")
             }
         }
     }

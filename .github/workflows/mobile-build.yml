@@ -18,7 +18,7 @@ jobs:
     # keystore secret'ini once job seviyesinde env'e atayip asagidaki
     # if: kosullarinda env baglamini kullaniyoruz (bu her zaman izinli).
     env:
-      HAS_RELEASE_KEYSTORE: ${{ secrets.LETAYIF_KEYSTORE_BASE64 != '' }}
+      HAS_RELEASE_KEYSTORE: ${{ secrets.PEYKTAN_KEYSTORE_BASE64 != '' }}
     defaults:
       run:
         working-directory: mobile
@@ -58,16 +58,16 @@ jobs:
       - name: Yayın keystore'unu çöz
         if: ${{ env.HAS_RELEASE_KEYSTORE == 'true' }}
         working-directory: mobile/android/app
-        run: echo "${{ secrets.LETAYIF_KEYSTORE_BASE64 }}" | base64 -d > release.keystore
+        run: echo "${{ secrets.PEYKTAN_KEYSTORE_BASE64 }}" | base64 -d > release.keystore
 
       - name: İmzalı AAB derle (Play Store için)
         if: ${{ env.HAS_RELEASE_KEYSTORE == 'true' }}
         working-directory: mobile/android
         env:
-          LETAYIF_KEYSTORE_PATH: app/release.keystore
-          LETAYIF_KEYSTORE_PASSWORD: ${{ secrets.LETAYIF_KEYSTORE_PASSWORD }}
-          LETAYIF_KEY_ALIAS: ${{ secrets.LETAYIF_KEY_ALIAS }}
-          LETAYIF_KEY_PASSWORD: ${{ secrets.LETAYIF_KEY_PASSWORD }}
+          PEYKTAN_KEYSTORE_PATH: app/release.keystore
+          PEYKTAN_KEYSTORE_PASSWORD: ${{ secrets.PEYKTAN_KEYSTORE_PASSWORD }}
+          PEYKTAN_KEY_ALIAS: ${{ secrets.PEYKTAN_KEY_ALIAS }}
+          PEYKTAN_KEY_PASSWORD: ${{ secrets.PEYKTAN_KEY_PASSWORD }}
         run: |
           chmod +x gradlew
           ./gradlew bundleRelease --no-daemon
