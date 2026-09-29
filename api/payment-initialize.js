@@ -116,6 +116,21 @@ module.exports = async function handler(req, res) {
       return;
     }
 
+    // Ayni yenileme icin beklemede bir HAVALE bildirimi varsa (bkz.
+    // submit_bank_transfer_notice), admin onu onaylarken bu kart odemesi de
+    // es zamanli tamamlanirsa cifte (60 gunluk) uzatma olusabiliyordu - bu
+    // yuzden burada da simetrik olarak engellenir.
+    const { data: pendingNotice } = await supabase
+      .from('bank_transfer_notices')
+      .select('id')
+      .eq('restaurant_id', restaurantId)
+      .eq('status', 'pending')
+      .maybeSingle();
+    if (pendingNotice) {
+      res.status(400).json({ errorMessage: 'Beklemede bir havale bildiriminiz var, onaylanmasını bekleyin ya da destek ile iletişime geçin.' });
+      return;
+    }
+
     const { data: pkgRow } = await supabase
       .from('packages')
       .select('price')

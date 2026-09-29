@@ -109,17 +109,16 @@ module.exports = async function handler(req, res) {
       return;
     }
 
-    const { data: restaurant } = await supabase
-      .from('restaurants')
-      .select('expires_at')
-      .eq('id', restaurantId)
-      .single();
-
-    const currentExpiry = restaurant && restaurant.expires_at ? new Date(restaurant.expires_at) : new Date();
-    const base = currentExpiry > new Date() ? currentExpiry : new Date();
-    const newExpiresAt = new Date(base.getTime() + RENEWAL_DAYS * 24 * 60 * 60 * 1000).toISOString();
-
-    await supabase.from('restaurants').update({ is_active: true, expires_at: newExpiresAt }).eq('id', restaurantId);
+    // Onceden "once OKU sonra YAZ" (iki ayri sorgu) ile yapiliyordu - bu,
+    // ayni anda onaylanan bir havale bildirimiyle (bkz.
+    // admin_review_bank_transfer_notice) yarisip ya kayip bir guncellemeye
+    // ya da (nadiren) cifte uzatmaya yol acabiliyordu. Artik TEK atomik bir
+    // Postgres fonksiyonu (satiri kilitleyip ayni statement icinde okuyup
+    // yazan) kullaniliyor.
+    await supabase.rpc('extend_restaurant_subscription', {
+      p_restaurant_id: restaurantId,
+      p_days: RENEWAL_DAYS,
+    });
 
     res.redirect(302, loginUrl + '?odeme=basarili');
   } catch (e) {
