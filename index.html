@@ -188,6 +188,10 @@
       <p class="eyebrow">Fiyatlandırma</p>
       <h2>Basit, şeffaf fiyatlar</h2>
       <p>Her paket 7 gün ücretsiz denemeyle başlar. Kredi kartı gerekmez.</p>
+      <div class="billing-toggle" style="display:flex;justify-content:center;gap:8px;margin-top:18px;">
+        <button type="button" id="billingToggleMonthly" class="btn btn-outline" style="width:auto;padding:8px 18px;" onclick="setPricingBillingCycle('monthly')">Aylık</button>
+        <button type="button" id="billingToggleYearly" class="btn btn-outline" style="width:auto;padding:8px 18px;" onclick="setPricingBillingCycle('yearly')">Yıllık</button>
+      </div>
     </div>
     <div class="pricing-grid" id="pricingGrid">
       <p style="grid-column:1/-1;text-align:center;color:var(--muted);">Yükleniyor...</p>
@@ -252,19 +256,37 @@
   // eklediğinde bu sayfa elle güncellenmeden otomatik senkron kalır.
   // Paketler de aynı şekilde admin panelinden eklenip/silinebildiği için
   // sabit değil - canlı okunup kart olarak render ediliyor (bkz. list_packages).
-  Promise.all([sb.rpc('list_packages'), sb.rpc('list_feature_labels')]).then(([{data}, {data: featureLabelsData}]) => {
+  let PRICING_PACKAGES = [];
+  let PRICING_FEATURE_LABELS = {};
+  let PRICING_BILLING_CYCLE = 'monthly';
+  function setPricingBillingCycle(cycle){
+    PRICING_BILLING_CYCLE = cycle;
+    document.getElementById('billingToggleMonthly').className = 'btn ' + (cycle==='monthly' ? 'btn-primary' : 'btn-outline');
+    document.getElementById('billingToggleYearly').className = 'btn ' + (cycle==='yearly' ? 'btn-primary' : 'btn-outline');
+    renderPricingGrid();
+  }
+  function renderPricingGrid(){
     const grid = document.getElementById('pricingGrid');
-    const packages = data || [];
-    const featureLabels = {};
-    (featureLabelsData||[]).forEach(f => { featureLabels[f.id] = f.label; });
+    if(!grid) return;
+    const packages = PRICING_PACKAGES;
     if(packages.length===0){ grid.innerHTML = ''; return; }
+    const yearly = PRICING_BILLING_CYCLE === 'yearly';
     grid.innerHTML = packages.map(p => {
-      const featureItems = (p.features||[]).map(f => featureLabels[f] || f);
+      const featureItems = (p.features||[]).map(f => PRICING_FEATURE_LABELS[f] || f);
+      // Yillik fiyat admin panelinden ayrica girilmemisse (indirim
+      // opsiyonel), aylik fiyatin 12 kati otomatik kullanilir - backend'deki
+      // (get_bank_transfer_status/payment-initialize.js) ayni fallback mantigi.
+      const monthlyPrice = p.price || 0;
+      const yearlyPrice = p.price_yearly!=null ? p.price_yearly : monthlyPrice*12;
+      const displayPrice = yearly ? yearlyPrice : monthlyPrice;
+      const hasDiscount = yearly && p.price_yearly!=null && p.price_yearly < monthlyPrice*12;
+      const savings = hasDiscount ? (monthlyPrice*12 - p.price_yearly) : 0;
       return `
       <div class="price-card ${p.is_popular?'popular':''}">
         ${p.is_popular ? '<span class="badge">EN ÇOK TERCİH EDİLEN</span>' : ''}
         <h3>${escapeHtml(p.name)}</h3>
-        <div class="amount">${p.price ? money(p.price)+' <small>TL/ay</small>' : '—'}</div>
+        <div class="amount">${monthlyPrice ? money(displayPrice)+' <small>'+(yearly?'TL/yıl':'TL/ay')+'</small>' : '—'}</div>
+        ${hasDiscount ? `<p class="desc" style="color:var(--accent, #0a8);font-weight:600;">Yıllıkta ${money(savings)} TL tasarruf</p>` : ''}
         <p class="desc">${escapeHtml(p.description)}</p>
         <ul>
           <li>${p.max_users} kullanıcıya kadar</li>
@@ -273,6 +295,11 @@
         <a class="btn ${p.is_popular?'btn-primary':'btn-outline'}" style="width:100%;" href="/app/?signup=1">Dene</a>
       </div>`;
     }).join('');
+  }
+  Promise.all([sb.rpc('list_packages'), sb.rpc('list_feature_labels')]).then(([{data}, {data: featureLabelsData}]) => {
+    PRICING_PACKAGES = data || [];
+    (featureLabelsData||[]).forEach(f => { PRICING_FEATURE_LABELS[f.id] = f.label; });
+    setPricingBillingCycle('monthly');
   }).catch(()=>{
     const grid = document.getElementById('pricingGrid');
     if(grid) grid.innerHTML = '<p style="grid-column:1/-1;text-align:center;color:var(--muted);">Fiyatlar şu anda yüklenemedi.</p>';
