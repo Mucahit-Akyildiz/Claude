@@ -1074,7 +1074,27 @@ function renderSubscriptionPanel(lic){
         </div>
       </div>
       <div class="error" id="renewErr" style="text-align:left;margin-top:8px;"></div>
-    </div>`;
+    </div>
+    ${billingCycleSelectorHtml()}`;
+}
+/* Aylık/Yıllık seçimi - hem (ileride açılacak) kart ödemesini hem de
+   havale bildirimini etkiler, bu yüzden abonelik panelinin en üstünde tek
+   bir yerden seçiliyor (APP.billingCycle). Yıllık fiyat platform admin
+   panelinden paket başına ayrıca girilebilir; girilmemişse aylık fiyatın
+   12 katı (indirimsiz) sunucuda otomatik hesaplanır. */
+function billingCycleSelectorHtml(){
+  const cycle = APP.billingCycle || 'monthly';
+  return `<div class="add-row-panel" style="margin-bottom:16px;">
+    <h3 style="margin:0 0 10px;">Ödeme Dönemi</h3>
+    <div style="display:flex;gap:8px;">
+      <button class="sbtn" style="width:auto;${cycle==='monthly'?'':'opacity:.55;'}" onclick="setBillingCycle('monthly')">Aylık</button>
+      <button class="sbtn" style="width:auto;${cycle==='yearly'?'':'opacity:.55;'}" onclick="setBillingCycle('yearly')">Yıllık</button>
+    </div>
+  </div>`;
+}
+function setBillingCycle(cycle){
+  APP.billingCycle = cycle;
+  renderBillingSettings(document.getElementById('settingsContent'), getSession());
 }
 /* Kredi kartı (iyzico) akışı gecici olarak kapali - "şirket" (vergi/ticari
    kayıt) süreci tamamlanana kadar tek ödeme yolu havale bildirimi (bkz.
@@ -1089,7 +1109,7 @@ async function startRenewal(){
     const res = await fetch(PAYMENT_RENEW_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ p_token: session.session_token })
+      body: JSON.stringify({ p_token: session.session_token, p_billing_cycle: APP.billingCycle||'monthly' })
     });
     const data = await res.json();
     if(!res.ok || !data.paymentPageUrl){
@@ -1152,15 +1172,17 @@ async function saveBillingIdentity(){
 }
 async function loadBankTransferStatus(session){
   const el = document.getElementById('bankTransferBox'); if(!el) return;
-  const { data, error } = await sb.rpc('get_bank_transfer_status', { p_token: session.session_token });
+  const cycle = APP.billingCycle || 'monthly';
+  const { data, error } = await sb.rpc('get_bank_transfer_status', { p_token: session.session_token, p_billing_cycle: cycle });
   if(error){ el.innerHTML = '<p class="muted">Havale bilgisi yüklenemedi: '+error.message+'</p>'; return; }
   APP.bankTransferStatus = data;
   if(data.pending_notice){
     const pn = data.pending_notice;
+    const cycleLabel = pn.billing_cycle==='yearly' ? 'yıllık' : 'aylık';
     el.innerHTML = `
       <div class="add-row-panel" style="border-color:var(--accent);margin-top:16px;">
         <h3 style="margin:0 0 8px;">🏦 Havale Bildirimi Gönderildi</h3>
-        <p class="muted">${money(pn.amount)} tutarındaki havale bildiriminiz ${new Date(pn.created_at).toLocaleString('tr-TR')} tarihinde alındı, platform yöneticisinin onayı bekleniyor. Onaylanınca aboneliğiniz otomatik uzayacak.</p>
+        <p class="muted">${money(pn.amount)} tutarındaki (${cycleLabel}) havale bildiriminiz ${new Date(pn.created_at).toLocaleString('tr-TR')} tarihinde alındı, platform yöneticisinin onayı bekleniyor. Onaylanınca aboneliğiniz otomatik uzayacak.</p>
         ${pn.note ? `<p class="muted" style="font-size:12px;">Not: ${escapeHtml(pn.note)}</p>` : ''}
       </div>`;
     return;
@@ -1173,17 +1195,22 @@ async function loadBankTransferStatus(session){
       </div>`;
     return;
   }
+  const cycleLabel = cycle==='yearly' ? 'Yıllık' : 'Aylık';
+  const savingsNote = (cycle==='yearly' && data.yearly_amount < data.monthly_amount*12)
+    ? `<p class="muted" style="font-size:12px;color:var(--green);">Yıllık ödemede ${money(data.monthly_amount*12 - data.yearly_amount)} tasarruf ediyorsunuz.</p>`
+    : '';
   el.innerHTML = `
     <div class="add-row-panel" style="margin-top:16px;">
-      <h3 style="margin:0 0 8px;">🏦 Havale ile Öde</h3>
-      <p class="muted">Kartla ödeme çalışmıyorsa aşağıdaki hesaba havale/EFT gönderip "Ödemeyi Yaptım" ile bildirin - platform yöneticisi onayladığında aboneliğiniz otomatik 30 gün uzar.</p>
+      <h3 style="margin:0 0 8px;">🏦 Havale ile Öde (${cycleLabel})</h3>
+      <p class="muted">Kartla ödeme çalışmıyorsa aşağıdaki hesaba havale/EFT gönderip "Ödemeyi Yaptım" ile bildirin - platform yöneticisi onayladığında aboneliğiniz otomatik ${cycle==='yearly'?'365':'30'} gün uzar.</p>
       <div style="background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin:10px 0;font-size:14px;line-height:1.8;">
         <div><b>IBAN:</b> ${escapeHtml(data.iban)}</div>
         <div><b>Hesap Adı:</b> ${escapeHtml(data.account_name||'-')}</div>
         <div><b>Banka:</b> ${escapeHtml(data.bank_name||'-')}</div>
-        <div><b>Tutar:</b> ${money(data.amount)}</div>
+        <div><b>Tutar (${cycleLabel}):</b> ${money(data.amount)}</div>
         <div><b>Açıklama (mutlaka yazın):</b> ${escapeHtml(data.target_name)}</div>
       </div>
+      ${savingsNote}
       <input id="bankTransferNote" placeholder="İsteğe bağlı not (örn. dekont no, gönderen ad)">
       <div class="error" id="bankTransferErr"></div>
       <button id="bankTransferSubmitBtn" onclick="submitBankTransferNotice()">✅ Ödemeyi Yaptım, Bildir</button>
@@ -1200,7 +1227,7 @@ async function submitBankTransferNotice(){
   // aynı anda (await'ten ÖNCE) senkron olarak açılır; adresi RPC
   // sonuçlandıktan sonra doldurulur.
   const waWin = window.open('', '_blank');
-  const { error } = await sb.rpc('submit_bank_transfer_notice', { p_token: session.session_token, p_note: note||null });
+  const { error } = await sb.rpc('submit_bank_transfer_notice', { p_token: session.session_token, p_note: note||null, p_billing_cycle: APP.billingCycle||'monthly' });
   if(error){
     errBox.textContent = error.message; btn.disabled = false; btn.textContent = '✅ Ödemeyi Yaptım, Bildir';
     if(waWin) waWin.close();

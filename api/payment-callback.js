@@ -12,7 +12,8 @@ const IYZICO_BASE_URL = process.env.IYZICO_BASE_URL || 'https://sandbox-api.iyzi
 const IYZICO_API_KEY = process.env.IYZICO_API_KEY;
 const IYZICO_SECRET_KEY = process.env.IYZICO_SECRET_KEY;
 
-const RENEWAL_DAYS = 30;
+const RENEWAL_DAYS_MONTHLY = 30;
+const RENEWAL_DAYS_YEARLY = 365;
 
 function randomKey() {
   return Date.now().toString() + Math.floor(Math.random() * 1000000).toString();
@@ -49,7 +50,7 @@ module.exports = async function handler(req, res) {
   try {
     const { data: paymentLookup } = await supabase
       .from('payments')
-      .select('restaurant_id, package_id, status')
+      .select('restaurant_id, package_id, status, billing_cycle')
       .eq('provider_ref', token)
       .maybeSingle();
 
@@ -115,9 +116,10 @@ module.exports = async function handler(req, res) {
     // ya da (nadiren) cifte uzatmaya yol acabiliyordu. Artik TEK atomik bir
     // Postgres fonksiyonu (satiri kilitleyip ayni statement icinde okuyup
     // yazan) kullaniliyor.
+    const renewalDays = paymentLookup.billing_cycle === 'yearly' ? RENEWAL_DAYS_YEARLY : RENEWAL_DAYS_MONTHLY;
     await supabase.rpc('extend_restaurant_subscription', {
       p_restaurant_id: restaurantId,
-      p_days: RENEWAL_DAYS,
+      p_days: renewalDays,
     });
 
     res.redirect(302, loginUrl + '?odeme=basarili');
