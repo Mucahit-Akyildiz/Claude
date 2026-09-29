@@ -18,6 +18,12 @@ const VAPID_PUBLIC_KEY = 'BKpcu5qzPNhqv04tRdQKxs8j9PSAKoLIIS4AdVEqwWKMfV-c9wu9l7
 /* ============================================================ */
 
 const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+/* Bizim RPC'lerimizin kendi hata mesajlari her zaman Turkce (RAISE EXCEPTION
+   ile elle yazilir); bu yuzden Ingilizce teknik terimler/sema adlari iceren
+   bir mesaj, kacan/beklenmedik bir Postgres hatasina isaret eder. */
+function _looksLikeRawDbError(msg){
+  return /column|relation|constraint|duplicate key|violates|syntax error|invalid input syntax|permission denied|null value in column|jsonb?_/i.test(msg);
+}
 /* Her RPC çağrısının ortak geçiş noktası: sunucu tarafında (_session_check)
    işletmenin deneme/abonelik süresi dolduğu tespit edilirse tüm RPC'ler
    'ABONELIK_SURESI_DOLDU' hatasıyla döner. Burada tek bir yerden yakalanıp
@@ -34,6 +40,14 @@ sb.rpc = function(fn, args){
       // Paketinizde olmayan bir ozelligi acmaya calistiniz (bkz. _session_check'teki
       // paket katmani) - ham hata metni yerine anlasilir bir mesaj gosterilsin.
       res.error.message = 'Bu özellik paketinizde bulunmuyor. Yükseltmek için destek ile iletişime geçin.';
+    } else if(res && res.error && res.error.message && _looksLikeRawDbError(res.error.message)){
+      // RPC'lerimizin kendi RAISE EXCEPTION mesajlari Turkce ve kullaniciya
+      // gosterilmek uzere yazilir; ama beklenmeyen bir Postgres hatasi
+      // (constraint/tip donusumu/syntax vb.) olursa tablo/sutun adlari gibi
+      // dahili semayi ifsa eden ham, teknik bir Ingilizce mesaj gelebiliyordu.
+      // Bunlar tek merkezden yakalanip genel bir mesajla degistirilir.
+      console.error('Beklenmeyen veritabani hatasi:', res.error.message);
+      res.error.message = 'Beklenmeyen bir hata oluştu, lütfen tekrar deneyin.';
     }
     return res;
   });
