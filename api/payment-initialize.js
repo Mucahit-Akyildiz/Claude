@@ -42,7 +42,15 @@ function iyzicoAuthHeaders(uriPath, body) {
 
 module.exports = async function handler(req, res) {
   try {
-    const params = req.method === 'GET' ? req.query : (req.body || {});
+    // Sadece POST kabul edilir: frontend zaten hep POST kullanıyor (GET
+    // desteği kullanılmıyordu) ve GET, p_password gibi hassas alanları URL
+    // query string'ine taşıyarak sunucu erişim loglarında/proxy'lerde/
+    // tarayıcı geçmişinde düz metin olarak sızdırma riski taşıyordu.
+    if (req.method !== 'POST') {
+      res.status(405).json({ errorMessage: 'Method not allowed' });
+      return;
+    }
+    const params = req.body || {};
     const { p_token: token, p_code: code, p_username: username, p_password: password } = params;
 
     const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
@@ -249,6 +257,19 @@ module.exports = async function handler(req, res) {
 
     res.status(200).json({ paymentPageUrl: result.paymentPageUrl });
   } catch (e) {
-    res.status(500).json({ errorMessage: 'Hata: ' + e.message });
+    // Beklenmeyen hatalarda e.message (Supabase/ağ istisnaları dahili
+    // ayrıntılar içerebilir) doğrudan istemciye sızdırılmıyor; ayrıntı
+    // sadece payment_debug_log'a yazılıp genel bir mesaj döndürülüyor.
+    try {
+      const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
+      await supabase.from('payment_debug_log').insert({
+        context: 'payment-initialize:exception',
+        payload: JSON.stringify({ message: e.message, stack: e.stack }),
+      });
+    } catch (logErr) {
+      console.error('payment_debug_log yazilamadi:', logErr);
+    }
+    console.error(e);
+    res.status(500).json({ errorMessage: 'Beklenmeyen bir hata oluştu, lütfen tekrar deneyin.' });
   }
 };

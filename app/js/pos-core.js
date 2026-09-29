@@ -1054,6 +1054,7 @@ function startOrderPolling(session){
 }
 async function refreshOrderLiveStatus(session){
   const { data, error } = await sb.rpc('get_live_orders', { p_token: session.session_token });
+  reportPollResult('orderLiveStatus', !error);
   if(error) return;
   APP.liveOrders = data || [];
   if(APP.view==='order') renderTableGrid();
@@ -1079,6 +1080,7 @@ function customerRequestLabel(r){
 }
 async function refreshCustomerOrderRequests(session){
   const { data, error } = await sb.rpc('list_customer_order_requests', { p_token: session.session_token });
+  reportPollResult('customerOrderRequests', !error);
   if(error) return;
   const rows = data || [];
   APP.customerRequests = rows;
@@ -1145,6 +1147,7 @@ function shiftWidgetHtml(){
 }
 async function refreshShiftWidget(session){
   const { data, error } = await sb.rpc('get_my_shift_status', { p_token: session.session_token });
+  reportPollResult('shiftStatus', !error);
   if(error) return;
   APP.shiftStatus = data;
   const el = document.getElementById('shiftWidget');
