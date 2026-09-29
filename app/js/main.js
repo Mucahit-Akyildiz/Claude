@@ -3,6 +3,36 @@
    Diger TUM modullerden SONRA yuklenmeli (her bolumun render*View
    fonksiyonunu cagiriyor) - index.html'deki <script src> sirasinda
    bu yuzden en sonda. Klasik <script src>. */
+/* Bildirim izni açık değilse (geciken sipariş/müşteri isteği gibi push
+   bildirimlerini kaçırmamak için) hangi ekranda olursa olsun her render'da
+   görünen ısrarcı bir hatırlatma şeridi - maybeShowPushPrompt girişte SADECE
+   BİR KEZ otomatik izin istiyor (bkz. pos-core.js); kullanıcı o sistem
+   diyaloğunu kapatır/reddederse ya da daha önce reddetmişse bir daha asla
+   sorulmaz, bu yüzden burada manuel bir hatırlatma/tekrar deneme yolu
+   sunuluyor. Kapatma (✕) sadece bu oturum için geçerli - sayfa yenilenince/
+   tekrar giriş yapılınca (APP sıfırlandığı için) tekrar görünür. */
+function pushReminderBannerHtml(){
+  if(APP.pushBannerDismissed) return '';
+  let state;
+  if(isNativeApp()){
+    state = APP.nativePushPermState;
+    if(!state) return ''; // ilk checkPermissions sonucu henüz gelmedi
+  } else {
+    if(!('Notification' in window)) return '';
+    state = Notification.permission;
+  }
+  if(state==='granted') return '';
+  const denied = state==='denied';
+  const msg = denied
+    ? '🔕 Bildirimler bu cihazda engellenmiş. Geciken sipariş ve önemli uyarıları kaçırmayasınız diye tarayıcı/telefon ayarlarından bu uygulama için bildirimlere izin verin.'
+    : '🔔 Bildirimler kapalı! Geciken sipariş ve müşteri istekleri gibi önemli uyarıları, hangi ekranda olursanız olun (hatta uygulama kapalıyken bile) kaçırmamak için bildirimleri açın.';
+  return `<div class="push-reminder-banner" style="background:rgba(234,179,8,.12);border:1px solid #eab308;border-radius:10px;padding:10px 14px;margin-bottom:12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+    <span style="flex:1;min-width:200px;font-size:13px;">${msg}</span>
+    ${denied ? '' : `<button type="button" style="width:auto;margin:0;padding:8px 14px;font-size:13px;" onclick="togglePushNotifications()">Bildirimleri Aç</button>`}
+    <span style="cursor:pointer;color:var(--muted);font-size:16px;" onclick="dismissPushBanner()" title="Bu oturum için kapat">✕</span>
+  </div>`;
+}
+function dismissPushBanner(){ APP.pushBannerDismissed = true; render(); }
 function render(){
   if(isAdminMode()){ renderAdminArea(); return; }
 
@@ -60,7 +90,7 @@ function render(){
           <button class="sb-logout" onclick="doLogout()" title="Çıkış Yap">🚪<span class="label"> Çıkış Yap</span></button>
         </div>
       </aside>
-      <div class="content-area"><div class="content-inner ${(APP.view==='settings'||APP.view==='reports')?'content-inner-wide':''}"><main id="main"></main></div></div>
+      <div class="content-area"><div class="content-inner ${(APP.view==='settings'||APP.view==='reports')?'content-inner-wide':''}">${pushReminderBannerHtml()}<main id="main"></main></div></div>
     </div>`;
   const main = document.getElementById('main');
   if(APP.view==='home') renderHome(main, session);
