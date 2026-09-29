@@ -367,7 +367,7 @@ async function renderPaymentsView(main, session){
   ]));
   if(!APP.config) APP.config = cfgRes.data;
   APP.liveOrders = liveRes.data || [];
-  main.innerHTML = `<h1>Ödemeler</h1><div class="muted" id="payStatus"></div><div class="table-grid" id="payGrid"></div>`;
+  main.innerHTML = `<h1>Ödemeler <button class="sbtn" style="width:auto;display:inline-flex;vertical-align:middle;margin-left:10px;" onclick="openTableScanModal()">📷 Masa Tara</button></h1><div class="muted" id="payStatus"></div><div class="table-grid" id="payGrid"></div>`;
   renderPayGrid();
 }
 /* --- Hediye Kartları: yeni kart oluşturma (kod üretimi) ve mevcut
@@ -1201,8 +1201,10 @@ function selectZone(id){ APP.selectedZone = id; renderZoneTabs(); renderTableGri
    Her masanın QR kodu /menu/?t=<qr_token> linkini kodluyor (bkz.
    showTableQr, settings.js). Burada aynı QR personel tarafından
    getUserMedia + jsQR (CDN'den yüklenen küçük bir saf JS kütüphanesi) ile
-   okutulup ilgili masa bulunarak doğrudan o masanın sipariş ekranı açılır -
-   masayı bölge sekmelerinde tek tek aramaya gerek kalmaz. Kamera erişimi
+   okutulup ilgili masa bulunarak, hangi ekrandan tetiklendiğine göre
+   doğrudan o masanın sipariş ekranı (Sipariş Al) ya da hesap/ödeme
+   penceresi (Ödemeler) açılır - masayı bölge sekmelerinde tek tek aramaya
+   gerek kalmaz. Kamera erişimi
    standart bir web API'si (getUserMedia) olduğu için Capacitor'ün WebView
    köprüsü Android'de izni otomatik yönetiyor (bkz. AndroidManifest.xml'deki
    CAMERA izni) - ayrı bir native eklenti gerekmedi. */
@@ -1298,6 +1300,20 @@ function handleScannedTableQr(text){
     return;
   }
   closeTableScanModal();
+  // Ödemeler ekranında QR okutmak, o masanın sipariş ekranını değil,
+  // doğrudan ödeme (hesap) penceresini açar - masada ödenecek açık bir
+  // hesap yoksa kullanıcı bilgilendirilir (personel yanlış masayı
+  // okutmuş ya da hesap zaten kapatılmış olabilir).
+  if(APP.view==='payments'){
+    const order = liveOrderForTable(found.id);
+    const hasUnpaid = order && order.items.some(i => !i.paid);
+    if(!hasUnpaid){
+      alert('Bu masada ödenecek açık bir hesap yok: ' + found.name);
+      return;
+    }
+    openPayModal(order.order_id, found.name);
+    return;
+  }
   APP.selectedZone = foundZone.id;
   if(APP.view==='order'){ renderZoneTabs(); renderTableGrid(); }
   openTableModal(found.id, found.name);
