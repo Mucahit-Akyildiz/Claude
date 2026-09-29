@@ -185,6 +185,7 @@ async function renderReportsView(main, session){
       <div class="tab ${APP.reportTab==='staff'?'active':''}" data-tab="staff" onclick="setReportTab('staff')">👤 Personel Analizleri</div>
       <div class="tab ${APP.reportTab==='customers'?'active':''}" data-tab="customers" onclick="setReportTab('customers')">🧑‍🤝‍🧑 Müşteri Analizleri</div>
       <div class="tab ${APP.reportTab==='tips'?'active':''}" data-tab="tips" onclick="setReportTab('tips')">💰 Bahşiş Havuzu</div>
+      <div class="tab ${APP.reportTab==='waste'?'active':''}" data-tab="waste" onclick="setReportTab('waste')">🔥 İsraf</div>
     </div>
     <div id="reportContent"></div>`;
   await renderReportTabContent(session);
@@ -227,13 +228,18 @@ function renderReportTabContent(session){
   if(tab==='staff') return renderStaffAnalyticsContent(session);
   if(tab==='customers') return renderCustomerAnalyticsContent(session);
   if(tab==='tips') return renderTipPoolContent(session);
+  if(tab==='waste') return renderWasteContent(session);
   return renderReportContent(session);
 }
 async function renderReportContent(session){
   const el = document.getElementById('reportContent'); if(!el) return;
-  const { data, error } = await withLoadingOverlay(sb.rpc('get_sales_history', { p_token: session.session_token, p_date: APP.reportDate, p_date_to: APP.reportDateTo }));
+  const [{ data, error }, wasteRes] = await withLoadingOverlay(Promise.all([
+    sb.rpc('get_sales_history', { p_token: session.session_token, p_date: APP.reportDate, p_date_to: APP.reportDateTo }),
+    sb.rpc('list_waste', { p_token: session.session_token, p_date: APP.reportDate, p_date_to: APP.reportDateTo })
+  ]));
   if(error){ el.innerHTML = '<p class="muted">Yüklenemedi: '+error.message+'</p>'; return; }
   const hist = data || [];
+  const wasteCost = (wasteRes.data && wasteRes.data.total_cost) || 0;
 
   // Sipariş Etiketleri (Personel Yemeği, İkram vb.) işaretlenmiş hesaplar ciro/net
   // kârdan hariç tutulur - stok yine düşmüş olsa da bunlar gerçek satış değildir.
@@ -340,6 +346,7 @@ async function renderReportContent(session){
       <div class="box" style="text-align:center;"><div style="font-size:22px;font-weight:800;">${money(totalRevenue)}</div><div class="muted" style="font-size:12px;">Toplam Ciro</div></div>
       <div class="box" style="text-align:center;"><div style="font-size:22px;font-weight:800;">${money(totalCost)}</div><div class="muted" style="font-size:12px;">Toplam Maliyet</div></div>
       <div class="box" style="text-align:center;"><div style="font-size:22px;font-weight:800;color:${profit>=0?'var(--green)':'var(--red)'};">${money(profit)}</div><div class="muted" style="font-size:12px;">Net Kâr</div></div>
+      <div class="box" style="text-align:center;cursor:pointer;" onclick="setReportTab('waste')" title="Detaylar için tıklayın"><div style="font-size:22px;font-weight:800;color:var(--red);">${money(wasteCost)}</div><div class="muted" style="font-size:12px;">🔥 İsraf Maliyeti</div></div>
     </div>
     <div class="stat-grid">
       <div class="box" style="text-align:center;"><div style="font-size:20px;font-weight:800;color:var(--green);">${money(totalCash)}</div><div class="muted" style="font-size:12px;">💵 Nakit${totalRevenue?' ('+Math.round(totalCash/totalRevenue*100)+'%)':''}</div></div>
@@ -578,6 +585,44 @@ async function renderTipPoolContent(session){
             <td>${money(s.share_amount)}</td>
           </tr>`).join('')}
         ${shares.length===0?'<tr><td colspan="3" class="muted" style="text-align:center;">Bu tarihte vardiya kaydı yok.</td></tr>':''}
+        </tbody>
+      </table>
+      </div>
+    </div>`;
+}
+/* Mutfaktan bildirilen israf (yandı/düştü/bozuldu) kayıtları - bkz.
+   report_waste (pos-core.js > openWasteModal/submitWaste). Maliyeti
+   (unit_cost*qty) burada toplanıp gösteriliyor ki israfın kâr üzerindeki
+   etkisi görünür olsun. */
+async function renderWasteContent(session){
+  const el = document.getElementById('reportContent'); if(!el) return;
+  const { data, error } = await withLoadingOverlay(sb.rpc('list_waste', { p_token: session.session_token, p_date: APP.reportDate, p_date_to: APP.reportDateTo }));
+  if(error){ el.innerHTML = '<p class="muted">Yüklenemedi: '+error.message+'</p>'; return; }
+  const rows = (data && data.rows) || [];
+  const totalCost = (data && data.total_cost) || 0;
+  el.innerHTML = `
+    <div class="stat-grid">
+      <div class="box" style="text-align:center;"><div style="font-size:22px;font-weight:800;color:var(--red);">${money(totalCost)}</div><div class="muted" style="font-size:12px;">Toplam İsraf Maliyeti</div></div>
+      <div class="box" style="text-align:center;"><div style="font-size:22px;font-weight:800;">${rows.reduce((s,r)=>s+Number(r.qty),0)}</div><div class="muted" style="font-size:12px;">İsraf Edilen Adet</div></div>
+      <div class="box" style="text-align:center;"><div style="font-size:22px;font-weight:800;">${rows.length}</div><div class="muted" style="font-size:12px;">Kayıt Sayısı</div></div>
+    </div>
+    <div class="box" style="max-width:none;">
+      <h2>${escapeHtml(reportDateRangeLabel())} Tarihli İsraf Kayıtları</h2>
+      <div class="settings-table-wrap">
+      <table class="settings-table">
+        <thead><tr><th>Ürün</th><th>Miktar</th><th>Birim Maliyet</th><th>Toplam Maliyet</th><th>Sebep</th><th>Personel</th><th>Tarih</th></tr></thead>
+        <tbody>
+        ${rows.map(r => `
+          <tr>
+            <td class="col-name">${escapeHtml(r.product_name)}</td>
+            <td>${r.qty}</td>
+            <td>${money(r.unit_cost)}</td>
+            <td style="color:var(--red);font-weight:700;">${money(r.total_cost)}</td>
+            <td>${escapeHtml(r.reason||'-')}</td>
+            <td>${escapeHtml(r.staff_name||'-')}</td>
+            <td>${new Date(r.created_at).toLocaleString('tr-TR',{dateStyle:'short',timeStyle:'short'})}</td>
+          </tr>`).join('')}
+        ${rows.length===0?'<tr><td colspan="7" class="muted" style="text-align:center;">Bu tarih aralığında israf kaydı yok.</td></tr>':''}
         </tbody>
       </table>
       </div>
