@@ -64,9 +64,10 @@ async function refreshKitchenItems(session){
         <span style="cursor:pointer;color:var(--muted);font-size:16px;" onclick="reprintKitchenTicket('${o.order_id}')" title="Fişi tekrar yazdır">🖨️</span>
       </div>
       ${pending.map(it => `<div class="kitchen-item-row" style="padding:10px 0;border-top:1px dashed var(--border);">
-        <div style="display:grid;grid-template-columns:1fr 64px auto;align-items:center;gap:10px;">
+        <div style="display:grid;grid-template-columns:1fr 64px auto auto;align-items:center;gap:10px;">
           <span class="kitchen-item-name" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${it.qty}x ${escapeHtml(it.name)}</span>
           <span class="kitchen-timer" data-added="${it.added_at||''}" data-id="${it.id}" data-name="${escapeHtml(tableName+' - '+it.qty+'x '+it.name)}" style="text-align:center;">-</span>
+          <button style="width:auto;padding:8px 10px;font-size:14px;background:var(--red);color:var(--btn-ink);" onclick="openWasteModal('${it.id}',${it.qty},'${escapeHtml(it.name).replace(/'/g,"\\'")}')" title="İsraf oldu (yandı/düştü/bozuldu)">🔥</button>
           <button style="width:auto;padding:8px 14px;font-size:14px;background:var(--green);color:var(--btn-ink);" onclick="markReady('${it.id}')">Hazır</button>
         </div>
         ${it.note?'<div class="muted" style="font-size:12px;font-style:italic;margin-top:4px;overflow-wrap:anywhere;word-break:break-word;">Not: '+escapeHtml(it.note)+'</div>':''}
@@ -293,6 +294,53 @@ async function markAllReady(tableId){
   ));
   const failed = results.some(r => r.error);
   if(failed) alert('Bazı ürünler hazır işaretlenemedi.');
+  await refreshKitchenItems(session);
+}
+/* ---- Mutfak: israf bildirimi (yandı/düştü/bozuldu) ----
+   Bir sipariş kalemi hazırlanırken kullanılamaz hale gelirse buradan
+   bildirilir: report_waste RPC'si ilgili hammaddeyi/ürün stoğunu düşer,
+   maliyetini waste_log'a yazar (Finansal Analiz > İsraf'ta görünür) ve
+   israf edilen miktar kadar bu kalemi küçültür/siler - müşteriden o kısım
+   için ücret alınmaz. */
+const WASTE_REASONS = ['Yandı', 'Düştü', 'Bozuldu', 'Diğer'];
+function openWasteModal(itemId, qty, name){
+  const bg = document.createElement('div');
+  bg.id = 'wasteModalBg';
+  bg.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:100;padding:16px;';
+  bg.onclick = (e) => { if(e.target===bg) closeWasteModal(); };
+  bg.innerHTML = `<div class="box" style="max-width:340px;width:100%;text-align:left;">
+    <h2 style="margin-top:0;">🔥 İsraf Bildir</h2>
+    <p class="muted" style="margin:0 0 12px;">${escapeHtml(name)}</p>
+    <label style="display:block;font-size:12.5px;font-weight:700;color:var(--muted);">Miktar</label>
+    <input id="wasteQty" type="number" min="1" max="${qty}" step="1" value="${qty}" style="margin-bottom:10px;">
+    <label style="display:block;font-size:12.5px;font-weight:700;color:var(--muted);">Sebep</label>
+    <select id="wasteReason" style="margin-bottom:10px;">
+      ${WASTE_REASONS.map(r => `<option value="${r}">${r}</option>`).join('')}
+    </select>
+    <input id="wasteNote" placeholder="Ek not (opsiyonel)" style="margin-bottom:14px;">
+    <div class="field-row" style="gap:8px;">
+      <button type="button" style="flex:1;margin:0;background:var(--panel2);color:var(--text);" onclick="closeWasteModal()">Vazgeç</button>
+      <button type="button" id="wasteSubmitBtn" style="flex:1;margin:0;background:var(--red);color:var(--btn-ink);" onclick="submitWaste('${itemId}')">İsraf Olarak Kaydet</button>
+    </div>
+  </div>`;
+  document.body.appendChild(bg);
+}
+function closeWasteModal(){ const bg = document.getElementById('wasteModalBg'); if(bg) bg.remove(); }
+async function submitWaste(itemId){
+  const qty = parseInt(document.getElementById('wasteQty').value) || 0;
+  if(qty<=0){ alert('Geçerli bir miktar girin'); return; }
+  const reason = document.getElementById('wasteReason').value;
+  const note = document.getElementById('wasteNote').value.trim();
+  const fullReason = note ? (reason+' - '+note) : reason;
+  const btn = document.getElementById('wasteSubmitBtn');
+  btn.disabled = true; btn.textContent = 'Kaydediliyor...';
+  const session = getSession();
+  const { error } = await sb.rpc('report_waste', {
+    p_token: session.session_token, p_order_item_id: itemId, p_qty: qty, p_reason: fullReason
+  });
+  if(error){ alert('Hata: '+error.message); btn.disabled = false; btn.textContent = 'İsraf Olarak Kaydet'; return; }
+  closeWasteModal();
+  showToast('🔥 İsraf kaydedildi, stoktan düşüldü');
   await refreshKitchenItems(session);
 }
 

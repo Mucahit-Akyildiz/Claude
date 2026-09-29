@@ -762,6 +762,156 @@ end;
 $$;
 grant execute on function send_takeaway_order to anon;
 
+-- Mutfakta hazırlanırken yanan/düşen/bozulan ürünleri israf olarak kaydeder:
+-- ilgili hammaddeyi (ya da doğrudan ürün stoğunu) düşer ve maliyetini
+-- waste_log'a yazar (Finansal Analiz > İsraf'ta görünür). p_order_item_id
+-- verilirse o kalem israf edilen miktar kadar küçültülür/silinir - müşteriden
+-- bu kısım için ücret alınmaz. Verilmezse (siparişe bağlı olmayan hammadde/
+-- ürün israfı) doğrudan p_product_id+p_qty kullanılır.
+create table if not exists waste_log (
+  id uuid primary key default gen_random_uuid(),
+  restaurant_id uuid not null references restaurants(id) on delete cascade,
+  order_id uuid references orders(id) on delete set null,
+  order_item_id uuid references order_items(id) on delete set null,
+  product_id uuid references products(id) on delete set null,
+  product_name text not null,
+  qty numeric not null,
+  unit_cost numeric not null default 0,
+  total_cost numeric not null default 0,
+  reason text,
+  staff_user_id uuid references app_users(id) on delete set null,
+  created_at timestamptz not null default now()
+);
+alter table waste_log enable row level security;
+create index if not exists idx_waste_log_restaurant_id on waste_log(restaurant_id);
+create index if not exists idx_waste_log_created_at on waste_log(created_at);
+create index if not exists idx_waste_log_order_id on waste_log(order_id);
+create index if not exists idx_waste_log_order_item_id on waste_log(order_item_id);
+create index if not exists idx_waste_log_product_id on waste_log(product_id);
+create index if not exists idx_waste_log_staff_user_id on waste_log(staff_user_id);
+
+create or replace function report_waste(
+  p_token uuid,
+  p_order_item_id uuid default null,
+  p_product_id uuid default null,
+  p_qty numeric default null,
+  p_reason text default null
+)
+returns json
+language plpgsql
+security definer
+as $$
+declare
+  s staff_sessions%rowtype;
+  v_item order_items%rowtype;
+  v_product_id uuid;
+  v_name text;
+  v_unit_cost numeric;
+  v_qty numeric;
+  v_order_id uuid;
+  v_has_recipe boolean;
+  v_waste_id uuid;
+  v_total_cost numeric;
+  v_fully_wasted boolean := false;
+begin
+  s := _session_check(p_token, 'kitchen');
+
+  if p_order_item_id is not null then
+    select oi.* into v_item from order_items oi
+      join orders o on o.id = oi.order_id
+      where oi.id = p_order_item_id and o.restaurant_id = s.restaurant_id;
+    if v_item.id is null then raise exception 'Sipariş kalemi bulunamadı'; end if;
+    if v_item.paid then raise exception 'Ödenmiş bir kalem israf olarak işaretlenemez'; end if;
+
+    v_qty := least(coalesce(p_qty, v_item.qty), v_item.qty);
+    if v_qty is null or v_qty <= 0 then raise exception 'Geçersiz miktar'; end if;
+
+    v_product_id := v_item.product_id;
+    v_name := v_item.name;
+    v_unit_cost := coalesce(v_item.cost, 0);
+    v_order_id := v_item.order_id;
+    v_fully_wasted := v_qty >= v_item.qty;
+  else
+    if p_product_id is null or p_qty is null or p_qty <= 0 then
+      raise exception 'Ürün ve geçerli bir miktar gerekli';
+    end if;
+    select id, name, cost into v_product_id, v_name, v_unit_cost
+      from products where id = p_product_id and restaurant_id = s.restaurant_id;
+    if v_product_id is null then raise exception 'Ürün bulunamadı'; end if;
+    v_qty := p_qty;
+    v_order_id := null;
+  end if;
+
+  -- Bu olay zaten fiziksel olarak gerçekleşmiş olduğu için (adjust_stock'un
+  -- aksine) yetersiz stok kontrolü yapılmıyor.
+  select exists(select 1 from product_ingredients where product_id = v_product_id) into v_has_recipe;
+  if v_has_recipe then
+    update ingredients ing set stock = ing.stock - (pi.qty_per_unit * v_qty)
+      from product_ingredients pi
+      where pi.ingredient_id = ing.id and pi.product_id = v_product_id
+        and ing.restaurant_id = s.restaurant_id;
+  else
+    update products set stock = stock - v_qty
+      where id = v_product_id and restaurant_id = s.restaurant_id and stock is not null;
+  end if;
+
+  v_total_cost := v_unit_cost * v_qty;
+
+  -- ÖNEMLİ: waste_log kaydı, order_item silinmeden ÖNCE eklenir - aksi
+  -- halde order_item_id foreign key'i artık var olmayan bir satıra işaret
+  -- edip hata verirdi (tamamen israf edilen kalemde aşağıda silinir).
+  insert into waste_log (restaurant_id, order_id, order_item_id, product_id, product_name, qty, unit_cost, total_cost, reason, staff_user_id)
+  values (s.restaurant_id, v_order_id, p_order_item_id, v_product_id, v_name, v_qty, v_unit_cost, v_total_cost, nullif(trim(coalesce(p_reason,'')),''), s.user_id)
+  returning id into v_waste_id;
+
+  if p_order_item_id is not null then
+    if v_fully_wasted then
+      delete from order_items where id = p_order_item_id;
+    else
+      update order_items set qty = qty - v_qty where id = p_order_item_id;
+    end if;
+  end if;
+
+  return json_build_object('id', v_waste_id, 'total_cost', v_total_cost);
+end;
+$$;
+grant execute on function report_waste to anon;
+
+-- Finansal Analiz > İsraf raporu: tarih aralığındaki tüm israf kayıtları + toplam.
+create or replace function list_waste(p_token uuid, p_date date, p_date_to date default null)
+returns json
+language plpgsql
+security definer
+as $$
+declare s staff_sessions%rowtype;
+begin
+  s := _session_check(p_token, 'reports');
+  return (
+    select json_build_object(
+      'rows', coalesce((
+        select json_agg(row_to_json(r) order by r.created_at desc)
+        from (
+          select wl.id, wl.product_name, wl.qty, wl.unit_cost, wl.total_cost, wl.reason,
+            wl.created_at, au.username as staff_name
+          from waste_log wl
+          left join app_users au on au.id = wl.staff_user_id
+          where wl.restaurant_id = s.restaurant_id
+            and wl.created_at >= (p_date::timestamp at time zone 'Europe/Istanbul')
+            and wl.created_at < ((coalesce(p_date_to, p_date) + 1)::timestamp at time zone 'Europe/Istanbul')
+        ) r
+      ), '[]'::json),
+      'total_cost', coalesce((
+        select sum(wl.total_cost) from waste_log wl
+        where wl.restaurant_id = s.restaurant_id
+          and wl.created_at >= (p_date::timestamp at time zone 'Europe/Istanbul')
+          and wl.created_at < ((coalesce(p_date_to, p_date) + 1)::timestamp at time zone 'Europe/Istanbul')
+      ), 0)
+    )
+  );
+end;
+$$;
+grant execute on function list_waste to anon;
+
 create or replace function cancel_order(p_token uuid, p_order_id uuid)
 returns void
 language plpgsql
