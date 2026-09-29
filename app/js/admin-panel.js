@@ -97,12 +97,14 @@ async function refreshPackagesAdmin(admin){
   const packages = data || [];
   el.innerHTML = `
     <p class="muted" style="text-align:left;max-width:640px;">Bu fiyatlar, işletmelerin 7 günlük ücretsiz denemesi bittikten sonra
-      ödeyeceği AYLIK tutarlardır - web sitesi ve kayıt ekranında canlı olarak gösterilir.</p>
+      ödeyeceği tutarlardır - web sitesi ve kayıt ekranında canlı olarak gösterilir. Yıllık fiyat boş bırakılırsa
+      otomatik olarak aylık fiyatın 12 katı (indirimsiz) kullanılır; indirimli bir yıllık fiyat sunmak isterseniz
+      buraya girin.</p>
     ${packages.length===0 ? '<p class="muted">Henüz paket yok.</p>' : `
     <div class="settings-table-wrap">
       <table class="settings-table">
         <thead><tr>
-          <th>Kimlik</th><th>Ad</th><th>Açıklama</th><th>Kullanıcı Limiti</th><th>Şube Limiti</th><th>Fiyat (TL/ay)</th>
+          <th>Kimlik</th><th>Ad</th><th>Açıklama</th><th>Kullanıcı Limiti</th><th>Şube Limiti</th><th>Fiyat (TL/ay)</th><th>Fiyat (TL/yıl)</th>
           <th>Popüler</th><th>Aktif</th><th>İşletme</th><th></th>
         </tr></thead>
         <tbody>
@@ -114,6 +116,7 @@ async function refreshPackagesAdmin(admin){
             <td class="col-num" style="width:90px;"><input type="number" min="1" step="1" value="${p.max_users}" id="pkg_users_${p.id}"></td>
             <td class="col-num" style="width:90px;"><input type="number" min="1" step="1" value="${p.max_branches||1}" id="pkg_branches_${p.id}" title="Bu paketi seçen bir şirket en fazla kaç şube açabilir"></td>
             <td class="col-num" style="width:110px;"><input type="number" min="0" step="0.01" value="${p.price}" id="pkg_price_${p.id}"></td>
+            <td class="col-num" style="width:110px;"><input type="number" min="0" step="0.01" value="${p.price_yearly!=null?p.price_yearly:''}" id="pkg_price_yearly_${p.id}" placeholder="${(p.price*12).toFixed(2)}"></td>
             <td style="text-align:center;"><input type="checkbox" id="pkg_popular_${p.id}" ${p.is_popular?'checked':''} style="width:18px;height:18px;"></td>
             <td style="text-align:center;"><input type="checkbox" id="pkg_active_${p.id}" ${p.active?'checked':''} style="width:18px;height:18px;"></td>
             <td class="col-name">${p.restaurant_count} işletme</td>
@@ -123,7 +126,7 @@ async function refreshPackagesAdmin(admin){
             </td>
           </tr>
           <tr>
-            <td colspan="10" style="padding:6px 8px 16px;border-top:none;">
+            <td colspan="11" style="padding:6px 8px 16px;border-top:none;">
               <div style="display:flex;align-items:center;gap:8px;cursor:pointer;user-select:none;" onclick="togglePackageFeaturePanel('${p.id}')">
                 <span id="pkgFeatToggle_${p.id}" class="muted" style="font-size:11px;">▸</span>
                 <span class="muted" style="font-size:12px;font-weight:700;">Bu pakette hangi özellikler olacak <span style="font-weight:400;">(${(p.features||[]).length}/${(APP.featureCatalog||[]).length} seçili)</span></span>
@@ -138,13 +141,14 @@ async function refreshPackagesAdmin(admin){
     </div>`}
     <div class="add-row-panel" style="margin-top:20px;">
       <p>Yeni Paket Oluştur</p>
-      <div style="display:grid;grid-template-columns:1fr 1fr 1.4fr 0.8fr 0.8fr 0.8fr;gap:10px;align-items:end;">
+      <div style="display:grid;grid-template-columns:1fr 1fr 1.4fr 0.8fr 0.8fr 0.8fr 0.8fr;gap:10px;align-items:end;">
         <div class="field-group"><label>Kimlik (benzersiz, örn. paket4)</label><input id="npkgId" placeholder="paket4" autocapitalize="none"></div>
         <div class="field-group"><label>Ad</label><input id="npkgName" placeholder="örn. Kurumsal"></div>
         <div class="field-group"><label>Açıklama</label><input id="npkgDesc" placeholder="örn. Çok şubeli zincirler için"></div>
         <div class="field-group"><label>Kullanıcı Limiti</label><input type="number" min="1" step="1" id="npkgUsers" placeholder="20"></div>
         <div class="field-group"><label>Şube Limiti</label><input type="number" min="1" step="1" id="npkgBranches" placeholder="1" value="1"></div>
         <div class="field-group"><label>Fiyat (TL/ay)</label><input type="number" min="0" step="0.01" id="npkgPrice" placeholder="1499"></div>
+        <div class="field-group"><label>Fiyat (TL/yıl, opsiyonel)</label><input type="number" min="0" step="0.01" id="npkgPriceYearly" placeholder="örn. 14990"></div>
       </div>
       <div class="muted" style="font-size:12px;font-weight:700;margin:14px 0 6px;">Bu pakette hangi özellikler olacak:</div>
       ${featureCheckboxesHtml('npkg_feat', (APP.featureCatalog||[]).filter(f=>f.is_core).map(f=>f.id))}
@@ -209,17 +213,20 @@ async function savePackageRow(id){
   const maxUsers = Number(document.getElementById('pkg_users_'+id).value);
   const maxBranches = Number(document.getElementById('pkg_branches_'+id).value);
   const price = Number(document.getElementById('pkg_price_'+id).value);
+  const priceYearlyRaw = document.getElementById('pkg_price_yearly_'+id).value.trim();
+  const priceYearly = priceYearlyRaw==='' ? null : Number(priceYearlyRaw);
   const popular = document.getElementById('pkg_popular_'+id).checked;
   const active = document.getElementById('pkg_active_'+id).checked;
   if(!name){ alert('Paket adı gerekli'); return; }
   if(!(maxUsers>=1)){ alert('Kullanıcı limiti en az 1 olmalı'); return; }
   if(!(maxBranches>=1)){ alert('Şube limiti en az 1 olmalı'); return; }
   if(!(price>=0)){ alert('Fiyat negatif olamaz'); return; }
+  if(priceYearly!==null && !(priceYearly>=0)){ alert('Yıllık fiyat negatif olamaz'); return; }
   const features = readPackageFeatures('pkg_feat_'+id);
   const { error } = await sb.rpc('admin_upsert_package', {
     p_token: admin.session_token, p_id: id, p_name: name, p_description: desc,
     p_max_users: maxUsers, p_price: price, p_is_popular: popular, p_active: active, p_features: features,
-    p_max_branches: maxBranches
+    p_max_branches: maxBranches, p_price_yearly: priceYearly
   });
   if(error){ alert(error.message); return; }
   showToast('Paket kaydedildi ✓');
@@ -244,16 +251,19 @@ async function createPackage(){
   const maxUsers = Number(document.getElementById('npkgUsers').value);
   const maxBranches = Number(document.getElementById('npkgBranches').value) || 1;
   const price = Number(document.getElementById('npkgPrice').value);
+  const priceYearlyRaw = document.getElementById('npkgPriceYearly').value.trim();
+  const priceYearly = priceYearlyRaw==='' ? null : Number(priceYearlyRaw);
   if(!id || !/^[a-z0-9_-]+$/.test(id)){ errBox.textContent = 'Kimlik sadece küçük harf/rakam/tire içerebilir'; return; }
   if(!name){ errBox.textContent = 'Paket adı gerekli'; return; }
   if(!(maxUsers>=1)){ errBox.textContent = 'Kullanıcı limiti en az 1 olmalı'; return; }
   if(!(maxBranches>=1)){ errBox.textContent = 'Şube limiti en az 1 olmalı'; return; }
   if(!(price>=0)){ errBox.textContent = 'Fiyat negatif olamaz'; return; }
+  if(priceYearly!==null && !(priceYearly>=0)){ errBox.textContent = 'Yıllık fiyat negatif olamaz'; return; }
   const features = readPackageFeatures('npkg_feat');
   const { error } = await sb.rpc('admin_upsert_package', {
     p_token: admin.session_token, p_id: id, p_name: name, p_description: desc,
     p_max_users: maxUsers, p_price: price, p_is_popular: false, p_active: true, p_features: features,
-    p_max_branches: maxBranches
+    p_max_branches: maxBranches, p_price_yearly: priceYearly
   });
   if(error){ errBox.textContent = error.message; return; }
   showToast('Paket oluşturuldu ✓');

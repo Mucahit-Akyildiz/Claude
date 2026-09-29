@@ -52,6 +52,7 @@ module.exports = async function handler(req, res) {
     }
     const params = req.body || {};
     const { p_token: token, p_code: code, p_username: username, p_password: password } = params;
+    const billingCycle = params.p_billing_cycle === 'yearly' ? 'yearly' : 'monthly';
 
     const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
 
@@ -141,16 +142,19 @@ module.exports = async function handler(req, res) {
 
     const { data: pkgRow } = await supabase
       .from('packages')
-      .select('price')
+      .select('price, price_yearly')
       .eq('id', restaurant.package_id)
       .maybeSingle();
-    const price = Number(pkgRow && pkgRow.price) || 0;
+    const monthlyPrice = Number(pkgRow && pkgRow.price) || 0;
+    const price = billingCycle === 'yearly'
+      ? (Number(pkgRow && pkgRow.price_yearly) || monthlyPrice * 12)
+      : monthlyPrice;
     if (price <= 0) {
       res.status(400).json({ errorMessage: 'Gecersiz paket fiyati' });
       return;
     }
     const priceStr = price.toFixed(2);
-    const basketId = 'renew_' + restaurant.package_id + '_' + Date.now();
+    const basketId = 'renew_' + restaurant.package_id + '_' + billingCycle + '_' + Date.now();
 
     const phoneDigits = String(restaurant.phone || '').replace(/\D/g, '').replace(/^90/, '').replace(/^0/, '');
     const gsmNumber = '+90' + phoneDigits;
@@ -196,7 +200,7 @@ module.exports = async function handler(req, res) {
       basketItems: [
         {
           id: restaurant.package_id,
-          name: 'Restoran Yonetim Sistemi - Aylik Yenileme - ' + restaurant.package_id,
+          name: 'Restoran Yonetim Sistemi - ' + (billingCycle === 'yearly' ? 'Yillik' : 'Aylik') + ' Yenileme - ' + restaurant.package_id,
           category1: 'Yazilim Aboneligi',
           itemType: 'VIRTUAL',
           price: priceStr,
@@ -253,6 +257,7 @@ module.exports = async function handler(req, res) {
       amount: price,
       status: 'pending',
       provider_ref: result.token,
+      billing_cycle: billingCycle,
     });
 
     res.status(200).json({ paymentPageUrl: result.paymentPageUrl });
