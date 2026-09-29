@@ -333,12 +333,25 @@ declare
   v_otp text;
   v_resend_key text;
   v_resend_from text;
+  v_recent_count int;
 begin
   if exists(select 1 from restaurants where lower(email) = lower(p_email)) then
     raise exception 'Bu e-posta adresiyle zaten bir hesap var';
   end if;
-  if exists(select 1 from restaurants where phone = p_phone) then
+  -- Telefon formati farkiyla (+90.../0...) deneme suresi tekrar alinamasin
+  -- diye karsilastirma oncesi sadece rakamlar birakilip son 10 hane kiyaslanir.
+  if exists(
+    select 1 from restaurants
+    where right(regexp_replace(phone, '\D', '', 'g'), 10) = right(regexp_replace(p_phone, '\D', '', 'g'), 10)
+  ) then
     raise exception 'Bu telefon numarasıyla zaten bir hesap var';
+  end if;
+
+  -- OTP isteme uctan e-posta bombardimani/Resend kota tuketimini engeller.
+  select count(*) into v_recent_count from signup_otps
+    where (phone = p_phone or lower(email) = lower(p_email)) and created_at > now() - interval '10 minutes';
+  if v_recent_count >= 3 then
+    raise exception 'Çok sık kod istediniz, lütfen biraz bekleyip tekrar deneyin';
   end if;
 
   v_otp := lpad(floor(random()*1000000)::text, 6, '0');
@@ -678,11 +691,18 @@ begin
     raise exception 'Masa bulunamadı';
   end if;
 
+  if json_array_length(p_items) > 100 then
+    raise exception 'Çok fazla ürün';
+  end if;
+
   select o.id, o.daily_number into v_order_id, v_daily_number from orders o
     where o.restaurant_id = s.restaurant_id and o.table_id = p_table_id and o.status = 'open'
     limit 1;
 
   if v_order_id is null then
+    -- Ayni restoranin gunluk numara uretimini serilestirir (yaris durumu koruması).
+    perform 1 from restaurants where id = s.restaurant_id for update;
+
     select coalesce(max(o.daily_number), 0) + 1 into v_daily_number
       from orders o where o.restaurant_id = s.restaurant_id
         and (o.created_at at time zone 'Europe/Istanbul')::date = (now() at time zone 'Europe/Istanbul')::date;
@@ -749,6 +769,10 @@ declare
 begin
   s := _session_check(p_token);
 
+  if json_array_length(p_items) > 100 then
+    raise exception 'Çok fazla ürün';
+  end if;
+
   if p_order_id is not null then
     select o.id, o.daily_number into v_order_id, v_daily_number from orders o
       where o.id = p_order_id and o.restaurant_id = s.restaurant_id and o.status = 'open';
@@ -762,6 +786,9 @@ begin
       note = coalesce(p_note, note)
       where id = v_order_id;
   else
+    -- Ayni restoranin gunluk numara uretimini serilestirir (yaris durumu koruması).
+    perform 1 from restaurants where id = s.restaurant_id for update;
+
     select coalesce(max(o.daily_number), 0) + 1 into v_daily_number
       from orders o where o.restaurant_id = s.restaurant_id
         and (o.created_at at time zone 'Europe/Istanbul')::date = (now() at time zone 'Europe/Istanbul')::date;
@@ -1044,6 +1071,10 @@ begin
   perform 1 from orders where id = p_order_id and restaurant_id = s.restaurant_id for update;
   if not found then
     raise exception 'Sipariş bulunamadı';
+  end if;
+
+  if p_item_qtys is not null and jsonb_array_length(p_item_qtys) > 200 then
+    raise exception 'Çok fazla kalem';
   end if;
 
   if p_item_qtys is null then
@@ -1348,6 +1379,9 @@ returns uuid language plpgsql security definer as $$
 declare s staff_sessions%rowtype; v_id uuid;
 begin
   s := _session_check(p_token, 'manager');
+  if coalesce(p_stock,0) < 0 then
+    raise exception 'Stok negatif olamaz';
+  end if;
   if p_id is null then
     insert into ingredients (restaurant_id, name, unit, stock) values (s.restaurant_id, p_name, p_unit, p_stock) returning id into v_id;
   else
