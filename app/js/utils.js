@@ -8,6 +8,30 @@
    çifti her zaman birlikte çağrılmalı (withLoadingOverlay bunu otomatik
    yapar); iç içe/çakışan çağrılar bir sayaçla (LOADING_WATCH_DEPTH) takip
    edilir ki bir view başka bir view'i beklerken erken gizlemesin. */
+/* Arka plan polling fonksiyonlari (mutfak/sipariş/vardiya canlı yenileme)
+   ağ hatalarını sessizce yutuyordu - tek seferlik bir hata (kısa bir WiFi
+   dalgalanması) için her 2-5 saniyede bir uyarı göstermek gereksiz gürültü
+   olur, ama ART ARDA çok sayıda başarısız deneme gerçek bir bağlantı
+   sorununa işaret eder ve personelin haberi olmalı (aksi halde ekranın
+   "canlı" göründüğünü sanıp aslında saatlerdir güncellenmeyen veriye
+   bakabilirler). Her polling noktası kendi anahtarıyla çağırır; art arda
+   eşiği aşınca BİR KEZ toast gösterilir, başarılı bir denemede sayaç ve
+   "gösterildi" bayrağı sıfırlanır.
+   */
+let POLL_FAILURE_COUNTS = {};
+let POLL_FAILURE_WARNED = {};
+function reportPollResult(key, ok, threshold){
+  if(ok){
+    POLL_FAILURE_COUNTS[key] = 0;
+    POLL_FAILURE_WARNED[key] = false;
+    return;
+  }
+  POLL_FAILURE_COUNTS[key] = (POLL_FAILURE_COUNTS[key]||0) + 1;
+  if(!POLL_FAILURE_WARNED[key] && POLL_FAILURE_COUNTS[key] >= (threshold||3)){
+    POLL_FAILURE_WARNED[key] = true;
+    showToast('⚠️ Bağlantı sorunu: veriler güncellenemiyor, internet bağlantınızı kontrol edin', 6000);
+  }
+}
 let LOADING_WATCH_TIMER = null, LOADING_WATCH_SHOWN = false, LOADING_WATCH_DEPTH = 0;
 function beginLoadingWatch(delayMs){
   LOADING_WATCH_DEPTH++;

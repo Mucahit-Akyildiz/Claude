@@ -440,11 +440,12 @@ async function doVerifyPasswordReset(){
   if(newPass !== newPass2){ errBox.textContent = 'Girdiğiniz şifreler eşleşmiyor'; return; }
   const btn = document.getElementById('fpVerifyBtn');
   btn.disabled = true; btn.textContent = 'Güncelleniyor...';
-  const { error } = await sb.rpc('verify_password_reset', {
+  const { data, error } = await sb.rpc('verify_password_reset', {
     p_code: pending.code, p_username: pending.username, p_otp: otp, p_new_password: newPass
   });
   btn.disabled = false; btn.textContent = 'Şifreyi Güncelle';
   if(error){ errBox.textContent = error.message; return; }
+  if(data === false){ errBox.textContent = 'Kod hatalı'; return; }
   APP.pendingReset = null;
   APP.authScreen = 'login';
   showToast('Şifreniz güncellendi, şimdi giriş yapabilirsiniz ✓');
@@ -582,6 +583,7 @@ async function doVerifySignup(){
   });
   btn.disabled = false; btn.textContent = 'Doğrula ve Kaydı Tamamla';
   if(error){ errBox.textContent = error.message; return; }
+  if(!data || data.length===0){ errBox.textContent = 'Kod hatalı'; return; }
   const code = p.code;
   APP.pendingSignup = null;
   // Hesap artik odeme beklemeden 7 gunluk ucretsiz deneme ile direkt aktif aciliyor.
