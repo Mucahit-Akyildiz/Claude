@@ -1010,7 +1010,10 @@ async function renderOrderView(main, session){
   main.innerHTML = `<h1>Sipariş Al</h1><div class="muted" id="orderStatus"></div><div id="customerReqBanner"></div>
     <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
       <div class="tabs" id="zoneTabs" style="margin:16px 0 0;"></div>
-      <button type="button" style="width:auto;padding:7px 12px;margin:0;background:transparent;border:1px solid var(--border);color:var(--text);box-shadow:none;font-size:12.5px;" onclick="toggleOrderTableViewMode()" id="tableViewModeBtn">${APP.orderTableViewMode==='floorplan'?'📋 Liste Görünümü':'🗺️ Kat Planı'}</button>
+      <div style="display:flex;gap:8px;">
+        <button type="button" style="width:auto;padding:7px 12px;margin:0;background:transparent;border:1px solid var(--border);color:var(--text);box-shadow:none;font-size:12.5px;" onclick="openTableScanModal()">📷 Masa Tara</button>
+        <button type="button" style="width:auto;padding:7px 12px;margin:0;background:transparent;border:1px solid var(--border);color:var(--text);box-shadow:none;font-size:12.5px;" onclick="toggleOrderTableViewMode()" id="tableViewModeBtn">${APP.orderTableViewMode==='floorplan'?'📋 Liste Görünümü':'🗺️ Kat Planı'}</button>
+      </div>
     </div>
     <div class="table-grid" id="tableGrid" style="margin-top:12px;"></div>
     <div id="tableFloorPlan" class="floorplan-canvas" style="display:none;margin-top:12px;padding:14px;"></div>`;
@@ -1177,6 +1180,111 @@ function renderZoneTabs(){
   ).join('');
 }
 function selectZone(id){ APP.selectedZone = id; renderZoneTabs(); renderTableGrid(); }
+/* ---- Masa QR'ını okutarak hızlı geçiş ----
+   Her masanın QR kodu /menu/?t=<qr_token> linkini kodluyor (bkz.
+   showTableQr, settings.js). Burada aynı QR personel tarafından
+   getUserMedia + jsQR (CDN'den yüklenen küçük bir saf JS kütüphanesi) ile
+   okutulup ilgili masa bulunarak doğrudan o masanın sipariş ekranı açılır -
+   masayı bölge sekmelerinde tek tek aramaya gerek kalmaz. Kamera erişimi
+   standart bir web API'si (getUserMedia) olduğu için Capacitor'ün WebView
+   köprüsü Android'de izni otomatik yönetiyor (bkz. AndroidManifest.xml'deki
+   CAMERA izni) - ayrı bir native eklenti gerekmedi. */
+let QR_SCAN_STREAM = null;
+let QR_SCAN_RAF = null;
+function loadJsQrLibrary(){
+  if(window.jsQR) return Promise.resolve();
+  return new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = 'https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js';
+    s.onload = resolve;
+    s.onerror = () => reject(new Error('QR kütüphanesi yüklenemedi'));
+    document.head.appendChild(s);
+  });
+}
+async function openTableScanModal(){
+  if(!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia)){
+    alert('Bu cihaz/tarayıcı kamera erişimini desteklemiyor.');
+    return;
+  }
+  const bg = document.createElement('div');
+  bg.id = 'qrScanModalBg';
+  bg.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.85);display:flex;align-items:center;justify-content:center;z-index:200;padding:16px;';
+  bg.onclick = (e) => { if(e.target===bg) closeTableScanModal(); };
+  bg.innerHTML = `<div style="background:var(--panel);border-radius:16px;padding:16px;max-width:380px;width:100%;text-align:center;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+      <h2 style="margin:0;font-size:16px;">📷 Masa QR'ını Okutun</h2>
+      <span style="cursor:pointer;color:var(--muted);font-size:20px;" onclick="closeTableScanModal()">✕</span>
+    </div>
+    <video id="qrScanVideo" playsinline autoplay muted style="width:100%;border-radius:10px;background:#000;"></video>
+    <canvas id="qrScanCanvas" style="display:none;"></canvas>
+    <p id="qrScanStatus" class="muted" style="font-size:12px;margin-top:10px;">Kamera başlatılıyor...</p>
+  </div>`;
+  document.body.appendChild(bg);
+  const statusEl = document.getElementById('qrScanStatus');
+  try{
+    await loadJsQrLibrary();
+  }catch(e){
+    statusEl.textContent = '⚠️ ' + e.message;
+    return;
+  }
+  try{
+    QR_SCAN_STREAM = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+  }catch(e){
+    statusEl.textContent = '⚠️ Kameraya erişilemedi: izin verilmedi ya da kamera bulunamadı.';
+    return;
+  }
+  const video = document.getElementById('qrScanVideo');
+  if(!video){ closeTableScanModal(); return; } // modal bu sırada kapatılmış olabilir
+  video.srcObject = QR_SCAN_STREAM;
+  await video.play().catch(()=>{});
+  statusEl.textContent = 'QR kodu kameraya gösterin...';
+  scanQrFrame();
+}
+function closeTableScanModal(){
+  if(QR_SCAN_RAF){ cancelAnimationFrame(QR_SCAN_RAF); QR_SCAN_RAF=null; }
+  if(QR_SCAN_STREAM){ QR_SCAN_STREAM.getTracks().forEach(t => t.stop()); QR_SCAN_STREAM=null; }
+  const bg = document.getElementById('qrScanModalBg'); if(bg) bg.remove();
+}
+function scanQrFrame(){
+  const video = document.getElementById('qrScanVideo');
+  const canvas = document.getElementById('qrScanCanvas');
+  if(!video || !canvas || !QR_SCAN_STREAM) return;
+  if(video.readyState === video.HAVE_ENOUGH_DATA){
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const code = window.jsQR(imageData.data, imageData.width, imageData.height);
+    if(code && code.data){
+      handleScannedTableQr(code.data);
+      return;
+    }
+  }
+  QR_SCAN_RAF = requestAnimationFrame(scanQrFrame);
+}
+function handleScannedTableQr(text){
+  let token = text;
+  try{
+    const u = new URL(text);
+    const t = u.searchParams.get('t');
+    if(t) token = t;
+  }catch(e){ /* URL değil - düz token olarak kabul edilir */ }
+  let found = null, foundZone = null;
+  (APP.config.zones||[]).forEach(z => {
+    z.tables.forEach(t => { if(t.qr_token===token){ found = t; foundZone = z; } });
+  });
+  if(!found){
+    const statusEl = document.getElementById('qrScanStatus');
+    if(statusEl) statusEl.textContent = '⚠️ Bu QR kod bu işletmeye ait bir masa değil, tekrar deneyin.';
+    QR_SCAN_RAF = requestAnimationFrame(scanQrFrame);
+    return;
+  }
+  closeTableScanModal();
+  APP.selectedZone = foundZone.id;
+  if(APP.view==='order'){ renderZoneTabs(); renderTableGrid(); }
+  openTableModal(found.id, found.name);
+}
 function liveOrderForTable(tableId){
   // Paket Servis siparişleri table_id'siz olduğu için sözde bir kimlikle
   // ('pkg_<order_id>') temsil ediliyor - bu durumda order_id ile eşleştirilir.
@@ -2312,7 +2420,8 @@ async function togglePushNotifications(){
       return;
     }
     const permReq = await PN.requestPermissions();
-    if(permReq.receive !== 'granted'){ setStatus('Bildirim izni verilmedi.'); return; }
+    APP.nativePushPermState = permReq.receive;
+    if(permReq.receive !== 'granted'){ setStatus('Bildirim izni verilmedi.'); render(); return; }
     const token = await requestNativeFcmToken();
     if(!token){ setStatus('Cihaz kaydı alınamadı, lütfen tekrar deneyin.'); return; }
     const { error } = await sb.rpc('save_fcm_token', { p_token: session.session_token, p_fcm_token: token });
@@ -2320,6 +2429,7 @@ async function togglePushNotifications(){
     setSavedFcmToken(token);
     updatePushUI(true);
     showToast('Push bildirimleri açıldı ✓');
+    render();
     return;
   }
   const reg = await registerServiceWorker();
@@ -2335,6 +2445,7 @@ async function togglePushNotifications(){
   const permission = await Notification.requestPermission();
   if(permission !== 'granted'){
     setStatus('Bildirim izni verilmedi.');
+    render();
     return;
   }
   let sub;
@@ -2357,6 +2468,7 @@ async function togglePushNotifications(){
   if(error){ setStatus('Kaydedilemedi: ' + error.message); return; }
   updatePushUI(true);
   showToast('Push bildirimleri açıldı ✓');
+  render();
 }
 /* Cron'un 5 dk'lık döngüsünü beklemeden aninda bir test push'u tetikler -
    "gönderildi ama cihaza gelmedi" durumunda sorunun sunucu tarafında mı
@@ -2406,6 +2518,8 @@ function maybeShowPushPrompt(session){
     const PN = window.Capacitor.Plugins && window.Capacitor.Plugins.PushNotifications;
     if(!PN) return;
     PN.checkPermissions().then(perm => {
+      APP.nativePushPermState = perm.receive;
+      render(); // ısrarcı bildirim banner'ı (bkz. pushReminderBannerHtml) ilk bilinen duruma göre güncellensin
       if(perm.receive === 'granted'){ resyncNativePushSubscription(session); return; }
       if(perm.receive !== 'prompt' && perm.receive !== 'prompt-with-rationale') return;
       togglePushNotifications();

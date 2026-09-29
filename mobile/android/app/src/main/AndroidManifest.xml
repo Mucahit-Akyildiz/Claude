@@ -39,4 +39,12 @@
          çalışmazdı. Eklentinin kendi manifesti bunu içermiyor, uygulamanın
          eklemesi gerekiyor. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Masa QR kodu tarama özelliği (app/js/pos-core.js > openTableScanModal)
+         standart web getUserMedia() API'sini kullanıyor - Capacitor'ün WebView
+         köprüsü, bu izin manifestte tanımlıysa tarayıcının kamera iznini
+         otomatik olarak Android'in kendi izin isteğine yönlendiriyor (ayrı bir
+         native eklenti/kod gerekmiyor). Kamerası olmayan cihazlarda da
+         kurulabilsin diye "required=false" ile isteğe bağlı bırakıldı. -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
 </manifest>
