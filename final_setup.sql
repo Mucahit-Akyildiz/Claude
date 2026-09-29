@@ -394,8 +394,14 @@ begin
     raise exception 'Çok fazla hatalı deneme yaptınız, yeni bir kod isteyin';
   end if;
   if v_otp_row.otp_code <> p_otp then
+    -- ÖNEMLİ: Burada RAISE EXCEPTION atılırsa, bu fonksiyon çağrısının tek
+    -- bir transaction olması nedeniyle yukarıdaki "attempts+1" UPDATE'i de
+    -- geri alınır (rollback) - sayaç hiçbir zaman artmaz, OTP'ye sınırsız
+    -- deneme yapılabilir. Bu yüzden hata fırlatmak yerine BOŞ SONUÇ
+    -- dönülüyor (platform_admin_login'deki gibi) ki artış kalıcı olsun;
+    -- çağıran taraf boş/eksik sonucu "kod hatalı" olarak yorumlamalı.
     update signup_otps set attempts = attempts + 1 where id = v_otp_row.id;
-    raise exception 'Kod hatalı';
+    return;
   end if;
 
   update signup_otps set verified = true where id = v_otp_row.id;
@@ -662,8 +668,15 @@ declare
   item json;
   v_qty int;
   v_product_id uuid;
+  v_price numeric;
+  v_cost numeric;
 begin
   s := _session_check(p_token);
+
+  -- Masa bu restorana ait mi (cross-tenant BOLA'yı engeller).
+  if not exists(select 1 from restaurant_tables where id = p_table_id and restaurant_id = s.restaurant_id) then
+    raise exception 'Masa bulunamadı';
+  end if;
 
   select o.id, o.daily_number into v_order_id, v_daily_number from orders o
     where o.restaurant_id = s.restaurant_id and o.table_id = p_table_id and o.status = 'open'
@@ -685,11 +698,23 @@ begin
   loop
     v_product_id := (item->>'product_id')::uuid;
     v_qty := (item->>'qty')::int;
+    if v_qty is null or v_qty <= 0 then
+      raise exception 'Geçersiz adet';
+    end if;
+    -- Fiyat/maliyet HER ZAMAN sunucudaki ürün kaydından okunur - client'in
+    -- gönderdiği price/cost alanlarına güvenilmez (aksi halde bir istemci
+    -- ürünü gerçek fiyatından çok daha düşük bir bedelle "sipariş edip
+    -- ödettirebilir").
+    select price, cost into v_price, v_cost from products
+      where id = v_product_id and restaurant_id = s.restaurant_id;
+    if not found then
+      raise exception 'Ürün bulunamadı';
+    end if;
 
     insert into order_items (order_id, product_id, name, price, cost, qty, status, note)
     values (
       v_order_id, v_product_id, item->>'name',
-      (item->>'price')::numeric, (item->>'cost')::numeric, v_qty,
+      v_price, v_cost, v_qty,
       'pending', item->>'note'
     );
   end loop;
@@ -719,6 +744,8 @@ declare
   item json;
   v_qty int;
   v_product_id uuid;
+  v_price numeric;
+  v_cost numeric;
 begin
   s := _session_check(p_token);
 
@@ -748,11 +775,21 @@ begin
   loop
     v_product_id := (item->>'product_id')::uuid;
     v_qty := (item->>'qty')::int;
+    if v_qty is null or v_qty <= 0 then
+      raise exception 'Geçersiz adet';
+    end if;
+    -- Fiyat/maliyet HER ZAMAN sunucudaki ürün kaydından okunur, ayrıca
+    -- ürünün bu restorana ait olduğu da doğrulanmış olur (cross-tenant BOLA).
+    select price, cost into v_price, v_cost from products
+      where id = v_product_id and restaurant_id = s.restaurant_id;
+    if not found then
+      raise exception 'Ürün bulunamadı';
+    end if;
 
     insert into order_items (order_id, product_id, name, price, cost, qty, status, note)
     values (
       v_order_id, v_product_id, item->>'name',
-      (item->>'price')::numeric, (item->>'cost')::numeric, v_qty,
+      v_price, v_cost, v_qty,
       'pending', item->>'note'
     );
   end loop;
@@ -1000,18 +1037,25 @@ begin
   -- olduğunu burada, herhangi bir order_items sorgusundan ÖNCE doğrula -
   -- yoksa geçerli bir oturumu olan biri başka bir restoranın sipariş
   -- kalemlerini "ödendi" olarak işaretleyebilir (cross-tenant BOLA).
-  if not exists (select 1 from orders where id = p_order_id and restaurant_id = s.restaurant_id) then
+  -- Aynı sipariş için eş zamanlı iki ödeme çağrısının (çift tık/çift cihaz)
+  -- ikisinin de aynı "ödenmemiş" satırları görüp çift tahsilat yapmasını
+  -- engellemek için sipariş satırı kilitlenir - ikinci istek birincisi
+  -- bitene kadar burada bekler, sonra artık ödenecek satır bulamaz.
+  perform 1 from orders where id = p_order_id and restaurant_id = s.restaurant_id for update;
+  if not found then
     raise exception 'Sipariş bulunamadı';
   end if;
 
   if p_item_qtys is null then
-    select array_agg(id) into v_paid_item_ids from order_items
-      where order_id = p_order_id and paid = false;
+    select array_agg(x.id) into v_paid_item_ids from (
+      select id from order_items where order_id = p_order_id and paid = false for update
+    ) x;
   else
     for v_entry in select * from jsonb_array_elements(p_item_qtys)
     loop
       select * into v_row from order_items
-        where id = (v_entry->>'item_id')::uuid and order_id = p_order_id and paid = false;
+        where id = (v_entry->>'item_id')::uuid and order_id = p_order_id and paid = false
+        for update;
       if v_row.id is null then continue; end if;
 
       v_req_qty := least((v_entry->>'qty')::int, v_row.qty);
@@ -1040,6 +1084,13 @@ begin
   select rt.name, o.tags, o.kind into v_table_name, v_tags, v_kind
     from orders o left join restaurant_tables rt on rt.id = o.table_id
     where o.id = p_order_id and o.restaurant_id = s.restaurant_id;
+
+  -- Personelin girdiği nakit+kart toplamının siparişin gerçek tutarına eşit
+  -- olması zorunlu tutuluyor - aksi halde "0.01 TL ödendi" diyerek yüksek
+  -- tutarlı bir hesap kapatılabiliyordu. Kuruş farklarına (yuvarlama) izin verilir.
+  if abs((coalesce(p_cash,0)+coalesce(p_card,0)) - (v_subtotal-coalesce(p_discount_amount,0))) > 0.05 then
+    raise exception 'Ödenen tutar siparişin tutarıyla eşleşmiyor';
+  end if;
 
   insert into sales_history (restaurant_id, order_id, table_name, subtotal, discount_amount, total, cost, payment_method, cash_amount, card_amount, tags, kind)
   values (s.restaurant_id, p_order_id, coalesce(v_table_name,'Paket'), v_subtotal, p_discount_amount, v_subtotal-p_discount_amount, v_cost, p_payment_method, p_cash, p_card, coalesce(v_tags,'{}'), coalesce(v_kind,'dine_in'))

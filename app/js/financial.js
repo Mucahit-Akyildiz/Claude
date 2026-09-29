@@ -147,9 +147,10 @@ async function doVerifyReportsPasswordReset(){
   if(newPass !== newPass2){ errBox.textContent = 'Girdiğiniz şifreler eşleşmiyor'; return; }
   const btn = document.getElementById('rpFgVerifyBtn');
   btn.disabled = true; btn.textContent = 'Güncelleniyor...';
-  const { error } = await sb.rpc('verify_reports_password_reset', { p_token: session.session_token, p_otp: otp, p_new_password: newPass });
+  const { data, error } = await sb.rpc('verify_reports_password_reset', { p_token: session.session_token, p_otp: otp, p_new_password: newPass });
   btn.disabled = false; btn.textContent = 'Şifreyi Güncelle';
   if(error){ errBox.textContent = error.message; return; }
+  if(data === false){ errBox.textContent = 'Kod hatalı'; return; }
   APP.reportsGateScreen = null;
   APP.reportsUnlocked = true;
   showToast('Finansal analiz şifresi güncellendi ✓');
