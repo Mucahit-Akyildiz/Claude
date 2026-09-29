@@ -266,15 +266,29 @@ function playBellPresetById(id){
     (BELL_PRESETS[id] || BELL_PRESETS.classic).play(ctx);
   }catch(e){ console.warn('Zil sesi çalınamadı:', e); }
 }
-function playKitchenBell(stationId){
+function playKitchenBell(stationId, onError){
   const setting = resolveBellSetting(stationId);
   if(typeof setting === 'string' && setting){
     try{
       const audio = new Audio(setting);
       audio.volume = 1.0;
-      audio.play().catch(e => console.warn('Zil sesi çalınamadı:', e));
+      // Onceden hata sadece console.warn'a yaziliyordu - "Seçili Sesi Test Et"
+      // butonuna basan kullanici, dosya bozuksa/tarayici formati desteklemiyorsa
+      // hicbir geri bildirim almadan sessizlikle karsilasiyordu. Test akisinda
+      // (onError verildiginde) artik gorunur bir uyari gosteriliyor.
+      audio.addEventListener('error', () => {
+        console.warn('Zil sesi çalınamadı: dosya bozuk veya format desteklenmiyor');
+        if(onError) onError('Yüklediğiniz ses dosyası çalınamadı (bozuk olabilir ya da bu tarayıcı formatı desteklemiyor). Farklı bir dosya (mp3/ogg/wav) deneyin.');
+      });
+      audio.play().catch(e => {
+        console.warn('Zil sesi çalınamadı:', e);
+        if(onError) onError('Ses çalınamadı: ' + e.message + ' (tarayıcı otomatik ses çalmayı engellemiş olabilir - sayfaya bir kez tıkladıktan sonra tekrar deneyin).');
+      });
       return;
-    }catch(e){ console.warn('Zil sesi çalınamadı:', e); }
+    }catch(e){
+      console.warn('Zil sesi çalınamadı:', e);
+      if(onError) onError('Ses çalınamadı: ' + e.message);
+    }
   }
   const presetId = (setting && setting.preset) || 'classic';
   playBellPresetById(presetId);
@@ -2625,7 +2639,7 @@ function resetBellSound(){
   setKitchenBellSounds(sounds);
   updateBellScopeStatus();
 }
-function testBellSound(){ playKitchenBell(currentBellScope() || null); }
+function testBellSound(){ playKitchenBell(currentBellScope() || null, (msg) => alert(msg)); }
 /* Başlık/Genel Metin/Ürün Notu/Saat için renk+boyut+harf-stili alanlarını
    tek seferde okur (Kaydet ve canlı önizleme ikisi de kullanıyor). */
 function readTicketTypography(){

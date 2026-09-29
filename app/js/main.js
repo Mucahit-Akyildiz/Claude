@@ -154,6 +154,30 @@ function applyDeepLinkView(){
 /* Tanıtım sitesinden (/) "Ücretsiz Dene" butonuyla gelenler doğrudan kayıt
    ekranında açılsın diye (?signup=1) - normal ?admin=1 gibi tek seferlik
    bir URL parametresi, oturum durumuyla ilgisi yok. */
+/* ---- 1 saat hiç işlem yapılmazsa otomatik çıkış (web/masaüstü/mobil -
+   hepsi aynı kodu WebView içinde çalıştırdığı için TEK bir JS zamanlayıcı
+   üç platformu da kapsıyor). "Hiç işlem yapılmadı" gerçek kullanıcı
+   etkileşimi (tık/tuş/dokunma/kaydırma) anlamına gelir - arka plandaki
+   otomatik polling/render'lar aktivite sayılmaz, aksi halde ekran açık
+   kalsa bile hiç kapanmazdı. Uygulama arka plana atılıp geri dönüldüğünde
+   zaten ayrı bir 15 dk'lık kontrol var (bkz. checkNativeBackgroundTimeout) -
+   bu ikisi birbirini tamamlıyor: biri "arka planda kapalıyken geçen süre",
+   diğeri "ekran açıkken hiç dokunulmayan süre". */
+const IDLE_LOGOUT_MS = 60*60*1000;
+let lastActivityAt = Date.now();
+function markUserActivity(){ lastActivityAt = Date.now(); }
+function startIdleLogoutWatch(){
+  ['click','keydown','touchstart','mousemove','scroll'].forEach(evt =>
+    window.addEventListener(evt, markUserActivity, { passive: true }));
+  setInterval(() => {
+    if(getSession() && (Date.now() - lastActivityAt) >= IDLE_LOGOUT_MS){
+      doLogout();
+      alert('Uzun süre işlem yapılmadığı için oturumunuz güvenlik amacıyla otomatik olarak kapatıldı.');
+    }
+  }, 30000);
+}
+startIdleLogoutWatch();
+
 if(!getSession() && new URLSearchParams(window.location.search).get('signup')==='1') APP.authScreen = 'signup';
 applyDeepLinkView();
 initNativeAppMode();
