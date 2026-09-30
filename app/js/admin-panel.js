@@ -351,7 +351,7 @@ async function refreshRestaurantsList(admin){
     <div class="settings-table-wrap">
       <table class="settings-table">
         <thead><tr>
-          <th>İşletme</th><th>Kod</th><th>Paket</th><th>Kullanıcı</th><th>Durum</th>
+          <th>İşletme</th><th>Kod</th><th>E-posta / Telefon</th><th>Paket</th><th>Kullanıcı</th><th>Durum</th>
           <th>Kayıt Tarihi</th><th>Son Aktiflik</th><th>Bugün</th><th>Son 7 Gün</th><th>Toplam Ciro</th><th></th>
         </tr></thead>
         <tbody>
@@ -366,6 +366,7 @@ async function refreshRestaurantsList(admin){
           <tr>
             <td class="col-name"><b style="cursor:pointer;color:var(--accent);" onclick="showRestaurantDetail('${r.id}')" title="Günlük ciro grafiğini göster">${escapeHtml(r.name)}</b></td>
             <td class="col-name">${escapeHtml(r.code||'—')}</td>
+            <td class="col-name" style="font-size:12.5px;">${r.email?`<a href="mailto:${escapeHtml(r.email)}">${escapeHtml(r.email)}</a>`:'—'}${r.phone?`<div class="muted">${escapeHtml(r.phone)}</div>`:''}</td>
             <td class="col-name">${pkg?escapeHtml(pkg.name):escapeHtml(r.package_id)}</td>
             <td class="col-name">${r.user_count}/${r.max_users}</td>
             <td>${statusBadge}</td>
@@ -377,9 +378,11 @@ async function refreshRestaurantsList(admin){
             <td style="white-space:nowrap;">
               <button class="sbtn" style="${r.is_active?'background:var(--red);color:var(--btn-ink);':''}" onclick="toggleRestaurantActive('${r.id}', ${!r.is_active})">${r.is_active?'Pasif Et':'Aktif Et'}</button>
               <button class="sbtn" onclick="openEntitlementsModal('restaurant', '${r.id}', '${escapeHtml(r.name)}')">🧩 Eklentiler</button>
+              <button class="sbtn" onclick="showRestaurantUsers('${r.id}')">👥 Kullanıcılar</button>
+              <button class="sbtn" style="background:var(--red);color:var(--btn-ink);" onclick="deleteRestaurantAdmin('${r.id}')">🗑️ Sil</button>
             </td>
           </tr>
-          <tr id="detail_${r.id}" style="display:none;"><td colspan="11" style="background:var(--panel);border-radius:12px;padding:0;">
+          <tr id="detail_${r.id}" style="display:none;"><td colspan="12" style="background:var(--panel);border-radius:12px;padding:0;">
             <div id="detailBody_${r.id}"></div>
           </td></tr>`;
         }).join('')}
@@ -391,11 +394,12 @@ async function refreshRestaurantsList(admin){
 async function showRestaurantDetail(id){
   const row = document.getElementById('detail_'+id);
   if(!row) return;
-  const wasOpen = row.style.display !== 'none';
+  const body = document.getElementById('detailBody_'+id);
+  const wasOpen = row.style.display !== 'none' && body.dataset.mode !== 'users';
   document.querySelectorAll('[id^="detail_"]').forEach(r => { if(r!==row) r.style.display = 'none'; });
   if(wasOpen){ row.style.display = 'none'; return; }
   row.style.display = 'table-row';
-  const body = document.getElementById('detailBody_'+id);
+  body.dataset.mode = 'chart';
   body.innerHTML = '<p class="muted" style="padding:14px;">Yükleniyor...</p>';
   const admin = getAdminSession();
   const { data, error } = await sb.rpc('admin_restaurant_daily_stats', { p_token: admin.session_token, p_restaurant_id: id });
@@ -413,6 +417,52 @@ async function showRestaurantDetail(id){
       </div>
       ${renderDailyRevenueChart(days)}
     </div>`;
+}
+/* İşletmedeki kullanıcı hesaplarını (rol, oluşturulma, son giriş) detay
+   satırında listeler - bkz. admin_restaurant_users. Şifreler gösterilmez. */
+async function showRestaurantUsers(id){
+  const row = document.getElementById('detail_'+id);
+  if(!row) return;
+  const body = document.getElementById('detailBody_'+id);
+  const wasUsers = row.style.display !== 'none' && body.dataset.mode === 'users';
+  document.querySelectorAll('[id^="detail_"]').forEach(r => { r.style.display = 'none'; });
+  if(wasUsers){ body.dataset.mode = ''; return; }
+  row.style.display = 'table-row';
+  body.dataset.mode = 'users';
+  body.innerHTML = '<p class="muted" style="padding:14px;">Yükleniyor...</p>';
+  const admin = getAdminSession();
+  const { data, error } = await sb.rpc('admin_restaurant_users', { p_token: admin.session_token, p_restaurant_id: id });
+  if(error){ body.innerHTML = '<p class="muted" style="padding:14px;">Yüklenemedi: '+escapeHtml(error.message)+'</p>'; return; }
+  const users = data || [];
+  const r = (APP.adminRestaurants||[]).find(x => x.id===id) || {};
+  body.innerHTML = `
+    <div style="padding:18px;">
+      <h3 style="margin:0 0 6px;font-size:15px;">Kullanıcılar - ${escapeHtml(r.name||'')}</h3>
+      <p class="muted" style="margin:0 0 12px;font-size:13px;">Kayıt e-postası: <b>${escapeHtml(r.email||'—')}</b>${r.phone?' · Telefon: <b>'+escapeHtml(r.phone)+'</b>':''}</p>
+      ${users.length===0 ? '<p class="muted">Kullanıcı yok.</p>' : `
+      <table class="settings-table">
+        <thead><tr><th>Kullanıcı Adı</th><th>Roller</th><th>Oluşturulma</th><th>Son Giriş</th></tr></thead>
+        <tbody>${users.map(u => `
+          <tr>
+            <td class="col-name"><b>${escapeHtml(u.username)}</b>${u.is_manager?' <span class="role-badge">Yönetici</span>':''}${u.is_company_owner?' <span class="role-badge">Şirket Sahibi</span>':''}</td>
+            <td class="col-name">${escapeHtml((u.role_names||[]).join(', ')||'—')}</td>
+            <td class="col-name">${new Date(u.created_at).toLocaleDateString('tr-TR')}</td>
+            <td class="col-name">${fmtRelativeTime(u.last_login)}</td>
+          </tr>`).join('')}
+        </tbody>
+      </table>`}
+    </div>`;
+}
+async function deleteRestaurantAdmin(id){
+  const r = (APP.adminRestaurants||[]).find(x => x.id===id);
+  if(!r) return;
+  const code = prompt('"'+r.name+'" işletmesi ve TÜM verileri (menü, siparişler, satışlar, müşteriler, kullanıcılar) KALICI olarak silinecek. Bu işlem geri alınamaz.\n\nOnaylamak için işletme kodunu yazın: '+r.code);
+  if(code===null) return;
+  const admin = getAdminSession();
+  const { error } = await sb.rpc('admin_delete_restaurant', { p_token: admin.session_token, p_restaurant_id: id, p_confirm_code: code.trim() });
+  if(error){ alert(error.message); return; }
+  showToast('İşletme kalıcı olarak silindi ✓');
+  refreshRestaurantsList(admin);
 }
 async function toggleRestaurantActive(id, makeActive){
   const msg = makeActive
