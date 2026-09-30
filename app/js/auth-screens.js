@@ -485,12 +485,14 @@ function renderSignupScreen(app){
         <input id="suIdentityNumber" placeholder="T.C. Kimlik Numarası (fatura için)" inputmode="numeric" maxlength="11">
         <input id="suPromo" placeholder="İndirim kodu (varsa)" autocapitalize="none" style="text-transform:uppercase;">
         <div id="pkgCards" class="pkg-grid"></div>
+        <div id="addonPicks" style="margin-top:14px;"></div>
+        <div id="cartTotal" style="margin-top:10px;padding:10px 12px;border:1px solid var(--border);border-radius:10px;font-size:13.5px;"></div>
         <label style="display:flex;align-items:flex-start;gap:8px;margin-top:14px;font-size:12.5px;line-height:1.4;cursor:pointer;">
           <input id="suPrivacyConsent" type="checkbox" style="width:auto;margin:2px 0 0;flex-shrink:0;">
           <span><a href="/gizlilik/" target="_blank" rel="noopener" style="color:var(--accent);">Gizlilik Politikası</a>'nı okudum, işletme ve yönetici bilgilerimin belirtilen amaçlarla işlenmesini kabul ediyorum.</span>
         </label>
-        <button style="margin-top:16px;" onclick="doStartSignup()" id="signupBtn">🎁 7 Günlük Ücretsiz Dene</button>
-        <p class="muted" style="text-align:center;font-size:11.5px;margin-top:6px;">Kart bilgisi istenmez. Deneme süresi dolunca seçtiğiniz paketin aylık ücretiyle devam edebilirsiniz.</p>
+        <button style="margin-top:16px;" onclick="doStartSignup()" id="signupBtn">🛒 Satın Al ve Hesabı Oluştur</button>
+        <p class="muted" style="text-align:center;font-size:11.5px;margin-top:6px;">İlk 7 gün ücretsiz; kart bilgisi istenmez. Süre sonunda sepetinizdeki paket ve eklentilerin ücretiyle devam edersiniz. Yalnızca seçtiğiniz eklentiler hesabınıza açılır.</p>
       </div>
       <div id="signupStep2" style="display:none;">
         <p class="muted" id="otpInfo" style="text-align:center;"></p>
@@ -509,15 +511,57 @@ function renderSignupScreen(app){
 }
 /* Paketler platform admin ekranından eklenip/silinebildiği için sabit
    değil - kayıt ekranı her açıldığında canlı okunur (bkz. list_packages). */
+function readCartParams(){
+  if(APP._cartParamsRead) return; APP._cartParamsRead = true;
+  const q = new URLSearchParams(window.location.search);
+  if(q.get('pkg')) APP.selectedPackage = q.get('pkg');
+  APP.selectedAddons = new Set((q.get('addons')||'').split(',').map(x=>x.trim()).filter(Boolean));
+  APP.signupCycle = q.get('cycle')==='yearly' ? 'yearly' : 'monthly';
+}
 async function loadPackagesThenRenderCards(){
+  readCartParams();
+  if(!APP.selectedAddons) APP.selectedAddons = new Set();
   await loadPackages(true);
+  try{
+    const { data } = await sb.rpc('list_addons');
+    APP.signupAddons = Array.isArray(data) ? data : [];
+  }catch(e){ APP.signupAddons = []; }
+  const valid = new Set(APP.signupAddons.map(a=>a.id));
+  APP.selectedAddons = new Set([...APP.selectedAddons].filter(id=>valid.has(id)));
   if(!APP.selectedPackage || !PACKAGES_BY_ID[APP.selectedPackage]){
     const popular = PACKAGES.find(p => p.is_popular);
     APP.selectedPackage = (popular || PACKAGES[0] || {}).id || null;
   }
   renderPkgCards();
 }
+function toggleSignupAddon(id){
+  if(APP.selectedAddons.has(id)) APP.selectedAddons.delete(id); else APP.selectedAddons.add(id);
+  renderPkgCards();
+}
+function renderSignupAddons(){
+  const el = document.getElementById('addonPicks'); if(!el) return;
+  const list = APP.signupAddons || [];
+  if(!list.length){ el.innerHTML=''; return; }
+  el.innerHTML = `<div style="font-weight:700;font-size:13.5px;margin-bottom:6px;">🧩 Eklentiler <span class="muted" style="font-weight:400;">(isteğe bağlı — seçmezseniz yalnızca paket özellikleri açılır)</span></div>` +
+    list.map(a => `<label style="display:flex;align-items:center;gap:8px;padding:6px 0;font-size:13px;cursor:pointer;">
+      <input type="checkbox" style="width:auto;margin:0;" ${APP.selectedAddons.has(a.id)?'checked':''} onchange="toggleSignupAddon('${escapeHtml(a.id)}')">
+      <span style="flex:1;">${escapeHtml(a.label||a.id)}</span><b>+${money(Number(a.price)||0)}/ay</b></label>`).join('');
+}
+function renderCartTotal(){
+  const el = document.getElementById('cartTotal'); if(!el) return;
+  const p = PACKAGES_BY_ID[APP.selectedPackage];
+  if(!p){ el.innerHTML=''; return; }
+  const yearly = APP.signupCycle==='yearly';
+  const addons = (APP.signupAddons||[]).filter(a=>APP.selectedAddons.has(a.id));
+  const addonM = addons.reduce((t,a)=>t+(Number(a.price)||0),0);
+  const pkgAmt = yearly ? (Number(p.price_yearly)||Number(p.price)*12) : Number(p.price)||0;
+  const total = pkgAmt + (yearly ? addonM*12 : addonM);
+  el.innerHTML = `🛒 <b>${escapeHtml(p.name)}</b>${addons.length?' + '+addons.map(a=>escapeHtml(a.label||a.id)).join(', '):''}
+    <div style="margin-top:4px;">Toplam: <b>${money(total)}</b> / ${yearly?'yıl':'ay'}
+    <a href="#" style="color:var(--accent);margin-left:8px;font-size:12px;" onclick="APP.signupCycle='${yearly?'monthly':'yearly'}';renderPkgCards();return false;">${yearly?'Aylığa geç':'Yıllığa geç'}</a></div>`;
+}
 function renderPkgCards(){
+  renderSignupAddons(); renderCartTotal();
   const el = document.getElementById('pkgCards'); if(!el) return;
   if(PACKAGES.length===0){ el.innerHTML = '<p class="muted">Şu anda seçilebilecek bir paket yok.</p>'; return; }
   el.innerHTML = PACKAGES.map(p => {
@@ -594,7 +638,8 @@ async function doVerifySignup(){
     p_phone: p.phone, p_otp: otp,
     p_name: p.name, p_code: p.code, p_package_id: APP.selectedPackage, p_email: p.email,
     p_admin_username: p.adminUser, p_admin_password: p.adminPass,
-    p_identity_number: p.identityNumber
+    p_identity_number: p.identityNumber,
+    p_addons: [...(APP.selectedAddons||[])]
   });
   btn.disabled = false; btn.textContent = 'Doğrula ve Kaydı Tamamla';
   if(error){ errBox.textContent = error.message; return; }
