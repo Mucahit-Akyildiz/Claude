@@ -146,9 +146,13 @@ module.exports = async function handler(req, res) {
       .eq('id', restaurant.package_id)
       .maybeSingle();
     const monthlyPrice = Number(pkgRow && pkgRow.price) || 0;
+    // Eklentiler pakete dahil degildir; aylik eklenti toplami ayrica eklenir
+    // (bkz. _addons_monthly_total - havale tutariyla ayni hesap).
+    const { data: addonsMonthlyRaw } = await supabase.rpc('_addons_monthly_total', { p_restaurant_id: restaurantId });
+    const addonsMonthly = Number(addonsMonthlyRaw) || 0;
     const price = billingCycle === 'yearly'
-      ? (Number(pkgRow && pkgRow.price_yearly) || monthlyPrice * 12)
-      : monthlyPrice;
+      ? (Number(pkgRow && pkgRow.price_yearly) || monthlyPrice * 12) + addonsMonthly * 12
+      : monthlyPrice + addonsMonthly;
     if (price <= 0) {
       res.status(400).json({ errorMessage: 'Gecersiz paket fiyati' });
       return;

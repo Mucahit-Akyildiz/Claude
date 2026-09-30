@@ -94,6 +94,15 @@
   .price-card li.inherit{color:var(--muted);font-size:13px;border-top:none;padding-top:0;}
   .common-features{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;}
   .common-features span{background:var(--panel);border:1.5px solid var(--border);border-radius:999px;padding:6px 12px;font-size:13px;}
+  .addon-card .add-btn{margin-top:8px;align-self:flex-start;}
+  .price-card.in-cart,.addon-card.in-cart{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-soft);}
+  .cart-bar{position:fixed;left:0;right:0;bottom:0;z-index:50;background:var(--panel);border-top:1.5px solid var(--border);box-shadow:0 -8px 24px rgba(0,0,0,.08);padding:12px 16px;display:none;}
+  .cart-bar.show{display:block;}
+  .cart-bar .inner{max-width:1100px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;}
+  .cart-bar .summary{font-size:14px;}
+  .cart-bar .summary b{font-size:16px;}
+  .cart-bar .summary small{display:block;color:var(--muted);font-size:12px;}
+  body.has-cart{padding-bottom:90px;}
   .addons-head{text-align:center;margin:48px 0 18px;}
   .addons-head h3{font-size:22px;font-weight:800;margin:0 0 6px;}
   .addons-head p{color:var(--muted);font-size:14px;margin:0;}
@@ -230,6 +239,16 @@
   </div>
 </section>
 
+<div class="cart-bar" id="cartBar">
+  <div class="inner">
+    <div class="summary" id="cartSummary"></div>
+    <div style="display:flex;gap:8px;">
+      <button type="button" class="btn btn-outline" style="width:auto;" onclick="clearCart()">Temizle</button>
+      <button type="button" class="btn btn-primary" style="width:auto;" id="cartBuyBtn" onclick="goToCheckout()">Satın Al →</button>
+    </div>
+  </div>
+</div>
+
 <section>
   <div class="wrap">
     <div class="mobile-section">
@@ -297,8 +316,54 @@
     document.getElementById('billingToggleYearly').className = 'btn ' + (cycle==='yearly' ? 'btn-primary' : 'btn-outline');
     renderPricingGrid();
     renderAddons();
+    renderCart();
   }
   let PRICING_ADDONS = [];
+  /* Sepet: bir paket + istenen eklentiler. "Satın Al" kayıt ekranına
+     seçimle birlikte gider (/app/?signup=1&pkg=..&addons=..&cycle=..);
+     kayıtta paket ve seçilen eklentiler hesaba tanımlanır, abonelik tutarı
+     paket + eklentiler olarak hesaplanır. Eklenti seçilmezse sadece paketin
+     özellikleri gelir. */
+  const CART = { pkg: null, addons: new Set() };
+  function selectCartPackage(id){
+    CART.pkg = CART.pkg === id ? null : id;
+    renderPricingGrid(); renderCart();
+  }
+  function toggleCartAddon(id){
+    if(CART.addons.has(id)) CART.addons.delete(id); else CART.addons.add(id);
+    renderAddons(); renderCart();
+  }
+  function clearCart(){ CART.pkg = null; CART.addons.clear(); renderPricingGrid(); renderAddons(); renderCart(); }
+  function cartTotals(){
+    const yearly = PRICING_BILLING_CYCLE === 'yearly';
+    const p = PRICING_PACKAGES.find(x => x.id === CART.pkg);
+    const pkgPrice = !p ? 0 : (yearly ? (p.price_yearly!=null ? p.price_yearly : (p.price||0)*12) : (p.price||0));
+    const addons = PRICING_ADDONS.filter(a => CART.addons.has(a.id));
+    const addonsPrice = addons.reduce((sum, a) => sum + (Number(a.price)||0), 0) * (yearly ? 12 : 1);
+    return { p, addons, total: pkgPrice + addonsPrice, yearly };
+  }
+  function renderCart(){
+    const bar = document.getElementById('cartBar');
+    if(!bar) return;
+    const has = CART.pkg || CART.addons.size;
+    bar.classList.toggle('show', !!has);
+    document.body.classList.toggle('has-cart', !!has);
+    if(!has) return;
+    const { p, addons, total, yearly } = cartTotals();
+    const parts = [];
+    if(p) parts.push(escapeHtml(p.name) + ' paketi');
+    if(addons.length) parts.push(addons.length + ' eklenti');
+    document.getElementById('cartSummary').innerHTML = p
+      ? `🛒 ${parts.join(' + ')} · <b>${money(total)} ${yearly?'TL/yıl':'TL/ay'}</b><small>İlk 7 gün ücretsiz; deneme sonunda bu tutarla devam edersiniz.</small>`
+      : `🛒 ${addons.length} eklenti seçildi<small>Satın almak için yukarıdan bir paket seçin.</small>`;
+    document.getElementById('cartBuyBtn').disabled = !p;
+  }
+  function goToCheckout(){
+    if(!CART.pkg) return;
+    const q = new URLSearchParams({ signup: '1', pkg: CART.pkg, cycle: PRICING_BILLING_CYCLE });
+    if(CART.addons.size) q.set('addons', [...CART.addons].join(','));
+    window.location.href = '/app/?' + q.toString();
+  }
   // Eklentiler ayrı fiyatlandırılan ek özelliklerdir (platform admin >
   // Eklentiler). Fiyatı henüz girilmemiş (0) eklentide fiyat yerine
   // "Fiyat için iletişime geçin" gösterilir.
@@ -314,9 +379,11 @@
       const priceHtml = price > 0
         ? money(yearly ? price*12 : price)+' <small>'+(yearly?'TL/yıl':'TL/ay')+'</small>'
         : '<small>Fiyat için iletişime geçin</small>';
-      return `<div class="addon-card">
+      const inCart = CART.addons.has(a.id);
+      return `<div class="addon-card ${inCart?'in-cart':''}">
         <div class="top"><h4>${escapeHtml(a.label)}</h4><span class="price">${priceHtml}</span></div>
         ${a.description ? `<p>${escapeHtml(a.description)}</p>` : ''}
+        <button type="button" class="btn ${inCart?'btn-primary':'btn-outline'} add-btn" style="width:auto;padding:6px 14px;font-size:13px;" onclick="toggleCartAddon('${a.id}')">${inCart?'✓ Sepette':'+ Sepete Ekle'}</button>
       </div>`;
     }).join('');
   }
@@ -355,7 +422,7 @@
       const hasDiscount = yearly && p.price_yearly!=null && p.price_yearly < monthlyPrice*12;
       const savings = hasDiscount ? (monthlyPrice*12 - p.price_yearly) : 0;
       return `
-      <div class="price-card ${p.is_popular?'popular':''}">
+      <div class="price-card ${p.is_popular?'popular':''} ${CART.pkg===p.id?'in-cart':''}">
         ${p.is_popular ? '<span class="badge">EN ÇOK TERCİH EDİLEN</span>' : ''}
         <h3>${escapeHtml(p.name)}</h3>
         <div class="amount">${monthlyPrice ? money(displayPrice)+' <small>'+(yearly?'TL/yıl':'TL/ay')+'</small>' : '—'}</div>
@@ -367,7 +434,7 @@
           ${extras.map(f => `<li class="plus">${escapeHtml(label(f))}</li>`).join('')}
           ${(!extras.length && inheritsPrev) ? '<li class="inherit">Ek özellik yok</li>' : ''}
         </ul>
-        <a class="btn ${p.is_popular?'btn-primary':'btn-outline'}" style="width:100%;" href="/app/?signup=1">Dene</a>
+        <button type="button" class="btn ${CART.pkg===p.id?'btn-primary':'btn-outline'}" style="width:100%;" onclick="selectCartPackage('${p.id}')">${CART.pkg===p.id?'✓ Sepette':'Sepete Ekle'}</button>
       </div>`;
     }).join('');
     const commonSection = document.getElementById('commonSection');

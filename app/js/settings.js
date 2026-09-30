@@ -6,7 +6,7 @@
 const SETTINGS_TABS = [
   { tab:'stations', perm:'settings_stations', label:'İstasyonlar' },
   { tab:'zones', perm:'settings_zones', label:'Bölgeler & Masalar' },
-  { tab:'floorplan', perm:'settings_zones', label:'🗺️ Kat Planı' },
+  { tab:'floorplan', perm:'settings_zones', feature:'floorplan', label:'🗺️ Kat Planı' },
   { tab:'products', perm:'settings_products', label:'Ürünler' },
   { tab:'ingredients', perm:'settings_ingredients', label:'Hammaddeler' },
   { tab:'flags', perm:'settings_flags', label:'Sipariş Etiketleri' },
@@ -17,7 +17,10 @@ const SETTINGS_TABS = [
   { tab:'integrations', managerOnly:true, label:'Entegrasyonlar' },
   { tab:'giftcards', perm:'payments', label:'🎁 Hediye Kartları' },
 ];
-function settingsTabVisible(t, session){ return t.managerOnly ? !!session.isManager : hasPerm(session, t.perm); }
+function settingsTabVisible(t, session){
+  if(t.feature && !hasFeature(t.feature)) return false;
+  return t.managerOnly ? !!session.isManager : hasPerm(session, t.perm);
+}
 async function renderSettingsView(main, session){
   const { data, error } = await sb.rpc('get_restaurant_config', { p_token: session.session_token });
   if(error){ main.innerHTML = '<h1>Ayarlar</h1><p class="muted">Yüklenemedi: '+error.message+'</p>'; return; }
@@ -588,7 +591,7 @@ function renderProductsSettings(el, session){
             <button class="sbtn" onclick="saveProduct('${p.id}')">Kaydet</button>
             <button class="sbtn" style="background:${p.available===false?'var(--green)':'var(--panel)'};color:${p.available===false?'var(--btn-ink)':'var(--text)'};border:1.5px solid var(--border);" onclick="toggleProductAvailable('${p.id}')">${p.available===false?'Aç':'Kapat'}</button>
             <button class="sbtn" style="background:var(--accent2);color:var(--btn-ink);" onclick="openRecipeModal('${p.id}')">Reçete</button>
-            <button class="sbtn" style="background:#6366f1;color:#fff;" onclick="openTranslationsModal('${p.id}')" title="QR menüde diğer dillerde gösterilecek isim">🌐 Çeviri</button>
+            ${hasFeature('multilang_menu') ? `<button class="sbtn" style="background:#6366f1;color:#fff;" onclick="openTranslationsModal('${p.id}')" title="QR menüde diğer dillerde gösterilecek isim">🌐 Çeviri</button>` : ''}
             <button class="sbtn" style="background:var(--red);color:var(--btn-ink);" onclick="removeProduct('${p.id}')">Sil</button>
           </td>
         </tr>`).join('');
@@ -981,6 +984,18 @@ async function renderIntegrationsSettings(el, session){
     </label>
     ${APP.config.online_ordering && APP.config.online_ordering.enabled ? onlineOrderingLinkHtml() : ''}
   </div>`;
+  // Paketinizde/eklentilerinizde olmayan bölümler kilitli gösterilir
+  // (sunucu da ilgili RPC'lerde PAKET_OZELLIK_YOK ile reddediyor).
+  const boxFeatures = ['efatura','marketplace','accounting','google_reviews','online_ordering'];
+  el.querySelectorAll(':scope > .box').forEach((box, i) => {
+    const f = boxFeatures[i];
+    if(!f || hasFeature(f)) return;
+    const title = box.querySelector('h2') ? box.querySelector('h2').outerHTML : '';
+    box.innerHTML = title + lockedFeatureHtml();
+  });
+}
+function lockedFeatureHtml(){
+  return `<p class="muted" style="margin:0;">🔒 Bu özellik paketinizde yok. Eklenti olarak eklemek ya da paketinizi yükseltmek için bizimle iletişime geçin.</p>`;
 }
 function onlineOrderingLinkHtml(){
   const url = window.location.origin + '/siparis/?r=' + encodeURIComponent(APP.config.online_ordering.code);

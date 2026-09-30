@@ -162,10 +162,18 @@ async function refreshPackagesAdmin(admin){
    id'ler idPrefix+'_'+anahtar şeklinde, readPackageFeatures ile okunur. */
 function featureCheckboxesHtml(idPrefix, selectedFeatures){
   const sel = new Set(selectedFeatures||[]);
-  const features = APP.featureCatalog || [];
+  // Eklentiler paketlere dahil edilemez (ayrı satılır, işletme/şirkete
+  // "🧩 Eklentiler" butonundan atanır) - burada hiç listelenmez; sunucu
+  // (admin_upsert_package) da gönderilse bile ayıklar.
+  const all = APP.featureCatalog || [];
+  const features = all.filter(f => !f.is_addon);
+  const addons = all.filter(f => f.is_addon);
   if(features.length===0) return '<p class="muted">Önce "🗂️ Tüm Özellikler" sekmesinden özellik tanımlayın.</p>';
   const byCat = {};
   features.forEach(f => { (byCat[f.category||'Diğer'] = byCat[f.category||'Diğer'] || []).push(f); });
+  const addonNote = addons.length
+    ? `<p class="muted" style="font-size:12px;margin:10px 0 0;">🧩 ${addons.length} eklenti (${addons.map(a => escapeHtml(a.label)).join(', ')}) paketlere dahil edilemez; işletmeye/şirkete İşletmeler ya da Şirketler sekmesindeki "🧩 Eklentiler" butonundan atanır.</p>`
+    : '';
   return `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:10px;align-items:start;">
     ${Object.keys(byCat).map(cat => {
       const catId = idPrefix+'_cat_'+cat.replace(/[^a-zA-Z0-9]/g,'_');
@@ -183,12 +191,12 @@ function featureCheckboxesHtml(idPrefix, selectedFeatures){
           ${byCat[cat].map(f => `
             <label style="display:flex;align-items:flex-start;gap:6px;font-size:12.5px;font-weight:400;line-height:1.3;">
               <input type="checkbox" id="${idPrefix}_${f.id}" ${sel.has(f.id)?'checked':''} style="width:15px;height:15px;flex-shrink:0;margin-top:1px;">
-              <span>${escapeHtml(f.label)}${f.is_addon?' <span class="muted">(eklenti'+(f.price>0?', '+money(f.price)+'/ay':'')+')</span>':''}</span>
+              <span>${escapeHtml(f.label)}</span>
             </label>`).join('')}
         </div>
       </div>`;
     }).join('')}
-  </div>`;
+  </div>${addonNote}`;
 }
 function toggleFeatureCategory(catId, checked){
   document.querySelectorAll('#'+catId+' input[type=checkbox]').forEach(el => { el.checked = checked; });
@@ -772,6 +780,10 @@ async function saveFeatureRow(id){
   const active = document.getElementById('feat_active_'+id).checked;
   const isAddon = document.getElementById('feat_isaddon_'+id).checked;
   if(!label){ alert('Ad gerekli'); return; }
+  const prev = (APP.featureCatalog||[]).find(f => f.id===id);
+  if(isAddon && prev && !prev.is_addon){
+    if(!confirm('"'+label+'" eklentiye çevrilecek.\n\nBu özellik tüm paketlerden otomatik olarak çıkarılır. Şu an bu özelliği içeren bir paketi kullanan işletme/şirketlerin erişimi kaybolmaz: onlara eklenti olarak otomatik atanır.\n\nDevam edilsin mi?')) return;
+  }
   const { error } = await sb.rpc('admin_upsert_feature', { p_token: admin.session_token, p_id: id, p_label: label, p_category: cat, p_is_addon: isAddon, p_price: price, p_description: desc||null, p_active: active });
   if(error){ alert(error.message); return; }
   showToast('Özellik kaydedildi ✓');

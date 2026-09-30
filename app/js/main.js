@@ -13,6 +13,7 @@
    tekrar giriş yapılınca (APP sıfırlandığı için) tekrar görünür. */
 function pushReminderBannerHtml(){
   if(APP.pushBannerDismissed) return '';
+  if(!hasFeature('push_notifications')) return '';
   let state;
   if(isNativeApp()){
     state = APP.nativePushPermState;

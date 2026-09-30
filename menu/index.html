@@ -144,6 +144,9 @@ function stateBoxHtml(icon, title, msg){
 }
 
 function renderMenu(){
+  // İşletmede "QR Menü ile Müşteri Siparişi" eklentisi yoksa menü sadece
+  // görüntülenir; sepet/sipariş arayüzü gösterilmez.
+  const canOrder = STATE.menu && STATE.menu.qr_ordering_enabled !== false;
   const m = STATE.menu;
   const products = m.products || [];
   if(products.length===0){
@@ -162,18 +165,18 @@ function renderMenu(){
     ${groups[key].map(p => `
       <div class="product-card">
         <div class="product-name">${escapeHtml(productName(p))}<div class="product-price">${money(p.price)}</div></div>
-        <button class="qty-btn" onclick="stepCart('${p.id}',-1)">-</button>
+        ${canOrder ? `<button class="qty-btn" onclick="stepCart('${p.id}',-1)">-</button>
         <span class="qty-val" id="qty_${p.id}">${STATE.cart[p.id]||0}</span>
-        <button class="qty-btn" onclick="stepCart('${p.id}',1)">+</button>
+        <button class="qty-btn" onclick="stepCart('${p.id}',1)">+</button>` : ''}
       </div>`).join('')}
   `).join('');
   renderState(headerHtml() + `<main>${body}</main>
-    <div class="cartbar" id="cartbar">
+    ${!canOrder ? '' : `<div class="cartbar" id="cartbar">
       <div class="cartbar-row">
         <span class="cartbar-total" id="cartTotal">${money(0)}</span>
         <button onclick="openCheckout()">${escapeHtml(t('sendCart'))}</button>
       </div>
-    </div>`);
+    </div>`}`);
   updateCartBar();
 }
 function headerHtml(){
