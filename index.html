@@ -327,7 +327,7 @@
   const CART = { pkg: null, addons: new Set() };
   function selectCartPackage(id){
     CART.pkg = CART.pkg === id ? null : id;
-    renderPricingGrid(); renderCart();
+    renderPricingGrid(); renderAddons(); renderCart();
   }
   function toggleCartAddon(id){
     if(CART.addons.has(id)) CART.addons.delete(id); else CART.addons.add(id);
@@ -338,7 +338,8 @@
     const yearly = PRICING_BILLING_CYCLE === 'yearly';
     const p = PRICING_PACKAGES.find(x => x.id === CART.pkg);
     const pkgPrice = !p ? 0 : (yearly ? (p.price_yearly!=null ? p.price_yearly : (p.price||0)*12) : (p.price||0));
-    const addons = PRICING_ADDONS.filter(a => CART.addons.has(a.id));
+    const included = new Set((p && p.included_addons) || []);
+    const addons = PRICING_ADDONS.filter(a => CART.addons.has(a.id) && !included.has(a.id));
     const addonsPrice = addons.reduce((sum, a) => sum + (Number(a.price)||0), 0) * (yearly ? 12 : 1);
     return { p, addons, total: pkgPrice + addonsPrice, yearly };
   }
@@ -361,7 +362,9 @@
   function goToCheckout(){
     if(!CART.pkg) return;
     const q = new URLSearchParams({ signup: '1', pkg: CART.pkg, cycle: PRICING_BILLING_CYCLE });
-    if(CART.addons.size) q.set('addons', [...CART.addons].join(','));
+    const inc = new Set((PRICING_PACKAGES.find(x => x.id === CART.pkg) || {}).included_addons || []);
+    const paid = [...CART.addons].filter(id => !inc.has(id));
+    if(paid.length) q.set('addons', paid.join(','));
     window.location.href = '/app/?' + q.toString();
   }
   // Eklentiler ayrı fiyatlandırılan ek özelliklerdir (platform admin >
@@ -379,6 +382,14 @@
       const priceHtml = price > 0
         ? money(yearly ? price*12 : price)+' <small>'+(yearly?'TL/yıl':'TL/ay')+'</small>'
         : '<small>Fiyat için iletişime geçin</small>';
+      const cartPkg = PRICING_PACKAGES.find(x => x.id === CART.pkg);
+      if(cartPkg && (cartPkg.included_addons||[]).includes(a.id)){
+        return `<div class="addon-card in-cart">
+        <div class="top"><h4>${escapeHtml(a.label)}</h4><span class="price"><small>${escapeHtml(cartPkg.name)} paketine dahil</small></span></div>
+        ${a.description ? `<p>${escapeHtml(a.description)}</p>` : ''}
+        <button type="button" class="btn btn-primary add-btn" style="width:auto;padding:6px 14px;font-size:13px;" disabled>✓ Pakete dahil</button>
+      </div>`;
+      }
       const inCart = CART.addons.has(a.id);
       return `<div class="addon-card ${inCart?'in-cart':''}">
         <div class="top"><h4>${escapeHtml(a.label)}</h4><span class="price">${priceHtml}</span></div>
@@ -398,8 +409,11 @@
     // her kart ya "önceki paketteki her şey, artı:" (önceki paketin tamamını
     // kapsıyorsa) ya da "standart özellikler, artı:" başlığıyla sadece
     // kendi eklediklerini listeler.
-    const label = f => PRICING_FEATURE_LABELS[f] || f;
-    const featSets = packages.map(p => new Set(p.features||[]));
+    const addonLabel = id => { const a = PRICING_ADDONS.find(x => x.id === id); return a && a.label; };
+    const label = f => PRICING_FEATURE_LABELS[f] || addonLabel(f) || f;
+    // Pakete bilinçli olarak dahil edilen eklentiler de (included_addons)
+    // karttaki farklar arasında gösterilir.
+    const featSets = packages.map(p => new Set([...(p.features||[]), ...(p.included_addons||[])]));
     const common = packages.length > 1
       ? [...featSets[0]].filter(f => featSets.every(fs => fs.has(f)))
       : [];
@@ -443,7 +457,7 @@
       document.getElementById('commonFeatures').innerHTML = common.map(f => `<span>✓ ${escapeHtml(label(f))}</span>`).join('');
     }
   }
-  sb.rpc('list_addons').then(({data}) => { PRICING_ADDONS = data || []; renderAddons(); }).catch(()=>{});
+  sb.rpc('list_addons').then(({data}) => { PRICING_ADDONS = data || []; renderAddons(); renderPricingGrid(); }).catch(()=>{});
   Promise.all([sb.rpc('list_packages'), sb.rpc('list_feature_labels')]).then(([{data}, {data: featureLabelsData}]) => {
     PRICING_PACKAGES = data || [];
     (featureLabelsData||[]).forEach(f => { PRICING_FEATURE_LABELS[f.id] = f.label; });
