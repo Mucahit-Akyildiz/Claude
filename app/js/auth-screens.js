@@ -477,10 +477,10 @@ function renderSignupScreen(app){
       <p class="muted" id="signupSub">İşletmenizi kaydedip paketinizi seçin.</p>
       <div id="signupStep1">
         <input id="suName" placeholder="İşletme adı (örn. Lezzet Durağı)">
-        <input id="suCode" placeholder="İşletme kodu (giriş için kullanılacak, örn. lezzet2024)" autocapitalize="none">
+        <input id="suCode" placeholder="İşletme kodu (girişte aynen yazılır, büyük/küçük harf önemli)" autocapitalize="none">
         <input id="suEmail" type="email" placeholder="E-posta adresi" autocapitalize="none">
         <input id="suPhone" type="tel" placeholder="Telefon (örn. 5551234567)">
-        <input id="suAdminUser" placeholder="Yönetici kullanıcı adı" autocapitalize="none">
+        <input id="suAdminUser" placeholder="Yönetici kullanıcı adı (büyük/küçük harf önemli)" autocapitalize="none">
         <input id="suAdminPass" type="password" placeholder="Yönetici şifresi">
         <input id="suIdentityNumber" placeholder="T.C. Kimlik Numarası (fatura için)" inputmode="numeric" maxlength="11">
         <input id="suPromo" placeholder="İndirim kodu (varsa)" autocapitalize="none" style="text-transform:uppercase;">
@@ -598,7 +598,7 @@ async function doStartSignup(){
   const errBox = document.getElementById('suErr');
   errBox.textContent = '';
   const name = document.getElementById('suName').value.trim();
-  const code = document.getElementById('suCode').value.trim().toLowerCase();
+  const code = document.getElementById('suCode').value.trim();
   const email = document.getElementById('suEmail').value.trim();
   const phone = document.getElementById('suPhone').value.trim().replace(/\s+/g,'');
   const adminUser = document.getElementById('suAdminUser').value.trim();
