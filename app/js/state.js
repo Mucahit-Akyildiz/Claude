@@ -101,6 +101,10 @@ const NAV_ITEMS = [
    ayrı bir şifre istenir (bkz. renderReportsView). settings, en az bir
    settings_* iznine sahip herkese görünür; sekmeler içeride yine izne göre
    filtrelenir. */
+/* İşletmenin etkin özellikleri (paket + satın alınan eklentiler), bkz.
+   get_restaurant_config.features / _restaurant_features. Config henüz
+   yüklenmediyse false döner - eklenti arayüzü config gelene kadar gizli kalır. */
+function hasFeature(f){ return !!(APP.config && (APP.config.features||[]).includes(f)); }
 function navItemVisible(item, session){
   if(item.view==='reports') return !!session.isManager;
   if(item.view==='printerSettings') return !!session.isManager;

@@ -1026,7 +1026,7 @@ async function renderOrderView(main, session){
       <div class="tabs" id="zoneTabs" style="margin:16px 0 0;"></div>
       <div style="display:flex;gap:8px;">
         <button type="button" style="width:auto;padding:7px 12px;margin:0;background:transparent;border:1px solid var(--border);color:var(--text);box-shadow:none;font-size:12.5px;" onclick="openTableScanModal()">📷 Masa Tara</button>
-        <button type="button" style="width:auto;padding:7px 12px;margin:0;background:transparent;border:1px solid var(--border);color:var(--text);box-shadow:none;font-size:12.5px;" onclick="toggleOrderTableViewMode()" id="tableViewModeBtn">${APP.orderTableViewMode==='floorplan'?'📋 Liste Görünümü':'🗺️ Kat Planı'}</button>
+        ${hasFeature('floorplan') ? `<button type="button" style="width:auto;padding:7px 12px;margin:0;background:transparent;border:1px solid var(--border);color:var(--text);box-shadow:none;font-size:12.5px;" onclick="toggleOrderTableViewMode()" id="tableViewModeBtn">${APP.orderTableViewMode==='floorplan'?'📋 Liste Görünümü':'🗺️ Kat Planı'}</button>` : ''}
       </div>
     </div>
     <div class="table-grid" id="tableGrid" style="margin-top:12px;"></div>
@@ -1356,7 +1356,7 @@ function renderTableGrid(){
   const gridEl = document.getElementById('tableGrid');
   const fpEl = document.getElementById('tableFloorPlan');
   const zone = APP.config.zones.find(z => z.id===APP.selectedZone);
-  if(APP.orderTableViewMode==='floorplan'){
+  if(APP.orderTableViewMode==='floorplan' && hasFeature('floorplan')){
     if(gridEl) gridEl.style.display = 'none';
     if(fpEl) fpEl.style.display = 'block';
     renderTableFloorPlan(zone, fpEl);
@@ -2332,7 +2332,8 @@ async function renderNotificationSettingsView(main, session){
     <h1>Bildirim Ayarları</h1>
     <p class="muted" style="text-align:left;">Bu ayarlar sadece <b>bu ekrana/tarayıcıya</b> özeldir — her cihazda ayrı ayrı yapılandırılır, veritabanına kaydedilmez.</p>
 
-    <div class="box" style="max-width:none;">
+    ${!hasFeature('push_notifications') ? `<div class="box" style="max-width:none;"><h2>📱 Push Bildirimleri (Uygulama Kapalıyken de)</h2>${lockedFeatureHtml()}</div>` : ''}
+    <div class="box" style="max-width:none;${hasFeature('push_notifications')?'':'display:none;'}">
       <h2>📱 Push Bildirimleri (Uygulama Kapalıyken de)</h2>
       <p class="muted" style="text-align:left;">Açarsanız, hazır bekleyen siparişiniz olduğunda bu cihaza — tarayıcı/uygulama kapalı olsa bile — bildirim göndeririz.</p>
       <p id="pushStatusText" class="muted" style="font-size:13px;margin:10px 0;"></p>
@@ -2545,8 +2546,14 @@ async function sendTestPush(){
    izni açık göründüğü hâlde sessizce bildirim almaz duruma düşerdi. İzin
    reddedilmişse hiç dokunulmaz. Electron'da da (window.Notification
    destekli) aynı şekilde çalışır. */
-function maybeShowPushPrompt(session){
+async function maybeShowPushPrompt(session){
   if(!session) return;
+  // Anlık bildirimler bir eklenti: satın alınmamışsa izin de istenmez.
+  if(!APP.config){
+    const { data } = await sb.rpc('get_restaurant_config', { p_token: session.session_token });
+    if(data){ APP.config = data; render(); }
+  }
+  if(!hasFeature('push_notifications')) return;
   if(isNativeApp()){
     const PN = window.Capacitor.Plugins && window.Capacitor.Plugins.PushNotifications;
     if(!PN) return;
