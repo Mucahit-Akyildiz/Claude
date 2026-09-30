@@ -189,6 +189,34 @@ function startIdleLogoutWatch(){
 }
 startIdleLogoutWatch();
 
+/* ---- Web: sayfadan ayrılıp 15 dk sonra dönülünce otomatik çıkış ----
+   Mobildeki arka plan kuralının (checkNativeBackgroundTimeout) web karşılığı:
+   sekme gizlenince/sayfa kapanınca zaman damgası yazılır; geri dönüldüğünde
+   (sekmeye dönüş, yeniden yükleme ya da tarayıcının oturumu geri yüklemesi)
+   aradan 15 dk geçmişse oturum kapatılır - çıkış yapmayı unutan kullanıcının
+   hesabı açık kalmasın diye. sessionStorage kullanılıyor: sekmeye özel ve
+   oturumla aynı ömürde (başka bir sekmedeki aktivite bu sekmeyi etkilemez). */
+const WEB_AWAY_LOGOUT_MS = 15*60*1000;
+function markWebAway(){
+  if(isNativeApp()) return;
+  try{ sessionStorage.setItem('rys_web_away_at', String(Date.now())); }catch(e){}
+}
+function checkWebAwayTimeout(){
+  if(isNativeApp()) return;
+  let awayAt = 0;
+  try{ awayAt = Number(sessionStorage.getItem('rys_web_away_at')) || 0; sessionStorage.removeItem('rys_web_away_at'); }catch(e){}
+  if(!awayAt || (Date.now() - awayAt) < WEB_AWAY_LOGOUT_MS) return;
+  const hadSession = !!(getSession() || getAdminSession());
+  if(getAdminSession()) doAdminLogout();
+  if(getSession()) doLogout();
+  if(hadSession) alert('Uzun süre uzakta kaldığınız için oturumunuz güvenlik amacıyla kapatıldı. Lütfen tekrar giriş yapın.');
+}
+document.addEventListener('visibilitychange', () => {
+  if(document.hidden) markWebAway(); else checkWebAwayTimeout();
+});
+window.addEventListener('pagehide', markWebAway);
+checkWebAwayTimeout();
+
 if(!getSession() && new URLSearchParams(window.location.search).get('signup')==='1') APP.authScreen = 'signup';
 applyDeepLinkView();
 initNativeAppMode();
