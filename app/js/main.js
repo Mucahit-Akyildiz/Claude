@@ -189,14 +189,14 @@ function startIdleLogoutWatch(){
 }
 startIdleLogoutWatch();
 
-/* ---- Web: sayfadan ayrılıp 15 dk sonra dönülünce otomatik çıkış ----
+/* ---- Web: sayfadan ayrılıp 5 dk sonra dönülünce otomatik çıkış ----
    Mobildeki arka plan kuralının (checkNativeBackgroundTimeout) web karşılığı:
    sekme gizlenince/sayfa kapanınca zaman damgası yazılır; geri dönüldüğünde
    (sekmeye dönüş, yeniden yükleme ya da tarayıcının oturumu geri yüklemesi)
-   aradan 15 dk geçmişse oturum kapatılır - çıkış yapmayı unutan kullanıcının
+   aradan 5 dk geçmişse oturum kapatılır - çıkış yapmayı unutan kullanıcının
    hesabı açık kalmasın diye. sessionStorage kullanılıyor: sekmeye özel ve
    oturumla aynı ömürde (başka bir sekmedeki aktivite bu sekmeyi etkilemez). */
-const WEB_AWAY_LOGOUT_MS = 15*60*1000;
+const WEB_AWAY_LOGOUT_MS = 5*60*1000;
 function markWebAway(){
   if(isNativeApp()) return;
   try{ sessionStorage.setItem('rys_web_away_at', String(Date.now())); }catch(e){}
@@ -215,6 +215,10 @@ document.addEventListener('visibilitychange', () => {
   if(document.hidden) markWebAway(); else checkWebAwayTimeout();
 });
 window.addEventListener('pagehide', markWebAway);
+// Başka bir siteye gidip tarayıcının "geri" tuşuyla dönülünce sayfa
+// bfcache'ten (yeniden yüklenmeden) geri gelir; bu durumda visibilitychange
+// her tarayıcıda tetiklenmediği için pageshow'da da kontrol edilir.
+window.addEventListener('pageshow', (e) => { if(e.persisted) checkWebAwayTimeout(); });
 checkWebAwayTimeout();
 
 if(!getSession() && new URLSearchParams(window.location.search).get('signup')==='1') APP.authScreen = 'signup';
