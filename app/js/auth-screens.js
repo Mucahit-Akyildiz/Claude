@@ -540,7 +540,10 @@ function toggleSignupAddon(id){
 }
 function renderSignupAddons(){
   const el = document.getElementById('addonPicks'); if(!el) return;
-  const list = APP.signupAddons || [];
+  const pkg = PACKAGES_BY_ID[APP.selectedPackage] || {};
+  const inc = new Set(pkg.included_addons || []);
+  inc.forEach(id => APP.selectedAddons.delete(id));
+  const list = (APP.signupAddons || []).filter(a => !inc.has(a.id));
   if(!list.length){ el.innerHTML=''; return; }
   el.innerHTML = `<div style="font-weight:700;font-size:13.5px;margin-bottom:6px;">🧩 Eklentiler <span class="muted" style="font-weight:400;">(isteğe bağlı — seçmezseniz yalnızca paket özellikleri açılır)</span></div>` +
     list.map(a => `<label style="display:flex;align-items:center;gap:8px;padding:6px 0;font-size:13px;cursor:pointer;">

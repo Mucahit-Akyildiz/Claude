@@ -25,6 +25,7 @@ function renderAdminArea(){
         <div class="tab ${APP.adminView==='banktransfers'?'active':''}" data-tab="banktransfers" onclick="setAdminView('banktransfers')">🏦 Havale Bildirimleri</div>
         <div class="tab ${APP.adminView==='allfeatures'?'active':''}" data-tab="allfeatures" onclick="setAdminView('allfeatures')">🗂️ Tüm Özellikler</div>
         <div class="tab ${APP.adminView==='addons'?'active':''}" data-tab="addons" onclick="setAdminView('addons')">🧩 Eklentiler</div>
+        <div class="tab ${APP.adminView==='deleted'?'active':''}" data-tab="deleted" onclick="setAdminView('deleted')">🗑️ Silinen Hesaplar</div>
       </div>
       <main id="main"></main>
     </div>`;
@@ -43,7 +44,40 @@ function renderAdminTabContent(admin){
   else if(APP.adminView==='banktransfers') renderBankTransfersAdmin(main, admin);
   else if(APP.adminView==='allfeatures') renderFeatureCatalogAdmin(main, admin);
   else if(APP.adminView==='addons') renderAddonsAdmin(main, admin);
+  else if(APP.adminView==='deleted') renderDeletedAccountsAdmin(main, admin);
   else renderPromoAdmin(main, admin);
+}
+/* Silinen işletmeler (deleted_accounts): restaurants tablosundan silinen her
+   kayıt bir tetikleyiciyle buraya yazılır; buradaki e-posta/telefonla
+   yeniden kayıt açılamaz (bkz. _registration_blocked). "Engeli Kaldır"
+   kaydı siler ve aynı bilgilerle tekrar kayıt mümkün olur. */
+async function renderDeletedAccountsAdmin(main, admin){
+  main.innerHTML = '<p class="muted">Yükleniyor...</p>';
+  const { data, error } = await sb.rpc('admin_list_deleted_accounts', { p_token: admin.session_token });
+  if(error){ main.innerHTML = '<p class="error">'+escapeHtml(error.message)+'</p>'; return; }
+  const rows = data || [];
+  const fmt = d => d ? new Date(d).toLocaleString('tr-TR') : '—';
+  main.innerHTML = `<p class="muted" style="font-size:13px;">Silinen işletmelerin e-posta ve telefonuyla yeniden hesap açılamaz. Tekrar kayda izin vermek için "Engeli Kaldır"a basın.</p>
+    ${rows.length===0 ? '<p class="muted">Silinen hesap yok.</p>' : `
+    <table class="settings-table">
+      <thead><tr><th>İşletme</th><th>E-posta / Telefon</th><th>Paket</th><th>Açılış</th><th>Silinme</th><th></th></tr></thead>
+      <tbody>${rows.map(r => `<tr>
+        <td><b>${escapeHtml(r.name||'—')}</b><div class="muted" style="font-size:11.5px;">${escapeHtml(r.code||'')}</div></td>
+        <td style="font-size:12.5px;">${escapeHtml(r.email||'—')}<div class="muted">${escapeHtml(r.phone||'—')}</div></td>
+        <td>${escapeHtml(r.package_id||'—')}</td>
+        <td style="font-size:12px;">${fmt(r.created_at)}</td>
+        <td style="font-size:12px;">${fmt(r.deleted_at)}</td>
+        <td><button class="sbtn" onclick="releaseDeletedAccount('${r.id}')">Engeli Kaldır</button></td>
+      </tr>`).join('')}</tbody>
+    </table>`}`;
+}
+async function releaseDeletedAccount(id){
+  if(!confirm('Bu kayıt kalıcı olarak silinecek ve aynı e-posta/telefonla yeniden hesap açılabilecek. Emin misiniz?')) return;
+  const admin = getAdminSession();
+  const { error } = await sb.rpc('admin_release_deleted_account', { p_token: admin.session_token, p_id: id });
+  if(error){ alert(error.message); return; }
+  showToast('Engel kaldırıldı ✓');
+  renderAdminTabContent(admin);
 }
 function renderAdminLogin(app){
   app.innerHTML = `<div class="center-wrap"><div class="box">
@@ -133,6 +167,7 @@ async function refreshPackagesAdmin(admin){
               </div>
               <div id="pkgFeatPanel_${p.id}" style="display:none;margin-top:10px;">
                 ${featureCheckboxesHtml('pkg_feat_'+p.id, p.features||[])}
+                ${includedAddonsHtml('pkg_inc_'+p.id, p.included_addons||[])}
               </div>
             </td>
           </tr>`).join('')}
@@ -152,6 +187,7 @@ async function refreshPackagesAdmin(admin){
       </div>
       <div class="muted" style="font-size:12px;font-weight:700;margin:14px 0 6px;">Bu pakette hangi özellikler olacak:</div>
       ${featureCheckboxesHtml('npkg_feat', (APP.featureCatalog||[]).filter(f=>f.is_core).map(f=>f.id))}
+      ${includedAddonsHtml('npkg_inc', [])}
       <button style="margin-top:12px;max-width:220px;" onclick="createPackage()">+ Paket Oluştur</button>
       <div class="error" id="pkgCreateErr" style="text-align:left;"></div>
     </div>`;
@@ -160,6 +196,25 @@ async function refreshPackagesAdmin(admin){
    ızgarası - feature_catalog'daki HER özelliği kategoriye göre gruplayıp
    gösterir (kataloğu "🗂️ Tüm Özellikler" sekmesinden yönetirsiniz);
    id'ler idPrefix+'_'+anahtar şeklinde, readPackageFeatures ile okunur. */
+/* Pakete bilinçli olarak dahil edilen eklentiler (packages.included_addons):
+   normal özellik ızgarasından ayrıdır, böylece eklenti yanlışlıkla pakete
+   karışmaz; burada işaretlenen eklenti o paketteki herkese ücretsiz açılır
+   (bkz. admin_set_package_addons). */
+function includedAddonsHtml(idPrefix, selected){
+  const sel = new Set(selected||[]);
+  const addons = (APP.featureCatalog||[]).filter(f => f.is_addon);
+  if(!addons.length) return '';
+  return `<div style="margin-top:12px;background:var(--panel2);border:1px dashed var(--accent);border-radius:10px;padding:10px 12px;">
+    <div style="font-size:12px;font-weight:800;margin-bottom:6px;">🧩 Pakete dahil eklentiler <span class="muted" style="font-weight:400;">(işaretlenen eklenti bu pakette ücretsiz gelir)</span></div>
+    <div style="display:flex;flex-wrap:wrap;gap:6px 16px;">
+      ${addons.map(a => `<label style="display:flex;align-items:center;gap:6px;font-size:12.5px;font-weight:400;">
+        <input type="checkbox" id="${idPrefix}_${a.id}" ${sel.has(a.id)?'checked':''} style="width:15px;height:15px;"> ${escapeHtml(a.label)}</label>`).join('')}
+    </div></div>`;
+}
+function readIncludedAddons(idPrefix){
+  return (APP.featureCatalog||[]).filter(f => f.is_addon)
+    .filter(a => { const el = document.getElementById(idPrefix+'_'+a.id); return el && el.checked; }).map(a => a.id);
+}
 function featureCheckboxesHtml(idPrefix, selectedFeatures){
   const sel = new Set(selectedFeatures||[]);
   // Eklentiler paketlere dahil edilemez (ayrı satılır, işletme/şirkete
@@ -172,7 +227,7 @@ function featureCheckboxesHtml(idPrefix, selectedFeatures){
   const byCat = {};
   features.forEach(f => { (byCat[f.category||'Diğer'] = byCat[f.category||'Diğer'] || []).push(f); });
   const addonNote = addons.length
-    ? `<p class="muted" style="font-size:12px;margin:10px 0 0;">🧩 ${addons.length} eklenti (${addons.map(a => escapeHtml(a.label)).join(', ')}) paketlere dahil edilemez; işletmeye/şirkete İşletmeler ya da Şirketler sekmesindeki "🧩 Eklentiler" butonundan atanır.</p>`
+    ? `<p class="muted" style="font-size:12px;margin:10px 0 0;">🧩 ${addons.length} eklenti (${addons.map(a => escapeHtml(a.label)).join(', ')}) burada listelenmez; işletmeye/şirkete "🧩 Eklentiler" butonundan atanır ya da aşağıdaki "Pakete dahil eklentiler" bölümünden bu pakete bilinçli olarak eklenir.</p>`
     : '';
   return `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:10px;align-items:start;">
     ${Object.keys(byCat).map(cat => {
@@ -237,6 +292,8 @@ async function savePackageRow(id){
     p_max_branches: maxBranches, p_price_yearly: priceYearly
   });
   if(error){ alert(error.message); return; }
+  const { error: e2 } = await sb.rpc('admin_set_package_addons', { p_token: admin.session_token, p_id: id, p_addons: readIncludedAddons('pkg_inc_'+id) });
+  if(e2){ alert(e2.message); return; }
   showToast('Paket kaydedildi ✓');
   refreshPackagesAdmin(admin);
 }
@@ -274,6 +331,11 @@ async function createPackage(){
     p_max_branches: maxBranches, p_price_yearly: priceYearly
   });
   if(error){ errBox.textContent = error.message; return; }
+  const inc = readIncludedAddons('npkg_inc');
+  if(inc.length){
+    const { error: e2 } = await sb.rpc('admin_set_package_addons', { p_token: admin.session_token, p_id: id, p_addons: inc });
+    if(e2){ errBox.textContent = e2.message; return; }
+  }
   showToast('Paket oluşturuldu ✓');
   refreshPackagesAdmin(admin);
 }
