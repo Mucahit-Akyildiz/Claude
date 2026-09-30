@@ -89,6 +89,18 @@
   .price-card .desc{font-size:13px;color:var(--muted);margin:0 0 20px;}
   .price-card ul{list-style:none;padding:0;margin:0 0 22px;text-align:left;font-size:13.5px;color:var(--text);}
   .price-card li{padding:6px 0;border-top:1px solid var(--border);}
+  .addons-head{text-align:center;margin:48px 0 18px;}
+  .addons-head h3{font-size:22px;font-weight:800;margin:0 0 6px;}
+  .addons-head p{color:var(--muted);font-size:14px;margin:0;}
+  .addons-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;}
+  .addon-card{background:var(--panel);border:1.5px solid var(--border);border-radius:14px;padding:18px 18px 16px;display:flex;flex-direction:column;gap:6px;}
+  .addon-card .top{display:flex;justify-content:space-between;align-items:baseline;gap:10px;}
+  .addon-card h4{margin:0;font-size:15px;font-weight:700;}
+  .addon-card .price{font-weight:800;white-space:nowrap;color:var(--accent);}
+  .addon-card .price small{font-size:12px;font-weight:600;color:var(--muted);}
+  .addon-card p{margin:0;font-size:13px;color:var(--muted);line-height:1.5;}
+  @media (max-width:900px){ .addons-grid{grid-template-columns:1fr 1fr;} }
+  @media (max-width:600px){ .addons-grid{grid-template-columns:1fr;} }
   .price-card li:first-child{border-top:none;}
   /* ---- Mobile ---- */
   .mobile-section{background:var(--panel);border-radius:24px;padding:48px 36px;display:flex;align-items:center;gap:40px;flex-wrap:wrap;}
@@ -196,6 +208,13 @@
     <div class="pricing-grid" id="pricingGrid">
       <p style="grid-column:1/-1;text-align:center;color:var(--muted);">Yükleniyor...</p>
     </div>
+    <div id="addonsSection" style="display:none;">
+      <div class="addons-head">
+        <h3>Eklentiler</h3>
+        <p>İhtiyacınız olan ek özellikleri paketinize ayrıca ekleyebilirsiniz.</p>
+      </div>
+      <div class="addons-grid" id="addonsGrid"></div>
+    </div>
   </div>
 </section>
 
@@ -265,6 +284,29 @@
     document.getElementById('billingToggleMonthly').className = 'btn ' + (cycle==='monthly' ? 'btn-primary' : 'btn-outline');
     document.getElementById('billingToggleYearly').className = 'btn ' + (cycle==='yearly' ? 'btn-primary' : 'btn-outline');
     renderPricingGrid();
+    renderAddons();
+  }
+  let PRICING_ADDONS = [];
+  // Eklentiler ayrı fiyatlandırılan ek özelliklerdir (platform admin >
+  // Eklentiler). Fiyatı henüz girilmemiş (0) eklentide fiyat yerine
+  // "Fiyat için iletişime geçin" gösterilir.
+  function renderAddons(){
+    const section = document.getElementById('addonsSection');
+    const grid = document.getElementById('addonsGrid');
+    if(!section || !grid) return;
+    if(PRICING_ADDONS.length===0){ section.style.display = 'none'; return; }
+    section.style.display = '';
+    const yearly = PRICING_BILLING_CYCLE === 'yearly';
+    grid.innerHTML = PRICING_ADDONS.map(a => {
+      const price = Number(a.price)||0;
+      const priceHtml = price > 0
+        ? money(yearly ? price*12 : price)+' <small>'+(yearly?'TL/yıl':'TL/ay')+'</small>'
+        : '<small>Fiyat için iletişime geçin</small>';
+      return `<div class="addon-card">
+        <div class="top"><h4>${escapeHtml(a.label)}</h4><span class="price">${priceHtml}</span></div>
+        ${a.description ? `<p>${escapeHtml(a.description)}</p>` : ''}
+      </div>`;
+    }).join('');
   }
   function renderPricingGrid(){
     const grid = document.getElementById('pricingGrid');
@@ -297,6 +339,7 @@
       </div>`;
     }).join('');
   }
+  sb.rpc('list_addons').then(({data}) => { PRICING_ADDONS = data || []; renderAddons(); }).catch(()=>{});
   Promise.all([sb.rpc('list_packages'), sb.rpc('list_feature_labels')]).then(([{data}, {data: featureLabelsData}]) => {
     PRICING_PACKAGES = data || [];
     (featureLabelsData||[]).forEach(f => { PRICING_FEATURE_LABELS[f.id] = f.label; });
