@@ -351,8 +351,8 @@ async function refreshRestaurantsList(admin){
     <div class="settings-table-wrap">
       <table class="settings-table">
         <thead><tr>
-          <th>İşletme</th><th>Kod</th><th>E-posta / Telefon</th><th>Paket</th><th>Kullanıcı</th><th>Durum</th>
-          <th>Kayıt Tarihi</th><th>Son Aktiflik</th><th>Bugün</th><th>Son 7 Gün</th><th>Toplam Ciro</th><th></th>
+          <th>İşletme</th><th>E-posta / Telefon</th><th>Paket</th><th>Durum</th>
+          <th>Tarihler</th><th>Ciro</th><th></th>
         </tr></thead>
         <tbody>
         ${restaurants.map(r => {
@@ -364,25 +364,22 @@ async function refreshRestaurantsList(admin){
           else statusBadge = '<span class="role-badge" style="color:var(--green);border-color:var(--green);">Aktif</span>';
           return `
           <tr>
-            <td class="col-name"><b style="cursor:pointer;color:var(--accent);" onclick="showRestaurantDetail('${r.id}')" title="Günlük ciro grafiğini göster">${escapeHtml(r.name)}</b></td>
-            <td class="col-name">${escapeHtml(r.code||'—')}</td>
-            <td class="col-name" style="font-size:12.5px;">${r.email?`<a href="mailto:${escapeHtml(r.email)}">${escapeHtml(r.email)}</a>`:'—'}${r.phone?`<div class="muted">${escapeHtml(r.phone)}</div>`:''}</td>
-            <td class="col-name">${pkg?escapeHtml(pkg.name):escapeHtml(r.package_id)}</td>
-            <td class="col-name">${r.user_count}/${r.max_users}</td>
+            <td><b style="cursor:pointer;color:var(--accent);" onclick="showRestaurantDetail('${r.id}')" title="Günlük ciro grafiğini göster">${escapeHtml(r.name)}</b><div class="muted" style="font-size:12px;">${escapeHtml(r.code||'—')}</div></td>
+            <td style="font-size:12.5px;word-break:break-all;">${r.email?`<a href="mailto:${escapeHtml(r.email)}">${escapeHtml(r.email)}</a>`:'—'}${r.phone?`<div class="muted">${escapeHtml(r.phone)}</div>`:''}</td>
+            <td style="font-size:13px;">${pkg?escapeHtml(pkg.name):escapeHtml(r.package_id)}<div class="muted" style="font-size:12px;">${r.user_count}/${r.max_users} kullanıcı</div></td>
             <td>${statusBadge}</td>
-            <td class="col-name">${new Date(r.created_at).toLocaleDateString('tr-TR')}</td>
-            <td class="col-name">${fmtRelativeTime(r.last_activity)}</td>
-            <td class="col-name">${money(r.revenue_today)}</td>
-            <td class="col-name">${money(r.revenue_7d)}</td>
-            <td class="col-name">${money(r.revenue_lifetime)}</td>
+            <td style="font-size:12.5px;white-space:nowrap;">Kayıt: ${new Date(r.created_at).toLocaleDateString('tr-TR')}<div class="muted">Son: ${fmtRelativeTime(r.last_activity)}</div></td>
+            <td style="font-size:12.5px;white-space:nowrap;">Bugün: <b>${money(r.revenue_today)}</b><div class="muted">7 gün: ${money(r.revenue_7d)}</div><div class="muted">Toplam: ${money(r.revenue_lifetime)}</div></td>
             <td style="white-space:nowrap;">
-              <button class="sbtn" style="${r.is_active?'background:var(--red);color:var(--btn-ink);':''}" onclick="toggleRestaurantActive('${r.id}', ${!r.is_active})">${r.is_active?'Pasif Et':'Aktif Et'}</button>
-              <button class="sbtn" onclick="openEntitlementsModal('restaurant', '${r.id}', '${escapeHtml(r.name)}')">🧩 Eklentiler</button>
-              <button class="sbtn" onclick="showRestaurantUsers('${r.id}')">👥 Kullanıcılar</button>
-              <button class="sbtn" style="background:var(--red);color:var(--btn-ink);" onclick="deleteRestaurantAdmin('${r.id}')">🗑️ Sil</button>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
+                <button class="sbtn" style="margin:0;${r.is_active?'background:var(--red);color:var(--btn-ink);':''}" onclick="toggleRestaurantActive('${r.id}', ${!r.is_active})">${r.is_active?'Pasif Et':'Aktif Et'}</button>
+                <button class="sbtn" style="margin:0;" onclick="openEntitlementsModal('restaurant', '${r.id}', '${escapeHtml(r.name)}')">🧩 Eklentiler</button>
+                <button class="sbtn" style="margin:0;" onclick="showRestaurantUsers('${r.id}')">👥 Kullanıcılar</button>
+                <button class="sbtn" style="margin:0;background:var(--red);color:var(--btn-ink);" onclick="deleteRestaurantAdmin('${r.id}')">🗑️ Sil</button>
+              </div>
             </td>
           </tr>
-          <tr id="detail_${r.id}" style="display:none;"><td colspan="12" style="background:var(--panel);border-radius:12px;padding:0;">
+          <tr id="detail_${r.id}" style="display:none;"><td colspan="7" style="background:var(--panel);border-radius:12px;padding:0;">
             <div id="detailBody_${r.id}"></div>
           </td></tr>`;
         }).join('')}
