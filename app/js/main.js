@@ -164,13 +164,23 @@ function applyDeepLinkView(){
    bu ikisi birbirini tamamlıyor: biri "arka planda kapalıyken geçen süre",
    diğeri "ekran açıkken hiç dokunulmayan süre". */
 const IDLE_LOGOUT_MS = 60*60*1000;
+// Platform Yönetimi (?admin=1) çok daha hassas bir alan (tüm işletmelerin
+// verisine erişim) olduğu için personel oturumundan çok daha kısa, 15
+// dakikalık bir boşta kalma süresiyle kapatılıyor.
+const ADMIN_IDLE_LOGOUT_MS = 15*60*1000;
 let lastActivityAt = Date.now();
 function markUserActivity(){ lastActivityAt = Date.now(); }
 function startIdleLogoutWatch(){
   ['click','keydown','touchstart','mousemove','scroll'].forEach(evt =>
     window.addEventListener(evt, markUserActivity, { passive: true }));
   setInterval(() => {
-    if(getSession() && (Date.now() - lastActivityAt) >= IDLE_LOGOUT_MS){
+    const idleFor = Date.now() - lastActivityAt;
+    if(getAdminSession() && idleFor >= ADMIN_IDLE_LOGOUT_MS){
+      doAdminLogout();
+      alert('Uzun süre işlem yapılmadığı için yönetici oturumunuz güvenlik amacıyla otomatik olarak kapatıldı.');
+      return;
+    }
+    if(getSession() && idleFor >= IDLE_LOGOUT_MS){
       doLogout();
       alert('Uzun süre işlem yapılmadığı için oturumunuz güvenlik amacıyla otomatik olarak kapatıldı.');
     }
