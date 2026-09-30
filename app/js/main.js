@@ -76,6 +76,7 @@ function render(){
         <div class="sb-user">
           <div class="name">${escapeHtml(session.username)}</div>
           <div class="role">${escapeHtml((session.role_names||[]).join(' + ') || '')}</div>
+          <a href="#" class="label" style="font-size:11px;color:var(--muted);text-decoration:underline;" onclick="openDeleteAccountModal();return false;">Hesabımı Sil</a>
         </div>
         <nav>
           ${items.map(i => `<div class="sb-item ${APP.view===i.view?'active':''}" onclick="goToView('${i.view}')" title="${i.label}"><span class="ic">${i.icon}</span><span class="label">${i.label}</span></div>`).join('')}
