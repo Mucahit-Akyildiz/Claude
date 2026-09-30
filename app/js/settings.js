@@ -1129,6 +1129,17 @@ async function startRenewal(){
    Bildirimleri) onaylayınca abonelik otomatik 30 gün uzar. ---- */
 function renderBillingSettings(el, session){
   const lic = APP.config.license;
+  // Google Play, uygulama içinde Play Billing dışı dijital abonelik satışını
+  // yasaklıyor - native uygulamada ödeme/havale ekranı gösterilmez, sadece
+  // abonelik durumu bilgisi kalır (web'de akış aynen devam eder).
+  if(isNativeApp()){
+    el.innerHTML = `<div class="box" style="max-width:none;">
+      <h2>💳 Abonelik</h2>
+      ${lic ? `<p>Paket: <b>${escapeHtml(lic.package_id)}</b> · Bitiş: <b>${new Date(lic.expires_at).toLocaleDateString('tr-TR')}</b></p>` : ''}
+      <p class="muted">Abonelik işlemleri bu uygulama üzerinden yapılamaz; lütfen bir bilgisayar veya tarayıcıdan hesabınıza giriş yapın.</p>
+    </div>`;
+    return;
+  }
   el.innerHTML = `<div class="box" style="max-width:none;">
     <h2>💳 Abonelik ve Ödemeler</h2>
     ${lic ? renderSubscriptionPanel(lic) : '<p class="muted">Abonelik bilgisi bulunamadı.</p>'}

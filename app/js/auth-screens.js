@@ -305,6 +305,21 @@ async function returnToCompanyPanel(){
    ile sahiplik doğrulanır, aktif/süresi-dolmuş olması önemli değil). */
 function renderExpiredScreen(app){
   const prefill = APP.expiredPrefill || {};
+  // Play Billing politikası: native uygulamada ödeme akışı gösterilmez.
+  if(isNativeApp()){
+    app.innerHTML = `
+      <div class="center-wrap"><div>
+      <div class="auth-brand"><img src="/assets/images/logo.webp" alt="Peyktan" class="auth-brand-logo"><span class="name">Peyktan</span></div>
+      <div class="box">
+        <h1>⏰ Aboneliğiniz Sona Erdi</h1>
+        <p class="muted">Abonelik işlemleri bu uygulama üzerinden yapılamaz. Lütfen bir bilgisayar veya tarayıcıdan hesabınıza giriş yapın; işlem tamamlandığında buradan tekrar giriş yapabilirsiniz.</p>
+        <p class="muted" style="text-align:center;margin-top:16px;font-size:13px;">
+          <a href="#" style="color:var(--accent);" onclick="APP.authScreen='login';render();return false;">← Girişe Dön</a>
+        </p>
+      </div></div></div>`;
+    APP.expiredPrefill = null;
+    return;
+  }
   app.innerHTML = `
     <div class="center-wrap">
     <div>
@@ -590,4 +605,68 @@ async function doVerifySignup(){
   APP.authScreen = 'login';
   render();
   alert('Kaydınız oluşturuldu! 7 günlük ücretsiz deneme süreniz başladı.\n\nİşletme kodu: ' + code + '\nŞimdi giriş yapabilirsiniz.');
+}
+
+/* ---- Hesabımı Sil (Google Play hesap silme şartı) ----
+   Personel ya da başka yöneticisi olan bir yönetici: sadece kendi kullanıcısı
+   silinir. İşletmenin TEK yöneticisi: işletme ve tüm verileri kalıcı olarak
+   silinir - bu yüzden onay için işletme kodunu yazması istenir. Karar
+   sunucuda verilir (bkz. delete_my_account / _delete_account_core). */
+function openDeleteAccountModal(){
+  const session = getSession(); if(!session) return;
+  const bg = document.createElement('div');
+  bg.id = 'deleteAccountModalBg';
+  bg.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:100;padding:16px;';
+  bg.onclick = (e) => { if(e.target===bg) closeDeleteAccountModal(); };
+  bg.innerHTML = `<div class="box" style="max-width:420px;width:100%;text-align:left;">
+    <h2 style="margin-top:0;">🗑️ Hesabımı Sil</h2>
+    <p class="muted" style="margin:0 0 10px;font-size:13px;">Bu işlem geri alınamaz.</p>
+    ${session.isManager ? `
+      <p style="font-size:13px;margin:0 0 10px;">İşletmenizin <b>tek yöneticisi</b> sizseniz, <b>işletmenin tamamı</b> (menü, siparişler, satış geçmişi, müşteriler, personel hesapları dahil tüm veriler) kalıcı olarak silinir. Başka bir yönetici varsa yalnızca sizin kullanıcınız silinir.</p>
+      <input id="delAccConfirmCode" placeholder="Onay için işletme kodunuzu yazın" autocapitalize="none" style="margin-bottom:10px;">
+    ` : `
+      <p style="font-size:13px;margin:0 0 10px;">Yalnızca sizin kullanıcı hesabınız silinir. İşletmenin kayıtları (siparişler, satışlar) işletmede kalır, ancak artık sizinle ilişkilendirilmez.</p>
+    `}
+    <input id="delAccPassword" type="password" placeholder="Şifreniz" style="margin-bottom:10px;">
+    <div class="error" id="delAccErr" style="text-align:left;"></div>
+    <div class="field-row" style="gap:8px;margin-top:6px;">
+      <button type="button" style="flex:1;margin:0;background:var(--panel2);color:var(--text);" onclick="closeDeleteAccountModal()">Vazgeç</button>
+      <button type="button" id="delAccBtn" style="flex:1;margin:0;background:var(--red);color:var(--btn-ink);" onclick="submitDeleteAccount()">Kalıcı Olarak Sil</button>
+    </div>
+  </div>`;
+  document.body.appendChild(bg);
+}
+function closeDeleteAccountModal(){ const bg = document.getElementById('deleteAccountModalBg'); if(bg) bg.remove(); }
+async function submitDeleteAccount(){
+  const session = getSession(); if(!session) return;
+  const errBox = document.getElementById('delAccErr');
+  const password = document.getElementById('delAccPassword').value;
+  const codeEl = document.getElementById('delAccConfirmCode');
+  errBox.textContent = '';
+  if(!password){ errBox.textContent = 'Şifrenizi girin'; return; }
+  if(!confirm('Hesabınız kalıcı olarak silinecek. Emin misiniz?')) return;
+  const btn = document.getElementById('delAccBtn');
+  btn.disabled = true; btn.textContent = 'Siliniyor...';
+  const { data, error } = await sb.rpc('delete_my_account', {
+    p_token: session.session_token, p_password: password, p_confirm_code: codeEl ? codeEl.value.trim() : null
+  });
+  btn.disabled = false; btn.textContent = 'Kalıcı Olarak Sil';
+  if(error){ errBox.textContent = error.message; return; }
+  if(!data || !data.ok){ errBox.textContent = (data && data.error) || 'Silinemedi'; return; }
+  closeDeleteAccountModal();
+  // Oturum sunucuda zaten silindi (cascade) - burada sadece yerel temizlik
+  // yapılır; doLogout'taki logout_staff/push RPC'leri geçersiz token'la
+  // "oturum sonlandı" uyarısı tetikleyeceği için çağrılmıyor.
+  stopKitchenPolling();
+  stopOrderPolling();
+  stopCustomerRequestPolling();
+  APP.customerReqPollStarted = false;
+  APP.shiftStatus = null;
+  if(isNativeApp()) setSavedFcmToken('');
+  clearSession();
+  APP.authScreen = 'login';
+  render();
+  alert(data.scope==='restaurant'
+    ? 'İşletmeniz ve tüm verileri kalıcı olarak silindi.'
+    : 'Kullanıcı hesabınız kalıcı olarak silindi.');
 }
