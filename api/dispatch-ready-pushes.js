@@ -250,6 +250,14 @@ async function dispatchTestPush(supabase, userId, endpoint) {
   return { sent, total: subs.length, errors: errors.length ? errors : undefined };
 }
 
+// Gizli anahtar karsilastirmasi sabit surede yapilir (zamanlama saldirisi).
+function safeEqual(a, b) {
+  const crypto = require('crypto');
+  const ha = crypto.createHash('sha256').update(String(a || '')).digest();
+  const hb = crypto.createHash('sha256').update(String(b || '')).digest();
+  return crypto.timingSafeEqual(ha, hb);
+}
+
 module.exports = async function handler(req, res) {
   try {
     if (req.method !== 'POST') {
@@ -257,7 +265,7 @@ module.exports = async function handler(req, res) {
       return;
     }
     const secret = req.headers['x-push-secret'];
-    if (!PUSH_DISPATCH_SECRET || secret !== PUSH_DISPATCH_SECRET) {
+    if (!PUSH_DISPATCH_SECRET || !safeEqual(secret, PUSH_DISPATCH_SECRET)) {
       res.status(401).json({ error: 'unauthorized' });
       return;
     }

@@ -131,7 +131,7 @@ function renderIngredientsSettings(el, session){
           <td class="col-num"><input type="number" step="0.01" value="${i.stock}" id="ing_stock_${i.id}"></td>
           <td style="white-space:nowrap;">
             <button class="sbtn" onclick="saveIngredient('${i.id}')">Kaydet</button>
-            <button class="sbtn" style="background:var(--accent2);color:var(--btn-ink);" onclick="openIngredientUsageModal('${i.id}','${escapeHtml(i.name)}')">Kullanıldığı Ürünler</button>
+            <button class="sbtn" style="background:var(--accent2);color:var(--btn-ink);" onclick="openIngredientUsageModal('${i.id}',${jsArg(i.name)})">Kullanıldığı Ürünler</button>
             <button class="sbtn" style="background:var(--red);color:var(--btn-ink);" onclick="removeIngredient('${i.id}')">Sil</button>
           </td>
         </tr>`).join('')}
@@ -432,7 +432,7 @@ function renderZonesSettings(el, session){
         <div style="margin-top:10px;display:flex;flex-wrap:wrap;gap:6px;">
           ${z.tables.map(t => `<span style="background:var(--panel);border:1px solid var(--border);border-radius:999px;padding:5px 10px;font-size:12px;display:flex;align-items:center;gap:6px;">
             ${escapeHtml(t.name)}
-            <span style="cursor:pointer;color:var(--accent);" title="QR Menü Kodu" onclick="showTableQr('${escapeHtml(t.name)}','${t.qr_token}')">▦</span>
+            <span style="cursor:pointer;color:var(--accent);" title="QR Menü Kodu" onclick="showTableQr(${jsArg(t.name)},'${t.qr_token}')">▦</span>
             <span style="cursor:pointer;color:var(--red);" onclick="removeTable('${t.id}')">✕</span></span>`).join('')}
         </div>
         <div style="display:flex;gap:8px;margin-top:10px;">
@@ -561,7 +561,7 @@ function showTableQr(tableName, qrToken){
     <div style="display:flex;justify-content:space-between;"><h2 style="margin:0;">${escapeHtml(tableName)}</h2><span style="cursor:pointer;color:var(--muted);" onclick="document.getElementById('tableQrModalBg').remove()">✕</span></div>
     <img src="${qrImgUrl}" alt="QR" style="width:100%;max-width:260px;margin:14px 0;border-radius:8px;background:#fff;padding:8px;">
     <p class="muted" style="font-size:12px;overflow-wrap:anywhere;word-break:break-word;">${escapeHtml(url)}</p>
-    <button style="margin-top:8px;" onclick="navigator.clipboard.writeText('${url}').then(()=>showToast('Link kopyalandı ✓'))">🔗 Linki Kopyala</button>
+    <button style="margin-top:8px;" onclick="navigator.clipboard.writeText(${jsArg(url)}).then(()=>showToast('Link kopyalandı ✓'))">🔗 Linki Kopyala</button>
   </div>`;
   document.body.appendChild(bg);
 }
@@ -1005,7 +1005,7 @@ function onlineOrderingLinkHtml(){
     <div style="min-width:0;flex:1;">
       <p class="muted" style="font-size:12px;margin:0 0 6px;">Bu linki sosyal medya bio'nuza, Google İşletme profilinize ya da bir masa standına koyabilirsiniz.</p>
       <p style="font-size:13px;overflow-wrap:anywhere;word-break:break-word;margin:0 0 8px;">${escapeHtml(url)}</p>
-      <button style="width:auto;padding:8px 12px;margin:0;" onclick="navigator.clipboard.writeText('${url}').then(()=>showToast('Link kopyalandı ✓'))">🔗 Linki Kopyala</button>
+      <button style="width:auto;padding:8px 12px;margin:0;" onclick="navigator.clipboard.writeText(${jsArg(url)}).then(()=>showToast('Link kopyalandı ✓'))">🔗 Linki Kopyala</button>
     </div>
   </div>`;
 }

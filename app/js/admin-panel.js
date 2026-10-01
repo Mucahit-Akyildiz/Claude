@@ -443,7 +443,7 @@ async function refreshRestaurantsList(admin){
             <td style="white-space:nowrap;">
               <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
                 <button class="sbtn" style="margin:0;${r.is_active?'background:var(--red);color:var(--btn-ink);':''}" onclick="toggleRestaurantActive('${r.id}', ${!r.is_active})">${r.is_active?'Pasif Et':'Aktif Et'}</button>
-                <button class="sbtn" style="margin:0;" onclick="openEntitlementsModal('restaurant', '${r.id}', '${escapeHtml(r.name)}')">🧩 Eklentiler</button>
+                <button class="sbtn" style="margin:0;" onclick="openEntitlementsModal('restaurant', '${r.id}', ${jsArg(r.name)})">🧩 Eklentiler</button>
                 <button class="sbtn" style="margin:0;" onclick="showRestaurantUsers('${r.id}')">👥 Kullanıcılar</button>
                 <button class="sbtn" style="margin:0;background:var(--red);color:var(--btn-ink);" onclick="deleteRestaurantAdmin('${r.id}')">🗑️ Sil</button>
               </div>
@@ -594,8 +594,8 @@ async function refreshCompaniesList(admin){
             <td class="col-name">${new Date(c.created_at).toLocaleDateString('tr-TR')}</td>
             <td style="white-space:nowrap;">
               <button class="sbtn" style="${c.is_active?'background:var(--red);color:var(--btn-ink);':''}" onclick="toggleCompanyActive('${c.id}', ${!c.is_active})">${c.is_active?'Pasif Et':'Aktif Et'}</button>
-              <button class="sbtn" onclick="openEntitlementsModal('company', '${c.id}', '${escapeHtml(c.name)}')">🧩 Eklentiler</button>
-              <button class="sbtn" style="background:var(--red);color:var(--btn-ink);" onclick="deleteCompany('${c.id}', '${escapeHtml(c.name)}')">🗑️ Sil</button>
+              <button class="sbtn" onclick="openEntitlementsModal('company', '${c.id}', ${jsArg(c.name)})">🧩 Eklentiler</button>
+              <button class="sbtn" style="background:var(--red);color:var(--btn-ink);" onclick="deleteCompany('${c.id}', ${jsArg(c.name)})">🗑️ Sil</button>
             </td>
           </tr>`;
         }).join('')}

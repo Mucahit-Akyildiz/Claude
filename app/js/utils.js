@@ -118,8 +118,16 @@ function showToast(msg, durationMs, position, onClick, nativeNotify){
   setTimeout(() => { if(card.parentNode) card.remove(); }, dur);
 }
 
-function escapeHtml(s){
-  const d = document.createElement('div'); d.textContent = s||''; return d.innerHTML;
+/* Tırnaklar da kaçırılır: değer bir HTML attribute'u içine
+   (value="..." gibi) basıldığında attribute'tan çıkıp onfocus vb. eklenemez. */
+function escapeHtml(s){ return String(s==null?'':s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]); }
+/* onclick="fn(...)" gibi inline JS attribute'larına metin argümanı basmak
+   için: escapeHtml burada yetmez (tarayıcı &#39;'yi JS çalışmadan önce
+   tekrar ' yapar). Tırnaklı bir JS string literal'i üretir; tüm riskli
+   karakterler \xNN/\uNNNN olarak kaçırıldığı için ne attribute'tan ne de
+   string'den çıkılabilir. */
+function jsArg(s){
+  return "'" + String(s==null?'':s).replace(/[\\'"<>&\r\n\u2028\u2029]/g, c => '\\u' + c.charCodeAt(0).toString(16).padStart(4,'0')) + "'";
 }
 /* Fiş başlığı/altı notu contenteditable'dan geldiği ve her cihazda innerHTML
    olarak basıldığı için (bkz. buildTicketHtml), kaydetmeden önce VE

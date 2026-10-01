@@ -547,7 +547,7 @@ function renderSignupAddons(){
   if(!list.length){ el.innerHTML=''; return; }
   el.innerHTML = `<div style="font-weight:700;font-size:13.5px;margin-bottom:6px;">🧩 Eklentiler <span class="muted" style="font-weight:400;">(isteğe bağlı — seçmezseniz yalnızca paket özellikleri açılır)</span></div>` +
     list.map(a => `<label style="display:flex;align-items:center;gap:8px;padding:6px 0;font-size:13px;cursor:pointer;">
-      <input type="checkbox" style="width:auto;margin:0;" ${APP.selectedAddons.has(a.id)?'checked':''} onchange="toggleSignupAddon('${escapeHtml(a.id)}')">
+      <input type="checkbox" style="width:auto;margin:0;" ${APP.selectedAddons.has(a.id)?'checked':''} onchange="toggleSignupAddon(${jsArg(a.id)})">
       <span style="flex:1;">${escapeHtml(a.label||a.id)}</span><b>+${money(Number(a.price)||0)}/ay</b></label>`).join('');
 }
 function renderCartTotal(){

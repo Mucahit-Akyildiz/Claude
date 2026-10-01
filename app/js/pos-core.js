@@ -70,7 +70,7 @@ async function refreshKitchenItems(session){
         <div style="display:grid;grid-template-columns:1fr 64px auto auto;align-items:center;gap:10px;">
           <span class="kitchen-item-name" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${it.qty}x ${escapeHtml(it.name)}</span>
           <span class="kitchen-timer" data-added="${it.added_at||''}" data-id="${it.id}" data-name="${escapeHtml(tableName+' - '+it.qty+'x '+it.name)}" style="text-align:center;">-</span>
-          <button style="width:auto;padding:8px 10px;font-size:14px;background:var(--red);color:var(--btn-ink);" onclick="openWasteModal('${it.id}',${it.qty},'${escapeHtml(it.name).replace(/'/g,"\\'")}')" title="İsraf oldu (yandı/düştü/bozuldu)">🔥</button>
+          <button style="width:auto;padding:8px 10px;font-size:14px;background:var(--red);color:var(--btn-ink);" onclick="openWasteModal('${it.id}',${it.qty},${jsArg(it.name)})" title="İsraf oldu (yandı/düştü/bozuldu)">🔥</button>
           <button style="width:auto;padding:8px 14px;font-size:14px;background:var(--green);color:var(--btn-ink);" onclick="markReady('${it.id}')">Hazır</button>
         </div>
         ${it.note?'<div class="muted" style="font-size:12px;font-style:italic;margin-top:4px;overflow-wrap:anywhere;word-break:break-word;">Not: '+escapeHtml(it.note)+'</div>':''}
@@ -504,14 +504,14 @@ function renderPayGrid(){
     const unpaid = order ? order.items.filter(i=>!i.paid) : [];
     if(unpaid.length===0) return null;
     const total = unpaid.reduce((s,i) => s+i.price*i.qty, 0);
-    return `<div class="table-cell" style="cursor:pointer;background:rgba(244,63,94,.14);border-color:var(--red);color:var(--red);" onclick="openPayModal('${order.order_id}','${escapeHtml(t.name)}')">
+    return `<div class="table-cell" style="cursor:pointer;background:rgba(244,63,94,.14);border-color:var(--red);color:var(--red);" onclick="openPayModal('${order.order_id}',${jsArg(t.name)})">
       ${escapeHtml(t.name)}<div style="font-size:11px;margin-top:4px;font-weight:400;">${money(total)}</div></div>`;
   }).filter(Boolean);
   const pkgRows = (APP.liveOrders||[]).filter(o => o.kind==='takeaway' && o.items.filter(i=>!i.paid).length>0).map(o => {
     const unpaid = o.items.filter(i=>!i.paid);
     const total = unpaid.reduce((s,i)=>s+i.price*i.qty,0);
     const label = o.customer_name || ('Paket #'+(o.daily_number||''));
-    return `<div class="table-cell" style="cursor:pointer;background:rgba(244,63,94,.14);border-color:var(--red);color:var(--red);overflow-wrap:anywhere;word-break:break-word;" onclick="openPayModal('${o.order_id}','${escapeHtml('📦 '+label)}')">
+    return `<div class="table-cell" style="cursor:pointer;background:rgba(244,63,94,.14);border-color:var(--red);color:var(--red);overflow-wrap:anywhere;word-break:break-word;" onclick="openPayModal('${o.order_id}',${jsArg('📦 '+label)})">
       📦 ${escapeHtml(label)}<div style="font-size:11px;margin-top:4px;font-weight:400;">${money(total)}</div></div>`;
   });
   const occupiedRows = tableRows.concat(pkgRows);
@@ -1423,7 +1423,7 @@ function renderTableGrid(){
   if(!zone || zone.tables.length===0){ el.innerHTML = '<p class="muted">Bu bölgede masa yok.</p>'; return; }
   el.innerHTML = zone.tables.map(t => {
     const { sub, occupied } = tableStatus(t);
-    return `<div class="table-cell" style="${occupied?'background:rgba(244,63,94,.14);border-color:var(--red);color:var(--red);':''}" onclick="openTableModal('${t.id}','${escapeHtml(t.name)}')">
+    return `<div class="table-cell" style="${occupied?'background:rgba(244,63,94,.14);border-color:var(--red);color:var(--red);':''}" onclick="openTableModal('${t.id}',${jsArg(t.name)})">
       ${escapeHtml(t.name)}<div style="font-size:11px;margin-top:4px;font-weight:400;">${sub}</div></div>`;
   }).join('');
 }
@@ -1436,7 +1436,7 @@ function renderTableFloorPlan(zone, el){
   el.style.minHeight = maxY+'px';
   el.innerHTML = zone.tables.map(t => {
     const { sub, occupied } = tableStatus(t);
-    return `<div class="floorplan-table ${occupied?'occupied':''}" style="left:${Number(t.pos_x||0)}px;top:${Number(t.pos_y||0)}px;" onclick="openTableModal('${t.id}','${escapeHtml(t.name)}')">
+    return `<div class="floorplan-table ${occupied?'occupied':''}" style="left:${Number(t.pos_x||0)}px;top:${Number(t.pos_y||0)}px;" onclick="openTableModal('${t.id}',${jsArg(t.name)})">
       ${escapeHtml(t.name)}<div class="fp-sub">${sub}</div></div>`;
   }).join('');
 }
@@ -1455,7 +1455,7 @@ function orderFlagsHtml(pseudoId){
     <p class="muted" style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;margin:0 0 8px;">Sipariş Etiketleri</p>
     <div style="display:flex;flex-wrap:wrap;gap:12px;">
       ${flags.map(f => `<label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;">
-        <input type="checkbox" style="width:auto;margin:0;" ${sel.includes(f.label)?'checked':''} onchange="toggleOrderFlag('${pseudoId}','${escapeHtml(f.label)}',this.checked)">
+        <input type="checkbox" style="width:auto;margin:0;" ${sel.includes(f.label)?'checked':''} onchange="toggleOrderFlag('${pseudoId}',${jsArg(f.label)},this.checked)">
         ${escapeHtml(f.label)}
       </label>`).join('')}
     </div>
