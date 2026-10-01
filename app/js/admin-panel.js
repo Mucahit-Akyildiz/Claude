@@ -160,7 +160,7 @@ async function refreshPackagesAdmin(admin){
             </td>
           </tr>
           <tr>
-            <td colspan="11" style="padding:6px 8px 16px;border-top:none;">
+            <td colspan="11" style="padding:6px 8px 16px;border-top:none;white-space:normal;">
               <div style="display:flex;align-items:center;gap:8px;cursor:pointer;user-select:none;" onclick="togglePackageFeaturePanel('${p.id}')">
                 <span id="pkgFeatToggle_${p.id}" class="muted" style="font-size:11px;">▸</span>
                 <span class="muted" style="font-size:12px;font-weight:700;">Bu pakette hangi özellikler olacak <span style="font-weight:400;">(${(p.features||[]).length}/${(APP.featureCatalog||[]).length} seçili)</span></span>
@@ -449,7 +449,7 @@ async function refreshRestaurantsList(admin){
               </div>
             </td>
           </tr>
-          <tr id="detail_${r.id}" style="display:none;"><td colspan="7" style="background:var(--panel);border-radius:12px;padding:0;">
+          <tr id="detail_${r.id}" style="display:none;"><td colspan="7" style="background:var(--panel);border-radius:12px;padding:0;white-space:normal;">
             <div id="detailBody_${r.id}"></div>
           </td></tr>`;
         }).join('')}
