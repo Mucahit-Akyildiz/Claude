@@ -1009,6 +1009,14 @@ async function renderIntegrationsSettings(el, session){
     <h3 style="margin:18px 0 6px;font-size:14px;">Son 30 günde gönderilenler</h3>
     <div id="invoiceList" class="muted" style="font-size:13px;">Yükleniyor...</div>`;
   el.appendChild(inv);
+  const sms = document.createElement('div');
+  sms.className = 'box'; sms.style.maxWidth = 'none';
+  sms.innerHTML = `<h2>📱 SMS Bildirimleri</h2>
+    <p class="muted" style="margin-top:-6px;">Açıkken müşterilere otomatik SMS gider: rezervasyon onayı ve 2 saat kala hatırlatma, paket siparişi hazır olunca bildirim, bekleme listesinde "Masa Hazır" butonu.</p>
+    <label style="display:flex;align-items:center;gap:8px;font-weight:600;margin:10px 0;">
+      <input type="checkbox" id="int_sms_enabled" ${data.sms_enabled?'checked':''} style="width:auto;margin:0;" onchange="saveSmsSettings(this.checked)"> Aktif
+    </label>`;
+  el.insertBefore(sms, inv);
   const today = new Date(), from = new Date(Date.now()-29*864e5);
   const iso = d => d.toLocaleDateString('sv-SE');
   sb.rpc('list_invoices', { p_token: session.session_token, p_date: iso(from), p_date_to: iso(today) }).then(({ data: rows, error: e }) => {
@@ -1018,6 +1026,12 @@ async function renderIntegrationsSettings(el, session){
     box.innerHTML = !(rows||[]).length ? 'Henüz gönderilen yok.' : `<table class="settings-table"><thead><tr><th>No</th><th>Tarih</th><th>E-posta</th><th>Alıcı</th><th>Tutar</th><th>Durum</th></tr></thead><tbody>${
       rows.map(r => `<tr><td>${escapeHtml(r.number)}</td><td>${new Date(r.created_at).toLocaleString('tr-TR')}</td><td>${escapeHtml(r.email||'')}</td><td>${escapeHtml(r.buyer_name||'—')}</td><td>${money(r.total)}</td><td>${st[r.status]||escapeHtml(r.status)}</td></tr>`).join('')}</tbody></table>`;
   });
+}
+async function saveSmsSettings(enabled){
+  const session = getSession();
+  const { error } = await sb.rpc('update_sms_settings', { p_token: session.session_token, p_enabled: enabled });
+  if(error){ alert(error.message); return; }
+  showToast(enabled ? 'SMS bildirimleri açıldı ✓' : 'SMS bildirimleri kapatıldı');
 }
 async function saveInvoiceSettings(){
   const session = getSession();

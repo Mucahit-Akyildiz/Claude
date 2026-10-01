@@ -26,6 +26,7 @@ function renderAdminArea(){
         <div class="tab ${APP.adminView==='allfeatures'?'active':''}" data-tab="allfeatures" onclick="setAdminView('allfeatures')">🗂️ Tüm Özellikler</div>
         <div class="tab ${APP.adminView==='addons'?'active':''}" data-tab="addons" onclick="setAdminView('addons')">🧩 Eklentiler</div>
         <div class="tab ${APP.adminView==='deleted'?'active':''}" data-tab="deleted" onclick="setAdminView('deleted')">🗑️ Silinen Hesaplar</div>
+        <div class="tab ${APP.adminView==='sms'?'active':''}" data-tab="sms" onclick="setAdminView('sms')">📱 SMS</div>
       </div>
       <main id="main"></main>
     </div>`;
@@ -45,12 +46,46 @@ function renderAdminTabContent(admin){
   else if(APP.adminView==='allfeatures') renderFeatureCatalogAdmin(main, admin);
   else if(APP.adminView==='addons') renderAddonsAdmin(main, admin);
   else if(APP.adminView==='deleted') renderDeletedAccountsAdmin(main, admin);
+  else if(APP.adminView==='sms') renderSmsAdmin(main, admin);
   else renderPromoAdmin(main, admin);
 }
 /* Silinen işletmeler (deleted_accounts): restaurants tablosundan silinen her
    kayıt bir tetikleyiciyle buraya yazılır; buradaki e-posta/telefonla
    yeniden kayıt açılamaz (bkz. _registration_blocked). "Engeli Kaldır"
    kaydı siler ve aynı bilgilerle tekrar kayıt mümkün olur. */
+/* SMS sağlayıcısı platform genelindedir (işletmeler sadece aç/kapa yapar).
+   Sağlayıcı tanımlı değilken mesajlar sms_outbox'a 'no_provider' olarak
+   düşer; Netgsm bilgileri girilince gönderilmeye başlar. */
+async function renderSmsAdmin(main, admin){
+  main.innerHTML = '<p class="muted">Yükleniyor...</p>';
+  const { data, error } = await sb.rpc('admin_get_sms', { p_token: admin.session_token });
+  if(error){ main.innerHTML = '<p class="error">'+escapeHtml(error.message)+'</p>'; return; }
+  const st = { queued:'Kuyrukta', dispatched:'Gönderildi', no_provider:'Sağlayıcı yok', skipped:'Limit' };
+  main.innerHTML = `<h1>📱 SMS</h1>
+    <div class="box" style="max-width:640px;">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+        <div class="field-group"><label>Sağlayıcı</label><select id="smsProvider">
+          <option value="">— Kapalı (sadece kayıt) —</option>
+          <option value="netgsm" ${data.provider==='netgsm'?'selected':''}>Netgsm</option>
+        </select></div>
+        <div class="field-group"><label>Gönderici Başlığı</label><input id="smsHeader" value="${escapeHtml(data.header||'')}" placeholder="örn. PEYKTAN"></div>
+        <div class="field-group"><label>Kullanıcı Kodu</label><input id="smsUser" value="${escapeHtml(data.username||'')}" autocapitalize="none"></div>
+        <div class="field-group"><label>Şifre</label><input id="smsPass" type="password" placeholder="${data.password_set?'(kayıtlı - değiştirmek için yaz)':'Şifre'}"></div>
+      </div>
+      <button style="max-width:200px;margin-top:10px;" onclick="saveSmsAdmin()">Kaydet</button>
+    </div>
+    <h3 style="margin-top:20px;">Son 50 SMS</h3>
+    ${!(data.recent||[]).length ? '<p class="muted">Henüz SMS yok.</p>' : `<table class="settings-table"><thead><tr><th>Tarih</th><th>İşletme</th><th>Telefon</th><th>Tür</th><th>Mesaj</th><th>Durum</th></tr></thead><tbody>${
+      data.recent.map(r => `<tr><td style="font-size:12px;">${new Date(r.created_at).toLocaleString('tr-TR')}</td><td>${escapeHtml(r.restaurant||'Platform')}</td><td>${escapeHtml(r.phone)}</td><td>${escapeHtml(r.purpose)}</td><td style="font-size:12px;white-space:normal;">${escapeHtml(r.purpose==='otp' ? '(doğrulama kodu gizli)' : r.message)}</td><td>${st[r.status]||escapeHtml(r.status)}</td></tr>`).join('')}</tbody></table>`}`;
+}
+async function saveSmsAdmin(){
+  const admin = getAdminSession();
+  const v = id => document.getElementById(id).value;
+  const { error } = await sb.rpc('admin_set_sms', { p_token: admin.session_token, p_provider: v('smsProvider'), p_username: v('smsUser'), p_password: v('smsPass'), p_header: v('smsHeader') });
+  if(error){ alert(error.message); return; }
+  showToast('SMS ayarları kaydedildi ✓');
+  renderAdminTabContent(admin);
+}
 async function renderDeletedAccountsAdmin(main, admin){
   main.innerHTML = '<p class="muted">Yükleniyor...</p>';
   const { data, error } = await sb.rpc('admin_list_deleted_accounts', { p_token: admin.session_token });
