@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
 <title>Online Sipariş</title>
 <link rel="icon" type="image/png" href="/assets/images/favicon.png">
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js" integrity="sha384-Rj26LVGvoeRVR6+mwQmFfcR3QOBEwT+ZmuCWpuiqeTzJpCs0ER4ITAWGb4Hiy3Ok" crossorigin="anonymous"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -115,7 +115,7 @@ STATE.lang = getLang();
 document.documentElement.setAttribute('lang', STATE.lang);
 document.documentElement.setAttribute('dir', STATE.lang==='ar' ? 'rtl' : 'ltr');
 
-function escapeHtml(s){ const d = document.createElement('div'); d.textContent = s||''; return d.innerHTML; }
+function escapeHtml(s){ return String(s==null?'':s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]); }
 function money(n){ return (Math.round((n||0)*100)/100).toLocaleString('tr-TR',{minimumFractionDigits:2,maximumFractionDigits:2})+' TL'; }
 function langPickerHtml(){
   return `<div class="lang-picker">${LANGS.map(l => `<button type="button" class="lang-btn ${STATE.lang===l.code?'active':''}" onclick="setLang('${l.code}')">${l.label}</button>`).join('')}</div>`;
@@ -174,13 +174,29 @@ function renderMenu(){
     </div>`);
   updateCartBar();
 }
+const TRUST_I18N = {
+  tr: { verified:'✓ Doğrulanmış işletme', safety:'🔒 Bu sayfa hiçbir zaman kart, şifre veya kimlik bilgisi istemez. Ödemeyi işletme personeline yapın. Adres çubuğunda peyktan.com olduğundan emin olun.' },
+  en: { verified:'✓ Verified business', safety:'🔒 This page never asks for card, password or ID details. Pay the restaurant staff directly. Make sure the address bar shows peyktan.com.' },
+  ar: { verified:'✓ نشاط تجاري موثّق', safety:'🔒 هذه الصفحة لا تطلب أبدًا بيانات البطاقة أو كلمة المرور أو الهوية. ادفع لموظفي المطعم مباشرة. تأكد من أن شريط العنوان يعرض peyktan.com.' },
+  de: { verified:'✓ Verifiziertes Unternehmen', safety:'🔒 Diese Seite fragt niemals nach Karten-, Passwort- oder Ausweisdaten. Bezahlen Sie direkt beim Personal. Achten Sie darauf, dass in der Adressleiste peyktan.com steht.' },
+  ru: { verified:'✓ Проверенное заведение', safety:'🔒 Эта страница никогда не запрашивает данные карты, пароли или документы. Оплачивайте напрямую персоналу. Убедитесь, что в адресной строке указан peyktan.com.' }
+};
+function trt(k){ return (TRUST_I18N[STATE.lang] || TRUST_I18N.tr)[k] || TRUST_I18N.tr[k]; }
+function trustHtml(){
+  const m = STATE.menu || {};
+  return `<div style="padding:10px 16px;font-size:12px;color:var(--muted);border-bottom:1px solid var(--border);">
+    ${m.restaurant_verified ? `<div style="color:var(--accent);font-weight:700;margin-bottom:2px;">${escapeHtml(trt('verified'))}${m.restaurant_title ? ' · '+escapeHtml(m.restaurant_title) : ''}</div>` : ''}
+    ${m.restaurant_address ? `<div style="margin-bottom:4px;">📍 ${escapeHtml(m.restaurant_address)}</div>` : ''}
+    <div>${escapeHtml(trt('safety'))}</div>
+  </div>`;
+}
 function headerHtml(){
   const m = STATE.menu;
   return `<header>
     <img src="/assets/images/logo.webp" alt="Peyktan">
     <div class="titles"><h1>${escapeHtml(m.restaurant_name)}</h1><p>${escapeHtml(t('subtitle'))}</p></div>
     ${langPickerHtml()}
-  </header>`;
+  </header>` + trustHtml();
 }
 function stepCart(productId, delta){
   const next = Math.max(0, Math.min(20, (STATE.cart[productId]||0) + delta));

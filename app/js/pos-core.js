@@ -1049,6 +1049,7 @@ async function finishPayment(orderId, method, total, cash, card, discountAmount,
   // Ödeme al(n)dığı an, arkadaki masa/paket kartlarının tutarı da hemen
   // güncellensin diye grid'i her durumda (kısmi/tam) yeniden çiziyoruz.
   if(APP.view==='payments') renderPayGrid();
+  APP.lastPaidHistoryId = data && data.history_id;
   if(data && data.order_closed===false){
     // Kısmi ödeme: hesaptaki geri kalan ürünler için ödeme ekranı hemen tekrar açılır.
     showToast('Ödeme alındı ✓ (kalan ürünler için hesap açık kaldı)');
@@ -1059,13 +1060,62 @@ async function finishPayment(orderId, method, total, cash, card, discountAmount,
       renderPaymentsView(document.getElementById('main'), session);
     }
   } else {
-    if(APP.config && APP.config.google_review_url){
-      showToast('Ödeme alındı ✓ · Google yorumu için QR göstermek üzere dokunun', 8000, null, () => showGoogleReviewQr());
-    } else {
-      showToast('Ödeme alındı ✓');
-    }
+    const hid = data && data.history_id;
+    showToast('Ödeme alındı ✓ · 📧 Hesabı e-postayla göndermek için dokunun', 10000, null, () => openInvoiceEmailModal(hid));
     if(APP.view!=='payments') renderPaymentsView(document.getElementById('main'), session);
   }
+}
+/* --- Hesabı e-posta ile gönderme: ödeme sonrası toast'a dokununca açılır.
+   Fatura/şirket bilgisi isteğe bağlıdır; e-fatura entegrasyonu açıksa
+   kayıt resmi fatura kesilmek üzere kuyruğa alınır (bkz. email_invoice). --- */
+function openInvoiceEmailModal(historyId){
+  if(!historyId){ alert('Ödeme kaydı bulunamadı'); return; }
+  const bg = document.createElement('div');
+  bg.id = 'invoiceEmailBg';
+  bg.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:100;padding:16px;';
+  bg.onclick = (e) => { if(e.target===bg) bg.remove(); };
+  const hasReview = !!(APP.config && APP.config.google_review_url);
+  bg.innerHTML = `<div class="box" style="max-width:380px;width:100%;text-align:left;">
+    <h2 style="margin-top:0;">📧 Hesabı E-postayla Gönder</h2>
+    <input id="invEmail" type="email" placeholder="Müşterinin e-posta adresi" autocapitalize="none" style="margin-bottom:8px;">
+    <label style="display:flex;align-items:center;gap:8px;font-size:13px;margin:4px 0 8px;cursor:pointer;">
+      <input type="checkbox" id="invCorporate" style="width:auto;margin:0;" onchange="document.getElementById('invCorpFields').style.display=this.checked?'block':'none'"> Fatura bilgisi ekle (şirket / şahıs)
+    </label>
+    <div id="invCorpFields" style="display:none;">
+      <input id="invBuyerName" placeholder="Ad Soyad / Şirket Ünvanı" style="margin-bottom:8px;">
+      <input id="invBuyerTax" placeholder="VKN / TCKN" inputmode="numeric" maxlength="11" style="margin-bottom:8px;">
+      <input id="invBuyerOffice" placeholder="Vergi Dairesi" style="margin-bottom:8px;">
+      <input id="invBuyerAddr" placeholder="Adres" style="margin-bottom:8px;">
+    </div>
+    <div class="error" id="invErr" style="text-align:left;"></div>
+    <div class="field-row" style="gap:8px;margin-top:6px;">
+      <button type="button" style="flex:1;margin:0;background:var(--panel2);color:var(--text);" onclick="document.getElementById('invoiceEmailBg').remove()">Kapat</button>
+      <button type="button" id="invSendBtn" style="flex:1;margin:0;" onclick="sendInvoiceEmail('${historyId}')">Gönder</button>
+    </div>
+    ${hasReview ? `<button type="button" class="ghost-btn" style="width:100%;margin-top:10px;" onclick="document.getElementById('invoiceEmailBg').remove();showGoogleReviewQr()">⭐ Google yorum QR'ını göster</button>` : ''}
+  </div>`;
+  document.body.appendChild(bg);
+  setTimeout(() => { const el = document.getElementById('invEmail'); if(el) el.focus(); }, 50);
+}
+async function sendInvoiceEmail(historyId){
+  const email = document.getElementById('invEmail').value.trim();
+  const err = document.getElementById('invErr'); err.textContent = '';
+  if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)){ err.textContent = 'Geçerli bir e-posta adresi girin'; return; }
+  const corp = document.getElementById('invCorporate').checked;
+  const v = id => corp ? document.getElementById(id).value.trim() : null;
+  const btn = document.getElementById('invSendBtn');
+  btn.disabled = true; btn.textContent = 'Gönderiliyor...';
+  const session = getSession();
+  const { data, error } = await sb.rpc('email_invoice', {
+    p_token: session.session_token, p_history_id: historyId, p_email: email,
+    p_buyer_name: v('invBuyerName'), p_buyer_tax_number: v('invBuyerTax'),
+    p_buyer_tax_office: v('invBuyerOffice'), p_buyer_address: v('invBuyerAddr')
+  });
+  if(error){ err.textContent = error.message; btn.disabled = false; btn.textContent = 'Gönder'; return; }
+  document.getElementById('invoiceEmailBg').remove();
+  showToast(data && data.status==='efatura_queued'
+    ? '📧 Gönderildi ('+data.number+') · e-Fatura kuyruğa alındı'
+    : '📧 Hesap e-postayla gönderildi ('+(data&&data.number)+')');
 }
 /* --- Google Yorumları'na yönlendirme: hesap tamamen kapandığında (bkz.
    yukarısı) personele gösterilen toast'a dokununca, müşterinin telefonuyla
@@ -1508,6 +1558,7 @@ function openTableModal(tableId){
       <div id="sentItemsWrap" style="margin-top:14px;"></div>
       <div id="draftItemsWrap"></div>
       ${orderFlagsHtml(tableId)}
+      ${(String(tableId).indexOf('pkg_')!==0 && liveOrderForTable(tableId)) ? `<button class="ghost-btn" style="width:100%;margin-top:12px;" onclick="openMoveTableModal('${tableId}')">🔀 Masayı Taşı / Birleştir</button>` : ''}
       <div style="display:flex;gap:10px;margin-top:16px;">
         <button class="ghost-btn" style="flex:1;margin-top:0;color:var(--red);border-color:var(--red);" onclick="cancelTableOrder('${tableId}')">🗑️ İptal Et</button>
         <button id="confirmBtn" style="flex:1;margin-top:0;" disabled onclick="confirmOrder('${tableId}')">✅ Onayla ve Gönder</button>
@@ -3124,6 +3175,47 @@ function updateTicketPreview(){
   ];
   applyTicketDesignStyle(el, { width, fontFamily, bold, marginTop, marginRight, marginBottom, marginLeft }, 'ticket-paper');
   el.innerHTML = buildTicketHtml(session ? session.restaurant_name : 'İŞLETME ADI', 'Masa 3', sampleItems, { header, footer, showOrderNumber, showItemTime, showHeaderTime, timeFormat, timeBold, ...typography }, 12);
+}
+/* Masa taşıma/birleştirme: boş masaya seçilirse hesap oraya taşınır, dolu
+   masaya seçilirse ödenmemiş ürünler o masanın hesabına eklenir (bkz.
+   move_table_order). */
+function openMoveTableModal(fromTableId){
+  const zones = (APP.config && APP.config.zones) || [];
+  const opts = zones.map(z => {
+    const ts = z.tables.filter(t => t.id !== fromTableId);
+    if(!ts.length) return '';
+    return `<optgroup label="${escapeHtml(z.name)}">${ts.map(t => `<option value="${t.id}">${escapeHtml(t.name)}${liveOrderForTable(t.id)?' (dolu - birleştir)':''}</option>`).join('')}</optgroup>`;
+  }).join('');
+  if(!opts){ alert('Taşınabilecek başka masa yok'); return; }
+  const bg = document.createElement('div');
+  bg.id = 'moveTableBg';
+  bg.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:110;padding:16px;';
+  bg.onclick = (e) => { if(e.target===bg) bg.remove(); };
+  bg.innerHTML = `<div class="box" style="max-width:340px;width:100%;text-align:left;">
+    <h2 style="margin-top:0;">🔀 Masayı Taşı / Birleştir</h2>
+    <p class="muted" style="font-size:12.5px;margin:0 0 10px;">${escapeHtml(tableNameForId(fromTableId))} → hedef masa. Dolu bir masa seçerseniz ödenmemiş ürünler o masanın hesabına eklenir.</p>
+    <select id="moveTarget" style="margin-bottom:14px;">${opts}</select>
+    <div class="field-row" style="gap:8px;">
+      <button type="button" style="flex:1;margin:0;background:var(--panel2);color:var(--text);" onclick="document.getElementById('moveTableBg').remove()">Vazgeç</button>
+      <button type="button" id="moveBtn" style="flex:1;margin:0;" onclick="confirmMoveTable('${fromTableId}')">Taşı</button>
+    </div>
+  </div>`;
+  document.body.appendChild(bg);
+}
+async function confirmMoveTable(fromTableId){
+  const to = document.getElementById('moveTarget').value;
+  if((APP.draftCart && (APP.draftCart[fromTableId]||[]).length) && !confirm('Henüz gönderilmemiş sepet ürünleri taşınmaz, önce gönderin. Yine de devam edilsin mi?')) return;
+  const btn = document.getElementById('moveBtn'); btn.disabled = true;
+  const session = getSession();
+  const { data, error } = await sb.rpc('move_table_order', { p_token: session.session_token, p_from_table_id: fromTableId, p_to_table_id: to });
+  if(error){ alert(error.message); btn.disabled = false; return; }
+  document.getElementById('moveTableBg').remove();
+  await releaseDraftStock(fromTableId);
+  const { data: live } = await sb.rpc('get_live_orders', { p_token: session.session_token });
+  APP.liveOrders = live || [];
+  await closeTableModal();
+  showToast(data && data.mode==='merged' ? '🔀 Masalar birleştirildi ✓' : '🔀 Masa taşındı ✓');
+  render();
 }
 async function cancelTableOrder(tableId){
   if(!confirm('Bu masadaki siparişi (mutfağa gönderilenler dahil) tamamen iptal etmek istediğinize emin misiniz?')) return;

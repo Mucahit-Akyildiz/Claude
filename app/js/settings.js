@@ -564,7 +564,7 @@ function showTableQr(tableId, qrToken){
     <div style="display:flex;justify-content:space-between;"><h2 style="margin:0;">${escapeHtml(tableName)}</h2><span style="cursor:pointer;color:var(--muted);" onclick="document.getElementById('tableQrModalBg').remove()">✕</span></div>
     <img src="${qrImgUrl}" alt="QR" style="width:100%;max-width:260px;margin:14px 0;border-radius:8px;background:#fff;padding:8px;">
     <p class="muted" style="font-size:12px;overflow-wrap:anywhere;word-break:break-word;">${escapeHtml(url)}</p>
-    <button style="margin-top:8px;" onclick="navigator.clipboard.writeText('${url}').then(()=>showToast('Link kopyalandı ✓'))">🔗 Linki Kopyala</button>
+    <button style="margin-top:8px;" onclick="navigator.clipboard.writeText(${jsArg(url)}).then(()=>showToast('Link kopyalandı ✓'))">🔗 Linki Kopyala</button>
   </div>`;
   document.body.appendChild(bg);
 }
@@ -996,6 +996,53 @@ async function renderIntegrationsSettings(el, session){
     const title = box.querySelector('h2') ? box.querySelector('h2').outerHTML : '';
     box.innerHTML = title + lockedFeatureHtml();
   });
+  // Fatura bilgileri tüm paketlerde: ödeme sonrası e-postayla gönderilen
+  // hesap/faturanın başlığında görünür (bkz. email_invoice).
+  const inv = document.createElement('div');
+  inv.className = 'box'; inv.style.maxWidth = 'none';
+  inv.innerHTML = `<h2>🧾 Fatura Bilgileri</h2>
+    <p class="muted" style="margin-top:-6px;">Ödeme sonrası müşteriye e-postayla gönderilen hesap/faturanın üstünde görünür.</p>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;max-width:640px;">
+      <div class="field-group"><label>Ünvan</label><input id="inv_title" value="${escapeHtml(data.invoice_title||'')}" placeholder="${escapeHtml(APP.config&&APP.config.restaurant_name||'İşletme ünvanı')}"></div>
+      <div class="field-group"><label>VKN / TCKN</label><input id="inv_tax" value="${escapeHtml(data.tax_number||'')}" inputmode="numeric" maxlength="11"></div>
+      <div class="field-group"><label>Vergi Dairesi</label><input id="inv_office" value="${escapeHtml(data.tax_office||'')}"></div>
+      <div class="field-group"><label>Adres</label><input id="inv_addr" value="${escapeHtml(data.invoice_address||'')}"></div>
+    </div>
+    <button style="max-width:200px;margin-top:10px;" onclick="saveInvoiceSettings()">Kaydet</button>
+    <h3 style="margin:18px 0 6px;font-size:14px;">Son 30 günde gönderilenler</h3>
+    <div id="invoiceList" class="muted" style="font-size:13px;">Yükleniyor...</div>`;
+  el.appendChild(inv);
+  const sms = document.createElement('div');
+  sms.className = 'box'; sms.style.maxWidth = 'none';
+  sms.innerHTML = `<h2>📱 SMS Bildirimleri</h2>
+    <p class="muted" style="margin-top:-6px;">Açıkken müşterilere otomatik SMS gider: rezervasyon onayı ve 2 saat kala hatırlatma, paket siparişi hazır olunca bildirim, bekleme listesinde "Masa Hazır" butonu.</p>
+    <label style="display:flex;align-items:center;gap:8px;font-weight:600;margin:10px 0;">
+      <input type="checkbox" id="int_sms_enabled" ${data.sms_enabled?'checked':''} style="width:auto;margin:0;" onchange="saveSmsSettings(this.checked)"> Aktif
+    </label>`;
+  el.insertBefore(sms, inv);
+  const today = new Date(), from = new Date(Date.now()-29*864e5);
+  const iso = d => d.toLocaleDateString('sv-SE');
+  sb.rpc('list_invoices', { p_token: session.session_token, p_date: iso(from), p_date_to: iso(today) }).then(({ data: rows, error: e }) => {
+    const box = document.getElementById('invoiceList'); if(!box) return;
+    if(e){ box.textContent = e.message; return; }
+    const st = { emailed:'E-posta', efatura_queued:'e-Fatura kuyrukta', efatura_issued:'e-Fatura kesildi', efatura_failed:'e-Fatura hata' };
+    box.innerHTML = !(rows||[]).length ? 'Henüz gönderilen yok.' : `<table class="settings-table"><thead><tr><th>No</th><th>Tarih</th><th>E-posta</th><th>Alıcı</th><th>Tutar</th><th>Durum</th></tr></thead><tbody>${
+      rows.map(r => `<tr><td>${escapeHtml(r.number)}</td><td>${new Date(r.created_at).toLocaleString('tr-TR')}</td><td>${escapeHtml(r.email||'')}</td><td>${escapeHtml(r.buyer_name||'—')}</td><td>${money(r.total)}</td><td>${st[r.status]||escapeHtml(r.status)}</td></tr>`).join('')}</tbody></table>`;
+  });
+}
+async function saveSmsSettings(enabled){
+  const session = getSession();
+  const { error } = await sb.rpc('update_sms_settings', { p_token: session.session_token, p_enabled: enabled });
+  if(error){ alert(error.message); return; }
+  showToast(enabled ? 'SMS bildirimleri açıldı ✓' : 'SMS bildirimleri kapatıldı');
+}
+async function saveInvoiceSettings(){
+  const session = getSession();
+  const v = id => document.getElementById(id).value;
+  const { error } = await sb.rpc('update_invoice_settings', { p_token: session.session_token,
+    p_title: v('inv_title'), p_tax_number: v('inv_tax'), p_tax_office: v('inv_office'), p_address: v('inv_addr') });
+  if(error){ alert(error.message); return; }
+  showToast('Fatura bilgileri kaydedildi ✓');
 }
 function lockedFeatureHtml(){
   return `<p class="muted" style="margin:0;">🔒 Bu özellik paketinizde yok. Eklenti olarak eklemek ya da paketinizi yükseltmek için bizimle iletişime geçin.</p>`;
@@ -1008,7 +1055,7 @@ function onlineOrderingLinkHtml(){
     <div style="min-width:0;flex:1;">
       <p class="muted" style="font-size:12px;margin:0 0 6px;">Bu linki sosyal medya bio'nuza, Google İşletme profilinize ya da bir masa standına koyabilirsiniz.</p>
       <p style="font-size:13px;overflow-wrap:anywhere;word-break:break-word;margin:0 0 8px;">${escapeHtml(url)}</p>
-      <button style="width:auto;padding:8px 12px;margin:0;" onclick="navigator.clipboard.writeText('${url}').then(()=>showToast('Link kopyalandı ✓'))">🔗 Linki Kopyala</button>
+      <button style="width:auto;padding:8px 12px;margin:0;" onclick="navigator.clipboard.writeText(${jsArg(url)}).then(()=>showToast('Link kopyalandı ✓'))">🔗 Linki Kopyala</button>
     </div>
   </div>`;
 }

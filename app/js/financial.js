@@ -383,6 +383,24 @@ async function renderReportContent(session){
       ${billsHtml}
     </div>
   `;
+  // Servis metrikleri (ortalama hesap, masa devir hızı, oturma süresi) ayrı
+  // RPC'den gelir ve kart ızgarasının hemen altına eklenir.
+  const grid = el.querySelector('.stat-grid');
+  if(grid){
+    const box = document.createElement('div');
+    box.className = 'stat-grid'; box.id = 'serviceMetrics'; box.style.marginTop = '10px';
+    grid.after(box);
+    sb.rpc('get_service_metrics', { p_token: session.session_token, p_date: APP.reportDate, p_date_to: APP.reportDateTo }).then(({ data: m }) => {
+      if(!m || !document.getElementById('serviceMetrics')) return;
+      const card = (v, l, t) => `<div class="box" style="text-align:center;" title="${escapeHtml(t)}"><div style="font-size:22px;font-weight:800;">${v}</div><div class="muted" style="font-size:12px;">${l}</div></div>`;
+      box.innerHTML =
+        card(money(m.avg_check), '🧾 Ortalama Hesap', 'Etiketsiz hesapların ortalama tutarı ('+m.checks+' hesap)') +
+        card(money(m.avg_check_dine_in), '🍽️ Ort. Masa Hesabı', m.dine_in_checks+' masa hesabı') +
+        card(money(m.avg_check_takeaway), '📦 Ort. Paket Hesabı', 'Paket/gel-al siparişleri') +
+        card(m.table_count ? String(m.table_turnover).replace('.',',')+'×' : '—', '🔄 Masa Devir Hızı', 'Masa başına günlük ortalama hesap sayısı ('+m.table_count+' masa, '+m.days+' gün)') +
+        card(m.avg_seat_minutes ? m.avg_seat_minutes+' dk' : '—', '⏱️ Ort. Oturma Süresi', 'Masa hesabının açılışından kapanışına');
+    });
+  }
 }
 /* --- Ürün İstatistikleri sekmesi: hangi üründen ne kadar satıldığı,
    istasyona göre filtrelenebilen, çoktan aza sıralı bar grafiği --- */

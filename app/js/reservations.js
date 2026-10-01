@@ -130,6 +130,7 @@ async function renderWaitlistContent(session, forceRefresh){
           <td><span class="waitlist-timer" data-joined="${w.joined_at}" data-quoted="${w.quoted_wait_minutes||''}">-</span></td>
           <td>${new Date(w.joined_at).toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'})}</td>
           <td>
+            ${w.phone ? `<button class="sbtn" title="Müşteriye 'Masanız hazır' SMS'i gönder" onclick="notifyWaitlistReady('${w.id}')">📱 Masa Hazır</button>` : ''}
             <button class="sbtn" onclick="changeWaitlistStatus('${w.id}','seated')">Oturdu</button>
             <button class="sbtn" style="background:var(--red);color:var(--btn-ink);" onclick="changeWaitlistStatus('${w.id}','cancelled')">İptal</button>
           </td>
@@ -203,6 +204,12 @@ async function addWaitlistEntry(){
   if(error){ alert(error.message); return; }
   renderWaitlistContent(session, true);
   showToast('Bekleme listesine eklendi ✓');
+}
+async function notifyWaitlistReady(id){
+  const session = getSession();
+  const { error } = await sb.rpc('notify_waitlist_ready', { p_token: session.session_token, p_id: id });
+  if(error){ alert(error.message); return; }
+  showToast('📱 "Masanız hazır" SMS\'i gönderildi');
 }
 async function changeWaitlistStatus(id, status){
   const session = getSession();

@@ -6,7 +6,7 @@
 <title>Peyktan — Restoran Yönetim Sistemi</title>
 <meta name="description" content="Peyktan: sipariş alma, mutfak ekranı, ödemeler ve finansal analiz bir arada — modern restoran/kafe yönetim sistemi. 7 gün ücretsiz deneyin.">
 <link rel="icon" type="image/png" href="/assets/images/favicon.png">
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js" integrity="sha384-Rj26LVGvoeRVR6+mwQmFfcR3QOBEwT+ZmuCWpuiqeTzJpCs0ER4ITAWGb4Hiy3Ok" crossorigin="anonymous"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Poppins:wght@500;600;700;800&display=swap" rel="stylesheet">
@@ -300,7 +300,7 @@
   const SUPABASE_KEY = 'sb_publishable_7gHhsaPYOzOddFnpjntPKw_S3Mgg3V8';
   const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
   function money(n){ return (Math.round((n||0)*100)/100).toLocaleString('tr-TR',{minimumFractionDigits:0,maximumFractionDigits:2}); }
-  function escapeHtml(s){ const d = document.createElement('div'); d.textContent = s||''; return d.innerHTML; }
+  function escapeHtml(s){ return String(s==null?'':s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]); }
   // Özellik etiketleri artık burada elle tutulmuyor - platform admin
   // panelindeki "Tüm Özellikler" kataloğundan (feature_catalog) canlı
   // okunuyor (bkz. list_feature_labels), böylece admin yeni bir özellik
