@@ -69,8 +69,8 @@ async function refreshKitchenItems(session){
       ${pending.map(it => `<div class="kitchen-item-row" style="padding:10px 0;border-top:1px dashed var(--border);">
         <div style="display:grid;grid-template-columns:1fr 64px auto auto;align-items:center;gap:10px;">
           <span class="kitchen-item-name" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${it.qty}x ${escapeHtml(it.name)}</span>
-          <span class="kitchen-timer" data-added="${it.added_at||''}" data-id="${it.id}" data-name="${escapeHtml(tableName+' - '+it.qty+'x '+it.name)}" style="text-align:center;">-</span>
-          <button style="width:auto;padding:8px 10px;font-size:14px;background:var(--red);color:var(--btn-ink);" onclick="openWasteModal('${it.id}',${it.qty},'${escapeHtml(it.name).replace(/'/g,"\\'")}')" title="İsraf oldu (yandı/düştü/bozuldu)">🔥</button>
+          <span class="kitchen-timer" data-added="${it.added_at||''}" data-id="${it.id}" data-name="${escapeAttr(tableName+' - '+it.qty+'x '+it.name)}" style="text-align:center;">-</span>
+          <button style="width:auto;padding:8px 10px;font-size:14px;background:var(--red);color:var(--btn-ink);" onclick="openWasteModal('${it.id}')" title="İsraf oldu (yandı/düştü/bozuldu)">🔥</button>
           <button style="width:auto;padding:8px 14px;font-size:14px;background:var(--green);color:var(--btn-ink);" onclick="markReady('${it.id}')">Hazır</button>
         </div>
         ${it.note?'<div class="muted" style="font-size:12px;font-style:italic;margin-top:4px;overflow-wrap:anywhere;word-break:break-word;">Not: '+escapeHtml(it.note)+'</div>':''}
@@ -320,7 +320,19 @@ async function markAllReady(tableId){
    israf edilen miktar kadar bu kalemi küçültür/siler - müşteriden o kısım
    için ücret alınmaz. */
 const WASTE_REASONS = ['Yandı', 'Düştü', 'Bozuldu', 'Diğer'];
-function openWasteModal(itemId, qty, name){
+/* Mutfak kartı item.name/qty'yi onclick string'ine gömmek yerine (bkz. güvenlik
+   notu) yalnızca item.id geçiyor; buradan APP.liveOrders üzerinde bulunuyor. */
+function findLiveOrderItemById(itemId){
+  for(const o of (APP.liveOrders||[])){
+    const it = (o.items||[]).find(i => i.id===itemId);
+    if(it) return it;
+  }
+  return null;
+}
+function openWasteModal(itemId){
+  const it = findLiveOrderItemById(itemId);
+  if(!it) return;
+  const qty = it.qty, name = it.name;
   const bg = document.createElement('div');
   bg.id = 'wasteModalBg';
   bg.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:100;padding:16px;';
@@ -504,14 +516,14 @@ function renderPayGrid(){
     const unpaid = order ? order.items.filter(i=>!i.paid) : [];
     if(unpaid.length===0) return null;
     const total = unpaid.reduce((s,i) => s+i.price*i.qty, 0);
-    return `<div class="table-cell" style="cursor:pointer;background:rgba(244,63,94,.14);border-color:var(--red);color:var(--red);" onclick="openPayModal('${order.order_id}','${escapeHtml(t.name)}')">
+    return `<div class="table-cell" style="cursor:pointer;background:rgba(244,63,94,.14);border-color:var(--red);color:var(--red);" onclick="openPayModal('${order.order_id}')">
       ${escapeHtml(t.name)}<div style="font-size:11px;margin-top:4px;font-weight:400;">${money(total)}</div></div>`;
   }).filter(Boolean);
   const pkgRows = (APP.liveOrders||[]).filter(o => o.kind==='takeaway' && o.items.filter(i=>!i.paid).length>0).map(o => {
     const unpaid = o.items.filter(i=>!i.paid);
     const total = unpaid.reduce((s,i)=>s+i.price*i.qty,0);
     const label = o.customer_name || ('Paket #'+(o.daily_number||''));
-    return `<div class="table-cell" style="cursor:pointer;background:rgba(244,63,94,.14);border-color:var(--red);color:var(--red);overflow-wrap:anywhere;word-break:break-word;" onclick="openPayModal('${o.order_id}','${escapeHtml('📦 '+label)}')">
+    return `<div class="table-cell" style="cursor:pointer;background:rgba(244,63,94,.14);border-color:var(--red);color:var(--red);overflow-wrap:anywhere;word-break:break-word;" onclick="openPayModal('${o.order_id}')">
       📦 ${escapeHtml(label)}<div style="font-size:11px;margin-top:4px;font-weight:400;">${money(total)}</div></div>`;
   });
   const occupiedRows = tableRows.concat(pkgRows);
@@ -521,9 +533,15 @@ function renderPayGrid(){
    1'i) - sadece seçilen adetlerin tutarı için ödeme alınır, geri kalanı
    hesapta açık kalır (kısmi/ürün-adet bazlı ödeme). itemId -> seçili adet. */
 let PAY_SELECTED_QTYS = {};
-function openPayModal(orderId, tableName){
+/* tableName artık ikinci parametre olarak değil (serbest metin olduğundan
+   onclick="..."'a gömülmesi tırnak-kaçışı XSS'ine açıktı, bkz. güvenlik notu),
+   order bulunduktan sonra buradan türetiliyor. */
+function openPayModal(orderId){
   const order = APP.liveOrders.find(o => o.order_id===orderId);
   if(!order) return;
+  const tableName = order.kind==='takeaway'
+    ? ('📦 '+(order.customer_name || ('Paket #'+(order.daily_number||''))))
+    : tableNameForId(order.table_id);
   const unpaidItems = order.items.filter(i => !i.paid);
   PAY_SELECTED_QTYS = {};
   unpaidItems.forEach(i => { PAY_SELECTED_QTYS[i.id] = i.qty; });
@@ -1036,10 +1054,7 @@ async function finishPayment(orderId, method, total, cash, card, discountAmount,
     showToast('Ödeme alındı ✓ (kalan ürünler için hesap açık kaldı)');
     const remainingOrder = APP.liveOrders.find(o => o.order_id===orderId);
     if(remainingOrder){
-      const label = remainingOrder.kind==='takeaway'
-        ? ('📦 '+(remainingOrder.customer_name || ('Paket #'+(remainingOrder.daily_number||''))))
-        : tableNameForId(remainingOrder.table_id);
-      openPayModal(orderId, label);
+      openPayModal(orderId);
     } else if(APP.view!=='payments') {
       renderPaymentsView(document.getElementById('main'), session);
     }
@@ -1366,12 +1381,12 @@ function handleScannedTableQr(text){
       alert('Bu masada ödenecek açık bir hesap yok: ' + found.name);
       return;
     }
-    openPayModal(order.order_id, found.name);
+    openPayModal(order.order_id);
     return;
   }
   APP.selectedZone = foundZone.id;
   if(APP.view==='order'){ renderZoneTabs(); renderTableGrid(); }
-  openTableModal(found.id, found.name);
+  openTableModal(found.id);
 }
 function liveOrderForTable(tableId){
   // Paket Servis siparişleri table_id'siz olduğu için sözde bir kimlikle
@@ -1423,7 +1438,7 @@ function renderTableGrid(){
   if(!zone || zone.tables.length===0){ el.innerHTML = '<p class="muted">Bu bölgede masa yok.</p>'; return; }
   el.innerHTML = zone.tables.map(t => {
     const { sub, occupied } = tableStatus(t);
-    return `<div class="table-cell" style="${occupied?'background:rgba(244,63,94,.14);border-color:var(--red);color:var(--red);':''}" onclick="openTableModal('${t.id}','${escapeHtml(t.name)}')">
+    return `<div class="table-cell" style="${occupied?'background:rgba(244,63,94,.14);border-color:var(--red);color:var(--red);':''}" onclick="openTableModal('${t.id}')">
       ${escapeHtml(t.name)}<div style="font-size:11px;margin-top:4px;font-weight:400;">${sub}</div></div>`;
   }).join('');
 }
@@ -1436,7 +1451,7 @@ function renderTableFloorPlan(zone, el){
   el.style.minHeight = maxY+'px';
   el.innerHTML = zone.tables.map(t => {
     const { sub, occupied } = tableStatus(t);
-    return `<div class="floorplan-table ${occupied?'occupied':''}" style="left:${Number(t.pos_x||0)}px;top:${Number(t.pos_y||0)}px;" onclick="openTableModal('${t.id}','${escapeHtml(t.name)}')">
+    return `<div class="floorplan-table ${occupied?'occupied':''}" style="left:${Number(t.pos_x||0)}px;top:${Number(t.pos_y||0)}px;" onclick="openTableModal('${t.id}')">
       ${escapeHtml(t.name)}<div class="fp-sub">${sub}</div></div>`;
   }).join('');
 }
@@ -1455,7 +1470,7 @@ function orderFlagsHtml(pseudoId){
     <p class="muted" style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;margin:0 0 8px;">Sipariş Etiketleri</p>
     <div style="display:flex;flex-wrap:wrap;gap:12px;">
       ${flags.map(f => `<label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;">
-        <input type="checkbox" style="width:auto;margin:0;" ${sel.includes(f.label)?'checked':''} onchange="toggleOrderFlag('${pseudoId}','${escapeHtml(f.label)}',this.checked)">
+        <input type="checkbox" style="width:auto;margin:0;" data-label="${escapeAttr(f.label)}" ${sel.includes(f.label)?'checked':''} onchange="toggleOrderFlag('${pseudoId}',this.dataset.label,this.checked)">
         ${escapeHtml(f.label)}
       </label>`).join('')}
     </div>
@@ -1471,7 +1486,8 @@ function toggleOrderFlag(pseudoId, label, checked){
 }
 
 /* ---- Masa penceresi: ürün ekle, sepete at, mutfağa gönder ---- */
-function openTableModal(tableId, tableName){
+function openTableModal(tableId){
+  const tableName = tableNameForId(tableId);
   if(!APP.draftCart) APP.draftCart = {};
   if(!APP.draftCart[tableId]) APP.draftCart[tableId] = [];
   const bg = document.createElement('div');
@@ -1587,9 +1603,9 @@ function openPackageModal(pseudoId){
         <h2 style="margin:0;overflow-wrap:anywhere;word-break:break-word;">📦 ${existing ? escapeHtml(existing.customer_name || ('Paket #'+(existing.daily_number||''))) : 'Yeni Paket Sipariş'}</h2>
         <span style="cursor:pointer;color:var(--muted);font-size:20px;" onclick="closeTableModal()">✕</span>
       </div>
-      <div class="field-group"><label>Müşteri Adı</label><input id="pkgCustName" placeholder="örn. Ahmet Bey" value="${escapeHtml((existing&&existing.customer_name)||'')}"></div>
-      <div class="field-group"><label>Telefon</label><input id="pkgCustPhone" placeholder="örn. 5551234567" value="${escapeHtml((existing&&existing.customer_phone)||'')}"></div>
-      <div class="field-group"><label>Not</label><input id="pkgNote" placeholder="örn. Yan sokak, 2. kat" value="${escapeHtml((existing&&existing.note)||'')}"></div>
+      <div class="field-group"><label>Müşteri Adı</label><input id="pkgCustName" placeholder="örn. Ahmet Bey" value="${escapeAttr((existing&&existing.customer_name)||'')}"></div>
+      <div class="field-group"><label>Telefon</label><input id="pkgCustPhone" placeholder="örn. 5551234567" value="${escapeAttr((existing&&existing.customer_phone)||'')}"></div>
+      <div class="field-group"><label>Not</label><input id="pkgNote" placeholder="örn. Yan sokak, 2. kat" value="${escapeAttr((existing&&existing.note)||'')}"></div>
       <div style="margin-top:10px;">
         <p style="font-weight:700;margin-bottom:8px;">Ürün Ekle</p>
         <div class="tabs" id="prodStationTabs"></div>
@@ -1782,7 +1798,7 @@ function renderTableItems(tableId){
               <button class="qty-btn" onclick="changeDraftQty('${tableId}',${idx},1)">+</button>
             </span>
           </div>
-          <input type="text" placeholder="Not ekle (örn. az pişmiş, acısız...)" value="${escapeHtml(it.note||'')}" style="margin:6px 0 0;font-size:12px;padding:6px 10px;" oninput="updateDraftItemNote('${tableId}',${idx},this.value)">
+          <input type="text" placeholder="Not ekle (örn. az pişmiş, acısız...)" value="${escapeAttr(it.note||'')}" style="margin:6px 0 0;font-size:12px;padding:6px 10px;" oninput="updateDraftItemNote('${tableId}',${idx},this.value)">
         </div>`; }).join('') +
       `<div style="text-align:right;font-weight:700;margin-top:8px;">Toplam: ${money(total)}</div>
       </div>`;
@@ -2788,13 +2804,13 @@ async function onNewPrinterTypeChange(forceRefresh){
   wrap.innerHTML = '<label>İşletim Sistemi Yazıcısı</label><div style="display:flex;gap:8px;"><select id="np_osprinter" style="flex:1;">'+(cached?'':'<option value="">Yükleniyor...</option>')+'</select><button type="button" class="sbtn" style="width:auto;" onclick="onNewPrinterTypeChange(true)">🔄 Yenile</button></div>';
   if(cached){
     const sel = document.getElementById('np_osprinter');
-    sel.innerHTML = cached.length ? cached.map(p => `<option value="${escapeHtml(p.name)}" ${p.isDefault?'selected':''}>${escapeHtml(p.displayName||p.name)}${p.isDefault?' (varsayılan)':''}</option>`).join('') : '<option value="">Yazıcı bulunamadı</option>';
+    sel.innerHTML = cached.length ? cached.map(p => `<option value="${escapeAttr(p.name)}" ${p.isDefault?'selected':''}>${escapeHtml(p.displayName||p.name)}${p.isDefault?' (varsayılan)':''}</option>`).join('') : '<option value="">Yazıcı bulunamadı</option>';
   }
   try{
     const list = await getElectronPrintersCached(forceRefresh);
     const sel = document.getElementById('np_osprinter');
     if(!sel) return;
-    sel.innerHTML = list.length ? list.map(p => `<option value="${escapeHtml(p.name)}" ${p.isDefault?'selected':''}>${escapeHtml(p.displayName||p.name)}${p.isDefault?' (varsayılan)':''}</option>`).join('') : '<option value="">Yazıcı bulunamadı</option>';
+    sel.innerHTML = list.length ? list.map(p => `<option value="${escapeAttr(p.name)}" ${p.isDefault?'selected':''}>${escapeHtml(p.displayName||p.name)}${p.isDefault?' (varsayılan)':''}</option>`).join('') : '<option value="">Yazıcı bulunamadı</option>';
   }catch(e){
     const sel = document.getElementById('np_osprinter');
     if(sel) sel.innerHTML = '<option value="">Yazıcı listesi alınamadı</option>';

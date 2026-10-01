@@ -327,8 +327,8 @@ function renderExpiredScreen(app){
     <div class="box">
       <h1>⏰ Deneme Süreniz / Aboneliğiniz Sona Erdi</h1>
       <p class="muted">Devam etmek için işletme bilgilerinizle ödemenizi tamamlayın - onaylanır onaylanmaz tekrar giriş yapabilirsiniz.</p>
-      <input id="exCode" placeholder="İşletme kodu" autocapitalize="none" value="${escapeHtml(prefill.code||'')}">
-      <input id="exUser" placeholder="Yönetici kullanıcı adı" autocapitalize="none" value="${escapeHtml(prefill.username||'')}">
+      <input id="exCode" placeholder="İşletme kodu" autocapitalize="none" value="${escapeAttr(prefill.code||'')}">
+      <input id="exUser" placeholder="Yönetici kullanıcı adı" autocapitalize="none" value="${escapeAttr(prefill.username||'')}">
       <input id="exPass" type="password" placeholder="Yönetici şifresi">
       <button id="exPayBtn" onclick="startRenewalPayment()">💳 Ödemeye Geç</button>
       <div class="error" id="exErr"></div>
@@ -386,8 +386,8 @@ function renderForgotPasswordScreen(app){
         ? 'İşletme kodunuzu ve kullanıcı adınızı girin, kayıtlı e-postanıza doğrulama kodu gönderelim.'
         : 'E-postanıza gönderilen kodu ve yeni şifrenizi girin.'}</p>
       <div id="forgotStep1" style="display:${step===1?'block':'none'};">
-        <input id="fpCode" placeholder="İşletme kodu (örn. test123)" autocapitalize="none" value="${escapeHtml((APP.pendingReset||{}).code||'')}">
-        <input id="fpUser" placeholder="Kullanıcı adı" autocapitalize="none" value="${escapeHtml((APP.pendingReset||{}).username||'')}">
+        <input id="fpCode" placeholder="İşletme kodu (örn. test123)" autocapitalize="none" value="${escapeAttr((APP.pendingReset||{}).code||'')}">
+        <input id="fpUser" placeholder="Kullanıcı adı" autocapitalize="none" value="${escapeAttr((APP.pendingReset||{}).username||'')}">
         <button id="fpSendBtn" onclick="doStartPasswordReset()">Kod Gönder</button>
       </div>
       <div id="forgotStep2" style="display:${step===2?'block':'none'};">

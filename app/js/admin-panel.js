@@ -145,8 +145,8 @@ async function refreshPackagesAdmin(admin){
         ${packages.map(p => `
           <tr>
             <td class="col-name"><code>${escapeHtml(p.id)}</code></td>
-            <td class="col-name"><input value="${escapeHtml(p.name)}" id="pkg_name_${p.id}"></td>
-            <td class="col-name"><input value="${escapeHtml(p.description)}" id="pkg_desc_${p.id}"></td>
+            <td class="col-name"><input value="${escapeAttr(p.name)}" id="pkg_name_${p.id}"></td>
+            <td class="col-name"><input value="${escapeAttr(p.description)}" id="pkg_desc_${p.id}"></td>
             <td class="col-num" style="width:90px;"><input type="number" min="1" step="1" value="${p.max_users}" id="pkg_users_${p.id}"></td>
             <td class="col-num" style="width:90px;"><input type="number" min="1" step="1" value="${p.max_branches||1}" id="pkg_branches_${p.id}" title="Bu paketi seçen bir şirket en fazla kaç şube açabilir"></td>
             <td class="col-num" style="width:110px;"><input type="number" min="0" step="0.01" value="${p.price}" id="pkg_price_${p.id}"></td>
@@ -443,7 +443,7 @@ async function refreshRestaurantsList(admin){
             <td style="white-space:nowrap;">
               <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
                 <button class="sbtn" style="margin:0;${r.is_active?'background:var(--red);color:var(--btn-ink);':''}" onclick="toggleRestaurantActive('${r.id}', ${!r.is_active})">${r.is_active?'Pasif Et':'Aktif Et'}</button>
-                <button class="sbtn" style="margin:0;" onclick="openEntitlementsModal('restaurant', '${r.id}', '${escapeHtml(r.name)}')">🧩 Eklentiler</button>
+                <button class="sbtn" style="margin:0;" data-name="${escapeAttr(r.name)}" onclick="openEntitlementsModal('restaurant', '${r.id}', this.dataset.name)">🧩 Eklentiler</button>
                 <button class="sbtn" style="margin:0;" onclick="showRestaurantUsers('${r.id}')">👥 Kullanıcılar</button>
                 <button class="sbtn" style="margin:0;background:var(--red);color:var(--btn-ink);" onclick="deleteRestaurantAdmin('${r.id}')">🗑️ Sil</button>
               </div>
@@ -594,8 +594,8 @@ async function refreshCompaniesList(admin){
             <td class="col-name">${new Date(c.created_at).toLocaleDateString('tr-TR')}</td>
             <td style="white-space:nowrap;">
               <button class="sbtn" style="${c.is_active?'background:var(--red);color:var(--btn-ink);':''}" onclick="toggleCompanyActive('${c.id}', ${!c.is_active})">${c.is_active?'Pasif Et':'Aktif Et'}</button>
-              <button class="sbtn" onclick="openEntitlementsModal('company', '${c.id}', '${escapeHtml(c.name)}')">🧩 Eklentiler</button>
-              <button class="sbtn" style="background:var(--red);color:var(--btn-ink);" onclick="deleteCompany('${c.id}', '${escapeHtml(c.name)}')">🗑️ Sil</button>
+              <button class="sbtn" data-name="${escapeAttr(c.name)}" onclick="openEntitlementsModal('company', '${c.id}', this.dataset.name)">🧩 Eklentiler</button>
+              <button class="sbtn" style="background:var(--red);color:var(--btn-ink);" data-name="${escapeAttr(c.name)}" onclick="deleteCompany('${c.id}', this.dataset.name)">🗑️ Sil</button>
             </td>
           </tr>`;
         }).join('')}
@@ -672,8 +672,8 @@ async function refreshAddonsList(admin){
         ${addons.map(a => `
           <tr>
             <td class="col-name"><code>${escapeHtml(a.id)}</code></td>
-            <td class="col-name"><input value="${escapeHtml(a.label)}" id="addon_name_${a.id}"></td>
-            <td class="col-name"><input value="${escapeHtml(a.description||'')}" id="addon_desc_${a.id}"></td>
+            <td class="col-name"><input value="${escapeAttr(a.label)}" id="addon_name_${a.id}"></td>
+            <td class="col-name"><input value="${escapeAttr(a.description||'')}" id="addon_desc_${a.id}"></td>
             <td class="col-num" style="width:110px;"><input type="number" min="0" step="0.01" value="${a.price}" id="addon_price_${a.id}"></td>
             <td style="text-align:center;"><input type="checkbox" id="addon_active_${a.id}" ${a.active?'checked':''} style="width:18px;height:18px;"></td>
             <td style="white-space:nowrap;">
@@ -765,9 +765,9 @@ async function refreshFeatureCatalogList(admin){
             ${byCat[cat].map(f => `
               <tr>
                 <td class="col-name"><code>${escapeHtml(f.id)}</code>${f.is_core?' 🔒':''}</td>
-                <td class="col-name"><input value="${escapeHtml(f.label)}" id="feat_label_${f.id}"></td>
-                <td class="col-name"><input value="${escapeHtml(f.description||'')}" id="feat_desc_${f.id}"></td>
-                <td class="col-name"><input value="${escapeHtml(f.category||'')}" id="feat_cat_${f.id}"></td>
+                <td class="col-name"><input value="${escapeAttr(f.label)}" id="feat_label_${f.id}"></td>
+                <td class="col-name"><input value="${escapeAttr(f.description||'')}" id="feat_desc_${f.id}"></td>
+                <td class="col-name"><input value="${escapeAttr(f.category||'')}" id="feat_cat_${f.id}"></td>
                 <td class="col-num" style="width:110px;"><input type="number" min="0" step="0.01" value="${f.price}" id="feat_price_${f.id}"></td>
                 <td style="text-align:center;"><input type="checkbox" id="feat_active_${f.id}" ${f.active?'checked':''} style="width:18px;height:18px;"></td>
                 <td style="text-align:center;"><input type="checkbox" id="feat_isaddon_${f.id}" ${f.is_addon?'checked':''} style="width:18px;height:18px;"></td>
@@ -1095,7 +1095,7 @@ async function refreshPromoList(admin){
     <div class="add-row-panel" style="margin-top:20px;">
       <p>Kullanıcı Adınızı Değiştirin</p>
       <div style="display:flex;gap:10px;max-width:420px;">
-        <input id="newAdminUsername" placeholder="Yeni kullanıcı adı" autocapitalize="none" value="${escapeHtml(admin.username||'')}" style="flex:1;margin:0;">
+        <input id="newAdminUsername" placeholder="Yeni kullanıcı adı" autocapitalize="none" value="${escapeAttr(admin.username||'')}" style="flex:1;margin:0;">
         <button style="width:auto;padding:10px 16px;margin:0;" onclick="changeAdminUsername()">Güncelle</button>
       </div>
       <div class="error" id="adminUsernameErr" style="text-align:left;margin:6px 0 0;min-height:0;"></div>

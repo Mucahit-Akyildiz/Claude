@@ -121,6 +121,15 @@ function showToast(msg, durationMs, position, onClick, nativeNotify){
 function escapeHtml(s){
   const d = document.createElement('div'); d.textContent = s||''; return d.innerHTML;
 }
+/* escapeHtml yalnızca metin düğümü (text node) bağlamı için güvenli - tırnak
+   işaretlerini kaçırmaz, çünkü HTML metin içeriğinde tırnağın özel bir anlamı
+   yoktur. Bir değer bir HTML ATTRIBUTE'una (value="...", data-x="...") gömülecekse
+   onun yerine BU fonksiyon kullanılmalı - aksi halde değer içindeki bir çift/tek
+   tırnak attribute'u erken kapatıp yanına örn. onfocus="..." autofocus gibi
+   yeni bir attribute enjekte edebilir (tıklama bile gerektirmeyen stored XSS). */
+function escapeAttr(s){
+  return String(s==null?'':s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
 /* Fiş başlığı/altı notu contenteditable'dan geldiği ve her cihazda innerHTML
    olarak basıldığı için (bkz. buildTicketHtml), kaydetmeden önce VE
    render ederken (savunma derinliği) burada beyaz listeye alınmadan asla
