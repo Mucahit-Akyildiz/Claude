@@ -89,6 +89,32 @@
   .price-card .desc{font-size:13px;color:var(--muted);margin:0 0 20px;}
   .price-card ul{list-style:none;padding:0;margin:0 0 22px;text-align:left;font-size:13.5px;color:var(--text);}
   .price-card li{padding:6px 0;border-top:1px solid var(--border);}
+  .price-card li.plus{font-weight:600;}
+  .price-card li.plus::before{content:'+ ';color:var(--accent);font-weight:800;}
+  .price-card li.inherit{color:var(--muted);font-size:13px;border-top:none;padding-top:0;}
+  .common-features{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;}
+  .common-features span{background:var(--panel);border:1.5px solid var(--border);border-radius:999px;padding:6px 12px;font-size:13px;}
+  .addon-card .add-btn{margin-top:8px;align-self:flex-start;}
+  .price-card.in-cart,.addon-card.in-cart{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-soft);}
+  .cart-bar{position:fixed;left:0;right:0;bottom:0;z-index:50;background:var(--panel);border-top:1.5px solid var(--border);box-shadow:0 -8px 24px rgba(0,0,0,.08);padding:12px 16px;display:none;}
+  .cart-bar.show{display:block;}
+  .cart-bar .inner{max-width:1100px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;}
+  .cart-bar .summary{font-size:14px;}
+  .cart-bar .summary b{font-size:16px;}
+  .cart-bar .summary small{display:block;color:var(--muted);font-size:12px;}
+  body.has-cart{padding-bottom:90px;}
+  .addons-head{text-align:center;margin:48px 0 18px;}
+  .addons-head h3{font-size:22px;font-weight:800;margin:0 0 6px;}
+  .addons-head p{color:var(--muted);font-size:14px;margin:0;}
+  .addons-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;}
+  .addon-card{background:var(--panel);border:1.5px solid var(--border);border-radius:14px;padding:18px 18px 16px;display:flex;flex-direction:column;gap:6px;}
+  .addon-card .top{display:flex;justify-content:space-between;align-items:baseline;gap:10px;}
+  .addon-card h4{margin:0;font-size:15px;font-weight:700;}
+  .addon-card .price{font-weight:800;white-space:nowrap;color:var(--accent);}
+  .addon-card .price small{font-size:12px;font-weight:600;color:var(--muted);}
+  .addon-card p{margin:0;font-size:13px;color:var(--muted);line-height:1.5;}
+  @media (max-width:900px){ .addons-grid{grid-template-columns:1fr 1fr;} }
+  @media (max-width:600px){ .addons-grid{grid-template-columns:1fr;} }
   .price-card li:first-child{border-top:none;}
   /* ---- Mobile ---- */
   .mobile-section{background:var(--panel);border-radius:24px;padding:48px 36px;display:flex;align-items:center;gap:40px;flex-wrap:wrap;}
@@ -188,12 +214,40 @@
       <p class="eyebrow">Fiyatlandırma</p>
       <h2>Basit, şeffaf fiyatlar</h2>
       <p>Her paket 7 gün ücretsiz denemeyle başlar. Kredi kartı gerekmez.</p>
+      <div class="billing-toggle" style="display:flex;justify-content:center;gap:8px;margin-top:18px;">
+        <button type="button" id="billingToggleMonthly" class="btn btn-outline" style="width:auto;padding:8px 18px;" onclick="setPricingBillingCycle('monthly')">Aylık</button>
+        <button type="button" id="billingToggleYearly" class="btn btn-outline" style="width:auto;padding:8px 18px;" onclick="setPricingBillingCycle('yearly')">Yıllık</button>
+      </div>
     </div>
     <div class="pricing-grid" id="pricingGrid">
       <p style="grid-column:1/-1;text-align:center;color:var(--muted);">Yükleniyor...</p>
     </div>
+    <div id="commonSection" style="display:none;">
+      <div class="addons-head">
+        <h3>Tüm paketlerde standart</h3>
+        <p>Aşağıdaki özellikler her pakette bulunur; kartlarda yalnızca paketler arasındaki farklar listelenir.</p>
+      </div>
+      <div class="common-features" id="commonFeatures"></div>
+    </div>
+    <div id="addonsSection" style="display:none;">
+      <div class="addons-head">
+        <h3>Eklentiler</h3>
+        <p>İhtiyacınız olan ek özellikleri paketinize ayrıca ekleyebilirsiniz.</p>
+      </div>
+      <div class="addons-grid" id="addonsGrid"></div>
+    </div>
   </div>
 </section>
+
+<div class="cart-bar" id="cartBar">
+  <div class="inner">
+    <div class="summary" id="cartSummary"></div>
+    <div style="display:flex;gap:8px;">
+      <button type="button" class="btn btn-outline" style="width:auto;" onclick="clearCart()">Temizle</button>
+      <button type="button" class="btn btn-primary" style="width:auto;" id="cartBuyBtn" onclick="goToCheckout()">Satın Al →</button>
+    </div>
+  </div>
+</div>
 
 <section>
   <div class="wrap">
@@ -216,6 +270,7 @@
     <span>© 2026 Peyktan. Tüm hakları saklıdır.</span>
     <div class="links">
       <a href="/gizlilik/">Gizlilik Politikası</a>
+      <a href="/hesap-silme/">Hesap Silme</a>
       <a href="/app/">Giriş Yap</a>
     </div>
   </div>
@@ -252,27 +307,161 @@
   // eklediğinde bu sayfa elle güncellenmeden otomatik senkron kalır.
   // Paketler de aynı şekilde admin panelinden eklenip/silinebildiği için
   // sabit değil - canlı okunup kart olarak render ediliyor (bkz. list_packages).
-  Promise.all([sb.rpc('list_packages'), sb.rpc('list_feature_labels')]).then(([{data}, {data: featureLabelsData}]) => {
-    const grid = document.getElementById('pricingGrid');
-    const packages = data || [];
-    const featureLabels = {};
-    (featureLabelsData||[]).forEach(f => { featureLabels[f.id] = f.label; });
-    if(packages.length===0){ grid.innerHTML = ''; return; }
-    grid.innerHTML = packages.map(p => {
-      const featureItems = (p.features||[]).map(f => featureLabels[f] || f);
-      return `
-      <div class="price-card ${p.is_popular?'popular':''}">
-        ${p.is_popular ? '<span class="badge">EN ÇOK TERCİH EDİLEN</span>' : ''}
-        <h3>${escapeHtml(p.name)}</h3>
-        <div class="amount">${p.price ? money(p.price)+' <small>TL/ay</small>' : '—'}</div>
-        <p class="desc">${escapeHtml(p.description)}</p>
-        <ul>
-          <li>${p.max_users} kullanıcıya kadar</li>
-          ${featureItems.map(label => `<li>${escapeHtml(label)}</li>`).join('')}
-        </ul>
-        <a class="btn ${p.is_popular?'btn-primary':'btn-outline'}" style="width:100%;" href="/app/?signup=1">Dene</a>
+  let PRICING_PACKAGES = [];
+  let PRICING_FEATURE_LABELS = {};
+  let PRICING_BILLING_CYCLE = 'monthly';
+  function setPricingBillingCycle(cycle){
+    PRICING_BILLING_CYCLE = cycle;
+    document.getElementById('billingToggleMonthly').className = 'btn ' + (cycle==='monthly' ? 'btn-primary' : 'btn-outline');
+    document.getElementById('billingToggleYearly').className = 'btn ' + (cycle==='yearly' ? 'btn-primary' : 'btn-outline');
+    renderPricingGrid();
+    renderAddons();
+    renderCart();
+  }
+  let PRICING_ADDONS = [];
+  /* Sepet: bir paket + istenen eklentiler. "Satın Al" kayıt ekranına
+     seçimle birlikte gider (/app/?signup=1&pkg=..&addons=..&cycle=..);
+     kayıtta paket ve seçilen eklentiler hesaba tanımlanır, abonelik tutarı
+     paket + eklentiler olarak hesaplanır. Eklenti seçilmezse sadece paketin
+     özellikleri gelir. */
+  const CART = { pkg: null, addons: new Set() };
+  function selectCartPackage(id){
+    CART.pkg = CART.pkg === id ? null : id;
+    renderPricingGrid(); renderAddons(); renderCart();
+  }
+  function toggleCartAddon(id){
+    if(CART.addons.has(id)) CART.addons.delete(id); else CART.addons.add(id);
+    renderAddons(); renderCart();
+  }
+  function clearCart(){ CART.pkg = null; CART.addons.clear(); renderPricingGrid(); renderAddons(); renderCart(); }
+  function cartTotals(){
+    const yearly = PRICING_BILLING_CYCLE === 'yearly';
+    const p = PRICING_PACKAGES.find(x => x.id === CART.pkg);
+    const pkgPrice = !p ? 0 : (yearly ? (p.price_yearly!=null ? p.price_yearly : (p.price||0)*12) : (p.price||0));
+    const included = new Set((p && p.included_addons) || []);
+    const addons = PRICING_ADDONS.filter(a => CART.addons.has(a.id) && !included.has(a.id));
+    const addonsPrice = addons.reduce((sum, a) => sum + (Number(a.price)||0), 0) * (yearly ? 12 : 1);
+    return { p, addons, total: pkgPrice + addonsPrice, yearly };
+  }
+  function renderCart(){
+    const bar = document.getElementById('cartBar');
+    if(!bar) return;
+    const has = CART.pkg || CART.addons.size;
+    bar.classList.toggle('show', !!has);
+    document.body.classList.toggle('has-cart', !!has);
+    if(!has) return;
+    const { p, addons, total, yearly } = cartTotals();
+    const parts = [];
+    if(p) parts.push(escapeHtml(p.name) + ' paketi');
+    if(addons.length) parts.push(addons.length + ' eklenti');
+    document.getElementById('cartSummary').innerHTML = p
+      ? `🛒 ${parts.join(' + ')} · <b>${money(total)} ${yearly?'TL/yıl':'TL/ay'}</b><small>İlk 7 gün ücretsiz; deneme sonunda bu tutarla devam edersiniz.</small>`
+      : `🛒 ${addons.length} eklenti seçildi<small>Satın almak için yukarıdan bir paket seçin.</small>`;
+    document.getElementById('cartBuyBtn').disabled = !p;
+  }
+  function goToCheckout(){
+    if(!CART.pkg) return;
+    const q = new URLSearchParams({ signup: '1', pkg: CART.pkg, cycle: PRICING_BILLING_CYCLE });
+    const inc = new Set((PRICING_PACKAGES.find(x => x.id === CART.pkg) || {}).included_addons || []);
+    const paid = [...CART.addons].filter(id => !inc.has(id));
+    if(paid.length) q.set('addons', paid.join(','));
+    window.location.href = '/app/?' + q.toString();
+  }
+  // Eklentiler ayrı fiyatlandırılan ek özelliklerdir (platform admin >
+  // Eklentiler). Fiyatı henüz girilmemiş (0) eklentide fiyat yerine
+  // "Fiyat için iletişime geçin" gösterilir.
+  function renderAddons(){
+    const section = document.getElementById('addonsSection');
+    const grid = document.getElementById('addonsGrid');
+    if(!section || !grid) return;
+    if(PRICING_ADDONS.length===0){ section.style.display = 'none'; return; }
+    section.style.display = '';
+    const yearly = PRICING_BILLING_CYCLE === 'yearly';
+    grid.innerHTML = PRICING_ADDONS.map(a => {
+      const price = Number(a.price)||0;
+      const priceHtml = price > 0
+        ? money(yearly ? price*12 : price)+' <small>'+(yearly?'TL/yıl':'TL/ay')+'</small>'
+        : '<small>Fiyat için iletişime geçin</small>';
+      const cartPkg = PRICING_PACKAGES.find(x => x.id === CART.pkg);
+      if(cartPkg && (cartPkg.included_addons||[]).includes(a.id)){
+        return `<div class="addon-card in-cart">
+        <div class="top"><h4>${escapeHtml(a.label)}</h4><span class="price"><small>${escapeHtml(cartPkg.name)} paketine dahil</small></span></div>
+        ${a.description ? `<p>${escapeHtml(a.description)}</p>` : ''}
+        <button type="button" class="btn btn-primary add-btn" style="width:auto;padding:6px 14px;font-size:13px;" disabled>✓ Pakete dahil</button>
+      </div>`;
+      }
+      const inCart = CART.addons.has(a.id);
+      return `<div class="addon-card ${inCart?'in-cart':''}">
+        <div class="top"><h4>${escapeHtml(a.label)}</h4><span class="price">${priceHtml}</span></div>
+        ${a.description ? `<p>${escapeHtml(a.description)}</p>` : ''}
+        <button type="button" class="btn ${inCart?'btn-primary':'btn-outline'} add-btn" style="width:auto;padding:6px 14px;font-size:13px;" onclick="toggleCartAddon('${a.id}')">${inCart?'✓ Sepette':'+ Sepete Ekle'}</button>
       </div>`;
     }).join('');
+  }
+  function renderPricingGrid(){
+    const grid = document.getElementById('pricingGrid');
+    if(!grid) return;
+    const packages = PRICING_PACKAGES;
+    if(packages.length===0){ grid.innerHTML = ''; return; }
+    const yearly = PRICING_BILLING_CYCLE === 'yearly';
+    // Kartlarda tüm özellikleri tek tek listelemek farkları gizliyordu. Tüm
+    // paketlerde ortak olanlar ayrı "standart" bölümünde bir kez gösterilir;
+    // her kart ya "önceki paketteki her şey, artı:" (önceki paketin tamamını
+    // kapsıyorsa) ya da "standart özellikler, artı:" başlığıyla sadece
+    // kendi eklediklerini listeler.
+    const addonLabel = id => { const a = PRICING_ADDONS.find(x => x.id === id); return a && a.label; };
+    const label = f => PRICING_FEATURE_LABELS[f] || addonLabel(f) || f;
+    // Pakete bilinçli olarak dahil edilen eklentiler de (included_addons)
+    // karttaki farklar arasında gösterilir.
+    const featSets = packages.map(p => new Set([...(p.features||[]), ...(p.included_addons||[])]));
+    const common = packages.length > 1
+      ? [...featSets[0]].filter(f => featSets.every(fs => fs.has(f)))
+      : [];
+    const commonSet = new Set(common);
+    grid.innerHTML = packages.map((p, i) => {
+      const cur = featSets[i];
+      const prev = i > 0 ? featSets[i-1] : null;
+      const inheritsPrev = prev && [...prev].every(f => cur.has(f));
+      const base = inheritsPrev ? prev : commonSet;
+      const extras = [...cur].filter(f => !base.has(f));
+      const inheritLine = inheritsPrev
+        ? `<b>${escapeHtml(packages[i-1].name)}</b> paketindeki her şey, artı:`
+        : (!common.length ? '' : (extras.length ? 'Tüm standart özellikler, artı:' : 'Tüm standart özellikler dahil (aşağıda listelenmiştir)'));
+      // Yillik fiyat admin panelinden ayrica girilmemisse (indirim
+      // opsiyonel), aylik fiyatin 12 kati otomatik kullanilir - backend'deki
+      // (get_bank_transfer_status/payment-initialize.js) ayni fallback mantigi.
+      const monthlyPrice = p.price || 0;
+      const yearlyPrice = p.price_yearly!=null ? p.price_yearly : monthlyPrice*12;
+      const displayPrice = yearly ? yearlyPrice : monthlyPrice;
+      const hasDiscount = yearly && p.price_yearly!=null && p.price_yearly < monthlyPrice*12;
+      const savings = hasDiscount ? (monthlyPrice*12 - p.price_yearly) : 0;
+      return `
+      <div class="price-card ${p.is_popular?'popular':''} ${CART.pkg===p.id?'in-cart':''}">
+        ${p.is_popular ? '<span class="badge">EN ÇOK TERCİH EDİLEN</span>' : ''}
+        <h3>${escapeHtml(p.name)}</h3>
+        <div class="amount">${monthlyPrice ? money(displayPrice)+' <small>'+(yearly?'TL/yıl':'TL/ay')+'</small>' : '—'}</div>
+        ${hasDiscount ? `<p class="desc" style="color:var(--accent, #0a8);font-weight:600;">Yıllıkta ${money(savings)} TL tasarruf</p>` : ''}
+        <p class="desc">${escapeHtml(p.description)}</p>
+        <ul>
+          <li><b>${p.max_users} kullanıcıya kadar</b></li>
+          ${inheritLine ? `<li class="inherit" style="padding-top:10px;border-top:1px solid var(--border);">${inheritLine}</li>` : ''}
+          ${extras.map(f => `<li class="plus">${escapeHtml(label(f))}</li>`).join('')}
+          ${(!extras.length && inheritsPrev) ? '<li class="inherit">Ek özellik yok</li>' : ''}
+        </ul>
+        <button type="button" class="btn ${CART.pkg===p.id?'btn-primary':'btn-outline'}" style="width:100%;" onclick="selectCartPackage('${p.id}')">${CART.pkg===p.id?'✓ Sepette':'Sepete Ekle'}</button>
+      </div>`;
+    }).join('');
+    const commonSection = document.getElementById('commonSection');
+    if(commonSection){
+      commonSection.style.display = common.length ? '' : 'none';
+      document.getElementById('commonFeatures').innerHTML = common.map(f => `<span>✓ ${escapeHtml(label(f))}</span>`).join('');
+    }
+  }
+  sb.rpc('list_addons').then(({data}) => { PRICING_ADDONS = data || []; renderAddons(); renderPricingGrid(); }).catch(()=>{});
+  Promise.all([sb.rpc('list_packages'), sb.rpc('list_feature_labels')]).then(([{data}, {data: featureLabelsData}]) => {
+    PRICING_PACKAGES = data || [];
+    (featureLabelsData||[]).forEach(f => { PRICING_FEATURE_LABELS[f.id] = f.label; });
+    setPricingBillingCycle('monthly');
   }).catch(()=>{
     const grid = document.getElementById('pricingGrid');
     if(grid) grid.innerHTML = '<p style="grid-column:1/-1;text-align:center;color:var(--muted);">Fiyatlar şu anda yüklenemedi.</p>';

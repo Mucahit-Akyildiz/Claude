@@ -333,12 +333,25 @@ declare
   v_otp text;
   v_resend_key text;
   v_resend_from text;
+  v_recent_count int;
 begin
   if exists(select 1 from restaurants where lower(email) = lower(p_email)) then
     raise exception 'Bu e-posta adresiyle zaten bir hesap var';
   end if;
-  if exists(select 1 from restaurants where phone = p_phone) then
+  -- Telefon formati farkiyla (+90.../0...) deneme suresi tekrar alinamasin
+  -- diye karsilastirma oncesi sadece rakamlar birakilip son 10 hane kiyaslanir.
+  if exists(
+    select 1 from restaurants
+    where right(regexp_replace(phone, '\D', '', 'g'), 10) = right(regexp_replace(p_phone, '\D', '', 'g'), 10)
+  ) then
     raise exception 'Bu telefon numarasıyla zaten bir hesap var';
+  end if;
+
+  -- OTP isteme uctan e-posta bombardimani/Resend kota tuketimini engeller.
+  select count(*) into v_recent_count from signup_otps
+    where (phone = p_phone or lower(email) = lower(p_email)) and created_at > now() - interval '10 minutes';
+  if v_recent_count >= 3 then
+    raise exception 'Çok sık kod istediniz, lütfen biraz bekleyip tekrar deneyin';
   end if;
 
   v_otp := lpad(floor(random()*1000000)::text, 6, '0');
@@ -394,8 +407,14 @@ begin
     raise exception 'Çok fazla hatalı deneme yaptınız, yeni bir kod isteyin';
   end if;
   if v_otp_row.otp_code <> p_otp then
+    -- ÖNEMLİ: Burada RAISE EXCEPTION atılırsa, bu fonksiyon çağrısının tek
+    -- bir transaction olması nedeniyle yukarıdaki "attempts+1" UPDATE'i de
+    -- geri alınır (rollback) - sayaç hiçbir zaman artmaz, OTP'ye sınırsız
+    -- deneme yapılabilir. Bu yüzden hata fırlatmak yerine BOŞ SONUÇ
+    -- dönülüyor (platform_admin_login'deki gibi) ki artış kalıcı olsun;
+    -- çağıran taraf boş/eksik sonucu "kod hatalı" olarak yorumlamalı.
     update signup_otps set attempts = attempts + 1 where id = v_otp_row.id;
-    raise exception 'Kod hatalı';
+    return;
   end if;
 
   update signup_otps set verified = true where id = v_otp_row.id;
@@ -662,14 +681,28 @@ declare
   item json;
   v_qty int;
   v_product_id uuid;
+  v_price numeric;
+  v_cost numeric;
 begin
   s := _session_check(p_token);
+
+  -- Masa bu restorana ait mi (cross-tenant BOLA'yı engeller).
+  if not exists(select 1 from restaurant_tables where id = p_table_id and restaurant_id = s.restaurant_id) then
+    raise exception 'Masa bulunamadı';
+  end if;
+
+  if json_array_length(p_items) > 100 then
+    raise exception 'Çok fazla ürün';
+  end if;
 
   select o.id, o.daily_number into v_order_id, v_daily_number from orders o
     where o.restaurant_id = s.restaurant_id and o.table_id = p_table_id and o.status = 'open'
     limit 1;
 
   if v_order_id is null then
+    -- Ayni restoranin gunluk numara uretimini serilestirir (yaris durumu koruması).
+    perform 1 from restaurants where id = s.restaurant_id for update;
+
     select coalesce(max(o.daily_number), 0) + 1 into v_daily_number
       from orders o where o.restaurant_id = s.restaurant_id
         and (o.created_at at time zone 'Europe/Istanbul')::date = (now() at time zone 'Europe/Istanbul')::date;
@@ -685,11 +718,23 @@ begin
   loop
     v_product_id := (item->>'product_id')::uuid;
     v_qty := (item->>'qty')::int;
+    if v_qty is null or v_qty <= 0 then
+      raise exception 'Geçersiz adet';
+    end if;
+    -- Fiyat/maliyet HER ZAMAN sunucudaki ürün kaydından okunur - client'in
+    -- gönderdiği price/cost alanlarına güvenilmez (aksi halde bir istemci
+    -- ürünü gerçek fiyatından çok daha düşük bir bedelle "sipariş edip
+    -- ödettirebilir").
+    select price, cost into v_price, v_cost from products
+      where id = v_product_id and restaurant_id = s.restaurant_id;
+    if not found then
+      raise exception 'Ürün bulunamadı';
+    end if;
 
     insert into order_items (order_id, product_id, name, price, cost, qty, status, note)
     values (
       v_order_id, v_product_id, item->>'name',
-      (item->>'price')::numeric, (item->>'cost')::numeric, v_qty,
+      v_price, v_cost, v_qty,
       'pending', item->>'note'
     );
   end loop;
@@ -719,8 +764,14 @@ declare
   item json;
   v_qty int;
   v_product_id uuid;
+  v_price numeric;
+  v_cost numeric;
 begin
   s := _session_check(p_token);
+
+  if json_array_length(p_items) > 100 then
+    raise exception 'Çok fazla ürün';
+  end if;
 
   if p_order_id is not null then
     select o.id, o.daily_number into v_order_id, v_daily_number from orders o
@@ -735,6 +786,9 @@ begin
       note = coalesce(p_note, note)
       where id = v_order_id;
   else
+    -- Ayni restoranin gunluk numara uretimini serilestirir (yaris durumu koruması).
+    perform 1 from restaurants where id = s.restaurant_id for update;
+
     select coalesce(max(o.daily_number), 0) + 1 into v_daily_number
       from orders o where o.restaurant_id = s.restaurant_id
         and (o.created_at at time zone 'Europe/Istanbul')::date = (now() at time zone 'Europe/Istanbul')::date;
@@ -748,11 +802,21 @@ begin
   loop
     v_product_id := (item->>'product_id')::uuid;
     v_qty := (item->>'qty')::int;
+    if v_qty is null or v_qty <= 0 then
+      raise exception 'Geçersiz adet';
+    end if;
+    -- Fiyat/maliyet HER ZAMAN sunucudaki ürün kaydından okunur, ayrıca
+    -- ürünün bu restorana ait olduğu da doğrulanmış olur (cross-tenant BOLA).
+    select price, cost into v_price, v_cost from products
+      where id = v_product_id and restaurant_id = s.restaurant_id;
+    if not found then
+      raise exception 'Ürün bulunamadı';
+    end if;
 
     insert into order_items (order_id, product_id, name, price, cost, qty, status, note)
     values (
       v_order_id, v_product_id, item->>'name',
-      (item->>'price')::numeric, (item->>'cost')::numeric, v_qty,
+      v_price, v_cost, v_qty,
       'pending', item->>'note'
     );
   end loop;
@@ -761,6 +825,156 @@ begin
 end;
 $$;
 grant execute on function send_takeaway_order to anon;
+
+-- Mutfakta hazırlanırken yanan/düşen/bozulan ürünleri israf olarak kaydeder:
+-- ilgili hammaddeyi (ya da doğrudan ürün stoğunu) düşer ve maliyetini
+-- waste_log'a yazar (Finansal Analiz > İsraf'ta görünür). p_order_item_id
+-- verilirse o kalem israf edilen miktar kadar küçültülür/silinir - müşteriden
+-- bu kısım için ücret alınmaz. Verilmezse (siparişe bağlı olmayan hammadde/
+-- ürün israfı) doğrudan p_product_id+p_qty kullanılır.
+create table if not exists waste_log (
+  id uuid primary key default gen_random_uuid(),
+  restaurant_id uuid not null references restaurants(id) on delete cascade,
+  order_id uuid references orders(id) on delete set null,
+  order_item_id uuid references order_items(id) on delete set null,
+  product_id uuid references products(id) on delete set null,
+  product_name text not null,
+  qty numeric not null,
+  unit_cost numeric not null default 0,
+  total_cost numeric not null default 0,
+  reason text,
+  staff_user_id uuid references app_users(id) on delete set null,
+  created_at timestamptz not null default now()
+);
+alter table waste_log enable row level security;
+create index if not exists idx_waste_log_restaurant_id on waste_log(restaurant_id);
+create index if not exists idx_waste_log_created_at on waste_log(created_at);
+create index if not exists idx_waste_log_order_id on waste_log(order_id);
+create index if not exists idx_waste_log_order_item_id on waste_log(order_item_id);
+create index if not exists idx_waste_log_product_id on waste_log(product_id);
+create index if not exists idx_waste_log_staff_user_id on waste_log(staff_user_id);
+
+create or replace function report_waste(
+  p_token uuid,
+  p_order_item_id uuid default null,
+  p_product_id uuid default null,
+  p_qty numeric default null,
+  p_reason text default null
+)
+returns json
+language plpgsql
+security definer
+as $$
+declare
+  s staff_sessions%rowtype;
+  v_item order_items%rowtype;
+  v_product_id uuid;
+  v_name text;
+  v_unit_cost numeric;
+  v_qty numeric;
+  v_order_id uuid;
+  v_has_recipe boolean;
+  v_waste_id uuid;
+  v_total_cost numeric;
+  v_fully_wasted boolean := false;
+begin
+  s := _session_check(p_token, 'kitchen');
+
+  if p_order_item_id is not null then
+    select oi.* into v_item from order_items oi
+      join orders o on o.id = oi.order_id
+      where oi.id = p_order_item_id and o.restaurant_id = s.restaurant_id;
+    if v_item.id is null then raise exception 'Sipariş kalemi bulunamadı'; end if;
+    if v_item.paid then raise exception 'Ödenmiş bir kalem israf olarak işaretlenemez'; end if;
+
+    v_qty := least(coalesce(p_qty, v_item.qty), v_item.qty);
+    if v_qty is null or v_qty <= 0 then raise exception 'Geçersiz miktar'; end if;
+
+    v_product_id := v_item.product_id;
+    v_name := v_item.name;
+    v_unit_cost := coalesce(v_item.cost, 0);
+    v_order_id := v_item.order_id;
+    v_fully_wasted := v_qty >= v_item.qty;
+  else
+    if p_product_id is null or p_qty is null or p_qty <= 0 then
+      raise exception 'Ürün ve geçerli bir miktar gerekli';
+    end if;
+    select id, name, cost into v_product_id, v_name, v_unit_cost
+      from products where id = p_product_id and restaurant_id = s.restaurant_id;
+    if v_product_id is null then raise exception 'Ürün bulunamadı'; end if;
+    v_qty := p_qty;
+    v_order_id := null;
+  end if;
+
+  -- Bu olay zaten fiziksel olarak gerçekleşmiş olduğu için (adjust_stock'un
+  -- aksine) yetersiz stok kontrolü yapılmıyor.
+  select exists(select 1 from product_ingredients where product_id = v_product_id) into v_has_recipe;
+  if v_has_recipe then
+    update ingredients ing set stock = ing.stock - (pi.qty_per_unit * v_qty)
+      from product_ingredients pi
+      where pi.ingredient_id = ing.id and pi.product_id = v_product_id
+        and ing.restaurant_id = s.restaurant_id;
+  else
+    update products set stock = stock - v_qty
+      where id = v_product_id and restaurant_id = s.restaurant_id and stock is not null;
+  end if;
+
+  v_total_cost := v_unit_cost * v_qty;
+
+  -- ÖNEMLİ: waste_log kaydı, order_item silinmeden ÖNCE eklenir - aksi
+  -- halde order_item_id foreign key'i artık var olmayan bir satıra işaret
+  -- edip hata verirdi (tamamen israf edilen kalemde aşağıda silinir).
+  insert into waste_log (restaurant_id, order_id, order_item_id, product_id, product_name, qty, unit_cost, total_cost, reason, staff_user_id)
+  values (s.restaurant_id, v_order_id, p_order_item_id, v_product_id, v_name, v_qty, v_unit_cost, v_total_cost, nullif(trim(coalesce(p_reason,'')),''), s.user_id)
+  returning id into v_waste_id;
+
+  if p_order_item_id is not null then
+    if v_fully_wasted then
+      delete from order_items where id = p_order_item_id;
+    else
+      update order_items set qty = qty - v_qty where id = p_order_item_id;
+    end if;
+  end if;
+
+  return json_build_object('id', v_waste_id, 'total_cost', v_total_cost);
+end;
+$$;
+grant execute on function report_waste to anon;
+
+-- Finansal Analiz > İsraf raporu: tarih aralığındaki tüm israf kayıtları + toplam.
+create or replace function list_waste(p_token uuid, p_date date, p_date_to date default null)
+returns json
+language plpgsql
+security definer
+as $$
+declare s staff_sessions%rowtype;
+begin
+  s := _session_check(p_token, 'reports');
+  return (
+    select json_build_object(
+      'rows', coalesce((
+        select json_agg(row_to_json(r) order by r.created_at desc)
+        from (
+          select wl.id, wl.product_name, wl.qty, wl.unit_cost, wl.total_cost, wl.reason,
+            wl.created_at, au.username as staff_name
+          from waste_log wl
+          left join app_users au on au.id = wl.staff_user_id
+          where wl.restaurant_id = s.restaurant_id
+            and wl.created_at >= (p_date::timestamp at time zone 'Europe/Istanbul')
+            and wl.created_at < ((coalesce(p_date_to, p_date) + 1)::timestamp at time zone 'Europe/Istanbul')
+        ) r
+      ), '[]'::json),
+      'total_cost', coalesce((
+        select sum(wl.total_cost) from waste_log wl
+        where wl.restaurant_id = s.restaurant_id
+          and wl.created_at >= (p_date::timestamp at time zone 'Europe/Istanbul')
+          and wl.created_at < ((coalesce(p_date_to, p_date) + 1)::timestamp at time zone 'Europe/Istanbul')
+      ), 0)
+    )
+  );
+end;
+$$;
+grant execute on function list_waste to anon;
 
 create or replace function cancel_order(p_token uuid, p_order_id uuid)
 returns void
@@ -850,18 +1064,29 @@ begin
   -- olduğunu burada, herhangi bir order_items sorgusundan ÖNCE doğrula -
   -- yoksa geçerli bir oturumu olan biri başka bir restoranın sipariş
   -- kalemlerini "ödendi" olarak işaretleyebilir (cross-tenant BOLA).
-  if not exists (select 1 from orders where id = p_order_id and restaurant_id = s.restaurant_id) then
+  -- Aynı sipariş için eş zamanlı iki ödeme çağrısının (çift tık/çift cihaz)
+  -- ikisinin de aynı "ödenmemiş" satırları görüp çift tahsilat yapmasını
+  -- engellemek için sipariş satırı kilitlenir - ikinci istek birincisi
+  -- bitene kadar burada bekler, sonra artık ödenecek satır bulamaz.
+  perform 1 from orders where id = p_order_id and restaurant_id = s.restaurant_id for update;
+  if not found then
     raise exception 'Sipariş bulunamadı';
   end if;
 
+  if p_item_qtys is not null and jsonb_array_length(p_item_qtys) > 200 then
+    raise exception 'Çok fazla kalem';
+  end if;
+
   if p_item_qtys is null then
-    select array_agg(id) into v_paid_item_ids from order_items
-      where order_id = p_order_id and paid = false;
+    select array_agg(x.id) into v_paid_item_ids from (
+      select id from order_items where order_id = p_order_id and paid = false for update
+    ) x;
   else
     for v_entry in select * from jsonb_array_elements(p_item_qtys)
     loop
       select * into v_row from order_items
-        where id = (v_entry->>'item_id')::uuid and order_id = p_order_id and paid = false;
+        where id = (v_entry->>'item_id')::uuid and order_id = p_order_id and paid = false
+        for update;
       if v_row.id is null then continue; end if;
 
       v_req_qty := least((v_entry->>'qty')::int, v_row.qty);
@@ -890,6 +1115,13 @@ begin
   select rt.name, o.tags, o.kind into v_table_name, v_tags, v_kind
     from orders o left join restaurant_tables rt on rt.id = o.table_id
     where o.id = p_order_id and o.restaurant_id = s.restaurant_id;
+
+  -- Personelin girdiği nakit+kart toplamının siparişin gerçek tutarına eşit
+  -- olması zorunlu tutuluyor - aksi halde "0.01 TL ödendi" diyerek yüksek
+  -- tutarlı bir hesap kapatılabiliyordu. Kuruş farklarına (yuvarlama) izin verilir.
+  if abs((coalesce(p_cash,0)+coalesce(p_card,0)) - (v_subtotal-coalesce(p_discount_amount,0))) > 0.05 then
+    raise exception 'Ödenen tutar siparişin tutarıyla eşleşmiyor';
+  end if;
 
   insert into sales_history (restaurant_id, order_id, table_name, subtotal, discount_amount, total, cost, payment_method, cash_amount, card_amount, tags, kind)
   values (s.restaurant_id, p_order_id, coalesce(v_table_name,'Paket'), v_subtotal, p_discount_amount, v_subtotal-p_discount_amount, v_cost, p_payment_method, p_cash, p_card, coalesce(v_tags,'{}'), coalesce(v_kind,'dine_in'))
@@ -1147,6 +1379,9 @@ returns uuid language plpgsql security definer as $$
 declare s staff_sessions%rowtype; v_id uuid;
 begin
   s := _session_check(p_token, 'manager');
+  if coalesce(p_stock,0) < 0 then
+    raise exception 'Stok negatif olamaz';
+  end if;
   if p_id is null then
     insert into ingredients (restaurant_id, name, unit, stock) values (s.restaurant_id, p_name, p_unit, p_stock) returning id into v_id;
   else

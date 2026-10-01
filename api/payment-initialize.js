@@ -42,8 +42,17 @@ function iyzicoAuthHeaders(uriPath, body) {
 
 module.exports = async function handler(req, res) {
   try {
-    const params = req.method === 'GET' ? req.query : (req.body || {});
+    // Sadece POST kabul edilir: frontend zaten hep POST kullanıyor (GET
+    // desteği kullanılmıyordu) ve GET, p_password gibi hassas alanları URL
+    // query string'ine taşıyarak sunucu erişim loglarında/proxy'lerde/
+    // tarayıcı geçmişinde düz metin olarak sızdırma riski taşıyordu.
+    if (req.method !== 'POST') {
+      res.status(405).json({ errorMessage: 'Method not allowed' });
+      return;
+    }
+    const params = req.body || {};
     const { p_token: token, p_code: code, p_username: username, p_password: password } = params;
+    const billingCycle = params.p_billing_cycle === 'yearly' ? 'yearly' : 'monthly';
 
     const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
 
@@ -116,18 +125,40 @@ module.exports = async function handler(req, res) {
       return;
     }
 
+    // Ayni yenileme icin beklemede bir HAVALE bildirimi varsa (bkz.
+    // submit_bank_transfer_notice), admin onu onaylarken bu kart odemesi de
+    // es zamanli tamamlanirsa cifte (60 gunluk) uzatma olusabiliyordu - bu
+    // yuzden burada da simetrik olarak engellenir.
+    const { data: pendingNotice } = await supabase
+      .from('bank_transfer_notices')
+      .select('id')
+      .eq('restaurant_id', restaurantId)
+      .eq('status', 'pending')
+      .maybeSingle();
+    if (pendingNotice) {
+      res.status(400).json({ errorMessage: 'Beklemede bir havale bildiriminiz var, onaylanmasını bekleyin ya da destek ile iletişime geçin.' });
+      return;
+    }
+
     const { data: pkgRow } = await supabase
       .from('packages')
-      .select('price')
+      .select('price, price_yearly')
       .eq('id', restaurant.package_id)
       .maybeSingle();
-    const price = Number(pkgRow && pkgRow.price) || 0;
+    const monthlyPrice = Number(pkgRow && pkgRow.price) || 0;
+    // Eklentiler pakete dahil degildir; aylik eklenti toplami ayrica eklenir
+    // (bkz. _addons_monthly_total - havale tutariyla ayni hesap).
+    const { data: addonsMonthlyRaw } = await supabase.rpc('_addons_monthly_total', { p_restaurant_id: restaurantId });
+    const addonsMonthly = Number(addonsMonthlyRaw) || 0;
+    const price = billingCycle === 'yearly'
+      ? (Number(pkgRow && pkgRow.price_yearly) || monthlyPrice * 12) + addonsMonthly * 12
+      : monthlyPrice + addonsMonthly;
     if (price <= 0) {
       res.status(400).json({ errorMessage: 'Gecersiz paket fiyati' });
       return;
     }
     const priceStr = price.toFixed(2);
-    const basketId = 'renew_' + restaurant.package_id + '_' + Date.now();
+    const basketId = 'renew_' + restaurant.package_id + '_' + billingCycle + '_' + Date.now();
 
     const phoneDigits = String(restaurant.phone || '').replace(/\D/g, '').replace(/^90/, '').replace(/^0/, '');
     const gsmNumber = '+90' + phoneDigits;
@@ -173,7 +204,7 @@ module.exports = async function handler(req, res) {
       basketItems: [
         {
           id: restaurant.package_id,
-          name: 'Restoran Yonetim Sistemi - Aylik Yenileme - ' + restaurant.package_id,
+          name: 'Restoran Yonetim Sistemi - ' + (billingCycle === 'yearly' ? 'Yillik' : 'Aylik') + ' Yenileme - ' + restaurant.package_id,
           category1: 'Yazilim Aboneligi',
           itemType: 'VIRTUAL',
           price: priceStr,
@@ -230,10 +261,24 @@ module.exports = async function handler(req, res) {
       amount: price,
       status: 'pending',
       provider_ref: result.token,
+      billing_cycle: billingCycle,
     });
 
     res.status(200).json({ paymentPageUrl: result.paymentPageUrl });
   } catch (e) {
-    res.status(500).json({ errorMessage: 'Hata: ' + e.message });
+    // Beklenmeyen hatalarda e.message (Supabase/ağ istisnaları dahili
+    // ayrıntılar içerebilir) doğrudan istemciye sızdırılmıyor; ayrıntı
+    // sadece payment_debug_log'a yazılıp genel bir mesaj döndürülüyor.
+    try {
+      const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
+      await supabase.from('payment_debug_log').insert({
+        context: 'payment-initialize:exception',
+        payload: JSON.stringify({ message: e.message, stack: e.stack }),
+      });
+    } catch (logErr) {
+      console.error('payment_debug_log yazilamadi:', logErr);
+    }
+    console.error(e);
+    res.status(500).json({ errorMessage: 'Beklenmeyen bir hata oluştu, lütfen tekrar deneyin.' });
   }
 };

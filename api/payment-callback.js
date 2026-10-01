@@ -12,7 +12,8 @@ const IYZICO_BASE_URL = process.env.IYZICO_BASE_URL || 'https://sandbox-api.iyzi
 const IYZICO_API_KEY = process.env.IYZICO_API_KEY;
 const IYZICO_SECRET_KEY = process.env.IYZICO_SECRET_KEY;
 
-const RENEWAL_DAYS = 30;
+const RENEWAL_DAYS_MONTHLY = 30;
+const RENEWAL_DAYS_YEARLY = 365;
 
 function randomKey() {
   return Date.now().toString() + Math.floor(Math.random() * 1000000).toString();
@@ -49,12 +50,24 @@ module.exports = async function handler(req, res) {
   try {
     const { data: paymentLookup } = await supabase
       .from('payments')
-      .select('restaurant_id, package_id')
+      .select('restaurant_id, package_id, status, billing_cycle')
       .eq('provider_ref', token)
       .maybeSingle();
 
     if (!paymentLookup) {
       res.redirect(302, loginUrl + '?odeme=bulunamadi');
+      return;
+    }
+
+    // iyzico callback'i (yeniden deneme, kullanıcının linki iki kez açması,
+    // ya da iki isteğin tam eşzamanlı gelmesi gibi nedenlerle) aynı token
+    // için birden fazla gelebilir. Basit bir "if status==success" kontrolü
+    // iki eşzamanlı isteğin ikisini de geçirebilir (ikisi de aynı anda eski
+    // durumu okur); bunun yerine aşağıda iyzico onayından SONRA atomik bir
+    // "claim" (status='success' WHERE status<>'success') yapılıyor - sadece
+    // claim'i kazanan istek expires_at'i uzatabiliyor.
+    if (paymentLookup.status === 'success') {
+      res.redirect(302, loginUrl + '?odeme=basarili');
       return;
     }
 
@@ -80,18 +93,34 @@ module.exports = async function handler(req, res) {
 
     const restaurantId = paymentLookup.restaurant_id;
 
-    const { data: restaurant } = await supabase
-      .from('restaurants')
-      .select('expires_at')
-      .eq('id', restaurantId)
-      .single();
+    // Atomik claim: yalnızca bu isteğin bulduğu satır henüz 'success'
+    // değilse status'u değiştirebiliyor. Eşzamanlı ikinci istek 0 satır
+    // döner ve expires_at'i ikinci kez uzatmadan çıkar - böylece iyzico'nun
+    // aynı token için gönderebileceği tekrar eden/paralel callback'ler
+    // aboneliği yalnızca bir kez uzatır.
+    const { data: claimedRows } = await supabase
+      .from('payments')
+      .update({ status: 'success' })
+      .eq('provider_ref', token)
+      .neq('status', 'success')
+      .select('id');
 
-    const currentExpiry = restaurant && restaurant.expires_at ? new Date(restaurant.expires_at) : new Date();
-    const base = currentExpiry > new Date() ? currentExpiry : new Date();
-    const newExpiresAt = new Date(base.getTime() + RENEWAL_DAYS * 24 * 60 * 60 * 1000).toISOString();
+    if (!claimedRows || claimedRows.length === 0) {
+      res.redirect(302, loginUrl + '?odeme=basarili');
+      return;
+    }
 
-    await supabase.from('restaurants').update({ is_active: true, expires_at: newExpiresAt }).eq('id', restaurantId);
-    await supabase.from('payments').update({ status: 'success' }).eq('provider_ref', token);
+    // Onceden "once OKU sonra YAZ" (iki ayri sorgu) ile yapiliyordu - bu,
+    // ayni anda onaylanan bir havale bildirimiyle (bkz.
+    // admin_review_bank_transfer_notice) yarisip ya kayip bir guncellemeye
+    // ya da (nadiren) cifte uzatmaya yol acabiliyordu. Artik TEK atomik bir
+    // Postgres fonksiyonu (satiri kilitleyip ayni statement icinde okuyup
+    // yazan) kullaniliyor.
+    const renewalDays = paymentLookup.billing_cycle === 'yearly' ? RENEWAL_DAYS_YEARLY : RENEWAL_DAYS_MONTHLY;
+    await supabase.rpc('extend_restaurant_subscription', {
+      p_restaurant_id: restaurantId,
+      p_days: renewalDays,
+    });
 
     res.redirect(302, loginUrl + '?odeme=basarili');
   } catch (e) {
