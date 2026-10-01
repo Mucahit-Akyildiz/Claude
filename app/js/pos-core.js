@@ -1542,6 +1542,7 @@ function openTableModal(tableId, tableName){
       <div id="sentItemsWrap" style="margin-top:14px;"></div>
       <div id="draftItemsWrap"></div>
       ${orderFlagsHtml(tableId)}
+      ${(String(tableId).indexOf('pkg_')!==0 && liveOrderForTable(tableId)) ? `<button class="ghost-btn" style="width:100%;margin-top:12px;" onclick="openMoveTableModal('${tableId}')">🔀 Masayı Taşı / Birleştir</button>` : ''}
       <div style="display:flex;gap:10px;margin-top:16px;">
         <button class="ghost-btn" style="flex:1;margin-top:0;color:var(--red);border-color:var(--red);" onclick="cancelTableOrder('${tableId}')">🗑️ İptal Et</button>
         <button id="confirmBtn" style="flex:1;margin-top:0;" disabled onclick="confirmOrder('${tableId}')">✅ Onayla ve Gönder</button>
@@ -3158,6 +3159,47 @@ function updateTicketPreview(){
   ];
   applyTicketDesignStyle(el, { width, fontFamily, bold, marginTop, marginRight, marginBottom, marginLeft }, 'ticket-paper');
   el.innerHTML = buildTicketHtml(session ? session.restaurant_name : 'İŞLETME ADI', 'Masa 3', sampleItems, { header, footer, showOrderNumber, showItemTime, showHeaderTime, timeFormat, timeBold, ...typography }, 12);
+}
+/* Masa taşıma/birleştirme: boş masaya seçilirse hesap oraya taşınır, dolu
+   masaya seçilirse ödenmemiş ürünler o masanın hesabına eklenir (bkz.
+   move_table_order). */
+function openMoveTableModal(fromTableId){
+  const zones = (APP.config && APP.config.zones) || [];
+  const opts = zones.map(z => {
+    const ts = z.tables.filter(t => t.id !== fromTableId);
+    if(!ts.length) return '';
+    return `<optgroup label="${escapeHtml(z.name)}">${ts.map(t => `<option value="${t.id}">${escapeHtml(t.name)}${liveOrderForTable(t.id)?' (dolu - birleştir)':''}</option>`).join('')}</optgroup>`;
+  }).join('');
+  if(!opts){ alert('Taşınabilecek başka masa yok'); return; }
+  const bg = document.createElement('div');
+  bg.id = 'moveTableBg';
+  bg.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:110;padding:16px;';
+  bg.onclick = (e) => { if(e.target===bg) bg.remove(); };
+  bg.innerHTML = `<div class="box" style="max-width:340px;width:100%;text-align:left;">
+    <h2 style="margin-top:0;">🔀 Masayı Taşı / Birleştir</h2>
+    <p class="muted" style="font-size:12.5px;margin:0 0 10px;">${escapeHtml(tableNameForId(fromTableId))} → hedef masa. Dolu bir masa seçerseniz ödenmemiş ürünler o masanın hesabına eklenir.</p>
+    <select id="moveTarget" style="margin-bottom:14px;">${opts}</select>
+    <div class="field-row" style="gap:8px;">
+      <button type="button" style="flex:1;margin:0;background:var(--panel2);color:var(--text);" onclick="document.getElementById('moveTableBg').remove()">Vazgeç</button>
+      <button type="button" id="moveBtn" style="flex:1;margin:0;" onclick="confirmMoveTable('${fromTableId}')">Taşı</button>
+    </div>
+  </div>`;
+  document.body.appendChild(bg);
+}
+async function confirmMoveTable(fromTableId){
+  const to = document.getElementById('moveTarget').value;
+  if((APP.draftCart && (APP.draftCart[fromTableId]||[]).length) && !confirm('Henüz gönderilmemiş sepet ürünleri taşınmaz, önce gönderin. Yine de devam edilsin mi?')) return;
+  const btn = document.getElementById('moveBtn'); btn.disabled = true;
+  const session = getSession();
+  const { data, error } = await sb.rpc('move_table_order', { p_token: session.session_token, p_from_table_id: fromTableId, p_to_table_id: to });
+  if(error){ alert(error.message); btn.disabled = false; return; }
+  document.getElementById('moveTableBg').remove();
+  await releaseDraftStock(fromTableId);
+  const { data: live } = await sb.rpc('get_live_orders', { p_token: session.session_token });
+  APP.liveOrders = live || [];
+  await closeTableModal();
+  showToast(data && data.mode==='merged' ? '🔀 Masalar birleştirildi ✓' : '🔀 Masa taşındı ✓');
+  render();
 }
 async function cancelTableOrder(tableId){
   if(!confirm('Bu masadaki siparişi (mutfağa gönderilenler dahil) tamamen iptal etmek istediğinize emin misiniz?')) return;
