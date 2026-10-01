@@ -68,7 +68,7 @@ function renderOrderFlagsSettings(el, session){
       <tbody>
       ${flags.map(f => `
         <tr>
-          <td class="col-name"><input value="${escapeHtml(f.label)}" id="flag_label_${f.id}"></td>
+          <td class="col-name"><input value="${escapeAttr(f.label)}" id="flag_label_${f.id}"></td>
           <td style="white-space:nowrap;">
             <button class="sbtn" onclick="saveOrderFlag('${f.id}')">Kaydet</button>
             <button class="sbtn" style="background:var(--red);color:var(--btn-ink);" onclick="removeOrderFlag('${f.id}')">Sil</button>
@@ -124,14 +124,14 @@ function renderIngredientsSettings(el, session){
       <tbody>
       ${ings.map(i => `
         <tr>
-          <td class="col-name"><input value="${escapeHtml(i.name)}" id="ing_name_${i.id}"></td>
+          <td class="col-name"><input value="${escapeAttr(i.name)}" id="ing_name_${i.id}"></td>
           <td class="col-num"><select id="ing_unit_${i.id}">
             ${['adet','gram','kg','ml','lt'].map(u => `<option value="${u}" ${u===i.unit?'selected':''}>${u}</option>`).join('')}
           </select></td>
           <td class="col-num"><input type="number" step="0.01" value="${i.stock}" id="ing_stock_${i.id}"></td>
           <td style="white-space:nowrap;">
             <button class="sbtn" onclick="saveIngredient('${i.id}')">Kaydet</button>
-            <button class="sbtn" style="background:var(--accent2);color:var(--btn-ink);" onclick="openIngredientUsageModal('${i.id}',${jsArg(i.name)})">Kullanıldığı Ürünler</button>
+            <button class="sbtn" style="background:var(--accent2);color:var(--btn-ink);" onclick="openIngredientUsageModal('${i.id}')">Kullanıldığı Ürünler</button>
             <button class="sbtn" style="background:var(--red);color:var(--btn-ink);" onclick="removeIngredient('${i.id}')">Sil</button>
           </td>
         </tr>`).join('')}
@@ -171,7 +171,7 @@ async function addIngredient(){
   if(error){ alert(error.message); return; }
   await renderSettingsView(document.getElementById('main'), session);
   // Hammadde eklenir eklenmez, hangi urunlerin kullandigini sormaya devam et.
-  if(data) openIngredientUsageModal(data, name);
+  if(data) openIngredientUsageModal(data);
 }
 async function removeIngredient(id){
   if(!confirm('Bu hammaddeyi silmek istediğinize emin misiniz? Buna bağlı reçeteler de silinir.')) return;
@@ -184,7 +184,9 @@ async function removeIngredient(id){
 /* --- Bir hammaddeyi hangi urunlerin kullandigini duzenleme penceresi
    (hammadde tarafindan bakis - ekledigimiz/duzenledigimiz hammaddeyi
    birden fazla urune tek seferde atayabilmek icin) --- */
-function openIngredientUsageModal(ingredientId, ingredientName){
+function openIngredientUsageModal(ingredientId){
+  const ingredient = (APP.config.ingredients||[]).find(x => x.id===ingredientId);
+  const ingredientName = ingredient ? ingredient.name : '';
   const products = APP.config.products || [];
   const bg = document.createElement('div');
   bg.id = 'ingUsageModalBg';
@@ -242,7 +244,7 @@ function openRecipeModal(productId){
     <div style="background:var(--panel2);border-radius:10px;padding:12px;margin-top:12px;">
       <div style="display:flex;gap:8px;">
         <select id="recipeIngSelect" style="flex:1;margin:0;">
-          ${(APP.config.ingredients||[]).map(i => `<option value="${i.id}" data-unit="${i.unit}" data-name="${escapeHtml(i.name)}">${escapeHtml(i.name)} (${i.unit})</option>`).join('')}
+          ${(APP.config.ingredients||[]).map(i => `<option value="${i.id}" data-unit="${i.unit}" data-name="${escapeAttr(i.name)}">${escapeHtml(i.name)} (${i.unit})</option>`).join('')}
         </select>
         <input type="number" step="0.01" id="recipeQtyInput" placeholder="Miktar" style="width:100px;margin:0;">
         <button style="width:auto;padding:8px 12px;margin:0;" onclick="addRecipeItem('${productId}')">Ekle</button>
@@ -303,7 +305,7 @@ function openTranslationsModal(productId){
   bg.innerHTML = `<div style="background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:20px;max-width:440px;width:100%;max-height:88vh;overflow:auto;">
     <div style="display:flex;justify-content:space-between;"><h2 style="margin:0;">${escapeHtml(prod.name)} - Çeviriler</h2><span style="cursor:pointer;color:var(--muted);" onclick="document.getElementById('translationsModalBg').remove()">✕</span></div>
     <p class="muted" style="text-align:left;">Boş bıraktığınız diller için QR menüde Türkçe ad gösterilir.</p>
-    ${QR_MENU_LANGUAGES.map(l => `<div class="field-group"><label>${l.label}</label><input id="tr_${l.code}_${productId}" value="${escapeHtml(translations[l.code]||'')}" placeholder="${escapeHtml(prod.name)}"></div>`).join('')}
+    ${QR_MENU_LANGUAGES.map(l => `<div class="field-group"><label>${l.label}</label><input id="tr_${l.code}_${productId}" value="${escapeAttr(translations[l.code]||'')}" placeholder="${escapeAttr(prod.name)}"></div>`).join('')}
     <button style="margin-top:14px;" onclick="saveTranslations('${productId}')">Çevirileri Kaydet</button>
   </div>`;
   document.body.appendChild(bg);
@@ -360,7 +362,7 @@ function renderStationsSettings(el, session){
   const rowHtml = (s) => `
     <div style="display:flex;align-items:center;gap:12px;background:var(--panel2);border:1px solid var(--border);border-radius:12px;padding:10px 12px;flex-wrap:wrap;">
       ${stationIconPickerHtml('st_icon_'+s.id, s.icon||'🍳', `border-radius:50%;background:${s.color}26;border-color:${s.color};`)}
-      <input value="${escapeHtml(s.name)}" id="st_name_${s.id}" placeholder="İstasyon adı" style="flex:1;min-width:120px;margin:0;font-weight:700;">
+      <input value="${escapeAttr(s.name)}" id="st_name_${s.id}" placeholder="İstasyon adı" style="flex:1;min-width:120px;margin:0;font-weight:700;">
       <input type="color" value="${s.color}" id="st_color_${s.id}" title="Renk" style="padding:2px;height:38px;width:42px;flex-shrink:0;margin:0;">
       ${stationRowActionBtn('💾','Kaydet','var(--accent)',`saveStation('${s.id}')`)}
       ${stationRowActionBtn('🗑️','Sil','var(--red)',`removeStation('${s.id}')`)}
@@ -425,14 +427,14 @@ function renderZonesSettings(el, session){
     ${APP.config.zones.map(z => `
       <div style="background:var(--panel2);border-radius:10px;padding:12px;margin-bottom:12px;">
         <div style="display:flex;gap:8px;align-items:center;">
-          <input value="${escapeHtml(z.name)}" id="zn_name_${z.id}" style="flex:1;font-weight:700;">
+          <input value="${escapeAttr(z.name)}" id="zn_name_${z.id}" style="flex:1;font-weight:700;">
           <button style="width:auto;padding:8px 12px;" onclick="saveZone('${z.id}')">Kaydet</button>
           <button style="width:auto;padding:8px 12px;background:var(--red);" onclick="removeZone('${z.id}')">Sil</button>
         </div>
         <div style="margin-top:10px;display:flex;flex-wrap:wrap;gap:6px;">
           ${z.tables.map(t => `<span style="background:var(--panel);border:1px solid var(--border);border-radius:999px;padding:5px 10px;font-size:12px;display:flex;align-items:center;gap:6px;">
             ${escapeHtml(t.name)}
-            <span style="cursor:pointer;color:var(--accent);" title="QR Menü Kodu" onclick="showTableQr(${jsArg(t.name)},'${t.qr_token}')">▦</span>
+            <span style="cursor:pointer;color:var(--accent);" title="QR Menü Kodu" onclick="showTableQr('${t.id}','${t.qr_token}')">▦</span>
             <span style="cursor:pointer;color:var(--red);" onclick="removeTable('${t.id}')">✕</span></span>`).join('')}
         </div>
         <div style="display:flex;gap:8px;margin-top:10px;">
@@ -550,7 +552,8 @@ async function onTableDragEnd(ev){
    menüsünü görür ve sipariş isteği gönderebilir (bkz. get_public_menu/
    submit_customer_order_request, personel tarafında onay için bkz.
    refreshCustomerOrderRequests). */
-function showTableQr(tableName, qrToken){
+function showTableQr(tableId, qrToken){
+  const tableName = tableNameForId(tableId);
   const url = window.location.origin + '/menu/?t=' + qrToken;
   const qrImgUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=260x260&data=' + encodeURIComponent(url);
   const bg = document.createElement('div');
@@ -573,7 +576,7 @@ function renderProductsSettings(el, session){
 
   const rowsFor = (list) => list.map(p => `
         <tr>
-          <td class="col-name"><input value="${escapeHtml(p.name)}" id="pr_name_${p.id}"></td>
+          <td class="col-name"><input value="${escapeAttr(p.name)}" id="pr_name_${p.id}"></td>
           <td class="col-name"><select id="pr_st_${p.id}">
             ${stations.map(s => `<option value="${s.id}" ${s.id===p.station_id?'selected':''}>${escapeHtml(s.name)}</option>`).join('')}
           </select></td>
@@ -631,7 +634,7 @@ function renderProductsSettings(el, session){
           ? '<p class="muted" style="font-size:12px;">Önce Hammaddeler sekmesinden en az bir hammadde ekleyin.</p>'
           : `<div style="display:flex;gap:8px;margin-top:8px;">
               <select id="npRecipeIngSelect" style="flex:1;margin:0;">
-                ${APP.config.ingredients.map(i => `<option value="${i.id}" data-unit="${i.unit}" data-name="${escapeHtml(i.name)}">${escapeHtml(i.name)} (${i.unit})</option>`).join('')}
+                ${APP.config.ingredients.map(i => `<option value="${i.id}" data-unit="${i.unit}" data-name="${escapeAttr(i.name)}">${escapeHtml(i.name)} (${i.unit})</option>`).join('')}
               </select>
               <input type="number" step="0.01" id="npRecipeQtyInput" placeholder="Miktar" style="width:100px;margin:0;">
               <button style="width:auto;padding:8px 12px;margin:0;" onclick="addNewProductRecipeItem()">Ekle</button>
@@ -751,7 +754,7 @@ function renderUsersSettings(el, session){
       <tbody>
       ${APP.config.users.map(u => `
         <tr>
-          <td class="col-name"><input value="${escapeHtml(u.username)}" id="us_name_${u.id}"></td>
+          <td class="col-name"><input value="${escapeAttr(u.username)}" id="us_name_${u.id}"></td>
           <td class="col-name"><input type="password" placeholder="(değiştirmek için yaz)" id="us_pass_${u.id}"></td>
           <td class="col-name">${roleCheckboxes('us_'+u.id, u.role_ids||[])}</td>
           <td>
@@ -851,7 +854,7 @@ function renderRolesSettings(el, session){
           <td></td>
         </tr>` : `
         <tr>
-          <td class="col-name"><input value="${escapeHtml(r.name)}" id="role_name_${r.id}"></td>
+          <td class="col-name"><input value="${escapeAttr(r.name)}" id="role_name_${r.id}"></td>
           <td>${permissionCheckboxes('role_'+r.id, r.permissions||[])}</td>
           <td>${r.user_count}</td>
           <td>
@@ -973,7 +976,7 @@ async function renderIntegrationsSettings(el, session){
   <div class="box" style="max-width:none;">
     <h2>⭐ Google Yorumları</h2>
     <p class="muted" style="margin-top:-6px;">İşletmenizin Google Business Profili'ndeki "yorum yaz" linkini girin. Ödeme alma ekranında bir hesabın tamamı ödendiğinde, personele bu linke giden bir QR kod gösterme seçeneği çıkar - müşteriden telefonuyla okutup değerlendirme bırakmasını isteyebilirsiniz.</p>
-    <div class="field-group" style="max-width:500px;"><label>Google Yorum Linki</label><input id="int_google_review_url" placeholder="https://g.page/r/..." value="${escapeHtml(APP.config.google_review_url||'')}"></div>
+    <div class="field-group" style="max-width:500px;"><label>Google Yorum Linki</label><input id="int_google_review_url" placeholder="https://g.page/r/..." value="${escapeAttr(APP.config.google_review_url||'')}"></div>
     <button style="margin-top:12px;max-width:220px;" onclick="saveGoogleReviewUrl()">Kaydet</button>
   </div>
   <div class="box" style="max-width:none;">

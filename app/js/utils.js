@@ -129,6 +129,15 @@ function escapeHtml(s){ return String(s==null?'':s).replace(/[&<>"']/g, c => ({'
 function jsArg(s){
   return "'" + String(s==null?'':s).replace(/[\\'"<>&\r\n\u2028\u2029]/g, c => '\\u' + c.charCodeAt(0).toString(16).padStart(4,'0')) + "'";
 }
+/* escapeHtml yalnızca metin düğümü (text node) bağlamı için güvenli - tırnak
+   işaretlerini kaçırmaz, çünkü HTML metin içeriğinde tırnağın özel bir anlamı
+   yoktur. Bir değer bir HTML ATTRIBUTE'una (value="...", data-x="...") gömülecekse
+   onun yerine BU fonksiyon kullanılmalı - aksi halde değer içindeki bir çift/tek
+   tırnak attribute'u erken kapatıp yanına örn. onfocus="..." autofocus gibi
+   yeni bir attribute enjekte edebilir (tıklama bile gerektirmeyen stored XSS). */
+function escapeAttr(s){
+  return String(s==null?'':s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
 /* Fiş başlığı/altı notu contenteditable'dan geldiği ve her cihazda innerHTML
    olarak basıldığı için (bkz. buildTicketHtml), kaydetmeden önce VE
    render ederken (savunma derinliği) burada beyaz listeye alınmadan asla

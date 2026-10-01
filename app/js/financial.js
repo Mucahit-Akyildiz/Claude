@@ -372,7 +372,7 @@ async function renderReportContent(session){
         </select>
         <select id="billTableFilter" style="width:auto;margin:0;padding:8px 12px;" onchange="APP.reportBillsFilter.table=this.value;renderReportTabContent(getSession());">
           <option value="">Tüm Masalar</option>
-          ${billTableOptions.map(tb => `<option value="${escapeHtml(tb)}" ${bf.table===tb?'selected':''}>${escapeHtml(tb)}</option>`).join('')}
+          ${billTableOptions.map(tb => `<option value="${escapeAttr(tb)}" ${bf.table===tb?'selected':''}>${escapeHtml(tb)}</option>`).join('')}
         </select>
         <select id="billMethodFilter" style="width:auto;margin:0;padding:8px 12px;" onchange="APP.reportBillsFilter.method=this.value;renderReportTabContent(getSession());">
           <option value="">Tüm Ödeme Biçimleri</option>
@@ -527,7 +527,7 @@ async function renderCustomerAnalyticsContent(session){
     <div class="box" style="max-width:none;">
       <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:10px;">
         <h2 style="margin:0;">Müşteri Analizleri</h2>
-        <input id="custAnalyticsSearchInput" placeholder="İsim veya telefon ara..." style="max-width:260px;" value="${escapeHtml(APP.customerAnalyticsSearch||'')}" oninput="debouncedCustomerAnalyticsSearch(this.value)">
+        <input id="custAnalyticsSearchInput" placeholder="İsim veya telefon ara..." style="max-width:260px;" value="${escapeAttr(APP.customerAnalyticsSearch||'')}" oninput="debouncedCustomerAnalyticsSearch(this.value)">
       </div>
       <div class="settings-table-wrap">
       <table class="settings-table">
