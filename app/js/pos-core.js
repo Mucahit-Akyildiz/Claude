@@ -21,7 +21,10 @@ async function renderKitchenView(main, session){
   }
   const station = APP.config.stations.find(s => s.id===APP.kitchenStation);
   main.innerHTML = `<div style="display:flex;justify-content:space-between;"><h1>🍳 ${escapeHtml(station.name)}</h1>
-    <button class="ghost-btn" onclick="APP.kitchenStation=null;render();">İstasyon Değiştir</button></div>
+    <div style="display:flex;gap:8px;align-items:flex-start;">
+      <button class="ghost-btn" style="color:var(--red);" onclick="openManualWasteModal()" title="Siparişe bağlı olmayan israf (yanan, düşen, bozulan ürün)">🔥 İsraf Gir</button>
+      <button class="ghost-btn" onclick="APP.kitchenStation=null;render();">İstasyon Değiştir</button>
+    </div></div>
     <div id="kitchenWrap"></div>`;
   APP.kitchenSeenItemIds = null; // yeni istasyona gecince onceki urunler icin zil calmasin
   APP.kitchenLateWarned = new Set();
@@ -338,6 +341,58 @@ function openWasteModal(itemId, qty, name){
     </div>
   </div>`;
   document.body.appendChild(bg);
+}
+/* Siparişe bağlı olmayan israf (ör. hazırlıkta yanan/bozulan ürün): ürün
+   seçilerek elle girilir; report_waste p_order_item_id olmadan çağrılır
+   ve stok/maliyet aynı şekilde işlenir. Önce bu istasyonun ürünleri
+   listelenir. */
+function openManualWasteModal(){
+  const all = (APP.config && APP.config.products) || [];
+  if(!all.length){ alert('Kayıtlı ürün yok'); return; }
+  const st = APP.kitchenStation;
+  const sorted = [...all].sort((a,b) => ((b.station_id===st)-(a.station_id===st)) || String(a.name).localeCompare(String(b.name),'tr'));
+  const bg = document.createElement('div');
+  bg.id = 'wasteModalBg';
+  bg.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:100;padding:16px;';
+  bg.onclick = (e) => { if(e.target===bg) closeWasteModal(); };
+  bg.innerHTML = `<div class="box" style="max-width:360px;width:100%;text-align:left;">
+    <h2 style="margin-top:0;">🔥 Manuel İsraf Gir</h2>
+    <p class="muted" style="margin:0 0 12px;font-size:12.5px;">Siparişe bağlı olmayan israf; stoktan düşülür ve Finansal Analiz &gt; İsraf'ta görünür.</p>
+    <label style="display:block;font-size:12.5px;font-weight:700;color:var(--muted);">Ürün</label>
+    <select id="wasteProduct" style="margin-bottom:10px;">
+      ${sorted.map(p => `<option value="${p.id}">${escapeHtml(p.name)}</option>`).join('')}
+    </select>
+    <label style="display:block;font-size:12.5px;font-weight:700;color:var(--muted);">Miktar</label>
+    <input id="wasteQty" type="number" min="0.01" step="any" value="1" style="margin-bottom:10px;">
+    <label style="display:block;font-size:12.5px;font-weight:700;color:var(--muted);">Sebep</label>
+    <select id="wasteReason" style="margin-bottom:10px;">
+      ${WASTE_REASONS.map(r => `<option value="${r}">${r}</option>`).join('')}
+    </select>
+    <input id="wasteNote" placeholder="Ek not (opsiyonel)" style="margin-bottom:14px;">
+    <div class="field-row" style="gap:8px;">
+      <button type="button" style="flex:1;margin:0;background:var(--panel2);color:var(--text);" onclick="closeWasteModal()">Vazgeç</button>
+      <button type="button" id="wasteSubmitBtn" style="flex:1;margin:0;background:var(--red);color:var(--btn-ink);" onclick="submitManualWaste()">İsraf Olarak Kaydet</button>
+    </div>
+  </div>`;
+  document.body.appendChild(bg);
+}
+async function submitManualWaste(){
+  const productId = document.getElementById('wasteProduct').value;
+  const qty = Number(document.getElementById('wasteQty').value) || 0;
+  if(!productId){ alert('Ürün seçin'); return; }
+  if(qty<=0){ alert('Geçerli bir miktar girin'); return; }
+  const reason = document.getElementById('wasteReason').value;
+  const note = document.getElementById('wasteNote').value.trim();
+  const btn = document.getElementById('wasteSubmitBtn');
+  btn.disabled = true; btn.textContent = 'Kaydediliyor...';
+  const session = getSession();
+  const { error } = await sb.rpc('report_waste', {
+    p_token: session.session_token, p_order_item_id: null, p_product_id: productId, p_qty: qty,
+    p_reason: note ? (reason+' - '+note) : reason
+  });
+  if(error){ alert('Hata: '+error.message); btn.disabled = false; btn.textContent = 'İsraf Olarak Kaydet'; return; }
+  closeWasteModal();
+  showToast('🔥 İsraf kaydedildi, stoktan düşüldü');
 }
 function closeWasteModal(){ const bg = document.getElementById('wasteModalBg'); if(bg) bg.remove(); }
 async function submitWaste(itemId){
