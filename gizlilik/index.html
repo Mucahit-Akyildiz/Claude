@@ -33,7 +33,7 @@
 <nav><div class="wrap"><img src="/assets/images/logo.webp" alt="Peyktan"> Peyktan</div></nav>
 <main>
   <h1>Gizlilik Politikası</h1>
-  <p class="updated">Son güncelleme: 25 Eylül 2026</p>
+  <p class="updated">Son güncelleme: 2 Ekim 2026</p>
 
   <p>Bu Gizlilik Politikası, Peyktan restoran yönetim sistemini ("Peyktan", "Hizmet") kullanan işletmelerin, bu işletmelerin personelinin ve Hizmet üzerinden (örn. masadaki QR kod ile) sipariş veren müşterilerin kişisel verilerinin nasıl toplandığını, kullanıldığını ve korunduğunu açıklar.</p>
 
@@ -49,6 +49,9 @@
     <li><b>Rezervasyon ve bekleme listesi verileri:</b> rezervasyon yapan/bekleyen müşterinin adı, telefon numarası, kişi sayısı ve notlar.</li>
     <li><b>QR menüden sipariş veren müşteri verileri:</b> müşterinin girdiği isim ve sipariş içeriği (masaya özel QR kod üzerinden, hesap oluşturmadan).</li>
     <li><b>Tedarikçi bilgileri:</b> işletmenizin kaydettiği tedarikçi adı, iletişim bilgisi ve satın alma siparişleri.</li>
+    <li><b>Fatura / hesap e-postası verileri:</b> personel, ödeme sonrası hesabı müşteriye e-postayla göndermek istediğinde müşterinin e-posta adresi ve isteğe bağlı olarak fatura bilgileri (ad/ünvan, VKN/TCKN, vergi dairesi, adres) ile hesap içeriği (ürünler, tutarlar) kaydedilir.</li>
+    <li><b>SMS bildirimi verileri:</b> işletme SMS bildirimlerini açtıysa, rezervasyon onayı/hatırlatması, bekleme listesi ("masanız hazır") ve paket siparişi hazır bildirimleri için müşterinin telefon numarası ve gönderilen mesaj metni kaydedilir. Kayıt ve şifre sıfırlama doğrulama kodları da SMS ile gönderilebilir.</li>
+    <li><b>Kamera:</b> masadaki QR kodu okutmak için kamera yalnızca siz "Masa Tara"ya bastığınızda açılır; görüntü cihazınızda işlenir, kaydedilmez ve sunuculara gönderilmez.</li>
     <li><b>Bildirim aboneliği verileri:</b> tarayıcı/uygulama bildirimlerini açarsanız, bildirim göndermek için gerekli teknik abonelik bilgisi (push endpoint ve şifreleme anahtarları) cihazınıza özel olarak saklanır.</li>
     <li><b>Ödeme işlemleri:</b> abonelik yenileme ödemeleri iyzico üzerinden işlenir; kart bilgileriniz bizim sunucularımızda saklanmaz, doğrudan iyzico'nun güvenli altyapısında işlenir.</li>
   </ul>
@@ -59,6 +62,8 @@
     <li>Hesap doğrulama (kayıt/şifre sıfırlama sırasında e-posta ile gönderilen tek kullanımlık kod),</li>
     <li>Abonelik ve ödeme süreçlerini yürütmek,</li>
     <li>Talep ettiğinizde (hazır sipariş, yeni müşteri talebi gibi) bildirim göndermek,</li>
+    <li>İşletmenin talebiyle müşteriye hesap/fatura e-postası ve rezervasyon, bekleme listesi, paket siparişi SMS'leri göndermek,</li>
+    <li>Kötüye kullanımı önlemek (ör. doğrulama kodu ve SMS gönderimlerinde istek sınırı uygulamak için istek yapılan IP adresinin kısa süreli tutulması),</li>
     <li>Hizmeti geliştirmek ve teknik sorunları gidermek.</li>
   </ul>
 
@@ -68,7 +73,9 @@
     <li><b>Supabase</b> — veritabanı barındırma,</li>
     <li><b>Vercel</b> — uygulama barındırma,</li>
     <li><b>iyzico</b> — ödeme işleme,</li>
-    <li><b>Resend</b> — kayıt doğrulama e-postalarının gönderimi.</li>
+    <li><b>Resend</b> — doğrulama kodları ve hesap/fatura e-postalarının gönderimi,</li>
+    <li><b>SMS sağlayıcısı (ör. Netgsm)</b> — SMS bildirimlerinin ve doğrulama kodlarının gönderimi (yalnızca SMS özelliği açıksa),</li>
+    <li><b>Google Firebase</b> — Android uygulamasında anlık bildirimlerin iletilmesi.</li>
   </ul>
   <p>Verileriniz hiçbir şekilde üçüncü taraflara pazarlama amacıyla satılmaz veya kiralanmaz.</p>
 
@@ -76,7 +83,7 @@
   <p>Şifreler geri döndürülemez şekilde (bcrypt) şifrelenerek saklanır. Veritabanı erişimi, her işletmenin yalnızca kendi verilerine erişebildiği bir yetkilendirme modeliyle korunur.</p>
 
   <h2>5. Veri Saklama</h2>
-  <p>Verileriniz, hesabınız aktif olduğu sürece ve yasal yükümlülüklerin gerektirdiği süre boyunca saklanır. Hesap kapatma talebinde bulunmak için bizimle iletişime geçebilirsiniz.</p>
+  <p>Verileriniz, hesabınız aktif olduğu sürece ve yasal yükümlülüklerin gerektirdiği süre boyunca saklanır. Hesabınızı sildiğinizde işletmenize ait tüm veriler (siparişler, ürünler, kullanıcılar, müşteri kayıtları vb.) kalıcı olarak silinir. Yalnızca aynı e-posta ve telefonla tekrar deneme hesabı açılarak ücretsiz deneme süresinin kötüye kullanılmasını önlemek amacıyla işletme adı, işletme kodu, e-posta, telefon ve silinme tarihi saklanır; bu kaydın silinmesini <a href="mailto:destek@peyktan.com">destek@peyktan.com</a> adresinden talep edebilirsiniz.</p>
 
   <h2>6. Haklarınız (KVKK)</h2>
   <p>6698 sayılı Kişisel Verilerin Korunması Kanunu kapsamında; verilerinizin işlenip işlenmediğini öğrenme, işlenmişse buna ilişkin bilgi talep etme, düzeltilmesini veya silinmesini isteme haklarına sahipsiniz. Taleplerinizi aşağıdaki iletişim adresinden iletebilirsiniz. Hesabınızı ve verilerinizi uygulama içinden ya da <a href="/hesap-silme/">Hesap Silme</a> sayfasından kendiniz de kalıcı olarak silebilirsiniz.</p>
