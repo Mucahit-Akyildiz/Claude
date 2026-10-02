@@ -827,62 +827,124 @@ async function renderShiftsTable(session){
    hangi ekranların açık olduğuna kendisi karar verir (bkz.
    manager_upsert_role/manager_delete_role). Yönetici rolü (is_system)
    salt okunur - tüm ekranlara erişimi sabit ve değiştirilemez. */
-function permissionCheckboxes(idPrefix, selectedPerms){
+function rolePermissionCatalog(){
   // İzin listesi sunucudan gelir (get_restaurant_config.role_permissions):
   // işletmenin paketindeki/eklentilerindeki tüm özellikler. Yeni bir özellik
   // eklendiğinde burada kod değişikliği gerekmeden otomatik görünür.
-  const catalog = (APP.config && APP.config.role_permissions && APP.config.role_permissions.length)
+  return (APP.config && APP.config.role_permissions && APP.config.role_permissions.length)
     ? APP.config.role_permissions
-    : Object.keys(PERMISSION_LABELS).map(id => ({ id, label: PERMISSION_LABELS[id], category: '' }));
+    : Object.keys(PERMISSION_LABELS).map(id => ({ id, label: PERMISSION_LABELS[id], category: 'Temel' }));
+}
+function permissionCheckboxes(idPrefix, selectedPerms){
   const byCat = {};
-  catalog.forEach(p => { (byCat[p.category||'Diğer'] = byCat[p.category||'Diğer'] || []).push(p); });
-  return `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:4px 16px;">` +
-    Object.keys(byCat).map(cat => `
-      <div>
-        <div class="muted" style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;margin:6px 0 4px;">${escapeHtml(cat)}</div>
-        ${byCat[cat].map(p => `
-        <label style="display:flex;align-items:center;gap:6px;font-weight:400;font-size:13px;margin-bottom:4px;">
-          <input type="checkbox" id="${idPrefix}_perm_${escapeHtml(p.id)}" value="${escapeHtml(p.id)}" data-perms-group="${idPrefix}" ${selectedPerms.includes(p.id)?'checked':''} style="width:auto;margin:0;">
-          ${escapeHtml(p.label)}
-        </label>`).join('')}
-      </div>`).join('') + `</div>`;
+  rolePermissionCatalog().forEach(p => { (byCat[p.category||'Diğer'] = byCat[p.category||'Diğer'] || []).push(p); });
+  return `<div class="perm-cats">` + Object.keys(byCat).map(cat => `
+    <div class="perm-cat">
+      <div class="perm-cat-head"><span>${escapeHtml(cat)}</span>
+        <a onclick="toggleRoleCategory(this, true)">Tümü</a></div>
+      <div class="perm-pills">${byCat[cat].map(p => `
+        <label class="perm-pill"><input type="checkbox" value="${escapeAttr(p.id)}" data-perms-group="${idPrefix}" ${selectedPerms.includes(p.id)?'checked':''} onchange="markRoleDirty('${idPrefix}')">${escapeHtml(p.label)}</label>`).join('')}
+      </div>
+    </div>`).join('') + `</div>`;
 }
 function selectedPermissions(idPrefix){
   return Array.from(document.querySelectorAll(`input[data-perms-group="${idPrefix}"]:checked`)).map(b => b.value);
 }
+/* Kategori başlığındaki "Tümü/Hiçbiri": kategorideki hepsi seçiliyse
+   temizler, değilse hepsini seçer. */
+function toggleRoleCategory(link){
+  const boxes = link.closest('.perm-cat').querySelectorAll('input[type=checkbox]');
+  const allOn = Array.from(boxes).every(b => b.checked);
+  boxes.forEach(b => { b.checked = !allOn; });
+  if(boxes[0]) markRoleDirty(boxes[0].dataset.permsGroup);
+}
+function markRoleDirty(group){
+  const card = document.querySelector(`[data-role-card="${group}"]`);
+  if(!card) return;
+  card.classList.add('dirty');
+  const n = selectedPermissions(group).length;
+  const chip = card.querySelector('.role-perm-count');
+  if(chip) chip.textContent = n + ' / ' + rolePermissionCatalog().length + ' izin';
+}
+function toggleRoleCard(group){
+  const card = document.querySelector(`[data-role-card="${group}"]`);
+  if(card) card.classList.toggle('open');
+}
+function rolePermSummary(perms){
+  const labels = rolePermissionCatalog().filter(p => perms.includes(p.id)).map(p => p.label);
+  if(!labels.length) return 'Henüz izin verilmedi';
+  return labels.slice(0, 4).join(', ') + (labels.length > 4 ? ' +' + (labels.length - 4) + ' daha' : '');
+}
+const ROLE_TEMPLATES = {
+  'Garson': ['order','packages','settings_products','settings_ingredients'],
+  'Mutfak': ['kitchen','settings_products','settings_ingredients'],
+  'Kasiyer': ['order','packages','payments','tips','giftcards','crm'],
+  'Müdür Yardımcısı': ['order','packages','kitchen','payments','reservations','crm','shifts','settings_products','settings_ingredients','settings_zones','settings_flags']
+};
+function applyRoleTemplate(name){
+  const perms = ROLE_TEMPLATES[name] || [];
+  document.getElementById('new_role_name').value = name;
+  document.querySelectorAll('input[data-perms-group="new_role"]').forEach(b => { b.checked = perms.includes(b.value); });
+  markRoleDirty('new_role');
+}
+function roleCardHtml(r){
+  const total = rolePermissionCatalog().length;
+  if(r.is_system) return `
+    <div class="role-card">
+      <div class="role-head" style="cursor:default;">
+        <div class="role-avatar">👑</div>
+        <div class="role-title"><b>${escapeHtml(r.name)}</b> <span class="role-badge" style="margin-left:6px;font-size:11px;padding:3px 9px;">Sistem</span>
+          <div class="role-sub">Tüm ekranlara ve ayarlara erişir · değiştirilemez</div></div>
+        <div class="role-meta"><span class="role-chip">${r.user_count} kullanıcı</span><span class="role-chip accent">Tüm izinler</span></div>
+      </div>
+    </div>`;
+  const g = 'role_'+r.id, perms = r.permissions || [];
+  return `
+    <div class="role-card" data-role-card="${g}">
+      <div class="role-head" onclick="toggleRoleCard('${g}')">
+        <div class="role-avatar">👤</div>
+        <div class="role-title"><b>${escapeHtml(r.name)}</b><div class="role-sub">${escapeHtml(rolePermSummary(perms))}</div></div>
+        <div class="role-meta"><span class="role-chip">${r.user_count} kullanıcı</span><span class="role-chip accent role-perm-count">${perms.filter(p => rolePermissionCatalog().some(c => c.id===p)).length} / ${total} izin</span></div>
+        <span class="role-chevron">▶</span>
+      </div>
+      <div class="role-body">
+        <div class="field-group" style="max-width:320px;margin-top:12px;"><label>Rol Adı</label><input value="${escapeAttr(r.name)}" id="role_name_${r.id}" oninput="markRoleDirty('${g}')"></div>
+        ${permissionCheckboxes(g, perms)}
+        <div class="role-actions">
+          <button class="ghost-btn" style="width:auto;margin:0;color:var(--red);border-color:var(--red);" onclick="deleteRole('${r.id}')" ${r.user_count>0?`title="Bu role atanmış ${r.user_count} kullanıcı var"`:''}>🗑️ Rolü Sil</button>
+          <span class="spacer"></span>
+          <span class="role-dirty-note">● Kaydedilmemiş değişiklik</span>
+          <button style="width:auto;margin:0;padding:10px 22px;" onclick="saveRole('${r.id}')">Kaydet</button>
+        </div>
+      </div>
+    </div>`;
+}
 function renderRolesSettings(el, session){
   const roles = APP.config.roles || [];
   el.innerHTML = `<div class="box" style="max-width:none;">
-    <h2>Roller</h2>
-    <p class="muted" style="margin-top:-8px;margin-bottom:16px;">Hangi rolün hangi ekranlara erişebileceğini burada belirleyin. Yönetici rolü tüm ekranlara erişebilir ve değiştirilemez.</p>
-    <div class="settings-table-wrap">
-    <table class="settings-table">
-      <thead><tr><th>Rol Adı</th><th>Ekran İzinleri</th><th>Kullanıcı Sayısı</th><th></th></tr></thead>
-      <tbody>
-      ${roles.map(r => r.is_system ? `
-        <tr>
-          <td class="col-name">${escapeHtml(r.name)} <span class="role-badge" style="margin-left:6px;">Sistem</span></td>
-          <td><span class="muted">Tüm ekranlar</span></td>
-          <td>${r.user_count}</td>
-          <td></td>
-        </tr>` : `
-        <tr>
-          <td class="col-name"><input value="${escapeAttr(r.name)}" id="role_name_${r.id}"></td>
-          <td>${permissionCheckboxes('role_'+r.id, r.permissions||[])}</td>
-          <td>${r.user_count}</td>
-          <td>
-            <button class="sbtn" onclick="saveRole('${r.id}')">Kaydet</button>
-            <button class="sbtn" style="background:var(--red);color:var(--btn-ink);" onclick="deleteRole('${r.id}')">Sil</button>
-          </td>
-        </tr>`).join('')}
-      </tbody>
-    </table>
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+      <div><h2 style="margin-bottom:4px;">Roller</h2>
+        <p class="muted" style="margin:0 0 16px;">Bir role tıklayarak hangi ekranlara erişebileceğini seçin. Bir kullanıcıya en fazla 2 rol verilebilir; izinleri birleşir.</p></div>
+      <button style="width:auto;margin:0;" onclick="toggleRoleCard('new_role');document.getElementById('new_role_name').focus()">+ Yeni Rol</button>
     </div>
-    <div class="add-row-panel">
-      <p>Yeni Rol Ekle</p>
-      <div class="field-group" style="max-width:280px;"><label>Rol Adı</label><input id="new_role_name" placeholder="örn. Kasiyer"></div>
-      <div style="margin-top:10px;">${permissionCheckboxes('new_role', [])}</div>
-      <button style="margin-top:12px;max-width:220px;" onclick="createRole()">+ Rol Ekle</button>
+    ${roles.map(roleCardHtml).join('')}
+    <div class="role-card" data-role-card="new_role" style="border-style:dashed;">
+      <div class="role-head" onclick="toggleRoleCard('new_role')">
+        <div class="role-avatar">＋</div>
+        <div class="role-title"><b>Yeni Rol Oluştur</b><div class="role-sub">Hazır şablonla başlayın ya da izinleri kendiniz seçin</div></div>
+        <div class="role-meta"><span class="role-chip accent role-perm-count">0 / ${rolePermissionCatalog().length} izin</span></div>
+        <span class="role-chevron">▶</span>
+      </div>
+      <div class="role-body">
+        <div class="role-templates"><span class="muted" style="font-size:12px;align-self:center;">Şablon:</span>
+          ${Object.keys(ROLE_TEMPLATES).map(t => `<button class="sbtn" style="margin:0;" onclick="applyRoleTemplate(${jsArg(t)})">${escapeHtml(t)}</button>`).join('')}
+        </div>
+        <div class="field-group" style="max-width:320px;margin-top:10px;"><label>Rol Adı</label><input id="new_role_name" placeholder="örn. Kasiyer" oninput="markRoleDirty('new_role')"></div>
+        ${permissionCheckboxes('new_role', [])}
+        <div class="role-actions"><span class="spacer"></span>
+          <button style="width:auto;margin:0;padding:10px 22px;" onclick="createRole()">+ Rolü Oluştur</button>
+        </div>
+      </div>
     </div>
   </div>`;
 }
