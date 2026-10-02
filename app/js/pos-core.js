@@ -269,29 +269,43 @@ function playBellPresetById(id){
     (BELL_PRESETS[id] || BELL_PRESETS.classic).play(ctx);
   }catch(e){ console.warn('Zil sesi çalınamadı:', e); }
 }
+/* Yüklenen zil sesi (data: URL) <audio> yerine Web Audio ile çözülüp
+   çalınır: <audio> sitenin CSP'sindeki media-src kuralına ve dosyanın MIME
+   etiketine bağlı (bazı tarayıcılar .m4a/.mp3'ü boş türle kaydeder ve
+   çalamaz); decodeAudioData ise dosyanın içeriğine bakar. Çözülen ses
+   önbelleğe alınır ki her siparişte yeniden çözülmesin. */
+const BELL_BUFFER_CACHE = {};
+function dataUrlToArrayBuffer(dataUrl){
+  const b64 = String(dataUrl).split(',')[1] || '';
+  const bin = atob(b64);
+  const buf = new Uint8Array(bin.length);
+  for(let i=0;i<bin.length;i++) buf[i] = bin.charCodeAt(i);
+  return buf.buffer;
+}
+async function playUploadedBell(dataUrl){
+  KITCHEN_AUDIO_CTX = KITCHEN_AUDIO_CTX || new (window.AudioContext || window.webkitAudioContext)();
+  const ctx = KITCHEN_AUDIO_CTX;
+  if(ctx.state==='suspended') await ctx.resume();
+  const key = dataUrl.length + ':' + dataUrl.slice(-64);
+  let buffer = BELL_BUFFER_CACHE[key];
+  if(!buffer){
+    buffer = await ctx.decodeAudioData(dataUrlToArrayBuffer(dataUrl));
+    BELL_BUFFER_CACHE[key] = buffer;
+  }
+  const src = ctx.createBufferSource();
+  src.buffer = buffer;
+  src.connect(ctx.destination);
+  src.start();
+}
 function playKitchenBell(stationId, onError){
   const setting = resolveBellSetting(stationId);
   if(typeof setting === 'string' && setting){
-    try{
-      const audio = new Audio(setting);
-      audio.volume = 1.0;
-      // Onceden hata sadece console.warn'a yaziliyordu - "Seçili Sesi Test Et"
-      // butonuna basan kullanici, dosya bozuksa/tarayici formati desteklemiyorsa
-      // hicbir geri bildirim almadan sessizlikle karsilasiyordu. Test akisinda
-      // (onError verildiginde) artik gorunur bir uyari gosteriliyor.
-      audio.addEventListener('error', () => {
-        console.warn('Zil sesi çalınamadı: dosya bozuk veya format desteklenmiyor');
-        if(onError) onError('Yüklediğiniz ses dosyası çalınamadı (bozuk olabilir ya da bu tarayıcı formatı desteklemiyor). Farklı bir dosya (mp3/ogg/wav) deneyin.');
-      });
-      audio.play().catch(e => {
-        console.warn('Zil sesi çalınamadı:', e);
-        if(onError) onError('Ses çalınamadı: ' + e.message + ' (tarayıcı otomatik ses çalmayı engellemiş olabilir - sayfaya bir kez tıkladıktan sonra tekrar deneyin).');
-      });
-      return;
-    }catch(e){
+    playUploadedBell(setting).catch(e => {
       console.warn('Zil sesi çalınamadı:', e);
-      if(onError) onError('Ses çalınamadı: ' + e.message);
-    }
+      if(onError) onError('Yüklediğiniz ses dosyası çalınamadı (dosya bozuk ya da desteklenmeyen bir formatta olabilir). Farklı bir dosya (mp3/ogg/wav) deneyin.');
+      else playBellPresetById('classic');
+    });
+    return;
   }
   const presetId = (setting && setting.preset) || 'classic';
   playBellPresetById(presetId);
