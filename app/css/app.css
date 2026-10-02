@@ -420,3 +420,16 @@
 .role-card.dirty .role-dirty-note{display:inline;}
 .role-templates{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0 2px;}
 @media (max-width:640px){ .role-meta .role-chip:not(.accent){display:none;} }
+
+/* ---- Satır içi işlem butonları (Kaydet / Sil) ---- */
+.act-btn{display:inline-flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;min-width:54px;height:46px;padding:4px 8px;margin:0 2px;border-radius:12px;border:1.5px solid var(--border);background:var(--panel);cursor:pointer;vertical-align:middle;transition:background .12s,border-color .12s,transform .08s;width:auto;box-shadow:none;}
+.act-btn span{font-size:10.5px;font-weight:700;line-height:1;letter-spacing:.01em;}
+.act-btn:active{transform:scale(.96);}
+.act-save{color:var(--accent);}
+.act-save:hover{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 10%,var(--panel));}
+.act-delete{color:var(--red);}
+.act-delete:hover{border-color:var(--red);background:color-mix(in srgb,var(--red) 10%,var(--panel));}
+.act-btn:disabled{opacity:.45;cursor:not-allowed;}
+button > svg + span{margin-left:6px;}
+button:has(> svg + span):not(.act-btn){display:inline-flex;align-items:center;justify-content:center;}
+.act-btn > svg + span{margin-left:0;}

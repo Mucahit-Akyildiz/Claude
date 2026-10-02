@@ -584,7 +584,7 @@ async function renderTipPoolContent(session){
           <option value="by_hours" ${data.mode==='by_hours'?'selected':''}>Çalışılan Saate Göre</option>
         </select>
       </div>
-      <button style="margin-top:12px;max-width:220px;" onclick="saveTipPoolSettings()">Kaydet</button>
+      <button style="margin-top:12px;max-width:220px;" onclick="saveTipPoolSettings()">${ICON_SAVE}<span>Kaydet</span></button>
     </div>` : ''}
     <div class="stat-grid">
       <div class="box" style="text-align:center;"><div style="font-size:22px;font-weight:800;">${money(data.total_tip)}</div><div class="muted" style="font-size:12px;">Toplam Bahşiş</div></div>
