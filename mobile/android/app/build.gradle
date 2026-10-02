@@ -3,7 +3,14 @@ apply plugin: 'com.android.application'
 // Yayın imzalama bilgileri ortam değişkenlerinden okunur (GitHub Actions secret'ları).
 // Değişkenler yoksa (ör. yerel bir geliştirme derlemesi) release derlemesi imzasız kalır.
 def releaseKeystorePath = System.getenv("PEYKTAN_KEYSTORE_PATH")
-def releaseKeystoreFile = releaseKeystorePath ? file(releaseKeystorePath) : null
+// Yol hem app modülüne hem proje köküne (android/) göre denenir: CI
+// "app/release.keystore" veriyordu, file() bunu app/app/... olarak çözüp
+// anahtarı bulamıyor ve AAB sessizce imzasız çıkıyordu.
+def releaseKeystoreFile = null
+if (releaseKeystorePath) {
+    releaseKeystoreFile = file(releaseKeystorePath)
+    if (!releaseKeystoreFile.exists()) releaseKeystoreFile = rootProject.file(releaseKeystorePath)
+}
 def hasReleaseSigning = releaseKeystoreFile != null && releaseKeystoreFile.exists()
 
 android {
