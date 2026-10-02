@@ -72,7 +72,7 @@ async function renderSmsAdmin(main, admin){
         <div class="field-group"><label>Kullanıcı Kodu</label><input id="smsUser" value="${escapeHtml(data.username||'')}" autocapitalize="none"></div>
         <div class="field-group"><label>Şifre</label><input id="smsPass" type="password" placeholder="${data.password_set?'(kayıtlı - değiştirmek için yaz)':'Şifre'}"></div>
       </div>
-      <button style="max-width:200px;margin-top:10px;" onclick="saveSmsAdmin()">Kaydet</button>
+      <button style="max-width:200px;margin-top:10px;" onclick="saveSmsAdmin()">${ICON_SAVE}<span>Kaydet</span></button>
     </div>
     <h3 style="margin-top:20px;">Son 50 SMS</h3>
     ${!(data.recent||[]).length ? '<p class="muted">Henüz SMS yok.</p>' : `<table class="settings-table"><thead><tr><th>Tarih</th><th>İşletme</th><th>Telefon</th><th>Tür</th><th>Mesaj</th><th>Durum</th></tr></thead><tbody>${
@@ -190,7 +190,7 @@ async function refreshPackagesAdmin(admin){
             <td style="text-align:center;"><input type="checkbox" id="pkg_active_${p.id}" ${p.active?'checked':''} style="width:18px;height:18px;"></td>
             <td class="col-name">${p.restaurant_count} işletme</td>
             <td style="white-space:nowrap;">
-              <button class="sbtn" onclick="savePackageRow('${p.id}')">Kaydet</button>
+              <button type="button" class="act-btn act-save" onclick="savePackageRow('${p.id}')">${ICON_SAVE}<span>Kaydet</span></button>
               <button class="sbtn" style="background:var(--red);color:var(--btn-ink);" onclick="deletePackageRow('${p.id}', ${p.restaurant_count})" title="${p.restaurant_count>0?'Bu paketi kullanan işletmeler var':''}">Sil</button>
             </td>
           </tr>
@@ -480,7 +480,7 @@ async function refreshRestaurantsList(admin){
                 <button class="sbtn" style="margin:0;${r.is_active?'background:var(--red);color:var(--btn-ink);':''}" onclick="toggleRestaurantActive('${r.id}', ${!r.is_active})">${r.is_active?'Pasif Et':'Aktif Et'}</button>
                 <button class="sbtn" style="margin:0;" data-name="${escapeAttr(r.name)}" onclick="openEntitlementsModal('restaurant', '${r.id}', this.dataset.name)">🧩 Eklentiler</button>
                 <button class="sbtn" style="margin:0;" onclick="showRestaurantUsers('${r.id}')">👥 Kullanıcılar</button>
-                <button class="sbtn" style="margin:0;background:var(--red);color:var(--btn-ink);" onclick="deleteRestaurantAdmin('${r.id}')">🗑️ Sil</button>
+                <button type="button" class="act-btn act-delete" onclick="deleteRestaurantAdmin('${r.id}')">${ICON_TRASH}<span>Sil</span></button>
               </div>
             </td>
           </tr>
@@ -630,7 +630,7 @@ async function refreshCompaniesList(admin){
             <td style="white-space:nowrap;">
               <button class="sbtn" style="${c.is_active?'background:var(--red);color:var(--btn-ink);':''}" onclick="toggleCompanyActive('${c.id}', ${!c.is_active})">${c.is_active?'Pasif Et':'Aktif Et'}</button>
               <button class="sbtn" data-name="${escapeAttr(c.name)}" onclick="openEntitlementsModal('company', '${c.id}', this.dataset.name)">🧩 Eklentiler</button>
-              <button class="sbtn" style="background:var(--red);color:var(--btn-ink);" data-name="${escapeAttr(c.name)}" onclick="deleteCompany('${c.id}', this.dataset.name)">🗑️ Sil</button>
+              <button type="button" class="act-btn act-delete" data-name="${escapeAttr(c.name)}" onclick="deleteCompany('${c.id}', this.dataset.name)">${ICON_TRASH}<span>Sil</span></button>
             </td>
           </tr>`;
         }).join('')}
@@ -712,7 +712,7 @@ async function refreshAddonsList(admin){
             <td class="col-num" style="width:110px;"><input type="number" min="0" step="0.01" value="${a.price}" id="addon_price_${a.id}"></td>
             <td style="text-align:center;"><input type="checkbox" id="addon_active_${a.id}" ${a.active?'checked':''} style="width:18px;height:18px;"></td>
             <td style="white-space:nowrap;">
-              <button class="sbtn" onclick="saveAddonRow('${a.id}')">Kaydet</button>
+              <button type="button" class="act-btn act-save" onclick="saveAddonRow('${a.id}')">${ICON_SAVE}<span>Kaydet</span></button>
             </td>
           </tr>`).join('')}
         </tbody>
@@ -807,8 +807,8 @@ async function refreshFeatureCatalogList(admin){
                 <td style="text-align:center;"><input type="checkbox" id="feat_active_${f.id}" ${f.active?'checked':''} style="width:18px;height:18px;"></td>
                 <td style="text-align:center;"><input type="checkbox" id="feat_isaddon_${f.id}" ${f.is_addon?'checked':''} style="width:18px;height:18px;"></td>
                 <td style="white-space:nowrap;">
-                  <button class="sbtn" onclick="saveFeatureRow('${f.id}')">Kaydet</button>
-                  ${f.is_core ? '' : `<button class="sbtn" style="background:var(--red);color:var(--btn-ink);" onclick="deleteFeatureRow('${f.id}')">Sil</button>`}
+                  <button type="button" class="act-btn act-save" onclick="saveFeatureRow('${f.id}')">${ICON_SAVE}<span>Kaydet</span></button>
+                  ${f.is_core ? '' : `<button type="button" class="act-btn act-delete" onclick="deleteFeatureRow('${f.id}')">${ICON_TRASH}<span>Sil</span></button>`}
                 </td>
               </tr>`).join('')}
             </tbody>
@@ -1003,7 +1003,7 @@ function renderBankInfoPanel(editMode){
       ${editMode ? `
         <div class="error" id="bankInfoErr"></div>
         <div style="display:flex;gap:8px;margin-top:12px;">
-          <button style="width:auto;max-width:220px;margin:0;" onclick="saveBankTransferInfo()">Kaydet</button>
+          <button style="width:auto;max-width:220px;margin:0;" onclick="saveBankTransferInfo()">${ICON_SAVE}<span>Kaydet</span></button>
           ${info.iban || info.account_name || info.bank_name || info.whatsapp_number || info.notify_email ? `<button type="button" class="sbtn" style="width:auto;margin:0;" onclick="renderBankInfoPanel(false)">Vazgeç</button>` : ''}
         </div>
       ` : ''}
@@ -1110,7 +1110,7 @@ async function refreshPromoList(admin){
           <td>${c.active ? '<span class="role-badge" style="color:var(--green);border-color:var(--green);">Aktif</span>' : '<span class="role-badge" style="color:var(--red);border-color:var(--red);">Pasif</span>'}</td>
           <td style="white-space:nowrap;">
             <button class="sbtn" onclick="togglePromo('${c.id}')">${c.active?'Kapat':'Aç'}</button>
-            <button class="sbtn" style="background:var(--red);color:var(--btn-ink);" onclick="deletePromo('${c.id}')">Sil</button>
+            <button type="button" class="act-btn act-delete" onclick="deletePromo('${c.id}')">${ICON_TRASH}<span>Sil</span></button>
           </td>
         </tr>`).join('')}
       </tbody>

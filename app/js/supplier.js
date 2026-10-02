@@ -36,7 +36,7 @@ async function renderSuppliersContent(session){
           <td>${escapeHtml(s.address||'-')}</td>
           <td>
             <button class="sbtn" onclick="editSupplier('${s.id}')">Düzenle</button>
-            <button class="sbtn" style="background:var(--red);color:var(--btn-ink);" onclick="removeSupplier('${s.id}')">Sil</button>
+            <button type="button" class="act-btn act-delete" onclick="removeSupplier('${s.id}')">${ICON_TRASH}<span>Sil</span></button>
           </td>
         </tr>`).join('')}
       ${rows.length===0?'<tr><td colspan="5" class="muted" style="text-align:center;">Tedarikçi yok.</td></tr>':''}
@@ -52,7 +52,7 @@ async function renderSuppliersContent(session){
         <div class="field-group"><label>E-posta</label><input id="sup_email" placeholder="opsiyonel"></div>
       </div>
       <div class="field-group" style="margin-top:10px;"><label>Adres</label><input id="sup_address" placeholder="opsiyonel"></div>
-      <button style="margin-top:12px;max-width:220px;" onclick="saveSupplier()">Kaydet</button>
+      <button style="margin-top:12px;max-width:220px;" onclick="saveSupplier()">${ICON_SAVE}<span>Kaydet</span></button>
     </div>
   </div>`;
 }
@@ -112,7 +112,7 @@ async function renderPurchaseOrdersContent(session){
           <td>${money(p.total_amount)}</td>
           <td>
             ${p.status!=='received' && p.status!=='cancelled' ? `<button class="sbtn" onclick="openReceivePOModal('${p.id}')">Teslim Al</button>` : ''}
-            ${p.status==='draft' ? `<button class="sbtn" onclick="markPOOrdered('${p.id}')">Sipariş Ver</button><button class="sbtn" style="background:var(--red);color:var(--btn-ink);" onclick="removePO('${p.id}')">Sil</button>` : ''}
+            ${p.status==='draft' ? `<button class="sbtn" onclick="markPOOrdered('${p.id}')">Sipariş Ver</button><button type="button" class="act-btn act-delete" onclick="removePO('${p.id}')">${ICON_TRASH}<span>Sil</span></button>` : ''}
           </td>
         </tr>`).join('')}
       ${rows.length===0?'<tr><td colspan="6" class="muted" style="text-align:center;">Sipariş yok.</td></tr>':''}

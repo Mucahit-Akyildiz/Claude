@@ -56,7 +56,7 @@ async function renderReservationsContent(session, forceRefresh){
           <td><select onchange="changeReservationStatus('${r.id}',this.value)">
             ${Object.keys(RESV_STATUS_LABELS).map(s => `<option value="${s}" ${r.status===s?'selected':''}>${RESV_STATUS_LABELS[s]}</option>`).join('')}
           </select></td>
-          <td><button class="sbtn" style="background:var(--red);color:var(--btn-ink);" onclick="removeReservation('${r.id}')">Sil</button></td>
+          <td><button type="button" class="act-btn act-delete" onclick="removeReservation('${r.id}')">${ICON_TRASH}<span>Sil</span></button></td>
         </tr>`).join('')}
       ${rows.length===0?'<tr><td colspan="7" class="muted" style="text-align:center;">Yaklaşan rezervasyon yok.</td></tr>':''}
       </tbody>

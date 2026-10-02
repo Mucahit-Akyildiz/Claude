@@ -70,8 +70,8 @@ function renderOrderFlagsSettings(el, session){
         <tr>
           <td class="col-name"><input value="${escapeAttr(f.label)}" id="flag_label_${f.id}"></td>
           <td style="white-space:nowrap;">
-            <button class="sbtn" onclick="saveOrderFlag('${f.id}')">Kaydet</button>
-            <button class="sbtn" style="background:var(--red);color:var(--btn-ink);" onclick="removeOrderFlag('${f.id}')">Sil</button>
+            <button type="button" class="act-btn act-save" onclick="saveOrderFlag('${f.id}')">${ICON_SAVE}<span>Kaydet</span></button>
+            <button type="button" class="act-btn act-delete" onclick="removeOrderFlag('${f.id}')">${ICON_TRASH}<span>Sil</span></button>
           </td>
         </tr>`).join('')}
       ${flags.length===0 ? '<tr><td colspan="2" class="muted" style="padding:10px 4px;">Henüz etiket eklenmedi.</td></tr>' : ''}
@@ -130,9 +130,9 @@ function renderIngredientsSettings(el, session){
           </select></td>
           <td class="col-num"><input type="number" step="0.01" value="${i.stock}" id="ing_stock_${i.id}"></td>
           <td style="white-space:nowrap;">
-            <button class="sbtn" onclick="saveIngredient('${i.id}')">Kaydet</button>
+            <button type="button" class="act-btn act-save" onclick="saveIngredient('${i.id}')">${ICON_SAVE}<span>Kaydet</span></button>
             <button class="sbtn" style="background:var(--accent2);color:var(--btn-ink);" onclick="openIngredientUsageModal('${i.id}')">Kullanıldığı Ürünler</button>
-            <button class="sbtn" style="background:var(--red);color:var(--btn-ink);" onclick="removeIngredient('${i.id}')">Sil</button>
+            <button type="button" class="act-btn act-delete" onclick="removeIngredient('${i.id}')">${ICON_TRASH}<span>Sil</span></button>
           </td>
         </tr>`).join('')}
       </tbody>
@@ -196,7 +196,7 @@ function openIngredientUsageModal(ingredientId){
     <div style="display:flex;justify-content:space-between;"><h2 style="margin:0;">${escapeHtml(ingredientName)} - Kullanıldığı Ürünler</h2><span style="cursor:pointer;color:var(--muted);" onclick="document.getElementById('ingUsageModalBg').remove()">✕</span></div>
     <p class="muted" style="text-align:left;">Bu hammaddeyi hangi ürünler kullanıyor, 1 porsiyonda ne kadar tüketiliyor? Seçmediğiniz ürünlerden bu hammadde kaldırılır (o ürünlerin diğer hammaddeleri etkilenmez).</p>
     <div id="ingUsageItemsBox"></div>
-    <button style="margin-top:14px;" onclick="saveIngredientUsage('${ingredientId}')">Kaydet</button>
+    <button style="margin-top:14px;" onclick="saveIngredientUsage('${ingredientId}')">${ICON_SAVE}<span>Kaydet</span></button>
   </div>`;
   document.body.appendChild(bg);
   const box = document.getElementById('ingUsageItemsBox');
@@ -364,8 +364,8 @@ function renderStationsSettings(el, session){
       ${stationIconPickerHtml('st_icon_'+s.id, s.icon||'🍳', `border-radius:50%;background:${s.color}26;border-color:${s.color};`)}
       <input value="${escapeAttr(s.name)}" id="st_name_${s.id}" placeholder="İstasyon adı" style="flex:1;min-width:120px;margin:0;font-weight:700;">
       <input type="color" value="${s.color}" id="st_color_${s.id}" title="Renk" style="padding:2px;height:38px;width:42px;flex-shrink:0;margin:0;">
-      ${stationRowActionBtn('💾','Kaydet','var(--accent)',`saveStation('${s.id}')`)}
-      ${stationRowActionBtn('🗑️','Sil','var(--red)',`removeStation('${s.id}')`)}
+      ${actBtn('save', `saveStation('${s.id}')`)}
+      ${actBtn('delete', `removeStation('${s.id}')`)}
     </div>`;
   el.innerHTML = `<div class="box" style="max-width:none;">
     <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:14px;">
@@ -428,8 +428,8 @@ function renderZonesSettings(el, session){
       <div style="background:var(--panel2);border-radius:10px;padding:12px;margin-bottom:12px;">
         <div style="display:flex;gap:8px;align-items:center;">
           <input value="${escapeAttr(z.name)}" id="zn_name_${z.id}" style="flex:1;font-weight:700;">
-          <button style="width:auto;padding:8px 12px;" onclick="saveZone('${z.id}')">Kaydet</button>
-          <button style="width:auto;padding:8px 12px;background:var(--red);" onclick="removeZone('${z.id}')">Sil</button>
+          <button type="button" class="act-btn act-save" onclick="saveZone('${z.id}')">${ICON_SAVE}<span>Kaydet</span></button>
+          <button type="button" class="act-btn act-delete" onclick="removeZone('${z.id}')">${ICON_TRASH}<span>Sil</span></button>
         </div>
         <div style="margin-top:10px;display:flex;flex-wrap:wrap;gap:6px;">
           ${z.tables.map(t => `<span style="background:var(--panel);border:1px solid var(--border);border-radius:999px;padding:5px 10px;font-size:12px;display:flex;align-items:center;gap:6px;">
@@ -591,11 +591,11 @@ function renderProductsSettings(el, session){
               ? '<span class="role-badge" style="color:var(--red);border-color:var(--red);">Kapalı</span>'
               : '<span class="role-badge" style="color:var(--green);border-color:var(--green);">Satışta</span>'}</td>
           <td style="white-space:normal;">
-            <button class="sbtn" onclick="saveProduct('${p.id}')">Kaydet</button>
+            <button type="button" class="act-btn act-save" onclick="saveProduct('${p.id}')">${ICON_SAVE}<span>Kaydet</span></button>
             <button class="sbtn" style="background:${p.available===false?'var(--green)':'var(--panel)'};color:${p.available===false?'var(--btn-ink)':'var(--text)'};border:1.5px solid var(--border);" onclick="toggleProductAvailable('${p.id}')">${p.available===false?'Aç':'Kapat'}</button>
             <button class="sbtn" style="background:var(--accent2);color:var(--btn-ink);" onclick="openRecipeModal('${p.id}')">Reçete</button>
             ${hasFeature('multilang_menu') ? `<button class="sbtn" style="background:#6366f1;color:#fff;" onclick="openTranslationsModal('${p.id}')" title="QR menüde diğer dillerde gösterilecek isim">🌐 Çeviri</button>` : ''}
-            <button class="sbtn" style="background:var(--red);color:var(--btn-ink);" onclick="removeProduct('${p.id}')">Sil</button>
+            <button type="button" class="act-btn act-delete" onclick="removeProduct('${p.id}')">${ICON_TRASH}<span>Sil</span></button>
           </td>
         </tr>`).join('');
 
@@ -758,8 +758,8 @@ function renderUsersSettings(el, session){
           <td class="col-name"><input type="password" placeholder="(değiştirmek için yaz)" id="us_pass_${u.id}"></td>
           <td class="col-name">${roleCheckboxes('us_'+u.id, u.role_ids||[])}</td>
           <td>
-            <button class="sbtn" onclick="saveUser('${u.id}')">Kaydet</button>
-            <button class="sbtn" style="background:var(--red);color:var(--btn-ink);" onclick="removeUser('${u.id}')">Sil</button>
+            <button type="button" class="act-btn act-save" onclick="saveUser('${u.id}')">${ICON_SAVE}<span>Kaydet</span></button>
+            <button type="button" class="act-btn act-delete" onclick="removeUser('${u.id}')">${ICON_TRASH}<span>Sil</span></button>
           </td>
         </tr>`).join('')}
       </tbody>
@@ -827,62 +827,124 @@ async function renderShiftsTable(session){
    hangi ekranların açık olduğuna kendisi karar verir (bkz.
    manager_upsert_role/manager_delete_role). Yönetici rolü (is_system)
    salt okunur - tüm ekranlara erişimi sabit ve değiştirilemez. */
-function permissionCheckboxes(idPrefix, selectedPerms){
+function rolePermissionCatalog(){
   // İzin listesi sunucudan gelir (get_restaurant_config.role_permissions):
   // işletmenin paketindeki/eklentilerindeki tüm özellikler. Yeni bir özellik
   // eklendiğinde burada kod değişikliği gerekmeden otomatik görünür.
-  const catalog = (APP.config && APP.config.role_permissions && APP.config.role_permissions.length)
+  return (APP.config && APP.config.role_permissions && APP.config.role_permissions.length)
     ? APP.config.role_permissions
-    : Object.keys(PERMISSION_LABELS).map(id => ({ id, label: PERMISSION_LABELS[id], category: '' }));
+    : Object.keys(PERMISSION_LABELS).map(id => ({ id, label: PERMISSION_LABELS[id], category: 'Temel' }));
+}
+function permissionCheckboxes(idPrefix, selectedPerms){
   const byCat = {};
-  catalog.forEach(p => { (byCat[p.category||'Diğer'] = byCat[p.category||'Diğer'] || []).push(p); });
-  return `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:4px 16px;">` +
-    Object.keys(byCat).map(cat => `
-      <div>
-        <div class="muted" style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;margin:6px 0 4px;">${escapeHtml(cat)}</div>
-        ${byCat[cat].map(p => `
-        <label style="display:flex;align-items:center;gap:6px;font-weight:400;font-size:13px;margin-bottom:4px;">
-          <input type="checkbox" id="${idPrefix}_perm_${escapeHtml(p.id)}" value="${escapeHtml(p.id)}" data-perms-group="${idPrefix}" ${selectedPerms.includes(p.id)?'checked':''} style="width:auto;margin:0;">
-          ${escapeHtml(p.label)}
-        </label>`).join('')}
-      </div>`).join('') + `</div>`;
+  rolePermissionCatalog().forEach(p => { (byCat[p.category||'Diğer'] = byCat[p.category||'Diğer'] || []).push(p); });
+  return `<div class="perm-cats">` + Object.keys(byCat).map(cat => `
+    <div class="perm-cat">
+      <div class="perm-cat-head"><span>${escapeHtml(cat)}</span>
+        <a onclick="toggleRoleCategory(this, true)">Tümü</a></div>
+      <div class="perm-pills">${byCat[cat].map(p => `
+        <label class="perm-pill"><input type="checkbox" value="${escapeAttr(p.id)}" data-perms-group="${idPrefix}" ${selectedPerms.includes(p.id)?'checked':''} onchange="markRoleDirty('${idPrefix}')">${escapeHtml(p.label)}</label>`).join('')}
+      </div>
+    </div>`).join('') + `</div>`;
 }
 function selectedPermissions(idPrefix){
   return Array.from(document.querySelectorAll(`input[data-perms-group="${idPrefix}"]:checked`)).map(b => b.value);
 }
+/* Kategori başlığındaki "Tümü/Hiçbiri": kategorideki hepsi seçiliyse
+   temizler, değilse hepsini seçer. */
+function toggleRoleCategory(link){
+  const boxes = link.closest('.perm-cat').querySelectorAll('input[type=checkbox]');
+  const allOn = Array.from(boxes).every(b => b.checked);
+  boxes.forEach(b => { b.checked = !allOn; });
+  if(boxes[0]) markRoleDirty(boxes[0].dataset.permsGroup);
+}
+function markRoleDirty(group){
+  const card = document.querySelector(`[data-role-card="${group}"]`);
+  if(!card) return;
+  card.classList.add('dirty');
+  const n = selectedPermissions(group).length;
+  const chip = card.querySelector('.role-perm-count');
+  if(chip) chip.textContent = n + ' / ' + rolePermissionCatalog().length + ' izin';
+}
+function toggleRoleCard(group){
+  const card = document.querySelector(`[data-role-card="${group}"]`);
+  if(card) card.classList.toggle('open');
+}
+function rolePermSummary(perms){
+  const labels = rolePermissionCatalog().filter(p => perms.includes(p.id)).map(p => p.label);
+  if(!labels.length) return 'Henüz izin verilmedi';
+  return labels.slice(0, 4).join(', ') + (labels.length > 4 ? ' +' + (labels.length - 4) + ' daha' : '');
+}
+const ROLE_TEMPLATES = {
+  'Garson': ['order','packages','settings_products','settings_ingredients'],
+  'Mutfak': ['kitchen','settings_products','settings_ingredients'],
+  'Kasiyer': ['order','packages','payments','tips','giftcards','crm'],
+  'Müdür Yardımcısı': ['order','packages','kitchen','payments','reservations','crm','shifts','settings_products','settings_ingredients','settings_zones','settings_flags']
+};
+function applyRoleTemplate(name){
+  const perms = ROLE_TEMPLATES[name] || [];
+  document.getElementById('new_role_name').value = name;
+  document.querySelectorAll('input[data-perms-group="new_role"]').forEach(b => { b.checked = perms.includes(b.value); });
+  markRoleDirty('new_role');
+}
+function roleCardHtml(r){
+  const total = rolePermissionCatalog().length;
+  if(r.is_system) return `
+    <div class="role-card">
+      <div class="role-head" style="cursor:default;">
+        <div class="role-avatar">👑</div>
+        <div class="role-title"><b>${escapeHtml(r.name)}</b> <span class="role-badge" style="margin-left:6px;font-size:11px;padding:3px 9px;">Sistem</span>
+          <div class="role-sub">Tüm ekranlara ve ayarlara erişir · değiştirilemez</div></div>
+        <div class="role-meta"><span class="role-chip">${r.user_count} kullanıcı</span><span class="role-chip accent">Tüm izinler</span></div>
+      </div>
+    </div>`;
+  const g = 'role_'+r.id, perms = r.permissions || [];
+  return `
+    <div class="role-card" data-role-card="${g}">
+      <div class="role-head" onclick="toggleRoleCard('${g}')">
+        <div class="role-avatar">👤</div>
+        <div class="role-title"><b>${escapeHtml(r.name)}</b><div class="role-sub">${escapeHtml(rolePermSummary(perms))}</div></div>
+        <div class="role-meta"><span class="role-chip">${r.user_count} kullanıcı</span><span class="role-chip accent role-perm-count">${perms.filter(p => rolePermissionCatalog().some(c => c.id===p)).length} / ${total} izin</span></div>
+        <span class="role-chevron">▶</span>
+      </div>
+      <div class="role-body">
+        <div class="field-group" style="max-width:320px;margin-top:12px;"><label>Rol Adı</label><input value="${escapeAttr(r.name)}" id="role_name_${r.id}" oninput="markRoleDirty('${g}')"></div>
+        ${permissionCheckboxes(g, perms)}
+        <div class="role-actions">
+          <button class="ghost-btn" style="width:auto;margin:0;color:var(--red);border-color:var(--red);" onclick="deleteRole('${r.id}')" ${r.user_count>0?`title="Bu role atanmış ${r.user_count} kullanıcı var"`:''}>${ICON_TRASH}<span>Rolü Sil</span></button>
+          <span class="spacer"></span>
+          <span class="role-dirty-note">● Kaydedilmemiş değişiklik</span>
+          <button style="width:auto;margin:0;padding:10px 22px;" onclick="saveRole('${r.id}')">${ICON_SAVE}<span>Kaydet</span></button>
+        </div>
+      </div>
+    </div>`;
+}
 function renderRolesSettings(el, session){
   const roles = APP.config.roles || [];
   el.innerHTML = `<div class="box" style="max-width:none;">
-    <h2>Roller</h2>
-    <p class="muted" style="margin-top:-8px;margin-bottom:16px;">Hangi rolün hangi ekranlara erişebileceğini burada belirleyin. Yönetici rolü tüm ekranlara erişebilir ve değiştirilemez.</p>
-    <div class="settings-table-wrap">
-    <table class="settings-table">
-      <thead><tr><th>Rol Adı</th><th>Ekran İzinleri</th><th>Kullanıcı Sayısı</th><th></th></tr></thead>
-      <tbody>
-      ${roles.map(r => r.is_system ? `
-        <tr>
-          <td class="col-name">${escapeHtml(r.name)} <span class="role-badge" style="margin-left:6px;">Sistem</span></td>
-          <td><span class="muted">Tüm ekranlar</span></td>
-          <td>${r.user_count}</td>
-          <td></td>
-        </tr>` : `
-        <tr>
-          <td class="col-name"><input value="${escapeAttr(r.name)}" id="role_name_${r.id}"></td>
-          <td>${permissionCheckboxes('role_'+r.id, r.permissions||[])}</td>
-          <td>${r.user_count}</td>
-          <td>
-            <button class="sbtn" onclick="saveRole('${r.id}')">Kaydet</button>
-            <button class="sbtn" style="background:var(--red);color:var(--btn-ink);" onclick="deleteRole('${r.id}')">Sil</button>
-          </td>
-        </tr>`).join('')}
-      </tbody>
-    </table>
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+      <div><h2 style="margin-bottom:4px;">Roller</h2>
+        <p class="muted" style="margin:0 0 16px;">Bir role tıklayarak hangi ekranlara erişebileceğini seçin. Bir kullanıcıya en fazla 2 rol verilebilir; izinleri birleşir.</p></div>
+      <button style="width:auto;margin:0;" onclick="toggleRoleCard('new_role');document.getElementById('new_role_name').focus()">+ Yeni Rol</button>
     </div>
-    <div class="add-row-panel">
-      <p>Yeni Rol Ekle</p>
-      <div class="field-group" style="max-width:280px;"><label>Rol Adı</label><input id="new_role_name" placeholder="örn. Kasiyer"></div>
-      <div style="margin-top:10px;">${permissionCheckboxes('new_role', [])}</div>
-      <button style="margin-top:12px;max-width:220px;" onclick="createRole()">+ Rol Ekle</button>
+    ${roles.map(roleCardHtml).join('')}
+    <div class="role-card" data-role-card="new_role" style="border-style:dashed;">
+      <div class="role-head" onclick="toggleRoleCard('new_role')">
+        <div class="role-avatar">＋</div>
+        <div class="role-title"><b>Yeni Rol Oluştur</b><div class="role-sub">Hazır şablonla başlayın ya da izinleri kendiniz seçin</div></div>
+        <div class="role-meta"><span class="role-chip accent role-perm-count">0 / ${rolePermissionCatalog().length} izin</span></div>
+        <span class="role-chevron">▶</span>
+      </div>
+      <div class="role-body">
+        <div class="role-templates"><span class="muted" style="font-size:12px;align-self:center;">Şablon:</span>
+          ${Object.keys(ROLE_TEMPLATES).map(t => `<button class="sbtn" style="margin:0;" onclick="applyRoleTemplate(${jsArg(t)})">${escapeHtml(t)}</button>`).join('')}
+        </div>
+        <div class="field-group" style="max-width:320px;margin-top:10px;"><label>Rol Adı</label><input id="new_role_name" placeholder="örn. Kasiyer" oninput="markRoleDirty('new_role')"></div>
+        ${permissionCheckboxes('new_role', [])}
+        <div class="role-actions"><span class="spacer"></span>
+          <button style="width:auto;margin:0;padding:10px 22px;" onclick="createRole()">+ Rolü Oluştur</button>
+        </div>
+      </div>
     </div>
   </div>`;
 }
@@ -945,7 +1007,7 @@ async function renderIntegrationsSettings(el, session){
       <input type="checkbox" id="int_efatura_enabled" ${data.efatura_enabled?'checked':''} style="width:auto;margin:0;"> Aktif
     </label>
     <p class="muted" style="font-size:12px;margin-top:6px;">${data.efatura_configured ? '✓ API anahtarı kayıtlı' : 'Henüz API anahtarı girilmedi'}</p>
-    <button style="margin-top:12px;max-width:220px;" onclick="saveEfaturaSettings()">Kaydet</button>
+    <button style="margin-top:12px;max-width:220px;" onclick="saveEfaturaSettings()">${ICON_SAVE}<span>Kaydet</span></button>
   </div>
   <div class="box" style="max-width:none;">
     <h2>Pazaryeri Entegrasyonu <span class="role-badge" style="font-weight:600;">Eklenti</span></h2>
@@ -963,7 +1025,7 @@ async function renderIntegrationsSettings(el, session){
       ${data.marketplace_trendyol_configured?'✓ Trendyol Yemek':'✗ Trendyol Yemek'} ·
       ${data.marketplace_getir_configured?'✓ Getir Yemek':'✗ Getir Yemek'}
     </p>
-    <button style="margin-top:12px;max-width:220px;" onclick="saveMarketplaceSettings()">Kaydet</button>
+    <button style="margin-top:12px;max-width:220px;" onclick="saveMarketplaceSettings()">${ICON_SAVE}<span>Kaydet</span></button>
   </div>
   <div class="box" style="max-width:none;">
     <h2>📊 Muhasebe Entegrasyonu <span class="role-badge" style="font-weight:600;">Eklenti</span></h2>
@@ -984,13 +1046,13 @@ async function renderIntegrationsSettings(el, session){
       <input type="checkbox" id="int_accounting_enabled" ${data.accounting_enabled?'checked':''} style="width:auto;margin:0;"> Aktif
     </label>
     <p class="muted" style="font-size:12px;margin-top:6px;">${data.accounting_configured ? '✓ API anahtarı kayıtlı' : 'Henüz API anahtarı girilmedi'}</p>
-    <button style="margin-top:12px;max-width:220px;" onclick="saveAccountingSettings()">Kaydet</button>
+    <button style="margin-top:12px;max-width:220px;" onclick="saveAccountingSettings()">${ICON_SAVE}<span>Kaydet</span></button>
   </div>
   <div class="box" style="max-width:none;">
     <h2>⭐ Google Yorumları</h2>
     <p class="muted" style="margin-top:-6px;">İşletmenizin Google Business Profili'ndeki "yorum yaz" linkini girin. Ödeme alma ekranında bir hesabın tamamı ödendiğinde, personele bu linke giden bir QR kod gösterme seçeneği çıkar - müşteriden telefonuyla okutup değerlendirme bırakmasını isteyebilirsiniz.</p>
     <div class="field-group" style="max-width:500px;"><label>Google Yorum Linki</label><input id="int_google_review_url" placeholder="https://g.page/r/..." value="${escapeAttr(APP.config.google_review_url||'')}"></div>
-    <button style="margin-top:12px;max-width:220px;" onclick="saveGoogleReviewUrl()">Kaydet</button>
+    <button style="margin-top:12px;max-width:220px;" onclick="saveGoogleReviewUrl()">${ICON_SAVE}<span>Kaydet</span></button>
   </div>
   <div class="box" style="max-width:none;">
     <h2>🛵 Dışarıdan Online Sipariş</h2>
@@ -1021,7 +1083,7 @@ async function renderIntegrationsSettings(el, session){
       <div class="field-group"><label>Vergi Dairesi</label><input id="inv_office" value="${escapeHtml(data.tax_office||'')}"></div>
       <div class="field-group"><label>Adres</label><input id="inv_addr" value="${escapeHtml(data.invoice_address||'')}"></div>
     </div>
-    <button style="max-width:200px;margin-top:10px;" onclick="saveInvoiceSettings()">Kaydet</button>
+    <button style="max-width:200px;margin-top:10px;" onclick="saveInvoiceSettings()">${ICON_SAVE}<span>Kaydet</span></button>
     <h3 style="margin:18px 0 6px;font-size:14px;">Son 30 günde gönderilenler</h3>
     <div id="invoiceList" class="muted" style="font-size:13px;">Yükleniyor...</div>`;
   el.appendChild(inv);

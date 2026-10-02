@@ -2386,7 +2386,7 @@ async function renderPrinterSettingsView(main, session){
             <td style="white-space:nowrap;">
               ${p.type==='usb' ? `<button class="sbtn" onclick="reconnectUsbPrinter('${p.id}')">Bağlan</button>` : ''}
               <button class="sbtn" onclick="testPrintPrinter('${p.id}')">Test Yazdır</button>
-              <button class="sbtn" style="background:var(--red);color:var(--btn-ink);" onclick="removePrinterEntry('${p.id}')">Sil</button>
+              <button type="button" class="act-btn act-delete" onclick="removePrinterEntry('${p.id}')">${ICON_TRASH}<span>Sil</span></button>
             </td>
           </tr>`).join('')}
         </tbody>

@@ -19,7 +19,7 @@ async function renderCrmView(main, session){
       </div>
       <div class="field-group" style="margin-top:10px;max-width:220px;"><label>🎂 Doğum günü indirimi (%)</label><input id="loy_birthday_pct" type="number" min="0" max="100" step="1" value="${loyalty.birthday_discount_percent||0}"></div>
       <p class="muted" style="font-size:12px;margin:6px 0 0;">Müşterinin doğum günü kaydedilmişse, o gün ödeme alırken bu yüzde otomatik indirim olarak uygulanır (0 = kapalı).</p>
-      <button style="margin-top:12px;max-width:220px;" onclick="saveLoyaltySettings()">Kaydet</button>
+      <button style="margin-top:12px;max-width:220px;" onclick="saveLoyaltySettings()">${ICON_SAVE}<span>Kaydet</span></button>
     </div>` : ''}
     <div class="box" style="max-width:none;">
       <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
@@ -38,7 +38,7 @@ async function renderCrmView(main, session){
             <td>${c.points_balance}</td>
             <td>
               <button class="sbtn" onclick="editCustomer('${c.id}')">Düzenle</button>
-              <button class="sbtn" style="background:var(--red);color:var(--btn-ink);" onclick="removeCustomer('${c.id}')">Sil</button>
+              <button type="button" class="act-btn act-delete" onclick="removeCustomer('${c.id}')">${ICON_TRASH}<span>Sil</span></button>
             </td>
           </tr>`).join('')}
         ${rows.length===0?'<tr><td colspan="4" class="muted" style="text-align:center;">Müşteri yok.</td></tr>':''}
@@ -55,7 +55,7 @@ async function renderCrmView(main, session){
           <div class="field-group"><label>🎂 Doğum Günü</label><input id="crm_birthday" type="date"></div>
         </div>
         <div class="field-group" style="margin-top:10px;"><label>Not</label><input id="crm_notes" placeholder="opsiyonel"></div>
-        <button style="margin-top:12px;max-width:220px;" onclick="saveCrmCustomer()">Kaydet</button>
+        <button style="margin-top:12px;max-width:220px;" onclick="saveCrmCustomer()">${ICON_SAVE}<span>Kaydet</span></button>
       </div>
     </div>`;
 }
