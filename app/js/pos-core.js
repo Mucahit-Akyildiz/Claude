@@ -191,7 +191,19 @@ function primeKitchenAudio(){
    seviyeleri (BELL_PRESETS içindeki kazanımlar) güvenli aralığa çekildi;
    buradaki zincir sadece o temiz sinyali biraz daha yükseltip son bir
    güvenlik limiteriyle korumaya devam ediyor. */
-let BELL_CHAIN = null, BELL_CHAIN_CTX = null;
+let BELL_CHAIN = null, BELL_CHAIN_CTX = null, BELL_VOLUME_NODE = null;
+/* Zil ses düzeyi (0-100, bu cihaza özel): tüm zil sesleri limiterden sonra
+   bu kazanç düğümünden geçer (bkz. Bildirim Ayarları > Ses Düzeyi). */
+function getBellVolume(){
+  try{ const v = parseInt(localStorage.getItem('rys_bell_volume'), 10); return isNaN(v) ? 100 : Math.max(0, Math.min(100, v)); }
+  catch(e){ return 100; }
+}
+function setBellVolume(v){
+  v = Math.max(0, Math.min(100, parseInt(v, 10) || 0));
+  try{ localStorage.setItem('rys_bell_volume', String(v)); }catch(e){}
+  if(BELL_VOLUME_NODE) BELL_VOLUME_NODE.gain.value = v / 100;
+  const lbl = document.getElementById('bellVolumeLabel'); if(lbl) lbl.textContent = v === 0 ? 'Sessiz' : ('%' + v);
+}
 function getBellCompressor(ctx){
   if(BELL_CHAIN && BELL_CHAIN_CTX===ctx) return BELL_CHAIN;
   const comp = ctx.createDynamicsCompressor();
@@ -202,8 +214,10 @@ function getBellCompressor(ctx){
   const limiter = ctx.createDynamicsCompressor();
   limiter.threshold.value = -1; limiter.knee.value = 3; limiter.ratio.value = 12;
   limiter.attack.value = 0.003; limiter.release.value = 0.15;
-  comp.connect(makeup); makeup.connect(limiter); limiter.connect(ctx.destination);
-  BELL_CHAIN = comp; BELL_CHAIN_CTX = ctx;
+  const volume = ctx.createGain();
+  volume.gain.value = getBellVolume() / 100;
+  comp.connect(makeup); makeup.connect(limiter); limiter.connect(volume); volume.connect(ctx.destination);
+  BELL_CHAIN = comp; BELL_CHAIN_CTX = ctx; BELL_VOLUME_NODE = volume;
   return comp;
 }
 /* Tek bir "çan" notası: temel ton + iki uyumlu üst kısmi (bell partial)
@@ -294,7 +308,9 @@ async function playUploadedBell(dataUrl){
   }
   const src = ctx.createBufferSource();
   src.buffer = buffer;
-  src.connect(ctx.destination);
+  // Hazır zillerle aynı ses düzeyi düğümüne bağlanır.
+  getBellCompressor(ctx);
+  src.connect(BELL_VOLUME_NODE);
   src.start();
 }
 function playKitchenBell(stationId, onError){
@@ -2228,18 +2244,37 @@ function resolvePrinterForStation(stationId){
   }
   return printers.find(p => p.id===getActivePrinterId()) || null;
 }
+/* Zil ayarları: library = yüklenen ses dosyaları [{id,name,data}] (her
+   dosya bir kez saklanır); default/perStation[istasyon] = {preset:id} ya da
+   {custom:libId}. Eski sürümde yüklenen ses doğrudan data URL olarak
+   tutuluyordu - okurken kitaplığa taşınır. */
+const BELL_LIBRARY_MAX = 6;
 function getKitchenBellSounds(){
-  try{ return JSON.parse(localStorage.getItem('rys_bell_sounds')) || { default:null, perStation:{} }; }
-  catch(e){ return { default:null, perStation:{} }; }
+  let o;
+  try{ o = JSON.parse(localStorage.getItem('rys_bell_sounds')) || {}; }catch(e){ o = {}; }
+  o.perStation = o.perStation || {}; o.library = o.library || [];
+  const migrate = (v) => {
+    if(typeof v !== 'string' || !v) return v;
+    let item = o.library.find(x => x.data === v);
+    if(!item){ item = { id: 'u' + Date.now().toString(36) + Math.random().toString(36).slice(2,6), name: 'Yüklenen ses', data: v }; o.library.push(item); }
+    return { custom: item.id };
+  };
+  o.default = migrate(o.default) || null;
+  Object.keys(o.perStation).forEach(k => { o.perStation[k] = migrate(o.perStation[k]); });
+  return o;
 }
 function setKitchenBellSounds(obj){
-  try{ localStorage.setItem('rys_bell_sounds', JSON.stringify(obj)); }
-  catch(e){ alert('Ses kaydedilemedi (depolama alanı yetersiz olabilir): '+e.message); }
+  try{ localStorage.setItem('rys_bell_sounds', JSON.stringify(obj)); return true; }
+  catch(e){ alert('Ses kaydedilemedi: tarayıcının depolama alanı doldu. Kullanmadığınız yüklü sesleri silip tekrar deneyin.'); return false; }
 }
 function resolveBellSetting(stationId){
   const sounds = getKitchenBellSounds();
-  if(stationId && sounds.perStation && sounds.perStation[stationId]) return sounds.perStation[stationId];
-  return sounds.default || null;
+  let v = (stationId && sounds.perStation[stationId]) || sounds.default || null;
+  if(v && v.custom){
+    const item = sounds.library.find(x => x.id === v.custom);
+    return item ? item.data : null; // silinmiş sese bağlıysa varsayılan zil
+  }
+  return v;
 }
 
 async function renderPrinterSettingsView(main, session){
@@ -2492,14 +2527,25 @@ async function renderNotificationSettingsView(main, session){
         </select>
       </div>
       <p id="bellScopeStatus" class="muted" style="margin:10px 0;font-size:13px;"></p>
+      <div style="font-size:12.5px;font-weight:700;color:var(--muted);margin-bottom:6px;">Ses Düzeyi</div>
+      <div style="display:flex;align-items:center;gap:12px;max-width:460px;margin-bottom:16px;">
+        <span style="font-size:18px;">🔈</span>
+        <input type="range" min="0" max="100" step="5" value="${getBellVolume()}" style="flex:1;margin:0;accent-color:var(--accent);"
+          oninput="setBellVolume(this.value)" onchange="testBellSound()">
+        <span style="font-size:18px;">🔊</span>
+        <b id="bellVolumeLabel" style="min-width:52px;text-align:right;">${getBellVolume()===0?'Sessiz':'%'+getBellVolume()}</b>
+      </div>
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px;flex-wrap:wrap;">
+        <span style="font-size:12.5px;font-weight:700;color:var(--muted);">Yüklediğiniz Sesler <span style="font-weight:400;">(en fazla ${BELL_LIBRARY_MAX})</span></span>
+        <label style="width:auto;cursor:pointer;display:inline-flex;align-items:center;margin:0;padding:9px 16px;border-radius:10px;background:var(--accent);color:var(--btn-ink);font-weight:700;font-size:13px;">
+          ＋ Ses Dosyası Yükle
+          <input id="bellFileInput" type="file" accept="audio/*" style="display:none;" onclick="this.value=''" onchange="uploadBellSound()">
+        </label>
+      </div>
+      <div id="bellLibraryList" class="bell-grid" style="margin-bottom:14px;"></div>
       <div class="field-group"><label>Hazır Zil Sesleri</label></div>
       <div id="bellPresetList" class="bell-grid"></div>
-      <p class="muted" style="font-size:12px;margin:14px 0 6px;">İsterseniz kendi ses dosyanızı da yükleyebilirsiniz (yukarıdaki hazır seslerin yerine kullanılır):</p>
-      <div style="display:flex;gap:10px;flex-wrap:wrap;">
-        <label class="sbtn" style="width:auto;cursor:pointer;display:inline-flex;align-items:center;">
-          🎵 Ses Dosyası Yükle
-          <input id="bellFileInput" type="file" accept="audio/*" style="display:none;" onchange="uploadBellSound()">
-        </label>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:14px;">
         <button class="sbtn" style="width:auto;" onclick="testBellSound()">▶️ Seçili Sesi Test Et</button>
         <button class="sbtn" style="width:auto;background:var(--red);color:var(--btn-ink);" onclick="resetBellSound()">Sıfırla (Varsayılan Zil)</button>
       </div>
@@ -2732,9 +2778,10 @@ function updateBellScopeStatus(){
   const scope = currentBellScope();
   const sounds = getKitchenBellSounds();
   const val = scope ? sounds.perStation[scope] : sounds.default;
+  const lib = val && val.custom ? sounds.library.find(x => x.id === val.custom) : null;
   let text;
-  if(!val) text = 'Bu kapsam için varsayılan zil ("' + BELL_PRESETS.classic.name + '") çalınacak.';
-  else if(typeof val==='string') text = '✓ Bu kapsam için yüklediğiniz özel ses dosyası çalınacak.';
+  if(!val || (val.custom && !lib)) text = 'Bu kapsam için varsayılan zil ("' + BELL_PRESETS.classic.name + '") çalınacak.';
+  else if(lib) text = '✓ Bu kapsam için yüklediğiniz "' + lib.name + '" sesi çalınacak.';
   else text = '✓ Bu kapsam için "' + (BELL_PRESETS[val.preset] ? BELL_PRESETS[val.preset].name : val.preset) + '" sesi seçili.';
   statusEl.textContent = text;
   renderBellPresetList();
@@ -2744,15 +2791,22 @@ function renderBellPresetList(){
   const scope = currentBellScope();
   const sounds = getKitchenBellSounds();
   const val = scope ? sounds.perStation[scope] : sounds.default;
-  const isCustomActive = typeof val==='string' && !!val;
-  const activePresetId = isCustomActive ? null : ((val && typeof val==='object' && val.preset) ? val.preset : (!val ? 'classic' : null));
-  const customCardHtml = isCustomActive ? `<div class="bell-card active">
-      <span class="bell-card-check">✓</span>
-      <div class="bell-card-icon">🎵</div>
-      <div class="bell-card-name">Yüklediğiniz Ses Dosyası</div>
-      <button type="button" class="bell-card-play" onclick="event.stopPropagation();testBellSound()" title="Dinle">▶</button>
-    </div>` : '';
-  el.innerHTML = customCardHtml + Object.keys(BELL_PRESETS).map(id => {
+  const activeCustom = val && val.custom && sounds.library.some(x => x.id === val.custom) ? val.custom : null;
+  const activePresetId = activeCustom ? null : ((val && val.preset) ? val.preset : 'classic');
+  const libEl = document.getElementById('bellLibraryList');
+  if(libEl){
+    libEl.innerHTML = sounds.library.length ? sounds.library.map(item => {
+      const active = item.id === activeCustom;
+      return `<div class="bell-card ${active?'active':''}" onclick="selectBellCustom('${item.id}')">
+        ${active?'<span class="bell-card-check">✓</span>':''}
+        <button type="button" title="Sil" onclick="event.stopPropagation();deleteBellCustom('${item.id}')" style="position:absolute;top:6px;left:6px;width:24px;height:24px;padding:0;margin:0;border-radius:50%;background:var(--panel);color:var(--red);border:1px solid var(--border);font-size:12px;line-height:1;">✕</button>
+        <div class="bell-card-icon">🎵</div>
+        <div class="bell-card-name" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%;" title="${escapeAttr(item.name)}">${escapeHtml(item.name)}</div>
+        <button type="button" class="bell-card-play" onclick="event.stopPropagation();previewBellCustom('${item.id}')" title="Dinle">▶</button>
+      </div>`;
+    }).join('') : '<p class="muted" style="font-size:12.5px;margin:0;">Henüz ses yüklemediniz.</p>';
+  }
+  el.innerHTML = Object.keys(BELL_PRESETS).map(id => {
     const p = BELL_PRESETS[id];
     const active = id===activePresetId;
     return `<div class="bell-card ${active?'active':''}" onclick="selectBellPreset('${id}')">
@@ -2763,32 +2817,49 @@ function renderBellPresetList(){
     </div>`;
   }).join('');
 }
-function selectBellPreset(presetId){
+function assignBellValue(val){
   const sounds = getKitchenBellSounds();
   const scope = currentBellScope();
-  if(!sounds.perStation) sounds.perStation = {};
-  const val = { preset: presetId };
   if(scope) sounds.perStation[scope] = val; else sounds.default = val;
-  setKitchenBellSounds(sounds);
-  updateBellScopeStatus();
-  showToast('Kaydedildi ✓');
+  if(setKitchenBellSounds(sounds)){ updateBellScopeStatus(); showToast('Kaydedildi ✓'); }
 }
+function selectBellCustom(id){ assignBellValue({ custom: id }); }
+function previewBellCustom(id){
+  const item = getKitchenBellSounds().library.find(x => x.id === id);
+  if(item) playUploadedBell(item.data).catch(() => alert('Bu ses dosyası çalınamadı (bozuk ya da desteklenmeyen format olabilir).'));
+}
+function deleteBellCustom(id){
+  const sounds = getKitchenBellSounds();
+  const item = sounds.library.find(x => x.id === id);
+  if(!item || !confirm('"' + item.name + '" sesi silinsin mi? Bu sesi kullanan istasyonlar varsayılan zile döner.')) return;
+  sounds.library = sounds.library.filter(x => x.id !== id);
+  if(sounds.default && sounds.default.custom === id) sounds.default = null;
+  Object.keys(sounds.perStation).forEach(k => { if(sounds.perStation[k] && sounds.perStation[k].custom === id) delete sounds.perStation[k]; });
+  if(setKitchenBellSounds(sounds)){ updateBellScopeStatus(); showToast('Silindi'); }
+}
+function selectBellPreset(presetId){ assignBellValue({ preset: presetId }); }
 function uploadBellSound(){
   const input = document.getElementById('bellFileInput');
   const file = input.files[0];
+  input.value = ''; // aynı dosya tekrar seçilebilsin
   if(!file) return;
-  if(file.size > 800*1024){ alert('Ses dosyası çok büyük (maks. 800KB). Daha kısa/küçük bir dosya seçin.'); input.value=''; return; }
+  if(file.size > 800*1024){ alert('Ses dosyası çok büyük (maks. 800KB). Daha kısa/küçük bir dosya seçin.'); return; }
   const reader = new FileReader();
-  reader.onload = () => {
+  reader.onload = async () => {
+    const data = reader.result;
+    // Kaydetmeden önce gerçekten çözülebildiğini doğrula.
+    try{ await playUploadedBell(data); }
+    catch(e){ alert('Bu dosya çalınamadı (bozuk ya da desteklenmeyen format). mp3 veya wav deneyin.'); return; }
     const sounds = getKitchenBellSounds();
+    if(sounds.library.length >= BELL_LIBRARY_MAX){ alert('En fazla ' + BELL_LIBRARY_MAX + ' ses yükleyebilirsiniz. Önce kullanmadığınız bir sesi silin.'); return; }
+    let item = sounds.library.find(x => x.data === data);
+    if(!item){
+      item = { id: 'u' + Date.now().toString(36) + Math.random().toString(36).slice(2,6), name: file.name.replace(/\.[^.]+$/, '').slice(0, 40) || 'Yüklenen ses', data };
+      sounds.library.push(item);
+    }
     const scope = currentBellScope();
-    if(!sounds.perStation) sounds.perStation = {};
-    if(scope) sounds.perStation[scope] = reader.result;
-    else sounds.default = reader.result;
-    setKitchenBellSounds(sounds);
-    updateBellScopeStatus();
-    input.value = '';
-    showToast('Kaydedildi ✓');
+    if(scope) sounds.perStation[scope] = { custom: item.id }; else sounds.default = { custom: item.id };
+    if(setKitchenBellSounds(sounds)){ updateBellScopeStatus(); showToast('🎵 "' + item.name + '" eklendi ve seçildi'); }
   };
   reader.readAsDataURL(file);
 }
