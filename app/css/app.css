@@ -146,9 +146,11 @@
     .sidebar,.sidebar.collapsed{
       position:fixed;top:0;left:0;height:100%;width:82%;max-width:300px;
       flex-direction:column;transform:translateX(-100%);transition:transform .22s ease;
-      z-index:110;box-shadow:0 0 40px rgba(0,0,0,.4);
+      z-index:110;box-shadow:none;
     }
-    .sidebar.mobile-open,.sidebar.collapsed.mobile-open{transform:translateX(0);}
+    /* Gölge sadece menü açıkken: kapalıyken ekran dışındaki menünün gölgesi
+       sol kenara taşıp ekranı karartıyordu. */
+    .sidebar.mobile-open,.sidebar.collapsed.mobile-open{transform:translateX(0);box-shadow:0 0 40px rgba(0,0,0,.4);}
     .sidebar .sb-top,.sidebar .sb-user,.sidebar .app-brand-row{display:flex;}
     .sidebar.collapsed .app-brand-row .app-brand-text{display:inline;}
     .sb-collapse-btn{display:none;}
