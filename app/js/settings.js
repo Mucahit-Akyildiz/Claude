@@ -325,28 +325,49 @@ async function saveTranslations(productId){
 }
 
 /* --- İstasyonlar --- */
-const STATION_ICON_CHOICES = ['🍳','🍕','🍔','🍖','🥩','🍗','🍟','🌭','🥪','🌮','🥗','🍜','🍲','🍝','🍣','🍱','🥟','🍞','🥐','🧁','🍰','🍦','☕','🍵','🧋','🍹','🍺','🥤','🔥','🔪'];
+/* İstasyon ikonları kategorilere ayrılmış [ikon, aranabilir ad] listesi.
+   İkonlar emoji olarak saklanır (veritabanı ve diğer ekranlar aynen
+   kullanmaya devam eder). */
+const STATION_ICON_GROUPS = [
+  ['Ocak & Izgara', [['🍳','tava yumurta kahvaltı'],['🔥','ateş ızgara mangal'],['🥩','et biftek'],['🍖','kemikli et pirzola'],['🍗','tavuk but'],['🥓','pastırma bacon'],['🌭','sosis sucuk'],['🍔','burger hamburger'],['🥙','dürüm döner'],['🌯','wrap dürüm'],['🍢','şiş kebap'],['🍤','karides'],['🐟','balık'],['🦐','deniz ürünü'],['🥘','güveç tencere'],['🍲','çorba yemek'],['🫕','fondü'],['🔪','bıçak hazırlık']]],
+  ['Fırın & Pizza', [['🍕','pizza'],['🫓','pide lahmacun'],['🥖','baget ekmek'],['🍞','ekmek'],['🥐','kruvasan'],['🥨','simit pretzel'],['🥯','simit bagel'],['🧀','peynir'],['🥧','börek tart'],['🫔','tamale']]],
+  ['Dünya Mutfağı', [['🍝','makarna'],['🍜','ramen noodle'],['🍛','köri'],['🍣','sushi'],['🍱','bento'],['🍙','onigiri'],['🥟','mantı'],['🥠','fal kurabiyesi'],['🌮','taco'],['🥗','salata'],['🥪','sandviç tost'],['🍟','patates kızartma'],['🧆','falafel'],['🫒','zeytin meze']]],
+  ['Tatlı', [['🍰','pasta dilim'],['🎂','doğum günü pasta'],['🧁','cupcake'],['🍩','donut'],['🍪','kurabiye'],['🍫','çikolata'],['🍮','puding sütlaç'],['🍯','bal'],['🍦','dondurma külah'],['🍨','dondurma kase'],['🧇','waffle'],['🥞','pankek krep'],['🍬','şeker'],['🍭','lolipop']]],
+  ['İçecek', [['☕','kahve'],['🍵','çay'],['🫖','demlik çay'],['🧋','bubble tea'],['🥤','soğuk içecek'],['🧃','meyve suyu'],['🥛','süt ayran'],['🧉','mate'],['🍹','kokteyl'],['🍸','martini'],['🍷','şarap'],['🍺','bira'],['🍻','bira bardak'],['🥂','şampanya'],['🍾','şişe'],['🧊','buz']]],
+  ['Meyve & Sebze', [['🍎','elma'],['🍊','portakal'],['🍋','limon'],['🍉','karpuz'],['🍇','üzüm'],['🍓','çilek'],['🍒','kiraz'],['🍑','şeftali'],['🥭','mango'],['🍍','ananas'],['🥑','avokado'],['🍅','domates'],['🌶️','biber acı'],['🥕','havuç'],['🌽','mısır'],['🥦','brokoli'],['🧅','soğan'],['🧄','sarımsak'],['🍄','mantar'],['🥜','fıstık kuruyemiş']]],
+  ['Servis & Diğer', [['🍽️','servis tabak'],['🥡','paket servis'],['🛵','kurye teslimat'],['🧾','fiş kasa'],['🛎️','zil servis'],['👨‍🍳','şef aşçı'],['🧑‍🍳','aşçı'],['🥄','kaşık'],['🍴','çatal bıçak'],['🧂','tuz baharat'],['🫙','kavanoz turşu'],['🧺','sepet'],['❄️','soğuk soğutucu'],['♨️','sıcak buhar'],['⭐','yıldız özel'],['🏷️','etiket']]]
+];
+const STATION_ICON_CHOICES = STATION_ICON_GROUPS.flatMap(g => g[1].map(x => x[0]));
 function stationIconPickerHtml(id, current, extraStyle){
   const cur = current || '🍳';
   return `<input type="hidden" id="${id}" value="${cur}">
     <button type="button" class="icon-pick-btn" id="${id}_btn" style="${extraStyle||''}" onclick="openIconPicker('${id}')">${cur}</button>`;
 }
+function iconPickerGridHtml(targetId, current, filter){
+  const q = (filter||'').trim().toLocaleLowerCase('tr');
+  const groups = STATION_ICON_GROUPS.map(([name, items]) => [name, items.filter(([ic, kw]) => !q || kw.includes(q) || name.toLocaleLowerCase('tr').includes(q))]).filter(g => g[1].length);
+  if(!groups.length) return '<p class="muted" style="text-align:center;margin:24px 0;">Sonuç bulunamadı</p>';
+  return groups.map(([name, items]) => `
+    <div class="icon-picker-cat">${escapeHtml(name)}</div>
+    <div class="icon-picker-grid">${items.map(([ic, kw]) => `<button type="button" class="icon-picker-item ${ic===current?'selected':''}" title="${escapeAttr(kw)}" onclick="pickStationIcon('${targetId}','${ic}')">${ic}</button>`).join('')}</div>`).join('');
+}
 function openIconPicker(targetId){
   const current = document.getElementById(targetId).value;
   const bg = document.createElement('div');
   bg.id = 'iconPickerBg';
-  bg.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:200;padding:16px;';
-  bg.innerHTML = `<div style="background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:20px;max-width:360px;width:100%;max-height:80vh;overflow:auto;">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+  bg.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);backdrop-filter:blur(3px);display:flex;align-items:center;justify-content:center;z-index:200;padding:16px;';
+  bg.innerHTML = `<div class="icon-picker-panel">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
       <h3 style="margin:0;">İkon Seç</h3>
-      <span style="cursor:pointer;color:var(--muted);font-size:20px;" onclick="document.getElementById('iconPickerBg').remove()">✕</span>
+      <button type="button" class="icon-picker-close" onclick="document.getElementById('iconPickerBg').remove()">✕</button>
     </div>
-    <div class="icon-picker-grid">
-      ${STATION_ICON_CHOICES.map(ic => `<div class="icon-picker-item ${ic===current?'selected':''}" onclick="pickStationIcon('${targetId}','${ic}')">${ic}</div>`).join('')}
-    </div>
+    <input id="iconPickerSearch" placeholder="🔍 Ara: pizza, kahve, tatlı…" autocomplete="off" style="margin-bottom:10px;"
+      oninput="document.getElementById('iconPickerBody').innerHTML = iconPickerGridHtml('${targetId}', ${jsArg(current)}, this.value)">
+    <div id="iconPickerBody" class="icon-picker-body">${iconPickerGridHtml(targetId, current, '')}</div>
   </div>`;
   bg.addEventListener('click', (e) => { if(e.target===bg) bg.remove(); });
   document.body.appendChild(bg);
+  setTimeout(() => { const i = document.getElementById('iconPickerSearch'); if(i && window.innerWidth > 700) i.focus(); }, 30);
 }
 function pickStationIcon(targetId, icon){
   document.getElementById(targetId).value = icon;
