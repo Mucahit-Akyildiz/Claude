@@ -1061,7 +1061,9 @@ async function finishPayment(orderId, method, total, cash, card, discountAmount,
     }
   } else {
     const hid = data && data.history_id;
-    showToast('Ödeme alındı ✓ · 📧 Hesabı e-postayla göndermek için dokunun', 10000, null, () => openInvoiceEmailModal(hid));
+    // Ödeme sonrası hesabı e-postayla gönderme penceresi doğrudan açılır;
+    // personel ya gönderir ya da İptal ile kapatır.
+    openInvoiceEmailModal(hid);
     if(APP.view!=='payments') renderPaymentsView(document.getElementById('main'), session);
   }
 }
@@ -1069,14 +1071,14 @@ async function finishPayment(orderId, method, total, cash, card, discountAmount,
    Fatura/şirket bilgisi isteğe bağlıdır; e-fatura entegrasyonu açıksa
    kayıt resmi fatura kesilmek üzere kuyruğa alınır (bkz. email_invoice). --- */
 function openInvoiceEmailModal(historyId){
-  if(!historyId){ alert('Ödeme kaydı bulunamadı'); return; }
+  if(!historyId){ showToast('Ödeme alındı ✓'); return; }
   const bg = document.createElement('div');
   bg.id = 'invoiceEmailBg';
   bg.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:100;padding:16px;';
-  bg.onclick = (e) => { if(e.target===bg) bg.remove(); };
   const hasReview = !!(APP.config && APP.config.google_review_url);
   bg.innerHTML = `<div class="box" style="max-width:380px;width:100%;text-align:left;">
-    <h2 style="margin-top:0;">📧 Hesabı E-postayla Gönder</h2>
+    <h2 style="margin-top:0;margin-bottom:4px;">✅ Ödeme Alındı</h2>
+    <p class="muted" style="margin:0 0 12px;font-size:13px;">Hesabı müşteriye e-postayla göndermek ister misiniz?</p>
     <input id="invEmail" type="email" placeholder="Müşterinin e-posta adresi" autocapitalize="none" style="margin-bottom:8px;">
     <label style="display:flex;align-items:center;gap:8px;font-size:13px;margin:4px 0 8px;cursor:pointer;">
       <input type="checkbox" id="invCorporate" style="width:auto;margin:0;" onchange="document.getElementById('invCorpFields').style.display=this.checked?'block':'none'"> Fatura bilgisi ekle (şirket / şahıs)
@@ -1089,8 +1091,8 @@ function openInvoiceEmailModal(historyId){
     </div>
     <div class="error" id="invErr" style="text-align:left;"></div>
     <div class="field-row" style="gap:8px;margin-top:6px;">
-      <button type="button" style="flex:1;margin:0;background:var(--panel2);color:var(--text);" onclick="document.getElementById('invoiceEmailBg').remove()">Kapat</button>
-      <button type="button" id="invSendBtn" style="flex:1;margin:0;" onclick="sendInvoiceEmail('${historyId}')">Gönder</button>
+      <button type="button" style="flex:1;margin:0;background:var(--panel2);color:var(--text);" onclick="document.getElementById('invoiceEmailBg').remove()">İptal</button>
+      <button type="button" id="invSendBtn" style="flex:1;margin:0;" onclick="sendInvoiceEmail('${historyId}')">📧 Gönder</button>
     </div>
     ${hasReview ? `<button type="button" class="ghost-btn" style="width:100%;margin-top:10px;" onclick="document.getElementById('invoiceEmailBg').remove();showGoogleReviewQr()">⭐ Google yorum QR'ını göster</button>` : ''}
   </div>`;
