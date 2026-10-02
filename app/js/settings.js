@@ -828,11 +828,24 @@ async function renderShiftsTable(session){
    manager_upsert_role/manager_delete_role). Yönetici rolü (is_system)
    salt okunur - tüm ekranlara erişimi sabit ve değiştirilemez. */
 function permissionCheckboxes(idPrefix, selectedPerms){
-  return Object.keys(PERMISSION_LABELS).map(key => `
-    <label style="display:flex;align-items:center;gap:6px;font-weight:400;font-size:13px;margin-bottom:4px;">
-      <input type="checkbox" id="${idPrefix}_perm_${key}" value="${key}" data-perms-group="${idPrefix}" ${selectedPerms.includes(key)?'checked':''} style="width:auto;margin:0;">
-      ${PERMISSION_LABELS[key]}
-    </label>`).join('');
+  // İzin listesi sunucudan gelir (get_restaurant_config.role_permissions):
+  // işletmenin paketindeki/eklentilerindeki tüm özellikler. Yeni bir özellik
+  // eklendiğinde burada kod değişikliği gerekmeden otomatik görünür.
+  const catalog = (APP.config && APP.config.role_permissions && APP.config.role_permissions.length)
+    ? APP.config.role_permissions
+    : Object.keys(PERMISSION_LABELS).map(id => ({ id, label: PERMISSION_LABELS[id], category: '' }));
+  const byCat = {};
+  catalog.forEach(p => { (byCat[p.category||'Diğer'] = byCat[p.category||'Diğer'] || []).push(p); });
+  return `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:4px 16px;">` +
+    Object.keys(byCat).map(cat => `
+      <div>
+        <div class="muted" style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;margin:6px 0 4px;">${escapeHtml(cat)}</div>
+        ${byCat[cat].map(p => `
+        <label style="display:flex;align-items:center;gap:6px;font-weight:400;font-size:13px;margin-bottom:4px;">
+          <input type="checkbox" id="${idPrefix}_perm_${escapeHtml(p.id)}" value="${escapeHtml(p.id)}" data-perms-group="${idPrefix}" ${selectedPerms.includes(p.id)?'checked':''} style="width:auto;margin:0;">
+          ${escapeHtml(p.label)}
+        </label>`).join('')}
+      </div>`).join('') + `</div>`;
 }
 function selectedPermissions(idPrefix){
   return Array.from(document.querySelectorAll(`input[data-perms-group="${idPrefix}"]:checked`)).map(b => b.value);
