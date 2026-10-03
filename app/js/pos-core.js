@@ -2224,6 +2224,25 @@ function setupNativeFcmListeners(){
   PN.addListener('registrationError', () => {
     if(_fcmTokenResolve){ _fcmTokenResolve(null); _fcmTokenResolve = null; }
   });
+  // Uygulama AÇIKKEN gelen FCM bildirimini Android sistem çubuğunda
+  // göstermiyor (1.3 öncesi sürümlerde presentationOptions yok); bu yüzden
+  // ekranda da toast + zil ile gösteriyoruz. Vardiya bildirimlerinde
+  // vardiya kutusu ve Vardiyalar ekranı hemen yenilenir.
+  PN.addListener('pushNotificationReceived', (n) => {
+    const title = (n && n.title) || 'Peyktan';
+    const body = (n && n.body) || '';
+    const data = (n && n.data) || {};
+    showToast(title + (body ? ' — ' + body : ''), 6000, null, data.view ? () => {
+      const session = getSession(); const item = NAV_ITEMS.find(i => i.view===data.view);
+      if(session && item && navItemVisible(item, session)){ APP.view = data.view; if(data.view==='settings') APP.settingsTab = 'shifts'; render(); }
+    } : null);
+    try{ playKitchenBell(null); }catch(e){}
+    const session = getSession();
+    if(session && String(data.tag||'').startsWith('shift')){
+      refreshShiftWidget(session);
+      if(APP.view==='settings' && APP.settingsTab==='shifts') renderShiftsTable(session);
+    }
+  });
   // Bildirime dokunulunca (uygulama arka planda/kapalıyken) ilgili ekrana
   // git - web tarafındaki service worker'ın notificationclick mesajıyla aynı iş.
   PN.addListener('pushNotificationActionPerformed', (action) => {
@@ -2231,7 +2250,7 @@ function setupNativeFcmListeners(){
     const session = getSession();
     if(data && data.view && session){
       const item = NAV_ITEMS.find(i => i.view===data.view);
-      if(item && navItemVisible(item, session)){ APP.view = data.view; render(); }
+      if(item && navItemVisible(item, session)){ APP.view = data.view; if(String(data.tag||'').startsWith('shift-request')) APP.settingsTab = 'shifts'; render(); }
     }
   });
 }
