@@ -252,6 +252,25 @@ function refreshApp(){
   try{ sessionStorage.setItem('rys_restore_view', JSON.stringify({ view: APP.view, settingsTab: APP.settingsTab })); }catch(e){}
   window.location.reload();
 }
+/* Rol/izin değişiklikleri (Ayarlar > Roller) oturuma sadece girişte
+   yazılıyordu; artık açılışta, yenilemede ve uygulamaya geri dönüldüğünde
+   sunucudan tazelenir (bkz. get_my_permissions). */
+async function syncMyPermissions(){
+  const s = getSession(); if(!s) return;
+  const { data, error } = await sb.rpc('get_my_permissions', { p_token: s.session_token });
+  if(error || !data) return;
+  const cur = getSession(); if(!cur || cur.session_token !== s.session_token) return;
+  const next = { ...cur, permissions: data.permissions || [], role_names: data.role_names || [], isManager: !!data.is_manager };
+  // Şirket sahibi şubeye girdiyse (🏢) rol adları/izinler şirket akışından gelir, dokunma.
+  if(String(cur.username||'').startsWith('🏢')) return;
+  const changed = JSON.stringify([...(cur.permissions||[])].sort()) !== JSON.stringify([...next.permissions].sort())
+    || !!cur.isManager !== next.isManager || (cur.role_names||[]).join() !== next.role_names.join();
+  if(!changed) return;
+  setSession(next);
+  const item = NAV_ITEMS.find(i => i.view===APP.view);
+  if(item && !navItemVisible(item, next)) APP.view = 'home';
+  render();
+}
 function restoreViewAfterRefresh(){
   let saved = null;
   try{ saved = JSON.parse(sessionStorage.getItem('rys_restore_view') || 'null'); sessionStorage.removeItem('rys_restore_view'); }catch(e){}
@@ -367,6 +386,8 @@ setupPullToRefresh();
 setupBackNavigation();
 initNativeAppMode();
 render();
+syncMyPermissions();
+document.addEventListener('visibilitychange', () => { if(document.visibilityState==='visible') syncMyPermissions(); });
 /* Push bildirimine tıklanınca zaten açık olan bir sekme varsa (bkz.
    sw.js notificationclick), sayfa yeniden yüklenmeden ilgili ekrana
    geçmek için service worker'dan gelen mesaj burada dinlenir. */
