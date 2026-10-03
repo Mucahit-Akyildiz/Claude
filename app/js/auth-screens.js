@@ -279,7 +279,7 @@ async function enterBranch(restaurantId){
   APP.reportsUnlocked = false;
   APP.reportsGateScreen = null;
   APP.config = null;
-  APP.view = 'home';
+  APP.view = 'home'; APP.viewStack = [];
   APP.customerReqPollStarted = false;
   render();
 }
