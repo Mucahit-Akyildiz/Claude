@@ -451,3 +451,7 @@
 button > svg + span{margin-left:6px;}
 button:has(> svg + span):not(.act-btn){display:inline-flex;align-items:center;justify-content:center;}
 .act-btn > svg + span{margin-left:0;}
+
+/* Aşağı çekerek yenile göstergesi (bkz. setupPullToRefresh) */
+.ptr-indicator{position:fixed;top:8px;left:50%;transform:translate(-50%,0);z-index:200;background:var(--panel);color:var(--muted);border:1px solid var(--border);border-radius:999px;padding:8px 16px;font-size:13px;font-weight:700;box-shadow:0 6px 20px rgba(0,0,0,.15);pointer-events:none;}
+.ptr-indicator.ready{color:var(--accent);border-color:var(--accent);}
