@@ -1529,7 +1529,9 @@ function renderTableGrid(){
   if(fpEl) fpEl.style.display = 'none';
   const el = gridEl; if(!el) return;
   if(!zone || zone.tables.length===0){ el.innerHTML = '<p class="muted">Bu bölgede masa yok.</p>'; return; }
-  el.innerHTML = zone.tables.map(t => {
+  // Masalar isme göre doğal sırada (Masa2 < Masa10) listelenir.
+  const sorted = zone.tables.slice().sort((a,b) => String(a.name).localeCompare(String(b.name), 'tr', { numeric:true, sensitivity:'base' }));
+  el.innerHTML = sorted.map(t => {
     const { sub, occupied } = tableStatus(t);
     return `<div class="table-cell" style="${occupied?'background:rgba(244,63,94,.14);border-color:var(--red);color:var(--red);':''}" onclick="openTableModal('${t.id}')">
       ${escapeHtml(t.name)}<div style="font-size:11px;margin-top:4px;font-weight:400;">${sub}</div></div>`;
