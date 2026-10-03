@@ -152,9 +152,23 @@ function closeTopModal(){
    geçmişine bağlı değildir. Tarayıcı geçmişi yalnızca masaüstü/mobil
    tarayıcının kendi geri tuşu için senkron tutulur. */
 let IGNORE_NEXT_POPSTATE = false;
+/* Ekran içi adımlar: geri önce bunları geri alır, ekran değiştirmez
+   (örn. Mutfak'ta istasyon seçiliyse önce istasyon seçim listesine döner). */
+const VIEW_BACK_STEPS = {
+  kitchen: () => {
+    if(!APP.kitchenStation) return false;
+    APP.kitchenStation = null; stopKitchenPolling(); render();
+    return true;
+  },
+};
+function backWithinView(){
+  const step = VIEW_BACK_STEPS[APP.view];
+  return !!(step && step());
+}
 function goBack(){
   if(closeTopModal()) return;
   if(APP.mobileNavOpen){ closeMobileNav(); return; }
+  if(backWithinView()) return;
   const stack = APP.viewStack || [];
   if(stack.length){
     const prev = stack.pop();
@@ -176,7 +190,7 @@ function setupBackNavigation(){
     if(IGNORE_NEXT_POPSTATE){ IGNORE_NEXT_POPSTATE = false; return; }
     if(!getSession()) return;
     // Pencere açıkken tarayıcı geri tuşu önce pencereyi kapatsın, ekran değişmesin.
-    if(closeTopModal()){ try{ history.pushState({ view: APP.view }, ''); }catch(err){} return; }
+    if(closeTopModal() || backWithinView()){ try{ history.pushState({ view: APP.view }, ''); }catch(err){} return; }
     const view = (e.state && e.state.view) || 'home';
     const item = NAV_ITEMS.find(i => i.view===view);
     if(view==='home' || (item && navItemVisible(item, getSession()))){
@@ -237,6 +251,25 @@ function applyDeepLinkView(){
 function refreshApp(){
   try{ sessionStorage.setItem('rys_restore_view', JSON.stringify({ view: APP.view, settingsTab: APP.settingsTab })); }catch(e){}
   window.location.reload();
+}
+/* Rol/izin değişiklikleri (Ayarlar > Roller) oturuma sadece girişte
+   yazılıyordu; artık açılışta, yenilemede ve uygulamaya geri dönüldüğünde
+   sunucudan tazelenir (bkz. get_my_permissions). */
+async function syncMyPermissions(){
+  const s = getSession(); if(!s) return;
+  const { data, error } = await sb.rpc('get_my_permissions', { p_token: s.session_token });
+  if(error || !data) return;
+  const cur = getSession(); if(!cur || cur.session_token !== s.session_token) return;
+  const next = { ...cur, permissions: data.permissions || [], role_names: data.role_names || [], isManager: !!data.is_manager };
+  // Şirket sahibi şubeye girdiyse (🏢) rol adları/izinler şirket akışından gelir, dokunma.
+  if(String(cur.username||'').startsWith('🏢')) return;
+  const changed = JSON.stringify([...(cur.permissions||[])].sort()) !== JSON.stringify([...next.permissions].sort())
+    || !!cur.isManager !== next.isManager || (cur.role_names||[]).join() !== next.role_names.join();
+  if(!changed) return;
+  setSession(next);
+  const item = NAV_ITEMS.find(i => i.view===APP.view);
+  if(item && !navItemVisible(item, next)) APP.view = 'home';
+  render();
 }
 function restoreViewAfterRefresh(){
   let saved = null;
@@ -353,6 +386,8 @@ setupPullToRefresh();
 setupBackNavigation();
 initNativeAppMode();
 render();
+syncMyPermissions();
+document.addEventListener('visibilitychange', () => { if(document.visibilityState==='visible') syncMyPermissions(); });
 /* Push bildirimine tıklanınca zaten açık olan bir sekme varsa (bkz.
    sw.js notificationclick), sayfa yeniden yüklenmeden ilgili ekrana
    geçmek için service worker'dan gelen mesaj burada dinlenir. */
