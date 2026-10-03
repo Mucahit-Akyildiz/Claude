@@ -615,7 +615,7 @@ function renderProductsSettings(el, session){
               : '<span class="role-badge" style="color:var(--green);border-color:var(--green);">Satışta</span>'}</td>
           <td><div class="act-row">
             <button type="button" class="act-btn act-save" onclick="saveProduct('${p.id}')">${ICON_SAVE}<span>Kaydet</span></button>
-            <button type="button" class="act-btn ${p.available===false?'act-open':'act-close'}" onclick="toggleProductAvailable('${p.id}')"><b>${p.available===false?'▶':'⏸'}</b><span>${p.available===false?'Aç':'Kapat'}</span></button>
+            <button type="button" class="act-btn ${p.available===false?'act-open':'act-close'}" onclick="toggleProductAvailable('${p.id}')"><b>${p.available===false?'✓':'✕'}</b><span>${p.available===false?'Aç':'Kapat'}</span></button>
             <button type="button" class="act-btn act-recipe" onclick="openRecipeModal('${p.id}')"><b>📋</b><span>Reçete</span></button>
             ${hasFeature('multilang_menu') ? `<button type="button" class="act-btn act-lang" onclick="openTranslationsModal('${p.id}')" title="QR menüde diğer dillerde gösterilecek isim"><b>🌐</b><span>Çeviri</span></button>` : ''}
             <button type="button" class="act-btn act-delete" onclick="removeProduct('${p.id}')">${ICON_TRASH}<span>Sil</span></button>
