@@ -437,6 +437,16 @@
 .act-save:hover{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 10%,var(--panel));}
 .act-delete{color:var(--red);}
 .act-delete:hover{border-color:var(--red);background:color-mix(in srgb,var(--red) 10%,var(--panel));}
+.act-row{display:flex;flex-wrap:nowrap;gap:4px;align-items:center;}
+.act-row .act-btn{margin:0;}
+.act-btn > b{font-size:15px;line-height:18px;font-weight:400;}
+.act-close{color:var(--text);}
+.act-close:hover{border-color:var(--text);}
+.act-open{color:var(--green);border-color:var(--green);}
+.act-recipe{color:var(--accent2);}
+.act-recipe:hover{border-color:var(--accent2);background:color-mix(in srgb,var(--accent2) 10%,var(--panel));}
+.act-lang{color:#6366f1;}
+.act-lang:hover{border-color:#6366f1;background:color-mix(in srgb,#6366f1 10%,var(--panel));}
 .act-btn:disabled{opacity:.45;cursor:not-allowed;}
 button > svg + span{margin-left:6px;}
 button:has(> svg + span):not(.act-btn){display:inline-flex;align-items:center;justify-content:center;}
