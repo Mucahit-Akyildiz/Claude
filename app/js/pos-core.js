@@ -1298,18 +1298,27 @@ function stopCustomerRequestPolling(){
 }
 
 /* --- Vardiya (personel giriş/çıkış) widget'ı: sidebar'da her ekranda
-   görünür, herhangi bir personel kendi vardiyasını başlatıp bitirebilir. */
+   görünür. İşletmede "yönetici onayı" açıksa (varsayılan) personelin
+   başlatma isteği yönetici onaylayana kadar bekler ve vardiyayı sadece
+   yönetici bitirebilir (bkz. clock_in/clock_out, manage_staff_shift). */
 function shiftWidgetHtml(){
   const st = APP.shiftStatus;
   if(!st) return '<div class="shift-status">Vardiya durumu yükleniyor…</div>';
+  if(st.pending){
+    return `<div class="shift-status pending">🟡 <span class="label">Yönetici onayı bekleniyor</span></div>`
+      + `<button class="sb-shift-btn out" onclick="doClockToggle()" title="Talebi Geri Çek">✕<span class="label"> Talebi Geri Çek</span></button>`;
+  }
   if(st.clocked_in){
     const t = new Date(st.clock_in);
     const hh = String(t.getHours()).padStart(2,'0'), mm = String(t.getMinutes()).padStart(2,'0');
     return `<div class="shift-status on">🟢 <span class="label">Vardiyada (${hh}:${mm}'dan beri)</span></div>`
-      + `<button class="sb-shift-btn out" onclick="doClockToggle()" title="Vardiyayı Bitir">⏹<span class="label"> Vardiyayı Bitir</span></button>`;
+      + (st.can_end
+        ? `<button class="sb-shift-btn out" onclick="doClockToggle()" title="Vardiyayı Bitir">⏹<span class="label"> Vardiyayı Bitir</span></button>`
+        : `<div class="shift-status" title="Vardiyanızı yönetici bitirir"><span class="label">🔒 Bitirme: yönetici</span></div>`);
   }
+  const needsApproval = st.approval_required && !st.is_manager;
   return '<div class="shift-status">⚪ <span class="label">Vardiya Dışı</span></div>'
-    + '<button class="sb-shift-btn in" onclick="doClockToggle()" title="Vardiyaya Başla">▶<span class="label"> Vardiyaya Başla</span></button>';
+    + `<button class="sb-shift-btn in" onclick="doClockToggle()" title="${needsApproval?'Vardiya Başlatma İste':'Vardiyaya Başla'}">▶<span class="label"> ${needsApproval?'Vardiya Başlatma İste':'Vardiyaya Başla'}</span></button>`;
 }
 async function refreshShiftWidget(session){
   const { data, error } = await sb.rpc('get_my_shift_status', { p_token: session.session_token });
@@ -1321,10 +1330,12 @@ async function refreshShiftWidget(session){
 }
 async function doClockToggle(){
   const session = getSession(); if(!session) return;
-  const wasClockedIn = !!(APP.shiftStatus && APP.shiftStatus.clocked_in);
-  const { error } = await withLoadingOverlay(sb.rpc(wasClockedIn ? 'clock_out' : 'clock_in', { p_token: session.session_token }));
+  const st = APP.shiftStatus || {};
+  const ending = !!(st.clocked_in || st.pending);
+  const { data, error } = await withLoadingOverlay(sb.rpc(ending ? 'clock_out' : 'clock_in', { p_token: session.session_token }));
   if(error){ showToast(error.message); return; }
-  showToast(wasClockedIn ? 'Vardiya bitti ✓' : 'Vardiya başladı ✓');
+  if(ending) showToast(st.pending ? 'Vardiya talebi geri çekildi' : 'Vardiya bitti ✓');
+  else showToast(data && data.pending ? 'Talebiniz yöneticiye iletildi, onaylanınca vardiyanız başlar' : 'Vardiya başladı ✓');
   await refreshShiftWidget(session);
 }
 async function approveCustomerRequest(id){

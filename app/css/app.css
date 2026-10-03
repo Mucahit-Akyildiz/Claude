@@ -99,6 +99,7 @@
   .shift-widget{display:flex;flex-direction:column;gap:6px;}
   .shift-status{font-size:12px;color:var(--sb-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
   .shift-status.on{color:#2fae5e;}
+  .shift-status.pending{color:#d9a400;}
   .sb-shift-btn{background:transparent;border:1px solid var(--sb-border);color:var(--sb-muted);box-shadow:none;font-size:13px;white-space:nowrap;overflow:hidden;margin:0;}
   .sb-shift-btn.in{border-color:#2fae5e;color:#2fae5e;}
   .sb-shift-btn.in:hover{background:#2fae5e;color:#fff;}
