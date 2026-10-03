@@ -1314,7 +1314,9 @@ function shiftWidgetHtml(){
     return `<div class="shift-status on">🟢 <span class="label">Vardiyada (${hh}:${mm}'dan beri)</span></div>`
       + (st.can_end
         ? `<button class="sb-shift-btn out" onclick="doClockToggle()" title="Vardiyayı Bitir">⏹<span class="label"> Vardiyayı Bitir</span></button>`
-        : `<div class="shift-status" title="Vardiyanızı yönetici bitirir"><span class="label">🔒 Bitirme: yönetici</span></div>`);
+        : st.end_requested
+          ? `<div class="shift-status pending"><span class="label">🟡 Bitirme onayı bekleniyor</span></div><button class="sb-shift-btn" onclick="doClockToggle()" title="Bitirme Talebini Geri Çek">✕<span class="label"> Talebi Geri Çek</span></button>`
+          : `<button class="sb-shift-btn out" onclick="doClockToggle()" title="Vardiyayı Bitirmeyi İste">⏹<span class="label"> Bitirmeyi İste</span></button>`);
   }
   const needsApproval = st.approval_required && !st.is_manager;
   return '<div class="shift-status">⚪ <span class="label">Vardiya Dışı</span></div>'
@@ -1334,7 +1336,9 @@ async function doClockToggle(){
   const ending = !!(st.clocked_in || st.pending);
   const { data, error } = await withLoadingOverlay(sb.rpc(ending ? 'clock_out' : 'clock_in', { p_token: session.session_token }));
   if(error){ showToast(error.message); return; }
-  if(ending) showToast(st.pending ? 'Vardiya talebi geri çekildi' : 'Vardiya bitti ✓');
+  if(data && data.end_requested) showToast('Bitirme talebiniz yöneticiye iletildi');
+  else if(data && data.end_request_cancelled) showToast('Bitirme talebi geri çekildi');
+  else if(ending) showToast(st.pending ? 'Vardiya talebi geri çekildi' : 'Vardiya bitti ✓');
   else showToast(data && data.pending ? 'Talebiniz yöneticiye iletildi, onaylanınca vardiyanız başlar' : 'Vardiya başladı ✓');
   await refreshShiftWidget(session);
 }
