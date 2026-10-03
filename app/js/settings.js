@@ -16,6 +16,7 @@ const SETTINGS_TABS = [
   { tab:'roles', managerOnly:true, label:'Roller' },
   { tab:'integrations', managerOnly:true, label:'Entegrasyonlar' },
   { tab:'giftcards', perm:'payments', label:'🎁 Hediye Kartları' },
+  { tab:'datareset', managerOnly:true, label:'🗑️ Veri Sıfırlama' },
 ];
 function settingsTabVisible(t, session){
   if(t.feature && !hasFeature(t.feature)) return false;
@@ -53,6 +54,7 @@ function renderSettingsContent(session){
   else if(APP.settingsTab==='giftcards') renderGiftCardsSettings(el, session);
   else if(APP.settingsTab==='shifts') renderShiftsSettings(el, session);
   else if(APP.settingsTab==='billing') renderBillingSettings(el, session);
+  else if(APP.settingsTab==='datareset') renderDataResetSettings(el);
   else renderUsersSettings(el, session);
 }
 
@@ -813,6 +815,8 @@ async function renderShiftsSettings(el, session){
   if(!APP.shiftsDate) APP.shiftsDate = todayLocalDateStr();
   el.innerHTML = `<div class="box" style="max-width:none;">
     <h2>Vardiyalar</h2>
+    <div id="shiftApprovalWrap"></div>
+    <div id="shiftPendingWrap"></div>
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
       <span class="muted">Tarih Seç</span>
       <input type="date" id="shiftsDateInput" value="${APP.shiftsDate}" onchange="changeShiftsDate(this.value)">
@@ -826,22 +830,126 @@ async function renderShiftsTable(session){
   const wrap = document.getElementById('shiftsTableWrap'); if(!wrap) return;
   const { data, error } = await withLoadingOverlay(sb.rpc('list_staff_shifts', { p_token: session.session_token, p_date: APP.shiftsDate }));
   if(error){ wrap.innerHTML = '<p class="muted">Yüklenemedi: '+error.message+'</p>'; return; }
-  const rows = data || [];
+  const approvalWrap = document.getElementById('shiftApprovalWrap');
+  if(approvalWrap) approvalWrap.innerHTML = `
+    <label style="display:flex;align-items:flex-start;gap:10px;margin:0 0 14px;cursor:${session.isManager?'pointer':'default'};">
+      <input type="checkbox" style="width:auto;margin-top:3px;" ${data.approval_required?'checked':''} ${session.isManager?'':'disabled'} onchange="toggleShiftApproval(this.checked)">
+      <span><b>Vardiya başlatma yönetici onayına bağlı</b><br>
+      <span class="muted" style="font-size:12.5px;">Açıkken personel vardiyayı sadece <i>isteyebilir</i>; siz onayladığınızda başlar ve vardiyayı yalnızca yönetici bitirebilir.${session.isManager?'':' (Bu ayarı Yönetici değiştirebilir.)'}</span></span>
+    </label>`;
+  const pendWrap = document.getElementById('shiftPendingWrap');
+  const pending = data.pending || [];
+  if(pendWrap) pendWrap.innerHTML = pending.length ? `
+    <div style="border:1px solid #d9a400;border-radius:12px;padding:12px;margin-bottom:16px;">
+      <b>🟡 Onay Bekleyen Vardiya Talepleri (${pending.length})</b>
+      ${pending.map(p => `<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:10px;flex-wrap:wrap;">
+        <span><b>${escapeHtml(p.username)}</b> <span class="muted">· ${formatShiftTime(p.requested_at)}'de istedi</span></span>
+        <span style="display:flex;gap:8px;">
+          <button class="actBtn" style="width:auto;margin:0;" onclick="manageShift('${p.id}','approve')">✓ Onayla</button>
+          <button class="actBtn danger" style="width:auto;margin:0;background:var(--red);color:var(--btn-ink);" onclick="manageShift('${p.id}','reject')">✕ Reddet</button>
+        </span></div>`).join('')}
+    </div>` : '';
+  const rows = data.rows || [];
   if(!rows.length){ wrap.innerHTML = '<p class="muted">Bu tarihte vardiya kaydı yok.</p>'; return; }
   wrap.innerHTML = `<div class="settings-table-wrap">
     <table class="settings-table">
-      <thead><tr><th>Personel</th><th>Giriş</th><th>Çıkış</th><th>Süre</th></tr></thead>
+      <thead><tr><th>Personel</th><th>Giriş</th><th>Çıkış</th><th>Süre</th><th></th></tr></thead>
       <tbody>
       ${rows.map(r => `
         <tr>
-          <td class="col-name">${escapeHtml(r.username)}</td>
+          <td class="col-name">${escapeHtml(r.username)}${r.approved_by && r.approved_by!==r.username ? `<div class="muted" style="font-size:11.5px;">Onaylayan: ${escapeHtml(r.approved_by)}</div>` : ''}</td>
           <td>${formatShiftTime(r.clock_in)}</td>
-          <td>${r.clock_out ? formatShiftTime(r.clock_out) : '<span class="muted">Devam ediyor</span>'}</td>
+          <td>${r.clock_out ? formatShiftTime(r.clock_out) + (r.ended_by && r.ended_by!==r.username ? `<div class="muted" style="font-size:11.5px;">${escapeHtml(r.ended_by)} bitirdi</div>` : '') : '<span class="muted">Devam ediyor</span>'}</td>
           <td>${formatShiftDuration(r.duration_minutes)}</td>
+          <td>${r.clock_out ? '' : `<button class="actBtn" style="width:auto;margin:0;background:var(--red);color:var(--btn-ink);" onclick="manageShift('${r.id}','end')">⏹ Bitir</button>`}</td>
         </tr>`).join('')}
       </tbody>
     </table>
   </div>`;
+}
+async function manageShift(id, action){
+  if(action==='end' && !confirm('Bu personelin vardiyası şimdi bitirilsin mi?')) return;
+  const session = getSession();
+  const { error } = await withLoadingOverlay(sb.rpc('manage_staff_shift', { p_token: session.session_token, p_shift_id: id, p_action: action }));
+  if(error){ showToast(error.message); return; }
+  showToast(action==='approve' ? 'Vardiya başlatıldı ✓' : action==='reject' ? 'Talep reddedildi' : 'Vardiya bitirildi ✓');
+  renderShiftsTable(session);
+  refreshShiftWidget(session);
+}
+async function toggleShiftApproval(on){
+  const session = getSession();
+  const { error } = await sb.rpc('set_shift_approval_required', { p_token: session.session_token, p_value: on });
+  if(error){ showToast(error.message); renderShiftsTable(session); return; }
+  showToast(on ? 'Vardiya başlatma artık yönetici onayına bağlı' : 'Personel vardiyasını kendisi başlatıp bitirebilir');
+  refreshShiftWidget(session);
+}
+
+/* --- Veri Sıfırlama (yalnızca Yönetici): seçilen tarih aralığındaki işlem
+   verilerini kalıcı olarak siler (bkz. reset_restaurant_data). Ürünler,
+   masalar, kullanıcılar, müşteriler ve açık siparişler etkilenmez;
+   e-faturası kesilmiş satışlar yasal kayıt olduğu için korunur. */
+const RESET_CATEGORIES = [
+  { id:'sales', label:'Satışlar ve kapanmış siparişler', hint:'Satış geçmişi, iptal/kapalı siparişler, faturalar (e-fatura hariç), online sipariş talepleri, SMS kayıtları' },
+  { id:'waste', label:'Zayi / fire kayıtları' },
+  { id:'shifts', label:'Vardiya kayıtları', hint:'Devam eden vardiyalar silinmez' },
+  { id:'reservations', label:'Rezervasyonlar ve bekleme listesi' },
+  { id:'purchases', label:'Satın alma siparişleri' },
+];
+function renderDataResetSettings(el){
+  el.innerHTML = `<div class="box" style="max-width:640px;">
+    <h2>🗑️ Verileri Sıfırla</h2>
+    <p class="muted" style="text-align:left;">Seçtiğiniz dönemdeki işlem verilerini <b>kalıcı olarak</b> siler. Ürünler, masalar, kullanıcılar, müşteriler ve açık siparişler etkilenmez.</p>
+    <div class="field-group"><label>Dönem</label>
+      <select id="resetRange" onchange="document.getElementById('resetCustom').style.display=this.value==='custom'?'flex':'none'">
+        <option value="1m">Son 1 ay</option>
+        <option value="3m" selected>Son 3 ay</option>
+        <option value="6m">Son 6 ay</option>
+        <option value="1y">Son 1 yıl</option>
+        <option value="all">Tümü (tüm zamanlar)</option>
+        <option value="custom">Tarih aralığı seç…</option>
+      </select>
+    </div>
+    <div id="resetCustom" style="display:none;gap:10px;flex-wrap:wrap;">
+      <div class="field-group" style="flex:1;min-width:140px;"><label>Başlangıç</label><input type="date" id="resetFrom"></div>
+      <div class="field-group" style="flex:1;min-width:140px;"><label>Bitiş</label><input type="date" id="resetTo" value="${todayLocalDateStr()}"></div>
+    </div>
+    <div class="field-group"><label>Silinecek veriler</label></div>
+    ${RESET_CATEGORIES.map(c => `<label style="display:flex;gap:10px;align-items:flex-start;margin:0 0 10px;cursor:pointer;">
+      <input type="checkbox" class="resetCat" value="${c.id}" style="width:auto;margin-top:3px;" checked>
+      <span>${c.label}${c.hint?`<br><span class="muted" style="font-size:12px;">${c.hint}</span>`:''}</span></label>`).join('')}
+    <div class="field-group" style="margin-top:14px;"><label>Onay için giriş şifreniz</label><input type="password" id="resetPassword" autocomplete="current-password"></div>
+    <button style="background:var(--red);color:var(--btn-ink);max-width:260px;" onclick="doDataReset()">Verileri Kalıcı Olarak Sil</button>
+  </div>`;
+}
+function resetRangeDates(){
+  const v = document.getElementById('resetRange').value;
+  const today = todayLocalDateStr();
+  if(v==='all') return { from:null, to:null, label:'TÜM ZAMANLARA ait' };
+  if(v==='custom'){
+    const from = document.getElementById('resetFrom').value || null, to = document.getElementById('resetTo').value || null;
+    return { from, to, label: (from||'en baştan') + ' – ' + (to||'bugün') + ' arasındaki' };
+  }
+  const months = { '1m':1, '3m':3, '6m':6, '1y':12 }[v];
+  const d = new Date(); d.setMonth(d.getMonth() - months);
+  const from = d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+  return { from, to: today, label: document.getElementById('resetRange').selectedOptions[0].textContent + 'a ait' };
+}
+async function doDataReset(){
+  const cats = Array.from(document.querySelectorAll('.resetCat:checked')).map(b => b.value);
+  if(!cats.length){ showToast('En az bir veri türü seçin'); return; }
+  const pw = document.getElementById('resetPassword').value;
+  if(!pw){ showToast('Onay için şifrenizi girin'); return; }
+  const r = resetRangeDates();
+  if(document.getElementById('resetRange').value==='custom' && !r.from && !r.to){ showToast('Tarih aralığı seçin'); return; }
+  const names = RESET_CATEGORIES.filter(c => cats.includes(c.id)).map(c => '• ' + c.label).join('\n');
+  if(!confirm(r.label + ' şu veriler kalıcı olarak silinecek:\n\n' + names + '\n\nBu işlem GERİ ALINAMAZ. Devam edilsin mi?')) return;
+  const session = getSession();
+  const { data, error } = await withLoadingOverlay(sb.rpc('reset_restaurant_data', { p_token: session.session_token, p_password: pw, p_from: r.from, p_to: r.to, p_categories: cats }));
+  if(error){ showToast(error.message); return; }
+  if(!data || !data.ok){ showToast((data && data.error) || 'Silinemedi'); return; }
+  document.getElementById('resetPassword').value = '';
+  const n = data.removed || {};
+  showToast('Veriler silindi ✓ ' + Object.keys(n).map(k => (RESET_CATEGORIES.find(c => c.id===k)||{label:k}).label + ': ' + n[k]).join(', '));
 }
 
 /* --- Roller: yönetici rolleri kendisi ekleyip/çıkarabilir, hangi role
