@@ -62,6 +62,7 @@ function render(){
   app.innerHTML = `
     <div class="app-shell">
       <div class="mobile-topbar">
+        ${APP.view && APP.view!=='home' ? '<button class="mobile-menu-btn" onclick="goBack()" aria-label="Geri" title="Geri">←</button>' : ''}
         <button class="mobile-menu-btn" onclick="toggleMobileNav()" aria-label="Menü">☰</button>
         <img src="/assets/images/logo.webp" alt="Peyktan" class="mobile-topbar-logo">
         <div class="mobile-topbar-title">${escapeHtml(session.restaurant_name)}</div>
@@ -94,7 +95,7 @@ function render(){
           <button class="sb-logout" onclick="doLogout()" title="Çıkış Yap">🚪<span class="label"> Çıkış Yap</span></button>
         </div>
       </aside>
-      <div class="content-area"><div class="content-inner ${(APP.view==='settings'||APP.view==='reports')?'content-inner-wide':''}">${pushReminderBannerHtml()}<main id="main"></main></div></div>
+      <div class="content-area"><div class="content-inner ${(APP.view==='settings'||APP.view==='reports')?'content-inner-wide':''}">${pushReminderBannerHtml()}${APP.view && APP.view!=='home' ? '<button type="button" class="back-link" onclick="goBack()">← Geri</button>' : ''}<main id="main"></main></div></div>
     </div>`;
   const main = document.getElementById('main');
   if(APP.view==='home') renderHome(main, session);
@@ -114,7 +115,10 @@ function todayLocalDateStr(){
   const d = new Date();
   return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
 }
-function goToView(view){
+function goToView(view, fromHistory){
+  // Geri tuşu/kaydırma için her ekran değişimi tarayıcı geçmişine yazılır
+  // (bkz. goBack / popstate). Geçmişten gelinen geçişler tekrar yazılmaz.
+  if(!fromHistory && view !== APP.view){ try{ history.pushState({ view }, ''); }catch(e){} }
   APP.view = view;
   // Finansal Analiz'e her girişte, en son baktiginiz tarihi hatirlamak yerine
   // dogrudan bugunun raporunu getirir - farkli bir tarihe bakmak isterseniz
@@ -129,7 +133,56 @@ function goToView(view){
   render();
 }
 
-function goHome(){ APP.view='home'; APP.mobileNavOpen = false; render(); }
+function goHome(){ goToView('home'); }
+
+/* ---- Geri: Android geri tuşu, soldan sağa kaydırma ve ← butonu aynı
+   sırayla çalışır: açık pencere varsa kapat → açık menüyü kapat → bir
+   önceki ekrana dön → (ana ekrandaysa) native'de uygulamayı arka plana al. */
+function closeTopModal(){
+  const modals = document.querySelectorAll('[id$="ModalBg"], .modal-bg');
+  if(!modals.length) return false;
+  modals[modals.length-1].remove();
+  return true;
+}
+function goBack(){
+  if(closeTopModal()) return;
+  if(APP.mobileNavOpen){ closeMobileNav(); return; }
+  if(APP.view && APP.view !== 'home' && history.state && history.state.view){ history.back(); return; }
+  if(APP.view && APP.view !== 'home'){ goToView('home', true); try{ history.replaceState({ view: 'home' }, ''); }catch(e){} return; }
+  const AppPlugin = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App;
+  if(AppPlugin && AppPlugin.minimizeApp) AppPlugin.minimizeApp();
+}
+function setupBackNavigation(){
+  try{ history.replaceState({ view: APP.view || 'home' }, ''); }catch(e){}
+  window.addEventListener('popstate', (e) => {
+    if(!getSession()) return;
+    // Pencere açıkken tarayıcı geri tuşu önce pencereyi kapatsın, ekran değişmesin.
+    if(closeTopModal()){ try{ history.pushState({ view: APP.view }, ''); }catch(err){} return; }
+    const view = (e.state && e.state.view) || 'home';
+    const item = NAV_ITEMS.find(i => i.view===view);
+    if(view==='home' || (item && navItemVisible(item, getSession()))) goToView(view, true);
+  });
+  const AppPlugin = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App;
+  if(AppPlugin) AppPlugin.addListener('backButton', () => { if(getSession()) goBack(); else if(AppPlugin.minimizeApp) AppPlugin.minimizeApp(); });
+  // Ekranın sol kenarından sağa kaydırma = geri.
+  if('ontouchstart' in window){
+    let sx = null, sy = 0;
+    document.addEventListener('touchstart', (e) => {
+      sx = null;
+      if(e.touches.length !== 1 || !getSession()) return;
+      if(e.target.closest && e.target.closest('.floorplan-editor')) return;
+      const t = e.touches[0];
+      if(t.clientX <= 28){ sx = t.clientX; sy = t.clientY; }
+    }, { passive: true });
+    document.addEventListener('touchend', (e) => {
+      if(sx === null) return;
+      const t = e.changedTouches[0];
+      const dx = t.clientX - sx, dy = Math.abs(t.clientY - sy);
+      sx = null;
+      if(dx > 80 && dy < 60) goBack();
+    });
+  }
+}
 
 
 function renderHome(main, session){
@@ -275,6 +328,7 @@ if(!getSession() && new URLSearchParams(window.location.search).get('signup')===
 applyDeepLinkView();
 restoreViewAfterRefresh();
 setupPullToRefresh();
+setupBackNavigation();
 initNativeAppMode();
 render();
 /* Push bildirimine tıklanınca zaten açık olan bir sekme varsa (bkz.
