@@ -439,9 +439,9 @@
 .act-delete:hover{border-color:var(--red);background:color-mix(in srgb,var(--red) 10%,var(--panel));}
 .act-row{display:flex;flex-wrap:nowrap;gap:4px;align-items:center;}
 .act-row .act-btn{margin:0;}
-.act-btn > b{font-size:15px;line-height:18px;font-weight:400;}
-.act-close{color:var(--text);}
-.act-close:hover{border-color:var(--text);}
+.act-btn > b{font-size:16px;line-height:18px;font-weight:800;}
+.act-close{color:var(--red);}
+.act-close:hover{border-color:var(--red);}
 .act-open{color:var(--green);border-color:var(--green);}
 .act-recipe{color:var(--accent2);}
 .act-recipe:hover{border-color:var(--accent2);background:color-mix(in srgb,var(--accent2) 10%,var(--panel));}
