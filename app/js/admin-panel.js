@@ -21,6 +21,7 @@ function renderAdminArea(){
         <div class="tab ${(APP.adminView||'promos')==='promos'?'active':''}" data-tab="promos" onclick="setAdminView('promos')">Promosyon Kodları</div>
         <div class="tab ${APP.adminView==='pricing'?'active':''}" data-tab="pricing" onclick="setAdminView('pricing')">💳 Paket Fiyatları</div>
         <div class="tab ${APP.adminView==='restaurants'?'active':''}" data-tab="restaurants" onclick="setAdminView('restaurants')">🏬 İşletmeler</div>
+        <div class="tab ${APP.adminView==='active'?'active':''}" data-tab="active" onclick="setAdminView('active')">🟢 Aktif Kullanıcılar</div>
         <div class="tab ${APP.adminView==='companies'?'active':''}" data-tab="companies" onclick="setAdminView('companies')">🏢 Şirketler</div>
         <div class="tab ${APP.adminView==='banktransfers'?'active':''}" data-tab="banktransfers" onclick="setAdminView('banktransfers')">🏦 Havale Bildirimleri</div>
         <div class="tab ${APP.adminView==='allfeatures'?'active':''}" data-tab="allfeatures" onclick="setAdminView('allfeatures')">🗂️ Tüm Özellikler</div>
@@ -39,6 +40,8 @@ function setAdminView(v){
 }
 function renderAdminTabContent(admin){
   const main = document.getElementById('main');
+  if(ACTIVE_USERS_TIMER){ clearInterval(ACTIVE_USERS_TIMER); ACTIVE_USERS_TIMER = null; }
+  if(APP.adminView==='active'){ renderActiveUsersAdmin(main, admin); return; }
   if((APP.adminView||'promos')==='pricing') renderPricingAdmin(main, admin);
   else if(APP.adminView==='restaurants') renderRestaurantsAdmin(main, admin);
   else if(APP.adminView==='companies') renderCompaniesAdmin(main, admin);
@@ -48,6 +51,58 @@ function renderAdminTabContent(admin){
   else if(APP.adminView==='deleted') renderDeletedAccountsAdmin(main, admin);
   else if(APP.adminView==='sms') renderSmsAdmin(main, admin);
   else renderPromoAdmin(main, admin);
+}
+/* Anlık aktif kullanıcılar: staff_sessions.last_seen_at her istekte (en
+   fazla 30 sn'de bir) güncellenir; seçilen süre içinde istek atmış oturumlar
+   listelenir (bkz. admin_list_active_users). Sekme açıkken 20 sn'de bir
+   kendini yeniler. */
+let ACTIVE_USERS_TIMER = null;
+async function renderActiveUsersAdmin(main, admin){
+  if(!APP.activeUsersMinutes) APP.activeUsersMinutes = 5;
+  main.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
+      <h1 style="margin:0;">🟢 Anlık Aktif Kullanıcılar</h1>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <span class="muted" style="font-size:13px;">Son</span>
+        <select id="activeUsersMinutes" style="width:auto;margin:0;" onchange="APP.activeUsersMinutes=Number(this.value);loadActiveUsers()">
+          ${[5,15,60,1440].map(m => `<option value="${m}" ${APP.activeUsersMinutes===m?'selected':''}>${m===1440?'24 saat':m+' dakika'}</option>`).join('')}
+        </select>
+      </div>
+    </div>
+    <p class="muted" style="margin:6px 0 16px;font-size:12.5px;">Seçilen süre içinde uygulamada işlem yapan (açık ekranı olan) personel. 20 saniyede bir otomatik yenilenir.</p>
+    <div id="activeUsersBody"><p class="muted">Yükleniyor...</p></div>`;
+  await loadActiveUsers();
+  ACTIVE_USERS_TIMER = setInterval(() => {
+    if(APP.adminView!=='active' || !document.getElementById('activeUsersBody')){ clearInterval(ACTIVE_USERS_TIMER); ACTIVE_USERS_TIMER = null; return; }
+    loadActiveUsers();
+  }, 20000);
+}
+async function loadActiveUsers(){
+  const admin = getAdminSession(); const body = document.getElementById('activeUsersBody');
+  if(!admin || !body) return;
+  const { data, error } = await sb.rpc('admin_list_active_users', { p_token: admin.session_token, p_minutes: APP.activeUsersMinutes || 5 });
+  if(error){
+    if(error.message.includes('geçersiz')){ clearAdminSession(); render(); return; }
+    body.innerHTML = '<p class="error">'+escapeHtml(error.message)+'</p>'; return;
+  }
+  const rows = data.rows || [];
+  const byRest = {};
+  rows.forEach(r => { (byRest[r.restaurant] = byRest[r.restaurant] || []).push(r); });
+  body.innerHTML = `
+    <div class="home-grid" style="margin-top:0;margin-bottom:20px;">
+      ${statCard('Aktif Kullanıcı', data.active_users, 'var(--green)')}
+      ${statCard('Aktif İşletme', data.active_restaurants)}
+      ${statCard('Bugün Giren', data.today_users)}
+    </div>
+    ${!rows.length ? '<p class="muted">Bu sürede aktif kullanıcı yok.</p>' : `<div class="settings-table-wrap"><table class="settings-table">
+      <thead><tr><th>Kullanıcı</th><th>İşletme</th><th>Rol</th><th>Son İşlem</th><th>Giriş</th><th>Vardiya</th></tr></thead>
+      <tbody>${Object.keys(byRest).sort().map(name => byRest[name].map(r => `<tr>
+        <td class="col-name">${Date.now() - new Date(r.last_seen_at).getTime() < 120000 ? '🟢' : '🟡'} ${escapeHtml(r.username)}</td>
+        <td>${escapeHtml(r.restaurant)} <span class="muted" style="font-size:11.5px;">(${escapeHtml(r.restaurant_code)})</span></td>
+        <td>${escapeHtml(r.roles||'—')}</td>
+        <td>${fmtRelativeTime(r.last_seen_at)}</td>
+        <td style="font-size:12.5px;">${new Date(r.login_at).toLocaleString('tr-TR', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' })}</td>
+        <td>${r.on_shift ? '<span class="role-badge" style="color:var(--green);border-color:var(--green);">Vardiyada</span>' : '<span class="muted">—</span>'}</td>
+      </tr>`).join('')).join('')}</tbody></table></div>`}`;
 }
 /* Silinen işletmeler (deleted_accounts): restaurants tablosundan silinen her
    kayıt bir tetikleyiciyle buraya yazılır; buradaki e-posta/telefonla
