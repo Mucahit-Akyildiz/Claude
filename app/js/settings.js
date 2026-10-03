@@ -12,6 +12,7 @@ const SETTINGS_TABS = [
   { tab:'flags', perm:'settings_flags', label:'Sipariş Etiketleri' },
   { tab:'users', perm:'settings_users', label:'Kullanıcılar' },
   { tab:'shifts', perm:'shifts', label:'Vardiyalar' },
+  { tab:'activeusers', managerOnly:true, label:'🟢 Aktif Kullanıcılar' },
   { tab:'billing', managerOnly:true, label:'💳 Abonelik' },
   { tab:'roles', managerOnly:true, label:'Roller' },
   { tab:'integrations', managerOnly:true, label:'Entegrasyonlar' },
@@ -55,6 +56,7 @@ function renderSettingsContent(session){
   else if(APP.settingsTab==='shifts') renderShiftsSettings(el, session);
   else if(APP.settingsTab==='billing') renderBillingSettings(el, session);
   else if(APP.settingsTab==='datareset') renderDataResetSettings(el);
+  else if(APP.settingsTab==='activeusers') renderActiveUsersSettings(el);
   else renderUsersSettings(el, session);
 }
 
@@ -898,6 +900,56 @@ async function toggleShiftApproval(on){
   if(error){ showToast(error.message); renderShiftsTable(session); return; }
   showToast(on ? 'Vardiya başlatma artık yönetici onayına bağlı' : 'Personel vardiyasını kendisi başlatıp bitirebilir');
   refreshShiftWidget(session);
+}
+
+/* --- Aktif Kullanıcılar (yalnızca Yönetici): işletmede şu an uygulamayı
+   kullanan personel. staff_sessions.last_seen_at her istekte (en fazla 30
+   sn'de bir) güncellenir (bkz. list_active_staff). Sekme açıkken 20 sn'de
+   bir yenilenir. */
+let ACTIVE_USERS_TIMER = null;
+function renderActiveUsersSettings(el){
+  if(!APP.activeUsersMinutes) APP.activeUsersMinutes = 5;
+  el.innerHTML = `<div class="box" style="max-width:none;">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
+      <h2 style="margin:0;">🟢 Aktif Kullanıcılar</h2>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <span class="muted" style="font-size:13px;">Son</span>
+        <select id="activeUsersMinutes" style="width:auto;margin:0;" onchange="APP.activeUsersMinutes=Number(this.value);loadActiveUsers()">
+          ${[5,15,60,1440].map(m => `<option value="${m}" ${APP.activeUsersMinutes===m?'selected':''}>${m===1440?'24 saat':m+' dakika'}</option>`).join('')}
+        </select>
+      </div>
+    </div>
+    <p class="muted" style="margin:6px 0 16px;font-size:12.5px;text-align:left;">Seçilen süre içinde uygulamada işlem yapan (ekranı açık olan) personel. 20 saniyede bir otomatik yenilenir.</p>
+    <div id="activeUsersBody"><p class="muted">Yükleniyor...</p></div>
+  </div>`;
+  loadActiveUsers();
+  if(ACTIVE_USERS_TIMER) clearInterval(ACTIVE_USERS_TIMER);
+  ACTIVE_USERS_TIMER = setInterval(() => {
+    if(APP.view!=='settings' || APP.settingsTab!=='activeusers' || !document.getElementById('activeUsersBody')){ clearInterval(ACTIVE_USERS_TIMER); ACTIVE_USERS_TIMER = null; return; }
+    loadActiveUsers();
+  }, 20000);
+}
+async function loadActiveUsers(){
+  const session = getSession(); const body = document.getElementById('activeUsersBody');
+  if(!session || !body) return;
+  const { data, error } = await sb.rpc('list_active_staff', { p_token: session.session_token, p_minutes: APP.activeUsersMinutes || 5 });
+  if(error){ body.innerHTML = '<p class="muted">Yüklenemedi: '+escapeHtml(error.message)+'</p>'; return; }
+  const rows = data.rows || [];
+  body.innerHTML = `
+    <div class="home-grid" style="margin-top:0;margin-bottom:20px;">
+      ${statCard('Aktif Kullanıcı', data.active_users, 'var(--green)')}
+      ${statCard('Vardiyada', data.on_shift)}
+      ${statCard('Bugün Giren', data.today_users)}
+    </div>
+    ${!rows.length ? '<p class="muted">Bu sürede aktif kullanıcı yok.</p>' : `<div class="settings-table-wrap"><table class="settings-table">
+      <thead><tr><th>Kullanıcı</th><th>Rol</th><th>Son İşlem</th><th>Giriş</th><th>Vardiya</th></tr></thead>
+      <tbody>${rows.map(r => `<tr>
+        <td class="col-name">${Date.now() - new Date(r.last_seen_at).getTime() < 120000 ? '🟢' : '🟡'} ${escapeHtml(r.username)}</td>
+        <td>${escapeHtml(r.roles||'—')}</td>
+        <td>${fmtRelativeTime(r.last_seen_at)}</td>
+        <td style="font-size:12.5px;">${new Date(r.login_at).toLocaleString('tr-TR', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' })}</td>
+        <td>${r.on_shift ? '<span class="role-badge" style="color:var(--green);border-color:var(--green);">Vardiyada</span>' : '<span class="muted">—</span>'}</td>
+      </tr>`).join('')}</tbody></table></div>`}`;
 }
 
 /* --- Veri Sıfırlama (yalnızca Yönetici): seçilen tarih aralığındaki işlem

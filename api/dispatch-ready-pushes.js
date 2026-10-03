@@ -250,6 +250,49 @@ async function dispatchTestPush(supabase, userId, endpoint) {
   return { sent, total: subs.length, errors: errors.length ? errors : undefined };
 }
 
+// Vardiya olayları (Postgres anında tetikler): 'request' -> personel
+// "Vardiya Başlatma İste" dedi, onaylayabilen yöneticilere gider;
+// 'approved' / 'rejected' / 'ended' -> yöneticinin kararı personelin kendisine.
+async function sendToUsers(supabase, userIds, payload) {
+  if (!userIds.length) return { sent: 0, total: 0 };
+  const { data: subs } = await supabase.from('push_subscriptions').select('*').in('user_id', userIds);
+  let sent = 0;
+  await Promise.all((subs || []).map(async (sub) => {
+    try { await sendToSub(sub, payload); sent++; } catch (e) {
+      if (e && (e.statusCode === 404 || e.statusCode === 410)) await supabase.from('push_subscriptions').delete().eq('id', sub.id);
+    }
+  }));
+  return { sent, total: (subs || []).length };
+}
+async function dispatchShiftEvent(supabase, shiftId, event) {
+  const { data: shift } = await supabase
+    .from('staff_shifts')
+    .select('id, restaurant_id, user_id, status, app_users!staff_shifts_user_id_fkey(username)')
+    .eq('id', shiftId)
+    .maybeSingle();
+  if (!shift) return { sent: 0, note: 'not found' };
+  const name = (shift.app_users && shift.app_users.username) || 'Bir personel';
+  if (event === 'request') {
+    if (shift.status !== 'pending') return { sent: 0, note: 'not pending' };
+    const { data: appUsers } = await supabase.from('app_users').select('id, role_ids').eq('restaurant_id', shift.restaurant_id);
+    const { data: roles } = await supabase.from('roles').select('id, is_system, permissions').eq('restaurant_id', shift.restaurant_id);
+    const mgrRoleIds = new Set((roles || []).filter((rl) => rl.is_system || (rl.permissions || []).includes('shifts')).map((rl) => rl.id));
+    const mgrIds = (appUsers || []).filter((u) => u.id !== shift.user_id && (u.role_ids || []).some((rid) => mgrRoleIds.has(rid))).map((u) => u.id);
+    return sendToUsers(supabase, mgrIds, {
+      title: '🕒 Vardiya onayı bekleniyor',
+      body: name + ' vardiyaya başlamak istiyor. Onaylamak için dokunun.',
+      url: '/app/', view: 'settings', tag: 'shift-request-' + shift.id,
+    });
+  }
+  const msgs = {
+    approved: ['✅ Vardiyanız başladı', 'Vardiya talebiniz onaylandı, iyi çalışmalar!'],
+    rejected: ['❌ Vardiya talebi reddedildi', 'Vardiya başlatma talebiniz yönetici tarafından reddedildi.'],
+    ended: ['⏹ Vardiyanız bitirildi', 'Vardiyanız yönetici tarafından sonlandırıldı.'],
+  };
+  if (!msgs[event]) return { sent: 0, note: 'unknown event' };
+  return sendToUsers(supabase, [shift.user_id], { title: msgs[event][0], body: msgs[event][1], url: '/app/', tag: 'shift-' + shift.id });
+}
+
 // Gizli anahtar karsilastirmasi sabit surede yapilir (zamanlama saldirisi).
 function safeEqual(a, b) {
   const crypto = require('crypto');
@@ -276,6 +319,13 @@ module.exports = async function handler(req, res) {
 
     const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
     const mode = (req.body && req.body.mode) || 'both';
+
+    if (mode === 'shift_event') {
+      const shiftId = req.body && req.body.shift_id;
+      if (!shiftId) { res.status(400).json({ error: 'shift_id required' }); return; }
+      res.status(200).json(await dispatchShiftEvent(supabase, shiftId, req.body.event));
+      return;
+    }
 
     if (mode === 'test_push') {
       const userId = req.body && req.body.user_id;
