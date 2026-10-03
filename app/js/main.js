@@ -118,7 +118,10 @@ function todayLocalDateStr(){
 function goToView(view, fromHistory){
   // Geri tuşu/kaydırma için her ekran değişimi tarayıcı geçmişine yazılır
   // (bkz. goBack / popstate). Geçmişten gelinen geçişler tekrar yazılmaz.
-  if(!fromHistory && view !== APP.view){ try{ history.pushState({ view }, ''); }catch(e){} }
+  if(!fromHistory && view !== APP.view){
+    APP.viewStack = (APP.viewStack || []).concat(APP.view || 'home').slice(-30);
+    try{ history.pushState({ view }, ''); }catch(e){}
+  }
   APP.view = view;
   // Finansal Analiz'e her girişte, en son baktiginiz tarihi hatirlamak yerine
   // dogrudan bugunun raporunu getirir - farkli bir tarihe bakmak isterseniz
@@ -144,23 +147,42 @@ function closeTopModal(){
   modals[modals.length-1].remove();
   return true;
 }
+/* Geri, uygulamanın kendi ekran yığınıyla (APP.viewStack) çalışır; Android
+   WebView'de history.back()/popstate güvenilir olmadığı için tarayıcı
+   geçmişine bağlı değildir. Tarayıcı geçmişi yalnızca masaüstü/mobil
+   tarayıcının kendi geri tuşu için senkron tutulur. */
+let IGNORE_NEXT_POPSTATE = false;
 function goBack(){
   if(closeTopModal()) return;
   if(APP.mobileNavOpen){ closeMobileNav(); return; }
-  if(APP.view && APP.view !== 'home' && history.state && history.state.view){ history.back(); return; }
-  if(APP.view && APP.view !== 'home'){ goToView('home', true); try{ history.replaceState({ view: 'home' }, ''); }catch(e){} return; }
+  const stack = APP.viewStack || [];
+  if(stack.length){
+    const prev = stack.pop();
+    APP.viewStack = stack;
+    goToView(prev, true);
+    // Tarayıcı geçmişini de bir geri al (popstate tekrar işlenmesin).
+    IGNORE_NEXT_POPSTATE = true;
+    setTimeout(() => { IGNORE_NEXT_POPSTATE = false; }, 400);
+    try{ history.back(); }catch(e){}
+    return;
+  }
+  if(APP.view && APP.view !== 'home'){ goToView('home', true); return; }
   const AppPlugin = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App;
   if(AppPlugin && AppPlugin.minimizeApp) AppPlugin.minimizeApp();
 }
 function setupBackNavigation(){
   try{ history.replaceState({ view: APP.view || 'home' }, ''); }catch(e){}
   window.addEventListener('popstate', (e) => {
+    if(IGNORE_NEXT_POPSTATE){ IGNORE_NEXT_POPSTATE = false; return; }
     if(!getSession()) return;
     // Pencere açıkken tarayıcı geri tuşu önce pencereyi kapatsın, ekran değişmesin.
     if(closeTopModal()){ try{ history.pushState({ view: APP.view }, ''); }catch(err){} return; }
     const view = (e.state && e.state.view) || 'home';
     const item = NAV_ITEMS.find(i => i.view===view);
-    if(view==='home' || (item && navItemVisible(item, getSession()))) goToView(view, true);
+    if(view==='home' || (item && navItemVisible(item, getSession()))){
+      (APP.viewStack || []).pop();
+      goToView(view, true);
+    }
   });
   const AppPlugin = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App;
   if(AppPlugin) AppPlugin.addListener('backButton', () => { if(getSession()) goBack(); else if(AppPlugin.minimizeApp) AppPlugin.minimizeApp(); });
