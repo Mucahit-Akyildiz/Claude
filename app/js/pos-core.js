@@ -1538,13 +1538,10 @@ function renderTableGrid(){
 function renderTableFloorPlan(zone, el){
   if(!el) return;
   if(!zone || zone.tables.length===0){ el.innerHTML = '<p class="muted" style="padding:10px;">Bu bölgede masa yok.</p>'; return; }
-  const maxX = Math.max(200, ...zone.tables.map(t => Number(t.pos_x||0)+110));
-  const maxY = Math.max(300, ...zone.tables.map(t => Number(t.pos_y||0)+110));
-  el.style.minWidth = maxX+'px';
-  el.style.minHeight = maxY+'px';
+  const { scale } = fpLayout(el, zone.tables);
   el.innerHTML = zone.tables.map(t => {
     const { sub, occupied } = tableStatus(t);
-    return `<div class="floorplan-table ${occupied?'occupied':''}" style="left:${Number(t.pos_x||0)}px;top:${Number(t.pos_y||0)}px;" onclick="openTableModal('${t.id}')">
+    return `<div class="floorplan-table ${occupied?'occupied':''}" style="left:${Number(t.pos_x||0)*scale}px;top:${Number(t.pos_y||0)*scale}px;" onclick="openTableModal('${t.id}')">
       ${escapeHtml(t.name)}<div class="fp-sub">${sub}</div></div>`;
   }).join('');
 }

@@ -204,13 +204,13 @@
   .table-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(112px,1fr));gap:12px;}
   .table-cell{border-radius:16px;padding:18px 10px;text-align:center;border:1.5px solid var(--border);background:var(--panel2);color:var(--muted);font-weight:700;transition:transform .12s ease;}
   .table-cell:hover{transform:translateY(-2px);}
-  .floorplan-canvas{position:relative;background:var(--panel2);border:1px solid var(--border);border-radius:14px;min-height:420px;overflow:auto;touch-action:none;}
-  .floorplan-table{position:absolute;width:86px;height:86px;border-radius:16px;border:1.5px solid var(--border);background:var(--panel);color:var(--muted);font-weight:700;font-size:12.5px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;cursor:pointer;user-select:none;transition:transform .1s ease,box-shadow .1s ease;padding:4px;}
+  .floorplan-canvas{position:relative;background:var(--panel2);border:1px solid var(--border);border-radius:14px;min-height:200px;overflow-x:auto;overflow-y:hidden;}
+  .floorplan-table{position:absolute;width:calc(86px * var(--fp-s,1));height:calc(86px * var(--fp-s,1));border-radius:calc(16px * var(--fp-s,1));border:1.5px solid var(--border);background:var(--panel);color:var(--muted);font-weight:700;font-size:max(9.5px, calc(12.5px * var(--fp-s,1)));display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;cursor:pointer;user-select:none;transition:transform .1s ease,box-shadow .1s ease;padding:2px;overflow:hidden;line-height:1.15;}
   .floorplan-table:hover{transform:translateY(-2px);}
   .floorplan-table.occupied{background:rgba(244,63,94,.14);border-color:var(--red);color:var(--red);}
   .floorplan-table.dragging{cursor:grabbing;box-shadow:0 6px 18px rgba(0,0,0,.25);z-index:5;transition:none;}
   .floorplan-table .fp-sub{font-size:10px;font-weight:400;margin-top:3px;opacity:.85;}
-  .floorplan-editor .floorplan-table{cursor:grab;}
+  .floorplan-editor .floorplan-table{cursor:grab;touch-action:none;}
   .range-preset-btn{width:auto;padding:6px 12px;margin:0;font-size:12px;background:transparent;border:1px solid var(--border);color:var(--text);box-shadow:none;}
   .range-preset-btn:hover{border-color:var(--accent);color:var(--accent);}
 

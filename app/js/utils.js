@@ -184,3 +184,24 @@ function actBtn(kind, onclick, extraAttrs){
   const label = kind==='delete' ? 'Sil' : 'Kaydet';
   return `<button type="button" class="act-btn act-${kind==='delete'?'delete':'save'}" onclick="${onclick}" ${extraAttrs||''}>${icon}<span>${label}</span></button>`;
 }
+
+/* Kat planı ölçekleme: masa konumları (pos_x/pos_y) sabit bir mantıksal
+   koordinat düzleminde saklanır; ekranda kanvas genişliğine sığacak şekilde
+   orantılı küçültülür (gerekirse yatay kaydırma ile). Böylece masaüstünde yerleştirilen plan telefonda da
+   tamamen görünür ve sürüklenebilir (sürüklemede piksel farkı ölçeğe
+   bölünerek mantıksal koordinata çevrilir). */
+const FP_TABLE_SIZE = 86;
+function fpLayout(canvas, tables){
+  const maxX = Math.max(0, ...tables.map(t => Number(t.pos_x||0)));
+  const maxY = Math.max(0, ...tables.map(t => Number(t.pos_y||0)));
+  const logicalW = Math.max(600, maxX + FP_TABLE_SIZE + 20);
+  const avail = canvas.clientWidth || logicalW;
+  // Çok geniş planlarda masalar okunamayacak kadar küçülmesin: alt sınır
+  // 0.55, kalan kısım kanvas içinde yatay kaydırılır.
+  const scale = Math.max(0.55, Math.min(1, avail / logicalW));
+  canvas.style.setProperty('--fp-s', scale);
+  canvas.style.height = Math.max(200, Math.round((maxY + FP_TABLE_SIZE + 24) * scale) + 40) + 'px';
+  // Sürükleme sınırı: görünen kanvasın tamamı (masaüstünde sağa doğru
+  // genişletmeye izin verir).
+  return { scale, logicalW: Math.max(logicalW, Math.floor(avail / scale)) };
+}
