@@ -65,6 +65,7 @@ function render(){
         <button class="mobile-menu-btn" onclick="toggleMobileNav()" aria-label="Menü">☰</button>
         <img src="/assets/images/logo.webp" alt="Peyktan" class="mobile-topbar-logo">
         <div class="mobile-topbar-title">${escapeHtml(session.restaurant_name)}</div>
+        <button class="mobile-menu-btn" onclick="refreshApp()" aria-label="Yenile" title="Yenile">↻</button>
       </div>
       <div class="sidebar-backdrop ${APP.mobileNavOpen?'show':''}" onclick="closeMobileNav()"></div>
       <aside class="sidebar ${collapsed?'collapsed':''} ${APP.mobileNavOpen?'mobile-open':''}">
@@ -89,6 +90,7 @@ function render(){
             <button class="${theme==='dark'?'active':''}" onclick="setTheme('dark')" type="button">🌙 <span class="label">Koyu</span></button>
             <button class="${theme==='light'?'active':''}" onclick="setTheme('light')" type="button">☀️ <span class="label">Açık</span></button>
           </div>
+          <button class="sb-logout" onclick="refreshApp()" title="Yenile (son değişiklikleri getir)">🔄<span class="label"> Yenile</span></button>
           <button class="sb-logout" onclick="doLogout()" title="Çıkış Yap">🚪<span class="label"> Çıkış Yap</span></button>
         </div>
       </aside>
@@ -152,6 +154,53 @@ function applyDeepLinkView(){
   if(!view) return;
   const item = NAV_ITEMS.find(i => i.view===view);
   if(item && navItemVisible(item, session)) APP.view = view;
+}
+/* ---- Yenile: sayfayı baştan yükler (en güncel kod + veriler), açık olan
+   ekran ve Ayarlar sekmesi korunur. Oturum sessionStorage'da olduğu için
+   yeniden giriş gerekmez. Mobilde ayrıca sayfanın en üstündeyken aşağı
+   çekerek (pull-to-refresh) tetiklenir. ---- */
+function refreshApp(){
+  try{ sessionStorage.setItem('rys_restore_view', JSON.stringify({ view: APP.view, settingsTab: APP.settingsTab })); }catch(e){}
+  window.location.reload();
+}
+function restoreViewAfterRefresh(){
+  let saved = null;
+  try{ saved = JSON.parse(sessionStorage.getItem('rys_restore_view') || 'null'); sessionStorage.removeItem('rys_restore_view'); }catch(e){}
+  const session = getSession();
+  if(!saved || !session) return;
+  const item = NAV_ITEMS.find(i => i.view===saved.view);
+  if(item && navItemVisible(item, session)) APP.view = saved.view;
+  if(saved.settingsTab) APP.settingsTab = saved.settingsTab;
+}
+function setupPullToRefresh(){
+  if(!('ontouchstart' in window)) return;
+  const PULL_TRIGGER = 90;
+  let startY = null, dy = 0, ind = null;
+  const blocked = (t) => !getSession() || !document.querySelector('.app-shell')
+    || (t.closest && t.closest('.floorplan-editor, .sidebar, input, textarea, select, [id$="ModalBg"], [id$="Modal"]'))
+    || document.querySelector('[id$="ModalBg"]');
+  document.addEventListener('touchstart', (e) => {
+    startY = null;
+    if(e.touches.length !== 1 || window.scrollY > 0 || blocked(e.target)) return;
+    startY = e.touches[0].clientY; dy = 0;
+  }, { passive: true });
+  document.addEventListener('touchmove', (e) => {
+    if(startY === null) return;
+    dy = e.touches[0].clientY - startY;
+    if(dy <= 10 || window.scrollY > 0){ if(ind){ ind.remove(); ind = null; } return; }
+    if(!ind){ ind = document.createElement('div'); ind.className = 'ptr-indicator'; document.body.appendChild(ind); }
+    const p = Math.min(dy, PULL_TRIGGER * 1.4);
+    ind.style.transform = 'translate(-50%,' + (p * 0.6) + 'px)';
+    ind.textContent = dy >= PULL_TRIGGER ? '↻ Bırakınca yenilenir' : '↓ Yenilemek için çekin';
+    ind.classList.toggle('ready', dy >= PULL_TRIGGER);
+  }, { passive: true });
+  document.addEventListener('touchend', () => {
+    if(startY === null) return;
+    const go = dy >= PULL_TRIGGER && window.scrollY <= 0;
+    startY = null;
+    if(ind){ if(go){ ind.textContent = '↻ Yenileniyor…'; } else { ind.remove(); ind = null; } }
+    if(go) refreshApp();
+  });
 }
 /* Tanıtım sitesinden (/) "Ücretsiz Dene" butonuyla gelenler doğrudan kayıt
    ekranında açılsın diye (?signup=1) - normal ?admin=1 gibi tek seferlik
@@ -224,6 +273,8 @@ checkWebAwayTimeout();
 
 if(!getSession() && new URLSearchParams(window.location.search).get('signup')==='1') APP.authScreen = 'signup';
 applyDeepLinkView();
+restoreViewAfterRefresh();
+setupPullToRefresh();
 initNativeAppMode();
 render();
 /* Push bildirimine tıklanınca zaten açık olan bir sekme varsa (bkz.
