@@ -857,7 +857,17 @@ async function renderShiftsTable(session){
     </label>`;
   const pendWrap = document.getElementById('shiftPendingWrap');
   const pending = data.pending || [];
-  if(pendWrap) pendWrap.innerHTML = pending.length ? `
+  const endReqs = data.end_requests || [];
+  if(pendWrap) pendWrap.innerHTML = (endReqs.length ? `
+    <div style="border:1px solid #d9a400;border-radius:12px;padding:12px;margin-bottom:16px;">
+      <b>🏁 Bitirme Talepleri (${endReqs.length})</b>
+      ${endReqs.map(p => `<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:10px;flex-wrap:wrap;">
+        <span><b>${escapeHtml(p.username)}</b> <span class="muted">· ${formatShiftTime(p.clock_in)}'dan beri vardiyada, ${formatShiftTime(p.requested_at)}'de bitirmek istedi</span></span>
+        <span style="display:flex;gap:8px;">
+          <button class="actBtn" style="width:auto;margin:0;" onclick="manageShift('${p.id}','approve_end')">✓ Bitir</button>
+          <button class="actBtn" style="width:auto;margin:0;background:var(--red);color:var(--btn-ink);" onclick="manageShift('${p.id}','reject_end')">✕ Reddet</button>
+        </span></div>`).join('')}
+    </div>` : '') + (pending.length ? `
     <div style="border:1px solid #d9a400;border-radius:12px;padding:12px;margin-bottom:16px;">
       <b>🟡 Onay Bekleyen Vardiya Talepleri (${pending.length})</b>
       ${pending.map(p => `<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:10px;flex-wrap:wrap;">
@@ -866,7 +876,7 @@ async function renderShiftsTable(session){
           <button class="actBtn" style="width:auto;margin:0;" onclick="manageShift('${p.id}','approve')">✓ Onayla</button>
           <button class="actBtn danger" style="width:auto;margin:0;background:var(--red);color:var(--btn-ink);" onclick="manageShift('${p.id}','reject')">✕ Reddet</button>
         </span></div>`).join('')}
-    </div>` : '';
+    </div>` : '');
   const rows = data.rows || [];
   if(!rows.length){ wrap.innerHTML = '<p class="muted">Bu tarihte vardiya kaydı yok.</p>'; return; }
   wrap.innerHTML = `<div class="settings-table-wrap">
@@ -877,7 +887,7 @@ async function renderShiftsTable(session){
         <tr>
           <td class="col-name">${escapeHtml(r.username)}${r.approved_by && r.approved_by!==r.username ? `<div class="muted" style="font-size:11.5px;">Onaylayan: ${escapeHtml(r.approved_by)}</div>` : ''}</td>
           <td>${formatShiftTime(r.clock_in)}</td>
-          <td>${r.clock_out ? formatShiftTime(r.clock_out) + (r.ended_by && r.ended_by!==r.username ? `<div class="muted" style="font-size:11.5px;">${escapeHtml(r.ended_by)} bitirdi</div>` : '') : '<span class="muted">Devam ediyor</span>'}</td>
+          <td>${!r.clock_out && r.end_requested_at ? `<span style="color:#d9a400;font-weight:700;">🏁 ${formatShiftTime(r.end_requested_at)}'de bitirmek istedi</span>` : r.clock_out ? formatShiftTime(r.clock_out) + (r.ended_by && r.ended_by!==r.username ? `<div class="muted" style="font-size:11.5px;">${escapeHtml(r.ended_by)} bitirdi</div>` : '') : '<span class="muted">Devam ediyor</span>'}</td>
           <td>${formatShiftDuration(r.duration_minutes)}</td>
           <td>${r.clock_out ? '' : `<button class="actBtn" style="width:auto;margin:0;background:var(--red);color:var(--btn-ink);" onclick="manageShift('${r.id}','end')">⏹ Bitir</button>`}</td>
         </tr>`).join('')}
@@ -890,7 +900,7 @@ async function manageShift(id, action){
   const session = getSession();
   const { error } = await withLoadingOverlay(sb.rpc('manage_staff_shift', { p_token: session.session_token, p_shift_id: id, p_action: action }));
   if(error){ showToast(error.message); return; }
-  showToast(action==='approve' ? 'Vardiya başlatıldı ✓' : action==='reject' ? 'Talep reddedildi' : 'Vardiya bitirildi ✓');
+  showToast({ approve:'Vardiya başlatıldı ✓', reject:'Talep reddedildi', approve_end:'Vardiya bitirildi ✓', reject_end:'Bitirme talebi reddedildi', end:'Vardiya bitirildi ✓' }[action] || 'Tamam');
   renderShiftsTable(session);
   refreshShiftWidget(session);
 }

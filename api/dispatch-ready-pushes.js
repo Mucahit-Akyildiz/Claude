@@ -272,15 +272,19 @@ async function dispatchShiftEvent(supabase, shiftId, event) {
     .maybeSingle();
   if (!shift) return { sent: 0, note: 'not found' };
   const name = (shift.app_users && shift.app_users.username) || 'Bir personel';
-  if (event === 'request') {
-    if (shift.status !== 'pending') return { sent: 0, note: 'not pending' };
+  if (event === 'request' || event === 'end_request') {
+    if (event === 'request' && shift.status !== 'pending') return { sent: 0, note: 'not pending' };
     const { data: appUsers } = await supabase.from('app_users').select('id, role_ids').eq('restaurant_id', shift.restaurant_id);
     const { data: roles } = await supabase.from('roles').select('id, is_system, permissions').eq('restaurant_id', shift.restaurant_id);
     const mgrRoleIds = new Set((roles || []).filter((rl) => rl.is_system || (rl.permissions || []).includes('shifts')).map((rl) => rl.id));
     const mgrIds = (appUsers || []).filter((u) => u.id !== shift.user_id && (u.role_ids || []).some((rid) => mgrRoleIds.has(rid))).map((u) => u.id);
-    return sendToUsers(supabase, mgrIds, {
+    return sendToUsers(supabase, mgrIds, event === 'request' ? {
       title: '🕒 Vardiya onayı bekleniyor',
       body: name + ' vardiyaya başlamak istiyor. Onaylamak için dokunun.',
+      url: '/app/', view: 'settings', tag: 'shift-request-' + shift.id,
+    } : {
+      title: '🏁 Vardiya bitirme talebi',
+      body: name + ' vardiyasını bitirmek istiyor. Onaylamak için dokunun.',
       url: '/app/', view: 'settings', tag: 'shift-request-' + shift.id,
     });
   }
@@ -288,6 +292,8 @@ async function dispatchShiftEvent(supabase, shiftId, event) {
     approved: ['✅ Vardiyanız başladı', 'Vardiya talebiniz onaylandı, iyi çalışmalar!'],
     rejected: ['❌ Vardiya talebi reddedildi', 'Vardiya başlatma talebiniz yönetici tarafından reddedildi.'],
     ended: ['⏹ Vardiyanız bitirildi', 'Vardiyanız yönetici tarafından sonlandırıldı.'],
+    end_approved: ['✅ Vardiyanız bitti', 'Vardiya bitirme talebiniz onaylandı. İyi dinlenmeler!'],
+    end_rejected: ['❌ Bitirme talebi reddedildi', 'Vardiyanız devam ediyor; bitirme talebiniz reddedildi.'],
   };
   if (!msgs[event]) return { sent: 0, note: 'unknown event' };
   return sendToUsers(supabase, [shift.user_id], { title: msgs[event][0], body: msgs[event][1], url: '/app/', tag: 'shift-' + shift.id });
