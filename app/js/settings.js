@@ -525,15 +525,24 @@ function renderFloorPlanSettings(el, session){
     ${zones.map(z => `
       <div style="margin-bottom:22px;">
         <h3 style="margin:0 0 8px;font-size:14px;">${escapeHtml(z.name)}</h3>
-        ${z.tables.length===0 ? '<p class="muted">Bu bölgede masa yok.</p>' : `<div class="floorplan-canvas floorplan-editor" id="fpEdit_${z.id}" style="height:320px;"></div>`}
+        ${z.tables.length===0 ? '<p class="muted">Bu bölgede masa yok.</p>' : `<div class="floorplan-canvas floorplan-editor" id="fpEdit_${z.id}"></div>`}
       </div>`).join('')}
     ${zones.length===0 ? '<p class="muted">Önce Bölgeler &amp; Masalar sekmesinden bölge/masa ekleyin.</p>' : ''}
   </div>`;
   zones.forEach(z => { if(z.tables.length>0) renderFloorPlanEditorCanvas(z); });
+  if(!window._fpResizeBound){
+    window._fpResizeBound = true;
+    window.addEventListener('resize', () => {
+      if(APP.settingsTab!=='floorplan' || FP_DRAG || !APP.config) return;
+      (APP.config.zones||[]).forEach(z => { if(z.tables.length>0) renderFloorPlanEditorCanvas(z); });
+    });
+  }
 }
 function renderFloorPlanEditorCanvas(zone){
   const canvas = document.getElementById('fpEdit_'+zone.id); if(!canvas) return;
-  canvas.innerHTML = zone.tables.map(t => `<div class="floorplan-table" data-table-id="${t.id}" style="left:${Number(t.pos_x||0)}px;top:${Number(t.pos_y||0)}px;">${escapeHtml(t.name)}</div>`).join('');
+  const { scale, logicalW } = fpLayout(canvas, zone.tables);
+  canvas.dataset.fpScale = scale; canvas.dataset.fpW = logicalW;
+  canvas.innerHTML = zone.tables.map(t => `<div class="floorplan-table" data-table-id="${t.id}" data-x="${Number(t.pos_x||0)}" data-y="${Number(t.pos_y||0)}" style="left:${Number(t.pos_x||0)*scale}px;top:${Number(t.pos_y||0)*scale}px;">${escapeHtml(t.name)}</div>`).join('');
   canvas.querySelectorAll('.floorplan-table').forEach(elx => {
     elx.addEventListener('pointerdown', (ev) => startTableDrag(ev, elx));
   });
@@ -541,7 +550,9 @@ function renderFloorPlanEditorCanvas(zone){
 let FP_DRAG = null;
 function startTableDrag(ev, elx){
   ev.preventDefault();
-  FP_DRAG = { elx, startX: ev.clientX, startY: ev.clientY, startLeft: parseFloat(elx.style.left)||0, startTop: parseFloat(elx.style.top)||0, tableId: elx.dataset.tableId };
+  const canvas = elx.parentElement;
+  FP_DRAG = { elx, startX: ev.clientX, startY: ev.clientY, startLeft: Number(elx.dataset.x)||0, startTop: Number(elx.dataset.y)||0,
+    scale: Number(canvas.dataset.fpScale)||1, maxX: (Number(canvas.dataset.fpW)||600) - FP_TABLE_SIZE, tableId: elx.dataset.tableId };
   elx.classList.add('dragging');
   elx.setPointerCapture(ev.pointerId);
   elx.addEventListener('pointermove', onTableDragMove);
@@ -550,10 +561,12 @@ function startTableDrag(ev, elx){
 }
 function onTableDragMove(ev){
   if(!FP_DRAG) return;
-  const dx = ev.clientX - FP_DRAG.startX;
-  const dy = ev.clientY - FP_DRAG.startY;
-  FP_DRAG.elx.style.left = Math.max(0, FP_DRAG.startLeft + dx) + 'px';
-  FP_DRAG.elx.style.top = Math.max(0, FP_DRAG.startTop + dy) + 'px';
+  const d = FP_DRAG;
+  const x = Math.min(d.maxX, Math.max(0, d.startLeft + (ev.clientX - d.startX) / d.scale));
+  const y = Math.max(0, d.startTop + (ev.clientY - d.startY) / d.scale);
+  d.elx.dataset.x = x; d.elx.dataset.y = y;
+  d.elx.style.left = (x * d.scale) + 'px';
+  d.elx.style.top = (y * d.scale) + 'px';
 }
 async function onTableDragEnd(ev){
   if(!FP_DRAG) return;
@@ -562,13 +575,16 @@ async function onTableDragEnd(ev){
   elx.removeEventListener('pointermove', onTableDragMove);
   elx.removeEventListener('pointerup', onTableDragEnd);
   elx.removeEventListener('pointercancel', onTableDragEnd);
-  const posX = Math.round(parseFloat(elx.style.left)||0);
-  const posY = Math.round(parseFloat(elx.style.top)||0);
+  const posX = Math.round(Number(elx.dataset.x)||0);
+  const posY = Math.round(Number(elx.dataset.y)||0);
   FP_DRAG = null;
   const session = getSession();
   const { error } = await sb.rpc('update_table_positions', { p_token: session.session_token, p_positions: [{ id: tableId, pos_x: posX, pos_y: posY }] });
   if(error){ showToast('Konum kaydedilemedi: '+error.message); return; }
-  APP.config.zones.forEach(z => z.tables.forEach(t => { if(t.id===tableId){ t.pos_x = posX; t.pos_y = posY; } }));
+  let zoneOf = null;
+  APP.config.zones.forEach(z => z.tables.forEach(t => { if(t.id===tableId){ t.pos_x = posX; t.pos_y = posY; zoneOf = z; } }));
+  // Plan genişleyip/daraldıysa ölçeği yeniden hesapla.
+  if(zoneOf) renderFloorPlanEditorCanvas(zoneOf);
 }
 /* Her masanın kendi QR token'ı var (bkz. restaurant_tables.qr_token) - bu
    linki tarayan müşteri login gerektirmeyen /menu/ sayfasında o masanın
