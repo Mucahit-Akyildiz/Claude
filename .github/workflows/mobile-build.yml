@@ -93,6 +93,11 @@ jobs:
         run: |
           chmod +x gradlew
           ./gradlew bundleRelease --no-daemon
+          # İmzasız AAB Play Console'a yüklenemez - imza yoksa derleme başarısız olsun.
+          if ! jarsigner -verify app/build/outputs/bundle/release/app-release.aab | grep -q "jar verified"; then
+            echo "::error::AAB imzalanmamış (keystore bulunamadı veya bilgiler hatalı)"; exit 1
+          fi
+          jarsigner -verify -verbose -certs app/build/outputs/bundle/release/app-release.aab | grep -m1 "X.509" || true
 
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: ${{ env.HAS_RELEASE_KEYSTORE == 'true' }}

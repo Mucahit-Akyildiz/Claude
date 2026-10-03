@@ -20,7 +20,7 @@ async function renderKitchenView(main, session){
     return;
   }
   const station = APP.config.stations.find(s => s.id===APP.kitchenStation);
-  main.innerHTML = `<div style="display:flex;justify-content:space-between;"><h1>🍳 ${escapeHtml(station.name)}</h1>
+  main.innerHTML = `<div style="display:flex;justify-content:space-between;"><h1>${escapeHtml(station.icon||"🍳")} ${escapeHtml(station.name)}</h1>
     <div style="display:flex;gap:8px;align-items:flex-start;">
       <button class="ghost-btn" style="color:var(--red);" onclick="openManualWasteModal()" title="Siparişe bağlı olmayan israf (yanan, düşen, bozulan ürün)">🔥 İsraf Gir</button>
       <button class="ghost-btn" onclick="APP.kitchenStation=null;render();">İstasyon Değiştir</button>
