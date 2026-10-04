@@ -2446,9 +2446,12 @@ function setupNativeFcmListeners(){
       return PN.createChannel({
         id: 'peyktan_v1', name: 'Peyktan Bildirimleri', description: 'Sipariş, garson çağrısı ve mesaj bildirimleri',
         importance: 5, visibility: 1, vibration: true, lights: true, sound: 'peyktan.wav',
-      }).then(() => { APP.nativePushChannel = 'peyktan_v1'; }).catch(() => {});
+      }).then(() => { APP.nativePushChannel = 'peyktan_v1'; })
+        .catch(e => reportClientError('push_channel', 'peyktan_v1 kanalı oluşturulamadı: ' + ((e && e.message) || e), 'build ' + info.build));
     }
-  }).catch(() => {});
+    // Sesli kanal kullanılamıyorsa nedenini kayda geçir (Admin Paneli > Hatalar).
+    reportClientError('push_channel', 'Eski uygulama sürümü: Peyktan sesi yok', 'build ' + (info && info.build) + ' / ' + (info && info.version));
+  }).catch(e => reportClientError('push_channel', 'getInfo hatası: ' + ((e && e.message) || e), ''));
   PN.addListener('registration', (token) => {
     if(_fcmTokenResolve){ _fcmTokenResolve(token.value); _fcmTokenResolve = null; }
   });
