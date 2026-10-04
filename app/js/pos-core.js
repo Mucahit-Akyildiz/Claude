@@ -68,7 +68,7 @@ async function refreshKitchenItems(session){
       </div>
       ${pending.map(it => `<div class="kitchen-item-row" style="padding:10px 0;border-top:1px dashed var(--border);">
         <div style="display:grid;grid-template-columns:1fr 64px auto auto;align-items:center;gap:10px;">
-          <span class="kitchen-item-name" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${it.qty}x ${escapeHtml(it.name)}</span>
+          <span class="kitchen-item-name" style="min-width:0;overflow-wrap:anywhere;line-height:1.3;">${it.qty}x ${escapeHtml(it.name)}</span>
           <span class="kitchen-timer" data-added="${it.added_at||''}" data-id="${it.id}" data-name="${escapeAttr(tableName+' - '+it.qty+'x '+it.name)}" style="text-align:center;">-</span>
           <button style="width:auto;padding:8px 10px;font-size:14px;background:var(--red);color:var(--btn-ink);" onclick="openWasteModal('${it.id}')" title="İsraf oldu (yandı/düştü/bozuldu)">🔥</button>
           <button style="width:auto;padding:8px 14px;font-size:14px;background:var(--green);color:var(--btn-ink);" onclick="markReady('${it.id}')">Hazır</button>
