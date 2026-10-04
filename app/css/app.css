@@ -508,3 +508,15 @@ div.table-cell.badge-row::before{content:'● Hazır, ödeme bekliyor';margin:0 
 .sub-tab.active{background:var(--panel);color:var(--text);box-shadow:0 1px 2px rgba(0,0,0,.08),0 2px 8px rgba(0,0,0,.06);}
 .sub-tab .sub-tab-ic{font-size:15px;line-height:1;}
 .sub-tabs-content > .box{border:none;box-shadow:none;padding:0;margin:0;background:transparent;max-width:none;}
+
+/* Rezervasyon Analizi: tıklanabilir kart/satır/etiketler */
+.resv-an-card{cursor:pointer;transition:border-color .15s,box-shadow .15s,transform .08s;}
+.resv-an-card:hover{border-color:var(--accent);}
+.resv-an-card.active{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent) inset;}
+.resv-an-card-hint{font-size:11px;font-weight:700;color:var(--accent);margin-top:6px;opacity:.75;}
+.resv-an-card.active .resv-an-card-hint{opacity:1;}
+.resv-an-row{cursor:pointer;border-radius:8px;}
+.resv-an-row:hover td,.resv-an-row:hover{background:color-mix(in srgb,var(--accent) 8%,transparent);}
+.resv-an-row.active td,div.resv-an-row.active{background:color-mix(in srgb,var(--accent) 14%,transparent) !important;}
+.resv-an-chip{cursor:pointer;}
+.resv-an-chip.active{background:color-mix(in srgb,currentColor 14%,transparent);}

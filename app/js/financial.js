@@ -724,46 +724,132 @@ async function renderReservationAnalyticsContent(session){
   const el = document.getElementById('reportContent'); if(!el) return;
   const { data, error } = await withLoadingOverlay(sb.rpc('get_reservation_analytics', { p_token: session.session_token, p_from: APP.reportDate, p_to: APP.reportDateTo }));
   if(error){ el.innerHTML = '<p class="muted">Yüklenemedi: '+escapeHtml(error.message)+'</p>'; return; }
+  APP.resvAn = data;
+  APP.resvAnFilter = null;
+  drawResvAnalytics();
+}
+function setResvAnSub(sub){ APP.resvAnSub = sub; APP.resvAnFilter = null; drawResvAnalytics(); }
+function setResvAnFilter(key, label){
+  APP.resvAnFilter = APP.resvAnFilter && APP.resvAnFilter.key===key ? null : { key, label };
+  drawResvAnalytics();
+  const list = document.getElementById('resvAnList');
+  if(list && APP.resvAnFilter) list.scrollIntoView({ behavior:'smooth', block:'start' });
+}
+/* Tıklanabilir istatistik kartı: basınca alttaki liste o kayıtlarla filtrelenir. */
+function resvAnCard(label, value, color, key){
+  const active = APP.resvAnFilter && APP.resvAnFilter.key===key;
+  return `<div class="card resv-an-card ${active?'active':''}" onclick="setResvAnFilter('${key}', ${escapeAttr(JSON.stringify(label))})" title="Listelemek için tıklayın">
+    <div class="muted" style="font-size:11px;text-transform:uppercase;letter-spacing:.04em;font-weight:700;">${escapeHtml(label)}</div>
+    <div style="font-size:22px;font-weight:800;margin-top:6px;${color?'color:'+color+';':''}">${value}</div>
+    <div class="resv-an-card-hint">${active ? '✓ Listeleniyor' : 'Listele ›'}</div>
+  </div>`;
+}
+function drawResvAnalytics(){
+  const el = document.getElementById('reportContent'); const data = APP.resvAn; if(!el || !data) return;
+  const sub = APP.resvAnSub || 'resv';
+  const f = APP.resvAnFilter;
   const sm = data.summary || {}, wl = data.waitlist || {};
   const pct = (a, b) => b > 0 ? Math.round(a / b * 100) + '%' : '—';
   const hm = (iso) => iso ? new Date(iso).toLocaleTimeString('tr-TR', { hour:'2-digit', minute:'2-digit' }) : '-';
   const dt = (iso) => new Date(iso).toLocaleDateString('tr-TR', { day:'2-digit', month:'2-digit' });
+  const small = (t) => ` <span style="font-size:13px;font-weight:600;color:var(--muted);">${t}</span>`;
   const diffTxt = (d) => d==null ? '<span class="muted">-</span>'
     : d > 5 ? `<span style="color:var(--red);font-weight:700;">${d} dk geç</span>`
     : d < -5 ? `<span style="color:var(--green);font-weight:700;">${-d} dk erken</span>`
     : '<span style="color:var(--green);font-weight:700;">Zamanında</span>';
-  const statusTxt = { pending:'Bekliyor', confirmed:'Onaylı', seated:'✅ Geldi', cancelled:'✕ İptal', no_show:'🚫 Gelmedi' };
-  const rows = data.rows || [];
+  const tabs = `<div class="sub-tabs">
+    <div role="tab" tabindex="0" class="sub-tab ${sub==='resv'?'active':''}" onclick="setResvAnSub('resv')"><span class="sub-tab-ic">📅</span>Rezervasyonlar <span class="muted" style="font-weight:600;">${sm.total||0}</span></div>
+    <div role="tab" tabindex="0" class="sub-tab ${sub==='wl'?'active':''}" onclick="setResvAnSub('wl')"><span class="sub-tab-ic">⏳</span>Bekleme Listesi <span class="muted" style="font-weight:600;">${wl.total||0}</span></div>
+  </div>`;
+  const filterBar = (count) => f ? `<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 10px;">
+      <span class="role-badge" style="color:var(--accent);border-color:var(--accent);">Filtre: ${escapeHtml(f.label)} · ${count} kayıt</span>
+      <a href="#" style="color:var(--accent);font-size:13px;" onclick="setResvAnFilter('${f.key}');return false;">✕ Filtreyi kaldır</a></div>` : '';
+  const head = `<p class="muted" style="text-align:left;margin:0 0 12px;">${escapeHtml(reportDateRangeLabel())} · Kartlara, saatlere ve masalara tıklayarak ilgili kayıtları listeleyin. Ciro, oturtulan masaların kapanan hesaplarından hesaplanır.</p>`;
+
+  if(sub==='wl'){
+    const all = data.waitlist_rows || [];
+    const match = (r) => !f ? true
+      : f.key==='seated' ? r.status==='seated'
+      : f.key==='left' ? r.status==='cancelled'
+      : f.key==='waiting' ? r.status==='waiting'
+      : f.key==='late' ? (r.status==='seated' && r.quoted!=null && Number(r.waited) > Number(r.quoted))
+      : f.key==='revenue' ? Number(r.revenue) > 0
+      : f.key.startsWith('table:') ? (r.table_name||'—')===f.key.slice(6)
+      : true;
+    const rows = all.filter(match);
+    el.innerHTML = head + tabs + `
+      <div class="home-grid" style="margin-top:0;margin-bottom:18px;">
+        ${resvAnCard('Listeye Alınan', wl.total||0, null, 'all')}
+        ${resvAnCard('Oturan', (wl.seated||0) + small('(' + pct(wl.seated||0, wl.total||0) + ')'), 'var(--green)', 'seated')}
+        ${resvAnCard('Beklemeden Ayrılan', wl.left||0, (wl.left||0) > 0 ? 'var(--red)' : null, 'left')}
+        ${(wl.waiting||0) > 0 ? resvAnCard('Hâlâ Bekleyen', wl.waiting, null, 'waiting') : ''}
+        ${resvAnCard('Oturan Misafir', (wl.guests_seated||0) + ' kişi', null, 'seated')}
+        ${resvAnCard('Ort. Bekleme', wl.avg_wait!=null ? wl.avg_wait + ' dk' + (wl.avg_quoted!=null ? small('(tahmin ' + wl.avg_quoted + ')') : '') : '—', null, 'seated')}
+        ${resvAnCard('Tahminden Geç Oturtulan', wl.late||0, (wl.late||0) > 0 ? 'var(--red)' : null, 'late')}
+        ${resvAnCard('Bekleme Listesi Cirosu', money(wl.revenue||0), 'var(--accent)', 'revenue')}
+      </div>
+      <h3 id="resvAnList" style="margin:0 0 10px;">📋 Bekleme Listesi Kayıtları</h3>
+      ${filterBar(rows.length)}
+      ${rows.length ? `<div class="settings-table-wrap"><table class="settings-table"><thead><tr><th>Müşteri</th><th>Kişi</th><th>Katılım</th><th>Sonuç</th><th>Masa</th><th>Bekleme</th><th>Tahmine göre</th><th>Sipariş</th></tr></thead><tbody>
+        ${rows.map(r => {
+          const d = (r.status==='seated' && r.quoted!=null) ? Number(r.waited) - Number(r.quoted) : null;
+          return `<tr>
+          <td class="col-name">${escapeHtml(r.customer_name)}${r.phone ? `<div class="muted" style="font-size:11.5px;">${escapeHtml(r.phone)}</div>` : ''}</td>
+          <td>${r.party_size}</td>
+          <td>${dt(r.joined_at)} ${hm(r.joined_at)}</td>
+          <td>${r.status==='seated' ? '✅ Oturdu ' + hm(r.seated_at) : r.status==='cancelled' ? `<span style="color:var(--red);">✕ Ayrıldı ${hm(r.left_at)}</span>` : '<span class="muted">Bekliyor</span>'}</td>
+          <td>${r.table_name ? `<b>${escapeHtml(r.table_name)}</b>` : '<span class="muted">—</span>'}</td>
+          <td>${r.waited!=null ? r.waited + ' dk' : '-'}${r.quoted!=null ? `<div class="muted" style="font-size:11px;">tahmin ${r.quoted}</div>` : ''}</td>
+          <td>${d==null ? '<span class="muted">-</span>' : d > 0 ? `<span style="color:var(--red);font-weight:700;">${d} dk geç</span>` : d < 0 ? `<span style="color:var(--green);font-weight:700;">${-d} dk erken</span>` : '<span style="color:var(--green);font-weight:700;">Tam zamanında</span>'}</td>
+          <td>${Number(r.revenue) > 0 ? money(r.revenue) : '<span class="muted">-</span>'}</td>
+        </tr>`; }).join('')}
+      </tbody></table></div>` : '<p class="muted">Kayıt yok.</p>'}`;
+    return;
+  }
+
+  const all = data.rows || [];
+  const match = (r) => !f ? true
+    : f.key==='seated' ? r.status==='seated'
+    : f.key==='missed' ? (r.status==='no_show' || r.status==='cancelled')
+    : f.key==='upcoming' ? (r.status==='pending' || r.status==='confirmed')
+    : f.key==='revenue' ? Number(r.revenue) > 0
+    : f.key==='on_time' ? (r.arrival_diff!=null && Math.abs(r.arrival_diff) <= 5)
+    : f.key==='early' ? r.arrival_diff < -5
+    : f.key==='late' ? r.arrival_diff > 5
+    : f.key.startsWith('hour:') ? new Date(r.reservation_time).getHours()===Number(f.key.slice(5))
+    : f.key.startsWith('table:') ? (r.table_name||'—')===f.key.slice(6) && r.status==='seated'
+    : true;
+  const rows = all.filter(match);
   const byHour = data.by_hour || [];
   const maxH = Math.max(1, ...byHour.map(h => h.guests || 0));
-  const avgDiff = sm.avg_arrival_diff;
-  el.innerHTML = `
-    <p class="muted" style="text-align:left;margin:0 0 12px;">${escapeHtml(reportDateRangeLabel())} · Ciro, rezervasyon/bekleme listesinden oturtulan masaların kapanan hesaplarından hesaplanır.</p>
-    <h3 style="margin:0 0 10px;">📅 Rezervasyonlar</h3>
+  const statusTxt = { pending:'Bekliyor', confirmed:'Onaylı', seated:'✅ Geldi', cancelled:'✕ İptal', no_show:'🚫 Gelmedi' };
+  const isF = (k) => f && f.key===k;
+  el.innerHTML = head + tabs + `
     <div class="home-grid" style="margin-top:0;margin-bottom:16px;">
-      ${statCard('Toplam Rezervasyon', sm.total||0)}
-      ${statCard('Gelen', (sm.seated||0) + ' <span style="font-size:13px;font-weight:600;color:var(--muted);">(' + pct(sm.seated||0, sm.total||0) + ')</span>', 'var(--green)')}
-      ${statCard('Gelmedi / İptal', (sm.no_show||0) + ' / ' + (sm.cancelled||0), (sm.no_show||0) > 0 ? 'var(--red)' : null)}
-      ${statCard('Gelen Misafir', (sm.guests_seated||0) + ' <span style="font-size:13px;font-weight:600;color:var(--muted);">/ ' + (sm.guests_booked||0) + ' kişi rezerve</span>')}
-      ${statCard('Ort. Kişi', sm.avg_party ?? '—')}
-      ${statCard('Rezervasyon Cirosu', money(sm.revenue||0), 'var(--accent)')}
-      ${statCard('Ort. Sipariş (masa)', sm.avg_order!=null ? money(sm.avg_order) : '—')}
-      ${statCard('Kişi Başı Harcama', sm.avg_per_guest!=null ? money(sm.avg_per_guest) : '—')}
+      ${resvAnCard('Toplam Rezervasyon', sm.total||0, null, 'all')}
+      ${resvAnCard('Gelen', (sm.seated||0) + small('(' + pct(sm.seated||0, sm.total||0) + ')'), 'var(--green)', 'seated')}
+      ${resvAnCard('Gelmedi / İptal', (sm.no_show||0) + ' / ' + (sm.cancelled||0), (sm.no_show||0) > 0 ? 'var(--red)' : null, 'missed')}
+      ${(sm.pending||0) > 0 ? resvAnCard('Yaklaşan', sm.pending, null, 'upcoming') : ''}
+      ${resvAnCard('Gelen Misafir', (sm.guests_seated||0) + small('/ ' + (sm.guests_booked||0) + ' kişi rezerve'), null, 'seated')}
+      ${resvAnCard('Ort. Kişi', sm.avg_party ?? '—', null, 'all')}
+      ${resvAnCard('Rezervasyon Cirosu', money(sm.revenue||0), 'var(--accent)', 'revenue')}
+      ${resvAnCard('Ort. Sipariş (masa)', sm.avg_order!=null ? money(sm.avg_order) : '—', null, 'revenue')}
+      ${resvAnCard('Kişi Başı Harcama', sm.avg_per_guest!=null ? money(sm.avg_per_guest) : '—', null, 'revenue')}
     </div>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px;margin-bottom:18px;">
       <div class="box" style="max-width:none;margin:0;">
         <h3 style="margin:0 0 10px;">⏰ Rezervasyon Saatine Göre Geliş</h3>
-        <p style="margin:0 0 8px;">Ortalama: ${avgDiff==null ? '<span class="muted">veri yok</span>' : diffTxt(avgDiff)}</p>
+        <p style="margin:0 0 8px;">Ortalama: ${sm.avg_arrival_diff==null ? '<span class="muted">veri yok</span>' : diffTxt(sm.avg_arrival_diff)}</p>
         <div style="display:flex;gap:8px;flex-wrap:wrap;font-size:13px;">
-          <span class="role-badge" style="color:var(--green);border-color:var(--green);">Zamanında (±5 dk): ${sm.on_time||0}</span>
-          <span class="role-badge" style="color:var(--green);border-color:var(--green);">Erken: ${sm.early||0}</span>
-          <span class="role-badge" style="color:var(--red);border-color:var(--red);">Geç: ${sm.late||0}</span>
+          <span class="role-badge resv-an-chip ${isF('on_time')?'active':''}" style="color:var(--green);border-color:var(--green);" onclick="setResvAnFilter('on_time','Zamanında gelenler')">Zamanında (±5 dk): ${sm.on_time||0}</span>
+          <span class="role-badge resv-an-chip ${isF('early')?'active':''}" style="color:var(--green);border-color:var(--green);" onclick="setResvAnFilter('early','Erken gelenler')">Erken: ${sm.early||0}</span>
+          <span class="role-badge resv-an-chip ${isF('late')?'active':''}" style="color:var(--red);border-color:var(--red);" onclick="setResvAnFilter('late','Geç gelenler')">Geç: ${sm.late||0}</span>
         </div>
         <p class="muted" style="font-size:11.5px;text-align:left;margin:8px 0 0;">Geliş saati, rezervasyon "Oturdu" yapıldığında kaydedilir.</p>
       </div>
       <div class="box" style="max-width:none;margin:0;">
         <h3 style="margin:0 0 10px;">🕐 Saatlere Göre Yoğunluk</h3>
-        ${byHour.length ? byHour.map(h => `<div style="display:flex;align-items:center;gap:8px;font-size:12.5px;margin:4px 0;">
+        ${byHour.length ? byHour.map(h => `<div class="resv-an-row ${isF('hour:'+h.hour)?'active':''}" onclick="setResvAnFilter('hour:${h.hour}','${String(h.hour).padStart(2,'0')}:00 rezervasyonları')" style="display:flex;align-items:center;gap:8px;font-size:12.5px;margin:2px 0;padding:3px 4px;">
           <span style="width:44px;">${String(h.hour).padStart(2,'0')}:00</span>
           <div style="flex:1;background:var(--panel2);border-radius:6px;height:14px;overflow:hidden;"><div style="width:${Math.round((h.guests||0)/maxH*100)}%;height:100%;background:var(--accent);"></div></div>
           <span style="width:90px;text-align:right;">${h.count} rez · ${h.guests} kişi</span></div>`).join('') : '<p class="muted">Veri yok.</p>'}
@@ -771,9 +857,10 @@ async function renderReservationAnalyticsContent(session){
     </div>
     <h3 style="margin:0 0 10px;">🪑 Masalara Göre</h3>
     ${(data.by_table||[]).length ? `<div class="settings-table-wrap"><table class="settings-table"><thead><tr><th>Masa</th><th>Rezervasyon</th><th>Misafir</th><th>Ciro</th></tr></thead><tbody>
-      ${data.by_table.map(t => `<tr><td class="col-name"><b>${escapeHtml(t.table)}</b></td><td>${t.count}</td><td>${t.guests}</td><td>${money(t.revenue||0)}</td></tr>`).join('')}
+      ${data.by_table.map(t => `<tr class="resv-an-row ${isF('table:'+t.table)?'active':''}" onclick="setResvAnFilter(${escapeAttr(JSON.stringify('table:'+t.table))}, ${escapeAttr(JSON.stringify(t.table + ' rezervasyonları'))})"><td class="col-name"><b>${escapeHtml(t.table)}</b> <span class="muted" style="font-size:11.5px;">Listele ›</span></td><td>${t.count}</td><td>${t.guests}</td><td>${money(t.revenue||0)}</td></tr>`).join('')}
     </tbody></table></div>` : '<p class="muted">Bu aralıkta gelen rezervasyon yok.</p>'}
-    <h3 style="margin:18px 0 10px;">📋 Rezervasyon Detayları</h3>
+    <h3 id="resvAnList" style="margin:18px 0 10px;">📋 Rezervasyon Detayları</h3>
+    ${filterBar(rows.length)}
     ${rows.length ? `<div class="settings-table-wrap"><table class="settings-table"><thead><tr><th>Müşteri</th><th>Kişi</th><th>Rezervasyon</th><th>Geliş</th><th>Saate göre</th><th>Masa</th><th>Durum</th><th>Sipariş</th></tr></thead><tbody>
       ${rows.map(r => `<tr>
         <td class="col-name">${escapeHtml(r.customer_name)}${r.phone ? `<div class="muted" style="font-size:11.5px;">${escapeHtml(r.phone)}</div>` : ''}${r.notes ? `<div class="muted" style="font-size:11px;overflow-wrap:anywhere;">${escapeHtml(r.notes)}</div>` : ''}</td>
@@ -785,15 +872,5 @@ async function renderReservationAnalyticsContent(session){
         <td>${statusTxt[r.status] || escapeHtml(r.status)}</td>
         <td>${Number(r.revenue) > 0 ? money(r.revenue) + (r.party_size ? `<div class="muted" style="font-size:11px;">kişi başı ${money(r.revenue / r.party_size)}</div>` : '') : '<span class="muted">-</span>'}</td>
       </tr>`).join('')}
-    </tbody></table></div>` : '<p class="muted">Bu aralıkta rezervasyon yok.</p>'}
-    <h3 style="margin:22px 0 10px;">⏳ Bekleme Listesi</h3>
-    <div class="home-grid" style="margin-top:0;">
-      ${statCard('Listeye Alınan', wl.total||0)}
-      ${statCard('Oturan', (wl.seated||0) + ' <span style="font-size:13px;font-weight:600;color:var(--muted);">(' + pct(wl.seated||0, wl.total||0) + ')</span>', 'var(--green)')}
-      ${statCard('Beklemeden Ayrılan', wl.left||0, (wl.left||0) > 0 ? 'var(--red)' : null)}
-      ${statCard('Oturan Misafir', (wl.guests_seated||0) + ' kişi')}
-      ${statCard('Ort. Bekleme', wl.avg_wait!=null ? wl.avg_wait + ' dk' + (wl.avg_quoted!=null ? ' <span style="font-size:13px;font-weight:600;color:var(--muted);">(tahmin ' + wl.avg_quoted + ')</span>' : '') : '—')}
-      ${statCard('Tahminden Geç Oturtulan', wl.late||0, (wl.late||0) > 0 ? 'var(--red)' : null)}
-      ${statCard('Bekleme Listesi Cirosu', money(wl.revenue||0), 'var(--accent)')}
-    </div>`;
+    </tbody></table></div>` : '<p class="muted">Kayıt yok.</p>'}`;
 }
