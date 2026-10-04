@@ -25,13 +25,15 @@ function renderLoginScreen(app){
       <p class="muted">İşletme kodu, kullanıcı adı ve şifrenizle giriş yapın</p>
       ${odemeBanner}
       ${kickedBanner}
-      <input id="codeInput" placeholder="İşletme kodu (örn. test123)" autocapitalize="none" value="${escapeAttr(lastLoginInfo().code)}">
-      <input id="userInput" placeholder="Kullanıcı adı" autocapitalize="none" value="${escapeAttr(lastLoginInfo().username)}">
-      <input id="passInput" type="password" placeholder="Şifre">
+      <form id="loginForm" onsubmit="doLogin();return false;" autocomplete="on">
+      <input id="codeInput" name="organization" autocomplete="organization" placeholder="İşletme kodu (örn. test123)" autocapitalize="none" value="${escapeAttr(lastLoginInfo().code)}">
+      <input id="userInput" name="username" autocomplete="username" placeholder="Kullanıcı adı" autocapitalize="none" value="${escapeAttr(lastLoginInfo().username)}">
+      <input id="passInput" name="password" type="password" autocomplete="current-password" placeholder="Şifre">
       <label style="display:flex;align-items:center;gap:8px;margin:2px 0 10px;font-size:13.5px;cursor:pointer;">
         <input type="checkbox" id="rememberInput" style="width:auto;margin:0;" checked> Beni hatırla
       </label>
-      <button id="loginBtn" onclick="doLogin()">Giriş Yap</button>
+      <button id="loginBtn" type="submit">Giriş Yap</button>
+      </form>
       <div class="error" id="errBox"></div>
       <p class="muted" style="text-align:center;margin-top:14px;font-size:13px;">
         <a href="#" style="color:var(--accent);" onclick="APP.authScreen='forgot';APP.forgotStep=1;render();return false;">Şifremi Unuttum</a>
@@ -45,9 +47,8 @@ function renderLoginScreen(app){
     </div>
     </div>
     </div>`;
-  document.getElementById('passInput').addEventListener('keydown', function(e){
-    if(e.key==='Enter') doLogin();
-  });
+  // Enter artık formun kendisi (submit) ile çalışıyor; tarayıcı/Android şifre
+  // yöneticisi de form gönderimini görüp şifreyi kaydetmeyi önerebiliyor.
 }
 /* --- Şirket (birden fazla şubesi olan zincir) girişi --- */
 function renderCompanyLoginScreen(app){
