@@ -1341,6 +1341,7 @@ async function doClockToggle(){
   else if(ending) showToast(st.pending ? 'Vardiya talebi geri çekildi' : 'Vardiya bitti ✓');
   else showToast(data && data.pending ? 'Talebiniz yöneticiye iletildi, onaylanınca vardiyanız başlar' : 'Vardiya başladı ✓');
   await refreshShiftWidget(session);
+  refreshNavBadges();
 }
 async function approveCustomerRequest(id){
   const session = getSession();
@@ -2241,6 +2242,7 @@ function setupNativeFcmListeners(){
       if(session && item && navItemVisible(item, session)){ APP.view = data.view; if(data.view==='settings') APP.settingsTab = 'shifts'; render(); }
     } : null);
     try{ playKitchenBell(null); }catch(e){}
+    refreshNavBadges();
     const session = getSession();
     if(session && String(data.tag||'').startsWith('shift')){
       refreshShiftWidget(session);

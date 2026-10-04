@@ -12,6 +12,7 @@ async function renderPurchasingView(main, session){
       ${canSuppliers ? `<div class="tab ${APP.purchTab==='suppliers'?'active':''}" data-tab="suppliers" onclick="setPurchTab('suppliers')">Tedarikçiler</div>` : ''}
     </div>
     <div id="purchContent"></div>`;
+  applyNavBadges();
   await renderPurchTabContent(session);
 }
 function setPurchTab(tab){

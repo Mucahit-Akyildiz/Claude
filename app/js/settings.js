@@ -34,6 +34,7 @@ async function renderSettingsView(main, session){
       ${visibleTabs.map(t => `<div class="tab ${APP.settingsTab===t.tab?'active':''}" data-tab="${t.tab}" onclick="setSettingsTab('${t.tab}')">${t.label}</div>`).join('')}
     </div>
     <div id="settingsContent"></div>`;
+  applyNavBadges();
   renderSettingsContent(session);
 }
 function setSettingsTab(tab){
@@ -903,6 +904,7 @@ async function manageShift(id, action){
   showToast({ approve:'Vardiya başlatıldı ✓', reject:'Talep reddedildi', approve_end:'Vardiya bitirildi ✓', reject_end:'Bitirme talebi reddedildi', end:'Vardiya bitirildi ✓' }[action] || 'Tamam');
   renderShiftsTable(session);
   refreshShiftWidget(session);
+  refreshNavBadges();
 }
 async function toggleShiftApproval(on){
   const session = getSession();

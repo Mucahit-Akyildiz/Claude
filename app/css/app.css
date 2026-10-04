@@ -460,3 +460,10 @@ button:has(> svg + span):not(.act-btn){display:inline-flex;align-items:center;ju
 .back-link{width:auto;margin:0 0 10px;padding:6px 12px;background:transparent;color:var(--muted);border:1px solid var(--border);border-radius:999px;font-size:13px;font-weight:700;box-shadow:none;}
 .back-link:hover{color:var(--text);border-color:var(--text);}
 @media (max-width:820px){ .back-link{display:none;} }
+
+/* Bekleyen iş rozetleri (bkz. applyNavBadges) */
+.nav-badge{display:inline-flex;align-items:center;justify-content:center;min-width:19px;height:19px;padding:0 6px;margin-left:auto;border-radius:999px;background:var(--red);color:#fff;font-size:11px;font-weight:800;line-height:1;flex-shrink:0;}
+.tabs .tab .nav-badge{margin-left:6px;}
+.nav-badge-corner{position:absolute;top:-5px;right:-5px;margin:0;min-width:17px;height:17px;font-size:10px;padding:0 4px;}
+.sidebar.collapsed .sb-item{position:relative;}
+.sidebar.collapsed .sb-item .nav-badge{position:absolute;top:2px;right:2px;min-width:15px;height:15px;font-size:9px;padding:0 3px;}
