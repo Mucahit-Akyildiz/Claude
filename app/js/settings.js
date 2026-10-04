@@ -1317,7 +1317,8 @@ async function renderIntegrationsSettings(el, session){
     const f = boxFeatures[i];
     if(!f || hasFeature(f)) return;
     const title = box.querySelector('h2') ? box.querySelector('h2').outerHTML : '';
-    box.innerHTML = title + lockedFeatureHtml();
+    box.innerHTML = title + lockedFeatureHtml() + `<div class="addon-buy" data-addon="${f}"></div>`;
+    loadAddonPurchaseBox(box.querySelector('.addon-buy'), f);
   });
   // Fatura bilgileri tüm paketlerde: ödeme sonrası e-postayla gönderilen
   // hesap/faturanın başlığında görünür (bkz. email_invoice).
@@ -1366,6 +1367,50 @@ async function saveInvoiceSettings(){
     p_title: v('inv_title'), p_tax_number: v('inv_tax'), p_tax_office: v('inv_office'), p_address: v('inv_addr') });
   if(error){ alert(error.message); return; }
   showToast('Fatura bilgileri kaydedildi ✓');
+}
+/* Kilitli eklenti: abonelikteki havale akışının aynısı - IBAN'a gönderip
+   "Ödemeyi Yaptım" bildirimi; platform yöneticisi onaylayınca eklenti açılır
+   (bkz. submit_addon_transfer_notice / admin_review_bank_transfer_notice).
+   Google Play politikası gereği native uygulamada gösterilmez. */
+async function loadAddonPurchaseBox(el, addonId){
+  if(!el || isNativeApp()) return;
+  const session = getSession();
+  const { data, error } = await sb.rpc('get_addon_purchase_info', { p_token: session.session_token, p_addon_id: addonId });
+  if(error || !data || !data.addon || !(Number(data.addon.price) > 0)) return;
+  const a = data.addon;
+  if(data.pending){
+    el.innerHTML = `<div class="add-row-panel" style="border-color:var(--accent);margin-top:12px;">
+      <b>🏦 Ödeme bildiriminiz alındı</b>
+      <p class="muted" style="text-align:left;margin:6px 0 0;">${money(data.pending.amount)} tutarındaki bildiriminiz ${new Date(data.pending.created_at).toLocaleString('tr-TR')} tarihinde iletildi. Onaylanınca eklenti otomatik açılacak.</p></div>`;
+    return;
+  }
+  if(!data.is_manager){ return; }
+  el.innerHTML = `<div class="add-row-panel" style="margin-top:12px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;">
+      <b>🧩 ${escapeHtml(a.label)} eklentisini ekleyin</b>
+      <span class="role-badge" style="color:var(--accent);border-color:var(--accent);">${money(a.price)} / ay</span>
+    </div>
+    ${data.iban ? `<p class="muted" style="text-align:left;margin:8px 0;font-size:13px;">Tutarı aşağıdaki hesaba havale/EFT ile gönderip <b>Ödemeyi Yaptım</b>'a basın. Açıklamaya işletme adınızı yazın.</p>
+    <div style="background:var(--panel2);border-radius:10px;padding:10px 12px;font-size:13.5px;line-height:1.7;">
+      ${data.bank_name ? `<div>Banka: <b>${escapeHtml(data.bank_name)}</b></div>` : ''}
+      ${data.account_name ? `<div>Alıcı: <b>${escapeHtml(data.account_name)}</b></div>` : ''}
+      <div style="overflow-wrap:anywhere;">IBAN: <b>${escapeHtml(data.iban)}</b> <a href="#" style="color:var(--accent);font-size:12px;" onclick="navigator.clipboard&&navigator.clipboard.writeText(${escapeAttr(JSON.stringify(data.iban))});showToast('IBAN kopyalandı ✓');return false;">Kopyala</a></div>
+    </div>
+    <div class="field-group" style="margin-top:10px;"><label>Not (opsiyonel)</label><input class="addon-note" placeholder="örn. gönderen adı / dekont no"></div>
+    <button style="max-width:240px;" onclick="submitAddonTransfer(this, '${addonId}')">🏦 Ödemeyi Yaptım</button>`
+    : '<p class="muted" style="text-align:left;">Banka bilgileri henüz tanımlanmamış, lütfen bizimle iletişime geçin.</p>'}
+  </div>`;
+}
+async function submitAddonTransfer(btn, addonId){
+  const wrap = btn.closest('.addon-buy');
+  const noteEl = wrap && wrap.querySelector('.addon-note');
+  if(!confirm('Havale/EFT ödemesini yaptığınızı onaylıyor musunuz?')) return;
+  btn.disabled = true;
+  const session = getSession();
+  const { error } = await sb.rpc('submit_addon_transfer_notice', { p_token: session.session_token, p_addon_id: addonId, p_note: noteEl ? (noteEl.value.trim()||null) : null });
+  if(error){ btn.disabled = false; alert(error.message); return; }
+  showToast('Ödeme bildiriminiz alındı ✓ Onaylanınca eklenti açılacak.');
+  loadAddonPurchaseBox(wrap, addonId);
 }
 function lockedFeatureHtml(){
   return `<p class="muted" style="margin:0;">🔒 Bu özellik paketinizde yok. Eklenti olarak eklemek ya da paketinizi yükseltmek için bizimle iletişime geçin.</p>`;

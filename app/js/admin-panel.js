@@ -1058,7 +1058,7 @@ async function refreshBankTransferList(admin){
           <tr>
             <td class="col-name"><b>${escapeHtml(n.target_name)}</b> <span class="muted" style="font-size:11px;">(${n.target_type==='company'?'şirket':'işletme'})</span></td>
             <td class="col-name">${escapeHtml(n.target_code||'-')}</td>
-            <td class="col-name">${escapeHtml(n.target_package_id)}</td>
+            <td class="col-name">${n.addon_id ? '🧩 Eklenti: <b>' + escapeHtml(n.addon_label || n.addon_id) + '</b>' : escapeHtml(n.target_package_id)}</td>
             <td class="col-name">${money(n.amount)}</td>
             <td class="col-name">${n.note?escapeHtml(n.note):'-'}</td>
             <td class="col-name">${new Date(n.created_at).toLocaleString('tr-TR')}</td>
@@ -1077,7 +1077,7 @@ async function reviewBankTransferNotice(id, approve){
   let adminNote = null;
   if(!approve){
     adminNote = prompt('Reddetme sebebi (opsiyonel):') || null;
-  } else if(!confirm('Bu havale bildirimini onaylıyor musunuz? Onaylanınca abonelik 30 gün uzatılır.')){
+  } else if(!confirm('Bu havale bildirimini onaylıyor musunuz? Onaylanınca abonelik uzatılır (eklenti bildirimiyse eklenti açılır).')){
     return;
   }
   const { error } = await sb.rpc('admin_review_bank_transfer_notice', {
