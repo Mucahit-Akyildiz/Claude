@@ -678,3 +678,10 @@ div.table-cell.badge-row::before{content:'● Hazır, ödeme bekliyor';margin:0 
 .chat-list::-webkit-scrollbar-thumb,.chat-thread::-webkit-scrollbar-thumb,.chat-tray::-webkit-scrollbar-thumb{background:rgba(0,143,168,.30);border-radius:999px;}
 .chat-list::-webkit-scrollbar-thumb:hover,.chat-thread::-webkit-scrollbar-thumb:hover,.chat-tray::-webkit-scrollbar-thumb:hover{background:rgba(0,143,168,.55);}
 .chat-list::-webkit-scrollbar-button,.chat-thread::-webkit-scrollbar-button,.chat-tray::-webkit-scrollbar-button{display:none;}
+
+.chat-once{display:flex;align-items:center;gap:10px;width:100%;margin:2px 0;padding:10px 12px;border-radius:12px;background:rgba(0,0,0,.06);border:1.5px dashed currentColor;box-shadow:none;color:inherit;text-align:left;font-size:20px;}
+.chat-once span{display:flex;flex-direction:column;font-size:13.5px;font-weight:700;}
+.chat-once small{font-weight:500;opacity:.75;font-size:11.5px;}
+.chat-once.opened{opacity:.6;border-style:solid;}
+button.chat-once{cursor:pointer;}
+.chat-row.mine .chat-once{background:rgba(255,255,255,.15);}
