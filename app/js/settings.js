@@ -67,8 +67,8 @@ function renderUsersTabWithSubtabs(el, session){
   // Alt sekmeler kartın içinde, üst menüden ayrışan altı çizili stilde.
   el.innerHTML = session.isManager ? `<div class="box sub-tabs-box" style="max-width:none;">
       <div class="sub-tabs" id="usersSubTabs">
-        <button type="button" class="sub-tab ${sub==='list'?'active':''}" onclick="setUsersSubTab('list')">👥 Kullanıcılar</button>
-        <button type="button" class="sub-tab ${sub==='active'?'active':''}" onclick="setUsersSubTab('active')">🟢 Aktif Kullanıcılar</button>
+        <div role="tab" tabindex="0" class="sub-tab ${sub==='list'?'active':''}" onclick="setUsersSubTab('list')"><span class="sub-tab-ic">👥</span>Kullanıcılar</div>
+        <div role="tab" tabindex="0" class="sub-tab ${sub==='active'?'active':''}" onclick="setUsersSubTab('active')"><span class="sub-tab-ic">🟢</span>Aktif Kullanıcılar</div>
       </div>
       <div id="usersSubContent" class="sub-tabs-content"></div>
     </div>` : '<div id="usersSubContent"></div>';
@@ -230,7 +230,7 @@ function openIngredientUsageModal(ingredientId){
     const existing = (p.recipe||[]).find(r => r.ingredient_id===ingredientId);
     return `
     <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);">
-      <input type="checkbox" id="ingu_chk_${p.id}" ${existing?'checked':''} onchange="document.getElementById('ingu_qty_${p.id}').disabled=!this.checked" style="width:auto;margin:0;">
+      <input type="checkbox" id="ingu_chk_${p.id}" ${existing?'checked':''} onchange="const q=document.getElementById('ingu_qty_${p.id}');q.disabled=!this.checked;if(this.checked)q.focus();else q.style.borderColor=''" style="width:auto;margin:0;">
       <span style="flex:1;">${escapeHtml(p.name)}</span>
       <input type="number" step="0.01" min="0" id="ingu_qty_${p.id}" value="${existing?existing.qty_per_unit:''}" placeholder="Miktar/porsiyon" ${existing?'':'disabled'} style="width:130px;margin:0;">
     </div>`;
@@ -240,13 +240,24 @@ async function saveIngredientUsage(ingredientId){
   const session = getSession();
   const products = APP.config.products || [];
   const usages = [];
+  const missing = [];
   products.forEach(p => {
     const chk = document.getElementById('ingu_chk_'+p.id);
     if(chk && chk.checked){
-      const qty = parseFloat(document.getElementById('ingu_qty_'+p.id).value);
+      const inp = document.getElementById('ingu_qty_'+p.id);
+      const qty = parseFloat(inp.value);
+      inp.style.borderColor = '';
       if(qty && qty>0) usages.push({ product_id: p.id, qty_per_unit: qty });
+      else { missing.push(p.name); inp.style.borderColor = 'var(--red)'; }
     }
   });
+  // İşaretli ürünün miktarı boşsa kaydetme (eskiden sessizce atlanıyordu).
+  if(missing.length){
+    alert('Miktar giriniz: ' + missing.join(', ') + '\n\nİşaretlediğiniz ürünler için 1 porsiyonda kullanılan miktarı girin ya da işareti kaldırın.');
+    const first = products.find(p => missing.includes(p.name));
+    if(first) document.getElementById('ingu_qty_'+first.id).focus();
+    return;
+  }
   const { error } = await sb.rpc('set_ingredient_usage', { p_token: session.session_token, p_ingredient_id: ingredientId, p_usages: usages });
   if(error){ alert(error.message); return; }
   document.getElementById('ingUsageModalBg').remove();
@@ -305,7 +316,9 @@ function addRecipeItem(productId){
 function removeRecipeItem(idx){ RECIPE_DRAFT.splice(idx,1); renderRecipeItems(); }
 async function saveRecipe(productId){
   const session = getSession();
-  const items = RECIPE_DRAFT.map(r => ({ ingredient_id: r.ingredient_id, qty_per_unit: r.qty_per_unit }));
+  const bad = RECIPE_DRAFT.filter(r => !(parseFloat(r.qty_per_unit) > 0));
+  if(bad.length){ alert('Miktar giriniz: ' + bad.map(r => r.ingredient_name || 'hammadde').join(', ') + '\n\nHer hammadde için 1 porsiyonda kullanılan miktarı girin ya da satırı silin.'); return; }
+  const items = RECIPE_DRAFT.map(r => ({ ingredient_id: r.ingredient_id, qty_per_unit: parseFloat(r.qty_per_unit) }));
   const { error } = await sb.rpc('set_recipe', { p_token: session.session_token, p_product_id: productId, p_items: items });
   if(error){ alert(error.message); return; }
   document.getElementById('recipeModalBg').remove();

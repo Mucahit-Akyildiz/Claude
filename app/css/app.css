@@ -497,10 +497,14 @@ div.table-cell.badge-row::before{content:'● Hazır, ödeme bekliyor';margin:0 
 .pay-email-toggle.on .pet-switch{background:var(--accent);}
 .pay-email-toggle.on .pet-switch::after{left:23px;}
 
-/* Kart içi alt sekmeler (örn. Ayarlar > Kullanıcılar): üst menüdeki hap
-   sekmelerden ayrışsın diye altı çizili; içerik kartı iç içe görünmesin. */
-.sub-tabs{display:flex;gap:4px;border-bottom:1.5px solid var(--border);margin:-6px 0 18px;overflow-x:auto;}
-.sub-tab{width:auto;margin:0 0 -1.5px;padding:10px 14px;background:transparent;color:var(--muted);border:none;border-bottom:2.5px solid transparent;border-radius:0;box-shadow:none;font-size:14px;font-weight:700;white-space:nowrap;cursor:pointer;}
-.sub-tab:hover{color:var(--text);background:transparent;}
-.sub-tab.active{color:var(--accent);border-bottom-color:var(--accent);}
+/* Kart içi alt sekmeler (örn. Ayarlar > Kullanıcılar): segment kontrol.
+   Yan yana dizilir, yeni sekme eklendikçe sağa uzar (dar ekranda yatay
+   kaydırılır); seçili olan beyaz, hafif gölgeli "kapsül". Buton değil div
+   kullanılır ki genel buton stilleri (tam genişlik, dolu renk) uygulanmasın. */
+.sub-tabs{display:inline-flex;max-width:100%;gap:4px;padding:4px;margin:0 0 18px;background:var(--panel2);border:1px solid var(--border);border-radius:14px;overflow-x:auto;scrollbar-width:none;}
+.sub-tabs::-webkit-scrollbar{display:none;}
+.sub-tab{display:inline-flex;align-items:center;gap:7px;flex:0 0 auto;padding:9px 16px;border-radius:10px;color:var(--muted);font-size:13.5px;font-weight:700;white-space:nowrap;cursor:pointer;user-select:none;transition:background .15s,color .15s,box-shadow .15s;}
+.sub-tab:hover{color:var(--text);}
+.sub-tab.active{background:var(--panel);color:var(--text);box-shadow:0 1px 2px rgba(0,0,0,.08),0 2px 8px rgba(0,0,0,.06);}
+.sub-tab .sub-tab-ic{font-size:15px;line-height:1;}
 .sub-tabs-content > .box{border:none;box-shadow:none;padding:0;margin:0;background:transparent;max-width:none;}
