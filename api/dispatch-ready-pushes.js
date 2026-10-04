@@ -315,7 +315,8 @@ async function dispatchChatMessage(supabase, messageId) {
     ids = (users || []).filter((u) => u.is_active !== false && u.id !== msg.sender_id).map((u) => u.id);
   }
   const from = (msg.app_users && msg.app_users.username) || 'Personel';
-  const body = msg.body.length > 140 ? msg.body.slice(0, 137) + '...' : msg.body;
+  const text = msg.body || '📷 Görsel';
+  const body = text.length > 140 ? text.slice(0, 137) + '...' : text;
   return sendToUsers(supabase, ids, {
     title: '💬 ' + from + (msg.recipient_id ? '' : ' (Genel)'), body, url: '/app/', view: 'messages', tag: 'chat-' + (msg.recipient_id ? msg.sender_id : 'all'),
   });
