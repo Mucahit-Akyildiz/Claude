@@ -546,14 +546,14 @@ function renderPayGrid(){
     const unpaid = order ? order.items.filter(i=>!i.paid) : [];
     if(unpaid.length===0) return null;
     const total = unpaid.reduce((s,i) => s+i.price*i.qty, 0);
-    return `<div class="table-cell" style="cursor:pointer;background:rgba(244,63,94,.14);border-color:var(--red);color:var(--red);" onclick="openPayModal('${order.order_id}')">
+    return `<div class="table-cell" data-badge-id="${order.order_id}" style="cursor:pointer;background:rgba(244,63,94,.14);border-color:var(--red);color:var(--red);" onclick="openPayModal('${order.order_id}')">
       ${escapeHtml(t.name)}<div style="font-size:11px;margin-top:4px;font-weight:400;">${money(total)}</div></div>`;
   }).filter(Boolean);
   const pkgRows = (APP.liveOrders||[]).filter(o => o.kind==='takeaway' && o.items.filter(i=>!i.paid).length>0).map(o => {
     const unpaid = o.items.filter(i=>!i.paid);
     const total = unpaid.reduce((s,i)=>s+i.price*i.qty,0);
     const label = o.customer_name || ('Paket #'+(o.daily_number||''));
-    return `<div class="table-cell" style="cursor:pointer;background:rgba(244,63,94,.14);border-color:var(--red);color:var(--red);overflow-wrap:anywhere;word-break:break-word;" onclick="openPayModal('${o.order_id}')">
+    return `<div class="table-cell" data-badge-id="${o.order_id}" style="cursor:pointer;background:rgba(244,63,94,.14);border-color:var(--red);color:var(--red);overflow-wrap:anywhere;word-break:break-word;" onclick="openPayModal('${o.order_id}')">
       📦 ${escapeHtml(label)}<div style="font-size:11px;margin-top:4px;font-weight:400;">${money(total)}</div></div>`;
   });
   const occupiedRows = tableRows.concat(pkgRows);

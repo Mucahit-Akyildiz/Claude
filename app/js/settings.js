@@ -881,7 +881,7 @@ async function renderShiftsTable(session){
   if(pendWrap) pendWrap.innerHTML = (endReqs.length ? `
     <div style="border:1px solid #d9a400;border-radius:12px;padding:12px;margin-bottom:16px;">
       <b>🏁 Bitirme Talepleri (${endReqs.length})</b>
-      ${endReqs.map(p => `<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:10px;flex-wrap:wrap;">
+      ${endReqs.map(p => `<div data-badge-id="${p.id}" style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:10px;flex-wrap:wrap;">
         <span><b>${escapeHtml(p.username)}</b> <span class="muted">· ${formatShiftTime(p.clock_in)}'dan beri vardiyada, ${formatShiftTime(p.requested_at)}'de bitirmek istedi</span></span>
         <span style="display:flex;gap:8px;">
           <button class="actBtn" style="width:auto;margin:0;" onclick="manageShift('${p.id}','approve_end')">✓ Bitir</button>
@@ -890,7 +890,7 @@ async function renderShiftsTable(session){
     </div>` : '') + (pending.length ? `
     <div style="border:1px solid #d9a400;border-radius:12px;padding:12px;margin-bottom:16px;">
       <b>🟡 Onay Bekleyen Vardiya Talepleri (${pending.length})</b>
-      ${pending.map(p => `<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:10px;flex-wrap:wrap;">
+      ${pending.map(p => `<div data-badge-id="${p.id}" style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:10px;flex-wrap:wrap;">
         <span><b>${escapeHtml(p.username)}</b> <span class="muted">· ${formatShiftTime(p.requested_at)}'de istedi</span></span>
         <span style="display:flex;gap:8px;">
           <button class="actBtn" style="width:auto;margin:0;" onclick="manageShift('${p.id}','approve')">✓ Onayla</button>
