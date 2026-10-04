@@ -916,6 +916,11 @@ async function renderShiftsTable(session){
       <input type="checkbox" style="width:auto;margin-top:3px;" ${data.approval_required?'checked':''} ${session.isManager?'':'disabled'} onchange="toggleShiftApproval(this.checked)">
       <span><b>Vardiya başlatma yönetici onayına bağlı</b><br>
       <span class="muted" style="font-size:12.5px;">Açıkken personel vardiyayı sadece <i>isteyebilir</i>; siz onayladığınızda başlar ve vardiyayı yalnızca yönetici bitirebilir.${session.isManager?'':' (Bu ayarı Yönetici değiştirebilir.)'}</span></span>
+    </label>
+    <label style="display:flex;align-items:flex-start;gap:10px;margin:0 0 14px;cursor:${session.isManager?'pointer':'default'};">
+      <input type="checkbox" style="width:auto;margin-top:3px;" ${data.shift_required?'checked':''} ${session.isManager?'':'disabled'} onchange="toggleShiftRequired(this.checked)">
+      <span><b>Vardiya açmadan çalışılamasın</b><br>
+      <span class="muted" style="font-size:12.5px;">Açıkken personel vardiyasını başlatmadan Sipariş Al, Paket, Mutfak, Ödemeler, Rezervasyon ve Satın Alma ekranlarını kullanamaz. Vardiya talebini gönderdiği anda çalışmaya başlayabilir; onayı siz sonradan verirsiniz. Yöneticiler bu kuraldan muaftır.</span></span>
     </label>`;
   const pendWrap = document.getElementById('shiftPendingWrap');
   const pending = data.pending || [];
@@ -966,6 +971,13 @@ async function manageShift(id, action){
   renderShiftsTable(session);
   refreshShiftWidget(session);
   refreshNavBadges();
+}
+async function toggleShiftRequired(on){
+  const session = getSession();
+  const { error } = await sb.rpc('set_shift_required', { p_token: session.session_token, p_value: on });
+  if(error){ showToast(error.message); renderShiftsTable(session); return; }
+  showToast(on ? 'Personel artık vardiya açmadan çalışamaz' : 'Vardiya zorunluluğu kapatıldı');
+  refreshShiftWidget(session);
 }
 async function toggleShiftApproval(on){
   const session = getSession();
