@@ -707,9 +707,11 @@ function openPayModal(orderId){
       </div>
     </div>
 
-    <label style="display:flex;align-items:center;gap:8px;margin:0 0 10px;font-size:13.5px;cursor:pointer;">
-      <input type="checkbox" id="payEmailInvoice" style="width:auto;margin:0;" ${APP.payWantsEmail?'checked':''} onchange="APP.payWantsEmail=this.checked">
-      📧 Ödemeden sonra hesabı müşteriye e-postayla gönder
+    <label class="pay-email-toggle ${APP.payWantsEmail?'on':''}">
+      <input type="checkbox" id="payEmailInvoice" ${APP.payWantsEmail?'checked':''} onchange="APP.payWantsEmail=this.checked;this.closest('.pay-email-toggle').classList.toggle('on',this.checked)">
+      <span class="pet-icon">📧</span>
+      <span class="pet-text"><b>Hesabı e-postayla gönder</b><small>Ödemeden sonra müşterinin e-posta adresi sorulur</small></span>
+      <span class="pet-switch"></span>
     </label>
     <div class="pay-total-banner">
       <span class="label">Ödenecek</span>
