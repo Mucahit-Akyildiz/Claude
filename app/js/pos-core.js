@@ -728,6 +728,23 @@ function openPayModal(orderId){
     </div>
   </div>`;
   document.body.appendChild(bg);
+  autoSelectPayCustomer(order);
+}
+/* Masaya girilmiş müşteri kayıtlıysa ödeme ekranında otomatik seçilir
+   (telefon varsa telefonla, yoksa isimle tek ve birebir eşleşmede). */
+async function autoSelectPayCustomer(order){
+  const input = document.getElementById('payCustomerPhone');
+  if(!input) return;
+  let phone = (order.customer_phone || '').trim();
+  const name = (order.customer_name || '').trim();
+  if(!phone && name.length >= 2){
+    const { data } = await sb.rpc('search_customers_quick', { p_token: getSession().session_token, p_search: name });
+    const exact = (data || []).filter(c => (c.name || '').trim().toLocaleLowerCase('tr') === name.toLocaleLowerCase('tr') && c.phone);
+    if(exact.length === 1) phone = exact[0].phone;
+  }
+  if(!phone || !document.getElementById('payModalBg') || input.value) return;
+  input.value = phone;
+  lookupPayCustomer();
 }
 function applyTipPercent(pct){
   const bg = document.getElementById('payModalBg');
