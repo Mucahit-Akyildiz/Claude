@@ -338,10 +338,15 @@ function autoRefreshCurrentView(session){
   if(APP.view==='order' || APP.view==='packages'){ refreshOrderLiveStatus(session); return; }
   if(APP.view==='messages'){ refreshMessagesView(); return; }
   if(AUTO_REFRESH_SKIP.includes(APP.view) || uiBusyForAutoRefresh()) return;
+  softRerender(session);
+}
+/* Çift tamponlu yeniden çizim (otomatik yenileme ve Yenile düğmesi). */
+function softRerender(session, force){
+  return new Promise(resolve => {
   // Çift tamponlu yenileme: ekranın o anki görüntüsü (kopya) yerinde kalır,
   // asıl içerik arka planda yeniden çizilir ve hazır olunca tek seferde
   // değiştirilir - "Yükleniyor…" yanıp sönmesi/sayfa zıplaması olmaz.
-  const main = document.getElementById('main'); if(!main || main.dataset.refreshing) return;
+  const main = document.getElementById('main'); if(!main || main.dataset.refreshing){ resolve(); return; }
   const sc = document.scrollingElement ? document.scrollingElement.scrollTop : 0;
   const ca = document.querySelector('.content-area'); const caTop = ca ? ca.scrollTop : 0;
   const snap = main.cloneNode(true);
@@ -356,9 +361,11 @@ function autoRefreshCurrentView(session){
     if(document.scrollingElement) document.scrollingElement.scrollTop = sc;
     const ca2 = document.querySelector('.content-area'); if(ca2) ca2.scrollTop = caTop;
     applyNavBadges();
+    resolve();
   };
   renderMainView(main, session).catch(() => {}).then(() => setTimeout(finish, 350));
   setTimeout(() => { if(main.dataset.refreshing) finish(); }, 4000);
+  });
 }
 function todayLocalDateStr(){
   const d = new Date();
@@ -497,9 +504,31 @@ function applyDeepLinkView(){
    ekran ve Ayarlar sekmesi korunur. Oturum sessionStorage'da olduğu için
    yeniden giriş gerekmez. Mobilde ayrıca sayfanın en üstündeyken aşağı
    çekerek (pull-to-refresh) tetiklenir. ---- */
-function refreshApp(){
+/* Yenile: sayfayı baştan yüklemek yerine verileri arka planda tazeler ve
+   ekranı tek seferde günceller (bkz. softRerender). Sitede yeni bir sürüm
+   yayınlanmışsa (index.html'in ETag'i değiştiyse) yeni kodun gelmesi için
+   o zaman gerçekten yeniden yüklenir. */
+let APP_BUILD_TAG = null;
+async function currentBuildTag(){
+  try{ const r = await fetch('/app/', { method:'HEAD', cache:'no-store' }); return r.headers.get('etag') || r.headers.get('last-modified'); }catch(e){ return null; }
+}
+currentBuildTag().then(t => { APP_BUILD_TAG = t; });
+function hardReloadApp(){
   try{ sessionStorage.setItem('rys_restore_view', JSON.stringify({ view: APP.view, settingsTab: APP.settingsTab })); }catch(e){}
   window.location.reload();
+}
+async function refreshApp(){
+  const session = getSession();
+  const tag = await currentBuildTag();
+  if(!session || (tag && APP_BUILD_TAG && tag !== APP_BUILD_TAG)){ hardReloadApp(); return; }
+  document.querySelectorAll('.ptr-indicator').forEach(x => x.remove());
+  try{
+    const { data } = await sb.rpc('get_restaurant_config', { p_token: session.session_token });
+    if(data) APP.config = data;
+  }catch(e){}
+  syncMyPermissions(); refreshNavBadges(); refreshShiftWidget(session); refreshWaiterCalls();
+  await softRerender(session, true);
+  showToast('Güncellendi ✓', 1500);
 }
 /* Rol/izin değişiklikleri (Ayarlar > Roller) oturuma sadece girişte
    yazılıyordu; artık açılışta, yenilemede ve uygulamaya geri dönüldüğünde
