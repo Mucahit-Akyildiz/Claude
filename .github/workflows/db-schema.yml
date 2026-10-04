@@ -43,7 +43,7 @@ jobs:
           DB_URL: ${{ secrets.SUPABASE_DB_URL }}
         run: |
           mkdir -p supabase
-          if ! pg_dump "$DB_URL" --schema-only --schema=public --no-owner --no-privileges --no-comments -f supabase/schema.sql 2> err.txt; then
+          if ! /usr/lib/postgresql/17/bin/pg_dump "$DB_URL" --schema-only --schema=public --no-owner --no-privileges --no-comments -f supabase/schema.sql 2> err.txt; then
             cat err.txt
             head -5 err.txt | while IFS= read -r line; do echo "::error::$line"; done
             exit 1
