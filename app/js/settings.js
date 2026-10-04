@@ -1083,10 +1083,10 @@ function rolePermSummary(perms){
   return labels.slice(0, 4).join(', ') + (labels.length > 4 ? ' +' + (labels.length - 4) + ' daha' : '');
 }
 const ROLE_TEMPLATES = {
-  'Garson': ['order','packages','settings_products','settings_ingredients'],
-  'Mutfak': ['kitchen','settings_products','settings_ingredients'],
+  'Garson': ['order','packages','settings_products','settings_ingredients','purchasing_orders'],
+  'Mutfak': ['kitchen','settings_products','settings_ingredients','purchasing_orders'],
   'Kasiyer': ['order','packages','payments','tips','giftcards','crm'],
-  'Müdür Yardımcısı': ['order','packages','kitchen','payments','reservations','crm','shifts','settings_products','settings_ingredients','settings_zones','settings_flags']
+  'Müdür Yardımcısı': ['order','packages','kitchen','payments','reservations','crm','shifts','purchasing_orders','purchasing_manage','purchasing_suppliers','settings_products','settings_ingredients','settings_zones','settings_flags']
 };
 function applyRoleTemplate(name){
   const perms = ROLE_TEMPLATES[name] || [];
