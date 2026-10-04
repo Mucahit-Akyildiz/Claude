@@ -189,9 +189,13 @@ async function removeReservation(id){
 async function renderWaitlistContent(session, forceRefresh){
   const el = document.getElementById('resvContent'); if(!el) return;
   if(forceRefresh || !APP.waitlistCache){
-    const { data, error } = await withLoadingOverlay(sb.rpc('list_waitlist', { p_token: session.session_token }));
+    const [{ data, error }, live] = await withLoadingOverlay(Promise.all([
+      sb.rpc('list_waitlist', { p_token: session.session_token }),
+      sb.rpc('get_live_orders', { p_token: session.session_token })
+    ]));
     if(error){ el.innerHTML = '<p class="muted">Yüklenemedi: '+error.message+'</p>'; return; }
     APP.waitlistCache = data || [];
+    if(live && !live.error) APP.liveOrders = live.data || [];
   }
   const rows = APP.waitlistCache;
   el.innerHTML = `<div class="box" style="max-width:none;">
@@ -209,6 +213,7 @@ async function renderWaitlistContent(session, forceRefresh){
           <td>${new Date(w.joined_at).toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'})}</td>
           <td>
             ${w.phone ? `<button class="sbtn" title="Müşteriye 'Masanız hazır' SMS'i gönder" onclick="notifyWaitlistReady('${w.id}')">📱 Masa Hazır</button>` : ''}
+            <button class="sbtn" title="Beklerken sipariş al - mutfağa hemen düşer" onclick="openWaitlistOrderModal('${w.id}')">🍽️ Sipariş${(APP.liveOrders||[]).some(o => o.kind==='waitlist' && o.waitlist_id===w.id) ? ' ✓' : ''}</button>
             <button class="sbtn" onclick="openSeatWaitlistModal('${w.id}')">Oturdu</button>
             <button class="sbtn" style="background:var(--red);color:var(--btn-ink);" onclick="changeWaitlistStatus('${w.id}','cancelled')">İptal</button>
           </td>
