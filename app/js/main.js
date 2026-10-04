@@ -221,10 +221,64 @@ async function refreshNavBadges(){
 }
 function startNavBadges(){
   refreshNavBadges();
+  startDataVersionWatch();
   if(NAV_BADGE_TIMER) clearInterval(NAV_BADGE_TIMER);
   // Rozetler ve rol izinleri 20 sn'de bir tazelenir (Roller'deki değişiklik
   // açık ekranlara da yenileme gerekmeden yansısın).
   NAV_BADGE_TIMER = setInterval(() => { if(getSession() && document.visibilityState==='visible'){ refreshNavBadges(); syncMyPermissions(); } }, 20000);
+}
+/* ---- Çoklu kullanımda canlı ekran: veritabanındaki her değişiklik işletmenin
+   sayaç değerini artırır (bkz. _bump_data_version). Açık ekran 3 sn'de bir bu
+   değere bakar; değişmişse rozetleri tazeler ve - kullanıcı bir form
+   doldurmuyorsa/pencere açık değilse - mevcut ekranı sessizce yeniden çizer. ---- */
+let DATA_VER_TIMER = null, DATA_VER_LAST = null, DATA_VER_BUSY = false;
+function startDataVersionWatch(){
+  if(DATA_VER_TIMER) clearInterval(DATA_VER_TIMER);
+  DATA_VER_TIMER = setInterval(checkDataVersion, 3000);
+}
+async function checkDataVersion(){
+  const session = getSession();
+  if(!session || DATA_VER_BUSY || document.visibilityState!=='visible') return;
+  DATA_VER_BUSY = true;
+  try{
+    const { data, error } = await sb.rpc('get_data_version', { p_token: session.session_token });
+    if(error || data==null) return;
+    const changed = DATA_VER_LAST!==null && data!==DATA_VER_LAST;
+    DATA_VER_LAST = data;
+    if(changed){ refreshNavBadges(); autoRefreshCurrentView(session); }
+  } finally { DATA_VER_BUSY = false; }
+}
+// Kullanıcı bir şey yazıyor/seçiyorsa ya da açık bir pencere varsa ekranı ellemeyiz.
+function uiBusyForAutoRefresh(){
+  const ae = document.activeElement;
+  if(ae && /^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName) && ae.type!=='checkbox' && ae.type!=='radio') return true;
+  for(const el of document.body.children){
+    if(el.id==='app') continue;
+    const cs = getComputedStyle(el);
+    if(cs.position==='fixed' && cs.display!=='none' && el.offsetWidth >= window.innerWidth*0.9 && el.offsetHeight >= window.innerHeight*0.9) return true;
+  }
+  const main = document.getElementById('main'); if(!main) return true;
+  for(const el of main.querySelectorAll('input,textarea,select')){
+    if(el.tagName==='SELECT'){ const di = [...el.options].findIndex(o => o.defaultSelected); if(!el.multiple && el.selectedIndex !== (di<0 ? 0 : di)) return true; }
+    else if(el.type==='checkbox' || el.type==='radio'){ if(el.checked!==el.defaultChecked) return true; }
+    else if(el.value!==el.defaultValue) return true;
+  }
+  return false;
+}
+const AUTO_REFRESH_SKIP = ['home','reports','printerSettings','notificationSettings'];
+function autoRefreshCurrentView(session){
+  if(APP.view==='kitchen'){ if(APP.kitchenStation) refreshKitchenItems(session); return; }
+  if(APP.view==='order' || APP.view==='packages'){ refreshOrderLiveStatus(session); return; }
+  if(AUTO_REFRESH_SKIP.includes(APP.view) || uiBusyForAutoRefresh()) return;
+  const sc = document.scrollingElement ? document.scrollingElement.scrollTop : 0;
+  const ca = document.querySelector('.content-area'); const caTop = ca ? ca.scrollTop : 0;
+  APP.silentLoad = true;
+  render();
+  setTimeout(() => {
+    APP.silentLoad = false;
+    if(document.scrollingElement) document.scrollingElement.scrollTop = sc;
+    const ca2 = document.querySelector('.content-area'); if(ca2) ca2.scrollTop = caTop;
+  }, 600);
 }
 function todayLocalDateStr(){
   const d = new Date();
