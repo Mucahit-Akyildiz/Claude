@@ -309,7 +309,8 @@ async function renderReportContent(session){
   // Kapatılan Hesaplar listesi saat/masa/ödeme biçimine göre filtrelenebilir -
   // filtre seçenekleri o tarih aralığında GERÇEKTEN görülen değerlerden
   // türetilir (boş/alakasız seçenek çıkmasın diye).
-  if(!APP.reportBillsFilter) APP.reportBillsFilter = { hour:'', table:'', method:'' };
+  if(!APP.reportBillsFilter) APP.reportBillsFilter = { hour:'', table:'', method:'', source:'' };
+  if(APP.reportBillsFilter.source==null) APP.reportBillsFilter.source = '';
   const bf = APP.reportBillsFilter;
   const billLabel = (o) => (o.kind==='takeaway' ? '📦 Paket' : (o.table_name||'-'));
   const billTableOptions = [...new Set(hist.map(billLabel))].sort();
@@ -317,13 +318,19 @@ async function renderReportContent(session){
   const METHOD_LABELS = { cash:'💵 Nakit', card:'💳 Kredi Kartı', gift_card:'🎁 Hediye Kartı', split:'➗ Bölünmüş' };
   const billMethodOptions = [...new Set(hist.map(o => o.payment_method))].filter(Boolean).sort();
 
+  // Hesabın kaynağı: rezervasyondan / bekleme listesinden oturtulan masa,
+  // doğrudan gelen (rezervasyonsuz) masa ya da paket.
+  const billSource = (o) => o.from_reservation ? 'resv' : o.from_waitlist ? 'waitlist' : o.kind==='takeaway' ? 'takeaway' : 'walkin';
+  const SOURCE_LABELS = { resv:'📅 Rezervasyonlu', waitlist:'⏳ Bekleme Listesi', walkin:'🚶 Rezervasyonsuz Masa', takeaway:'📦 Paket' };
+  const billSourceCounts = {}; hist.forEach(o => { const k = billSource(o); billSourceCounts[k] = (billSourceCounts[k]||0) + 1; });
   const filteredBills = hist.filter(o => {
     if(bf.hour!=='' && new Date(o.closed_at).getHours()!==Number(bf.hour)) return false;
     if(bf.table && billLabel(o)!==bf.table) return false;
     if(bf.method && o.payment_method!==bf.method) return false;
+    if(bf.source && billSource(o)!==bf.source) return false;
     return true;
   });
-  const billsFilterActive = bf.hour!=='' || bf.table!=='' || bf.method!=='';
+  const billsFilterActive = bf.hour!=='' || bf.table!=='' || bf.method!=='' || bf.source!=='';
 
   const billRowHtml = (o) => {
     const t = new Date(o.closed_at).toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'});
@@ -389,7 +396,11 @@ async function renderReportContent(session){
           <option value="">Tüm Ödeme Biçimleri</option>
           ${billMethodOptions.map(m => `<option value="${m}" ${bf.method===m?'selected':''}>${METHOD_LABELS[m]||m}</option>`).join('')}
         </select>
-        ${billsFilterActive ? `<button type="button" class="sbtn" style="width:auto;margin:0;" onclick="APP.reportBillsFilter={hour:'',table:'',method:''};renderReportTabContent(getSession());">✕ Filtreleri Temizle</button>` : ''}
+        <select id="billSourceFilter" style="width:auto;margin:0;padding:8px 12px;" onchange="APP.reportBillsFilter.source=this.value;renderReportTabContent(getSession());">
+          <option value="">Tüm Kaynaklar</option>
+          ${Object.keys(SOURCE_LABELS).map(k => `<option value="${k}" ${bf.source===k?'selected':''}>${SOURCE_LABELS[k]} (${billSourceCounts[k]||0})</option>`).join('')}
+        </select>
+        ${billsFilterActive ? `<button type="button" class="sbtn" style="width:auto;margin:0;" onclick="APP.reportBillsFilter={hour:'',table:'',method:'',source:''};renderReportTabContent(getSession());">✕ Filtreleri Temizle</button>` : ''}
       </div>
       ${billsHtml}
     </div>
