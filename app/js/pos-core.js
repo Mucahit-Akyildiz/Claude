@@ -1587,13 +1587,50 @@ function toggleOrderFlag(pseudoId, label, checked){
   else if(!checked && idx!==-1) sel.splice(idx,1);
 }
 
+/* Masadaki müşteri bilgisi: rezervasyondan gelir ya da elle girilir
+   (bkz. set_table_customer - masa boşsa isimle açılır). */
 function tableCustomerInfoHtml(tableId){
-  const o = String(tableId).indexOf('pkg_')===0 ? null : liveOrderForTable(tableId);
-  if(!o || !(o.customer_name || o.customer_phone || o.note)) return '';
-  return `<div style="background:var(--panel2);border:1px solid var(--border);border-radius:12px;padding:10px 12px;margin-bottom:12px;font-size:13.5px;">
-    ${o.customer_name ? `<div><b>👤 ${escapeHtml(o.customer_name)}</b>${o.customer_phone ? ` · <a href="tel:${escapeAttr(o.customer_phone)}" style="color:var(--accent);">${escapeHtml(o.customer_phone)}</a>` : ''}</div>` : ''}
-    ${o.note ? `<div class="muted" style="margin-top:3px;overflow-wrap:anywhere;">${escapeHtml(o.note)}</div>` : ''}
+  if(String(tableId).indexOf('pkg_')===0) return '';
+  return `<div id="tableCustWrap">${tableCustomerInnerHtml(tableId)}</div>`;
+}
+function tableCustomerInnerHtml(tableId, editing){
+  const o = liveOrderForTable(tableId);
+  const name = (o && o.customer_name) || '', phone = (o && o.customer_phone) || '';
+  if(editing){
+    return `<div style="background:var(--panel2);border:1px solid var(--border);border-radius:12px;padding:10px 12px;margin-bottom:12px;">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+        <input id="tableCustName" placeholder="Müşteri adı" value="${escapeAttr(name)}" style="margin:0;">
+        <input id="tableCustPhone" placeholder="Telefon (opsiyonel)" inputmode="tel" value="${escapeAttr(phone)}" style="margin:0;">
+      </div>
+      <div style="display:flex;gap:8px;margin-top:8px;">
+        <button type="button" class="ghost-btn" style="flex:1;margin:0;" onclick="document.getElementById('tableCustWrap').innerHTML=tableCustomerInnerHtml('${tableId}')">Vazgeç</button>
+        <button type="button" style="flex:1;margin:0;" onclick="saveTableCustomer('${tableId}')">Kaydet</button>
+      </div>
+    </div>`;
+  }
+  if(!o || !(name || phone || o.note)){
+    return `<button type="button" class="ghost-btn" style="width:100%;margin:0 0 12px;" onclick="document.getElementById('tableCustWrap').innerHTML=tableCustomerInnerHtml('${tableId}', true);document.getElementById('tableCustName').focus()">👤 Müşteri Adı Ekle</button>`;
+  }
+  return `<div style="background:var(--panel2);border:1px solid var(--border);border-radius:12px;padding:10px 12px;margin-bottom:12px;font-size:13.5px;display:flex;gap:10px;align-items:flex-start;">
+    <div style="flex:1;min-width:0;">
+      ${name ? `<div><b>👤 ${escapeHtml(name)}</b>${phone ? ` · <a href="tel:${escapeAttr(phone)}" style="color:var(--accent);">${escapeHtml(phone)}</a>` : ''}</div>` : (phone ? `<div>📞 <a href="tel:${escapeAttr(phone)}" style="color:var(--accent);">${escapeHtml(phone)}</a></div>` : '')}
+      ${o.note ? `<div class="muted" style="margin-top:3px;overflow-wrap:anywhere;">${escapeHtml(o.note)}</div>` : ''}
+    </div>
+    <button type="button" class="sbtn" style="width:auto;margin:0;" onclick="document.getElementById('tableCustWrap').innerHTML=tableCustomerInnerHtml('${tableId}', true)">✏️</button>
   </div>`;
+}
+async function saveTableCustomer(tableId){
+  const name = document.getElementById('tableCustName').value.trim();
+  const phone = document.getElementById('tableCustPhone').value.trim();
+  const session = getSession();
+  const { error } = await withLoadingOverlay(sb.rpc('set_table_customer', { p_token: session.session_token, p_table_id: tableId, p_name: name || null, p_phone: phone || null }));
+  if(error){ alert(error.message); return; }
+  const { data } = await sb.rpc('get_live_orders', { p_token: session.session_token });
+  if(data) APP.liveOrders = data;
+  const wrap = document.getElementById('tableCustWrap');
+  if(wrap) wrap.innerHTML = tableCustomerInnerHtml(tableId);
+  renderTableGrid();
+  showToast(name || phone ? 'Müşteri bilgisi kaydedildi ✓' : 'Müşteri bilgisi kaldırıldı');
 }
 /* ---- Masa penceresi: ürün ekle, sepete at, mutfağa gönder ---- */
 function openTableModal(tableId){
