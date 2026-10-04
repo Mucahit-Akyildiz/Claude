@@ -12,7 +12,6 @@ const SETTINGS_TABS = [
   { tab:'flags', perm:'settings_flags', label:'Sipariş Etiketleri' },
   { tab:'users', perm:'settings_users', label:'Kullanıcılar' },
   { tab:'shifts', perm:'shifts', label:'Vardiyalar' },
-  { tab:'activeusers', managerOnly:true, label:'🟢 Aktif Kullanıcılar' },
   { tab:'billing', managerOnly:true, label:'💳 Abonelik' },
   { tab:'roles', managerOnly:true, label:'Roller' },
   { tab:'integrations', managerOnly:true, label:'Entegrasyonlar' },
@@ -57,8 +56,16 @@ function renderSettingsContent(session){
   else if(APP.settingsTab==='shifts') renderShiftsSettings(el, session);
   else if(APP.settingsTab==='billing') renderBillingSettings(el, session);
   else if(APP.settingsTab==='datareset') renderDataResetSettings(el);
-  else if(APP.settingsTab==='activeusers') renderActiveUsersSettings(el);
-  else renderUsersSettings(el, session);
+  else {
+    renderUsersSettings(el, session);
+    // Aktif Kullanıcılar, Kullanıcılar sekmesinin altında (yalnızca Yönetici).
+    if(session.isManager){
+      const box = document.createElement('div');
+      box.style.marginTop = '18px';
+      el.appendChild(box);
+      renderActiveUsersSettings(box);
+    }
+  }
 }
 
 /* --- Sipariş Etiketleri (Personel Yemeği, İkram vb. checkbox'lar) --- */
@@ -937,7 +944,7 @@ function renderActiveUsersSettings(el){
   loadActiveUsers();
   if(ACTIVE_USERS_TIMER) clearInterval(ACTIVE_USERS_TIMER);
   ACTIVE_USERS_TIMER = setInterval(() => {
-    if(APP.view!=='settings' || APP.settingsTab!=='activeusers' || !document.getElementById('activeUsersBody')){ clearInterval(ACTIVE_USERS_TIMER); ACTIVE_USERS_TIMER = null; return; }
+    if(APP.view!=='settings' || APP.settingsTab!=='users' || !document.getElementById('activeUsersBody')){ clearInterval(ACTIVE_USERS_TIMER); ACTIVE_USERS_TIMER = null; return; }
     loadActiveUsers();
   }, 20000);
 }
