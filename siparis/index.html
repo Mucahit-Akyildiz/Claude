@@ -35,8 +35,10 @@
   .lang-btn.active{background:var(--accent);color:var(--btn-ink);border-color:var(--accent);}
   html[dir="rtl"] .qty-btn,html[dir="rtl"] .cartbar-row,html[dir="rtl"] .order-type-tabs{direction:ltr;}
   main{padding:14px;max-width:520px;margin:0 auto;}
-  .sec-tabs{position:sticky;top:0;z-index:5;display:flex;gap:8px;overflow-x:auto;padding:10px 16px;background:var(--bg);border-bottom:1px solid var(--border);scrollbar-width:none;}
-  .sec-tabs a{flex-shrink:0;padding:7px 14px;border-radius:999px;border:1px solid var(--border);background:var(--panel);color:var(--text);font-weight:700;font-size:13px;text-decoration:none;}
+  .sec-tabs{position:sticky;top:0;z-index:5;background:var(--bg);border-bottom:1px solid var(--border);}
+  .sec-tabs-in{display:flex;gap:8px;overflow-x:auto;padding:10px 14px;max-width:520px;margin:0 auto;scrollbar-width:none;}
+  .sec-tabs button{flex-shrink:0;width:auto;margin:0;padding:8px 16px;border-radius:999px;border:1px solid var(--border);background:var(--panel);color:var(--text);font-weight:700;font-size:13.5px;cursor:pointer;font-family:inherit;}
+  .sec-tabs button.active{background:var(--accent);border-color:var(--accent);color:var(--btn-ink,#fff);}
   .product-img{width:64px;height:64px;border-radius:10px;object-fit:cover;flex-shrink:0;background:var(--panel2);}
   .station-title{scroll-margin-top:60px;font-size:13px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin:18px 4px 8px;}
   .station-title:first-child{margin-top:4px;}
@@ -164,9 +166,12 @@ function renderMenu(){
       groups[key].items.push(p);
     });
   }
-  const tabs = sections.length > 1 ? `<nav class="sec-tabs">${sections.map((sec, i) => `<a href="#sec_${i}" onclick="document.getElementById('sec_${i}').scrollIntoView({behavior:'smooth',block:'start'});return false;">${escapeHtml(sec.name)}</a>`).join('')}</nav>` : '';
-  const body = sections.map((sec, i) => `
-    <div class="station-title" id="sec_${i}">${escapeHtml(sec.name)}</div>
+  // Üstteki başlıklar sekme gibi çalışır: yalnızca seçilen başlığın ürünleri listelenir.
+  if(STATE.sec == null || STATE.sec >= sections.length) STATE.sec = 0;
+  const tabs = sections.length > 1 ? `<nav class="sec-tabs"><div class="sec-tabs-in">${sections.map((sec, i) => `<button type="button" class="${i===STATE.sec?'active':''}" onclick="STATE.sec=${i};renderMenu();window.scrollTo(0,0);">${escapeHtml(sec.name)}</button>`).join('')}</div></nav>` : '';
+  const shown = sections.length > 1 ? [sections[STATE.sec]] : sections;
+  const body = shown.map(sec => `
+    <div class="station-title">${escapeHtml(sec.name)}</div>
     ${sec.items.map(p => `
       <div class="product-card">
         ${p.image ? `<img class="product-img" src="${p.image}" alt="" loading="lazy">` : ''}
