@@ -317,21 +317,27 @@ async function dispatchShiftEvent(supabase, shiftId, event) {
 async function dispatchChatMessage(supabase, messageId) {
   const { data: msg } = await supabase
     .from('chat_messages')
-    .select('id, restaurant_id, sender_id, recipient_id, body, app_users!chat_messages_sender_id_fkey(username)')
+    .select('id, restaurant_id, sender_id, recipient_id, group_id, body, attachment_kind, attachment_name, app_users!chat_messages_sender_id_fkey(username), chat_groups(name)')
     .eq('id', messageId)
     .maybeSingle();
   if (!msg) return { sent: 0, note: 'not found' };
   let ids;
-  if (msg.recipient_id) ids = [msg.recipient_id];
+  if (msg.group_id) {
+    // Grup mesaji: gonderen haric grup uyeleri.
+    const { data: members } = await supabase.from('chat_group_members').select('user_id').eq('group_id', msg.group_id);
+    ids = (members || []).map((m) => m.user_id).filter((id) => id !== msg.sender_id);
+  } else if (msg.recipient_id) ids = [msg.recipient_id];
   else {
     const { data: users } = await supabase.from('app_users').select('id, is_active').eq('restaurant_id', msg.restaurant_id);
     ids = (users || []).filter((u) => u.is_active !== false && u.id !== msg.sender_id).map((u) => u.id);
   }
   const from = (msg.app_users && msg.app_users.username) || 'Personel';
-  const text = msg.body || '📷 Görsel';
+  const text = msg.body || (msg.attachment_kind === 'audio' ? '🎤 Sesli mesaj' : msg.attachment_kind === 'file' ? '📎 ' + (msg.attachment_name || 'Dosya') : '📷 Fotoğraf');
   const body = text.length > 140 ? text.slice(0, 137) + '...' : text;
+  const where = msg.group_id ? ' · ' + ((msg.chat_groups && msg.chat_groups.name) || 'Grup') : (msg.recipient_id ? '' : ' (Genel)');
   return sendToUsers(supabase, ids, {
-    title: '💬 ' + from + (msg.recipient_id ? '' : ' (Genel)'), body, url: '/app/', view: 'messages', tag: 'chat-' + (msg.recipient_id ? msg.sender_id : 'all'),
+    title: '💬 ' + from + where, body, url: '/app/', view: 'messages',
+    tag: 'chat-' + (msg.group_id ? 'g' + msg.group_id : msg.recipient_id ? msg.sender_id : 'all'),
   });
 }
 
