@@ -53,6 +53,11 @@
   .state-box img{width:56px;height:56px;margin-bottom:14px;border-radius:12px;}
   .state-box h2{margin:0 0 8px;font-size:18px;}
   .state-box p{color:var(--muted);font-size:14px;line-height:1.5;}
+  .waiter-bar{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin:10px 16px 0;padding:10px 12px;background:var(--panel);border:1px solid var(--border);border-radius:14px;font-weight:700;font-size:14px;}
+  .waiter-btns{display:flex;gap:8px;flex-wrap:wrap;}
+  .waiter-btns button{width:auto;margin:0;padding:9px 12px;border-radius:10px;border:1px solid var(--accent);background:var(--accent);color:var(--btn-ink,#fff);font-weight:700;font-size:13.5px;cursor:pointer;}
+  .waiter-btns button + button{background:transparent;color:var(--accent);}
+  .waiter-btns button:disabled{opacity:.55;}
   .modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;z-index:50;padding:16px;}
   .modal{background:var(--panel);border-radius:18px;padding:20px;max-width:380px;width:100%;max-height:85vh;overflow:auto;}
   .modal h2{margin:0 0 12px;font-size:17px;}
@@ -195,13 +200,33 @@ function trustHtml(){
     <div>${escapeHtml(trt('safety'))}</div>
   </div>`;
 }
+const WAITER_I18N = {
+  tr: { title:'Garson Çağır', order:'🙋 Sipariş için', payment:'💳 Hesap / Ödeme için', ok:'Garsonunuz geliyor, teşekkürler!', already:'Garsonunuz zaten çağrıldı, birazdan yanınızda.' },
+  en: { title:'Call Waiter', order:'🙋 To order', payment:'💳 For the bill', ok:'Your waiter is on the way, thank you!', already:'Your waiter has already been called.' },
+  ar: { title:'استدعاء النادل', order:'🙋 للطلب', payment:'💳 للحساب', ok:'النادل في الطريق إليك، شكراً!', already:'تم استدعاء النادل بالفعل.' },
+  de: { title:'Kellner rufen', order:'🙋 Zum Bestellen', payment:'💳 Zum Bezahlen', ok:'Ihr Kellner kommt gleich, danke!', already:'Ihr Kellner wurde bereits gerufen.' },
+  ru: { title:'Вызвать официанта', order:'🙋 Сделать заказ', payment:'💳 Попросить счёт', ok:'Официант уже идёт, спасибо!', already:'Официант уже вызван.' },
+};
+function wt(key){ return (WAITER_I18N[STATE.lang||'tr']||WAITER_I18N.tr)[key] || WAITER_I18N.tr[key]; }
+function waiterHtml(){
+  return `<div class="waiter-bar"><span>${escapeHtml(wt('title'))}</span>
+    <div class="waiter-btns"><button type="button" onclick="callWaiter('order', this)">${escapeHtml(wt('order'))}</button>
+    <button type="button" onclick="callWaiter('payment', this)">${escapeHtml(wt('payment'))}</button></div></div>`;
+}
+async function callWaiter(kind, btn){
+  if(btn) btn.disabled = true;
+  const { data, error } = await sb.rpc('call_waiter', { p_qr_token: QR_TOKEN, p_kind: kind });
+  setTimeout(() => { if(btn) btn.disabled = false; }, 8000);
+  if(error){ alert(error.message); if(btn) btn.disabled = false; return; }
+  alert(data && data.already ? wt('already') : wt('ok'));
+}
 function headerHtml(){
   const m = STATE.menu;
   return `<header>
     <img src="/assets/images/logo.webp" alt="Peyktan">
     <div class="titles"><h1>${escapeHtml(m.restaurant_name)}</h1><p>${escapeHtml(m.table_name)}</p></div>
     ${langPickerHtml()}
-  </header>` + trustHtml();
+  </header>` + waiterHtml() + trustHtml();
 }
 function stepCart(productId, delta){
   const next = Math.max(0, Math.min(20, (STATE.cart[productId]||0) + delta));

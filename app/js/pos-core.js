@@ -1344,6 +1344,44 @@ function startCustomerRequestPolling(session){
     if(s) refreshCustomerOrderRequests(s);
   }, 20000);
 }
+/* --- Masadan garson çağrıları (QR menü > Garson Çağır): her ekranda sağ
+   altta sabit bir kutuda listelenir; sipariş çağrıları 'order', ödeme
+   çağrıları 'payments' izni olana gelir (bkz. list_waiter_calls). --- */
+let WAITER_CALL_TIMER = null, WAITER_CALL_SEEN = new Set();
+function startWaiterCallPolling(){
+  if(WAITER_CALL_TIMER) clearInterval(WAITER_CALL_TIMER);
+  refreshWaiterCalls();
+  WAITER_CALL_TIMER = setInterval(refreshWaiterCalls, 10000);
+}
+async function refreshWaiterCalls(){
+  const session = getSession();
+  if(!session || (!hasPerm(session, 'order') && !hasPerm(session, 'payments'))){ const b = document.getElementById('waiterCallBox'); if(b) b.remove(); return; }
+  const { data, error } = await sb.rpc('list_waiter_calls', { p_token: session.session_token });
+  if(error) return;
+  const rows = data || [];
+  let box = document.getElementById('waiterCallBox');
+  if(!rows.length){ if(box) box.remove(); return; }
+  if(!box){ box = document.createElement('div'); box.id = 'waiterCallBox'; document.body.appendChild(box); }
+  box.style.cssText = 'position:fixed;right:16px;bottom:16px;z-index:90;max-width:min(340px,calc(100vw - 32px));background:var(--panel);border:2px solid var(--accent);border-radius:14px;box-shadow:0 10px 30px rgba(0,0,0,.25);padding:12px 14px;';
+  box.innerHTML = `<div style="font-weight:800;margin-bottom:6px;">🔔 Garson Çağrıları (${rows.length})</div>` + rows.map(r => `
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:6px 0;border-top:1px dashed var(--border);">
+      <span style="font-size:13.5px;overflow-wrap:anywhere;">${r.kind==='payment' ? '💳' : '🙋'} <b>${escapeHtml(r.table_name||'Masa')}</b> · ${r.kind==='payment' ? 'hesap istiyor' : 'sipariş verecek'}
+        <span class="muted" style="font-size:11.5px;">${new Date(r.created_at).toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'})}</span></span>
+      <button type="button" class="sbtn" style="width:auto;margin:0;background:var(--green);color:var(--btn-ink);white-space:nowrap;" onclick="resolveWaiterCall('${r.id}')">✓ Gittim</button>
+    </div>`).join('');
+  const fresh = rows.filter(r => !WAITER_CALL_SEEN.has(r.id));
+  fresh.forEach(r => WAITER_CALL_SEEN.add(r.id));
+  if(fresh.length){
+    showToast('🔔 ' + fresh.map(r => (r.table_name||'Masa') + (r.kind==='payment' ? ' hesap istiyor' : ' garson çağırıyor')).join(', '), 15000);
+    try{ if(typeof playKitchenBell==='function') playKitchenBell(); }catch(e){}
+  }
+}
+async function resolveWaiterCall(id){
+  const session = getSession();
+  const { error } = await sb.rpc('resolve_waiter_call', { p_token: session.session_token, p_id: id });
+  if(error){ alert(error.message); return; }
+  refreshWaiterCalls(); refreshNavBadges();
+}
 function stopCustomerRequestPolling(){
   if(CUSTOMER_REQ_POLL_INTERVAL){ clearInterval(CUSTOMER_REQ_POLL_INTERVAL); CUSTOMER_REQ_POLL_INTERVAL=null; }
 }

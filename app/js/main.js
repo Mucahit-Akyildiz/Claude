@@ -53,6 +53,7 @@ function render(){
   if(!APP.customerReqPollStarted){
     APP.customerReqPollStarted = true;
     startCustomerRequestPolling(session);
+    startWaiterCallPolling();
     maybeShowPushPrompt(session);
     refreshShiftWidget(session);
   }
@@ -245,7 +246,7 @@ async function checkDataVersion(){
     if(error || data==null) return;
     const changed = DATA_VER_LAST!==null && data!==DATA_VER_LAST;
     DATA_VER_LAST = data;
-    if(changed){ refreshNavBadges(); autoRefreshCurrentView(session); }
+    if(changed){ refreshNavBadges(); refreshWaiterCalls(); autoRefreshCurrentView(session); }
   } finally { DATA_VER_BUSY = false; }
 }
 // Kullanıcı bir şey yazıyor/seçiyorsa ya da açık bir pencere varsa ekranı ellemeyiz.

@@ -299,6 +299,28 @@ async function dispatchShiftEvent(supabase, shiftId, event) {
   return sendToUsers(supabase, [shift.user_id], { title: msgs[event][0], body: msgs[event][1], url: '/app/', tag: 'shift-' + shift.id });
 }
 
+// Masadaki QR menuden "Garson Cagir": siparis cagrisi 'order', odeme cagrisi
+// 'payments' izni olan personele (Yonetici dahil) push olarak gider.
+async function dispatchWaiterCall(supabase, callId) {
+  const { data: call } = await supabase
+    .from('waiter_calls')
+    .select('id, restaurant_id, kind, status, restaurant_tables(name)')
+    .eq('id', callId)
+    .maybeSingle();
+  if (!call || call.status !== 'pending') return { sent: 0, note: 'not pending' };
+  const perm = call.kind === 'payment' ? 'payments' : 'order';
+  const { data: appUsers } = await supabase.from('app_users').select('id, role_ids, is_active').eq('restaurant_id', call.restaurant_id);
+  const { data: roles } = await supabase.from('roles').select('id, is_system, permissions').eq('restaurant_id', call.restaurant_id);
+  const roleIds = new Set((roles || []).filter((rl) => rl.is_system || (rl.permissions || []).includes(perm)).map((rl) => rl.id));
+  const ids = (appUsers || []).filter((u) => u.is_active !== false && (u.role_ids || []).some((rid) => roleIds.has(rid))).map((u) => u.id);
+  const table = (call.restaurant_tables && call.restaurant_tables.name) || 'Bir masa';
+  return sendToUsers(supabase, ids, call.kind === 'payment' ? {
+    title: '💳 Hesap isteniyor', body: table + ' ödeme için garson çağırıyor.', url: '/app/', view: 'payments', tag: 'waiter-call-' + call.id,
+  } : {
+    title: '🙋 Garson çağrısı', body: table + ' sipariş vermek için garson çağırıyor.', url: '/app/', view: 'order', tag: 'waiter-call-' + call.id,
+  });
+}
+
 // Gizli anahtar karsilastirmasi sabit surede yapilir (zamanlama saldirisi).
 function safeEqual(a, b) {
   const crypto = require('crypto');
@@ -330,6 +352,13 @@ module.exports = async function handler(req, res) {
       const shiftId = req.body && req.body.shift_id;
       if (!shiftId) { res.status(400).json({ error: 'shift_id required' }); return; }
       res.status(200).json(await dispatchShiftEvent(supabase, shiftId, req.body.event));
+      return;
+    }
+
+    if (mode === 'waiter_call') {
+      const callId = req.body && req.body.call_id;
+      if (!callId) { res.status(400).json({ error: 'call_id required' }); return; }
+      res.status(200).json(await dispatchWaiterCall(supabase, callId));
       return;
     }
 
