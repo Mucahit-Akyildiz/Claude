@@ -105,7 +105,8 @@ CREATE TABLE public.chat_messages (
     attachment_kind text,
     attachment_name text,
     attachment_size integer,
-    deleted_at timestamp with time zone
+    deleted_at timestamp with time zone,
+    view_once boolean DEFAULT false NOT NULL
 );
 
 
@@ -147,6 +148,7 @@ CREATE FUNCTION public._chat_preview(m public.chat_messages) RETURNS text
   -- Hiç mesaj yoksa (boş satır) önizleme de boş kalır.
   select case when m.id is null then null
               when m.deleted_at is not null then '🚫 Mesaj silindi'
+              when m.view_once then '1️⃣ Fotoğraf'
               when coalesce(m.body,'') <> '' then m.body
               when m.attachment_kind = 'audio' then '🎤 Sesli mesaj'
               when m.attachment_kind = 'file' then '📎 ' || coalesce(m.attachment_name, 'Dosya')
@@ -1999,6 +2001,26 @@ $$;
 
 
 --
+-- Name: chat_upload_target(uuid, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.chat_upload_target(p_token uuid, p_conv text) RETURNS uuid
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'extensions', 'pg_temp'
+    AS $$
+declare s staff_sessions%rowtype;
+begin
+  s := _session_check(p_token, 'messages');
+  if p_conv like 'g:%' then
+    if not exists(select 1 from chat_group_members where group_id = substr(p_conv,3)::uuid and user_id = s.user_id) then raise exception 'Bu grubun üyesi değilsiniz'; end if;
+  elsif p_conv <> 'all' then
+    if not exists(select 1 from app_users where id = p_conv::uuid and restaurant_id = s.restaurant_id) then raise exception 'Kullanıcı bulunamadı'; end if;
+  end if;
+  return s.restaurant_id;
+end; $$;
+
+
+--
 -- Name: check_gift_card(uuid, text); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -2881,7 +2903,10 @@ begin
       case when m.deleted_at is null then m.attachment_kind end attachment_kind,
       case when m.deleted_at is null then m.attachment_name end attachment_name,
       case when m.deleted_at is null then m.attachment_size end attachment_size,
-      case when m.deleted_at is null and m.attachment_kind = 'image' then m.attachment end attachment,
+      case when m.deleted_at is null and m.attachment_kind = 'image' and not m.view_once then m.attachment end attachment,
+      m.view_once,
+      case when m.view_once then exists(select 1 from chat_view_once v where v.message_id = m.id and v.user_id = s.user_id) end viewed_by_me,
+      case when m.view_once and m.sender_id = s.user_id then (select count(*)::int from chat_view_once v where v.message_id = m.id) end viewed_count,
       (select json_build_object('id', q.id, 'sender_name', qa.username, 'preview', left(_chat_preview(q), 120), 'kind', q.attachment_kind)
          from chat_messages q join app_users qa on qa.id = q.sender_id where q.id = m.reply_to) reply,
       (select coalesce(json_agg(json_build_object('emoji', x.emoji, 'count', x.n, 'mine', x.mine, 'names', x.names) order by x.first_at), '[]'::json) from (
@@ -4631,6 +4656,28 @@ end $$;
 
 
 --
+-- Name: open_view_once(uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.open_view_once(p_token uuid, p_message_id uuid) RETURNS json
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'extensions', 'pg_temp'
+    AS $$
+declare s staff_sessions%rowtype; m chat_messages%rowtype;
+begin
+  s := _session_check(p_token, 'messages');
+  select * into m from chat_messages where id = p_message_id and restaurant_id = s.restaurant_id for update;
+  if m.id is null or not m.view_once or m.deleted_at is not null or not _chat_can_see(m, s.user_id) then raise exception 'Fotoğraf bulunamadı'; end if;
+  if m.sender_id = s.user_id then raise exception 'Tek görüntülemelik fotoğrafı gönderen göremez'; end if;
+  if exists(select 1 from chat_view_once where message_id = m.id and user_id = s.user_id) or m.attachment is null then
+    raise exception 'Bu fotoğrafı zaten açtınız'; end if;
+  insert into chat_view_once(message_id, user_id, restaurant_id) values (m.id, s.user_id, s.restaurant_id);
+  if m.recipient_id is not null then update chat_messages set attachment = null where id = m.id; end if;
+  return json_build_object('data', m.attachment, 'remove', m.recipient_id is not null);
+end; $$;
+
+
+--
 -- Name: pay_order_items(uuid, uuid, text, numeric, numeric, numeric, jsonb, numeric, uuid, numeric, text, numeric); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -5252,10 +5299,10 @@ end; $$;
 
 
 --
--- Name: send_chat_message(uuid, text, text, text, text, text, uuid); Type: FUNCTION; Schema: public; Owner: -
+-- Name: send_chat_message(uuid, text, text, text, text, text, uuid, boolean, integer); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.send_chat_message(p_token uuid, p_conv text, p_body text, p_attachment text DEFAULT NULL::text, p_kind text DEFAULT NULL::text, p_name text DEFAULT NULL::text, p_reply_to uuid DEFAULT NULL::uuid) RETURNS uuid
+CREATE FUNCTION public.send_chat_message(p_token uuid, p_conv text, p_body text, p_attachment text DEFAULT NULL::text, p_kind text DEFAULT NULL::text, p_name text DEFAULT NULL::text, p_reply_to uuid DEFAULT NULL::uuid, p_view_once boolean DEFAULT false, p_size integer DEFAULT NULL::integer) RETURNS uuid
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public', 'extensions', 'pg_temp'
     AS $$
@@ -5267,8 +5314,12 @@ begin
   if p_attachment is not null then
     v_kind := coalesce(p_kind, case when p_attachment ~ '^data:image/' then 'image' when p_attachment ~ '^data:audio/' then 'audio' else 'file' end);
     if v_kind not in ('image','audio','file') then raise exception 'Geçersiz ek'; end if;
-    if p_attachment !~ '^data:[a-zA-Z0-9.+/-]+(;[a-zA-Z0-9=.-]+)*;base64,' then raise exception 'Geçersiz dosya'; end if;
-    if v_kind = 'image' and p_attachment !~ '^data:image/(jpeg|png|webp|gif);' then raise exception 'Geçersiz görsel'; end if;
+    if p_attachment like 'storage:%' then
+      if p_attachment not like 'storage:' || s.restaurant_id::text || '/%' or p_attachment ~ '\.\.' then raise exception 'Geçersiz dosya yolu'; end if;
+    else
+      if p_attachment !~ '^data:[a-zA-Z0-9.+/-]+(;[a-zA-Z0-9=.-]+)*;base64,' then raise exception 'Geçersiz dosya'; end if;
+      if v_kind = 'image' and p_attachment !~ '^data:image/(jpeg|png|webp|gif);' then raise exception 'Geçersiz görsel'; end if;
+    end if;
     -- Sınırlar (base64 metin uzunluğu): fotoğraf ~1 MB, ses ~3 MB, dosya ~5 MB.
     v_limit := case v_kind when 'image' then 1500000 when 'audio' then 4200000 else 7000000 end;
     if length(p_attachment) > v_limit then raise exception 'Dosya çok büyük (fotoğraf en fazla 1 MB, ses 3 MB, dosya 5 MB)'; end if;
@@ -5283,9 +5334,9 @@ begin
   if p_reply_to is not null and not exists(select 1 from chat_messages m where m.id = p_reply_to and m.restaurant_id = s.restaurant_id and _chat_can_see(m, s.user_id)) then
     raise exception 'Alıntılanan mesaj bulunamadı'; end if;
   if (select count(*) from chat_messages where sender_id = s.user_id and created_at > now() - interval '1 minute') >= 40 then raise exception 'Çok hızlı mesaj gönderiyorsunuz'; end if;
-  insert into chat_messages(restaurant_id, sender_id, recipient_id, group_id, body, attachment, attachment_kind, attachment_name, attachment_size, reply_to)
+  insert into chat_messages(restaurant_id, sender_id, recipient_id, group_id, body, attachment, attachment_kind, attachment_name, attachment_size, reply_to, view_once)
     values (s.restaurant_id, s.user_id, v_peer, v_group, coalesce(trim(p_body),''), p_attachment, v_kind, left(p_name, 200),
-            case when p_attachment is not null then (length(p_attachment) * 3 / 4) end, p_reply_to)
+            case when p_attachment like 'storage:%' then p_size when p_attachment is not null then (length(p_attachment) * 3 / 4) end, p_reply_to, coalesce(p_view_once, false) and v_kind = 'image')
     returning id into v_id;
   insert into chat_reads(user_id, conv, last_read_at) values (s.user_id, p_conv, now()) on conflict (user_id, conv) do update set last_read_at = now();
   begin
@@ -7486,6 +7537,18 @@ CREATE TABLE public.chat_reads (
 
 
 --
+-- Name: chat_view_once; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.chat_view_once (
+    message_id uuid NOT NULL,
+    user_id uuid NOT NULL,
+    restaurant_id uuid NOT NULL,
+    viewed_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
 -- Name: client_errors; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -8477,6 +8540,14 @@ ALTER TABLE ONLY public.chat_reactions
 
 ALTER TABLE ONLY public.chat_reads
     ADD CONSTRAINT chat_reads_pkey PRIMARY KEY (user_id, conv);
+
+
+--
+-- Name: chat_view_once chat_view_once_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.chat_view_once
+    ADD CONSTRAINT chat_view_once_pkey PRIMARY KEY (message_id, user_id);
 
 
 --
@@ -9631,6 +9702,13 @@ CREATE TRIGGER trg_bump_dv AFTER INSERT OR DELETE OR UPDATE ON public.chat_react
 
 
 --
+-- Name: chat_view_once trg_bump_dv; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_bump_dv AFTER INSERT OR DELETE OR UPDATE ON public.chat_view_once FOR EACH ROW EXECUTE FUNCTION public._bump_data_version();
+
+
+--
 -- Name: customer_order_requests trg_bump_dv; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -9917,6 +9995,22 @@ ALTER TABLE ONLY public.chat_reactions
 
 ALTER TABLE ONLY public.chat_reads
     ADD CONSTRAINT chat_reads_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.app_users(id);
+
+
+--
+-- Name: chat_view_once chat_view_once_message_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.chat_view_once
+    ADD CONSTRAINT chat_view_once_message_id_fkey FOREIGN KEY (message_id) REFERENCES public.chat_messages(id) ON DELETE CASCADE;
+
+
+--
+-- Name: chat_view_once chat_view_once_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.chat_view_once
+    ADD CONSTRAINT chat_view_once_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.app_users(id);
 
 
 --
@@ -10504,6 +10598,12 @@ ALTER TABLE public.chat_reactions ENABLE ROW LEVEL SECURITY;
 --
 
 ALTER TABLE public.chat_reads ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: chat_view_once; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.chat_view_once ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: client_errors; Type: ROW SECURITY; Schema: public; Owner: -
