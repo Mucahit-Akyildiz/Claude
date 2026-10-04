@@ -15,7 +15,7 @@ async function renderKitchenView(main, session){
   if(!APP.kitchenStation){
     stopKitchenPolling();
     main.innerHTML = `<h1>Mutfak Ekranı</h1><p class="muted">İstasyon seçin</p><div class="home-grid">` +
-      APP.config.stations.map(s => `<div class="card" style="border-left:4px solid ${s.color}" onclick="pickKitchenStation('${s.id}')"><div class="icon">${escapeHtml(s.icon||'🍳')}</div><h3>${escapeHtml(s.name)}</h3></div>`).join('') +
+      APP.config.stations.map(s => `<div class="card" data-station-card="${s.id}" style="position:relative;border-left:4px solid ${s.color}" onclick="pickKitchenStation('${s.id}')"><div class="icon">${escapeHtml(s.icon||'🍳')}</div><h3>${escapeHtml(s.name)}</h3></div>`).join('') +
       `</div>`;
     return;
   }
