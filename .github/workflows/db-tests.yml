@@ -1,0 +1,38 @@
+name: Veritabanı Kritik Testleri
+
+# Ödeme, sipariş, stok, giriş/OTP, vardiya ve işletme izolasyonu senaryoları.
+# Canlı veritabanında tek bir işlem içinde çalışır ve sonunda ROLLBACK edilir;
+# hiçbir veri kalıcı değişmez (bkz. supabase/tests/critical_tests.sql).
+# Gerekli secret: SUPABASE_DB_URL (Supabase > Project Settings > Database >
+# Connection string, "Session pooler" URI, şifre dahil).
+on:
+  workflow_dispatch: {}
+  pull_request:
+    branches: [claude/restoran-app-definition-h5e5am]
+  push:
+    branches: [claude/restoran-app-definition-h5e5am]
+  schedule:
+    - cron: '17 3 * * *'
+
+jobs:
+  critical-tests:
+    runs-on: ubuntu-latest
+    env:
+      HAS_DB: ${{ secrets.SUPABASE_DB_URL != '' }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - name: Secret kontrolü
+        if: ${{ env.HAS_DB != 'true' }}
+        run: echo "::warning::SUPABASE_DB_URL secret'i tanımlı değil, veritabanı testleri atlandı."
+      - name: psql kur
+        if: ${{ env.HAS_DB == 'true' }}
+        run: |
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl -fsSL -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list
+          sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client-17
+      - name: Kritik testleri çalıştır
+        if: ${{ env.HAS_DB == 'true' }}
+        env:
+          DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: psql "$DB_URL" -v ON_ERROR_STOP=1 -X -q -f supabase/tests/critical_tests.sql
