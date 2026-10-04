@@ -165,6 +165,9 @@ async function renderReportsView(main, session){
     renderReportsGate(main, session);
     return;
   }
+  // Yenileme/geri ile doğrudan bu ekrana gelinince tarih boş kalıyordu (tüm
+  // raporlar tarihsiz istek atıyordu): varsayılan bugün.
+  if(!APP.reportDate) APP.reportDate = todayLocalDateStr();
   if(!APP.reportDateTo) APP.reportDateTo = APP.reportDate;
   main.innerHTML = `<h1>Finansal Analiz</h1>
     <div class="box" style="max-width:none;">
