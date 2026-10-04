@@ -255,7 +255,7 @@ async function refreshNavBadges(){
 /* Peyktan'ın sabit bildirim sesi (assets/sounds/peyktan.wav - Android
    uygulamasında aynı dosya res/raw/peyktan olarak bildirim kanalının sesi).
    Cihazın/bilgisayarın varsayılan bildirim sesi yerine her yerde bu çalar.
-   Art arda gelen bildirimlerde 1,5 sn içinde tekrar çalmaz. */
+   Art arda gelen bildirimlerde 5 sn içinde tekrar çalmaz. */
 let PEYKTAN_SOUND_BUF = null, PEYKTAN_SOUND_LAST = 0;
 // Tarayıcılar sesi ancak sayfaya bir kez dokunulduktan sonra çaldırır: ilk
 // dokunuşta ses motoru açılır ve Peyktan sesi önceden yüklenir.
@@ -267,7 +267,8 @@ let PEYKTAN_SOUND_BUF = null, PEYKTAN_SOUND_LAST = 0;
   }catch(e){}
 }, { once: true, passive: true }));
 async function playPeyktanSound(){
-  if(Date.now() - PEYKTAN_SOUND_LAST < 1500) return;
+  // Aynı olay hem bildirim (push) hem rozet artışı olarak gelebilir; 5 sn içinde tek ses.
+  if(Date.now() - PEYKTAN_SOUND_LAST < 5000) return;
   PEYKTAN_SOUND_LAST = Date.now();
   // Bildirim Ayarları'nda bu cihaz için bir ses yüklendiyse/seçildiyse o çalar.
   try{
@@ -659,7 +660,7 @@ document.addEventListener('visibilitychange', () => { if(document.visibilityStat
 if('serviceWorker' in navigator){
   navigator.serviceWorker.addEventListener('message', (event) => {
     if(event.data && event.data.type==='peyktan-navigate' && event.data.view) goToView(event.data.view);
-    if(event.data && event.data.type==='peyktan-sound'){ PEYKTAN_SOUND_LAST = 0; playPeyktanSound(); refreshNavBadges(); }
+    if(event.data && event.data.type==='peyktan-sound'){ playPeyktanSound(); refreshNavBadges(); }
   });
 }
 // Servis çalışanı izin istemeden erkenden kaydedilir (bildirim izni ayrı,
