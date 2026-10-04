@@ -611,3 +611,19 @@ div.table-cell.badge-row::before{content:'● Hazır, ödeme bekliyor';margin:0 
 .zone-add-new{margin-top:4px;padding-top:14px;border-top:1px dashed var(--border);}
 .zone-tables > .muted{grid-column:1/-1;}
 .chat-thread,.chat-list{overscroll-behavior:contain;}
+
+.chat-row{position:relative;}
+.chat-react-open{width:30px;height:30px;margin:0;padding:0;border-radius:50%;background:var(--panel);border:1px solid var(--border);box-shadow:0 1px 3px rgba(0,0,0,.1);font-size:15px;opacity:0;transition:opacity .15s;align-self:center;flex-shrink:0;cursor:pointer;}
+.chat-row.mine .chat-react-open{order:-1;}
+.chat-row:hover .chat-react-open,.chat-row:focus-within .chat-react-open{opacity:1;}
+@media (hover:none){.chat-react-open{opacity:.55;}}
+.chat-react-bar{position:absolute;bottom:100%;z-index:3;display:flex;gap:2px;background:var(--panel);border:1px solid var(--border);border-radius:999px;padding:4px 6px;box-shadow:0 6px 20px rgba(0,0,0,.18);}
+.chat-row:not(.mine) .chat-react-bar{left:36px;}
+.chat-row.mine .chat-react-bar{right:0;}
+.chat-react-bar button{width:auto;margin:0;padding:2px 4px;background:transparent;border:none;box-shadow:none;font-size:22px;cursor:pointer;transition:transform .1s;}
+.chat-react-bar button:hover{transform:scale(1.3);}
+.chat-reacts{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px;}
+.chat-react{width:auto;margin:0;padding:1px 7px;border-radius:999px;background:var(--panel);border:1px solid var(--border);box-shadow:none;font-size:13px;color:var(--text);cursor:pointer;}
+.chat-react b{font-size:11px;}
+.chat-react.mine{border-color:var(--accent);background:rgba(0,143,168,.15);}
+.chat-react-bar.below{bottom:auto;top:100%;}

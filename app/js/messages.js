@@ -127,7 +127,9 @@ async function refreshChatThread(){
         ${m.attachment ? `<img class="chat-img" src="${m.attachment}" alt="" loading="lazy" onclick="openChatImage(this.src)">` : ''}
         ${m.body ? `<div class="chat-body">${escapeHtml(m.body)}</div>` : ''}
         <div class="chat-time">${new Date(m.created_at).toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'})}</div>
+        ${(m.reactions||[]).length ? `<div class="chat-reacts">${m.reactions.map(r => `<button type="button" class="chat-react ${r.mine?'mine':''}" title="${escapeAttr(r.names||'')}" onclick="event.stopPropagation();toggleChatReaction('${m.id}','${r.emoji}')">${r.emoji}${r.count>1?` <b>${r.count}</b>`:''}</button>`).join('')}</div>` : ''}
       </div>
+      <button type="button" class="chat-react-open" title="Tepki ver" onclick="event.stopPropagation();openReactionBar(this,'${m.id}')">😊</button>
     </div>`;
   }).join('') : `<div class="chat-empty"><div style="font-size:46px;">👋</div><b>Henüz mesaj yok</b><p class="muted">İlk mesajı siz yazın.</p></div>`;
   if(atBottom || !el.dataset.loaded){ el.scrollTop = el.scrollHeight; el.dataset.loaded = '1'; }
@@ -216,6 +218,25 @@ function toggleChatDictation(){
 function stopChatDictation(){
   if(CHAT_REC){ const r = CHAT_REC; CHAT_REC = null; try{ r.stop(); }catch(e){} }
   const mic = document.getElementById('chatMic'); if(mic) mic.classList.remove('rec');
+}
+/* Mesaja tepki: mesajın üstüne gelince (mobilde dokununca) çıkan 😊 ile
+   kalp, beğeni vb. bırakılır; aynı tepkiye tekrar basmak geri alır. */
+const CHAT_REACTIONS = ['❤️','👍','😂','😮','😢','🙏','👌','🔥'];
+function openReactionBar(btn, messageId){
+  document.querySelectorAll('.chat-react-bar').forEach(b => b.remove());
+  const bar = document.createElement('div'); bar.className = 'chat-react-bar';
+  bar.innerHTML = CHAT_REACTIONS.map(e => `<button type="button" onclick="event.stopPropagation();toggleChatReaction('${messageId}','${e}');this.parentNode.remove();">${e}</button>`).join('');
+  const row = btn.closest('.chat-row'); row.appendChild(bar);
+  // Üstte yer yoksa (sohbetin ilk mesajları) çubuk mesajın altında açılır.
+  const thread = document.getElementById('chatThread');
+  if(thread && row.getBoundingClientRect().top - thread.getBoundingClientRect().top < 52) bar.classList.add('below');
+  setTimeout(() => document.addEventListener('click', function close(){ bar.remove(); document.removeEventListener('click', close); }), 0);
+}
+async function toggleChatReaction(messageId, emoji){
+  const session = getSession();
+  const { error } = await sb.rpc('toggle_chat_reaction', { p_token: session.session_token, p_message_id: messageId, p_emoji: emoji });
+  if(error){ alert(error.message); return; }
+  refreshChatThread();
 }
 // Değişiklik sayacı tetiklediğinde: liste ve açık sohbet yazılan metne dokunmadan tazelenir.
 function refreshMessagesView(){
