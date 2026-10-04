@@ -80,7 +80,9 @@ async function renderReservationsContent(session, forceRefresh){
 /* "Oturdu": rezervasyonun masası yoksa masa sorulur; müşteri adı, telefonu,
    kişi sayısı ve notu o masada açılan siparişe yazılır (bkz. seat_reservation),
    Sipariş Al ekranında masada görünür. */
-function openSeatReservationModal(id){
+async function openSeatReservationModal(id){
+  // Dolu masaları doğru göstermek için açık siparişleri tazele.
+  { const r = await sb.rpc('get_live_orders', { p_token: getSession().session_token }); if(r.data) APP.liveOrders = r.data; }
   const r = (APP.reservationsCache||[]).find(x => x.id===id); if(!r) return;
   const tables = (APP.config.zones||[]).flatMap(z => z.tables.map(t => ({ ...t, zone: z.name })));
   const busy = new Set((APP.liveOrders||[]).filter(o => o.table_id).map(o => o.table_id));
@@ -164,7 +166,7 @@ async function renderWaitlistContent(session, forceRefresh){
           <td>${new Date(w.joined_at).toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'})}</td>
           <td>
             ${w.phone ? `<button class="sbtn" title="Müşteriye 'Masanız hazır' SMS'i gönder" onclick="notifyWaitlistReady('${w.id}')">📱 Masa Hazır</button>` : ''}
-            <button class="sbtn" onclick="changeWaitlistStatus('${w.id}','seated')">Oturdu</button>
+            <button class="sbtn" onclick="openSeatWaitlistModal('${w.id}')">Oturdu</button>
             <button class="sbtn" style="background:var(--red);color:var(--btn-ink);" onclick="changeWaitlistStatus('${w.id}','cancelled')">İptal</button>
           </td>
         </tr>`).join('')}
@@ -183,8 +185,86 @@ async function renderWaitlistContent(session, forceRefresh){
       <button style="margin-top:12px;max-width:220px;" onclick="addWaitlistEntry()">+ Ekle</button>
     </div>
   </div>`;
+  el.insertAdjacentHTML('beforeend', `<div class="box" style="max-width:none;margin-top:18px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;">
+      <h2 style="margin:0;">Geçmiş</h2>
+      <input type="date" id="wlHistDate" value="${APP.wlHistDate || todayLocalDateStr()}" style="width:auto;margin:0;" onchange="APP.wlHistDate=this.value;renderWaitlistHistory()">
+    </div>
+    <div id="wlHistWrap" style="margin-top:12px;"><p class="muted">Yükleniyor…</p></div>
+  </div>`);
+  renderWaitlistHistory();
   updateWaitlistTimers();
   startWaitlistTimerInterval();
+}
+/* Bekleme listesi geçmişi: seçilen günde listeye alınanlar, ne kadar
+   bekledikleri (tahmine göre erken/geç), oturdukları masa ya da ayrıldıkları. */
+async function renderWaitlistHistory(){
+  const wrap = document.getElementById('wlHistWrap'); if(!wrap) return;
+  const session = getSession();
+  const { data, error } = await sb.rpc('list_waitlist_history', { p_token: session.session_token, p_date: APP.wlHistDate || todayLocalDateStr() });
+  if(error){ wrap.innerHTML = '<p class="muted">Yüklenemedi: '+escapeHtml(error.message)+'</p>'; return; }
+  const rows = data || [];
+  if(!rows.length){ wrap.innerHTML = '<p class="muted">Bu tarihte kayıt yok.</p>'; return; }
+  const seated = rows.filter(r => r.status==='seated');
+  const avg = seated.length ? Math.round(seated.reduce((t, r) => t + Number(r.waited_minutes||0), 0) / seated.length) : null;
+  const hm = (iso) => iso ? new Date(iso).toLocaleTimeString('tr-TR', { hour:'2-digit', minute:'2-digit' }) : '-';
+  wrap.innerHTML = `<p class="muted" style="text-align:left;margin:0 0 10px;font-size:13px;">${rows.length} kayıt · ${seated.length} oturdu · ${rows.length - seated.length} ayrıldı${avg!=null ? ' · ortalama bekleme ' + avg + ' dk' : ''}</p>
+    <div class="settings-table-wrap"><table class="settings-table">
+      <thead><tr><th>Müşteri</th><th>Kişi</th><th>Katılım</th><th>Sonuç</th><th>Bekleme</th><th>Tahmine göre</th></tr></thead>
+      <tbody>${rows.map(r => {
+        const waited = Number(r.waited_minutes||0);
+        const q = r.quoted_wait_minutes;
+        const diff = (q!=null && r.status==='seated') ? waited - q : null;
+        const diffTxt = diff==null ? '<span class="muted">-</span>'
+          : diff > 0 ? `<span style="color:var(--red);font-weight:700;">${diff} dk geç</span>`
+          : diff < 0 ? `<span style="color:var(--green);font-weight:700;">${-diff} dk erken</span>`
+          : '<span style="color:var(--green);font-weight:700;">Tam zamanında</span>';
+        return `<tr>
+          <td class="col-name">${escapeHtml(r.customer_name)}${r.phone ? `<div class="muted" style="font-size:11.5px;">${escapeHtml(r.phone)}</div>` : ''}</td>
+          <td>${r.party_size}</td>
+          <td>${hm(r.joined_at)}</td>
+          <td>${r.status==='seated' ? `✅ ${hm(r.seated_at)}${r.table_name ? ' · ' + escapeHtml(r.table_name) : ''}` : `<span style="color:var(--red);">✕ Ayrıldı ${hm(r.left_at)}</span>`}</td>
+          <td>${waited} dk${q!=null ? ` <span class="muted" style="font-size:11.5px;">(tahmin ${q})</span>` : ''}</td>
+          <td>${diffTxt}</td>
+        </tr>`;
+      }).join('')}</tbody>
+    </table></div>`;
+}
+/* Bekleme listesinden "Oturdu": masa seçilir, masada müşteri adı/telefon ve
+   bekleme notuyla sipariş açılır (bkz. seat_waitlist_entry). */
+async function openSeatWaitlistModal(id){
+  // Dolu masaları doğru göstermek için açık siparişleri tazele.
+  { const r = await sb.rpc('get_live_orders', { p_token: getSession().session_token }); if(r.data) APP.liveOrders = r.data; }
+  const w = (APP.waitlistCache||[]).find(x => x.id===id); if(!w) return;
+  const tables = (APP.config.zones||[]).flatMap(z => z.tables.map(t => ({ ...t, zone: z.name })));
+  const busy = new Set((APP.liveOrders||[]).filter(o => o.table_id).map(o => o.table_id));
+  const bg = document.createElement('div');
+  bg.id = 'seatWlModalBg';
+  bg.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:100;padding:16px;';
+  bg.onclick = (e) => { if(e.target===bg) bg.remove(); };
+  bg.innerHTML = `<div style="background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:20px;max-width:380px;width:100%;">
+    <div style="display:flex;justify-content:space-between;"><h2 style="margin:0;">Masaya Oturt</h2><span style="cursor:pointer;color:var(--muted);" onclick="document.getElementById('seatWlModalBg').remove()">✕</span></div>
+    <p class="muted" style="text-align:left;margin:8px 0 12px;"><b>${escapeHtml(w.customer_name)}</b> · ${w.party_size} kişi${w.phone ? ' · ' + escapeHtml(w.phone) : ''}</p>
+    <div class="field-group"><label>Masa</label><select id="seatWlTable">
+      ${tables.map(t => `<option value="${t.id}" ${busy.has(t.id)?'':''}>${escapeHtml(t.zone)} · ${escapeHtml(t.name)}${busy.has(t.id)?' (dolu)':''}</option>`).join('')}
+    </select></div>
+    <button style="margin-top:12px;" onclick="confirmSeatWaitlist('${id}')">✓ Masaya Oturt</button>
+  </div>`;
+  document.body.appendChild(bg);
+  // İlk boş masayı seç.
+  const firstFree = tables.find(t => !busy.has(t.id));
+  if(firstFree) document.getElementById('seatWlTable').value = firstFree.id;
+}
+async function confirmSeatWaitlist(id){
+  const tableId = document.getElementById('seatWlTable').value;
+  const session = getSession();
+  const { data, error } = await withLoadingOverlay(sb.rpc('seat_waitlist_entry', { p_token: session.session_token, p_id: id, p_table_id: tableId }));
+  if(error){ alert(error.message); return; }
+  const bg = document.getElementById('seatWlModalBg'); if(bg) bg.remove();
+  const w = (APP.waitlistCache||[]).find(x => x.id===id);
+  renderWaitlistContent(session, true);
+  refreshNavBadges();
+  showToast((w ? w.customer_name + ' ' : '') + tableNameForId(tableId) + ' masasına oturtuldu ✓ (' + (data && data.waited_minutes) + ' dk bekledi) Siparişe gitmek için dokunun', 6000, null, () => goToView('order'));
 }
 /* Bekleme listesindeki "Bekleme" sütunu, katılım zamanı + tahmini bekleme
    süresinden canlı bir geri sayım olarak hesaplanır (kalan dakika azalır,
