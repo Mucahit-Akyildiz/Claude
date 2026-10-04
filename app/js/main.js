@@ -63,7 +63,7 @@ function render(){
     <div class="app-shell">
       <div class="mobile-topbar">
         ${APP.view && APP.view!=='home' ? '<button class="mobile-menu-btn" onclick="goBack()" aria-label="Geri" title="Geri">←</button>' : ''}
-        <button class="mobile-menu-btn" onclick="toggleMobileNav()" aria-label="Menü">☰</button>
+        <button class="mobile-menu-btn" id="mobileMenuBtn" onclick="toggleMobileNav()" aria-label="Menü" style="position:relative;">☰</button>
         <img src="/assets/images/logo.webp" alt="Peyktan" class="mobile-topbar-logo">
         <div class="mobile-topbar-title">${escapeHtml(session.restaurant_name)}</div>
         <button class="mobile-menu-btn" onclick="refreshApp()" aria-label="Yenile" title="Yenile">↻</button>
@@ -82,7 +82,7 @@ function render(){
           <a href="#" class="label" style="font-size:11px;color:var(--muted);text-decoration:underline;" onclick="openDeleteAccountModal();return false;">Hesabımı Sil</a>
         </div>
         <nav>
-          ${items.map(i => `<div class="sb-item ${APP.view===i.view?'active':''}" onclick="goToView('${i.view}')" title="${i.label}"><span class="ic">${i.icon}</span><span class="label">${i.label}</span></div>`).join('')}
+          ${items.map(i => `<div class="sb-item ${APP.view===i.view?'active':''}" data-view="${i.view}" onclick="goToView('${i.view}')" title="${i.label}"><span class="ic">${i.icon}</span><span class="label">${i.label}</span></div>`).join('')}
         </nav>
         <div class="sb-bottom">
           <div id="shiftWidget" class="shift-widget">${shiftWidgetHtml()}</div>
@@ -110,6 +110,47 @@ function render(){
   else if(APP.view==='reservations') renderReservationsView(main, session);
   else if(APP.view==='crm') renderCrmView(main, session);
   else if(APP.view==='purchasing') renderPurchasingView(main, session);
+  applyNavBadges();
+}
+/* ---- Bekleyen iş sayıları (rozetler): menüde ilgili ekranın yanında,
+   ekran içi sekmelerde (Ayarlar > Vardiyalar, Satın Alma Siparişleri) ve
+   mobil ☰ butonunda toplam. 20 sn'de bir, push geldiğinde ve uygulamaya
+   dönüldüğünde get_nav_badges ile tazelenir. ---- */
+const NAV_BADGE_TABS = { settings: '#settingsContent', purchasing: '#purchTabs' };
+function badgeHtml(n){ return n > 0 ? `<span class="nav-badge">${n > 99 ? '99+' : n}</span>` : ''; }
+function applyNavBadges(){
+  const b = APP.navBadges || {};
+  document.querySelectorAll('.sb-item[data-view]').forEach(el => {
+    el.querySelectorAll('.nav-badge').forEach(x => x.remove());
+    const n = b[el.dataset.view] || 0;
+    if(n > 0) el.insertAdjacentHTML('beforeend', badgeHtml(n));
+  });
+  const tabs = { shifts: b.settings || 0, orders: b.purchasing || 0 };
+  document.querySelectorAll('.tabs .tab[data-tab]').forEach(el => {
+    if(!(el.dataset.tab in tabs)) return;
+    el.querySelectorAll('.nav-badge').forEach(x => x.remove());
+    if(tabs[el.dataset.tab] > 0) el.insertAdjacentHTML('beforeend', badgeHtml(tabs[el.dataset.tab]));
+  });
+  const btn = document.getElementById('mobileMenuBtn');
+  if(btn){
+    btn.querySelectorAll('.nav-badge').forEach(x => x.remove());
+    const session = getSession();
+    const total = session ? NAV_ITEMS.filter(i => navItemVisible(i, session) && i.view!==APP.view).reduce((t, i) => t + (b[i.view] || 0), 0) : 0;
+    if(total > 0) btn.insertAdjacentHTML('beforeend', `<span class="nav-badge nav-badge-corner">${total > 99 ? '99+' : total}</span>`);
+  }
+}
+let NAV_BADGE_TIMER = null;
+async function refreshNavBadges(){
+  const s = getSession(); if(!s) return;
+  const { data, error } = await sb.rpc('get_nav_badges', { p_token: s.session_token });
+  if(error || !data) return;
+  APP.navBadges = data;
+  applyNavBadges();
+}
+function startNavBadges(){
+  refreshNavBadges();
+  if(NAV_BADGE_TIMER) clearInterval(NAV_BADGE_TIMER);
+  NAV_BADGE_TIMER = setInterval(() => { if(getSession() && document.visibilityState==='visible') refreshNavBadges(); }, 20000);
 }
 function todayLocalDateStr(){
   const d = new Date();
@@ -152,9 +193,23 @@ function closeTopModal(){
    geçmişine bağlı değildir. Tarayıcı geçmişi yalnızca masaüstü/mobil
    tarayıcının kendi geri tuşu için senkron tutulur. */
 let IGNORE_NEXT_POPSTATE = false;
+/* Ekran içi adımlar: geri önce bunları geri alır, ekran değiştirmez
+   (örn. Mutfak'ta istasyon seçiliyse önce istasyon seçim listesine döner). */
+const VIEW_BACK_STEPS = {
+  kitchen: () => {
+    if(!APP.kitchenStation) return false;
+    APP.kitchenStation = null; stopKitchenPolling(); render();
+    return true;
+  },
+};
+function backWithinView(){
+  const step = VIEW_BACK_STEPS[APP.view];
+  return !!(step && step());
+}
 function goBack(){
   if(closeTopModal()) return;
   if(APP.mobileNavOpen){ closeMobileNav(); return; }
+  if(backWithinView()) return;
   const stack = APP.viewStack || [];
   if(stack.length){
     const prev = stack.pop();
@@ -176,7 +231,7 @@ function setupBackNavigation(){
     if(IGNORE_NEXT_POPSTATE){ IGNORE_NEXT_POPSTATE = false; return; }
     if(!getSession()) return;
     // Pencere açıkken tarayıcı geri tuşu önce pencereyi kapatsın, ekran değişmesin.
-    if(closeTopModal()){ try{ history.pushState({ view: APP.view }, ''); }catch(err){} return; }
+    if(closeTopModal() || backWithinView()){ try{ history.pushState({ view: APP.view }, ''); }catch(err){} return; }
     const view = (e.state && e.state.view) || 'home';
     const item = NAV_ITEMS.find(i => i.view===view);
     if(view==='home' || (item && navItemVisible(item, getSession()))){
@@ -237,6 +292,25 @@ function applyDeepLinkView(){
 function refreshApp(){
   try{ sessionStorage.setItem('rys_restore_view', JSON.stringify({ view: APP.view, settingsTab: APP.settingsTab })); }catch(e){}
   window.location.reload();
+}
+/* Rol/izin değişiklikleri (Ayarlar > Roller) oturuma sadece girişte
+   yazılıyordu; artık açılışta, yenilemede ve uygulamaya geri dönüldüğünde
+   sunucudan tazelenir (bkz. get_my_permissions). */
+async function syncMyPermissions(){
+  const s = getSession(); if(!s) return;
+  const { data, error } = await sb.rpc('get_my_permissions', { p_token: s.session_token });
+  if(error || !data) return;
+  const cur = getSession(); if(!cur || cur.session_token !== s.session_token) return;
+  const next = { ...cur, permissions: data.permissions || [], role_names: data.role_names || [], isManager: !!data.is_manager };
+  // Şirket sahibi şubeye girdiyse (🏢) rol adları/izinler şirket akışından gelir, dokunma.
+  if(String(cur.username||'').startsWith('🏢')) return;
+  const changed = JSON.stringify([...(cur.permissions||[])].sort()) !== JSON.stringify([...next.permissions].sort())
+    || !!cur.isManager !== next.isManager || (cur.role_names||[]).join() !== next.role_names.join();
+  if(!changed) return;
+  setSession(next);
+  const item = NAV_ITEMS.find(i => i.view===APP.view);
+  if(item && !navItemVisible(item, next)) APP.view = 'home';
+  render();
 }
 function restoreViewAfterRefresh(){
   let saved = null;
@@ -353,6 +427,9 @@ setupPullToRefresh();
 setupBackNavigation();
 initNativeAppMode();
 render();
+syncMyPermissions();
+startNavBadges();
+document.addEventListener('visibilitychange', () => { if(document.visibilityState==='visible'){ syncMyPermissions(); refreshNavBadges(); } });
 /* Push bildirimine tıklanınca zaten açık olan bir sekme varsa (bkz.
    sw.js notificationclick), sayfa yeniden yüklenmeden ilgili ekrana
    geçmek için service worker'dan gelen mesaj burada dinlenir. */

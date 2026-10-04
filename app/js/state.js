@@ -21,9 +21,18 @@ const PERMISSION_LABELS = {
   crm: 'Müşteriler (CRM)',
   reservations: 'Rezervasyonlar',
   purchasing: 'Tedarikçi & Satın Alma',
+  purchasing_orders: 'Satın Alma Siparişi Verme',
+  purchasing_manage: 'Satın Alma Yönetimi',
+  purchasing_suppliers: 'Tedarikçi Yönetimi',
   shifts: 'Vardiyalar',
 };
 function hasPerm(session, perm){ return (session.permissions||[]).includes(perm); }
+/* Tedarikçi & Satın Alma alt izinleri: purchasing_orders (sipariş verme),
+   purchasing_manage (onay/teslim/iptal), purchasing_suppliers (tedarikçiler).
+   Eski 'purchasing' izni ve Yönetici hepsini kapsar. */
+function hasPurchPerm(session, sub){
+  return !!session.isManager || hasPerm(session, 'purchasing') || hasPerm(session, 'purchasing_' + sub);
+}
 
 /* Tüm paketler AYNI 7 günlük ücretsiz deneme ile başlar (bkz.
    verify_registration_otp) - paketler arasındaki fark kullanıcı sayısı
@@ -109,6 +118,7 @@ function navItemVisible(item, session){
   if(item.view==='reports') return !!session.isManager;
   if(item.view==='printerSettings') return !!session.isManager;
   if(item.view==='settings') return session.isManager || (session.permissions||[]).some(p => p.startsWith('settings_'));
+  if(item.view==='purchasing') return ['orders','manage','suppliers'].some(x => hasPurchPerm(session, x));
   if(!item.perm) return true;
   return hasPerm(session, item.perm);
 }

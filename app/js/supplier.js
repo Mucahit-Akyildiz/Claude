@@ -1,12 +1,18 @@
 /* Tedarikçi & Satın Alma - app/index.html'den çıkarıldı. Klasik <script src>. */
 /* ================= TEDARİKÇİ & SATIN ALMA ================= */
 async function renderPurchasingView(main, session){
+  // Sekmeler izne göre: siparişler (verme/yönetim), tedarikçiler (yönetim).
+  const canOrders = hasPurchPerm(session, 'orders') || hasPurchPerm(session, 'manage');
+  const canSuppliers = hasPurchPerm(session, 'suppliers');
+  if(!canOrders) APP.purchTab = 'suppliers';
+  else if(!canSuppliers) APP.purchTab = 'orders';
   main.innerHTML = `<h1>Tedarikçi & Satın Alma</h1>
     <div class="tabs" id="purchTabs">
-      <div class="tab ${(APP.purchTab||'orders')==='orders'?'active':''}" data-tab="orders" onclick="setPurchTab('orders')">Satın Alma Siparişleri</div>
-      <div class="tab ${APP.purchTab==='suppliers'?'active':''}" data-tab="suppliers" onclick="setPurchTab('suppliers')">Tedarikçiler</div>
+      ${canOrders ? `<div class="tab ${(APP.purchTab||'orders')==='orders'?'active':''}" data-tab="orders" onclick="setPurchTab('orders')">Satın Alma Siparişleri</div>` : ''}
+      ${canSuppliers ? `<div class="tab ${APP.purchTab==='suppliers'?'active':''}" data-tab="suppliers" onclick="setPurchTab('suppliers')">Tedarikçiler</div>` : ''}
     </div>
     <div id="purchContent"></div>`;
+  applyNavBadges();
   await renderPurchTabContent(session);
 }
 function setPurchTab(tab){
@@ -96,6 +102,8 @@ async function renderPurchaseOrdersContent(session){
   ]));
   const rows = poRes.error ? [] : (poRes.data||[]);
   const suppliers = supRes.data || [];
+  const canManage = hasPurchPerm(session, 'manage');
+  const ownDraft = (p) => p.status==='draft' && (canManage || p.created_by===session.user_id);
   if(!APP.poDraftItems) APP.poDraftItems = [];
   el.innerHTML = `<div class="box" style="max-width:none;">
     <h2>Satın Alma Siparişleri</h2>
@@ -105,14 +113,14 @@ async function renderPurchaseOrdersContent(session){
       <tbody>
       ${rows.map(p => `
         <tr>
-          <td class="col-name">${escapeHtml(p.supplier_name||'-')}</td>
+          <td class="col-name">${escapeHtml(p.supplier_name||'-')}${p.created_by_name ? `<div class="muted" style="font-size:11.5px;">Oluşturan: ${escapeHtml(p.created_by_name)}</div>` : ''}</td>
           <td><span class="role-badge" style="${p.status==='received'?'color:var(--green);border-color:var(--green);':p.status==='cancelled'?'color:var(--red);border-color:var(--red);':''}">${PO_STATUS_LABELS[p.status]||p.status}</span></td>
           <td>${p.order_date}</td>
           <td>${p.expected_date||'-'}</td>
           <td>${money(p.total_amount)}</td>
           <td>
-            ${p.status!=='received' && p.status!=='cancelled' ? `<button class="sbtn" onclick="openReceivePOModal('${p.id}')">Teslim Al</button>` : ''}
-            ${p.status==='draft' ? `<button class="sbtn" onclick="markPOOrdered('${p.id}')">Sipariş Ver</button><button type="button" class="act-btn act-delete" onclick="removePO('${p.id}')">${ICON_TRASH}<span>Sil</span></button>` : ''}
+            ${canManage && p.status!=='received' && p.status!=='cancelled' ? `<button class="sbtn" onclick="openReceivePOModal('${p.id}')">Teslim Al</button>` : ''}
+            ${ownDraft(p) ? `<button class="sbtn" onclick="markPOOrdered('${p.id}')">Sipariş Ver</button><button type="button" class="act-btn act-delete" onclick="removePO('${p.id}')">${ICON_TRASH}<span>Sil</span></button>` : ''}
           </td>
         </tr>`).join('')}
       ${rows.length===0?'<tr><td colspan="6" class="muted" style="text-align:center;">Sipariş yok.</td></tr>':''}
