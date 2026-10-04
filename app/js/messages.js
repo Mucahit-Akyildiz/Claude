@@ -184,6 +184,7 @@ function insertChatEmoji(e){
   const s = t.selectionStart ?? t.value.length, en = t.selectionEnd ?? t.value.length;
   t.value = t.value.slice(0, s) + e + t.value.slice(en);
   t.selectionStart = t.selectionEnd = s + e.length;
+  updateChatSendBtn();
   t.focus();
 }
 async function postChat(body, attachment, kind, name){
@@ -244,7 +245,7 @@ function toggleChatDictation(){
   const t = document.getElementById('chatText'); if(!t) return;
   const base = t.value ? t.value.replace(/\s*$/, ' ') : '';
   const rec = new SR(); rec.lang = 'tr-TR'; rec.interimResults = true; rec.continuous = true;
-  rec.onresult = (e) => { let txt = ''; for(let i=0;i<e.results.length;i++) txt += e.results[i][0].transcript; t.value = base + txt; };
+  rec.onresult = (e) => { let txt = ''; for(let i=0;i<e.results.length;i++) txt += e.results[i][0].transcript; t.value = base + txt; updateChatSendBtn(); };
   rec.onerror = (e) => { if(e.error==='not-allowed') alert('Mikrofon izni verilmedi.'); stopChatDictation(); };
   rec.onend = () => stopChatDictation();
   try{ rec.start(); }catch(e){ return; }
