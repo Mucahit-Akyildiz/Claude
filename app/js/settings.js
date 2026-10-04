@@ -827,7 +827,8 @@ async function removeProduct(id){
    artık roller sabit 3 tane değil, yöneticinin Roller sekmesinde
    tanımladığı sayıda ve isimde olabiliyor. */
 function roleCheckboxes(idPrefix, selectedIds){
-  const roles = (APP.config.roles||[]);
+  // Yönetici (sistem) rolü yalnızca işletme sahibine aittir, başkasına atanamaz.
+  const roles = (APP.config.roles||[]).filter(r => !r.is_system);
   return roles.map(r => `
     <label style="display:flex;align-items:center;gap:6px;font-weight:400;font-size:13px;margin-bottom:4px;">
       <input type="checkbox" id="${idPrefix}_role_${r.id}" value="${r.id}" data-roles-group="${idPrefix}" ${selectedIds.includes(r.id)?'checked':''} style="width:auto;margin:0;" onchange="enforceMaxTwoRoles('${idPrefix}')">
@@ -845,6 +846,20 @@ function enforceMaxTwoRoles(idPrefix){
 function selectedRoleIds(idPrefix){
   return Array.from(document.querySelectorAll(`input[data-roles-group="${idPrefix}"]:checked`)).map(b => b.value);
 }
+function isOwnerUser(u){
+  const sys = (APP.config.roles||[]).filter(r => r.is_system).map(r => r.id);
+  return (u.role_ids||[]).some(id => sys.includes(id));
+}
+/* İşletme sahibi: Yönetici rolü sabit; hesabını yalnızca kendisi düzenleyebilir. */
+function ownerUserRow(u, session){
+  const self = u.id === session.user_id;
+  return `<tr>
+    <td class="col-name"><input value="${escapeAttr(u.username)}" id="us_name_${u.id}" ${self?'':'disabled'}></td>
+    <td class="col-name">${self ? `<input type="password" placeholder="(değiştirmek için yaz)" id="us_pass_${u.id}">` : '<span class="muted">—</span>'}</td>
+    <td class="col-name"><span class="role-badge">👑 İşletme Sahibi · Yönetici</span></td>
+    <td>${self ? `<div class="act-row"><button type="button" class="act-btn act-save" onclick="saveUser('${u.id}', true)">${ICON_SAVE}<span>Kaydet</span></button></div>` : '<span class="muted" style="font-size:12px;">🔒 Değiştirilemez</span>'}</td>
+  </tr>`;
+}
 function renderUsersSettings(el, session){
   el.innerHTML = `<div class="box" style="max-width:none;">
     <h2>Kullanıcılar</h2>
@@ -852,7 +867,7 @@ function renderUsersSettings(el, session){
     <table class="settings-table">
       <thead><tr><th>Kullanıcı Adı</th><th>Yeni Şifre</th><th>Roller (en fazla 2)</th><th></th></tr></thead>
       <tbody>
-      ${APP.config.users.map(u => `
+      ${APP.config.users.map(u => isOwnerUser(u) ? ownerUserRow(u, session) : `
         <tr style="${u.is_active===false?'opacity:.55;':''}">
           <td class="col-name"><input value="${escapeAttr(u.username)}" id="us_name_${u.id}">${u.is_active===false?'<span class="role-badge" style="color:var(--red);border-color:var(--red);margin-top:6px;display:inline-block;">Pasif</span>':''}</td>
           <td class="col-name"><input type="password" placeholder="(değiştirmek için yaz)" id="us_pass_${u.id}"></td>
@@ -1178,7 +1193,7 @@ function roleCardHtml(r){
       <div class="role-head" style="cursor:default;">
         <div class="role-avatar">👑</div>
         <div class="role-title"><b>${escapeHtml(r.name)}</b> <span class="role-badge" style="margin-left:6px;font-size:11px;padding:3px 9px;">Sistem</span>
-          <div class="role-sub">Tüm ekranlara ve ayarlara erişir · değiştirilemez</div></div>
+          <div class="role-sub">Yalnızca işletme sahibinde · tüm ekranlara erişir · değiştirilemez</div></div>
         <div class="role-meta"><span class="role-chip">${r.user_count} kullanıcı</span><span class="role-chip accent">Tüm izinler</span></div>
       </div>
     </div>`;
@@ -1882,12 +1897,12 @@ async function submitBankTransferNotice(){
   loadBankTransferStatus(session);
 }
 
-async function saveUser(id){
+async function saveUser(id, isOwner){
   const session = getSession();
   const username = document.getElementById('us_name_'+id).value.trim();
   const password = document.getElementById('us_pass_'+id).value;
-  const roleIds = selectedRoleIds('us_'+id);
-  if(roleIds.length===0){ alert('En az 1 rol seçmelisiniz'); return; }
+  const roleIds = isOwner ? null : selectedRoleIds('us_'+id);
+  if(roleIds && roleIds.length===0){ alert('En az 1 rol seçmelisiniz'); return; }
   const { error } = await sb.rpc('update_staff_user', { p_token: session.session_token, p_user_id: id, p_username: username, p_password: password||null, p_role_ids: roleIds });
   if(error){ alert(error.message); return; }
   renderSettingsView(document.getElementById('main'), session);

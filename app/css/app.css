@@ -672,12 +672,12 @@ div.table-cell.badge-row::before{content:'● Hazır, ödeme bekliyor';margin:0 
 .chat-cam-bar{position:absolute;left:0;right:0;bottom:24px;display:flex;justify-content:space-around;align-items:center;}
 .chat-cam-shot{width:72px;height:72px;margin:0;padding:0;border-radius:50%;background:#fff;border:5px solid rgba(255,255,255,.5);box-shadow:0 0 0 3px #fff;}
 /* Mesajlar: ince, ekrana uyumlu kaydırma çubukları */
-.chat-list,.chat-thread,.chat-tray{scrollbar-width:thin;scrollbar-color:rgba(0,143,168,.35) transparent;}
-.chat-list::-webkit-scrollbar,.chat-thread::-webkit-scrollbar,.chat-tray::-webkit-scrollbar{width:6px;height:6px;}
-.chat-list::-webkit-scrollbar-track,.chat-thread::-webkit-scrollbar-track,.chat-tray::-webkit-scrollbar-track{background:transparent;}
-.chat-list::-webkit-scrollbar-thumb,.chat-thread::-webkit-scrollbar-thumb,.chat-tray::-webkit-scrollbar-thumb{background:rgba(0,143,168,.30);border-radius:999px;}
-.chat-list::-webkit-scrollbar-thumb:hover,.chat-thread::-webkit-scrollbar-thumb:hover,.chat-tray::-webkit-scrollbar-thumb:hover{background:rgba(0,143,168,.55);}
-.chat-list::-webkit-scrollbar-button,.chat-thread::-webkit-scrollbar-button,.chat-tray::-webkit-scrollbar-button{display:none;}
+.chat-list,.chat-thread,.chat-tray,#chatText{scrollbar-width:thin;scrollbar-color:rgba(0,143,168,.35) transparent;}
+.chat-list::-webkit-scrollbar,.chat-thread::-webkit-scrollbar,.chat-tray::-webkit-scrollbar,#chatText::-webkit-scrollbar{width:6px;height:6px;}
+.chat-list::-webkit-scrollbar-track,.chat-thread::-webkit-scrollbar-track,.chat-tray::-webkit-scrollbar-track,#chatText::-webkit-scrollbar-track{background:transparent;}
+.chat-list::-webkit-scrollbar-thumb,.chat-thread::-webkit-scrollbar-thumb,.chat-tray::-webkit-scrollbar-thumb,#chatText::-webkit-scrollbar-thumb{background:rgba(0,143,168,.30);border-radius:999px;}
+.chat-list::-webkit-scrollbar-thumb:hover,.chat-thread::-webkit-scrollbar-thumb:hover,.chat-tray::-webkit-scrollbar-thumb:hover,#chatText::-webkit-scrollbar-thumb:hover{background:rgba(0,143,168,.55);}
+.chat-list::-webkit-scrollbar-button,.chat-thread::-webkit-scrollbar-button,.chat-tray::-webkit-scrollbar-button,#chatText::-webkit-scrollbar-button{display:none;}
 
 .chat-once{display:flex;align-items:center;gap:10px;width:100%;margin:2px 0;padding:10px 12px;border-radius:12px;background:rgba(0,0,0,.06);border:1.5px dashed currentColor;box-shadow:none;color:inherit;text-align:left;font-size:20px;}
 .chat-once span{display:flex;flex-direction:column;font-size:13.5px;font-weight:700;}
