@@ -34,6 +34,23 @@ function pushReminderBannerHtml(){
   </div>`;
 }
 function dismissPushBanner(){ APP.pushBannerDismissed = true; render(); }
+function renderMainView(main, session){
+  let p;
+  if(APP.view==='home') p = renderHome(main, session);
+  else if(APP.view==='order') p = renderOrderView(main, session);
+  else if(APP.view==='packages') p = renderPackagesView(main, session);
+  else if(APP.view==='kitchen') p = renderKitchenView(main, session);
+  else if(APP.view==='payments') p = renderPaymentsView(main, session);
+  else if(APP.view==='settings') p = renderSettingsView(main, session);
+  else if(APP.view==='reports') p = renderReportsView(main, session);
+  else if(APP.view==='printerSettings') p = renderPrinterSettingsView(main, session);
+  else if(APP.view==='notificationSettings') p = renderNotificationSettingsView(main, session);
+  else if(APP.view==='reservations') p = renderReservationsView(main, session);
+  else if(APP.view==='crm') p = renderCrmView(main, session);
+  else if(APP.view==='purchasing') p = renderPurchasingView(main, session);
+  else if(APP.view==='messages') p = renderMessagesView(main, session);
+  return Promise.resolve(p);
+}
 function render(){
   if(isAdminMode()){ renderAdminArea(); return; }
 
@@ -99,19 +116,7 @@ function render(){
       <div class="content-area"><div class="content-inner ${(APP.view==='settings'||APP.view==='reports')?'content-inner-wide':''}">${pushReminderBannerHtml()}${APP.view && APP.view!=='home' ? '<button type="button" class="back-link" onclick="goBack()">← Geri</button>' : ''}<main id="main"></main></div></div>
     </div>`;
   const main = document.getElementById('main');
-  if(APP.view==='home') renderHome(main, session);
-  else if(APP.view==='order') renderOrderView(main, session);
-  else if(APP.view==='packages') renderPackagesView(main, session);
-  else if(APP.view==='kitchen') renderKitchenView(main, session);
-  else if(APP.view==='payments') renderPaymentsView(main, session);
-  else if(APP.view==='settings') renderSettingsView(main, session);
-  else if(APP.view==='reports') renderReportsView(main, session);
-  else if(APP.view==='printerSettings') renderPrinterSettingsView(main, session);
-  else if(APP.view==='notificationSettings') renderNotificationSettingsView(main, session);
-  else if(APP.view==='reservations') renderReservationsView(main, session);
-  else if(APP.view==='crm') renderCrmView(main, session);
-  else if(APP.view==='purchasing') renderPurchasingView(main, session);
-  else if(APP.view==='messages') renderMessagesView(main, session);
+  renderMainView(main, session);
   applyNavBadges();
   if(APP.view==='order' || APP.view==='payments') setTimeout(refreshWaiterCalls, 900);
 }
@@ -301,15 +306,27 @@ function autoRefreshCurrentView(session){
   if(APP.view==='order' || APP.view==='packages'){ refreshOrderLiveStatus(session); return; }
   if(APP.view==='messages'){ refreshMessagesView(); return; }
   if(AUTO_REFRESH_SKIP.includes(APP.view) || uiBusyForAutoRefresh()) return;
+  // Çift tamponlu yenileme: ekranın o anki görüntüsü (kopya) yerinde kalır,
+  // asıl içerik arka planda yeniden çizilir ve hazır olunca tek seferde
+  // değiştirilir - "Yükleniyor…" yanıp sönmesi/sayfa zıplaması olmaz.
+  const main = document.getElementById('main'); if(!main || main.dataset.refreshing) return;
   const sc = document.scrollingElement ? document.scrollingElement.scrollTop : 0;
   const ca = document.querySelector('.content-area'); const caTop = ca ? ca.scrollTop : 0;
+  const snap = main.cloneNode(true);
+  snap.removeAttribute('id'); snap.querySelectorAll('[id]').forEach(e => e.removeAttribute('id'));
+  snap.style.pointerEvents = 'none';
+  main.parentNode.insertBefore(snap, main);
+  main.dataset.refreshing = '1'; main.style.display = 'none';
   APP.silentLoad = true;
-  render();
-  setTimeout(() => {
+  const finish = () => {
     APP.silentLoad = false;
+    snap.remove(); main.style.display = ''; delete main.dataset.refreshing;
     if(document.scrollingElement) document.scrollingElement.scrollTop = sc;
     const ca2 = document.querySelector('.content-area'); if(ca2) ca2.scrollTop = caTop;
-  }, 600);
+    applyNavBadges();
+  };
+  renderMainView(main, session).catch(() => {}).then(() => setTimeout(finish, 350));
+  setTimeout(() => { if(main.dataset.refreshing) finish(); }, 4000);
 }
 function todayLocalDateStr(){
   const d = new Date();
