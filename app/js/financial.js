@@ -187,6 +187,7 @@ async function renderReportsView(main, session){
       <div class="tab ${APP.reportTab==='customers'?'active':''}" data-tab="customers" onclick="setReportTab('customers')">🧑‍🤝‍🧑 Müşteri Analizleri</div>
       <div class="tab ${APP.reportTab==='tips'?'active':''}" data-tab="tips" onclick="setReportTab('tips')">💰 Bahşiş Havuzu</div>
       <div class="tab ${APP.reportTab==='waste'?'active':''}" data-tab="waste" onclick="setReportTab('waste')">🔥 İsraf</div>
+      <div class="tab ${APP.reportTab==='resv'?'active':''}" data-tab="resv" onclick="setReportTab('resv')">📅 Rezervasyon Analizi</div>
     </div>
     <div id="reportContent"></div>`;
   await renderReportTabContent(session);
@@ -230,6 +231,7 @@ function renderReportTabContent(session){
   if(tab==='customers') return renderCustomerAnalyticsContent(session);
   if(tab==='tips') return renderTipPoolContent(session);
   if(tab==='waste') return renderWasteContent(session);
+  if(tab==='resv') return renderReservationAnalyticsContent(session);
   return renderReportContent(session);
 }
 async function renderReportContent(session){
@@ -709,4 +711,86 @@ async function sendSaleReceipt(historyId){
   if(error){ alert(error.message); return; }
   showToast('📧 Fiş ' + email + ' adresine gönderildi');
   const bg = document.getElementById('saleDetailModalBg'); if(bg) bg.remove();
+}
+
+/* --- Rezervasyon Analizi: seçilen tarih aralığındaki rezervasyonlar ve
+   bekleme listesi — kaç kişi geldi, hangi masalar, rezervasyon saatine göre
+   geliş, sipariş tutarları (bkz. get_reservation_analytics; ciro, rezervasyon
+   ya da bekleme listesinden açılan masaların kapanan hesaplarından). --- */
+async function renderReservationAnalyticsContent(session){
+  const el = document.getElementById('reportContent'); if(!el) return;
+  const { data, error } = await withLoadingOverlay(sb.rpc('get_reservation_analytics', { p_token: session.session_token, p_from: APP.reportDate, p_to: APP.reportDateTo }));
+  if(error){ el.innerHTML = '<p class="muted">Yüklenemedi: '+escapeHtml(error.message)+'</p>'; return; }
+  const sm = data.summary || {}, wl = data.waitlist || {};
+  const pct = (a, b) => b > 0 ? Math.round(a / b * 100) + '%' : '—';
+  const hm = (iso) => iso ? new Date(iso).toLocaleTimeString('tr-TR', { hour:'2-digit', minute:'2-digit' }) : '-';
+  const dt = (iso) => new Date(iso).toLocaleDateString('tr-TR', { day:'2-digit', month:'2-digit' });
+  const diffTxt = (d) => d==null ? '<span class="muted">-</span>'
+    : d > 5 ? `<span style="color:var(--red);font-weight:700;">${d} dk geç</span>`
+    : d < -5 ? `<span style="color:var(--green);font-weight:700;">${-d} dk erken</span>`
+    : '<span style="color:var(--green);font-weight:700;">Zamanında</span>';
+  const statusTxt = { pending:'Bekliyor', confirmed:'Onaylı', seated:'✅ Geldi', cancelled:'✕ İptal', no_show:'🚫 Gelmedi' };
+  const rows = data.rows || [];
+  const byHour = data.by_hour || [];
+  const maxH = Math.max(1, ...byHour.map(h => h.guests || 0));
+  const avgDiff = sm.avg_arrival_diff;
+  el.innerHTML = `
+    <p class="muted" style="text-align:left;margin:0 0 12px;">${escapeHtml(reportDateRangeLabel())} · Ciro, rezervasyon/bekleme listesinden oturtulan masaların kapanan hesaplarından hesaplanır.</p>
+    <h3 style="margin:0 0 10px;">📅 Rezervasyonlar</h3>
+    <div class="home-grid" style="margin-top:0;margin-bottom:16px;">
+      ${statCard('Toplam Rezervasyon', sm.total||0)}
+      ${statCard('Gelen', (sm.seated||0) + ' <span style="font-size:13px;font-weight:600;color:var(--muted);">(' + pct(sm.seated||0, sm.total||0) + ')</span>', 'var(--green)')}
+      ${statCard('Gelmedi / İptal', (sm.no_show||0) + ' / ' + (sm.cancelled||0), (sm.no_show||0) > 0 ? 'var(--red)' : null)}
+      ${statCard('Gelen Misafir', (sm.guests_seated||0) + ' <span style="font-size:13px;font-weight:600;color:var(--muted);">/ ' + (sm.guests_booked||0) + ' kişi rezerve</span>')}
+      ${statCard('Ort. Kişi', sm.avg_party ?? '—')}
+      ${statCard('Rezervasyon Cirosu', money(sm.revenue||0), 'var(--accent)')}
+      ${statCard('Ort. Sipariş (masa)', sm.avg_order!=null ? money(sm.avg_order) : '—')}
+      ${statCard('Kişi Başı Harcama', sm.avg_per_guest!=null ? money(sm.avg_per_guest) : '—')}
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px;margin-bottom:18px;">
+      <div class="box" style="max-width:none;margin:0;">
+        <h3 style="margin:0 0 10px;">⏰ Rezervasyon Saatine Göre Geliş</h3>
+        <p style="margin:0 0 8px;">Ortalama: ${avgDiff==null ? '<span class="muted">veri yok</span>' : diffTxt(avgDiff)}</p>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;font-size:13px;">
+          <span class="role-badge" style="color:var(--green);border-color:var(--green);">Zamanında (±5 dk): ${sm.on_time||0}</span>
+          <span class="role-badge" style="color:var(--green);border-color:var(--green);">Erken: ${sm.early||0}</span>
+          <span class="role-badge" style="color:var(--red);border-color:var(--red);">Geç: ${sm.late||0}</span>
+        </div>
+        <p class="muted" style="font-size:11.5px;text-align:left;margin:8px 0 0;">Geliş saati, rezervasyon "Oturdu" yapıldığında kaydedilir.</p>
+      </div>
+      <div class="box" style="max-width:none;margin:0;">
+        <h3 style="margin:0 0 10px;">🕐 Saatlere Göre Yoğunluk</h3>
+        ${byHour.length ? byHour.map(h => `<div style="display:flex;align-items:center;gap:8px;font-size:12.5px;margin:4px 0;">
+          <span style="width:44px;">${String(h.hour).padStart(2,'0')}:00</span>
+          <div style="flex:1;background:var(--panel2);border-radius:6px;height:14px;overflow:hidden;"><div style="width:${Math.round((h.guests||0)/maxH*100)}%;height:100%;background:var(--accent);"></div></div>
+          <span style="width:90px;text-align:right;">${h.count} rez · ${h.guests} kişi</span></div>`).join('') : '<p class="muted">Veri yok.</p>'}
+      </div>
+    </div>
+    <h3 style="margin:0 0 10px;">🪑 Masalara Göre</h3>
+    ${(data.by_table||[]).length ? `<div class="settings-table-wrap"><table class="settings-table"><thead><tr><th>Masa</th><th>Rezervasyon</th><th>Misafir</th><th>Ciro</th></tr></thead><tbody>
+      ${data.by_table.map(t => `<tr><td class="col-name"><b>${escapeHtml(t.table)}</b></td><td>${t.count}</td><td>${t.guests}</td><td>${money(t.revenue||0)}</td></tr>`).join('')}
+    </tbody></table></div>` : '<p class="muted">Bu aralıkta gelen rezervasyon yok.</p>'}
+    <h3 style="margin:18px 0 10px;">📋 Rezervasyon Detayları</h3>
+    ${rows.length ? `<div class="settings-table-wrap"><table class="settings-table"><thead><tr><th>Müşteri</th><th>Kişi</th><th>Rezervasyon</th><th>Geliş</th><th>Saate göre</th><th>Masa</th><th>Durum</th><th>Sipariş</th></tr></thead><tbody>
+      ${rows.map(r => `<tr>
+        <td class="col-name">${escapeHtml(r.customer_name)}${r.phone ? `<div class="muted" style="font-size:11.5px;">${escapeHtml(r.phone)}</div>` : ''}${r.notes ? `<div class="muted" style="font-size:11px;overflow-wrap:anywhere;">${escapeHtml(r.notes)}</div>` : ''}</td>
+        <td>${r.party_size}</td>
+        <td>${dt(r.reservation_time)} ${hm(r.reservation_time)}</td>
+        <td>${r.seated_at ? hm(r.seated_at) : '<span class="muted">-</span>'}</td>
+        <td>${diffTxt(r.arrival_diff)}</td>
+        <td>${r.table_name ? `<b>${escapeHtml(r.table_name)}</b>` : '<span class="muted">—</span>'}</td>
+        <td>${statusTxt[r.status] || escapeHtml(r.status)}</td>
+        <td>${Number(r.revenue) > 0 ? money(r.revenue) + (r.party_size ? `<div class="muted" style="font-size:11px;">kişi başı ${money(r.revenue / r.party_size)}</div>` : '') : '<span class="muted">-</span>'}</td>
+      </tr>`).join('')}
+    </tbody></table></div>` : '<p class="muted">Bu aralıkta rezervasyon yok.</p>'}
+    <h3 style="margin:22px 0 10px;">⏳ Bekleme Listesi</h3>
+    <div class="home-grid" style="margin-top:0;">
+      ${statCard('Listeye Alınan', wl.total||0)}
+      ${statCard('Oturan', (wl.seated||0) + ' <span style="font-size:13px;font-weight:600;color:var(--muted);">(' + pct(wl.seated||0, wl.total||0) + ')</span>', 'var(--green)')}
+      ${statCard('Beklemeden Ayrılan', wl.left||0, (wl.left||0) > 0 ? 'var(--red)' : null)}
+      ${statCard('Oturan Misafir', (wl.guests_seated||0) + ' kişi')}
+      ${statCard('Ort. Bekleme', wl.avg_wait!=null ? wl.avg_wait + ' dk' + (wl.avg_quoted!=null ? ' <span style="font-size:13px;font-weight:600;color:var(--muted);">(tahmin ' + wl.avg_quoted + ')</span>' : '') : '—')}
+      ${statCard('Tahminden Geç Oturtulan', wl.late||0, (wl.late||0) > 0 ? 'var(--red)' : null)}
+      ${statCard('Bekleme Listesi Cirosu', money(wl.revenue||0), 'var(--accent)')}
+    </div>`;
 }
