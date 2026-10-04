@@ -5220,6 +5220,25 @@ $$;
 
 
 --
+-- Name: search_customers_quick(uuid, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.search_customers_quick(p_token uuid, p_search text) RETURNS json
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'extensions', 'pg_temp'
+    AS $$
+declare s staff_sessions%rowtype;
+begin
+  s := _session_check(p_token, 'order');
+  if length(coalesce(trim(p_search),'')) < 2 then return '[]'::json; end if;
+  return (select coalesce(json_agg(row_to_json(c)), '[]'::json) from (
+    select cu.id, cu.name, cu.phone from customers cu
+    where cu.restaurant_id = s.restaurant_id and (cu.name ilike '%'||trim(p_search)||'%' or cu.phone ilike '%'||trim(p_search)||'%')
+    order by cu.last_visit_at desc nulls last, cu.name limit 8) c);
+end; $$;
+
+
+--
 -- Name: seat_reservation(uuid, uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
