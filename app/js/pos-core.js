@@ -329,6 +329,7 @@ function playKitchenBell(stationId, onError){
 }
 async function markReady(itemId){
   const session = getSession();
+  APP.selfActionUntil = Date.now() + 10000;
   const { error } = await sb.rpc('mark_item_ready', { p_token: session.session_token, p_order_item_id: itemId });
   if(error){ alert('Hata: '+error.message); return; }
   await refreshKitchenItems(session);
@@ -336,6 +337,7 @@ async function markReady(itemId){
 async function markAllReady(tableId){
   const entry = APP.kitchenPendingByTable && APP.kitchenPendingByTable[tableId];
   if(!entry || entry.items.length===0) return;
+  APP.selfActionUntil = Date.now() + 10000;
   const session = getSession();
   const results = await Promise.all(entry.items.map(it =>
     sb.rpc('mark_item_ready', { p_token: session.session_token, p_order_item_id: it.id })
