@@ -896,7 +896,10 @@ function updatePayFinalTotalLine(){
   const net = payFinalTotal();
   const tip = parseFloat(bg.dataset.tipAmount||0);
   const el = document.getElementById('payFinalTotal');
-  if(el) el.innerHTML = money(net+tip)+(tip>0?' <span style="font-size:12px;font-weight:600;color:var(--muted);">(bahşiş dahil)</span>':'');
+  // İndirim/puan/doğum günü indirimi varsa normal fiyat üstü çizili olarak da gösterilir.
+  const gross = parseFloat(bg.dataset.subtotal||0);
+  const orig = gross - net > 0.009 ? `<span style="font-size:15px;font-weight:600;color:var(--muted);text-decoration:line-through;margin-right:8px;">${money(gross+tip)}</span>` : '';
+  if(el) el.innerHTML = orig+money(net+tip)+(tip>0?' <span style="font-size:12px;font-weight:600;color:var(--muted);">(bahşiş dahil)</span>':'');
 }
 function stepPayItemQty(itemId, delta){
   const bg = document.getElementById('payModalBg'); if(!bg) return;
