@@ -335,8 +335,13 @@ async function renderReportContent(session){
     const tagBadge = (o.tags && o.tags.length>0)
       ? ` <span style="background:rgba(234,179,8,.15);color:#eab308;border-radius:6px;padding:2px 6px;font-size:11px;font-weight:700;">${o.tags.map(x=>escapeHtml(x)).join(', ')}</span>`
       : '';
+    const srcBadge = o.from_reservation
+      ? ' <span style="background:rgba(59,130,246,.15);color:#3b82f6;border-radius:6px;padding:2px 6px;font-size:11px;font-weight:700;">📅 Rezervasyonlu</span>'
+      : o.from_waitlist
+      ? ' <span style="background:rgba(168,85,247,.15);color:#a855f7;border-radius:6px;padding:2px 6px;font-size:11px;font-weight:700;">⏳ Bekleme Listesi</span>'
+      : '';
     return `<tr><td>${t}</td>
-      <td class="col-name">${escapeHtml(billLabel(o))}${tagBadge}</td>
+      <td class="col-name">${escapeHtml(billLabel(o))}${srcBadge}${tagBadge}</td>
       <td>${money(o.total)}</td>
       <td>${discTxt}</td>
       <td>${methodLabel}</td>
@@ -744,6 +749,28 @@ function resvAnCard(label, value, color, key){
     <div class="resv-an-card-hint">${active ? '✓ Listeleniyor' : 'Listele ›'}</div>
   </div>`;
 }
+// Rezervasyon/bekleme kaydına bağlı kapanan hesap(lar)ın detayını açar.
+function resvDetailBtn(r){
+  const ids = r.history_ids || [];
+  if(!ids.length) return '<span class="muted">-</span>';
+  return `<button type="button" class="sbtn" style="width:auto;margin:0;white-space:nowrap;" onclick='openResvOrderDetail(${escapeAttr(JSON.stringify(ids))})'>🔍 Detay${ids.length>1 ? ' ('+ids.length+')' : ''}</button>`;
+}
+function openResvOrderDetail(ids){
+  if(ids.length === 1) return openSaleDetailModal(ids[0].id);
+  const ov = document.createElement('div');
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:100;padding:16px;';
+  ov.innerHTML = `<div style="background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:20px;max-width:420px;width:100%;max-height:88vh;overflow:auto;"><h2 style="margin-top:0;">Hesaplar</h2>
+    ${ids.map(h => `<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);">
+      <span>${new Date(h.closed_at).toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'})} · <b>${money(h.total)}</b></span>
+      <button type="button" class="sbtn" style="width:auto;margin:0;" data-id="${escapeAttr(h.id)}">🔍 Detay</button></div>`).join('')}
+    <button class="secondary" style="margin-top:12px;" data-close>Kapat</button></div>`;
+  ov.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-id]');
+    if(b){ ov.remove(); openSaleDetailModal(b.dataset.id); }
+    else if(e.target === ov || e.target.closest('[data-close]')) ov.remove();
+  });
+  document.body.appendChild(ov);
+}
 function drawResvAnalytics(){
   const el = document.getElementById('reportContent'); const data = APP.resvAn; if(!el || !data) return;
   const sub = APP.resvAnSub || 'resv';
@@ -790,7 +817,7 @@ function drawResvAnalytics(){
       </div>
       <h3 id="resvAnList" style="margin:0 0 10px;">📋 Bekleme Listesi Kayıtları</h3>
       ${filterBar(rows.length)}
-      ${rows.length ? `<div class="settings-table-wrap"><table class="settings-table"><thead><tr><th>Müşteri</th><th>Kişi</th><th>Katılım</th><th>Sonuç</th><th>Masa</th><th>Bekleme</th><th>Tahmine göre</th><th>Sipariş</th></tr></thead><tbody>
+      ${rows.length ? `<div class="settings-table-wrap"><table class="settings-table"><thead><tr><th>Müşteri</th><th>Kişi</th><th>Katılım</th><th>Sonuç</th><th>Masa</th><th>Bekleme</th><th>Tahmine göre</th><th>Sipariş</th><th></th></tr></thead><tbody>
         ${rows.map(r => {
           const d = (r.status==='seated' && r.quoted!=null) ? Number(r.waited) - Number(r.quoted) : null;
           return `<tr>
@@ -802,6 +829,7 @@ function drawResvAnalytics(){
           <td>${r.waited!=null ? r.waited + ' dk' : '-'}${r.quoted!=null ? `<div class="muted" style="font-size:11px;">tahmin ${r.quoted}</div>` : ''}</td>
           <td>${d==null ? '<span class="muted">-</span>' : d > 0 ? `<span style="color:var(--red);font-weight:700;">${d} dk geç</span>` : d < 0 ? `<span style="color:var(--green);font-weight:700;">${-d} dk erken</span>` : '<span style="color:var(--green);font-weight:700;">Tam zamanında</span>'}</td>
           <td>${Number(r.revenue) > 0 ? money(r.revenue) : '<span class="muted">-</span>'}</td>
+          <td>${resvDetailBtn(r)}</td>
         </tr>`; }).join('')}
       </tbody></table></div>` : '<p class="muted">Kayıt yok.</p>'}`;
     return;
@@ -861,7 +889,7 @@ function drawResvAnalytics(){
     </tbody></table></div>` : '<p class="muted">Bu aralıkta gelen rezervasyon yok.</p>'}
     <h3 id="resvAnList" style="margin:18px 0 10px;">📋 Rezervasyon Detayları</h3>
     ${filterBar(rows.length)}
-    ${rows.length ? `<div class="settings-table-wrap"><table class="settings-table"><thead><tr><th>Müşteri</th><th>Kişi</th><th>Rezervasyon</th><th>Geliş</th><th>Saate göre</th><th>Masa</th><th>Durum</th><th>Sipariş</th></tr></thead><tbody>
+    ${rows.length ? `<div class="settings-table-wrap"><table class="settings-table"><thead><tr><th>Müşteri</th><th>Kişi</th><th>Rezervasyon</th><th>Geliş</th><th>Saate göre</th><th>Masa</th><th>Durum</th><th>Sipariş</th><th></th></tr></thead><tbody>
       ${rows.map(r => `<tr>
         <td class="col-name">${escapeHtml(r.customer_name)}${r.phone ? `<div class="muted" style="font-size:11.5px;">${escapeHtml(r.phone)}</div>` : ''}${r.notes ? `<div class="muted" style="font-size:11px;overflow-wrap:anywhere;">${escapeHtml(r.notes)}</div>` : ''}</td>
         <td>${r.party_size}</td>
@@ -871,6 +899,7 @@ function drawResvAnalytics(){
         <td>${r.table_name ? `<b>${escapeHtml(r.table_name)}</b>` : '<span class="muted">—</span>'}</td>
         <td>${statusTxt[r.status] || escapeHtml(r.status)}</td>
         <td>${Number(r.revenue) > 0 ? money(r.revenue) + (r.party_size ? `<div class="muted" style="font-size:11px;">kişi başı ${money(r.revenue / r.party_size)}</div>` : '') : '<span class="muted">-</span>'}</td>
+        <td>${resvDetailBtn(r)}</td>
       </tr>`).join('')}
     </tbody></table></div>` : '<p class="muted">Kayıt yok.</p>'}`;
 }
