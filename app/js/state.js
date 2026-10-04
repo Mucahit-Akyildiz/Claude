@@ -97,6 +97,7 @@ const NAV_ITEMS = [
   { view:'notificationSettings', icon:'🔔', label:'Bildirim Ayarları' },
   { view:'payments', icon:'💳', label:'Ödemeler', perm:'payments' },
   { view:'reports', icon:'📊', label:'Finansal Analiz' },
+  { view:'messages', icon:'💬', label:'Mesajlar' },
   { view:'settings', icon:'⚙️', label:'Ayarlar' },
 ];
 /* notificationSettings her personel için her zaman görünür (izin

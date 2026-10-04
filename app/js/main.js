@@ -111,6 +111,7 @@ function render(){
   else if(APP.view==='reservations') renderReservationsView(main, session);
   else if(APP.view==='crm') renderCrmView(main, session);
   else if(APP.view==='purchasing') renderPurchasingView(main, session);
+  else if(APP.view==='messages') renderMessagesView(main, session);
   applyNavBadges();
 }
 /* ---- Bekleyen iş sayıları (rozetler): menüde ilgili ekranın yanında,
@@ -270,6 +271,7 @@ const AUTO_REFRESH_SKIP = ['home','reports','printerSettings','notificationSetti
 function autoRefreshCurrentView(session){
   if(APP.view==='kitchen'){ if(APP.kitchenStation) refreshKitchenItems(session); return; }
   if(APP.view==='order' || APP.view==='packages'){ refreshOrderLiveStatus(session); return; }
+  if(APP.view==='messages'){ refreshMessagesView(); return; }
   if(AUTO_REFRESH_SKIP.includes(APP.view) || uiBusyForAutoRefresh()) return;
   const sc = document.scrollingElement ? document.scrollingElement.scrollTop : 0;
   const ca = document.querySelector('.content-area'); const caTop = ca ? ca.scrollTop : 0;
