@@ -802,13 +802,16 @@ function renderUsersSettings(el, session){
       <thead><tr><th>Kullanıcı Adı</th><th>Yeni Şifre</th><th>Roller (en fazla 2)</th><th></th></tr></thead>
       <tbody>
       ${APP.config.users.map(u => `
-        <tr>
-          <td class="col-name"><input value="${escapeAttr(u.username)}" id="us_name_${u.id}"></td>
+        <tr style="${u.is_active===false?'opacity:.55;':''}">
+          <td class="col-name"><input value="${escapeAttr(u.username)}" id="us_name_${u.id}">${u.is_active===false?'<span class="role-badge" style="color:var(--red);border-color:var(--red);margin-top:6px;display:inline-block;">Pasif</span>':''}</td>
           <td class="col-name"><input type="password" placeholder="(değiştirmek için yaz)" id="us_pass_${u.id}"></td>
           <td class="col-name">${roleCheckboxes('us_'+u.id, u.role_ids||[])}</td>
           <td>
+            <div class="act-row">
             <button type="button" class="act-btn act-save" onclick="saveUser('${u.id}')">${ICON_SAVE}<span>Kaydet</span></button>
+            <button type="button" class="act-btn ${u.is_active===false?'act-open':'act-close'}" onclick="toggleUserActive('${u.id}', ${u.is_active===false})" title="${u.is_active===false?'Kullanıcıyı tekrar aktif et':'Giriş yapamaz, açık oturumu kapanır'}"><b>${u.is_active===false?'✓':'⏸'}</b><span>${u.is_active===false?'Aktifleştir':'Pasife Al'}</span></button>
             <button type="button" class="act-btn act-delete" onclick="removeUser('${u.id}')">${ICON_TRASH}<span>Sil</span></button>
+            </div>
           </td>
         </tr>`).join('')}
       </tbody>
@@ -1633,6 +1636,15 @@ async function addUser(){
   if(roleIds.length===0){ alert('En az 1 rol seçmelisiniz'); return; }
   const { error } = await sb.rpc('create_staff_user', { p_token: session.session_token, p_username: username, p_password: password, p_role_ids: roleIds });
   if(error){ alert(error.message); return; }
+  renderSettingsView(document.getElementById('main'), session);
+}
+async function toggleUserActive(id, activate){
+  const u = (APP.config.users||[]).find(x => x.id===id);
+  if(!activate && !confirm((u ? u.username : 'Bu kullanıcı') + ' pasife alınsın mı?\n\nGiriş yapamaz ve açık oturumu hemen kapanır. Kayıtları silinmez, istediğinizde tekrar aktifleştirebilirsiniz.')) return;
+  const session = getSession();
+  const { error } = await withLoadingOverlay(sb.rpc('set_staff_user_active', { p_token: session.session_token, p_user_id: id, p_active: !!activate }));
+  if(error){ alert(error.message); return; }
+  showToast(activate ? 'Kullanıcı aktifleştirildi ✓' : 'Kullanıcı pasife alındı');
   renderSettingsView(document.getElementById('main'), session);
 }
 async function removeUser(id){

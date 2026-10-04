@@ -53,12 +53,28 @@ sb.rpc = function(fn, args){
   });
 };
 
+/* "Beni hatırla" (session.remember): oturum localStorage'da da tutulur,
+   uygulama/tarayıcı kapatılıp açılınca tekrar giriş gerekmez; sunucuda
+   oturum kullanıldıkça 30 gün uzar (bkz. set_session_remember). */
 function getSession(){
-  try{ return JSON.parse(sessionStorage.getItem('staff_session')||'null'); }
-  catch(e){ return null; }
+  try{
+    const s = sessionStorage.getItem('staff_session');
+    if(s) return JSON.parse(s);
+    const p = localStorage.getItem('staff_session_persist');
+    if(p){ sessionStorage.setItem('staff_session', p); return JSON.parse(p); }
+    return null;
+  }catch(e){ return null; }
 }
-function setSession(s){ sessionStorage.setItem('staff_session', JSON.stringify(s)); }
-function clearSession(){ sessionStorage.removeItem('staff_session'); }
+function setSession(s){
+  try{
+    sessionStorage.setItem('staff_session', JSON.stringify(s));
+    if(s && s.remember) localStorage.setItem('staff_session_persist', JSON.stringify(s));
+    else localStorage.removeItem('staff_session_persist');
+  }catch(e){}
+}
+function clearSession(){
+  try{ sessionStorage.removeItem('staff_session'); localStorage.removeItem('staff_session_persist'); }catch(e){}
+}
 /* Şirket oturumu (şube sahibi/zincir hesabı) - şube personel oturumundan
    (staff_session) ayrı ve bağımsız tutulur. Bir şirket sahibi bir şubeye
    girdiğinde (bkz. enterBranch/switch_to_branch), o an için hem şirket

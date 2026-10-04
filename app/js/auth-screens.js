@@ -25,9 +25,12 @@ function renderLoginScreen(app){
       <p class="muted">İşletme kodu, kullanıcı adı ve şifrenizle giriş yapın</p>
       ${odemeBanner}
       ${kickedBanner}
-      <input id="codeInput" placeholder="İşletme kodu (örn. test123)" autocapitalize="none">
-      <input id="userInput" placeholder="Kullanıcı adı" autocapitalize="none">
+      <input id="codeInput" placeholder="İşletme kodu (örn. test123)" autocapitalize="none" value="${escapeAttr(lastLoginInfo().code)}">
+      <input id="userInput" placeholder="Kullanıcı adı" autocapitalize="none" value="${escapeAttr(lastLoginInfo().username)}">
       <input id="passInput" type="password" placeholder="Şifre">
+      <label style="display:flex;align-items:center;gap:8px;margin:2px 0 10px;font-size:13.5px;cursor:pointer;">
+        <input type="checkbox" id="rememberInput" style="width:auto;margin:0;" checked> Beni hatırla
+      </label>
       <button id="loginBtn" onclick="doLogin()">Giriş Yap</button>
       <div class="error" id="errBox"></div>
       <p class="muted" style="text-align:center;margin-top:14px;font-size:13px;">
