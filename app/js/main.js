@@ -118,13 +118,20 @@ function render(){
    dönüldüğünde get_nav_badges ile tazelenir. ---- */
 const NAV_BADGE_TABS = { settings: '#settingsContent', purchasing: '#purchTabs' };
 function badgeHtml(n){ return n > 0 ? `<span class="nav-badge">${n > 99 ? '99+' : n}</span>` : ''; }
+function badgeItems(view){ return ((APP.navBadges || {})._items || {})[view] || []; }
 function applyNavBadges(){
   const b = APP.navBadges || {};
   document.querySelectorAll('.sb-item[data-view]').forEach(el => {
     el.querySelectorAll('.nav-badge').forEach(x => x.remove());
     const n = b[el.dataset.view] || 0;
-    if(n > 0) el.insertAdjacentHTML('beforeend', badgeHtml(n));
+    if(n > 0){
+      el.insertAdjacentHTML('beforeend', badgeHtml(n));
+      const bd = el.querySelector('.nav-badge');
+      bd.title = badgeItems(el.dataset.view).map(x => x.label).join('\n');
+      bd.onclick = (e) => { e.stopPropagation(); openBadgePopover(el.dataset.view, bd); };
+    }
   });
+  markBadgeRows();
   const tabs = { shifts: b.settings || 0, orders: b.purchasing || 0 };
   document.querySelectorAll('.tabs .tab[data-tab]').forEach(el => {
     if(!(el.dataset.tab in tabs)) return;
@@ -138,6 +145,41 @@ function applyNavBadges(){
     const total = session ? NAV_ITEMS.filter(i => navItemVisible(i, session) && i.view!==APP.view).reduce((t, i) => t + (b[i.view] || 0), 0) : 0;
     if(total > 0) btn.insertAdjacentHTML('beforeend', `<span class="nav-badge nav-badge-corner">${total > 99 ? '99+' : total}</span>`);
   }
+}
+// Ekranlarda bekleyen kayıtları işaretle (data-badge-id taşıyan satır/kartlar).
+function markBadgeRows(){
+  const pendingIds = new Set(Object.values((APP.navBadges || {})._items || {}).flat().map(x => x.id));
+  document.querySelectorAll('[data-badge-id]').forEach(el => {
+    const on = pendingIds.has(el.dataset.badgeId);
+    if(el.classList.contains('badge-row') !== on) el.classList.toggle('badge-row', on);
+  });
+}
+// Ekran içerikleri sonradan (async) çizildiği için yeni satırlar da işaretlensin.
+let BADGE_MARK_T = null;
+new MutationObserver(() => { clearTimeout(BADGE_MARK_T); BADGE_MARK_T = setTimeout(markBadgeRows, 80); })
+  .observe(document.getElementById('app') || document.body, { childList: true, subtree: true });
+/* Rozete basınca bekleyen kayıtların listesi; bir öğeye basınca ilgili ekrana gider. */
+function openBadgePopover(view, anchor){
+  document.querySelectorAll('.badge-popover').forEach(x => x.remove());
+  const items = badgeItems(view);
+  if(!items.length) return;
+  const pop = document.createElement('div');
+  pop.className = 'badge-popover';
+  const r = anchor.getBoundingClientRect();
+  pop.style.top = Math.min(r.bottom + 6, window.innerHeight - 60) + 'px';
+  pop.style.left = Math.min(r.left, window.innerWidth - 290) + 'px';
+  pop.innerHTML = `<div class="badge-popover-head">${escapeHtml((NAV_ITEMS.find(i => i.view===view)||{}).label || '')} · ${items.length} bekleyen</div>`
+    + items.slice(0, 30).map(x => `<div class="badge-popover-item">${escapeHtml(x.label)}</div>`).join('')
+    + (items.length > 30 ? `<div class="badge-popover-item muted">+${items.length-30} daha</div>` : '');
+  pop.onclick = (e) => {
+    e.stopPropagation(); pop.remove();
+    if(view==='settings') APP.settingsTab = 'shifts';
+    if(view==='reservations') APP.resvTab = items.every(x => x.kind==='waitlist') ? 'waitlist' : 'reservations';
+    if(view==='purchasing') APP.purchTab = 'orders';
+    goToView(view);
+  };
+  document.body.appendChild(pop);
+  setTimeout(() => document.addEventListener('click', function close(){ pop.remove(); document.removeEventListener('click', close); }), 0);
 }
 let NAV_BADGE_TIMER = null;
 async function refreshNavBadges(){

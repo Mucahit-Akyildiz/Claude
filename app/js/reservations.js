@@ -47,7 +47,7 @@ async function renderReservationsContent(session, forceRefresh){
       <thead><tr><th>Müşteri</th><th>Telefon</th><th>Kişi</th><th>Zaman</th><th>Masa</th><th>Durum</th><th></th></tr></thead>
       <tbody>
       ${rows.map(r => `
-        <tr>
+        <tr data-badge-id="${r.id}">
           <td class="col-name">${escapeHtml(r.customer_name)}${r.notes?'<div class="muted" style="font-size:11px;overflow-wrap:anywhere;word-break:break-word;">'+escapeHtml(r.notes)+'</div>':''}</td>
           <td>${escapeHtml(r.phone||'-')}</td>
           <td>${r.party_size}</td>
@@ -155,7 +155,7 @@ async function renderWaitlistContent(session, forceRefresh){
       <thead><tr><th>Müşteri</th><th>Telefon</th><th>Kişi</th><th>Bekleme</th><th>Katılım</th><th></th></tr></thead>
       <tbody>
       ${rows.map(w => `
-        <tr>
+        <tr data-badge-id="${w.id}">
           <td class="col-name">${escapeHtml(w.customer_name)}</td>
           <td>${escapeHtml(w.phone||'-')}</td>
           <td>${w.party_size}</td>
