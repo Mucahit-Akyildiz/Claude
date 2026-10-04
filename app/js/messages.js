@@ -8,6 +8,7 @@
 const CHAT_EMOJI = {
   '😀': '😀 😃 😄 😁 😆 😅 😂 🤣 😊 😇 🙂 😉 😍 🥰 😘 😋 😜 🤪 😎 🤩 🥳 😏 😒 😞 😔 😟 😕 🙁 😣 😫 😩 🥺 😢 😭 😤 😠 😡 🤯 😳 🥵 🥶 😱 😨 😰 🤗 🤔 🤭 🤫 😶 😐 😑 😬 🙄 😴 🤤 😪 😵 🤐 🤢 🤮 🤧 😷 🤒 🤕',
   '👍': '👍 👎 👌 ✌️ 🤞 🤟 🤘 👏 🙌 👐 🙏 🤝 💪 👋 ✋ 👊 ✊ 👈 👉 👆 👇 ☝️ 🫡 🫶 ❤️ 🧡 💛 💚 💙 💜 🖤 🤍 💔 💯 ✅ ❌ ⚠️ ❗ ❓ 🔥 ⭐ ✨ 🎉 🎊 💤 💬',
+  '🧑': '👶 🧒 👦 👧 🧑 👱 👨 🧔 👩 🧓 👴 👵 🙍 🙎 🙅 🙆 💁 🙋 🧏 🙇 🤦 🤷 👮 🕵️ 💂 👷 🤴 👸 👳 👲 🧕 🤵 👰 🤰 🤱 👼 🎅 🤶 🦸 🦹 🧙 🧚 🧛 🧜 🧝 🧞 🧟 💆 💇 🚶 🧍 🧎 🏃 💃 🕺 🕴️ 👯 🧖 🧗 🤺 🏇 ⛷️ 🏂 🏌️ 🏄 🚣 🏊 ⛹️ 🏋️ 🚴 🚵 🤸 🤼 🤽 🤾 🤹 🧘 🛀 🛌 👭 👫 👬 💏 💑 👪 🧑‍🍳 👨‍🍳 👩‍🍳 🧑‍💼 👨‍💼 👩‍💼 🧑‍🔧 🧑‍🎓 🧑‍🏫 🧑‍⚕️ 🧑‍🚀 🧑‍🎤 🧑‍💻 🗣️ 👤 👥 🫂 👣',
   '🍔': '🍕 🍔 🍟 🌭 🥪 🌮 🌯 🥙 🧆 🥚 🍳 🥘 🍲 🥗 🍿 🧈 🥩 🍗 🍖 🥓 🍝 🍜 🍛 🍣 🍱 🥟 🍤 🍙 🍚 🥠 🍢 🧁 🍰 🎂 🍮 🍭 🍬 🍫 🍩 🍪 🍦 🍨 ☕ 🍵 🥤 🧃 🍺 🍻 🥂 🍷 🍸 🍹 🧊 🍽️ 🔪 🥄',
   '💩': '💩 🤡 👻 💀 ☠️ 👽 👾 🤖 🎃 😈 👿 👹 👺 🙈 🙉 🙊 🤠 🥸 🤓 🧐 😺 😸 😹 😻 😼 😽 🙀 😿 😾 🫠 🫣 🫢 🫥 🤥 🤑 😮‍💨 🥴 🤬 🖕 💅 🤳 🦄 🐸 🐵 🐒 🐔 🐧 🐷 🐮 🐶 🐱 🐭 🐹 🐰 🦊 🐻 🐼 🐨 🐯 🦁 🐍 🐢 🐙 🦀 🐟 🐬 🦋 🐌 🐞 🐜 🪳 🦟 🍆 🍑 🍌 🌶️ 🧄 🧅',
   '🎉': '🎉 🎊 🎈 🎁 🏆 🥇 🥈 🥉 ⚽ 🏀 🏐 🎮 🎲 🎯 🎵 🎶 🎤 🎧 📸 🎬 🚀 ✈️ 🏖️ 🌙 ☀️ 🌧️ ⛈️ ❄️ 🌈 🌹 🌸 🌻 🍀 💐 💎 💸 🔔 📢 💡 🔋 🧨 💣 🪄 🧿',
@@ -138,7 +139,13 @@ async function refreshChatThread(){
     if(m.deleted) content = `<div class="chat-body chat-deleted">🚫 Bu mesaj silindi</div>`;
     else {
       if(m.reply) content += `<div class="chat-quote" onclick="event.stopPropagation();scrollToChatMessage('${m.reply.id}')"><b style="color:${chatColor(m.reply.sender_name)};">${escapeHtml(m.reply.sender_name)}</b><div>${escapeHtml(m.reply.preview||'')}</div></div>`;
-      if(m.attachment_kind==='image' && m.attachment) content += `<img class="chat-img" src="${m.attachment}" alt="" loading="lazy" onclick="openChatImage(this.src)">`;
+      if(m.view_once){
+        content += m.mine
+          ? `<div class="chat-once">1️⃣ <span>Tek görüntülemelik fotoğraf<small>${m.viewed_count > 0 ? (isAll || isGroup ? m.viewed_count + ' kişi açtı' : 'Açıldı') : 'Henüz açılmadı'}</small></span></div>`
+          : m.viewed_by_me
+            ? `<div class="chat-once opened">1️⃣ <span>Fotoğraf<small>Açıldı</small></span></div>`
+            : `<button type="button" class="chat-once" onclick="event.stopPropagation();openViewOnce('${m.id}')">1️⃣ <span>Fotoğraf<small>Bir kez görüntülemek için dokunun</small></span></button>`;
+      } else if(m.attachment_kind==='image' && m.attachment) content += `<img class="chat-img" src="${chatAttachmentSrc(m)}" alt="" loading="lazy" onclick="openChatImage(this.src)">`;
       if(m.attachment_kind==='audio') content += `<div class="chat-audio" data-att="${m.id}"><button type="button" class="chat-audio-play" onclick="event.stopPropagation();loadChatAudio('${m.id}', this)">▶</button><span>🎤 Sesli mesaj</span></div>`;
       if(m.attachment_kind==='file') content += `<button type="button" class="chat-file" onclick="event.stopPropagation();downloadChatFile('${m.id}')"><span class="chat-file-ic">📄</span><span style="min-width:0;"><b>${escapeHtml(m.attachment_name||'Dosya')}</b><small>${chatFileSize(m.attachment_size)} · indir</small></span></button>`;
       if(m.body) content += `<div class="chat-body">${escapeHtml(m.body)}</div>`;
@@ -166,6 +173,7 @@ function toggleChatTray(kind){
       <button type="button" onclick="openChatCamera()"><span style="background:#e91e63;">📷</span>Kamera</button>
       <button type="button" onclick="document.getElementById('chatFileImage').click()"><span style="background:#7c4dff;">🖼️</span>Galeri</button>
       <button type="button" onclick="document.getElementById('chatFileAny').click()"><span style="background:#3f51b5;">📄</span>Dosya</button>
+      <button type="button" onclick="toggleChatViewOnce()" class="${APP.chatViewOnce?'on':''}"><span style="background:${APP.chatViewOnce?'#00a884':'#607d8b'};">1️⃣</span>Tek görüntüleme${APP.chatViewOnce?' ✓':''}</button>
       <button type="button" onclick="toggleChatTray('quick')"><span style="background:#ff9800;">⚡</span>Hazır yanıt</button>
       ${chatSpeechSupported() ? `<button type="button" onclick="toggleChatTray('attach');toggleChatDictation()"><span style="background:#009688;">🗣️</span>Sesle yaz</button>` : ''}
     </div>`;
@@ -187,7 +195,39 @@ function insertChatEmoji(e){
   updateChatSendBtn();
   t.focus();
 }
+/* Ekler (Blob/File) veritabanına değil dosya deposuna yüklenir (bkz. api/chat-upload). */
+function chatFileUrl(id, dl){
+  const s = getSession();
+  return '/api/chat-file?id=' + encodeURIComponent(id) + '&t=' + encodeURIComponent(s ? s.session_token : '') + (dl ? '&dl=1' : '');
+}
+function chatAttachmentSrc(m){ return String(m.attachment||'').startsWith('data:') ? m.attachment : chatFileUrl(m.id); }
+async function uploadChatAttachment(blob, kind, name, body){
+  const session = getSession();
+  const reply = APP.chatReply;
+  const enc = (v) => encodeURIComponent(v == null ? '' : String(v));
+  const headers = { 'Content-Type': 'application/octet-stream', 'x-session-token': enc(session.session_token), 'x-conv': enc(APP.chatConv),
+    'x-kind': enc(kind), 'x-mime': enc(blob.type || 'application/octet-stream'), 'x-name': enc(name || ''), 'x-body': enc(body || '') };
+  if(reply) headers['x-reply-to'] = enc(reply.id);
+  if(kind==='image' && APP.chatViewOnce) headers['x-view-once'] = '1';
+  let r;
+  try{ r = await fetch('/api/chat-upload', { method: 'POST', headers, body: blob }); }
+  catch(e){ alert('Gönderilemedi, bağlantınızı kontrol edin.'); return false; }
+  if(!r.ok){ let msg = 'Gönderilemedi'; try{ msg = (await r.json()).error || msg; }catch(e){} alert(msg); return false; }
+  cancelChatReply();
+  if(kind==='image' && APP.chatViewOnce){ APP.chatViewOnce = false; }
+  const el = document.getElementById('chatThread'); if(el) delete el.dataset.loaded;
+  await refreshChatThread(); refreshChatList();
+  return true;
+}
+function dataUrlToBlob(dataUrl){
+  const [head, b64] = dataUrl.split(',');
+  const mime = (/^data:([^;]+)/.exec(head) || [])[1] || 'application/octet-stream';
+  const bin = atob(b64); const arr = new Uint8Array(bin.length);
+  for(let i=0;i<bin.length;i++) arr[i] = bin.charCodeAt(i);
+  return new Blob([arr], { type: mime });
+}
 async function postChat(body, attachment, kind, name){
+  if(attachment) return uploadChatAttachment(typeof attachment === 'string' ? dataUrlToBlob(attachment) : attachment, kind, name, body);
   const session = getSession();
   const reply = APP.chatReply;
   const { error } = await sb.rpc('send_chat_message', { p_token: session.session_token, p_conv: APP.chatConv, p_body: body || '', p_attachment: attachment || null,
@@ -218,8 +258,8 @@ async function sendChatImage(input){
   let dataUrl;
   try{
     if(file.type==='image/gif'){
-      if(file.size > 1000000){ alert('GIF en fazla 1 MB olabilir.'); return; }
-      dataUrl = await new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = rej; r.readAsDataURL(file); });
+      if(file.size > 1.5*1024*1024){ alert('GIF en fazla 1,5 MB olabilir.'); return; }
+      dataUrl = file;
     } else {
       dataUrl = await resizeImageToDataUrl(file, 1024);
     }
@@ -264,7 +304,7 @@ function openReactionBar(btn, messageId){
   const bar = document.createElement('div'); bar.className = 'chat-react-bar';
   const m = (APP.chatRows||[]).find(x => x.id===messageId) || {};
   const canDelete = m.mine && (Date.now() - new Date(m.created_at).getTime()) < 24*3600*1000;
-  bar.innerHTML = `<div class="chat-react-row">${CHAT_REACTIONS.map(e => `<button type="button" onclick="event.stopPropagation();toggleChatReaction('${messageId}','${e}');document.querySelectorAll('.chat-react-bar').forEach(b=>b.remove());">${e}</button>`).join('')}</div>
+  bar.innerHTML = `<div class="chat-react-row">${CHAT_REACTIONS.map(e => `<button type="button" onclick="event.stopPropagation();toggleChatReaction('${messageId}','${e}');document.querySelectorAll('.chat-react-bar').forEach(b=>b.remove());">${e}</button>`).join('')}<button type="button" class="chat-react-more" title="Diğer emojiler" onclick="event.stopPropagation();openReactionPicker('${messageId}')">＋</button></div>
     <div class="chat-menu">
       <button type="button" onclick="event.stopPropagation();startChatReply('${messageId}')">↩️ Yanıtla</button>
       ${m.body ? `<button type="button" onclick="event.stopPropagation();copyChatMessage('${messageId}')">📋 Kopyala</button>` : ''}
@@ -275,6 +315,24 @@ function openReactionBar(btn, messageId){
   const thread = document.getElementById('chatThread');
   if(thread && row.getBoundingClientRect().top - thread.getBoundingClientRect().top < 52) bar.classList.add('below');
   setTimeout(() => document.addEventListener('click', function close(){ bar.remove(); document.removeEventListener('click', close); }), 0);
+}
+/* Tepki için tüm emojilerden seçim (WhatsApp'taki ＋ gibi). */
+function openReactionPicker(messageId, cat){
+  document.querySelectorAll('.chat-react-bar').forEach(b => b.remove());
+  let ov = document.getElementById('chatReactPickBg');
+  if(!ov){
+    ov = document.createElement('div'); ov.id = 'chatReactPickBg';
+    ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;z-index:120;padding:16px;';
+    ov.onclick = (e) => { if(e.target===ov) ov.remove(); };
+    document.body.appendChild(ov);
+  }
+  const c = cat || APP.chatReactCat || Object.keys(CHAT_EMOJI)[0];
+  APP.chatReactCat = c;
+  ov.innerHTML = `<div style="background:var(--panel);border:1px solid var(--border);border-radius:18px;padding:12px;max-width:420px;width:100%;box-shadow:0 12px 40px rgba(0,0,0,.25);">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;"><b>Tepki seçin</b><span style="cursor:pointer;color:var(--muted);font-size:18px;" onclick="document.getElementById('chatReactPickBg').remove()">✕</span></div>
+    <div class="chat-emoji-tabs" style="flex-wrap:wrap;">${Object.keys(CHAT_EMOJI).map(k => `<button type="button" class="${k===c?'active':''}" onclick="openReactionPicker('${messageId}','${k}')">${k}</button>`).join('')}</div>
+    <div class="chat-emoji-grid" style="max-height:300px;overflow-y:auto;">${CHAT_EMOJI[c].split(' ').map(e => `<button type="button" onclick="document.getElementById('chatReactPickBg').remove();toggleChatReaction('${messageId}','${e}')">${e}</button>`).join('')}</div>
+  </div>`;
 }
 async function toggleChatReaction(messageId, emoji){
   const session = getSession();
@@ -323,27 +381,45 @@ async function fetchChatAttachment(id){
   if(error){ alert(error.message); return null; }
   CHAT_ATT_CACHE[id] = data; return data;
 }
-async function loadChatAudio(id, btn){
-  btn.disabled = true; btn.textContent = '…';
-  const att = await fetchChatAttachment(id);
-  const box = btn.closest('.chat-audio'); if(!att || !box) { btn.disabled = false; btn.textContent = '▶'; return; }
-  box.innerHTML = `<audio controls autoplay src="${att.data}" style="max-width:240px;height:36px;"></audio>`;
+function loadChatAudio(id, btn){
+  const box = btn.closest('.chat-audio'); if(!box) return;
+  box.innerHTML = `<audio controls autoplay src="${chatFileUrl(id)}" style="max-width:240px;height:36px;"></audio>`;
 }
-async function downloadChatFile(id){
-  const att = await withLoadingOverlay(fetchChatAttachment(id)); if(!att) return;
-  const a = document.createElement('a'); a.href = att.data; a.download = att.name || 'dosya'; document.body.appendChild(a); a.click(); a.remove();
+function downloadChatFile(id){
+  const m = (APP.chatRows||[]).find(x => x.id===id) || {};
+  const a = document.createElement('a'); a.href = chatFileUrl(id, true); a.download = m.attachment_name || 'dosya'; a.target = '_blank'; a.rel = 'noopener';
+  document.body.appendChild(a); a.click(); a.remove();
+}
+/* Tek görüntülemelik fotoğraf: bir kez açılır, kaydedilemez; kapatınca bir daha açılmaz. */
+async function openViewOnce(id){
+  if(!confirm('Bu fotoğraf yalnızca bir kez görüntülenebilir. Açılsın mı?')) return;
+  let r;
+  try{ r = await withLoadingOverlay(fetch(chatFileUrl(id) + '&once=1')); }catch(e){ alert('Açılamadı'); return; }
+  if(!r.ok){ let msg = 'Açılamadı'; try{ msg = (await r.json()).error || msg; }catch(e){} alert(msg); refreshChatThread(); return; }
+  const url = URL.createObjectURL(await r.blob());
+  const ov = document.createElement('div');
+  ov.style.cssText = 'position:fixed;inset:0;background:#000;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:130;padding:16px;user-select:none;-webkit-user-select:none;';
+  ov.oncontextmenu = (e) => e.preventDefault();
+  ov.innerHTML = `<div style="color:#fff;font-weight:700;margin-bottom:10px;">1️⃣ Tek görüntülemelik fotoğraf</div>
+    <img src="${url}" draggable="false" style="max-width:100%;max-height:80vh;border-radius:12px;pointer-events:none;">
+    <button type="button" style="width:auto;margin-top:14px;padding:10px 22px;">Kapat</button>`;
+  ov.querySelector('button').onclick = () => { URL.revokeObjectURL(url); ov.remove(); refreshChatThread(); };
+  document.body.appendChild(ov);
+}
+function toggleChatViewOnce(){
+  APP.chatViewOnce = !APP.chatViewOnce;
+  document.getElementById('chatTray').dataset.kind = ''; toggleChatTray('attach');
+  showToast(APP.chatViewOnce ? '1️⃣ Sonraki fotoğraf tek görüntülemelik gönderilecek' : 'Tek görüntüleme kapatıldı', 2500);
 }
 function chatFileSize(n){ if(!n) return ''; return n > 1048576 ? (n/1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(n/1024)) + ' KB'; }
 function readFileAsDataUrl(file){ return new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = rej; r.readAsDataURL(file); }); }
 async function sendChatFile(input){
   const file = input.files && input.files[0]; input.value = '';
   if(!file || !APP.chatConv) return;
-  if(file.size > 5*1024*1024){ alert('Dosya en fazla 5 MB olabilir.'); return; }
+  if(file.size > 4*1024*1024){ alert('Dosya en fazla 4 MB olabilir.'); return; }
   if(file.type.startsWith('image/') && file.type !== 'image/gif'){ const fake = { files:[file], value:'' }; return sendChatImage(fake); }
-  let data; try{ data = await readFileAsDataUrl(file); }catch(e){ alert('Dosya okunamadı'); return; }
-  if(!/^data:[^;,]+;base64,/.test(data)) data = data.replace(/^data:;base64,/, 'data:application/octet-stream;base64,');
   const tray = document.getElementById('chatTray'); if(tray) tray.classList.remove('open');
-  await withLoadingOverlay(postChat('', data, 'file', file.name));
+  await withLoadingOverlay(postChat('', file, 'file', file.name));
 }
 /* ---- Gönder / sesli mesaj düğmesi (WhatsApp gibi: yazı yoksa mikrofon) ---- */
 function updateChatSendBtn(){
@@ -374,9 +450,8 @@ async function startChatVoice(){
     if(!v.send || !chunks.length) return;
     const blob = new Blob(chunks, { type: (rec.mimeType || 'audio/webm').split(';')[0] });
     if(blob.size > 3*1024*1024){ alert('Sesli mesaj çok uzun (en fazla ~3 MB).'); return; }
-    const data = await readFileAsDataUrl(blob);
     const secs = Math.round((Date.now() - v.start)/1000);
-    await postChat('', data, 'audio', 'Sesli mesaj ' + Math.floor(secs/60) + ':' + String(secs%60).padStart(2,'0'));
+    await postChat('', blob, 'audio', 'Sesli mesaj ' + Math.floor(secs/60) + ':' + String(secs%60).padStart(2,'0'));
   };
   rec.start();
   const bar = document.getElementById('chatRecBar');
@@ -429,7 +504,7 @@ async function takeChatPhoto(){
   const k = Math.min(1, 1280 / Math.max(v.videoWidth, v.videoHeight));
   const c = document.createElement('canvas'); c.width = Math.round(v.videoWidth*k); c.height = Math.round(v.videoHeight*k);
   c.getContext('2d').drawImage(v, 0, 0, c.width, c.height);
-  const data = c.toDataURL('image/jpeg', 0.8);
+  const data = await new Promise(res => c.toBlob(res, 'image/jpeg', 0.8));
   closeChatCamera();
   const t = document.getElementById('chatText'); const caption = t ? t.value.trim() : '';
   if(await withLoadingOverlay(postChat(caption, data, 'image')) && t){ t.value = ''; updateChatSendBtn(); }
