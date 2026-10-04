@@ -30,5 +30,6 @@
     "deploymentEnabled": {
       "claude/friendly-goodall-rksmy6": false
     }
-  }
+  },
+  "ignoreCommand": "git diff --quiet HEAD^ HEAD -- . ':(exclude)supabase' ':(exclude).github' ':(exclude)mobile'"
 }

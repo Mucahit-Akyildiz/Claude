@@ -56,11 +56,41 @@ sb.rpc = function(fn, args){
       // dahili semayi ifsa eden ham, teknik bir Ingilizce mesaj gelebiliyordu.
       // Bunlar tek merkezden yakalanip genel bir mesajla degistirilir.
       console.error('Beklenmeyen veritabani hatasi:', res.error.message);
+      reportClientError('rpc', fn + ': ' + res.error.message, fn);
       res.error.message = 'Beklenmeyen bir hata oluştu, lütfen tekrar deneyin.';
     }
     return res;
   });
 };
+
+/* ---- Hata izleme: yakalanmayan JavaScript hataları ve beklenmeyen
+   veritabanı hataları log_client_error ile kaydedilir (Admin Paneli >
+   Hatalar). Aynı hata sayfada tekrar tekrar gönderilmez (30 sn). ---- */
+const _reportedErrors = {};
+function reportClientError(kind, message, source){
+  try{
+    const msg = String(message || '').slice(0, 500);
+    if(!msg) return;
+    const key = kind + '|' + msg;
+    if(_reportedErrors[key] && Date.now() - _reportedErrors[key] < 30000) return;
+    _reportedErrors[key] = Date.now();
+    let token = null;
+    try{ const s = JSON.parse(sessionStorage.getItem('staff_session') || localStorage.getItem('staff_session_persist') || 'null'); token = s && s.session_token; }catch(e){}
+    _sbRpc('log_client_error', { p_token: token, p_kind: kind, p_message: msg, p_source: String(source || '').slice(0, 300),
+      p_view: (window.APP && APP.view) || null, p_user_agent: navigator.userAgent, p_url: location.pathname + location.search }).catch(() => {});
+  }catch(e){}
+}
+window.addEventListener('error', (e) => {
+  // Tarayıcı eklentileri ve dış kaynaklı (çapraz köken) "Script error." gürültüsü kaydedilmez.
+  if(!e || !e.message || e.message === 'Script error.') return;
+  reportClientError('js', e.message, (e.filename || '').replace(location.origin, '') + ':' + (e.lineno || 0) + ':' + (e.colno || 0));
+});
+window.addEventListener('unhandledrejection', (e) => {
+  const r = e && e.reason;
+  const msg = r && (r.message || String(r));
+  if(!msg || /Failed to fetch|NetworkError|Load failed|AbortError/i.test(msg)) return;
+  reportClientError('promise', msg, r && r.stack ? String(r.stack).split('\n')[1] || '' : '');
+});
 
 /* "Beni hatırla" (session.remember): oturum localStorage'da da tutulur,
    uygulama/tarayıcı kapatılıp açılınca tekrar giriş gerekmez; sunucuda

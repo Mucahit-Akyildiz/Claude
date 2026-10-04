@@ -1,0 +1,59 @@
+name: Veritabanı Şemasını Kaydet
+
+# Canlı veritabanının yapısını (tablolar, fonksiyonlar, tetikleyiciler,
+# yetkiler; VERİ DEĞİL) supabase/schema.sql dosyasına döker ve değiştiyse
+# commit eder. Böylece veritabanındaki her değişiklik git geçmişinde görünür
+# ve gerekirse geri alınabilir. Gerekli secret: SUPABASE_DB_URL.
+on:
+  workflow_dispatch: {}
+  push:
+    branches: [claude/restoran-app-definition-h5e5am]
+  schedule:
+    - cron: '41 */6 * * *'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: db-schema
+  cancel-in-progress: false
+
+jobs:
+  dump:
+    runs-on: ubuntu-latest
+    env:
+      HAS_DB: ${{ secrets.SUPABASE_DB_URL != '' }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          ref: claude/restoran-app-definition-h5e5am
+      - name: Secret kontrolü
+        if: ${{ env.HAS_DB != 'true' }}
+        run: echo "::warning::SUPABASE_DB_URL secret'i tanımlı değil, şema dökümü atlandı."
+      - name: pg_dump kur
+        if: ${{ env.HAS_DB == 'true' }}
+        run: |
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl -fsSL -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list
+          sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client-17
+      - name: Şemayı dök
+        if: ${{ env.HAS_DB == 'true' }}
+        env:
+          DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          mkdir -p supabase
+          pg_dump "$DB_URL" --schema-only --schema=public --no-owner --no-privileges --no-comments -f supabase/schema.sql
+          # Sürüm satırları her dökümde değişmesin diye çıkarılır.
+          sed -i '/^-- Dumped from database version/d;/^-- Dumped by pg_dump version/d;/^\\restrict /d;/^\\unrestrict /d' supabase/schema.sql
+      - name: Değiştiyse commit et
+        if: ${{ env.HAS_DB == 'true' }}
+        run: |
+          if git diff --quiet -- supabase/schema.sql && git ls-files --error-unmatch supabase/schema.sql >/dev/null 2>&1; then
+            echo "Şema değişmedi."; exit 0
+          fi
+          git config user.name "peyktan-schema-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add supabase/schema.sql
+          git commit -m "Veritabanı şeması güncellendi [skip ci]"
+          git push
