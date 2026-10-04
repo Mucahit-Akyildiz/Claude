@@ -64,10 +64,14 @@ function renderSettingsContent(session){
 function renderUsersTabWithSubtabs(el, session){
   if(!session.isManager) APP.usersSubTab = 'list';
   const sub = APP.usersSubTab || 'list';
-  el.innerHTML = session.isManager ? `<div class="tabs" id="usersSubTabs" style="margin-bottom:12px;">
-      <div class="tab ${sub==='list'?'active':''}" onclick="setUsersSubTab('list')">👥 Kullanıcılar</div>
-      <div class="tab ${sub==='active'?'active':''}" onclick="setUsersSubTab('active')">🟢 Aktif Kullanıcılar</div>
-    </div><div id="usersSubContent"></div>` : '<div id="usersSubContent"></div>';
+  // Alt sekmeler kartın içinde, üst menüden ayrışan altı çizili stilde.
+  el.innerHTML = session.isManager ? `<div class="box sub-tabs-box" style="max-width:none;">
+      <div class="sub-tabs" id="usersSubTabs">
+        <button type="button" class="sub-tab ${sub==='list'?'active':''}" onclick="setUsersSubTab('list')">👥 Kullanıcılar</button>
+        <button type="button" class="sub-tab ${sub==='active'?'active':''}" onclick="setUsersSubTab('active')">🟢 Aktif Kullanıcılar</button>
+      </div>
+      <div id="usersSubContent" class="sub-tabs-content"></div>
+    </div>` : '<div id="usersSubContent"></div>';
   const box = document.getElementById('usersSubContent');
   if(sub==='active') renderActiveUsersSettings(box);
   else renderUsersSettings(box, session);
