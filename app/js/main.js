@@ -132,12 +132,7 @@ function applyNavBadges(){
     }
   });
   markBadgeRows();
-  const tabs = { shifts: b.settings || 0, orders: b.purchasing || 0 };
-  document.querySelectorAll('.tabs .tab[data-tab]').forEach(el => {
-    if(!(el.dataset.tab in tabs)) return;
-    el.querySelectorAll('.nav-badge').forEach(x => x.remove());
-    if(tabs[el.dataset.tab] > 0) el.insertAdjacentHTML('beforeend', badgeHtml(tabs[el.dataset.tab]));
-  });
+  applyTabBadges();
   const btn = document.getElementById('mobileMenuBtn');
   if(btn){
     btn.querySelectorAll('.nav-badge').forEach(x => x.remove());
@@ -146,8 +141,32 @@ function applyNavBadges(){
     if(total > 0) btn.insertAdjacentHTML('beforeend', `<span class="nav-badge nav-badge-corner">${total > 99 ? '99+' : total}</span>`);
   }
 }
+// Ekran içi sekmeler: bekleyen iş başka sekmedeyse o sekmede sayı görünür;
+// açık olan sekmede gösterilmez (satırlar zaten işaretli). Değişiklik yoksa
+// DOM'a dokunmaz (MutationObserver döngüsü olmasın).
+function applyTabBadges(){
+  const b = APP.navBadges || {};
+  const resvItems = badgeItems('reservations');
+  const tabs = {
+    shifts: b.settings || 0,
+    orders: b.purchasing || 0,
+    reservations: resvItems.filter(x => x.kind==='reservation').length,
+    waitlist: resvItems.filter(x => x.kind==='waitlist').length,
+  };
+  document.querySelectorAll('.tabs .tab[data-tab]').forEach(el => {
+    if(!(el.dataset.tab in tabs)) return;
+    const want = el.classList.contains('active') ? 0 : tabs[el.dataset.tab];
+    const cur = el.querySelector('.nav-badge');
+    const curN = cur ? cur.textContent : '';
+    const wantTxt = want > 0 ? (want > 99 ? '99+' : String(want)) : '';
+    if(curN === wantTxt) return;
+    if(cur) cur.remove();
+    if(want > 0) el.insertAdjacentHTML('beforeend', badgeHtml(want));
+  });
+}
 // Ekranlarda bekleyen kayıtları işaretle (data-badge-id taşıyan satır/kartlar).
 function markBadgeRows(){
+  applyTabBadges();
   const pendingIds = new Set(Object.values((APP.navBadges || {})._items || {}).flat().map(x => x.id));
   document.querySelectorAll('[data-badge-id]').forEach(el => {
     const on = pendingIds.has(el.dataset.badgeId);

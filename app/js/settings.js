@@ -37,6 +37,7 @@ async function renderSettingsView(main, session){
   renderSettingsContent(session);
 }
 function setSettingsTab(tab){
+  setTimeout(applyNavBadges, 0);
   APP.settingsTab = tab;
   document.querySelectorAll('.tabs .tab[data-tab]').forEach(el => el.classList.toggle('active', el.dataset.tab===tab));
   renderSettingsContent(getSession());
