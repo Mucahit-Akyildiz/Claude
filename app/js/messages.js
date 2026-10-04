@@ -8,6 +8,7 @@
 const CHAT_EMOJI = {
   '😀': '😀 😃 😄 😁 😆 😅 😂 🤣 😊 😇 🙂 😉 😍 🥰 😘 😋 😜 🤪 😎 🤩 🥳 😏 😒 😞 😔 😟 😕 🙁 😣 😫 😩 🥺 😢 😭 😤 😠 😡 🤯 😳 🥵 🥶 😱 😨 😰 🤗 🤔 🤭 🤫 😶 😐 😑 😬 🙄 😴 🤤 😪 😵 🤐 🤢 🤮 🤧 😷 🤒 🤕',
   '👍': '👍 👎 👌 ✌️ 🤞 🤟 🤘 👏 🙌 👐 🙏 🤝 💪 👋 ✋ 👊 ✊ 👈 👉 👆 👇 ☝️ 🫡 🫶 ❤️ 🧡 💛 💚 💙 💜 🖤 🤍 💔 💯 ✅ ❌ ⚠️ ❗ ❓ 🔥 ⭐ ✨ 🎉 🎊 💤 💬',
+  '🧑': '👶 🧒 👦 👧 🧑 👱 👨 🧔 👩 🧓 👴 👵 🙍 🙎 🙅 🙆 💁 🙋 🧏 🙇 🤦 🤷 👮 🕵️ 💂 👷 🤴 👸 👳 👲 🧕 🤵 👰 🤰 🤱 👼 🎅 🤶 🦸 🦹 🧙 🧚 🧛 🧜 🧝 🧞 🧟 💆 💇 🚶 🧍 🧎 🏃 💃 🕺 🕴️ 👯 🧖 🧗 🤺 🏇 ⛷️ 🏂 🏌️ 🏄 🚣 🏊 ⛹️ 🏋️ 🚴 🚵 🤸 🤼 🤽 🤾 🤹 🧘 🛀 🛌 👭 👫 👬 💏 💑 👪 🧑‍🍳 👨‍🍳 👩‍🍳 🧑‍💼 👨‍💼 👩‍💼 🧑‍🔧 🧑‍🎓 🧑‍🏫 🧑‍⚕️ 🧑‍🚀 🧑‍🎤 🧑‍💻 🗣️ 👤 👥 🫂 👣',
   '🍔': '🍕 🍔 🍟 🌭 🥪 🌮 🌯 🥙 🧆 🥚 🍳 🥘 🍲 🥗 🍿 🧈 🥩 🍗 🍖 🥓 🍝 🍜 🍛 🍣 🍱 🥟 🍤 🍙 🍚 🥠 🍢 🧁 🍰 🎂 🍮 🍭 🍬 🍫 🍩 🍪 🍦 🍨 ☕ 🍵 🥤 🧃 🍺 🍻 🥂 🍷 🍸 🍹 🧊 🍽️ 🔪 🥄',
   '💩': '💩 🤡 👻 💀 ☠️ 👽 👾 🤖 🎃 😈 👿 👹 👺 🙈 🙉 🙊 🤠 🥸 🤓 🧐 😺 😸 😹 😻 😼 😽 🙀 😿 😾 🫠 🫣 🫢 🫥 🤥 🤑 😮‍💨 🥴 🤬 🖕 💅 🤳 🦄 🐸 🐵 🐒 🐔 🐧 🐷 🐮 🐶 🐱 🐭 🐹 🐰 🦊 🐻 🐼 🐨 🐯 🦁 🐍 🐢 🐙 🦀 🐟 🐬 🦋 🐌 🐞 🐜 🪳 🦟 🍆 🍑 🍌 🌶️ 🧄 🧅',
   '🎉': '🎉 🎊 🎈 🎁 🏆 🥇 🥈 🥉 ⚽ 🏀 🏐 🎮 🎲 🎯 🎵 🎶 🎤 🎧 📸 🎬 🚀 ✈️ 🏖️ 🌙 ☀️ 🌧️ ⛈️ ❄️ 🌈 🌹 🌸 🌻 🍀 💐 💎 💸 🔔 📢 💡 🔋 🧨 💣 🪄 🧿',
@@ -303,7 +304,7 @@ function openReactionBar(btn, messageId){
   const bar = document.createElement('div'); bar.className = 'chat-react-bar';
   const m = (APP.chatRows||[]).find(x => x.id===messageId) || {};
   const canDelete = m.mine && (Date.now() - new Date(m.created_at).getTime()) < 24*3600*1000;
-  bar.innerHTML = `<div class="chat-react-row">${CHAT_REACTIONS.map(e => `<button type="button" onclick="event.stopPropagation();toggleChatReaction('${messageId}','${e}');document.querySelectorAll('.chat-react-bar').forEach(b=>b.remove());">${e}</button>`).join('')}</div>
+  bar.innerHTML = `<div class="chat-react-row">${CHAT_REACTIONS.map(e => `<button type="button" onclick="event.stopPropagation();toggleChatReaction('${messageId}','${e}');document.querySelectorAll('.chat-react-bar').forEach(b=>b.remove());">${e}</button>`).join('')}<button type="button" class="chat-react-more" title="Diğer emojiler" onclick="event.stopPropagation();openReactionPicker('${messageId}')">＋</button></div>
     <div class="chat-menu">
       <button type="button" onclick="event.stopPropagation();startChatReply('${messageId}')">↩️ Yanıtla</button>
       ${m.body ? `<button type="button" onclick="event.stopPropagation();copyChatMessage('${messageId}')">📋 Kopyala</button>` : ''}
@@ -314,6 +315,24 @@ function openReactionBar(btn, messageId){
   const thread = document.getElementById('chatThread');
   if(thread && row.getBoundingClientRect().top - thread.getBoundingClientRect().top < 52) bar.classList.add('below');
   setTimeout(() => document.addEventListener('click', function close(){ bar.remove(); document.removeEventListener('click', close); }), 0);
+}
+/* Tepki için tüm emojilerden seçim (WhatsApp'taki ＋ gibi). */
+function openReactionPicker(messageId, cat){
+  document.querySelectorAll('.chat-react-bar').forEach(b => b.remove());
+  let ov = document.getElementById('chatReactPickBg');
+  if(!ov){
+    ov = document.createElement('div'); ov.id = 'chatReactPickBg';
+    ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;z-index:120;padding:16px;';
+    ov.onclick = (e) => { if(e.target===ov) ov.remove(); };
+    document.body.appendChild(ov);
+  }
+  const c = cat || APP.chatReactCat || Object.keys(CHAT_EMOJI)[0];
+  APP.chatReactCat = c;
+  ov.innerHTML = `<div style="background:var(--panel);border:1px solid var(--border);border-radius:18px;padding:12px;max-width:420px;width:100%;box-shadow:0 12px 40px rgba(0,0,0,.25);">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;"><b>Tepki seçin</b><span style="cursor:pointer;color:var(--muted);font-size:18px;" onclick="document.getElementById('chatReactPickBg').remove()">✕</span></div>
+    <div class="chat-emoji-tabs" style="flex-wrap:wrap;">${Object.keys(CHAT_EMOJI).map(k => `<button type="button" class="${k===c?'active':''}" onclick="openReactionPicker('${messageId}','${k}')">${k}</button>`).join('')}</div>
+    <div class="chat-emoji-grid" style="max-height:300px;overflow-y:auto;">${CHAT_EMOJI[c].split(' ').map(e => `<button type="button" onclick="document.getElementById('chatReactPickBg').remove();toggleChatReaction('${messageId}','${e}')">${e}</button>`).join('')}</div>
+  </div>`;
 }
 async function toggleChatReaction(messageId, emoji){
   const session = getSession();
