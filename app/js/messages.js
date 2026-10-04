@@ -26,6 +26,58 @@ function chatAvatar(c, size){
   if(c.is_group) return `<div class="chat-avatar" style="width:${s}px;height:${s}px;background:${chatColor(c.name)};color:#fff;">👥</div>`;
   return `<div class="chat-avatar" style="width:${s}px;height:${s}px;background:${chatColor(c.name)};color:#fff;">${escapeHtml((c.name||'?').slice(0,1).toLocaleUpperCase('tr'))}${c.online ? '<span class="chat-online"></span>' : ''}</div>`;
 }
+/* Mesajlar ilk açıldığında mikrofon, kamera ve bildirim izinlerini toplu ister
+   (sesli mesaj, kamera ve bildirimler için). Cihaz başına bir kez sorulur. */
+async function chatPermissionState(){
+  const st = {};
+  for(const n of ['microphone','camera']){
+    try{ st[n] = (await navigator.permissions.query({ name: n })).state; }catch(e){ st[n] = 'prompt'; }
+  }
+  return st;
+}
+async function maybeAskChatPermissions(){
+  try{ if(localStorage.getItem('chat_perms_asked')) return; }catch(e){ return; }
+  if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return;
+  const st = await chatPermissionState();
+  if(st.microphone === 'granted' && st.camera === 'granted') { try{ localStorage.setItem('chat_perms_asked','1'); }catch(e){} return; }
+  if(document.getElementById('chatPermModal')) return;
+  const bg = document.createElement('div');
+  bg.id = 'chatPermModal';
+  bg.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;z-index:200;padding:16px;';
+  bg.innerHTML = `<div style="background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:20px;max-width:380px;width:100%;">
+    <h2 style="margin:0 0 8px;">🔐 Mesajlaşma izinleri</h2>
+    <p class="muted" style="margin:0 0 12px;font-size:14px;">Sesli mesaj, fotoğraf çekme ve yeni mesaj bildirimleri için şu izinler gerekiyor:</p>
+    <div style="font-size:14px;line-height:1.9;margin-bottom:14px;">🎤 Mikrofon<br>📷 Kamera<br>🔔 Bildirimler</div>
+    <div style="display:flex;gap:8px;">
+      <button type="button" class="ghost-btn" style="flex:1;margin:0;" onclick="closeChatPermModal()">Sonra</button>
+      <button type="button" style="flex:1;margin:0;" onclick="requestChatPermissions()">İzin Ver</button>
+    </div></div>`;
+  document.body.appendChild(bg);
+}
+function closeChatPermModal(){
+  try{ localStorage.setItem('chat_perms_asked','1'); }catch(e){}
+  const m = document.getElementById('chatPermModal'); if(m) m.remove();
+}
+async function requestChatPermissions(){
+  closeChatPermModal();
+  const got = { microphone: false, camera: false };
+  try{
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
+    stream.getTracks().forEach(t => t.stop());
+    got.microphone = got.camera = true;
+  }catch(e){
+    // Kamerası olmayan cihazlarda en azından mikrofon istensin.
+    try{ const s2 = await navigator.mediaDevices.getUserMedia({ audio: true }); s2.getTracks().forEach(t => t.stop()); got.microphone = true; }catch(e2){}
+  }
+  try{
+    const native = typeof isNativeApp === 'function' && isNativeApp();
+    const pushOff = native ? APP.nativePushPermState !== 'granted' : ('Notification' in window && Notification.permission === 'default');
+    if(pushOff && typeof togglePushNotifications === 'function' && !getSavedFcmTokenSafe()) await togglePushNotifications();
+  }catch(e){}
+  const missing = [!got.microphone ? 'mikrofon' : null, !got.camera ? 'kamera' : null].filter(Boolean);
+  showToast(missing.length ? 'Verilmeyen izin: ' + missing.join(', ') + ' — telefon Ayarlar > Uygulamalar > Peyktan > İzinler\'den açabilirsiniz' : 'İzinler verildi ✓', 6000);
+}
+function getSavedFcmTokenSafe(){ try{ return typeof getSavedFcmToken === 'function' && isNativeApp() ? getSavedFcmToken() : ''; }catch(e){ return ''; } }
 async function renderMessagesView(main, session){
   main.innerHTML = `<div class="chat-shell ${APP.chatConv ? 'has-conv' : ''}">
       <div class="chat-list-wrap">
@@ -38,6 +90,7 @@ async function renderMessagesView(main, session){
     </div>`;
   await refreshChatList();
   if(APP.chatConv) openChatConv(APP.chatConv, true);
+  maybeAskChatPermissions();
 }
 function chatEmptyPaneHtml(){
   return '<div class="chat-empty"><div style="font-size:54px;">💬</div><b>Ekibinizle mesajlaşın</b><p class="muted">Soldan bir kişi ya da Genel kanalı seçin.</p></div>';
