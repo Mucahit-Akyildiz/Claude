@@ -434,8 +434,7 @@ async function submitManualWaste(){
   });
   if(error){
     btn.disabled = false; btn.textContent = 'İsraf Olarak Kaydet';
-    const m = /^STOK_YETERSIZ:(\d+)/.exec(error.message || '');
-    if(m) return showWasteStockPopup(Number(m[1]), qty, productId);
+    if(error.stockMax != null) return showWasteStockPopup(error.stockMax, qty, productId);
     alert('Hata: '+error.message); return;
   }
   closeWasteModal();
@@ -484,9 +483,8 @@ async function submitWaste(itemId){
   });
   if(error){
     btn.disabled = false; btn.textContent = 'İsraf Olarak Kaydet';
-    const m = /^STOK_YETERSIZ:(\d+)/.exec(error.message || '');
     const it = findLiveOrderItemById(itemId);
-    if(m) return showWasteStockPopup(Number(m[1]), qty, it ? it.product_id : null, true);
+    if(error.stockMax != null) return showWasteStockPopup(error.stockMax, qty, it ? it.product_id : null, true);
     alert('Hata: '+error.message); return;
   }
   closeWasteModal();

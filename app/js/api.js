@@ -36,6 +36,12 @@ sb.rpc = function(fn, args){
       handleSubscriptionExpired();
     } else if(res && res.error && res.error.message === 'Oturum geçersiz veya süresi dolmuş, tekrar giriş yapın'){
       handleSessionInvalidated();
+    } else if(res && res.error && /^STOK_YETERSIZ:\d+/.test(res.error.message || '')){
+      // Stok yetersiz: sayı ayrı alanda (stockMax), mesaj okunur Türkçe olur.
+      res.error.stockMax = Number(res.error.message.split(':')[1]) || 0;
+      res.error.message = res.error.stockMax > 0
+        ? 'Stok yetersiz: kalan stok en fazla ' + res.error.stockMax + ' adet için yeterli.'
+        : 'Stok yetersiz: bu ürün için yeterli stok kalmadı.';
     } else if(res && res.error && res.error.message === 'PAKET_OZELLIK_YOK'){
       // Paketinizde olmayan bir ozelligi acmaya calistiniz (bkz. _session_check'teki
       // paket katmani) - ham hata metni yerine anlasilir bir mesaj gosterilsin.
