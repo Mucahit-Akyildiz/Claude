@@ -591,3 +591,22 @@ div.table-cell.badge-row::before{content:'● Hazır, ödeme bekliyor';margin:0 
   .chat-input textarea{padding:10px 12px;}
   .chat-send{width:40px;height:40px;}
 }
+
+/* ---- Ayarlar > Bölgeler & Masalar ---- */
+.zone-card{background:var(--panel2);border:1px solid var(--border);border-radius:16px;padding:14px;margin-bottom:14px;}
+.zone-head{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
+.zone-ic{font-size:20px;}
+.zone-name{flex:1;min-width:140px;margin:0;font-weight:800;font-size:16px;background:var(--panel);}
+.zone-count{font-size:12px;font-weight:700;color:var(--accent);background:rgba(0,143,168,.12);padding:4px 10px;border-radius:999px;white-space:nowrap;}
+.zone-tables{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px;margin-top:12px;}
+.zone-table{display:flex;align-items:center;gap:4px;background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:8px 6px 8px 12px;}
+.zt-name{flex:1;min-width:0;font-weight:700;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer;}
+.zt-name:hover{color:var(--accent);}
+.zt-btn{width:26px;height:26px;flex-shrink:0;margin:0;padding:0;border-radius:8px;background:transparent;border:none;box-shadow:none;color:var(--accent);font-size:14px;cursor:pointer;}
+.zt-btn:hover{background:var(--panel2);}
+.zt-del{color:var(--red);}
+.zone-add{display:flex;gap:8px;margin-top:12px;}
+.zone-add input{flex:1;margin:0;min-width:0;}
+.zone-add button{width:auto;margin:0;padding:10px 16px;white-space:nowrap;}
+.zone-add-new{margin-top:4px;padding-top:14px;border-top:1px dashed var(--border);}
+.zone-tables > .muted{grid-column:1/-1;}

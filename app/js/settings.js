@@ -482,31 +482,44 @@ async function removeStation(id){
 
 /* --- Bölgeler & Masalar --- */
 function renderZonesSettings(el, session){
+  const natural = (a, b) => String(a.name).localeCompare(String(b.name), 'tr', { numeric:true, sensitivity:'base' });
   el.innerHTML = `<div class="box" style="max-width:none;">
     <h2>Bölgeler ve Masalar</h2>
+    <p class="muted" style="text-align:left;margin:-6px 0 16px;font-size:13px;">Masalar sırayla listelenir. Masa adına tıklayarak yeniden adlandırabilir, ▦ ile QR kodunu açabilirsiniz. Toplu eklemek için <b>Masa 1-10</b> gibi yazın.</p>
     ${APP.config.zones.map(z => `
-      <div style="background:var(--panel2);border-radius:10px;padding:12px;margin-bottom:12px;">
-        <div style="display:flex;gap:8px;align-items:center;">
-          <input value="${escapeAttr(z.name)}" id="zn_name_${z.id}" style="flex:1;font-weight:700;">
+      <div class="zone-card">
+        <div class="zone-head">
+          <span class="zone-ic">📍</span>
+          <input value="${escapeAttr(z.name)}" id="zn_name_${z.id}" class="zone-name" onkeydown="if(event.key==='Enter')saveZone('${z.id}')">
+          <span class="zone-count">${z.tables.length} masa</span>
           <button type="button" class="act-btn act-save" onclick="saveZone('${z.id}')">${ICON_SAVE}<span>Kaydet</span></button>
           <button type="button" class="act-btn act-delete" onclick="removeZone('${z.id}')">${ICON_TRASH}<span>Sil</span></button>
         </div>
-        <div style="margin-top:10px;display:flex;flex-wrap:wrap;gap:6px;">
-          ${z.tables.map(t => `<span style="background:var(--panel);border:1px solid var(--border);border-radius:999px;padding:5px 10px;font-size:12px;display:flex;align-items:center;gap:6px;">
-            ${escapeHtml(t.name)}
-            <span style="cursor:pointer;color:var(--accent);" title="QR Menü Kodu" onclick="showTableQr('${t.id}','${t.qr_token}')">▦</span>
-            <span style="cursor:pointer;color:var(--red);" onclick="removeTable('${t.id}')">✕</span></span>`).join('')}
+        <div class="zone-tables">
+          ${z.tables.slice().sort(natural).map(t => `<div class="zone-table">
+            <span class="zt-name" title="Yeniden adlandır" onclick="renameTable('${t.id}','${z.id}',${escapeAttr(JSON.stringify(t.name))})">${escapeHtml(t.name)}</span>
+            <button type="button" class="zt-btn" title="QR Menü Kodu" onclick="showTableQr('${t.id}','${t.qr_token}')">▦</button>
+            <button type="button" class="zt-btn zt-del" title="Sil" onclick="removeTable('${t.id}')">✕</button>
+          </div>`).join('') || '<span class="muted" style="font-size:13px;">Bu bölgede henüz masa yok.</span>'}
         </div>
-        <div style="display:flex;gap:8px;margin-top:10px;">
-          <input id="newTable_${z.id}" placeholder="Yeni masa adı" style="flex:1;">
-          <button style="width:auto;padding:8px 12px;" onclick="addTable('${z.id}')">+ Masa</button>
+        <div class="zone-add">
+          <input id="newTable_${z.id}" placeholder="Yeni masa adı (örn. Masa 11 ya da Masa 1-10)" onkeydown="if(event.key==='Enter')addTable('${z.id}')">
+          <button type="button" onclick="addTable('${z.id}')">+ Masa</button>
         </div>
       </div>`).join('')}
-    <div style="display:flex;gap:8px;">
-      <input id="newZoneName" placeholder="Yeni bölge adı" style="flex:1;">
-      <button style="width:auto;padding:8px 14px;" onclick="addZone()">+ Bölge Ekle</button>
+    <div class="zone-add zone-add-new">
+      <input id="newZoneName" placeholder="Yeni bölge adı (örn. Teras)" onkeydown="if(event.key==='Enter')addZone()">
+      <button type="button" onclick="addZone()">+ Bölge Ekle</button>
     </div>
   </div>`;
+}
+async function renameTable(id, zoneId, current){
+  const name = (prompt('Masa adı:', current) || '').trim();
+  if(!name || name===current) return;
+  const session = getSession();
+  const { error } = await sb.rpc('upsert_table', { p_token: session.session_token, p_id: id, p_zone_id: zoneId, p_name: name });
+  if(error){ alert(error.message); return; }
+  renderSettingsView(document.getElementById('main'), session);
 }
 async function saveZone(id){
   const session = getSession();
@@ -539,8 +552,19 @@ async function addTable(zoneId){
   const session = getSession();
   const name = document.getElementById('newTable_'+zoneId).value.trim();
   if(!name) return;
-  const { error } = await sb.rpc('upsert_table', { p_token: session.session_token, p_id: null, p_zone_id: zoneId, p_name: name });
-  if(error){ alert(error.message); return; }
+  // "Masa 1-10" gibi aralık yazılırsa masalar toplu eklenir.
+  const m = name.match(/^(.*?)(\d+)\s*-\s*(\d+)$/);
+  let names = [name];
+  if(m){
+    const from = parseInt(m[2],10), to = parseInt(m[3],10);
+    if(to < from || to - from > 99){ alert('Aralık en fazla 100 masa olabilir.'); return; }
+    if(!confirm(`${to-from+1} masa eklenecek (${m[1]}${from} … ${m[1]}${to}). Devam edilsin mi?`)) return;
+    names = []; for(let i=from;i<=to;i++) names.push(m[1] + i);
+  }
+  for(const n of names){
+    const { error } = await sb.rpc('upsert_table', { p_token: session.session_token, p_id: null, p_zone_id: zoneId, p_name: n });
+    if(error){ alert(n + ': ' + error.message); break; }
+  }
   renderSettingsView(document.getElementById('main'), session);
 }
 async function removeTable(id){
