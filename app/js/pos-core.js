@@ -99,6 +99,7 @@ function tableNameForId(tableId){
 }
 function orderDisplayName(o){
   if(o.kind==='takeaway') return '📦 Paket' + (o.customer_name ? ' - '+o.customer_name : '');
+  if(o.kind==='waitlist') return '⏳ ' + (o.customer_name || 'Bekleme Listesi');
   return tableNameForId(o.table_id);
 }
 async function pickKitchenStation(id){ primeKitchenAudio(); APP.kitchenStation=id; render(); }
@@ -1543,6 +1544,11 @@ function liveOrderForTable(tableId){
     const orderId = tableId.slice(4);
     return (APP.liveOrders||[]).find(o => o.order_id===orderId);
   }
+  // Bekleme listesindeki müşterinin ön siparişi: 'wl_<waitlist_id>'.
+  if(typeof tableId==='string' && tableId.indexOf('wl_')===0){
+    const wlId = tableId.slice(3);
+    return (APP.liveOrders||[]).find(o => o.kind==='waitlist' && o.waitlist_id===wlId);
+  }
   return (APP.liveOrders||[]).find(o => o.table_id===tableId);
 }
 function tableStatus(t){
@@ -1640,7 +1646,7 @@ function toggleOrderFlag(pseudoId, label, checked){
 /* Masadaki müşteri bilgisi: rezervasyondan gelir ya da elle girilir
    (bkz. set_table_customer - masa boşsa isimle açılır). */
 function tableCustomerInfoHtml(tableId){
-  if(String(tableId).indexOf('pkg_')===0) return '';
+  if(String(tableId).indexOf('pkg_')===0 || String(tableId).indexOf('wl_')===0) return '';
   return `<div id="tableCustWrap">${tableCustomerInnerHtml(tableId)}</div>`;
 }
 function tableCustomerInnerHtml(tableId, editing){
@@ -1706,7 +1712,7 @@ function openTableModal(tableId){
       <div id="sentItemsWrap" style="margin-top:14px;"></div>
       <div id="draftItemsWrap"></div>
       ${orderFlagsHtml(tableId)}
-      ${(String(tableId).indexOf('pkg_')!==0 && liveOrderForTable(tableId)) ? `<button class="ghost-btn" style="width:100%;margin-top:12px;" onclick="openMoveTableModal('${tableId}')">🔀 Masayı Taşı / Birleştir</button>` : ''}
+      ${(String(tableId).indexOf('pkg_')!==0 && String(tableId).indexOf('wl_')!==0 && liveOrderForTable(tableId)) ? `<button class="ghost-btn" style="width:100%;margin-top:12px;" onclick="openMoveTableModal('${tableId}')">🔀 Masayı Taşı / Birleştir</button>` : ''}
       <div style="display:flex;gap:10px;margin-top:16px;">
         <button class="ghost-btn" style="flex:1;margin-top:0;color:var(--red);border-color:var(--red);" onclick="cancelTableOrder('${tableId}')">🗑️ İptal Et</button>
         <button id="confirmBtn" style="flex:1;margin-top:0;" disabled onclick="confirmOrder('${tableId}')">✅ Onayla ve Gönder</button>
@@ -1792,6 +1798,10 @@ function openPackageModal(pseudoId){
   if(!APP.draftCart) APP.draftCart = {};
   if(!APP.draftCart[pseudoId]) APP.draftCart[pseudoId] = [];
   const existing = pseudoId==='pkg_new' ? null : liveOrderForTable(pseudoId);
+  const isWl = pseudoId.indexOf('wl_')===0;
+  const wlEntry = isWl ? (APP.waitlistCache||[]).find(w => w.id===pseudoId.slice(3)) : null;
+  const title = isWl ? '⏳ ' + escapeHtml((wlEntry && wlEntry.customer_name) || (existing && existing.customer_name) || 'Bekleme Listesi') + ' <span class="muted" style="font-size:13px;font-weight:600;">bekleme listesi</span>'
+    : '📦 ' + (existing ? escapeHtml(existing.customer_name || ('Paket #'+(existing.daily_number||''))) : 'Yeni Paket Sipariş');
   const bg = document.createElement('div');
   bg.id = 'tableModalBg';
   bg.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:flex-start;justify-content:center;z-index:100;padding:28px 16px 16px;overflow-y:auto;';
@@ -1799,12 +1809,12 @@ function openPackageModal(pseudoId){
   bg.innerHTML = `
     <div style="background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:20px;max-width:480px;width:100%;max-height:88vh;overflow:auto;">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
-        <h2 style="margin:0;overflow-wrap:anywhere;word-break:break-word;">📦 ${existing ? escapeHtml(existing.customer_name || ('Paket #'+(existing.daily_number||''))) : 'Yeni Paket Sipariş'}</h2>
+        <h2 style="margin:0;overflow-wrap:anywhere;word-break:break-word;">${title}</h2>
         <span style="cursor:pointer;color:var(--muted);font-size:20px;" onclick="closeTableModal()">✕</span>
       </div>
-      <div class="field-group"><label>Müşteri Adı</label><input id="pkgCustName" placeholder="örn. Ahmet Bey" value="${escapeAttr((existing&&existing.customer_name)||'')}"></div>
+      ${isWl ? '<p class="muted" style="text-align:left;margin:0 0 6px;font-size:12.5px;">Siparişler hemen mutfağa düşer; müşteri oturtulunca masaya taşınır.</p>' : `<div class="field-group"><label>Müşteri Adı</label><input id="pkgCustName" placeholder="örn. Ahmet Bey" value="${escapeAttr((existing&&existing.customer_name)||'')}"></div>
       <div class="field-group"><label>Telefon</label><input id="pkgCustPhone" placeholder="örn. 5551234567" value="${escapeAttr((existing&&existing.customer_phone)||'')}"></div>
-      <div class="field-group"><label>Not</label><input id="pkgNote" placeholder="örn. Yan sokak, 2. kat" value="${escapeAttr((existing&&existing.note)||'')}"></div>
+      <div class="field-group"><label>Not</label><input id="pkgNote" placeholder="örn. Yan sokak, 2. kat" value="${escapeAttr((existing&&existing.note)||'')}"></div>`}
       <div style="margin-top:10px;">
         <p style="font-weight:700;margin-bottom:8px;">Ürün Ekle</p>
         <div class="tabs" id="prodStationTabs"></div>
@@ -2020,8 +2030,12 @@ async function confirmOrder(tableId){
   const items = draft.map(d => ({ product_id:d.product_id, name:d.name, price:d.price, cost:d.cost, station_id:d.station_id, qty:d.qty, note:d.note||'' }));
   const tags = (APP.orderFlagSelections && APP.orderFlagSelections[tableId]) || [];
   const isPkg = typeof tableId==='string' && tableId.indexOf('pkg_')===0;
+  const isWl = typeof tableId==='string' && tableId.indexOf('wl_')===0;
   let error;
-  if(isPkg){
+  if(isWl){
+    const res = await sb.rpc('send_waitlist_order', { p_token: session.session_token, p_waitlist_id: tableId.slice(3), p_items: items, p_tags: tags });
+    error = res.error;
+  } else if(isPkg){
     const existingOrderId = tableId==='pkg_new' ? null : tableId.slice(4);
     const nameEl = document.getElementById('pkgCustName');
     const phoneEl = document.getElementById('pkgCustPhone');
@@ -2056,6 +2070,18 @@ async function confirmOrder(tableId){
   if(cfgRes.data) APP.config = cfgRes.data;
   await closeTableModal();
   if(isPkg && APP.view==='packages') renderPackagesView(document.getElementById('main'), session);
+  if(isWl && APP.view==='reservations') renderWaitlistContent(session, true);
+}
+async function openWaitlistOrderModal(wlId){
+  const session = getSession();
+  const [liveRes, cfgRes] = await withLoadingOverlay(Promise.all([
+    sb.rpc('get_live_orders', { p_token: session.session_token }),
+    APP.config ? Promise.resolve({ data: null }) : sb.rpc('get_restaurant_config', { p_token: session.session_token })
+  ]));
+  if(liveRes.error){ alert(liveRes.error.message); return; }
+  APP.liveOrders = liveRes.data || [];
+  if(cfgRes.data) APP.config = cfgRes.data;
+  openPackageModal('wl_' + wlId);
 }
 /* ================= YAZICI AYARLARI + MUTFAK FİŞİ ================= */
 /* Yazıcı ve tasarım ayarları bu CİHAZA/tarayıcıya özeldir (localStorage) - her
@@ -3459,6 +3485,7 @@ async function cancelTableOrder(tableId){
   if(cfgRes.data) APP.config = cfgRes.data;
   await closeTableModal();
   if(typeof tableId==='string' && tableId.indexOf('pkg_')===0 && APP.view==='packages') renderPackagesView(document.getElementById('main'), session);
+  if(typeof tableId==='string' && tableId.indexOf('wl_')===0 && APP.view==='reservations') renderWaitlistContent(session, true);
 }
 /* Sadece henüz mutfağa gönderilmemiş sepeti boşaltır; masaya ait onaylı/gönderilmiş sipariş etkilenmez. */
 async function clearDraftCart(tableId){
