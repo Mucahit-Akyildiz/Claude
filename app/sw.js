@@ -32,7 +32,18 @@ self.addEventListener('push', (event) => {
   const badgeP = (typeof data.badge === 'number' && self.navigator && self.navigator.setAppBadge)
     ? (data.badge > 0 ? self.navigator.setAppBadge(data.badge) : self.navigator.clearAppBadge()).catch(() => {})
     : Promise.resolve();
-  event.waitUntil(Promise.all([self.registration.showNotification(title, options), badgeP]));
+  // Açık bir Peyktan sekmesi varsa bildirim sessiz gösterilir ve sesi sekme
+  // çalar (Peyktan'ın kendi sesi - bkz. playPeyktanSound). Hiç açık sekme
+  // yoksa tarayıcılar özel sese izin vermediği için sistem sesi kalır.
+  const show = self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((list) => {
+    const appClients = list.filter((c) => c.url.indexOf('/app/') !== -1);
+    if (appClients.length) {
+      options.silent = true;
+      appClients.forEach((c) => c.postMessage({ type: 'peyktan-sound' }));
+    }
+    return self.registration.showNotification(title, options);
+  });
+  event.waitUntil(Promise.all([show, badgeP]));
 });
 
 // Bildirime tıklanınca ilgili ekrana gidilsin diye (örn. "Sipariş Al").

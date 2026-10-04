@@ -240,6 +240,15 @@ async function refreshNavBadges(){
    Cihazın/bilgisayarın varsayılan bildirim sesi yerine her yerde bu çalar.
    Art arda gelen bildirimlerde 1,5 sn içinde tekrar çalmaz. */
 let PEYKTAN_SOUND_BUF = null, PEYKTAN_SOUND_LAST = 0;
+// Tarayıcılar sesi ancak sayfaya bir kez dokunulduktan sonra çaldırır: ilk
+// dokunuşta ses motoru açılır ve Peyktan sesi önceden yüklenir.
+['pointerdown','keydown','touchstart'].forEach(ev => document.addEventListener(ev, function unlockPeyktanAudio(){
+  try{
+    KITCHEN_AUDIO_CTX = KITCHEN_AUDIO_CTX || new (window.AudioContext || window.webkitAudioContext)();
+    if(KITCHEN_AUDIO_CTX.state==='suspended') KITCHEN_AUDIO_CTX.resume();
+    if(!PEYKTAN_SOUND_BUF) fetch('/assets/sounds/peyktan.wav').then(r => r.arrayBuffer()).then(b => KITCHEN_AUDIO_CTX.decodeAudioData(b)).then(buf => { PEYKTAN_SOUND_BUF = buf; }).catch(() => {});
+  }catch(e){}
+}, { once: true, passive: true }));
 async function playPeyktanSound(){
   if(Date.now() - PEYKTAN_SOUND_LAST < 1500) return;
   PEYKTAN_SOUND_LAST = Date.now();
@@ -628,6 +637,7 @@ document.addEventListener('visibilitychange', () => { if(document.visibilityStat
 if('serviceWorker' in navigator){
   navigator.serviceWorker.addEventListener('message', (event) => {
     if(event.data && event.data.type==='peyktan-navigate' && event.data.view) goToView(event.data.view);
+    if(event.data && event.data.type==='peyktan-sound'){ PEYKTAN_SOUND_LAST = 0; playPeyktanSound(); refreshNavBadges(); }
   });
 }
 // Servis çalışanı izin istemeden erkenden kaydedilir (bildirim izni ayrı,
