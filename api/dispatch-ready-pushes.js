@@ -34,10 +34,23 @@ if (VAPID_PUBLIC_KEY && VAPID_PRIVATE_KEY) {
 // gecersizse (invalidToken) statusCode'u 410'a esitliyoruz ki asagidaki 4
 // cagri noktasindaki mevcut "e.statusCode === 404 || 410 ise sil" temizleme
 // mantigi hic degismeden ikisinde de calissin.
+// Uygulama simgesindeki sayi: kullanicinin bekleyen islerinin toplami
+// (bkz. _badge_total). Ayni istekte ayni kullanici icin bir kez hesaplanir.
+let SUPA_CLIENT = null;
+let BADGE_CACHE = new Map();
+async function badgeFor(userId) {
+  if (!SUPA_CLIENT || !userId) return null;
+  if (BADGE_CACHE.has(userId)) return BADGE_CACHE.get(userId);
+  const p = SUPA_CLIENT.rpc('_badge_total', { p_user: userId }).then(({ data }) => (typeof data === 'number' ? data : null)).catch(() => null);
+  BADGE_CACHE.set(userId, p);
+  return p;
+}
 async function sendToSub(sub, payloadObj) {
+  const badge = await badgeFor(sub.user_id);
+  if (badge != null) payloadObj = Object.assign({}, payloadObj, { badge });
   if (sub.platform === 'android-fcm') {
     try {
-      await sendFcmNotification(sub.endpoint, payloadObj);
+      await sendFcmNotification(sub.endpoint, Object.assign({}, payloadObj, { channel: sub.android_channel || 'default' }));
     } catch (e) {
       if (e.invalidToken) e.statusCode = 410;
       throw e;
@@ -369,6 +382,7 @@ module.exports = async function handler(req, res) {
     }
 
     const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
+    SUPA_CLIENT = supabase; BADGE_CACHE = new Map();
     const mode = (req.body && req.body.mode) || 'both';
 
     if (mode === 'shift_event') {

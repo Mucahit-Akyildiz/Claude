@@ -610,3 +610,4 @@ div.table-cell.badge-row::before{content:'● Hazır, ödeme bekliyor';margin:0 
 .zone-add button{width:auto;margin:0;padding:10px 16px;white-space:nowrap;}
 .zone-add-new{margin-top:4px;padding-top:14px;border-top:1px dashed var(--border);}
 .zone-tables > .muted{grid-column:1/-1;}
+.chat-thread,.chat-list{overscroll-behavior:contain;}

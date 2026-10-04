@@ -94,6 +94,7 @@ async function sendFcmNotification(fcmToken, payload) {
           url: payload.url || '/app/',
           view: payload.view || '',
           tag: payload.tag || '',
+          badge: typeof payload.badge === 'number' ? String(payload.badge) : '',
         },
         // 'default' kanalı artık uygulama tarafında (bkz. app/index.html
         // setupNativeFcmListeners -> PN.createChannel) importance HIGH,
@@ -102,7 +103,18 @@ async function sendFcmNotification(fcmToken, payload) {
         // Android bilmediği bir kanala gönderileni sessizce siliyordu; kanalı
         // oluşturduktan sonra tekrar veriyoruz ki Firebase'in ses/titreşimi
         // olmayan otomatik yedek kanalı yerine bizim kanalımız kullanılsın.
-        android: { priority: 'high', notification: { channel_id: 'default' } },
+        // channel: cihaz Peyktan sesli kanalını oluşturduysa 'peyktan_v1'
+        // (ses dosyası uygulamanın içinde, res/raw/peyktan), değilse 'default'.
+        // notification_count: destekleyen başlatıcılarda (Samsung vb.) uygulama
+        // simgesinde görünen sayı.
+        android: {
+          priority: 'high',
+          notification: Object.assign(
+            { channel_id: payload.channel || 'default' },
+            payload.channel === 'peyktan_v1' ? { sound: 'peyktan' } : {},
+            typeof payload.badge === 'number' ? { notification_count: payload.badge } : {}
+          ),
+        },
       },
     }),
   });
