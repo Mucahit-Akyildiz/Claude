@@ -399,7 +399,7 @@ function openManualWasteModal(){
   bg.onclick = (e) => { if(e.target===bg) closeWasteModal(); };
   bg.innerHTML = `<div class="box" style="max-width:360px;width:100%;text-align:left;">
     <h2 style="margin-top:0;">🔥 Manuel İsraf Gir</h2>
-    <p class="muted" style="margin:0 0 12px;font-size:12.5px;">Siparişe bağlı olmayan israf; stoktan düşülür ve Finansal Analiz &gt; İsraf'ta görünür.</p>
+    <p class="muted" style="margin:0 0 12px;font-size:12.5px;">Siparişe bağlı olmayan israf; stoktan düşülür (stok yetmiyorsa kaydedilmez) ve Finansal Analiz &gt; İsraf'ta görünür.</p>
     <label style="display:block;font-size:12.5px;font-weight:700;color:var(--muted);">Ürün</label>
     <select id="wasteProduct" style="margin-bottom:10px;">
       ${sorted.map(p => `<option value="${p.id}">${escapeHtml(p.name)}</option>`).join('')}
@@ -443,7 +443,7 @@ async function submitManualWaste(){
 }
 /* Elle israf girerken stok yetmiyorsa: kalan stokla en fazla kaç adet
    karşılanabildiğini söyler; miktarı düşür / stoğu güncelle / farklı ürün seç. */
-function showWasteStockPopup(maxQty, wanted, productId){
+function showWasteStockPopup(maxQty, wanted, productId, remake){
   const prod = ((APP.config && APP.config.products) || []).find(p => p.id===productId);
   const hasRecipe = !!(prod && prod.recipe && prod.recipe.length);
   const session = getSession();
@@ -454,12 +454,17 @@ function showWasteStockPopup(maxQty, wanted, productId){
   bg.onclick = (e) => { if(e.target===bg) bg.remove(); };
   bg.innerHTML = `<div class="box" style="max-width:360px;width:100%;text-align:left;">
     <h2 style="margin-top:0;">⚠️ Stok Yetersiz</h2>
-    <p style="margin:0 0 10px;font-size:14px;">${escapeHtml(prod ? prod.name : 'Bu ürün')} için ${wanted} adet israf girmek istediniz, ancak ${hasRecipe ? 'hammadde stoğunuz' : 'stoğunuz'} <b>en fazla ${maxQty} adet</b> için yeterli.</p>
-    <p class="muted" style="margin:0 0 14px;font-size:12.5px;text-align:left;">Miktarı düzeltin, stoğu güncelleyin ya da farklı bir ürün seçin.</p>
+    ${remake
+      ? `<p style="margin:0 0 10px;font-size:14px;">${escapeHtml(prod ? prod.name : 'Bu ürün')} müşteriye yeniden hazırlanacak, ancak ${hasRecipe ? 'hammadde stoğunuz' : 'stoğunuz'} ${maxQty > 0 ? `<b>en fazla ${maxQty} adet</b> için yeterli` : '<b>yeniden hazırlamaya yetmiyor</b>'}.</p>
+         <p class="muted" style="margin:0 0 14px;font-size:12.5px;text-align:left;">İsraf kaydedilmedi. Stoğu güncelleyin ya da müşteriye sorup farklı bir ürün verin.</p>`
+      : `<p style="margin:0 0 10px;font-size:14px;">${escapeHtml(prod ? prod.name : 'Bu ürün')} için ${wanted} adet israf girmek istediniz, ancak ${hasRecipe ? 'hammadde stoğunuz' : 'stoğunuz'} <b>en fazla ${maxQty} adet</b> için yeterli.</p>
+         <p class="muted" style="margin:0 0 14px;font-size:12.5px;text-align:left;">Miktarı düzeltin, stoğu güncelleyin ya da farklı bir ürün seçin.</p>`}
     <div style="display:flex;flex-direction:column;gap:8px;">
       ${maxQty > 0 ? `<button type="button" style="margin:0;" onclick="document.getElementById('wasteQty').value=${maxQty};document.getElementById('wasteStockModalBg').remove()">Miktarı ${maxQty} yap</button>` : ''}
       ${canEditStock ? `<button type="button" class="ghost-btn" style="margin:0;" onclick="document.getElementById('wasteStockModalBg').remove();closeWasteModal();APP.settingsTab='${hasRecipe ? 'ingredients' : 'products'}';goToView('settings')">📦 Stoğu Güncelle</button>` : ''}
-      <button type="button" class="ghost-btn" style="margin:0;" onclick="document.getElementById('wasteStockModalBg').remove();document.getElementById('wasteProduct').focus()">Farklı Ürün Seç</button>
+      ${remake
+        ? `<button type="button" class="ghost-btn" style="margin:0;" onclick="document.getElementById('wasteStockModalBg').remove()">Kapat</button>`
+        : `<button type="button" class="ghost-btn" style="margin:0;" onclick="document.getElementById('wasteStockModalBg').remove();document.getElementById('wasteProduct').focus()">Farklı Ürün Seç</button>`}
     </div>
   </div>`;
   document.body.appendChild(bg);
@@ -477,10 +482,17 @@ async function submitWaste(itemId){
   const { error } = await sb.rpc('report_waste', {
     p_token: session.session_token, p_order_item_id: itemId, p_qty: qty, p_reason: fullReason
   });
-  if(error){ alert('Hata: '+error.message); btn.disabled = false; btn.textContent = 'İsraf Olarak Kaydet'; return; }
+  if(error){
+    btn.disabled = false; btn.textContent = 'İsraf Olarak Kaydet';
+    const m = /^STOK_YETERSIZ:(\d+)/.exec(error.message || '');
+    const it = findLiveOrderItemById(itemId);
+    if(m) return showWasteStockPopup(Number(m[1]), qty, it ? it.product_id : null, true);
+    alert('Hata: '+error.message); return;
+  }
   closeWasteModal();
-  // Siparişteki ürünün hammaddesi siparişe eklendiğinde zaten düşülmüştü.
-  showToast('🔥 İsraf kaydedildi (stok sipariş anında düşülmüştü)');
+  // İsraf edilen ürün müşteriye yeniden hazırlanır: malzeme stoktan yeniden
+  // düşüldü, kalem mutfakta tekrar "bekliyor"a döndü.
+  showToast('🔥 İsraf kaydedildi · ürün yeniden hazırlanacak, stoktan düşüldü');
   await refreshKitchenItems(session);
 }
 
