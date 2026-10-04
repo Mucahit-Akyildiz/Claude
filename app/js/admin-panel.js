@@ -27,6 +27,7 @@ function renderAdminArea(){
         <div class="tab ${APP.adminView==='addons'?'active':''}" data-tab="addons" onclick="setAdminView('addons')">🧩 Eklentiler</div>
         <div class="tab ${APP.adminView==='deleted'?'active':''}" data-tab="deleted" onclick="setAdminView('deleted')">🗑️ Silinen Hesaplar</div>
         <div class="tab ${APP.adminView==='sms'?'active':''}" data-tab="sms" onclick="setAdminView('sms')">📱 SMS</div>
+        <div class="tab ${APP.adminView==='errors'?'active':''}" data-tab="errors" onclick="setAdminView('errors')">⚠️ Hatalar</div>
       </div>
       <main id="main"></main>
     </div>`;
@@ -47,7 +48,41 @@ function renderAdminTabContent(admin){
   else if(APP.adminView==='addons') renderAddonsAdmin(main, admin);
   else if(APP.adminView==='deleted') renderDeletedAccountsAdmin(main, admin);
   else if(APP.adminView==='sms') renderSmsAdmin(main, admin);
+  else if(APP.adminView==='errors') renderClientErrorsAdmin(main, admin);
   else renderPromoAdmin(main, admin);
+}
+/* Hatalar: uygulamada yakalanan JavaScript ve beklenmeyen veritabanı
+   hataları (bkz. log_client_error) - aynı hata tek satırda, tekrar sayısıyla.
+   Çözüldü işaretlenen hata tekrar olursa yeni satır olarak döner. */
+async function renderClientErrorsAdmin(main, admin){
+  const showAll = !!APP.adminErrorsAll;
+  main.innerHTML = `<h1>⚠️ Hatalar</h1>
+    <label style="display:flex;gap:8px;align-items:center;margin:0 0 12px;"><input type="checkbox" style="width:auto;margin:0;" ${showAll?'checked':''} onchange="APP.adminErrorsAll=this.checked;renderClientErrorsAdmin(document.getElementById('main'), getAdminSession())"> Çözülenleri de göster</label>
+    <div id="errList"><p class="muted">Yükleniyor…</p></div>`;
+  const { data, error } = await sb.rpc('admin_list_client_errors', { p_token: admin.session_token, p_show_resolved: showAll });
+  const el = document.getElementById('errList'); if(!el) return;
+  if(error){ el.innerHTML = '<p class="muted">Yüklenemedi: '+escapeHtml(error.message)+'</p>'; return; }
+  const rows = data || [];
+  if(!rows.length){ el.innerHTML = '<p class="muted">Kayıtlı hata yok 🎉</p>'; return; }
+  const ua = (u) => !u ? '-' : /Android/i.test(u) ? 'Android' : /iPhone|iPad/i.test(u) ? 'iOS' : /Windows/i.test(u) ? 'Windows' : /Mac/i.test(u) ? 'Mac' : 'Diğer';
+  el.innerHTML = `<div class="settings-table-wrap"><table class="settings-table">
+    <thead><tr><th>Hata</th><th>Tekrar</th><th>İşletme</th><th>Ekran</th><th>Cihaz</th><th>Son</th><th></th></tr></thead>
+    <tbody>${rows.map(r => `<tr style="${r.resolved?'opacity:.55;':''}">
+      <td class="col-name" style="max-width:420px;"><b style="overflow-wrap:anywhere;">${escapeHtml(r.message)}</b>
+        <div class="muted" style="font-size:11.5px;overflow-wrap:anywhere;">${escapeHtml(r.kind)} · ${escapeHtml(r.source||'-')}</div></td>
+      <td><b style="color:${r.count>=5?'var(--red)':'inherit'};">${r.count}</b></td>
+      <td>${escapeHtml(r.restaurant_name||'-')}${r.restaurant_code?` <span class="muted" style="font-size:11px;">${escapeHtml(r.restaurant_code)}</span>`:''}</td>
+      <td>${escapeHtml(r.view||'-')}</td>
+      <td title="${escapeAttr(r.user_agent||'')}">${ua(r.user_agent)}</td>
+      <td style="font-size:12px;white-space:nowrap;">${new Date(r.last_at).toLocaleString('tr-TR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}</td>
+      <td>${r.resolved ? '<span class="muted">Çözüldü</span>' : `<button class="sbtn" style="width:auto;" onclick="resolveClientError(${r.id})">✓ Çözüldü</button>`}</td>
+    </tr>`).join('')}</tbody></table></div>`;
+}
+async function resolveClientError(id){
+  const admin = getAdminSession();
+  const { error } = await sb.rpc('admin_resolve_client_error', { p_token: admin.session_token, p_id: id });
+  if(error){ alert(error.message); return; }
+  renderClientErrorsAdmin(document.getElementById('main'), admin);
 }
 /* Silinen işletmeler (deleted_accounts): restaurants tablosundan silinen her
    kayıt bir tetikleyiciyle buraya yazılır; buradaki e-posta/telefonla
