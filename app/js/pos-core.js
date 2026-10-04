@@ -707,6 +707,10 @@ function openPayModal(orderId){
       </div>
     </div>
 
+    <label style="display:flex;align-items:center;gap:8px;margin:0 0 10px;font-size:13.5px;cursor:pointer;">
+      <input type="checkbox" id="payEmailInvoice" style="width:auto;margin:0;" ${APP.payWantsEmail?'checked':''} onchange="APP.payWantsEmail=this.checked">
+      📧 Ödemeden sonra hesabı müşteriye e-postayla gönder
+    </label>
     <div class="pay-total-banner">
       <span class="label">Ödenecek</span>
       <span class="amt" id="payFinalTotal">${money(subtotal)}</span>
@@ -1130,9 +1134,10 @@ async function finishPayment(orderId, method, total, cash, card, discountAmount,
     }
   } else {
     const hid = data && data.history_id;
-    // Ödeme sonrası hesabı e-postayla gönderme penceresi doğrudan açılır;
-    // personel ya gönderir ya da İptal ile kapatır.
-    openInvoiceEmailModal(hid);
+    // E-posta penceresi yalnızca ödeme ekranında "e-postayla gönder"
+    // işaretlendiyse açılır (her hesapta tekrar sorulmaz).
+    if(APP.payWantsEmail){ APP.payWantsEmail = false; openInvoiceEmailModal(hid); }
+    else showToast('Ödeme alındı ✓');
     if(APP.view!=='payments') renderPaymentsView(document.getElementById('main'), session);
   }
 }
