@@ -451,7 +451,8 @@ async function submitWaste(itemId){
   });
   if(error){ alert('Hata: '+error.message); btn.disabled = false; btn.textContent = 'İsraf Olarak Kaydet'; return; }
   closeWasteModal();
-  showToast('🔥 İsraf kaydedildi, stoktan düşüldü');
+  // Siparişteki ürünün hammaddesi siparişe eklendiğinde zaten düşülmüştü.
+  showToast('🔥 İsraf kaydedildi (stok sipariş anında düşülmüştü)');
   await refreshKitchenItems(session);
 }
 
