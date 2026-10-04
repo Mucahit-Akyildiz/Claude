@@ -1506,6 +1506,11 @@ function tableStatus(t){
     sub = order.items.length + ' ürün - ' + (allReady?'Hazır':'hazırlanıyor');
   }
   if(draft.length>0){ sub += (occupied?' + ':'') + draft.length+' üründe sepette'; occupied = true; }
+  // Rezervasyondan oturtulan masa (henüz ürün yok): müşteri adıyla dolu görünür.
+  if(order && order.customer_name){
+    if(!occupied){ occupied = true; sub = '👤 ' + escapeHtml(order.customer_name); }
+    else sub = '👤 ' + escapeHtml(order.customer_name) + '<br>' + sub;
+  }
   return { sub, occupied };
 }
 /* İki görünüm var: basit liste (table-grid) ve sürükle-bırak ile
@@ -1582,6 +1587,14 @@ function toggleOrderFlag(pseudoId, label, checked){
   else if(!checked && idx!==-1) sel.splice(idx,1);
 }
 
+function tableCustomerInfoHtml(tableId){
+  const o = String(tableId).indexOf('pkg_')===0 ? null : liveOrderForTable(tableId);
+  if(!o || !(o.customer_name || o.customer_phone || o.note)) return '';
+  return `<div style="background:var(--panel2);border:1px solid var(--border);border-radius:12px;padding:10px 12px;margin-bottom:12px;font-size:13.5px;">
+    ${o.customer_name ? `<div><b>👤 ${escapeHtml(o.customer_name)}</b>${o.customer_phone ? ` · <a href="tel:${escapeAttr(o.customer_phone)}" style="color:var(--accent);">${escapeHtml(o.customer_phone)}</a>` : ''}</div>` : ''}
+    ${o.note ? `<div class="muted" style="margin-top:3px;overflow-wrap:anywhere;">${escapeHtml(o.note)}</div>` : ''}
+  </div>`;
+}
 /* ---- Masa penceresi: ürün ekle, sepete at, mutfağa gönder ---- */
 function openTableModal(tableId){
   const tableName = tableNameForId(tableId);
@@ -1597,6 +1610,7 @@ function openTableModal(tableId){
         <h2 style="margin:0;">${escapeHtml(tableName)}</h2>
         <span style="cursor:pointer;color:var(--muted);font-size:20px;" onclick="closeTableModal()">✕</span>
       </div>
+      ${tableCustomerInfoHtml(tableId)}
       <div>
         <p style="font-weight:700;margin-bottom:8px;">Ürün Ekle</p>
         <div class="tabs" id="prodStationTabs"></div>
@@ -2180,7 +2194,8 @@ function checkNativeBackgroundTimeout(){
   try{
     const bgAt = localStorage.getItem('rys_bg_at');
     localStorage.removeItem('rys_bg_at');
-    if(bgAt && (Date.now() - Number(bgAt)) >= BG_AUTO_LOGOUT_MS && getSession()) doLogout();
+    const cur = getSession();
+    if(bgAt && (Date.now() - Number(bgAt)) >= BG_AUTO_LOGOUT_MS && cur && !cur.remember) doLogout();
   }catch(e){}
 }
 function setupNativeBackgroundTimeout(){
@@ -3369,6 +3384,9 @@ async function clearDraftCart(tableId){
   if(activeTab) renderProductPick(activeTab.dataset.st, tableId);
 }
 
+function lastLoginInfo(){
+  try{ return JSON.parse(localStorage.getItem('rys_last_login')) || { code:'', username:'' }; }catch(e){ return { code:'', username:'' }; }
+}
 async function doLogin(){
   const code = document.getElementById('codeInput').value.trim();
   const username = document.getElementById('userInput').value.trim();
@@ -3393,7 +3411,7 @@ async function doLogin(){
     if(error){
       if(error.message === 'ABONELIK_SURESI_DOLDU') return; // ekran zaten değişti (sb.rpc sarmalayıcısı)
       console.error(error);
-      errBox.textContent = 'Bağlantı hatası: ' + error.message;
+      errBox.textContent = /pasif/i.test(error.message) ? error.message : 'Bağlantı hatası: ' + error.message;
       return;
     }
     if(!data || data.length === 0){
@@ -3401,6 +3419,7 @@ async function doLogin(){
       return;
     }
     const row = data[0];
+    const remember = !!(document.getElementById('rememberInput') || {}).checked;
     setSession({
       session_token: row.session_token,
       user_id: row.user_id,
@@ -3409,8 +3428,11 @@ async function doLogin(){
       permissions: row.permissions || [],
       isManager: !!row.is_manager,
       restaurant_name: row.restaurant_name,
-      username: username
+      username: username,
+      remember
     });
+    try{ localStorage.setItem('rys_last_login', JSON.stringify({ code, username })); }catch(e){}
+    if(remember) sb.rpc('set_session_remember', { p_token: row.session_token });
     APP.reportsUnlocked = false;
     APP.reportsGateScreen = null;
     APP.config = null;

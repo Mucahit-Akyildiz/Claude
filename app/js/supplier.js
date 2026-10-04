@@ -93,6 +93,26 @@ async function removeSupplier(id){
   renderSuppliersContent(session);
 }
 const PO_STATUS_LABELS = { draft:'Taslak', ordered:'Sipariş Verildi', received:'Teslim Alındı', cancelled:'İptal' };
+/* Kısmi teslim: sipariş verilmiş ama bir kısmı teslim alınmışsa "Kısmen
+   Teslim (%x)" ve her kalem için alınan/sipariş edilen miktar gösterilir. */
+function poStatusBadge(p){
+  const ordered = Number(p.ordered_total)||0, received = Number(p.received_total)||0;
+  if(p.status==='ordered' && received > 0 && received < ordered){
+    return `<span class="role-badge" style="color:#d97706;border-color:#d97706;">Kısmen Teslim (%${Math.round(received/ordered*100)})</span>`;
+  }
+  const st = p.status==='received' ? 'color:var(--green);border-color:var(--green);' : p.status==='cancelled' ? 'color:var(--red);border-color:var(--red);' : '';
+  return `<span class="role-badge" style="${st}">${PO_STATUS_LABELS[p.status]||p.status}</span>`;
+}
+function fmtQty(n){ const v = Number(n)||0; return Number.isInteger(v) ? String(v) : v.toLocaleString('tr-TR', { maximumFractionDigits: 2 }); }
+function poItemsProgressHtml(p){
+  const items = p.items || [];
+  if(!items.length || p.status==='draft' || p.status==='cancelled') return '';
+  return `<div style="margin-top:6px;font-size:12px;line-height:1.5;">${items.map(it => {
+    const done = Number(it.received) >= Number(it.quantity);
+    const partial = Number(it.received) > 0 && !done;
+    return `<div style="color:${done?'var(--green)':partial?'#d97706':'var(--muted)'};">${done?'✓':partial?'◐':'○'} ${escapeHtml(it.name)}: <b>${fmtQty(it.received)}</b> / ${fmtQty(it.quantity)} ${escapeHtml(it.unit)}${partial ? ` <span class="muted">(kalan ${fmtQty(it.quantity - it.received)})</span>` : ''}</div>`;
+  }).join('')}</div>`;
+}
 async function renderPurchaseOrdersContent(session){
   const el = document.getElementById('purchContent'); if(!el) return;
   if(!APP.config){ const { data } = await withLoadingOverlay(sb.rpc('get_restaurant_config', { p_token: session.session_token })); if(data) APP.config = data; }
@@ -114,7 +134,7 @@ async function renderPurchaseOrdersContent(session){
       ${rows.map(p => `
         <tr>
           <td class="col-name">${escapeHtml(p.supplier_name||'-')}${p.created_by_name ? `<div class="muted" style="font-size:11.5px;">Oluşturan: ${escapeHtml(p.created_by_name)}</div>` : ''}</td>
-          <td><span class="role-badge" style="${p.status==='received'?'color:var(--green);border-color:var(--green);':p.status==='cancelled'?'color:var(--red);border-color:var(--red);':''}">${PO_STATUS_LABELS[p.status]||p.status}</span></td>
+          <td>${poStatusBadge(p)}${poItemsProgressHtml(p)}</td>
           <td>${p.order_date}</td>
           <td>${p.expected_date||'-'}</td>
           <td>${money(p.total_amount)}</td>

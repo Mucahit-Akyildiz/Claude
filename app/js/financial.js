@@ -334,11 +334,12 @@ async function renderReportContent(session){
       <td class="col-name">${escapeHtml(billLabel(o))}${tagBadge}</td>
       <td>${money(o.total)}</td>
       <td>${discTxt}</td>
-      <td>${methodLabel}</td></tr>`;
+      <td>${methodLabel}</td>
+      <td><button type="button" class="sbtn" style="width:auto;margin:0;" onclick="openSaleDetailModal('${o.id}')">🔍 Detay</button></td></tr>`;
   };
   const billsHtml = hist.length===0 ? '<p class="muted">Bu tarihte kapatılmış hesap yok.</p>'
     : filteredBills.length===0 ? '<p class="muted">Bu filtrede kapatılmış hesap yok.</p>'
-    : `<div class="settings-table-wrap"><table class="settings-table"><thead><tr><th>Saat</th><th>Masa</th><th>Tutar</th><th>İndirim</th><th>Ödeme</th></tr></thead><tbody>` +
+    : `<div class="settings-table-wrap"><table class="settings-table"><thead><tr><th>Saat</th><th>Masa</th><th>Tutar</th><th>İndirim</th><th>Ödeme</th><th></th></tr></thead><tbody>` +
       filteredBills.map(billRowHtml).join('') + '</tbody></table></div>';
 
   el.innerHTML = `
@@ -655,4 +656,57 @@ async function saveTipPoolSettings(){
   if(error){ alert(error.message); return; }
   showToast('Bahşiş havuzu ayarları kaydedildi ✓');
   renderTipPoolContent(session);
+}
+
+/* --- Kapatılan hesap detayı: siparişin kalemleri, tutarlar ve fişi müşteriye
+   fiş tasarımıyla e-posta gönderme (bkz. get_sale_detail, email_receipt). --- */
+async function openSaleDetailModal(historyId){
+  const session = getSession();
+  const { data: d, error } = await withLoadingOverlay(sb.rpc('get_sale_detail', { p_token: session.session_token, p_history_id: historyId }));
+  if(error){ alert(error.message); return; }
+  const methods = { cash:'💵 Nakit', card:'💳 Kart', gift_card:'🎁 Hediye Kartı', split:'➗ Bölünmüş' };
+  const label = d.kind==='takeaway' ? '📦 Paket' : (d.table_name || '-');
+  const row = (k, v, strong) => `<div style="display:flex;justify-content:space-between;${strong?'font-weight:800;font-size:15px;margin-top:4px;':''}"><span>${k}</span><span>${v}</span></div>`;
+  const bg = document.createElement('div');
+  bg.id = 'saleDetailModalBg';
+  bg.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:100;padding:16px;';
+  bg.onclick = (e) => { if(e.target===bg) bg.remove(); };
+  bg.innerHTML = `<div style="background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:20px;max-width:420px;width:100%;max-height:88vh;overflow:auto;">
+    <div style="display:flex;justify-content:space-between;align-items:center;">
+      <h2 style="margin:0;">${escapeHtml(label)}${d.order_no ? ' <span class="muted" style="font-size:13px;font-weight:600;">#'+d.order_no+'</span>' : ''}</h2>
+      <span style="cursor:pointer;color:var(--muted);font-size:20px;" onclick="document.getElementById('saleDetailModalBg').remove()">✕</span>
+    </div>
+    <p class="muted" style="text-align:left;margin:4px 0 12px;font-size:12.5px;">${new Date(d.closed_at).toLocaleString('tr-TR')}${d.staff ? ' · ' + escapeHtml(d.staff) : ''}${d.customer ? ' · 👤 ' + escapeHtml(d.customer) : ''}</p>
+    <div style="border-top:1px dashed var(--border);border-bottom:1px dashed var(--border);padding:8px 0;font-size:13.5px;">
+      ${(d.items||[]).map(it => row(`${it.qty}x ${escapeHtml(it.name)}`, money(it.total))).join('') || '<p class="muted">Kalem bulunamadı.</p>'}
+    </div>
+    <div style="font-size:13.5px;padding-top:8px;">
+      ${row('Ara Toplam', money(d.subtotal))}
+      ${Number(d.discount)>0 ? row('İndirim', '-' + money(d.discount)) : ''}
+      ${Number(d.tip)>0 ? row('Bahşiş', money(d.tip)) : ''}
+      ${row('Toplam', money(d.total), true)}
+      ${row('Ödeme', d.payment_method==='split' ? ('💵 ' + money(d.cash_amount||0) + ' + 💳 ' + money(d.card_amount||0)) : (methods[d.payment_method] || escapeHtml(d.payment_method||'')))}
+    </div>
+    ${(d.emails||[]).length ? `<p class="muted" style="text-align:left;font-size:12px;margin-top:10px;">Daha önce gönderildi: ${d.emails.map(e => escapeHtml(e.email)).join(', ')}</p>` : ''}
+    <div style="margin-top:14px;border-top:1px solid var(--border);padding-top:12px;">
+      <label style="font-size:12.5px;font-weight:700;color:var(--muted);">Fişi e-postayla gönder</label>
+      <div style="display:flex;gap:8px;margin-top:6px;">
+        <input id="saleReceiptEmail" type="email" placeholder="musteri@ornek.com" autocapitalize="none" style="flex:1;margin:0;">
+        <button type="button" id="saleReceiptBtn" style="width:auto;margin:0;" onclick="sendSaleReceipt('${historyId}')">📧 Gönder</button>
+      </div>
+    </div>
+  </div>`;
+  document.body.appendChild(bg);
+}
+async function sendSaleReceipt(historyId){
+  const email = document.getElementById('saleReceiptEmail').value.trim();
+  if(!email){ showToast('E-posta adresi girin'); return; }
+  const btn = document.getElementById('saleReceiptBtn');
+  btn.disabled = true; btn.textContent = 'Gönderiliyor...';
+  const session = getSession();
+  const { error } = await sb.rpc('email_receipt', { p_token: session.session_token, p_history_id: historyId, p_email: email });
+  btn.disabled = false; btn.textContent = '📧 Gönder';
+  if(error){ alert(error.message); return; }
+  showToast('📧 Fiş ' + email + ' adresine gönderildi');
+  const bg = document.getElementById('saleDetailModalBg'); if(bg) bg.remove();
 }

@@ -150,7 +150,9 @@ async function refreshNavBadges(){
 function startNavBadges(){
   refreshNavBadges();
   if(NAV_BADGE_TIMER) clearInterval(NAV_BADGE_TIMER);
-  NAV_BADGE_TIMER = setInterval(() => { if(getSession() && document.visibilityState==='visible') refreshNavBadges(); }, 20000);
+  // Rozetler ve rol izinleri 20 sn'de bir tazelenir (Roller'deki değişiklik
+  // açık ekranlara da yenileme gerekmeden yansısın).
+  NAV_BADGE_TIMER = setInterval(() => { if(getSession() && document.visibilityState==='visible'){ refreshNavBadges(); syncMyPermissions(); } }, 20000);
 }
 function todayLocalDateStr(){
   const d = new Date();
@@ -380,7 +382,8 @@ function startIdleLogoutWatch(){
       alert('Uzun süre işlem yapılmadığı için yönetici oturumunuz güvenlik amacıyla otomatik olarak kapatıldı.');
       return;
     }
-    if(getSession() && idleFor >= IDLE_LOGOUT_MS){
+    const cur = getSession();
+    if(cur && !cur.remember && idleFor >= IDLE_LOGOUT_MS){
       doLogout();
       alert('Uzun süre işlem yapılmadığı için oturumunuz güvenlik amacıyla otomatik olarak kapatıldı.');
     }
@@ -405,10 +408,11 @@ function checkWebAwayTimeout(){
   let awayAt = 0;
   try{ awayAt = Number(sessionStorage.getItem('rys_web_away_at')) || 0; sessionStorage.removeItem('rys_web_away_at'); }catch(e){}
   if(!awayAt || (Date.now() - awayAt) < WEB_AWAY_LOGOUT_MS) return;
-  const hadSession = !!(getSession() || getAdminSession());
+  const curSession = getSession();
+  const loggingOut = !!(getAdminSession() || (curSession && !curSession.remember));
   if(getAdminSession()) doAdminLogout();
-  if(getSession()) doLogout();
-  if(hadSession) alert('Uzun süre uzakta kaldığınız için oturumunuz güvenlik amacıyla kapatıldı. Lütfen tekrar giriş yapın.');
+  if(curSession && !curSession.remember) doLogout();
+  if(loggingOut) alert('Uzun süre uzakta kaldığınız için oturumunuz güvenlik amacıyla kapatıldı. Lütfen tekrar giriş yapın.');
 }
 document.addEventListener('visibilitychange', () => {
   if(document.hidden) markWebAway(); else checkWebAwayTimeout();

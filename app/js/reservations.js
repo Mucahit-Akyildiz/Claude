@@ -76,6 +76,37 @@ async function renderReservationsContent(session, forceRefresh){
     </div>
   </div>`;
 }
+/* "Oturdu": rezervasyonun masası yoksa masa sorulur; müşteri adı, telefonu,
+   kişi sayısı ve notu o masada açılan siparişe yazılır (bkz. seat_reservation),
+   Sipariş Al ekranında masada görünür. */
+function openSeatReservationModal(id){
+  const r = (APP.reservationsCache||[]).find(x => x.id===id); if(!r) return;
+  const tables = (APP.config.zones||[]).flatMap(z => z.tables.map(t => ({ ...t, zone: z.name })));
+  const busy = new Set((APP.liveOrders||[]).filter(o => o.table_id).map(o => o.table_id));
+  const bg = document.createElement('div');
+  bg.id = 'seatResvModalBg';
+  bg.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:100;padding:16px;';
+  bg.onclick = (e) => { if(e.target===bg){ bg.remove(); renderReservationsContent(getSession()); } };
+  bg.innerHTML = `<div style="background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:20px;max-width:380px;width:100%;">
+    <div style="display:flex;justify-content:space-between;"><h2 style="margin:0;">Masaya Oturt</h2><span style="cursor:pointer;color:var(--muted);" onclick="document.getElementById('seatResvModalBg').remove();renderReservationsContent(getSession())">✕</span></div>
+    <p class="muted" style="text-align:left;margin:8px 0 12px;"><b>${escapeHtml(r.customer_name)}</b> · ${r.party_size} kişi${r.phone ? ' · ' + escapeHtml(r.phone) : ''}</p>
+    <div class="field-group"><label>Masa</label><select id="seatResvTable">
+      ${tables.map(t => `<option value="${t.id}" ${t.id===r.table_id?'selected':''}>${escapeHtml(t.zone)} · ${escapeHtml(t.name)}${busy.has(t.id)?' (dolu)':''}</option>`).join('')}
+    </select></div>
+    <button style="margin-top:12px;" onclick="confirmSeatReservation('${id}')">✓ Masaya Oturt</button>
+  </div>`;
+  document.body.appendChild(bg);
+}
+async function confirmSeatReservation(id){
+  const tableId = document.getElementById('seatResvTable').value;
+  const session = getSession();
+  const { error } = await withLoadingOverlay(sb.rpc('seat_reservation', { p_token: session.session_token, p_id: id, p_table_id: tableId }));
+  if(error){ alert(error.message); return; }
+  const bg = document.getElementById('seatResvModalBg'); if(bg) bg.remove();
+  const r = (APP.reservationsCache||[]).find(x => x.id===id);
+  renderReservationsContent(session, true);
+  showToast((r ? r.customer_name + ' ' : '') + tableNameForId(tableId) + ' masasına oturtuldu ✓ Siparişe gitmek için dokunun', 6000, null, () => goToView('order'));
+}
 async function addReservation(){
   const session = getSession();
   const name = document.getElementById('rv_name').value.trim();
@@ -91,6 +122,7 @@ async function addReservation(){
   showToast('Rezervasyon eklendi ✓');
 }
 async function changeReservationStatus(id, status){
+  if(status==='seated') return openSeatReservationModal(id);
   const session = getSession();
   const { error } = await sb.rpc('set_reservation_status', { p_token: session.session_token, p_id: id, p_status: status });
   if(error){ alert(error.message); return; }
