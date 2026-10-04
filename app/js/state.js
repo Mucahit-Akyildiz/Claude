@@ -118,6 +118,8 @@ function hasFeature(f){ return !!(APP.config && (APP.config.features||[]).includ
 function navItemVisible(item, session){
   if(item.view==='reports') return !!session.isManager;
   if(item.view==='printerSettings') return !!session.isManager;
+  // Mesajlaşma rol izniyle açılır (Ayarlar > Roller); Yönetici her zaman görür.
+  if(item.view==='messages') return !!session.isManager || hasPerm(session, 'messages');
   if(item.view==='settings') return session.isManager || (session.permissions||[]).some(p => p.startsWith('settings_'));
   if(item.view==='purchasing') return ['orders','manage','suppliers'].some(x => hasPurchPerm(session, x));
   if(!item.perm) return true;
