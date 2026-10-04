@@ -59,7 +59,7 @@ async function renderReservationsContent(session, forceRefresh){
           </select></td>
           <td><button type="button" class="act-btn act-delete" onclick="removeReservation('${r.id}')">${ICON_TRASH}<span>Sil</span></button></td>
         </tr>`).join('')}
-      ${rows.length===0?'<tr><td colspan="7" class="muted" style="text-align:center;">Yaklaşan rezervasyon yok.</td></tr>':''}
+      ${rows.length===0?'<tr><td colspan="7" class="muted" style="text-align:center;">Bekleyen ya da onaylı rezervasyon yok.</td></tr>':''}
       </tbody>
     </table>
     </div>
@@ -75,7 +75,50 @@ async function renderReservationsContent(session, forceRefresh){
       <div class="field-group" style="margin-top:10px;"><label>Not</label><input id="rv_notes" placeholder="opsiyonel"></div>
       <button style="margin-top:12px;max-width:220px;" onclick="addReservation()">+ Rezervasyon Ekle</button>
     </div>
+  </div>
+  <div class="box" style="max-width:none;margin-top:18px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;">
+      <h2 style="margin:0;">Geçmiş</h2>
+      <input type="date" id="rvHistDate" value="${APP.rvHistDate || todayLocalDateStr()}" style="width:auto;margin:0;" onchange="APP.rvHistDate=this.value;renderReservationHistory()">
+    </div>
+    <div id="rvHistWrap" style="margin-top:12px;"><p class="muted">Yükleniyor…</p></div>
   </div>`;
+  renderReservationHistory();
+}
+/* Rezervasyon geçmişi: seçilen günün oturan / iptal / gelmeyen
+   rezervasyonları; oturanlarda rezervasyon saatine göre erken/geç. */
+async function renderReservationHistory(){
+  const wrap = document.getElementById('rvHistWrap'); if(!wrap) return;
+  const session = getSession();
+  const { data, error } = await sb.rpc('list_reservation_history', { p_token: session.session_token, p_date: APP.rvHistDate || todayLocalDateStr() });
+  if(error){ wrap.innerHTML = '<p class="muted">Yüklenemedi: '+escapeHtml(error.message)+'</p>'; return; }
+  const rows = data || [];
+  if(!rows.length){ wrap.innerHTML = '<p class="muted">Bu tarihte kayıt yok.</p>'; return; }
+  const hm = (iso) => iso ? new Date(iso).toLocaleTimeString('tr-TR', { hour:'2-digit', minute:'2-digit' }) : '-';
+  const cnt = (st) => rows.filter(r => r.status===st).length;
+  wrap.innerHTML = `<p class="muted" style="text-align:left;margin:0 0 10px;font-size:13px;">${rows.length} kayıt · ${cnt('seated')} oturdu · ${cnt('cancelled')} iptal · ${cnt('no_show')} gelmedi</p>
+    <div class="settings-table-wrap"><table class="settings-table">
+      <thead><tr><th>Müşteri</th><th>Kişi</th><th>Rezervasyon</th><th>Sonuç</th><th>Masa</th><th>Saate göre</th><th></th></tr></thead>
+      <tbody>${rows.map(r => {
+        const d = r.seated_diff_minutes;
+        const diffTxt = d==null ? '<span class="muted">-</span>'
+          : d > 0 ? `<span style="color:var(--red);font-weight:700;">${d} dk geç geldi</span>`
+          : d < 0 ? `<span style="color:var(--green);font-weight:700;">${-d} dk erken geldi</span>`
+          : '<span style="color:var(--green);font-weight:700;">Tam zamanında</span>';
+        const result = r.status==='seated' ? `✅ Oturdu${r.seated_at ? ' ' + hm(r.seated_at) : ''}`
+          : r.status==='cancelled' ? `<span style="color:var(--red);">✕ İptal${r.closed_at ? ' ' + hm(r.closed_at) : ''}</span>`
+          : `<span style="color:var(--red);">🚫 Gelmedi</span>`;
+        return `<tr>
+          <td class="col-name">${escapeHtml(r.customer_name)}${r.phone ? `<div class="muted" style="font-size:11.5px;">${escapeHtml(r.phone)}</div>` : ''}${r.notes ? `<div class="muted" style="font-size:11px;overflow-wrap:anywhere;">${escapeHtml(r.notes)}</div>` : ''}</td>
+          <td>${r.party_size}</td>
+          <td>${hm(r.reservation_time)}</td>
+          <td>${result}</td>
+          <td>${r.table_name ? `<b>${escapeHtml(r.table_name)}</b>` : '<span class="muted">—</span>'}</td>
+          <td>${diffTxt}</td>
+          <td><button type="button" class="sbtn" style="width:auto;margin:0;" title="Yaklaşan rezervasyonlara geri al" onclick="changeReservationStatus('${r.id}','confirmed')">↩ Geri Al</button></td>
+        </tr>`;
+      }).join('')}</tbody>
+    </table></div>`;
 }
 /* "Oturdu": rezervasyonun masası yoksa masa sorulur; müşteri adı, telefonu,
    kişi sayısı ve notu o masada açılan siparişe yazılır (bkz. seat_reservation),
