@@ -33,7 +33,7 @@ async function renderCrmView(main, session){
         <tbody>
         ${rows.map(c => `
           <tr>
-            <td class="col-name">${escapeHtml(c.name)}</td>
+            <td class="col-name">${escapeHtml(c.name)}${(c.spend_per_point!=null || c.point_value!=null || c.birthday_discount_percent!=null) ? ` <span class="role-badge" style="color:var(--accent);border-color:var(--accent);font-size:10.5px;" title="${escapeAttr(customerLoyaltySummary(c))}">⭐ Özel sadakat</span>` : ''}</td>
             <td>${escapeHtml(c.phone||'-')}</td>
             <td>${c.points_balance}</td>
             <td>
@@ -55,9 +55,24 @@ async function renderCrmView(main, session){
           <div class="field-group"><label>🎂 Doğum Günü</label><input id="crm_birthday" type="date"></div>
         </div>
         <div class="field-group" style="margin-top:10px;"><label>Not</label><input id="crm_notes" placeholder="opsiyonel"></div>
+        <details id="crmLoyaltyBox" style="margin-top:12px;border:1px solid var(--border);border-radius:12px;padding:10px 12px;background:var(--panel);">
+          <summary style="cursor:pointer;font-weight:700;font-size:13.5px;">⭐ Bu müşteriye özel sadakat ayarı <span class="muted" style="font-weight:400;">(boş bırakılan alan genel ayarı kullanır)</span></summary>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin-top:10px;">
+            <div class="field-group"><label>Kaç TL harcamada 1 puan</label><input id="crm_spp" type="number" min="0.01" step="0.01" placeholder="Genel: ${escapeAttr(String(loyalty.spend_per_point ?? ''))}"></div>
+            <div class="field-group"><label>1 puan kaç TL indirim</label><input id="crm_pv" type="number" min="0" step="0.01" placeholder="Genel: ${escapeAttr(String(loyalty.point_value ?? ''))}"></div>
+            <div class="field-group"><label>🎂 Doğum günü indirimi (%)</label><input id="crm_bdp" type="number" min="0" max="100" step="1" placeholder="Genel: ${escapeAttr(String(loyalty.birthday_discount_percent ?? 0))}"></div>
+          </div>
+        </details>
         <button style="margin-top:12px;max-width:220px;" onclick="saveCrmCustomer()">${ICON_SAVE}<span>Kaydet</span></button>
       </div>
     </div>`;
+}
+function customerLoyaltySummary(c){
+  const parts = [];
+  if(c.spend_per_point!=null) parts.push(c.spend_per_point + ' TL = 1 puan');
+  if(c.point_value!=null) parts.push('1 puan = ' + c.point_value + ' TL');
+  if(c.birthday_discount_percent!=null) parts.push('doğum günü %' + c.birthday_discount_percent);
+  return parts.join(' · ');
 }
 let CRM_SEARCH_TIMER = null;
 function debouncedCrmSearch(v){
@@ -77,7 +92,12 @@ function editCustomer(id){
   document.getElementById('crm_email').value = c.email||'';
   document.getElementById('crm_notes').value = c.notes||'';
   document.getElementById('crm_birthday').value = c.birthday||'';
+  document.getElementById('crm_spp').value = c.spend_per_point ?? '';
+  document.getElementById('crm_pv').value = c.point_value ?? '';
+  document.getElementById('crm_bdp').value = c.birthday_discount_percent ?? '';
+  document.getElementById('crmLoyaltyBox').open = (c.spend_per_point!=null || c.point_value!=null || c.birthday_discount_percent!=null);
   document.getElementById('crmFormTitle').textContent = 'Müşteriyi Düzenle';
+  document.getElementById('crm_name').scrollIntoView({ behavior:'smooth', block:'center' });
 }
 async function saveCrmCustomer(){
   const session = getSession();
@@ -88,8 +108,15 @@ async function saveCrmCustomer(){
   const notes = document.getElementById('crm_notes').value.trim();
   const birthday = document.getElementById('crm_birthday').value || null;
   if(!name){ alert('Müşteri adı gerekli'); return; }
-  const { error } = await sb.rpc('upsert_customer', { p_token: session.session_token, p_id: id, p_name: name, p_phone: phone||null, p_email: email||null, p_notes: notes||null, p_birthday: birthday });
+  const num = (elId) => { const v = document.getElementById(elId).value.trim(); return v==='' ? null : Number(v); };
+  const spp = num('crm_spp'), pv = num('crm_pv'), bdp = num('crm_bdp');
+  const { data: savedId, error } = await sb.rpc('upsert_customer', { p_token: session.session_token, p_id: id, p_name: name, p_phone: phone||null, p_email: email||null, p_notes: notes||null, p_birthday: birthday });
   if(error){ alert(error.message); return; }
+  const custId = id || savedId;
+  if(custId){
+    const { error: e2 } = await sb.rpc('set_customer_loyalty', { p_token: session.session_token, p_id: custId, p_spend_per_point: spp, p_point_value: pv, p_birthday_discount_percent: bdp });
+    if(e2){ alert('Müşteri kaydedildi ama özel sadakat ayarı kaydedilemedi: ' + e2.message); }
+  }
   renderCrmView(document.getElementById('main'), session);
   showToast(id ? 'Güncellendi ✓' : 'Müşteri eklendi ✓');
 }
