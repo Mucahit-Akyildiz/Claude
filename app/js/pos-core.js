@@ -329,6 +329,7 @@ function playKitchenBell(stationId, onError){
 }
 async function markReady(itemId){
   const session = getSession();
+  APP.selfActionUntil = Date.now() + 10000;
   const { error } = await sb.rpc('mark_item_ready', { p_token: session.session_token, p_order_item_id: itemId });
   if(error){ alert('Hata: '+error.message); return; }
   await refreshKitchenItems(session);
@@ -336,6 +337,7 @@ async function markReady(itemId){
 async function markAllReady(tableId){
   const entry = APP.kitchenPendingByTable && APP.kitchenPendingByTable[tableId];
   if(!entry || entry.items.length===0) return;
+  APP.selfActionUntil = Date.now() + 10000;
   const session = getSession();
   const results = await Promise.all(entry.items.map(it =>
     sb.rpc('mark_item_ready', { p_token: session.session_token, p_order_item_id: it.id })
@@ -1730,14 +1732,11 @@ function tableCustomerInnerHtml(tableId, editing){
   if(editing){
     return `<div style="background:var(--panel2);border:1px solid var(--border);border-radius:12px;padding:10px 12px;margin-bottom:12px;">
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
-        <input id="tableCustName" placeholder="Müşteri adı veya kayıtlı müşteri ara" autocomplete="off" value="${escapeAttr(name)}" style="margin:0;" oninput="tableCustSearch(this.value)">
-        <input id="tableCustPhone" placeholder="Telefon (opsiyonel)" inputmode="tel" autocomplete="off" value="${escapeAttr(phone)}" style="margin:0;" oninput="tableCustSearch(this.value)">
+        <input id="tableCustName" data-table="${tableId}" placeholder="Müşteri adı veya kayıtlı müşteri ara" autocomplete="off" value="${escapeAttr(name)}" style="margin:0;" oninput="tableCustSearch(this.value)" onchange="saveTableCustomer('${tableId}', true)">
+        <input id="tableCustPhone" placeholder="Telefon (opsiyonel)" inputmode="tel" autocomplete="off" value="${escapeAttr(phone)}" style="margin:0;" oninput="tableCustSearch(this.value)" onchange="saveTableCustomer('${tableId}', true)">
       </div>
       <div id="tableCustSuggest"></div>
-      <div style="display:flex;gap:8px;margin-top:8px;">
-        <button type="button" class="ghost-btn" style="flex:1;margin:0;" onclick="document.getElementById('tableCustWrap').innerHTML=tableCustomerInnerHtml('${tableId}')">Vazgeç</button>
-        <button type="button" style="flex:1;margin:0;" onclick="saveTableCustomer('${tableId}')">Kaydet</button>
-      </div>
+      <p class="muted" style="font-size:11.5px;margin:6px 2px 0;">Otomatik kaydedilir.</p>
     </div>`;
   }
   if(!o || !(name || phone || o.note)){
@@ -1775,11 +1774,27 @@ function pickTableCustomer(i){
   document.getElementById('tableCustName').value = c.name || '';
   document.getElementById('tableCustPhone').value = c.phone || '';
   document.getElementById('tableCustSuggest').innerHTML = '';
+  const t = document.getElementById('tableCustName').dataset.table;
+  if(t) saveTableCustomer(t, true);
 }
-async function saveTableCustomer(tableId){
-  const name = document.getElementById('tableCustName').value.trim();
+/* quiet: alanlardan çıkınca / sipariş gönderilirken sessizce kaydeder (düzenleme açık kalır).
+   Değişiklik yoksa hiçbir şey yapmaz. */
+async function saveTableCustomer(tableId, quiet){
+  const nameEl = document.getElementById('tableCustName');
+  if(!nameEl) return;
+  const name = nameEl.value.trim();
   const phone = document.getElementById('tableCustPhone').value.trim();
+  const o = liveOrderForTable(tableId);
+  if(quiet && (o ? (o.customer_name||'') === name && (o.customer_phone||'') === phone : !name && !phone)) return;
   const session = getSession();
+  if(quiet){
+    const { error } = await sb.rpc('set_table_customer', { p_token: session.session_token, p_table_id: tableId, p_name: name || null, p_phone: phone || null });
+    if(error){ showToast(error.message); return; }
+    const { data } = await sb.rpc('get_live_orders', { p_token: session.session_token });
+    if(data) APP.liveOrders = data;
+    renderTableGrid();
+    return;
+  }
   const { error } = await withLoadingOverlay(sb.rpc('set_table_customer', { p_token: session.session_token, p_table_id: tableId, p_name: name || null, p_phone: phone || null }));
   if(error){ alert(error.message); return; }
   const { data } = await sb.rpc('get_live_orders', { p_token: session.session_token });
@@ -2127,6 +2142,8 @@ async function confirmOrder(tableId){
   if(!draft || draft.length===0) return;
   const btn = document.getElementById('confirmBtn');
   if(btn){ btn.disabled = true; btn.textContent = 'Gönderiliyor...'; }
+  // Masa penceresinde yazılmış müşteri bilgisi siparişle birlikte kaydedilir.
+  if(document.getElementById('tableCustName')) await saveTableCustomer(tableId, true);
   const session = getSession();
   const items = draft.map(d => ({ product_id:d.product_id, name:d.name, price:d.price, cost:d.cost, station_id:d.station_id, qty:d.qty, note:d.note||'' }));
   const tags = (APP.orderFlagSelections && APP.orderFlagSelections[tableId]) || [];

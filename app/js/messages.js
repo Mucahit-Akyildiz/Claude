@@ -28,6 +28,14 @@ function chatAvatar(c, size){
 }
 /* Mesajlar ilk açıldığında mikrofon, kamera ve bildirim izinlerini toplu ister
    (sesli mesaj, kamera ve bildirimler için). Cihaz başına bir kez sorulur. */
+/* getUserMedia hatasını anlaşılır bir mesaja çevirir (izin mi, cihaz mı yok, meşgul mü). */
+function chatMediaErrorText(e, dev){
+  const n = (e && e.name) || '';
+  if(n === 'NotFoundError' || n === 'OverconstrainedError') return 'Bu cihazda ' + dev.toLocaleLowerCase('tr') + ' bulunamadı. Bağlı olduğundan emin olun.';
+  if(n === 'NotReadableError' || n === 'AbortError') return dev + ' şu an başka bir uygulama tarafından kullanılıyor. Onu kapatıp tekrar deneyin.';
+  if(n === 'NotAllowedError' || n === 'SecurityError') return dev + ' izni engellenmiş.\n\nBilgisayarda: adres çubuğunun solundaki 🔒 simgesine tıklayın → ' + dev + ' → İzin ver, sonra sayfayı yenileyin.\nTelefonda: Ayarlar → Uygulamalar → Peyktan → İzinler → ' + dev + '.';
+  return dev + ' açılamadı' + (n ? ' (' + n + ')' : '') + '.';
+}
 async function chatPermissionState(){
   const st = {};
   for(const n of ['microphone','camera']){
@@ -339,7 +347,7 @@ function toggleChatDictation(){
   const base = t.value ? t.value.replace(/\s*$/, ' ') : '';
   const rec = new SR(); rec.lang = 'tr-TR'; rec.interimResults = true; rec.continuous = true;
   rec.onresult = (e) => { let txt = ''; for(let i=0;i<e.results.length;i++) txt += e.results[i][0].transcript; t.value = base + txt; updateChatSendBtn(); };
-  rec.onerror = (e) => { if(e.error==='not-allowed') alert('Mikrofon izni verilmedi.'); stopChatDictation(); };
+  rec.onerror = (e) => { if(e.error==='not-allowed') alert(chatMediaErrorText({ name: 'NotAllowedError' }, 'Mikrofon')); stopChatDictation(); };
   rec.onend = () => stopChatDictation();
   try{ rec.start(); }catch(e){ return; }
   CHAT_REC = rec;
@@ -434,9 +442,35 @@ async function fetchChatAttachment(id){
   if(error){ alert(error.message); return null; }
   CHAT_ATT_CACHE[id] = data; return data;
 }
-function loadChatAudio(id, btn){
+/* Sesi önce indirip (yönlendirmeyi izleyerek) blob olarak çalar; böylece erişim
+   hatası ya da çalınamayan biçim sessizce "0:00" kalmaz, nedeni gösterilir. */
+async function loadChatAudio(id, btn){
   const box = btn.closest('.chat-audio'); if(!box) return;
-  box.innerHTML = `<audio controls autoplay src="${chatFileUrl(id)}" style="max-width:240px;height:36px;"></audio>`;
+  box.innerHTML = '<span class="muted" style="font-size:12px;">⏳ Yükleniyor…</span>';
+  const fail = (msg) => { box.innerHTML = `<span style="font-size:12px;">⚠️ ${escapeHtml(msg)}</span> <button type="button" class="chat-audio-play" title="İndir" onclick="event.stopPropagation();downloadChatFile('${id}')">⬇</button>`; };
+  let blob;
+  try{
+    const r = await fetch(chatFileUrl(id));
+    if(!r.ok){
+      let msg = 'Ses yüklenemedi (' + r.status + ')';
+      try{ const j = await r.json(); if(j && j.error) msg = j.error; }catch(e){}
+      fail(msg); reportClientError('chat_audio', msg, id); return;
+    }
+    blob = await r.blob();
+  }catch(e){ fail('Ses indirilemedi, bağlantıyı kontrol edin'); reportClientError('chat_audio', 'fetch: ' + (e && e.message), id); return; }
+  const type = (blob.type || '').split(';')[0];
+  const probe = document.createElement('audio');
+  if(type && !probe.canPlayType(type)){ fail('Bu ses biçimi (' + type + ') bu cihazda çalınamıyor'); return; }
+  const url = URL.createObjectURL(blob);
+  box.innerHTML = `<audio controls src="${url}" style="max-width:240px;height:36px;"></audio>`;
+  const a = box.querySelector('audio');
+  a.onerror = () => { fail('Ses çalınamadı'); reportClientError('chat_audio', 'play error ' + type, id); };
+  // MediaRecorder kayıtlarında süre bilinmez (0:00 görünür); sona sarıp gerçek süreyi okut.
+  a.addEventListener('loadedmetadata', () => {
+    const play = () => a.play().catch(() => {});
+    if(a.duration === Infinity){ a.currentTime = 1e9; a.addEventListener('timeupdate', function f(){ a.removeEventListener('timeupdate', f); a.currentTime = 0; play(); }); }
+    else play();
+  }, { once: true });
 }
 function downloadChatFile(id){
   const m = (APP.chatRows||[]).find(x => x.id===id) || {};
@@ -490,7 +524,7 @@ async function startChatVoice(){
   if(!navigator.mediaDevices || !window.MediaRecorder){ alert('Bu cihaz/tarayıcı ses kaydını desteklemiyor.'); return; }
   let stream;
   try{ stream = await navigator.mediaDevices.getUserMedia({ audio: true }); }
-  catch(e){ alert('Mikrofon izni verilmedi.'); return; }
+  catch(e){ alert(chatMediaErrorText(e, 'Mikrofon')); return; }
   const type = ['audio/webm;codecs=opus','audio/webm','audio/mp4','audio/ogg'].find(t => MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(t)) || '';
   const rec = new MediaRecorder(stream, type ? { mimeType: type, audioBitsPerSecond: 32000 } : undefined);
   const chunks = []; rec.ondataavailable = (e) => { if(e.data && e.data.size) chunks.push(e.data); };
