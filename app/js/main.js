@@ -113,6 +113,7 @@ function render(){
   else if(APP.view==='purchasing') renderPurchasingView(main, session);
   else if(APP.view==='messages') renderMessagesView(main, session);
   applyNavBadges();
+  if(APP.view==='order' || APP.view==='payments') setTimeout(refreshWaiterCalls, 900);
 }
 /* ---- Bekleyen iş sayıları (rozetler): menüde ilgili ekranın yanında,
    ekran içi sekmelerde (Ayarlar > Vardiyalar, Satın Alma Siparişleri) ve

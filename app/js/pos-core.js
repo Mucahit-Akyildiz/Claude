@@ -1359,6 +1359,7 @@ async function refreshWaiterCalls(){
   const { data, error } = await sb.rpc('list_waiter_calls', { p_token: session.session_token });
   if(error) return;
   const rows = data || [];
+  drawWaiterCallInline(rows);
   let box = document.getElementById('waiterCallBox');
   if(!rows.length){ if(box) box.remove(); return; }
   if(!box){ box = document.createElement('div'); box.id = 'waiterCallBox'; document.body.appendChild(box); }
@@ -1375,6 +1376,22 @@ async function refreshWaiterCalls(){
     showToast('🔔 ' + fresh.map(r => (r.table_name||'Masa') + (r.kind==='payment' ? ' hesap istiyor' : ' garson çağırıyor')).join(', '), 15000);
     try{ if(typeof playKitchenBell==='function') playKitchenBell(); }catch(e){}
   }
+}
+// Sipariş Al ekranında sipariş çağrıları, Ödemeler ekranında hesap
+// çağrıları sayfanın en üstünde de gösterilir (menüdeki rozetin karşılığı).
+function drawWaiterCallInline(rows){
+  const main = document.getElementById('main');
+  const kind = APP.view==='payments' ? 'payment' : APP.view==='order' ? 'order' : null;
+  let el = document.getElementById('waiterCallInline');
+  const list = kind ? rows.filter(r => r.kind===kind) : [];
+  if(!main || !list.length){ if(el) el.remove(); return; }
+  if(!el || el.parentNode!==main){ if(el) el.remove(); el = document.createElement('div'); el.id = 'waiterCallInline'; main.prepend(el); }
+  el.innerHTML = `<div class="box" style="max-width:none;border:2px solid var(--accent);background:rgba(0,143,168,.08);margin-bottom:14px;">
+    <h2 style="margin:0 0 8px;">${kind==='payment' ? '💳 Hesap isteyen masalar' : '🙋 Garson çağıran masalar'} (${list.length})</h2>
+    ${list.map(r => `<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 0;border-top:1px dashed var(--border);">
+      <span><b>${escapeHtml(r.table_name||'Masa')}</b> <span class="muted" style="font-size:12px;">${new Date(r.created_at).toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'})}</span></span>
+      <button type="button" class="sbtn" style="width:auto;margin:0;background:var(--green);color:var(--btn-ink);" onclick="resolveWaiterCall('${r.id}')">✓ Gittim</button></div>`).join('')}
+  </div>`;
 }
 async function resolveWaiterCall(id){
   const session = getSession();
