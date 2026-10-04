@@ -48,5 +48,8 @@
          native eklenti/kod gerekmiyor). Kamerası olmayan cihazlarda da
          kurulabilsin diye "required=false" ile isteğe bağlı bırakıldı. -->
     <uses-permission android:name="android.permission.CAMERA" />
+    <!-- Mesajlarda sesli mesaj kaydı (WebView getUserMedia için). -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
     <uses-feature android:name="android.hardware.camera" android:required="false" />
 </manifest>
