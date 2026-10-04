@@ -968,7 +968,7 @@ function renderActiveUsersSettings(el){
         </select>
       </div>
     </div>
-    <p class="muted" style="margin:6px 0 16px;font-size:12.5px;text-align:left;">Seçilen süre içinde uygulamada işlem yapan (ekranı açık olan) personel. 20 saniyede bir otomatik yenilenir.</p>
+    <p class="muted" style="margin:6px 0 16px;font-size:12.5px;text-align:left;">Seçilen süre içinde uygulamada işlem yapan (ekranı açık olan) personel; çıkış yapanlar ⚪ ile gösterilir. 20 saniyede bir otomatik yenilenir.</p>
     <div id="activeUsersBody"><p class="muted">Yükleniyor...</p></div>
   </div>`;
   loadActiveUsers();
@@ -989,11 +989,13 @@ async function loadActiveUsers(){
       ${statCard('Aktif Kullanıcı', data.active_users, 'var(--green)')}
       ${statCard('Vardiyada', data.on_shift)}
       ${statCard('Bugün Giren', data.today_users)}
+      ${statCard('Kullanıcı / Lisans', (data.total_users ?? '—') + ' / ' + (data.max_users ?? '—'), (data.max_users && data.total_users >= data.max_users) ? 'var(--red)' : null)}
     </div>
+    ${data.max_users ? `<p class="muted" style="text-align:left;margin:-8px 0 16px;font-size:12.5px;">Sistemde ${data.total_users} kullanıcı var (${data.enabled_users} aktif, ${data.total_users - data.enabled_users} pasif) · paketiniz ${data.max_users} kullanıcıya izin veriyor · ${Math.max(0, data.max_users - data.total_users)} kullanıcı daha ekleyebilirsiniz.</p>` : ''}
     ${!rows.length ? '<p class="muted">Bu sürede aktif kullanıcı yok.</p>' : `<div class="settings-table-wrap"><table class="settings-table">
       <thead><tr><th>Kullanıcı</th><th>Rol</th><th>Son İşlem</th><th>Giriş</th><th>Vardiya</th></tr></thead>
       <tbody>${rows.map(r => `<tr>
-        <td class="col-name">${Date.now() - new Date(r.last_seen_at).getTime() < 120000 ? '🟢' : '🟡'} ${escapeHtml(r.username)}</td>
+        <td class="col-name">${r.online===false ? '⚪' : Date.now() - new Date(r.last_seen_at).getTime() < 120000 ? '🟢' : '🟡'} ${escapeHtml(r.username)}${r.online===false ? ' <span class="muted" style="font-size:11.5px;">çıkış yaptı' + (r.logged_out_at ? ' ' + new Date(r.logged_out_at).toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'}) : '') + '</span>' : ''}</td>
         <td>${escapeHtml(r.roles||'—')}</td>
         <td>${fmtRelativeTime(r.last_seen_at)}</td>
         <td style="font-size:12.5px;">${new Date(r.login_at).toLocaleString('tr-TR', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' })}</td>
@@ -1307,6 +1309,7 @@ async function renderIntegrationsSettings(el, session){
       <input type="checkbox" id="int_online_ordering_enabled" ${APP.config.online_ordering&&APP.config.online_ordering.enabled?'checked':''} style="width:auto;margin:0;" onchange="saveOnlineOrderingSettings()"> Aktif
     </label>
     ${APP.config.online_ordering && APP.config.online_ordering.enabled ? onlineOrderingLinkHtml() : ''}
+    <button type="button" class="ghost-btn" style="max-width:280px;margin-top:12px;" onclick="openOnlineMenuEditor()">🗂️ Online Menüyü Düzenle (başlıklar ve fotoğraflar)</button>
   </div>`;
   // Paketinizde/eklentilerinizde olmayan bölümler kilitli gösterilir
   // (sunucu da ilgili RPC'lerde PAKET_OZELLIK_YOK ile reddediyor).
@@ -1315,7 +1318,8 @@ async function renderIntegrationsSettings(el, session){
     const f = boxFeatures[i];
     if(!f || hasFeature(f)) return;
     const title = box.querySelector('h2') ? box.querySelector('h2').outerHTML : '';
-    box.innerHTML = title + lockedFeatureHtml();
+    box.innerHTML = title + lockedFeatureHtml() + `<div class="addon-buy" data-addon="${f}"></div>`;
+    loadAddonPurchaseBox(box.querySelector('.addon-buy'), f);
   });
   // Fatura bilgileri tüm paketlerde: ödeme sonrası e-postayla gönderilen
   // hesap/faturanın başlığında görünür (bkz. email_invoice).
@@ -1364,6 +1368,205 @@ async function saveInvoiceSettings(){
     p_title: v('inv_title'), p_tax_number: v('inv_tax'), p_tax_office: v('inv_office'), p_address: v('inv_addr') });
   if(error){ alert(error.message); return; }
   showToast('Fatura bilgileri kaydedildi ✓');
+}
+/* Kilitli eklenti: abonelikteki havale akışının aynısı - IBAN'a gönderip
+   "Ödemeyi Yaptım" bildirimi; platform yöneticisi onaylayınca eklenti açılır
+   (bkz. submit_addon_transfer_notice / admin_review_bank_transfer_notice).
+   Google Play politikası gereği native uygulamada gösterilmez. */
+async function loadAddonPurchaseBox(el, addonId){
+  if(!el || isNativeApp()) return;
+  const session = getSession();
+  const { data, error } = await sb.rpc('get_addon_purchase_info', { p_token: session.session_token, p_addon_id: addonId });
+  if(error || !data || !data.addon || !(Number(data.addon.price) > 0)) return;
+  const a = data.addon;
+  if(data.pending){
+    el.innerHTML = `<div class="add-row-panel" style="border-color:var(--accent);margin-top:12px;">
+      <b>🏦 Ödeme bildiriminiz alındı</b>
+      <p class="muted" style="text-align:left;margin:6px 0 0;">${money(data.pending.amount)} tutarındaki bildiriminiz ${new Date(data.pending.created_at).toLocaleString('tr-TR')} tarihinde iletildi. Onaylanınca eklenti otomatik açılacak.</p></div>`;
+    return;
+  }
+  if(!data.is_manager){ return; }
+  el.innerHTML = `<div class="add-row-panel" style="margin-top:12px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;">
+      <b>🧩 ${escapeHtml(a.label)} eklentisini ekleyin</b>
+      <span class="role-badge" style="color:var(--accent);border-color:var(--accent);">${money(a.price)} / ay</span>
+    </div>
+    ${data.iban ? `<p class="muted" style="text-align:left;margin:8px 0;font-size:13px;">Tutarı aşağıdaki hesaba havale/EFT ile gönderip <b>Ödemeyi Yaptım</b>'a basın. Açıklamaya işletme adınızı yazın.</p>
+    <div style="background:var(--panel2);border-radius:10px;padding:10px 12px;font-size:13.5px;line-height:1.7;">
+      ${data.bank_name ? `<div>Banka: <b>${escapeHtml(data.bank_name)}</b></div>` : ''}
+      ${data.account_name ? `<div>Alıcı: <b>${escapeHtml(data.account_name)}</b></div>` : ''}
+      <div style="overflow-wrap:anywhere;">IBAN: <b>${escapeHtml(data.iban)}</b> <a href="#" style="color:var(--accent);font-size:12px;" onclick="navigator.clipboard&&navigator.clipboard.writeText(${escapeAttr(JSON.stringify(data.iban))});showToast('IBAN kopyalandı ✓');return false;">Kopyala</a></div>
+    </div>
+    <div class="field-group" style="margin-top:10px;"><label>Not (opsiyonel)</label><input class="addon-note" placeholder="örn. gönderen adı / dekont no"></div>
+    <button style="max-width:240px;" onclick="submitAddonTransfer(this, '${addonId}')">🏦 Ödemeyi Yaptım</button>`
+    : '<p class="muted" style="text-align:left;">Banka bilgileri henüz tanımlanmamış, lütfen bizimle iletişime geçin.</p>'}
+  </div>`;
+}
+async function submitAddonTransfer(btn, addonId){
+  const wrap = btn.closest('.addon-buy');
+  const noteEl = wrap && wrap.querySelector('.addon-note');
+  if(!confirm('Havale/EFT ödemesini yaptığınızı onaylıyor musunuz?')) return;
+  btn.disabled = true;
+  const session = getSession();
+  const { error } = await sb.rpc('submit_addon_transfer_notice', { p_token: session.session_token, p_addon_id: addonId, p_note: noteEl ? (noteEl.value.trim()||null) : null });
+  if(error){ btn.disabled = false; alert(error.message); return; }
+  showToast('Ödeme bildiriminiz alındı ✓ Onaylanınca eklenti açılacak.');
+  loadAddonPurchaseBox(wrap, addonId);
+}
+/* ---- Online Menü düzenleyici: online sipariş sayfasında gösterilecek
+   başlıklar (örn. "Fırın") ve içlerine atanan ürünler. Ürünün mutfak
+   istasyonu/fişi değişmez; başlık yalnızca müşteriye görünen gruplamadır.
+   Ürün fotoğrafları da burada yüklenir (tarayıcıda küçültülüp kaydedilir). ---- */
+async function openOnlineMenuEditor(){
+  const session = getSession();
+  const { data, error } = await withLoadingOverlay(sb.rpc('get_online_menu_admin', { p_token: session.session_token }));
+  if(error){ alert(error.message); return; }
+  APP.onlineMenu = data;
+  let bg = document.getElementById('onlineMenuBg');
+  if(!bg){
+    bg = document.createElement('div'); bg.id = 'onlineMenuBg';
+    bg.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:flex-start;justify-content:center;z-index:100;padding:28px 16px 16px;overflow-y:auto;';
+    bg.onclick = (e) => { if(e.target===bg) bg.remove(); };
+    document.body.appendChild(bg);
+  }
+  drawOnlineMenuEditor();
+}
+function drawOnlineMenuEditor(){
+  const bg = document.getElementById('onlineMenuBg'); if(!bg) return;
+  const d = APP.onlineMenu; const byId = {}; d.products.forEach(p => byId[p.id] = p);
+  const tab = APP.onlineMenuTab || 'sections';
+  const sectionsHtml = d.sections.map((sec, i) => `
+    <div class="add-row-panel" style="margin:0 0 12px;">
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+        <input value="${escapeAttr(sec.name)}" id="oms_name_${sec.id}" style="flex:1;min-width:140px;margin:0;font-weight:700;">
+        <button type="button" class="sbtn" style="width:auto;margin:0;" ${i===0?'disabled':''} onclick="moveOnlineSection('${sec.id}',-1)" title="Yukarı">↑</button>
+        <button type="button" class="sbtn" style="width:auto;margin:0;" ${i===d.sections.length-1?'disabled':''} onclick="moveOnlineSection('${sec.id}',1)" title="Aşağı">↓</button>
+        <button type="button" class="sbtn" style="width:auto;margin:0;" onclick="saveOnlineSectionName('${sec.id}')">💾</button>
+        <button type="button" class="sbtn" style="width:auto;margin:0;background:var(--red);color:var(--btn-ink);" onclick="removeOnlineSection('${sec.id}')">🗑️</button>
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;">
+        ${sec.product_ids.map(id => byId[id]).filter(Boolean).map(p => `<span class="role-badge" style="display:inline-flex;gap:6px;align-items:center;">${escapeHtml(p.name)} <span class="muted" style="font-size:11px;">(${escapeHtml(p.station_name||'-')})</span><a href="#" style="color:var(--red);text-decoration:none;" onclick="toggleOnlineSectionProduct('${sec.id}','${p.id}');return false;">✕</a></span>`).join('') || '<span class="muted" style="font-size:12.5px;">Henüz ürün yok.</span>'}
+      </div>
+      <button type="button" class="ghost-btn" style="max-width:200px;margin-top:10px;" onclick="pickOnlineSectionProducts('${sec.id}')">+ Ürün Ekle / Çıkar</button>
+    </div>`).join('');
+  const photosHtml = d.products.map(p => `
+    <div style="display:flex;align-items:center;gap:12px;padding:8px 0;border-bottom:1px solid var(--border);">
+      ${p.image ? `<img src="${p.image}" style="width:56px;height:56px;border-radius:10px;object-fit:cover;flex-shrink:0;">` : '<div style="width:56px;height:56px;border-radius:10px;background:var(--panel2);display:flex;align-items:center;justify-content:center;flex-shrink:0;">📷</div>'}
+      <div style="flex:1;min-width:0;"><b style="overflow-wrap:anywhere;">${escapeHtml(p.name)}</b><div class="muted" style="font-size:12px;">${escapeHtml(p.station_name||'-')} · ${money(p.price)}</div></div>
+      <label class="sbtn" style="width:auto;margin:0;cursor:pointer;">${p.image?'Değiştir':'Fotoğraf Ekle'}<input type="file" accept="image/*" style="display:none;" onchange="uploadProductImage('${p.id}', this)"></label>
+      ${p.image ? `<button type="button" class="sbtn" style="width:auto;margin:0;background:var(--red);color:var(--btn-ink);" onclick="removeProductImage('${p.id}')">✕</button>` : ''}
+    </div>`).join('');
+  bg.innerHTML = `<div style="background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:20px;max-width:640px;width:100%;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+      <h2 style="margin:0;">🗂️ Online Menü</h2>
+      <span style="cursor:pointer;color:var(--muted);font-size:20px;" onclick="document.getElementById('onlineMenuBg').remove()">✕</span>
+    </div>
+    <div class="sub-tabs" style="margin-bottom:14px;">
+      <div role="tab" tabindex="0" class="sub-tab ${tab==='sections'?'active':''}" onclick="APP.onlineMenuTab='sections';drawOnlineMenuEditor()"><span class="sub-tab-ic">🗂️</span>Başlıklar</div>
+      <div role="tab" tabindex="0" class="sub-tab ${tab==='photos'?'active':''}" onclick="APP.onlineMenuTab='photos';drawOnlineMenuEditor()"><span class="sub-tab-ic">📷</span>Fotoğraflar</div>
+    </div>
+    ${tab==='sections' ? `
+      <p class="muted" style="text-align:left;margin:0 0 12px;font-size:13px;">Online sipariş sayfasında müşteriye görünecek başlıkları oluşturun ve ürünleri yerleştirin (örn. lahmacunu "Fırın" başlığına). Ürünün fişi yine kendi istasyonuna gider. Hiç başlık yoksa ürünler istasyonlara göre listelenir; başlık varsa yalnızca başlıklardaki ürünler görünür.</p>
+      ${sectionsHtml || '<p class="muted">Henüz başlık yok.</p>'}
+      <div style="display:flex;gap:8px;margin-top:6px;"><input id="oms_new" placeholder="Yeni başlık (örn. Fırın)" style="margin:0;flex:1;"><button type="button" style="width:auto;margin:0;" onclick="addOnlineSection()">+ Ekle</button></div>`
+    : `<p class="muted" style="text-align:left;margin:0 0 8px;font-size:13px;">Fotoğraflar online sipariş sayfasında ürünün yanında görünür. Yüklerken otomatik küçültülür.</p>${photosHtml || '<p class="muted">Ürün yok.</p>'}`}
+  </div>`;
+}
+async function saveOnlineSection(sec, extra){
+  const session = getSession();
+  const { error } = await sb.rpc('save_online_menu_section', Object.assign({ p_token: session.session_token, p_id: sec.id, p_name: sec.name, p_product_ids: sec.product_ids, p_sort: null }, extra||{}));
+  if(error){ alert(error.message); return false; }
+  return true;
+}
+async function addOnlineSection(){
+  const name = (document.getElementById('oms_new').value||'').trim(); if(!name) return;
+  const session = getSession();
+  const { error } = await sb.rpc('save_online_menu_section', { p_token: session.session_token, p_id: null, p_name: name, p_product_ids: [], p_sort: null });
+  if(error){ alert(error.message); return; }
+  openOnlineMenuEditor();
+}
+async function saveOnlineSectionName(id){
+  const sec = APP.onlineMenu.sections.find(x => x.id===id); if(!sec) return;
+  sec.name = document.getElementById('oms_name_'+id).value.trim();
+  if(await saveOnlineSection(sec)) showToast('Kaydedildi ✓');
+}
+async function removeOnlineSection(id){
+  if(!confirm('Bu başlık silinsin mi? (Ürünler silinmez)')) return;
+  const session = getSession();
+  const { error } = await sb.rpc('remove_online_menu_section', { p_token: session.session_token, p_id: id });
+  if(error){ alert(error.message); return; }
+  openOnlineMenuEditor();
+}
+async function moveOnlineSection(id, dir){
+  const list = APP.onlineMenu.sections; const i = list.findIndex(x => x.id===id); const j = i + dir;
+  if(i<0 || j<0 || j>=list.length) return;
+  [list[i], list[j]] = [list[j], list[i]];
+  for(let k=0; k<list.length; k++){ if(!(await saveOnlineSection(list[k], { p_sort: k+1, p_product_ids: null }))) return; }
+  drawOnlineMenuEditor();
+}
+async function toggleOnlineSectionProduct(secId, productId){
+  const sec = APP.onlineMenu.sections.find(x => x.id===secId); if(!sec) return;
+  sec.product_ids = sec.product_ids.includes(productId) ? sec.product_ids.filter(x => x!==productId) : sec.product_ids.concat(productId);
+  if(await saveOnlineSection(sec)) drawOnlineMenuEditor();
+}
+function pickOnlineSectionProducts(secId){
+  const sec = APP.onlineMenu.sections.find(x => x.id===secId); if(!sec) return;
+  const ov = document.createElement('div'); ov.id = 'omsPickBg';
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:110;padding:16px;';
+  ov.onclick = (e) => { if(e.target===ov) ov.remove(); };
+  ov.innerHTML = `<div style="background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:18px;max-width:420px;width:100%;max-height:82vh;display:flex;flex-direction:column;">
+    <h3 style="margin:0 0 8px;">${escapeHtml(sec.name)} · ürünler</h3>
+    <input id="omsPickSearch" placeholder="Ara..." style="margin:0 0 8px;" oninput="document.querySelectorAll('#omsPickList label').forEach(l => l.style.display = l.textContent.toLocaleLowerCase('tr').includes(this.value.toLocaleLowerCase('tr')) ? 'flex' : 'none')">
+    <div id="omsPickList" style="overflow:auto;flex:1;">
+      ${APP.onlineMenu.products.map(p => `<label style="display:flex;gap:10px;align-items:center;padding:7px 2px;border-bottom:1px solid var(--border);cursor:pointer;">
+        <input type="checkbox" value="${p.id}" style="width:auto;margin:0;" ${sec.product_ids.includes(p.id)?'checked':''}>
+        <span style="flex:1;">${escapeHtml(p.name)} <span class="muted" style="font-size:11.5px;">${escapeHtml(p.station_name||'-')}</span></span></label>`).join('')}
+    </div>
+    <div style="display:flex;gap:10px;margin-top:12px;">
+      <button type="button" class="ghost-btn" style="flex:1;margin:0;" onclick="document.getElementById('omsPickBg').remove()">Vazgeç</button>
+      <button type="button" style="flex:1;margin:0;" onclick="applyOnlineSectionPick('${secId}')">Kaydet</button>
+    </div></div>`;
+  document.body.appendChild(ov);
+}
+async function applyOnlineSectionPick(secId){
+  const sec = APP.onlineMenu.sections.find(x => x.id===secId); if(!sec) return;
+  const checked = [...document.querySelectorAll('#omsPickList input:checked')].map(x => x.value);
+  // Mevcut sıra korunur, yeni seçilenler sona eklenir.
+  sec.product_ids = sec.product_ids.filter(id => checked.includes(id)).concat(checked.filter(id => !sec.product_ids.includes(id)));
+  if(await saveOnlineSection(sec)){ document.getElementById('omsPickBg').remove(); drawOnlineMenuEditor(); }
+}
+function resizeImageToDataUrl(file, maxSide){
+  return new Promise((resolve, reject) => {
+    const img = new Image(); const url = URL.createObjectURL(file);
+    img.onload = () => {
+      const k = Math.min(1, maxSide / Math.max(img.width, img.height));
+      const c = document.createElement('canvas'); c.width = Math.round(img.width*k); c.height = Math.round(img.height*k);
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(url);
+      resolve(c.toDataURL('image/jpeg', 0.78));
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Görsel okunamadı')); };
+    img.src = url;
+  });
+}
+async function uploadProductImage(productId, input){
+  const file = input.files && input.files[0]; if(!file) return;
+  let dataUrl;
+  try{ dataUrl = await resizeImageToDataUrl(file, 480); }catch(e){ alert(e.message); return; }
+  const session = getSession();
+  const { error } = await withLoadingOverlay(sb.rpc('set_product_image', { p_token: session.session_token, p_product_id: productId, p_data: dataUrl }));
+  if(error){ alert(error.message); return; }
+  const p = APP.onlineMenu.products.find(x => x.id===productId); if(p) p.image = dataUrl;
+  showToast('Fotoğraf kaydedildi ✓');
+  drawOnlineMenuEditor();
+}
+async function removeProductImage(productId){
+  if(!confirm('Fotoğraf kaldırılsın mı?')) return;
+  const session = getSession();
+  const { error } = await sb.rpc('set_product_image', { p_token: session.session_token, p_product_id: productId, p_data: null });
+  if(error){ alert(error.message); return; }
+  const p = APP.onlineMenu.products.find(x => x.id===productId); if(p) p.image = null;
+  drawOnlineMenuEditor();
 }
 function lockedFeatureHtml(){
   return `<p class="muted" style="margin:0;">🔒 Bu özellik paketinizde yok. Eklenti olarak eklemek ya da paketinizi yükseltmek için bizimle iletişime geçin.</p>`;

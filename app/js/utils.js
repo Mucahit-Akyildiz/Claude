@@ -55,6 +55,8 @@ function endLoadingWatch(){
   }
 }
 async function withLoadingOverlay(promise, delayMs){
+  // Otomatik (arka plan) yenilemede yükleniyor perdesi gösterilmez.
+  if(APP.silentLoad) return await promise;
   beginLoadingWatch(delayMs);
   try{ return await promise; }
   finally{ endLoadingWatch(); }
