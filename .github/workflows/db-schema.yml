@@ -43,7 +43,11 @@ jobs:
           DB_URL: ${{ secrets.SUPABASE_DB_URL }}
         run: |
           mkdir -p supabase
-          pg_dump "$DB_URL" --schema-only --schema=public --no-owner --no-privileges --no-comments -f supabase/schema.sql
+          if ! pg_dump "$DB_URL" --schema-only --schema=public --no-owner --no-privileges --no-comments -f supabase/schema.sql 2> err.txt; then
+            cat err.txt
+            head -5 err.txt | while IFS= read -r line; do echo "::error::$line"; done
+            exit 1
+          fi
           # Sürüm satırları her dökümde değişmesin diye çıkarılır.
           sed -i '/^-- Dumped from database version/d;/^-- Dumped by pg_dump version/d;/^\\restrict /d;/^\\unrestrict /d' supabase/schema.sql
       - name: Değiştiyse commit et
