@@ -56,16 +56,25 @@ function renderSettingsContent(session){
   else if(APP.settingsTab==='shifts') renderShiftsSettings(el, session);
   else if(APP.settingsTab==='billing') renderBillingSettings(el, session);
   else if(APP.settingsTab==='datareset') renderDataResetSettings(el);
-  else {
-    renderUsersSettings(el, session);
-    // Aktif Kullanıcılar, Kullanıcılar sekmesinin altında (yalnızca Yönetici).
-    if(session.isManager){
-      const box = document.createElement('div');
-      box.style.marginTop = '18px';
-      el.appendChild(box);
-      renderActiveUsersSettings(box);
-    }
-  }
+  else renderUsersTabWithSubtabs(el, session);
+}
+/* Kullanıcılar sekmesi iki alt sekmeli: Kullanıcılar | Aktif Kullanıcılar
+   (ikincisi yalnızca Yönetici'ye görünür). */
+function renderUsersTabWithSubtabs(el, session){
+  if(!session.isManager) APP.usersSubTab = 'list';
+  const sub = APP.usersSubTab || 'list';
+  el.innerHTML = session.isManager ? `<div class="tabs" id="usersSubTabs" style="margin-bottom:12px;">
+      <div class="tab ${sub==='list'?'active':''}" onclick="setUsersSubTab('list')">👥 Kullanıcılar</div>
+      <div class="tab ${sub==='active'?'active':''}" onclick="setUsersSubTab('active')">🟢 Aktif Kullanıcılar</div>
+    </div><div id="usersSubContent"></div>` : '<div id="usersSubContent"></div>';
+  const box = document.getElementById('usersSubContent');
+  if(sub==='active') renderActiveUsersSettings(box);
+  else renderUsersSettings(box, session);
+}
+function setUsersSubTab(t){
+  APP.usersSubTab = t;
+  const el = document.getElementById('settingsContent');
+  if(el) renderUsersTabWithSubtabs(el, getSession());
 }
 
 /* --- Sipariş Etiketleri (Personel Yemeği, İkram vb. checkbox'lar) --- */
