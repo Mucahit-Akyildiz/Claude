@@ -252,6 +252,11 @@ let PEYKTAN_SOUND_BUF = null, PEYKTAN_SOUND_LAST = 0;
 async function playPeyktanSound(){
   if(Date.now() - PEYKTAN_SOUND_LAST < 1500) return;
   PEYKTAN_SOUND_LAST = Date.now();
+  // Bildirim Ayarları'nda bu cihaz için bir ses yüklendiyse/seçildiyse o çalar.
+  try{
+    const own = typeof getKitchenBellSounds==='function' ? getKitchenBellSounds().default : null;
+    if(own && (own.custom || own.preset)){ playKitchenBell(null); return; }
+  }catch(e){}
   try{
     KITCHEN_AUDIO_CTX = KITCHEN_AUDIO_CTX || new (window.AudioContext || window.webkitAudioContext)();
     const ctx = KITCHEN_AUDIO_CTX;
