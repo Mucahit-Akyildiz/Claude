@@ -146,6 +146,17 @@ function applyNavBadges(){
 // DOM'a dokunmaz (MutationObserver döngüsü olmasın).
 function applyTabBadges(){
   const b = APP.navBadges || {};
+  // Mutfak istasyon seçimi: her istasyonun bekleyen ürün sayısı (istasyonsuz
+  // ürünler her istasyonda görüldüğü gibi sayılır).
+  const kItems = badgeItems('kitchen');
+  document.querySelectorAll('[data-station-card]').forEach(el => {
+    const n = kItems.filter(x => !x.station || x.station===el.dataset.stationCard).length;
+    const cur = el.querySelector('.nav-badge');
+    const want = n > 0 ? (n > 99 ? '99+' : String(n)) : '';
+    if((cur ? cur.textContent : '') === want) return;
+    if(cur) cur.remove();
+    if(n > 0) el.insertAdjacentHTML('beforeend', `<span class="nav-badge" style="position:absolute;top:12px;right:12px;min-width:24px;height:24px;font-size:12.5px;" title="${escapeAttr(kItems.filter(x => !x.station || x.station===el.dataset.stationCard).map(x => x.label).join('\n'))}">${want}</span>`);
+  });
   const resvItems = badgeItems('reservations');
   const tabs = {
     shifts: b.settings || 0,
