@@ -968,7 +968,7 @@ function renderActiveUsersSettings(el){
         </select>
       </div>
     </div>
-    <p class="muted" style="margin:6px 0 16px;font-size:12.5px;text-align:left;">Seçilen süre içinde uygulamada işlem yapan (ekranı açık olan) personel. 20 saniyede bir otomatik yenilenir.</p>
+    <p class="muted" style="margin:6px 0 16px;font-size:12.5px;text-align:left;">Seçilen süre içinde uygulamada işlem yapan (ekranı açık olan) personel; çıkış yapanlar ⚪ ile gösterilir. 20 saniyede bir otomatik yenilenir.</p>
     <div id="activeUsersBody"><p class="muted">Yükleniyor...</p></div>
   </div>`;
   loadActiveUsers();
@@ -989,11 +989,13 @@ async function loadActiveUsers(){
       ${statCard('Aktif Kullanıcı', data.active_users, 'var(--green)')}
       ${statCard('Vardiyada', data.on_shift)}
       ${statCard('Bugün Giren', data.today_users)}
+      ${statCard('Kullanıcı / Lisans', (data.total_users ?? '—') + ' / ' + (data.max_users ?? '—'), (data.max_users && data.total_users >= data.max_users) ? 'var(--red)' : null)}
     </div>
+    ${data.max_users ? `<p class="muted" style="text-align:left;margin:-8px 0 16px;font-size:12.5px;">Sistemde ${data.total_users} kullanıcı var (${data.enabled_users} aktif, ${data.total_users - data.enabled_users} pasif) · paketiniz ${data.max_users} kullanıcıya izin veriyor · ${Math.max(0, data.max_users - data.total_users)} kullanıcı daha ekleyebilirsiniz.</p>` : ''}
     ${!rows.length ? '<p class="muted">Bu sürede aktif kullanıcı yok.</p>' : `<div class="settings-table-wrap"><table class="settings-table">
       <thead><tr><th>Kullanıcı</th><th>Rol</th><th>Son İşlem</th><th>Giriş</th><th>Vardiya</th></tr></thead>
       <tbody>${rows.map(r => `<tr>
-        <td class="col-name">${Date.now() - new Date(r.last_seen_at).getTime() < 120000 ? '🟢' : '🟡'} ${escapeHtml(r.username)}</td>
+        <td class="col-name">${r.online===false ? '⚪' : Date.now() - new Date(r.last_seen_at).getTime() < 120000 ? '🟢' : '🟡'} ${escapeHtml(r.username)}${r.online===false ? ' <span class="muted" style="font-size:11.5px;">çıkış yaptı' + (r.logged_out_at ? ' ' + new Date(r.logged_out_at).toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'}) : '') + '</span>' : ''}</td>
         <td>${escapeHtml(r.roles||'—')}</td>
         <td>${fmtRelativeTime(r.last_seen_at)}</td>
         <td style="font-size:12.5px;">${new Date(r.login_at).toLocaleString('tr-TR', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' })}</td>
