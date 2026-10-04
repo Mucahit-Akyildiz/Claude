@@ -38,6 +38,9 @@
   .station-title{font-size:13px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin:18px 4px 8px;}
   .station-title:first-child{margin-top:4px;}
   .product-card{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:12px 14px;margin-bottom:8px;display:flex;align-items:center;gap:10px;}
+  .product-card.sold-out{opacity:.6;}
+  .sold-badge{font-size:12px;font-weight:800;color:var(--red);border:1px solid var(--red);border-radius:999px;padding:4px 10px;white-space:nowrap;}
+  .stock-left{color:var(--red);font-weight:700;}
   .product-name{flex:1;min-width:0;font-weight:700;font-size:14.5px;overflow-wrap:anywhere;word-break:break-word;}
   .product-price{color:var(--muted);font-size:13px;font-weight:600;white-space:nowrap;}
   .qty-btn{width:32px;height:32px;flex-shrink:0;border-radius:9px;border:1.5px solid var(--border);background:var(--panel2);color:var(--text);font-weight:800;font-size:16px;display:flex;align-items:center;justify-content:center;cursor:pointer;}
@@ -168,9 +171,9 @@ function renderMenu(){
   const body = order.map(key => `
     <div class="station-title">${escapeHtml(key)}</div>
     ${groups[key].map(p => `
-      <div class="product-card">
-        <div class="product-name">${escapeHtml(productName(p))}<div class="product-price">${money(p.price)}</div></div>
-        ${canOrder ? `<button class="qty-btn" onclick="stepCart('${p.id}',-1)">-</button>
+      <div class="product-card ${p.max_qty===0?'sold-out':''}">
+        <div class="product-name">${escapeHtml(productName(p))}<div class="product-price">${money(p.price)}${p.max_qty!=null && p.max_qty>0 && p.max_qty<=5 ? ` · <span class="stock-left">${escapeHtml(stockTxt('left', p.max_qty))}</span>` : ''}</div></div>
+        ${p.max_qty===0 ? `<span class="sold-badge">${escapeHtml(stockTxt('sold'))}</span>` : canOrder ? `<button class="qty-btn" onclick="stepCart('${p.id}',-1)">-</button>
         <span class="qty-val" id="qty_${p.id}">${STATE.cart[p.id]||0}</span>
         <button class="qty-btn" onclick="stepCart('${p.id}',1)">+</button>` : ''}
       </div>`).join('')}
@@ -228,8 +231,12 @@ function headerHtml(){
     ${langPickerHtml()}
   </header>` + waiterHtml() + trustHtml();
 }
+const STOCK_I18N = { sold: {"tr": "Tükendi", "en": "Sold out", "ar": "نفد", "de": "Ausverkauft", "ru": "Нет в наличии"}, left: {"tr": "Son {n}", "en": "{n} left", "ar": "متبقي {n}", "de": "Noch {n}", "ru": "Осталось {n}"} };
+function stockTxt(k, n){ const d = STOCK_I18N[k]; return (d[STATE.lang||'tr'] || d.tr).replace('{n}', n); }
+function maxQtyOf(productId){ const p = ((STATE.menu||{}).products||[]).find(x => x.id===productId); return p && p.max_qty != null ? Math.max(0, p.max_qty) : 20; }
 function stepCart(productId, delta){
-  const next = Math.max(0, Math.min(20, (STATE.cart[productId]||0) + delta));
+  // Stokta kalandan fazlası seçilemez (bkz. max_qty: hammadde/ürün stoğu).
+  const next = Math.max(0, Math.min(20, maxQtyOf(productId), (STATE.cart[productId]||0) + delta));
   if(next===0) delete STATE.cart[productId]; else STATE.cart[productId] = next;
   const el = document.getElementById('qty_'+productId);
   if(el) el.textContent = next;
