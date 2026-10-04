@@ -28,7 +28,11 @@ self.addEventListener('push', (event) => {
     // gonderilen bildirimlerin gercekten fark edilmesi icin bu sart.
     renotify: !!data.tag,
   };
-  event.waitUntil(self.registration.showNotification(title, options));
+  // Kurulu uygulamada (PWA) simgedeki sayı - destekleyen tarayıcılarda.
+  const badgeP = (typeof data.badge === 'number' && self.navigator && self.navigator.setAppBadge)
+    ? (data.badge > 0 ? self.navigator.setAppBadge(data.badge) : self.navigator.clearAppBadge()).catch(() => {})
+    : Promise.resolve();
+  event.waitUntil(Promise.all([self.registration.showNotification(title, options), badgeP]));
 });
 
 // Bildirime tıklanınca ilgili ekrana gidilsin diye (örn. "Sipariş Al").

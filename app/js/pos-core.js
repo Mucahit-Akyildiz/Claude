@@ -1374,7 +1374,7 @@ async function refreshWaiterCalls(){
   fresh.forEach(r => WAITER_CALL_SEEN.add(r.id));
   if(fresh.length){
     showToast('🔔 ' + fresh.map(r => (r.table_name||'Masa') + (r.kind==='payment' ? ' hesap istiyor' : ' garson çağırıyor')).join(', '), 15000);
-    try{ if(typeof playKitchenBell==='function') playKitchenBell(); }catch(e){}
+    playPeyktanSound();
   }
 }
 // Sipariş Al ekranında sipariş çağrıları, Ödemeler ekranında hesap
@@ -2406,6 +2406,20 @@ function setupNativeFcmListeners(){
     vibration: true,
     lights: true,
   }).catch(() => {});
+  // Peyktan sesli kanal: ses dosyası (res/raw/peyktan) uygulamanın 1.4
+  // (build 11) sürümünden itibaren içinde. Eski sürümlerde dosya olmadığı için
+  // bu kanal oluşturulmaz ve bildirimler 'default' kanaldan gelmeye devam eder.
+  // Android'de kanalın sesi sonradan değiştirilemediği için kanal id'si sürümlü.
+  APP.nativePushChannel = 'default';
+  const AppPlugin = window.Capacitor.Plugins.App;
+  APP.nativeChannelReady = (AppPlugin && AppPlugin.getInfo ? AppPlugin.getInfo() : Promise.resolve(null)).then(info => {
+    if(info && parseInt(info.build, 10) >= 11){
+      return PN.createChannel({
+        id: 'peyktan_v1', name: 'Peyktan Bildirimleri', description: 'Sipariş, garson çağrısı ve mesaj bildirimleri',
+        importance: 5, visibility: 1, vibration: true, lights: true, sound: 'peyktan.wav',
+      }).then(() => { APP.nativePushChannel = 'peyktan_v1'; }).catch(() => {});
+    }
+  }).catch(() => {});
   PN.addListener('registration', (token) => {
     if(_fcmTokenResolve){ _fcmTokenResolve(token.value); _fcmTokenResolve = null; }
   });
@@ -2424,7 +2438,7 @@ function setupNativeFcmListeners(){
       const session = getSession(); const item = NAV_ITEMS.find(i => i.view===data.view);
       if(session && item && navItemVisible(item, session)){ APP.view = data.view; if(data.view==='settings') APP.settingsTab = 'shifts'; render(); }
     } : null);
-    try{ playKitchenBell(null); }catch(e){}
+    playPeyktanSound();
     refreshNavBadges();
     const session = getSession();
     if(session && String(data.tag||'').startsWith('shift')){
@@ -2860,7 +2874,8 @@ async function togglePushNotifications(){
     if(permReq.receive !== 'granted'){ setStatus('Bildirim izni verilmedi.'); render(); return; }
     const token = await requestNativeFcmToken();
     if(!token){ setStatus('Cihaz kaydı alınamadı, lütfen tekrar deneyin.'); return; }
-    const { error } = await sb.rpc('save_fcm_token', { p_token: session.session_token, p_fcm_token: token });
+    await APP.nativeChannelReady;
+    const { error } = await sb.rpc('save_fcm_token', { p_token: session.session_token, p_fcm_token: token, p_channel: APP.nativePushChannel || 'default' });
     if(error){ setStatus('Kaydedilemedi: ' + error.message); return; }
     setSavedFcmToken(token);
     updatePushUI(true);
@@ -2976,7 +2991,8 @@ async function maybeShowPushPrompt(session){
 async function resyncNativePushSubscription(session){
   const token = await requestNativeFcmToken();
   if(!token) return;
-  const { error } = await sb.rpc('save_fcm_token', { p_token: session.session_token, p_fcm_token: token });
+  await APP.nativeChannelReady;
+    const { error } = await sb.rpc('save_fcm_token', { p_token: session.session_token, p_fcm_token: token, p_channel: APP.nativePushChannel || 'default' });
   if(!error) setSavedFcmToken(token);
 }
 async function resyncWebPushSubscription(session){

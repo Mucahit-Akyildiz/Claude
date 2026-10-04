@@ -34,6 +34,23 @@ function pushReminderBannerHtml(){
   </div>`;
 }
 function dismissPushBanner(){ APP.pushBannerDismissed = true; render(); }
+function renderMainView(main, session){
+  let p;
+  if(APP.view==='home') p = renderHome(main, session);
+  else if(APP.view==='order') p = renderOrderView(main, session);
+  else if(APP.view==='packages') p = renderPackagesView(main, session);
+  else if(APP.view==='kitchen') p = renderKitchenView(main, session);
+  else if(APP.view==='payments') p = renderPaymentsView(main, session);
+  else if(APP.view==='settings') p = renderSettingsView(main, session);
+  else if(APP.view==='reports') p = renderReportsView(main, session);
+  else if(APP.view==='printerSettings') p = renderPrinterSettingsView(main, session);
+  else if(APP.view==='notificationSettings') p = renderNotificationSettingsView(main, session);
+  else if(APP.view==='reservations') p = renderReservationsView(main, session);
+  else if(APP.view==='crm') p = renderCrmView(main, session);
+  else if(APP.view==='purchasing') p = renderPurchasingView(main, session);
+  else if(APP.view==='messages') p = renderMessagesView(main, session);
+  return Promise.resolve(p);
+}
 function render(){
   if(isAdminMode()){ renderAdminArea(); return; }
 
@@ -99,19 +116,7 @@ function render(){
       <div class="content-area"><div class="content-inner ${(APP.view==='settings'||APP.view==='reports')?'content-inner-wide':''}">${pushReminderBannerHtml()}${APP.view && APP.view!=='home' ? '<button type="button" class="back-link" onclick="goBack()">← Geri</button>' : ''}<main id="main"></main></div></div>
     </div>`;
   const main = document.getElementById('main');
-  if(APP.view==='home') renderHome(main, session);
-  else if(APP.view==='order') renderOrderView(main, session);
-  else if(APP.view==='packages') renderPackagesView(main, session);
-  else if(APP.view==='kitchen') renderKitchenView(main, session);
-  else if(APP.view==='payments') renderPaymentsView(main, session);
-  else if(APP.view==='settings') renderSettingsView(main, session);
-  else if(APP.view==='reports') renderReportsView(main, session);
-  else if(APP.view==='printerSettings') renderPrinterSettingsView(main, session);
-  else if(APP.view==='notificationSettings') renderNotificationSettingsView(main, session);
-  else if(APP.view==='reservations') renderReservationsView(main, session);
-  else if(APP.view==='crm') renderCrmView(main, session);
-  else if(APP.view==='purchasing') renderPurchasingView(main, session);
-  else if(APP.view==='messages') renderMessagesView(main, session);
+  renderMainView(main, session);
   applyNavBadges();
   if(APP.view==='order' || APP.view==='payments') setTimeout(refreshWaiterCalls, 900);
 }
@@ -221,6 +226,33 @@ async function refreshNavBadges(){
   if(error || !data) return;
   APP.navBadges = data;
   applyNavBadges();
+  // Uygulama simgesindeki sayı (kurulu web uygulamasında / destekleyen tarayıcıda).
+  const visible = NAV_ITEMS.filter(i => navItemVisible(i, s));
+  const total = visible.reduce((t, i) => t + (data[i.view] || 0), 0);
+  try{ if(navigator.setAppBadge){ total > 0 ? navigator.setAppBadge(total) : navigator.clearAppBadge(); } }catch(e){}
+  // Yeni bir bekleyen iş geldiyse Peyktan bildirim sesi (mutfak kendi zilini çalar).
+  const soundTotal = visible.filter(i => i.view!=='kitchen').reduce((t, i) => t + (data[i.view] || 0), 0);
+  if(APP.lastSoundTotal != null && soundTotal > APP.lastSoundTotal) playPeyktanSound();
+  APP.lastSoundTotal = soundTotal;
+}
+/* Peyktan'ın sabit bildirim sesi (assets/sounds/peyktan.wav - Android
+   uygulamasında aynı dosya res/raw/peyktan olarak bildirim kanalının sesi).
+   Cihazın/bilgisayarın varsayılan bildirim sesi yerine her yerde bu çalar.
+   Art arda gelen bildirimlerde 1,5 sn içinde tekrar çalmaz. */
+let PEYKTAN_SOUND_BUF = null, PEYKTAN_SOUND_LAST = 0;
+async function playPeyktanSound(){
+  if(Date.now() - PEYKTAN_SOUND_LAST < 1500) return;
+  PEYKTAN_SOUND_LAST = Date.now();
+  try{
+    KITCHEN_AUDIO_CTX = KITCHEN_AUDIO_CTX || new (window.AudioContext || window.webkitAudioContext)();
+    const ctx = KITCHEN_AUDIO_CTX;
+    if(ctx.state==='suspended') await ctx.resume();
+    if(!PEYKTAN_SOUND_BUF){
+      const r = await fetch('/assets/sounds/peyktan.wav');
+      PEYKTAN_SOUND_BUF = await ctx.decodeAudioData(await r.arrayBuffer());
+    }
+    const src = ctx.createBufferSource(); src.buffer = PEYKTAN_SOUND_BUF; src.connect(ctx.destination); src.start();
+  }catch(e){ console.warn('Bildirim sesi çalınamadı:', e); }
 }
 function startNavBadges(){
   refreshNavBadges();
@@ -274,15 +306,27 @@ function autoRefreshCurrentView(session){
   if(APP.view==='order' || APP.view==='packages'){ refreshOrderLiveStatus(session); return; }
   if(APP.view==='messages'){ refreshMessagesView(); return; }
   if(AUTO_REFRESH_SKIP.includes(APP.view) || uiBusyForAutoRefresh()) return;
+  // Çift tamponlu yenileme: ekranın o anki görüntüsü (kopya) yerinde kalır,
+  // asıl içerik arka planda yeniden çizilir ve hazır olunca tek seferde
+  // değiştirilir - "Yükleniyor…" yanıp sönmesi/sayfa zıplaması olmaz.
+  const main = document.getElementById('main'); if(!main || main.dataset.refreshing) return;
   const sc = document.scrollingElement ? document.scrollingElement.scrollTop : 0;
   const ca = document.querySelector('.content-area'); const caTop = ca ? ca.scrollTop : 0;
+  const snap = main.cloneNode(true);
+  snap.removeAttribute('id'); snap.querySelectorAll('[id]').forEach(e => e.removeAttribute('id'));
+  snap.style.pointerEvents = 'none';
+  main.parentNode.insertBefore(snap, main);
+  main.dataset.refreshing = '1'; main.style.display = 'none';
   APP.silentLoad = true;
-  render();
-  setTimeout(() => {
+  const finish = () => {
     APP.silentLoad = false;
+    snap.remove(); main.style.display = ''; delete main.dataset.refreshing;
     if(document.scrollingElement) document.scrollingElement.scrollTop = sc;
     const ca2 = document.querySelector('.content-area'); if(ca2) ca2.scrollTop = caTop;
-  }, 600);
+    applyNavBadges();
+  };
+  renderMainView(main, session).catch(() => {}).then(() => setTimeout(finish, 350));
+  setTimeout(() => { if(main.dataset.refreshing) finish(); }, 4000);
 }
 function todayLocalDateStr(){
   const d = new Date();
@@ -459,7 +503,18 @@ function setupPullToRefresh(){
   let startY = null, dy = 0, ind = null;
   const blocked = (t) => !getSession() || !document.querySelector('.app-shell')
     || (t.closest && t.closest('.floorplan-editor, .sidebar, input, textarea, select, [id$="ModalBg"], [id$="Modal"]'))
-    || document.querySelector('[id$="ModalBg"]');
+    || document.querySelector('[id$="ModalBg"]')
+    || (t.closest && t.closest('.chat-thread, .chat-list, .chat-tray'))
+    || insideScrolledBox(t);
+  // Kendi içinde kayan bir kutuda (sohbet, liste, tablo) yukarı kaydırılmışsa
+  // aşağı çekmek o kutuyu kaydırmalı, sayfayı yenilememeli.
+  function insideScrolledBox(el){
+    for(let n = el; n && n !== document.body && n.nodeType === 1; n = n.parentElement){
+      const oy = getComputedStyle(n).overflowY;
+      if((oy === 'auto' || oy === 'scroll') && n.scrollHeight > n.clientHeight + 2 && n.scrollTop > 0) return true;
+    }
+    return false;
+  }
   document.addEventListener('touchstart', (e) => {
     startY = null;
     if(e.touches.length !== 1 || window.scrollY > 0 || blocked(e.target)) return;
