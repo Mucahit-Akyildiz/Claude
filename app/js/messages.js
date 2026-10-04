@@ -442,9 +442,35 @@ async function fetchChatAttachment(id){
   if(error){ alert(error.message); return null; }
   CHAT_ATT_CACHE[id] = data; return data;
 }
-function loadChatAudio(id, btn){
+/* Sesi önce indirip (yönlendirmeyi izleyerek) blob olarak çalar; böylece erişim
+   hatası ya da çalınamayan biçim sessizce "0:00" kalmaz, nedeni gösterilir. */
+async function loadChatAudio(id, btn){
   const box = btn.closest('.chat-audio'); if(!box) return;
-  box.innerHTML = `<audio controls autoplay src="${chatFileUrl(id)}" style="max-width:240px;height:36px;"></audio>`;
+  box.innerHTML = '<span class="muted" style="font-size:12px;">⏳ Yükleniyor…</span>';
+  const fail = (msg) => { box.innerHTML = `<span style="font-size:12px;">⚠️ ${escapeHtml(msg)}</span> <button type="button" class="chat-audio-play" title="İndir" onclick="event.stopPropagation();downloadChatFile('${id}')">⬇</button>`; };
+  let blob;
+  try{
+    const r = await fetch(chatFileUrl(id));
+    if(!r.ok){
+      let msg = 'Ses yüklenemedi (' + r.status + ')';
+      try{ const j = await r.json(); if(j && j.error) msg = j.error; }catch(e){}
+      fail(msg); reportClientError('chat_audio', msg, id); return;
+    }
+    blob = await r.blob();
+  }catch(e){ fail('Ses indirilemedi, bağlantıyı kontrol edin'); reportClientError('chat_audio', 'fetch: ' + (e && e.message), id); return; }
+  const type = (blob.type || '').split(';')[0];
+  const probe = document.createElement('audio');
+  if(type && !probe.canPlayType(type)){ fail('Bu ses biçimi (' + type + ') bu cihazda çalınamıyor'); return; }
+  const url = URL.createObjectURL(blob);
+  box.innerHTML = `<audio controls src="${url}" style="max-width:240px;height:36px;"></audio>`;
+  const a = box.querySelector('audio');
+  a.onerror = () => { fail('Ses çalınamadı'); reportClientError('chat_audio', 'play error ' + type, id); };
+  // MediaRecorder kayıtlarında süre bilinmez (0:00 görünür); sona sarıp gerçek süreyi okut.
+  a.addEventListener('loadedmetadata', () => {
+    const play = () => a.play().catch(() => {});
+    if(a.duration === Infinity){ a.currentTime = 1e9; a.addEventListener('timeupdate', function f(){ a.removeEventListener('timeupdate', f); a.currentTime = 0; play(); }); }
+    else play();
+  }, { once: true });
 }
 function downloadChatFile(id){
   const m = (APP.chatRows||[]).find(x => x.id===id) || {};
