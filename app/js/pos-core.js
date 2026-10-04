@@ -1432,7 +1432,10 @@ async function refreshShiftWidget(session){
   const { data, error } = await sb.rpc('get_my_shift_status', { p_token: session.session_token });
   reportPollResult('shiftStatus', !error);
   if(error) return;
+  const wasGated = typeof shiftGateActive==='function' && shiftGateActive();
   APP.shiftStatus = data;
+  // Vardiya kapısı durumu değiştiyse (vardiya başladı/bitti, ayar değişti) ekranı yeniden çiz.
+  if(typeof shiftGateActive==='function' && wasGated !== shiftGateActive() && document.getElementById('main')) render();
   const el = document.getElementById('shiftWidget');
   if(el) el.innerHTML = shiftWidgetHtml();
 }
@@ -1445,7 +1448,7 @@ async function doClockToggle(){
   if(data && data.end_requested) showToast('Bitirme talebiniz yöneticiye iletildi');
   else if(data && data.end_request_cancelled) showToast('Bitirme talebi geri çekildi');
   else if(ending) showToast(st.pending ? 'Vardiya talebi geri çekildi' : 'Vardiya bitti ✓');
-  else showToast(data && data.pending ? 'Talebiniz yöneticiye iletildi, onaylanınca vardiyanız başlar' : 'Vardiya başladı ✓');
+  else showToast(data && data.pending ? (st.shift_required ? 'Talebiniz yöneticiye iletildi, çalışmaya başlayabilirsiniz ✓' : 'Talebiniz yöneticiye iletildi, onaylanınca vardiyanız başlar') : 'Vardiya başladı ✓');
   await refreshShiftWidget(session);
   refreshNavBadges();
 }

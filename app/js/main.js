@@ -34,7 +34,24 @@ function pushReminderBannerHtml(){
   </div>`;
 }
 function dismissPushBanner(){ APP.pushBannerDismissed = true; render(); }
+// "Vardiya açmadan çalışılamasın" açıkken vardiyası olmayan personel bu
+// ekranlarda vardiya başlatma ekranını görür (sunucu da ayrıca reddeder).
+const SHIFT_GATED_VIEWS = ['order','packages','kitchen','payments','reservations','purchasing'];
+function shiftGateActive(){
+  const st = APP.shiftStatus;
+  return !!(st && st.shift_required && !st.can_work && SHIFT_GATED_VIEWS.includes(APP.view));
+}
+function renderShiftGate(main){
+  const st = APP.shiftStatus || {};
+  main.innerHTML = `<div class="box" style="max-width:520px;margin:40px auto;text-align:center;">
+    <div style="font-size:54px;">🕒</div>
+    <h2 style="margin:8px 0;">Önce vardiyanızı başlatın</h2>
+    <p class="muted">Bu işletmede çalışma ekranlarını kullanmak için açık bir vardiyanız olmalı.${st.approval_required ? ' Talebinizi gönderdiğiniz anda çalışmaya başlayabilirsiniz; yönetici sonradan onaylar.' : ''}</p>
+    <button type="button" style="max-width:280px;margin:14px auto 0;font-size:16px;" onclick="doClockToggle()">▶ ${st.approval_required ? 'Vardiya Başlatma İste' : 'Vardiyaya Başla'}</button>
+  </div>`;
+}
 function renderMainView(main, session){
+  if(shiftGateActive()){ renderShiftGate(main); return Promise.resolve(); }
   let p;
   if(APP.view==='home') p = renderHome(main, session);
   else if(APP.view==='order') p = renderOrderView(main, session);
@@ -294,7 +311,7 @@ async function checkDataVersion(){
     if(error || data==null) return;
     const changed = DATA_VER_LAST!==null && data!==DATA_VER_LAST;
     DATA_VER_LAST = data;
-    if(changed){ refreshNavBadges(); refreshWaiterCalls(); autoRefreshCurrentView(session); }
+    if(changed){ refreshNavBadges(); refreshWaiterCalls(); refreshShiftWidget(session); autoRefreshCurrentView(session); }
   } finally { DATA_VER_BUSY = false; }
 }
 // Kullanıcı bir şey yazıyor/seçiyorsa ya da açık bir pencere varsa ekranı ellemeyiz.
