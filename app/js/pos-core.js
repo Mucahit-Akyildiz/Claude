@@ -785,6 +785,7 @@ async function lookupPayCustomer(){
     bg.dataset.customerPoints = '0';
     bg.dataset.redeemPoints = '0';
     bg.dataset.isBirthdayToday = '0';
+    delete bg.dataset.pointValue; delete bg.dataset.birthdayPct;
     redeemWrap.style.display = 'none';
     updatePayFinalTotalLine();
     return;
@@ -793,8 +794,11 @@ async function lookupPayCustomer(){
   bg.dataset.customerPoints = String(data.points_balance||0);
   bg.dataset.isBirthdayToday = data.is_birthday_today ? '1' : '0';
   const loyalty = (APP.config && APP.config.loyalty) || {};
-  const birthdayPct = loyalty.birthday_discount_percent || 0;
-  infoEl.textContent = data.name + ' · ' + data.points_balance + ' puan' +
+  // Müşteriye özel sadakat ayarı varsa onu kullan (sunucu genel ayarla birleştirip döner).
+  bg.dataset.pointValue = String(data.point_value ?? loyalty.point_value ?? 1);
+  bg.dataset.birthdayPct = String(data.birthday_discount_percent ?? loyalty.birthday_discount_percent ?? 0);
+  const birthdayPct = Number(bg.dataset.birthdayPct) || 0;
+  infoEl.textContent = data.name + ' · ' + data.points_balance + ' puan' + (data.custom_loyalty ? ' · ⭐ özel sadakat' : '') +
     (data.is_birthday_today && birthdayPct>0 ? ' · 🎂 Bugün doğum günü! %'+birthdayPct+' indirim uygulanacak' : '');
   if(loyalty.enabled && data.points_balance>0){
     redeemWrap.style.display = 'block';
@@ -938,9 +942,9 @@ function payFinalTotal(){
   const subtotal = parseFloat(bg.dataset.subtotal);
   const discountAmount = parseFloat(bg.dataset.discountAmount||0);
   const redeemPoints = parseFloat(bg.dataset.redeemPoints||0);
-  const pointValue = (APP.config && APP.config.loyalty && APP.config.loyalty.point_value) || 1;
+  const pointValue = bg.dataset.pointValue ? Number(bg.dataset.pointValue) : ((APP.config && APP.config.loyalty && APP.config.loyalty.point_value) || 1);
   const afterDiscounts = Math.max(0, subtotal - discountAmount - redeemPoints*pointValue);
-  const birthdayPct = bg.dataset.isBirthdayToday==='1' ? ((APP.config && APP.config.loyalty && APP.config.loyalty.birthday_discount_percent) || 0) : 0;
+  const birthdayPct = bg.dataset.isBirthdayToday==='1' ? (bg.dataset.birthdayPct ? Number(bg.dataset.birthdayPct) : ((APP.config && APP.config.loyalty && APP.config.loyalty.birthday_discount_percent) || 0)) : 0;
   return Math.max(0, afterDiscounts - afterDiscounts*birthdayPct/100);
 }
 async function finishPaymentFull(method){
