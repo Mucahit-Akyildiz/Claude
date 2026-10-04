@@ -112,6 +112,9 @@ begin
     select count(*) into n from login_staff(code, 'garson', 'Test1234') x where x.session_token is not null;
     insert into _results values ('giris_dogru_sifre', n = 1, 'oturum: ' || n);
   exception when others then insert into _results values ('giris_dogru_sifre', false, sqlerrm); end;
+  -- Giriş, aynı kullanıcının önceki oturumlarını kapatır (tek cihaz kuralı);
+  -- sonraki testler için test oturumu yeniden açılır.
+  update staff_sessions set expires_at = now() + interval '1 hour' where token = tok_w;
 
   -- ---- 8) OTP: 5 hatalı denemeden sonra doğru kod da reddedilir ----
   begin
