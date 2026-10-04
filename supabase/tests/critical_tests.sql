@@ -11,6 +11,8 @@
 begin;
 set local lock_timeout = '5s';
 set local statement_timeout = '60s';
+-- Bağlantı türüne göre (pooler/doğrudan) arama yolu farklı olabilir; crypt/gen_salt extensions şemasında.
+set local search_path = public, extensions, pg_temp;
 
 create temp table _results (name text, ok boolean, detail text);
 
@@ -23,6 +25,7 @@ declare
 
 begin
   -- ---- Fixture: geçici işletme, roller, kullanıcılar, masa, ürünler ----
+  begin
   insert into restaurants (name, code, package_id, is_active, expires_at)
     values ('CI Test', code, 'paket_kurumsal', true, now() + interval '30 days') returning id into r;
   insert into roles (restaurant_id, name, is_system, permissions) values (r, 'Yönetici', true, '{}') returning id into role_mgr;
@@ -38,6 +41,10 @@ begin
   insert into products (restaurant_id, name, price, cost, available, station_id) values (r, 'Köfte', 100, 40, true, st) returning id into p_recipe;
   insert into ingredients (restaurant_id, name, stock) values (r, 'Kıyma', 0.5) returning id into ing;
   insert into product_ingredients (product_id, ingredient_id, qty_per_unit) values (p_recipe, ing, 0.2);
+  exception when others then
+    insert into _results values ('fixture_kurulumu', false, sqlerrm);
+    return;
+  end;
 
   -- ---- 1) Sipariş gönderilir, mutfağa düşer ----
   begin
@@ -105,6 +112,9 @@ begin
     select count(*) into n from login_staff(code, 'garson', 'Test1234') x where x.session_token is not null;
     insert into _results values ('giris_dogru_sifre', n = 1, 'oturum: ' || n);
   exception when others then insert into _results values ('giris_dogru_sifre', false, sqlerrm); end;
+  -- Giriş, aynı kullanıcının önceki oturumlarını kapatır (tek cihaz kuralı);
+  -- sonraki testler için test oturumu yeniden açılır.
+  update staff_sessions set expires_at = now() + interval '1 hour' where token = tok_w;
 
   -- ---- 8) OTP: 5 hatalı denemeden sonra doğru kod da reddedilir ----
   begin

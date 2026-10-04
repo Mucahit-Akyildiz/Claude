@@ -35,4 +35,16 @@ jobs:
         if: ${{ env.HAS_DB == 'true' }}
         env:
           DB_URL: ${{ secrets.SUPABASE_DB_URL }}
-        run: psql "$DB_URL" -v ON_ERROR_STOP=1 -X -q -f supabase/tests/critical_tests.sql
+        run: |
+          set +e
+          psql "$DB_URL" -v ON_ERROR_STOP=1 -X -q -f supabase/tests/critical_tests.sql > out.txt 2>&1
+          code=$?
+          cat out.txt
+          # Sonuçlar ve hata mesajları iş akışı özetinde ve uyarı olarak da görünsün.
+          { echo '```'; cat out.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          if [ $code -ne 0 ]; then
+            grep -E 'KALDI|ERROR|BAŞARISIZ|FATAL' out.txt | head -20 | while IFS= read -r line; do echo "::error::$line"; done
+          else
+            grep -E 'GEÇTİ' out.txt | tr -s ' ' | head -20 | while IFS= read -r line; do echo "::notice::$line"; done
+          fi
+          exit $code
