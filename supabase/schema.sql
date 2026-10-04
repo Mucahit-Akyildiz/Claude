@@ -394,6 +394,19 @@ $$;
 
 
 --
+-- Name: _guard_owner_target(uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public._guard_owner_target(p_caller uuid, p_target uuid) RETURNS void
+    LANGUAGE plpgsql STABLE SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+begin
+  if _is_owner(p_target) and p_caller <> p_target then raise exception 'İşletme sahibinin hesabında değişiklik yapılamaz'; end if;
+end; $$;
+
+
+--
 -- Name: _h(text); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -425,6 +438,18 @@ CREATE FUNCTION public._is_manager(p_user uuid) RETURNS boolean
     SET search_path TO 'public', 'pg_temp'
     AS $$
   select exists(select 1 from app_users au join roles rl on rl.id = any(au.role_ids) where au.id = p_user and (rl.is_system or 'shifts' = any(rl.permissions)));
+$$;
+
+
+--
+-- Name: _is_owner(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public._is_owner(p_user uuid) RETURNS boolean
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+  select exists(select 1 from app_users au join roles rl on rl.id = any(au.role_ids) where au.id = p_user and rl.is_system);
 $$;
 
 
@@ -2256,61 +2281,25 @@ CREATE FUNCTION public.create_staff_user(p_token uuid, p_username text, p_passwo
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public', 'extensions', 'pg_temp'
     AS $$
-declare
-  s staff_sessions%rowtype;
-  new_id uuid;
-  v_max_users int;
-  v_current_count int;
-  v_caller_is_manager boolean;
-  v_valid_count int;
-  v_manager_role_count int;
-  v_company_id uuid;
-  v_package_id text;
+declare s staff_sessions%rowtype; new_id uuid; v_max_users int; v_current_count int; v_valid_count int; v_company_id uuid; v_package_id text;
 begin
   s := _session_check(p_token, 'settings_users');
-
-  if p_username is null or trim(p_username) = '' then
-    raise exception 'Kullanıcı adı gerekli';
-  end if;
-  if p_password is null or length(p_password) < 6 then
-    raise exception 'Şifre en az 6 karakter olmalı';
-  end if;
-
-  if p_role_ids is null or array_length(p_role_ids,1) is null or array_length(p_role_ids,1) > 2 then
-    raise exception 'Bir kullanıcıya en az 1, en fazla 2 rol atanabilir';
-  end if;
-
+  if p_username is null or trim(p_username) = '' then raise exception 'Kullanıcı adı gerekli'; end if;
+  if p_password is null or length(p_password) < 6 then raise exception 'Şifre en az 6 karakter olmalı'; end if;
+  if p_role_ids is null or array_length(p_role_ids,1) is null or array_length(p_role_ids,1) > 2 then raise exception 'Bir kullanıcıya en az 1, en fazla 2 rol atanabilir'; end if;
   select count(*) into v_valid_count from roles rl where rl.id = any(p_role_ids) and rl.restaurant_id = s.restaurant_id;
-  if v_valid_count <> array_length(p_role_ids,1) then
-    raise exception 'Geçersiz rol seçimi';
+  if v_valid_count <> array_length(p_role_ids,1) then raise exception 'Geçersiz rol seçimi'; end if;
+  if exists(select 1 from roles rl where rl.id = any(p_role_ids) and rl.is_system) then
+    raise exception 'Yönetici rolü yalnızca işletme sahibine aittir; tam yetki için tüm izinleri içeren bir rol oluşturun';
   end if;
-
-  select exists(
-    select 1 from app_users au join roles rl on rl.id = any(au.role_ids)
-    where au.id = s.user_id and rl.is_system
-  ) into v_caller_is_manager;
-  select count(*) into v_manager_role_count from roles rl where rl.id = any(p_role_ids) and rl.is_system;
-  if v_manager_role_count > 0 and not v_caller_is_manager then
-    raise exception 'Yönetici rolünü sadece yöneticiler atayabilir';
-  end if;
-
   select r.max_users, r.company_id, r.package_id into v_max_users, v_company_id, v_package_id from restaurants r where r.id = s.restaurant_id;
-  if v_company_id is not null then
-    select c.package_id into v_package_id from companies c where c.id = v_company_id;
-  end if;
+  if v_company_id is not null then select c.package_id into v_package_id from companies c where c.id = v_company_id; end if;
   select max_users into v_max_users from packages where id = v_package_id;
-
   select count(*) into v_current_count from app_users where restaurant_id = s.restaurant_id and not is_company_owner;
-  if v_current_count >= v_max_users then
-    raise exception 'Paketinizin kullanıcı limitine (%) ulaştınız', v_max_users;
-  end if;
-
-  insert into app_users (restaurant_id, username, password, role_ids)
-  values (s.restaurant_id, p_username, crypt(p_password, gen_salt('bf')), p_role_ids)
-  returning id into new_id;
+  if v_current_count >= v_max_users then raise exception 'Paketinizin kullanıcı limitine (%) ulaştınız', v_max_users; end if;
+  insert into app_users (restaurant_id, username, password, role_ids) values (s.restaurant_id, p_username, crypt(p_password, gen_salt('bf')), p_role_ids) returning id into new_id;
   return new_id;
-end;
-$$;
+end; $$;
 
 
 --
@@ -2526,9 +2515,9 @@ CREATE FUNCTION public.delete_staff_user(p_token uuid, p_user_id uuid) RETURNS v
 declare s staff_sessions%rowtype;
 begin
   s := _session_check(p_token, 'settings_users');
+  if _is_owner(p_user_id) then raise exception 'İşletme sahibinin hesabı silinemez'; end if;
   delete from app_users where id = p_user_id and restaurant_id = s.restaurant_id;
-end;
-$$;
+end; $$;
 
 
 --
@@ -5963,6 +5952,7 @@ declare s staff_sessions%rowtype;
 begin
   s := _session_check(p_token, 'settings_users');
   if p_user_id = s.user_id then raise exception 'Kendi hesabınızı pasife alamazsınız'; end if;
+  if _is_owner(p_user_id) then raise exception 'İşletme sahibi pasife alınamaz'; end if;
   update app_users set is_active = p_active where id = p_user_id and restaurant_id = s.restaurant_id and not is_company_owner;
   if not found then raise exception 'Kullanıcı bulunamadı'; end if;
   if not p_active then
@@ -6818,43 +6808,32 @@ CREATE FUNCTION public.update_staff_user(p_token uuid, p_user_id uuid, p_usernam
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public', 'extensions', 'pg_temp'
     AS $$
-declare
-  s staff_sessions%rowtype;
-  v_caller_is_manager boolean;
-  v_valid_count int;
-  v_manager_role_count int;
+declare s staff_sessions%rowtype; v_valid_count int; v_target_owner boolean;
 begin
   s := _session_check(p_token, 'settings_users');
-
-  if p_password is not null and length(p_password) < 6 then
-    raise exception 'Şifre en az 6 karakter olmalı';
-  end if;
-
+  perform _guard_owner_target(s.user_id, p_user_id);
+  v_target_owner := _is_owner(p_user_id);
+  if p_password is not null and length(p_password) < 6 then raise exception 'Şifre en az 6 karakter olmalı'; end if;
   if p_role_ids is not null then
-    if array_length(p_role_ids,1) is null or array_length(p_role_ids,1) > 2 then
-      raise exception 'Bir kullanıcıya en az 1, en fazla 2 rol atanabilir';
-    end if;
-    select count(*) into v_valid_count from roles rl where rl.id = any(p_role_ids) and rl.restaurant_id = s.restaurant_id;
-    if v_valid_count <> array_length(p_role_ids,1) then
-      raise exception 'Geçersiz rol seçimi';
-    end if;
-    select exists(
-      select 1 from app_users au join roles rl on rl.id = any(au.role_ids)
-      where au.id = s.user_id and rl.is_system
-    ) into v_caller_is_manager;
-    select count(*) into v_manager_role_count from roles rl where rl.id = any(p_role_ids) and rl.is_system;
-    if v_manager_role_count > 0 and not v_caller_is_manager then
-      raise exception 'Yönetici rolünü sadece yöneticiler atayabilir';
+    if v_target_owner then
+      -- Sahibin rolü değiştirilemez (Yönetici rolü her zaman onda kalır).
+      if not exists(select 1 from roles rl where rl.id = any(p_role_ids) and rl.is_system) or array_length(p_role_ids,1) <> 1 then
+        raise exception 'İşletme sahibinin Yönetici rolü değiştirilemez';
+      end if;
+    else
+      if array_length(p_role_ids,1) is null or array_length(p_role_ids,1) > 2 then raise exception 'Bir kullanıcıya en az 1, en fazla 2 rol atanabilir'; end if;
+      select count(*) into v_valid_count from roles rl where rl.id = any(p_role_ids) and rl.restaurant_id = s.restaurant_id;
+      if v_valid_count <> array_length(p_role_ids,1) then raise exception 'Geçersiz rol seçimi'; end if;
+      if exists(select 1 from roles rl where rl.id = any(p_role_ids) and rl.is_system) then
+        raise exception 'Yönetici rolü yalnızca işletme sahibine aittir; tam yetki için tüm izinleri içeren bir rol oluşturun';
+      end if;
     end if;
   end if;
-
-  update app_users set
-    username = coalesce(p_username, username),
+  update app_users set username = coalesce(p_username, username),
     password = case when p_password is not null then crypt(p_password, gen_salt('bf')) else password end,
     role_ids = coalesce(p_role_ids, role_ids)
   where id = p_user_id and restaurant_id = s.restaurant_id;
-end;
-$$;
+end; $$;
 
 
 --
