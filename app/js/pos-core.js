@@ -432,9 +432,37 @@ async function submitManualWaste(){
     p_token: session.session_token, p_order_item_id: null, p_product_id: productId, p_qty: qty,
     p_reason: note ? (reason+' - '+note) : reason
   });
-  if(error){ alert('Hata: '+error.message); btn.disabled = false; btn.textContent = 'İsraf Olarak Kaydet'; return; }
+  if(error){
+    btn.disabled = false; btn.textContent = 'İsraf Olarak Kaydet';
+    const m = /^STOK_YETERSIZ:(\d+)/.exec(error.message || '');
+    if(m) return showWasteStockPopup(Number(m[1]), qty, productId);
+    alert('Hata: '+error.message); return;
+  }
   closeWasteModal();
   showToast('🔥 İsraf kaydedildi, stoktan düşüldü');
+}
+/* Elle israf girerken stok yetmiyorsa: kalan stokla en fazla kaç adet
+   karşılanabildiğini söyler; miktarı düşür / stoğu güncelle / farklı ürün seç. */
+function showWasteStockPopup(maxQty, wanted, productId){
+  const prod = ((APP.config && APP.config.products) || []).find(p => p.id===productId);
+  const hasRecipe = !!(prod && prod.recipe && prod.recipe.length);
+  const session = getSession();
+  const canEditStock = session && (session.isManager || hasPerm(session, hasRecipe ? 'settings_ingredients' : 'settings_products'));
+  const bg = document.createElement('div');
+  bg.id = 'wasteStockModalBg';
+  bg.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:120;padding:16px;';
+  bg.onclick = (e) => { if(e.target===bg) bg.remove(); };
+  bg.innerHTML = `<div class="box" style="max-width:360px;width:100%;text-align:left;">
+    <h2 style="margin-top:0;">⚠️ Stok Yetersiz</h2>
+    <p style="margin:0 0 10px;font-size:14px;">${escapeHtml(prod ? prod.name : 'Bu ürün')} için ${wanted} adet israf girmek istediniz, ancak ${hasRecipe ? 'hammadde stoğunuz' : 'stoğunuz'} <b>en fazla ${maxQty} adet</b> için yeterli.</p>
+    <p class="muted" style="margin:0 0 14px;font-size:12.5px;text-align:left;">Miktarı düzeltin, stoğu güncelleyin ya da farklı bir ürün seçin.</p>
+    <div style="display:flex;flex-direction:column;gap:8px;">
+      ${maxQty > 0 ? `<button type="button" style="margin:0;" onclick="document.getElementById('wasteQty').value=${maxQty};document.getElementById('wasteStockModalBg').remove()">Miktarı ${maxQty} yap</button>` : ''}
+      ${canEditStock ? `<button type="button" class="ghost-btn" style="margin:0;" onclick="document.getElementById('wasteStockModalBg').remove();closeWasteModal();APP.settingsTab='${hasRecipe ? 'ingredients' : 'products'}';goToView('settings')">📦 Stoğu Güncelle</button>` : ''}
+      <button type="button" class="ghost-btn" style="margin:0;" onclick="document.getElementById('wasteStockModalBg').remove();document.getElementById('wasteProduct').focus()">Farklı Ürün Seç</button>
+    </div>
+  </div>`;
+  document.body.appendChild(bg);
 }
 function closeWasteModal(){ const bg = document.getElementById('wasteModalBg'); if(bg) bg.remove(); }
 async function submitWaste(itemId){
@@ -451,7 +479,8 @@ async function submitWaste(itemId){
   });
   if(error){ alert('Hata: '+error.message); btn.disabled = false; btn.textContent = 'İsraf Olarak Kaydet'; return; }
   closeWasteModal();
-  showToast('🔥 İsraf kaydedildi, stoktan düşüldü');
+  // Siparişteki ürünün hammaddesi siparişe eklendiğinde zaten düşülmüştü.
+  showToast('🔥 İsraf kaydedildi (stok sipariş anında düşülmüştü)');
   await refreshKitchenItems(session);
 }
 
