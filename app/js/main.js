@@ -433,6 +433,9 @@ initNativeAppMode();
 render();
 syncMyPermissions();
 startNavBadges();
+// Hatırlanan oturumun sunucudaki süresini her açılışta tazele (girişte
+// yazılamamış olsa bile kendini onarır).
+{ const s0 = getSession(); if(s0 && s0.remember) sb.rpc('set_session_remember', { p_token: s0.session_token }); }
 document.addEventListener('visibilitychange', () => { if(document.visibilityState==='visible'){ syncMyPermissions(); refreshNavBadges(); } });
 /* Push bildirimine tıklanınca zaten açık olan bir sekme varsa (bkz.
    sw.js notificationclick), sayfa yeniden yüklenmeden ilgili ekrana

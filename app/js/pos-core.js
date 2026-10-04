@@ -3432,7 +3432,7 @@ async function doLogin(){
       remember
     });
     try{ localStorage.setItem('rys_last_login', JSON.stringify({ code, username })); }catch(e){}
-    if(remember) sb.rpc('set_session_remember', { p_token: row.session_token });
+    if(remember) await sb.rpc('set_session_remember', { p_token: row.session_token });
     APP.reportsUnlocked = false;
     APP.reportsGateScreen = null;
     APP.config = null;
