@@ -210,7 +210,7 @@ async function renderWaitlistHistory(){
   const hm = (iso) => iso ? new Date(iso).toLocaleTimeString('tr-TR', { hour:'2-digit', minute:'2-digit' }) : '-';
   wrap.innerHTML = `<p class="muted" style="text-align:left;margin:0 0 10px;font-size:13px;">${rows.length} kayıt · ${seated.length} oturdu · ${rows.length - seated.length} ayrıldı${avg!=null ? ' · ortalama bekleme ' + avg + ' dk' : ''}</p>
     <div class="settings-table-wrap"><table class="settings-table">
-      <thead><tr><th>Müşteri</th><th>Kişi</th><th>Katılım</th><th>Sonuç</th><th>Bekleme</th><th>Tahmine göre</th></tr></thead>
+      <thead><tr><th>Müşteri</th><th>Kişi</th><th>Katılım</th><th>Sonuç</th><th>Masa</th><th>Bekleme</th><th>Tahmine göre</th></tr></thead>
       <tbody>${rows.map(r => {
         const waited = Number(r.waited_minutes||0);
         const q = r.quoted_wait_minutes;
@@ -223,7 +223,8 @@ async function renderWaitlistHistory(){
           <td class="col-name">${escapeHtml(r.customer_name)}${r.phone ? `<div class="muted" style="font-size:11.5px;">${escapeHtml(r.phone)}</div>` : ''}</td>
           <td>${r.party_size}</td>
           <td>${hm(r.joined_at)}</td>
-          <td>${r.status==='seated' ? `✅ ${hm(r.seated_at)}${r.table_name ? ' · ' + escapeHtml(r.table_name) : ''}` : `<span style="color:var(--red);">✕ Ayrıldı ${hm(r.left_at)}</span>`}</td>
+          <td>${r.status==='seated' ? `✅ ${hm(r.seated_at)}` : `<span style="color:var(--red);">✕ Ayrıldı ${hm(r.left_at)}</span>`}</td>
+          <td>${r.table_name ? `<b>${escapeHtml(r.table_name)}</b>` : '<span class="muted">—</span>'}</td>
           <td>${waited} dk${q!=null ? ` <span class="muted" style="font-size:11.5px;">(tahmin ${q})</span>` : ''}</td>
           <td>${diffTxt}</td>
         </tr>`;
