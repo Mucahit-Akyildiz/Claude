@@ -28,6 +28,14 @@ function chatAvatar(c, size){
 }
 /* Mesajlar ilk açıldığında mikrofon, kamera ve bildirim izinlerini toplu ister
    (sesli mesaj, kamera ve bildirimler için). Cihaz başına bir kez sorulur. */
+/* getUserMedia hatasını anlaşılır bir mesaja çevirir (izin mi, cihaz mı yok, meşgul mü). */
+function chatMediaErrorText(e, dev){
+  const n = (e && e.name) || '';
+  if(n === 'NotFoundError' || n === 'OverconstrainedError') return 'Bu cihazda ' + dev.toLocaleLowerCase('tr') + ' bulunamadı. Bağlı olduğundan emin olun.';
+  if(n === 'NotReadableError' || n === 'AbortError') return dev + ' şu an başka bir uygulama tarafından kullanılıyor. Onu kapatıp tekrar deneyin.';
+  if(n === 'NotAllowedError' || n === 'SecurityError') return dev + ' izni engellenmiş.\n\nBilgisayarda: adres çubuğunun solundaki 🔒 simgesine tıklayın → ' + dev + ' → İzin ver, sonra sayfayı yenileyin.\nTelefonda: Ayarlar → Uygulamalar → Peyktan → İzinler → ' + dev + '.';
+  return dev + ' açılamadı' + (n ? ' (' + n + ')' : '') + '.';
+}
 async function chatPermissionState(){
   const st = {};
   for(const n of ['microphone','camera']){
@@ -339,7 +347,7 @@ function toggleChatDictation(){
   const base = t.value ? t.value.replace(/\s*$/, ' ') : '';
   const rec = new SR(); rec.lang = 'tr-TR'; rec.interimResults = true; rec.continuous = true;
   rec.onresult = (e) => { let txt = ''; for(let i=0;i<e.results.length;i++) txt += e.results[i][0].transcript; t.value = base + txt; updateChatSendBtn(); };
-  rec.onerror = (e) => { if(e.error==='not-allowed') alert('Mikrofon izni verilmedi.'); stopChatDictation(); };
+  rec.onerror = (e) => { if(e.error==='not-allowed') alert(chatMediaErrorText({ name: 'NotAllowedError' }, 'Mikrofon')); stopChatDictation(); };
   rec.onend = () => stopChatDictation();
   try{ rec.start(); }catch(e){ return; }
   CHAT_REC = rec;
@@ -490,7 +498,7 @@ async function startChatVoice(){
   if(!navigator.mediaDevices || !window.MediaRecorder){ alert('Bu cihaz/tarayıcı ses kaydını desteklemiyor.'); return; }
   let stream;
   try{ stream = await navigator.mediaDevices.getUserMedia({ audio: true }); }
-  catch(e){ alert('Mikrofon izni verilmedi.'); return; }
+  catch(e){ alert(chatMediaErrorText(e, 'Mikrofon')); return; }
   const type = ['audio/webm;codecs=opus','audio/webm','audio/mp4','audio/ogg'].find(t => MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(t)) || '';
   const rec = new MediaRecorder(stream, type ? { mimeType: type, audioBitsPerSecond: 32000 } : undefined);
   const chunks = []; rec.ondataavailable = (e) => { if(e.data && e.data.size) chunks.push(e.data); };
