@@ -1,0 +1,4 @@
+-- Online sipariş sepet ayırma: public_cart_holds tablosu, _product_held_qty, _product_public_qty_for,
+-- set_public_cart_hold(p_restaurant_code, p_client, p_product_id, p_qty) (15 dk tutma),
+-- _check_request_stock(p_items, p_client) ve submit_public_order(..., p_client_id) canlıda uygulandı
+-- (tam tanımlar için bkz. supabase/schema.sql).
