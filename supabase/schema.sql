@@ -178,14 +178,17 @@ $$;
 --
 
 CREATE FUNCTION public._check_request_stock(p_items jsonb) RETURNS void
-    LANGUAGE plpgsql STABLE SECURITY DEFINER
+    LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public', 'pg_temp'
     AS $$
-declare rec record;
+declare rec record; v_left numeric;
 begin
-  for rec in select (x->>'product_id')::uuid pid, sum(coalesce((x->>'qty')::int,1)) q from jsonb_array_elements(p_items) x group by 1 loop
-    if _product_available_qty(rec.pid) is not null and _product_available_qty(rec.pid) < rec.q then
-      raise exception '% için yeterli stok yok (kalan: %)', (select name from products where id = rec.pid), greatest(_product_available_qty(rec.pid), 0);
+  for rec in select (x->>'product_id')::uuid pid, sum(coalesce((x->>'qty')::int,1)) q from jsonb_array_elements(p_items) x group by 1 order by 1 loop
+    -- Aynı anda gelen iki istek aynı son porsiyonları kapmasın diye ürün satırı kilitlenir.
+    perform 1 from products where id = rec.pid for update;
+    v_left := _product_public_qty(rec.pid);
+    if v_left is not null and v_left < rec.q then
+      raise exception '% için yeterli stok yok (kalan: %)', (select name from products where id = rec.pid), greatest(v_left, 0);
     end if;
   end loop;
 end; $$;
@@ -616,6 +619,34 @@ CREATE FUNCTION public._product_available_qty(p_product uuid) RETURNS integer
   select case when exists(select 1 from product_ingredients where product_id = p_product)
     then (select coalesce(floor(min(i.stock / pi.qty_per_unit))::int, 0) from product_ingredients pi join ingredients i on i.id = pi.ingredient_id where pi.product_id = p_product and pi.qty_per_unit > 0)
     else (select stock from products where id = p_product) end;
+$$;
+
+
+--
+-- Name: _product_public_qty(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public._product_public_qty(p_pid uuid) RETURNS numeric
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+  select case when _product_available_qty(p_pid) is null then null else _product_available_qty(p_pid) - _product_reserved_qty(p_pid) end;
+$$;
+
+
+--
+-- Name: _product_reserved_qty(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public._product_reserved_qty(p_pid uuid) RETURNS integer
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+  select coalesce(sum(coalesce((x->>'qty')::int, 1)), 0)::int
+  from customer_order_requests r cross join lateral jsonb_array_elements(r.items) x
+  where r.status = 'pending' and r.created_at > now() - interval '2 hours'
+    and r.restaurant_id = (select restaurant_id from products where id = p_pid)
+    and (x->>'product_id') = p_pid::text;
 $$;
 
 
@@ -3294,7 +3325,7 @@ begin
     'qr_ordering_enabled', _restaurant_has_feature(v_restaurant.id, 'qr_ordering'),
     'products', (
       select coalesce(json_agg(json_build_object(
-        'id', p.id, 'name', p.name, 'price', p.price, 'station_name', st.name, 'max_qty', _product_available_qty(p.id), 'name_translations', case when _restaurant_has_feature(v_restaurant.id, 'multilang_menu') then p.name_translations else null end
+        'id', p.id, 'name', p.name, 'price', p.price, 'station_name', st.name, 'max_qty', _product_public_qty(p.id), 'name_translations', case when _restaurant_has_feature(v_restaurant.id, 'multilang_menu') then p.name_translations else null end
       ) order by st.name, p.name), '[]'::json)
       from products p left join stations st on st.id = p.station_id
       where p.restaurant_id = v_table.restaurant_id and p.available = true
@@ -3329,7 +3360,7 @@ begin
     'products', (
       select coalesce(json_agg(json_build_object(
         'id', p.id, 'name', p.name, 'price', p.price, 'station_name', st.name, 'name_translations', case when _restaurant_has_feature(v_restaurant.id, 'multilang_menu') then p.name_translations else null end,
-        'image', (select data from product_images pi where pi.product_id = p.id), 'max_qty', _product_available_qty(p.id)
+        'image', (select data from product_images pi where pi.product_id = p.id), 'max_qty', _product_public_qty(p.id)
       ) order by st.name, p.name), '[]'::json)
       from products p left join stations st on st.id = p.station_id
       where p.restaurant_id = v_restaurant.id and p.available = true
