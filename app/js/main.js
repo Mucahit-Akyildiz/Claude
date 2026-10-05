@@ -301,13 +301,31 @@ function startNavBadges(){
    değere bakar; değişmişse rozetleri tazeler ve - kullanıcı bir form
    doldurmuyorsa/pencere açık değilse - mevcut ekranı sessizce yeniden çizer. ---- */
 let DATA_VER_TIMER = null, DATA_VER_LAST = null, DATA_VER_BUSY = false;
+let DATA_VER_CHANNEL = null, DATA_VER_PENDING = false;
 function startDataVersionWatch(){
   if(DATA_VER_TIMER) clearInterval(DATA_VER_TIMER);
-  DATA_VER_TIMER = setInterval(checkDataVersion, 3000);
-}
-async function checkDataVersion(){
+  // Anlık: sayaç değişince Supabase Realtime haber verir (sorgulamayı beklemeden).
+  // Bağlantı koparsa/kurulamazsa aralıklı sorgulama yedek olarak çalışmaya devam eder.
   const session = getSession();
-  if(!session || DATA_VER_BUSY || document.visibilityState!=='visible') return;
+  if(DATA_VER_CHANNEL){ try{ sb.removeChannel(DATA_VER_CHANNEL); }catch(e){} DATA_VER_CHANNEL = null; }
+  let live = false;
+  if(session && session.restaurant_id && sb.channel){
+    try{
+      DATA_VER_CHANNEL = sb.channel('dv-' + session.restaurant_id)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'data_versions', filter: 'restaurant_id=eq.' + session.restaurant_id }, () => checkDataVersion(true))
+        .subscribe(status => { live = status === 'SUBSCRIBED'; });
+    }catch(e){ DATA_VER_CHANNEL = null; }
+  }
+  // Realtime bağlıyken sorgulama seyrekleşir (her 3 sn yerine 15 sn'de bir).
+  let tick = 0;
+  clearInterval(DATA_VER_TIMER);
+  DATA_VER_TIMER = setInterval(() => { tick++; if(!live || tick % 5 === 0) checkDataVersion(); }, 3000);
+}
+async function checkDataVersion(fromRealtime){
+  const session = getSession();
+  if(!session || document.visibilityState!=='visible') return;
+  // Sorgu sürerken gelen bildirim kaybolmasın: bittikten sonra bir kez daha bakılır.
+  if(DATA_VER_BUSY){ if(fromRealtime) DATA_VER_PENDING = true; return; }
   DATA_VER_BUSY = true;
   try{
     const { data, error } = await sb.rpc('get_data_version', { p_token: session.session_token });
@@ -315,7 +333,10 @@ async function checkDataVersion(){
     const changed = DATA_VER_LAST!==null && data!==DATA_VER_LAST;
     DATA_VER_LAST = data;
     if(changed){ refreshNavBadges(); refreshWaiterCalls(); refreshShiftWidget(session); autoRefreshCurrentView(session); }
-  } finally { DATA_VER_BUSY = false; }
+  } finally {
+    DATA_VER_BUSY = false;
+    if(DATA_VER_PENDING){ DATA_VER_PENDING = false; setTimeout(() => checkDataVersion(), 50); }
+  }
 }
 // Kullanıcı bir şey yazıyor/seçiyorsa ya da açık bir pencere varsa ekranı ellemeyiz.
 function uiBusyForAutoRefresh(){
