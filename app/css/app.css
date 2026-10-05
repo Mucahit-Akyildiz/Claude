@@ -695,3 +695,11 @@ button.chat-once{cursor:pointer;}
 .chat-row.mine .chat-once{background:rgba(255,255,255,.15);}
 .chat-react-more{font-size:20px !important;font-weight:700;color:var(--muted) !important;background:var(--panel2) !important;border-radius:50% !important;width:34px;height:34px;}
 .chat-pending .chat-msg{opacity:.75;}
+/* Tüm kaydırılabilir alanlarda (pencereler, listeler) ince ve temaya uyumlu kaydırma çubuğu;
+   tarayıcının kalın siyah/gri varsayılan çubuğu içeriği kaydırıp kötü görünüyordu. */
+*{scrollbar-width:thin;scrollbar-color:rgba(0,143,168,.35) transparent;}
+*::-webkit-scrollbar{width:6px;height:6px;}
+*::-webkit-scrollbar-track{background:transparent;}
+*::-webkit-scrollbar-thumb{background:rgba(0,143,168,.30);border-radius:999px;}
+*::-webkit-scrollbar-thumb:hover{background:rgba(0,143,168,.55);}
+*::-webkit-scrollbar-button{display:none;}
