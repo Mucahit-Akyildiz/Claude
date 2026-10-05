@@ -1,49 +1,56 @@
 // Mesaj eki indirme/görüntüleme: erişim kontrolü veritabanında yapılır
-// (get_chat_attachment / open_view_once). Depodaki dosya için kısa süreli
-// imzalı adrese yönlendirir; eski (veritabanında tutulan) ekleri doğrudan
-// döner. Tek görüntülemelik fotoğraf proxy'lenir ve özel mesajda açıldıktan
-// sonra depodan silinir.
+// (get_chat_attachment / open_view_once). Dosya bu fonksiyon üzerinden
+// aktarılır (imzalı adrese yönlendirme yok): oturum anahtarı başlıkta gelir,
+// URL'ye yazılmaz. Güvenlik için içerik türü izinli listeden seçilir; görsel ve
+// ses dışındaki her şey indirme olarak (attachment) ve kod çalıştırılamaz
+// şekilde (CSP sandbox) gönderilir - HTML/SVG "dosya" peyktan.com'da açılamaz.
+// Tek görüntülemelik fotoğraf açıldıktan sonra (gerekirse) depodan silinir.
 const { createClient } = require('@supabase/supabase-js');
 
-function sendDataUrl(res, dataUrl, name, noStore) {
-  const m = /^data:([^;,]+)?(?:;[^,]*)?;base64,(.*)$/.exec(dataUrl || '');
-  if (!m) { res.status(404).end(); return; }
-  res.setHeader('Content-Type', m[1] || 'application/octet-stream');
-  res.setHeader('Cache-Control', noStore ? 'no-store' : 'private, max-age=3600');
-  if (name) res.setHeader('Content-Disposition', 'inline; filename*=UTF-8\'\'' + encodeURIComponent(name));
-  res.status(200).send(Buffer.from(m[2], 'base64'));
+const INLINE_TYPES = {
+  image: ['image/jpeg', 'image/png', 'image/gif', 'image/webp'],
+  audio: ['audio/webm', 'audio/ogg', 'audio/mp4', 'audio/mpeg', 'audio/aac', 'audio/wav', 'audio/x-wav', 'audio/amr', 'audio/3gpp'],
+};
+
+function send(res, buf, rawType, kind, name, opts) {
+  const type = String(rawType || '').split(';')[0].trim().toLowerCase();
+  const allowed = (INLINE_TYPES[kind] || []).includes(type);
+  res.setHeader('Content-Type', allowed ? type : 'application/octet-stream');
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('Content-Security-Policy', "default-src 'none'; sandbox");
+  res.setHeader('Cache-Control', opts.noStore ? 'no-store' : 'private, max-age=600');
+  const disp = allowed && !opts.download ? 'inline' : 'attachment';
+  res.setHeader('Content-Disposition', disp + "; filename*=UTF-8''" + encodeURIComponent(name || 'dosya'));
+  res.status(200).send(buf);
+}
+
+function fromDataUrl(dataUrl) {
+  const m = /^data:([^;,]+)?(?:;[^,]*)?;base64,([A-Za-z0-9+/=]+)$/.exec(dataUrl || '');
+  return m ? { type: m[1], buf: Buffer.from(m[2], 'base64') } : null;
 }
 
 module.exports = async function handler(req, res) {
   try {
-    const { id, t, once } = req.query || {};
-    if (!id || !t) { res.status(400).end(); return; }
+    const { id, once, dl } = req.query || {};
+    const token = req.headers['x-session-token'] || (req.query || {}).t;
+    if (!id || !token) { res.status(400).end(); return; }
     const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
-    if (once === '1') {
-      const { data, error } = await supabase.rpc('open_view_once', { p_token: t, p_message_id: id });
-      if (error || !data) { res.status(403).json({ error: (error && error.message) || 'Açılamadı' }); return; }
-      if (String(data.data || '').startsWith('storage:')) {
-        const path = data.data.slice(8);
-        const { data: blob, error: dErr } = await supabase.storage.from('chat-media').download(path);
-        if (dErr || !blob) { res.status(404).end(); return; }
-        if (data.remove) await supabase.storage.from('chat-media').remove([path]);
-        res.setHeader('Content-Type', blob.type || 'image/jpeg');
-        res.setHeader('Cache-Control', 'no-store');
-        res.status(200).send(Buffer.from(await blob.arrayBuffer()));
-        return;
-      }
-      sendDataUrl(res, data.data, null, true); return;
-    }
-    const { data, error } = await supabase.rpc('get_chat_attachment', { p_token: t, p_message_id: id });
+    const rpc = once === '1' ? 'open_view_once' : 'get_chat_attachment';
+    const { data, error } = await supabase.rpc(rpc, { p_token: token, p_message_id: id });
     if (error || !data || !data.data) { res.status(403).json({ error: (error && error.message) || 'Bulunamadı' }); return; }
+    const kind = once === '1' ? 'image' : data.kind;
+    const opts = { noStore: once === '1', download: dl === '1' || kind === 'file' };
     if (String(data.data).startsWith('storage:')) {
-      const { data: signed, error: sErr } = await supabase.storage.from('chat-media')
-        .createSignedUrl(data.data.slice(8), 3600, req.query.dl ? { download: data.name || true } : undefined);
-      if (sErr || !signed) { res.status(404).end(); return; }
-      res.setHeader('Cache-Control', 'private, max-age=3000');
-      res.redirect(302, signed.signedUrl); return;
+      const path = data.data.slice(8);
+      const { data: blob, error: dErr } = await supabase.storage.from('chat-media').download(path);
+      if (dErr || !blob) { res.status(404).end(); return; }
+      if (once === '1' && data.remove) await supabase.storage.from('chat-media').remove([path]);
+      send(res, Buffer.from(await blob.arrayBuffer()), blob.type, kind, data.name, opts);
+      return;
     }
-    sendDataUrl(res, data.data, data.name, false);
+    const d = fromDataUrl(data.data);
+    if (!d) { res.status(404).end(); return; }
+    send(res, d.buf, d.type, kind, data.name, opts);
   } catch (e) {
     res.status(500).end();
   }

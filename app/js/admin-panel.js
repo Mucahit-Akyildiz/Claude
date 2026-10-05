@@ -103,8 +103,8 @@ async function renderSmsAdmin(main, admin){
           <option value="">— Kapalı (sadece kayıt) —</option>
           <option value="netgsm" ${data.provider==='netgsm'?'selected':''}>Netgsm</option>
         </select></div>
-        <div class="field-group"><label>Gönderici Başlığı</label><input id="smsHeader" value="${escapeHtml(data.header||'')}" placeholder="örn. PEYKTAN"></div>
-        <div class="field-group"><label>Kullanıcı Kodu</label><input id="smsUser" value="${escapeHtml(data.username||'')}" autocapitalize="none"></div>
+        <div class="field-group"><label>Gönderici Başlığı</label><input id="smsHeader" value="${escapeAttr(data.header||'')}" placeholder="örn. PEYKTAN"></div>
+        <div class="field-group"><label>Kullanıcı Kodu</label><input id="smsUser" value="${escapeAttr(data.username||'')}" autocapitalize="none"></div>
         <div class="field-group"><label>Şifre</label><input id="smsPass" type="password" placeholder="${data.password_set?'(kayıtlı - değiştirmek için yaz)':'Şifre'}"></div>
       </div>
       <button style="max-width:200px;margin-top:10px;" onclick="saveSmsAdmin()">${ICON_SAVE}<span>Kaydet</span></button>

@@ -1,0 +1,9 @@
+-- Canlıda uygulandı (güvenlik düzeltmeleri):
+-- send_chat_message: data: eki baştan sona base64 olmalı.
+-- toggle_chat_reaction: yalnızca emoji (harf/rakam/boşluk/noktalama yok; 1️⃣ gibi tuş emojileri hariç).
+-- get_chat_attachment: tek görüntülemelik mesaj eki bu yoldan verilmez.
+-- open_view_once: grupta/genelde herkes açınca ek silinir.
+-- update_chat_group: yalnızca kuran ya da işletme sahibi (_is_owner).
+-- _set_cart_hold: IP başına hız sınırı ve en fazla 5 açık sepet, 10 dk tutma; set_public_cart_hold /
+--   set_qr_cart_hold online/QR sipariş açık mı kontrol eder. public_cart_holds.ip kolonu.
+-- cron: cleanup_public_cart_holds (10 dk'da bir süresi dolanları temizler).
