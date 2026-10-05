@@ -12,15 +12,15 @@ const SETTINGS_TABS = [
   { tab:'flags', perm:'settings_flags', label:'Sipariş Etiketleri' },
   { tab:'users', perm:'settings_users', label:'Kullanıcılar' },
   { tab:'shifts', perm:'shifts', label:'Vardiyalar' },
-  { tab:'billing', managerOnly:true, label:'💳 Abonelik' },
-  { tab:'roles', managerOnly:true, label:'Roller' },
-  { tab:'integrations', managerOnly:true, label:'Entegrasyonlar' },
+  { tab:'billing', perm:'settings_billing', label:'💳 Abonelik' },
+  { tab:'roles', perm:'settings_roles', label:'Roller' },
+  { tab:'integrations', perm:'settings_integrations', label:'Entegrasyonlar' },
   { tab:'giftcards', perm:'payments', label:'🎁 Hediye Kartları' },
-  { tab:'datareset', managerOnly:true, label:'🗑️ Veri Sıfırlama' },
+  { tab:'datareset', perm:'settings_datareset', label:'🗑️ Veri Sıfırlama' },
 ];
 function settingsTabVisible(t, session){
   if(t.feature && !hasFeature(t.feature)) return false;
-  return t.managerOnly ? !!session.isManager : hasPerm(session, t.perm);
+  return t.managerOnly ? !!session.isManager : canManage(session, t.perm);
 }
 async function renderSettingsView(main, session){
   const { data, error } = await sb.rpc('get_restaurant_config', { p_token: session.session_token });
@@ -927,13 +927,13 @@ async function renderShiftsTable(session){
   if(error){ wrap.innerHTML = '<p class="muted">Yüklenemedi: '+error.message+'</p>'; return; }
   const approvalWrap = document.getElementById('shiftApprovalWrap');
   if(approvalWrap) approvalWrap.innerHTML = `
-    <label style="display:flex;align-items:flex-start;gap:10px;margin:0 0 14px;cursor:${session.isManager?'pointer':'default'};">
-      <input type="checkbox" style="width:auto;margin-top:3px;" ${data.approval_required?'checked':''} ${session.isManager?'':'disabled'} onchange="toggleShiftApproval(this.checked)">
+    <label style="display:flex;align-items:flex-start;gap:10px;margin:0 0 14px;cursor:${canManage(session,'shifts')?'pointer':'default'};">
+      <input type="checkbox" style="width:auto;margin-top:3px;" ${data.approval_required?'checked':''} ${canManage(session,'shifts')?'':'disabled'} onchange="toggleShiftApproval(this.checked)">
       <span><b>Vardiya başlatma yönetici onayına bağlı</b><br>
-      <span class="muted" style="font-size:12.5px;">Açıkken personel vardiyayı sadece <i>isteyebilir</i>; siz onayladığınızda başlar ve vardiyayı yalnızca yönetici bitirebilir.${session.isManager?'':' (Bu ayarı Yönetici değiştirebilir.)'}</span></span>
+      <span class="muted" style="font-size:12.5px;">Açıkken personel vardiyayı sadece <i>isteyebilir</i>; siz onayladığınızda başlar ve vardiyayı yalnızca yönetici bitirebilir.${canManage(session,'shifts')?'':' (Bu ayarı Yönetici değiştirebilir.)'}</span></span>
     </label>
-    <label style="display:flex;align-items:flex-start;gap:10px;margin:0 0 14px;cursor:${session.isManager?'pointer':'default'};">
-      <input type="checkbox" style="width:auto;margin-top:3px;" ${data.shift_required?'checked':''} ${session.isManager?'':'disabled'} onchange="toggleShiftRequired(this.checked)">
+    <label style="display:flex;align-items:flex-start;gap:10px;margin:0 0 14px;cursor:${canManage(session,'shifts')?'pointer':'default'};">
+      <input type="checkbox" style="width:auto;margin-top:3px;" ${data.shift_required?'checked':''} ${canManage(session,'shifts')?'':'disabled'} onchange="toggleShiftRequired(this.checked)">
       <span><b>Vardiya açmadan çalışılamasın</b><br>
       <span class="muted" style="font-size:12.5px;">Açıkken personel vardiyasını başlatmadan Sipariş Al, Paket, Mutfak, Ödemeler, Rezervasyon ve Satın Alma ekranlarını kullanamaz. Vardiya talebini gönderdiği anda çalışmaya başlayabilir; onayı siz sonradan verirsiniz. Yöneticiler bu kuraldan muaftır.</span></span>
     </label>`;

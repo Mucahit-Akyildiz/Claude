@@ -27,6 +27,8 @@ const PERMISSION_LABELS = {
   shifts: 'Vardiyalar',
 };
 function hasPerm(session, perm){ return (session.permissions||[]).includes(perm); }
+/* Yönetici (işletme sahibi) her şeyi yapar; diğerleri ilgili izin rollerine verilmişse. */
+function canManage(session, perm){ return !!session.isManager || hasPerm(session, perm); }
 /* Tedarikçi & Satın Alma alt izinleri: purchasing_orders (sipariş verme),
    purchasing_manage (onay/teslim/iptal), purchasing_suppliers (tedarikçiler).
    Eski 'purchasing' izni ve Yönetici hepsini kapsar. */
@@ -116,8 +118,8 @@ const NAV_ITEMS = [
    yüklenmediyse false döner - eklenti arayüzü config gelene kadar gizli kalır. */
 function hasFeature(f){ return !!(APP.config && (APP.config.features||[]).includes(f)); }
 function navItemVisible(item, session){
-  if(item.view==='reports') return !!session.isManager;
-  if(item.view==='printerSettings') return !!session.isManager;
+  if(item.view==='reports') return canManage(session, 'reports');
+  if(item.view==='printerSettings') return canManage(session, 'printer_settings');
   // Mesajlaşma rol izniyle açılır (Ayarlar > Roller); Yönetici her zaman görür.
   if(item.view==='messages') return !!session.isManager || hasPerm(session, 'messages');
   if(item.view==='settings') return session.isManager || (session.permissions||[]).some(p => p.startsWith('settings_'));

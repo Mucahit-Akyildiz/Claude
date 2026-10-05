@@ -7,7 +7,7 @@ async function renderCrmView(main, session){
   APP.crmRows = rows;
   const loyalty = APP.config.loyalty || { enabled:false, spend_per_point:10, point_value:1, birthday_discount_percent:0 };
   main.innerHTML = `<h1>Müşteriler</h1>
-    ${session.isManager ? `
+    ${canManage(session, 'crm') ? `
     <div class="box" style="max-width:none;">
       <h2>Sadakat Programı</h2>
       <label style="display:flex;align-items:center;gap:8px;font-weight:600;margin-bottom:10px;">
