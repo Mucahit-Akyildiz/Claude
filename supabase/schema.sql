@@ -75,6 +75,7 @@ begin
   if j ? 'restaurant_id' then r := (j->>'restaurant_id')::uuid;
   elsif TG_TABLE_NAME = 'order_items' then select restaurant_id into r from orders where id = (j->>'order_id')::uuid;
   elsif TG_TABLE_NAME = 'purchase_order_items' then select restaurant_id into r from purchase_orders where id = (j->>'purchase_order_id')::uuid;
+  elsif TG_TABLE_NAME = 'chat_reactions' then select restaurant_id into r from chat_messages where id = (j->>'message_id')::uuid;
   end if;
   if r is not null then
     insert into data_versions(restaurant_id, v, updated_at) values (r, 1, now())
