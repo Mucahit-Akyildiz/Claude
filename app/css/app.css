@@ -694,3 +694,4 @@ div.table-cell.badge-row::before{content:'● Hazır, ödeme bekliyor';margin:0 
 button.chat-once{cursor:pointer;}
 .chat-row.mine .chat-once{background:rgba(255,255,255,.15);}
 .chat-react-more{font-size:20px !important;font-weight:700;color:var(--muted) !important;background:var(--panel2) !important;border-radius:50% !important;width:34px;height:34px;}
+.chat-pending .chat-msg{opacity:.75;}

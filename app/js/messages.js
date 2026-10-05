@@ -291,12 +291,20 @@ async function postChat(body, attachment, kind, name){
   if(attachment) return uploadChatAttachment(typeof attachment === 'string' ? dataUrlToBlob(attachment) : attachment, kind, name, body);
   const session = getSession();
   const reply = APP.chatReply;
+  // Mesaj sunucuya gitmeden ekranda hemen görünsün (⏱ gönderiliyor); liste yenilenince gerçeğiyle değişir.
+  const th = document.getElementById('chatThread');
+  if(th && body){
+    const tmp = document.createElement('div');
+    tmp.className = 'chat-row mine last chat-pending';
+    tmp.innerHTML = `<div class="chat-msg"><div class="chat-body">${escapeHtml(body)}</div><div class="chat-time">${new Date().toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'})} <span class="chat-tick" title="Gönderiliyor">⏱</span></div></div>`;
+    th.appendChild(tmp); th.scrollTop = th.scrollHeight;
+  }
   const { error } = await sb.rpc('send_chat_message', { p_token: session.session_token, p_conv: APP.chatConv, p_body: body || '', p_attachment: attachment || null,
     p_kind: kind || null, p_name: name || null, p_reply_to: reply ? reply.id : null });
-  if(error){ alert(error.message); return false; }
+  if(error){ document.querySelectorAll('.chat-pending').forEach(e => e.remove()); alert(error.message); return false; }
   cancelChatReply();
   const el = document.getElementById('chatThread'); if(el) delete el.dataset.loaded;
-  await refreshChatThread();
+  refreshChatThread();
   refreshChatList();
   return true;
 }
