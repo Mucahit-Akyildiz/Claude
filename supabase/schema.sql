@@ -76,6 +76,7 @@ begin
   elsif TG_TABLE_NAME = 'order_items' then select restaurant_id into r from orders where id = (j->>'order_id')::uuid;
   elsif TG_TABLE_NAME = 'purchase_order_items' then select restaurant_id into r from purchase_orders where id = (j->>'purchase_order_id')::uuid;
   elsif TG_TABLE_NAME = 'chat_reactions' then select restaurant_id into r from chat_messages where id = (j->>'message_id')::uuid;
+  elsif TG_TABLE_NAME = 'chat_reads' then select restaurant_id into r from app_users where id = (j->>'user_id')::uuid;
   end if;
   if r is not null then
     insert into data_versions(restaurant_id, v, updated_at) values (r, 1, now())
@@ -1023,9 +1024,14 @@ CREATE FUNCTION public._set_cart_hold(p_rid uuid, p_client text, p_product_id uu
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public', 'pg_temp'
     AS $_$
-declare v_left numeric; v_qty int := greatest(0, least(coalesce(p_qty,0), 20));
+declare v_left numeric; v_qty int := greatest(0, least(coalesce(p_qty,0), 20)); v_ip text := coalesce(_client_ip(), '');
 begin
   if p_client is null or length(p_client) < 8 or length(p_client) > 64 then raise exception 'Geçersiz istemci'; end if;
+  -- Kötüye kullanım sınırları: IP başına istek sayısı, IP başına aynı anda en fazla 5 sepet,
+  -- sepet başına en fazla 30 ürün satırı. (Personel siparişleri bu ayırmalardan etkilenmez.)
+  perform _rate_limit('cart_hold_ip', v_ip, 150, interval '10 minutes');
+  if v_qty > 0 and v_ip <> '' and (select count(distinct client_id) from public_cart_holds where ip = v_ip and client_id <> p_client and expires_at > now()) >= 5 then
+    raise exception 'Çok fazla açık sepet, lütfen biraz sonra tekrar deneyin'; end if;
   perform 1 from products where id = p_product_id and restaurant_id = p_rid for update;
   if not found then raise exception 'Geçersiz ürün'; end if;
   if v_qty > 0 and (select count(*) from public_cart_holds where client_id = p_client and product_id <> p_product_id and expires_at > now()) >= 30 then raise exception 'Çok fazla ürün'; end if;
@@ -1034,10 +1040,10 @@ begin
   if v_qty = 0 then
     execute 'de'||'lete from public_cart_holds where client_id = $1 and product_id = $2' using p_client, p_product_id;
   else
-    insert into public_cart_holds(client_id, product_id, restaurant_id, qty, expires_at) values (p_client, p_product_id, p_rid, v_qty, now() + interval '15 minutes')
-      on conflict (client_id, product_id) do update set qty = excluded.qty, expires_at = excluded.expires_at;
+    insert into public_cart_holds(client_id, product_id, restaurant_id, qty, expires_at, ip) values (p_client, p_product_id, p_rid, v_qty, now() + interval '10 minutes', v_ip)
+      on conflict (client_id, product_id) do update set qty = excluded.qty, expires_at = excluded.expires_at, ip = excluded.ip;
   end if;
-  update public_cart_holds set expires_at = now() + interval '15 minutes' where client_id = p_client and expires_at > now();
+  update public_cart_holds set expires_at = now() + interval '10 minutes' where client_id = p_client and expires_at > now();
   return v_qty;
 end; $_$;
 
@@ -2948,7 +2954,7 @@ declare s staff_sessions%rowtype; m chat_messages%rowtype;
 begin
   s := _session_check(p_token, 'messages');
   select * into m from chat_messages where id = p_message_id and restaurant_id = s.restaurant_id;
-  if m.id is null or m.deleted_at is not null or not _chat_can_see(m, s.user_id) then raise exception 'Dosya bulunamadı'; end if;
+  if m.id is null or m.deleted_at is not null or m.view_once or not _chat_can_see(m, s.user_id) then raise exception 'Dosya bulunamadı'; end if;
   return json_build_object('data', m.attachment, 'kind', m.attachment_kind, 'name', m.attachment_name);
 end; $$;
 
@@ -2971,7 +2977,14 @@ begin
     v_peer := p_conv::uuid;
     if not exists(select 1 from app_users where id = v_peer and restaurant_id = s.restaurant_id) then raise exception 'Kullanıcı bulunamadı'; end if;
   end if;
-  insert into chat_reads(user_id, conv, last_read_at) values (s.user_id, p_conv, now()) on conflict (user_id, conv) do update set last_read_at = now();
+  -- Okundu yalnızca okunmamış yeni mesaj varsa yazılır: okundu bilgisi anlık yayılır (veri sayacı)
+  -- ama her yenilemede yazılmadığı için ekranlar birbirini sonsuza dek yenilemez.
+  if not exists(select 1 from chat_reads where user_id = s.user_id and conv = p_conv)
+     or exists(select 1 from chat_messages m where m.restaurant_id = s.restaurant_id and m.sender_id <> s.user_id
+               and m.created_at > (select last_read_at from chat_reads where user_id = s.user_id and conv = p_conv)
+               and _chat_conv_of(m, s.user_id) = p_conv) then
+    insert into chat_reads(user_id, conv, last_read_at) values (s.user_id, p_conv, now()) on conflict (user_id, conv) do update set last_read_at = now();
+  end if;
   return (select coalesce(json_agg(t order by t.created_at), '[]'::json) from (
     select m.id, m.sender_id, au.username sender_name, m.created_at, m.sender_id = s.user_id mine,
       m.deleted_at is not null deleted,
@@ -4403,8 +4416,9 @@ begin
     on conflict (fingerprint) where not resolved do update set count = client_errors.count + 1, last_at = now(),
       restaurant_id = coalesce(excluded.restaurant_id, client_errors.restaurant_id), view = coalesce(excluded.view, client_errors.view)
     returning * into v_row;
-  -- Tekrarlayan (5+) ya da yeni bir hata: platform yöneticisine e-posta (aynı hata için 6 saatte bir).
-  if v_row.count >= 5 and (v_row.notified_at is null or v_row.notified_at < now() - interval '6 hours') then
+  -- Yeni bir hata (ilk kez) ya da tekrarlayan (5+) hata: platform yöneticisine e-posta (aynı hata için 6 saatte bir, toplam saatte en fazla 20).
+  if (v_row.count = 1 or v_row.count >= 5) and (v_row.notified_at is null or v_row.notified_at < now() - interval '6 hours')
+     and (select count(*) from client_errors where notified_at > now() - interval '1 hour') < 20 then
     update client_errors set notified_at = now() where id = v_row.id;
     select value into v_key from platform_settings where key = 'resend_api_key';
     select value into v_from from platform_settings where key = 'resend_from_email';
@@ -4739,7 +4753,7 @@ CREATE FUNCTION public.open_view_once(p_token uuid, p_message_id uuid) RETURNS j
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public', 'extensions', 'pg_temp'
     AS $$
-declare s staff_sessions%rowtype; m chat_messages%rowtype;
+declare s staff_sessions%rowtype; m chat_messages%rowtype; v_need int; v_seen int; v_remove boolean;
 begin
   s := _session_check(p_token, 'messages');
   select * into m from chat_messages where id = p_message_id and restaurant_id = s.restaurant_id for update;
@@ -4748,8 +4762,14 @@ begin
   if exists(select 1 from chat_view_once where message_id = m.id and user_id = s.user_id) or m.attachment is null then
     raise exception 'Bu fotoğrafı zaten açtınız'; end if;
   insert into chat_view_once(message_id, user_id, restaurant_id) values (m.id, s.user_id, s.restaurant_id);
-  if m.recipient_id is not null then update chat_messages set attachment = null where id = m.id; end if;
-  return json_build_object('data', m.attachment, 'remove', m.recipient_id is not null);
+  -- Görmesi gereken herkes açtıysa (özel mesajda alıcı, grupta tüm üyeler, genelde tüm aktif personel) dosya silinir.
+  v_need := case when m.recipient_id is not null then 1
+                 when m.group_id is not null then (select count(*) from chat_group_members where group_id = m.group_id and user_id <> m.sender_id)
+                 else (select count(*) from app_users where restaurant_id = m.restaurant_id and is_active and not is_company_owner and id <> m.sender_id) end;
+  select count(*) into v_seen from chat_view_once where message_id = m.id;
+  v_remove := v_seen >= v_need;
+  if v_remove then update chat_messages set attachment = null where id = m.id; end if;
+  return json_build_object('data', m.attachment, 'remove', v_remove);
 end; $$;
 
 
@@ -5400,7 +5420,7 @@ end; $$;
 CREATE FUNCTION public.send_chat_message(p_token uuid, p_conv text, p_body text, p_attachment text DEFAULT NULL::text, p_kind text DEFAULT NULL::text, p_name text DEFAULT NULL::text, p_reply_to uuid DEFAULT NULL::uuid, p_view_once boolean DEFAULT false, p_size integer DEFAULT NULL::integer) RETURNS uuid
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public', 'extensions', 'pg_temp'
-    AS $$
+    AS $_$
 declare s staff_sessions%rowtype; v_peer uuid; v_group uuid; v_id uuid; v_url text; v_secret text; v_kind text; v_limit int;
 begin
   s := _session_check(p_token, 'messages');
@@ -5412,7 +5432,7 @@ begin
     if p_attachment like 'storage:%' then
       if p_attachment not like 'storage:' || s.restaurant_id::text || '/%' or p_attachment ~ '\.\.' then raise exception 'Geçersiz dosya yolu'; end if;
     else
-      if p_attachment !~ '^data:[a-zA-Z0-9.+/-]+(;[a-zA-Z0-9=.-]+)*;base64,' then raise exception 'Geçersiz dosya'; end if;
+      if p_attachment !~ '^data:[a-zA-Z0-9.+/-]+(;[a-zA-Z0-9=.-]+)*;base64,[A-Za-z0-9+/=]+$' then raise exception 'Geçersiz dosya'; end if;
       if v_kind = 'image' and p_attachment !~ '^data:image/(jpeg|png|webp|gif);' then raise exception 'Geçersiz görsel'; end if;
     end if;
     -- Sınırlar (base64 metin uzunluğu): fotoğraf ~1 MB, ses ~3 MB, dosya ~5 MB.
@@ -5444,7 +5464,7 @@ begin
   exception when others then null;
   end;
   return v_id;
-end; $$;
+end; $_$;
 
 
 --
@@ -5798,8 +5818,9 @@ CREATE FUNCTION public.set_public_cart_hold(p_restaurant_code text, p_client tex
     AS $$
 declare v_rid uuid;
 begin
-  select r.id into v_rid from restaurants r where r.code = p_restaurant_code and r.is_active;
-  if v_rid is null then raise exception 'İşletme bulunamadı'; end if;
+  select r.id into v_rid from restaurants r where r.code = p_restaurant_code and r.is_active
+    and coalesce(r.online_ordering_enabled, false) and _restaurant_has_feature(r.id, 'online_ordering');
+  if v_rid is null then raise exception 'Bu işletme şu anda online sipariş almıyor'; end if;
   return _set_cart_hold(v_rid, p_client, p_product_id, p_qty);
 end; $$;
 
@@ -5902,8 +5923,9 @@ CREATE FUNCTION public.set_qr_cart_hold(p_qr_token uuid, p_client text, p_produc
     AS $$
 declare v_rid uuid;
 begin
-  select t.restaurant_id into v_rid from restaurant_tables t join restaurants r on r.id = t.restaurant_id where t.qr_token = p_qr_token and r.is_active;
-  if v_rid is null then raise exception 'Geçersiz QR kod'; end if;
+  select t.restaurant_id into v_rid from restaurant_tables t join restaurants r on r.id = t.restaurant_id
+    where t.qr_token = p_qr_token and r.is_active and _restaurant_has_feature(r.id, 'qr_ordering');
+  if v_rid is null then raise exception 'Bu işletme QR menüden sipariş almıyor'; end if;
   return _set_cart_hold(v_rid, p_client, p_product_id, p_qty);
 end; $$;
 
@@ -6638,7 +6660,7 @@ CREATE FUNCTION public.toggle_chat_reaction(p_token uuid, p_message_id uuid, p_e
 declare s staff_sessions%rowtype; m chat_messages%rowtype;
 begin
   s := _session_check(p_token, 'messages');
-  if p_emoji is null or length(p_emoji) > 16 or p_emoji = '' then raise exception 'Geçersiz tepki'; end if;
+  if p_emoji is null or length(p_emoji) > 16 or p_emoji = '' or p_emoji ~ '[[:alnum:][:space:][:punct:]]' and p_emoji !~ '^[#*0-9]️?⃣$' then raise exception 'Geçersiz tepki'; end if;
   select * into m from chat_messages where id = p_message_id and restaurant_id = s.restaurant_id;
   if m.id is null or m.deleted_at is not null or not _chat_can_see(m, s.user_id) then raise exception 'Mesaj bulunamadı'; end if;
   if exists(select 1 from chat_reactions where message_id = m.id and user_id = s.user_id and emoji = p_emoji) then
@@ -6716,7 +6738,7 @@ begin
   s := _session_check(p_token, 'messages');
   select * into g from chat_groups where id = p_group_id and restaurant_id = s.restaurant_id;
   if g.id is null then raise exception 'Grup bulunamadı'; end if;
-  if g.created_by is distinct from s.user_id and not _is_manager(s.user_id) then raise exception 'Grubu yalnızca kuran kişi ya da yönetici düzenleyebilir'; end if;
+  if g.created_by is distinct from s.user_id and not _is_owner(s.user_id) then raise exception 'Grubu yalnızca kuran kişi ya da işletme sahibi düzenleyebilir'; end if;
   if coalesce(trim(p_name),'') <> '' then update chat_groups set name = left(trim(p_name), 60) where id = g.id; end if;
   if p_member_ids is not null then
     execute 'de'||'lete from chat_group_members where group_id = $1 and user_id <> all($2) and user_id <> $3' using g.id, p_member_ids, s.user_id;
@@ -8176,6 +8198,7 @@ CREATE TABLE public.public_cart_holds (
     restaurant_id uuid NOT NULL,
     qty integer NOT NULL,
     expires_at timestamp with time zone NOT NULL,
+    ip text,
     CONSTRAINT public_cart_holds_qty_check CHECK ((qty > 0))
 );
 
@@ -9851,6 +9874,13 @@ CREATE TRIGGER trg_bump_dv AFTER INSERT OR DELETE OR UPDATE ON public.chat_react
 
 
 --
+-- Name: chat_reads trg_bump_dv; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_bump_dv AFTER INSERT OR UPDATE ON public.chat_reads FOR EACH ROW EXECUTE FUNCTION public._bump_data_version();
+
+
+--
 -- Name: chat_view_once trg_bump_dv; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -10965,6 +10995,13 @@ ALTER TABLE public.push_subscriptions ENABLE ROW LEVEL SECURITY;
 --
 
 ALTER TABLE public.rate_limit_events ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: data_versions realtime_read; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY realtime_read ON public.data_versions FOR SELECT TO authenticated, anon USING (true);
+
 
 --
 -- Name: reports_password_reset_otps; Type: ROW SECURITY; Schema: public; Owner: -
