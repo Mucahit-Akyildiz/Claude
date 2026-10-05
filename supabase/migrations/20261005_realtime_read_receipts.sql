@@ -1,0 +1,6 @@
+-- Canlıda uygulandı:
+-- * get_chat_messages: okundu yalnızca okunmamış yeni mesaj varsa yazılır; chat_reads, chat_messages,
+--   chat_reactions veri sayacını (_bump_data_version) artırır -> okundu bilgisi ve mesajlar anlık.
+-- * data_versions: RLS + anon/authenticated SELECT politikası, supabase_realtime yayınına eklendi
+--   (yalnızca restaurant_id + sayaç; istemci Realtime ile anında haber alır, sorgulama yedek).
+-- * log_client_error: ilk kez görülen hata için de e-posta (6 sa/hata, saatte en fazla 20).

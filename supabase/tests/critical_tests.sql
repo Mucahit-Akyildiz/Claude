@@ -156,6 +156,22 @@ begin
       insert into _results values ('isletme_izolasyonu', false, 'baska isletmenin siparisi odendi');
     exception when others then insert into _results values ('isletme_izolasyonu', true, sqlerrm); end;
   exception when others then insert into _results values ('isletme_izolasyonu', false, sqlerrm); end;
+
+  -- ---- 11) Online sepet ayırma: bir müşterinin sepetindeki son adetler başkasına satılamaz ----
+  begin
+    update products set stock = 3 where id = p_plain;
+    n := set_public_cart_hold(code, 'ci-client-aaaa', p_plain, 5);       -- 3 verilir
+    if n <> 3 then raise exception 'A sepeti % aldı (beklenen 3)', n; end if;
+    n := set_public_cart_hold(code, 'ci-client-bbbb', p_plain, 2);       -- 0 verilir
+    if n <> 0 then raise exception 'B sepeti % aldı (beklenen 0)', n; end if;
+    begin
+      perform submit_public_order(code, 'pickup', 'B', '5550000002', null, jsonb_build_array(jsonb_build_object('product_id', p_plain, 'qty', 1)), 'ci-client-bbbb');
+      insert into _results values ('sepet_ayirma', false, 'ayrılmış ürün başkasına satıldı');
+    exception when others then
+      perform submit_public_order(code, 'pickup', 'A', '5550000001', null, jsonb_build_array(jsonb_build_object('product_id', p_plain, 'qty', 3)), 'ci-client-aaaa');
+      insert into _results values ('sepet_ayirma', true, 'ok');
+    end;
+  exception when others then insert into _results values ('sepet_ayirma', false, sqlerrm); end;
 end $tests$;
 
 -- Sonuçları yazdır; başarısız varsa hata ver (psql ON_ERROR_STOP ile çıkış kodu 3).
@@ -165,7 +181,7 @@ declare f text;
 begin
   select string_agg(name || ' (' || coalesce(detail,'') || ')', '; ') into f from _results where not ok;
   if f is not null then raise exception 'BAŞARISIZ TESTLER: %', f; end if;
-  if (select count(*) from _results) < 12 then raise exception 'Beklenenden az test çalıştı: %', (select count(*) from _results); end if;
+  if (select count(*) from _results) < 13 then raise exception 'Beklenenden az test çalıştı: %', (select count(*) from _results); end if;
 end $check$;
 
 rollback;

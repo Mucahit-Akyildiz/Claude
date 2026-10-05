@@ -1380,10 +1380,10 @@ async function renderIntegrationsSettings(el, session){
   inv.innerHTML = `<h2>🧾 Fatura Bilgileri</h2>
     <p class="muted" style="margin-top:-6px;">Ödeme sonrası müşteriye e-postayla gönderilen hesap/faturanın üstünde görünür.</p>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;max-width:640px;">
-      <div class="field-group"><label>Ünvan</label><input id="inv_title" value="${escapeHtml(data.invoice_title||'')}" placeholder="${escapeHtml(APP.config&&APP.config.restaurant_name||'İşletme ünvanı')}"></div>
-      <div class="field-group"><label>VKN / TCKN</label><input id="inv_tax" value="${escapeHtml(data.tax_number||'')}" inputmode="numeric" maxlength="11"></div>
-      <div class="field-group"><label>Vergi Dairesi</label><input id="inv_office" value="${escapeHtml(data.tax_office||'')}"></div>
-      <div class="field-group"><label>Adres</label><input id="inv_addr" value="${escapeHtml(data.invoice_address||'')}"></div>
+      <div class="field-group"><label>Ünvan</label><input id="inv_title" value="${escapeAttr(data.invoice_title||'')}" placeholder="${escapeAttr(APP.config&&APP.config.restaurant_name||'İşletme ünvanı')}"></div>
+      <div class="field-group"><label>VKN / TCKN</label><input id="inv_tax" value="${escapeAttr(data.tax_number||'')}" inputmode="numeric" maxlength="11"></div>
+      <div class="field-group"><label>Vergi Dairesi</label><input id="inv_office" value="${escapeAttr(data.tax_office||'')}"></div>
+      <div class="field-group"><label>Adres</label><input id="inv_addr" value="${escapeAttr(data.invoice_address||'')}"></div>
     </div>
     <button style="max-width:200px;margin-top:10px;" onclick="saveInvoiceSettings()">${ICON_SAVE}<span>Kaydet</span></button>
     <h3 style="margin:18px 0 6px;font-size:14px;">Son 30 günde gönderilenler</h3>

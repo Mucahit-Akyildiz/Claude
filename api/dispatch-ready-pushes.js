@@ -371,6 +371,15 @@ function safeEqual(a, b) {
   return crypto.timingSafeEqual(ha, hb);
 }
 
+async function cleanupDeletedChatMedia(supabase) {
+  const { data: rows } = await supabase.from('chat_messages').select('id, attachment')
+    .not('deleted_at', 'is', null).like('attachment', 'storage:%').limit(50);
+  if (!rows || !rows.length) return 0;
+  await supabase.storage.from('chat-media').remove(rows.map((r) => r.attachment.slice(8)));
+  await supabase.from('chat_messages').update({ attachment: null }).in('id', rows.map((r) => r.id));
+  return rows.length;
+}
+
 module.exports = async function handler(req, res) {
   try {
     if (req.method !== 'POST') {
@@ -422,6 +431,11 @@ module.exports = async function handler(req, res) {
       const result = await dispatchTestPush(supabase, userId, endpoint);
       res.status(200).json(result);
       return;
+    }
+
+    // "Herkesten sil" ile silinen mesajların ekleri depodan da kaldırılır (5 dk'lık mutfak işiyle birlikte).
+    if (mode === 'late_kitchen_only' || mode === 'both') {
+      try { await cleanupDeletedChatMedia(supabase); } catch (e) { /* temizlik hatası bildirimleri engellemesin */ }
     }
 
     const doReadyOrders = mode === 'ready_orders_only' || mode === 'both';
