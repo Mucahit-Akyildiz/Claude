@@ -768,10 +768,9 @@ CREATE FUNCTION public._role_permission_catalog(p_restaurant_id uuid) RETURNS js
     LANGUAGE sql STABLE SECURITY DEFINER
     SET search_path TO 'public', 'pg_temp'
     AS $$
-  -- Isletmenin sahip oldugu (paket + eklenti) tum aktif ozellikler; yeni
-  -- eklenen bir ozellik otomatik listelenir. Finansal Analiz ayri sifreyle
-  -- korundugu, coklu sube sirket seviyesinde oldugu icin haric. Tedarikci &
-  -- Satin Alma uc alt izne bolunur (siparis verme / yonetim / tedarikciler).
+  -- Isletmenin sahip oldugu (paket + eklenti) tum aktif ozellikler + Yonetim izinleri
+  -- (Roller, Abonelik, Entegrasyonlar, Veri Sifirlama, Finansal Analiz, Yazici Ayarlari);
+  -- boylece isletme sahibi bu yetkileri de istedigi role verebilir.
   select coalesce(json_agg(json_build_object('id', x.id, 'label', x.label, 'category', x.category) order by x.so, x.sub, x.label), '[]'::json)
   from (
     select fc.id, fc.label, fc.category, fc.sort_order so, 0 sub
@@ -782,6 +781,11 @@ CREATE FUNCTION public._role_permission_catalog(p_restaurant_id uuid) RETURNS js
     from feature_catalog fc
     cross join (values ('purchasing_orders','Satın Alma Siparişi Verme',1), ('purchasing_manage','Satın Alma Yönetimi (onay, teslim alma, iptal)',2), ('purchasing_suppliers','Tedarikçi Yönetimi',3)) v(id,label,sub)
     where fc.id = 'purchasing' and fc.active and 'purchasing' = any(_restaurant_features(p_restaurant_id))
+    union all
+    select v.id, v.label, 'Yönetim', 9999, v.sub
+    from (values ('reports','Finansal Analiz (raporlar)',1), ('printer_settings','Yazıcı Ayarları',2), ('settings_roles','Ayarlar · Roller',3),
+                 ('settings_billing','Ayarlar · Abonelik',4), ('settings_integrations','Ayarlar · Entegrasyonlar',5), ('settings_datareset','Ayarlar · Veri Sıfırlama',6)) v(id,label,sub)
+    where v.id <> 'reports' or 'reports' = any(_restaurant_features(p_restaurant_id))
   ) x;
 $$;
 
@@ -2772,7 +2776,7 @@ begin
     'bank_name', (select value from platform_settings where key = 'bank_transfer_bank_name'),
     'pending', (select row_to_json(t) from (select id, amount, created_at from bank_transfer_notices where status = 'pending' and addon_id = p_addon_id
         and ((v_r.company_id is null and restaurant_id = v_r.id) or (v_r.company_id is not null and company_id = v_r.company_id)) order by created_at desc limit 1) t),
-    'is_manager', exists(select 1 from app_users au join roles rl on rl.id = any(au.role_ids) where au.id = s.user_id and rl.is_system));
+    'is_manager', exists(select 1 from app_users au join roles rl on rl.id = any(au.role_ids) where au.id = s.user_id and (rl.is_system or 'settings_billing' = any(rl.permissions))));
 end; $$;
 
 
@@ -3090,7 +3094,7 @@ CREATE FUNCTION public.get_integration_settings(p_token uuid) RETURNS json
 declare s staff_sessions%rowtype; v_is_manager boolean; r restaurants%rowtype;
 begin
   s := _session_check(p_token);
-  select exists(select 1 from app_users au join roles rl on rl.id = any(au.role_ids) where au.id = s.user_id and rl.is_system) into v_is_manager;
+  select exists(select 1 from app_users au join roles rl on rl.id = any(au.role_ids) where au.id = s.user_id and (rl.is_system or 'settings_integrations' = any(rl.permissions))) into v_is_manager;
   if not v_is_manager then raise exception 'Bu işlem için yetkiniz yok'; end if;
   select * into r from restaurants where id = s.restaurant_id;
   return json_build_object(
@@ -4502,7 +4506,7 @@ begin
   s := _session_check(p_token);
   select exists(
     select 1 from app_users au join roles rl on rl.id = any(au.role_ids)
-    where au.id = s.user_id and rl.is_system
+    where au.id = s.user_id and (rl.is_system or 'settings_roles' = any(rl.permissions))
   ) into v_is_manager;
   if not v_is_manager then
     raise exception 'Bu işlem için yetkiniz yok';
@@ -4537,7 +4541,7 @@ begin
   s := _session_check(p_token);
   select exists(
     select 1 from app_users au join roles rl on rl.id = any(au.role_ids)
-    where au.id = s.user_id and rl.is_system
+    where au.id = s.user_id and (rl.is_system or 'settings_roles' = any(rl.permissions))
   ) into v_is_manager;
   if not v_is_manager then
     raise exception 'Bu işlem için yetkiniz yok';
@@ -5064,7 +5068,7 @@ declare
   v_start timestamptz; v_end timestamptz; v_n int; v_res jsonb := '{}'::jsonb;
 begin
   s := _session_check(p_token);
-  if not exists(select 1 from app_users au join roles rl on rl.id = any(au.role_ids) where au.id = s.user_id and rl.is_system) then
+  if not exists(select 1 from app_users au join roles rl on rl.id = any(au.role_ids) where au.id = s.user_id and (rl.is_system or 'settings_datareset' = any(rl.permissions))) then
     raise exception 'Verileri yalnızca Yönetici sıfırlayabilir';
   end if;
   select * into v_user from app_users where id = s.user_id;
@@ -5840,7 +5844,7 @@ begin
   s := _session_check(p_token);
   select exists(
     select 1 from app_users au join roles rl on rl.id = any(au.role_ids)
-    where au.id = s.user_id and rl.is_system
+    where au.id = s.user_id and (rl.is_system or 'reports' = any(rl.permissions))
   ) into v_is_manager;
   if not v_is_manager then
     raise exception 'Bu işlem için yetkiniz yok';
@@ -5913,7 +5917,7 @@ CREATE FUNCTION public.set_shift_approval_required(p_token uuid, p_value boolean
 declare s staff_sessions%rowtype;
 begin
   s := _session_check(p_token, 'shifts');
-  if not exists(select 1 from app_users au join roles rl on rl.id = any(au.role_ids) where au.id = s.user_id and rl.is_system) then
+  if not exists(select 1 from app_users au join roles rl on rl.id = any(au.role_ids) where au.id = s.user_id and (rl.is_system or 'shifts' = any(rl.permissions))) then
     raise exception 'Bu ayarı yalnızca Yönetici değiştirebilir';
   end if;
   update restaurants set shift_approval_required = p_value where id = s.restaurant_id;
@@ -5931,7 +5935,7 @@ CREATE FUNCTION public.set_shift_required(p_token uuid, p_value boolean) RETURNS
 declare s staff_sessions%rowtype;
 begin
   s := _session_check(p_token, 'shifts');
-  if not exists(select 1 from app_users au join roles rl on rl.id = any(au.role_ids) where au.id = s.user_id and rl.is_system) then
+  if not exists(select 1 from app_users au join roles rl on rl.id = any(au.role_ids) where au.id = s.user_id and (rl.is_system or 'shifts' = any(rl.permissions))) then
     raise exception 'Bu ayarı yalnızca Yönetici değiştirebilir'; end if;
   update restaurants set shift_required = p_value where id = s.restaurant_id;
   -- Açık ekranlar ayarı hemen görsün (bkz. get_data_version).
@@ -6157,7 +6161,7 @@ begin
   s := _session_check(p_token);
   select exists(
     select 1 from app_users au join roles rl on rl.id = any(au.role_ids)
-    where au.id = s.user_id and rl.is_system
+    where au.id = s.user_id and (rl.is_system or 'reports' = any(rl.permissions))
   ) into v_is_manager;
   if not v_is_manager then
     raise exception 'Bu işlem için yetkiniz yok';
@@ -6213,7 +6217,7 @@ declare s staff_sessions%rowtype; v_r restaurants%rowtype; f feature_catalog%row
   v_key text; v_from text; v_mail text;
 begin
   s := _session_check(p_token);
-  if not exists(select 1 from app_users au join roles rl on rl.id = any(au.role_ids) where au.id = s.user_id and rl.is_system) then
+  if not exists(select 1 from app_users au join roles rl on rl.id = any(au.role_ids) where au.id = s.user_id and (rl.is_system or 'settings_billing' = any(rl.permissions))) then
     raise exception 'Bu işlem için yetkiniz yok'; end if;
   select * into f from feature_catalog where id = p_addon_id and active;
   if f.id is null or coalesce(f.price,0) <= 0 then raise exception 'Bu eklenti satın alınamaz'; end if;
@@ -6269,7 +6273,7 @@ declare
   v_pending_payment boolean;
 begin
   s := _session_check(p_token);
-  select exists(select 1 from app_users au join roles rl on rl.id = any(au.role_ids) where au.id = s.user_id and rl.is_system) into v_is_manager;
+  select exists(select 1 from app_users au join roles rl on rl.id = any(au.role_ids) where au.id = s.user_id and (rl.is_system or 'settings_billing' = any(rl.permissions))) into v_is_manager;
   if not v_is_manager then raise exception 'Bu işlem için yetkiniz yok'; end if;
 
   select * into v_restaurant from restaurants where id = s.restaurant_id;
@@ -6636,7 +6640,7 @@ CREATE FUNCTION public.update_google_review_url(p_token uuid, p_url text) RETURN
 declare s staff_sessions%rowtype; v_is_manager boolean;
 begin
   s := _session_check(p_token);
-  select exists(select 1 from app_users au join roles rl on rl.id = any(au.role_ids) where au.id = s.user_id and rl.is_system) into v_is_manager;
+  select exists(select 1 from app_users au join roles rl on rl.id = any(au.role_ids) where au.id = s.user_id and (rl.is_system or 'settings_integrations' = any(rl.permissions))) into v_is_manager;
   if not v_is_manager then raise exception 'Bu işlem için yetkiniz yok'; end if;
   if p_url is not null and p_url <> '' and p_url !~ '^https?://' then
     raise exception 'Geçerli bir link girin (http:// veya https:// ile başlamalı)';
@@ -6674,7 +6678,7 @@ CREATE FUNCTION public.update_loyalty_settings(p_token uuid, p_enabled boolean, 
 declare s staff_sessions%rowtype; v_is_manager boolean;
 begin
   s := _session_check(p_token);
-  select exists(select 1 from app_users au join roles rl on rl.id = any(au.role_ids) where au.id = s.user_id and rl.is_system) into v_is_manager;
+  select exists(select 1 from app_users au join roles rl on rl.id = any(au.role_ids) where au.id = s.user_id and (rl.is_system or 'crm' = any(rl.permissions))) into v_is_manager;
   if not v_is_manager then raise exception 'Bu işlem için yetkiniz yok'; end if;
   if p_spend_per_point is null or p_spend_per_point <= 0 then raise exception 'Puan başına harcama tutarı 0''dan büyük olmalı'; end if;
   if p_point_value is null or p_point_value < 0 then raise exception 'Puan değeri geçersiz'; end if;
@@ -6694,7 +6698,7 @@ CREATE FUNCTION public.update_loyalty_settings(p_token uuid, p_enabled boolean, 
 declare s staff_sessions%rowtype; v_is_manager boolean;
 begin
   s := _session_check(p_token);
-  select exists(select 1 from app_users au join roles rl on rl.id = any(au.role_ids) where au.id = s.user_id and rl.is_system) into v_is_manager;
+  select exists(select 1 from app_users au join roles rl on rl.id = any(au.role_ids) where au.id = s.user_id and (rl.is_system or 'crm' = any(rl.permissions))) into v_is_manager;
   if not v_is_manager then raise exception 'Bu işlem için yetkiniz yok'; end if;
   if p_spend_per_point is null or p_spend_per_point <= 0 then raise exception 'Puan başına harcama tutarı 0''dan büyük olmalı'; end if;
   if p_point_value is null or p_point_value < 0 then raise exception 'Puan değeri geçersiz'; end if;
@@ -6885,7 +6889,7 @@ CREATE FUNCTION public.update_tip_pool_settings(p_token uuid, p_enabled boolean,
 declare s staff_sessions%rowtype; v_is_manager boolean;
 begin
   s := _session_check(p_token);
-  select exists(select 1 from app_users au join roles rl on rl.id = any(au.role_ids) where au.id = s.user_id and rl.is_system) into v_is_manager;
+  select exists(select 1 from app_users au join roles rl on rl.id = any(au.role_ids) where au.id = s.user_id and (rl.is_system or 'tips' = any(rl.permissions))) into v_is_manager;
   if not v_is_manager then raise exception 'Bu işlem için yetkiniz yok'; end if;
   if p_mode not in ('equal', 'by_hours') then raise exception 'Geçersiz bahşiş havuzu modu'; end if;
   update restaurants set tip_pool_enabled = coalesce(p_enabled,false), tip_pool_mode = p_mode where id = s.restaurant_id;
@@ -7327,7 +7331,7 @@ begin
   s := _session_check(p_token);
   select exists(
     select 1 from app_users au join roles rl on rl.id = any(au.role_ids)
-    where au.id = s.user_id and rl.is_system
+    where au.id = s.user_id and (rl.is_system or 'reports' = any(rl.permissions))
   ) into v_is_manager;
   if not v_is_manager then
     raise exception 'Bu işlem için yetkiniz yok';
@@ -7371,7 +7375,7 @@ begin
   s := _session_check(p_token);
   select exists(
     select 1 from app_users au join roles rl on rl.id = any(au.role_ids)
-    where au.id = s.user_id and rl.is_system
+    where au.id = s.user_id and (rl.is_system or 'reports' = any(rl.permissions))
   ) into v_is_manager;
   if not v_is_manager then
     raise exception 'Bu işlem için yetkiniz yok';
