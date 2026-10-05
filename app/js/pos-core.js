@@ -1755,28 +1755,31 @@ function tableCustomerInnerHtml(tableId, editing){
 }
 /* Kayıtlı müşterilerden seçim: isim/telefon yazdıkça öneri listesi. */
 let _tableCustTimer = null, _tableCustSeq = 0;
-function tableCustSearch(q){
+function tableCustSearch(q, prefix){
+  prefix = prefix || 'tableCust';
   clearTimeout(_tableCustTimer);
-  const box = document.getElementById('tableCustSuggest');
+  const box = document.getElementById(prefix + 'Suggest');
   if(!box) return;
   q = (q||'').trim();
   if(q.length < 2){ box.innerHTML = ''; return; }
   _tableCustTimer = setTimeout(async () => {
     const seq = ++_tableCustSeq;
     const { data } = await sb.rpc('search_customers_quick', { p_token: getSession().session_token, p_search: q });
-    if(seq !== _tableCustSeq || !document.getElementById('tableCustSuggest')) return;
+    if(seq !== _tableCustSeq || !document.getElementById(prefix + 'Suggest')) return;
     APP.tableCustHits = data || [];
     box.innerHTML = APP.tableCustHits.length ? `<div style="margin-top:8px;border:1px solid var(--border);border-radius:10px;overflow:hidden;background:var(--panel);">
-      ${APP.tableCustHits.map((c,i) => `<div onclick="pickTableCustomer(${i})" style="padding:8px 12px;cursor:pointer;border-top:${i?'1px solid var(--border)':'0'};display:flex;justify-content:space-between;gap:8px;">
+      ${APP.tableCustHits.map((c,i) => `<div onclick="pickTableCustomer(${i}, '${prefix}')" style="padding:8px 12px;cursor:pointer;border-top:${i?'1px solid var(--border)':'0'};display:flex;justify-content:space-between;gap:8px;">
         <b>👤 ${escapeHtml(c.name||'')}</b><span class="muted">${escapeHtml(c.phone||'')}</span></div>`).join('')}
     </div>` : '';
   }, 250);
 }
-function pickTableCustomer(i){
+function pickTableCustomer(i, prefix){
+  prefix = prefix || 'tableCust';
   const c = (APP.tableCustHits||[])[i]; if(!c) return;
-  document.getElementById('tableCustName').value = c.name || '';
-  document.getElementById('tableCustPhone').value = c.phone || '';
-  document.getElementById('tableCustSuggest').innerHTML = '';
+  document.getElementById(prefix + 'Name').value = c.name || '';
+  document.getElementById(prefix + 'Phone').value = c.phone || '';
+  document.getElementById(prefix + 'Suggest').innerHTML = '';
+  if(prefix !== 'tableCust') return;
   const t = document.getElementById('tableCustName').dataset.table;
   if(t) saveTableCustomer(t, true);
 }
@@ -1931,8 +1934,9 @@ function openPackageModal(pseudoId){
         <h2 style="margin:0;overflow-wrap:anywhere;word-break:break-word;">${title}</h2>
         <span style="cursor:pointer;color:var(--muted);font-size:20px;" onclick="closeTableModal()">✕</span>
       </div>
-      ${isWl ? '<p class="muted" style="text-align:left;margin:0 0 6px;font-size:12.5px;">Siparişler hemen mutfağa düşer; müşteri oturtulunca masaya taşınır.</p>' : `<div class="field-group"><label>Müşteri Adı</label><input id="pkgCustName" placeholder="örn. Ahmet Bey" value="${escapeAttr((existing&&existing.customer_name)||'')}"></div>
-      <div class="field-group"><label>Telefon</label><input id="pkgCustPhone" placeholder="örn. 5551234567" value="${escapeAttr((existing&&existing.customer_phone)||'')}"></div>
+      ${isWl ? '<p class="muted" style="text-align:left;margin:0 0 6px;font-size:12.5px;">Siparişler hemen mutfağa düşer; müşteri oturtulunca masaya taşınır.</p>' : `<div class="field-group"><label>Müşteri Adı</label><input id="pkgCustName" placeholder="örn. Ahmet Bey veya kayıtlı müşteri ara" autocomplete="off" oninput="tableCustSearch(this.value, 'pkgCust')" value="${escapeAttr((existing&&existing.customer_name)||'')}"></div>
+      <div class="field-group"><label>Telefon</label><input id="pkgCustPhone" placeholder="örn. 5551234567" autocomplete="off" inputmode="tel" oninput="tableCustSearch(this.value, 'pkgCust')" value="${escapeAttr((existing&&existing.customer_phone)||'')}"></div>
+      <div id="pkgCustSuggest" style="margin:-6px 0 10px;"></div>
       <div class="field-group"><label>Not</label><input id="pkgNote" placeholder="örn. Yan sokak, 2. kat" value="${escapeAttr((existing&&existing.note)||'')}"></div>`}
       <div style="margin-top:10px;">
         <p style="font-weight:700;margin-bottom:8px;">Ürün Ekle</p>

@@ -1,0 +1,4 @@
+-- QR / online müşteri siparişlerinde onay bekleyen isteklerdeki adetler stoktan ayrılır.
+-- Canlıda uygulandı: _product_reserved_qty, _product_public_qty yeni; _check_request_stock
+-- ürün satırını kilitleyip _product_public_qty ile kontrol eder; get_public_menu ve
+-- get_public_order_menu kalan adedi _product_public_qty ile gösterir (bkz. schema.sql).

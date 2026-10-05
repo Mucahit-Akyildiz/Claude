@@ -143,6 +143,30 @@ async function init(){
   }
   STATE.menu = data;
   renderMenu();
+  // Stok (kalan porsiyon / tükendi) anlık güncellensin: başka müşterilerin ve
+  // restoranın siparişleri düştükçe menü 15 sn'de bir ve sekmeye dönünce yenilenir.
+  setInterval(refreshMenuStock, 15000);
+  document.addEventListener('visibilitychange', () => { if(!document.hidden) refreshMenuStock(); });
+}
+async function refreshMenuStock(){
+  if(document.hidden || !STATE.menu || !document.querySelector('.qty-btn, .sold-badge')) return;
+  const { data, error } = await sb.rpc('get_public_order_menu', { p_restaurant_code: RESTAURANT_CODE });
+  if(error || !data) return;
+  if(JSON.stringify(data) === JSON.stringify(STATE.menu)) return;
+  STATE.menu = data;
+  // Sepette kalan stoktan fazla ürün varsa kalan adede indirilir.
+  const maxById = {};
+  (function walk(o){ if(Array.isArray(o)) o.forEach(walk); else if(o && typeof o === 'object'){ if(o.id && 'max_qty' in o) maxById[o.id] = o.max_qty; Object.values(o).forEach(walk); } })(data);
+  let trimmed = false;
+  Object.keys(STATE.cart || {}).forEach(id => {
+    const m = maxById[id];
+    if(m != null && STATE.cart[id] > m){ trimmed = true; if(m > 0) STATE.cart[id] = m; else delete STATE.cart[id]; }
+  });
+  if(document.getElementById('checkoutBg')) return; // ödeme penceresi açıkken ekranı değiştirme
+  const y = window.scrollY;
+  renderMenu();
+  window.scrollTo(0, y);
+  if(trimmed) alert(stockTxt('changed'));
 }
 function stateBoxHtml(icon, title, msg){
   return `<div style="padding:16px;display:flex;justify-content:flex-end;">${langPickerHtml()}</div>
@@ -217,7 +241,7 @@ function headerHtml(){
     ${langPickerHtml()}
   </header>` + trustHtml();
 }
-const STOCK_I18N = { sold: {"tr": "Tükendi", "en": "Sold out", "ar": "نفد", "de": "Ausverkauft", "ru": "Нет в наличии"}, left: {"tr": "Son {n}", "en": "{n} left", "ar": "متبقي {n}", "de": "Noch {n}", "ru": "Осталось {n}"} };
+const STOCK_I18N = { sold: {"tr": "Tükendi", "en": "Sold out", "ar": "نفد", "de": "Ausverkauft", "ru": "Нет в наличии"}, changed: {"tr": "Bazı ürünlerin stoğu azaldı, sepetiniz güncellendi.", "en": "Some items are running low; your cart was updated.", "ar": "انخفض مخزون بعض المنتجات وتم تحديث سلتك.", "de": "Einige Artikel sind knapp; Ihr Warenkorb wurde aktualisiert.", "ru": "Некоторых товаров стало меньше, корзина обновлена."}, left: {"tr": "Son {n}", "en": "{n} left", "ar": "متبقي {n}", "de": "Noch {n}", "ru": "Осталось {n}"} };
 function stockTxt(k, n){ const d = STOCK_I18N[k]; return (d[STATE.lang||'tr'] || d.tr).replace('{n}', n); }
 function maxQtyOf(productId){ const p = ((STATE.menu||{}).products||[]).find(x => x.id===productId); return p && p.max_qty != null ? Math.max(0, p.max_qty) : 20; }
 function stepCart(productId, delta){
@@ -297,7 +321,7 @@ async function sendPublicOrder(){
     p_customer_phone: phone, p_delivery_address: STATE.orderType==='delivery' ? address : null, p_items: items
   });
   btn.disabled = false; btn.textContent = t('sendOrder');
-  if(error){ errEl.textContent = error.message; return; }
+  if(error){ errEl.textContent = error.message; refreshMenuStock(); return; }
   STATE.cart = {};
   const bg = document.getElementById('checkoutBg'); if(bg) bg.remove();
   renderState(stateBoxHtml('✅', t('successTitle'), t('successMsg')));
