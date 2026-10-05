@@ -593,7 +593,7 @@ async function renderTipPoolContent(session){
   const shares = data.shares || [];
   const modeLabel = data.mode==='by_hours' ? 'Çalışılan Saate Göre' : 'Eşit Paylaşım';
   el.innerHTML = `
-    ${session.isManager ? `
+    ${canManage(session, 'tips') ? `
     <div class="box" style="max-width:none;">
       <h2>Bahşiş Havuzu Ayarları</h2>
       <p class="muted" style="margin-top:-6px;">Açarsanız, toplanan tüm bahşişler burada seçtiğiniz kurala göre personel arasında paylaştırılır (sadece raporlama amaçlıdır - ödemeyi yine kendiniz yaparsınız).</p>

@@ -1,0 +1,12 @@
+-- Yönetim izinleri rollere verilebilir: settings_roles, settings_billing, settings_integrations,
+-- settings_datareset, reports, printer_settings (+ shifts/crm/tips ayarları ilgili izinle).
+-- Canlıda uygulanan değişiklik: aşağıdaki fonksiyonlarda
+--   "au.id = s.user_id and rl.is_system"  ->  "au.id = s.user_id and (rl.is_system or '<izin>' = any(rl.permissions))"
+-- get_addon_purchase_info, submit_addon_transfer_notice, submit_bank_transfer_notice -> settings_billing
+-- get_integration_settings, update_google_review_url -> settings_integrations
+-- manager_upsert_role, manager_delete_role -> settings_roles
+-- reset_restaurant_data -> settings_datareset
+-- set/start/verify_reports_password(_reset) -> reports
+-- set_shift_required, set_shift_approval_required -> shifts
+-- update_loyalty_settings -> crm, update_tip_pool_settings -> tips
+-- ve _role_permission_catalog'a "Yönetim" kategorisi eklendi (bkz. supabase/schema.sql).
