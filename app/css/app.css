@@ -155,6 +155,8 @@
        sol kenara taşıp ekranı karartıyordu. */
     .sidebar.mobile-open,.sidebar.collapsed.mobile-open{transform:translateX(0);box-shadow:0 0 40px rgba(0,0,0,.4);}
     .sidebar .sb-top,.sidebar .sb-user,.sidebar .app-brand-row{display:flex;}
+    .sidebar .sb-user{flex-direction:column;align-items:flex-start;gap:2px;overflow:visible;}
+    .sidebar .sb-user .label{display:inline-block;margin-top:4px;}
     .sidebar.collapsed .app-brand-row .app-brand-text{display:inline;}
     .sb-collapse-btn{display:none;}
     .sb-mobile-close{display:flex;}
