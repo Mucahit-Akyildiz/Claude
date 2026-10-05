@@ -145,6 +145,31 @@ async function init(){
   }
   STATE.menu = data;
   renderMenu();
+  // Stok anlık: diğer masaların sepetleri/siparişleri düştükçe menü 5 sn'de bir yenilenir;
+  // sepetteki ayırmalar dakikada bir tazelenir.
+  setInterval(refreshMenuStock, 5000);
+  setInterval(() => { if(!document.hidden) Object.keys(STATE.cart || {}).forEach(syncCartHold); }, 60000);
+  document.addEventListener('visibilitychange', () => { if(!document.hidden) refreshMenuStock(); });
+}
+async function refreshMenuStock(force){
+  if((!force && document.hidden) || !STATE.menu || !document.querySelector('.qty-btn, .sold-badge, #checkoutBg')) return;
+  const { data, error } = await sb.rpc('get_public_menu', { p_qr_token: QR_TOKEN });
+  if(error || !data) return;
+  if(JSON.stringify(data) === JSON.stringify(STATE.menu)) return;
+  STATE.menu = data;
+  const maxById = {};
+  (data.products || []).forEach(p => { maxById[p.id] = p.max_qty; });
+  let trimmed = false;
+  Object.keys(STATE.cart || {}).forEach(id => {
+    const m = maxById[id];
+    if(m != null && m < 0){ trimmed = true; const n = STATE.cart[id] + m; if(n > 0) STATE.cart[id] = n; else delete STATE.cart[id]; }
+  });
+  const ck = document.getElementById('checkoutBg');
+  if(ck){ if(!trimmed) return; ck.remove(); }
+  const y = window.scrollY;
+  renderMenu();
+  window.scrollTo(0, y);
+  if(trimmed) alert(stockTxt('changed'));
 }
 function stateBoxHtml(icon, title, msg){
   return `<div style="padding:16px;display:flex;justify-content:flex-end;">${langPickerHtml()}</div>
@@ -171,9 +196,9 @@ function renderMenu(){
   const body = order.map(key => `
     <div class="station-title">${escapeHtml(key)}</div>
     ${groups[key].map(p => `
-      <div class="product-card ${p.max_qty===0?'sold-out':''}">
+      <div class="product-card ${p.max_qty===0 && !STATE.cart[p.id]?'sold-out':''}">
         <div class="product-name">${escapeHtml(productName(p))}<div class="product-price">${money(p.price)}${p.max_qty!=null && p.max_qty>0 && p.max_qty<=5 ? ` · <span class="stock-left">${escapeHtml(stockTxt('left', p.max_qty))}</span>` : ''}</div></div>
-        ${p.max_qty===0 ? `<span class="sold-badge">${escapeHtml(stockTxt('sold'))}</span>` : canOrder ? `<button class="qty-btn" onclick="stepCart('${p.id}',-1)">-</button>
+        ${p.max_qty===0 && !STATE.cart[p.id] ? `<span class="sold-badge">${escapeHtml(stockTxt('sold'))}</span>` : canOrder ? `<button class="qty-btn" onclick="stepCart('${p.id}',-1)">-</button>
         <span class="qty-val" id="qty_${p.id}">${STATE.cart[p.id]||0}</span>
         <button class="qty-btn" onclick="stepCart('${p.id}',1)">+</button>` : ''}
       </div>`).join('')}
@@ -231,9 +256,26 @@ function headerHtml(){
     ${langPickerHtml()}
   </header>` + waiterHtml() + trustHtml();
 }
-const STOCK_I18N = { sold: {"tr": "Tükendi", "en": "Sold out", "ar": "نفد", "de": "Ausverkauft", "ru": "Нет в наличии"}, left: {"tr": "Son {n}", "en": "{n} left", "ar": "متبقي {n}", "de": "Noch {n}", "ru": "Осталось {n}"} };
+const STOCK_I18N = { sold: {"tr": "Tükendi", "en": "Sold out", "ar": "نفد", "de": "Ausverkauft", "ru": "Нет в наличии"}, changed: {"tr": "Bazı ürünlerin stoğu azaldı, sepetiniz güncellendi.", "en": "Some items are running low; your cart was updated.", "ar": "انخفض مخزون بعض المنتجات وتم تحديث سلتك.", "de": "Einige Artikel sind knapp; Ihr Warenkorb wurde aktualisiert.", "ru": "Некоторых товаров стало меньше, корзина обновлена."}, left: {"tr": "Son {n}", "en": "{n} left", "ar": "متبقي {n}", "de": "Noch {n}", "ru": "Осталось {n}"} };
 function stockTxt(k, n){ const d = STOCK_I18N[k]; return (d[STATE.lang||'tr'] || d.tr).replace('{n}', n); }
-function maxQtyOf(productId){ const p = ((STATE.menu||{}).products||[]).find(x => x.id===productId); return p && p.max_qty != null ? Math.max(0, p.max_qty) : 20; }
+// Seçilebilecek en fazla adet: herkese kalan + kendi sepetimizde zaten ayrılmış olan.
+function maxQtyOf(productId){ const p = ((STATE.menu||{}).products||[]).find(x => x.id===productId); return p && p.max_qty != null ? Math.max(0, p.max_qty) + (STATE.cart[productId]||0) : 20; }
+const CLIENT_ID = (() => { try{ let c = localStorage.getItem('peyktan_cart_client'); if(!c){ c = 'c' + Math.random().toString(36).slice(2) + Date.now().toString(36); localStorage.setItem('peyktan_cart_client', c); } return c; }catch(e){ return 'c' + Math.random().toString(36).slice(2) + Date.now().toString(36); } })();
+let CART_HOLD_SEQ = {};
+/* Sepetteki adet sunucuda ayrılır (15 dk); diğer masaların ekranında kalan adet anında düşer. */
+async function syncCartHold(productId){
+  const want = STATE.cart[productId] || 0;
+  const seq = CART_HOLD_SEQ[productId] = (CART_HOLD_SEQ[productId] || 0) + 1;
+  const { data, error } = await sb.rpc('set_qr_cart_hold', { p_qr_token: QR_TOKEN, p_client: CLIENT_ID, p_product_id: productId, p_qty: want });
+  if(seq !== CART_HOLD_SEQ[productId] || error) return;
+  if(typeof data === 'number' && data < want){
+    if(data > 0) STATE.cart[productId] = data; else delete STATE.cart[productId];
+    const el = document.getElementById('qty_'+productId); if(el) el.textContent = data;
+    updateCartBar();
+    alert(stockTxt('changed'));
+  }
+  refreshMenuStock(true);
+}
 function stepCart(productId, delta){
   // Stokta kalandan fazlası seçilemez (bkz. max_qty: hammadde/ürün stoğu).
   const next = Math.max(0, Math.min(20, maxQtyOf(productId), (STATE.cart[productId]||0) + delta));
@@ -241,6 +283,7 @@ function stepCart(productId, delta){
   const el = document.getElementById('qty_'+productId);
   if(el) el.textContent = next;
   updateCartBar();
+  syncCartHold(productId);
 }
 function updateCartBar(){
   const bar = document.getElementById('cartbar'); if(!bar) return;
@@ -288,9 +331,9 @@ async function sendCustomerOrder(){
   const errEl = document.getElementById('ckErr');
   errEl.textContent = '';
   btn.disabled = true; btn.textContent = t('sending');
-  const { error } = await sb.rpc('submit_customer_order_request', { p_qr_token: QR_TOKEN, p_customer_name: name||null, p_items: items });
+  const { error } = await sb.rpc('submit_customer_order_request', { p_qr_token: QR_TOKEN, p_customer_name: name||null, p_items: items, p_client_id: CLIENT_ID });
   btn.disabled = false; btn.textContent = t('sendRequest');
-  if(error){ errEl.textContent = error.message; return; }
+  if(error){ errEl.textContent = error.message; refreshMenuStock(true); return; }
   STATE.cart = {};
   const bg = document.getElementById('checkoutBg'); if(bg) bg.remove();
   renderState(stateBoxHtml('✅', t('successTitle'), t('successMsg')));

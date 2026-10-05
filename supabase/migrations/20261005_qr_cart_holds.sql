@@ -1,0 +1,2 @@
+-- QR menü sepet ayırma: _set_cart_hold (ortak), set_qr_cart_hold(p_qr_token, p_client, p_product_id, p_qty),
+-- submit_customer_order_request(..., p_client_id) canlıda uygulandı (bkz. supabase/schema.sql).
