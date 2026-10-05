@@ -15,11 +15,12 @@ const SETTINGS_TABS = [
   { tab:'billing', perm:'settings_billing', label:'💳 Abonelik' },
   { tab:'roles', perm:'settings_roles', label:'Roller' },
   { tab:'integrations', perm:'settings_integrations', label:'Entegrasyonlar' },
-  { tab:'giftcards', perm:'payments', label:'🎁 Hediye Kartları' },
+  { tab:'giftcards', perm:'giftcards', label:'🎁 Hediye Kartları' },
   { tab:'datareset', perm:'settings_datareset', label:'🗑️ Veri Sıfırlama' },
 ];
 function settingsTabVisible(t, session){
   if(t.feature && !hasFeature(t.feature)) return false;
+  if(t.tab==='giftcards') return canManage(session, 'giftcards') || hasPerm(session, 'payments');
   return t.managerOnly ? !!session.isManager : canManage(session, t.perm);
 }
 async function renderSettingsView(main, session){
@@ -62,10 +63,10 @@ function renderSettingsContent(session){
 /* Kullanıcılar sekmesi iki alt sekmeli: Kullanıcılar | Aktif Kullanıcılar
    (ikincisi yalnızca Yönetici'ye görünür). */
 function renderUsersTabWithSubtabs(el, session){
-  if(!session.isManager) APP.usersSubTab = 'list';
+  if(!canManage(session, 'settings_users')) APP.usersSubTab = 'list';
   const sub = APP.usersSubTab || 'list';
   // Alt sekmeler kartın içinde, üst menüden ayrışan altı çizili stilde.
-  el.innerHTML = session.isManager ? `<div class="box sub-tabs-box" style="max-width:none;">
+  el.innerHTML = canManage(session, 'settings_users') ? `<div class="box sub-tabs-box" style="max-width:none;">
       <div class="sub-tabs" id="usersSubTabs">
         <div role="tab" tabindex="0" class="sub-tab ${sub==='list'?'active':''}" onclick="setUsersSubTab('list')"><span class="sub-tab-ic">👥</span>Kullanıcılar</div>
         <div role="tab" tabindex="0" class="sub-tab ${sub==='active'?'active':''}" onclick="setUsersSubTab('active')"><span class="sub-tab-ic">🟢</span>Aktif Kullanıcılar</div>
