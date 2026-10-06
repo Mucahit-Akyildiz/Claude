@@ -609,13 +609,13 @@ async function loadNotificationHistory(){
   }).join('') + '</div>';
 }
 function setNotifTab(t){
-  if(t === (APP.notifTab || 'history')) return;
+  if(t === (APP.notifTab || 'settings')) return;
   pushScreen();
   APP.notifTab = t;
   const h = document.getElementById('notifHistoryPart'), st = document.getElementById('notifSettingsPart');
   if(h) h.style.display = t==='history' ? '' : 'none';
   if(st) st.style.display = t==='settings' ? '' : 'none';
-  document.querySelectorAll('#main .sub-tabs .sub-tab').forEach((el, i) => el.classList.toggle('active', (i===0) === (t==='history')));
+  document.querySelectorAll('#main .sub-tabs .sub-tab').forEach((el, i) => el.classList.toggle('active', (i===0) === (t==='settings')));
   if(t==='history') loadNotificationHistory();
 }
 async function renderNotificationSettingsView(main, session){
@@ -624,14 +624,14 @@ async function renderNotificationSettingsView(main, session){
     if(error){ main.innerHTML = '<h1>Bildirim Ayarları</h1><p class="muted">Yüklenemedi: '+error.message+'</p>'; return; }
     APP.config = data;
   }
-  setTimeout(loadNotificationHistory, 0);
-  const ntab = APP.notifTab || 'history';
+  const ntab = APP.notifTab || 'settings';
+  if(ntab==='history') setTimeout(loadNotificationHistory, 0);
   main.innerHTML = `
     <h1>Bildirimler</h1>
     <div class="box sub-tabs-box" style="max-width:none;">
       <div class="sub-tabs">
-        <div role="tab" tabindex="0" class="sub-tab ${ntab==='history'?'active':''}" onclick="setNotifTab('history')"><span class="sub-tab-ic">🕘</span>Geçmiş Bildirimler</div>
         <div role="tab" tabindex="0" class="sub-tab ${ntab==='settings'?'active':''}" onclick="setNotifTab('settings')"><span class="sub-tab-ic">⚙️</span>Bildirim Ayarları</div>
+        <div role="tab" tabindex="0" class="sub-tab ${ntab==='history'?'active':''}" onclick="setNotifTab('history')"><span class="sub-tab-ic">🕘</span>Geçmiş Bildirimler</div>
       </div>
     </div>
     <div class="box" id="notifHistoryPart" style="max-width:none;${ntab==='history'?'':'display:none;'}">
