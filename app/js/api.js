@@ -29,7 +29,39 @@ function _looksLikeRawDbError(msg){
    'ABONELIK_SURESI_DOLDU' hatasıyla döner. Burada tek bir yerden yakalanıp
    uygulama genelinde (hangi ekranda olursa olsun) "Abonelik Süresi Doldu"
    ekranına yönlendirilir - her sb.rpc çağrısına tek tek eklemek yerine. */
-const _sbRpc = sb.rpc.bind(sb);
+const _sbRpcRaw = sb.rpc.bind(sb);
+/* ---- Ekranlar arası hızlı geçiş: okuma RPC'leri kısa süre önbelleğe alınır ----
+   Aynı veri sürümü (bkz. checkDataVersion / DATA_VER_LAST) içinde ve 60 sn'den
+   yeniyse sonuç sunucuya gitmeden döner; böylece menüler arası geçişte bekleme
+   (yükleme ekranı) olmaz. Herhangi bir yazma RPC'si (listede olmayan her çağrı)
+   önbelleği tamamen temizler, yani kendi değişikliğiniz hemen görünür; başka
+   cihazdaki değişiklik veri sürümünü artırdığı için önbellek kendiliğinden geçersizleşir. */
+const RPC_CACHEABLE = new Set(['get_restaurant_config','get_live_orders','list_suppliers','list_purchase_orders','list_reservations',
+  'list_waitlist','list_customers','list_staff_shifts','list_gift_cards','list_invoices','get_integration_settings','get_online_menu_admin',
+  'list_waste','get_sales_history','list_active_staff','get_bank_transfer_status','get_addon_purchase_info']);
+const RPC_NO_INVALIDATE = new Set(['get_data_version','get_nav_badges','get_my_permissions','get_my_shift_status','log_client_error',
+  'list_waiter_calls','list_customer_order_requests','list_chat_conversations','get_chat_messages','get_chat_attachment','search_customers_quick',
+  'get_customer_by_phone','check_gift_card']);
+const RPC_CACHE = new Map();
+function clearRpcCache(){ RPC_CACHE.clear(); }
+function _sbRpc(fn, args){
+  if(RPC_CACHEABLE.has(fn)){
+    const key = fn + '|' + JSON.stringify(args || {});
+    let ver = null; try{ ver = DATA_VER_LAST; }catch(e){}
+    const hit = RPC_CACHE.get(key);
+    if(hit && hit.ver === ver && Date.now() - hit.at < 60000){
+      // Çağıran sonucu değiştirebilir; her seferinde kopya verilir.
+      return hit.promise.then(res => res && !res.error ? { ...res, data: structuredClone(res.data) } : res);
+    }
+    // Supabase sorgu nesnesi her .then() çağrısında isteği yeniden atar; tek seferlik Promise'e çevrilir.
+    const promise = Promise.resolve(_sbRpcRaw(fn, args));
+    RPC_CACHE.set(key, { ver, at: Date.now(), promise });
+    promise.then(res => { if(!res || res.error) RPC_CACHE.delete(key); }, () => RPC_CACHE.delete(key));
+    return promise.then(res => res && !res.error ? { ...res, data: structuredClone(res.data) } : res);
+  }
+  if(!RPC_NO_INVALIDATE.has(fn)) RPC_CACHE.clear();
+  return _sbRpcRaw(fn, args);
+}
 sb.rpc = function(fn, args){
   return _sbRpc(fn, args).then(res => {
     if(res && res.error && res.error.message === 'ABONELIK_SURESI_DOLDU'){
