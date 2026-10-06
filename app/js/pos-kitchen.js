@@ -270,7 +270,32 @@ const BELL_PRESETS = {
   double_knock: { name: 'Çift Vuruş', icon: '👊', play: (ctx) => {
     [0,0.25].forEach(d => scheduleBellTone(ctx, 174.6, ctx.currentTime+d, 0.22, 0.6));
   }},
+  // Ek sesler: hepsi aynı yumuşak çan sentezini (scheduleBellTone) farklı melodi ve
+  // tınılarla kullanır; dosya indirmeye gerek yok, her cihazda aynı ve net çalar.
+  marimba: { name: 'Marimba', icon: '🪘', play: (ctx) => bellSeq(ctx, [[523,0,.3],[659,.12,.3],[784,.24,.45]]) },
+  harp: { name: 'Arp', icon: '🎶', play: (ctx) => bellSeq(ctx, [[392,0,.6],[494,.07,.6],[587,.14,.6],[784,.21,.8]], .5) },
+  crystal: { name: 'Kristal', icon: '💎', play: (ctx) => bellSeq(ctx, [[2093,0,.5],[2637,.1,.6]], .45) },
+  wind_chime: { name: 'Rüzgar Çanı', icon: '🎐', play: (ctx) => bellSeq(ctx, [[1760,0,.7],[2217,.11,.7],[1976,.2,.7],[2637,.33,.9]], .4) },
+  music_box: { name: 'Müzik Kutusu', icon: '🎁', play: (ctx) => bellSeq(ctx, [[1319,0,.35],[1568,.16,.35],[1760,.32,.35],[2093,.48,.6]], .45) },
+  happy: { name: 'Neşeli', icon: '😊', play: (ctx) => bellSeq(ctx, [[784,0,.18],[988,.12,.18],[1175,.24,.18],[1568,.36,.45]]) },
+  soft_pop: { name: 'Yumuşak Pop', icon: '🫧', play: (ctx) => bellSeq(ctx, [[1200,0,.12],[1600,.09,.18]], .5) },
+  elevator: { name: 'Asansör Gongu', icon: '🛗', play: (ctx) => bellSeq(ctx, [[659,0,.9],[523,.45,1.1]], .5) },
+  doorbell: { name: 'Kapı Zili', icon: '🚪', play: (ctx) => bellSeq(ctx, [[784,0,.5],[622,.35,.5],[784,.7,.5],[622,1.05,.7]]) },
+  sparkle: { name: 'Pırıltı', icon: '🌟', play: (ctx) => bellSeq(ctx, [[1568,0,.2],[2093,.06,.2],[2637,.12,.25],[3136,.18,.4]], .4) },
+  calm: { name: 'Sakin', icon: '🌙', play: (ctx) => bellSeq(ctx, [[440,0,1],[554,.2,1],[659,.4,1.2]], .45) },
+  bright: { name: 'Parlak', icon: '☀️', play: (ctx) => bellSeq(ctx, [[1047,0,.3],[1319,.1,.3],[1568,.2,.5]]) },
+  cash: { name: 'Kasa (Ka-ching)', icon: '💰', play: (ctx) => bellSeq(ctx, [[2349,0,.12],[2794,.08,.12],[3136,.16,.5]], .5) },
+  bubble: { name: 'Baloncuk', icon: '🫧', play: (ctx) => bellSeq(ctx, [[600,0,.12],[900,.1,.12],[1300,.2,.2]], .5) },
+  victory: { name: 'Zafer', icon: '🏆', play: (ctx) => bellSeq(ctx, [[523,0,.15],[659,.15,.15],[784,.3,.15],[1047,.45,.7]]) },
+  zen: { name: 'Zen Kasesi', icon: '🧘', play: (ctx) => bellSeq(ctx, [[293.7,0,2.2],[440,0,1.6]], .5) },
+  notify_up: { name: 'Yükselen Bildirim', icon: '⬆️', play: (ctx) => bellSeq(ctx, [[880,0,.15],[1175,.1,.25]]) },
+  notify_down: { name: 'İnen Bildirim', icon: '⬇️', play: (ctx) => bellSeq(ctx, [[1175,0,.15],[880,.1,.3]]) },
 };
+/* Nota dizisi: [frekans, başlangıç (sn), süre (sn)] - hepsi çan tınısıyla. */
+function bellSeq(ctx, notes, gain){
+  const t = ctx.currentTime;
+  notes.forEach(([f, d, dur]) => scheduleBellTone(ctx, f, t + d, dur, gain || 0.55));
+}
 function playBellPresetById(id){
   try{
     KITCHEN_AUDIO_CTX = KITCHEN_AUDIO_CTX || new (window.AudioContext || window.webkitAudioContext)();
