@@ -602,11 +602,21 @@ async function loadNotificationHistory(){
   box.innerHTML = '<div style="max-height:420px;overflow:auto;">' + rows.map(n => {
     const d = new Date(n.created_at);
     const when = d.toLocaleDateString('tr-TR', { day:'numeric', month:'short' }) + ' ' + d.toLocaleTimeString('tr-TR', { hour:'2-digit', minute:'2-digit' });
-    const go = n.view && NAV_ITEMS.some(i => i.view === n.view) ? `onclick="goToView('${escapeAttr(n.view)}')" style="cursor:pointer;"` : '';
+    const go = n.view && NAV_ITEMS.some(i => i.view === n.view) ? `onclick="goToView('${escapeAttr(n.view)}')"` : '';
     return `<div ${go} class="notif-row" style="display:flex;gap:10px;padding:10px 4px;border-bottom:1px solid var(--border);${n.read ? '' : 'font-weight:700;'}${go ? 'cursor:pointer;' : ''}">
       <div style="flex:1;min-width:0;overflow-wrap:anywhere;"><div>${escapeHtml(n.title)}</div>${n.body ? `<div class="muted" style="font-size:13px;font-weight:400;">${escapeHtml(n.body)}</div>` : ''}</div>
       <div class="muted" style="font-size:12px;white-space:nowrap;font-weight:400;">${when}</div></div>`;
   }).join('') + '</div>';
+}
+function setNotifTab(t){
+  if(t === (APP.notifTab || 'history')) return;
+  pushScreen();
+  APP.notifTab = t;
+  const h = document.getElementById('notifHistoryPart'), st = document.getElementById('notifSettingsPart');
+  if(h) h.style.display = t==='history' ? '' : 'none';
+  if(st) st.style.display = t==='settings' ? '' : 'none';
+  document.querySelectorAll('#main .sub-tabs .sub-tab').forEach((el, i) => el.classList.toggle('active', (i===0) === (t==='history')));
+  if(t==='history') loadNotificationHistory();
 }
 async function renderNotificationSettingsView(main, session){
   if(!APP.config){
@@ -615,12 +625,19 @@ async function renderNotificationSettingsView(main, session){
     APP.config = data;
   }
   setTimeout(loadNotificationHistory, 0);
+  const ntab = APP.notifTab || 'history';
   main.innerHTML = `
     <h1>Bildirimler</h1>
-    <div class="box" style="max-width:none;">
-      <h2>🕘 Geçmiş Bildirimler</h2>
+    <div class="box sub-tabs-box" style="max-width:none;">
+      <div class="sub-tabs">
+        <div role="tab" tabindex="0" class="sub-tab ${ntab==='history'?'active':''}" onclick="setNotifTab('history')"><span class="sub-tab-ic">🕘</span>Geçmiş Bildirimler</div>
+        <div role="tab" tabindex="0" class="sub-tab ${ntab==='settings'?'active':''}" onclick="setNotifTab('settings')"><span class="sub-tab-ic">⚙️</span>Bildirim Ayarları</div>
+      </div>
+    </div>
+    <div class="box" id="notifHistoryPart" style="max-width:none;${ntab==='history'?'':'display:none;'}">
       <div id="notifHistory"><p class="muted">Yükleniyor…</p></div>
     </div>
+    <div id="notifSettingsPart" style="${ntab==='settings'?'':'display:none;'}">
     <p class="muted" style="text-align:left;">Bu ayarlar sadece <b>bu ekrana/tarayıcıya</b> özeldir — her cihazda ayrı ayrı yapılandırılır, veritabanına kaydedilmez.</p>
 
     ${!hasFeature('push_notifications') ? `<div class="box" style="max-width:none;"><h2>📱 Push Bildirimleri (Uygulama Kapalıyken de)</h2>${lockedFeatureHtml()}</div>` : ''}
@@ -672,6 +689,7 @@ async function renderNotificationSettingsView(main, session){
         kısıtladığı için, bu ekranda bir istasyon seçtiğinizde (mutfak ekranında) ses izni otomatik olarak alınır —
         sekmeyi hiç tıklamadan açık bıraktıysanız ilk sipariş zili çalmayabilir.
       </p>
+    </div>
     </div>
   `;
   updateBellScopeStatus();
