@@ -1,0 +1,2 @@
+-- Canlıda uygulandı: notification_log tablosu (kullanıcı başına bildirim geçmişi, saatlik tekilleştirme),
+-- list_my_notifications(p_token) RPC'si (son 200, okundu işaretler), 30 günden eskileri silen cron işi.
