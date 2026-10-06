@@ -7431,6 +7431,11 @@ begin
   if not exists(select 1 from zones where id = p_zone_id and restaurant_id = s.restaurant_id) then
     raise exception 'Bölge bulunamadı';
   end if;
+  if coalesce(trim(p_name),'') = '' then raise exception 'Masa adı gerekli'; end if;
+  -- Aynı işletmede aynı adda iki masa olmasın (çift tıklama / toplu eklemede tekrar).
+  if exists(select 1 from restaurant_tables where restaurant_id = s.restaurant_id and lower(trim(name)) = lower(trim(p_name)) and id is distinct from p_id) then
+    raise exception '"%" adında bir masa zaten var', trim(p_name);
+  end if;
   if p_id is null then
     insert into restaurant_tables (restaurant_id, zone_id, name) values (s.restaurant_id, p_zone_id, p_name) returning id into v_id;
   else
