@@ -196,6 +196,7 @@ async function renderReportsView(main, session){
   await renderReportTabContent(session);
 }
 function setReportTab(tab){
+  if(tab !== APP.reportTab) pushScreen();
   APP.reportTab = tab;
   document.querySelectorAll('#reportTabs .tab').forEach(t => t.classList.toggle('active', t.dataset.tab===tab));
   renderReportTabContent(getSession());

@@ -715,3 +715,7 @@ button.chat-once{cursor:pointer;}
   .pay-option-card .field-row input{flex:1 1 140px;min-width:120px;}
   .pay-option-card .field-row button:not(.pay-chip){flex:1 1 100%;min-height:42px;}
 }
+/* Mutfak kartı: uzun müşteri adı/not (boşluksuz uzun metin) kartı ekrandan taşırmasın. */
+.kitchen-card{min-width:0;max-width:100%;overflow:hidden;overflow-wrap:anywhere;word-break:break-word;}
+.kitchen-card *{min-width:0;overflow-wrap:anywhere;}
+.kitchen-card button{max-width:100%;}

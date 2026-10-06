@@ -38,6 +38,7 @@ async function renderSettingsView(main, session){
   renderSettingsContent(session);
 }
 function setSettingsTab(tab){
+  if(tab !== APP.settingsTab) pushScreen();
   setTimeout(applyNavBadges, 0);
   APP.settingsTab = tab;
   document.querySelectorAll('.tabs .tab[data-tab]').forEach(el => el.classList.toggle('active', el.dataset.tab===tab));
@@ -78,6 +79,7 @@ function renderUsersTabWithSubtabs(el, session){
   else renderUsersSettings(box, session);
 }
 function setUsersSubTab(t){
+  if(t !== (APP.usersSubTab||'list')) pushScreen();
   APP.usersSubTab = t;
   const el = document.getElementById('settingsContent');
   if(el) renderUsersTabWithSubtabs(el, getSession());

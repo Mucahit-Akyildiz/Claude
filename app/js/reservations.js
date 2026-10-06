@@ -16,6 +16,7 @@ async function renderReservationsView(main, session){
   await renderResvTabContent(session);
 }
 function setResvTab(tab){
+  if(tab !== APP.resvTab) pushScreen();
   setTimeout(applyNavBadges, 0);
   APP.resvTab = tab;
   document.querySelectorAll('#resvTabs .tab').forEach(t => t.classList.toggle('active', t.dataset.tab===tab));
