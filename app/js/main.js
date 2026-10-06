@@ -764,3 +764,19 @@ if(isNativeApp()){
     setTimeout(() => sp.remove(), 550);
   }, 700);
 }
+/* "Yeni ... Ekle" panelleri (Ürünler, İstasyonlar, Hammaddeler vb.) listenin altında değil
+   üstünde dursun: ekrana bir liste + ekleme paneli çizildiğinde panel, başlığın hemen altına
+   taşınır. Her ekranı tek tek değiştirmek yerine tek yerden uygulanır. */
+function liftAddPanels(root){
+  (root.querySelectorAll ? root.querySelectorAll('.add-row-panel:not([data-lifted])') : []).forEach(panel => {
+    panel.dataset.lifted = '1';
+    const box = panel.parentElement; if(!box) return;
+    const list = [...box.children].find(c => c !== panel && (c.tagName === 'TABLE' || c.querySelector('table')));
+    if(!list || !(list.compareDocumentPosition(panel) & Node.DOCUMENT_POSITION_FOLLOWING)) return;
+    box.insertBefore(panel, list);
+    panel.style.margin = '0 0 16px';
+  });
+}
+new MutationObserver(muts => {
+  for(const m of muts) for(const n of m.addedNodes) if(n.nodeType === 1) liftAddPanels(n.parentElement || n);
+}).observe(document.body, { childList: true, subtree: true });

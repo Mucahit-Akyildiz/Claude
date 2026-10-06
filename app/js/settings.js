@@ -866,11 +866,22 @@ function ownerUserRow(u, session){
 function renderUsersSettings(el, session){
   el.innerHTML = `<div class="box" style="max-width:none;">
     <h2>Kullanıcılar</h2>
+    <div class="add-row-panel" style="margin:0 0 16px;">
+      <p>Yeni Kullanıcı Ekle</p>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;align-items:start;">
+        <div class="field-group"><label>Kullanıcı Adı</label><input id="nu_name" placeholder="örn. ahmet"></div>
+        <div class="field-group"><label>Şifre</label><input id="nu_pass" placeholder="Şifre"></div>
+        <div class="field-group"><label>Roller (en fazla 2)</label>${roleCheckboxes('nu', [])}</div>
+      </div>
+      <button style="margin-top:12px;max-width:220px;" onclick="addUser()">+ Kullanıcı Ekle</button>
+    </div>
+    <input id="userSearch" placeholder="🔍 Kullanıcı ara…" value="${escapeAttr(APP.userSearch||'')}" oninput="APP.userSearch=this.value;filterUserRows()" style="max-width:320px;margin:0 0 10px;">
     <div class="settings-table-wrap">
     <table class="settings-table">
       <thead><tr><th>Kullanıcı Adı</th><th>Yeni Şifre</th><th>Roller (en fazla 2)</th><th></th></tr></thead>
       <tbody>
-      ${APP.config.users.map(u => isOwnerUser(u) ? ownerUserRow(u, session) : `
+      ${APP.config.users.slice().sort((x, y) => String(x.username).localeCompare(String(y.username), 'tr', { sensitivity: 'base' }))
+        .map(u => (isOwnerUser(u) ? ownerUserRow(u, session) : `
         <tr style="${u.is_active===false?'opacity:.55;':''}">
           <td class="col-name"><input value="${escapeAttr(u.username)}" id="us_name_${u.id}">${u.is_active===false?'<span class="role-badge" style="color:var(--red);border-color:var(--red);margin-top:6px;display:inline-block;">Pasif</span>':''}</td>
           <td class="col-name"><input type="password" placeholder="(değiştirmek için yaz)" id="us_pass_${u.id}"></td>
@@ -882,20 +893,17 @@ function renderUsersSettings(el, session){
             <button type="button" class="act-btn act-delete" onclick="removeUser('${u.id}')">${ICON_TRASH}<span>Sil</span></button>
             </div>
           </td>
-        </tr>`).join('')}
+        </tr>`).replace('<tr', `<tr data-uname="${escapeAttr(String(u.username).toLocaleLowerCase('tr'))}"`)).join('')}
       </tbody>
     </table>
     </div>
-    <div class="add-row-panel">
-      <p>Yeni Kullanıcı Ekle</p>
-      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;align-items:start;">
-        <div class="field-group"><label>Kullanıcı Adı</label><input id="nu_name" placeholder="örn. ahmet"></div>
-        <div class="field-group"><label>Şifre</label><input id="nu_pass" placeholder="Şifre"></div>
-        <div class="field-group"><label>Roller (en fazla 2)</label>${roleCheckboxes('nu', [])}</div>
-      </div>
-      <button style="margin-top:12px;max-width:220px;" onclick="addUser()">+ Kullanıcı Ekle</button>
-    </div>
   </div>`;
+  filterUserRows();
+}
+/* Kullanıcı listesinde ada göre anlık arama (liste zaten alfabetik sıralı). */
+function filterUserRows(){
+  const q = String(APP.userSearch||'').trim().toLocaleLowerCase('tr');
+  document.querySelectorAll('tr[data-uname]').forEach(tr => { tr.style.display = !q || tr.dataset.uname.includes(q) ? '' : 'none'; });
 }
 
 /* --- Vardiyalar: personelin giriş/çıkış (clock_in/clock_out) kayıtlarını
