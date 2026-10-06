@@ -573,10 +573,17 @@ async function removeZone(id){
   if(error){ alert(friendlyDeleteError(error.message)); return; }
   renderSettingsView(document.getElementById('main'), session);
 }
+let ADD_TABLE_BUSY = false;
 async function addTable(zoneId){
+  // Çift tıklama / Enter + düğme ile aynı ekleme iki kez çalışmasın.
+  if(ADD_TABLE_BUSY) return;
   const session = getSession();
   const name = document.getElementById('newTable_'+zoneId).value.trim();
   if(!name) return;
+  ADD_TABLE_BUSY = true;
+  try{ await addTableInner(session, zoneId, name); } finally { ADD_TABLE_BUSY = false; }
+}
+async function addTableInner(session, zoneId, name){
   // "Masa 1-10" gibi aralık yazılırsa masalar toplu eklenir.
   const m = name.match(/^(.*?)(\d+)\s*-\s*(\d+)$/);
   let names = [name];
@@ -586,10 +593,18 @@ async function addTable(zoneId){
     if(!confirm(`${to-from+1} masa eklenecek (${m[1]}${from} … ${m[1]}${to}). Devam edilsin mi?`)) return;
     names = []; for(let i=from;i<=to;i++) names.push(m[1] + i);
   }
-  for(const n of names){
-    const { error } = await sb.rpc('upsert_table', { p_token: session.session_token, p_id: null, p_zone_id: zoneId, p_name: n });
-    if(error){ alert(n + ': ' + error.message); break; }
-  }
+  // Zaten var olan adlar atlanır (büyük/küçük harf fark etmez).
+  const existing = new Set((APP.config.zones||[]).flatMap(z => z.tables||[]).map(t => String(t.name).trim().toLocaleLowerCase('tr')));
+  const todo = names.filter(n => !existing.has(n.trim().toLocaleLowerCase('tr')));
+  const skipped = names.length - todo.length;
+  if(!todo.length){ alert('Bu adlarda masalar zaten var.'); return; }
+  await withLoadingOverlay((async () => {
+    for(const n of todo){
+      const { error } = await sb.rpc('upsert_table', { p_token: session.session_token, p_id: null, p_zone_id: zoneId, p_name: n });
+      if(error){ alert(n + ': ' + error.message); break; }
+    }
+  })());
+  if(skipped) showToast(skipped + ' masa zaten vardı, atlandı.');
   renderSettingsView(document.getElementById('main'), session);
 }
 async function removeTable(id){
