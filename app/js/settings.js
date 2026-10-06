@@ -44,6 +44,27 @@ function setSettingsTab(tab){
   document.querySelectorAll('.tabs .tab[data-tab]').forEach(el => el.classList.toggle('active', el.dataset.tab===tab));
   renderSettingsContent(getSession());
 }
+/* Ürünler/Hammaddeler listelerinde ada göre anlık arama (satırdaki ilk kutu = ad).
+   Eşleşen satırı kalmayan istasyon grupları da gizlenir. Yazılan arama yenilemede korunur. */
+function listSearchHtml(key, ph){
+  APP.listSearch = APP.listSearch || {};
+  setTimeout(() => filterListRows(key), 0);
+  return `<input class="list-search" placeholder="🔍 ${escapeAttr(ph)}" value="${escapeAttr(APP.listSearch[key]||'')}" oninput="APP.listSearch['${key}']=this.value;filterListRows('${key}')" style="max-width:320px;margin:0 0 12px;">`;
+}
+function filterListRows(key){
+  const box = document.querySelector('#settingsContent .box'); if(!box) return;
+  const q = String((APP.listSearch||{})[key]||'').trim().toLocaleLowerCase('tr');
+  box.querySelectorAll('.settings-table tbody tr').forEach(tr => {
+    const inp = tr.querySelector('input'); const name = (inp ? inp.value : tr.textContent).toLocaleLowerCase('tr');
+    tr.style.display = !q || name.includes(q) ? '' : 'none';
+  });
+  box.querySelectorAll('.settings-table').forEach(t => {
+    const grp = t.closest('.settings-table-wrap'); const wrap = grp && grp.parentElement !== box ? grp.parentElement : grp;
+    if(!wrap) return;
+    const any = [...t.querySelectorAll('tbody tr')].some(tr => tr.style.display !== 'none');
+    wrap.style.display = any || !q ? '' : 'none';
+  });
+}
 function renderSettingsContent(session){
   const el = document.getElementById('settingsContent'); if(!el) return;
   if(!APP.settingsTab){ el.innerHTML = '<p class="muted">Görüntüleme yetkiniz olan bir ayar bölümü yok.</p>'; return; }
@@ -147,6 +168,7 @@ function renderIngredientsSettings(el, session){
   el.innerHTML = `<div class="box" style="max-width:none;">
     <h2>Hammaddeler / Stok Kalemleri</h2>
     <p class="muted" style="text-align:left;margin:0 0 16px;">Örn: "Köfte" (birim: adet, stok: 200), "Döner Eti" (birim: kg, stok: 20). Yeni bir hammadde eklediğinizde hangi ürünlerin onu kullandığını hemen soracağız — istediğiniz zaman "Kullanıldığı Ürünler" ile bunu tekrar düzenleyebilirsiniz. Aynı hammaddeyi paylaşan ürünlerin stoğu her zaman ortak ve anlık hesaplanır.</p>
+    ${listSearchHtml('ingredients', 'Hammadde ara…')}
     <div class="settings-table-wrap">
     <table class="settings-table">
       <thead><tr><th>Hammadde Adı</th><th>Birim</th><th>Stok</th><th></th></tr></thead>
@@ -718,6 +740,7 @@ function renderProductsSettings(el, session){
   el.innerHTML = `<div class="box" style="max-width:none;">
     <h2>Ürünler</h2>
     <p class="muted" style="text-align:left;margin:0 0 16px;">Stok alanını boş bırakırsanız o ürün için stok takibi yapılmaz. "Kapat" ile bir ürünü geçici olarak siparişe kapatabilirsiniz.</p>
+    ${listSearchHtml('products', 'Ürün ara…')}
     ${stations.map(s => groupHtml(s.name, s.color, products.filter(p => p.station_id===s.id))).join('')}
     ${groupHtml('İstasyonsuz', null, unassigned)}
 
