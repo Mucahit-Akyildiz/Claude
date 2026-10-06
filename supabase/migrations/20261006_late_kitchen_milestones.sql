@@ -1,0 +1,3 @@
+-- Canlıda uygulandı: order_items.late_push_milestone (int, varsayılan -1); geciken mutfak
+-- kontrolü cron'u her dakikaya alındı ('* * * * *'); _cron_dispatch_late_kitchen_items ve
+-- _cron_dispatch_customer_requests istek zaman aşımı 5 sn'den 25/15 sn'ye çıkarıldı.
