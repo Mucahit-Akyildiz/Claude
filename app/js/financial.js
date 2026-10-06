@@ -191,6 +191,7 @@ async function renderReportsView(main, session){
       <div class="tab ${APP.reportTab==='tips'?'active':''}" data-tab="tips" onclick="setReportTab('tips')">💰 Bahşiş Havuzu</div>
       <div class="tab ${APP.reportTab==='waste'?'active':''}" data-tab="waste" onclick="setReportTab('waste')">🔥 İsraf</div>
       <div class="tab ${APP.reportTab==='resv'?'active':''}" data-tab="resv" onclick="setReportTab('resv')">📅 Rezervasyon Analizi</div>
+      <div class="tab ${APP.reportTab==='openacc'?'active':''}" data-tab="openacc" onclick="setReportTab('openacc')">📒 Açık Hesaplar</div>
     </div>
     <div id="reportContent"></div>`;
   await renderReportTabContent(session);
@@ -236,6 +237,7 @@ function renderReportTabContent(session){
   if(tab==='tips') return renderTipPoolContent(session);
   if(tab==='waste') return renderWasteContent(session);
   if(tab==='resv') return renderReservationAnalyticsContent(session);
+  if(tab==='openacc') return renderOpenAccountsContent(session);
   return renderReportContent(session);
 }
 async function renderReportContent(session){
@@ -914,4 +916,84 @@ function drawResvAnalytics(){
         <td>${resvDetailBtn(r)}</td>
       </tr>`).join('')}
     </tbody></table></div>` : '<p class="muted">Kayıt yok.</p>'}`;
+}
+
+/* ---- Açık Hesaplar: toplam açık bakiye, dönemde açık hesaba yazılan / tahsil edilen,
+   hesap bazında bakiye ve hareket geçmişi; buradan tahsilat da alınır. ---- */
+async function renderOpenAccountsContent(session){
+  const el = document.getElementById('reportContent'); if(!el) return;
+  const { data, error } = await withLoadingOverlay(sb.rpc('get_open_accounts_report', { p_token: session.session_token, p_from: APP.reportDate, p_to: APP.reportDateTo || APP.reportDate }));
+  if(error){ el.innerHTML = '<p class="muted">Yüklenemedi: ' + escapeHtml(error.message) + '</p>'; return; }
+  APP.openAccReport = data;
+  const accs = data.accounts || [];
+  const open = accs.filter(a => a.balance > 0.009);
+  const card = (label, val, color) => `<div class="box" style="flex:1;min-width:180px;margin:0;"><div class="muted" style="font-size:12.5px;">${label}</div><div style="font-size:24px;font-weight:800;${color ? 'color:'+color+';' : ''}">${val}</div></div>`;
+  const methodTxt = m => m === 'cash' ? 'Nakit' : m === 'card' ? 'Kart' : m === 'open_account' ? 'Açık hesaba yazıldı' : (m || '');
+  el.innerHTML = `
+    <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px;">
+      ${card('Toplam açık bakiye (tüm zamanlar)', money(data.total_balance), data.total_balance > 0 ? 'var(--red)' : '')}
+      ${card('Bu dönemde açık hesaba yazılan', money(data.period_charges))}
+      ${card('Bu dönemde tahsil edilen', money(data.period_payments), 'var(--green, #2fae5e)')}
+      ${card('Borcu olan hesap', open.length + ' / ' + accs.length)}
+    </div>
+    <div class="box" style="max-width:none;">
+      <h2>Hesaplar</h2>
+      <input class="list-search" placeholder="🔍 Hesap ara…" oninput="filterOpenAccRows(this.value)" style="max-width:320px;margin:0 0 10px;">
+      ${accs.length ? `<div class="settings-table-wrap"><table class="settings-table" id="openAccTable">
+        <thead><tr><th>Hesap</th><th>Bakiye</th><th>Dönemde Yazılan</th><th>Dönemde Tahsil</th><th>Son Yazım</th><th>Son Tahsilat</th><th></th></tr></thead>
+        <tbody>${accs.map(a => `<tr data-oa="${escapeAttr(a.name.toLocaleLowerCase('tr') + ' ' + (a.phone||''))}">
+          <td class="col-name"><b>${escapeHtml(a.name)}</b>${a.phone ? '<div class="muted" style="font-size:12px;">' + escapeHtml(a.phone) + '</div>' : ''}${a.note ? '<div class="muted" style="font-size:12px;">' + escapeHtml(a.note) + '</div>' : ''}</td>
+          <td style="font-weight:800;color:${a.balance > 0.009 ? 'var(--red)' : 'inherit'};">${money(a.balance)}</td>
+          <td>${money(a.period_charges)}</td><td>${money(a.period_payments)}</td>
+          <td>${a.last_charge_at ? new Date(a.last_charge_at).toLocaleDateString('tr-TR') : '—'}</td>
+          <td>${a.last_payment_at ? new Date(a.last_payment_at).toLocaleDateString('tr-TR') : '—'}</td>
+          <td><div class="act-row">
+            ${a.balance > 0.009 ? `<button type="button" class="act-btn act-save" onclick="collectOpenAccount('${a.id}')"><b>₺</b><span>Tahsilat</span></button>` : ''}
+            <button type="button" class="act-btn" onclick="showOpenAccEntries('${a.id}')"><b>📄</b><span>Hareketler</span></button>
+          </div></td></tr>`).join('')}</tbody></table></div>` : '<p class="muted">Henüz açık hesap yok. Ödeme ekranında "📒 Açık Hesaba At" ile oluşturabilirsiniz.</p>'}
+    </div>
+    <div class="box" style="max-width:none;">
+      <h2>Dönem Hareketleri</h2>
+      ${(data.entries||[]).length ? `<div class="settings-table-wrap"><table class="settings-table">
+        <thead><tr><th>Tarih</th><th>Hesap</th><th>İşlem</th><th>Tutar</th><th>Masa / Not</th><th>Personel</th></tr></thead>
+        <tbody>${data.entries.map(e => `<tr>
+          <td>${new Date(e.created_at).toLocaleString('tr-TR', { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' })}</td>
+          <td>${escapeHtml(e.account_name)}</td>
+          <td>${e.kind === 'charge' ? '📒 Hesaba yazıldı' : '✅ Tahsilat (' + methodTxt(e.method) + ')'}</td>
+          <td style="font-weight:700;color:${e.kind === 'charge' ? 'var(--red)' : 'var(--green, #2fae5e)'};">${e.kind === 'charge' ? '+' : '−'}${money(e.amount)}</td>
+          <td>${escapeHtml([e.table_name, e.note].filter(Boolean).join(' · ') || '—')}</td>
+          <td>${escapeHtml(e.staff || '—')}</td></tr>`).join('')}</tbody></table></div>` : '<p class="muted">Bu dönemde hareket yok.</p>'}
+    </div>`;
+}
+function filterOpenAccRows(q){
+  q = String(q||'').trim().toLocaleLowerCase('tr');
+  document.querySelectorAll('#openAccTable tr[data-oa]').forEach(tr => { tr.style.display = !q || tr.dataset.oa.includes(q) ? '' : 'none'; });
+}
+function showOpenAccEntries(id){
+  const d = APP.openAccReport || {}; const a = (d.accounts||[]).find(x => x.id===id); if(!a) return;
+  const rows = (d.entries||[]).filter(e => e.account_id===id);
+  const m = document.createElement('div'); m.className = 'modal-bg'; m.id = 'oaEntriesModalBg';
+  m.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;z-index:140;padding:16px;';
+  m.onclick = (e) => { if(e.target===m) m.remove(); };
+  m.innerHTML = `<div style="background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:18px;max-width:520px;width:100%;max-height:85vh;overflow:auto;">
+    <h2 style="margin:0 0 4px;">📒 ${escapeHtml(a.name)}</h2>
+    <p class="muted" style="margin:0 0 12px;">Bakiye: <b style="color:${a.balance > 0.009 ? 'var(--red)' : 'inherit'};">${money(a.balance)}</b> · Seçili dönemdeki hareketler</p>
+    ${rows.length ? rows.map(e => `<div style="display:flex;justify-content:space-between;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);">
+      <span>${new Date(e.created_at).toLocaleString('tr-TR', { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' })} · ${e.kind === 'charge' ? 'Hesaba yazıldı' : 'Tahsilat'}${e.table_name ? ' · ' + escapeHtml(e.table_name) : ''}</span>
+      <b style="color:${e.kind === 'charge' ? 'var(--red)' : 'var(--green, #2fae5e)'};">${e.kind === 'charge' ? '+' : '−'}${money(e.amount)}</b></div>`).join('') : '<p class="muted">Bu dönemde hareket yok.</p>'}
+    <button type="button" class="ghost-btn" style="width:100%;margin-top:12px;" onclick="document.getElementById('oaEntriesModalBg').remove()">Kapat</button>
+  </div>`;
+  document.body.appendChild(m);
+}
+async function collectOpenAccount(id){
+  const a = ((APP.openAccReport||{}).accounts||[]).find(x => x.id===id); if(!a) return;
+  const v = prompt('"' + a.name + '" hesabından tahsil edilecek tutar (bakiye ' + money(a.balance) + '):', String(Math.round(a.balance*100)/100));
+  if(v === null) return;
+  const amount = parseFloat(String(v).replace(',', '.'));
+  if(!(amount > 0)){ alert('Geçerli bir tutar girin'); return; }
+  const method = confirm('Kartla mı alındı? (Tamam = Kart, İptal = Nakit)') ? 'card' : 'cash';
+  const { error } = await withLoadingOverlay(sb.rpc('collect_open_account', { p_token: getSession().session_token, p_account_id: id, p_amount: amount, p_method: method }));
+  if(error){ alert(error.message); return; }
+  showToast('✅ ' + money(amount) + ' tahsil edildi');
+  renderOpenAccountsContent(getSession());
 }

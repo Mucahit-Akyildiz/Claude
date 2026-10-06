@@ -1,0 +1,6 @@
+-- Canlıda uygulandı:
+-- * pay_order_items: istasyonu olan ürün 'ready' değilse 'HAZIR_DEGIL' hatası; açık hesaba aktarımda
+--   (session ayarı peyktan.open_account=1) ödenen tutar kontrolü atlanır.
+-- * open_accounts, open_account_entries tabloları (RLS açık, yalnızca RPC ile erişim).
+-- * RPC'ler: list_open_accounts, create_open_account, transfer_to_open_account, collect_open_account,
+--   get_open_accounts_report (Finansal Analiz > Açık Hesaplar).
