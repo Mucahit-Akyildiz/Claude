@@ -397,10 +397,7 @@ function todayLocalDateStr(){
 function goToView(view, fromHistory){
   // Geri tuşu/kaydırma için her ekran değişimi tarayıcı geçmişine yazılır
   // (bkz. goBack / popstate). Geçmişten gelinen geçişler tekrar yazılmaz.
-  if(!fromHistory && view !== APP.view){
-    APP.viewStack = (APP.viewStack || []).concat(APP.view || 'home').slice(-30);
-    try{ history.pushState({ view }, ''); }catch(e){}
-  }
+  if(!fromHistory && view !== APP.view) pushScreen();
   APP.view = view;
   // Finansal Analiz'e her girişte, en son baktiginiz tarihi hatirlamak yerine
   // dogrudan bugunun raporunu getirir - farkli bir tarihe bakmak isterseniz
@@ -448,34 +445,63 @@ function goBack(){
   if(closeTopModal()) return;
   if(APP.mobileNavOpen){ closeMobileNav(); return; }
   if(backWithinView()) return;
-  const stack = APP.viewStack || [];
-  if(stack.length){
-    const prev = stack.pop();
-    APP.viewStack = stack;
-    goToView(prev, true);
+  if(popScreen()){
     // Tarayıcı geçmişini de bir geri al (popstate tekrar işlenmesin).
     IGNORE_NEXT_POPSTATE = true;
     setTimeout(() => { IGNORE_NEXT_POPSTATE = false; }, 400);
     try{ history.back(); }catch(e){}
     return;
   }
-  if(APP.view && APP.view !== 'home'){ goToView('home', true); return; }
+  if(APP.view && APP.view !== 'home'){ goToView('home', true); saveNavState(); return; }
   const AppPlugin = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App;
   if(AppPlugin && AppPlugin.minimizeApp) AppPlugin.minimizeApp();
 }
+/* ---- Ekran yığını: menü ekranı + ekran içi sekmeler (Ayarlar/Raporlar/Rezervasyon/
+   Satın Alma sekmesi, Kullanıcılar alt sekmesi, açık sohbet, mutfak istasyonu). Geri her
+   zaman bir önceki ekrana/sekmeye döner. Yığın sessionStorage'da tutulur; uygulama
+   arka planda yeniden yüklense bile kaldığı ekrandan ve geri geçmişiyle açılır. */
+const SCREEN_KEYS = ['view','settingsTab','reportTab','usersSubTab','resvTab','purchTab','chatConv','kitchenStation'];
+function screenSnapshot(){ const o = {}; SCREEN_KEYS.forEach(k => { if(APP[k] !== undefined) o[k] = APP[k]; }); o.view = o.view || 'home'; return o; }
+function saveNavState(){ try{ sessionStorage.setItem('peyktan_nav', JSON.stringify({ cur: screenSnapshot(), stack: APP.viewStack || [] })); }catch(e){} }
+function pushScreen(){
+  APP.viewStack = (APP.viewStack || []).concat([screenSnapshot()]).slice(-40);
+  try{ history.pushState({ nav: APP.viewStack.length }, ''); }catch(e){}
+  setTimeout(saveNavState, 0);
+}
+function popScreen(){
+  const stack = APP.viewStack || [];
+  if(!stack.length) return false;
+  let prev = stack.pop();
+  if(typeof prev === 'string') prev = { view: prev };
+  APP.viewStack = stack;
+  const session = getSession();
+  const item = NAV_ITEMS.find(i => i.view === prev.view);
+  if(prev.view !== 'home' && !(item && session && navItemVisible(item, session))) prev = { view: 'home' };
+  SCREEN_KEYS.forEach(k => { if(k !== 'view') APP[k] = prev[k]; });
+  goToView(prev.view, true);
+  saveNavState();
+  return true;
+}
+function restoreNavState(){
+  if(!getSession()) return;
+  try{
+    const st = JSON.parse(sessionStorage.getItem('peyktan_nav') || 'null');
+    if(!st || !st.cur) return;
+    const item = NAV_ITEMS.find(i => i.view === st.cur.view);
+    if(st.cur.view !== 'home' && !(item && navItemVisible(item, getSession()))) return;
+    SCREEN_KEYS.forEach(k => { if(st.cur[k] !== undefined) APP[k] = st.cur[k]; });
+    APP.viewStack = Array.isArray(st.stack) ? st.stack.slice(-40) : [];
+  }catch(e){}
+}
 function setupBackNavigation(){
-  try{ history.replaceState({ view: APP.view || 'home' }, ''); }catch(e){}
+  restoreNavState();
+  try{ history.replaceState({ nav: 0 }, ''); }catch(e){}
   window.addEventListener('popstate', (e) => {
     if(IGNORE_NEXT_POPSTATE){ IGNORE_NEXT_POPSTATE = false; return; }
     if(!getSession()) return;
     // Pencere açıkken tarayıcı geri tuşu önce pencereyi kapatsın, ekran değişmesin.
     if(closeTopModal() || backWithinView()){ try{ history.pushState({ view: APP.view }, ''); }catch(err){} return; }
-    const view = (e.state && e.state.view) || 'home';
-    const item = NAV_ITEMS.find(i => i.view===view);
-    if(view==='home' || (item && navItemVisible(item, getSession()))){
-      (APP.viewStack || []).pop();
-      goToView(view, true);
-    }
+    if(!popScreen() && APP.view !== 'home'){ goToView('home', true); saveNavState(); }
   });
   const AppPlugin = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App;
   if(AppPlugin) AppPlugin.addListener('backButton', () => { if(getSession()) goBack(); else if(AppPlugin.minimizeApp) AppPlugin.minimizeApp(); });

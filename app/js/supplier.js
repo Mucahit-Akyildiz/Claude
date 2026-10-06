@@ -16,6 +16,7 @@ async function renderPurchasingView(main, session){
   await renderPurchTabContent(session);
 }
 function setPurchTab(tab){
+  if(tab !== APP.purchTab) pushScreen();
   setTimeout(applyNavBadges, 0);
   APP.purchTab = tab;
   document.querySelectorAll('#purchTabs .tab').forEach(t => t.classList.toggle('active', t.dataset.tab===tab));
