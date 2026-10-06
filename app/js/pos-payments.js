@@ -83,6 +83,13 @@ async function refreshGiftCardList(session, search){
 /* Grid'i (masa/paket kartları + tutarları) APP.liveOrders'tan yeniden çizer -
    sunucuya yeniden sormadan, herhangi bir ödeme al(n)dığında hemen
    çağrılabilir (örn. ödeme modalı açıkken arkadaki kartın tutarı da güncellensin diye). */
+/* Kart adı: uzun adlar kelime ortasından bölünmesin diye yazı küçülür; yine sığmazsa
+   tirelenerek bölünür (lang="tr"). */
+function payCellName(name){
+  const longest = Math.max(0, ...String(name||'').split(/\s+/).map(w => w.length));
+  const fs = longest > 14 ? 11.5 : longest > 9 ? 13 : null;
+  return `<span lang="tr" style="display:block;hyphens:auto;-webkit-hyphens:auto;overflow-wrap:break-word;word-break:normal;${fs ? 'font-size:'+fs+'px;' : ''}">${escapeHtml(name)}</span>`;
+}
 function renderPayGrid(){
   const grid = document.getElementById('payGrid'); if(!grid) return;
   const allTables = APP.config.zones.flatMap(z => z.tables);
@@ -92,14 +99,14 @@ function renderPayGrid(){
     if(unpaid.length===0) return null;
     const total = unpaid.reduce((s,i) => s+i.price*i.qty, 0);
     return `<div class="table-cell" data-badge-id="${order.order_id}" style="cursor:pointer;background:rgba(244,63,94,.14);border-color:var(--red);color:var(--red);" onclick="openPayModal('${order.order_id}')">
-      ${escapeHtml(t.name)}<div style="font-size:11px;margin-top:4px;font-weight:400;">${money(total)}</div></div>`;
+      ${payCellName(t.name)}<div style="font-size:11px;margin-top:4px;font-weight:400;">${money(total)}</div></div>`;
   }).filter(Boolean);
   const pkgRows = (APP.liveOrders||[]).filter(o => o.kind==='takeaway' && o.items.filter(i=>!i.paid).length>0).map(o => {
     const unpaid = o.items.filter(i=>!i.paid);
     const total = unpaid.reduce((s,i)=>s+i.price*i.qty,0);
     const label = o.customer_name || ('Paket #'+(o.daily_number||''));
-    return `<div class="table-cell" data-badge-id="${o.order_id}" style="cursor:pointer;background:rgba(244,63,94,.14);border-color:var(--red);color:var(--red);overflow-wrap:anywhere;word-break:break-word;" onclick="openPayModal('${o.order_id}')">
-      📦 ${escapeHtml(label)}<div style="font-size:11px;margin-top:4px;font-weight:400;">${money(total)}</div></div>`;
+    return `<div class="table-cell" data-badge-id="${o.order_id}" style="cursor:pointer;background:rgba(244,63,94,.14);border-color:var(--red);color:var(--red);" onclick="openPayModal('${o.order_id}')">
+      📦 ${payCellName(label)}<div style="font-size:11px;margin-top:4px;font-weight:400;">${money(total)}</div></div>`;
   });
   const occupiedRows = tableRows.concat(pkgRows);
   grid.innerHTML = occupiedRows.length ? occupiedRows.join('') : '<p class="muted">Açık hesap yok.</p>';

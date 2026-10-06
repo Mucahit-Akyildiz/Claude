@@ -1,0 +1,3 @@
+-- Canlıda uygulandı: kullanıcı silinince mesajlaşma kayıtları engel olmasın.
+-- chat_messages(sender_id, recipient_id), chat_reads, chat_reactions, chat_group_members,
+-- chat_view_once -> ON DELETE CASCADE; chat_groups.created_by -> ON DELETE SET NULL.
