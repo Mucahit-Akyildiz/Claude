@@ -277,7 +277,7 @@ begin
   perform net.http_post(
     url := v_url,
     headers := jsonb_build_object('Content-Type','application/json','x-push-secret', coalesce(v_secret,'')),
-    body := jsonb_build_object('mode', 'customer_requests_only')
+    body := jsonb_build_object('mode', 'customer_requests_only'), timeout_milliseconds := 15000
   );
 end;
 $$;
@@ -289,22 +289,17 @@ $$;
 
 CREATE FUNCTION public._cron_dispatch_late_kitchen_items() RETURNS void
     LANGUAGE plpgsql SECURITY DEFINER
-    SET search_path TO 'public', 'extensions', 'pg_temp'
+    SET search_path TO 'public', 'pg_temp'
     AS $$
-declare
-  v_url text;
-  v_secret text;
+declare v_url text; v_secret text;
 begin
   select value into v_url from platform_settings where key = 'push_dispatch_url';
   select value into v_secret from platform_settings where key = 'push_dispatch_secret';
   if v_url is null or v_url = '' then return; end if;
-  perform net.http_post(
-    url := v_url,
+  perform net.http_post(url := v_url,
     headers := jsonb_build_object('Content-Type','application/json','x-push-secret', coalesce(v_secret,'')),
-    body := jsonb_build_object('mode', 'late_kitchen_only')
-  );
-end;
-$$;
+    body := jsonb_build_object('mode', 'late_kitchen_only'), timeout_milliseconds := 25000);
+end; $$;
 
 
 --
@@ -8049,7 +8044,8 @@ CREATE TABLE public.order_items (
     added_at timestamp with time zone DEFAULT now() NOT NULL,
     paid boolean DEFAULT false NOT NULL,
     paid_at timestamp with time zone,
-    late_push_notified_at timestamp with time zone
+    late_push_notified_at timestamp with time zone,
+    late_push_milestone integer DEFAULT '-1'::integer NOT NULL
 );
 
 
