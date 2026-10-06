@@ -238,9 +238,11 @@ function openPayModal(orderId){
       <button class="pay-method-btn gift" id="payGiftCardPayBtn" disabled onclick="finishPaymentFull('gift_card')">🎁 Hediye Kartı ile Öde</button>
       <button class="pay-method-btn split" onclick="openSplitPay()">➗ Bölünmüş Ödeme</button>
     </div>
+    <button type="button" class="pay-method-btn split" style="width:100%;margin-top:10px;" onclick="openOpenAccountTransfer()">📒 Açık Hesaba At</button>
   </div>`;
   document.body.appendChild(bg);
   autoSelectPayCustomer(order);
+  updatePayReadiness();
 }
 /* Masaya girilmiş müşteri kayıtlıysa ödeme ekranında otomatik seçilir
    (telefon varsa telefonla, yoksa isimle tek ve birebir eşleşmede). */
@@ -443,8 +445,33 @@ function buildPayItemQtys(){
     .filter(id => PAY_SELECTED_QTYS[id]>0)
     .map(id => ({ item_id: id, qty: PAY_SELECTED_QTYS[id] }));
 }
+/* Mutfağa giden (istasyonu olan) ürün hazır değilse ödeme alınamaz: uyarı gösterilir,
+   ödeme düğmeleri kapanır (sunucu da ayrıca reddeder, bkz. pay_order_items HAZIR_DEGIL). */
+function payNotReadyItems(order){
+  const prods = (APP.config && APP.config.products) || [];
+  return order.items.filter(i => !i.paid && (PAY_SELECTED_QTYS[i.id]||0) > 0 && i.status !== 'ready'
+    && (() => { const p = prods.find(x => x.id === i.product_id); return !p || p.station_id; })());
+}
+function updatePayReadiness(){
+  const bg = document.getElementById('payModalBg'); if(!bg) return;
+  const order = APP.liveOrders.find(o => o.order_id===bg.dataset.orderId); if(!order) return;
+  const notReady = payNotReadyItems(order);
+  let warn = document.getElementById('payNotReadyWarn');
+  if(!warn){
+    warn = document.createElement('div'); warn.id = 'payNotReadyWarn';
+    warn.style.cssText = 'background:rgba(244,63,94,.12);border:1px solid var(--red);color:var(--red);border-radius:12px;padding:10px 12px;margin:10px 0;font-size:13.5px;font-weight:600;';
+    const grid = bg.querySelector('.pay-method-grid'); if(grid) grid.parentNode.insertBefore(warn, grid);
+  }
+  warn.style.display = notReady.length ? '' : 'none';
+  warn.innerHTML = notReady.length ? '⏳ Mutfakta hazır olmayan ürün var, ödeme alınamaz: ' + notReady.map(i => escapeHtml(i.name)).join(', ') : '';
+  bg.querySelectorAll('.pay-method-btn').forEach(b => {
+    if(b.id === 'payGiftCardPayBtn' && !bg.dataset.giftCardCode) return;
+    b.disabled = notReady.length > 0; b.style.opacity = notReady.length ? '.5' : '';
+  });
+}
 function recomputePaySelection(){
   const bg = document.getElementById('payModalBg'); if(!bg) return;
+  setTimeout(updatePayReadiness, 0);
   const order = APP.liveOrders.find(o => o.order_id===bg.dataset.orderId);
   const subtotal = order.items.reduce((s,i) => s + i.price*(PAY_SELECTED_QTYS[i.id]||0), 0);
   bg.dataset.subtotal = String(subtotal);
@@ -1387,4 +1414,69 @@ async function releaseDraftStock(tableId){
     if(results.some(r => r.error)) console.error('Bazı stoklar geri eklenemedi, sunucu ile senkronize ediliyor.');
     scheduleConfigResync(tableId);
   }).catch(e => console.error(e));
+}
+
+/* ---- Açık hesap: ödenmeyen hesabı bir açık hesaba (kişi/firma) borç olarak aktarma ---- */
+async function openOpenAccountTransfer(){
+  const bg = document.getElementById('payModalBg'); if(!bg) return;
+  const order = APP.liveOrders.find(o => o.order_id===bg.dataset.orderId); if(!order) return;
+  if(buildPayItemQtys().length===0){ alert('Aktarmak için en az bir ürün/adet seçin'); return; }
+  if(payNotReadyItems(order).length){ alert('Mutfakta hazır olmayan ürün var. Önce tüm ürünler "Hazır" işaretlenmeli.'); return; }
+  const { data, error } = await withLoadingOverlay(sb.rpc('list_open_accounts', { p_token: getSession().session_token }));
+  if(error){ alert(error.message); return; }
+  APP.openAccounts = data || [];
+  const total = Math.round(payFinalTotal()*100)/100;
+  const m = document.createElement('div');
+  m.id = 'openAccModalBg'; m.className = 'modal-bg';
+  m.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;z-index:140;padding:16px;';
+  m.onclick = (e) => { if(e.target===m) m.remove(); };
+  m.innerHTML = `<div style="background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:18px;max-width:440px;width:100%;max-height:90vh;overflow:auto;">
+    <h2 style="margin:0 0 4px;">📒 Açık Hesaba At</h2>
+    <p class="muted" style="margin:0 0 12px;font-size:13.5px;">Tutar: <b>${money(total)}</b> — seçilen hesaba borç olarak yazılır, masa kapanır.</p>
+    <input id="oaSearch" placeholder="🔍 Açık hesap ara…" oninput="drawOpenAccountList(this.value)" style="margin:0 0 8px;">
+    <div id="oaList" style="max-height:220px;overflow:auto;border:1px solid var(--border);border-radius:10px;"></div>
+    <div class="add-row-panel" style="margin-top:12px;">
+      <p>Yeni Açık Hesap</p>
+      <input id="oaName" placeholder="Ad Soyad / Firma" style="margin-bottom:8px;">
+      <input id="oaPhone" placeholder="Telefon (opsiyonel)" inputmode="tel" style="margin-bottom:8px;">
+      <input id="oaNote" placeholder="Not (opsiyonel)" style="margin-bottom:8px;">
+      <button type="button" onclick="createOpenAccountAndTransfer()">+ Oluştur ve Aktar</button>
+    </div>
+    <button type="button" class="ghost-btn" style="width:100%;margin-top:10px;" onclick="document.getElementById('openAccModalBg').remove()">Vazgeç</button>
+  </div>`;
+  document.body.appendChild(m);
+  drawOpenAccountList('');
+}
+function drawOpenAccountList(q){
+  const box = document.getElementById('oaList'); if(!box) return;
+  q = String(q||'').trim().toLocaleLowerCase('tr');
+  const rows = (APP.openAccounts||[]).filter(a => !q || a.name.toLocaleLowerCase('tr').includes(q) || String(a.phone||'').includes(q));
+  box.innerHTML = rows.length ? rows.map(a => `<div onclick="transferToOpenAccount('${a.id}')" style="display:flex;justify-content:space-between;gap:8px;padding:10px 12px;border-bottom:1px solid var(--border);cursor:pointer;">
+      <span style="min-width:0;overflow-wrap:anywhere;"><b>${escapeHtml(a.name)}</b>${a.phone ? ' <span class="muted">' + escapeHtml(a.phone) + '</span>' : ''}</span>
+      <span style="white-space:nowrap;color:${a.balance > 0 ? 'var(--red)' : 'var(--muted)'};">${money(a.balance)}</span></div>`).join('')
+    : '<p class="muted" style="padding:10px;margin:0;">Açık hesap yok — aşağıdan yeni oluşturun.</p>';
+}
+async function createOpenAccountAndTransfer(){
+  const name = document.getElementById('oaName').value.trim();
+  if(!name){ alert('Açık hesap için ad girin'); return; }
+  const { data, error } = await withLoadingOverlay(sb.rpc('create_open_account', { p_token: getSession().session_token, p_name: name,
+    p_phone: document.getElementById('oaPhone').value.trim() || null, p_note: document.getElementById('oaNote').value.trim() || null }));
+  if(error){ alert(error.message); return; }
+  transferToOpenAccount(data, name);
+}
+async function transferToOpenAccount(accountId, nameHint){
+  const bg = document.getElementById('payModalBg'); if(!bg) return;
+  const acc = (APP.openAccounts||[]).find(a => a.id===accountId);
+  const total = Math.round(payFinalTotal()*100)/100;
+  if(!confirm(money(total) + ' "' + ((acc && acc.name) || nameHint || 'açık hesap') + '" hesabına aktarılsın mı?')) return;
+  const subtotal = parseFloat(bg.dataset.subtotal||0);
+  const { data, error } = await withLoadingOverlay(sb.rpc('transfer_to_open_account', { p_token: getSession().session_token,
+    p_order_id: bg.dataset.orderId, p_account_id: accountId, p_item_qtys: buildPayItemQtys(), p_discount_amount: Math.max(0, Math.round((subtotal - total)*100)/100) }));
+  if(error){ alert(error.message); return; }
+  const m = document.getElementById('openAccModalBg'); if(m) m.remove();
+  bg.remove();
+  showToast('📒 ' + money(data.amount) + ' "' + data.account + '" açık hesabına aktarıldı');
+  const { data: lo } = await sb.rpc('get_live_orders', { p_token: getSession().session_token });
+  if(lo) APP.liveOrders = lo;
+  if(typeof renderPayGrid === 'function') renderPayGrid();
 }

@@ -56,6 +56,7 @@ begin
 
   -- ---- 2) Ödeme: hesabın tamamı ödenince satış kaydı oluşur, sipariş kapanır ----
   begin
+    update order_items set status = 'ready' where order_id = o;   -- ödeme yalnızca hazır ürünlere
     res := pay_order_items(tok_w, o, 'cash', 100, 0);
     select count(*) into n from sales_history where order_id = o;
     insert into _results values ('odeme_tam', n = 1 and (select status from orders where id = o) = 'closed', 'satis kaydi: ' || n);
@@ -172,6 +173,23 @@ begin
       insert into _results values ('sepet_ayirma', true, 'ok');
     end;
   exception when others then insert into _results values ('sepet_ayirma', false, sqlerrm); end;
+
+  -- ---- 12) Hazır olmayan ürün için ödeme alınamaz; açık hesaba aktarım ve tahsilat ----
+  declare acc uuid; bal numeric;
+  begin
+    update restaurants set shift_required = false where id = r;
+    perform send_order(tok_m, t, json_build_array(json_build_object('product_id', p_plain, 'name', 'Kola', 'qty', 1)));
+    select id into o from orders where restaurant_id = r and table_id = t and status = 'open';
+    begin
+      perform pay_order_items(tok_m, o, 'cash', 1000000, 0);
+      insert into _results values ('hazir_degil_odeme', false, 'hazır olmayan ürün ödendi');
+    exception when others then insert into _results values ('hazir_degil_odeme', sqlerrm = 'HAZIR_DEGIL', sqlerrm); end;
+    update order_items set status = 'ready' where order_id = o;
+    acc := create_open_account(tok_m, 'CI Açık Hesap');
+    perform transfer_to_open_account(tok_m, o, acc);
+    bal := collect_open_account(tok_m, acc, 10, 'cash');
+    insert into _results values ('acik_hesap', (select status from orders where id = o) = 'closed' and bal >= 0, 'kalan: ' || bal);
+  exception when others then insert into _results values ('acik_hesap', false, sqlerrm); end;
 end $tests$;
 
 -- Sonuçları yazdır; başarısız varsa hata ver (psql ON_ERROR_STOP ile çıkış kodu 3).
@@ -181,7 +199,7 @@ declare f text;
 begin
   select string_agg(name || ' (' || coalesce(detail,'') || ')', '; ') into f from _results where not ok;
   if f is not null then raise exception 'BAŞARISIZ TESTLER: %', f; end if;
-  if (select count(*) from _results) < 13 then raise exception 'Beklenenden az test çalıştı: %', (select count(*) from _results); end if;
+  if (select count(*) from _results) < 15 then raise exception 'Beklenenden az test çalıştı: %', (select count(*) from _results); end if;
 end $check$;
 
 rollback;

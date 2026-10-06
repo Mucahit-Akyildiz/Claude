@@ -77,6 +77,8 @@ sb.rpc = function(fn, args){
     } else if(res && res.error && res.error.message === 'VARDIYA_GEREKLI'){
       res.error.message = 'Çalışmak için önce vardiyanızı başlatın.';
       if(typeof refreshShiftWidget==='function'){ const s = getSession(); if(s) refreshShiftWidget(s); }
+    } else if(res && res.error && res.error.message === 'HAZIR_DEGIL'){
+      res.error.message = 'Mutfakta henüz hazır olmayan ürün var. Ödeme almak için önce tüm ürünler "Hazır" işaretlenmeli.';
     } else if(res && res.error && res.error.message === 'PAKET_OZELLIK_YOK'){
       // Paketinizde olmayan bir ozelligi acmaya calistiniz (bkz. _session_check'teki
       // paket katmani) - ham hata metni yerine anlasilir bir mesaj gosterilsin.
