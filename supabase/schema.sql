@@ -4135,6 +4135,25 @@ end $$;
 
 
 --
+-- Name: list_my_notifications(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.list_my_notifications(p_token uuid) RETURNS json
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+declare s staff_sessions%rowtype; v json;
+begin
+  s := _session_check(p_token);
+  select coalesce(json_agg(row_to_json(x) order by x.created_at desc), '[]'::json) into v from (
+    select id, title, body, view, tag, created_at, read_at is not null as read from notification_log
+    where user_id = s.user_id order by created_at desc limit 200) x;
+  update notification_log set read_at = now() where user_id = s.user_id and read_at is null;
+  return v;
+end; $$;
+
+
+--
 -- Name: list_packages(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -7944,6 +7963,38 @@ ALTER SEQUENCE public.login_failures_id_seq OWNED BY public.login_failures.id;
 
 
 --
+-- Name: notification_log; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.notification_log (
+    id bigint NOT NULL,
+    user_id uuid NOT NULL,
+    restaurant_id uuid,
+    title text NOT NULL,
+    body text,
+    view text,
+    tag text,
+    dedupe_key text NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    read_at timestamp with time zone
+);
+
+
+--
+-- Name: notification_log_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+ALTER TABLE public.notification_log ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
+    SEQUENCE NAME public.notification_log_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
+
+
+--
 -- Name: online_menu_items; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -8841,6 +8892,14 @@ ALTER TABLE ONLY public.invoices
 
 ALTER TABLE ONLY public.login_failures
     ADD CONSTRAINT login_failures_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: notification_log notification_log_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.notification_log
+    ADD CONSTRAINT notification_log_pkey PRIMARY KEY (id);
 
 
 --
@@ -9748,6 +9807,20 @@ CREATE INDEX login_failures_lookup_idx ON public.login_failures USING btree (res
 
 
 --
+-- Name: notification_log_dedupe; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX notification_log_dedupe ON public.notification_log USING btree (user_id, dedupe_key);
+
+
+--
+-- Name: notification_log_user; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX notification_log_user ON public.notification_log USING btree (user_id, created_at DESC);
+
+
+--
 -- Name: payments_provider_ref_unique; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -10302,6 +10375,14 @@ ALTER TABLE ONLY public.invoices
 
 ALTER TABLE ONLY public.invoices
     ADD CONSTRAINT invoices_restaurant_id_fkey FOREIGN KEY (restaurant_id) REFERENCES public.restaurants(id) ON DELETE CASCADE;
+
+
+--
+-- Name: notification_log notification_log_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.notification_log
+    ADD CONSTRAINT notification_log_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.app_users(id) ON DELETE CASCADE;
 
 
 --
@@ -10869,6 +10950,12 @@ ALTER TABLE public.invoices ENABLE ROW LEVEL SECURITY;
 --
 
 ALTER TABLE public.login_failures ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: notification_log; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.notification_log ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: online_menu_items; Type: ROW SECURITY; Schema: public; Owner: -
