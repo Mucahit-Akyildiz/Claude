@@ -592,14 +592,35 @@ async function renderPrinterSettingsView(main, session){
   updateTicketPreview();
   onNewPrinterTypeChange();
 }
+/* Son 30 günde bu kullanıcıya gönderilen bildirimler (bkz. notification_log). Dokununca ilgili ekrana gider. */
+async function loadNotificationHistory(){
+  const box = document.getElementById('notifHistory'); if(!box) return;
+  const { data, error } = await sb.rpc('list_my_notifications', { p_token: getSession().session_token });
+  if(error){ box.innerHTML = '<p class="muted">Yüklenemedi: ' + escapeHtml(error.message) + '</p>'; return; }
+  const rows = data || [];
+  if(!rows.length){ box.innerHTML = '<p class="muted">Henüz bildirim yok.</p>'; return; }
+  box.innerHTML = '<div style="max-height:420px;overflow:auto;">' + rows.map(n => {
+    const d = new Date(n.created_at);
+    const when = d.toLocaleDateString('tr-TR', { day:'numeric', month:'short' }) + ' ' + d.toLocaleTimeString('tr-TR', { hour:'2-digit', minute:'2-digit' });
+    const go = n.view && NAV_ITEMS.some(i => i.view === n.view) ? `onclick="goToView('${escapeAttr(n.view)}')" style="cursor:pointer;"` : '';
+    return `<div ${go} class="notif-row" style="display:flex;gap:10px;padding:10px 4px;border-bottom:1px solid var(--border);${n.read ? '' : 'font-weight:700;'}${go ? 'cursor:pointer;' : ''}">
+      <div style="flex:1;min-width:0;overflow-wrap:anywhere;"><div>${escapeHtml(n.title)}</div>${n.body ? `<div class="muted" style="font-size:13px;font-weight:400;">${escapeHtml(n.body)}</div>` : ''}</div>
+      <div class="muted" style="font-size:12px;white-space:nowrap;font-weight:400;">${when}</div></div>`;
+  }).join('') + '</div>';
+}
 async function renderNotificationSettingsView(main, session){
   if(!APP.config){
     const { data, error } = await withLoadingOverlay(sb.rpc('get_restaurant_config', { p_token: session.session_token }));
     if(error){ main.innerHTML = '<h1>Bildirim Ayarları</h1><p class="muted">Yüklenemedi: '+error.message+'</p>'; return; }
     APP.config = data;
   }
+  setTimeout(loadNotificationHistory, 0);
   main.innerHTML = `
-    <h1>Bildirim Ayarları</h1>
+    <h1>Bildirimler</h1>
+    <div class="box" style="max-width:none;">
+      <h2>🕘 Geçmiş Bildirimler</h2>
+      <div id="notifHistory"><p class="muted">Yükleniyor…</p></div>
+    </div>
     <p class="muted" style="text-align:left;">Bu ayarlar sadece <b>bu ekrana/tarayıcıya</b> özeldir — her cihazda ayrı ayrı yapılandırılır, veritabanına kaydedilmez.</p>
 
     ${!hasFeature('push_notifications') ? `<div class="box" style="max-width:none;"><h2>📱 Push Bildirimleri (Uygulama Kapalıyken de)</h2>${lockedFeatureHtml()}</div>` : ''}

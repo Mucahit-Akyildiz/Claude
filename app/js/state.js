@@ -96,7 +96,7 @@ const NAV_ITEMS = [
   { view:'crm', icon:'👥', label:'Müşteriler', perm:'crm' },
   { view:'purchasing', icon:'🚚', label:'Tedarikçi & Satın Alma', perm:'purchasing' },
   { view:'printerSettings', icon:'🖨️', label:'Yazıcı Ayarları' },
-  { view:'notificationSettings', icon:'🔔', label:'Bildirim Ayarları' },
+  { view:'notificationSettings', icon:'🔔', label:'Bildirimler' },
   { view:'payments', icon:'💳', label:'Ödemeler', perm:'payments' },
   { view:'reports', icon:'📊', label:'Finansal Analiz' },
   { view:'messages', icon:'💬', label:'Mesajlar' },

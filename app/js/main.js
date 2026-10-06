@@ -771,7 +771,7 @@ function liftAddPanels(root){
   (root.querySelectorAll ? root.querySelectorAll('.add-row-panel:not([data-lifted])') : []).forEach(panel => {
     panel.dataset.lifted = '1';
     const box = panel.parentElement; if(!box) return;
-    const list = [...box.children].find(c => c !== panel && (c.tagName === 'TABLE' || c.querySelector('table')));
+    const list = [...box.children].find(c => c !== panel && (c.tagName === 'TABLE' || c.classList.contains('list-search') || c.querySelector('table')));
     if(!list || !(list.compareDocumentPosition(panel) & Node.DOCUMENT_POSITION_FOLLOWING)) return;
     box.insertBefore(panel, list);
     panel.style.margin = '0 0 16px';

@@ -45,7 +45,22 @@ async function badgeFor(userId) {
   BADGE_CACHE.set(userId, p);
   return p;
 }
+// Bildirim geçmişi (uygulamada Bildirimler ekranı): her kullanıcıya giden bildirim bir kez
+// kaydedilir. Aynı bildirim (ör. dakikada bir tekrar eden hazır sipariş hatırlatması ya da
+// aynı kullanıcının birden fazla cihazı) aynı saat içinde tek satır olur.
+async function logNotification(sub, p) {
+  if (!SUPA_CLIENT || !sub.user_id || !p || !p.title) return;
+  const key = [p.tag || '', p.title, p.body || '', Math.floor(Date.now() / 3600000)].join('|').slice(0, 500);
+  try {
+    await SUPA_CLIENT.from('notification_log').upsert({
+      user_id: sub.user_id, restaurant_id: sub.restaurant_id || null, title: String(p.title).slice(0, 200),
+      body: p.body ? String(p.body).slice(0, 500) : null, view: p.view || null, tag: p.tag || null, dedupe_key: key,
+    }, { onConflict: 'user_id,dedupe_key', ignoreDuplicates: true });
+  } catch (e) { /* geçmiş kaydı bildirimi engellemesin */ }
+}
+
 async function sendToSub(sub, payloadObj) {
+  logNotification(sub, payloadObj);
   const badge = await badgeFor(sub.user_id);
   if (badge != null) payloadObj = Object.assign({}, payloadObj, { badge });
   if (sub.platform === 'android-fcm') {
