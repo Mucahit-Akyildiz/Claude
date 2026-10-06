@@ -460,7 +460,7 @@ function goBack(){
    Satın Alma sekmesi, Kullanıcılar alt sekmesi, açık sohbet, mutfak istasyonu). Geri her
    zaman bir önceki ekrana/sekmeye döner. Yığın sessionStorage'da tutulur; uygulama
    arka planda yeniden yüklense bile kaldığı ekrandan ve geri geçmişiyle açılır. */
-const SCREEN_KEYS = ['view','settingsTab','reportTab','usersSubTab','resvTab','purchTab','chatConv','kitchenStation'];
+const SCREEN_KEYS = ['view','settingsTab','reportTab','usersSubTab','resvTab','purchTab','notifTab','chatConv','kitchenStation'];
 function screenSnapshot(){ const o = {}; SCREEN_KEYS.forEach(k => { if(APP[k] !== undefined) o[k] = APP[k]; }); o.view = o.view || 'home'; return o; }
 function saveNavState(){ try{ sessionStorage.setItem('peyktan_nav', JSON.stringify({ cur: screenSnapshot(), stack: APP.viewStack || [] })); }catch(e){} }
 function pushScreen(){
