@@ -110,8 +110,10 @@ function reportClientError(kind, message, source){
     _reportedErrors[key] = Date.now();
     let token = null;
     try{ const s = JSON.parse(sessionStorage.getItem('staff_session') || localStorage.getItem('staff_session_persist') || 'null'); token = s && s.session_token; }catch(e){}
-    _sbRpc('log_client_error', { p_token: token, p_kind: kind, p_message: msg, p_source: String(source || '').slice(0, 300),
-      p_view: (window.APP && APP.view) || null, p_user_agent: navigator.userAgent, p_url: location.pathname + location.search }).catch(() => {});
+    // Supabase sorgu nesnesinde .catch yok (sadece .then): Promise'e çevrilmeden çağrılınca
+    // TypeError fırlatıyor ve hiçbir hata kaydı sunucuya ulaşmıyordu.
+    Promise.resolve(_sbRpc('log_client_error', { p_token: token, p_kind: kind, p_message: msg, p_source: String(source || '').slice(0, 300),
+      p_view: (window.APP && APP.view) || null, p_user_agent: navigator.userAgent, p_url: location.pathname + location.search })).catch(() => {});
   }catch(e){}
 }
 window.addEventListener('error', (e) => {

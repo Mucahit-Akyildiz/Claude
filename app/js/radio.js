@@ -227,7 +227,13 @@ async function radioStartTalk(){
   RADIO.rt.send({ type:'broadcast', event:'s', payload: RADIO.myFloor });
   drawRadioDock();
   try{
-    if(!RADIO.mic) RADIO.mic = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation:true, noiseSuppression:true, autoGainControl:true } });
+    if(!RADIO.mic){
+      // İzin penceresi açıkken/engelliyken kullanıcı ne olduğunu görsün; 8 sn'de yanıt yoksa uyar.
+      RADIO.waitingMic = true; drawRadioDock();
+      const t = setTimeout(() => { if(RADIO.waitingMic){ radioLog('bas: FAIL mikrofon izni yanıtsız'); radioFlash('🎤 Mikrofon izni bekleniyor — adres çubuğundaki 🔒 simgesinden izin verin'); } }, 8000);
+      try{ RADIO.mic = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation:true, noiseSuppression:true, autoGainControl:true } }); }
+      finally{ clearTimeout(t); RADIO.waitingMic = false; }
+    }
   }catch(e){ radioLog('bas: FAIL mikrofon ' + (e && (e.name || e.message))); radioStopTalk(); alert('Mikrofona erişilemedi. Tarayıcı/uygulama ayarlarından mikrofon izni verin.'); return; }
   if(!RADIO.talking) return; // izin beklenirken bırakıldı / söz kaybedildi
   radioBeep(880);
@@ -398,6 +404,7 @@ function drawRadioDock(){
   const ln = dock.querySelector('#radioLine'); ln.textContent = line; ln.title = RADIO.online.join(', ');
   ln.style.color = (suspended || RADIO.missed || RADIO.flash) && !busy ? 'var(--red)' : '';
   const b = dock.querySelector('#radioPtt');
+  if(RADIO.talking && RADIO.waitingMic && !RADIO.flash) ln.textContent = '🎤 Mikrofon izni bekleniyor…';
   if(RADIO.talking && RADIO.diag) ln.textContent = '📤 gönderiliyor · ' + RADIO.diag.chunks + ' parça' + (RADIO.diag.frames ? '' : ' (mikrofon bekleniyor)');
   b.textContent = RADIO.talking ? '🎙️ Konuşuyor…' : busy ? '🔒 Meşgul' : '🎙️ Bas-Konuş';
   b.style.background = RADIO.talking ? '#dc2626' : busy ? 'var(--border)' : '';
