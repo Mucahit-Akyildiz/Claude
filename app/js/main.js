@@ -793,3 +793,54 @@ function liftAddPanels(root){
 new MutationObserver(muts => {
   for(const m of muts) for(const n of m.addedNodes) if(n.nodeType === 1) liftAddPanels(n.parentElement || n);
 }).observe(document.body, { childList: true, subtree: true });
+/* ---- Yeni sürüm algılama: mobil (Capacitor) ve masaüstü (Electron) uygulamaları canlı siteyi
+   açar ama sayfayı kendiliğinden yeniden yüklemez. Sayfadaki kod dosyalarının (js/css) ETag'leri
+   birkaç dakikada bir ve uygulama öne geldiğinde kontrol edilir; değişmişse alttaki çubukla
+   kullanıcıya bildirilir, uygulama arka plandan öne gelirken (bir şey yazılmıyorsa) kendiliğinden yenilenir. ---- */
+const UPDATE_WATCH = { tags: null, ready: false, checking: false, last: 0 };
+function updateWatchFiles(){
+  return [...document.querySelectorAll('script[src], link[rel="stylesheet"][href]')]
+    .map(e => e.getAttribute('src') || e.getAttribute('href'))
+    .filter(u => u && !/^https?:/i.test(u));
+}
+async function fetchUpdateTags(){
+  const out = {};
+  await Promise.all(updateWatchFiles().map(async u => {
+    try{
+      const r = await fetch(u, { method: 'HEAD', cache: 'no-store' });
+      if(r.ok) out[u] = r.headers.get('etag') || r.headers.get('last-modified') || '';
+    }catch(e){}
+  }));
+  return out;
+}
+async function checkForAppUpdate(){
+  if(UPDATE_WATCH.checking || UPDATE_WATCH.ready || !navigator.onLine) return;
+  UPDATE_WATCH.checking = true; UPDATE_WATCH.last = Date.now();
+  try{
+    const tags = await fetchUpdateTags();
+    if(!Object.keys(tags).length) return;
+    if(!UPDATE_WATCH.tags){ UPDATE_WATCH.tags = tags; return; }
+    const changed = Object.keys(tags).some(u => UPDATE_WATCH.tags[u] && tags[u] && UPDATE_WATCH.tags[u] !== tags[u]);
+    if(changed){ UPDATE_WATCH.ready = true; showAppUpdateBar(); }
+  } finally { UPDATE_WATCH.checking = false; }
+}
+function showAppUpdateBar(){
+  if(document.getElementById('appUpdateBar')) return;
+  const bar = document.createElement('div');
+  bar.id = 'appUpdateBar';
+  bar.style.cssText = 'position:fixed;left:50%;bottom:16px;transform:translateX(-50%);z-index:9999;background:var(--accent,#0e8fa3);color:#fff;border-radius:999px;padding:10px 18px;box-shadow:0 6px 24px rgba(0,0,0,.25);display:flex;gap:12px;align-items:center;font-weight:700;font-size:14px;max-width:calc(100% - 32px);';
+  bar.innerHTML = '<span>🔄 Yeni sürüm hazır</span><button type="button" style="width:auto;margin:0;padding:6px 14px;border-radius:999px;background:#fff;color:var(--accent,#0e8fa3);font-weight:800;">Yenile</button>';
+  bar.querySelector('button').onclick = () => location.reload();
+  document.body.appendChild(bar);
+}
+function maybeAutoReloadForUpdate(){
+  // Yazılan bir şey ya da açık bir pencere yoksa (bkz. uiBusyForAutoRefresh) kendiliğinden yenilenir.
+  if(UPDATE_WATCH.ready && !(typeof uiBusyForAutoRefresh === 'function' && uiBusyForAutoRefresh())) location.reload();
+}
+setTimeout(checkForAppUpdate, 5000);
+setInterval(() => { if(document.visibilityState === 'visible') checkForAppUpdate(); }, 5 * 60 * 1000);
+document.addEventListener('visibilitychange', () => {
+  if(document.visibilityState !== 'visible') return;
+  if(UPDATE_WATCH.ready){ maybeAutoReloadForUpdate(); return; }
+  if(Date.now() - UPDATE_WATCH.last > 60 * 1000) checkForAppUpdate().then(maybeAutoReloadForUpdate);
+});

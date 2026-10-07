@@ -771,27 +771,21 @@ function renderProductsSettings(el, session){
 
     <div class="add-row-panel">
       <p>Yeni Ürün Ekle</p>
-      <div style="display:grid;grid-template-columns:2fr 1.4fr 1fr 1fr 1fr;gap:10px;align-items:end;">
-        <div class="field-group"><label>Ürün Adı</label><input id="np_name" placeholder="örn. Izgara Köfte"></div>
+      <div class="add-row-inline">
+        <div class="field-group grow"><label>Ürün Adı</label><input id="np_name" placeholder="örn. Izgara Köfte"></div>
         <div class="field-group"><label>İstasyon</label><select id="np_station">${APP.config.stations.map(s => `<option value="${s.id}">${escapeHtml(s.name)}</option>`).join('')}</select></div>
-        <div class="field-group"><label>Fiyat (₺)</label><input type="number" id="np_price" placeholder="0"></div>
-        <div class="field-group"><label>Maliyet (₺)</label><input type="number" id="np_cost" placeholder="0"></div>
-        <div class="field-group"><label>Stok</label><input type="number" id="np_stock" placeholder="Sınırsız (reçete eklerseniz bu alan kullanılmaz)"></div>
+        <div class="field-group" style="flex-basis:90px;"><label>Fiyat (₺)</label><input type="number" id="np_price" placeholder="0"></div>
+        <div class="field-group" style="flex-basis:90px;"><label>Maliyet (₺)</label><input type="number" id="np_cost" placeholder="0"></div>
+        <div class="field-group" style="flex-basis:100px;"><label>Stok</label><input type="number" id="np_stock" placeholder="Sınırsız" title="Boş = sınırsız; reçete eklerseniz bu alan kullanılmaz"></div>
+        ${(APP.config.ingredients||[]).length===0 ? '' : `
+        <div class="field-group grow"><label>Reçete (opsiyonel)</label><select id="npRecipeIngSelect">
+          ${APP.config.ingredients.map(i => `<option value="${i.id}" data-unit="${i.unit}" data-name="${escapeAttr(i.name)}">${escapeHtml(i.name)} (${i.unit})</option>`).join('')}
+        </select></div>
+        <div class="field-group" style="flex-basis:80px;"><label>Miktar</label><input type="number" step="0.01" id="npRecipeQtyInput" placeholder="0"></div>
+        <button type="button" class="ghost-btn" onclick="addNewProductRecipeItem()" title="Hammaddeyi reçeteye ekle">＋ Reçeteye</button>`}
+        <button type="button" onclick="addProduct()">+ Ürün Ekle</button>
       </div>
-      <div style="background:var(--panel);border-radius:10px;padding:12px;margin-top:14px;">
-        <p class="muted" style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;margin:0 0 8px;">Reçete (opsiyonel) — ürünü kaydederken hemen tanımlayın</p>
-        <div id="npRecipeItemsBox"></div>
-        ${(APP.config.ingredients||[]).length===0
-          ? '<p class="muted" style="font-size:12px;">Önce Hammaddeler sekmesinden en az bir hammadde ekleyin.</p>'
-          : `<div style="display:flex;gap:8px;margin-top:8px;">
-              <select id="npRecipeIngSelect" style="flex:1;margin:0;">
-                ${APP.config.ingredients.map(i => `<option value="${i.id}" data-unit="${i.unit}" data-name="${escapeAttr(i.name)}">${escapeHtml(i.name)} (${i.unit})</option>`).join('')}
-              </select>
-              <input type="number" step="0.01" id="npRecipeQtyInput" placeholder="Miktar" style="width:100px;margin:0;">
-              <button style="width:auto;padding:8px 12px;margin:0;" onclick="addNewProductRecipeItem()">Ekle</button>
-            </div>`}
-      </div>
-      <button style="margin-top:12px;max-width:220px;" onclick="addProduct()">+ Ürün Ekle</button>
+      <div id="npRecipeItemsBox"></div>
     </div>
   </div>`;
   NEW_PRODUCT_RECIPE_DRAFT = [];
@@ -800,12 +794,10 @@ function renderProductsSettings(el, session){
 let NEW_PRODUCT_RECIPE_DRAFT = [];
 function renderNewProductRecipeItems(){
   const el = document.getElementById('npRecipeItemsBox'); if(!el) return;
-  el.innerHTML = NEW_PRODUCT_RECIPE_DRAFT.length===0 ? '<p class="muted" style="font-size:12px;">Henüz hammadde eklenmedi (reçete eklemezseniz bu ürün basit stok sayacı kullanır).</p>' :
-    NEW_PRODUCT_RECIPE_DRAFT.map((r,idx) => `
-      <div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;font-size:13px;">
-        <span>${escapeHtml(r.ingredient_name)}: <b>${r.qty_per_unit} ${r.ingredient_unit}</b></span>
-        <span style="cursor:pointer;color:var(--red);" onclick="removeNewProductRecipeItem(${idx})">✕</span>
-      </div>`).join('');
+  // Reçete kalemleri formun altında küçük etiketler olarak (boşsa yer kaplamaz).
+  el.innerHTML = NEW_PRODUCT_RECIPE_DRAFT.length===0 ? '' : `<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;align-items:center;">
+    <span class="muted" style="font-size:12px;">Reçete:</span>
+    ${NEW_PRODUCT_RECIPE_DRAFT.map((r,idx) => `<span class="role-badge" style="display:inline-flex;gap:6px;align-items:center;">${escapeHtml(r.ingredient_name)}: <b>${r.qty_per_unit} ${escapeHtml(r.ingredient_unit)}</b><span style="cursor:pointer;color:var(--red);" title="Çıkar" onclick="removeNewProductRecipeItem(${idx})">✕</span></span>`).join('')}</div>`;
 }
 function addNewProductRecipeItem(){
   const sel = document.getElementById('npRecipeIngSelect');
