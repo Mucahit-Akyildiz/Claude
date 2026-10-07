@@ -55,7 +55,7 @@ function filterListRows(key){
   const box = document.querySelector('#settingsContent .box'); if(!box) return;
   const q = String((APP.listSearch||{})[key]||'').trim().toLocaleLowerCase('tr');
   box.querySelectorAll('.settings-table tbody tr').forEach(tr => {
-    const inp = tr.querySelector('input'); const name = (inp ? inp.value : tr.textContent).toLocaleLowerCase('tr');
+    const inp = tr.querySelector('input:not([type=checkbox])'); const name = (inp ? inp.value : tr.textContent).toLocaleLowerCase('tr');
     tr.style.display = !q || name.includes(q) ? '' : 'none';
   });
   box.querySelectorAll('.settings-table').forEach(t => {
@@ -715,7 +715,8 @@ function renderProductsSettings(el, session){
   const products = APP.config.products || [];
 
   const rowsFor = (list) => list.map(p => `
-        <tr>
+        <tr data-pid="${p.id}" style="${p.available===false?'opacity:.6;':''}">
+          <td><input type="checkbox" class="prod-sel" value="${p.id}" style="width:auto;margin:0;" onchange="updateProdSelection()"></td>
           <td class="col-name"><input value="${escapeAttr(p.name)}" id="pr_name_${p.id}"></td>
           <td class="col-name"><select id="pr_st_${p.id}">
             ${stations.map(s => `<option value="${s.id}" ${s.id===p.station_id?'selected':''}>${escapeHtml(s.name)}</option>`).join('')}
@@ -731,11 +732,8 @@ function renderProductsSettings(el, session){
               ? '<span class="role-badge" style="color:var(--red);border-color:var(--red);">Kapalı</span>'
               : '<span class="role-badge" style="color:var(--green);border-color:var(--green);">Satışta</span>'}</td>
           <td><div class="act-row">
-            <button type="button" class="act-btn act-save" onclick="saveProduct('${p.id}')">${ICON_SAVE}<span>Kaydet</span></button>
-            <button type="button" class="act-btn ${p.available===false?'act-open':'act-close'}" onclick="toggleProductAvailable('${p.id}')"><b>${p.available===false?'✓':'✕'}</b><span>${p.available===false?'Aç':'Kapat'}</span></button>
             <button type="button" class="act-btn act-recipe" onclick="openRecipeModal('${p.id}')"><b>📋</b><span>Reçete</span></button>
             ${hasFeature('multilang_menu') ? `<button type="button" class="act-btn act-lang" onclick="openTranslationsModal('${p.id}')" title="QR menüde diğer dillerde gösterilecek isim"><b>🌐</b><span>Çeviri</span></button>` : ''}
-            <button type="button" class="act-btn act-delete" onclick="removeProduct('${p.id}')">${ICON_TRASH}<span>Sil</span></button>
           </div></td>
         </tr>`).join('');
 
@@ -744,7 +742,7 @@ function renderProductsSettings(el, session){
       <h3 style="display:flex;align-items:center;gap:8px;font-size:14px;margin:0 0 10px;">${colorDot?`<span style="width:10px;height:10px;border-radius:50%;background:${colorDot};display:inline-block;flex-shrink:0;"></span>`:''}${escapeHtml(title)}<span class="muted" style="font-weight:400;">(${list.length})</span></h3>
       <div class="settings-table-wrap">
       <table class="settings-table">
-        <thead><tr><th>Ürün Adı</th><th>İstasyon</th><th>Fiyat</th><th>Maliyet</th><th>Stok</th><th>Durum</th><th></th></tr></thead>
+        <thead><tr><th style="width:36px;"><input type="checkbox" style="width:auto;margin:0;" title="Bu gruptakilerin tümünü seç" onchange="selectProdGroup(this)"></th><th>Ürün Adı</th><th>İstasyon</th><th>Fiyat</th><th>Maliyet</th><th>Stok</th><th>Durum</th><th></th></tr></thead>
         <tbody>${rowsFor(list)}</tbody>
       </table>
       </div>
@@ -754,10 +752,22 @@ function renderProductsSettings(el, session){
 
   el.innerHTML = `<div class="box" style="max-width:none;">
     <h2>Ürünler</h2>
-    <p class="muted" style="text-align:left;margin:0 0 16px;">Stok alanını boş bırakırsanız o ürün için stok takibi yapılmaz. "Kapat" ile bir ürünü geçici olarak siparişe kapatabilirsiniz.</p>
-    ${listSearchHtml('products', 'Ürün ara…')}
+    <p class="muted" style="text-align:left;margin:0 0 16px;">Stok alanını boş bırakırsanız o ürün için stok takibi yapılmaz. Satırları değiştirip <b>Değişiklikleri Kaydet</b>'e basın; satışa açmak / kapatmak / silmek için satırları seçin.</p>
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:0 0 6px;">
+      ${listSearchHtml('products', 'Ürün ara…')}
+      <span style="flex:1;"></span>
+      <div class="act-row" style="margin-bottom:12px;">
+        <button type="button" class="act-btn act-save" id="prodSaveAllBtn" onclick="saveAllProducts()" disabled>${ICON_SAVE}<span>Değişiklikleri Kaydet</span></button>
+        <button type="button" class="act-btn act-open" data-prod-sel onclick="bulkProductAvailable(true)" disabled><b>✓</b><span>Satışa Aç</span></button>
+        <button type="button" class="act-btn act-close" data-prod-sel onclick="bulkProductAvailable(false)" disabled><b>✕</b><span>Satışa Kapat</span></button>
+        <button type="button" class="act-btn act-delete" data-prod-sel onclick="bulkDeleteProducts()" disabled>${ICON_TRASH}<span>Sil</span></button>
+      </div>
+    </div>
+    <p class="muted" id="prodSelInfo" style="text-align:left;font-size:12.5px;margin:0 0 10px;min-height:16px;"></p>
+    <div id="prodGroups" oninput="markProdDirty(event)" onchange="markProdDirty(event)">
     ${stations.map(s => groupHtml(s.name, s.color, products.filter(p => p.station_id===s.id))).join('')}
     ${groupHtml('İstasyonsuz', null, unassigned)}
+    </div>
 
     <div class="add-row-panel">
       <p>Yeni Ürün Ekle</p>
@@ -810,29 +820,64 @@ function addNewProductRecipeItem(){
   renderNewProductRecipeItems();
 }
 function removeNewProductRecipeItem(idx){ NEW_PRODUCT_RECIPE_DRAFT.splice(idx,1); renderNewProductRecipeItems(); }
-async function saveProduct(id){
-  const session = getSession();
-  const prod = APP.config.products.find(p => p.id===id);
-  const name = document.getElementById('pr_name_'+id).value.trim();
-  const stationId = document.getElementById('pr_st_'+id).value;
-  const price = parseFloat(document.getElementById('pr_price_'+id).value)||0;
-  const cost = parseFloat(document.getElementById('pr_cost_'+id).value)||0;
-  const stockEl = document.getElementById('pr_stock_'+id);
-  let stock = prod.stock;
-  if(stockEl){ const raw = stockEl.value.trim(); stock = raw==='' ? null : parseInt(raw,10); }
-  const { error } = await sb.rpc('upsert_product', { p_token: session.session_token, p_id: id, p_station_id: stationId, p_name: name, p_price: price, p_cost: cost, p_stock: stock, p_available: prod.available!==false });
-  if(error){ alert(error.message); return; }
-  renderSettingsView(document.getElementById('main'), session);
-  showToast('Kaydedildi ✓');
+/* Ürünler: değişen satırlar tek düğmeyle kaydedilir; satışa aç/kapat ve silme seçilen satırlara toplu uygulanır. */
+function markProdDirty(e){
+  if(!e.target || e.target.type==='checkbox') return;
+  const tr = e.target.closest('tr[data-pid]'); if(!tr) return;
+  tr.dataset.dirty = '1'; tr.style.boxShadow = 'inset 4px 0 0 var(--accent)';
+  updateProdSelection();
 }
-async function toggleProductAvailable(id){
-  const session = getSession();
-  const prod = APP.config.products.find(p => p.id===id);
-  const newAvailable = prod.available===false ? true : false;
-  const { error } = await sb.rpc('upsert_product', { p_token: session.session_token, p_id: id, p_station_id: prod.station_id, p_name: prod.name, p_price: prod.price, p_cost: prod.cost, p_stock: prod.stock, p_available: newAvailable });
-  if(error){ alert(error.message); return; }
-  prod.available = newAvailable;
+function selectedProductIds(){ return [...document.querySelectorAll('.prod-sel:checked')].map(b => b.value); }
+function selectProdGroup(box){
+  box.closest('table').querySelectorAll('tbody tr').forEach(tr => { const c = tr.querySelector('.prod-sel'); if(c && tr.style.display!=='none') c.checked = box.checked; });
+  updateProdSelection();
+}
+function updateProdSelection(){
+  const n = selectedProductIds().length, dirty = document.querySelectorAll('tr[data-pid][data-dirty]').length;
+  document.querySelectorAll('[data-prod-sel]').forEach(b => { b.disabled = !n; });
+  const save = document.getElementById('prodSaveAllBtn');
+  if(save){ save.disabled = !dirty; save.querySelector('span').textContent = dirty ? `Değişiklikleri Kaydet (${dirty})` : 'Değişiklikleri Kaydet'; }
+  const info = document.getElementById('prodSelInfo');
+  if(info) info.innerHTML = [n ? `<b>${n}</b> ürün seçili` : '', dirty ? `<b>${dirty}</b> üründe kaydedilmemiş değişiklik` : ''].filter(Boolean).join(' · ');
+}
+function productPayload(p, over){
+  return Object.assign({ p_id: p.id, p_station_id: p.station_id, p_name: p.name, p_price: p.price, p_cost: p.cost, p_stock: p.stock, p_available: p.available!==false }, over || {});
+}
+async function runProductBatch(list, fn){
+  const session = getSession(); const errors = [];
+  await withLoadingOverlay((async () => {
+    for(const item of list){ const { error } = await fn(session, item); if(error) errors.push((item.name || '') + ': ' + (item.friendly ? friendlyDeleteError(error.message) : error.message)); }
+  })());
   renderSettingsView(document.getElementById('main'), session);
+  return errors;
+}
+async function saveAllProducts(){
+  const rows = [...document.querySelectorAll('tr[data-pid][data-dirty]')].map(tr => {
+    const id = tr.dataset.pid, p = APP.config.products.find(x => x.id===id) || { id };
+    const stockEl = document.getElementById('pr_stock_'+id);
+    let stock = p.stock; if(stockEl){ const raw = stockEl.value.trim(); stock = raw==='' ? null : parseInt(raw,10); }
+    const name = document.getElementById('pr_name_'+id).value.trim();
+    return { name, payload: productPayload(p, { p_name: name, p_station_id: document.getElementById('pr_st_'+id).value,
+      p_price: parseFloat(document.getElementById('pr_price_'+id).value)||0, p_cost: parseFloat(document.getElementById('pr_cost_'+id).value)||0, p_stock: stock }) };
+  });
+  if(!rows.length) return;
+  const bad = rows.find(r => !r.name); if(bad){ alert('Ürün adı boş olamaz'); return; }
+  const errors = await runProductBatch(rows, (s, r) => sb.rpc('upsert_product', Object.assign({ p_token: s.session_token }, r.payload)));
+  if(errors.length) alert('Bazı ürünler kaydedilemedi:\n\n' + errors.join('\n')); else showToast(rows.length + ' ürün kaydedildi ✓');
+}
+async function bulkProductAvailable(open){
+  const ids = selectedProductIds(); if(!ids.length) return;
+  const list = ids.map(id => APP.config.products.find(p => p.id===id)).filter(p => p && (p.available!==false) !== open);
+  if(!list.length){ showToast(open ? 'Seçilenler zaten satışta' : 'Seçilenler zaten kapalı'); return; }
+  const errors = await runProductBatch(list, (s, p) => sb.rpc('upsert_product', Object.assign({ p_token: s.session_token }, productPayload(p, { p_available: open }))));
+  if(errors.length) alert('Bazı ürünler güncellenemedi:\n\n' + errors.join('\n')); else showToast(list.length + (open ? ' ürün satışa açıldı ✓' : ' ürün satışa kapatıldı'));
+}
+async function bulkDeleteProducts(){
+  const ids = selectedProductIds(); if(!ids.length) return;
+  const list = ids.map(id => APP.config.products.find(p => p.id===id)).filter(Boolean).map(p => ({ id: p.id, name: p.name, friendly: true }));
+  if(!confirm(list.length + ' ürün silinsin mi?\n\n' + list.map(p => p.name).join(', '))) return;
+  const errors = await runProductBatch(list, (s, p) => sb.rpc('delete_product', { p_token: s.session_token, p_id: p.id }));
+  if(errors.length) alert('Bazı ürünler silinemedi:\n\n' + errors.join('\n')); else showToast(list.length + ' ürün silindi');
 }
 async function addProduct(){
   const session = getSession();
@@ -851,13 +896,6 @@ async function addProduct(){
     if(recError){ alert('Ürün eklendi ama reçete kaydedilemedi: ' + recError.message); }
   }
   NEW_PRODUCT_RECIPE_DRAFT = [];
-  renderSettingsView(document.getElementById('main'), session);
-}
-async function removeProduct(id){
-  if(!confirm('Ürünü silmek istediğinize emin misiniz?')) return;
-  const session = getSession();
-  const { error } = await sb.rpc('delete_product', { p_token: session.session_token, p_id: id });
-  if(error){ alert(friendlyDeleteError(error.message)); return; }
   renderSettingsView(document.getElementById('main'), session);
 }
 
