@@ -139,6 +139,7 @@ function getSession(){
   }catch(e){ return null; }
 }
 function setSession(s){
+  try{ if(typeof ensureChatOwner === 'function') ensureChatOwner(s); }catch(e){}
   try{
     sessionStorage.setItem('staff_session', JSON.stringify(s));
     if(s && s.remember) localStorage.setItem('staff_session_persist', JSON.stringify(s));
@@ -147,6 +148,9 @@ function setSession(s){
 }
 function clearSession(){
   try{ sessionStorage.removeItem('staff_session'); localStorage.removeItem('staff_session_persist'); }catch(e){}
+  // Önceki kullanıcıya ait önbellekler (mesajlar, sorgu sonuçları) sonraki kullanıcıya kalmasın.
+  try{ if(typeof resetChatCaches === 'function') resetChatCaches(); }catch(e){}
+  try{ clearRpcCache(); }catch(e){}
 }
 /* Şirket oturumu (şube sahibi/zincir hesabı) - şube personel oturumundan
    (staff_session) ayrı ve bağımsız tutulur. Bir şirket sahibi bir şubeye

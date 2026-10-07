@@ -87,6 +87,7 @@ async function requestChatPermissions(){
 }
 function getSavedFcmTokenSafe(){ try{ return typeof getSavedFcmToken === 'function' && isNativeApp() ? getSavedFcmToken() : ''; }catch(e){ return ''; } }
 async function renderMessagesView(main, session){
+  ensureChatOwner(session);
   main.innerHTML = `<div class="chat-shell ${APP.chatConv ? 'has-conv' : ''}">
       <div class="chat-list-wrap">
         <div class="chat-list-head"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px;"><h1 style="margin:0;">💬 Mesajlar</h1>
@@ -184,7 +185,8 @@ const CHAT_CACHE = {};
 async function refreshChatThread(){
   const session = getSession(); const el = document.getElementById('chatThread');
   if(!session || !el || !APP.chatConv) return;
-  const conv = APP.chatConv;
+  ensureChatOwner(session);
+  const conv = APP.chatConv; if(!conv) return;
   if(!el.dataset.drawn && CHAT_CACHE[conv]) drawChatThread(CHAT_CACHE[conv].rows);
   const { data, error } = await sb.rpc('get_chat_messages', { p_token: session.session_token, p_conv: conv });
   if(conv !== APP.chatConv) return;
@@ -882,4 +884,18 @@ async function sendChatGif(i){
     const tray = document.getElementById('chatTray'); if(tray) tray.classList.remove('open');
     await sendChatImageFile(new File([blob], 'giphy.gif', { type: 'image/gif' }), true);
   }catch(e){ alert('GIF gönderilemedi'); }
+}
+
+/* Mesaj önbellekleri (sohbet listesi, açılmış sohbetler, görseller) oturum açan kişiye aittir.
+   Aynı cihazı birden çok personel kullandığı için kullanıcı değişince / çıkış yapılınca
+   tamamen silinir; aksi halde yeni kullanıcı bir an için öncekinin mesajlarını görebilirdi. */
+function resetChatCaches(){
+  Object.keys(CHAT_CACHE).forEach(k => delete CHAT_CACHE[k]);
+  Object.keys(CHAT_IMG_URLS).forEach(k => { try{ URL.revokeObjectURL(CHAT_IMG_URLS[k]); }catch(e){} delete CHAT_IMG_URLS[k]; });
+  APP.chatItems = null; APP.chatRows = null; APP.chatConv = null; APP.chatReply = null;
+  APP.chatGifKey = undefined; APP.chatGifs = null; APP.chatOwner = null;
+}
+function ensureChatOwner(session){
+  const owner = session ? session.user_id + '|' + session.restaurant_id : null;
+  if(APP.chatOwner !== owner){ resetChatCaches(); APP.chatOwner = owner; }
 }
