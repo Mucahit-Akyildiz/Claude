@@ -362,6 +362,7 @@ async function renderReportContent(session){
       <td style="white-space:nowrap;">${dS}</td>
       <td>${t}${stay!=null ? ` <span class="muted" style="font-size:11px;">(${stay} dk)</span>` : ''}</td>
       <td class="col-name">${escapeHtml(billLabel(o))}${srcBadge}${tagBadge}</td>
+      <td>${o.customer_name ? `${o.customer_id ? '⭐ ' : ''}${escapeHtml(o.customer_name)}${o.customer_phone ? `<div class="muted" style="font-size:11px;">${escapeHtml(o.customer_phone)}</div>` : ''}` : '<span class="muted">—</span>'}</td>
       <td>${money(o.total)}</td>
       <td>${discTxt}</td>
       <td>${methodLabel}</td>
@@ -369,7 +370,7 @@ async function renderReportContent(session){
   };
   const billsHtml = hist.length===0 ? '<p class="muted">Bu tarihte kapatılmış hesap yok.</p>'
     : filteredBills.length===0 ? '<p class="muted">Bu filtrede kapatılmış hesap yok.</p>'
-    : `<div class="settings-table-wrap"><table class="settings-table"><thead><tr><th>Sipariş Tarihi</th><th>Sipariş Saati</th><th>Hazır</th><th>Ödeme Tarihi</th><th>Ödeme Saati</th><th>Masa</th><th>Tutar</th><th>İndirim</th><th>Ödeme</th><th></th></tr></thead><tbody>` +
+    : `<div class="settings-table-wrap"><table class="settings-table"><thead><tr><th>Sipariş Tarihi</th><th>Sipariş Saati</th><th>Hazır</th><th>Ödeme Tarihi</th><th>Ödeme Saati</th><th>Masa</th><th>Müşteri</th><th>Tutar</th><th>İndirim</th><th>Ödeme</th><th></th></tr></thead><tbody>` +
       filteredBills.map(billRowHtml).join('') + '</tbody></table></div>';
   // Ortalama süreler: sipariş → hazır (mutfak) ve sipariş → ödeme (masada kalış).
   const avgMin = (arr) => arr.length ? Math.round(arr.reduce((x, y) => x + y, 0) / arr.length) : null;
