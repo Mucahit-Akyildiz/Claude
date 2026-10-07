@@ -972,32 +972,40 @@ async function renderOpenAccountsContent(session){
     <div class="box" style="max-width:none;">
       <h2>Dönem Hareketleri</h2>
       ${(data.entries||[]).length ? `<div class="settings-table-wrap"><table class="settings-table">
-        <thead><tr><th>Tarih</th><th>Hesap</th><th>İşlem</th><th>Tutar</th><th>Masa / Not</th><th>Personel</th></tr></thead>
+        <thead><tr><th>Tarih</th><th>Hesap</th><th>İşlem</th><th>Tutar</th><th>Masa / Not</th><th>Personel</th><th></th></tr></thead>
         <tbody>${data.entries.map(e => `<tr>
           <td>${new Date(e.created_at).toLocaleString('tr-TR', { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' })}</td>
           <td>${escapeHtml(e.account_name)}</td>
           <td>${e.kind === 'charge' ? '📒 Hesaba yazıldı' : '✅ Tahsilat (' + methodTxt(e.method) + ')'}</td>
           <td style="font-weight:700;color:${e.kind === 'charge' ? 'var(--red)' : 'var(--green, #2fae5e)'};">${e.kind === 'charge' ? '+' : '−'}${money(e.amount)}</td>
           <td>${escapeHtml([e.table_name, e.note].filter(Boolean).join(' · ') || '—')}</td>
-          <td>${escapeHtml(e.staff || '—')}</td></tr>`).join('')}</tbody></table></div>` : '<p class="muted">Bu dönemde hareket yok.</p>'}
+          <td>${escapeHtml(e.staff || '—')}</td>
+          <td>${e.sales_history_id ? `<button type="button" class="sbtn" style="width:auto;margin:0;" onclick="openSaleDetailModal('${e.sales_history_id}')">🔍 Sipariş Detayı</button>` : ''}</td></tr>`).join('')}</tbody></table></div>` : '<p class="muted">Bu dönemde hareket yok.</p>'}
     </div>`;
 }
 function filterOpenAccRows(q){
   q = String(q||'').trim().toLocaleLowerCase('tr');
   document.querySelectorAll('#openAccTable tr[data-oa]').forEach(tr => { tr.style.display = !q || tr.dataset.oa.includes(q) ? '' : 'none'; });
 }
-function showOpenAccEntries(id){
+/* Hesap hareketleri (tüm zamanlar): her yazımda siparişin detayı açılabilir. */
+async function showOpenAccEntries(id){
   const d = APP.openAccReport || {}; const a = (d.accounts||[]).find(x => x.id===id); if(!a) return;
-  const rows = (d.entries||[]).filter(e => e.account_id===id);
+  const { data, error } = await withLoadingOverlay(sb.rpc('get_open_account_entries', { p_token: getSession().session_token, p_account_id: id }));
+  if(error){ alert(error.message); return; }
+  const rows = data || [];
   const m = document.createElement('div'); m.className = 'modal-bg'; m.id = 'oaEntriesModalBg';
-  m.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;z-index:140;padding:16px;';
+  m.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;z-index:95;padding:16px;';
   m.onclick = (e) => { if(e.target===m) m.remove(); };
-  m.innerHTML = `<div style="background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:18px;max-width:520px;width:100%;max-height:85vh;overflow:auto;">
+  m.innerHTML = `<div style="background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:18px;max-width:560px;width:100%;max-height:85vh;overflow:auto;">
     <h2 style="margin:0 0 4px;">📒 ${escapeHtml(a.name)}</h2>
-    <p class="muted" style="margin:0 0 12px;">Bakiye: <b style="color:${a.balance > 0.009 ? 'var(--red)' : 'inherit'};">${money(a.balance)}</b> · Seçili dönemdeki hareketler</p>
-    ${rows.length ? rows.map(e => `<div style="display:flex;justify-content:space-between;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);">
-      <span>${new Date(e.created_at).toLocaleString('tr-TR', { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' })} · ${e.kind === 'charge' ? 'Hesaba yazıldı' : 'Tahsilat'}${e.table_name ? ' · ' + escapeHtml(e.table_name) : ''}</span>
-      <b style="color:${e.kind === 'charge' ? 'var(--red)' : 'var(--green, #2fae5e)'};">${e.kind === 'charge' ? '+' : '−'}${money(e.amount)}</b></div>`).join('') : '<p class="muted">Bu dönemde hareket yok.</p>'}
+    <p class="muted" style="margin:0 0 12px;text-align:left;">Bakiye: <b style="color:${a.balance > 0.009 ? 'var(--red)' : 'inherit'};">${money(a.balance)}</b> · Tüm hareketler</p>
+    ${rows.length ? rows.map(e => `<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--border);">
+      <span style="min-width:0;">${new Date(e.created_at).toLocaleString('tr-TR', { day:'numeric', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' })}
+        <div class="muted" style="font-size:12px;">${e.kind === 'charge' ? '📒 Hesaba yazıldı' + (e.item_count ? ' · ' + e.item_count + ' ürün' : '') : '✅ Tahsilat' + (e.method ? ' (' + (e.method==='cash'?'Nakit':e.method==='card'?'Kart':escapeHtml(e.method)) + ')' : '')}${e.table_name ? ' · ' + escapeHtml(e.table_name) : ''}${e.staff ? ' · ' + escapeHtml(e.staff) : ''}</div></span>
+      <span style="display:flex;align-items:center;gap:8px;white-space:nowrap;">
+        <b style="color:${e.kind === 'charge' ? 'var(--red)' : 'var(--green, #2fae5e)'};">${e.kind === 'charge' ? '+' : '−'}${money(e.amount)}</b>
+        ${e.sales_history_id ? `<button type="button" class="sbtn" style="width:auto;margin:0;" title="Sipariş detayı" onclick="openSaleDetailModal('${e.sales_history_id}')">🔍</button>` : ''}
+      </span></div>`).join('') : '<p class="muted">Hareket yok.</p>'}
     <button type="button" class="ghost-btn" style="width:100%;margin-top:12px;" onclick="document.getElementById('oaEntriesModalBg').remove()">Kapat</button>
   </div>`;
   document.body.appendChild(m);
