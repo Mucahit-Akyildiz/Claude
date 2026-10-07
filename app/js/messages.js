@@ -96,8 +96,10 @@ async function renderMessagesView(main, session){
       </div>
       <div class="chat-pane" id="chatPane">${APP.chatConv ? '' : chatEmptyPaneHtml()}</div>
     </div>`;
-  await refreshChatList();
+  if(APP.chatItems) drawChatList();
+  const listP = refreshChatList();
   if(APP.chatConv) openChatConv(APP.chatConv, true);
+  await listP;
   maybeAskChatPermissions();
 }
 function chatEmptyPaneHtml(){
@@ -161,8 +163,9 @@ async function openChatConv(conv, keepDraft){
     APP.chatReply = null;
   }
   document.querySelectorAll('.chat-item').forEach(el => el.classList.toggle('active', el.dataset.conv===conv));
+  refreshChatList();
   await refreshChatThread();
-  refreshChatList(); refreshNavBadges();
+  refreshNavBadges();
   if(!keepDraft){ const t = document.getElementById('chatText'); if(t && window.innerWidth > 760) t.focus(); }
 }
 function closeChatConv(){
@@ -173,15 +176,28 @@ function closeChatConv(){
   refreshChatList();
 }
 const CHAT_ONLY_EMOJI = /^(?:\p{Extended_Pictographic}|\p{Emoji_Component}|‍|️|\s)+$/u;
+/* Sohbet önbelleği: açılınca son bilinen hali hemen çizilir, sunucudan gelen veri
+   farklıysa yeniden çizilir (aynıysa DOM'a dokunulmaz - titreme/kaydırma zıplaması olmaz). */
+const CHAT_CACHE = {};
 async function refreshChatThread(){
   const session = getSession(); const el = document.getElementById('chatThread');
   if(!session || !el || !APP.chatConv) return;
-  const { data, error } = await sb.rpc('get_chat_messages', { p_token: session.session_token, p_conv: APP.chatConv });
-  if(error){ el.innerHTML = '<p class="muted">Yüklenemedi: '+escapeHtml(error.message)+'</p>'; return; }
+  const conv = APP.chatConv;
+  if(!el.dataset.drawn && CHAT_CACHE[conv]) drawChatThread(CHAT_CACHE[conv].rows);
+  const { data, error } = await sb.rpc('get_chat_messages', { p_token: session.session_token, p_conv: conv });
+  if(conv !== APP.chatConv) return;
+  if(error){ if(!el.dataset.drawn) el.innerHTML = '<p class="muted">Yüklenemedi: '+escapeHtml(error.message)+'</p>'; return; }
+  const json = JSON.stringify(data || []);
+  if(CHAT_CACHE[conv] && CHAT_CACHE[conv].json === json && el.dataset.drawn && !el.querySelector('.chat-pending')) return;
+  CHAT_CACHE[conv] = { json, rows: data || [] };
+  drawChatThread(data || []);
+}
+function drawChatThread(rows){
+  const el = document.getElementById('chatThread'); if(!el) return;
+  el.dataset.drawn = '1';
   const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
   const isAll = APP.chatConv==='all';
   const isGroup = String(APP.chatConv).startsWith('g:');
-  const rows = data || [];
   APP.chatRows = rows;
   let lastDay = '';
   el.innerHTML = rows.length ? rows.map((m, i) => {
@@ -206,7 +222,7 @@ async function refreshChatThread(){
           : m.viewed_by_me
             ? `<div class="chat-once opened">1️⃣ <span>Fotoğraf<small>Açıldı</small></span></div>`
             : `<button type="button" class="chat-once" onclick="event.stopPropagation();openViewOnce('${m.id}')">1️⃣ <span>Fotoğraf<small>Bir kez görüntülemek için dokunun</small></span></button>`;
-      } else if(m.attachment_kind==='image' && m.attachment) content += `<img class="chat-img" data-att="${m.id}" src="${escapeAttr(chatSafeDataImage(m.attachment) || CHAT_IMG_URLS[m.id] || '')}" alt="" loading="lazy" onclick="openChatImage(this.src)">`;
+      } else if(m.attachment_kind==='image') content += `<img class="chat-img" data-att="${m.id}" src="${escapeAttr(CHAT_IMG_URLS[m.id] || chatSafeDataImage(m.attachment) || '')}" alt="" loading="lazy" onclick="openChatImage(this.src)">`;
       if(m.attachment_kind==='audio') content += `<div class="chat-audio" data-att="${m.id}"><button type="button" class="chat-audio-play" onclick="event.stopPropagation();loadChatAudio('${m.id}', this)">▶</button><span>🎤 Sesli mesaj</span></div>`;
       if(m.attachment_kind==='file') content += `<button type="button" class="chat-file" onclick="event.stopPropagation();downloadChatFile('${m.id}')"><span class="chat-file-ic">📄</span><span style="min-width:0;"><b>${escapeHtml(m.attachment_name||'Dosya')}</b><small>${chatFileSize(m.attachment_size)} · indir</small></span></button>`;
       if(m.body) content += `<div class="chat-body">${escapeHtml(m.body)}</div>`;
