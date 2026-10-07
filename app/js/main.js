@@ -313,7 +313,7 @@ function startDataVersionWatch(){
   if(session && session.restaurant_id && sb.channel){
     try{
       DATA_VER_CHANNEL = sb.channel('dv-' + session.restaurant_id)
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'data_versions', filter: 'restaurant_id=eq.' + session.restaurant_id }, () => checkDataVersion(true))
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'data_versions', filter: 'restaurant_id=eq.' + session.restaurant_id }, (payload) => onDataVersionPush(payload))
         .subscribe(status => { live = status === 'SUBSCRIBED'; });
     }catch(e){ DATA_VER_CHANNEL = null; }
   }
@@ -321,6 +321,18 @@ function startDataVersionWatch(){
   let tick = 0;
   clearInterval(DATA_VER_TIMER);
   DATA_VER_TIMER = setInterval(() => { tick++; if(!live || tick % 5 === 0) checkDataVersion(); }, 3000);
+}
+// Realtime bildirimi yeni sayaç değerini zaten taşır: sunucuya tekrar sormadan ekran hemen tazelenir.
+function onDataVersionPush(payload){
+  const v = payload && payload.new && payload.new.v;
+  const session = getSession();
+  if(v == null || !session || document.visibilityState!=='visible'){ checkDataVersion(true); return; }
+  if(DATA_VER_LAST === null){ DATA_VER_LAST = v; return; }
+  if(v === DATA_VER_LAST) return;
+  DATA_VER_LAST = v;
+  if(APP.view==='messages') refreshMessagesView();
+  refreshNavBadges(); refreshWaiterCalls(); refreshShiftWidget(session);
+  if(APP.view!=='messages') autoRefreshCurrentView(session);
 }
 async function checkDataVersion(fromRealtime){
   const session = getSession();
