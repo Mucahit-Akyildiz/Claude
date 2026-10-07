@@ -100,7 +100,7 @@ const NAV_ITEMS = [
   { view:'payments', icon:'💳', label:'Ödemeler', perm:'payments' },
   { view:'reports', icon:'📊', label:'Finansal Analiz' },
   { view:'messages', icon:'💬', label:'Mesajlar' },
-  { view:'radio', icon:'📻', label:'PeykTelsiz' },
+  { view:'radio', icon:'📻', label:'Peyk Bas-Konuş' },
   { view:'settings', icon:'⚙️', label:'Ayarlar' },
   { view:'help', icon:'❓', label:'Yardım' },
 ];

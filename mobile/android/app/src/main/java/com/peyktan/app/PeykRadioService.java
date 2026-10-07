@@ -19,7 +19,7 @@ import androidx.core.app.ServiceCompat;
 import androidx.core.content.ContextCompat;
 
 /**
- * PeykTelsiz ön plan servisi: telsiz kanalına bağlıyken uygulama arka plana
+ * Peyk Bas-Konuş ön plan servisi: telsiz kanalına bağlıyken uygulama arka plana
  * alınsa ya da ekran kilitlense bile işlemin (ve WebView'deki canlı ses
  * bağlantısının) Android tarafından durdurulmamasını sağlar. Bildirim
  * çubuğunda "Telsiz açık" bildirimi görünür; dokununca uygulama açılır.
@@ -38,7 +38,7 @@ public class PeykRadioService extends Service {
         PendingIntent pi = PendingIntent.getActivity(this, 0, open, PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
         Notification n = new NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_stat_radio)
-            .setContentTitle("📻 PeykTelsiz açık")
+            .setContentTitle("📻 Peyk Bas-Konuş açık")
             .setContentText(name == null || name.isEmpty() ? "Kanal dinleniyor" : name + " kanalı dinleniyor")
             .setContentIntent(pi)
             .setOngoing(true)
@@ -66,7 +66,7 @@ public class PeykRadioService extends Service {
 
     private void createChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            NotificationChannel ch = new NotificationChannel(CHANNEL_ID, "PeykTelsiz", NotificationManager.IMPORTANCE_LOW);
+            NotificationChannel ch = new NotificationChannel(CHANNEL_ID, "Peyk Bas-Konuş", NotificationManager.IMPORTANCE_LOW);
             ch.setDescription("Telsiz kanalına bağlıyken gösterilir");
             ch.setShowBadge(false);
             ((NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE)).createNotificationChannel(ch);

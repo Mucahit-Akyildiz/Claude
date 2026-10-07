@@ -22,7 +22,7 @@
             </intent-filter>
         </activity>
 
-        <!-- PeykTelsiz: kanala bağlıyken arka planda/ekran kilitliyken çalışmaya devam. -->
+        <!-- Peyk Bas-Konuş: kanala bağlıyken arka planda/ekran kilitliyken çalışmaya devam. -->
         <service
             android:name=".PeykRadioService"
             android:exported="false"
@@ -57,7 +57,7 @@
     <!-- Mesajlarda sesli mesaj kaydı (WebView getUserMedia için). -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
-    <!-- PeykTelsiz arka plan servisi -->
+    <!-- Peyk Bas-Konuş arka plan servisi -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />

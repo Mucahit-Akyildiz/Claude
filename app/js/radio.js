@@ -38,12 +38,12 @@ function radioNotifyNewMemberships(session, list){
 
 /* ---- Ekran: kanal listesi / yönetimi ---- */
 async function renderRadioView(main, session){
-  main.innerHTML = '<h1>📻 PeykTelsiz</h1><div class="box" style="max-width:none;"><p class="muted">Yükleniyor…</p></div>';
+  main.innerHTML = '<h1>📻 Peyk Bas-Konuş</h1><div class="box" style="max-width:none;"><p class="muted">Yükleniyor…</p></div>';
   let list;
   try{ list = await fetchRadioChannels(session); }
   catch(e){ main.querySelector('.box').innerHTML = '<p class="muted">Yüklenemedi: ' + escapeHtml(e.message) + '</p>'; return; }
   const cur = RADIO.channel && RADIO.channel.id;
-  main.innerHTML = `<h1>📻 PeykTelsiz</h1>
+  main.innerHTML = `<h1>📻 Peyk Bas-Konuş</h1>
     <div class="box" style="max-width:none;">
       <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;">
         <h2 style="margin:0;">Kanallar</h2>
