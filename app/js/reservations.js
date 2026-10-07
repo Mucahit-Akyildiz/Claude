@@ -67,13 +67,14 @@ async function renderReservationsContent(session, forceRefresh){
     <div class="add-row-panel">
       <p>Yeni Rezervasyon</p>
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;align-items:end;">
-        <div class="field-group"><label>Müşteri Adı</label><input id="rv_name" placeholder="örn. Zeynep Hanım"></div>
-        <div class="field-group"><label>Telefon</label><input id="rv_phone" placeholder="05xx..."></div>
-        <div class="field-group"><label>E-posta (hatırlatma)</label><input id="rv_email" type="email" placeholder="opsiyonel" autocapitalize="none"></div>
+        <div class="field-group"><label>Müşteri Adı</label><input id="rvCustName" placeholder="Ad veya kayıtlı müşteri ara" autocomplete="off" oninput="tableCustSearch(this.value, 'rvCust')"></div>
+        <div class="field-group"><label>Telefon</label><input id="rvCustPhone" placeholder="05xx..." inputmode="tel" autocomplete="off" oninput="tableCustSearch(this.value, 'rvCust')"></div>
+        <div class="field-group"><label>E-posta (hatırlatma)</label><input id="rvCustEmail" type="email" placeholder="opsiyonel" autocapitalize="none"></div>
         <div class="field-group"><label>Kişi</label><input id="rv_party" type="number" min="1" value="2"></div>
         <div class="field-group"><label>Tarih & Saat</label><input id="rv_time" type="datetime-local"></div>
         <div class="field-group"><label>Masa (opsiyonel)</label><select id="rv_table"><option value="">-</option>${allTables.map(t => `<option value="${t.id}">${escapeHtml(t.name)}</option>`).join('')}</select></div>
       </div>
+      <div id="rvCustSuggest"></div>
       <div class="field-group" style="margin-top:10px;"><label>Not</label><input id="rv_notes" placeholder="opsiyonel"></div>
       <button style="margin-top:12px;max-width:220px;" onclick="addReservation()">+ Rezervasyon Ekle</button>
     </div>
@@ -157,9 +158,9 @@ async function confirmSeatReservation(id){
 }
 async function addReservation(){
   const session = getSession();
-  const name = document.getElementById('rv_name').value.trim();
-  const phone = document.getElementById('rv_phone').value.trim();
-  const email = document.getElementById('rv_email').value.trim();
+  const name = document.getElementById('rvCustName').value.trim();
+  const phone = document.getElementById('rvCustPhone').value.trim();
+  const email = document.getElementById('rvCustEmail').value.trim();
   const party = parseInt(document.getElementById('rv_party').value)||2;
   const timeVal = document.getElementById('rv_time').value;
   const tableId = document.getElementById('rv_table').value || null;
@@ -229,12 +230,13 @@ async function renderWaitlistContent(session, forceRefresh){
     <div class="add-row-panel">
       <p>Bekleme Listesine Ekle</p>
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;align-items:end;">
-        <div class="field-group"><label>Müşteri Adı</label><input id="wl_name" placeholder="örn. Mehmet Bey"></div>
-        <div class="field-group"><label>Telefon</label><input id="wl_phone" placeholder="05xx..."></div>
-        <div class="field-group"><label>E-posta (bildirim)</label><input id="wl_email" type="email" placeholder="opsiyonel" autocapitalize="none"></div>
+        <div class="field-group"><label>Müşteri Adı</label><input id="wlCustName" placeholder="Ad veya kayıtlı müşteri ara" autocomplete="off" oninput="tableCustSearch(this.value, 'wlCust')"></div>
+        <div class="field-group"><label>Telefon</label><input id="wlCustPhone" placeholder="05xx..." inputmode="tel" autocomplete="off" oninput="tableCustSearch(this.value, 'wlCust')"></div>
+        <div class="field-group"><label>E-posta (bildirim)</label><input id="wlCustEmail" type="email" placeholder="opsiyonel" autocapitalize="none"></div>
         <div class="field-group"><label>Kişi</label><input id="wl_party" type="number" min="1" value="2"></div>
         <div class="field-group"><label>Tahmini Bekleme (dk)</label><input id="wl_wait" type="number" min="0" placeholder="15"></div>
       </div>
+      <div id="wlCustSuggest"></div>
       <button style="margin-top:12px;max-width:220px;" onclick="addWaitlistEntry()">+ Ekle</button>
     </div>
   </div>`;
@@ -362,11 +364,11 @@ function updateWaitlistTimers(){
 }
 async function addWaitlistEntry(){
   const session = getSession();
-  const name = document.getElementById('wl_name').value.trim();
-  const phone = document.getElementById('wl_phone').value.trim();
+  const name = document.getElementById('wlCustName').value.trim();
+  const phone = document.getElementById('wlCustPhone').value.trim();
   const party = parseInt(document.getElementById('wl_party').value)||2;
   const wait = document.getElementById('wl_wait').value ? parseInt(document.getElementById('wl_wait').value) : null;
-  const email = document.getElementById('wl_email').value.trim();
+  const email = document.getElementById('wlCustEmail').value.trim();
   if(!name){ alert('Müşteri adı gerekli'); return; }
   const { error } = await sb.rpc('add_waitlist_entry', { p_token: session.session_token, p_customer_name: name, p_phone: phone||null, p_party_size: party, p_quoted_wait_minutes: wait, p_email: email||null });
   if(error){ alert(error.message); return; }
