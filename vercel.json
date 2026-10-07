@@ -31,5 +31,5 @@
       "claude/friendly-goodall-rksmy6": false
     }
   },
-  "ignoreCommand": "git diff --quiet HEAD^ HEAD -- . ':(exclude)supabase' ':(exclude).github' ':(exclude)mobile'"
+  "ignoreCommand": "[ -n \"$VERCEL_GIT_PREVIOUS_SHA\" ] && git diff --quiet \"$VERCEL_GIT_PREVIOUS_SHA\" HEAD -- . ':(exclude)supabase' ':(exclude).github' ':(exclude)mobile'"
 }
