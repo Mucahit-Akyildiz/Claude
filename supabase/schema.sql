@@ -586,6 +586,20 @@ end; $$;
 
 
 --
+-- Name: _order_item_ready_at(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public._order_item_ready_at() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+begin
+  if new.status = 'ready' and (tg_op = 'INSERT' or old.status is distinct from 'ready') then new.ready_at := coalesce(new.ready_at, now()); end if;
+  if new.status <> 'ready' then new.ready_at := null; end if;
+  return new;
+end; $$;
+
+
+--
 -- Name: _platform_admin_check(uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -3271,7 +3285,7 @@ begin
         select coalesce(json_agg(json_build_object(
           'id', oi.id, 'name', oi.name, 'price', oi.price, 'cost', oi.cost,
           'qty', oi.qty, 'status', oi.status, 'note', oi.note, 'paid', oi.paid,
-          'station_id', p.station_id, 'product_id', oi.product_id, 'added_at', oi.added_at
+          'station_id', p.station_id, 'product_id', oi.product_id, 'added_at', oi.added_at, 'ready_at', oi.ready_at
         )), '[]'::json)
         from order_items oi left join products p on p.id = oi.product_id
         where oi.order_id = o.id
@@ -3721,7 +3735,7 @@ begin
   select * into h from sales_history where id = p_history_id and restaurant_id = s.restaurant_id;
   if h.id is null then raise exception 'Ödeme kaydı bulunamadı'; end if;
   return json_build_object(
-    'id', h.id, 'table_name', h.table_name, 'kind', h.kind, 'closed_at', h.closed_at,
+    'id', h.id, 'table_name', h.table_name, 'kind', h.kind, 'closed_at', h.closed_at, 'ordered_at', h.ordered_at, 'ready_at', h.ready_at,
     'subtotal', h.subtotal, 'discount', coalesce(h.discount_amount,0), 'birthday_discount', coalesce(h.birthday_discount_amount,0),
     'tip', coalesce(h.tip_amount,0), 'total', h.total, 'payment_method', h.payment_method,
     'cash_amount', h.cash_amount, 'card_amount', h.card_amount, 'gift_card_amount', coalesce(h.gift_card_amount,0), 'tags', h.tags,
@@ -3749,7 +3763,7 @@ begin
     select coalesce(json_agg(row_to_json(h)), '[]'::json)
     from (
       select sh.id, sh.order_id, sh.table_name, sh.subtotal, sh.discount_amount, sh.total, sh.cost, sh.payment_method, sh.cash_amount, sh.card_amount,
-        sh.closed_at, sh.tags, sh.kind, sh.tip_amount, sh.customer_id, sh.points_earned, sh.points_redeemed, sh.birthday_discount_amount,
+        sh.closed_at, sh.ordered_at, sh.ready_at, sh.tags, sh.kind, sh.tip_amount, sh.customer_id, sh.points_earned, sh.points_redeemed, sh.birthday_discount_amount,
         sh.staff_user_id, au1.username as staff_name,
         o.created_by as order_taken_by, au2.username as order_taken_by_name,
         sh.gift_card_amount, (o.reservation_id is not null) as from_reservation, (o.waitlist_id is not null) as from_waitlist
@@ -4955,8 +4969,8 @@ begin
       if v_req_qty >= v_row.qty then
         v_paid_item_ids := v_paid_item_ids || v_row.id;
       else
-        insert into order_items (order_id, product_id, name, price, cost, qty, status, note, added_at)
-        values (v_row.order_id, v_row.product_id, v_row.name, v_row.price, v_row.cost, v_req_qty, v_row.status, v_row.note, v_row.added_at)
+        insert into order_items (order_id, product_id, name, price, cost, qty, status, note, added_at, ready_at)
+        values (v_row.order_id, v_row.product_id, v_row.name, v_row.price, v_row.cost, v_req_qty, v_row.status, v_row.note, v_row.added_at, v_row.ready_at)
         returning id into v_new_id;
         v_paid_item_ids := v_paid_item_ids || v_new_id;
         update order_items set qty = qty - v_req_qty where id = v_row.id;
@@ -5062,6 +5076,8 @@ begin
   end if;
 
   update order_items set paid = true, paid_at = now() where id = any(v_paid_item_ids);
+  update sales_history set ordered_at = (select min(added_at) from order_items where id = any(v_paid_item_ids)),
+    ready_at = (select max(ready_at) from order_items where id = any(v_paid_item_ids)) where id = v_hist_id;
 
   select count(*) into v_remaining from order_items where order_id = p_order_id and paid = false;
   if v_remaining = 0 then
@@ -8218,7 +8234,8 @@ CREATE TABLE public.order_items (
     paid boolean DEFAULT false NOT NULL,
     paid_at timestamp with time zone,
     late_push_notified_at timestamp with time zone,
-    late_push_milestone integer DEFAULT '-1'::integer NOT NULL
+    late_push_milestone integer DEFAULT '-1'::integer NOT NULL,
+    ready_at timestamp with time zone
 );
 
 
@@ -8641,7 +8658,9 @@ CREATE TABLE public.sales_history (
     birthday_discount_amount numeric DEFAULT 0 NOT NULL,
     staff_user_id uuid,
     gift_card_id uuid,
-    gift_card_amount numeric DEFAULT 0 NOT NULL
+    gift_card_amount numeric DEFAULT 0 NOT NULL,
+    ordered_at timestamp with time zone,
+    ready_at timestamp with time zone
 );
 
 
@@ -10304,6 +10323,13 @@ CREATE TRIGGER trg_bump_dv AFTER INSERT OR DELETE OR UPDATE ON public.waste_log 
 --
 
 CREATE TRIGGER trg_bump_dv AFTER INSERT OR DELETE OR UPDATE ON public.zones FOR EACH ROW EXECUTE FUNCTION public._bump_data_version();
+
+
+--
+-- Name: order_items trg_order_item_ready_at; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_order_item_ready_at BEFORE INSERT OR UPDATE OF status ON public.order_items FOR EACH ROW EXECUTE FUNCTION public._order_item_ready_at();
 
 
 --
