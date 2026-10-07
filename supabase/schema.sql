@@ -899,6 +899,12 @@ begin
   elsif p_kind = 'updated' then
     v_title := r.rname || ' - Rezervasyonunuz güncellendi'; v_head := 'Rezervasyonunuz güncellendi';
     v_intro := 'rezervasyon bilgileriniz güncellendi:';
+  elsif p_kind in ('confirmed','pending','cancelled','no_show') then
+    v_head := case p_kind when 'confirmed' then 'Rezervasyonunuz onaylandı' when 'pending' then 'Rezervasyonunuz onay bekliyor'
+      when 'cancelled' then 'Rezervasyonunuz iptal edildi' else 'Rezervasyonunuza gelinmedi' end;
+    v_title := r.rname || ' - ' || v_head;
+    v_intro := case p_kind when 'confirmed' then 'rezervasyonunuz onaylandı:' when 'pending' then 'rezervasyonunuz onay bekliyor; onaylanınca size haber vereceğiz:'
+      when 'cancelled' then 'aşağıdaki rezervasyonunuz iptal edildi. Yeni rezervasyon için bizi arayabilirsiniz:' else 'aşağıdaki rezervasyonunuza gelmediğiniz kaydedildi:' end;
   else
     v_title := r.rname || ' - Rezervasyon hatırlatması'; v_head := 'Rezervasyonunuzu hatırlatırız';
     v_intro := 'rezervasyonunuz yaklaşıyor:';
@@ -910,7 +916,7 @@ begin
     || '<tr><td style="padding:4px 14px 4px 0;color:#666;">Tarih / Saat</td><td><b>' || v_when || '</b></td></tr>'
     || '<tr><td style="padding:4px 14px 4px 0;color:#666;">Kişi</td><td><b>' || r.party_size || '</b></td></tr></table>'
     || coalesce('<p>Değişiklik için bizi arayabilirsiniz: <b>' || r.rphone || '</b></p>', '')
-    || '<p>Sizi bekliyoruz!</p>'));
+    || case when p_kind in ('cancelled','no_show') then '' else '<p>Sizi bekliyoruz!</p>' end));
 end $$;
 
 
@@ -6588,6 +6594,10 @@ begin
     closed_at = case when p_status in ('cancelled','no_show') then now() else null end,
     seated_at = case when p_status = 'seated' then coalesce(seated_at, now()) else null end
     where id = p_id and restaurant_id = s.restaurant_id;
+  -- Durum değişince müşteriye e-posta (Oturdu hariç - müşteri zaten restoranda).
+  if v_old is distinct from p_status and p_status <> 'seated' then
+    perform _reservation_send_mail(p_id, p_status);
+  end if;
   -- "Oturdu"dan geri alınırsa masadaki rezervasyon bilgisi de geri alınır:
   -- ürün girilmemişse masa boşaltılır (sipariş iptal), girilmişse sipariş
   -- korunur ve sadece müşteri/rezervasyon bilgisi temizlenir.
