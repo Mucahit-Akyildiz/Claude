@@ -5992,7 +5992,7 @@ CREATE FUNCTION public.save_radio_channel(p_token uuid, p_id uuid, p_name text, 
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public', 'extensions', 'pg_temp'
     AS $_$
-declare s staff_sessions%rowtype; v_id uuid; c radio_channels%rowtype; v_mgr boolean;
+declare s staff_sessions%rowtype; v_id uuid; c radio_channels%rowtype; v_mgr boolean; v_added uuid[]; v_url text; v_secret text;
 begin
   s := _session_check(p_token, 'messages');
   if coalesce(trim(p_name),'') = '' then raise exception 'Kanal adı girin'; end if;
@@ -6007,10 +6007,24 @@ begin
     update radio_channels set name = left(trim(p_name),60), secret = gen_random_uuid() where id = v_id;
     execute 'de'||'lete from radio_channel_members where channel_id = $1 and not (user_id = any($2))' using v_id, coalesce(p_member_ids,'{}')||s.user_id;
   end if;
-  insert into radio_channel_members(channel_id, user_id, restaurant_id)
-    select v_id, u.id, s.restaurant_id from app_users u
-    where u.restaurant_id = s.restaurant_id and (u.id = s.user_id or u.id = any(coalesce(p_member_ids,'{}')))
-    on conflict do nothing;
+  with ins as (
+    insert into radio_channel_members(channel_id, user_id, restaurant_id)
+      select v_id, u.id, s.restaurant_id from app_users u
+      where u.restaurant_id = s.restaurant_id and (u.id = s.user_id or u.id = any(coalesce(p_member_ids,'{}')))
+      on conflict do nothing returning user_id)
+  select array_agg(user_id) into v_added from ins where user_id <> s.user_id;
+  -- Yeni eklenen üyelere "kanala eklendiniz" bildirimi (push).
+  if v_added is not null then
+    begin
+      select value into v_url from platform_settings where key = 'push_dispatch_url';
+      select value into v_secret from platform_settings where key = 'push_dispatch_secret';
+      if coalesce(v_url,'') <> '' then
+        perform net.http_post(url := v_url, headers := jsonb_build_object('Content-Type','application/json','x-push-secret', coalesce(v_secret,'')),
+          body := jsonb_build_object('mode','radio_added','channel_id', v_id, 'user_ids', to_jsonb(v_added), 'by', s.username));
+      end if;
+    exception when others then null;
+    end;
+  end if;
   return v_id;
 end $_$;
 
