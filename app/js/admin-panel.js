@@ -28,10 +28,12 @@ function renderAdminArea(){
         <div class="tab ${APP.adminView==='deleted'?'active':''}" data-tab="deleted" onclick="setAdminView('deleted')">🗑️ Silinen Hesaplar</div>
         <div class="tab ${APP.adminView==='sms'?'active':''}" data-tab="sms" onclick="setAdminView('sms')">📱 SMS</div>
         <div class="tab ${APP.adminView==='errors'?'active':''}" data-tab="errors" onclick="setAdminView('errors')">⚠️ Hatalar</div>
+        <div class="tab ${APP.adminView==='support'?'active':''}" data-tab="support" onclick="setAdminView('support')">✉️ Destek <span id="supportBadge"></span></div>
       </div>
       <main id="main"></main>
     </div>`;
   renderAdminTabContent(admin);
+  refreshSupportBadge();
 }
 function setAdminView(v){
   APP.adminView = v;
@@ -49,6 +51,7 @@ function renderAdminTabContent(admin){
   else if(APP.adminView==='deleted') renderDeletedAccountsAdmin(main, admin);
   else if(APP.adminView==='sms') renderSmsAdmin(main, admin);
   else if(APP.adminView==='errors') renderClientErrorsAdmin(main, admin);
+  else if(APP.adminView==='support') renderSupportAdmin(main, admin);
   else renderPromoAdmin(main, admin);
 }
 /* Hatalar: uygulamada yakalanan JavaScript ve beklenmeyen veritabanı
@@ -1248,3 +1251,126 @@ async function changeAdminPassword(){
   document.getElementById('newAdminPass2').value = '';
 }
 
+
+/* Destek gelen kutusu: destek@peyktan.com'a gelen mailler Cloudflare Email
+   Routing -> Email Worker ile hem Gmail'e iletilir hem de ingest_support_email
+   ile buraya yazılır. Worker kodu bu sekmede gizli anahtarla birlikte üretilir. */
+async function refreshSupportBadge(){
+  const admin = getAdminSession(); if(!admin) return;
+  const { data } = await sb.rpc('admin_support_unread_count', { p_token: admin.session_token });
+  const el = document.getElementById('supportBadge');
+  if(el) el.innerHTML = data ? `<b style="background:var(--red);color:#fff;border-radius:10px;padding:1px 7px;font-size:11px;">${data}</b>` : '';
+}
+async function renderSupportAdmin(main, admin){
+  main.innerHTML = '<p class="muted">Yükleniyor…</p>';
+  const { data, error } = await sb.rpc('admin_list_support_emails', { p_token: admin.session_token });
+  if(error){ main.innerHTML = '<p class="error">'+escapeHtml(error.message)+'</p>'; return; }
+  APP.supportData = data;
+  const items = data.items || [];
+  const fmt = d => new Date(d).toLocaleString('tr-TR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});
+  main.innerHTML = `<h1>✉️ Destek Gelen Kutusu</h1>
+    <p class="muted" style="text-align:left;margin:0 0 14px;">destek@peyktan.com adresine gelen mailler. Okunmamış: <b>${data.unread||0}</b></p>
+    ${!items.length ? '<p class="muted">Henüz mail yok. Kurulum için aşağıdaki adımları izleyin.</p>' : `<div style="display:flex;flex-direction:column;gap:8px;">${items.map(m => `
+      <div class="box" style="max-width:none;padding:12px 14px;${m.is_read?'opacity:.7;':'border-left:4px solid var(--accent);'}">
+        <div onclick="toggleSupportMail(${m.id})" style="cursor:pointer;display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;">
+          <div style="min-width:0;"><b style="overflow-wrap:anywhere;">${escapeHtml(m.subject||'(konu yok)')}</b>
+            <div class="muted" style="font-size:12px;overflow-wrap:anywhere;">${escapeHtml(m.from_name ? m.from_name + ' <' + m.from_addr + '>' : m.from_addr)}</div></div>
+          <span class="muted" style="font-size:12px;white-space:nowrap;">${fmt(m.received_at)}</span>
+        </div>
+        <div id="supMail${m.id}" style="display:none;margin-top:10px;">
+          <div style="white-space:pre-wrap;overflow-wrap:anywhere;font-size:13.5px;background:var(--bg);border-radius:8px;padding:10px;max-height:360px;overflow:auto;">${escapeHtml(m.body||'')}</div>
+          <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;">
+            <a href="mailto:${escapeAttr(m.from_addr)}?subject=${encodeURIComponent('Re: ' + (m.subject||''))}"><button class="sbtn" style="width:auto;">↩️ Yanıtla</button></a>
+            <button class="sbtn" style="width:auto;" onclick="markSupportMail(${m.id}, ${!m.is_read})">${m.is_read ? 'Okunmadı yap' : '✓ Okundu'}</button>
+          </div>
+        </div>
+      </div>`).join('')}</div>`}
+    <details style="margin-top:22px;"><summary style="cursor:pointer;font-weight:700;">⚙️ Kurulum (Cloudflare Email Worker)</summary>
+      <ol style="line-height:1.7;font-size:14px;">
+        <li>Cloudflare → <b>Compute → Workers &amp; Pages → Create → Worker</b>, adı örn. <code>peyktan-destek</code> → Deploy → <b>Edit code</b>.</li>
+        <li>Aşağıya mailleri iletmek istediğiniz (Cloudflare'de doğrulanmış) Gmail adresini yazın, üretilen kodu kopyalayıp Worker'a yapıştırın → <b>Deploy</b>.</li>
+        <li>Email Routing → <b>Routing rules</b> → destek@peyktan.com kuralını düzenleyin: Action = <b>Send to a Worker</b>, Worker = <code>peyktan-destek</code>.</li>
+        <li>Deneme maili atın; birkaç saniye içinde hem Gmail'e hem bu listeye düşmeli.</li>
+      </ol>
+      <div class="field-group" style="max-width:420px;"><label>İletilecek Gmail adresi</label><input id="supFwd" type="email" autocapitalize="none" placeholder="ornek@gmail.com" oninput="drawSupportWorkerCode()"></div>
+      <textarea id="supCode" readonly style="width:100%;height:260px;font-family:monospace;font-size:12px;margin-top:8px;"></textarea>
+      <button class="sbtn" style="width:auto;margin-top:8px;" onclick="navigator.clipboard.writeText(document.getElementById('supCode').value).then(()=>showToast('Kod kopyalandı ✓'))">📋 Kodu Kopyala</button>
+      <p class="muted" style="text-align:left;font-size:12px;">Kod gizli bir anahtar içerir; kimseyle paylaşmayın.</p>
+    </details>`;
+  drawSupportWorkerCode();
+  refreshSupportBadge();
+}
+function toggleSupportMail(id){
+  const el = document.getElementById('supMail'+id); if(!el) return;
+  const open = el.style.display === 'none';
+  el.style.display = open ? 'block' : 'none';
+  const m = (APP.supportData && APP.supportData.items || []).find(x => x.id === id);
+  if(open && m && !m.is_read) markSupportMail(id, true, true);
+}
+async function markSupportMail(id, read, quiet){
+  const admin = getAdminSession();
+  const { error } = await sb.rpc('admin_mark_support_email', { p_token: admin.session_token, p_id: id, p_read: read });
+  if(error){ alert(error.message); return; }
+  const m = (APP.supportData && APP.supportData.items || []).find(x => x.id === id);
+  if(m) m.is_read = read;
+  if(quiet) refreshSupportBadge(); else renderSupportAdmin(document.getElementById('main'), admin);
+}
+function drawSupportWorkerCode(){
+  const ta = document.getElementById('supCode'); if(!ta) return;
+  const fwd = (document.getElementById('supFwd').value || '').trim() || 'ORNEK@gmail.com';
+  const secret = (APP.supportData && APP.supportData.secret) || '';
+  ta.value = `// Peyktan destek maili: Gmail'e iletir + Peyktan admin paneline kaydeder.
+const FORWARD_TO = ${JSON.stringify(fwd)};
+const SUPABASE_URL = ${JSON.stringify(SUPABASE_URL)};
+const SUPABASE_KEY = ${JSON.stringify(SUPABASE_KEY)};
+const SECRET = ${JSON.stringify(secret)};
+
+function decodeWords(s){
+  return String(s||'').replace(/=\\?([^?]+)\\?([BbQq])\\?([^?]*)\\?=/g, (_, cs, enc, txt) => {
+    try {
+      const bytes = enc.toUpperCase() === 'B'
+        ? Uint8Array.from(atob(txt), c => c.charCodeAt(0))
+        : Uint8Array.from(txt.replace(/_/g,' ').replace(/=([0-9A-Fa-f]{2})/g, (m,h) => String.fromCharCode(parseInt(h,16))), c => c.charCodeAt(0));
+      return new TextDecoder(cs).decode(bytes);
+    } catch(e){ return txt; }
+  });
+}
+function decodeBody(body, enc, cs){
+  try {
+    let bytes;
+    if(/base64/i.test(enc)) bytes = Uint8Array.from(atob(body.replace(/\\s+/g,'')), c => c.charCodeAt(0));
+    else if(/quoted-printable/i.test(enc)) bytes = Uint8Array.from(body.replace(/=\\r?\\n/g,'').replace(/=([0-9A-Fa-f]{2})/g, (m,h) => String.fromCharCode(parseInt(h,16))), c => c.charCodeAt(0));
+    else bytes = Uint8Array.from(body, c => c.charCodeAt(0) & 255);
+    return new TextDecoder(cs || 'utf-8').decode(bytes);
+  } catch(e){ return body; }
+}
+function extractText(raw){
+  const parts = raw.split(/\\r?\\n--[^\\r\\n]+/);
+  let html = '';
+  for(const p of parts){
+    const i = p.search(/\\r?\\n\\r?\\n/); if(i < 0) continue;
+    const head = p.slice(0, i), body = p.slice(i).replace(/^\\s+/, '');
+    const type = (head.match(/content-type:\\s*([^;\\s]+)/i) || [])[1] || '';
+    const enc = (head.match(/content-transfer-encoding:\\s*([^\\s;]+)/i) || [])[1] || '';
+    const cs = (head.match(/charset="?([^";\\s]+)/i) || [])[1];
+    if(/text\\/plain/i.test(type)) return decodeBody(body, enc, cs).trim();
+    if(/text\\/html/i.test(type) && !html) html = decodeBody(body, enc, cs);
+  }
+  return html.replace(/<style[\\s\\S]*?<\\/style>/gi,'').replace(/<br\\s*\\/?>/gi,'\\n').replace(/<\\/p>/gi,'\\n').replace(/<[^>]+>/g,'').replace(/&nbsp;/g,' ').trim();
+}
+
+export default {
+  async email(message, env, ctx) {
+    await message.forward(FORWARD_TO);
+    const raw = new TextDecoder('latin1').decode(await new Response(message.raw).arrayBuffer());
+    const fromHdr = decodeWords(message.headers.get('from') || '');
+    const name = (fromHdr.match(/^\\s*"?([^"<]*?)"?\\s*</) || [])[1] || null;
+    ctx.waitUntil(fetch(SUPABASE_URL + '/rest/v1/rpc/ingest_support_email', {
+      method: 'POST',
+      headers: { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ p_secret: SECRET, p_from: message.from, p_from_name: name, p_to: message.to,
+        p_subject: decodeWords(message.headers.get('subject') || ''), p_body: extractText(raw).slice(0, 20000) })
+    }));
+  }
+};`;
+}
