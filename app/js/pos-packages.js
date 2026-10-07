@@ -214,9 +214,13 @@ function renderTableItems(tableId){
   const order = liveOrderForTable(tableId);
   const draft = APP.draftCart[tableId] || [];
   if(order && order.items.length>0){
-    sentWrap.innerHTML = `<p style="font-weight:700;">Mutfağa Gönderilen</p>` + order.items.map(it => `
-      <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);font-size:13px;">
-        <span>${escapeHtml(it.name)} x${it.qty} ${it.status==='ready'?'<span style="color:var(--green);">✓ Hazır</span>':'<span class="muted">Hazırlanıyor</span>'}</span>
+    // Her ürün için sipariş edildiği ve hazır olduğu saat (ödeme saati Finansal Analiz'de).
+    const hm = (t) => t ? new Date(t).toLocaleTimeString('tr-TR', { hour:'2-digit', minute:'2-digit' }) : '';
+    const opened = order.created_at ? new Date(order.created_at).toLocaleString('tr-TR', { day:'numeric', month:'long', hour:'2-digit', minute:'2-digit' }) : '';
+    sentWrap.innerHTML = `<p style="font-weight:700;margin-bottom:2px;">Mutfağa Gönderilen</p>${opened ? `<p class="muted" style="margin:0 0 6px;font-size:12px;">🕒 Sipariş açıldı: ${opened}</p>` : ''}` + order.items.map(it => `
+      <div style="display:flex;justify-content:space-between;gap:8px;padding:6px 0;border-bottom:1px solid var(--border);font-size:13px;">
+        <span style="min-width:0;overflow-wrap:anywhere;">${escapeHtml(it.name)} x${it.qty} ${it.status==='ready'?'<span style="color:var(--green);">✓ Hazır</span>':'<span class="muted">Hazırlanıyor</span>'}</span>
+        <span class="muted" style="white-space:nowrap;font-size:12px;">🕒 ${hm(it.added_at)}${it.ready_at ? ' · ✓ ' + hm(it.ready_at) : ''}</span>
       </div>`).join('');
   } else { sentWrap.innerHTML = ''; }
   // Sepet (draftCart) tamamen yerel/gönderilmemiş bir durum, başka bir
