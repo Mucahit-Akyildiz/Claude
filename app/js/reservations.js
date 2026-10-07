@@ -209,13 +209,14 @@ async function renderWaitlistContent(session, forceRefresh){
       <tbody>
       ${rows.map(w => `
         <tr data-badge-id="${w.id}">
-          <td class="col-name">${escapeHtml(w.customer_name)}</td>
+          <td class="col-name">${escapeHtml(w.customer_name)}${w.email ? `<div class="muted" style="font-size:11.5px;overflow-wrap:anywhere;">✉️ ${escapeHtml(w.email)}</div>` : ''}</td>
           <td>${escapeHtml(w.phone||'-')}</td>
           <td>${w.party_size}</td>
           <td><span class="waitlist-timer" data-joined="${w.joined_at}" data-quoted="${w.quoted_wait_minutes||''}">-</span></td>
           <td>${new Date(w.joined_at).toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'})}</td>
           <td>
             ${w.phone ? `<button class="sbtn" title="Müşteriye 'Masanız hazır' SMS'i gönder" onclick="notifyWaitlistReady('${w.id}')">📱 Masa Hazır</button>` : ''}
+            <button class="sbtn" title="Kalan bekleme süresini güncelle${w.email ? ' - müşteriye e-posta gider' : ''}" onclick="updateWaitlistWait('${w.id}')">⏱ Süre</button>
             <button class="sbtn" title="Beklerken sipariş al - mutfağa hemen düşer" onclick="openWaitlistOrderModal('${w.id}')">🍽️ Sipariş${(APP.liveOrders||[]).some(o => o.kind==='waitlist' && o.waitlist_id===w.id) ? ' ✓' : ''}</button>
             <button class="sbtn" onclick="openSeatWaitlistModal('${w.id}')">Oturdu</button>
             <button class="sbtn" style="background:var(--red);color:var(--btn-ink);" onclick="changeWaitlistStatus('${w.id}','cancelled')">İptal</button>
@@ -227,9 +228,10 @@ async function renderWaitlistContent(session, forceRefresh){
     </div>
     <div class="add-row-panel">
       <p>Bekleme Listesine Ekle</p>
-      <div style="display:grid;grid-template-columns:1fr 1fr 90px 120px;gap:10px;align-items:end;">
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;align-items:end;">
         <div class="field-group"><label>Müşteri Adı</label><input id="wl_name" placeholder="örn. Mehmet Bey"></div>
         <div class="field-group"><label>Telefon</label><input id="wl_phone" placeholder="05xx..."></div>
+        <div class="field-group"><label>E-posta (bildirim)</label><input id="wl_email" type="email" placeholder="opsiyonel" autocapitalize="none"></div>
         <div class="field-group"><label>Kişi</label><input id="wl_party" type="number" min="1" value="2"></div>
         <div class="field-group"><label>Tahmini Bekleme (dk)</label><input id="wl_wait" type="number" min="0" placeholder="15"></div>
       </div>
@@ -364,11 +366,27 @@ async function addWaitlistEntry(){
   const phone = document.getElementById('wl_phone').value.trim();
   const party = parseInt(document.getElementById('wl_party').value)||2;
   const wait = document.getElementById('wl_wait').value ? parseInt(document.getElementById('wl_wait').value) : null;
+  const email = document.getElementById('wl_email').value.trim();
   if(!name){ alert('Müşteri adı gerekli'); return; }
-  const { error } = await sb.rpc('add_waitlist_entry', { p_token: session.session_token, p_customer_name: name, p_phone: phone||null, p_party_size: party, p_quoted_wait_minutes: wait });
+  const { error } = await sb.rpc('add_waitlist_entry', { p_token: session.session_token, p_customer_name: name, p_phone: phone||null, p_party_size: party, p_quoted_wait_minutes: wait, p_email: email||null });
   if(error){ alert(error.message); return; }
   renderWaitlistContent(session, true);
-  showToast('Bekleme listesine eklendi ✓');
+  showToast(email ? 'Bekleme listesine eklendi, müşteriye e-posta gönderildi ✓' : 'Bekleme listesine eklendi ✓');
+}
+/* Kalan bekleme süresini güncelle: e-posta varsa müşteriye bildirilir; 15 ve 5 dk kala
+   hatırlatmalar yeni süreye göre tekrar gönderilir (bkz. update_waitlist_wait). */
+async function updateWaitlistWait(id){
+  const w = (APP.waitlistCache||[]).find(x => x.id===id); if(!w) return;
+  const left = w.quoted_wait_minutes!=null ? Math.max(0, Math.round((new Date(w.joined_at).getTime() + w.quoted_wait_minutes*60000 - Date.now())/60000)) : 15;
+  const v = prompt(`${w.customer_name} için kalan bekleme süresi (dakika):${w.email ? '\n\nMüşteriye e-posta ile bildirilecek.' : ''}`, String(left));
+  if(v === null) return;
+  const mins = parseInt(v, 10);
+  if(!(mins >= 0)){ alert('Geçerli bir dakika girin'); return; }
+  const session = getSession();
+  const { data, error } = await sb.rpc('update_waitlist_wait', { p_token: session.session_token, p_id: id, p_remaining_minutes: mins });
+  if(error){ alert(error.message); return; }
+  renderWaitlistContent(session, true);
+  showToast('Bekleme süresi güncellendi' + (data && data.emailed ? ', müşteriye e-posta gönderildi ✓' : ' ✓'));
 }
 async function notifyWaitlistReady(id){
   const session = getSession();
