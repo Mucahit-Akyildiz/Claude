@@ -1362,7 +1362,7 @@ function openTableModal(tableId){
   bg.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:flex-start;justify-content:center;z-index:100;padding:28px 16px 16px;overflow-y:auto;';
   bg.onclick = (e) => { if(e.target===bg) closeTableModal(); };
   bg.innerHTML = `
-    <div style="background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:20px;max-width:480px;width:100%;max-height:88vh;overflow:auto;">
+    <div style="background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:20px;max-width:480px;width:100%;max-height:88vh;overflow:auto;scrollbar-gutter:stable;">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
         <h2 style="margin:0;">${escapeHtml(tableName)}</h2>
         <span style="cursor:pointer;color:var(--muted);font-size:20px;" onclick="closeTableModal()">✕</span>
@@ -1371,7 +1371,7 @@ function openTableModal(tableId){
       <div>
         <p style="font-weight:700;margin-bottom:8px;">Ürün Ekle</p>
         <div class="tabs" id="prodStationTabs"></div>
-        <div id="prodPick" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px;"></div>
+        <div id="prodPick" class="prod-pick-grid" style="display:grid;grid-template-columns:repeat(${window.innerWidth < 400 ? 2 : 3},minmax(0,1fr));gap:8px;"></div>
       </div>
       <div id="sentItemsWrap" style="margin-top:14px;"></div>
       <div id="draftItemsWrap"></div>
