@@ -29,6 +29,7 @@ function renderAdminArea(){
         <div class="tab ${APP.adminView==='sms'?'active':''}" data-tab="sms" onclick="setAdminView('sms')">📱 SMS</div>
         <div class="tab ${APP.adminView==='errors'?'active':''}" data-tab="errors" onclick="setAdminView('errors')">⚠️ Hatalar</div>
         <div class="tab ${APP.adminView==='support'?'active':''}" data-tab="support" onclick="setAdminView('support')">✉️ Destek <span id="supportBadge"></span></div>
+        <div class="tab ${APP.adminView==='gif'?'active':''}" data-tab="gif" onclick="setAdminView('gif')">🎞️ GIF</div>
       </div>
       <main id="main"></main>
     </div>`;
@@ -52,6 +53,7 @@ function renderAdminTabContent(admin){
   else if(APP.adminView==='sms') renderSmsAdmin(main, admin);
   else if(APP.adminView==='errors') renderClientErrorsAdmin(main, admin);
   else if(APP.adminView==='support') renderSupportAdmin(main, admin);
+  else if(APP.adminView==='gif') renderGifAdmin(main, admin);
   else renderPromoAdmin(main, admin);
 }
 /* Hatalar: uygulamada yakalanan JavaScript ve beklenmeyen veritabanı
@@ -1373,4 +1375,34 @@ export default {
     }));
   }
 };`;
+}
+
+/* GIF / Sticker (GIPHY): mesajlardaki GIF penceresi bu anahtarla çalışır. */
+async function renderGifAdmin(main, admin){
+  main.innerHTML = '<p class="muted">Yükleniyor…</p>';
+  const { data: isSet, error } = await sb.rpc('admin_get_gif_key_set', { p_token: admin.session_token });
+  if(error){ main.innerHTML = '<p class="error">'+escapeHtml(error.message)+'</p>'; return; }
+  main.innerHTML = `<h1>🎞️ GIF ve Sticker</h1>
+    <div class="box" style="max-width:640px;">
+      <p style="text-align:left;margin-top:0;">Durum: ${isSet ? '<b style="color:var(--green);">✓ Anahtar kayıtlı — mesajlarda GIF / sticker açık</b>' : '<b style="color:var(--red);">Anahtar yok — mesajlarda GIF / sticker kapalı</b>'}</p>
+      <ol style="text-align:left;line-height:1.7;font-size:14px;padding-left:18px;">
+        <li><a href="https://developers.giphy.com/dashboard/" target="_blank" rel="noopener">developers.giphy.com</a> adresinde ücretsiz hesap açın.</li>
+        <li><b>Create an App</b> → <b>API</b> seçin → uygulama adı (örn. Peyktan) → oluşturun.</li>
+        <li>Verilen <b>API Key</b>'i aşağıya yapıştırıp kaydedin.</li>
+      </ol>
+      <div class="field-group"><label>GIPHY API Key</label><input id="gifKeyInput" type="password" autocomplete="off" placeholder="${isSet ? '(kayıtlı - değiştirmek için yazın)' : 'API anahtarı'}"></div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;">
+        <button style="width:auto;" onclick="saveGifKey()">${ICON_SAVE}<span>Kaydet</span></button>
+        ${isSet ? '<button class="ghost-btn" style="width:auto;color:var(--red);border-color:var(--red);" onclick="saveGifKey(true)">Anahtarı Kaldır</button>' : ''}
+      </div>
+    </div>`;
+}
+async function saveGifKey(remove){
+  const admin = getAdminSession();
+  const v = remove ? '' : document.getElementById('gifKeyInput').value.trim();
+  if(!remove && !v){ alert('Anahtarı girin'); return; }
+  const { error } = await sb.rpc('admin_set_gif_key', { p_token: admin.session_token, p_key: v });
+  if(error){ alert(error.message); return; }
+  showToast(remove ? 'Anahtar kaldırıldı' : 'Kaydedildi ✓');
+  renderGifAdmin(document.getElementById('main'), admin);
 }
