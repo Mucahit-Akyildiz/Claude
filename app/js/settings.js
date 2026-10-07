@@ -867,12 +867,12 @@ async function removeProduct(id){
    checkbox listesi olarak gösteriliyor, tek <select> yerine - çünkü
    artık roller sabit 3 tane değil, yöneticinin Roller sekmesinde
    tanımladığı sayıda ve isimde olabiliyor. */
-function roleCheckboxes(idPrefix, selectedIds){
+function roleCheckboxes(idPrefix, selectedIds, disabled){
   // Yönetici (sistem) rolü yalnızca işletme sahibine aittir, başkasına atanamaz.
   const roles = (APP.config.roles||[]).filter(r => !r.is_system);
   return roles.map(r => `
     <label style="display:flex;align-items:center;gap:6px;font-weight:400;font-size:13px;margin-bottom:4px;">
-      <input type="checkbox" id="${idPrefix}_role_${r.id}" value="${r.id}" data-roles-group="${idPrefix}" ${selectedIds.includes(r.id)?'checked':''} style="width:auto;margin:0;" onchange="enforceMaxTwoRoles('${idPrefix}')">
+      <input type="checkbox" id="${idPrefix}_role_${r.id}" value="${r.id}" data-roles-group="${idPrefix}" ${selectedIds.includes(r.id)?'checked':''} style="width:auto;margin:0;" ${disabled?'disabled':''} onchange="enforceMaxTwoRoles('${idPrefix}')">
       ${escapeHtml(r.name)}
     </label>`).join('');
 }
@@ -894,17 +894,25 @@ function isOwnerUser(u){
 /* İşletme sahibi: Yönetici rolü sabit; hesabını yalnızca kendisi düzenleyebilir. */
 function ownerUserRow(u, session){
   const self = u.id === session.user_id;
-  return `<tr>
+  return `<tr data-uid="${u.id}" data-owner="1">
+    <td></td>
     <td class="col-name"><input value="${escapeAttr(u.username)}" id="us_name_${u.id}" ${self?'':'disabled'}></td>
-    <td class="col-name">${self ? `<input type="password" placeholder="(değiştirmek için yaz)" id="us_pass_${u.id}">` : '<span class="muted">—</span>'}</td>
-    <td class="col-name"><span class="role-badge">👑 İşletme Sahibi · Yönetici</span></td>
-    <td>${self ? `<div class="act-row"><button type="button" class="act-btn act-save" onclick="saveUser('${u.id}', true)">${ICON_SAVE}<span>Kaydet</span></button></div>` : '<span class="muted" style="font-size:12px;">🔒 Değiştirilemez</span>'}</td>
+    <td class="col-name">${self ? `<input type="password" placeholder="(değiştirmek için yaz)" id="us_pass_${u.id}" autocomplete="new-password">` : '<span class="muted">—</span>'}</td>
+    <td class="col-name"><span class="role-badge">👑 İşletme Sahibi · Yönetici</span>${self ? '' : '<div class="muted" style="font-size:12px;margin-top:4px;">🔒 Değiştirilemez</div>'}</td>
   </tr>`;
 }
+/* "Kullanıcı Rollerini Değiştirme" izni olmayan: rol atayamaz, kullanıcı ekleyemez ve bu
+   izne / vardiyasız çalışma iznine sahip kişilerin hesaplarını düzenleyemez (sunucu da reddeder). */
+function userIsPrivileged(u){
+  const roles = (APP.config.roles||[]).filter(r => (u.role_ids||[]).includes(r.id));
+  return roles.some(r => (r.permissions||[]).includes('users_assign_roles') || (r.permissions||[]).includes('shift_exempt'));
+}
 function renderUsersSettings(el, session){
+  const canAssign = canManage(session, 'users_assign_roles');
   el.innerHTML = `<div class="box" style="max-width:none;">
     <h2>Kullanıcılar</h2>
-    <div class="add-row-panel" style="margin:0 0 16px;">
+    ${canAssign ? '' : '<p class="muted" style="text-align:left;font-size:12.5px;margin:-4px 0 12px;">🔒 Rol değiştirme ve kullanıcı ekleme için <b>Kullanıcı Rollerini Değiştirme</b> izni gerekir; yetkili kişilerin hesapları da kilitlidir.</p>'}
+    <div class="add-row-panel" style="margin:0 0 16px;${canAssign?'':'display:none;'}">
       <p>Yeni Kullanıcı Ekle</p>
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;align-items:start;">
         <div class="field-group"><label>Kullanıcı Adı</label><input id="nu_name" placeholder="örn. ahmet"></div>
@@ -913,25 +921,29 @@ function renderUsersSettings(el, session){
       </div>
       <button style="margin-top:12px;max-width:220px;" onclick="addUser()">+ Kullanıcı Ekle</button>
     </div>
-    <input id="userSearch" placeholder="🔍 Kullanıcı ara…" value="${escapeAttr(APP.userSearch||'')}" oninput="APP.userSearch=this.value;filterUserRows()" style="max-width:320px;margin:0 0 10px;">
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:0 0 10px;">
+      <input id="userSearch" placeholder="🔍 Kullanıcı ara…" value="${escapeAttr(APP.userSearch||'')}" oninput="APP.userSearch=this.value;filterUserRows()" style="max-width:320px;margin:0;">
+      <span class="spacer" style="flex:1;"></span>
+      <div class="act-row" id="userBulkBar">
+        <button type="button" class="act-btn act-save" id="userSaveAllBtn" onclick="saveAllUsers()" disabled>${ICON_SAVE}<span>Değişiklikleri Kaydet</span></button>
+        <button type="button" class="act-btn act-close" data-needs-sel onclick="bulkUserActive(false)" disabled title="Seçilenler giriş yapamaz, açık oturumları kapanır"><b>⏸</b><span>Pasife Al</span></button>
+        <button type="button" class="act-btn act-open" data-needs-sel onclick="bulkUserActive(true)" disabled><b>✓</b><span>Aktifleştir</span></button>
+        <button type="button" class="act-btn act-delete" data-needs-sel onclick="bulkDeleteUsers()" disabled>${ICON_TRASH}<span>Sil</span></button>
+      </div>
+    </div>
+    <p class="muted" id="userSelInfo" style="text-align:left;font-size:12.5px;margin:0 0 8px;">Satırdaki bilgileri değiştirip <b>Değişiklikleri Kaydet</b>'e basın; pasife almak / silmek için satırları seçin.</p>
     <div class="settings-table-wrap">
     <table class="settings-table">
-      <thead><tr><th>Kullanıcı Adı</th><th>Yeni Şifre</th><th>Roller (en fazla 2)</th><th></th></tr></thead>
-      <tbody>
+      <thead><tr><th style="width:36px;"><input type="checkbox" id="userSelAll" style="width:auto;margin:0;" title="Tümünü seç" onchange="selectAllUsers(this.checked)"></th><th>Kullanıcı Adı</th><th>Yeni Şifre</th><th>Roller (en fazla 2)</th></tr></thead>
+      <tbody oninput="markUserDirty(event)" onchange="markUserDirty(event)">
       ${APP.config.users.slice().sort((x, y) => String(x.username).localeCompare(String(y.username), 'tr', { sensitivity: 'base' }))
-        .map(u => (isOwnerUser(u) ? ownerUserRow(u, session) : `
-        <tr style="${u.is_active===false?'opacity:.55;':''}">
-          <td class="col-name"><input value="${escapeAttr(u.username)}" id="us_name_${u.id}">${u.is_active===false?'<span class="role-badge" style="color:var(--red);border-color:var(--red);margin-top:6px;display:inline-block;">Pasif</span>':''}</td>
-          <td class="col-name"><input type="password" placeholder="(değiştirmek için yaz)" id="us_pass_${u.id}"></td>
-          <td class="col-name">${roleCheckboxes('us_'+u.id, u.role_ids||[])}</td>
-          <td>
-            <div class="act-row">
-            <button type="button" class="act-btn act-save" onclick="saveUser('${u.id}')">${ICON_SAVE}<span>Kaydet</span></button>
-            <button type="button" class="act-btn ${u.is_active===false?'act-open':'act-close'}" onclick="toggleUserActive('${u.id}', ${u.is_active===false})" title="${u.is_active===false?'Kullanıcıyı tekrar aktif et':'Giriş yapamaz, açık oturumu kapanır'}"><b>${u.is_active===false?'✓':'⏸'}</b><span>${u.is_active===false?'Aktifleştir':'Pasife Al'}</span></button>
-            <button type="button" class="act-btn act-delete" onclick="removeUser('${u.id}')">${ICON_TRASH}<span>Sil</span></button>
-            </div>
-          </td>
-        </tr>`).replace('<tr', `<tr data-uname="${escapeAttr(String(u.username).toLocaleLowerCase('tr'))}"`)).join('')}
+        .map(u => { const locked = !canAssign && userIsPrivileged(u); return (isOwnerUser(u) ? ownerUserRow(u, session) : `
+        <tr data-uid="${u.id}" style="${u.is_active===false?'opacity:.55;':''}">
+          <td>${locked ? '<span title="Yetkili kullanıcı - düzenleme izniniz yok">🔒</span>' : `<input type="checkbox" class="user-sel" value="${u.id}" style="width:auto;margin:0;" onchange="updateUserSelection()">`}</td>
+          <td class="col-name"><input value="${escapeAttr(u.username)}" id="us_name_${u.id}" ${locked?'disabled':''}>${u.is_active===false?'<span class="role-badge" style="color:var(--red);border-color:var(--red);margin-top:6px;display:inline-block;">Pasif</span>':''}</td>
+          <td class="col-name"><input type="password" placeholder="(değiştirmek için yaz)" id="us_pass_${u.id}" autocomplete="new-password" ${locked?'disabled':''}></td>
+          <td class="col-name">${roleCheckboxes('us_'+u.id, u.role_ids||[], !canAssign)}</td>
+        </tr>`).replace('<tr', `<tr data-uname="${escapeAttr(String(u.username).toLocaleLowerCase('tr'))}"`); }).join('')}
       </tbody>
     </table>
     </div>
@@ -984,7 +996,7 @@ async function renderShiftsTable(session){
     <label style="display:flex;align-items:flex-start;gap:10px;margin:0 0 14px;cursor:${canManage(session,'shifts')?'pointer':'default'};">
       <input type="checkbox" style="width:auto;margin-top:3px;" ${data.shift_required?'checked':''} ${canManage(session,'shifts')?'':'disabled'} onchange="toggleShiftRequired(this.checked)">
       <span><b>Vardiya açmadan çalışılamasın</b><br>
-      <span class="muted" style="font-size:12.5px;">Açıkken personel vardiyasını başlatmadan Sipariş Al, Paket, Mutfak, Ödemeler, Rezervasyon ve Satın Alma ekranlarını kullanamaz. Vardiya talebini gönderdiği anda çalışmaya başlayabilir; onayı siz sonradan verirsiniz. Yönetici ve <b>⏱ Vardiya açmadan çalışabilir</b> işaretli roller (ör. Tam Yetkili, en fazla 3 kişi) bu kuraldan muaftır.</span></span>
+      <span class="muted" style="font-size:12.5px;">Açıkken personel vardiyasını başlatmadan Sipariş Al, Paket, Mutfak, Ödemeler, Rezervasyon ve Satın Alma ekranlarını kullanamaz. Vardiya talebini gönderdiği anda çalışmaya başlayabilir; onayı siz sonradan verirsiniz. Yönetici ve <b>⏱ Vardiya Açmadan Çalışma</b> izni verilen roller (ör. Tam Yetkili, en fazla 3 kişi) bu kuraldan muaftır.</span></span>
     </label>`;
   const pendWrap = document.getElementById('shiftPendingWrap');
   const pending = data.pending || [];
@@ -1258,7 +1270,6 @@ function roleCardHtml(r){
       <div class="role-body">
         <div class="field-group" style="max-width:320px;margin-top:12px;"><label>Rol Adı</label><input value="${escapeAttr(r.name)}" id="role_name_${r.id}" oninput="markRoleDirty('${g}')"></div>
         ${permissionCheckboxes(g, perms)}
-        ${shiftExemptToggleHtml('role_exempt_'+r.id, r.shift_exempt, g)}
         <div class="role-actions">
           <button class="ghost-btn" style="width:auto;margin:0;color:var(--red);border-color:var(--red);" onclick="deleteRole('${r.id}')" ${r.user_count>0?`title="Bu role atanmış ${r.user_count} kullanıcı var"`:''}>${ICON_TRASH}<span>Rolü Sil</span></button>
           <span class="spacer"></span>
@@ -1267,14 +1278,6 @@ function roleCardHtml(r){
         </div>
       </div>
     </div>`;
-}
-/* Vardiya muafiyeti: işaretli roller "vardiya açmadan çalışılamasın" kuralından
-   muaftır (Yönetici her zaman muaf). Bu rollere toplam en fazla 3 kişi atanabilir. */
-function shiftExemptToggleHtml(id, on, group){
-  return `<label style="display:flex;gap:10px;align-items:flex-start;margin:14px 0 4px;cursor:pointer;">
-    <input type="checkbox" id="${id}" style="width:auto;margin-top:3px;" ${on?'checked':''} onchange="markRoleDirty('${group}')">
-    <span><b>⏱ Vardiya açmadan çalışabilir</b><br><span class="muted" style="font-size:12.5px;">"Vardiya açmadan çalışılamasın" açıkken bu roldekiler de vardiyasız işlem yapabilir. Bu tür rollere toplam en fazla 3 kişi atanabilir.</span></span>
-  </label>`;
 }
 function renderRolesSettings(el, session){
   const roles = APP.config.roles || [];
@@ -1298,7 +1301,6 @@ function renderRolesSettings(el, session){
         </div>
         <div class="field-group" style="max-width:320px;margin-top:10px;"><label>Rol Adı</label><input id="new_role_name" placeholder="örn. Kasiyer" oninput="markRoleDirty('new_role')"></div>
         ${permissionCheckboxes('new_role', [])}
-        ${shiftExemptToggleHtml('role_exempt_new', false, 'new_role')}
         <div class="role-actions"><span class="spacer"></span>
           <button style="width:auto;margin:0;padding:10px 22px;" onclick="createRole()">+ Rolü Oluştur</button>
         </div>
@@ -1311,8 +1313,7 @@ async function saveRole(id){
   const name = document.getElementById('role_name_'+id).value.trim();
   const perms = selectedPermissions('role_'+id);
   if(!name){ alert('Rol adı gerekli'); return; }
-  const exempt = !!(document.getElementById('role_exempt_'+id) || {}).checked;
-  const { error } = await sb.rpc('manager_upsert_role', { p_token: session.session_token, p_id: id, p_name: name, p_permissions: perms, p_shift_exempt: exempt });
+  const { error } = await sb.rpc('manager_upsert_role', { p_token: session.session_token, p_id: id, p_name: name, p_permissions: perms });
   if(error){ alert(error.message); return; }
   renderSettingsView(document.getElementById('main'), session);
   showToast('Kaydedildi ✓');
@@ -1322,8 +1323,7 @@ async function createRole(){
   const name = document.getElementById('new_role_name').value.trim();
   const perms = selectedPermissions('new_role');
   if(!name){ alert('Rol adı gerekli'); return; }
-  const exempt = !!(document.getElementById('role_exempt_new') || {}).checked;
-  const { error } = await sb.rpc('manager_upsert_role', { p_token: session.session_token, p_id: null, p_name: name, p_permissions: perms, p_shift_exempt: exempt });
+  const { error } = await sb.rpc('manager_upsert_role', { p_token: session.session_token, p_id: null, p_name: name, p_permissions: perms });
   if(error){ alert(error.message); return; }
   renderSettingsView(document.getElementById('main'), session);
 }
@@ -1958,17 +1958,6 @@ async function submitBankTransferNotice(){
   loadBankTransferStatus(session);
 }
 
-async function saveUser(id, isOwner){
-  const session = getSession();
-  const username = document.getElementById('us_name_'+id).value.trim();
-  const password = document.getElementById('us_pass_'+id).value;
-  const roleIds = isOwner ? null : selectedRoleIds('us_'+id);
-  if(roleIds && roleIds.length===0){ alert('En az 1 rol seçmelisiniz'); return; }
-  const { error } = await sb.rpc('update_staff_user', { p_token: session.session_token, p_user_id: id, p_username: username, p_password: password||null, p_role_ids: roleIds });
-  if(error){ alert(error.message); return; }
-  renderSettingsView(document.getElementById('main'), session);
-  showToast('Kaydedildi ✓');
-}
 async function addUser(){
   const session = getSession();
   const username = document.getElementById('nu_name').value.trim();
@@ -1980,19 +1969,81 @@ async function addUser(){
   if(error){ alert(error.message); return; }
   renderSettingsView(document.getElementById('main'), session);
 }
-async function toggleUserActive(id, activate){
-  const u = (APP.config.users||[]).find(x => x.id===id);
-  if(!activate && !confirm((u ? u.username : 'Bu kullanıcı') + ' pasife alınsın mı?\n\nGiriş yapamaz ve açık oturumu hemen kapanır. Kayıtları silinmez, istediğinizde tekrar aktifleştirebilirsiniz.')) return;
-  const session = getSession();
-  const { error } = await withLoadingOverlay(sb.rpc('set_staff_user_active', { p_token: session.session_token, p_user_id: id, p_active: !!activate }));
-  if(error){ alert(error.message); return; }
-  showToast(activate ? 'Kullanıcı aktifleştirildi ✓' : 'Kullanıcı pasife alındı');
-  renderSettingsView(document.getElementById('main'), session);
+/* Kullanıcılar: satırlardaki değişiklikler tek düğmeyle kaydedilir; pasife alma /
+   aktifleştirme / silme seçilen satırlara toplu uygulanır. */
+function markUserDirty(e){
+  if(!e.target || e.target.classList.contains('user-sel')) return;
+  const tr = e.target.closest('tr[data-uid]'); if(!tr) return;
+  tr.dataset.dirty = '1';
+  tr.style.boxShadow = 'inset 4px 0 0 var(--accent)';
+  updateUserSelection();
 }
-async function removeUser(id){
-  if(!confirm('Bu kullanıcıyı silmek istediğinize emin misiniz?')) return;
+function selectedUserIds(){ return Array.from(document.querySelectorAll('.user-sel:checked')).map(b => b.value); }
+function selectAllUsers(on){
+  document.querySelectorAll('tr[data-uid] .user-sel').forEach(b => { if(b.closest('tr').style.display !== 'none') b.checked = on; });
+  updateUserSelection();
+}
+function updateUserSelection(){
+  const n = selectedUserIds().length, dirty = document.querySelectorAll('tr[data-uid][data-dirty]').length;
+  document.querySelectorAll('#userBulkBar [data-needs-sel]').forEach(b => { b.disabled = !n; });
+  const save = document.getElementById('userSaveAllBtn');
+  if(save){ save.disabled = !dirty; save.querySelector('span').textContent = dirty ? `Değişiklikleri Kaydet (${dirty})` : 'Değişiklikleri Kaydet'; }
+  const info = document.getElementById('userSelInfo');
+  if(info && (n || dirty)) info.innerHTML = [n ? `<b>${n}</b> kullanıcı seçili` : '', dirty ? `<b>${dirty}</b> satırda kaydedilmemiş değişiklik` : ''].filter(Boolean).join(' · ');
+}
+async function saveAllUsers(){
   const session = getSession();
-  const { error } = await sb.rpc('delete_staff_user', { p_token: session.session_token, p_user_id: id });
-  if(error){ alert(error.message); return; }
+  const exemptIds = (APP.config.roles||[]).filter(r => r.shift_exempt && !r.is_system).map(r => r.id);
+  const rows = Array.from(document.querySelectorAll('tr[data-uid][data-dirty]')).map(tr => {
+    const id = tr.dataset.uid, isOwner = !!tr.dataset.owner;
+    const nameEl = document.getElementById('us_name_'+id), passEl = document.getElementById('us_pass_'+id);
+    const roleIds = isOwner ? null : selectedRoleIds('us_'+id);
+    return { id, isOwner, username: nameEl ? nameEl.value.trim() : '', password: passEl ? passEl.value : '', roleIds,
+      exempt: !!(roleIds && roleIds.some(r => exemptIds.includes(r))) };
+  });
+  if(!rows.length) return;
+  const bad = rows.find(r => r.roleIds && r.roleIds.length === 0);
+  if(bad){ alert((bad.username || 'Bir kullanıcı') + ': en az 1 rol seçmelisiniz'); return; }
+  // Vardiyasız rol sınırına takılmamak için önce bu rolden çıkanlar kaydedilir.
+  rows.sort((a, b) => Number(a.exempt) - Number(b.exempt));
+  const errors = [];
+  await withLoadingOverlay((async () => {
+    for(const r of rows){
+      const { error } = await sb.rpc('update_staff_user', { p_token: session.session_token, p_user_id: r.id, p_username: r.username, p_password: r.password || null, p_role_ids: r.roleIds });
+      if(error) errors.push((r.username || r.id) + ': ' + error.message);
+    }
+  })());
   renderSettingsView(document.getElementById('main'), session);
+  if(errors.length) alert('Bazı kullanıcılar kaydedilemedi:\n\n' + errors.join('\n'));
+  else showToast(rows.length + ' kullanıcı kaydedildi ✓');
+}
+async function bulkUserActive(activate){
+  const ids = selectedUserIds(); if(!ids.length) return;
+  const names = ids.map(id => ((APP.config.users||[]).find(x => x.id===id) || {}).username).filter(Boolean);
+  if(!activate && !confirm(names.length + ' kullanıcı pasife alınsın mı?\n\n' + names.join(', ') + '\n\nGiriş yapamazlar ve açık oturumları hemen kapanır. Kayıtları silinmez, istediğinizde tekrar aktifleştirebilirsiniz.')) return;
+  const session = getSession(); const errors = [];
+  await withLoadingOverlay((async () => {
+    for(const id of ids){
+      const { error } = await sb.rpc('set_staff_user_active', { p_token: session.session_token, p_user_id: id, p_active: !!activate });
+      if(error) errors.push(error.message);
+    }
+  })());
+  renderSettingsView(document.getElementById('main'), session);
+  if(errors.length) alert('Bazı işlemler yapılamadı:\n\n' + errors.join('\n'));
+  else showToast(activate ? ids.length + ' kullanıcı aktifleştirildi ✓' : ids.length + ' kullanıcı pasife alındı');
+}
+async function bulkDeleteUsers(){
+  const ids = selectedUserIds(); if(!ids.length) return;
+  const names = ids.map(id => ((APP.config.users||[]).find(x => x.id===id) || {}).username).filter(Boolean);
+  if(!confirm(names.length + ' kullanıcı kalıcı olarak silinsin mi?\n\n' + names.join(', '))) return;
+  const session = getSession(); const errors = [];
+  await withLoadingOverlay((async () => {
+    for(const id of ids){
+      const { error } = await sb.rpc('delete_staff_user', { p_token: session.session_token, p_user_id: id });
+      if(error) errors.push(error.message);
+    }
+  })());
+  renderSettingsView(document.getElementById('main'), session);
+  if(errors.length) alert('Bazı kullanıcılar silinemedi:\n\n' + errors.join('\n'));
+  else showToast(ids.length + ' kullanıcı silindi');
 }
