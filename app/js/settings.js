@@ -911,7 +911,7 @@ function renderUsersSettings(el, session){
   const canAssign = canManage(session, 'users_assign_roles');
   el.innerHTML = `<div class="box" style="max-width:none;">
     <h2>Kullanıcılar</h2>
-    ${canAssign ? '' : '<p class="muted" style="text-align:left;font-size:12.5px;margin:-4px 0 12px;">🔒 Rol değiştirme ve kullanıcı ekleme için <b>Kullanıcı Rollerini Değiştirme</b> izni gerekir; yetkili kişilerin hesapları da kilitlidir.</p>'}
+    ${canAssign ? '' : '<p class="muted" style="text-align:left;font-size:12.5px;margin:-4px 0 12px;">🔒 Kullanıcı ekleme, rol değiştirme, pasife alma ve silme için <b>Kullanıcı Yönetimi</b> izni gerekir; yetkili kişilerin hesapları da kilitlidir. Diğer personelin adını ve şifresini değiştirebilirsiniz.</p>'}
     <div class="add-row-panel" style="margin:0 0 16px;${canAssign?'':'display:none;'}">
       <p>Yeni Kullanıcı Ekle</p>
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;align-items:start;">
@@ -926,20 +926,22 @@ function renderUsersSettings(el, session){
       <span class="spacer" style="flex:1;"></span>
       <div class="act-row" id="userBulkBar">
         <button type="button" class="act-btn act-save" id="userSaveAllBtn" onclick="saveAllUsers()" disabled>${ICON_SAVE}<span>Değişiklikleri Kaydet</span></button>
+      </div>
+      <div class="act-row" style="${canAssign?'':'display:none;'}">
         <button type="button" class="act-btn act-close" data-needs-sel onclick="bulkUserActive(false)" disabled title="Seçilenler giriş yapamaz, açık oturumları kapanır"><b>⏸</b><span>Pasife Al</span></button>
         <button type="button" class="act-btn act-open" data-needs-sel onclick="bulkUserActive(true)" disabled><b>✓</b><span>Aktifleştir</span></button>
         <button type="button" class="act-btn act-delete" data-needs-sel onclick="bulkDeleteUsers()" disabled>${ICON_TRASH}<span>Sil</span></button>
       </div>
     </div>
-    <p class="muted" id="userSelInfo" style="text-align:left;font-size:12.5px;margin:0 0 8px;">Satırdaki bilgileri değiştirip <b>Değişiklikleri Kaydet</b>'e basın; pasife almak / silmek için satırları seçin.</p>
+    <p class="muted" id="userSelInfo" style="text-align:left;font-size:12.5px;margin:0 0 8px;">Satırdaki bilgileri değiştirip <b>Değişiklikleri Kaydet</b>'e basın${canAssign ? '; pasife almak / silmek için satırları seçin' : ''}.</p>
     <div class="settings-table-wrap">
     <table class="settings-table">
-      <thead><tr><th style="width:36px;"><input type="checkbox" id="userSelAll" style="width:auto;margin:0;" title="Tümünü seç" onchange="selectAllUsers(this.checked)"></th><th>Kullanıcı Adı</th><th>Yeni Şifre</th><th>Roller (en fazla 2)</th></tr></thead>
+      <thead><tr><th style="width:36px;">${canAssign ? '<input type="checkbox" id="userSelAll" style="width:auto;margin:0;" title="Tümünü seç" onchange="selectAllUsers(this.checked)">' : ''}</th><th>Kullanıcı Adı</th><th>Yeni Şifre</th><th>Roller (en fazla 2)</th></tr></thead>
       <tbody oninput="markUserDirty(event)" onchange="markUserDirty(event)">
       ${APP.config.users.slice().sort((x, y) => String(x.username).localeCompare(String(y.username), 'tr', { sensitivity: 'base' }))
         .map(u => { const locked = !canAssign && userIsPrivileged(u); return (isOwnerUser(u) ? ownerUserRow(u, session) : `
         <tr data-uid="${u.id}" style="${u.is_active===false?'opacity:.55;':''}">
-          <td>${locked ? '<span title="Yetkili kullanıcı - düzenleme izniniz yok">🔒</span>' : `<input type="checkbox" class="user-sel" value="${u.id}" style="width:auto;margin:0;" onchange="updateUserSelection()">`}</td>
+          <td>${locked ? '<span title="Yetkili kullanıcı - düzenleme izniniz yok">🔒</span>' : !canAssign ? '' : `<input type="checkbox" class="user-sel" value="${u.id}" style="width:auto;margin:0;" onchange="updateUserSelection()">`}</td>
           <td class="col-name"><input value="${escapeAttr(u.username)}" id="us_name_${u.id}" ${locked?'disabled':''}>${u.is_active===false?'<span class="role-badge" style="color:var(--red);border-color:var(--red);margin-top:6px;display:inline-block;">Pasif</span>':''}</td>
           <td class="col-name"><input type="password" placeholder="(değiştirmek için yaz)" id="us_pass_${u.id}" autocomplete="new-password" ${locked?'disabled':''}></td>
           <td class="col-name">${roleCheckboxes('us_'+u.id, u.role_ids||[], !canAssign)}</td>
@@ -1985,7 +1987,7 @@ function selectAllUsers(on){
 }
 function updateUserSelection(){
   const n = selectedUserIds().length, dirty = document.querySelectorAll('tr[data-uid][data-dirty]').length;
-  document.querySelectorAll('#userBulkBar [data-needs-sel]').forEach(b => { b.disabled = !n; });
+  document.querySelectorAll('[data-needs-sel]').forEach(b => { b.disabled = !n; });
   const save = document.getElementById('userSaveAllBtn');
   if(save){ save.disabled = !dirty; save.querySelector('span').textContent = dirty ? `Değişiklikleri Kaydet (${dirty})` : 'Değişiklikleri Kaydet'; }
   const info = document.getElementById('userSelInfo');
