@@ -729,7 +729,7 @@ button.chat-once{cursor:pointer;}
 /* Ekleme panelleri (Yeni Ürün / Hammadde / Kullanıcı ...): geniş ekranda sayfa kaydırılınca
    üstte sabit kalır; mobilde paneller alt alta uzun olduğu için sabitlenmez. */
 @media (min-width:821px){
-  .add-row-panel{position:sticky;top:0;z-index:30;background-color:var(--panel2);box-shadow:0 8px 18px -12px rgba(0,0,0,.25);}
+  .add-row-panel.is-sticky{position:sticky;top:0;z-index:30;background-color:var(--panel2);box-shadow:0 8px 18px -12px rgba(0,0,0,.25);}
 }
 /* Tek satırlık ekleme formu: alanlar yan yana, sığmazsa alt satıra kayar. */
 .add-row-inline{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;}

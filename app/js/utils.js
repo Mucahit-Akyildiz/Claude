@@ -207,3 +207,8 @@ function fpLayout(canvas, tables){
   // genişletmeye izin verir).
   return { scale, logicalW: Math.max(logicalW, Math.floor(avail / scale)) };
 }
+/* Tek satırlık form düzeni (stil dosyası önbellekte eski kalsa da çalışsın diye satır içi stil):
+   alanlar yan yana dizilir, sığmazsa alt satıra kayar. */
+const INLINE_ROW = 'display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;';
+function fgStyle(basis, grow){ return `margin:0;min-width:0;width:auto;flex:${grow || 1} 1 ${basis || 120}px;`; }
+const INLINE_BTN = 'width:auto;margin:0;white-space:nowrap;flex:0 0 auto;padding-left:18px;padding-right:18px;';

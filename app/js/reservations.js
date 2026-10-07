@@ -66,17 +66,17 @@ async function renderReservationsContent(session, forceRefresh){
     </div>
     <div class="add-row-panel">
       <p>Yeni Rezervasyon</p>
-      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;align-items:end;">
-        <div class="field-group"><label>Müşteri Adı</label><input id="rvCustName" placeholder="Ad veya kayıtlı müşteri ara" autocomplete="off" oninput="tableCustSearch(this.value, 'rvCust')"></div>
-        <div class="field-group"><label>Telefon</label><input id="rvCustPhone" placeholder="05xx..." inputmode="tel" autocomplete="off" oninput="tableCustSearch(this.value, 'rvCust')"></div>
-        <div class="field-group"><label>E-posta (hatırlatma)</label><input id="rvCustEmail" type="email" placeholder="opsiyonel" autocapitalize="none"></div>
-        <div class="field-group"><label>Kişi</label><input id="rv_party" type="number" min="1" value="2"></div>
-        <div class="field-group"><label>Tarih & Saat</label><input id="rv_time" type="datetime-local"></div>
-        <div class="field-group"><label>Masa (opsiyonel)</label><select id="rv_table"><option value="">-</option>${allTables.map(t => `<option value="${t.id}">${escapeHtml(t.name)}</option>`).join('')}</select></div>
+      <div style="${INLINE_ROW}">
+        <div class="field-group" style="${fgStyle(170, 2)}"><label>Müşteri Adı</label><input style="margin:0;" id="rvCustName" placeholder="Ad veya kayıtlı müşteri ara" autocomplete="off" oninput="tableCustSearch(this.value, 'rvCust')"></div>
+        <div class="field-group" style="${fgStyle(130)}"><label>Telefon</label><input style="margin:0;" id="rvCustPhone" placeholder="05xx..." inputmode="tel" autocomplete="off" oninput="tableCustSearch(this.value, 'rvCust')"></div>
+        <div class="field-group" style="${fgStyle(160)}"><label>E-posta (hatırlatma)</label><input style="margin:0;" id="rvCustEmail" type="email" placeholder="opsiyonel" autocapitalize="none"></div>
+        <div class="field-group" style="${fgStyle(70)}"><label>Kişi</label><input style="margin:0;" id="rv_party" type="number" min="1" value="2"></div>
+        <div class="field-group" style="${fgStyle(190)}"><label>Tarih & Saat</label><input style="margin:0;" id="rv_time" type="datetime-local"></div>
+        <div class="field-group" style="${fgStyle(120)}"><label>Masa (opsiyonel)</label><select style="margin:0;" id="rv_table"><option value="">-</option>${allTables.map(t => `<option value="${t.id}">${escapeHtml(t.name)}</option>`).join('')}</select></div>
+        <div class="field-group" style="${fgStyle(160, 2)}"><label>Not</label><input style="margin:0;" id="rv_notes" placeholder="opsiyonel"></div>
+        <button style="${INLINE_BTN}" onclick="addReservation()">+ Rezervasyon Ekle</button>
       </div>
       <div id="rvCustSuggest"></div>
-      <div class="field-group" style="margin-top:10px;"><label>Not</label><input id="rv_notes" placeholder="opsiyonel"></div>
-      <button style="margin-top:12px;max-width:220px;" onclick="addReservation()">+ Rezervasyon Ekle</button>
     </div>
   </div>
   <div class="box" style="max-width:none;margin-top:18px;">
@@ -229,15 +229,15 @@ async function renderWaitlistContent(session, forceRefresh){
     </div>
     <div class="add-row-panel">
       <p>Bekleme Listesine Ekle</p>
-      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;align-items:end;">
-        <div class="field-group"><label>Müşteri Adı</label><input id="wlCustName" placeholder="Ad veya kayıtlı müşteri ara" autocomplete="off" oninput="tableCustSearch(this.value, 'wlCust')"></div>
-        <div class="field-group"><label>Telefon</label><input id="wlCustPhone" placeholder="05xx..." inputmode="tel" autocomplete="off" oninput="tableCustSearch(this.value, 'wlCust')"></div>
-        <div class="field-group"><label>E-posta (bildirim)</label><input id="wlCustEmail" type="email" placeholder="opsiyonel" autocapitalize="none"></div>
-        <div class="field-group"><label>Kişi</label><input id="wl_party" type="number" min="1" value="2"></div>
-        <div class="field-group"><label>Tahmini Bekleme (dk)</label><input id="wl_wait" type="number" min="0" placeholder="15"></div>
+      <div style="${INLINE_ROW}">
+        <div class="field-group" style="${fgStyle(170, 2)}"><label>Müşteri Adı</label><input style="margin:0;" id="wlCustName" placeholder="Ad veya kayıtlı müşteri ara" autocomplete="off" oninput="tableCustSearch(this.value, 'wlCust')"></div>
+        <div class="field-group" style="${fgStyle(130)}"><label>Telefon</label><input style="margin:0;" id="wlCustPhone" placeholder="05xx..." inputmode="tel" autocomplete="off" oninput="tableCustSearch(this.value, 'wlCust')"></div>
+        <div class="field-group" style="${fgStyle(160)}"><label>E-posta (bildirim)</label><input style="margin:0;" id="wlCustEmail" type="email" placeholder="opsiyonel" autocapitalize="none"></div>
+        <div class="field-group" style="${fgStyle(70)}"><label>Kişi</label><input style="margin:0;" id="wl_party" type="number" min="1" value="2"></div>
+        <div class="field-group" style="${fgStyle(120)}"><label>Tahmini Bekleme (dk)</label><input style="margin:0;" id="wl_wait" type="number" min="0" placeholder="15"></div>
+        <button style="${INLINE_BTN}" onclick="addWaitlistEntry()">+ Ekle</button>
       </div>
       <div id="wlCustSuggest"></div>
-      <button style="margin-top:12px;max-width:220px;" onclick="addWaitlistEntry()">+ Ekle</button>
     </div>
   </div>`;
   el.insertAdjacentHTML('beforeend', `<div class="box" style="max-width:none;margin-top:18px;">

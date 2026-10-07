@@ -191,14 +191,14 @@ function renderIngredientsSettings(el, session){
     </div>
     <div class="add-row-panel">
       <p>Yeni Hammadde Ekle</p>
-      <div style="display:grid;grid-template-columns:2fr 1fr 1fr;gap:10px;align-items:end;">
-        <div class="field-group"><label>Hammadde Adı</label><input id="ni_name" placeholder="örn. Döner Eti"></div>
-        <div class="field-group"><label>Birim</label><select id="ni_unit">
+      <div style="${INLINE_ROW}">
+        <div class="field-group" style="${fgStyle(200, 2)}"><label>Hammadde Adı</label><input id="ni_name" placeholder="örn. Döner Eti" style="margin:0;"></div>
+        <div class="field-group" style="${fgStyle(110)}"><label>Birim</label><select id="ni_unit" style="margin:0;">
           <option value="adet">adet</option><option value="gram">gram</option><option value="kg">kg</option><option value="ml">ml</option><option value="lt">lt</option>
         </select></div>
-        <div class="field-group"><label>Başlangıç Stoku</label><input type="number" step="0.01" id="ni_stock" placeholder="0"></div>
+        <div class="field-group" style="${fgStyle(130)}"><label>Başlangıç Stoku</label><input type="number" step="0.01" id="ni_stock" placeholder="0" style="margin:0;"></div>
+        <button style="${INLINE_BTN}" onclick="addIngredient()">+ Hammadde Ekle</button>
       </div>
-      <button style="margin-top:12px;max-width:220px;" onclick="addIngredient()">+ Hammadde Ekle</button>
     </div>
   </div>`;
 }

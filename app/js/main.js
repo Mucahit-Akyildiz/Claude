@@ -131,7 +131,7 @@ function render(){
           <button class="sb-logout" onclick="doLogout()" title="Çıkış Yap">🚪<span class="label"> Çıkış Yap</span></button>
         </div>
       </aside>
-      <div class="content-area"><div class="content-inner ${(APP.view==='settings'||APP.view==='reports'||APP.view==='reservations')?'content-inner-wide':''}">${pushReminderBannerHtml()}${APP.view && APP.view!=='home' ? '<button type="button" class="back-link" onclick="goBack()">← Geri</button>' : ''}<main id="main"></main></div></div>
+      <div class="content-area"><div class="content-inner ${(['settings','reports','reservations','crm','purchasing'].includes(APP.view))?'content-inner-wide':''}">${pushReminderBannerHtml()}${APP.view && APP.view!=='home' ? '<button type="button" class="back-link" onclick="goBack()">← Geri</button>' : ''}<main id="main"></main></div></div>
     </div>`;
   const main = document.getElementById('main');
   renderMainView(main, session);
@@ -789,8 +789,14 @@ function liftAddPanels(root){
     box.insertBefore(panel, list);
     panel.style.margin = '0 0 16px';
   });
-  // Geniş ekranda ekleme paneli kaydırınca üstte sabit kalır (stil dosyası önbellekte eski kalsa da çalışsın).
-  if(window.innerWidth > 820 && root.querySelectorAll) root.querySelectorAll('.add-row-panel').forEach(panel => {
+  // Geniş ekranda, altında bir liste olan ekleme paneli kaydırınca üstte sabit kalır (bilgi kutuları ve
+  // tekrarlanan bölüm kutuları sabitlenmez). Stil dosyası önbellekte eski kalsa da çalışsın diye satır içi.
+  if(window.innerWidth > 820 && root.querySelectorAll) root.querySelectorAll('.add-row-panel:not([data-sticky-checked])').forEach(panel => {
+    panel.dataset.stickyChecked = '1';
+    const after = []; for(let n = panel.nextElementSibling; n; n = n.nextElementSibling) after.push(n);
+    const hasList = after.some(n => n.tagName === 'TABLE' || n.matches('.settings-table-wrap') || n.querySelector('table, .settings-table-wrap'));
+    if(!hasList || panel.closest('[style*="position:fixed"], .modal-bg')) return;
+    panel.classList.add('is-sticky');
     Object.assign(panel.style, { position: 'sticky', top: '0', zIndex: '30', boxShadow: '0 8px 18px -12px rgba(0,0,0,.25)' });
   });
 }
