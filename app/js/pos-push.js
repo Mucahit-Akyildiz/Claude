@@ -34,6 +34,11 @@ async function initPushUI(){
     updatePushUI(perm.receive==='granted' && !!getSavedFcmToken());
     return;
   }
+  if(isIosBrowserTab()){
+    statusText.textContent = 'iPhone/iPad\'de bildirimler için önce Peyktan\'ı ana ekrana ekleyin: Safari\'de Paylaş (⬆️) > "Ana Ekrana Ekle", sonra ana ekrandaki simgeden açıp buradan bildirimleri açın (iOS 16.4 ve üzeri).';
+    btn.style.display = 'none';
+    return;
+  }
   if(!('serviceWorker' in navigator) || !('PushManager' in window)){
     statusText.textContent = 'Bu tarayıcı/cihaz push bildirimlerini desteklemiyor.';
     btn.style.display = 'none';
@@ -455,4 +460,22 @@ function testPrintPrinter(id){
 function renderSettingsFromCurrentSession(){
   const session = getSession();
   if(session) renderPrinterSettingsView(document.getElementById('main'), session);
+}
+
+/* iPhone/iPad: Safari sekmesinde (ana ekrana eklenmeden) açık mı? Ana ekrandan
+   açılınca standalone olur; web push da ancak o zaman çalışır. */
+function isIosDevice(){ return /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform==='MacIntel' && navigator.maxTouchPoints > 1); }
+function isStandaloneApp(){ return window.navigator.standalone === true || (window.matchMedia && matchMedia('(display-mode: standalone)').matches); }
+function isIosBrowserTab(){ return !isNativeApp() && isIosDevice() && !isStandaloneApp(); }
+// Girişten sonra iOS Safari'de bir kez "Ana Ekrana Ekle" ipucu (kapatılınca 30 gün gösterilmez).
+function maybeShowIosInstallHint(){
+  if(!isIosBrowserTab() || document.getElementById('iosInstallHint')) return;
+  try{ const t = +localStorage.getItem('rys_ios_hint_closed') || 0; if(Date.now() - t < 30*864e5) return; }catch(e){}
+  const el = document.createElement('div'); el.id = 'iosInstallHint';
+  el.style.cssText = 'position:fixed;left:12px;right:12px;bottom:12px;z-index:96;background:var(--panel);border:1px solid var(--border);border-radius:16px;box-shadow:0 8px 28px rgba(0,0,0,.25);padding:12px 14px;display:flex;gap:12px;align-items:center;font-size:13.5px;';
+  el.innerHTML = '<img src="/assets/images/apple-touch-icon.png" alt="" style="width:40px;height:40px;border-radius:10px;flex:0 0 auto;">'
+    + '<div style="flex:1;text-align:left;"><b>Peyktan\'ı ana ekrana ekleyin</b><br><span class="muted">Safari\'de alttaki Paylaş <b>⬆️</b> düğmesine, sonra <b>"Ana Ekrana Ekle"</b>ye dokunun. Tam ekran açılır, bildirim alırsınız.</span></div>'
+    + '<button type="button" class="ghost-btn" style="margin:0;width:auto;padding:6px 10px;" aria-label="Kapat">✕</button>';
+  el.querySelector('button').onclick = () => { try{ localStorage.setItem('rys_ios_hint_closed', String(Date.now())); }catch(e){} el.remove(); };
+  document.body.appendChild(el);
 }
