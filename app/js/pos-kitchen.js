@@ -56,7 +56,9 @@ async function refreshKitchenItems(session){
       const freshItems = pending.filter(it => !APP.kitchenSeenItemIds.has(it.id));
       if(freshItems.length>0) newItemsByTable[o.order_id] = { tableName, dailyNumber: o.daily_number, items: freshItems };
     }
-    cards.push(`<div class="kitchen-card" data-order-id="${o.order_id}">
+    // En uzun bekleyen sipariş önce: kart, içindeki en eski bekleyen ürünün zamanına göre sıralanır.
+    const oldest = Math.min(...pending.map(it => it.added_at ? new Date(it.added_at).getTime() : Infinity));
+    cards.push({ at: isFinite(oldest) ? oldest : Infinity, html: `<div class="kitchen-card" data-order-id="${o.order_id}">
       <div style="display:flex;justify-content:space-between;align-items:center;">
         <b>${escapeHtml(tableName)}${o.daily_number?' <span class="muted" style="font-weight:400;font-size:12px;">#'+o.daily_number+'</span>':''}<span class="kc-late-badge">⏰ GECİKTİ</span></b>
         <span style="cursor:pointer;color:var(--muted);font-size:16px;" onclick="reprintKitchenTicket('${o.order_id}')" title="Fişi tekrar yazdır">🖨️</span>
@@ -71,9 +73,11 @@ async function refreshKitchenItems(session){
         ${it.note?'<div class="muted" style="font-size:12px;font-style:italic;margin-top:4px;overflow-wrap:anywhere;word-break:break-word;">Not: '+escapeHtml(it.note)+'</div>':''}
       </div>`).join('')}
       <button style="margin-top:10px;background:var(--green);color:var(--btn-ink);" onclick="markAllReady('${o.order_id}')">✅ Hepsi Hazır</button>
-      </div>`);
+      </div>` });
   });
-  wrap.innerHTML = cards.length ? `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:12px;">${cards.join('')}</div>` : '<p class="muted">Bekleyen sipariş yok.</p>';
+  cards.sort((x, y) => x.at - y.at);
+  // align-items:start: her kart kendi içeriği kadar uzar (sıradaki en uzun karta göre esneyip boş alan bırakmaz).
+  wrap.innerHTML = cards.length ? `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:12px;align-items:start;">${cards.map(c => c.html).join('')}</div>` : '<p class="muted">Bekleyen sipariş yok.</p>';
 
   // Daha once gorulmemis (yeni gelen) urun varsa zil calsin ve fisini bu istasyonun
   // kendi yazicisina yazdir. Ilk yuklemede (isFirstLoad) hicbiri tetiklenmez.
