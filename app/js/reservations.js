@@ -206,7 +206,7 @@ async function renderWaitlistContent(session, forceRefresh){
     <h2>Bekleme Listesi</h2>
     <div class="settings-table-wrap">
     <table class="settings-table">
-      <thead><tr><th>Müşteri</th><th>Telefon</th><th>Kişi</th><th>Bekleme</th><th>Katılım</th><th></th></tr></thead>
+      <thead><tr><th>Müşteri</th><th>Telefon</th><th>Kişi</th><th>Bekleme</th><th>Katılım / Tahmini</th><th></th></tr></thead>
       <tbody>
       ${rows.map(w => `
         <tr data-badge-id="${w.id}">
@@ -214,7 +214,7 @@ async function renderWaitlistContent(session, forceRefresh){
           <td>${escapeHtml(w.phone||'-')}</td>
           <td>${w.party_size}</td>
           <td><span class="waitlist-timer" data-joined="${w.joined_at}" data-quoted="${w.quoted_wait_minutes||''}">-</span></td>
-          <td>${new Date(w.joined_at).toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'})}</td>
+          <td style="white-space:nowrap;">${new Date(w.joined_at).toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'})}${w.quoted_wait_minutes!=null ? `<div style="font-size:12px;color:var(--accent);font-weight:700;" title="Tahmini masa saati (katılım + bekleme süresi)">⏱ ${new Date(new Date(w.joined_at).getTime() + w.quoted_wait_minutes*60000).toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'})}</div>` : ''}</td>
           <td>
             ${w.phone ? `<button class="sbtn" title="Müşteriye 'Masanız hazır' SMS'i gönder" onclick="notifyWaitlistReady('${w.id}')">📱 Masa Hazır</button>` : ''}
             <button class="sbtn" title="Kalan bekleme süresini güncelle${w.email ? ' - müşteriye e-posta gider' : ''}" onclick="updateWaitlistWait('${w.id}')">⏱ Süre</button>
