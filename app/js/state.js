@@ -101,6 +101,7 @@ const NAV_ITEMS = [
   { view:'reports', icon:'📊', label:'Finansal Analiz' },
   { view:'messages', icon:'💬', label:'Mesajlar' },
   { view:'settings', icon:'⚙️', label:'Ayarlar' },
+  { view:'help', icon:'❓', label:'Yardım' },
 ];
 /* notificationSettings her personel için her zaman görünür (izin
    gerektirmez, cihaza özel). printerSettings ise artık SADECE Yönetici'ye

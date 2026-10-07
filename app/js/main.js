@@ -66,6 +66,7 @@ function renderMainView(main, session){
   else if(APP.view==='crm') p = renderCrmView(main, session);
   else if(APP.view==='purchasing') p = renderPurchasingView(main, session);
   else if(APP.view==='messages') p = renderMessagesView(main, session);
+  else if(APP.view==='help') p = renderHelpView(main, session);
   return Promise.resolve(p);
 }
 function render(){
@@ -355,7 +356,7 @@ function uiBusyForAutoRefresh(){
   }
   return false;
 }
-const AUTO_REFRESH_SKIP = ['home','reports','printerSettings','notificationSettings'];
+const AUTO_REFRESH_SKIP = ['home','reports','printerSettings','notificationSettings','help'];
 function autoRefreshCurrentView(session){
   if(APP.view==='kitchen'){ if(APP.kitchenStation) refreshKitchenItems(session); return; }
   if(APP.view==='order' || APP.view==='packages'){ refreshOrderLiveStatus(session); return; }
