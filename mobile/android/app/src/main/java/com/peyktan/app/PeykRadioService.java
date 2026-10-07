@@ -29,6 +29,7 @@ public class PeykRadioService extends Service {
     static final int NOTIF_ID = 4711;
     private PowerManager.WakeLock wakeLock;
     private WifiManager.WifiLock wifiLock;
+    private final PeykRadioReceiver receiver = new PeykRadioReceiver();
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
@@ -61,6 +62,10 @@ public class PeykRadioService extends Service {
             return START_NOT_STICKY;
         }
         acquireLocks();
+        if (intent != null) {
+            receiver.start(intent.getStringExtra("url"), intent.getStringExtra("key"),
+                intent.getStringExtra("topic"), intent.getStringExtra("user"));
+        }
         return START_NOT_STICKY;
     }
 
@@ -92,6 +97,7 @@ public class PeykRadioService extends Service {
 
     @Override
     public void onDestroy() {
+        receiver.stop();
         if (wakeLock != null && wakeLock.isHeld()) wakeLock.release();
         if (wifiLock != null && wifiLock.isHeld()) wifiLock.release();
         wakeLock = null; wifiLock = null;
