@@ -212,8 +212,11 @@ function radioBusyBy(){
   const me = getSession();
   return RADIO.floor && me && RADIO.floor.u !== me.user_id ? RADIO.floor : null;
 }
+const RADIO_BUILD = 'r3';
+function radioLog(msg){ try{ if(typeof reportClientError === 'function') reportClientError('radio', msg + ' | ' + RADIO_BUILD, 'radio.js'); }catch(e){} }
 async function radioStartTalk(){
-  if(RADIO.talking || !RADIO.rt || !RADIO.channel) return;
+  if(RADIO.talking) return;
+  if(!RADIO.rt || !RADIO.channel){ radioLog('bas: FAIL kanala bağlı değil'); return; }
   const session = getSession(); if(!session) return;
   const busy = radioBusyBy();
   if(busy){ radioBeep(330, 0.18); radioFlash((busy.n || 'Biri') + ' konuşuyor — kanal meşgul'); return; }
@@ -225,12 +228,14 @@ async function radioStartTalk(){
   drawRadioDock();
   try{
     if(!RADIO.mic) RADIO.mic = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation:true, noiseSuppression:true, autoGainControl:true } });
-  }catch(e){ radioStopTalk(); alert('Mikrofona erişilemedi. Tarayıcı/uygulama ayarlarından mikrofon izni verin.'); return; }
+  }catch(e){ radioLog('bas: FAIL mikrofon ' + (e && (e.name || e.message))); radioStopTalk(); alert('Mikrofona erişilemedi. Tarayıcı/uygulama ayarlarından mikrofon izni verin.'); return; }
   if(!RADIO.talking) return; // izin beklenirken bırakıldı / söz kaybedildi
   radioBeep(880);
   if(ctx.state !== 'running'){ try{ await ctx.resume(); }catch(e){} }
   if(!RADIO.talking) return;
-  if(!RADIO.src || RADIO.src.context !== ctx) RADIO.src = ctx.createMediaStreamSource(RADIO.mic);
+  try{
+    if(!RADIO.src || RADIO.src.context !== ctx) RADIO.src = ctx.createMediaStreamSource(RADIO.mic);
+  }catch(e){ radioLog('bas: FAIL ses kaynağı ' + (e && (e.name || e.message))); radioStopTalk(true); return; }
   RADIO.diag = { frames:0, chunks:0, errs:0 };
   const proc = ctx.createScriptProcessor(2048, 1, 1);
   const ratio = ctx.sampleRate / RADIO_RATE; let pos = 0;
@@ -246,7 +251,7 @@ async function radioStartTalk(){
       RADIO.buf.push(muLawEncode(n ? sum / n : inp[a]));
     }
     pos -= inp.length;
-    if(RADIO.buf.length >= 1600) radioFlush(); // ~200 ms'lik parça (saniyede ~5 mesaj)
+    if(RADIO.buf.length >= 1600){ radioFlush(); drawRadioDock(); } // ~200 ms'lik parça (saniyede ~5 mesaj)
   };
   RADIO.src.connect(proc); proc.connect(ctx.destination); // bazı tarayıcılar çıkışa bağlanmadan işlemiyor (çıkış sessiz)
   RADIO.proc = proc;
@@ -324,13 +329,13 @@ function radioReportSend(lost){
   if(!d || lost || typeof reportClientError !== 'function') return;
   const ctx = RADIO.ctx;
   const st = !d.frames ? 'FAIL mikrofon karesi yok' : !d.chunks ? 'FAIL parça gönderilmedi' : d.errs ? 'FAIL gönderim hatası ' + d.lastErr : 'ok';
-  reportClientError('radio', 'gönder: ' + st + ' | ctx=' + (ctx ? ctx.state + '/' + ctx.sampleRate : '-') + ' rt=' + (RADIO.status || 'bağlı'), 'radio.js');
+  reportClientError('radio', RADIO_BUILD + ' gönder: ' + st + ' | ctx=' + (ctx ? ctx.state + '/' + ctx.sampleRate : '-') + ' rt=' + (RADIO.status || 'bağlı'), 'radio.js');
 }
 function radioReportRecv(){
   const r = RADIO.rx; RADIO.rx = null;
   if(!r || typeof reportClientError !== 'function') return;
   const st = RADIO.nativeAudio ? 'ok (Android yerel)' : r.played ? 'ok (web)' : 'FAIL alındı ama çalınmadı';
-  reportClientError('radio', 'al: ' + st + ' | ctx=' + (RADIO.ctx ? RADIO.ctx.state : '-') + ' görünür=' + document.visibilityState, 'radio.js');
+  reportClientError('radio', RADIO_BUILD + ' al: ' + st + ' | ctx=' + (RADIO.ctx ? RADIO.ctx.state : '-') + ' görünür=' + document.visibilityState, 'radio.js');
 }
 function radioBeep(freq, dur){
   try{
@@ -393,6 +398,7 @@ function drawRadioDock(){
   const ln = dock.querySelector('#radioLine'); ln.textContent = line; ln.title = RADIO.online.join(', ');
   ln.style.color = (suspended || RADIO.missed || RADIO.flash) && !busy ? 'var(--red)' : '';
   const b = dock.querySelector('#radioPtt');
+  if(RADIO.talking && RADIO.diag) ln.textContent = '📤 gönderiliyor · ' + RADIO.diag.chunks + ' parça' + (RADIO.diag.frames ? '' : ' (mikrofon bekleniyor)');
   b.textContent = RADIO.talking ? '🎙️ Konuşuyor…' : busy ? '🔒 Meşgul' : '🎙️ Bas-Konuş';
   b.style.background = RADIO.talking ? '#dc2626' : busy ? 'var(--border)' : '';
   b.style.borderColor = RADIO.talking ? '#dc2626' : busy ? 'var(--border)' : '';
