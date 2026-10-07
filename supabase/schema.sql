@@ -5892,10 +5892,14 @@ CREATE FUNCTION public.search_customers_quick(p_token uuid, p_search text) RETUR
     AS $$
 declare s staff_sessions%rowtype;
 begin
-  s := _session_check(p_token, 'order');
+  -- Sipariş Al, Paket ve Rezervasyon ekranlarında kayıtlı müşteri önerisi.
+  s := _session_check(p_token);
+  if not (_user_has_perm(s.user_id, 'order') or _user_has_perm(s.user_id, 'packages') or _user_has_perm(s.user_id, 'reservations')) then
+    raise exception 'Bu işlem için yetkiniz yok';
+  end if;
   if length(coalesce(trim(p_search),'')) < 2 then return '[]'::json; end if;
   return (select coalesce(json_agg(row_to_json(c)), '[]'::json) from (
-    select cu.id, cu.name, cu.phone from customers cu
+    select cu.id, cu.name, cu.phone, cu.email from customers cu
     where cu.restaurant_id = s.restaurant_id and (cu.name ilike '%'||trim(p_search)||'%' or cu.phone ilike '%'||trim(p_search)||'%')
     order by cu.last_visit_at desc nulls last, cu.name limit 8) c);
 end; $$;
