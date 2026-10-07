@@ -318,7 +318,7 @@ async function renderReportContent(session){
   const billLabel = (o) => (o.kind==='takeaway' ? '📦 Paket' : (o.table_name||'-'));
   const billTableOptions = [...new Set(hist.map(billLabel))].sort();
   const billHourOptions = [...new Set(hist.map(o => new Date(o.closed_at).getHours()))].sort((a,b)=>a-b);
-  const METHOD_LABELS = { cash:'💵 Nakit', card:'💳 Kredi Kartı', gift_card:'🎁 Hediye Kartı', split:'➗ Bölünmüş' };
+  const METHOD_LABELS = { cash:'💵 Nakit', card:'💳 Kredi Kartı', gift_card:'🎁 Hediye Kartı', split:'➗ Bölünmüş', open_account:'📒 Açık Hesap' };
   const billMethodOptions = [...new Set(hist.map(o => o.payment_method))].filter(Boolean).sort();
 
   // Hesabın kaynağı: rezervasyondan / bekleme listesinden oturtulan masa,
@@ -363,9 +363,9 @@ async function renderReportContent(session){
       <td>${t}${stay!=null ? ` <span class="muted" style="font-size:11px;">(${stay} dk)</span>` : ''}</td>
       <td class="col-name">${escapeHtml(billLabel(o))}${srcBadge}${tagBadge}</td>
       <td>${o.customer_name ? `${o.customer_id ? '⭐ ' : ''}${escapeHtml(o.customer_name)}${o.customer_phone ? `<div class="muted" style="font-size:11px;">${escapeHtml(o.customer_phone)}</div>` : ''}` : '<span class="muted">—</span>'}</td>
-      <td>${money(o.total)}</td>
-      <td>${discTxt}</td>
-      <td>${methodLabel}</td>
+      <td style="white-space:nowrap;">${money(o.total)}</td>
+      <td style="white-space:nowrap;${o.discount_amount>0?'color:var(--red);':''}">${discTxt}</td>
+      <td style="${o.payment_method==='split'?'':'white-space:nowrap;'}">${methodLabel}</td>
       <td><button type="button" class="sbtn" style="width:auto;margin:0;" onclick="openSaleDetailModal('${o.id}')">🔍 Detay</button></td></tr>`;
   };
   const billsHtml = hist.length===0 ? '<p class="muted">Bu tarihte kapatılmış hesap yok.</p>'
@@ -704,7 +704,7 @@ async function openSaleDetailModal(historyId){
   const session = getSession();
   const { data: d, error } = await withLoadingOverlay(sb.rpc('get_sale_detail', { p_token: session.session_token, p_history_id: historyId }));
   if(error){ alert(error.message); return; }
-  const methods = { cash:'💵 Nakit', card:'💳 Kart', gift_card:'🎁 Hediye Kartı', split:'➗ Bölünmüş' };
+  const methods = { cash:'💵 Nakit', card:'💳 Kart', gift_card:'🎁 Hediye Kartı', split:'➗ Bölünmüş', open_account:'📒 Açık Hesap' };
   const label = d.kind==='takeaway' ? '📦 Paket' : (d.table_name || '-');
   const row = (k, v, strong) => `<div style="display:flex;justify-content:space-between;${strong?'font-weight:800;font-size:15px;margin-top:4px;':''}"><span>${k}</span><span>${v}</span></div>`;
   const bg = document.createElement('div');
