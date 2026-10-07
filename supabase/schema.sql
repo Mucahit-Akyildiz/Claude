@@ -10,7 +10,7 @@ SET idle_in_transaction_session_timeout = 0;
 SET transaction_timeout = 0;
 SET client_encoding = 'UTF8';
 SET standard_conforming_strings = on;
-SELECT pg_catalog.set_config('search_path', 'public, extensions', false);
+SELECT pg_catalog.set_config('search_path', '', false);
 SET check_function_bodies = false;
 SET xmloption = content;
 SET client_min_messages = warning;
@@ -113,10 +113,10 @@ CREATE TABLE public.chat_messages (
 
 
 --
--- Name: _chat_can_see(chat_messages, uuid); Type: FUNCTION; Schema: public; Owner: -
+-- Name: _chat_can_see(public.chat_messages, uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public._chat_can_see(m chat_messages, p_user uuid) RETURNS boolean
+CREATE FUNCTION public._chat_can_see(m public.chat_messages, p_user uuid) RETURNS boolean
     LANGUAGE sql STABLE SECURITY DEFINER
     SET search_path TO 'public', 'pg_temp'
     AS $$
@@ -127,10 +127,10 @@ $$;
 
 
 --
--- Name: _chat_conv_of(chat_messages, uuid); Type: FUNCTION; Schema: public; Owner: -
+-- Name: _chat_conv_of(public.chat_messages, uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public._chat_conv_of(m chat_messages, p_viewer uuid) RETURNS text
+CREATE FUNCTION public._chat_conv_of(m public.chat_messages, p_viewer uuid) RETURNS text
     LANGUAGE sql IMMUTABLE
     AS $$
   select case when m.group_id is not null then 'g:' || m.group_id
@@ -141,10 +141,10 @@ $$;
 
 
 --
--- Name: _chat_preview(chat_messages); Type: FUNCTION; Schema: public; Owner: -
+-- Name: _chat_preview(public.chat_messages); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public._chat_preview(m chat_messages) RETURNS text
+CREATE FUNCTION public._chat_preview(m public.chat_messages) RETURNS text
     LANGUAGE sql IMMUTABLE
     AS $$
   -- Hiç mesaj yoksa (boş satır) önizleme de boş kalır.
@@ -240,7 +240,7 @@ CREATE TABLE public.company_sessions (
 -- Name: _company_session_check(uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public._company_session_check(p_token uuid) RETURNS company_sessions
+CREATE FUNCTION public._company_session_check(p_token uuid) RETURNS public.company_sessions
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public', 'extensions', 'pg_temp'
     AS $$
@@ -454,6 +454,20 @@ $$;
 
 
 --
+-- Name: _mail_layout(text, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public._mail_layout(p_title text, p_body text) RETURNS text
+    LANGUAGE sql IMMUTABLE
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+  select '<div style="font-family:Arial,sans-serif;max-width:520px;margin:0 auto;padding:24px;color:#222;">'
+    || '<h2 style="color:#0e8fa3;margin:0 0 16px;">' || p_title || '</h2>' || p_body
+    || '<p style="color:#888;font-size:12px;margin-top:28px;border-top:1px solid #eee;padding-top:12px;">Peyktan · <a href="https://www.peyktan.com" style="color:#0e8fa3;">peyktan.com</a></p></div>'
+$$;
+
+
+--
 -- Name: _move_addon_out_of_packages(text); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -597,6 +611,18 @@ begin
   if new.status <> 'ready' then new.ready_at := null; end if;
   return new;
 end; $$;
+
+
+--
+-- Name: _phone_key(text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public._phone_key(p text) RETURNS text
+    LANGUAGE sql IMMUTABLE
+    SET search_path TO 'pg_temp'
+    AS $$
+  select nullif(right(regexp_replace(coalesce(p,''), '\D', '', 'g'), 10), '')
+$$;
 
 
 --
@@ -772,10 +798,10 @@ CREATE TABLE public.staff_sessions (
 
 
 --
--- Name: _require_shift(staff_sessions); Type: FUNCTION; Schema: public; Owner: -
+-- Name: _require_shift(public.staff_sessions); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public._require_shift(s staff_sessions) RETURNS void
+CREATE FUNCTION public._require_shift(s public.staff_sessions) RETURNS void
     LANGUAGE plpgsql STABLE SECURITY DEFINER
     SET search_path TO 'public', 'pg_temp'
     AS $$
@@ -878,6 +904,40 @@ end $$;
 
 
 --
+-- Name: _send_expiry_reminders(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public._send_expiry_reminders() RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+declare r record; v_left numeric; v_stage int; v_title text; v_msg text; v_name text;
+begin
+  for r in select id, name, email, expires_at, coalesce(expiry_reminder_stage,0) stage from restaurants
+    where email is not null and expires_at is not null
+      and expires_at between now() - interval '3 days' and now() + interval '7 days' loop
+    v_left := extract(epoch from (r.expires_at - now())) / 86400.0;
+    v_stage := case when v_left <= 0 then 4 when v_left <= 1 then 3 when v_left <= 3 then 2 else 1 end;
+    if v_stage <= r.stage then continue; end if;
+    update restaurants set expiry_reminder_stage = v_stage where id = r.id;
+    v_name := replace(replace(r.name,'<','&lt;'),'>','&gt;');
+    if v_stage = 4 then
+      v_title := 'Peyktan aboneliğiniz sona erdi';
+      v_msg := '<p><b>' || v_name || '</b> için Peyktan kullanım süreniz <b>' || to_char(r.expires_at at time zone 'Europe/Istanbul','DD.MM.YYYY') || '</b> tarihinde sona erdi.</p>'
+        || '<p>Kaldığınız yerden devam etmek için uygulamaya giriş yapıp <b>Ayarlar → Abonelik</b> bölümünden paketinizi yenileyebilirsiniz. Verileriniz korunmaktadır.</p>';
+    else
+      v_title := 'Peyktan aboneliğiniz ' || greatest(1, ceil(v_left))::int || ' gün içinde bitiyor';
+      v_msg := '<p><b>' || v_name || '</b> için Peyktan kullanım süreniz <b>' || to_char(r.expires_at at time zone 'Europe/Istanbul','DD.MM.YYYY HH24:MI') || '</b> tarihinde sona erecek.</p>'
+        || '<p>Kesintisiz kullanım için uygulamada <b>Ayarlar → Abonelik</b> bölümünden paketinizi yenileyebilirsiniz.</p>';
+    end if;
+    perform _send_email(r.email, v_title, _mail_layout(v_title, v_msg
+      || '<p><a href="https://www.peyktan.com/app/" style="display:inline-block;background:#0e8fa3;color:#fff;padding:10px 18px;border-radius:8px;text-decoration:none;">Uygulamaya Git</a></p>'
+      || '<p style="color:#666;font-size:13px;">Sorularınız için: destek@peyktan.com</p>'));
+  end loop;
+end $$;
+
+
+--
 -- Name: _send_reservation_reminders(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -885,14 +945,29 @@ CREATE FUNCTION public._send_reservation_reminders() RETURNS void
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public', 'pg_temp'
     AS $$
-declare rv record;
+declare rv record; v_when text;
 begin
-  for rv in select r.*, rs.name rname from reservations r join restaurants rs on rs.id = r.restaurant_id
-    where r.status = 'confirmed' and r.reminder_sent_at is null and rs.sms_enabled
+  for rv in select r.*, rs.name rname, rs.sms_enabled, rs.phone rphone from reservations r join restaurants rs on rs.id = r.restaurant_id
+    where r.status = 'confirmed' and r.reminder_sent_at is null
+      and ((rs.sms_enabled and r.phone is not null) or r.email is not null)
       and r.reservation_time between now() and now() + interval '2 hours' loop
     update reservations set reminder_sent_at = now() where id = rv.id;
-    perform _send_sms(rv.restaurant_id, rv.phone, rv.rname || ': Hatirlatma - bugun saat ' ||
-      to_char(rv.reservation_time at time zone 'Europe/Istanbul', 'HH24:MI') || ' icin rezervasyonunuz var. Sizi bekliyoruz!', 'reservation_reminder');
+    v_when := to_char(rv.reservation_time at time zone 'Europe/Istanbul', 'DD.MM.YYYY HH24:MI');
+    if rv.sms_enabled and rv.phone is not null then
+      perform _send_sms(rv.restaurant_id, rv.phone, rv.rname || ': Hatirlatma - bugun saat ' ||
+        to_char(rv.reservation_time at time zone 'Europe/Istanbul', 'HH24:MI') || ' icin rezervasyonunuz var. Sizi bekliyoruz!', 'reservation_reminder');
+    end if;
+    if rv.email is not null then
+      perform _send_email(rv.email, rv.rname || ' - Rezervasyon hatırlatması',
+        _mail_layout('Rezervasyonunuzu hatırlatırız',
+          '<p>Merhaba ' || replace(replace(rv.customer_name,'<','&lt;'),'>','&gt;') || ',</p>'
+          || '<p><b>' || replace(replace(rv.rname,'<','&lt;'),'>','&gt;') || '</b> için rezervasyonunuz yaklaşıyor:</p>'
+          || '<table style="border-collapse:collapse;margin:12px 0;font-size:15px;">'
+          || '<tr><td style="padding:4px 14px 4px 0;color:#666;">Tarih / Saat</td><td><b>' || v_when || '</b></td></tr>'
+          || '<tr><td style="padding:4px 14px 4px 0;color:#666;">Kişi</td><td><b>' || rv.party_size || '</b></td></tr></table>'
+          || coalesce('<p>Değişiklik için bizi arayabilirsiniz: <b>' || rv.rphone || '</b></p>', '')
+          || '<p>Sizi bekliyoruz!</p>'));
+    end if;
   end loop;
 end $$;
 
@@ -937,7 +1012,7 @@ end $$;
 -- Name: _session_check(uuid, text); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public._session_check(p_token uuid, p_required_permission text DEFAULT NULL::text) RETURNS staff_sessions
+CREATE FUNCTION public._session_check(p_token uuid, p_required_permission text DEFAULT NULL::text) RETURNS public.staff_sessions
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public', 'extensions', 'pg_temp'
     AS $$
@@ -1006,7 +1081,7 @@ $$;
 -- Name: _session_check_any(uuid, text[]); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public._session_check_any(p_token uuid, p_perms text[]) RETURNS staff_sessions
+CREATE FUNCTION public._session_check_any(p_token uuid, p_perms text[]) RETURNS public.staff_sessions
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public', 'extensions', 'pg_temp'
     AS $$
@@ -1071,6 +1146,22 @@ begin
     select name into v_name from restaurants where id = new.restaurant_id;
     perform _send_sms(new.restaurant_id, new.phone, v_name || ': ' || to_char(new.reservation_time at time zone 'Europe/Istanbul', 'DD.MM.YYYY HH24:MI') ||
       ' tarihli ' || new.party_size || ' kisilik rezervasyonunuz onaylandi.', 'reservation_confirm');
+  end if;
+  return new;
+end $$;
+
+
+--
+-- Name: _trg_reset_expiry_reminder(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public._trg_reset_expiry_reminder() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+begin
+  if new.expires_at is distinct from old.expires_at and (old.expires_at is null or new.expires_at > old.expires_at) then
+    new.expiry_reminder_stage := null;
   end if;
   return new;
 end $$;
@@ -1582,6 +1673,24 @@ $$;
 
 
 --
+-- Name: admin_list_support_emails(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.admin_list_support_emails(p_token uuid) RETURNS json
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'extensions', 'pg_temp'
+    AS $$
+begin
+  perform _platform_admin_check(p_token);
+  return json_build_object(
+    'unread', (select count(*) from support_emails where not is_read),
+    'secret', (select value from platform_settings where key = 'support_inbound_secret'),
+    'items', (select coalesce(json_agg(t order by t.received_at desc), '[]'::json) from (
+      select id, from_addr, from_name, to_addr, subject, body, received_at, is_read from support_emails order by received_at desc limit 200) t));
+end; $$;
+
+
+--
 -- Name: admin_list_target_entitlements(uuid, text, uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -1600,6 +1709,20 @@ begin
   return v_result;
 end;
 $$;
+
+
+--
+-- Name: admin_mark_support_email(uuid, bigint, boolean); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.admin_mark_support_email(p_token uuid, p_id bigint, p_read boolean DEFAULT true) RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'extensions', 'pg_temp'
+    AS $$
+begin
+  perform _platform_admin_check(p_token);
+  update support_emails set is_read = coalesce(p_read, true) where id = p_id;
+end; $$;
 
 
 --
@@ -1844,6 +1967,20 @@ begin
     insert into platform_settings (key, value) values ('sms_password', p_password) on conflict (key) do update set value = excluded.value;
   end if;
 end $$;
+
+
+--
+-- Name: admin_support_unread_count(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.admin_support_unread_count(p_token uuid) RETURNS integer
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'extensions', 'pg_temp'
+    AS $$
+begin
+  perform _platform_admin_check(p_token);
+  return (select count(*) from support_emails where not is_read);
+end; $$;
 
 
 --
@@ -3204,18 +3341,19 @@ begin
         coalesce(cu.spend_per_point, r.loyalty_spend_per_point) as spend_per_point,
         coalesce(cu.point_value, r.loyalty_point_value) as point_value,
         coalesce(cu.birthday_discount_percent, r.birthday_discount_percent) as birthday_discount_percent,
-        (cu.spend_per_point is not null or cu.point_value is not null or cu.birthday_discount_percent is not null) as custom_loyalty, -- eff_
-
+        (cu.spend_per_point is not null or cu.point_value is not null or cu.birthday_discount_percent is not null) as custom_loyalty,
         (cu.birthday is not null
           and extract(month from cu.birthday) = extract(month from (now() at time zone 'Europe/Istanbul'))
           and extract(day from cu.birthday) = extract(day from (now() at time zone 'Europe/Istanbul'))
         ) as is_birthday_today
-      from customers cu join restaurants r on r.id = cu.restaurant_id where cu.restaurant_id = s.restaurant_id and cu.phone = p_phone
+      from customers cu join restaurants r on r.id = cu.restaurant_id
+      where cu.restaurant_id = s.restaurant_id
+        and (cu.phone = p_phone or (length(_phone_key(p_phone)) = 10 and _phone_key(cu.phone) = _phone_key(p_phone)))
+      order by (cu.phone = p_phone) desc, cu.last_visit_at desc nulls last
       limit 1
     ) c
   );
-end;
-$$;
+end; $$;
 
 
 --
@@ -3523,6 +3661,25 @@ begin
   );
 end;
 $$;
+
+
+--
+-- Name: get_public_order_stock(text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.get_public_order_stock(p_restaurant_code text) RETURNS json
+    LANGUAGE plpgsql STABLE SECURITY DEFINER
+    SET search_path TO 'public', 'extensions', 'pg_temp'
+    AS $$
+declare v_restaurant restaurants%rowtype;
+begin
+  select * into v_restaurant from restaurants where code = p_restaurant_code;
+  if v_restaurant.id is null or not coalesce(v_restaurant.is_active, false) or not coalesce(v_restaurant.online_ordering_enabled, false) then
+    return null;
+  end if;
+  return (select coalesce(json_object_agg(p.id, _product_public_qty(p.id)), '{}'::json)
+    from products p where p.restaurant_id = v_restaurant.id and p.available = true);
+end; $$;
 
 
 --
@@ -3919,6 +4076,24 @@ begin
   );
 end;
 $$;
+
+
+--
+-- Name: ingest_support_email(text, text, text, text, text, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.ingest_support_email(p_secret text, p_from text, p_from_name text, p_to text, p_subject text, p_body text) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'extensions', 'pg_temp'
+    AS $$
+declare v_secret text;
+begin
+  select value into v_secret from platform_settings where key = 'support_inbound_secret';
+  if v_secret is null or p_secret is distinct from v_secret then raise exception 'Yetkisiz'; end if;
+  insert into support_emails(from_addr, from_name, to_addr, subject, body)
+  values (left(coalesce(p_from,''),200), left(p_from_name,200), left(p_to,200), left(p_subject,500), left(p_body,20000));
+  return true;
+end; $$;
 
 
 --
@@ -4361,7 +4536,7 @@ begin
   return (
     select coalesce(json_agg(row_to_json(r) order by r.reservation_time), '[]'::json)
     from (
-      select rv.id, rv.customer_name, rv.phone, rv.party_size, rv.reservation_time, rv.table_id, rv.status, rv.notes,
+      select rv.id, rv.customer_name, rv.phone, rv.email, rv.party_size, rv.reservation_time, rv.table_id, rv.status, rv.notes,
              rt.name as table_name
       from reservations rv left join restaurant_tables rt on rt.id = rv.table_id
       where rv.restaurant_id = s.restaurant_id
@@ -4373,8 +4548,7 @@ begin
         )
     ) r
   );
-end;
-$$;
+end; $$;
 
 
 --
@@ -7365,34 +7539,35 @@ $$;
 
 
 --
--- Name: upsert_reservation(uuid, uuid, text, text, integer, timestamp with time zone, uuid, text); Type: FUNCTION; Schema: public; Owner: -
+-- Name: upsert_reservation(uuid, uuid, text, text, integer, timestamp with time zone, uuid, text, text); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.upsert_reservation(p_token uuid, p_id uuid, p_customer_name text, p_phone text, p_party_size integer, p_reservation_time timestamp with time zone, p_table_id uuid, p_notes text) RETURNS uuid
+CREATE FUNCTION public.upsert_reservation(p_token uuid, p_id uuid, p_customer_name text, p_phone text, p_party_size integer, p_reservation_time timestamp with time zone, p_table_id uuid, p_notes text, p_email text DEFAULT NULL::text) RETURNS uuid
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public', 'extensions', 'pg_temp'
-    AS $$
-declare s staff_sessions%rowtype; v_id uuid;
+    AS $_$
+declare s staff_sessions%rowtype; v_id uuid; v_email text := nullif(lower(trim(coalesce(p_email,''))),'');
 begin
   s := _session_check(p_token, 'reservations');
   if p_customer_name is null or trim(p_customer_name) = '' then raise exception 'Müşteri adı gerekli'; end if;
   if p_reservation_time is null then raise exception 'Rezervasyon zamanı gerekli'; end if;
+  if v_email is not null and (length(v_email) > 120 or v_email !~ '^[^@\s]+@[^@\s]+\.[^@\s]+$') then raise exception 'Geçersiz e-posta'; end if;
   if p_table_id is not null and not exists(select 1 from restaurant_tables rt where rt.id = p_table_id and rt.restaurant_id = s.restaurant_id) then
     raise exception 'Geçersiz masa';
   end if;
   if p_id is null then
-    insert into reservations (restaurant_id, customer_name, phone, party_size, reservation_time, table_id, notes)
-    values (s.restaurant_id, trim(p_customer_name), p_phone, coalesce(p_party_size,2), p_reservation_time, p_table_id, p_notes)
+    insert into reservations (restaurant_id, customer_name, phone, email, party_size, reservation_time, table_id, notes)
+    values (s.restaurant_id, trim(p_customer_name), p_phone, v_email, coalesce(p_party_size,2), p_reservation_time, p_table_id, p_notes)
     returning id into v_id;
   else
-    update reservations set customer_name = trim(p_customer_name), phone = p_phone, party_size = coalesce(p_party_size,2),
-      reservation_time = p_reservation_time, table_id = p_table_id, notes = p_notes
+    update reservations set customer_name = trim(p_customer_name), phone = p_phone, email = v_email, party_size = coalesce(p_party_size,2),
+      reservation_time = p_reservation_time, table_id = p_table_id, notes = p_notes,
+      reminder_sent_at = case when reservation_time is distinct from p_reservation_time then null else reminder_sent_at end
     where id = p_id and restaurant_id = s.restaurant_id;
     v_id := p_id;
   end if;
   return v_id;
-end;
-$$;
+end; $_$;
 
 
 --
@@ -8562,7 +8737,8 @@ CREATE TABLE public.reservations (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     reminder_sent_at timestamp with time zone,
     seated_at timestamp with time zone,
-    closed_at timestamp with time zone
+    closed_at timestamp with time zone,
+    email text
 );
 
 
@@ -8624,7 +8800,8 @@ CREATE TABLE public.restaurants (
     invoice_address text,
     sms_enabled boolean DEFAULT false NOT NULL,
     shift_approval_required boolean DEFAULT true NOT NULL,
-    shift_required boolean DEFAULT false NOT NULL
+    shift_required boolean DEFAULT false NOT NULL,
+    expiry_reminder_stage integer
 );
 
 
@@ -8774,6 +8951,41 @@ CREATE TABLE public.suppliers (
 
 
 --
+-- Name: support_emails; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.support_emails (
+    id bigint NOT NULL,
+    from_addr text NOT NULL,
+    from_name text,
+    to_addr text,
+    subject text,
+    body text,
+    received_at timestamp with time zone DEFAULT now() NOT NULL,
+    is_read boolean DEFAULT false NOT NULL
+);
+
+
+--
+-- Name: support_emails_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.support_emails_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: support_emails_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.support_emails_id_seq OWNED BY public.support_emails.id;
+
+
+--
 -- Name: waiter_calls; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -8844,28 +9056,35 @@ CREATE TABLE public.zones (
 -- Name: client_errors id; Type: DEFAULT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.client_errors ALTER COLUMN id SET DEFAULT nextval('client_errors_id_seq'::regclass);
+ALTER TABLE ONLY public.client_errors ALTER COLUMN id SET DEFAULT nextval('public.client_errors_id_seq'::regclass);
 
 
 --
 -- Name: login_failures id; Type: DEFAULT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.login_failures ALTER COLUMN id SET DEFAULT nextval('login_failures_id_seq'::regclass);
+ALTER TABLE ONLY public.login_failures ALTER COLUMN id SET DEFAULT nextval('public.login_failures_id_seq'::regclass);
 
 
 --
 -- Name: rate_limit_events id; Type: DEFAULT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.rate_limit_events ALTER COLUMN id SET DEFAULT nextval('rate_limit_events_id_seq'::regclass);
+ALTER TABLE ONLY public.rate_limit_events ALTER COLUMN id SET DEFAULT nextval('public.rate_limit_events_id_seq'::regclass);
 
 
 --
 -- Name: sms_outbox id; Type: DEFAULT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.sms_outbox ALTER COLUMN id SET DEFAULT nextval('sms_outbox_id_seq'::regclass);
+ALTER TABLE ONLY public.sms_outbox ALTER COLUMN id SET DEFAULT nextval('public.sms_outbox_id_seq'::regclass);
+
+
+--
+-- Name: support_emails id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.support_emails ALTER COLUMN id SET DEFAULT nextval('public.support_emails_id_seq'::regclass);
 
 
 --
@@ -9525,6 +9744,14 @@ ALTER TABLE ONLY public.suppliers
 
 
 --
+-- Name: support_emails support_emails_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.support_emails
+    ADD CONSTRAINT support_emails_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: waiter_calls waiter_calls_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -10150,224 +10377,231 @@ CREATE INDEX waiter_calls_pending ON public.waiter_calls USING btree (restaurant
 -- Name: app_users trg_bump_dv; Type: TRIGGER; Schema: public; Owner: -
 --
 
-CREATE TRIGGER trg_bump_dv AFTER INSERT OR DELETE OR UPDATE ON public.app_users FOR EACH ROW EXECUTE FUNCTION _bump_data_version();
+CREATE TRIGGER trg_bump_dv AFTER INSERT OR DELETE OR UPDATE ON public.app_users FOR EACH ROW EXECUTE FUNCTION public._bump_data_version();
 
 
 --
 -- Name: chat_group_members trg_bump_dv; Type: TRIGGER; Schema: public; Owner: -
 --
 
-CREATE TRIGGER trg_bump_dv AFTER INSERT OR DELETE OR UPDATE ON public.chat_group_members FOR EACH ROW EXECUTE FUNCTION _bump_data_version();
+CREATE TRIGGER trg_bump_dv AFTER INSERT OR DELETE OR UPDATE ON public.chat_group_members FOR EACH ROW EXECUTE FUNCTION public._bump_data_version();
 
 
 --
 -- Name: chat_groups trg_bump_dv; Type: TRIGGER; Schema: public; Owner: -
 --
 
-CREATE TRIGGER trg_bump_dv AFTER INSERT OR DELETE OR UPDATE ON public.chat_groups FOR EACH ROW EXECUTE FUNCTION _bump_data_version();
+CREATE TRIGGER trg_bump_dv AFTER INSERT OR DELETE OR UPDATE ON public.chat_groups FOR EACH ROW EXECUTE FUNCTION public._bump_data_version();
 
 
 --
 -- Name: chat_messages trg_bump_dv; Type: TRIGGER; Schema: public; Owner: -
 --
 
-CREATE TRIGGER trg_bump_dv AFTER INSERT OR DELETE OR UPDATE ON public.chat_messages FOR EACH ROW EXECUTE FUNCTION _bump_data_version();
+CREATE TRIGGER trg_bump_dv AFTER INSERT OR DELETE OR UPDATE ON public.chat_messages FOR EACH ROW EXECUTE FUNCTION public._bump_data_version();
 
 
 --
 -- Name: chat_reactions trg_bump_dv; Type: TRIGGER; Schema: public; Owner: -
 --
 
-CREATE TRIGGER trg_bump_dv AFTER INSERT OR DELETE OR UPDATE ON public.chat_reactions FOR EACH ROW EXECUTE FUNCTION _bump_data_version();
+CREATE TRIGGER trg_bump_dv AFTER INSERT OR DELETE OR UPDATE ON public.chat_reactions FOR EACH ROW EXECUTE FUNCTION public._bump_data_version();
 
 
 --
 -- Name: chat_reads trg_bump_dv; Type: TRIGGER; Schema: public; Owner: -
 --
 
-CREATE TRIGGER trg_bump_dv AFTER INSERT OR UPDATE ON public.chat_reads FOR EACH ROW EXECUTE FUNCTION _bump_data_version();
+CREATE TRIGGER trg_bump_dv AFTER INSERT OR UPDATE ON public.chat_reads FOR EACH ROW EXECUTE FUNCTION public._bump_data_version();
 
 
 --
 -- Name: chat_view_once trg_bump_dv; Type: TRIGGER; Schema: public; Owner: -
 --
 
-CREATE TRIGGER trg_bump_dv AFTER INSERT OR DELETE OR UPDATE ON public.chat_view_once FOR EACH ROW EXECUTE FUNCTION _bump_data_version();
+CREATE TRIGGER trg_bump_dv AFTER INSERT OR DELETE OR UPDATE ON public.chat_view_once FOR EACH ROW EXECUTE FUNCTION public._bump_data_version();
 
 
 --
 -- Name: customer_order_requests trg_bump_dv; Type: TRIGGER; Schema: public; Owner: -
 --
 
-CREATE TRIGGER trg_bump_dv AFTER INSERT OR DELETE OR UPDATE ON public.customer_order_requests FOR EACH ROW EXECUTE FUNCTION _bump_data_version();
+CREATE TRIGGER trg_bump_dv AFTER INSERT OR DELETE OR UPDATE ON public.customer_order_requests FOR EACH ROW EXECUTE FUNCTION public._bump_data_version();
 
 
 --
 -- Name: customers trg_bump_dv; Type: TRIGGER; Schema: public; Owner: -
 --
 
-CREATE TRIGGER trg_bump_dv AFTER INSERT OR DELETE OR UPDATE ON public.customers FOR EACH ROW EXECUTE FUNCTION _bump_data_version();
+CREATE TRIGGER trg_bump_dv AFTER INSERT OR DELETE OR UPDATE ON public.customers FOR EACH ROW EXECUTE FUNCTION public._bump_data_version();
 
 
 --
 -- Name: gift_cards trg_bump_dv; Type: TRIGGER; Schema: public; Owner: -
 --
 
-CREATE TRIGGER trg_bump_dv AFTER INSERT OR DELETE OR UPDATE ON public.gift_cards FOR EACH ROW EXECUTE FUNCTION _bump_data_version();
+CREATE TRIGGER trg_bump_dv AFTER INSERT OR DELETE OR UPDATE ON public.gift_cards FOR EACH ROW EXECUTE FUNCTION public._bump_data_version();
 
 
 --
 -- Name: ingredients trg_bump_dv; Type: TRIGGER; Schema: public; Owner: -
 --
 
-CREATE TRIGGER trg_bump_dv AFTER INSERT OR DELETE OR UPDATE ON public.ingredients FOR EACH ROW EXECUTE FUNCTION _bump_data_version();
+CREATE TRIGGER trg_bump_dv AFTER INSERT OR DELETE OR UPDATE ON public.ingredients FOR EACH ROW EXECUTE FUNCTION public._bump_data_version();
 
 
 --
 -- Name: open_account_entries trg_bump_dv; Type: TRIGGER; Schema: public; Owner: -
 --
 
-CREATE TRIGGER trg_bump_dv AFTER INSERT ON public.open_account_entries FOR EACH ROW EXECUTE FUNCTION _bump_data_version();
+CREATE TRIGGER trg_bump_dv AFTER INSERT ON public.open_account_entries FOR EACH ROW EXECUTE FUNCTION public._bump_data_version();
 
 
 --
 -- Name: order_items trg_bump_dv; Type: TRIGGER; Schema: public; Owner: -
 --
 
-CREATE TRIGGER trg_bump_dv AFTER INSERT OR DELETE OR UPDATE ON public.order_items FOR EACH ROW EXECUTE FUNCTION _bump_data_version();
+CREATE TRIGGER trg_bump_dv AFTER INSERT OR DELETE OR UPDATE ON public.order_items FOR EACH ROW EXECUTE FUNCTION public._bump_data_version();
 
 
 --
 -- Name: orders trg_bump_dv; Type: TRIGGER; Schema: public; Owner: -
 --
 
-CREATE TRIGGER trg_bump_dv AFTER INSERT OR DELETE OR UPDATE ON public.orders FOR EACH ROW EXECUTE FUNCTION _bump_data_version();
+CREATE TRIGGER trg_bump_dv AFTER INSERT OR DELETE OR UPDATE ON public.orders FOR EACH ROW EXECUTE FUNCTION public._bump_data_version();
 
 
 --
 -- Name: products trg_bump_dv; Type: TRIGGER; Schema: public; Owner: -
 --
 
-CREATE TRIGGER trg_bump_dv AFTER INSERT OR DELETE OR UPDATE ON public.products FOR EACH ROW EXECUTE FUNCTION _bump_data_version();
+CREATE TRIGGER trg_bump_dv AFTER INSERT OR DELETE OR UPDATE ON public.products FOR EACH ROW EXECUTE FUNCTION public._bump_data_version();
 
 
 --
 -- Name: purchase_order_items trg_bump_dv; Type: TRIGGER; Schema: public; Owner: -
 --
 
-CREATE TRIGGER trg_bump_dv AFTER INSERT OR DELETE OR UPDATE ON public.purchase_order_items FOR EACH ROW EXECUTE FUNCTION _bump_data_version();
+CREATE TRIGGER trg_bump_dv AFTER INSERT OR DELETE OR UPDATE ON public.purchase_order_items FOR EACH ROW EXECUTE FUNCTION public._bump_data_version();
 
 
 --
 -- Name: purchase_orders trg_bump_dv; Type: TRIGGER; Schema: public; Owner: -
 --
 
-CREATE TRIGGER trg_bump_dv AFTER INSERT OR DELETE OR UPDATE ON public.purchase_orders FOR EACH ROW EXECUTE FUNCTION _bump_data_version();
+CREATE TRIGGER trg_bump_dv AFTER INSERT OR DELETE OR UPDATE ON public.purchase_orders FOR EACH ROW EXECUTE FUNCTION public._bump_data_version();
 
 
 --
 -- Name: reservations trg_bump_dv; Type: TRIGGER; Schema: public; Owner: -
 --
 
-CREATE TRIGGER trg_bump_dv AFTER INSERT OR DELETE OR UPDATE ON public.reservations FOR EACH ROW EXECUTE FUNCTION _bump_data_version();
+CREATE TRIGGER trg_bump_dv AFTER INSERT OR DELETE OR UPDATE ON public.reservations FOR EACH ROW EXECUTE FUNCTION public._bump_data_version();
 
 
 --
 -- Name: restaurant_tables trg_bump_dv; Type: TRIGGER; Schema: public; Owner: -
 --
 
-CREATE TRIGGER trg_bump_dv AFTER INSERT OR DELETE OR UPDATE ON public.restaurant_tables FOR EACH ROW EXECUTE FUNCTION _bump_data_version();
+CREATE TRIGGER trg_bump_dv AFTER INSERT OR DELETE OR UPDATE ON public.restaurant_tables FOR EACH ROW EXECUTE FUNCTION public._bump_data_version();
 
 
 --
 -- Name: roles trg_bump_dv; Type: TRIGGER; Schema: public; Owner: -
 --
 
-CREATE TRIGGER trg_bump_dv AFTER INSERT OR DELETE OR UPDATE ON public.roles FOR EACH ROW EXECUTE FUNCTION _bump_data_version();
+CREATE TRIGGER trg_bump_dv AFTER INSERT OR DELETE OR UPDATE ON public.roles FOR EACH ROW EXECUTE FUNCTION public._bump_data_version();
 
 
 --
 -- Name: sales_history trg_bump_dv; Type: TRIGGER; Schema: public; Owner: -
 --
 
-CREATE TRIGGER trg_bump_dv AFTER INSERT OR DELETE OR UPDATE ON public.sales_history FOR EACH ROW EXECUTE FUNCTION _bump_data_version();
+CREATE TRIGGER trg_bump_dv AFTER INSERT OR DELETE OR UPDATE ON public.sales_history FOR EACH ROW EXECUTE FUNCTION public._bump_data_version();
 
 
 --
 -- Name: staff_shifts trg_bump_dv; Type: TRIGGER; Schema: public; Owner: -
 --
 
-CREATE TRIGGER trg_bump_dv AFTER INSERT OR DELETE OR UPDATE ON public.staff_shifts FOR EACH ROW EXECUTE FUNCTION _bump_data_version();
+CREATE TRIGGER trg_bump_dv AFTER INSERT OR DELETE OR UPDATE ON public.staff_shifts FOR EACH ROW EXECUTE FUNCTION public._bump_data_version();
 
 
 --
 -- Name: stations trg_bump_dv; Type: TRIGGER; Schema: public; Owner: -
 --
 
-CREATE TRIGGER trg_bump_dv AFTER INSERT OR DELETE OR UPDATE ON public.stations FOR EACH ROW EXECUTE FUNCTION _bump_data_version();
+CREATE TRIGGER trg_bump_dv AFTER INSERT OR DELETE OR UPDATE ON public.stations FOR EACH ROW EXECUTE FUNCTION public._bump_data_version();
 
 
 --
 -- Name: suppliers trg_bump_dv; Type: TRIGGER; Schema: public; Owner: -
 --
 
-CREATE TRIGGER trg_bump_dv AFTER INSERT OR DELETE OR UPDATE ON public.suppliers FOR EACH ROW EXECUTE FUNCTION _bump_data_version();
+CREATE TRIGGER trg_bump_dv AFTER INSERT OR DELETE OR UPDATE ON public.suppliers FOR EACH ROW EXECUTE FUNCTION public._bump_data_version();
 
 
 --
 -- Name: waiter_calls trg_bump_dv; Type: TRIGGER; Schema: public; Owner: -
 --
 
-CREATE TRIGGER trg_bump_dv AFTER INSERT OR DELETE OR UPDATE ON public.waiter_calls FOR EACH ROW EXECUTE FUNCTION _bump_data_version();
+CREATE TRIGGER trg_bump_dv AFTER INSERT OR DELETE OR UPDATE ON public.waiter_calls FOR EACH ROW EXECUTE FUNCTION public._bump_data_version();
 
 
 --
 -- Name: waitlist_entries trg_bump_dv; Type: TRIGGER; Schema: public; Owner: -
 --
 
-CREATE TRIGGER trg_bump_dv AFTER INSERT OR DELETE OR UPDATE ON public.waitlist_entries FOR EACH ROW EXECUTE FUNCTION _bump_data_version();
+CREATE TRIGGER trg_bump_dv AFTER INSERT OR DELETE OR UPDATE ON public.waitlist_entries FOR EACH ROW EXECUTE FUNCTION public._bump_data_version();
 
 
 --
 -- Name: waste_log trg_bump_dv; Type: TRIGGER; Schema: public; Owner: -
 --
 
-CREATE TRIGGER trg_bump_dv AFTER INSERT OR DELETE OR UPDATE ON public.waste_log FOR EACH ROW EXECUTE FUNCTION _bump_data_version();
+CREATE TRIGGER trg_bump_dv AFTER INSERT OR DELETE OR UPDATE ON public.waste_log FOR EACH ROW EXECUTE FUNCTION public._bump_data_version();
 
 
 --
 -- Name: zones trg_bump_dv; Type: TRIGGER; Schema: public; Owner: -
 --
 
-CREATE TRIGGER trg_bump_dv AFTER INSERT OR DELETE OR UPDATE ON public.zones FOR EACH ROW EXECUTE FUNCTION _bump_data_version();
+CREATE TRIGGER trg_bump_dv AFTER INSERT OR DELETE OR UPDATE ON public.zones FOR EACH ROW EXECUTE FUNCTION public._bump_data_version();
 
 
 --
 -- Name: order_items trg_order_item_ready_at; Type: TRIGGER; Schema: public; Owner: -
 --
 
-CREATE TRIGGER trg_order_item_ready_at BEFORE INSERT OR UPDATE OF status ON public.order_items FOR EACH ROW EXECUTE FUNCTION _order_item_ready_at();
+CREATE TRIGGER trg_order_item_ready_at BEFORE INSERT OR UPDATE OF status ON public.order_items FOR EACH ROW EXECUTE FUNCTION public._order_item_ready_at();
 
 
 --
 -- Name: restaurants trg_record_deleted_restaurant; Type: TRIGGER; Schema: public; Owner: -
 --
 
-CREATE TRIGGER trg_record_deleted_restaurant BEFORE DELETE ON public.restaurants FOR EACH ROW EXECUTE FUNCTION _record_deleted_restaurant();
+CREATE TRIGGER trg_record_deleted_restaurant BEFORE DELETE ON public.restaurants FOR EACH ROW EXECUTE FUNCTION public._record_deleted_restaurant();
 
 
 --
 -- Name: reservations trg_reservation_sms; Type: TRIGGER; Schema: public; Owner: -
 --
 
-CREATE TRIGGER trg_reservation_sms AFTER UPDATE OF status ON public.reservations FOR EACH ROW EXECUTE FUNCTION _trg_reservation_sms();
+CREATE TRIGGER trg_reservation_sms AFTER UPDATE OF status ON public.reservations FOR EACH ROW EXECUTE FUNCTION public._trg_reservation_sms();
+
+
+--
+-- Name: restaurants trg_reset_expiry_reminder; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_reset_expiry_reminder BEFORE UPDATE OF expires_at ON public.restaurants FOR EACH ROW EXECUTE FUNCTION public._trg_reset_expiry_reminder();
 
 
 --
 -- Name: order_items trg_takeaway_ready_sms; Type: TRIGGER; Schema: public; Owner: -
 --
 
-CREATE TRIGGER trg_takeaway_ready_sms AFTER UPDATE OF status ON public.order_items FOR EACH ROW EXECUTE FUNCTION _trg_takeaway_ready_sms();
+CREATE TRIGGER trg_takeaway_ready_sms AFTER UPDATE OF status ON public.order_items FOR EACH ROW EXECUTE FUNCTION public._trg_takeaway_ready_sms();
 
 
 --
@@ -10375,7 +10609,7 @@ CREATE TRIGGER trg_takeaway_ready_sms AFTER UPDATE OF status ON public.order_ite
 --
 
 ALTER TABLE ONLY public.app_users
-    ADD CONSTRAINT app_users_restaurant_id_fkey FOREIGN KEY (restaurant_id) REFERENCES restaurants(id) ON DELETE CASCADE;
+    ADD CONSTRAINT app_users_restaurant_id_fkey FOREIGN KEY (restaurant_id) REFERENCES public.restaurants(id) ON DELETE CASCADE;
 
 
 --
@@ -10383,7 +10617,7 @@ ALTER TABLE ONLY public.app_users
 --
 
 ALTER TABLE ONLY public.bank_transfer_notices
-    ADD CONSTRAINT bank_transfer_notices_company_id_fkey FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE;
+    ADD CONSTRAINT bank_transfer_notices_company_id_fkey FOREIGN KEY (company_id) REFERENCES public.companies(id) ON DELETE CASCADE;
 
 
 --
@@ -10391,7 +10625,7 @@ ALTER TABLE ONLY public.bank_transfer_notices
 --
 
 ALTER TABLE ONLY public.bank_transfer_notices
-    ADD CONSTRAINT bank_transfer_notices_restaurant_id_fkey FOREIGN KEY (restaurant_id) REFERENCES restaurants(id) ON DELETE CASCADE;
+    ADD CONSTRAINT bank_transfer_notices_restaurant_id_fkey FOREIGN KEY (restaurant_id) REFERENCES public.restaurants(id) ON DELETE CASCADE;
 
 
 --
@@ -10399,7 +10633,7 @@ ALTER TABLE ONLY public.bank_transfer_notices
 --
 
 ALTER TABLE ONLY public.bank_transfer_notices
-    ADD CONSTRAINT bank_transfer_notices_reviewed_by_fkey FOREIGN KEY (reviewed_by) REFERENCES platform_admins(id);
+    ADD CONSTRAINT bank_transfer_notices_reviewed_by_fkey FOREIGN KEY (reviewed_by) REFERENCES public.platform_admins(id);
 
 
 --
@@ -10407,7 +10641,7 @@ ALTER TABLE ONLY public.bank_transfer_notices
 --
 
 ALTER TABLE ONLY public.chat_group_members
-    ADD CONSTRAINT chat_group_members_group_id_fkey FOREIGN KEY (group_id) REFERENCES chat_groups(id) ON DELETE CASCADE;
+    ADD CONSTRAINT chat_group_members_group_id_fkey FOREIGN KEY (group_id) REFERENCES public.chat_groups(id) ON DELETE CASCADE;
 
 
 --
@@ -10415,7 +10649,7 @@ ALTER TABLE ONLY public.chat_group_members
 --
 
 ALTER TABLE ONLY public.chat_group_members
-    ADD CONSTRAINT chat_group_members_user_id_fkey FOREIGN KEY (user_id) REFERENCES app_users(id) ON DELETE CASCADE;
+    ADD CONSTRAINT chat_group_members_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.app_users(id) ON DELETE CASCADE;
 
 
 --
@@ -10423,7 +10657,7 @@ ALTER TABLE ONLY public.chat_group_members
 --
 
 ALTER TABLE ONLY public.chat_groups
-    ADD CONSTRAINT chat_groups_created_by_fkey FOREIGN KEY (created_by) REFERENCES app_users(id) ON DELETE SET NULL;
+    ADD CONSTRAINT chat_groups_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.app_users(id) ON DELETE SET NULL;
 
 
 --
@@ -10431,7 +10665,7 @@ ALTER TABLE ONLY public.chat_groups
 --
 
 ALTER TABLE ONLY public.chat_groups
-    ADD CONSTRAINT chat_groups_restaurant_id_fkey FOREIGN KEY (restaurant_id) REFERENCES restaurants(id);
+    ADD CONSTRAINT chat_groups_restaurant_id_fkey FOREIGN KEY (restaurant_id) REFERENCES public.restaurants(id);
 
 
 --
@@ -10439,7 +10673,7 @@ ALTER TABLE ONLY public.chat_groups
 --
 
 ALTER TABLE ONLY public.chat_messages
-    ADD CONSTRAINT chat_messages_group_id_fkey FOREIGN KEY (group_id) REFERENCES chat_groups(id) ON DELETE CASCADE;
+    ADD CONSTRAINT chat_messages_group_id_fkey FOREIGN KEY (group_id) REFERENCES public.chat_groups(id) ON DELETE CASCADE;
 
 
 --
@@ -10447,7 +10681,7 @@ ALTER TABLE ONLY public.chat_messages
 --
 
 ALTER TABLE ONLY public.chat_messages
-    ADD CONSTRAINT chat_messages_recipient_id_fkey FOREIGN KEY (recipient_id) REFERENCES app_users(id) ON DELETE CASCADE;
+    ADD CONSTRAINT chat_messages_recipient_id_fkey FOREIGN KEY (recipient_id) REFERENCES public.app_users(id) ON DELETE CASCADE;
 
 
 --
@@ -10455,7 +10689,7 @@ ALTER TABLE ONLY public.chat_messages
 --
 
 ALTER TABLE ONLY public.chat_messages
-    ADD CONSTRAINT chat_messages_reply_to_fkey FOREIGN KEY (reply_to) REFERENCES chat_messages(id) ON DELETE SET NULL;
+    ADD CONSTRAINT chat_messages_reply_to_fkey FOREIGN KEY (reply_to) REFERENCES public.chat_messages(id) ON DELETE SET NULL;
 
 
 --
@@ -10463,7 +10697,7 @@ ALTER TABLE ONLY public.chat_messages
 --
 
 ALTER TABLE ONLY public.chat_messages
-    ADD CONSTRAINT chat_messages_restaurant_id_fkey FOREIGN KEY (restaurant_id) REFERENCES restaurants(id);
+    ADD CONSTRAINT chat_messages_restaurant_id_fkey FOREIGN KEY (restaurant_id) REFERENCES public.restaurants(id);
 
 
 --
@@ -10471,7 +10705,7 @@ ALTER TABLE ONLY public.chat_messages
 --
 
 ALTER TABLE ONLY public.chat_messages
-    ADD CONSTRAINT chat_messages_sender_id_fkey FOREIGN KEY (sender_id) REFERENCES app_users(id) ON DELETE CASCADE;
+    ADD CONSTRAINT chat_messages_sender_id_fkey FOREIGN KEY (sender_id) REFERENCES public.app_users(id) ON DELETE CASCADE;
 
 
 --
@@ -10479,7 +10713,7 @@ ALTER TABLE ONLY public.chat_messages
 --
 
 ALTER TABLE ONLY public.chat_reactions
-    ADD CONSTRAINT chat_reactions_message_id_fkey FOREIGN KEY (message_id) REFERENCES chat_messages(id) ON DELETE CASCADE;
+    ADD CONSTRAINT chat_reactions_message_id_fkey FOREIGN KEY (message_id) REFERENCES public.chat_messages(id) ON DELETE CASCADE;
 
 
 --
@@ -10487,7 +10721,7 @@ ALTER TABLE ONLY public.chat_reactions
 --
 
 ALTER TABLE ONLY public.chat_reactions
-    ADD CONSTRAINT chat_reactions_user_id_fkey FOREIGN KEY (user_id) REFERENCES app_users(id) ON DELETE CASCADE;
+    ADD CONSTRAINT chat_reactions_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.app_users(id) ON DELETE CASCADE;
 
 
 --
@@ -10495,7 +10729,7 @@ ALTER TABLE ONLY public.chat_reactions
 --
 
 ALTER TABLE ONLY public.chat_reads
-    ADD CONSTRAINT chat_reads_user_id_fkey FOREIGN KEY (user_id) REFERENCES app_users(id) ON DELETE CASCADE;
+    ADD CONSTRAINT chat_reads_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.app_users(id) ON DELETE CASCADE;
 
 
 --
@@ -10503,7 +10737,7 @@ ALTER TABLE ONLY public.chat_reads
 --
 
 ALTER TABLE ONLY public.chat_view_once
-    ADD CONSTRAINT chat_view_once_message_id_fkey FOREIGN KEY (message_id) REFERENCES chat_messages(id) ON DELETE CASCADE;
+    ADD CONSTRAINT chat_view_once_message_id_fkey FOREIGN KEY (message_id) REFERENCES public.chat_messages(id) ON DELETE CASCADE;
 
 
 --
@@ -10511,7 +10745,7 @@ ALTER TABLE ONLY public.chat_view_once
 --
 
 ALTER TABLE ONLY public.chat_view_once
-    ADD CONSTRAINT chat_view_once_user_id_fkey FOREIGN KEY (user_id) REFERENCES app_users(id) ON DELETE CASCADE;
+    ADD CONSTRAINT chat_view_once_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.app_users(id) ON DELETE CASCADE;
 
 
 --
@@ -10519,7 +10753,7 @@ ALTER TABLE ONLY public.chat_view_once
 --
 
 ALTER TABLE ONLY public.companies
-    ADD CONSTRAINT companies_package_id_fkey FOREIGN KEY (package_id) REFERENCES packages(id);
+    ADD CONSTRAINT companies_package_id_fkey FOREIGN KEY (package_id) REFERENCES public.packages(id);
 
 
 --
@@ -10527,7 +10761,7 @@ ALTER TABLE ONLY public.companies
 --
 
 ALTER TABLE ONLY public.company_sessions
-    ADD CONSTRAINT company_sessions_company_id_fkey FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE;
+    ADD CONSTRAINT company_sessions_company_id_fkey FOREIGN KEY (company_id) REFERENCES public.companies(id) ON DELETE CASCADE;
 
 
 --
@@ -10535,7 +10769,7 @@ ALTER TABLE ONLY public.company_sessions
 --
 
 ALTER TABLE ONLY public.customer_order_requests
-    ADD CONSTRAINT customer_order_requests_restaurant_id_fkey FOREIGN KEY (restaurant_id) REFERENCES restaurants(id) ON DELETE CASCADE;
+    ADD CONSTRAINT customer_order_requests_restaurant_id_fkey FOREIGN KEY (restaurant_id) REFERENCES public.restaurants(id) ON DELETE CASCADE;
 
 
 --
@@ -10543,7 +10777,7 @@ ALTER TABLE ONLY public.customer_order_requests
 --
 
 ALTER TABLE ONLY public.customer_order_requests
-    ADD CONSTRAINT customer_order_requests_table_id_fkey FOREIGN KEY (table_id) REFERENCES restaurant_tables(id) ON DELETE CASCADE;
+    ADD CONSTRAINT customer_order_requests_table_id_fkey FOREIGN KEY (table_id) REFERENCES public.restaurant_tables(id) ON DELETE CASCADE;
 
 
 --
@@ -10551,7 +10785,7 @@ ALTER TABLE ONLY public.customer_order_requests
 --
 
 ALTER TABLE ONLY public.customers
-    ADD CONSTRAINT customers_restaurant_id_fkey FOREIGN KEY (restaurant_id) REFERENCES restaurants(id) ON DELETE CASCADE;
+    ADD CONSTRAINT customers_restaurant_id_fkey FOREIGN KEY (restaurant_id) REFERENCES public.restaurants(id) ON DELETE CASCADE;
 
 
 --
@@ -10559,7 +10793,7 @@ ALTER TABLE ONLY public.customers
 --
 
 ALTER TABLE ONLY public.entitlements
-    ADD CONSTRAINT entitlements_addon_id_fkey FOREIGN KEY (addon_id) REFERENCES feature_catalog(id) ON DELETE CASCADE;
+    ADD CONSTRAINT entitlements_addon_id_fkey FOREIGN KEY (addon_id) REFERENCES public.feature_catalog(id) ON DELETE CASCADE;
 
 
 --
@@ -10567,7 +10801,7 @@ ALTER TABLE ONLY public.entitlements
 --
 
 ALTER TABLE ONLY public.entitlements
-    ADD CONSTRAINT entitlements_company_id_fkey FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE;
+    ADD CONSTRAINT entitlements_company_id_fkey FOREIGN KEY (company_id) REFERENCES public.companies(id) ON DELETE CASCADE;
 
 
 --
@@ -10575,7 +10809,7 @@ ALTER TABLE ONLY public.entitlements
 --
 
 ALTER TABLE ONLY public.entitlements
-    ADD CONSTRAINT entitlements_restaurant_id_fkey FOREIGN KEY (restaurant_id) REFERENCES restaurants(id) ON DELETE CASCADE;
+    ADD CONSTRAINT entitlements_restaurant_id_fkey FOREIGN KEY (restaurant_id) REFERENCES public.restaurants(id) ON DELETE CASCADE;
 
 
 --
@@ -10583,7 +10817,7 @@ ALTER TABLE ONLY public.entitlements
 --
 
 ALTER TABLE ONLY public.gift_cards
-    ADD CONSTRAINT gift_cards_created_by_fkey FOREIGN KEY (created_by) REFERENCES app_users(id) ON DELETE SET NULL;
+    ADD CONSTRAINT gift_cards_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.app_users(id) ON DELETE SET NULL;
 
 
 --
@@ -10591,7 +10825,7 @@ ALTER TABLE ONLY public.gift_cards
 --
 
 ALTER TABLE ONLY public.gift_cards
-    ADD CONSTRAINT gift_cards_customer_id_fkey FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE SET NULL;
+    ADD CONSTRAINT gift_cards_customer_id_fkey FOREIGN KEY (customer_id) REFERENCES public.customers(id) ON DELETE SET NULL;
 
 
 --
@@ -10599,7 +10833,7 @@ ALTER TABLE ONLY public.gift_cards
 --
 
 ALTER TABLE ONLY public.gift_cards
-    ADD CONSTRAINT gift_cards_restaurant_id_fkey FOREIGN KEY (restaurant_id) REFERENCES restaurants(id) ON DELETE CASCADE;
+    ADD CONSTRAINT gift_cards_restaurant_id_fkey FOREIGN KEY (restaurant_id) REFERENCES public.restaurants(id) ON DELETE CASCADE;
 
 
 --
@@ -10607,7 +10841,7 @@ ALTER TABLE ONLY public.gift_cards
 --
 
 ALTER TABLE ONLY public.ingredients
-    ADD CONSTRAINT ingredients_restaurant_id_fkey FOREIGN KEY (restaurant_id) REFERENCES restaurants(id) ON DELETE CASCADE;
+    ADD CONSTRAINT ingredients_restaurant_id_fkey FOREIGN KEY (restaurant_id) REFERENCES public.restaurants(id) ON DELETE CASCADE;
 
 
 --
@@ -10615,7 +10849,7 @@ ALTER TABLE ONLY public.ingredients
 --
 
 ALTER TABLE ONLY public.invoices
-    ADD CONSTRAINT invoices_history_id_fkey FOREIGN KEY (history_id) REFERENCES sales_history(id) ON DELETE SET NULL;
+    ADD CONSTRAINT invoices_history_id_fkey FOREIGN KEY (history_id) REFERENCES public.sales_history(id) ON DELETE SET NULL;
 
 
 --
@@ -10623,7 +10857,7 @@ ALTER TABLE ONLY public.invoices
 --
 
 ALTER TABLE ONLY public.invoices
-    ADD CONSTRAINT invoices_restaurant_id_fkey FOREIGN KEY (restaurant_id) REFERENCES restaurants(id) ON DELETE CASCADE;
+    ADD CONSTRAINT invoices_restaurant_id_fkey FOREIGN KEY (restaurant_id) REFERENCES public.restaurants(id) ON DELETE CASCADE;
 
 
 --
@@ -10631,7 +10865,7 @@ ALTER TABLE ONLY public.invoices
 --
 
 ALTER TABLE ONLY public.notification_log
-    ADD CONSTRAINT notification_log_user_id_fkey FOREIGN KEY (user_id) REFERENCES app_users(id) ON DELETE CASCADE;
+    ADD CONSTRAINT notification_log_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.app_users(id) ON DELETE CASCADE;
 
 
 --
@@ -10639,7 +10873,7 @@ ALTER TABLE ONLY public.notification_log
 --
 
 ALTER TABLE ONLY public.online_menu_items
-    ADD CONSTRAINT online_menu_items_product_id_fkey FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE;
+    ADD CONSTRAINT online_menu_items_product_id_fkey FOREIGN KEY (product_id) REFERENCES public.products(id) ON DELETE CASCADE;
 
 
 --
@@ -10647,7 +10881,7 @@ ALTER TABLE ONLY public.online_menu_items
 --
 
 ALTER TABLE ONLY public.online_menu_items
-    ADD CONSTRAINT online_menu_items_restaurant_id_fkey FOREIGN KEY (restaurant_id) REFERENCES restaurants(id);
+    ADD CONSTRAINT online_menu_items_restaurant_id_fkey FOREIGN KEY (restaurant_id) REFERENCES public.restaurants(id);
 
 
 --
@@ -10655,7 +10889,7 @@ ALTER TABLE ONLY public.online_menu_items
 --
 
 ALTER TABLE ONLY public.online_menu_items
-    ADD CONSTRAINT online_menu_items_section_id_fkey FOREIGN KEY (section_id) REFERENCES online_menu_sections(id) ON DELETE CASCADE;
+    ADD CONSTRAINT online_menu_items_section_id_fkey FOREIGN KEY (section_id) REFERENCES public.online_menu_sections(id) ON DELETE CASCADE;
 
 
 --
@@ -10663,7 +10897,7 @@ ALTER TABLE ONLY public.online_menu_items
 --
 
 ALTER TABLE ONLY public.online_menu_sections
-    ADD CONSTRAINT online_menu_sections_restaurant_id_fkey FOREIGN KEY (restaurant_id) REFERENCES restaurants(id);
+    ADD CONSTRAINT online_menu_sections_restaurant_id_fkey FOREIGN KEY (restaurant_id) REFERENCES public.restaurants(id);
 
 
 --
@@ -10671,7 +10905,7 @@ ALTER TABLE ONLY public.online_menu_sections
 --
 
 ALTER TABLE ONLY public.open_account_entries
-    ADD CONSTRAINT open_account_entries_account_id_fkey FOREIGN KEY (account_id) REFERENCES open_accounts(id) ON DELETE CASCADE;
+    ADD CONSTRAINT open_account_entries_account_id_fkey FOREIGN KEY (account_id) REFERENCES public.open_accounts(id) ON DELETE CASCADE;
 
 
 --
@@ -10679,7 +10913,7 @@ ALTER TABLE ONLY public.open_account_entries
 --
 
 ALTER TABLE ONLY public.open_account_entries
-    ADD CONSTRAINT open_account_entries_created_by_fkey FOREIGN KEY (created_by) REFERENCES app_users(id) ON DELETE SET NULL;
+    ADD CONSTRAINT open_account_entries_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.app_users(id) ON DELETE SET NULL;
 
 
 --
@@ -10687,7 +10921,7 @@ ALTER TABLE ONLY public.open_account_entries
 --
 
 ALTER TABLE ONLY public.open_accounts
-    ADD CONSTRAINT open_accounts_created_by_fkey FOREIGN KEY (created_by) REFERENCES app_users(id) ON DELETE SET NULL;
+    ADD CONSTRAINT open_accounts_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.app_users(id) ON DELETE SET NULL;
 
 
 --
@@ -10695,7 +10929,7 @@ ALTER TABLE ONLY public.open_accounts
 --
 
 ALTER TABLE ONLY public.open_accounts
-    ADD CONSTRAINT open_accounts_restaurant_id_fkey FOREIGN KEY (restaurant_id) REFERENCES restaurants(id) ON DELETE CASCADE;
+    ADD CONSTRAINT open_accounts_restaurant_id_fkey FOREIGN KEY (restaurant_id) REFERENCES public.restaurants(id) ON DELETE CASCADE;
 
 
 --
@@ -10703,7 +10937,7 @@ ALTER TABLE ONLY public.open_accounts
 --
 
 ALTER TABLE ONLY public.order_flag_defs
-    ADD CONSTRAINT order_flag_defs_restaurant_id_fkey FOREIGN KEY (restaurant_id) REFERENCES restaurants(id) ON DELETE CASCADE;
+    ADD CONSTRAINT order_flag_defs_restaurant_id_fkey FOREIGN KEY (restaurant_id) REFERENCES public.restaurants(id) ON DELETE CASCADE;
 
 
 --
@@ -10711,7 +10945,7 @@ ALTER TABLE ONLY public.order_flag_defs
 --
 
 ALTER TABLE ONLY public.order_items
-    ADD CONSTRAINT order_items_order_id_fkey FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE;
+    ADD CONSTRAINT order_items_order_id_fkey FOREIGN KEY (order_id) REFERENCES public.orders(id) ON DELETE CASCADE;
 
 
 --
@@ -10719,7 +10953,7 @@ ALTER TABLE ONLY public.order_items
 --
 
 ALTER TABLE ONLY public.order_items
-    ADD CONSTRAINT order_items_product_id_fkey FOREIGN KEY (product_id) REFERENCES products(id);
+    ADD CONSTRAINT order_items_product_id_fkey FOREIGN KEY (product_id) REFERENCES public.products(id);
 
 
 --
@@ -10727,7 +10961,7 @@ ALTER TABLE ONLY public.order_items
 --
 
 ALTER TABLE ONLY public.orders
-    ADD CONSTRAINT orders_created_by_fkey FOREIGN KEY (created_by) REFERENCES app_users(id) ON DELETE SET NULL;
+    ADD CONSTRAINT orders_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.app_users(id) ON DELETE SET NULL;
 
 
 --
@@ -10735,7 +10969,7 @@ ALTER TABLE ONLY public.orders
 --
 
 ALTER TABLE ONLY public.orders
-    ADD CONSTRAINT orders_restaurant_id_fkey FOREIGN KEY (restaurant_id) REFERENCES restaurants(id) ON DELETE CASCADE;
+    ADD CONSTRAINT orders_restaurant_id_fkey FOREIGN KEY (restaurant_id) REFERENCES public.restaurants(id) ON DELETE CASCADE;
 
 
 --
@@ -10743,7 +10977,7 @@ ALTER TABLE ONLY public.orders
 --
 
 ALTER TABLE ONLY public.orders
-    ADD CONSTRAINT orders_table_id_fkey FOREIGN KEY (table_id) REFERENCES restaurant_tables(id);
+    ADD CONSTRAINT orders_table_id_fkey FOREIGN KEY (table_id) REFERENCES public.restaurant_tables(id);
 
 
 --
@@ -10751,7 +10985,7 @@ ALTER TABLE ONLY public.orders
 --
 
 ALTER TABLE ONLY public.password_reset_otps
-    ADD CONSTRAINT password_reset_otps_restaurant_id_fkey FOREIGN KEY (restaurant_id) REFERENCES restaurants(id) ON DELETE CASCADE;
+    ADD CONSTRAINT password_reset_otps_restaurant_id_fkey FOREIGN KEY (restaurant_id) REFERENCES public.restaurants(id) ON DELETE CASCADE;
 
 
 --
@@ -10759,7 +10993,7 @@ ALTER TABLE ONLY public.password_reset_otps
 --
 
 ALTER TABLE ONLY public.password_reset_otps
-    ADD CONSTRAINT password_reset_otps_user_id_fkey FOREIGN KEY (user_id) REFERENCES app_users(id) ON DELETE CASCADE;
+    ADD CONSTRAINT password_reset_otps_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.app_users(id) ON DELETE CASCADE;
 
 
 --
@@ -10767,7 +11001,7 @@ ALTER TABLE ONLY public.password_reset_otps
 --
 
 ALTER TABLE ONLY public.payments
-    ADD CONSTRAINT payments_promo_code_id_fkey FOREIGN KEY (promo_code_id) REFERENCES promo_codes(id);
+    ADD CONSTRAINT payments_promo_code_id_fkey FOREIGN KEY (promo_code_id) REFERENCES public.promo_codes(id);
 
 
 --
@@ -10775,7 +11009,7 @@ ALTER TABLE ONLY public.payments
 --
 
 ALTER TABLE ONLY public.payments
-    ADD CONSTRAINT payments_restaurant_id_fkey FOREIGN KEY (restaurant_id) REFERENCES restaurants(id) ON DELETE CASCADE;
+    ADD CONSTRAINT payments_restaurant_id_fkey FOREIGN KEY (restaurant_id) REFERENCES public.restaurants(id) ON DELETE CASCADE;
 
 
 --
@@ -10783,7 +11017,7 @@ ALTER TABLE ONLY public.payments
 --
 
 ALTER TABLE ONLY public.platform_admin_sessions
-    ADD CONSTRAINT platform_admin_sessions_admin_id_fkey FOREIGN KEY (admin_id) REFERENCES platform_admins(id) ON DELETE CASCADE;
+    ADD CONSTRAINT platform_admin_sessions_admin_id_fkey FOREIGN KEY (admin_id) REFERENCES public.platform_admins(id) ON DELETE CASCADE;
 
 
 --
@@ -10791,7 +11025,7 @@ ALTER TABLE ONLY public.platform_admin_sessions
 --
 
 ALTER TABLE ONLY public.product_images
-    ADD CONSTRAINT product_images_product_id_fkey FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE;
+    ADD CONSTRAINT product_images_product_id_fkey FOREIGN KEY (product_id) REFERENCES public.products(id) ON DELETE CASCADE;
 
 
 --
@@ -10799,7 +11033,7 @@ ALTER TABLE ONLY public.product_images
 --
 
 ALTER TABLE ONLY public.product_images
-    ADD CONSTRAINT product_images_restaurant_id_fkey FOREIGN KEY (restaurant_id) REFERENCES restaurants(id);
+    ADD CONSTRAINT product_images_restaurant_id_fkey FOREIGN KEY (restaurant_id) REFERENCES public.restaurants(id);
 
 
 --
@@ -10807,7 +11041,7 @@ ALTER TABLE ONLY public.product_images
 --
 
 ALTER TABLE ONLY public.product_ingredients
-    ADD CONSTRAINT product_ingredients_ingredient_id_fkey FOREIGN KEY (ingredient_id) REFERENCES ingredients(id) ON DELETE CASCADE;
+    ADD CONSTRAINT product_ingredients_ingredient_id_fkey FOREIGN KEY (ingredient_id) REFERENCES public.ingredients(id) ON DELETE CASCADE;
 
 
 --
@@ -10815,7 +11049,7 @@ ALTER TABLE ONLY public.product_ingredients
 --
 
 ALTER TABLE ONLY public.product_ingredients
-    ADD CONSTRAINT product_ingredients_product_id_fkey FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE;
+    ADD CONSTRAINT product_ingredients_product_id_fkey FOREIGN KEY (product_id) REFERENCES public.products(id) ON DELETE CASCADE;
 
 
 --
@@ -10823,7 +11057,7 @@ ALTER TABLE ONLY public.product_ingredients
 --
 
 ALTER TABLE ONLY public.products
-    ADD CONSTRAINT products_restaurant_id_fkey FOREIGN KEY (restaurant_id) REFERENCES restaurants(id) ON DELETE CASCADE;
+    ADD CONSTRAINT products_restaurant_id_fkey FOREIGN KEY (restaurant_id) REFERENCES public.restaurants(id) ON DELETE CASCADE;
 
 
 --
@@ -10831,7 +11065,7 @@ ALTER TABLE ONLY public.products
 --
 
 ALTER TABLE ONLY public.products
-    ADD CONSTRAINT products_station_id_fkey FOREIGN KEY (station_id) REFERENCES stations(id);
+    ADD CONSTRAINT products_station_id_fkey FOREIGN KEY (station_id) REFERENCES public.stations(id);
 
 
 --
@@ -10839,7 +11073,7 @@ ALTER TABLE ONLY public.products
 --
 
 ALTER TABLE ONLY public.public_cart_holds
-    ADD CONSTRAINT public_cart_holds_product_id_fkey FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE;
+    ADD CONSTRAINT public_cart_holds_product_id_fkey FOREIGN KEY (product_id) REFERENCES public.products(id) ON DELETE CASCADE;
 
 
 --
@@ -10847,7 +11081,7 @@ ALTER TABLE ONLY public.public_cart_holds
 --
 
 ALTER TABLE ONLY public.purchase_order_items
-    ADD CONSTRAINT purchase_order_items_ingredient_id_fkey FOREIGN KEY (ingredient_id) REFERENCES ingredients(id) DEFERRABLE INITIALLY DEFERRED NOT VALID;
+    ADD CONSTRAINT purchase_order_items_ingredient_id_fkey FOREIGN KEY (ingredient_id) REFERENCES public.ingredients(id) DEFERRABLE INITIALLY DEFERRED NOT VALID;
 
 
 --
@@ -10855,7 +11089,7 @@ ALTER TABLE ONLY public.purchase_order_items
 --
 
 ALTER TABLE ONLY public.purchase_order_items
-    ADD CONSTRAINT purchase_order_items_purchase_order_id_fkey FOREIGN KEY (purchase_order_id) REFERENCES purchase_orders(id) ON DELETE CASCADE;
+    ADD CONSTRAINT purchase_order_items_purchase_order_id_fkey FOREIGN KEY (purchase_order_id) REFERENCES public.purchase_orders(id) ON DELETE CASCADE;
 
 
 --
@@ -10863,7 +11097,7 @@ ALTER TABLE ONLY public.purchase_order_items
 --
 
 ALTER TABLE ONLY public.purchase_orders
-    ADD CONSTRAINT purchase_orders_restaurant_id_fkey FOREIGN KEY (restaurant_id) REFERENCES restaurants(id) ON DELETE CASCADE;
+    ADD CONSTRAINT purchase_orders_restaurant_id_fkey FOREIGN KEY (restaurant_id) REFERENCES public.restaurants(id) ON DELETE CASCADE;
 
 
 --
@@ -10871,7 +11105,7 @@ ALTER TABLE ONLY public.purchase_orders
 --
 
 ALTER TABLE ONLY public.purchase_orders
-    ADD CONSTRAINT purchase_orders_supplier_id_fkey FOREIGN KEY (supplier_id) REFERENCES suppliers(id) ON DELETE SET NULL;
+    ADD CONSTRAINT purchase_orders_supplier_id_fkey FOREIGN KEY (supplier_id) REFERENCES public.suppliers(id) ON DELETE SET NULL;
 
 
 --
@@ -10879,7 +11113,7 @@ ALTER TABLE ONLY public.purchase_orders
 --
 
 ALTER TABLE ONLY public.push_subscriptions
-    ADD CONSTRAINT push_subscriptions_restaurant_id_fkey FOREIGN KEY (restaurant_id) REFERENCES restaurants(id) ON DELETE CASCADE;
+    ADD CONSTRAINT push_subscriptions_restaurant_id_fkey FOREIGN KEY (restaurant_id) REFERENCES public.restaurants(id) ON DELETE CASCADE;
 
 
 --
@@ -10887,7 +11121,7 @@ ALTER TABLE ONLY public.push_subscriptions
 --
 
 ALTER TABLE ONLY public.push_subscriptions
-    ADD CONSTRAINT push_subscriptions_user_id_fkey FOREIGN KEY (user_id) REFERENCES app_users(id) ON DELETE CASCADE;
+    ADD CONSTRAINT push_subscriptions_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.app_users(id) ON DELETE CASCADE;
 
 
 --
@@ -10895,7 +11129,7 @@ ALTER TABLE ONLY public.push_subscriptions
 --
 
 ALTER TABLE ONLY public.reports_password_reset_otps
-    ADD CONSTRAINT reports_password_reset_otps_restaurant_id_fkey FOREIGN KEY (restaurant_id) REFERENCES restaurants(id) ON DELETE CASCADE;
+    ADD CONSTRAINT reports_password_reset_otps_restaurant_id_fkey FOREIGN KEY (restaurant_id) REFERENCES public.restaurants(id) ON DELETE CASCADE;
 
 
 --
@@ -10903,7 +11137,7 @@ ALTER TABLE ONLY public.reports_password_reset_otps
 --
 
 ALTER TABLE ONLY public.reservations
-    ADD CONSTRAINT reservations_restaurant_id_fkey FOREIGN KEY (restaurant_id) REFERENCES restaurants(id) ON DELETE CASCADE;
+    ADD CONSTRAINT reservations_restaurant_id_fkey FOREIGN KEY (restaurant_id) REFERENCES public.restaurants(id) ON DELETE CASCADE;
 
 
 --
@@ -10911,7 +11145,7 @@ ALTER TABLE ONLY public.reservations
 --
 
 ALTER TABLE ONLY public.reservations
-    ADD CONSTRAINT reservations_table_id_fkey FOREIGN KEY (table_id) REFERENCES restaurant_tables(id) ON DELETE SET NULL;
+    ADD CONSTRAINT reservations_table_id_fkey FOREIGN KEY (table_id) REFERENCES public.restaurant_tables(id) ON DELETE SET NULL;
 
 
 --
@@ -10919,7 +11153,7 @@ ALTER TABLE ONLY public.reservations
 --
 
 ALTER TABLE ONLY public.restaurant_tables
-    ADD CONSTRAINT restaurant_tables_restaurant_id_fkey FOREIGN KEY (restaurant_id) REFERENCES restaurants(id) ON DELETE CASCADE;
+    ADD CONSTRAINT restaurant_tables_restaurant_id_fkey FOREIGN KEY (restaurant_id) REFERENCES public.restaurants(id) ON DELETE CASCADE;
 
 
 --
@@ -10927,7 +11161,7 @@ ALTER TABLE ONLY public.restaurant_tables
 --
 
 ALTER TABLE ONLY public.restaurant_tables
-    ADD CONSTRAINT restaurant_tables_zone_id_fkey FOREIGN KEY (zone_id) REFERENCES zones(id) ON DELETE CASCADE;
+    ADD CONSTRAINT restaurant_tables_zone_id_fkey FOREIGN KEY (zone_id) REFERENCES public.zones(id) ON DELETE CASCADE;
 
 
 --
@@ -10935,7 +11169,7 @@ ALTER TABLE ONLY public.restaurant_tables
 --
 
 ALTER TABLE ONLY public.restaurants
-    ADD CONSTRAINT restaurants_company_id_fkey FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE SET NULL;
+    ADD CONSTRAINT restaurants_company_id_fkey FOREIGN KEY (company_id) REFERENCES public.companies(id) ON DELETE SET NULL;
 
 
 --
@@ -10943,7 +11177,7 @@ ALTER TABLE ONLY public.restaurants
 --
 
 ALTER TABLE ONLY public.roles
-    ADD CONSTRAINT roles_restaurant_id_fkey FOREIGN KEY (restaurant_id) REFERENCES restaurants(id) ON DELETE CASCADE;
+    ADD CONSTRAINT roles_restaurant_id_fkey FOREIGN KEY (restaurant_id) REFERENCES public.restaurants(id) ON DELETE CASCADE;
 
 
 --
@@ -10951,7 +11185,7 @@ ALTER TABLE ONLY public.roles
 --
 
 ALTER TABLE ONLY public.sales_history
-    ADD CONSTRAINT sales_history_customer_id_fkey FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE SET NULL;
+    ADD CONSTRAINT sales_history_customer_id_fkey FOREIGN KEY (customer_id) REFERENCES public.customers(id) ON DELETE SET NULL;
 
 
 --
@@ -10959,7 +11193,7 @@ ALTER TABLE ONLY public.sales_history
 --
 
 ALTER TABLE ONLY public.sales_history
-    ADD CONSTRAINT sales_history_gift_card_id_fkey FOREIGN KEY (gift_card_id) REFERENCES gift_cards(id) ON DELETE SET NULL;
+    ADD CONSTRAINT sales_history_gift_card_id_fkey FOREIGN KEY (gift_card_id) REFERENCES public.gift_cards(id) ON DELETE SET NULL;
 
 
 --
@@ -10967,7 +11201,7 @@ ALTER TABLE ONLY public.sales_history
 --
 
 ALTER TABLE ONLY public.sales_history
-    ADD CONSTRAINT sales_history_restaurant_id_fkey FOREIGN KEY (restaurant_id) REFERENCES restaurants(id) ON DELETE CASCADE;
+    ADD CONSTRAINT sales_history_restaurant_id_fkey FOREIGN KEY (restaurant_id) REFERENCES public.restaurants(id) ON DELETE CASCADE;
 
 
 --
@@ -10975,7 +11209,7 @@ ALTER TABLE ONLY public.sales_history
 --
 
 ALTER TABLE ONLY public.sales_history
-    ADD CONSTRAINT sales_history_staff_user_id_fkey FOREIGN KEY (staff_user_id) REFERENCES app_users(id) ON DELETE SET NULL;
+    ADD CONSTRAINT sales_history_staff_user_id_fkey FOREIGN KEY (staff_user_id) REFERENCES public.app_users(id) ON DELETE SET NULL;
 
 
 --
@@ -10983,7 +11217,7 @@ ALTER TABLE ONLY public.sales_history
 --
 
 ALTER TABLE ONLY public.sms_outbox
-    ADD CONSTRAINT sms_outbox_restaurant_id_fkey FOREIGN KEY (restaurant_id) REFERENCES restaurants(id) ON DELETE CASCADE;
+    ADD CONSTRAINT sms_outbox_restaurant_id_fkey FOREIGN KEY (restaurant_id) REFERENCES public.restaurants(id) ON DELETE CASCADE;
 
 
 --
@@ -10991,7 +11225,7 @@ ALTER TABLE ONLY public.sms_outbox
 --
 
 ALTER TABLE ONLY public.staff_sessions
-    ADD CONSTRAINT staff_sessions_restaurant_id_fkey FOREIGN KEY (restaurant_id) REFERENCES restaurants(id) ON DELETE CASCADE;
+    ADD CONSTRAINT staff_sessions_restaurant_id_fkey FOREIGN KEY (restaurant_id) REFERENCES public.restaurants(id) ON DELETE CASCADE;
 
 
 --
@@ -10999,7 +11233,7 @@ ALTER TABLE ONLY public.staff_sessions
 --
 
 ALTER TABLE ONLY public.staff_sessions
-    ADD CONSTRAINT staff_sessions_user_id_fkey FOREIGN KEY (user_id) REFERENCES app_users(id) ON DELETE CASCADE;
+    ADD CONSTRAINT staff_sessions_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.app_users(id) ON DELETE CASCADE;
 
 
 --
@@ -11007,7 +11241,7 @@ ALTER TABLE ONLY public.staff_sessions
 --
 
 ALTER TABLE ONLY public.staff_shifts
-    ADD CONSTRAINT staff_shifts_restaurant_id_fkey FOREIGN KEY (restaurant_id) REFERENCES restaurants(id) ON DELETE CASCADE;
+    ADD CONSTRAINT staff_shifts_restaurant_id_fkey FOREIGN KEY (restaurant_id) REFERENCES public.restaurants(id) ON DELETE CASCADE;
 
 
 --
@@ -11015,7 +11249,7 @@ ALTER TABLE ONLY public.staff_shifts
 --
 
 ALTER TABLE ONLY public.staff_shifts
-    ADD CONSTRAINT staff_shifts_user_id_fkey FOREIGN KEY (user_id) REFERENCES app_users(id) ON DELETE CASCADE;
+    ADD CONSTRAINT staff_shifts_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.app_users(id) ON DELETE CASCADE;
 
 
 --
@@ -11023,7 +11257,7 @@ ALTER TABLE ONLY public.staff_shifts
 --
 
 ALTER TABLE ONLY public.stations
-    ADD CONSTRAINT stations_restaurant_id_fkey FOREIGN KEY (restaurant_id) REFERENCES restaurants(id) ON DELETE CASCADE;
+    ADD CONSTRAINT stations_restaurant_id_fkey FOREIGN KEY (restaurant_id) REFERENCES public.restaurants(id) ON DELETE CASCADE;
 
 
 --
@@ -11031,7 +11265,7 @@ ALTER TABLE ONLY public.stations
 --
 
 ALTER TABLE ONLY public.suppliers
-    ADD CONSTRAINT suppliers_restaurant_id_fkey FOREIGN KEY (restaurant_id) REFERENCES restaurants(id) ON DELETE CASCADE;
+    ADD CONSTRAINT suppliers_restaurant_id_fkey FOREIGN KEY (restaurant_id) REFERENCES public.restaurants(id) ON DELETE CASCADE;
 
 
 --
@@ -11039,7 +11273,7 @@ ALTER TABLE ONLY public.suppliers
 --
 
 ALTER TABLE ONLY public.waiter_calls
-    ADD CONSTRAINT waiter_calls_restaurant_id_fkey FOREIGN KEY (restaurant_id) REFERENCES restaurants(id) ON UPDATE CASCADE;
+    ADD CONSTRAINT waiter_calls_restaurant_id_fkey FOREIGN KEY (restaurant_id) REFERENCES public.restaurants(id) ON UPDATE CASCADE;
 
 
 --
@@ -11047,7 +11281,7 @@ ALTER TABLE ONLY public.waiter_calls
 --
 
 ALTER TABLE ONLY public.waiter_calls
-    ADD CONSTRAINT waiter_calls_table_id_fkey FOREIGN KEY (table_id) REFERENCES restaurant_tables(id);
+    ADD CONSTRAINT waiter_calls_table_id_fkey FOREIGN KEY (table_id) REFERENCES public.restaurant_tables(id);
 
 
 --
@@ -11055,7 +11289,7 @@ ALTER TABLE ONLY public.waiter_calls
 --
 
 ALTER TABLE ONLY public.waitlist_entries
-    ADD CONSTRAINT waitlist_entries_restaurant_id_fkey FOREIGN KEY (restaurant_id) REFERENCES restaurants(id) ON DELETE CASCADE;
+    ADD CONSTRAINT waitlist_entries_restaurant_id_fkey FOREIGN KEY (restaurant_id) REFERENCES public.restaurants(id) ON DELETE CASCADE;
 
 
 --
@@ -11063,7 +11297,7 @@ ALTER TABLE ONLY public.waitlist_entries
 --
 
 ALTER TABLE ONLY public.waste_log
-    ADD CONSTRAINT waste_log_order_id_fkey FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE SET NULL;
+    ADD CONSTRAINT waste_log_order_id_fkey FOREIGN KEY (order_id) REFERENCES public.orders(id) ON DELETE SET NULL;
 
 
 --
@@ -11071,7 +11305,7 @@ ALTER TABLE ONLY public.waste_log
 --
 
 ALTER TABLE ONLY public.waste_log
-    ADD CONSTRAINT waste_log_order_item_id_fkey FOREIGN KEY (order_item_id) REFERENCES order_items(id) ON DELETE SET NULL;
+    ADD CONSTRAINT waste_log_order_item_id_fkey FOREIGN KEY (order_item_id) REFERENCES public.order_items(id) ON DELETE SET NULL;
 
 
 --
@@ -11079,7 +11313,7 @@ ALTER TABLE ONLY public.waste_log
 --
 
 ALTER TABLE ONLY public.waste_log
-    ADD CONSTRAINT waste_log_product_id_fkey FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE SET NULL;
+    ADD CONSTRAINT waste_log_product_id_fkey FOREIGN KEY (product_id) REFERENCES public.products(id) ON DELETE SET NULL;
 
 
 --
@@ -11087,7 +11321,7 @@ ALTER TABLE ONLY public.waste_log
 --
 
 ALTER TABLE ONLY public.waste_log
-    ADD CONSTRAINT waste_log_restaurant_id_fkey FOREIGN KEY (restaurant_id) REFERENCES restaurants(id) ON DELETE CASCADE;
+    ADD CONSTRAINT waste_log_restaurant_id_fkey FOREIGN KEY (restaurant_id) REFERENCES public.restaurants(id) ON DELETE CASCADE;
 
 
 --
@@ -11095,7 +11329,7 @@ ALTER TABLE ONLY public.waste_log
 --
 
 ALTER TABLE ONLY public.waste_log
-    ADD CONSTRAINT waste_log_staff_user_id_fkey FOREIGN KEY (staff_user_id) REFERENCES app_users(id) ON DELETE SET NULL;
+    ADD CONSTRAINT waste_log_staff_user_id_fkey FOREIGN KEY (staff_user_id) REFERENCES public.app_users(id) ON DELETE SET NULL;
 
 
 --
@@ -11103,7 +11337,7 @@ ALTER TABLE ONLY public.waste_log
 --
 
 ALTER TABLE ONLY public.zones
-    ADD CONSTRAINT zones_restaurant_id_fkey FOREIGN KEY (restaurant_id) REFERENCES restaurants(id) ON DELETE CASCADE;
+    ADD CONSTRAINT zones_restaurant_id_fkey FOREIGN KEY (restaurant_id) REFERENCES public.restaurants(id) ON DELETE CASCADE;
 
 
 --
@@ -11454,6 +11688,12 @@ ALTER TABLE public.stations ENABLE ROW LEVEL SECURITY;
 --
 
 ALTER TABLE public.suppliers ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: support_emails; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.support_emails ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: waiter_calls; Type: ROW SECURITY; Schema: public; Owner: -
