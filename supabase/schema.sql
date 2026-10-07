@@ -997,15 +997,21 @@ CREATE FUNCTION public._send_email(p_to text, p_subject text, p_html text) RETUR
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public', 'extensions', 'pg_temp'
     AS $$
-declare v_key text; v_from text;
+declare v_key text; v_from text; v_html text;
 begin
   select value into v_key from platform_settings where key='resend_api_key';
   select value into v_from from platform_settings where key='resend_from_email';
   if v_key is null then return false; end if;
+  v_html := case when coalesce(p_html,'') like '%logo-email.png%' then p_html else
+    '<div style="text-align:center;padding:20px 0 4px;font-family:Arial,sans-serif;">'
+    || '<a href="https://www.peyktan.com" style="text-decoration:none;color:#0e8fa3;">'
+    || '<img src="https://www.peyktan.com/assets/images/logo-email.png" width="64" height="79" alt="Peyktan" style="display:block;margin:0 auto 6px;border:0;">'
+    || '<span style="font-size:18px;font-weight:bold;letter-spacing:.5px;color:#0e8fa3;">Peyktan</span></a></div>'
+    || coalesce(p_html,'') end;
   perform net.http_post(
     url := 'https://api.resend.com/emails',
     headers := jsonb_build_object('Authorization','Bearer '||v_key,'Content-Type','application/json'),
-    body := jsonb_build_object('from', coalesce(v_from,'onboarding@resend.dev'), 'to', jsonb_build_array(p_to), 'subject', p_subject, 'html', p_html));
+    body := jsonb_build_object('from', coalesce(v_from,'onboarding@resend.dev'), 'to', jsonb_build_array(p_to), 'subject', p_subject, 'html', v_html));
   return true;
 end $$;
 
@@ -3441,7 +3447,7 @@ begin
       case when m.deleted_at is null then m.attachment_kind end attachment_kind,
       case when m.deleted_at is null then m.attachment_name end attachment_name,
       case when m.deleted_at is null then m.attachment_size end attachment_size,
-      case when m.deleted_at is null and m.attachment_kind = 'image' and not m.view_once then m.attachment end attachment,
+      null::text attachment, -- görsel içeriği ayrı indirilir (/api/chat-file), listede taşınmaz
       m.view_once,
       case when m.view_once then exists(select 1 from chat_view_once v where v.message_id = m.id and v.user_id = s.user_id) end viewed_by_me,
       case when m.view_once and m.sender_id = s.user_id then (select count(*)::int from chat_view_once v where v.message_id = m.id) end viewed_count,
