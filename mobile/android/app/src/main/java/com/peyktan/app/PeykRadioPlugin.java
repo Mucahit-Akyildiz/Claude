@@ -16,10 +16,17 @@ public class PeykRadioPlugin extends Plugin {
     public void start(PluginCall call) {
         Intent i = new Intent(getContext(), PeykRadioService.class);
         i.putExtra("channel", call.getString("channel", ""));
+        i.putExtra("url", call.getString("url"));
+        i.putExtra("key", call.getString("key"));
+        i.putExtra("topic", call.getString("topic"));
+        i.putExtra("user", call.getString("user"));
         try {
             ContextCompat.startForegroundService(getContext(), i);
             active = true;
-            call.resolve();
+            // nativeAudio: sesi bu servis çalıyor; web tarafı ikinci kez çalmasın.
+            com.getcapacitor.JSObject r = new com.getcapacitor.JSObject();
+            r.put("nativeAudio", call.getString("topic") != null);
+            call.resolve(r);
         } catch (Exception e) {
             call.reject(e.getMessage());
         }
