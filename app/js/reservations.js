@@ -112,7 +112,7 @@ async function renderReservationHistory(){
           : r.status==='cancelled' ? `<span style="color:var(--red);">✕ İptal${r.closed_at ? ' ' + hm(r.closed_at) : ''}</span>`
           : `<span style="color:var(--red);">🚫 Gelmedi</span>`;
         return `<tr>
-          <td class="col-name">${escapeHtml(r.customer_name)}${r.phone ? `<div class="muted" style="font-size:11.5px;">${escapeHtml(r.phone)}</div>` : ''}${r.email ? `<div class="muted" style="font-size:11.5px;overflow-wrap:anywhere;">✉️ ${escapeHtml(r.email)}</div>` : ''}${r.notes ? `<div class="muted" style="font-size:11px;overflow-wrap:anywhere;">${escapeHtml(r.notes)}</div>` : ''}</td>
+          <td class="col-name">${escapeHtml(r.customer_name)}${r.phone ? `<div class="muted" style="font-size:11.5px;">${escapeHtml(r.phone)}</div>` : ''}${r.email ? `<div class="muted" title="${escapeAttr(r.email)}" style="font-size:11.5px;max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">✉️ ${escapeHtml(r.email)}</div>` : ''}${r.notes ? `<div class="muted" style="font-size:11px;overflow-wrap:anywhere;">${escapeHtml(r.notes)}</div>` : ''}</td>
           <td>${r.party_size}</td>
           <td>${hm(r.reservation_time)}</td>
           <td>${result}</td>
@@ -210,7 +210,7 @@ async function renderWaitlistContent(session, forceRefresh){
       <tbody>
       ${rows.map(w => `
         <tr data-badge-id="${w.id}">
-          <td class="col-name">${escapeHtml(w.customer_name)}${w.email ? `<div class="muted" style="font-size:11.5px;overflow-wrap:anywhere;">✉️ ${escapeHtml(w.email)}</div>` : ''}</td>
+          <td class="col-name">${escapeHtml(w.customer_name)}${w.email ? `<div class="muted" title="${escapeAttr(w.email)}" style="font-size:11.5px;max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">✉️ ${escapeHtml(w.email)}</div>` : ''}</td>
           <td>${escapeHtml(w.phone||'-')}</td>
           <td>${w.party_size}</td>
           <td><span class="waitlist-timer" data-joined="${w.joined_at}" data-quoted="${w.quoted_wait_minutes||''}">-</span></td>
