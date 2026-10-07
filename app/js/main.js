@@ -294,6 +294,7 @@ function startNavBadges(){
   refreshNavBadges();
   startDataVersionWatch();
   radioSync();
+  try{ maybeShowIosInstallHint(); }catch(e){}
   if(NAV_BADGE_TIMER) clearInterval(NAV_BADGE_TIMER);
   // Rozetler ve rol izinleri 20 sn'de bir tazelenir (Roller'deki değişiklik
   // açık ekranlara da yenileme gerekmeden yansısın).
