@@ -1372,7 +1372,7 @@ function openTableModal(tableId){
       <div id="draftItemsWrap"></div>
       ${orderFlagsHtml(tableId)}
       ${(String(tableId).indexOf('pkg_')!==0 && String(tableId).indexOf('wl_')!==0 && liveOrderForTable(tableId)) ? `<button class="ghost-btn" style="width:100%;margin-top:12px;" onclick="openMoveTableModal('${tableId}')">🔀 Masayı Taşı / Birleştir</button>` : ''}
-      <div style="display:flex;gap:10px;margin-top:16px;">
+      <div class="modal-sticky-actions">
         <button class="ghost-btn" style="flex:1;margin-top:0;color:var(--red);border-color:var(--red);" onclick="cancelTableOrder('${tableId}')">🗑️ İptal Et</button>
         <button id="confirmBtn" style="flex:1;margin-top:0;" disabled onclick="confirmOrder('${tableId}')">✅ Onayla ve Gönder</button>
       </div>

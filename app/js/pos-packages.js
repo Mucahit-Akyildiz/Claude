@@ -68,7 +68,7 @@ function openPackageModal(pseudoId){
       <div id="sentItemsWrap" style="margin-top:14px;"></div>
       <div id="draftItemsWrap"></div>
       ${orderFlagsHtml(pseudoId)}
-      <div style="display:flex;gap:10px;margin-top:16px;">
+      <div class="modal-sticky-actions">
         <button class="ghost-btn" style="flex:1;margin-top:0;color:var(--red);border-color:var(--red);" onclick="cancelTableOrder('${pseudoId}')" ${existing?'':'disabled'}>🗑️ İptal Et</button>
         <button id="confirmBtn" style="flex:1;margin-top:0;" disabled onclick="confirmOrder('${pseudoId}')">✅ Onayla ve Gönder</button>
       </div>

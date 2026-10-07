@@ -66,9 +66,10 @@ async function renderReservationsContent(session, forceRefresh){
     </div>
     <div class="add-row-panel">
       <p>Yeni Rezervasyon</p>
-      <div style="display:grid;grid-template-columns:1fr 1fr 90px 1fr 1fr;gap:10px;align-items:end;">
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;align-items:end;">
         <div class="field-group"><label>Müşteri Adı</label><input id="rv_name" placeholder="örn. Zeynep Hanım"></div>
         <div class="field-group"><label>Telefon</label><input id="rv_phone" placeholder="05xx..."></div>
+        <div class="field-group"><label>E-posta (hatırlatma)</label><input id="rv_email" type="email" placeholder="opsiyonel" autocapitalize="none"></div>
         <div class="field-group"><label>Kişi</label><input id="rv_party" type="number" min="1" value="2"></div>
         <div class="field-group"><label>Tarih & Saat</label><input id="rv_time" type="datetime-local"></div>
         <div class="field-group"><label>Masa (opsiyonel)</label><select id="rv_table"><option value="">-</option>${allTables.map(t => `<option value="${t.id}">${escapeHtml(t.name)}</option>`).join('')}</select></div>
@@ -110,7 +111,7 @@ async function renderReservationHistory(){
           : r.status==='cancelled' ? `<span style="color:var(--red);">✕ İptal${r.closed_at ? ' ' + hm(r.closed_at) : ''}</span>`
           : `<span style="color:var(--red);">🚫 Gelmedi</span>`;
         return `<tr>
-          <td class="col-name">${escapeHtml(r.customer_name)}${r.phone ? `<div class="muted" style="font-size:11.5px;">${escapeHtml(r.phone)}</div>` : ''}${r.notes ? `<div class="muted" style="font-size:11px;overflow-wrap:anywhere;">${escapeHtml(r.notes)}</div>` : ''}</td>
+          <td class="col-name">${escapeHtml(r.customer_name)}${r.phone ? `<div class="muted" style="font-size:11.5px;">${escapeHtml(r.phone)}</div>` : ''}${r.email ? `<div class="muted" style="font-size:11.5px;overflow-wrap:anywhere;">✉️ ${escapeHtml(r.email)}</div>` : ''}${r.notes ? `<div class="muted" style="font-size:11px;overflow-wrap:anywhere;">${escapeHtml(r.notes)}</div>` : ''}</td>
           <td>${r.party_size}</td>
           <td>${hm(r.reservation_time)}</td>
           <td>${result}</td>
@@ -158,12 +159,13 @@ async function addReservation(){
   const session = getSession();
   const name = document.getElementById('rv_name').value.trim();
   const phone = document.getElementById('rv_phone').value.trim();
+  const email = document.getElementById('rv_email').value.trim();
   const party = parseInt(document.getElementById('rv_party').value)||2;
   const timeVal = document.getElementById('rv_time').value;
   const tableId = document.getElementById('rv_table').value || null;
   const notes = document.getElementById('rv_notes').value.trim();
   if(!name || !timeVal){ alert('Müşteri adı ve zaman gerekli'); return; }
-  const { error } = await sb.rpc('upsert_reservation', { p_token: session.session_token, p_id: null, p_customer_name: name, p_phone: phone||null, p_party_size: party, p_reservation_time: new Date(timeVal).toISOString(), p_table_id: tableId, p_notes: notes||null });
+  const { error } = await sb.rpc('upsert_reservation', { p_token: session.session_token, p_id: null, p_customer_name: name, p_phone: phone||null, p_party_size: party, p_reservation_time: new Date(timeVal).toISOString(), p_table_id: tableId, p_notes: notes||null, p_email: email||null });
   if(error){ alert(error.message); return; }
   renderReservationsContent(session, true);
   showToast('Rezervasyon eklendi ✓');
