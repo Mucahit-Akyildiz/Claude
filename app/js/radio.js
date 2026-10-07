@@ -38,12 +38,12 @@ function radioNotifyNewMemberships(session, list){
 
 /* ---- Ekran: kanal listesi / yönetimi ---- */
 async function renderRadioView(main, session){
-  main.innerHTML = '<h1>📻 Telsiz</h1><div class="box" style="max-width:none;"><p class="muted">Yükleniyor…</p></div>';
+  main.innerHTML = '<h1>📻 Peyk Bas-Konuş</h1><div class="box" style="max-width:none;"><p class="muted">Yükleniyor…</p></div>';
   let list;
   try{ list = await fetchRadioChannels(session); }
   catch(e){ main.querySelector('.box').innerHTML = '<p class="muted">Yüklenemedi: ' + escapeHtml(e.message) + '</p>'; return; }
   const cur = RADIO.channel && RADIO.channel.id;
-  main.innerHTML = `<h1>📻 Telsiz</h1>
+  main.innerHTML = `<h1>📻 Peyk Bas-Konuş</h1>
     <div class="box" style="max-width:none;">
       <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;">
         <h2 style="margin:0;">Kanallar</h2>
@@ -127,13 +127,14 @@ async function radioConnect(id, silent){
   const c = list.find(x => x.id===id && x.is_member && x.secret);
   if(!c){ radioSave(session, null); if(!silent) alert('Bu kanala erişiminiz yok'); return; }
   radioDisconnect(false);
-  if(!silent) radioAudioCtx(); // tıklama anında ses izni açılsın
+  radioAudioCtx(); // tıklama anında ses izni açılsın (otomatik bağlantıda ilk dokunuşta açılır)
   RADIO.channel = { id:c.id, name:c.name, secret:c.secret };
   RADIO.status = 'Bağlanıyor…';
   radioSave(session, c.id);
   const me = { user_id: session.user_id, name: session.username };
   RADIO.rt = sb.channel('radio-' + c.secret, { config: { broadcast: { self:false }, presence: { key: session.user_id } } })
     .on('broadcast', { event:'a' }, ({ payload }) => radioOnAudio(payload))
+    .on('broadcast', { event:'s' }, ({ payload }) => radioOnFloor(payload))
     .on('broadcast', { event:'e' }, ({ payload }) => radioOnEnd(payload))
     .on('presence', { event:'sync' }, () => {
       const st = RADIO.rt ? RADIO.rt.presenceState() : {};
@@ -146,12 +147,14 @@ async function radioConnect(id, silent){
       drawRadioDock();
     });
   drawRadioDock();
+  radioNative('start', c.name);
   if(APP.view==='radio') renderRadioView(document.getElementById('main'), session);
 }
 function radioDisconnect(forget){
   radioStopTalk();
   if(RADIO.rt){ try{ sb.removeChannel(RADIO.rt); }catch(e){} RADIO.rt = null; }
-  RADIO.channel = null; RADIO.speakers = {}; RADIO.online = []; RADIO.status = '';
+  if(RADIO.channel) radioNative('stop');
+  RADIO.channel = null; RADIO.speakers = {}; RADIO.floor = null; RADIO.online = []; RADIO.status = '';
   if(forget){ radioSave(getSession(), null); if(APP.view==='radio') renderRadioView(document.getElementById('main'), getSession()); }
   drawRadioDock();
 }
@@ -200,14 +203,30 @@ function muLawDecode(u){
 function bytesToB64(a){ let s = ''; for(let i = 0; i < a.length; i++) s += String.fromCharCode(a[i]); return btoa(s); }
 function b64ToBytes(b){ const s = atob(b), a = new Uint8Array(s.length); for(let i = 0; i < s.length; i++) a[i] = s.charCodeAt(i); return a; }
 
+/* Söz hakkı (aynı anda tek konuşan): basan kişi önce 's' (başla) yayınlar.
+   Kanalda başka biri konuşuyorsa düğme reddeder. İki kişi aynı anda basarsa
+   herkes aynı kuralla karar verir: zaman damgası küçük olan (eşitse kullanıcı
+   kimliği küçük olan) konuşur, diğeri otomatik susturulur. */
+function radioFloorWins(a, b){ return a.t < b.t || (a.t === b.t && String(a.u) < String(b.u)); }
+function radioBusyBy(){
+  const me = getSession();
+  return RADIO.floor && me && RADIO.floor.u !== me.user_id ? RADIO.floor : null;
+}
 async function radioStartTalk(){
   if(RADIO.talking || !RADIO.rt || !RADIO.channel) return;
-  RADIO.talking = true; drawRadioDock();
+  const session = getSession(); if(!session) return;
+  const busy = radioBusyBy();
+  if(busy){ radioBeep(330, 0.18); radioFlash((busy.n || 'Biri') + ' konuşuyor — kanal meşgul'); return; }
   const ctx = radioAudioCtx();
+  RADIO.talking = true;
+  RADIO.myFloor = { u: session.user_id, n: session.username, t: Date.now() };
+  RADIO.floor = RADIO.myFloor;
+  RADIO.rt.send({ type:'broadcast', event:'s', payload: RADIO.myFloor });
+  drawRadioDock();
   try{
     if(!RADIO.mic) RADIO.mic = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation:true, noiseSuppression:true, autoGainControl:true } });
-  }catch(e){ RADIO.talking = false; drawRadioDock(); alert('Mikrofona erişilemedi. Tarayıcı/uygulama ayarlarından mikrofon izni verin.'); return; }
-  if(!RADIO.talking) return; // izin beklenirken bırakıldı
+  }catch(e){ radioStopTalk(); alert('Mikrofona erişilemedi. Tarayıcı/uygulama ayarlarından mikrofon izni verin.'); return; }
+  if(!RADIO.talking) return; // izin beklenirken bırakıldı / söz kaybedildi
   radioBeep(880);
   if(!RADIO.src) RADIO.src = ctx.createMediaStreamSource(RADIO.mic);
   const proc = ctx.createScriptProcessor(2048, 1, 1);
@@ -216,14 +235,14 @@ async function radioStartTalk(){
   proc.onaudioprocess = (ev) => {
     if(!RADIO.talking) return;
     const inp = ev.inputBuffer.getChannelData(0);
-    // Basit ortalamalı küçültme (8 kHz): her çıkış örneği, kapsadığı giriş örneklerinin ortalaması.
+    // Ortalamalı küçültme (8 kHz): her çıkış örneği kapsadığı giriş örneklerinin ortalaması.
     for(; pos < inp.length; pos += ratio){
       const a = Math.floor(pos), b = Math.min(inp.length, Math.floor(pos + ratio)); let sum = 0, n = 0;
       for(let i = a; i < b; i++){ sum += inp[i]; n++; }
       RADIO.buf.push(muLawEncode(n ? sum / n : inp[a]));
     }
     pos -= inp.length;
-    if(RADIO.buf.length >= 960) radioFlush();
+    if(RADIO.buf.length >= 1600) radioFlush(); // ~200 ms'lik parça (saniyede ~5 mesaj)
   };
   RADIO.src.connect(proc); proc.connect(ctx.destination); // bazı tarayıcılar çıkışa bağlanmadan işlemiyor (çıkış sessiz)
   RADIO.proc = proc;
@@ -232,78 +251,129 @@ function radioFlush(){
   if(!RADIO.buf.length || !RADIO.rt) return;
   const session = getSession();
   const d = bytesToB64(Uint8Array.from(RADIO.buf)); RADIO.buf = [];
-  RADIO.rt.send({ type:'broadcast', event:'a', payload:{ u: session.user_id, n: session.username, s: RADIO.seq++, d } });
+  RADIO.rt.send({ type:'broadcast', event:'a', payload:{ u: session.user_id, n: session.username, t: RADIO.myFloor && RADIO.myFloor.t, s: RADIO.seq++, d } });
 }
-function radioStopTalk(){
+function radioStopTalk(lost){
   if(!RADIO.talking) return;
   RADIO.talking = false;
-  if(RADIO.proc){ radioFlush(); try{ RADIO.src.disconnect(RADIO.proc); RADIO.proc.disconnect(); }catch(e){} RADIO.proc = null; }
+  if(RADIO.proc){ if(!lost) radioFlush(); try{ RADIO.src.disconnect(RADIO.proc); RADIO.proc.disconnect(); }catch(e){} RADIO.proc = null; }
+  RADIO.buf = [];
   const session = getSession();
-  if(RADIO.rt && session) RADIO.rt.send({ type:'broadcast', event:'e', payload:{ u: session.user_id } });
-  radioBeep(660);
+  if(RADIO.rt && session && !lost) RADIO.rt.send({ type:'broadcast', event:'e', payload:{ u: session.user_id } });
+  if(RADIO.floor && session && RADIO.floor.u === session.user_id) RADIO.floor = null;
+  RADIO.myFloor = null;
+  radioBeep(lost ? 330 : 660);
   drawRadioDock();
 }
 
 /* ---- Dinleme ---- */
+function radioTakeFloor(p){
+  // Başkası konuşmaya başladı: ben de konuşuyorsam kuralı uygula.
+  if(RADIO.talking && RADIO.myFloor){
+    if(radioFloorWins(RADIO.myFloor, p)) return false; // söz bende, karşı taraf susacak
+    radioStopTalk(true); radioFlash((p.n || 'Biri') + ' önce bastı — kanal meşgul');
+  }
+  if(RADIO.floor && RADIO.floor.u !== p.u && radioFloorWins(RADIO.floor, p)) return false;
+  clearTimeout(RADIO.floorTimer);
+  RADIO.floor = { u: p.u, n: p.n, t: p.t };
+  RADIO.floorTimer = setTimeout(() => radioOnEnd({ u: p.u }), 2500); // 'e' kaybolursa kanal kilitli kalmasın
+  return true;
+}
+function radioOnFloor(p){ if(p && p.u){ radioTakeFloor(p); drawRadioDock(); } }
 function radioOnAudio(p){
   if(!p || !p.d) return;
+  if(!RADIO.floor || RADIO.floor.u !== p.u){
+    if(!radioTakeFloor({ u: p.u, n: p.n, t: p.t || Date.now() })) return; // söz başkasında: bu sesi çalma
+    drawRadioDock();
+  } else {
+    clearTimeout(RADIO.floorTimer);
+    RADIO.floorTimer = setTimeout(() => radioOnEnd({ u: p.u }), 2500);
+  }
   const ctx = radioAudioCtx();
+  if(ctx.state !== 'running'){ RADIO.missed = true; drawRadioDock(); return; }
   const bytes = b64ToBytes(p.d);
   const ab = ctx.createBuffer(1, bytes.length, RADIO_RATE), ch = ab.getChannelData(0);
   for(let i = 0; i < bytes.length; i++) ch[i] = muLawDecode(bytes[i]);
   const src = ctx.createBufferSource(); src.buffer = ab; src.connect(ctx.destination);
   const now = ctx.currentTime;
-  // Ağ dalgalanmasına karşı küçük tampon; çok gerideyse (gecikme birikti) yeniden hizala.
-  if(RADIO.playAt < now || RADIO.playAt > now + 1.5) RADIO.playAt = now + 0.18;
+  // Ağ dalgalanmasına karşı küçük tampon; gecikme birikirse yeniden hizala.
+  if(RADIO.playAt < now || RADIO.playAt > now + 1.5) RADIO.playAt = now + 0.25;
   src.start(RADIO.playAt); RADIO.playAt += ab.duration;
-  const was = RADIO.speakers[p.u];
-  clearTimeout(was && was.t);
-  RADIO.speakers[p.u] = { name: p.n, t: setTimeout(() => radioOnEnd({ u: p.u }), 1500) };
-  if(!was) drawRadioDock();
 }
 function radioOnEnd(p){
-  const sp = p && RADIO.speakers[p.u]; if(!sp) return;
-  clearTimeout(sp.t); delete RADIO.speakers[p.u]; drawRadioDock();
+  if(!p || !RADIO.floor || RADIO.floor.u !== p.u) return;
+  clearTimeout(RADIO.floorTimer); RADIO.floor = null; drawRadioDock();
 }
-function radioBeep(freq){
+function radioBeep(freq, dur){
   try{
-    const ctx = radioAudioCtx(), o = ctx.createOscillator(), g = ctx.createGain();
+    const ctx = radioAudioCtx(); if(ctx.state !== 'running') return;
+    const o = ctx.createOscillator(), g = ctx.createGain();
     o.frequency.value = freq; g.gain.value = 0.06; o.connect(g); g.connect(ctx.destination);
-    o.start(); o.stop(ctx.currentTime + 0.07);
+    o.start(); o.stop(ctx.currentTime + (dur || 0.07));
+  }catch(e){}
+}
+function radioFlash(msg){ RADIO.flash = msg; drawRadioDock(); clearTimeout(RADIO.flashT); RADIO.flashT = setTimeout(() => { RADIO.flash = ''; drawRadioDock(); }, 2500); }
+
+/* Android uygulamasında arka planda çalışma: yerel ön plan servisi (bildirimde
+   "Telsiz açık") uygulama arka plandayken / ekran kilitliyken de bağlantıyı ve sesi
+   canlı tutar. Web/masaüstünde eklenti yoktur, çağrı sessizce atlanır. */
+function radioNative(action, name){
+  try{
+    const P = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.PeykRadio;
+    if(!P) return;
+    if(action==='start') P.start({ channel: name || '' }).catch(()=>{});
+    else P.stop().catch(()=>{});
   }catch(e){}
 }
 
-/* ---- Kalıcı telsiz paneli (tüm ekranlarda) ---- */
+/* ---- Kalıcı telsiz paneli (tüm ekranlarda) ----
+   Panel bir kez kurulur, sonra sadece yazı/renk güncellenir: konuşurken düğmeyi
+   yeniden çizmek basılı tutmayı (pointer capture) koparıp konuşmayı kesiyordu. */
 function drawRadioDock(){
   let dock = document.getElementById('radioDock');
   if(!RADIO.channel){ if(dock) dock.remove(); return; }
   if(!dock){
     dock = document.createElement('div'); dock.id = 'radioDock';
     dock.style.cssText = 'position:fixed;right:16px;bottom:16px;z-index:95;background:var(--panel);border:1px solid var(--border);border-radius:18px;box-shadow:0 8px 28px rgba(0,0,0,.25);padding:10px 12px;display:flex;align-items:center;gap:10px;max-width:calc(100vw - 32px);';
+    dock.innerHTML = `
+      <div id="radioInfo" style="min-width:0;flex:1;cursor:pointer;">
+        <div id="radioTitle" style="font-weight:700;font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"></div>
+        <div id="radioLine" class="muted" style="font-size:11.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:200px;"></div>
+      </div>
+      <button type="button" id="radioPtt" style="margin:0;width:auto;min-width:122px;padding:12px 14px;border-radius:999px;font-weight:800;touch-action:none;user-select:none;-webkit-user-select:none;"></button>
+      <button type="button" id="radioClose" class="ghost-btn" style="margin:0;width:auto;padding:8px 10px;" title="Telsizi kapat">✕</button>`;
     document.body.appendChild(dock);
+    dock.querySelector('#radioInfo').onclick = () => { radioAudioCtx(); RADIO.missed = false; setTimeout(drawRadioDock, 100); };
+    dock.querySelector('#radioClose').onclick = () => radioDisconnect(true);
+    const b = dock.querySelector('#radioPtt');
+    let held = false;
+    const down = (e) => { e.preventDefault(); if(held) return; held = true; try{ b.setPointerCapture(e.pointerId); }catch(_){} radioStartTalk(); };
+    const up = (e) => { if(!held) return; e.preventDefault(); held = false; radioStopTalk(); };
+    b.addEventListener('pointerdown', down);
+    b.addEventListener('pointerup', up); b.addEventListener('pointercancel', up); b.addEventListener('lostpointercapture', up);
+    b.addEventListener('contextmenu', e => e.preventDefault());
+    b.addEventListener('keydown', e => { if(e.code==='Space' || e.code==='Enter') e.preventDefault(); });
   }
-  const speaking = Object.values(RADIO.speakers).map(s => s.name);
-  const suspended = RADIO.ctx && RADIO.ctx.state==='suspended';
-  const line = RADIO.status || (speaking.length ? '🔊 ' + speaking.join(', ') + ' konuşuyor'
-    : suspended ? '🔇 Sesi açmak için dokunun' : (RADIO.online.length + ' kişi çevrimiçi'));
-  dock.innerHTML = `
-    <div style="min-width:0;flex:1;cursor:pointer;" onclick="radioAudioCtx();drawRadioDock();" title="${escapeAttr(RADIO.online.join(', '))}">
-      <div style="font-weight:700;font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">📻 ${escapeHtml(RADIO.channel.name)}</div>
-      <div class="muted" style="font-size:11.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:190px;">${escapeHtml(line)}</div>
-    </div>
-    <button type="button" id="radioPtt" style="margin:0;width:auto;min-width:118px;padding:12px 14px;border-radius:999px;font-weight:800;touch-action:none;user-select:none;-webkit-user-select:none;${RADIO.talking ? 'background:#dc2626;border-color:#dc2626;color:#fff;' : speaking.length ? 'opacity:.85;' : ''}">${RADIO.talking ? '🎙️ Konuşuyor…' : '🎙️ Bas-Konuş'}</button>
-    <button type="button" class="ghost-btn" style="margin:0;width:auto;padding:8px 10px;" title="Telsizi kapat" onclick="radioDisconnect(true)">✕</button>`;
-  const b = document.getElementById('radioPtt');
-  const down = (e) => { e.preventDefault(); try{ b.setPointerCapture(e.pointerId); }catch(_){} radioStartTalk(); };
-  const up = (e) => { e.preventDefault(); radioStopTalk(); };
-  b.addEventListener('pointerdown', down);
-  b.addEventListener('pointerup', up); b.addEventListener('pointercancel', up); b.addEventListener('lostpointercapture', up);
-  b.addEventListener('contextmenu', e => e.preventDefault());
+  const busy = radioBusyBy();
+  const suspended = !RADIO.ctx || RADIO.ctx.state !== 'running';
+  const line = RADIO.flash || RADIO.status || (busy ? '🔊 ' + (busy.n || 'Biri') + ' konuşuyor'
+    : (suspended || RADIO.missed) ? '🔇 Sesi açmak için buraya dokunun' : (RADIO.online.length + ' kişi çevrimiçi'));
+  dock.querySelector('#radioTitle').textContent = '📻 ' + RADIO.channel.name;
+  const ln = dock.querySelector('#radioLine'); ln.textContent = line; ln.title = RADIO.online.join(', ');
+  ln.style.color = (suspended || RADIO.missed || RADIO.flash) && !busy ? 'var(--red)' : '';
+  const b = dock.querySelector('#radioPtt');
+  b.textContent = RADIO.talking ? '🎙️ Konuşuyor…' : busy ? '🔒 Meşgul' : '🎙️ Bas-Konuş';
+  b.style.background = RADIO.talking ? '#dc2626' : busy ? 'var(--border)' : '';
+  b.style.borderColor = RADIO.talking ? '#dc2626' : busy ? 'var(--border)' : '';
+  b.style.color = RADIO.talking ? '#fff' : busy ? 'var(--muted)' : '';
 }
 // Bilgisayarda boşluk tuşu bas-konuş (yazı alanındayken devre dışı).
 function radioIsTyping(e){ const t = e.target; return t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName)); }
-document.addEventListener('keydown', e => { if(e.code==='Space' && RADIO.channel && !e.repeat && !radioIsTyping(e)){ e.preventDefault(); radioStartTalk(); } });
-document.addEventListener('keyup', e => { if(e.code==='Space' && RADIO.talking){ e.preventDefault(); radioStopTalk(); } });
-window.addEventListener('blur', () => radioStopTalk());
-// Tarayıcı ses iznini ilk dokunuşta açar (yenileme sonrası otomatik bağlantı için).
-document.addEventListener('pointerdown', () => { if(RADIO.channel && RADIO.ctx && RADIO.ctx.state==='suspended'){ RADIO.ctx.resume().then(drawRadioDock).catch(()=>{}); } }, true);
+let RADIO_KEY_HELD = false;
+document.addEventListener('keydown', e => { if(e.code==='Space' && RADIO.channel && !radioIsTyping(e)){ e.preventDefault(); if(e.repeat || RADIO_KEY_HELD) return; RADIO_KEY_HELD = true; radioStartTalk(); } });
+document.addEventListener('keyup', e => { if(e.code==='Space' && RADIO_KEY_HELD){ e.preventDefault(); RADIO_KEY_HELD = false; radioStopTalk(); } });
+window.addEventListener('blur', () => { RADIO_KEY_HELD = false; radioStopTalk(); });
+// Tarayıcı ses iznini ilk dokunuşta/tuşta açar (yenileme sonrası otomatik bağlantı için).
+['pointerdown','keydown','touchstart'].forEach(ev => document.addEventListener(ev, () => {
+  if(RADIO.channel && (!RADIO.ctx || RADIO.ctx.state !== 'running')){ const c = radioAudioCtx(); c.resume().then(() => { RADIO.missed = false; drawRadioDock(); }).catch(()=>{}); }
+}, true));
