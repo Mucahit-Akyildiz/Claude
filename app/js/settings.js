@@ -957,13 +957,39 @@ function isOwnerUser(u){
   const sys = (APP.config.roles||[]).filter(r => r.is_system).map(r => r.id);
   return (u.role_ids||[]).some(id => sys.includes(id));
 }
+/* Şifre alanı: mevcut şifreler geri çevrilemez biçimde (bcrypt) saklandığı için
+   gösterilemez; alan •••••• ile "ayarlı" görünür. 👁 yazılanı gösterir, 🎲 rastgele
+   şifre üretip görünür halde alana yazar (personele iletmek için). */
+function passField(id, disabled, existing){
+  const btn = 'flex:0 0 auto;width:auto;margin:0;padding:6px 9px;font-size:15px;line-height:1;';
+  return `<div style="display:flex;gap:6px;align-items:center;">
+    <input type="password" id="${id}" placeholder="${existing ? '••••••  (değiştirmek için yaz)' : 'Şifre'}" autocomplete="new-password" style="flex:1;min-width:0;margin:0;" ${disabled?'disabled':''}>
+    ${disabled ? '' : `<button type="button" class="ghost-btn" style="${btn}" title="Göster / gizle" onclick="togglePassVisible('${id}', this)">👁</button>
+    <button type="button" class="ghost-btn" style="${btn}" title="Rastgele şifre üret" onclick="fillRandomPass('${id}')">🎲</button>`}
+  </div>`;
+}
+function togglePassVisible(id, b){
+  const el = document.getElementById(id); if(!el) return;
+  el.type = el.type==='password' ? 'text' : 'password';
+  if(b) b.style.opacity = el.type==='text' ? '1' : '';
+}
+function fillRandomPass(id){
+  const el = document.getElementById(id); if(!el) return;
+  const chars = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKMNPQRSTUVWXYZ23456789';
+  const r = new Uint32Array(10); crypto.getRandomValues(r);
+  el.value = Array.from(r, x => chars[x % chars.length]).join('');
+  el.type = 'text';
+  el.dispatchEvent(new Event('input', { bubbles:true }));
+  el.focus(); el.select();
+  showToast('Şifre üretildi — kaydetmeden önce not alın');
+}
 /* İşletme sahibi: Yönetici rolü sabit; hesabını yalnızca kendisi düzenleyebilir. */
 function ownerUserRow(u, session){
   const self = u.id === session.user_id;
   return `<tr data-uid="${u.id}" data-owner="1">
     <td></td>
     <td class="col-name"><input value="${escapeAttr(u.username)}" id="us_name_${u.id}" ${self?'':'disabled'}></td>
-    <td class="col-name">${self ? `<input type="password" placeholder="(değiştirmek için yaz)" id="us_pass_${u.id}" autocomplete="new-password">` : '<span class="muted">—</span>'}</td>
+    <td class="col-name">${self ? `${passField('us_pass_'+u.id, false, true)}` : '<span class="muted">—</span>'}</td>
     <td class="col-name"><span class="role-badge">👑 İşletme Sahibi · Yönetici</span>${self ? '' : '<div class="muted" style="font-size:12px;margin-top:4px;">🔒 Değiştirilemez</div>'}</td>
   </tr>`;
 }
@@ -982,7 +1008,7 @@ function renderUsersSettings(el, session){
       <p>Yeni Kullanıcı Ekle</p>
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;align-items:start;">
         <div class="field-group"><label>Kullanıcı Adı</label><input id="nu_name" placeholder="örn. ahmet"></div>
-        <div class="field-group"><label>Şifre</label><input id="nu_pass" placeholder="Şifre"></div>
+        <div class="field-group"><label>Şifre</label>${passField('nu_pass', false, false)}</div>
         <div class="field-group"><label>Roller (en fazla 2)</label>${roleCheckboxes('nu', [])}</div>
       </div>
       <button style="margin-top:12px;max-width:220px;" onclick="addUser()">+ Kullanıcı Ekle</button>
@@ -1009,7 +1035,7 @@ function renderUsersSettings(el, session){
         <tr data-uid="${u.id}" style="${u.is_active===false?'opacity:.55;':''}">
           <td>${locked ? '<span title="Yetkili kullanıcı - düzenleme izniniz yok">🔒</span>' : !canAssign ? '' : `<input type="checkbox" class="user-sel" value="${u.id}" style="width:auto;margin:0;" onchange="updateUserSelection()">`}</td>
           <td class="col-name"><input value="${escapeAttr(u.username)}" id="us_name_${u.id}" ${locked?'disabled':''}>${u.is_active===false?'<span class="role-badge" style="color:var(--red);border-color:var(--red);margin-top:6px;display:inline-block;">Pasif</span>':''}</td>
-          <td class="col-name"><input type="password" placeholder="(değiştirmek için yaz)" id="us_pass_${u.id}" autocomplete="new-password" ${locked?'disabled':''}></td>
+          <td class="col-name">${passField('us_pass_'+u.id, locked, true)}</td>
           <td class="col-name">${roleCheckboxes('us_'+u.id, u.role_ids||[], !canAssign)}</td>
         </tr>`).replace('<tr', `<tr data-uname="${escapeAttr(String(u.username).toLocaleLowerCase('tr'))}"`); }).join('')}
       </tbody>

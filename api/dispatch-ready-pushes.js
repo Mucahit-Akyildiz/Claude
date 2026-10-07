@@ -371,6 +371,21 @@ async function dispatchChatMessage(supabase, messageId) {
   });
 }
 
+// Telsiz kanalina yeni eklenen uyelere bildirim. Sadece gercekten o kanalin
+// uyesi olan kullanicilara gonderilir (govdedeki listeye korce guvenilmez).
+async function dispatchRadioAdded(supabase, channelId, userIds, by) {
+  const { data: ch } = await supabase.from('radio_channels').select('id, name').eq('id', channelId).maybeSingle();
+  if (!ch) return { sent: 0, note: 'not found' };
+  const { data: members } = await supabase.from('radio_channel_members').select('user_id').eq('channel_id', channelId);
+  const want = new Set(Array.isArray(userIds) ? userIds : []);
+  const ids = (members || []).map((m) => m.user_id).filter((id) => want.has(id));
+  return sendToUsers(supabase, ids, {
+    title: '📻 Telsiz kanalına eklendiniz',
+    body: (by || 'Bir yönetici') + ' sizi ' + '"' + ch.name + '" kanalına ekledi. Bağlanmak için dokunun.',
+    url: '/app/', view: 'radio', tag: 'radio-' + ch.id,
+  });
+}
+
 // Masadaki QR menuden "Garson Cagir": siparis cagrisi 'order', odeme cagrisi
 // 'payments' izni olan personele (Yonetici dahil) push olarak gider.
 async function dispatchWaiterCall(supabase, callId) {
@@ -441,6 +456,13 @@ module.exports = async function handler(req, res) {
       const messageId = req.body && req.body.message_id;
       if (!messageId) { res.status(400).json({ error: 'message_id required' }); return; }
       res.status(200).json(await dispatchChatMessage(supabase, messageId));
+      return;
+    }
+
+    if (mode === 'radio_added') {
+      const channelId = req.body && req.body.channel_id;
+      if (!channelId) { res.status(400).json({ error: 'channel_id required' }); return; }
+      res.status(200).json(await dispatchRadioAdded(supabase, channelId, req.body.user_ids, req.body.by));
       return;
     }
 
