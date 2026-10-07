@@ -3925,11 +3925,12 @@ begin
         sh.closed_at, sh.ordered_at, sh.ready_at, sh.tags, sh.kind, sh.tip_amount, sh.customer_id, sh.points_earned, sh.points_redeemed, sh.birthday_discount_amount,
         sh.staff_user_id, au1.username as staff_name,
         o.created_by as order_taken_by, au2.username as order_taken_by_name,
-        sh.gift_card_amount, (o.reservation_id is not null) as from_reservation, (o.waitlist_id is not null) as from_waitlist
+        sh.gift_card_amount, (o.reservation_id is not null) as from_reservation, (o.waitlist_id is not null) as from_waitlist, coalesce(cu.name, o.customer_name) as customer_name, coalesce(cu.phone, o.customer_phone) as customer_phone
       from sales_history sh
       left join app_users au1 on au1.id = sh.staff_user_id
       left join orders o on o.id = sh.order_id
       left join app_users au2 on au2.id = o.created_by
+      left join customers cu on cu.id = sh.customer_id
       where sh.restaurant_id = s.restaurant_id
         and sh.closed_at >= (p_date::timestamp at time zone 'Europe/Istanbul')
         and sh.closed_at < ((coalesce(p_date_to, p_date) + 1)::timestamp at time zone 'Europe/Istanbul')
