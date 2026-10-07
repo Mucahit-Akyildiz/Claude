@@ -66,6 +66,7 @@ function renderMainView(main, session){
   else if(APP.view==='crm') p = renderCrmView(main, session);
   else if(APP.view==='purchasing') p = renderPurchasingView(main, session);
   else if(APP.view==='messages') p = renderMessagesView(main, session);
+  else if(APP.view==='radio') p = renderRadioView(main, session);
   else if(APP.view==='help') p = renderHelpView(main, session);
   return Promise.resolve(p);
 }
@@ -292,6 +293,7 @@ async function playPeyktanSound(){
 function startNavBadges(){
   refreshNavBadges();
   startDataVersionWatch();
+  radioSync();
   if(NAV_BADGE_TIMER) clearInterval(NAV_BADGE_TIMER);
   // Rozetler ve rol izinleri 20 sn'de bir tazelenir (Roller'deki değişiklik
   // açık ekranlara da yenileme gerekmeden yansısın).
@@ -331,7 +333,7 @@ function onDataVersionPush(payload){
   if(v === DATA_VER_LAST) return;
   DATA_VER_LAST = v;
   if(APP.view==='messages') refreshMessagesView();
-  refreshNavBadges(); refreshWaiterCalls(); refreshShiftWidget(session);
+  refreshNavBadges(); refreshWaiterCalls(); refreshShiftWidget(session); radioSyncSoon();
   if(APP.view!=='messages') autoRefreshCurrentView(session);
 }
 async function checkDataVersion(fromRealtime){
