@@ -719,3 +719,6 @@ button.chat-once{cursor:pointer;}
 .kitchen-card{min-width:0;max-width:100%;overflow:hidden;overflow-wrap:anywhere;word-break:break-word;}
 .kitchen-card *{min-width:0;overflow-wrap:anywhere;}
 .kitchen-card button{max-width:100%;}
+
+/* Masa/paket penceresinde sepet uzayınca İptal / Onayla düğmeleri kaydırmadan görünür kalsın. */
+.modal-sticky-actions{display:flex;gap:10px;margin:16px -20px -20px;padding:12px 20px 20px;position:sticky;bottom:-20px;background:var(--panel);border-top:1px solid var(--border);z-index:2;}
