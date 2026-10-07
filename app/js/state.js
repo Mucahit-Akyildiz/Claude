@@ -25,6 +25,8 @@ const PERMISSION_LABELS = {
   purchasing_manage: 'Satın Alma Yönetimi',
   purchasing_suppliers: 'Tedarikçi Yönetimi',
   shifts: 'Vardiyalar',
+  messages: 'Mesajlaşma',
+  radio: 'Peyk Bas-Konuş (Telsiz)',
 };
 function hasPerm(session, perm){ return (session.permissions||[]).includes(perm); }
 /* Yönetici (işletme sahibi) her şeyi yapar; diğerleri ilgili izin rollerine verilmişse. */
@@ -123,7 +125,9 @@ function navItemVisible(item, session){
   if(item.view==='reports') return canManage(session, 'reports');
   if(item.view==='printerSettings') return canManage(session, 'printer_settings');
   // Mesajlaşma rol izniyle açılır (Ayarlar > Roller); Yönetici her zaman görür.
-  if(item.view==='messages' || item.view==='radio') return !!session.isManager || hasPerm(session, 'messages');
+  if(item.view==='messages') return !!session.isManager || hasPerm(session, 'messages');
+  // Peyk Bas-Konuş (telsiz) ayrı rol izni (Ayarlar > Roller).
+  if(item.view==='radio') return !!session.isManager || hasPerm(session, 'radio');
   if(item.view==='settings') return session.isManager || (session.permissions||[]).some(p => p.startsWith('settings_'));
   if(item.view==='purchasing') return ['orders','manage','suppliers'].some(x => hasPurchPerm(session, x));
   if(!item.perm) return true;

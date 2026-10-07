@@ -13,7 +13,7 @@ const RADIO_RATE = 8000;
 function radioStoreKey(session){ return session ? 'rys_radio_' + session.user_id + '_' + session.restaurant_id : null; }
 function radioSaved(session){ try{ return localStorage.getItem(radioStoreKey(session)); }catch(e){ return null; } }
 function radioSave(session, id){ try{ const k = radioStoreKey(session); if(!k) return; if(id) localStorage.setItem(k, id); else localStorage.removeItem(k); }catch(e){} }
-function radioAllowed(session){ return !!session && (session.isManager || hasPerm(session, 'messages')); }
+function radioAllowed(session){ return !!session && (session.isManager || hasPerm(session, 'radio')); }
 
 async function fetchRadioChannels(session){
   const { data, error } = await sb.rpc('list_radio_channels', { p_token: session.session_token });
