@@ -146,14 +146,14 @@ async function openChatConv(conv, keepDraft){
           <div class="chat-sub">${c.is_all ? 'Tüm ekip bu kanalı görür' : c.is_group ? escapeHtml(c.roles || '') : (c.online ? '<span style="color:var(--green);">● Çevrimiçi</span>' : 'Çevrimdışı') + (c.roles ? ' · ' + escapeHtml(c.roles) : '')}</div></div>
         ${c.is_group ? `<button type="button" class="chat-ic" title="Grup ayarları" onclick="openChatGroupMenu('${conv}')">⋮</button>` : ''}
       </div>
-      <div class="chat-thread" id="chatThread"><p class="muted">Yükleniyor…</p></div>
+      <div class="chat-thread" id="chatThread" ondragover="event.preventDefault()" ondrop="onChatDrop(event)"><p class="muted">Yükleniyor…</p></div>
       <div class="chat-reply-bar" id="chatReplyBar"></div>
       <div class="chat-tray" id="chatTray"></div>
       <div class="chat-rec-bar" id="chatRecBar"></div>
       <form class="chat-input" id="chatInputForm" onsubmit="sendChatMessage();return false;">
         <button type="button" class="chat-ic" title="Emoji" onclick="toggleChatTray('emoji')">😊</button>
         <button type="button" class="chat-ic" title="Ekle: kamera, fotoğraf, dosya, hazır yanıt" onclick="toggleChatTray('attach')">📎</button>
-        <textarea id="chatText" rows="1" placeholder="Mesaj yazın…" maxlength="4000"
+        <textarea id="chatText" rows="1" placeholder="Mesaj yazın…" maxlength="4000" onpaste="onChatPaste(event)"
           oninput="this.style.height='auto';this.style.height=Math.min(this.scrollHeight,120)+'px';updateChatSendBtn()"
           onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendChatMessage();}"></textarea>
         <button type="button" class="chat-send" id="chatSendBtn" title="Sesli mesaj kaydet" onclick="onChatSendBtn()">🎙️</button>
@@ -354,6 +354,28 @@ async function sendChatQuick(text){
 // GIF'ler animasyonu bozulmasın diye olduğu gibi (≤1 MB) gönderilir; diğer görseller küçültülür.
 async function sendChatImage(input){
   const file = input.files && input.files[0]; input.value = '';
+  return sendChatImageFile(file);
+}
+/* Panodan yapıştırılan (kopyalanan fotoğraf / ekran görüntüsü) ya da sohbete sürüklenen görsel gönderilir. */
+function chatClipboardImage(dt){
+  if(!dt) return null;
+  for(const it of [...(dt.items || [])]) if(it.kind === 'file' && /^image\//.test(it.type)){ const f = it.getAsFile(); if(f) return f; }
+  for(const f of [...(dt.files || [])]) if(/^image\//.test(f.type)) return f;
+  return null;
+}
+function onChatPaste(e){
+  const file = chatClipboardImage(e.clipboardData);
+  if(!file) return; // yalnızca metin yapıştırıldıysa normal davranış
+  e.preventDefault();
+  sendChatImageFile(file);
+}
+function onChatDrop(e){
+  const file = chatClipboardImage(e.dataTransfer);
+  if(!file) return;
+  e.preventDefault();
+  sendChatImageFile(file);
+}
+async function sendChatImageFile(file){
   if(!file || !APP.chatConv) return;
   let dataUrl;
   try{
