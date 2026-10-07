@@ -19,7 +19,21 @@ async function fetchRadioChannels(session){
   const { data, error } = await sb.rpc('list_radio_channels', { p_token: session.session_token });
   if(error) throw error;
   APP.radioChannels = data || [];
+  radioNotifyNewMemberships(session, APP.radioChannels);
   return APP.radioChannels;
+}
+// Uygulama açıkken yeni bir kanala eklenen kullanıcıya ekranda haber ver
+// (push bildirimi ayrıca sunucudan gider). İlk yüklemede sadece kayıt alınır.
+function radioNotifyNewMemberships(session, list){
+  const k = 'rys_radio_known_' + session.user_id;
+  const mine = list.filter(c => c.is_member).map(c => c.id);
+  let known = null; try{ known = JSON.parse(localStorage.getItem(k) || 'null'); }catch(e){}
+  try{ localStorage.setItem(k, JSON.stringify(mine)); }catch(e){}
+  if(!Array.isArray(known)) return;
+  const added = list.filter(c => c.is_member && !known.includes(c.id) && c.created_by !== session.user_id);
+  if(!added.length) return;
+  radioBeep(990);
+  added.forEach(c => showToast('📻 "' + c.name + '" telsiz kanalına eklendiniz — Telsiz menüsünden bağlanabilirsiniz'));
 }
 
 /* ---- Ekran: kanal listesi / yönetimi ---- */
@@ -154,15 +168,21 @@ async function radioSync(){
   const session = getSession();
   if(!radioAllowed(session)){ if(RADIO.channel) radioShutdown(); return; }
   const want = radioSaved(session);
-  if(!want){ if(RADIO.channel) radioDisconnect(false); return; }
   let list; try{ list = await fetchRadioChannels(session); }catch(e){ return; }
+  if(!want){ if(RADIO.channel) radioDisconnect(false); return; }
   const c = list.find(x => x.id===want && x.is_member);
   if(!c){ radioDisconnect(false); radioSave(session, null); showToast('Telsiz kanalına erişiminiz kaldırıldı'); return; }
   if(!RADIO.channel || RADIO.channel.id!==c.id || RADIO.channel.secret!==c.secret) radioConnect(c.id, true);
   else if(RADIO.channel.name!==c.name){ RADIO.channel.name = c.name; drawRadioDock(); }
 }
 let RADIO_SYNC_TIMER = null;
-function radioSyncSoon(){ clearTimeout(RADIO_SYNC_TIMER); RADIO_SYNC_TIMER = setTimeout(radioSync, 800); }
+// Veri değişikliği bildirimlerinde en fazla 10 sn'de bir sorulur (yoğun sipariş anında gereksiz istek olmasın).
+let RADIO_SYNC_LAST = 0;
+function radioSyncSoon(){
+  if(RADIO_SYNC_TIMER) return;
+  const wait = Math.max(800, 10000 - (Date.now() - RADIO_SYNC_LAST));
+  RADIO_SYNC_TIMER = setTimeout(() => { RADIO_SYNC_TIMER = null; RADIO_SYNC_LAST = Date.now(); radioSync(); }, wait);
+}
 
 /* ---- Konuşma (mikrofon -> 8 kHz µ-law -> broadcast) ---- */
 function muLawEncode(s){
