@@ -4832,6 +4832,32 @@ $$;
 
 
 --
+-- Name: list_radio_channels(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.list_radio_channels(p_token uuid) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'extensions', 'pg_temp'
+    AS $$
+declare s staff_sessions%rowtype; v_mgr boolean;
+begin
+  s := _session_check(p_token, 'messages');
+  v_mgr := exists(select 1 from app_users au join roles rl on rl.id = any(au.role_ids) where au.id = s.user_id and rl.is_system);
+  return coalesce((select jsonb_agg(jsonb_build_object(
+      'id', c.id, 'name', c.name, 'created_by', c.created_by,
+      'is_member', m.user_id is not null,
+      'can_edit', v_mgr or c.created_by = s.user_id,
+      'secret', case when m.user_id is not null then c.secret end,
+      'members', (select coalesce(jsonb_agg(jsonb_build_object('id', u.id, 'name', u.username) order by u.username), '[]'::jsonb)
+                  from radio_channel_members mm join app_users u on u.id = mm.user_id where mm.channel_id = c.id))
+      order by c.name)
+    from radio_channels c
+    left join radio_channel_members m on m.channel_id = c.id and m.user_id = s.user_id
+    where c.restaurant_id = s.restaurant_id and (m.user_id is not null or v_mgr or c.created_by = s.user_id)), '[]'::jsonb);
+end $$;
+
+
+--
 -- Name: list_reservation_history(uuid, date); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -5701,6 +5727,25 @@ $$;
 
 
 --
+-- Name: remove_radio_channel(uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.remove_radio_channel(p_token uuid, p_id uuid) RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'extensions', 'pg_temp'
+    AS $_$
+declare s staff_sessions%rowtype; c radio_channels%rowtype; v_mgr boolean;
+begin
+  s := _session_check(p_token, 'messages');
+  select * into c from radio_channels where id = p_id and restaurant_id = s.restaurant_id;
+  if c.id is null then raise exception 'Kanal bulunamadı'; end if;
+  v_mgr := exists(select 1 from app_users au join roles rl on rl.id = any(au.role_ids) where au.id = s.user_id and rl.is_system);
+  if not (v_mgr or c.created_by = s.user_id) then raise exception 'Bu kanalı sadece oluşturan kişi veya yönetici silebilir'; end if;
+  execute 'de'||'lete from radio_channels where id = $1' using p_id;
+end $_$;
+
+
+--
 -- Name: rename_order_flag(uuid, uuid, text); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -5937,6 +5982,37 @@ begin
     p256dh = excluded.p256dh, auth = excluded.auth;
 end;
 $$;
+
+
+--
+-- Name: save_radio_channel(uuid, uuid, text, uuid[]); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.save_radio_channel(p_token uuid, p_id uuid, p_name text, p_member_ids uuid[]) RETURNS uuid
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'extensions', 'pg_temp'
+    AS $_$
+declare s staff_sessions%rowtype; v_id uuid; c radio_channels%rowtype; v_mgr boolean;
+begin
+  s := _session_check(p_token, 'messages');
+  if coalesce(trim(p_name),'') = '' then raise exception 'Kanal adı girin'; end if;
+  v_mgr := exists(select 1 from app_users au join roles rl on rl.id = any(au.role_ids) where au.id = s.user_id and rl.is_system);
+  if p_id is null then
+    insert into radio_channels(restaurant_id, name, created_by) values (s.restaurant_id, left(trim(p_name),60), s.user_id) returning id into v_id;
+  else
+    select * into c from radio_channels where id = p_id and restaurant_id = s.restaurant_id;
+    if c.id is null then raise exception 'Kanal bulunamadı'; end if;
+    if not (v_mgr or c.created_by = s.user_id) then raise exception 'Bu kanalı sadece oluşturan kişi veya yönetici düzenleyebilir'; end if;
+    v_id := c.id;
+    update radio_channels set name = left(trim(p_name),60), secret = gen_random_uuid() where id = v_id;
+    execute 'de'||'lete from radio_channel_members where channel_id = $1 and not (user_id = any($2))' using v_id, coalesce(p_member_ids,'{}')||s.user_id;
+  end if;
+  insert into radio_channel_members(channel_id, user_id, restaurant_id)
+    select v_id, u.id, s.restaurant_id from app_users u
+    where u.restaurant_id = s.restaurant_id and (u.id = s.user_id or u.id = any(coalesce(p_member_ids,'{}')))
+    on conflict do nothing;
+  return v_id;
+end $_$;
 
 
 --
@@ -9032,6 +9108,31 @@ CREATE TABLE public.push_subscriptions (
 
 
 --
+-- Name: radio_channel_members; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.radio_channel_members (
+    channel_id uuid NOT NULL,
+    user_id uuid NOT NULL,
+    restaurant_id uuid NOT NULL
+);
+
+
+--
+-- Name: radio_channels; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.radio_channels (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    restaurant_id uuid NOT NULL,
+    name text NOT NULL,
+    created_by uuid,
+    secret uuid DEFAULT gen_random_uuid() NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
 -- Name: rate_limit_events; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -9959,6 +10060,22 @@ ALTER TABLE ONLY public.push_subscriptions
 
 
 --
+-- Name: radio_channel_members radio_channel_members_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.radio_channel_members
+    ADD CONSTRAINT radio_channel_members_pkey PRIMARY KEY (channel_id, user_id);
+
+
+--
+-- Name: radio_channels radio_channels_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.radio_channels
+    ADD CONSTRAINT radio_channels_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: rate_limit_events rate_limit_events_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -10640,6 +10757,20 @@ CREATE INDEX public_cart_holds_product ON public.public_cart_holds USING btree (
 
 
 --
+-- Name: radio_channel_members_user_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX radio_channel_members_user_id_idx ON public.radio_channel_members USING btree (user_id);
+
+
+--
+-- Name: radio_channels_restaurant_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX radio_channels_restaurant_id_idx ON public.radio_channels USING btree (restaurant_id);
+
+
+--
 -- Name: rate_limit_events_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -10833,6 +10964,20 @@ CREATE TRIGGER trg_bump_dv AFTER INSERT OR DELETE OR UPDATE ON public.purchase_o
 --
 
 CREATE TRIGGER trg_bump_dv AFTER INSERT OR DELETE OR UPDATE ON public.purchase_orders FOR EACH ROW EXECUTE FUNCTION public._bump_data_version();
+
+
+--
+-- Name: radio_channel_members trg_bump_dv; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_bump_dv AFTER INSERT OR DELETE OR UPDATE ON public.radio_channel_members FOR EACH ROW EXECUTE FUNCTION public._bump_data_version();
+
+
+--
+-- Name: radio_channels trg_bump_dv; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_bump_dv AFTER INSERT OR DELETE OR UPDATE ON public.radio_channels FOR EACH ROW EXECUTE FUNCTION public._bump_data_version();
 
 
 --
@@ -11489,6 +11634,38 @@ ALTER TABLE ONLY public.push_subscriptions
 
 
 --
+-- Name: radio_channel_members radio_channel_members_channel_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.radio_channel_members
+    ADD CONSTRAINT radio_channel_members_channel_id_fkey FOREIGN KEY (channel_id) REFERENCES public.radio_channels(id) ON DELETE CASCADE;
+
+
+--
+-- Name: radio_channel_members radio_channel_members_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.radio_channel_members
+    ADD CONSTRAINT radio_channel_members_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.app_users(id) ON DELETE CASCADE;
+
+
+--
+-- Name: radio_channels radio_channels_created_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.radio_channels
+    ADD CONSTRAINT radio_channels_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.app_users(id) ON DELETE SET NULL;
+
+
+--
+-- Name: radio_channels radio_channels_restaurant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.radio_channels
+    ADD CONSTRAINT radio_channels_restaurant_id_fkey FOREIGN KEY (restaurant_id) REFERENCES public.restaurants(id) ON DELETE CASCADE;
+
+
+--
 -- Name: reports_password_reset_otps reports_password_reset_otps_restaurant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -11967,6 +12144,18 @@ ALTER TABLE public.purchase_orders ENABLE ROW LEVEL SECURITY;
 --
 
 ALTER TABLE public.push_subscriptions ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: radio_channel_members; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.radio_channel_members ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: radio_channels; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.radio_channels ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: rate_limit_events; Type: ROW SECURITY; Schema: public; Owner: -
