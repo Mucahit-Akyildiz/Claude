@@ -771,19 +771,19 @@ function renderProductsSettings(el, session){
 
     <div class="add-row-panel">
       <p>Yeni Ürün Ekle</p>
-      <div class="add-row-inline">
-        <div class="field-group grow"><label>Ürün Adı</label><input id="np_name" placeholder="örn. Izgara Köfte"></div>
-        <div class="field-group"><label>İstasyon</label><select id="np_station">${APP.config.stations.map(s => `<option value="${s.id}">${escapeHtml(s.name)}</option>`).join('')}</select></div>
-        <div class="field-group" style="flex-basis:90px;"><label>Fiyat (₺)</label><input type="number" id="np_price" placeholder="0"></div>
-        <div class="field-group" style="flex-basis:90px;"><label>Maliyet (₺)</label><input type="number" id="np_cost" placeholder="0"></div>
-        <div class="field-group" style="flex-basis:100px;"><label>Stok</label><input type="number" id="np_stock" placeholder="Sınırsız" title="Boş = sınırsız; reçete eklerseniz bu alan kullanılmaz"></div>
+      <div class="add-row-inline" style="display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;">
+        <div class="field-group grow" style="margin:0;min-width:0;flex:2 1 170px;width:auto;"><label>Ürün Adı</label><input style="margin:0;width:100%;" id="np_name" placeholder="örn. Izgara Köfte"></div>
+        <div class="field-group" style="margin:0;min-width:0;flex:1.4 1 130px;width:auto;"><label>İstasyon</label><select style="margin:0;width:100%;" id="np_station">${APP.config.stations.map(s => `<option value="${s.id}">${escapeHtml(s.name)}</option>`).join('')}</select></div>
+        <div class="field-group" style="margin:0;min-width:0;flex:1 1 90px;width:auto;"><label>Fiyat (₺)</label><input style="margin:0;width:100%;" type="number" id="np_price" placeholder="0"></div>
+        <div class="field-group" style="margin:0;min-width:0;flex:1 1 90px;width:auto;"><label>Maliyet (₺)</label><input style="margin:0;width:100%;" type="number" id="np_cost" placeholder="0"></div>
+        <div class="field-group" style="margin:0;min-width:0;flex:1 1 100px;width:auto;"><label>Stok</label><input style="margin:0;width:100%;" type="number" id="np_stock" placeholder="Sınırsız" title="Boş = sınırsız; reçete eklerseniz bu alan kullanılmaz"></div>
         ${(APP.config.ingredients||[]).length===0 ? '' : `
-        <div class="field-group grow"><label>Reçete (opsiyonel)</label><select id="npRecipeIngSelect">
+        <div class="field-group grow" style="margin:0;min-width:0;flex:2 1 170px;width:auto;"><label>Reçete (opsiyonel)</label><select style="margin:0;width:100%;" id="npRecipeIngSelect">
           ${APP.config.ingredients.map(i => `<option value="${i.id}" data-unit="${i.unit}" data-name="${escapeAttr(i.name)}">${escapeHtml(i.name)} (${i.unit})</option>`).join('')}
         </select></div>
-        <div class="field-group" style="flex-basis:80px;"><label>Miktar</label><input type="number" step="0.01" id="npRecipeQtyInput" placeholder="0"></div>
-        <button type="button" class="ghost-btn" onclick="addNewProductRecipeItem()" title="Hammaddeyi reçeteye ekle">＋ Reçeteye</button>`}
-        <button type="button" onclick="addProduct()">+ Ürün Ekle</button>
+        <div class="field-group" style="margin:0;min-width:0;flex:1 1 80px;width:auto;"><label>Miktar</label><input style="margin:0;width:100%;" type="number" step="0.01" id="npRecipeQtyInput" placeholder="0"></div>
+        <button type="button" class="ghost-btn" style="width:auto;margin:0;white-space:nowrap;flex:0 0 auto;" onclick="addNewProductRecipeItem()" title="Hammaddeyi reçeteye ekle">＋ Reçeteye</button>`}
+        <button type="button" style="width:auto;margin:0;white-space:nowrap;flex:0 0 auto;padding-left:18px;padding-right:18px;" onclick="addProduct()">+ Ürün Ekle</button>
       </div>
       <div id="npRecipeItemsBox"></div>
     </div>

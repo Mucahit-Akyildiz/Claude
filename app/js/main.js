@@ -789,6 +789,10 @@ function liftAddPanels(root){
     box.insertBefore(panel, list);
     panel.style.margin = '0 0 16px';
   });
+  // Geniş ekranda ekleme paneli kaydırınca üstte sabit kalır (stil dosyası önbellekte eski kalsa da çalışsın).
+  if(window.innerWidth > 820 && root.querySelectorAll) root.querySelectorAll('.add-row-panel').forEach(panel => {
+    Object.assign(panel.style, { position: 'sticky', top: '0', zIndex: '30', boxShadow: '0 8px 18px -12px rgba(0,0,0,.25)' });
+  });
 }
 new MutationObserver(muts => {
   for(const m of muts) for(const n of m.addedNodes) if(n.nodeType === 1) liftAddPanels(n.parentElement || n);
