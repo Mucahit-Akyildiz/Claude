@@ -151,6 +151,7 @@ function clearSession(){
   // Önceki kullanıcıya ait önbellekler (mesajlar, sorgu sonuçları) sonraki kullanıcıya kalmasın.
   try{ if(typeof resetChatCaches === 'function') resetChatCaches(); }catch(e){}
   try{ clearRpcCache(); }catch(e){}
+  try{ if(typeof radioShutdown === 'function') radioShutdown(); }catch(e){}
 }
 /* Şirket oturumu (şube sahibi/zincir hesabı) - şube personel oturumundan
    (staff_session) ayrı ve bağımsız tutulur. Bir şirket sahibi bir şubeye
