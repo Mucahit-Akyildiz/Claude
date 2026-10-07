@@ -116,8 +116,14 @@ async function removeRadioChannel(id){
 
 /* ---- Bağlantı ---- */
 function radioAudioCtx(){
-  if(!RADIO.ctx) RADIO.ctx = new (window.AudioContext || window.webkitAudioContext)();
-  if(RADIO.ctx.state==='suspended') RADIO.ctx.resume().catch(()=>{});
+  if(!RADIO.ctx){
+    // iPhone: sessiz moddayken de çalsın, hoparlörden çıksın (Safari 17+).
+    try{ if(navigator.audioSession && navigator.audioSession.type !== 'play-and-record') navigator.audioSession.type = 'playback'; }catch(e){}
+    RADIO.ctx = new (window.AudioContext || window.webkitAudioContext)();
+    // iOS bağlamı "interrupted" durumuna düşürebiliyor; tekrar çalışınca bekleyen sesler çalınır.
+    RADIO.ctx.onstatechange = () => { if(RADIO.ctx.state === 'running') radioFlushPending(); drawRadioDock(); };
+  }
+  if(RADIO.ctx.state !== 'running' && RADIO.ctx.state !== 'closed') RADIO.ctx.resume().catch(()=>{});
   return RADIO.ctx;
 }
 async function radioConnect(id, silent){
@@ -212,7 +218,7 @@ function radioBusyBy(){
   const me = getSession();
   return RADIO.floor && me && RADIO.floor.u !== me.user_id ? RADIO.floor : null;
 }
-const RADIO_BUILD = 'r3';
+const RADIO_BUILD = 'r4';
 function radioLog(msg){ try{ if(typeof reportClientError === 'function') reportClientError('radio', msg + ' | ' + RADIO_BUILD, 'radio.js'); }catch(e){} }
 async function radioStartTalk(){
   if(RADIO.talking) return;
@@ -223,7 +229,7 @@ async function radioStartTalk(){
   const ctx = radioAudioCtx();
   RADIO.talking = true;
   RADIO.myFloor = { u: session.user_id, n: session.username, t: Date.now() };
-  RADIO.floor = RADIO.myFloor;
+  RADIO.floor = RADIO.myFloor; RADIO.seq = 0;
   RADIO.rt.send({ type:'broadcast', event:'s', payload: RADIO.myFloor });
   drawRadioDock();
   try{
@@ -237,15 +243,33 @@ async function radioStartTalk(){
   }catch(e){ radioLog('bas: FAIL mikrofon ' + (e && (e.name || e.message))); radioStopTalk(); alert('Mikrofona erişilemedi. Tarayıcı/uygulama ayarlarından mikrofon izni verin.'); return; }
   if(!RADIO.talking) return; // izin beklenirken bırakıldı / söz kaybedildi
   radioBeep(880);
+  // Mikrofon ayrı bir ses bağlamında işlenir; iPhone'da mikrofon izninden ÖNCE kurulan
+  // bağlam mikrofon karesi vermeyebiliyor, o yüzden gerekirse yenisi kurulur (bekçi).
+  if(!RADIO.capCtx || RADIO.capCtx.state === 'closed') RADIO.capCtx = new (window.AudioContext || window.webkitAudioContext)();
+  await radioAttachCapture(RADIO.capCtx);
+  setTimeout(async () => {
+    if(!RADIO.talking || !RADIO.diag || RADIO.diag.frames) return;
+    radioLog('bas: mikrofon karesi yok, ses bağlamı yeniden kuruluyor (' + RADIO.capCtx.state + ')');
+    radioDetachCapture();
+    try{ RADIO.capCtx.close(); }catch(e){}
+    RADIO.capCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if(RADIO.talking) await radioAttachCapture(RADIO.capCtx, true);
+  }, 700);
+}
+function radioDetachCapture(){
+  if(RADIO.proc){ try{ RADIO.src.disconnect(RADIO.proc); RADIO.proc.disconnect(); }catch(e){} RADIO.proc = null; }
+}
+async function radioAttachCapture(ctx, retry){
   if(ctx.state !== 'running'){ try{ await ctx.resume(); }catch(e){} }
   if(!RADIO.talking) return;
   try{
     if(!RADIO.src || RADIO.src.context !== ctx) RADIO.src = ctx.createMediaStreamSource(RADIO.mic);
   }catch(e){ radioLog('bas: FAIL ses kaynağı ' + (e && (e.name || e.message))); radioStopTalk(true); return; }
-  RADIO.diag = { frames:0, chunks:0, errs:0 };
+  if(!retry || !RADIO.diag) RADIO.diag = { frames:0, chunks:0, errs:0, peak:0 };
+  if(retry) RADIO.diag.retried = true;
   const proc = ctx.createScriptProcessor(2048, 1, 1);
   const ratio = ctx.sampleRate / RADIO_RATE; let pos = 0;
-  RADIO.buf = []; RADIO.seq = 0;
+  RADIO.buf = [];
   proc.onaudioprocess = (ev) => {
     if(!RADIO.talking) return;
     RADIO.diag.frames++;
@@ -254,15 +278,16 @@ async function radioStartTalk(){
     for(; pos < inp.length; pos += ratio){
       const a = Math.floor(pos), b = Math.min(inp.length, Math.floor(pos + ratio)); let sum = 0, n = 0;
       for(let i = a; i < b; i++){ sum += inp[i]; n++; }
-      RADIO.buf.push(muLawEncode(n ? sum / n : inp[a]));
+      const v = n ? sum / n : inp[a];
+      if(Math.abs(v) > RADIO.diag.peak) RADIO.diag.peak = Math.abs(v);
+      if(Math.abs(v) > (RADIO.diag.cur || 0)) RADIO.diag.cur = Math.abs(v);
+      RADIO.buf.push(muLawEncode(v));
     }
     pos -= inp.length;
-    if(RADIO.buf.length >= 1600){ radioFlush(); drawRadioDock(); } // ~200 ms'lik parça (saniyede ~5 mesaj)
+    if(RADIO.buf.length >= 1600){ RADIO.diag.lvl = RADIO.diag.cur || 0; RADIO.diag.cur = 0; radioFlush(); drawRadioDock(); } // ~200 ms'lik parça (saniyede ~5 mesaj)
   };
   RADIO.src.connect(proc); proc.connect(ctx.destination); // bazı tarayıcılar çıkışa bağlanmadan işlemiyor (çıkış sessiz)
   RADIO.proc = proc;
-  // Bekçi: mikrofon karesi gelmiyorsa ses bağlamını yeniden uyandır.
-  setTimeout(() => { if(RADIO.talking && RADIO.diag && !RADIO.diag.frames){ ctx.resume().catch(()=>{}); } }, 700);
 }
 function radioFlush(){
   if(!RADIO.buf.length || !RADIO.rt) return;
@@ -275,7 +300,8 @@ function radioFlush(){
 function radioStopTalk(lost){
   if(!RADIO.talking) return;
   RADIO.talking = false;
-  if(RADIO.proc){ if(!lost) radioFlush(); try{ RADIO.src.disconnect(RADIO.proc); RADIO.proc.disconnect(); }catch(e){} RADIO.proc = null; }
+  if(RADIO.proc && !lost) radioFlush();
+  radioDetachCapture();
   RADIO.buf = [];
   const session = getSession();
   if(RADIO.rt && session && !lost) RADIO.rt.send({ type:'broadcast', event:'e', payload:{ u: session.user_id } });
@@ -312,11 +338,25 @@ function radioOnAudio(p){
   RADIO.rx = RADIO.rx || { chunks:0, played:0 }; RADIO.rx.chunks++;
   if(RADIO.nativeAudio) return; // Android uygulaması sesi kendi çalıyor (ekran kapalıyken de)
   const ctx = radioAudioCtx();
-  if(ctx.state !== 'running'){ RADIO.missed = true; drawRadioDock(); return; }
-  RADIO.rx.played++;
-  const bytes = b64ToBytes(p.d);
+  if(ctx.state !== 'running'){
+    // Bağlam uyanana kadar en fazla ~3 sn'lik ses bekletilir (iPhone "interrupted").
+    RADIO.pending = (RADIO.pending || []).concat([p.d]).slice(-15);
+    RADIO.missed = true; drawRadioDock(); return;
+  }
+  radioPlayChunk(p.d);
+}
+function radioFlushPending(){
+  const q = RADIO.pending || []; RADIO.pending = [];
+  if(q.length){ RADIO.missed = false; q.forEach(radioPlayChunk); }
+}
+function radioPlayChunk(d){
+  const ctx = RADIO.ctx; if(!ctx) return;
+  if(RADIO.rx){ RADIO.rx.played++; }
+  const bytes = b64ToBytes(d);
   const ab = ctx.createBuffer(1, bytes.length, RADIO_RATE), ch = ab.getChannelData(0);
-  for(let i = 0; i < bytes.length; i++) ch[i] = muLawDecode(bytes[i]);
+  let pk = 0;
+  for(let i = 0; i < bytes.length; i++){ ch[i] = muLawDecode(bytes[i]); if(Math.abs(ch[i]) > pk) pk = Math.abs(ch[i]); }
+  if(RADIO.rx && pk > (RADIO.rx.peak || 0)) RADIO.rx.peak = pk;
   const src = ctx.createBufferSource(); src.buffer = ab; src.connect(ctx.destination);
   const now = ctx.currentTime;
   // Ağ dalgalanmasına karşı küçük tampon; gecikme birikirse yeniden hizala.
@@ -335,12 +375,14 @@ function radioReportSend(lost){
   if(!d || lost || typeof reportClientError !== 'function') return;
   const ctx = RADIO.ctx;
   const st = !d.frames ? 'FAIL mikrofon karesi yok' : !d.chunks ? 'FAIL parça gönderilmedi' : d.errs ? 'FAIL gönderim hatası ' + d.lastErr : 'ok';
-  reportClientError('radio', RADIO_BUILD + ' gönder: ' + st + ' | ctx=' + (ctx ? ctx.state + '/' + ctx.sampleRate : '-') + ' rt=' + (RADIO.status || 'bağlı'), 'radio.js');
+  const lvl = d.peak < 0.01 ? 'sessiz' : d.peak < 0.05 ? 'düşük' : 'iyi';
+  reportClientError('radio', RADIO_BUILD + ' gönder: ' + st + (d.frames ? ' ses=' + lvl : '') + (d.retried ? ' yeniden-kuruldu' : '') + ' | ctx=' + (RADIO.capCtx ? RADIO.capCtx.state + '/' + RADIO.capCtx.sampleRate : '-') + ' rt=' + (RADIO.status || 'bağlı'), 'radio.js');
 }
 function radioReportRecv(){
   const r = RADIO.rx; RADIO.rx = null;
   if(!r || typeof reportClientError !== 'function') return;
-  const st = RADIO.nativeAudio ? 'ok (Android yerel)' : r.played ? 'ok (web)' : 'FAIL alındı ama çalınmadı';
+  const lvl = !r.played ? '' : (r.peak || 0) < 0.01 ? ' ses=sessiz' : (r.peak || 0) < 0.05 ? ' ses=düşük' : ' ses=iyi';
+  const st = (RADIO.nativeAudio ? 'ok (Android yerel)' : r.played ? 'ok (web)' : 'FAIL alındı ama çalınmadı') + lvl;
   reportClientError('radio', RADIO_BUILD + ' al: ' + st + ' | ctx=' + (RADIO.ctx ? RADIO.ctx.state : '-') + ' görünür=' + document.visibilityState, 'radio.js');
 }
 function radioBeep(freq, dur){
@@ -405,7 +447,11 @@ function drawRadioDock(){
   ln.style.color = (suspended || RADIO.missed || RADIO.flash) && !busy ? 'var(--red)' : '';
   const b = dock.querySelector('#radioPtt');
   if(RADIO.talking && RADIO.waitingMic && !RADIO.flash) ln.textContent = '🎤 Mikrofon izni bekleniyor…';
-  if(RADIO.talking && RADIO.diag) ln.textContent = '📤 gönderiliyor · ' + RADIO.diag.chunks + ' parça' + (RADIO.diag.frames ? '' : ' (mikrofon bekleniyor)');
+  if(RADIO.talking && RADIO.diag){
+    // Anlık mikrofon seviyesi: hiç çubuk yoksa mikrofon sessiz (yanlış cihaz / kapalı).
+    const lv = RADIO.diag.lvl || 0, bars = lv < 0.01 ? 0 : lv < 0.03 ? 1 : lv < 0.08 ? 2 : lv < 0.2 ? 3 : 4;
+    ln.textContent = '📤 ' + RADIO.diag.chunks + ' parça · mikrofon ' + (bars ? '▮'.repeat(bars) + '▯'.repeat(4 - bars) : '🔇 ses yok') + (RADIO.diag.frames ? '' : ' (bekleniyor)');
+  }
   b.textContent = RADIO.talking ? '🎙️ Konuşuyor…' : busy ? '🔒 Meşgul' : '🎙️ Bas-Konuş';
   b.style.background = RADIO.talking ? '#dc2626' : busy ? 'var(--border)' : '';
   b.style.borderColor = RADIO.talking ? '#dc2626' : busy ? 'var(--border)' : '';
