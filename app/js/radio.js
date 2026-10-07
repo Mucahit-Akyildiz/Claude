@@ -280,10 +280,11 @@ async function radioAttachCapture(ctx, retry){
       for(let i = a; i < b; i++){ sum += inp[i]; n++; }
       const v = n ? sum / n : inp[a];
       if(Math.abs(v) > RADIO.diag.peak) RADIO.diag.peak = Math.abs(v);
+      if(Math.abs(v) > (RADIO.diag.cur || 0)) RADIO.diag.cur = Math.abs(v);
       RADIO.buf.push(muLawEncode(v));
     }
     pos -= inp.length;
-    if(RADIO.buf.length >= 1600){ radioFlush(); drawRadioDock(); } // ~200 ms'lik parça (saniyede ~5 mesaj)
+    if(RADIO.buf.length >= 1600){ RADIO.diag.lvl = RADIO.diag.cur || 0; RADIO.diag.cur = 0; radioFlush(); drawRadioDock(); } // ~200 ms'lik parça (saniyede ~5 mesaj)
   };
   RADIO.src.connect(proc); proc.connect(ctx.destination); // bazı tarayıcılar çıkışa bağlanmadan işlemiyor (çıkış sessiz)
   RADIO.proc = proc;
@@ -446,7 +447,11 @@ function drawRadioDock(){
   ln.style.color = (suspended || RADIO.missed || RADIO.flash) && !busy ? 'var(--red)' : '';
   const b = dock.querySelector('#radioPtt');
   if(RADIO.talking && RADIO.waitingMic && !RADIO.flash) ln.textContent = '🎤 Mikrofon izni bekleniyor…';
-  if(RADIO.talking && RADIO.diag) ln.textContent = '📤 gönderiliyor · ' + RADIO.diag.chunks + ' parça' + (RADIO.diag.frames ? '' : ' (mikrofon bekleniyor)');
+  if(RADIO.talking && RADIO.diag){
+    // Anlık mikrofon seviyesi: hiç çubuk yoksa mikrofon sessiz (yanlış cihaz / kapalı).
+    const lv = RADIO.diag.lvl || 0, bars = lv < 0.01 ? 0 : lv < 0.03 ? 1 : lv < 0.08 ? 2 : lv < 0.2 ? 3 : 4;
+    ln.textContent = '📤 ' + RADIO.diag.chunks + ' parça · mikrofon ' + (bars ? '▮'.repeat(bars) + '▯'.repeat(4 - bars) : '🔇 ses yok') + (RADIO.diag.frames ? '' : ' (bekleniyor)');
+  }
   b.textContent = RADIO.talking ? '🎙️ Konuşuyor…' : busy ? '🔒 Meşgul' : '🎙️ Bas-Konuş';
   b.style.background = RADIO.talking ? '#dc2626' : busy ? 'var(--border)' : '';
   b.style.borderColor = RADIO.talking ? '#dc2626' : busy ? 'var(--border)' : '';
