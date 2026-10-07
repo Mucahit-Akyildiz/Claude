@@ -984,7 +984,7 @@ async function renderShiftsTable(session){
     <label style="display:flex;align-items:flex-start;gap:10px;margin:0 0 14px;cursor:${canManage(session,'shifts')?'pointer':'default'};">
       <input type="checkbox" style="width:auto;margin-top:3px;" ${data.shift_required?'checked':''} ${canManage(session,'shifts')?'':'disabled'} onchange="toggleShiftRequired(this.checked)">
       <span><b>Vardiya açmadan çalışılamasın</b><br>
-      <span class="muted" style="font-size:12.5px;">Açıkken personel vardiyasını başlatmadan Sipariş Al, Paket, Mutfak, Ödemeler, Rezervasyon ve Satın Alma ekranlarını kullanamaz. Vardiya talebini gönderdiği anda çalışmaya başlayabilir; onayı siz sonradan verirsiniz. Yöneticiler bu kuraldan muaftır.</span></span>
+      <span class="muted" style="font-size:12.5px;">Açıkken personel vardiyasını başlatmadan Sipariş Al, Paket, Mutfak, Ödemeler, Rezervasyon ve Satın Alma ekranlarını kullanamaz. Vardiya talebini gönderdiği anda çalışmaya başlayabilir; onayı siz sonradan verirsiniz. Yönetici ve <b>⏱ Vardiya açmadan çalışabilir</b> işaretli roller (ör. Tam Yetkili, en fazla 3 kişi) bu kuraldan muaftır.</span></span>
     </label>`;
   const pendWrap = document.getElementById('shiftPendingWrap');
   const pending = data.pending || [];
@@ -1019,7 +1019,7 @@ async function renderShiftsTable(session){
           <td class="col-name">${escapeHtml(r.username)}${r.approved_by && r.approved_by!==r.username ? `<div class="muted" style="font-size:11.5px;">Onaylayan: ${escapeHtml(r.approved_by)}</div>` : ''}</td>
           <td>${formatShiftTime(r.clock_in)}</td>
           <td>${!r.clock_out && r.end_requested_at ? `<span style="color:#d9a400;font-weight:700;">🏁 ${formatShiftTime(r.end_requested_at)}'de bitirmek istedi</span>` : r.clock_out ? formatShiftTime(r.clock_out) + (r.ended_by && r.ended_by!==r.username ? `<div class="muted" style="font-size:11.5px;">${escapeHtml(r.ended_by)} bitirdi</div>` : '') : '<span class="muted">Devam ediyor</span>'}</td>
-          <td>${formatShiftDuration(r.duration_minutes)}</td>
+          <td>${formatShiftDuration(r.duration_minutes)}${r.is_paused ? ' <span style="color:#d9a400;font-weight:700;font-size:12px;">⏸ Duraklatıldı</span>' : ''}${r.paused_minutes > 0 ? `<div class="muted" style="font-size:11.5px;">${formatShiftDuration(r.paused_minutes)} aktif değildi</div>` : ''}</td>
           <td>${r.clock_out ? '' : `<button class="actBtn" style="width:auto;margin:0;background:var(--red);color:var(--btn-ink);" onclick="manageShift('${r.id}','end')">⏹ Bitir</button>`}</td>
         </tr>`).join('')}
       </tbody>
@@ -1068,7 +1068,7 @@ function renderActiveUsersSettings(el){
         </select>
       </div>
     </div>
-    <p class="muted" style="margin:6px 0 16px;font-size:12.5px;text-align:left;">Seçilen süre içinde uygulamada işlem yapan (ekranı açık olan) personel; çıkış yapanlar ⚪ ile gösterilir. 20 saniyede bir otomatik yenilenir.</p>
+    <p class="muted" style="margin:6px 0 16px;font-size:12.5px;text-align:left;">Seçilen süre içinde uygulamada işlem yapan (ekranı açık olan) personel; çıkış yapanlar ⚪ ile gösterilir. 20 saniyede bir otomatik yenilenir. Personel 2 dakikadan uzun süre aktif değilse (🟡) vardiya sayacı durur, yeniden aktif olunca devam eder.</p>
     <div id="activeUsersBody"><p class="muted">Yükleniyor...</p></div>
   </div>`;
   loadActiveUsers();
@@ -1099,7 +1099,7 @@ async function loadActiveUsers(){
         <td>${escapeHtml(r.roles||'—')}</td>
         <td>${fmtRelativeTime(r.last_seen_at)}</td>
         <td style="font-size:12.5px;">${new Date(r.login_at).toLocaleString('tr-TR', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' })}</td>
-        <td>${r.on_shift ? '<span class="role-badge" style="color:var(--green);border-color:var(--green);">Vardiyada</span>' : '<span class="muted">—</span>'}</td>
+        <td>${r.on_shift ? (r.shift_paused ? '<span class="role-badge" style="color:#d9a400;border-color:#d9a400;">⏸ Vardiya durdu</span>' : '<span class="role-badge" style="color:var(--green);border-color:var(--green);">Vardiyada</span>') + (r.shift_minutes != null ? ` <span class="muted" style="font-size:12px;">${formatShiftDuration(r.shift_minutes)}</span>` : '') : '<span class="muted">—</span>'}</td>
       </tr>`).join('')}</tbody></table></div>`}`;
 }
 
@@ -1251,13 +1251,14 @@ function roleCardHtml(r){
     <div class="role-card" data-role-card="${g}">
       <div class="role-head" onclick="toggleRoleCard('${g}')">
         <div class="role-avatar">👤</div>
-        <div class="role-title"><b>${escapeHtml(r.name)}</b><div class="role-sub">${escapeHtml(rolePermSummary(perms))}</div></div>
+        <div class="role-title"><b>${escapeHtml(r.name)}</b>${r.shift_exempt ? ' <span class="role-badge" style="margin-left:6px;font-size:11px;padding:3px 9px;" title="Vardiya açmadan çalışabilir">⏱ Vardiyasız</span>' : ''}<div class="role-sub">${escapeHtml(rolePermSummary(perms))}</div></div>
         <div class="role-meta"><span class="role-chip">${r.user_count} kullanıcı</span><span class="role-chip accent role-perm-count">${perms.filter(p => rolePermissionCatalog().some(c => c.id===p)).length} / ${total} izin</span></div>
         <span class="role-chevron">▶</span>
       </div>
       <div class="role-body">
         <div class="field-group" style="max-width:320px;margin-top:12px;"><label>Rol Adı</label><input value="${escapeAttr(r.name)}" id="role_name_${r.id}" oninput="markRoleDirty('${g}')"></div>
         ${permissionCheckboxes(g, perms)}
+        ${shiftExemptToggleHtml('role_exempt_'+r.id, r.shift_exempt, g)}
         <div class="role-actions">
           <button class="ghost-btn" style="width:auto;margin:0;color:var(--red);border-color:var(--red);" onclick="deleteRole('${r.id}')" ${r.user_count>0?`title="Bu role atanmış ${r.user_count} kullanıcı var"`:''}>${ICON_TRASH}<span>Rolü Sil</span></button>
           <span class="spacer"></span>
@@ -1266,6 +1267,14 @@ function roleCardHtml(r){
         </div>
       </div>
     </div>`;
+}
+/* Vardiya muafiyeti: işaretli roller "vardiya açmadan çalışılamasın" kuralından
+   muaftır (Yönetici her zaman muaf). Bu rollere toplam en fazla 3 kişi atanabilir. */
+function shiftExemptToggleHtml(id, on, group){
+  return `<label style="display:flex;gap:10px;align-items:flex-start;margin:14px 0 4px;cursor:pointer;">
+    <input type="checkbox" id="${id}" style="width:auto;margin-top:3px;" ${on?'checked':''} onchange="markRoleDirty('${group}')">
+    <span><b>⏱ Vardiya açmadan çalışabilir</b><br><span class="muted" style="font-size:12.5px;">"Vardiya açmadan çalışılamasın" açıkken bu roldekiler de vardiyasız işlem yapabilir. Bu tür rollere toplam en fazla 3 kişi atanabilir.</span></span>
+  </label>`;
 }
 function renderRolesSettings(el, session){
   const roles = APP.config.roles || [];
@@ -1289,6 +1298,7 @@ function renderRolesSettings(el, session){
         </div>
         <div class="field-group" style="max-width:320px;margin-top:10px;"><label>Rol Adı</label><input id="new_role_name" placeholder="örn. Kasiyer" oninput="markRoleDirty('new_role')"></div>
         ${permissionCheckboxes('new_role', [])}
+        ${shiftExemptToggleHtml('role_exempt_new', false, 'new_role')}
         <div class="role-actions"><span class="spacer"></span>
           <button style="width:auto;margin:0;padding:10px 22px;" onclick="createRole()">+ Rolü Oluştur</button>
         </div>
@@ -1301,7 +1311,8 @@ async function saveRole(id){
   const name = document.getElementById('role_name_'+id).value.trim();
   const perms = selectedPermissions('role_'+id);
   if(!name){ alert('Rol adı gerekli'); return; }
-  const { error } = await sb.rpc('manager_upsert_role', { p_token: session.session_token, p_id: id, p_name: name, p_permissions: perms });
+  const exempt = !!(document.getElementById('role_exempt_'+id) || {}).checked;
+  const { error } = await sb.rpc('manager_upsert_role', { p_token: session.session_token, p_id: id, p_name: name, p_permissions: perms, p_shift_exempt: exempt });
   if(error){ alert(error.message); return; }
   renderSettingsView(document.getElementById('main'), session);
   showToast('Kaydedildi ✓');
@@ -1311,7 +1322,8 @@ async function createRole(){
   const name = document.getElementById('new_role_name').value.trim();
   const perms = selectedPermissions('new_role');
   if(!name){ alert('Rol adı gerekli'); return; }
-  const { error } = await sb.rpc('manager_upsert_role', { p_token: session.session_token, p_id: null, p_name: name, p_permissions: perms });
+  const exempt = !!(document.getElementById('role_exempt_new') || {}).checked;
+  const { error } = await sb.rpc('manager_upsert_role', { p_token: session.session_token, p_id: null, p_name: name, p_permissions: perms, p_shift_exempt: exempt });
   if(error){ alert(error.message); return; }
   renderSettingsView(document.getElementById('main'), session);
 }
