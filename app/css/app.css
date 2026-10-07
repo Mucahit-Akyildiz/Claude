@@ -722,3 +722,6 @@ button.chat-once{cursor:pointer;}
 
 /* Masa/paket penceresinde sepet uzayınca İptal / Onayla düğmeleri kaydırmadan görünür kalsın. */
 .modal-sticky-actions{display:flex;gap:10px;margin:16px -20px -20px;padding:12px 20px 20px;position:sticky;bottom:-20px;background:var(--panel);border-top:1px solid var(--border);z-index:2;}
+
+/* Sipariş Al bölge sekmelerinde açık masa sayısı */
+.zone-badge{display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;padding:0 5px;margin-left:6px;border-radius:9px;background:var(--red);color:#fff;font-size:11px;font-weight:800;line-height:1;vertical-align:middle;}
