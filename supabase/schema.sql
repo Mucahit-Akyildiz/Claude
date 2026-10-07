@@ -445,7 +445,7 @@ begin
   if _user_has_perm(p_actor, 'users_assign_roles') then return; end if;
   if exists(select 1 from app_users au join roles rl on rl.id = any(au.role_ids)
       where au.id = p_target and ('users_assign_roles' = any(rl.permissions) or 'shift_exempt' = any(rl.permissions))) then
-    raise exception 'Bu kullanıcıyı düzenlemek için "Kullanıcı Rollerini Değiştirme" izni gerekir';
+    raise exception 'Bu kullanıcıyı düzenlemek için "Kullanıcı Yönetimi" izni gerekir';
   end if;
 end $$;
 
@@ -920,7 +920,7 @@ CREATE FUNCTION public._role_permission_catalog(p_restaurant_id uuid) RETURNS js
     union all
     select v.id, v.label, 'Yönetim', 9999, v.sub
     from (values ('reports','Finansal Analiz (raporlar)',1), ('printer_settings','Yazıcı Ayarları',2), ('settings_roles','Ayarlar · Roller',3),
-                 ('settings_billing','Ayarlar · Abonelik',4), ('settings_integrations','Ayarlar · Entegrasyonlar',5), ('settings_datareset','Ayarlar · Veri Sıfırlama',6), ('users_assign_roles','Kullanıcı Rollerini Değiştirme',7), ('shift_exempt','⏱ Vardiya Açmadan Çalışma',8)) v(id,label,sub)
+                 ('settings_billing','Ayarlar · Abonelik',4), ('settings_integrations','Ayarlar · Entegrasyonlar',5), ('settings_datareset','Ayarlar · Veri Sıfırlama',6), ('users_assign_roles','Kullanıcı Yönetimi (ekleme, rol, pasife alma, silme)',7), ('shift_exempt','⏱ Vardiya Açmadan Çalışma',8)) v(id,label,sub)
     where v.id <> 'reports' or 'reports' = any(_restaurant_features(p_restaurant_id))
   ) x;
 $$;
@@ -2720,7 +2720,7 @@ CREATE FUNCTION public.create_staff_user(p_token uuid, p_username text, p_passwo
 declare s staff_sessions%rowtype; new_id uuid; v_max_users int; v_current_count int; v_valid_count int; v_company_id uuid; v_package_id text;
 begin
   s := _session_check(p_token, 'settings_users');
-  if not _user_has_perm(s.user_id, 'users_assign_roles') then raise exception 'Kullanıcı eklemek için "Kullanıcı Rollerini Değiştirme" izni gerekir'; end if;
+  if not _user_has_perm(s.user_id, 'users_assign_roles') then raise exception 'Kullanıcı eklemek için "Kullanıcı Yönetimi" izni gerekir'; end if;
   if p_username is null or trim(p_username) = '' then raise exception 'Kullanıcı adı gerekli'; end if;
   if p_password is null or length(p_password) < 6 then raise exception 'Şifre en az 6 karakter olmalı'; end if;
   if p_role_ids is null or array_length(p_role_ids,1) is null or array_length(p_role_ids,1) > 2 then raise exception 'Bir kullanıcıya en az 1, en fazla 2 rol atanabilir'; end if;
@@ -2952,7 +2952,7 @@ CREATE FUNCTION public.delete_staff_user(p_token uuid, p_user_id uuid) RETURNS v
 declare s staff_sessions%rowtype;
 begin
   s := _session_check(p_token, 'settings_users');
-  perform _guard_privileged_target(s.user_id, p_user_id);
+  if not _user_has_perm(s.user_id, 'users_assign_roles') then raise exception 'Kullanıcı silmek / pasife almak için "Kullanıcı Yönetimi" izni gerekir'; end if;
   if _is_owner(p_user_id) then raise exception 'İşletme sahibinin hesabı silinemez'; end if;
   delete from app_users where id = p_user_id and restaurant_id = s.restaurant_id;
 end; $$;
@@ -6548,7 +6548,7 @@ CREATE FUNCTION public.set_staff_user_active(p_token uuid, p_user_id uuid, p_act
 declare s staff_sessions%rowtype;
 begin
   s := _session_check(p_token, 'settings_users');
-  perform _guard_privileged_target(s.user_id, p_user_id);
+  if not _user_has_perm(s.user_id, 'users_assign_roles') then raise exception 'Kullanıcı silmek / pasife almak için "Kullanıcı Yönetimi" izni gerekir'; end if;
   if p_user_id = s.user_id then raise exception 'Kendi hesabınızı pasife alamazsınız'; end if;
   if _is_owner(p_user_id) then raise exception 'İşletme sahibi pasife alınamaz'; end if;
   update app_users set is_active = p_active where id = p_user_id and restaurant_id = s.restaurant_id and not is_company_owner;
@@ -7444,7 +7444,7 @@ begin
   if p_role_ids is not null and not _is_owner(p_user_id)
      and (select coalesce(array(select unnest(role_ids) order by 1), '{}') from app_users where id = p_user_id) is distinct from array(select unnest(p_role_ids) order by 1)
      and not _user_has_perm(s.user_id, 'users_assign_roles') then
-    raise exception 'Kullanıcı rollerini değiştirmek için "Kullanıcı Rollerini Değiştirme" izni gerekir';
+    raise exception 'Kullanıcı rollerini değiştirmek için "Kullanıcı Yönetimi" izni gerekir';
   end if;
   v_target_owner := _is_owner(p_user_id);
   if p_password is not null and length(p_password) < 6 then raise exception 'Şifre en az 6 karakter olmalı'; end if;
