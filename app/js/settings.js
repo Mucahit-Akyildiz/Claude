@@ -167,29 +167,17 @@ function renderIngredientsSettings(el, session){
   const ings = APP.config.ingredients || [];
   el.innerHTML = `<div class="box" style="max-width:none;">
     <h2>Hammaddeler / Stok Kalemleri</h2>
-    <p class="muted" style="text-align:left;margin:0 0 16px;">Örn: "Köfte" (birim: adet, stok: 200), "Döner Eti" (birim: kg, stok: 20). Yeni bir hammadde eklediğinizde hangi ürünlerin onu kullandığını hemen soracağız — istediğiniz zaman "Kullanıldığı Ürünler" ile bunu tekrar düzenleyebilirsiniz. Aynı hammaddeyi paylaşan ürünlerin stoğu her zaman ortak ve anlık hesaplanır.</p>
-    ${listSearchHtml('ingredients', 'Hammadde ara…')}
-    <div class="settings-table-wrap">
-    <table class="settings-table">
-      <thead><tr><th>Hammadde Adı</th><th>Birim</th><th>Stok</th><th></th></tr></thead>
-      <tbody>
-      ${ings.map(i => `
-        <tr>
-          <td class="col-name"><input value="${escapeAttr(i.name)}" id="ing_name_${i.id}"></td>
-          <td class="col-num"><select id="ing_unit_${i.id}">
-            ${['adet','gram','kg','ml','lt'].map(u => `<option value="${u}" ${u===i.unit?'selected':''}>${u}</option>`).join('')}
-          </select></td>
-          <td class="col-num"><input type="number" step="0.01" value="${i.stock}" id="ing_stock_${i.id}"></td>
-          <td style="white-space:nowrap;">
-            <button type="button" class="act-btn act-save" onclick="saveIngredient('${i.id}')">${ICON_SAVE}<span>Kaydet</span></button>
-            <button class="sbtn" style="background:var(--accent2);color:var(--btn-ink);" onclick="openIngredientUsageModal('${i.id}')">Kullanıldığı Ürünler</button>
-            <button type="button" class="act-btn act-delete" onclick="removeIngredient('${i.id}')">${ICON_TRASH}<span>Sil</span></button>
-          </td>
-        </tr>`).join('')}
-      </tbody>
-    </table>
-    </div>
+    <p class="muted" style="text-align:left;margin:0 0 16px;">Örn: "Köfte" (birim: adet, stok: 200), "Döner Eti" (birim: kg, stok: 20). Yeni bir hammadde eklediğinizde hangi ürünlerin onu kullandığını hemen soracağız — istediğiniz zaman "Kullanıldığı Ürünler" ile bunu tekrar düzenleyebilirsiniz. Aynı hammaddeyi paylaşan ürünlerin stoğu her zaman ortak ve anlık hesaplanır. Satırları değiştirip <b>Kaydet</b>'e basın; silmek için satırları seçin.</p>
     <div class="add-row-panel">
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:0 0 10px;">
+        ${listSearchHtml('ingredients', 'Hammadde ara…').replace('margin:0 0 12px;','margin:0;')}
+        <span style="flex:1;"></span>
+        <div class="act-row">
+          <button type="button" class="act-btn act-save" id="ingSaveAllBtn" onclick="saveAllIngredients()" disabled>${ICON_SAVE}<span>Kaydet</span></button>
+          <button type="button" class="act-btn act-delete" data-ing-sel onclick="bulkDeleteIngredients()" disabled>${ICON_TRASH}<span>Sil</span></button>
+        </div>
+      </div>
+      <p class="muted" id="ingSelInfo" style="text-align:left;font-size:12.5px;margin:-4px 0 8px;text-transform:none;letter-spacing:0;font-weight:400;"></p>
       <p>Yeni Hammadde Ekle</p>
       <div style="${INLINE_ROW}">
         <div class="field-group" style="${fgStyle(200, 2)}"><label>Hammadde Adı</label><input id="ni_name" placeholder="örn. Döner Eti" style="margin:0;"></div>
@@ -200,17 +188,72 @@ function renderIngredientsSettings(el, session){
         <button style="${INLINE_BTN}" onclick="addIngredient()">+ Hammadde Ekle</button>
       </div>
     </div>
+    <div class="settings-table-wrap">
+    <table class="settings-table">
+      <thead><tr><th style="width:36px;"><input type="checkbox" style="width:auto;margin:0;" title="Tümünü seç" onchange="selectAllIngredients(this.checked)"></th><th>Hammadde Adı</th><th>Birim</th><th>Stok</th><th></th></tr></thead>
+      <tbody oninput="markIngDirty(event)" onchange="markIngDirty(event)">
+      ${ings.map(i => `
+        <tr data-iid="${i.id}">
+          <td><input type="checkbox" class="ing-sel" value="${i.id}" style="width:auto;margin:0;" onchange="updateIngSelection()"></td>
+          <td class="col-name"><input value="${escapeAttr(i.name)}" id="ing_name_${i.id}"></td>
+          <td class="col-num"><select id="ing_unit_${i.id}">
+            ${['adet','gram','kg','ml','lt'].map(u => `<option value="${u}" ${u===i.unit?'selected':''}>${u}</option>`).join('')}
+          </select></td>
+          <td class="col-num"><input type="number" step="0.01" value="${i.stock}" id="ing_stock_${i.id}"></td>
+          <td style="white-space:nowrap;">
+            <button class="sbtn" style="background:var(--accent2);color:var(--btn-ink);" onclick="openIngredientUsageModal('${i.id}')">Kullanıldığı Ürünler</button>
+          </td>
+        </tr>`).join('')}
+      </tbody>
+    </table>
+    </div>
   </div>`;
 }
-async function saveIngredient(id){
-  const session = getSession();
-  const name = document.getElementById('ing_name_'+id).value.trim();
-  const unit = document.getElementById('ing_unit_'+id).value;
-  const stock = parseFloat(document.getElementById('ing_stock_'+id).value)||0;
-  const { error } = await sb.rpc('upsert_ingredient', { p_token: session.session_token, p_id: id, p_name: name, p_unit: unit, p_stock: stock });
-  if(error){ alert(error.message); return; }
+/* Hammaddeler: değişen satırlar tek düğmeyle kaydedilir; silme seçilen satırlara toplu uygulanır. */
+function markIngDirty(e){
+  if(!e.target || e.target.type==='checkbox') return;
+  const tr = e.target.closest('tr[data-iid]'); if(!tr) return;
+  tr.dataset.dirty = '1'; tr.style.boxShadow = 'inset 4px 0 0 var(--accent)';
+  updateIngSelection();
+}
+function selectedIngredientIds(){ return [...document.querySelectorAll('.ing-sel:checked')].map(b => b.value); }
+function selectAllIngredients(on){
+  document.querySelectorAll('tr[data-iid]').forEach(tr => { const c = tr.querySelector('.ing-sel'); if(c && tr.style.display!=='none') c.checked = on; });
+  updateIngSelection();
+}
+function updateIngSelection(){
+  const n = selectedIngredientIds().length, dirty = document.querySelectorAll('tr[data-iid][data-dirty]').length;
+  document.querySelectorAll('[data-ing-sel]').forEach(b => { b.disabled = !n; });
+  const save = document.getElementById('ingSaveAllBtn');
+  if(save){ save.disabled = !dirty; save.querySelector('span').textContent = dirty ? `Kaydet (${dirty})` : 'Kaydet'; }
+  const info = document.getElementById('ingSelInfo');
+  if(info) info.innerHTML = [n ? `<b>${n}</b> hammadde seçili` : '', dirty ? `<b>${dirty}</b> satırda kaydedilmemiş değişiklik` : ''].filter(Boolean).join(' · ');
+}
+async function saveAllIngredients(){
+  const rows = [...document.querySelectorAll('tr[data-iid][data-dirty]')].map(tr => {
+    const id = tr.dataset.iid;
+    return { id, name: document.getElementById('ing_name_'+id).value.trim(), unit: document.getElementById('ing_unit_'+id).value,
+      stock: parseFloat(document.getElementById('ing_stock_'+id).value)||0 };
+  });
+  if(!rows.length) return;
+  if(rows.some(r => !r.name)){ alert('Hammadde adı boş olamaz'); return; }
+  const session = getSession(); const errors = [];
+  await withLoadingOverlay((async () => {
+    for(const r of rows){ const { error } = await sb.rpc('upsert_ingredient', { p_token: session.session_token, p_id: r.id, p_name: r.name, p_unit: r.unit, p_stock: r.stock }); if(error) errors.push(r.name + ': ' + error.message); }
+  })());
   renderSettingsView(document.getElementById('main'), session);
-  showToast('Kaydedildi ✓');
+  if(errors.length) alert('Bazı hammaddeler kaydedilemedi:\n\n' + errors.join('\n')); else showToast(rows.length + ' hammadde kaydedildi ✓');
+}
+async function bulkDeleteIngredients(){
+  const ids = selectedIngredientIds(); if(!ids.length) return;
+  const list = ids.map(id => (APP.config.ingredients||[]).find(x => x.id===id)).filter(Boolean);
+  if(!confirm(list.length + ' hammadde silinsin mi? Bunlara bağlı reçeteler de silinir.\n\n' + list.map(i => i.name).join(', '))) return;
+  const session = getSession(); const errors = [];
+  await withLoadingOverlay((async () => {
+    for(const i of list){ const { error } = await sb.rpc('delete_ingredient', { p_token: session.session_token, p_id: i.id }); if(error) errors.push(i.name + ': ' + friendlyDeleteError(error.message)); }
+  })());
+  renderSettingsView(document.getElementById('main'), session);
+  if(errors.length) alert('Bazı hammaddeler silinemedi:\n\n' + errors.join('\n')); else showToast(list.length + ' hammadde silindi');
 }
 async function addIngredient(){
   const session = getSession();
@@ -223,13 +266,6 @@ async function addIngredient(){
   await renderSettingsView(document.getElementById('main'), session);
   // Hammadde eklenir eklenmez, hangi urunlerin kullandigini sormaya devam et.
   if(data) openIngredientUsageModal(data);
-}
-async function removeIngredient(id){
-  if(!confirm('Bu hammaddeyi silmek istediğinize emin misiniz? Buna bağlı reçeteler de silinir.')) return;
-  const session = getSession();
-  const { error } = await sb.rpc('delete_ingredient', { p_token: session.session_token, p_id: id });
-  if(error){ alert(friendlyDeleteError(error.message)); return; }
-  renderSettingsView(document.getElementById('main'), session);
 }
 
 /* --- Bir hammaddeyi hangi urunlerin kullandigini duzenleme penceresi
