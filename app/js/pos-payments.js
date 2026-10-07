@@ -23,11 +23,11 @@ async function renderGiftCardsSettings(el, session){
     <p class="muted" style="text-align:left;margin:-8px 0 16px;">Burada yeni hediye kartı oluşturup mevcut kartların bakiyesini görebilirsiniz. Bir kartı ödeme olarak kullanmak için Ödemeler ekranında hesabı açıp "Hediye Kartı" alanına kodu girin.</p>
     <div class="add-row-panel">
       <p>Yeni Hediye Kartı Oluştur</p>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
-        <div class="field-group"><label>Tutar</label><input id="gcNewAmount" type="number" min="0" step="0.01" placeholder="örn. 200"></div>
-        <div class="field-group"><label>Not (opsiyonel)</label><input id="gcNewNote" placeholder="örn. hediye"></div>
+      <div style="${INLINE_ROW}">
+        <div class="field-group" style="${fgStyle(140)}"><label>Tutar</label><input id="gcNewAmount" type="number" min="0" step="0.01" placeholder="örn. 200" style="margin:0;"></div>
+        <div class="field-group" style="${fgStyle(220, 2)}"><label>Not (opsiyonel)</label><input id="gcNewNote" placeholder="örn. hediye" style="margin:0;"></div>
+        <button style="${INLINE_BTN}" onclick="createGiftCard()">+ Kart Oluştur</button>
       </div>
-      <button style="margin-top:12px;max-width:220px;" onclick="createGiftCard()">+ Kart Oluştur</button>
       <div id="gcNewResult" style="margin-top:10px;"></div>
     </div>
     <div style="margin-top:18px;">

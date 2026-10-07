@@ -54,13 +54,13 @@ async function renderSuppliersContent(session){
     <div class="add-row-panel">
       <p id="supFormTitle">Yeni Tedarikçi Ekle</p>
       <input type="hidden" id="sup_edit_id">
-      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;">
-        <div class="field-group"><label>Ad</label><input id="sup_name" placeholder="örn. ABC Gıda Toptan"></div>
-        <div class="field-group"><label>Telefon</label><input id="sup_phone" placeholder="opsiyonel"></div>
-        <div class="field-group"><label>E-posta</label><input id="sup_email" placeholder="opsiyonel"></div>
+      <div style="${INLINE_ROW}">
+        <div class="field-group" style="${fgStyle(180, 2)}"><label>Ad</label><input id="sup_name" placeholder="örn. ABC Gıda Toptan" style="margin:0;"></div>
+        <div class="field-group" style="${fgStyle(130)}"><label>Telefon</label><input id="sup_phone" placeholder="opsiyonel" style="margin:0;"></div>
+        <div class="field-group" style="${fgStyle(160)}"><label>E-posta</label><input id="sup_email" placeholder="opsiyonel" style="margin:0;"></div>
+        <div class="field-group" style="${fgStyle(200, 2)}"><label>Adres</label><input id="sup_address" placeholder="opsiyonel" style="margin:0;"></div>
+        <button style="${INLINE_BTN}" onclick="saveSupplier()">${ICON_SAVE}<span>Kaydet</span></button>
       </div>
-      <div class="field-group" style="margin-top:10px;"><label>Adres</label><input id="sup_address" placeholder="opsiyonel"></div>
-      <button style="margin-top:12px;max-width:220px;" onclick="saveSupplier()">${ICON_SAVE}<span>Kaydet</span></button>
     </div>
   </div>`;
 }
@@ -151,14 +151,14 @@ async function renderPurchaseOrdersContent(session){
     </div>
     <div class="add-row-panel">
       <p>Yeni Satın Alma Siparişi</p>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
-        <div class="field-group"><label>Tedarikçi</label><select id="po_supplier"><option value="">-</option>${suppliers.map(s => `<option value="${s.id}">${escapeHtml(s.name)}</option>`).join('')}</select></div>
-        <div class="field-group"><label>Beklenen Tarih</label><input id="po_expected" type="date"></div>
+      <div style="${INLINE_ROW}">
+        <div class="field-group" style="${fgStyle(180, 2)}"><label>Tedarikçi</label><select id="po_supplier" style="margin:0;"><option value="">-</option>${suppliers.map(s => `<option value="${s.id}">${escapeHtml(s.name)}</option>`).join('')}</select></div>
+        <div class="field-group" style="${fgStyle(140)}"><label>Beklenen Tarih</label><input id="po_expected" type="date" style="margin:0;"></div>
+        <div class="field-group" style="${fgStyle(200, 2)}"><label>Not</label><input id="po_notes" placeholder="opsiyonel" style="margin:0;"></div>
+        <button type="button" class="ghost-btn" style="${INLINE_BTN}" onclick="addPoDraftItemRow()">+ Hammadde Ekle</button>
+        <button style="${INLINE_BTN}" onclick="createPurchaseOrder()">Sipariş Oluştur</button>
       </div>
       <div id="poItemsWrap" style="margin-top:10px;">${renderPoDraftItemsHtml()}</div>
-      <button type="button" class="ghost-btn" style="max-width:200px;margin-top:6px;" onclick="addPoDraftItemRow()">+ Hammadde Ekle</button>
-      <div class="field-group" style="margin-top:10px;"><label>Not</label><input id="po_notes" placeholder="opsiyonel"></div>
-      <button style="margin-top:12px;max-width:220px;" onclick="createPurchaseOrder()">Sipariş Oluştur</button>
     </div>
   </div>`;
 }

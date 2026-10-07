@@ -10,16 +10,16 @@ async function renderCrmView(main, session){
     ${canManage(session, 'crm') ? `
     <div class="box" style="max-width:none;">
       <h2>Sadakat Programı</h2>
-      <label style="display:flex;align-items:center;gap:8px;font-weight:600;margin-bottom:10px;">
-        <input type="checkbox" id="loy_enabled" ${loyalty.enabled?'checked':''} style="width:auto;margin:0;"> Sadakat puanları aktif
-      </label>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;max-width:420px;">
-        <div class="field-group"><label>Kaç TL harcamada 1 puan</label><input id="loy_spend" type="number" min="1" step="0.01" value="${loyalty.spend_per_point}"></div>
-        <div class="field-group"><label>1 puan kaç TL indirim</label><input id="loy_value" type="number" min="0" step="0.01" value="${loyalty.point_value}"></div>
+      <div style="${INLINE_ROW}">
+        <label style="display:flex;align-items:center;gap:8px;font-weight:600;margin:0 0 10px;flex:0 0 auto;">
+          <input type="checkbox" id="loy_enabled" ${loyalty.enabled?'checked':''} style="width:auto;margin:0;"> Sadakat puanları aktif
+        </label>
+        <div class="field-group" style="${fgStyle(150)}"><label>Kaç TL harcamada 1 puan</label><input id="loy_spend" type="number" min="1" step="0.01" value="${loyalty.spend_per_point}" style="margin:0;"></div>
+        <div class="field-group" style="${fgStyle(150)}"><label>1 puan kaç TL indirim</label><input id="loy_value" type="number" min="0" step="0.01" value="${loyalty.point_value}" style="margin:0;"></div>
+        <div class="field-group" style="${fgStyle(150)}"><label>🎂 Doğum günü indirimi (%)</label><input id="loy_birthday_pct" type="number" min="0" max="100" step="1" value="${loyalty.birthday_discount_percent||0}" style="margin:0;"></div>
+        <button style="${INLINE_BTN}" onclick="saveLoyaltySettings()">${ICON_SAVE}<span>Kaydet</span></button>
       </div>
-      <div class="field-group" style="margin-top:10px;max-width:220px;"><label>🎂 Doğum günü indirimi (%)</label><input id="loy_birthday_pct" type="number" min="0" max="100" step="1" value="${loyalty.birthday_discount_percent||0}"></div>
-      <p class="muted" style="font-size:12px;margin:6px 0 0;">Müşterinin doğum günü kaydedilmişse, o gün ödeme alırken bu yüzde otomatik indirim olarak uygulanır (0 = kapalı).</p>
-      <button style="margin-top:12px;max-width:220px;" onclick="saveLoyaltySettings()">${ICON_SAVE}<span>Kaydet</span></button>
+      <p class="muted" style="font-size:12px;margin:8px 0 0;text-align:left;">Müşterinin doğum günü kaydedilmişse, o gün ödeme alırken bu yüzde otomatik indirim olarak uygulanır (0 = kapalı).</p>
     </div>` : ''}
     <div class="box" style="max-width:none;">
       <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
@@ -48,14 +48,15 @@ async function renderCrmView(main, session){
       <div class="add-row-panel">
         <p id="crmFormTitle">Yeni Müşteri Ekle</p>
         <input type="hidden" id="crm_edit_id">
-        <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:10px;">
-          <div class="field-group"><label>Ad Soyad</label><input id="crm_name" placeholder="örn. Ahmet Yılmaz"></div>
-          <div class="field-group"><label>Telefon</label><input id="crm_phone" placeholder="05xx..."></div>
-          <div class="field-group"><label>E-posta</label><input id="crm_email" placeholder="opsiyonel"></div>
-          <div class="field-group"><label>🎂 Doğum Günü</label><input id="crm_birthday" type="date"></div>
+        <div style="${INLINE_ROW}">
+          <div class="field-group" style="${fgStyle(170, 2)}"><label>Ad Soyad</label><input id="crm_name" placeholder="örn. Ahmet Yılmaz" style="margin:0;"></div>
+          <div class="field-group" style="${fgStyle(130)}"><label>Telefon</label><input id="crm_phone" placeholder="05xx..." style="margin:0;"></div>
+          <div class="field-group" style="${fgStyle(160)}"><label>E-posta</label><input id="crm_email" placeholder="opsiyonel" style="margin:0;"></div>
+          <div class="field-group" style="${fgStyle(140)}"><label>🎂 Doğum Günü</label><input id="crm_birthday" type="date" style="margin:0;"></div>
+          <div class="field-group" style="${fgStyle(160, 2)}"><label>Not</label><input id="crm_notes" placeholder="opsiyonel" style="margin:0;"></div>
+          <button style="${INLINE_BTN}" onclick="saveCrmCustomer()">${ICON_SAVE}<span>Kaydet</span></button>
         </div>
-        <div class="field-group" style="margin-top:10px;"><label>Not</label><input id="crm_notes" placeholder="opsiyonel"></div>
-        <details id="crmLoyaltyBox" style="margin-top:12px;border:1px solid var(--border);border-radius:12px;padding:10px 12px;background:var(--panel);">
+        <details id="crmLoyaltyBox" style="margin-top:10px;border:1px solid var(--border);border-radius:12px;padding:10px 12px;background:var(--panel);">
           <summary style="cursor:pointer;font-weight:700;font-size:13.5px;">⭐ Bu müşteriye özel sadakat ayarı <span class="muted" style="font-weight:400;">(boş bırakılan alan genel ayarı kullanır)</span></summary>
           <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin-top:10px;">
             <div class="field-group"><label>Kaç TL harcamada 1 puan</label><input id="crm_spp" type="number" min="0.01" step="0.01" placeholder="Genel: ${escapeAttr(String(loyalty.spend_per_point ?? ''))}"></div>
@@ -63,7 +64,6 @@ async function renderCrmView(main, session){
             <div class="field-group"><label>🎂 Doğum günü indirimi (%)</label><input id="crm_bdp" type="number" min="0" max="100" step="1" placeholder="Genel: ${escapeAttr(String(loyalty.birthday_discount_percent ?? 0))}"></div>
           </div>
         </details>
-        <button style="margin-top:12px;max-width:220px;" onclick="saveCrmCustomer()">${ICON_SAVE}<span>Kaydet</span></button>
       </div>
     </div>`;
 }
