@@ -1309,7 +1309,7 @@ function tableCustSearch(q, prefix){
     APP.tableCustHits = data || [];
     box.innerHTML = APP.tableCustHits.length ? `<div style="margin-top:8px;border:1px solid var(--border);border-radius:10px;overflow:hidden;background:var(--panel);">
       ${APP.tableCustHits.map((c,i) => `<div onclick="pickTableCustomer(${i}, '${prefix}')" style="padding:8px 12px;cursor:pointer;border-top:${i?'1px solid var(--border)':'0'};display:flex;justify-content:space-between;gap:8px;">
-        <b>👤 ${escapeHtml(c.name||'')}</b><span class="muted">${escapeHtml(c.phone||'')}</span></div>`).join('')}
+        <b>👤 ${escapeHtml(c.name||'')}</b><span class="muted">${escapeHtml(c.phone||'')}${c.email && prefix!=='tableCust' && prefix!=='pkgCust' ? ' · ' + escapeHtml(c.email) : ''}</span></div>`).join('')}
     </div>` : '';
   }, 250);
 }
@@ -1318,6 +1318,8 @@ function pickTableCustomer(i, prefix){
   const c = (APP.tableCustHits||[])[i]; if(!c) return;
   document.getElementById(prefix + 'Name').value = c.name || '';
   document.getElementById(prefix + 'Phone').value = c.phone || '';
+  const emailEl = document.getElementById(prefix + 'Email');
+  if(emailEl && c.email && !emailEl.value) emailEl.value = c.email;
   document.getElementById(prefix + 'Suggest').innerHTML = '';
   if(prefix !== 'tableCust') return;
   const t = document.getElementById('tableCustName').dataset.table;
