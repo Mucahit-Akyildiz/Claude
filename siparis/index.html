@@ -144,26 +144,37 @@ async function init(){
   STATE.menu = data;
   renderMenu();
   // Stok (kalan porsiyon / tükendi) anlık güncellensin: başka müşterilerin ve
-  // restoranın siparişleri ve diğer sepetler düştükçe menü 5 sn'de bir ve sekmeye dönünce yenilenir.
-  setInterval(refreshMenuStock, 5000);
+  // restoranın siparişleri ve diğer sepetler düştükçe stok 3 sn'de bir ve sekmeye dönünce yenilenir.
+  setInterval(refreshMenuStock, 3000);
   // Sepetteki ayırmalar dakikada bir tazelenir (süresi dolmasın; başkası almışsa adet düzeltilir).
   setInterval(() => { if(!document.hidden) Object.keys(STATE.cart || {}).forEach(syncCartHold); }, 60000);
   document.addEventListener('visibilitychange', () => { if(!document.hidden) refreshMenuStock(); });
 }
 async function refreshMenuStock(force){
   if((!force && document.hidden) || !STATE.menu || !document.querySelector('.qty-btn, .sold-badge, #checkoutBg')) return;
-  const { data, error } = await sb.rpc('get_public_order_menu', { p_restaurant_code: RESTAURANT_CODE });
+  // Sadece {ürün id: kalan adet} çekilir (fotoğraflı tam menü her seferinde indirilmez).
+  const { data, error } = await sb.rpc('get_public_order_stock', { p_restaurant_code: RESTAURANT_CODE });
   if(error || !data) return;
-  if(JSON.stringify(data) === JSON.stringify(STATE.menu)) return;
-  STATE.menu = data;
-  // Sepette kalan stoktan fazla ürün varsa kalan adede indirilir.
+  const products = STATE.menu.products || [];
+  const ids = Object.keys(data);
+  // Menüye ürün eklendi / kaldırıldıysa tam menü bir kez yeniden alınır.
+  if(ids.length !== products.length || products.some(p => !(p.id in data))){
+    const full = await sb.rpc('get_public_order_menu', { p_restaurant_code: RESTAURANT_CODE });
+    if(full.error || !full.data) return;
+    STATE.menu = full.data;
+  } else {
+    let changed = false;
+    products.forEach(p => { if(p.max_qty !== data[p.id]){ p.max_qty = data[p.id]; changed = true; } });
+    if(!changed) return;
+  }
   const maxById = {};
-  (function walk(o){ if(Array.isArray(o)) o.forEach(walk); else if(o && typeof o === 'object'){ if(o.id && 'max_qty' in o) maxById[o.id] = o.max_qty; Object.values(o).forEach(walk); } })(data);
+  (STATE.menu.products || []).forEach(p => { maxById[p.id] = p.max_qty; });
   let trimmed = false;
   Object.keys(STATE.cart || {}).forEach(id => {
     const m = maxById[id];
-      // max_qty tüm sepetler düşülmüş kalandır; kendi sepetimiz sunucuda ayrılıdır.
-    if(m != null && m < 0){ trimmed = true; const n = STATE.cart[id] + m; if(n > 0) STATE.cart[id] = n; else delete STATE.cart[id]; }
+    // max_qty tüm sepetler düşülmüş kalandır; kendi sepetimiz sunucuda ayrılıdır.
+    if(m === undefined){ trimmed = true; delete STATE.cart[id]; }
+    else if(m != null && m < 0){ trimmed = true; const n = STATE.cart[id] + m; if(n > 0) STATE.cart[id] = n; else delete STATE.cart[id]; }
   });
   const ck = document.getElementById('checkoutBg');
   if(ck){ if(!trimmed) return; ck.remove(); }
