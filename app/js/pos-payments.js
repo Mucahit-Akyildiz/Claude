@@ -1028,9 +1028,11 @@ async function rejectCustomerRequest(id){
 }
 function renderZoneTabs(){
   const el = document.getElementById('zoneTabs'); if(!el) return;
-  el.innerHTML = APP.config.zones.map(z =>
-    `<div class="tab ${z.id===APP.selectedZone?'active':''}" onclick="selectZone('${z.id}')">${escapeHtml(z.name)}</div>`
-  ).join('');
+  // Her bölge sekmesinde o bölgedeki açık (dolu) masa sayısı rozet olarak görünür.
+  el.innerHTML = APP.config.zones.map(z => {
+    const open = (z.tables||[]).filter(t => liveOrderForTable(t.id)).length;
+    return `<div class="tab ${z.id===APP.selectedZone?'active':''}" onclick="selectZone('${z.id}')">${escapeHtml(z.name)}${open ? ` <span class="zone-badge" title="${open} açık masa">${open}</span>` : ''}</div>`;
+  }).join('');
 }
 function selectZone(id){ APP.selectedZone = id; renderZoneTabs(); renderTableGrid(); }
 /* ---- Masa QR'ını okutarak hızlı geçiş ----
@@ -1199,6 +1201,7 @@ function toggleOrderTableViewMode(){
   renderTableGrid();
 }
 function renderTableGrid(){
+  renderZoneTabs();
   const gridEl = document.getElementById('tableGrid');
   const fpEl = document.getElementById('tableFloorPlan');
   const zone = APP.config.zones.find(z => z.id===APP.selectedZone);
