@@ -350,7 +350,12 @@ async function renderReportContent(session){
       : o.from_waitlist
       ? ' <span style="background:rgba(168,85,247,.15);color:#a855f7;border-radius:6px;padding:2px 6px;font-size:11px;font-weight:700;">⏳ Bekleme Listesi</span>'
       : '';
-    return `<tr><td>${t}</td>
+    const hmS = (x) => x ? new Date(x).toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'}) : '—';
+    const mins = (a, b) => (a && b) ? Math.max(0, Math.round((new Date(b) - new Date(a)) / 60000)) : null;
+    const prep = mins(o.ordered_at, o.ready_at), stay = mins(o.ordered_at, o.closed_at);
+    return `<tr><td>${hmS(o.ordered_at)}</td>
+      <td>${hmS(o.ready_at)}${prep!=null ? ` <span class="muted" style="font-size:11px;">(${prep} dk)</span>` : ''}</td>
+      <td>${t}${stay!=null ? ` <span class="muted" style="font-size:11px;">(${stay} dk)</span>` : ''}</td>
       <td class="col-name">${escapeHtml(billLabel(o))}${srcBadge}${tagBadge}</td>
       <td>${money(o.total)}</td>
       <td>${discTxt}</td>
@@ -359,8 +364,13 @@ async function renderReportContent(session){
   };
   const billsHtml = hist.length===0 ? '<p class="muted">Bu tarihte kapatılmış hesap yok.</p>'
     : filteredBills.length===0 ? '<p class="muted">Bu filtrede kapatılmış hesap yok.</p>'
-    : `<div class="settings-table-wrap"><table class="settings-table"><thead><tr><th>Saat</th><th>Masa</th><th>Tutar</th><th>İndirim</th><th>Ödeme</th><th></th></tr></thead><tbody>` +
+    : `<div class="settings-table-wrap"><table class="settings-table"><thead><tr><th>Sipariş</th><th>Hazır</th><th>Ödendi</th><th>Masa</th><th>Tutar</th><th>İndirim</th><th>Ödeme</th><th></th></tr></thead><tbody>` +
       filteredBills.map(billRowHtml).join('') + '</tbody></table></div>';
+  // Ortalama süreler: sipariş → hazır (mutfak) ve sipariş → ödeme (masada kalış).
+  const avgMin = (arr) => arr.length ? Math.round(arr.reduce((x, y) => x + y, 0) / arr.length) : null;
+  const prepArr = filteredBills.filter(o => o.ordered_at && o.ready_at).map(o => (new Date(o.ready_at) - new Date(o.ordered_at)) / 60000);
+  const stayArr = filteredBills.filter(o => o.ordered_at && o.closed_at).map(o => (new Date(o.closed_at) - new Date(o.ordered_at)) / 60000);
+  const timingHtml = (prepArr.length || stayArr.length) ? `<p class="muted" style="text-align:left;margin:0 0 10px;font-size:13px;">⏱ Ort. hazırlanma: <b>${avgMin(prepArr) ?? '—'} dk</b> · Ort. sipariş → ödeme: <b>${avgMin(stayArr) ?? '—'} dk</b></p>` : '';
 
   el.innerHTML = `
     <div class="stat-grid">
@@ -405,7 +415,7 @@ async function renderReportContent(session){
         </select>
         ${billsFilterActive ? `<button type="button" class="sbtn" style="width:auto;margin:0;" onclick="APP.reportBillsFilter={hour:'',table:'',method:'',source:''};renderReportTabContent(getSession());">✕ Filtreleri Temizle</button>` : ''}
       </div>
-      ${billsHtml}
+      ${timingHtml}${billsHtml}
     </div>
   `;
   // Servis metrikleri (ortalama hesap, masa devir hızı, oturma süresi) ayrı
@@ -700,7 +710,8 @@ async function openSaleDetailModal(historyId){
       <h2 style="margin:0;">${escapeHtml(label)}${d.order_no ? ' <span class="muted" style="font-size:13px;font-weight:600;">#'+d.order_no+'</span>' : ''}</h2>
       <span style="cursor:pointer;color:var(--muted);font-size:20px;" onclick="document.getElementById('saleDetailModalBg').remove()">✕</span>
     </div>
-    <p class="muted" style="text-align:left;margin:4px 0 12px;font-size:12.5px;">${new Date(d.closed_at).toLocaleString('tr-TR')}${d.staff ? ' · ' + escapeHtml(d.staff) : ''}${d.customer ? ' · 👤 ' + escapeHtml(d.customer) : ''}</p>
+    <p class="muted" style="text-align:left;margin:4px 0 4px;font-size:12.5px;">🕒 Sipariş: ${d.ordered_at ? new Date(d.ordered_at).toLocaleString('tr-TR') : '—'} · ✓ Hazır: ${d.ready_at ? new Date(d.ready_at).toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'}) : '—'} · 💳 Ödendi: ${new Date(d.closed_at).toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'})}</p>
+    <p class="muted" style="text-align:left;margin:0 0 12px;font-size:12.5px;">${new Date(d.closed_at).toLocaleString('tr-TR')}${d.staff ? ' · ' + escapeHtml(d.staff) : ''}${d.customer ? ' · 👤 ' + escapeHtml(d.customer) : ''}</p>
     <div style="border-top:1px dashed var(--border);border-bottom:1px dashed var(--border);padding:8px 0;font-size:13.5px;">
       ${(d.items||[]).map(it => row(`${it.qty}x ${escapeHtml(it.name)}`, money(it.total))).join('') || '<p class="muted">Kalem bulunamadı.</p>'}
     </div>

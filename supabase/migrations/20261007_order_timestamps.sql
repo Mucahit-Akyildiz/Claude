@@ -1,0 +1,3 @@
+-- Canlıda uygulandı: order_items.ready_at (trg_order_item_ready_at ile 'ready' olunca otomatik),
+-- sales_history.ordered_at / ready_at (pay_order_items yazar; geçmiş kayıtlarda ordered_at yaklaşık dolduruldu),
+-- get_live_orders, get_sales_history, get_sale_detail bu alanları döner.
