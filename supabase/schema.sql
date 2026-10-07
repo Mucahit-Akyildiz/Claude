@@ -1717,6 +1717,20 @@ $$;
 
 
 --
+-- Name: admin_get_gif_key_set(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.admin_get_gif_key_set(p_token uuid) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'extensions', 'pg_temp'
+    AS $$
+begin
+  perform _platform_admin_check(p_token);
+  return exists(select 1 from platform_settings where key = 'giphy_api_key' and coalesce(value,'') <> '');
+end; $$;
+
+
+--
 -- Name: admin_get_sms(uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -2177,6 +2191,22 @@ begin
   end if;
 end;
 $$;
+
+
+--
+-- Name: admin_set_gif_key(uuid, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.admin_set_gif_key(p_token uuid, p_key text) RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'extensions', 'pg_temp'
+    AS $$
+begin
+  perform _platform_admin_check(p_token);
+  if p_key is not null and length(trim(p_key)) > 200 then raise exception 'Geçersiz anahtar'; end if;
+  insert into platform_settings(key, value) values ('giphy_api_key', nullif(trim(coalesce(p_key,'')),''))
+    on conflict (key) do update set value = excluded.value;
+end; $$;
 
 
 --
@@ -3632,6 +3662,21 @@ begin
   select restaurant_id into r from staff_sessions where token = p_token and expires_at > now();
   if r is null then raise exception 'Oturum geçersiz veya süresi dolmuş, tekrar giriş yapın'; end if;
   return coalesce((select v from data_versions where restaurant_id = r), 0);
+end; $$;
+
+
+--
+-- Name: get_gif_key(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.get_gif_key(p_token uuid) RETURNS text
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'extensions', 'pg_temp'
+    AS $$
+declare s staff_sessions%rowtype;
+begin
+  s := _session_check(p_token, 'messages');
+  return (select nullif(value,'') from platform_settings where key = 'giphy_api_key');
 end; $$;
 
 
