@@ -752,24 +752,24 @@ function renderProductsSettings(el, session){
 
   el.innerHTML = `<div class="box" style="max-width:none;">
     <h2>Ürünler</h2>
-    <p class="muted" style="text-align:left;margin:0 0 16px;">Stok alanını boş bırakırsanız o ürün için stok takibi yapılmaz. Satırları değiştirip <b>Değişiklikleri Kaydet</b>'e basın; satışa açmak / kapatmak / silmek için satırları seçin.</p>
-    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:0 0 6px;">
-      ${listSearchHtml('products', 'Ürün ara…')}
-      <span style="flex:1;"></span>
-      <div class="act-row" style="margin-bottom:12px;">
-        <button type="button" class="act-btn act-save" id="prodSaveAllBtn" onclick="saveAllProducts()" disabled>${ICON_SAVE}<span>Değişiklikleri Kaydet</span></button>
-        <button type="button" class="act-btn act-open" data-prod-sel onclick="bulkProductAvailable(true)" disabled><b>✓</b><span>Satışa Aç</span></button>
-        <button type="button" class="act-btn act-close" data-prod-sel onclick="bulkProductAvailable(false)" disabled><b>✕</b><span>Satışa Kapat</span></button>
-        <button type="button" class="act-btn act-delete" data-prod-sel onclick="bulkDeleteProducts()" disabled>${ICON_TRASH}<span>Sil</span></button>
-      </div>
-    </div>
-    <p class="muted" id="prodSelInfo" style="text-align:left;font-size:12.5px;margin:0 0 10px;min-height:16px;"></p>
+    <p class="muted" style="text-align:left;margin:0 0 16px;">Stok alanını boş bırakırsanız o ürün için stok takibi yapılmaz. Satırları değiştirip <b>Kaydet</b>'e basın; satışa açmak / kapatmak / silmek için satırları seçin.</p>
     <div id="prodGroups" oninput="markProdDirty(event)" onchange="markProdDirty(event)">
     ${stations.map(s => groupHtml(s.name, s.color, products.filter(p => p.station_id===s.id))).join('')}
     ${groupHtml('İstasyonsuz', null, unassigned)}
     </div>
 
     <div class="add-row-panel">
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:0 0 10px;">
+        ${listSearchHtml('products', 'Ürün ara…').replace('margin:0 0 12px;','margin:0;')}
+        <span style="flex:1;"></span>
+        <div class="act-row">
+          <button type="button" class="act-btn act-save" id="prodSaveAllBtn" onclick="saveAllProducts()" disabled>${ICON_SAVE}<span>Kaydet</span></button>
+          <button type="button" class="act-btn act-open" data-prod-sel onclick="bulkProductAvailable(true)" disabled><b>✓</b><span>Satışa Aç</span></button>
+          <button type="button" class="act-btn act-close" data-prod-sel onclick="bulkProductAvailable(false)" disabled><b>✕</b><span>Satışa Kapat</span></button>
+          <button type="button" class="act-btn act-delete" data-prod-sel onclick="bulkDeleteProducts()" disabled>${ICON_TRASH}<span>Sil</span></button>
+        </div>
+      </div>
+      <p class="muted" id="prodSelInfo" style="text-align:left;font-size:12.5px;margin:-4px 0 8px;text-transform:none;letter-spacing:0;font-weight:400;min-height:0;"></p>
       <p>Yeni Ürün Ekle</p>
       <div class="add-row-inline" style="display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;">
         <div class="field-group grow" style="margin:0;min-width:0;flex:2 1 170px;width:auto;"><label>Ürün Adı</label><input style="margin:0;width:100%;" id="np_name" placeholder="örn. Izgara Köfte"></div>
@@ -828,7 +828,7 @@ function updateProdSelection(){
   const n = selectedProductIds().length, dirty = document.querySelectorAll('tr[data-pid][data-dirty]').length;
   document.querySelectorAll('[data-prod-sel]').forEach(b => { b.disabled = !n; });
   const save = document.getElementById('prodSaveAllBtn');
-  if(save){ save.disabled = !dirty; save.querySelector('span').textContent = dirty ? `Değişiklikleri Kaydet (${dirty})` : 'Değişiklikleri Kaydet'; }
+  if(save){ save.disabled = !dirty; save.querySelector('span').textContent = dirty ? `Kaydet (${dirty})` : 'Kaydet'; }
   const info = document.getElementById('prodSelInfo');
   if(info) info.innerHTML = [n ? `<b>${n}</b> ürün seçili` : '', dirty ? `<b>${dirty}</b> üründe kaydedilmemiş değişiklik` : ''].filter(Boolean).join(' · ');
 }
@@ -955,7 +955,7 @@ function renderUsersSettings(el, session){
       <input id="userSearch" placeholder="🔍 Kullanıcı ara…" value="${escapeAttr(APP.userSearch||'')}" oninput="APP.userSearch=this.value;filterUserRows()" style="max-width:320px;margin:0;">
       <span class="spacer" style="flex:1;"></span>
       <div class="act-row" id="userBulkBar">
-        <button type="button" class="act-btn act-save" id="userSaveAllBtn" onclick="saveAllUsers()" disabled>${ICON_SAVE}<span>Değişiklikleri Kaydet</span></button>
+        <button type="button" class="act-btn act-save" id="userSaveAllBtn" onclick="saveAllUsers()" disabled>${ICON_SAVE}<span>Kaydet</span></button>
       </div>
       <div class="act-row" style="${canAssign?'':'display:none;'}">
         <button type="button" class="act-btn act-close" data-needs-sel onclick="bulkUserActive(false)" disabled title="Seçilenler giriş yapamaz, açık oturumları kapanır"><b>⏸</b><span>Pasife Al</span></button>
@@ -963,7 +963,7 @@ function renderUsersSettings(el, session){
         <button type="button" class="act-btn act-delete" data-needs-sel onclick="bulkDeleteUsers()" disabled>${ICON_TRASH}<span>Sil</span></button>
       </div>
     </div>
-    <p class="muted" id="userSelInfo" style="text-align:left;font-size:12.5px;margin:0 0 8px;">Satırdaki bilgileri değiştirip <b>Değişiklikleri Kaydet</b>'e basın${canAssign ? '; pasife almak / silmek için satırları seçin' : ''}.</p>
+    <p class="muted" id="userSelInfo" style="text-align:left;font-size:12.5px;margin:0 0 8px;">Satırdaki bilgileri değiştirip <b>Kaydet</b>'e basın${canAssign ? '; pasife almak / silmek için satırları seçin' : ''}.</p>
     <div class="settings-table-wrap">
     <table class="settings-table">
       <thead><tr><th style="width:36px;">${canAssign ? '<input type="checkbox" id="userSelAll" style="width:auto;margin:0;" title="Tümünü seç" onchange="selectAllUsers(this.checked)">' : ''}</th><th>Kullanıcı Adı</th><th>Yeni Şifre</th><th>Roller (en fazla 2)</th></tr></thead>
@@ -2019,7 +2019,7 @@ function updateUserSelection(){
   const n = selectedUserIds().length, dirty = document.querySelectorAll('tr[data-uid][data-dirty]').length;
   document.querySelectorAll('[data-needs-sel]').forEach(b => { b.disabled = !n; });
   const save = document.getElementById('userSaveAllBtn');
-  if(save){ save.disabled = !dirty; save.querySelector('span').textContent = dirty ? `Değişiklikleri Kaydet (${dirty})` : 'Değişiklikleri Kaydet'; }
+  if(save){ save.disabled = !dirty; save.querySelector('span').textContent = dirty ? `Kaydet (${dirty})` : 'Kaydet'; }
   const info = document.getElementById('userSelInfo');
   if(info && (n || dirty)) info.innerHTML = [n ? `<b>${n}</b> kullanıcı seçili` : '', dirty ? `<b>${dirty}</b> satırda kaydedilmemiş değişiklik` : ''].filter(Boolean).join(' · ');
 }
