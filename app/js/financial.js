@@ -353,9 +353,13 @@ async function renderReportContent(session){
     const hmS = (x) => x ? new Date(x).toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'}) : '—';
     const mins = (a, b) => (a && b) ? Math.max(0, Math.round((new Date(b) - new Date(a)) / 60000)) : null;
     const prep = mins(o.ordered_at, o.ready_at), stay = mins(o.ordered_at, o.closed_at);
-    const dS = new Date(o.ordered_at || o.closed_at).toLocaleDateString('tr-TR', { day:'numeric', month:'short', year:'numeric' });
-    return `<tr><td style="white-space:nowrap;">${dS}</td><td>${hmS(o.ordered_at)}</td>
+    // Tarih = hesabın ödendiği (kapandığı) gün; sipariş başka bir gün verildiyse sipariş saatinin yanında o gün de yazılır.
+    const dOpt = { day:'numeric', month:'short' };
+    const dS = new Date(o.closed_at).toLocaleDateString('tr-TR', { ...dOpt, year:'numeric' });
+    const oD = o.ordered_at ? new Date(o.ordered_at).toLocaleDateString('tr-TR', { ...dOpt, year:'numeric' }) : '—';
+    return `<tr><td style="white-space:nowrap;">${oD}</td><td style="white-space:nowrap;">${hmS(o.ordered_at)}</td>
       <td>${hmS(o.ready_at)}${prep!=null ? ` <span class="muted" style="font-size:11px;">(${prep} dk)</span>` : ''}</td>
+      <td style="white-space:nowrap;">${dS}</td>
       <td>${t}${stay!=null ? ` <span class="muted" style="font-size:11px;">(${stay} dk)</span>` : ''}</td>
       <td class="col-name">${escapeHtml(billLabel(o))}${srcBadge}${tagBadge}</td>
       <td>${money(o.total)}</td>
@@ -365,7 +369,7 @@ async function renderReportContent(session){
   };
   const billsHtml = hist.length===0 ? '<p class="muted">Bu tarihte kapatılmış hesap yok.</p>'
     : filteredBills.length===0 ? '<p class="muted">Bu filtrede kapatılmış hesap yok.</p>'
-    : `<div class="settings-table-wrap"><table class="settings-table"><thead><tr><th>Tarih</th><th>Sipariş</th><th>Hazır</th><th>Ödendi</th><th>Masa</th><th>Tutar</th><th>İndirim</th><th>Ödeme</th><th></th></tr></thead><tbody>` +
+    : `<div class="settings-table-wrap"><table class="settings-table"><thead><tr><th>Sipariş Tarihi</th><th>Sipariş Saati</th><th>Hazır</th><th>Ödeme Tarihi</th><th>Ödeme Saati</th><th>Masa</th><th>Tutar</th><th>İndirim</th><th>Ödeme</th><th></th></tr></thead><tbody>` +
       filteredBills.map(billRowHtml).join('') + '</tbody></table></div>';
   // Ortalama süreler: sipariş → hazır (mutfak) ve sipariş → ödeme (masada kalış).
   const avgMin = (arr) => arr.length ? Math.round(arr.reduce((x, y) => x + y, 0) / arr.length) : null;
