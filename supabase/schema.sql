@@ -4841,7 +4841,7 @@ CREATE FUNCTION public.list_radio_channels(p_token uuid) RETURNS jsonb
     AS $$
 declare s staff_sessions%rowtype; v_mgr boolean;
 begin
-  s := _session_check(p_token, 'messages');
+  s := _session_check(p_token, 'radio');
   v_mgr := exists(select 1 from app_users au join roles rl on rl.id = any(au.role_ids) where au.id = s.user_id and rl.is_system);
   return coalesce((select jsonb_agg(jsonb_build_object(
       'id', c.id, 'name', c.name, 'created_by', c.created_by,
@@ -5076,6 +5076,8 @@ begin
       restaurant_id = coalesce(excluded.restaurant_id, client_errors.restaurant_id), view = coalesce(excluded.view, client_errors.view)
     returning * into v_row;
   -- Yeni bir hata (ilk kez) ya da tekrarlayan (5+) hata: platform yöneticisine e-posta (aynı hata için 6 saatte bir, toplam saatte en fazla 20).
+  -- Bas-Konuş tanı kayıtlarından sadece hatalı olanlar e-posta gönderir.
+  if v_row.kind = 'radio' and position('FAIL' in v_row.message) = 0 then return; end if;
   if (v_row.count = 1 or v_row.count >= 5) and (v_row.notified_at is null or v_row.notified_at < now() - interval '6 hours')
      and (select count(*) from client_errors where notified_at > now() - interval '1 hour') < 20 then
     update client_errors set notified_at = now() where id = v_row.id;
@@ -5736,7 +5738,7 @@ CREATE FUNCTION public.remove_radio_channel(p_token uuid, p_id uuid) RETURNS voi
     AS $_$
 declare s staff_sessions%rowtype; c radio_channels%rowtype; v_mgr boolean;
 begin
-  s := _session_check(p_token, 'messages');
+  s := _session_check(p_token, 'radio');
   select * into c from radio_channels where id = p_id and restaurant_id = s.restaurant_id;
   if c.id is null then raise exception 'Kanal bulunamadı'; end if;
   v_mgr := exists(select 1 from app_users au join roles rl on rl.id = any(au.role_ids) where au.id = s.user_id and rl.is_system);
@@ -5994,7 +5996,7 @@ CREATE FUNCTION public.save_radio_channel(p_token uuid, p_id uuid, p_name text, 
     AS $_$
 declare s staff_sessions%rowtype; v_id uuid; c radio_channels%rowtype; v_mgr boolean; v_added uuid[]; v_url text; v_secret text;
 begin
-  s := _session_check(p_token, 'messages');
+  s := _session_check(p_token, 'radio');
   if coalesce(trim(p_name),'') = '' then raise exception 'Kanal adı girin'; end if;
   v_mgr := exists(select 1 from app_users au join roles rl on rl.id = any(au.role_ids) where au.id = s.user_id and rl.is_system);
   if p_id is null then
