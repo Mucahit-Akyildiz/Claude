@@ -24,7 +24,11 @@ async function renderCrmView(main, session){
     <div class="box" style="max-width:none;">
       <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
         <h2 style="margin:0;">Müşteri Listesi</h2>
-        <input id="crmSearchInput" placeholder="İsim veya telefon ara..." style="max-width:260px;" value="${escapeAttr(APP.crmSearch||'')}" oninput="debouncedCrmSearch(this.value)">
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+          <input id="crmSearchInput" placeholder="İsim veya telefon ara..." style="max-width:260px;margin:0;" value="${escapeAttr(APP.crmSearch||'')}" oninput="debouncedCrmSearch(this.value)">
+          <button type="button" class="ghost-btn" style="width:auto;margin:0;" onclick="exportCustomersCsv()" title="Tüm müşterileri Excel'de açılabilen CSV olarak indir">⬇️ Dışa aktar</button>
+          ${canManage(session, 'crm') ? `<button type="button" class="ghost-btn" style="width:auto;margin:0;" onclick="openCustomerImport()" title="CSV dosyasından müşteri yükle">⬆️ İçe aktar</button>` : ''}
+        </div>
       </div>
       <p class="muted" style="font-size:12px;margin:-4px 0 10px;">Harcama/ziyaret/doğum günü gibi detaylı analizler için <b>Finansal Analiz &gt; Müşteri Analizleri</b> sekmesine bakın.</p>
       <div class="settings-table-wrap">
@@ -139,4 +143,124 @@ async function saveLoyaltySettings(){
   if(error){ alert(error.message); return; }
   APP.config.loyalty = { enabled, spend_per_point: spend, point_value: value, birthday_discount_percent: birthdayPct };
   showToast('Sadakat ayarları kaydedildi ✓');
+}
+
+/* ---- Müşteri içe / dışa aktarma (CSV) ----
+   Dışa aktarma: UTF-8 BOM + noktalı virgül ayraç, Türkçe Excel doğrudan açar.
+   İçe aktarma: Excel'den "CSV (virgül/noktalı virgülle ayrılmış)" kaydedilen dosya;
+   ayraç (; , sekme) ve başlıklar otomatik tanınır. Telefonu eşleşen müşteri güncellenir. */
+const CRM_CSV_COLS = [
+  ['name', 'Ad Soyad', ['ad soyad','ad','isim','adı','name','müşteri','müşteri adı','full name']],
+  ['phone', 'Telefon', ['telefon','tel','gsm','cep','phone','mobile','telefon no']],
+  ['email', 'E-posta', ['e-posta','eposta','email','e-mail','mail']],
+  ['birthday', 'Doğum Günü', ['doğum günü','dogum gunu','doğum tarihi','birthday','birth date']],
+  ['notes', 'Not', ['not','notlar','note','notes','açıklama']],
+  ['points_balance', 'Puan', ['puan','puan bakiyesi','points','points_balance']],
+];
+function csvCell(v){
+  if(v == null) return '';
+  let t = String(v);
+  if(/^[=+\-@\t\r]/.test(t)) t = "'" + t; // Excel formül enjeksiyonuna karşı
+  return /[";\n\r]/.test(t) ? '"' + t.replace(/"/g, '""') + '"' : t;
+}
+function downloadCsv(filename, rows){
+  const csv = '﻿' + rows.map(r => r.map(csvCell).join(';')).join('\r\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+  a.download = filename; document.body.appendChild(a); a.click();
+  setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+}
+async function exportCustomersCsv(){
+  const session = getSession();
+  const { data, error } = await withLoadingOverlay(sb.rpc('export_customers', { p_token: session.session_token }));
+  if(error){ alert(error.message); return; }
+  const rows = [['Ad Soyad','Telefon','E-posta','Doğum Günü','Not','Puan','Ziyaret','Toplam Harcama','Son Ziyaret','Kayıt Tarihi']];
+  (data||[]).forEach(c => rows.push([c.name, c.phone, c.email, c.birthday, c.notes, c.points_balance, c.total_visits,
+    c.total_spent, c.last_visit_at ? String(c.last_visit_at).slice(0,10) : '', c.created_at ? String(c.created_at).slice(0,10) : '']));
+  downloadCsv('musteriler-' + todayLocalDateStr() + '.csv', rows);
+  showToast((data||[]).length + ' müşteri dışa aktarıldı ✓');
+}
+function downloadCustomerTemplate(){
+  downloadCsv('musteri-sablonu.csv', [CRM_CSV_COLS.map(c => c[1]), ['Ahmet Yılmaz','0532 123 45 67','ahmet@ornek.com','15.04.1990','Cam kenarı sever','0']]);
+}
+function parseCsv(text){
+  text = text.replace(/^﻿/, '');
+  const first = text.split(/\r?\n/)[0] || '';
+  const delim = [';', ',', '\t'].map(d => [d, first.split(d).length]).sort((a, b) => b[1] - a[1])[0][0];
+  const rows = []; let row = [], cell = '', q = false;
+  for(let i = 0; i < text.length; i++){
+    const ch = text[i];
+    if(q){
+      if(ch === '"'){ if(text[i+1] === '"'){ cell += '"'; i++; } else q = false; }
+      else cell += ch;
+    } else if(ch === '"') q = true;
+    else if(ch === delim){ row.push(cell); cell = ''; }
+    else if(ch === '\n' || ch === '\r'){ if(ch === '\r' && text[i+1] === '\n') i++; row.push(cell); rows.push(row); row = []; cell = ''; }
+    else cell += ch;
+  }
+  if(cell !== '' || row.length){ row.push(cell); rows.push(row); }
+  return rows.filter(r => r.some(c => String(c).trim() !== ''));
+}
+// 15.04.1990 / 15/04/1990 / 1990-04-15 -> 1990-04-15 (tanınmazsa olduğu gibi; sunucu hatayı satırda bildirir)
+function normalizeDateCell(v){
+  v = String(v||'').trim(); if(!v) return '';
+  let m = v.match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{4})$/);
+  if(m) return m[3] + '-' + m[2].padStart(2,'0') + '-' + m[1].padStart(2,'0');
+  m = v.match(/^(\d{4})[./-](\d{1,2})[./-](\d{1,2})/);
+  if(m) return m[1] + '-' + m[2].padStart(2,'0') + '-' + m[3].padStart(2,'0');
+  return v;
+}
+function openCustomerImport(){
+  const ov = document.createElement('div'); ov.id = 'crmImportBg';
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:110;padding:16px;';
+  ov.onclick = (e) => { if(e.target===ov) ov.remove(); };
+  ov.innerHTML = `<div style="background:var(--panel);border:1px solid var(--border);border-radius:18px;padding:18px;max-width:560px;width:100%;max-height:88vh;overflow:auto;text-align:left;">
+    <h3 style="margin:0 0 8px;">⬆️ Müşteri içe aktar</h3>
+    <p class="muted" style="font-size:12.5px;margin:0 0 10px;">Excel'de listenizi <b>Farklı Kaydet → CSV (UTF-8)</b> olarak kaydedip seçin. Sütunlar: <b>Ad Soyad</b> (zorunlu), Telefon, E-posta, Doğum Günü (GG.AA.YYYY), Not, Puan. <a href="#" onclick="downloadCustomerTemplate();return false;">Örnek şablonu indir</a></p>
+    <input type="file" id="crmImportFile" accept=".csv,text/csv,text/plain" onchange="previewCustomerImport(this.files[0])" style="margin:0 0 10px;">
+    <label style="display:flex;gap:8px;align-items:center;font-size:13px;margin:0 0 10px;"><input type="checkbox" id="crmImportUpdate" checked style="width:auto;margin:0;"> Telefonu eşleşen mevcut müşterileri güncelle</label>
+    <div id="crmImportPreview" class="muted" style="font-size:12.5px;"></div>
+    <div style="display:flex;gap:10px;margin-top:12px;">
+      <button type="button" class="ghost-btn" style="flex:1;margin:0;" onclick="document.getElementById('crmImportBg').remove()">Kapat</button>
+      <button type="button" id="crmImportBtn" style="flex:1;margin:0;" disabled onclick="runCustomerImport()">İçe aktar</button>
+    </div></div>`;
+  document.body.appendChild(ov);
+}
+async function previewCustomerImport(file){
+  const box = document.getElementById('crmImportPreview'), btn = document.getElementById('crmImportBtn');
+  APP.crmImportRows = null; btn.disabled = true;
+  if(!file) return;
+  if(/\.xlsx?$/i.test(file.name)){ box.innerHTML = '<span style="color:var(--red);">Excel dosyasını önce <b>CSV (UTF-8)</b> olarak kaydedin.</span>'; return; }
+  const rows = parseCsv(await file.text());
+  if(rows.length < 2){ box.innerHTML = '<span style="color:var(--red);">Dosyada başlık satırı ve en az bir müşteri olmalı.</span>'; return; }
+  const head = rows[0].map(h => String(h).trim().toLocaleLowerCase('tr'));
+  const map = {};
+  CRM_CSV_COLS.forEach(([key, , aliases]) => { const i = head.findIndex(h => aliases.includes(h)); if(i >= 0) map[key] = i; });
+  if(map.name == null){ box.innerHTML = '<span style="color:var(--red);">"Ad Soyad" sütunu bulunamadı. Başlık satırını şablondaki gibi yapın.</span>'; return; }
+  const data = rows.slice(1).map(r => {
+    const o = {}; Object.keys(map).forEach(k => o[k] = String(r[map[k]] ?? '').trim());
+    if(o.birthday) o.birthday = normalizeDateCell(o.birthday);
+    if(o.points_balance) o.points_balance = o.points_balance.replace(',', '.');
+    return o;
+  });
+  if(data.length > 5000){ box.innerHTML = '<span style="color:var(--red);">Tek seferde en fazla 5000 satır yüklenebilir (' + data.length + ').</span>'; return; }
+  APP.crmImportRows = data; btn.disabled = false;
+  const cols = CRM_CSV_COLS.filter(c => map[c[0]] != null);
+  box.innerHTML = `<b>${data.length}</b> satır bulundu · tanınan sütunlar: ${cols.map(c => c[1]).join(', ')}
+    <div class="settings-table-wrap" style="margin-top:8px;"><table class="settings-table"><thead><tr>${cols.map(c => '<th>' + c[1] + '</th>').join('')}</tr></thead>
+    <tbody>${data.slice(0, 5).map(d => '<tr>' + cols.map(c => '<td>' + escapeHtml(d[c[0]] || '') + '</td>').join('') + '</tr>').join('')}</tbody></table></div>
+    ${data.length > 5 ? '<div style="margin-top:4px;">… ve ' + (data.length - 5) + ' satır daha</div>' : ''}`;
+}
+async function runCustomerImport(){
+  const rows = APP.crmImportRows; if(!rows || !rows.length) return;
+  const session = getSession();
+  const { data, error } = await withLoadingOverlay(sb.rpc('import_customers', { p_token: session.session_token, p_rows: rows,
+    p_update_existing: document.getElementById('crmImportUpdate').checked }));
+  if(error){ alert(error.message); return; }
+  const box = document.getElementById('crmImportPreview');
+  box.innerHTML = `<div style="color:var(--text);font-size:13.5px;">✅ <b>${data.inserted}</b> eklendi · 🔄 <b>${data.updated}</b> güncellendi`
+    + (data.skipped ? ' · ⏭ <b>' + data.skipped + '</b> atlandı (mevcut)' : '') + (data.failed ? ' · ⚠️ <b>' + data.failed + '</b> hatalı' : '') + '</div>'
+    + (data.errors && data.errors.length ? '<ul style="margin:6px 0 0;padding-left:18px;">' + data.errors.map(e => '<li>Satır ' + (e.row + 1) + ': ' + escapeHtml(e.error) + '</li>').join('') + '</ul>' : '');
+  document.getElementById('crmImportBtn').disabled = true; APP.crmImportRows = null;
+  renderCrmView(document.getElementById('main'), session);
 }
