@@ -1695,6 +1695,30 @@ $$;
 
 
 --
+-- Name: admin_extend_subscription(uuid, uuid, integer, date, boolean); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.admin_extend_subscription(p_token uuid, p_restaurant_id uuid, p_days integer DEFAULT NULL::integer, p_until date DEFAULT NULL::date, p_unlimited boolean DEFAULT false) RETURNS timestamp with time zone
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'extensions', 'pg_temp'
+    AS $$
+declare v_company uuid; v_cur timestamptz; v_new timestamptz;
+begin
+  perform _platform_admin_check(p_token);
+  select company_id, expires_at into v_company, v_cur from restaurants where id = p_restaurant_id;
+  if not found then raise exception 'İşletme bulunamadı'; end if;
+  if v_company is not null then select expires_at into v_cur from companies where id = v_company; end if;
+  if p_unlimited then v_new := null;
+  elsif p_until is not null then v_new := ((p_until + 1)::timestamp at time zone 'Europe/Istanbul') - interval '1 second';
+  elsif p_days is not null and p_days between 1 and 3660 then v_new := greatest(coalesce(v_cur, now()), now()) + make_interval(days => p_days);
+  else raise exception 'Gün sayısı (1-3660) veya bitiş tarihi girin'; end if;
+  if v_company is not null then update companies set expires_at = v_new where id = v_company;
+  else update restaurants set expires_at = v_new where id = p_restaurant_id; end if;
+  return v_new;
+end $$;
+
+
+--
 -- Name: admin_get_bank_transfer_info(uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
