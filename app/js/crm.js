@@ -24,13 +24,13 @@ async function renderCrmView(main, session){
     <div class="box" style="max-width:none;">
       <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
         <h2 style="margin:0;">Müşteri Listesi</h2>
-        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-          <input id="crmSearchInput" placeholder="İsim veya telefon ara..." style="max-width:260px;margin:0;" value="${escapeAttr(APP.crmSearch||'')}" oninput="debouncedCrmSearch(this.value)">
-          <button type="button" class="ghost-btn" style="width:auto;margin:0;" onclick="exportCustomersCsv()" title="Tüm müşterileri Excel'de açılabilen CSV olarak indir">⬇️ Dışa aktar</button>
-          ${canManage(session, 'crm') ? `<button type="button" class="ghost-btn" style="width:auto;margin:0;" onclick="openCustomerImport()" title="CSV dosyasından müşteri yükle">⬆️ İçe aktar</button>` : ''}
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:nowrap;flex:1 1 auto;justify-content:flex-end;min-width:0;">
+          <input id="crmSearchInput" placeholder="İsim veya telefon ara..." style="flex:0 1 260px;min-width:120px;width:auto;margin:0;" value="${escapeAttr(APP.crmSearch||'')}" oninput="debouncedCrmSearch(this.value)">
+          <button type="button" class="ghost-btn" style="width:auto;flex:0 0 auto;white-space:nowrap;margin:0;" onclick="exportCustomersCsv()" title="Tüm müşterileri Excel'de açılabilen CSV olarak indir">⬇️ Dışa aktar</button>
+          ${canManage(session, 'crm') ? `<button type="button" class="ghost-btn" style="width:auto;flex:0 0 auto;white-space:nowrap;margin:0;" onclick="openCustomerImport()" title="CSV dosyasından müşteri yükle">⬆️ İçe aktar</button>` : ''}
         </div>
       </div>
-      <p class="muted" style="font-size:12px;margin:-4px 0 10px;">Harcama/ziyaret/doğum günü gibi detaylı analizler için <b>Finansal Analiz &gt; Müşteri Analizleri</b> sekmesine bakın.</p>
+      <p class="muted" style="font-size:12px;margin:6px 0 10px;text-align:left;">Harcama/ziyaret/doğum günü gibi detaylı analizler için <b>Finansal Analiz &gt; Müşteri Analizleri</b> sekmesine bakın.</p>
       <div class="settings-table-wrap">
       <table class="settings-table">
         <thead><tr><th>Ad</th><th>Telefon</th><th>Puan</th><th></th></tr></thead>
