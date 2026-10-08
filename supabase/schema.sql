@@ -3310,6 +3310,24 @@ end; $_$;
 
 
 --
+-- Name: export_customers(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.export_customers(p_token uuid) RETURNS json
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'extensions', 'pg_temp'
+    AS $$
+declare s staff_sessions%rowtype;
+begin
+  s := _session_check(p_token, 'crm');
+  return coalesce((select json_agg(json_build_object('name', name, 'phone', phone, 'email', email, 'birthday', birthday,
+      'notes', notes, 'points_balance', points_balance, 'total_visits', total_visits, 'total_spent', total_spent,
+      'last_visit_at', last_visit_at, 'created_at', created_at) order by name)
+    from customers where restaurant_id = s.restaurant_id), '[]'::json);
+end $$;
+
+
+--
 -- Name: extend_restaurant_subscription(uuid, integer, text); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -4404,6 +4422,61 @@ begin
   );
 end;
 $$;
+
+
+--
+-- Name: import_customers(uuid, jsonb, boolean); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.import_customers(p_token uuid, p_rows jsonb, p_update_existing boolean DEFAULT true) RETURNS json
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'extensions', 'pg_temp'
+    AS $$
+declare s staff_sessions%rowtype; r jsonb; i int := 0; v_ins int := 0; v_upd int := 0; v_skip int := 0;
+  v_errs jsonb := '[]'::jsonb; v_name text; v_phone text; v_digits text; v_email text; v_bday date; v_notes text;
+  v_points numeric; v_id uuid;
+begin
+  s := _session_check(p_token, 'crm');
+  if jsonb_typeof(p_rows) <> 'array' then raise exception 'Geçersiz veri'; end if;
+  if jsonb_array_length(p_rows) > 5000 then raise exception 'Tek seferde en fazla 5000 satır içe aktarılabilir'; end if;
+  for r in select * from jsonb_array_elements(p_rows) loop
+    i := i + 1;
+    begin
+      v_name := left(nullif(trim(coalesce(r->>'name','')),''), 120);
+      v_phone := left(nullif(trim(coalesce(r->>'phone','')),''), 40);
+      v_digits := nullif(regexp_replace(coalesce(v_phone,''), '\D', '', 'g'), '');
+      v_email := left(nullif(trim(coalesce(r->>'email','')),''), 200);
+      v_notes := left(nullif(trim(coalesce(r->>'notes','')),''), 1000);
+      v_bday := nullif(trim(coalesce(r->>'birthday','')),'')::date;
+      v_points := nullif(trim(coalesce(r->>'points_balance','')),'')::numeric;
+      if v_points is not null and v_points < 0 then raise exception 'Puan negatif olamaz'; end if;
+      if v_name is null then raise exception 'Ad boş'; end if;
+      v_id := null;
+      if v_digits is not null then
+        select id into v_id from customers where restaurant_id = s.restaurant_id
+          and right(regexp_replace(coalesce(phone,''), '\D', '', 'g'), 10) = right(v_digits, 10) limit 1; -- Excel baştaki 0'ı / +90'ı silebilir
+      end if;
+      if v_id is null then
+        insert into customers(restaurant_id, name, phone, email, notes, birthday, points_balance)
+          values (s.restaurant_id, v_name, v_phone, v_email, v_notes, v_bday, coalesce(v_points, 0));
+        v_ins := v_ins + 1;
+      elsif p_update_existing then
+        update customers set name = v_name, email = coalesce(v_email, email), notes = coalesce(v_notes, notes),
+          birthday = coalesce(v_bday, birthday), points_balance = coalesce(v_points, points_balance)
+          where id = v_id;
+        v_upd := v_upd + 1;
+      else
+        v_skip := v_skip + 1;
+      end if;
+    exception when others then
+      if jsonb_array_length(v_errs) < 50 then
+        v_errs := v_errs || jsonb_build_object('row', i, 'error', case when sqlstate in ('22007','22008') then 'Doğum günü tarihi geçersiz (YYYY-AA-GG)'
+          when sqlstate = '22P02' then 'Puan sayı olmalı' when sqlstate = '23505' then 'Telefon başka müşteride kayıtlı' else sqlerrm end);
+      end if;
+    end;
+  end loop;
+  return json_build_object('inserted', v_ins, 'updated', v_upd, 'skipped', v_skip, 'failed', i - v_ins - v_upd - v_skip, 'errors', v_errs);
+end $$;
 
 
 --
