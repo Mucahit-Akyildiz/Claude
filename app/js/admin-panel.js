@@ -511,7 +511,7 @@ async function refreshRestaurantsList(admin){
           <tr>
             <td><b style="cursor:pointer;color:var(--accent);" onclick="showRestaurantDetail('${r.id}')" title="Günlük ciro grafiğini göster">${escapeHtml(r.name)}</b><div class="muted" style="font-size:12px;">${escapeHtml(r.code||'—')}</div></td>
             <td style="font-size:12.5px;word-break:break-all;">${r.email?`<a href="mailto:${escapeHtml(r.email)}">${escapeHtml(r.email)}</a>`:'—'}${r.phone?`<div class="muted">${escapeHtml(r.phone)}</div>`:''}</td>
-            <td style="font-size:13px;">${pkg?escapeHtml(pkg.name):escapeHtml(r.package_id)}<div class="muted" style="font-size:12px;">${r.user_count}/${r.max_users} kullanıcı</div></td>
+            <td style="font-size:13px;">${pkg?escapeHtml(pkg.name):escapeHtml(r.package_id)}<div class="muted" style="font-size:12px;">${r.user_count}/${r.max_users} kullanıcı</div><div style="font-size:12px;${expired?'color:var(--red);':''}">Bitiş: ${r.expires_at ? new Date(r.expires_at).toLocaleDateString('tr-TR') : 'Süresiz'}</div></td>
             <td>${statusBadge}</td>
             <td style="font-size:12.5px;white-space:nowrap;">Kayıt: ${new Date(r.created_at).toLocaleDateString('tr-TR')}<div class="muted">Son: ${fmtRelativeTime(r.last_activity)}</div></td>
             <td style="font-size:12.5px;white-space:nowrap;">Bugün: <b>${money(r.revenue_today)}</b><div class="muted">7 gün: ${money(r.revenue_7d)}</div><div class="muted">Toplam: ${money(r.revenue_lifetime)}</div></td>
@@ -520,6 +520,7 @@ async function refreshRestaurantsList(admin){
                 <button class="sbtn" style="margin:0;${r.is_active?'background:var(--red);color:var(--btn-ink);':''}" onclick="toggleRestaurantActive('${r.id}', ${!r.is_active})">${r.is_active?'Pasif Et':'Aktif Et'}</button>
                 <button class="sbtn" style="margin:0;" data-name="${escapeAttr(r.name)}" onclick="openEntitlementsModal('restaurant', '${r.id}', this.dataset.name)">🧩 Eklentiler</button>
                 <button class="sbtn" style="margin:0;" onclick="showRestaurantUsers('${r.id}')">👥 Kullanıcılar</button>
+                <button class="sbtn" style="margin:0;" data-name="${escapeAttr(r.name)}" data-exp="${r.expires_at||''}" onclick="openExtendSubscription('${r.id}', this.dataset.name, this.dataset.exp)">⏳ Süre Uzat</button>
                 <button type="button" class="act-btn act-delete" onclick="deleteRestaurantAdmin('${r.id}')">${ICON_TRASH}<span>Sil</span></button>
               </div>
             </td>
@@ -1405,4 +1406,38 @@ async function saveGifKey(remove){
   if(error){ alert(error.message); return; }
   showToast(remove ? 'Anahtar kaldırıldı' : 'Kaydedildi ✓');
   renderGifAdmin(document.getElementById('main'), admin);
+}
+
+/* ---- Abonelik süresini elle uzatma (havale, kampanya, deneme uzatma vb.) ---- */
+function openExtendSubscription(id, name, exp){
+  const ov = document.createElement('div'); ov.id = 'extendSubBg';
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:110;padding:16px;';
+  ov.onclick = (e) => { if(e.target===ov) ov.remove(); };
+  const cur = exp ? new Date(exp) : null;
+  const btn = 'flex:1 1 70px;margin:0;';
+  ov.innerHTML = `<div style="background:var(--panel);border:1px solid var(--border);border-radius:18px;padding:18px;max-width:420px;width:100%;text-align:left;">
+    <h3 style="margin:0 0 4px;">⏳ Abonelik süresi</h3>
+    <div class="muted" style="font-size:13px;margin-bottom:12px;"><b>${escapeHtml(name)}</b> · şu anki bitiş: <b>${cur ? cur.toLocaleDateString('tr-TR') : 'Süresiz'}</b>${cur && cur <= new Date() ? ' <span style="color:var(--red);">(dolmuş)</span>' : ''}</div>
+    <div style="font-size:12.5px;font-weight:700;margin-bottom:6px;">Süre ekle <span class="muted" style="font-weight:400;">(bitişe, dolmuşsa bugüne eklenir)</span></div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;">
+      ${[7,30,90,180,365].map(d => `<button type="button" class="sbtn" style="${btn}" onclick="doExtendSubscription('${id}', {p_days:${d}})">+${d === 365 ? '1 yıl' : d + ' gün'}</button>`).join('')}
+    </div>
+    <div style="font-size:12.5px;font-weight:700;margin-bottom:6px;">Veya bitiş tarihini belirle</div>
+    <div style="display:flex;gap:6px;margin-bottom:12px;">
+      <input type="date" id="extendUntil" style="margin:0;flex:1;" value="${cur ? cur.toISOString().slice(0,10) : ''}">
+      <button type="button" class="sbtn" style="margin:0;" onclick="const v=document.getElementById('extendUntil').value; if(!v){alert('Tarih seçin');return;} doExtendSubscription('${id}', {p_until:v})">Ayarla</button>
+    </div>
+    <div style="display:flex;gap:8px;">
+      <button type="button" class="ghost-btn" style="flex:1;margin:0;" onclick="if(confirm('Abonelik süresiz yapılsın mı?')) doExtendSubscription('${id}', {p_unlimited:true})">♾️ Süresiz yap</button>
+      <button type="button" class="ghost-btn" style="flex:1;margin:0;" onclick="document.getElementById('extendSubBg').remove()">Kapat</button>
+    </div></div>`;
+  document.body.appendChild(ov);
+}
+async function doExtendSubscription(id, args){
+  const admin = getAdminSession();
+  const { data, error } = await sb.rpc('admin_extend_subscription', { p_token: admin.session_token, p_restaurant_id: id, ...args });
+  if(error){ alert(error.message); return; }
+  const bg = document.getElementById('extendSubBg'); if(bg) bg.remove();
+  showToast('Yeni bitiş: ' + (data ? new Date(data).toLocaleDateString('tr-TR') : 'Süresiz') + ' ✓');
+  render();
 }
