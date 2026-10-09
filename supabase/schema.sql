@@ -42,6 +42,39 @@ $$;
 
 
 --
+-- Name: _b32_decode(text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public._b32_decode(p text) RETURNS bytea
+    LANGUAGE plpgsql IMMUTABLE
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+declare a text := 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567'; s text := upper(regexp_replace(p, '[^A-Za-z2-7]', '', 'g')); bits text := ''; i int; o bytea := '';
+begin
+  for i in 1..length(s) loop bits := bits || ((position(substr(s, i, 1) in a) - 1)::bit(5))::text; end loop;
+  for i in 0..length(bits)/8-1 loop o := o || set_byte('\x00'::bytea, 0, (substr(bits, i*8+1, 8)::bit(8))::int); end loop;
+  return o;
+end $$;
+
+
+--
+-- Name: _b32_encode(bytea); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public._b32_encode(p bytea) RETURNS text
+    LANGUAGE plpgsql IMMUTABLE
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+declare a text := 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567'; bits text := ''; i int; o text := '';
+begin
+  for i in 0..length(p)-1 loop bits := bits || lpad((get_byte(p, i)::bit(8))::text, 8, '0'); end loop;
+  while length(bits) % 5 <> 0 loop bits := bits || '0'; end loop;
+  for i in 0..length(bits)/5-1 loop o := o || substr(a, (substr(bits, i*5+1, 5)::bit(5))::int + 1, 1); end loop;
+  return o;
+end $$;
+
+
+--
 -- Name: _badge_total(uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -1348,6 +1381,39 @@ CREATE FUNCTION public._shift_worked_seconds(p public.staff_shifts) RETURNS nume
     - coalesce(p.paused_seconds, 0)
     - case when p.paused_since is not null then extract(epoch from (coalesce(p.clock_out, now()) - p.paused_since)) else 0 end)
 $$;
+
+
+--
+-- Name: _totp(text, bigint); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public._totp(p_secret text, p_counter bigint) RETURNS text
+    LANGUAGE plpgsql IMMUTABLE
+    SET search_path TO 'public', 'extensions', 'pg_temp'
+    AS $$
+declare h bytea; off int; v bigint;
+begin
+  h := extensions.hmac(int8send(p_counter), _b32_decode(p_secret), 'sha1');
+  off := get_byte(h, 19) & 15;
+  v := ((get_byte(h, off) & 127)::bigint << 24) | (get_byte(h, off+1)::bigint << 16) | (get_byte(h, off+2)::bigint << 8) | get_byte(h, off+3)::bigint;
+  return lpad((v % 1000000)::text, 6, '0');
+end $$;
+
+
+--
+-- Name: _totp_match(text, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public._totp_match(p_secret text, p_code text) RETURNS bigint
+    LANGUAGE plpgsql STABLE
+    SET search_path TO 'public', 'pg_temp'
+    AS $_$
+declare c bigint := floor(extract(epoch from now()) / 30); d int;
+begin
+  if p_secret is null or coalesce(p_code,'') !~ '^\d{6}$' then return null; end if;
+  for d in -1..1 loop if _totp(p_secret, c + d) = p_code then return c + d; end if; end loop;
+  return null;
+end $_$;
 
 
 --
@@ -5820,7 +5886,7 @@ $$;
 -- Name: platform_admin_login(text, text); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.platform_admin_login(p_username text, p_password text) RETURNS TABLE(session_token uuid, username text)
+CREATE FUNCTION public.platform_admin_login() RETURNS 
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public', 'extensions', 'pg_temp'
     AS $$
@@ -9227,7 +9293,11 @@ CREATE TABLE public.platform_admins (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     username text NOT NULL,
     password text NOT NULL,
-    created_at timestamp with time zone DEFAULT now() NOT NULL
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    totp_secret text,
+    totp_pending text,
+    totp_enabled boolean DEFAULT false NOT NULL,
+    totp_last_counter bigint
 );
 
 
