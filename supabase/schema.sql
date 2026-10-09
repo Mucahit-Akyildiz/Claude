@@ -306,8 +306,8 @@ declare
   v_url text;
   v_secret text;
 begin
-  select value into v_url from platform_settings where key = 'push_dispatch_url';
-  select value into v_secret from platform_settings where key = 'push_dispatch_secret';
+  select value into v_url from _psv where key = 'push_dispatch_url';
+  select value into v_secret from _psv where key = 'push_dispatch_secret';
   if v_url is null or v_url = '' then return; end if;
   perform net.http_post(
     url := v_url,
@@ -328,8 +328,8 @@ CREATE FUNCTION public._cron_dispatch_late_kitchen_items() RETURNS void
     AS $$
 declare v_url text; v_secret text;
 begin
-  select value into v_url from platform_settings where key = 'push_dispatch_url';
-  select value into v_secret from platform_settings where key = 'push_dispatch_secret';
+  select value into v_url from _psv where key = 'push_dispatch_url';
+  select value into v_secret from _psv where key = 'push_dispatch_secret';
   if v_url is null or v_url = '' then return; end if;
   perform net.http_post(url := v_url,
     headers := jsonb_build_object('Content-Type','application/json','x-push-secret', coalesce(v_secret,'')),
@@ -349,8 +349,8 @@ declare
   v_url text;
   v_secret text;
 begin
-  select value into v_url from platform_settings where key = 'push_dispatch_url';
-  select value into v_secret from platform_settings where key = 'push_dispatch_secret';
+  select value into v_url from _psv where key = 'push_dispatch_url';
+  select value into v_secret from _psv where key = 'push_dispatch_secret';
   if v_url is null or v_url = '' then return; end if;
   perform net.http_post(
     url := v_url,
@@ -384,8 +384,8 @@ begin
   )
   select array_agg(id) into v_ids from upd;
   if v_ids is null then return; end if;
-  select value into v_url from platform_settings where key = 'push_dispatch_url';
-  select value into v_secret from platform_settings where key = 'push_dispatch_secret';
+  select value into v_url from _psv where key = 'push_dispatch_url';
+  select value into v_secret from _psv where key = 'push_dispatch_secret';
   if coalesce(v_url,'') = '' then return; end if;
   perform net.http_post(url := v_url,
     headers := jsonb_build_object('Content-Type','application/json','x-push-secret', coalesce(v_secret,'')),
@@ -441,6 +441,18 @@ begin
     end if;
   end loop;
 end $$;
+
+
+--
+-- Name: _dec(text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public._dec(p text) RETURNS text
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'public', 'extensions', 'pg_temp'
+    AS $$
+    select case when p is null or p = '' then p else
+      extensions.pgp_sym_decrypt(dearmor(p), (select decrypted_secret from vault.decrypted_secrets where name = 'peyktan_field_key')) end $$;
 
 
 --
@@ -508,6 +520,18 @@ begin
   return json_build_object('ok', true, 'scope', 'restaurant');
 end;
 $$;
+
+
+--
+-- Name: _enc(text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public._enc(p text) RETURNS text
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'public', 'extensions', 'pg_temp'
+    AS $$
+    select case when p is null or p = '' then p else
+      armor(extensions.pgp_sym_encrypt(p, (select decrypted_secret from vault.decrypted_secrets where name = 'peyktan_field_key'))) end $$;
 
 
 --
@@ -725,8 +749,8 @@ CREATE FUNCTION public._notify_shift_event(p_shift_id uuid, p_event text) RETURN
     AS $$
 declare v_url text; v_secret text;
 begin
-  select value into v_url from platform_settings where key = 'push_dispatch_url';
-  select value into v_secret from platform_settings where key = 'push_dispatch_secret';
+  select value into v_url from _psv where key = 'push_dispatch_url';
+  select value into v_secret from _psv where key = 'push_dispatch_secret';
   if v_url is null or v_url = '' then return; end if;
   perform net.http_post(url := v_url,
     headers := jsonb_build_object('Content-Type','application/json','x-push-secret', coalesce(v_secret,'')),
@@ -1089,8 +1113,8 @@ CREATE FUNCTION public._send_email(p_to text, p_subject text, p_html text) RETUR
     AS $$
 declare v_key text; v_from text; v_html text;
 begin
-  select value into v_key from platform_settings where key='resend_api_key';
-  select value into v_from from platform_settings where key='resend_from_email';
+  select value into v_key from _psv where key='resend_api_key';
+  select value into v_from from _psv where key='resend_from_email';
   if v_key is null then return false; end if;
   v_html := case when coalesce(p_html,'') like '%logo-email.png%' then p_html else
     '<div style="text-align:center;padding:20px 0 4px;font-family:Arial,sans-serif;">'
@@ -1183,10 +1207,10 @@ begin
     insert into sms_outbox (restaurant_id, phone, message, purpose, status) values (p_restaurant_id, v_phone, left(p_message, 480), p_purpose, 'skipped');
     return;
   end;
-  select value into v_provider from platform_settings where key = 'sms_provider';
-  select value into v_user from platform_settings where key = 'sms_username';
-  select value into v_pass from platform_settings where key = 'sms_password';
-  select value into v_header from platform_settings where key = 'sms_header';
+  select value into v_provider from _psv where key = 'sms_provider';
+  select value into v_user from _psv where key = 'sms_username';
+  select value into v_pass from _psv where key = 'sms_password';
+  select value into v_header from _psv where key = 'sms_header';
   insert into sms_outbox (restaurant_id, phone, message, purpose, status, provider)
     values (p_restaurant_id, v_phone, left(p_message, 480), p_purpose, 'queued', v_provider) returning id into v_id;
   if v_provider = 'netgsm' and v_user is not null and v_pass is not null then
@@ -1873,7 +1897,7 @@ CREATE FUNCTION public.admin_get_gif_key_set(p_token uuid) RETURNS boolean
     AS $$
 begin
   perform _platform_admin_check(p_token);
-  return exists(select 1 from platform_settings where key = 'giphy_api_key' and coalesce(value,'') <> '');
+  return exists(select 1 from _psv where key = 'giphy_api_key' and coalesce(value,'') <> '');
 end; $$;
 
 
@@ -1888,10 +1912,10 @@ CREATE FUNCTION public.admin_get_sms(p_token uuid) RETURNS json
 begin
   perform _platform_admin_check(p_token);
   return json_build_object(
-    'provider', (select value from platform_settings where key='sms_provider'),
-    'username', (select value from platform_settings where key='sms_username'),
-    'header', (select value from platform_settings where key='sms_header'),
-    'password_set', exists(select 1 from platform_settings where key='sms_password' and value is not null),
+    'provider', (select value from _psv where key='sms_provider'),
+    'username', (select value from _psv where key='sms_username'),
+    'header', (select value from _psv where key='sms_header'),
+    'password_set', exists(select 1 from _psv where key='sms_password' and value is not null),
     'recent', coalesce((select json_agg(x) from (select o.id, o.phone, o.message, o.purpose, o.status, o.created_at, r.name restaurant
        from sms_outbox o left join restaurants r on r.id = o.restaurant_id order by o.id desc limit 50) x), '[]'::json));
 end $$;
@@ -2106,7 +2130,7 @@ begin
   perform _platform_admin_check(p_token);
   return json_build_object(
     'unread', (select count(*) from support_emails where not is_read),
-    'secret', (select value from platform_settings where key = 'support_inbound_secret'),
+    'secret', (select value from _psv where key = 'support_inbound_secret'),
     'items', (select coalesce(json_agg(t order by t.received_at desc), '[]'::json) from (
       select id, from_addr, from_name, to_addr, subject, body, received_at, is_read from support_emails order by received_at desc limit 200) t));
 end; $$;
@@ -2348,12 +2372,15 @@ CREATE FUNCTION public.admin_set_gif_key(p_token uuid, p_key text) RETURNS void
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public', 'extensions', 'pg_temp'
     AS $$
+declare v_id uuid; v_key text := nullif(trim(coalesce(p_key,'')),'');
 begin
   perform _platform_admin_check(p_token);
-  if p_key is not null and length(trim(p_key)) > 200 then raise exception 'Geçersiz anahtar'; end if;
-  insert into platform_settings(key, value) values ('giphy_api_key', nullif(trim(coalesce(p_key,'')),''))
-    on conflict (key) do update set value = excluded.value;
-end; $$;
+  if v_key is not null and length(v_key) > 200 then raise exception 'Geçersiz anahtar'; end if;
+  -- Anahtar şifreli kasada (Supabase Vault) tutulur.
+  select id into v_id from vault.secrets where name = 'ps_giphy_api_key';
+  if v_id is null then perform vault.create_secret(coalesce(v_key,''), 'ps_giphy_api_key', 'Peyktan platform_settings: giphy_api_key');
+  else perform vault.update_secret(v_id, coalesce(v_key,'')); end if;
+end $$;
 
 
 --
@@ -2402,7 +2429,9 @@ begin
   insert into platform_settings (key, value) values ('sms_username', nullif(trim(p_username),'')) on conflict (key) do update set value = excluded.value;
   insert into platform_settings (key, value) values ('sms_header', nullif(trim(p_header),'')) on conflict (key) do update set value = excluded.value;
   if coalesce(p_password,'') <> '' then
-    insert into platform_settings (key, value) values ('sms_password', p_password) on conflict (key) do update set value = excluded.value;
+    if exists (select 1 from vault.secrets where name = 'ps_sms_password') then
+      perform vault.update_secret((select id from vault.secrets where name = 'ps_sms_password'), p_password);
+    else perform vault.create_secret(p_password, 'ps_sms_password', 'Peyktan platform_settings: sms_password'); end if;
   end if;
 end $$;
 
@@ -2687,8 +2716,8 @@ begin
     raise exception 'Çok sık istek gönderildi, lütfen biraz bekleyin'; end if;
   insert into waiter_calls(restaurant_id, table_id, kind) values (v_t.restaurant_id, v_t.id, p_kind) returning id into v_id;
   begin
-    select value into v_url from platform_settings where key = 'push_dispatch_url';
-    select value into v_secret from platform_settings where key = 'push_dispatch_secret';
+    select value into v_url from _psv where key = 'push_dispatch_url';
+    select value into v_secret from _psv where key = 'push_dispatch_secret';
     if coalesce(v_url,'') <> '' then
       perform net.http_post(url := v_url, headers := jsonb_build_object('Content-Type','application/json','x-push-secret', coalesce(v_secret,'')),
         body := jsonb_build_object('mode','waiter_call','call_id', v_id));
@@ -3933,7 +3962,7 @@ CREATE FUNCTION public.get_gif_key(p_token uuid) RETURNS text
 declare s staff_sessions%rowtype;
 begin
   s := _session_check(p_token, 'messages');
-  return (select nullif(value,'') from platform_settings where key = 'giphy_api_key');
+  return (select nullif(value,'') from _psv where key = 'giphy_api_key');
 end; $$;
 
 
@@ -4759,7 +4788,7 @@ CREATE FUNCTION public.ingest_support_email(p_secret text, p_from text, p_from_n
     AS $$
 declare v_secret text;
 begin
-  select value into v_secret from platform_settings where key = 'support_inbound_secret';
+  select value into v_secret from _psv where key = 'support_inbound_secret';
   if v_secret is null or p_secret is distinct from v_secret then raise exception 'Yetkisiz'; end if;
   insert into support_emails(from_addr, from_name, to_addr, subject, body)
   values (left(coalesce(p_from,''),200), left(p_from_name,200), left(p_to,200), left(p_subject,500), left(p_body,20000));
@@ -5424,9 +5453,9 @@ begin
   if (v_row.count = 1 or v_row.count >= 5) and (v_row.notified_at is null or v_row.notified_at < now() - interval '6 hours')
      and (select count(*) from client_errors where notified_at > now() - interval '1 hour') < 20 then
     update client_errors set notified_at = now() where id = v_row.id;
-    select value into v_key from platform_settings where key = 'resend_api_key';
-    select value into v_from from platform_settings where key = 'resend_from_email';
-    select value into v_mail from platform_settings where key = 'bank_transfer_notify_email';
+    select value into v_key from _psv where key = 'resend_api_key';
+    select value into v_from from _psv where key = 'resend_from_email';
+    select value into v_mail from _psv where key = 'bank_transfer_notify_email';
     select name into v_rest from restaurants where id = v_row.restaurant_id;
     if v_key is not null and coalesce(v_mail,'') <> '' then
       perform net.http_post(url := 'https://api.resend.com/emails',
@@ -6365,8 +6394,8 @@ begin
   -- Yeni eklenen üyelere "kanala eklendiniz" bildirimi (push).
   if v_added is not null then
     begin
-      select value into v_url from platform_settings where key = 'push_dispatch_url';
-      select value into v_secret from platform_settings where key = 'push_dispatch_secret';
+      select value into v_url from _psv where key = 'push_dispatch_url';
+      select value into v_secret from _psv where key = 'push_dispatch_secret';
       if coalesce(v_url,'') <> '' then
         perform net.http_post(url := v_url, headers := jsonb_build_object('Content-Type','application/json','x-push-secret', coalesce(v_secret,'')),
           body := jsonb_build_object('mode','radio_added','channel_id', v_id, 'user_ids', to_jsonb(v_added), 'by', s.username));
@@ -6526,8 +6555,8 @@ begin
     returning id into v_id;
   insert into chat_reads(user_id, conv, last_read_at) values (s.user_id, p_conv, now()) on conflict (user_id, conv) do update set last_read_at = now();
   begin
-    select value into v_url from platform_settings where key = 'push_dispatch_url';
-    select value into v_secret from platform_settings where key = 'push_dispatch_secret';
+    select value into v_url from _psv where key = 'push_dispatch_url';
+    select value into v_secret from _psv where key = 'push_dispatch_secret';
     if coalesce(v_url,'') <> '' then
       perform net.http_post(url := v_url, headers := jsonb_build_object('Content-Type','application/json','x-push-secret', coalesce(v_secret,'')),
         body := jsonb_build_object('mode','chat_message','message_id', v_id));
@@ -6714,8 +6743,8 @@ declare
 begin
   s := _session_check(p_token);
   perform _rate_limit('test_push', s.user_id::text, 5, interval '10 minutes');
-  select value into v_url from platform_settings where key = 'push_dispatch_url';
-  select value into v_secret from platform_settings where key = 'push_dispatch_secret';
+  select value into v_url from _psv where key = 'push_dispatch_url';
+  select value into v_secret from _psv where key = 'push_dispatch_secret';
   if v_url is null or v_url = '' then
     raise exception 'Push altyapısı yapılandırılmamış';
   end if;
@@ -6743,8 +6772,8 @@ declare
 begin
   s := _session_check(p_token);
   perform _rate_limit('test_push', s.user_id::text, 5, interval '10 minutes');
-  select value into v_url from platform_settings where key = 'push_dispatch_url';
-  select value into v_secret from platform_settings where key = 'push_dispatch_secret';
+  select value into v_url from _psv where key = 'push_dispatch_url';
+  select value into v_secret from _psv where key = 'push_dispatch_secret';
   if v_url is null or v_url = '' then
     raise exception 'Push altyapısı yapılandırılmamış';
   end if;
@@ -6969,8 +6998,8 @@ begin
           '<td style="padding:6px 10px;border-bottom:1px solid #eee;text-align:right;">' || to_char(v_item.unit_cost,'FM999999990.00') || ' TL</td></tr>';
       end loop;
 
-      select value into v_resend_key from platform_settings where key = 'resend_api_key';
-      select value into v_resend_from from platform_settings where key = 'resend_from_email';
+      select value into v_resend_key from _psv where key = 'resend_api_key';
+      select value into v_resend_from from _psv where key = 'resend_from_email';
 
       if v_resend_key is not null and v_items_html <> '' then
         perform net.http_post(
@@ -7295,8 +7324,8 @@ begin
   values (v_restaurant.id, v_user.id, v_otp);
   perform _send_sms(null, v_restaurant.phone, 'Peyktan sifre sifirlama kodunuz: ' || v_otp, 'otp');
 
-  select value into v_resend_key from platform_settings where key = 'resend_api_key';
-  select value into v_resend_from from platform_settings where key = 'resend_from_email';
+  select value into v_resend_key from _psv where key = 'resend_api_key';
+  select value into v_resend_from from _psv where key = 'resend_from_email';
 
   if v_resend_key is not null then
     perform net.http_post(
@@ -7350,8 +7379,8 @@ begin
   insert into signup_otps (phone, email, otp_code) values (p_phone, p_email, v_otp);
   perform _send_sms(null, p_phone, 'Peyktan dogrulama kodunuz: ' || v_otp || ' (10 dk gecerli)', 'otp');
 
-  select value into v_resend_key from platform_settings where key='resend_api_key';
-  select value into v_resend_from from platform_settings where key='resend_from_email';
+  select value into v_resend_key from _psv where key='resend_api_key';
+  select value into v_resend_from from _psv where key='resend_from_email';
 
   if v_resend_key is not null then
     perform net.http_post(
@@ -7414,8 +7443,8 @@ begin
   insert into reports_password_reset_otps (restaurant_id, otp_code)
   values (v_restaurant.id, v_otp);
 
-  select value into v_resend_key from platform_settings where key = 'resend_api_key';
-  select value into v_resend_from from platform_settings where key = 'resend_from_email';
+  select value into v_resend_key from _psv where key = 'resend_api_key';
+  select value into v_resend_from from _psv where key = 'resend_from_email';
 
   if v_resend_key is not null then
     perform net.http_post(
@@ -7464,9 +7493,9 @@ begin
   insert into bank_transfer_notices (restaurant_id, company_id, target_package_id, amount, note, billing_cycle, addon_id)
     values (case when v_r.company_id is null then v_r.id end, v_r.company_id, v_pkg, f.price, nullif(trim(coalesce(p_note,'')),''), 'monthly', p_addon_id)
     returning id into v_id;
-  select value into v_key from platform_settings where key = 'resend_api_key';
-  select value into v_from from platform_settings where key = 'resend_from_email';
-  select value into v_mail from platform_settings where key = 'bank_transfer_notify_email';
+  select value into v_key from _psv where key = 'resend_api_key';
+  select value into v_from from _psv where key = 'resend_from_email';
+  select value into v_mail from _psv where key = 'bank_transfer_notify_email';
   if v_key is not null and coalesce(v_mail,'') <> '' then
     perform net.http_post(url := 'https://api.resend.com/emails',
       headers := jsonb_build_object('Authorization', 'Bearer ' || v_key, 'Content-Type', 'application/json'),
@@ -7552,9 +7581,9 @@ begin
   )
   returning id into v_new_id;
 
-  select value into v_resend_key from platform_settings where key = 'resend_api_key';
-  select value into v_resend_from from platform_settings where key = 'resend_from_email';
-  select value into v_notify_email from platform_settings where key = 'bank_transfer_notify_email';
+  select value into v_resend_key from _psv where key = 'resend_api_key';
+  select value into v_resend_from from _psv where key = 'resend_from_email';
+  select value into v_notify_email from _psv where key = 'bank_transfer_notify_email';
   if v_resend_key is not null and v_notify_email is not null and v_notify_email <> '' then
     perform net.http_post(
       url := 'https://api.resend.com/emails',
@@ -7820,7 +7849,7 @@ begin
   s := _session_check(p_token, 'accounting');
   update restaurants set
     accounting_provider = p_provider,
-    accounting_api_key = case when p_api_key is null or p_api_key = '' then accounting_api_key else p_api_key end,
+    accounting_api_key = case when p_api_key is null or p_api_key = '' then accounting_api_key else _enc(p_api_key) end,
     accounting_enabled = coalesce(p_enabled, false)
   where id = s.restaurant_id;
 end;
@@ -7883,7 +7912,7 @@ begin
   s := _session_check(p_token, 'efatura');
   update restaurants set
     efatura_provider = p_provider,
-    efatura_api_key = case when p_api_key is null or p_api_key = '' then efatura_api_key else p_api_key end,
+    efatura_api_key = case when p_api_key is null or p_api_key = '' then efatura_api_key else _enc(p_api_key) end,
     efatura_enabled = coalesce(p_enabled, false)
   where id = s.restaurant_id;
 end;
@@ -7988,9 +8017,9 @@ declare s staff_sessions%rowtype;
 begin
   s := _session_check(p_token, 'marketplace');
   update restaurants set
-    marketplace_yemeksepeti_key = case when p_yemeksepeti_key is null or p_yemeksepeti_key='' then marketplace_yemeksepeti_key else p_yemeksepeti_key end,
-    marketplace_trendyol_key = case when p_trendyol_key is null or p_trendyol_key='' then marketplace_trendyol_key else p_trendyol_key end,
-    marketplace_getir_key = case when p_getir_key is null or p_getir_key='' then marketplace_getir_key else p_getir_key end,
+    marketplace_yemeksepeti_key = case when p_yemeksepeti_key is null or p_yemeksepeti_key='' then marketplace_yemeksepeti_key else _enc(p_yemeksepeti_key) end,
+    marketplace_trendyol_key = case when p_trendyol_key is null or p_trendyol_key='' then marketplace_trendyol_key else _enc(p_trendyol_key) end,
+    marketplace_getir_key = case when p_getir_key is null or p_getir_key='' then marketplace_getir_key else _enc(p_getir_key) end,
     marketplace_enabled = coalesce(p_enabled,false)
   where id = s.restaurant_id;
 end;
@@ -8767,6 +8796,32 @@ $$;
 
 
 --
+-- Name: platform_settings; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.platform_settings (
+    key text NOT NULL,
+    value text
+);
+
+
+--
+-- Name: _psv; Type: VIEW; Schema: public; Owner: -
+--
+
+CREATE VIEW public._psv WITH (security_barrier='true') AS
+ SELECT platform_settings.key,
+    platform_settings.value
+   FROM public.platform_settings
+  WHERE (platform_settings.key <> ALL (ARRAY['resend_api_key'::text, 'push_dispatch_secret'::text, 'support_inbound_secret'::text, 'giphy_api_key'::text, 'sms_password'::text]))
+UNION ALL
+ SELECT substr(decrypted_secrets.name, 4) AS key,
+    decrypted_secrets.decrypted_secret AS value
+   FROM vault.decrypted_secrets
+  WHERE (decrypted_secrets.name = ANY (ARRAY['ps_resend_api_key'::text, 'ps_push_dispatch_secret'::text, 'ps_support_inbound_secret'::text, 'ps_giphy_api_key'::text, 'ps_sms_password'::text]));
+
+
+--
 -- Name: app_users; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -9372,16 +9427,6 @@ CREATE TABLE public.platform_admins (
     totp_pending text,
     totp_enabled boolean DEFAULT false NOT NULL,
     totp_last_counter bigint
-);
-
-
---
--- Name: platform_settings; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.platform_settings (
-    key text NOT NULL,
-    value text
 );
 
 
