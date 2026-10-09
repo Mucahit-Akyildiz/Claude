@@ -54,7 +54,7 @@ async function renderRadioView(main, session){
         <thead><tr><th>Kanal</th><th>Üyeler</th><th></th></tr></thead>
         <tbody>
         ${list.map(c => `<tr>
-          <td class="col-name">${escapeHtml(c.name)}${c.id===cur ? ' <span class="role-badge" style="color:var(--accent);border-color:var(--accent);">● Bağlı</span>' : ''}</td>
+          <td class="col-name"><div>${escapeHtml(c.name)}</div>${c.id===cur ? '<span class="role-badge" style="display:inline-block;white-space:nowrap;margin-top:6px;color:var(--accent);border-color:var(--accent);">● Bağlı</span>' : ''}</td>
           <td style="font-size:12.5px;">${escapeHtml((c.members||[]).map(m => m.name).join(', '))}</td>
           <td style="white-space:nowrap;">
             ${c.is_member ? (c.id===cur
