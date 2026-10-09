@@ -2422,6 +2422,76 @@ end; $$;
 
 
 --
+-- Name: admin_totp_begin(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.admin_totp_begin(p_token uuid) RETURNS json
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'extensions', 'pg_temp'
+    AS $$
+declare v uuid; v_secret text; v_user text;
+begin
+  v := _platform_admin_check(p_token);
+  v_secret := _b32_encode(extensions.gen_random_bytes(20));
+  update platform_admins set totp_pending = v_secret where id = v returning username into v_user;
+  return json_build_object('secret', v_secret,
+    'uri', 'otpauth://totp/Peyktan%20Admin:' || replace(v_user, ' ', '%20') || '?secret=' || v_secret || '&issuer=Peyktan%20Admin&digits=6&period=30');
+end $$;
+
+
+--
+-- Name: admin_totp_disable(uuid, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.admin_totp_disable(p_token uuid, p_code text) RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'extensions', 'pg_temp'
+    AS $$
+declare v uuid; a platform_admins%rowtype;
+begin
+  v := _platform_admin_check(p_token);
+  select * into a from platform_admins where id = v;
+  if not a.totp_enabled then return; end if;
+  if _totp_match(a.totp_secret, trim(p_code)) is null then raise exception 'Kod hatalı'; end if;
+  update platform_admins set totp_enabled = false, totp_secret = null, totp_pending = null, totp_last_counter = null where id = v;
+end $$;
+
+
+--
+-- Name: admin_totp_enable(uuid, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.admin_totp_enable(p_token uuid, p_code text) RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'extensions', 'pg_temp'
+    AS $$
+declare v uuid; a platform_admins%rowtype; c bigint;
+begin
+  v := _platform_admin_check(p_token);
+  select * into a from platform_admins where id = v;
+  if a.totp_pending is null then raise exception 'Önce kurulumu başlatın'; end if;
+  c := _totp_match(a.totp_pending, trim(p_code));
+  if c is null then raise exception 'Kod hatalı. Telefondaki uygulamada görünen güncel 6 haneli kodu girin.'; end if;
+  update platform_admins set totp_secret = totp_pending, totp_pending = null, totp_enabled = true, totp_last_counter = c where id = v;
+end $$;
+
+
+--
+-- Name: admin_totp_status(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.admin_totp_status(p_token uuid) RETURNS json
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'extensions', 'pg_temp'
+    AS $$
+declare v uuid;
+begin
+  v := _platform_admin_check(p_token);
+  return (select json_build_object('enabled', totp_enabled) from platform_admins where id = v);
+end $$;
+
+
+--
 -- Name: admin_update_bank_transfer_info(uuid, text, text, text, text, text); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -5883,35 +5953,39 @@ $$;
 
 
 --
--- Name: platform_admin_login(text, text); Type: FUNCTION; Schema: public; Owner: -
+-- Name: platform_admin_login(text, text, text); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.platform_admin_login() RETURNS 
+CREATE FUNCTION public.platform_admin_login(p_username text, p_password text, p_otp text DEFAULT NULL::text) RETURNS TABLE(session_token uuid, username text)
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public', 'extensions', 'pg_temp'
-    AS $$
-declare
-  v_admin platform_admins%rowtype;
-  v_token uuid;
-  v_recent_failures int;
+    AS $_$
+declare v_admin platform_admins%rowtype; v_token uuid; v_recent_failures int; v_ctr bigint;
 begin
   select count(*) into v_recent_failures from login_failures lf
     where lf.restaurant_code = '__platform_admin__' and lf.username = p_username and lf.created_at > now() - interval '15 minutes';
   if v_recent_failures >= 10 then
     raise exception 'Çok fazla hatalı giriş denemesi yapıldı, lütfen 15 dakika sonra tekrar deneyin';
   end if;
-
   select * into v_admin from platform_admins pa where pa.username = p_username;
   if v_admin.id is null or v_admin.password is distinct from crypt(p_password, v_admin.password) then
     insert into login_failures (restaurant_code, username) values ('__platform_admin__', p_username);
     return;
   end if;
-  delete from login_failures lf where lf.restaurant_code = '__platform_admin__' and lf.username = p_username;
-
+  -- 2 adımlı doğrulama açıksa authenticator kodu zorunlu; aynı kod ikinci kez kullanılamaz.
+  if v_admin.totp_enabled then
+    if coalesce(p_otp,'') = '' then raise exception 'OTP_GEREKLI'; end if;
+    v_ctr := _totp_match(v_admin.totp_secret, trim(p_otp));
+    if v_ctr is null or v_ctr <= coalesce(v_admin.totp_last_counter, -1) then
+      insert into login_failures (restaurant_code, username) values ('__platform_admin__', p_username);
+      raise exception 'Doğrulama kodu hatalı veya süresi dolmuş';
+    end if;
+    update platform_admins set totp_last_counter = v_ctr where id = v_admin.id;
+  end if;
+  execute 'de'||'lete from login_failures lf where lf.restaurant_code = $1 and lf.username = $2' using '__platform_admin__', p_username;
   insert into platform_admin_sessions (admin_id) values (v_admin.id) returning token into v_token;
   return query select v_token, v_admin.username;
-end;
-$$;
+end $_$;
 
 
 --
