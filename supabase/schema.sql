@@ -329,6 +329,38 @@ $$;
 
 
 --
+-- Name: _cron_idle_tables(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public._cron_idle_tables() RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'extensions', 'pg_temp'
+    AS $$
+declare v_url text; v_secret text; v_ids uuid[];
+begin
+  -- Masaya oturtulmuş (açık sipariş var) ama hiç ürün girilmemiş masalar: 5. ve 15. dakikada bildirim.
+  with due as (
+    select o.id, case when o.created_at < now() - interval '15 minutes' then 2 else 1 end stage
+    from orders o
+    where o.status = 'open' and o.kind = 'dine_in' and o.table_id is not null
+      and o.created_at < now() - interval '5 minutes' and o.created_at > now() - interval '3 hours'
+      and o.idle_stage < case when o.created_at < now() - interval '15 minutes' then 2 else 1 end
+      and not exists (select 1 from order_items oi where oi.order_id = o.id)
+  ), upd as (
+    update orders o set idle_stage = d.stage from due d where o.id = d.id returning o.id
+  )
+  select array_agg(id) into v_ids from upd;
+  if v_ids is null then return; end if;
+  select value into v_url from platform_settings where key = 'push_dispatch_url';
+  select value into v_secret from platform_settings where key = 'push_dispatch_secret';
+  if coalesce(v_url,'') = '' then return; end if;
+  perform net.http_post(url := v_url,
+    headers := jsonb_build_object('Content-Type','application/json','x-push-secret', coalesce(v_secret,'')),
+    body := jsonb_build_object('mode', 'idle_tables', 'order_ids', to_jsonb(v_ids)), timeout_milliseconds := 25000);
+end $$;
+
+
+--
 -- Name: _cron_update_shift_pauses(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -683,6 +715,26 @@ begin
   if new.status <> 'ready' then new.ready_at := null; end if;
   return new;
 end; $$;
+
+
+--
+-- Name: _order_item_vat(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public._order_item_vat() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+begin
+  if new.vat_rate is null then
+    select coalesce(p.vat_rate, r.default_vat_rate, 10) into new.vat_rate
+      from orders o join restaurants r on r.id = o.restaurant_id
+      left join products p on p.id = new.product_id
+      where o.id = new.order_id;
+    new.vat_rate := coalesce(new.vat_rate, 10);
+  end if;
+  return new;
+end $$;
 
 
 --
@@ -4221,11 +4273,12 @@ begin
       ),
       'stations', (select coalesce(json_agg(json_build_object('id', id, 'name', name, 'color', color, 'icon', icon)), '[]'::json) from stations where restaurant_id = s.restaurant_id),
       'order_flags', (select coalesce(json_agg(json_build_object('id', id, 'label', label) order by sort_order), '[]'::json) from order_flag_defs where restaurant_id = s.restaurant_id),
+      'default_vat_rate', (select default_vat_rate from restaurants where id = s.restaurant_id),
       'products', (
         select coalesce(json_agg(json_build_object(
           'id', p.id, 'name', p.name, 'price', p.price, 'cost', p.cost,
           'stock', p.stock, 'available', p.available, 'station_id', p.station_id,
-          'name_translations', p.name_translations,
+          'name_translations', p.name_translations, 'vat_rate', p.vat_rate,
           'recipe', (
             select coalesce(json_agg(json_build_object(
               'ingredient_id', pi.ingredient_id, 'qty_per_unit', pi.qty_per_unit,
@@ -4473,6 +4526,36 @@ begin
   );
 end;
 $$;
+
+
+--
+-- Name: get_vat_report(uuid, date, date); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.get_vat_report(p_token uuid, p_from date, p_to date) RETURNS json
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'extensions', 'pg_temp'
+    AS $$
+declare s staff_sessions%rowtype; v_def numeric;
+begin
+  s := _session_check(p_token, 'reports');
+  select default_vat_rate into v_def from restaurants where id = s.restaurant_id;
+  return (
+    with sales as (
+      select h.order_id, h.closed_at, h.subtotal, h.total from sales_history h
+      where h.restaurant_id = s.restaurant_id and (h.closed_at at time zone 'Europe/Istanbul')::date between p_from and p_to
+    ), lines as (
+      select coalesce(oi.vat_rate, v_def, 10) rate,
+             oi.price * oi.qty * case when sa.subtotal > 0 then least(greatest(sa.total / sa.subtotal, 0), 1) else 0 end gross
+      from sales sa join order_items oi on oi.order_id = sa.order_id and oi.paid and oi.paid_at = sa.closed_at
+    ), by_rate as (select rate, round(sum(gross), 2) gross from lines group by 1)
+    select json_build_object('from', p_from, 'to', p_to,
+      'sales_count', (select count(*) from sales), 'sales_total', (select coalesce(round(sum(total),2),0) from sales),
+      'rates', coalesce((select json_agg(json_build_object('rate', rate, 'gross', gross,
+          'base', round(gross * 100 / (100 + rate), 2), 'vat', round(gross - gross * 100 / (100 + rate), 2)) order by rate) from by_rate), '[]'::json),
+      'vat_total', coalesce((select round(sum(gross - gross * 100 / (100 + rate)), 2) from by_rate), 0),
+      'base_total', coalesce((select round(sum(gross * 100 / (100 + rate)), 2) from by_rate), 0)));
+end $$;
 
 
 --
@@ -6659,6 +6742,22 @@ end; $_$;
 
 
 --
+-- Name: set_product_vat(uuid, uuid, numeric); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.set_product_vat(p_token uuid, p_product_id uuid, p_rate numeric) RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'extensions', 'pg_temp'
+    AS $$
+declare s staff_sessions%rowtype;
+begin
+  s := _session_check(p_token, 'settings_products');
+  if p_rate is not null and (p_rate < 0 or p_rate > 100) then raise exception 'KDV oranı 0-100 arasında olmalı'; end if;
+  update products set vat_rate = p_rate where id = p_product_id and restaurant_id = s.restaurant_id;
+end $$;
+
+
+--
 -- Name: set_public_cart_hold(text, text, uuid, integer); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -7926,6 +8025,22 @@ $$;
 
 
 --
+-- Name: update_vat_settings(uuid, numeric); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.update_vat_settings(p_token uuid, p_default_rate numeric) RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'extensions', 'pg_temp'
+    AS $$
+declare s staff_sessions%rowtype;
+begin
+  s := _session_check(p_token, 'settings_products');
+  if p_default_rate is null or p_default_rate < 0 or p_default_rate > 100 then raise exception 'KDV oranı 0-100 arasında olmalı'; end if;
+  update restaurants set default_vat_rate = p_default_rate where id = s.restaurant_id;
+end $$;
+
+
+--
 -- Name: update_waitlist_wait(uuid, uuid, integer, text); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -8993,7 +9108,8 @@ CREATE TABLE public.order_items (
     paid_at timestamp with time zone,
     late_push_notified_at timestamp with time zone,
     late_push_milestone integer DEFAULT '-1'::integer NOT NULL,
-    ready_at timestamp with time zone
+    ready_at timestamp with time zone,
+    vat_rate numeric
 );
 
 
@@ -9017,7 +9133,8 @@ CREATE TABLE public.orders (
     created_by uuid,
     ready_sms_sent_at timestamp with time zone,
     reservation_id uuid,
-    waitlist_id uuid
+    waitlist_id uuid,
+    idle_stage smallint DEFAULT 0 NOT NULL
 );
 
 
@@ -9162,7 +9279,9 @@ CREATE TABLE public.products (
     stock integer,
     available boolean DEFAULT true NOT NULL,
     name_translations jsonb DEFAULT '{}'::jsonb NOT NULL,
-    CONSTRAINT products_stock_nonneg CHECK (((stock IS NULL) OR (stock >= 0)))
+    vat_rate numeric,
+    CONSTRAINT products_stock_nonneg CHECK (((stock IS NULL) OR (stock >= 0))),
+    CONSTRAINT products_vat_rate_check CHECK (((vat_rate IS NULL) OR ((vat_rate >= (0)::numeric) AND (vat_rate <= (100)::numeric))))
 );
 
 
@@ -9399,7 +9518,9 @@ CREATE TABLE public.restaurants (
     sms_enabled boolean DEFAULT false NOT NULL,
     shift_approval_required boolean DEFAULT true NOT NULL,
     shift_required boolean DEFAULT false NOT NULL,
-    expiry_reminder_stage integer
+    expiry_reminder_stage integer,
+    default_vat_rate numeric DEFAULT 10 NOT NULL,
+    CONSTRAINT restaurants_default_vat_rate_check CHECK (((default_vat_rate >= (0)::numeric) AND (default_vat_rate <= (100)::numeric)))
 );
 
 
@@ -11335,6 +11456,13 @@ CREATE TRIGGER trg_bump_dv AFTER INSERT OR DELETE OR UPDATE ON public.zones FOR 
 --
 
 CREATE TRIGGER trg_order_item_ready_at BEFORE INSERT OR UPDATE OF status ON public.order_items FOR EACH ROW EXECUTE FUNCTION public._order_item_ready_at();
+
+
+--
+-- Name: order_items trg_order_item_vat; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_order_item_vat BEFORE INSERT ON public.order_items FOR EACH ROW EXECUTE FUNCTION public._order_item_vat();
 
 
 --
