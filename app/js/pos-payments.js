@@ -755,9 +755,7 @@ async function sendInvoiceEmail(historyId){
   });
   if(error){ err.textContent = error.message; btn.disabled = false; btn.textContent = 'Gönder'; return; }
   document.getElementById('invoiceEmailBg').remove();
-  showToast(data && data.status==='efatura_queued'
-    ? '📧 Gönderildi ('+data.number+') · e-Fatura kuyruğa alındı'
-    : '📧 Hesap e-postayla gönderildi ('+(data&&data.number)+')');
+  showToast('📧 Hesap e-postayla gönderildi ('+(data&&data.number)+')');
 }
 /* --- Google Yorumları'na yönlendirme: hesap tamamen kapandığında (bkz.
    yukarısı) personele gösterilen toast'a dokununca, müşterinin telefonuyla

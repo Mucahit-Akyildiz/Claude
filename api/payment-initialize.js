@@ -14,7 +14,8 @@
 const { createClient } = require('@supabase/supabase-js');
 const crypto = require('crypto');
 
-const IYZICO_BASE_URL = process.env.IYZICO_BASE_URL || 'https://sandbox-api.iyzipay.com';
+// Canlıda (Vercel production) adres tanımlı değilse sessizce test ortamına gitmek yerine hata verilir.
+const IYZICO_BASE_URL = process.env.IYZICO_BASE_URL || (process.env.VERCEL_ENV === 'production' ? null : 'https://sandbox-api.iyzipay.com');
 const IYZICO_API_KEY = process.env.IYZICO_API_KEY;
 const IYZICO_SECRET_KEY = process.env.IYZICO_SECRET_KEY;
 const CALLBACK_URL = process.env.CALLBACK_URL; // https://<vercel-domaininiz>/api/payment-callback
@@ -42,6 +43,11 @@ function iyzicoAuthHeaders(uriPath, body) {
 
 module.exports = async function handler(req, res) {
   try {
+    if (!IYZICO_BASE_URL) {
+      console.error('IYZICO_BASE_URL tanımlı değil (production)');
+      res.status(500).json({ errorMessage: 'Ödeme sistemi yapılandırılmamış. Lütfen destek ile iletişime geçin.' });
+      return;
+    }
     // Sadece POST kabul edilir: frontend zaten hep POST kullanıyor (GET
     // desteği kullanılmıyordu) ve GET, p_password gibi hassas alanları URL
     // query string'ine taşıyarak sunucu erişim loglarında/proxy'lerde/

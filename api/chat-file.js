@@ -32,7 +32,8 @@ function fromDataUrl(dataUrl) {
 module.exports = async function handler(req, res) {
   try {
     const { id, once, dl } = req.query || {};
-    const token = req.headers['x-session-token'] || (req.query || {}).t;
+    // Oturum anahtarı yalnızca başlıktan kabul edilir (adreste/loglarda görünmesin).
+    const token = req.headers['x-session-token'];
     if (!id || !token) { res.status(400).end(); return; }
     const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
     const rpc = once === '1' ? 'open_view_once' : 'get_chat_attachment';

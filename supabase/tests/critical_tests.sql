@@ -192,6 +192,18 @@ begin
   exception when others then insert into _results values ('acik_hesap', false, sqlerrm); end;
 end $tests$;
 
+-- ---- 13) Herkese açık anahtar (anon) iç fonksiyonları ve abonelik uzatmayı çağıramaz ----
+do $sec$
+declare v_open text;
+begin
+  select string_agg(p.proname, ', ') into v_open from pg_proc p
+    where p.pronamespace = 'public'::regnamespace and p.prokind = 'f'
+      and not exists (select 1 from pg_depend d where d.objid = p.oid and d.deptype = 'e')
+      and (p.proname like '\_%' or p.proname = 'extend_restaurant_subscription')
+      and has_function_privilege('anon', p.oid, 'execute');
+  insert into _results values ('anon_ic_fonksiyon_kapali', v_open is null, coalesce('açık: ' || v_open, 'hepsi kapalı'));
+end $sec$;
+
 -- Sonuçları yazdır; başarısız varsa hata ver (psql ON_ERROR_STOP ile çıkış kodu 3).
 select case when ok then 'GEÇTİ ' else 'KALDI ' end || name as test, detail from _results order by ok, name;
 do $check$
@@ -199,7 +211,7 @@ declare f text;
 begin
   select string_agg(name || ' (' || coalesce(detail,'') || ')', '; ') into f from _results where not ok;
   if f is not null then raise exception 'BAŞARISIZ TESTLER: %', f; end if;
-  if (select count(*) from _results) < 15 then raise exception 'Beklenenden az test çalıştı: %', (select count(*) from _results); end if;
+  if (select count(*) from _results) < 16 then raise exception 'Beklenenden az test çalıştı: %', (select count(*) from _results); end if;
 end $check$;
 
 rollback;

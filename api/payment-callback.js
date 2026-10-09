@@ -8,7 +8,8 @@
 const { createClient } = require('@supabase/supabase-js');
 const crypto = require('crypto');
 
-const IYZICO_BASE_URL = process.env.IYZICO_BASE_URL || 'https://sandbox-api.iyzipay.com';
+// Canlıda (Vercel production) adres tanımlı değilse sessizce test ortamına gitmek yerine hata verilir.
+const IYZICO_BASE_URL = process.env.IYZICO_BASE_URL || (process.env.VERCEL_ENV === 'production' ? null : 'https://sandbox-api.iyzipay.com');
 const IYZICO_API_KEY = process.env.IYZICO_API_KEY;
 const IYZICO_SECRET_KEY = process.env.IYZICO_SECRET_KEY;
 
@@ -39,6 +40,11 @@ function iyzicoAuthHeaders(uriPath, body) {
 module.exports = async function handler(req, res) {
   const loginUrl = process.env.APP_LOGIN_URL || '/';
   const token = req.method === 'POST' ? (req.body || {}).token : req.query.token;
+  if (!IYZICO_BASE_URL) {
+    console.error('IYZICO_BASE_URL tanımlı değil (production)');
+    res.redirect(302, loginUrl + '?odeme=hata');
+    return;
+  }
 
   if (!token) {
     res.redirect(302, loginUrl + '?odeme=eksik');
@@ -91,36 +97,24 @@ module.exports = async function handler(req, res) {
       return;
     }
 
-    const restaurantId = paymentLookup.restaurant_id;
-
-    // Atomik claim: yalnızca bu isteğin bulduğu satır henüz 'success'
-    // değilse status'u değiştirebiliyor. Eşzamanlı ikinci istek 0 satır
-    // döner ve expires_at'i ikinci kez uzatmadan çıkar - böylece iyzico'nun
-    // aynı token için gönderebileceği tekrar eden/paralel callback'ler
-    // aboneliği yalnızca bir kez uzatır.
-    const { data: claimedRows } = await supabase
-      .from('payments')
-      .update({ status: 'success' })
-      .eq('provider_ref', token)
-      .neq('status', 'success')
-      .select('id');
-
-    if (!claimedRows || claimedRows.length === 0) {
-      res.redirect(302, loginUrl + '?odeme=basarili');
-      return;
-    }
-
-    // Onceden "once OKU sonra YAZ" (iki ayri sorgu) ile yapiliyordu - bu,
-    // ayni anda onaylanan bir havale bildirimiyle (bkz.
-    // admin_review_bank_transfer_notice) yarisip ya kayip bir guncellemeye
-    // ya da (nadiren) cifte uzatmaya yol acabiliyordu. Artik TEK atomik bir
-    // Postgres fonksiyonu (satiri kilitleyip ayni statement icinde okuyup
-    // yazan) kullaniliyor.
+    // Ödeme onayı ve abonelik uzatma TEK veritabanı işleminde (complete_subscription_payment):
+    // satır kilitlenir, tekrar eden/eşzamanlı callback'ler aboneliği yalnızca bir kez uzatır,
+    // uzatma başarısız olursa ödeme de 'success' işaretlenmez (iyzico tekrar denediğinde yeniden işlenir).
+    // iyzico'nun bildirdiği tutar kayıttaki tutarla karşılaştırılır.
     const renewalDays = paymentLookup.billing_cycle === 'yearly' ? RENEWAL_DAYS_YEARLY : RENEWAL_DAYS_MONTHLY;
-    await supabase.rpc('extend_restaurant_subscription', {
-      p_restaurant_id: restaurantId,
+    const { data: outcome, error: completeErr } = await supabase.rpc('complete_subscription_payment', {
+      p_token: token,
+      p_paid_price: Number(result.price),
       p_days: renewalDays,
     });
+    if (completeErr || (outcome !== 'ok' && outcome !== 'already')) {
+      await supabase.from('payment_debug_log').insert({
+        context: 'payment-callback:complete_failed',
+        payload: JSON.stringify({ token, restaurant_id: paymentLookup.restaurant_id, outcome, error: completeErr && completeErr.message, price: result.price, paidPrice: result.paidPrice }),
+      });
+      res.redirect(302, loginUrl + '?odeme=hata');
+      return;
+    }
 
     res.redirect(302, loginUrl + '?odeme=basarili');
   } catch (e) {

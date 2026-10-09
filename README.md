@@ -15,7 +15,8 @@ WebView içinde açar; tek bir kaynak vardır.
   - `api.js` — Supabase client + RPC sarmalayıcısı + oturum yardımcıları
   - `state.js` — global `APP` state objesi, nav öğeleri
   - `utils.js` — `escapeHtml`, `money`, `showToast`, HTML sanitizer, polling hata izleme
-  - `pos-core.js` — Mutfak, Ödemeler, Masa/Sipariş, Paket Servis, Yazıcı/Fiş (bilinçli olarak tek modülde, iç içe geçmiş bölümler)
+  - `pos-kitchen.js`, `pos-payments.js`, `pos-packages.js`, `pos-printer.js`, `pos-escpos.js`, `pos-push.js` — Mutfak, Ödemeler/Masa-Sipariş, Paket Servis, Yazıcı/Fiş, bildirimler
+  - `messages.js` (mesajlaşma), `radio.js` (Peyk Bas-Konuş), `help.js` (Yardım)
   - `financial.js`, `crm.js`, `supplier.js`, `reservations.js`, `settings.js`, `admin-panel.js`, `auth-screens.js`, `main.js`
 - **Backend**: Tüm veri erişimi **sadece** Supabase Postgres
   `SECURITY DEFINER` RPC fonksiyonları üzerinden yapılır; frontend hiçbir
@@ -23,18 +24,21 @@ WebView içinde açar; tek bir kaynak vardır.
   ama policy'siz (deny-all) — tek erişim yolu RPC'ler.
 - **Ödemeler**: Kart (iyzico) → `api/payment-initialize.js` +
   `api/payment-callback.js` (Vercel serverless). Havale/EFT → admin
-  onayıyla (`admin_review_bank_transfer_notice`). Her iki yol da aynı
-  atomik `extend_restaurant_subscription` DB fonksiyonunu kullanır ve
+  onayıyla (`admin_review_bank_transfer_notice`). Kart ödemesinde onay + uzatma tek
+  işlemde `complete_subscription_payment` ile (tutar kontrolüyle), havalede
+  `extend_restaurant_subscription` ile yapılır; her ikisi de yalnızca sunucu tarafından çağrılabilir ve
   birbirinin bekleyen işlemini kontrol ederek çifte abonelik uzatmayı
   engeller.
 - **Bildirimler**: Web Push (VAPID) + native FCM, `api/dispatch-ready-pushes.js`
   üzerinden `pg_cron` tetikleyicileriyle gönderilir.
-- **`final_setup.sql`**: Sıfırdan bir Supabase projesi kurmak için referans
-  şema/fonksiyon dökümü. Canlı veritabanı zaman içinde doğrudan migration'larla
-  güncellendiği için bu dosya en güncel/hardened haliyle **tam** senkronize
-  değildir — kritik güvenlik düzeltmeleri (fiyat doğrulama, OTP limiti, ödeme
-  tutarı kontrolü vb.) elle senkronize edilmiştir, ama sıfırdan kurulumdan
-  önce canlı şemayla karşılaştırılması önerilir.
+- **Veritabanı şeması**: `supabase/schema.sql` canlı veritabanından otomatik
+  dökülür (bkz. `.github/workflows/db-schema.yml`); değişiklikler
+  `supabase/migrations/` altında tutulur. Eski `final_setup.sql` kaldırıldı.
+- **Fonksiyon yetkileri**: Yeni fonksiyonlar varsayılan olarak herkese açık
+  anahtara (anon) **kapalı** oluşturulur; istemcinin çağıracağı RPC'ler açıkça
+  `grant execute ... to anon, authenticated` ile açılır. İç yardımcılar (`_*`)
+  ve sunucuya özel fonksiyonlar yalnızca `service_role`'e açıktır
+  (`critical_tests.sql` bunu denetler).
 
 ## Güvenlik modeli (özet)
 
