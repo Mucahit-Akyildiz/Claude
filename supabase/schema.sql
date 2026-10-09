@@ -132,6 +132,7 @@ $$;
 
 CREATE FUNCTION public._chat_conv_of(m public.chat_messages, p_viewer uuid) RETURNS text
     LANGUAGE sql IMMUTABLE
+    SET search_path TO 'public', 'pg_temp'
     AS $$
   select case when m.group_id is not null then 'g:' || m.group_id
               when m.recipient_id is null then 'all'
@@ -146,6 +147,7 @@ $$;
 
 CREATE FUNCTION public._chat_preview(m public.chat_messages) RETURNS text
     LANGUAGE sql IMMUTABLE
+    SET search_path TO 'public', 'pg_temp'
     AS $$
   -- Hiç mesaj yoksa (boş satır) önizleme de boş kalır.
   select case when m.id is null then null
@@ -479,6 +481,7 @@ end $$;
 
 CREATE FUNCTION public._h(t text) RETURNS text
     LANGUAGE sql IMMUTABLE
+    SET search_path TO 'public', 'pg_temp'
     AS $$
   select replace(replace(replace(replace(replace(coalesce(t,''),'&','&amp;'),'<','&lt;'),'>','&gt;'),'"','&quot;'),'''','&#39;');
 $$;
@@ -640,6 +643,7 @@ end; $$;
 
 CREATE FUNCTION public._normalize_tr_phone(p text) RETURNS text
     LANGUAGE sql IMMUTABLE
+    SET search_path TO 'public', 'pg_temp'
     AS $$
   select case when length(d) >= 10 then '90' || right(d, 10) else null end
   from (select regexp_replace(coalesce(p,''), '\D', '', 'g') d) x;
@@ -672,6 +676,7 @@ end; $$;
 
 CREATE FUNCTION public._order_item_ready_at() RETURNS trigger
     LANGUAGE plpgsql
+    SET search_path TO 'public', 'pg_temp'
     AS $$
 begin
   if new.status = 'ready' and (tg_op = 'INSERT' or old.status is distinct from 'ready') then new.ready_at := coalesce(new.ready_at, now()); end if;
@@ -2720,6 +2725,29 @@ $$;
 
 
 --
+-- Name: complete_subscription_payment(text, numeric, integer); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.complete_subscription_payment(p_token text, p_paid_price numeric, p_days integer) RETURNS text
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'extensions', 'pg_temp'
+    AS $$
+declare pay payments%rowtype;
+begin
+  select * into pay from payments where provider_ref = p_token for update;
+  if not found then return 'not_found'; end if;
+  if pay.status = 'success' then return 'already'; end if;
+  if p_paid_price is null or pay.amount is null or abs(p_paid_price - pay.amount) > 0.01 then
+    update payments set status = 'amount_mismatch', debug_response = left(coalesce(debug_response,'') || ' paid=' || coalesce(p_paid_price::text,'null'), 2000) where id = pay.id;
+    return 'amount_mismatch';
+  end if;
+  update payments set status = 'success' where id = pay.id;
+  perform extend_restaurant_subscription(pay.restaurant_id, p_days, pay.package_id);
+  return 'ok';
+end $$;
+
+
+--
 -- Name: create_branch(uuid, text, text); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -3270,8 +3298,7 @@ begin
     coalesce(v_rows,''),
     to_char(h.subtotal,'FM999G999G990D00'), to_char(coalesce(h.discount_amount,0),'FM999G999G990D00'), to_char(h.total,'FM999G999G990D00'),
     case h.payment_method when 'cash' then 'Nakit' when 'card' then 'Kart' when 'split' then 'Nakit + Kart' else _h(h.payment_method) end,
-    case when v_status='efatura_queued' then 'Resmi e-Arşiv/e-Fatura belgeniz ayrıca gönderilecektir.'
-         else 'Bu belge bilgi amaçlıdır; mali değeri yoktur.' end);
+    'Bu belge bilgi amaçlıdır; mali değeri yoktur.');
 
   insert into invoices (restaurant_id, history_id, number, email, buyer_name, buyer_tax_number, buyer_tax_office, buyer_address,
     subtotal, discount, total, items, status, staff_user_id)
@@ -10380,6 +10407,27 @@ CREATE UNIQUE INDEX app_users_restaurant_username_ci_key ON public.app_users USI
 
 
 --
+-- Name: chat_group_members_user_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX chat_group_members_user_id_idx ON public.chat_group_members USING btree (user_id);
+
+
+--
+-- Name: chat_groups_created_by_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX chat_groups_created_by_idx ON public.chat_groups USING btree (created_by);
+
+
+--
+-- Name: chat_groups_restaurant_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX chat_groups_restaurant_id_idx ON public.chat_groups USING btree (restaurant_id);
+
+
+--
 -- Name: chat_messages_group; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -10387,10 +10435,45 @@ CREATE INDEX chat_messages_group ON public.chat_messages USING btree (group_id, 
 
 
 --
+-- Name: chat_messages_recipient_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX chat_messages_recipient_id_idx ON public.chat_messages USING btree (recipient_id);
+
+
+--
+-- Name: chat_messages_reply_to_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX chat_messages_reply_to_idx ON public.chat_messages USING btree (reply_to);
+
+
+--
 -- Name: chat_messages_rest_time; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX chat_messages_rest_time ON public.chat_messages USING btree (restaurant_id, created_at DESC);
+
+
+--
+-- Name: chat_messages_sender_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX chat_messages_sender_id_idx ON public.chat_messages USING btree (sender_id);
+
+
+--
+-- Name: chat_reactions_user_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX chat_reactions_user_id_idx ON public.chat_reactions USING btree (user_id);
+
+
+--
+-- Name: chat_view_once_user_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX chat_view_once_user_id_idx ON public.chat_view_once USING btree (user_id);
 
 
 --
@@ -10807,6 +10890,13 @@ CREATE INDEX idx_zones_restaurant_id ON public.zones USING btree (restaurant_id)
 
 
 --
+-- Name: invoices_history_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX invoices_history_id_idx ON public.invoices USING btree (history_id);
+
+
+--
 -- Name: invoices_rest_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -10849,6 +10939,48 @@ CREATE INDEX oae_rest ON public.open_account_entries USING btree (restaurant_id,
 
 
 --
+-- Name: online_menu_items_product_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX online_menu_items_product_id_idx ON public.online_menu_items USING btree (product_id);
+
+
+--
+-- Name: online_menu_items_restaurant_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX online_menu_items_restaurant_id_idx ON public.online_menu_items USING btree (restaurant_id);
+
+
+--
+-- Name: online_menu_sections_restaurant_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX online_menu_sections_restaurant_id_idx ON public.online_menu_sections USING btree (restaurant_id);
+
+
+--
+-- Name: open_account_entries_created_by_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX open_account_entries_created_by_idx ON public.open_account_entries USING btree (created_by);
+
+
+--
+-- Name: open_accounts_created_by_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX open_accounts_created_by_idx ON public.open_accounts USING btree (created_by);
+
+
+--
+-- Name: open_accounts_restaurant_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX open_accounts_restaurant_id_idx ON public.open_accounts USING btree (restaurant_id);
+
+
+--
 -- Name: orders_one_open_per_table; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -10863,6 +10995,13 @@ CREATE UNIQUE INDEX payments_provider_ref_unique ON public.payments USING btree 
 
 
 --
+-- Name: product_images_restaurant_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX product_images_restaurant_id_idx ON public.product_images USING btree (restaurant_id);
+
+
+--
 -- Name: public_cart_holds_product; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -10874,6 +11013,13 @@ CREATE INDEX public_cart_holds_product ON public.public_cart_holds USING btree (
 --
 
 CREATE INDEX radio_channel_members_user_id_idx ON public.radio_channel_members USING btree (user_id);
+
+
+--
+-- Name: radio_channels_created_by_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX radio_channels_created_by_idx ON public.radio_channels USING btree (created_by);
 
 
 --
@@ -10933,6 +11079,13 @@ CREATE INDEX sms_outbox_created_idx ON public.sms_outbox USING btree (created_at
 
 
 --
+-- Name: sms_outbox_restaurant_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX sms_outbox_restaurant_id_idx ON public.sms_outbox USING btree (restaurant_id);
+
+
+--
 -- Name: staff_sessions_last_seen_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -10958,6 +11111,13 @@ CREATE INDEX staff_shifts_user_open_idx ON public.staff_shifts USING btree (user
 --
 
 CREATE INDEX waiter_calls_pending ON public.waiter_calls USING btree (restaurant_id) WHERE (status = 'pending'::text);
+
+
+--
+-- Name: waiter_calls_table_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX waiter_calls_table_id_idx ON public.waiter_calls USING btree (table_id);
 
 
 --
