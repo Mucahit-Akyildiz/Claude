@@ -117,13 +117,6 @@
   @media (max-width:600px){ .addons-grid{grid-template-columns:1fr;} }
   .price-card li:first-child{border-top:none;}
   /* ---- Mobile ---- */
-  .mobile-section{background:var(--panel);border-radius:24px;padding:48px 36px;display:flex;align-items:center;gap:40px;flex-wrap:wrap;}
-  .mobile-section .txt{flex:1;min-width:260px;}
-  .mobile-section h2{font-size:26px;font-weight:800;margin:0 0 10px;}
-  .mobile-section p{color:var(--muted);font-size:14.5px;line-height:1.6;margin:0 0 20px;}
-  .mobile-badges{display:flex;gap:10px;flex-wrap:wrap;}
-  .mobile-badge{display:flex;align-items:center;gap:8px;background:var(--panel2);border:1px solid var(--border);border-radius:12px;padding:10px 16px;font-size:13px;font-weight:600;color:var(--muted);}
-  .mobile-section .mock{width:160px;flex-shrink:0;border-radius:28px;box-shadow:0 16px 40px rgba(0,0,0,.5);}
   /* ---- Footer ---- */
   footer{border-top:1px solid var(--border);padding:32px 0;color:var(--muted);font-size:13px;}
   footer .wrap{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;}
@@ -280,22 +273,6 @@
   </div>
 </div>
 
-<section>
-  <div class="wrap">
-    <div class="mobile-section">
-      <div class="txt">
-        <h2>Cebinizde de Peyktan</h2>
-        <p>Android uygulamasıyla mutfak veya kasa ekranınızı telefonunuzdan da takip edin. iOS ve mağaza sürümleri yakında.</p>
-        <div class="mobile-badges">
-          <span class="mobile-badge">🤖 Android (test sürümü)</span>
-          <span class="mobile-badge">🍎 iOS — yakında</span>
-        </div>
-      </div>
-      <img class="mock" src="/assets/images/logo.webp" alt="Peyktan mobil">
-    </div>
-  </div>
-</section>
-
 <footer>
   <div class="wrap">
     <span>© 2026 Peyktan. Tüm hakları saklıdır.</span>
@@ -405,7 +382,6 @@
     const section = document.getElementById('addonsSection');
     const grid = document.getElementById('addonsGrid');
     if(!section || !grid) return;
-    if(PRICING_ADDONS.length===0){ section.style.display = 'none'; return; }
     section.style.display = '';
     const yearly = PRICING_BILLING_CYCLE === 'yearly';
     grid.innerHTML = PRICING_ADDONS.map(a => {
@@ -427,8 +403,18 @@
         ${a.description ? `<p>${escapeHtml(a.description)}</p>` : ''}
         <button type="button" class="btn ${inCart?'btn-primary':'btn-outline'} add-btn" style="width:auto;padding:6px 14px;font-size:13px;" onclick="toggleCartAddon('${a.id}')">${inCart?'✓ Sepette':'+ Sepete Ekle'}</button>
       </div>`;
-    }).join('');
+    }).join('') + COMING_SOON_ADDONS.map(a => `<div class="addon-card" style="opacity:.75;">
+        <div class="top"><h4>${escapeHtml(a.label)}</h4><span class="price"><small style="color:var(--accent);font-weight:700;">Yakında</small></span></div>
+        <p>${escapeHtml(a.description)}</p>
+        <button type="button" class="btn btn-outline add-btn" style="width:auto;padding:6px 14px;font-size:13px;" disabled>🕒 Yakında</button>
+      </div>`).join('');
   }
+  // Geliştirme aşamasındaki entegrasyonlar: satın alınamaz, sadece "Yakında" olarak gösterilir.
+  const COMING_SOON_ADDONS = [
+    { label: 'e-Fatura / e-Arşiv Entegrasyonu', description: 'Ödeme alındığında resmi e-Arşiv / e-Fatura belgesinin otomatik kesilip müşteriye gönderilmesi.' },
+    { label: 'Pazaryeri Entegrasyonu', description: 'Yemeksepeti, Trendyol Yemek ve Getir Yemek siparişlerini tek ekrandan almak.' },
+    { label: 'Muhasebe Entegrasyonu', description: 'Logo, Mikro, Netsis gibi muhasebe yazılımlarına satışların otomatik aktarılması.' },
+  ];
   function renderPricingGrid(){
     const grid = document.getElementById('pricingGrid');
     if(!grid) return;
