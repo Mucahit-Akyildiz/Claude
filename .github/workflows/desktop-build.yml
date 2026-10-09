@@ -65,3 +65,31 @@ jobs:
         with:
           name: peyktan-mac
           path: desktop/dist/*.dmg
+
+  # Ana dala her birleşmede kurulum dosyaları sabit adlarla "masaustu" sürümüne yüklenir;
+  # sitedeki indirme bağlantıları (releases/download/masaustu/...) hep en güncel sürümü verir.
+  publish:
+    if: github.event_name != 'pull_request'
+    needs: [build-windows, build-mac]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          path: dl
+      - name: Sabit adlarla yeniden adlandır
+        run: |
+          mkdir out
+          cp dl/peyktan-windows/*.exe out/Peyktan-Kurulum.exe
+          cp dl/peyktan-mac/*.dmg out/Peyktan.dmg
+          ls -la out
+      - name: Masaüstü sürümünü güncelle (masaustu etiketi)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          if ! gh release view masaustu >/dev/null 2>&1; then
+            gh release create masaustu --title "Peyktan Masaüstü" --notes "Windows ve macOS kurulum dosyaları. peyktan.com/#indir" --latest=false
+          fi
+          gh release upload masaustu out/Peyktan-Kurulum.exe out/Peyktan.dmg --clobber
