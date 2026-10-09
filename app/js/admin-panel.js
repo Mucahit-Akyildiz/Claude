@@ -160,6 +160,7 @@ function renderAdminLogin(app){
     <p class="muted">Bu alan sadece size özeldir.</p>
     <input id="adminUser" placeholder="Kullanıcı adı" autocapitalize="none">
     <input id="adminPass" type="password" placeholder="Şifre">
+    <input id="adminOtp" inputmode="numeric" maxlength="6" autocomplete="one-time-code" placeholder="Doğrulama kodu (6 hane)" style="display:none;">
     <button onclick="doAdminLogin()" id="adminLoginBtn">Giriş Yap</button>
     <div class="error" id="adminErr"></div>
   </div></div>`;
@@ -171,8 +172,15 @@ async function doAdminLogin(){
   const p = document.getElementById('adminPass').value;
   const btn = document.getElementById('adminLoginBtn');
   btn.disabled = true; btn.textContent = 'Giriş yapılıyor...';
-  const { data, error } = await sb.rpc('platform_admin_login', { p_username: u, p_password: p });
+  const otpEl = document.getElementById('adminOtp');
+  const otp = otpEl && otpEl.style.display !== 'none' ? otpEl.value.trim() : null;
+  const { data, error } = await sb.rpc('platform_admin_login', { p_username: u, p_password: p, p_otp: otp || null });
   btn.disabled = false; btn.textContent = 'Giriş Yap';
+  if(error && /OTP_GEREKLI/.test(error.message)){
+    otpEl.style.display = ''; otpEl.focus();
+    errBox.textContent = 'Telefonunuzdaki doğrulama uygulamasındaki 6 haneli kodu girin.'; return;
+  }
+  if(error && otp){ errBox.textContent = error.message; otpEl.value = ''; return; }
   if(error || !data || data.length===0){ errBox.textContent = 'Kullanıcı adı veya şifre hatalı'; return; }
   setAdminSession({ session_token: data[0].session_token, username: data[0].username });
   render();
@@ -1191,7 +1199,77 @@ async function refreshPromoList(admin){
         <button style="width:auto;padding:10px 16px;margin:0;align-self:flex-start;" onclick="changeAdminPassword()">Güncelle</button>
       </div>
     </div>
+    <div class="box" style="max-width:520px;margin-top:16px;text-align:left;" id="adminTotpBox"><p class="muted">Yükleniyor…</p></div>
   `;
+  loadAdminTotpBox();
+}
+/* ---- 2 adımlı doğrulama (TOTP: Google/Microsoft Authenticator vb.) ---- */
+async function loadAdminTotpBox(){
+  const box = document.getElementById('adminTotpBox'); if(!box) return;
+  const admin = getAdminSession();
+  const { data, error } = await sb.rpc('admin_totp_status', { p_token: admin.session_token });
+  if(error){ box.innerHTML = '<p class="muted">Yüklenemedi: ' + escapeHtml(error.message) + '</p>'; return; }
+  box.innerHTML = data.enabled ? `
+    <h2 style="margin:0 0 6px;">🔐 2 Adımlı Doğrulama <span class="role-badge" style="color:var(--green);border-color:var(--green);">Açık</span></h2>
+    <p class="muted" style="text-align:left;font-size:13px;">Girişte şifreden sonra telefonunuzdaki doğrulama uygulamasının ürettiği 6 haneli kod isteniyor.</p>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+      <input id="totpOffCode" inputmode="numeric" maxlength="6" placeholder="6 haneli kod" style="width:150px;margin:0;">
+      <button type="button" class="ghost-btn" style="width:auto;margin:0;" onclick="disableAdminTotp()">Kapat</button>
+    </div>
+    <div class="error" id="totpErr" style="text-align:left;"></div>` : `
+    <h2 style="margin:0 0 6px;">🔐 2 Adımlı Doğrulama <span class="role-badge" style="color:var(--red);border-color:var(--red);">Kapalı</span></h2>
+    <p class="muted" style="text-align:left;font-size:13px;">Şifreniz ele geçirilse bile admin paneline girilemesin: girişte telefonunuzdaki <b>Google Authenticator</b>, <b>Microsoft Authenticator</b> gibi bir uygulamanın ürettiği kod da istensin.</p>
+    <button type="button" style="width:auto;margin:0;" onclick="startAdminTotp()">Kurulumu Başlat</button>
+    <div id="totpSetup"></div>`;
+}
+let QRCODE_LOADING = null;
+function loadQrLib(){
+  if(window.qrcode) return Promise.resolve();
+  if(QRCODE_LOADING) return QRCODE_LOADING;
+  QRCODE_LOADING = new Promise((res, rej) => {
+    const sc = document.createElement('script');
+    sc.src = 'https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js';
+    sc.integrity = 'sha384-8FWZA6BGMXhsfO+BLtrJK0We6gg5o1JyO8xQm6peWDEUs17ACA5ziE/NIAkl9z2k';
+    sc.crossOrigin = 'anonymous'; sc.onload = res; sc.onerror = rej;
+    document.head.appendChild(sc);
+  });
+  return QRCODE_LOADING;
+}
+async function startAdminTotp(){
+  const admin = getAdminSession();
+  const { data, error } = await sb.rpc('admin_totp_begin', { p_token: admin.session_token });
+  if(error){ alert(error.message); return; }
+  // QR kod tarayıcıda üretilir: gizli anahtar hiçbir dış servise gönderilmez.
+  let qrHtml = '';
+  try{ await loadQrLib(); const q = qrcode(0, 'M'); q.addData(data.uri); q.make(); qrHtml = q.createSvgTag({ cellSize: 5, margin: 3 }); }catch(e){}
+  document.getElementById('totpSetup').innerHTML = `
+    <ol style="text-align:left;font-size:13px;padding-left:18px;margin:12px 0;">
+      <li>Telefonunuza <b>Google Authenticator</b> veya <b>Microsoft Authenticator</b> kurun.</li>
+      <li>Uygulamada “+” → <b>QR kodu tara</b> ile aşağıdaki kodu okutun.</li>
+      <li>Uygulamanın gösterdiği 6 haneli kodu girip <b>Etkinleştir</b>'e basın.</li>
+    </ol>
+    <div style="background:#fff;display:inline-block;border-radius:10px;">${qrHtml}</div>
+    <div class="muted" style="font-size:12px;margin:8px 0;">QR okutamıyorsanız anahtarı elle girin: <code style="user-select:all;">${escapeHtml(data.secret.replace(/(.{4})/g, '$1 ').trim())}</code></div>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+      <input id="totpOnCode" inputmode="numeric" maxlength="6" placeholder="6 haneli kod" style="width:150px;margin:0;">
+      <button type="button" style="width:auto;margin:0;" onclick="enableAdminTotp()">Etkinleştir</button>
+    </div>
+    <div class="error" id="totpErr" style="text-align:left;"></div>`;
+}
+async function enableAdminTotp(){
+  const admin = getAdminSession();
+  const { error } = await sb.rpc('admin_totp_enable', { p_token: admin.session_token, p_code: document.getElementById('totpOnCode').value.trim() });
+  if(error){ document.getElementById('totpErr').textContent = error.message; return; }
+  showToast('2 adımlı doğrulama açıldı ✓');
+  loadAdminTotpBox();
+}
+async function disableAdminTotp(){
+  if(!confirm('2 adımlı doğrulama kapatılsın mı? Admin girişi sadece şifreyle yapılır.')) return;
+  const admin = getAdminSession();
+  const { error } = await sb.rpc('admin_totp_disable', { p_token: admin.session_token, p_code: document.getElementById('totpOffCode').value.trim() });
+  if(error){ document.getElementById('totpErr').textContent = error.message; return; }
+  showToast('2 adımlı doğrulama kapatıldı');
+  loadAdminTotpBox();
 }
 async function createPromo(){
   const admin = getAdminSession();
