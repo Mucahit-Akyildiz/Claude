@@ -185,6 +185,7 @@ async function renderReportsView(main, session){
     </div>
     <div class="tabs" id="reportTabs">
       <div class="tab ${(APP.reportTab||'summary')==='summary'?'active':''}" data-tab="summary" onclick="setReportTab('summary')">Genel Özet</div>
+      <div class="tab ${APP.reportTab==='vat'?'active':''}" data-tab="vat" onclick="setReportTab('vat')">🧾 KDV</div>
       <div class="tab ${APP.reportTab==='products'?'active':''}" data-tab="products" onclick="setReportTab('products')">📦 Ürün İstatistikleri</div>
       <div class="tab ${APP.reportTab==='staff'?'active':''}" data-tab="staff" onclick="setReportTab('staff')">👤 Personel Analizleri</div>
       <div class="tab ${APP.reportTab==='customers'?'active':''}" data-tab="customers" onclick="setReportTab('customers')">🧑‍🤝‍🧑 Müşteri Analizleri</div>
@@ -231,6 +232,7 @@ function setReportDateRangeDays(daysBack){
 }
 function renderReportTabContent(session){
   const tab = APP.reportTab||'summary';
+  if(tab==='vat') return renderVatReportContent(session);
   if(tab==='products') return renderProductStatsContent(session);
   if(tab==='staff') return renderStaffAnalyticsContent(session);
   if(tab==='customers') return renderCustomerAnalyticsContent(session);
@@ -1021,4 +1023,42 @@ async function collectOpenAccount(id){
   if(error){ alert(error.message); return; }
   showToast('✅ ' + money(amount) + ' tahsil edildi');
   renderOpenAccountsContent(getSession());
+}
+
+/* KDV raporu: seçili tarih aralığındaki satışlar KDV oranına göre (fiyatlar KDV dahil).
+   İndirimler kalemlere orantılı dağıtılır, bahşiş KDV'ye dahil edilmez. Muhasebeciye
+   ve beyanname için özet; resmi belge yerine geçmez. */
+async function renderVatReportContent(session){
+  const el = document.getElementById('reportContent'); if(!el) return;
+  const { data, error } = await withLoadingOverlay(sb.rpc('get_vat_report', { p_token: session.session_token, p_from: APP.reportDate, p_to: APP.reportDateTo || APP.reportDate }));
+  if(error){ el.innerHTML = '<p class="muted">Yüklenemedi: '+escapeHtml(error.message)+'</p>'; return; }
+  APP.vatReport = data;
+  const rates = data.rates || [];
+  const gross = rates.reduce((s, r) => s + Number(r.gross), 0);
+  el.innerHTML = `
+    <div class="stat-grid">
+      <div class="box" style="text-align:center;"><div style="font-size:22px;font-weight:800;">${money(gross)}</div><div class="muted" style="font-size:12px;">KDV Dahil Satış</div></div>
+      <div class="box" style="text-align:center;"><div style="font-size:22px;font-weight:800;">${money(data.base_total)}</div><div class="muted" style="font-size:12px;">Matrah (KDV Hariç)</div></div>
+      <div class="box" style="text-align:center;"><div style="font-size:22px;font-weight:800;color:var(--accent);">${money(data.vat_total)}</div><div class="muted" style="font-size:12px;">Hesaplanan KDV</div></div>
+      <div class="box" style="text-align:center;"><div style="font-size:22px;font-weight:800;">${data.sales_count}</div><div class="muted" style="font-size:12px;">Satış (Adisyon)</div></div>
+    </div>
+    <div class="box" style="max-width:none;">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;">
+        <h2 style="margin:0;">KDV Oranlarına Göre · ${escapeHtml(reportDateRangeLabel())}</h2>
+        <button type="button" class="ghost-btn" style="width:auto;margin:0;" onclick="exportVatReportCsv()">⬇️ Dışa aktar</button>
+      </div>
+      <div class="settings-table-wrap" style="margin-top:10px;"><table class="settings-table">
+        <thead><tr><th>KDV Oranı</th><th>KDV Dahil Tutar</th><th>Matrah</th><th>KDV</th></tr></thead>
+        <tbody>${rates.map(r => `<tr><td><b>%${r.rate}</b></td><td>${money(r.gross)}</td><td>${money(r.base)}</td><td>${money(r.vat)}</td></tr>`).join('')}
+        ${rates.length ? `<tr style="font-weight:800;"><td>Toplam</td><td>${money(gross)}</td><td>${money(data.base_total)}</td><td>${money(data.vat_total)}</td></tr>` : '<tr><td colspan="4" class="muted" style="text-align:center;">Bu tarihlerde satış yok.</td></tr>'}
+        </tbody></table></div>
+      <p class="muted" style="font-size:12px;text-align:left;margin:10px 0 0;">Fiyatlar KDV dahildir; indirimler ürünlere orantılı dağıtılır, bahşiş dahil edilmez. Ürün oranları <b>Ayarlar › Ürünler</b>'den belirlenir. Bu özet muhasebe içindir, resmi belge (ÖKC/e-Arşiv) yerine geçmez.</p>
+    </div>`;
+}
+function exportVatReportCsv(){
+  const d = APP.vatReport; if(!d) return;
+  const n = (x) => Number(x).toFixed(2).replace('.', ','); // Türkçe Excel ondalık virgül bekler
+  const rows = [['KDV Oranı','KDV Dahil Tutar','Matrah','KDV']].concat((d.rates||[]).map(r => ['%' + r.rate, n(r.gross), n(r.base), n(r.vat)]));
+  rows.push(['Toplam', n((d.rates||[]).reduce((s, r) => s + Number(r.gross), 0)), n(d.base_total), n(d.vat_total)]);
+  if(typeof downloadCsv === 'function') downloadCsv('kdv-' + d.from + (d.to !== d.from ? '_' + d.to : '') + '.csv', rows);
 }

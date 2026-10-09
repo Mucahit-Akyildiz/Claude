@@ -371,6 +371,34 @@ async function dispatchChatMessage(supabase, messageId) {
   });
 }
 
+// Masaya oturtulmus ama hic siparis girilmemis masalar (bkz. _cron_idle_tables): siparis
+// alma ('order') izni olan personele (Yonetici dahil) bildirim. Siparis bu arada girildiyse atlanir.
+async function dispatchIdleTables(supabase, orderIds) {
+  if (!orderIds.length) return { sent: 0 };
+  const { data: orders } = await supabase.from('orders')
+    .select('id, restaurant_id, status, customer_name, created_at, restaurant_tables(name)')
+    .in('id', orderIds);
+  let sent = 0;
+  for (const o of orders || []) {
+    if (o.status !== 'open') continue;
+    const { count } = await supabase.from('order_items').select('id', { count: 'exact', head: true }).eq('order_id', o.id);
+    if (count) continue;
+    const { data: appUsers } = await supabase.from('app_users').select('id, role_ids, is_active').eq('restaurant_id', o.restaurant_id);
+    const { data: roles } = await supabase.from('roles').select('id, is_system, permissions').eq('restaurant_id', o.restaurant_id);
+    const roleIds = new Set((roles || []).filter((rl) => rl.is_system || (rl.permissions || []).includes('order')).map((rl) => rl.id));
+    const ids = (appUsers || []).filter((u) => u.is_active !== false && (u.role_ids || []).some((rid) => roleIds.has(rid))).map((u) => u.id);
+    const mins = Math.max(1, Math.round((Date.now() - new Date(o.created_at).getTime()) / 60000));
+    const table = (o.restaurant_tables && o.restaurant_tables.name) || 'Bir masa';
+    const r = await sendToUsers(supabase, ids, {
+      title: '🍽️ ' + table + ': sipariş bekleniyor',
+      body: (o.customer_name ? o.customer_name + ' ' : 'Müşteri ') + mins + ' dakikadır oturuyor, henüz sipariş girilmedi.',
+      url: '/app/', view: 'order', tag: 'idle-table-' + o.id,
+    });
+    sent += (r && r.sent) || 0;
+  }
+  return { sent };
+}
+
 // Telsiz kanalina yeni eklenen uyelere bildirim. Sadece gercekten o kanalin
 // uyesi olan kullanicilara gonderilir (govdedeki listeye korce guvenilmez).
 async function dispatchRadioAdded(supabase, channelId, userIds, by) {
@@ -456,6 +484,12 @@ module.exports = async function handler(req, res) {
       const messageId = req.body && req.body.message_id;
       if (!messageId) { res.status(400).json({ error: 'message_id required' }); return; }
       res.status(200).json(await dispatchChatMessage(supabase, messageId));
+      return;
+    }
+
+    if (mode === 'idle_tables') {
+      const ids = Array.isArray(req.body && req.body.order_ids) ? req.body.order_ids.slice(0, 200) : [];
+      res.status(200).json(await dispatchIdleTables(supabase, ids));
       return;
     }
 

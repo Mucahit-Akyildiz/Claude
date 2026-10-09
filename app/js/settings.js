@@ -746,6 +746,24 @@ function showTableQr(tableId, qrToken){
 }
 
 /* --- Ürünler --- */
+/* KDV: fiyatlar KDV dahildir. Ürün oranı boşsa işletmenin varsayılan oranı kullanılır.
+   Türkiye'de lokanta/kafe yiyecek-içecek %10, alkollü içecek %20. */
+const VAT_RATES = [0, 1, 10, 20];
+function vatSelectHtml(id, value, withDefault, extraAttr){
+  const def = APP.config.default_vat_rate ?? 10;
+  const opts = (withDefault ? [`<option value="" ${value==null?'selected':''}>Varsayılan (%${def})</option>`] : [])
+    .concat(VAT_RATES.map(r => `<option value="${r}" ${value!=null && Number(value)===r?'selected':''}>%${r}</option>`));
+  if(value!=null && !VAT_RATES.includes(Number(value))) opts.push(`<option value="${value}" selected>%${value}</option>`);
+  return `<select id="${id}" ${extraAttr||''}>${opts.join('')}</select>`;
+}
+async function saveDefaultVat(v){
+  const session = getSession();
+  const { error } = await sb.rpc('update_vat_settings', { p_token: session.session_token, p_default_rate: Number(v) });
+  if(error){ alert(error.message); return; }
+  APP.config.default_vat_rate = Number(v);
+  showToast('Varsayılan KDV %' + v + ' olarak kaydedildi ✓');
+  renderSettingsView(document.getElementById('main'), session);
+}
 function renderProductsSettings(el, session){
   const stations = APP.config.stations || [];
   const products = APP.config.products || [];
@@ -759,6 +777,7 @@ function renderProductsSettings(el, session){
           </select></td>
           <td class="col-num"><input type="number" value="${p.price}" id="pr_price_${p.id}"></td>
           <td class="col-num"><input type="number" value="${p.cost}" id="pr_cost_${p.id}"></td>
+          <td class="col-num" style="min-width:110px;">${vatSelectHtml('pr_vat_'+p.id, p.vat_rate, true)}</td>
           <td class="col-num">
             ${(p.recipe && p.recipe.length>0)
               ? `<span class="muted" style="font-size:12px;">Reçeteli (${p.available_qty==null?'?':p.available_qty} porsiyon)</span>`
@@ -778,7 +797,7 @@ function renderProductsSettings(el, session){
       <h3 style="display:flex;align-items:center;gap:8px;font-size:14px;margin:0 0 10px;">${colorDot?`<span style="width:10px;height:10px;border-radius:50%;background:${colorDot};display:inline-block;flex-shrink:0;"></span>`:''}${escapeHtml(title)}<span class="muted" style="font-weight:400;">(${list.length})</span></h3>
       <div class="settings-table-wrap">
       <table class="settings-table">
-        <thead><tr><th style="width:36px;"><input type="checkbox" style="width:auto;margin:0;" title="Bu gruptakilerin tümünü seç" onchange="selectProdGroup(this)"></th><th>Ürün Adı</th><th>İstasyon</th><th>Fiyat</th><th>Maliyet</th><th>Stok</th><th>Durum</th><th></th></tr></thead>
+        <thead><tr><th style="width:36px;"><input type="checkbox" style="width:auto;margin:0;" title="Bu gruptakilerin tümünü seç" onchange="selectProdGroup(this)"></th><th>Ürün Adı</th><th>İstasyon</th><th>Fiyat</th><th>Maliyet</th><th title="Fiyata dahil KDV oranı">KDV</th><th>Stok</th><th>Durum</th><th></th></tr></thead>
         <tbody>${rowsFor(list)}</tbody>
       </table>
       </div>
@@ -788,6 +807,11 @@ function renderProductsSettings(el, session){
 
   el.innerHTML = `<div class="box" style="max-width:none;">
     <h2>Ürünler</h2>
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 10px;">
+      <label style="margin:0;font-weight:700;font-size:13.5px;">Varsayılan KDV oranı</label>
+      <div style="width:130px;">${vatSelectHtml('defaultVatSel', APP.config.default_vat_rate ?? 10, false, 'onchange="saveDefaultVat(this.value)" style="margin:0;"')}</div>
+      <span class="muted" style="font-size:12.5px;">Fiyatlar KDV dahildir. Lokantada yiyecek-içecek %10, alkollü içecek %20. Ürüne ayrı oran seçilmezse bu oran kullanılır.</span>
+    </div>
     <p class="muted" style="text-align:left;margin:0 0 16px;">Stok alanını boş bırakırsanız o ürün için stok takibi yapılmaz. Satırları değiştirip <b>Kaydet</b>'e basın; satışa açmak / kapatmak / silmek için satırları seçin.</p>
     <div id="prodGroups" oninput="markProdDirty(event)" onchange="markProdDirty(event)">
     ${stations.map(s => groupHtml(s.name, s.color, products.filter(p => p.station_id===s.id))).join('')}
@@ -812,6 +836,7 @@ function renderProductsSettings(el, session){
         <div class="field-group" style="margin:0;min-width:0;flex:1.4 1 130px;width:auto;"><label>İstasyon</label><select style="margin:0;width:100%;" id="np_station">${APP.config.stations.map(s => `<option value="${s.id}">${escapeHtml(s.name)}</option>`).join('')}</select></div>
         <div class="field-group" style="margin:0;min-width:0;flex:1 1 90px;width:auto;"><label>Fiyat (₺)</label><input style="margin:0;width:100%;" type="number" id="np_price" placeholder="0"></div>
         <div class="field-group" style="margin:0;min-width:0;flex:1 1 90px;width:auto;"><label>Maliyet (₺)</label><input style="margin:0;width:100%;" type="number" id="np_cost" placeholder="0"></div>
+        <div class="field-group" style="margin:0;min-width:0;flex:1 1 110px;width:auto;"><label>KDV</label>${vatSelectHtml('np_vat', null, true, 'style="margin:0;width:100%;"')}</div>
         <div class="field-group" style="margin:0;min-width:0;flex:1 1 100px;width:auto;"><label>Stok</label><input style="margin:0;width:100%;" type="number" id="np_stock" placeholder="Sınırsız" title="Boş = sınırsız; reçete eklerseniz bu alan kullanılmaz"></div>
         ${(APP.config.ingredients||[]).length===0 ? '' : `
         <div class="field-group grow" style="margin:0;min-width:0;flex:2 1 170px;width:auto;"><label>Reçete (opsiyonel)</label><select style="margin:0;width:100%;" id="npRecipeIngSelect">
@@ -885,12 +910,18 @@ async function saveAllProducts(){
     const stockEl = document.getElementById('pr_stock_'+id);
     let stock = p.stock; if(stockEl){ const raw = stockEl.value.trim(); stock = raw==='' ? null : parseInt(raw,10); }
     const name = document.getElementById('pr_name_'+id).value.trim();
-    return { name, payload: productPayload(p, { p_name: name, p_station_id: document.getElementById('pr_st_'+id).value,
+    const vatEl = document.getElementById('pr_vat_'+id);
+    const vat = vatEl && vatEl.value !== '' ? Number(vatEl.value) : null;
+    return { name, id, vat, vatChanged: (p.vat_rate ?? null) !== vat, payload: productPayload(p, { p_name: name, p_station_id: document.getElementById('pr_st_'+id).value,
       p_price: parseFloat(document.getElementById('pr_price_'+id).value)||0, p_cost: parseFloat(document.getElementById('pr_cost_'+id).value)||0, p_stock: stock }) };
   });
   if(!rows.length) return;
   const bad = rows.find(r => !r.name); if(bad){ alert('Ürün adı boş olamaz'); return; }
-  const errors = await runProductBatch(rows, (s, r) => sb.rpc('upsert_product', Object.assign({ p_token: s.session_token }, r.payload)));
+  const errors = await runProductBatch(rows, async (s, r) => {
+    const res = await sb.rpc('upsert_product', Object.assign({ p_token: s.session_token }, r.payload));
+    if(res.error || !r.vatChanged) return res;
+    return sb.rpc('set_product_vat', { p_token: s.session_token, p_product_id: r.id, p_rate: r.vat });
+  });
   if(errors.length) alert('Bazı ürünler kaydedilemedi:\n\n' + errors.join('\n')); else showToast(rows.length + ' ürün kaydedildi ✓');
 }
 async function bulkProductAvailable(open){
@@ -918,6 +949,11 @@ async function addProduct(){
   if(!name) return;
   const { data: newId, error } = await sb.rpc('upsert_product', { p_token: session.session_token, p_id: null, p_station_id: stationId, p_name: name, p_price: price, p_cost: cost, p_stock: stock, p_available: true });
   if(error){ alert(error.message); return; }
+  const npVat = document.getElementById('np_vat').value;
+  if(newId && npVat !== ''){
+    const { error: vErr } = await sb.rpc('set_product_vat', { p_token: session.session_token, p_product_id: newId, p_rate: Number(npVat) });
+    if(vErr) alert('Ürün eklendi ama KDV oranı kaydedilemedi: ' + vErr.message);
+  }
   if(newId && NEW_PRODUCT_RECIPE_DRAFT.length>0){
     const items = NEW_PRODUCT_RECIPE_DRAFT.map(r => ({ ingredient_id: r.ingredient_id, qty_per_unit: r.qty_per_unit }));
     const { error: recError } = await sb.rpc('set_recipe', { p_token: session.session_token, p_product_id: newId, p_items: items });
