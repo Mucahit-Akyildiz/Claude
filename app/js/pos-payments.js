@@ -1181,7 +1181,12 @@ function tableStatus(t){
   if(draft.length>0){ sub += (occupied?' + ':'') + draft.length+' üründe sepette'; occupied = true; }
   // Rezervasyondan oturtulan masa (henüz ürün yok): müşteri adıyla dolu görünür.
   if(order && order.customer_name){
-    if(!occupied){ occupied = true; sub = '👤 ' + escapeHtml(order.customer_name); }
+    if(!occupied){
+      occupied = true; sub = '👤 ' + escapeHtml(order.customer_name);
+      // Oturtulmuş ama sipariş girilmemiş: 5 dk sonra uyarı (garsonlara bildirim de gider, bkz. _cron_idle_tables).
+      const mins = order.created_at ? Math.floor((Date.now() - new Date(order.created_at).getTime()) / 60000) : 0;
+      if(!order.items.length && mins >= 5) sub += '<br><b style="color:var(--amber, #f59e0b);">⏳ Sipariş bekleniyor · ' + mins + ' dk</b>';
+    }
     else sub = '👤 ' + escapeHtml(order.customer_name) + '<br>' + sub;
   }
   return { sub, occupied };
