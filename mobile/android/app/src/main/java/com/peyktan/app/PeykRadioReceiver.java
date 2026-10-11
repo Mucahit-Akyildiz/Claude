@@ -2,6 +2,8 @@ package com.peyktan.app;
 
 import android.media.AudioAttributes;
 import android.media.AudioFormat;
+import android.media.AudioRecord;
+import android.media.MediaRecorder;
 import android.media.AudioTrack;
 import android.os.Handler;
 import android.os.Looper;
@@ -26,7 +28,9 @@ class PeykRadioReceiver {
     private final OkHttpClient http = new OkHttpClient.Builder().pingInterval(20, TimeUnit.SECONDS).build();
     private final Handler main = new Handler(Looper.getMainLooper());
     private final LinkedBlockingQueue<short[]> queue = new LinkedBlockingQueue<>();
-    private String url, key, topic, self;
+    private String url, key, topic, self, selfName;
+    private volatile Thread recorder;
+    private volatile long talkT;
     private WebSocket ws;
     private volatile boolean running = false;
     private int ref = 1, backoff = 1000;
@@ -41,7 +45,8 @@ class PeykRadioReceiver {
         }
     };
 
-    synchronized void start(String url, String key, String topic, String self) {
+    synchronized void start(String url, String key, String topic, String self, String name) {
+        if (name != null) this.selfName = name;
         boolean same = running && topic != null && topic.equals(this.topic);
         if (same) return;
         stop();
@@ -53,6 +58,7 @@ class PeykRadioReceiver {
     }
 
     synchronized void stop() {
+        stopTalk();
         running = false;
         main.removeCallbacksAndMessages(null);
         if (ws != null) { try { ws.close(1000, "bye"); } catch (Exception ignored) {} ws = null; }
@@ -125,6 +131,85 @@ class PeykRadioReceiver {
         int sign = u & 0x80, exp = (u >> 4) & 7, man = u & 0x0F;
         int x = ((man << 3) + 0x84) << exp; x -= 0x84;
         return (short) (sign != 0 ? -x : x);
+    }
+
+    /* ---- Bildirimden konuşma (ekran kapalıyken, WebView'e gerek kalmadan) ----
+       Web tarafıyla aynı biçim: 's' (söz al), 'a' (200 ms'lik 8 kHz µ-law parça), 'e' (bitti). */
+    boolean isTalking() { return recorder != null; }
+
+    /** @return null başarılıysa, değilse kullanıcıya gösterilecek neden */
+    synchronized String startTalk() {
+        if (!running || ws == null) return "Kanala bağlı değil";
+        if (recorder != null) return null;
+        long now = System.currentTimeMillis();
+        if (floorUser != null && now - floorAt <= 2500) return "Kanal meşgul — başka biri konuşuyor";
+        final AudioRecord rec;
+        try {
+            int min = AudioRecord.getMinBufferSize(RATE, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT);
+            rec = new AudioRecord(MediaRecorder.AudioSource.VOICE_COMMUNICATION, RATE, AudioFormat.CHANNEL_IN_MONO,
+                AudioFormat.ENCODING_PCM_16BIT, Math.max(min, RATE));
+            if (rec.getState() != AudioRecord.STATE_INITIALIZED) { rec.release(); return "Mikrofon açılamadı"; }
+            rec.startRecording();
+        } catch (SecurityException e) {
+            return "Mikrofon izni yok — uygulamada bir kez Bas-Konuş kullanın";
+        } catch (Exception e) {
+            return "Mikrofon açılamadı";
+        }
+        talkT = now;
+        try { send("realtime:" + topic, "broadcast", bc("s", new JSONObject().put("u", self).put("n", name()).put("t", talkT))); } catch (Exception ignored) {}
+        Thread t = new Thread(() -> {
+            short[] pcm = new short[1600];
+            int seq = 0;
+            try {
+                while (!Thread.currentThread().isInterrupted()) {
+                    int got = 0;
+                    while (got < pcm.length && !Thread.currentThread().isInterrupted()) {
+                        int r = rec.read(pcm, got, pcm.length - got);
+                        if (r <= 0) break;
+                        got += r;
+                    }
+                    if (got <= 0) break;
+                    byte[] b = new byte[got];
+                    for (int i = 0; i < got; i++) b[i] = ulawEncode(pcm[i]);
+                    JSONObject p = new JSONObject().put("u", self).put("n", name()).put("t", talkT).put("s", seq++)
+                        .put("d", Base64.encodeToString(b, Base64.NO_WRAP));
+                    send("realtime:" + topic, "broadcast", bc("a", p));
+                }
+            } catch (Exception ignored) {
+            } finally {
+                try { rec.stop(); } catch (Exception ignored) {}
+                rec.release();
+            }
+        }, "peyk-radio-mic");
+        recorder = t;
+        t.start();
+        return null;
+    }
+
+    synchronized void stopTalk() {
+        Thread t = recorder;
+        if (t == null) return;
+        recorder = null;
+        t.interrupt();
+        try { send("realtime:" + topic, "broadcast", bc("e", new JSONObject().put("u", self))); } catch (Exception ignored) {}
+    }
+
+    private String name() { return selfName == null ? "" : selfName; }
+
+    private static JSONObject bc(String event, JSONObject payload) throws Exception {
+        return new JSONObject().put("type", "broadcast").put("event", event).put("payload", payload);
+    }
+
+    private static byte ulawEncode(short sample) {
+        int s = sample;
+        int sign = (s >> 8) & 0x80;
+        if (sign != 0) s = -s;
+        if (s > 32635) s = 32635;
+        s += 0x84;
+        int exp = 7;
+        for (int mask = 0x4000; (s & mask) == 0 && exp > 0; mask >>= 1) exp--;
+        int man = (s >> (exp + 3)) & 0x0F;
+        return (byte) ~(sign | (exp << 4) | man);
     }
 
     private void startPlayer() {

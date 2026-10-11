@@ -20,6 +20,7 @@ public class PeykRadioPlugin extends Plugin {
         i.putExtra("key", call.getString("key"));
         i.putExtra("topic", call.getString("topic"));
         i.putExtra("user", call.getString("user"));
+        i.putExtra("name", call.getString("name", ""));
         try {
             ContextCompat.startForegroundService(getContext(), i);
             active = true;

@@ -1,14 +1,82 @@
 package com.peyktan.app;
 
+import android.app.AlertDialog;
 import android.os.Bundle;
 import android.webkit.WebView;
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.IntentSenderRequest;
+import androidx.activity.result.contract.ActivityResultContracts;
 import com.getcapacitor.BridgeActivity;
+import com.google.android.play.core.appupdate.AppUpdateManager;
+import com.google.android.play.core.appupdate.AppUpdateManagerFactory;
+import com.google.android.play.core.appupdate.AppUpdateOptions;
+import com.google.android.play.core.install.InstallStateUpdatedListener;
+import com.google.android.play.core.install.model.AppUpdateType;
+import com.google.android.play.core.install.model.InstallStatus;
+import com.google.android.play.core.install.model.UpdateAvailability;
 
 public class MainActivity extends BridgeActivity {
+    // Play Store'da yeni sürüm varsa uygulama içinden güncelleme (Google Play In-App Updates).
+    // "Esnek" akış: Google'ın penceresiyle kullanıcı onaylar, indirme arka planda sürer,
+    // uygulama kullanılmaya devam eder; indirme bitince "Yeniden başlat" sorulur.
+    private AppUpdateManager updateManager;
+    private ActivityResultLauncher<IntentSenderRequest> updateLauncher;
+    private boolean restartDialogShown = false;
+    private final InstallStateUpdatedListener installListener = state -> {
+        if (state.installStatus() == InstallStatus.DOWNLOADED) showRestartDialog();
+    };
+
     @Override
     public void onCreate(Bundle savedInstanceState) {
         registerPlugin(PeykRadioPlugin.class);
         super.onCreate(savedInstanceState);
+        updateLauncher = registerForActivityResult(new ActivityResultContracts.StartIntentSenderForResult(), result -> {});
+        checkForUpdate();
+    }
+
+    private void checkForUpdate() {
+        try {
+            updateManager = AppUpdateManagerFactory.create(this);
+            updateManager.registerListener(installListener);
+            updateManager.getAppUpdateInfo().addOnSuccessListener(info -> {
+                if (info.updateAvailability() == UpdateAvailability.UPDATE_AVAILABLE
+                        && info.isUpdateTypeAllowed(AppUpdateType.FLEXIBLE)) {
+                    updateManager.startUpdateFlowForResult(info, updateLauncher,
+                            AppUpdateOptions.newBuilder(AppUpdateType.FLEXIBLE).build());
+                }
+            });
+        } catch (Exception e) {
+            // Play Store olmayan cihazda (ör. elle kurulan APK) sessizce geçilir.
+            updateManager = null;
+        }
+    }
+
+    private void showRestartDialog() {
+        if (restartDialogShown || isFinishing()) return;
+        restartDialogShown = true;
+        new AlertDialog.Builder(this)
+                .setTitle("Güncelleme hazır")
+                .setMessage("Peyktan'ın yeni sürümü indirildi. Kurmak için uygulama yeniden başlatılacak.")
+                .setPositiveButton("Yeniden başlat", (d, w) -> { if (updateManager != null) updateManager.completeUpdate(); })
+                .setNegativeButton("Sonra", (d, w) -> restartDialogShown = false)
+                .show();
+    }
+
+    @Override
+    public void onResume() {
+        super.onResume();
+        // İndirme uygulama arka plandayken bittiyse geri dönüşte sorulur.
+        if (updateManager != null) {
+            updateManager.getAppUpdateInfo().addOnSuccessListener(info -> {
+                if (info.installStatus() == InstallStatus.DOWNLOADED) showRestartDialog();
+            });
+        }
+    }
+
+    @Override
+    public void onDestroy() {
+        if (updateManager != null) updateManager.unregisterListener(installListener);
+        super.onDestroy();
     }
 
     // Telsiz açıkken uygulama arka plana alınınca WebView duraklatılmasın:

@@ -31,21 +31,32 @@ public class PeykRadioService extends Service {
     private WifiManager.WifiLock wifiLock;
     private final PeykRadioReceiver receiver = new PeykRadioReceiver();
 
+    static final String ACTION_TALK = "com.peyktan.app.RADIO_TALK";
+    static final String ACTION_STOP_TALK = "com.peyktan.app.RADIO_STOP_TALK";
+    private static final long MAX_TALK_MS = 60_000; // açık kalan mikrofona karşı otomatik kesme
+    private final android.os.Handler handler = new android.os.Handler(android.os.Looper.getMainLooper());
+    private final Runnable autoStop = () -> { receiver.stopTalk(); updateNotification(null); };
+    private String channelName;
+
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-        String name = intent != null ? intent.getStringExtra("channel") : null;
+        String action = intent != null ? intent.getAction() : null;
+        // Bildirimdeki "Konuş" / "Bitir" butonları
+        if (ACTION_TALK.equals(action)) {
+            String err = receiver.startTalk();
+            if (err == null) { handler.removeCallbacks(autoStop); handler.postDelayed(autoStop, MAX_TALK_MS); }
+            updateNotification(err);
+            return START_NOT_STICKY;
+        }
+        if (ACTION_STOP_TALK.equals(action)) {
+            handler.removeCallbacks(autoStop);
+            receiver.stopTalk();
+            updateNotification(null);
+            return START_NOT_STICKY;
+        }
+        channelName = intent != null ? intent.getStringExtra("channel") : null;
         createChannel();
-        Intent open = new Intent(this, MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP);
-        PendingIntent pi = PendingIntent.getActivity(this, 0, open, PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
-        Notification n = new NotificationCompat.Builder(this, CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_stat_radio)
-            .setContentTitle("📻 Peyk Bas-Konuş açık")
-            .setContentText(name == null || name.isEmpty() ? "Kanal dinleniyor" : name + " kanalı dinleniyor")
-            .setContentIntent(pi)
-            .setOngoing(true)
-            .setCategory(NotificationCompat.CATEGORY_CALL)
-            .setPriority(NotificationCompat.PRIORITY_LOW)
-            .build();
+        Notification n = buildNotification(null);
         int type = 0;
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             type = ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK;
@@ -64,9 +75,37 @@ public class PeykRadioService extends Service {
         acquireLocks();
         if (intent != null) {
             receiver.start(intent.getStringExtra("url"), intent.getStringExtra("key"),
-                intent.getStringExtra("topic"), intent.getStringExtra("user"));
+                intent.getStringExtra("topic"), intent.getStringExtra("user"), intent.getStringExtra("name"));
         }
         return START_NOT_STICKY;
+    }
+
+    private Notification buildNotification(String error) {
+        Intent open = new Intent(this, MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP);
+        PendingIntent pi = PendingIntent.getActivity(this, 0, open, PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
+        boolean talking = receiver.isTalking();
+        String text = error != null ? "⚠️ " + error
+            : talking ? "🔴 Konuşuyorsunuz — bitince \"Bitir\"e basın"
+            : (channelName == null || channelName.isEmpty() ? "Kanal dinleniyor" : channelName + " kanalı dinleniyor");
+        Intent act = new Intent(this, PeykRadioService.class).setAction(talking ? ACTION_STOP_TALK : ACTION_TALK);
+        PendingIntent actPi = PendingIntent.getService(this, talking ? 2 : 1, act, PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
+        return new NotificationCompat.Builder(this, CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_stat_radio)
+            .setContentTitle(talking ? "🎙️ Peyk Bas-Konuş — yayında" : "📻 Peyk Bas-Konuş açık")
+            .setContentText(text)
+            .setContentIntent(pi)
+            .addAction(0, talking ? "⏹ Bitir" : "🎙️ Konuş", actPi)
+            .setOngoing(true)
+            .setOnlyAlertOnce(true)
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC) // kilit ekranında da buton görünsün
+            .setCategory(NotificationCompat.CATEGORY_CALL)
+            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .build();
+    }
+
+    private void updateNotification(String error) {
+        NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+        if (nm != null) nm.notify(NOTIF_ID, buildNotification(error));
     }
 
     private void createChannel() {
@@ -97,6 +136,7 @@ public class PeykRadioService extends Service {
 
     @Override
     public void onDestroy() {
+        handler.removeCallbacks(autoStop);
         receiver.stop();
         if (wakeLock != null && wakeLock.isHeld()) wakeLock.release();
         if (wifiLock != null && wifiLock.isHeld()) wifiLock.release();
