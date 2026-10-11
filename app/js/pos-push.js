@@ -245,23 +245,23 @@ function renderBellPresetList(){
   if(libEl){
     libEl.innerHTML = sounds.library.length ? sounds.library.map(item => {
       const active = item.id === activeCustom;
-      return `<div class="bell-card ${active?'active':''}" onclick="selectBellCustom('${item.id}')">
+      return `<div class="bell-card ${active?'active':''}" ${act('selectBellCustom', item.id)}>
         ${active?'<span class="bell-card-check">✓</span>':''}
-        <button type="button" title="Sil" onclick="event.stopPropagation();deleteBellCustom('${item.id}')" style="position:absolute;top:6px;left:6px;width:24px;height:24px;padding:0;margin:0;border-radius:50%;background:var(--panel);color:var(--red);border:1px solid var(--border);font-size:12px;line-height:1;">✕</button>
+        <button type="button" title="Sil" ${actStop('deleteBellCustom', item.id)} style="position:absolute;top:6px;left:6px;width:24px;height:24px;padding:0;margin:0;border-radius:50%;background:var(--panel);color:var(--red);border:1px solid var(--border);font-size:12px;line-height:1;">✕</button>
         <div class="bell-card-icon">🎵</div>
         <div class="bell-card-name" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%;" title="${escapeAttr(item.name)}">${escapeHtml(item.name)}</div>
-        <button type="button" class="bell-card-play" onclick="event.stopPropagation();previewBellCustom('${item.id}')" title="Dinle">▶</button>
+        <button type="button" class="bell-card-play" ${actStop('previewBellCustom', item.id)} title="Dinle">▶</button>
       </div>`;
     }).join('') : '<p class="muted" style="font-size:12.5px;margin:0;">Henüz ses yüklemediniz.</p>';
   }
   el.innerHTML = Object.keys(BELL_PRESETS).map(id => {
     const p = BELL_PRESETS[id];
     const active = id===activePresetId;
-    return `<div class="bell-card ${active?'active':''}" onclick="selectBellPreset('${id}')">
+    return `<div class="bell-card ${active?'active':''}" ${act('selectBellPreset', id)}>
       ${active?'<span class="bell-card-check">✓</span>':''}
       <div class="bell-card-icon">${p.icon||'🔔'}</div>
       <div class="bell-card-name">${escapeHtml(p.name)}</div>
-      <button type="button" class="bell-card-play" onclick="event.stopPropagation();playBellPresetById('${id}')" title="Dinle">▶</button>
+      <button type="button" class="bell-card-play" ${actStop('playBellPresetById', id)} title="Dinle">▶</button>
     </div>`;
   }).join('');
 }
@@ -387,7 +387,7 @@ async function onNewPrinterTypeChange(forceRefresh){
   // cache'lenir - menu her acildiginda yeniden sormak gecikme hissi
   // yaratiyordu. "Yenile" ile elle tazelenebilir.
   const cached = ELECTRON_PRINTERS_CACHE;
-  wrap.innerHTML = '<label>İşletim Sistemi Yazıcısı</label><div style="display:flex;gap:8px;"><select id="np_osprinter" style="flex:1;">'+(cached?'':'<option value="">Yükleniyor...</option>')+'</select><button type="button" class="sbtn" style="width:auto;" onclick="onNewPrinterTypeChange(true)">🔄 Yenile</button></div>';
+  wrap.innerHTML = '<label>İşletim Sistemi Yazıcısı</label><div style="display:flex;gap:8px;"><select id="np_osprinter" style="flex:1;">'+(cached?'':'<option value="">Yükleniyor...</option>')+'</select><button type="button" class="sbtn" style="width:auto;" '+act('onNewPrinterTypeChange', true)+'>🔄 Yenile</button></div>';
   if(cached){
     const sel = document.getElementById('np_osprinter');
     sel.innerHTML = cached.length ? cached.map(p => `<option value="${escapeAttr(p.name)}" ${p.isDefault?'selected':''}>${escapeHtml(p.displayName||p.name)}${p.isDefault?' (varsayılan)':''}</option>`).join('') : '<option value="">Yazıcı bulunamadı</option>';

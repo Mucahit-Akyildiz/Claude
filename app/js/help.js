@@ -65,7 +65,7 @@ function renderHelpView(main, session){
   main.innerHTML = `
     <h1>❓ Yardım</h1>
     <p class="muted" style="text-align:left;margin:-4px 0 14px;">Peyktan'ı kullanırken aklınıza takılanlar. Aradığınızı bulamazsanız en alttan bize ulaşın.</p>
-    <input id="helpSearch" class="list-search" placeholder="🔍 Yardımda ara… (ör. açık hesap, bildirim, reçete)" value="${escapeAttr(APP.helpSearch||'')}" oninput="APP.helpSearch=this.value;drawHelpTopics()" style="max-width:520px;margin:0 0 14px;">
+    <input id="helpSearch" class="list-search" placeholder="🔍 Yardımda ara… (ör. açık hesap, bildirim, reçete)" value="${escapeAttr(APP.helpSearch||'')}" ${actOn('input', 'setHelpSearch', ['$value'])} style="max-width:520px;margin:0 0 14px;">
     <div id="helpTopics"></div>
     <div class="box" style="max-width:none;">
       <h2>💬 Destek</h2>
@@ -90,13 +90,16 @@ function drawHelpTopics(){
         const item = it.view && NAV_ITEMS.find(n => n.view === it.view);
         const canGo = it.view && session && (it.view === 'home' || (item && navItemVisible(item, session)));
         return `<div style="border-top:1px solid var(--border);">
-          <div onclick="APP.helpOpen['${key}']=!APP.helpOpen['${key}'];drawHelpTopics()" style="cursor:pointer;display:flex;justify-content:space-between;gap:10px;padding:12px 2px;font-weight:700;">
+          <div ${act('toggleHelpTopic', key)} style="cursor:pointer;display:flex;justify-content:space-between;gap:10px;padding:12px 2px;font-weight:700;">
             <span>${escapeHtml(it.q)}</span><span class="muted">${open ? '−' : '+'}</span></div>
           ${open ? `<div class="help-answer" style="padding:0 2px 14px;line-height:1.6;font-size:14px;">${it.a}
-            ${canGo ? `<div style="margin-top:8px;"><button type="button" class="sbtn" style="width:auto;" onclick="goToView('${it.view}')">➜ ${escapeHtml(item ? item.label : 'Ekrana git')}</button></div>` : ''}</div>` : ''}
+            ${canGo ? `<div style="margin-top:8px;"><button type="button" class="sbtn" style="width:auto;" ${act('goToView', it.view)}>➜ ${escapeHtml(item ? item.label : 'Ekrana git')}</button></div>` : ''}</div>` : ''}
         </div>`;
       }).join('')}
     </div>`;
   }).join('');
   box.innerHTML = html || '<p class="muted">Aramanızla eşleşen bir konu bulunamadı. Aşağıdan destek ekibine yazabilirsiniz.</p>';
 }
+
+function setHelpSearch(v){ APP.helpSearch = v; drawHelpTopics(); }
+function toggleHelpTopic(key){ APP.helpOpen[key] = !APP.helpOpen[key]; drawHelpTopics(); }
