@@ -7697,6 +7697,34 @@ $_$;
 
 
 --
+-- Name: submit_offline_order(uuid, text, text, jsonb); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.submit_offline_order(p_token uuid, p_client_id text, p_kind text, p_args jsonb) RETURNS text
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare v_tags text[];
+begin
+  if p_client_id is null or length(p_client_id) < 8 or length(p_client_id) > 80 then raise exception 'Geçersiz istemci kimliği'; end if;
+  -- Aynı sipariş (bağlantı koptuğu için) ikinci kez gelirse yeniden işlenmez.
+  insert into offline_order_claims(client_id, kind) values (p_client_id, p_kind) on conflict (client_id) do nothing;
+  if not found then return 'duplicate'; end if;
+  v_tags := coalesce(array(select jsonb_array_elements_text(coalesce(p_args->'p_tags','[]'::jsonb))), '{}');
+  if p_kind = 'table' then
+    perform send_order(p_token, (p_args->>'p_table_id')::uuid, (p_args->'p_items')::json, v_tags);
+  elsif p_kind = 'takeaway' then
+    perform send_takeaway_order(p_token, (p_args->'p_items')::json, nullif(p_args->>'p_order_id','')::uuid, p_args->>'p_customer_name', p_args->>'p_customer_phone', p_args->>'p_note', v_tags);
+  elsif p_kind = 'waitlist' then
+    perform send_waitlist_order(p_token, (p_args->>'p_waitlist_id')::uuid, (p_args->'p_items')::json, v_tags);
+  else
+    raise exception 'Geçersiz sipariş türü';
+  end if;
+  return 'ok';
+end $$;
+
+
+--
 -- Name: submit_public_order(text, text, text, text, text, jsonb, text); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -9260,6 +9288,18 @@ ALTER TABLE public.notification_log ALTER COLUMN id ADD GENERATED ALWAYS AS IDEN
 
 
 --
+-- Name: offline_order_claims; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.offline_order_claims (
+    client_id text NOT NULL,
+    kind text NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT offline_order_claims_client_id_check CHECK (((length(client_id) >= 8) AND (length(client_id) <= 80)))
+);
+
+
+--
 -- Name: online_menu_items; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -10264,6 +10304,14 @@ ALTER TABLE ONLY public.login_failures
 
 ALTER TABLE ONLY public.notification_log
     ADD CONSTRAINT notification_log_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: offline_order_claims offline_order_claims_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.offline_order_claims
+    ADD CONSTRAINT offline_order_claims_pkey PRIMARY KEY (client_id);
 
 
 --
@@ -12655,6 +12703,12 @@ ALTER TABLE public.login_failures ENABLE ROW LEVEL SECURITY;
 --
 
 ALTER TABLE public.notification_log ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: offline_order_claims; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.offline_order_claims ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: online_menu_items; Type: ROW SECURITY; Schema: public; Owner: -
