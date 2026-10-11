@@ -1179,6 +1179,8 @@ function tableStatus(t){
     sub = order.items.length + ' ürün - ' + (allReady?'Hazır':'hazırlanıyor');
   }
   if(draft.length>0){ sub += (occupied?' + ':'') + draft.length+' üründe sepette'; occupied = true; }
+  const pendingOut = typeof outboxCountFor === 'function' ? outboxCountFor(t.id) : 0;
+  if(pendingOut){ sub += (occupied?'<br>':'') + '<b style="color:var(--amber, #f59e0b);">⏳ ' + pendingOut + ' ürün gönderilmeyi bekliyor</b>'; occupied = true; }
   // Rezervasyondan oturtulan masa (henüz ürün yok): müşteri adıyla dolu görünür.
   if(order && order.customer_name){
     if(!occupied){

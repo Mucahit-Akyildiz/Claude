@@ -276,39 +276,50 @@ async function confirmOrder(tableId){
   const btn = document.getElementById('confirmBtn');
   if(btn){ btn.disabled = true; btn.textContent = 'Gönderiliyor...'; }
   // Masa penceresinde yazılmış müşteri bilgisi siparişle birlikte kaydedilir.
-  if(document.getElementById('tableCustName')) await saveTableCustomer(tableId, true);
+  if(document.getElementById('tableCustName') && navigator.onLine){ try{ await saveTableCustomer(tableId, true); }catch(e){} }
   const session = getSession();
   const items = draft.map(d => ({ product_id:d.product_id, name:d.name, price:d.price, cost:d.cost, station_id:d.station_id, qty:d.qty, note:d.note||'' }));
   const tags = (APP.orderFlagSelections && APP.orderFlagSelections[tableId]) || [];
   const isPkg = typeof tableId==='string' && tableId.indexOf('pkg_')===0;
   const isWl = typeof tableId==='string' && tableId.indexOf('wl_')===0;
-  let error;
+  let kind, args, label;
   if(isWl){
-    const res = await sb.rpc('send_waitlist_order', { p_token: session.session_token, p_waitlist_id: tableId.slice(3), p_items: items, p_tags: tags });
-    error = res.error;
+    kind = 'waitlist'; label = 'Bekleme listesi siparişi';
+    args = { p_waitlist_id: tableId.slice(3), p_items: items, p_tags: tags };
   } else if(isPkg){
     const existingOrderId = tableId==='pkg_new' ? null : tableId.slice(4);
     const nameEl = document.getElementById('pkgCustName');
     const phoneEl = document.getElementById('pkgCustPhone');
     const noteEl = document.getElementById('pkgNote');
-    const res = await sb.rpc('send_takeaway_order', {
-      p_token: session.session_token, p_order_id: existingOrderId, p_items: items,
+    kind = 'takeaway'; label = 'Paket sipariş' + (nameEl && nameEl.value.trim() ? ' · ' + nameEl.value.trim() : '');
+    args = {
+      p_order_id: existingOrderId, p_items: items,
       p_customer_name: nameEl ? (nameEl.value.trim()||null) : null,
       p_customer_phone: phoneEl ? (phoneEl.value.trim()||null) : null,
       p_note: noteEl ? (noteEl.value.trim()||null) : null,
       p_tags: tags
-    });
-    error = res.error;
+    };
   } else {
-    const res = await sb.rpc('send_order', { p_token: session.session_token, p_table_id: tableId, p_items: items, p_tags: tags });
-    error = res.error;
+    kind = 'table';
+    const t = (APP.config && APP.config.tables || []).find(x => x.id === tableId);
+    label = t ? t.name : 'Masa siparişi';
+    args = { p_table_id: tableId, p_items: items, p_tags: tags };
   }
+  // Sipariş, bağlantı koparsa cihazda kuyruğa alınır (bkz. offline.js); sunucu aynı siparişi iki kez işlemez.
+  const sent = await submitOrderSafely(kind, args, tableId, label);
+  const error = sent.error;
   if(error){
     alert('Sipariş gönderilemedi: ' + error.message);
     if(btn){ btn.disabled = false; btn.textContent = '✅ Siparişi Onayla ve Mutfağa Gönder'; }
     return;
   }
   APP.draftCart[tableId] = [];
+  if(sent.queued){
+    showToast('📴 Bağlantı yok: sipariş cihazda bekletiliyor, bağlantı gelince mutfağa gönderilecek');
+    await closeTableModal();
+    if(typeof render === 'function') render();
+    return;
+  }
   // Not: Fis burada (siparis alan cihazda) degil, ilgili istasyonun kendi mutfak
   // ekraninda (yazicisi ona fiziksel olarak bagli oldugu icin) otomatik yazdiriliyor
   // - bkz. refreshKitchenItems. Farkli fiziksel bilgisayarlara bagli birden fazla
