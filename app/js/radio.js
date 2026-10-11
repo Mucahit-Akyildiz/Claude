@@ -237,7 +237,10 @@ async function radioStartTalk(){
       // İzin penceresi açıkken/engelliyken kullanıcı ne olduğunu görsün; 8 sn'de yanıt yoksa uyar.
       RADIO.waitingMic = true; drawRadioDock();
       const t = setTimeout(() => { if(RADIO.waitingMic){ radioLog('bas: FAIL mikrofon izni yanıtsız'); radioFlash('🎤 Mikrofon izni bekleniyor — adres çubuğundaki 🔒 simgesinden izin verin'); } }, 8000);
-      try{ RADIO.mic = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation:true, noiseSuppression:true, autoGainControl:true } }); }
+      try{ RADIO.mic = await navigator.mediaDevices.getUserMedia({ audio: radioMicConstraints() }).catch(e => {
+          // Seçili mikrofon çıkarılmışsa varsayılana dön.
+          if(e && (e.name === 'OverconstrainedError' || e.name === 'NotFoundError') && radioMicConstraints().deviceId){ try{ localStorage.removeItem(RADIO_MIC_KEY); }catch(_){} return navigator.mediaDevices.getUserMedia({ audio: radioMicConstraints() }); }
+          throw e; }); }
       finally{ clearTimeout(t); RADIO.waitingMic = false; }
     }
   }catch(e){ radioLog('bas: FAIL mikrofon ' + (e && (e.name || e.message))); radioStopTalk(); alert('Mikrofona erişilemedi. Tarayıcı/uygulama ayarlarından mikrofon izni verin.'); return; }
@@ -425,10 +428,12 @@ function drawRadioDock(){
         <div id="radioLine" class="muted" style="font-size:11.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:200px;"></div>
       </div>
       <button type="button" id="radioPtt" style="margin:0;width:auto;min-width:122px;padding:12px 14px;border-radius:999px;font-weight:800;touch-action:none;user-select:none;-webkit-user-select:none;"></button>
+      <button type="button" id="radioMicBtn" class="ghost-btn" style="margin:0;width:auto;padding:8px 10px;" title="Mikrofon seç">🎤</button>
       <button type="button" id="radioClose" class="ghost-btn" style="margin:0;width:auto;padding:8px 10px;" title="Telsizi kapat">✕</button>`;
     document.body.appendChild(dock);
     dock.querySelector('#radioInfo').onclick = () => { radioAudioCtx(); RADIO.missed = false; setTimeout(drawRadioDock, 100); };
     dock.querySelector('#radioClose').onclick = () => radioDisconnect(true);
+    dock.querySelector('#radioMicBtn').onclick = () => openRadioMicPicker();
     const b = dock.querySelector('#radioPtt');
     let held = false;
     const down = (e) => { e.preventDefault(); if(held) return; held = true; try{ b.setPointerCapture(e.pointerId); }catch(_){} radioStartTalk(); };
@@ -467,3 +472,43 @@ window.addEventListener('blur', () => { RADIO_KEY_HELD = false; radioStopTalk();
 ['pointerdown','keydown','touchstart'].forEach(ev => document.addEventListener(ev, () => {
   if(RADIO.channel && (!RADIO.ctx || RADIO.ctx.state !== 'running')){ const c = radioAudioCtx(); c.resume().then(() => { RADIO.missed = false; drawRadioDock(); }).catch(()=>{}); }
 }, true));
+
+/* ---- Mikrofon seçimi ----
+   Bilgisayarda birden çok giriş (web kamerası, kulaklık, sanal cihaz) olduğunda tarayıcı
+   sessiz olanı seçebiliyor; kullanıcı burada doğru mikrofonu seçer, seçim cihazda saklanır. */
+const RADIO_MIC_KEY = 'rys_radio_mic';
+function radioMicConstraints(){
+  const c = { echoCancellation:true, noiseSuppression:true, autoGainControl:true };
+  let id = ''; try{ id = localStorage.getItem(RADIO_MIC_KEY) || ''; }catch(e){}
+  if(id) c.deviceId = { exact: id };
+  return c;
+}
+async function openRadioMicPicker(){
+  removeEl('radioMicBg');
+  let devs = [];
+  try{
+    // Cihaz adları ancak mikrofon izni verildikten sonra görünür.
+    if(!RADIO.mic){ const tmp = await navigator.mediaDevices.getUserMedia({ audio:true }); tmp.getTracks().forEach(t => t.stop()); }
+    devs = (await navigator.mediaDevices.enumerateDevices()).filter(d => d.kind === 'audioinput');
+  }catch(e){ alert('Mikrofon listesine erişilemedi. Tarayıcıdan mikrofon izni verin.'); return; }
+  let cur = ''; try{ cur = localStorage.getItem(RADIO_MIC_KEY) || ''; }catch(e){}
+  const inUse = RADIO.mic && RADIO.mic.getAudioTracks()[0] ? RADIO.mic.getAudioTracks()[0].getSettings().deviceId : '';
+  const ov = document.createElement('div'); ov.id = 'radioMicBg'; ov.className = 'modal-bg';
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:200;display:flex;align-items:center;justify-content:center;padding:16px;';
+  ov.innerHTML = `<div class="box" style="max-width:420px;width:100%;margin:0;">
+    <div style="display:flex;justify-content:space-between;align-items:center;"><h2 style="margin:0;">🎤 Mikrofon</h2><span style="cursor:pointer;color:var(--muted);font-size:20px;" ${act('removeEl','radioMicBg')}>✕</span></div>
+    <p class="muted" style="text-align:left;font-size:12.5px;">Konuşurken panelde seviye çubuğu görünmüyorsa başka bir mikrofon seçin.</p>
+    <div style="display:flex;flex-direction:column;gap:8px;">
+      <button type="button" class="${cur ? 'ghost-btn' : ''}" style="margin:0;text-align:left;" ${act('setRadioMic', '')}>Varsayılan (sistem)</button>
+      ${devs.map((d, i) => `<button type="button" class="${cur === d.deviceId ? '' : 'ghost-btn'}" style="margin:0;text-align:left;" ${act('setRadioMic', d.deviceId)}>${escapeHtml(d.label || ('Mikrofon ' + (i + 1)))}${!cur && inUse === d.deviceId ? ' <span class="muted">(kullanımda)</span>' : ''}</button>`).join('')}
+    </div></div>`;
+  ov.onclick = (e) => { if(e.target === ov) ov.remove(); };
+  document.body.appendChild(ov);
+}
+function setRadioMic(id){
+  try{ if(id) localStorage.setItem(RADIO_MIC_KEY, id); else localStorage.removeItem(RADIO_MIC_KEY); }catch(e){}
+  // Bir sonraki bas-konuşta yeni cihaz açılsın.
+  if(RADIO.mic && !RADIO.talking){ RADIO.mic.getTracks().forEach(t => t.stop()); RADIO.mic = null; }
+  removeEl('radioMicBg');
+  radioFlash('🎤 Mikrofon değiştirildi');
+}
