@@ -21,15 +21,15 @@ jobs:
       - name: package.json geçerliliğini kontrol et
         run: node -e "require('./package.json')"
 
-      - name: Satır içi olay kodu kontrolü (CSP hazırlığı)
+      - name: Satır içi JavaScript kontrolü (güvenlik politikası)
         run: node scripts/check-inline-handlers.js
 
       - name: Ödeme API testleri (iyzico/Supabase taklit edilir)
         run: node --test tests/api/*.test.js
 
-      - name: api/*.js ve app/js/*.js sözdizimi kontrolü
+      - name: JavaScript dosyalarının sözdizimi kontrolü
         run: |
-          for f in $(find api app/js -name '*.js'); do
+          for f in $(find api app/js assets/js siparis menu hesap-silme -name '*.js'); do
             echo "checking $f"
             node --check "$f" || exit 1
           done
