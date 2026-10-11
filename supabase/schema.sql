@@ -4033,6 +4033,39 @@ $$;
 
 
 --
+-- Name: get_message_readers(uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.get_message_readers(p_token uuid, p_message_id uuid) RETURNS json
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'extensions', 'pg_temp'
+    AS $$
+declare s staff_sessions%rowtype; m chat_messages%rowtype;
+begin
+  s := _session_check(p_token, 'messages');
+  select * into m from chat_messages where id = p_message_id and restaurant_id = s.restaurant_id;
+  if m.id is null then raise exception 'Mesaj bulunamadı'; end if;
+  -- Okunma bilgisini yalnızca mesajı gönderen görebilir.
+  if m.sender_id <> s.user_id then raise exception 'Bu bilgiyi sadece mesajı gönderen görebilir'; end if;
+  return (
+    with rcpt as (
+      select u.id, u.username,
+             case when m.group_id is not null then 'g:' || m.group_id when m.recipient_id is null then 'all' else m.sender_id::text end conv
+      from app_users u
+      where u.restaurant_id = s.restaurant_id and u.id <> m.sender_id and u.is_active is not false
+        and case when m.group_id is not null then exists (select 1 from chat_group_members gm where gm.group_id = m.group_id and gm.user_id = u.id)
+                 when m.recipient_id is null then true
+                 else u.id = m.recipient_id end
+    )
+    select json_build_object(
+      'read', coalesce((select json_agg(json_build_object('name', r.username, 'at', cr.last_read_at) order by cr.last_read_at)
+                 from rcpt r join chat_reads cr on cr.user_id = r.id and cr.conv = r.conv and cr.last_read_at >= m.created_at), '[]'::json),
+      'unread', coalesce((select json_agg(r.username order by r.username) from rcpt r
+                 where not exists (select 1 from chat_reads cr where cr.user_id = r.id and cr.conv = r.conv and cr.last_read_at >= m.created_at)), '[]'::json)));
+end $$;
+
+
+--
 -- Name: get_my_permissions(uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -4488,7 +4521,7 @@ begin
       ),
       'features', to_json(_restaurant_features(s.restaurant_id)),
       'role_permissions', _role_permission_catalog(s.restaurant_id),
-      'license', (select json_build_object('package_id', package_id, 'max_users', max_users, 'expires_at', expires_at, 'name', name, 'reports_password_set', reports_password_hash is not null, 'billing_identity_set', billing_identity_number is not null) from restaurants where id = s.restaurant_id)
+      'license', (select json_build_object('package_id', package_id, 'max_users', max_users, 'expires_at', expires_at, 'name', name, 'reports_password_set', reports_password_hash is not null, 'billing_identity_set', billing_identity_number is not null, 'billing_address', billing_address, 'billing_city', billing_city) from restaurants where id = s.restaurant_id)
     )
   );
 end;
@@ -7857,6 +7890,24 @@ $$;
 
 
 --
+-- Name: update_billing_address(uuid, text, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.update_billing_address(p_token uuid, p_address text, p_city text) RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'extensions', 'pg_temp'
+    AS $$
+declare s staff_sessions%rowtype; a text := nullif(trim(coalesce(p_address,'')),''); c text := nullif(trim(coalesce(p_city,'')),'');
+begin
+  s := _session_check(p_token, 'settings_billing');
+  if a is null or length(a) < 10 then raise exception 'Açık adresi girin (mahalle, sokak, no)'; end if;
+  if c is null or length(c) < 2 then raise exception 'Şehir girin'; end if;
+  if length(a) > 300 or length(c) > 60 then raise exception 'Bilgi çok uzun'; end if;
+  update restaurants set billing_address = a, billing_city = c where id = s.restaurant_id;
+end $$;
+
+
+--
 -- Name: update_billing_identity(uuid, text); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -9709,6 +9760,8 @@ CREATE TABLE public.restaurants (
     shift_required boolean DEFAULT false NOT NULL,
     expiry_reminder_stage integer,
     default_vat_rate numeric DEFAULT 10 NOT NULL,
+    billing_address text,
+    billing_city text,
     CONSTRAINT restaurants_default_vat_rate_check CHECK (((default_vat_rate >= (0)::numeric) AND (default_vat_rate <= (100)::numeric)))
 );
 
