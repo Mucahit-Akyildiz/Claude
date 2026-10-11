@@ -21,6 +21,9 @@ jobs:
       - name: package.json geçerliliğini kontrol et
         run: node -e "require('./package.json')"
 
+      - name: Satır içi olay kodu kontrolü (CSP hazırlığı)
+        run: node scripts/check-inline-handlers.js
+
       - name: Ödeme API testleri (iyzico/Supabase taklit edilir)
         run: node --test tests/api/*.test.js
 

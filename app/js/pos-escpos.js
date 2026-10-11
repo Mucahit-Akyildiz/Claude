@@ -269,8 +269,8 @@ function openMoveTableModal(fromTableId){
     <p class="muted" style="font-size:12.5px;margin:0 0 10px;">${escapeHtml(tableNameForId(fromTableId))} → hedef masa. Dolu bir masa seçerseniz ödenmemiş ürünler o masanın hesabına eklenir.</p>
     <select id="moveTarget" style="margin-bottom:14px;">${opts}</select>
     <div class="field-row" style="gap:8px;">
-      <button type="button" style="flex:1;margin:0;background:var(--panel2);color:var(--text);" onclick="document.getElementById('moveTableBg').remove()">Vazgeç</button>
-      <button type="button" id="moveBtn" style="flex:1;margin:0;" onclick="confirmMoveTable('${fromTableId}')">Taşı</button>
+      <button type="button" style="flex:1;margin:0;background:var(--panel2);color:var(--text);" ${act('removeEl', 'moveTableBg')}>Vazgeç</button>
+      <button type="button" id="moveBtn" style="flex:1;margin:0;" ${act('confirmMoveTable', fromTableId)}>Taşı</button>
     </div>
   </div>`;
   document.body.appendChild(bg);

@@ -47,7 +47,7 @@ async function renderRadioView(main, session){
     <div class="box" style="max-width:none;">
       <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;">
         <h2 style="margin:0;">Kanallar</h2>
-        <button type="button" style="margin:0;width:auto;" onclick="openRadioChannelEditor(null)">＋ Yeni kanal</button>
+        <button type="button" style="margin:0;width:auto;" ${act('openRadioChannelEditor', null)}>＋ Yeni kanal</button>
       </div>
       <p class="muted" style="font-size:12.5px;text-align:left;margin:6px 0 12px;">Bir kanala bağlanın; alttaki telsiz paneli siz kapatana ya da çıkış yapana kadar tüm ekranlarda açık kalır. Konuşmak için <b>Bas-Konuş</b> düğmesini basılı tutun (bilgisayarda boşluk tuşu da çalışır).</p>
       <div class="settings-table-wrap"><table class="settings-table">
@@ -58,10 +58,10 @@ async function renderRadioView(main, session){
           <td style="font-size:12.5px;">${escapeHtml((c.members||[]).map(m => m.name).join(', '))}</td>
           <td style="white-space:nowrap;">
             ${c.is_member ? (c.id===cur
-              ? `<button class="sbtn" onclick="radioDisconnect(true)">Ayrıl</button>`
-              : `<button class="sbtn" onclick="radioConnect('${c.id}')">📻 Bağlan</button>`) : '<span class="muted" style="font-size:12px;">üye değilsiniz</span>'}
-            ${c.can_edit ? `<button class="sbtn" onclick="openRadioChannelEditor('${c.id}')">Düzenle</button>
-              <button type="button" class="act-btn act-delete" onclick="removeRadioChannel('${c.id}')">${ICON_TRASH}<span>Sil</span></button>` : ''}
+              ? `<button class="sbtn" ${act('radioDisconnect', true)}>Ayrıl</button>`
+              : `<button class="sbtn" ${act('radioConnect', c.id)}>📻 Bağlan</button>`) : '<span class="muted" style="font-size:12px;">üye değilsiniz</span>'}
+            ${c.can_edit ? `<button class="sbtn" ${act('openRadioChannelEditor', c.id)}>Düzenle</button>
+              <button type="button" class="act-btn act-delete" ${act('removeRadioChannel', c.id)}>${ICON_TRASH}<span>Sil</span></button>` : ''}
           </td></tr>`).join('')}
         ${list.length ? '' : '<tr><td colspan="3" class="muted" style="text-align:center;">Henüz kanal yok. “Yeni kanal” ile oluşturun.</td></tr>'}
         </tbody></table></div>
@@ -87,8 +87,8 @@ async function openRadioChannelEditor(id){
         <span style="flex:1;">${escapeHtml(p.name)} <span class="muted" style="font-size:11.5px;">${escapeHtml(p.roles||'')}</span></span></label>`).join('')}
     </div>
     <div style="display:flex;gap:10px;margin-top:12px;">
-      <button type="button" class="ghost-btn" style="flex:1;margin:0;" onclick="document.getElementById('radioEditBg').remove()">Vazgeç</button>
-      <button type="button" style="flex:1;margin:0;" onclick="saveRadioChannel(${c ? `'${c.id}'` : 'null'})">${c ? 'Kaydet' : 'Oluştur'}</button>
+      <button type="button" class="ghost-btn" style="flex:1;margin:0;" ${act('removeEl', 'radioEditBg')}>Vazgeç</button>
+      <button type="button" style="flex:1;margin:0;" ${act('saveRadioChannel', c ? c.id : null)}>${c ? 'Kaydet' : 'Oluştur'}</button>
     </div></div>`;
   document.body.appendChild(ov);
 }
