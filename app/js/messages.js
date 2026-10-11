@@ -57,8 +57,8 @@ async function maybeAskChatPermissions(){
     <p class="muted" style="margin:0 0 12px;font-size:14px;">Sesli mesaj, fotoğraf çekme ve yeni mesaj bildirimleri için şu izinler gerekiyor:</p>
     <div style="font-size:14px;line-height:1.9;margin-bottom:14px;">🎤 Mikrofon<br>📷 Kamera<br>🔔 Bildirimler</div>
     <div style="display:flex;gap:8px;">
-      <button type="button" class="ghost-btn" style="flex:1;margin:0;" onclick="closeChatPermModal()">Sonra</button>
-      <button type="button" style="flex:1;margin:0;" onclick="requestChatPermissions()">İzin Ver</button>
+      <button type="button" class="ghost-btn" style="flex:1;margin:0;" ${act('closeChatPermModal')}>Sonra</button>
+      <button type="button" style="flex:1;margin:0;" ${act('requestChatPermissions')}>İzin Ver</button>
     </div></div>`;
   document.body.appendChild(bg);
 }
@@ -91,8 +91,8 @@ async function renderMessagesView(main, session){
   main.innerHTML = `<div class="chat-shell ${APP.chatConv ? 'has-conv' : ''}">
       <div class="chat-list-wrap">
         <div class="chat-list-head"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px;"><h1 style="margin:0;">💬 Mesajlar</h1>
-          <button type="button" class="chat-newgroup" onclick="openChatGroupEditor()" title="Yeni grup">👥＋ Grup</button></div>
-          <input id="chatSearch" placeholder="🔍 Kişi ara…" value="${escapeAttr(APP.chatSearch||'')}" oninput="APP.chatSearch=this.value;drawChatList()"></div>
+          <button type="button" class="chat-newgroup" ${act('openChatGroupEditor')} title="Yeni grup">👥＋ Grup</button></div>
+          <input id="chatSearch" placeholder="🔍 Kişi ara…" value="${escapeAttr(APP.chatSearch||'')}" ${actOn('input','setChatSearch',['$value'])}></div>
         <div class="chat-list" id="chatList"><p class="muted">Yükleniyor…</p></div>
       </div>
       <div class="chat-pane" id="chatPane">${APP.chatConv ? '' : chatEmptyPaneHtml()}</div>
@@ -118,7 +118,7 @@ function drawChatList(){
   const q = (APP.chatSearch||'').trim().toLocaleLowerCase('tr');
   const items = (APP.chatItems||[]).filter(c => !q || (c.name||'').toLocaleLowerCase('tr').includes(q));
   el.innerHTML = items.map(c => `
-    <div class="chat-item ${APP.chatConv===c.conv?'active':''} ${c.unread>0?'unread':''}" data-conv="${c.conv}" onclick="openChatConv('${c.conv}')">
+    <div class="chat-item ${APP.chatConv===c.conv?'active':''} ${c.unread>0?'unread':''}" data-conv="${c.conv}" ${act('openChatConv', c.conv)}>
       ${chatAvatar(c)}
       <div style="flex:1;min-width:0;">
         <div style="display:flex;justify-content:space-between;gap:6px;align-items:baseline;"><span class="chat-name">${escapeHtml(c.name)}</span>${c.last_at ? `<span class="chat-when">${chatTime(c.last_at)}</span>` : ''}</div>
@@ -141,28 +141,28 @@ async function openChatConv(conv, keepDraft){
   const c = (APP.chatItems||[]).find(x => x.conv===conv) || { name: 'Sohbet' };
   if(changed || !document.getElementById('chatThread')){
     pane.innerHTML = `<div class="chat-head">
-        <button type="button" class="chat-back" onclick="closeChatConv()" aria-label="Geri">←</button>
+        <button type="button" class="chat-back" ${act('closeChatConv')} aria-label="Geri">←</button>
         ${chatAvatar(c, 38)}
         <div style="min-width:0;flex:1;"><div class="chat-name">${escapeHtml(c.name)}</div>
           <div class="chat-sub">${c.is_all ? 'Tüm ekip bu kanalı görür' : c.is_group ? escapeHtml(c.roles || '') : (c.online ? '<span style="color:var(--green);">● Çevrimiçi</span>' : 'Çevrimdışı') + (c.roles ? ' · ' + escapeHtml(c.roles) : '')}</div></div>
-        ${c.is_group ? `<button type="button" class="chat-ic" title="Grup ayarları" onclick="openChatGroupMenu('${conv}')">⋮</button>` : ''}
+        ${c.is_group ? `<button type="button" class="chat-ic" title="Grup ayarları" ${act('openChatGroupMenu', conv)}>⋮</button>` : ''}
       </div>
-      <div class="chat-thread" id="chatThread" ondragover="event.preventDefault()" ondrop="onChatDrop(event)"><p class="muted">Yükleniyor…</p></div>
+      <div class="chat-thread" id="chatThread" data-allow-drop ${actOn('drop','onChatDrop',['$event'])}><p class="muted">Yükleniyor…</p></div>
       <div class="chat-reply-bar" id="chatReplyBar"></div>
       <div class="chat-tray" id="chatTray"></div>
       <div class="chat-mention-box" id="chatMentionBox"></div>
       <div class="chat-rec-bar" id="chatRecBar"></div>
-      <form class="chat-input" id="chatInputForm" onsubmit="sendChatMessage();return false;">
-        <button type="button" class="chat-ic" title="Emoji" onclick="toggleChatTray('emoji')">😊</button>
-        <button type="button" class="chat-ic chat-gif-btn" title="GIF, sticker, meme" onclick="toggleChatTray('gif')">GIF</button>
-        <button type="button" class="chat-ic" title="Ekle: kamera, fotoğraf, dosya, hazır yanıt" onclick="toggleChatTray('attach')">📎</button>
-        <textarea id="chatText" rows="1" placeholder="Mesaj yazın…" maxlength="4000" onpaste="onChatPaste(event)"
-          oninput="this.style.height='auto';this.style.height=Math.min(this.scrollHeight,120)+'px';updateChatSendBtn();updateChatMention(this)"
-          onkeydown="if(chatMentionKey(event)) return; if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendChatMessage();}"></textarea>
-        <button type="button" class="chat-send" id="chatSendBtn" title="Sesli mesaj kaydet" onclick="onChatSendBtn()">🎙️</button>
+      <form class="chat-input" id="chatInputForm" ${actOn('submit','sendChatMessage',[])}>
+        <button type="button" class="chat-ic" title="Emoji" ${act('toggleChatTray', 'emoji')}>😊</button>
+        <button type="button" class="chat-ic chat-gif-btn" title="GIF, sticker, meme" ${act('toggleChatTray', 'gif')}>GIF</button>
+        <button type="button" class="chat-ic" title="Ekle: kamera, fotoğraf, dosya, hazır yanıt" ${act('toggleChatTray', 'attach')}>📎</button>
+        <textarea id="chatText" rows="1" placeholder="Mesaj yazın…" maxlength="4000" ${actOn('paste','onChatPaste',['$event'])}
+          ${actOn('input','onChatTextInput',['$this'])}
+          ${actOn('keydown','onChatTextKeydown',['$event'])}></textarea>
+        <button type="button" class="chat-send" id="chatSendBtn" title="Sesli mesaj kaydet" ${act('onChatSendBtn')}>🎙️</button>
       </form>
-      <input type="file" id="chatFileImage" accept="image/*" style="display:none;" onchange="sendChatImage(this)">
-      <input type="file" id="chatFileAny" style="display:none;" onchange="sendChatFile(this)">`;
+      <input type="file" id="chatFileImage" accept="image/*" style="display:none;" ${actOn('change','sendChatImage',['$this'])}>
+      <input type="file" id="chatFileAny" style="display:none;" ${actOn('change','sendChatFile',['$this'])}>`;
     APP.chatReply = null;
   }
   document.querySelectorAll('.chat-item').forEach(el => el.classList.toggle('active', el.dataset.conv===conv));
@@ -219,27 +219,27 @@ function drawChatThread(rows){
     let content = '';
     if(m.deleted) content = `<div class="chat-body chat-deleted">🚫 Bu mesaj silindi</div>`;
     else {
-      if(m.reply) content += `<div class="chat-quote" onclick="event.stopPropagation();scrollToChatMessage('${m.reply.id}')"><b style="color:${chatColor(m.reply.sender_name)};">${escapeHtml(m.reply.sender_name)}</b><div>${escapeHtml(m.reply.preview||'')}</div></div>`;
+      if(m.reply) content += `<div class="chat-quote" ${actStop('scrollToChatMessage', m.reply.id)}><b style="color:${chatColor(m.reply.sender_name)};">${escapeHtml(m.reply.sender_name)}</b><div>${escapeHtml(m.reply.preview||'')}</div></div>`;
       if(m.view_once){
         content += m.mine
           ? `<div class="chat-once">1️⃣ <span>Tek görüntülemelik fotoğraf<small>${m.viewed_count > 0 ? (isAll || isGroup ? m.viewed_count + ' kişi açtı' : 'Açıldı') : 'Henüz açılmadı'}</small></span></div>`
           : m.viewed_by_me
             ? `<div class="chat-once opened">1️⃣ <span>Fotoğraf<small>Açıldı</small></span></div>`
-            : `<button type="button" class="chat-once" onclick="event.stopPropagation();openViewOnce('${m.id}')">1️⃣ <span>Fotoğraf<small>Bir kez görüntülemek için dokunun</small></span></button>`;
-      } else if(m.attachment_kind==='image') content += `<img class="chat-img" data-att="${m.id}" src="${escapeAttr(CHAT_IMG_URLS[m.id] || chatSafeDataImage(m.attachment) || '')}" alt="" loading="lazy" onclick="openChatImage(this.src)">`;
-      if(m.attachment_kind==='audio') content += `<div class="chat-audio" data-att="${m.id}"><button type="button" class="chat-audio-play" onclick="event.stopPropagation();loadChatAudio('${m.id}', this)">▶</button><span>🎤 Sesli mesaj</span></div>`;
-      if(m.attachment_kind==='file') content += `<button type="button" class="chat-file" onclick="event.stopPropagation();downloadChatFile('${m.id}')"><span class="chat-file-ic">📄</span><span style="min-width:0;"><b>${escapeHtml(m.attachment_name||'Dosya')}</b><small>${chatFileSize(m.attachment_size)} · indir</small></span></button>`;
+            : `<button type="button" class="chat-once" ${actStop('openViewOnce', m.id)}>1️⃣ <span>Fotoğraf<small>Bir kez görüntülemek için dokunun</small></span></button>`;
+      } else if(m.attachment_kind==='image') content += `<img class="chat-img" data-att="${m.id}" src="${escapeAttr(CHAT_IMG_URLS[m.id] || chatSafeDataImage(m.attachment) || '')}" alt="" loading="lazy" ${act('openChatImage','$src')}>`;
+      if(m.attachment_kind==='audio') content += `<div class="chat-audio" data-att="${m.id}"><button type="button" class="chat-audio-play" ${actStop('loadChatAudio', m.id, '$this')}>▶</button><span>🎤 Sesli mesaj</span></div>`;
+      if(m.attachment_kind==='file') content += `<button type="button" class="chat-file" ${actStop('downloadChatFile', m.id)}><span class="chat-file-ic">📄</span><span style="min-width:0;"><b>${escapeHtml(m.attachment_name||'Dosya')}</b><small>${chatFileSize(m.attachment_size)} · indir</small></span></button>`;
       if(m.body) content += `<div class="chat-body">${chatBodyHtml(m.body)}</div>`;
     }
     return sep + `<div class="chat-row ${m.mine?'mine':''} ${last?'last':''}" data-mid="${m.id}">
       ${showSender ? (last ? chatAvatar({ name: m.sender_name }, 28) : '<div style="width:28px;flex-shrink:0;"></div>') : ''}
-      <div class="chat-msg ${jumbo?'jumbo':''} ${m.attachment_kind==='image' && !m.body && !m.reply ? 'media' : ''}" ondblclick="startChatReply('${m.id}')">
+      <div class="chat-msg ${jumbo?'jumbo':''} ${m.attachment_kind==='image' && !m.body && !m.reply ? 'media' : ''}" ${actOn('dblclick','startChatReply',[m.id])}>
         ${showSender && first ? `<div class="chat-sender" style="color:${chatColor(m.sender_name)};">${escapeHtml(m.sender_name)}</div>` : ''}
         ${content}
         <div class="chat-time">${new Date(m.created_at).toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'})} ${tick}</div>
-        ${(m.reactions||[]).length ? `<div class="chat-reacts">${m.reactions.map(r => `<button type="button" class="chat-react ${r.mine?'mine':''}" title="${escapeAttr(r.names||'')}" data-emoji="${escapeAttr(r.emoji)}" onclick="event.stopPropagation();toggleChatReaction('${m.id}',this.dataset.emoji)">${escapeHtml(r.emoji)}${r.count>1?` <b>${r.count}</b>`:''}</button>`).join('')}</div>` : ''}
+        ${(m.reactions||[]).length ? `<div class="chat-reacts">${m.reactions.map(r => `<button type="button" class="chat-react ${r.mine?'mine':''}" title="${escapeAttr(r.names||'')}" data-emoji="${escapeAttr(r.emoji)}" ${actStop('toggleChatReaction', m.id, '$data.emoji')}>${escapeHtml(r.emoji)}${r.count>1?` <b>${r.count}</b>`:''}</button>`).join('')}</div>` : ''}
       </div>
-      ${m.deleted ? '' : `<button type="button" class="chat-react-open" title="Seçenekler" onclick="event.stopPropagation();openReactionBar(this,'${m.id}')">⌄</button>`}
+      ${m.deleted ? '' : `<button type="button" class="chat-react-open" title="Seçenekler" ${actStop('openReactionBar', '$this', m.id)}>⌄</button>`}
     </div>`;
   }).join('') : `<div class="chat-empty"><div style="font-size:46px;">👋</div><b>Henüz mesaj yok</b><p class="muted">İlk mesajı siz yazın.</p></div>`;
   if(atBottom || !el.dataset.loaded){ el.scrollTop = el.scrollHeight; el.dataset.loaded = '1'; }
@@ -252,11 +252,11 @@ function toggleChatTray(kind){
   tray.dataset.kind = kind; tray.classList.add('open');
   if(kind==='attach'){
     tray.innerHTML = `<div class="chat-attach">
-      <button type="button" onclick="openChatCamera()"><span style="background:#e91e63;">📷</span>Kamera</button>
-      <button type="button" onclick="document.getElementById('chatFileImage').click()"><span style="background:#7c4dff;">🖼️</span>Galeri</button>
-      <button type="button" onclick="document.getElementById('chatFileAny').click()"><span style="background:#3f51b5;">📄</span>Dosya</button>
-      <button type="button" onclick="toggleChatTray('quick')"><span style="background:#ff9800;">⚡</span>Hazır yanıt</button>
-      ${chatSpeechSupported() ? `<button type="button" onclick="toggleChatTray('attach');toggleChatDictation()"><span style="background:#009688;">🗣️</span>Sesle yaz</button>` : ''}
+      <button type="button" ${act('openChatCamera')}><span style="background:#e91e63;">📷</span>Kamera</button>
+      <button type="button" ${act('clickEl','chatFileImage')}><span style="background:#7c4dff;">🖼️</span>Galeri</button>
+      <button type="button" ${act('clickEl','chatFileAny')}><span style="background:#3f51b5;">📄</span>Dosya</button>
+      <button type="button" ${act('toggleChatTray', 'quick')}><span style="background:#ff9800;">⚡</span>Hazır yanıt</button>
+      ${chatSpeechSupported() ? `<button type="button" ${act('startChatDictationFromTray')}><span style="background:#009688;">🗣️</span>Sesle yaz</button>` : ''}
     </div>`;
     return;
   }
@@ -264,24 +264,24 @@ function toggleChatTray(kind){
     APP.chatGifType = APP.chatGifType || 'gifs';
     tray.innerHTML = `<div class="chat-gif-head">
         <div class="chat-emoji-tabs" style="margin:0;">
-          <button type="button" class="${APP.chatGifType==='gifs'?'active':''}" onclick="APP.chatGifType='gifs';loadChatGifs()">GIF</button>
-          <button type="button" class="${APP.chatGifType==='stickers'?'active':''}" onclick="APP.chatGifType='stickers';loadChatGifs()">Sticker</button>
+          <button type="button" class="${APP.chatGifType==='gifs'?'active':''}" ${act('setChatGifType','gifs')}>GIF</button>
+          <button type="button" class="${APP.chatGifType==='stickers'?'active':''}" ${act('setChatGifType','stickers')}>Sticker</button>
         </div>
-        <input id="chatGifQ" placeholder="🔍 Ara (örn. teşekkürler, komik, kedi)" autocomplete="off" oninput="clearTimeout(window._gifT);window._gifT=setTimeout(loadChatGifs,350)">
+        <input id="chatGifQ" placeholder="🔍 Ara (örn. teşekkürler, komik, kedi)" autocomplete="off" ${actOn('input','debounceChatGifs',[])}>
       </div>
-      <div class="chat-gif-cats">${CHAT_GIF_CATS.map(c => `<button type="button" onclick="document.getElementById('chatGifQ').value=${escapeAttr(JSON.stringify(c.q))};loadChatGifs()">${c.label}</button>`).join('')}</div>
+      <div class="chat-gif-cats">${CHAT_GIF_CATS.map(c => `<button type="button" ${act('searchChatGifs', c.q)}>${c.label}</button>`).join('')}</div>
       <div class="chat-gif-grid" id="chatGifGrid"><p class="muted">Yükleniyor…</p></div>
       <div class="chat-gif-credit">Powered by GIPHY</div>`;
     loadChatGifs();
     return;
   }
   if(kind==='quick'){
-    tray.innerHTML = `<div class="chat-quick">${CHAT_QUICK.map(q => `<button type="button" onclick="sendChatQuick(${escapeAttr(JSON.stringify(q))})">${escapeHtml(q)}</button>`).join('')}</div>`;
+    tray.innerHTML = `<div class="chat-quick">${CHAT_QUICK.map(q => `<button type="button" ${act('sendChatQuick', q)}>${escapeHtml(q)}</button>`).join('')}</div>`;
     return;
   }
   const cat = APP.chatEmojiCat || Object.keys(CHAT_EMOJI)[0];
-  tray.innerHTML = `<div class="chat-emoji-tabs">${Object.keys(CHAT_EMOJI).map(k => `<button type="button" class="${k===cat?'active':''}" onclick="APP.chatEmojiCat='${k}';document.getElementById('chatTray').dataset.kind='';toggleChatTray('emoji')">${k}</button>`).join('')}</div>
-    <div class="chat-emoji-grid">${CHAT_EMOJI[cat].split(' ').map(e => `<button type="button" onclick="insertChatEmoji('${e}')">${e}</button>`).join('')}</div>`;
+  tray.innerHTML = `<div class="chat-emoji-tabs">${Object.keys(CHAT_EMOJI).map(k => `<button type="button" class="${k===cat?'active':''}" ${act('setChatEmojiCat', k)}>${k}</button>`).join('')}</div>
+    <div class="chat-emoji-grid">${CHAT_EMOJI[cat].split(' ').map(e => `<button type="button" ${act('insertChatEmoji', e)}>${e}</button>`).join('')}</div>`;
 }
 function insertChatEmoji(e){
   const t = document.getElementById('chatText'); if(!t) return;
@@ -481,12 +481,12 @@ function openReactionBar(btn, messageId){
   const bar = document.createElement('div'); bar.className = 'chat-react-bar';
   const m = (APP.chatRows||[]).find(x => x.id===messageId) || {};
   const canDelete = m.mine && (Date.now() - new Date(m.created_at).getTime()) < 24*3600*1000;
-  bar.innerHTML = `<div class="chat-react-row">${CHAT_REACTIONS.map(e => `<button type="button" onclick="event.stopPropagation();toggleChatReaction('${messageId}','${e}');document.querySelectorAll('.chat-react-bar').forEach(b=>b.remove());">${e}</button>`).join('')}<button type="button" class="chat-react-more" title="Diğer emojiler" onclick="event.stopPropagation();openReactionPicker('${messageId}')">＋</button></div>
+  bar.innerHTML = `<div class="chat-react-row">${CHAT_REACTIONS.map(e => `<button type="button" ${actStop('reactFromBar', messageId, e)}>${e}</button>`).join('')}<button type="button" class="chat-react-more" title="Diğer emojiler" ${actStop('openReactionPicker', messageId)}>＋</button></div>
     <div class="chat-menu">
-      <button type="button" onclick="event.stopPropagation();startChatReply('${messageId}')">↩️ Yanıtla</button>
-      ${m.body ? `<button type="button" onclick="event.stopPropagation();copyChatMessage('${messageId}')">📋 Kopyala</button>` : ''}
-      ${m.mine ? `<button type="button" onclick="event.stopPropagation();showMessageReaders('${messageId}')">👁️ Görenler</button>` : ''}
-      ${canDelete ? `<button type="button" class="danger" onclick="event.stopPropagation();deleteChatMessage('${messageId}')">🗑️ Herkesten sil</button>` : ''}
+      <button type="button" ${actStop('startChatReply', messageId)}>↩️ Yanıtla</button>
+      ${m.body ? `<button type="button" ${actStop('copyChatMessage', messageId)}>📋 Kopyala</button>` : ''}
+      ${m.mine ? `<button type="button" ${actStop('showMessageReaders', messageId)}>👁️ Görenler</button>` : ''}
+      ${canDelete ? `<button type="button" class="danger" ${actStop('deleteChatMessage', messageId)}>🗑️ Herkesten sil</button>` : ''}
     </div>`;
   const row = btn.closest('.chat-row'); row.appendChild(bar);
   // Üstte yer yoksa (sohbetin ilk mesajları) çubuk mesajın altında açılır.
@@ -507,9 +507,9 @@ function openReactionPicker(messageId, cat){
   const c = cat || APP.chatReactCat || Object.keys(CHAT_EMOJI)[0];
   APP.chatReactCat = c;
   ov.innerHTML = `<div style="background:var(--panel);border:1px solid var(--border);border-radius:18px;padding:12px;max-width:420px;width:100%;box-shadow:0 12px 40px rgba(0,0,0,.25);">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;"><b>Tepki seçin</b><span style="cursor:pointer;color:var(--muted);font-size:18px;" onclick="document.getElementById('chatReactPickBg').remove()">✕</span></div>
-    <div class="chat-emoji-tabs" style="flex-wrap:wrap;">${Object.keys(CHAT_EMOJI).map(k => `<button type="button" class="${k===c?'active':''}" onclick="openReactionPicker('${messageId}','${k}')">${k}</button>`).join('')}</div>
-    <div class="chat-emoji-grid" style="max-height:300px;overflow-y:auto;">${CHAT_EMOJI[c].split(' ').map(e => `<button type="button" onclick="document.getElementById('chatReactPickBg').remove();toggleChatReaction('${messageId}','${e}')">${e}</button>`).join('')}</div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;"><b>Tepki seçin</b><span style="cursor:pointer;color:var(--muted);font-size:18px;" ${act('removeEl','chatReactPickBg')}>✕</span></div>
+    <div class="chat-emoji-tabs" style="flex-wrap:wrap;">${Object.keys(CHAT_EMOJI).map(k => `<button type="button" class="${k===c?'active':''}" ${act('openReactionPicker', messageId, k)}>${k}</button>`).join('')}</div>
+    <div class="chat-emoji-grid" style="max-height:300px;overflow-y:auto;">${CHAT_EMOJI[c].split(' ').map(e => `<button type="button" ${act('reactFromPicker', messageId, e)}>${e}</button>`).join('')}</div>
   </div>`;
 }
 async function toggleChatReaction(messageId, emoji){
@@ -525,7 +525,7 @@ function startChatReply(messageId){
   const preview = m.body || (m.attachment_kind==='audio' ? '🎤 Sesli mesaj' : m.attachment_kind==='file' ? '📎 ' + (m.attachment_name||'Dosya') : '📷 Fotoğraf');
   APP.chatReply = { id: m.id, sender_name: m.mine ? 'Siz' : m.sender_name, preview };
   const bar = document.getElementById('chatReplyBar');
-  if(bar){ bar.classList.add('open'); bar.innerHTML = `<div class="chat-quote"><b style="color:${chatColor(m.sender_name)};">↩️ ${escapeHtml(APP.chatReply.sender_name)}</b><div>${escapeHtml(preview.slice(0,140))}</div></div><button type="button" class="chat-ic" onclick="cancelChatReply()">✕</button>`; }
+  if(bar){ bar.classList.add('open'); bar.innerHTML = `<div class="chat-quote"><b style="color:${chatColor(m.sender_name)};">↩️ ${escapeHtml(APP.chatReply.sender_name)}</b><div>${escapeHtml(preview.slice(0,140))}</div></div><button type="button" class="chat-ic" ${act('cancelChatReply')}>✕</button>`; }
   const t = document.getElementById('chatText'); if(t) t.focus();
 }
 function cancelChatReply(){
@@ -564,7 +564,7 @@ async function fetchChatAttachment(id){
 async function loadChatAudio(id, btn){
   const box = btn.closest('.chat-audio'); if(!box) return;
   box.innerHTML = '<span class="muted" style="font-size:12px;">⏳ Yükleniyor…</span>';
-  const fail = (msg) => { box.innerHTML = `<span style="font-size:12px;">⚠️ ${escapeHtml(msg)}</span> <button type="button" class="chat-audio-play" title="İndir" onclick="event.stopPropagation();downloadChatFile('${id}')">⬇</button>`; };
+  const fail = (msg) => { box.innerHTML = `<span style="font-size:12px;">⚠️ ${escapeHtml(msg)}</span> <button type="button" class="chat-audio-play" title="İndir" ${actStop('downloadChatFile', id)}>⬇</button>`; };
   let blob;
   try{
     const r = await chatFetch(id);
@@ -673,8 +673,8 @@ async function startChatVoice(){
   if(bar){
     bar.classList.add('open');
     bar.innerHTML = `<span class="chat-rec-dot"></span><span id="chatRecTime">0:00</span><span class="muted" style="flex:1;">Kaydediliyor…</span>
-      <button type="button" class="chat-ic" title="İptal" onclick="stopChatVoice(false)">🗑️</button>
-      <button type="button" class="chat-send" title="Gönder" onclick="stopChatVoice(true)">➤</button>`;
+      <button type="button" class="chat-ic" title="İptal" ${act('stopChatVoice', false)}>🗑️</button>
+      <button type="button" class="chat-send" title="Gönder" ${act('stopChatVoice', true)}>➤</button>`;
   }
   document.getElementById('chatInputForm') && document.getElementById('chatInputForm').classList.add('recording');
   CHAT_VOICE.timer = setInterval(() => {
@@ -693,9 +693,9 @@ async function openChatCamera(){
   const ov = document.createElement('div'); ov.id = 'chatCamBg';
   ov.innerHTML = `<div class="chat-cam"><video id="chatCamVideo" autoplay playsinline muted></video>
     <div class="chat-cam-bar">
-      <button type="button" class="chat-ic" style="color:#fff;" onclick="closeChatCamera()">✕</button>
-      <button type="button" class="chat-cam-shot" onclick="takeChatPhoto()" title="Çek"></button>
-      <button type="button" class="chat-ic" style="color:#fff;" onclick="switchChatCamera()" title="Kamerayı çevir">🔄</button>
+      <button type="button" class="chat-ic" style="color:#fff;" ${act('closeChatCamera')}>✕</button>
+      <button type="button" class="chat-cam-shot" ${act('takeChatPhoto')} title="Çek"></button>
+      <button type="button" class="chat-ic" style="color:#fff;" ${act('switchChatCamera')} title="Kamerayı çevir">🔄</button>
     </div></div>`;
   document.body.appendChild(ov);
   CHAT_CAM = { facing: 'environment', stream: null };
@@ -746,8 +746,8 @@ function openChatGroupEditor(conv){
         ${chatAvatar(p, 30)}<span style="flex:1;">${escapeHtml(p.name)} <span class="muted" style="font-size:11.5px;">${escapeHtml(p.roles||'')}</span></span></label>`).join('')}
     </div>
     <div style="display:flex;gap:10px;margin-top:12px;">
-      <button type="button" class="ghost-btn" style="flex:1;margin:0;" onclick="document.getElementById('chatGroupBg').remove()">Vazgeç</button>
-      <button type="button" style="flex:1;margin:0;" onclick="saveChatGroup(${c ? `'${c.conv}'` : 'null'})">${c ? 'Kaydet' : 'Oluştur'}</button>
+      <button type="button" class="ghost-btn" style="flex:1;margin:0;" ${act('removeEl','chatGroupBg')}>Vazgeç</button>
+      <button type="button" style="flex:1;margin:0;" ${act('saveChatGroup', c ? c.conv : null)}>${c ? 'Kaydet' : 'Oluştur'}</button>
     </div></div>`;
   document.body.appendChild(ov);
 }
@@ -770,8 +770,8 @@ function openChatGroupMenu(conv){
   document.querySelectorAll('.chat-group-menu').forEach(x => x.remove());
   const menu = document.createElement('div'); menu.className = 'chat-menu chat-group-menu';
   menu.innerHTML = `<div class="muted" style="font-size:12px;padding:6px 10px;">${c.member_count} üye: ${escapeHtml(c.roles||'')}</div>
-    ${c.can_manage ? `<button type="button" onclick="openChatGroupEditor('${conv}')">✏️ Grubu düzenle</button>` : ''}
-    <button type="button" class="danger" onclick="leaveChatGroup('${conv}')">🚪 Gruptan çık</button>`;
+    ${c.can_manage ? `<button type="button" ${act('openChatGroupEditor', conv)}>✏️ Grubu düzenle</button>` : ''}
+    <button type="button" class="danger" ${act('leaveChatGroup', conv)}>🚪 Gruptan çık</button>`;
   const head = document.querySelector('.chat-head'); if(!head) return;
   head.appendChild(menu);
   setTimeout(() => document.addEventListener('click', function close(){ menu.remove(); document.removeEventListener('click', close); }), 0);
@@ -818,7 +818,7 @@ function updateChatMention(t){
   const list = ['herkes', ...chatPeople().filter(n => n !== me)].filter(n => n.toLocaleLowerCase('tr').includes(q)).slice(0, 8);
   if(!list.length){ box.classList.remove('open'); box.innerHTML = ''; return; }
   APP.chatMentionSel = 0;
-  box.innerHTML = list.map((n, i) => `<button type="button" class="${i===0?'sel':''}" data-name="${escapeAttr(n)}" onmousedown="event.preventDefault();insertChatMention(this.dataset.name)">${n==='herkes' ? '📣 <b>@herkes</b> <span class="muted">— sohbetteki herkes</span>' : chatAvatar({ name: n }, 24) + ' <b>' + escapeHtml(n) + '</b>'}</button>`).join('');
+  box.innerHTML = list.map((n, i) => `<button type="button" class="${i===0?'sel':''}" data-name="${escapeAttr(n)}" data-keep-focus ${act('insertChatMention','$data.name')}>${n==='herkes' ? '📣 <b>@herkes</b> <span class="muted">— sohbetteki herkes</span>' : chatAvatar({ name: n }, 24) + ' <b>' + escapeHtml(n) + '</b>'}</button>`).join('');
   box.classList.add('open');
 }
 function chatMentionKey(e){
@@ -873,7 +873,7 @@ async function loadChatGifs(){
     APP.chatGifs = (j.data || []).map(g => ({ id: g.id, title: g.title || '', thumb: (g.images.fixed_width_small || g.images.fixed_width || {}).url,
       send: (g.images.downsized || g.images.fixed_width || {}).url, alt: (g.images.fixed_width || {}).url }));
     grid.classList.toggle('stickers', type === 'stickers');
-    grid.innerHTML = APP.chatGifs.length ? APP.chatGifs.map((g, i) => `<button type="button" title="${escapeAttr(g.title)}" onclick="sendChatGif(${i})"><img src="${escapeAttr(g.thumb)}" alt="" loading="lazy"></button>`).join('')
+    grid.innerHTML = APP.chatGifs.length ? APP.chatGifs.map((g, i) => `<button type="button" title="${escapeAttr(g.title)}" ${act('sendChatGif', i)}><img src="${escapeAttr(g.thumb)}" alt="" loading="lazy"></button>`).join('')
       : '<p class="muted" style="padding:10px;">Sonuç bulunamadı.</p>';
   }catch(e){ grid.innerHTML = '<p class="muted" style="padding:10px;">GIF\'ler yüklenemedi. Bağlantınızı kontrol edin.</p>'; }
 }
@@ -919,7 +919,18 @@ async function showMessageReaders(messageId){
     ${read.length ? read.map(r => `<div style="display:flex;justify-content:space-between;gap:10px;padding:6px 0;border-bottom:1px solid var(--border);font-size:13.5px;"><span>${escapeHtml(r.name)}</span><span class="muted">${fmt(r.at)}</span></div>`).join('') : '<div class="muted" style="font-size:13px;padding:4px 0;">Henüz kimse görmedi.</div>'}
     <div style="font-weight:700;font-size:13px;margin:14px 0 6px;">✓ Henüz görmeyenler (${unread.length})</div>
     ${unread.length ? unread.map(n => `<div style="padding:6px 0;border-bottom:1px solid var(--border);font-size:13.5px;">${escapeHtml(n)}</div>`).join('') : '<div class="muted" style="font-size:13px;padding:4px 0;">Herkes gördü.</div>'}
-    <button type="button" class="ghost-btn" style="margin-top:14px;" onclick="document.getElementById('chatReadersBg').remove()">Kapat</button>
+    <button type="button" class="ghost-btn" style="margin-top:14px;" ${act('removeEl','chatReadersBg')}>Kapat</button>
   </div>`;
   document.body.appendChild(ov);
 }
+
+function setChatSearch(v){ APP.chatSearch = v; drawChatList(); }
+function onChatTextInput(el){ el.style.height = 'auto'; el.style.height = Math.min(el.scrollHeight, 120) + 'px'; updateChatSendBtn(); updateChatMention(el); }
+function onChatTextKeydown(e){ if(chatMentionKey(e)) return; if(e.key === 'Enter' && !e.shiftKey){ e.preventDefault(); sendChatMessage(); } }
+function startChatDictationFromTray(){ toggleChatTray('attach'); toggleChatDictation(); }
+function setChatGifType(t){ APP.chatGifType = t; loadChatGifs(); }
+function debounceChatGifs(){ clearTimeout(window._gifT); window._gifT = setTimeout(loadChatGifs, 350); }
+function searchChatGifs(q){ const el = document.getElementById('chatGifQ'); if(el) el.value = q; loadChatGifs(); }
+function setChatEmojiCat(k){ APP.chatEmojiCat = k; document.getElementById('chatTray').dataset.kind = ''; toggleChatTray('emoji'); }
+function reactFromBar(messageId, e){ toggleChatReaction(messageId, e); document.querySelectorAll('.chat-react-bar').forEach(b => b.remove()); }
+function reactFromPicker(messageId, e){ removeEl('chatReactPickBg'); toggleChatReaction(messageId, e); }

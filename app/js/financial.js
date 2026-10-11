@@ -19,13 +19,13 @@ function renderReportsEnterGate(main, session){
     <div class="box" style="max-width:420px;">
       <p class="muted">Bu ekrana erişmek için finansal analiz şifresini girin.</p>
       <div class="pw-field-wrap">
-        <input type="password" id="rpEnterPass" placeholder="Şifre" onkeydown="if(event.key==='Enter')doUnlockReports();">
-        <button type="button" class="pw-eye-btn" onclick="toggleReportsPassVisibility('rpEnterPass')" title="Şifreyi göster/gizle">👁️</button>
+        <input type="password" id="rpEnterPass" placeholder="Şifre" ${actOn('keydown','onEnterKey',['$event','doUnlockReports'])}>
+        <button type="button" class="pw-eye-btn" ${act('toggleReportsPassVisibility', 'rpEnterPass')} title="Şifreyi göster/gizle">👁️</button>
       </div>
-      <button id="rpEnterBtn" onclick="doUnlockReports()">Görüntüle</button>
+      <button id="rpEnterBtn" ${act('doUnlockReports')}>Görüntüle</button>
       <div class="error" id="rpErr"></div>
       <p class="muted" style="text-align:center;margin-top:14px;font-size:13px;">
-        <a href="#" style="color:var(--accent);" onclick="APP.reportsGateScreen='forgot1';renderReportsGate(document.getElementById('main'),getSession());return false;">Şifremi Unuttum</a>
+        <a href="#" style="color:var(--accent);" ${act('setReportsGateScreen','forgot1')}>Şifremi Unuttum</a>
       </p>
     </div>`;
 }
@@ -50,13 +50,13 @@ function renderReportsSetPasswordGate(main, session){
       <p class="muted">Bu ekranı korumak için bir şifre belirleyin. Bu şifreyi bilen herhangi bir yönetici finansal verileri görüntüleyebilir.</p>
       <div class="pw-field-wrap">
         <input type="password" id="rpSetPass" placeholder="Yeni şifre">
-        <button type="button" class="pw-eye-btn" onclick="toggleReportsPassVisibility('rpSetPass','rpSetPass2')" title="Şifreyi göster/gizle">👁️</button>
+        <button type="button" class="pw-eye-btn" ${act('toggleReportsPassVisibility', 'rpSetPass', 'rpSetPass2')} title="Şifreyi göster/gizle">👁️</button>
       </div>
       <div class="pw-field-wrap">
         <input type="password" id="rpSetPass2" placeholder="Yeni şifre (tekrar)">
-        <button type="button" class="pw-eye-btn" onclick="toggleReportsPassVisibility('rpSetPass','rpSetPass2')" title="Şifreyi göster/gizle">👁️</button>
+        <button type="button" class="pw-eye-btn" ${act('toggleReportsPassVisibility', 'rpSetPass', 'rpSetPass2')} title="Şifreyi göster/gizle">👁️</button>
       </div>
-      <button id="rpSetBtn" onclick="doSetReportsPassword()">Şifreyi Belirle</button>
+      <button id="rpSetBtn" ${act('doSetReportsPassword')}>Şifreyi Belirle</button>
       <div class="error" id="rpErr"></div>
     </div>`;
 }
@@ -85,24 +85,24 @@ function renderReportsForgotGate(main, session){
         ? 'İşletmenizin kayıtlı e-postasına bir doğrulama kodu gönderelim.'
         : 'E-postanıza gönderilen kodu ve yeni şifrenizi girin.'}</p>
       <div id="rpFgStep1" style="display:${step===1?'block':'none'};">
-        <button id="rpFgSendBtn" onclick="doStartReportsPasswordReset()">Kod Gönder</button>
+        <button id="rpFgSendBtn" ${act('doStartReportsPasswordReset')}>Kod Gönder</button>
       </div>
       <div id="rpFgStep2" style="display:${step===2?'block':'none'};">
         <p class="muted" id="rpFgOtpInfo" style="text-align:center;"></p>
         <input id="rpFgOtp" placeholder="6 haneli kod" maxlength="6" style="text-align:center;font-size:20px;letter-spacing:4px;">
         <div class="pw-field-wrap">
           <input type="password" id="rpFgNewPass" placeholder="Yeni şifre">
-          <button type="button" class="pw-eye-btn" onclick="toggleReportsPassVisibility('rpFgNewPass','rpFgNewPass2')" title="Şifreyi göster/gizle">👁️</button>
+          <button type="button" class="pw-eye-btn" ${act('toggleReportsPassVisibility', 'rpFgNewPass', 'rpFgNewPass2')} title="Şifreyi göster/gizle">👁️</button>
         </div>
         <div class="pw-field-wrap">
           <input type="password" id="rpFgNewPass2" placeholder="Yeni şifre (tekrar)">
-          <button type="button" class="pw-eye-btn" onclick="toggleReportsPassVisibility('rpFgNewPass','rpFgNewPass2')" title="Şifreyi göster/gizle">👁️</button>
+          <button type="button" class="pw-eye-btn" ${act('toggleReportsPassVisibility', 'rpFgNewPass', 'rpFgNewPass2')} title="Şifreyi göster/gizle">👁️</button>
         </div>
-        <button id="rpFgVerifyBtn" onclick="doVerifyReportsPasswordReset()">Şifreyi Güncelle</button>
+        <button id="rpFgVerifyBtn" ${act('doVerifyReportsPasswordReset')}>Şifreyi Güncelle</button>
       </div>
       <div class="error" id="rpErr"></div>
       <p class="muted" style="text-align:center;margin-top:14px;font-size:13px;">
-        <a href="#" style="color:var(--accent);" onclick="APP.reportsGateScreen=null;renderReportsGate(document.getElementById('main'),getSession());return false;">← Şifreyle Gir</a>
+        <a href="#" style="color:var(--accent);" ${act('setReportsGateScreen',null)}>← Şifreyle Gir</a>
       </p>
     </div>`;
 }
@@ -173,26 +173,26 @@ async function renderReportsView(main, session){
     <div class="box" style="max-width:none;">
       <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
         <span class="muted" style="white-space:nowrap;">Tarih Aralığı</span>
-        <input type="date" id="reportDateInput" value="${APP.reportDate}" onchange="changeReportDate(this.value)" style="width:auto;margin:0;">
+        <input type="date" id="reportDateInput" value="${APP.reportDate}" ${actOn('change','changeReportDate',['$value'])} style="width:auto;margin:0;">
         <span class="muted">–</span>
-        <input type="date" id="reportDateToInput" value="${APP.reportDateTo}" onchange="changeReportDateTo(this.value)" style="width:auto;margin:0;">
+        <input type="date" id="reportDateToInput" value="${APP.reportDateTo}" ${actOn('change','changeReportDateTo',['$value'])} style="width:auto;margin:0;">
         <span style="width:1px;height:22px;background:var(--border);margin:0 2px;"></span>
-        <button type="button" class="range-preset-btn" onclick="setReportDateRangeDays(0)">Bugün</button>
-        <button type="button" class="range-preset-btn" onclick="setReportDateRangeDays(6)">Son 7 Gün</button>
-        <button type="button" class="range-preset-btn" onclick="setReportDateRangeDays(9)">Son 10 Gün</button>
-        <button type="button" class="range-preset-btn" onclick="setReportDateRangeDays(29)">Son 30 Gün</button>
+        <button type="button" class="range-preset-btn" ${act('setReportDateRangeDays', 0)}>Bugün</button>
+        <button type="button" class="range-preset-btn" ${act('setReportDateRangeDays', 6)}>Son 7 Gün</button>
+        <button type="button" class="range-preset-btn" ${act('setReportDateRangeDays', 9)}>Son 10 Gün</button>
+        <button type="button" class="range-preset-btn" ${act('setReportDateRangeDays', 29)}>Son 30 Gün</button>
       </div>
     </div>
     <div class="tabs" id="reportTabs">
-      <div class="tab ${(APP.reportTab||'summary')==='summary'?'active':''}" data-tab="summary" onclick="setReportTab('summary')">Genel Özet</div>
-      <div class="tab ${APP.reportTab==='vat'?'active':''}" data-tab="vat" onclick="setReportTab('vat')">🧾 KDV</div>
-      <div class="tab ${APP.reportTab==='products'?'active':''}" data-tab="products" onclick="setReportTab('products')">📦 Ürün İstatistikleri</div>
-      <div class="tab ${APP.reportTab==='staff'?'active':''}" data-tab="staff" onclick="setReportTab('staff')">👤 Personel Analizleri</div>
-      <div class="tab ${APP.reportTab==='customers'?'active':''}" data-tab="customers" onclick="setReportTab('customers')">🧑‍🤝‍🧑 Müşteri Analizleri</div>
-      <div class="tab ${APP.reportTab==='tips'?'active':''}" data-tab="tips" onclick="setReportTab('tips')">💰 Bahşiş Havuzu</div>
-      <div class="tab ${APP.reportTab==='waste'?'active':''}" data-tab="waste" onclick="setReportTab('waste')">🔥 İsraf</div>
-      <div class="tab ${APP.reportTab==='resv'?'active':''}" data-tab="resv" onclick="setReportTab('resv')">📅 Rezervasyon Analizi</div>
-      <div class="tab ${APP.reportTab==='openacc'?'active':''}" data-tab="openacc" onclick="setReportTab('openacc')">📒 Açık Hesaplar</div>
+      <div class="tab ${(APP.reportTab||'summary')==='summary'?'active':''}" data-tab="summary" ${act('setReportTab', 'summary')}>Genel Özet</div>
+      <div class="tab ${APP.reportTab==='vat'?'active':''}" data-tab="vat" ${act('setReportTab', 'vat')}>🧾 KDV</div>
+      <div class="tab ${APP.reportTab==='products'?'active':''}" data-tab="products" ${act('setReportTab', 'products')}>📦 Ürün İstatistikleri</div>
+      <div class="tab ${APP.reportTab==='staff'?'active':''}" data-tab="staff" ${act('setReportTab', 'staff')}>👤 Personel Analizleri</div>
+      <div class="tab ${APP.reportTab==='customers'?'active':''}" data-tab="customers" ${act('setReportTab', 'customers')}>🧑‍🤝‍🧑 Müşteri Analizleri</div>
+      <div class="tab ${APP.reportTab==='tips'?'active':''}" data-tab="tips" ${act('setReportTab', 'tips')}>💰 Bahşiş Havuzu</div>
+      <div class="tab ${APP.reportTab==='waste'?'active':''}" data-tab="waste" ${act('setReportTab', 'waste')}>🔥 İsraf</div>
+      <div class="tab ${APP.reportTab==='resv'?'active':''}" data-tab="resv" ${act('setReportTab', 'resv')}>📅 Rezervasyon Analizi</div>
+      <div class="tab ${APP.reportTab==='openacc'?'active':''}" data-tab="openacc" ${act('setReportTab', 'openacc')}>📒 Açık Hesaplar</div>
     </div>
     <div id="reportContent"></div>`;
   await renderReportTabContent(session);
@@ -368,7 +368,7 @@ async function renderReportContent(session){
       <td style="white-space:nowrap;">${money(o.total)}</td>
       <td style="white-space:nowrap;${o.discount_amount>0?'color:var(--red);':''}">${discTxt}</td>
       <td style="${o.payment_method==='split'?'':'white-space:nowrap;'}">${methodLabel}</td>
-      <td><button type="button" class="sbtn" style="width:auto;margin:0;" onclick="openSaleDetailModal('${o.id}')">🔍 Detay</button></td></tr>`;
+      <td><button type="button" class="sbtn" style="width:auto;margin:0;" ${act('openSaleDetailModal', o.id)}>🔍 Detay</button></td></tr>`;
   };
   const billsHtml = hist.length===0 ? '<p class="muted">Bu tarihte kapatılmış hesap yok.</p>'
     : filteredBills.length===0 ? '<p class="muted">Bu filtrede kapatılmış hesap yok.</p>'
@@ -386,7 +386,7 @@ async function renderReportContent(session){
       <div class="box" style="text-align:center;"><div style="font-size:22px;font-weight:800;">${money(totalRevenue)}</div><div class="muted" style="font-size:12px;">Toplam Ciro</div></div>
       <div class="box" style="text-align:center;"><div style="font-size:22px;font-weight:800;">${money(totalCost)}</div><div class="muted" style="font-size:12px;">Toplam Maliyet</div></div>
       <div class="box" style="text-align:center;"><div style="font-size:22px;font-weight:800;color:${profit>=0?'var(--green)':'var(--red)'};">${money(profit)}</div><div class="muted" style="font-size:12px;">Net Kâr</div></div>
-      <div class="box" style="text-align:center;cursor:pointer;" onclick="setReportTab('waste')" title="Detaylar için tıklayın"><div style="font-size:22px;font-weight:800;color:var(--red);">${money(wasteCost)}</div><div class="muted" style="font-size:12px;">🔥 İsraf Maliyeti</div></div>
+      <div class="box" style="text-align:center;cursor:pointer;" ${act('setReportTab', 'waste')} title="Detaylar için tıklayın"><div style="font-size:22px;font-weight:800;color:var(--red);">${money(wasteCost)}</div><div class="muted" style="font-size:12px;">🔥 İsraf Maliyeti</div></div>
     </div>
     <div class="stat-grid">
       <div class="box" style="text-align:center;"><div style="font-size:20px;font-weight:800;color:var(--green);">${money(totalCash)}</div><div class="muted" style="font-size:12px;">💵 Nakit${totalRevenue?' ('+Math.round(totalCash/totalRevenue*100)+'%)':''}</div></div>
@@ -405,23 +405,23 @@ async function renderReportContent(session){
         <span class="muted" style="font-size:12px;">${billsFilterActive ? (filteredBills.length+' / '+hist.length+' hesap') : (hist.length+' hesap')}</span>
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;">
-        <select id="billHourFilter" style="width:auto;margin:0;padding:8px 12px;" onchange="APP.reportBillsFilter.hour=this.value;renderReportTabContent(getSession());">
+        <select id="billHourFilter" style="width:auto;margin:0;padding:8px 12px;" ${actOn('change','setReportBillsFilter',['hour','$value'])}>
           <option value="">Tüm Saatler</option>
           ${billHourOptions.map(h => `<option value="${h}" ${bf.hour===String(h)?'selected':''}>${h<10?'0'+h:h}:00</option>`).join('')}
         </select>
-        <select id="billTableFilter" style="width:auto;margin:0;padding:8px 12px;" onchange="APP.reportBillsFilter.table=this.value;renderReportTabContent(getSession());">
+        <select id="billTableFilter" style="width:auto;margin:0;padding:8px 12px;" ${actOn('change','setReportBillsFilter',['table','$value'])}>
           <option value="">Tüm Masalar</option>
           ${billTableOptions.map(tb => `<option value="${escapeAttr(tb)}" ${bf.table===tb?'selected':''}>${escapeHtml(tb)}</option>`).join('')}
         </select>
-        <select id="billMethodFilter" style="width:auto;margin:0;padding:8px 12px;" onchange="APP.reportBillsFilter.method=this.value;renderReportTabContent(getSession());">
+        <select id="billMethodFilter" style="width:auto;margin:0;padding:8px 12px;" ${actOn('change','setReportBillsFilter',['method','$value'])}>
           <option value="">Tüm Ödeme Biçimleri</option>
           ${billMethodOptions.map(m => `<option value="${m}" ${bf.method===m?'selected':''}>${METHOD_LABELS[m]||m}</option>`).join('')}
         </select>
-        <select id="billSourceFilter" style="width:auto;margin:0;padding:8px 12px;" onchange="APP.reportBillsFilter.source=this.value;renderReportTabContent(getSession());">
+        <select id="billSourceFilter" style="width:auto;margin:0;padding:8px 12px;" ${actOn('change','setReportBillsFilter',['source','$value'])}>
           <option value="">Tüm Kaynaklar</option>
           ${Object.keys(SOURCE_LABELS).map(k => `<option value="${k}" ${bf.source===k?'selected':''}>${SOURCE_LABELS[k]} (${billSourceCounts[k]||0})</option>`).join('')}
         </select>
-        ${billsFilterActive ? `<button type="button" class="sbtn" style="width:auto;margin:0;" onclick="APP.reportBillsFilter={hour:'',table:'',method:'',source:''};renderReportTabContent(getSession());">✕ Filtreleri Temizle</button>` : ''}
+        ${billsFilterActive ? `<button type="button" class="sbtn" style="width:auto;margin:0;" ${act('resetReportBillsFilter')}>✕ Filtreleri Temizle</button>` : ''}
       </div>
       ${timingHtml}${billsHtml}
     </div>
@@ -489,11 +489,11 @@ async function renderProductStatsContent(session){
       <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:14px;">
         <h2 style="margin:0;">Ürün Satışları</h2>
         <div style="display:flex;gap:8px;flex-wrap:wrap;">
-          <select id="psStationFilter" style="width:auto;margin:0;padding:8px 12px;" onchange="APP.productStatsStation=this.value;renderProductStatsContent(getSession());">
+          <select id="psStationFilter" style="width:auto;margin:0;padding:8px 12px;" ${actOn('change','setProductStatsOpt',['productStatsStation','$value'])}>
             <option value="">Tüm İstasyonlar</option>
             ${stations.map(s => `<option value="${s.id}" ${APP.productStatsStation===s.id?'selected':''}>${escapeHtml(s.name)}</option>`).join('')}
           </select>
-          <select id="psSortBy" style="width:auto;margin:0;padding:8px 12px;" onchange="APP.productStatsSort=this.value;renderProductStatsContent(getSession());">
+          <select id="psSortBy" style="width:auto;margin:0;padding:8px 12px;" ${actOn('change','setProductStatsOpt',['productStatsSort','$value'])}>
             <option value="revenue" ${APP.productStatsSort==='revenue'?'selected':''}>Ciroya Göre Sırala</option>
             <option value="qty" ${APP.productStatsSort==='qty'?'selected':''}>Adete Göre Sırala</option>
           </select>
@@ -570,7 +570,7 @@ async function renderCustomerAnalyticsContent(session){
     <div class="box" style="max-width:none;">
       <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:10px;">
         <h2 style="margin:0;">Müşteri Analizleri</h2>
-        <input id="custAnalyticsSearchInput" placeholder="İsim veya telefon ara..." style="max-width:260px;" value="${escapeAttr(APP.customerAnalyticsSearch||'')}" oninput="debouncedCustomerAnalyticsSearch(this.value)">
+        <input id="custAnalyticsSearchInput" placeholder="İsim veya telefon ara..." style="max-width:260px;" value="${escapeAttr(APP.customerAnalyticsSearch||'')}" ${actOn('input','debouncedCustomerAnalyticsSearch',['$value'])}>
       </div>
       <div class="settings-table-wrap">
       <table class="settings-table">
@@ -627,7 +627,7 @@ async function renderTipPoolContent(session){
           <option value="by_hours" ${data.mode==='by_hours'?'selected':''}>Çalışılan Saate Göre</option>
         </select>
       </div>
-      <button style="margin-top:12px;max-width:220px;" onclick="saveTipPoolSettings()">${ICON_SAVE}<span>Kaydet</span></button>
+      <button style="margin-top:12px;max-width:220px;" ${act('saveTipPoolSettings')}>${ICON_SAVE}<span>Kaydet</span></button>
     </div>` : ''}
     <div class="stat-grid">
       <div class="box" style="text-align:center;"><div style="font-size:22px;font-weight:800;">${money(data.total_tip)}</div><div class="muted" style="font-size:12px;">Toplam Bahşiş</div></div>
@@ -716,7 +716,7 @@ async function openSaleDetailModal(historyId){
   bg.innerHTML = `<div style="background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:20px;max-width:420px;width:100%;max-height:88vh;overflow:auto;">
     <div style="display:flex;justify-content:space-between;align-items:center;">
       <h2 style="margin:0;">${escapeHtml(label)}${d.order_no ? ' <span class="muted" style="font-size:13px;font-weight:600;">#'+d.order_no+'</span>' : ''}</h2>
-      <span style="cursor:pointer;color:var(--muted);font-size:20px;" onclick="document.getElementById('saleDetailModalBg').remove()">✕</span>
+      <span style="cursor:pointer;color:var(--muted);font-size:20px;" ${act('removeEl','saleDetailModalBg')}>✕</span>
     </div>
     <p class="muted" style="text-align:left;margin:4px 0 4px;font-size:12.5px;">🕒 Sipariş: ${d.ordered_at ? new Date(d.ordered_at).toLocaleString('tr-TR') : '—'} · ✓ Hazır: ${d.ready_at ? new Date(d.ready_at).toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'}) : '—'} · 💳 Ödendi: ${new Date(d.closed_at).toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'})}</p>
     <p class="muted" style="text-align:left;margin:0 0 12px;font-size:12.5px;">${new Date(d.closed_at).toLocaleString('tr-TR')}${d.staff ? ' · ' + escapeHtml(d.staff) : ''}${d.customer ? ' · 👤 ' + escapeHtml(d.customer) : ''}</p>
@@ -735,7 +735,7 @@ async function openSaleDetailModal(historyId){
       <label style="font-size:12.5px;font-weight:700;color:var(--muted);">Fişi e-postayla gönder</label>
       <div style="display:flex;gap:8px;margin-top:6px;">
         <input id="saleReceiptEmail" type="email" placeholder="musteri@ornek.com" autocapitalize="none" style="flex:1;margin:0;">
-        <button type="button" id="saleReceiptBtn" style="width:auto;margin:0;" onclick="sendSaleReceipt('${historyId}')">📧 Gönder</button>
+        <button type="button" id="saleReceiptBtn" style="width:auto;margin:0;" ${act('sendSaleReceipt', historyId)}>📧 Gönder</button>
       </div>
     </div>
   </div>`;
@@ -776,7 +776,7 @@ function setResvAnFilter(key, label){
 /* Tıklanabilir istatistik kartı: basınca alttaki liste o kayıtlarla filtrelenir. */
 function resvAnCard(label, value, color, key){
   const active = APP.resvAnFilter && APP.resvAnFilter.key===key;
-  return `<div class="card resv-an-card ${active?'active':''}" onclick="setResvAnFilter('${key}', ${escapeAttr(JSON.stringify(label))})" title="Listelemek için tıklayın">
+  return `<div class="card resv-an-card ${active?'active':''}" ${act('setResvAnFilter', key, label)} title="Listelemek için tıklayın">
     <div class="muted" style="font-size:11px;text-transform:uppercase;letter-spacing:.04em;font-weight:700;">${escapeHtml(label)}</div>
     <div style="font-size:22px;font-weight:800;margin-top:6px;${color?'color:'+color+';':''}">${value}</div>
     <div class="resv-an-card-hint">${active ? '✓ Listeleniyor' : 'Listele ›'}</div>
@@ -786,7 +786,7 @@ function resvAnCard(label, value, color, key){
 function resvDetailBtn(r){
   const ids = r.history_ids || [];
   if(!ids.length) return '<span class="muted">-</span>';
-  return `<button type="button" class="sbtn" style="width:auto;margin:0;white-space:nowrap;" onclick='openResvOrderDetail(${escapeAttr(JSON.stringify(ids))})'>🔍 Detay${ids.length>1 ? ' ('+ids.length+')' : ''}</button>`;
+  return `<button type="button" class="sbtn" style="width:auto;margin:0;white-space:nowrap;" ${act('openResvOrderDetail', ids)}>🔍 Detay${ids.length>1 ? ' ('+ids.length+')' : ''}</button>`;
 }
 function openResvOrderDetail(ids){
   if(ids.length === 1) return openSaleDetailModal(ids[0].id);
@@ -818,12 +818,12 @@ function drawResvAnalytics(){
     : d < -5 ? `<span style="color:var(--green);font-weight:700;">${-d} dk erken</span>`
     : '<span style="color:var(--green);font-weight:700;">Zamanında</span>';
   const tabs = `<div class="sub-tabs">
-    <div role="tab" tabindex="0" class="sub-tab ${sub==='resv'?'active':''}" onclick="setResvAnSub('resv')"><span class="sub-tab-ic">📅</span>Rezervasyonlar <span class="muted" style="font-weight:600;">${sm.total||0}</span></div>
-    <div role="tab" tabindex="0" class="sub-tab ${sub==='wl'?'active':''}" onclick="setResvAnSub('wl')"><span class="sub-tab-ic">⏳</span>Bekleme Listesi <span class="muted" style="font-weight:600;">${wl.total||0}</span></div>
+    <div role="tab" tabindex="0" class="sub-tab ${sub==='resv'?'active':''}" ${act('setResvAnSub', 'resv')}><span class="sub-tab-ic">📅</span>Rezervasyonlar <span class="muted" style="font-weight:600;">${sm.total||0}</span></div>
+    <div role="tab" tabindex="0" class="sub-tab ${sub==='wl'?'active':''}" ${act('setResvAnSub', 'wl')}><span class="sub-tab-ic">⏳</span>Bekleme Listesi <span class="muted" style="font-weight:600;">${wl.total||0}</span></div>
   </div>`;
   const filterBar = (count) => f ? `<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 10px;">
       <span class="role-badge" style="color:var(--accent);border-color:var(--accent);">Filtre: ${escapeHtml(f.label)} · ${count} kayıt</span>
-      <a href="#" style="color:var(--accent);font-size:13px;" onclick="setResvAnFilter('${f.key}');return false;">✕ Filtreyi kaldır</a></div>` : '';
+      <a href="#" style="color:var(--accent);font-size:13px;" ${act('setResvAnFilter', f.key)}>✕ Filtreyi kaldır</a></div>` : '';
   const head = `<p class="muted" style="text-align:left;margin:0 0 12px;">${escapeHtml(reportDateRangeLabel())} · Kartlara, saatlere ve masalara tıklayarak ilgili kayıtları listeleyin. Ciro, oturtulan masaların kapanan hesaplarından hesaplanır.</p>`;
 
   if(sub==='wl'){
@@ -902,15 +902,15 @@ function drawResvAnalytics(){
         <h3 style="margin:0 0 10px;">⏰ Rezervasyon Saatine Göre Geliş</h3>
         <p style="margin:0 0 8px;">Ortalama: ${sm.avg_arrival_diff==null ? '<span class="muted">veri yok</span>' : diffTxt(sm.avg_arrival_diff)}</p>
         <div style="display:flex;gap:8px;flex-wrap:wrap;font-size:13px;">
-          <span class="role-badge resv-an-chip ${isF('on_time')?'active':''}" style="color:var(--green);border-color:var(--green);" onclick="setResvAnFilter('on_time','Zamanında gelenler')">Zamanında (±5 dk): ${sm.on_time||0}</span>
-          <span class="role-badge resv-an-chip ${isF('early')?'active':''}" style="color:var(--green);border-color:var(--green);" onclick="setResvAnFilter('early','Erken gelenler')">Erken: ${sm.early||0}</span>
-          <span class="role-badge resv-an-chip ${isF('late')?'active':''}" style="color:var(--red);border-color:var(--red);" onclick="setResvAnFilter('late','Geç gelenler')">Geç: ${sm.late||0}</span>
+          <span class="role-badge resv-an-chip ${isF('on_time')?'active':''}" style="color:var(--green);border-color:var(--green);" ${act('setResvAnFilter', 'on_time', 'Zamanında gelenler')}>Zamanında (±5 dk): ${sm.on_time||0}</span>
+          <span class="role-badge resv-an-chip ${isF('early')?'active':''}" style="color:var(--green);border-color:var(--green);" ${act('setResvAnFilter', 'early', 'Erken gelenler')}>Erken: ${sm.early||0}</span>
+          <span class="role-badge resv-an-chip ${isF('late')?'active':''}" style="color:var(--red);border-color:var(--red);" ${act('setResvAnFilter', 'late', 'Geç gelenler')}>Geç: ${sm.late||0}</span>
         </div>
         <p class="muted" style="font-size:11.5px;text-align:left;margin:8px 0 0;">Geliş saati, rezervasyon "Oturdu" yapıldığında kaydedilir.</p>
       </div>
       <div class="box" style="max-width:none;margin:0;">
         <h3 style="margin:0 0 10px;">🕐 Saatlere Göre Yoğunluk</h3>
-        ${byHour.length ? byHour.map(h => `<div class="resv-an-row ${isF('hour:'+h.hour)?'active':''}" onclick="setResvAnFilter('hour:${h.hour}','${String(h.hour).padStart(2,'0')}:00 rezervasyonları')" style="display:flex;align-items:center;gap:8px;font-size:12.5px;margin:2px 0;padding:3px 4px;">
+        ${byHour.length ? byHour.map(h => `<div class="resv-an-row ${isF('hour:'+h.hour)?'active':''}" ${act('setResvAnFilter', 'hour:'+h.hour, String(h.hour).padStart(2,'0')+':00 rezervasyonları')} style="display:flex;align-items:center;gap:8px;font-size:12.5px;margin:2px 0;padding:3px 4px;">
           <span style="width:44px;">${String(h.hour).padStart(2,'0')}:00</span>
           <div style="flex:1;background:var(--panel2);border-radius:6px;height:14px;overflow:hidden;"><div style="width:${Math.round((h.guests||0)/maxH*100)}%;height:100%;background:var(--accent);"></div></div>
           <span style="width:90px;text-align:right;">${h.count} rez · ${h.guests} kişi</span></div>`).join('') : '<p class="muted">Veri yok.</p>'}
@@ -918,7 +918,7 @@ function drawResvAnalytics(){
     </div>
     <h3 style="margin:0 0 10px;">🪑 Masalara Göre</h3>
     ${(data.by_table||[]).length ? `<div class="settings-table-wrap"><table class="settings-table"><thead><tr><th>Masa</th><th>Rezervasyon</th><th>Misafir</th><th>Ciro</th></tr></thead><tbody>
-      ${data.by_table.map(t => `<tr class="resv-an-row ${isF('table:'+t.table)?'active':''}" onclick="setResvAnFilter(${escapeAttr(JSON.stringify('table:'+t.table))}, ${escapeAttr(JSON.stringify(t.table + ' rezervasyonları'))})"><td class="col-name"><b>${escapeHtml(t.table)}</b> <span class="muted" style="font-size:11.5px;">Listele ›</span></td><td>${t.count}</td><td>${t.guests}</td><td>${money(t.revenue||0)}</td></tr>`).join('')}
+      ${data.by_table.map(t => `<tr class="resv-an-row ${isF('table:'+t.table)?'active':''}" ${act('setResvAnFilter', 'table:'+t.table, t.table + ' rezervasyonları')}><td class="col-name"><b>${escapeHtml(t.table)}</b> <span class="muted" style="font-size:11.5px;">Listele ›</span></td><td>${t.count}</td><td>${t.guests}</td><td>${money(t.revenue||0)}</td></tr>`).join('')}
     </tbody></table></div>` : '<p class="muted">Bu aralıkta gelen rezervasyon yok.</p>'}
     <h3 id="resvAnList" style="margin:18px 0 10px;">📋 Rezervasyon Detayları</h3>
     ${filterBar(rows.length)}
@@ -957,7 +957,7 @@ async function renderOpenAccountsContent(session){
     </div>
     <div class="box" style="max-width:none;">
       <h2>Hesaplar</h2>
-      <input class="list-search" placeholder="🔍 Hesap ara…" oninput="filterOpenAccRows(this.value)" style="max-width:320px;margin:0 0 10px;">
+      <input class="list-search" placeholder="🔍 Hesap ara…" ${actOn('input','filterOpenAccRows',['$value'])} style="max-width:320px;margin:0 0 10px;">
       ${accs.length ? `<div class="settings-table-wrap"><table class="settings-table" id="openAccTable">
         <thead><tr><th>Hesap</th><th>Bakiye</th><th>Dönemde Yazılan</th><th>Dönemde Tahsil</th><th>Son Yazım</th><th>Son Tahsilat</th><th></th></tr></thead>
         <tbody>${accs.map(a => `<tr data-oa="${escapeAttr(a.name.toLocaleLowerCase('tr') + ' ' + (a.phone||''))}">
@@ -967,8 +967,8 @@ async function renderOpenAccountsContent(session){
           <td>${a.last_charge_at ? new Date(a.last_charge_at).toLocaleDateString('tr-TR') : '—'}</td>
           <td>${a.last_payment_at ? new Date(a.last_payment_at).toLocaleDateString('tr-TR') : '—'}</td>
           <td><div class="act-row">
-            ${a.balance > 0.009 ? `<button type="button" class="act-btn act-save" onclick="collectOpenAccount('${a.id}')"><b>₺</b><span>Tahsilat</span></button>` : ''}
-            <button type="button" class="act-btn" onclick="showOpenAccEntries('${a.id}')"><b>📄</b><span>Hareketler</span></button>
+            ${a.balance > 0.009 ? `<button type="button" class="act-btn act-save" ${act('collectOpenAccount', a.id)}><b>₺</b><span>Tahsilat</span></button>` : ''}
+            <button type="button" class="act-btn" ${act('showOpenAccEntries', a.id)}><b>📄</b><span>Hareketler</span></button>
           </div></td></tr>`).join('')}</tbody></table></div>` : '<p class="muted">Henüz açık hesap yok. Ödeme ekranında "📒 Açık Hesaba At" ile oluşturabilirsiniz.</p>'}
     </div>
     <div class="box" style="max-width:none;">
@@ -982,7 +982,7 @@ async function renderOpenAccountsContent(session){
           <td style="font-weight:700;color:${e.kind === 'charge' ? 'var(--red)' : 'var(--green, #2fae5e)'};">${e.kind === 'charge' ? '+' : '−'}${money(e.amount)}</td>
           <td>${escapeHtml([e.table_name, e.note].filter(Boolean).join(' · ') || '—')}</td>
           <td>${escapeHtml(e.staff || '—')}</td>
-          <td>${e.sales_history_id ? `<button type="button" class="sbtn" style="width:auto;margin:0;" onclick="openSaleDetailModal('${e.sales_history_id}')">🔍 Sipariş Detayı</button>` : ''}</td></tr>`).join('')}</tbody></table></div>` : '<p class="muted">Bu dönemde hareket yok.</p>'}
+          <td>${e.sales_history_id ? `<button type="button" class="sbtn" style="width:auto;margin:0;" ${act('openSaleDetailModal', e.sales_history_id)}>🔍 Sipariş Detayı</button>` : ''}</td></tr>`).join('')}</tbody></table></div>` : '<p class="muted">Bu dönemde hareket yok.</p>'}
     </div>`;
 }
 function filterOpenAccRows(q){
@@ -1006,9 +1006,9 @@ async function showOpenAccEntries(id){
         <div class="muted" style="font-size:12px;">${e.kind === 'charge' ? '📒 Hesaba yazıldı' + (e.item_count ? ' · ' + e.item_count + ' ürün' : '') : '✅ Tahsilat' + (e.method ? ' (' + (e.method==='cash'?'Nakit':e.method==='card'?'Kart':escapeHtml(e.method)) + ')' : '')}${e.table_name ? ' · ' + escapeHtml(e.table_name) : ''}${e.staff ? ' · ' + escapeHtml(e.staff) : ''}</div></span>
       <span style="display:flex;align-items:center;gap:8px;white-space:nowrap;">
         <b style="color:${e.kind === 'charge' ? 'var(--red)' : 'var(--green, #2fae5e)'};">${e.kind === 'charge' ? '+' : '−'}${money(e.amount)}</b>
-        ${e.sales_history_id ? `<button type="button" class="sbtn" style="width:auto;margin:0;" title="Sipariş detayı" onclick="openSaleDetailModal('${e.sales_history_id}')">🔍</button>` : ''}
+        ${e.sales_history_id ? `<button type="button" class="sbtn" style="width:auto;margin:0;" title="Sipariş detayı" ${act('openSaleDetailModal', e.sales_history_id)}>🔍</button>` : ''}
       </span></div>`).join('') : '<p class="muted">Hareket yok.</p>'}
-    <button type="button" class="ghost-btn" style="width:100%;margin-top:12px;" onclick="document.getElementById('oaEntriesModalBg').remove()">Kapat</button>
+    <button type="button" class="ghost-btn" style="width:100%;margin-top:12px;" ${act('removeEl','oaEntriesModalBg')}>Kapat</button>
   </div>`;
   document.body.appendChild(m);
 }
@@ -1045,7 +1045,7 @@ async function renderVatReportContent(session){
     <div class="box" style="max-width:none;">
       <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;">
         <h2 style="margin:0;">KDV Oranlarına Göre · ${escapeHtml(reportDateRangeLabel())}</h2>
-        <button type="button" class="ghost-btn" style="width:auto;margin:0;" onclick="exportVatReportCsv()">⬇️ Dışa aktar</button>
+        <button type="button" class="ghost-btn" style="width:auto;margin:0;" ${act('exportVatReportCsv')}>⬇️ Dışa aktar</button>
       </div>
       <div class="settings-table-wrap" style="margin-top:10px;"><table class="settings-table">
         <thead><tr><th>KDV Oranı</th><th>KDV Dahil Tutar</th><th>Matrah</th><th>KDV</th></tr></thead>
@@ -1062,3 +1062,8 @@ function exportVatReportCsv(){
   rows.push(['Toplam', n((d.rates||[]).reduce((s, r) => s + Number(r.gross), 0)), n(d.base_total), n(d.vat_total)]);
   if(typeof downloadCsv === 'function') downloadCsv('kdv-' + d.from + (d.to !== d.from ? '_' + d.to : '') + '.csv', rows);
 }
+
+function setReportsGateScreen(s){ APP.reportsGateScreen = s; renderReportsGate(document.getElementById('main'), getSession()); }
+function setReportBillsFilter(k, v){ APP.reportBillsFilter[k] = v; renderReportTabContent(getSession()); }
+function resetReportBillsFilter(){ APP.reportBillsFilter = { hour:'', table:'', method:'', source:'' }; renderReportTabContent(getSession()); }
+function setProductStatsOpt(k, v){ APP[k] = v; renderProductStatsContent(getSession()); }
