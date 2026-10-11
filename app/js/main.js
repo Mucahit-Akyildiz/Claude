@@ -29,8 +29,8 @@ function pushReminderBannerHtml(){
     : '🔔 Bildirimler kapalı! Geciken sipariş ve müşteri istekleri gibi önemli uyarıları, hangi ekranda olursanız olun (hatta uygulama kapalıyken bile) kaçırmamak için bildirimleri açın.';
   return `<div class="push-reminder-banner" style="background:rgba(234,179,8,.12);border:1px solid #eab308;border-radius:10px;padding:10px 14px;margin-bottom:12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
     <span style="flex:1;min-width:200px;font-size:13px;">${msg}</span>
-    ${denied ? '' : `<button type="button" style="width:auto;margin:0;padding:8px 14px;font-size:13px;" onclick="togglePushNotifications()">Bildirimleri Aç</button>`}
-    <span style="cursor:pointer;color:var(--muted);font-size:16px;" onclick="dismissPushBanner()" title="Bu oturum için kapat">✕</span>
+    ${denied ? '' : `<button type="button" style="width:auto;margin:0;padding:8px 14px;font-size:13px;" ${act('togglePushNotifications')}>Bildirimleri Aç</button>`}
+    <span style="cursor:pointer;color:var(--muted);font-size:16px;" ${act('dismissPushBanner')} title="Bu oturum için kapat">✕</span>
   </div>`;
 }
 function dismissPushBanner(){ APP.pushBannerDismissed = true; render(); }
@@ -47,7 +47,7 @@ function renderShiftGate(main){
     <div style="font-size:54px;">🕒</div>
     <h2 style="margin:8px 0;">Önce vardiyanızı başlatın</h2>
     <p class="muted">Bu işletmede çalışma ekranlarını kullanmak için açık bir vardiyanız olmalı.${st.approval_required ? ' Talebinizi gönderdiğiniz anda çalışmaya başlayabilirsiniz; yönetici sonradan onaylar.' : ''}</p>
-    <button type="button" style="max-width:280px;margin:14px auto 0;font-size:16px;" onclick="doClockToggle()">▶ ${st.approval_required ? 'Vardiya Başlatma İste' : 'Vardiyaya Başla'}</button>
+    <button type="button" style="max-width:280px;margin:14px auto 0;font-size:16px;" ${act('doClockToggle')}>▶ ${st.approval_required ? 'Vardiya Başlatma İste' : 'Vardiyaya Başla'}</button>
   </div>`;
 }
 function renderMainView(main, session){
@@ -99,40 +99,40 @@ function render(){
   app.innerHTML = `
     <div class="app-shell">
       <div class="mobile-topbar">
-        ${APP.view && APP.view!=='home' ? '<button class="mobile-menu-btn" onclick="goBack()" aria-label="Geri" title="Geri">←</button>' : ''}
-        <button class="mobile-menu-btn" id="mobileMenuBtn" onclick="toggleMobileNav()" aria-label="Menü" style="position:relative;">☰</button>
+        ${APP.view && APP.view!=='home' ? `<button class="mobile-menu-btn" ${act('goBack')} aria-label="Geri" title="Geri">←</button>` : ''}
+        <button class="mobile-menu-btn" id="mobileMenuBtn" ${act('toggleMobileNav')} aria-label="Menü" style="position:relative;">☰</button>
         <img src="/assets/images/logo.webp" alt="Peyktan" class="mobile-topbar-logo">
         <div class="mobile-topbar-title">${escapeHtml(session.restaurant_name)}</div>
-        <button class="mobile-menu-btn" onclick="refreshApp()" aria-label="Yenile" title="Yenile">↻</button>
+        <button class="mobile-menu-btn" ${act('refreshApp')} aria-label="Yenile" title="Yenile">↻</button>
       </div>
-      <div class="sidebar-backdrop ${APP.mobileNavOpen?'show':''}" onclick="closeMobileNav()"></div>
+      <div class="sidebar-backdrop ${APP.mobileNavOpen?'show':''}" ${act('closeMobileNav')}></div>
       <aside class="sidebar ${collapsed?'collapsed':''} ${APP.mobileNavOpen?'mobile-open':''}">
         <div class="app-brand-row"><img src="/assets/images/logo.webp" alt="Peyktan" class="app-brand-logo"><span class="app-brand-text">Peyktan</span></div>
         <div class="sb-top">
-          <div class="sb-brand" onclick="goHome()"><span class="label">${escapeHtml(session.restaurant_name)}</span></div>
-          <button class="sb-collapse-btn" onclick="toggleSidebar()" title="Menüyü daralt/genişlet">${collapsed?'»':'«'}</button>
-          <button class="sb-mobile-close" onclick="closeMobileNav()" aria-label="Menüyü kapat">✕</button>
+          <div class="sb-brand" ${act('goHome')}><span class="label">${escapeHtml(session.restaurant_name)}</span></div>
+          <button class="sb-collapse-btn" ${act('toggleSidebar')} title="Menüyü daralt/genişlet">${collapsed?'»':'«'}</button>
+          <button class="sb-mobile-close" ${act('closeMobileNav')} aria-label="Menüyü kapat">✕</button>
         </div>
         <div class="sb-user">
           <div class="name">${escapeHtml(session.username)}</div>
           <div class="role">${escapeHtml((session.role_names||[]).join(' + ') || '')}</div>
-          <a href="#" class="label" style="font-size:11px;color:var(--muted);text-decoration:underline;" onclick="openDeleteAccountModal();return false;">Hesabımı Sil</a>
+          <button type="button" class="label" style="font-size:11px;color:var(--muted);text-decoration:underline;background:none;border:0;box-shadow:none;padding:0;margin:0;width:auto;cursor:pointer;" ${act('openDeleteAccountModal')}>Hesabımı Sil</button>
         </div>
         <nav>
-          ${items.map(i => `<div class="sb-item ${APP.view===i.view?'active':''}" data-view="${i.view}" onclick="goToView('${i.view}')" title="${i.label}"><span class="ic">${i.icon}</span><span class="label">${i.label}</span></div>`).join('')}
+          ${items.map(i => `<div class="sb-item ${APP.view===i.view?'active':''}" data-view="${i.view}" ${act('goToView', i.view)} title="${i.label}"><span class="ic">${i.icon}</span><span class="label">${i.label}</span></div>`).join('')}
         </nav>
         <div class="sb-bottom">
           <div id="shiftWidget" class="shift-widget">${shiftWidgetHtml()}</div>
-          ${getCompanySession() ? '<button class="sb-logout" onclick="returnToCompanyPanel()" title="Şirket paneline dön">🏢<span class="label"> Şirkete Dön</span></button>' : ''}
+          ${getCompanySession() ? `<button class="sb-logout" ${act('returnToCompanyPanel')} title="Şirket paneline dön">🏢<span class="label"> Şirkete Dön</span></button>` : ''}
           <div class="theme-toggle">
-            <button class="${theme==='dark'?'active':''}" onclick="setTheme('dark')" type="button">🌙 <span class="label">Koyu</span></button>
-            <button class="${theme==='light'?'active':''}" onclick="setTheme('light')" type="button">☀️ <span class="label">Açık</span></button>
+            <button class="${theme==='dark'?'active':''}" ${act('setTheme', 'dark')} type="button">🌙 <span class="label">Koyu</span></button>
+            <button class="${theme==='light'?'active':''}" ${act('setTheme', 'light')} type="button">☀️ <span class="label">Açık</span></button>
           </div>
-          <button class="sb-logout" onclick="refreshApp()" title="Yenile (son değişiklikleri getir)">🔄<span class="label"> Yenile</span></button>
-          <button class="sb-logout" onclick="doLogout()" title="Çıkış Yap">🚪<span class="label"> Çıkış Yap</span></button>
+          <button class="sb-logout" ${act('refreshApp')} title="Yenile (son değişiklikleri getir)">🔄<span class="label"> Yenile</span></button>
+          <button class="sb-logout" ${act('doLogout')} title="Çıkış Yap">🚪<span class="label"> Çıkış Yap</span></button>
         </div>
       </aside>
-      <div class="content-area"><div class="content-inner ${(['settings','reports','reservations','crm','purchasing'].includes(APP.view))?'content-inner-wide':''}">${pushReminderBannerHtml()}${APP.view && APP.view!=='home' ? '<button type="button" class="back-link" onclick="goBack()">← Geri</button>' : ''}<main id="main"></main></div></div>
+      <div class="content-area"><div class="content-inner ${(['settings','reports','reservations','crm','purchasing'].includes(APP.view))?'content-inner-wide':''}">${pushReminderBannerHtml()}${APP.view && APP.view!=='home' ? `<button type="button" class="back-link" ${act('goBack')}>← Geri</button>` : ''}<main id="main"></main></div></div>
     </div>`;
   const main = document.getElementById('main');
   renderMainView(main, session);

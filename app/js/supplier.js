@@ -8,8 +8,8 @@ async function renderPurchasingView(main, session){
   else if(!canSuppliers) APP.purchTab = 'orders';
   main.innerHTML = `<h1>Tedarikçi & Satın Alma</h1>
     <div class="tabs" id="purchTabs">
-      ${canOrders ? `<div class="tab ${(APP.purchTab||'orders')==='orders'?'active':''}" data-tab="orders" onclick="setPurchTab('orders')">Satın Alma Siparişleri</div>` : ''}
-      ${canSuppliers ? `<div class="tab ${APP.purchTab==='suppliers'?'active':''}" data-tab="suppliers" onclick="setPurchTab('suppliers')">Tedarikçiler</div>` : ''}
+      ${canOrders ? `<div class="tab ${(APP.purchTab||'orders')==='orders'?'active':''}" data-tab="orders" ${act('setPurchTab', 'orders')}>Satın Alma Siparişleri</div>` : ''}
+      ${canSuppliers ? `<div class="tab ${APP.purchTab==='suppliers'?'active':''}" data-tab="suppliers" ${act('setPurchTab', 'suppliers')}>Tedarikçiler</div>` : ''}
     </div>
     <div id="purchContent"></div>`;
   applyNavBadges();
@@ -43,8 +43,8 @@ async function renderSuppliersContent(session){
           <td>${escapeHtml(s.email||'-')}</td>
           <td>${escapeHtml(s.address||'-')}</td>
           <td>
-            <button class="sbtn" onclick="editSupplier('${s.id}')">Düzenle</button>
-            <button type="button" class="act-btn act-delete" onclick="removeSupplier('${s.id}')">${ICON_TRASH}<span>Sil</span></button>
+            <button class="sbtn" ${act('editSupplier', s.id)}>Düzenle</button>
+            <button type="button" class="act-btn act-delete" ${act('removeSupplier', s.id)}>${ICON_TRASH}<span>Sil</span></button>
           </td>
         </tr>`).join('')}
       ${rows.length===0?'<tr><td colspan="5" class="muted" style="text-align:center;">Tedarikçi yok.</td></tr>':''}
@@ -59,7 +59,7 @@ async function renderSuppliersContent(session){
         <div class="field-group" style="${fgStyle(130)}"><label>Telefon</label><input id="sup_phone" placeholder="opsiyonel" style="margin:0;"></div>
         <div class="field-group" style="${fgStyle(160)}"><label>E-posta</label><input id="sup_email" placeholder="opsiyonel" style="margin:0;"></div>
         <div class="field-group" style="${fgStyle(200, 2)}"><label>Adres</label><input id="sup_address" placeholder="opsiyonel" style="margin:0;"></div>
-        <button style="${INLINE_BTN}" onclick="saveSupplier()">${ICON_SAVE}<span>Kaydet</span></button>
+        <button style="${INLINE_BTN}" ${act('saveSupplier')}>${ICON_SAVE}<span>Kaydet</span></button>
       </div>
     </div>
   </div>`;
@@ -141,8 +141,8 @@ async function renderPurchaseOrdersContent(session){
           <td>${p.expected_date||'-'}</td>
           <td>${money(p.total_amount)}</td>
           <td>
-            ${canManage && p.status!=='received' && p.status!=='cancelled' ? `<button class="sbtn" onclick="openReceivePOModal('${p.id}')">Teslim Al</button>` : ''}
-            ${ownDraft(p) ? `<button class="sbtn" onclick="markPOOrdered('${p.id}')">Sipariş Ver</button><button type="button" class="act-btn act-delete" onclick="removePO('${p.id}')">${ICON_TRASH}<span>Sil</span></button>` : ''}
+            ${canManage && p.status!=='received' && p.status!=='cancelled' ? `<button class="sbtn" ${act('openReceivePOModal', p.id)}>Teslim Al</button>` : ''}
+            ${ownDraft(p) ? `<button class="sbtn" ${act('markPOOrdered', p.id)}>Sipariş Ver</button><button type="button" class="act-btn act-delete" ${act('removePO', p.id)}>${ICON_TRASH}<span>Sil</span></button>` : ''}
           </td>
         </tr>`).join('')}
       ${rows.length===0?'<tr><td colspan="6" class="muted" style="text-align:center;">Sipariş yok.</td></tr>':''}
@@ -155,8 +155,8 @@ async function renderPurchaseOrdersContent(session){
         <div class="field-group" style="${fgStyle(180, 2)}"><label>Tedarikçi</label><select id="po_supplier" style="margin:0;"><option value="">-</option>${suppliers.map(s => `<option value="${s.id}">${escapeHtml(s.name)}</option>`).join('')}</select></div>
         <div class="field-group" style="${fgStyle(140)}"><label>Beklenen Tarih</label><input id="po_expected" type="date" style="margin:0;"></div>
         <div class="field-group" style="${fgStyle(200, 2)}"><label>Not</label><input id="po_notes" placeholder="opsiyonel" style="margin:0;"></div>
-        <button type="button" class="ghost-btn" style="${INLINE_BTN}" onclick="addPoDraftItemRow()">+ Hammadde Ekle</button>
-        <button style="${INLINE_BTN}" onclick="createPurchaseOrder()">Sipariş Oluştur</button>
+        <button type="button" class="ghost-btn" style="${INLINE_BTN}" ${act('addPoDraftItemRow')}>+ Hammadde Ekle</button>
+        <button style="${INLINE_BTN}" ${act('createPurchaseOrder')}>Sipariş Oluştur</button>
       </div>
       <div id="poItemsWrap" style="margin-top:10px;">${renderPoDraftItemsHtml()}</div>
     </div>
@@ -167,12 +167,12 @@ function renderPoDraftItemsHtml(){
   if(APP.poDraftItems.length===0) return '<p class="muted" style="font-size:13px;">Henüz hammadde eklenmedi.</p>';
   return APP.poDraftItems.map((it, idx) => `
     <div style="display:grid;grid-template-columns:1fr 100px 100px 32px;gap:8px;align-items:center;margin-bottom:6px;">
-      <select onchange="APP.poDraftItems[${idx}].ingredient_id=this.value">
+      <select ${actOn('change','setPoDraftField',[idx,'ingredient_id','$value'])}>
         ${ingredients.map(ig => `<option value="${ig.id}" ${it.ingredient_id===ig.id?'selected':''}>${escapeHtml(ig.name)} (${escapeHtml(ig.unit)})</option>`).join('')}
       </select>
-      <input type="number" min="0" step="0.01" placeholder="Miktar" value="${it.quantity||''}" oninput="APP.poDraftItems[${idx}].quantity=this.value">
-      <input type="number" min="0" step="0.01" placeholder="Birim Fiyat" value="${it.unit_cost||''}" oninput="APP.poDraftItems[${idx}].unit_cost=this.value">
-      <button type="button" class="qty-btn" onclick="removePoDraftItemRow(${idx})">✕</button>
+      <input type="number" min="0" step="0.01" placeholder="Miktar" value="${it.quantity||''}" ${actOn('input','setPoDraftField',[idx,'quantity','$value'])}>
+      <input type="number" min="0" step="0.01" placeholder="Birim Fiyat" value="${it.unit_cost||''}" ${actOn('input','setPoDraftField',[idx,'unit_cost','$value'])}>
+      <button type="button" class="qty-btn" ${act('removePoDraftItemRow', idx)}>✕</button>
     </div>`).join('');
 }
 function addPoDraftItemRow(){
@@ -224,7 +224,7 @@ async function openReceivePOModal(id){
   bg.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:100;padding:16px;';
   bg.onclick = (e) => { if(e.target===bg) bg.remove(); };
   bg.innerHTML = `<div style="background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:20px;max-width:420px;width:100%;max-height:88vh;overflow:auto;">
-    <div style="display:flex;justify-content:space-between;"><h2 style="margin:0;">Teslim Al</h2><span style="cursor:pointer;color:var(--muted);" onclick="document.getElementById('receivePOModalBg').remove()">✕</span></div>
+    <div style="display:flex;justify-content:space-between;"><h2 style="margin:0;">Teslim Al</h2><span style="cursor:pointer;color:var(--muted);" ${act('removeEl','receivePOModalBg')}>✕</span></div>
     <div id="receivePOItemsWrap" style="margin-top:10px;">
     ${items.map(it => `
       <div style="padding:8px 0;border-bottom:1px solid var(--border);">
@@ -232,7 +232,7 @@ async function openReceivePOModal(id){
         <input type="number" min="0" step="0.01" max="${it.quantity - it.received_quantity}" placeholder="Teslim alınan miktar" data-item-id="${it.id}" class="recv-qty-input" style="margin-top:4px;">
       </div>`).join('')}
     </div>
-    <button style="margin-top:12px;" onclick="confirmReceivePO()">Teslim Alındı Olarak Kaydet</button>
+    <button style="margin-top:12px;" ${act('confirmReceivePO')}>Teslim Alındı Olarak Kaydet</button>
   </div>`;
   document.body.appendChild(bg);
 }
@@ -250,3 +250,5 @@ async function confirmReceivePO(){
   renderPurchaseOrdersContent(session);
   showToast('Teslim alındı, stok güncellendi ✓');
 }
+
+function setPoDraftField(idx, field, v){ if(APP.poDraftItems[idx]) APP.poDraftItems[idx][field] = v; }
