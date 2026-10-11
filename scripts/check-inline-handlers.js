@@ -1,17 +1,22 @@
-// Güvenlik politikasından 'unsafe-inline'ı kaldırma çalışması: satır içi olay kodu (onclick="..." vb.)
-// sayacı. CLEAN listesindeki dosyalarda hiç olmamalı; diğerleri için kalan sayı raporlanır.
-// Yeni kod act()/actOn() (app/js/utils.js) ile yazılmalı.
+// Güvenlik politikası (vercel.json) satır içi JavaScript'e izin vermez ('unsafe-inline' yok).
+// Bu kontrol, sayfalara satır içi olay kodu (onclick="..." vb.) ya da src'siz <script>
+// bloğu girmesini engeller. Yeni kod act()/actOn() (assets/js/act.js) ile yazılmalı.
 const fs = require('fs');
-const CLEAN = ['app/js/radio.js', 'app/js/help.js', 'app/js/pos-escpos.js', 'app/js/pos-push.js', 'app/js/crm.js', 'app/js/pos-packages.js', 'app/js/pos-kitchen.js', 'app/js/supplier.js', 'app/js/main.js', 'app/js/reservations.js', 'app/js/auth-screens.js', 'app/js/pos-printer.js', 'app/js/financial.js', 'app/js/messages.js', 'app/js/pos-payments.js', 'app/js/admin-panel.js', 'app/js/settings.js', 'app/js/utils.js'];
-const FILES = fs.readdirSync('app/js').filter((f) => f.endsWith('.js')).map((f) => 'app/js/' + f)
-  .concat(['app/index.html', 'index.html', 'siparis/index.html', 'menu/index.html']);
+const path = require('path');
+const HTML = ['app/index.html', 'index.html', 'siparis/index.html', 'menu/index.html', 'hesap-silme/index.html', 'gizlilik/index.html'];
+const JS_DIRS = ['app/js', 'assets/js', 'siparis', 'menu', 'hesap-silme'];
+const FILES = JS_DIRS.flatMap((d) => fs.readdirSync(d).filter((f) => f.endsWith('.js')).map((f) => path.join(d, f))).concat(HTML);
 const RE = /\bon(click|change|input|submit|keydown|keyup|blur|focus|load|error|mouseover|mouseout|pointerdown|touchstart|dragstart|drop|dragover|paste|dblclick|mousedown|mouseup|contextmenu)\s*=\s*["']/g;
-let total = 0, bad = [];
+const INLINE_SCRIPT = /<script(?![^>]*\bsrc=)[^>]*>/gi;
+let bad = [];
 for (const f of FILES) {
-  const n = (fs.readFileSync(f, 'utf8').match(RE) || []).length;
-  total += n;
-  if (n && CLEAN.includes(f)) bad.push(f + ': ' + n);
-  if (n) console.log(String(n).padStart(4), f);
+  const s = fs.readFileSync(f, 'utf8');
+  const n = (s.match(RE) || []).length;
+  if (n) bad.push(`${f}: ${n} satır içi olay kodu`);
+  if (f.endsWith('.html')) {
+    const k = (s.match(INLINE_SCRIPT) || []).length;
+    if (k) bad.push(`${f}: ${k} src'siz <script> bloğu`);
+  }
 }
-console.log('Toplam kalan satır içi olay kodu:', total);
-if (bad.length) { console.error('Temizlenmiş dosyalarda satır içi kod var (act() kullanın):\n' + bad.join('\n')); process.exit(1); }
+if (bad.length) { console.error('Güvenlik politikası satır içi JavaScript\'i engeller (act() kullanın, kodu .js dosyasına taşıyın):\n' + bad.join('\n')); process.exit(1); }
+console.log(FILES.length + ' dosya kontrol edildi: satır içi JavaScript yok.');
