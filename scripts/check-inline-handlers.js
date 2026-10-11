@@ -2,7 +2,7 @@
 // sayacı. CLEAN listesindeki dosyalarda hiç olmamalı; diğerleri için kalan sayı raporlanır.
 // Yeni kod act()/actOn() (app/js/utils.js) ile yazılmalı.
 const fs = require('fs');
-const CLEAN = ['app/js/radio.js', 'app/js/help.js', 'app/js/pos-escpos.js', 'app/js/pos-push.js', 'app/js/crm.js', 'app/js/pos-packages.js', 'app/js/pos-kitchen.js', 'app/js/supplier.js', 'app/js/main.js', 'app/js/reservations.js', 'app/js/auth-screens.js', 'app/js/pos-printer.js', 'app/js/financial.js', 'app/js/messages.js'];
+const CLEAN = ['app/js/radio.js', 'app/js/help.js', 'app/js/pos-escpos.js', 'app/js/pos-push.js', 'app/js/crm.js', 'app/js/pos-packages.js', 'app/js/pos-kitchen.js', 'app/js/supplier.js', 'app/js/main.js', 'app/js/reservations.js', 'app/js/auth-screens.js', 'app/js/pos-printer.js', 'app/js/financial.js', 'app/js/messages.js', 'app/js/pos-payments.js', 'app/js/admin-panel.js'];
 const FILES = fs.readdirSync('app/js').filter((f) => f.endsWith('.js')).map((f) => 'app/js/' + f)
   .concat(['app/index.html', 'index.html', 'siparis/index.html', 'menu/index.html']);
 const RE = /\bon(click|change|input|submit|keydown|keyup|blur|focus|load|error|mouseover|mouseout|pointerdown|touchstart|dragstart|drop|dragover|paste|dblclick|mousedown|mouseup|contextmenu)\s*=\s*["']/g;
