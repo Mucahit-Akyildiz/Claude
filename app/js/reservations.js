@@ -9,8 +9,8 @@ async function renderReservationsView(main, session){
   APP.waitlistCache = null;
   main.innerHTML = `<h1>Rezervasyonlar</h1>
     <div class="tabs" id="resvTabs">
-      <div class="tab ${(APP.resvTab||'reservations')==='reservations'?'active':''}" data-tab="reservations" onclick="setResvTab('reservations')">Rezervasyonlar</div>
-      <div class="tab ${APP.resvTab==='waitlist'?'active':''}" data-tab="waitlist" onclick="setResvTab('waitlist')">Bekleme Listesi</div>
+      <div class="tab ${(APP.resvTab||'reservations')==='reservations'?'active':''}" data-tab="reservations" ${act('setResvTab', 'reservations')}>Rezervasyonlar</div>
+      <div class="tab ${APP.resvTab==='waitlist'?'active':''}" data-tab="waitlist" ${act('setResvTab', 'waitlist')}>Bekleme Listesi</div>
     </div>
     <div id="resvContent"></div>`;
   await renderResvTabContent(session);
@@ -55,10 +55,10 @@ async function renderReservationsContent(session, forceRefresh){
           <td>${r.party_size}</td>
           <td>${new Date(r.reservation_time).toLocaleString('tr-TR',{dateStyle:'short',timeStyle:'short'})}</td>
           <td>${escapeHtml(r.table_name||'-')}</td>
-          <td><select onchange="changeReservationStatus('${r.id}',this.value)">
+          <td><select ${actOn('change','changeReservationStatus',[r.id, '$value'])}>
             ${Object.keys(RESV_STATUS_LABELS).map(s => `<option value="${s}" ${r.status===s?'selected':''}>${RESV_STATUS_LABELS[s]}</option>`).join('')}
           </select></td>
-          <td><button type="button" class="act-btn act-delete" onclick="removeReservation('${r.id}')">${ICON_TRASH}<span>Sil</span></button></td>
+          <td><button type="button" class="act-btn act-delete" ${act('removeReservation', r.id)}>${ICON_TRASH}<span>Sil</span></button></td>
         </tr>`).join('')}
       ${rows.length===0?'<tr><td colspan="7" class="muted" style="text-align:center;">Bekleyen ya da onaylı rezervasyon yok.</td></tr>':''}
       </tbody>
@@ -67,14 +67,14 @@ async function renderReservationsContent(session, forceRefresh){
     <div class="add-row-panel">
       <p>Yeni Rezervasyon</p>
       <div style="${INLINE_ROW}">
-        <div class="field-group" style="${fgStyle(170, 2)}"><label>Müşteri Adı</label><input style="margin:0;" id="rvCustName" placeholder="Ad veya kayıtlı müşteri ara" autocomplete="off" oninput="tableCustSearch(this.value, 'rvCust')"></div>
-        <div class="field-group" style="${fgStyle(130)}"><label>Telefon</label><input style="margin:0;" id="rvCustPhone" placeholder="05xx..." inputmode="tel" autocomplete="off" oninput="tableCustSearch(this.value, 'rvCust')"></div>
+        <div class="field-group" style="${fgStyle(170, 2)}"><label>Müşteri Adı</label><input style="margin:0;" id="rvCustName" placeholder="Ad veya kayıtlı müşteri ara" autocomplete="off" ${actOn('input','tableCustSearch',['$value', 'rvCust'])}></div>
+        <div class="field-group" style="${fgStyle(130)}"><label>Telefon</label><input style="margin:0;" id="rvCustPhone" placeholder="05xx..." inputmode="tel" autocomplete="off" ${actOn('input','tableCustSearch',['$value', 'rvCust'])}></div>
         <div class="field-group" style="${fgStyle(160)}"><label>E-posta (hatırlatma)</label><input style="margin:0;" id="rvCustEmail" type="email" placeholder="opsiyonel" autocapitalize="none"></div>
         <div class="field-group" style="${fgStyle(70)}"><label>Kişi</label><input style="margin:0;" id="rv_party" type="number" min="1" value="2"></div>
         <div class="field-group" style="${fgStyle(190)}"><label>Tarih & Saat</label><input style="margin:0;" id="rv_time" type="datetime-local"></div>
         <div class="field-group" style="${fgStyle(120)}"><label>Masa (opsiyonel)</label><select style="margin:0;" id="rv_table"><option value="">-</option>${allTables.map(t => `<option value="${t.id}">${escapeHtml(t.name)}</option>`).join('')}</select></div>
         <div class="field-group" style="${fgStyle(160, 2)}"><label>Not</label><input style="margin:0;" id="rv_notes" placeholder="opsiyonel"></div>
-        <button style="${INLINE_BTN}" onclick="addReservation()">+ Rezervasyon Ekle</button>
+        <button style="${INLINE_BTN}" ${act('addReservation')}>+ Rezervasyon Ekle</button>
       </div>
       <div id="rvCustSuggest"></div>
     </div>
@@ -82,7 +82,7 @@ async function renderReservationsContent(session, forceRefresh){
   <div class="box" style="max-width:none;margin-top:18px;">
     <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;">
       <h2 style="margin:0;">Geçmiş</h2>
-      <input type="date" id="rvHistDate" value="${APP.rvHistDate || todayLocalDateStr()}" style="width:auto;margin:0;" onchange="APP.rvHistDate=this.value;renderReservationHistory()">
+      <input type="date" id="rvHistDate" value="${APP.rvHistDate || todayLocalDateStr()}" style="width:auto;margin:0;" ${actOn('change','setRvHistDate',['$value'])}>
     </div>
     <div id="rvHistWrap" style="margin-top:12px;"><p class="muted">Yükleniyor…</p></div>
   </div>`;
@@ -118,7 +118,7 @@ async function renderReservationHistory(){
           <td>${result}</td>
           <td>${r.table_name ? `<b>${escapeHtml(r.table_name)}</b>` : '<span class="muted">—</span>'}</td>
           <td>${diffTxt}</td>
-          <td><button type="button" class="sbtn" style="width:auto;margin:0;" title="Yaklaşan rezervasyonlara geri al" onclick="changeReservationStatus('${r.id}','confirmed')">↩ Geri Al</button></td>
+          <td><button type="button" class="sbtn" style="width:auto;margin:0;" title="Yaklaşan rezervasyonlara geri al" ${act('changeReservationStatus', r.id, 'confirmed')}>↩ Geri Al</button></td>
         </tr>`;
       }).join('')}</tbody>
     </table></div>`;
@@ -137,12 +137,12 @@ async function openSeatReservationModal(id){
   bg.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:100;padding:16px;';
   bg.onclick = (e) => { if(e.target===bg){ bg.remove(); renderReservationsContent(getSession()); } };
   bg.innerHTML = `<div style="background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:20px;max-width:380px;width:100%;">
-    <div style="display:flex;justify-content:space-between;"><h2 style="margin:0;">Masaya Oturt</h2><span style="cursor:pointer;color:var(--muted);" onclick="document.getElementById('seatResvModalBg').remove();renderReservationsContent(getSession())">✕</span></div>
+    <div style="display:flex;justify-content:space-between;"><h2 style="margin:0;">Masaya Oturt</h2><span style="cursor:pointer;color:var(--muted);" ${act('closeSeatResvModal')}>✕</span></div>
     <p class="muted" style="text-align:left;margin:8px 0 12px;"><b>${escapeHtml(r.customer_name)}</b> · ${r.party_size} kişi${r.phone ? ' · ' + escapeHtml(r.phone) : ''}</p>
     <div class="field-group"><label>Masa</label><select id="seatResvTable">
       ${tables.map(t => `<option value="${t.id}" ${t.id===r.table_id?'selected':''}>${escapeHtml(t.zone)} · ${escapeHtml(t.name)}${busy.has(t.id)?' (dolu)':''}</option>`).join('')}
     </select></div>
-    <button style="margin-top:12px;" onclick="confirmSeatReservation('${id}')">✓ Masaya Oturt</button>
+    <button style="margin-top:12px;" ${act('confirmSeatReservation', id)}>✓ Masaya Oturt</button>
   </div>`;
   document.body.appendChild(bg);
 }
@@ -216,11 +216,11 @@ async function renderWaitlistContent(session, forceRefresh){
           <td><span class="waitlist-timer" data-joined="${w.joined_at}" data-quoted="${w.quoted_wait_minutes||''}">-</span></td>
           <td style="white-space:nowrap;">${new Date(w.joined_at).toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'})}${w.quoted_wait_minutes!=null ? `<div style="font-size:12px;color:var(--accent);font-weight:700;" title="Tahmini masa saati (katılım + bekleme süresi)">⏱ ${new Date(new Date(w.joined_at).getTime() + w.quoted_wait_minutes*60000).toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'})}</div>` : ''}</td>
           <td>
-            ${w.phone ? `<button class="sbtn" title="Müşteriye 'Masanız hazır' SMS'i gönder" onclick="notifyWaitlistReady('${w.id}')">📱 Masa Hazır</button>` : ''}
-            <button class="sbtn" title="Kalan bekleme süresini güncelle${w.email ? ' - müşteriye e-posta gider' : ''}" onclick="updateWaitlistWait('${w.id}')">⏱ Süre</button>
-            <button class="sbtn" title="Beklerken sipariş al - mutfağa hemen düşer" onclick="openWaitlistOrderModal('${w.id}')">🍽️ Sipariş${(APP.liveOrders||[]).some(o => o.kind==='waitlist' && o.waitlist_id===w.id) ? ' ✓' : ''}</button>
-            <button class="sbtn" onclick="openSeatWaitlistModal('${w.id}')">Oturdu</button>
-            <button class="sbtn" style="background:var(--red);color:var(--btn-ink);" onclick="changeWaitlistStatus('${w.id}','cancelled')">İptal</button>
+            ${w.phone ? `<button class="sbtn" title="Müşteriye 'Masanız hazır' SMS'i gönder" ${act('notifyWaitlistReady', w.id)}>📱 Masa Hazır</button>` : ''}
+            <button class="sbtn" title="Kalan bekleme süresini güncelle${w.email ? ' - müşteriye e-posta gider' : ''}" ${act('updateWaitlistWait', w.id)}>⏱ Süre</button>
+            <button class="sbtn" title="Beklerken sipariş al - mutfağa hemen düşer" ${act('openWaitlistOrderModal', w.id)}>🍽️ Sipariş${(APP.liveOrders||[]).some(o => o.kind==='waitlist' && o.waitlist_id===w.id) ? ' ✓' : ''}</button>
+            <button class="sbtn" ${act('openSeatWaitlistModal', w.id)}>Oturdu</button>
+            <button class="sbtn" style="background:var(--red);color:var(--btn-ink);" ${act('changeWaitlistStatus', w.id, 'cancelled')}>İptal</button>
           </td>
         </tr>`).join('')}
       ${rows.length===0?'<tr><td colspan="6" class="muted" style="text-align:center;">Bekleyen müşteri yok.</td></tr>':''}
@@ -230,12 +230,12 @@ async function renderWaitlistContent(session, forceRefresh){
     <div class="add-row-panel">
       <p>Bekleme Listesine Ekle</p>
       <div style="${INLINE_ROW}">
-        <div class="field-group" style="${fgStyle(170, 2)}"><label>Müşteri Adı</label><input style="margin:0;" id="wlCustName" placeholder="Ad veya kayıtlı müşteri ara" autocomplete="off" oninput="tableCustSearch(this.value, 'wlCust')"></div>
-        <div class="field-group" style="${fgStyle(130)}"><label>Telefon</label><input style="margin:0;" id="wlCustPhone" placeholder="05xx..." inputmode="tel" autocomplete="off" oninput="tableCustSearch(this.value, 'wlCust')"></div>
+        <div class="field-group" style="${fgStyle(170, 2)}"><label>Müşteri Adı</label><input style="margin:0;" id="wlCustName" placeholder="Ad veya kayıtlı müşteri ara" autocomplete="off" ${actOn('input','tableCustSearch',['$value', 'wlCust'])}></div>
+        <div class="field-group" style="${fgStyle(130)}"><label>Telefon</label><input style="margin:0;" id="wlCustPhone" placeholder="05xx..." inputmode="tel" autocomplete="off" ${actOn('input','tableCustSearch',['$value', 'wlCust'])}></div>
         <div class="field-group" style="${fgStyle(160)}"><label>E-posta (bildirim)</label><input style="margin:0;" id="wlCustEmail" type="email" placeholder="opsiyonel" autocapitalize="none"></div>
         <div class="field-group" style="${fgStyle(70)}"><label>Kişi</label><input style="margin:0;" id="wl_party" type="number" min="1" value="2"></div>
         <div class="field-group" style="${fgStyle(120)}"><label>Tahmini Bekleme (dk)</label><input style="margin:0;" id="wl_wait" type="number" min="0" placeholder="15"></div>
-        <button style="${INLINE_BTN}" onclick="addWaitlistEntry()">+ Ekle</button>
+        <button style="${INLINE_BTN}" ${act('addWaitlistEntry')}>+ Ekle</button>
       </div>
       <div id="wlCustSuggest"></div>
     </div>
@@ -243,7 +243,7 @@ async function renderWaitlistContent(session, forceRefresh){
   el.insertAdjacentHTML('beforeend', `<div class="box" style="max-width:none;margin-top:18px;">
     <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;">
       <h2 style="margin:0;">Geçmiş</h2>
-      <input type="date" id="wlHistDate" value="${APP.wlHistDate || todayLocalDateStr()}" style="width:auto;margin:0;" onchange="APP.wlHistDate=this.value;renderWaitlistHistory()">
+      <input type="date" id="wlHistDate" value="${APP.wlHistDate || todayLocalDateStr()}" style="width:auto;margin:0;" ${actOn('change','setWlHistDate',['$value'])}>
     </div>
     <div id="wlHistWrap" style="margin-top:12px;"><p class="muted">Yükleniyor…</p></div>
   </div>`);
@@ -299,12 +299,12 @@ async function openSeatWaitlistModal(id){
   bg.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:100;padding:16px;';
   bg.onclick = (e) => { if(e.target===bg) bg.remove(); };
   bg.innerHTML = `<div style="background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:20px;max-width:380px;width:100%;">
-    <div style="display:flex;justify-content:space-between;"><h2 style="margin:0;">Masaya Oturt</h2><span style="cursor:pointer;color:var(--muted);" onclick="document.getElementById('seatWlModalBg').remove()">✕</span></div>
+    <div style="display:flex;justify-content:space-between;"><h2 style="margin:0;">Masaya Oturt</h2><span style="cursor:pointer;color:var(--muted);" ${act('removeEl','seatWlModalBg')}>✕</span></div>
     <p class="muted" style="text-align:left;margin:8px 0 12px;"><b>${escapeHtml(w.customer_name)}</b> · ${w.party_size} kişi${w.phone ? ' · ' + escapeHtml(w.phone) : ''}</p>
     <div class="field-group"><label>Masa</label><select id="seatWlTable">
       ${tables.map(t => `<option value="${t.id}" ${busy.has(t.id)?'':''}>${escapeHtml(t.zone)} · ${escapeHtml(t.name)}${busy.has(t.id)?' (dolu)':''}</option>`).join('')}
     </select></div>
-    <button style="margin-top:12px;" onclick="confirmSeatWaitlist('${id}')">✓ Masaya Oturt</button>
+    <button style="margin-top:12px;" ${act('confirmSeatWaitlist', id)}>✓ Masaya Oturt</button>
   </div>`;
   document.body.appendChild(bg);
   // İlk boş masayı seç.
@@ -402,3 +402,7 @@ async function changeWaitlistStatus(id, status){
   if(error){ alert(error.message); return; }
   renderWaitlistContent(session, true);
 }
+
+function setRvHistDate(v){ APP.rvHistDate = v; renderReservationHistory(); }
+function setWlHistDate(v){ APP.wlHistDate = v; renderWaitlistHistory(); }
+function closeSeatResvModal(){ removeEl('seatResvModalBg'); renderReservationsContent(getSession()); }

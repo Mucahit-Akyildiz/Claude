@@ -234,9 +234,13 @@ function removeEl(id){ const el = document.getElementById(id); if(el) el.remove(
     const fn = window[el.getAttribute(`data-${ev}`)];
     if(typeof fn !== 'function') return;
     if(el.hasAttribute(`data-${ev}-stop`)) e.stopPropagation();
-    if(ev === 'submit') e.preventDefault();
+    if(ev === 'submit' || (el.tagName === 'A' && el.getAttribute('href') === '#')) e.preventDefault();
     let args = [];
     try{ args = JSON.parse(el.getAttribute(`data-${ev}-args`) || '[]'); }catch(_){}
     fn.apply(el, args.map(a => resolveArg(a, el, e)));
   }));
 })();
+
+// Biçim araç çubuğu gibi butonlarda tıklanınca odak (seçili metin) kaybolmasın.
+document.addEventListener('mousedown', (e) => { if(e.target && e.target.closest && e.target.closest('[data-keep-focus]')) e.preventDefault(); });
+function clearValue(el){ el.value = ''; }

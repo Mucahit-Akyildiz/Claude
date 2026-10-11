@@ -25,7 +25,7 @@ function renderLoginScreen(app){
       <p class="muted">İşletme kodu, kullanıcı adı ve şifrenizle giriş yapın</p>
       ${odemeBanner}
       ${kickedBanner}
-      <form id="loginForm" onsubmit="doLogin();return false;" autocomplete="on">
+      <form id="loginForm" ${actOn('submit','doLogin',[])} autocomplete="on">
       <input id="codeInput" name="organization" autocomplete="organization" placeholder="İşletme kodu (örn. test123)" autocapitalize="none" value="${escapeAttr(lastLoginInfo().code)}">
       <input id="userInput" name="username" autocomplete="username" placeholder="Kullanıcı adı" autocapitalize="none" value="${escapeAttr(lastLoginInfo().username)}">
       <input id="passInput" name="password" type="password" autocomplete="current-password" placeholder="Şifre">
@@ -36,13 +36,13 @@ function renderLoginScreen(app){
       </form>
       <div class="error" id="errBox"></div>
       <p class="muted" style="text-align:center;margin-top:14px;font-size:13px;">
-        <a href="#" style="color:var(--accent);" onclick="APP.authScreen='forgot';APP.forgotStep=1;render();return false;">Şifremi Unuttum</a>
+        <a href="#" style="color:var(--accent);" ${act('openForgotPassword')}>Şifremi Unuttum</a>
       </p>
       <p class="muted" style="text-align:center;margin-top:2px;font-size:13px;">Yeni işletme misiniz?
-        <a href="#" style="color:var(--accent);" onclick="APP.authScreen='signup';render();return false;">Kayıt Ol / Paket Seç</a>
+        <a href="#" style="color:var(--accent);" ${act('setAuthScreen','signup')}>Kayıt Ol / Paket Seç</a>
       </p>
       <p class="muted" style="text-align:center;margin-top:2px;font-size:13px;">Şubeleri olan bir firma mısınız?
-        <a href="#" style="color:var(--accent);" onclick="APP.authScreen='companyLogin';render();return false;">🏢 Şirket Girişi</a>
+        <a href="#" style="color:var(--accent);" ${act('setAuthScreen','companyLogin')}>🏢 Şirket Girişi</a>
       </p>
     </div>
     </div>
@@ -61,10 +61,10 @@ function renderCompanyLoginScreen(app){
       <p class="muted">Birden fazla şubesi olan firmalar için - şirket kodu ve şifrenizle giriş yapın, ardından şubeler arasında geçiş yapabilirsiniz.</p>
       <input id="companyCodeInput" placeholder="Şirket kodu" autocapitalize="none">
       <input id="companyPassInput" type="password" placeholder="Şifre">
-      <button id="companyLoginBtn" onclick="doCompanyLogin()">Giriş Yap</button>
+      <button id="companyLoginBtn" ${act('doCompanyLogin')}>Giriş Yap</button>
       <div class="error" id="companyErrBox"></div>
       <p class="muted" style="text-align:center;margin-top:16px;font-size:13px;">
-        <a href="#" style="color:var(--accent);" onclick="APP.authScreen='login';render();return false;">← Normal Girişe Dön</a>
+        <a href="#" style="color:var(--accent);" ${act('setAuthScreen','login')}>← Normal Girişe Dön</a>
       </p>
     </div>
     </div>
@@ -108,10 +108,10 @@ async function renderCompanyPanel(app, companySession){
       <div class="brand">🏢 ${escapeHtml(companySession.company_name)}</div>
       <div class="right">
         <div class="theme-toggle" style="width:150px;background:var(--panel2);border:1px solid var(--border);">
-          <button class="${theme==='dark'?'active':''}" style="color:${theme==='dark'?'':'var(--muted)'};background:${theme==='dark'?'var(--accent)':'transparent'};box-shadow:none;" onclick="setTheme('dark')" type="button">🌙 Koyu</button>
-          <button class="${theme==='light'?'active':''}" style="color:${theme==='light'?'':'var(--muted)'};background:${theme==='light'?'var(--accent)':'transparent'};box-shadow:none;" onclick="setTheme('light')" type="button">☀️ Açık</button>
+          <button class="${theme==='dark'?'active':''}" style="color:${theme==='dark'?'':'var(--muted)'};background:${theme==='dark'?'var(--accent)':'transparent'};box-shadow:none;" ${act('setTheme', 'dark')} type="button">🌙 Koyu</button>
+          <button class="${theme==='light'?'active':''}" style="color:${theme==='light'?'':'var(--muted)'};background:${theme==='light'?'var(--accent)':'transparent'};box-shadow:none;" ${act('setTheme', 'light')} type="button">☀️ Açık</button>
         </div>
-        <button class="ghost-btn" onclick="doCompanyLogout()">Çıkış</button>
+        <button class="ghost-btn" ${act('doCompanyLogout')}>Çıkış</button>
       </div>
     </header>
     <div class="content-inner content-inner-wide">
@@ -164,20 +164,20 @@ async function renderCompanyPanelContent(companySession){
       <h2>Şubeler (${branches.length})</h2>
       <div class="table-grid">
         ${branches.map(b => `
-          <div class="table-cell" style="cursor:pointer;text-align:left;padding:14px;" onclick="enterBranch('${b.id}')">
+          <div class="table-cell" style="cursor:pointer;text-align:left;padding:14px;" ${act('enterBranch', b.id)}>
             <div style="font-weight:800;font-size:14px;overflow-wrap:anywhere;word-break:break-word;">${escapeHtml(b.name)}</div>
             <div class="muted" style="font-size:11px;margin-top:2px;">${escapeHtml(b.code)} · ${b.staff_count} personel</div>
             <div style="font-size:12px;margin-top:6px;color:var(--accent);font-weight:700;">${money(b.revenue_today)} (bugün)</div>
           </div>`).join('')}
         ${hasMultiBranch
-          ? `<div class="table-cell" style="cursor:pointer;display:flex;align-items:center;justify-content:center;" onclick="openCreateBranchModal()">➕<div style="font-size:11px;margin-top:4px;font-weight:400;">Yeni Şube Ekle</div></div>`
+          ? `<div class="table-cell" style="cursor:pointer;display:flex;align-items:center;justify-content:center;" ${act('openCreateBranchModal')}>➕<div style="font-size:11px;margin-top:4px;font-weight:400;">Yeni Şube Ekle</div></div>`
           : `<div class="table-cell" style="display:flex;flex-direction:column;align-items:center;justify-content:center;opacity:.65;cursor:default;text-align:center;padding:10px;" title="Birden fazla şube açma bir eklentidir">🔒<div style="font-size:11px;margin-top:4px;font-weight:400;">Şube Eklentisi Gerekli</div></div>`}
       </div>
     </div>
     <div class="box" style="max-width:none;">
       <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:10px;">
         <h2 style="margin:0;">Konsolide Satış Raporu</h2>
-        <select id="companyDashboardBranchSel" onchange="changeCompanyDashboardBranch(this.value)" style="max-width:220px;">
+        <select id="companyDashboardBranchSel" ${actOn('change','changeCompanyDashboardBranch',['$value'])} style="max-width:220px;">
           <option value="" ${!branchFilter?'selected':''}>Tüm Şubeler</option>
           ${branches.map(b => `<option value="${b.id}" ${branchFilter===b.id?'selected':''}>${escapeHtml(b.name)}</option>`).join('')}
         </select>
@@ -185,16 +185,16 @@ async function renderCompanyPanelContent(companySession){
       <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:14px;">
         <span class="muted">Tarih Aralığı</span>
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-          <input type="date" id="companyDashboardDateInput" value="${APP.companyDashboardDate}" onchange="changeCompanyDashboardDate(this.value)">
+          <input type="date" id="companyDashboardDateInput" value="${APP.companyDashboardDate}" ${actOn('change','changeCompanyDashboardDate',['$value'])}>
           <span class="muted">–</span>
-          <input type="date" id="companyDashboardDateToInput" value="${APP.companyDashboardDateTo}" onchange="changeCompanyDashboardDateTo(this.value)">
+          <input type="date" id="companyDashboardDateToInput" value="${APP.companyDashboardDateTo}" ${actOn('change','changeCompanyDashboardDateTo',['$value'])}>
         </div>
       </div>
       <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px;">
-        <button type="button" class="range-preset-btn" onclick="setCompanyDashboardRangeDays(0)">Bugün</button>
-        <button type="button" class="range-preset-btn" onclick="setCompanyDashboardRangeDays(6)">Son 7 Gün</button>
-        <button type="button" class="range-preset-btn" onclick="setCompanyDashboardRangeDays(9)">Son 10 Gün</button>
-        <button type="button" class="range-preset-btn" onclick="setCompanyDashboardRangeDays(29)">Son 30 Gün</button>
+        <button type="button" class="range-preset-btn" ${act('setCompanyDashboardRangeDays', 0)}>Bugün</button>
+        <button type="button" class="range-preset-btn" ${act('setCompanyDashboardRangeDays', 6)}>Son 7 Gün</button>
+        <button type="button" class="range-preset-btn" ${act('setCompanyDashboardRangeDays', 9)}>Son 10 Gün</button>
+        <button type="button" class="range-preset-btn" ${act('setCompanyDashboardRangeDays', 29)}>Son 30 Gün</button>
       </div>
       <div class="settings-table-wrap">
         <table class="settings-table">
@@ -240,11 +240,11 @@ function openCreateBranchModal(){
   bg.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:100;padding:16px;';
   bg.onclick = (e) => { if(e.target===bg) bg.remove(); };
   bg.innerHTML = `<div style="background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:20px;max-width:380px;width:100%;">
-    <div style="display:flex;justify-content:space-between;"><h2 style="margin:0;">Yeni Şube Ekle</h2><span style="cursor:pointer;color:var(--muted);" onclick="document.getElementById('createBranchBg').remove()">✕</span></div>
+    <div style="display:flex;justify-content:space-between;"><h2 style="margin:0;">Yeni Şube Ekle</h2><span style="cursor:pointer;color:var(--muted);" ${act('removeEl','createBranchBg')}>✕</span></div>
     <input id="newBranchName" placeholder="Şube adı (örn. Kadıköy Şubesi)" style="margin-top:14px;">
     <input id="newBranchCode" placeholder="Şube kodu (örn. kadikoy2026)" autocapitalize="none">
     <div class="error" id="newBranchErr"></div>
-    <button id="newBranchBtn" onclick="createBranchSubmit()">Şubeyi Oluştur</button>
+    <button id="newBranchBtn" ${act('createBranchSubmit')}>Şubeyi Oluştur</button>
   </div>`;
   document.body.appendChild(bg);
 }
@@ -318,7 +318,7 @@ function renderExpiredScreen(app){
         <h1>⏰ Aboneliğiniz Sona Erdi</h1>
         <p class="muted">Abonelik işlemleri bu uygulama üzerinden yapılamaz. Lütfen bir bilgisayar veya tarayıcıdan hesabınıza giriş yapın; işlem tamamlandığında buradan tekrar giriş yapabilirsiniz.</p>
         <p class="muted" style="text-align:center;margin-top:16px;font-size:13px;">
-          <a href="#" style="color:var(--accent);" onclick="APP.authScreen='login';render();return false;">← Girişe Dön</a>
+          <a href="#" style="color:var(--accent);" ${act('setAuthScreen','login')}>← Girişe Dön</a>
         </p>
       </div></div></div>`;
     APP.expiredPrefill = null;
@@ -334,10 +334,10 @@ function renderExpiredScreen(app){
       <input id="exCode" placeholder="İşletme kodu" autocapitalize="none" value="${escapeAttr(prefill.code||'')}">
       <input id="exUser" placeholder="Yönetici kullanıcı adı" autocapitalize="none" value="${escapeAttr(prefill.username||'')}">
       <input id="exPass" type="password" placeholder="Yönetici şifresi">
-      <button id="exPayBtn" onclick="startRenewalPayment()">💳 Ödemeye Geç</button>
+      <button id="exPayBtn" ${act('startRenewalPayment')}>💳 Ödemeye Geç</button>
       <div class="error" id="exErr"></div>
       <p class="muted" style="text-align:center;margin-top:16px;font-size:13px;">
-        <a href="#" style="color:var(--accent);" onclick="APP.authScreen='login';render();return false;">← Girişe Dön</a>
+        <a href="#" style="color:var(--accent);" ${act('setAuthScreen','login')}>← Girişe Dön</a>
       </p>
     </div>
     </div>
@@ -392,25 +392,25 @@ function renderForgotPasswordScreen(app){
       <div id="forgotStep1" style="display:${step===1?'block':'none'};">
         <input id="fpCode" placeholder="İşletme kodu (örn. test123)" autocapitalize="none" value="${escapeAttr((APP.pendingReset||{}).code||'')}">
         <input id="fpUser" placeholder="Kullanıcı adı" autocapitalize="none" value="${escapeAttr((APP.pendingReset||{}).username||'')}">
-        <button id="fpSendBtn" onclick="doStartPasswordReset()">Kod Gönder</button>
+        <button id="fpSendBtn" ${act('doStartPasswordReset')}>Kod Gönder</button>
       </div>
       <div id="forgotStep2" style="display:${step===2?'block':'none'};">
         <p class="muted" id="fpOtpInfo" style="text-align:center;"></p>
         <input id="fpOtp" placeholder="6 haneli kod" maxlength="6" style="text-align:center;font-size:20px;letter-spacing:4px;">
         <div class="pw-field-wrap">
           <input type="password" id="fpNewPass" placeholder="Yeni şifre">
-          <button type="button" class="pw-eye-btn" onclick="toggleForgotPassVisibility()" title="Şifreyi göster/gizle">👁️</button>
+          <button type="button" class="pw-eye-btn" ${act('toggleForgotPassVisibility')} title="Şifreyi göster/gizle">👁️</button>
         </div>
         <div class="pw-field-wrap">
           <input type="password" id="fpNewPass2" placeholder="Yeni şifre (tekrar)">
-          <button type="button" class="pw-eye-btn" onclick="toggleForgotPassVisibility()" title="Şifreyi göster/gizle">👁️</button>
+          <button type="button" class="pw-eye-btn" ${act('toggleForgotPassVisibility')} title="Şifreyi göster/gizle">👁️</button>
         </div>
-        <button id="fpVerifyBtn" onclick="doVerifyPasswordReset()">Şifreyi Güncelle</button>
-        <button class="ghost-btn" style="width:100%;margin-top:10px;" onclick="APP.forgotStep=1;render();">← Bilgileri Düzenle</button>
+        <button id="fpVerifyBtn" ${act('doVerifyPasswordReset')}>Şifreyi Güncelle</button>
+        <button class="ghost-btn" style="width:100%;margin-top:10px;" ${act('openForgotPassword')}>← Bilgileri Düzenle</button>
       </div>
       <div class="error" id="fpErr"></div>
       <p class="muted" style="text-align:center;margin-top:14px;font-size:13px;">
-        <a href="#" style="color:var(--accent);" onclick="APP.authScreen='login';render();return false;">← Girişe Dön</a>
+        <a href="#" style="color:var(--accent);" ${act('setAuthScreen','login')}>← Girişe Dön</a>
       </p>
     </div>
     </div>
@@ -495,18 +495,18 @@ function renderSignupScreen(app){
           <input id="suPrivacyConsent" type="checkbox" style="width:auto;margin:2px 0 0;flex-shrink:0;">
           <span><a href="/gizlilik/" target="_blank" rel="noopener" style="color:var(--accent);">Gizlilik Politikası</a>'nı okudum, işletme ve yönetici bilgilerimin belirtilen amaçlarla işlenmesini kabul ediyorum.</span>
         </label>
-        <button style="margin-top:16px;" onclick="doStartSignup()" id="signupBtn">🛒 Satın Al ve Hesabı Oluştur</button>
+        <button style="margin-top:16px;" ${act('doStartSignup')} id="signupBtn">🛒 Satın Al ve Hesabı Oluştur</button>
         <p class="muted" style="text-align:center;font-size:11.5px;margin-top:6px;">İlk 7 gün ücretsiz; kart bilgisi istenmez. Süre sonunda sepetinizdeki paket ve eklentilerin ücretiyle devam edersiniz. Yalnızca seçtiğiniz eklentiler hesabınıza açılır.</p>
       </div>
       <div id="signupStep2" style="display:none;">
         <p class="muted" id="otpInfo" style="text-align:center;"></p>
         <input id="suOtp" placeholder="6 haneli kod" maxlength="6" style="text-align:center;font-size:20px;letter-spacing:4px;">
-        <button style="margin-top:10px;" onclick="doVerifySignup()" id="verifyBtn">Doğrula ve Kaydı Tamamla</button>
-        <button class="ghost-btn" style="width:100%;margin-top:10px;" onclick="backToSignupForm()">← Bilgileri Düzenle</button>
+        <button style="margin-top:10px;" ${act('doVerifySignup')} id="verifyBtn">Doğrula ve Kaydı Tamamla</button>
+        <button class="ghost-btn" style="width:100%;margin-top:10px;" ${act('backToSignupForm')}>← Bilgileri Düzenle</button>
       </div>
       <div class="error" id="suErr"></div>
       <p class="muted" style="text-align:center;margin-top:14px;font-size:13px;">
-        Zaten hesabınız var mı? <a href="#" style="color:var(--accent);" onclick="APP.authScreen='login';render();return false;">Giriş Yap</a>
+        Zaten hesabınız var mı? <a href="#" style="color:var(--accent);" ${act('setAuthScreen','login')}>Giriş Yap</a>
       </p>
     </div>
     </div>
@@ -551,7 +551,7 @@ function renderSignupAddons(){
   if(!list.length){ el.innerHTML=''; return; }
   el.innerHTML = `<div style="font-weight:700;font-size:13.5px;margin-bottom:6px;">🧩 Eklentiler <span class="muted" style="font-weight:400;">(isteğe bağlı — seçmezseniz yalnızca paket özellikleri açılır)</span></div>` +
     list.map(a => `<label style="display:flex;align-items:center;gap:8px;padding:6px 0;font-size:13px;cursor:pointer;">
-      <input type="checkbox" style="width:auto;margin:0;" ${APP.selectedAddons.has(a.id)?'checked':''} onchange="toggleSignupAddon(${jsArg(a.id)})">
+      <input type="checkbox" style="width:auto;margin:0;" ${APP.selectedAddons.has(a.id)?'checked':''} ${actOn('change','toggleSignupAddon',[a.id])}>
       <span style="flex:1;">${escapeHtml(a.label||a.id)}</span><b>+${money(Number(a.price)||0)}/ay</b></label>`).join('');
 }
 function renderCartTotal(){
@@ -565,14 +565,14 @@ function renderCartTotal(){
   const total = pkgAmt + (yearly ? addonM*12 : addonM);
   el.innerHTML = `🛒 <b>${escapeHtml(p.name)}</b>${addons.length?' + '+addons.map(a=>escapeHtml(a.label||a.id)).join(', '):''}
     <div style="margin-top:4px;">Toplam: <b>${money(total)}</b> / ${yearly?'yıl':'ay'}
-    <a href="#" style="color:var(--accent);margin-left:8px;font-size:12px;" onclick="APP.signupCycle='${yearly?'monthly':'yearly'}';renderPkgCards();return false;">${yearly?'Aylığa geç':'Yıllığa geç'}</a></div>`;
+    <a href="#" style="color:var(--accent);margin-left:8px;font-size:12px;" ${act('setSignupCycle', yearly?'monthly':'yearly')}>${yearly?'Aylığa geç':'Yıllığa geç'}</a></div>`;
 }
 function renderPkgCards(){
   renderSignupAddons(); renderCartTotal();
   const el = document.getElementById('pkgCards'); if(!el) return;
   if(PACKAGES.length===0){ el.innerHTML = '<p class="muted">Şu anda seçilebilecek bir paket yok.</p>'; return; }
   el.innerHTML = PACKAGES.map(p => {
-    return `<div class="pkg-card ${APP.selectedPackage===p.id?'selected':''}" onclick="APP.selectedPackage='${p.id}';renderPkgCards();">
+    return `<div class="pkg-card ${APP.selectedPackage===p.id?'selected':''}" ${act('selectSignupPackage', p.id)}>
       <div class="pkg-icon">${APP.selectedPackage===p.id?'✅':'📦'}</div>
       <h3>${escapeHtml(p.name)}</h3>
       <p>${escapeHtml(p.description)}</p>
@@ -682,8 +682,8 @@ function openDeleteAccountModal(){
     <input id="delAccPassword" type="password" placeholder="Şifreniz" style="margin-bottom:10px;">
     <div class="error" id="delAccErr" style="text-align:left;"></div>
     <div class="field-row" style="gap:8px;margin-top:6px;">
-      <button type="button" style="flex:1;margin:0;background:var(--panel2);color:var(--text);" onclick="closeDeleteAccountModal()">Vazgeç</button>
-      <button type="button" id="delAccBtn" style="flex:1;margin:0;background:var(--red);color:var(--btn-ink);" onclick="submitDeleteAccount()">Kalıcı Olarak Sil</button>
+      <button type="button" style="flex:1;margin:0;background:var(--panel2);color:var(--text);" ${act('closeDeleteAccountModal')}>Vazgeç</button>
+      <button type="button" id="delAccBtn" style="flex:1;margin:0;background:var(--red);color:var(--btn-ink);" ${act('submitDeleteAccount')}>Kalıcı Olarak Sil</button>
     </div>
   </div>`;
   document.body.appendChild(bg);
@@ -722,3 +722,8 @@ async function submitDeleteAccount(){
     ? 'İşletmeniz ve tüm verileri kalıcı olarak silindi.'
     : 'Kullanıcı hesabınız kalıcı olarak silindi.');
 }
+
+function setAuthScreen(s){ APP.authScreen = s; render(); }
+function openForgotPassword(){ APP.authScreen = 'forgot'; APP.forgotStep = 1; render(); }
+function setSignupCycle(c){ APP.signupCycle = c; renderPkgCards(); }
+function selectSignupPackage(id){ APP.selectedPackage = id; renderPkgCards(); }

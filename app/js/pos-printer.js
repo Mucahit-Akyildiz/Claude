@@ -102,13 +102,13 @@ function ticketTypographyRowHtml(design, key, label, isLast){
   return `
     <div style="display:grid;grid-template-columns:1fr 70px 1fr;gap:8px;align-items:end;padding:10px 0;${isLast?'':'border-bottom:1px solid var(--border);'}">
       <div class="field-group" style="margin:0;"><label>${label}</label>
-        <input type="color" id="td_color${key}" value="${design['color'+key]}" oninput="updateTicketPreview()" style="height:40px;padding:4px;">
+        <input type="color" id="td_color${key}" value="${design['color'+key]}" ${actOn('input','updateTicketPreview',[])} style="height:40px;padding:4px;">
       </div>
       <div class="field-group" style="margin:0;"><label>Boyut</label>
-        <input type="number" id="td_size${key}" min="6" max="40" value="${design['size'+key]}" oninput="updateTicketPreview()" style="padding:9px 6px;text-align:center;">
+        <input type="number" id="td_size${key}" min="6" max="40" value="${design['size'+key]}" ${actOn('input','updateTicketPreview',[])} style="padding:9px 6px;text-align:center;">
       </div>
       <div class="field-group" style="margin:0;"><label>Harf Stili</label>
-        <select id="td_transform${key}" oninput="updateTicketPreview()">
+        <select id="td_transform${key}" ${actOn('input','updateTicketPreview',[])}>
           <option value="none" ${t==='none'?'selected':''}>Normal</option>
           <option value="uppercase" ${t==='uppercase'?'selected':''}>BÜYÜK HARF</option>
           <option value="lowercase" ${t==='lowercase'?'selected':''}>küçük harf</option>
@@ -119,24 +119,24 @@ function ticketTypographyRowHtml(design, key, label, isLast){
 }
 function ticketRteToolbarHtml(targetId){
   return `
-    <button type="button" class="rte-btn" title="Kalın" onmousedown="event.preventDefault()" onclick="applyTicketRte('${targetId}','bold')"><b>K</b></button>
-    <button type="button" class="rte-btn" title="İtalik" onmousedown="event.preventDefault()" onclick="applyTicketRte('${targetId}','italic')"><i>İ</i></button>
-    <button type="button" class="rte-btn" title="Altı Çizili" onmousedown="event.preventDefault()" onclick="applyTicketRte('${targetId}','underline')"><u>A</u></button>
+    <button type="button" class="rte-btn" title="Kalın" data-keep-focus ${act('applyTicketRte', targetId, 'bold')}><b>K</b></button>
+    <button type="button" class="rte-btn" title="İtalik" data-keep-focus ${act('applyTicketRte', targetId, 'italic')}><i>İ</i></button>
+    <button type="button" class="rte-btn" title="Altı Çizili" data-keep-focus ${act('applyTicketRte', targetId, 'underline')}><u>A</u></button>
     <span class="rte-sep"></span>
-    <button type="button" class="rte-btn" title="Sola Yasla" onmousedown="event.preventDefault()" onclick="applyTicketRte('${targetId}','justifyLeft')">⯇</button>
-    <button type="button" class="rte-btn" title="Ortala" onmousedown="event.preventDefault()" onclick="applyTicketRte('${targetId}','justifyCenter')">☰</button>
-    <button type="button" class="rte-btn" title="Sağa Yasla" onmousedown="event.preventDefault()" onclick="applyTicketRte('${targetId}','justifyRight')">⯈</button>
+    <button type="button" class="rte-btn" title="Sola Yasla" data-keep-focus ${act('applyTicketRte', targetId, 'justifyLeft')}>⯇</button>
+    <button type="button" class="rte-btn" title="Ortala" data-keep-focus ${act('applyTicketRte', targetId, 'justifyCenter')}>☰</button>
+    <button type="button" class="rte-btn" title="Sağa Yasla" data-keep-focus ${act('applyTicketRte', targetId, 'justifyRight')}>⯈</button>
     <span class="rte-sep"></span>
-    <select class="rte-select" title="Yazı Tipi" onmousedown="event.preventDefault()" onchange="applyTicketRte('${targetId}','fontName',this.value)">
+    <select class="rte-select" title="Yazı Tipi" data-keep-focus ${actOn('change','applyTicketRte',[targetId, 'fontName', '$value'])}>
       ${Object.keys(TICKET_FONTS).map(f => `<option value="${f}">${f}</option>`).join('')}
     </select>
-    <select class="rte-select" title="Yazı Boyutu" onmousedown="event.preventDefault()" onchange="applyTicketRte('${targetId}','fontSize',this.value)">
+    <select class="rte-select" title="Yazı Boyutu" data-keep-focus ${actOn('change','applyTicketRte',[targetId, 'fontSize', '$value'])}>
       <option value="2">Küçük</option>
       <option value="3" selected>Normal</option>
       <option value="5">Büyük</option>
       <option value="7">Çok Büyük</option>
     </select>
-    <input type="color" class="rte-color" title="Yazı Rengi" value="#000000" onmousedown="event.preventDefault()" onchange="applyTicketRte('${targetId}','foreColor',this.value)">
+    <input type="color" class="rte-color" title="Yazı Rengi" value="#000000" data-keep-focus ${actOn('change','applyTicketRte',[targetId, 'foreColor', '$value'])}>
   `;
 }
 function applyTicketRte(targetId, cmd, value){
@@ -405,20 +405,20 @@ async function renderPrinterSettingsView(main, session){
             <p class="settings-section-title">📄 Kağıt &amp; Yazı Tipi</p>
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
               <div class="field-group"><label>Kağıt Genişliği</label>
-                <select id="td_width" oninput="updateTicketPreview()">
+                <select id="td_width" ${actOn('input','updateTicketPreview',[])}>
                   <option value="58" ${design.width==='58'?'selected':''}>58mm</option>
                   <option value="80" ${design.width==='80'?'selected':''}>80mm</option>
                 </select>
               </div>
               <div class="field-group"><label>Yazı Tipi (ürün satırları)</label>
-                <select id="td_font" oninput="updateTicketPreview()">
+                <select id="td_font" ${actOn('input','updateTicketPreview',[])}>
                   ${Object.keys(TICKET_FONTS).map(f => `<option value="${f}" ${design.fontFamily===f?'selected':''}>${f}</option>`).join('')}
                 </select>
               </div>
             </div>
             <div class="toggle-row" style="border-bottom:none;padding-bottom:0;">
               <div><div class="toggle-label">Kalın Yazı (ürün satırları)</div><div class="toggle-desc">Çıktı silik/soluk çıkıyorsa açık bırakın — termal yazıcılarda ince yazı genelde net basmıyor.</div></div>
-              <label class="toggle-switch"><input type="checkbox" id="td_bold" ${design.bold?'checked':''} oninput="updateTicketPreview()"><span class="slider"></span></label>
+              <label class="toggle-switch"><input type="checkbox" id="td_bold" ${design.bold?'checked':''} ${actOn('input','updateTicketPreview',[])}><span class="slider"></span></label>
             </div>
           </div>
 
@@ -426,31 +426,31 @@ async function renderPrinterSettingsView(main, session){
             <p class="settings-section-title">✍️ Fiş İçeriği</p>
             <label style="display:block;font-size:12.5px;font-weight:700;color:var(--muted);">Fiş Başlığında Ek Not (opsiyonel)</label>
             <div class="rte-toolbar" data-target="td_header">${ticketRteToolbarHtml('td_header')}</div>
-            <div id="td_header" class="rte-box" contenteditable="true" data-placeholder="örn. Şube: Merkez" oninput="updateTicketPreview()">${sanitizeRichHtml(design.header||'')}</div>
+            <div id="td_header" class="rte-box" contenteditable="true" data-placeholder="örn. Şube: Merkez" ${actOn('input','updateTicketPreview',[])}>${sanitizeRichHtml(design.header||'')}</div>
 
             <label style="display:block;margin-top:14px;font-size:12.5px;font-weight:700;color:var(--muted);">Fiş Altında Ek Not (opsiyonel)</label>
             <div class="rte-toolbar" data-target="td_footer">${ticketRteToolbarHtml('td_footer')}</div>
-            <div id="td_footer" class="rte-box" contenteditable="true" data-placeholder="örn. Afiyet olsun!" oninput="updateTicketPreview()">${sanitizeRichHtml(design.footer||'')}</div>
+            <div id="td_footer" class="rte-box" contenteditable="true" data-placeholder="örn. Afiyet olsun!" ${actOn('input','updateTicketPreview',[])}>${sanitizeRichHtml(design.footer||'')}</div>
 
             <div style="margin-top:14px;">
               <div class="toggle-row">
                 <div class="toggle-label">Sipariş Numarasını Göster</div>
-                <label class="toggle-switch"><input type="checkbox" id="td_showOrderNumber" ${design.showOrderNumber?'checked':''} oninput="updateTicketPreview()"><span class="slider"></span></label>
+                <label class="toggle-switch"><input type="checkbox" id="td_showOrderNumber" ${design.showOrderNumber?'checked':''} ${actOn('input','updateTicketPreview',[])}><span class="slider"></span></label>
               </div>
               <div class="toggle-row">
                 <div class="toggle-label">Ürün Saatlerini Göster</div>
-                <label class="toggle-switch"><input type="checkbox" id="td_showItemTime" ${design.showItemTime?'checked':''} oninput="updateTicketPreview()"><span class="slider"></span></label>
+                <label class="toggle-switch"><input type="checkbox" id="td_showItemTime" ${design.showItemTime?'checked':''} ${actOn('input','updateTicketPreview',[])}><span class="slider"></span></label>
               </div>
               <div class="toggle-row">
                 <div class="toggle-label">Fişin Üstünde Saat Göster</div>
-                <label class="toggle-switch"><input type="checkbox" id="td_showHeaderTime" ${design.showHeaderTime?'checked':''} oninput="updateTicketPreview()"><span class="slider"></span></label>
+                <label class="toggle-switch"><input type="checkbox" id="td_showHeaderTime" ${design.showHeaderTime?'checked':''} ${actOn('input','updateTicketPreview',[])}><span class="slider"></span></label>
               </div>
               <div class="toggle-row" style="border-bottom:none;">
                 <div><div class="toggle-label">Kopya Sayısı</div><div class="toggle-desc">Masaüstü uygulaması/USB yazıcıda her fiş bu kadar kez basılır.</div></div>
                 <div style="display:flex;align-items:center;gap:8px;">
-                  <button type="button" class="chip-btn" style="padding:4px 12px;" onclick="stepTicketCopies(-1)">−</button>
+                  <button type="button" class="chip-btn" style="padding:4px 12px;" ${act('stepTicketCopies', -1)}>−</button>
                   <span id="td_copiesVal" style="min-width:14px;text-align:center;font-weight:700;">${design.copies}</span>
-                  <button type="button" class="chip-btn" style="padding:4px 12px;" onclick="stepTicketCopies(1)">+</button>
+                  <button type="button" class="chip-btn" style="padding:4px 12px;" ${act('stepTicketCopies', 1)}>+</button>
                 </div>
               </div>
             </div>
@@ -459,14 +459,14 @@ async function renderPrinterSettingsView(main, session){
           <div class="settings-section">
             <p class="settings-section-title">⏰ Saat Ayarı</p>
             <div class="field-group"><label>Saat Formatı</label>
-              <select id="td_timeFormat" oninput="updateTicketPreview()">
+              <select id="td_timeFormat" ${actOn('input','updateTicketPreview',[])}>
                 <option value="24" ${design.timeFormat==='24'?'selected':''}>24 Saat (17:05)</option>
                 <option value="12" ${design.timeFormat==='12'?'selected':''}>12 Saat (05:05 ÖS)</option>
               </select>
             </div>
             <div class="toggle-row" style="border-bottom:none;">
               <div><div class="toggle-label">Saat Kalın Yazılsın</div><div class="toggle-desc">"Kalın Yazı" ürün adı ayarından bağımsız — saat silik çıkıyorsa açık bırakın.</div></div>
-              <label class="toggle-switch"><input type="checkbox" id="td_timeBold" ${design.timeBold?'checked':''} oninput="updateTicketPreview()"><span class="slider"></span></label>
+              <label class="toggle-switch"><input type="checkbox" id="td_timeBold" ${design.timeBold?'checked':''} ${actOn('input','updateTicketPreview',[])}><span class="slider"></span></label>
             </div>
           </div>
 
@@ -483,21 +483,21 @@ async function renderPrinterSettingsView(main, session){
           <div class="settings-section">
             <p class="settings-section-title">📐 Yazıcı Kenar Boşlukları</p>
             <div class="chip-row" style="margin-bottom:10px;">
-              <button type="button" class="chip-btn" onclick="applyMarginPreset(2)">Dar (2mm)</button>
-              <button type="button" class="chip-btn" onclick="applyMarginPreset(4)">Normal (4mm)</button>
-              <button type="button" class="chip-btn" onclick="applyMarginPreset(8)">Geniş (8mm)</button>
+              <button type="button" class="chip-btn" ${act('applyMarginPreset', 2)}>Dar (2mm)</button>
+              <button type="button" class="chip-btn" ${act('applyMarginPreset', 4)}>Normal (4mm)</button>
+              <button type="button" class="chip-btn" ${act('applyMarginPreset', 8)}>Geniş (8mm)</button>
             </div>
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
-              <div class="field-group"><label>Üst</label><input id="td_mtop" type="number" min="0" max="30" step="0.5" value="${design.marginTop}" oninput="updateTicketPreview()"></div>
-              <div class="field-group"><label>Alt</label><input id="td_mbottom" type="number" min="0" max="30" step="0.5" value="${design.marginBottom}" oninput="updateTicketPreview()"></div>
-              <div class="field-group"><label>Sol</label><input id="td_mleft" type="number" min="0" max="30" step="0.5" value="${design.marginLeft}" oninput="updateTicketPreview()"></div>
-              <div class="field-group"><label>Sağ</label><input id="td_mright" type="number" min="0" max="30" step="0.5" value="${design.marginRight}" oninput="updateTicketPreview()"></div>
+              <div class="field-group"><label>Üst</label><input id="td_mtop" type="number" min="0" max="30" step="0.5" value="${design.marginTop}" ${actOn('input','updateTicketPreview',[])}></div>
+              <div class="field-group"><label>Alt</label><input id="td_mbottom" type="number" min="0" max="30" step="0.5" value="${design.marginBottom}" ${actOn('input','updateTicketPreview',[])}></div>
+              <div class="field-group"><label>Sol</label><input id="td_mleft" type="number" min="0" max="30" step="0.5" value="${design.marginLeft}" ${actOn('input','updateTicketPreview',[])}></div>
+              <div class="field-group"><label>Sağ</label><input id="td_mright" type="number" min="0" max="30" step="0.5" value="${design.marginRight}" ${actOn('input','updateTicketPreview',[])}></div>
             </div>
           </div>
 
           <div style="display:flex;gap:10px;margin-top:16px;">
-            <button style="flex:1;margin-top:0;" onclick="saveTicketDesign()">Tasarımı Kaydet</button>
-            <button class="ghost-btn" style="flex:1;margin-top:0;" onclick="resetTicketDesign()">Varsayılana Sıfırla</button>
+            <button style="flex:1;margin-top:0;" ${act('saveTicketDesign')}>Tasarımı Kaydet</button>
+            <button class="ghost-btn" style="flex:1;margin-top:0;" ${act('resetTicketDesign')}>Varsayılana Sıfırla</button>
           </div>
         </div>
         <div style="position:sticky;top:16px;">
@@ -512,7 +512,7 @@ async function renderPrinterSettingsView(main, session){
     <div class="box" style="max-width:none;">
       <h2>Bu Ekranın Yazıcısı</h2>
       <p class="muted" style="text-align:left;">Hangi yazıcı seçiliyse, mutfağa sipariş gönderildiğinde fiş <b>doğrudan ona</b> (pencere açmadan) gönderilmeye çalışılır. Uygun bir USB yazıcı bulunamazsa otomatik olarak tarayıcının yazdırma penceresine döner.</p>
-      <select id="activePrinterSelect" onchange="setActivePrinterId(this.value)" style="max-width:320px;">
+      <select id="activePrinterSelect" ${actOn('change','setActivePrinterId',['$value'])} style="max-width:320px;">
         <option value="" ${!activeId?'selected':''}>Tarayıcı Yazdırma Penceresi (varsayılan)</option>
         ${printers.map(p => `<option value="${p.id}" ${p.id===activeId?'selected':''}>${escapeHtml(p.name)} (${printerTypeLabel(p.type)})</option>`).join('')}
       </select>
@@ -530,9 +530,9 @@ async function renderPrinterSettingsView(main, session){
             <td class="col-name">${escapeHtml(p.name)}</td>
             <td class="col-name">${p.type==='usb' ? '🔌 USB (doğrudan)' : (p.type==='silent-browser' ? '🤫 Sessiz Tarayıcı Yazdırma' : (p.type==='electron' ? '💻 Masaüstü Uygulaması' : '🖨️ Tarayıcı penceresi'))}${p.type==='electron' && p.osPrinterName ? ' <span class="muted">('+escapeHtml(p.osPrinterName)+')</span>' : ''}</td>
             <td style="white-space:nowrap;">
-              ${p.type==='usb' ? `<button class="sbtn" onclick="reconnectUsbPrinter('${p.id}')">Bağlan</button>` : ''}
-              <button class="sbtn" onclick="testPrintPrinter('${p.id}')">Test Yazdır</button>
-              <button type="button" class="act-btn act-delete" onclick="removePrinterEntry('${p.id}')">${ICON_TRASH}<span>Sil</span></button>
+              ${p.type==='usb' ? `<button class="sbtn" ${act('reconnectUsbPrinter', p.id)}>Bağlan</button>` : ''}
+              <button class="sbtn" ${act('testPrintPrinter', p.id)}>Test Yazdır</button>
+              <button type="button" class="act-btn act-delete" ${act('removePrinterEntry', p.id)}>${ICON_TRASH}<span>Sil</span></button>
             </td>
           </tr>`).join('')}
         </tbody>
@@ -544,14 +544,14 @@ async function renderPrinterSettingsView(main, session){
         <div style="display:grid;grid-template-columns:2fr 1.4fr auto;gap:10px;align-items:end;">
           <div class="field-group"><label>Yazıcı Adı</label><input id="np_pname" placeholder="örn. Mutfak Yazıcısı"></div>
           <div class="field-group"><label>Bağlantı Türü</label>
-            <select id="np_ptype" onchange="onNewPrinterTypeChange()">
+            <select id="np_ptype" ${actOn('change','onNewPrinterTypeChange',[])}>
               <option value="electron" ${isDesktopApp()?'selected':''}>Masaüstü Uygulaması (sessiz, önerilir)</option>
               <option value="browser" ${isDesktopApp()?'':'selected'}>Tarayıcı Yazdırma Penceresi (her seferinde açılır)</option>
               <option value="usb" ${usbSupported?'':'disabled'}>USB (doğrudan, deneysel - küçük termal fiş yazıcıları için)</option>
               <option value="silent-browser">Sessiz Tarayıcı Yazdırma (normal/ofis yazıcıları için, kiosk-printing gerekir)</option>
             </select>
           </div>
-          <button style="width:auto;" onclick="addPrinterEntry()">+ Ekle</button>
+          <button style="width:auto;" ${act('addPrinterEntry')}>+ Ekle</button>
         </div>
         <div id="npElectronWrap" class="field-group" style="margin-top:10px;"></div>
       </div>
@@ -578,7 +578,7 @@ async function renderPrinterSettingsView(main, session){
           <tr>
             <td class="col-name">${escapeHtml(s.icon||'🍳')} ${escapeHtml(s.name)}</td>
             <td>
-              <select onchange="setStationPrinter('${s.id}', this.value)">
+              <select ${actOn('change','setStationPrinter',[s.id, '$value'])}>
                 <option value="">Varsayılan (Bu Ekranın Yazıcısı)</option>
                 ${printers.map(p => `<option value="${p.id}" ${stationPrinterMap[s.id]===p.id?'selected':''}>${escapeHtml(p.name)} (${printerTypeLabel(p.type)})</option>`).join('')}
               </select>
@@ -602,7 +602,7 @@ async function loadNotificationHistory(){
   box.innerHTML = '<div style="max-height:420px;overflow:auto;">' + rows.map(n => {
     const d = new Date(n.created_at);
     const when = d.toLocaleDateString('tr-TR', { day:'numeric', month:'short' }) + ' ' + d.toLocaleTimeString('tr-TR', { hour:'2-digit', minute:'2-digit' });
-    const go = n.view && NAV_ITEMS.some(i => i.view === n.view) ? `onclick="goToView('${escapeAttr(n.view)}')"` : '';
+    const go = n.view && NAV_ITEMS.some(i => i.view === n.view) ? `${act('goToView', n.view)}` : '';
     return `<div ${go} class="notif-row" style="display:flex;gap:10px;padding:10px 4px;border-bottom:1px solid var(--border);${n.read ? '' : 'font-weight:700;'}${go ? 'cursor:pointer;' : ''}">
       <div style="flex:1;min-width:0;overflow-wrap:anywhere;"><div>${escapeHtml(n.title)}</div>${n.body ? `<div class="muted" style="font-size:13px;font-weight:400;">${escapeHtml(n.body)}</div>` : ''}</div>
       <div class="muted" style="font-size:12px;white-space:nowrap;font-weight:400;">${when}</div></div>`;
@@ -630,8 +630,8 @@ async function renderNotificationSettingsView(main, session){
     <h1>Bildirimler</h1>
     <div class="box sub-tabs-box" style="max-width:none;">
       <div class="sub-tabs">
-        <div role="tab" tabindex="0" class="sub-tab ${ntab==='settings'?'active':''}" onclick="setNotifTab('settings')"><span class="sub-tab-ic">⚙️</span>Bildirim Ayarları</div>
-        <div role="tab" tabindex="0" class="sub-tab ${ntab==='history'?'active':''}" onclick="setNotifTab('history')"><span class="sub-tab-ic">🕘</span>Geçmiş Bildirimler</div>
+        <div role="tab" tabindex="0" class="sub-tab ${ntab==='settings'?'active':''}" ${act('setNotifTab', 'settings')}><span class="sub-tab-ic">⚙️</span>Bildirim Ayarları</div>
+        <div role="tab" tabindex="0" class="sub-tab ${ntab==='history'?'active':''}" ${act('setNotifTab', 'history')}><span class="sub-tab-ic">🕘</span>Geçmiş Bildirimler</div>
       </div>
     </div>
     <div class="box" id="notifHistoryPart" style="max-width:none;${ntab==='history'?'':'display:none;'}">
@@ -646,8 +646,8 @@ async function renderNotificationSettingsView(main, session){
       <p class="muted" style="text-align:left;">Açarsanız, hazır bekleyen siparişiniz olduğunda bu cihaza — tarayıcı/uygulama kapalı olsa bile — bildirim göndeririz.</p>
       <p id="pushStatusText" class="muted" style="font-size:13px;margin:10px 0;"></p>
       <div style="display:flex;gap:10px;flex-wrap:wrap;">
-        <button id="pushToggleBtn" style="max-width:260px;" onclick="togglePushNotifications()">Kontrol ediliyor...</button>
-        <button id="testPushBtn" class="sbtn" style="width:auto;max-width:260px;" onclick="sendTestPush()">🔔 Test Bildirimi Gönder</button>
+        <button id="pushToggleBtn" style="max-width:260px;" ${act('togglePushNotifications')}>Kontrol ediliyor...</button>
+        <button id="testPushBtn" class="sbtn" style="width:auto;max-width:260px;" ${act('sendTestPush')}>🔔 Test Bildirimi Gönder</button>
       </div>
       <p id="testPushResult" class="muted" style="font-size:12px;margin-top:8px;"></p>
     </div>
@@ -656,7 +656,7 @@ async function renderNotificationSettingsView(main, session){
       <h2>🔔 Bildirim Sesi (Yeni Sipariş Zili)</h2>
       <p class="muted" style="text-align:left;">Mutfağa yeni bir sipariş düştüğünde bu ekranda çalacak sesi özelleştirebilirsiniz. Bir istasyon seçip kendi ses dosyanızı yükleyerek o istasyona özel bir zil sesi de tanımlayabilirsiniz (örn. Izgara için ayrı, Çayhane için ayrı).</p>
       <div class="field-group" style="max-width:320px;"><label>Kapsam</label>
-        <select id="bellScopeSelect" onchange="updateBellScopeStatus()">
+        <select id="bellScopeSelect" ${actOn('change','updateBellScopeStatus',[])}>
           <option value="">Varsayılan (istasyona özel ses yoksa kullanılır)</option>
           ${APP.config.stations.map(s => `<option value="${s.id}">${escapeHtml(s.icon||'🍳')} ${escapeHtml(s.name)}</option>`).join('')}
         </select>
@@ -666,7 +666,7 @@ async function renderNotificationSettingsView(main, session){
       <div style="display:flex;align-items:center;gap:12px;max-width:460px;margin-bottom:16px;">
         <span style="font-size:18px;">🔈</span>
         <input type="range" min="0" max="100" step="5" value="${getBellVolume()}" style="flex:1;margin:0;accent-color:var(--accent);"
-          oninput="setBellVolume(this.value)" onchange="testBellSound()">
+          ${actOn('input','setBellVolume',['$value'])} ${actOn('change','testBellSound',[])}>
         <span style="font-size:18px;">🔊</span>
         <b id="bellVolumeLabel" style="min-width:52px;text-align:right;">${getBellVolume()===0?'Sessiz':'%'+getBellVolume()}</b>
       </div>
@@ -674,15 +674,15 @@ async function renderNotificationSettingsView(main, session){
         <span style="font-size:12.5px;font-weight:700;color:var(--muted);">Yüklediğiniz Sesler <span style="font-weight:400;">(en fazla ${BELL_LIBRARY_MAX})</span></span>
         <label style="width:auto;cursor:pointer;display:inline-flex;align-items:center;margin:0;padding:9px 16px;border-radius:10px;background:var(--accent);color:var(--btn-ink);font-weight:700;font-size:13px;">
           ＋ Ses Dosyası Yükle
-          <input id="bellFileInput" type="file" accept="audio/*" style="display:none;" onclick="this.value=''" onchange="uploadBellSound()">
+          <input id="bellFileInput" type="file" accept="audio/*" style="display:none;" ${act('clearValue','$this')} ${actOn('change','uploadBellSound',[])}>
         </label>
       </div>
       <div id="bellLibraryList" class="bell-grid" style="margin-bottom:14px;"></div>
       <div class="field-group"><label>Hazır Zil Sesleri</label></div>
       <div id="bellPresetList" class="bell-grid"></div>
       <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:14px;">
-        <button class="sbtn" style="width:auto;" onclick="testBellSound()">▶️ Seçili Sesi Test Et</button>
-        <button class="sbtn" style="width:auto;background:var(--red);color:var(--btn-ink);" onclick="resetBellSound()">Sıfırla (Varsayılan Zil)</button>
+        <button class="sbtn" style="width:auto;" ${act('testBellSound')}>▶️ Seçili Sesi Test Et</button>
+        <button class="sbtn" style="width:auto;background:var(--red);color:var(--btn-ink);" ${act('resetBellSound')}>Sıfırla (Varsayılan Zil)</button>
       </div>
       <p class="muted" style="text-align:left;margin-top:14px;font-size:12px;">
         Not: Dosya boyutu en fazla 800KB olmalı (kısa bir bildirim sesi yeterlidir). Tarayıcılar otomatik ses çalmayı
