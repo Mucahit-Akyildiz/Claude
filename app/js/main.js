@@ -857,3 +857,37 @@ document.addEventListener('visibilitychange', () => {
   if(UPDATE_WATCH.ready){ maybeAutoReloadForUpdate(); return; }
   if(Date.now() - UPDATE_WATCH.last > 60 * 1000) checkForAppUpdate().then(maybeAutoReloadForUpdate);
 });
+
+/* ---- Android uygulaması güncelleme uyarısı ----
+   Uygulama ekranı her açılışta canlı siteden geldiği için bu uyarı, kendi içinde
+   güncelleme kodu olmayan eski sürümlerde de çalışır. Kurulu sürüm kodu (App.getInfo().build)
+   /assets/app-version.json'daki son sürümden eskiyse "Güncelle" çubuğu gösterilir ve
+   Play Store sayfası açılır. Yeni sürüm Play'de yayınlanınca o dosyadaki 'latest' artırılır. */
+const PLAY_URL = 'https://play.google.com/store/apps/details?id=com.peyktan.app';
+async function checkAndroidAppUpdate(){
+  try{
+    const C = window.Capacitor;
+    if(!C || !C.getPlatform || C.getPlatform() !== 'android' || !C.Plugins || !C.Plugins.App) return;
+    const info = await C.Plugins.App.getInfo();
+    const res = await fetch('/assets/app-version.json', { cache: 'no-store' });
+    const v = (await res.json()).android || {};
+    const installed = Number(info && info.build) || 0;
+    if(!installed || !v.latest || installed >= v.latest) return;
+    let dismissed = ''; try{ dismissed = localStorage.getItem('rys_upd_dismiss') || ''; }catch(e){}
+    if(dismissed === v.latest + '|' + new Date().toDateString()) return; // "Sonra" denince o gün tekrar sorulmaz
+    showAppUpdateBar(v);
+  }catch(e){}
+}
+function showAppUpdateBar(v){
+  if(document.getElementById('appUpdateBar')) return;
+  const bar = document.createElement('div'); bar.id = 'appUpdateBar';
+  bar.style.cssText = 'position:fixed;left:12px;right:12px;bottom:12px;z-index:97;background:var(--accent);color:#fff;border-radius:14px;padding:10px 12px;display:flex;align-items:center;gap:10px;box-shadow:0 8px 24px rgba(0,0,0,.3);font-size:13.5px;';
+  bar.innerHTML = `<span style="flex:1;">🔄 Peyktan'ın yeni sürümü (${escapeHtml(v.name || '')}) hazır.</span>
+    <button type="button" style="margin:0;width:auto;padding:7px 14px;background:#fff;color:var(--accent);border:0;font-weight:800;" ${act('openPlayStoreUpdate')}>Güncelle</button>
+    <button type="button" style="margin:0;width:auto;padding:7px 10px;background:transparent;color:#fff;border:1px solid rgba(255,255,255,.5);box-shadow:none;" ${act('dismissAppUpdate', v.latest)}>Sonra</button>`;
+  document.body.appendChild(bar);
+}
+// Uygulama kendi alan adı dışındaki adresleri sistemde (Play Store uygulamasında) açar.
+function openPlayStoreUpdate(){ location.href = PLAY_URL; }
+function dismissAppUpdate(latest){ try{ localStorage.setItem('rys_upd_dismiss', latest + '|' + new Date().toDateString()); }catch(e){} removeEl('appUpdateBar'); }
+setTimeout(checkAndroidAppUpdate, 4000);
