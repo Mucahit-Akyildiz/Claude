@@ -31,7 +31,7 @@ async function renderSettingsView(main, session){
   if(!visibleTabs.some(t => t.tab===APP.settingsTab)) APP.settingsTab = visibleTabs.length ? visibleTabs[0].tab : null;
   main.innerHTML = `<h1>Ayarlar</h1>
     <div class="tabs">
-      ${visibleTabs.map(t => `<div class="tab ${APP.settingsTab===t.tab?'active':''}" data-tab="${t.tab}" onclick="setSettingsTab('${t.tab}')">${t.label}</div>`).join('')}
+      ${visibleTabs.map(t => `<div class="tab ${APP.settingsTab===t.tab?'active':''}" data-tab="${t.tab}" ${act('setSettingsTab', t.tab)}>${t.label}</div>`).join('')}
     </div>
     <div id="settingsContent"></div>`;
   applyNavBadges();
@@ -49,7 +49,7 @@ function setSettingsTab(tab){
 function listSearchHtml(key, ph){
   APP.listSearch = APP.listSearch || {};
   setTimeout(() => filterListRows(key), 0);
-  return `<input class="list-search" placeholder="🔍 ${escapeAttr(ph)}" value="${escapeAttr(APP.listSearch[key]||'')}" oninput="APP.listSearch['${key}']=this.value;filterListRows('${key}')" style="max-width:320px;margin:0 0 12px;">`;
+  return `<input class="list-search" placeholder="🔍 ${escapeAttr(ph)}" value="${escapeAttr(APP.listSearch[key]||'')}" ${actOn('input','setListSearch',[key,'$value'])} style="max-width:320px;margin:0 0 12px;">`;
 }
 function filterListRows(key){
   const box = document.querySelector('#settingsContent .box'); if(!box) return;
@@ -90,8 +90,8 @@ function renderUsersTabWithSubtabs(el, session){
   // Alt sekmeler kartın içinde, üst menüden ayrışan altı çizili stilde.
   el.innerHTML = canManage(session, 'settings_users') ? `<div class="box sub-tabs-box" style="max-width:none;">
       <div class="sub-tabs" id="usersSubTabs">
-        <div role="tab" tabindex="0" class="sub-tab ${sub==='list'?'active':''}" onclick="setUsersSubTab('list')"><span class="sub-tab-ic">👥</span>Kullanıcılar</div>
-        <div role="tab" tabindex="0" class="sub-tab ${sub==='active'?'active':''}" onclick="setUsersSubTab('active')"><span class="sub-tab-ic">🟢</span>Aktif Kullanıcılar</div>
+        <div role="tab" tabindex="0" class="sub-tab ${sub==='list'?'active':''}" ${act('setUsersSubTab', 'list')}><span class="sub-tab-ic">👥</span>Kullanıcılar</div>
+        <div role="tab" tabindex="0" class="sub-tab ${sub==='active'?'active':''}" ${act('setUsersSubTab', 'active')}><span class="sub-tab-ic">🟢</span>Aktif Kullanıcılar</div>
       </div>
       <div id="usersSubContent" class="sub-tabs-content"></div>
     </div>` : '<div id="usersSubContent"></div>';
@@ -120,8 +120,8 @@ function renderOrderFlagsSettings(el, session){
         <tr>
           <td class="col-name"><input value="${escapeAttr(f.label)}" id="flag_label_${f.id}"></td>
           <td style="white-space:nowrap;">
-            <button type="button" class="act-btn act-save" onclick="saveOrderFlag('${f.id}')">${ICON_SAVE}<span>Kaydet</span></button>
-            <button type="button" class="act-btn act-delete" onclick="removeOrderFlag('${f.id}')">${ICON_TRASH}<span>Sil</span></button>
+            <button type="button" class="act-btn act-save" ${act('saveOrderFlag', f.id)}>${ICON_SAVE}<span>Kaydet</span></button>
+            <button type="button" class="act-btn act-delete" ${act('removeOrderFlag', f.id)}>${ICON_TRASH}<span>Sil</span></button>
           </td>
         </tr>`).join('')}
       ${flags.length===0 ? '<tr><td colspan="2" class="muted" style="padding:10px 4px;">Henüz etiket eklenmedi.</td></tr>' : ''}
@@ -132,7 +132,7 @@ function renderOrderFlagsSettings(el, session){
       <p>Yeni Etiket Ekle</p>
       <div style="display:flex;gap:10px;align-items:end;">
         <div class="field-group" style="flex:1;"><label>Etiket Adı</label><input id="nf_label" placeholder="örn. Personel Yemeği"></div>
-        <button style="max-width:160px;" onclick="addOrderFlag()">+ Etiket Ekle</button>
+        <button style="max-width:160px;" ${act('addOrderFlag')}>+ Etiket Ekle</button>
       </div>
     </div>
   </div>`;
@@ -173,8 +173,8 @@ function renderIngredientsSettings(el, session){
         ${listSearchHtml('ingredients', 'Hammadde ara…').replace('margin:0 0 12px;','margin:0;')}
         <span style="flex:1;"></span>
         <div class="act-row">
-          <button type="button" class="act-btn act-save" id="ingSaveAllBtn" onclick="saveAllIngredients()" disabled>${ICON_SAVE}<span>Kaydet</span></button>
-          <button type="button" class="act-btn act-delete" data-ing-sel onclick="bulkDeleteIngredients()" disabled>${ICON_TRASH}<span>Sil</span></button>
+          <button type="button" class="act-btn act-save" id="ingSaveAllBtn" ${act('saveAllIngredients')} disabled>${ICON_SAVE}<span>Kaydet</span></button>
+          <button type="button" class="act-btn act-delete" data-ing-sel ${act('bulkDeleteIngredients')} disabled>${ICON_TRASH}<span>Sil</span></button>
         </div>
       </div>
       <p class="muted" id="ingSelInfo" style="text-align:left;font-size:12.5px;margin:-4px 0 8px;text-transform:none;letter-spacing:0;font-weight:400;"></p>
@@ -185,23 +185,23 @@ function renderIngredientsSettings(el, session){
           <option value="adet">adet</option><option value="gram">gram</option><option value="kg">kg</option><option value="ml">ml</option><option value="lt">lt</option>
         </select></div>
         <div class="field-group" style="${fgStyle(130)}"><label>Başlangıç Stoku</label><input type="number" step="0.01" id="ni_stock" placeholder="0" style="margin:0;"></div>
-        <button style="${INLINE_BTN}" onclick="addIngredient()">+ Hammadde Ekle</button>
+        <button style="${INLINE_BTN}" ${act('addIngredient')}>+ Hammadde Ekle</button>
       </div>
     </div>
     <div class="settings-table-wrap">
     <table class="settings-table">
-      <thead><tr><th style="width:36px;"><input type="checkbox" style="width:auto;margin:0;" title="Tümünü seç" onchange="selectAllIngredients(this.checked)"></th><th>Hammadde Adı</th><th>Birim</th><th>Stok</th><th></th></tr></thead>
-      <tbody oninput="markIngDirty(event)" onchange="markIngDirty(event)">
+      <thead><tr><th style="width:36px;"><input type="checkbox" style="width:auto;margin:0;" title="Tümünü seç" ${actOn('change','selectAllIngredients',['$checked'])}></th><th>Hammadde Adı</th><th>Birim</th><th>Stok</th><th></th></tr></thead>
+      <tbody ${actOn('input','markIngDirty',['$event'])} ${actOn('change','markIngDirty',['$event'])}>
       ${ings.map(i => `
         <tr data-iid="${i.id}">
-          <td><input type="checkbox" class="ing-sel" value="${i.id}" style="width:auto;margin:0;" onchange="updateIngSelection()"></td>
+          <td><input type="checkbox" class="ing-sel" value="${i.id}" style="width:auto;margin:0;" ${actOn('change','updateIngSelection',[])}></td>
           <td class="col-name"><input value="${escapeAttr(i.name)}" id="ing_name_${i.id}"></td>
           <td class="col-num"><select id="ing_unit_${i.id}">
             ${['adet','gram','kg','ml','lt'].map(u => `<option value="${u}" ${u===i.unit?'selected':''}>${u}</option>`).join('')}
           </select></td>
           <td class="col-num"><input type="number" step="0.01" value="${i.stock}" id="ing_stock_${i.id}"></td>
           <td style="white-space:nowrap;">
-            <button class="sbtn" style="background:var(--accent2);color:var(--btn-ink);" onclick="openIngredientUsageModal('${i.id}')">Kullanıldığı Ürünler</button>
+            <button class="sbtn" style="background:var(--accent2);color:var(--btn-ink);" ${act('openIngredientUsageModal', i.id)}>Kullanıldığı Ürünler</button>
           </td>
         </tr>`).join('')}
       </tbody>
@@ -280,10 +280,10 @@ function openIngredientUsageModal(ingredientId){
   bg.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:100;padding:16px;';
   bg.onclick = (e) => { if(e.target===bg) bg.remove(); };
   bg.innerHTML = `<div style="background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:20px;max-width:480px;width:100%;max-height:88vh;overflow:auto;">
-    <div style="display:flex;justify-content:space-between;"><h2 style="margin:0;">${escapeHtml(ingredientName)} - Kullanıldığı Ürünler</h2><span style="cursor:pointer;color:var(--muted);" onclick="document.getElementById('ingUsageModalBg').remove()">✕</span></div>
+    <div style="display:flex;justify-content:space-between;"><h2 style="margin:0;">${escapeHtml(ingredientName)} - Kullanıldığı Ürünler</h2><span style="cursor:pointer;color:var(--muted);" ${act('removeEl','ingUsageModalBg')}>✕</span></div>
     <p class="muted" style="text-align:left;">Bu hammaddeyi hangi ürünler kullanıyor, 1 porsiyonda ne kadar tüketiliyor? Seçmediğiniz ürünlerden bu hammadde kaldırılır (o ürünlerin diğer hammaddeleri etkilenmez).</p>
     <div id="ingUsageItemsBox"></div>
-    <button style="margin-top:14px;" onclick="saveIngredientUsage('${ingredientId}')">${ICON_SAVE}<span>Kaydet</span></button>
+    <button style="margin-top:14px;" ${act('saveIngredientUsage', ingredientId)}>${ICON_SAVE}<span>Kaydet</span></button>
   </div>`;
   document.body.appendChild(bg);
   const box = document.getElementById('ingUsageItemsBox');
@@ -291,7 +291,7 @@ function openIngredientUsageModal(ingredientId){
     const existing = (p.recipe||[]).find(r => r.ingredient_id===ingredientId);
     return `
     <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);">
-      <input type="checkbox" id="ingu_chk_${p.id}" ${existing?'checked':''} onchange="const q=document.getElementById('ingu_qty_${p.id}');q.disabled=!this.checked;if(this.checked)q.focus();else q.style.borderColor=''" style="width:auto;margin:0;">
+      <input type="checkbox" id="ingu_chk_${p.id}" ${existing?'checked':''} ${actOn('change','toggleIngUsageQty',[p.id,'$checked'])} style="width:auto;margin:0;">
       <span style="flex:1;">${escapeHtml(p.name)}</span>
       <input type="number" step="0.01" min="0" id="ingu_qty_${p.id}" value="${existing?existing.qty_per_unit:''}" placeholder="Miktar/porsiyon" ${existing?'':'disabled'} style="width:130px;margin:0;">
     </div>`;
@@ -336,7 +336,7 @@ function openRecipeModal(productId){
   bg.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:100;padding:16px;';
   bg.onclick = (e) => { if(e.target===bg) bg.remove(); };
   bg.innerHTML = `<div style="background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:20px;max-width:440px;width:100%;max-height:88vh;overflow:auto;">
-    <div style="display:flex;justify-content:space-between;"><h2 style="margin:0;">${escapeHtml(prod.name)} - Reçete</h2><span style="cursor:pointer;color:var(--muted);" onclick="document.getElementById('recipeModalBg').remove()">✕</span></div>
+    <div style="display:flex;justify-content:space-between;"><h2 style="margin:0;">${escapeHtml(prod.name)} - Reçete</h2><span style="cursor:pointer;color:var(--muted);" ${act('removeEl','recipeModalBg')}>✕</span></div>
     <p class="muted" style="text-align:left;">Bu üründen 1 porsiyon satıldığında hangi hammaddeden ne kadar düşsün?</p>
     <div id="recipeItemsBox"></div>
     <div style="background:var(--panel2);border-radius:10px;padding:12px;margin-top:12px;">
@@ -345,10 +345,10 @@ function openRecipeModal(productId){
           ${(APP.config.ingredients||[]).map(i => `<option value="${i.id}" data-unit="${i.unit}" data-name="${escapeAttr(i.name)}">${escapeHtml(i.name)} (${i.unit})</option>`).join('')}
         </select>
         <input type="number" step="0.01" id="recipeQtyInput" placeholder="Miktar" style="width:100px;margin:0;">
-        <button style="width:auto;padding:8px 12px;margin:0;" onclick="addRecipeItem('${productId}')">Ekle</button>
+        <button style="width:auto;padding:8px 12px;margin:0;" ${act('addRecipeItem', productId)}>Ekle</button>
       </div>
     </div>
-    <button style="margin-top:14px;" onclick="saveRecipe('${productId}')">Reçeteyi Kaydet</button>
+    <button style="margin-top:14px;" ${act('saveRecipe', productId)}>Reçeteyi Kaydet</button>
   </div>`;
   document.body.appendChild(bg);
   renderRecipeItems();
@@ -359,7 +359,7 @@ function renderRecipeItems(){
     RECIPE_DRAFT.map((r,idx) => `
       <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);">
         <span>${escapeHtml(r.ingredient_name)}: <b>${r.qty_per_unit} ${r.ingredient_unit}</b></span>
-        <span style="cursor:pointer;color:var(--red);" onclick="removeRecipeItem(${idx})">✕</span>
+        <span style="cursor:pointer;color:var(--red);" ${act('removeRecipeItem', idx)}>✕</span>
       </div>`).join('');
 }
 function addRecipeItem(productId){
@@ -403,10 +403,10 @@ function openTranslationsModal(productId){
   bg.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:100;padding:16px;';
   bg.onclick = (e) => { if(e.target===bg) bg.remove(); };
   bg.innerHTML = `<div style="background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:20px;max-width:440px;width:100%;max-height:88vh;overflow:auto;">
-    <div style="display:flex;justify-content:space-between;"><h2 style="margin:0;">${escapeHtml(prod.name)} - Çeviriler</h2><span style="cursor:pointer;color:var(--muted);" onclick="document.getElementById('translationsModalBg').remove()">✕</span></div>
+    <div style="display:flex;justify-content:space-between;"><h2 style="margin:0;">${escapeHtml(prod.name)} - Çeviriler</h2><span style="cursor:pointer;color:var(--muted);" ${act('removeEl','translationsModalBg')}>✕</span></div>
     <p class="muted" style="text-align:left;">Boş bıraktığınız diller için QR menüde Türkçe ad gösterilir.</p>
     ${QR_MENU_LANGUAGES.map(l => `<div class="field-group"><label>${l.label}</label><input id="tr_${l.code}_${productId}" value="${escapeAttr(translations[l.code]||'')}" placeholder="${escapeAttr(prod.name)}"></div>`).join('')}
-    <button style="margin-top:14px;" onclick="saveTranslations('${productId}')">Çevirileri Kaydet</button>
+    <button style="margin-top:14px;" ${act('saveTranslations', productId)}>Çevirileri Kaydet</button>
   </div>`;
   document.body.appendChild(bg);
 }
@@ -441,7 +441,7 @@ const STATION_ICON_CHOICES = STATION_ICON_GROUPS.flatMap(g => g[1].map(x => x[0]
 function stationIconPickerHtml(id, current, extraStyle){
   const cur = current || '🍳';
   return `<input type="hidden" id="${id}" value="${cur}">
-    <button type="button" class="icon-pick-btn" id="${id}_btn" style="${extraStyle||''}" onclick="openIconPicker('${id}')">${cur}</button>`;
+    <button type="button" class="icon-pick-btn" id="${id}_btn" style="${extraStyle||''}" ${act('openIconPicker', id)}>${cur}</button>`;
 }
 function iconPickerGridHtml(targetId, current, filter){
   const q = (filter||'').trim().toLocaleLowerCase('tr');
@@ -449,7 +449,7 @@ function iconPickerGridHtml(targetId, current, filter){
   if(!groups.length) return '<p class="muted" style="text-align:center;margin:24px 0;">Sonuç bulunamadı</p>';
   return groups.map(([name, items]) => `
     <div class="icon-picker-cat">${escapeHtml(name)}</div>
-    <div class="icon-picker-grid">${items.map(([ic, kw]) => `<button type="button" class="icon-picker-item ${ic===current?'selected':''}" title="${escapeAttr(kw)}" onclick="pickStationIcon('${targetId}','${ic}')">${ic}</button>`).join('')}</div>`).join('');
+    <div class="icon-picker-grid">${items.map(([ic, kw]) => `<button type="button" class="icon-picker-item ${ic===current?'selected':''}" title="${escapeAttr(kw)}" ${act('pickStationIcon', targetId, ic)}>${ic}</button>`).join('')}</div>`).join('');
 }
 function openIconPicker(targetId){
   const current = document.getElementById(targetId).value;
@@ -459,10 +459,10 @@ function openIconPicker(targetId){
   bg.innerHTML = `<div class="icon-picker-panel">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
       <h3 style="margin:0;">İkon Seç</h3>
-      <button type="button" class="icon-picker-close" onclick="document.getElementById('iconPickerBg').remove()">✕</button>
+      <button type="button" class="icon-picker-close" ${act('removeEl','iconPickerBg')}>✕</button>
     </div>
     <input id="iconPickerSearch" placeholder="🔍 Ara: pizza, kahve, tatlı…" autocomplete="off" style="margin-bottom:10px;"
-      oninput="document.getElementById('iconPickerBody').innerHTML = iconPickerGridHtml('${targetId}', ${jsArg(current)}, this.value)">
+      ${actOn('input','filterIconPicker',[targetId, current, '$value'])}>
     <div id="iconPickerBody" class="icon-picker-body">${iconPickerGridHtml(targetId, current, '')}</div>
   </div>`;
   bg.addEventListener('click', (e) => { if(e.target===bg) bg.remove(); });
@@ -476,17 +476,14 @@ function pickStationIcon(targetId, icon){
   const bg = document.getElementById('iconPickerBg');
   if(bg) bg.remove();
 }
-function stationRowActionBtn(icon, title, color, onclick){
-  return `<button type="button" title="${title}" onclick="${onclick}" style="width:38px;height:38px;flex-shrink:0;border-radius:10px;border:1px solid var(--border);background:var(--panel);color:${color||'var(--text)'};cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;padding:0;margin:0;">${icon}</button>`;
-}
 function renderStationsSettings(el, session){
   const rowHtml = (s) => `
     <div style="display:flex;align-items:center;gap:12px;background:var(--panel2);border:1px solid var(--border);border-radius:12px;padding:10px 12px;flex-wrap:wrap;">
       ${stationIconPickerHtml('st_icon_'+s.id, s.icon||'🍳', `border-radius:50%;background:${s.color}26;border-color:${s.color};`)}
       <input value="${escapeAttr(s.name)}" id="st_name_${s.id}" placeholder="İstasyon adı" style="flex:1;min-width:120px;margin:0;font-weight:700;">
       <input type="color" value="${s.color}" id="st_color_${s.id}" title="Renk" style="padding:2px;height:38px;width:42px;flex-shrink:0;margin:0;">
-      ${actBtn('save', `saveStation('${s.id}')`)}
-      ${actBtn('delete', `removeStation('${s.id}')`)}
+      ${actBtn('save', 'saveStation', s.id)}
+      ${actBtn('delete', 'removeStation', s.id)}
     </div>`;
   el.innerHTML = `<div class="box" style="max-width:none;">
     <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:14px;">
@@ -499,7 +496,7 @@ function renderStationsSettings(el, session){
         ${stationIconPickerHtml('newStIcon','🍳', 'border-radius:50%;')}
         <input id="newStName" placeholder="Yeni istasyon adı (örn. Fırın)" style="flex:1;min-width:160px;margin:0;">
         <input type="color" id="newStColor" value="#b6a48d" title="Renk" style="padding:2px;height:38px;width:42px;flex-shrink:0;margin:0;">
-        <button style="width:auto;margin:0;padding:0 18px;height:38px;" onclick="addStation()">+ Ekle</button>
+        <button style="width:auto;margin:0;padding:0 18px;height:38px;" ${act('addStation')}>+ Ekle</button>
       </div>
     </div>
   </div>`;
@@ -551,26 +548,26 @@ function renderZonesSettings(el, session){
       <div class="zone-card">
         <div class="zone-head">
           <span class="zone-ic">📍</span>
-          <input value="${escapeAttr(z.name)}" id="zn_name_${z.id}" class="zone-name" onkeydown="if(event.key==='Enter')saveZone('${z.id}')">
+          <input value="${escapeAttr(z.name)}" id="zn_name_${z.id}" class="zone-name" ${actOn('keydown','onEnterCall',['$event','saveZone', z.id])}>
           <span class="zone-count">${z.tables.length} masa</span>
-          <button type="button" class="act-btn act-save" onclick="saveZone('${z.id}')">${ICON_SAVE}<span>Kaydet</span></button>
-          <button type="button" class="act-btn act-delete" onclick="removeZone('${z.id}')">${ICON_TRASH}<span>Sil</span></button>
+          <button type="button" class="act-btn act-save" ${act('saveZone', z.id)}>${ICON_SAVE}<span>Kaydet</span></button>
+          <button type="button" class="act-btn act-delete" ${act('removeZone', z.id)}>${ICON_TRASH}<span>Sil</span></button>
         </div>
         <div class="zone-tables">
           ${z.tables.slice().sort(natural).map(t => `<div class="zone-table">
-            <span class="zt-name" title="Yeniden adlandır" onclick="renameTable('${t.id}','${z.id}',${escapeAttr(JSON.stringify(t.name))})">${escapeHtml(t.name)}</span>
-            <button type="button" class="zt-btn" title="QR Menü Kodu" onclick="showTableQr('${t.id}','${t.qr_token}')">▦</button>
-            <button type="button" class="zt-btn zt-del" title="Sil" onclick="removeTable('${t.id}')">✕</button>
+            <span class="zt-name" title="Yeniden adlandır" ${act('renameTable', t.id, z.id, t.name)}>${escapeHtml(t.name)}</span>
+            <button type="button" class="zt-btn" title="QR Menü Kodu" ${act('showTableQr', t.id, t.qr_token)}>▦</button>
+            <button type="button" class="zt-btn zt-del" title="Sil" ${act('removeTable', t.id)}>✕</button>
           </div>`).join('') || '<span class="muted" style="font-size:13px;">Bu bölgede henüz masa yok.</span>'}
         </div>
         <div class="zone-add">
-          <input id="newTable_${z.id}" placeholder="Yeni masa adı (örn. Masa 11 ya da Masa 1-10)" onkeydown="if(event.key==='Enter')addTable('${z.id}')">
-          <button type="button" onclick="addTable('${z.id}')">+ Masa</button>
+          <input id="newTable_${z.id}" placeholder="Yeni masa adı (örn. Masa 11 ya da Masa 1-10)" ${actOn('keydown','onEnterCall',['$event','addTable', z.id])}>
+          <button type="button" ${act('addTable', z.id)}>+ Masa</button>
         </div>
       </div>`).join('')}
     <div class="zone-add zone-add-new">
-      <input id="newZoneName" placeholder="Yeni bölge adı (örn. Teras)" onkeydown="if(event.key==='Enter')addZone()">
-      <button type="button" onclick="addZone()">+ Bölge Ekle</button>
+      <input id="newZoneName" placeholder="Yeni bölge adı (örn. Teras)" ${actOn('keydown','onEnterCall',['$event','addZone'])}>
+      <button type="button" ${act('addZone')}>+ Bölge Ekle</button>
     </div>
   </div>`;
 }
@@ -737,10 +734,10 @@ function showTableQr(tableId, qrToken){
   bg.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:100;padding:16px;';
   bg.onclick = (e) => { if(e.target===bg) bg.remove(); };
   bg.innerHTML = `<div style="background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:20px;max-width:320px;width:100%;text-align:center;">
-    <div style="display:flex;justify-content:space-between;"><h2 style="margin:0;">${escapeHtml(tableName)}</h2><span style="cursor:pointer;color:var(--muted);" onclick="document.getElementById('tableQrModalBg').remove()">✕</span></div>
+    <div style="display:flex;justify-content:space-between;"><h2 style="margin:0;">${escapeHtml(tableName)}</h2><span style="cursor:pointer;color:var(--muted);" ${act('removeEl','tableQrModalBg')}>✕</span></div>
     <img src="${qrImgUrl}" alt="QR" style="width:100%;max-width:260px;margin:14px 0;border-radius:8px;background:#fff;padding:8px;">
     <p class="muted" style="font-size:12px;overflow-wrap:anywhere;word-break:break-word;">${escapeHtml(url)}</p>
-    <button style="margin-top:8px;" onclick="navigator.clipboard.writeText(${jsArg(url)}).then(()=>showToast('Link kopyalandı ✓'))">🔗 Linki Kopyala</button>
+    <button style="margin-top:8px;" ${act('copyText', url, 'Link kopyalandı ✓')}>🔗 Linki Kopyala</button>
   </div>`;
   document.body.appendChild(bg);
 }
@@ -770,7 +767,7 @@ function renderProductsSettings(el, session){
 
   const rowsFor = (list) => list.map(p => `
         <tr data-pid="${p.id}" style="${p.available===false?'opacity:.6;':''}">
-          <td><input type="checkbox" class="prod-sel" value="${p.id}" style="width:auto;margin:0;" onchange="updateProdSelection()"></td>
+          <td><input type="checkbox" class="prod-sel" value="${p.id}" style="width:auto;margin:0;" ${actOn('change','updateProdSelection',[])}></td>
           <td class="col-name"><input value="${escapeAttr(p.name)}" id="pr_name_${p.id}"></td>
           <td class="col-name"><select id="pr_st_${p.id}">
             ${stations.map(s => `<option value="${s.id}" ${s.id===p.station_id?'selected':''}>${escapeHtml(s.name)}</option>`).join('')}
@@ -787,8 +784,8 @@ function renderProductsSettings(el, session){
               ? '<span class="role-badge" style="color:var(--red);border-color:var(--red);">Kapalı</span>'
               : '<span class="role-badge" style="color:var(--green);border-color:var(--green);">Satışta</span>'}</td>
           <td><div class="act-row">
-            <button type="button" class="act-btn act-recipe" onclick="openRecipeModal('${p.id}')"><b>📋</b><span>Reçete</span></button>
-            ${hasFeature('multilang_menu') ? `<button type="button" class="act-btn act-lang" onclick="openTranslationsModal('${p.id}')" title="QR menüde diğer dillerde gösterilecek isim"><b>🌐</b><span>Çeviri</span></button>` : ''}
+            <button type="button" class="act-btn act-recipe" ${act('openRecipeModal', p.id)}><b>📋</b><span>Reçete</span></button>
+            ${hasFeature('multilang_menu') ? `<button type="button" class="act-btn act-lang" ${act('openTranslationsModal', p.id)} title="QR menüde diğer dillerde gösterilecek isim"><b>🌐</b><span>Çeviri</span></button>` : ''}
           </div></td>
         </tr>`).join('');
 
@@ -797,7 +794,7 @@ function renderProductsSettings(el, session){
       <h3 style="display:flex;align-items:center;gap:8px;font-size:14px;margin:0 0 10px;">${colorDot?`<span style="width:10px;height:10px;border-radius:50%;background:${colorDot};display:inline-block;flex-shrink:0;"></span>`:''}${escapeHtml(title)}<span class="muted" style="font-weight:400;">(${list.length})</span></h3>
       <div class="settings-table-wrap">
       <table class="settings-table">
-        <thead><tr><th style="width:36px;"><input type="checkbox" style="width:auto;margin:0;" title="Bu gruptakilerin tümünü seç" onchange="selectProdGroup(this)"></th><th>Ürün Adı</th><th>İstasyon</th><th>Fiyat</th><th>Maliyet</th><th title="Fiyata dahil KDV oranı">KDV</th><th>Stok</th><th>Durum</th><th></th></tr></thead>
+        <thead><tr><th style="width:36px;"><input type="checkbox" style="width:auto;margin:0;" title="Bu gruptakilerin tümünü seç" ${actOn('change','selectProdGroup',['$this'])}></th><th>Ürün Adı</th><th>İstasyon</th><th>Fiyat</th><th>Maliyet</th><th title="Fiyata dahil KDV oranı">KDV</th><th>Stok</th><th>Durum</th><th></th></tr></thead>
         <tbody>${rowsFor(list)}</tbody>
       </table>
       </div>
@@ -809,11 +806,11 @@ function renderProductsSettings(el, session){
     <h2>Ürünler</h2>
     <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 10px;">
       <label style="margin:0;font-weight:700;font-size:13.5px;">Varsayılan KDV oranı</label>
-      <div style="width:130px;">${vatSelectHtml('defaultVatSel', APP.config.default_vat_rate ?? 10, false, 'onchange="saveDefaultVat(this.value)" style="margin:0;"')}</div>
+      <div style="width:130px;">${vatSelectHtml('defaultVatSel', APP.config.default_vat_rate ?? 10, false, `${actOn('change','saveDefaultVat',['$value'])} style="margin:0;"`)}</div>
       <span class="muted" style="font-size:12.5px;">Fiyatlar KDV dahildir. Lokantada yiyecek-içecek %10, alkollü içecek %20. Ürüne ayrı oran seçilmezse bu oran kullanılır.</span>
     </div>
     <p class="muted" style="text-align:left;margin:0 0 16px;">Stok alanını boş bırakırsanız o ürün için stok takibi yapılmaz. Satırları değiştirip <b>Kaydet</b>'e basın; satışa açmak / kapatmak / silmek için satırları seçin.</p>
-    <div id="prodGroups" oninput="markProdDirty(event)" onchange="markProdDirty(event)">
+    <div id="prodGroups" ${actOn('input','markProdDirty',['$event'])} ${actOn('change','markProdDirty',['$event'])}>
     ${stations.map(s => groupHtml(s.name, s.color, products.filter(p => p.station_id===s.id))).join('')}
     ${groupHtml('İstasyonsuz', null, unassigned)}
     </div>
@@ -823,10 +820,10 @@ function renderProductsSettings(el, session){
         ${listSearchHtml('products', 'Ürün ara…').replace('margin:0 0 12px;','margin:0;')}
         <span style="flex:1;"></span>
         <div class="act-row">
-          <button type="button" class="act-btn act-save" id="prodSaveAllBtn" onclick="saveAllProducts()" disabled>${ICON_SAVE}<span>Kaydet</span></button>
-          <button type="button" class="act-btn act-open" data-prod-sel onclick="bulkProductAvailable(true)" disabled><b>✓</b><span>Satışa Aç</span></button>
-          <button type="button" class="act-btn act-close" data-prod-sel onclick="bulkProductAvailable(false)" disabled><b>✕</b><span>Satışa Kapat</span></button>
-          <button type="button" class="act-btn act-delete" data-prod-sel onclick="bulkDeleteProducts()" disabled>${ICON_TRASH}<span>Sil</span></button>
+          <button type="button" class="act-btn act-save" id="prodSaveAllBtn" ${act('saveAllProducts')} disabled>${ICON_SAVE}<span>Kaydet</span></button>
+          <button type="button" class="act-btn act-open" data-prod-sel ${act('bulkProductAvailable', true)} disabled><b>✓</b><span>Satışa Aç</span></button>
+          <button type="button" class="act-btn act-close" data-prod-sel ${act('bulkProductAvailable', false)} disabled><b>✕</b><span>Satışa Kapat</span></button>
+          <button type="button" class="act-btn act-delete" data-prod-sel ${act('bulkDeleteProducts')} disabled>${ICON_TRASH}<span>Sil</span></button>
         </div>
       </div>
       <p class="muted" id="prodSelInfo" style="text-align:left;font-size:12.5px;margin:-4px 0 8px;text-transform:none;letter-spacing:0;font-weight:400;min-height:0;"></p>
@@ -843,8 +840,8 @@ function renderProductsSettings(el, session){
           ${APP.config.ingredients.map(i => `<option value="${i.id}" data-unit="${i.unit}" data-name="${escapeAttr(i.name)}">${escapeHtml(i.name)} (${i.unit})</option>`).join('')}
         </select></div>
         <div class="field-group" style="margin:0;min-width:0;flex:1 1 80px;width:auto;"><label>Miktar</label><input style="margin:0;width:100%;" type="number" step="0.01" id="npRecipeQtyInput" placeholder="0"></div>
-        <button type="button" class="ghost-btn" style="width:auto;margin:0;white-space:nowrap;flex:0 0 auto;" onclick="addNewProductRecipeItem()" title="Hammaddeyi reçeteye ekle">＋ Reçeteye</button>`}
-        <button type="button" style="width:auto;margin:0;white-space:nowrap;flex:0 0 auto;padding-left:18px;padding-right:18px;" onclick="addProduct()">+ Ürün Ekle</button>
+        <button type="button" class="ghost-btn" style="width:auto;margin:0;white-space:nowrap;flex:0 0 auto;" ${act('addNewProductRecipeItem')} title="Hammaddeyi reçeteye ekle">＋ Reçeteye</button>`}
+        <button type="button" style="width:auto;margin:0;white-space:nowrap;flex:0 0 auto;padding-left:18px;padding-right:18px;" ${act('addProduct')}>+ Ürün Ekle</button>
       </div>
       <div id="npRecipeItemsBox"></div>
     </div>
@@ -858,7 +855,7 @@ function renderNewProductRecipeItems(){
   // Reçete kalemleri formun altında küçük etiketler olarak (boşsa yer kaplamaz).
   el.innerHTML = NEW_PRODUCT_RECIPE_DRAFT.length===0 ? '' : `<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;align-items:center;">
     <span class="muted" style="font-size:12px;">Reçete:</span>
-    ${NEW_PRODUCT_RECIPE_DRAFT.map((r,idx) => `<span class="role-badge" style="display:inline-flex;gap:6px;align-items:center;">${escapeHtml(r.ingredient_name)}: <b>${r.qty_per_unit} ${escapeHtml(r.ingredient_unit)}</b><span style="cursor:pointer;color:var(--red);" title="Çıkar" onclick="removeNewProductRecipeItem(${idx})">✕</span></span>`).join('')}</div>`;
+    ${NEW_PRODUCT_RECIPE_DRAFT.map((r,idx) => `<span class="role-badge" style="display:inline-flex;gap:6px;align-items:center;">${escapeHtml(r.ingredient_name)}: <b>${r.qty_per_unit} ${escapeHtml(r.ingredient_unit)}</b><span style="cursor:pointer;color:var(--red);" title="Çıkar" ${act('removeNewProductRecipeItem', idx)}>✕</span></span>`).join('')}</div>`;
 }
 function addNewProductRecipeItem(){
   const sel = document.getElementById('npRecipeIngSelect');
@@ -974,7 +971,7 @@ function roleCheckboxes(idPrefix, selectedIds, disabled){
   const roles = (APP.config.roles||[]).filter(r => !r.is_system);
   return roles.map(r => `
     <label style="display:flex;align-items:center;gap:6px;font-weight:400;font-size:13px;margin-bottom:4px;">
-      <input type="checkbox" id="${idPrefix}_role_${r.id}" value="${r.id}" data-roles-group="${idPrefix}" ${selectedIds.includes(r.id)?'checked':''} style="width:auto;margin:0;" ${disabled?'disabled':''} onchange="enforceMaxTwoRoles('${idPrefix}')">
+      <input type="checkbox" id="${idPrefix}_role_${r.id}" value="${r.id}" data-roles-group="${idPrefix}" ${selectedIds.includes(r.id)?'checked':''} style="width:auto;margin:0;" ${disabled?'disabled':''} ${actOn('change','enforceMaxTwoRoles',[idPrefix])}>
       ${escapeHtml(r.name)}
     </label>`).join('');
 }
@@ -1000,8 +997,8 @@ function passField(id, disabled, existing){
   const btn = 'flex:0 0 auto;width:auto;margin:0;padding:6px 9px;font-size:15px;line-height:1;';
   return `<div style="display:flex;gap:6px;align-items:center;">
     <input type="password" id="${id}" placeholder="${existing ? '••••••  (değiştirmek için yaz)' : 'Şifre'}" autocomplete="new-password" style="flex:1;min-width:0;margin:0;" ${disabled?'disabled':''}>
-    ${disabled ? '' : `<button type="button" class="ghost-btn" style="${btn}" title="Göster / gizle" onclick="togglePassVisible('${id}', this)">👁</button>
-    <button type="button" class="ghost-btn" style="${btn}" title="Rastgele şifre üret" onclick="fillRandomPass('${id}')">🎲</button>`}
+    ${disabled ? '' : `<button type="button" class="ghost-btn" style="${btn}" title="Göster / gizle" ${act('togglePassVisible', id, '$this')}>👁</button>
+    <button type="button" class="ghost-btn" style="${btn}" title="Rastgele şifre üret" ${act('fillRandomPass', id)}>🎲</button>`}
   </div>`;
 }
 function togglePassVisible(id, b){
@@ -1047,29 +1044,29 @@ function renderUsersSettings(el, session){
         <div class="field-group"><label>Şifre</label>${passField('nu_pass', false, false)}</div>
         <div class="field-group"><label>Roller (en fazla 2)</label>${roleCheckboxes('nu', [])}</div>
       </div>
-      <button style="margin-top:12px;max-width:220px;" onclick="addUser()">+ Kullanıcı Ekle</button>
+      <button style="margin-top:12px;max-width:220px;" ${act('addUser')}>+ Kullanıcı Ekle</button>
     </div>
     <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:0 0 10px;">
-      <input id="userSearch" placeholder="🔍 Kullanıcı ara…" value="${escapeAttr(APP.userSearch||'')}" oninput="APP.userSearch=this.value;filterUserRows()" style="max-width:320px;margin:0;">
+      <input id="userSearch" placeholder="🔍 Kullanıcı ara…" value="${escapeAttr(APP.userSearch||'')}" ${actOn('input','setUserSearch',['$value'])} style="max-width:320px;margin:0;">
       <span class="spacer" style="flex:1;"></span>
       <div class="act-row" id="userBulkBar">
-        <button type="button" class="act-btn act-save" id="userSaveAllBtn" onclick="saveAllUsers()" disabled>${ICON_SAVE}<span>Kaydet</span></button>
+        <button type="button" class="act-btn act-save" id="userSaveAllBtn" ${act('saveAllUsers')} disabled>${ICON_SAVE}<span>Kaydet</span></button>
       </div>
       <div class="act-row" style="${canAssign?'':'display:none;'}">
-        <button type="button" class="act-btn act-close" data-needs-sel onclick="bulkUserActive(false)" disabled title="Seçilenler giriş yapamaz, açık oturumları kapanır"><b>⏸</b><span>Pasife Al</span></button>
-        <button type="button" class="act-btn act-open" data-needs-sel onclick="bulkUserActive(true)" disabled><b>✓</b><span>Aktifleştir</span></button>
-        <button type="button" class="act-btn act-delete" data-needs-sel onclick="bulkDeleteUsers()" disabled>${ICON_TRASH}<span>Sil</span></button>
+        <button type="button" class="act-btn act-close" data-needs-sel ${act('bulkUserActive', false)} disabled title="Seçilenler giriş yapamaz, açık oturumları kapanır"><b>⏸</b><span>Pasife Al</span></button>
+        <button type="button" class="act-btn act-open" data-needs-sel ${act('bulkUserActive', true)} disabled><b>✓</b><span>Aktifleştir</span></button>
+        <button type="button" class="act-btn act-delete" data-needs-sel ${act('bulkDeleteUsers')} disabled>${ICON_TRASH}<span>Sil</span></button>
       </div>
     </div>
     <p class="muted" id="userSelInfo" style="text-align:left;font-size:12.5px;margin:0 0 8px;">Satırdaki bilgileri değiştirip <b>Kaydet</b>'e basın${canAssign ? '; pasife almak / silmek için satırları seçin' : ''}.</p>
     <div class="settings-table-wrap">
     <table class="settings-table">
-      <thead><tr><th style="width:36px;">${canAssign ? '<input type="checkbox" id="userSelAll" style="width:auto;margin:0;" title="Tümünü seç" onchange="selectAllUsers(this.checked)">' : ''}</th><th>Kullanıcı Adı</th><th>Yeni Şifre</th><th>Roller (en fazla 2)</th></tr></thead>
-      <tbody oninput="markUserDirty(event)" onchange="markUserDirty(event)">
+      <thead><tr><th style="width:36px;">${canAssign ? `<input type="checkbox" id="userSelAll" style="width:auto;margin:0;" title="Tümünü seç" ${actOn('change','selectAllUsers',['$checked'])}>` : ''}</th><th>Kullanıcı Adı</th><th>Yeni Şifre</th><th>Roller (en fazla 2)</th></tr></thead>
+      <tbody ${actOn('input','markUserDirty',['$event'])} ${actOn('change','markUserDirty',['$event'])}>
       ${APP.config.users.slice().sort((x, y) => String(x.username).localeCompare(String(y.username), 'tr', { sensitivity: 'base' }))
         .map(u => { const locked = !canAssign && userIsPrivileged(u); return (isOwnerUser(u) ? ownerUserRow(u, session) : `
         <tr data-uid="${u.id}" style="${u.is_active===false?'opacity:.55;':''}">
-          <td>${locked ? '<span title="Yetkili kullanıcı - düzenleme izniniz yok">🔒</span>' : !canAssign ? '' : `<input type="checkbox" class="user-sel" value="${u.id}" style="width:auto;margin:0;" onchange="updateUserSelection()">`}</td>
+          <td>${locked ? '<span title="Yetkili kullanıcı - düzenleme izniniz yok">🔒</span>' : !canAssign ? '' : `<input type="checkbox" class="user-sel" value="${u.id}" style="width:auto;margin:0;" ${actOn('change','updateUserSelection',[])}>`}</td>
           <td class="col-name"><input value="${escapeAttr(u.username)}" id="us_name_${u.id}" ${locked?'disabled':''}>${u.is_active===false?'<span class="role-badge" style="color:var(--red);border-color:var(--red);margin-top:6px;display:inline-block;">Pasif</span>':''}</td>
           <td class="col-name">${passField('us_pass_'+u.id, locked, true)}</td>
           <td class="col-name">${roleCheckboxes('us_'+u.id, u.role_ids||[], !canAssign)}</td>
@@ -1105,7 +1102,7 @@ async function renderShiftsSettings(el, session){
     <div id="shiftPendingWrap"></div>
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
       <span class="muted">Tarih Seç</span>
-      <input type="date" id="shiftsDateInput" value="${APP.shiftsDate}" onchange="changeShiftsDate(this.value)">
+      <input type="date" id="shiftsDateInput" value="${APP.shiftsDate}" ${actOn('change','changeShiftsDate',['$value'])}>
     </div>
     <div id="shiftsTableWrap"><p class="muted">Yükleniyor…</p></div>
   </div>`;
@@ -1119,12 +1116,12 @@ async function renderShiftsTable(session){
   const approvalWrap = document.getElementById('shiftApprovalWrap');
   if(approvalWrap) approvalWrap.innerHTML = `
     <label style="display:flex;align-items:flex-start;gap:10px;margin:0 0 14px;cursor:${canManage(session,'shifts')?'pointer':'default'};">
-      <input type="checkbox" style="width:auto;margin-top:3px;" ${data.approval_required?'checked':''} ${canManage(session,'shifts')?'':'disabled'} onchange="toggleShiftApproval(this.checked)">
+      <input type="checkbox" style="width:auto;margin-top:3px;" ${data.approval_required?'checked':''} ${canManage(session,'shifts')?'':'disabled'} ${actOn('change','toggleShiftApproval',['$checked'])}>
       <span><b>Vardiya başlatma yönetici onayına bağlı</b><br>
       <span class="muted" style="font-size:12.5px;">Açıkken personel vardiyayı sadece <i>isteyebilir</i>; siz onayladığınızda başlar ve vardiyayı yalnızca yönetici bitirebilir.${canManage(session,'shifts')?'':' (Bu ayarı Yönetici değiştirebilir.)'}</span></span>
     </label>
     <label style="display:flex;align-items:flex-start;gap:10px;margin:0 0 14px;cursor:${canManage(session,'shifts')?'pointer':'default'};">
-      <input type="checkbox" style="width:auto;margin-top:3px;" ${data.shift_required?'checked':''} ${canManage(session,'shifts')?'':'disabled'} onchange="toggleShiftRequired(this.checked)">
+      <input type="checkbox" style="width:auto;margin-top:3px;" ${data.shift_required?'checked':''} ${canManage(session,'shifts')?'':'disabled'} ${actOn('change','toggleShiftRequired',['$checked'])}>
       <span><b>Vardiya açmadan çalışılamasın</b><br>
       <span class="muted" style="font-size:12.5px;">Açıkken personel vardiyasını başlatmadan Sipariş Al, Paket, Mutfak, Ödemeler, Rezervasyon ve Satın Alma ekranlarını kullanamaz. Vardiya talebini gönderdiği anda çalışmaya başlayabilir; onayı siz sonradan verirsiniz. Yönetici ve <b>⏱ Vardiya Açmadan Çalışma</b> izni verilen roller (ör. Tam Yetkili, en fazla 3 kişi) bu kuraldan muaftır.</span></span>
     </label>`;
@@ -1137,8 +1134,8 @@ async function renderShiftsTable(session){
       ${endReqs.map(p => `<div data-badge-id="${p.id}" style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:10px;flex-wrap:wrap;">
         <span><b>${escapeHtml(p.username)}</b> <span class="muted">· ${formatShiftTime(p.clock_in)}'dan beri vardiyada, ${formatShiftTime(p.requested_at)}'de bitirmek istedi</span></span>
         <span style="display:flex;gap:8px;">
-          <button class="actBtn" style="width:auto;margin:0;" onclick="manageShift('${p.id}','approve_end')">✓ Bitir</button>
-          <button class="actBtn" style="width:auto;margin:0;background:var(--red);color:var(--btn-ink);" onclick="manageShift('${p.id}','reject_end')">✕ Reddet</button>
+          <button class="actBtn" style="width:auto;margin:0;" ${act('manageShift', p.id, 'approve_end')}>✓ Bitir</button>
+          <button class="actBtn" style="width:auto;margin:0;background:var(--red);color:var(--btn-ink);" ${act('manageShift', p.id, 'reject_end')}>✕ Reddet</button>
         </span></div>`).join('')}
     </div>` : '') + (pending.length ? `
     <div style="border:1px solid #d9a400;border-radius:12px;padding:12px;margin-bottom:16px;">
@@ -1146,8 +1143,8 @@ async function renderShiftsTable(session){
       ${pending.map(p => `<div data-badge-id="${p.id}" style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:10px;flex-wrap:wrap;">
         <span><b>${escapeHtml(p.username)}</b> <span class="muted">· ${formatShiftTime(p.requested_at)}'de istedi</span></span>
         <span style="display:flex;gap:8px;">
-          <button class="actBtn" style="width:auto;margin:0;" onclick="manageShift('${p.id}','approve')">✓ Onayla</button>
-          <button class="actBtn danger" style="width:auto;margin:0;background:var(--red);color:var(--btn-ink);" onclick="manageShift('${p.id}','reject')">✕ Reddet</button>
+          <button class="actBtn" style="width:auto;margin:0;" ${act('manageShift', p.id, 'approve')}>✓ Onayla</button>
+          <button class="actBtn danger" style="width:auto;margin:0;background:var(--red);color:var(--btn-ink);" ${act('manageShift', p.id, 'reject')}>✕ Reddet</button>
         </span></div>`).join('')}
     </div>` : '');
   const rows = data.rows || [];
@@ -1162,7 +1159,7 @@ async function renderShiftsTable(session){
           <td>${formatShiftTime(r.clock_in)}</td>
           <td>${!r.clock_out && r.end_requested_at ? `<span style="color:#d9a400;font-weight:700;">🏁 ${formatShiftTime(r.end_requested_at)}'de bitirmek istedi</span>` : r.clock_out ? formatShiftTime(r.clock_out) + (r.ended_by && r.ended_by!==r.username ? `<div class="muted" style="font-size:11.5px;">${escapeHtml(r.ended_by)} bitirdi</div>` : '') : '<span class="muted">Devam ediyor</span>'}</td>
           <td>${formatShiftDuration(r.duration_minutes)}${r.is_paused ? ' <span style="color:#d9a400;font-weight:700;font-size:12px;">⏸ Duraklatıldı</span>' : ''}${r.paused_minutes > 0 ? `<div class="muted" style="font-size:11.5px;">${formatShiftDuration(r.paused_minutes)} aktif değildi</div>` : ''}</td>
-          <td>${r.clock_out ? '' : `<button class="actBtn" style="width:auto;margin:0;background:var(--red);color:var(--btn-ink);" onclick="manageShift('${r.id}','end')">⏹ Bitir</button>`}</td>
+          <td>${r.clock_out ? '' : `<button class="actBtn" style="width:auto;margin:0;background:var(--red);color:var(--btn-ink);" ${act('manageShift', r.id, 'end')}>⏹ Bitir</button>`}</td>
         </tr>`).join('')}
       </tbody>
     </table>
@@ -1205,7 +1202,7 @@ function renderActiveUsersSettings(el){
       <h2 style="margin:0;">🟢 Aktif Kullanıcılar</h2>
       <div style="display:flex;align-items:center;gap:8px;">
         <span class="muted" style="font-size:13px;">Son</span>
-        <select id="activeUsersMinutes" style="width:auto;margin:0;" onchange="APP.activeUsersMinutes=Number(this.value);loadActiveUsers()">
+        <select id="activeUsersMinutes" style="width:auto;margin:0;" ${actOn('change','setActiveUsersMinutes',['$value'])}>
           ${[5,15,60,1440].map(m => `<option value="${m}" ${APP.activeUsersMinutes===m?'selected':''}>${m===1440?'24 saat':m+' dakika'}</option>`).join('')}
         </select>
       </div>
@@ -1261,7 +1258,7 @@ function renderDataResetSettings(el){
     <h2>🗑️ Verileri Sıfırla</h2>
     <p class="muted" style="text-align:left;">Seçtiğiniz dönemdeki işlem verilerini <b>kalıcı olarak</b> siler. Ürünler, masalar, kullanıcılar, müşteriler ve açık siparişler etkilenmez.</p>
     <div class="field-group"><label>Dönem</label>
-      <select id="resetRange" onchange="document.getElementById('resetCustom').style.display=this.value==='custom'?'flex':'none'">
+      <select id="resetRange" ${actOn('change','toggleResetCustom',['$value'])}>
         <option value="1m">Son 1 ay</option>
         <option value="3m" selected>Son 3 ay</option>
         <option value="6m">Son 6 ay</option>
@@ -1279,7 +1276,7 @@ function renderDataResetSettings(el){
       <input type="checkbox" class="resetCat" value="${c.id}" style="width:auto;margin-top:3px;" checked>
       <span>${c.label}${c.hint?`<br><span class="muted" style="font-size:12px;">${c.hint}</span>`:''}</span></label>`).join('')}
     <div class="field-group" style="margin-top:14px;"><label>Onay için giriş şifreniz</label><input type="password" id="resetPassword" autocomplete="current-password"></div>
-    <button style="background:var(--red);color:var(--btn-ink);max-width:260px;" onclick="doDataReset()">Verileri Kalıcı Olarak Sil</button>
+    <button style="background:var(--red);color:var(--btn-ink);max-width:260px;" ${act('doDataReset')}>Verileri Kalıcı Olarak Sil</button>
   </div>`;
 }
 function resetRangeDates(){
@@ -1331,9 +1328,9 @@ function permissionCheckboxes(idPrefix, selectedPerms){
   return `<div class="perm-cats">` + Object.keys(byCat).map(cat => `
     <div class="perm-cat">
       <div class="perm-cat-head"><span>${escapeHtml(cat)}</span>
-        <a onclick="toggleRoleCategory(this, true)">Tümü</a></div>
+        <a ${act('toggleRoleCategory', '$this', true)}>Tümü</a></div>
       <div class="perm-pills">${byCat[cat].map(p => `
-        <label class="perm-pill"><input type="checkbox" value="${escapeAttr(p.id)}" data-perms-group="${idPrefix}" ${selectedPerms.includes(p.id)?'checked':''} onchange="markRoleDirty('${idPrefix}')">${escapeHtml(p.label)}</label>`).join('')}
+        <label class="perm-pill"><input type="checkbox" value="${escapeAttr(p.id)}" data-perms-group="${idPrefix}" ${selectedPerms.includes(p.id)?'checked':''} ${actOn('change','markRoleDirty',[idPrefix])}>${escapeHtml(p.label)}</label>`).join('')}
       </div>
     </div>`).join('') + `</div>`;
 }
@@ -1391,20 +1388,20 @@ function roleCardHtml(r){
   const g = 'role_'+r.id, perms = r.permissions || [];
   return `
     <div class="role-card" data-role-card="${g}">
-      <div class="role-head" onclick="toggleRoleCard('${g}')">
+      <div class="role-head" ${act('toggleRoleCard', g)}>
         <div class="role-avatar">👤</div>
         <div class="role-title"><b>${escapeHtml(r.name)}</b>${r.shift_exempt ? ' <span class="role-badge" style="margin-left:6px;font-size:11px;padding:3px 9px;" title="Vardiya açmadan çalışabilir">⏱ Vardiyasız</span>' : ''}<div class="role-sub">${escapeHtml(rolePermSummary(perms))}</div></div>
         <div class="role-meta"><span class="role-chip">${r.user_count} kullanıcı</span><span class="role-chip accent role-perm-count">${perms.filter(p => rolePermissionCatalog().some(c => c.id===p)).length} / ${total} izin</span></div>
         <span class="role-chevron">▶</span>
       </div>
       <div class="role-body">
-        <div class="field-group" style="max-width:320px;margin-top:12px;"><label>Rol Adı</label><input value="${escapeAttr(r.name)}" id="role_name_${r.id}" oninput="markRoleDirty('${g}')"></div>
+        <div class="field-group" style="max-width:320px;margin-top:12px;"><label>Rol Adı</label><input value="${escapeAttr(r.name)}" id="role_name_${r.id}" ${actOn('input','markRoleDirty',[g])}></div>
         ${permissionCheckboxes(g, perms)}
         <div class="role-actions">
-          <button class="ghost-btn" style="width:auto;margin:0;color:var(--red);border-color:var(--red);" onclick="deleteRole('${r.id}')" ${r.user_count>0?`title="Bu role atanmış ${r.user_count} kullanıcı var"`:''}>${ICON_TRASH}<span>Rolü Sil</span></button>
+          <button class="ghost-btn" style="width:auto;margin:0;color:var(--red);border-color:var(--red);" ${act('deleteRole', r.id)} ${r.user_count>0?`title="Bu role atanmış ${r.user_count} kullanıcı var"`:''}>${ICON_TRASH}<span>Rolü Sil</span></button>
           <span class="spacer"></span>
           <span class="role-dirty-note">● Kaydedilmemiş değişiklik</span>
-          <button style="width:auto;margin:0;padding:10px 22px;" onclick="saveRole('${r.id}')">${ICON_SAVE}<span>Kaydet</span></button>
+          <button style="width:auto;margin:0;padding:10px 22px;" ${act('saveRole', r.id)}>${ICON_SAVE}<span>Kaydet</span></button>
         </div>
       </div>
     </div>`;
@@ -1415,11 +1412,11 @@ function renderRolesSettings(el, session){
     <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;">
       <div><h2 style="margin-bottom:4px;">Roller</h2>
         <p class="muted" style="margin:0 0 16px;">Bir role tıklayarak hangi ekranlara erişebileceğini seçin. Bir kullanıcıya en fazla 2 rol verilebilir; izinleri birleşir.</p></div>
-      <button style="width:auto;margin:0;" onclick="toggleRoleCard('new_role');document.getElementById('new_role_name').focus()">+ Yeni Rol</button>
+      <button style="width:auto;margin:0;" ${act('openNewRoleCard')}>+ Yeni Rol</button>
     </div>
     ${roles.map(roleCardHtml).join('')}
     <div class="role-card" data-role-card="new_role" style="border-style:dashed;">
-      <div class="role-head" onclick="toggleRoleCard('new_role')">
+      <div class="role-head" ${act('toggleRoleCard', 'new_role')}>
         <div class="role-avatar">＋</div>
         <div class="role-title"><b>Yeni Rol Oluştur</b><div class="role-sub">Hazır şablonla başlayın ya da izinleri kendiniz seçin</div></div>
         <div class="role-meta"><span class="role-chip accent role-perm-count">0 / ${rolePermissionCatalog().length} izin</span></div>
@@ -1427,12 +1424,12 @@ function renderRolesSettings(el, session){
       </div>
       <div class="role-body">
         <div class="role-templates"><span class="muted" style="font-size:12px;align-self:center;">Şablon:</span>
-          ${Object.keys(ROLE_TEMPLATES).map(t => `<button class="sbtn" style="margin:0;" onclick="applyRoleTemplate(${jsArg(t)})">${escapeHtml(t)}</button>`).join('')}
+          ${Object.keys(ROLE_TEMPLATES).map(t => `<button class="sbtn" style="margin:0;" ${act('applyRoleTemplate', jsArg(t))}>${escapeHtml(t)}</button>`).join('')}
         </div>
-        <div class="field-group" style="max-width:320px;margin-top:10px;"><label>Rol Adı</label><input id="new_role_name" placeholder="örn. Kasiyer" oninput="markRoleDirty('new_role')"></div>
+        <div class="field-group" style="max-width:320px;margin-top:10px;"><label>Rol Adı</label><input id="new_role_name" placeholder="örn. Kasiyer" ${actOn('input','markRoleDirty',['new_role'])}></div>
         ${permissionCheckboxes('new_role', [])}
         <div class="role-actions"><span class="spacer"></span>
-          <button style="width:auto;margin:0;padding:10px 22px;" onclick="createRole()">+ Rolü Oluştur</button>
+          <button style="width:auto;margin:0;padding:10px 22px;" ${act('createRole')}>+ Rolü Oluştur</button>
         </div>
       </div>
     </div>
@@ -1497,7 +1494,7 @@ async function renderIntegrationsSettings(el, session){
       <input type="checkbox" id="int_efatura_enabled" ${data.efatura_enabled?'checked':''} style="width:auto;margin:0;"> Aktif
     </label>
     <p class="muted" style="font-size:12px;margin-top:6px;">${data.efatura_configured ? '✓ API anahtarı kayıtlı' : 'Henüz API anahtarı girilmedi'}</p>
-    <button style="margin-top:12px;max-width:220px;" onclick="saveEfaturaSettings()">${ICON_SAVE}<span>Kaydet</span></button>
+    <button style="margin-top:12px;max-width:220px;" ${act('saveEfaturaSettings')}>${ICON_SAVE}<span>Kaydet</span></button>
   </div>
   <div class="box" style="max-width:none;">
     <h2>Pazaryeri Entegrasyonu <span class="role-badge" style="font-weight:600;">Eklenti</span></h2>
@@ -1515,7 +1512,7 @@ async function renderIntegrationsSettings(el, session){
       ${data.marketplace_trendyol_configured?'✓ Trendyol Yemek':'✗ Trendyol Yemek'} ·
       ${data.marketplace_getir_configured?'✓ Getir Yemek':'✗ Getir Yemek'}
     </p>
-    <button style="margin-top:12px;max-width:220px;" onclick="saveMarketplaceSettings()">${ICON_SAVE}<span>Kaydet</span></button>
+    <button style="margin-top:12px;max-width:220px;" ${act('saveMarketplaceSettings')}>${ICON_SAVE}<span>Kaydet</span></button>
   </div>
   <div class="box" style="max-width:none;">
     <h2>📊 Muhasebe Entegrasyonu <span class="role-badge" style="font-weight:600;">Eklenti</span></h2>
@@ -1536,22 +1533,22 @@ async function renderIntegrationsSettings(el, session){
       <input type="checkbox" id="int_accounting_enabled" ${data.accounting_enabled?'checked':''} style="width:auto;margin:0;"> Aktif
     </label>
     <p class="muted" style="font-size:12px;margin-top:6px;">${data.accounting_configured ? '✓ API anahtarı kayıtlı' : 'Henüz API anahtarı girilmedi'}</p>
-    <button style="margin-top:12px;max-width:220px;" onclick="saveAccountingSettings()">${ICON_SAVE}<span>Kaydet</span></button>
+    <button style="margin-top:12px;max-width:220px;" ${act('saveAccountingSettings')}>${ICON_SAVE}<span>Kaydet</span></button>
   </div>
   <div class="box" style="max-width:none;">
     <h2>⭐ Google Yorumları</h2>
     <p class="muted" style="margin-top:-6px;">İşletmenizin Google Business Profili'ndeki "yorum yaz" linkini girin. Ödeme alma ekranında bir hesabın tamamı ödendiğinde, personele bu linke giden bir QR kod gösterme seçeneği çıkar - müşteriden telefonuyla okutup değerlendirme bırakmasını isteyebilirsiniz.</p>
     <div class="field-group" style="max-width:500px;"><label>Google Yorum Linki</label><input id="int_google_review_url" placeholder="https://g.page/r/..." value="${escapeAttr(APP.config.google_review_url||'')}"></div>
-    <button style="margin-top:12px;max-width:220px;" onclick="saveGoogleReviewUrl()">${ICON_SAVE}<span>Kaydet</span></button>
+    <button style="margin-top:12px;max-width:220px;" ${act('saveGoogleReviewUrl')}>${ICON_SAVE}<span>Kaydet</span></button>
   </div>
   <div class="box" style="max-width:none;">
     <h2>🛵 Dışarıdan Online Sipariş</h2>
     <p class="muted" style="margin-top:-6px;">Masaya bağlı olmayan, gel-al veya paket teslimat siparişleri için müşterilerinizin doğrudan telefonlarından erişebileceği bir sipariş sayfası. Açtığınızda gelen sipariş istekleri, masa siparişleri gibi "Sipariş Al" ekranınızdaki bildirim şeridinde görünür ve onayladığınızda Paket Servis'e düşer.</p>
     <label style="display:flex;align-items:center;gap:8px;font-weight:600;margin:10px 0;">
-      <input type="checkbox" id="int_online_ordering_enabled" ${APP.config.online_ordering&&APP.config.online_ordering.enabled?'checked':''} style="width:auto;margin:0;" onchange="saveOnlineOrderingSettings()"> Aktif
+      <input type="checkbox" id="int_online_ordering_enabled" ${APP.config.online_ordering&&APP.config.online_ordering.enabled?'checked':''} style="width:auto;margin:0;" ${actOn('change','saveOnlineOrderingSettings',[])}> Aktif
     </label>
     ${APP.config.online_ordering && APP.config.online_ordering.enabled ? onlineOrderingLinkHtml() : ''}
-    <button type="button" class="ghost-btn" style="max-width:280px;margin-top:12px;" onclick="openOnlineMenuEditor()">🗂️ Online Menüyü Düzenle (başlıklar ve fotoğraflar)</button>
+    <button type="button" class="ghost-btn" style="max-width:280px;margin-top:12px;" ${act('openOnlineMenuEditor')}>🗂️ Online Menüyü Düzenle (başlıklar ve fotoğraflar)</button>
   </div>`;
   // Paketinizde/eklentilerinizde olmayan bölümler kilitli gösterilir
   // (sunucu da ilgili RPC'lerde PAKET_OZELLIK_YOK ile reddediyor).
@@ -1575,7 +1572,7 @@ async function renderIntegrationsSettings(el, session){
       <div class="field-group"><label>Vergi Dairesi</label><input id="inv_office" value="${escapeAttr(data.tax_office||'')}"></div>
       <div class="field-group"><label>Adres</label><input id="inv_addr" value="${escapeAttr(data.invoice_address||'')}"></div>
     </div>
-    <button style="max-width:200px;margin-top:10px;" onclick="saveInvoiceSettings()">${ICON_SAVE}<span>Kaydet</span></button>
+    <button style="max-width:200px;margin-top:10px;" ${act('saveInvoiceSettings')}>${ICON_SAVE}<span>Kaydet</span></button>
     <h3 style="margin:18px 0 6px;font-size:14px;">Son 30 günde gönderilenler</h3>
     <div id="invoiceList" class="muted" style="font-size:13px;">Yükleniyor...</div>`;
   el.appendChild(inv);
@@ -1584,7 +1581,7 @@ async function renderIntegrationsSettings(el, session){
   sms.innerHTML = `<h2>📱 SMS Bildirimleri</h2>
     <p class="muted" style="margin-top:-6px;">Açıkken müşterilere otomatik SMS gider: rezervasyon onayı ve 2 saat kala hatırlatma, paket siparişi hazır olunca bildirim, bekleme listesinde "Masa Hazır" butonu.</p>
     <label style="display:flex;align-items:center;gap:8px;font-weight:600;margin:10px 0;">
-      <input type="checkbox" id="int_sms_enabled" ${data.sms_enabled?'checked':''} style="width:auto;margin:0;" onchange="saveSmsSettings(this.checked)"> Aktif
+      <input type="checkbox" id="int_sms_enabled" ${data.sms_enabled?'checked':''} style="width:auto;margin:0;" ${actOn('change','saveSmsSettings',['$checked'])}> Aktif
     </label>`;
   el.insertBefore(sms, inv);
   const today = new Date(), from = new Date(Date.now()-29*864e5);
@@ -1637,10 +1634,10 @@ async function loadAddonPurchaseBox(el, addonId){
     <div style="background:var(--panel2);border-radius:10px;padding:10px 12px;font-size:13.5px;line-height:1.7;">
       ${data.bank_name ? `<div>Banka: <b>${escapeHtml(data.bank_name)}</b></div>` : ''}
       ${data.account_name ? `<div>Alıcı: <b>${escapeHtml(data.account_name)}</b></div>` : ''}
-      <div style="overflow-wrap:anywhere;">IBAN: <b>${escapeHtml(data.iban)}</b> <a href="#" style="color:var(--accent);font-size:12px;" onclick="navigator.clipboard&&navigator.clipboard.writeText(${escapeAttr(JSON.stringify(data.iban))});showToast('IBAN kopyalandı ✓');return false;">Kopyala</a></div>
+      <div style="overflow-wrap:anywhere;">IBAN: <b>${escapeHtml(data.iban)}</b> <a href="#" style="color:var(--accent);font-size:12px;" ${act('copyText', data.iban, 'IBAN kopyalandı ✓')}>Kopyala</a></div>
     </div>
     <div class="field-group" style="margin-top:10px;"><label>Not (opsiyonel)</label><input class="addon-note" placeholder="örn. gönderen adı / dekont no"></div>
-    <button style="max-width:240px;" onclick="submitAddonTransfer(this, '${addonId}')">🏦 Ödemeyi Yaptım</button>`
+    <button style="max-width:240px;" ${act('submitAddonTransfer', '$this', addonId)}>🏦 Ödemeyi Yaptım</button>`
     : '<p class="muted" style="text-align:left;">Banka bilgileri henüz tanımlanmamış, lütfen bizimle iletişime geçin.</p>'}
   </div>`;
 }
@@ -1681,36 +1678,36 @@ function drawOnlineMenuEditor(){
     <div class="add-row-panel" style="margin:0 0 12px;">
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
         <input value="${escapeAttr(sec.name)}" id="oms_name_${sec.id}" style="flex:1;min-width:140px;margin:0;font-weight:700;">
-        <button type="button" class="sbtn" style="width:auto;margin:0;" ${i===0?'disabled':''} onclick="moveOnlineSection('${sec.id}',-1)" title="Yukarı">↑</button>
-        <button type="button" class="sbtn" style="width:auto;margin:0;" ${i===d.sections.length-1?'disabled':''} onclick="moveOnlineSection('${sec.id}',1)" title="Aşağı">↓</button>
-        <button type="button" class="sbtn" style="width:auto;margin:0;" onclick="saveOnlineSectionName('${sec.id}')">💾</button>
-        <button type="button" class="sbtn" style="width:auto;margin:0;background:var(--red);color:var(--btn-ink);" onclick="removeOnlineSection('${sec.id}')">🗑️</button>
+        <button type="button" class="sbtn" style="width:auto;margin:0;" ${i===0?'disabled':''} ${act('moveOnlineSection', sec.id, -1)} title="Yukarı">↑</button>
+        <button type="button" class="sbtn" style="width:auto;margin:0;" ${i===d.sections.length-1?'disabled':''} ${act('moveOnlineSection', sec.id, 1)} title="Aşağı">↓</button>
+        <button type="button" class="sbtn" style="width:auto;margin:0;" ${act('saveOnlineSectionName', sec.id)}>💾</button>
+        <button type="button" class="sbtn" style="width:auto;margin:0;background:var(--red);color:var(--btn-ink);" ${act('removeOnlineSection', sec.id)}>🗑️</button>
       </div>
       <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;">
-        ${sec.product_ids.map(id => byId[id]).filter(Boolean).map(p => `<span class="role-badge" style="display:inline-flex;gap:6px;align-items:center;">${escapeHtml(p.name)} <span class="muted" style="font-size:11px;">(${escapeHtml(p.station_name||'-')})</span><a href="#" style="color:var(--red);text-decoration:none;" onclick="toggleOnlineSectionProduct('${sec.id}','${p.id}');return false;">✕</a></span>`).join('') || '<span class="muted" style="font-size:12.5px;">Henüz ürün yok.</span>'}
+        ${sec.product_ids.map(id => byId[id]).filter(Boolean).map(p => `<span class="role-badge" style="display:inline-flex;gap:6px;align-items:center;">${escapeHtml(p.name)} <span class="muted" style="font-size:11px;">(${escapeHtml(p.station_name||'-')})</span><a href="#" style="color:var(--red);text-decoration:none;" ${act('toggleOnlineSectionProduct', sec.id, p.id)}>✕</a></span>`).join('') || '<span class="muted" style="font-size:12.5px;">Henüz ürün yok.</span>'}
       </div>
-      <button type="button" class="ghost-btn" style="max-width:200px;margin-top:10px;" onclick="pickOnlineSectionProducts('${sec.id}')">+ Ürün Ekle / Çıkar</button>
+      <button type="button" class="ghost-btn" style="max-width:200px;margin-top:10px;" ${act('pickOnlineSectionProducts', sec.id)}>+ Ürün Ekle / Çıkar</button>
     </div>`).join('');
   const photosHtml = d.products.map(p => `
     <div style="display:flex;align-items:center;gap:12px;padding:8px 0;border-bottom:1px solid var(--border);">
       ${p.image ? `<img src="${p.image}" style="width:56px;height:56px;border-radius:10px;object-fit:cover;flex-shrink:0;">` : '<div style="width:56px;height:56px;border-radius:10px;background:var(--panel2);display:flex;align-items:center;justify-content:center;flex-shrink:0;">📷</div>'}
       <div style="flex:1;min-width:0;"><b style="overflow-wrap:anywhere;">${escapeHtml(p.name)}</b><div class="muted" style="font-size:12px;">${escapeHtml(p.station_name||'-')} · ${money(p.price)}</div></div>
-      <label class="sbtn" style="width:auto;margin:0;cursor:pointer;">${p.image?'Değiştir':'Fotoğraf Ekle'}<input type="file" accept="image/*" style="display:none;" onchange="uploadProductImage('${p.id}', this)"></label>
-      ${p.image ? `<button type="button" class="sbtn" style="width:auto;margin:0;background:var(--red);color:var(--btn-ink);" onclick="removeProductImage('${p.id}')">✕</button>` : ''}
+      <label class="sbtn" style="width:auto;margin:0;cursor:pointer;">${p.image?'Değiştir':'Fotoğraf Ekle'}<input type="file" accept="image/*" style="display:none;" ${actOn('change','uploadProductImage',[p.id, '$this'])}></label>
+      ${p.image ? `<button type="button" class="sbtn" style="width:auto;margin:0;background:var(--red);color:var(--btn-ink);" ${act('removeProductImage', p.id)}>✕</button>` : ''}
     </div>`).join('');
   bg.innerHTML = `<div style="background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:20px;max-width:640px;width:100%;">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
       <h2 style="margin:0;">🗂️ Online Menü</h2>
-      <span style="cursor:pointer;color:var(--muted);font-size:20px;" onclick="document.getElementById('onlineMenuBg').remove()">✕</span>
+      <span style="cursor:pointer;color:var(--muted);font-size:20px;" ${act('removeEl','onlineMenuBg')}>✕</span>
     </div>
     <div class="sub-tabs" style="margin-bottom:14px;">
-      <div role="tab" tabindex="0" class="sub-tab ${tab==='sections'?'active':''}" onclick="APP.onlineMenuTab='sections';drawOnlineMenuEditor()"><span class="sub-tab-ic">🗂️</span>Başlıklar</div>
-      <div role="tab" tabindex="0" class="sub-tab ${tab==='photos'?'active':''}" onclick="APP.onlineMenuTab='photos';drawOnlineMenuEditor()"><span class="sub-tab-ic">📷</span>Fotoğraflar</div>
+      <div role="tab" tabindex="0" class="sub-tab ${tab==='sections'?'active':''}" ${act('setOnlineMenuTab','sections')}><span class="sub-tab-ic">🗂️</span>Başlıklar</div>
+      <div role="tab" tabindex="0" class="sub-tab ${tab==='photos'?'active':''}" ${act('setOnlineMenuTab','photos')}><span class="sub-tab-ic">📷</span>Fotoğraflar</div>
     </div>
     ${tab==='sections' ? `
       <p class="muted" style="text-align:left;margin:0 0 12px;font-size:13px;">Online sipariş sayfasında müşteriye görünecek başlıkları oluşturun ve ürünleri yerleştirin (örn. lahmacunu "Fırın" başlığına). Ürünün fişi yine kendi istasyonuna gider. Hiç başlık yoksa ürünler istasyonlara göre listelenir; başlık varsa yalnızca başlıklardaki ürünler görünür.</p>
       ${sectionsHtml || '<p class="muted">Henüz başlık yok.</p>'}
-      <div style="display:flex;gap:8px;margin-top:6px;"><input id="oms_new" placeholder="Yeni başlık (örn. Fırın)" style="margin:0;flex:1;"><button type="button" style="width:auto;margin:0;" onclick="addOnlineSection()">+ Ekle</button></div>`
+      <div style="display:flex;gap:8px;margin-top:6px;"><input id="oms_new" placeholder="Yeni başlık (örn. Fırın)" style="margin:0;flex:1;"><button type="button" style="width:auto;margin:0;" ${act('addOnlineSection')}>+ Ekle</button></div>`
     : `<p class="muted" style="text-align:left;margin:0 0 8px;font-size:13px;">Fotoğraflar online sipariş sayfasında ürünün yanında görünür. Yüklerken otomatik küçültülür.</p>${photosHtml || '<p class="muted">Ürün yok.</p>'}`}
   </div>`;
 }
@@ -1758,15 +1755,15 @@ function pickOnlineSectionProducts(secId){
   ov.onclick = (e) => { if(e.target===ov) ov.remove(); };
   ov.innerHTML = `<div style="background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:18px;max-width:420px;width:100%;max-height:82vh;display:flex;flex-direction:column;">
     <h3 style="margin:0 0 8px;">${escapeHtml(sec.name)} · ürünler</h3>
-    <input id="omsPickSearch" placeholder="Ara..." style="margin:0 0 8px;" oninput="document.querySelectorAll('#omsPickList label').forEach(l => l.style.display = l.textContent.toLocaleLowerCase('tr').includes(this.value.toLocaleLowerCase('tr')) ? 'flex' : 'none')">
+    <input id="omsPickSearch" placeholder="Ara..." style="margin:0 0 8px;" ${actOn('input','filterOmsPickList',['$value'])}>
     <div id="omsPickList" style="overflow:auto;flex:1;">
       ${APP.onlineMenu.products.map(p => `<label style="display:flex;gap:10px;align-items:center;padding:7px 2px;border-bottom:1px solid var(--border);cursor:pointer;">
         <input type="checkbox" value="${p.id}" style="width:auto;margin:0;" ${sec.product_ids.includes(p.id)?'checked':''}>
         <span style="flex:1;">${escapeHtml(p.name)} <span class="muted" style="font-size:11.5px;">${escapeHtml(p.station_name||'-')}</span></span></label>`).join('')}
     </div>
     <div style="display:flex;gap:10px;margin-top:12px;">
-      <button type="button" class="ghost-btn" style="flex:1;margin:0;" onclick="document.getElementById('omsPickBg').remove()">Vazgeç</button>
-      <button type="button" style="flex:1;margin:0;" onclick="applyOnlineSectionPick('${secId}')">Kaydet</button>
+      <button type="button" class="ghost-btn" style="flex:1;margin:0;" ${act('removeEl','omsPickBg')}>Vazgeç</button>
+      <button type="button" style="flex:1;margin:0;" ${act('applyOnlineSectionPick', secId)}>Kaydet</button>
     </div></div>`;
   document.body.appendChild(ov);
 }
@@ -1821,7 +1818,7 @@ function onlineOrderingLinkHtml(){
     <div style="min-width:0;flex:1;">
       <p class="muted" style="font-size:12px;margin:0 0 6px;">Bu linki sosyal medya bio'nuza, Google İşletme profilinize ya da bir masa standına koyabilirsiniz.</p>
       <p style="font-size:13px;overflow-wrap:anywhere;word-break:break-word;margin:0 0 8px;">${escapeHtml(url)}</p>
-      <button style="width:auto;padding:8px 12px;margin:0;" onclick="navigator.clipboard.writeText(${jsArg(url)}).then(()=>showToast('Link kopyalandı ✓'))">🔗 Linki Kopyala</button>
+      <button style="width:auto;padding:8px 12px;margin:0;" ${act('copyText', url, 'Link kopyalandı ✓')}>🔗 Linki Kopyala</button>
     </div>
   </div>`;
 }
@@ -1918,8 +1915,8 @@ function billingCycleSelectorHtml(){
   return `<div class="add-row-panel" style="margin-bottom:16px;">
     <h3 style="margin:0 0 10px;">Ödeme Dönemi</h3>
     <div style="display:flex;gap:8px;">
-      <button class="sbtn" style="width:auto;${cycle==='monthly'?'':'opacity:.55;'}" onclick="setBillingCycle('monthly')">Aylık</button>
-      <button class="sbtn" style="width:auto;${cycle==='yearly'?'':'opacity:.55;'}" onclick="setBillingCycle('yearly')">Yıllık</button>
+      <button class="sbtn" style="width:auto;${cycle==='monthly'?'':'opacity:.55;'}" ${act('setBillingCycle', 'monthly')}>Aylık</button>
+      <button class="sbtn" style="width:auto;${cycle==='yearly'?'':'opacity:.55;'}" ${act('setBillingCycle', 'yearly')}>Yıllık</button>
     </div>
   </div>`;
 }
@@ -1986,7 +1983,7 @@ function renderBillingAddressBox(lic){
     return `<div class="add-row-panel" style="margin-top:16px;">
       <h3 style="margin:0 0 8px;">📍 Fatura Adresi</h3>
       <p class="muted" style="text-align:left;">${escapeHtml(lic.billing_address)} · <b>${escapeHtml(lic.billing_city)}</b></p>
-      <button class="ghost-btn" onclick="APP.billingAddressEditing=true;renderBillingSettings(document.getElementById('settingsContent'),getSession());">Değiştir</button>
+      <button class="ghost-btn" ${act('editBillingField','billingAddressEditing')}>Değiştir</button>
     </div>`;
   }
   return `<div class="add-row-panel" style="margin-top:16px;">
@@ -1995,7 +1992,7 @@ function renderBillingAddressBox(lic){
     <input id="biAddress" placeholder="Açık adres (mahalle, sokak, no, ilçe)" value="${escapeAttr((lic && lic.billing_address) || '')}">
     <input id="biCity" placeholder="Şehir (örn. İstanbul)" value="${escapeAttr((lic && lic.billing_city) || '')}">
     <div class="error" id="biAddressErr"></div>
-    <button id="biAddressSaveBtn" onclick="saveBillingAddress()">Kaydet</button>
+    <button id="biAddressSaveBtn" ${act('saveBillingAddress')}>Kaydet</button>
   </div>`;
 }
 async function saveBillingAddress(){
@@ -2015,7 +2012,7 @@ function renderBillingIdentityBox(lic){
     return `<div class="add-row-panel" style="margin-top:16px;">
       <h3 style="margin:0 0 8px;">🧾 Fatura Kimlik Bilgisi</h3>
       <p class="muted">T.C. Kimlik Numaranız kayıtlı ✓</p>
-      <button class="ghost-btn" onclick="APP.billingIdentityEditing=true;renderBillingSettings(document.getElementById('settingsContent'),getSession());">Değiştir</button>
+      <button class="ghost-btn" ${act('editBillingField','billingIdentityEditing')}>Değiştir</button>
     </div>`;
   }
   return `<div class="add-row-panel" style="margin-top:16px;">
@@ -2023,7 +2020,7 @@ function renderBillingIdentityBox(lic){
     <p class="muted">Kart ile ödeme yapabilmek için fatura üzerinde görünecek T.C. Kimlik Numaranızı girin.</p>
     <input id="biIdentityNumber" placeholder="T.C. Kimlik Numarası" inputmode="numeric" maxlength="11">
     <div class="error" id="biIdentityErr"></div>
-    <button id="biIdentitySaveBtn" onclick="saveBillingIdentity()">Kaydet</button>
+    <button id="biIdentitySaveBtn" ${act('saveBillingIdentity')}>Kaydet</button>
   </div>`;
 }
 async function saveBillingIdentity(){
@@ -2085,7 +2082,7 @@ async function loadBankTransferStatus(session){
       ${savingsNote}
       <input id="bankTransferNote" placeholder="İsteğe bağlı not (örn. dekont no, gönderen ad)">
       <div class="error" id="bankTransferErr"></div>
-      <button id="bankTransferSubmitBtn" onclick="submitBankTransferNotice()">✅ Ödemeyi Yaptım, Bildir</button>
+      <button id="bankTransferSubmitBtn" ${act('submitBankTransferNotice')}>✅ Ödemeyi Yaptım, Bildir</button>
     </div>`;
 }
 async function submitBankTransferNotice(){
@@ -2207,3 +2204,14 @@ async function bulkDeleteUsers(){
   if(errors.length) alert('Bazı kullanıcılar silinemedi:\n\n' + errors.join('\n'));
   else showToast(ids.length + ' kullanıcı silindi');
 }
+
+function setListSearch(key, v){ APP.listSearch[key] = v; filterListRows(key); }
+function toggleIngUsageQty(pid, on){ const q = document.getElementById('ingu_qty_' + pid); if(!q) return; q.disabled = !on; if(on) q.focus(); else q.style.borderColor = ''; }
+function filterIconPicker(targetId, current, q){ document.getElementById('iconPickerBody').innerHTML = iconPickerGridHtml(targetId, current, q); }
+function setUserSearch(v){ APP.userSearch = v; filterUserRows(); }
+function setActiveUsersMinutes(v){ APP.activeUsersMinutes = Number(v); loadActiveUsers(); }
+function toggleResetCustom(v){ document.getElementById('resetCustom').style.display = v === 'custom' ? 'flex' : 'none'; }
+function openNewRoleCard(){ toggleRoleCard('new_role'); const el = document.getElementById('new_role_name'); if(el) el.focus(); }
+function setOnlineMenuTab(t){ APP.onlineMenuTab = t; drawOnlineMenuEditor(); }
+function filterOmsPickList(v){ const q = String(v).toLocaleLowerCase('tr'); document.querySelectorAll('#omsPickList label').forEach(l => { l.style.display = l.textContent.toLocaleLowerCase('tr').includes(q) ? 'flex' : 'none'; }); }
+function editBillingField(flag){ APP[flag] = true; renderBillingSettings(document.getElementById('settingsContent'), getSession()); }
