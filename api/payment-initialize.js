@@ -118,7 +118,7 @@ module.exports = async function handler(req, res) {
 
     const { data: restaurant, error } = await supabase
       .from('restaurants')
-      .select('id, name, email, phone, package_id, billing_identity_number')
+      .select('id, name, email, phone, package_id, billing_identity_number, billing_address, billing_city')
       .eq('id', restaurantId)
       .single();
 
@@ -130,6 +130,13 @@ module.exports = async function handler(req, res) {
       res.status(400).json({ errorMessage: 'Fatura icin T.C. Kimlik Numaraniz eksik. Lutfen Ayarlar > Abonelik bolumunden ekleyin.' });
       return;
     }
+    // iyzico'ya ve faturaya isletmenin gercek adresi gider (eskiden sabit bir sehir/adres gidiyordu).
+    if (!restaurant.billing_address || !restaurant.billing_city) {
+      res.status(400).json({ errorMessage: 'Fatura adresiniz eksik. Lutfen Ayarlar > Abonelik > Fatura Adresi bolumunden ekleyin.' });
+      return;
+    }
+    const billingAddress = String(restaurant.billing_address).slice(0, 300);
+    const billingCity = String(restaurant.billing_city).slice(0, 60);
 
     // Ayni yenileme icin beklemede bir HAVALE bildirimi varsa (bkz.
     // submit_bank_transfer_notice), admin onu onaylarken bu kart odemesi de
@@ -186,8 +193,8 @@ module.exports = async function handler(req, res) {
         gsmNumber: gsmNumber,
         email: restaurant.email,
         identityNumber: restaurant.billing_identity_number,
-        registrationAddress: 'Belirtilmedi Mah. Belirtilmedi Sk. No:1',
-        city: 'Istanbul',
+        registrationAddress: billingAddress,
+        city: billingCity,
         country: 'Turkey',
         // x-forwarded-for eksikse (Vercel'de normalde her zaman set edilir) gerçek,
         // başkasına ait bir IP'yi "alıcı" diye iyzico'ya bildirmemek için RFC 5737
@@ -197,15 +204,15 @@ module.exports = async function handler(req, res) {
       },
       shippingAddress: {
         contactName: restaurant.name,
-        city: 'Istanbul',
+        city: billingCity,
         country: 'Turkey',
-        address: 'Belirtilmedi Mah. Belirtilmedi Sk. No:1',
+        address: billingAddress,
       },
       billingAddress: {
         contactName: restaurant.name,
-        city: 'Istanbul',
+        city: billingCity,
         country: 'Turkey',
-        address: 'Belirtilmedi Mah. Belirtilmedi Sk. No:1',
+        address: billingAddress,
       },
       basketItems: [
         {
