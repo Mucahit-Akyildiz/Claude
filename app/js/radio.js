@@ -407,7 +407,7 @@ function radioNative(action, name){
     if(!P) return;
     if(action==='start'){
       const session = getSession();
-      P.start({ channel: name || '', url: SUPABASE_URL, key: SUPABASE_KEY, topic: 'radio-' + RADIO.channel.secret, user: session && session.user_id })
+      P.start({ channel: name || '', url: SUPABASE_URL, key: SUPABASE_KEY, topic: 'radio-' + RADIO.channel.secret, user: session && session.user_id, name: session && session.username })
         .then(r => { RADIO.nativeAudio = !!(r && r.nativeAudio); drawRadioDock(); }).catch(()=>{});
     } else { RADIO.nativeAudio = false; P.stop().catch(()=>{}); }
   }catch(e){}
