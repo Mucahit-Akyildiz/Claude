@@ -1,10 +1,72 @@
-// Peyktan service worker - sadece Web Push bildirimlerini karşılamak için var,
-// offline önbellekleme yapmıyor (bilinçli olarak - POS verisi hep canlı olmalı).
+// Peyktan service worker: Web Push bildirimleri + çevrimdışı açılış.
+// Önbellek stratejisi "önce ağ": internet varken her zaman sunucudaki güncel dosya
+// kullanılır (POS hep canlı kalır), önbellek yalnızca bağlantı yokken devreye girer.
+// Veri (Supabase API) önbelleğe ALINMAZ; çevrimdışı veri offline.js'te yönetilir.
+const SHELL_CACHE = 'peyktan-shell-v1';
+const SHELL = [
+  '/app/',
+  '/app/manifest.webmanifest',
+  '/app/css/app.css',
+  '/assets/images/logo.webp',
+  '/app/js/theme-init.js',
+  'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js',
+  '/assets/js/act.js',
+  '/app/js/api.js',
+  '/app/js/state.js',
+  '/app/js/utils.js',
+  '/app/js/financial.js',
+  '/app/js/reservations.js',
+  '/app/js/crm.js',
+  '/app/js/supplier.js',
+  '/app/js/admin-panel.js',
+  '/app/js/settings.js',
+  '/app/js/pos-kitchen.js',
+  '/app/js/pos-payments.js',
+  '/app/js/pos-packages.js',
+  '/app/js/pos-printer.js',
+  '/app/js/pos-push.js',
+  '/app/js/pos-escpos.js',
+  '/app/js/messages.js',
+  '/app/js/radio.js',
+  '/app/js/help.js',
+  '/app/js/auth-screens.js',
+  '/app/js/offline.js',
+  '/app/js/main.js'
+];
 self.addEventListener('install', (event) => {
+  // Biri başarısız olsa da diğerleri önbelleğe girsin (tek dosya kurulumu engellemesin).
+  event.waitUntil(caches.open(SHELL_CACHE).then((c) => Promise.all(SHELL.map((u) => c.add(new Request(u, { cache: 'reload' })).catch(() => {})))));
   self.skipWaiting();
 });
 self.addEventListener('activate', (event) => {
-  event.waitUntil(self.clients.claim());
+  event.waitUntil(Promise.all([
+    caches.keys().then((keys) => Promise.all(keys.filter((k) => k.startsWith('peyktan-shell-') && k !== SHELL_CACHE).map((k) => caches.delete(k)))),
+    self.clients.claim(),
+  ]));
+});
+function _shellRequest(url) {
+  if (url.origin === self.location.origin) return url.pathname.startsWith('/app/') || url.pathname.startsWith('/assets/');
+  return url.hostname === 'cdn.jsdelivr.net';
+}
+self.addEventListener('fetch', (event) => {
+  const req = event.request;
+  if (req.method !== 'GET') return;
+  const url = new URL(req.url);
+  if (!_shellRequest(url) || url.pathname.startsWith('/api/')) return;
+  event.respondWith(
+    fetch(req).then((res) => {
+      if (res && res.ok && (res.type === 'basic' || res.type === 'cors')) {
+        const copy = res.clone();
+        caches.open(SHELL_CACHE).then((c) => c.put(req, copy)).catch(() => {});
+      }
+      return res;
+    }).catch(async () => {
+      const hit = await caches.match(req, { ignoreSearch: url.origin === self.location.origin });
+      if (hit) return hit;
+      if (req.mode === 'navigate') { const page = await caches.match('/app/'); if (page) return page; }
+      return Response.error();
+    })
+  );
 });
 
 self.addEventListener('push', (event) => {

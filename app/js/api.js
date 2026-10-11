@@ -63,7 +63,17 @@ function _sbRpc(fn, args){
   return _sbRpcRaw(fn, args);
 }
 sb.rpc = function(fn, args){
-  return _sbRpc(fn, args).then(res => {
+  return Promise.resolve(_sbRpc(fn, args)).catch(e => ({ data: null, error: e })).then(res => {
+    // Çevrimdışı mod (bkz. offline.js): okunan veri cihazda saklanır, bağlantı yokken o gösterilir.
+    if(typeof OFFLINE_READS !== 'undefined' && OFFLINE_READS.has(fn)){
+      if(res && !res.error) offlineSaveRead(fn, res.data);
+      else if(res && res.error && isNetworkError(res.error)){
+        const cached = offlineLoadRead(fn);
+        if(cached !== undefined){ OFFLINE.servedStale = true; return { data: cached, error: null, offline: true }; }
+      }
+    }
+    return res;
+  }).then(res => {
     if(res && res.error && res.error.message === 'ABONELIK_SURESI_DOLDU'){
       handleSubscriptionExpired();
     } else if(res && res.error && res.error.message === 'Oturum geçersiz veya süresi dolmuş, tekrar giriş yapın'){
