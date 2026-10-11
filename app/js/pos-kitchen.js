@@ -10,15 +10,15 @@ async function renderKitchenView(main, session){
   if(!APP.kitchenStation){
     stopKitchenPolling();
     main.innerHTML = `<h1>Mutfak Ekranı</h1><p class="muted">İstasyon seçin</p><div class="home-grid">` +
-      APP.config.stations.map(s => `<div class="card" data-station-card="${s.id}" style="position:relative;border-left:4px solid ${s.color}" onclick="pickKitchenStation('${s.id}')"><div class="icon">${escapeHtml(s.icon||'🍳')}</div><h3>${escapeHtml(s.name)}</h3></div>`).join('') +
+      APP.config.stations.map(s => `<div class="card" data-station-card="${s.id}" style="position:relative;border-left:4px solid ${s.color}" ${act('pickKitchenStation', s.id)}><div class="icon">${escapeHtml(s.icon||'🍳')}</div><h3>${escapeHtml(s.name)}</h3></div>`).join('') +
       `</div>`;
     return;
   }
   const station = APP.config.stations.find(s => s.id===APP.kitchenStation);
   main.innerHTML = `<div style="display:flex;justify-content:space-between;"><h1>${escapeHtml(station.icon||"🍳")} ${escapeHtml(station.name)}</h1>
     <div style="display:flex;gap:8px;align-items:flex-start;">
-      <button class="ghost-btn" style="color:var(--red);" onclick="openManualWasteModal()" title="Siparişe bağlı olmayan israf (yanan, düşen, bozulan ürün)">🔥 İsraf Gir</button>
-      <button class="ghost-btn" onclick="APP.kitchenStation=null;render();">İstasyon Değiştir</button>
+      <button class="ghost-btn" style="color:var(--red);" ${act('openManualWasteModal')} title="Siparişe bağlı olmayan israf (yanan, düşen, bozulan ürün)">🔥 İsraf Gir</button>
+      <button class="ghost-btn" ${act('clearKitchenStation')}>İstasyon Değiştir</button>
     </div></div>
     <div id="kitchenWrap"></div>`;
   APP.kitchenSeenItemIds = null; // yeni istasyona gecince onceki urunler icin zil calmasin
@@ -61,18 +61,18 @@ async function refreshKitchenItems(session){
     cards.push({ at: isFinite(oldest) ? oldest : Infinity, html: `<div class="kitchen-card" data-order-id="${o.order_id}">
       <div style="display:flex;justify-content:space-between;align-items:center;">
         <b>${escapeHtml(tableName)}${o.daily_number?' <span class="muted" style="font-weight:400;font-size:12px;">#'+o.daily_number+'</span>':''}<span class="kc-late-badge">⏰ GECİKTİ</span></b>
-        <span style="cursor:pointer;color:var(--muted);font-size:16px;" onclick="reprintKitchenTicket('${o.order_id}')" title="Fişi tekrar yazdır">🖨️</span>
+        <span style="cursor:pointer;color:var(--muted);font-size:16px;" ${act('reprintKitchenTicket', o.order_id)} title="Fişi tekrar yazdır">🖨️</span>
       </div>
       ${pending.map(it => `<div class="kitchen-item-row" style="padding:10px 0;border-top:1px dashed var(--border);">
         <div style="display:grid;grid-template-columns:1fr 64px auto auto;align-items:center;gap:10px;">
           <span class="kitchen-item-name" style="min-width:0;overflow-wrap:anywhere;line-height:1.3;">${it.qty}x ${escapeHtml(it.name)}</span>
           <span class="kitchen-timer" data-added="${it.added_at||''}" data-id="${it.id}" data-name="${escapeAttr(tableName+' - '+it.qty+'x '+it.name)}" style="text-align:center;">-</span>
-          <button style="width:auto;padding:8px 10px;font-size:14px;background:var(--red);color:var(--btn-ink);" onclick="openWasteModal('${it.id}')" title="İsraf oldu (yandı/düştü/bozuldu)">🔥</button>
-          <button style="width:auto;padding:8px 14px;font-size:14px;background:var(--green);color:var(--btn-ink);" onclick="markReady('${it.id}')">Hazır</button>
+          <button style="width:auto;padding:8px 10px;font-size:14px;background:var(--red);color:var(--btn-ink);" ${act('openWasteModal', it.id)} title="İsraf oldu (yandı/düştü/bozuldu)">🔥</button>
+          <button style="width:auto;padding:8px 14px;font-size:14px;background:var(--green);color:var(--btn-ink);" ${act('markReady', it.id)}>Hazır</button>
         </div>
         ${it.note?'<div class="muted" style="font-size:12px;font-style:italic;margin-top:4px;overflow-wrap:anywhere;word-break:break-word;">Not: '+escapeHtml(it.note)+'</div>':''}
       </div>`).join('')}
-      <button style="margin-top:10px;background:var(--green);color:var(--btn-ink);" onclick="markAllReady('${o.order_id}')">✅ Hepsi Hazır</button>
+      <button style="margin-top:10px;background:var(--green);color:var(--btn-ink);" ${act('markAllReady', o.order_id)}>✅ Hepsi Hazır</button>
       </div>` });
   });
   cards.sort((x, y) => x.at - y.at);
@@ -405,8 +405,8 @@ function openWasteModal(itemId){
     </select>
     <input id="wasteNote" placeholder="Ek not (opsiyonel)" style="margin-bottom:14px;">
     <div class="field-row" style="gap:8px;">
-      <button type="button" style="flex:1;margin:0;background:var(--panel2);color:var(--text);" onclick="closeWasteModal()">Vazgeç</button>
-      <button type="button" id="wasteSubmitBtn" style="flex:1;margin:0;background:var(--red);color:var(--btn-ink);" onclick="submitWaste('${itemId}')">İsraf Olarak Kaydet</button>
+      <button type="button" style="flex:1;margin:0;background:var(--panel2);color:var(--text);" ${act('closeWasteModal')}>Vazgeç</button>
+      <button type="button" id="wasteSubmitBtn" style="flex:1;margin:0;background:var(--red);color:var(--btn-ink);" ${act('submitWaste', itemId)}>İsraf Olarak Kaydet</button>
     </div>
   </div>`;
   document.body.appendChild(bg);
@@ -439,8 +439,8 @@ function openManualWasteModal(){
     </select>
     <input id="wasteNote" placeholder="Ek not (opsiyonel)" style="margin-bottom:14px;">
     <div class="field-row" style="gap:8px;">
-      <button type="button" style="flex:1;margin:0;background:var(--panel2);color:var(--text);" onclick="closeWasteModal()">Vazgeç</button>
-      <button type="button" id="wasteSubmitBtn" style="flex:1;margin:0;background:var(--red);color:var(--btn-ink);" onclick="submitManualWaste()">İsraf Olarak Kaydet</button>
+      <button type="button" style="flex:1;margin:0;background:var(--panel2);color:var(--text);" ${act('closeWasteModal')}>Vazgeç</button>
+      <button type="button" id="wasteSubmitBtn" style="flex:1;margin:0;background:var(--red);color:var(--btn-ink);" ${act('submitManualWaste')}>İsraf Olarak Kaydet</button>
     </div>
   </div>`;
   document.body.appendChild(bg);
@@ -486,11 +486,11 @@ function showWasteStockPopup(maxQty, wanted, productId, remake){
       : `<p style="margin:0 0 10px;font-size:14px;">${escapeHtml(prod ? prod.name : 'Bu ürün')} için ${wanted} adet israf girmek istediniz, ancak ${hasRecipe ? 'hammadde stoğunuz' : 'stoğunuz'} <b>en fazla ${maxQty} adet</b> için yeterli.</p>
          <p class="muted" style="margin:0 0 14px;font-size:12.5px;text-align:left;">Miktarı düzeltin, stoğu güncelleyin ya da farklı bir ürün seçin.</p>`}
     <div style="display:flex;flex-direction:column;gap:8px;">
-      ${maxQty > 0 ? `<button type="button" style="margin:0;" onclick="document.getElementById('wasteQty').value=${maxQty};document.getElementById('wasteStockModalBg').remove()">Miktarı ${maxQty} yap</button>` : ''}
-      ${canEditStock ? `<button type="button" class="ghost-btn" style="margin:0;" onclick="document.getElementById('wasteStockModalBg').remove();closeWasteModal();APP.settingsTab='${hasRecipe ? 'ingredients' : 'products'}';goToView('settings')">📦 Stoğu Güncelle</button>` : ''}
+      ${maxQty > 0 ? `<button type="button" style="margin:0;" ${act('wasteUseMaxQty', maxQty)}>Miktarı ${maxQty} yap</button>` : ''}
+      ${canEditStock ? `<button type="button" class="ghost-btn" style="margin:0;" ${act('wasteGoStockSettings', hasRecipe ? 'ingredients' : 'products')}>📦 Stoğu Güncelle</button>` : ''}
       ${remake
-        ? `<button type="button" class="ghost-btn" style="margin:0;" onclick="document.getElementById('wasteStockModalBg').remove()">Kapat</button>`
-        : `<button type="button" class="ghost-btn" style="margin:0;" onclick="document.getElementById('wasteStockModalBg').remove();document.getElementById('wasteProduct').focus()">Farklı Ürün Seç</button>`}
+        ? `<button type="button" class="ghost-btn" style="margin:0;" ${act('removeEl','wasteStockModalBg')}>Kapat</button>`
+        : `<button type="button" class="ghost-btn" style="margin:0;" ${act('wastePickOtherProduct')}>Farklı Ürün Seç</button>`}
     </div>
   </div>`;
   document.body.appendChild(bg);
@@ -520,3 +520,8 @@ async function submitWaste(itemId){
   showToast('🔥 İsraf kaydedildi · ürün yeniden hazırlanacak, stoktan düşüldü');
   await refreshKitchenItems(session);
 }
+
+function clearKitchenStation(){ APP.kitchenStation = null; render(); }
+function wasteUseMaxQty(q){ document.getElementById('wasteQty').value = q; removeEl('wasteStockModalBg'); }
+function wasteGoStockSettings(tab){ removeEl('wasteStockModalBg'); closeWasteModal(); APP.settingsTab = tab; goToView('settings'); }
+function wastePickOtherProduct(){ removeEl('wasteStockModalBg'); const el = document.getElementById('wasteProduct'); if(el) el.focus(); }
