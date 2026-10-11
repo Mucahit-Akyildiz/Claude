@@ -22,12 +22,24 @@ function offlineSaveRead(fn, data){ try{ localStorage.setItem(_offlineKey(fn), J
 function offlineLoadRead(fn){ try{ const v = JSON.parse(localStorage.getItem(_offlineKey(fn)) || 'null'); return v ? v.data : undefined; }catch(e){ return undefined; } }
 
 function outboxAll(){ try{ return JSON.parse(localStorage.getItem(OUTBOX_KEY) || '[]'); }catch(e){ return []; } }
-function outboxSave(list){ try{ localStorage.setItem(OUTBOX_KEY, JSON.stringify(list)); }catch(e){} drawOfflineBar(); }
+function outboxSave(list){
+  try{ localStorage.setItem(OUTBOX_KEY, JSON.stringify(list)); }catch(e){}
+  drawOfflineBar();
+  const tm = document.getElementById('tableModalBg');
+  if(tm && tm.dataset.tableId && typeof renderTableItems === 'function') renderTableItems(tm.dataset.tableId);
+}
 function newClientId(){ return (crypto.randomUUID ? crypto.randomUUID() : (Date.now().toString(36) + Math.random().toString(36).slice(2))); }
 function outboxAdd(entry){ const list = outboxAll(); list.push(entry); outboxSave(list); }
 // Masa kartında gösterilmek üzere: bu masa için gönderilmeyi bekleyen ürün sayısı.
 function outboxCountFor(tableId){
   return outboxAll().filter(e => e.tableKey === tableId).reduce((n, e) => n + (e.args.p_items || []).reduce((a, it) => a + (Number(it.qty) || 1), 0), 0);
+}
+
+/* Çevrimdışıyken iade edilemeyen sepet stoğu: bağlantı gelince sunucuya geri eklenir. */
+function queueStockReturn(productId, qty){
+  if(!(qty > 0)) return;
+  const p = APP.config && (APP.config.products || []).find(x => x.id === productId);
+  outboxAdd({ id: newClientId(), kind: 'stock', args: { p_product_id: productId, p_delta: qty, p_items: [] }, label: 'Stok iadesi · ' + (p ? p.name : 'ürün') + ' +' + qty, at: Date.now() });
 }
 
 /* Siparişi gönderir; ağ hatasında kuyruğa alır. Dönüş: { ok, queued, error } */
@@ -75,6 +87,7 @@ function drawOfflineBar(){
   let bar = document.getElementById('offlineBar');
   const list = outboxAll();
   const failed = list.filter(e => e.error).length;
+  const orders = list.filter(e => e.kind !== 'stock').length;
   const show = !OFFLINE.online || list.length > 0;
   if(!show){ if(bar) bar.remove(); return; }
   if(!bar){
@@ -85,10 +98,10 @@ function drawOfflineBar(){
   bar.style.background = !OFFLINE.online ? '#b45309' : failed ? 'var(--red)' : 'var(--accent)';
   bar.style.color = '#fff';
   const txt = !OFFLINE.online
-    ? '📴 Çevrimdışı — siparişler cihazda bekletiliyor' + (list.length ? ' · ' + list.length + ' bekleyen' : '')
+    ? '📴 Çevrimdışı — siparişler cihazda bekletiliyor' + (orders ? ' · ' + orders + ' bekleyen sipariş' : '')
     : OFFLINE.flushing ? '📶 Bekleyen siparişler gönderiliyor…'
     : failed ? '⚠️ ' + failed + ' sipariş gönderilemedi'
-    : '⏳ ' + list.length + ' sipariş gönderilmeyi bekliyor';
+    : orders ? '⏳ ' + orders + ' sipariş gönderilmeyi bekliyor' : '⏳ Stok iadeleri gönderilmeyi bekliyor';
   bar.innerHTML = `<span>${escapeHtml(txt)}</span>${list.length ? `<button type="button" style="margin:0;width:auto;padding:3px 10px;font-size:12px;background:rgba(255,255,255,.2);border:0;color:#fff;box-shadow:none;" ${act('openOutboxModal')}>Ayrıntı</button>` : ''}`;
 }
 
