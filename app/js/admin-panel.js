@@ -10,26 +10,26 @@ function renderAdminArea(){
       <div class="brand">🔒 Platform Yönetimi</div>
       <div class="right">
         <div class="theme-toggle" style="width:150px;background:var(--panel2);border:1px solid var(--border);">
-          <button class="${theme==='dark'?'active':''}" style="color:${theme==='dark'?'':'var(--muted)'};background:${theme==='dark'?'var(--accent)':'transparent'};box-shadow:none;" onclick="setTheme('dark')" type="button">🌙 Koyu</button>
-          <button class="${theme==='light'?'active':''}" style="color:${theme==='light'?'':'var(--muted)'};background:${theme==='light'?'var(--accent)':'transparent'};box-shadow:none;" onclick="setTheme('light')" type="button">☀️ Açık</button>
+          <button class="${theme==='dark'?'active':''}" style="color:${theme==='dark'?'':'var(--muted)'};background:${theme==='dark'?'var(--accent)':'transparent'};box-shadow:none;" ${act('setTheme', 'dark')} type="button">🌙 Koyu</button>
+          <button class="${theme==='light'?'active':''}" style="color:${theme==='light'?'':'var(--muted)'};background:${theme==='light'?'var(--accent)':'transparent'};box-shadow:none;" ${act('setTheme', 'light')} type="button">☀️ Açık</button>
         </div>
-        <button class="ghost-btn" onclick="doAdminLogout()">Çıkış</button>
+        <button class="ghost-btn" ${act('doAdminLogout')}>Çıkış</button>
       </div>
     </header>
     <div class="content-inner content-inner-wide">
       <div class="tabs" id="adminTabs">
-        <div class="tab ${(APP.adminView||'promos')==='promos'?'active':''}" data-tab="promos" onclick="setAdminView('promos')">Promosyon Kodları</div>
-        <div class="tab ${APP.adminView==='pricing'?'active':''}" data-tab="pricing" onclick="setAdminView('pricing')">💳 Paket Fiyatları</div>
-        <div class="tab ${APP.adminView==='restaurants'?'active':''}" data-tab="restaurants" onclick="setAdminView('restaurants')">🏬 İşletmeler</div>
-        <div class="tab ${APP.adminView==='companies'?'active':''}" data-tab="companies" onclick="setAdminView('companies')">🏢 Şirketler</div>
-        <div class="tab ${APP.adminView==='banktransfers'?'active':''}" data-tab="banktransfers" onclick="setAdminView('banktransfers')">🏦 Havale Bildirimleri</div>
-        <div class="tab ${APP.adminView==='allfeatures'?'active':''}" data-tab="allfeatures" onclick="setAdminView('allfeatures')">🗂️ Tüm Özellikler</div>
-        <div class="tab ${APP.adminView==='addons'?'active':''}" data-tab="addons" onclick="setAdminView('addons')">🧩 Eklentiler</div>
-        <div class="tab ${APP.adminView==='deleted'?'active':''}" data-tab="deleted" onclick="setAdminView('deleted')">🗑️ Silinen Hesaplar</div>
-        <div class="tab ${APP.adminView==='sms'?'active':''}" data-tab="sms" onclick="setAdminView('sms')">📱 SMS</div>
-        <div class="tab ${APP.adminView==='errors'?'active':''}" data-tab="errors" onclick="setAdminView('errors')">⚠️ Hatalar</div>
-        <div class="tab ${APP.adminView==='support'?'active':''}" data-tab="support" onclick="setAdminView('support')">✉️ Destek <span id="supportBadge"></span></div>
-        <div class="tab ${APP.adminView==='gif'?'active':''}" data-tab="gif" onclick="setAdminView('gif')">🎞️ GIF</div>
+        <div class="tab ${(APP.adminView||'promos')==='promos'?'active':''}" data-tab="promos" ${act('setAdminView', 'promos')}>Promosyon Kodları</div>
+        <div class="tab ${APP.adminView==='pricing'?'active':''}" data-tab="pricing" ${act('setAdminView', 'pricing')}>💳 Paket Fiyatları</div>
+        <div class="tab ${APP.adminView==='restaurants'?'active':''}" data-tab="restaurants" ${act('setAdminView', 'restaurants')}>🏬 İşletmeler</div>
+        <div class="tab ${APP.adminView==='companies'?'active':''}" data-tab="companies" ${act('setAdminView', 'companies')}>🏢 Şirketler</div>
+        <div class="tab ${APP.adminView==='banktransfers'?'active':''}" data-tab="banktransfers" ${act('setAdminView', 'banktransfers')}>🏦 Havale Bildirimleri</div>
+        <div class="tab ${APP.adminView==='allfeatures'?'active':''}" data-tab="allfeatures" ${act('setAdminView', 'allfeatures')}>🗂️ Tüm Özellikler</div>
+        <div class="tab ${APP.adminView==='addons'?'active':''}" data-tab="addons" ${act('setAdminView', 'addons')}>🧩 Eklentiler</div>
+        <div class="tab ${APP.adminView==='deleted'?'active':''}" data-tab="deleted" ${act('setAdminView', 'deleted')}>🗑️ Silinen Hesaplar</div>
+        <div class="tab ${APP.adminView==='sms'?'active':''}" data-tab="sms" ${act('setAdminView', 'sms')}>📱 SMS</div>
+        <div class="tab ${APP.adminView==='errors'?'active':''}" data-tab="errors" ${act('setAdminView', 'errors')}>⚠️ Hatalar</div>
+        <div class="tab ${APP.adminView==='support'?'active':''}" data-tab="support" ${act('setAdminView', 'support')}>✉️ Destek <span id="supportBadge"></span></div>
+        <div class="tab ${APP.adminView==='gif'?'active':''}" data-tab="gif" ${act('setAdminView', 'gif')}>🎞️ GIF</div>
       </div>
       <main id="main"></main>
     </div>`;
@@ -62,7 +62,7 @@ function renderAdminTabContent(admin){
 async function renderClientErrorsAdmin(main, admin){
   const showAll = !!APP.adminErrorsAll;
   main.innerHTML = `<h1>⚠️ Hatalar</h1>
-    <label style="display:flex;gap:8px;align-items:center;margin:0 0 12px;"><input type="checkbox" style="width:auto;margin:0;" ${showAll?'checked':''} onchange="APP.adminErrorsAll=this.checked;renderClientErrorsAdmin(document.getElementById('main'), getAdminSession())"> Çözülenleri de göster</label>
+    <label style="display:flex;gap:8px;align-items:center;margin:0 0 12px;"><input type="checkbox" style="width:auto;margin:0;" ${showAll?'checked':''} ${actOn('change','setAdminErrorsAll',['$checked'])}> Çözülenleri de göster</label>
     <div id="errList"><p class="muted">Yükleniyor…</p></div>`;
   const { data, error } = await sb.rpc('admin_list_client_errors', { p_token: admin.session_token, p_show_resolved: showAll });
   const el = document.getElementById('errList'); if(!el) return;
@@ -80,7 +80,7 @@ async function renderClientErrorsAdmin(main, admin){
       <td>${escapeHtml(r.view||'-')}</td>
       <td title="${escapeAttr(r.user_agent||'')}">${ua(r.user_agent)}</td>
       <td style="font-size:12px;white-space:nowrap;">${new Date(r.last_at).toLocaleString('tr-TR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}</td>
-      <td>${r.resolved ? '<span class="muted">Çözüldü</span>' : `<button class="sbtn" style="width:auto;" onclick="resolveClientError(${r.id})">✓ Çözüldü</button>`}</td>
+      <td>${r.resolved ? '<span class="muted">Çözüldü</span>' : `<button class="sbtn" style="width:auto;" ${act('resolveClientError', r.id)}>✓ Çözüldü</button>`}</td>
     </tr>`).join('')}</tbody></table></div>`;
 }
 async function resolveClientError(id){
@@ -112,7 +112,7 @@ async function renderSmsAdmin(main, admin){
         <div class="field-group"><label>Kullanıcı Kodu</label><input id="smsUser" value="${escapeAttr(data.username||'')}" autocapitalize="none"></div>
         <div class="field-group"><label>Şifre</label><input id="smsPass" type="password" placeholder="${data.password_set?'(kayıtlı - değiştirmek için yaz)':'Şifre'}"></div>
       </div>
-      <button style="max-width:200px;margin-top:10px;" onclick="saveSmsAdmin()">${ICON_SAVE}<span>Kaydet</span></button>
+      <button style="max-width:200px;margin-top:10px;" ${act('saveSmsAdmin')}>${ICON_SAVE}<span>Kaydet</span></button>
     </div>
     <h3 style="margin-top:20px;">Son 50 SMS</h3>
     ${!(data.recent||[]).length ? '<p class="muted">Henüz SMS yok.</p>' : `<table class="settings-table"><thead><tr><th>Tarih</th><th>İşletme</th><th>Telefon</th><th>Tür</th><th>Mesaj</th><th>Durum</th></tr></thead><tbody>${
@@ -142,7 +142,7 @@ async function renderDeletedAccountsAdmin(main, admin){
         <td>${escapeHtml(r.package_id||'—')}</td>
         <td style="font-size:12px;">${fmt(r.created_at)}</td>
         <td style="font-size:12px;">${fmt(r.deleted_at)}</td>
-        <td><button class="sbtn" onclick="releaseDeletedAccount('${r.id}')">Engeli Kaldır</button></td>
+        <td><button class="sbtn" ${act('releaseDeletedAccount', r.id)}>Engeli Kaldır</button></td>
       </tr>`).join('')}</tbody>
     </table>`}`;
 }
@@ -161,7 +161,7 @@ function renderAdminLogin(app){
     <input id="adminUser" placeholder="Kullanıcı adı" autocapitalize="none">
     <input id="adminPass" type="password" placeholder="Şifre">
     <input id="adminOtp" inputmode="numeric" maxlength="6" autocomplete="one-time-code" placeholder="Doğrulama kodu (6 hane)" style="display:none;">
-    <button onclick="doAdminLogin()" id="adminLoginBtn">Giriş Yap</button>
+    <button ${act('doAdminLogin')} id="adminLoginBtn">Giriş Yap</button>
     <div class="error" id="adminErr"></div>
   </div></div>`;
 }
@@ -238,13 +238,13 @@ async function refreshPackagesAdmin(admin){
             <td style="text-align:center;"><input type="checkbox" id="pkg_active_${p.id}" ${p.active?'checked':''} style="width:18px;height:18px;"></td>
             <td class="col-name">${p.restaurant_count} işletme</td>
             <td style="white-space:nowrap;">
-              <button type="button" class="act-btn act-save" onclick="savePackageRow('${p.id}')">${ICON_SAVE}<span>Kaydet</span></button>
-              <button class="sbtn" style="background:var(--red);color:var(--btn-ink);" onclick="deletePackageRow('${p.id}', ${p.restaurant_count})" title="${p.restaurant_count>0?'Bu paketi kullanan işletmeler var':''}">Sil</button>
+              <button type="button" class="act-btn act-save" ${act('savePackageRow', p.id)}>${ICON_SAVE}<span>Kaydet</span></button>
+              <button class="sbtn" style="background:var(--red);color:var(--btn-ink);" ${act('deletePackageRow', p.id, p.restaurant_count)} title="${p.restaurant_count>0?'Bu paketi kullanan işletmeler var':''}">Sil</button>
             </td>
           </tr>
           <tr>
             <td colspan="11" style="padding:6px 8px 16px;border-top:none;white-space:normal;">
-              <div style="display:flex;align-items:center;gap:8px;cursor:pointer;user-select:none;" onclick="togglePackageFeaturePanel('${p.id}')">
+              <div style="display:flex;align-items:center;gap:8px;cursor:pointer;user-select:none;" ${act('togglePackageFeaturePanel', p.id)}>
                 <span id="pkgFeatToggle_${p.id}" class="muted" style="font-size:11px;">▸</span>
                 <span class="muted" style="font-size:12px;font-weight:700;">Bu pakette hangi özellikler olacak <span style="font-weight:400;">(${(p.features||[]).length}/${(APP.featureCatalog||[]).length} seçili)</span></span>
               </div>
@@ -271,7 +271,7 @@ async function refreshPackagesAdmin(admin){
       <div class="muted" style="font-size:12px;font-weight:700;margin:14px 0 6px;">Bu pakette hangi özellikler olacak:</div>
       ${featureCheckboxesHtml('npkg_feat', (APP.featureCatalog||[]).filter(f=>f.is_core).map(f=>f.id))}
       ${includedAddonsHtml('npkg_inc', [])}
-      <button style="margin-top:12px;max-width:220px;" onclick="createPackage()">+ Paket Oluştur</button>
+      <button style="margin-top:12px;max-width:220px;" ${act('createPackage')}>+ Paket Oluştur</button>
       <div class="error" id="pkgCreateErr" style="text-align:left;"></div>
     </div>`;
 }
@@ -321,8 +321,8 @@ function featureCheckboxesHtml(idPrefix, selectedFeatures){
         <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px;">
           <div style="font-size:12px;font-weight:800;">${escapeHtml(cat)} <span class="muted" style="font-weight:400;">(${catSelCount}/${byCat[cat].length})</span></div>
           <div style="display:flex;gap:8px;flex-shrink:0;">
-            <span style="font-size:11px;color:var(--accent);cursor:pointer;" onclick="toggleFeatureCategory('${catId}', true)">tümü</span>
-            <span style="font-size:11px;color:var(--accent);cursor:pointer;" onclick="toggleFeatureCategory('${catId}', false)">temizle</span>
+            <span style="font-size:11px;color:var(--accent);cursor:pointer;" ${act('toggleFeatureCategory', catId, true)}>tümü</span>
+            <span style="font-size:11px;color:var(--accent);cursor:pointer;" ${act('toggleFeatureCategory', catId, false)}>temizle</span>
           </div>
         </div>
         <div id="${catId}" style="display:flex;flex-direction:column;gap:6px;">
@@ -517,7 +517,7 @@ async function refreshRestaurantsList(admin){
           else statusBadge = '<span class="role-badge" style="color:var(--green);border-color:var(--green);">Aktif</span>';
           return `
           <tr>
-            <td><b style="cursor:pointer;color:var(--accent);" onclick="showRestaurantDetail('${r.id}')" title="Günlük ciro grafiğini göster">${escapeHtml(r.name)}</b><div class="muted" style="font-size:12px;">${escapeHtml(r.code||'—')}</div></td>
+            <td><b style="cursor:pointer;color:var(--accent);" ${act('showRestaurantDetail', r.id)} title="Günlük ciro grafiğini göster">${escapeHtml(r.name)}</b><div class="muted" style="font-size:12px;">${escapeHtml(r.code||'—')}</div></td>
             <td style="font-size:12.5px;word-break:break-all;">${r.email?`<a href="mailto:${escapeHtml(r.email)}">${escapeHtml(r.email)}</a>`:'—'}${r.phone?`<div class="muted">${escapeHtml(r.phone)}</div>`:''}</td>
             <td style="font-size:13px;">${pkg?escapeHtml(pkg.name):escapeHtml(r.package_id)}<div class="muted" style="font-size:12px;">${r.user_count}/${r.max_users} kullanıcı</div><div style="font-size:12px;${expired?'color:var(--red);':''}">Bitiş: ${r.expires_at ? new Date(r.expires_at).toLocaleDateString('tr-TR') : 'Süresiz'}</div></td>
             <td>${statusBadge}</td>
@@ -525,11 +525,11 @@ async function refreshRestaurantsList(admin){
             <td style="font-size:12.5px;white-space:nowrap;">Bugün: <b>${money(r.revenue_today)}</b><div class="muted">7 gün: ${money(r.revenue_7d)}</div><div class="muted">Toplam: ${money(r.revenue_lifetime)}</div></td>
             <td style="white-space:nowrap;">
               <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
-                <button class="sbtn" style="margin:0;${r.is_active?'background:var(--red);color:var(--btn-ink);':''}" onclick="toggleRestaurantActive('${r.id}', ${!r.is_active})">${r.is_active?'Pasif Et':'Aktif Et'}</button>
-                <button class="sbtn" style="margin:0;" data-name="${escapeAttr(r.name)}" onclick="openEntitlementsModal('restaurant', '${r.id}', this.dataset.name)">🧩 Eklentiler</button>
-                <button class="sbtn" style="margin:0;" onclick="showRestaurantUsers('${r.id}')">👥 Kullanıcılar</button>
-                <button class="sbtn" style="margin:0;" data-name="${escapeAttr(r.name)}" data-exp="${r.expires_at||''}" onclick="openExtendSubscription('${r.id}', this.dataset.name, this.dataset.exp)">⏳ Süre Uzat</button>
-                <button type="button" class="act-btn act-delete" onclick="deleteRestaurantAdmin('${r.id}')">${ICON_TRASH}<span>Sil</span></button>
+                <button class="sbtn" style="margin:0;${r.is_active?'background:var(--red);color:var(--btn-ink);':''}" ${act('toggleRestaurantActive', r.id, !r.is_active)}>${r.is_active?'Pasif Et':'Aktif Et'}</button>
+                <button class="sbtn" style="margin:0;" data-name="${escapeAttr(r.name)}" ${act('openEntitlementsModal','restaurant', r.id, r.name)}>🧩 Eklentiler</button>
+                <button class="sbtn" style="margin:0;" ${act('showRestaurantUsers', r.id)}>👥 Kullanıcılar</button>
+                <button class="sbtn" style="margin:0;" data-name="${escapeAttr(r.name)}" data-exp="${r.expires_at||''}" ${act('openExtendSubscription', r.id, r.name, r.expires_at||'')}>⏳ Süre Uzat</button>
+                <button type="button" class="act-btn act-delete" ${act('deleteRestaurantAdmin', r.id)}>${ICON_TRASH}<span>Sil</span></button>
               </div>
             </td>
           </tr>
@@ -656,7 +656,7 @@ async function refreshCompaniesList(admin){
         <div class="field-group"><label>Telefon (opsiyonel)</label><input id="newCompanyPhone" placeholder="05xx xxx xx xx"></div>
       </div>
       <div class="error" id="newCompanyErr" style="margin-top:6px;"></div>
-      <button style="margin-top:12px;max-width:220px;" onclick="createCompanySubmit()">+ Şirket Oluştur</button>
+      <button style="margin-top:12px;max-width:220px;" ${act('createCompanySubmit')}>+ Şirket Oluştur</button>
     </div>
     ${companies.length===0 ? '<p class="muted">Henüz kayıtlı şirket yok.</p>' : `
     <div class="settings-table-wrap">
@@ -677,9 +677,9 @@ async function refreshCompaniesList(admin){
             <td>${statusBadge}</td>
             <td class="col-name">${new Date(c.created_at).toLocaleDateString('tr-TR')}</td>
             <td style="white-space:nowrap;">
-              <button class="sbtn" style="${c.is_active?'background:var(--red);color:var(--btn-ink);':''}" onclick="toggleCompanyActive('${c.id}', ${!c.is_active})">${c.is_active?'Pasif Et':'Aktif Et'}</button>
-              <button class="sbtn" data-name="${escapeAttr(c.name)}" onclick="openEntitlementsModal('company', '${c.id}', this.dataset.name)">🧩 Eklentiler</button>
-              <button type="button" class="act-btn act-delete" data-name="${escapeAttr(c.name)}" onclick="deleteCompany('${c.id}', this.dataset.name)">${ICON_TRASH}<span>Sil</span></button>
+              <button class="sbtn" style="${c.is_active?'background:var(--red);color:var(--btn-ink);':''}" ${act('toggleCompanyActive', c.id, !c.is_active)}>${c.is_active?'Pasif Et':'Aktif Et'}</button>
+              <button class="sbtn" data-name="${escapeAttr(c.name)}" ${act('openEntitlementsModal','company', c.id, c.name)}>🧩 Eklentiler</button>
+              <button type="button" class="act-btn act-delete" data-name="${escapeAttr(c.name)}" ${act('deleteCompany', c.id, c.name)}>${ICON_TRASH}<span>Sil</span></button>
             </td>
           </tr>`;
         }).join('')}
@@ -761,7 +761,7 @@ async function refreshAddonsList(admin){
             <td class="col-num" style="width:110px;"><input type="number" min="0" step="0.01" value="${a.price}" id="addon_price_${a.id}"></td>
             <td style="text-align:center;"><input type="checkbox" id="addon_active_${a.id}" ${a.active?'checked':''} style="width:18px;height:18px;"></td>
             <td style="white-space:nowrap;">
-              <button type="button" class="act-btn act-save" onclick="saveAddonRow('${a.id}')">${ICON_SAVE}<span>Kaydet</span></button>
+              <button type="button" class="act-btn act-save" ${act('saveAddonRow', a.id)}>${ICON_SAVE}<span>Kaydet</span></button>
             </td>
           </tr>`).join('')}
         </tbody>
@@ -856,8 +856,8 @@ async function refreshFeatureCatalogList(admin){
                 <td style="text-align:center;"><input type="checkbox" id="feat_active_${f.id}" ${f.active?'checked':''} style="width:18px;height:18px;"></td>
                 <td style="text-align:center;"><input type="checkbox" id="feat_isaddon_${f.id}" ${f.is_addon?'checked':''} style="width:18px;height:18px;"></td>
                 <td style="white-space:nowrap;">
-                  <button type="button" class="act-btn act-save" onclick="saveFeatureRow('${f.id}')">${ICON_SAVE}<span>Kaydet</span></button>
-                  ${f.is_core ? '' : `<button type="button" class="act-btn act-delete" onclick="deleteFeatureRow('${f.id}')">${ICON_TRASH}<span>Sil</span></button>`}
+                  <button type="button" class="act-btn act-save" ${act('saveFeatureRow', f.id)}>${ICON_SAVE}<span>Kaydet</span></button>
+                  ${f.is_core ? '' : `<button type="button" class="act-btn act-delete" ${act('deleteFeatureRow', f.id)}>${ICON_TRASH}<span>Sil</span></button>`}
                 </td>
               </tr>`).join('')}
             </tbody>
@@ -867,9 +867,9 @@ async function refreshFeatureCatalogList(admin){
     <div class="add-row-panel">
       <p>Kataloğa Özellik Ekle</p>
       <p class="muted" style="margin-top:-6px;font-size:12.5px;">Aşağıdaki listeden işaretleyip "Seçilenleri Ekle"ye basın - kendi seçtiğiniz zaman, kendi seçtiğiniz özellikler eklenir. Zaten ekli olanlar işaretli/pasif görünür.</p>
-      <input id="featPickerSearch" placeholder="🔍 Özellik ara (ad, kategori)..." oninput="renderFeaturePickerList()" style="margin-bottom:10px;">
+      <input id="featPickerSearch" placeholder="🔍 Özellik ara (ad, kategori)..." ${actOn('input','renderFeaturePickerList',[])} style="margin-bottom:10px;">
       <div id="featPickerList" style="display:flex;flex-direction:column;gap:2px;max-height:300px;overflow:auto;background:var(--panel2);border:1px solid var(--border);border-radius:10px;padding:8px 10px;"></div>
-      <button style="margin-top:12px;max-width:220px;" onclick="addPickedFeatures()">+ Seçilenleri Ekle</button>
+      <button style="margin-top:12px;max-width:220px;" ${act('addPickedFeatures')}>+ Seçilenleri Ekle</button>
       <details style="margin-top:18px;">
         <summary style="cursor:pointer;font-weight:700;font-size:13px;color:var(--muted);">Listede yok mu? Özel özellik ekle</summary>
         <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr 0.7fr;gap:10px;align-items:end;margin-top:12px;">
@@ -883,7 +883,7 @@ async function refreshFeatureCatalogList(admin){
           <input type="checkbox" id="newFeatIsAddon" style="width:16px;height:16px;"> Eklenti olarak işaretle (tekil satılabilir)
         </label>
         <div class="error" id="newFeatErr"></div>
-        <button style="margin-top:12px;max-width:220px;" onclick="createFeatureSubmit()">+ Özellik Ekle</button>
+        <button style="margin-top:12px;max-width:220px;" ${act('createFeatureSubmit')}>+ Özellik Ekle</button>
       </details>
     </div>`;
   renderFeaturePickerList();
@@ -977,12 +977,12 @@ async function openEntitlementsModal(targetType, targetId, targetName){
   bg.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:100;padding:16px;';
   bg.onclick = (e) => { if(e.target===bg) bg.remove(); };
   bg.innerHTML = `<div style="background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:20px;max-width:420px;width:100%;max-height:85vh;overflow:auto;">
-    <div style="display:flex;justify-content:space-between;align-items:center;"><h2 style="margin:0;">🧩 Eklentiler</h2><span style="cursor:pointer;color:var(--muted);font-size:20px;" onclick="document.getElementById('entitlementsBg').remove()">✕</span></div>
+    <div style="display:flex;justify-content:space-between;align-items:center;"><h2 style="margin:0;">🧩 Eklentiler</h2><span style="cursor:pointer;color:var(--muted);font-size:20px;" ${act('removeEl','entitlementsBg')}>✕</span></div>
     <p class="muted" style="margin-top:6px;">${escapeHtml(targetName)}</p>
     <div style="display:flex;flex-direction:column;gap:8px;margin-top:10px;">
       ${addons.length===0 ? '<p class="muted">Henüz hiç eklenti tanımlanmamış.</p>' : addons.map(a => `
         <label style="display:flex;align-items:center;gap:10px;background:var(--panel2);border:1px solid var(--border);border-radius:10px;padding:10px 12px;cursor:pointer;">
-          <input type="checkbox" style="width:auto;margin:0;" ${ownedSet.has(a.id)?'checked':''} onchange="setEntitlement('${targetType}','${targetId}','${a.id}',this.checked,this)">
+          <input type="checkbox" style="width:auto;margin:0;" ${ownedSet.has(a.id)?'checked':''} ${actOn('change','setEntitlement',[targetType, targetId, a.id, '$checked', '$this'])}>
           <div style="flex:1;">
             <div style="font-weight:700;">${escapeHtml(a.label)}</div>
             <div class="muted" style="font-size:12px;">${escapeHtml(a.description||'')} ${a.price>0?'· '+money(a.price)+'/ay':''}</div>
@@ -1008,9 +1008,9 @@ async function renderBankTransfersAdmin(main, admin){
   main.innerHTML = `<h1>🏦 Havale Bildirimleri</h1>
     <div id="bankInfoPanel"></div>
     <div class="tabs" id="btStatusTabs">
-      <div class="tab active" data-status="pending" onclick="setBtStatusFilter('pending')">Bekleyen</div>
-      <div class="tab" data-status="approved" onclick="setBtStatusFilter('approved')">Onaylanan</div>
-      <div class="tab" data-status="rejected" onclick="setBtStatusFilter('rejected')">Reddedilen</div>
+      <div class="tab active" data-status="pending" ${act('setBtStatusFilter', 'pending')}>Bekleyen</div>
+      <div class="tab" data-status="approved" ${act('setBtStatusFilter', 'approved')}>Onaylanan</div>
+      <div class="tab" data-status="rejected" ${act('setBtStatusFilter', 'rejected')}>Reddedilen</div>
     </div>
     <div id="btContent"></div>`;
   APP.btStatusFilter = 'pending';
@@ -1027,7 +1027,7 @@ function bankInfoFieldHtml(id, label, hint, value, placeholder, editMode){
   const v = escapeHtml(value || '');
   const hintHtml = hint ? ` <span class="muted" style="font-weight:400;">(${hint})</span>` : '';
   if(editMode){
-    return `<div class="field-group"><label>${label}${hintHtml}</label><input id="${id}" placeholder="${placeholder||''}" value="${v}"${id==='bankIban'?' oninput="formatIbanInput(this)" maxlength="32"':''}></div>`;
+    return `<div class="field-group"><label>${label}${hintHtml}</label><input id="${id}" placeholder="${placeholder||''}" value="${v}"${id==='bankIban'?` ${actOn('input','formatIbanInput',['$this'])} maxlength="32"`:''}></div>`;
   }
   return `<div class="field-group"><label>${label}${hintHtml}</label><div style="background:var(--panel);border:1.5px solid var(--border);border-radius:12px;padding:12px 14px;font-size:14.5px;min-height:20px;color:${value?'var(--text)':'var(--muted)'};">${v || '—'}</div></div>`;
 }
@@ -1038,7 +1038,7 @@ function renderBankInfoPanel(editMode){
     <div class="add-row-panel" style="margin-bottom:22px;">
       <div style="display:flex;justify-content:space-between;align-items:center;">
         <p style="margin:0;">Banka Bilgileri <span class="muted" style="font-weight:400;">(işletmelere gösterilir)</span></p>
-        ${editMode ? '' : '<button type="button" class="sbtn" style="width:auto;margin:0;" onclick="renderBankInfoPanel(true)">✏️ Düzenle</button>'}
+        ${editMode ? '' : `<button type="button" class="sbtn" style="width:auto;margin:0;" ${act('renderBankInfoPanel', true)}>✏️ Düzenle</button>`}
       </div>
       <div style="display:grid;grid-template-columns:1.4fr 1fr 1fr;gap:10px;align-items:end;margin-top:10px;">
         ${bankInfoFieldHtml('bankIban', 'IBAN', null, info.iban, 'TR00 0000 0000 0000 0000 0000 00', editMode)}
@@ -1052,8 +1052,8 @@ function renderBankInfoPanel(editMode){
       ${editMode ? `
         <div class="error" id="bankInfoErr"></div>
         <div style="display:flex;gap:8px;margin-top:12px;">
-          <button style="width:auto;max-width:220px;margin:0;" onclick="saveBankTransferInfo()">${ICON_SAVE}<span>Kaydet</span></button>
-          ${info.iban || info.account_name || info.bank_name || info.whatsapp_number || info.notify_email ? `<button type="button" class="sbtn" style="width:auto;margin:0;" onclick="renderBankInfoPanel(false)">Vazgeç</button>` : ''}
+          <button style="width:auto;max-width:220px;margin:0;" ${act('saveBankTransferInfo')}>${ICON_SAVE}<span>Kaydet</span></button>
+          ${info.iban || info.account_name || info.bank_name || info.whatsapp_number || info.notify_email ? `<button type="button" class="sbtn" style="width:auto;margin:0;" ${act('renderBankInfoPanel', false)}>Vazgeç</button>` : ''}
         </div>
       ` : ''}
     </div>`;
@@ -1113,8 +1113,8 @@ async function refreshBankTransferList(admin){
             <td class="col-name">${new Date(n.created_at).toLocaleString('tr-TR')}</td>
             ${status==='pending' ? `
             <td style="white-space:nowrap;">
-              <button class="sbtn" onclick="reviewBankTransferNotice('${n.id}', true)">✅ Onayla</button>
-              <button class="sbtn" style="background:var(--red);color:var(--btn-ink);" onclick="reviewBankTransferNotice('${n.id}', false)">✕ Reddet</button>
+              <button class="sbtn" ${act('reviewBankTransferNotice', n.id, true)}>✅ Onayla</button>
+              <button class="sbtn" style="background:var(--red);color:var(--btn-ink);" ${act('reviewBankTransferNotice', n.id, false)}>✕ Reddet</button>
             </td>` : `<td class="col-name">${n.admin_note?escapeHtml(n.admin_note):'-'}</td>`}
           </tr>`).join('')}
         </tbody>
@@ -1158,8 +1158,8 @@ async function refreshPromoList(admin){
           <td class="col-name">${c.expires_at ? new Date(c.expires_at).toLocaleDateString('tr-TR') : 'Süresiz'}</td>
           <td>${c.active ? '<span class="role-badge" style="color:var(--green);border-color:var(--green);">Aktif</span>' : '<span class="role-badge" style="color:var(--red);border-color:var(--red);">Pasif</span>'}</td>
           <td style="white-space:nowrap;">
-            <button class="sbtn" onclick="togglePromo('${c.id}')">${c.active?'Kapat':'Aç'}</button>
-            <button type="button" class="act-btn act-delete" onclick="deletePromo('${c.id}')">${ICON_TRASH}<span>Sil</span></button>
+            <button class="sbtn" ${act('togglePromo', c.id)}>${c.active?'Kapat':'Aç'}</button>
+            <button type="button" class="act-btn act-delete" ${act('deletePromo', c.id)}>${ICON_TRASH}<span>Sil</span></button>
           </td>
         </tr>`).join('')}
       </tbody>
@@ -1174,13 +1174,13 @@ async function refreshPromoList(admin){
         <div class="field-group"><label>Maks. Kullanım</label><input type="number" id="npMax" placeholder="Sınırsız"></div>
         <div class="field-group"><label>Son Tarih</label><input type="date" id="npExpires"></div>
       </div>
-      <button style="margin-top:12px;max-width:220px;" onclick="createPromo()">+ Kod Oluştur</button>
+      <button style="margin-top:12px;max-width:220px;" ${act('createPromo')}>+ Kod Oluştur</button>
     </div>
     <div class="add-row-panel" style="margin-top:20px;">
       <p>Kullanıcı Adınızı Değiştirin</p>
       <div style="display:flex;gap:10px;max-width:420px;">
         <input id="newAdminUsername" placeholder="Yeni kullanıcı adı" autocapitalize="none" value="${escapeAttr(admin.username||'')}" style="flex:1;margin:0;">
-        <button style="width:auto;padding:10px 16px;margin:0;" onclick="changeAdminUsername()">Güncelle</button>
+        <button style="width:auto;padding:10px 16px;margin:0;" ${act('changeAdminUsername')}>Güncelle</button>
       </div>
       <div class="error" id="adminUsernameErr" style="text-align:left;margin:6px 0 0;min-height:0;"></div>
     </div>
@@ -1189,14 +1189,14 @@ async function refreshPromoList(admin){
       <div style="display:flex;flex-direction:column;gap:10px;max-width:420px;">
         <div class="pw-field-wrap">
           <input type="password" id="newAdminPass" placeholder="Yeni şifre" style="margin:0;">
-          <button type="button" class="pw-eye-btn" onclick="toggleAdminPassVisibility()" title="Şifreyi göster/gizle">👁️</button>
+          <button type="button" class="pw-eye-btn" ${act('toggleAdminPassVisibility')} title="Şifreyi göster/gizle">👁️</button>
         </div>
         <div class="pw-field-wrap">
           <input type="password" id="newAdminPass2" placeholder="Yeni şifre (tekrar)" style="margin:0;">
-          <button type="button" class="pw-eye-btn" onclick="toggleAdminPassVisibility()" title="Şifreyi göster/gizle">👁️</button>
+          <button type="button" class="pw-eye-btn" ${act('toggleAdminPassVisibility')} title="Şifreyi göster/gizle">👁️</button>
         </div>
         <div class="error" id="adminPassErr" style="text-align:left;margin:0;min-height:0;"></div>
-        <button style="width:auto;padding:10px 16px;margin:0;align-self:flex-start;" onclick="changeAdminPassword()">Güncelle</button>
+        <button style="width:auto;padding:10px 16px;margin:0;align-self:flex-start;" ${act('changeAdminPassword')}>Güncelle</button>
       </div>
     </div>
     <div class="box" style="max-width:520px;margin-top:16px;text-align:left;" id="adminTotpBox"><p class="muted">Yükleniyor…</p></div>
@@ -1214,12 +1214,12 @@ async function loadAdminTotpBox(){
     <p class="muted" style="text-align:left;font-size:13px;">Girişte şifreden sonra telefonunuzdaki doğrulama uygulamasının ürettiği 6 haneli kod isteniyor.</p>
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
       <input id="totpOffCode" inputmode="numeric" maxlength="6" placeholder="6 haneli kod" style="width:150px;margin:0;">
-      <button type="button" class="ghost-btn" style="width:auto;margin:0;" onclick="disableAdminTotp()">Kapat</button>
+      <button type="button" class="ghost-btn" style="width:auto;margin:0;" ${act('disableAdminTotp')}>Kapat</button>
     </div>
     <div class="error" id="totpErr" style="text-align:left;"></div>` : `
     <h2 style="margin:0 0 6px;">🔐 2 Adımlı Doğrulama <span class="role-badge" style="color:var(--red);border-color:var(--red);">Kapalı</span></h2>
     <p class="muted" style="text-align:left;font-size:13px;">Şifreniz ele geçirilse bile admin paneline girilemesin: girişte telefonunuzdaki <b>Google Authenticator</b>, <b>Microsoft Authenticator</b> gibi bir uygulamanın ürettiği kod da istensin.</p>
-    <button type="button" style="width:auto;margin:0;" onclick="startAdminTotp()">Kurulumu Başlat</button>
+    <button type="button" style="width:auto;margin:0;" ${act('startAdminTotp')}>Kurulumu Başlat</button>
     <div id="totpSetup"></div>`;
 }
 let QRCODE_LOADING = null;
@@ -1252,7 +1252,7 @@ async function startAdminTotp(){
     <div class="muted" style="font-size:12px;margin:8px 0;">QR okutamıyorsanız anahtarı elle girin: <code style="user-select:all;">${escapeHtml(data.secret.replace(/(.{4})/g, '$1 ').trim())}</code></div>
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
       <input id="totpOnCode" inputmode="numeric" maxlength="6" placeholder="6 haneli kod" style="width:150px;margin:0;">
-      <button type="button" style="width:auto;margin:0;" onclick="enableAdminTotp()">Etkinleştir</button>
+      <button type="button" style="width:auto;margin:0;" ${act('enableAdminTotp')}>Etkinleştir</button>
     </div>
     <div class="error" id="totpErr" style="text-align:left;"></div>`;
 }
@@ -1353,7 +1353,7 @@ async function renderSupportAdmin(main, admin){
     <p class="muted" style="text-align:left;margin:0 0 14px;">destek@peyktan.com adresine gelen mailler. Okunmamış: <b>${data.unread||0}</b></p>
     ${!items.length ? '<p class="muted">Henüz mail yok. Kurulum için aşağıdaki adımları izleyin.</p>' : `<div style="display:flex;flex-direction:column;gap:8px;">${items.map(m => `
       <div class="box" style="max-width:none;padding:12px 14px;${m.is_read?'opacity:.7;':'border-left:4px solid var(--accent);'}">
-        <div onclick="toggleSupportMail(${m.id})" style="cursor:pointer;display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;">
+        <div ${act('toggleSupportMail', m.id)} style="cursor:pointer;display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;">
           <div style="min-width:0;"><b style="overflow-wrap:anywhere;">${escapeHtml(m.subject||'(konu yok)')}</b>
             <div class="muted" style="font-size:12px;overflow-wrap:anywhere;">${escapeHtml(m.from_name ? m.from_name + ' <' + m.from_addr + '>' : m.from_addr)}</div></div>
           <span class="muted" style="font-size:12px;white-space:nowrap;">${fmt(m.received_at)}</span>
@@ -1362,7 +1362,7 @@ async function renderSupportAdmin(main, admin){
           <div style="white-space:pre-wrap;overflow-wrap:anywhere;font-size:13.5px;background:var(--bg);border-radius:8px;padding:10px;max-height:360px;overflow:auto;">${escapeHtml(m.body||'')}</div>
           <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;">
             <a href="mailto:${escapeAttr(m.from_addr)}?subject=${encodeURIComponent('Re: ' + (m.subject||''))}"><button class="sbtn" style="width:auto;">↩️ Yanıtla</button></a>
-            <button class="sbtn" style="width:auto;" onclick="markSupportMail(${m.id}, ${!m.is_read})">${m.is_read ? 'Okunmadı yap' : '✓ Okundu'}</button>
+            <button class="sbtn" style="width:auto;" ${act('markSupportMail', m.id, !m.is_read)}>${m.is_read ? 'Okunmadı yap' : '✓ Okundu'}</button>
           </div>
         </div>
       </div>`).join('')}</div>`}
@@ -1373,9 +1373,9 @@ async function renderSupportAdmin(main, admin){
         <li>Email Routing → <b>Routing rules</b> → destek@peyktan.com kuralını düzenleyin: Action = <b>Send to a Worker</b>, Worker = <code>peyktan-destek</code>.</li>
         <li>Deneme maili atın; birkaç saniye içinde hem Gmail'e hem bu listeye düşmeli.</li>
       </ol>
-      <div class="field-group" style="max-width:420px;"><label>İletilecek Gmail adresi</label><input id="supFwd" type="email" autocapitalize="none" placeholder="ornek@gmail.com" oninput="drawSupportWorkerCode()"></div>
+      <div class="field-group" style="max-width:420px;"><label>İletilecek Gmail adresi</label><input id="supFwd" type="email" autocapitalize="none" placeholder="ornek@gmail.com" ${actOn('input','drawSupportWorkerCode',[])}></div>
       <textarea id="supCode" readonly style="width:100%;height:260px;font-family:monospace;font-size:12px;margin-top:8px;"></textarea>
-      <button class="sbtn" style="width:auto;margin-top:8px;" onclick="navigator.clipboard.writeText(document.getElementById('supCode').value).then(()=>showToast('Kod kopyalandı ✓'))">📋 Kodu Kopyala</button>
+      <button class="sbtn" style="width:auto;margin-top:8px;" ${act('copySupportCode')}>📋 Kodu Kopyala</button>
       <p class="muted" style="text-align:left;font-size:12px;">Kod gizli bir anahtar içerir; kimseyle paylaşmayın.</p>
     </details>`;
   drawSupportWorkerCode();
@@ -1471,8 +1471,8 @@ async function renderGifAdmin(main, admin){
       </ol>
       <div class="field-group"><label>GIPHY API Key</label><input id="gifKeyInput" type="password" autocomplete="off" placeholder="${isSet ? '(kayıtlı - değiştirmek için yazın)' : 'API anahtarı'}"></div>
       <div style="display:flex;gap:10px;flex-wrap:wrap;">
-        <button style="width:auto;" onclick="saveGifKey()">${ICON_SAVE}<span>Kaydet</span></button>
-        ${isSet ? '<button class="ghost-btn" style="width:auto;color:var(--red);border-color:var(--red);" onclick="saveGifKey(true)">Anahtarı Kaldır</button>' : ''}
+        <button style="width:auto;" ${act('saveGifKey')}>${ICON_SAVE}<span>Kaydet</span></button>
+        ${isSet ? `<button class="ghost-btn" style="width:auto;color:var(--red);border-color:var(--red);" ${act('saveGifKey', true)}>Anahtarı Kaldır</button>` : ''}
       </div>
     </div>`;
 }
@@ -1498,16 +1498,16 @@ function openExtendSubscription(id, name, exp){
     <div class="muted" style="font-size:13px;margin-bottom:12px;"><b>${escapeHtml(name)}</b> · şu anki bitiş: <b>${cur ? cur.toLocaleDateString('tr-TR') : 'Süresiz'}</b>${cur && cur <= new Date() ? ' <span style="color:var(--red);">(dolmuş)</span>' : ''}</div>
     <div style="font-size:12.5px;font-weight:700;margin-bottom:6px;">Süre ekle <span class="muted" style="font-weight:400;">(bitişe, dolmuşsa bugüne eklenir)</span></div>
     <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;">
-      ${[7,30,90,180,365].map(d => `<button type="button" class="sbtn" style="${btn}" onclick="doExtendSubscription('${id}', {p_days:${d}})">+${d === 365 ? '1 yıl' : d + ' gün'}</button>`).join('')}
+      ${[7,30,90,180,365].map(d => `<button type="button" class="sbtn" style="${btn}" ${act('doExtendSubscription', id, {p_days:d})}>+${d === 365 ? '1 yıl' : d + ' gün'}</button>`).join('')}
     </div>
     <div style="font-size:12.5px;font-weight:700;margin-bottom:6px;">Veya bitiş tarihini belirle</div>
     <div style="display:flex;gap:6px;margin-bottom:12px;">
       <input type="date" id="extendUntil" style="margin:0;flex:1;" value="${cur ? cur.toISOString().slice(0,10) : ''}">
-      <button type="button" class="sbtn" style="margin:0;" onclick="const v=document.getElementById('extendUntil').value; if(!v){alert('Tarih seçin');return;} doExtendSubscription('${id}', {p_until:v})">Ayarla</button>
+      <button type="button" class="sbtn" style="margin:0;" ${act('extendSubscriptionUntil', id)}>Ayarla</button>
     </div>
     <div style="display:flex;gap:8px;">
-      <button type="button" class="ghost-btn" style="flex:1;margin:0;" onclick="if(confirm('Abonelik süresiz yapılsın mı?')) doExtendSubscription('${id}', {p_unlimited:true})">♾️ Süresiz yap</button>
-      <button type="button" class="ghost-btn" style="flex:1;margin:0;" onclick="document.getElementById('extendSubBg').remove()">Kapat</button>
+      <button type="button" class="ghost-btn" style="flex:1;margin:0;" ${act('extendSubscriptionUnlimited', id)}>♾️ Süresiz yap</button>
+      <button type="button" class="ghost-btn" style="flex:1;margin:0;" ${act('removeEl','extendSubBg')}>Kapat</button>
     </div></div>`;
   document.body.appendChild(ov);
 }
@@ -1519,3 +1519,8 @@ async function doExtendSubscription(id, args){
   showToast('Yeni bitiş: ' + (data ? new Date(data).toLocaleDateString('tr-TR') : 'Süresiz') + ' ✓');
   render();
 }
+
+function setAdminErrorsAll(on){ APP.adminErrorsAll = on; renderClientErrorsAdmin(document.getElementById('main'), getAdminSession()); }
+function copySupportCode(){ navigator.clipboard.writeText(document.getElementById('supCode').value).then(() => showToast('Kod kopyalandı ✓')); }
+function extendSubscriptionUntil(id){ const v = document.getElementById('extendUntil').value; if(!v){ alert('Tarih seçin'); return; } doExtendSubscription(id, { p_until: v }); }
+function extendSubscriptionUnlimited(id){ if(confirm('Abonelik süresiz yapılsın mı?')) doExtendSubscription(id, { p_unlimited: true }); }

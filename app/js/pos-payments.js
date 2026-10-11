@@ -9,7 +9,7 @@ async function renderPaymentsView(main, session){
   ]));
   if(!APP.config) APP.config = cfgRes.data;
   APP.liveOrders = liveRes.data || [];
-  main.innerHTML = `<h1>Ödemeler <button class="sbtn" style="width:auto;display:inline-flex;vertical-align:middle;margin-left:10px;" onclick="openTableScanModal()">📷 Masa Tara</button></h1><div class="muted" id="payStatus"></div><div class="table-grid" id="payGrid"></div>`;
+  main.innerHTML = `<h1>Ödemeler <button class="sbtn" style="width:auto;display:inline-flex;vertical-align:middle;margin-left:10px;" ${act('openTableScanModal')}>📷 Masa Tara</button></h1><div class="muted" id="payStatus"></div><div class="table-grid" id="payGrid"></div>`;
   renderPayGrid();
 }
 /* --- Hediye Kartları: yeni kart oluşturma (kod üretimi) ve mevcut
@@ -26,12 +26,12 @@ async function renderGiftCardsSettings(el, session){
       <div style="${INLINE_ROW}">
         <div class="field-group" style="${fgStyle(140)}"><label>Tutar</label><input id="gcNewAmount" type="number" min="0" step="0.01" placeholder="örn. 200" style="margin:0;"></div>
         <div class="field-group" style="${fgStyle(220, 2)}"><label>Not (opsiyonel)</label><input id="gcNewNote" placeholder="örn. hediye" style="margin:0;"></div>
-        <button style="${INLINE_BTN}" onclick="createGiftCard()">+ Kart Oluştur</button>
+        <button style="${INLINE_BTN}" ${act('createGiftCard')}>+ Kart Oluştur</button>
       </div>
       <div id="gcNewResult" style="margin-top:10px;"></div>
     </div>
     <div style="margin-top:18px;">
-      <input id="gcSearchInput" placeholder="Kod, müşteri adı veya telefon ara..." oninput="debouncedGiftCardSearch(this.value)">
+      <input id="gcSearchInput" placeholder="Kod, müşteri adı veya telefon ara..." ${actOn('input','debouncedGiftCardSearch',['$value'])}>
     </div>
     <div id="gcListWrap" style="margin-top:10px;"><p class="muted">Yükleniyor…</p></div>
   </div>`;
@@ -98,14 +98,14 @@ function renderPayGrid(){
     const unpaid = order ? order.items.filter(i=>!i.paid) : [];
     if(unpaid.length===0) return null;
     const total = unpaid.reduce((s,i) => s+i.price*i.qty, 0);
-    return `<div class="table-cell" data-badge-id="${order.order_id}" style="cursor:pointer;background:rgba(244,63,94,.14);border-color:var(--red);color:var(--red);" onclick="openPayModal('${order.order_id}')">
+    return `<div class="table-cell" data-badge-id="${order.order_id}" style="cursor:pointer;background:rgba(244,63,94,.14);border-color:var(--red);color:var(--red);" ${act('openPayModal', order.order_id)}>
       ${payCellName(t.name)}<div style="font-size:11px;margin-top:4px;font-weight:400;">${money(total)}</div></div>`;
   }).filter(Boolean);
   const pkgRows = (APP.liveOrders||[]).filter(o => o.kind==='takeaway' && o.items.filter(i=>!i.paid).length>0).map(o => {
     const unpaid = o.items.filter(i=>!i.paid);
     const total = unpaid.reduce((s,i)=>s+i.price*i.qty,0);
     const label = o.customer_name || ('Paket #'+(o.daily_number||''));
-    return `<div class="table-cell" data-badge-id="${o.order_id}" style="cursor:pointer;background:rgba(244,63,94,.14);border-color:var(--red);color:var(--red);" onclick="openPayModal('${o.order_id}')">
+    return `<div class="table-cell" data-badge-id="${o.order_id}" style="cursor:pointer;background:rgba(244,63,94,.14);border-color:var(--red);color:var(--red);" ${act('openPayModal', o.order_id)}>
       📦 ${payCellName(label)}<div style="font-size:11px;margin-top:4px;font-weight:400;">${money(total)}</div></div>`;
   });
   const occupiedRows = tableRows.concat(pkgRows);
@@ -116,7 +116,7 @@ function renderPayGrid(){
    hesapta açık kalır (kısmi/ürün-adet bazlı ödeme). itemId -> seçili adet. */
 let PAY_SELECTED_QTYS = {};
 /* tableName artık ikinci parametre olarak değil (serbest metin olduğundan
-   onclick="..."'a gömülmesi tırnak-kaçışı XSS'ine açıktı, bkz. güvenlik notu),
+   satır içi olay koduna gömülmesi tırnak-kaçışı XSS'ine açıktı, bkz. güvenlik notu),
    order bulunduktan sonra buradan türetiliyor. */
 function openPayModal(orderId){
   const order = APP.liveOrders.find(o => o.order_id===orderId);
@@ -135,9 +135,9 @@ function openPayModal(orderId){
         <span class="pay-item-subtotal" data-item-id="${it.id}" style="font-weight:700;">${money(it.price*it.qty)}</span>
       </div>
       <div class="row-bottom">
-        <button type="button" class="qty-btn" onclick="stepPayItemQty('${it.id}',-1)">-</button>
+        <button type="button" class="qty-btn" ${act('stepPayItemQty', it.id, -1)}>-</button>
         <span class="pay-item-qty" data-item-id="${it.id}" style="min-width:20px;text-align:center;font-weight:700;">${it.qty}</span>
-        <button type="button" class="qty-btn" onclick="stepPayItemQty('${it.id}',1)">+</button>
+        <button type="button" class="qty-btn" ${act('stepPayItemQty', it.id, 1)}>+</button>
         <span class="muted" style="font-size:11px;">/ ${it.qty} adet</span>
       </div>
     </div>`).join('');
@@ -159,9 +159,9 @@ function openPayModal(orderId){
   bg.innerHTML = `<div class="pay-modal">
     <div class="pay-modal-header">
       <h2>${escapeHtml(tableName)}</h2>
-      <span class="pay-modal-close" onclick="document.getElementById('payModalBg').remove()">✕</span>
+      <span class="pay-modal-close" ${act('removeEl','payModalBg')}>✕</span>
     </div>
-    ${unpaidItems.length>1 ? `<div class="pay-select-all-row"><button class="pay-select-all-btn" onclick="toggleAllPayItems()">Tümünü Seç/Kaldır</button></div>` : ''}
+    ${unpaidItems.length>1 ? `<div class="pay-select-all-row"><button class="pay-select-all-btn" ${act('toggleAllPayItems')}>Tümünü Seç/Kaldır</button></div>` : ''}
     <div class="pay-items-card" id="payItemsWrap">${itemsHtml}</div>
     <div class="pay-subtotal-row" id="paySubtotalLine"><span>Ara Toplam</span><span>${money(subtotal)}</span></div>
 
@@ -174,54 +174,54 @@ function openPayModal(orderId){
             <option value="percent">%</option>
             <option value="amount">₺</option>
           </select>
-          <button style="width:auto;padding:0 14px;margin:0;" onclick="applyPayDiscount()">Uygula</button>
+          <button style="width:auto;padding:0 14px;margin:0;" ${act('applyPayDiscount')}>Uygula</button>
         </div>
         <p id="discInfo" class="hint">İndirim yok</p>
       </div>
       <div class="pay-option-card">
         <h4>💸 Bahşiş</h4>
         <div class="pay-chip-row">
-          <button type="button" class="pay-chip" onclick="applyTipPercent(5)">%5</button>
-          <button type="button" class="pay-chip" onclick="applyTipPercent(10)">%10</button>
-          <button type="button" class="pay-chip" onclick="applyTipPercent(15)">%15</button>
-          <input id="tipValue" type="number" min="0" step="0.01" placeholder="Tutar" style="flex:1;min-width:80px;margin:0;" oninput="applyTipAmount(this.value)">
+          <button type="button" class="pay-chip" ${act('applyTipPercent', 5)}>%5</button>
+          <button type="button" class="pay-chip" ${act('applyTipPercent', 10)}>%10</button>
+          <button type="button" class="pay-chip" ${act('applyTipPercent', 15)}>%15</button>
+          <input id="tipValue" type="number" min="0" step="0.01" placeholder="Tutar" style="flex:1;min-width:80px;margin:0;" ${actOn('input','applyTipAmount',['$value'])}>
         </div>
         <p id="tipInfo" class="hint">Bahşiş yok</p>
         <div style="border-top:1px dashed var(--border);margin-top:10px;padding-top:10px;">
           <label class="hint" style="display:block;margin-bottom:4px;">Alınan nakit — üstü bahşiş olur</label>
-          <input id="cashReceivedInput" type="number" min="0" step="0.01" placeholder="örn. 5000" style="margin:0;" oninput="handleCashReceivedInput(this.value)">
+          <input id="cashReceivedInput" type="number" min="0" step="0.01" placeholder="örn. 5000" style="margin:0;" ${actOn('input','handleCashReceivedInput',['$value'])}>
         </div>
       </div>
       <div class="pay-option-card">
         <h4>🧑 Müşteri</h4>
         <div class="field-row">
           <input id="payCustomerPhone" placeholder="Telefon ile ara" style="flex:1;">
-          <button style="width:auto;padding:0 14px;margin:0;" onclick="lookupPayCustomer()">Bul</button>
+          <button style="width:auto;padding:0 14px;margin:0;" ${act('lookupPayCustomer')}>Bul</button>
         </div>
         <p id="payCustomerInfo" class="hint">Müşteri seçilmedi</p>
         <div id="payRedeemWrap" style="display:none;margin-top:8px;">
-          <input id="payRedeemPoints" type="number" min="0" step="1" placeholder="Kullanılacak puan" style="margin:0;" oninput="applyRedeemPoints(this.value)">
+          <input id="payRedeemPoints" type="number" min="0" step="1" placeholder="Kullanılacak puan" style="margin:0;" ${actOn('input','applyRedeemPoints',['$value'])}>
         </div>
       </div>
       <div class="pay-option-card">
         <h4>🎁 Hediye Kartı</h4>
         <div class="field-row">
           <input id="payGiftCardCode" placeholder="Kart kodu" style="flex:1;text-transform:uppercase;">
-          <button style="width:auto;padding:0 14px;margin:0;" onclick="lookupPayGiftCard()">Sorgula</button>
+          <button style="width:auto;padding:0 14px;margin:0;" ${act('lookupPayGiftCard')}>Sorgula</button>
         </div>
         <p id="payGiftCardInfo" class="hint">Kart seçilmedi</p>
         <div id="payGiftCardPartialActions" style="display:none;margin-top:8px;">
           <p class="hint" style="margin:0 0 6px;">Bakiye yetersiz — kartın tamamı düşülür, kalanı seçin:</p>
           <div class="field-row" style="gap:8px;">
-            <button style="width:auto;padding:0 12px;margin:0;flex:1;" onclick="finishGiftCardPartial('cash')">💵 Kalanı Nakit</button>
-            <button style="width:auto;padding:0 12px;margin:0;flex:1;" onclick="finishGiftCardPartial('card')">💳 Kalanı Kart</button>
+            <button style="width:auto;padding:0 12px;margin:0;flex:1;" ${act('finishGiftCardPartial', 'cash')}>💵 Kalanı Nakit</button>
+            <button style="width:auto;padding:0 12px;margin:0;flex:1;" ${act('finishGiftCardPartial', 'card')}>💳 Kalanı Kart</button>
           </div>
         </div>
       </div>
     </div>
 
     <label class="pay-email-toggle ${APP.payWantsEmail?'on':''}">
-      <input type="checkbox" id="payEmailInvoice" ${APP.payWantsEmail?'checked':''} onchange="APP.payWantsEmail=this.checked;this.closest('.pay-email-toggle').classList.toggle('on',this.checked)">
+      <input type="checkbox" id="payEmailInvoice" ${APP.payWantsEmail?'checked':''} ${actOn('change','setPayWantsEmail',['$this'])}>
       <span class="pet-icon">📧</span>
       <span class="pet-text"><b>Hesabı e-postayla gönder</b><small>Ödemeden sonra müşterinin e-posta adresi sorulur</small></span>
       <span class="pet-switch"></span>
@@ -231,14 +231,14 @@ function openPayModal(orderId){
       <span class="amt" id="payFinalTotal">${money(subtotal)}</span>
     </div>
     <div class="pay-method-grid">
-      <button class="pay-method-btn cash" onclick="finishPaymentFull('cash')">💵 Nakit</button>
-      <button class="pay-method-btn card" onclick="finishPaymentFull('card')">💳 Kredi Kartı</button>
+      <button class="pay-method-btn cash" ${act('finishPaymentFull', 'cash')}>💵 Nakit</button>
+      <button class="pay-method-btn card" ${act('finishPaymentFull', 'card')}>💳 Kredi Kartı</button>
     </div>
     <div class="pay-method-grid secondary">
-      <button class="pay-method-btn gift" id="payGiftCardPayBtn" disabled onclick="finishPaymentFull('gift_card')">🎁 Hediye Kartı ile Öde</button>
-      <button class="pay-method-btn split" onclick="openSplitPay()">➗ Bölünmüş Ödeme</button>
+      <button class="pay-method-btn gift" id="payGiftCardPayBtn" disabled ${act('finishPaymentFull', 'gift_card')}>🎁 Hediye Kartı ile Öde</button>
+      <button class="pay-method-btn split" ${act('openSplitPay')}>➗ Bölünmüş Ödeme</button>
     </div>
-    <button type="button" class="pay-method-btn split" style="width:100%;margin-top:10px;" onclick="openOpenAccountTransfer()">📒 Açık Hesaba At</button>
+    <button type="button" class="pay-method-btn split" style="width:100%;margin-top:10px;" ${act('openOpenAccountTransfer')}>📒 Açık Hesaba At</button>
   </div>`;
   document.body.appendChild(bg);
   autoSelectPayCustomer(order);
@@ -545,7 +545,7 @@ function openSplitPay(){
   sbg.innerHTML = `<div class="pay-modal" style="max-width:700px;">
     <div class="pay-modal-header">
       <h2>➗ Bölünmüş Ödeme</h2>
-      <span class="pay-modal-close" onclick="document.getElementById('splitPayBg').remove()">✕</span>
+      <span class="pay-modal-close" ${act('removeEl','splitPayBg')}>✕</span>
     </div>
     <div class="pay-total-banner" style="margin-top:14px;">
       <span class="label">Ödenecek Tutar</span>
@@ -560,13 +560,13 @@ function openSplitPay(){
           <input id="splitPeople" type="number" min="1" placeholder="Toplam kişi">
           <input id="splitCashPeople" type="number" min="0" placeholder="Nakit ödeyen">
         </div>
-        <button style="margin:0;" onclick="calcSplitPay(${total})">Hesapla</button>
+        <button style="margin:0;" ${act('calcSplitPay', total)}>Hesapla</button>
       </div>
 
       <div class="pay-option-card">
         <h4>💵 Nakit / 💳 Kart Dağılımı</h4>
         <label class="hint" style="display:block;margin-bottom:4px;">Nakit Tutar</label>
-        <input id="splitCash" type="number" step="0.01" min="0" max="${total}" value="0" oninput="updateSplitPayPreview(${total})" style="margin-bottom:0;">
+        <input id="splitCash" type="number" step="0.01" min="0" max="${total}" value="0" ${actOn('input','updateSplitPayPreview',[total])} style="margin-bottom:0;">
         <p id="splitCardPreview" class="hint" style="margin:8px 0 0;">Kredi Kartı: ${money(total)}</p>
       </div>
 
@@ -574,7 +574,7 @@ function openSplitPay(){
         <h4>👥 Nakiti Birden Fazla Kişiye Böl <span class="muted" style="font-weight:400;text-transform:none;">(opsiyonel)</span></h4>
         <div class="field-row">
           <input id="cashChargeCount" type="number" min="1" value="1" style="flex:1;">
-          <button style="width:auto;padding:0 16px;margin:0;" onclick="genCashCharges(${total})">Böl</button>
+          <button style="width:auto;padding:0 16px;margin:0;" ${act('genCashCharges', total)}>Böl</button>
         </div>
         <div id="cashChargesBox" style="margin-top:8px;"></div>
       </div>
@@ -583,13 +583,13 @@ function openSplitPay(){
         <h4>💳 Kartı Birden Fazla Çekime Böl <span class="muted" style="font-weight:400;text-transform:none;">(opsiyonel)</span></h4>
         <div class="field-row">
           <input id="cardChargeCount" type="number" min="1" value="1" style="flex:1;">
-          <button style="width:auto;padding:0 16px;margin:0;" onclick="genCardCharges(${total})">Böl</button>
+          <button style="width:auto;padding:0 16px;margin:0;" ${act('genCardCharges', total)}>Böl</button>
         </div>
         <div id="cardChargesBox" style="margin-top:8px;"></div>
       </div>
     </div>
 
-    <button class="pay-method-btn cash" style="margin-top:6px;" onclick="confirmSplitPay('${orderId}',${total},${discountAmount},${tip},'${customerId}',${redeemPoints})">✅ Onayla</button>
+    <button class="pay-method-btn cash" style="margin-top:6px;" ${act('confirmSplitPay', orderId, total, discountAmount, tip, customerId, redeemPoints)}>✅ Onayla</button>
   </div>`;
   document.body.appendChild(sbg);
 }
@@ -622,7 +622,7 @@ function genCashCharges(total){
   for(let i=0;i<count-1;i++){ charges.push(base); sum+=base; }
   charges.push(Math.round((cash-sum)*100)/100);
   document.getElementById('cashChargesBox').innerHTML = charges.map((c,i) =>
-    `<div style="display:flex;gap:8px;align-items:center;margin-bottom:4px;"><span class="muted" style="width:50px;font-size:12px;">Nakit ${i+1}:</span><input class="cash-input" type="number" step="0.01" value="${c}" style="margin:0;" oninput="updateCashSum()"></div>`
+    `<div style="display:flex;gap:8px;align-items:center;margin-bottom:4px;"><span class="muted" style="width:50px;font-size:12px;">Nakit ${i+1}:</span><input class="cash-input" type="number" step="0.01" value="${c}" style="margin:0;" ${actOn('input','updateCashSum',[])}></div>`
   ).join('') + `<p id="cashSumInfo" class="muted" style="font-size:12px;margin-top:6px;"></p>`;
   updateCashSum(cash);
 }
@@ -643,7 +643,7 @@ function genCardCharges(total){
   for(let i=0;i<count-1;i++){ charges.push(base); sum+=base; }
   charges.push(Math.round((cardTotal-sum)*100)/100);
   document.getElementById('cardChargesBox').innerHTML = charges.map((c,i) =>
-    `<div style="display:flex;gap:8px;align-items:center;margin-bottom:4px;"><span class="muted" style="width:50px;font-size:12px;">Kart ${i+1}:</span><input class="cc-input" type="number" step="0.01" value="${c}" style="margin:0;" oninput="updateCcSum()"></div>`
+    `<div style="display:flex;gap:8px;align-items:center;margin-bottom:4px;"><span class="muted" style="width:50px;font-size:12px;">Kart ${i+1}:</span><input class="cc-input" type="number" step="0.01" value="${c}" style="margin:0;" ${actOn('input','updateCcSum',[])}></div>`
   ).join('') + `<p id="ccSumInfo" class="muted" style="font-size:12px;margin-top:6px;"></p>`;
   updateCcSum(cardTotal);
 }
@@ -721,7 +721,7 @@ function openInvoiceEmailModal(historyId){
     <p class="muted" style="margin:0 0 12px;font-size:13px;">Hesabı müşteriye e-postayla göndermek ister misiniz?</p>
     <input id="invEmail" type="email" placeholder="Müşterinin e-posta adresi" autocapitalize="none" style="margin-bottom:8px;">
     <label style="display:flex;align-items:center;gap:8px;font-size:13px;margin:4px 0 8px;cursor:pointer;">
-      <input type="checkbox" id="invCorporate" style="width:auto;margin:0;" onchange="document.getElementById('invCorpFields').style.display=this.checked?'block':'none'"> Fatura bilgisi ekle (şirket / şahıs)
+      <input type="checkbox" id="invCorporate" style="width:auto;margin:0;" ${actOn('change','toggleInvCorpFields',['$checked'])}> Fatura bilgisi ekle (şirket / şahıs)
     </label>
     <div id="invCorpFields" style="display:none;">
       <input id="invBuyerName" placeholder="Ad Soyad / Şirket Ünvanı" style="margin-bottom:8px;">
@@ -731,10 +731,10 @@ function openInvoiceEmailModal(historyId){
     </div>
     <div class="error" id="invErr" style="text-align:left;"></div>
     <div class="field-row" style="gap:8px;margin-top:6px;">
-      <button type="button" style="flex:1;margin:0;background:var(--panel2);color:var(--text);" onclick="document.getElementById('invoiceEmailBg').remove()">İptal</button>
-      <button type="button" id="invSendBtn" style="flex:1;margin:0;" onclick="sendInvoiceEmail('${historyId}')">📧 Gönder</button>
+      <button type="button" style="flex:1;margin:0;background:var(--panel2);color:var(--text);" ${act('removeEl','invoiceEmailBg')}>İptal</button>
+      <button type="button" id="invSendBtn" style="flex:1;margin:0;" ${act('sendInvoiceEmail', historyId)}>📧 Gönder</button>
     </div>
-    ${hasReview ? `<button type="button" class="ghost-btn" style="width:100%;margin-top:10px;" onclick="document.getElementById('invoiceEmailBg').remove();showGoogleReviewQr()">⭐ Google yorum QR'ını göster</button>` : ''}
+    ${hasReview ? `<button type="button" class="ghost-btn" style="width:100%;margin-top:10px;" ${act('showGoogleReviewQrFromInvoice')}>⭐ Google yorum QR'ını göster</button>` : ''}
   </div>`;
   document.body.appendChild(bg);
   setTimeout(() => { const el = document.getElementById('invEmail'); if(el) el.focus(); }, 50);
@@ -769,7 +769,7 @@ function showGoogleReviewQr(){
   bg.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:100;padding:16px;';
   bg.onclick = (e) => { if(e.target===bg) bg.remove(); };
   bg.innerHTML = `<div style="background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:20px;max-width:320px;width:100%;text-align:center;">
-    <div style="display:flex;justify-content:space-between;"><h2 style="margin:0;">⭐ Bizi Değerlendirin</h2><span style="cursor:pointer;color:var(--muted);" onclick="document.getElementById('googleReviewQrBg').remove()">✕</span></div>
+    <div style="display:flex;justify-content:space-between;"><h2 style="margin:0;">⭐ Bizi Değerlendirin</h2><span style="cursor:pointer;color:var(--muted);" ${act('removeEl','googleReviewQrBg')}>✕</span></div>
     <p class="muted" style="font-size:13px;">Müşteriye telefonuyla okutması için gösterin</p>
     <img src="${qrImgUrl}" alt="QR" style="width:100%;max-width:260px;margin:6px 0 14px;border-radius:8px;background:#fff;padding:8px;">
   </div>`;
@@ -785,8 +785,8 @@ async function renderOrderView(main, session){
     <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
       <div class="tabs" id="zoneTabs" style="margin:16px 0 0;"></div>
       <div style="display:flex;gap:8px;">
-        <button type="button" style="width:auto;padding:7px 12px;margin:0;background:transparent;border:1px solid var(--border);color:var(--text);box-shadow:none;font-size:12.5px;" onclick="openTableScanModal()">📷 Masa Tara</button>
-        ${hasFeature('floorplan') ? `<button type="button" style="width:auto;padding:7px 12px;margin:0;background:transparent;border:1px solid var(--border);color:var(--text);box-shadow:none;font-size:12.5px;" onclick="toggleOrderTableViewMode()" id="tableViewModeBtn">${APP.orderTableViewMode==='floorplan'?'📋 Liste Görünümü':'🗺️ Kat Planı'}</button>` : ''}
+        <button type="button" style="width:auto;padding:7px 12px;margin:0;background:transparent;border:1px solid var(--border);color:var(--text);box-shadow:none;font-size:12.5px;" ${act('openTableScanModal')}>📷 Masa Tara</button>
+        ${hasFeature('floorplan') ? `<button type="button" style="width:auto;padding:7px 12px;margin:0;background:transparent;border:1px solid var(--border);color:var(--text);box-shadow:none;font-size:12.5px;" ${act('toggleOrderTableViewMode')} id="tableViewModeBtn">${APP.orderTableViewMode==='floorplan'?'📋 Liste Görünümü':'🗺️ Kat Planı'}</button>` : ''}
       </div>
     </div>
     <div class="table-grid" id="tableGrid" style="margin-top:12px;"></div>
@@ -873,8 +873,8 @@ async function refreshCustomerOrderRequests(session){
           ${r.items.map(it => `${it.qty}x ${escapeHtml(it.name||'?')}${it.note?' <span class="muted">('+escapeHtml(it.note)+')</span>':''}`).join(', ')}
         </div>
         <div style="margin-top:8px;">
-          <button class="sbtn" style="background:var(--green);color:var(--btn-ink);" onclick="approveCustomerRequest('${r.id}')">✅ Onayla</button>
-          <button class="sbtn" style="background:var(--red);color:var(--btn-ink);" onclick="rejectCustomerRequest('${r.id}')">✕ Reddet</button>
+          <button class="sbtn" style="background:var(--green);color:var(--btn-ink);" ${act('approveCustomerRequest', r.id)}>✅ Onayla</button>
+          <button class="sbtn" style="background:var(--red);color:var(--btn-ink);" ${act('rejectCustomerRequest', r.id)}>✕ Reddet</button>
         </div>
       </div>`).join('')}
   </div>`;
@@ -925,7 +925,7 @@ async function refreshWaiterCalls(){
     <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:6px 0;border-top:1px dashed var(--border);">
       <span style="font-size:13.5px;overflow-wrap:anywhere;">${r.kind==='payment' ? '💳' : '🙋'} <b>${escapeHtml(r.table_name||'Masa')}</b> · ${r.kind==='payment' ? 'hesap istiyor' : 'sipariş verecek'}
         <span class="muted" style="font-size:11.5px;">${new Date(r.created_at).toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'})}</span></span>
-      <button type="button" class="sbtn" style="width:auto;margin:0;background:var(--green);color:var(--btn-ink);white-space:nowrap;" onclick="resolveWaiterCall('${r.id}')">✓ Gittim</button>
+      <button type="button" class="sbtn" style="width:auto;margin:0;background:var(--green);color:var(--btn-ink);white-space:nowrap;" ${act('resolveWaiterCall', r.id)}>✓ Gittim</button>
     </div>`).join('');
   const fresh = rows.filter(r => !WAITER_CALL_SEEN.has(r.id));
   fresh.forEach(r => WAITER_CALL_SEEN.add(r.id));
@@ -947,7 +947,7 @@ function drawWaiterCallInline(rows){
     <h2 style="margin:0 0 8px;">${kind==='payment' ? '💳 Hesap isteyen masalar' : '🙋 Garson çağıran masalar'} (${list.length})</h2>
     ${list.map(r => `<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 0;border-top:1px dashed var(--border);">
       <span><b>${escapeHtml(r.table_name||'Masa')}</b> <span class="muted" style="font-size:12px;">${new Date(r.created_at).toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'})}</span></span>
-      <button type="button" class="sbtn" style="width:auto;margin:0;background:var(--green);color:var(--btn-ink);" onclick="resolveWaiterCall('${r.id}')">✓ Gittim</button></div>`).join('')}
+      <button type="button" class="sbtn" style="width:auto;margin:0;background:var(--green);color:var(--btn-ink);" ${act('resolveWaiterCall', r.id)}>✓ Gittim</button></div>`).join('')}
   </div>`;
 }
 async function resolveWaiterCall(id){
@@ -969,21 +969,21 @@ function shiftWidgetHtml(){
   if(!st) return '<div class="shift-status">Vardiya durumu yükleniyor…</div>';
   if(st.pending){
     return `<div class="shift-status pending">🟡 <span class="label">Yönetici onayı bekleniyor</span></div>`
-      + `<button class="sb-shift-btn out" onclick="doClockToggle()" title="Talebi Geri Çek">✕<span class="label"> Talebi Geri Çek</span></button>`;
+      + `<button class="sb-shift-btn out" ${act('doClockToggle')} title="Talebi Geri Çek">✕<span class="label"> Talebi Geri Çek</span></button>`;
   }
   if(st.clocked_in){
     const t = new Date(st.clock_in);
     const hh = String(t.getHours()).padStart(2,'0'), mm = String(t.getMinutes()).padStart(2,'0');
     return `<div class="shift-status on">🟢 <span class="label">Vardiyada (${hh}:${mm}'dan beri)</span></div>`
       + (st.can_end
-        ? `<button class="sb-shift-btn out" onclick="doClockToggle()" title="Vardiyayı Bitir">⏹<span class="label"> Vardiyayı Bitir</span></button>`
+        ? `<button class="sb-shift-btn out" ${act('doClockToggle')} title="Vardiyayı Bitir">⏹<span class="label"> Vardiyayı Bitir</span></button>`
         : st.end_requested
-          ? `<div class="shift-status pending"><span class="label">🟡 Bitirme onayı bekleniyor</span></div><button class="sb-shift-btn" onclick="doClockToggle()" title="Bitirme Talebini Geri Çek">✕<span class="label"> Talebi Geri Çek</span></button>`
-          : `<button class="sb-shift-btn out" onclick="doClockToggle()" title="Vardiyayı Bitirmeyi İste">⏹<span class="label"> Bitirmeyi İste</span></button>`);
+          ? `<div class="shift-status pending"><span class="label">🟡 Bitirme onayı bekleniyor</span></div><button class="sb-shift-btn" ${act('doClockToggle')} title="Bitirme Talebini Geri Çek">✕<span class="label"> Talebi Geri Çek</span></button>`
+          : `<button class="sb-shift-btn out" ${act('doClockToggle')} title="Vardiyayı Bitirmeyi İste">⏹<span class="label"> Bitirmeyi İste</span></button>`);
   }
   const needsApproval = st.approval_required && !st.is_manager;
   return '<div class="shift-status">⚪ <span class="label">Vardiya Dışı</span></div>'
-    + `<button class="sb-shift-btn in" onclick="doClockToggle()" title="${needsApproval?'Vardiya Başlatma İste':'Vardiyaya Başla'}">▶<span class="label"> ${needsApproval?'Vardiya Başlatma İste':'Vardiyaya Başla'}</span></button>`;
+    + `<button class="sb-shift-btn in" ${act('doClockToggle')} title="${needsApproval?'Vardiya Başlatma İste':'Vardiyaya Başla'}">▶<span class="label"> ${needsApproval?'Vardiya Başlatma İste':'Vardiyaya Başla'}</span></button>`;
 }
 async function refreshShiftWidget(session){
   const { data, error } = await sb.rpc('get_my_shift_status', { p_token: session.session_token });
@@ -1029,7 +1029,7 @@ function renderZoneTabs(){
   // Her bölge sekmesinde o bölgedeki açık (dolu) masa sayısı rozet olarak görünür.
   el.innerHTML = APP.config.zones.map(z => {
     const open = (z.tables||[]).filter(t => liveOrderForTable(t.id)).length;
-    return `<div class="tab ${z.id===APP.selectedZone?'active':''}" onclick="selectZone('${z.id}')">${escapeHtml(z.name)}${open ? ` <span class="zone-badge" title="${open} açık masa">${open}</span>` : ''}</div>`;
+    return `<div class="tab ${z.id===APP.selectedZone?'active':''}" ${act('selectZone', z.id)}>${escapeHtml(z.name)}${open ? ` <span class="zone-badge" title="${open} açık masa">${open}</span>` : ''}</div>`;
   }).join('');
 }
 function selectZone(id){ APP.selectedZone = id; renderZoneTabs(); renderTableGrid(); }
@@ -1068,7 +1068,7 @@ async function openTableScanModal(){
   bg.innerHTML = `<div style="background:var(--panel);border-radius:16px;padding:16px;max-width:380px;width:100%;text-align:center;">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
       <h2 style="margin:0;font-size:16px;">📷 Masa QR'ını Okutun</h2>
-      <span style="cursor:pointer;color:var(--muted);font-size:20px;" onclick="closeTableScanModal()">✕</span>
+      <span style="cursor:pointer;color:var(--muted);font-size:20px;" ${act('closeTableScanModal')}>✕</span>
     </div>
     <video id="qrScanVideo" playsinline autoplay muted style="width:100%;border-radius:10px;background:#000;"></video>
     <canvas id="qrScanCanvas" style="display:none;"></canvas>
@@ -1222,7 +1222,7 @@ function renderTableGrid(){
   const sorted = zone.tables.slice().sort((a,b) => String(a.name).localeCompare(String(b.name), 'tr', { numeric:true, sensitivity:'base' }));
   el.innerHTML = sorted.map(t => {
     const { sub, occupied } = tableStatus(t);
-    return `<div class="table-cell" style="${occupied?'background:rgba(244,63,94,.14);border-color:var(--red);color:var(--red);':''}" onclick="openTableModal('${t.id}')">
+    return `<div class="table-cell" style="${occupied?'background:rgba(244,63,94,.14);border-color:var(--red);color:var(--red);':''}" ${act('openTableModal', t.id)}>
       ${escapeHtml(t.name)}<div style="font-size:11px;margin-top:4px;font-weight:400;">${sub}</div></div>`;
   }).join('');
 }
@@ -1232,7 +1232,7 @@ function renderTableFloorPlan(zone, el){
   const { scale } = fpLayout(el, zone.tables);
   el.innerHTML = zone.tables.map(t => {
     const { sub, occupied } = tableStatus(t);
-    return `<div class="floorplan-table ${occupied?'occupied':''}" style="left:${Number(t.pos_x||0)*scale}px;top:${Number(t.pos_y||0)*scale}px;" onclick="openTableModal('${t.id}')">
+    return `<div class="floorplan-table ${occupied?'occupied':''}" style="left:${Number(t.pos_x||0)*scale}px;top:${Number(t.pos_y||0)*scale}px;" ${act('openTableModal', t.id)}>
       ${escapeHtml(t.name)}<div class="fp-sub">${sub}</div></div>`;
   }).join('');
 }
@@ -1251,7 +1251,7 @@ function orderFlagsHtml(pseudoId){
     <p class="muted" style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;margin:0 0 8px;">Sipariş Etiketleri</p>
     <div style="display:flex;flex-wrap:wrap;gap:12px;">
       ${flags.map(f => `<label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;">
-        <input type="checkbox" style="width:auto;margin:0;" data-label="${escapeAttr(f.label)}" ${sel.includes(f.label)?'checked':''} onchange="toggleOrderFlag('${pseudoId}',this.dataset.label,this.checked)">
+        <input type="checkbox" style="width:auto;margin:0;" data-label="${escapeAttr(f.label)}" ${sel.includes(f.label)?'checked':''} ${actOn('change','toggleOrderFlag',[pseudoId, f.label, '$checked'])}>
         ${escapeHtml(f.label)}
       </label>`).join('')}
     </div>
@@ -1278,22 +1278,22 @@ function tableCustomerInnerHtml(tableId, editing){
   if(editing){
     return `<div style="background:var(--panel2);border:1px solid var(--border);border-radius:12px;padding:10px 12px;margin-bottom:12px;">
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
-        <input id="tableCustName" data-table="${tableId}" placeholder="Müşteri adı veya kayıtlı müşteri ara" autocomplete="off" value="${escapeAttr(name)}" style="margin:0;" oninput="tableCustSearch(this.value)" onchange="saveTableCustomer('${tableId}', true)">
-        <input id="tableCustPhone" placeholder="Telefon (opsiyonel)" inputmode="tel" autocomplete="off" value="${escapeAttr(phone)}" style="margin:0;" oninput="tableCustSearch(this.value)" onchange="saveTableCustomer('${tableId}', true)">
+        <input id="tableCustName" data-table="${tableId}" placeholder="Müşteri adı veya kayıtlı müşteri ara" autocomplete="off" value="${escapeAttr(name)}" style="margin:0;" ${actOn('input','tableCustSearch',['$value'])} ${actOn('change','saveTableCustomer',[tableId, true])}>
+        <input id="tableCustPhone" placeholder="Telefon (opsiyonel)" inputmode="tel" autocomplete="off" value="${escapeAttr(phone)}" style="margin:0;" ${actOn('input','tableCustSearch',['$value'])} ${actOn('change','saveTableCustomer',[tableId, true])}>
       </div>
       <div id="tableCustSuggest"></div>
       <p class="muted" style="font-size:11.5px;margin:6px 2px 0;">Otomatik kaydedilir.</p>
     </div>`;
   }
   if(!o || !(name || phone || o.note)){
-    return `<button type="button" class="ghost-btn" style="width:100%;margin:0 0 12px;" onclick="document.getElementById('tableCustWrap').innerHTML=tableCustomerInnerHtml('${tableId}', true);document.getElementById('tableCustName').focus()">👤 Müşteri Adı Ekle</button>`;
+    return `<button type="button" class="ghost-btn" style="width:100%;margin:0 0 12px;" ${act('editTableCustomer', tableId, true)}>👤 Müşteri Adı Ekle</button>`;
   }
   return `<div style="background:var(--panel2);border:1px solid var(--border);border-radius:12px;padding:10px 12px;margin-bottom:12px;font-size:13.5px;display:flex;gap:10px;align-items:flex-start;">
     <div style="flex:1;min-width:0;">
       ${name ? `<div><b>👤 ${escapeHtml(name)}</b>${phone ? ` · <a href="tel:${escapeAttr(phone)}" style="color:var(--accent);">${escapeHtml(phone)}</a>` : ''}</div>` : (phone ? `<div>📞 <a href="tel:${escapeAttr(phone)}" style="color:var(--accent);">${escapeHtml(phone)}</a></div>` : '')}
       ${o.note ? `<div class="muted" style="margin-top:3px;overflow-wrap:anywhere;">${escapeHtml(o.note)}</div>` : ''}
     </div>
-    <button type="button" class="sbtn" style="width:auto;margin:0;" onclick="document.getElementById('tableCustWrap').innerHTML=tableCustomerInnerHtml('${tableId}', true)">✏️</button>
+    <button type="button" class="sbtn" style="width:auto;margin:0;" ${act('editTableCustomer', tableId, false)}>✏️</button>
   </div>`;
 }
 /* Kayıtlı müşterilerden seçim: isim/telefon yazdıkça öneri listesi. */
@@ -1311,7 +1311,7 @@ function tableCustSearch(q, prefix){
     if(seq !== _tableCustSeq || !document.getElementById(prefix + 'Suggest')) return;
     APP.tableCustHits = data || [];
     box.innerHTML = APP.tableCustHits.length ? `<div style="margin-top:8px;border:1px solid var(--border);border-radius:10px;overflow:hidden;background:var(--panel);">
-      ${APP.tableCustHits.map((c,i) => `<div onclick="pickTableCustomer(${i}, '${prefix}')" style="padding:8px 12px;cursor:pointer;border-top:${i?'1px solid var(--border)':'0'};display:flex;justify-content:space-between;gap:8px;">
+      ${APP.tableCustHits.map((c,i) => `<div ${act('pickTableCustomer', i, prefix)} style="padding:8px 12px;cursor:pointer;border-top:${i?'1px solid var(--border)':'0'};display:flex;justify-content:space-between;gap:8px;">
         <b>👤 ${escapeHtml(c.name||'')}</b><span class="muted">${escapeHtml(c.phone||'')}${c.email && prefix!=='tableCust' && prefix!=='pkgCust' ? ' · ' + escapeHtml(c.email) : ''}</span></div>`).join('')}
     </div>` : '';
   }, 250);
@@ -1368,7 +1368,7 @@ function openTableModal(tableId){
     <div style="background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:20px;max-width:480px;width:100%;max-height:88vh;overflow:auto;scrollbar-gutter:stable;">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
         <h2 style="margin:0;">${escapeHtml(tableName)}</h2>
-        <span style="cursor:pointer;color:var(--muted);font-size:20px;" onclick="closeTableModal()">✕</span>
+        <span style="cursor:pointer;color:var(--muted);font-size:20px;" ${act('closeTableModal')}>✕</span>
       </div>
       ${tableCustomerInfoHtml(tableId)}
       <div>
@@ -1379,17 +1379,17 @@ function openTableModal(tableId){
       <div id="sentItemsWrap" style="margin-top:14px;"></div>
       <div id="draftItemsWrap"></div>
       ${orderFlagsHtml(tableId)}
-      ${(String(tableId).indexOf('pkg_')!==0 && String(tableId).indexOf('wl_')!==0 && liveOrderForTable(tableId)) ? `<button class="ghost-btn" style="width:100%;margin-top:12px;" onclick="openMoveTableModal('${tableId}')">🔀 Masayı Taşı / Birleştir</button>` : ''}
+      ${(String(tableId).indexOf('pkg_')!==0 && String(tableId).indexOf('wl_')!==0 && liveOrderForTable(tableId)) ? `<button class="ghost-btn" style="width:100%;margin-top:12px;" ${act('openMoveTableModal', tableId)}>🔀 Masayı Taşı / Birleştir</button>` : ''}
       <div class="modal-sticky-actions">
-        <button class="ghost-btn" style="flex:1;margin-top:0;color:var(--red);border-color:var(--red);" onclick="cancelTableOrder('${tableId}')">🗑️ İptal Et</button>
-        <button id="confirmBtn" style="flex:1;margin-top:0;" disabled onclick="confirmOrder('${tableId}')">✅ Onayla ve Gönder</button>
+        <button class="ghost-btn" style="flex:1;margin-top:0;color:var(--red);border-color:var(--red);" ${act('cancelTableOrder', tableId)}>🗑️ İptal Et</button>
+        <button id="confirmBtn" style="flex:1;margin-top:0;" disabled ${act('confirmOrder', tableId)}>✅ Onayla ve Gönder</button>
       </div>
     </div>`;
   document.body.appendChild(bg);
   bg.dataset.tableId = tableId;
   const stations = APP.config.stations;
   document.getElementById('prodStationTabs').innerHTML = stations.map((s,i) =>
-    `<div class="tab ${i===0?'active':''}" data-st="${s.id}" onclick="pickStationTab('${s.id}')">${escapeHtml(s.name)}</div>`
+    `<div class="tab ${i===0?'active':''}" data-st="${s.id}" ${act('pickStationTab', s.id)}>${escapeHtml(s.name)}</div>`
   ).join('');
   renderProductPick(stations[0] ? stations[0].id : null, tableId);
   renderTableItems(tableId);
@@ -1441,16 +1441,16 @@ async function openOpenAccountTransfer(){
   m.innerHTML = `<div style="background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:18px;max-width:440px;width:100%;max-height:90vh;overflow:auto;">
     <h2 style="margin:0 0 4px;">📒 Açık Hesaba At</h2>
     <p class="muted" style="margin:0 0 12px;font-size:13.5px;">Tutar: <b>${money(total)}</b> — seçilen hesaba borç olarak yazılır, masa kapanır.</p>
-    <input id="oaSearch" placeholder="🔍 Açık hesap ara…" oninput="drawOpenAccountList(this.value)" style="margin:0 0 8px;">
+    <input id="oaSearch" placeholder="🔍 Açık hesap ara…" ${actOn('input','drawOpenAccountList',['$value'])} style="margin:0 0 8px;">
     <div id="oaList" style="max-height:220px;overflow:auto;border:1px solid var(--border);border-radius:10px;"></div>
     <div class="add-row-panel" style="margin-top:12px;">
       <p>Yeni Açık Hesap</p>
       <input id="oaName" placeholder="Ad Soyad / Firma" style="margin-bottom:8px;">
       <input id="oaPhone" placeholder="Telefon (opsiyonel)" inputmode="tel" style="margin-bottom:8px;">
       <input id="oaNote" placeholder="Not (opsiyonel)" style="margin-bottom:8px;">
-      <button type="button" onclick="createOpenAccountAndTransfer()">+ Oluştur ve Aktar</button>
+      <button type="button" ${act('createOpenAccountAndTransfer')}>+ Oluştur ve Aktar</button>
     </div>
-    <button type="button" class="ghost-btn" style="width:100%;margin-top:10px;" onclick="document.getElementById('openAccModalBg').remove()">Vazgeç</button>
+    <button type="button" class="ghost-btn" style="width:100%;margin-top:10px;" ${act('removeEl','openAccModalBg')}>Vazgeç</button>
   </div>`;
   document.body.appendChild(m);
   drawOpenAccountList('');
@@ -1459,7 +1459,7 @@ function drawOpenAccountList(q){
   const box = document.getElementById('oaList'); if(!box) return;
   q = String(q||'').trim().toLocaleLowerCase('tr');
   const rows = (APP.openAccounts||[]).filter(a => !q || a.name.toLocaleLowerCase('tr').includes(q) || String(a.phone||'').includes(q));
-  box.innerHTML = rows.length ? rows.map(a => `<div onclick="transferToOpenAccount('${a.id}')" style="display:flex;justify-content:space-between;gap:8px;padding:10px 12px;border-bottom:1px solid var(--border);cursor:pointer;">
+  box.innerHTML = rows.length ? rows.map(a => `<div ${act('transferToOpenAccount', a.id)} style="display:flex;justify-content:space-between;gap:8px;padding:10px 12px;border-bottom:1px solid var(--border);cursor:pointer;">
       <span style="min-width:0;overflow-wrap:anywhere;"><b>${escapeHtml(a.name)}</b>${a.phone ? ' <span class="muted">' + escapeHtml(a.phone) + '</span>' : ''}</span>
       <span style="white-space:nowrap;color:${a.balance > 0 ? 'var(--red)' : 'var(--muted)'};">${money(a.balance)}</span></div>`).join('')
     : '<p class="muted" style="padding:10px;margin:0;">Açık hesap yok — aşağıdan yeni oluşturun.</p>';
@@ -1488,3 +1488,8 @@ async function transferToOpenAccount(accountId, nameHint){
   if(lo) APP.liveOrders = lo;
   if(typeof renderPayGrid === 'function') renderPayGrid();
 }
+
+function setPayWantsEmail(el){ APP.payWantsEmail = el.checked; const w = el.closest('.pay-email-toggle'); if(w) w.classList.toggle('on', el.checked); }
+function toggleInvCorpFields(on){ document.getElementById('invCorpFields').style.display = on ? 'block' : 'none'; }
+function showGoogleReviewQrFromInvoice(){ removeEl('invoiceEmailBg'); showGoogleReviewQr(); }
+function editTableCustomer(tableId, focus){ document.getElementById('tableCustWrap').innerHTML = tableCustomerInnerHtml(tableId, true); if(focus){ const el = document.getElementById('tableCustName'); if(el) el.focus(); } }
