@@ -32,10 +32,10 @@ function renderPackageGrid(){
     const total = o.items.reduce((s,i) => s+i.price*i.qty, 0);
     const allReady = o.items.length>0 && o.items.every(i => i.status==='ready');
     const label = o.customer_name || ('Paket #'+(o.daily_number||''));
-    return `<div class="table-cell" style="cursor:pointer;background:rgba(244,63,94,.14);border-color:var(--red);color:var(--red);overflow-wrap:anywhere;word-break:break-word;" onclick="openPackageModal('pkg_${o.order_id}')">
+    return `<div class="table-cell" style="cursor:pointer;background:rgba(244,63,94,.14);border-color:var(--red);color:var(--red);overflow-wrap:anywhere;word-break:break-word;" ${act('openPackageModal', 'pkg_'+o.order_id)}>
       📦 ${escapeHtml(label)}<div style="font-size:11px;margin-top:4px;font-weight:400;">${o.items.length} ürün - ${allReady?'Hazır':'hazırlanıyor'} · ${money(total)}</div></div>`;
   });
-  cards.push(`<div class="table-cell" style="cursor:pointer;" onclick="openPackageModal('pkg_new')">➕<div style="font-size:11px;margin-top:4px;font-weight:400;">Yeni Paket Sipariş</div></div>`);
+  cards.push(`<div class="table-cell" style="cursor:pointer;" ${act('openPackageModal','pkg_new')}>➕<div style="font-size:11px;margin-top:4px;font-weight:400;">Yeni Paket Sipariş</div></div>`);
   el.innerHTML = cards.join('');
 }
 function openPackageModal(pseudoId){
@@ -54,10 +54,10 @@ function openPackageModal(pseudoId){
     <div style="background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:20px;max-width:480px;width:100%;max-height:88vh;overflow:auto;scrollbar-gutter:stable;">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
         <h2 style="margin:0;overflow-wrap:anywhere;word-break:break-word;">${title}</h2>
-        <span style="cursor:pointer;color:var(--muted);font-size:20px;" onclick="closeTableModal()">✕</span>
+        <span style="cursor:pointer;color:var(--muted);font-size:20px;" ${act('closeTableModal')}>✕</span>
       </div>
-      ${isWl ? '<p class="muted" style="text-align:left;margin:0 0 6px;font-size:12.5px;">Siparişler hemen mutfağa düşer; müşteri oturtulunca masaya taşınır.</p>' : `<div class="field-group"><label>Müşteri Adı</label><input id="pkgCustName" placeholder="örn. Ahmet Bey veya kayıtlı müşteri ara" autocomplete="off" oninput="tableCustSearch(this.value, 'pkgCust')" value="${escapeAttr((existing&&existing.customer_name)||'')}"></div>
-      <div class="field-group"><label>Telefon</label><input id="pkgCustPhone" placeholder="örn. 5551234567" autocomplete="off" inputmode="tel" oninput="tableCustSearch(this.value, 'pkgCust')" value="${escapeAttr((existing&&existing.customer_phone)||'')}"></div>
+      ${isWl ? '<p class="muted" style="text-align:left;margin:0 0 6px;font-size:12.5px;">Siparişler hemen mutfağa düşer; müşteri oturtulunca masaya taşınır.</p>' : `<div class="field-group"><label>Müşteri Adı</label><input id="pkgCustName" placeholder="örn. Ahmet Bey veya kayıtlı müşteri ara" autocomplete="off" ${actOn('input','tableCustSearch',['$value','pkgCust'])} value="${escapeAttr((existing&&existing.customer_name)||'')}"></div>
+      <div class="field-group"><label>Telefon</label><input id="pkgCustPhone" placeholder="örn. 5551234567" autocomplete="off" inputmode="tel" ${actOn('input','tableCustSearch',['$value','pkgCust'])} value="${escapeAttr((existing&&existing.customer_phone)||'')}"></div>
       <div id="pkgCustSuggest" style="margin:-6px 0 10px;"></div>
       <div class="field-group"><label>Not</label><input id="pkgNote" placeholder="örn. Yan sokak, 2. kat" value="${escapeAttr((existing&&existing.note)||'')}"></div>`}
       <div style="margin-top:10px;">
@@ -69,15 +69,15 @@ function openPackageModal(pseudoId){
       <div id="draftItemsWrap"></div>
       ${orderFlagsHtml(pseudoId)}
       <div class="modal-sticky-actions">
-        <button class="ghost-btn" style="flex:1;margin-top:0;color:var(--red);border-color:var(--red);" onclick="cancelTableOrder('${pseudoId}')" ${existing?'':'disabled'}>🗑️ İptal Et</button>
-        <button id="confirmBtn" style="flex:1;margin-top:0;" disabled onclick="confirmOrder('${pseudoId}')">✅ Onayla ve Gönder</button>
+        <button class="ghost-btn" style="flex:1;margin-top:0;color:var(--red);border-color:var(--red);" ${act('cancelTableOrder', pseudoId)} ${existing?'':'disabled'}>🗑️ İptal Et</button>
+        <button id="confirmBtn" style="flex:1;margin-top:0;" disabled ${act('confirmOrder', pseudoId)}>✅ Onayla ve Gönder</button>
       </div>
     </div>`;
   document.body.appendChild(bg);
   bg.dataset.tableId = pseudoId;
   const stations = APP.config.stations;
   document.getElementById('prodStationTabs').innerHTML = stations.map((s,i) =>
-    `<div class="tab ${i===0?'active':''}" data-st="${s.id}" onclick="pickStationTab('${s.id}')">${escapeHtml(s.name)}</div>`
+    `<div class="tab ${i===0?'active':''}" data-st="${s.id}" ${act('pickStationTab', s.id)}>${escapeHtml(s.name)}</div>`
   ).join('');
   renderProductPick(stations[0] ? stations[0].id : null, pseudoId);
   renderTableItems(pseudoId);
@@ -103,7 +103,7 @@ function renderProductPick(stationId, tableId){
     else if(stock!=null && stock<=0) badge = '<div style="margin-top:4px;font-size:11px;color:var(--red);">Stok Yok</div>';
     else if(stock!=null && stock<=10) badge = '<div style="margin-top:4px;font-size:11px;color:var(--accent);">Son '+stock+' porsiyon</div>';
     return `
-    <div class="prod-pick-card" style="background:var(--panel2);border:1px solid var(--border);border-radius:10px;padding:12px 10px;font-size:13.5px;${off?'opacity:.4;cursor:not-allowed;':'cursor:pointer;'}" ${off?'':`onclick="addToDraft('${tableId}','${p.id}')"`}>
+    <div class="prod-pick-card" style="background:var(--panel2);border:1px solid var(--border);border-radius:10px;padding:12px 10px;font-size:13.5px;${off?'opacity:.4;cursor:not-allowed;':'cursor:pointer;'}" ${off?'':act('addToDraft', tableId, p.id)}>
       <div style="font-weight:700;">${escapeHtml(p.name)}</div><div class="muted" style="font-size:12px;">${money(p.price)}</div>${badge}
     </div>`;
   }).join('') : '<p class="muted">Bu istasyonda ürün yok.</p>';
@@ -241,7 +241,7 @@ function renderTableItems(tableId){
     draftWrap.innerHTML = `<div style="border:1px dashed var(--accent);border-radius:10px;padding:10px;margin:10px 0;">
       <div style="display:flex;justify-content:space-between;align-items:center;">
         <p style="font-weight:700;color:var(--accent);margin:0;">Sepet (Gönderilmedi)</p>
-        <button style="width:auto;padding:4px 10px;margin:0;font-size:12px;background:transparent;border:1px solid var(--red);color:var(--red);box-shadow:none;" onclick="clearDraftCart('${tableId}')">Sepeti Boşalt</button>
+        <button style="width:auto;padding:4px 10px;margin:0;font-size:12px;background:transparent;border:1px solid var(--red);color:var(--red);box-shadow:none;" ${act('clearDraftCart', tableId)}>Sepeti Boşalt</button>
       </div>` +
       draft.map((it,idx) => { total += it.price*it.qty; return `
         <div style="padding:8px 0;border-bottom:1px solid var(--border);font-size:13.5px;">
@@ -251,12 +251,12 @@ function renderTableItems(tableId){
               <div class="muted" style="font-size:12px;">${money(it.price*it.qty)}</div>
             </div>
             <span style="display:flex;align-items:center;gap:8px;">
-              <button class="qty-btn" onclick="changeDraftQty('${tableId}',${idx},-1)">-</button>
+              <button class="qty-btn" ${act('changeDraftQty', tableId, idx, -1)}>-</button>
               <span style="min-width:16px;text-align:center;font-weight:700;">${it.qty}</span>
-              <button class="qty-btn" onclick="changeDraftQty('${tableId}',${idx},1)">+</button>
+              <button class="qty-btn" ${act('changeDraftQty', tableId, idx, 1)}>+</button>
             </span>
           </div>
-          <input type="text" placeholder="Not ekle (örn. az pişmiş, acısız...)" value="${escapeAttr(it.note||'')}" style="margin:6px 0 0;font-size:12px;padding:6px 10px;" oninput="updateDraftItemNote('${tableId}',${idx},this.value)">
+          <input type="text" placeholder="Not ekle (örn. az pişmiş, acısız...)" value="${escapeAttr(it.note||'')}" style="margin:6px 0 0;font-size:12px;padding:6px 10px;" ${actOn('input','updateDraftItemNote',[tableId, idx, '$value'])}>
         </div>`; }).join('') +
       `<div style="text-align:right;font-weight:700;margin-top:8px;">Toplam: ${money(total)}</div>
       </div>`;
