@@ -216,7 +216,7 @@ const INLINE_BTN = 'width:auto;margin:0;white-space:nowrap;flex:0 0 auto;padding
    HTML'de onclick="..." yerine:  <button ${act('fonksiyon', arg1, arg2)}>
    Değişim/giriş için:            <input ${actOn('change', 'fonksiyon', '$value')}>
    Yayılımı durdurmak için:       ${actStop('fonksiyon', arg)}
-   Özel argümanlar: '$this' (öğe), '$value' (öğe değeri), '$checked', '$event'.
+   Özel argümanlar: '$this' (öğe), '$value' (öğe değeri), '$checked', '$event', '$file' (seçilen ilk dosya).
    Merkezi dinleyici, çağrılacak fonksiyonu adından bulur; HTML'e JavaScript kodu yazılmaz. */
 function actOn(ev, fn, args, stop){
   return ` data-${ev}="${escapeAttr(fn)}"${args && args.length ? ` data-${ev}-args="${escapeAttr(JSON.stringify(args))}"` : ''}${stop ? ` data-${ev}-stop="1"` : ''}`;
@@ -227,7 +227,7 @@ function actStop(fn, ...args){ return actOn('click', fn, args, true); }
 function removeEl(id){ const el = document.getElementById(id); if(el) el.remove(); }
 (function(){
   const EVENTS = ['click', 'change', 'input', 'keydown', 'submit'];
-  const resolveArg = (a, el, e) => a === '$this' ? el : a === '$value' ? el.value : a === '$checked' ? el.checked : a === '$event' ? e : a;
+  const resolveArg = (a, el, e) => a === '$this' ? el : a === '$value' ? el.value : a === '$checked' ? el.checked : a === '$event' ? e : a === '$file' ? (el.files && el.files[0]) : a;
   EVENTS.forEach(ev => document.addEventListener(ev, (e) => {
     const el = e.target && e.target.closest ? e.target.closest(`[data-${ev}]`) : null;
     if(!el) return;

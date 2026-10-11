@@ -17,7 +17,7 @@ async function renderCrmView(main, session){
         <div class="field-group" style="${fgStyle(150)}"><label>Kaç TL harcamada 1 puan</label><input id="loy_spend" type="number" min="1" step="0.01" value="${loyalty.spend_per_point}" style="margin:0;"></div>
         <div class="field-group" style="${fgStyle(150)}"><label>1 puan kaç TL indirim</label><input id="loy_value" type="number" min="0" step="0.01" value="${loyalty.point_value}" style="margin:0;"></div>
         <div class="field-group" style="${fgStyle(150)}"><label>🎂 Doğum günü indirimi (%)</label><input id="loy_birthday_pct" type="number" min="0" max="100" step="1" value="${loyalty.birthday_discount_percent||0}" style="margin:0;"></div>
-        <button style="${INLINE_BTN}" onclick="saveLoyaltySettings()">${ICON_SAVE}<span>Kaydet</span></button>
+        <button style="${INLINE_BTN}" ${act('saveLoyaltySettings')}>${ICON_SAVE}<span>Kaydet</span></button>
       </div>
       <p class="muted" style="font-size:12px;margin:8px 0 0;text-align:left;">Müşterinin doğum günü kaydedilmişse, o gün ödeme alırken bu yüzde otomatik indirim olarak uygulanır (0 = kapalı).</p>
     </div>` : ''}
@@ -25,9 +25,9 @@ async function renderCrmView(main, session){
       <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
         <h2 style="margin:0;">Müşteri Listesi</h2>
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:nowrap;flex:1 1 auto;justify-content:flex-end;min-width:0;">
-          <input id="crmSearchInput" placeholder="İsim veya telefon ara..." style="flex:0 1 260px;min-width:120px;width:auto;margin:0;" value="${escapeAttr(APP.crmSearch||'')}" oninput="debouncedCrmSearch(this.value)">
-          <button type="button" class="ghost-btn" style="width:auto;flex:0 0 auto;white-space:nowrap;margin:0;" onclick="exportCustomersCsv()" title="Tüm müşterileri Excel'de açılabilen CSV olarak indir">⬇️ Dışa aktar</button>
-          ${canManage(session, 'crm') ? `<button type="button" class="ghost-btn" style="width:auto;flex:0 0 auto;white-space:nowrap;margin:0;" onclick="openCustomerImport()" title="CSV dosyasından müşteri yükle">⬆️ İçe aktar</button>` : ''}
+          <input id="crmSearchInput" placeholder="İsim veya telefon ara..." style="flex:0 1 260px;min-width:120px;width:auto;margin:0;" value="${escapeAttr(APP.crmSearch||'')}" ${actOn('input', 'debouncedCrmSearch', ['$value'])}>
+          <button type="button" class="ghost-btn" style="width:auto;flex:0 0 auto;white-space:nowrap;margin:0;" ${act('exportCustomersCsv')} title="Tüm müşterileri Excel'de açılabilen CSV olarak indir">⬇️ Dışa aktar</button>
+          ${canManage(session, 'crm') ? `<button type="button" class="ghost-btn" style="width:auto;flex:0 0 auto;white-space:nowrap;margin:0;" ${act('openCustomerImport')} title="CSV dosyasından müşteri yükle">⬆️ İçe aktar</button>` : ''}
         </div>
       </div>
       <p class="muted" style="font-size:12px;margin:6px 0 10px;text-align:left;">Harcama/ziyaret/doğum günü gibi detaylı analizler için <b>Finansal Analiz &gt; Müşteri Analizleri</b> sekmesine bakın.</p>
@@ -41,8 +41,8 @@ async function renderCrmView(main, session){
             <td>${escapeHtml(c.phone||'-')}</td>
             <td>${c.points_balance}</td>
             <td>
-              <button class="sbtn" onclick="editCustomer('${c.id}')">Düzenle</button>
-              <button type="button" class="act-btn act-delete" onclick="removeCustomer('${c.id}')">${ICON_TRASH}<span>Sil</span></button>
+              <button class="sbtn" ${act('editCustomer', c.id)}>Düzenle</button>
+              <button type="button" class="act-btn act-delete" ${act('removeCustomer', c.id)}>${ICON_TRASH}<span>Sil</span></button>
             </td>
           </tr>`).join('')}
         ${rows.length===0?'<tr><td colspan="4" class="muted" style="text-align:center;">Müşteri yok.</td></tr>':''}
@@ -58,7 +58,7 @@ async function renderCrmView(main, session){
           <div class="field-group" style="${fgStyle(160)}"><label>E-posta</label><input id="crm_email" placeholder="opsiyonel" style="margin:0;"></div>
           <div class="field-group" style="${fgStyle(140)}"><label>🎂 Doğum Günü</label><input id="crm_birthday" type="date" style="margin:0;"></div>
           <div class="field-group" style="${fgStyle(160, 2)}"><label>Not</label><input id="crm_notes" placeholder="opsiyonel" style="margin:0;"></div>
-          <button style="${INLINE_BTN}" onclick="saveCrmCustomer()">${ICON_SAVE}<span>Kaydet</span></button>
+          <button style="${INLINE_BTN}" ${act('saveCrmCustomer')}>${ICON_SAVE}<span>Kaydet</span></button>
         </div>
         <details id="crmLoyaltyBox" style="margin-top:10px;border:1px solid var(--border);border-radius:12px;padding:10px 12px;background:var(--panel);">
           <summary style="cursor:pointer;font-weight:700;font-size:13.5px;">⭐ Bu müşteriye özel sadakat ayarı <span class="muted" style="font-weight:400;">(boş bırakılan alan genel ayarı kullanır)</span></summary>
@@ -216,13 +216,13 @@ function openCustomerImport(){
   ov.onclick = (e) => { if(e.target===ov) ov.remove(); };
   ov.innerHTML = `<div style="background:var(--panel);border:1px solid var(--border);border-radius:18px;padding:18px;max-width:560px;width:100%;max-height:88vh;overflow:auto;text-align:left;">
     <h3 style="margin:0 0 8px;">⬆️ Müşteri içe aktar</h3>
-    <p class="muted" style="font-size:12.5px;margin:0 0 10px;">Excel'de listenizi <b>Farklı Kaydet → CSV (UTF-8)</b> olarak kaydedip seçin. Sütunlar: <b>Ad Soyad</b> (zorunlu), Telefon, E-posta, Doğum Günü (GG.AA.YYYY), Not, Puan. <a href="#" onclick="downloadCustomerTemplate();return false;">Örnek şablonu indir</a></p>
-    <input type="file" id="crmImportFile" accept=".csv,text/csv,text/plain" onchange="previewCustomerImport(this.files[0])" style="margin:0 0 10px;">
+    <p class="muted" style="font-size:12.5px;margin:0 0 10px;">Excel'de listenizi <b>Farklı Kaydet → CSV (UTF-8)</b> olarak kaydedip seçin. Sütunlar: <b>Ad Soyad</b> (zorunlu), Telefon, E-posta, Doğum Günü (GG.AA.YYYY), Not, Puan. <button type="button" ${act('downloadCustomerTemplate')} style="background:none;border:none;padding:0;margin:0;width:auto;color:var(--accent);text-decoration:underline;cursor:pointer;font:inherit;">Örnek şablonu indir</button></p>
+    <input type="file" id="crmImportFile" accept=".csv,text/csv,text/plain" ${actOn('change', 'previewCustomerImport', ['$file'])} style="margin:0 0 10px;">
     <label style="display:flex;gap:8px;align-items:center;font-size:13px;margin:0 0 10px;"><input type="checkbox" id="crmImportUpdate" checked style="width:auto;margin:0;"> Telefonu eşleşen mevcut müşterileri güncelle</label>
     <div id="crmImportPreview" class="muted" style="font-size:12.5px;"></div>
     <div style="display:flex;gap:10px;margin-top:12px;">
-      <button type="button" class="ghost-btn" style="flex:1;margin:0;" onclick="document.getElementById('crmImportBg').remove()">Kapat</button>
-      <button type="button" id="crmImportBtn" style="flex:1;margin:0;" disabled onclick="runCustomerImport()">İçe aktar</button>
+      <button type="button" class="ghost-btn" style="flex:1;margin:0;" ${act('removeEl', 'crmImportBg')}>Kapat</button>
+      <button type="button" id="crmImportBtn" style="flex:1;margin:0;" disabled ${act('runCustomerImport')}>İçe aktar</button>
     </div></div>`;
   document.body.appendChild(ov);
 }
