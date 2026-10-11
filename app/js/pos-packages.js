@@ -171,6 +171,12 @@ function addToDraft(tableId, productId){
   const session = getSession();
   sb.rpc('adjust_stock', { p_token: session.session_token, p_product_id: productId, p_delta: -1 }).then(({error}) => {
     if(!error){ scheduleConfigResync(tableId); return; }
+    if(isNetworkError(error)){
+      // Çevrimdışı: ürün sepette kalır, stoğu sipariş gönderilirken ayrılır (bkz. offline.js).
+      const it = APP.draftCart[tableId].find(i => i.product_id===productId);
+      if(it) it.unreserved = (it.unreserved || 0) + 1;
+      return;
+    }
     alert('Ürün eklenemedi, sepetten çıkarıldı: '+error.message);
     const d = APP.draftCart[tableId];
     const it = d.find(i => i.product_id===productId);
@@ -186,14 +192,23 @@ async function changeDraftQty(tableId, idx, delta){
   if(!draft[idx]) return;
   const item = draft[idx];
   const productId = item.product_id;
+  // Azaltmada önce stoğu hiç ayrılmamış (çevrimdışı eklenmiş) adetten düşülür; sunucuya gerek yok.
+  let serverDelta = delta;
+  if(delta < 0 && item.unreserved > 0){ const used = Math.min(item.unreserved, -delta); item.unreserved -= used; serverDelta += used; }
   item.qty += delta;
   if(item.qty<=0) draft.splice(idx,1);
   applyLocalStockDelta(productId, delta);
   renderTableItems(tableId);
   const activeTab = document.querySelector('#prodStationTabs .tab.active');
   if(activeTab) renderProductPick(activeTab.dataset.st, tableId);
+  if(serverDelta === 0) return;
   const session = getSession();
-  const { error } = await sb.rpc('adjust_stock', { p_token: session.session_token, p_product_id: productId, p_delta: -delta });
+  const { error } = await sb.rpc('adjust_stock', { p_token: session.session_token, p_product_id: productId, p_delta: -serverDelta });
+  if(error && isNetworkError(error)){
+    if(serverDelta > 0){ const it = APP.draftCart[tableId].find(i => i.product_id===productId); if(it) it.unreserved = (it.unreserved || 0) + serverDelta; }
+    else queueStockReturn(productId, -serverDelta);
+    return;
+  }
   if(error){
     alert(error.message);
     const d = APP.draftCart[tableId];
@@ -223,6 +238,16 @@ function renderTableItems(tableId){
         <span class="muted" style="white-space:nowrap;font-size:12px;">🕒 ${hm(it.added_at)}${it.ready_at ? ' · ✓ ' + hm(it.ready_at) : ''}</span>
       </div>`).join('');
   } else { sentWrap.innerHTML = ''; }
+  // Çevrimdışıyken onaylanıp cihazda bekleyen siparişler (bkz. offline.js).
+  const pending = typeof outboxAll === 'function' ? outboxAll().filter(e => e.tableKey === tableId) : [];
+  if(pending.length){
+    sentWrap.innerHTML += `<p style="font-weight:700;margin:10px 0 2px;color:var(--amber, #f59e0b);">⏳ Gönderilmeyi Bekleyen</p>
+      <p class="muted" style="margin:0 0 6px;font-size:12px;">Bağlantı gelince mutfağa otomatik gönderilecek.</p>` + pending.map(e => (e.args.p_items || []).map(it => `
+      <div style="display:flex;justify-content:space-between;gap:8px;padding:6px 0;border-bottom:1px solid var(--border);font-size:13px;">
+        <span style="min-width:0;overflow-wrap:anywhere;">${escapeHtml(it.name)} x${Number(it.qty) || 1}${it.note ? ' <span class="muted">(' + escapeHtml(it.note) + ')</span>' : ''}</span>
+        <span style="white-space:nowrap;font-size:12px;color:${e.error ? 'var(--red)' : 'var(--muted)'};">${e.error ? '⚠️ gönderilemedi' : '🕒 ' + new Date(e.at).toLocaleTimeString('tr-TR', { hour:'2-digit', minute:'2-digit' })}</span>
+      </div>`).join('')).join('') + `<button type="button" class="ghost-btn" style="width:100%;margin:8px 0 0;" ${act('openOutboxModal')}>Bekleyen siparişleri yönet</button>`;
+  }
   // Sepet (draftCart) tamamen yerel/gönderilmemiş bir durum, başka bir
   // cihazdan değişmez - bu yüzden kullanıcı şu an bir not alanına
   // yazıyorsa (bkz. arka plan canlı durum yenilemesi, refreshOrderLiveStatus,
@@ -235,7 +260,7 @@ function renderTableItems(tableId){
     return;
   }
   if(draft.length===0){
-    draftWrap.innerHTML = order && order.items.length>0 ? '' : '<p class="muted">Henüz ürün eklenmedi.</p>';
+    draftWrap.innerHTML = (order && order.items.length>0) || pending.length ? '' : '<p class="muted">Henüz ürün eklenmedi.</p>';
   } else {
     let total=0;
     draftWrap.innerHTML = `<div style="border:1px dashed var(--accent);border-radius:10px;padding:10px;margin:10px 0;">
@@ -278,7 +303,7 @@ async function confirmOrder(tableId){
   // Masa penceresinde yazılmış müşteri bilgisi siparişle birlikte kaydedilir.
   if(document.getElementById('tableCustName') && navigator.onLine){ try{ await saveTableCustomer(tableId, true); }catch(e){} }
   const session = getSession();
-  const items = draft.map(d => ({ product_id:d.product_id, name:d.name, price:d.price, cost:d.cost, station_id:d.station_id, qty:d.qty, note:d.note||'' }));
+  const items = draft.map(d => ({ product_id:d.product_id, name:d.name, price:d.price, cost:d.cost, station_id:d.station_id, qty:d.qty, note:d.note||'', reserve: Math.min(d.unreserved||0, d.qty) }));
   const tags = (APP.orderFlagSelections && APP.orderFlagSelections[tableId]) || [];
   const isPkg = typeof tableId==='string' && tableId.indexOf('pkg_')===0;
   const isWl = typeof tableId==='string' && tableId.indexOf('wl_')===0;

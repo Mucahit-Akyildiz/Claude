@@ -1418,9 +1418,13 @@ async function releaseDraftStock(tableId){
   // ekleme istekleri paralel ve arka planda gider, işlemi bekletmez.
   APP.draftCart[tableId] = [];
   items.forEach(item => applyLocalStockDelta(item.product_id, -item.qty));
-  Promise.all(items.map(item =>
-    sb.rpc('adjust_stock', { p_token: session.session_token, p_product_id: item.product_id, p_delta: item.qty })
-  )).then(results => {
+  // Çevrimdışı eklenen (stoğu hiç ayrılmamış) adet iade edilmez; iade ağ hatasıyla
+  // gönderilemezse kuyruğa alınır (bkz. offline.js).
+  Promise.all(items.filter(item => item.qty - (item.unreserved || 0) > 0).map(item => {
+    const qty = item.qty - (item.unreserved || 0);
+    return sb.rpc('adjust_stock', { p_token: session.session_token, p_product_id: item.product_id, p_delta: qty })
+      .then(r => { if(r.error && isNetworkError(r.error)){ queueStockReturn(item.product_id, qty); return { error: null }; } return r; });
+  })).then(results => {
     if(results.some(r => r.error)) console.error('Bazı stoklar geri eklenemedi, sunucu ile senkronize ediliyor.');
     scheduleConfigResync(tableId);
   }).catch(e => console.error(e));
