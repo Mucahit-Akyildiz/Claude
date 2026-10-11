@@ -485,7 +485,7 @@ function openReactionBar(btn, messageId){
     <div class="chat-menu">
       <button type="button" ${actStop('startChatReply', messageId)}>↩️ Yanıtla</button>
       ${m.body ? `<button type="button" ${actStop('copyChatMessage', messageId)}>📋 Kopyala</button>` : ''}
-      ${m.mine ? `<button type="button" ${actStop('showMessageReaders', messageId)}>👁️ Görenler</button>` : ''}
+      ${m.mine || /^(g:|all$)/.test(String(APP.chatConv||'')) ? `<button type="button" ${actStop('showMessageReaders', messageId)}>👁️ Görenler</button>` : ''}
       ${canDelete ? `<button type="button" class="danger" ${actStop('deleteChatMessage', messageId)}>🗑️ Herkesten sil</button>` : ''}
     </div>`;
   const row = btn.closest('.chat-row'); row.appendChild(bar);
