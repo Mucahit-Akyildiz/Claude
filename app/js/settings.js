@@ -1975,9 +1975,39 @@ function renderBillingSettings(el, session){
     <h2>💳 Abonelik ve Ödemeler</h2>
     ${lic ? renderSubscriptionPanel(lic) : '<p class="muted">Abonelik bilgisi bulunamadı.</p>'}
     <div id="billingIdentityBox">${renderBillingIdentityBox(lic)}</div>
+    <div id="billingAddressBox">${renderBillingAddressBox(lic)}</div>
     <div id="bankTransferBox"><p class="muted">Yükleniyor…</p></div>
   </div>`;
   loadBankTransferStatus(session);
+}
+function renderBillingAddressBox(lic){
+  const has = lic && lic.billing_address && lic.billing_city;
+  if(has && !APP.billingAddressEditing){
+    return `<div class="add-row-panel" style="margin-top:16px;">
+      <h3 style="margin:0 0 8px;">📍 Fatura Adresi</h3>
+      <p class="muted" style="text-align:left;">${escapeHtml(lic.billing_address)} · <b>${escapeHtml(lic.billing_city)}</b></p>
+      <button class="ghost-btn" onclick="APP.billingAddressEditing=true;renderBillingSettings(document.getElementById('settingsContent'),getSession());">Değiştir</button>
+    </div>`;
+  }
+  return `<div class="add-row-panel" style="margin-top:16px;">
+    <h3 style="margin:0 0 8px;">📍 Fatura Adresi</h3>
+    <p class="muted">Kart ile ödemede ve faturada kullanılacak adres.</p>
+    <input id="biAddress" placeholder="Açık adres (mahalle, sokak, no, ilçe)" value="${escapeAttr((lic && lic.billing_address) || '')}">
+    <input id="biCity" placeholder="Şehir (örn. İstanbul)" value="${escapeAttr((lic && lic.billing_city) || '')}">
+    <div class="error" id="biAddressErr"></div>
+    <button id="biAddressSaveBtn" onclick="saveBillingAddress()">Kaydet</button>
+  </div>`;
+}
+async function saveBillingAddress(){
+  const session = getSession();
+  const errBox = document.getElementById('biAddressErr'); errBox.textContent = '';
+  const address = document.getElementById('biAddress').value.trim(), city = document.getElementById('biCity').value.trim();
+  const { error } = await sb.rpc('update_billing_address', { p_token: session.session_token, p_address: address, p_city: city });
+  if(error){ errBox.textContent = error.message; return; }
+  Object.assign(APP.config.license, { billing_address: address, billing_city: city });
+  APP.billingAddressEditing = false;
+  showToast('Fatura adresi kaydedildi ✓');
+  renderBillingSettings(document.getElementById('settingsContent'), session);
 }
 function renderBillingIdentityBox(lic){
   const isSet = lic && lic.billing_identity_set;

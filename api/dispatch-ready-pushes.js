@@ -36,6 +36,18 @@ if (VAPID_PUBLIC_KEY && VAPID_PRIVATE_KEY) {
 // mantigi hic degismeden ikisinde de calissin.
 // Uygulama simgesindeki sayi: kullanicinin bekleyen islerinin toplami
 // (bkz. _badge_total). Ayni istekte ayni kullanici icin bir kez hesaplanir.
+// Supabase/PostgREST bir sorguda en fazla 1000 satır döner; tüm işletmeleri tarayan sorgular
+// sayfalanarak okunur, aksi halde büyüdükçe bildirimler sessizce eksik kalırdı.
+async function selectAll(build) {
+  const out = [];
+  for (let from = 0; ; from += 1000) {
+    const { data, error } = await build().range(from, from + 999);
+    if (error) return { data: null, error };
+    out.push(...(data || []));
+    if (!data || data.length < 1000) return { data: out, error: null };
+  }
+}
+
 let SUPA_CLIENT = null;
 let BADGE_CACHE = new Map();
 async function badgeFor(userId) {
@@ -85,10 +97,10 @@ async function sendToSub(sub, payloadObj) {
 // tekrar gonderilir; boylece onaylanana/reddedilene kadar (customer_order_
 // requests.status pending oldugu surece) tekrar tekrar bildirim gider.
 async function dispatchCustomerOrderRequests(supabase) {
-  const { data: allPending, error: reqErr } = await supabase
+  const { data: allPending, error: reqErr } = await selectAll(() => supabase
     .from('customer_order_requests')
     .select('id, restaurant_id, customer_name, push_notified_at, restaurant_tables(name)')
-    .eq('status', 'pending');
+    .eq('status', 'pending').order('id'));
   if (reqErr) return { sent: 0, requests: 0 };
   const cutoff = Date.now() - 18000;
   const reqs = (allPending || []).filter((r) => !r.push_notified_at || new Date(r.push_notified_at).getTime() < cutoff);
@@ -164,12 +176,12 @@ async function dispatchCustomerOrderRequests(supabase) {
 // order_items.late_push_milestone ile hangi kademenin bildirildigi takip edilir).
 async function dispatchLateKitchenItems(supabase) {
   const lateCutoff = new Date(Date.now() - 15 * 60 * 1000).toISOString();
-  const { data: lateItems, error } = await supabase
+  const { data: lateItems, error } = await selectAll(() => supabase
     .from('order_items')
     .select('id, name, added_at, late_push_notified_at, late_push_milestone, orders!inner(id, restaurant_id, status)')
     .eq('status', 'pending')
     .eq('orders.status', 'open')
-    .lte('added_at', lateCutoff);
+    .lte('added_at', lateCutoff).order('id'));
   if (error) return { sent: 0, items: 0 };
 
   // Bildirim 15. dakikada, sonra her 5 dakikada bir (20., 25., 30. ...) gider: ürünün
@@ -298,7 +310,7 @@ async function dispatchTestPush(supabase, userId, endpoint) {
 // 'approved' / 'rejected' / 'ended' -> yöneticinin kararı personelin kendisine.
 async function sendToUsers(supabase, userIds, payload) {
   if (!userIds.length) return { sent: 0, total: 0 };
-  const { data: subs } = await supabase.from('push_subscriptions').select('*').in('user_id', userIds);
+  const { data: subs } = await selectAll(() => supabase.from('push_subscriptions').select('*').in('user_id', userIds).order('id'));
   let sent = 0;
   await Promise.all((subs || []).map(async (sub) => {
     try { await sendToSub(sub, payload); sent++; } catch (e) {
@@ -536,12 +548,12 @@ module.exports = async function handler(req, res) {
     }
 
     // Hazir + odenmemis en az bir urunu olan, siparisi alan kisisi belli, hala acik siparisler.
-    const { data: readyItems, error: itemsErr } = await supabase
+    const { data: readyItems, error: itemsErr } = await selectAll(() => supabase
       .from('order_items')
       .select('order_id, orders!inner(id, table_id, kind, customer_name, daily_number, created_by, status, restaurant_tables(name))')
       .eq('status', 'ready')
       .eq('paid', false)
-      .eq('orders.status', 'open');
+      .eq('orders.status', 'open').order('id'));
 
     if (itemsErr) {
       res.status(500).json({ error: itemsErr.message });
@@ -571,10 +583,10 @@ module.exports = async function handler(req, res) {
     let sent = 0;
     if (ordersByStaff.size > 0) {
       const userIds = [...ordersByStaff.keys()];
-      const { data: subs, error: subsErr } = await supabase
+      const { data: subs, error: subsErr } = await selectAll(() => supabase
         .from('push_subscriptions')
         .select('*')
-        .in('user_id', userIds);
+        .in('user_id', userIds).order('id'));
       if (subsErr) {
         res.status(500).json({ error: subsErr.message });
         return;

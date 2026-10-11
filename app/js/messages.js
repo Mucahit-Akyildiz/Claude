@@ -485,6 +485,7 @@ function openReactionBar(btn, messageId){
     <div class="chat-menu">
       <button type="button" onclick="event.stopPropagation();startChatReply('${messageId}')">↩️ Yanıtla</button>
       ${m.body ? `<button type="button" onclick="event.stopPropagation();copyChatMessage('${messageId}')">📋 Kopyala</button>` : ''}
+      ${m.mine ? `<button type="button" onclick="event.stopPropagation();showMessageReaders('${messageId}')">👁️ Görenler</button>` : ''}
       ${canDelete ? `<button type="button" class="danger" onclick="event.stopPropagation();deleteChatMessage('${messageId}')">🗑️ Herkesten sil</button>` : ''}
     </div>`;
   const row = btn.closest('.chat-row'); row.appendChild(bar);
@@ -898,4 +899,27 @@ function resetChatCaches(){
 function ensureChatOwner(session){
   const owner = session ? session.user_id + '|' + session.restaurant_id : null;
   if(APP.chatOwner !== owner){ resetChatCaches(); APP.chatOwner = owner; }
+}
+
+/* Kendi mesajını kimlerin gördüğü (özellikle gruplar ve Genel): okuyanlar saatiyle, okumayanlar ayrı listede. */
+async function showMessageReaders(messageId){
+  document.querySelectorAll('.chat-react-bar').forEach(b => b.remove());
+  const session = getSession();
+  const { data, error } = await sb.rpc('get_message_readers', { p_token: session.session_token, p_message_id: messageId });
+  if(error){ alert(error.message); return; }
+  const fmt = (t) => { const d = new Date(t); const today = d.toDateString() === new Date().toDateString();
+    return (today ? '' : d.toLocaleDateString('tr-TR') + ' ') + d.toLocaleTimeString('tr-TR', { hour:'2-digit', minute:'2-digit' }); };
+  const read = data.read || [], unread = data.unread || [];
+  const ov = document.createElement('div'); ov.id = 'chatReadersBg';
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:120;padding:16px;';
+  ov.onclick = (e) => { if(e.target===ov) ov.remove(); };
+  ov.innerHTML = `<div style="background:var(--panel);border:1px solid var(--border);border-radius:18px;padding:18px;max-width:380px;width:100%;max-height:80vh;overflow:auto;text-align:left;">
+    <h3 style="margin:0 0 10px;">👁️ Mesaj bilgisi</h3>
+    <div style="font-weight:700;font-size:13px;margin-bottom:6px;color:var(--accent);">✓✓ Görenler (${read.length})</div>
+    ${read.length ? read.map(r => `<div style="display:flex;justify-content:space-between;gap:10px;padding:6px 0;border-bottom:1px solid var(--border);font-size:13.5px;"><span>${escapeHtml(r.name)}</span><span class="muted">${fmt(r.at)}</span></div>`).join('') : '<div class="muted" style="font-size:13px;padding:4px 0;">Henüz kimse görmedi.</div>'}
+    <div style="font-weight:700;font-size:13px;margin:14px 0 6px;">✓ Henüz görmeyenler (${unread.length})</div>
+    ${unread.length ? unread.map(n => `<div style="padding:6px 0;border-bottom:1px solid var(--border);font-size:13.5px;">${escapeHtml(n)}</div>`).join('') : '<div class="muted" style="font-size:13px;padding:4px 0;">Herkes gördü.</div>'}
+    <button type="button" class="ghost-btn" style="margin-top:14px;" onclick="document.getElementById('chatReadersBg').remove()">Kapat</button>
+  </div>`;
+  document.body.appendChild(ov);
 }
