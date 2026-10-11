@@ -123,7 +123,7 @@ function showToast(msg, durationMs, position, onClick, nativeNotify){
 /* Tırnaklar da kaçırılır: değer bir HTML attribute'u içine
    (value="..." gibi) basıldığında attribute'tan çıkıp onfocus vb. eklenemez. */
 function escapeHtml(s){ return String(s==null?'':s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]); }
-/* onclick="fn(...)" gibi inline JS attribute'larına metin argümanı basmak
+/* Satır içi olay koduna inline JS attribute'larına metin argümanı basmak
    için: escapeHtml burada yetmez (tarayıcı &#39;'yi JS çalışmadan önce
    tekrar ' yapar). Tırnaklı bir JS string literal'i üretir; tüm riskli
    karakterler \xNN/\uNNNN olarak kaçırıldığı için ne attribute'tan ne de
@@ -135,7 +135,7 @@ function jsArg(s){
    işaretlerini kaçırmaz, çünkü HTML metin içeriğinde tırnağın özel bir anlamı
    yoktur. Bir değer bir HTML ATTRIBUTE'una (value="...", data-x="...") gömülecekse
    onun yerine BU fonksiyon kullanılmalı - aksi halde değer içindeki bir çift/tek
-   tırnak attribute'u erken kapatıp yanına örn. onfocus="..." autofocus gibi
+   tırnak attribute'u erken kapatıp yanına örn. bir olay özniteliği ve autofocus gibi
    yeni bir attribute enjekte edebilir (tıklama bile gerektirmeyen stored XSS). */
 function escapeAttr(s){
   return String(s==null?'':s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -181,10 +181,10 @@ function sanitizeRichHtml(html){
    çizgi ikon + altında küçük yazı (bkz. app.css .act-btn). */
 const ICON_SAVE = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 3h11l3 3v13a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2z"/><path d="M8 3v5h7V3"/><rect x="8" y="13" width="8" height="6" rx="1"/></svg>';
 const ICON_TRASH = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16"/><path d="M10 11v6M14 11v6"/><path d="M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12"/><path d="M9 7V4h6v3"/></svg>';
-function actBtn(kind, onclick, extraAttrs){
+function actBtn(kind, fn, ...args){
   const icon = kind==='delete' ? ICON_TRASH : ICON_SAVE;
   const label = kind==='delete' ? 'Sil' : 'Kaydet';
-  return `<button type="button" class="act-btn act-${kind==='delete'?'delete':'save'}" onclick="${onclick}" ${extraAttrs||''}>${icon}<span>${label}</span></button>`;
+  return `<button type="button" class="act-btn act-${kind==='delete'?'delete':'save'}" ${act(fn, ...args)}>${icon}<span>${label}</span></button>`;
 }
 
 /* Kat planı ölçekleme: masa konumları (pos_x/pos_y) sabit bir mantıksal
@@ -213,7 +213,7 @@ const INLINE_ROW = 'display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;';
 function fgStyle(basis, grow){ return `margin:0;min-width:0;width:auto;flex:${grow || 1} 1 ${basis || 120}px;`; }
 const INLINE_BTN = 'width:auto;margin:0;white-space:nowrap;flex:0 0 auto;padding-left:18px;padding-right:18px;';
 /* ---- Satır içi kodsuz olay bağlama (güvenlik politikasından 'unsafe-inline'ı kaldırmak için) ----
-   HTML'de onclick="..." yerine:  <button ${act('fonksiyon', arg1, arg2)}>
+   HTML'de satır içi olay kodu yerine:  <button ${act('fonksiyon', arg1, arg2)}>
    Değişim/giriş için:            <input ${actOn('change', 'fonksiyon', '$value')}>
    Yayılımı durdurmak için:       ${actStop('fonksiyon', arg)}
    Özel argümanlar: '$this' (öğe), '$value' (öğe değeri), '$checked', '$event', '$file' (seçilen ilk dosya).
@@ -248,3 +248,5 @@ function clearValue(el){ el.value = ''; }
 document.addEventListener('dragover', (e) => { if(e.target && e.target.closest && e.target.closest('[data-allow-drop]')) e.preventDefault(); });
 function onEnterKey(e, fnName){ if(e.key === 'Enter' && typeof window[fnName] === 'function') window[fnName](); }
 function clickEl(id){ const el = document.getElementById(id); if(el) el.click(); }
+function onEnterCall(e, fnName, ...args){ if(e.key === 'Enter' && typeof window[fnName] === 'function') window[fnName](...args); }
+function copyText(text, msg){ if(navigator.clipboard) navigator.clipboard.writeText(text).then(() => showToast(msg || 'Kopyalandı ✓')); }
