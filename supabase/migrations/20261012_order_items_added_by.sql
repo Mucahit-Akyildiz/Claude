@@ -41,3 +41,7 @@ revoke execute on function _order_items_set_added_by() from public, anon, authen
 -- İstasyon alt menüleri ve fişe yazdırma: products.category (alt menü adı), products.print_ticket
 -- (false ise mutfak fişine basılmaz). set_product_options(token, product_id, category, print_ticket);
 -- get_restaurant_config ürünlerde category ve print_ticket döner.
+
+-- İstasyon alt menüleri istasyonda tanımlanır: stations.categories text[];
+-- set_station_categories(token, station_id, categories) (silinen alt menüdeki ürünler alt menüsüz kalır);
+-- get_restaurant_config istasyonlarda categories döner.

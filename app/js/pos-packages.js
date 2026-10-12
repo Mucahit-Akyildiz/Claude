@@ -96,7 +96,10 @@ function renderProductPick(stationId, tableId){
   const el = document.getElementById('prodPick'); if(!el) return;
   const all = APP.config.products.filter(p => p.station_id===stationId);
   // İstasyonun alt menüleri (Çorbalar, Izgaralar…) varsa üstte sekme olarak gösterilir.
-  const cats = [...new Set(all.map(p => p.category).filter(Boolean))].sort((a,b) => a.localeCompare(b, 'tr'));
+  // Sıra: istasyonda tanımlanan alt menü sırası; yalnızca ürünü olan alt menüler gösterilir.
+  const used = new Set(all.map(p => p.category).filter(Boolean));
+  const stCats = (((APP.config.stations||[]).find(s => s.id === stationId) || {}).categories || []);
+  const cats = [...stCats.filter(c => used.has(c)), ...[...used].filter(c => !stCats.includes(c))];
   APP.prodPickCat = APP.prodPickCat || {};
   let cur = APP.prodPickCat[stationId];
   if(cur && cur !== '__all' && !cats.includes(cur)) cur = null;

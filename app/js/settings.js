@@ -509,6 +509,12 @@ function renderStationsSettings(el, session){
       <input type="color" value="${s.color}" id="st_color_${s.id}" title="Renk" style="padding:2px;height:38px;width:42px;flex-shrink:0;margin:0;">
       ${actBtn('save', 'saveStation', s.id)}
       ${actBtn('delete', 'removeStation', s.id)}
+      <div style="flex-basis:100%;display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding-left:2px;">
+        <span class="muted" style="font-size:12px;font-weight:700;margin-right:2px;">Alt menüler:</span>
+        ${(s.categories||[]).map(c => `<span class="chip" style="display:inline-flex;align-items:center;gap:6px;padding:4px 6px 4px 10px;border-radius:999px;background:var(--panel);border:1px solid var(--border);font-size:12.5px;">${escapeHtml(c)}<button type="button" title="Alt menüyü sil" style="width:20px;height:20px;padding:0;margin:0;border-radius:50%;background:transparent;border:0;color:var(--red);box-shadow:none;font-size:13px;" data-cat="${escapeAttr(c)}" ${act('removeStationCategory', s.id, '$data.cat')}>✕</button></span>`).join('') || '<span class="muted" style="font-size:12px;">yok</span>'}
+        <input id="st_cat_${s.id}" placeholder="+ Alt menü (örn. Çorbalar)" style="width:200px;margin:0;height:32px;font-size:13px;" ${actOn('keydown','stationCategoryKey',['$event', s.id])}>
+        <button type="button" class="ghost-btn" style="width:auto;margin:0;height:32px;padding:0 12px;font-size:12.5px;" ${act('addStationCategory', s.id)}>Ekle</button>
+      </div>
     </div>`;
   el.innerHTML = `<div class="box" style="max-width:none;">
     <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:14px;">
@@ -525,6 +531,29 @@ function renderStationsSettings(el, session){
       </div>
     </div>
   </div>`;
+}
+/* İstasyon alt menüleri (Çorbalar, Izgaralar…): ürünler bu listeden alt menü seçer; sipariş ekranında sekme olur. */
+async function saveStationCategories(id, list){
+  const session = getSession();
+  const { error } = await sb.rpc('set_station_categories', { p_token: session.session_token, p_station_id: id, p_categories: list });
+  if(error){ alert(error.message); return false; }
+  renderSettingsView(document.getElementById('main'), session);
+  return true;
+}
+function stationCategoryKey(e, id){ if(e.key === 'Enter'){ e.preventDefault(); addStationCategory(id); } }
+async function addStationCategory(id){
+  const inp = document.getElementById('st_cat_'+id); const name = (inp && inp.value || '').trim(); if(!name) return;
+  const st = (APP.config.stations||[]).find(s => s.id === id) || {};
+  const list = (st.categories || []).slice();
+  if(list.some(c => c.toLocaleLowerCase('tr') === name.toLocaleLowerCase('tr'))){ showToast('Bu alt menü zaten var'); return; }
+  list.push(name);
+  if(await saveStationCategories(id, list)) showToast('Alt menü eklendi ✓');
+}
+async function removeStationCategory(id, name){
+  const st = (APP.config.stations||[]).find(s => s.id === id) || {};
+  const n = (APP.config.products||[]).filter(p => p.station_id === id && p.category === name).length;
+  if(!confirm(`"${name}" alt menüsü silinsin mi?` + (n ? `\n\n${n} ürün alt menüsüz kalacak (ürünler silinmez).` : ''))) return;
+  await saveStationCategories(id, (st.categories || []).filter(c => c !== name));
 }
 async function saveStation(id){
   const session = getSession();
@@ -852,6 +881,16 @@ async function saveDefaultVat(v){
   showToast('Varsayılan KDV %' + v + ' olarak kaydedildi ✓');
   renderSettingsView(document.getElementById('main'), session);
 }
+// Ürünün alt menü seçenekleri: seçili istasyonun alt menüleri (listede olmayan eski değer de korunur).
+function prodCatOptions(stationId, current){
+  const st = (APP.config.stations||[]).find(s => s.id === stationId) || {};
+  const cats = (st.categories || []).slice();
+  if(current && !cats.includes(current)) cats.push(current);
+  return `<option value="">—</option>` + cats.map(c => `<option value="${escapeAttr(c)}" ${c===current?'selected':''}>${escapeHtml(c)}</option>`).join('');
+}
+function prodStationChanged(stationId, pid){
+  const sel = document.getElementById(pid ? 'pr_cat_'+pid : 'np_cat'); if(sel) sel.innerHTML = prodCatOptions(stationId, null);
+}
 function renderProductsSettings(el, session){
   const stations = APP.config.stations || [];
   const products = APP.config.products || [];
@@ -860,12 +899,12 @@ function renderProductsSettings(el, session){
         <tr data-pid="${p.id}" style="${p.available===false?'opacity:.6;':''}">
           <td><input type="checkbox" class="prod-sel" value="${p.id}" style="width:auto;margin:0;" ${actOn('change','updateProdSelection',[])}></td>
           <td class="col-name"><input value="${escapeAttr(p.name)}" id="pr_name_${p.id}"></td>
-          <td class="col-name"><select id="pr_st_${p.id}">
+          <td class="col-name"><select id="pr_st_${p.id}" ${actOn('change','prodStationChanged',['$value', p.id])}>
             ${stations.map(s => `<option value="${s.id}" ${s.id===p.station_id?'selected':''}>${escapeHtml(s.name)}</option>`).join('')}
           </select></td>
           <td class="col-num"><input type="number" value="${p.price}" id="pr_price_${p.id}"></td>
           <td class="col-num"><input type="number" value="${p.cost}" id="pr_cost_${p.id}"></td>
-          <td class="col-name" style="min-width:120px;"><input value="${escapeAttr(p.category||'')}" id="pr_cat_${p.id}" list="catList_${p.station_id||'none'}" placeholder="—"></td>
+          <td class="col-name" style="min-width:130px;"><select id="pr_cat_${p.id}">${prodCatOptions(p.station_id, p.category)}</select></td>
           <td class="col-num" style="min-width:110px;">${vatSelectHtml('pr_vat_'+p.id, p.vat_rate, true)}</td>
           <td class="col-num">
             ${(p.recipe && p.recipe.length>0)
@@ -894,12 +933,10 @@ function renderProductsSettings(el, session){
     </div>`;
 
   const unassigned = products.filter(p => !stations.some(s => s.id===p.station_id));
-  // Alt menü önerileri: her istasyonda kullanılan alt menü adları.
-  const catLists = [...stations.map(s => s.id), 'none'].map(sid => `<datalist id="catList_${sid}">${[...new Set(products.filter(p => (p.station_id||'none') === sid && p.category).map(p => p.category))].map(c => `<option value="${escapeAttr(c)}">`).join('')}</datalist>`).join('');
 
   el.innerHTML = `<div class="box" style="max-width:none;">
-    <h2>Ürünler</h2>${catLists}
-    <p class="muted" style="text-align:left;margin:-6px 0 12px;font-size:13px;"><b>Alt Menü</b>: istasyon içinde ürünleri gruplar (ör. Mutfak → Çorbalar, Izgaralar); sipariş ekranında sekme olarak görünür. <b>🖨️ Fiş</b> işareti kaldırılan ürünler mutfak fişine yazdırılmaz (ekranda yine görünür).</p>
+    <h2>Ürünler</h2>
+    <p class="muted" style="text-align:left;margin:-6px 0 12px;font-size:13px;"><b>Alt Menü</b>: ürünün istasyon içindeki grubu (alt menüleri <b>İstasyonlar</b> sekmesinde oluşturun); sipariş ekranında sekme olarak görünür. <b>🖨️ Fiş</b> işareti kaldırılan ürünler mutfak fişine yazdırılmaz (ekranda yine görünür).</p>
     <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 10px;">
       <label style="margin:0;font-weight:700;font-size:13.5px;">Varsayılan KDV oranı</label>
       <div style="width:130px;">${vatSelectHtml('defaultVatSel', APP.config.default_vat_rate ?? 10, false, `${actOn('change','saveDefaultVat',['$value'])} style="margin:0;"`)}</div>
@@ -926,7 +963,8 @@ function renderProductsSettings(el, session){
       <p>Yeni Ürün Ekle</p>
       <div class="add-row-inline" style="display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;">
         <div class="field-group grow" style="margin:0;min-width:0;flex:2 1 170px;width:auto;"><label>Ürün Adı</label><input style="margin:0;width:100%;" id="np_name" placeholder="örn. Izgara Köfte"></div>
-        <div class="field-group" style="margin:0;min-width:0;flex:1.4 1 130px;width:auto;"><label>İstasyon</label><select style="margin:0;width:100%;" id="np_station">${APP.config.stations.map(s => `<option value="${s.id}">${escapeHtml(s.name)}</option>`).join('')}</select></div>
+        <div class="field-group" style="margin:0;min-width:0;flex:1.4 1 130px;width:auto;"><label>İstasyon</label><select style="margin:0;width:100%;" id="np_station" ${actOn('change','prodStationChanged',['$value', ''])}>${APP.config.stations.map(s => `<option value="${s.id}">${escapeHtml(s.name)}</option>`).join('')}</select></div>
+        <div class="field-group" style="margin:0;min-width:0;flex:1.2 1 120px;width:auto;"><label>Alt Menü</label><select style="margin:0;width:100%;" id="np_cat">${prodCatOptions((APP.config.stations[0]||{}).id, null)}</select></div>
         <div class="field-group" style="margin:0;min-width:0;flex:1 1 90px;width:auto;"><label>Fiyat (₺)</label><input style="margin:0;width:100%;" type="number" id="np_price" placeholder="0"></div>
         <div class="field-group" style="margin:0;min-width:0;flex:1 1 90px;width:auto;"><label>Maliyet (₺)</label><input style="margin:0;width:100%;" type="number" id="np_cost" placeholder="0"></div>
         <div class="field-group" style="margin:0;min-width:0;flex:1 1 110px;width:auto;"><label>KDV</label>${vatSelectHtml('np_vat', null, true, 'style="margin:0;width:100%;"')}</div>
@@ -1046,6 +1084,8 @@ async function addProduct(){
   if(!name) return;
   const { data: newId, error } = await sb.rpc('upsert_product', { p_token: session.session_token, p_id: null, p_station_id: stationId, p_name: name, p_price: price, p_cost: cost, p_stock: stock, p_available: true });
   if(error){ alert(error.message); return; }
+  const npCat = (document.getElementById('np_cat') || {}).value;
+  if(newId && npCat){ const { error: cErr } = await sb.rpc('set_product_options', { p_token: session.session_token, p_product_id: newId, p_category: npCat, p_print_ticket: true }); if(cErr) alert('Ürün eklendi ama alt menü kaydedilemedi: ' + cErr.message); }
   const npVat = document.getElementById('np_vat').value;
   if(newId && npVat !== ''){
     const { error: vErr } = await sb.rpc('set_product_vat', { p_token: session.session_token, p_product_id: newId, p_rate: Number(npVat) });
