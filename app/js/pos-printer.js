@@ -594,9 +594,24 @@ async function renderPrinterSettingsView(main, session){
       </div>
     </div>
   `;
+  // Her bölüm ayrı sekmede (tek uzun sayfa yerine).
+  const PR_TABS = [{ id:'design', ic:'🧾', label:'Fiş Tasarımı' }, { id:'device', ic:'💻', label:'Bu Ekranın Yazıcısı' }, { id:'printers', ic:'🖨️', label:'Yazıcılar' }, { id:'stations', ic:'🔀', label:'İstasyon → Yazıcı' }];
+  const boxes = [...main.querySelectorAll(':scope > .box')];
+  boxes.forEach((b, i) => { if(PR_TABS[i]){ b.dataset.prtab = PR_TABS[i].id; b.classList.add('pr-pane'); } });
+  if(!PR_TABS.some(t => t.id === APP.printerTab)) APP.printerTab = 'design';
+  const bar = document.createElement('div');
+  bar.className = 'tabs settings-tabs';
+  bar.innerHTML = PR_TABS.map(t => `<div class="tab" data-pr-tab="${t.id}" ${act('setPrinterTab', t.id)}>${t.ic} ${t.label}</div>`).join('');
+  if(boxes[0]) main.insertBefore(bar, boxes[0]);
+  showPrinterPane();
   updateTicketPreview();
   onNewPrinterTypeChange();
 }
+function showPrinterPane(){
+  document.querySelectorAll('#main .pr-pane').forEach(b => { b.style.display = b.dataset.prtab === APP.printerTab ? '' : 'none'; });
+  document.querySelectorAll('#main [data-pr-tab]').forEach(t => t.classList.toggle('active', t.dataset.prTab === APP.printerTab));
+}
+function setPrinterTab(t){ APP.printerTab = t; showPrinterPane(); }
 /* Son 30 günde bu kullanıcıya gönderilen bildirimler (bkz. notification_log). Dokununca ilgili ekrana gider. */
 async function loadNotificationHistory(){
   const box = document.getElementById('notifHistory'); if(!box) return;

@@ -37,3 +37,7 @@ revoke execute on function _order_items_set_added_by() from public, anon, authen
 
 -- Masa adları bölge bazında benzersiz: upsert_table aynı adı yalnızca aynı bölgede reddeder.
 -- pay_order_items: aynı adlı masa başka bölgede de varsa satış kaydına "Bölge · Masa" yazar.
+
+-- İstasyon alt menüleri ve fişe yazdırma: products.category (alt menü adı), products.print_ticket
+-- (false ise mutfak fişine basılmaz). set_product_options(token, product_id, category, print_ticket);
+-- get_restaurant_config ürünlerde category ve print_ticket döner.
