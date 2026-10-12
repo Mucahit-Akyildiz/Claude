@@ -17,7 +17,7 @@ const SETTINGS_TABS = [
   { tab:'integrations', perm:'settings_integrations', label:'Entegrasyonlar' },
   { tab:'giftcards', perm:'giftcards', label:'🎁 Hediye Kartları' },
   { tab:'datareset', perm:'settings_datareset', label:'🗑️ Veri Sıfırlama' },
-  { tab:'support', managerOnly:true, label:'🛟 Destek Erişimi' },
+  { tab:'support', perm:'settings_support', label:'🛟 Destek Erişimi' },
 ];
 function settingsTabVisible(t, session){
   if(t.feature && !hasFeature(t.feature)) return false;
