@@ -6,9 +6,7 @@
 const SETTINGS_TABS = [
   { tab:'stations', perm:'settings_stations', label:'İstasyonlar' },
   { tab:'zones', perm:'settings_zones', label:'Bölgeler & Masalar' },
-  { tab:'floorplan', perm:'settings_zones', feature:'floorplan', label:'🗺️ Kat Planı' },
-  { tab:'products', perm:'settings_products', label:'Ürünler' },
-  { tab:'ingredients', perm:'settings_ingredients', label:'Hammaddeler' },
+  { tab:'products', label:'Ürünler & Hammaddeler' }, // alt sekmeler: Ürünler, Hammaddeler
   { tab:'flags', perm:'settings_flags', label:'Sipariş Etiketleri' },
   { tab:'users', perm:'settings_users', label:'Kullanıcılar' },
   { tab:'shifts', perm:'shifts', label:'Vardiyalar' },
@@ -20,6 +18,7 @@ const SETTINGS_TABS = [
 ];
 function settingsTabVisible(t, session){
   if(t.feature && !hasFeature(t.feature)) return false;
+  if(t.tab==='products') return canManage(session, 'settings_products') || canManage(session, 'settings_ingredients');
   if(t.tab==='security') return canManage(session, 'settings_support') || canManage(session, 'settings_audit') || canManage(session, 'settings_datareset');
   if(t.tab==='giftcards') return canManage(session, 'giftcards') || hasPerm(session, 'payments');
   return t.managerOnly ? !!session.isManager : canManage(session, t.perm);
@@ -70,10 +69,8 @@ function renderSettingsContent(session){
   const el = document.getElementById('settingsContent'); if(!el) return;
   if(!APP.settingsTab){ el.innerHTML = '<p class="muted">Görüntüleme yetkiniz olan bir ayar bölümü yok.</p>'; return; }
   if(APP.settingsTab==='stations') renderStationsSettings(el, session);
-  else if(APP.settingsTab==='zones') renderZonesSettings(el, session);
-  else if(APP.settingsTab==='floorplan') renderFloorPlanSettings(el, session);
-  else if(APP.settingsTab==='products') renderProductsSettings(el, session);
-  else if(APP.settingsTab==='ingredients') renderIngredientsSettings(el, session);
+  else if(APP.settingsTab==='zones') renderZonesTabWithSubtabs(el, session);
+  else if(APP.settingsTab==='products') renderProductsTabWithSubtabs(el, session);
   else if(APP.settingsTab==='flags') renderOrderFlagsSettings(el, session);
   else if(APP.settingsTab==='roles') renderRolesSettings(el, session);
   else if(APP.settingsTab==='integrations') renderIntegrationsSettings(el, session);
@@ -564,6 +561,48 @@ async function removeStation(id){
 }
 
 /* --- Bölgeler & Masalar --- */
+/* Bölgeler & Masalar sekmesi: Kat Planı paketinde varsa iki alt sekme (Bölgeler & Masalar | Kat Planı). */
+function renderZonesTabWithSubtabs(el, session){
+  if(!hasFeature('floorplan')){ APP.zonesSubTab = 'zones'; renderZonesSettings(el, session); return; }
+  const sub = APP.zonesSubTab === 'floorplan' ? 'floorplan' : 'zones';
+  el.innerHTML = `<div class="box sub-tabs-box" style="max-width:none;">
+      <div class="sub-tabs">
+        <div role="tab" tabindex="0" class="sub-tab ${sub==='zones'?'active':''}" ${act('setZonesSubTab', 'zones')}><span class="sub-tab-ic">🪑</span>Bölgeler & Masalar</div>
+        <div role="tab" tabindex="0" class="sub-tab ${sub==='floorplan'?'active':''}" ${act('setZonesSubTab', 'floorplan')}><span class="sub-tab-ic">🗺️</span>Kat Planı</div>
+      </div>
+      <div id="zonesSubContent" class="sub-tabs-content"></div>
+    </div>`;
+  const box = document.getElementById('zonesSubContent');
+  if(sub==='floorplan') renderFloorPlanSettings(box, session); else renderZonesSettings(box, session);
+}
+/* Ürünler & Hammaddeler sekmesi: yetkiye göre iki alt sekme. */
+function renderProductsTabWithSubtabs(el, session){
+  const tabs = [
+    canManage(session, 'settings_products') ? { id:'products', ic:'🍽️', label:'Ürünler' } : null,
+    canManage(session, 'settings_ingredients') ? { id:'ingredients', ic:'🥕', label:'Hammaddeler' } : null,
+  ].filter(Boolean);
+  if(!tabs.length){ el.innerHTML = ''; return; }
+  if(!tabs.some(t => t.id === APP.productsSubTab)) APP.productsSubTab = tabs[0].id;
+  if(tabs.length === 1){ (APP.productsSubTab === 'ingredients' ? renderIngredientsSettings : renderProductsSettings)(el, session); return; }
+  el.innerHTML = `<div class="box sub-tabs-box" style="max-width:none;">
+      <div class="sub-tabs">${tabs.map(t => `<div role="tab" tabindex="0" class="sub-tab ${APP.productsSubTab===t.id?'active':''}" ${act('setProductsSubTab', t.id)}><span class="sub-tab-ic">${t.ic}</span>${t.label}</div>`).join('')}</div>
+      <div id="productsSubContent" class="sub-tabs-content"></div>
+    </div>`;
+  const box = document.getElementById('productsSubContent');
+  (APP.productsSubTab === 'ingredients' ? renderIngredientsSettings : renderProductsSettings)(box, session);
+}
+function setProductsSubTab(t){
+  if(t !== APP.productsSubTab) pushScreen();
+  APP.productsSubTab = t;
+  const el = document.getElementById('settingsContent');
+  if(el) renderProductsTabWithSubtabs(el, getSession());
+}
+function setZonesSubTab(t){
+  if(t !== (APP.zonesSubTab||'zones')) pushScreen();
+  APP.zonesSubTab = t;
+  const el = document.getElementById('settingsContent');
+  if(el) renderZonesTabWithSubtabs(el, getSession());
+}
 function renderZonesSettings(el, session){
   const natural = (a, b) => String(a.name).localeCompare(String(b.name), 'tr', { numeric:true, sensitivity:'base' });
   el.innerHTML = `<div class="box" style="max-width:none;">
@@ -1618,7 +1657,27 @@ async function renderIntegrationsSettings(el, session){
     box.innerHTML = !(rows||[]).length ? 'Henüz gönderilen yok.' : `<table class="settings-table"><thead><tr><th>No</th><th>Tarih</th><th>E-posta</th><th>Alıcı</th><th>Tutar</th><th>Durum</th></tr></thead><tbody>${
       rows.map(r => `<tr><td>${escapeHtml(r.number)}</td><td>${new Date(r.created_at).toLocaleString('tr-TR')}</td><td>${escapeHtml(r.email||'')}</td><td>${escapeHtml(r.buyer_name||'—')}</td><td>${money(r.total)}</td><td>${st[r.status]||escapeHtml(r.status)}</td></tr>`).join('')}</tbody></table>`;
   });
+  // Her entegrasyon ayrı alt sekmede (tek uzun sayfa yerine).
+  const INT_TABS = [
+    { id:'online', ic:'🛵', label:'Online Sipariş' }, { id:'google', ic:'⭐', label:'Google Yorumları' },
+    { id:'sms', ic:'📱', label:'SMS' }, { id:'invoice', ic:'🧾', label:'Fatura Bilgileri' },
+    { id:'efatura', ic:'🧾', label:'ÖKC / e-Fatura' }, { id:'marketplace', ic:'🛍️', label:'Pazaryeri' }, { id:'accounting', ic:'📊', label:'Muhasebe' },
+  ];
+  const order = ['efatura','marketplace','accounting','google','online','sms','invoice'];
+  const boxes = [...el.querySelectorAll(':scope > .box')];
+  boxes.forEach((b, i) => { b.dataset.int = order[i]; b.classList.add('int-pane'); });
+  if(!INT_TABS.some(t => t.id === APP.integrationsSubTab)) APP.integrationsSubTab = 'online';
+  const bar = document.createElement('div');
+  bar.className = 'box sub-tabs-box'; bar.style.maxWidth = 'none'; bar.style.paddingBottom = '0';
+  bar.innerHTML = `<div class="sub-tabs" style="flex-wrap:wrap;">${INT_TABS.map(t => `<div role="tab" tabindex="0" class="sub-tab ${APP.integrationsSubTab===t.id?'active':''}" data-int-tab="${t.id}" ${act('setIntegrationsSubTab', t.id)}><span class="sub-tab-ic">${t.ic}</span>${t.label}</div>`).join('')}</div>`;
+  el.insertBefore(bar, el.firstChild);
+  showIntegrationPane();
 }
+function showIntegrationPane(){
+  document.querySelectorAll('#settingsContent .int-pane').forEach(b => { b.style.display = b.dataset.int === APP.integrationsSubTab ? '' : 'none'; });
+  document.querySelectorAll('#settingsContent [data-int-tab]').forEach(t => t.classList.toggle('active', t.dataset.intTab === APP.integrationsSubTab));
+}
+function setIntegrationsSubTab(t){ APP.integrationsSubTab = t; showIntegrationPane(); }
 async function saveSmsSettings(enabled){
   const session = getSession();
   const { error } = await sb.rpc('update_sms_settings', { p_token: session.session_token, p_enabled: enabled });
@@ -2274,7 +2333,7 @@ async function setSupportAccess(hours){
   const { error } = await sb.rpc('set_support_access', { p_token: session.session_token, p_hours: hours });
   if(error){ alert(error.message); return; }
   showToast(hours ? '🛟 Destek erişimine izin verildi' : 'Destek erişim izni kaldırıldı');
-  renderSupportAccessSettings(document.getElementById('settingsContent'), session);
+  renderSupportAccessSettings(document.getElementById('securitySubContent') || document.getElementById('settingsContent'), session);
 }
 
 /* ---- Değişiklik Kaydı: ürün, fiyat, rol, kullanıcı, masa, istasyon, işletme ayarı değişiklikleri ve
