@@ -90,6 +90,7 @@ async function requestChatPermissions(){
 function getSavedFcmTokenSafe(){ try{ return typeof getSavedFcmToken === 'function' && isNativeApp() ? getSavedFcmToken() : ''; }catch(e){ return ''; } }
 async function renderMessagesView(main, session){
   ensureChatOwner(session);
+  chatTypingChannel();
   main.innerHTML = `<div class="chat-shell ${APP.chatConv ? 'has-conv' : ''}">
       <div class="chat-list-wrap">
         <div class="chat-list-head"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px;"><h1 style="margin:0;">💬 Mesajlar</h1>
@@ -125,7 +126,7 @@ function drawChatList(){
       <div style="flex:1;min-width:0;">
         <div style="display:flex;justify-content:space-between;gap:6px;align-items:baseline;"><span class="chat-name">${escapeHtml(c.name)}</span>${c.last_at ? `<span class="chat-when">${chatTime(c.last_at)}</span>` : ''}</div>
         <div style="display:flex;justify-content:space-between;gap:6px;align-items:center;">
-          <span class="chat-last">${c.last_body ? escapeHtml(c.last_body) : `<i>${escapeHtml(c.roles || (c.is_all ? 'Tüm ekip' : ''))}</i>`}</span>
+          <span class="chat-last" data-typing-conv="${escapeAttr(c.conv)}">${chatTypingText(c.conv) ? `<i style="color:var(--green);">${escapeHtml(chatTypingText(c.conv))}</i>` : c.last_body ? escapeHtml(c.last_body) : `<i>${escapeHtml(c.roles || (c.is_all ? 'Tüm ekip' : ''))}</i>`}</span>
           ${c.unread > 0 ? `<span class="chat-unread">${c.unread > 99 ? '99+' : c.unread}</span>` : ''}
         </div>
       </div>
@@ -150,6 +151,7 @@ async function openChatConv(conv, keepDraft){
         ${c.is_group ? `<button type="button" class="chat-ic" title="Grup ayarları" ${act('openChatGroupMenu', conv)}>⋮</button>` : ''}
       </div>
       <div class="chat-thread" id="chatThread" data-allow-drop ${actOn('drop','onChatDrop',['$event'])}><p class="muted">Yükleniyor…</p></div>
+      <div class="chat-typing" id="chatTyping" style="font-size:12px;color:var(--green);padding:0 14px;min-height:16px;font-style:italic;"></div>
       <div class="chat-reply-bar" id="chatReplyBar"></div>
       <div class="chat-tray" id="chatTray"></div>
       <div class="chat-mention-box" id="chatMentionBox"></div>
@@ -364,6 +366,7 @@ async function sendChatMessage(){
   const body = t.value.trim(); if(!body || !APP.chatConv) return;
   stopChatDictation();
   t.value = ''; t.style.height = 'auto'; updateChatSendBtn();
+  chatTypingSend(false);
   if(!(await postChat(body))){ t.value = body; updateChatSendBtn(); }
   t.focus();
 }
@@ -927,7 +930,7 @@ async function showMessageReaders(messageId){
 }
 
 function setChatSearch(v){ APP.chatSearch = v; drawChatList(); }
-function onChatTextInput(el){ el.style.height = 'auto'; el.style.height = Math.min(el.scrollHeight, 120) + 'px'; updateChatSendBtn(); updateChatMention(el); }
+function onChatTextInput(el){ el.style.height = 'auto'; el.style.height = Math.min(el.scrollHeight, 120) + 'px'; updateChatSendBtn(); updateChatMention(el); chatTypingSend(!!el.value.trim()); }
 function onChatTextKeydown(e){ if(chatMentionKey(e)) return; if(e.key === 'Enter' && !e.shiftKey){ e.preventDefault(); sendChatMessage(); } }
 function startChatDictationFromTray(){ toggleChatTray('attach'); toggleChatDictation(); }
 function setChatGifType(t){ APP.chatGifType = t; loadChatGifs(); }
@@ -936,3 +939,63 @@ function searchChatGifs(q){ const el = document.getElementById('chatGifQ'); if(e
 function setChatEmojiCat(k){ APP.chatEmojiCat = k; document.getElementById('chatTray').dataset.kind = ''; toggleChatTray('emoji'); }
 function reactFromBar(messageId, e){ toggleChatReaction(messageId, e); document.querySelectorAll('.chat-react-bar').forEach(b => b.remove()); }
 function reactFromPicker(messageId, e){ removeEl('chatReactPickBg'); toggleChatReaction(messageId, e); }
+
+/* ---- "Yazıyor…" göstergesi ----
+   Yazan kişi işletmenin ortak gerçek zamanlı kanalına kısa bir sinyal yayınlar (veritabanına
+   yazılmaz). Hedef: 'all' (Genel), 'g:<grup>' veya alıcının kullanıcı kimliği (birebir).
+   Sinyal 2,5 sn'de bir tekrarlanır; 5 sn gelmezse gösterge kendiliğinden kaybolur. */
+const CHAT_TYPING = {}; // conv -> { name: sonGörülme }
+let CHAT_TYPING_CH = null, CHAT_TYPING_KEY = '', CHAT_TYPING_LAST = 0, CHAT_TYPING_ON = false;
+function chatTypingChannel(){
+  const session = getSession(); if(!session || !session.restaurant_id) return null;
+  const key = session.restaurant_id + '|' + session.user_id;
+  if(CHAT_TYPING_CH && CHAT_TYPING_KEY === key) return CHAT_TYPING_CH;
+  if(CHAT_TYPING_CH){ try{ sb.removeChannel(CHAT_TYPING_CH); }catch(e){} }
+  CHAT_TYPING_KEY = key;
+  CHAT_TYPING_CH = sb.channel('typing-' + session.restaurant_id, { config: { broadcast: { self: false } } })
+    .on('broadcast', { event: 't' }, ({ payload }) => chatTypingReceive(payload))
+    .subscribe();
+  return CHAT_TYPING_CH;
+}
+// Hedef doğrudan açık sohbetin kimliğidir: 'all', 'g:<grup>' ya da birebirde karşı tarafın kullanıcı kimliği.
+function chatTypingTarget(){ return String(APP.chatConv || ''); }
+function chatTypingSend(on){
+  const ch = chatTypingChannel(); const session = getSession();
+  if(!ch || !session || !APP.chatConv) return;
+  const now = Date.now();
+  if(on && CHAT_TYPING_ON && now - CHAT_TYPING_LAST < 2500) return;
+  if(!on && !CHAT_TYPING_ON) return;
+  CHAT_TYPING_ON = on; CHAT_TYPING_LAST = now;
+  try{ ch.send({ type: 'broadcast', event: 't', payload: { from: session.user_id, name: session.username, target: chatTypingTarget(), on } }); }catch(e){}
+}
+function chatTypingReceive(p){
+  const session = getSession(); if(!session || !p || p.from === session.user_id) return;
+  // Alıcı açısından sohbet: Genel ve grup aynı, birebirde gönderenin kimliği.
+  const conv = (p.target === 'all' || String(p.target).startsWith('g:')) ? p.target : (p.target === session.user_id ? p.from : null);
+  if(!conv) return;
+  if(String(conv).startsWith('g:') && !(APP.chatItems || []).some(c => c.conv === conv)) return; // üyesi olmadığım grup
+  const m = CHAT_TYPING[conv] = CHAT_TYPING[conv] || {};
+  if(p.on) m[p.name || '?'] = Date.now(); else delete m[p.name || '?'];
+  chatTypingDraw();
+}
+function chatTypingText(conv){
+  const m = CHAT_TYPING[conv]; if(!m) return '';
+  const now = Date.now();
+  const names = Object.keys(m).filter(n => now - m[n] < 5000);
+  if(!names.length) return '';
+  const isDm = !(conv === 'all' || String(conv).startsWith('g:'));
+  if(isDm) return 'yazıyor…';
+  return names.length === 1 ? names[0] + ' yazıyor…' : names.length === 2 ? names.join(' ve ') + ' yazıyor…' : names.length + ' kişi yazıyor…';
+}
+function chatTypingDraw(){
+  const box = document.getElementById('chatTyping');
+  if(box) box.textContent = APP.chatConv ? chatTypingText(APP.chatConv) : '';
+  document.querySelectorAll('[data-typing-conv]').forEach(el => {
+    const conv = el.getAttribute('data-typing-conv');
+    const txt = chatTypingText(conv);
+    if(txt){ el.dataset.typingShown = '1'; el.innerHTML = `<i style="color:var(--green);">${escapeHtml(txt)}</i>`; }
+    else if(el.dataset.typingShown){ delete el.dataset.typingShown; if(typeof drawChatList === 'function') { drawChatList(); return; } }
+  });
+}
+// Süresi dolan göstergeleri temizle; mesajlar ekranına girince kanala bağlan.
+setInterval(() => { if(Object.keys(CHAT_TYPING).length) chatTypingDraw(); }, 1500);
