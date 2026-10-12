@@ -594,9 +594,9 @@ $$;
 
 CREATE FUNCTION public._is_manager(p_user uuid) RETURNS boolean
     LANGUAGE sql STABLE SECURITY DEFINER
-    SET search_path TO 'public', 'pg_temp'
+    SET search_path TO 'public'
     AS $$
-  select exists(select 1 from app_users au join roles rl on rl.id = any(au.role_ids) where au.id = p_user and (rl.is_system or 'shifts' = any(rl.permissions)));
+  select coalesce(bool_or(rl.is_system), false) from app_users u join roles rl on rl.id = any(u.role_ids) where u.id = p_user;
 $$;
 
 
@@ -974,7 +974,8 @@ CREATE TABLE public.staff_sessions (
     expires_at timestamp with time zone DEFAULT (now() + '12:00:00'::interval) NOT NULL,
     last_seen_at timestamp with time zone DEFAULT now(),
     remember boolean DEFAULT false NOT NULL,
-    logged_out_at timestamp with time zone
+    logged_out_at timestamp with time zone,
+    is_support boolean DEFAULT false NOT NULL
 );
 
 
@@ -2433,6 +2434,51 @@ begin
       perform vault.update_secret((select id from vault.secrets where name = 'ps_sms_password'), p_password);
     else perform vault.create_secret(p_password, 'ps_sms_password', 'Peyktan platform_settings: sms_password'); end if;
   end if;
+end $$;
+
+
+--
+-- Name: admin_start_support_session(uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.admin_start_support_session(p_token uuid, p_restaurant_id uuid) RETURNS json
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+declare v_admin uuid; v_admin_name text; r restaurants%rowtype; v_user app_users%rowtype; v_token uuid; v_exp timestamptz;
+  v_roles text[]; v_perms text[];
+begin
+  v_admin := _platform_admin_check(p_token);
+  select coalesce(to_jsonb(pa)->>'username', to_jsonb(pa)->>'email', 'Platform yöneticisi') into v_admin_name from platform_admins pa where pa.id = v_admin;
+  select * into r from restaurants where id = p_restaurant_id;
+  if r.id is null then raise exception 'İşletme bulunamadı'; end if;
+  if r.support_access_until is null or r.support_access_until <= now() then
+    raise exception 'Bu işletme destek erişimine izin vermemiş. İşletme sahibi Ayarlar > Destek Erişimi bölümünden izin vermeli.';
+  end if;
+  select u.* into v_user from app_users u where u.restaurant_id = r.id and coalesce(u.is_active, true) and _is_manager(u.id) order by u.created_at limit 1;
+  if v_user.id is null then raise exception 'İşletmede aktif yönetici kullanıcı yok'; end if;
+  select coalesce(array_agg(distinct rl.name), '{}') into v_roles from roles rl where rl.id = any(v_user.role_ids);
+  select coalesce(array_agg(distinct p), '{}') into v_perms from roles rl left join lateral unnest(rl.permissions) p on true where rl.id = any(v_user.role_ids) and p is not null;
+  v_exp := least(now() + interval '1 hour', r.support_access_until);
+  insert into staff_sessions(user_id, restaurant_id, username, expires_at, is_support)
+    values (v_user.id, r.id, 'Peyktan Destek', v_exp, true) returning token into v_token;
+  insert into support_access_log(restaurant_id, admin_name, expires_at, session_token) values (r.id, v_admin_name, v_exp, v_token);
+  return json_build_object('session_token', v_token, 'user_id', v_user.id, 'restaurant_id', r.id, 'role_names', v_roles,
+    'permissions', v_perms, 'is_manager', true, 'restaurant_name', r.name, 'expires_at', v_exp);
+end $$;
+
+
+--
+-- Name: admin_support_allowed(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.admin_support_allowed(p_token uuid) RETURNS json
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+begin
+  perform _platform_admin_check(p_token);
+  return coalesce((select json_object_agg(id, support_access_until) from restaurants where support_access_until > now()), '{}'::json);
 end $$;
 
 
@@ -4680,6 +4726,24 @@ $$;
 
 
 --
+-- Name: get_support_access(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.get_support_access(p_token uuid) RETURNS json
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+declare s staff_sessions%rowtype;
+begin
+  s := _session_check(p_token, null);
+  return json_build_object(
+    'until', (select case when support_access_until > now() then support_access_until end from restaurants where id = s.restaurant_id),
+    'log', coalesce((select json_agg(json_build_object('admin', admin_name, 'at', started_at, 'until', expires_at) order by started_at desc)
+                     from (select * from support_access_log where restaurant_id = s.restaurant_id order by started_at desc limit 20) l), '[]'::json));
+end $$;
+
+
+--
 -- Name: get_tip_pool_report(uuid, date, date); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -5600,7 +5664,7 @@ begin
     left join lateral unnest(rl.permissions) as p on true
     where rl.id = any(v_user.role_ids);
 
-  update staff_sessions ss set expires_at = now() where ss.user_id = v_user.id and ss.expires_at > now();
+  update staff_sessions ss set expires_at = now() where ss.user_id = v_user.id and ss.expires_at > now() and not ss.is_support; -- destek oturumu yöneticinin girişiyle düşmez
   -- Eski oturum(lar) burada siliniyor ama o cihaz(lar)ın kendi token'ı artık
   -- geçersiz olduğu için "abonelikleri kaldır" isteğini KENDİSİ atamaz
   -- (bkz. remove_push_subscription -> _session_check başarısız olur). Bu
@@ -6362,6 +6426,8 @@ CREATE FUNCTION public.save_fcm_token(p_token uuid, p_fcm_token text, p_channel 
 declare s staff_sessions%rowtype; v_existing_restaurant uuid;
 begin
   s := _session_check(p_token);
+  -- Destek oturumu (Peyktan destek ekibi) işletme sahibinin bildirimlerine abone olamaz.
+  if s.is_support then return; end if;
   if not _restaurant_has_feature(s.restaurant_id, 'push_notifications') then raise exception 'PAKET_OZELLIK_YOK'; end if;
   select restaurant_id into v_existing_restaurant from push_subscriptions where endpoint = p_fcm_token;
   if v_existing_restaurant is not null and v_existing_restaurant <> s.restaurant_id then
@@ -6420,6 +6486,8 @@ declare
   v_existing_restaurant uuid;
 begin
   s := _session_check(p_token);
+  -- Destek oturumu (Peyktan destek ekibi) işletme sahibinin bildirimlerine abone olamaz.
+  if s.is_support then return; end if;
   if not _restaurant_has_feature(s.restaurant_id, 'push_notifications') then raise exception 'PAKET_OZELLIK_YOK'; end if;
   select restaurant_id into v_existing_restaurant from push_subscriptions where endpoint = p_endpoint;
   if v_existing_restaurant is not null and v_existing_restaurant <> s.restaurant_id then
@@ -7326,6 +7394,29 @@ begin
     delete from push_subscriptions where user_id = p_user_id;
   end if;
 end; $$;
+
+
+--
+-- Name: set_support_access(uuid, integer); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.set_support_access(p_token uuid, p_hours integer) RETURNS timestamp with time zone
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+declare s staff_sessions%rowtype; v_until timestamptz;
+begin
+  s := _session_check(p_token, null);
+  if s.is_support or not _is_manager(s.user_id) then raise exception 'Bu işlemi yalnızca işletme yöneticisi yapabilir'; end if;
+  if coalesce(p_hours, 0) <= 0 then
+    update restaurants set support_access_until = null where id = s.restaurant_id;
+    update staff_sessions set expires_at = now() where restaurant_id = s.restaurant_id and is_support and expires_at > now();
+    return null;
+  end if;
+  v_until := now() + make_interval(hours => least(p_hours, 72));
+  update restaurants set support_access_until = v_until where id = s.restaurant_id;
+  return v_until;
+end $$;
 
 
 --
@@ -9892,6 +9983,7 @@ CREATE TABLE public.restaurants (
     default_vat_rate numeric DEFAULT 10 NOT NULL,
     billing_address text,
     billing_city text,
+    support_access_until timestamp with time zone,
     CONSTRAINT restaurants_default_vat_rate_check CHECK (((default_vat_rate >= (0)::numeric) AND (default_vat_rate <= (100)::numeric)))
 );
 
@@ -10022,6 +10114,20 @@ CREATE TABLE public.suppliers (
     address text,
     notes text,
     created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: support_access_log; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.support_access_log (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    restaurant_id uuid NOT NULL,
+    admin_name text,
+    started_at timestamp with time zone DEFAULT now() NOT NULL,
+    expires_at timestamp with time zone,
+    session_token uuid
 );
 
 
@@ -10850,6 +10956,14 @@ ALTER TABLE ONLY public.stations
 
 ALTER TABLE ONLY public.suppliers
     ADD CONSTRAINT suppliers_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: support_access_log support_access_log_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.support_access_log
+    ADD CONSTRAINT support_access_log_pkey PRIMARY KEY (id);
 
 
 --
@@ -12599,6 +12713,14 @@ ALTER TABLE ONLY public.suppliers
 
 
 --
+-- Name: support_access_log support_access_log_restaurant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.support_access_log
+    ADD CONSTRAINT support_access_log_restaurant_id_fkey FOREIGN KEY (restaurant_id) REFERENCES public.restaurants(id) ON DELETE CASCADE;
+
+
+--
 -- Name: waiter_calls waiter_calls_restaurant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -13042,6 +13164,12 @@ ALTER TABLE public.stations ENABLE ROW LEVEL SECURITY;
 --
 
 ALTER TABLE public.suppliers ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: support_access_log; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.support_access_log ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: support_emails; Type: ROW SECURITY; Schema: public; Owner: -
