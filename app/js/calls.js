@@ -33,7 +33,7 @@ setTimeout(() => { if(getSession()) callChannel(); }, 1500);
 /* ---- Arama başlatma ---- */
 async function startVoiceCall(userId, name){
   const session = getSession(); if(!session || !userId || userId === session.user_id) return;
-  if(CALL.state !== 'idle'){ showToast('Zaten bir görüşmedesiniz'); return; }
+  if(CALL.state !== 'idle' || (typeof GCALL !== 'undefined' && GCALL.state !== 'idle')){ showToast('Zaten bir görüşmedesiniz'); return; }
   if(!window.RTCPeerConnection){ alert('Bu cihaz/tarayıcı sesli aramayı desteklemiyor.'); return; }
   let mic;
   try{ mic = await getSharedMic(); }
@@ -52,9 +52,11 @@ async function startVoiceCall(userId, name){
 
 /* ---- Gelen sinyaller ---- */
 async function callReceive(p){
-  const session = getSession(); if(!session || !p || p.to !== session.user_id) return;
+  const session = getSession(); if(!session || !p) return;
+  if(p.room && await gcallReceive(p)) return; // grup araması sinyalleri
+  if(p.to !== session.user_id) return;
   if(p.type === 'invite'){
-    if(CALL.state !== 'idle'){
+    if(CALL.state !== 'idle' || GCALL.state !== 'idle'){
       // Aynı aramanın tekrarlanan daveti yok sayılır; başka biri arıyorsa meşgul yanıtı.
       if(CALL.id !== p.id){ const keep = { peer: CALL.peer, id: CALL.id }; CALL.peer = p.from; CALL.id = p.id; callSend('busy'); CALL.peer = keep.peer; CALL.id = keep.id; }
       return;
@@ -193,3 +195,155 @@ function callDrawUi(){
 }
 // Sayfa kapanırken açık görüşmeyi düzgün bitir.
 window.addEventListener('pagehide', () => { if(CALL.state !== 'idle') hangupVoiceCall(); });
+
+/* ---- Grup sesli araması (küçük gruplar için; her katılımcı diğerleriyle doğrudan bağlanır) ----
+   Başlatan, grubun üyelerine davet yayınlar (35 sn boyunca 3 sn'de bir). Katılan kişi 'gjoin'
+   yayınlar; odada zaten olan herkes yeni gelene teklif (offer) gönderir, böylece herkes herkesle
+   bağlanır. Ayrılan 'gleave' yayınlar; son kişi ayrılınca görüşme biter. Cihaz başına ~6-8 kişiye
+   kadar uygundur (her bağlantı ayrı ses akışı taşır). */
+const GCALL = { state: 'idle', room: null, group: null, groupName: '', inviter: '', members: [], peers: {}, inviteT: null, ringT: null, muted: false, startedAt: 0, timer: null };
+const GCALL_MAX = 8;
+
+function gcallSend(type, data){
+  const session = getSession(); const ch = callChannel();
+  if(!ch || !session || !GCALL.room) return;
+  try{ ch.send({ type: 'broadcast', event: 'c', payload: Object.assign({ type, room: GCALL.room, group: GCALL.group, from: session.user_id, fromName: session.username }, data || {}) }); }catch(e){}
+}
+function chatGroupMemberIds(conv){
+  const c = (APP.chatItems || []).find(x => x.conv === conv); if(!c) return [];
+  const names = String(c.roles || '').split(', ').filter(Boolean);
+  return (APP.chatItems || []).filter(x => !x.is_all && !x.is_group && names.includes(x.name)).map(x => x.conv);
+}
+async function startGroupCall(conv, name){
+  const session = getSession(); if(!session || !String(conv).startsWith('g:')) return;
+  if(CALL.state !== 'idle' || GCALL.state !== 'idle'){ showToast('Zaten bir görüşmedesiniz'); return; }
+  if(!window.RTCPeerConnection){ alert('Bu cihaz/tarayıcı sesli aramayı desteklemiyor.'); return; }
+  const members = chatGroupMemberIds(conv).filter(id => id !== session.user_id);
+  if(!members.length){ alert('Grupta aranacak başka üye yok.'); return; }
+  if(members.length + 1 > GCALL_MAX){ alert('Grup araması en fazla ' + GCALL_MAX + ' kişiyle yapılabilir.'); return; }
+  try{ await getSharedMic(); }catch(e){ alert('Mikrofona erişilemedi. Tarayıcı/uygulama ayarlarından mikrofon izni verin.'); return; }
+  callChannel();
+  Object.assign(GCALL, { state: 'active', room: 'g' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7), group: conv, groupName: name || 'Grup', inviter: session.username, members, peers: {}, muted: false, startedAt: Date.now() });
+  const invite = () => { if(GCALL.state === 'active') gcallSend('ginvite', { to: GCALL.members, groupName: GCALL.groupName }); };
+  invite(); GCALL.inviteT = setInterval(invite, 3000);
+  setTimeout(() => clearInterval(GCALL.inviteT), 35000);
+  members.forEach(id => sb.rpc('notify_call', { p_token: session.session_token, p_to: id }).then(() => {}, () => {}));
+  clearInterval(GCALL.timer); GCALL.timer = setInterval(gcallDrawUi, 1000);
+  gcallDrawUi();
+}
+function gcallPeerPc(userId, name){
+  let peer = GCALL.peers[userId];
+  if(peer) return peer;
+  const pc = new RTCPeerConnection({ iceServers: CALL_ICE });
+  if(SHARED_MIC) SHARED_MIC.getAudioTracks().forEach(t => { pc.addTrack(t, SHARED_MIC); t.enabled = !GCALL.muted; });
+  peer = GCALL.peers[userId] = { pc, name: name || 'Kişi', audio: null, pendingIce: [], state: 'connecting' };
+  pc.onicecandidate = (e) => { if(e.candidate) gcallSend('gice', { to: userId, cand: e.candidate.toJSON ? e.candidate.toJSON() : e.candidate }); };
+  pc.ontrack = (e) => {
+    if(!peer.audio){ peer.audio = document.createElement('audio'); peer.audio.autoplay = true; peer.audio.setAttribute('playsinline', ''); document.body.appendChild(peer.audio); }
+    peer.audio.srcObject = e.streams[0] || new MediaStream([e.track]); peer.audio.play().catch(() => {});
+  };
+  pc.onconnectionstatechange = () => {
+    peer.state = pc.connectionState;
+    if(pc.connectionState === 'failed' || pc.connectionState === 'closed') gcallDropPeer(userId);
+    gcallDrawUi();
+  };
+  return peer;
+}
+function gcallDropPeer(userId){
+  const p = GCALL.peers[userId]; if(!p) return;
+  try{ p.pc.close(); }catch(e){}
+  if(p.audio){ p.audio.srcObject = null; p.audio.remove(); }
+  delete GCALL.peers[userId];
+  gcallDrawUi();
+}
+async function gcallReceive(p){
+  const session = getSession(); if(!session) return false;
+  if(p.type === 'ginvite'){
+    if(!Array.isArray(p.to) || !p.to.includes(session.user_id)) return true;
+    if(GCALL.room === p.room) return true;
+    if(CALL.state !== 'idle' || GCALL.state !== 'idle') return true;
+    Object.assign(GCALL, { state: 'ringing', room: p.room, group: p.group, groupName: p.groupName || 'Grup', inviter: p.fromName || '', members: p.to.concat([p.from]).filter(id => id !== session.user_id), peers: {}, muted: false });
+    gcallDrawUi(); callRing(true);
+    GCALL.ringT = setTimeout(() => { if(GCALL.state === 'ringing') gcallReset('Cevapsız grup araması: ' + GCALL.groupName); }, 40000);
+    return true;
+  }
+  if(!String(p.type || '').startsWith('g')) return false;
+  if(p.room !== GCALL.room || GCALL.state !== 'active' || p.from === session.user_id) return true;
+  if(p.type === 'gjoin'){
+    // Odaya yeni gelene, odada olan herkes teklif gönderir.
+    const peer = gcallPeerPc(p.from, p.fromName);
+    const offer = await peer.pc.createOffer({ offerToReceiveAudio: true });
+    await peer.pc.setLocalDescription(offer);
+    gcallSend('gsdp', { to: p.from, sdp: peer.pc.localDescription });
+  } else if(p.type === 'gsdp' && p.to === session.user_id){
+    const peer = gcallPeerPc(p.from, p.fromName);
+    await peer.pc.setRemoteDescription(p.sdp);
+    for(const c of peer.pendingIce.splice(0)){ try{ await peer.pc.addIceCandidate(c); }catch(e){} }
+    if(p.sdp.type === 'offer'){
+      const ans = await peer.pc.createAnswer(); await peer.pc.setLocalDescription(ans);
+      gcallSend('gsdp', { to: p.from, sdp: peer.pc.localDescription });
+    }
+  } else if(p.type === 'gice' && p.to === session.user_id){
+    const peer = GCALL.peers[p.from]; if(!peer) return true;
+    if(peer.pc.remoteDescription){ try{ await peer.pc.addIceCandidate(p.cand); }catch(e){} } else peer.pendingIce.push(p.cand);
+  } else if(p.type === 'gleave'){
+    gcallDropPeer(p.from);
+  }
+  return true;
+}
+async function acceptGroupCall(){
+  if(GCALL.state !== 'ringing') return;
+  callRing(false); clearTimeout(GCALL.ringT);
+  try{ await getSharedMic(); }catch(e){ gcallReset('Mikrofona erişilemedi'); return; }
+  GCALL.state = 'active'; GCALL.startedAt = Date.now();
+  clearInterval(GCALL.timer); GCALL.timer = setInterval(gcallDrawUi, 1000);
+  gcallDrawUi();
+  gcallSend('gjoin');
+}
+function declineGroupCall(){ if(GCALL.state === 'ringing') gcallReset(); }
+function leaveGroupCall(){ if(GCALL.state === 'active') gcallSend('gleave'); gcallReset(GCALL.state === 'active' ? 'Grup aramasından ayrıldınız' : ''); }
+function toggleGroupMute(){
+  GCALL.muted = !GCALL.muted;
+  Object.values(GCALL.peers).forEach(p => p.pc.getSenders().forEach(s => { if(s.track) s.track.enabled = !GCALL.muted; }));
+  if(!Object.keys(GCALL.peers).length && SHARED_MIC) SHARED_MIC.getAudioTracks().forEach(t => { t.enabled = !GCALL.muted; });
+  gcallDrawUi();
+}
+function gcallReset(msg){
+  clearInterval(GCALL.inviteT); clearTimeout(GCALL.ringT); clearInterval(GCALL.timer); callRing(false);
+  Object.keys(GCALL.peers).forEach(gcallDropPeer);
+  if(SHARED_MIC) SHARED_MIC.getAudioTracks().forEach(t => { t.enabled = true; });
+  Object.assign(GCALL, { state: 'idle', room: null, group: null, members: [], peers: {}, muted: false });
+  removeEl('callUi');
+  if(msg) showToast('📞 ' + msg);
+}
+function gcallDrawUi(){
+  if(GCALL.state === 'idle') return;
+  let ui = document.getElementById('callUi');
+  if(!ui){
+    ui = document.createElement('div'); ui.id = 'callUi';
+    ui.style.cssText = 'position:fixed;inset:0;z-index:400;background:linear-gradient(180deg,#0f2b27 0%,#0a1615 100%);color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:space-between;padding:50px 20px 50px;';
+    document.body.appendChild(ui);
+  }
+  const btn = (bg, label, fn, ic) => `<div><button type="button" style="width:72px;height:72px;border-radius:50%;margin:0;padding:0;border:0;background:${bg};color:#fff;font-size:28px;box-shadow:0 8px 24px rgba(0,0,0,.35);" title="${label}" ${act(fn)}>${ic}</button>
+    <div style="font-size:12px;margin-top:8px;opacity:.8;text-align:center;">${label}</div></div>`;
+  const secs = Math.floor((Date.now() - GCALL.startedAt) / 1000);
+  const peers = Object.values(GCALL.peers);
+  const connected = peers.filter(p => p.state === 'connected');
+  const chip = (n, st) => `<div style="display:flex;flex-direction:column;align-items:center;gap:6px;width:76px;">
+      <div style="width:56px;height:56px;border-radius:50%;background:rgba(255,255,255,.14);display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:800;${st === 'connected' ? 'box-shadow:0 0 0 3px #16a34a;' : 'opacity:.6;'}">${escapeHtml((n || '?').trim().charAt(0).toLocaleUpperCase('tr'))}</div>
+      <div style="font-size:12px;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;width:100%;">${escapeHtml(n)}</div></div>`;
+  const status = GCALL.state === 'ringing' ? (escapeHtml(GCALL.inviter) + ' grup araması başlattı')
+    : (connected.length ? connected.length + 1 + ' kişi görüşmede · ' + Math.floor(secs / 60) + ':' + String(secs % 60).padStart(2, '0') : 'Diğer üyeler bekleniyor…');
+  ui.innerHTML = `<div style="text-align:center;width:100%;">
+      <div style="font-size:14px;opacity:.75;">👥 Grup araması</div>
+      <div style="font-size:26px;font-weight:800;margin-top:4px;">${escapeHtml(GCALL.groupName)}</div>
+      <div style="font-size:15px;opacity:.8;margin-top:6px;">${status}</div>
+      ${GCALL.state === 'active' ? `<div style="display:flex;flex-wrap:wrap;justify-content:center;gap:14px;margin-top:28px;">${chip('Siz', 'connected')}${peers.map(p => chip(p.name, p.state)).join('')}</div>` : ''}
+    </div>
+    <div style="display:flex;gap:44px;align-items:flex-start;">
+      ${GCALL.state === 'ringing'
+        ? btn('#dc2626', 'Reddet', 'declineGroupCall', '✕') + btn('#16a34a', 'Katıl', 'acceptGroupCall', '📞')
+        : btn(GCALL.muted ? '#f59e0b' : 'rgba(255,255,255,.18)', GCALL.muted ? 'Sesi aç' : 'Sessiz', 'toggleGroupMute', GCALL.muted ? '🔇' : '🎙️') + btn('#dc2626', 'Ayrıl', 'leaveGroupCall', '✕')}
+    </div>`;
+}
+window.addEventListener('pagehide', () => { if(GCALL.state === 'active') gcallSend('gleave'); });
