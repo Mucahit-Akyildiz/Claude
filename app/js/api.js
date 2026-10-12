@@ -41,7 +41,7 @@ const RPC_CACHEABLE = new Set(['get_restaurant_config','get_live_orders','list_s
   'list_waste','get_sales_history','list_active_staff','get_bank_transfer_status','get_addon_purchase_info']);
 const RPC_NO_INVALIDATE = new Set(['get_data_version','get_nav_badges','get_my_permissions','get_my_shift_status','log_client_error',
   'list_waiter_calls','list_customer_order_requests','list_chat_conversations','get_chat_messages','get_chat_attachment','search_customers_quick',
-  'get_customer_by_phone','check_gift_card']);
+  'get_customer_by_phone','check_gift_card','list_audit_log','get_support_access']);
 const RPC_CACHE = new Map();
 function clearRpcCache(){ RPC_CACHE.clear(); }
 function _sbRpc(fn, args){
