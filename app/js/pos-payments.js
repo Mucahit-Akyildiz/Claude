@@ -1374,7 +1374,7 @@ function openTableModal(tableId){
   if(!APP.draftCart[tableId]) APP.draftCart[tableId] = [];
   const bg = document.createElement('div');
   bg.id = 'tableModalBg';
-  bg.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:flex-start;justify-content:center;z-index:100;padding:28px 16px 16px;overflow-y:auto;';
+  bg.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:flex-start;justify-content:center;z-index:100;padding:7vh 16px 16px;overflow-y:auto;';
   bg.onclick = (e) => { if(e.target===bg) closeTableModal(); };
   bg.innerHTML = `
     <div class="order-modal">
@@ -1388,6 +1388,7 @@ function openTableModal(tableId){
           <div id="prodPick"></div>
         </div>
         <div class="order-modal-cart">
+          <div class="om-cart-head">🧾 Sipariş</div>
           ${tableCustomerInfoHtml(tableId)}
           <div id="sentItemsWrap"></div>
           <div id="draftItemsWrap"></div>
@@ -1404,7 +1405,7 @@ function openTableModal(tableId){
   bg.dataset.tableId = tableId;
   const stations = APP.config.stations;
   document.getElementById('prodStationTabs').innerHTML = stations.map((s,i) =>
-    `<div class="tab ${i===0?'active':''}" data-st="${s.id}" ${act('pickStationTab', s.id)}>${escapeHtml(s.name)}</div>`
+    `<div class="tab ${i===0?'active':''}" data-st="${s.id}" ${act('pickStationTab', s.id)}><span class="st-dot" style="background:${escapeAttr(s.color||'#888')}"></span>${escapeHtml(s.icon||'')} ${escapeHtml(s.name)}</div>`
   ).join('');
   renderProductPick(stations[0] ? stations[0].id : null, tableId);
   renderTableItems(tableId);

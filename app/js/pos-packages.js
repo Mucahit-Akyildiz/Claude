@@ -48,7 +48,7 @@ function openPackageModal(pseudoId){
     : '📦 ' + (existing ? escapeHtml(existing.customer_name || ('Paket #'+(existing.daily_number||''))) : 'Yeni Paket Sipariş');
   const bg = document.createElement('div');
   bg.id = 'tableModalBg';
-  bg.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:flex-start;justify-content:center;z-index:100;padding:28px 16px 16px;overflow-y:auto;';
+  bg.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:flex-start;justify-content:center;z-index:100;padding:7vh 16px 16px;overflow-y:auto;';
   bg.onclick = (e) => { if(e.target===bg) closeTableModal(); };
   bg.innerHTML = `
     <div class="order-modal">
@@ -62,6 +62,7 @@ function openPackageModal(pseudoId){
           <div id="prodPick"></div>
         </div>
         <div class="order-modal-cart">
+          <div class="om-cart-head">🧾 Sipariş</div>
       ${isWl ? '<p class="muted" style="text-align:left;margin:0 0 6px;font-size:12.5px;">Siparişler hemen mutfağa düşer; müşteri oturtulunca masaya taşınır.</p>' : `<div class="field-group"><label>Müşteri Adı</label><input id="pkgCustName" placeholder="örn. Ahmet Bey veya kayıtlı müşteri ara" autocomplete="off" ${actOn('input','tableCustSearch',['$value','pkgCust'])} value="${escapeAttr((existing&&existing.customer_name)||'')}"></div>
       <div class="field-group"><label>Telefon</label><input id="pkgCustPhone" placeholder="örn. 5551234567" autocomplete="off" inputmode="tel" ${actOn('input','tableCustSearch',['$value','pkgCust'])} value="${escapeAttr((existing&&existing.customer_phone)||'')}"></div>
       <div id="pkgCustSuggest" style="margin:-6px 0 10px;"></div>
@@ -80,7 +81,7 @@ function openPackageModal(pseudoId){
   bg.dataset.tableId = pseudoId;
   const stations = APP.config.stations;
   document.getElementById('prodStationTabs').innerHTML = stations.map((s,i) =>
-    `<div class="tab ${i===0?'active':''}" data-st="${s.id}" ${act('pickStationTab', s.id)}>${escapeHtml(s.name)}</div>`
+    `<div class="tab ${i===0?'active':''}" data-st="${s.id}" ${act('pickStationTab', s.id)}><span class="st-dot" style="background:${escapeAttr(s.color||'#888')}"></span>${escapeHtml(s.icon||'')} ${escapeHtml(s.name)}</div>`
   ).join('');
   renderProductPick(stations[0] ? stations[0].id : null, pseudoId);
   renderTableItems(pseudoId);
@@ -284,7 +285,7 @@ function renderTableItems(tableId){
     return;
   }
   if(draft.length===0){
-    draftWrap.innerHTML = (order && order.items.length>0) || pending.length ? '' : '<p class="muted">Henüz ürün eklenmedi.</p>';
+    draftWrap.innerHTML = (order && order.items.length>0) || pending.length ? '' : '<div class="om-empty"><div style="font-size:34px;">🍽️</div><b>Sepet boş</b><span>Soldaki menüden ürünlere dokunarak ekleyin.</span></div>';
   } else {
     let total=0;
     draftWrap.innerHTML = `<div style="border:1px dashed var(--accent);border-radius:10px;padding:10px;margin:10px 0;">
