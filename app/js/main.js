@@ -903,6 +903,9 @@ setTimeout(checkAndroidAppUpdate, 4000);
 function consumeSupportHandoff(){
   try{
     if(!/[?&]support=1/.test(location.search)) return;
+    // Tarayıcı yeni sekmeye açan sekmenin sessionStorage'ını kopyalayabiliyor: bu sekmedeki
+    // yönetim paneli oturumu silinir (asıl yönetim sekmesi etkilenmez).
+    try{ sessionStorage.removeItem('platform_admin_session'); }catch(_){}
     const raw = localStorage.getItem('rys_support_handoff');
     localStorage.removeItem('rys_support_handoff');
     history.replaceState(null, '', location.pathname);

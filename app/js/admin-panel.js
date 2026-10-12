@@ -1537,5 +1537,5 @@ async function startSupportSession(restaurantId, name){
   const { data, error } = await sb.rpc('admin_start_support_session', { p_token: admin.session_token, p_restaurant_id: restaurantId });
   if(error){ alert(error.message); return; }
   try{ localStorage.setItem('rys_support_handoff', JSON.stringify({ at: Date.now(), s: data })); }catch(e){ alert('Tarayıcı depolaması kullanılamıyor.'); return; }
-  window.open('/app/?support=1', '_blank');
+  window.open('/app/?support=1', '_blank', 'noopener');
 }
