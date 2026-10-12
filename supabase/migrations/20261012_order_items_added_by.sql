@@ -58,3 +58,7 @@ revoke execute on function _order_items_set_added_by() from public, anon, authen
 -- stations.categories = istasyona bağlı menüler (sıralı). RPC: upsert_menu, delete_menu,
 -- set_menu_order, set_station_menus, set_product_menu; get_restaurant_config 'menus' ve ürünlerde menu_id döner.
 -- get_public_menu ürünlerde image döner (QR menüde fotoğraf). Mevcut veri menülere taşındı.
+
+-- Ürün açıklaması: products.description; set_product_description, list_product_media (settings_products);
+-- set_product_image yetkisi settings_products. Public menüler: description ve menu_sort döner;
+-- QR menü ve online sipariş başlıkları otomatik olarak menülerdir.

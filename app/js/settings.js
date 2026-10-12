@@ -645,17 +645,18 @@ function renderZonesTabWithSubtabs(el, session){
 function renderProductsTabWithSubtabs(el, session){
   const tabs = [
     canManage(session, 'settings_products') ? { id:'products', ic:'🍽️', label:'Ürünler' } : null,
+    canManage(session, 'settings_products') ? { id:'media', ic:'📷', label:'Fotoğraf & Açıklama' } : null,
     canManage(session, 'settings_ingredients') ? { id:'ingredients', ic:'🥕', label:'Hammaddeler' } : null,
   ].filter(Boolean);
   if(!tabs.length){ el.innerHTML = ''; return; }
   if(!tabs.some(t => t.id === APP.productsSubTab)) APP.productsSubTab = tabs[0].id;
-  if(tabs.length === 1){ (APP.productsSubTab === 'ingredients' ? renderIngredientsSettings : renderProductsSettings)(el, session); return; }
+  const drawFn = APP.productsSubTab === 'ingredients' ? renderIngredientsSettings : APP.productsSubTab === 'media' ? renderProductMedia : renderProductsSettings;
+  if(tabs.length === 1){ drawFn(el, session); return; }
   el.innerHTML = `<div class="box sub-tabs-box" style="max-width:none;">
       <div class="sub-tabs">${tabs.map(t => `<div role="tab" tabindex="0" class="sub-tab ${APP.productsSubTab===t.id?'active':''}" ${act('setProductsSubTab', t.id)}><span class="sub-tab-ic">${t.ic}</span>${t.label}</div>`).join('')}</div>
       <div id="productsSubContent" class="sub-tabs-content"></div>
     </div>`;
-  const box = document.getElementById('productsSubContent');
-  (APP.productsSubTab === 'ingredients' ? renderIngredientsSettings : renderProductsSettings)(box, session);
+  drawFn(document.getElementById('productsSubContent'), session);
 }
 function setProductsSubTab(t){
   if(t !== APP.productsSubTab) pushScreen();
@@ -1801,7 +1802,8 @@ async function renderIntegrationsSettings(el, session){
       <input type="checkbox" id="int_online_ordering_enabled" ${APP.config.online_ordering&&APP.config.online_ordering.enabled?'checked':''} style="width:auto;margin:0;" ${actOn('change','saveOnlineOrderingSettings',[])}> Aktif
     </label>
     ${APP.config.online_ordering && APP.config.online_ordering.enabled ? onlineOrderingLinkHtml() : ''}
-    <button type="button" class="ghost-btn" style="max-width:280px;margin-top:12px;" ${act('openOnlineMenuEditor')}>🗂️ Online Menüyü Düzenle (başlıklar ve fotoğraflar)</button>
+    <button type="button" class="ghost-btn" style="max-width:320px;margin-top:12px;" ${act('goProductMedia')}>📷 Ürün Fotoğrafları & Açıklamaları</button>
+    <p class="muted" style="text-align:left;font-size:12px;margin-top:6px;">Sayfadaki başlıklar otomatik olarak menülerinizdir (Ayarlar → İstasyonlar → Menüler).</p>
   </div>`;
   // Paketinizde/eklentilerinizde olmayan bölümler kilitli gösterilir
   // (sunucu da ilgili RPC'lerde PAKET_OZELLIK_YOK ile reddediyor).
@@ -1929,6 +1931,7 @@ async function submitAddonTransfer(btn, addonId){
    başlıklar (örn. "Fırın") ve içlerine atanan ürünler. Ürünün mutfak
    istasyonu/fişi değişmez; başlık yalnızca müşteriye görünen gruplamadır.
    Ürün fotoğrafları da burada yüklenir (tarayıcıda küçültülüp kaydedilir). ---- */
+function goProductMedia(){ APP.settingsTab = 'products'; APP.productsSubTab = 'media'; renderSettingsView(document.getElementById('main'), getSession()); }
 async function openOnlineMenuEditor(){
   const session = getSession();
   const { data, error } = await withLoadingOverlay(sb.rpc('get_online_menu_admin', { p_token: session.session_token }));
@@ -2061,6 +2064,43 @@ function resizeImageToDataUrl(file, maxSide){
     img.src = url;
   });
 }
+/* Fotoğraf & Açıklama: QR menü ve online sipariş sayfasında ürünün fotoğrafı ve kısa açıklaması.
+   Sayfalardaki başlıklar otomatik olarak menülerdir (Ayarlar → İstasyonlar → Menüler). */
+async function renderProductMedia(el, session){
+  el.innerHTML = '<div class="box" style="max-width:none;"><p class="muted">Yükleniyor…</p></div>';
+  const { data, error } = await sb.rpc('list_product_media', { p_token: session.session_token });
+  if(error){ el.innerHTML = '<div class="box"><p class="muted">Yüklenemedi: ' + escapeHtml(error.message) + '</p></div>'; return; }
+  APP.productMedia = data || [];
+  const groups = []; const map = {};
+  APP.productMedia.forEach(p => { const k = p.menu || 'Menüsüz'; if(!map[k]){ map[k] = { name: k, items: [] }; groups.push(map[k]); } map[k].items.push(p); });
+  el.innerHTML = `<div class="box" style="max-width:none;text-align:left;">
+    <h2 style="margin:0 0 6px;">📷 Fotoğraf & Açıklama</h2>
+    <p class="muted" style="margin:0 0 14px;font-size:13px;">Masalardaki QR menüde ve online sipariş sayfasında görünür. Sayfalardaki başlıklar otomatik olarak <b>menülerinizdir</b>; burada yalnızca fotoğraf ve açıklama girersiniz. Açıklama kutusundan çıkınca kaydedilir.</p>
+    ${groups.map(g => `<h3 style="margin:16px 0 8px;font-size:13px;color:var(--accent);text-transform:uppercase;letter-spacing:.03em;">${escapeHtml(g.name)} <span class="muted" style="font-weight:400;">(${g.items.length})</span></h3>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:10px;">${g.items.map(p => `
+        <div style="display:flex;gap:12px;background:var(--panel2);border:1px solid var(--border);border-radius:12px;padding:10px;">
+          <div style="flex-shrink:0;display:flex;flex-direction:column;gap:6px;align-items:center;">
+            ${p.image ? `<img src="${p.image}" alt="" style="width:84px;height:84px;border-radius:10px;object-fit:cover;">` : '<div style="width:84px;height:84px;border-radius:10px;background:var(--panel);display:flex;align-items:center;justify-content:center;font-size:26px;">📷</div>'}
+            <label class="sbtn" style="width:84px;margin:0;cursor:pointer;text-align:center;font-size:12px;padding:4px 0;">${p.image ? 'Değiştir' : 'Fotoğraf'}<input type="file" accept="image/*" style="display:none;" ${actOn('change','uploadProductImage',[p.id, '$this'])}></label>
+            ${p.image ? `<button type="button" class="sbtn" style="width:84px;margin:0;font-size:12px;padding:4px 0;color:var(--red);" ${act('removeProductImage', p.id)}>Kaldır</button>` : ''}
+          </div>
+          <div style="flex:1;min-width:0;">
+            <div style="font-weight:700;overflow-wrap:anywhere;">${escapeHtml(p.name)}</div>
+            <div class="muted" style="font-size:12px;margin-bottom:6px;">${money(p.price)}</div>
+            <textarea rows="3" maxlength="500" placeholder="Açıklama (örn. közlenmiş biber ve domatesle)" style="width:100%;margin:0;font-size:13px;resize:vertical;" ${actOn('change','saveProductDescription',[p.id, '$value'])}>${escapeHtml(p.description || '')}</textarea>
+          </div>
+        </div>`).join('')}</div>`).join('') || '<p class="muted">Henüz ürün yok.</p>'}
+  </div>`;
+}
+async function saveProductDescription(pid, text){
+  const { error } = await sb.rpc('set_product_description', { p_token: getSession().session_token, p_product_id: pid, p_text: text });
+  if(error){ alert(error.message); return; }
+  showToast('Açıklama kaydedildi ✓');
+}
+function refreshMediaViews(){
+  if(document.getElementById('onlineMenuBg')) drawOnlineMenuEditor();
+  else if(APP.settingsTab === 'products' && APP.productsSubTab === 'media'){ const box = document.getElementById('productsSubContent') || document.getElementById('settingsContent'); if(box) renderProductMedia(box, getSession()); }
+}
 async function uploadProductImage(productId, input){
   const file = input.files && input.files[0]; if(!file) return;
   let dataUrl;
@@ -2068,17 +2108,15 @@ async function uploadProductImage(productId, input){
   const session = getSession();
   const { error } = await withLoadingOverlay(sb.rpc('set_product_image', { p_token: session.session_token, p_product_id: productId, p_data: dataUrl }));
   if(error){ alert(error.message); return; }
-  const p = APP.onlineMenu.products.find(x => x.id===productId); if(p) p.image = dataUrl;
   showToast('Fotoğraf kaydedildi ✓');
-  drawOnlineMenuEditor();
+  refreshMediaViews();
 }
 async function removeProductImage(productId){
   if(!confirm('Fotoğraf kaldırılsın mı?')) return;
   const session = getSession();
   const { error } = await sb.rpc('set_product_image', { p_token: session.session_token, p_product_id: productId, p_data: null });
   if(error){ alert(error.message); return; }
-  const p = APP.onlineMenu.products.find(x => x.id===productId); if(p) p.image = null;
-  drawOnlineMenuEditor();
+  refreshMediaViews();
 }
 function lockedFeatureHtml(){
   return `<p class="muted" style="margin:0;">🔒 Bu özellik paketinizde yok. Eklenti olarak eklemek ya da paketinizi yükseltmek için bizimle iletişime geçin.</p>`;
