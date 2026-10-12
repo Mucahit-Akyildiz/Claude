@@ -18,11 +18,11 @@ const LANGS = [
   { code:'ru', label:'RU' },
 ];
 const I18N = {
-  tr: { invalidTitle:'Geçersiz Bağlantı', invalidMsg:'Bu sayfaya masadaki QR kodu okutarak ulaşmalısınız.', errorTitle:'Menü Yüklenemedi', errorMsg:'Bir hata oluştu, lütfen personelden yardım isteyin.', emptyMenu:'Şu anda menüde satışa açık ürün yok.', other:'Diğer', sendCart:'Sepeti Gönder →', items:'ürün', checkoutTitle:'Siparişi Onayla', total:'Toplam', namePlaceholder:'Adınız (opsiyonel)', sendRequest:'İsteği Gönder', sending:'Gönderiliyor...', back:'Geri Dön', successTitle:'İsteğiniz Alındı', successMsg:'Siparişiniz personelimize iletildi, onaylandığında hazırlanmaya başlanacak. Afiyet olsun!', privacyNotice:'Adınızı girerseniz, siparişinizi iletmek amacıyla <a href="/gizlilik/" target="_blank" rel="noopener">Gizlilik Politikamız</a> kapsamında işlenir.' },
-  en: { invalidTitle:'Invalid Link', invalidMsg:'Please scan the QR code on your table to reach this page.', errorTitle:'Menu Could Not Load', errorMsg:'Something went wrong, please ask a staff member for help.', emptyMenu:'There are no items available right now.', other:'Other', sendCart:'Send Cart →', items:'items', checkoutTitle:'Confirm Order', total:'Total', namePlaceholder:'Your name (optional)', sendRequest:'Send Request', sending:'Sending...', back:'Go Back', successTitle:'Request Received', successMsg:'Your order has been sent to our staff and will be prepared once approved. Enjoy your meal!', privacyNotice:'If you enter your name, it will be processed to deliver your order under our <a href="/gizlilik/" target="_blank" rel="noopener">Privacy Policy</a>.' },
-  ar: { invalidTitle:'رابط غير صالح', invalidMsg:'يرجى مسح رمز QR الموجود على طاولتك للوصول إلى هذه الصفحة.', errorTitle:'تعذر تحميل القائمة', errorMsg:'حدث خطأ ما، يرجى طلب المساعدة من أحد الموظفين.', emptyMenu:'لا توجد عناصر متاحة حاليًا.', other:'أخرى', sendCart:'إرسال السلة ←', items:'عناصر', checkoutTitle:'تأكيد الطلب', total:'المجموع', namePlaceholder:'اسمك (اختياري)', sendRequest:'إرسال الطلب', sending:'جارٍ الإرسال...', back:'رجوع', successTitle:'تم استلام طلبك', successMsg:'تم إرسال طلبك إلى فريقنا وسيتم تحضيره بعد الموافقة. بالهناء والشفاء!', privacyNotice:'إذا أدخلت اسمك، فستتم معالجته لتوصيل طلبك بموجب <a href="/gizlilik/" target="_blank" rel="noopener">سياسة الخصوصية</a> الخاصة بنا.' },
-  de: { invalidTitle:'Ungültiger Link', invalidMsg:'Bitte scannen Sie den QR-Code auf Ihrem Tisch, um diese Seite zu erreichen.', errorTitle:'Menü konnte nicht geladen werden', errorMsg:'Etwas ist schiefgelaufen, bitte fragen Sie das Personal um Hilfe.', emptyMenu:'Derzeit sind keine Artikel verfügbar.', other:'Sonstiges', sendCart:'Warenkorb senden →', items:'Artikel', checkoutTitle:'Bestellung bestätigen', total:'Gesamt', namePlaceholder:'Ihr Name (optional)', sendRequest:'Anfrage senden', sending:'Wird gesendet...', back:'Zurück', successTitle:'Anfrage erhalten', successMsg:'Ihre Bestellung wurde an unser Personal gesendet und wird nach Bestätigung zubereitet. Guten Appetit!', privacyNotice:'Wenn Sie Ihren Namen eingeben, wird er zur Zustellung Ihrer Bestellung gemäß unserer <a href="/gizlilik/" target="_blank" rel="noopener">Datenschutzrichtlinie</a> verarbeitet.' },
-  ru: { invalidTitle:'Недействительная ссылка', invalidMsg:'Пожалуйста, отсканируйте QR-код на вашем столике, чтобы попасть на эту страницу.', errorTitle:'Не удалось загрузить меню', errorMsg:'Что-то пошло не так, обратитесь за помощью к персоналу.', emptyMenu:'Сейчас нет доступных позиций.', other:'Другое', sendCart:'Отправить заказ →', items:'позиций', checkoutTitle:'Подтвердить заказ', total:'Итого', namePlaceholder:'Ваше имя (необязательно)', sendRequest:'Отправить запрос', sending:'Отправка...', back:'Назад', successTitle:'Запрос получен', successMsg:'Ваш заказ передан персоналу и будет готовиться после подтверждения. Приятного аппетита!', privacyNotice:'Если вы укажете своё имя, оно будет обработано для доставки заказа согласно нашей <a href="/gizlilik/" target="_blank" rel="noopener">Политике конфиденциальности</a>.' },
+  tr: { invalidTitle:'Geçersiz Bağlantı', invalidMsg:'Bu sayfaya masadaki QR kodu okutarak ulaşmalısınız.', errorTitle:'Menü Yüklenemedi', errorMsg:'Bir hata oluştu, lütfen personelden yardım isteyin.', emptyMenu:'Şu anda menüde satışa açık ürün yok.', other:'Diğer', all:'Tümü', sendCart:'Sepeti Gönder →', items:'ürün', checkoutTitle:'Siparişi Onayla', total:'Toplam', namePlaceholder:'Adınız (opsiyonel)', sendRequest:'İsteği Gönder', sending:'Gönderiliyor...', back:'Geri Dön', successTitle:'İsteğiniz Alındı', successMsg:'Siparişiniz personelimize iletildi, onaylandığında hazırlanmaya başlanacak. Afiyet olsun!', privacyNotice:'Adınızı girerseniz, siparişinizi iletmek amacıyla <a href="/gizlilik/" target="_blank" rel="noopener">Gizlilik Politikamız</a> kapsamında işlenir.' },
+  en: { invalidTitle:'Invalid Link', invalidMsg:'Please scan the QR code on your table to reach this page.', errorTitle:'Menu Could Not Load', errorMsg:'Something went wrong, please ask a staff member for help.', emptyMenu:'There are no items available right now.', other:'Other', all:'All', sendCart:'Send Cart →', items:'items', checkoutTitle:'Confirm Order', total:'Total', namePlaceholder:'Your name (optional)', sendRequest:'Send Request', sending:'Sending...', back:'Go Back', successTitle:'Request Received', successMsg:'Your order has been sent to our staff and will be prepared once approved. Enjoy your meal!', privacyNotice:'If you enter your name, it will be processed to deliver your order under our <a href="/gizlilik/" target="_blank" rel="noopener">Privacy Policy</a>.' },
+  ar: { invalidTitle:'رابط غير صالح', invalidMsg:'يرجى مسح رمز QR الموجود على طاولتك للوصول إلى هذه الصفحة.', errorTitle:'تعذر تحميل القائمة', errorMsg:'حدث خطأ ما، يرجى طلب المساعدة من أحد الموظفين.', emptyMenu:'لا توجد عناصر متاحة حاليًا.', other:'أخرى', all:'الكل', sendCart:'إرسال السلة ←', items:'عناصر', checkoutTitle:'تأكيد الطلب', total:'المجموع', namePlaceholder:'اسمك (اختياري)', sendRequest:'إرسال الطلب', sending:'جارٍ الإرسال...', back:'رجوع', successTitle:'تم استلام طلبك', successMsg:'تم إرسال طلبك إلى فريقنا وسيتم تحضيره بعد الموافقة. بالهناء والشفاء!', privacyNotice:'إذا أدخلت اسمك، فستتم معالجته لتوصيل طلبك بموجب <a href="/gizlilik/" target="_blank" rel="noopener">سياسة الخصوصية</a> الخاصة بنا.' },
+  de: { invalidTitle:'Ungültiger Link', invalidMsg:'Bitte scannen Sie den QR-Code auf Ihrem Tisch, um diese Seite zu erreichen.', errorTitle:'Menü konnte nicht geladen werden', errorMsg:'Etwas ist schiefgelaufen, bitte fragen Sie das Personal um Hilfe.', emptyMenu:'Derzeit sind keine Artikel verfügbar.', other:'Sonstiges', all:'Alle', sendCart:'Warenkorb senden →', items:'Artikel', checkoutTitle:'Bestellung bestätigen', total:'Gesamt', namePlaceholder:'Ihr Name (optional)', sendRequest:'Anfrage senden', sending:'Wird gesendet...', back:'Zurück', successTitle:'Anfrage erhalten', successMsg:'Ihre Bestellung wurde an unser Personal gesendet und wird nach Bestätigung zubereitet. Guten Appetit!', privacyNotice:'Wenn Sie Ihren Namen eingeben, wird er zur Zustellung Ihrer Bestellung gemäß unserer <a href="/gizlilik/" target="_blank" rel="noopener">Datenschutzrichtlinie</a> verarbeitet.' },
+  ru: { invalidTitle:'Недействительная ссылка', invalidMsg:'Пожалуйста, отсканируйте QR-код на вашем столике, чтобы попасть на эту страницу.', errorTitle:'Не удалось загрузить меню', errorMsg:'Что-то пошло не так, обратитесь за помощью к персоналу.', emptyMenu:'Сейчас нет доступных позиций.', other:'Другое', all:'Все', sendCart:'Отправить заказ →', items:'позиций', checkoutTitle:'Подтвердить заказ', total:'Итого', namePlaceholder:'Ваше имя (необязательно)', sendRequest:'Отправить запрос', sending:'Отправка...', back:'Назад', successTitle:'Запрос получен', successMsg:'Ваш заказ передан персоналу и будет готовиться после подтверждения. Приятного аппетита!', privacyNotice:'Если вы укажете своё имя, оно будет обработано для доставки заказа согласно нашей <a href="/gizlilik/" target="_blank" rel="noopener">Политике конфиденциальности</a>.' },
 };
 function getLang(){
   try {
@@ -99,6 +99,21 @@ function stateBoxHtml(icon, title, msg){
     <div class="u-minh center-wrap"><div class="state-box"><div class="u-big-ic">${icon}</div><h2>${escapeHtml(title)}</h2><p>${escapeHtml(msg)}</p></div></div>`;
 }
 
+/* Alt menüler (istasyonun içindeki Çorbalar, Izgaralar…): seçili sekmenin ürünleri alt menü
+   şeridiyle filtrelenir; "Tümü"nde alt menü başlıkları altında gruplu listelenir. */
+function catGroups(items){
+  const map = {}; const order = [];
+  items.forEach(p => { const k = p.category || ''; if(!map[k]){ map[k] = { name: k, pos: p.cat_pos == null ? 9999 : p.cat_pos, items: [] }; order.push(map[k]); } map[k].items.push(p); });
+  return order.sort((a, b) => (a.name ? 0 : 1) - (b.name ? 0 : 1) || a.pos - b.pos);
+}
+function selectCat(c){ STATE.cat = c; renderMenu(); window.scrollTo(0, 0); }
+function catBarHtml(groups){
+  const named = groups.filter(g => g.name);
+  if(!named.length) return '';
+  const cur = STATE.cat && named.some(g => g.name === STATE.cat) ? STATE.cat : '';
+  return `<div class="cat-bar">${[['', t('all')], ...named.map(g => [g.name, g.name])].map(([v, l]) => `<button type="button" class="${cur===v?'active':''}" ${act('selectCat', v)}>${escapeHtml(l)}</button>`).join('')}</div>`;
+}
+function selectSection(i){ STATE.sec = i; STATE.cat = ''; renderMenu(); window.scrollTo(0, 0); }
 function renderMenu(){
   // İşletmede "QR Menü ile Müşteri Siparişi" eklentisi yoksa menü sadece
   // görüntülenir; sepet/sipariş arayüzü gösterilmez.
@@ -116,17 +131,25 @@ function renderMenu(){
     if(!groups[key]){ groups[key] = []; order.push(key); }
     groups[key].push(p);
   });
-  const body = order.map(key => `
-    <div class="station-title">${escapeHtml(key)}</div>
-    ${groups[key].map(p => `
+  // İstasyonlar sekme olarak; seçilen istasyonun ürünleri alt menülere göre.
+  if(STATE.sec == null || STATE.sec >= order.length) STATE.sec = 0;
+  const tabs = order.length > 1 ? `<nav class="sec-tabs"><div class="sec-tabs-in">${order.map((k, i) => `<button type="button" class="${i===STATE.sec?'active':''}" ${act('selectSection', i)}>${escapeHtml(k)}</button>`).join('')}</div></nav>` : '';
+  const shownKeys = order.length > 1 ? [order[STATE.sec]] : order;
+  const cardHtml = (list) => list.map(p => `
       <div class="product-card ${p.max_qty===0 && !STATE.cart[p.id]?'sold-out':''}">
         <div class="product-name">${escapeHtml(productName(p))}<div class="product-price">${money(p.price)}${p.max_qty!=null && p.max_qty>0 && p.max_qty<=5 ? ` · <span class="stock-left">${escapeHtml(stockTxt('left', p.max_qty))}</span>` : ''}</div></div>
         ${p.max_qty===0 && !STATE.cart[p.id] ? `<span class="sold-badge">${escapeHtml(stockTxt('sold'))}</span>` : canOrder ? `<button class="qty-btn" ${act('stepCart', p.id, -1)}>-</button>
         <span class="qty-val" id="qty_${p.id}">${STATE.cart[p.id]||0}</span>
         <button class="qty-btn" ${act('stepCart', p.id, 1)}>+</button>` : ''}
-      </div>`).join('')}
-  `).join('');
-  renderState(headerHtml() + `<main>${body}</main>
+      </div>`).join('');
+  const body = shownKeys.map(key => {
+    const cg = catGroups(groups[key]);
+    const cur = STATE.cat && cg.some(g => g.name === STATE.cat) ? STATE.cat : '';
+    const list = cur ? cg.filter(g => g.name === cur) : cg;
+    const multi = cg.some(g => g.name);
+    return `<div class="station-title">${escapeHtml(key)}</div>${catBarHtml(cg)}` + list.map(g => `${multi ? `<div class="cat-title">${escapeHtml(g.name || t('other'))}</div>` : ''}${cardHtml(g.items)}`).join('');
+  }).join('');
+  renderState(headerHtml() + tabs + `<main>${body}</main>
     ${!canOrder ? '' : `<div class="cartbar" id="cartbar">
       <div class="cartbar-row">
         <span class="cartbar-total" id="cartTotal">${money(0)}</span>

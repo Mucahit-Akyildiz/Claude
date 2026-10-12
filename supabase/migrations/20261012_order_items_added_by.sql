@@ -49,3 +49,6 @@ revoke execute on function _order_items_set_added_by() from public, anon, authen
 -- Otomatik müşteri kaydı: _auto_customer(restaurant, name, phone, email);
 -- orders tetikleyicisi (müşteri adı/telefonu girilince kart oluşur/güncellenir),
 -- invoices tetikleyicisi (fiş e-postayla gönderilince müşterinin boş e-postası doldurulur).
+
+-- QR menü / online sipariş: get_public_menu ve get_public_order_menu ürünlerde category ve
+-- cat_pos (istasyondaki alt menü sırası) döner. _auto_customer: en az 7 haneli numaralar.
