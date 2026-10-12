@@ -226,6 +226,10 @@ async function getSharedMic(constraints){
   const key = JSON.stringify(constraints || true);
   if(sharedMicLive() && (key === SHARED_MIC_KEY || !constraints || !constraints.deviceId)){ touchSharedMic(); return SHARED_MIC; }
   releaseSharedMic();
+  // iPhone: ses oturumu yalnızca 'çalma' modundaysa (telsiz sessiz modda da çalsın diye 'playback')
+  // mikrofon "AudioSession category is not compatible with audio capture" (InvalidStateError) ile
+  // açılmaz; kayıt için 'play-and-record' moduna geçilir.
+  try{ if(navigator.audioSession && navigator.audioSession.type !== 'play-and-record') navigator.audioSession.type = 'play-and-record'; }catch(e){}
   SHARED_MIC = await navigator.mediaDevices.getUserMedia({ audio: constraints || true });
   SHARED_MIC_KEY = key;
   touchSharedMic();
@@ -233,4 +237,6 @@ async function getSharedMic(constraints){
 }
 function adoptSharedMic(stream){ if(!sharedMicLive() && stream && stream.getAudioTracks().length){ SHARED_MIC = new MediaStream(stream.getAudioTracks()); SHARED_MIC_KEY = 'true'; touchSharedMic(); return true; } return false; }
 function touchSharedMic(){ clearTimeout(SHARED_MIC_TIMER); SHARED_MIC_TIMER = setTimeout(() => { if(typeof RADIO !== 'undefined' && (RADIO.channel || RADIO.talking)) return touchSharedMic(); if(typeof CHAT_VOICE !== 'undefined' && CHAT_VOICE) return touchSharedMic(); releaseSharedMic(); }, 10 * 60 * 1000); }
-function releaseSharedMic(){ clearTimeout(SHARED_MIC_TIMER); if(SHARED_MIC){ SHARED_MIC.getTracks().forEach(t => t.stop()); } SHARED_MIC = null; SHARED_MIC_KEY = ''; if(typeof RADIO !== 'undefined' && RADIO.mic && RADIO.mic.getAudioTracks().every(t => t.readyState !== 'live')) RADIO.mic = null; }
+function releaseSharedMic(){ clearTimeout(SHARED_MIC_TIMER);
+  // Mikrofon bırakılınca sessiz modda da çalabilmek için tekrar 'çalma' moduna dönülür.
+  if(SHARED_MIC){ SHARED_MIC.getTracks().forEach(t => t.stop()); try{ if(navigator.audioSession && navigator.audioSession.type === 'play-and-record') navigator.audioSession.type = 'playback'; }catch(e){} } SHARED_MIC = null; SHARED_MIC_KEY = ''; if(typeof RADIO !== 'undefined' && RADIO.mic && RADIO.mic.getAudioTracks().every(t => t.readyState !== 'live')) RADIO.mic = null; }
