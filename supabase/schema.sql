@@ -710,6 +710,32 @@ $$;
 
 
 --
+-- Name: _items_ready_push_trg(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public._items_ready_push_trg() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+declare v_url text; v_secret text; r record;
+begin
+  select value into v_url from _psv where key = 'push_dispatch_url';
+  select value into v_secret from _psv where key = 'push_dispatch_secret';
+  if coalesce(v_url,'') = '' then return null; end if;
+  -- "Hazır" işaretlenen ürünler sipariş bazında tek istekte bildirilir (Hepsi Hazır = tek bildirim).
+  for r in select n.order_id, array_agg(n.id) ids from nt n join ot o on o.id = n.id
+           where n.status = 'ready' and o.status is distinct from 'ready' and not n.paid group by n.order_id loop
+    begin
+      perform net.http_post(url := v_url, headers := jsonb_build_object('Content-Type','application/json','x-push-secret', coalesce(v_secret,'')),
+        body := jsonb_build_object('mode','items_ready','order_id', r.order_id, 'item_ids', to_jsonb(r.ids)));
+    exception when others then null;
+    end;
+  end loop;
+  return null;
+end $$;
+
+
+--
 -- Name: _mail_layout(text, text); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -12484,6 +12510,13 @@ CREATE TRIGGER trg_bump_dv AFTER INSERT OR DELETE OR UPDATE ON public.zones FOR 
 --
 
 CREATE TRIGGER trg_invoices_customer_email AFTER INSERT ON public.invoices FOR EACH ROW EXECUTE FUNCTION _invoices_customer_email_trg();
+
+
+--
+-- Name: order_items trg_items_ready_push; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_items_ready_push AFTER UPDATE ON public.order_items REFERENCING OLD TABLE AS ot NEW TABLE AS nt FOR EACH STATEMENT EXECUTE FUNCTION _items_ready_push_trg();
 
 
 --
