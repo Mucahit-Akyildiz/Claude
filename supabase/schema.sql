@@ -1800,6 +1800,23 @@ $$;
 
 
 --
+-- Name: admin_audit_log(uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.admin_audit_log(p_token uuid, p_restaurant_id uuid) RETURNS json
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+begin
+  perform _platform_admin_check(p_token);
+  return (select coalesce(json_agg(x order by x.created_at desc), '[]'::json) from (
+    select a.id, a.created_at, a.entity, a.entity_id, a.action, a.label, a.changes, a.is_support, au.username user_name
+    from audit_log a left join app_users au on au.id = a.user_id
+    where a.restaurant_id = p_restaurant_id order by a.created_at desc limit 300) x);
+end $$;
+
+
+--
 -- Name: admin_create_company(uuid, text, text, text, text, text, text); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -4630,7 +4647,7 @@ begin
       ),
       'loyalty', (select json_build_object('enabled', loyalty_enabled, 'spend_per_point', loyalty_spend_per_point, 'point_value', loyalty_point_value, 'birthday_discount_percent', birthday_discount_percent) from restaurants where id = s.restaurant_id),
       'tip_pool', (select json_build_object('enabled', tip_pool_enabled, 'mode', tip_pool_mode) from restaurants where id = s.restaurant_id),
-      'google_review_url', (select google_review_url from restaurants where id = s.restaurant_id),
+      'google_review_url', (select case when 'google_reviews' = any(_restaurant_features(s.restaurant_id)) then google_review_url end from restaurants where id = s.restaurant_id),
       'online_ordering', (select json_build_object('enabled', online_ordering_enabled, 'code', code) from restaurants where id = s.restaurant_id),
       'ticket_design', (select ticket_design from restaurants where id = s.restaurant_id),
       'company', (
@@ -8274,6 +8291,7 @@ begin
   s := _session_check(p_token);
   select exists(select 1 from app_users au join roles rl on rl.id = any(au.role_ids) where au.id = s.user_id and (rl.is_system or 'settings_integrations' = any(rl.permissions))) into v_is_manager;
   if not v_is_manager then raise exception 'Bu işlem için yetkiniz yok'; end if;
+  if not ('google_reviews' = any(_restaurant_features(s.restaurant_id))) then raise exception 'PAKET_OZELLIK_YOK'; end if;
   if p_url is not null and p_url <> '' and p_url !~ '^https?://' then
     raise exception 'Geçerli bir link girin (http:// veya https:// ile başlamalı)';
   end if;
