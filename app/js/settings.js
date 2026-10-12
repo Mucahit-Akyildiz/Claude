@@ -10,17 +10,16 @@ const SETTINGS_TABS = [
   { tab:'flags', perm:'settings_flags', label:'Sipariş Etiketleri' },
   { tab:'users', perm:'settings_users', label:'Kullanıcılar' },
   { tab:'shifts', perm:'shifts', label:'Vardiyalar' },
-  { tab:'billing', perm:'settings_billing', label:'💳 Abonelik' },
   { tab:'roles', perm:'settings_roles', label:'Roller' },
   { tab:'integrations', perm:'settings_integrations', label:'Entegrasyonlar' },
-  { tab:'giftcards', perm:'giftcards', label:'🎁 Hediye Kartları' },
+  { tab:'billing', label:'💳 Abonelik & Hediye Kartları' }, // alt sekmeler
   { tab:'security', label:'🛡️ Güvenlik' }, // alt sekmeler: Destek Erişimi, Değişiklik Kaydı, Veri Sıfırlama
 ];
 function settingsTabVisible(t, session){
   if(t.feature && !hasFeature(t.feature)) return false;
   if(t.tab==='products') return canManage(session, 'settings_products') || canManage(session, 'settings_ingredients');
   if(t.tab==='security') return canManage(session, 'settings_support') || canManage(session, 'settings_audit') || canManage(session, 'settings_datareset');
-  if(t.tab==='giftcards') return canManage(session, 'giftcards') || hasPerm(session, 'payments');
+  if(t.tab==='billing') return canManage(session, 'settings_billing') || canManage(session, 'giftcards') || hasPerm(session, 'payments');
   return t.managerOnly ? !!session.isManager : canManage(session, t.perm);
 }
 async function renderSettingsView(main, session){
@@ -74,9 +73,8 @@ function renderSettingsContent(session){
   else if(APP.settingsTab==='flags') renderOrderFlagsSettings(el, session);
   else if(APP.settingsTab==='roles') renderRolesSettings(el, session);
   else if(APP.settingsTab==='integrations') renderIntegrationsSettings(el, session);
-  else if(APP.settingsTab==='giftcards') renderGiftCardsSettings(el, session);
   else if(APP.settingsTab==='shifts') renderShiftsSettings(el, session);
-  else if(APP.settingsTab==='billing') renderBillingSettings(el, session);
+  else if(APP.settingsTab==='billing') renderBillingTabWithSubtabs(el, session);
   else if(APP.settingsTab==='security') renderSecuritySettings(el, session);
   else renderUsersTabWithSubtabs(el, session);
 }
@@ -596,6 +594,29 @@ function setProductsSubTab(t){
   APP.productsSubTab = t;
   const el = document.getElementById('settingsContent');
   if(el) renderProductsTabWithSubtabs(el, getSession());
+}
+/* Abonelik & Hediye Kartları sekmesi: yetkiye göre iki alt sekme. */
+function billingBox(){ return document.getElementById('billingSubContent') || document.getElementById('settingsContent'); }
+function renderBillingTabWithSubtabs(el, session){
+  const tabs = [
+    canManage(session, 'settings_billing') ? { id:'billing', ic:'💳', label:'Abonelik' } : null,
+    (canManage(session, 'giftcards') || hasPerm(session, 'payments')) ? { id:'giftcards', ic:'🎁', label:'Hediye Kartları' } : null,
+  ].filter(Boolean);
+  if(!tabs.length){ el.innerHTML = ''; return; }
+  if(!tabs.some(t => t.id === APP.billingSubTab)) APP.billingSubTab = tabs[0].id;
+  const draw = (box) => APP.billingSubTab === 'giftcards' ? renderGiftCardsSettings(box, session) : renderBillingSettings(box, session);
+  if(tabs.length === 1){ draw(el); return; }
+  el.innerHTML = `<div class="box sub-tabs-box" style="max-width:none;">
+      <div class="sub-tabs">${tabs.map(t => `<div role="tab" tabindex="0" class="sub-tab ${APP.billingSubTab===t.id?'active':''}" ${act('setBillingSubTab', t.id)}><span class="sub-tab-ic">${t.ic}</span>${t.label}</div>`).join('')}</div>
+      <div id="billingSubContent" class="sub-tabs-content"></div>
+    </div>`;
+  draw(document.getElementById('billingSubContent'));
+}
+function setBillingSubTab(t){
+  if(t !== APP.billingSubTab) pushScreen();
+  APP.billingSubTab = t;
+  const el = document.getElementById('settingsContent');
+  if(el) renderBillingTabWithSubtabs(el, getSession());
 }
 function setZonesSubTab(t){
   if(t !== (APP.zonesSubTab||'zones')) pushScreen();
@@ -2006,7 +2027,7 @@ function billingCycleSelectorHtml(){
 }
 function setBillingCycle(cycle){
   APP.billingCycle = cycle;
-  renderBillingSettings(document.getElementById('settingsContent'), getSession());
+  renderBillingSettings(billingBox(), getSession());
 }
 /* Kredi kartı (iyzico) akışı gecici olarak kapali - "şirket" (vergi/ticari
    kayıt) süreci tamamlanana kadar tek ödeme yolu havale bildirimi (bkz.
@@ -2088,7 +2109,7 @@ async function saveBillingAddress(){
   Object.assign(APP.config.license, { billing_address: address, billing_city: city });
   APP.billingAddressEditing = false;
   showToast('Fatura adresi kaydedildi ✓');
-  renderBillingSettings(document.getElementById('settingsContent'), session);
+  renderBillingSettings(billingBox(), session);
 }
 function renderBillingIdentityBox(lic){
   const isSet = lic && lic.billing_identity_set;
@@ -2121,7 +2142,7 @@ async function saveBillingIdentity(){
   APP.config.license.billing_identity_set = true;
   APP.billingIdentityEditing = false;
   showToast('Kaydedildi ✓');
-  renderBillingSettings(document.getElementById('settingsContent'), session);
+  renderBillingSettings(billingBox(), session);
 }
 async function loadBankTransferStatus(session){
   const el = document.getElementById('bankTransferBox'); if(!el) return;
@@ -2298,7 +2319,7 @@ function toggleResetCustom(v){ document.getElementById('resetCustom').style.disp
 function openNewRoleCard(){ toggleRoleCard('new_role'); const el = document.getElementById('new_role_name'); if(el) el.focus(); }
 function setOnlineMenuTab(t){ APP.onlineMenuTab = t; drawOnlineMenuEditor(); }
 function filterOmsPickList(v){ const q = String(v).toLocaleLowerCase('tr'); document.querySelectorAll('#omsPickList label').forEach(l => { l.style.display = l.textContent.toLocaleLowerCase('tr').includes(q) ? 'flex' : 'none'; }); }
-function editBillingField(flag){ APP[flag] = true; renderBillingSettings(document.getElementById('settingsContent'), getSession()); }
+function editBillingField(flag){ APP[flag] = true; renderBillingSettings(billingBox(), getSession()); }
 
 /* ---- Destek erişimi ----
    İşletme yöneticisi Peyktan desteğine süreli izin verir; destek ekibi yalnızca izin süresince,
