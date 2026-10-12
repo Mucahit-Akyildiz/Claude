@@ -107,3 +107,7 @@
 .cat-title{font-size:12.5px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:var(--accent);margin:14px 2px 8px;}
 
 .product-desc{font-weight:400;font-size:12.5px;color:var(--muted);margin-top:3px;line-height:1.35;overflow-wrap:anywhere;}
+
+/* Menü sekmeleri: geniş ekranda alt satıra sarılır (hepsi görünür); telefonda yana kaydırılır */
+@media (min-width:640px){ .sec-tabs-in{flex-wrap:wrap;justify-content:center;overflow:visible;max-width:980px;} }
+@media (max-width:639px){ .sec-tabs-in{scrollbar-width:thin;-webkit-overflow-scrolling:touch;padding-bottom:8px;} .sec-tabs-in::-webkit-scrollbar{height:4px;} .sec-tabs-in::-webkit-scrollbar-thumb{background:var(--border);border-radius:4px;} }
