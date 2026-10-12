@@ -117,6 +117,10 @@ function reprintKitchenTicket(tableId){
    yazıcıya (atanmamışsa "Bu Ekranın Yazıcısı"na) ayrı ayrı gönderir. */
 async function printKitchenTicketGrouped(tableName, items, silent, dailyNumber){
   const groups = {};
+  // "Fişe gönderme" işaretli ürünler (Ayarlar → Ürünler → 🖨️ Fiş) yazdırılmaz.
+  const noPrint = new Set(((APP.config && APP.config.products) || []).filter(p => p.print_ticket === false).map(p => p.id));
+  items = (items || []).filter(it => !noPrint.has(it.product_id));
+  if(!items.length) return;
   items.forEach(it => {
     const key = it.station_id || '';
     if(!groups[key]) groups[key] = [];

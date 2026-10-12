@@ -865,12 +865,14 @@ function renderProductsSettings(el, session){
           </select></td>
           <td class="col-num"><input type="number" value="${p.price}" id="pr_price_${p.id}"></td>
           <td class="col-num"><input type="number" value="${p.cost}" id="pr_cost_${p.id}"></td>
+          <td class="col-name" style="min-width:120px;"><input value="${escapeAttr(p.category||'')}" id="pr_cat_${p.id}" list="catList_${p.station_id||'none'}" placeholder="—"></td>
           <td class="col-num" style="min-width:110px;">${vatSelectHtml('pr_vat_'+p.id, p.vat_rate, true)}</td>
           <td class="col-num">
             ${(p.recipe && p.recipe.length>0)
               ? `<span class="muted" style="font-size:12px;">Reçeteli (${p.available_qty==null?'?':p.available_qty} porsiyon)</span>`
               : `<input type="number" value="${p.stock==null?'':p.stock}" id="pr_stock_${p.id}" placeholder="Sınırsız">`}
           </td>
+          <td style="text-align:center;"><input type="checkbox" class="prod-print" id="pr_print_${p.id}" style="width:auto;margin:0;" title="İşaretliyse mutfak fişine yazdırılır" ${p.print_ticket===false?'':'checked'}></td>
           <td>${p.available===false
               ? '<span class="role-badge" style="color:var(--red);border-color:var(--red);">Kapalı</span>'
               : '<span class="role-badge" style="color:var(--green);border-color:var(--green);">Satışta</span>'}</td>
@@ -885,16 +887,19 @@ function renderProductsSettings(el, session){
       <h3 style="display:flex;align-items:center;gap:8px;font-size:14px;margin:0 0 10px;">${colorDot?`<span style="width:10px;height:10px;border-radius:50%;background:${colorDot};display:inline-block;flex-shrink:0;"></span>`:''}${escapeHtml(title)}<span class="muted" style="font-weight:400;">(${list.length})</span></h3>
       <div class="settings-table-wrap">
       <table class="settings-table">
-        <thead><tr><th style="width:36px;"><input type="checkbox" style="width:auto;margin:0;" title="Bu gruptakilerin tümünü seç" ${actOn('change','selectProdGroup',['$this'])}></th><th>Ürün Adı</th><th>İstasyon</th><th>Fiyat</th><th>Maliyet</th><th title="Fiyata dahil KDV oranı">KDV</th><th>Stok</th><th>Durum</th><th></th></tr></thead>
+        <thead><tr><th style="width:36px;"><input type="checkbox" style="width:auto;margin:0;" title="Bu gruptakilerin tümünü seç" ${actOn('change','selectProdGroup',['$this'])}></th><th>Ürün Adı</th><th>İstasyon</th><th>Fiyat</th><th>Maliyet</th><th title="İstasyon içindeki alt menü (Çorbalar, Izgaralar…)">Alt Menü</th><th title="Fiyata dahil KDV oranı">KDV</th><th>Stok</th><th title="Mutfak fişine yazdırılsın mı?">🖨️ Fiş</th><th>Durum</th><th></th></tr></thead>
         <tbody>${rowsFor(list)}</tbody>
       </table>
       </div>
     </div>`;
 
   const unassigned = products.filter(p => !stations.some(s => s.id===p.station_id));
+  // Alt menü önerileri: her istasyonda kullanılan alt menü adları.
+  const catLists = [...stations.map(s => s.id), 'none'].map(sid => `<datalist id="catList_${sid}">${[...new Set(products.filter(p => (p.station_id||'none') === sid && p.category).map(p => p.category))].map(c => `<option value="${escapeAttr(c)}">`).join('')}</datalist>`).join('');
 
   el.innerHTML = `<div class="box" style="max-width:none;">
-    <h2>Ürünler</h2>
+    <h2>Ürünler</h2>${catLists}
+    <p class="muted" style="text-align:left;margin:-6px 0 12px;font-size:13px;"><b>Alt Menü</b>: istasyon içinde ürünleri gruplar (ör. Mutfak → Çorbalar, Izgaralar); sipariş ekranında sekme olarak görünür. <b>🖨️ Fiş</b> işareti kaldırılan ürünler mutfak fişine yazdırılmaz (ekranda yine görünür).</p>
     <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 10px;">
       <label style="margin:0;font-weight:700;font-size:13.5px;">Varsayılan KDV oranı</label>
       <div style="width:130px;">${vatSelectHtml('defaultVatSel', APP.config.default_vat_rate ?? 10, false, `${actOn('change','saveDefaultVat',['$value'])} style="margin:0;"`)}</div>
@@ -963,7 +968,7 @@ function addNewProductRecipeItem(){
 function removeNewProductRecipeItem(idx){ NEW_PRODUCT_RECIPE_DRAFT.splice(idx,1); renderNewProductRecipeItems(); }
 /* Ürünler: değişen satırlar tek düğmeyle kaydedilir; satışa aç/kapat ve silme seçilen satırlara toplu uygulanır. */
 function markProdDirty(e){
-  if(!e.target || e.target.type==='checkbox') return;
+  if(!e.target || (e.target.type==='checkbox' && !e.target.classList.contains('prod-print'))) return;
   const tr = e.target.closest('tr[data-pid]'); if(!tr) return;
   tr.dataset.dirty = '1'; tr.style.boxShadow = 'inset 4px 0 0 var(--accent)';
   updateProdSelection();
@@ -1000,14 +1005,18 @@ async function saveAllProducts(){
     const name = document.getElementById('pr_name_'+id).value.trim();
     const vatEl = document.getElementById('pr_vat_'+id);
     const vat = vatEl && vatEl.value !== '' ? Number(vatEl.value) : null;
-    return { name, id, vat, vatChanged: (p.vat_rate ?? null) !== vat, payload: productPayload(p, { p_name: name, p_station_id: document.getElementById('pr_st_'+id).value,
+    const cat = (document.getElementById('pr_cat_'+id) || {}).value; const pr = (document.getElementById('pr_print_'+id) || {}).checked;
+    const optChanged = (cat != null && (cat.trim() || null) !== (p.category || null)) || (pr != null && pr !== (p.print_ticket !== false));
+    return { name, id, vat, cat: cat == null ? (p.category || null) : cat.trim(), pr: pr == null ? p.print_ticket !== false : pr, optChanged, vatChanged: (p.vat_rate ?? null) !== vat, payload: productPayload(p, { p_name: name, p_station_id: document.getElementById('pr_st_'+id).value,
       p_price: parseFloat(document.getElementById('pr_price_'+id).value)||0, p_cost: parseFloat(document.getElementById('pr_cost_'+id).value)||0, p_stock: stock }) };
   });
   if(!rows.length) return;
   const bad = rows.find(r => !r.name); if(bad){ alert('Ürün adı boş olamaz'); return; }
   const errors = await runProductBatch(rows, async (s, r) => {
     const res = await sb.rpc('upsert_product', Object.assign({ p_token: s.session_token }, r.payload));
-    if(res.error || !r.vatChanged) return res;
+    if(res.error) return res;
+    if(r.optChanged){ const o = await sb.rpc('set_product_options', { p_token: s.session_token, p_product_id: r.id, p_category: r.cat || null, p_print_ticket: r.pr }); if(o.error) return o; }
+    if(!r.vatChanged) return res;
     return sb.rpc('set_product_vat', { p_token: s.session_token, p_product_id: r.id, p_rate: r.vat });
   });
   if(errors.length) alert('Bazı ürünler kaydedilemedi:\n\n' + errors.join('\n')); else showToast(rows.length + ' ürün kaydedildi ✓');
