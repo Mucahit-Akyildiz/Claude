@@ -65,6 +65,12 @@ function renderHelpView(main, session){
   main.innerHTML = `
     <h1>❓ Yardım</h1>
     <p class="muted" style="text-align:left;margin:-4px 0 14px;">Peyktan'ı kullanırken aklınıza takılanlar. Aradığınızı bulamazsanız en alttan bize ulaşın.</p>
+    <details class="box" style="max-width:none;margin:0 0 14px;" open>
+      <summary style="cursor:pointer;font-weight:800;">🎬 Eğitim videosu · Peyktan nasıl kullanılır? (6 dk)</summary>
+      <video controls preload="none" playsinline poster="/assets/video/peyktan-egitim-poster.jpg" style="width:100%;max-width:880px;display:block;margin-top:12px;border-radius:12px;background:#0f1416;aspect-ratio:16/9;">
+        <source src="/assets/video/peyktan-egitim.mp4" type="video/mp4">
+      </video>
+    </details>
     <input id="helpSearch" class="list-search" placeholder="🔍 Yardımda ara… (ör. açık hesap, bildirim, reçete)" value="${escapeAttr(APP.helpSearch||'')}" ${actOn('input', 'setHelpSearch', ['$value'])} style="max-width:520px;margin:0 0 14px;">
     <div id="helpTopics"></div>
     <div class="box" style="max-width:none;">
