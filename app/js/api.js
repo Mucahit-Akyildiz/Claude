@@ -184,6 +184,8 @@ function getAdminSession(){
 function setAdminSession(s){ sessionStorage.setItem('platform_admin_session', JSON.stringify(s)); }
 function clearAdminSession(){ sessionStorage.removeItem('platform_admin_session'); }
 function isAdminMode(){
+  // Destek sekmesinde (Platform Yönetimi > "Destek olarak gir") işletmenin uygulaması gösterilir.
+  const st = getSession(); if(st && st.isSupport) return false;
   return new URLSearchParams(window.location.search).get('admin')==='1' || !!getAdminSession();
 }
 
