@@ -47,7 +47,7 @@ async function startVoiceCall(userId, name){
   CALL.inviteT = setInterval(invite, 3000);
   // Karşı tarafın uygulaması kapalıysa "sizi arıyor" bildirimi gider.
   sb.rpc('notify_call', { p_token: session.session_token, p_to: userId }).then(() => {}, () => {});
-  CALL.ringT = setTimeout(() => { if(CALL.state === 'calling'){ callSend('cancel'); callEnd('Cevap yok'); } }, 35000);
+  CALL.ringT = setTimeout(() => { if(CALL.state === 'calling'){ callSend('cancel'); callNotifyEnd(CALL.peer); callEnd('Cevap yok'); } }, 35000);
 }
 
 /* ---- Gelen sinyaller ---- */
@@ -62,6 +62,8 @@ async function callReceive(p){
       return;
     }
     Object.assign(CALL, { state: 'ringing', id: p.id, peer: p.from, peerName: p.fromName || 'Kişi', role: 'callee', pendingIce: [], muted: false });
+    nativeCallNotif('cancelCallNotification'); // uygulama açık: telefonun arama bildirimi kapanır, uygulama çalar
+    if(callTakeAutoAccept(p.from)){ callDrawUi(); acceptVoiceCall(); return; }
     callDrawUi(); callRing(true);
     CALL.ringT = setTimeout(() => { if(CALL.state === 'ringing') callEnd('Cevapsız arama'); }, 40000);
     return;
@@ -122,7 +124,7 @@ async function acceptVoiceCall(){
 }
 function declineVoiceCall(){ if(CALL.state === 'ringing'){ callSend('decline'); callEnd(); } }
 function hangupVoiceCall(){
-  if(CALL.state === 'calling') callSend('cancel');
+  if(CALL.state === 'calling'){ callSend('cancel'); callNotifyEnd(CALL.peer); }
   else if(CALL.state !== 'idle') callSend('end');
   callEnd();
 }
@@ -226,8 +228,10 @@ async function startGroupCall(conv, name){
   Object.assign(GCALL, { state: 'active', room: 'g' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7), group: conv, groupName: name || 'Grup', inviter: session.username, members, peers: {}, muted: false, startedAt: Date.now() });
   const invite = () => { if(GCALL.state === 'active') gcallSend('ginvite', { to: GCALL.members, groupName: GCALL.groupName }); };
   invite(); GCALL.inviteT = setInterval(invite, 3000);
-  setTimeout(() => clearInterval(GCALL.inviteT), 35000);
-  members.forEach(id => sb.rpc('notify_call', { p_token: session.session_token, p_to: id }).then(() => {}, () => {}));
+  // 35 sn sonra davet durur; katılmayanların telefonundaki çalan arama bildirimi susturulur.
+  const room = GCALL.room;
+  setTimeout(() => { clearInterval(GCALL.inviteT); if(GCALL.room === room) members.filter(id => !GCALL.peers[id]).forEach(callNotifyEnd); }, 35000);
+  members.forEach(id => sb.rpc('notify_call', { p_token: session.session_token, p_to: id, p_group_name: GCALL.groupName }).then(() => {}, () => {}));
   clearInterval(GCALL.timer); GCALL.timer = setInterval(gcallDrawUi, 1000);
   gcallDrawUi();
 }
@@ -263,6 +267,8 @@ async function gcallReceive(p){
     if(GCALL.room === p.room) return true;
     if(CALL.state !== 'idle' || GCALL.state !== 'idle') return true;
     Object.assign(GCALL, { state: 'ringing', room: p.room, group: p.group, groupName: p.groupName || 'Grup', inviter: p.fromName || '', members: p.to.concat([p.from]).filter(id => id !== session.user_id), peers: {}, muted: false });
+    nativeCallNotif('cancelCallNotification');
+    if(callTakeAutoAccept(p.from)){ gcallDrawUi(); acceptGroupCall(); return true; }
     gcallDrawUi(); callRing(true);
     GCALL.ringT = setTimeout(() => { if(GCALL.state === 'ringing') gcallReset('Cevapsız grup araması: ' + GCALL.groupName); }, 40000);
     return true;
@@ -347,3 +353,31 @@ function gcallDrawUi(){
     </div>`;
 }
 window.addEventListener('pagehide', () => { if(GCALL.state === 'active') gcallSend('gleave'); });
+
+/* ---- Android: telefon araması gibi gelen bildirim ile bağlantı ----
+   Uygulama kapalı/ekran kilitliyken arama, Android'de tam ekran çalan bir bildirim olarak gelir
+   (PeykMessagingService). "Kabul et" ile açılınca bekleyen kabul burada alınır; arayanın davet
+   tekrarı gelince arama kendiliğinden kabul edilir. Arayan vazgeçerse telefonun zili susturulur. */
+let CALL_AUTO_ACCEPT = null;
+function nativeCallPlugin(){ const C = window.Capacitor; return C && C.Plugins && C.Plugins.PeykRadio; }
+function nativeCallNotif(method){ const P = nativeCallPlugin(); if(P && P[method]) P[method]().catch(() => {}); }
+function callTakeAutoAccept(from){
+  const a = CALL_AUTO_ACCEPT;
+  if(!a || Date.now() > a.until || (a.from && a.from !== from)) return false;
+  CALL_AUTO_ACCEPT = null;
+  return true;
+}
+async function consumeNativePendingCall(){
+  const P = nativeCallPlugin(); if(!P || !P.consumePendingCall) return;
+  try{
+    const r = await P.consumePendingCall();
+    if(r && r.action === 'accept') CALL_AUTO_ACCEPT = { from: r.from || null, until: Date.now() + 25000 };
+    if(r && r.action){ callChannel(); }
+  }catch(e){}
+}
+function callNotifyEnd(userId){
+  const session = getSession(); if(!session || !userId) return;
+  sb.rpc('notify_call', { p_token: session.session_token, p_to: userId, p_end: true }).then(() => {}, () => {});
+}
+setTimeout(consumeNativePendingCall, 800);
+document.addEventListener('visibilitychange', () => { if(!document.hidden) consumeNativePendingCall(); });
