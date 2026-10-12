@@ -70,6 +70,7 @@ async function requestChatPermissions(){
   closeChatPermModal();
   const got = { microphone: false, camera: false };
   try{
+    try{ if(navigator.audioSession && navigator.audioSession.type !== 'play-and-record') navigator.audioSession.type = 'play-and-record'; }catch(_){}
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
     stream.getVideoTracks().forEach(t => t.stop());
     if(!adoptSharedMic(stream)) stream.getAudioTracks().forEach(t => t.stop());
