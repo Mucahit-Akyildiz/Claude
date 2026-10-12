@@ -128,6 +128,12 @@ function catBarHtml(groups){
   return `<div class="cat-bar">${[['', t('all')], ...named.map(g => [g.name, g.name])].map(([v, l]) => `<button type="button" class="${cur===v?'active':''}" ${act('selectCat', v)}>${escapeHtml(l)}</button>`).join('')}</div>`;
 }
 
+// Başlıklar otomatik olarak işletmenin menüleridir (menü sırası); menüsüz ürünler "Diğer"de.
+function menuSections(products){
+  const map = {}; const out = [];
+  products.forEach(p => { const k = p.category || ''; if(!map[k]){ map[k] = { name: k || t('other'), sort: k ? (p.menu_sort == null ? 9998 : p.menu_sort) : 9999, items: [] }; out.push(map[k]); } map[k].items.push(p); });
+  return out.sort((a, b) => a.sort - b.sort);
+}
 function renderMenu(){
   const m = STATE.menu;
   const products = m.products || [];
@@ -135,19 +141,7 @@ function renderMenu(){
     renderState(headerHtml() + '<main><p class="empty-msg">'+escapeHtml(t('emptyMenu'))+'</p></main>');
     return;
   }
-  // İşletme online menü başlıkları tanımladıysa (Ayarlar > Entegrasyonlar >
-  // Online Menü) yalnızca o başlıklar ve içlerindeki ürünler gösterilir;
-  // fiş yine ürünün kendi istasyonuna gider. Tanımlı değilse istasyonlara göre.
-  const byId = {}; products.forEach(p => byId[p.id] = p);
-  let sections = (m.sections || []).map(sec => ({ name: sec.name, items: (sec.product_ids||[]).map(id => byId[id]).filter(Boolean) })).filter(sec => sec.items.length);
-  if(!sections.length){
-    const groups = {}; sections = [];
-    products.forEach(p => {
-      const key = p.station_name || t('other');
-      if(!groups[key]){ groups[key] = { name: key, items: [] }; sections.push(groups[key]); }
-      groups[key].items.push(p);
-    });
-  }
+  const sections = menuSections(products);
   // Üstteki başlıklar sekme gibi çalışır: yalnızca seçilen başlığın ürünleri listelenir.
   if(STATE.sec == null || STATE.sec >= sections.length) STATE.sec = 0;
   const tabs = sections.length > 1 ? `<nav class="sec-tabs"><div class="sec-tabs-in">${sections.map((sec, i) => `<button type="button" class="${i===STATE.sec?'active':''}" ${act('selectSection', i)}>${escapeHtml(sec.name)}</button>`).join('')}</div></nav>` : '';
@@ -159,21 +153,14 @@ function renderMenu(){
         <div class="product-media">${p.image ? `<img class="product-img" src="${p.image}" alt="${escapeHtml(p.name)}" loading="lazy" ${act('zoomProductImage', p.image)}>` : '🍽️'}
           ${sold ? `<span class="sold-badge">${escapeHtml(stockTxt('sold'))}</span>` : ''}</div>
         <div class="product-body">
-          <div class="product-name">${escapeHtml(p.name)}</div>
+          <div class="product-name">${escapeHtml(p.name)}</div>${p.description ? `<div class="product-desc">${escapeHtml(p.description)}</div>` : ''}
           <div class="product-price" data-price="${p.id}">${productPriceHtml(p)}</div>
         </div>
         <div class="product-foot">${sold ? '' : `<div class="qty"><button class="qty-btn" ${act('stepCart', p.id, -1)}>-</button>
           <span class="qty-val" data-qty="${p.id}">${STATE.cart[p.id]||0}</span>
           <button class="qty-btn" data-plus="${p.id}" ${p.max_qty===0 ? 'disabled' : ''} ${act('stepCart', p.id, 1)}>+</button></div>`}</div>
       </div>`; }).join('');
-  const body = shown.map(sec => {
-    const groups = catGroups(sec.items);
-    const cur = STATE.cat && groups.some(g => g.name === STATE.cat) ? STATE.cat : '';
-    const list = cur ? groups.filter(g => g.name === cur) : groups;
-    const multi = groups.some(g => g.name);
-    return `<div class="station-title">${escapeHtml(sec.name)}</div>${catBarHtml(groups)}` +
-      list.map(g => `${multi ? `<div class="cat-title">${escapeHtml(g.name || t('other'))}</div>` : ''}<div class="product-grid">${cardsHtml(g.items)}</div>`).join('');
-  }).join('');
+  const body = shown.map(sec => `<div class="station-title">${escapeHtml(sec.name)}</div><div class="product-grid">${cardsHtml(sec.items)}</div>`).join('');
   renderState(headerHtml() + tabs + `<main>${body}</main>
     <div class="cartbar" id="cartbar">
       <div class="cartbar-row">

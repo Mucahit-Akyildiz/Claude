@@ -114,6 +114,12 @@ function catBarHtml(groups){
   return `<div class="cat-bar">${[['', t('all')], ...named.map(g => [g.name, g.name])].map(([v, l]) => `<button type="button" class="${cur===v?'active':''}" ${act('selectCat', v)}>${escapeHtml(l)}</button>`).join('')}</div>`;
 }
 function selectSection(i){ STATE.sec = i; STATE.cat = ''; renderMenu(); window.scrollTo(0, 0); }
+// Başlıklar otomatik olarak işletmenin menüleridir (menü sırası); menüsüz ürünler "Diğer"de.
+function menuSections(products){
+  const map = {}; const out = [];
+  products.forEach(p => { const k = p.category || ''; if(!map[k]){ map[k] = { name: k || t('other'), sort: k ? (p.menu_sort == null ? 9998 : p.menu_sort) : 9999, items: [] }; out.push(map[k]); } map[k].items.push(p); });
+  return out.sort((a, b) => a.sort - b.sort);
+}
 function renderMenu(){
   // İşletmede "QR Menü ile Müşteri Siparişi" eklentisi yoksa menü sadece
   // görüntülenir; sepet/sipariş arayüzü gösterilmez.
@@ -124,32 +130,20 @@ function renderMenu(){
     renderState(headerHtml() + '<main><p class="empty-msg">'+escapeHtml(t('emptyMenu'))+'</p></main>');
     return;
   }
-  const groups = {};
-  const order = [];
-  products.forEach(p => {
-    const key = p.station_name || t('other');
-    if(!groups[key]){ groups[key] = []; order.push(key); }
-    groups[key].push(p);
-  });
-  // İstasyonlar sekme olarak; seçilen istasyonun ürünleri alt menülere göre.
-  if(STATE.sec == null || STATE.sec >= order.length) STATE.sec = 0;
-  const tabs = order.length > 1 ? `<nav class="sec-tabs"><div class="sec-tabs-in">${order.map((k, i) => `<button type="button" class="${i===STATE.sec?'active':''}" ${act('selectSection', i)}>${escapeHtml(k)}</button>`).join('')}</div></nav>` : '';
-  const shownKeys = order.length > 1 ? [order[STATE.sec]] : order;
+  // Menüler sekme olarak (işletmenin menü sırası).
+  const sections = menuSections(products);
+  if(STATE.sec == null || STATE.sec >= sections.length) STATE.sec = 0;
+  const tabs = sections.length > 1 ? `<nav class="sec-tabs"><div class="sec-tabs-in">${sections.map((sec, i) => `<button type="button" class="${i===STATE.sec?'active':''}" ${act('selectSection', i)}>${escapeHtml(sec.name)}</button>`).join('')}</div></nav>` : '';
+  const shown = sections.length > 1 ? [sections[STATE.sec]] : sections;
   const cardHtml = (list) => list.map(p => `
       <div class="product-card ${p.max_qty===0 && !STATE.cart[p.id]?'sold-out':''}">
         ${p.image ? `<img class="product-thumb" src="${p.image}" alt="" loading="lazy" ${act('zoomProductImage', p.image)}>` : ''}
-        <div class="product-name">${escapeHtml(productName(p))}<div class="product-price">${money(p.price)}${p.max_qty!=null && p.max_qty>0 && p.max_qty<=5 ? ` · <span class="stock-left">${escapeHtml(stockTxt('left', p.max_qty))}</span>` : ''}</div></div>
+        <div class="product-name">${escapeHtml(productName(p))}${p.description ? `<div class="product-desc">${escapeHtml(p.description)}</div>` : ''}<div class="product-price">${money(p.price)}${p.max_qty!=null && p.max_qty>0 && p.max_qty<=5 ? ` · <span class="stock-left">${escapeHtml(stockTxt('left', p.max_qty))}</span>` : ''}</div></div>
         ${p.max_qty===0 && !STATE.cart[p.id] ? `<span class="sold-badge">${escapeHtml(stockTxt('sold'))}</span>` : canOrder ? `<button class="qty-btn" ${act('stepCart', p.id, -1)}>-</button>
         <span class="qty-val" id="qty_${p.id}">${STATE.cart[p.id]||0}</span>
         <button class="qty-btn" ${act('stepCart', p.id, 1)}>+</button>` : ''}
       </div>`).join('');
-  const body = shownKeys.map(key => {
-    const cg = catGroups(groups[key]);
-    const cur = STATE.cat && cg.some(g => g.name === STATE.cat) ? STATE.cat : '';
-    const list = cur ? cg.filter(g => g.name === cur) : cg;
-    const multi = cg.some(g => g.name);
-    return `<div class="station-title">${escapeHtml(key)}</div>${catBarHtml(cg)}` + list.map(g => `${multi ? `<div class="cat-title">${escapeHtml(g.name || t('other'))}</div>` : ''}${cardHtml(g.items)}`).join('');
-  }).join('');
+  const body = shown.map(sec => `<div class="station-title">${escapeHtml(sec.name)}</div>${cardHtml(sec.items)}`).join('');
   renderState(headerHtml() + tabs + `<main>${body}</main>
     ${!canOrder ? '' : `<div class="cartbar" id="cartbar">
       <div class="cartbar-row">
