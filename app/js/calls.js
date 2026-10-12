@@ -145,7 +145,7 @@ function callEnd(msg){
   }
   if(CALL.remoteAudio){ CALL.remoteAudio.srcObject = null; CALL.remoteAudio.remove(); }
   Object.assign(CALL, { state: 'idle', id: null, peer: null, pc: null, role: null, remoteAudio: null, pendingIce: [], muted: false });
-  removeEl('callUi');
+  removeEl('callUi'); removeEl('callPill'); CALL_MIN = false;
   if(msg) showToast('📞 ' + msg);
 }
 
@@ -169,9 +169,31 @@ function callRing(on){
   }catch(e){}
 }
 
+/* ---- Görüşmeyi küçültme: ekran küçük bir şeride iner, uygulama kullanılmaya devam eder ---- */
+let CALL_MIN = false;
+function minimizeCall(){ CALL_MIN = true; removeEl('callUi'); callRefreshUi(); }
+function restoreCall(){ CALL_MIN = false; removeEl('callPill'); callRefreshUi(); }
+function callRefreshUi(){ if(GCALL.state !== 'idle') gcallDrawUi(); else callDrawUi(); }
+function callPillHangup(){ if(GCALL.state !== 'idle') leaveGroupCall(); else hangupVoiceCall(); }
+function callDrawPill(title, status, muted){
+  let p = document.getElementById('callPill');
+  if(!p){
+    p = document.createElement('div'); p.id = 'callPill';
+    p.style.cssText = 'position:fixed;top:calc(env(safe-area-inset-top,0px) + 10px);left:50%;transform:translateX(-50%);z-index:400;display:flex;align-items:center;gap:10px;background:#0f2b27;color:#fff;border-radius:999px;padding:6px 6px 6px 14px;box-shadow:0 8px 24px rgba(0,0,0,.35);max-width:calc(100vw - 32px);';
+    document.body.appendChild(p);
+  }
+  p.innerHTML = `<button type="button" style="all:unset;cursor:pointer;display:flex;align-items:center;gap:8px;min-width:0;" title="Görüşmeye dön" ${act('restoreCall')}>
+      <span style="width:8px;height:8px;border-radius:50%;background:#16a34a;flex:none;"></span>
+      <span style="font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:40vw;">${escapeHtml(title)}</span>
+      <span style="opacity:.8;font-variant-numeric:tabular-nums;">${status}</span>${muted ? '<span>🔇</span>' : ''}
+      <span style="font-size:12px;opacity:.7;">⌃ Dön</span></button>
+    <button type="button" style="width:34px;height:34px;border-radius:50%;margin:0;padding:0;border:0;background:#dc2626;color:#fff;font-size:15px;flex:none;" title="Kapat" ${act('callPillHangup')}>✕</button>`;
+}
+function callMinBtn(){ return `<button type="button" style="position:absolute;top:calc(env(safe-area-inset-top,0px) + 14px);left:14px;margin:0;padding:8px 14px;border:0;border-radius:999px;background:rgba(255,255,255,.14);color:#fff;font-size:14px;" title="Uygulamaya dön (görüşme devam eder)" ${act('minimizeCall')}>⌄ Küçült</button>`; }
+
 /* ---- Arama ekranı ---- */
 function callDrawUi(){
-  if(CALL.state === 'idle'){ removeEl('callUi'); return; }
+  if(CALL.state === 'idle'){ removeEl('callUi'); removeEl('callPill'); CALL_MIN = false; return; }
   let ui = document.getElementById('callUi');
   if(!ui){
     ui = document.createElement('div'); ui.id = 'callUi';
@@ -181,10 +203,12 @@ function callDrawUi(){
   const secs = CALL.state === 'active' ? Math.floor((Date.now() - CALL.startedAt) / 1000) : 0;
   const status = CALL.state === 'calling' ? 'Aranıyor…' : CALL.state === 'ringing' ? 'Sesli arama geliyor…'
     : CALL.state === 'connecting' ? 'Bağlanıyor…' : Math.floor(secs / 60) + ':' + String(secs % 60).padStart(2, '0');
+  if(CALL_MIN && CALL.state !== 'ringing'){ removeEl('callUi'); callDrawPill(CALL.peerName || '', status, CALL.muted); return; }
+  removeEl('callPill');
   const btn = (bg, label, fn, ic) => `<button type="button" style="width:72px;height:72px;border-radius:50%;margin:0;padding:0;border:0;background:${bg};color:#fff;font-size:28px;box-shadow:0 8px 24px rgba(0,0,0,.35);" title="${label}" ${act(fn)}>${ic}</button>
     <div style="font-size:12px;margin-top:8px;opacity:.8;text-align:center;">${label}</div>`;
   const initial = escapeHtml((CALL.peerName || '?').trim().charAt(0).toLocaleUpperCase('tr'));
-  ui.innerHTML = `<div style="text-align:center;">
+  ui.innerHTML = `${CALL.state !== 'ringing' ? callMinBtn() : ''}<div style="text-align:center;">
       <div style="width:110px;height:110px;border-radius:50%;margin:0 auto 18px;background:rgba(255,255,255,.12);display:flex;align-items:center;justify-content:center;font-size:46px;font-weight:800;${CALL.state === 'ringing' || CALL.state === 'calling' ? 'animation:callPulse 1.6s infinite;' : ''}">${initial}</div>
       <div style="font-size:26px;font-weight:800;">${escapeHtml(CALL.peerName)}</div>
       <div style="font-size:15px;opacity:.8;margin-top:6px;">${status}</div>
@@ -323,11 +347,11 @@ function gcallReset(msg){
   Object.keys(GCALL.peers).forEach(gcallDropPeer);
   if(SHARED_MIC) SHARED_MIC.getAudioTracks().forEach(t => { t.enabled = true; });
   Object.assign(GCALL, { state: 'idle', room: null, group: null, members: [], peers: {}, muted: false });
-  removeEl('callUi');
+  removeEl('callUi'); removeEl('callPill'); CALL_MIN = false;
   if(msg) showToast('📞 ' + msg);
 }
 function gcallDrawUi(){
-  if(GCALL.state === 'idle') return;
+  if(GCALL.state === 'idle'){ removeEl('callPill'); return; }
   let ui = document.getElementById('callUi');
   if(!ui){
     ui = document.createElement('div'); ui.id = 'callUi';
@@ -344,7 +368,9 @@ function gcallDrawUi(){
       <div style="font-size:12px;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;width:100%;">${escapeHtml(n)}</div></div>`;
   const status = GCALL.state === 'ringing' ? (escapeHtml(GCALL.inviter) + ' grup araması başlattı')
     : (connected.length ? connected.length + 1 + ' kişi görüşmede · ' + Math.floor(secs / 60) + ':' + String(secs % 60).padStart(2, '0') : 'Diğer üyeler bekleniyor…');
-  ui.innerHTML = `<div style="text-align:center;width:100%;">
+  if(CALL_MIN && GCALL.state !== 'ringing'){ removeEl('callUi'); callDrawPill('👥 ' + (GCALL.groupName || ''), connected.length ? (connected.length + 1) + ' kişi · ' + Math.floor(secs / 60) + ':' + String(secs % 60).padStart(2, '0') : 'Bekleniyor…', GCALL.muted); return; }
+  removeEl('callPill');
+  ui.innerHTML = `${GCALL.state !== 'ringing' ? callMinBtn() : ''}<div style="text-align:center;width:100%;">
       <div style="font-size:14px;opacity:.75;">👥 Grup araması</div>
       <div style="font-size:26px;font-weight:800;margin-top:4px;">${escapeHtml(GCALL.groupName)}</div>
       <div style="font-size:15px;opacity:.8;margin-top:6px;">${status}</div>
