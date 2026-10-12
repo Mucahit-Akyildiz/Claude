@@ -143,9 +143,10 @@ function renderMenu(){
   }
   const sections = menuSections(products);
   // Üstteki başlıklar sekme gibi çalışır: yalnızca seçilen başlığın ürünleri listelenir.
-  if(STATE.sec == null || STATE.sec >= sections.length) STATE.sec = 0;
-  const tabs = sections.length > 1 ? `<nav class="sec-tabs"><div class="sec-tabs-in">${sections.map((sec, i) => `<button type="button" class="${i===STATE.sec?'active':''}" ${act('selectSection', i)}>${escapeHtml(sec.name)}</button>`).join('')}</div></nav>` : '';
-  const shown = sections.length > 1 ? [sections[STATE.sec]] : sections;
+  // 0 = Tümü (bütün menüler başlıklarıyla alt alta), 1.. = tek menü.
+  if(STATE.sec == null || STATE.sec > sections.length) STATE.sec = 0;
+  const tabs = sections.length > 1 ? `<nav class="sec-tabs"><div class="sec-tabs-in">${[t('all'), ...sections.map(sec => sec.name)].map((name, i) => `<button type="button" class="${i===STATE.sec?'active':''}" ${act('selectSection', i)}>${escapeHtml(name)}</button>`).join('')}</div></nav>` : '';
+  const shown = (sections.length > 1 && STATE.sec > 0) ? [sections[STATE.sec - 1]] : sections;
   const cardsHtml = (list) => list.map(p => {
       const sold = p.max_qty===0 && !STATE.cart[p.id];
       return `
