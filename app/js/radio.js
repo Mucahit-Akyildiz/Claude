@@ -344,6 +344,7 @@ function radioOnAudio(p){
     RADIO.floorTimer = setTimeout(() => radioOnEnd({ u: p.u }), 2500);
   }
   RADIO.rx = RADIO.rx || { chunks:0, played:0 }; RADIO.rx.chunks++;
+  radioRecordChunk(p);
   if(RADIO.nativeAudio) return; // Android uygulaması sesi kendi çalıyor (ekran kapalıyken de)
   const ctx = radioAudioCtx();
   if(ctx.state !== 'running'){
@@ -373,7 +374,9 @@ function radioPlayChunk(d){
 }
 function radioOnEnd(p){
   if(!p || !RADIO.floor || RADIO.floor.u !== p.u) return;
-  clearTimeout(RADIO.floorTimer); RADIO.floor = null; drawRadioDock();
+  clearTimeout(RADIO.floorTimer); RADIO.floor = null;
+  radioFinishRecording(p.u);
+  drawRadioDock();
   radioReportRecv();
 }
 /* Tanı kaydı (Admin Paneli > Hatalar, tür "radio"): ses gitmiyor / çalmıyor şikayetlerinde
@@ -433,6 +436,7 @@ function drawRadioDock(){
         <div id="radioLine" class="muted" style="font-size:11.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:200px;"></div>
       </div>
       <button type="button" id="radioPtt" style="margin:0;width:auto;min-width:122px;padding:12px 14px;border-radius:999px;font-weight:800;touch-action:none;user-select:none;-webkit-user-select:none;"></button>
+      <button type="button" id="radioReplayBtn" class="ghost-btn" style="margin:0;width:auto;padding:8px 10px;" title="Son konuşmayı tekrar dinle" disabled>🔁</button>
       <button type="button" id="radioMicBtn" class="ghost-btn" style="margin:0;width:auto;padding:8px 10px;" title="Mikrofon seç">🎤</button>
       <button type="button" id="radioClose" class="ghost-btn" style="margin:0;width:auto;padding:8px 10px;" title="Telsizi kapat">✕</button>`;
     document.body.appendChild(dock);
@@ -444,6 +448,7 @@ function drawRadioDock(){
     };
     dock.querySelector('#radioClose').onclick = () => radioDisconnect(true);
     dock.querySelector('#radioMicBtn').onclick = () => openRadioMicPicker();
+    dock.querySelector('#radioReplayBtn').onclick = () => radioReplayLast();
     const b = dock.querySelector('#radioPtt');
     let held = false;
     const down = (e) => { e.preventDefault(); if(held) return; held = true; try{ b.setPointerCapture(e.pointerId); }catch(_){} radioStartTalk(); };
@@ -471,6 +476,13 @@ function drawRadioDock(){
   b.style.background = RADIO.talking ? '#dc2626' : busy ? 'var(--border)' : '';
   b.style.borderColor = RADIO.talking ? '#dc2626' : busy ? 'var(--border)' : '';
   b.style.color = RADIO.talking ? '#fff' : busy ? 'var(--muted)' : '';
+  const rp = dock.querySelector('#radioReplayBtn');
+  if(rp){
+    const c = RADIO.lastClip;
+    rp.disabled = !c || RADIO.talking;
+    rp.title = c ? 'Son konuşmayı tekrar dinle: ' + (c.n || 'Biri') + ' (' + new Date(c.at).toLocaleTimeString('tr-TR', { hour:'2-digit', minute:'2-digit' }) + ')' : 'Henüz tekrar dinlenecek konuşma yok';
+    rp.textContent = RADIO.replaying ? '⏹' : '🔁';
+  }
 }
 // Bilgisayarda boşluk tuşu bas-konuş (yazı alanındayken devre dışı).
 function radioIsTyping(e){ const t = e.target; return t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName)); }
@@ -617,3 +629,32 @@ document.addEventListener('visibilitychange', () => {
   if(!radioChannelHealthy() || away > 300000) radioScheduleReconnect('ön plana dönüş (' + Math.round(away/1000) + ' sn)', 300);
 });
 window.addEventListener('online', () => { if(RADIO.channel) radioScheduleReconnect('internet geri geldi', 500); });
+
+/* ---- Son konuşmayı tekrar dinle ----
+   Kanaldan gelen her konuşma (başkalarının) bellekte tutulur; en sonuncusu 🔁 ile tekrar çalınır.
+   En fazla ~60 sn saklanır, sunucuya kaydedilmez; sayfa yenilenince silinir. */
+function radioRecordChunk(p){
+  const r = RADIO.rec;
+  if(!r || r.u !== p.u || (p.t && r.t !== p.t)) RADIO.rec = { u: p.u, n: p.n, t: p.t, at: Date.now(), chunks: [] };
+  if(RADIO.rec.chunks.length < 300) RADIO.rec.chunks.push(p.d);
+}
+function radioFinishRecording(u){
+  const r = RADIO.rec;
+  if(r && r.u === u && r.chunks.length >= 2) RADIO.lastClip = r; // çok kısa (yanlışlıkla basma) kayıtlar atlanır
+  RADIO.rec = null;
+}
+function radioReplayLast(){
+  if(RADIO.replaying){ try{ RADIO.replaySrc && RADIO.replaySrc.stop(); }catch(e){} return; }
+  const c = RADIO.lastClip; if(!c) return;
+  if(RADIO.floor){ radioFlash('Kanal şu an meşgul — konuşma bitince tekrar dinleyin'); return; }
+  const ctx = radioAudioCtx();
+  const parts = c.chunks.map(b64ToBytes);
+  const total = parts.reduce((n, a) => n + a.length, 0);
+  const buf = ctx.createBuffer(1, total, RADIO_RATE), ch = buf.getChannelData(0);
+  let o = 0; parts.forEach(a => { for(let i = 0; i < a.length; i++) ch[o++] = muLawDecode(a[i]); });
+  const src = ctx.createBufferSource(); src.buffer = buf; src.connect(ctx.destination);
+  RADIO.replaying = true; RADIO.replaySrc = src;
+  src.onended = () => { RADIO.replaying = false; RADIO.replaySrc = null; drawRadioDock(); };
+  const go = () => { src.start(); radioFlash('🔁 ' + (c.n || 'Son konuşma') + ' tekrar çalınıyor'); drawRadioDock(); };
+  if(ctx.state !== 'running') ctx.resume().then(go).catch(() => { RADIO.replaying = false; }); else go();
+}
