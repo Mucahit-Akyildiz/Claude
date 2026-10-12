@@ -467,6 +467,33 @@ async function cleanupDeletedChatMedia(supabase) {
   return rows.length;
 }
 
+// Mutfakta "Hazır" denilen ürünler: ürünü ekleyen garsona (yoksa siparişi açana) anında
+// "Sipariş hazır" bildirimi gider. Hepsi Hazır'da sipariş başına tek bildirim (bkz. _items_ready_push_trg).
+async function dispatchItemsReady(supabase, itemIds) {
+  const { data: rows, error } = await supabase
+    .from('order_items')
+    .select('id, name, qty, added_by, orders!inner(id, kind, customer_name, daily_number, created_by, table_id, restaurant_tables(name))')
+    .in('id', itemIds);
+  if (error) return { error: error.message };
+  const byUser = new Map();
+  for (const r of rows || []) {
+    const o = r.orders || {};
+    const uid = r.added_by || o.created_by;
+    if (!uid) continue;
+    const label = o.kind === 'takeaway' ? ('📦 Paket' + (o.customer_name ? ' - ' + o.customer_name : (o.daily_number ? ' #' + o.daily_number : '')))
+      : ((o.restaurant_tables && o.restaurant_tables.name) || 'Masa');
+    if (!byUser.has(uid)) byUser.set(uid, { label, items: [] });
+    byUser.get(uid).items.push(r.qty + 'x ' + r.name);
+  }
+  let sent = 0;
+  for (const [uid, v] of byUser) {
+    const body = v.items.slice(0, 4).join(', ') + (v.items.length > 4 ? ' ve ' + (v.items.length - 4) + ' ürün daha' : '');
+    const res = await sendToUsers(supabase, [uid], { title: '✅ Sipariş hazır · ' + v.label, body, url: '/app/', view: 'order', tag: 'ready-' + v.label });
+    sent += (res && res.sent) || 0;
+  }
+  return { sent, users: byUser.size };
+}
+
 module.exports = async function handler(req, res) {
   try {
     if (req.method !== 'POST') {
@@ -528,6 +555,13 @@ module.exports = async function handler(req, res) {
         url: '/app/', view: 'messages', tag: 'call-' + (req.body.from_id || ''),
         callData: { kind: 'call', by: req.body.by || '', from_id: req.body.from_id || '', group_name: req.body.group_name || '' },
       }));
+      return;
+    }
+
+    if (mode === 'items_ready') {
+      const ids = Array.isArray(req.body && req.body.item_ids) ? req.body.item_ids.slice(0, 200) : [];
+      if (!ids.length) { res.status(400).json({ error: 'item_ids required' }); return; }
+      res.status(200).json(await dispatchItemsReady(supabase, ids));
       return;
     }
 

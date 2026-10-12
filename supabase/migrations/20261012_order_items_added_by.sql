@@ -62,3 +62,7 @@ revoke execute on function _order_items_set_added_by() from public, anon, authen
 -- Ürün açıklaması: products.description; set_product_description, list_product_media (settings_products);
 -- set_product_image yetkisi settings_products. Public menüler: description ve menu_sort döner;
 -- QR menü ve online sipariş başlıkları otomatik olarak menülerdir.
+
+-- "Sipariş hazır" anlık bildirimi: order_items üzerinde satır-dışı (statement) tetikleyici
+-- _items_ready_push_trg, hazır olan ürünleri sipariş bazında dispatch-ready-pushes (mode 'items_ready')
+-- uç noktasına yollar; bildirim ürünü ekleyen garsona (yoksa siparişi açana) gider.
