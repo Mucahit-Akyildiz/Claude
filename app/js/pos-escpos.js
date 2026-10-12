@@ -51,13 +51,20 @@ function buildEscPosTicket(restaurantName, tableName, items, design, dailyNumber
   if(design.bold) push([0x1B, 0x45, 0x01]);
   push(escposEncodeText('-'.repeat(lineWidth) + '\n'));
   items.forEach(it => {
-    const timeStr = showItemTime ? formatItemTime(it, design) : '';
+    const timeStr = design.priced ? money((Number(it.price)||0)*it.qty) : (showItemTime ? formatItemTime(it, design) : '');
     const left = it.qty + 'x ' + it.name;
     const pad = Math.max(1, lineWidth - left.length - timeStr.length);
-    push(escposEncodeText(left + (showItemTime ? (' '.repeat(pad) + timeStr) : '') + '\n'));
+    push(escposEncodeText(left + ((showItemTime || design.priced) ? (' '.repeat(pad) + timeStr) : '') + '\n'));
     if(it.note) push(escposEncodeText('  Not: ' + it.note + '\n'));
   });
   push(escposEncodeText('-'.repeat(lineWidth) + '\n'));
+  if(design.priced){
+    const r = receiptTotals(items, design);
+    const line = (l, v) => { const pad = Math.max(1, lineWidth - l.length - v.length); push(escposEncodeText(l + ' '.repeat(pad) + v + '\n')); };
+    if(r.discount > 0.004){ line('Ara Toplam', money(r.sub)); line('Indirim', '-' + money(r.discount)); }
+    push([0x1B, 0x45, 0x01]); line('TOPLAM', money(r.total)); push([0x1B, 0x45, 0x00]);
+    push(escposEncodeText('-'.repeat(lineWidth) + '\n'));
+  }
   if(design.bold) push([0x1B, 0x45, 0x00]);
   if(footerText){
     push([0x1B, 0x61, 0x01]);
@@ -131,10 +138,10 @@ async function printKitchenTicketGrouped(tableName, items, silent, dailyNumber){
     await printKitchenTicket(tableName, groups[key], printer, silent, dailyNumber);
   }
 }
-async function printKitchenTicket(tableName, items, printerOverride, silent, dailyNumber){
+async function printKitchenTicket(tableName, items, printerOverride, silent, dailyNumber, designExtra){
   const session = getSession();
   const restaurantName = session ? session.restaurant_name : '';
-  const design = getTicketDesign();
+  const design = Object.assign({}, getTicketDesign(), designExtra || {});
   const printers = getPrinters();
   const printer = printerOverride || printers.find(p => p.id===getActivePrinterId());
 
@@ -196,6 +203,10 @@ async function printKitchenTicket(tableName, items, printerOverride, silent, dai
   el.innerHTML = buildTicketHtml(restaurantName, tableName, items, design, dailyNumber);
   setTimeout(() => window.print(), 100);
 }
+/* Kasa fişi: fiyatlı hesap fişi (ödeme ekranından); "Bu Ekranın Yazıcısı"na basılır. */
+async function printCashReceipt(tableName, items, total, dailyNumber){
+  await printKitchenTicket(tableName, items, null, false, dailyNumber, { priced: true, totals: { total }, copies: 1, showItemTime: false });
+}
 function formatItemTime(it, design){
   const t = it.added_at ? new Date(it.added_at) : new Date();
   const hour12 = !!(design && design.timeFormat==='12');
@@ -210,6 +221,18 @@ function ticketPartStyle(design, key){
   const size = design['size'+key];
   const transform = design['transform'+key] || 'none';
   return `color:${color} !important;`+(size?`font-size:${size}px !important;`:'')+`text-transform:${transform} !important;`;
+}
+// Kasa fişi (fiyatlı) toplam satırları: ara toplam, indirim, toplam.
+function receiptTotals(items, design){
+  const sub = (items || []).reduce((s, it) => s + (Number(it.price)||0) * it.qty, 0);
+  const t = design.totals || {};
+  const total = t.total != null ? Number(t.total) : sub;
+  return { sub, discount: Math.max(0, sub - total), total };
+}
+function receiptTotalsHtml(items, design){
+  const r = receiptTotals(items, design);
+  const row = (l, v, b) => `<div class="ticket-item" style="${ticketPartStyle(design,'Text')}${b?'font-weight:800 !important;font-size:1.15em !important;':''}"><span>${l}</span><span>${v}</span></div>`;
+  return (r.discount > 0.004 ? row('Ara Toplam', money(r.sub)) + row('İndirim', '-' + money(r.discount)) : '') + row('TOPLAM', money(r.total), true) + '<div class="ticket-line"></div>';
 }
 function buildTicketHtml(restaurantName, tableName, items, design, dailyNumber){
   const now = new Date();
@@ -226,10 +249,11 @@ function buildTicketHtml(restaurantName, tableName, items, design, dailyNumber){
     ${design.showWaiter && ticketWaiter(items) ? `<div class="ticket-meta" style="${ticketPartStyle(design,'Text')}">Garson: ${escapeHtml(ticketWaiter(items))}</div>` : ''}
     <div class="ticket-line"></div>
     ${items.map(it => `
-      <div class="ticket-item" style="${ticketPartStyle(design,'Text')}"><span><span class="qty">${it.qty}x</span>${escapeHtml(it.name)}</span>${showItemTime?`<span class="ticket-time" style="${ticketPartStyle(design,'Time')}font-weight:${timeWeight} !important;">${formatItemTime(it, design)}</span>`:''}</div>
+      <div class="ticket-item" style="${ticketPartStyle(design,'Text')}"><span><span class="qty">${it.qty}x</span>${escapeHtml(it.name)}</span>${design.priced ? `<span style="white-space:nowrap;">${money((Number(it.price)||0)*it.qty)}</span>` : (showItemTime?`<span class="ticket-time" style="${ticketPartStyle(design,'Time')}font-weight:${timeWeight} !important;">${formatItemTime(it, design)}</span>`:'')}</div>
       ${it.note ? `<div class="ticket-note" style="${ticketPartStyle(design,'Note')}">Not: ${escapeHtml(it.note)}</div>` : ''}
     `).join('')}
     <div class="ticket-line"></div>
+    ${design.priced ? receiptTotalsHtml(items, design) : ''}
     ${design.footer ? `<div class="ticket-meta ticket-rich">${sanitizeRichHtml(design.footer)}</div>` : ''}
   `;
 }

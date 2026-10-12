@@ -663,7 +663,11 @@ function renderZonesSettings(el, session){
   const natural = (a, b) => String(a.name).localeCompare(String(b.name), 'tr', { numeric:true, sensitivity:'base' });
   el.innerHTML = `<div class="box" style="max-width:none;">
     <h2>Bölgeler ve Masalar</h2>
-    <p class="muted" style="text-align:left;margin:-6px 0 16px;font-size:13px;">Masalar sırayla listelenir. Masa adına tıklayarak yeniden adlandırabilir, ▦ ile QR kodunu açabilirsiniz. Toplu eklemek için <b>Masa 1-10</b> gibi yazın.</p>
+    <p class="muted" style="text-align:left;margin:-6px 0 12px;font-size:13px;">Masalar sırayla listelenir. Masa adına tıklayarak yeniden adlandırabilir, ▦ ile QR kodunu açabilirsiniz. Toplu eklemek için <b>Masa 1-10</b> gibi yazın.</p>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin:0 0 14px;">
+      <button type="button" class="ghost-btn" style="width:auto;margin:0;" ${act('showAllTableQrs')}>▦ Tüm QR Kodlarını Göster / Yazdır</button>
+      <button type="button" class="ghost-btn" style="width:auto;margin:0;" ${act('downloadAllTableQrs')}>⬇ Tüm QR Kodlarını İndir</button>
+    </div>
     ${APP.config.zones.map(z => `
       <div class="zone-card">
         <div class="zone-head">
@@ -861,6 +865,65 @@ function showTableQr(tableId, qrToken){
     <button style="margin-top:8px;" ${act('copyText', url, 'Link kopyalandı ✓')}>🔗 Linki Kopyala</button>
   </div>`;
   document.body.appendChild(bg);
+}
+
+/* --- Toplu QR: tüm masaların QR kodları tek sayfada (yazdır / PDF) ya da PNG olarak indirme --- */
+function allTablesForQr(){
+  const natural = (a, b) => String(a.name).localeCompare(String(b.name), 'tr', { numeric:true, sensitivity:'base' });
+  return (APP.config.zones || []).flatMap(z => (z.tables || []).slice().sort(natural).map(t => ({ zone: z.name, name: t.name, url: window.location.origin + '/menu/?t=' + t.qr_token })));
+}
+const qrImg = (url, size) => 'https://api.qrserver.com/v1/create-qr-code/?size=' + size + 'x' + size + '&margin=8&data=' + encodeURIComponent(url);
+function showAllTableQrs(){
+  const list = allTablesForQr(); if(!list.length){ showToast('Henüz masa yok'); return; }
+  removeEl('qrSheetBg');
+  const bg = document.createElement('div'); bg.id = 'qrSheetBg';
+  bg.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:flex-start;justify-content:center;z-index:120;padding:5vh 16px 16px;overflow-y:auto;';
+  bg.onclick = (e) => { if(e.target === bg) bg.remove(); };
+  const zones = [...new Set(list.map(t => t.zone))];
+  bg.innerHTML = `<div class="qr-sheet-box" style="background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:18px;max-width:980px;width:100%;">
+    <div class="qr-toolbar" style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:14px;">
+      <h2 style="margin:0;">▦ Masa QR Kodları <span class="muted" style="font-size:13px;font-weight:600;">(${list.length})</span></h2>
+      <div style="display:flex;gap:8px;">
+        <button type="button" style="width:auto;margin:0;" ${act('printAllTableQrs')}>🖨️ Yazdır / PDF</button>
+        <button type="button" class="ghost-btn" style="width:auto;margin:0;" ${act('downloadAllTableQrs')}>⬇ İndir</button>
+        <button type="button" class="ghost-btn" style="width:auto;margin:0;" ${act('removeEl', 'qrSheetBg')}>✕</button>
+      </div>
+    </div>
+    ${zones.map(z => `<h3 style="margin:14px 0 8px;font-size:14px;">${escapeHtml(z)}</h3><div class="qr-sheet">${list.filter(t => t.zone === z).map(t => `<div class="qr-cell"><img src="${qrImg(t.url, 300)}" alt=""><b>${escapeHtml(t.name)}</b><small>${escapeHtml(z)}</small></div>`).join('')}</div>`).join('')}
+  </div>`;
+  document.body.appendChild(bg);
+}
+function printAllTableQrs(){
+  document.body.classList.add('printing-qr');
+  const done = () => { document.body.classList.remove('printing-qr'); window.removeEventListener('afterprint', done); };
+  window.addEventListener('afterprint', done);
+  setTimeout(() => window.print(), 300);
+}
+// Her masa için ayrı PNG (QR + masa adı) indirilir; görseller CORS'lu yüklenip tuvale çizilir.
+async function downloadAllTableQrs(){
+  const list = allTablesForQr(); if(!list.length){ showToast('Henüz masa yok'); return; }
+  if(!confirm(list.length + ' QR kodu PNG olarak indirilecek. Tarayıcı "birden fazla dosya indirme" izni sorarsa İzin Ver deyin.')) return;
+  const load = (src) => new Promise((res, rej) => { const im = new Image(); im.crossOrigin = 'anonymous'; im.onload = () => res(im); im.onerror = rej; im.src = src; });
+  let ok = 0;
+  await withLoadingOverlay((async () => {
+    for(const t of list){
+      try{
+        const im = await load(qrImg(t.url, 600));
+        const c = document.createElement('canvas'); c.width = 640; c.height = 760;
+        const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height);
+        g.drawImage(im, 20, 20, 600, 600);
+        g.fillStyle = '#111'; g.textAlign = 'center'; g.font = 'bold 44px sans-serif'; g.fillText(t.name, 320, 680);
+        g.fillStyle = '#666'; g.font = '26px sans-serif'; g.fillText(t.zone, 320, 724);
+        const blob = await new Promise(r => c.toBlob(r, 'image/png'));
+        const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+        a.download = (t.zone + '-' + t.name).replace(/[\\/:*?"<>|]+/g, '_') + '-QR.png';
+        document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+        ok++; await new Promise(r => setTimeout(r, 250));
+      }catch(e){}
+    }
+  })());
+  if(ok < list.length) alert(ok + '/' + list.length + ' QR indirildi. İndirilemeyenler için "Tüm QR Kodlarını Göster / Yazdır" ile PDF olarak kaydedebilirsiniz.');
+  else showToast(ok + ' QR kodu indirildi ✓');
 }
 
 /* --- Ürünler --- */

@@ -45,3 +45,7 @@ revoke execute on function _order_items_set_added_by() from public, anon, authen
 -- İstasyon alt menüleri istasyonda tanımlanır: stations.categories text[];
 -- set_station_categories(token, station_id, categories) (silinen alt menüdeki ürünler alt menüsüz kalır);
 -- get_restaurant_config istasyonlarda categories döner.
+
+-- Otomatik müşteri kaydı: _auto_customer(restaurant, name, phone, email);
+-- orders tetikleyicisi (müşteri adı/telefonu girilince kart oluşur/güncellenir),
+-- invoices tetikleyicisi (fiş e-postayla gönderilince müşterinin boş e-postası doldurulur).

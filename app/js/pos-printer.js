@@ -594,11 +594,23 @@ async function renderPrinterSettingsView(main, session){
       </table>
       </div>
     </div>
+    <div class="box" style="max-width:none;">
+      <h2>🧾 Kasa Fişi</h2>
+      <p class="muted" style="text-align:left;">Ödemeler ekranındaki <b>Kasa Fişi Yazdır</b> düğmesiyle basılan, ürün fiyatları ve toplam tutarı içeren hesap fişidir. Fiş Tasarımı'ndaki kağıt genişliği, yazı tipi, başlık ve alt notu kullanır; <b>Bu Ekranın Yazıcısı</b>na basılır.</p>
+      <div style="display:flex;gap:24px;flex-wrap:wrap;align-items:flex-start;">
+        <div style="flex:0 0 auto;background:#e5e7eb;border-radius:14px;padding:14px;"><div id="cashReceiptPreview"></div></div>
+        <div style="flex:1;min-width:220px;">
+          <button type="button" style="width:auto;margin:0;" ${act('testCashReceipt')}>🖨️ Örnek Kasa Fişi Yazdır</button>
+        </div>
+      </div>
+    </div>
   `;
   // Her bölüm ayrı sekmede (tek uzun sayfa yerine).
-  const PR_TABS = [{ id:'design', ic:'🧾', label:'Fiş Tasarımı' }, { id:'device', ic:'💻', label:'Bu Ekranın Yazıcısı' }, { id:'printers', ic:'🖨️', label:'Yazıcılar' }, { id:'stations', ic:'🔀', label:'İstasyon → Yazıcı' }];
+  const PR_TABS = [{ id:'design', ic:'🧾', label:'Fiş Tasarımı' }, { id:'cash', ic:'💵', label:'Kasa Fişi' }, { id:'device', ic:'💻', label:'Bu Ekranın Yazıcısı' }, { id:'printers', ic:'🖨️', label:'Yazıcılar' }, { id:'stations', ic:'🔀', label:'İstasyon → Yazıcı' }];
+  const PR_ORDER = ['design', 'device', 'printers', 'stations', 'cash']; // kutuların sayfadaki sırası
   const boxes = [...main.querySelectorAll(':scope > .box')];
-  boxes.forEach((b, i) => { if(PR_TABS[i]){ b.dataset.prtab = PR_TABS[i].id; b.classList.add('pr-pane'); } });
+  boxes.forEach((b, i) => { if(PR_ORDER[i]){ b.dataset.prtab = PR_ORDER[i]; b.classList.add('pr-pane'); } });
+  renderCashReceiptPreview();
   if(!PR_TABS.some(t => t.id === APP.printerTab)) APP.printerTab = 'design';
   const bar = document.createElement('div');
   bar.className = 'tabs settings-tabs';
@@ -641,6 +653,15 @@ async function setStationPrintAll(stationId, on){
   await withLoadingOverlay(Promise.all(list.map(p => sb.rpc('set_product_options', { p_token: s.session_token, p_product_id: p.id, p_category: p.category || null, p_print_ticket: on }).then(r => { if(!r.error) p.print_ticket = on; }))));
   renderPrinterSettingsView(document.getElementById('main'), s);
 }
+const CASH_SAMPLE = [{ qty:2, name:'Izgara Köfte', price:320 }, { qty:1, name:'Ayran', price:40 }, { qty:1, name:'Künefe', price:150 }];
+function renderCashReceiptPreview(){
+  const el = document.getElementById('cashReceiptPreview'); if(!el) return;
+  const design = Object.assign({}, getTicketDesign(), { priced: true, showItemTime: false, totals: { total: 790 } });
+  applyTicketDesignStyle(el, design, 'ticket-paper');
+  const s = getSession();
+  el.innerHTML = buildTicketHtml(s ? s.restaurant_name : 'İŞLETME ADI', 'Masa 3', CASH_SAMPLE, design, 12);
+}
+function testCashReceipt(){ printCashReceipt('Masa 3', CASH_SAMPLE, 790, 12); }
 function showPrinterPane(){
   document.querySelectorAll('#main .pr-pane').forEach(b => { b.style.display = b.dataset.prtab === APP.printerTab ? '' : 'none'; });
   document.querySelectorAll('#main [data-pr-tab]').forEach(t => t.classList.toggle('active', t.dataset.prTab === APP.printerTab));
