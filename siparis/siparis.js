@@ -137,7 +137,7 @@ function renderMenu(){
     <div class="station-title">${escapeHtml(sec.name)}</div>
     ${sec.items.map(p => `
       <div class="product-card ${p.max_qty===0 && !STATE.cart[p.id]?'sold-out':''}">
-        ${p.image ? `<img class="product-img" src="${p.image}" alt="" loading="lazy">` : ''}
+        ${p.image ? `<img class="product-img" src="${p.image}" alt="${escapeHtml(p.name)}" loading="lazy" ${act('zoomProductImage', p.image)}>` : ''}
         <div class="product-name">${escapeHtml(p.name)}<div class="product-price">${money(p.price)}${p.max_qty!=null && p.max_qty>0 && p.max_qty<=5 ? ` · <span class="stock-left">${escapeHtml(stockTxt('left', p.max_qty))}</span>` : ''}</div></div>
         ${p.max_qty===0 && !STATE.cart[p.id] ? `<span class="sold-badge">${escapeHtml(stockTxt('sold'))}</span>` : `<button class="qty-btn" ${act('stepCart', p.id, -1)}>-</button>
         <span class="qty-val" data-qty="${p.id}">${STATE.cart[p.id]||0}</span>
@@ -281,3 +281,13 @@ async function sendPublicOrder(){
   renderState(stateBoxHtml('✅', t('successTitle'), t('successMsg')));
 }
 init();
+
+// Ürün fotoğrafına dokununca tam ekran büyük gösterilir; tekrar dokununca kapanır.
+function zoomProductImage(src){
+  if(!src) return;
+  const ov = document.createElement('div'); ov.className = 'img-zoom';
+  const img = document.createElement('img'); img.src = src; img.alt = '';
+  ov.appendChild(img);
+  ov.onclick = () => ov.remove();
+  document.body.appendChild(ov);
+}
