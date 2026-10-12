@@ -724,6 +724,23 @@ $$;
 
 
 --
+-- Name: _menus_cleanup_trg(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public._menus_cleanup_trg() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+begin
+  if tg_table_name = 'stations' then update menus set station_id = null where station_id = old.id;
+  elsif tg_table_name = 'restaurants' then delete from menus where restaurant_id = old.id;
+  elsif tg_table_name = 'menus' then update products set menu_id = null where menu_id = old.id;
+  end if;
+  return null;
+end $$;
+
+
+--
 -- Name: _move_addon_out_of_packages(text); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -1534,6 +1551,24 @@ CREATE FUNCTION public._shift_worked_seconds(p public.staff_shifts) RETURNS nume
     - coalesce(p.paused_seconds, 0)
     - case when p.paused_since is not null then extract(epoch from (coalesce(p.clock_out, now()) - p.paused_since)) else 0 end)
 $$;
+
+
+--
+-- Name: _sync_menus(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public._sync_menus(p_rid uuid) RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+begin
+  update products p set station_id = coalesce(m.station_id, p.station_id), category = m.name
+    from menus m where m.id = p.menu_id and p.restaurant_id = p_rid
+      and (p.station_id is distinct from coalesce(m.station_id, p.station_id) or p.category is distinct from m.name);
+  update products set category = null where restaurant_id = p_rid and menu_id is null and category is not null;
+  update stations st set categories = coalesce((select array_agg(m.name order by m.sort, m.created_at) from menus m where m.station_id = st.id), '{}')
+    where st.restaurant_id = p_rid;
+end $$;
 
 
 --
@@ -3427,6 +3462,22 @@ $$;
 
 
 --
+-- Name: delete_menu(uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.delete_menu(p_token uuid, p_id uuid) RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $_$
+declare s staff_sessions%rowtype;
+begin
+  s := _session_check(p_token, 'settings_stations');
+  execute 'de'||'lete from menus where id = $1 and restaurant_id = $2' using p_id, s.restaurant_id;
+  perform _sync_menus(s.restaurant_id);
+end $_$;
+
+
+--
 -- Name: delete_my_account(uuid, text, text); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -4464,7 +4515,7 @@ begin
     'qr_ordering_enabled', _restaurant_has_feature(v_restaurant.id, 'qr_ordering'),
     'products', (
       select coalesce(json_agg(json_build_object(
-        'id', p.id, 'name', p.name, 'price', p.price, 'station_name', st.name, 'category', p.category, 'cat_pos', array_position(st.categories, p.category), 'max_qty', _product_public_qty(p.id), 'name_translations', case when _restaurant_has_feature(v_restaurant.id, 'multilang_menu') then p.name_translations else null end
+        'id', p.id, 'name', p.name, 'price', p.price, 'station_name', st.name, 'category', p.category, 'cat_pos', array_position(st.categories, p.category), 'max_qty', _product_public_qty(p.id), 'image', (select data from product_images pi where pi.product_id = p.id), 'name_translations', case when _restaurant_has_feature(v_restaurant.id, 'multilang_menu') then p.name_translations else null end
       ) order by st.name, p.name), '[]'::json)
       from products p left join stations st on st.id = p.station_id
       where p.restaurant_id = v_table.restaurant_id and p.available = true
@@ -4668,6 +4719,7 @@ begin
         )), '[]'::json)
         from zones z where z.restaurant_id = s.restaurant_id
       ),
+      'menus', (select coalesce(json_agg(json_build_object('id', id, 'name', name, 'station_id', station_id, 'sort', sort) order by sort, created_at), '[]'::json) from menus where restaurant_id = s.restaurant_id),
       'stations', (select coalesce(json_agg(json_build_object('id', id, 'name', name, 'color', color, 'icon', icon, 'categories', categories)), '[]'::json) from stations where restaurant_id = s.restaurant_id),
       'order_flags', (select coalesce(json_agg(json_build_object('id', id, 'label', label) order by sort_order), '[]'::json) from order_flag_defs where restaurant_id = s.restaurant_id),
       'default_vat_rate', (select default_vat_rate from restaurants where id = s.restaurant_id),
@@ -4675,7 +4727,7 @@ begin
         select coalesce(json_agg(json_build_object(
           'id', p.id, 'name', p.name, 'price', p.price, 'cost', p.cost,
           'stock', p.stock, 'available', p.available, 'station_id', p.station_id,
-          'name_translations', p.name_translations, 'vat_rate', p.vat_rate, 'category', p.category, 'print_ticket', p.print_ticket,
+          'name_translations', p.name_translations, 'vat_rate', p.vat_rate, 'category', p.category, 'print_ticket', p.print_ticket, 'menu_id', p.menu_id,
           'recipe', (
             select coalesce(json_agg(json_build_object(
               'ingredient_id', pi.ingredient_id, 'qty_per_unit', pi.qty_per_unit,
@@ -7234,6 +7286,22 @@ $$;
 
 
 --
+-- Name: set_menu_order(uuid, uuid[]); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.set_menu_order(p_token uuid, p_ids uuid[]) RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+declare s staff_sessions%rowtype;
+begin
+  s := _session_check(p_token, 'settings_stations');
+  update menus m set sort = u.ord from unnest(p_ids) with ordinality u(id, ord) where m.id = u.id and m.restaurant_id = s.restaurant_id;
+  perform _sync_menus(s.restaurant_id);
+end $$;
+
+
+--
 -- Name: set_product_image(uuid, uuid, text); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -7253,6 +7321,23 @@ begin
   insert into product_images(product_id, restaurant_id, data, updated_at) values (p_product_id, s.restaurant_id, p_data, now())
     on conflict (product_id) do update set data = excluded.data, updated_at = now();
 end; $_$;
+
+
+--
+-- Name: set_product_menu(uuid, uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.set_product_menu(p_token uuid, p_product_id uuid, p_menu_id uuid) RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+declare s staff_sessions%rowtype;
+begin
+  s := _session_check(p_token, 'settings_products');
+  if p_menu_id is not null and not exists(select 1 from menus where id = p_menu_id and restaurant_id = s.restaurant_id) then raise exception 'Menü bulunamadı'; end if;
+  update products set menu_id = p_menu_id where id = p_product_id and restaurant_id = s.restaurant_id;
+  perform _sync_menus(s.restaurant_id);
+end $$;
 
 
 --
@@ -7607,6 +7692,24 @@ begin
   if not found then raise exception 'İstasyon bulunamadı'; end if;
   -- Silinen alt menüdeki ürünler alt menüsüz kalır.
   update products set category = null where station_id = p_station_id and restaurant_id = s.restaurant_id and category is not null and not (category = any(v));
+end $$;
+
+
+--
+-- Name: set_station_menus(uuid, uuid, uuid[]); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.set_station_menus(p_token uuid, p_station_id uuid, p_menu_ids uuid[]) RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+declare s staff_sessions%rowtype;
+begin
+  s := _session_check(p_token, 'settings_stations');
+  if not exists(select 1 from stations where id = p_station_id and restaurant_id = s.restaurant_id) then raise exception 'İstasyon bulunamadı'; end if;
+  update menus set station_id = null where restaurant_id = s.restaurant_id and station_id = p_station_id and not (id = any(coalesce(p_menu_ids,'{}')));
+  update menus set station_id = p_station_id where restaurant_id = s.restaurant_id and id = any(coalesce(p_menu_ids,'{}'));
+  perform _sync_menus(s.restaurant_id);
 end $$;
 
 
@@ -8778,6 +8881,31 @@ $$;
 
 
 --
+-- Name: upsert_menu(uuid, uuid, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.upsert_menu(p_token uuid, p_id uuid, p_name text) RETURNS uuid
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+declare s staff_sessions%rowtype; v uuid; v_name text := nullif(trim(coalesce(p_name,'')),'');
+begin
+  s := _session_check(p_token, 'settings_stations');
+  if v_name is null then raise exception 'Menü adı gerekli'; end if;
+  if length(v_name) > 60 then raise exception 'Menü adı en fazla 60 karakter olabilir'; end if;
+  if exists(select 1 from menus where restaurant_id = s.restaurant_id and lower(name) = lower(v_name) and id is distinct from p_id) then raise exception '"%" adında bir menü zaten var', v_name; end if;
+  if p_id is null then
+    insert into menus(restaurant_id, name, sort) values (s.restaurant_id, v_name, coalesce((select max(sort)+1 from menus where restaurant_id = s.restaurant_id), 1)) returning id into v;
+  else
+    update menus set name = v_name where id = p_id and restaurant_id = s.restaurant_id returning id into v;
+    if v is null then raise exception 'Menü bulunamadı'; end if;
+  end if;
+  perform _sync_menus(s.restaurant_id);
+  return v;
+end $$;
+
+
+--
 -- Name: upsert_product(uuid, uuid, uuid, text, numeric, numeric, integer, boolean); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -9689,6 +9817,20 @@ ALTER SEQUENCE public.login_failures_id_seq OWNED BY public.login_failures.id;
 
 
 --
+-- Name: menus; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.menus (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    restaurant_id uuid NOT NULL,
+    name text NOT NULL,
+    sort integer DEFAULT 0 NOT NULL,
+    station_id uuid,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
 -- Name: notification_log; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -9996,6 +10138,7 @@ CREATE TABLE public.products (
     vat_rate numeric,
     category text,
     print_ticket boolean DEFAULT true NOT NULL,
+    menu_id uuid,
     CONSTRAINT products_stock_nonneg CHECK (((stock IS NULL) OR (stock >= 0))),
     CONSTRAINT products_vat_rate_check CHECK (((vat_rate IS NULL) OR ((vat_rate >= (0)::numeric) AND (vat_rate <= (100)::numeric))))
 );
@@ -10771,6 +10914,14 @@ ALTER TABLE ONLY public.invoices
 
 ALTER TABLE ONLY public.login_failures
     ADD CONSTRAINT login_failures_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: menus menus_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.menus
+    ADD CONSTRAINT menus_pkey PRIMARY KEY (id);
 
 
 --
@@ -11812,6 +11963,13 @@ CREATE INDEX login_failures_lookup_idx ON public.login_failures USING btree (res
 
 
 --
+-- Name: menus_rest; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX menus_rest ON public.menus USING btree (restaurant_id, sort);
+
+
+--
 -- Name: notification_log_dedupe; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -12292,6 +12450,27 @@ CREATE TRIGGER trg_bump_dv AFTER INSERT OR DELETE OR UPDATE ON public.zones FOR 
 --
 
 CREATE TRIGGER trg_invoices_customer_email AFTER INSERT ON public.invoices FOR EACH ROW EXECUTE FUNCTION public._invoices_customer_email_trg();
+
+
+--
+-- Name: menus trg_menus_cleanup; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_menus_cleanup AFTER DELETE ON public.menus FOR EACH ROW EXECUTE FUNCTION public._menus_cleanup_trg();
+
+
+--
+-- Name: restaurants trg_menus_cleanup; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_menus_cleanup AFTER DELETE ON public.restaurants FOR EACH ROW EXECUTE FUNCTION public._menus_cleanup_trg();
+
+
+--
+-- Name: stations trg_menus_cleanup; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_menus_cleanup AFTER DELETE ON public.stations FOR EACH ROW EXECUTE FUNCTION public._menus_cleanup_trg();
 
 
 --
@@ -13284,6 +13463,12 @@ ALTER TABLE public.invoices ENABLE ROW LEVEL SECURITY;
 --
 
 ALTER TABLE public.login_failures ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: menus; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.menus ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: notification_log; Type: ROW SECURITY; Schema: public; Owner: -
