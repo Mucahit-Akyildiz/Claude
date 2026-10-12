@@ -34,3 +34,6 @@ revoke execute on function _order_items_set_added_by() from public, anon, authen
 
 -- Mesajlar "son görülme": list_chat_conversations birebir kişilerde last_seen
 -- (staff_sessions.last_seen_at en yenisi) döner; grup/Genel satırlarında null.
+
+-- Masa adları bölge bazında benzersiz: upsert_table aynı adı yalnızca aynı bölgede reddeder.
+-- pay_order_items: aynı adlı masa başka bölgede de varsa satış kaydına "Bölge · Masa" yazar.

@@ -99,7 +99,7 @@ function renderPayGrid(){
     if(unpaid.length===0) return null;
     const total = unpaid.reduce((s,i) => s+i.price*i.qty, 0);
     return `<div class="table-cell" data-badge-id="${order.order_id}" style="cursor:pointer;background:rgba(244,63,94,.14);border-color:var(--red);color:var(--red);" ${act('openPayModal', order.order_id)}>
-      ${payCellName(t.name)}<div style="font-size:11px;margin-top:4px;font-weight:400;">${money(total)}${waitersLine(order) ? '<br>' + waitersLine(order) : ''}</div></div>`;
+      ${payCellName(tableNameForId(t.id))}<div style="font-size:11px;margin-top:4px;font-weight:400;">${money(total)}${waitersLine(order) ? '<br>' + waitersLine(order) : ''}</div></div>`;
   }).filter(Boolean);
   const pkgRows = (APP.liveOrders||[]).filter(o => o.kind==='takeaway' && o.items.filter(i=>!i.paid).length>0).map(o => {
     const unpaid = o.items.filter(i=>!i.paid);
