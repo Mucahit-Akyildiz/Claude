@@ -90,8 +90,8 @@ CREATE FUNCTION public._auto_customer(p_rid uuid, p_name text, p_phone text, p_e
     AS $$
 declare v_id uuid; v_phone text := nullif(trim(coalesce(p_phone,'')),''); v_name text := nullif(trim(coalesce(p_name,'')),''); v_mail text := nullif(lower(trim(coalesce(p_email,''))),'');
 begin
-  if v_phone is null or length(_phone_key(v_phone)) < 10 then return null; end if;
-  select id into v_id from customers where restaurant_id = p_rid and (phone = v_phone or _phone_key(phone) = _phone_key(v_phone))
+  if v_phone is null or length(regexp_replace(v_phone, '\D', '', 'g')) < 7 then return null; end if;
+  select id into v_id from customers where restaurant_id = p_rid and (phone = v_phone or (length(_phone_key(v_phone)) = 10 and _phone_key(phone) = _phone_key(v_phone)))
     order by (phone = v_phone) desc, last_visit_at desc nulls last limit 1;
   if v_id is null then
     insert into customers(restaurant_id, name, phone, email) values (p_rid, coalesce(v_name, v_phone), v_phone, v_mail)
@@ -4464,7 +4464,7 @@ begin
     'qr_ordering_enabled', _restaurant_has_feature(v_restaurant.id, 'qr_ordering'),
     'products', (
       select coalesce(json_agg(json_build_object(
-        'id', p.id, 'name', p.name, 'price', p.price, 'station_name', st.name, 'max_qty', _product_public_qty(p.id), 'name_translations', case when _restaurant_has_feature(v_restaurant.id, 'multilang_menu') then p.name_translations else null end
+        'id', p.id, 'name', p.name, 'price', p.price, 'station_name', st.name, 'category', p.category, 'cat_pos', array_position(st.categories, p.category), 'max_qty', _product_public_qty(p.id), 'name_translations', case when _restaurant_has_feature(v_restaurant.id, 'multilang_menu') then p.name_translations else null end
       ) order by st.name, p.name), '[]'::json)
       from products p left join stations st on st.id = p.station_id
       where p.restaurant_id = v_table.restaurant_id and p.available = true
@@ -4498,7 +4498,7 @@ begin
       from online_menu_sections sec where sec.restaurant_id = v_restaurant.id),
     'products', (
       select coalesce(json_agg(json_build_object(
-        'id', p.id, 'name', p.name, 'price', p.price, 'station_name', st.name, 'name_translations', case when _restaurant_has_feature(v_restaurant.id, 'multilang_menu') then p.name_translations else null end,
+        'id', p.id, 'name', p.name, 'price', p.price, 'station_name', st.name, 'category', p.category, 'cat_pos', array_position(st.categories, p.category), 'name_translations', case when _restaurant_has_feature(v_restaurant.id, 'multilang_menu') then p.name_translations else null end,
         'image', (select data from product_images pi where pi.product_id = p.id), 'max_qty', _product_public_qty(p.id)
       ) order by st.name, p.name), '[]'::json)
       from products p left join stations st on st.id = p.station_id
