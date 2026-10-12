@@ -16,12 +16,11 @@ const SETTINGS_TABS = [
   { tab:'roles', perm:'settings_roles', label:'Roller' },
   { tab:'integrations', perm:'settings_integrations', label:'Entegrasyonlar' },
   { tab:'giftcards', perm:'giftcards', label:'🎁 Hediye Kartları' },
-  { tab:'datareset', perm:'settings_datareset', label:'🗑️ Veri Sıfırlama' },
-  { tab:'security', label:'🛡️ Güvenlik' }, // alt sekmeler: Destek Erişimi, Değişiklik Kaydı
+  { tab:'security', label:'🛡️ Güvenlik' }, // alt sekmeler: Destek Erişimi, Değişiklik Kaydı, Veri Sıfırlama
 ];
 function settingsTabVisible(t, session){
   if(t.feature && !hasFeature(t.feature)) return false;
-  if(t.tab==='security') return canManage(session, 'settings_support') || canManage(session, 'settings_audit');
+  if(t.tab==='security') return canManage(session, 'settings_support') || canManage(session, 'settings_audit') || canManage(session, 'settings_datareset');
   if(t.tab==='giftcards') return canManage(session, 'giftcards') || hasPerm(session, 'payments');
   return t.managerOnly ? !!session.isManager : canManage(session, t.perm);
 }
@@ -81,7 +80,6 @@ function renderSettingsContent(session){
   else if(APP.settingsTab==='giftcards') renderGiftCardsSettings(el, session);
   else if(APP.settingsTab==='shifts') renderShiftsSettings(el, session);
   else if(APP.settingsTab==='billing') renderBillingSettings(el, session);
-  else if(APP.settingsTab==='datareset') renderDataResetSettings(el);
   else if(APP.settingsTab==='security') renderSecuritySettings(el, session);
   else renderUsersTabWithSubtabs(el, session);
 }
@@ -107,6 +105,7 @@ function renderSecuritySettings(el, session){
   const tabs = [
     canManage(session, 'settings_support') ? { id:'support', ic:'🛟', label:'Destek Erişimi' } : null,
     canManage(session, 'settings_audit') ? { id:'audit', ic:'📜', label:'Değişiklik Kaydı' } : null,
+    canManage(session, 'settings_datareset') ? { id:'datareset', ic:'🗑️', label:'Veri Sıfırlama' } : null,
   ].filter(Boolean);
   if(!tabs.length){ el.innerHTML = ''; return; }
   if(!tabs.some(t => t.id === APP.securitySubTab)) APP.securitySubTab = tabs[0].id;
@@ -116,6 +115,7 @@ function renderSecuritySettings(el, session){
     </div>`;
   const box = document.getElementById('securitySubContent');
   if(APP.securitySubTab === 'audit') renderAuditLogSettings(box, session);
+  else if(APP.securitySubTab === 'datareset') renderDataResetSettings(box);
   else renderSupportAccessSettings(box, session);
 }
 function setSecuritySubTab(t){
