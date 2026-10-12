@@ -512,6 +512,16 @@ module.exports = async function handler(req, res) {
       return;
     }
 
+    if (mode === 'call') {
+      const to = req.body && req.body.to;
+      if (!to) { res.status(400).json({ error: 'to required' }); return; }
+      res.status(200).json(await sendToUsers(supabase, [to], {
+        title: '📞 Sesli arama', body: (req.body.by || 'Bir çalışma arkadaşınız') + ' sizi arıyor. Açmak için dokunun.',
+        url: '/app/', view: 'messages', tag: 'call-' + (req.body.from_id || ''),
+      }));
+      return;
+    }
+
     if (mode === 'waiter_call') {
       const callId = req.body && req.body.call_id;
       if (!callId) { res.status(400).json({ error: 'call_id required' }); return; }

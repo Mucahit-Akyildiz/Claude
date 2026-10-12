@@ -149,6 +149,7 @@ async function openChatConv(conv, keepDraft){
         ${chatAvatar(c, 38)}
         <div style="min-width:0;flex:1;"><div class="chat-name">${escapeHtml(c.name)}</div>
           <div class="chat-sub">${c.is_all ? 'Tüm ekip bu kanalı görür' : c.is_group ? escapeHtml(c.roles || '') : (c.online ? '<span style="color:var(--green);">● Çevrimiçi</span>' : 'Çevrimdışı') + (c.roles ? ' · ' + escapeHtml(c.roles) : '')}</div></div>
+        ${!c.is_group && !c.is_all ? `<button type="button" class="chat-ic" title="Sesli ara" style="font-size:18px;" ${act('startVoiceCall', conv, c.name || '')}>📞</button>` : ''}
         ${c.is_group ? `<button type="button" class="chat-ic" title="Grup ayarları" ${act('openChatGroupMenu', conv)}>⋮</button>` : ''}
       </div>
       <div class="chat-thread" id="chatThread" data-allow-drop ${actOn('drop','onChatDrop',['$event'])}><p class="muted">Yükleniyor…</p></div>
