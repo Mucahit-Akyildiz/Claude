@@ -744,7 +744,9 @@ restoreViewAfterRefresh();
 setupPullToRefresh();
 setupBackNavigation();
 initNativeAppMode();
+consumeSupportHandoff();
 render();
+drawSupportBanner();
 syncMyPermissions();
 startNavBadges();
 // Hatırlanan oturumun sunucudaki süresini her açılışta tazele (girişte
@@ -894,3 +896,41 @@ function showAppUpdateBar(v){
 function openPlayStoreUpdate(){ location.href = PLAY_URL; }
 function dismissAppUpdate(latest){ try{ localStorage.setItem('rys_upd_dismiss', latest + '|' + new Date().toDateString()); }catch(e){} removeEl('appUpdateBar'); }
 setTimeout(checkAndroidAppUpdate, 4000);
+
+/* ---- Destek modu (Platform Yönetimi > İşletmeler > "Destek olarak gir") ----
+   Yönetim paneli oturumu localStorage'a bırakır; bu sekme bir kez okuyup siler (60 sn geçerli).
+   Destek oturumu bu sekmeye özeldir (kalıcı kaydedilmez) ve en fazla 1 saat sürer. */
+function consumeSupportHandoff(){
+  try{
+    if(!/[?&]support=1/.test(location.search)) return;
+    const raw = localStorage.getItem('rys_support_handoff');
+    localStorage.removeItem('rys_support_handoff');
+    history.replaceState(null, '', location.pathname);
+    if(!raw) return;
+    const h = JSON.parse(raw); const d = h && h.s;
+    if(!d || !d.session_token || Date.now() - h.at > 60000) return;
+    setSession({ session_token: d.session_token, user_id: d.user_id, restaurant_id: d.restaurant_id, role_names: d.role_names || [],
+      permissions: d.permissions || [], isManager: true, restaurant_name: d.restaurant_name, username: 'Peyktan Destek',
+      remember: false, isSupport: true, supportUntil: d.expires_at });
+  }catch(e){}
+}
+function drawSupportBanner(){
+  const s = getSession();
+  let bar = document.getElementById('supportBanner');
+  if(!s || !s.isSupport){ if(bar) bar.remove(); document.body.classList.remove('support-mode'); return; }
+  if(!bar){
+    bar = document.createElement('div'); bar.id = 'supportBanner';
+    bar.style.cssText = 'position:fixed;left:0;right:0;top:0;z-index:500;background:#b45309;color:#fff;font-size:13px;font-weight:700;padding:6px 12px;display:flex;align-items:center;justify-content:center;gap:12px;';
+    document.body.appendChild(bar);
+    document.body.style.paddingTop = '34px';
+  }
+  const until = s.supportUntil ? new Date(s.supportUntil).toLocaleTimeString('tr-TR', { hour:'2-digit', minute:'2-digit' }) : '';
+  bar.innerHTML = `<span>🛟 Peyktan destek modu · ${escapeHtml(s.restaurant_name || '')}${until ? ' · ' + until + "'e kadar" : ''}</span>
+    <button type="button" style="margin:0;width:auto;padding:3px 12px;background:rgba(255,255,255,.2);border:0;color:#fff;box-shadow:none;" ${act('endSupportSession')}>Çık</button>`;
+}
+async function endSupportSession(){
+  if(typeof doLogout === 'function') await doLogout();
+  removeEl('supportBanner'); document.body.style.paddingTop = '';
+  try{ window.close(); }catch(e){}
+}
+setInterval(drawSupportBanner, 30000);

@@ -17,6 +17,7 @@ const SETTINGS_TABS = [
   { tab:'integrations', perm:'settings_integrations', label:'Entegrasyonlar' },
   { tab:'giftcards', perm:'giftcards', label:'🎁 Hediye Kartları' },
   { tab:'datareset', perm:'settings_datareset', label:'🗑️ Veri Sıfırlama' },
+  { tab:'support', managerOnly:true, label:'🛟 Destek Erişimi' },
 ];
 function settingsTabVisible(t, session){
   if(t.feature && !hasFeature(t.feature)) return false;
@@ -80,6 +81,7 @@ function renderSettingsContent(session){
   else if(APP.settingsTab==='shifts') renderShiftsSettings(el, session);
   else if(APP.settingsTab==='billing') renderBillingSettings(el, session);
   else if(APP.settingsTab==='datareset') renderDataResetSettings(el);
+  else if(APP.settingsTab==='support') renderSupportAccessSettings(el, session);
   else renderUsersTabWithSubtabs(el, session);
 }
 /* Kullanıcılar sekmesi iki alt sekmeli: Kullanıcılar | Aktif Kullanıcılar
@@ -2215,3 +2217,39 @@ function openNewRoleCard(){ toggleRoleCard('new_role'); const el = document.getE
 function setOnlineMenuTab(t){ APP.onlineMenuTab = t; drawOnlineMenuEditor(); }
 function filterOmsPickList(v){ const q = String(v).toLocaleLowerCase('tr'); document.querySelectorAll('#omsPickList label').forEach(l => { l.style.display = l.textContent.toLocaleLowerCase('tr').includes(q) ? 'flex' : 'none'; }); }
 function editBillingField(flag){ APP[flag] = true; renderBillingSettings(document.getElementById('settingsContent'), getSession()); }
+
+/* ---- Destek erişimi ----
+   İşletme yöneticisi Peyktan desteğine süreli izin verir; destek ekibi yalnızca izin süresince,
+   en fazla 1 saatlik oturumlarla girebilir. Her giriş kaydedilir ve burada listelenir. */
+async function renderSupportAccessSettings(el, session){
+  el.innerHTML = '<div class="box" style="max-width:none;"><p class="muted">Yükleniyor…</p></div>';
+  const { data, error } = await sb.rpc('get_support_access', { p_token: session.session_token });
+  if(error){ el.innerHTML = '<div class="box"><p class="muted">Yüklenemedi: ' + escapeHtml(error.message) + '</p></div>'; return; }
+  const until = data && data.until ? new Date(data.until) : null;
+  const fmt = (d) => new Date(d).toLocaleString('tr-TR', { day:'numeric', month:'long', hour:'2-digit', minute:'2-digit' });
+  const log = (data && data.log) || [];
+  el.innerHTML = `<div class="box" style="max-width:none;text-align:left;">
+    <h2 style="margin:0 0 6px;">🛟 Peyktan Destek Erişimi</h2>
+    <p class="muted" style="font-size:13px;margin:0 0 14px;">Bir sorun için Peyktan'dan yardım istediğinizde, destek ekibinin işletmenize girip sorunu görebilmesi için süreli izin verin. Şifrenizi paylaşmanız gerekmez. Destek ekibi yalnızca izin süresince ve en fazla 1 saatlik oturumlarla girebilir; her giriş aşağıda listelenir. İzni istediğiniz an kaldırabilirsiniz.</p>
+    <div style="padding:12px 14px;border:1px solid var(--border);border-radius:12px;margin-bottom:14px;background:var(--panel2);">
+      ${until ? `<b style="color:var(--green);">● İzin açık</b> <span class="muted">— ${escapeHtml(fmt(until))} tarihine kadar</span>` : '<b class="muted">● İzin kapalı</b> <span class="muted">— destek ekibi işletmenize giremez</span>'}
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+      <button type="button" style="width:auto;margin:0;" ${act('setSupportAccess', 24)}>${until ? '24 saat uzat' : '24 saat izin ver'}</button>
+      <button type="button" class="ghost-btn" style="width:auto;margin:0;" ${act('setSupportAccess', 2)}>Sadece 2 saat</button>
+      ${until ? `<button type="button" class="ghost-btn" style="width:auto;margin:0;color:var(--red);border-color:var(--red);" ${act('setSupportAccess', 0)}>İzni kaldır</button>` : ''}
+    </div>
+    <h3 style="margin:22px 0 8px;">Destek girişleri</h3>
+    ${log.length ? `<div class="settings-table-wrap"><table class="settings-table"><thead><tr><th>Tarih</th><th>Kim</th><th>Oturum bitişi</th></tr></thead><tbody>
+      ${log.map(l => `<tr><td>${escapeHtml(fmt(l.at))}</td><td>${escapeHtml(l.admin || 'Peyktan Destek')}</td><td>${l.until ? escapeHtml(fmt(l.until)) : '-'}</td></tr>`).join('')}
+    </tbody></table></div>` : '<p class="muted">Henüz destek girişi olmadı.</p>'}
+  </div>`;
+}
+async function setSupportAccess(hours){
+  const session = getSession(); if(!session) return;
+  if(!hours && !confirm('Destek erişim izni kaldırılsın mı? Açık destek oturumu varsa hemen kapanır.')) return;
+  const { error } = await sb.rpc('set_support_access', { p_token: session.session_token, p_hours: hours });
+  if(error){ alert(error.message); return; }
+  showToast(hours ? '🛟 Destek erişimine izin verildi' : 'Destek erişim izni kaldırıldı');
+  renderSupportAccessSettings(document.getElementById('settingsContent'), session);
+}
