@@ -95,7 +95,7 @@ async function renderMessagesView(main, session){
       <div class="chat-list-wrap">
         <div class="chat-list-head"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px;"><h1 style="margin:0;">💬 Mesajlar</h1>
           <button type="button" class="chat-newgroup" ${act('openChatGroupEditor')} title="Yeni grup">👥＋ Grup</button></div>
-          <input id="chatSearch" placeholder="🔍 Kişi ara…" value="${escapeAttr(APP.chatSearch||'')}" ${actOn('input','setChatSearch',['$value'])}></div>
+          <input id="chatSearch" placeholder="🔍 Kişi veya mesaj ara…" value="${escapeAttr(APP.chatSearch||'')}" ${actOn('input','setChatSearch',['$value'])}></div>
         <div class="chat-list" id="chatList"><p class="muted">Yükleniyor…</p></div>
       </div>
       <div class="chat-pane" id="chatPane">${APP.chatConv ? '' : chatEmptyPaneHtml()}</div>
@@ -130,7 +130,8 @@ function drawChatList(){
           ${c.unread > 0 ? `<span class="chat-unread">${c.unread > 99 ? '99+' : c.unread}</span>` : ''}
         </div>
       </div>
-    </div>`).join('') || '<p class="muted" style="padding:12px;">Kişi bulunamadı.</p>';
+    </div>`).join('') + (q.length >= 2 ? '<div id="chatMsgSearch"><p class="muted" style="padding:8px 12px;font-size:12.5px;">🔍 Mesajlarda aranıyor…</p></div>' : (items.length ? '' : '<p class="muted" style="padding:12px;">Kişi bulunamadı.</p>'));
+  if(q.length >= 2) chatSearchMessagesSoon(q);
 }
 function chatTime(iso){
   const d = new Date(iso), now = new Date();
@@ -999,3 +1000,36 @@ function chatTypingDraw(){
 }
 // Süresi dolan göstergeleri temizle; mesajlar ekranına girince kanala bağlan.
 setInterval(() => { if(Object.keys(CHAT_TYPING).length) chatTypingDraw(); }, 1500);
+
+/* ---- Mesajlarda arama ----
+   Soldaki arama kutusuna en az 2 harf yazılınca kişilerin altında, görebildiğiniz tüm
+   sohbetlerdeki (Genel, üyesi olunan gruplar, kendi birebir sohbetleriniz) eşleşen mesajlar
+   listelenir; tıklanınca sohbet açılır ve mesaja kaydırılır. */
+let CHAT_SEARCH_T = null, CHAT_SEARCH_SEQ = 0;
+function chatSearchMessagesSoon(q){
+  clearTimeout(CHAT_SEARCH_T);
+  CHAT_SEARCH_T = setTimeout(() => chatSearchMessages(q), 300);
+}
+async function chatSearchMessages(q){
+  const session = getSession(); if(!session) return;
+  const seq = ++CHAT_SEARCH_SEQ;
+  const { data, error } = await sb.rpc('search_chat_messages', { p_token: session.session_token, p_q: q });
+  if(seq !== CHAT_SEARCH_SEQ) return;
+  const box = document.getElementById('chatMsgSearch'); if(!box) return;
+  if(error){ box.innerHTML = `<p class="muted" style="padding:8px 12px;">Arama yapılamadı: ${escapeHtml(error.message)}</p>`; return; }
+  const rows = data || [];
+  const names = {}; (APP.chatItems || []).forEach(c => { names[c.conv] = c.name; });
+  const esc = (t) => escapeHtml(t || '');
+  const hl = (t) => { const i = (t || '').toLocaleLowerCase('tr').indexOf(q.toLocaleLowerCase('tr')); return i < 0 ? esc(t) : esc(t.slice(0, i)) + '<mark>' + esc(t.slice(i, i + q.length)) + '</mark>' + esc(t.slice(i + q.length)); };
+  box.innerHTML = `<div style="padding:10px 12px 4px;font-size:12px;font-weight:700;color:var(--muted);">MESAJLAR (${rows.length})</div>` +
+    (rows.length ? rows.map(r => `<div class="chat-item" ${act('openChatSearchResult', r.conv, r.id)}>
+      <div style="flex:1;min-width:0;">
+        <div style="display:flex;justify-content:space-between;gap:6px;"><span class="chat-name" style="font-size:13px;">${esc(names[r.conv] || 'Sohbet')}</span><span class="chat-when">${chatTime(r.created_at)}</span></div>
+        <div class="chat-last" style="white-space:normal;"><b>${esc(r.sender_name)}:</b> ${hl(r.body)}</div>
+      </div></div>`).join('') : '<p class="muted" style="padding:6px 12px;">Eşleşen mesaj yok.</p>');
+}
+async function openChatSearchResult(conv, id){
+  await openChatConv(conv);
+  // Mesajlar yüklenince ilgili mesaja kaydır (yüklenmesi biraz sürebilir).
+  let n = 0; const t = setInterval(() => { n++; if(document.querySelector(`.chat-row[data-mid="${id}"]`) || n > 20){ clearInterval(t); scrollToChatMessage(id); } }, 150);
+}

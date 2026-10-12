@@ -273,6 +273,9 @@ async function playPeyktanSound(){
   if(Date.now() - PEYKTAN_SOUND_LAST < 5000) return;
   // Kişinin kendi yaptığı işlemin (ör. mutfakta "hazır") doğurduğu bildirimde ses çalmaz.
   if(Date.now() < (APP.selfActionUntil || 0)) return;
+  // Mobil uygulama arka plandayken (ör. telsiz açık olduğu için çalışmaya devam ederken)
+  // Android/iOS bildirimi zaten kendi sesini çalar; ikinci kez çalınmaz.
+  if(document.hidden && typeof isNativeApp === 'function' && isNativeApp()) return;
   PEYKTAN_SOUND_LAST = Date.now();
   // Bildirim Ayarları'nda bu cihaz için bir ses yüklendiyse/seçildiyse o çalar.
   try{
