@@ -218,7 +218,7 @@ function radioBusyBy(){
   const me = getSession();
   return RADIO.floor && me && RADIO.floor.u !== me.user_id ? RADIO.floor : null;
 }
-const RADIO_BUILD = 'r4';
+const RADIO_BUILD = 'r5';
 function radioLog(msg){ try{ if(typeof reportClientError === 'function') reportClientError('radio', msg + ' | ' + RADIO_BUILD, 'radio.js'); }catch(e){} }
 async function radioStartTalk(){
   if(RADIO.talking) return;
@@ -237,10 +237,7 @@ async function radioStartTalk(){
       // İzin penceresi açıkken/engelliyken kullanıcı ne olduğunu görsün; 8 sn'de yanıt yoksa uyar.
       RADIO.waitingMic = true; drawRadioDock();
       const t = setTimeout(() => { if(RADIO.waitingMic){ radioLog('bas: FAIL mikrofon izni yanıtsız'); radioFlash('🎤 Mikrofon izni bekleniyor — adres çubuğundaki 🔒 simgesinden izin verin'); } }, 8000);
-      try{ RADIO.mic = await getSharedMic(radioMicConstraints()).catch(e => {
-          // Seçili mikrofon çıkarılmışsa varsayılana dön.
-          if(e && (e.name === 'OverconstrainedError' || e.name === 'NotFoundError') && radioMicConstraints().deviceId){ try{ localStorage.removeItem(RADIO_MIC_KEY); }catch(_){} return getSharedMic(radioMicConstraints()); }
-          throw e; }); }
+      try{ RADIO.mic = await radioOpenMic(); }
       finally{ clearTimeout(t); RADIO.waitingMic = false; }
     }
   }catch(e){ radioLog('bas: FAIL mikrofon ' + (e && (e.name || e.message))); radioStopTalk(); alert('Mikrofona erişilemedi. Tarayıcı/uygulama ayarlarından mikrofon izni verin.'); return; }
@@ -477,6 +474,25 @@ window.addEventListener('blur', () => { RADIO_KEY_HELD = false; radioStopTalk();
    Bilgisayarda birden çok giriş (web kamerası, kulaklık, sanal cihaz) olduğunda tarayıcı
    sessiz olanı seçebiliyor; kullanıcı burada doğru mikrofonu seçer, seçim cihazda saklanır. */
 const RADIO_MIC_KEY = 'rys_radio_mic';
+/* Mikrofonu açar; olmazsa sırayla daha basit ayarlarla dener. iPhone'da kayıtlı mikrofon kimliği
+   her açılışta değiştiği için seçili cihaz InvalidStateError/OverconstrainedError verebiliyor:
+   o zaman seçim unutulup varsayılan mikrofon kullanılır. İzin reddi (NotAllowedError) tekrar denenmez. */
+async function radioOpenMic(){
+  const tries = [radioMicConstraints(), { echoCancellation:true, noiseSuppression:true, autoGainControl:true }, null];
+  let last;
+  for(let i = 0; i < tries.length; i++){
+    if(i > 0 && JSON.stringify(tries[i]) === JSON.stringify(tries[i-1])) continue;
+    try{ return await getSharedMic(tries[i]); }
+    catch(e){
+      last = e;
+      radioLog('bas: mikrofon denemesi ' + (i + 1) + ' başarısız ' + (e && (e.name + ' ' + (e.message || ''))));
+      if(e && e.name === 'NotAllowedError') break;
+      if(i === 0){ try{ localStorage.removeItem(RADIO_MIC_KEY); }catch(_){} }
+      releaseSharedMic();
+    }
+  }
+  throw last;
+}
 function radioMicConstraints(){
   const c = { echoCancellation:true, noiseSuppression:true, autoGainControl:true };
   let id = ''; try{ id = localStorage.getItem(RADIO_MIC_KEY) || ''; }catch(e){}
