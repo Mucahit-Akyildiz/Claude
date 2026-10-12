@@ -9,6 +9,7 @@ begin
   return new;
 end $$;
 create trigger trg_order_items_added_by before insert on order_items for each row execute function _order_items_set_added_by();
+revoke execute on function _order_items_set_added_by() from public, anon, authenticated;
 
 -- Ayrıca (canlıda uygulandı, şema dökümüne yansır):
 --  * _session_check: perform set_config('peyk.uid', s.user_id::text, true);
