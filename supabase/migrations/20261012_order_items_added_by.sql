@@ -17,3 +17,7 @@ revoke execute on function _order_items_set_added_by() from public, anon, authen
 --  * get_live_orders: ürünlerde added_by / added_by_name, siparişte created_by_name.
 --  * get_sales_history: waiters (ödenen ürünleri ekleyen garsonlar).
 --  * get_sale_detail: waiters.
+
+-- Destek Erişimi rol yetkisi (settings_support): _has_role_perm yardımcı fonksiyonu,
+-- set/get_support_access artık Yönetici VEYA bu yetkiye sahip rolü kabul eder,
+-- _role_permission_catalog Yönetim grubuna 'Ayarlar · Destek Erişimi' eklendi.
