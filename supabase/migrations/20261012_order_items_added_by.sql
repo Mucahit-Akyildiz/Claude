@@ -27,3 +27,7 @@ revoke execute on function _order_items_set_added_by() from public, anon, authen
 -- order_items (silme) üzerinde. Şifre/anahtar alanları maskelenir; yalnızca stok değişimi yazılmaz.
 -- _session_check 'peyk.support' ayarını da yazar (destek oturumu işaretlenir).
 -- list_audit_log(token, entity, before): Yönetici veya 'settings_audit' yetkisi.
+
+-- Platform admin: admin_audit_log(token, restaurant_id) - işletmenin değişiklik kaydı (son 300), salt okunur.
+-- Google yorum yönlendirmesi paket kontrolü: get_restaurant_config linki yalnızca 'google_reviews'
+-- özelliği varsa döner; update_google_review_url özellik yoksa PAKET_OZELLIK_YOK verir.

@@ -17,11 +17,11 @@ const SETTINGS_TABS = [
   { tab:'integrations', perm:'settings_integrations', label:'Entegrasyonlar' },
   { tab:'giftcards', perm:'giftcards', label:'🎁 Hediye Kartları' },
   { tab:'datareset', perm:'settings_datareset', label:'🗑️ Veri Sıfırlama' },
-  { tab:'support', perm:'settings_support', label:'🛟 Destek Erişimi' },
-  { tab:'audit', perm:'settings_audit', label:'📜 Değişiklik Kaydı' },
+  { tab:'security', label:'🛡️ Güvenlik' }, // alt sekmeler: Destek Erişimi, Değişiklik Kaydı
 ];
 function settingsTabVisible(t, session){
   if(t.feature && !hasFeature(t.feature)) return false;
+  if(t.tab==='security') return canManage(session, 'settings_support') || canManage(session, 'settings_audit');
   if(t.tab==='giftcards') return canManage(session, 'giftcards') || hasPerm(session, 'payments');
   return t.managerOnly ? !!session.isManager : canManage(session, t.perm);
 }
@@ -32,7 +32,7 @@ async function renderSettingsView(main, session){
   const visibleTabs = SETTINGS_TABS.filter(t => settingsTabVisible(t, session));
   if(!visibleTabs.some(t => t.tab===APP.settingsTab)) APP.settingsTab = visibleTabs.length ? visibleTabs[0].tab : null;
   main.innerHTML = `<h1>Ayarlar</h1>
-    <div class="tabs">
+    <div class="tabs settings-tabs">
       ${visibleTabs.map(t => `<div class="tab ${APP.settingsTab===t.tab?'active':''}" data-tab="${t.tab}" ${act('setSettingsTab', t.tab)}>${t.label}</div>`).join('')}
     </div>
     <div id="settingsContent"></div>`;
@@ -82,8 +82,7 @@ function renderSettingsContent(session){
   else if(APP.settingsTab==='shifts') renderShiftsSettings(el, session);
   else if(APP.settingsTab==='billing') renderBillingSettings(el, session);
   else if(APP.settingsTab==='datareset') renderDataResetSettings(el);
-  else if(APP.settingsTab==='support') renderSupportAccessSettings(el, session);
-  else if(APP.settingsTab==='audit') renderAuditLogSettings(el, session);
+  else if(APP.settingsTab==='security') renderSecuritySettings(el, session);
   else renderUsersTabWithSubtabs(el, session);
 }
 /* Kullanıcılar sekmesi iki alt sekmeli: Kullanıcılar | Aktif Kullanıcılar
@@ -102,6 +101,28 @@ function renderUsersTabWithSubtabs(el, session){
   const box = document.getElementById('usersSubContent');
   if(sub==='active') renderActiveUsersSettings(box);
   else renderUsersSettings(box, session);
+}
+/* Güvenlik sekmesi iki alt sekmeli: Destek Erişimi | Değişiklik Kaydı (yetkiye göre). */
+function renderSecuritySettings(el, session){
+  const tabs = [
+    canManage(session, 'settings_support') ? { id:'support', ic:'🛟', label:'Destek Erişimi' } : null,
+    canManage(session, 'settings_audit') ? { id:'audit', ic:'📜', label:'Değişiklik Kaydı' } : null,
+  ].filter(Boolean);
+  if(!tabs.length){ el.innerHTML = ''; return; }
+  if(!tabs.some(t => t.id === APP.securitySubTab)) APP.securitySubTab = tabs[0].id;
+  el.innerHTML = `<div class="box sub-tabs-box" style="max-width:none;">
+      ${tabs.length > 1 ? `<div class="sub-tabs">${tabs.map(t => `<div role="tab" tabindex="0" class="sub-tab ${APP.securitySubTab===t.id?'active':''}" ${act('setSecuritySubTab', t.id)}><span class="sub-tab-ic">${t.ic}</span>${t.label}</div>`).join('')}</div>` : ''}
+      <div id="securitySubContent" class="sub-tabs-content"></div>
+    </div>`;
+  const box = document.getElementById('securitySubContent');
+  if(APP.securitySubTab === 'audit') renderAuditLogSettings(box, session);
+  else renderSupportAccessSettings(box, session);
+}
+function setSecuritySubTab(t){
+  if(t !== APP.securitySubTab) pushScreen();
+  APP.securitySubTab = t;
+  const el = document.getElementById('settingsContent');
+  if(el) renderSecuritySettings(el, getSession());
 }
 function setUsersSubTab(t){
   if(t !== (APP.usersSubTab||'list')) pushScreen();
@@ -2268,24 +2289,28 @@ async function renderAuditLogSettings(el, session){
   const { data, error } = await sb.rpc('list_audit_log', { p_token: session.session_token, p_entity: ent || null, p_before: null });
   if(error){ el.innerHTML = '<div class="box"><p class="muted">Yüklenemedi: ' + escapeHtml(error.message) + '</p></div>'; return; }
   const rows = data || [];
-  const val = (v) => v == null ? '—' : typeof v === 'object' ? (Array.isArray(v) ? v.length + ' öğe' : '…') : String(v);
-  const changes = (c) => !c ? '' : Object.keys(c).map(k => {
-    const x = c[k]; const f = escapeHtml(AUDIT_FIELDS[k] || k);
-    return x.masked ? `${f} değişti` : `${f}: <s class="muted">${escapeHtml(val(x.old))}</s> → <b>${escapeHtml(val(x.new))}</b>`;
-  }).join('<br>');
   el.innerHTML = `<div class="box" style="max-width:none;text-align:left;">
     <h2 style="margin:0 0 6px;">📜 Değişiklik Kaydı</h2>
     <p class="muted" style="margin:0 0 12px;font-size:13px;">Ürün, fiyat, rol, kullanıcı, masa ve işletme ayarlarındaki değişiklikler ile sipariş iptalleri; kim yaptı, ne zaman yaptı. Son 200 kayıt.</p>
     <select style="width:auto;margin:0 0 12px;" ${actOn('change','setAuditEntity',['$value'])}>
       <option value="">Tümü</option>${Object.keys(AUDIT_ENTITIES).map(k => `<option value="${k}" ${ent===k?'selected':''}>${AUDIT_ENTITIES[k]}</option>`).join('')}
     </select>
-    <div class="settings-table-wrap"><table class="settings-table"><thead><tr><th>Tarih</th><th>Kişi</th><th>Kayıt</th><th>İşlem</th><th>Değişiklik</th></tr></thead><tbody>
+    ${auditTableHtml(rows)}</div>`;
+}
+function setAuditEntity(v){ APP.auditEntity = v; renderAuditLogSettings(document.getElementById('securitySubContent') || document.getElementById('settingsContent'), getSession()); }
+// Değişiklik kaydı tablosu (işletme Ayarlar sekmesi ve platform admin paneli ortak kullanır).
+function auditTableHtml(rows){
+  const val = (v) => v == null ? '—' : typeof v === 'object' ? (Array.isArray(v) ? v.length + ' öğe' : '…') : String(v);
+  const changes = (c) => !c ? '' : Object.keys(c).map(k => {
+    const x = c[k]; const f = escapeHtml(AUDIT_FIELDS[k] || k);
+    return x.masked ? `${f} değişti` : `${f}: <s class="muted">${escapeHtml(val(x.old))}</s> → <b>${escapeHtml(val(x.new))}</b>`;
+  }).join('<br>');
+  return `<div class="settings-table-wrap"><table class="settings-table"><thead><tr><th>Tarih</th><th>Kişi</th><th>Kayıt</th><th>İşlem</th><th>Değişiklik</th></tr></thead><tbody>
     ${rows.map(r => `<tr>
       <td style="white-space:nowrap;">${new Date(r.created_at).toLocaleString('tr-TR',{dateStyle:'short',timeStyle:'short'})}</td>
       <td>${escapeHtml(r.user_name || 'Sistem')}${r.is_support ? ' <span style="color:var(--amber, #f59e0b);font-size:11px;">🛟 Destek</span>' : ''}</td>
       <td>${escapeHtml(AUDIT_ENTITIES[r.entity] || r.entity)}${r.label ? '<div class="muted" style="font-size:12px;">' + escapeHtml(r.label) + '</div>' : ''}</td>
       <td>${r.entity==='orders' && r.action==='update' ? 'İptal edildi' : (AUDIT_ACTIONS[r.action] || r.action)}</td>
       <td style="font-size:12.5px;">${changes(r.changes)}</td></tr>`).join('') || '<tr><td colspan="5" class="muted" style="text-align:center;">Henüz kayıt yok.</td></tr>'}
-    </tbody></table></div></div>`;
+    </tbody></table></div>`;
 }
-function setAuditEntity(v){ APP.auditEntity = v; renderAuditLogSettings(document.getElementById('settingsContent'), getSession()); }

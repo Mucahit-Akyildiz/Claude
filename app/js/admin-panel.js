@@ -530,6 +530,7 @@ async function refreshRestaurantsList(admin){
                 <button class="sbtn" style="margin:0;${r.is_active?'background:var(--red);color:var(--btn-ink);':''}" ${act('toggleRestaurantActive', r.id, !r.is_active)}>${r.is_active?'Pasif Et':'Aktif Et'}</button>
                 <button class="sbtn" style="margin:0;" data-name="${escapeAttr(r.name)}" ${act('openEntitlementsModal','restaurant', r.id, r.name)}>🧩 Eklentiler</button>
                 <button class="sbtn" style="margin:0;" ${act('showRestaurantUsers', r.id)}>👥 Kullanıcılar</button>
+                <button class="sbtn" style="margin:0;" ${act('showRestaurantAudit', r.id)}>📜 Değişiklikler</button>
                 <button class="sbtn" style="margin:0;" data-name="${escapeAttr(r.name)}" data-exp="${r.expires_at||''}" ${act('openExtendSubscription', r.id, r.name, r.expires_at||'')}>⏳ Süre Uzat</button>
                 ${(APP.adminSupportAllowed||{})[r.id] ? `<button class="sbtn" style="margin:0;background:var(--green);color:#fff;" title="İşletme destek erişimine izin verdi" ${act('startSupportSession', r.id, r.name)}>🛟 Destek olarak gir</button>` : ''}
                 <button type="button" class="act-btn act-delete" ${act('deleteRestaurantAdmin', r.id)}>${ICON_TRASH}<span>Sil</span></button>
@@ -605,6 +606,27 @@ async function showRestaurantUsers(id){
           </tr>`).join('')}
         </tbody>
       </table>`}
+    </div>`;
+}
+/* İşletmenin değişiklik kaydı (ürün/fiyat/rol/kullanıcı/ayar değişiklikleri, iptaller) - destek izni gerekmeden salt okunur. */
+async function showRestaurantAudit(id){
+  const row = document.getElementById('detail_'+id);
+  if(!row) return;
+  const body = document.getElementById('detailBody_'+id);
+  const was = row.style.display !== 'none' && body.dataset.mode === 'audit';
+  document.querySelectorAll('[id^="detail_"]').forEach(r => { r.style.display = 'none'; });
+  if(was){ body.dataset.mode = ''; return; }
+  row.style.display = 'table-row';
+  body.dataset.mode = 'audit';
+  body.innerHTML = '<p class="muted" style="padding:14px;">Yükleniyor...</p>';
+  const admin = getAdminSession();
+  const { data, error } = await sb.rpc('admin_audit_log', { p_token: admin.session_token, p_restaurant_id: id });
+  if(error){ body.innerHTML = '<p class="muted" style="padding:14px;">Yüklenemedi: '+escapeHtml(error.message)+'</p>'; return; }
+  const r = (APP.adminRestaurants||[]).find(x => x.id===id) || {};
+  body.innerHTML = `<div style="padding:18px;text-align:left;">
+      <h3 style="margin:0 0 6px;font-size:15px;">📜 Değişiklik Kaydı - ${escapeHtml(r.name||'')}</h3>
+      <p class="muted" style="margin:0 0 12px;font-size:13px;">Son 300 kayıt. 🛟 işaretliler destek oturumundan yapılan değişikliklerdir.</p>
+      ${auditTableHtml(data || [])}
     </div>`;
 }
 async function deleteRestaurantAdmin(id){
