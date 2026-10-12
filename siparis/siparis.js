@@ -139,14 +139,20 @@ function renderMenu(){
   const shown = sections.length > 1 ? [sections[STATE.sec]] : sections;
   const body = shown.map(sec => `
     <div class="station-title">${escapeHtml(sec.name)}</div>
-    ${sec.items.map(p => `
-      <div class="product-card ${p.max_qty===0 && !STATE.cart[p.id]?'sold-out':''}">
-        ${p.image ? `<img class="product-img" src="${p.image}" alt="${escapeHtml(p.name)}" loading="lazy" ${act('zoomProductImage', p.image)}>` : ''}
-        <div class="product-name">${escapeHtml(p.name)}<div class="product-price" data-price="${p.id}">${productPriceHtml(p)}</div></div>
-        ${p.max_qty===0 && !STATE.cart[p.id] ? `<span class="sold-badge">${escapeHtml(stockTxt('sold'))}</span>` : `<button class="qty-btn" ${act('stepCart', p.id, -1)}>-</button>
-        <span class="qty-val" data-qty="${p.id}">${STATE.cart[p.id]||0}</span>
-        <button class="qty-btn" data-plus="${p.id}" ${p.max_qty===0 ? 'disabled' : ''} ${act('stepCart', p.id, 1)}>+</button>`}
-      </div>`).join('')}
+    <div class="product-grid">${sec.items.map(p => {
+      const sold = p.max_qty===0 && !STATE.cart[p.id];
+      return `
+      <div class="product-card ${sold?'sold-out':''}">
+        <div class="product-media">${p.image ? `<img class="product-img" src="${p.image}" alt="${escapeHtml(p.name)}" loading="lazy" ${act('zoomProductImage', p.image)}>` : '🍽️'}
+          ${sold ? `<span class="sold-badge">${escapeHtml(stockTxt('sold'))}</span>` : ''}</div>
+        <div class="product-body">
+          <div class="product-name">${escapeHtml(p.name)}</div>
+          <div class="product-price" data-price="${p.id}">${productPriceHtml(p)}</div>
+        </div>
+        <div class="product-foot">${sold ? '' : `<div class="qty"><button class="qty-btn" ${act('stepCart', p.id, -1)}>-</button>
+          <span class="qty-val" data-qty="${p.id}">${STATE.cart[p.id]||0}</span>
+          <button class="qty-btn" data-plus="${p.id}" ${p.max_qty===0 ? 'disabled' : ''} ${act('stepCart', p.id, 1)}>+</button></div>`}</div>
+      </div>`; }).join('')}</div>
   `).join('');
   renderState(headerHtml() + tabs + `<main>${body}</main>
     <div class="cartbar" id="cartbar">
