@@ -503,6 +503,31 @@ function pickStationIcon(targetId, icon){
   if(bg) bg.remove();
 }
 function renderStationsSettings(el, session){
+  const menus = APP.config.menus || [];
+  const stName = (id) => ((APP.config.stations||[]).find(x => x.id === id) || {}).name || '';
+  const prodCount = (mid) => (APP.config.products||[]).filter(p => p.menu_id === mid).length;
+  const menuBox = `<div class="box" style="max-width:none;">
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:6px;">
+      <h2 style="margin:0;">📋 Menüler</h2><span class="muted" style="font-size:12px;">${menus.length} menü</span>
+    </div>
+    <p class="muted" style="text-align:left;margin:0 0 12px;font-size:13px;">Önce menülerinizi oluşturun (Çorbalar, Izgaralar, İçecekler…). Ürünler menüye bağlanır; aşağıda her istasyona hangi menülerin gideceğini seçersiniz. Bir menünün ürünleri, bağlı olduğu istasyonun ekranına ve yazıcısına düşer.</p>
+    <div style="display:flex;flex-direction:column;gap:8px;">
+      ${menus.map((m, i) => `<div style="display:flex;align-items:center;gap:8px;background:var(--panel2);border:1px solid var(--border);border-radius:12px;padding:8px 10px;flex-wrap:wrap;">
+        <div style="display:flex;flex-direction:column;gap:2px;">
+          <button type="button" class="ghost-btn" style="width:28px;height:20px;padding:0;margin:0;font-size:11px;" ${i===0?'disabled':''} title="Yukarı" ${act('moveMenu', m.id, -1)}>▲</button>
+          <button type="button" class="ghost-btn" style="width:28px;height:20px;padding:0;margin:0;font-size:11px;" ${i===menus.length-1?'disabled':''} title="Aşağı" ${act('moveMenu', m.id, 1)}>▼</button>
+        </div>
+        <input value="${escapeAttr(m.name)}" id="menu_name_${m.id}" style="flex:1;min-width:140px;margin:0;font-weight:700;">
+        <span class="muted" style="font-size:12px;white-space:nowrap;">${prodCount(m.id)} ürün · ${m.station_id ? '🍳 ' + escapeHtml(stName(m.station_id)) : '<span style="color:var(--red);">istasyon seçilmedi</span>'}</span>
+        ${actBtn('save', 'saveMenu', m.id)}
+        ${actBtn('delete', 'removeMenu', m.id)}
+      </div>`).join('')}
+      <div style="display:flex;align-items:center;gap:8px;border:1.5px dashed var(--border);border-radius:12px;padding:8px 10px;">
+        <input id="newMenuName" placeholder="Yeni menü adı (örn. Çorbalar)" style="flex:1;margin:0;" ${actOn('keydown','newMenuKey',['$event'])}>
+        <button style="width:auto;margin:0;padding:0 18px;height:38px;" ${act('addMenu')}>+ Menü Ekle</button>
+      </div>
+    </div>
+  </div>`;
   const rowHtml = (s) => `
     <div style="display:flex;align-items:center;gap:12px;background:var(--panel2);border:1px solid var(--border);border-radius:12px;padding:10px 12px;flex-wrap:wrap;">
       ${stationIconPickerHtml('st_icon_'+s.id, s.icon||'🍳', `border-radius:50%;background:${s.color}26;border-color:${s.color};`)}
@@ -511,13 +536,12 @@ function renderStationsSettings(el, session){
       ${actBtn('save', 'saveStation', s.id)}
       ${actBtn('delete', 'removeStation', s.id)}
       <div style="flex-basis:100%;display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding-left:2px;">
-        <span class="muted" style="font-size:12px;font-weight:700;margin-right:2px;">Alt menüler:</span>
-        ${(s.categories||[]).map(c => `<span class="chip" style="display:inline-flex;align-items:center;gap:6px;padding:4px 6px 4px 10px;border-radius:999px;background:var(--panel);border:1px solid var(--border);font-size:12.5px;">${escapeHtml(c)}<button type="button" title="Alt menüyü sil" style="width:20px;height:20px;padding:0;margin:0;border-radius:50%;background:transparent;border:0;color:var(--red);box-shadow:none;font-size:13px;" data-cat="${escapeAttr(c)}" ${act('removeStationCategory', s.id, '$data.cat')}>✕</button></span>`).join('') || '<span class="muted" style="font-size:12px;">yok</span>'}
-        <input id="st_cat_${s.id}" placeholder="+ Alt menü (örn. Çorbalar)" style="width:200px;margin:0;height:32px;font-size:13px;" ${actOn('keydown','stationCategoryKey',['$event', s.id])}>
-        <button type="button" class="ghost-btn" style="width:auto;margin:0;height:32px;padding:0 12px;font-size:12.5px;" ${act('addStationCategory', s.id)}>Ekle</button>
+        <span class="muted" style="font-size:12px;font-weight:700;margin-right:2px;">Menüler:</span>
+        ${menus.length ? menus.map(m => { const on = m.station_id === s.id; const other = !on && m.station_id ? stName(m.station_id) : '';
+          return `<button type="button" class="menu-chip ${on?'on':''}" title="${on ? 'Bu istasyondan çıkar' : other ? other + ' istasyonundan bu istasyona taşı' : 'Bu istasyona ekle'}" ${act('toggleStationMenu', s.id, m.id)}>${on ? '✓ ' : '+ '}${escapeHtml(m.name)}${other ? ` <small>(${escapeHtml(other)})</small>` : ''}</button>`; }).join('') : '<span class="muted" style="font-size:12px;">Önce yukarıdan menü ekleyin.</span>'}
       </div>
     </div>`;
-  el.innerHTML = `<div class="box" style="max-width:none;">
+  el.innerHTML = menuBox + `<div class="box" style="max-width:none;">
     <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:14px;">
       <h2 style="margin:0;">Mutfak İstasyonları</h2>
       <span class="muted" style="font-size:12px;">${APP.config.stations.length} istasyon</span>
@@ -533,28 +557,37 @@ function renderStationsSettings(el, session){
     </div>
   </div>`;
 }
-/* İstasyon alt menüleri (Çorbalar, Izgaralar…): ürünler bu listeden alt menü seçer; sipariş ekranında sekme olur. */
-async function saveStationCategories(id, list){
+/* Menüler: ürünler menüye bağlanır; menü bir istasyona atanır (ürünün istasyonu menüden gelir).
+   Sipariş ekranı / QR menüde istasyonun içinde menüler sekme olarak görünür. */
+async function menuRpc(fn, args, okMsg){
   const session = getSession();
-  const { error } = await sb.rpc('set_station_categories', { p_token: session.session_token, p_station_id: id, p_categories: list });
+  const { error } = await sb.rpc(fn, Object.assign({ p_token: session.session_token }, args));
   if(error){ alert(error.message); return false; }
   renderSettingsView(document.getElementById('main'), session);
+  if(okMsg) showToast(okMsg);
   return true;
 }
-function stationCategoryKey(e, id){ if(e.key === 'Enter'){ e.preventDefault(); addStationCategory(id); } }
-async function addStationCategory(id){
-  const inp = document.getElementById('st_cat_'+id); const name = (inp && inp.value || '').trim(); if(!name) return;
-  const st = (APP.config.stations||[]).find(s => s.id === id) || {};
-  const list = (st.categories || []).slice();
-  if(list.some(c => c.toLocaleLowerCase('tr') === name.toLocaleLowerCase('tr'))){ showToast('Bu alt menü zaten var'); return; }
-  list.push(name);
-  if(await saveStationCategories(id, list)) showToast('Alt menü eklendi ✓');
+function newMenuKey(e){ if(e.key === 'Enter'){ e.preventDefault(); addMenu(); } }
+function addMenu(){ const v = (document.getElementById('newMenuName')||{}).value || ''; if(!v.trim()) return; menuRpc('upsert_menu', { p_id: null, p_name: v.trim() }, 'Menü eklendi ✓'); }
+function saveMenu(id){ const v = (document.getElementById('menu_name_'+id)||{}).value || ''; menuRpc('upsert_menu', { p_id: id, p_name: v.trim() }, 'Kaydedildi ✓'); }
+function removeMenu(id){
+  const m = (APP.config.menus||[]).find(x => x.id === id) || {};
+  const n = (APP.config.products||[]).filter(p => p.menu_id === id).length;
+  if(!confirm(`"${m.name}" menüsü silinsin mi?` + (n ? `\n\n${n} ürün menüsüz kalacak (ürünler silinmez, istasyonları değişmez).` : ''))) return;
+  menuRpc('delete_menu', { p_id: id }, 'Menü silindi');
 }
-async function removeStationCategory(id, name){
-  const st = (APP.config.stations||[]).find(s => s.id === id) || {};
-  const n = (APP.config.products||[]).filter(p => p.station_id === id && p.category === name).length;
-  if(!confirm(`"${name}" alt menüsü silinsin mi?` + (n ? `\n\n${n} ürün alt menüsüz kalacak (ürünler silinmez).` : ''))) return;
-  await saveStationCategories(id, (st.categories || []).filter(c => c !== name));
+function moveMenu(id, dir){
+  const ids = (APP.config.menus||[]).map(m => m.id); const i = ids.indexOf(id); const j = i + dir;
+  if(i < 0 || j < 0 || j >= ids.length) return;
+  [ids[i], ids[j]] = [ids[j], ids[i]];
+  menuRpc('set_menu_order', { p_ids: ids });
+}
+function toggleStationMenu(stationId, menuId){
+  const menus = APP.config.menus || [];
+  const mine = menus.filter(m => m.station_id === stationId).map(m => m.id);
+  const on = mine.includes(menuId);
+  const list = on ? mine.filter(x => x !== menuId) : mine.concat(menuId);
+  menuRpc('set_station_menus', { p_station_id: stationId, p_menu_ids: list });
 }
 async function saveStation(id){
   const session = getSession();
@@ -945,7 +978,11 @@ async function saveDefaultVat(v){
   showToast('Varsayılan KDV %' + v + ' olarak kaydedildi ✓');
   renderSettingsView(document.getElementById('main'), session);
 }
-// Ürünün alt menü seçenekleri: seçili istasyonun alt menüleri (listede olmayan eski değer de korunur).
+// Ürünün menü seçenekleri: tüm menüler (yanında bağlı olduğu istasyon).
+function prodMenuOptions(current){
+  const st = (id) => ((APP.config.stations||[]).find(x => x.id === id) || {}).name;
+  return `<option value="">— Menü yok —</option>` + (APP.config.menus||[]).map(m => `<option value="${m.id}" ${m.id===current?'selected':''}>${escapeHtml(m.name)}${m.station_id ? ' · ' + escapeHtml(st(m.station_id)||'') : ' · istasyonsuz'}</option>`).join('');
+}
 function prodCatOptions(stationId, current){
   const st = (APP.config.stations||[]).find(s => s.id === stationId) || {};
   const cats = (st.categories || []).slice();
@@ -963,12 +1000,12 @@ function renderProductsSettings(el, session){
         <tr data-pid="${p.id}" style="${p.available===false?'opacity:.6;':''}">
           <td><input type="checkbox" class="prod-sel" value="${p.id}" style="width:auto;margin:0;" ${actOn('change','updateProdSelection',[])}></td>
           <td class="col-name"><input value="${escapeAttr(p.name)}" id="pr_name_${p.id}"></td>
-          <td class="col-name"><select id="pr_st_${p.id}" ${actOn('change','prodStationChanged',['$value', p.id])}>
+          <td class="col-name"><select id="pr_st_${p.id}" ${p.menu_id ? 'disabled title="İstasyon menüden gelir (Ayarlar → İstasyonlar)"' : ''}>
             ${stations.map(s => `<option value="${s.id}" ${s.id===p.station_id?'selected':''}>${escapeHtml(s.name)}</option>`).join('')}
           </select></td>
           <td class="col-num"><input type="number" value="${p.price}" id="pr_price_${p.id}"></td>
           <td class="col-num"><input type="number" value="${p.cost}" id="pr_cost_${p.id}"></td>
-          <td class="col-name" style="min-width:130px;"><select id="pr_cat_${p.id}">${prodCatOptions(p.station_id, p.category)}</select></td>
+          <td class="col-name" style="min-width:150px;"><select id="pr_menu_${p.id}">${prodMenuOptions(p.menu_id)}</select></td>
           <td class="col-num" style="min-width:110px;">${vatSelectHtml('pr_vat_'+p.id, p.vat_rate, true)}</td>
           <td class="col-num">
             ${(p.recipe && p.recipe.length>0)
@@ -999,7 +1036,7 @@ function renderProductsSettings(el, session){
       <h3 style="display:flex;align-items:center;gap:8px;font-size:14px;margin:0 0 10px;">${colorDot?`<span style="width:10px;height:10px;border-radius:50%;background:${colorDot};display:inline-block;flex-shrink:0;"></span>`:''}${escapeHtml(title)}<span class="muted" style="font-weight:400;">(${list.length})</span></h3>
       <div class="settings-table-wrap">
       <table class="settings-table">
-        <thead><tr><th style="width:36px;"><input type="checkbox" style="width:auto;margin:0;" title="Bu gruptakilerin tümünü seç" ${actOn('change','selectProdGroup',['$this'])}></th><th>Ürün Adı</th><th>İstasyon</th><th>Fiyat</th><th>Maliyet</th><th title="İstasyon içindeki alt menü (Çorbalar, Izgaralar…)">Alt Menü</th><th title="Fiyata dahil KDV oranı">KDV</th><th>Stok</th><th title="Mutfak fişine yazdırılsın mı?">🖨️ Fiş</th><th>Durum</th><th></th></tr></thead>
+        <thead><tr><th style="width:36px;"><input type="checkbox" style="width:auto;margin:0;" title="Bu gruptakilerin tümünü seç" ${actOn('change','selectProdGroup',['$this'])}></th><th>Ürün Adı</th><th>İstasyon</th><th>Fiyat</th><th>Maliyet</th><th title="Ürünün menüsü; istasyon menüden gelir">Menü</th><th title="Fiyata dahil KDV oranı">KDV</th><th>Stok</th><th title="Mutfak fişine yazdırılsın mı?">🖨️ Fiş</th><th>Durum</th><th></th></tr></thead>
         <tbody>${groupedRows(list, cats)}</tbody>
       </table>
       </div>
@@ -1009,7 +1046,7 @@ function renderProductsSettings(el, session){
 
   el.innerHTML = `<div class="box" style="max-width:none;">
     <h2>Ürünler</h2>
-    <p class="muted" style="text-align:left;margin:-6px 0 12px;font-size:13px;"><b>Alt Menü</b>: ürünün istasyon içindeki grubu (alt menüleri <b>İstasyonlar</b> sekmesinde oluşturun); sipariş ekranında sekme olarak görünür. <b>🖨️ Fiş</b> işareti kaldırılan ürünler mutfak fişine yazdırılmaz (ekranda yine görünür).</p>
+    <p class="muted" style="text-align:left;margin:-6px 0 12px;font-size:13px;"><b>Menü</b>: ürünün menüsü (menüleri ve hangi istasyona gideceklerini <b>İstasyonlar</b> sekmesinde ayarlayın); ürünün istasyonu menüden gelir. <b>🖨️ Fiş</b> işareti kaldırılan ürünler mutfak fişine yazdırılmaz (ekranda yine görünür).</p>
     <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 10px;">
       <label style="margin:0;font-weight:700;font-size:13.5px;">Varsayılan KDV oranı</label>
       <div style="width:130px;">${vatSelectHtml('defaultVatSel', APP.config.default_vat_rate ?? 10, false, `${actOn('change','saveDefaultVat',['$value'])} style="margin:0;"`)}</div>
@@ -1036,8 +1073,7 @@ function renderProductsSettings(el, session){
       <p>Yeni Ürün Ekle</p>
       <div class="add-row-inline" style="display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;">
         <div class="field-group grow" style="margin:0;min-width:0;flex:2 1 170px;width:auto;"><label>Ürün Adı</label><input style="margin:0;width:100%;" id="np_name" placeholder="örn. Izgara Köfte"></div>
-        <div class="field-group" style="margin:0;min-width:0;flex:1.4 1 130px;width:auto;"><label>İstasyon</label><select style="margin:0;width:100%;" id="np_station" ${actOn('change','prodStationChanged',['$value', ''])}>${APP.config.stations.map(s => `<option value="${s.id}">${escapeHtml(s.name)}</option>`).join('')}</select></div>
-        <div class="field-group" style="margin:0;min-width:0;flex:1.2 1 120px;width:auto;"><label>Alt Menü</label><select style="margin:0;width:100%;" id="np_cat">${prodCatOptions((APP.config.stations[0]||{}).id, null)}</select></div>
+        <div class="field-group" style="margin:0;min-width:0;flex:1.6 1 150px;width:auto;"><label>Menü</label><select style="margin:0;width:100%;" id="np_menu">${prodMenuOptions((APP.config.menus[0]||{}).id)}</select></div>
         <div class="field-group" style="margin:0;min-width:0;flex:1 1 90px;width:auto;"><label>Fiyat (₺)</label><input style="margin:0;width:100%;" type="number" id="np_price" placeholder="0"></div>
         <div class="field-group" style="margin:0;min-width:0;flex:1 1 90px;width:auto;"><label>Maliyet (₺)</label><input style="margin:0;width:100%;" type="number" id="np_cost" placeholder="0"></div>
         <div class="field-group" style="margin:0;min-width:0;flex:1 1 110px;width:auto;"><label>KDV</label>${vatSelectHtml('np_vat', null, true, 'style="margin:0;width:100%;"')}</div>
@@ -1116,9 +1152,11 @@ async function saveAllProducts(){
     const name = document.getElementById('pr_name_'+id).value.trim();
     const vatEl = document.getElementById('pr_vat_'+id);
     const vat = vatEl && vatEl.value !== '' ? Number(vatEl.value) : null;
-    const cat = (document.getElementById('pr_cat_'+id) || {}).value; const pr = (document.getElementById('pr_print_'+id) || {}).checked;
-    const optChanged = (cat != null && (cat.trim() || null) !== (p.category || null)) || (pr != null && pr !== (p.print_ticket !== false));
-    return { name, id, vat, cat: cat == null ? (p.category || null) : cat.trim(), pr: pr == null ? p.print_ticket !== false : pr, optChanged, vatChanged: (p.vat_rate ?? null) !== vat, payload: productPayload(p, { p_name: name, p_station_id: document.getElementById('pr_st_'+id).value,
+    const menuEl = document.getElementById('pr_menu_'+id); const menu = menuEl ? (menuEl.value || null) : (p.menu_id || null);
+    const pr = (document.getElementById('pr_print_'+id) || {}).checked;
+    const optChanged = pr != null && pr !== (p.print_ticket !== false);
+    const menuChanged = menu !== (p.menu_id || null);
+    return { name, id, vat, menu, menuChanged, cat: p.category || null, pr: pr == null ? p.print_ticket !== false : pr, optChanged, vatChanged: (p.vat_rate ?? null) !== vat, payload: productPayload(p, { p_name: name, p_station_id: document.getElementById('pr_st_'+id).value,
       p_price: parseFloat(document.getElementById('pr_price_'+id).value)||0, p_cost: parseFloat(document.getElementById('pr_cost_'+id).value)||0, p_stock: stock }) };
   });
   if(!rows.length) return;
@@ -1127,6 +1165,7 @@ async function saveAllProducts(){
     const res = await sb.rpc('upsert_product', Object.assign({ p_token: s.session_token }, r.payload));
     if(res.error) return res;
     if(r.optChanged){ const o = await sb.rpc('set_product_options', { p_token: s.session_token, p_product_id: r.id, p_category: r.cat || null, p_print_ticket: r.pr }); if(o.error) return o; }
+    if(r.menuChanged){ const o = await sb.rpc('set_product_menu', { p_token: s.session_token, p_product_id: r.id, p_menu_id: r.menu }); if(o.error) return o; }
     if(!r.vatChanged) return res;
     return sb.rpc('set_product_vat', { p_token: s.session_token, p_product_id: r.id, p_rate: r.vat });
   });
@@ -1149,7 +1188,9 @@ async function bulkDeleteProducts(){
 async function addProduct(){
   const session = getSession();
   const name = document.getElementById('np_name').value.trim();
-  const stationId = document.getElementById('np_station').value;
+  const npMenu = (document.getElementById('np_menu') || {}).value || null;
+  const npMenuObj = (APP.config.menus||[]).find(m => m.id === npMenu);
+  const stationId = (npMenuObj && npMenuObj.station_id) || ((APP.config.stations||[])[0] || {}).id;
   const price = parseFloat(document.getElementById('np_price').value)||0;
   const cost = parseFloat(document.getElementById('np_cost').value)||0;
   const stockRaw = document.getElementById('np_stock').value.trim();
@@ -1157,8 +1198,7 @@ async function addProduct(){
   if(!name) return;
   const { data: newId, error } = await sb.rpc('upsert_product', { p_token: session.session_token, p_id: null, p_station_id: stationId, p_name: name, p_price: price, p_cost: cost, p_stock: stock, p_available: true });
   if(error){ alert(error.message); return; }
-  const npCat = (document.getElementById('np_cat') || {}).value;
-  if(newId && npCat){ const { error: cErr } = await sb.rpc('set_product_options', { p_token: session.session_token, p_product_id: newId, p_category: npCat, p_print_ticket: true }); if(cErr) alert('Ürün eklendi ama alt menü kaydedilemedi: ' + cErr.message); }
+  if(newId && npMenu){ const { error: cErr } = await sb.rpc('set_product_menu', { p_token: session.session_token, p_product_id: newId, p_menu_id: npMenu }); if(cErr) alert('Ürün eklendi ama menü kaydedilemedi: ' + cErr.message); }
   const npVat = document.getElementById('np_vat').value;
   if(newId && npVat !== ''){
     const { error: vErr } = await sb.rpc('set_product_vat', { p_token: session.session_token, p_product_id: newId, p_rate: Number(npVat) });
