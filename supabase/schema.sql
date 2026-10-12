@@ -6127,8 +6127,10 @@ begin
     into v_subtotal, v_cost
     from order_items where order_id = p_order_id and id = any(v_paid_item_ids);
 
-  select rt.name, o.tags, o.kind into v_table_name, v_tags, v_kind
-    from orders o left join restaurant_tables rt on rt.id = o.table_id
+  -- Aynı adlı masa başka bölgede de varsa bölge adı eklenir (Bahçe · Masa1).
+  select case when exists(select 1 from restaurant_tables x where x.restaurant_id = rt.restaurant_id and x.id <> rt.id and lower(trim(x.name)) = lower(trim(rt.name)))
+              then z.name || ' · ' || rt.name else rt.name end, o.tags, o.kind into v_table_name, v_tags, v_kind
+    from orders o left join restaurant_tables rt on rt.id = o.table_id left join zones z on z.id = rt.zone_id
     where o.id = p_order_id and o.restaurant_id = s.restaurant_id;
 
   select r.loyalty_enabled, r.loyalty_spend_per_point, r.loyalty_point_value, r.birthday_discount_percent
@@ -8851,9 +8853,9 @@ begin
     raise exception 'Bölge bulunamadı';
   end if;
   if coalesce(trim(p_name),'') = '' then raise exception 'Masa adı gerekli'; end if;
-  -- Aynı işletmede aynı adda iki masa olmasın (çift tıklama / toplu eklemede tekrar).
-  if exists(select 1 from restaurant_tables where restaurant_id = s.restaurant_id and lower(trim(name)) = lower(trim(p_name)) and id is distinct from p_id) then
-    raise exception '"%" adında bir masa zaten var', trim(p_name);
+  -- Aynı bölgede aynı adda iki masa olmasın (farklı bölgelerde Masa1 olabilir) (çift tıklama / toplu eklemede tekrar).
+  if exists(select 1 from restaurant_tables where restaurant_id = s.restaurant_id and zone_id = p_zone_id and lower(trim(name)) = lower(trim(p_name)) and id is distinct from p_id) then
+    raise exception '"%" adında bir masa bu bölgede zaten var', trim(p_name);
   end if;
   if p_id is null then
     insert into restaurant_tables (restaurant_id, zone_id, name) values (s.restaurant_id, p_zone_id, p_name) returning id into v_id;
