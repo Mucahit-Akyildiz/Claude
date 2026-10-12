@@ -95,8 +95,8 @@ async function refreshMenuStock(force){
   if(trimmed) alert(stockTxt('changed'));
 }
 function stateBoxHtml(icon, title, msg){
-  return `<div style="padding:16px;display:flex;justify-content:flex-end;">${langPickerHtml()}</div>
-    <div class="center-wrap" style="min-height:calc(100vh - 66px);"><div class="state-box"><div style="font-size:40px;">${icon}</div><h2>${escapeHtml(title)}</h2><p>${escapeHtml(msg)}</p></div></div>`;
+  return `<div class="u-langbar">${langPickerHtml()}</div>
+    <div class="u-minh center-wrap"><div class="state-box"><div class="u-big-ic">${icon}</div><h2>${escapeHtml(title)}</h2><p>${escapeHtml(msg)}</p></div></div>`;
 }
 
 function renderMenu(){
@@ -145,9 +145,9 @@ const TRUST_I18N = {
 function trt(k){ return (TRUST_I18N[STATE.lang] || TRUST_I18N.tr)[k] || TRUST_I18N.tr[k]; }
 function trustHtml(){
   const m = STATE.menu || {};
-  return `<div style="padding:10px 16px;font-size:12px;color:var(--muted);border-bottom:1px solid var(--border);">
-    ${m.restaurant_verified ? `<div style="color:var(--accent);font-weight:700;margin-bottom:2px;">${escapeHtml(trt('verified'))}${m.restaurant_title ? ' · '+escapeHtml(m.restaurant_title) : ''}</div>` : ''}
-    ${m.restaurant_address ? `<div style="margin-bottom:4px;">📍 ${escapeHtml(m.restaurant_address)}</div>` : ''}
+  return `<div class="u-trust">
+    ${m.restaurant_verified ? `<div class="u-trust-ok">${escapeHtml(trt('verified'))}${m.restaurant_title ? ' · '+escapeHtml(m.restaurant_title) : ''}</div>` : ''}
+    ${m.restaurant_address ? `<div class="u-mb4">📍 ${escapeHtml(m.restaurant_address)}</div>` : ''}
     <div>${escapeHtml(trt('safety'))}</div>
   </div>`;
 }
@@ -237,9 +237,9 @@ function openCheckout(){
   bg.innerHTML = `<div class="modal">
     <h2>${escapeHtml(t('checkoutTitle'))}</h2>
     ${rows.map(r => `<div class="item-row"><span>${r.qty}x ${escapeHtml(productName(r.p))}</span><span>${money(r.p.price*r.qty)}</span></div>`).join('')}
-    <div class="item-row" style="font-weight:800;border-top:1px solid var(--border);"><span>${escapeHtml(t('total'))}</span><span>${money(total)}</span></div>
-    <input id="ckName" placeholder="${escapeHtml(t('namePlaceholder'))}" style="margin-top:14px;">
-    <p class="muted" style="font-size:11px;margin-top:6px;">${t('privacyNotice')}</p>
+    <div class="u-total item-row"><span>${escapeHtml(t('total'))}</span><span>${money(total)}</span></div>
+    <input class="u-mt14" id="ckName" placeholder="${escapeHtml(t('namePlaceholder'))}">
+    <p class="u-fine muted">${t('privacyNotice')}</p>
     <div class="err" id="ckErr"></div>
     <button class="primary" id="ckSendBtn" ${act('sendCustomerOrder')}>${escapeHtml(t('sendRequest'))}</button>
     <button class="ghost" ${act('removeEl','checkoutBg')}>${escapeHtml(t('back'))}</button>

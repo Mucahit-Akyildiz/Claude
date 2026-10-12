@@ -108,8 +108,8 @@ async function refreshMenuStock(force){
   if(trimmed) alert(stockTxt('changed'));
 }
 function stateBoxHtml(icon, title, msg){
-  return `<div style="padding:16px;display:flex;justify-content:flex-end;">${langPickerHtml()}</div>
-    <div class="center-wrap" style="min-height:calc(100vh - 66px);"><div class="state-box"><div style="font-size:40px;">${icon}</div><h2>${escapeHtml(title)}</h2><p>${escapeHtml(msg)}</p></div></div>`;
+  return `<div class="u-langbar">${langPickerHtml()}</div>
+    <div class="u-minh center-wrap"><div class="state-box"><div class="u-big-ic">${icon}</div><h2>${escapeHtml(title)}</h2><p>${escapeHtml(msg)}</p></div></div>`;
 }
 
 function selectSection(i){ STATE.sec = i; renderMenu(); window.scrollTo(0, 0); }
@@ -173,9 +173,9 @@ const TRUST_I18N = {
 function trt(k){ return (TRUST_I18N[STATE.lang] || TRUST_I18N.tr)[k] || TRUST_I18N.tr[k]; }
 function trustHtml(){
   const m = STATE.menu || {};
-  return `<div style="padding:10px 16px;font-size:12px;color:var(--muted);border-bottom:1px solid var(--border);">
-    ${m.restaurant_verified ? `<div style="color:var(--accent);font-weight:700;margin-bottom:2px;">${escapeHtml(trt('verified'))}${m.restaurant_title ? ' · '+escapeHtml(m.restaurant_title) : ''}</div>` : ''}
-    ${m.restaurant_address ? `<div style="margin-bottom:4px;">📍 ${escapeHtml(m.restaurant_address)}</div>` : ''}
+  return `<div class="u-trust">
+    ${m.restaurant_verified ? `<div class="u-trust-ok">${escapeHtml(trt('verified'))}${m.restaurant_title ? ' · '+escapeHtml(m.restaurant_title) : ''}</div>` : ''}
+    ${m.restaurant_address ? `<div class="u-mb4">📍 ${escapeHtml(m.restaurant_address)}</div>` : ''}
     <div>${escapeHtml(trt('safety'))}</div>
   </div>`;
 }
@@ -276,10 +276,10 @@ function openCheckout(){
       <div class="order-type-tab ${STATE.orderType==='delivery'?'active':''}" id="otDelivery" ${act('setOrderType', 'delivery')}>${escapeHtml(t('deliveryTab'))}</div>
     </div>
     ${rows.map(r => `<div class="item-row"><span>${r.qty}x ${escapeHtml(r.p.name)}</span><span>${money(r.p.price*r.qty)}</span></div>`).join('')}
-    <div class="item-row" style="font-weight:800;border-top:1px solid var(--border);"><span>${escapeHtml(t('total'))}</span><span>${money(total)}</span></div>
-    <input id="ckName" placeholder="${escapeHtml(t('namePlaceholder'))}" style="margin-top:14px;">
+    <div class="u-total item-row"><span>${escapeHtml(t('total'))}</span><span>${money(total)}</span></div>
+    <input class="u-mt14" id="ckName" placeholder="${escapeHtml(t('namePlaceholder'))}">
     <input id="ckPhone" type="tel" placeholder="${escapeHtml(t('phonePlaceholder'))}">
-    <input id="ckAddress" placeholder="${escapeHtml(t('addressPlaceholder'))}" style="${STATE.orderType==='delivery'?'':'display:none;'}">
+    <input id="ckAddress" placeholder="${escapeHtml(t('addressPlaceholder'))}" ${STATE.orderType==='delivery'?'':'hidden'}>
     <div class="err" id="ckErr"></div>
     <button class="primary" id="ckSendBtn" ${act('sendPublicOrder')}>${escapeHtml(t('sendOrder'))}</button>
     <button class="ghost" ${act('removeEl','checkoutBg')}>${escapeHtml(t('back'))}</button>
@@ -293,7 +293,7 @@ function setOrderType(type){
   if(pickupTab) pickupTab.classList.toggle('active', type==='pickup');
   if(deliveryTab) deliveryTab.classList.toggle('active', type==='delivery');
   const addrInput = document.getElementById('ckAddress');
-  if(addrInput) addrInput.style.display = type==='delivery' ? 'block' : 'none';
+  if(addrInput) addrInput.hidden = type!=='delivery';
 }
 async function sendPublicOrder(){
   const ids = Object.keys(STATE.cart);
