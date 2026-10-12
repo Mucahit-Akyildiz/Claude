@@ -154,7 +154,9 @@ async function radioConnect(id, silent){
       RADIO.status = status==='SUBSCRIBED' ? '' : (status==='CLOSED' ? 'Bağlantı kapandı' : 'Yeniden bağlanıyor…');
       if(status==='SUBSCRIBED' && RADIO.rt) RADIO.rt.track(me).catch(()=>{});
       // Kanal hata verir / zaman aşımına uğrarsa birkaç saniye sonra yeniden bağlanılır.
-      if(status==='CHANNEL_ERROR' || status==='TIMED_OUT' || status==='CLOSED') radioScheduleReconnect('durum ' + status);
+      // CLOSED, kanalı kendimiz kapattığımızda (yeniden bağlanırken) da gelir; yeniden bağlanma sebebi sayılmaz.
+      if(status==='CHANNEL_ERROR' || status==='TIMED_OUT') radioScheduleReconnect('durum ' + status);
+      if(status==='SUBSCRIBED') RADIO_RECONNECT_FAILS = 0;
       drawRadioDock();
     });
   drawRadioDock();
@@ -223,7 +225,7 @@ function radioBusyBy(){
   const me = getSession();
   return RADIO.floor && me && RADIO.floor.u !== me.user_id ? RADIO.floor : null;
 }
-const RADIO_BUILD = 'r7';
+const RADIO_BUILD = 'r8';
 function radioLog(msg){ try{ if(typeof reportClientError === 'function') reportClientError('radio', msg + ' | ' + RADIO_BUILD, 'radio.js'); }catch(e){} }
 async function radioStartTalk(){
   if(RADIO.talking) return;
@@ -581,25 +583,37 @@ function openRadioOnlineList(){
 /* ---- Bağlantı bekçisi ----
    Telefon uykuya geçince / uygulama arka plandayken gerçek zamanlı bağlantı sessizce kopabiliyor,
    ekranda ise kanal "bağlı" görünmeye devam ediyordu (ses gelmiyor, çıkıp girince düzeliyordu).
-   Kanal 'joined' değilse ya da uygulama 30 sn'den uzun arka planda kaldıysa bağlantı yeniden kurulur. */
-let RADIO_RECONNECT_T = null, RADIO_HIDDEN_AT = 0;
+   Kanal 'joined' değilse ya da uygulama 5 dk'dan uzun arka planda kaldıysa bağlantı yeniden kurulur;
+   yenilemeler en az 10 sn arayla yapılır (döngüye girmesin). */
+let RADIO_RECONNECT_T = null, RADIO_HIDDEN_AT = 0, RADIO_LAST_RECONNECT = 0, RADIO_RECONNECT_FAILS = 0, RADIO_JOINING_SINCE = 0;
 function radioChannelHealthy(){
-  return !!(RADIO.rt && RADIO.rt.state === 'joined' && (!sb.realtime || !sb.realtime.isConnected || sb.realtime.isConnected()));
+  if(!RADIO.rt) return false;
+  const st = RADIO.rt.state;
+  // Bağlanma sürüyorsa 20 sn'ye kadar sağlıklı sayılır (aksi halde bekçi kendi bağlantısını bozar).
+  if(st === 'joining'){ if(!RADIO_JOINING_SINCE) RADIO_JOINING_SINCE = Date.now(); return Date.now() - RADIO_JOINING_SINCE < 20000; }
+  RADIO_JOINING_SINCE = 0;
+  return st === 'joined' && (!sb.realtime || !sb.realtime.isConnected || sb.realtime.isConnected());
 }
 function radioScheduleReconnect(reason, delay){
   if(!RADIO.channel || RADIO.talking) return;
   clearTimeout(RADIO_RECONNECT_T);
+  // Art arda yenileme döngüsüne karşı: en az 10 sn arayla, başarısız oldukça aralık uzar (en fazla 60 sn).
+  const minGap = Math.min(60000, 10000 * Math.pow(2, RADIO_RECONNECT_FAILS));
+  const wait = Math.max(delay == null ? 2500 : delay, RADIO_LAST_RECONNECT + minGap - Date.now());
   RADIO_RECONNECT_T = setTimeout(() => {
     if(!RADIO.channel || RADIO.talking) return;
+    if(radioChannelHealthy() && !/ön plana|internet/.test(reason)) return; // bu arada düzeldiyse dokunma
+    RADIO_LAST_RECONNECT = Date.now(); RADIO_RECONNECT_FAILS++; RADIO_JOINING_SINCE = 0;
     radioLog('bağlantı yenileniyor: ' + reason);
     radioConnect(RADIO.channel.id, true);
-  }, delay == null ? 2500 : delay);
+  }, wait);
 }
 setInterval(() => { if(RADIO.channel && !RADIO.talking && !radioChannelHealthy()) radioScheduleReconnect('bekçi: kanal ' + (RADIO.rt ? RADIO.rt.state : 'yok')); }, 15000);
 document.addEventListener('visibilitychange', () => {
   if(document.hidden){ RADIO_HIDDEN_AT = Date.now(); return; }
   if(!RADIO.channel) return;
   const away = RADIO_HIDDEN_AT ? Date.now() - RADIO_HIDDEN_AT : 0;
-  if(!radioChannelHealthy() || away > 30000) radioScheduleReconnect('ön plana dönüş (' + Math.round(away/1000) + ' sn)', 300);
+  // Kopuksa hemen; görünürde bağlıysa ama uzun süre (5 dk+) arka planda kaldıysa bağlantı tazelenir.
+  if(!radioChannelHealthy() || away > 300000) radioScheduleReconnect('ön plana dönüş (' + Math.round(away/1000) + ' sn)', 300);
 });
 window.addEventListener('online', () => { if(RADIO.channel) radioScheduleReconnect('internet geri geldi', 500); });
