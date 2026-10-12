@@ -68,6 +68,8 @@
     <!-- Mesajlarda sesli mesaj kaydı (WebView getUserMedia için). -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+    <!-- Sesli aramada Bluetooth kulaklığa yönlendirme (Android 11 ve altı) -->
+    <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
     <!-- Peyk Bas-Konuş arka plan servisi -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />

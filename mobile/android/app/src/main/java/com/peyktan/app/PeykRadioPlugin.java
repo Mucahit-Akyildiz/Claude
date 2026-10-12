@@ -51,6 +51,22 @@ public class PeykRadioPlugin extends Plugin {
         call.resolve();
     }
 
+    /* ---- Sesli arama ses çıkışı (bkz. PeykCallAudio) ---- */
+    private com.getcapacitor.JSObject callAudioState() {
+        com.getcapacitor.JSObject r = new com.getcapacitor.JSObject();
+        r.put("route", PeykCallAudio.current(getContext()));
+        r.put("routes", new com.getcapacitor.JSArray(PeykCallAudio.available(getContext())));
+        return r;
+    }
+    @PluginMethod
+    public void callAudioStart(PluginCall call) { PeykCallAudio.start(getContext(), call.getString("route", "auto")); call.resolve(callAudioState()); }
+    @PluginMethod
+    public void callAudioRoute(PluginCall call) { PeykCallAudio.setRoute(getContext(), call.getString("route", "earpiece")); call.resolve(callAudioState()); }
+    @PluginMethod
+    public void callAudioState(PluginCall call) { call.resolve(callAudioState()); }
+    @PluginMethod
+    public void callAudioStop(PluginCall call) { PeykCallAudio.stop(getContext()); call.resolve(); }
+
     @PluginMethod
     public void stop(PluginCall call) {
         getContext().stopService(new Intent(getContext(), PeykRadioService.class));

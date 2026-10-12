@@ -71,7 +71,7 @@ async function callReceive(p){
   if(p.id !== CALL.id || p.from !== CALL.peer) return;
   if(p.type === 'accept' && CALL.state === 'calling'){
     clearInterval(CALL.inviteT); clearTimeout(CALL.ringT);
-    CALL.state = 'connecting'; callDrawUi();
+    CALL.state = 'connecting'; callAudioBegin(); callDrawUi();
     const offer = await CALL.pc.createOffer({ offerToReceiveAudio: true });
     await CALL.pc.setLocalDescription(offer);
     callSend('sdp', { sdp: CALL.pc.localDescription });
@@ -100,6 +100,7 @@ function callCreatePc(mic){
     if(!CALL.remoteAudio){ CALL.remoteAudio = document.createElement('audio'); CALL.remoteAudio.autoplay = true; CALL.remoteAudio.setAttribute('playsinline', ''); document.body.appendChild(CALL.remoteAudio); }
     CALL.remoteAudio.srcObject = e.streams[0] || new MediaStream([e.track]);
     CALL.remoteAudio.play().catch(() => {});
+    callApplySink();
   };
   pc.onconnectionstatechange = () => {
     const st = pc.connectionState;
@@ -117,7 +118,7 @@ async function acceptVoiceCall(){
   let mic;
   try{ mic = await getSharedMic(); }
   catch(e){ callSend('decline'); callEnd('Mikrofona erişilemedi'); return; }
-  CALL.state = 'connecting';
+  CALL.state = 'connecting'; callAudioBegin();
   callCreatePc(mic);
   callDrawUi();
   callSend('accept');
@@ -134,6 +135,7 @@ function toggleCallMute(){
   callDrawUi();
 }
 function callEnd(msg){
+  callAudioEnd();
   clearInterval(CALL.inviteT); clearTimeout(CALL.ringT); clearInterval(CALL.timer);
   callRing(false);
   if(CALL.pc){
@@ -190,7 +192,7 @@ function callDrawUi(){
     <div style="display:flex;gap:44px;align-items:flex-start;">
       ${CALL.state === 'ringing'
         ? `<div>${btn('#dc2626', 'Reddet', 'declineVoiceCall', '✕')}</div><div>${btn('#16a34a', 'Kabul et', 'acceptVoiceCall', '📞')}</div>`
-        : `${CALL.state === 'active' || CALL.state === 'connecting' ? `<div>${btn(CALL.muted ? '#f59e0b' : 'rgba(255,255,255,.18)', CALL.muted ? 'Sesi aç' : 'Sessiz', 'toggleCallMute', CALL.muted ? '🔇' : '🎙️')}</div>` : ''}
+        : `${CALL.state === 'active' || CALL.state === 'connecting' ? `<div>${btn(CALL.muted ? '#f59e0b' : 'rgba(255,255,255,.18)', CALL.muted ? 'Sesi aç' : 'Sessiz', 'toggleCallMute', CALL.muted ? '🔇' : '🎙️')}</div><div>${btn(CALL_AUDIO.route === 'speaker' ? '#0891b2' : 'rgba(255,255,255,.18)', callRouteLabel(), 'openCallAudioPicker', callRouteIcon())}</div>` : ''}
            <div>${btn('#dc2626', 'Kapat', 'hangupVoiceCall', '✕')}</div>`}
     </div>
     <style>@keyframes callPulse{0%{box-shadow:0 0 0 0 rgba(255,255,255,.35)}70%{box-shadow:0 0 0 26px rgba(255,255,255,0)}100%{box-shadow:0 0 0 0 rgba(255,255,255,0)}}</style>`;
@@ -233,6 +235,7 @@ async function startGroupCall(conv, name){
   setTimeout(() => { clearInterval(GCALL.inviteT); if(GCALL.room === room) members.filter(id => !GCALL.peers[id]).forEach(callNotifyEnd); }, 35000);
   members.forEach(id => sb.rpc('notify_call', { p_token: session.session_token, p_to: id, p_group_name: GCALL.groupName }).then(() => {}, () => {}));
   clearInterval(GCALL.timer); GCALL.timer = setInterval(gcallDrawUi, 1000);
+  callAudioBegin();
   gcallDrawUi();
 }
 function gcallPeerPc(userId, name){
@@ -244,7 +247,7 @@ function gcallPeerPc(userId, name){
   pc.onicecandidate = (e) => { if(e.candidate) gcallSend('gice', { to: userId, cand: e.candidate.toJSON ? e.candidate.toJSON() : e.candidate }); };
   pc.ontrack = (e) => {
     if(!peer.audio){ peer.audio = document.createElement('audio'); peer.audio.autoplay = true; peer.audio.setAttribute('playsinline', ''); document.body.appendChild(peer.audio); }
-    peer.audio.srcObject = e.streams[0] || new MediaStream([e.track]); peer.audio.play().catch(() => {});
+    peer.audio.srcObject = e.streams[0] || new MediaStream([e.track]); peer.audio.play().catch(() => {}); callApplySink();
   };
   pc.onconnectionstatechange = () => {
     peer.state = pc.connectionState;
@@ -301,7 +304,7 @@ async function acceptGroupCall(){
   if(GCALL.state !== 'ringing') return;
   callRing(false); clearTimeout(GCALL.ringT);
   try{ await getSharedMic(); }catch(e){ gcallReset('Mikrofona erişilemedi'); return; }
-  GCALL.state = 'active'; GCALL.startedAt = Date.now();
+  GCALL.state = 'active'; GCALL.startedAt = Date.now(); callAudioBegin();
   clearInterval(GCALL.timer); GCALL.timer = setInterval(gcallDrawUi, 1000);
   gcallDrawUi();
   gcallSend('gjoin');
@@ -315,6 +318,7 @@ function toggleGroupMute(){
   gcallDrawUi();
 }
 function gcallReset(msg){
+  callAudioEnd();
   clearInterval(GCALL.inviteT); clearTimeout(GCALL.ringT); clearInterval(GCALL.timer); callRing(false);
   Object.keys(GCALL.peers).forEach(gcallDropPeer);
   if(SHARED_MIC) SHARED_MIC.getAudioTracks().forEach(t => { t.enabled = true; });
@@ -349,7 +353,7 @@ function gcallDrawUi(){
     <div style="display:flex;gap:44px;align-items:flex-start;">
       ${GCALL.state === 'ringing'
         ? btn('#dc2626', 'Reddet', 'declineGroupCall', '✕') + btn('#16a34a', 'Katıl', 'acceptGroupCall', '📞')
-        : btn(GCALL.muted ? '#f59e0b' : 'rgba(255,255,255,.18)', GCALL.muted ? 'Sesi aç' : 'Sessiz', 'toggleGroupMute', GCALL.muted ? '🔇' : '🎙️') + btn('#dc2626', 'Ayrıl', 'leaveGroupCall', '✕')}
+        : btn(GCALL.muted ? '#f59e0b' : 'rgba(255,255,255,.18)', GCALL.muted ? 'Sesi aç' : 'Sessiz', 'toggleGroupMute', GCALL.muted ? '🔇' : '🎙️') + btn(CALL_AUDIO.route === 'speaker' ? '#0891b2' : 'rgba(255,255,255,.18)', callRouteLabel(), 'openCallAudioPicker', callRouteIcon()) + btn('#dc2626', 'Ayrıl', 'leaveGroupCall', '✕')}
     </div>`;
 }
 window.addEventListener('pagehide', () => { if(GCALL.state === 'active') gcallSend('gleave'); });
@@ -381,3 +385,55 @@ function callNotifyEnd(userId){
 }
 setTimeout(consumeNativePendingCall, 800);
 document.addEventListener('visibilitychange', () => { if(!document.hidden) consumeNativePendingCall(); });
+
+/* ---- Ses çıkışı: ahize / hoparlör / Bluetooth / kulaklık ----
+   Android uygulamasında telefon görüşme süresince "arama moduna" alınır (varsayılan ahize; kulaklık
+   bağlıysa o), buton ile değiştirilir. Bilgisayarda (Chrome/Edge) ses çıkış cihazı seçilir. */
+const CALL_AUDIO = { route: 'earpiece', routes: [], sinkId: '' };
+const CALL_ROUTE_TXT = { earpiece: ['Ahize', '📱'], speaker: ['Hoparlör', '🔊'], bluetooth: ['Bluetooth', '🎧'], wired: ['Kulaklık', '🎧'] };
+function callRouteLabel(){ return isNativeApp() ? (CALL_ROUTE_TXT[CALL_AUDIO.route] || CALL_ROUTE_TXT.earpiece)[0] : 'Ses çıkışı'; }
+function callRouteIcon(){ return isNativeApp() ? (CALL_ROUTE_TXT[CALL_AUDIO.route] || CALL_ROUTE_TXT.earpiece)[1] : '🔊'; }
+function callAudioApply(r){ if(r){ CALL_AUDIO.route = r.route || CALL_AUDIO.route; CALL_AUDIO.routes = r.routes || CALL_AUDIO.routes; } if(CALL.state !== 'idle') callDrawUi(); else gcallDrawUi(); }
+function callAudioBegin(){
+  const P = nativeCallPlugin();
+  if(P && P.callAudioStart) P.callAudioStart({ route: 'auto' }).then(callAudioApply).catch(() => {});
+  else callApplySink();
+}
+function callAudioEnd(){ const P = nativeCallPlugin(); if(P && P.callAudioStop) P.callAudioStop().catch(() => {}); }
+function callRemoteAudios(){
+  const list = [];
+  if(CALL.remoteAudio) list.push(CALL.remoteAudio);
+  Object.values(GCALL.peers || {}).forEach(p => { if(p.audio) list.push(p.audio); });
+  return list;
+}
+function callApplySink(){
+  if(!CALL_AUDIO.sinkId) return;
+  callRemoteAudios().forEach(a => { if(a.setSinkId) a.setSinkId(CALL_AUDIO.sinkId).catch(() => {}); });
+}
+async function openCallAudioPicker(){
+  removeEl('callAudioBg');
+  let items = [];
+  const P = nativeCallPlugin();
+  if(P && P.callAudioState){
+    try{ callAudioApply(await P.callAudioState()); }catch(e){}
+    items = (CALL_AUDIO.routes.length ? CALL_AUDIO.routes : ['earpiece', 'speaker']).map(r => ({ id: r, label: (CALL_ROUTE_TXT[r] || [r, '🔈'])[1] + ' ' + (CALL_ROUTE_TXT[r] || [r])[0], on: CALL_AUDIO.route === r }));
+  } else if(navigator.mediaDevices && navigator.mediaDevices.enumerateDevices && HTMLMediaElement.prototype.setSinkId){
+    const devs = (await navigator.mediaDevices.enumerateDevices()).filter(d => d.kind === 'audiooutput');
+    items = devs.map((d, i) => ({ id: d.deviceId, label: '🔈 ' + (d.label || ('Ses çıkışı ' + (i + 1))), on: (CALL_AUDIO.sinkId || 'default') === d.deviceId }));
+  }
+  if(!items.length){ showToast('Bu cihazda ses çıkışı tarayıcı/telefon tarafından seçilir (ses tuşlarıyla / kontrol merkezinden değiştirin).'); return; }
+  const ov = document.createElement('div'); ov.id = 'callAudioBg';
+  ov.style.cssText = 'position:fixed;inset:0;z-index:450;background:rgba(0,0,0,.5);display:flex;align-items:flex-end;justify-content:center;padding:16px;';
+  ov.innerHTML = `<div class="box" style="max-width:380px;width:100%;margin:0 0 30px;text-align:left;">
+    <h3 style="margin:0 0 10px;">Ses çıkışı</h3>
+    ${items.map(it => `<button type="button" class="${it.on ? '' : 'ghost-btn'}" style="width:100%;margin:0 0 8px;text-align:left;" ${act('setCallAudioRoute', it.id)}>${escapeHtml(it.label)}${it.on ? ' ✓' : ''}</button>`).join('')}
+  </div>`;
+  ov.onclick = (e) => { if(e.target === ov) ov.remove(); };
+  document.body.appendChild(ov);
+}
+async function setCallAudioRoute(id){
+  removeEl('callAudioBg');
+  const P = nativeCallPlugin();
+  if(P && P.callAudioRoute){ try{ callAudioApply(await P.callAudioRoute({ route: id })); }catch(e){} return; }
+  CALL_AUDIO.sinkId = id; callApplySink(); callAudioApply();
+}
