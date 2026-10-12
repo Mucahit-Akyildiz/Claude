@@ -300,6 +300,7 @@ async function addIngredient(){
 function openIngredientUsageModal(ingredientId){
   const ingredient = (APP.config.ingredients||[]).find(x => x.id===ingredientId);
   const ingredientName = ingredient ? ingredient.name : '';
+  const unit = ingredient && ingredient.unit ? ingredient.unit : '';
   const products = APP.config.products || [];
   const bg = document.createElement('div');
   bg.id = 'ingUsageModalBg';
@@ -307,7 +308,7 @@ function openIngredientUsageModal(ingredientId){
   bg.onclick = (e) => { if(e.target===bg) bg.remove(); };
   bg.innerHTML = `<div style="background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:20px;max-width:480px;width:100%;max-height:88vh;overflow:auto;">
     <div style="display:flex;justify-content:space-between;"><h2 style="margin:0;">${escapeHtml(ingredientName)} - Kullanıldığı Ürünler</h2><span style="cursor:pointer;color:var(--muted);" ${act('removeEl','ingUsageModalBg')}>✕</span></div>
-    <p class="muted" style="text-align:left;">Bu hammaddeyi hangi ürünler kullanıyor, 1 porsiyonda ne kadar tüketiliyor? Seçmediğiniz ürünlerden bu hammadde kaldırılır (o ürünlerin diğer hammaddeleri etkilenmez).</p>
+    <p class="muted" style="text-align:left;">Bu hammaddeyi hangi ürünler kullanıyor, 1 porsiyonda ne kadar tüketiliyor${unit?' ('+escapeHtml(unit)+')':''}? Seçmediğiniz ürünlerden bu hammadde kaldırılır (o ürünlerin diğer hammaddeleri etkilenmez).</p>
     <div id="ingUsageItemsBox"></div>
     <button style="margin-top:14px;" ${act('saveIngredientUsage', ingredientId)}>${ICON_SAVE}<span>Kaydet</span></button>
   </div>`;
@@ -319,7 +320,8 @@ function openIngredientUsageModal(ingredientId){
     <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);">
       <input type="checkbox" id="ingu_chk_${p.id}" ${existing?'checked':''} ${actOn('change','toggleIngUsageQty',[p.id,'$checked'])} style="width:auto;margin:0;">
       <span style="flex:1;">${escapeHtml(p.name)}</span>
-      <input type="number" step="0.01" min="0" id="ingu_qty_${p.id}" value="${existing?existing.qty_per_unit:''}" placeholder="Miktar/porsiyon" ${existing?'':'disabled'} style="width:130px;margin:0;">
+      <input type="number" step="0.01" min="0" id="ingu_qty_${p.id}" value="${existing?existing.qty_per_unit:''}" placeholder="Miktar/porsiyon" ${existing?'':'disabled'} style="width:110px;margin:0;">
+      <span class="muted" style="min-width:36px;">${escapeHtml(unit)}</span>
     </div>`;
   }).join('');
 }
