@@ -4606,7 +4606,7 @@ begin
         )), '[]'::json)
         from zones z where z.restaurant_id = s.restaurant_id
       ),
-      'stations', (select coalesce(json_agg(json_build_object('id', id, 'name', name, 'color', color, 'icon', icon)), '[]'::json) from stations where restaurant_id = s.restaurant_id),
+      'stations', (select coalesce(json_agg(json_build_object('id', id, 'name', name, 'color', color, 'icon', icon, 'categories', categories)), '[]'::json) from stations where restaurant_id = s.restaurant_id),
       'order_flags', (select coalesce(json_agg(json_build_object('id', id, 'label', label) order by sort_order), '[]'::json) from order_flag_defs where restaurant_id = s.restaurant_id),
       'default_vat_rate', (select default_vat_rate from restaurants where id = s.restaurant_id),
       'products', (
@@ -7527,6 +7527,28 @@ end; $$;
 
 
 --
+-- Name: set_station_categories(uuid, uuid, text[]); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.set_station_categories(p_token uuid, p_station_id uuid, p_categories text[]) RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'extensions', 'pg_temp'
+    AS $$
+declare s staff_sessions%rowtype; v text[];
+begin
+  s := _session_check(p_token, 'settings_stations');
+  select coalesce(array_agg(x order by ord), '{}') into v from (
+    select distinct on (lower(trim(c))) trim(c) x, ord from unnest(coalesce(p_categories,'{}')) with ordinality u(c, ord) where trim(c) <> '' order by lower(trim(c)), ord) q;
+  if array_length(v,1) > 40 then raise exception 'Bir istasyonda en fazla 40 alt menü olabilir'; end if;
+  if exists(select 1 from unnest(v) c where length(c) > 60) then raise exception 'Alt menü adı en fazla 60 karakter olabilir'; end if;
+  update stations set categories = v where id = p_station_id and restaurant_id = s.restaurant_id;
+  if not found then raise exception 'İstasyon bulunamadı'; end if;
+  -- Silinen alt menüdeki ürünler alt menüsüz kalır.
+  update products set category = null where station_id = p_station_id and restaurant_id = s.restaurant_id and category is not null and not (category = any(v));
+end $$;
+
+
+--
 -- Name: set_support_access(uuid, integer); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -10268,7 +10290,8 @@ CREATE TABLE public.stations (
     restaurant_id uuid NOT NULL,
     name text NOT NULL,
     color text DEFAULT '#8b93a3'::text,
-    icon text DEFAULT '🍳'::text NOT NULL
+    icon text DEFAULT '🍳'::text NOT NULL,
+    categories text[] DEFAULT '{}'::text[] NOT NULL
 );
 
 
