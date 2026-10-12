@@ -17,11 +17,11 @@ const LANGS = [
   { code:'ru', label:'RU' },
 ];
 const I18N = {
-  tr: { invalidTitle:'Geçersiz Bağlantı', invalidMsg:'Bu sayfaya işletmenin paylaştığı online sipariş linkiyle ulaşmalısınız.', errorTitle:'Menü Yüklenemedi', errorMsg:'Bir hata oluştu, lütfen daha sonra tekrar deneyin.', emptyMenu:'Şu anda menüde satışa açık ürün yok.', other:'Diğer', subtitle:'Online Sipariş — Gel-Al / Teslimat', sendCart:'Sepeti Gönder →', items:'ürün', checkoutTitle:'Siparişi Onayla', pickupTab:'🥡 Gel-Al', deliveryTab:'🛵 Teslimat', total:'Toplam', namePlaceholder:'Adınız Soyadınız', phonePlaceholder:'Telefon Numaranız', addressPlaceholder:'Teslimat Adresi', sendOrder:'Siparişi Gönder', sending:'Gönderiliyor...', back:'Geri Dön', successTitle:'Siparişiniz Alındı', successMsg:'Siparişiniz işletmeye iletildi, onaylandığında hazırlanmaya başlanacak. Afiyet olsun!', errName:'Adınızı girin', errPhone:'Telefon numaranızı girin', errAddress:'Teslimat adresini girin' },
-  en: { invalidTitle:'Invalid Link', invalidMsg:'Please use the online ordering link shared by the business to reach this page.', errorTitle:'Menu Could Not Load', errorMsg:'Something went wrong, please try again later.', emptyMenu:'There are no items available right now.', other:'Other', subtitle:'Online Order — Pickup / Delivery', sendCart:'Send Cart →', items:'items', checkoutTitle:'Confirm Order', pickupTab:'🥡 Pickup', deliveryTab:'🛵 Delivery', total:'Total', namePlaceholder:'Your Full Name', phonePlaceholder:'Your Phone Number', addressPlaceholder:'Delivery Address', sendOrder:'Send Order', sending:'Sending...', back:'Go Back', successTitle:'Order Received', successMsg:'Your order has been sent to the business and will be prepared once approved. Enjoy your meal!', errName:'Please enter your name', errPhone:'Please enter your phone number', errAddress:'Please enter the delivery address' },
-  ar: { invalidTitle:'رابط غير صالح', invalidMsg:'يرجى استخدام رابط الطلب عبر الإنترنت الذي شاركته المنشأة للوصول إلى هذه الصفحة.', errorTitle:'تعذر تحميل القائمة', errorMsg:'حدث خطأ ما، يرجى المحاولة مرة أخرى لاحقًا.', emptyMenu:'لا توجد عناصر متاحة حاليًا.', other:'أخرى', subtitle:'طلب عبر الإنترنت — استلام / توصيل', sendCart:'إرسال السلة ←', items:'عناصر', checkoutTitle:'تأكيد الطلب', pickupTab:'🥡 استلام', deliveryTab:'🛵 توصيل', total:'المجموع', namePlaceholder:'الاسم الكامل', phonePlaceholder:'رقم هاتفك', addressPlaceholder:'عنوان التوصيل', sendOrder:'إرسال الطلب', sending:'جارٍ الإرسال...', back:'رجوع', successTitle:'تم استلام طلبك', successMsg:'تم إرسال طلبك إلى المنشأة وسيتم تحضيره بعد الموافقة. بالهناء والشفاء!', errName:'يرجى إدخال اسمك', errPhone:'يرجى إدخال رقم هاتفك', errAddress:'يرجى إدخال عنوان التوصيل' },
-  de: { invalidTitle:'Ungültiger Link', invalidMsg:'Bitte verwenden Sie den vom Betrieb geteilten Online-Bestelllink, um diese Seite zu erreichen.', errorTitle:'Menü konnte nicht geladen werden', errorMsg:'Etwas ist schiefgelaufen, bitte versuchen Sie es später erneut.', emptyMenu:'Derzeit sind keine Artikel verfügbar.', other:'Sonstiges', subtitle:'Online-Bestellung — Abholung / Lieferung', sendCart:'Warenkorb senden →', items:'Artikel', checkoutTitle:'Bestellung bestätigen', pickupTab:'🥡 Abholung', deliveryTab:'🛵 Lieferung', total:'Gesamt', namePlaceholder:'Ihr vollständiger Name', phonePlaceholder:'Ihre Telefonnummer', addressPlaceholder:'Lieferadresse', sendOrder:'Bestellung senden', sending:'Wird gesendet...', back:'Zurück', successTitle:'Bestellung erhalten', successMsg:'Ihre Bestellung wurde an den Betrieb gesendet und wird nach Bestätigung zubereitet. Guten Appetit!', errName:'Bitte geben Sie Ihren Namen ein', errPhone:'Bitte geben Sie Ihre Telefonnummer ein', errAddress:'Bitte geben Sie die Lieferadresse ein' },
-  ru: { invalidTitle:'Недействительная ссылка', invalidMsg:'Пожалуйста, используйте ссылку для онлайн-заказа, предоставленную заведением, чтобы попасть на эту страницу.', errorTitle:'Не удалось загрузить меню', errorMsg:'Что-то пошло не так, попробуйте позже.', emptyMenu:'Сейчас нет доступных позиций.', other:'Другое', subtitle:'Онлайн-заказ — Самовывоз / Доставка', sendCart:'Отправить заказ →', items:'позиций', checkoutTitle:'Подтвердить заказ', pickupTab:'🥡 Самовывоз', deliveryTab:'🛵 Доставка', total:'Итого', namePlaceholder:'Ваше полное имя', phonePlaceholder:'Ваш номер телефона', addressPlaceholder:'Адрес доставки', sendOrder:'Отправить заказ', sending:'Отправка...', back:'Назад', successTitle:'Заказ получен', successMsg:'Ваш заказ отправлен заведению и будет готовиться после подтверждения. Приятного аппетита!', errName:'Пожалуйста, введите ваше имя', errPhone:'Пожалуйста, введите ваш номер телефона', errAddress:'Пожалуйста, введите адрес доставки' },
+  tr: { invalidTitle:'Geçersiz Bağlantı', invalidMsg:'Bu sayfaya işletmenin paylaştığı online sipariş linkiyle ulaşmalısınız.', errorTitle:'Menü Yüklenemedi', errorMsg:'Bir hata oluştu, lütfen daha sonra tekrar deneyin.', emptyMenu:'Şu anda menüde satışa açık ürün yok.', other:'Diğer', all:'Tümü', subtitle:'Online Sipariş — Gel-Al / Teslimat', sendCart:'Sepeti Gönder →', items:'ürün', checkoutTitle:'Siparişi Onayla', pickupTab:'🥡 Gel-Al', deliveryTab:'🛵 Teslimat', total:'Toplam', namePlaceholder:'Adınız Soyadınız', phonePlaceholder:'Telefon Numaranız', addressPlaceholder:'Teslimat Adresi', sendOrder:'Siparişi Gönder', sending:'Gönderiliyor...', back:'Geri Dön', successTitle:'Siparişiniz Alındı', successMsg:'Siparişiniz işletmeye iletildi, onaylandığında hazırlanmaya başlanacak. Afiyet olsun!', errName:'Adınızı girin', errPhone:'Telefon numaranızı girin', errAddress:'Teslimat adresini girin' },
+  en: { invalidTitle:'Invalid Link', invalidMsg:'Please use the online ordering link shared by the business to reach this page.', errorTitle:'Menu Could Not Load', errorMsg:'Something went wrong, please try again later.', emptyMenu:'There are no items available right now.', other:'Other', all:'All', subtitle:'Online Order — Pickup / Delivery', sendCart:'Send Cart →', items:'items', checkoutTitle:'Confirm Order', pickupTab:'🥡 Pickup', deliveryTab:'🛵 Delivery', total:'Total', namePlaceholder:'Your Full Name', phonePlaceholder:'Your Phone Number', addressPlaceholder:'Delivery Address', sendOrder:'Send Order', sending:'Sending...', back:'Go Back', successTitle:'Order Received', successMsg:'Your order has been sent to the business and will be prepared once approved. Enjoy your meal!', errName:'Please enter your name', errPhone:'Please enter your phone number', errAddress:'Please enter the delivery address' },
+  ar: { invalidTitle:'رابط غير صالح', invalidMsg:'يرجى استخدام رابط الطلب عبر الإنترنت الذي شاركته المنشأة للوصول إلى هذه الصفحة.', errorTitle:'تعذر تحميل القائمة', errorMsg:'حدث خطأ ما، يرجى المحاولة مرة أخرى لاحقًا.', emptyMenu:'لا توجد عناصر متاحة حاليًا.', other:'أخرى', all:'الكل', subtitle:'طلب عبر الإنترنت — استلام / توصيل', sendCart:'إرسال السلة ←', items:'عناصر', checkoutTitle:'تأكيد الطلب', pickupTab:'🥡 استلام', deliveryTab:'🛵 توصيل', total:'المجموع', namePlaceholder:'الاسم الكامل', phonePlaceholder:'رقم هاتفك', addressPlaceholder:'عنوان التوصيل', sendOrder:'إرسال الطلب', sending:'جارٍ الإرسال...', back:'رجوع', successTitle:'تم استلام طلبك', successMsg:'تم إرسال طلبك إلى المنشأة وسيتم تحضيره بعد الموافقة. بالهناء والشفاء!', errName:'يرجى إدخال اسمك', errPhone:'يرجى إدخال رقم هاتفك', errAddress:'يرجى إدخال عنوان التوصيل' },
+  de: { invalidTitle:'Ungültiger Link', invalidMsg:'Bitte verwenden Sie den vom Betrieb geteilten Online-Bestelllink, um diese Seite zu erreichen.', errorTitle:'Menü konnte nicht geladen werden', errorMsg:'Etwas ist schiefgelaufen, bitte versuchen Sie es später erneut.', emptyMenu:'Derzeit sind keine Artikel verfügbar.', other:'Sonstiges', all:'Alle', subtitle:'Online-Bestellung — Abholung / Lieferung', sendCart:'Warenkorb senden →', items:'Artikel', checkoutTitle:'Bestellung bestätigen', pickupTab:'🥡 Abholung', deliveryTab:'🛵 Lieferung', total:'Gesamt', namePlaceholder:'Ihr vollständiger Name', phonePlaceholder:'Ihre Telefonnummer', addressPlaceholder:'Lieferadresse', sendOrder:'Bestellung senden', sending:'Wird gesendet...', back:'Zurück', successTitle:'Bestellung erhalten', successMsg:'Ihre Bestellung wurde an den Betrieb gesendet und wird nach Bestätigung zubereitet. Guten Appetit!', errName:'Bitte geben Sie Ihren Namen ein', errPhone:'Bitte geben Sie Ihre Telefonnummer ein', errAddress:'Bitte geben Sie die Lieferadresse ein' },
+  ru: { invalidTitle:'Недействительная ссылка', invalidMsg:'Пожалуйста, используйте ссылку для онлайн-заказа, предоставленную заведением, чтобы попасть на эту страницу.', errorTitle:'Не удалось загрузить меню', errorMsg:'Что-то пошло не так, попробуйте позже.', emptyMenu:'Сейчас нет доступных позиций.', other:'Другое', all:'Все', subtitle:'Онлайн-заказ — Самовывоз / Доставка', sendCart:'Отправить заказ →', items:'позиций', checkoutTitle:'Подтвердить заказ', pickupTab:'🥡 Самовывоз', deliveryTab:'🛵 Доставка', total:'Итого', namePlaceholder:'Ваше полное имя', phonePlaceholder:'Ваш номер телефона', addressPlaceholder:'Адрес доставки', sendOrder:'Отправить заказ', sending:'Отправка...', back:'Назад', successTitle:'Заказ получен', successMsg:'Ваш заказ отправлен заведению и будет готовиться после подтверждения. Приятного аппетита!', errName:'Пожалуйста, введите ваше имя', errPhone:'Пожалуйста, введите ваш номер телефона', errAddress:'Пожалуйста, введите адрес доставки' },
 };
 function getLang(){
   try {
@@ -112,7 +112,22 @@ function stateBoxHtml(icon, title, msg){
     <div class="u-minh center-wrap"><div class="state-box"><div class="u-big-ic">${icon}</div><h2>${escapeHtml(title)}</h2><p>${escapeHtml(msg)}</p></div></div>`;
 }
 
-function selectSection(i){ STATE.sec = i; renderMenu(); window.scrollTo(0, 0); }
+function selectSection(i){ STATE.sec = i; STATE.cat = ''; renderMenu(); window.scrollTo(0, 0); }
+/* Alt menüler (istasyonun içindeki Çorbalar, Izgaralar…): seçili sekmenin ürünleri alt menü
+   şeridiyle filtrelenir; "Tümü"nde alt menü başlıkları altında gruplu listelenir. */
+function catGroups(items){
+  const map = {}; const order = [];
+  items.forEach(p => { const k = p.category || ''; if(!map[k]){ map[k] = { name: k, pos: p.cat_pos == null ? 9999 : p.cat_pos, items: [] }; order.push(map[k]); } map[k].items.push(p); });
+  return order.sort((a, b) => (a.name ? 0 : 1) - (b.name ? 0 : 1) || a.pos - b.pos);
+}
+function selectCat(c){ STATE.cat = c; renderMenu(); window.scrollTo(0, 0); }
+function catBarHtml(groups){
+  const named = groups.filter(g => g.name);
+  if(!named.length) return '';
+  const cur = STATE.cat && named.some(g => g.name === STATE.cat) ? STATE.cat : '';
+  return `<div class="cat-bar">${[['', t('all')], ...named.map(g => [g.name, g.name])].map(([v, l]) => `<button type="button" class="${cur===v?'active':''}" ${act('selectCat', v)}>${escapeHtml(l)}</button>`).join('')}</div>`;
+}
+
 function renderMenu(){
   const m = STATE.menu;
   const products = m.products || [];
@@ -137,9 +152,7 @@ function renderMenu(){
   if(STATE.sec == null || STATE.sec >= sections.length) STATE.sec = 0;
   const tabs = sections.length > 1 ? `<nav class="sec-tabs"><div class="sec-tabs-in">${sections.map((sec, i) => `<button type="button" class="${i===STATE.sec?'active':''}" ${act('selectSection', i)}>${escapeHtml(sec.name)}</button>`).join('')}</div></nav>` : '';
   const shown = sections.length > 1 ? [sections[STATE.sec]] : sections;
-  const body = shown.map(sec => `
-    <div class="station-title">${escapeHtml(sec.name)}</div>
-    <div class="product-grid">${sec.items.map(p => {
+  const cardsHtml = (list) => list.map(p => {
       const sold = p.max_qty===0 && !STATE.cart[p.id];
       return `
       <div class="product-card ${sold?'sold-out':''}">
@@ -152,8 +165,15 @@ function renderMenu(){
         <div class="product-foot">${sold ? '' : `<div class="qty"><button class="qty-btn" ${act('stepCart', p.id, -1)}>-</button>
           <span class="qty-val" data-qty="${p.id}">${STATE.cart[p.id]||0}</span>
           <button class="qty-btn" data-plus="${p.id}" ${p.max_qty===0 ? 'disabled' : ''} ${act('stepCart', p.id, 1)}>+</button></div>`}</div>
-      </div>`; }).join('')}</div>
-  `).join('');
+      </div>`; }).join('');
+  const body = shown.map(sec => {
+    const groups = catGroups(sec.items);
+    const cur = STATE.cat && groups.some(g => g.name === STATE.cat) ? STATE.cat : '';
+    const list = cur ? groups.filter(g => g.name === cur) : groups;
+    const multi = groups.some(g => g.name);
+    return `<div class="station-title">${escapeHtml(sec.name)}</div>${catBarHtml(groups)}` +
+      list.map(g => `${multi ? `<div class="cat-title">${escapeHtml(g.name || t('other'))}</div>` : ''}<div class="product-grid">${cardsHtml(g.items)}</div>`).join('');
+  }).join('');
   renderState(headerHtml() + tabs + `<main>${body}</main>
     <div class="cartbar" id="cartbar">
       <div class="cartbar-row">

@@ -84,3 +84,14 @@
 .u-mb4{margin-bottom:4px;}
 .u-total{font-weight:800;border-top:1px solid var(--border);}
 .u-fine{font-size:11px;margin-top:6px;}
+
+.sec-tabs{position:sticky;top:0;z-index:5;background:var(--bg);border-bottom:1px solid var(--border);}
+.sec-tabs-in{display:flex;gap:8px;overflow-x:auto;padding:10px 14px;max-width:520px;margin:0 auto;scrollbar-width:none;}
+.sec-tabs button{flex-shrink:0;width:auto;margin:0;padding:8px 16px;border-radius:999px;border:1px solid var(--border);background:var(--panel);color:var(--text);font-weight:700;font-size:13.5px;cursor:pointer;font-family:inherit;}
+.sec-tabs button.active{background:var(--accent);border-color:var(--accent);color:var(--btn-ink,#fff);}
+
+/* Alt menü şeridi ve başlıkları */
+.cat-bar{display:flex;gap:6px;overflow-x:auto;padding:2px 0 10px;scrollbar-width:none;}
+.cat-bar button{flex-shrink:0;width:auto;margin:0;padding:6px 13px;border-radius:999px;border:1px solid var(--border);background:transparent;color:var(--muted,#888);font-weight:700;font-size:12.5px;cursor:pointer;font-family:inherit;}
+.cat-bar button.active{background:var(--panel);color:var(--text);border-color:var(--accent);}
+.cat-title{font-size:12.5px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:var(--accent);margin:14px 2px 8px;}
