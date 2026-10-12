@@ -2366,8 +2366,47 @@ async function setSupportAccess(hours){
    sipariş/ürün iptalleri kim tarafından ne zaman yapıldı (veritabanı tetikleyicisi yazar, bkz. audit_log). */
 const AUDIT_ENTITIES = { products:'Ürün', roles:'Rol', app_users:'Kullanıcı', restaurant_tables:'Masa', stations:'İstasyon', restaurants:'İşletme Ayarı', orders:'Sipariş', order_items:'Sipariş Ürünü' };
 const AUDIT_ACTIONS = { insert:'Eklendi', update:'Değiştirildi', delete:'Silindi' };
-const AUDIT_FIELDS = { name:'Ad', price:'Fiyat', cost:'Maliyet', available:'Satışta', vat_rate:'KDV', station_id:'İstasyon', permissions:'Yetkiler', role_ids:'Roller',
-  is_active:'Aktif', password:'Şifre', username:'Kullanıcı adı', status:'Durum', zone_id:'Bölge', pos_x:'Konum X', pos_y:'Konum Y', color:'Renk', icon:'Simge', shift_exempt:'Vardiyasız', ticket_design:'Fiş tasarımı' };
+const AUDIT_FIELDS = { name:'Ad', price:'Fiyat', cost:'Maliyet', available:'Satışta', vat_rate:'KDV oranı', station_id:'İstasyon', permissions:'Yetkiler', role_ids:'Roller',
+  is_active:'Aktif', password:'Şifre', username:'Kullanıcı adı', status:'Durum', zone_id:'Bölge', pos_x:'Kat planı konumu', pos_y:'Kat planı konumu', color:'Renk', icon:'Simge',
+  shift_exempt:'Vardiyasız çalışma', ticket_design:'Fiş tasarımı', name_translations:'Ürün çevirileri',
+  // İşletme ayarları
+  sms_enabled:'SMS bildirimleri', email:'E-posta', phone:'Telefon', loyalty_enabled:'Sadakat programı', loyalty_spend_per_point:'Puan başına harcama',
+  loyalty_point_value:'Puan değeri', efatura_provider:'e-Fatura entegratörü', efatura_api_key:'e-Fatura API anahtarı', efatura_enabled:'e-Fatura',
+  marketplace_yemeksepeti_key:'Yemeksepeti anahtarı', marketplace_trendyol_key:'Trendyol anahtarı', marketplace_getir_key:'Getir anahtarı', marketplace_enabled:'Pazaryeri entegrasyonu',
+  birthday_discount_percent:'Doğum günü indirimi (%)', tip_pool_enabled:'Bahşiş havuzu', tip_pool_mode:'Bahşiş dağıtımı', google_review_url:'Google yorum linki',
+  online_ordering_enabled:'Online sipariş', accounting_provider:'Muhasebe yazılımı', accounting_api_key:'Muhasebe API anahtarı', accounting_enabled:'Muhasebe entegrasyonu',
+  billing_identity_number:'Fatura TCKN/VKN', invoice_title:'Fatura ünvanı', tax_number:'Vergi numarası', tax_office:'Vergi dairesi', invoice_address:'Fatura adresi',
+  shift_approval_required:'Vardiya onayı', shift_required:'Vardiya zorunluluğu', default_vat_rate:'Varsayılan KDV', billing_address:'Fatura adresi', billing_city:'Fatura şehri',
+  support_access_until:'Destek erişimi', reports_password_hash:'Rapor şifresi', package_id:'Paket', expires_at:'Abonelik bitişi', max_users:'Kullanıcı limiti', code:'İşletme kodu' };
+const AUDIT_STATUS = { open:'Açık', cancelled:'İptal', closed:'Kapandı', paid:'Ödendi' };
+// Kimlik (uuid) değerlerini işletmedeki adına çevirir; bulunamazsa kısa gösterir.
+function auditRefName(k, v){
+  const c = APP.config || {};
+  const find = (list) => ((list || []).find(x => x.id === v) || {}).name;
+  if(k === 'station_id') return find(c.stations);
+  if(k === 'zone_id') return find(c.zones);
+  if(k === 'role_ids') return null;
+  return null;
+}
+function auditVal(k, v){
+  if(v == null || v === '') return '—';
+  if(typeof v === 'boolean') return v ? 'Açık' : 'Kapalı';
+  if(k === 'status') return AUDIT_STATUS[v] || String(v);
+  if(k === 'price' || k === 'cost') return money(Number(v));
+  if(k === 'vat_rate' || k === 'default_vat_rate' || k === 'birthday_discount_percent') return '%' + v;
+  if(k === 'support_access_until' || k === 'expires_at') return new Date(v).toLocaleString('tr-TR', { dateStyle:'short', timeStyle:'short' });
+  if(k === 'role_ids' && Array.isArray(v)) return v.map(id => ((APP.config && APP.config.roles || []).find(r => r.id === id) || {}).name || 'silinmiş rol').join(', ') || '—';
+  if(Array.isArray(v)) return v.length + ' öğe';
+  if(typeof v === 'object') return 'güncellendi';
+  return auditRefName(k, v) || String(v);
+}
+// Yetki listelerinde eklenen/çıkarılan yetkiler gösterilir.
+function auditArrayDiff(o, n){
+  const a = new Set(o || []), b = new Set(n || []);
+  const label = (id) => (((APP.config && APP.config.role_permissions) || []).find(p => p.id === id) || {}).label || id;
+  const add = [...b].filter(x => !a.has(x)).map(label), rem = [...a].filter(x => !b.has(x)).map(label);
+  return [add.length ? '<b style="color:var(--green);">+ ' + escapeHtml(add.join(', ')) + '</b>' : '', rem.length ? '<b style="color:var(--red);">− ' + escapeHtml(rem.join(', ')) + '</b>' : ''].filter(Boolean).join(' ') || 'sıra değişti';
+}
 async function renderAuditLogSettings(el, session){
   el.innerHTML = '<div class="box" style="max-width:none;"><p class="muted">Yükleniyor…</p></div>';
   const ent = APP.auditEntity || '';
@@ -2385,11 +2424,17 @@ async function renderAuditLogSettings(el, session){
 function setAuditEntity(v){ APP.auditEntity = v; renderAuditLogSettings(document.getElementById('securitySubContent') || document.getElementById('settingsContent'), getSession()); }
 // Değişiklik kaydı tablosu (işletme Ayarlar sekmesi ve platform admin paneli ortak kullanır).
 function auditTableHtml(rows){
-  const val = (v) => v == null ? '—' : typeof v === 'object' ? (Array.isArray(v) ? v.length + ' öğe' : '…') : String(v);
-  const changes = (c) => !c ? '' : Object.keys(c).map(k => {
-    const x = c[k]; const f = escapeHtml(AUDIT_FIELDS[k] || k);
-    return x.masked ? `${f} değişti` : `${f}: <s class="muted">${escapeHtml(val(x.old))}</s> → <b>${escapeHtml(val(x.new))}</b>`;
-  }).join('<br>');
+  const changes = (c) => {
+    if(!c) return '';
+    const keys = Object.keys(c).filter(k => !(k === 'pos_y' && c.pos_x)); // konum tek satır
+    return keys.map(k => {
+      const x = c[k]; const f = escapeHtml(AUDIT_FIELDS[k] || k.replace(/_/g, ' '));
+      if(x.masked) return `${f} değiştirildi`;
+      if(k === 'pos_x' || k === 'pos_y') return `${f} değişti`;
+      if(k === 'permissions') return `${f}: ${auditArrayDiff(x.old, x.new)}`;
+      return `${f}: <s class="muted">${escapeHtml(auditVal(k, x.old))}</s> → <b>${escapeHtml(auditVal(k, x.new))}</b>`;
+    }).join('<br>');
+  };
   return `<div class="settings-table-wrap"><table class="settings-table"><thead><tr><th>Tarih</th><th>Kişi</th><th>Kayıt</th><th>İşlem</th><th>Değişiklik</th></tr></thead><tbody>
     ${rows.map(r => `<tr>
       <td style="white-space:nowrap;">${new Date(r.created_at).toLocaleString('tr-TR',{dateStyle:'short',timeStyle:'short'})}</td>
