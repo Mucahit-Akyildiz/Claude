@@ -31,3 +31,6 @@ revoke execute on function _order_items_set_added_by() from public, anon, authen
 -- Platform admin: admin_audit_log(token, restaurant_id) - işletmenin değişiklik kaydı (son 300), salt okunur.
 -- Google yorum yönlendirmesi paket kontrolü: get_restaurant_config linki yalnızca 'google_reviews'
 -- özelliği varsa döner; update_google_review_url özellik yoksa PAKET_OZELLIK_YOK verir.
+
+-- Mesajlar "son görülme": list_chat_conversations birebir kişilerde last_seen
+-- (staff_sessions.last_seen_at en yenisi) döner; grup/Genel satırlarında null.
