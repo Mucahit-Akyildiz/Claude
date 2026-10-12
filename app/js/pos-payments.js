@@ -1377,21 +1377,24 @@ function openTableModal(tableId){
   bg.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:flex-start;justify-content:center;z-index:100;padding:28px 16px 16px;overflow-y:auto;';
   bg.onclick = (e) => { if(e.target===bg) closeTableModal(); };
   bg.innerHTML = `
-    <div style="background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:20px;max-width:480px;width:100%;max-height:88vh;overflow:auto;scrollbar-gutter:stable;">
+    <div class="order-modal">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
         <h2 style="margin:0;">${escapeHtml(tableName)}</h2>
         <span style="cursor:pointer;color:var(--muted);font-size:20px;" ${act('closeTableModal')}>✕</span>
       </div>
-      ${tableCustomerInfoHtml(tableId)}
-      <div>
-        <p style="font-weight:700;margin-bottom:8px;">Ürün Ekle</p>
-        <div class="tabs" id="prodStationTabs"></div>
-        <div id="prodPick" class="prod-pick-grid" style="display:grid;grid-template-columns:repeat(${window.innerWidth < 400 ? 2 : 3},minmax(0,1fr));gap:8px;"></div>
+      <div class="order-modal-grid">
+        <div class="order-modal-menu">
+          <div class="tabs" id="prodStationTabs" style="margin-top:0;"></div>
+          <div id="prodPick"></div>
+        </div>
+        <div class="order-modal-cart">
+          ${tableCustomerInfoHtml(tableId)}
+          <div id="sentItemsWrap"></div>
+          <div id="draftItemsWrap"></div>
+          ${orderFlagsHtml(tableId)}
+          ${(String(tableId).indexOf('pkg_')!==0 && String(tableId).indexOf('wl_')!==0 && liveOrderForTable(tableId)) ? `<button class="ghost-btn" style="width:100%;margin-top:12px;" ${act('openMoveTableModal', tableId)}>🔀 Masayı Taşı / Birleştir</button>` : ''}
+        </div>
       </div>
-      <div id="sentItemsWrap" style="margin-top:14px;"></div>
-      <div id="draftItemsWrap"></div>
-      ${orderFlagsHtml(tableId)}
-      ${(String(tableId).indexOf('pkg_')!==0 && String(tableId).indexOf('wl_')!==0 && liveOrderForTable(tableId)) ? `<button class="ghost-btn" style="width:100%;margin-top:12px;" ${act('openMoveTableModal', tableId)}>🔀 Masayı Taşı / Birleştir</button>` : ''}
       <div class="modal-sticky-actions">
         <button class="ghost-btn" style="flex:1;margin-top:0;color:var(--red);border-color:var(--red);" ${act('cancelTableOrder', tableId)}>🗑️ İptal Et</button>
         <button id="confirmBtn" style="flex:1;margin-top:0;" disabled ${act('confirmOrder', tableId)}>✅ Onayla ve Gönder</button>
