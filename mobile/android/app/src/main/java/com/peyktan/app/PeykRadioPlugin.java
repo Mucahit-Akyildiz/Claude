@@ -64,6 +64,37 @@ public class PeykRadioPlugin extends Plugin {
     public void callAudioRoute(PluginCall call) { PeykCallAudio.setRoute(getContext(), call.getString("route", "earpiece")); call.resolve(callAudioState()); }
     @PluginMethod
     public void callAudioState(PluginCall call) { call.resolve(callAudioState()); }
+    /* ---- Ek izinler: Bluetooth kulaklık (Android 12+) ve kilit ekranında tam ekran arama (Android 14+) ---- */
+    @PluginMethod
+    public void extraPermissionStatus(PluginCall call) {
+        com.getcapacitor.JSObject r = new com.getcapacitor.JSObject();
+        boolean bt = android.os.Build.VERSION.SDK_INT < 31 || ContextCompat.checkSelfPermission(getContext(), "android.permission.BLUETOOTH_CONNECT") == android.content.pm.PackageManager.PERMISSION_GRANTED;
+        boolean fs = true;
+        if (android.os.Build.VERSION.SDK_INT >= 34) {
+            android.app.NotificationManager nm = (android.app.NotificationManager) getContext().getSystemService(android.content.Context.NOTIFICATION_SERVICE);
+            fs = nm == null || nm.canUseFullScreenIntent();
+        }
+        r.put("bluetooth", bt);
+        r.put("fullScreen", fs);
+        call.resolve(r);
+    }
+    @PluginMethod
+    public void requestBluetooth(PluginCall call) {
+        if (android.os.Build.VERSION.SDK_INT >= 31 && getActivity() != null)
+            androidx.core.app.ActivityCompat.requestPermissions(getActivity(), new String[]{"android.permission.BLUETOOTH_CONNECT"}, 4711);
+        call.resolve();
+    }
+    @PluginMethod
+    public void openFullScreenSettings(PluginCall call) {
+        try {
+            Intent i = android.os.Build.VERSION.SDK_INT >= 34
+                ? new Intent(android.provider.Settings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT, android.net.Uri.parse("package:" + getContext().getPackageName()))
+                : new Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS, android.net.Uri.parse("package:" + getContext().getPackageName()));
+            i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            getContext().startActivity(i);
+            call.resolve();
+        } catch (Exception e) { call.reject(e.getMessage()); }
+    }
     @PluginMethod
     public void callAudioStop(PluginCall call) { PeykCallAudio.stop(getContext()); call.resolve(); }
 

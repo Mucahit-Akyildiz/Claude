@@ -44,18 +44,20 @@ async function chatPermissionState(){
   return st;
 }
 async function maybeAskChatPermissions(){
-  try{ if(localStorage.getItem('chat_perms_asked')) return; }catch(e){ return; }
+  try{ if(localStorage.getItem('chat_perms_asked2')) return; }catch(e){ return; }
   if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return;
   const st = await chatPermissionState();
-  if(st.microphone === 'granted' && st.camera === 'granted') { try{ localStorage.setItem('chat_perms_asked','1'); }catch(e){} return; }
+  const ex = await nativeExtraPermissions();
+  if(st.microphone === 'granted' && st.camera === 'granted' && ex.bluetooth && ex.fullScreen) { try{ localStorage.setItem('chat_perms_asked2','1'); }catch(e){} return; }
   if(document.getElementById('chatPermModal')) return;
   const bg = document.createElement('div');
   bg.id = 'chatPermModal';
   bg.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;z-index:200;padding:16px;';
   bg.innerHTML = `<div style="background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:20px;max-width:380px;width:100%;">
     <h2 style="margin:0 0 8px;">🔐 Mesajlaşma izinleri</h2>
-    <p class="muted" style="margin:0 0 12px;font-size:14px;">Sesli mesaj, fotoğraf çekme ve yeni mesaj bildirimleri için şu izinler gerekiyor:</p>
-    <div style="font-size:14px;line-height:1.9;margin-bottom:14px;">🎤 Mikrofon<br>📷 Kamera<br>🔔 Bildirimler</div>
+    <p class="muted" style="margin:0 0 12px;font-size:14px;">Sesli mesaj, sesli arama, fotoğraf ve yeni mesaj bildirimleri için şu izinler gerekiyor:</p>
+    <div style="font-size:14px;line-height:1.9;margin-bottom:14px;">🎤 Mikrofon<br>📷 Kamera<br>🔔 Bildirimler${ex.bluetooth ? '' : '<br>🎧 Bluetooth kulaklık (aramalar)'}${ex.fullScreen ? '' : '<br>📞 Kilit ekranında gelen arama'}</div>
+    <p class="muted" style="margin:0 0 12px;font-size:12px;">Galeriden fotoğraf, ses ve dosya seçmek için ayrı izin gerekmez.</p>
     <div style="display:flex;gap:8px;">
       <button type="button" class="ghost-btn" style="flex:1;margin:0;" ${act('closeChatPermModal')}>Sonra</button>
       <button type="button" style="flex:1;margin:0;" ${act('requestChatPermissions')}>İzin Ver</button>
@@ -63,11 +65,19 @@ async function maybeAskChatPermissions(){
   document.body.appendChild(bg);
 }
 function closeChatPermModal(){
-  try{ localStorage.setItem('chat_perms_asked','1'); }catch(e){}
+  try{ localStorage.setItem('chat_perms_asked2','1'); }catch(e){}
   const m = document.getElementById('chatPermModal'); if(m) m.remove();
+}
+// Android uygulamasına özgü izinler (web/iOS'ta hep "var" sayılır).
+async function nativeExtraPermissions(){
+  const P = typeof nativeCallPlugin === 'function' && nativeCallPlugin();
+  if(!P || !P.extraPermissionStatus) return { bluetooth: true, fullScreen: true };
+  try{ const r = await P.extraPermissionStatus(); return { bluetooth: r.bluetooth !== false, fullScreen: r.fullScreen !== false }; }catch(e){ return { bluetooth: true, fullScreen: true }; }
 }
 async function requestChatPermissions(){
   closeChatPermModal();
+  const ex = await nativeExtraPermissions();
+  const NP = typeof nativeCallPlugin === 'function' && nativeCallPlugin();
   const got = { microphone: false, camera: false };
   try{
     try{ if(navigator.audioSession && navigator.audioSession.type !== 'play-and-record') navigator.audioSession.type = 'play-and-record'; }catch(_){}
@@ -84,6 +94,8 @@ async function requestChatPermissions(){
     const pushOff = native ? APP.nativePushPermState !== 'granted' : ('Notification' in window && Notification.permission === 'default');
     if(pushOff && typeof togglePushNotifications === 'function' && !getSavedFcmTokenSafe()) await togglePushNotifications();
   }catch(e){}
+  if(NP && !ex.bluetooth && NP.requestBluetooth){ try{ await NP.requestBluetooth(); }catch(e){} }
+  if(NP && !ex.fullScreen && NP.openFullScreenSettings && confirm('Telefon kilitliyken gelen aramaların tam ekran görünmesi için açılacak ekranda Peyktan\'a izin verin.')){ try{ await NP.openFullScreenSettings(); }catch(e){} }
   const missing = [!got.microphone ? 'mikrofon' : null, !got.camera ? 'kamera' : null].filter(Boolean);
   showToast(missing.length ? 'Verilmeyen izin: ' + missing.join(', ') + ' — telefon Ayarlar > Uygulamalar > Peyktan > İzinler\'den açabilirsiniz' : 'İzinler verildi ✓', 6000);
 }
@@ -169,7 +181,8 @@ async function openChatConv(conv, keepDraft){
         <button type="button" class="chat-send" id="chatSendBtn" title="Sesli mesaj kaydet" ${act('onChatSendBtn')}>🎙️</button>
       </form>
       <input type="file" id="chatFileImage" accept="image/*" style="display:none;" ${actOn('change','sendChatImage',['$this'])}>
-      <input type="file" id="chatFileAny" style="display:none;" ${actOn('change','sendChatFile',['$this'])}>`;
+      <input type="file" id="chatFileAny" style="display:none;" ${actOn('change','sendChatFile',['$this'])}>
+      <input type="file" id="chatFileAudio" accept="audio/*" style="display:none;" ${actOn('change','sendChatFile',['$this'])}>`;
     APP.chatReply = null;
   }
   document.querySelectorAll('.chat-item').forEach(el => el.classList.toggle('active', el.dataset.conv===conv));
@@ -261,6 +274,7 @@ function toggleChatTray(kind){
     tray.innerHTML = `<div class="chat-attach">
       <button type="button" ${act('openChatCamera')}><span style="background:#e91e63;">📷</span>Kamera</button>
       <button type="button" ${act('clickEl','chatFileImage')}><span style="background:#7c4dff;">🖼️</span>Galeri</button>
+      <button type="button" ${act('clickEl','chatFileAudio')}><span style="background:#ff6d00;">🎵</span>Ses</button>
       <button type="button" ${act('clickEl','chatFileAny')}><span style="background:#3f51b5;">📄</span>Dosya</button>
       <button type="button" ${act('toggleChatTray', 'quick')}><span style="background:#ff9800;">⚡</span>Hazır yanıt</button>
       ${chatSpeechSupported() ? `<button type="button" ${act('startChatDictationFromTray')}><span style="background:#009688;">🗣️</span>Sesle yaz</button>` : ''}
@@ -672,6 +686,13 @@ async function sendChatFile(input){
   if(!file || !APP.chatConv) return;
   if(file.size > 4*1024*1024){ alert('Dosya en fazla 4 MB olabilir.'); return; }
   if(file.type.startsWith('image/') && file.type !== 'image/gif'){ const fake = { files:[file], value:'' }; return sendChatImage(fake); }
+  // Ses dosyaları sohbette oynatılabilir sesli mesaj olarak gider (en fazla 3 MB).
+  if(/^audio\//.test(file.type) || /\.(mp3|m4a|aac|ogg|opus|wav|amr|3gp|webm)$/i.test(file.name)){
+    if(file.size > 3*1024*1024){ alert('Ses dosyası en fazla 3 MB olabilir.'); return; }
+    const tray = document.getElementById('chatTray'); if(tray) tray.classList.remove('open');
+    const typed = file.type ? file : new File([file], file.name, { type: 'audio/mpeg' });
+    return withLoadingOverlay(postChat('', typed, 'audio', file.name));
+  }
   const tray = document.getElementById('chatTray'); if(tray) tray.classList.remove('open');
   await withLoadingOverlay(postChat('', file, 'file', file.name));
 }
