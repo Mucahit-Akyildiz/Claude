@@ -307,16 +307,34 @@ function chatFetch(id, extra){
 // Yalnızca gerçek base64 görsel data: adresi doğrudan kullanılır (başka her şey depodan indirilir).
 function chatSafeDataImage(a){ return /^data:image\/(png|jpe?g|gif|webp);base64,[A-Za-z0-9+/=]+$/.test(String(a||'')) ? a : ''; }
 const CHAT_IMG_URLS = {};
+/* Görseller cihazda kalıcı önbellekte tutulur (Cache API, kullanıcıya özel ad): bir kez indirilen
+   fotoğraf/GIF tekrar açılınca sunucuya gitmeden anında görünür. Kullanıcı değişince silinir. */
+function chatImgCacheName(){ const s = getSession(); return s ? 'peyk-chat-img-' + s.user_id : null; }
+async function chatImgCacheGet(id){
+  try{ const n = chatImgCacheName(); if(!n || !window.caches) return null; const c = await caches.open(n); const r = await c.match('/chat-img/' + id); return r ? await r.blob() : null; }catch(e){ return null; }
+}
+async function chatImgCachePut(id, blob){
+  try{ const n = chatImgCacheName(); if(!n || !window.caches || !blob) return; const c = await caches.open(n); await c.put('/chat-img/' + id, new Response(blob, { headers: { 'Content-Type': blob.type || 'image/jpeg' } })); }catch(e){}
+}
+const CHAT_IMG_LOADING = {};
+function chatLoadImage(id){
+  if(CHAT_IMG_URLS[id]) return Promise.resolve(CHAT_IMG_URLS[id]);
+  if(CHAT_IMG_LOADING[id]) return CHAT_IMG_LOADING[id];
+  return CHAT_IMG_LOADING[id] = (async () => {
+    try{
+      let blob = await chatImgCacheGet(id);
+      if(!blob){ const r = await chatFetch(id); if(!r.ok) return null; blob = await r.blob(); chatImgCachePut(id, blob); }
+      return CHAT_IMG_URLS[id] = URL.createObjectURL(blob);
+    }catch(e){ return null; }
+    finally{ delete CHAT_IMG_LOADING[id]; }
+  })();
+}
+// Tüm görseller aynı anda (en yeniden başlayarak, 6'şar paralel) indirilir; eskiden sırayla tek tek iniyordu.
 async function loadChatImages(){
-  const imgs = document.querySelectorAll('#chatThread img.chat-img[data-att]');
-  for(const img of imgs){
-    if(img.getAttribute('src')) continue;
-    const id = img.dataset.att;
-    if(!CHAT_IMG_URLS[id]){
-      try{ const r = await chatFetch(id); if(!r.ok) continue; CHAT_IMG_URLS[id] = URL.createObjectURL(await r.blob()); }catch(e){ continue; }
-    }
-    img.src = CHAT_IMG_URLS[id];
-  }
+  const imgs = [...document.querySelectorAll('#chatThread img.chat-img[data-att]')].filter(img => !img.getAttribute('src')).reverse();
+  let i = 0;
+  const worker = async () => { while(i < imgs.length){ const img = imgs[i++]; const url = await chatLoadImage(img.dataset.att); if(url && img.isConnected) img.src = url; } };
+  await Promise.all(Array.from({ length: Math.min(6, imgs.length) }, worker));
 }
 async function uploadChatAttachment(blob, kind, name, body){
   const session = getSession();
@@ -326,10 +344,22 @@ async function uploadChatAttachment(blob, kind, name, body){
     'x-kind': enc(kind), 'x-mime': enc(blob.type || 'application/octet-stream'), 'x-name': enc(name || ''), 'x-body': enc(body || '') };
   if(reply) headers['x-reply-to'] = enc(reply.id);
   if(kind==='image' && APP.chatViewOnce) headers['x-view-once'] = '1';
+  // Fotoğraf/GIF yüklenirken ekranda hemen görünsün (⏱); yükleme bitince aynı görsel önbelleğe alınır, tekrar indirilmez.
+  const localUrl = kind==='image' && !APP.chatViewOnce ? URL.createObjectURL(blob) : null;
+  const th = document.getElementById('chatThread');
+  if(th && kind==='image'){
+    const tmp = document.createElement('div');
+    tmp.className = 'chat-row mine last chat-pending';
+    tmp.innerHTML = `<div class="chat-msg ${body ? '' : 'media'}">${localUrl ? `<img class="chat-img" src="${localUrl}" alt="">` : '<div class="chat-once">1️⃣ <span>Tek görüntülemelik fotoğraf</span></div>'}${body ? `<div class="chat-body">${escapeHtml(body)}</div>` : ''}<div class="chat-time">${new Date().toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'})} <span class="chat-tick" title="Gönderiliyor">⏱</span></div></div>`;
+    th.appendChild(tmp); th.scrollTop = th.scrollHeight;
+  }
+  const failed = () => { document.querySelectorAll('.chat-pending').forEach(e => e.remove()); if(localUrl) URL.revokeObjectURL(localUrl); };
   let r;
   try{ r = await fetch('/api/chat-upload', { method: 'POST', headers, body: blob }); }
-  catch(e){ alert('Gönderilemedi, bağlantınızı kontrol edin.'); return false; }
-  if(!r.ok){ let msg = 'Gönderilemedi'; try{ msg = (await r.json()).error || msg; }catch(e){} alert(msg); return false; }
+  catch(e){ failed(); alert('Gönderilemedi, bağlantınızı kontrol edin.'); return false; }
+  if(!r.ok){ failed(); let msg = 'Gönderilemedi'; try{ msg = (await r.json()).error || msg; }catch(e){} alert(msg); return false; }
+  try{ const j = await r.json(); if(j && j.id && localUrl){ CHAT_IMG_URLS[j.id] = localUrl; chatImgCachePut(j.id, blob); } }catch(e){}
+  chatNotifyNew();
   cancelChatReply();
   if(kind==='image' && APP.chatViewOnce){ APP.chatViewOnce = false; }
   const el = document.getElementById('chatThread'); if(el) delete el.dataset.loaded;
@@ -358,6 +388,7 @@ async function postChat(body, attachment, kind, name){
   const { error } = await sb.rpc('send_chat_message', { p_token: session.session_token, p_conv: APP.chatConv, p_body: body || '', p_attachment: attachment || null,
     p_kind: kind || null, p_name: name || null, p_reply_to: reply ? reply.id : null });
   if(error){ document.querySelectorAll('.chat-pending').forEach(e => e.remove()); alert(error.message); return false; }
+  chatNotifyNew();
   cancelChatReply();
   const el = document.getElementById('chatThread'); if(el) delete el.dataset.loaded;
   refreshChatThread();
@@ -901,6 +932,8 @@ async function sendChatGif(i){
 function resetChatCaches(){
   Object.keys(CHAT_CACHE).forEach(k => delete CHAT_CACHE[k]);
   Object.keys(CHAT_IMG_URLS).forEach(k => { try{ URL.revokeObjectURL(CHAT_IMG_URLS[k]); }catch(e){} delete CHAT_IMG_URLS[k]; });
+  // Başka kullanıcıların kalıcı görsel önbellekleri bu cihazdan silinir.
+  try{ const keep = chatImgCacheName(); if(window.caches) caches.keys().then(ks => ks.filter(k => k.startsWith('peyk-chat-img-') && k !== keep).forEach(k => caches.delete(k))).catch(() => {}); }catch(e){}
   APP.chatItems = null; APP.chatRows = null; APP.chatConv = null; APP.chatReply = null;
   APP.chatGifKey = undefined; APP.chatGifs = null; APP.chatOwner = null;
 }
@@ -957,6 +990,7 @@ function chatTypingChannel(){
   CHAT_TYPING_KEY = key;
   CHAT_TYPING_CH = sb.channel('typing-' + session.restaurant_id, { config: { broadcast: { self: false } } })
     .on('broadcast', { event: 't' }, ({ payload }) => chatTypingReceive(payload))
+    .on('broadcast', { event: 'm' }, ({ payload }) => chatNewReceive(payload))
     .subscribe();
   return CHAT_TYPING_CH;
 }
@@ -970,6 +1004,23 @@ function chatTypingSend(on){
   if(!on && !CHAT_TYPING_ON) return;
   CHAT_TYPING_ON = on; CHAT_TYPING_LAST = now;
   try{ ch.send({ type: 'broadcast', event: 't', payload: { from: session.user_id, name: session.username, target: chatTypingTarget(), on } }); }catch(e){}
+}
+/* Yeni mesaj anında haber verilir: alıcılar veri sayacını beklemeden sohbeti hemen tazeler.
+   Yayın yalnızca "yenile" sinyalidir, mesaj içeriği taşımaz (içerik yetki kontrollü RPC'den gelir). */
+function chatNotifyNew(){
+  const ch = chatTypingChannel(); const session = getSession();
+  if(!ch || !session || !APP.chatConv) return;
+  try{ ch.send({ type: 'broadcast', event: 'm', payload: { from: session.user_id, target: chatTypingTarget() } }); }catch(e){}
+  CHAT_TYPING_ON = false;
+}
+let CHAT_NEW_T = null;
+function chatNewReceive(p){
+  const session = getSession(); if(!session || !p || p.from === session.user_id) return;
+  if(p.target !== 'all' && !String(p.target).startsWith('g:') && p.target !== session.user_id) return;
+  const conv = (p.target === 'all' || String(p.target).startsWith('g:')) ? p.target : p.from;
+  const m = CHAT_TYPING[conv]; if(m){ Object.keys(m).forEach(k => delete m[k]); chatTypingDraw(); }
+  clearTimeout(CHAT_NEW_T);
+  CHAT_NEW_T = setTimeout(() => { if(APP.view==='messages') refreshMessagesView(); else if(typeof refreshNavBadges === 'function') refreshNavBadges(); }, 60);
 }
 function chatTypingReceive(p){
   const session = getSession(); if(!session || !p || p.from === session.user_id) return;

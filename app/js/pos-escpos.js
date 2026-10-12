@@ -420,6 +420,8 @@ async function doLogout(){
   const session = getSession();
   stopKitchenPolling();
   stopCustomerRequestPolling();
+  // Mesaj görselleri önbelleği cihazda kalmasın (ortak kullanılan cihazlar).
+  try{ if(window.caches) caches.keys().then(ks => ks.filter(k => k.startsWith('peyk-chat-img-')).forEach(k => caches.delete(k))).catch(() => {}); }catch(e){}
   APP.customerReqPollStarted = false;
   APP.shiftStatus = null;
   clearSession();
