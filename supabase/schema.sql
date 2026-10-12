@@ -4613,7 +4613,7 @@ begin
         select coalesce(json_agg(json_build_object(
           'id', p.id, 'name', p.name, 'price', p.price, 'cost', p.cost,
           'stock', p.stock, 'available', p.available, 'station_id', p.station_id,
-          'name_translations', p.name_translations, 'vat_rate', p.vat_rate,
+          'name_translations', p.name_translations, 'vat_rate', p.vat_rate, 'category', p.category, 'print_ticket', p.print_ticket,
           'recipe', (
             select coalesce(json_agg(json_build_object(
               'ingredient_id', pi.ingredient_id, 'qty_per_unit', pi.qty_per_unit,
@@ -7191,6 +7191,23 @@ begin
   insert into product_images(product_id, restaurant_id, data, updated_at) values (p_product_id, s.restaurant_id, p_data, now())
     on conflict (product_id) do update set data = excluded.data, updated_at = now();
 end; $_$;
+
+
+--
+-- Name: set_product_options(uuid, uuid, text, boolean); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.set_product_options(p_token uuid, p_product_id uuid, p_category text, p_print_ticket boolean) RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'extensions', 'pg_temp'
+    AS $$
+declare s staff_sessions%rowtype;
+begin
+  s := _session_check(p_token, 'settings_products');
+  if length(coalesce(p_category,'')) > 60 then raise exception 'Alt menü adı en fazla 60 karakter olabilir'; end if;
+  update products set category = nullif(trim(p_category), ''), print_ticket = coalesce(p_print_ticket, true)
+    where id = p_product_id and restaurant_id = s.restaurant_id;
+end $$;
 
 
 --
@@ -9893,6 +9910,8 @@ CREATE TABLE public.products (
     available boolean DEFAULT true NOT NULL,
     name_translations jsonb DEFAULT '{}'::jsonb NOT NULL,
     vat_rate numeric,
+    category text,
+    print_ticket boolean DEFAULT true NOT NULL,
     CONSTRAINT products_stock_nonneg CHECK (((stock IS NULL) OR (stock >= 0))),
     CONSTRAINT products_vat_rate_check CHECK (((vat_rate IS NULL) OR ((vat_rate >= (0)::numeric) AND (vat_rate <= (100)::numeric))))
 );
