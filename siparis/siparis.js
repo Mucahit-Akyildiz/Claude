@@ -77,6 +77,8 @@ async function refreshMenuStock(force){
   // Sadece {ürün id: kalan adet} çekilir (fotoğraflı tam menü her seferinde indirilmez).
   const { data, error } = await sb.rpc('get_public_order_stock', { p_restaurant_code: RESTAURANT_CODE });
   if(error || !data) return;
+  // Cevap beklenirken yeni +/- basıldıysa bu stok bilgisi eskidir; ekrandaki güncel değer korunur.
+  if(HOLD_INFLIGHT > 0) return;
   const products = STATE.menu.products || [];
   const ids = Object.keys(data);
   // Menüye ürün eklendi / kaldırıldıysa tam menü bir kez yeniden alınır.
@@ -196,23 +198,31 @@ function updateProductStockLabel(productId){
 let HOLD_INFLIGHT = 0;
 function maxQtyOf(productId){ const p = ((STATE.menu||{}).products||[]).find(x => x.id===productId); return p && p.max_qty != null ? Math.max(0, p.max_qty) + (STATE.cart[productId]||0) : 20; }
 const CLIENT_ID = (() => { try{ let c = localStorage.getItem('peyktan_cart_client'); if(!c){ c = 'c' + Math.random().toString(36).slice(2) + Date.now().toString(36); localStorage.setItem('peyktan_cart_client', c); } return c; }catch(e){ return 'c' + Math.random().toString(36).slice(2) + Date.now().toString(36); } })();
-let CART_HOLD_SEQ = {};
-/* Sepetteki adet sunucuda ayrılır (15 dk); böylece diğer müşterilerin ekranında kalan adet anında düşer. */
+/* Sepetteki adet sunucuda ayrılır (15 dk); böylece diğer müşterilerin ekranında kalan adet anında düşer.
+   Hızlı art arda +/- basışlarında istekler sunucuya sırasız varıp yanlış adedi ayırabiliyordu;
+   bu yüzden her ürün için aynı anda tek istek gider, biterken adet değiştiyse en güncel adet yeniden gönderilir. */
+const HOLD_BUSY = {};
 async function syncCartHold(productId){
-  const want = STATE.cart[productId] || 0;
-  const seq = CART_HOLD_SEQ[productId] = (CART_HOLD_SEQ[productId] || 0) + 1;
+  if(HOLD_BUSY[productId]){ HOLD_BUSY[productId] = 'again'; return; }
+  HOLD_BUSY[productId] = true;
   HOLD_INFLIGHT++;
-  let data, error;
-  try{ ({ data, error } = await sb.rpc('set_public_cart_hold', { p_restaurant_code: RESTAURANT_CODE, p_client: CLIENT_ID, p_product_id: productId, p_qty: want })); }
-  finally{ HOLD_INFLIGHT--; }
-  if(seq !== CART_HOLD_SEQ[productId] || error) return;
+  let data, error, want;
+  try{
+    do {
+      if(HOLD_BUSY[productId] === 'again') HOLD_BUSY[productId] = true;
+      want = STATE.cart[productId] || 0;
+      ({ data, error } = await sb.rpc('set_public_cart_hold', { p_restaurant_code: RESTAURANT_CODE, p_client: CLIENT_ID, p_product_id: productId, p_qty: want }));
+    } while(HOLD_BUSY[productId] === 'again' || (!error && want !== (STATE.cart[productId] || 0)));
+  } finally { HOLD_INFLIGHT--; delete HOLD_BUSY[productId]; }
+  if(error) return;
   if(typeof data === 'number' && data < want){
     if(data > 0) STATE.cart[productId] = data; else delete STATE.cart[productId];
     document.querySelectorAll('[data-qty="'+productId+'"]').forEach(el => el.textContent = data);
     updateCartBar();
     alert(stockTxt('changed'));
   }
-  refreshMenuStock(true);
+  // Başka bir ürünün ayırması sürerken tazeleme yapılmaz; o da bitince kendisi tazeler.
+  if(HOLD_INFLIGHT === 0) refreshMenuStock(true);
 }
 function stepCart(productId, delta){
   // Stokta kalandan fazlası seçilemez (bkz. max_qty: hammadde/ürün stoğu).
