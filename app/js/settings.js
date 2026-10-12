@@ -58,6 +58,7 @@ function filterListRows(key){
   const box = document.querySelector('#settingsContent .box'); if(!box) return;
   const q = String((APP.listSearch||{})[key]||'').trim().toLocaleLowerCase('tr');
   box.querySelectorAll('.settings-table tbody tr').forEach(tr => {
+    if(tr.classList.contains('prod-cat-row')){ tr.style.display = q ? 'none' : ''; return; }
     const inp = tr.querySelector('input:not([type=checkbox])'); const name = (inp ? inp.value : tr.textContent).toLocaleLowerCase('tr');
     tr.style.display = !q || name.includes(q) ? '' : 'none';
   });
@@ -921,13 +922,22 @@ function renderProductsSettings(el, session){
           </div></td>
         </tr>`).join('');
 
-  const groupHtml = (title, colorDot, list) => list.length===0 ? '' : `
+  // İstasyon içinde ürünler alt menülere göre gruplanır (istasyondaki sıra, sonra alt menüsüzler).
+  const groupedRows = (list, cats) => {
+    const used = [...new Set(list.map(p => p.category).filter(Boolean))];
+    const order = [...(cats||[]).filter(c => used.includes(c)), ...used.filter(c => !(cats||[]).includes(c))];
+    if(!order.length) return rowsFor(list);
+    const sub = (t, n) => `<tr class="prod-cat-row"><td colspan="12" style="padding:12px 4px 4px;background:transparent;border:0;"><b style="font-size:12.5px;color:var(--accent);text-transform:uppercase;letter-spacing:.03em;">${escapeHtml(t)}</b> <span class="muted" style="font-size:12px;">(${n})</span></td></tr>`;
+    const none = list.filter(p => !p.category);
+    return order.map(c => { const l = list.filter(p => p.category === c); return sub(c, l.length) + rowsFor(l); }).join('') + (none.length ? sub('Alt menüsüz', none.length) + rowsFor(none) : '');
+  };
+  const groupHtml = (title, colorDot, list, cats) => list.length===0 ? '' : `
     <div style="margin-bottom:22px;">
       <h3 style="display:flex;align-items:center;gap:8px;font-size:14px;margin:0 0 10px;">${colorDot?`<span style="width:10px;height:10px;border-radius:50%;background:${colorDot};display:inline-block;flex-shrink:0;"></span>`:''}${escapeHtml(title)}<span class="muted" style="font-weight:400;">(${list.length})</span></h3>
       <div class="settings-table-wrap">
       <table class="settings-table">
         <thead><tr><th style="width:36px;"><input type="checkbox" style="width:auto;margin:0;" title="Bu gruptakilerin tümünü seç" ${actOn('change','selectProdGroup',['$this'])}></th><th>Ürün Adı</th><th>İstasyon</th><th>Fiyat</th><th>Maliyet</th><th title="İstasyon içindeki alt menü (Çorbalar, Izgaralar…)">Alt Menü</th><th title="Fiyata dahil KDV oranı">KDV</th><th>Stok</th><th title="Mutfak fişine yazdırılsın mı?">🖨️ Fiş</th><th>Durum</th><th></th></tr></thead>
-        <tbody>${rowsFor(list)}</tbody>
+        <tbody>${groupedRows(list, cats)}</tbody>
       </table>
       </div>
     </div>`;
@@ -944,7 +954,7 @@ function renderProductsSettings(el, session){
     </div>
     <p class="muted" style="text-align:left;margin:0 0 16px;">Stok alanını boş bırakırsanız o ürün için stok takibi yapılmaz. Satırları değiştirip <b>Kaydet</b>'e basın; satışa açmak / kapatmak / silmek için satırları seçin.</p>
     <div id="prodGroups" ${actOn('input','markProdDirty',['$event'])} ${actOn('change','markProdDirty',['$event'])}>
-    ${stations.map(s => groupHtml(s.name, s.color, products.filter(p => p.station_id===s.id))).join('')}
+    ${stations.map(s => groupHtml(s.name, s.color, products.filter(p => p.station_id===s.id), s.categories)).join('')}
     ${groupHtml('İstasyonsuz', null, unassigned)}
     </div>
 

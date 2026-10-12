@@ -51,23 +51,26 @@ function openPackageModal(pseudoId){
   bg.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:flex-start;justify-content:center;z-index:100;padding:28px 16px 16px;overflow-y:auto;';
   bg.onclick = (e) => { if(e.target===bg) closeTableModal(); };
   bg.innerHTML = `
-    <div style="background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:20px;max-width:480px;width:100%;max-height:88vh;overflow:auto;scrollbar-gutter:stable;">
+    <div class="order-modal">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
         <h2 style="margin:0;overflow-wrap:anywhere;word-break:break-word;">${title}</h2>
         <span style="cursor:pointer;color:var(--muted);font-size:20px;" ${act('closeTableModal')}>✕</span>
       </div>
+      <div class="order-modal-grid">
+        <div class="order-modal-menu">
+          <div class="tabs" id="prodStationTabs" style="margin-top:0;"></div>
+          <div id="prodPick"></div>
+        </div>
+        <div class="order-modal-cart">
       ${isWl ? '<p class="muted" style="text-align:left;margin:0 0 6px;font-size:12.5px;">Siparişler hemen mutfağa düşer; müşteri oturtulunca masaya taşınır.</p>' : `<div class="field-group"><label>Müşteri Adı</label><input id="pkgCustName" placeholder="örn. Ahmet Bey veya kayıtlı müşteri ara" autocomplete="off" ${actOn('input','tableCustSearch',['$value','pkgCust'])} value="${escapeAttr((existing&&existing.customer_name)||'')}"></div>
       <div class="field-group"><label>Telefon</label><input id="pkgCustPhone" placeholder="örn. 5551234567" autocomplete="off" inputmode="tel" ${actOn('input','tableCustSearch',['$value','pkgCust'])} value="${escapeAttr((existing&&existing.customer_phone)||'')}"></div>
       <div id="pkgCustSuggest" style="margin:-6px 0 10px;"></div>
       <div class="field-group"><label>Not</label><input id="pkgNote" placeholder="örn. Yan sokak, 2. kat" value="${escapeAttr((existing&&existing.note)||'')}"></div>`}
-      <div style="margin-top:10px;">
-        <p style="font-weight:700;margin-bottom:8px;">Ürün Ekle</p>
-        <div class="tabs" id="prodStationTabs"></div>
-        <div id="prodPick" class="prod-pick-grid" style="display:grid;grid-template-columns:repeat(${window.innerWidth < 400 ? 2 : 3},minmax(0,1fr));gap:8px;"></div>
+          <div id="sentItemsWrap"></div>
+          <div id="draftItemsWrap"></div>
+          ${orderFlagsHtml(pseudoId)}
+        </div>
       </div>
-      <div id="sentItemsWrap" style="margin-top:14px;"></div>
-      <div id="draftItemsWrap"></div>
-      ${orderFlagsHtml(pseudoId)}
       <div class="modal-sticky-actions">
         <button class="ghost-btn" style="flex:1;margin-top:0;color:var(--red);border-color:var(--red);" ${act('cancelTableOrder', pseudoId)} ${existing?'':'disabled'}>🗑️ İptal Et</button>
         <button id="confirmBtn" style="flex:1;margin-top:0;" disabled ${act('confirmOrder', pseudoId)}>✅ Onayla ve Gönder</button>
@@ -92,10 +95,10 @@ function effectiveStock(p){
   if(p.recipe && p.recipe.length>0) return p.available_qty;
   return p.stock;
 }
+/* Ürün seçimi: istasyonun alt menüleri solda (dar ekranda üstte kaydırılabilir) liste, ürünler sağda ızgara. */
 function renderProductPick(stationId, tableId){
   const el = document.getElementById('prodPick'); if(!el) return;
   const all = APP.config.products.filter(p => p.station_id===stationId);
-  // İstasyonun alt menüleri (Çorbalar, Izgaralar…) varsa üstte sekme olarak gösterilir.
   // Sıra: istasyonda tanımlanan alt menü sırası; yalnızca ürünü olan alt menüler gösterilir.
   const used = new Set(all.map(p => p.category).filter(Boolean));
   const stCats = (((APP.config.stations||[]).find(s => s.id === stationId) || {}).categories || []);
@@ -103,20 +106,27 @@ function renderProductPick(stationId, tableId){
   APP.prodPickCat = APP.prodPickCat || {};
   let cur = APP.prodPickCat[stationId];
   if(cur && cur !== '__all' && !cats.includes(cur)) cur = null;
-  const prods = (!cats.length || !cur || cur === '__all') ? all : all.filter(p => p.category === cur);
-  const chips = cats.length ? `<div style="grid-column:1/-1;display:flex;flex-wrap:wrap;gap:6px;margin-bottom:2px;">${[['__all','Tümü'], ...cats.map(c => [c, c])].map(([v, l]) => `<button type="button" class="chip-btn ${((cur||'__all')===v)?'active':''}" style="margin:0;padding:5px 12px;font-size:12.5px;${((cur||'__all')===v)?'background:var(--accent);color:var(--btn-ink);border-color:var(--accent);':''}" data-cat="${escapeAttr(v)}" ${actStop('setProdPickCat', stationId, '$data.cat', tableId)}>${escapeHtml(l)}</button>`).join('')}</div>` : '';
-  el.innerHTML = chips + (prods.length ? prods.map(p => {
+  cur = cur || '__all';
+  const prods = (!cats.length || cur === '__all') ? all : all.filter(p => p.category === cur);
+  const count = (c) => c === '__all' ? all.length : all.filter(p => p.category === c).length;
+  const side = cats.length ? `<div class="pp-cats">${[['__all','Tümü'], ...cats.map(c => [c, c])].map(([v, l]) =>
+    `<button type="button" class="pp-cat ${cur===v?'active':''}" data-cat="${escapeAttr(v)}" ${actStop('setProdPickCat', stationId, '$data.cat', tableId)}><span>${escapeHtml(l)}</span><b>${count(v)}</b></button>`).join('')}</div>` : '';
+  const cards = prods.length ? prods.map(p => {
     const stock = effectiveStock(p);
     const off = p.available===false || (stock!=null && stock<=0);
     let badge = '';
-    if(p.available===false) badge = '<div style="margin-top:4px;font-size:11px;color:var(--red);">Satışta Değil</div>';
-    else if(stock!=null && stock<=0) badge = '<div style="margin-top:4px;font-size:11px;color:var(--red);">Stok Yok</div>';
-    else if(stock!=null && stock<=10) badge = '<div style="margin-top:4px;font-size:11px;color:var(--accent);">Son '+stock+' porsiyon</div>';
-    return `
-    <div class="prod-pick-card" style="background:var(--panel2);border:1px solid var(--border);border-radius:10px;padding:12px 10px;font-size:13.5px;${off?'opacity:.4;cursor:not-allowed;':'cursor:pointer;'}" ${off?'':act('addToDraft', tableId, p.id)}>
-      <div style="font-weight:700;">${escapeHtml(p.name)}</div><div class="muted" style="font-size:12px;">${money(p.price)}</div>${badge}
+    if(p.available===false) badge = '<div class="pp-badge" style="color:var(--red);">Satışta Değil</div>';
+    else if(stock!=null && stock<=0) badge = '<div class="pp-badge" style="color:var(--red);">Stok Yok</div>';
+    else if(stock!=null && stock<=10) badge = '<div class="pp-badge" style="color:var(--accent);">Son '+stock+' porsiyon</div>';
+    const inCart = ((APP.draftCart && APP.draftCart[tableId]) || []).filter(i => i.product_id === p.id).reduce((n, i) => n + i.qty, 0);
+    return `<div class="prod-pick-card pp-card ${off?'off':''}" ${off?'':act('addToDraft', tableId, p.id)}>
+      ${inCart ? `<span class="pp-qty">${inCart}</span>` : ''}
+      <div class="pp-name">${escapeHtml(p.name)}</div><div class="pp-price">${money(p.price)}</div>${badge}
     </div>`;
-  }).join('') : '<p class="muted">Bu istasyonda ürün yok.</p>');
+  }).join('') : '<p class="muted" style="grid-column:1/-1;">Bu bölümde ürün yok.</p>';
+  el.className = 'pp-wrap' + (cats.length ? ' has-cats' : '');
+  el.removeAttribute('style');
+  el.innerHTML = side + `<div class="pp-grid">${cards}</div>`;
 }
 function setProdPickCat(stationId, cat, tableId){
   APP.prodPickCat = APP.prodPickCat || {}; APP.prodPickCat[stationId] = cat;
