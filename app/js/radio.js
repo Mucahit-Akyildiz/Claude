@@ -167,7 +167,7 @@ function radioDisconnect(forget){
 // Çıkışta tam kapanış: mikrofon da bırakılır.
 function radioShutdown(){
   radioDisconnect(false);
-  if(RADIO.mic){ RADIO.mic.getTracks().forEach(t => t.stop()); RADIO.mic = null; }
+  if(RADIO.mic){ releaseSharedMic(); RADIO.mic = null; }
   if(RADIO.src){ try{ RADIO.src.disconnect(); }catch(e){} RADIO.src = null; }
   APP.radioChannels = null;
 }
@@ -237,9 +237,9 @@ async function radioStartTalk(){
       // İzin penceresi açıkken/engelliyken kullanıcı ne olduğunu görsün; 8 sn'de yanıt yoksa uyar.
       RADIO.waitingMic = true; drawRadioDock();
       const t = setTimeout(() => { if(RADIO.waitingMic){ radioLog('bas: FAIL mikrofon izni yanıtsız'); radioFlash('🎤 Mikrofon izni bekleniyor — adres çubuğundaki 🔒 simgesinden izin verin'); } }, 8000);
-      try{ RADIO.mic = await navigator.mediaDevices.getUserMedia({ audio: radioMicConstraints() }).catch(e => {
+      try{ RADIO.mic = await getSharedMic(radioMicConstraints()).catch(e => {
           // Seçili mikrofon çıkarılmışsa varsayılana dön.
-          if(e && (e.name === 'OverconstrainedError' || e.name === 'NotFoundError') && radioMicConstraints().deviceId){ try{ localStorage.removeItem(RADIO_MIC_KEY); }catch(_){} return navigator.mediaDevices.getUserMedia({ audio: radioMicConstraints() }); }
+          if(e && (e.name === 'OverconstrainedError' || e.name === 'NotFoundError') && radioMicConstraints().deviceId){ try{ localStorage.removeItem(RADIO_MIC_KEY); }catch(_){} return getSharedMic(radioMicConstraints()); }
           throw e; }); }
       finally{ clearTimeout(t); RADIO.waitingMic = false; }
     }
@@ -488,7 +488,7 @@ async function openRadioMicPicker(){
   let devs = [];
   try{
     // Cihaz adları ancak mikrofon izni verildikten sonra görünür.
-    if(!RADIO.mic){ const tmp = await navigator.mediaDevices.getUserMedia({ audio:true }); tmp.getTracks().forEach(t => t.stop()); }
+    if(!RADIO.mic && !sharedMicLive()) await getSharedMic();
     devs = (await navigator.mediaDevices.enumerateDevices()).filter(d => d.kind === 'audioinput');
   }catch(e){ alert('Mikrofon listesine erişilemedi. Tarayıcıdan mikrofon izni verin.'); return; }
   let cur = ''; try{ cur = localStorage.getItem(RADIO_MIC_KEY) || ''; }catch(e){}
@@ -508,7 +508,7 @@ async function openRadioMicPicker(){
 function setRadioMic(id){
   try{ if(id) localStorage.setItem(RADIO_MIC_KEY, id); else localStorage.removeItem(RADIO_MIC_KEY); }catch(e){}
   // Bir sonraki bas-konuşta yeni cihaz açılsın.
-  if(RADIO.mic && !RADIO.talking){ RADIO.mic.getTracks().forEach(t => t.stop()); RADIO.mic = null; }
+  if(!RADIO.talking){ releaseSharedMic(); RADIO.mic = null; }
   removeEl('radioMicBg');
   radioFlash('🎤 Mikrofon değiştirildi');
 }

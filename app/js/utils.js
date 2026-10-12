@@ -216,3 +216,21 @@ function onEnterKey(e, fnName){ if(e.key === 'Enter' && typeof window[fnName] ==
 function clickEl(id){ const el = document.getElementById(id); if(el) el.click(); }
 function onEnterCall(e, fnName, ...args){ if(e.key === 'Enter' && typeof window[fnName] === 'function') window[fnName](...args); }
 function copyText(text, msg){ if(navigator.clipboard) navigator.clipboard.writeText(text).then(() => showToast(msg || 'Kopyalandı ✓')); }
+/* ---- Ortak mikrofon akışı ----
+   iPhone/iPad (özellikle ana ekrana eklenmiş uygulama) mikrofon iznini kalıcı saklamaz:
+   akış her kapatılıp yeniden istendiğinde izin penceresi tekrar çıkar. Bu yüzden telsiz ve
+   sesli mesaj aynı akışı paylaşır; akış kullanılmadığında 10 dk sonra bırakılır. */
+let SHARED_MIC = null, SHARED_MIC_KEY = '', SHARED_MIC_TIMER = null;
+function sharedMicLive(){ return !!(SHARED_MIC && SHARED_MIC.getAudioTracks().some(t => t.readyState === 'live')); }
+async function getSharedMic(constraints){
+  const key = JSON.stringify(constraints || true);
+  if(sharedMicLive() && (key === SHARED_MIC_KEY || !constraints || !constraints.deviceId)){ touchSharedMic(); return SHARED_MIC; }
+  releaseSharedMic();
+  SHARED_MIC = await navigator.mediaDevices.getUserMedia({ audio: constraints || true });
+  SHARED_MIC_KEY = key;
+  touchSharedMic();
+  return SHARED_MIC;
+}
+function adoptSharedMic(stream){ if(!sharedMicLive() && stream && stream.getAudioTracks().length){ SHARED_MIC = new MediaStream(stream.getAudioTracks()); SHARED_MIC_KEY = 'true'; touchSharedMic(); return true; } return false; }
+function touchSharedMic(){ clearTimeout(SHARED_MIC_TIMER); SHARED_MIC_TIMER = setTimeout(() => { if(typeof RADIO !== 'undefined' && (RADIO.channel || RADIO.talking)) return touchSharedMic(); if(typeof CHAT_VOICE !== 'undefined' && CHAT_VOICE) return touchSharedMic(); releaseSharedMic(); }, 10 * 60 * 1000); }
+function releaseSharedMic(){ clearTimeout(SHARED_MIC_TIMER); if(SHARED_MIC){ SHARED_MIC.getTracks().forEach(t => t.stop()); } SHARED_MIC = null; SHARED_MIC_KEY = ''; if(typeof RADIO !== 'undefined' && RADIO.mic && RADIO.mic.getAudioTracks().every(t => t.readyState !== 'live')) RADIO.mic = null; }

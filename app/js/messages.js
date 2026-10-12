@@ -71,11 +71,12 @@ async function requestChatPermissions(){
   const got = { microphone: false, camera: false };
   try{
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
-    stream.getTracks().forEach(t => t.stop());
+    stream.getVideoTracks().forEach(t => t.stop());
+    if(!adoptSharedMic(stream)) stream.getAudioTracks().forEach(t => t.stop());
     got.microphone = got.camera = true;
   }catch(e){
     // Kamerası olmayan cihazlarda en azından mikrofon istensin.
-    try{ const s2 = await navigator.mediaDevices.getUserMedia({ audio: true }); s2.getTracks().forEach(t => t.stop()); got.microphone = true; }catch(e2){}
+    try{ await getSharedMic(); got.microphone = true; }catch(e2){}
   }
   try{
     const native = typeof isNativeApp === 'function' && isNativeApp();
@@ -651,14 +652,14 @@ async function startChatVoice(){
   if(CHAT_VOICE) return;
   if(!navigator.mediaDevices || !window.MediaRecorder){ alert('Bu cihaz/tarayıcı ses kaydını desteklemiyor.'); return; }
   let stream;
-  try{ stream = await navigator.mediaDevices.getUserMedia({ audio: true }); }
+  try{ stream = await getSharedMic(); }
   catch(e){ alert(chatMediaErrorText(e, 'Mikrofon')); return; }
   const type = ['audio/webm;codecs=opus','audio/webm','audio/mp4','audio/ogg'].find(t => MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(t)) || '';
   const rec = new MediaRecorder(stream, type ? { mimeType: type, audioBitsPerSecond: 32000 } : undefined);
   const chunks = []; rec.ondataavailable = (e) => { if(e.data && e.data.size) chunks.push(e.data); };
   CHAT_VOICE = { rec, stream, chunks, start: Date.now(), send: false, timer: null };
   rec.onstop = async () => {
-    stream.getTracks().forEach(tr => tr.stop());
+    touchSharedMic(); // akış kapatılmaz: iPhone'da bir sonraki kayıtta izin tekrar sorulmasın
     const v = CHAT_VOICE; CHAT_VOICE = null; clearInterval(v.timer);
     const bar = document.getElementById('chatRecBar'); if(bar){ bar.classList.remove('open'); bar.innerHTML = ''; }
     document.getElementById('chatInputForm') && document.getElementById('chatInputForm').classList.remove('recording');
