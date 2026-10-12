@@ -523,5 +523,5 @@ async function submitWaste(itemId){
 
 function clearKitchenStation(){ APP.kitchenStation = null; render(); }
 function wasteUseMaxQty(q){ document.getElementById('wasteQty').value = q; removeEl('wasteStockModalBg'); }
-function wasteGoStockSettings(tab){ removeEl('wasteStockModalBg'); closeWasteModal(); APP.settingsTab = tab; goToView('settings'); }
+function wasteGoStockSettings(tab){ removeEl('wasteStockModalBg'); closeWasteModal(); APP.settingsTab = 'products'; APP.productsSubTab = tab; goToView('settings'); }
 function wastePickOtherProduct(){ removeEl('wasteStockModalBg'); const el = document.getElementById('wasteProduct'); if(el) el.focus(); }
