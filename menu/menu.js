@@ -137,6 +137,7 @@ function renderMenu(){
   const shownKeys = order.length > 1 ? [order[STATE.sec]] : order;
   const cardHtml = (list) => list.map(p => `
       <div class="product-card ${p.max_qty===0 && !STATE.cart[p.id]?'sold-out':''}">
+        ${p.image ? `<img class="product-thumb" src="${p.image}" alt="" loading="lazy" ${act('zoomProductImage', p.image)}>` : ''}
         <div class="product-name">${escapeHtml(productName(p))}<div class="product-price">${money(p.price)}${p.max_qty!=null && p.max_qty>0 && p.max_qty<=5 ? ` · <span class="stock-left">${escapeHtml(stockTxt('left', p.max_qty))}</span>` : ''}</div></div>
         ${p.max_qty===0 && !STATE.cart[p.id] ? `<span class="sold-badge">${escapeHtml(stockTxt('sold'))}</span>` : canOrder ? `<button class="qty-btn" ${act('stepCart', p.id, -1)}>-</button>
         <span class="qty-val" id="qty_${p.id}">${STATE.cart[p.id]||0}</span>
@@ -285,3 +286,12 @@ async function sendCustomerOrder(){
   renderState(stateBoxHtml('✅', t('successTitle'), t('successMsg')));
 }
 init();
+
+// Ürün fotoğrafına dokununca büyük gösterilir; dokununca kapanır.
+function zoomProductImage(src){
+  if(!src) return;
+  const ov = document.createElement('div'); ov.className = 'img-zoom';
+  const img = document.createElement('img'); img.src = src; img.alt = '';
+  ov.appendChild(img); ov.addEventListener('click', () => ov.remove());
+  document.body.appendChild(ov);
+}
