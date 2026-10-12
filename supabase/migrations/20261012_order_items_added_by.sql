@@ -52,3 +52,9 @@ revoke execute on function _order_items_set_added_by() from public, anon, authen
 
 -- QR menü / online sipariş: get_public_menu ve get_public_order_menu ürünlerde category ve
 -- cat_pos (istasyondaki alt menü sırası) döner. _auto_customer: en az 7 haneli numaralar.
+
+-- Menüler: menus(id, restaurant_id, name, sort, station_id); products.menu_id.
+-- _sync_menus: ürünün istasyonu = menüsünün istasyonu, products.category = menü adı,
+-- stations.categories = istasyona bağlı menüler (sıralı). RPC: upsert_menu, delete_menu,
+-- set_menu_order, set_station_menus, set_product_menu; get_restaurant_config 'menus' ve ürünlerde menu_id döner.
+-- get_public_menu ürünlerde image döner (QR menüde fotoğraf). Mevcut veri menülere taşındı.
