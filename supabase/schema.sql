@@ -81,6 +81,31 @@ end $$;
 
 
 --
+-- Name: _auto_customer(uuid, text, text, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public._auto_customer(p_rid uuid, p_name text, p_phone text, p_email text DEFAULT NULL::text) RETURNS uuid
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+declare v_id uuid; v_phone text := nullif(trim(coalesce(p_phone,'')),''); v_name text := nullif(trim(coalesce(p_name,'')),''); v_mail text := nullif(lower(trim(coalesce(p_email,''))),'');
+begin
+  if v_phone is null or length(_phone_key(v_phone)) < 10 then return null; end if;
+  select id into v_id from customers where restaurant_id = p_rid and (phone = v_phone or _phone_key(phone) = _phone_key(v_phone))
+    order by (phone = v_phone) desc, last_visit_at desc nulls last limit 1;
+  if v_id is null then
+    insert into customers(restaurant_id, name, phone, email) values (p_rid, coalesce(v_name, v_phone), v_phone, v_mail)
+      on conflict (restaurant_id, phone) do nothing returning id into v_id;
+  else
+    update customers set name = case when coalesce(trim(name),'') = '' or name = phone then coalesce(v_name, name) else name end,
+      email = case when coalesce(trim(email),'') = '' then coalesce(v_mail, email) else email end
+      where id = v_id;
+  end if;
+  return v_id;
+end $$;
+
+
+--
 -- Name: _b32_decode(text); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -640,6 +665,27 @@ $$;
 
 
 --
+-- Name: _invoices_customer_email_trg(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public._invoices_customer_email_trg() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+declare v_cust uuid; v_phone text; v_name text; v_mail text := nullif(lower(trim(coalesce(new.email,''))),'');
+begin
+  if v_mail is null or new.history_id is null then return null; end if;
+  select sh.customer_id, o.customer_phone, coalesce(o.customer_name, new.buyer_name) into v_cust, v_phone, v_name
+    from sales_history sh left join orders o on o.id = sh.order_id where sh.id = new.history_id;
+  if v_cust is null and v_phone is not null then v_cust := _auto_customer(new.restaurant_id, v_name, v_phone, v_mail); end if;
+  if v_cust is not null then
+    update customers set email = v_mail where id = v_cust and restaurant_id = new.restaurant_id and coalesce(trim(email),'') = '';
+  end if;
+  return null;
+end $$;
+
+
+--
 -- Name: _is_manager(uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -855,6 +901,22 @@ CREATE FUNCTION public._order_items_set_added_by() RETURNS trigger
 begin
   if new.added_by is null then new.added_by := nullif(current_setting('peyk.uid', true), '')::uuid; end if;
   return new;
+end $$;
+
+
+--
+-- Name: _orders_auto_customer_trg(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public._orders_auto_customer_trg() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+begin
+  if new.customer_phone is not null and (tg_op = 'INSERT' or new.customer_phone is distinct from old.customer_phone or new.customer_name is distinct from old.customer_name) then
+    perform _auto_customer(new.restaurant_id, new.customer_name, new.customer_phone, null);
+  end if;
+  return null;
 end $$;
 
 
@@ -12226,6 +12288,13 @@ CREATE TRIGGER trg_bump_dv AFTER INSERT OR DELETE OR UPDATE ON public.zones FOR 
 
 
 --
+-- Name: invoices trg_invoices_customer_email; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_invoices_customer_email AFTER INSERT ON public.invoices FOR EACH ROW EXECUTE FUNCTION public._invoices_customer_email_trg();
+
+
+--
 -- Name: order_items trg_order_item_ready_at; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -12244,6 +12313,13 @@ CREATE TRIGGER trg_order_item_vat BEFORE INSERT ON public.order_items FOR EACH R
 --
 
 CREATE TRIGGER trg_order_items_added_by BEFORE INSERT ON public.order_items FOR EACH ROW EXECUTE FUNCTION public._order_items_set_added_by();
+
+
+--
+-- Name: orders trg_orders_auto_customer; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_orders_auto_customer AFTER INSERT OR UPDATE OF customer_name, customer_phone ON public.orders FOR EACH ROW EXECUTE FUNCTION public._orders_auto_customer_trg();
 
 
 --
