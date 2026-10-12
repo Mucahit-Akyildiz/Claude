@@ -18,6 +18,7 @@ const SETTINGS_TABS = [
   { tab:'giftcards', perm:'giftcards', label:'🎁 Hediye Kartları' },
   { tab:'datareset', perm:'settings_datareset', label:'🗑️ Veri Sıfırlama' },
   { tab:'support', perm:'settings_support', label:'🛟 Destek Erişimi' },
+  { tab:'audit', perm:'settings_audit', label:'📜 Değişiklik Kaydı' },
 ];
 function settingsTabVisible(t, session){
   if(t.feature && !hasFeature(t.feature)) return false;
@@ -82,6 +83,7 @@ function renderSettingsContent(session){
   else if(APP.settingsTab==='billing') renderBillingSettings(el, session);
   else if(APP.settingsTab==='datareset') renderDataResetSettings(el);
   else if(APP.settingsTab==='support') renderSupportAccessSettings(el, session);
+  else if(APP.settingsTab==='audit') renderAuditLogSettings(el, session);
   else renderUsersTabWithSubtabs(el, session);
 }
 /* Kullanıcılar sekmesi iki alt sekmeli: Kullanıcılar | Aktif Kullanıcılar
@@ -2253,3 +2255,37 @@ async function setSupportAccess(hours){
   showToast(hours ? '🛟 Destek erişimine izin verildi' : 'Destek erişim izni kaldırıldı');
   renderSupportAccessSettings(document.getElementById('settingsContent'), session);
 }
+
+/* ---- Değişiklik Kaydı: ürün, fiyat, rol, kullanıcı, masa, istasyon, işletme ayarı değişiklikleri ve
+   sipariş/ürün iptalleri kim tarafından ne zaman yapıldı (veritabanı tetikleyicisi yazar, bkz. audit_log). */
+const AUDIT_ENTITIES = { products:'Ürün', roles:'Rol', app_users:'Kullanıcı', restaurant_tables:'Masa', stations:'İstasyon', restaurants:'İşletme Ayarı', orders:'Sipariş', order_items:'Sipariş Ürünü' };
+const AUDIT_ACTIONS = { insert:'Eklendi', update:'Değiştirildi', delete:'Silindi' };
+const AUDIT_FIELDS = { name:'Ad', price:'Fiyat', cost:'Maliyet', available:'Satışta', vat_rate:'KDV', station_id:'İstasyon', permissions:'Yetkiler', role_ids:'Roller',
+  is_active:'Aktif', password:'Şifre', username:'Kullanıcı adı', status:'Durum', zone_id:'Bölge', pos_x:'Konum X', pos_y:'Konum Y', color:'Renk', icon:'Simge', shift_exempt:'Vardiyasız', ticket_design:'Fiş tasarımı' };
+async function renderAuditLogSettings(el, session){
+  el.innerHTML = '<div class="box" style="max-width:none;"><p class="muted">Yükleniyor…</p></div>';
+  const ent = APP.auditEntity || '';
+  const { data, error } = await sb.rpc('list_audit_log', { p_token: session.session_token, p_entity: ent || null, p_before: null });
+  if(error){ el.innerHTML = '<div class="box"><p class="muted">Yüklenemedi: ' + escapeHtml(error.message) + '</p></div>'; return; }
+  const rows = data || [];
+  const val = (v) => v == null ? '—' : typeof v === 'object' ? (Array.isArray(v) ? v.length + ' öğe' : '…') : String(v);
+  const changes = (c) => !c ? '' : Object.keys(c).map(k => {
+    const x = c[k]; const f = escapeHtml(AUDIT_FIELDS[k] || k);
+    return x.masked ? `${f} değişti` : `${f}: <s class="muted">${escapeHtml(val(x.old))}</s> → <b>${escapeHtml(val(x.new))}</b>`;
+  }).join('<br>');
+  el.innerHTML = `<div class="box" style="max-width:none;text-align:left;">
+    <h2 style="margin:0 0 6px;">📜 Değişiklik Kaydı</h2>
+    <p class="muted" style="margin:0 0 12px;font-size:13px;">Ürün, fiyat, rol, kullanıcı, masa ve işletme ayarlarındaki değişiklikler ile sipariş iptalleri; kim yaptı, ne zaman yaptı. Son 200 kayıt.</p>
+    <select style="width:auto;margin:0 0 12px;" ${actOn('change','setAuditEntity',['$value'])}>
+      <option value="">Tümü</option>${Object.keys(AUDIT_ENTITIES).map(k => `<option value="${k}" ${ent===k?'selected':''}>${AUDIT_ENTITIES[k]}</option>`).join('')}
+    </select>
+    <div class="settings-table-wrap"><table class="settings-table"><thead><tr><th>Tarih</th><th>Kişi</th><th>Kayıt</th><th>İşlem</th><th>Değişiklik</th></tr></thead><tbody>
+    ${rows.map(r => `<tr>
+      <td style="white-space:nowrap;">${new Date(r.created_at).toLocaleString('tr-TR',{dateStyle:'short',timeStyle:'short'})}</td>
+      <td>${escapeHtml(r.user_name || 'Sistem')}${r.is_support ? ' <span style="color:var(--amber, #f59e0b);font-size:11px;">🛟 Destek</span>' : ''}</td>
+      <td>${escapeHtml(AUDIT_ENTITIES[r.entity] || r.entity)}${r.label ? '<div class="muted" style="font-size:12px;">' + escapeHtml(r.label) + '</div>' : ''}</td>
+      <td>${r.entity==='orders' && r.action==='update' ? 'İptal edildi' : (AUDIT_ACTIONS[r.action] || r.action)}</td>
+      <td style="font-size:12.5px;">${changes(r.changes)}</td></tr>`).join('') || '<tr><td colspan="5" class="muted" style="text-align:center;">Henüz kayıt yok.</td></tr>'}
+    </tbody></table></div></div>`;
+}
+function setAuditEntity(v){ APP.auditEntity = v; renderAuditLogSettings(document.getElementById('settingsContent'), getSession()); }

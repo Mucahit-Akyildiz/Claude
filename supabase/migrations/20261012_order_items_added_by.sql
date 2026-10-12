@@ -21,3 +21,9 @@ revoke execute on function _order_items_set_added_by() from public, anon, authen
 -- Destek Erişimi rol yetkisi (settings_support): _has_role_perm yardımcı fonksiyonu,
 -- set/get_support_access artık Yönetici VEYA bu yetkiye sahip rolü kabul eder,
 -- _role_permission_catalog Yönetim grubuna 'Ayarlar · Destek Erişimi' eklendi.
+
+-- Değişiklik kaydı (audit_log): _audit_trg tetikleyicisi products, roles, app_users,
+-- restaurant_tables, stations, restaurants (ekle/değiştir/sil), orders (iptal/silme) ve
+-- order_items (silme) üzerinde. Şifre/anahtar alanları maskelenir; yalnızca stok değişimi yazılmaz.
+-- _session_check 'peyk.support' ayarını da yazar (destek oturumu işaretlenir).
+-- list_audit_log(token, entity, before): Yönetici veya 'settings_audit' yetkisi.
