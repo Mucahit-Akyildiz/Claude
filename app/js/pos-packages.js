@@ -94,8 +94,15 @@ function effectiveStock(p){
 }
 function renderProductPick(stationId, tableId){
   const el = document.getElementById('prodPick'); if(!el) return;
-  const prods = APP.config.products.filter(p => p.station_id===stationId);
-  el.innerHTML = prods.length ? prods.map(p => {
+  const all = APP.config.products.filter(p => p.station_id===stationId);
+  // İstasyonun alt menüleri (Çorbalar, Izgaralar…) varsa üstte sekme olarak gösterilir.
+  const cats = [...new Set(all.map(p => p.category).filter(Boolean))].sort((a,b) => a.localeCompare(b, 'tr'));
+  APP.prodPickCat = APP.prodPickCat || {};
+  let cur = APP.prodPickCat[stationId];
+  if(cur && cur !== '__all' && !cats.includes(cur)) cur = null;
+  const prods = (!cats.length || !cur || cur === '__all') ? all : all.filter(p => p.category === cur);
+  const chips = cats.length ? `<div style="grid-column:1/-1;display:flex;flex-wrap:wrap;gap:6px;margin-bottom:2px;">${[['__all','Tümü'], ...cats.map(c => [c, c])].map(([v, l]) => `<button type="button" class="chip-btn ${((cur||'__all')===v)?'active':''}" style="margin:0;padding:5px 12px;font-size:12.5px;${((cur||'__all')===v)?'background:var(--accent);color:var(--btn-ink);border-color:var(--accent);':''}" data-cat="${escapeAttr(v)}" ${actStop('setProdPickCat', stationId, '$data.cat', tableId)}>${escapeHtml(l)}</button>`).join('')}</div>` : '';
+  el.innerHTML = chips + (prods.length ? prods.map(p => {
     const stock = effectiveStock(p);
     const off = p.available===false || (stock!=null && stock<=0);
     let badge = '';
@@ -106,7 +113,11 @@ function renderProductPick(stationId, tableId){
     <div class="prod-pick-card" style="background:var(--panel2);border:1px solid var(--border);border-radius:10px;padding:12px 10px;font-size:13.5px;${off?'opacity:.4;cursor:not-allowed;':'cursor:pointer;'}" ${off?'':act('addToDraft', tableId, p.id)}>
       <div style="font-weight:700;">${escapeHtml(p.name)}</div><div class="muted" style="font-size:12px;">${money(p.price)}</div>${badge}
     </div>`;
-  }).join('') : '<p class="muted">Bu istasyonda ürün yok.</p>';
+  }).join('') : '<p class="muted">Bu istasyonda ürün yok.</p>');
+}
+function setProdPickCat(stationId, cat, tableId){
+  APP.prodPickCat = APP.prodPickCat || {}; APP.prodPickCat[stationId] = cat;
+  renderProductPick(stationId, tableId);
 }
 async function refreshConfigKeepDraft(session){
   const { data } = await sb.rpc('get_restaurant_config', { p_token: session.session_token });
