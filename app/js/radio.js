@@ -55,7 +55,7 @@ async function renderRadioView(main, session){
         <tbody>
         ${list.map(c => `<tr>
           <td class="col-name"><div>${escapeHtml(c.name)}</div>${c.id===cur ? '<span class="role-badge" style="display:inline-block;white-space:nowrap;margin-top:6px;color:var(--accent);border-color:var(--accent);">● Bağlı</span>' : ''}</td>
-          <td style="font-size:12.5px;">${escapeHtml((c.members||[]).map(m => m.name).join(', '))}</td>
+          <td style="font-size:12.5px;" ${c.id===cur ? 'data-radio-members="1"' : ''}>${radioMembersHtml(c, c.id===cur)}</td>
           <td style="white-space:nowrap;">
             ${c.is_member ? (c.id===cur
               ? `<button class="sbtn" ${act('radioDisconnect', true)}>Ayrıl</button>`
@@ -138,18 +138,23 @@ async function radioConnect(id, silent){
   RADIO.status = 'Bağlanıyor…';
   radioSave(session, c.id);
   const me = { user_id: session.user_id, name: session.username };
-  RADIO.rt = sb.channel('radio-' + c.secret, { config: { broadcast: { self:false }, presence: { key: session.user_id } } })
+  const ch = RADIO.rt = sb.channel('radio-' + c.secret, { config: { broadcast: { self:false }, presence: { key: session.user_id } } })
     .on('broadcast', { event:'a' }, ({ payload }) => radioOnAudio(payload))
     .on('broadcast', { event:'s' }, ({ payload }) => radioOnFloor(payload))
     .on('broadcast', { event:'e' }, ({ payload }) => radioOnEnd(payload))
     .on('presence', { event:'sync' }, () => {
       const st = RADIO.rt ? RADIO.rt.presenceState() : {};
-      RADIO.online = Object.values(st).map(a => a[0] && a[0].name).filter(Boolean);
+      RADIO.online = [...new Set(Object.values(st).map(a => a[0] && a[0].name).filter(Boolean))];
       drawRadioDock();
+      radioRefreshOnlineMarks();
+      if(document.getElementById('radioOnlineBg')) openRadioOnlineList();
     })
     .subscribe(status => {
+      if(RADIO.rt !== ch) return; // yeniden bağlanırken kapatılan eski kanalın durumu yok sayılır
       RADIO.status = status==='SUBSCRIBED' ? '' : (status==='CLOSED' ? 'Bağlantı kapandı' : 'Yeniden bağlanıyor…');
       if(status==='SUBSCRIBED' && RADIO.rt) RADIO.rt.track(me).catch(()=>{});
+      // Kanal hata verir / zaman aşımına uğrarsa birkaç saniye sonra yeniden bağlanılır.
+      if(status==='CHANNEL_ERROR' || status==='TIMED_OUT' || status==='CLOSED') radioScheduleReconnect('durum ' + status);
       drawRadioDock();
     });
   drawRadioDock();
@@ -218,11 +223,12 @@ function radioBusyBy(){
   const me = getSession();
   return RADIO.floor && me && RADIO.floor.u !== me.user_id ? RADIO.floor : null;
 }
-const RADIO_BUILD = 'r6';
+const RADIO_BUILD = 'r7';
 function radioLog(msg){ try{ if(typeof reportClientError === 'function') reportClientError('radio', msg + ' | ' + RADIO_BUILD, 'radio.js'); }catch(e){} }
 async function radioStartTalk(){
   if(RADIO.talking) return;
   if(!RADIO.rt || !RADIO.channel){ radioLog('bas: FAIL kanala bağlı değil'); return; }
+  if(!radioChannelHealthy()){ radioScheduleReconnect('konuşmadan önce bağlantı kopuk', 0); radioFlash('Bağlantı yenileniyor, tekrar basın'); return; }
   const session = getSession(); if(!session) return;
   const busy = radioBusyBy();
   if(busy){ radioBeep(330, 0.18); radioFlash((busy.n || 'Biri') + ' konuşuyor — kanal meşgul'); return; }
@@ -428,7 +434,12 @@ function drawRadioDock(){
       <button type="button" id="radioMicBtn" class="ghost-btn" style="margin:0;width:auto;padding:8px 10px;" title="Mikrofon seç">🎤</button>
       <button type="button" id="radioClose" class="ghost-btn" style="margin:0;width:auto;padding:8px 10px;" title="Telsizi kapat">✕</button>`;
     document.body.appendChild(dock);
-    dock.querySelector('#radioInfo').onclick = () => { radioAudioCtx(); RADIO.missed = false; setTimeout(drawRadioDock, 100); };
+    dock.querySelector('#radioInfo').onclick = () => {
+      const needAudio = !RADIO.nativeAudio && (!RADIO.ctx || RADIO.ctx.state !== 'running');
+      radioAudioCtx(); RADIO.missed = false; setTimeout(drawRadioDock, 100);
+      // Ses zaten açıksa dokunmak çevrim içi listesini gösterir.
+      if(!needAudio) openRadioOnlineList();
+    };
     dock.querySelector('#radioClose').onclick = () => radioDisconnect(true);
     dock.querySelector('#radioMicBtn').onclick = () => openRadioMicPicker();
     const b = dock.querySelector('#radioPtt');
@@ -443,7 +454,7 @@ function drawRadioDock(){
   const busy = radioBusyBy();
   const suspended = !RADIO.nativeAudio && (!RADIO.ctx || RADIO.ctx.state !== 'running');
   const line = RADIO.flash || RADIO.status || (busy ? '🔊 ' + (busy.n || 'Biri') + ' konuşuyor'
-    : (suspended || RADIO.missed) ? '🔇 Sesi açmak için buraya dokunun' : (RADIO.online.length + ' kişi çevrimiçi'));
+    : (suspended || RADIO.missed) ? '🔇 Sesi açmak için buraya dokunun' : ('🟢 ' + RADIO.online.length + ' kişi çevrim içi · gör'));
   dock.querySelector('#radioTitle').textContent = '📻 ' + RADIO.channel.name;
   const ln = dock.querySelector('#radioLine'); ln.textContent = line; ln.title = RADIO.online.join(', ');
   ln.style.color = (suspended || RADIO.missed || RADIO.flash) && !busy ? 'var(--red)' : '';
@@ -528,3 +539,67 @@ function setRadioMic(id){
   removeEl('radioMicBg');
   radioFlash('🎤 Mikrofon değiştirildi');
 }
+
+/* ---- Çevrim içi üyeler ----
+   Bağlı kanalda kimin telsizi açık (presence) gösterilir: kanal listesinde yeşil nokta,
+   panelde "N kişi çevrim içi"ye dokununca liste. */
+function radioMembersHtml(c, connected){
+  const members = (c.members || []).map(m => m.name);
+  if(!connected) return escapeHtml(members.join(', '));
+  const on = new Set(RADIO.online);
+  return members.map(n => on.has(n)
+    ? `<span style="white-space:nowrap;font-weight:700;">🟢 ${escapeHtml(n)}</span>`
+    : `<span class="muted" style="white-space:nowrap;">⚪ ${escapeHtml(n)}</span>`).join(', ');
+}
+function radioRefreshOnlineMarks(){
+  const td = document.querySelector('[data-radio-members]');
+  if(!td || !RADIO.channel || !APP.radioChannels) return;
+  const c = (APP.radioChannels || []).find(x => x.id === RADIO.channel.id);
+  if(c) td.innerHTML = radioMembersHtml(c, true);
+}
+function openRadioOnlineList(){
+  if(!RADIO.channel) return;
+  removeEl('radioOnlineBg');
+  const c = (APP.radioChannels || []).find(x => x.id === RADIO.channel.id);
+  const on = new Set(RADIO.online);
+  const members = c ? (c.members || []).map(m => m.name) : RADIO.online.slice();
+  const online = members.filter(n => on.has(n)).concat(RADIO.online.filter(n => !members.includes(n)));
+  const offline = members.filter(n => !on.has(n));
+  const ov = document.createElement('div'); ov.id = 'radioOnlineBg';
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:200;display:flex;align-items:flex-end;justify-content:center;padding:16px;';
+  ov.innerHTML = `<div class="box" style="max-width:420px;width:100%;margin:0 0 80px;max-height:70vh;overflow-y:auto;text-align:left;">
+    <div style="display:flex;justify-content:space-between;align-items:center;"><h2 style="margin:0;">📻 ${escapeHtml(RADIO.channel.name)}</h2><span style="cursor:pointer;color:var(--muted);font-size:20px;" ${act('removeEl','radioOnlineBg')}>✕</span></div>
+    <p style="font-weight:700;margin:12px 0 6px;">🟢 Çevrim içi (${online.length})</p>
+    ${online.length ? online.map(n => `<div style="padding:6px 0;border-bottom:1px solid var(--border);">🟢 ${escapeHtml(n)}</div>`).join('') : '<p class="muted">Şu an kimse bağlı değil.</p>'}
+    ${offline.length ? `<p style="font-weight:700;margin:14px 0 6px;" class="muted">⚪ Bağlı değil (${offline.length})</p>
+      ${offline.map(n => `<div class="muted" style="padding:6px 0;border-bottom:1px solid var(--border);">⚪ ${escapeHtml(n)}</div>`).join('')}` : ''}
+  </div>`;
+  ov.onclick = (e) => { if(e.target === ov) ov.remove(); };
+  document.body.appendChild(ov);
+}
+
+/* ---- Bağlantı bekçisi ----
+   Telefon uykuya geçince / uygulama arka plandayken gerçek zamanlı bağlantı sessizce kopabiliyor,
+   ekranda ise kanal "bağlı" görünmeye devam ediyordu (ses gelmiyor, çıkıp girince düzeliyordu).
+   Kanal 'joined' değilse ya da uygulama 30 sn'den uzun arka planda kaldıysa bağlantı yeniden kurulur. */
+let RADIO_RECONNECT_T = null, RADIO_HIDDEN_AT = 0;
+function radioChannelHealthy(){
+  return !!(RADIO.rt && RADIO.rt.state === 'joined' && (!sb.realtime || !sb.realtime.isConnected || sb.realtime.isConnected()));
+}
+function radioScheduleReconnect(reason, delay){
+  if(!RADIO.channel || RADIO.talking) return;
+  clearTimeout(RADIO_RECONNECT_T);
+  RADIO_RECONNECT_T = setTimeout(() => {
+    if(!RADIO.channel || RADIO.talking) return;
+    radioLog('bağlantı yenileniyor: ' + reason);
+    radioConnect(RADIO.channel.id, true);
+  }, delay == null ? 2500 : delay);
+}
+setInterval(() => { if(RADIO.channel && !RADIO.talking && !radioChannelHealthy()) radioScheduleReconnect('bekçi: kanal ' + (RADIO.rt ? RADIO.rt.state : 'yok')); }, 15000);
+document.addEventListener('visibilitychange', () => {
+  if(document.hidden){ RADIO_HIDDEN_AT = Date.now(); return; }
+  if(!RADIO.channel) return;
+  const away = RADIO_HIDDEN_AT ? Date.now() - RADIO_HIDDEN_AT : 0;
+  if(!radioChannelHealthy() || away > 30000) radioScheduleReconnect('ön plana dönüş (' + Math.round(away/1000) + ' sn)', 300);
+});
+window.addEventListener('online', () => { if(RADIO.channel) radioScheduleReconnect('internet geri geldi', 500); });
