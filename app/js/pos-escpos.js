@@ -19,6 +19,13 @@ function ticketRichToPlainText(html){
   tmp.querySelectorAll('br').forEach(el => el.replaceWith('\n'));
   return (tmp.textContent || '').replace(/\n+$/, '').trim();
 }
+// Fişteki garson: ürünleri ekleyenler; henüz kaydedilmemiş (yeni gönderilen) ürünlerde fişi basan kişi.
+function ticketWaiter(items){
+  const names = [];
+  (items || []).forEach(it => { if(it.added_by_name && !names.includes(it.added_by_name)) names.push(it.added_by_name); });
+  if(!names.length){ const s = getSession(); if(s && s.username) names.push(s.username); }
+  return names.join(', ');
+}
 function buildEscPosTicket(restaurantName, tableName, items, design, dailyNumber){
   const chunks = [];
   const push = (arr) => chunks.push(arr instanceof Uint8Array ? arr : new Uint8Array(arr));
@@ -37,6 +44,7 @@ function buildEscPosTicket(restaurantName, tableName, items, design, dailyNumber
   const headerDateLine = now.toLocaleDateString('tr-TR') + (design.showHeaderTime ? (' ' + formatItemTime({added_at: now.toISOString()}, design)) : '');
   push(escposEncodeText(((showOrderNumber && dailyNumber) ? ('Sipariş No: '+dailyNumber+' · ') : '') + tableName + '\n'));
   push(escposEncodeText(headerDateLine + '\n'));
+  if(design.showWaiter && ticketWaiter(items)) push(escposEncodeText('Garson: ' + ticketWaiter(items) + '\n'));
   push([0x1B, 0x61, 0x00]); // left align
   // Termal yazıcılarda ince yazı çoğunlukla silik/soluk çıkıyor - Kalın Yazı
   // ayarı açıksa ürün satırları da bold basılır (bkz. Yazıcı Ayarları > Fiş Tasarımı).
@@ -211,6 +219,7 @@ function buildTicketHtml(restaurantName, tableName, items, design, dailyNumber){
     ${design.header ? `<div class="ticket-meta ticket-rich">${sanitizeRichHtml(design.header)}</div>` : ''}
     <div class="ticket-meta" style="${ticketPartStyle(design,'Text')}">${(showOrderNumber && dailyNumber)?('Sipariş No: '+dailyNumber+' · '):''}${escapeHtml(tableName)}</div>
     <div class="ticket-meta" style="${ticketPartStyle(design,'Text')}">${dateLine}</div>
+    ${design.showWaiter && ticketWaiter(items) ? `<div class="ticket-meta" style="${ticketPartStyle(design,'Text')}">Garson: ${escapeHtml(ticketWaiter(items))}</div>` : ''}
     <div class="ticket-line"></div>
     ${items.map(it => `
       <div class="ticket-item" style="${ticketPartStyle(design,'Text')}"><span><span class="qty">${it.qty}x</span>${escapeHtml(it.name)}</span>${showItemTime?`<span class="ticket-time" style="${ticketPartStyle(design,'Time')}font-weight:${timeWeight} !important;">${formatItemTime(it, design)}</span>`:''}</div>
@@ -235,6 +244,7 @@ function updateTicketPreview(){
   const showOrderNumber = document.getElementById('td_showOrderNumber').checked;
   const showItemTime = document.getElementById('td_showItemTime').checked;
   const showHeaderTime = document.getElementById('td_showHeaderTime').checked;
+  const showWaiter = document.getElementById('td_showWaiter').checked;
   const timeFormat = document.getElementById('td_timeFormat').value;
   const timeBold = document.getElementById('td_timeBold').checked;
   const typography = readTicketTypography();
@@ -247,7 +257,7 @@ function updateTicketPreview(){
     { qty:1, name:'Mevsim Salata', note:'Sossuz', added_at:t2 },
   ];
   applyTicketDesignStyle(el, { width, fontFamily, bold, marginTop, marginRight, marginBottom, marginLeft }, 'ticket-paper');
-  el.innerHTML = buildTicketHtml(session ? session.restaurant_name : 'İŞLETME ADI', 'Masa 3', sampleItems, { header, footer, showOrderNumber, showItemTime, showHeaderTime, timeFormat, timeBold, ...typography }, 12);
+  el.innerHTML = buildTicketHtml(session ? session.restaurant_name : 'İŞLETME ADI', 'Masa 3', sampleItems, { header, footer, showOrderNumber, showItemTime, showHeaderTime, showWaiter, timeFormat, timeBold, ...typography }, 12);
 }
 /* Masa taşıma/birleştirme: boş masaya seçilirse hesap oraya taşınır, dolu
    masaya seçilirse ödenmemiş ürünler o masanın hesabına eklenir (bkz.

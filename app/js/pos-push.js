@@ -346,6 +346,7 @@ async function saveTicketDesign(){
     showItemTime: document.getElementById('td_showItemTime').checked,
     copies: parseInt(document.getElementById('td_copiesVal').textContent) || 1,
     showHeaderTime: document.getElementById('td_showHeaderTime').checked,
+    showWaiter: document.getElementById('td_showWaiter').checked,
     timeFormat: document.getElementById('td_timeFormat').value,
     timeBold: document.getElementById('td_timeBold').checked,
     ...readTicketTypography(),

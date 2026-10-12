@@ -43,6 +43,7 @@ function getTicketDesign(){
     timeFormat: d.timeFormat==='12' ? '12' : '24',
     timeBold: d.timeBold !== false,
     showHeaderTime: !!d.showHeaderTime,
+    showWaiter: !!d.showWaiter,
     // Fişin farklı bölümlerinin yazı renkleri (hepsi termal yazıcıda net
     // basması için varsayılan olarak tam siyah), boyutları (px) ve harf
     // stilleri (normal/BÜYÜK/küçük/İlk Harf Büyük) - tam özelleştirme.
@@ -60,7 +61,7 @@ function getTicketDesign(){
     transformTime: d.transformTime || 'none',
   };
 }
-const TICKET_DESIGN_DEFAULTS = { width:'80', header:'', footer:'', fontFamily:'Courier New', bold:true, marginTop:4, marginRight:4, marginBottom:4, marginLeft:4, showOrderNumber:true, showItemTime:true, copies:1, timeFormat:'24', timeBold:true, showHeaderTime:false, colorTitle:'#000000', colorText:'#000000', colorNote:'#000000', colorTime:'#000000', sizeTitle:15, sizeText:13, sizeNote:11, sizeTime:11, transformTitle:'uppercase', transformText:'none', transformNote:'none', transformTime:'none' };
+const TICKET_DESIGN_DEFAULTS = { width:'80', header:'', footer:'', fontFamily:'Courier New', bold:true, marginTop:4, marginRight:4, marginBottom:4, marginLeft:4, showOrderNumber:true, showItemTime:true, copies:1, timeFormat:'24', timeBold:true, showHeaderTime:false, showWaiter:false, colorTitle:'#000000', colorText:'#000000', colorNote:'#000000', colorTime:'#000000', sizeTitle:15, sizeText:13, sizeNote:11, sizeTime:11, transformTitle:'uppercase', transformText:'none', transformNote:'none', transformTime:'none' };
 async function setTicketDesign(d){
   const session = getSession();
   const { error } = await sb.rpc('update_ticket_design', { p_token: session.session_token, p_design: d });
@@ -444,6 +445,10 @@ async function renderPrinterSettingsView(main, session){
               <div class="toggle-row">
                 <div class="toggle-label">Fişin Üstünde Saat Göster</div>
                 <label class="toggle-switch"><input type="checkbox" id="td_showHeaderTime" ${design.showHeaderTime?'checked':''} ${actOn('input','updateTicketPreview',[])}><span class="slider"></span></label>
+              </div>
+              <div class="toggle-row">
+                <div><div class="toggle-label">Garson Adını Göster</div><div class="toggle-desc">Siparişi alan garson(lar) fişin üstünde yazar.</div></div>
+                <label class="toggle-switch"><input type="checkbox" id="td_showWaiter" ${design.showWaiter?'checked':''} ${actOn('input','updateTicketPreview',[])}><span class="slider"></span></label>
               </div>
               <div class="toggle-row" style="border-bottom:none;">
                 <div><div class="toggle-label">Kopya Sayısı</div><div class="toggle-desc">Masaüstü uygulaması/USB yazıcıda her fiş bu kadar kez basılır.</div></div>
