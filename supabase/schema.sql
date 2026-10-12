@@ -5847,10 +5847,10 @@ end $$;
 
 
 --
--- Name: notify_call(uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
+-- Name: notify_call(uuid, uuid, boolean, text); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.notify_call(p_token uuid, p_to uuid) RETURNS void
+CREATE FUNCTION public.notify_call(p_token uuid, p_to uuid, p_end boolean DEFAULT false, p_group_name text DEFAULT NULL::text) RETURNS void
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public', 'extensions', 'pg_temp'
     AS $$
@@ -5860,17 +5860,22 @@ begin
   if p_to = s.user_id or not exists(select 1 from app_users where id = p_to and restaurant_id = s.restaurant_id and is_active is not false) then
     raise exception 'Kullanıcı bulunamadı';
   end if;
-  -- Aynı kişiye 20 sn içinde tekrar arama bildirimi gönderilmez.
-  select at into v_last from call_notifications where from_id = s.user_id and to_id = p_to;
-  if v_last is not null and v_last > now() - interval '20 seconds' then return; end if;
-  insert into call_notifications(from_id, to_id, at) values (s.user_id, p_to, now())
-    on conflict (from_id, to_id) do update set at = now();
+  if not coalesce(p_end, false) then
+    -- Aynı kişiye 20 sn içinde tekrar arama bildirimi gönderilmez.
+    select at into v_last from call_notifications where from_id = s.user_id and to_id = p_to;
+    if v_last is not null and v_last > now() - interval '20 seconds' then return; end if;
+    insert into call_notifications(from_id, to_id, at) values (s.user_id, p_to, now())
+      on conflict (from_id, to_id) do update set at = now();
+  else
+    -- Arama bildirimi hiç gitmediyse susturma sinyaline de gerek yok.
+    if not exists(select 1 from call_notifications where from_id = s.user_id and to_id = p_to and at > now() - interval '60 seconds') then return; end if;
+  end if;
   begin
     select value into v_url from _psv where key = 'push_dispatch_url';
     select value into v_secret from _psv where key = 'push_dispatch_secret';
     if coalesce(v_url,'') <> '' then
       perform net.http_post(url := v_url, headers := jsonb_build_object('Content-Type','application/json','x-push-secret', coalesce(v_secret,'')),
-        body := jsonb_build_object('mode','call','to', p_to, 'by', s.username, 'from_id', s.user_id));
+        body := jsonb_build_object('mode','call','to', p_to, 'by', s.username, 'from_id', s.user_id, 'end', coalesce(p_end,false), 'group_name', p_group_name));
     end if;
   exception when others then null;
   end;
