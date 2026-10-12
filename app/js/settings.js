@@ -8,8 +8,7 @@ const SETTINGS_TABS = [
   { tab:'zones', perm:'settings_zones', label:'Bölgeler & Masalar' },
   { tab:'products', label:'Ürünler & Hammaddeler' }, // alt sekmeler: Ürünler, Hammaddeler
   { tab:'flags', perm:'settings_flags', label:'Sipariş Etiketleri' },
-  { tab:'users', perm:'settings_users', label:'Kullanıcılar' },
-  { tab:'shifts', perm:'shifts', label:'Vardiyalar' },
+  { tab:'users', label:'Kullanıcılar & Vardiyalar' }, // alt sekmeler: Kullanıcılar, Aktif, Vardiyalar
   { tab:'roles', perm:'settings_roles', label:'Roller' },
   { tab:'integrations', perm:'settings_integrations', label:'Entegrasyonlar' },
   { tab:'billing', label:'💳 Abonelik & Hediye Kartları' }, // alt sekmeler
@@ -17,6 +16,7 @@ const SETTINGS_TABS = [
 ];
 function settingsTabVisible(t, session){
   if(t.feature && !hasFeature(t.feature)) return false;
+  if(t.tab==='users') return canManage(session, 'settings_users') || canManage(session, 'shifts');
   if(t.tab==='products') return canManage(session, 'settings_products') || canManage(session, 'settings_ingredients');
   if(t.tab==='security') return canManage(session, 'settings_support') || canManage(session, 'settings_audit') || canManage(session, 'settings_datareset');
   if(t.tab==='billing') return canManage(session, 'settings_billing') || canManage(session, 'giftcards') || hasPerm(session, 'payments');
@@ -26,6 +26,10 @@ async function renderSettingsView(main, session){
   const { data, error } = await sb.rpc('get_restaurant_config', { p_token: session.session_token });
   if(error){ main.innerHTML = '<h1>Ayarlar</h1><p class="muted">Yüklenemedi: '+error.message+'</p>'; return; }
   APP.config = data;
+  // Eski sekme adları (bildirimden/kayıtlı ekrandan gelebilir) yeni sekme + alt sekmeye çevrilir.
+  const LEGACY_TABS = { shifts:['users','usersSubTab','shifts'], ingredients:['products','productsSubTab','ingredients'], floorplan:['zones','zonesSubTab','floorplan'],
+    giftcards:['billing','billingSubTab','giftcards'], datareset:['security','securitySubTab','datareset'], support:['security','securitySubTab','support'], audit:['security','securitySubTab','audit'] };
+  const lg = LEGACY_TABS[APP.settingsTab]; if(lg){ APP.settingsTab = lg[0]; APP[lg[1]] = lg[2]; }
   const visibleTabs = SETTINGS_TABS.filter(t => settingsTabVisible(t, session));
   if(!visibleTabs.some(t => t.tab===APP.settingsTab)) APP.settingsTab = visibleTabs.length ? visibleTabs[0].tab : null;
   main.innerHTML = `<h1>Ayarlar</h1>
@@ -73,27 +77,28 @@ function renderSettingsContent(session){
   else if(APP.settingsTab==='flags') renderOrderFlagsSettings(el, session);
   else if(APP.settingsTab==='roles') renderRolesSettings(el, session);
   else if(APP.settingsTab==='integrations') renderIntegrationsSettings(el, session);
-  else if(APP.settingsTab==='shifts') renderShiftsSettings(el, session);
   else if(APP.settingsTab==='billing') renderBillingTabWithSubtabs(el, session);
   else if(APP.settingsTab==='security') renderSecuritySettings(el, session);
   else renderUsersTabWithSubtabs(el, session);
 }
-/* Kullanıcılar sekmesi iki alt sekmeli: Kullanıcılar | Aktif Kullanıcılar
-   (ikincisi yalnızca Yönetici'ye görünür). */
+/* Kullanıcılar sekmesi alt sekmeli: Kullanıcılar | Aktif Kullanıcılar | Vardiyalar (yetkiye göre). */
 function renderUsersTabWithSubtabs(el, session){
-  if(!canManage(session, 'settings_users')) APP.usersSubTab = 'list';
-  const sub = APP.usersSubTab || 'list';
+  const tabs = [
+    canManage(session, 'settings_users') ? { id:'list', ic:'👥', label:'Kullanıcılar' } : null,
+    canManage(session, 'settings_users') ? { id:'active', ic:'🟢', label:'Aktif Kullanıcılar' } : null,
+    hasPerm(session, 'shifts') || canManage(session, 'shifts') ? { id:'shifts', ic:'⏱️', label:'Vardiyalar' } : null,
+  ].filter(Boolean);
+  if(!tabs.length){ el.innerHTML = ''; return; }
+  if(!tabs.some(t => t.id === APP.usersSubTab)) APP.usersSubTab = tabs[0].id;
+  const sub = APP.usersSubTab;
+  const draw = (box) => sub==='active' ? renderActiveUsersSettings(box) : sub==='shifts' ? renderShiftsSettings(box, session) : renderUsersSettings(box, session);
+  if(tabs.length === 1){ el.innerHTML = '<div id="usersSubContent"></div>'; draw(document.getElementById('usersSubContent')); return; }
   // Alt sekmeler kartın içinde, üst menüden ayrışan altı çizili stilde.
-  el.innerHTML = canManage(session, 'settings_users') ? `<div class="box sub-tabs-box" style="max-width:none;">
-      <div class="sub-tabs" id="usersSubTabs">
-        <div role="tab" tabindex="0" class="sub-tab ${sub==='list'?'active':''}" ${act('setUsersSubTab', 'list')}><span class="sub-tab-ic">👥</span>Kullanıcılar</div>
-        <div role="tab" tabindex="0" class="sub-tab ${sub==='active'?'active':''}" ${act('setUsersSubTab', 'active')}><span class="sub-tab-ic">🟢</span>Aktif Kullanıcılar</div>
-      </div>
+  el.innerHTML = `<div class="box sub-tabs-box" style="max-width:none;">
+      <div class="sub-tabs" id="usersSubTabs">${tabs.map(t => `<div role="tab" tabindex="0" class="sub-tab ${sub===t.id?'active':''}" ${act('setUsersSubTab', t.id)}><span class="sub-tab-ic">${t.ic}</span>${t.label}</div>`).join('')}</div>
       <div id="usersSubContent" class="sub-tabs-content"></div>
-    </div>` : '<div id="usersSubContent"></div>';
-  const box = document.getElementById('usersSubContent');
-  if(sub==='active') renderActiveUsersSettings(box);
-  else renderUsersSettings(box, session);
+    </div>`;
+  draw(document.getElementById('usersSubContent'));
 }
 /* Güvenlik sekmesi iki alt sekmeli: Destek Erişimi | Değişiklik Kaydı (yetkiye göre). */
 function renderSecuritySettings(el, session){
