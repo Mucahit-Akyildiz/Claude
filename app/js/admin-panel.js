@@ -480,7 +480,8 @@ async function refreshRestaurantsList(admin){
   const el = document.getElementById('restContent'); if(!el) return;
   const [{ data: summary, error: sErr }, { data: list, error: lErr }] = await Promise.all([
     sb.rpc('admin_platform_summary', { p_token: admin.session_token }),
-    sb.rpc('admin_list_restaurants', { p_token: admin.session_token })
+    sb.rpc('admin_list_restaurants', { p_token: admin.session_token }),
+    sb.rpc('admin_support_allowed', { p_token: admin.session_token }).then(r => { APP.adminSupportAllowed = (r && r.data) || {}; }, () => { APP.adminSupportAllowed = {}; })
   ]);
   const err = sErr || lErr;
   if(err){
@@ -530,6 +531,7 @@ async function refreshRestaurantsList(admin){
                 <button class="sbtn" style="margin:0;" data-name="${escapeAttr(r.name)}" ${act('openEntitlementsModal','restaurant', r.id, r.name)}>🧩 Eklentiler</button>
                 <button class="sbtn" style="margin:0;" ${act('showRestaurantUsers', r.id)}>👥 Kullanıcılar</button>
                 <button class="sbtn" style="margin:0;" data-name="${escapeAttr(r.name)}" data-exp="${r.expires_at||''}" ${act('openExtendSubscription', r.id, r.name, r.expires_at||'')}>⏳ Süre Uzat</button>
+                ${(APP.adminSupportAllowed||{})[r.id] ? `<button class="sbtn" style="margin:0;background:var(--green);color:#fff;" title="İşletme destek erişimine izin verdi" ${act('startSupportSession', r.id, r.name)}>🛟 Destek olarak gir</button>` : ''}
                 <button type="button" class="act-btn act-delete" ${act('deleteRestaurantAdmin', r.id)}>${ICON_TRASH}<span>Sil</span></button>
               </div>
             </td>
@@ -1525,3 +1527,15 @@ function setAdminErrorsAll(on){ APP.adminErrorsAll = on; renderClientErrorsAdmin
 function copySupportCode(){ navigator.clipboard.writeText(document.getElementById('supCode').value).then(() => showToast('Kod kopyalandı ✓')); }
 function extendSubscriptionUntil(id){ const v = document.getElementById('extendUntil').value; if(!v){ alert('Tarih seçin'); return; } doExtendSubscription(id, { p_until: v }); }
 function extendSubscriptionUnlimited(id){ if(confirm('Abonelik süresiz yapılsın mı?')) doExtendSubscription(id, { p_unlimited: true }); }
+
+/* İşletme izin verdiyse (Ayarlar > Destek Erişimi) 1 saatlik destek oturumu açar ve işletmenin
+   uygulamasını yeni sekmede yönetici yetkisiyle açar. Oturum bilgisi URL'de taşınmaz: aynı
+   kökenli yeni sekme localStorage'dan bir kez okuyup siler. */
+async function startSupportSession(restaurantId, name){
+  const admin = getAdminSession(); if(!admin) return;
+  if(!confirm('"' + name + '" işletmesine destek olarak girilsin mi? Giriş işletmenin kaydında görünür.')) return;
+  const { data, error } = await sb.rpc('admin_start_support_session', { p_token: admin.session_token, p_restaurant_id: restaurantId });
+  if(error){ alert(error.message); return; }
+  try{ localStorage.setItem('rys_support_handoff', JSON.stringify({ at: Date.now(), s: data })); }catch(e){ alert('Tarayıcı depolaması kullanılamıyor.'); return; }
+  window.open('/app/?support=1', '_blank');
+}
