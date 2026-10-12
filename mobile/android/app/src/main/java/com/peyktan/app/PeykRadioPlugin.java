@@ -33,6 +33,24 @@ public class PeykRadioPlugin extends Plugin {
         }
     }
 
+    /** Sesli arama bildiriminden açıldıysa bekleyen eylem ("accept" / "open") ve arayan; bir kez okunur. */
+    @PluginMethod
+    public void consumePendingCall(PluginCall call) {
+        com.getcapacitor.JSObject r = new com.getcapacitor.JSObject();
+        if (PeykCallNotifier.pendingAction != null && System.currentTimeMillis() - PeykCallNotifier.pendingAt < 60000) {
+            r.put("action", PeykCallNotifier.pendingAction);
+            r.put("from", PeykCallNotifier.pendingFrom);
+        }
+        PeykCallNotifier.pendingAction = null; PeykCallNotifier.pendingFrom = null;
+        call.resolve(r);
+    }
+
+    @PluginMethod
+    public void cancelCallNotification(PluginCall call) {
+        PeykCallNotifier.cancel(getContext());
+        call.resolve();
+    }
+
     @PluginMethod
     public void stop(PluginCall call) {
         getContext().stopService(new Intent(getContext(), PeykRadioService.class));

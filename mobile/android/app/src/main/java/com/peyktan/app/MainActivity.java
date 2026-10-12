@@ -16,6 +16,8 @@ import com.google.android.play.core.install.model.InstallStatus;
 import com.google.android.play.core.install.model.UpdateAvailability;
 
 public class MainActivity extends BridgeActivity {
+    // Uygulama ekranda mı (gelen aramada uygulama kendi çalar; telefon bildirimi gösterilmez).
+    static volatile boolean inForeground = false;
     // Play Store'da yeni sürüm varsa uygulama içinden güncelleme (Google Play In-App Updates).
     // "Esnek" akış: Google'ın penceresiyle kullanıcı onaylar, indirme arka planda sürer,
     // uygulama kullanılmaya devam eder; indirme bitince "Yeniden başlat" sorulur.
@@ -30,6 +32,7 @@ public class MainActivity extends BridgeActivity {
     public void onCreate(Bundle savedInstanceState) {
         registerPlugin(PeykRadioPlugin.class);
         super.onCreate(savedInstanceState);
+        PeykCallNotifier.handleIntent(this, getIntent());
         updateLauncher = registerForActivityResult(new ActivityResultContracts.StartIntentSenderForResult(), result -> {});
         checkForUpdate();
     }
@@ -63,8 +66,15 @@ public class MainActivity extends BridgeActivity {
     }
 
     @Override
+    protected void onNewIntent(android.content.Intent intent) {
+        super.onNewIntent(intent);
+        PeykCallNotifier.handleIntent(this, intent);
+    }
+
+    @Override
     public void onResume() {
         super.onResume();
+        inForeground = true;
         // İndirme uygulama arka plandayken bittiyse geri dönüşte sorulur.
         if (updateManager != null) {
             updateManager.getAppUpdateInfo().addOnSuccessListener(info -> {
@@ -84,6 +94,7 @@ public class MainActivity extends BridgeActivity {
     @Override
     public void onPause() {
         super.onPause();
+        inForeground = false;
         keepWebViewRunning();
     }
 

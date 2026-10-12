@@ -72,7 +72,9 @@ async function logNotification(sub, p) {
 }
 
 async function sendToSub(sub, payloadObj) {
-  logNotification(sub, payloadObj);
+  // Yalnızca Android uygulamasına giden sinyaller (ör. aramayı susturma) web'e gönderilmez.
+  if (payloadObj.nativeOnly && sub.platform !== 'android-fcm') return;
+  if (!payloadObj.nativeOnly) logNotification(sub, payloadObj);
   const badge = await badgeFor(sub.user_id);
   if (badge != null) payloadObj = Object.assign({}, payloadObj, { badge });
   if (sub.platform === 'android-fcm') {
@@ -515,9 +517,16 @@ module.exports = async function handler(req, res) {
     if (mode === 'call') {
       const to = req.body && req.body.to;
       if (!to) { res.status(400).json({ error: 'to required' }); return; }
+      // Web'de normal bildirim; Android uygulamasında telefon araması gibi tam ekran çalan bildirim
+      // (callData veri mesajı). 'end' gelirse Android'deki çalan bildirim susturulur.
+      if (req.body.end) {
+        res.status(200).json(await sendToUsers(supabase, [to], { nativeOnly: true, title: '', callData: { kind: 'call_end', from_id: req.body.from_id || '' } }));
+        return;
+      }
       res.status(200).json(await sendToUsers(supabase, [to], {
         title: '📞 Sesli arama', body: (req.body.by || 'Bir çalışma arkadaşınız') + ' sizi arıyor. Açmak için dokunun.',
         url: '/app/', view: 'messages', tag: 'call-' + (req.body.from_id || ''),
+        callData: { kind: 'call', by: req.body.by || '', from_id: req.body.from_id || '', group_name: req.body.group_name || '' },
       }));
       return;
     }

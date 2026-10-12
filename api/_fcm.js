@@ -81,6 +81,7 @@ async function getAccessToken() {
 // 404/410 davranisiyla aynı amac).
 async function sendFcmNotification(fcmToken, payload) {
   const accessToken = await getAccessToken();
+  if (payload && payload.callData) return sendFcmCallData(fcmToken, payload, accessToken);
   if (!accessToken) throw new Error('FCM yapılandırılmamış (FIREBASE_SERVICE_ACCOUNT_JSON eksik)');
   const sa = getServiceAccount();
   const resp = await fetch(`https://fcm.googleapis.com/v1/projects/${sa.project_id}/messages:send`, {
@@ -124,6 +125,26 @@ async function sendFcmNotification(fcmToken, payload) {
   const invalid = status === 'UNREGISTERED' || status === 'NOT_FOUND' || status === 'INVALID_ARGUMENT';
   const err = new Error('FCM gönderim hatası: ' + (status || resp.status));
   err.invalidToken = invalid;
+  throw err;
+}
+
+// Sesli arama: yalnızca veri mesajı (bildirimi uygulama kendisi gösterir: tam ekran, zil sesi,
+// Kabul/Reddet - bkz. mobile/.../PeykMessagingService). Yüksek öncelik ve kısa ömür (arama 35 sn).
+async function sendFcmCallData(fcmToken, payload, accessToken) {
+  if (!accessToken) throw new Error('FCM yapılandırılmamış (FIREBASE_SERVICE_ACCOUNT_JSON eksik)');
+  const sa = getServiceAccount();
+  const data = {};
+  Object.keys(payload.callData).forEach((k) => { data[k] = String(payload.callData[k] == null ? '' : payload.callData[k]); });
+  const resp = await fetch(`https://fcm.googleapis.com/v1/projects/${sa.project_id}/messages:send`, {
+    method: 'POST',
+    headers: { Authorization: 'Bearer ' + accessToken, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ message: { token: fcmToken, data, android: { priority: 'high', ttl: '40s' } } }),
+  });
+  if (resp.ok) return { ok: true };
+  const errJson = await resp.json().catch(() => ({}));
+  const status = errJson && errJson.error && errJson.error.status;
+  const err = new Error('FCM gönderim hatası: ' + (status || resp.status));
+  err.invalidToken = status === 'UNREGISTERED' || status === 'NOT_FOUND' || status === 'INVALID_ARGUMENT';
   throw err;
 }
 
