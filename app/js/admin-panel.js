@@ -159,7 +159,8 @@ function renderAdminLogin(app){
     <h1>Platform Yönetimi</h1>
     <p class="muted">Bu alan sadece size özeldir.</p>
     <input id="adminUser" placeholder="Kullanıcı adı" autocapitalize="none">
-    <input id="adminPass" type="password" placeholder="Şifre">
+    <div class="pw-field-wrap"><input id="adminPass" type="password" placeholder="Şifre" autocomplete="current-password">
+      <button type="button" class="pw-eye-btn" title="Şifreyi göster/gizle" ${act('togglePassVisible', 'adminPass', '$this')}>👁️</button></div>
     <input id="adminOtp" inputmode="numeric" maxlength="6" autocomplete="one-time-code" placeholder="Doğrulama kodu (6 hane)" style="display:none;">
     <button ${act('doAdminLogin')} id="adminLoginBtn">Giriş Yap</button>
     <div class="error" id="adminErr"></div>
