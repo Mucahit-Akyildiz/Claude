@@ -716,11 +716,12 @@ async function addTableInner(session, zoneId, name){
     if(!confirm(`${to-from+1} masa eklenecek (${m[1]}${from} … ${m[1]}${to}). Devam edilsin mi?`)) return;
     names = []; for(let i=from;i<=to;i++) names.push(m[1] + i);
   }
-  // Zaten var olan adlar atlanır (büyük/küçük harf fark etmez).
-  const existing = new Set((APP.config.zones||[]).flatMap(z => z.tables||[]).map(t => String(t.name).trim().toLocaleLowerCase('tr')));
+  // Bu bölgede zaten var olan adlar atlanır (büyük/küçük harf fark etmez); diğer bölgelerde aynı ad olabilir.
+  const zone = (APP.config.zones||[]).find(z => z.id === zoneId) || { tables: [] };
+  const existing = new Set((zone.tables||[]).map(t => String(t.name).trim().toLocaleLowerCase('tr')));
   const todo = names.filter(n => !existing.has(n.trim().toLocaleLowerCase('tr')));
   const skipped = names.length - todo.length;
-  if(!todo.length){ alert('Bu adlarda masalar zaten var.'); return; }
+  if(!todo.length){ alert('Bu adlarda masalar bu bölgede zaten var.'); return; }
   await withLoadingOverlay((async () => {
     for(const n of todo){
       const { error } = await sb.rpc('upsert_table', { p_token: session.session_token, p_id: null, p_zone_id: zoneId, p_name: n });

@@ -92,8 +92,16 @@ async function refreshKitchenItems(session){
   APP.kitchenSeenItemIds = currentIds;
   updateKitchenTimers();
 }
+// Aynı adlı masa başka bölgede de varsa bölge adıyla gösterilir (Bahçe · Masa1).
 function tableNameForId(tableId){
-  for(const z of APP.config.zones){ const t = z.tables.find(t=>t.id===tableId); if(t) return t.name; }
+  const zones = APP.config.zones || [];
+  for(const z of zones){
+    const t = z.tables.find(t=>t.id===tableId);
+    if(!t) continue;
+    const key = String(t.name).trim().toLocaleLowerCase('tr');
+    const dup = zones.some(z2 => z2.id !== z.id && z2.tables.some(x => String(x.name).trim().toLocaleLowerCase('tr') === key));
+    return dup ? z.name + ' · ' + t.name : t.name;
+  }
   return 'Masa';
 }
 function orderDisplayName(o){
