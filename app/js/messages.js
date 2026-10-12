@@ -160,7 +160,7 @@ async function openChatConv(conv, keepDraft){
         <button type="button" class="chat-back" ${act('closeChatConv')} aria-label="Geri">←</button>
         ${chatAvatar(c, 38)}
         <div style="min-width:0;flex:1;"><div class="chat-name">${escapeHtml(c.name)}</div>
-          <div class="chat-sub">${c.is_all ? 'Tüm ekip bu kanalı görür' : c.is_group ? escapeHtml(c.roles || '') : (c.online ? '<span style="color:var(--green);">● Çevrimiçi</span>' : 'Çevrimdışı') + (c.roles ? ' · ' + escapeHtml(c.roles) : '')}</div></div>
+          <div class="chat-sub">${c.is_all ? 'Tüm ekip bu kanalı görür' : c.is_group ? escapeHtml(c.roles || '') : (c.online ? '<span style="color:var(--green);">● Çevrimiçi</span>' : chatLastSeen(c.last_seen)) + (c.roles ? ' · ' + escapeHtml(c.roles) : '')}</div></div>
         ${!c.is_group && !c.is_all ? `<button type="button" class="chat-ic" title="Sesli ara" style="font-size:18px;" ${act('startVoiceCall', conv, c.name || '')}>📞</button>` : ''}
         ${c.is_group ? `<button type="button" class="chat-ic" title="Grup sesli araması" style="font-size:18px;" ${act('startGroupCall', conv, c.name || '')}>📞</button>` : ''}
         ${c.is_group ? `<button type="button" class="chat-ic" title="Grup ayarları" ${act('openChatGroupMenu', conv)}>⋮</button>` : ''}
@@ -197,6 +197,20 @@ function closeChatConv(){
   const shell = document.querySelector('.chat-shell'); if(shell) shell.classList.remove('has-conv');
   const pane = document.getElementById('chatPane'); if(pane) pane.innerHTML = chatEmptyPaneHtml();
   refreshChatList();
+}
+// "Son görülme": bugün 14:05 / dün 21:10 / 10 Ekim 18:30 (hiç giriş yoksa "Çevrimdışı").
+function chatLastSeen(t){
+  if(!t) return 'Çevrimdışı';
+  const d = new Date(t), now = new Date();
+  const mins = Math.floor((now - d) / 60000);
+  if(mins < 1) return 'Son görülme az önce';
+  if(mins < 60) return 'Son görülme ' + mins + ' dk önce';
+  const hm = d.toLocaleTimeString('tr-TR', { hour:'2-digit', minute:'2-digit' });
+  const day = (x) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+  const diff = Math.round((day(now) - day(d)) / 864e5);
+  if(diff === 0) return 'Son görülme bugün ' + hm;
+  if(diff === 1) return 'Son görülme dün ' + hm;
+  return 'Son görülme ' + d.toLocaleDateString('tr-TR', { day:'numeric', month:'long' }) + ' ' + hm;
 }
 const CHAT_ONLY_EMOJI = /^(?:\p{Extended_Pictographic}|\p{Emoji_Component}|‍|️|\s)+$/u;
 /* Sohbet önbelleği: açılınca son bilinen hali hemen çizilir, sunucudan gelen veri
