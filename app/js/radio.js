@@ -138,7 +138,7 @@ async function radioConnect(id, silent){
   RADIO.status = 'Bağlanıyor…';
   radioSave(session, c.id);
   const me = { user_id: session.user_id, name: session.username };
-  RADIO.rt = sb.channel('radio-' + c.secret, { config: { broadcast: { self:false }, presence: { key: session.user_id } } })
+  const ch = RADIO.rt = sb.channel('radio-' + c.secret, { config: { broadcast: { self:false }, presence: { key: session.user_id } } })
     .on('broadcast', { event:'a' }, ({ payload }) => radioOnAudio(payload))
     .on('broadcast', { event:'s' }, ({ payload }) => radioOnFloor(payload))
     .on('broadcast', { event:'e' }, ({ payload }) => radioOnEnd(payload))
@@ -150,8 +150,11 @@ async function radioConnect(id, silent){
       if(document.getElementById('radioOnlineBg')) openRadioOnlineList();
     })
     .subscribe(status => {
+      if(RADIO.rt !== ch) return; // yeniden bağlanırken kapatılan eski kanalın durumu yok sayılır
       RADIO.status = status==='SUBSCRIBED' ? '' : (status==='CLOSED' ? 'Bağlantı kapandı' : 'Yeniden bağlanıyor…');
       if(status==='SUBSCRIBED' && RADIO.rt) RADIO.rt.track(me).catch(()=>{});
+      // Kanal hata verir / zaman aşımına uğrarsa birkaç saniye sonra yeniden bağlanılır.
+      if(status==='CHANNEL_ERROR' || status==='TIMED_OUT' || status==='CLOSED') radioScheduleReconnect('durum ' + status);
       drawRadioDock();
     });
   drawRadioDock();
@@ -220,11 +223,12 @@ function radioBusyBy(){
   const me = getSession();
   return RADIO.floor && me && RADIO.floor.u !== me.user_id ? RADIO.floor : null;
 }
-const RADIO_BUILD = 'r6';
+const RADIO_BUILD = 'r7';
 function radioLog(msg){ try{ if(typeof reportClientError === 'function') reportClientError('radio', msg + ' | ' + RADIO_BUILD, 'radio.js'); }catch(e){} }
 async function radioStartTalk(){
   if(RADIO.talking) return;
   if(!RADIO.rt || !RADIO.channel){ radioLog('bas: FAIL kanala bağlı değil'); return; }
+  if(!radioChannelHealthy()){ radioScheduleReconnect('konuşmadan önce bağlantı kopuk', 0); radioFlash('Bağlantı yenileniyor, tekrar basın'); return; }
   const session = getSession(); if(!session) return;
   const busy = radioBusyBy();
   if(busy){ radioBeep(330, 0.18); radioFlash((busy.n || 'Biri') + ' konuşuyor — kanal meşgul'); return; }
@@ -573,3 +577,29 @@ function openRadioOnlineList(){
   ov.onclick = (e) => { if(e.target === ov) ov.remove(); };
   document.body.appendChild(ov);
 }
+
+/* ---- Bağlantı bekçisi ----
+   Telefon uykuya geçince / uygulama arka plandayken gerçek zamanlı bağlantı sessizce kopabiliyor,
+   ekranda ise kanal "bağlı" görünmeye devam ediyordu (ses gelmiyor, çıkıp girince düzeliyordu).
+   Kanal 'joined' değilse ya da uygulama 30 sn'den uzun arka planda kaldıysa bağlantı yeniden kurulur. */
+let RADIO_RECONNECT_T = null, RADIO_HIDDEN_AT = 0;
+function radioChannelHealthy(){
+  return !!(RADIO.rt && RADIO.rt.state === 'joined' && (!sb.realtime || !sb.realtime.isConnected || sb.realtime.isConnected()));
+}
+function radioScheduleReconnect(reason, delay){
+  if(!RADIO.channel || RADIO.talking) return;
+  clearTimeout(RADIO_RECONNECT_T);
+  RADIO_RECONNECT_T = setTimeout(() => {
+    if(!RADIO.channel || RADIO.talking) return;
+    radioLog('bağlantı yenileniyor: ' + reason);
+    radioConnect(RADIO.channel.id, true);
+  }, delay == null ? 2500 : delay);
+}
+setInterval(() => { if(RADIO.channel && !RADIO.talking && !radioChannelHealthy()) radioScheduleReconnect('bekçi: kanal ' + (RADIO.rt ? RADIO.rt.state : 'yok')); }, 15000);
+document.addEventListener('visibilitychange', () => {
+  if(document.hidden){ RADIO_HIDDEN_AT = Date.now(); return; }
+  if(!RADIO.channel) return;
+  const away = RADIO_HIDDEN_AT ? Date.now() - RADIO_HIDDEN_AT : 0;
+  if(!radioChannelHealthy() || away > 30000) radioScheduleReconnect('ön plana dönüş (' + Math.round(away/1000) + ' sn)', 300);
+});
+window.addEventListener('online', () => { if(RADIO.channel) radioScheduleReconnect('internet geri geldi', 500); });
