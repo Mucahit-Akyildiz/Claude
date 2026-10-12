@@ -363,7 +363,7 @@ async function renderReportContent(session){
       <td>${hmS(o.ready_at)}${prep!=null ? ` <span class="muted" style="font-size:11px;">(${prep} dk)</span>` : ''}</td>
       <td style="white-space:nowrap;">${dS}</td>
       <td>${t}${stay!=null ? ` <span class="muted" style="font-size:11px;">(${stay} dk)</span>` : ''}</td>
-      <td class="col-name">${escapeHtml(billLabel(o))}${srcBadge}${tagBadge}</td>
+      <td class="col-name">${escapeHtml(billLabel(o))}${srcBadge}${tagBadge}${o.waiters ? `<div class="muted" style="font-size:11px;">👤 ${escapeHtml(o.waiters)}</div>` : ''}</td>
       <td>${o.customer_name ? `${o.customer_id ? '⭐ ' : ''}${escapeHtml(o.customer_name)}${o.customer_phone ? `<div class="muted" style="font-size:11px;">${escapeHtml(o.customer_phone)}</div>` : ''}` : '<span class="muted">—</span>'}</td>
       <td style="white-space:nowrap;">${money(o.total)}</td>
       <td style="white-space:nowrap;${o.discount_amount>0?'color:var(--red);':''}">${discTxt}</td>
@@ -719,7 +719,7 @@ async function openSaleDetailModal(historyId){
       <span style="cursor:pointer;color:var(--muted);font-size:20px;" ${act('removeEl','saleDetailModalBg')}>✕</span>
     </div>
     <p class="muted" style="text-align:left;margin:4px 0 4px;font-size:12.5px;">🕒 Sipariş: ${d.ordered_at ? new Date(d.ordered_at).toLocaleString('tr-TR') : '—'} · ✓ Hazır: ${d.ready_at ? new Date(d.ready_at).toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'}) : '—'} · 💳 Ödendi: ${new Date(d.closed_at).toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'})}</p>
-    <p class="muted" style="text-align:left;margin:0 0 12px;font-size:12.5px;">${new Date(d.closed_at).toLocaleString('tr-TR')}${d.staff ? ' · ' + escapeHtml(d.staff) : ''}${d.customer ? ' · 👤 ' + escapeHtml(d.customer) : ''}</p>
+    <p class="muted" style="text-align:left;margin:0 0 12px;font-size:12.5px;">${new Date(d.closed_at).toLocaleString('tr-TR')}${d.staff ? ' · 💳 Kasiyer: ' + escapeHtml(d.staff) : ''}${d.waiters ? ' · 👤 Garson: ' + escapeHtml(d.waiters) : ''}${d.customer ? ' · 👤 ' + escapeHtml(d.customer) : ''}</p>
     <div style="border-top:1px dashed var(--border);border-bottom:1px dashed var(--border);padding:8px 0;font-size:13.5px;">
       ${(d.items||[]).map(it => row(`${it.qty}x ${escapeHtml(it.name)}`, money(it.total))).join('') || '<p class="muted">Kalem bulunamadı.</p>'}
     </div>

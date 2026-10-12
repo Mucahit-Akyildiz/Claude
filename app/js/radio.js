@@ -225,7 +225,7 @@ function radioBusyBy(){
   const me = getSession();
   return RADIO.floor && me && RADIO.floor.u !== me.user_id ? RADIO.floor : null;
 }
-const RADIO_BUILD = 'r8';
+const RADIO_BUILD = 'r9';
 function radioLog(msg){ try{ if(typeof reportClientError === 'function') reportClientError('radio', msg + ' | ' + RADIO_BUILD, 'radio.js'); }catch(e){} }
 async function radioStartTalk(){
   if(RADIO.talking) return;
@@ -302,6 +302,7 @@ function radioFlush(){
   const session = getSession();
   const d = bytesToB64(Uint8Array.from(RADIO.buf)); RADIO.buf = [];
   if(RADIO.diag) RADIO.diag.chunks++;
+  radioRecordChunk({ u: session.user_id, n: 'Siz', t: RADIO.myFloor && RADIO.myFloor.t, d }); // kendi konuşmamı da tekrar dinleyebileyim
   Promise.resolve(RADIO.rt.send({ type:'broadcast', event:'a', payload:{ u: session.user_id, n: session.username, t: RADIO.myFloor && RADIO.myFloor.t, s: RADIO.seq++, d } }))
     .then(r => { if(r && r !== 'ok' && RADIO.diag){ RADIO.diag.errs++; RADIO.diag.lastErr = r; } }).catch(()=>{});
 }
@@ -313,6 +314,7 @@ function radioStopTalk(lost){
   RADIO.buf = [];
   const session = getSession();
   if(RADIO.rt && session && !lost) RADIO.rt.send({ type:'broadcast', event:'e', payload:{ u: session.user_id } });
+  if(session) radioFinishRecording(session.user_id);
   if(RADIO.floor && session && RADIO.floor.u === session.user_id) RADIO.floor = null;
   RADIO.myFloor = null;
   radioReportSend(lost);
