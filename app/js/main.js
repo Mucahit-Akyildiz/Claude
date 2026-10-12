@@ -132,7 +132,7 @@ function render(){
           <button class="sb-logout" ${act('doLogout')} title="Çıkış Yap">🚪<span class="label"> Çıkış Yap</span></button>
         </div>
       </aside>
-      <div class="content-area"><div class="content-inner ${(['settings','reports','reservations','crm','purchasing'].includes(APP.view))?'content-inner-wide':''}">${pushReminderBannerHtml()}${APP.view && APP.view!=='home' ? `<button type="button" class="back-link" ${act('goBack')}>← Geri</button>` : ''}<main id="main"></main></div></div>
+      <div class="content-area"><div class="content-inner ${(['settings','reports','reservations','crm','purchasing','radio'].includes(APP.view))?'content-inner-wide':''}">${pushReminderBannerHtml()}${APP.view && APP.view!=='home' ? `<button type="button" class="back-link" ${act('goBack')}>← Geri</button>` : ''}<main id="main"></main></div></div>
     </div>`;
   const main = document.getElementById('main');
   renderMainView(main, session);
