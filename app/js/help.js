@@ -41,7 +41,7 @@ const HELP_TOPICS = [
     { q: 'Satın alma ve tedarikçiler', view: 'purchasing', a: `<b>Tedarikçi & Satın Alma</b>'da tedarikçileri ekleyin, satın alma siparişi verin, onaylayın ve teslim alın; teslim alınan miktar hammadde stoğuna eklenir (kısmi teslim desteklenir).` },
   ]},
   { cat: 'Personel, Roller ve Mesajlar', icon: '🔐', items: [
-    { q: 'Rol ve yetki nasıl verilir?', view: 'settings', a: `<b>Ayarlar → Roller</b>'de rol oluşturup hangi ekranlara erişeceğini seçin (Yönetim grubu: Roller, Abonelik, Finansal Analiz, Veri Sıfırlama, Destek Erişimi vb.). <b>Ayarlar → Kullanıcılar</b>'da kullanıcıya en fazla 2 rol verin. Yönetici rolü yalnızca işletme sahibindedir ve sahibin hesabını kimse değiştiremez.` },
+    { q: 'Rol ve yetki nasıl verilir?', view: 'settings', a: `<b>Ayarlar → Roller</b>'de rol oluşturup hangi ekranlara erişeceğini seçin (Yönetim grubu: Roller, Abonelik, Finansal Analiz, Veri Sıfırlama, Destek Erişimi vb.; Veri Sıfırlama, Destek Erişimi ve Değişiklik Kaydı Ayarlar → Güvenlik altındadır). <b>Ayarlar → Kullanıcılar</b>'da kullanıcıya en fazla 2 rol verin. Yönetici rolü yalnızca işletme sahibindedir ve sahibin hesabını kimse değiştiremez.` },
     { q: 'Kullanıcıyı silmek mi, pasife almak mı?', view: 'settings', a: `<b>Pasife Al</b>: giriş yapamaz, geçmişi (mesajlar, satışlar) korunur. <b>Sil</b>: kullanıcı ve mesaj geçmişi silinir; satış kayıtları kalır.` },
     { q: 'Mesajlaşma', view: 'messages', a: `<b>Mesajlar</b>'da Genel kanal, birebir ve grup sohbetleri var. Fotoğraf, tek görüntülemelik fotoğraf, sesli mesaj, dosya, alıntı ve emoji tepkisi gönderebilirsiniz. Mikrofon/kamera izni ilk açılışta sorulur.` },
   ]},
