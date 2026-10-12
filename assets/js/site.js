@@ -95,7 +95,7 @@
     const section = document.getElementById('addonsSection');
     const grid = document.getElementById('addonsGrid');
     if(!section || !grid) return;
-    section.style.display = '';
+    section.hidden = false;
     const yearly = PRICING_BILLING_CYCLE === 'yearly';
     grid.innerHTML = PRICING_ADDONS.map(a => {
       const price = Number(a.price)||0;
@@ -107,19 +107,19 @@
         return `<div class="addon-card in-cart">
         <div class="top"><h4>${escapeHtml(a.label)}</h4><span class="price"><small>${escapeHtml(cartPkg.name)} paketine dahil</small></span></div>
         ${a.description ? `<p>${escapeHtml(a.description)}</p>` : ''}
-        <button type="button" class="btn btn-primary add-btn" style="width:auto;padding:6px 14px;font-size:13px;" disabled>✓ Pakete dahil</button>
+        <button type="button" class="u-addbtn btn btn-primary add-btn" disabled>✓ Pakete dahil</button>
       </div>`;
       }
       const inCart = CART.addons.has(a.id);
       return `<div class="addon-card ${inCart?'in-cart':''}">
         <div class="top"><h4>${escapeHtml(a.label)}</h4><span class="price">${priceHtml}</span></div>
         ${a.description ? `<p>${escapeHtml(a.description)}</p>` : ''}
-        <button type="button" class="btn ${inCart?'btn-primary':'btn-outline'} add-btn" style="width:auto;padding:6px 14px;font-size:13px;" ${act('toggleCartAddon', a.id)}>${inCart?'✓ Sepette':'+ Sepete Ekle'}</button>
+        <button type="button" class="u-addbtn btn ${inCart?'btn-primary':'btn-outline'} add-btn" ${act('toggleCartAddon', a.id)}>${inCart?'✓ Sepette':'+ Sepete Ekle'}</button>
       </div>`;
-    }).join('') + COMING_SOON_ADDONS.map(a => `<div class="addon-card" style="opacity:.75;">
-        <div class="top"><h4>${escapeHtml(a.label)}</h4><span class="price"><small style="color:var(--accent);font-weight:700;">Yakında</small></span></div>
+    }).join('') + COMING_SOON_ADDONS.map(a => `<div class="u-dim addon-card">
+        <div class="top"><h4>${escapeHtml(a.label)}</h4><span class="price"><small class="u-soon-tag">Yakında</small></span></div>
         <p>${escapeHtml(a.description)}</p>
-        <button type="button" class="btn btn-outline add-btn" style="width:auto;padding:6px 14px;font-size:13px;" disabled>🕒 Yakında</button>
+        <button type="button" class="u-addbtn btn btn-outline add-btn" disabled>🕒 Yakında</button>
       </div>`).join('');
   }
   // Geliştirme aşamasındaki entegrasyonlar: satın alınamaz, sadece "Yakında" olarak gösterilir.
@@ -170,20 +170,20 @@
         ${p.is_popular ? '<span class="badge">EN ÇOK TERCİH EDİLEN</span>' : ''}
         <h3>${escapeHtml(p.name)}</h3>
         <div class="amount">${monthlyPrice ? money(displayPrice)+' <small>'+(yearly?'TL/yıl':'TL/ay')+'</small>' : '—'}</div>
-        ${hasDiscount ? `<p class="desc" style="color:var(--accent, #0a8);font-weight:600;">Yıllıkta ${money(savings)} TL tasarruf</p>` : ''}
+        ${hasDiscount ? `<p class="u-saving desc">Yıllıkta ${money(savings)} TL tasarruf</p>` : ''}
         <p class="desc">${escapeHtml(p.description)}</p>
         <ul>
           <li><b>${p.max_users} kullanıcıya kadar</b></li>
-          ${inheritLine ? `<li class="inherit" style="padding-top:10px;border-top:1px solid var(--border);">${inheritLine}</li>` : ''}
+          ${inheritLine ? `<li class="u-inherit inherit">${inheritLine}</li>` : ''}
           ${extras.map(f => `<li class="plus">${escapeHtml(label(f))}</li>`).join('')}
           ${(!extras.length && inheritsPrev) ? '<li class="inherit">Ek özellik yok</li>' : ''}
         </ul>
-        <button type="button" class="btn ${CART.pkg===p.id?'btn-primary':'btn-outline'}" style="width:100%;" ${act('selectCartPackage', p.id)}>${CART.pkg===p.id?'✓ Sepette':'Sepete Ekle'}</button>
+        <button type="button" class="u-full btn ${CART.pkg===p.id?'btn-primary':'btn-outline'}" ${act('selectCartPackage', p.id)}>${CART.pkg===p.id?'✓ Sepette':'Sepete Ekle'}</button>
       </div>`;
     }).join('');
     const commonSection = document.getElementById('commonSection');
     if(commonSection){
-      commonSection.style.display = common.length ? '' : 'none';
+      commonSection.hidden = !common.length;
       document.getElementById('commonFeatures').innerHTML = common.map(f => `<span>✓ ${escapeHtml(label(f))}</span>`).join('');
     }
   }
@@ -194,5 +194,5 @@
     setPricingBillingCycle('monthly');
   }).catch(()=>{
     const grid = document.getElementById('pricingGrid');
-    if(grid) grid.innerHTML = '<p style="grid-column:1/-1;text-align:center;color:var(--muted);">Fiyatlar şu anda yüklenemedi.</p>';
+    if(grid) grid.innerHTML = '<p class="u-grid-msg">Fiyatlar şu anda yüklenemedi.</p>';
   });
