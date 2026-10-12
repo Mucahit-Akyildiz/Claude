@@ -42,6 +42,45 @@ $$;
 
 
 --
+-- Name: _audit_trg(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public._audit_trg() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+declare
+  o jsonb := case when tg_op <> 'INSERT' then to_jsonb(old) end;
+  n jsonb := case when tg_op <> 'DELETE' then to_jsonb(new) end;
+  r jsonb := coalesce(n, o);
+  ch jsonb := '{}'::jsonb; k text; skip text[] := array['stock','last_seen_at','expiry_reminder_stage','created_at','late_push_notified_at','late_push_milestone','ready_sms_sent_at','idle_stage'];
+  rid uuid;
+begin
+  if tg_table_name in ('orders','order_items') and coalesce(current_setting('peyk.uid', true), '') = '' then return null; end if;
+  if tg_table_name = 'orders' and tg_op = 'UPDATE' and not ((n->>'status') = 'cancelled' and (o->>'status') is distinct from 'cancelled') then return null; end if;
+  if tg_table_name = 'restaurants' then rid := (r->>'id')::uuid; else rid := (r->>'restaurant_id')::uuid; end if;
+  if rid is null and tg_table_name = 'order_items' then select restaurant_id into rid from orders where id = (r->>'order_id')::uuid; end if;
+  if rid is null then return null; end if;
+  if tg_op = 'UPDATE' then
+    for k in select key from jsonb_each(n) loop
+      if k = any(skip) then continue; end if;
+      if (o->k) is distinct from (n->k) then
+        if k = 'password' or k like '%_key' or k like '%_hash' or k = 'qr_token' then ch := ch || jsonb_build_object(k, jsonb_build_object('masked', true));
+        else ch := ch || jsonb_build_object(k, jsonb_build_object('old', o->k, 'new', n->k)); end if;
+      end if;
+    end loop;
+    if ch = '{}'::jsonb then return null; end if;
+  end if;
+  insert into audit_log(restaurant_id, user_id, is_support, entity, entity_id, action, label, changes)
+  values (rid, nullif(current_setting('peyk.uid', true), '')::uuid, coalesce(current_setting('peyk.support', true), '') = 'true',
+          tg_table_name, r->>'id', lower(tg_op),
+          coalesce(r->>'name', r->>'username', case when tg_table_name='orders' then 'Sipariş #' || coalesce(r->>'daily_number','') when tg_table_name='order_items' then (r->>'qty') || 'x ' || (r->>'name') end),
+          case when tg_op = 'UPDATE' then ch end);
+  return null;
+end $$;
+
+
+--
 -- Name: _b32_decode(text); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -1123,7 +1162,7 @@ CREATE FUNCTION public._role_permission_catalog(p_restaurant_id uuid) RETURNS js
     union all
     select v.id, v.label, 'Yönetim', 9999, v.sub
     from (values ('reports','Finansal Analiz (raporlar)',1), ('printer_settings','Yazıcı Ayarları',2), ('settings_roles','Ayarlar · Roller',3),
-                 ('settings_billing','Ayarlar · Abonelik',4), ('settings_integrations','Ayarlar · Entegrasyonlar',5), ('settings_datareset','Ayarlar · Veri Sıfırlama',6), ('users_assign_roles','Kullanıcı Yönetimi (ekleme, rol, pasife alma, silme)',7), ('shift_exempt','⏱ Vardiya Açmadan Çalışma',8), ('settings_support','Ayarlar · Destek Erişimi',9)) v(id,label,sub)
+                 ('settings_billing','Ayarlar · Abonelik',4), ('settings_integrations','Ayarlar · Entegrasyonlar',5), ('settings_datareset','Ayarlar · Veri Sıfırlama',6), ('users_assign_roles','Kullanıcı Yönetimi (ekleme, rol, pasife alma, silme)',7), ('shift_exempt','⏱ Vardiya Açmadan Çalışma',8), ('settings_support','Ayarlar · Destek Erişimi',9), ('settings_audit','Ayarlar · Değişiklik Kaydı',10)) v(id,label,sub)
     where v.id <> 'reports' or 'reports' = any(_restaurant_features(p_restaurant_id))
   ) x;
 $$;
@@ -1274,6 +1313,7 @@ begin
     raise exception 'Oturum geçersiz veya süresi dolmuş, tekrar giriş yapın';
   end if;
   perform set_config('peyk.uid', s.user_id::text, true);
+  perform set_config('peyk.support', coalesce(s.is_support, false)::text, true);
   -- Anlık aktif kullanıcı takibi (admin_list_active_users): her istekte
   -- değil, en fazla 30 sn'de bir yazılır.
   if s.last_seen_at is null or s.last_seen_at < now() - interval '30 seconds' then
@@ -5044,6 +5084,26 @@ CREATE FUNCTION public.list_addons() RETURNS json
     from feature_catalog where is_addon and active
   ) t;
 $$;
+
+
+--
+-- Name: list_audit_log(uuid, text, timestamp with time zone); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.list_audit_log(p_token uuid, p_entity text DEFAULT NULL::text, p_before timestamp with time zone DEFAULT NULL::timestamp with time zone) RETURNS json
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+declare s staff_sessions%rowtype;
+begin
+  s := _session_check(p_token, null);
+  if not (_is_manager(s.user_id) or _has_role_perm(s.user_id, 'settings_audit')) then raise exception 'Bu işlem için Değişiklik Kaydı yetkiniz yok'; end if;
+  return (select coalesce(json_agg(x order by x.created_at desc), '[]'::json) from (
+    select a.id, a.created_at, a.entity, a.entity_id, a.action, a.label, a.changes, a.is_support, au.username user_name
+    from audit_log a left join app_users au on au.id = a.user_id
+    where a.restaurant_id = s.restaurant_id and (p_entity is null or a.entity = p_entity) and (p_before is null or a.created_at < p_before)
+    order by a.created_at desc limit 200) x);
+end $$;
 
 
 --
@@ -9121,6 +9181,43 @@ CREATE TABLE public.app_users (
 
 
 --
+-- Name: audit_log; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.audit_log (
+    id bigint NOT NULL,
+    restaurant_id uuid NOT NULL,
+    user_id uuid,
+    is_support boolean DEFAULT false NOT NULL,
+    entity text NOT NULL,
+    entity_id text,
+    action text NOT NULL,
+    label text,
+    changes jsonb,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: audit_log_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.audit_log_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: audit_log_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.audit_log_id_seq OWNED BY public.audit_log.id;
+
+
+--
 -- Name: bank_transfer_notices; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -10270,6 +10367,13 @@ CREATE TABLE public.zones (
 
 
 --
+-- Name: audit_log id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.audit_log ALTER COLUMN id SET DEFAULT nextval('public.audit_log_id_seq'::regclass);
+
+
+--
 -- Name: client_errors id; Type: DEFAULT; Schema: public; Owner: -
 --
 
@@ -10326,6 +10430,14 @@ ALTER TABLE ONLY public.app_users
 
 ALTER TABLE ONLY public.app_users
     ADD CONSTRAINT app_users_restaurant_id_username_key UNIQUE (restaurant_id, username);
+
+
+--
+-- Name: audit_log audit_log_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.audit_log
+    ADD CONSTRAINT audit_log_pkey PRIMARY KEY (id);
 
 
 --
@@ -11064,6 +11176,13 @@ CREATE UNIQUE INDEX app_users_restaurant_username_ci_key ON public.app_users USI
 
 
 --
+-- Name: audit_log_rest_time; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX audit_log_rest_time ON public.audit_log USING btree (restaurant_id, created_at DESC);
+
+
+--
 -- Name: chat_group_members_user_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -11775,6 +11894,62 @@ CREATE INDEX waiter_calls_pending ON public.waiter_calls USING btree (restaurant
 --
 
 CREATE INDEX waiter_calls_table_id_idx ON public.waiter_calls USING btree (table_id);
+
+
+--
+-- Name: app_users trg_audit; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_audit AFTER INSERT OR DELETE OR UPDATE ON public.app_users FOR EACH ROW EXECUTE FUNCTION public._audit_trg();
+
+
+--
+-- Name: order_items trg_audit; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_audit AFTER DELETE ON public.order_items FOR EACH ROW EXECUTE FUNCTION public._audit_trg();
+
+
+--
+-- Name: orders trg_audit; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_audit AFTER DELETE OR UPDATE ON public.orders FOR EACH ROW EXECUTE FUNCTION public._audit_trg();
+
+
+--
+-- Name: products trg_audit; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_audit AFTER INSERT OR DELETE OR UPDATE ON public.products FOR EACH ROW EXECUTE FUNCTION public._audit_trg();
+
+
+--
+-- Name: restaurant_tables trg_audit; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_audit AFTER INSERT OR DELETE OR UPDATE ON public.restaurant_tables FOR EACH ROW EXECUTE FUNCTION public._audit_trg();
+
+
+--
+-- Name: restaurants trg_audit; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_audit AFTER INSERT OR DELETE OR UPDATE ON public.restaurants FOR EACH ROW EXECUTE FUNCTION public._audit_trg();
+
+
+--
+-- Name: roles trg_audit; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_audit AFTER INSERT OR DELETE OR UPDATE ON public.roles FOR EACH ROW EXECUTE FUNCTION public._audit_trg();
+
+
+--
+-- Name: stations trg_audit; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_audit AFTER INSERT OR DELETE OR UPDATE ON public.stations FOR EACH ROW EXECUTE FUNCTION public._audit_trg();
 
 
 --
@@ -12838,6 +13013,12 @@ ALTER TABLE ONLY public.zones
 --
 
 ALTER TABLE public.app_users ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: audit_log; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.audit_log ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: bank_transfer_notices; Type: ROW SECURITY; Schema: public; Owner: -
