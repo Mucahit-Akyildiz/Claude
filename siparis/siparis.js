@@ -143,7 +143,7 @@ function renderMenu(){
         <div class="product-name">${escapeHtml(p.name)}<div class="product-price" data-price="${p.id}">${productPriceHtml(p)}</div></div>
         ${p.max_qty===0 && !STATE.cart[p.id] ? `<span class="sold-badge">${escapeHtml(stockTxt('sold'))}</span>` : `<button class="qty-btn" ${act('stepCart', p.id, -1)}>-</button>
         <span class="qty-val" data-qty="${p.id}">${STATE.cart[p.id]||0}</span>
-        <button class="qty-btn" ${act('stepCart', p.id, 1)}>+</button>`}
+        <button class="qty-btn" data-plus="${p.id}" ${p.max_qty===0 ? 'disabled' : ''} ${act('stepCart', p.id, 1)}>+</button>`}
       </div>`).join('')}
   `).join('');
   renderState(headerHtml() + tabs + `<main>${body}</main>
@@ -179,16 +179,19 @@ function headerHtml(){
     ${langPickerHtml()}
   </header>` + trustHtml();
 }
-const STOCK_I18N = { sold: {"tr": "Tükendi", "en": "Sold out", "ar": "نفد", "de": "Ausverkauft", "ru": "Нет в наличии"}, changed: {"tr": "Bazı ürünlerin stoğu azaldı, sepetiniz güncellendi.", "en": "Some items are running low; your cart was updated.", "ar": "انخفض مخزون بعض المنتجات وتم تحديث سلتك.", "de": "Einige Artikel sind knapp; Ihr Warenkorb wurde aktualisiert.", "ru": "Некоторых товаров стало меньше, корзина обновлена."}, left: {"tr": "Son {n}", "en": "{n} left", "ar": "متبقي {n}", "de": "Noch {n}", "ru": "Осталось {n}"} };
+const STOCK_I18N = { sold: {"tr": "Tükendi", "en": "Sold out", "ar": "نفد", "de": "Ausverkauft", "ru": "Нет в наличии"}, changed: {"tr": "Bazı ürünlerin stoğu azaldı, sepetiniz güncellendi.", "en": "Some items are running low; your cart was updated.", "ar": "انخفض مخزون بعض المنتجات وتم تحديث سلتك.", "de": "Einige Artikel sind knapp; Ihr Warenkorb wurde aktualisiert.", "ru": "Некоторых товаров стало меньше, корзина обновлена."}, left: {"tr": "Son {n}", "en": "{n} left", "ar": "متبقي {n}", "de": "Noch {n}", "ru": "Осталось {n}"}, allIn: {"tr": "Kalanların hepsi sepetinizde", "en": "All remaining are in your cart", "ar": "كل المتبقي في سلتك", "de": "Alle restlichen im Warenkorb", "ru": "Все оставшиеся в корзине"} };
 function stockTxt(k, n){ const d = STOCK_I18N[k]; return (d[STATE.lang||'tr'] || d.tr).replace('{n}', n); }
 // Seçilebilecek en fazla adet: herkese kalan + kendi sepetimizde zaten ayrılmış olan.
 function productPriceHtml(p){
+  if(p.max_qty === 0 && STATE.cart[p.id]) return money(p.price) + ` · <span class="stock-left">${escapeHtml(stockTxt('allIn'))}</span>`;
   return money(p.price) + (p.max_qty!=null && p.max_qty>0 && p.max_qty<=5 ? ` · <span class="stock-left">${escapeHtml(stockTxt('left', p.max_qty))}</span>` : '');
 }
 // Kalan adet etiketi sunucu cevabı beklenmeden anında güncellenir.
 function updateProductStockLabel(productId){
   const p = ((STATE.menu||{}).products||[]).find(x => x.id===productId); if(!p) return;
   document.querySelectorAll('[data-price="'+productId+'"]').forEach(el => el.innerHTML = productPriceHtml(p));
+  // Kalanın hepsi sepetteyse '+' pasif olur (daha fazla eklenemez).
+  document.querySelectorAll('[data-plus="'+productId+'"]').forEach(b => { b.disabled = p.max_qty === 0; });
 }
 let HOLD_INFLIGHT = 0;
 function maxQtyOf(productId){ const p = ((STATE.menu||{}).products||[]).find(x => x.id===productId); return p && p.max_qty != null ? Math.max(0, p.max_qty) + (STATE.cart[productId]||0) : 20; }
