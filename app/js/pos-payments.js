@@ -99,14 +99,14 @@ function renderPayGrid(){
     if(unpaid.length===0) return null;
     const total = unpaid.reduce((s,i) => s+i.price*i.qty, 0);
     return `<div class="table-cell" data-badge-id="${order.order_id}" style="cursor:pointer;background:rgba(244,63,94,.14);border-color:var(--red);color:var(--red);" ${act('openPayModal', order.order_id)}>
-      ${payCellName(t.name)}<div style="font-size:11px;margin-top:4px;font-weight:400;">${money(total)}</div></div>`;
+      ${payCellName(t.name)}<div style="font-size:11px;margin-top:4px;font-weight:400;">${money(total)}${waitersLine(order) ? '<br>' + waitersLine(order) : ''}</div></div>`;
   }).filter(Boolean);
   const pkgRows = (APP.liveOrders||[]).filter(o => o.kind==='takeaway' && o.items.filter(i=>!i.paid).length>0).map(o => {
     const unpaid = o.items.filter(i=>!i.paid);
     const total = unpaid.reduce((s,i)=>s+i.price*i.qty,0);
     const label = o.customer_name || ('Paket #'+(o.daily_number||''));
     return `<div class="table-cell" data-badge-id="${o.order_id}" style="cursor:pointer;background:rgba(244,63,94,.14);border-color:var(--red);color:var(--red);" ${act('openPayModal', o.order_id)}>
-      📦 ${payCellName(label)}<div style="font-size:11px;margin-top:4px;font-weight:400;">${money(total)}</div></div>`;
+      📦 ${payCellName(label)}<div style="font-size:11px;margin-top:4px;font-weight:400;">${money(total)}${waitersLine(o) ? '<br>' + waitersLine(o) : ''}</div></div>`;
   });
   const occupiedRows = tableRows.concat(pkgRows);
   grid.innerHTML = occupiedRows.length ? occupiedRows.join('') : '<p class="muted">Açık hesap yok.</p>';
@@ -1168,6 +1168,15 @@ function liveOrderForTable(tableId){
   }
   return (APP.liveOrders||[]).find(o => o.table_id===tableId);
 }
+// Siparişle ilgilenen garsonlar (ürünü ekleyenler; eski kayıtlarda siparişi açan).
+function orderWaiters(order){
+  if(!order) return [];
+  const names = [];
+  (order.items || []).forEach(i => { if(i.added_by_name && !names.includes(i.added_by_name)) names.push(i.added_by_name); });
+  if(!names.length && order.created_by_name) names.push(order.created_by_name);
+  return names;
+}
+function waitersLine(order){ const w = orderWaiters(order); return w.length ? '👤 ' + escapeHtml(w.join(', ')) : ''; }
 function tableStatus(t){
   const order = liveOrderForTable(t.id);
   const draft = (APP.draftCart && APP.draftCart[t.id]) || [];
@@ -1177,6 +1186,7 @@ function tableStatus(t){
     occupied = true;
     const allReady = order.items.every(i => i.status==='ready');
     sub = order.items.length + ' ürün - ' + (allReady?'Hazır':'hazırlanıyor');
+    const w = waitersLine(order); if(w) sub += '<br>' + w;
   }
   if(draft.length>0){ sub += (occupied?' + ':'') + draft.length+' üründe sepette'; occupied = true; }
   const pendingOut = typeof outboxCountFor === 'function' ? outboxCountFor(t.id) : 0;
