@@ -220,6 +220,7 @@ function openPayModal(orderId){
       </div>
     </div>
 
+    <button type="button" class="ghost-btn" style="width:100%;margin:0 0 10px;" ${act('printPayReceipt')}>🧾 Kasa Fişi Yazdır (fiyatlı)</button>
     <label class="pay-email-toggle ${APP.payWantsEmail?'on':''}">
       <input type="checkbox" id="payEmailInvoice" ${APP.payWantsEmail?'checked':''} ${actOn('change','setPayWantsEmail',['$this'])}>
       <span class="pet-icon">📧</span>
@@ -439,6 +440,17 @@ function toggleAllPayItems(){
     if(subEl) subEl.textContent = money(i.price*PAY_SELECTED_QTYS[i.id]);
   });
   recomputePaySelection();
+}
+// Ödeme ekranındaki seçili ürünlerle fiyatlı kasa fişi basar (toplam: indirim/bahşiş sonrası ekrandaki tutar).
+function printPayReceipt(){
+  const bg = document.getElementById('payModalBg'); if(!bg) return;
+  const order = (APP.liveOrders||[]).find(o => o.order_id === bg.dataset.orderId); if(!order) return;
+  const items = order.items.filter(i => !i.paid && (PAY_SELECTED_QTYS[i.id]||0) > 0).map(i => Object.assign({}, i, { qty: PAY_SELECTED_QTYS[i.id], note: null }));
+  if(!items.length){ showToast('Fişe basılacak ürün seçili değil'); return; }
+  const totEl = document.getElementById('payFinalTotal');
+  const total = totEl ? parseFloat(String(totEl.textContent).replace(/[^\d,.-]/g,'').replace(/\./g,'').replace(',', '.')) : null;
+  const name = order.kind === 'takeaway' ? ('Paket ' + (order.customer_name || '#' + (order.daily_number||''))) : tableNameForId(order.table_id);
+  printCashReceipt(name, items, isNaN(total) ? null : total, order.daily_number);
 }
 function buildPayItemQtys(){
   return Object.keys(PAY_SELECTED_QTYS)

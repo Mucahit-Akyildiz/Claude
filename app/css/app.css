@@ -786,7 +786,29 @@ button.chat-once{cursor:pointer;}
 .order-modal #prodStationTabs .tab{display:flex;align-items:center;gap:7px;white-space:nowrap;flex-shrink:0;border:0;background:transparent;border-radius:10px;padding:9px 14px;font-size:13px;}
 .order-modal #prodStationTabs .tab.active{background:var(--panel);color:var(--text);box-shadow:0 2px 8px rgba(0,0,0,.25);}
 .st-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0;display:inline-block;}
-@media (max-width:900px){.order-modal{height:auto;max-height:none;}.order-modal-grid{grid-template-columns:1fr;}.order-modal-menu #prodPick{overflow:visible;}}
+@media (max-width:900px){.order-modal{height:auto;max-height:none;}.order-modal-grid{grid-template-columns:minmax(0,1fr);}.order-modal-menu,.order-modal-cart{min-width:0;}.order-modal-menu #prodPick{overflow:visible;}}
+@media (max-width:640px){
+  #tableModalBg{padding:8px 6px !important;}
+  .order-modal{padding:14px 12px;border-radius:16px;}
+  .order-modal .modal-sticky-actions{margin:14px -12px -14px;padding:12px;position:sticky;bottom:-14px;background:var(--panel);}
+  .order-modal-cart{padding:12px;}
+  .pp-grid{gap:8px;}
+  .pp-card{min-height:84px;padding:12px 10px 10px;}
+  .pp-name{font-size:13.5px;}
+}
+/* Toplu QR sayfası */
+.qr-sheet{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:14px;}
+.qr-sheet .qr-cell{background:#fff;color:#111;border-radius:12px;padding:12px;text-align:center;break-inside:avoid;}
+.qr-sheet .qr-cell img{width:100%;max-width:200px;aspect-ratio:1;display:block;margin:0 auto 6px;}
+.qr-sheet .qr-cell b{font-size:15px;}
+.qr-sheet .qr-cell small{display:block;color:#555;font-size:11px;}
+@media print{
+  body.printing-qr > *:not(#qrSheetBg){display:none !important;}
+  body.printing-qr #qrSheetBg{position:static !important;background:#fff !important;padding:0 !important;display:block !important;}
+  body.printing-qr #qrSheetBg .qr-toolbar{display:none !important;}
+  body.printing-qr #qrSheetBg .qr-sheet-box{background:#fff !important;border:0 !important;max-width:none !important;box-shadow:none !important;padding:0 !important;max-height:none !important;overflow:visible !important;}
+  body.printing-qr .qr-sheet{grid-template-columns:repeat(3,1fr);}
+}
 /* Ürün seçici: alt menüler + ürün ızgarası */
 .pp-wrap{display:block;}
 .pp-wrap.has-cats{display:grid;grid-template-columns:180px minmax(0,1fr);gap:16px;align-items:start;}
