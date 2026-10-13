@@ -940,7 +940,7 @@ async function openSaleDetailModal(historyId){
   const row = (k, v, strong) => `<div style="display:flex;justify-content:space-between;${strong?'font-weight:800;font-size:15px;margin-top:4px;':''}"><span>${k}</span><span>${v}</span></div>`;
   const bg = document.createElement('div');
   bg.id = 'saleDetailModalBg';
-  bg.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:100;padding:16px;';
+  bg.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:300;padding:16px;';
   bg.onclick = (e) => { if(e.target===bg) bg.remove(); };
   bg.innerHTML = `<div style="background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:20px;max-width:420px;width:100%;max-height:88vh;overflow:auto;">
     <div style="display:flex;justify-content:space-between;align-items:center;">
@@ -1195,7 +1195,7 @@ async function renderOpenAccountsContent(session){
           </div>
           <div class="pcard-acts">
             ${debt ? `<button type="button" class="pc-btn pc-edit" style="margin-left:0;" ${act('collectOpenAccount', a.id)}>₺ Tahsilat Al</button>` : ''}
-            <button type="button" class="pc-btn" style="margin-left:auto;" ${act('showOpenAccEntries', a.id)}>📄 Hareketler</button>
+            <button type="button" class="pc-btn" style="margin-left:auto;" ${act('showOpenAccEntries', a.id)}>🔍 Detay</button>
           </div>
         </div>`; }).join('')}</div>` : '<div class="empty-state"><div style="font-size:38px;">📒</div><p class="muted">Henüz açık hesap yok. Ödeme ekranında "📒 Açık Hesaba At" ile oluşturabilirsiniz.</p></div>'}
     </div>
@@ -1220,24 +1220,52 @@ async function showOpenAccEntries(id){
   const { data, error } = await withLoadingOverlay(sb.rpc('get_open_account_entries', { p_token: getSession().session_token, p_account_id: id }));
   if(error){ alert(error.message); return; }
   const rows = data || [];
-  const m = document.createElement('div'); m.className = 'modal-bg'; m.id = 'oaEntriesModalBg';
-  m.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;z-index:95;padding:16px;';
-  m.onclick = (e) => { if(e.target===m) m.remove(); };
-  m.innerHTML = `<div style="background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:18px;max-width:560px;width:100%;max-height:85vh;overflow:auto;">
-    <h2 style="margin:0 0 4px;">📒 ${escapeHtml(a.name)}</h2>
-    <p class="muted" style="margin:0 0 12px;text-align:left;">Bakiye: <b style="color:${a.balance > 0.009 ? 'var(--red)' : 'inherit'};">${money(a.balance)}</b> · Tüm hareketler</p>
-    ${rows.length ? rows.map(e => `<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--border);">
-      <span style="min-width:0;">${new Date(e.created_at).toLocaleString('tr-TR', { day:'numeric', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' })}
-        <div class="muted" style="font-size:12px;">${e.kind === 'charge' ? '📒 Hesaba yazıldı' + (e.item_count ? ' · ' + e.item_count + ' ürün' : '') : '✅ Tahsilat' + (e.method ? ' (' + (e.method==='cash'?'Nakit':e.method==='card'?'Kart':escapeHtml(e.method)) + ')' : '')}${e.table_name ? ' · ' + escapeHtml(e.table_name) : ''}${e.staff ? ' · ' + escapeHtml(e.staff) : ''}</div></span>
-      <span style="display:flex;align-items:center;gap:8px;white-space:nowrap;">
-        <b style="color:${e.kind === 'charge' ? 'var(--red)' : 'var(--green, #2fae5e)'};">${e.kind === 'charge' ? '+' : '−'}${money(e.amount)}</b>
-        ${e.sales_history_id ? `<button type="button" class="sbtn" style="width:auto;margin:0;" title="Sipariş detayı" ${act('openSaleDetailModal', e.sales_history_id)}>🔍</button>` : ''}
-      </span></div>`).join('') : '<p class="muted">Hareket yok.</p>'}
-    <button type="button" class="ghost-btn" style="width:100%;margin-top:12px;" ${act('removeEl','oaEntriesModalBg')}>Kapat</button>
-  </div>`;
-  document.body.appendChild(m);
+  const charged = rows.filter(e => e.kind === 'charge').reduce((t, e) => t + Number(e.amount||0), 0);
+  const paid = rows.filter(e => e.kind !== 'charge').reduce((t, e) => t + Number(e.amount||0), 0);
+  const debt = a.balance > 0.009;
+  const old = document.getElementById('oaEntriesModalBg'); if(old) old.remove();
+  const w = document.createElement('div'); w.id = 'oaEntriesModalBg'; w.className = 'pdrawer-wrap';
+  w.innerHTML = `<div class="pdrawer-bg" ${act('removeEl','oaEntriesModalBg')}></div>
+    <aside class="pdrawer oa-drawer">
+      <div class="pdrawer-head">${avatarHtml(a.name)}<div><small class="muted">Açık hesap</small><h3>${escapeHtml(a.name)}</h3>${a.phone ? `<small class="muted">📞 ${escapeHtml(a.phone)}</small>` : ''}</div>
+        <button type="button" class="pdrawer-x" ${act('removeEl','oaEntriesModalBg')}>✕</button></div>
+      <div class="pdrawer-body">
+        <div class="oad-bal ${debt?'debt':''}"><small>Güncel bakiye</small><b>${money(a.balance)}</b><span>${debt ? '● Borçlu' : '✓ Hesap kapalı'}</span></div>
+        <div class="oad-sum"><div><small>Toplam yazılan</small><b class="r">+${money(charged)}</b></div><div><small>Toplam tahsil</small><b class="g">−${money(paid)}</b></div><div><small>Hareket</small><b>${rows.length}</b></div></div>
+        ${a.note ? `<div class="kc-note" style="margin:0 0 8px;">📝 ${escapeHtml(a.note)}</div>` : ''}
+        <div class="rv-day-h" style="margin:8px 0 10px;">Hareketler<span class="muted">${rows.length}</span></div>
+        ${rows.length ? `<div class="sp-log">${rows.map((e, i) => { const ch = e.kind === 'charge';
+          return `<div class="sp-li oa-li ${ch?'ch':'pay'}" style="--i:${Math.min(i,12)};flex-wrap:wrap;"><span class="sp-dot"></span>
+            <span class="oa-ic">${ch ? '📒' : '✅'}</span>
+            <div class="cu-id"><b>${ch ? 'Hesaba yazıldı' + (e.item_count ? ' · ' + e.item_count + ' ürün' : '') : 'Tahsilat' + (e.method ? ' (' + (e.method==='cash'?'Nakit':e.method==='card'?'Kart':escapeHtml(e.method)) + ')' : '')}</b>
+              <small>${new Date(e.created_at).toLocaleString('tr-TR', { day:'numeric', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' })}${e.table_name ? ' · ' + escapeHtml(e.table_name) : ''}${e.staff ? ' · ' + escapeHtml(e.staff) : ''}${e.note ? ' · ' + escapeHtml(e.note) : ''}</small></div>
+            <b class="oa-amt">${ch ? '+' : '−'}${money(e.amount)}</b>
+            ${e.sales_history_id ? `<button type="button" class="pc-btn oad-toggle" ${act('toggleOaSale', e.sales_history_id, 'oas_'+i)}>🧾 Ürünler</button><div class="oad-items" id="oas_${i}" hidden></div>` : ''}
+          </div>`; }).join('')}</div>` : '<div class="empty-state"><div style="font-size:34px;">🕘</div><p class="muted">Hareket yok.</p></div>'}
+      </div>
+      <div class="pdrawer-foot">${debt ? `<button type="button" ${act('collectOpenAccount', a.id)}>₺ Tahsilat Al</button>` : ''}<button type="button" class="ghost-btn" ${act('removeEl','oaEntriesModalBg')}>Kapat</button></div>
+    </aside>`;
+  document.body.appendChild(w);
+  requestAnimationFrame(() => w.classList.add('open'));
+}
+/* Açık hesap hareketinin sipariş kalemlerini panelin içinde açar/kapatır. */
+async function toggleOaSale(historyId, boxId){
+  const box = document.getElementById(boxId); if(!box) return;
+  if(!box.hidden){ box.hidden = true; return; }
+  if(!box.dataset.loaded){
+    box.innerHTML = '<p class="muted" style="margin:0;">Yükleniyor…</p>'; box.hidden = false;
+    const { data: d, error } = await sb.rpc('get_sale_detail', { p_token: getSession().session_token, p_history_id: historyId });
+    if(error){ box.innerHTML = '<p class="muted" style="margin:0;">Yüklenemedi: ' + escapeHtml(error.message) + '</p>'; return; }
+    box.dataset.loaded = '1';
+    box.innerHTML = (d.items||[]).map(it => `<div><span>${it.qty}× ${escapeHtml(it.name)}</span><b>${money(it.total)}</b></div>`).join('')
+      + (Number(d.discount) > 0 ? `<div class="muted"><span>İndirim</span><b>−${money(d.discount)}</b></div>` : '')
+      + `<div class="oad-tot"><span>Toplam</span><b>${money(d.total)}</b></div>`
+      + `<button type="button" class="pc-btn" style="margin-top:6px;" ${act('openSaleDetailModal', historyId)}>🔍 Tam fiş detayı</button>`;
+  }
+  box.hidden = false;
 }
 async function collectOpenAccount(id){
+  { const dr = document.getElementById('oaEntriesModalBg'); if(dr) dr.remove(); }
   const a = ((APP.openAccReport||{}).accounts||[]).find(x => x.id===id); if(!a) return;
   const v = prompt('"' + a.name + '" hesabından tahsil edilecek tutar (bakiye ' + money(a.balance) + '):', String(Math.round(a.balance*100)/100));
   if(v === null) return;

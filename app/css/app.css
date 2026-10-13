@@ -1896,3 +1896,14 @@ input.sw:checked{background:var(--c1);} input.sw:checked::after{transform:transl
 .kc-all{width:100%;margin:12px 0 0;padding:12px;border-radius:16px;font-weight:800;font-size:15px;background:linear-gradient(135deg,var(--ok,#22c55e),color-mix(in srgb,var(--ok,#22c55e) 70%,#000));color:#fff;box-shadow:0 8px 20px color-mix(in srgb,var(--ok,#22c55e) 25%,transparent);}
 .kb-grid .kc-state{display:none;}
 .kc-item.ki-warn .kitchen-item-name,.kc-item.ki-danger .kitchen-item-name{color:inherit !important;}
+/* ===== Açık hesap detay paneli ===== */
+.oa-drawer{width:min(480px,100vw);} .oa-drawer .pdrawer-head{align-items:center;}
+.oad-bal{display:flex;flex-direction:column;gap:2px;padding:14px;border-radius:16px;background:color-mix(in srgb,var(--ok,#22c55e) 12%,var(--panel2));border:1px solid color-mix(in srgb,var(--ok,#22c55e) 35%,var(--border));margin-bottom:10px;}
+.oad-bal.debt{background:color-mix(in srgb,var(--danger,#ef4444) 12%,var(--panel2));border-color:color-mix(in srgb,var(--danger,#ef4444) 40%,var(--border));}
+.oad-bal small{color:var(--muted);font-weight:700;font-size:12px;} .oad-bal b{font-size:28px;font-weight:800;} .oad-bal span{font-size:12px;font-weight:800;color:var(--ok,#22c55e);} .oad-bal.debt span,.oad-bal.debt b{color:var(--danger,#ef4444);}
+.oad-sum{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:10px;}
+.oad-sum > div{padding:10px;border-radius:12px;background:var(--panel2);display:flex;flex-direction:column;gap:2px;} .oad-sum small{font-size:11px;color:var(--muted);font-weight:700;} .oad-sum b{font-size:14px;} .oad-sum .r{color:var(--danger,#ef4444);} .oad-sum .g{color:var(--ok,#22c55e);}
+.oad-toggle{margin-left:auto;}
+.oad-items{flex-basis:100%;margin-top:8px;padding:10px 12px;border-radius:12px;background:var(--panel);border:1px dashed var(--border);display:flex;flex-direction:column;gap:4px;font-size:13px;animation:osIn .25s ease both;}
+.oad-items > div{display:flex;justify-content:space-between;gap:8px;} .oad-tot{border-top:1px dashed var(--border);padding-top:6px;margin-top:2px;font-weight:800;}
+.oa-card{cursor:default;}
