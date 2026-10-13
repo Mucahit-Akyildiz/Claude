@@ -4,3 +4,4 @@
 -- Canlı veritabanına uygulandı.
 alter table products add column if not exists kitchen_skip boolean not null default false;
 -- Güncelleme: paket (orders.kind = 'takeaway') siparişler kitchen_skip ayarından etkilenmez.
+-- reset_restaurant_data: yeni kategoriler messages / waiter_calls / audit / customers (canlıya uygulandı).
