@@ -973,3 +973,17 @@ button.chat-once{cursor:pointer;}
 .fs-panel{border-top:3px solid var(--t,var(--border));background:linear-gradient(180deg,color-mix(in srgb,var(--t,var(--panel)) 7%,var(--panel)) 0%,var(--panel) 40%);}
 .fs-panel h3{display:flex;align-items:center;gap:8px;color:var(--text);font-size:14px;}
 .fs-panel h3 i{font-style:normal;width:28px;height:28px;border-radius:9px;display:inline-flex;align-items:center;justify-content:center;background:color-mix(in srgb,var(--t) 18%,transparent);font-size:15px;}
+
+/* Dönemsel Analiz: renk vurguları */
+.pa-sec{margin:0 0 14px;}
+.pa-legend{margin-left:auto;display:flex;gap:10px;flex-wrap:wrap;font-size:11.5px;font-weight:500;color:var(--muted);}
+.pa-legend span{display:inline-flex;align-items:center;gap:5px;} .pa-legend b{width:9px;height:9px;border-radius:50%;display:inline-block;}
+.ps-card{background:linear-gradient(180deg,color-mix(in srgb,var(--ps-c) 14%,var(--panel2)) 0%,var(--panel2) 70%);}
+.ps-rev{color:var(--ps-c);}
+.ps-months>div{border-left:2px solid color-mix(in srgb,var(--ps-c) 60%,transparent);}
+.pm-card{background:linear-gradient(180deg,color-mix(in srgb,var(--mc) 10%,var(--panel2)) 0%,var(--panel2) 60%);border-top:3px solid var(--mc);}
+.pm-head span:first-child{color:var(--mc);}
+.pm-bar>div{background:var(--mc);}
+.pd-col>div{background:linear-gradient(0deg,#a78bfa,color-mix(in srgb,#a78bfa 50%,var(--accent)));}
+.pd-card.pd-weekend{background:color-mix(in srgb,#a78bfa 10%,var(--panel2));}
+.pd-card.pm-best .pd-col>div{background:linear-gradient(0deg,#eab308,#f59e0b);}
