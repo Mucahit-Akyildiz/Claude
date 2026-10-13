@@ -1137,3 +1137,21 @@ input:focus,select:focus,textarea:focus{border-color:var(--accent);box-shadow:0 
 .ch-legend i{width:10px;height:10px;border-radius:3px;flex-shrink:0;}
 .ch-legend span{flex:1;color:var(--muted);} .ch-legend b{color:var(--text);}
 @media (max-width:820px){ .ch-row{grid-template-columns:1fr;} .ch-svg{height:160px;} }
+
+/* Tasarım v2 · 2. tur: her ekranın bölümleri renkli (tüm sayfalarda ortak) */
+#main .box:not(.fs-panel):not(.prod-grp){--t:var(--c1);position:relative;border-top:3px solid var(--t);background:linear-gradient(180deg,color-mix(in srgb,var(--t) 8%,var(--panel)) 0%,var(--panel) 160px);}
+#main .box:not(.fs-panel):nth-of-type(4n+2){--t:var(--c3);}
+#main .box:not(.fs-panel):nth-of-type(4n+3){--t:var(--c2);}
+#main .box:not(.fs-panel):nth-of-type(4n+4){--t:#a78bfa;}
+#main .sub-tabs-content > .box{border-top:0;background:transparent;}
+#main .box:not(.fs-panel) > h2:first-child,#main .box:not(.fs-panel) > div:first-child > h2:first-child{display:flex;align-items:center;gap:10px;}
+#main .box:not(.fs-panel) > h2:first-child::before,#main .box:not(.fs-panel) > div:first-child > h2:first-child::before{content:'';width:12px;height:12px;border-radius:4px;background:var(--t);box-shadow:0 0 0 4px color-mix(in srgb,var(--t) 22%,transparent);flex-shrink:0;}
+/* Ekleme panelleri */
+.add-row-panel{--t2:var(--t,var(--accent));background:linear-gradient(135deg,color-mix(in srgb,var(--t2) 12%,var(--panel2)) 0%,var(--panel2) 70%);border:1px solid color-mix(in srgb,var(--t2) 35%,var(--border));border-left:4px solid var(--t2);}
+.add-row-panel > p:first-of-type{color:var(--t2);}
+/* Tablolar: satırda renkli sol şerit, başlık rengi */
+#main .settings-table th{color:color-mix(in srgb,var(--t,var(--accent)) 70%,var(--muted));}
+#main .settings-table tbody tr td:first-child{box-shadow:inset 3px 0 0 color-mix(in srgb,var(--t,var(--accent)) 55%,transparent);}
+#main .settings-table tbody tr td[colspan]{background:transparent;border-style:dashed;color:var(--muted);box-shadow:none;}
+/* Durum rozetleri biraz daha canlı */
+.role-badge{background:color-mix(in srgb,currentColor 10%,transparent);}
