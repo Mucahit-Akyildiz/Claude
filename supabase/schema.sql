@@ -4756,7 +4756,7 @@ begin
           'name_translations', p.name_translations, 'vat_rate', p.vat_rate, 'category', p.category, 'print_ticket', p.print_ticket, 'menu_id', p.menu_id,
           'recipe', (
             select coalesce(json_agg(json_build_object(
-              'ingredient_id', pi.ingredient_id, 'qty_per_unit', pi.qty_per_unit,
+              'ingredient_id', pi.ingredient_id, 'qty_per_unit', round(pi.qty_per_unit * (1 - i.waste_pct/100), 6), 'gross_qty', pi.qty_per_unit, 'waste_pct', i.waste_pct,
               'ingredient_name', i.name, 'ingredient_unit', i.unit
             )), '[]'::json)
             from product_ingredients pi join ingredients i on i.id = pi.ingredient_id
@@ -4770,7 +4770,7 @@ begin
         )), '[]'::json)
         from products p where p.restaurant_id = s.restaurant_id
       ),
-      'ingredients', (select coalesce(json_agg(json_build_object('id', id, 'name', name, 'unit', unit, 'stock', stock)), '[]'::json) from ingredients where restaurant_id = s.restaurant_id),
+      'ingredients', (select coalesce(json_agg(json_build_object('id', id, 'name', name, 'unit', unit, 'stock', stock, 'waste_pct', waste_pct)), '[]'::json) from ingredients where restaurant_id = s.restaurant_id),
       'users', (
         select coalesce(json_agg(json_build_object(
           'id', au.id, 'username', au.username, 'role_ids', au.role_ids, 'is_active', au.is_active,
@@ -7312,7 +7312,7 @@ begin
     v_qty := (usage->>'qty_per_unit')::numeric;
     if v_qty is not null and v_qty > 0 and exists(select 1 from products where id = v_product_id and restaurant_id = s.restaurant_id) then
       insert into product_ingredients (product_id, ingredient_id, qty_per_unit)
-      values (v_product_id, p_ingredient_id, v_qty)
+      values (v_product_id, p_ingredient_id, v_qty / (1 - (select waste_pct from ingredients where id = p_ingredient_id)/100))
       on conflict (product_id, ingredient_id) do update set qty_per_unit = excluded.qty_per_unit;
       v_used_ids := array_append(v_used_ids, v_product_id);
     end if;
@@ -7584,7 +7584,7 @@ begin
       raise exception 'Hammadde bulunamadı';
     end if;
     insert into product_ingredients (product_id, ingredient_id, qty_per_unit)
-    values (p_product_id, v_ingredient_id, (item->>'qty_per_unit')::numeric);
+    values (p_product_id, v_ingredient_id, (item->>'qty_per_unit')::numeric / (1 - (select waste_pct from ingredients where id = v_ingredient_id)/100));
   end loop;
 end;
 $$;
@@ -8915,23 +8915,31 @@ $$;
 
 
 --
--- Name: upsert_ingredient(uuid, uuid, text, text, numeric); Type: FUNCTION; Schema: public; Owner: -
+-- Name: upsert_ingredient(uuid, uuid, text, text, numeric, numeric); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.upsert_ingredient(p_token uuid, p_id uuid, p_name text, p_unit text, p_stock numeric) RETURNS uuid
+CREATE FUNCTION public.upsert_ingredient(p_token uuid, p_id uuid, p_name text, p_unit text, p_stock numeric, p_waste_pct numeric DEFAULT NULL::numeric) RETURNS uuid
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public', 'extensions', 'pg_temp'
     AS $$
-declare s staff_sessions%rowtype; v_id uuid;
+-- Reçete miktarları brüt (fire dahil) saklanır; fire oranı değişince bağlı reçeteler yeniden ölçeklenir.
+declare s staff_sessions%rowtype; v_id uuid; v_old numeric; v_new numeric := p_waste_pct;
 begin
   s := _session_check(p_token, 'settings_ingredients');
   if coalesce(p_stock,0) < 0 then
     raise exception 'Stok negatif olamaz';
   end if;
+  if v_new is not null and (v_new < 0 or v_new >= 100) then
+    raise exception 'Fire oranı 0 ile 99 arasında olmalı';
+  end if;
   if p_id is null then
-    insert into ingredients (restaurant_id, name, unit, stock) values (s.restaurant_id, p_name, p_unit, p_stock) returning id into v_id;
+    insert into ingredients (restaurant_id, name, unit, stock, waste_pct) values (s.restaurant_id, p_name, p_unit, p_stock, coalesce(v_new,0)) returning id into v_id;
   else
-    update ingredients set name = p_name, unit = p_unit, stock = p_stock where id = p_id and restaurant_id = s.restaurant_id;
+    select waste_pct into v_old from ingredients where id = p_id and restaurant_id = s.restaurant_id;
+    update ingredients set name = p_name, unit = p_unit, stock = p_stock, waste_pct = coalesce(v_new, waste_pct) where id = p_id and restaurant_id = s.restaurant_id;
+    if v_new is not null and v_old is not null and v_new <> v_old then
+      update product_ingredients set qty_per_unit = qty_per_unit * (1 - v_old/100) / (1 - v_new/100) where ingredient_id = p_id;
+    end if;
     v_id := p_id;
   end if;
   return v_id;
@@ -9813,7 +9821,9 @@ CREATE TABLE public.ingredients (
     name text NOT NULL,
     unit text DEFAULT 'adet'::text NOT NULL,
     stock numeric DEFAULT 0 NOT NULL,
-    CONSTRAINT ingredients_stock_nonneg CHECK (((stock IS NULL) OR (stock >= (0)::numeric)))
+    waste_pct numeric DEFAULT 0 NOT NULL,
+    CONSTRAINT ingredients_stock_nonneg CHECK (((stock IS NULL) OR (stock >= (0)::numeric))),
+    CONSTRAINT ingredients_waste_pct_chk CHECK (((waste_pct >= (0)::numeric) AND (waste_pct < (100)::numeric)))
 );
 
 
