@@ -1030,3 +1030,20 @@ tr.po-row td:first-child{box-shadow:inset 4px 0 0 var(--st);}
 .xp-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;}
 .xp-item{display:flex;align-items:center;gap:10px;width:100%;margin:0 0 6px;padding:12px 14px;background:var(--panel2);border:1px solid var(--border);color:var(--text);border-radius:12px;box-shadow:none;font-weight:600;text-align:left;}
 .xp-item span:first-child{flex:1;} .xp-price{color:var(--accent);} .xp-n{background:var(--accent);color:var(--btn-ink);border-radius:999px;padding:0 8px;font-size:12px;}
+
+/* Ürünler: menülere göre katlanabilir gruplar, tek tıkla satış durumu */
+.prod-info{background:var(--panel2);border:1px solid var(--border);border-radius:12px;padding:8px 14px;margin:0 0 12px;}
+.prod-info summary{cursor:pointer;font-size:13px;font-weight:700;color:var(--muted);}
+.prod-add{margin-top:8px;} .prod-add summary{cursor:pointer;font-weight:800;font-size:13px;text-transform:uppercase;color:var(--accent);padding:4px 0 8px;}
+.prod-grp{border:1px solid var(--border);border-left:4px solid var(--g);border-radius:14px;margin:14px 0 0;background:linear-gradient(90deg,color-mix(in srgb,var(--g) 7%,var(--panel)) 0%,var(--panel) 30%);}
+.prod-grp>summary{display:flex;align-items:center;gap:10px;padding:12px 14px;cursor:pointer;flex-wrap:wrap;list-style:none;}
+.prod-grp>summary::-webkit-details-marker{display:none;}
+.prod-grp>summary::before{content:'▸';color:var(--muted);transition:transform .15s;}
+.prod-grp[open]>summary::before{transform:rotate(90deg);}
+.prod-grp-dot{width:10px;height:10px;border-radius:50%;background:var(--g);}
+.prod-grp>summary b{font-size:15px;} .prod-grp>summary .muted{font-size:12.5px;}
+.prod-grp .settings-table-wrap{padding:0 10px 10px;}
+.prod-avail{width:auto;margin:0;padding:5px 12px;border-radius:999px;font-size:12.5px;font-weight:700;display:inline-flex;align-items:center;gap:6px;box-shadow:none;background:transparent;border:1.5px solid;}
+.prod-avail i{width:8px;height:8px;border-radius:50%;background:currentColor;}
+.prod-avail.on{color:var(--green);border-color:var(--green);} .prod-avail.off{color:var(--red);border-color:var(--red);}
+#settingsContent .add-row-panel{position:sticky;top:0;z-index:5;}

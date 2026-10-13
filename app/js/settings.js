@@ -1094,9 +1094,7 @@ function renderProductsSettings(el, session){
               : `<input type="number" value="${p.stock==null?'':p.stock}" id="pr_stock_${p.id}" placeholder="Sınırsız">`}
           </td>
           <td style="text-align:center;"><input type="checkbox" class="prod-print" id="pr_print_${p.id}" style="width:auto;margin:0;" title="İşaretliyse mutfak fişine yazdırılır" ${p.print_ticket===false?'':'checked'}></td>
-          <td>${p.available===false
-              ? '<span class="role-badge" style="color:var(--red);border-color:var(--red);">Kapalı</span>'
-              : '<span class="role-badge" style="color:var(--green);border-color:var(--green);">Satışta</span>'}</td>
+          <td><button type="button" class="prod-avail ${p.available===false?'off':'on'}" title="Tıklayınca ${p.available===false?'satışa açılır':'satışa kapanır'}" ${act('toggleProductAvailable', p.id)}><i></i>${p.available===false?'Kapalı':'Satışta'}</button></td>
           <td><div class="act-row">
             <button type="button" class="act-btn act-recipe" ${act('openRecipeModal', p.id)}><b>📋</b><span>Reçete</span></button>
             <button type="button" class="act-btn act-recipe" title="Ekstralar (örn. Ek Döner)" ${act('openExtrasModal', p.id)}><b>➕</b><span>Ekstra${productExtras(p.id).length ? ' ('+productExtras(p.id).length+')' : ''}</span></button>
@@ -1113,21 +1111,22 @@ function renderProductsSettings(el, session){
     const none = list.filter(p => !p.category);
     return order.map(c => { const l = list.filter(p => p.category === c); return sub(c, l.length) + rowsFor(l); }).join('') + (none.length ? sub('Alt menüsüz', none.length) + rowsFor(none) : '');
   };
-  const groupHtml = (title, colorDot, list, cats) => list.length===0 ? '' : `
-    <div style="margin-bottom:22px;">
-      <h3 style="display:flex;align-items:center;gap:8px;font-size:14px;margin:0 0 10px;">${colorDot?`<span style="width:10px;height:10px;border-radius:50%;background:${colorDot};display:inline-block;flex-shrink:0;"></span>`:''}${escapeHtml(title)}<span class="muted" style="font-weight:400;">(${list.length})</span></h3>
+  const groupHtml = (title, colorDot, list, cats, menuId, stLabel) => list.length===0 ? '' : `
+    <details class="prod-grp" open style="--g:${colorDot||'var(--muted)'};">
+      <summary><span class="prod-grp-dot"></span><b>${escapeHtml(title)}</b><span class="muted">${list.length} ürün${stLabel ? ' · 🍳 '+escapeHtml(stLabel) : ''}${list.some(p => p.available===false) ? ' · '+list.filter(p => p.available===false).length+' kapalı' : ''}</span><span style="flex:1;"></span>${menuId ? menuAvailBtn(menuId) : ''}</summary>
       <div class="settings-table-wrap">
       <table class="settings-table">
         <thead><tr><th style="width:36px;"><input type="checkbox" style="width:auto;margin:0;" title="Bu gruptakilerin tümünü seç" ${actOn('change','selectProdGroup',['$this'])}></th><th>Ürün Adı</th><th>İstasyon</th><th>Fiyat</th><th>Maliyet</th><th title="Ürünün menüsü; istasyon menüden gelir">Menü</th><th title="Fiyata dahil KDV oranı">KDV</th><th>Stok</th><th title="Mutfak fişine yazdırılsın mı?">🖨️ Fiş</th><th>Durum</th><th></th></tr></thead>
-        <tbody>${groupedRows(list, cats)}</tbody>
+        <tbody>${rowsFor(list)}</tbody>
       </table>
       </div>
-    </div>`;
+    </details>`;
 
   const unassigned = products.filter(p => !stations.some(s => s.id===p.station_id));
 
   el.innerHTML = `<div class="box" style="max-width:none;">
     <h2>Ürünler</h2>
+    <details class="prod-info"><summary>ℹ️ Nasıl çalışır · Varsayılan KDV: %${APP.config.default_vat_rate ?? 10}</summary>
     <p class="muted" style="text-align:left;margin:-6px 0 12px;font-size:13px;"><b>Menü</b>: ürünün menüsü (menüleri ve hangi istasyona gideceklerini <b>Menüler & İstasyonlar</b> sekmesinde ayarlayın); ürünün istasyonu menüden gelir. <b>🖨️ Fiş</b> işareti kaldırılan ürünler mutfak fişine yazdırılmaz (ekranda yine görünür).</p>
     <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 10px;">
       <label style="margin:0;font-weight:700;font-size:13.5px;">Varsayılan KDV oranı</label>
@@ -1135,11 +1134,7 @@ function renderProductsSettings(el, session){
       <span class="muted" style="font-size:12.5px;">Fiyatlar KDV dahildir. Lokantada yiyecek-içecek %10, alkollü içecek %20. Ürüne ayrı oran seçilmezse bu oran kullanılır.</span>
     </div>
     <p class="muted" style="text-align:left;margin:0 0 16px;">Stok alanını boş bırakırsanız o ürün için stok takibi yapılmaz. Satırları değiştirip <b>Kaydet</b>'e basın; satışa açmak / kapatmak / silmek için satırları seçin.</p>
-    <div id="prodGroups" ${actOn('input','markProdDirty',['$event'])} ${actOn('change','markProdDirty',['$event'])}>
-    ${stations.map(s => groupHtml(s.name, s.color, products.filter(p => p.station_id===s.id), s.categories)).join('')}
-    ${groupHtml('İstasyonsuz', null, unassigned)}
-    </div>
-
+    </details>
     <div class="add-row-panel">
     <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:0 0 10px;">
         ${listSearchHtml('products', 'Ürün ara…').replace('margin:0 0 12px;','margin:0;')}
@@ -1152,7 +1147,7 @@ function renderProductsSettings(el, session){
         </div>
       </div>
       <p class="muted" id="prodSelInfo" style="text-align:left;font-size:12.5px;margin:-4px 0 8px;text-transform:none;letter-spacing:0;font-weight:400;min-height:0;"></p>
-      <p>Yeni Ürün Ekle</p>
+      <details class="prod-add" ${products.length ? '' : 'open'}><summary>➕ Yeni Ürün Ekle</summary>
       <div class="add-row-inline" style="display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;">
         <div class="field-group grow" style="margin:0;min-width:0;flex:2 1 170px;width:auto;"><label>Ürün Adı</label><input style="margin:0;width:100%;" id="np_name" placeholder="örn. Izgara Köfte"></div>
         <div class="field-group" style="margin:0;min-width:0;flex:1.6 1 150px;width:auto;"><label>Menü</label><select style="margin:0;width:100%;" id="np_menu">${prodMenuOptions((APP.config.menus[0]||{}).id)}</select></div>
@@ -1169,7 +1164,13 @@ function renderProductsSettings(el, session){
         <button type="button" style="width:auto;margin:0;white-space:nowrap;flex:0 0 auto;padding-left:18px;padding-right:18px;" ${act('addProduct')}>+ Ürün Ekle</button>
       </div>
       <div id="npRecipeItemsBox"></div>
+      </details>
     </div>
+    <div id="prodGroups" ${actOn('input','markProdDirty',['$event'])} ${actOn('change','markProdDirty',['$event'])}>
+    ${(APP.config.menus||[]).map(m => { const st = stations.find(x => x.id===m.station_id); return groupHtml(m.name, st ? st.color : null, products.filter(p => p.menu_id===m.id), null, m.id, st ? st.name : 'istasyon seçilmedi'); }).join('')}
+    ${groupHtml('Menüsüz', null, products.filter(p => !p.menu_id || !(APP.config.menus||[]).some(m => m.id===p.menu_id)))}
+    </div>
+
   </div>`;
   NEW_PRODUCT_RECIPE_DRAFT = [];
   renderNewProductRecipeItems();
@@ -1271,6 +1272,16 @@ async function saveAllProducts(){
     return sb.rpc('set_product_vat', { p_token: s.session_token, p_product_id: r.id, p_rate: r.vat });
   });
   if(errors.length) alert('Bazı ürünler kaydedilemedi:\n\n' + errors.join('\n')); else showToast(rows.length + ' ürün kaydedildi ✓');
+}
+// Durum rozetine tıklayınca tek ürün anında satışa açılır/kapanır.
+async function toggleProductAvailable(pid){
+  const p = (APP.config.products || []).find(x => x.id === pid); if(!p) return;
+  const open = p.available === false;
+  const { error } = await sb.rpc('upsert_product', Object.assign({ p_token: getSession().session_token }, productPayload(p, { p_available: open })));
+  if(error){ alert(error.message); return; }
+  p.available = open;
+  showToast(p.name + (open ? ' satışa açıldı ✓' : ' satışa kapatıldı'));
+  renderSettingsContent(getSession());
 }
 async function bulkProductAvailable(open){
   const ids = selectedProductIds(); if(!ids.length) return;
