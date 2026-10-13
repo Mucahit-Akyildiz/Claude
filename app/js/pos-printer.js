@@ -793,6 +793,7 @@ async function renderNotificationSettingsView(main, session){
 /* Bildirimler > Kime Gitsin: her bildirim türünün hangi rollere (push) gideceği. Ayar yoksa izne göre varsayılan. */
 const NOTIF_TYPES = [
   { k:'customer_request', ic:'📱', t:'QR / online sipariş talebi', d:'Müşteri menüden sipariş gönderince', perm:'order' },
+  { k:'reservation_reminder', ic:'📅', t:'Yaklaşan rezervasyon', d:'Rezervasyon saatine 4 saat kala', perm:'reservations' },
   { k:'idle_table', ic:'🪑', t:'Sipariş bekleyen masa', d:'Masaya oturan müşterinin siparişi girilmeyince', perm:'order' },
   { k:'waiter_order', ic:'🙋', t:'Garson çağrısı (sipariş)', d:'Masadan sipariş için garson çağrılınca', perm:'order' },
   { k:'waiter_payment', ic:'💳', t:'Garson çağrısı (hesap)', d:'Masadan hesap istenince', perm:'payments' },

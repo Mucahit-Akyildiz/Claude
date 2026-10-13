@@ -48,7 +48,7 @@ async function renderReservationsContent(session, forceRefresh){
   const days = [...new Set(sorted.map(dkey))];
   const dayLabel = (k) => { const d = new Date(k+'T00:00'); const diff = Math.round((d - new Date(today+'T00:00'))/86400000);
     return (diff===0 ? 'Bugün' : diff===1 ? 'Yarın' : diff===-1 ? 'Dün' : '') + ' <small>' + d.toLocaleDateString('tr-TR',{weekday:'long', day:'numeric', month:'long'}) + '</small>'; };
-  const card = (r) => { const t = new Date(r.reservation_time), late = t < new Date() && r.status !== 'seated'; const mins = Math.round((t - new Date())/60000), soon = !late && mins <= 60 && mins >= 0;
+  const card = (r) => { const t = new Date(r.reservation_time), late = t < new Date() && r.status !== 'seated'; const mins = Math.round((t - new Date())/60000), soon = !late && mins <= 120 && mins >= 0;
     return `<div class="rv-card st-${r.status}${late?' late':''}${soon?' soon':''}" data-badge-id="${r.id}">
       <div class="rv-time"><b>${t.toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'})}</b><span class="rv-pill">${RESV_STATUS_LABELS[r.status]||r.status}</span></div>
       <div class="rv-main">
