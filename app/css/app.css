@@ -1846,3 +1846,4 @@ input.sw:checked{background:var(--c1);} input.sw:checked::after{transform:transl
 .rp-panel h2{font-size:17px;display:flex;align-items:center;gap:8px;}
 #reportContent .settings-table th{font-size:11px;}
 #reportContent .settings-table tbody tr{transition:transform .12s;} #reportContent .settings-table tbody tr:hover{transform:translateX(2px);}
+.resv-an-card{flex-direction:column;align-items:flex-start;} .resv-an-card small{display:block;} .resv-an-card b{font-size:22px;margin:2px 0;}

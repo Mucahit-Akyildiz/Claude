@@ -1005,10 +1005,8 @@ function setResvAnFilter(key, label){
 /* Tıklanabilir istatistik kartı: basınca alttaki liste o kayıtlarla filtrelenir. */
 function resvAnCard(label, value, color, key){
   const active = APP.resvAnFilter && APP.resvAnFilter.key===key;
-  return `<div class="card resv-an-card ${active?'active':''}" ${act('setResvAnFilter', key, label)} title="Listelemek için tıklayın">
-    <div class="muted" style="font-size:11px;text-transform:uppercase;letter-spacing:.04em;font-weight:700;">${escapeHtml(label)}</div>
-    <div style="font-size:22px;font-weight:800;margin-top:6px;${color?'color:'+color+';':''}">${value}</div>
-    <div class="resv-an-card-hint">${active ? '✓ Listeleniyor' : 'Listele ›'}</div>
+  return `<div class="os-chip os-click resv-an-card ${active?'active on':''}" style="--oc:${color||'var(--c1)'};" ${act('setResvAnFilter', key, label)} title="Listelemek için tıklayın">
+    <div style="min-width:0;"><small>${escapeHtml(label)}</small><b style="${color?'color:'+color+';':''}">${value}</b><small class="resv-an-card-hint">${active ? '✓ Listeleniyor' : 'Listele ›'}</small></div>
   </div>`;
 }
 // Rezervasyon/bekleme kaydına bağlı kapanan hesap(lar)ın detayını açar.
@@ -1127,7 +1125,7 @@ function drawResvAnalytics(){
       ${resvAnCard('Kişi Başı Harcama', sm.avg_per_guest!=null ? money(sm.avg_per_guest) : '—', null, 'revenue')}
     </div>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px;margin-bottom:18px;">
-      <div class="box" style="max-width:none;margin:0;">
+      <div class="fs-panel pa-sec" style="--t:var(--c2);margin:0;">
         <h3 style="margin:0 0 10px;">⏰ Rezervasyon Saatine Göre Geliş</h3>
         <p style="margin:0 0 8px;">Ortalama: ${sm.avg_arrival_diff==null ? '<span class="muted">veri yok</span>' : diffTxt(sm.avg_arrival_diff)}</p>
         <div style="display:flex;gap:8px;flex-wrap:wrap;font-size:13px;">
@@ -1137,7 +1135,7 @@ function drawResvAnalytics(){
         </div>
         <p class="muted" style="font-size:11.5px;text-align:left;margin:8px 0 0;">Geliş saati, rezervasyon "Oturdu" yapıldığında kaydedilir.</p>
       </div>
-      <div class="box" style="max-width:none;margin:0;">
+      <div class="fs-panel pa-sec" style="--t:var(--c2);margin:0;">
         <h3 style="margin:0 0 10px;">🕐 Saatlere Göre Yoğunluk</h3>
         ${byHour.length ? byHour.map(h => `<div class="resv-an-row ${isF('hour:'+h.hour)?'active':''}" ${act('setResvAnFilter', 'hour:'+h.hour, String(h.hour).padStart(2,'0')+':00 rezervasyonları')} style="display:flex;align-items:center;gap:8px;font-size:12.5px;margin:2px 0;padding:3px 4px;">
           <span style="width:44px;">${String(h.hour).padStart(2,'0')}:00</span>
