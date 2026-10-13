@@ -296,6 +296,8 @@ function statChipsClick(list, cur, fn){
    h2 başlığı olanlar birer sekme olur, aynı anda biri görünür. Seçim APP.boxTabs'ta tutulur. */
 function boxTabs(container, key){
   if(!container) return;
+  container.querySelectorAll(`:scope > .bx-tabs[data-bt-key="${key}"]`).forEach(b => b.remove());
+  container.querySelectorAll(':scope > .box[data-bt-key]').forEach(b => { b.style.display = ''; });
   const boxes = [...container.querySelectorAll(':scope > .box')].filter(b => b.querySelector(':scope > h2') && b.style.display !== 'none');
   if(boxes.length < 2) return;
   APP.boxTabs = APP.boxTabs || {};
