@@ -142,29 +142,21 @@ function renderOrderFlagsSettings(el, session){
   el.innerHTML = `<div class="box" style="max-width:none;">
     <h2>Sipariş Etiketleri</h2>
     <p class="muted" style="text-align:left;margin:0 0 16px;">Sipariş al ekranında, siparişi mutfağa göndermeden önce işaretlenebilecek checkbox'lar (örn. "Personel Yemeği", "İkram"). İşaretlenen siparişlerde stok yine düşer, ama Finansal Analiz'deki ciro/net kârdan hariç tutulup ayrı bir toplam olarak gösterilir. İstediğiniz kadar etiket ekleyebilirsiniz.</p>
-    <div class="settings-table-wrap">
-    <table class="settings-table">
-      <thead><tr><th>Etiket</th><th></th></tr></thead>
-      <tbody>
-      ${flags.map(f => `
-        <tr>
-          <td class="col-name"><input value="${escapeAttr(f.label)}" id="flag_label_${f.id}"></td>
-          <td style="white-space:nowrap;">
-            <button type="button" class="act-btn act-save" ${act('saveOrderFlag', f.id)}>${ICON_SAVE}<span>Kaydet</span></button>
-            <button type="button" class="act-btn act-delete" ${act('removeOrderFlag', f.id)}>${ICON_TRASH}<span>Sil</span></button>
-          </td>
-        </tr>`).join('')}
-      ${flags.length===0 ? '<tr><td colspan="2" class="muted" style="padding:10px 4px;">Henüz etiket eklenmedi.</td></tr>' : ''}
-      </tbody>
-    </table>
-    </div>
-    <div class="add-row-panel">
-      <p>Yeni Etiket Ekle</p>
-      <div style="display:flex;gap:10px;align-items:end;">
-        <div class="field-group" style="flex:1;"><label>Etiket Adı</label><input id="nf_label" placeholder="örn. Personel Yemeği"></div>
-        <button style="max-width:160px;" ${act('addOrderFlag')}>+ Etiket Ekle</button>
+    <div class="fl-grid">
+      ${flags.map((f, i) => `<div class="fl-card" style="--sc:var(--c${i%4+1});--i:${Math.min(i,12)};">
+        <span class="fl-ic">🏷️</span>
+        <input class="fl-name" value="${escapeAttr(f.label)}" id="flag_label_${f.id}" title="Adı değiştirip Enter'a basın" ${actOn('keydown','onEnterCall',['$event','saveOrderFlag', f.id])}>
+        <button type="button" class="ico-btn" title="Kaydet" ${act('saveOrderFlag', f.id)}>💾</button>
+        <button type="button" class="ico-btn danger" title="Sil" ${act('removeOrderFlag', f.id)}>🗑</button>
+      </div>`).join('')}
+      <div class="fl-card fl-new">
+        <span class="fl-ic">＋</span>
+        <input class="fl-name" id="nf_label" placeholder="Yeni etiket (örn. Personel Yemeği)" ${actOn('keydown','onEnterCall',['$event','addOrderFlag'])}>
+        <button type="button" class="fl-add" ${act('addOrderFlag')}>Ekle</button>
       </div>
     </div>
+    ${flags.length ? `<div class="fl-prev"><small>👀 Sipariş ekranında böyle görünür</small>
+      <div>${flags.map((f, i) => `<span class="fl-chip" style="--sc:var(--c${i%4+1});"><i>${i===0?'✓':''}</i>${escapeHtml(f.label)}</span>`).join('')}</div></div>` : ''}
   </div>`;
 }
 async function saveOrderFlag(id){
