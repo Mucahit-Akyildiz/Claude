@@ -545,6 +545,7 @@ function renderStationsSettings(el, session){
         ${menus.length ? menus.map(m => { const on = m.station_id === s.id; const other = !on && m.station_id ? stName(m.station_id) : '';
           return `<button type="button" class="menu-chip ${on?'on':''}" title="${on ? 'Bu istasyondan çıkar' : other ? other + ' istasyonundan bu istasyona taşı' : 'Bu istasyona ekle'}" ${act('toggleStationMenu', s.id, m.id)}>${on ? '✓ ' : '+ '}${escapeHtml(m.name)}${other ? ` <small>(${escapeHtml(other)})</small>` : ''}</button>`; }).join('') : '<span class="muted" style="font-size:12px;">Önce yukarıdan menü ekleyin.</span>'}
       </div>
+      ${stationKitchenProductsHtml(s)}
     </div>`;
   el.innerHTML = menuBox + `<div class="box" style="max-width:none;">
     <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:14px;">
@@ -561,6 +562,31 @@ function renderStationsSettings(el, session){
       </div>
     </div>
   </div>`;
+}
+/* İstasyon kartında: seçili menülerin ürünleri istasyona (mutfak ekranı + fiş) düşsün mü?
+   İşaretsiz ürün siparişte doğrudan "hazır" olur (bkz. products.kitchen_skip). */
+function stationKitchenProductsHtml(st){
+  const menus = (APP.config.menus || []).filter(m => m.station_id === st.id);
+  const prods = (APP.config.products || []).filter(p => p.station_id === st.id);
+  if(!prods.length) return '';
+  const on = prods.filter(p => !p.kitchen_skip).length;
+  const groups = menus.map(m => [m.name, prods.filter(p => p.menu_id === m.id)]).filter(g => g[1].length);
+  const rest = prods.filter(p => !menus.some(m => m.id === p.menu_id));
+  if(rest.length) groups.push(['Diğer', rest]);
+  return `<details class="st-kp" ${APP.stKpOpen===st.id?'open':''} style="flex-basis:100%;">
+    <summary>🍳 İstasyona düşen ürünler · <b>${on}/${prods.length}</b>${on<prods.length ? ` <span class="muted">(${prods.length-on} ürün doğrudan hazır olur)</span>` : ''}</summary>
+    <p class="muted" style="font-size:12px;margin:6px 0 8px;">İşareti kaldırılan ürünler bu istasyonun ekranına ve yazıcısına düşmez; siparişte doğrudan <b>hazır</b> olur (örn. kasadan verilen su, hazır içecekler).</p>
+    ${groups.map(([name, list]) => `<div class="st-kp-grp"><div class="st-kp-h">📋 ${escapeHtml(name)} <span class="muted">${list.filter(p => !p.kitchen_skip).length}/${list.length}</span></div>
+      <div class="st-kp-list">${list.map(p => `<label><input type="checkbox" style="width:auto;margin:0;" ${p.kitchen_skip ? '' : 'checked'} ${actOn('change','setProductKitchen',[p.id,'$checked',st.id])}>${escapeHtml(p.name)}</label>`).join('')}</div></div>`).join('')}
+  </details>`;
+}
+async function setProductKitchen(pid, on, stId){
+  const p = (APP.config.products || []).find(x => x.id === pid); if(!p) return;
+  const { error } = await sb.rpc('set_product_kitchen', { p_token: getSession().session_token, p_product_id: pid, p_on: !!on });
+  if(error){ alert(error.message); return; }
+  p.kitchen_skip = !on; APP.stKpOpen = stId;
+  showToast(on ? p.name + ' istasyona düşecek' : p.name + ' istasyona düşmeyecek (doğrudan hazır)');
+  const sum = document.querySelector('details.st-kp[open] summary b'); if(sum){ const st = (APP.config.products||[]).filter(x => x.station_id===stId); sum.textContent = st.filter(x => !x.kitchen_skip).length + '/' + st.length; }
 }
 /* Menüler: ürünler menüye bağlanır; menü bir istasyona atanır (ürünün istasyonu menüden gelir).
    Sipariş ekranı / QR menüde istasyonun içinde menüler sekme olarak görünür. */
