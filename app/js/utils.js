@@ -244,23 +244,25 @@ function releaseSharedMic(){ clearTimeout(SHARED_MIC_TIMER);
 /* ---- Hafif SVG grafikler (harici kütüphane yok, CSP uyumlu) ----
    Renkler CSS değişkenlerinden (--c1..--c4) gelir; açık/koyu temada ayrı tonlar. */
 function svgBarChart(data, o){
+  // HTML/CSS sütun grafiği: keskin yazı, yatay kılavuz çizgileri, gradyan sütunlar, üzerine gelince ayrıntı.
   o = o || {};
   if(!data.length) return '<p class="muted">Veri yok.</p>';
-  const W = 640, H = o.height || 180, padB = 26, padT = 18;
   const max = Math.max(...data.map(d => Number(d.value)||0)) || 1;
-  const n = data.length, slot = W / n, bw = Math.max(6, Math.min(44, slot * 0.62));
+  const step = niceStep(max / 4), top = Math.ceil(max / step) * step || 1;
+  const ticks = [4,3,2,1,0].map(i => top * i / 4);
   const peak = data.reduce((a, d) => (Number(d.value)||0) > (Number(a.value)||0) ? d : a, data[0]);
-  const bars = data.map((d, i) => {
-    const v = Number(d.value)||0, h = Math.round((v / max) * (H - padB - padT)), x = i * slot + (slot - bw) / 2, y = H - padB - h;
-    const isPeak = d === peak && v > 0;
-    return `<g class="ch-bar${isPeak ? ' peak' : ''}"><rect class="ch-hit" x="${i*slot}" y="0" width="${slot}" height="${H}"></rect>
-      <path d="M${x},${H-padB} V${y+4} Q${x},${y} ${x+4},${y} H${x+bw-4} Q${x+bw},${y} ${x+bw},${y+4} V${H-padB} Z"></path>
-      ${isPeak || n <= 8 ? `<text class="ch-val" x="${x+bw/2}" y="${y-5}" text-anchor="middle">${escapeHtml(d.short || '')}</text>` : ''}
-      <text class="ch-lbl" x="${x+bw/2}" y="${H-8}" text-anchor="middle">${escapeHtml(d.label)}</text>
-      <title>${escapeHtml(d.label + ': ' + (d.display || v))}</title></g>`;
-  }).join('');
-  return `<svg class="ch-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="${escapeAttr(o.title||'Grafik')}"><line class="ch-base" x1="0" y1="${H-padB}" x2="${W}" y2="${H-padB}"></line>${bars}</svg>`;
+  const showVals = data.length <= 12;
+  return `<div class="bc" style="--bc-h:${o.height || 220}px;" role="img" aria-label="${escapeAttr(o.title||'Grafik')}">
+    <div class="bc-y">${ticks.map(t => `<span>${shortMoney(t)}</span>`).join('')}</div>
+    <div class="bc-plot">
+      <div class="bc-grid">${ticks.map(() => '<i></i>').join('')}</div>
+      <div class="bc-cols">${data.map(d => { const v = Number(d.value)||0, pct = v / top * 100, pk = d === peak && v > 0;
+        return `<div class="bc-col${pk ? ' peak' : ''}${v ? '' : ' zero'}" tabindex="0">
+          <div class="bc-bar" style="height:${Math.max(v ? 2 : 0, pct)}%;"><div class="bc-tip"><b>${escapeHtml(d.label)}</b>${escapeHtml(d.display || String(v))}</div>${(showVals || pk) && v ? `<span class="bc-v">${escapeHtml(d.short || shortMoney(v))}</span>` : ''}</div>
+          <span class="bc-x">${escapeHtml(d.label)}</span></div>`; }).join('')}</div>
+    </div></div>`;
 }
+function niceStep(x){ if(x <= 0) return 1; const p = Math.pow(10, Math.floor(Math.log10(x))); const f = x / p; return (f <= 1 ? 1 : f <= 2 ? 2 : f <= 5 ? 5 : 10) * p; }
 function svgDonut(segs, o){
   o = o || {};
   const total = segs.reduce((t, s) => t + (Number(s.value)||0), 0);
@@ -274,4 +276,4 @@ function svgDonut(segs, o){
   return `<div class="ch-donut"><svg viewBox="0 0 140 140" role="img" aria-label="${escapeAttr(o.title||'Dağılım')}"><circle r="${R}" cx="70" cy="70" fill="none" stroke="var(--panel2)" stroke-width="18"></circle>${arcs}<text x="70" y="66" text-anchor="middle" class="ch-dc-big">${escapeHtml(o.center||'')}</text><text x="70" y="84" text-anchor="middle" class="ch-dc-sm">${escapeHtml(o.sub||'')}</text></svg>
     <div class="ch-legend">${segs.map(s => `<div><i style="background:${s.color}"></i><span>${escapeHtml(s.label)}</span><b>%${Math.round((Number(s.value)||0)/total*100)}</b></div>`).join('')}</div></div>`;
 }
-function shortMoney(v){ v = Number(v)||0; return v >= 1e6 ? (v/1e6).toFixed(1).replace('.',',')+'M' : v >= 1000 ? Math.round(v/1000)+'B' : String(Math.round(v)); }
+function shortMoney(v){ v = Number(v)||0; if(v >= 1e6) return (v/1e6).toLocaleString('tr-TR',{maximumFractionDigits:1})+' mn'; if(v >= 1e4) return Math.round(v/1000).toLocaleString('tr-TR')+' bin'; return Math.round(v).toLocaleString('tr-TR'); }
