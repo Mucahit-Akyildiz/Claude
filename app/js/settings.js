@@ -1763,8 +1763,8 @@ function renderDataResetSettings(el){
         <select id="resetRange" style="display:none;" ${actOn('change','toggleResetCustom',['$value'])}>${R.map(([k,l]) => `<option value="${k}" ${k==='3m'?'selected':''}>${l}</option>`).join('')}</select>
         <div class="seg dr-seg">${R.map(([k,l]) => `<button type="button" data-rr="${k}" class="${k==='3m'?'on':''}" ${act('setResetRange', k)}>${k==='all'||k==='custom' ? l : 'Son ' + l}</button>`).join('')}</div>
         <div id="resetCustom" style="display:none;gap:10px;flex-wrap:wrap;margin-top:10px;">
-          <div class="field-group" style="flex:1;min-width:140px;"><label>Başlangıç</label><input type="date" id="resetFrom"></div>
-          <div class="field-group" style="flex:1;min-width:140px;"><label>Bitiş</label><input type="date" id="resetTo" value="${todayLocalDateStr()}"></div>
+          <div class="field-group" style="flex:1;min-width:140px;"><label>Başlangıç (tarih ve saat)</label><input type="datetime-local" id="resetFrom"></div>
+          <div class="field-group" style="flex:1;min-width:140px;"><label>Bitiş (tarih ve saat)</label><input type="datetime-local" id="resetTo" value="${(() => { const d = new Date(); return todayLocalDateStr() + 'T' + String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0'); })()}"></div>
         </div>
         <div class="dr-step" style="margin-top:18px;"><span>2</span>Silinecek veriler <small class="muted" id="drCount"></small></div>
         <div class="dr-grid" ${actOn('change','updateResetCount',[])}>
@@ -1799,16 +1799,16 @@ function setResetRange(k){
 function updateResetCount(){ const n = document.querySelectorAll('.resetCat:checked').length, el = document.getElementById('drCount'); if(el) el.textContent = n + ' / ' + RESET_CATEGORIES.length + ' seçili'; }
 function resetRangeDates(){
   const v = document.getElementById('resetRange').value;
-  const today = todayLocalDateStr();
+  const fmt = (x) => x ? x.replace('T', ' ') : '';
   if(v==='all') return { from:null, to:null, label:'TÜM ZAMANLARA ait' };
   if(v==='custom'){
     const from = document.getElementById('resetFrom').value || null, to = document.getElementById('resetTo').value || null;
-    return { from, to, label: (from||'en baştan') + ' – ' + (to||'bugün') + ' arasındaki' };
+    return { from, to, label: (fmt(from)||'en baştan') + ' – ' + (fmt(to)||'şu an') + ' arasındaki' };
   }
   const months = { '1m':1, '3m':3, '6m':6, '1y':12 }[v];
   const d = new Date(); d.setMonth(d.getMonth() - months);
-  const from = d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
-  return { from, to: today, label: document.getElementById('resetRange').selectedOptions[0].textContent + 'a ait' };
+  const from = d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0') + 'T00:00';
+  return { from, to: null, label: document.getElementById('resetRange').selectedOptions[0].textContent + 'a ait' };
 }
 async function doDataReset(){
   const cats = Array.from(document.querySelectorAll('.resetCat:checked')).map(b => b.value);
@@ -1820,7 +1820,7 @@ async function doDataReset(){
   const names = RESET_CATEGORIES.filter(c => cats.includes(c.id)).map(c => '• ' + c.label).join('\n');
   if(!confirm(r.label + ' şu veriler kalıcı olarak silinecek:\n\n' + names + '\n\nBu işlem GERİ ALINAMAZ. Devam edilsin mi?')) return;
   const session = getSession();
-  const { data, error } = await withLoadingOverlay(sb.rpc('reset_restaurant_data', { p_token: session.session_token, p_password: pw, p_from: r.from, p_to: r.to, p_categories: cats }));
+  const { data, error } = await withLoadingOverlay(sb.rpc('reset_restaurant_data_ts', { p_token: session.session_token, p_password: pw, p_from: r.from, p_to: r.to, p_categories: cats }));
   if(error){ showToast(error.message); return; }
   if(!data || !data.ok){ showToast((data && data.error) || 'Silinemedi'); return; }
   document.getElementById('resetPassword').value = '';
