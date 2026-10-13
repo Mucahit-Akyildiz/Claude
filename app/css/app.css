@@ -992,3 +992,15 @@ button.chat-once{cursor:pointer;}
 .pd-col>div{background:linear-gradient(0deg,#a78bfa,color-mix(in srgb,#a78bfa 50%,var(--accent)));}
 .pd-card.pd-weekend{background:color-mix(in srgb,#a78bfa 10%,var(--panel2));}
 .pd-card.pm-best .pd-col>div{background:linear-gradient(0deg,#eab308,#f59e0b);}
+
+/* Finansal Analiz: diğer sekmelerde de aynı yumuşak renk dili (istatistik kartları ve bölümler) */
+#reportContent .stat-grid>.box,#reportContent .stat-grid>div.box{--k:var(--accent);position:relative;background:linear-gradient(180deg,color-mix(in srgb,var(--k) 12%,var(--panel)) 0%,var(--panel) 75%);border:1px solid color-mix(in srgb,var(--k) 30%,var(--border));border-top:3px solid var(--k);}
+#reportContent .stat-grid>.box:nth-child(4n+2){--k:var(--green);}
+#reportContent .stat-grid>.box:nth-child(4n+3){--k:#a78bfa;}
+#reportContent .stat-grid>.box:nth-child(4n+4){--k:#f59e0b;}
+#reportContent .stat-grid>.box>div:first-child{color:var(--k);}
+#reportContent>.box,#reportContent>div>.box:not(.fs-panel){--t:var(--accent);border-top:3px solid var(--t);background:linear-gradient(180deg,color-mix(in srgb,var(--t) 7%,var(--panel)) 0%,var(--panel) 40%);}
+#reportContent>.box:nth-of-type(3n+2){--t:#a78bfa;}
+#reportContent>.box:nth-of-type(3n+3){--t:#f97316;}
+#reportContent>.box>h2:first-child,#reportContent>.box>div:first-child>h2{display:flex;align-items:center;gap:8px;}
+#reportContent>.box>h2:first-child::before,#reportContent>.box>div:first-child>h2::before{content:'';width:10px;height:10px;border-radius:50%;background:var(--t);box-shadow:0 0 0 4px color-mix(in srgb,var(--t) 20%,transparent);flex-shrink:0;}
