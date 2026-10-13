@@ -85,7 +85,11 @@ async function refreshKitchenItems(session){
   if(hasNew){
     playKitchenBell(APP.kitchenStation);
     Object.values(newItemsByTable).forEach(entry => {
-      printKitchenTicketGrouped(entry.tableName, entry.items, true, entry.dailyNumber)
+      // Bu cihazda sipariş verilirken zaten basılan ürünler tekrar basılmaz.
+      const printed = APP.locallyPrintedItemIds || new Set();
+      const toPrint = entry.items.filter(it => !printed.has(it.id));
+      if(!toPrint.length) return;
+      printKitchenTicketGrouped(entry.tableName, toPrint, true, entry.dailyNumber)
         .catch(e => { console.error('Fiş yazdırma hatası:', e); showToast('⚠️ Fiş yazdırılırken beklenmeyen bir hata oluştu'); });
     });
   }

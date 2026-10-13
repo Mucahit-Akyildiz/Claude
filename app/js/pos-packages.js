@@ -374,12 +374,25 @@ async function confirmOrder(tableId){
   // ekraninda (yazicisi ona fiziksel olarak bagli oldugu icin) otomatik yazdiriliyor
   // - bkz. refreshKitchenItems. Farkli fiziksel bilgisayarlara bagli birden fazla
   // yazici oldugunda WebUSB sadece o an acik olan cihaza takili yaziciya erisebilir.
+  const prevItemIds = new Set((APP.liveOrders || []).flatMap(o => (o.items || []).map(i => i.id)));
   const [liveRes, cfgRes] = await Promise.all([
     sb.rpc('get_live_orders', { p_token: session.session_token }),
     sb.rpc('get_restaurant_config', { p_token: session.session_token })
   ]);
   APP.liveOrders = liveRes.data || [];
   if(cfgRes.data) APP.config = cfgRes.data;
+  // Sipariş veren cihazda yazıcı varsa fiş hemen basılır (Mutfak Ekranı açık olmasa da).
+  // Basılan ürünler işaretlenir; aynı cihazda mutfak ekranı açıksa ikinci kez basmaz.
+  if(printOnOrderEnabled() && deviceHasSilentPrinter()){
+    APP.locallyPrintedItemIds = APP.locallyPrintedItemIds || new Set();
+    APP.liveOrders.forEach(o => {
+      const fresh = (o.items || []).filter(i => !prevItemIds.has(i.id) && i.status==='pending' && !APP.locallyPrintedItemIds.has(i.id));
+      if(!fresh.length) return;
+      fresh.forEach(i => APP.locallyPrintedItemIds.add(i.id));
+      printKitchenTicketGrouped(orderDisplayName(o), fresh, true, o.daily_number)
+        .catch(e => { console.error('Fiş yazdırma hatası:', e); showToast('⚠️ Fiş yazdırılırken beklenmeyen bir hata oluştu'); });
+    });
+  }
   await closeTableModal();
   if(isPkg && APP.view==='packages') renderPackagesView(document.getElementById('main'), session);
   if(isWl && APP.view==='reservations') renderWaitlistContent(session, true);

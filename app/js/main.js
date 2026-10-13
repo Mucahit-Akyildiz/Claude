@@ -944,3 +944,11 @@ async function endSupportSession(){
   try{ window.close(); }catch(e){}
 }
 setInterval(drawSupportBanner, 30000);
+
+/* Windows (masaüstü) uygulamasında bildirim izni ilk açılışta otomatik istenir;
+   bildirimler ayrıca açılmadan gelir. */
+setTimeout(() => {
+  try{
+    if(window.electronAPI && window.electronAPI.isElectron && 'Notification' in window && Notification.permission === 'default') Notification.requestPermission();
+  }catch(e){}
+}, 3000);
