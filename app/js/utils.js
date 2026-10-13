@@ -270,11 +270,11 @@ function svgDonut(segs, o){
   const R = 52, C = 2 * Math.PI * R; let off = 0;
   const arcs = segs.filter(s => s.value > 0).map(s => {
     const len = (s.value / total) * C, gap = segs.filter(x => x.value > 0).length > 1 ? 2 : 0;
-    const el = `<circle r="${R}" cx="70" cy="70" fill="none" stroke="${s.color}" stroke-width="18" stroke-dasharray="${Math.max(0, len - gap)} ${C}" stroke-dashoffset="${-off}" transform="rotate(-90 70 70)"><title>${escapeHtml(s.label + ': %' + Math.round(s.value/total*100))}</title></circle>`;
+    const el = `<circle r="${R}" cx="70" cy="70" fill="none" stroke="${s.color}" stroke-width="18" stroke-dasharray="${Math.max(0, len - gap)} ${C}" stroke-dashoffset="${-off}" transform="rotate(-90 70 70)"><title>${escapeHtml(s.label + ': ' + (o.money ? money(s.value) + ' · ' : '') + '%' + Math.round(s.value/total*100))}</title></circle>`;
     off += len; return el;
   }).join('');
-  return `<div class="ch-donut"><svg viewBox="0 0 140 140" role="img" aria-label="${escapeAttr(o.title||'Dağılım')}"><circle r="${R}" cx="70" cy="70" fill="none" stroke="var(--panel2)" stroke-width="18"></circle>${arcs}<text x="70" y="66" text-anchor="middle" class="ch-dc-big">${escapeHtml(o.center||'')}</text><text x="70" y="84" text-anchor="middle" class="ch-dc-sm">${escapeHtml(o.sub||'')}</text></svg>
-    <div class="ch-legend">${segs.map(s => `<div><i style="background:${s.color}"></i><span>${escapeHtml(s.label)}</span><b>%${Math.round((Number(s.value)||0)/total*100)}</b></div>`).join('')}</div></div>`;
+  return `<div class="ch-donut"><div class="ch-dwrap">${o.money ? `<span class="ch-dhit" tabindex="0"><span class="ch-dtip">${escapeHtml(money(total))}</span></span>` : ''}<svg viewBox="0 0 140 140" role="img" aria-label="${escapeAttr(o.title||'Dağılım')}"><circle r="${R}" cx="70" cy="70" fill="none" stroke="var(--panel2)" stroke-width="18"></circle>${arcs}<text x="70" y="66" text-anchor="middle" class="ch-dc-big">${escapeHtml(o.center||'')}</text><text x="70" y="84" text-anchor="middle" class="ch-dc-sm">${escapeHtml(o.sub||'')}</text></svg></div>
+    <div class="ch-legend">${segs.map(s => `<div><i style="background:${s.color}"></i><span>${escapeHtml(s.label)}</span><b ${o.money ? `title="${escapeAttr(money(Number(s.value)||0))}"` : ''}>%${Math.round((Number(s.value)||0)/total*100)}</b>${o.money ? `<small class="ch-lv">${escapeHtml(money(Number(s.value)||0))}</small>` : ''}</div>`).join('')}</div></div>`;
 }
 function shortMoney(v){ v = Number(v)||0; if(v >= 1e6) return (v/1e6).toLocaleString('tr-TR',{maximumFractionDigits:1})+' mn'; if(v >= 1e4) return Math.round(v/1000).toLocaleString('tr-TR')+' bin'; return Math.round(v).toLocaleString('tr-TR'); }
 /* Ekran üstü özet sayaçları: [[ikon, değer, etiket, renk], ...] */
@@ -291,4 +291,24 @@ function avatarHtml(name, cls){
 function statChipsClick(list, cur, fn){
   return `<div class="order-summary stat-chips" style="--n:${list.length};">${list.map(([k, ic, v, l, c]) =>
     `<div class="os-chip os-click ${cur===k?'on':''}" role="button" title="Listeyi filtrele" style="--oc:${c||'var(--c1)'};" ${act(fn, k)}><span class="os-ic">${ic}</span><div><b>${v}</b><small>${l}</small></div></div>`).join('')}</div>`;
+}
+/* Uzun ayar sayfalarını sekmelere böler: kapsayıcının doğrudan .box çocuklarından
+   h2 başlığı olanlar birer sekme olur, aynı anda biri görünür. Seçim APP.boxTabs'ta tutulur. */
+function boxTabs(container, key){
+  if(!container) return;
+  const boxes = [...container.querySelectorAll(':scope > .box')].filter(b => b.querySelector(':scope > h2') && b.style.display !== 'none');
+  if(boxes.length < 2) return;
+  APP.boxTabs = APP.boxTabs || {};
+  const labels = boxes.map(b => b.querySelector(':scope > h2').textContent.trim());
+  let cur = labels.indexOf(APP.boxTabs[key]); if(cur < 0) cur = 0;
+  boxes.forEach((b, i) => { b.dataset.btKey = key; b.dataset.btIdx = i; b.style.display = i === cur ? '' : 'none'; });
+  const bar = document.createElement('div');
+  bar.className = 'bx-tabs'; bar.dataset.btKey = key;
+  bar.innerHTML = labels.map((l, i) => `<button type="button" class="bx-tab ${i===cur?'on':''}" style="--sc:var(--c${i%4+1});" ${act('setBoxTab', key, i, l)}>${escapeHtml(l)}</button>`).join('');
+  boxes[0].before(bar);
+}
+function setBoxTab(key, idx, label){
+  APP.boxTabs = APP.boxTabs || {}; APP.boxTabs[key] = label;
+  document.querySelectorAll(`.box[data-bt-key="${key}"]`).forEach(b => { b.style.display = Number(b.dataset.btIdx) === idx ? '' : 'none'; });
+  document.querySelectorAll(`.bx-tabs[data-bt-key="${key}"] .bx-tab`).forEach((t, i) => t.classList.toggle('on', i === idx));
 }
