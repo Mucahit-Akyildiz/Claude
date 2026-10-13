@@ -2455,21 +2455,25 @@ function renderSubscriptionPanel(lic){
   const statusText = expired
     ? 'Süreniz doldu — devam etmek için ödeme yapın.'
     : (daysLeft + ' gün kaldı (bitiş: ' + expires.toLocaleDateString('tr-TR') + ')');
+  const totalDays = 30, ring = Math.max(0, Math.min(1, daysLeft / totalDays)), C = 2*Math.PI*42;
+  const used = APP.config.users.length, max = lic.max_users || 1, up = Math.min(100, Math.round(used/max*100));
   return `
-    <div class="add-row-panel" style="border-color:${color};margin-bottom:16px;">
-      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
-        <div>
-          <div class="role-badge" style="margin-bottom:6px;">${escapeHtml(lic.package_id)} · ${APP.config.users.length}/${lic.max_users} kullanıcı</div>
-          <div style="color:${color};font-weight:700;font-size:13.5px;">${statusText}</div>
-        </div>
-        <div style="display:flex;align-items:center;gap:6px;">
-          <button id="renewBtn" disabled title="Kartla ödeme yakında açılacak" style="width:auto;padding:10px 18px;margin:0;opacity:.55;cursor:not-allowed;">💳 Kredi Kartı ile Öde</button>
-          <span class="role-badge" style="color:var(--accent);border-color:var(--accent);white-space:nowrap;">🔜 Yakında</span>
-        </div>
+    <div class="sub-hero" style="--hc:${color};">
+      <div class="sub-ring"><svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="42" class="trk"/><circle cx="50" cy="50" r="42" class="val" style="stroke-dasharray:${C};stroke-dashoffset:${C*(1-ring)};"/></svg>
+        <div><b>${expired ? '0' : daysLeft}</b><small>gün</small></div></div>
+      <div class="sub-info">
+        <small class="muted">Mevcut paket</small>
+        <h3>${escapeHtml(lic.package_id)}</h3>
+        <div class="sub-status">${expired ? '⛔ ' : soon ? '⚠️ ' : '✅ '}${statusText}</div>
+        <div class="sub-users"><div class="pcard-mbar"><i style="width:${up}%;background:${up>=90?'var(--c3)':'var(--c1)'};"></i></div><small>👥 ${used} / ${max} kullanıcı</small></div>
       </div>
-      <div class="error" id="renewErr" style="text-align:left;margin-top:8px;"></div>
-    </div>
-    ${billingCycleSelectorHtml()}`;
+      <div class="sub-cta">
+        ${billingCycleSelectorHtml()}
+        <button id="renewBtn" disabled title="Kartla ödeme yakında açılacak">💳 Kredi Kartı ile Öde</button>
+        <span class="sub-soon">🔜 Kart ile ödeme yakında</span>
+      </div>
+      <div class="error" id="renewErr" style="grid-column:1/-1;text-align:left;"></div>
+    </div>`;
 }
 /* Aylık/Yıllık seçimi - hem (ileride açılacak) kart ödemesini hem de
    havale bildirimini etkiler, bu yüzden abonelik panelinin en üstünde tek
@@ -2478,13 +2482,7 @@ function renderSubscriptionPanel(lic){
    12 katı (indirimsiz) sunucuda otomatik hesaplanır. */
 function billingCycleSelectorHtml(){
   const cycle = APP.billingCycle || 'monthly';
-  return `<div class="add-row-panel" style="margin-bottom:16px;">
-    <h3 style="margin:0 0 10px;">Ödeme Dönemi</h3>
-    <div style="display:flex;gap:8px;">
-      <button class="sbtn" style="width:auto;${cycle==='monthly'?'':'opacity:.55;'}" ${act('setBillingCycle', 'monthly')}>Aylık</button>
-      <button class="sbtn" style="width:auto;${cycle==='yearly'?'':'opacity:.55;'}" ${act('setBillingCycle', 'yearly')}>Yıllık</button>
-    </div>
-  </div>`;
+  return `<div class="seg sub-seg">${[['monthly','Aylık'],['yearly','Yıllık']].map(([k,l]) => `<button type="button" class="${cycle===k?'on':''}" ${act('setBillingCycle', k)}>${l}</button>`).join('')}</div>`;
 }
 function setBillingCycle(cycle){
   APP.billingCycle = cycle;
@@ -2537,8 +2535,10 @@ function renderBillingSettings(el, session){
   el.innerHTML = `<div class="box" style="max-width:none;">
     <h2>💳 Abonelik ve Ödemeler</h2>
     ${lic ? renderSubscriptionPanel(lic) : '<p class="muted">Abonelik bilgisi bulunamadı.</p>'}
-    <div id="billingIdentityBox">${renderBillingIdentityBox(lic)}</div>
-    <div id="billingAddressBox">${renderBillingAddressBox(lic)}</div>
+    <div class="bill-grid">
+      <div id="billingIdentityBox">${renderBillingIdentityBox(lic)}</div>
+      <div id="billingAddressBox">${renderBillingAddressBox(lic)}</div>
+    </div>
     <div id="bankTransferBox"><p class="muted">Yükleniyor…</p></div>
   </div>`;
   loadBankTransferStatus(session);
