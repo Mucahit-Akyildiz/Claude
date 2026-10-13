@@ -1408,10 +1408,11 @@ function celebrate(){
 }
 
 /* Sıralı yatay çubuk listesi (en çok satanlar tarzı): [{label, value, display, side, sub}] */
+const RACE_COLORS = ['#3b82f6','#f97316','#10b981','#eab308','#8b5cf6','#ec4899','#06b6d4','#ef4444','#84cc16','#6366f1','#14b8a6','#f59e0b'];
 function raceHtml(items){
   if(!items.length) return '<p class="muted">Veri yok.</p>';
   const max = Math.max(1, ...items.map(x => x.value));
-  return `<div class="race">${items.map((x, i) => `<div class="race-row" style="--i:${Math.min(i,15)};--sc:var(--c${i%4+1});">
+  return `<div class="race">${items.map((x, i) => `<div class="race-row" style="--i:${Math.min(i,15)};--sc:${RACE_COLORS[i%RACE_COLORS.length]};">
     <span class="race-rank ${i<3?'top':''}">${['🥇','🥈','🥉'][i] || (i+1)}</span>
     <div class="race-main"><div class="race-label"><b>${escapeHtml(x.label)}</b>${x.sub ? `<small>${escapeHtml(x.sub)}</small>` : ''}</div>
       <div class="race-track"><div class="race-bar" style="width:${Math.max(3, Math.round(x.value/max*100))}%;"><span>${escapeHtml(x.display)}</span></div></div></div>
