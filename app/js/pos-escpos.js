@@ -127,6 +127,9 @@ async function printKitchenTicketGrouped(tableName, items, silent, dailyNumber){
   // "Fişe gönderme" işaretli ürünler (Ayarlar → Ürünler → 🖨️ Fiş) yazdırılmaz.
   const noPrint = new Set(((APP.config && APP.config.products) || []).filter(p => p.print_ticket === false).map(p => p.id));
   items = (items || []).filter(it => !noPrint.has(it.product_id));
+  // İstasyonu olmayan ürünler (menüsü bir istasyona atanmamış) hiçbir istasyon yazıcısından
+  // çıkmaz. İşletmede hiç istasyon tanımlı değilse eskisi gibi bu ekranın yazıcısına basılır.
+  if(((APP.config && APP.config.stations) || []).length) items = items.filter(it => it.station_id);
   if(!items.length) return;
   items.forEach(it => {
     const key = it.station_id || '';
