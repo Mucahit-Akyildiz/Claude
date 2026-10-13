@@ -4,15 +4,15 @@
    sadece Yönetici'ye (is_manager) açık - bir role bu yetkiyi vermek
    mümkün değil (bkz. manager_upsert_role'un izin backend'i). */
 const SETTINGS_TABS = [
-  { tab:'stations', perm:'settings_stations', label:'Menüler & İstasyonlar' },
-  { tab:'zones', perm:'settings_zones', label:'Bölgeler & Masalar' },
-  { tab:'products', label:'Ürünler & Hammaddeler' }, // alt sekmeler: Ürünler, Hammaddeler
-  { tab:'flags', perm:'settings_flags', label:'Sipariş Etiketleri' },
-  { tab:'users', label:'Kullanıcılar & Vardiyalar' }, // alt sekmeler: Kullanıcılar, Aktif, Vardiyalar
-  { tab:'roles', perm:'settings_roles', label:'Roller' },
-  { tab:'integrations', perm:'settings_integrations', label:'Entegrasyonlar' },
-  { tab:'billing', label:'💳 Abonelik & Hediye Kartları' }, // alt sekmeler
-  { tab:'security', label:'🛡️ Güvenlik' }, // alt sekmeler: Destek Erişimi, Değişiklik Kaydı, Veri Sıfırlama
+  { tab:'stations', perm:'settings_stations', label:'Menüler & İstasyonlar', ico:'🍳', desc:'Menüler, mutfak istasyonları' },
+  { tab:'zones', perm:'settings_zones', label:'Bölgeler & Masalar', ico:'🪑', desc:'Salon, masa planı' },
+  { tab:'products', label:'Ürünler & Hammaddeler', ico:'🍔', desc:'Fiyat, reçete, stok' }, // alt sekmeler: Ürünler, Hammaddeler
+  { tab:'flags', perm:'settings_flags', label:'Sipariş Etiketleri', ico:'🏷️', desc:'Sipariş notu etiketleri' },
+  { tab:'users', label:'Kullanıcılar & Vardiyalar', ico:'👥', desc:'Personel, vardiya' }, // alt sekmeler: Kullanıcılar, Aktif, Vardiyalar
+  { tab:'roles', perm:'settings_roles', label:'Roller', ico:'🔑', desc:'Yetkiler' },
+  { tab:'integrations', perm:'settings_integrations', label:'Entegrasyonlar', ico:'🔌', desc:'Platformlar, yazıcılar' },
+  { tab:'billing', label:'Abonelik & Hediye Kartları', ico:'💳', desc:'Plan, fatura, kartlar' }, // alt sekmeler
+  { tab:'security', label:'Güvenlik', ico:'🛡️', desc:'Destek, kayıt, sıfırlama' }, // alt sekmeler: Destek Erişimi, Değişiklik Kaydı, Veri Sıfırlama
 ];
 function settingsTabVisible(t, session){
   if(t.feature && !hasFeature(t.feature)) return false;
@@ -33,10 +33,12 @@ async function renderSettingsView(main, session){
   const visibleTabs = SETTINGS_TABS.filter(t => settingsTabVisible(t, session));
   if(!visibleTabs.some(t => t.tab===APP.settingsTab)) APP.settingsTab = visibleTabs.length ? visibleTabs[0].tab : null;
   main.innerHTML = `<h1>Ayarlar</h1>
-    <div class="tabs settings-tabs">
-      ${visibleTabs.map(t => `<div class="tab ${APP.settingsTab===t.tab?'active':''}" data-tab="${t.tab}" ${act('setSettingsTab', t.tab)}>${t.label}</div>`).join('')}
-    </div>
-    <div id="settingsContent"></div>`;
+    <div class="set-layout">
+      <nav class="tabs settings-tabs set-nav">
+        ${visibleTabs.map((t, i) => `<div class="tab set-item ${APP.settingsTab===t.tab?'active':''}" data-tab="${t.tab}" style="--i:${i};--sc:var(--c${i%4+1});" ${act('setSettingsTab', t.tab)}><span class="set-ico">${t.ico||'⚙️'}</span><span class="set-txt"><b>${t.label}</b><small>${t.desc||''}</small></span></div>`).join('')}
+      </nav>
+      <div id="settingsContent" class="set-content"></div>
+    </div>`;
   applyNavBadges();
   renderSettingsContent(session);
 }
@@ -62,6 +64,8 @@ function filterListRows(key){
     const inp = tr.querySelector('input:not([type=checkbox])'); const name = (inp ? inp.value : tr.textContent).toLocaleLowerCase('tr');
     tr.style.display = !q || name.includes(q) ? '' : 'none';
   });
+  box.querySelectorAll('.pcard').forEach(c => { c.style.display = !q || (c.dataset.name||'').includes(q) ? '' : 'none'; });
+  box.querySelectorAll('.pcard-grid').forEach(g => { const d = g.closest('.prod-grp'); if(d) d.style.display = !q || [...g.children].some(c => c.style.display !== 'none') ? '' : 'none'; });
   box.querySelectorAll('.settings-table').forEach(t => {
     const grp = t.closest('.settings-table-wrap'); const wrap = grp && grp.parentElement !== box ? grp.parentElement : grp;
     if(!wrap) return;
@@ -1111,7 +1115,35 @@ function renderProductsSettings(el, session){
     const none = list.filter(p => !p.category);
     return order.map(c => { const l = list.filter(p => p.category === c); return sub(c, l.length) + rowsFor(l); }).join('') + (none.length ? sub('Alt menüsüz', none.length) + rowsFor(none) : '');
   };
-  const groupHtml = (title, colorDot, list, cats, menuId, stLabel) => list.length===0 ? '' : `
+  const cardsFor = (list) => list.map(p => {
+    const price = Number(p.price)||0, cost = Number(p.cost)||0, m = price>0 ? Math.round((price-cost)/price*100) : 0;
+    const rec = p.recipe && p.recipe.length>0, q = rec ? p.available_qty : p.stock, low = q!=null && q<=5;
+    const nx = productExtras(p.id).length;
+    return `<div class="pcard ${p.available===false?'off':''}" data-name="${escapeAttr(String(p.name||'').toLocaleLowerCase('tr'))}">
+      <div class="pcard-top"><input type="checkbox" class="prod-sel" value="${p.id}" ${actOn('change','updateProdSelection',[])}>
+        <b class="pcard-name">${escapeHtml(p.name)}</b>
+        <button type="button" class="prod-avail ${p.available===false?'off':'on'}" title="Tıklayınca ${p.available===false?'satışa açılır':'satışa kapanır'}" ${act('toggleProductAvailable', p.id)}><i></i>${p.available===false?'Kapalı':'Satışta'}</button></div>
+      <div class="pcard-price">${money(price)}</div>
+      <div class="pcard-margin" title="Kâr marjı"><div class="pcard-mbar"><i style="width:${Math.max(0,Math.min(100,m))}%;background:${m>=60?'var(--ok,#22c55e)':m>=35?'var(--c3)':'var(--danger,#ef4444)'};"></i></div><span>Maliyet ${money(cost)} · <b>%${m}</b> marj</span></div>
+      <div class="pcard-chips">
+        <span class="pchip ${low?'warn':''}">${rec ? '📋 '+(q==null?'?':q)+' porsiyon' : (q==null ? '∞ Stok sınırsız' : '📦 '+q+' stok')}</span>
+        ${p.category ? `<span class="pchip">${escapeHtml(p.category)}</span>` : ''}
+        ${p.print_ticket===false ? '<span class="pchip">🖨️ fiş yok</span>' : ''}
+        ${p.vat_rate!=null ? `<span class="pchip">KDV %${p.vat_rate}</span>` : ''}
+      </div>
+      <div class="pcard-acts">
+        <button type="button" class="pc-btn" ${act('openRecipeModal', p.id)}>📋 Reçete</button>
+        <button type="button" class="pc-btn" ${act('openExtrasModal', p.id)}>➕ Ekstra${nx ? ' ('+nx+')' : ''}</button>
+        ${hasFeature('multilang_menu') ? `<button type="button" class="pc-btn" ${act('openTranslationsModal', p.id)}>🌐</button>` : ''}
+        <button type="button" class="pc-btn pc-edit" ${act('editProductRow', p.id)}>✏️ Düzenle</button>
+      </div>
+    </div>`; }).join('');
+  const cardMode = APP.prodView !== 'table';
+  const groupHtml = (title, colorDot, list, cats, menuId, stLabel) => list.length===0 ? '' : cardMode ? `
+    <details class="prod-grp" open style="--g:${colorDot||'var(--muted)'};">
+      <summary><span class="prod-grp-dot"></span><b>${escapeHtml(title)}</b><span class="muted">${list.length} ürün${stLabel ? ' · 🍳 '+escapeHtml(stLabel) : ''}${list.some(p => p.available===false) ? ' · '+list.filter(p => p.available===false).length+' kapalı' : ''}</span><span style="flex:1;"></span>${menuId ? menuAvailBtn(menuId) : ''}</summary>
+      <div class="pcard-grid">${cardsFor(list)}</div>
+    </details>` : `
     <details class="prod-grp" open style="--g:${colorDot||'var(--muted)'};">
       <summary><span class="prod-grp-dot"></span><b>${escapeHtml(title)}</b><span class="muted">${list.length} ürün${stLabel ? ' · 🍳 '+escapeHtml(stLabel) : ''}${list.some(p => p.available===false) ? ' · '+list.filter(p => p.available===false).length+' kapalı' : ''}</span><span style="flex:1;"></span>${menuId ? menuAvailBtn(menuId) : ''}</summary>
       <div class="settings-table-wrap">
@@ -1124,8 +1156,20 @@ function renderProductsSettings(el, session){
 
   const unassigned = products.filter(p => !stations.some(s => s.id===p.station_id));
 
+  const sale = products.filter(p => p.available!==false).length;
+  const priced = products.filter(p => Number(p.price)>0);
+  const avgM = priced.length ? Math.round(priced.reduce((a,p) => a + (p.price-(p.cost||0))/p.price, 0)/priced.length*100) : 0;
+  const lowN = products.filter(p => { const q = p.recipe && p.recipe.length ? p.available_qty : p.stock; return q!=null && q<=5; }).length;
   el.innerHTML = `<div class="box" style="max-width:none;">
-    <h2>Ürünler</h2>
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;"><h2 style="margin:0;">Ürünler</h2><span style="flex:1;"></span>
+      <div class="seg">${[['cards','▦ Kart'],['table','☰ Tablo']].map(([k,l]) => `<button type="button" class="${(cardMode?'cards':'table')===k?'on':''}" ${act('setProdView', k)}>${l}</button>`).join('')}</div></div>
+    <div class="order-summary prod-summary" style="margin:12px 0 14px;">
+      <div class="os-chip" style="--oc:var(--c1);"><span class="os-ic">🍔</span><div><b>${products.length}</b><small>Ürün</small></div></div>
+      <div class="os-chip" style="--oc:var(--ok,#22c55e);"><span class="os-ic">✅</span><div><b>${sale}</b><small>Satışta</small></div></div>
+      <div class="os-chip" style="--oc:var(--danger,#ef4444);"><span class="os-ic">⛔</span><div><b>${products.length-sale}</b><small>Kapalı</small></div></div>
+      <div class="os-chip" style="--oc:var(--c2);"><span class="os-ic">📈</span><div><b>%${avgM}</b><small>Ort. marj</small></div></div>
+      <div class="os-chip" style="--oc:var(--c3);"><span class="os-ic">⚠️</span><div><b>${lowN}</b><small>Stok azalan</small></div></div>
+    </div>
     <details class="prod-info"><summary>ℹ️ Nasıl çalışır · Varsayılan KDV: %${APP.config.default_vat_rate ?? 10}</summary>
     <p class="muted" style="text-align:left;margin:-6px 0 12px;font-size:13px;"><b>Menü</b>: ürünün menüsü (menüleri ve hangi istasyona gideceklerini <b>Menüler & İstasyonlar</b> sekmesinde ayarlayın); ürünün istasyonu menüden gelir. <b>🖨️ Fiş</b> işareti kaldırılan ürünler mutfak fişine yazdırılmaz (ekranda yine görünür).</p>
     <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 10px;">
@@ -1202,6 +1246,13 @@ function markProdDirty(e){
   const tr = e.target.closest('tr[data-pid]'); if(!tr) return;
   tr.dataset.dirty = '1'; tr.style.boxShadow = 'inset 4px 0 0 var(--accent)';
   updateProdSelection();
+}
+function setProdView(v){ APP.prodView = v; renderSettingsContent(getSession()); }
+// Kart görünümünde "Düzenle": tablo görünümüne geçip ürünün satırını vurgular.
+function editProductRow(pid){
+  APP.prodView = 'table'; renderSettingsContent(getSession());
+  setTimeout(() => { const tr = document.querySelector('tr[data-pid="'+pid+'"]'); if(!tr) return;
+    tr.scrollIntoView({ block:'center', behavior:'smooth' }); tr.classList.add('row-flash'); const i = document.getElementById('pr_name_'+pid); if(i) i.focus({ preventScroll:true }); }, 60);
 }
 function selectedProductIds(){ return [...document.querySelectorAll('.prod-sel:checked')].map(b => b.value); }
 function selectProdGroup(box){
