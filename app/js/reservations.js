@@ -7,7 +7,7 @@ async function renderReservationsView(main, session){
   // güncellemesi) her zaman görünür.
   APP.reservationsCache = null;
   APP.waitlistCache = null;
-  main.innerHTML = `<h1>Rezervasyonlar</h1>
+  main.innerHTML = `<h1>Rezervasyonlar ve Bekleme Listesi</h1>
     <div class="tabs" id="resvTabs">
       <div class="tab ${(APP.resvTab||'reservations')==='reservations'?'active':''}" data-tab="reservations" ${act('setResvTab', 'reservations')}>Rezervasyonlar</div>
       <div class="tab ${APP.resvTab==='waitlist'?'active':''}" data-tab="waitlist" ${act('setResvTab', 'waitlist')}>Bekleme Listesi</div>

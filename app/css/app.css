@@ -1064,3 +1064,10 @@ tr.ing-out input[id^="ing_stock_"]{border-color:var(--red);color:var(--red);font
 .pp-extra small{color:var(--accent);font-weight:600;}
 .pp-extra b{background:var(--accent);color:var(--btn-ink);border-radius:999px;padding:0 7px;font-size:11.5px;}
 .pp-extra.on{border-color:var(--accent);}
+
+/* Sipariş penceresi: daha büyük, yatay kaydırma çubuğu yok */
+.order-modal{max-width:1360px;height:min(90vh,900px);}
+.order-modal-menu #prodPick{overflow-x:hidden;overflow-y:auto;padding:10px 10px 8px 0;}
+.order-modal-grid{grid-template-columns:minmax(0,1fr) 400px;}
+
+.kc-wl{display:inline-block;margin-top:4px;font-size:12px;font-weight:700;color:#a855f7;background:rgba(168,85,247,.12);border:1px solid rgba(168,85,247,.35);border-radius:8px;padding:2px 8px;}

@@ -114,7 +114,7 @@ const NAV_ITEMS = [
   { view:'order', icon:'🍽️', label:'Sipariş Al', perm:'order' },
   { view:'packages', icon:'📦', label:'Paket Servis', perm:'packages' },
   { view:'kitchen', icon:'🧑‍🍳', label:'Mutfak Ekranı', perm:'kitchen' },
-  { view:'reservations', icon:'📅', label:'Rezervasyonlar', perm:'reservations' },
+  { view:'reservations', icon:'📅', label:'Rezervasyonlar ve Bekleme Listesi', perm:'reservations' },
   { view:'crm', icon:'👥', label:'Müşteriler', perm:'crm' },
   { view:'purchasing', icon:'🚚', label:'Satınalma Siparişleri', perm:'purchasing' },
   { view:'printerSettings', icon:'🖨️', label:'Yazıcı Ayarları' },

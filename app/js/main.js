@@ -199,7 +199,9 @@ function applyTabBadges(){
   document.querySelectorAll('.tabs .tab[data-tab], .sub-tab[data-sub]').forEach(el => {
     const key = el.dataset.tab || el.dataset.sub;
     if(!(key in tabs)) return;
-    const want = el.classList.contains('active') ? 0 : tabs[key];
+    // Kullanıcılar & Vardiyalar üst sekmesi açıkken de sayı görünür; yalnızca Vardiyalar alt sekmesi açıksa gizlenir.
+    const active = key==='users' ? (el.classList.contains('active') && (APP.usersSubTab||'list')==='shifts') : el.classList.contains('active');
+    const want = active ? 0 : tabs[key];
     const cur = el.querySelector('.nav-badge');
     const curN = cur ? cur.textContent : '';
     const wantTxt = want > 0 ? (want > 99 ? '99+' : String(want)) : '';
