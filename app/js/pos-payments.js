@@ -161,12 +161,20 @@ function openPayModal(orderId){
       <h2>${escapeHtml(tableName)}</h2>
       <span class="pay-modal-close" ${act('removeEl','payModalBg')}>✕</span>
     </div>
+    <div class="pay-body">
+    <div class="pay-col-left">
     ${unpaidItems.length>1 ? `<div class="pay-select-all-row"><button class="pay-select-all-btn" ${act('toggleAllPayItems')}>Tümünü Seç/Kaldır</button></div>` : ''}
     <div class="pay-items-card" id="payItemsWrap">${itemsHtml}</div>
     <div class="pay-subtotal-row" id="paySubtotalLine"><span>Ara Toplam</span><span>${money(subtotal)}</span></div>
 
+    <div class="pay-opt-tabs">
+      <button type="button" class="pay-opt-tab" data-opt="disc" ${act('togglePayOpt','disc')}>🏷️ İndirim</button>
+      <button type="button" class="pay-opt-tab" data-opt="tip" ${act('togglePayOpt','tip')}>💸 Bahşiş</button>
+      <button type="button" class="pay-opt-tab" data-opt="cust" ${act('togglePayOpt','cust')}>🧑 Müşteri</button>
+      <button type="button" class="pay-opt-tab" data-opt="gift" ${act('togglePayOpt','gift')}>🎁 Hediye Kartı</button>
+    </div>
     <div class="pay-options-grid">
-      <div class="pay-option-card">
+      <div class="pay-option-card" data-opt="disc" hidden>
         <h4>🏷️ İndirim</h4>
         <div class="field-row">
           <input id="discValue" type="number" min="0" step="0.01" placeholder="0" style="flex:1;">
@@ -178,7 +186,7 @@ function openPayModal(orderId){
         </div>
         <p id="discInfo" class="hint">İndirim yok</p>
       </div>
-      <div class="pay-option-card">
+      <div class="pay-option-card" data-opt="tip" hidden>
         <h4>💸 Bahşiş</h4>
         <div class="pay-chip-row">
           <button type="button" class="pay-chip" ${act('applyTipPercent', 5)}>%5</button>
@@ -192,7 +200,7 @@ function openPayModal(orderId){
           <input id="cashReceivedInput" type="number" min="0" step="0.01" placeholder="örn. 5000" style="margin:0;" ${actOn('input','handleCashReceivedInput',['$value'])}>
         </div>
       </div>
-      <div class="pay-option-card">
+      <div class="pay-option-card" data-opt="cust" hidden>
         <h4>🧑 Müşteri</h4>
         <div class="field-row">
           <input id="payCustomerPhone" placeholder="Telefon ile ara" style="flex:1;">
@@ -203,7 +211,7 @@ function openPayModal(orderId){
           <input id="payRedeemPoints" type="number" min="0" step="1" placeholder="Kullanılacak puan" style="margin:0;" ${actOn('input','applyRedeemPoints',['$value'])}>
         </div>
       </div>
-      <div class="pay-option-card">
+      <div class="pay-option-card" data-opt="gift" hidden>
         <h4>🎁 Hediye Kartı</h4>
         <div class="field-row">
           <input id="payGiftCardCode" placeholder="Kart kodu" style="flex:1;text-transform:uppercase;">
@@ -220,13 +228,8 @@ function openPayModal(orderId){
       </div>
     </div>
 
-    <button type="button" class="ghost-btn" style="width:100%;margin:0 0 10px;" ${act('printPayReceipt')}>🧾 Kasa Fişi Yazdır (fiyatlı)</button>
-    <label class="pay-email-toggle ${APP.payWantsEmail?'on':''}">
-      <input type="checkbox" id="payEmailInvoice" ${APP.payWantsEmail?'checked':''} ${actOn('change','setPayWantsEmail',['$this'])}>
-      <span class="pet-icon">📧</span>
-      <span class="pet-text"><b>Hesabı e-postayla gönder</b><small>Ödemeden sonra müşterinin e-posta adresi sorulur</small></span>
-      <span class="pet-switch"></span>
-    </label>
+    </div>
+    <div class="pay-col-right">
     <div class="pay-total-banner">
       <span class="label">Ödenecek</span>
       <span class="amt" id="payFinalTotal">${money(subtotal)}</span>
@@ -240,6 +243,17 @@ function openPayModal(orderId){
       <button class="pay-method-btn split" ${act('openSplitPay')}>➗ Bölünmüş Ödeme</button>
     </div>
     <button type="button" class="pay-method-btn split" style="width:100%;margin-top:10px;" ${act('openOpenAccountTransfer')}>📒 Açık Hesaba At</button>
+    <div class="pay-extra-row">
+    <button type="button" class="ghost-btn" ${act('printPayReceipt')}>🧾 Kasa Fişi Yazdır (fiyatlı)</button>
+    <label class="pay-email-toggle ${APP.payWantsEmail?'on':''}">
+      <input type="checkbox" id="payEmailInvoice" ${APP.payWantsEmail?'checked':''} ${actOn('change','setPayWantsEmail',['$this'])}>
+      <span class="pet-icon">📧</span>
+      <span class="pet-text"><b>Hesabı e-postayla gönder</b><small>Ödemeden sonra müşterinin e-posta adresi sorulur</small></span>
+      <span class="pet-switch"></span>
+    </label>
+    </div>
+    </div>
+    </div>
   </div>`;
   document.body.appendChild(bg);
   autoSelectPayCustomer(order);
@@ -760,6 +774,13 @@ async function sendInvoiceEmail(historyId){
   const btn = document.getElementById('invSendBtn');
   btn.disabled = true; btn.textContent = 'Gönderiliyor...';
   const session = getSession();
+  if(!corp){
+    const { error } = await sb.rpc('email_receipt', { p_token: session.session_token, p_history_id: historyId, p_email: email });
+    if(error){ err.textContent = error.message; btn.disabled = false; btn.textContent = '📧 Gönder'; return; }
+    document.getElementById('invoiceEmailBg').remove();
+    showToast('📧 Fiş ' + email + ' adresine gönderildi');
+    return;
+  }
   const { data, error } = await sb.rpc('email_invoice', {
     p_token: session.session_token, p_history_id: historyId, p_email: email,
     p_buyer_name: v('invBuyerName'), p_buyer_tax_number: v('invBuyerTax'),
@@ -1521,6 +1542,16 @@ async function transferToOpenAccount(accountId, nameHint){
   if(typeof renderPayGrid === 'function') renderPayGrid();
 }
 
+/* Ödeme ekranındaki indirim/bahşiş/müşteri/hediye kartı panelleri sekme
+   düğmeleriyle açılıp kapanır; ekran sade kalır. */
+function togglePayOpt(key){
+  const card = document.querySelector('.pay-option-card[data-opt="'+key+'"]');
+  const tab = document.querySelector('.pay-opt-tab[data-opt="'+key+'"]');
+  if(!card) return;
+  card.hidden = !card.hidden;
+  if(tab) tab.classList.toggle('active', !card.hidden);
+  if(!card.hidden){ const inp = card.querySelector('input'); if(inp) inp.focus(); }
+}
 function setPayWantsEmail(el){ APP.payWantsEmail = el.checked; const w = el.closest('.pay-email-toggle'); if(w) w.classList.toggle('on', el.checked); }
 function toggleInvCorpFields(on){ document.getElementById('invCorpFields').style.display = on ? 'block' : 'none'; }
 function showGoogleReviewQrFromInvoice(){ removeEl('invoiceEmailBg'); showGoogleReviewQr(); }
