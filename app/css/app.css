@@ -1932,3 +1932,4 @@ input.sw:checked{background:var(--c1);} input.sw:checked::after{transform:transl
 #orderSummary{grid-template-columns:repeat(4,minmax(0,1fr));} .os-wait{--oc:#f59e0b;}
 @media (max-width:900px){#orderSummary{grid-template-columns:repeat(2,minmax(0,1fr));}}
 .tc.badge-row::before{display:none !important;content:none !important;} .tc.badge-row{animation:tcPulse 2.2s ease-in-out infinite;}
+[data-snap] *,[data-snap]{animation:none !important;transition:none !important;}

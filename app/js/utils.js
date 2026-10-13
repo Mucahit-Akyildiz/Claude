@@ -334,10 +334,12 @@ function countUpEl(el){
   const SEL = '.os-chip b, .fs-big, .fs-mid, .cu-pts b, .sub-ring b, .ig-stockv';
   const POLLED = '#orderSummary, #paySummary, .kb-stats';
   new MutationObserver(muts => {
+    // Sessiz yenilemede (eski ekranın kopyası gösterilirken) ve periyodik yenilemede sayılmaz.
+    if(typeof APP !== 'undefined' && APP.silentLoad) return;
     muts.forEach(mu => mu.addedNodes.forEach(n => {
       if(n.nodeType !== 1) return;
       const list = n.matches && n.matches(SEL) ? [n] : [...n.querySelectorAll(SEL)];
-      list.forEach(el => { if(document.body.classList.contains('anim-done') && el.closest(POLLED)) return; countUpEl(el); });
+      list.forEach(el => { if(el.closest('[data-snap]')) return; if(document.body.classList.contains('anim-done') && el.closest(POLLED)) return; countUpEl(el); });
     }));
   }).observe(document.documentElement, { childList: true, subtree: true });
 })();

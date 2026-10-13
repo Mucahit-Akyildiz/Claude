@@ -417,7 +417,7 @@ function softRerender(session, force){
   const ca = document.querySelector('.content-area'); const caTop = ca ? ca.scrollTop : 0;
   const snap = main.cloneNode(true);
   snap.removeAttribute('id'); snap.querySelectorAll('[id]').forEach(e => e.removeAttribute('id'));
-  snap.style.pointerEvents = 'none';
+  snap.style.pointerEvents = 'none'; snap.dataset.snap = '1';
   main.parentNode.insertBefore(snap, main);
   main.dataset.refreshing = '1'; main.style.display = 'none';
   APP.silentLoad = true;
