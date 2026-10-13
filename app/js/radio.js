@@ -382,13 +382,14 @@ function radioOnEnd(p){
   radioReportRecv();
 }
 /* Tanı kaydı (Admin Paneli > Hatalar, tür "radio"): ses gitmiyor / çalmıyor şikayetlerinde
-   hangi adımın bozulduğunu görmek için. Aynı durum tek satırda sayaçla toplanır. */
+   hangi adımın bozulduğunu görmek için. Başarılı (ok) durumlar kaydedilmez. Aynı durum tek satırda sayaçla toplanır. */
 function radioReportSend(lost){
   const d = RADIO.diag; RADIO.diag = null;
   if(!d || lost || typeof reportClientError !== 'function') return;
   const ctx = RADIO.ctx;
   const st = !d.frames ? 'FAIL mikrofon karesi yok' : !d.chunks ? 'FAIL parça gönderilmedi' : d.errs ? 'FAIL gönderim hatası ' + d.lastErr : 'ok';
   const lvl = d.peak < 0.01 ? 'sessiz' : d.peak < 0.05 ? 'düşük' : 'iyi';
+  if(st === 'ok') return; // yalnızca sorunlu gönderimler kaydedilir
   reportClientError('radio', RADIO_BUILD + ' gönder: ' + st + (d.frames ? ' ses=' + lvl : '') + (d.retried ? ' yeniden-kuruldu' : '') + ' | ctx=' + (RADIO.capCtx ? RADIO.capCtx.state + '/' + RADIO.capCtx.sampleRate : '-') + ' rt=' + (RADIO.status || 'bağlı'), 'radio.js');
 }
 function radioReportRecv(){
@@ -396,6 +397,7 @@ function radioReportRecv(){
   if(!r || typeof reportClientError !== 'function') return;
   const lvl = !r.played ? '' : (r.peak || 0) < 0.01 ? ' ses=sessiz' : (r.peak || 0) < 0.05 ? ' ses=düşük' : ' ses=iyi';
   const st = (RADIO.nativeAudio ? 'ok (Android yerel)' : r.played ? 'ok (web)' : 'FAIL alındı ama çalınmadı') + lvl;
+  if(st.startsWith('ok')) return; // yalnızca sorunlu alımlar kaydedilir
   reportClientError('radio', RADIO_BUILD + ' al: ' + st + ' | ctx=' + (RADIO.ctx ? RADIO.ctx.state : '-') + ' görünür=' + document.visibilityState, 'radio.js');
 }
 function radioBeep(freq, dur){
