@@ -1710,16 +1710,18 @@ function renderActiveUsersSettings(el){
   if(ACTIVE_USERS_TIMER) clearInterval(ACTIVE_USERS_TIMER);
   ACTIVE_USERS_TIMER = setInterval(() => {
     if(APP.view!=='settings' || APP.settingsTab!=='users' || !document.getElementById('activeUsersBody')){ clearInterval(ACTIVE_USERS_TIMER); ACTIVE_USERS_TIMER = null; return; }
-    loadActiveUsers();
+    loadActiveUsers(true);
   }, 20000);
 }
-async function loadActiveUsers(){
+async function loadActiveUsers(quiet){
   const session = getSession(); const body = document.getElementById('activeUsersBody');
   if(!session || !body) return;
   const { data, error } = await sb.rpc('list_active_staff', { p_token: session.session_token, p_minutes: APP.activeUsersMinutes || 5 });
   if(error){ body.innerHTML = '<p class="muted">Yüklenemedi: '+escapeHtml(error.message)+'</p>'; return; }
   const rows = data.rows || [];
   const full = data.max_users && data.total_users >= data.max_users;
+  // Otomatik yenilemede giriş animasyonları/sayaçlar tekrar oynamasın.
+  if(quiet){ body.dataset.snap = '1'; APP.silentLoad = true; } else delete body.dataset.snap;
   body.innerHTML = statChips([['🟢', data.active_users, 'Aktif kullanıcı', 'var(--ok,#22c55e)'], ['🧑‍🍳', data.on_shift, 'Vardiyada', 'var(--c1)'],
       ['📅', data.today_users, 'Bugün giren', 'var(--c2)'], ['🎫', (data.total_users ?? '—') + ' / ' + (data.max_users ?? '—'), data.max_users ? 'Lisans · ' + Math.max(0, data.max_users - data.total_users) + ' boş yer' + (data.total_users - data.enabled_users ? ' · ' + (data.total_users - data.enabled_users) + ' pasif' : '') : 'Kullanıcı / lisans', full ? 'var(--danger,#ef4444)' : 'var(--c3)']]) + `
     ${!rows.length ? '<div class="empty-state"><div style="font-size:42px;">😴</div><p class="muted">Bu sürede aktif kullanıcı yok.</p></div>' : `<div class="au-grid">${rows.map((r, i) => {
@@ -1734,6 +1736,7 @@ async function loadActiveUsers(){
         </div>
         ${r.on_shift ? `<div class="au-shift ${r.shift_paused?'paused':''}">${r.shift_paused ? '⏸ Vardiya durdu' : '🟢 Vardiyada'}${r.shift_minutes != null ? ' · '+formatShiftDuration(r.shift_minutes) : ''}</div>` : '<div class="au-shift none">Vardiyada değil</div>'}
       </div>`; }).join('')}</div>`}`;
+  if(quiet) setTimeout(() => { APP.silentLoad = false; }, 0);
 }
 
 /* --- Veri Sıfırlama (yalnızca Yönetici): seçilen tarih aralığındaki işlem
