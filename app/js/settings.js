@@ -559,61 +559,65 @@ function pickStationIcon(targetId, icon){
   if(bg) bg.remove();
 }
 function renderStationsSettings(el, session){
-  const menus = APP.config.menus || [];
-  const stName = (id) => ((APP.config.stations||[]).find(x => x.id === id) || {}).name || '';
+  const menus = APP.config.menus || [], stations = APP.config.stations || [];
   const prodCount = (mid) => (APP.config.products||[]).filter(p => p.menu_id === mid).length;
-  const menuBox = `<div class="box" style="max-width:none;">
-    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:6px;">
-      <h2 style="margin:0;">📋 Menüler</h2><span class="muted" style="font-size:12px;">${menus.length} menü</span>
-    </div>
-    <p class="muted" style="text-align:left;margin:0 0 12px;font-size:13px;">Önce menülerinizi oluşturun (Çorbalar, Izgaralar, İçecekler…). Ürünler menüye bağlanır; aşağıda her istasyona hangi menülerin gideceğini seçersiniz. Bir menünün ürünleri, bağlı olduğu istasyonun ekranına ve yazıcısına düşer.</p>
-    <div style="display:flex;flex-direction:column;gap:8px;">
-      ${menus.map((m, i) => `<div style="display:flex;align-items:center;gap:8px;background:var(--panel2);border:1px solid var(--border);border-radius:12px;padding:8px 10px;flex-wrap:wrap;">
-        <div style="display:flex;flex-direction:column;gap:2px;">
-          <button type="button" class="ghost-btn" style="width:28px;height:20px;padding:0;margin:0;font-size:11px;" ${i===0?'disabled':''} title="Yukarı" ${act('moveMenu', m.id, -1)}>▲</button>
-          <button type="button" class="ghost-btn" style="width:28px;height:20px;padding:0;margin:0;font-size:11px;" ${i===menus.length-1?'disabled':''} title="Aşağı" ${act('moveMenu', m.id, 1)}>▼</button>
-        </div>
-        <input value="${escapeAttr(m.name)}" id="menu_name_${m.id}" style="flex:1;min-width:140px;margin:0;font-weight:700;">
-        <span class="muted" style="font-size:12px;white-space:nowrap;">${prodCount(m.id)} ürün · ${m.station_id ? '🍳 ' + escapeHtml(stName(m.station_id)) : '<span style="color:var(--red);">istasyon seçilmedi</span>'}</span>
+  const menuCard = (m) => { const i = menus.indexOf(m);
+    return `<div class="mn-card">
+      <div class="mn-row">
+        <div class="mn-ord"><button type="button" ${i===0?'disabled':''} title="Yukarı" ${act('moveMenu', m.id, -1)}>▲</button><button type="button" ${i===menus.length-1?'disabled':''} title="Aşağı" ${act('moveMenu', m.id, 1)}>▼</button></div>
+        <input class="mn-name" value="${escapeAttr(m.name)}" id="menu_name_${m.id}" title="Adı değiştirip Enter'a basın" ${actOn('keydown','onEnterCall',['$event','saveMenu', m.id])}>
+        <button type="button" class="ico-btn" title="Adı kaydet" ${act('saveMenu', m.id)}>💾</button>
+        <button type="button" class="ico-btn danger" title="Menüyü sil" ${act('removeMenu', m.id)}>🗑</button>
+      </div>
+      <div class="mn-row mn-foot">
+        <span class="pchip">🍽️ ${prodCount(m.id)} ürün</span>
+        <select class="mn-move" title="Bu menünün gideceği istasyon" ${actOn('change','moveMenuToStation',[m.id,'$value'])}>
+          <option value="">— İstasyon yok —</option>${stations.map(x => `<option value="${x.id}" ${x.id===m.station_id?'selected':''}>${escapeHtml(x.icon||'🍳')} ${escapeHtml(x.name)}</option>`).join('')}
+        </select>
         ${menuAvailBtn(m.id)}
-        ${actBtn('save', 'saveMenu', m.id)}
-        ${actBtn('delete', 'removeMenu', m.id)}
-      </div>`).join('')}
-      <div style="display:flex;align-items:center;gap:8px;border:1.5px dashed var(--border);border-radius:12px;padding:8px 10px;">
-        <input id="newMenuName" placeholder="Yeni menü adı (örn. Çorbalar)" style="flex:1;margin:0;" ${actOn('keydown','newMenuKey',['$event'])}>
-        <button style="width:auto;margin:0;padding:0 18px;height:38px;" ${act('addMenu')}>+ Menü Ekle</button>
       </div>
-    </div>
-  </div>`;
-  const rowHtml = (s) => `
-    <div style="display:flex;align-items:center;gap:12px;background:var(--panel2);border:1px solid var(--border);border-radius:12px;padding:10px 12px;flex-wrap:wrap;">
-      ${stationIconPickerHtml('st_icon_'+s.id, s.icon||'🍳', `border-radius:50%;background:${s.color}26;border-color:${s.color};`)}
-      <input value="${escapeAttr(s.name)}" id="st_name_${s.id}" placeholder="İstasyon adı" style="flex:1;min-width:120px;margin:0;font-weight:700;">
-      <input type="color" value="${s.color}" id="st_color_${s.id}" title="Renk" style="padding:2px;height:38px;width:42px;flex-shrink:0;margin:0;">
-      ${actBtn('save', 'saveStation', s.id)}
-      ${actBtn('delete', 'removeStation', s.id)}
-      <div style="flex-basis:100%;display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding-left:2px;">
-        <span class="muted" style="font-size:12px;font-weight:700;margin-right:2px;">Menüler:</span>
-        ${menus.length ? menus.map(m => { const on = m.station_id === s.id; const other = !on && m.station_id ? stName(m.station_id) : '';
-          return `<button type="button" class="menu-chip ${on?'on':''}" title="${on ? 'Bu istasyondan çıkar' : other ? other + ' istasyonundan bu istasyona taşı' : 'Bu istasyona ekle'}" ${act('toggleStationMenu', s.id, m.id)}>${on ? '✓ ' : '+ '}${escapeHtml(m.name)}${other ? ` <small>(${escapeHtml(other)})</small>` : ''}</button>`; }).join('') : '<span class="muted" style="font-size:12px;">Önce yukarıdan menü ekleyin.</span>'}
+    </div>`; };
+  const col = (s) => { const list = menus.filter(m => m.station_id === s.id);
+    return `<div class="st-col" style="--sc:${s.color||'var(--c1)'};">
+      <div class="st-col-head">
+        ${stationIconPickerHtml('st_icon_'+s.id, s.icon||'🍳', '')}
+        <input class="st-col-name" value="${escapeAttr(s.name)}" id="st_name_${s.id}" placeholder="İstasyon adı" ${actOn('keydown','onEnterCall',['$event','saveStation', s.id])}>
+        <input type="color" class="st-col-color" value="${s.color}" id="st_color_${s.id}" title="Renk">
+        <button type="button" class="ico-btn" title="Kaydet" ${act('saveStation', s.id)}>💾</button>
+        <button type="button" class="ico-btn danger" title="İstasyonu sil" ${act('removeStation', s.id)}>🗑</button>
       </div>
+      <div class="st-col-sub">${list.length} menü · ${(APP.config.products||[]).filter(p => p.station_id===s.id).length} ürün</div>
+      <div class="st-col-body">${list.map(menuCard).join('') || '<div class="st-empty">Bu istasyona menü bağlı değil.<br>Bir menünün altındaki seçimden buraya taşıyın.</div>'}</div>
       ${stationKitchenProductsHtml(s)}
-    </div>`;
-  el.innerHTML = menuBox + `<div class="box" style="max-width:none;">
-    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:14px;">
-      <h2 style="margin:0;">Mutfak İstasyonları</h2>
-      <span class="muted" style="font-size:12px;">${APP.config.stations.length} istasyon</span>
-    </div>
-    <div style="display:flex;flex-direction:column;gap:10px;">
-      ${APP.config.stations.map(rowHtml).join('')}
-      <div style="display:flex;align-items:center;gap:12px;background:transparent;border:1.5px dashed var(--border);border-radius:12px;padding:10px 12px;flex-wrap:wrap;">
-        ${stationIconPickerHtml('newStIcon','🍳', 'border-radius:50%;')}
-        <input id="newStName" placeholder="Yeni istasyon adı (örn. Fırın)" style="flex:1;min-width:160px;margin:0;">
-        <input type="color" id="newStColor" value="#b6a48d" title="Renk" style="padding:2px;height:38px;width:42px;flex-shrink:0;margin:0;">
-        <button style="width:auto;margin:0;padding:0 18px;height:38px;" ${act('addStation')}>+ Ekle</button>
+    </div>`; };
+  const free = menus.filter(m => !m.station_id || !stations.some(x => x.id === m.station_id));
+  el.innerHTML = statChips([['📋', menus.length, 'Menü', 'var(--c1)'], ['🍳', stations.length, 'İstasyon', 'var(--c2)'],
+      ['🍽️', (APP.config.products||[]).length, 'Ürün', 'var(--c3)'], ['⚠️', free.length, 'İstasyonsuz menü', free.length ? 'var(--danger,#ef4444)' : 'var(--c4)']]) +
+    `<div class="box" style="max-width:none;">
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;"><h2 style="margin:0;">Menüler & İstasyonlar</h2></div>
+    <p class="muted" style="text-align:left;margin:6px 0 14px;font-size:13px;">Her sütun bir mutfak istasyonu. İçindeki menülerin ürünleri o istasyonun ekranına ve yazıcısına düşer. Menüyü başka istasyona taşımak için kartındaki seçimi değiştirin.</p>
+    <div class="st-board">
+      <div class="st-col st-free" style="--sc:#94a3b8;">
+        <div class="st-col-head"><span class="st-free-ic">📋</span><b class="st-col-title">İstasyonsuz menüler</b></div>
+        <div class="st-col-sub">${free.length ? 'Bu menülerin ürünleri hiçbir istasyona düşmez' : 'Tüm menüler bir istasyona bağlı ✓'}</div>
+        <div class="st-col-body">${free.map(menuCard).join('')}</div>
+        <div class="st-add"><input id="newMenuName" placeholder="Yeni menü (örn. Çorbalar)" ${actOn('keydown','newMenuKey',['$event'])}><button type="button" ${act('addMenu')}>+ Menü</button></div>
+      </div>
+      ${stations.map(col).join('')}
+      <div class="st-col st-new">
+        <div class="st-col-head">${stationIconPickerHtml('newStIcon','🍳', '')}<b class="st-col-title">Yeni istasyon</b></div>
+        <div class="st-add" style="flex-direction:column;align-items:stretch;">
+          <input id="newStName" placeholder="İstasyon adı (örn. Fırın)" ${actOn('keydown','onEnterCall',['$event','addStation'])}>
+          <div style="display:flex;gap:8px;"><input type="color" id="newStColor" value="#b6a48d" title="Renk" class="st-col-color"><button type="button" style="flex:1;" ${act('addStation')}>+ İstasyon Ekle</button></div>
+        </div>
       </div>
     </div>
   </div>`;
+}
+function moveMenuToStation(menuId, stationId){
+  const m = (APP.config.menus || []).find(x => x.id === menuId); if(!m) return;
+  if(!stationId){ if(m.station_id) toggleStationMenu(m.station_id, menuId); return; }
+  if(m.station_id !== stationId) toggleStationMenu(stationId, menuId);
 }
 /* İstasyon kartında: seçili menülerin ürünleri istasyona (mutfak ekranı + fiş) düşsün mü?
    İşaretsiz ürün siparişte doğrudan "hazır" olur (bkz. products.kitchen_skip). */
@@ -778,40 +782,50 @@ function setZonesSubTab(t){
 }
 function renderZonesSettings(el, session){
   const natural = (a, b) => String(a.name).localeCompare(String(b.name), 'tr', { numeric:true, sensitivity:'base' });
-  el.innerHTML = `<div class="box" style="max-width:none;">
-    <h2>Bölgeler ve Masalar</h2>
-    <p class="muted" style="text-align:left;margin:-6px 0 12px;font-size:13px;">Masalar sırayla listelenir. Masa adına tıklayarak yeniden adlandırabilir, ▦ ile QR kodunu açabilirsiniz. Toplu eklemek için <b>Masa 1-10</b> gibi yazın.</p>
-    <div style="display:flex;gap:8px;flex-wrap:wrap;margin:0 0 14px;">
-      <button type="button" class="ghost-btn" style="width:auto;margin:0;" ${act('showAllTableQrs')}>▦ Tüm QR Kodlarını Göster / Yazdır</button>
-      <button type="button" class="ghost-btn" style="width:auto;margin:0;" ${act('downloadAllTableQrs')}>⬇ Tüm QR Kodlarını İndir</button>
+  const zones = APP.config.zones || [];
+  if(!zones.some(z => z.id === APP.zoneSel)) APP.zoneSel = zones.length ? zones[0].id : null;
+  const z = zones.find(x => x.id === APP.zoneSel);
+  const total = zones.reduce((x, q) => x + q.tables.length, 0);
+  el.innerHTML = statChips([['📍', zones.length, 'Bölge', 'var(--c1)'], ['🪑', total, 'Toplam masa', 'var(--c2)'],
+      ['▦', zones.reduce((x, q) => x + q.tables.filter(t => t.qr_token).length, 0), 'QR kodlu masa', 'var(--c3)']]) +
+    `<div class="box" style="max-width:none;">
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:14px;">
+      <h2 style="margin:0;">Bölgeler & Masalar</h2><span style="flex:1;"></span>
+      <button type="button" class="pc-btn" ${act('showAllTableQrs')}>▦ Tüm QR'ları Yazdır</button>
+      <button type="button" class="pc-btn" ${act('downloadAllTableQrs')}>⬇ Tüm QR'ları İndir</button>
     </div>
-    ${APP.config.zones.map(z => `
-      <div class="zone-card">
-        <div class="zone-head">
-          <span class="zone-ic">📍</span>
-          <input value="${escapeAttr(z.name)}" id="zn_name_${z.id}" class="zone-name" ${actOn('keydown','onEnterCall',['$event','saveZone', z.id])}>
-          <span class="zone-count">${z.tables.length} masa</span>
-          <button type="button" class="act-btn act-save" ${act('saveZone', z.id)}>${ICON_SAVE}<span>Kaydet</span></button>
-          <button type="button" class="act-btn act-delete" ${act('removeZone', z.id)}>${ICON_TRASH}<span>Sil</span></button>
-        </div>
-        <div class="zone-tables">
-          ${z.tables.slice().sort(natural).map(t => `<div class="zone-table">
-            <span class="zt-name" title="Yeniden adlandır" ${act('renameTable', t.id, z.id, t.name)}>${escapeHtml(t.name)}</span>
-            <button type="button" class="zt-btn" title="QR Menü Kodu" ${act('showTableQr', t.id, t.qr_token)}>▦</button>
-            <button type="button" class="zt-btn zt-del" title="Sil" ${act('removeTable', t.id)}>✕</button>
-          </div>`).join('') || '<span class="muted" style="font-size:13px;">Bu bölgede henüz masa yok.</span>'}
-        </div>
-        <div class="zone-add">
-          <input id="newTable_${z.id}" placeholder="Yeni masa adı (örn. Masa 11 ya da Masa 1-10)" ${actOn('keydown','onEnterCall',['$event','addTable', z.id])}>
-          <button type="button" ${act('addTable', z.id)}>+ Masa</button>
-        </div>
-      </div>`).join('')}
-    <div class="zone-add zone-add-new">
-      <input id="newZoneName" placeholder="Yeni bölge adı (örn. Teras)" ${actOn('keydown','onEnterCall',['$event','addZone'])}>
-      <button type="button" ${act('addZone')}>+ Bölge Ekle</button>
+    <div class="zn-layout">
+      <div class="zn-list">
+        ${zones.map((q, i) => `<button type="button" class="zn-item ${q.id===APP.zoneSel?'on':''}" style="--zc:var(--c${i%4+1});" ${act('selectZoneSetting', q.id)}>
+          <span class="zn-dot">📍</span><span class="zn-txt"><b>${escapeHtml(q.name)}</b><small>${q.tables.length} masa</small></span></button>`).join('')}
+        <div class="zn-new"><input id="newZoneName" placeholder="Yeni bölge (örn. Teras)" ${actOn('keydown','onEnterCall',['$event','addZone'])}><button type="button" ${act('addZone')}>+</button></div>
+      </div>
+      <div class="zn-panel">
+        ${z ? `<div class="zn-head">
+            <input value="${escapeAttr(z.name)}" id="zn_name_${z.id}" class="zn-title" title="Adı değiştirip Enter'a basın" ${actOn('keydown','onEnterCall',['$event','saveZone', z.id])}>
+            <button type="button" class="ico-btn" title="Bölge adını kaydet" ${act('saveZone', z.id)}>💾</button>
+            <button type="button" class="ico-btn danger" title="Bölgeyi sil" ${act('removeZone', z.id)}>🗑</button>
+          </div>
+          <div class="zn-tiles">
+            ${z.tables.slice().sort(natural).map((t, i) => `<div class="zn-tile" style="--i:${Math.min(i,20)};">
+              <button type="button" class="zn-tname" title="Yeniden adlandır" ${act('renameTable', t.id, z.id, t.name)}>${escapeHtml(t.name)}</button>
+              <div class="zn-tacts">
+                <button type="button" title="QR Menü Kodu" ${act('showTableQr', t.id, t.qr_token)}>▦ QR</button>
+                <button type="button" class="danger" title="Masayı sil" ${act('removeTable', t.id)}>✕</button>
+              </div>
+            </div>`).join('')}
+            <div class="zn-tile zn-addtile">
+              <input id="newTable_${z.id}" placeholder="Masa 21 ya da Masa 1-10" ${actOn('keydown','onEnterCall',['$event','addTable', z.id])}>
+              <button type="button" ${act('addTable', z.id)}>+ Masa Ekle</button>
+            </div>
+          </div>
+          <p class="muted" style="font-size:12px;margin:12px 0 0;text-align:left;">İpucu: Masa adına tıklayıp yeniden adlandırabilirsiniz. Toplu eklemek için <b>Masa 1-10</b> yazın.</p>`
+        : '<div class="empty-state"><div style="font-size:42px;">📍</div><p class="muted">Soldan ilk bölgenizi ekleyin (örn. Salon, Bahçe).</p></div>'}
+      </div>
     </div>
   </div>`;
 }
+function selectZoneSetting(id){ APP.zoneSel = id; renderSettingsContent(getSession()); }
 async function renameTable(id, zoneId, current){
   const name = (prompt('Masa adı:', current) || '').trim();
   if(!name || name===current) return;
