@@ -6,7 +6,10 @@ async function renderCrmView(main, session){
   const rows = error ? [] : (data||[]);
   APP.crmRows = rows;
   const loyalty = APP.config.loyalty || { enabled:false, spend_per_point:10, point_value:1, birthday_discount_percent:0 };
+  const bdays = rows.filter(c => { const b = crmBirthdayInfo(c.birthday); return b && b.days <= 30; }).length;
   main.innerHTML = `<h1>Müşteriler</h1>
+    ${statChips([['👥', rows.length, APP.crmSearch ? 'Aramada bulunan' : 'Kayıtlı müşteri', 'var(--c1)'], ['⭐', rows.reduce((x, c) => x + (Number(c.points_balance)||0), 0), 'Toplam puan', 'var(--c3)'],
+      ['🎂', bdays, '30 gün içinde doğum günü', 'var(--c2)'], ['💎', rows.filter(c => (Number(c.points_balance)||0) >= 200).length, 'Altın ve üstü müşteri', 'var(--c4)']])}
     ${canManage(session, 'crm') ? `
     <div class="box" style="max-width:none;">
       <h2>Sadakat Programı</h2>
@@ -31,24 +34,20 @@ async function renderCrmView(main, session){
         </div>
       </div>
       <p class="muted" style="font-size:12px;margin:6px 0 10px;text-align:left;">Harcama/ziyaret/doğum günü gibi detaylı analizler için <b>Finansal Analiz &gt; Müşteri Analizleri</b> sekmesine bakın.</p>
-      <div class="settings-table-wrap">
-      <table class="settings-table">
-        <thead><tr><th>Ad</th><th>Telefon</th><th>Puan</th><th></th></tr></thead>
-        <tbody>
-        ${rows.map(c => `
-          <tr>
-            <td class="col-name">${escapeHtml(c.name)}${(c.spend_per_point!=null || c.point_value!=null || c.birthday_discount_percent!=null) ? ` <span class="role-badge" style="color:var(--accent);border-color:var(--accent);font-size:10.5px;" title="${escapeAttr(customerLoyaltySummary(c))}">⭐ Özel sadakat</span>` : ''}</td>
-            <td>${escapeHtml(c.phone||'-')}</td>
-            <td>${c.points_balance}</td>
-            <td>
-              <button class="sbtn" ${act('editCustomer', c.id)}>Düzenle</button>
-              <button type="button" class="act-btn act-delete" ${act('removeCustomer', c.id)}>${ICON_TRASH}<span>Sil</span></button>
-            </td>
-          </tr>`).join('')}
-        ${rows.length===0?'<tr><td colspan="4" class="muted" style="text-align:center;">Müşteri yok.</td></tr>':''}
-        </tbody>
-      </table>
-      </div>
+      ${rows.length ? `<div class="cu-grid">${rows.map((c, i) => { const bd = crmBirthdayInfo(c.birthday), custom = (c.spend_per_point!=null || c.point_value!=null || c.birthday_discount_percent!=null);
+        const pts = Number(c.points_balance)||0, tier = pts>=500 ? ['💎','Elmas','var(--c2)'] : pts>=200 ? ['🥇','Altın','var(--c3)'] : pts>=50 ? ['🥈','Gümüş','var(--c1)'] : ['🌱','Yeni','#94a3b8'];
+        return `<div class="cu-card" style="--i:${Math.min(i,12)};--tc:${tier[2]};">
+          <div class="cu-top">${avatarHtml(c.name)}<div class="cu-id"><b>${escapeHtml(c.name)}</b><small>${c.phone ? '📞 '+escapeHtml(c.phone) : 'telefon yok'}</small></div><span class="cu-tier">${tier[0]} ${tier[1]}</span></div>
+          <div class="cu-pts"><b>${pts}</b><span>puan</span>${loyalty.enabled && loyalty.point_value ? `<small>≈ ${money(pts * Number(c.point_value ?? loyalty.point_value))} indirim</small>` : ''}</div>
+          <div class="pcard-chips">
+            ${c.email ? `<span class="pchip" title="${escapeAttr(c.email)}">✉️ ${escapeHtml(c.email)}</span>` : ''}
+            ${bd ? `<span class="pchip ${bd.soon?'warn':''}">🎂 ${bd.text}</span>` : ''}
+            ${custom ? `<span class="pchip" title="${escapeAttr(customerLoyaltySummary(c))}">⭐ Özel sadakat</span>` : ''}
+          </div>
+          ${c.notes ? `<div class="rv-note">📝 ${escapeHtml(c.notes)}</div>` : ''}
+          <div class="pcard-acts"><button type="button" class="pc-btn pc-edit" style="margin-left:0;" ${act('editCustomer', c.id)}>✏️ Düzenle</button><button type="button" class="pc-btn rv-del" style="margin-left:auto;" ${act('removeCustomer', c.id)}>🗑 Sil</button></div>
+        </div>`; }).join('')}</div>`
+        : '<div class="empty-state"><div style="font-size:42px;">👥</div><p class="muted">Müşteri yok.</p></div>'}
       <div class="add-row-panel">
         <p id="crmFormTitle">Yeni Müşteri Ekle</p>
         <input type="hidden" id="crm_edit_id">
@@ -70,6 +69,12 @@ async function renderCrmView(main, session){
         </details>
       </div>
     </div>`;
+}
+function crmBirthdayInfo(b){
+  if(!b) return null; const d = new Date(b+'T00:00'); if(isNaN(d)) return null;
+  const now = new Date(), t = new Date(now.getFullYear(), now.getMonth(), now.getDate()); let n = new Date(t.getFullYear(), d.getMonth(), d.getDate()); if(n < t) n.setFullYear(n.getFullYear()+1);
+  const days = Math.round((n - t)/86400000);
+  return { days, soon: days <= 7, text: days===0 ? 'Bugün doğum günü!' : days<=30 ? days+' gün sonra' : d.toLocaleDateString('tr-TR',{day:'numeric',month:'long'}) };
 }
 function customerLoyaltySummary(c){
   const parts = [];

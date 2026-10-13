@@ -1353,3 +1353,14 @@ body.anim-done .tc.tc-ready{animation:tcPulse 2.2s ease-in-out infinite !importa
 .os-click.on{border-color:var(--oc);box-shadow:0 0 0 2px color-mix(in srgb,var(--oc) 35%,transparent),0 8px 22px color-mix(in srgb,var(--oc) 25%,transparent);}
 .pf-note{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:-4px 0 12px;padding:9px 12px;border-radius:12px;background:var(--panel2);font-size:13px;}
 .pf-note .pc-btn{margin-left:auto;}
+
+/* ===== Müşteri kartları ===== */
+.cu-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px;margin:6px 0 14px;}
+.cu-card{display:flex;flex-direction:column;gap:10px;padding:14px;border-radius:18px;background:var(--panel);border:1px solid var(--border);box-shadow:inset 0 3px 0 var(--tc);animation:osIn .35s ease both;animation-delay:calc(var(--i)*.03s);transition:transform .15s;}
+.cu-card:hover{transform:translateY(-2px);}
+.cu-top{display:flex;align-items:center;gap:10px;min-width:0;}
+.cu-id{flex:1;min-width:0;display:flex;flex-direction:column;} .cu-id b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:15px;} .cu-id small{color:var(--muted);font-size:12px;}
+.cu-tier{font-size:11.5px;font-weight:700;padding:3px 9px;border-radius:999px;background:color-mix(in srgb,var(--tc) 20%,transparent);white-space:nowrap;}
+.cu-pts{display:flex;align-items:baseline;gap:6px;flex-wrap:wrap;padding:10px 12px;border-radius:14px;background:linear-gradient(135deg,color-mix(in srgb,var(--tc) 16%,transparent),transparent);}
+.cu-pts b{font-size:26px;font-weight:800;line-height:1;} .cu-pts span{color:var(--muted);font-weight:600;font-size:13px;} .cu-pts small{margin-left:auto;color:var(--muted);font-size:12px;}
+.cu-card .pchip{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
