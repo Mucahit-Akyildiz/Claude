@@ -404,7 +404,7 @@ async function renderPrinterSettingsView(main, session){
   const usbSupported = !!(navigator.usb);
   main.innerHTML = `
     <h1>Yazıcı Ayarları <span class="role-badge" style="margin-left:6px;vertical-align:middle;">Sadece Yönetici</span></h1>
-    <div style="background:rgba(0,143,168,.1);border:1.5px solid var(--accent);border-radius:10px;padding:12px 14px;margin-bottom:16px;text-align:left;">
+    <div class="pr-note">
       <p style="margin:0;font-weight:700;font-size:13px;">✓ Fiş Tasarımı artık tüm işletmede ortak — burada kaydettiğiniz tasarım, hangi cihazdan/kim basarsa bassın her fişte aynı şekilde uygulanır.</p>
       <p class="muted" style="margin:8px 0 0;text-align:left;font-size:12px;">⚠️ <b>Yazıcılar</b> ve <b>İstasyon → Yazıcı Eşleştirme</b> ise hâlâ <u>şu an bu ekranı açtığınız cihaza</u> özeldir (bir yazıcı fiziksel olarak hangi bilgisayara bağlıysa fiş oradan basılır, bu merkezi bir ayarla belirlenemez). Yeni bir kasa/mutfak bilgisayarı kurduğunuzda, o bilgisayarda da Yönetici olarak giriş yapıp yazıcı seçimini orada tekrar yapmanız gerekir.</p>
     </div>
@@ -629,10 +629,11 @@ async function renderPrinterSettingsView(main, session){
   boxes.forEach((b, i) => { if(PR_ORDER[i]){ b.dataset.prtab = PR_ORDER[i]; b.classList.add('pr-pane'); } });
   renderCashReceiptPreview();
   if(!PR_TABS.some(t => t.id === APP.printerTab)) APP.printerTab = 'design';
-  const bar = document.createElement('div');
-  bar.className = 'bx-tabs';
-  bar.innerHTML = PR_TABS.map((t, i) => `<button type="button" class="bx-tab" style="--sc:var(--c${i%4+1});" data-pr-tab="${t.id}" ${act('setPrinterTab', t.id)}><span class="bx-ic">${t.ic}</span>${t.label}</button>`).join('');
-  if(boxes[0]) main.insertBefore(bar, boxes[0]);
+  const PR_DESC = { design:'Mutfak fişinin görünümü', cash:'Müşteri / kasa fişi', device:'Bu cihazda kullanılacak yazıcı', printers:'Tanımlı yazıcılar', stations:'Hangi istasyon hangi yazıcıya' };
+  const layout = document.createElement('div'); layout.className = 'set-layout pr-layout';
+  layout.innerHTML = `<nav class="tabs settings-tabs set-nav">${PR_TABS.map((t, i) => `<div class="tab set-item" data-pr-tab="${t.id}" style="--i:${i};--sc:var(--c${i%4+1});" ${act('setPrinterTab', t.id)}><span class="set-ico">${t.ic}</span><span class="set-txt"><b>${t.label}</b><small>${PR_DESC[t.id]||''}</small></span></div>`).join('')}</nav><div class="set-content pr-content"></div>`;
+  if(boxes[0]) main.insertBefore(layout, boxes[0]);
+  const content = layout.querySelector('.pr-content'); boxes.forEach(b => content.appendChild(b));
   showPrinterPane();
   updateTicketPreview();
   onNewPrinterTypeChange();

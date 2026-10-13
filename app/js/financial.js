@@ -184,17 +184,8 @@ async function renderReportsView(main, session){
         <button type="button" class="range-preset-btn" ${act('setReportDateRangeDays', 29)}>Son 30 Gün</button>
       </div>
     </div>
-    <div class="tabs" id="reportTabs">
-      <div class="tab ${(APP.reportTab||'summary')==='summary'?'active':''}" data-tab="summary" ${act('setReportTab', 'summary')}>Genel Özet</div>
-      <div class="tab ${APP.reportTab==='period'?'active':''}" data-tab="period" ${act('setReportTab', 'period')}>📈 Dönemsel Analiz</div>
-      <div class="tab ${APP.reportTab==='vat'?'active':''}" data-tab="vat" ${act('setReportTab', 'vat')}>🧾 KDV</div>
-      <div class="tab ${APP.reportTab==='products'?'active':''}" data-tab="products" ${act('setReportTab', 'products')}>📦 Ürün İstatistikleri</div>
-      <div class="tab ${APP.reportTab==='staff'?'active':''}" data-tab="staff" ${act('setReportTab', 'staff')}>👤 Personel Analizleri</div>
-      <div class="tab ${APP.reportTab==='customers'?'active':''}" data-tab="customers" ${act('setReportTab', 'customers')}>🧑‍🤝‍🧑 Müşteri Analizleri</div>
-      <div class="tab ${APP.reportTab==='tips'?'active':''}" data-tab="tips" ${act('setReportTab', 'tips')}>💰 Bahşiş Havuzu</div>
-      <div class="tab ${APP.reportTab==='waste'?'active':''}" data-tab="waste" ${act('setReportTab', 'waste')}>🔥 İsraf</div>
-      <div class="tab ${APP.reportTab==='resv'?'active':''}" data-tab="resv" ${act('setReportTab', 'resv')}>📅 Rezervasyon Analizi</div>
-      <div class="tab ${APP.reportTab==='openacc'?'active':''}" data-tab="openacc" ${act('setReportTab', 'openacc')}>📒 Açık Hesaplar</div>
+    <div class="bx-tabs rp-tabs" id="reportTabs">
+      ${[['summary','📊','Genel Özet'],['period','📈','Dönemsel Analiz'],['vat','🧾','KDV'],['products','📦','Ürün İstatistikleri'],['staff','👤','Personel Analizleri'],['customers','🧑‍🤝‍🧑','Müşteri Analizleri'],['tips','💰','Bahşiş Havuzu'],['waste','🔥','İsraf'],['resv','📅','Rezervasyon Analizi'],['openacc','📒','Açık Hesaplar']].map(([k, ic, l], i) => `<button type="button" class="bx-tab tab ${(APP.reportTab||'summary')===k?'active on':''}" style="--sc:var(--c${i%4+1});" data-tab="${k}" ${act('setReportTab', k)}><span class="bx-ic">${ic}</span>${l}</button>`).join('')}
     </div>
     <div id="reportContent"></div>`;
   await renderReportTabContent(session);
@@ -1196,46 +1187,44 @@ async function renderOpenAccountsContent(session){
   const open = accs.filter(a => a.balance > 0.009);
   const card = (label, val, color) => `<div class="box" style="flex:1;min-width:180px;margin:0;"><div class="muted" style="font-size:12.5px;">${label}</div><div style="font-size:24px;font-weight:800;${color ? 'color:'+color+';' : ''}">${val}</div></div>`;
   const methodTxt = m => m === 'cash' ? 'Nakit' : m === 'card' ? 'Kart' : m === 'open_account' ? 'Açık hesaba yazıldı' : (m || '');
-  el.innerHTML = `
-    <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px;">
-      ${card('Toplam açık bakiye (tüm zamanlar)', money(data.total_balance), data.total_balance > 0 ? 'var(--red)' : '')}
-      ${card('Bu dönemde açık hesaba yazılan', money(data.period_charges))}
-      ${card('Bu dönemde tahsil edilen', money(data.period_payments), 'var(--green, #2fae5e)')}
-      ${card('Borcu olan hesap', open.length + ' / ' + accs.length)}
+  const maxBal = Math.max(1, ...accs.map(a => Number(a.balance)||0));
+  el.innerHTML = statChips([['📒', money(data.total_balance), 'Toplam açık bakiye', data.total_balance > 0 ? 'var(--danger,#ef4444)' : 'var(--c1)'],
+      ['✍️', money(data.period_charges), 'Bu dönemde yazılan', 'var(--c3)'], ['✅', money(data.period_payments), 'Bu dönemde tahsil', 'var(--ok,#22c55e)'],
+      ['👥', open.length + ' / ' + accs.length, 'Borcu olan hesap', 'var(--c2)']]) + `
+    <div class="fs-panel pa-sec" style="--t:var(--c1);">
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px;"><h3 style="margin:0;"><i>📒</i>Hesaplar</h3><span style="flex:1;"></span>
+        <input class="list-search" placeholder="🔍 Hesap ara…" ${actOn('input','filterOpenAccRows',['$value'])} style="max-width:280px;margin:0;"></div>
+      ${accs.length ? `<div class="oa-grid" id="openAccTable">${accs.slice().sort((x, y) => (y.balance||0) - (x.balance||0)).map((a, i) => { const debt = a.balance > 0.009;
+        return `<div class="oa-card ${debt?'debt':'clear'}" data-oa="${escapeAttr(a.name.toLocaleLowerCase('tr') + ' ' + (a.phone||''))}" style="--i:${Math.min(i,12)};">
+          <div class="cu-top">${avatarHtml(a.name)}<div class="cu-id"><b>${escapeHtml(a.name)}</b><small>${escapeHtml([a.phone, a.note].filter(Boolean).join(' · ') || 'Açık hesap')}</small></div>
+            <span class="oa-st">${debt ? '● Borçlu' : '✓ Kapalı'}</span></div>
+          <div class="oa-bal"><b>${money(a.balance)}</b><small>bakiye</small></div>
+          <div class="pcard-mbar"><i style="width:${debt ? Math.max(4, Math.round(a.balance/maxBal*100)) : 0}%;background:var(--danger,#ef4444);"></i></div>
+          <div class="pcard-chips">
+            <span class="pchip">✍️ ${money(a.period_charges)}</span><span class="pchip">✅ ${money(a.period_payments)}</span>
+            ${a.last_charge_at ? `<span class="pchip">📅 son yazım ${new Date(a.last_charge_at).toLocaleDateString('tr-TR')}</span>` : ''}
+            ${a.last_payment_at ? `<span class="pchip">💵 son tahsilat ${new Date(a.last_payment_at).toLocaleDateString('tr-TR')}</span>` : ''}
+          </div>
+          <div class="pcard-acts">
+            ${debt ? `<button type="button" class="pc-btn pc-edit" style="margin-left:0;" ${act('collectOpenAccount', a.id)}>₺ Tahsilat Al</button>` : ''}
+            <button type="button" class="pc-btn" style="margin-left:auto;" ${act('showOpenAccEntries', a.id)}>📄 Hareketler</button>
+          </div>
+        </div>`; }).join('')}</div>` : '<div class="empty-state"><div style="font-size:38px;">📒</div><p class="muted">Henüz açık hesap yok. Ödeme ekranında "📒 Açık Hesaba At" ile oluşturabilirsiniz.</p></div>'}
     </div>
-    <div class="box" style="max-width:none;">
-      <h2>Hesaplar</h2>
-      <input class="list-search" placeholder="🔍 Hesap ara…" ${actOn('input','filterOpenAccRows',['$value'])} style="max-width:320px;margin:0 0 10px;">
-      ${accs.length ? `<div class="settings-table-wrap"><table class="settings-table" id="openAccTable">
-        <thead><tr><th>Hesap</th><th>Bakiye</th><th>Dönemde Yazılan</th><th>Dönemde Tahsil</th><th>Son Yazım</th><th>Son Tahsilat</th><th></th></tr></thead>
-        <tbody>${accs.map(a => `<tr data-oa="${escapeAttr(a.name.toLocaleLowerCase('tr') + ' ' + (a.phone||''))}">
-          <td class="col-name"><b>${escapeHtml(a.name)}</b>${a.phone ? '<div class="muted" style="font-size:12px;">' + escapeHtml(a.phone) + '</div>' : ''}${a.note ? '<div class="muted" style="font-size:12px;">' + escapeHtml(a.note) + '</div>' : ''}</td>
-          <td style="font-weight:800;color:${a.balance > 0.009 ? 'var(--red)' : 'inherit'};">${money(a.balance)}</td>
-          <td>${money(a.period_charges)}</td><td>${money(a.period_payments)}</td>
-          <td>${a.last_charge_at ? new Date(a.last_charge_at).toLocaleDateString('tr-TR') : '—'}</td>
-          <td>${a.last_payment_at ? new Date(a.last_payment_at).toLocaleDateString('tr-TR') : '—'}</td>
-          <td><div class="act-row">
-            ${a.balance > 0.009 ? `<button type="button" class="act-btn act-save" ${act('collectOpenAccount', a.id)}><b>₺</b><span>Tahsilat</span></button>` : ''}
-            <button type="button" class="act-btn" ${act('showOpenAccEntries', a.id)}><b>📄</b><span>Hareketler</span></button>
-          </div></td></tr>`).join('')}</tbody></table></div>` : '<p class="muted">Henüz açık hesap yok. Ödeme ekranında "📒 Açık Hesaba At" ile oluşturabilirsiniz.</p>'}
-    </div>
-    <div class="box" style="max-width:none;">
-      <h2>Dönem Hareketleri</h2>
-      ${(data.entries||[]).length ? `<div class="settings-table-wrap"><table class="settings-table">
-        <thead><tr><th>Tarih</th><th>Hesap</th><th>İşlem</th><th>Tutar</th><th>Masa / Not</th><th>Personel</th><th></th></tr></thead>
-        <tbody>${data.entries.map(e => `<tr>
-          <td>${new Date(e.created_at).toLocaleString('tr-TR', { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' })}</td>
-          <td>${escapeHtml(e.account_name)}</td>
-          <td>${e.kind === 'charge' ? '📒 Hesaba yazıldı' : '✅ Tahsilat (' + methodTxt(e.method) + ')'}</td>
-          <td style="font-weight:700;color:${e.kind === 'charge' ? 'var(--red)' : 'var(--green, #2fae5e)'};">${e.kind === 'charge' ? '+' : '−'}${money(e.amount)}</td>
-          <td>${escapeHtml([e.table_name, e.note].filter(Boolean).join(' · ') || '—')}</td>
-          <td>${escapeHtml(e.staff || '—')}</td>
-          <td>${e.sales_history_id ? `<button type="button" class="sbtn" style="width:auto;margin:0;" ${act('openSaleDetailModal', e.sales_history_id)}>🔍 Sipariş Detayı</button>` : ''}</td></tr>`).join('')}</tbody></table></div>` : '<p class="muted">Bu dönemde hareket yok.</p>'}
+    <div class="fs-panel pa-sec" style="--t:var(--c2);"><h3><i>🕘</i>Dönem Hareketleri</h3>
+      ${(data.entries||[]).length ? `<div class="sp-log">${data.entries.map((e, i) => { const ch = e.kind === 'charge';
+        return `<div class="sp-li oa-li ${ch?'ch':'pay'}" style="--i:${Math.min(i,12)};"><span class="sp-dot"></span>
+          <span class="oa-ic">${ch ? '📒' : '✅'}</span>
+          <div class="cu-id"><b>${escapeHtml(e.account_name)} · ${ch ? 'Hesaba yazıldı' : 'Tahsilat (' + methodTxt(e.method) + ')'}</b>
+            <small>${new Date(e.created_at).toLocaleString('tr-TR', { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' })} · ${escapeHtml([e.table_name, e.note].filter(Boolean).join(' · ') || '—')} · ${escapeHtml(e.staff || '—')}</small></div>
+          <b class="oa-amt">${ch ? '+' : '−'}${money(e.amount)}</b>
+          ${e.sales_history_id ? `<button type="button" class="pc-btn" ${act('openSaleDetailModal', e.sales_history_id)}>🔍 Detay</button>` : ''}
+        </div>`; }).join('')}</div>` : '<div class="empty-state"><div style="font-size:38px;">🕘</div><p class="muted">Bu dönemde hareket yok.</p></div>'}
     </div>`;
 }
 function filterOpenAccRows(q){
   q = String(q||'').trim().toLocaleLowerCase('tr');
-  document.querySelectorAll('#openAccTable tr[data-oa]').forEach(tr => { tr.style.display = !q || tr.dataset.oa.includes(q) ? '' : 'none'; });
+  document.querySelectorAll('#openAccTable [data-oa]').forEach(tr => { tr.style.display = !q || tr.dataset.oa.includes(q) ? '' : 'none'; });
 }
 /* Hesap hareketleri (tüm zamanlar): her yazımda siparişin detayı açılabilir. */
 async function showOpenAccEntries(id){
@@ -1328,7 +1317,7 @@ function heatmapHtml(hist){
     <div class="hm" style="--cols:${hrs.length};">
       <span></span>${hrs.map(h => `<span class="hm-h">${String(h).padStart(2,'0')}</span>`).join('')}
       ${usedDays.map((di, ri) => `<span class="hm-d">${DAYS[di]}</span>${hrs.map((h, ci) => { const c = g[di+'_'+h], v = c ? c.r/max : 0;
-        return `<span class="hm-c" tabindex="0" style="--v:${v.toFixed(3)};--i:${ri*hrs.length+ci};">${c ? `<em>${DAYS[di]} ${String(h).padStart(2,'0')}:00<br><b>${escapeHtml(money(c.r))}</b><br>${c.c} hesap</em>` : ''}</span>`; }).join('')}`).join('')}
+        return `<span class="hm-c ${ri===0?'hm-top':''}" tabindex="0" style="--v:${v.toFixed(3)};--i:${ri*hrs.length+ci};">${c ? `<em>${DAYS[di]} ${String(h).padStart(2,'0')}:00<br><b>${escapeHtml(money(c.r))}</b><br>${c.c} hesap</em>` : ''}</span>`; }).join('')}`).join('')}
     </div>
     <div class="hm-leg"><small>Az</small><i></i><small>Çok</small></div></div>`;
 }
