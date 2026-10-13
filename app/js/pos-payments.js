@@ -1292,7 +1292,7 @@ function tableCardInfo(t){
   if(order || draft.length || outbox){
     state = 'busy';
     if(unpaid.length && ready === unpaid.length) state = 'ready';
-    if(order && !items.length && mins >= 5) state = 'wait';
+    if(order && !items.length) state = 'wait';
     if(outbox) state = 'wait';
   }
   return { order, draft, unpaid, ready, total, mins, outbox, state };
