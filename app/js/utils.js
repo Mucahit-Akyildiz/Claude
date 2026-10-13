@@ -287,3 +287,8 @@ function avatarHtml(name, cls){
   const s = String(name||'?').trim(); let h = 0; for(const ch of s) h = (h*31 + ch.charCodeAt(0)) >>> 0;
   return `<span class="av ${cls||''}" style="--ac:var(--c${h%4+1});">${escapeHtml((s[0]||'?').toLocaleUpperCase('tr'))}</span>`;
 }
+/* Tıklanabilir filtre sayaçları: [[anahtar, ikon, değer, etiket, renk], ...] — aynı sayaca tekrar tıklamak filtreyi kaldırır. */
+function statChipsClick(list, cur, fn){
+  return `<div class="order-summary stat-chips" style="--n:${list.length};">${list.map(([k, ic, v, l, c]) =>
+    `<div class="os-chip os-click ${cur===k?'on':''}" role="button" title="Listeyi filtrele" style="--oc:${c||'var(--c1)'};" ${act(fn, k)}><span class="os-ic">${ic}</span><div><b>${v}</b><small>${l}</small></div></div>`).join('')}</div>`;
+}

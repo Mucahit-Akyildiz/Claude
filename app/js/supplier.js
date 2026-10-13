@@ -29,25 +29,16 @@ async function renderSuppliersContent(session){
   APP.supplierRows = rows;
   el.innerHTML = `<div class="box" style="max-width:none;">
     <h2>Tedarikçiler</h2>
-    <div class="settings-table-wrap">
-    <table class="settings-table">
-      <thead><tr><th>Ad</th><th>Telefon</th><th>E-posta</th><th>Adres</th><th></th></tr></thead>
-      <tbody>
-      ${rows.map(s => `
-        <tr>
-          <td class="col-name">${escapeHtml(s.name)}</td>
-          <td>${escapeHtml(s.phone||'-')}</td>
-          <td>${escapeHtml(s.email||'-')}</td>
-          <td>${escapeHtml(s.address||'-')}</td>
-          <td>
-            <button class="sbtn" ${act('editSupplier', s.id)}>Düzenle</button>
-            <button type="button" class="act-btn act-delete" ${act('removeSupplier', s.id)}>${ICON_TRASH}<span>Sil</span></button>
-          </td>
-        </tr>`).join('')}
-      ${rows.length===0?'<tr><td colspan="5" class="muted" style="text-align:center;">Tedarikçi yok.</td></tr>':''}
-      </tbody>
-    </table>
-    </div>
+    ${rows.length ? `<div class="cu-grid">${rows.map((x, i) => `<div class="cu-card" style="--i:${Math.min(i,12)};--tc:var(--c${i%4+1});">
+      <div class="cu-top">${avatarHtml(x.name)}<div class="cu-id"><b>${escapeHtml(x.name)}</b><small>Tedarikçi</small></div></div>
+      <div class="sup-lines">
+        ${x.phone ? `<a class="sup-line" href="tel:${escapeAttr(x.phone)}">📞 ${escapeHtml(x.phone)}</a>` : ''}
+        ${x.email ? `<a class="sup-line" href="mailto:${escapeAttr(x.email)}">✉️ ${escapeHtml(x.email)}</a>` : ''}
+        ${x.address ? `<span class="sup-line">📍 ${escapeHtml(x.address)}</span>` : ''}
+        ${!x.phone && !x.email && !x.address ? '<span class="sup-line muted">İletişim bilgisi yok</span>' : ''}
+      </div>
+      <div class="pcard-acts"><button type="button" class="pc-btn pc-edit" style="margin-left:0;" ${act('editSupplier', x.id)}>✏️ Düzenle</button><button type="button" class="pc-btn rv-del" style="margin-left:auto;" ${act('removeSupplier', x.id)}>🗑 Sil</button></div>
+    </div>`).join('')}</div>` : '<div class="empty-state"><div style="font-size:42px;">🏭</div><p class="muted">Henüz tedarikçi yok.</p></div>'}
     <div class="add-row-panel">
       <p id="supFormTitle">Yeni Tedarikçi Ekle</p>
       <input type="hidden" id="sup_edit_id">
@@ -127,6 +118,10 @@ async function renderPurchaseOrdersContent(session){
   if(!APP.poDraftItems) APP.poDraftItems = [];
   const PO_TONE = { draft:'#a78bfa', ordered:'#f59e0b', received:'var(--green)', cancelled:'var(--red)' };
   const cnt = (st) => rows.filter(p => p.status===st).length;
+  const today = new Date(); today.setHours(0,0,0,0);
+  const isLate = (p) => p.status==='ordered' && p.expected_date && new Date(p.expected_date) < today;
+  const pf = APP.poFilter || 'all';
+  const shown = pf==='all' ? rows : pf==='late' ? rows.filter(isLate) : rows.filter(p => p.status===pf);
   el.innerHTML = `
   <div class="fs-panel pa-sec po-new" style="--t:var(--accent);">
     <h3><i>🛒</i>Yeni Sipariş</h3>
@@ -140,27 +135,22 @@ async function renderPurchaseOrdersContent(session){
       </div>
       <div id="poItemsWrap" style="margin-top:10px;">${renderPoDraftItemsHtml()}</div>
   </div>
+  ${statChipsClick([['all','📋', rows.length, 'Tüm siparişler', 'var(--c1)'], ['ordered','🚚', cnt('ordered'), 'Teslim bekliyor', '#f59e0b'],
+      ['late','⏰', rows.filter(isLate).length, 'Gecikmiş', 'var(--danger,#ef4444)'], ['received','✅', cnt('received'), 'Teslim alındı', 'var(--ok,#22c55e)']], pf, 'setPoFilter')}
   <div class="fs-panel pa-sec" style="--t:#f59e0b;">
-    <h3><i>📋</i>Verilen Siparişler
-      <span class="pa-legend"><span><b style="background:#f59e0b;"></b>Teslim bekliyor ${cnt('ordered')}</span><span><b style="background:var(--green);"></b>Teslim alındı ${cnt('received')}</span>${cnt('draft') ? `<span><b style="background:#a78bfa;"></b>Taslak ${cnt('draft')}</span>` : ''}</span></h3>
-    <div class="settings-table-wrap">
-    <table class="settings-table">
-      <thead><tr><th>Tedarikçi</th><th>Durum</th><th>Sipariş Tarihi</th><th>Beklenen</th><th></th></tr></thead>
-      <tbody>
-      ${rows.map(p => `
-        <tr class="po-row" style="--st:${PO_TONE[p.status]||'var(--muted)'};">
-          <td class="col-name">${escapeHtml(p.supplier_name||'-')}${p.created_by_name ? `<div class="muted" style="font-size:11.5px;">Oluşturan: ${escapeHtml(p.created_by_name)}</div>` : ''}</td>
-          <td>${poStatusBadge(p)}${poItemsProgressHtml(p)}</td>
-          <td>${fmtDateTr(p.order_date)}</td>
-          <td>${p.expected_date ? fmtDateTr(p.expected_date) : '-'}</td>
-          <td>
-            ${ownDraft(p) ? `<button class="sbtn" ${act('markPOOrdered', p.id)}>Sipariş Ver</button><button type="button" class="act-btn act-delete" ${act('removePO', p.id)}>${ICON_TRASH}<span>Sil</span></button>` : ''}
-          </td>
-        </tr>`).join('')}
-      ${rows.length===0?'<tr><td colspan="5" class="muted" style="text-align:center;">Henüz sipariş yok.</td></tr>':''}
-      </tbody>
-    </table>
-    </div>
+    <h3><i>📋</i>Verilen Siparişler${cnt('draft') ? ` <span class="pa-legend"><span><b style="background:#a78bfa;"></b>Taslak ${cnt('draft')}</span></span>` : ''}</h3>
+    ${shown.length ? `<div class="po-grid">${shown.map((p, i) => { const items = p.items || [], ord = Number(p.ordered_total)||items.reduce((x, it) => x + (Number(it.quantity)||0), 0), rec = Number(p.received_total)||items.reduce((x, it) => x + Math.min(Number(it.received)||0, Number(it.quantity)||0), 0);
+      const pct = p.status==='received' ? 100 : ord ? Math.round(rec/ord*100) : 0;
+      return `<div class="po-card" style="--st:${isLate(p) ? 'var(--danger,#ef4444)' : PO_TONE[p.status]||'var(--muted)'};--i:${Math.min(i,12)};">
+        <div class="po-top">${avatarHtml(p.supplier_name||'?')}<div class="cu-id"><b>${escapeHtml(p.supplier_name||'Tedarikçi seçilmedi')}</b><small>${p.created_by_name ? 'Oluşturan: '+escapeHtml(p.created_by_name) : ''}</small></div>${poStatusBadge(p)}</div>
+        <div class="po-dates"><span class="pchip">📅 ${fmtDateTr(p.order_date)}</span>${p.expected_date ? `<span class="pchip ${isLate(p)?'warn':''}">${isLate(p) ? '⏰ gecikti · ' : '🎯 '}${fmtDateTr(p.expected_date)}</span>` : ''}<span class="pchip">📦 ${items.length} kalem</span></div>
+        ${p.status!=='draft' && p.status!=='cancelled' ? `<div class="po-prog"><div class="pcard-mbar"><i style="width:${pct}%;background:var(--st);"></i></div><small>%${pct} teslim alındı</small></div>` : ''}
+        ${items.length ? `<div class="po-items">${items.slice(0, 6).map(it => { const q = Number(it.quantity)||0, r = Number(it.received)||0, done = r >= q && q > 0;
+          return `<div class="po-it ${done?'done':r>0?'part':''}"><span>${done?'✓':r>0?'◐':'○'} ${escapeHtml(it.name)}</span><b>${p.status==='draft' ? fmtQty(q) : fmtQty(r)+' / '+fmtQty(q)} ${escapeHtml(it.unit||'')}</b></div>`; }).join('')}${items.length > 6 ? `<div class="muted" style="font-size:12px;">+${items.length-6} kalem daha</div>` : ''}</div>` : ''}
+        ${p.notes ? `<div class="rv-note">📝 ${escapeHtml(p.notes)}</div>` : ''}
+        ${ownDraft(p) ? `<div class="pcard-acts"><button type="button" class="pc-btn pc-edit" style="margin-left:0;" ${act('markPOOrdered', p.id)}>🚚 Sipariş Ver</button><button type="button" class="pc-btn rv-del" style="margin-left:auto;" ${act('removePO', p.id)}>🗑 Sil</button></div>` : ''}
+      </div>`; }).join('')}</div>`
+      : '<div class="empty-state"><div style="font-size:42px;">📋</div><p class="muted">Bu filtrede sipariş yok.</p></div>'}
   </div>`;
 }
 function renderPoDraftItemsHtml(){
@@ -253,3 +243,5 @@ async function confirmReceivePO(){
 }
 
 function setPoDraftField(idx, field, v){ if(APP.poDraftItems[idx]) APP.poDraftItems[idx][field] = v; }
+
+function setPoFilter(k){ APP.poFilter = APP.poFilter===k ? 'all' : k; renderPurchaseOrdersContent(getSession()); }
