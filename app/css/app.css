@@ -1004,3 +1004,11 @@ button.chat-once{cursor:pointer;}
 #reportContent>.box:nth-of-type(3n+3){--t:#f97316;}
 #reportContent>.box>h2:first-child,#reportContent>.box>div:first-child>h2{display:flex;align-items:center;gap:8px;}
 #reportContent>.box>h2:first-child::before,#reportContent>.box>div:first-child>h2::before{content:'';width:10px;height:10px;border-radius:50%;background:var(--t);box-shadow:0 0 0 4px color-mix(in srgb,var(--t) 20%,transparent);flex-shrink:0;}
+
+/* Satınalma: renk vurguları */
+.pc-card.attn{border-left:4px solid var(--pc);background:linear-gradient(90deg,color-mix(in srgb,var(--pc) 8%,var(--panel)) 0%,var(--panel) 35%);}
+.pc-chip{border-color:color-mix(in srgb,var(--cc) 40%,var(--border));}
+.pc-chip span{background:color-mix(in srgb,var(--cc) 18%,transparent);color:var(--cc);}
+.pc-chip.active{background:color-mix(in srgb,var(--cc) 14%,var(--panel));border-color:var(--cc);color:var(--cc);}
+.pc-items{border-top-color:color-mix(in srgb,var(--pc,var(--border)) 35%,var(--border));}
+.pc-total{color:var(--accent);}

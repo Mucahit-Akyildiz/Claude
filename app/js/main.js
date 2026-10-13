@@ -891,6 +891,8 @@ async function checkAndroidAppUpdate(){
   }catch(e){}
 }
 function showAppUpdateBar(v){
+  // Önbellekteki eski bir sürüm argümansız çağırabiliyor: sürüm bilgisi yoksa çubuk gösterilmez.
+  if(!v || !v.latest) return;
   if(document.getElementById('appUpdateBar')) return;
   const bar = document.createElement('div'); bar.id = 'appUpdateBar';
   bar.style.cssText = 'position:fixed;left:12px;right:12px;bottom:12px;z-index:97;background:var(--accent);color:#fff;border-radius:14px;padding:10px 12px;display:flex;align-items:center;gap:10px;box-shadow:0 8px 24px rgba(0,0,0,.3);font-size:13.5px;';

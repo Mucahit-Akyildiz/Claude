@@ -811,10 +811,11 @@ async function renderPurchaseReportContent(session){
   const bySup = {};
   live.forEach(p => { const k = p.supplier_name || 'Tedarikçisiz'; bySup[k] = (bySup[k]||0) + (Number(p.total_amount)||0); });
   const statusOf = (p) => typeof poStatusBadge==='function' ? poStatusBadge(Object.assign({}, p, { ordered_total: (p.items||[]).reduce((t,i)=>t+Number(i.quantity||0),0), received_total: (p.items||[]).reduce((t,i)=>t+Math.min(Number(i.received||0),Number(i.quantity||0)),0) })) : escapeHtml(p.status);
-  const chip = (k, l) => `<button type="button" class="pc-chip${flt===k?' active':''}" ${act('setProcFilter', k)}>${l}<span>${cnt[k]}</span></button>`;
+  const CHIP_C = { all:'var(--accent)', price:'var(--red)', recv:'#f59e0b', done:'var(--green)' };
+  const chip = (k, l) => `<button type="button" class="pc-chip${flt===k?' active':''}" style="--cc:${CHIP_C[k]};" ${act('setProcFilter', k)}>${l}<span>${cnt[k]}</span></button>`;
   const card = (p) => {
-    const attn = needPrice(p) || needRecv(p);
-    return `<div class="pc-card${attn?' attn':''}">
+    const tone = needPrice(p) ? 'var(--red)' : needRecv(p) ? '#f59e0b' : p.status==='received' ? 'var(--green)' : 'var(--muted)';
+    return `<div class="pc-card attn" style="--pc:${tone};">
       <div class="pc-head">
         <div class="pc-title"><b>${escapeHtml(p.supplier_name || 'Tedarikçisiz')}</b>
           <span>${new Date(p.order_date).toLocaleDateString('tr-TR')} · ${escapeHtml(p.created_by_name || '—')}${p.expected_date ? ' · beklenen '+new Date(p.expected_date).toLocaleDateString('tr-TR') : ''}</span></div>
@@ -835,11 +836,11 @@ async function renderPurchaseReportContent(session){
   };
   el.innerHTML = `
     <div class="fs-hero">
-      <div class="fs-hero-main"><div class="fs-cap">Sipariş Tutarı</div><div class="fs-big">${money(total)}</div><div class="fs-line">${live.length} sipariş</div></div>
+      <div class="fs-hero-main"><div class="fs-cap">🧾 Sipariş Tutarı</div><div class="fs-big">${money(total)}</div><div class="fs-line">${live.length} sipariş</div></div>
       <div class="fs-hero-side">
-        <div><div class="fs-cap">Teslim Alınan</div><div class="fs-mid">${money(recv)}</div><div class="fs-line">${total ? '%'+Math.round(recv/total*100) : '—'}</div></div>
-        <div><div class="fs-cap">Teslim Bekleyen</div><div class="fs-mid">${money(Math.max(0,total-recv))}</div><div class="fs-line">${cnt.recv} sipariş</div></div>
-        <div class="fs-click" ${act('setProcFilter','price')}><div class="fs-cap">Fiyat Bekleyen</div><div class="fs-mid ${cnt.price?'neg':''}">${cnt.price}</div><div class="fs-line">sipariş · göster ›</div></div>
+        <div class="fs-k" style="--k:var(--green);"><div class="fs-cap">📦 Teslim Alınan</div><div class="fs-mid">${money(recv)}</div><div class="fs-line">${total ? '%'+Math.round(recv/total*100) : '—'}</div></div>
+        <div class="fs-k" style="--k:#f59e0b;"><div class="fs-cap">⏳ Teslim Bekleyen</div><div class="fs-mid">${money(Math.max(0,total-recv))}</div><div class="fs-line">${cnt.recv} sipariş</div></div>
+        <div class="fs-k fs-click" style="--k:${cnt.price?'var(--red)':'#a78bfa'};" ${act('setProcFilter','price')}><div class="fs-cap">🏷️ Fiyat Bekleyen</div><div class="fs-mid">${cnt.price}</div><div class="fs-line">sipariş · göster ›</div></div>
       </div>
     </div>
     <div class="pc-layout">
@@ -847,7 +848,7 @@ async function renderPurchaseReportContent(session){
         <div class="pc-chips">${chip('all','Tümü')}${chip('price','Fiyat bekleyen')}${chip('recv','Teslim bekleyen')}${chip('done','Tamamlanan')}</div>
         ${shown.length ? shown.map(card).join('') : '<div class="fs-panel"><p class="muted" style="margin:0;">Bu filtrede sipariş yok.</p></div>'}
       </div>
-      <div class="fs-panel pc-side"><h3>Tedarikçiye Göre</h3>
+      <div class="fs-panel pc-side" style="--t:#a78bfa;"><h3><i>🚚</i>Tedarikçiye Göre</h3>
         ${Object.keys(bySup).length ? Object.entries(bySup).sort((a,b)=>b[1]-a[1]).map(([k,v]) => fsRow(escapeHtml(k), money(v), total ? '%'+Math.round(v/total*100) : '')).join('') : '<p class="muted" style="font-size:13px;">Veri yok.</p>'}
         <p class="fs-note">Fiyatı girilmemiş kalemler tutara katılmaz. Fiyatları yazdıktan sonra siparişin <b>Kaydet</b> düğmesine basın.</p>
       </div>
