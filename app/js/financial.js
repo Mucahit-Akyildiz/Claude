@@ -245,6 +245,10 @@ function renderReportTabContent(session){
   if(tab==='openacc') return renderOpenAccountsContent(session);
   return renderReportContent(session);
 }
+/* Genel Özet panel satırı: solda etiket, sağda değer ve soluk açıklama. */
+function fsRow(label, value, sub){
+  return `<div class="fs-row"><span class="fs-l">${label}</span><span class="fs-v">${value}${sub ? `<small>${sub}</small>` : ''}</span></div>`;
+}
 /* Okunur istatistik kartı: üstte etiket, altta büyük değer ve açıklama; renk sol şeritte. */
 function kpi(label, value, o){
   o = o || {};
@@ -395,24 +399,34 @@ async function renderReportContent(session){
   const timingHtml = (prepArr.length || stayArr.length) ? `<p class="muted" style="text-align:left;margin:0 0 10px;font-size:13px;">⏱ Ort. hazırlanma: <b>${avgMin(prepArr) ?? '—'} dk</b> · Ort. sipariş → ödeme: <b>${avgMin(stayArr) ?? '—'} dk</b></p>` : '';
 
   el.innerHTML = `
-    <div class="kpi-section"><h3>💰 Ciro ve Kâr</h3><div class="kpi-grid" id="kpiMain">
-      ${kpi('Toplam Ciro', money(totalRevenue), { color:'var(--accent)', sub: hist.length+' kapatılan hesap' })}
-      ${kpi('Net Kâr', money(profit), { color: profit>=0?'var(--green)':'var(--red)', sub: totalRevenue ? 'Kâr marjı %'+Math.round(profit/totalRevenue*100) : '' })}
-      ${kpi('Toplam Maliyet', money(totalCost), { color:'var(--muted)' })}
-      ${kpi('🔥 İsraf Maliyeti', money(wasteCost), { color:'var(--red)', sub:'Detay için tıklayın', click:"setReportTab|waste" })}
-    </div></div>
-    <div class="kpi-section"><h3>🍽️ Servis</h3><div class="kpi-grid" id="serviceMetrics"><p class="muted">Yükleniyor…</p></div></div>
-    <div class="kpi-section"><h3>💳 Ödeme Dağılımı</h3><div class="kpi-grid">
-      ${kpi('💵 Nakit', money(totalCash), { color:'var(--green)', sub: totalRevenue ? '%'+Math.round(totalCash/totalRevenue*100)+' ciro' : '' })}
-      ${kpi('💳 Kredi Kartı', money(totalCard), { color:'var(--accent2)', sub: totalRevenue ? '%'+Math.round(totalCard/totalRevenue*100)+' ciro' : '' })}
-      ${kpi('🎁 Hediye Kartı', money(totalGiftCard), { color:'var(--gift)', sub: totalRevenue ? '%'+Math.round(totalGiftCard/totalRevenue*100)+' ciro' : '' })}
-      ${kpi('💰 Bahşiş', money(totalTip), { color:'var(--accent)' })}
-    </div></div>
-    <div class="kpi-section"><h3>🏷️ İndirim ve İkram</h3><div class="kpi-grid">
-      ${kpi('İndirim', money(totalDiscount), { color:'var(--accent)', sub: discountedCount+' hesap' })}
-      ${kpi('🎂 Doğum Günü İndirimi', money(totalBirthdayDiscount), { color:'var(--accent2)', sub: birthdayCount+' hesap' })}
-      ${kpi('Personel / İkram', money(taggedTotal), { color:'#eab308', sub: taggedHist.length+' hesap · ciroya dahil değil' })}
-    </div></div>
+    <div class="fs-hero">
+      <div class="fs-hero-main">
+        <div class="fs-cap">Toplam Ciro</div>
+        <div class="fs-big">${money(totalRevenue)}</div>
+        <div class="fs-line">${hist.length} kapatılan hesap${hist.length ? ' · ortalama '+money(totalRevenue/Math.max(1,untaggedHist.length)) : ''}</div>
+      </div>
+      <div class="fs-hero-side">
+        <div><div class="fs-cap">Net Kâr</div><div class="fs-mid ${profit<0?'neg':''}">${money(profit)}</div><div class="fs-line">${totalRevenue ? 'Marj %'+Math.round(profit/totalRevenue*100) : '—'}</div></div>
+        <div><div class="fs-cap">Maliyet</div><div class="fs-mid">${money(totalCost)}</div><div class="fs-line">${totalRevenue ? '%'+Math.round(totalCost/totalRevenue*100)+' ciro' : '—'}</div></div>
+        <div class="fs-click" ${act('setReportTab','waste')} title="İsraf detayı"><div class="fs-cap">İsraf</div><div class="fs-mid">${money(wasteCost)}</div><div class="fs-line">Detay ›</div></div>
+      </div>
+    </div>
+    <div class="fs-panels">
+      <div class="fs-panel"><h3>Ödeme Dağılımı</h3>
+        ${totalRevenue ? `<div class="fs-split">${[[totalCash,'var(--accent)'],[totalCard,'var(--accent2)'],[totalGiftCard,'var(--muted)']].map(([v,c]) => v>0 ? `<span style="flex:${v};background:${c};"></span>` : '').join('')}</div>` : ''}
+        ${fsRow('<i class="fs-dot" style="background:var(--accent);"></i>Nakit', money(totalCash), totalRevenue ? '%'+Math.round(totalCash/totalRevenue*100) : '')}
+        ${fsRow('<i class="fs-dot" style="background:var(--accent2);"></i>Kredi Kartı', money(totalCard), totalRevenue ? '%'+Math.round(totalCard/totalRevenue*100) : '')}
+        ${fsRow('<i class="fs-dot" style="background:var(--muted);"></i>Hediye Kartı', money(totalGiftCard), totalRevenue ? '%'+Math.round(totalGiftCard/totalRevenue*100) : '')}
+        ${fsRow('Bahşiş', money(totalTip), '')}
+      </div>
+      <div class="fs-panel"><h3>Servis</h3><div id="serviceMetrics"><p class="muted" style="font-size:13px;">Yükleniyor…</p></div></div>
+      <div class="fs-panel"><h3>İndirim ve İkram</h3>
+        ${fsRow('İndirim', money(totalDiscount), discountedCount+' hesap')}
+        ${fsRow('Doğum günü indirimi', money(totalBirthdayDiscount), birthdayCount+' hesap')}
+        ${fsRow('Personel / ikram', money(taggedTotal), taggedHist.length+' hesap')}
+        <p class="fs-note">Personel / ikram hesapları ciroya dahil değildir.</p>
+      </div>
+    </div>
     <div class="box" style="max-width:none;"><h2>Saatlik Yoğunluk${peakHour!==null?' <span class="muted" style="font-size:12px;font-weight:400;">(en yoğun: '+(peakHour<10?'0'+peakHour:peakHour)+':00 🔥)</span>':''}</h2>${hourlyHtml}</div>
     <div class="box" style="max-width:none;"><h2>👤 Personel Performansı</h2>${staffRowsHtml}</div>
     <div class="box" style="max-width:none;">
@@ -450,11 +464,11 @@ async function renderReportContent(session){
       if(!document.getElementById('serviceMetrics')) return;
       if(!m){ box.innerHTML = '<p class="muted">Servis metrikleri yüklenemedi.</p>'; return; }
       box.innerHTML =
-        kpi('🧾 Ortalama Hesap', money(m.avg_check), { sub: m.checks+' hesap' }) +
-        kpi('Ort. Masa Hesabı', money(m.avg_check_dine_in), { sub: m.dine_in_checks+' masa hesabı' }) +
-        kpi('📦 Ort. Paket Hesabı', money(m.avg_check_takeaway), { sub: 'Paket / gel-al' }) +
-        kpi('🔄 Masa Devir Hızı', m.table_count ? String(m.table_turnover).replace('.',',')+'×' : '—', { sub: 'Masa başına günlük hesap ('+m.table_count+' masa)' }) +
-        kpi('⏱️ Ort. Oturma Süresi', m.avg_seat_minutes ? m.avg_seat_minutes+' dk' : '—', { sub: 'Açılıştan kapanışa' });
+        fsRow('Ortalama hesap', money(m.avg_check), m.checks+' hesap') +
+        fsRow('Ort. masa hesabı', money(m.avg_check_dine_in), m.dine_in_checks+' hesap') +
+        fsRow('Ort. paket hesabı', money(m.avg_check_takeaway), '') +
+        fsRow('Masa devir hızı', m.table_count ? String(m.table_turnover).replace('.',',')+'×' : '—', m.table_count+' masa') +
+        fsRow('Ort. oturma süresi', m.avg_seat_minutes ? m.avg_seat_minutes+' dk' : '—', '');
     });
   }
 }
@@ -699,33 +713,77 @@ function setReportLast12Months(){
   const b = document.getElementById('reportDateToInput'); if(b) b.value = APP.reportDateTo;
   renderReportTabContent(getSession());
 }
+function setPeriodYear(y){ APP.periodYear = Number(y); renderPeriodAnalyticsContent(getSession()); }
 async function renderPeriodAnalyticsContent(session){
   const el = document.getElementById('reportContent'); if(!el) return;
-  const { data: d, error } = await withLoadingOverlay(sb.rpc('get_period_analytics', { p_token: session.session_token, p_date: APP.reportDate, p_date_to: APP.reportDateTo }));
+  // Bu sekme üstteki tarih aralığından bağımsız: seçilen yılın 12 ayı, 4 mevsimi ve haftanın 7 günü.
+  const nowY = new Date().getFullYear();
+  const year = APP.periodYear || nowY;
+  const { data: d, error } = await withLoadingOverlay(sb.rpc('get_period_analytics', { p_token: session.session_token, p_date: year+'-01-01', p_date_to: year+'-12-31' }));
   if(error){ el.innerHTML = '<p class="muted">Yüklenemedi: '+escapeHtml(error.message)+'</p>'; return; }
-  const days = Math.round((new Date(APP.reportDateTo) - new Date(APP.reportDate)) / 86400000) + 1;
   const MONTHS = ['Ocak','Şubat','Mart','Nisan','Mayıs','Haziran','Temmuz','Ağustos','Eylül','Ekim','Kasım','Aralık'];
-  const DOW = ['','Pazartesi','Salı','Çarşamba','Perşembe','Cuma','Cumartesi','Pazar'];
-  const SEASON_IC = { 'Kış':'❄️', 'İlkbahar':'🌱', 'Yaz':'☀️', 'Sonbahar':'🍂' };
-  const bars = (rows, label, val, sub) => {
-    if(!rows.length) return '<p class="muted">Bu aralıkta veri yok.</p>';
-    const max = Math.max(...rows.map(r => Number(val(r))||0)) || 1;
-    const top = rows.reduce((a, r) => (Number(val(r))||0) > (Number(val(a))||0) ? r : a, rows[0]);
-    return rows.map(r => `<div class="pa-row${r===top?' pa-top':''}">
-      <div class="pa-label">${label(r)}${r===top?' 🏆':''}</div>
-      <div class="pa-bar"><div style="width:${Math.round((Number(val(r))||0)/max*100)}%;"></div></div>
-      <div class="pa-val"><b>${money(val(r))}</b><span class="muted">${sub(r)}</span></div></div>`).join('');
-  };
-  const monthly = d.monthly || [], seasons = d.seasons || [], weekdays = d.weekdays || [], tables = d.tables || [];
+  const DOW = ['Pazartesi','Salı','Çarşamba','Perşembe','Cuma','Cumartesi','Pazar'];
+  const SEASONS = [
+    { k:'Kış', ic:'❄️', m:[12,1,2], c:'#38bdf8' }, { k:'İlkbahar', ic:'🌱', m:[3,4,5], c:'#22c55e' },
+    { k:'Yaz', ic:'☀️', m:[6,7,8], c:'#f59e0b' }, { k:'Sonbahar', ic:'🍂', m:[9,10,11], c:'#f97316' } ];
+  const N = (v) => Number(v)||0;
+  const byM = {}; (d.monthly||[]).forEach(r => { byM[Number(r.ym.split('-')[1])] = r; });
+  const months = MONTHS.map((name, i) => { const r = byM[i+1] || {}; return { i: i+1, name, revenue:N(r.revenue), checks:N(r.checks), profit:N(r.profit), avg:N(r.avg_check) }; });
+  const yearRev = months.reduce((t, m) => t + m.revenue, 0), yearChecks = months.reduce((t, m) => t + m.checks, 0), yearProfit = months.reduce((t, m) => t + m.profit, 0);
+  const maxM = Math.max(1, ...months.map(m => m.revenue));
+  const bestM = months.reduce((a, m) => m.revenue > a.revenue ? m : a, months[0]);
+  const curM = year===nowY ? new Date().getMonth()+1 : 13;
+  const pctChange = (cur, prev) => prev > 0 ? Math.round((cur-prev)/prev*100) : null;
+  const monthCards = months.map((m, idx) => {
+    const future = m.i > curM;
+    const ch = idx > 0 ? pctChange(m.revenue, months[idx-1].revenue) : null;
+    return `<div class="pm-card${m===bestM && m.revenue>0 ? ' pm-best':''}${future?' pm-future':''}">
+      <div class="pm-head"><span>${m.name}</span>${m===bestM && m.revenue>0 ? '<span title="En yüksek ay">🏆</span>' : ''}</div>
+      <div class="pm-rev">${future ? '—' : money(m.revenue)}</div>
+      <div class="pm-bar"><div style="width:${Math.round(m.revenue/maxM*100)}%;"></div></div>
+      <div class="pm-meta"><span>🧾 ${m.checks} hesap</span>${m.checks ? `<span>Ort. ${money(m.avg)}</span>` : ''}</div>
+      <div class="pm-meta"><span style="color:${m.profit>=0?'var(--green)':'var(--red)'};">Kâr ${money(m.profit)}</span>${ch!=null && !future ? `<span class="pm-ch ${ch>=0?'up':'down'}">${ch>=0?'▲':'▼'} %${Math.abs(ch)}</span>` : ''}</div>
+    </div>`;
+  }).join('');
+  const seasons = SEASONS.map(se => {
+    const ms = months.filter(m => se.m.includes(m.i));
+    const rev = ms.reduce((t, m) => t + m.revenue, 0), checks = ms.reduce((t, m) => t + m.checks, 0), profit = ms.reduce((t, m) => t + m.profit, 0);
+    return { ...se, rev, checks, profit, ms };
+  });
+  const bestS = seasons.reduce((a, x) => x.rev > a.rev ? x : a, seasons[0]);
+  const seasonCards = seasons.map(se => `<div class="ps-card" style="--ps-c:${se.c};">
+      <div class="ps-head"><span class="ps-ic">${se.ic}</span><b>${se.k}</b>${se===bestS && se.rev>0 ? ' <span title="En yoğun mevsim">🏆</span>' : ''}<span class="ps-share">%${yearRev ? Math.round(se.rev/yearRev*100) : 0}</span></div>
+      <div class="ps-rev">${money(se.rev)}</div>
+      <div class="ps-meta">🧾 ${se.checks} hesap · Kâr ${money(se.profit)}</div>
+      <div class="ps-months">${se.ms.map(m => `<div><span>${m.name.slice(0,3)}</span><b>${m.i>curM ? '—' : money(m.revenue)}</b></div>`).join('')}</div>
+    </div>`).join('');
+  const wd = {}; (d.weekdays||[]).forEach(r => { wd[r.dow] = r; });
+  const days = DOW.map((name, i) => { const r = wd[i+1] || {}; return { name, avg: N(r.days) ? N(r.revenue)/N(r.days) : 0, checks:N(r.checks), total:N(r.revenue) }; });
+  const maxD = Math.max(1, ...days.map(x => x.avg)), bestD = days.reduce((a, x) => x.avg > a.avg ? x : a, days[0]);
+  const dayCards = days.map(x => `<div class="pd-card${x===bestD && x.avg>0?' pm-best':''}">
+      <div class="pd-name">${x.name.slice(0,3)}</div>
+      <div class="pd-col"><div style="height:${Math.max(4, Math.round(x.avg/maxD*100))}%;"></div></div>
+      <div class="pd-val">${money(x.avg)}</div><div class="pd-sub">${x.checks} hesap</div></div>`).join('');
+  const tables = d.tables || [];
   el.innerHTML = `
-    ${days < 60 ? `<div class="box" style="max-width:none;display:flex;align-items:center;gap:12px;flex-wrap:wrap;"><span class="muted" style="flex:1;">Aylık ve mevsimlik karşılaştırma için daha uzun bir aralık seçin.</span><button type="button" style="width:auto;margin:0;" ${act('setReportLast12Months')}>📅 Son 12 Ay</button></div>` : ''}
-    <div class="box" style="max-width:none;"><h2>📅 Aylık Ciro</h2>${bars(monthly, r => { const [y,m] = r.ym.split('-'); return MONTHS[Number(m)-1]+' '+y; }, r => r.revenue, r => `${r.checks} hesap · ort. ${money(r.avg_check)} · kâr ${money(r.profit)}`)}</div>
-    <div class="box" style="max-width:none;"><h2>🌦️ Mevsimlere Göre</h2>${bars(seasons, r => (SEASON_IC[r.season]||'')+' '+r.season, r => r.revenue, r => `${r.checks} hesap · günlük ort. ${money(r.days ? r.revenue/r.days : 0)}`)}</div>
-    <div class="box" style="max-width:none;"><h2>🗓️ Haftanın Günleri</h2>${bars(weekdays, r => DOW[r.dow], r => r.days ? r.revenue/r.days : 0, r => `günlük ortalama · ${r.checks} hesap / ${r.days} gün`)}</div>
-    <div class="box" style="max-width:none;"><h2>🪑 En Çok Çalışan Masalar</h2>
+    <div class="box" style="max-width:none;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+      <span class="muted">Yıl</span>
+      ${[nowY-2, nowY-1, nowY].map(y => `<button type="button" class="range-preset-btn${y===year?' active':''}" ${act('setPeriodYear', y)}>${y}</button>`).join('')}
+      <span class="muted" style="flex:1;text-align:right;font-size:12.5px;">Bu sekme üstteki tarih aralığından bağımsızdır.</span>
+    </div>
+    <div class="kpi-grid" style="margin-bottom:16px;">
+      ${kpi(year+' Toplam Ciro', money(yearRev), { color:'var(--accent)', sub: yearChecks+' hesap' })}
+      ${kpi('Yıllık Kâr', money(yearProfit), { color: yearProfit>=0?'var(--green)':'var(--red)' })}
+      ${kpi('Aylık Ortalama', money(yearRev / Math.max(1, Math.min(12, curM))), { sub: 'Geçen aylar üzerinden' })}
+      ${kpi('🏆 En İyi Ay', bestM.revenue ? bestM.name : '—', { color:'#eab308', sub: bestM.revenue ? money(bestM.revenue) : '' })}
+    </div>
+    <div class="box" style="max-width:none;"><h2>🌦️ 4 Mevsim</h2><div class="ps-grid">${seasonCards}</div></div>
+    <div class="box" style="max-width:none;"><h2>📅 Aylar</h2><div class="pm-grid">${monthCards}</div></div>
+    <div class="box" style="max-width:none;"><h2>🗓️ Haftanın Günleri <span class="muted" style="font-size:12px;font-weight:400;">(günlük ortalama ciro)</span></h2><div class="pd-grid">${dayCards}</div></div>
+    <div class="box" style="max-width:none;"><h2>🪑 En Çok Çalışan Masalar <span class="muted" style="font-size:12px;font-weight:400;">(${year})</span></h2>
       ${tables.length ? `<div class="settings-table-wrap"><table class="settings-table"><thead><tr><th>#</th><th>Masa</th><th>Hesap</th><th>Ciro</th><th>Ort. Hesap</th><th>Ort. Oturma</th></tr></thead><tbody>
         ${tables.map((t, i) => `<tr><td>${i===0?'🥇':i===1?'🥈':i===2?'🥉':i+1}</td><td class="col-name">${escapeHtml(t.table_name)}</td><td>${t.checks}</td><td><b>${money(t.revenue)}</b></td><td>${money(t.avg_check)}</td><td>${t.avg_minutes!=null ? t.avg_minutes+' dk' : '—'}</td></tr>`).join('')}
-      </tbody></table></div>` : '<p class="muted">Bu aralıkta masa hesabı yok.</p>'}</div>`;
+      </tbody></table></div>` : '<p class="muted">Bu yıl masa hesabı yok.</p>'}</div>`;
 }
 async function renderPurchaseReportContent(session){
   const host = document.getElementById('procContent'); if(!host) return;
