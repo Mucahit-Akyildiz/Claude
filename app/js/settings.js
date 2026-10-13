@@ -1609,19 +1609,25 @@ async function loadActiveUsers(){
 
 /* --- Veri Sıfırlama (yalnızca Yönetici): seçilen tarih aralığındaki işlem
    verilerini kalıcı olarak siler (bkz. reset_restaurant_data). Ürünler,
-   masalar, kullanıcılar, müşteriler ve açık siparişler etkilenmez;
+   masalar, kullanıcılar ve açık siparişler etkilenmez (müşteriler yalnızca seçilirse);
    e-faturası kesilmiş satışlar yasal kayıt olduğu için korunur. */
 const RESET_CATEGORIES = [
   { id:'sales', label:'Satışlar ve kapanmış siparişler', hint:'Satış geçmişi, iptal/kapalı siparişler, faturalar (e-fatura hariç), online sipariş talepleri, SMS kayıtları' },
   { id:'waste', label:'Zayi / fire kayıtları' },
   { id:'shifts', label:'Vardiya kayıtları', hint:'Devam eden vardiyalar silinmez' },
   { id:'reservations', label:'Rezervasyonlar ve bekleme listesi' },
-  { id:'purchases', label:'Satın alma siparişleri' },
+  { id:'purchases', label:'Satınalma siparişleri' },
+  { id:'messages', label:'Mesajlar', hint:'Ekip içi mesajlar, fotoğraf ve sesli mesajlar', off:true },
+  { id:'waiter_calls', label:'Garson çağrıları', hint:'QR menüden gelen tamamlanmış çağrılar', off:true },
+  { id:'audit', label:'Değişiklik kaydı', hint:'Ayarlar → Güvenlik → Değişiklik Kaydı', off:true },
+  { id:'customers', label:'Müşteriler', hint:'Bu dönemde eklenen müşteri kayıtları, sadakat puanlarıyla birlikte (satış geçmişi silinmez)', off:true, warn:true },
 ];
+// Hiçbir seçenekle silinmeyen kalıcı veriler (kullanıcıya bilgi olarak gösterilir).
+const RESET_KEPT = ['Ürünler, ekstralar ve reçeteler','Menüler ve istasyonlar','Hammaddeler ve stok miktarları','Bölgeler ve masalar','Kullanıcılar ve roller','Tedarikçiler','Hediye kartları ve bakiyeleri','Açık hesaplar ve borç kayıtları','Açık (ödenmemiş) siparişler ve devam eden vardiyalar','E-faturası kesilmiş satışlar (yasal kayıt)','Ayarlar, fiş tasarımı ve entegrasyonlar'];
 function renderDataResetSettings(el){
   el.innerHTML = `<div class="box" style="max-width:640px;">
     <h2>🗑️ Verileri Sıfırla</h2>
-    <p class="muted" style="text-align:left;">Seçtiğiniz dönemdeki işlem verilerini <b>kalıcı olarak</b> siler. Ürünler, masalar, kullanıcılar, müşteriler ve açık siparişler etkilenmez.</p>
+    <p class="muted" style="text-align:left;">Seçtiğiniz dönemdeki işlem verilerini <b>kalıcı olarak</b> siler. Silmek istediklerinizi aşağıdan seçin.</p>
     <div class="field-group"><label>Dönem</label>
       <select id="resetRange" ${actOn('change','toggleResetCustom',['$value'])}>
         <option value="1m">Son 1 ay</option>
@@ -1638,8 +1644,10 @@ function renderDataResetSettings(el){
     </div>
     <div class="field-group"><label>Silinecek veriler</label></div>
     ${RESET_CATEGORIES.map(c => `<label style="display:flex;gap:10px;align-items:flex-start;margin:0 0 10px;cursor:pointer;">
-      <input type="checkbox" class="resetCat" value="${c.id}" style="width:auto;margin-top:3px;" checked>
-      <span>${c.label}${c.hint?`<br><span class="muted" style="font-size:12px;">${c.hint}</span>`:''}</span></label>`).join('')}
+      <input type="checkbox" class="resetCat" value="${c.id}" style="width:auto;margin-top:3px;" ${c.off?'':'checked'}>
+      <span>${c.label}${c.warn?' <span style="color:var(--red);font-size:12px;font-weight:700;">⚠️ dikkat</span>':''}${c.hint?`<br><span class="muted" style="font-size:12px;">${c.hint}</span>`:''}</span></label>`).join('')}
+    <div class="reset-kept"><b>🔒 Silinmeyecek veriler</b><span class="muted" style="font-size:12px;">Hangi seçeneği işaretlerseniz işaretleyin bunlar korunur:</span>
+      <ul>${RESET_KEPT.map(k => `<li>${k}</li>`).join('')}</ul></div>
     <div class="field-group" style="margin-top:14px;"><label>Onay için giriş şifreniz</label><input type="password" id="resetPassword" autocomplete="current-password"></div>
     <button style="background:var(--red);color:var(--btn-ink);max-width:260px;" ${act('doDataReset')}>Verileri Kalıcı Olarak Sil</button>
   </div>`;

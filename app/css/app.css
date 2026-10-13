@@ -1071,3 +1071,13 @@ tr.ing-out input[id^="ing_stock_"]{border-color:var(--red);color:var(--red);font
 .order-modal-grid{grid-template-columns:minmax(0,1fr) 400px;}
 
 .kc-wl{display:inline-block;margin-top:4px;font-size:12px;font-weight:700;color:#a855f7;background:rgba(168,85,247,.12);border:1px solid rgba(168,85,247,.35);border-radius:8px;padding:2px 8px;}
+
+.ki-extra{display:block;font-size:13px;font-weight:600;color:var(--accent);margin:3px 0 0 14px;}
+
+.reset-kept{background:color-mix(in srgb,var(--green) 8%,var(--panel2));border:1px solid color-mix(in srgb,var(--green) 35%,var(--border));border-radius:12px;padding:12px 14px;margin:6px 0 4px;display:flex;flex-direction:column;gap:4px;}
+.reset-kept ul{margin:6px 0 0;padding-left:18px;columns:2;column-gap:20px;font-size:13px;}
+@media (max-width:600px){ .reset-kept ul{columns:1;} }
+
+/* Yan menü: uzun adlar kesilmez, alt satıra geçer (daraltılmış menüde gizli kalır) */
+.sidebar:not(.collapsed) .sb-item{white-space:normal;}
+.sidebar:not(.collapsed) .sb-item .label{white-space:normal;text-overflow:clip;overflow:visible;line-height:1.25;overflow-wrap:anywhere;}
