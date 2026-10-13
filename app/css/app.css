@@ -2005,3 +2005,8 @@ input.sw:checked{background:var(--c1);} input.sw:checked::after{transform:transl
 .dg-del{color:#ef4444}
 @keyframes dgFade{from{opacity:0}}
 @keyframes dgPop{from{opacity:0;transform:scale(.9)}}
+.au-legend{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0 16px}
+.au-legend span{display:inline-flex;align-items:center;gap:6px;padding:5px 11px;border-radius:999px;border:1px solid var(--border);font-size:12px;color:var(--muted);background:color-mix(in srgb,var(--panel) 70%,transparent)}
+.au-legend .d{width:9px;height:9px;border-radius:50%}
+.au-legend .d.on{background:#22c55e;box-shadow:0 0 8px #22c55e}.au-legend .d.idle{background:#eab308}.au-legend .d.off{background:#9ca3af}
+.au-legend .au-auto{margin-left:auto}
