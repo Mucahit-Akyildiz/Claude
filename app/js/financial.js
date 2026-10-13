@@ -823,10 +823,11 @@ async function renderPurchaseReportContent(session){
         ${(p.items||[]).map(i => { const q = Number(i.quantity)||0, c = Number(i.unit_cost)||0; return `<div class="pc-item">
           <span class="pc-name">${escapeHtml(i.name)}</span>
           <span>${q} ${escapeHtml(i.unit||'')}${Number(i.received)>0 && Number(i.received)<q ? ` <small class="muted">(teslim ${Number(i.received)})</small>` : ''}</span>
-          <span class="pc-price"><input type="number" min="0" step="0.01" placeholder="Fiyat girin" value="${c>0 ? c : ''}" class="${c>0 ? '' : 'missing'}" ${actOn('change','savePurchaseItemCost',[i.id,'$value'])}><small>/${escapeHtml(i.unit||'')}</small></span>
+          <span class="pc-price"><input type="number" min="0" step="0.01" placeholder="Fiyat girin" value="${c>0 ? c : ''}" data-item-id="${i.id}" data-orig="${c>0 ? c : ''}" class="pc-cost ${c>0 ? '' : 'missing'}" ${actOn('input','markPcDirty',[p.id])}><small>/${escapeHtml(i.unit||'')}</small></span>
           <span class="pc-line">${c>0 ? money(q*c) : '<span class="muted">—</span>'}</span></div>`; }).join('') || '<p class="muted">Kalem yok.</p>'}
       </div>
-      ${p.notes ? `<div class="pc-note">📝 ${escapeHtml(p.notes)}</div>` : ''}
+      <div class="pc-foot">${p.notes ? `<div class="pc-note">📝 ${escapeHtml(p.notes)}</div>` : '<span></span>'}
+        <button type="button" class="pc-save" id="pcSave_${p.id}" disabled ${act('savePoPrices', p.id)}>${ICON_SAVE}<span>Kaydet</span></button></div>
     </div>`;
   };
   el.innerHTML = `
@@ -845,12 +846,40 @@ async function renderPurchaseReportContent(session){
       </div>
       <div class="fs-panel pc-side"><h3>Tedarikçiye Göre</h3>
         ${Object.keys(bySup).length ? Object.entries(bySup).sort((a,b)=>b[1]-a[1]).map(([k,v]) => fsRow(escapeHtml(k), money(v), total ? '%'+Math.round(v/total*100) : '')).join('') : '<p class="muted" style="font-size:13px;">Veri yok.</p>'}
-        <p class="fs-note">Fiyatı girilmemiş kalemler tutara katılmaz. Fiyatı yazıp kutudan çıkınca kaydedilir.</p>
+        <p class="fs-note">Fiyatı girilmemiş kalemler tutara katılmaz. Fiyatları yazdıktan sonra siparişin <b>Kaydet</b> düğmesine basın.</p>
       </div>
     </div>`;
 }
 function setProcFilter(k){ APP.procFilter = k; renderPurchaseReportContent(getSession()); }
 function setPurchRepSub(sub){ APP.purchRepSub = sub; renderPurchaseReportContent(getSession()); }
+/* Birim fiyatlar yazılınca otomatik kaydedilmez: siparişin Kaydet düğmesi açılır. */
+function markPcDirty(poId){
+  const card = document.getElementById('pcSave_'+poId); if(!card) return;
+  const inputs = card.closest('.pc-card').querySelectorAll('.pc-cost');
+  const dirty = [...inputs].filter(i => i.value !== i.dataset.orig).length;
+  card.disabled = !dirty;
+  card.querySelector('span').textContent = dirty ? `Kaydet (${dirty})` : 'Kaydet';
+  card.closest('.pc-card').classList.toggle('dirty', !!dirty);
+}
+async function savePoPrices(poId){
+  const btn = document.getElementById('pcSave_'+poId); if(!btn) return;
+  const changed = [...btn.closest('.pc-card').querySelectorAll('.pc-cost')].filter(i => i.value !== i.dataset.orig);
+  for(const inp of changed){
+    const v = parseFloat(String(inp.value).replace(',', '.'));
+    if(isNaN(v) || v < 0){ showToast('Geçerli bir birim fiyat girin'); inp.focus(); return; }
+  }
+  btn.disabled = true;
+  const tok = getSession().session_token; const errs = [];
+  await withLoadingOverlay((async () => {
+    for(const inp of changed){
+      const { error } = await sb.rpc('set_purchase_item_cost', { p_token: tok, p_item_id: inp.dataset.itemId, p_unit_cost: parseFloat(String(inp.value).replace(',', '.')) });
+      if(error) errs.push(error.message);
+    }
+  })());
+  if(errs.length) alert('Bazı fiyatlar kaydedilemedi:\n\n' + errs.join('\n')); else showToast(changed.length + ' birim fiyat kaydedildi ✓');
+  renderPurchaseReportContent(getSession());
+  if(typeof refreshNavBadges === 'function') refreshNavBadges();
+}
 async function savePurchaseItemCost(itemId, value){
   const v = parseFloat(String(value).replace(',', '.'));
   if(isNaN(v) || v < 0){ showToast('Geçerli bir birim fiyat girin'); return; }
