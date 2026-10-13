@@ -138,7 +138,12 @@ function renderProductPick(stationId, tableId){
     const off = p.available===false || (stock!=null && stock<=0);
     let badge = '';
     if(p.available===false) badge = '<div class="pp-badge" style="color:var(--red);">Satışta Değil</div>';
-    else if(stock!=null && stock<=0) badge = '<div class="pp-badge" style="color:var(--red);">Stok Yok</div>';
+    else if(stock!=null && stock<=0){
+      // Reçeteli üründe hangi hammaddenin bittiği de yazılır (örn. "Stok Yok · Lavaş").
+      const ings = APP.config.ingredients || [];
+      const miss = (p.recipe || []).filter(r => { const i = ings.find(x => x.id === r.ingredient_id); return i && r.qty_per_unit > 0 && i.stock < r.qty_per_unit; }).map(r => r.ingredient_name);
+      badge = '<div class="pp-badge" style="color:var(--red);">Stok Yok' + (miss.length ? ' · ' + escapeHtml(miss.join(', ')) : '') + '</div>';
+    }
     else if(stock!=null && stock<=10) badge = '<div class="pp-badge" style="color:var(--accent);">Son '+stock+' porsiyon</div>';
     const inCart = ((APP.draftCart && APP.draftCart[tableId]) || []).filter(i => i.product_id === p.id).reduce((n, i) => n + i.qty, 0);
     return `<div class="prod-pick-card pp-card ${off?'off':''}" ${off?'':act('addToDraft', tableId, p.id)}>
