@@ -524,6 +524,7 @@ function renderStationsSettings(el, session){
         </div>
         <input value="${escapeAttr(m.name)}" id="menu_name_${m.id}" style="flex:1;min-width:140px;margin:0;font-weight:700;">
         <span class="muted" style="font-size:12px;white-space:nowrap;">${prodCount(m.id)} ürün · ${m.station_id ? '🍳 ' + escapeHtml(stName(m.station_id)) : '<span style="color:var(--red);">istasyon seçilmedi</span>'}</span>
+        ${menuAvailBtn(m.id)}
         ${actBtn('save', 'saveMenu', m.id)}
         ${actBtn('delete', 'removeMenu', m.id)}
       </div>`).join('')}
@@ -1165,6 +1166,25 @@ function updateProdSelection(){
   if(save){ save.disabled = !dirty; save.querySelector('span').textContent = dirty ? `Kaydet (${dirty})` : 'Kaydet'; }
   const info = document.getElementById('prodSelInfo');
   if(info) info.innerHTML = [n ? `<b>${n}</b> ürün seçili` : '', dirty ? `<b>${dirty}</b> üründe kaydedilmemiş değişiklik` : ''].filter(Boolean).join(' · ');
+}
+/* Menünün tüm ürünlerini tek tuşla satışa açma/kapatma. Ürünlerin hepsi satıştaysa
+   "Satışa Kapat", en az biri kapalıysa "Satışa Aç" gösterilir. */
+function menuAvailBtn(menuId){
+  const list = (APP.config.products || []).filter(p => p.menu_id === menuId);
+  if(!list.length) return '';
+  const closed = list.filter(p => p.available === false).length;
+  return closed
+    ? `<button type="button" class="act-btn act-open" title="${closed}/${list.length} ürün satışta değil" ${act('setMenuAvailable', menuId, true)}><b>✓</b><span>Satışa Aç</span></button>`
+    : `<button type="button" class="act-btn act-close" ${act('setMenuAvailable', menuId, false)}><b>✕</b><span>Satışa Kapat</span></button>`;
+}
+async function setMenuAvailable(menuId, open){
+  const menu = (APP.config.menus || []).find(m => m.id === menuId);
+  const list = (APP.config.products || []).filter(p => p.menu_id === menuId && (p.available !== false) !== open);
+  if(!list.length) return;
+  if(!open && !confirm((menu ? menu.name : 'Bu menü') + ' menüsündeki ' + list.length + ' ürün satışa kapatılsın mı?')) return;
+  const errors = await runProductBatch(list, (s, p) => sb.rpc('upsert_product', Object.assign({ p_token: s.session_token }, productPayload(p, { p_available: open }))));
+  if(errors.length) alert('Bazı ürünler güncellenemedi:\n\n' + errors.join('\n'));
+  else showToast((menu ? menu.name : 'Menü') + ': ' + list.length + ' ürün ' + (open ? 'satışa açıldı ✓' : 'satışa kapatıldı'));
 }
 function productPayload(p, over){
   return Object.assign({ p_id: p.id, p_station_id: p.station_id, p_name: p.name, p_price: p.price, p_cost: p.cost, p_stock: p.stock, p_available: p.available!==false }, over || {});
