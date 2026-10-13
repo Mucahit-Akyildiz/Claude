@@ -125,14 +125,30 @@ async function renderPurchaseOrdersContent(session){
   const canManage = hasPurchPerm(session, 'manage');
   const ownDraft = (p) => p.status==='draft' && (canManage || p.created_by===session.user_id);
   if(!APP.poDraftItems) APP.poDraftItems = [];
-  el.innerHTML = `<div class="box" style="max-width:none;">
+  const PO_TONE = { draft:'#a78bfa', ordered:'#f59e0b', received:'var(--green)', cancelled:'var(--red)' };
+  const cnt = (st) => rows.filter(p => p.status===st).length;
+  el.innerHTML = `
+  <div class="fs-panel pa-sec po-new" style="--t:var(--accent);">
+    <h3><i>🛒</i>Yeni Sipariş</h3>
     <p class="muted" style="text-align:left;margin:0 0 12px;font-size:13px;">İhtiyaç duyduğunuz hammaddeleri ve miktarları girip <b>Sipariş Ver</b>'e basın. Birim fiyat ve teslim alma <b>Satınalma</b> menüsünden yapılır.</p>
+      <div style="${INLINE_ROW}">
+        <div class="field-group" style="${fgStyle(180, 2)}"><label>Tedarikçi</label><select id="po_supplier" style="margin:0;"><option value="">-</option>${suppliers.map(s => `<option value="${s.id}">${escapeHtml(s.name)}</option>`).join('')}</select></div>
+        <div class="field-group" style="${fgStyle(140)}"><label>Beklenen Tarih</label><input id="po_expected" type="date" style="margin:0;"></div>
+        <div class="field-group" style="${fgStyle(200, 2)}"><label>Not</label><input id="po_notes" placeholder="opsiyonel" style="margin:0;"></div>
+        <button type="button" class="ghost-btn" style="${INLINE_BTN}" ${act('addPoDraftItemRow')}>+ Hammadde Ekle</button>
+        <button style="${INLINE_BTN}" ${act('createPurchaseOrder')}>Sipariş Ver</button>
+      </div>
+      <div id="poItemsWrap" style="margin-top:10px;">${renderPoDraftItemsHtml()}</div>
+  </div>
+  <div class="fs-panel pa-sec" style="--t:#f59e0b;">
+    <h3><i>📋</i>Verilen Siparişler
+      <span class="pa-legend"><span><b style="background:#f59e0b;"></b>Teslim bekliyor ${cnt('ordered')}</span><span><b style="background:var(--green);"></b>Teslim alındı ${cnt('received')}</span>${cnt('draft') ? `<span><b style="background:#a78bfa;"></b>Taslak ${cnt('draft')}</span>` : ''}</span></h3>
     <div class="settings-table-wrap">
     <table class="settings-table">
       <thead><tr><th>Tedarikçi</th><th>Durum</th><th>Sipariş Tarihi</th><th>Beklenen</th><th>Tutar</th><th></th></tr></thead>
       <tbody>
       ${rows.map(p => `
-        <tr>
+        <tr class="po-row" style="--st:${PO_TONE[p.status]||'var(--muted)'};">
           <td class="col-name">${escapeHtml(p.supplier_name||'-')}${p.created_by_name ? `<div class="muted" style="font-size:11.5px;">Oluşturan: ${escapeHtml(p.created_by_name)}</div>` : ''}</td>
           <td>${poStatusBadge(p)}${poItemsProgressHtml(p)}</td>
           <td>${fmtDateTr(p.order_date)}</td>
@@ -145,17 +161,6 @@ async function renderPurchaseOrdersContent(session){
       ${rows.length===0?'<tr><td colspan="6" class="muted" style="text-align:center;">Henüz sipariş yok.</td></tr>':''}
       </tbody>
     </table>
-    </div>
-    <div class="add-row-panel">
-      <p>Yeni Sipariş</p>
-      <div style="${INLINE_ROW}">
-        <div class="field-group" style="${fgStyle(180, 2)}"><label>Tedarikçi</label><select id="po_supplier" style="margin:0;"><option value="">-</option>${suppliers.map(s => `<option value="${s.id}">${escapeHtml(s.name)}</option>`).join('')}</select></div>
-        <div class="field-group" style="${fgStyle(140)}"><label>Beklenen Tarih</label><input id="po_expected" type="date" style="margin:0;"></div>
-        <div class="field-group" style="${fgStyle(200, 2)}"><label>Not</label><input id="po_notes" placeholder="opsiyonel" style="margin:0;"></div>
-        <button type="button" class="ghost-btn" style="${INLINE_BTN}" ${act('addPoDraftItemRow')}>+ Hammadde Ekle</button>
-        <button style="${INLINE_BTN}" ${act('createPurchaseOrder')}>Sipariş Ver</button>
-      </div>
-      <div id="poItemsWrap" style="margin-top:10px;">${renderPoDraftItemsHtml()}</div>
     </div>
   </div>`;
 }
