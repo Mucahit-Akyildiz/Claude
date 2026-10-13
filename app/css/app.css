@@ -2106,3 +2106,10 @@ input.sw:checked{background:var(--c1);} input.sw:checked::after{transform:transl
 @keyframes kcCancelIn{from{transform:scale(.9);opacity:0}}
 @keyframes kcCancelOut{0%,85%{opacity:.95}100%{opacity:.35}}
 @keyframes kcStamp{to{filter:brightness(1.25)}}
+.sent-sel{width:18px!important;height:18px;margin:0!important;accent-color:var(--red,#ef4444);cursor:pointer}
+.sent-bulk{display:flex;gap:8px;margin-top:10px}
+.sent-bulk .ghost-btn{flex:1;margin:0!important}
+.sent-bulk-go{flex:1;margin:0!important;background:var(--red,#ef4444)!important;color:#fff!important;border-radius:12px}
+.sent-bulk-go:disabled{opacity:.45}
+.sidebar .sb-pdel{font-size:15px;opacity:.6;transition:opacity .15s,background .15s}
+.sidebar .sb-pdel:hover{opacity:1;background:color-mix(in srgb,#ef4444 20%,transparent)!important}

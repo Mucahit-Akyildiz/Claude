@@ -132,7 +132,7 @@ function render(){
             <div class="name">${escapeHtml(session.username)}</div>
             <div class="role">${escapeHtml((session.role_names||[]).join(' + ') || '')}</div>
           </div>
-          <button type="button" class="sb-pdel label" title="Hesabımı Sil" ${act('openDeleteAccountModal')}>⋯</button>
+          <button type="button" class="sb-pdel label" title="Hesabımı Sil" aria-label="Hesabımı Sil" ${act('openDeleteAccountModal')}>🗑️</button>
         </div>
         <nav>
           ${items.map((i, k) => `<div class="sb-item ${APP.view===i.view?'active':''}" style="--sc:var(--c${k%4+1});" data-view="${i.view}" ${act('goToView', i.view)} title="${i.label}"><span class="ic">${i.icon}</span><span class="label">${i.label}</span></div>`).join('')}
