@@ -1933,3 +1933,25 @@ input.sw:checked{background:var(--c1);} input.sw:checked::after{transform:transl
 @media (max-width:900px){#orderSummary{grid-template-columns:repeat(2,minmax(0,1fr));}}
 .tc.badge-row::before{display:none !important;content:none !important;} .tc.badge-row{animation:tcPulse 2.2s ease-in-out infinite;}
 [data-snap] *,[data-snap]{animation:none !important;transition:none !important;}
+
+/* ===== Satınalma sipariş kartları v2 ===== */
+.pc2-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(420px,1fr));gap:12px;}
+.pc-card.pc2{display:flex;flex-direction:column;gap:12px;padding:14px 16px;margin:0;border-radius:20px;background:linear-gradient(160deg,color-mix(in srgb,var(--pc) 9%,var(--panel)),var(--panel) 55%);border:1px solid color-mix(in srgb,var(--pc) 30%,var(--border));box-shadow:inset 0 3px 0 var(--pc);animation:osIn .35s ease both;animation-delay:calc(var(--i)*.04s);text-align:left;}
+.pc2-head{display:flex;align-items:center;gap:12px;}
+.pc2-title{flex:1;min-width:0;display:flex;flex-direction:column;} .pc2-title b{font-size:15.5px;} .pc2-title small{font-size:12px;color:var(--muted);}
+.pc2-right{display:flex;flex-direction:column;align-items:flex-end;gap:4px;} .pc2-total{font-size:19px;font-weight:800;color:var(--text);white-space:nowrap;}
+.pc2-items{display:flex;flex-direction:column;gap:6px;}
+.pc2-it{display:grid;grid-template-columns:auto minmax(0,1fr) auto auto;align-items:center;gap:10px;padding:8px 10px;border-radius:14px;background:var(--panel2);}
+.pc2-it.nop{box-shadow:inset 3px 0 0 var(--danger,#ef4444);}
+.pc2-ic{width:32px;height:32px;border-radius:10px;display:grid;place-items:center;background:color-mix(in srgb,var(--pc) 15%,transparent);}
+.pc2-nm{min-width:0;display:flex;flex-direction:column;} .pc2-nm b{font-size:13.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;} .pc2-nm small{font-size:11.5px;color:var(--muted);}
+.pc2-price{display:flex;align-items:center;gap:4px;margin:0;padding:2px 8px 2px 2px;border-radius:10px;background:var(--panel);border:1px solid var(--border);font-weight:400 !important;}
+.pc2-price input{width:84px;margin:0;padding:5px 8px;height:30px;border:0;background:transparent;font-weight:700;text-align:right;}
+.pc2-price input.missing{color:var(--danger,#ef4444);} .pc2-price span{font-size:11px;color:var(--muted);white-space:nowrap;}
+.pc2-line{font-size:13.5px;min-width:90px;text-align:right;white-space:nowrap;}
+.pc2-foot{display:flex;align-items:center;justify-content:space-between;gap:10px;}
+.pc2-acts{display:flex;gap:6px;align-items:center;margin-left:auto;}
+.pc2 .pc-save:disabled{display:none;}
+.pc2.dirty{box-shadow:inset 0 3px 0 var(--accent),0 0 0 2px color-mix(in srgb,var(--accent) 40%,transparent);}
+@media (max-width:700px){.pc2-grid{grid-template-columns:1fr;} .pc2-it{grid-template-columns:auto minmax(0,1fr) auto;} .pc2-line{grid-column:2/-1;text-align:left;}}
+.pc2-grid{align-items:start;}

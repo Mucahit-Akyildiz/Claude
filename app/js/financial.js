@@ -804,25 +804,26 @@ async function renderPurchaseReportContent(session){
   const statusOf = (p) => typeof poStatusBadge==='function' ? poStatusBadge(Object.assign({}, p, { ordered_total: (p.items||[]).reduce((t,i)=>t+Number(i.quantity||0),0), received_total: (p.items||[]).reduce((t,i)=>t+Math.min(Number(i.received||0),Number(i.quantity||0)),0) })) : escapeHtml(p.status);
   const CHIP_C = { all:'var(--accent)', price:'var(--red)', recv:'#f59e0b', done:'var(--green)' };
   const chip = (k, l) => `<button type="button" class="pc-chip${flt===k?' active':''}" style="--cc:${CHIP_C[k]};" ${act('setProcFilter', k)}>${l}<span>${cnt[k]}</span></button>`;
-  const card = (p) => {
-    const tone = needPrice(p) ? 'var(--red)' : needRecv(p) ? '#f59e0b' : p.status==='received' ? 'var(--green)' : 'var(--muted)';
-    return `<div class="pc-card attn" style="--pc:${tone};">
-      <div class="pc-head">
-        <div class="pc-title"><b>${escapeHtml(p.supplier_name || 'Tedarikçisiz')}</b>
-          <span>${new Date(p.order_date).toLocaleDateString('tr-TR')} · ${escapeHtml(p.created_by_name || '—')}${p.expected_date ? ' · beklenen '+new Date(p.expected_date).toLocaleDateString('tr-TR') : ''}</span></div>
-        <div class="pc-right">${statusOf(p)}<span class="pc-total">${money(p.total_amount)}</span>
-          ${p.status==='ordered' ? `<button type="button" class="sbtn" style="width:auto;margin:0;white-space:nowrap;" ${act('openReceivePOModal', p.id)}>📦 Teslim Al</button>` : ''}</div>
+  const card = (p, idx) => {
+    const tone = needPrice(p) ? 'var(--danger,#ef4444)' : needRecv(p) ? '#f59e0b' : p.status==='received' ? 'var(--ok,#22c55e)' : 'var(--muted)';
+    const items = p.items || [];
+    return `<div class="pc-card pc2" style="--pc:${tone};--i:${Math.min(idx||0,12)};">
+      <div class="pc2-head">
+        ${avatarHtml(p.supplier_name || 'T')}
+        <div class="pc2-title"><b>${escapeHtml(p.supplier_name || 'Tedarikçisiz')}</b>
+          <small>📅 ${new Date(p.order_date).toLocaleDateString('tr-TR')}${p.expected_date ? ' · 🎯 ' + new Date(p.expected_date).toLocaleDateString('tr-TR') : ''} · 👤 ${escapeHtml(p.created_by_name || '—')}</small></div>
+        <div class="pc2-right"><span class="pc2-total">${money(p.total_amount)}</span>${statusOf(p)}</div>
       </div>
-      <div class="pc-items">
-        <div class="pc-item pc-item-h"><span>Hammadde</span><span>Miktar</span><span>Birim fiyat</span><span>Tutar</span></div>
-        ${(p.items||[]).map(i => { const q = Number(i.quantity)||0, c = Number(i.unit_cost)||0; return `<div class="pc-item">
-          <span class="pc-name">${escapeHtml(i.name)}</span>
-          <span>${q} ${escapeHtml(i.unit||'')}${Number(i.received)>0 && Number(i.received)<q ? ` <small class="muted">(teslim ${Number(i.received)})</small>` : ''}</span>
-          <span class="pc-price"><input type="number" min="0" step="0.01" placeholder="Fiyat girin" value="${c>0 ? c : ''}" data-item-id="${i.id}" data-orig="${c>0 ? c : ''}" class="pc-cost ${c>0 ? '' : 'missing'}" ${actOn('input','markPcDirty',[p.id])}><small>/${escapeHtml(i.unit||'')}</small></span>
-          <span class="pc-line">${c>0 ? money(q*c) : '<span class="muted">—</span>'}</span></div>`; }).join('') || '<p class="muted">Kalem yok.</p>'}
+      <div class="pc2-items">
+        ${items.map(i => { const q = Number(i.quantity)||0, c = Number(i.unit_cost)||0; return `<div class="pc2-it ${c>0?'':'nop'}">
+          <span class="pc2-ic">🥕</span>
+          <div class="pc2-nm"><b>${escapeHtml(i.name)}</b><small>${q} ${escapeHtml(i.unit||'')}${Number(i.received)>0 && Number(i.received)<q ? ` · teslim ${Number(i.received)}` : ''}</small></div>
+          <label class="pc2-price"><input type="number" min="0" step="0.01" placeholder="Fiyat" value="${c>0 ? c : ''}" data-item-id="${i.id}" data-orig="${c>0 ? c : ''}" class="pc-cost ${c>0 ? '' : 'missing'}" ${actOn('input','markPcDirty',[p.id])}><span>₺/${escapeHtml(i.unit||'')}</span></label>
+          <b class="pc2-line">${c>0 ? money(q*c) : '<span class="pchip warn">fiyat yok</span>'}</b></div>`; }).join('') || '<p class="muted">Kalem yok.</p>'}
       </div>
-      <div class="pc-foot">${p.notes ? `<div class="pc-note">📝 ${escapeHtml(p.notes)}</div>` : '<span></span>'}
-        <button type="button" class="pc-save" id="pcSave_${p.id}" disabled ${act('savePoPrices', p.id)}>${ICON_SAVE}<span>Kaydet</span></button></div>
+      <div class="pc2-foot">${p.notes ? `<div class="pc-note">📝 ${escapeHtml(p.notes)}</div>` : '<span></span>'}
+        <div class="pc2-acts">${p.status==='ordered' ? `<button type="button" class="pc-btn" ${act('openReceivePOModal', p.id)}>📦 Teslim Al</button>` : ''}
+          <button type="button" class="pc-save" id="pcSave_${p.id}" disabled ${act('savePoPrices', p.id)}>${ICON_SAVE}<span>Kaydet</span></button></div></div>
     </div>`;
   };
   el.innerHTML = `
@@ -837,7 +838,7 @@ async function renderPurchaseReportContent(session){
     <div class="pc-layout">
       <div>
         <div class="pc-chips">${chip('all','Tümü')}${chip('price','Fiyat bekleyen')}${chip('recv','Teslim bekleyen')}${chip('done','Tamamlanan')}</div>
-        ${shown.length ? shown.map(card).join('') : '<div class="fs-panel"><p class="muted" style="margin:0;">Bu filtrede sipariş yok.</p></div>'}
+        ${shown.length ? `<div class="pc2-grid">${shown.map((p, i) => card(p, i)).join('')}</div>` : '<div class="fs-panel"><p class="muted" style="margin:0;">Bu filtrede sipariş yok.</p></div>'}
       </div>
       <div class="fs-panel pc-side" style="--t:#a78bfa;"><h3><i>🚚</i>Tedarikçiye Göre</h3>
         ${total ? (() => { const e = Object.entries(bySup).sort((a,b)=>b[1]-a[1]); const top = e.slice(0,3), rest = e.slice(3).reduce((t,x)=>t+x[1],0);
