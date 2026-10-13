@@ -1229,3 +1229,23 @@ input:focus,select:focus,textarea:focus{border-color:var(--accent);box-shadow:0 
 .kb-late .kitchen-card{box-shadow:0 0 0 2px color-mix(in srgb,var(--red) 35%,transparent);}
 @media (max-width:1100px){ .kb{grid-template-columns:1fr;} .kb-col{min-height:0;} }
 @media (max-width:700px){ .kb-stats{grid-template-columns:repeat(2,minmax(0,1fr));} }
+
+/* ===== Ödemeler yeniden tasarım: adisyon kartları ===== */
+.pay-summary{grid-template-columns:repeat(3,minmax(0,1fr));}
+.pk-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:14px;margin-top:14px;}
+.pk{--pc:var(--c1);position:relative;background:var(--panel);border:1.5px solid color-mix(in srgb,var(--pc) 35%,var(--border));border-radius:20px;padding:14px 16px;cursor:pointer;display:flex;flex-direction:column;gap:8px;transition:transform .15s,box-shadow .2s;animation:osIn .35s ease both;overflow:hidden;}
+.pk::before{content:'';position:absolute;inset:0 0 auto 0;height:4px;background:linear-gradient(90deg,var(--pc),color-mix(in srgb,var(--pc) 40%,transparent));}
+.pk:hover{transform:translateY(-3px);box-shadow:0 12px 26px color-mix(in srgb,var(--pc) 25%,transparent);}
+.pk-ready{--pc:var(--c3);} .pk-busy{--pc:var(--c1);}
+.pk-head{display:flex;justify-content:space-between;align-items:center;gap:8px;} .pk-head b{font-size:17px;overflow-wrap:anywhere;}
+.pk-time{font-size:11.5px;font-weight:700;padding:3px 8px;border-radius:999px;background:color-mix(in srgb,var(--pc) 15%,transparent);white-space:nowrap;}
+.pk-status{font-size:12.5px;color:var(--muted);}
+.pk-lines{border-top:1px dashed var(--border);border-bottom:1px dashed var(--border);padding:8px 0;display:flex;flex-direction:column;gap:4px;font-size:13px;}
+.pk-line{display:flex;justify-content:space-between;gap:8px;} .pk-line span:first-child{overflow-wrap:anywhere;} .pk-line span:last-child{color:var(--muted);white-space:nowrap;}
+.pk-more{font-size:12px;color:var(--muted);}
+.pk-foot{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:auto;}
+.pk-total{font-size:22px;font-weight:800;color:var(--pc);}
+.pk-btn{padding:8px 14px;border-radius:12px;background:linear-gradient(135deg,var(--pc),color-mix(in srgb,var(--pc) 70%,#000));color:#fff;font-weight:800;font-size:13px;white-space:nowrap;}
+.pk.badge-row{box-shadow:0 0 0 2px color-mix(in srgb,var(--c3) 45%,transparent) !important;background:var(--panel) !important;}
+.pk.badge-row::before{content:'' !important;display:block !important;margin:0 !important;}
+@media (max-width:700px){ .pay-summary{grid-template-columns:1fr 1fr;} .pk-grid{grid-template-columns:1fr;} }

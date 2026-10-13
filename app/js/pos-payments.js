@@ -9,7 +9,7 @@ async function renderPaymentsView(main, session){
   ]));
   if(!APP.config) APP.config = cfgRes.data;
   APP.liveOrders = liveRes.data || [];
-  main.innerHTML = `<h1>Ödemeler <button class="sbtn" style="width:auto;display:inline-flex;vertical-align:middle;margin-left:10px;" ${act('openTableScanModal')}>📷 Masa Tara</button></h1><div class="muted" id="payStatus"></div><div class="table-grid" id="payGrid"></div>`;
+  main.innerHTML = `<h1>Ödemeler <button class="sbtn" style="width:auto;display:inline-flex;vertical-align:middle;margin-left:10px;" ${act('openTableScanModal')}>📷 Masa Tara</button></h1><div class="muted" id="payStatus"></div><div class="order-summary pay-summary" id="paySummary"></div><div class="pk-grid" id="payGrid"></div>`;
   renderPayGrid();
 }
 /* --- Hediye Kartları: yeni kart oluşturma (kod üretimi) ve mevcut
@@ -92,24 +92,30 @@ function payCellName(name){
 }
 function renderPayGrid(){
   const grid = document.getElementById('payGrid'); if(!grid) return;
-  const allTables = APP.config.zones.flatMap(z => z.tables);
-  const tableRows = allTables.map(t => {
-    const order = liveOrderForTable(t.id);
-    const unpaid = order ? order.items.filter(i=>!i.paid) : [];
-    if(unpaid.length===0) return null;
-    const total = unpaid.reduce((s,i) => s+i.price*i.qty, 0);
-    return `<div class="table-cell" data-badge-id="${order.order_id}" style="cursor:pointer;background:rgba(244,63,94,.14);border-color:var(--red);color:var(--red);" ${act('openPayModal', order.order_id)}>
-      ${payCellName(tableNameForId(t.id))}<div style="font-size:11px;margin-top:4px;font-weight:400;">${money(total)}${waitersLine(order) ? '<br>' + waitersLine(order) : ''}</div></div>`;
-  }).filter(Boolean);
-  const pkgRows = (APP.liveOrders||[]).filter(o => o.kind==='takeaway' && o.items.filter(i=>!i.paid).length>0).map(o => {
-    const unpaid = o.items.filter(i=>!i.paid);
-    const total = unpaid.reduce((s,i)=>s+i.price*i.qty,0);
-    const label = o.customer_name || ('Paket #'+(o.daily_number||''));
-    return `<div class="table-cell" data-badge-id="${o.order_id}" style="cursor:pointer;background:rgba(244,63,94,.14);border-color:var(--red);color:var(--red);" ${act('openPayModal', o.order_id)}>
-      📦 ${payCellName(label)}<div style="font-size:11px;margin-top:4px;font-weight:400;">${money(total)}${waitersLine(o) ? '<br>' + waitersLine(o) : ''}</div></div>`;
-  });
-  const occupiedRows = tableRows.concat(pkgRows);
-  grid.innerHTML = occupiedRows.length ? occupiedRows.join('') : '<p class="muted">Açık hesap yok.</p>';
+  // Açık hesaplar adisyon görünümünde kartlar: ürün özeti, hazır durumu, büyük tutar, Hesabı Al.
+  const card = (o, name) => {
+    const unpaid = o.items.filter(i => !i.paid);
+    const total = unpaid.reduce((x, i) => x + i.price * i.qty, 0);
+    const ready = unpaid.filter(i => i.status === 'ready').length, allReady = ready === unpaid.length;
+    const mins = o.created_at ? Math.max(0, Math.floor((Date.now() - new Date(o.created_at).getTime()) / 60000)) : 0;
+    const lines = unpaid.slice(0, 3).map(i => `<div class="pk-line"><span>${i.qty}× ${escapeHtml(i.name)}</span><span>${money(i.price * i.qty)}</span></div>`).join('');
+    return `<div class="pk ${allReady ? 'pk-ready' : 'pk-busy'}" data-badge-id="${o.order_id}" ${act('openPayModal', o.order_id)}>
+      <div class="pk-head"><b>${name}</b><span class="pk-time">⏱ ${mins} dk</span></div>
+      <div class="pk-status">${allReady ? '✅ Hepsi hazır' : '🔥 ' + ready + '/' + unpaid.length + ' hazır'}${waitersLine(o) ? ' · ' + waitersLine(o) : ''}</div>
+      <div class="pk-lines">${lines}${unpaid.length > 3 ? `<div class="pk-more">+${unpaid.length - 3} ürün daha</div>` : ''}</div>
+      <div class="pk-foot"><span class="pk-total">${money(total)}</span><span class="pk-btn">💳 Hesabı Al</span></div>
+    </div>`;
+  };
+  const orders = [];
+  APP.config.zones.flatMap(z => z.tables).forEach(t => { const o = liveOrderForTable(t.id); if(o && o.items.some(i => !i.paid)) orders.push({ o, name: escapeHtml(tableNameForId(t.id)) }); });
+  (APP.liveOrders || []).filter(o => o.kind === 'takeaway' && o.items.some(i => !i.paid)).forEach(o => orders.push({ o, name: '📦 ' + escapeHtml(o.customer_name || ('Paket #' + (o.daily_number || ''))) }));
+  const sum = orders.reduce((x, r) => x + r.o.items.filter(i => !i.paid).reduce((y, i) => y + i.price * i.qty, 0), 0);
+  const readyN = orders.filter(r => r.o.items.filter(i => !i.paid).every(i => i.status === 'ready')).length;
+  const strip = document.getElementById('paySummary');
+  if(strip) strip.innerHTML = `<div class="os-chip os-busy"><span class="os-ic">🧾</span><div><b>${orders.length}</b><small>Açık hesap</small></div></div><div class="os-chip os-ready"><span class="os-ic">✅</span><div><b>${readyN}</b><small>Hazır · ödeme bekliyor</small></div></div><div class="os-chip os-money"><span class="os-ic">💰</span><div><b>${money(sum)}</b><small>Tahsil edilecek toplam</small></div></div>`;
+  orders.sort((x, y) => new Date(x.o.created_at || 0) - new Date(y.o.created_at || 0));
+  grid.className = 'pk-grid';
+  grid.innerHTML = orders.length ? orders.map(r => card(r.o, r.name)).join('') : '<div class="kb-none">🎉 Açık hesap yok</div>';
 }
 /* Ödenecek ürünler adet bazında seçilebilir (örn. 4 Izgara Köfte'den sadece
    1'i) - sadece seçilen adetlerin tutarı için ödeme alınır, geri kalanı
