@@ -1,0 +1,4 @@
+-- Finansal Analiz > Satın Alma sekmesi: get_purchase_report(p_token, p_date, p_date_to)
+-- ('reports' yetkisi) — tarih aralığındaki satın alma siparişleri, kalemleri ve tutarları.
+-- Ayrıca client_errors'taki başarılı ("gönder/al: ok") bas-konuş tanı kayıtları temizlendi.
+-- Fonksiyon gövdesi canlı veritabanına uygulandı (bkz. supabase/schema.sql dökümü).
