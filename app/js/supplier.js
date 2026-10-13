@@ -1,17 +1,13 @@
 /* Tedarikçi & Satın Alma - app/index.html'den çıkarıldı. Klasik <script src>. */
 /* ================= TEDARİKÇİ & SATIN ALMA ================= */
 async function renderPurchasingView(main, session){
-  // Sekmeler izne göre: siparişler (verme/yönetim), tedarikçiler (yönetim).
+  // Satın alma talepleri burada verilir; birim fiyat ve tedarikçiler
+  // Finansal Analiz > Satın Alma'dadır (izin: purchasing_reports / reports).
   const canOrders = hasPurchPerm(session, 'orders') || hasPurchPerm(session, 'manage');
-  const canSuppliers = hasPurchPerm(session, 'suppliers');
-  if(!canOrders) APP.purchTab = 'suppliers';
-  else if(!canSuppliers) APP.purchTab = 'orders';
-  main.innerHTML = `<h1>Tedarikçi & Satın Alma</h1>
-    <div class="tabs" id="purchTabs">
-      ${canOrders ? `<div class="tab ${(APP.purchTab||'orders')==='orders'?'active':''}" data-tab="orders" ${act('setPurchTab', 'orders')}>Satın Alma Siparişleri</div>` : ''}
-      ${canSuppliers ? `<div class="tab ${APP.purchTab==='suppliers'?'active':''}" data-tab="suppliers" ${act('setPurchTab', 'suppliers')}>Tedarikçiler</div>` : ''}
-    </div>
-    <div id="purchContent"></div>`;
+  APP.purchTab = 'orders';
+  main.innerHTML = `<h1>Satın Alma Siparişleri</h1>
+    <div id="purchContent">${canOrders ? '' : '<div class="box"><p class="muted">Tedarikçiler artık <b>Finansal Analiz → Satın Alma → Tedarikçiler</b> altında.</p></div>'}</div>`;
+  if(!canOrders) return;
   applyNavBadges();
   await renderPurchTabContent(session);
 }
@@ -23,10 +19,11 @@ function setPurchTab(tab){
   renderPurchTabContent(getSession());
 }
 function renderPurchTabContent(session){
-  return (APP.purchTab||'orders')==='suppliers' ? renderSuppliersContent(session) : renderPurchaseOrdersContent(session);
+  return renderPurchaseOrdersContent(session);
 }
+// Tedarikçi listesi Finansal Analiz > Satın Alma > Tedarikçiler içinde çizilir (APP.supplierTarget).
 async function renderSuppliersContent(session){
-  const el = document.getElementById('purchContent'); if(!el) return;
+  const el = document.getElementById(APP.supplierTarget || 'purchContent'); if(!el) return;
   const { data, error } = await withLoadingOverlay(sb.rpc('list_suppliers', { p_token: session.session_token }));
   const rows = error ? [] : (data||[]);
   APP.supplierRows = rows;
@@ -128,7 +125,8 @@ async function renderPurchaseOrdersContent(session){
   const ownDraft = (p) => p.status==='draft' && (canManage || p.created_by===session.user_id);
   if(!APP.poDraftItems) APP.poDraftItems = [];
   el.innerHTML = `<div class="box" style="max-width:none;">
-    <h2>Satın Alma Siparişleri</h2>
+    <h2>Satın Alma Talepleri</h2>
+    <p class="muted" style="text-align:left;margin:-6px 0 12px;font-size:13px;">Talep ettiğiniz hammaddeleri ve miktarları girip <b>Sipariş Ver</b>'e basın; birim fiyatlar Finansal Analiz → Satın Alma'da girilir.</p>
     <div class="settings-table-wrap">
     <table class="settings-table">
       <thead><tr><th>Tedarikçi</th><th>Durum</th><th>Sipariş Tarihi</th><th>Beklenen</th><th>Tutar</th><th></th></tr></thead>
@@ -145,18 +143,18 @@ async function renderPurchaseOrdersContent(session){
             ${ownDraft(p) ? `<button class="sbtn" ${act('markPOOrdered', p.id)}>Sipariş Ver</button><button type="button" class="act-btn act-delete" ${act('removePO', p.id)}>${ICON_TRASH}<span>Sil</span></button>` : ''}
           </td>
         </tr>`).join('')}
-      ${rows.length===0?'<tr><td colspan="6" class="muted" style="text-align:center;">Sipariş yok.</td></tr>':''}
+      ${rows.length===0?'<tr><td colspan="6" class="muted" style="text-align:center;">Talep yok.</td></tr>':''}
       </tbody>
     </table>
     </div>
     <div class="add-row-panel">
-      <p>Yeni Satın Alma Siparişi</p>
+      <p>Yeni Satın Alma Talebi</p>
       <div style="${INLINE_ROW}">
         <div class="field-group" style="${fgStyle(180, 2)}"><label>Tedarikçi</label><select id="po_supplier" style="margin:0;"><option value="">-</option>${suppliers.map(s => `<option value="${s.id}">${escapeHtml(s.name)}</option>`).join('')}</select></div>
         <div class="field-group" style="${fgStyle(140)}"><label>Beklenen Tarih</label><input id="po_expected" type="date" style="margin:0;"></div>
         <div class="field-group" style="${fgStyle(200, 2)}"><label>Not</label><input id="po_notes" placeholder="opsiyonel" style="margin:0;"></div>
         <button type="button" class="ghost-btn" style="${INLINE_BTN}" ${act('addPoDraftItemRow')}>+ Hammadde Ekle</button>
-        <button style="${INLINE_BTN}" ${act('createPurchaseOrder')}>Sipariş Oluştur</button>
+        <button style="${INLINE_BTN}" ${act('createPurchaseOrder')}>Sipariş Ver</button>
       </div>
       <div id="poItemsWrap" style="margin-top:10px;">${renderPoDraftItemsHtml()}</div>
     </div>
@@ -166,12 +164,11 @@ function renderPoDraftItemsHtml(){
   const ingredients = (APP.config && APP.config.ingredients) || [];
   if(APP.poDraftItems.length===0) return '<p class="muted" style="font-size:13px;">Henüz hammadde eklenmedi.</p>';
   return APP.poDraftItems.map((it, idx) => `
-    <div style="display:grid;grid-template-columns:1fr 100px 100px 32px;gap:8px;align-items:center;margin-bottom:6px;">
+    <div style="display:grid;grid-template-columns:1fr 120px 32px;gap:8px;align-items:center;margin-bottom:6px;">
       <select ${actOn('change','setPoDraftField',[idx,'ingredient_id','$value'])}>
         ${ingredients.map(ig => `<option value="${ig.id}" ${it.ingredient_id===ig.id?'selected':''}>${escapeHtml(ig.name)} (${escapeHtml(ig.unit)})</option>`).join('')}
       </select>
       <input type="number" min="0" step="0.01" placeholder="Miktar" value="${it.quantity||''}" ${actOn('input','setPoDraftField',[idx,'quantity','$value'])}>
-      <input type="number" min="0" step="0.01" placeholder="Birim Fiyat" value="${it.unit_cost||''}" ${actOn('input','setPoDraftField',[idx,'unit_cost','$value'])}>
       <button type="button" class="qty-btn" ${act('removePoDraftItemRow', idx)}>✕</button>
     </div>`).join('');
 }
@@ -191,13 +188,13 @@ async function createPurchaseOrder(){
   const expected = document.getElementById('po_expected').value || null;
   const notes = document.getElementById('po_notes').value.trim() || null;
   const items = (APP.poDraftItems||[]).filter(it => it.ingredient_id && parseFloat(it.quantity) > 0)
-    .map(it => ({ ingredient_id: it.ingredient_id, quantity: parseFloat(it.quantity), unit_cost: parseFloat(it.unit_cost)||0 }));
+    .map(it => ({ ingredient_id: it.ingredient_id, quantity: parseFloat(it.quantity), unit_cost: 0 }));
   if(items.length===0){ alert('En az bir hammadde ekleyin'); return; }
   const { error } = await sb.rpc('upsert_purchase_order', { p_token: session.session_token, p_id: null, p_supplier_id: supplierId, p_expected_date: expected, p_notes: notes, p_items: items });
   if(error){ alert(error.message); return; }
   APP.poDraftItems = [];
   renderPurchaseOrdersContent(session);
-  showToast('Sipariş oluşturuldu ✓');
+  showToast('Satın alma talebi gönderildi ✓');
 }
 async function markPOOrdered(id){
   const session = getSession();

@@ -1,0 +1,8 @@
+-- Satın alma yeniden düzeni:
+-- * Satın Alma Siparişleri ekranında talep verilir (birim fiyatsız).
+-- * Finansal Analiz > Satın Alma: siparişler (birim fiyat girişi) + tedarikçiler.
+-- * Yeni rol izni purchasing_reports (_role_permission_catalog); get_purchase_report,
+--   list/upsert/delete_supplier bu izni (ve reports) kabul eder.
+-- * set_purchase_item_cost(p_token, p_item_id, p_unit_cost): kalem birim fiyatı.
+-- * _nav_badges: 'reports' rozeti = birim fiyatı girilmemiş verilmiş/teslim alınmış siparişler.
+-- Gövdeler canlı veritabanına uygulandı (bkz. supabase/schema.sql dökümü).

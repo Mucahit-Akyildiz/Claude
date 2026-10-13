@@ -20,10 +20,11 @@ const PERMISSION_LABELS = {
   settings_flags: 'Ayarlar · Sipariş Etiketleri',
   crm: 'Müşteriler (CRM)',
   reservations: 'Rezervasyonlar',
-  purchasing: 'Tedarikçi & Satın Alma',
-  purchasing_orders: 'Satın Alma Siparişi Verme',
+  purchasing: 'Satın Alma',
+  purchasing_orders: 'Satın Alma Talebi (sipariş verme)',
   purchasing_manage: 'Satın Alma Yönetimi',
   purchasing_suppliers: 'Tedarikçi Yönetimi',
+  purchasing_reports: 'Finansal Analiz · Satın Alma',
   shifts: 'Vardiyalar',
   messages: 'Mesajlaşma',
   radio: 'Peyk Bas-Konuş (Telsiz)',
@@ -96,7 +97,7 @@ const NAV_ITEMS = [
   { view:'kitchen', icon:'🧑‍🍳', label:'Mutfak Ekranı', perm:'kitchen' },
   { view:'reservations', icon:'📅', label:'Rezervasyonlar', perm:'reservations' },
   { view:'crm', icon:'👥', label:'Müşteriler', perm:'crm' },
-  { view:'purchasing', icon:'🚚', label:'Tedarikçi & Satın Alma', perm:'purchasing' },
+  { view:'purchasing', icon:'🚚', label:'Satın Alma Siparişleri', perm:'purchasing' },
   { view:'printerSettings', icon:'🖨️', label:'Yazıcı Ayarları' },
   { view:'notificationSettings', icon:'🔔', label:'Bildirimler' },
   { view:'payments', icon:'💳', label:'Ödemeler', perm:'payments' },
@@ -122,14 +123,15 @@ const NAV_ITEMS = [
    yüklenmediyse false döner - eklenti arayüzü config gelene kadar gizli kalır. */
 function hasFeature(f){ return !!(APP.config && (APP.config.features||[]).includes(f)); }
 function navItemVisible(item, session){
-  if(item.view==='reports') return canManage(session, 'reports');
+  // Finansal Analiz: tam yetki (reports) ya da yalnızca Satın Alma sekmesi (purchasing_reports).
+  if(item.view==='reports') return canManage(session, 'reports') || hasPerm(session, 'purchasing_reports');
   if(item.view==='printerSettings') return canManage(session, 'printer_settings');
   // Mesajlaşma rol izniyle açılır (Ayarlar > Roller); Yönetici her zaman görür.
   if(item.view==='messages') return !!session.isManager || hasPerm(session, 'messages');
   // Peyk Bas-Konuş (telsiz) ayrı rol izni (Ayarlar > Roller).
   if(item.view==='radio') return !!session.isManager || hasPerm(session, 'radio');
   if(item.view==='settings') return session.isManager || (session.permissions||[]).some(p => p.startsWith('settings_'));
-  if(item.view==='purchasing') return ['orders','manage','suppliers'].some(x => hasPurchPerm(session, x));
+  if(item.view==='purchasing') return ['orders','manage'].some(x => hasPurchPerm(session, x));
   if(!item.perm) return true;
   return hasPerm(session, item.perm);
 }
