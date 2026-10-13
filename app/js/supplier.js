@@ -102,6 +102,7 @@ function poStatusBadge(p){
   const st = p.status==='received' ? 'color:var(--green);border-color:var(--green);' : p.status==='cancelled' ? 'color:var(--red);border-color:var(--red);' : '';
   return `<span class="role-badge" style="${st}">${PO_STATUS_LABELS[p.status]||p.status}</span>`;
 }
+function fmtDateTr(d){ const x = new Date(d); return isNaN(x) ? String(d||'') : x.toLocaleDateString('tr-TR'); }
 function fmtQty(n){ const v = Number(n)||0; return Number.isInteger(v) ? String(v) : v.toLocaleString('tr-TR', { maximumFractionDigits: 2 }); }
 function poItemsProgressHtml(p){
   const items = p.items || [];
@@ -125,8 +126,7 @@ async function renderPurchaseOrdersContent(session){
   const ownDraft = (p) => p.status==='draft' && (canManage || p.created_by===session.user_id);
   if(!APP.poDraftItems) APP.poDraftItems = [];
   el.innerHTML = `<div class="box" style="max-width:none;">
-    <h2>Satın Alma Talepleri</h2>
-    <p class="muted" style="text-align:left;margin:-6px 0 12px;font-size:13px;">Talep ettiğiniz hammaddeleri ve miktarları girip <b>Sipariş Ver</b>'e basın; birim fiyatlar <b>Satın Alma</b> menüsünde girilir.</p>
+    <p class="muted" style="text-align:left;margin:0 0 12px;font-size:13px;">İhtiyaç duyduğunuz hammaddeleri ve miktarları girip <b>Sipariş Ver</b>'e basın. Birim fiyat ve teslim alma <b>Satın Alma</b> menüsünden yapılır.</p>
     <div class="settings-table-wrap">
     <table class="settings-table">
       <thead><tr><th>Tedarikçi</th><th>Durum</th><th>Sipariş Tarihi</th><th>Beklenen</th><th>Tutar</th><th></th></tr></thead>
@@ -135,20 +135,19 @@ async function renderPurchaseOrdersContent(session){
         <tr data-badge-id="${p.id}">
           <td class="col-name">${escapeHtml(p.supplier_name||'-')}${p.created_by_name ? `<div class="muted" style="font-size:11.5px;">Oluşturan: ${escapeHtml(p.created_by_name)}</div>` : ''}</td>
           <td>${poStatusBadge(p)}${poItemsProgressHtml(p)}</td>
-          <td>${p.order_date}</td>
-          <td>${p.expected_date||'-'}</td>
+          <td>${fmtDateTr(p.order_date)}</td>
+          <td>${p.expected_date ? fmtDateTr(p.expected_date) : '-'}</td>
           <td>${money(p.total_amount)}</td>
           <td>
-            ${canManage && p.status!=='received' && p.status!=='cancelled' ? `<button class="sbtn" ${act('openReceivePOModal', p.id)}>Teslim Al</button>` : ''}
             ${ownDraft(p) ? `<button class="sbtn" ${act('markPOOrdered', p.id)}>Sipariş Ver</button><button type="button" class="act-btn act-delete" ${act('removePO', p.id)}>${ICON_TRASH}<span>Sil</span></button>` : ''}
           </td>
         </tr>`).join('')}
-      ${rows.length===0?'<tr><td colspan="6" class="muted" style="text-align:center;">Talep yok.</td></tr>':''}
+      ${rows.length===0?'<tr><td colspan="6" class="muted" style="text-align:center;">Henüz sipariş yok.</td></tr>':''}
       </tbody>
     </table>
     </div>
     <div class="add-row-panel">
-      <p>Yeni Satın Alma Talebi</p>
+      <p>Yeni Sipariş</p>
       <div style="${INLINE_ROW}">
         <div class="field-group" style="${fgStyle(180, 2)}"><label>Tedarikçi</label><select id="po_supplier" style="margin:0;"><option value="">-</option>${suppliers.map(s => `<option value="${s.id}">${escapeHtml(s.name)}</option>`).join('')}</select></div>
         <div class="field-group" style="${fgStyle(140)}"><label>Beklenen Tarih</label><input id="po_expected" type="date" style="margin:0;"></div>
@@ -194,7 +193,7 @@ async function createPurchaseOrder(){
   if(error){ alert(error.message); return; }
   APP.poDraftItems = [];
   renderPurchaseOrdersContent(session);
-  showToast('Satın alma talebi gönderildi ✓');
+  showToast('Sipariş verildi ✓');
 }
 async function markPOOrdered(id){
   const session = getSession();
@@ -244,7 +243,8 @@ async function confirmReceivePO(){
   const { error } = await sb.rpc('receive_purchase_order_items', { p_token: session.session_token, p_id: poId, p_receipts: receipts });
   if(error){ alert(error.message); return; }
   bg.remove();
-  renderPurchaseOrdersContent(session);
+  if(APP.view==='procurement') renderPurchaseReportContent(session); else renderPurchaseOrdersContent(session);
+  if(typeof refreshNavBadges === 'function') refreshNavBadges();
   showToast('Teslim alındı, stok güncellendi ✓');
 }
 

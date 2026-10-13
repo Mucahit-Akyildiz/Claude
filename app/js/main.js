@@ -189,7 +189,6 @@ function applyTabBadges(){
   const tabs = {
     users: b.settings || 0,
     shifts: b.settings || 0,
-    orders: b.purchasing || 0,
     purchRepOrders: b.procurement || 0,
     reservations: resvItems.filter(x => x.kind==='reservation').length,
     waitlist: resvItems.filter(x => x.kind==='waitlist').length,

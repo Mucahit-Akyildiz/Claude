@@ -746,14 +746,14 @@ async function renderPurchaseReportContent(session){
   live.forEach(p => { const k = p.supplier_name || '—'; bySup[k] = (bySup[k]||0) + (Number(p.total_amount)||0); });
   const card = (v, l, c) => `<div class="box" style="text-align:center;"><div style="font-size:22px;font-weight:800;${c?'color:'+c+';':''}">${v}</div><div class="muted" style="font-size:12px;">${l}</div></div>`;
   el.innerHTML = `
-    ${rows.some(p => p.status!=='draft' && p.status!=='cancelled' && (p.items||[]).some(i => !(Number(i.unit_cost)>0))) ? '<p class="muted" style="text-align:left;margin:0 0 12px;">🔴 Kırmızı çerçeveli kalemlerin birim fiyatı girilmemiş; fiyatı yazıp kutudan çıkınca kaydedilir.</p>' : ''}
+    ${rows.some(p => p.status!=='draft' && p.status!=='cancelled' && (p.items||[]).some(i => !(Number(i.unit_cost)>0))) ? '<p class="muted" style="text-align:left;margin:0 0 12px;">🔴 Kırmızı çerçeveli kalemlerin birim fiyatı girilmemiş. Fiyatı yazıp kutudan çıkınca kaydedilir.</p>' : ''}
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:16px;">
       ${card(live.length, '🚚 Sipariş')}${card(money(total), 'Sipariş Tutarı')}${card(money(recv), 'Teslim Alınan', 'var(--green)')}${card(money(Math.max(0,total-recv)), 'Bekleyen', '#d97706')}
     </div>
     ${Object.keys(bySup).length ? `<div class="box" style="max-width:none;margin-bottom:16px;"><h3 style="margin-top:0;">Tedarikçiye Göre</h3>${Object.entries(bySup).sort((a,b)=>b[1]-a[1]).map(([k,v]) => `<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);"><span>${escapeHtml(k)}</span><b>${money(v)}</b></div>`).join('')}</div>` : ''}
     <div class="box" style="max-width:none;">
       <h3 style="margin-top:0;">Satın Alma Siparişleri</h3>
-      ${rows.length ? `<div class="settings-table-wrap"><table class="settings-table"><thead><tr><th>Tarih</th><th>Tedarikçi</th><th>Kalemler</th><th>Durum</th><th>Veren</th><th style="text-align:right;">Tutar</th></tr></thead><tbody>
+      ${rows.length ? `<div class="settings-table-wrap"><table class="settings-table"><thead><tr><th>Tarih</th><th>Tedarikçi</th><th>Kalemler</th><th>Durum</th><th>Veren</th><th style="text-align:right;">Tutar</th><th></th></tr></thead><tbody>
         ${rows.map(p => `<tr>
           <td style="white-space:nowrap;">${new Date(p.order_date).toLocaleDateString('tr-TR')}</td>
           <td>${escapeHtml(p.supplier_name || '—')}</td>
@@ -762,7 +762,8 @@ async function renderPurchaseReportContent(session){
             <span class="muted" style="white-space:nowrap;">/${escapeHtml(i.unit||'')}</span></div>`).join('') || '<span class="muted">—</span>'}${p.notes ? `<div class="muted" style="margin-top:4px;">📝 ${escapeHtml(p.notes)}</div>` : ''}</td>
           <td>${typeof poStatusBadge==='function' ? poStatusBadge(Object.assign({}, p, { ordered_total: (p.items||[]).reduce((t,i)=>t+Number(i.quantity||0),0), received_total: (p.items||[]).reduce((t,i)=>t+Math.min(Number(i.received||0),Number(i.quantity||0)),0) })) : escapeHtml(p.status)}</td>
           <td>${escapeHtml(p.created_by_name || '—')}</td>
-          <td style="text-align:right;white-space:nowrap;font-weight:700;">${money(p.total_amount)}</td></tr>`).join('')}
+          <td style="text-align:right;white-space:nowrap;font-weight:700;">${money(p.total_amount)}</td>
+          <td>${p.status!=='received' && p.status!=='cancelled' && p.status!=='draft' ? `<button type="button" class="sbtn" style="width:auto;margin:0;white-space:nowrap;" ${act('openReceivePOModal', p.id)}>📦 Teslim Al</button>` : ''}</td></tr>`).join('')}
       </tbody></table></div>` : '<p class="muted">Bu dönemde satın alma siparişi yok.</p>'}
     </div>`;
 }
