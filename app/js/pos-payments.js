@@ -1067,10 +1067,11 @@ async function rejectCustomerRequest(id){
 }
 function renderZoneTabs(){
   const el = document.getElementById('zoneTabs'); if(!el) return;
-  // Her bölge sekmesinde o bölgedeki açık (dolu) masa sayısı rozet olarak görünür.
+  // Bölge sekmesi: gri "dolu/toplam" bilgisi + yalnızca ilgilenilmesi gereken masa varsa (sipariş bekleyen) kırmızı rozet.
   el.innerHTML = APP.config.zones.map(z => {
-    const open = (z.tables||[]).filter(t => liveOrderForTable(t.id)).length;
-    return `<div class="tab ${z.id===APP.selectedZone?'active':''}" ${act('selectZone', z.id)}>${escapeHtml(z.name)}${open ? ` <span class="zone-badge" title="${open} açık masa">${open}</span>` : ''}</div>`;
+    const ts = z.tables || [], open = ts.filter(t => liveOrderForTable(t.id)).length;
+    const need = ts.filter(t => { const o = liveOrderForTable(t.id); return o && !(o.items || []).length; }).length;
+    return `<div class="tab ${z.id===APP.selectedZone?'active':''}" ${act('selectZone', z.id)}>${escapeHtml(z.name)}<span class="zone-occ" title="${open} dolu / ${ts.length} masa">${open}/${ts.length}</span>${need ? `<span class="zone-badge" title="${need} masada sipariş bekleniyor">${need}</span>` : ''}</div>`;
   }).join('');
 }
 function selectZone(id){ APP.selectedZone = id; renderZoneTabs(); renderTableGrid(); }
@@ -1319,7 +1320,7 @@ function renderOrderSummary(){
   const infos = all.map(tableCardInfo);
   const cnt = (s) => infos.filter(i => i.state === s).length;
   const chip = (cls, ic, n, l) => `<div class="os-chip os-${cls}"><span class="os-ic">${ic}</span><div><b>${n}</b><small>${l}</small></div></div>`;
-  el.innerHTML = chip('empty','🪑', cnt('empty'), 'Boş masa') + chip('busy','🔥', cnt('busy') + cnt('wait'), 'Dolu masa') + chip('ready','✅', cnt('ready'), 'Hazır · ödeme bekliyor');
+  el.innerHTML = chip('empty','🪑', cnt('empty'), 'Boş masa') + chip('wait','🕒', cnt('wait'), 'Sipariş bekleniyor') + chip('busy','🔥', cnt('busy'), 'Hazırlanıyor') + chip('ready','✅', cnt('ready'), 'Hazır · ödeme bekliyor');
 }
 function renderTableFloorPlan(zone, el){
   if(!el) return;
