@@ -1006,7 +1006,7 @@ function renderProductsSettings(el, session){
         <tr data-pid="${p.id}" style="${p.available===false?'opacity:.6;':''}">
           <td><input type="checkbox" class="prod-sel" value="${p.id}" style="width:auto;margin:0;" ${actOn('change','updateProdSelection',[])}></td>
           <td class="col-name"><input value="${escapeAttr(p.name)}" id="pr_name_${p.id}"></td>
-          <td class="col-name"><select id="pr_st_${p.id}" ${p.menu_id ? 'disabled title="İstasyon menüden gelir (Ayarlar → İstasyonlar)"' : ''}>
+          <td class="col-name"><select id="pr_st_${p.id}" ${p.menu_id ? 'disabled title="İstasyon menüden gelir — değiştirmek için menünün istasyonunu Ayarlar → Menüler & İstasyonlar sekmesinden değiştirin ya da ürünün menüsünü kaldırın"' : ''}>
             ${stations.map(s => `<option value="${s.id}" ${s.id===p.station_id?'selected':''}>${escapeHtml(s.name)}</option>`).join('')}
           </select></td>
           <td class="col-num"><input type="number" value="${p.price}" id="pr_price_${p.id}"></td>
@@ -1052,7 +1052,7 @@ function renderProductsSettings(el, session){
 
   el.innerHTML = `<div class="box" style="max-width:none;">
     <h2>Ürünler</h2>
-    <p class="muted" style="text-align:left;margin:-6px 0 12px;font-size:13px;"><b>Menü</b>: ürünün menüsü (menüleri ve hangi istasyona gideceklerini <b>İstasyonlar</b> sekmesinde ayarlayın); ürünün istasyonu menüden gelir. <b>🖨️ Fiş</b> işareti kaldırılan ürünler mutfak fişine yazdırılmaz (ekranda yine görünür).</p>
+    <p class="muted" style="text-align:left;margin:-6px 0 12px;font-size:13px;"><b>Menü</b>: ürünün menüsü (menüleri ve hangi istasyona gideceklerini <b>Menüler & İstasyonlar</b> sekmesinde ayarlayın); ürünün istasyonu menüden gelir. <b>🖨️ Fiş</b> işareti kaldırılan ürünler mutfak fişine yazdırılmaz (ekranda yine görünür).</p>
     <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 10px;">
       <label style="margin:0;font-weight:700;font-size:13.5px;">Varsayılan KDV oranı</label>
       <div style="width:130px;">${vatSelectHtml('defaultVatSel', APP.config.default_vat_rate ?? 10, false, `${actOn('change','saveDefaultVat',['$value'])} style="margin:0;"`)}</div>
