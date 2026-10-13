@@ -90,6 +90,28 @@ function pickStationTab(stId){
   const tableId = document.getElementById('tableModalBg').dataset.tableId;
   renderProductPick(stId, tableId);
 }
+/* Ekstrası olan ürün sepete eklenince ekstra seçimi açılır (örn. Ek Döner, Ek Lavaş). */
+function openExtrasPicker(tableId, productId){
+  const prod = (APP.config.products || []).find(p => p.id === productId); if(!prod) return;
+  const list = productExtras(productId).filter(e => e.available !== false); if(!list.length) return;
+  document.getElementById('extrasPickBg')?.remove();
+  const bg = document.createElement('div'); bg.id = 'extrasPickBg';
+  bg.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;z-index:120;padding:16px;';
+  bg.onclick = (e) => { if(e.target===bg) bg.remove(); };
+  const draw = () => {
+    const cart = APP.draftCart[tableId] || [];
+    bg.innerHTML = `<div class="xp-box">
+      <div class="xp-head"><b>➕ ${escapeHtml(prod.name)} için ekstra</b><span style="cursor:pointer;color:var(--muted);" ${act('removeEl','extrasPickBg')}>✕</span></div>
+      ${list.map(e => { const n = (cart.find(i => i.product_id === e.id) || {}).qty || 0; return `<button type="button" class="xp-item" ${act('pickExtra', tableId, e.id)}><span>${escapeHtml(e.name)}</span><span class="xp-price">+${money(e.price)}</span>${n ? `<span class="xp-n">${n}</span>` : ''}</button>`; }).join('')}
+      <button type="button" style="margin-top:10px;" ${act('removeEl','extrasPickBg')}>Tamam</button>
+    </div>`;
+  };
+  bg._draw = draw; draw(); document.body.appendChild(bg);
+}
+function pickExtra(tableId, extraId){
+  addToDraft(tableId, extraId, true);
+  const bg = document.getElementById('extrasPickBg'); if(bg && bg._draw) bg._draw();
+}
 function effectiveStock(p){
   if(p.recipe && p.recipe.length>0) return p.available_qty;
   return p.stock;
@@ -177,8 +199,8 @@ function scheduleConfigResync(tableId){
     }
   }, 1500);
 }
-function addToDraft(tableId, productId){
-  const prod = APP.config.products.find(p => p.id===productId);
+function addToDraft(tableId, productId, noExtrasPrompt){
+  const prod = findProductAny(productId);
   if(!prod) return;
   if(prod.available===false){ alert('Bu ürün şu anda satışta değil'); return; }
   const stock = effectiveStock(prod);
@@ -186,7 +208,13 @@ function addToDraft(tableId, productId){
   const draft = APP.draftCart[tableId];
   const existing = draft.find(i => i.product_id===productId);
   if(existing){ existing.qty += 1; }
-  else{ draft.push({ product_id:productId, name:prod.name, price:prod.price, cost:prod.cost, station_id:prod.station_id, qty:1, note:'' }); }
+  else{
+    // Ekstra ayrı kalem olarak eklenir; adı ana ürünle birlikte yazılır (mutfak ekranı ve fişte okunur).
+    const parent = prod.parent_id ? (APP.config.products || []).find(p => p.id === prod.parent_id) : null;
+    const name = parent ? '+ ' + prod.name + ' (' + parent.name + ')' : prod.name;
+    draft.push({ product_id:productId, name, price:prod.price, cost:prod.cost, station_id:prod.station_id, qty:1, note:'' });
+  }
+  if(!noExtrasPrompt && !prod.parent_id && productExtras(productId).some(e => e.available !== false)) setTimeout(() => openExtrasPicker(tableId, productId), 0);
   applyLocalStockDelta(productId, 1);
   renderTableItems(tableId);
   const activeTab = document.querySelector('#prodStationTabs .tab.active');

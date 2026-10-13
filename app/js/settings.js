@@ -359,6 +359,53 @@ async function saveIngredientUsage(ingredientId){
 
 /* --- Bir ürünün reçetesini düzenleme penceresi --- */
 let RECIPE_DRAFT = [];
+/* Ürün ekstraları: ana ürüne bağlı, siparişte ayrı kalem olarak eklenen seçenekler
+   (örn. Porsiyon Döner → Ek Döner +150 ₺). Ana ürünün istasyonuna ve fişine düşer. */
+function openExtrasModal(productId){
+  const prod = (APP.config.products || []).find(p => p.id === productId); if(!prod) return;
+  document.getElementById('extrasModalBg')?.remove();
+  const bg = document.createElement('div'); bg.id = 'extrasModalBg';
+  bg.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:flex-start;justify-content:center;z-index:100;padding:8vh 16px 16px;overflow:auto;';
+  bg.onclick = (e) => { if(e.target===bg) bg.remove(); };
+  const list = productExtras(productId);
+  bg.innerHTML = `<div style="background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:20px;max-width:480px;width:100%;">
+    <div style="display:flex;justify-content:space-between;align-items:center;"><h2 style="margin:0;">➕ ${escapeHtml(prod.name)} · Ekstralar</h2><span style="cursor:pointer;color:var(--muted);" ${act('removeEl','extrasModalBg')}>✕</span></div>
+    <p class="muted" style="text-align:left;font-size:13px;">Siparişte bu ürün eklenince ekstralar seçilebilir. Her ekstra ayrı kalem olarak eklenir, fiyatı hesaba yansır ve ürünün istasyonuna/fişine düşer.</p>
+    ${list.map(e => `<div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;">
+      <input id="xt_name_${e.id}" value="${escapeAttr(e.name)}" style="flex:1;margin:0;">
+      <input id="xt_price_${e.id}" type="number" min="0" step="0.01" value="${e.price}" style="width:110px;margin:0;" title="Ek fiyat (₺)">
+      ${actBtn('save', 'saveProductExtra', productId, e.id)}${actBtn('delete', 'removeProductExtra', productId, e.id)}
+    </div>`).join('') || '<p class="muted" style="font-size:13px;">Henüz ekstra yok.</p>'}
+    <div style="display:flex;gap:8px;align-items:center;border-top:1px dashed var(--border);padding-top:12px;margin-top:6px;">
+      <input id="xt_name_new" placeholder="örn. Ek Döner" style="flex:1;margin:0;">
+      <input id="xt_price_new" type="number" min="0" step="0.01" placeholder="Fiyat ₺" style="width:110px;margin:0;">
+      <button type="button" style="width:auto;margin:0;" ${act('saveProductExtra', productId, '')}>+ Ekle</button>
+    </div>
+  </div>`;
+  document.body.appendChild(bg);
+}
+async function saveProductExtra(productId, extraId){
+  const k = extraId || 'new';
+  const name = document.getElementById('xt_name_'+k).value.trim();
+  const price = parseFloat(document.getElementById('xt_price_'+k).value) || 0;
+  if(!name){ showToast('Ekstra adı girin'); return; }
+  const session = getSession();
+  const { error } = await sb.rpc('upsert_product_extra', { p_token: session.session_token, p_parent_id: productId, p_id: extraId || null, p_name: name, p_price: price });
+  if(error){ alert(error.message); return; }
+  const { data } = await sb.rpc('get_restaurant_config', { p_token: session.session_token }); if(data) APP.config = data;
+  showToast('Ekstra kaydedildi ✓');
+  openExtrasModal(productId);
+  if(APP.settingsTab==='products') renderSettingsContent(session);
+}
+async function removeProductExtra(productId, extraId){
+  if(!confirm('Bu ekstra silinsin mi?')) return;
+  const session = getSession();
+  const { error } = await sb.rpc('delete_product', { p_token: session.session_token, p_id: extraId });
+  if(error){ alert(friendlyDeleteError ? friendlyDeleteError(error.message) : error.message); return; }
+  const { data } = await sb.rpc('get_restaurant_config', { p_token: session.session_token }); if(data) APP.config = data;
+  openExtrasModal(productId);
+  if(APP.settingsTab==='products') renderSettingsContent(session);
+}
 function openRecipeModal(productId){
   const prod = APP.config.products.find(p => p.id===productId);
   RECIPE_DRAFT = (prod.recipe || []).map(r => ({ ingredient_id: r.ingredient_id, qty_per_unit: r.qty_per_unit, ingredient_name: r.ingredient_name, ingredient_unit: r.ingredient_unit }));
@@ -524,6 +571,7 @@ function renderStationsSettings(el, session){
         </div>
         <input value="${escapeAttr(m.name)}" id="menu_name_${m.id}" style="flex:1;min-width:140px;margin:0;font-weight:700;">
         <span class="muted" style="font-size:12px;white-space:nowrap;">${prodCount(m.id)} ürün · ${m.station_id ? '🍳 ' + escapeHtml(stName(m.station_id)) : '<span style="color:var(--red);">istasyon seçilmedi</span>'}</span>
+        ${menuAvailBtn(m.id)}
         ${actBtn('save', 'saveMenu', m.id)}
         ${actBtn('delete', 'removeMenu', m.id)}
       </div>`).join('')}
@@ -1046,11 +1094,10 @@ function renderProductsSettings(el, session){
               : `<input type="number" value="${p.stock==null?'':p.stock}" id="pr_stock_${p.id}" placeholder="Sınırsız">`}
           </td>
           <td style="text-align:center;"><input type="checkbox" class="prod-print" id="pr_print_${p.id}" style="width:auto;margin:0;" title="İşaretliyse mutfak fişine yazdırılır" ${p.print_ticket===false?'':'checked'}></td>
-          <td>${p.available===false
-              ? '<span class="role-badge" style="color:var(--red);border-color:var(--red);">Kapalı</span>'
-              : '<span class="role-badge" style="color:var(--green);border-color:var(--green);">Satışta</span>'}</td>
+          <td><button type="button" class="prod-avail ${p.available===false?'off':'on'}" title="Tıklayınca ${p.available===false?'satışa açılır':'satışa kapanır'}" ${act('toggleProductAvailable', p.id)}><i></i>${p.available===false?'Kapalı':'Satışta'}</button></td>
           <td><div class="act-row">
             <button type="button" class="act-btn act-recipe" ${act('openRecipeModal', p.id)}><b>📋</b><span>Reçete</span></button>
+            <button type="button" class="act-btn act-recipe" title="Ekstralar (örn. Ek Döner)" ${act('openExtrasModal', p.id)}><b>➕</b><span>Ekstra${productExtras(p.id).length ? ' ('+productExtras(p.id).length+')' : ''}</span></button>
             ${hasFeature('multilang_menu') ? `<button type="button" class="act-btn act-lang" ${act('openTranslationsModal', p.id)} title="QR menüde diğer dillerde gösterilecek isim"><b>🌐</b><span>Çeviri</span></button>` : ''}
           </div></td>
         </tr>`).join('');
@@ -1064,21 +1111,22 @@ function renderProductsSettings(el, session){
     const none = list.filter(p => !p.category);
     return order.map(c => { const l = list.filter(p => p.category === c); return sub(c, l.length) + rowsFor(l); }).join('') + (none.length ? sub('Alt menüsüz', none.length) + rowsFor(none) : '');
   };
-  const groupHtml = (title, colorDot, list, cats) => list.length===0 ? '' : `
-    <div style="margin-bottom:22px;">
-      <h3 style="display:flex;align-items:center;gap:8px;font-size:14px;margin:0 0 10px;">${colorDot?`<span style="width:10px;height:10px;border-radius:50%;background:${colorDot};display:inline-block;flex-shrink:0;"></span>`:''}${escapeHtml(title)}<span class="muted" style="font-weight:400;">(${list.length})</span></h3>
+  const groupHtml = (title, colorDot, list, cats, menuId, stLabel) => list.length===0 ? '' : `
+    <details class="prod-grp" open style="--g:${colorDot||'var(--muted)'};">
+      <summary><span class="prod-grp-dot"></span><b>${escapeHtml(title)}</b><span class="muted">${list.length} ürün${stLabel ? ' · 🍳 '+escapeHtml(stLabel) : ''}${list.some(p => p.available===false) ? ' · '+list.filter(p => p.available===false).length+' kapalı' : ''}</span><span style="flex:1;"></span>${menuId ? menuAvailBtn(menuId) : ''}</summary>
       <div class="settings-table-wrap">
       <table class="settings-table">
         <thead><tr><th style="width:36px;"><input type="checkbox" style="width:auto;margin:0;" title="Bu gruptakilerin tümünü seç" ${actOn('change','selectProdGroup',['$this'])}></th><th>Ürün Adı</th><th>İstasyon</th><th>Fiyat</th><th>Maliyet</th><th title="Ürünün menüsü; istasyon menüden gelir">Menü</th><th title="Fiyata dahil KDV oranı">KDV</th><th>Stok</th><th title="Mutfak fişine yazdırılsın mı?">🖨️ Fiş</th><th>Durum</th><th></th></tr></thead>
-        <tbody>${groupedRows(list, cats)}</tbody>
+        <tbody>${rowsFor(list)}</tbody>
       </table>
       </div>
-    </div>`;
+    </details>`;
 
   const unassigned = products.filter(p => !stations.some(s => s.id===p.station_id));
 
   el.innerHTML = `<div class="box" style="max-width:none;">
     <h2>Ürünler</h2>
+    <details class="prod-info"><summary>ℹ️ Nasıl çalışır · Varsayılan KDV: %${APP.config.default_vat_rate ?? 10}</summary>
     <p class="muted" style="text-align:left;margin:-6px 0 12px;font-size:13px;"><b>Menü</b>: ürünün menüsü (menüleri ve hangi istasyona gideceklerini <b>Menüler & İstasyonlar</b> sekmesinde ayarlayın); ürünün istasyonu menüden gelir. <b>🖨️ Fiş</b> işareti kaldırılan ürünler mutfak fişine yazdırılmaz (ekranda yine görünür).</p>
     <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 10px;">
       <label style="margin:0;font-weight:700;font-size:13.5px;">Varsayılan KDV oranı</label>
@@ -1086,11 +1134,7 @@ function renderProductsSettings(el, session){
       <span class="muted" style="font-size:12.5px;">Fiyatlar KDV dahildir. Lokantada yiyecek-içecek %10, alkollü içecek %20. Ürüne ayrı oran seçilmezse bu oran kullanılır.</span>
     </div>
     <p class="muted" style="text-align:left;margin:0 0 16px;">Stok alanını boş bırakırsanız o ürün için stok takibi yapılmaz. Satırları değiştirip <b>Kaydet</b>'e basın; satışa açmak / kapatmak / silmek için satırları seçin.</p>
-    <div id="prodGroups" ${actOn('input','markProdDirty',['$event'])} ${actOn('change','markProdDirty',['$event'])}>
-    ${stations.map(s => groupHtml(s.name, s.color, products.filter(p => p.station_id===s.id), s.categories)).join('')}
-    ${groupHtml('İstasyonsuz', null, unassigned)}
-    </div>
-
+    </details>
     <div class="add-row-panel">
     <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:0 0 10px;">
         ${listSearchHtml('products', 'Ürün ara…').replace('margin:0 0 12px;','margin:0;')}
@@ -1103,7 +1147,7 @@ function renderProductsSettings(el, session){
         </div>
       </div>
       <p class="muted" id="prodSelInfo" style="text-align:left;font-size:12.5px;margin:-4px 0 8px;text-transform:none;letter-spacing:0;font-weight:400;min-height:0;"></p>
-      <p>Yeni Ürün Ekle</p>
+      <details class="prod-add" ${products.length ? '' : 'open'}><summary>➕ Yeni Ürün Ekle</summary>
       <div class="add-row-inline" style="display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;">
         <div class="field-group grow" style="margin:0;min-width:0;flex:2 1 170px;width:auto;"><label>Ürün Adı</label><input style="margin:0;width:100%;" id="np_name" placeholder="örn. Izgara Köfte"></div>
         <div class="field-group" style="margin:0;min-width:0;flex:1.6 1 150px;width:auto;"><label>Menü</label><select style="margin:0;width:100%;" id="np_menu">${prodMenuOptions((APP.config.menus[0]||{}).id)}</select></div>
@@ -1120,7 +1164,13 @@ function renderProductsSettings(el, session){
         <button type="button" style="width:auto;margin:0;white-space:nowrap;flex:0 0 auto;padding-left:18px;padding-right:18px;" ${act('addProduct')}>+ Ürün Ekle</button>
       </div>
       <div id="npRecipeItemsBox"></div>
+      </details>
     </div>
+    <div id="prodGroups" ${actOn('input','markProdDirty',['$event'])} ${actOn('change','markProdDirty',['$event'])}>
+    ${(APP.config.menus||[]).map(m => { const st = stations.find(x => x.id===m.station_id); return groupHtml(m.name, st ? st.color : null, products.filter(p => p.menu_id===m.id), null, m.id, st ? st.name : 'istasyon seçilmedi'); }).join('')}
+    ${groupHtml('Menüsüz', null, products.filter(p => !p.menu_id || !(APP.config.menus||[]).some(m => m.id===p.menu_id)))}
+    </div>
+
   </div>`;
   NEW_PRODUCT_RECIPE_DRAFT = [];
   renderNewProductRecipeItems();
@@ -1166,6 +1216,25 @@ function updateProdSelection(){
   const info = document.getElementById('prodSelInfo');
   if(info) info.innerHTML = [n ? `<b>${n}</b> ürün seçili` : '', dirty ? `<b>${dirty}</b> üründe kaydedilmemiş değişiklik` : ''].filter(Boolean).join(' · ');
 }
+/* Menünün tüm ürünlerini tek tuşla satışa açma/kapatma. Ürünlerin hepsi satıştaysa
+   "Satışa Kapat", en az biri kapalıysa "Satışa Aç" gösterilir. */
+function menuAvailBtn(menuId){
+  const list = (APP.config.products || []).filter(p => p.menu_id === menuId);
+  if(!list.length) return '';
+  const closed = list.filter(p => p.available === false).length;
+  return closed
+    ? `<button type="button" class="act-btn act-open" title="${closed}/${list.length} ürün satışta değil" ${act('setMenuAvailable', menuId, true)}><b>✓</b><span>Satışa Aç</span></button>`
+    : `<button type="button" class="act-btn act-close" ${act('setMenuAvailable', menuId, false)}><b>✕</b><span>Satışa Kapat</span></button>`;
+}
+async function setMenuAvailable(menuId, open){
+  const menu = (APP.config.menus || []).find(m => m.id === menuId);
+  const list = (APP.config.products || []).filter(p => p.menu_id === menuId && (p.available !== false) !== open);
+  if(!list.length) return;
+  if(!open && !confirm((menu ? menu.name : 'Bu menü') + ' menüsündeki ' + list.length + ' ürün satışa kapatılsın mı?')) return;
+  const errors = await runProductBatch(list, (s, p) => sb.rpc('upsert_product', Object.assign({ p_token: s.session_token }, productPayload(p, { p_available: open }))));
+  if(errors.length) alert('Bazı ürünler güncellenemedi:\n\n' + errors.join('\n'));
+  else showToast((menu ? menu.name : 'Menü') + ': ' + list.length + ' ürün ' + (open ? 'satışa açıldı ✓' : 'satışa kapatıldı'));
+}
 function productPayload(p, over){
   return Object.assign({ p_id: p.id, p_station_id: p.station_id, p_name: p.name, p_price: p.price, p_cost: p.cost, p_stock: p.stock, p_available: p.available!==false }, over || {});
 }
@@ -1203,6 +1272,16 @@ async function saveAllProducts(){
     return sb.rpc('set_product_vat', { p_token: s.session_token, p_product_id: r.id, p_rate: r.vat });
   });
   if(errors.length) alert('Bazı ürünler kaydedilemedi:\n\n' + errors.join('\n')); else showToast(rows.length + ' ürün kaydedildi ✓');
+}
+// Durum rozetine tıklayınca tek ürün anında satışa açılır/kapanır.
+async function toggleProductAvailable(pid){
+  const p = (APP.config.products || []).find(x => x.id === pid); if(!p) return;
+  const open = p.available === false;
+  const { error } = await sb.rpc('upsert_product', Object.assign({ p_token: getSession().session_token }, productPayload(p, { p_available: open })));
+  if(error){ alert(error.message); return; }
+  p.available = open;
+  showToast(p.name + (open ? ' satışa açıldı ✓' : ' satışa kapatıldı'));
+  renderSettingsContent(getSession());
 }
 async function bulkProductAvailable(open){
   const ids = selectedProductIds(); if(!ids.length) return;
