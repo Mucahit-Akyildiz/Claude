@@ -1006,7 +1006,8 @@ function renderProductsSettings(el, session){
         <tr data-pid="${p.id}" style="${p.available===false?'opacity:.6;':''}">
           <td><input type="checkbox" class="prod-sel" value="${p.id}" style="width:auto;margin:0;" ${actOn('change','updateProdSelection',[])}></td>
           <td class="col-name"><input value="${escapeAttr(p.name)}" id="pr_name_${p.id}"></td>
-          <td class="col-name"><select id="pr_st_${p.id}" ${p.menu_id ? 'disabled title="İstasyon menüden gelir — değiştirmek için menünün istasyonunu Ayarlar → Menüler & İstasyonlar sekmesinden değiştirin ya da ürünün menüsünü kaldırın"' : ''}>
+          <td class="col-name"><select id="pr_st_${p.id}" ${p.menu_id ? 'title="İstasyon normalde menüden gelir; burada değiştirirseniz bu ürün için ayrı istasyon kullanılır. Menünün istasyonunu seçerseniz tekrar menüye bağlanır."' : ''}>
+            ${!p.station_id ? '<option value="" selected>— İstasyon yok —</option>' : ''}
             ${stations.map(s => `<option value="${s.id}" ${s.id===p.station_id?'selected':''}>${escapeHtml(s.name)}</option>`).join('')}
           </select></td>
           <td class="col-num"><input type="number" value="${p.price}" id="pr_price_${p.id}"></td>
@@ -1162,7 +1163,7 @@ async function saveAllProducts(){
     const pr = (document.getElementById('pr_print_'+id) || {}).checked;
     const optChanged = pr != null && pr !== (p.print_ticket !== false);
     const menuChanged = menu !== (p.menu_id || null);
-    return { name, id, vat, menu, menuChanged, cat: p.category || null, pr: pr == null ? p.print_ticket !== false : pr, optChanged, vatChanged: (p.vat_rate ?? null) !== vat, payload: productPayload(p, { p_name: name, p_station_id: document.getElementById('pr_st_'+id).value,
+    return { name, id, vat, menu, menuChanged, cat: p.category || null, pr: pr == null ? p.print_ticket !== false : pr, optChanged, vatChanged: (p.vat_rate ?? null) !== vat, payload: productPayload(p, { p_name: name, p_station_id: document.getElementById('pr_st_'+id).value || null,
       p_price: parseFloat(document.getElementById('pr_price_'+id).value)||0, p_cost: parseFloat(document.getElementById('pr_cost_'+id).value)||0, p_stock: stock }) };
   });
   if(!rows.length) return;
