@@ -828,7 +828,11 @@ begin
       union all
       select jsonb_build_object('id', rv.id, 'label', '📅 ' || rv.customer_name || ' · ' || to_char(rv.reservation_time at time zone 'Europe/Istanbul', 'HH24:MI') || ' (onay bekliyor)', 'kind', 'reservation')
         from reservations rv where rv.restaurant_id = r and rv.status = 'pending'
-          and rv.reservation_time >= now() - interval '2 hours' and rv.reservation_time < now() + interval '1 day') x;
+          and rv.reservation_time >= now() - interval '2 hours' and rv.reservation_time < now() + interval '1 day'
+      union all
+      select jsonb_build_object('id', rv.id, 'label', '⏰ ' || rv.customer_name || ' · ' || to_char(rv.reservation_time at time zone 'Europe/Istanbul', 'HH24:MI') || case when rv.reservation_time < now() then ' (saati geldi, oturtulmadı)' else ' (yaklaşıyor)' end, 'kind', 'reservation')
+        from reservations rv where rv.restaurant_id = r and rv.status = 'confirmed'
+          and rv.reservation_time >= now() - interval '1 hour' and rv.reservation_time < now() + interval '2 hours') x;
     v := v || jsonb_build_object('reservations', jsonb_array_length(arr)); it := it || jsonb_build_object('reservations', arr);
   end if;
   if _user_has_perm(u, 'shifts') then
@@ -1400,14 +1404,15 @@ end $$;
 
 CREATE FUNCTION public._send_reservation_reminders() RETURNS void
     LANGUAGE plpgsql SECURITY DEFINER
-    SET search_path TO 'public', 'pg_temp'
+    SET search_path TO 'public', 'extensions', 'pg_temp'
     AS $$
-declare rv record;
+declare rv record; v_ids uuid[]; v_url text; v_secret text;
 begin
+  -- Müşteriye: rezervasyondan 4 saat önce (SMS + e-posta).
   for rv in select r.*, rs.name rname, rs.sms_enabled from reservations r join restaurants rs on rs.id = r.restaurant_id
-    where r.status = 'confirmed' and r.reminder_sent_at is null
+    where r.status in ('confirmed','pending') and r.reminder_sent_at is null
       and ((rs.sms_enabled and r.phone is not null) or r.email is not null)
-      and r.reservation_time between now() and now() + interval '2 hours' loop
+      and r.reservation_time between now() and now() + interval '4 hours' loop
     update reservations set reminder_sent_at = now() where id = rv.id;
     if rv.sms_enabled and rv.phone is not null then
       perform _send_sms(rv.restaurant_id, rv.phone, rv.rname || ': Hatirlatma - bugun saat ' ||
@@ -1415,6 +1420,20 @@ begin
     end if;
     perform _reservation_send_mail(rv.id, 'reminder');
   end loop;
+  -- Personele: rezervasyondan 4 saat önce push bildirimi.
+  with upd as (
+    update reservations set staff_reminder_sent_at = now()
+    where status in ('confirmed','pending') and staff_reminder_sent_at is null
+      and reservation_time between now() and now() + interval '4 hours'
+    returning id
+  ) select array_agg(id) into v_ids from upd;
+  if v_ids is null then return; end if;
+  select value into v_url from _psv where key = 'push_dispatch_url';
+  select value into v_secret from _psv where key = 'push_dispatch_secret';
+  if coalesce(v_url,'') = '' then return; end if;
+  perform net.http_post(url := v_url,
+    headers := jsonb_build_object('Content-Type','application/json','x-push-secret', coalesce(v_secret,'')),
+    body := jsonb_build_object('mode', 'resv_reminders', 'ids', to_jsonb(v_ids)), timeout_milliseconds := 25000);
 end $$;
 
 
@@ -10745,7 +10764,8 @@ CREATE TABLE public.reservations (
     reminder_sent_at timestamp with time zone,
     seated_at timestamp with time zone,
     closed_at timestamp with time zone,
-    email text
+    email text,
+    staff_reminder_sent_at timestamp with time zone
 );
 
 
