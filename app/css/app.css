@@ -855,3 +855,8 @@ button.chat-once{cursor:pointer;}
 .pay-extra-row .ghost-btn{width:100%;margin:0;}
 .pay-extra-row .pay-email-toggle{margin:0;}
 @media (max-width:820px){ .pay-body{grid-template-columns:1fr;} .pay-col-right{position:static;} }
+
+/* Finansal Analiz > Satın Alma: kalem başına birim fiyat girişi */
+.po-price-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:3px 0;}
+.po-price-row input{width:110px;margin:0;padding:6px 8px;font-size:13px;}
+.po-price-row input.po-price-missing{border-color:var(--red);}

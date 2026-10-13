@@ -189,6 +189,8 @@ function applyTabBadges(){
     users: b.settings || 0,
     shifts: b.settings || 0,
     orders: b.purchasing || 0,
+    purchase: b.reports || 0,
+    purchRepOrders: b.reports || 0,
     reservations: resvItems.filter(x => x.kind==='reservation').length,
     waitlist: resvItems.filter(x => x.kind==='waitlist').length,
   };
@@ -236,6 +238,7 @@ function openBadgePopover(view, anchor){
     if(view==='settings') APP.settingsTab = 'shifts';
     if(view==='reservations') APP.resvTab = items.every(x => x.kind==='waitlist') ? 'waitlist' : 'reservations';
     if(view==='purchasing') APP.purchTab = 'orders';
+    if(view==='reports'){ APP.reportTab = 'purchase'; APP.purchRepSub = 'orders'; }
     goToView(view);
   };
   document.body.appendChild(pop);

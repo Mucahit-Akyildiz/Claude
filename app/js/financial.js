@@ -161,7 +161,10 @@ async function renderReportsView(main, session){
     const { data } = await withLoadingOverlay(sb.rpc('get_restaurant_config', { p_token: session.session_token }));
     if(data) APP.config = data;
   }
-  if(!APP.reportsUnlocked){
+  // Yalnızca Satın Alma yetkisi olan (purchasing_reports) kullanıcı sadece o sekmeyi görür, şifre kapısı yok.
+  const purchaseOnly = !canManage(session, 'reports');
+  if(purchaseOnly) APP.reportTab = 'purchase';
+  if(!APP.reportsUnlocked && !purchaseOnly){
     renderReportsGate(main, session);
     return;
   }
@@ -183,7 +186,7 @@ async function renderReportsView(main, session){
         <button type="button" class="range-preset-btn" ${act('setReportDateRangeDays', 29)}>Son 30 Gün</button>
       </div>
     </div>
-    <div class="tabs" id="reportTabs">
+    <div class="tabs" id="reportTabs">${purchaseOnly ? `<div class="tab active" data-tab="purchase">🚚 Satın Alma</div>` : `
       <div class="tab ${(APP.reportTab||'summary')==='summary'?'active':''}" data-tab="summary" ${act('setReportTab', 'summary')}>Genel Özet</div>
       <div class="tab ${APP.reportTab==='vat'?'active':''}" data-tab="vat" ${act('setReportTab', 'vat')}>🧾 KDV</div>
       <div class="tab ${APP.reportTab==='products'?'active':''}" data-tab="products" ${act('setReportTab', 'products')}>📦 Ürün İstatistikleri</div>
@@ -193,7 +196,7 @@ async function renderReportsView(main, session){
       <div class="tab ${APP.reportTab==='waste'?'active':''}" data-tab="waste" ${act('setReportTab', 'waste')}>🔥 İsraf</div>
       <div class="tab ${APP.reportTab==='resv'?'active':''}" data-tab="resv" ${act('setReportTab', 'resv')}>📅 Rezervasyon Analizi</div>
       <div class="tab ${APP.reportTab==='openacc'?'active':''}" data-tab="openacc" ${act('setReportTab', 'openacc')}>📒 Açık Hesaplar</div>
-      <div class="tab ${APP.reportTab==='purchase'?'active':''}" data-tab="purchase" ${act('setReportTab', 'purchase')}>🚚 Satın Alma</div>
+      <div class="tab ${APP.reportTab==='purchase'?'active':''}" data-tab="purchase" ${act('setReportTab', 'purchase')}>🚚 Satın Alma</div>`}
     </div>
     <div id="reportContent"></div>`;
   await renderReportTabContent(session);
@@ -662,7 +665,14 @@ async function renderTipPoolContent(session){
 /* --- Satın Alma: seçilen tarih aralığında Tedarik & Satın Alma'dan verilen siparişler
    (bkz. get_purchase_report). Taslak ve iptaller toplamlara katılmaz. --- */
 async function renderPurchaseReportContent(session){
-  const el = document.getElementById('reportContent'); if(!el) return;
+  const host = document.getElementById('reportContent'); if(!host) return;
+  const sub = APP.purchRepSub || 'orders';
+  host.innerHTML = `<div class="tabs" id="purchRepTabs" style="margin-top:0;">
+      <div class="tab ${sub==='orders'?'active':''}" data-tab="purchRepOrders" ${act('setPurchRepSub','orders')}>Satın Alma Siparişleri</div>
+      <div class="tab ${sub==='suppliers'?'active':''}" data-tab="purchRepSuppliers" ${act('setPurchRepSub','suppliers')}>Tedarikçiler</div>
+    </div><div id="purchRepContent"></div>`;
+  if(sub==='suppliers'){ APP.supplierTarget = 'purchRepContent'; return renderSuppliersContent(session); }
+  const el = document.getElementById('purchRepContent');
   const { data, error } = await withLoadingOverlay(sb.rpc('get_purchase_report', { p_token: session.session_token, p_date: APP.reportDate, p_date_to: APP.reportDateTo }));
   if(error){ el.innerHTML = '<p class="muted">Yüklenemedi: '+escapeHtml(error.message)+'</p>'; return; }
   const rows = data || [];
@@ -673,22 +683,35 @@ async function renderPurchaseReportContent(session){
   live.forEach(p => { const k = p.supplier_name || '—'; bySup[k] = (bySup[k]||0) + (Number(p.total_amount)||0); });
   const card = (v, l, c) => `<div class="box" style="text-align:center;"><div style="font-size:22px;font-weight:800;${c?'color:'+c+';':''}">${v}</div><div class="muted" style="font-size:12px;">${l}</div></div>`;
   el.innerHTML = `
+    ${rows.some(p => p.status!=='draft' && p.status!=='cancelled' && (p.items||[]).some(i => !(Number(i.unit_cost)>0))) ? '<p class="muted" style="text-align:left;margin:0 0 12px;">🔴 Kırmızı çerçeveli kalemlerin birim fiyatı girilmemiş; fiyatı yazıp kutudan çıkınca kaydedilir.</p>' : ''}
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:16px;">
       ${card(live.length, '🚚 Sipariş')}${card(money(total), 'Sipariş Tutarı')}${card(money(recv), 'Teslim Alınan', 'var(--green)')}${card(money(Math.max(0,total-recv)), 'Bekleyen', '#d97706')}
     </div>
     ${Object.keys(bySup).length ? `<div class="box" style="max-width:none;margin-bottom:16px;"><h3 style="margin-top:0;">Tedarikçiye Göre</h3>${Object.entries(bySup).sort((a,b)=>b[1]-a[1]).map(([k,v]) => `<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);"><span>${escapeHtml(k)}</span><b>${money(v)}</b></div>`).join('')}</div>` : ''}
     <div class="box" style="max-width:none;">
-      <h3 style="margin-top:0;">Siparişler</h3>
+      <h3 style="margin-top:0;">Satın Alma Siparişleri</h3>
       ${rows.length ? `<div class="settings-table-wrap"><table class="settings-table"><thead><tr><th>Tarih</th><th>Tedarikçi</th><th>Kalemler</th><th>Durum</th><th>Veren</th><th style="text-align:right;">Tutar</th></tr></thead><tbody>
         ${rows.map(p => `<tr>
           <td style="white-space:nowrap;">${new Date(p.order_date).toLocaleDateString('tr-TR')}</td>
           <td>${escapeHtml(p.supplier_name || '—')}</td>
-          <td style="font-size:12.5px;">${(p.items||[]).map(i => `${escapeHtml(i.name)} ${Number(i.quantity)} ${escapeHtml(i.unit||'')}${Number(i.received)>0 ? ' <span class="muted">(teslim '+Number(i.received)+')</span>' : ''}`).join('<br>') || '<span class="muted">—</span>'}${p.notes ? `<div class="muted" style="margin-top:4px;">📝 ${escapeHtml(p.notes)}</div>` : ''}</td>
+          <td style="font-size:12.5px;">${(p.items||[]).map(i => `<div class="po-price-row"><span style="flex:1;min-width:120px;">${escapeHtml(i.name)} <b>${Number(i.quantity)}</b> ${escapeHtml(i.unit||'')}${Number(i.received)>0 ? ' <span class="muted">(teslim '+Number(i.received)+')</span>' : ''}</span>
+            <input type="number" min="0" step="0.01" placeholder="Birim fiyat" value="${Number(i.unit_cost)>0 ? Number(i.unit_cost) : ''}" class="${Number(i.unit_cost)>0 ? '' : 'po-price-missing'}" title="Birim fiyat (${escapeAttr(i.unit||'')} başına)" ${actOn('change','savePurchaseItemCost',[i.id,'$value'])}>
+            <span class="muted" style="white-space:nowrap;">/${escapeHtml(i.unit||'')}</span></div>`).join('') || '<span class="muted">—</span>'}${p.notes ? `<div class="muted" style="margin-top:4px;">📝 ${escapeHtml(p.notes)}</div>` : ''}</td>
           <td>${typeof poStatusBadge==='function' ? poStatusBadge(Object.assign({}, p, { ordered_total: (p.items||[]).reduce((t,i)=>t+Number(i.quantity||0),0), received_total: (p.items||[]).reduce((t,i)=>t+Math.min(Number(i.received||0),Number(i.quantity||0)),0) })) : escapeHtml(p.status)}</td>
           <td>${escapeHtml(p.created_by_name || '—')}</td>
           <td style="text-align:right;white-space:nowrap;font-weight:700;">${money(p.total_amount)}</td></tr>`).join('')}
       </tbody></table></div>` : '<p class="muted">Bu dönemde satın alma siparişi yok.</p>'}
     </div>`;
+}
+function setPurchRepSub(sub){ APP.purchRepSub = sub; renderPurchaseReportContent(getSession()); }
+async function savePurchaseItemCost(itemId, value){
+  const v = parseFloat(String(value).replace(',', '.'));
+  if(isNaN(v) || v < 0){ showToast('Geçerli bir birim fiyat girin'); return; }
+  const { error } = await sb.rpc('set_purchase_item_cost', { p_token: getSession().session_token, p_item_id: itemId, p_unit_cost: v });
+  if(error){ alert(error.message); return; }
+  showToast('Birim fiyat kaydedildi ✓');
+  renderPurchaseReportContent(getSession());
+  if(typeof refreshNavBadges === 'function') refreshNavBadges();
 }
 async function renderWasteContent(session){
   const el = document.getElementById('reportContent'); if(!el) return;
