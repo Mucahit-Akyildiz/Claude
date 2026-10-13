@@ -404,7 +404,9 @@ async function renderReportContent(session){
         <div class="fs-cap">💰 Toplam Ciro</div>
         <div class="fs-big">${money(totalRevenue)}</div>
         <div class="fs-line">${hist.length} kapatılan hesap${hist.length ? ' · ortalama '+money(totalRevenue/Math.max(1,untaggedHist.length)) : ''}</div>
+        <div id="fsTrend" class="fs-trend"></div>
       </div>
+      <div id="fsGoal" class="fs-goal"></div>
       <div class="fs-hero-side">
         <div class="fs-k" style="--k:${profit<0?'var(--red)':'var(--green)'};"><div class="fs-cap">📈 Net Kâr</div><div class="fs-mid">${money(profit)}</div><div class="fs-line">${totalRevenue ? 'Marj %'+Math.round(profit/totalRevenue*100) : '—'}</div></div>
         <div class="fs-k" style="--k:#f59e0b;"><div class="fs-cap">🧮 Maliyet</div><div class="fs-mid">${money(totalCost)}</div><div class="fs-line">${totalRevenue ? '%'+Math.round(totalCost/totalRevenue*100)+' ciro' : '—'}</div></div>
@@ -434,6 +436,7 @@ async function renderReportContent(session){
       <div class="fs-panel pa-sec" style="--t:var(--c2);"><h3><i>🍩</i>Ödeme Türleri</h3>
         ${svgDonut([{ label:'Nakit', value: totalCash, color:'var(--c1)' }, { label:'Kart', value: totalCard, color:'var(--c2)' }, { label:'Hediye Kartı', value: totalGiftCard, color:'var(--c3)' }], { center: shortMoney(totalCash+totalCard+totalGiftCard), sub:'₺ toplam', title:'Ödeme türleri', money:true })}</div>
     </div>
+    ${heatmapHtml(untaggedHist)}
     <details class="fs-panel pa-sec" style="--t:#f97316;"><summary style="cursor:pointer;"><h3 style="display:inline-flex;margin:0;"><i>⏰</i>Saatlik Yoğunluk Tablosu</h3></summary>${hourlyHtml}</details>
     <div class="fs-panel pa-sec" style="--t:#a78bfa;"><h3><i>👤</i>Personel Performansı</h3>${staffRowsHtml}</div>
     <div class="fs-panel pa-sec" style="--t:var(--green);">
@@ -478,6 +481,7 @@ async function renderReportContent(session){
         fsRow('Ort. oturma süresi', m.avg_seat_minutes ? m.avg_seat_minutes+' dk' : '—', '');
     });
   }
+  loadFsExtras(session, totalRevenue);
 }
 /* --- Ürün İstatistikleri sekmesi: hangi üründen ne kadar satıldığı,
    istasyona göre filtrelenebilen, çoktan aza sıralı bar grafiği --- */
@@ -497,28 +501,19 @@ async function renderProductStatsContent(session){
   const maxVal = sorted.length ? (APP.productStatsSort==='qty' ? sorted[0].qty : Number(sorted[0].revenue)) : 0;
   const top = sorted[0];
 
-  const barsHtml = sorted.length===0 ? '<p class="muted">Bu tarihte / bu filtrede satış yok.</p>' : sorted.map((r,idx) => {
+  const barsHtml = sorted.length===0 ? '<p class="muted">Bu tarihte / bu filtrede satış yok.</p>' : `<div class="race">${sorted.slice(0, APP.productStatsAll ? 999 : 10).map((r, idx) => {
     const val = APP.productStatsSort==='qty' ? r.qty : Number(r.revenue);
-    const pct = maxVal ? Math.round(val/maxVal*100) : 0;
-    const isTop = idx===0;
-    return `<div style="margin-bottom:10px;">
-      <div style="display:flex;justify-content:space-between;align-items:baseline;font-size:13px;margin-bottom:4px;gap:8px;">
-        <span style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${isTop?'🏆 ':''}${escapeHtml(r.name)}${r.station_name?' <span class="muted" style="font-weight:400;font-size:11px;">('+escapeHtml(r.station_name)+')</span>':''}</span>
-        <span class="muted" style="white-space:nowrap;">${r.qty} adet · ${money(r.revenue)}</span>
-      </div>
-      <div style="background:var(--panel2);border-radius:6px;height:16px;overflow:hidden;">
-        <div style="width:${pct}%;height:100%;background:${isTop?'var(--accent)':'var(--accent2)'};transition:width .3s ease;"></div>
-      </div>
-    </div>`;
-  }).join('');
+    const pct = maxVal ? Math.max(3, Math.round(val/maxVal*100)) : 0;
+    const medal = ['🥇','🥈','🥉'][idx] || (idx+1);
+    return `<div class="race-row" style="--i:${Math.min(idx,15)};--sc:var(--c${idx%4+1});">
+      <span class="race-rank ${idx<3?'top':''}">${medal}</span>
+      <div class="race-main"><div class="race-label"><b>${escapeHtml(r.name)}</b>${r.station_name ? `<small>${escapeHtml(r.station_name)}</small>` : ''}</div>
+        <div class="race-track"><div class="race-bar" style="width:${pct}%;"><span>${APP.productStatsSort==='qty' ? r.qty+' adet' : money(r.revenue)}</span></div></div></div>
+      <span class="race-side">${APP.productStatsSort==='qty' ? money(r.revenue) : r.qty+' adet'}<small>${totalRev ? '%'+Math.round(Number(r.revenue)/totalRev*100)+' ciro' : ''}</small></span>
+    </div>`; }).join('')}</div>${sorted.length > 10 ? `<button type="button" class="pc-btn" style="margin-top:10px;" ${act('setProductStatsOpt', 'productStatsAll', !APP.productStatsAll)}>${APP.productStatsAll ? 'İlk 10\'u göster' : 'Tümünü göster ('+sorted.length+')'}</button>` : ''}`;
 
   el.innerHTML = `
-    <div class="stat-grid">
-      <div class="box" style="text-align:center;"><div style="font-size:22px;font-weight:800;">${filtered.length}</div><div class="muted" style="font-size:12px;">Satılan Ürün Çeşidi</div></div>
-      <div class="box" style="text-align:center;"><div style="font-size:22px;font-weight:800;">${totalQty}</div><div class="muted" style="font-size:12px;">Toplam Adet</div></div>
-      <div class="box" style="text-align:center;"><div style="font-size:22px;font-weight:800;">${money(totalRev)}</div><div class="muted" style="font-size:12px;">Toplam Ciro</div></div>
-      <div class="box" style="text-align:center;"><div style="font-size:15px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${top?escapeHtml(top.name):'-'}</div><div class="muted" style="font-size:12px;">🏆 En Çok Satan</div></div>
-    </div>
+    ${statChips([['🍽️', filtered.length, 'Satılan ürün çeşidi', 'var(--c1)'], ['📦', totalQty, 'Toplam adet', 'var(--c2)'], ['💰', money(totalRev), 'Toplam ciro', 'var(--c3)'], ['🏆', top ? escapeHtml(top.name) : '-', 'En çok satan', 'var(--c4)']])}
     <div class="box" style="max-width:none;">
       <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:14px;">
         <h2 style="margin:0;">Ürün Satışları</h2>
@@ -1320,3 +1315,91 @@ function setReportsGateScreen(s){ APP.reportsGateScreen = s; renderReportsGate(d
 function setReportBillsFilter(k, v){ APP.reportBillsFilter[k] = v; renderReportTabContent(getSession()); }
 function resetReportBillsFilter(){ APP.reportBillsFilter = { hour:'', table:'', method:'', source:'' }; renderReportTabContent(getSession()); }
 function setProductStatsOpt(k, v){ APP[k] = v; renderProductStatsContent(getSession()); }
+
+/* Gün × saat yoğunluk ısı haritası (kapatılan hesapların kapanış saatine göre). */
+function heatmapHtml(hist){
+  if(!hist.length) return '';
+  const DAYS = ['Pzt','Sal','Çar','Per','Cum','Cmt','Paz'], g = {}; let max = 0, lo = 23, hi = 0;
+  hist.forEach(o => { const d = new Date(o.closed_at), dw = (d.getDay()+6)%7, h = d.getHours(), k = dw+'_'+h;
+    g[k] = g[k] || { r:0, c:0 }; g[k].r += Number(o.total)||0; g[k].c++; max = Math.max(max, g[k].r); lo = Math.min(lo, h); hi = Math.max(hi, h); });
+  const hrs = []; for(let h = lo; h <= hi; h++) hrs.push(h);
+  const usedDays = DAYS.map((n, i) => i).filter(i => hrs.some(h => g[i+'_'+h]));
+  return `<div class="fs-panel pa-sec" style="--t:var(--c2);"><h3><i>🔥</i>Yoğunluk Haritası <span class="muted" style="font-size:12px;font-weight:400;">gün × saat · koyu = yoğun</span></h3>
+    <div class="hm" style="--cols:${hrs.length};">
+      <span></span>${hrs.map(h => `<span class="hm-h">${String(h).padStart(2,'0')}</span>`).join('')}
+      ${usedDays.map((di, ri) => `<span class="hm-d">${DAYS[di]}</span>${hrs.map((h, ci) => { const c = g[di+'_'+h], v = c ? c.r/max : 0;
+        return `<span class="hm-c" tabindex="0" style="--v:${v.toFixed(3)};--i:${ri*hrs.length+ci};">${c ? `<em>${DAYS[di]} ${String(h).padStart(2,'0')}:00<br><b>${escapeHtml(money(c.r))}</b><br>${c.c} hesap</em>` : ''}</span>`; }).join('')}`).join('')}
+    </div>
+    <div class="hm-leg"><small>Az</small><i></i><small>Çok</small></div></div>`;
+}
+/* Genel Özet ekleri: önceki döneme göre değişim, son 7 gün mini grafiği ve günlük hedef halkası. */
+async function loadFsExtras(session, curRevenue){
+  const dstr = (d) => d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+  const from = new Date(APP.reportDate+'T00:00'), to = new Date((APP.reportDateTo||APP.reportDate)+'T00:00');
+  const len = Math.round((to - from)/864e5) + 1;
+  const prevFrom = new Date(from); prevFrom.setDate(prevFrom.getDate() - len);
+  const prevTo = new Date(from); prevTo.setDate(prevTo.getDate() - 1);
+  const sparkFrom = new Date(to); sparkFrom.setDate(sparkFrom.getDate() - 6);
+  const extFrom = prevFrom < sparkFrom ? prevFrom : sparkFrom;
+  const today = todayLocalDateStr();
+  const [ext, goalRes, todayRes] = await Promise.all([
+    sb.rpc('get_sales_history', { p_token: session.session_token, p_date: dstr(extFrom), p_date_to: dstr(to) }),
+    sb.rpc('get_daily_goal', { p_token: session.session_token }),
+    sb.rpc('get_sales_history', { p_token: session.session_token, p_date: today, p_date_to: today })
+  ]);
+  const rows = (ext.data || []).filter(o => !o.tags || !o.tags.length);
+  const dayRev = {}; rows.forEach(o => { const k = dstr(new Date(o.closed_at)); dayRev[k] = (dayRev[k]||0) + (Number(o.total)||0); });
+  let prev = 0; for(let d = new Date(prevFrom); d <= prevTo; d.setDate(d.getDate()+1)) prev += dayRev[dstr(d)] || 0;
+  const pts = []; for(let d = new Date(sparkFrom); d <= to; d.setDate(d.getDate()+1)) pts.push({ k: dstr(d), v: dayRev[dstr(d)] || 0 });
+  const tr = document.getElementById('fsTrend');
+  if(tr){
+    const ch = prev ? Math.round((curRevenue - prev) / prev * 100) : null;
+    tr.innerHTML = `${ch === null ? '' : `<span class="fs-delta ${ch>=0?'up':'down'}" title="Önceki ${len} güne göre (${money(prev)})">${ch>=0?'▲':'▼'} %${Math.abs(ch)}<small> önceki ${len===1?'güne':len+' güne'} göre</small></span>`}
+      ${sparklineSvg(pts)}`;
+  }
+  const gEl = document.getElementById('fsGoal');
+  const goal = Number(goalRes.data) || 0, todayRev = (todayRes.data || []).filter(o => !o.tags || !o.tags.length).reduce((x, o) => x + (Number(o.total)||0), 0);
+  if(gEl) gEl.innerHTML = goalRingHtml(todayRev, goal);
+  if(goal && todayRev >= goal){
+    let key = 'goalCelebrated_' + today, done = false;
+    try{ done = localStorage.getItem(key) === '1'; localStorage.setItem(key, '1'); }catch(e){}
+    if(!done) celebrate();
+  }
+}
+function sparklineSvg(pts){
+  if(pts.length < 2) return '';
+  const W = 150, H = 40, max = Math.max(1, ...pts.map(p => p.v)), step = W / (pts.length - 1);
+  const xy = pts.map((p, i) => [i*step, H - 4 - (p.v/max)*(H-10)]);
+  const line = xy.map((p, i) => (i ? 'L' : 'M') + p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join(' ');
+  return `<svg class="spark" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" aria-label="Son 7 gün ciro">
+    <path d="${line} L${W} ${H} L0 ${H} Z" class="spark-a"/><path d="${line}" class="spark-l"/>
+    ${xy.map((p, i) => `<circle cx="${p[0].toFixed(1)}" cy="${p[1].toFixed(1)}" r="${i===xy.length-1?3.5:2}" class="spark-d"><title>${new Date(pts[i].k+'T00:00').toLocaleDateString('tr-TR',{day:'numeric',month:'short'})}: ${money(pts[i].v)}</title></circle>`).join('')}
+  </svg><small class="spark-cap">son 7 gün</small>`;
+}
+function goalRingHtml(rev, goal){
+  const C = 2*Math.PI*40, pct = goal ? Math.min(1, rev/goal) : 0, done = goal && rev >= goal;
+  return `<div class="gr ${done?'done':''}" ${act('editDailyGoal', goal)} title="Günlük hedefi değiştir">
+    <svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" class="gr-t"/><circle cx="50" cy="50" r="40" class="gr-v" style="stroke-dasharray:${C};--off:${C*(1-pct)};--full:${C};"/></svg>
+    <div class="gr-in">${goal ? `<b>%${Math.round(rev/goal*100)}</b><small>${done ? '🎉 hedef tamam' : 'bugünkü hedef'}</small>` : '<b>🎯</b><small>hedef koy</small>'}</div>
+    <div class="gr-cap">${goal ? escapeHtml(shortMoney(rev)) + ' / ' + escapeHtml(shortMoney(goal)) + ' ₺' : 'Günlük ciro hedefi'}</div>
+  </div>`;
+}
+async function editDailyGoal(cur){
+  const v = prompt('Günlük ciro hedefi (₺) — boş bırakırsanız kaldırılır:', cur ? String(cur) : '');
+  if(v === null) return;
+  const n = v.trim() === '' ? null : Number(v.replace(/\./g,'').replace(',', '.'));
+  if(n !== null && !(n >= 0)){ alert('Geçerli bir tutar girin'); return; }
+  const { error } = await sb.rpc('set_daily_goal', { p_token: getSession().session_token, p_goal: n });
+  if(error){ alert(error.message); return; }
+  showToast(n ? 'Günlük hedef kaydedildi 🎯' : 'Günlük hedef kaldırıldı');
+  renderReportTabContent(getSession());
+}
+/* Hedefe ulaşınca kısa konfeti efekti. */
+function celebrate(){
+  const box = document.createElement('div'); box.className = 'confetti';
+  const colors = ['var(--c1)','var(--c2)','var(--c3)','var(--c4)','#facc15'];
+  box.innerHTML = Array.from({ length: 70 }, (_, i) => `<i style="left:${Math.random()*100}%;background:${colors[i%5]};animation-delay:${(Math.random()*.6).toFixed(2)}s;animation-duration:${(1.8+Math.random()*1.4).toFixed(2)}s;transform:rotate(${Math.round(Math.random()*360)}deg);"></i>`).join('')
+    + '<div class="confetti-msg">🎉 Günlük hedefe ulaşıldı!</div>';
+  document.body.appendChild(box);
+  setTimeout(() => box.remove(), 4200);
+}

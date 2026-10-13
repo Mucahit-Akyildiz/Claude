@@ -312,3 +312,30 @@ function setBoxTab(key, idx, label){
   document.querySelectorAll(`.box[data-bt-key="${key}"]`).forEach(b => { b.style.display = Number(b.dataset.btIdx) === idx ? '' : 'none'; });
   document.querySelectorAll(`.bx-tabs[data-bt-key="${key}"] .bx-tab`).forEach((t, i) => t.classList.toggle('on', i === idx));
 }
+/* Sayan rakamlar: yeni eklenen özet sayaç / ciro rakamları 0'dan hedef değere sayarak gelir.
+   Periyodik yenilenen ekranlarda (masa/ödeme özetleri, mutfak) ilk girişten sonra sayılmaz. */
+function countUpEl(el){
+  if(el.dataset.counted || el.children.length) return;
+  const txt = el.textContent, m = txt.match(/-?\d{1,3}(?:\.\d{3})*(?:,\d+)?|-?\d+(?:,\d+)?/);
+  if(!m) return;
+  const raw = m[0], dec = (raw.split(',')[1] || '').length, target = Number(raw.replace(/\./g, '').replace(',', '.'));
+  if(!isFinite(target) || target === 0) return;
+  el.dataset.counted = '1';
+  const fmt = (v) => v.toLocaleString('tr-TR', { minimumFractionDigits: dec, maximumFractionDigits: dec, useGrouping: raw.includes('.') || Math.abs(target) >= 10000 });
+  const t0 = performance.now(), dur = 750, pre = txt.slice(0, m.index), post = txt.slice(m.index + raw.length);
+  const step = (t) => { const k = Math.min(1, (t - t0) / dur), e = 1 - Math.pow(1 - k, 3);
+    el.textContent = pre + fmt(target * e) + post; if(k < 1) requestAnimationFrame(step); else el.textContent = txt; };
+  requestAnimationFrame(step);
+}
+(function(){
+  if(typeof MutationObserver === 'undefined' || window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  const SEL = '.os-chip b, .fs-big, .fs-mid, .cu-pts b, .sub-ring b, .ig-stockv';
+  const POLLED = '#orderSummary, #paySummary, .kb-stats';
+  new MutationObserver(muts => {
+    muts.forEach(mu => mu.addedNodes.forEach(n => {
+      if(n.nodeType !== 1) return;
+      const list = n.matches && n.matches(SEL) ? [n] : [...n.querySelectorAll(SEL)];
+      list.forEach(el => { if(document.body.classList.contains('anim-done') && el.closest(POLLED)) return; countUpEl(el); });
+    }));
+  }).observe(document.documentElement, { childList: true, subtree: true });
+})();
