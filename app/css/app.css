@@ -1012,3 +1012,8 @@ button.chat-once{cursor:pointer;}
 .pc-chip.active{background:color-mix(in srgb,var(--cc) 14%,var(--panel));border-color:var(--cc);color:var(--cc);}
 .pc-items{border-top-color:color-mix(in srgb,var(--pc,var(--border)) 35%,var(--border));}
 .pc-total{color:var(--accent);}
+
+/* Satınalma Siparişleri (talep) ekranı */
+.po-new{background:linear-gradient(135deg,color-mix(in srgb,var(--accent) 12%,var(--panel)) 0%,var(--panel) 55%);}
+tr.po-row td{background:linear-gradient(90deg,color-mix(in srgb,var(--st) 7%,transparent),transparent 40%);}
+tr.po-row td:first-child{box-shadow:inset 4px 0 0 var(--st);}
