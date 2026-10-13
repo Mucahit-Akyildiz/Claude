@@ -107,7 +107,8 @@ async function renderMessagesView(main, session){
       <div class="chat-list-wrap">
         <div class="chat-list-head"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px;"><h1 style="margin:0;">💬 Mesajlar</h1>
           <button type="button" class="chat-newgroup" ${act('openChatGroupEditor')} title="Yeni grup">👥＋ Grup</button></div>
-          <input id="chatSearch" placeholder="🔍 Kişi veya mesaj ara…" value="${escapeAttr(APP.chatSearch||'')}" ${actOn('input','setChatSearch',['$value'])}></div>
+          <input id="chatSearch" placeholder="🔍 Kişi veya mesaj ara…" value="${escapeAttr(APP.chatSearch||'')}" ${actOn('input','setChatSearch',['$value'])}>
+          <div class="chat-filters" id="chatFilters">${chatFiltersHtml()}</div></div>
         <div class="chat-list" id="chatList"><p class="muted">Yükleniyor…</p></div>
       </div>
       <div class="chat-pane" id="chatPane">${APP.chatConv ? '' : chatEmptyPaneHtml()}</div>
@@ -119,8 +120,25 @@ async function renderMessagesView(main, session){
   maybeAskChatPermissions();
 }
 function chatEmptyPaneHtml(){
-  return '<div class="chat-empty"><div style="font-size:54px;">💬</div><b>Ekibinizle mesajlaşın</b><p class="muted">Soldan bir kişi ya da Genel kanalı seçin.</p></div>';
+  const items = APP.chatItems || [], all = items.find(c => c.is_all), online = items.filter(c => !c.is_all && !c.is_group && c.online);
+  const unread = items.reduce((t, c) => t + (Number(c.unread)||0), 0);
+  return `<div class="chat-empty chat-welcome">
+    <div class="cw-art"><span>💬</span><i></i><i></i><i></i></div>
+    <b>Ekibinizle mesajlaşın</b>
+    <p class="muted">${unread ? `<span class="cw-unread">${unread} okunmamış mesaj</span> var` : 'Soldan bir kişi ya da kanal seçin.'}</p>
+    <div class="cw-acts">
+      ${all ? `<button type="button" class="cw-btn" ${act('openChatConv', all.conv)}>📢 Genel kanala yaz</button>` : ''}
+      <button type="button" class="cw-btn ghost" ${act('openChatGroupEditor')}>👥 Yeni grup</button>
+    </div>
+    ${online.length ? `<div class="cw-online"><small>🟢 Şu an çevrimiçi (${online.length})</small><div>${online.slice(0, 12).map(c => `<button type="button" class="cw-av" title="${escapeAttr(c.name)}" ${act('openChatConv', c.conv)}>${chatAvatar(c, 44)}<span>${escapeHtml(c.name)}</span></button>`).join('')}</div></div>` : ''}
+  </div>`;
 }
+function chatFiltersHtml(){
+  const f = APP.chatFilter || 'all', items = APP.chatItems || [], un = items.filter(c => c.unread > 0).length;
+  return [['all','Tümü'],['unread','Okunmamış' + (un ? ' ' + un : '')],['groups','Gruplar'],['people','Kişiler']]
+    .map(([k, l]) => `<button type="button" class="${f===k?'on':''}" ${act('setChatFilter', k)}>${l}</button>`).join('');
+}
+function setChatFilter(k){ APP.chatFilter = k; drawChatList(); }
 async function refreshChatList(){
   const session = getSession(); const el = document.getElementById('chatList'); if(!session || !el) return;
   const { data, error } = await sb.rpc('list_chat_conversations', { p_token: session.session_token });
@@ -130,9 +148,11 @@ async function refreshChatList(){
 }
 function drawChatList(){
   const el = document.getElementById('chatList'); if(!el) return;
-  const q = (APP.chatSearch||'').trim().toLocaleLowerCase('tr');
-  const items = (APP.chatItems||[]).filter(c => !q || (c.name||'').toLocaleLowerCase('tr').includes(q));
-  el.innerHTML = items.map(c => `
+  const fb = document.getElementById('chatFilters'); if(fb) fb.innerHTML = chatFiltersHtml();
+  const q = (APP.chatSearch||'').trim().toLocaleLowerCase('tr'), f = APP.chatFilter || 'all';
+  const items = (APP.chatItems||[]).filter(c => (!q || (c.name||'').toLocaleLowerCase('tr').includes(q))
+    && (f==='unread' ? c.unread > 0 : f==='groups' ? (c.is_group || c.is_all) : f==='people' ? (!c.is_group && !c.is_all) : true));
+  const row = (c) => `
     <div class="chat-item ${APP.chatConv===c.conv?'active':''} ${c.unread>0?'unread':''}" data-conv="${c.conv}" ${act('openChatConv', c.conv)}>
       ${chatAvatar(c)}
       <div style="flex:1;min-width:0;">
@@ -142,8 +162,13 @@ function drawChatList(){
           ${c.unread > 0 ? `<span class="chat-unread">${c.unread > 99 ? '99+' : c.unread}</span>` : ''}
         </div>
       </div>
-    </div>`).join('') + (q.length >= 2 ? '<div id="chatMsgSearch"><p class="muted" style="padding:8px 12px;font-size:12.5px;">🔍 Mesajlarda aranıyor…</p></div>' : (items.length ? '' : '<p class="muted" style="padding:12px;">Kişi bulunamadı.</p>'));
+    </div>`;
+  const chans = items.filter(c => c.is_all || c.is_group), recent = items.filter(c => !c.is_all && !c.is_group && c.last_at), rest = items.filter(c => !c.is_all && !c.is_group && !c.last_at);
+  const sec = (t, list) => list.length ? `<div class="chat-sec">${t}<span>${list.length}</span></div>${list.map(row).join('')}` : '';
+  el.innerHTML = (q ? items.map(row).join('') : sec('📢 Kanallar & Gruplar', chans) + sec('💬 Son konuşmalar', recent) + sec('👥 Ekip', rest))
+    + (q.length >= 2 ? '<div id="chatMsgSearch"><p class="muted" style="padding:8px 12px;font-size:12.5px;">🔍 Mesajlarda aranıyor…</p></div>' : (items.length ? '' : '<p class="muted" style="padding:12px;">Kişi bulunamadı.</p>'));
   if(q.length >= 2) chatSearchMessagesSoon(q);
+  if(!APP.chatConv){ const pane = document.getElementById('chatPane'); if(pane && pane.querySelector('.chat-welcome')) pane.innerHTML = chatEmptyPaneHtml(); }
 }
 function chatTime(iso){
   const d = new Date(iso), now = new Date();

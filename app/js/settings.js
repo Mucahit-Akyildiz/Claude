@@ -1875,10 +1875,10 @@ function applyRoleTemplate(name){
   document.querySelectorAll('input[data-perms-group="new_role"]').forEach(b => { b.checked = perms.includes(b.value); });
   markRoleDirty('new_role');
 }
-function roleCardHtml(r){
-  const total = rolePermissionCatalog().length;
+function roleCardHtml(r, i){
+  const total = rolePermissionCatalog().length, sc = `var(--c${(i||0)%4+1})`;
   if(r.is_system) return `
-    <div class="role-card">
+    <div class="role-card role-sys" style="--sc:var(--c3);">
       <div class="role-head" style="cursor:default;">
         <div class="role-avatar">👑</div>
         <div class="role-title"><b>${escapeHtml(r.name)}</b> <span class="role-badge" style="margin-left:6px;font-size:11px;padding:3px 9px;">Sistem</span>
@@ -1888,11 +1888,11 @@ function roleCardHtml(r){
     </div>`;
   const g = 'role_'+r.id, perms = r.permissions || [];
   return `
-    <div class="role-card" data-role-card="${g}">
+    <div class="role-card" data-role-card="${g}" style="--sc:${sc};">
       <div class="role-head" ${act('toggleRoleCard', g)}>
-        <div class="role-avatar">👤</div>
+        <div class="role-avatar">${escapeHtml((r.name||'?')[0].toLocaleUpperCase('tr'))}</div>
         <div class="role-title"><b>${escapeHtml(r.name)}</b>${r.shift_exempt ? ' <span class="role-badge" style="margin-left:6px;font-size:11px;padding:3px 9px;" title="Vardiya açmadan çalışabilir">⏱ Vardiyasız</span>' : ''}<div class="role-sub">${escapeHtml(rolePermSummary(perms))}</div></div>
-        <div class="role-meta"><span class="role-chip">${r.user_count} kullanıcı</span><span class="role-chip accent role-perm-count">${perms.filter(p => rolePermissionCatalog().some(c => c.id===p)).length} / ${total} izin</span></div>
+        <div class="role-meta"><span class="role-chip">👥 ${r.user_count}</span><span class="role-pbar" title="İzin kapsamı"><i style="width:${Math.round(perms.filter(p => rolePermissionCatalog().some(c => c.id===p)).length/total*100)}%;"></i></span><span class="role-chip accent role-perm-count">${perms.filter(p => rolePermissionCatalog().some(c => c.id===p)).length} / ${total} izin</span></div>
         <span class="role-chevron">▶</span>
       </div>
       <div class="role-body">
@@ -1909,13 +1909,15 @@ function roleCardHtml(r){
 }
 function renderRolesSettings(el, session){
   const roles = APP.config.roles || [];
-  el.innerHTML = `<div class="box" style="max-width:none;">
+  const custom = roles.filter(r => !r.is_system);
+  el.innerHTML = statChips([['🔑', roles.length, 'Rol', 'var(--c1)'], ['👥', roles.reduce((x, r) => x + (Number(r.user_count)||0), 0), 'Rol atanmış kullanıcı', 'var(--c2)'],
+      ['⏱', custom.filter(r => r.shift_exempt).length, 'Vardiyasız rol', 'var(--c3)'], ['💤', custom.filter(r => !Number(r.user_count)).length, 'Kullanılmayan rol', 'var(--c4)']]) + `<div class="box" style="max-width:none;">
     <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;">
       <div><h2 style="margin-bottom:4px;">Roller</h2>
         <p class="muted" style="margin:0 0 16px;">Bir role tıklayarak hangi ekranlara erişebileceğini seçin. Bir kullanıcıya en fazla 2 rol verilebilir; izinleri birleşir.</p></div>
       <button style="width:auto;margin:0;" ${act('openNewRoleCard')}>+ Yeni Rol</button>
     </div>
-    ${roles.map(roleCardHtml).join('')}
+    <div class="role-list">${roles.map((r, i) => roleCardHtml(r, i)).join('')}</div>
     <div class="role-card" data-role-card="new_role" style="border-style:dashed;">
       <div class="role-head" ${act('toggleRoleCard', 'new_role')}>
         <div class="role-avatar">＋</div>
@@ -2105,9 +2107,15 @@ async function renderIntegrationsSettings(el, session){
   const boxes = [...el.querySelectorAll(':scope > .box')];
   boxes.forEach((b, i) => { b.dataset.int = order[i]; b.classList.add('int-pane'); });
   if(!INT_TABS.some(t => t.id === APP.integrationsSubTab)) APP.integrationsSubTab = 'online';
+  const INT_DESC = { online:'Getir, Yemeksepeti, Trendyol siparişleri', google:'İşletme yorumlarını takip edin', sms:'Müşterilere SMS bildirimi', invoice:'Faturada görünecek bilgiler',
+    efatura:'Yazarkasa ve e-Fatura/e-Arşiv', marketplace:'Pazaryeri menü eşitleme', accounting:'Muhasebe yazılımına aktarım' };
+  const stOf = (id) => { const b = boxes.find(x => x.dataset.int === id); const t = b ? b.textContent : '';
+    return /paketinizde yok|eklenti/i.test(t) && /paketinizde yok/i.test(t) ? ['lock','🔒 Eklenti'] : ['ok','● Kullanılabilir']; };
   const bar = document.createElement('div');
-  bar.className = 'box sub-tabs-box'; bar.style.maxWidth = 'none'; bar.style.paddingBottom = '0';
-  bar.innerHTML = `<div class="sub-tabs" style="flex-wrap:wrap;">${INT_TABS.map(t => `<div role="tab" tabindex="0" class="sub-tab ${APP.integrationsSubTab===t.id?'active':''}" data-int-tab="${t.id}" ${act('setIntegrationsSubTab', t.id)}><span class="sub-tab-ic">${t.ic}</span>${t.label}</div>`).join('')}</div>`;
+  bar.className = 'int-tiles';
+  bar.innerHTML = INT_TABS.map((t, i) => { const [k, l] = stOf(t.id);
+    return `<button type="button" class="int-tile ${APP.integrationsSubTab===t.id?'active':''} st-${k}" style="--sc:var(--c${i%4+1});" data-int-tab="${t.id}" ${act('setIntegrationsSubTab', t.id)}>
+      <span class="int-ic">${t.ic}</span><span class="int-txt"><b>${t.label}</b><small>${INT_DESC[t.id]||''}</small></span><span class="int-st">${l}</span></button>`; }).join('');
   el.insertBefore(bar, el.firstChild);
   showIntegrationPane();
 }

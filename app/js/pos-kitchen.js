@@ -60,6 +60,7 @@ async function refreshKitchenItems(session){
     const oldest = Math.min(...pending.map(it => it.added_at ? new Date(it.added_at).getTime() : Infinity));
     cards.push({ at: isFinite(oldest) ? oldest : Infinity, html: `<div class="kitchen-card" data-order-id="${o.order_id}">
       <div class="kc-age"><i data-age-from="${isFinite(oldest) ? new Date(oldest).toISOString() : ''}"></i></div>
+      <div class="kc-state"><span class="kc-pill"></span><span class="kc-since"></span></div>
       <div style="display:flex;justify-content:space-between;align-items:center;">
         <b>${escapeHtml(tableName)}${o.daily_number?' <span class="muted" style="font-weight:400;font-size:12px;">#'+o.daily_number+'</span>':''}<span class="kc-late-badge">⏰ GECİKTİ</span>${orderWaiters(o).length ? '<div class="muted" style="font-weight:400;font-size:12px;margin-top:2px;">👤 ' + escapeHtml(orderWaiters(o).join(', ')) + '</div>' : ''}${waitlistInfoHtml(o)}</b>
         <span style="cursor:pointer;color:var(--muted);font-size:16px;" ${act('reprintKitchenTicket', o.order_id)} title="Fişi tekrar yazdır">🖨️</span>
@@ -89,8 +90,9 @@ async function refreshKitchenItems(session){
   const itemsCount = Object.values(APP.kitchenPendingByTable).reduce((t, e) => t + e.items.reduce((x, i) => x + (Number(i.qty)||1), 0), 0);
   const avg = cards.length ? Math.round(cards.reduce((t, c) => t + age(c), 0) / cards.length) : 0;
   const stats = `<div class="kb-stats"><div><b>${cards.length}</b><small>sipariş</small></div><div><b>${itemsCount}</b><small>bekleyen ürün</small></div><div><b>${avg} dk</b><small>ort. bekleme</small></div><div class="${cols[2].list.length ? 'bad' : ''}"><b>${cols[2].list.length}</b><small>geciken</small></div></div>`;
-  wrap.innerHTML = stats + (cards.length ? `<div class="kb">${cols.map(col => `<div class="kb-col kb-${col.k}"><div class="kb-head"><span>${col.t}</span><small>${col.sub}</small><b>${col.list.length}</b></div>
-      <div class="kb-list">${col.list.map(c => c.html).join('') || '<div class="kb-empty">—</div>'}</div></div>`).join('')}</div>` : '<div class="kb-none">🎉 Bekleyen sipariş yok</div>');
+  wrap.innerHTML = stats + `<div class="kb-legend"><span class="lg-new">🟢 Yeni 0–10 dk</span><span class="lg-warn">🟡 Bekliyor 10–15 dk</span><span class="lg-late">🔴 Gecikti 15 dk +</span><small>En eski sipariş en başta · kartlar yerinde renk değiştirir</small></div>`
+    + (cards.length ? `<div class="kb-grid">${cards.map(c => c.html).join('')}</div>` : '<div class="kb-none">🎉 Bekleyen sipariş yok</div>');
+  updateKitchenTimers();
 
   // Daha once gorulmemis (yeni gelen) urun varsa zil calsin ve fisini bu istasyonun
   // kendi yazicisina yazdir. Ilk yuklemede (isFirstLoad) hicbiri tetiklenmez.
@@ -165,7 +167,13 @@ function updateKitchenTimers(){
   // Kartın üstündeki süre çubuğu 15 dakikaya doğru dolar.
   document.querySelectorAll('.kc-age i[data-age-from]').forEach(el => {
     const f = el.dataset.ageFrom; if(!f) return;
-    el.style.width = Math.min(100, (Date.now() - new Date(f).getTime()) / 9000) + '%';
+    const mins = (Date.now() - new Date(f).getTime()) / 60000;
+    el.style.width = Math.min(100, mins / 15 * 100) + '%';
+    const card = el.closest('.kitchen-card'); if(!card) return;
+    const st = mins >= 15 ? 'late' : mins >= 10 ? 'warn' : 'new';
+    card.classList.toggle('kc-new', st==='new'); card.classList.toggle('kc-warn', st==='warn'); card.classList.toggle('kc-late', st==='late');
+    const pill = card.querySelector('.kc-pill'); if(pill) pill.textContent = st==='late' ? '🔴 Gecikti' : st==='warn' ? '🟡 Bekliyor' : '🟢 Yeni';
+    const since = card.querySelector('.kc-since'); if(since) since.textContent = Math.floor(mins) + ' dk önce · ' + new Date(f).toLocaleTimeString('tr-TR', { hour:'2-digit', minute:'2-digit' });
   });
   document.querySelectorAll('.kitchen-timer[data-added]').forEach(el => {
     const added = el.dataset.added;
