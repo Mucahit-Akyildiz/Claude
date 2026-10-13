@@ -63,12 +63,12 @@ async function refreshKitchenItems(session){
         <b>${escapeHtml(tableName)}${o.daily_number?' <span class="muted" style="font-weight:400;font-size:12px;">#'+o.daily_number+'</span>':''}<span class="kc-late-badge">⏰ GECİKTİ</span>${orderWaiters(o).length ? '<div class="muted" style="font-weight:400;font-size:12px;margin-top:2px;">👤 ' + escapeHtml(orderWaiters(o).join(', ')) + '</div>' : ''}${waitlistInfoHtml(o)}</b>
         <span style="cursor:pointer;color:var(--muted);font-size:16px;" ${act('reprintKitchenTicket', o.order_id)} title="Fişi tekrar yazdır">🖨️</span>
       </div>
-      ${pending.map(it => `<div class="kitchen-item-row" style="padding:10px 0;border-top:1px dashed var(--border);">
+      ${kitchenGroupExtras(pending).map(({ it, extras }) => `<div class="kitchen-item-row" style="padding:10px 0;border-top:1px dashed var(--border);">
         <div style="display:grid;grid-template-columns:1fr 64px auto auto;align-items:center;gap:10px;">
-          <span class="kitchen-item-name" style="min-width:0;overflow-wrap:anywhere;line-height:1.3;">${it.qty}x ${escapeHtml(it.name)}</span>
+          <span class="kitchen-item-name" style="min-width:0;overflow-wrap:anywhere;line-height:1.3;">${it.qty}x ${escapeHtml(it.name)}${extras.map(x => `<span class="ki-extra">+ ${x.qty}x ${escapeHtml(kitchenExtraName(x))}</span>`).join('')}</span>
           <span class="kitchen-timer" data-added="${it.added_at||''}" data-id="${it.id}" data-name="${escapeAttr(tableName+' - '+it.qty+'x '+it.name)}" style="text-align:center;">-</span>
           <button style="width:auto;padding:8px 10px;font-size:14px;background:var(--red);color:var(--btn-ink);" ${act('openWasteModal', it.id)} title="İsraf oldu (yandı/düştü/bozuldu)">🔥</button>
-          <button style="width:auto;padding:8px 14px;font-size:14px;background:var(--green);color:var(--btn-ink);" ${act('markReady', it.id)}>Hazır</button>
+          <button style="width:auto;padding:8px 14px;font-size:14px;background:var(--green);color:var(--btn-ink);" ${act('markReadyGroup', [it.id, ...extras.map(x => x.id)].join(','))}>Hazır</button>
         </div>
         ${it.note?'<div class="muted" style="font-size:12px;font-style:italic;margin-top:4px;overflow-wrap:anywhere;word-break:break-word;">Not: '+escapeHtml(it.note)+'</div>':''}
       </div>`).join('')}
@@ -374,6 +374,26 @@ function playKitchenBell(stationId, onError){
   }
   const presetId = (setting && setting.preset) || 'classic';
   playBellPresetById(presetId);
+}
+/* Ekstralar (örn. + 100 gr Döner) kendi ana ürününün satırında, altında küçük satır olarak gösterilir. */
+function kitchenGroupExtras(items){
+  const parentOf = (it) => { const p = typeof findProductAny==='function' ? findProductAny(it.product_id) : null; return p && p.parent_id; };
+  const rows = items.filter(it => !parentOf(it)).map(it => ({ it, extras: [] }));
+  items.filter(it => parentOf(it)).forEach(x => {
+    const host = rows.find(r => r.it.product_id === parentOf(x));
+    if(host) host.extras.push(x); else rows.push({ it: x, extras: [] });
+  });
+  return rows;
+}
+function kitchenExtraName(x){ const p = findProductAny(x.product_id); return p ? p.name : String(x.name||'').replace(/^\+\s*/, ''); }
+async function markReadyGroup(ids){
+  const list = String(ids).split(',').filter(Boolean);
+  if(list.length === 1) return markReady(list[0]);
+  const session = getSession();
+  APP.selfActionUntil = Date.now() + 10000;
+  const res = await Promise.all(list.map(id => sb.rpc('mark_item_ready', { p_token: session.session_token, p_order_item_id: id })));
+  if(res.some(r => r.error)) alert('Bazı ürünler hazır işaretlenemedi.');
+  await refreshKitchenItems(session);
 }
 async function markReady(itemId){
   const session = getSession();
