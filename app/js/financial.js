@@ -1151,10 +1151,11 @@ function drawResvAnalytics(){
       </div>
       <div class="fs-panel pa-sec" style="--t:var(--c2);margin:0;">
         <h3 style="margin:0 0 10px;">🕐 Saatlere Göre Yoğunluk</h3>
-        ${byHour.length ? byHour.map(h => `<div class="resv-an-row ${isF('hour:'+h.hour)?'active':''}" ${act('setResvAnFilter', 'hour:'+h.hour, String(h.hour).padStart(2,'0')+':00 rezervasyonları')} style="display:flex;align-items:center;gap:8px;font-size:12.5px;margin:2px 0;padding:3px 4px;">
-          <span style="width:44px;">${String(h.hour).padStart(2,'0')}:00</span>
-          <div style="flex:1;background:var(--panel2);border-radius:6px;height:14px;overflow:hidden;"><div style="width:${Math.round((h.guests||0)/maxH*100)}%;height:100%;background:var(--accent);"></div></div>
-          <span style="width:90px;text-align:right;">${h.count} rez · ${h.guests} kişi</span></div>`).join('') : '<p class="muted">Veri yok.</p>'}
+        ${byHour.length ? `<div class="race">${byHour.map((h, i) => `<div class="race-row resv-an-row ${isF('hour:'+h.hour)?'active':''}" style="--i:${Math.min(i,15)};--sc:${RACE_COLORS[i%RACE_COLORS.length]};cursor:pointer;" ${act('setResvAnFilter', 'hour:'+h.hour, String(h.hour).padStart(2,'0')+':00 rezervasyonları')}>
+          <span class="race-rank">🕐</span>
+          <div class="race-main"><div class="race-label"><b>${String(h.hour).padStart(2,'0')}:00</b><small>${h.count} rezervasyon</small></div>
+          <div class="race-track"><div class="race-bar" style="width:${Math.max(3, Math.round((h.guests||0)/maxH*100))}%;"><span>${h.guests} kişi</span></div></div></div>
+          <span class="race-side">${h.count} rez<small>${h.guests} kişi</small></span></div>`).join('')}</div>` : '<p class="muted">Veri yok.</p>'}
       </div>
     </div>
     <h3 style="margin:0 0 10px;">🪑 Masalara Göre</h3>
