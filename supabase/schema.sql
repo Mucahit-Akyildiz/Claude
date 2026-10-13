@@ -4257,6 +4257,18 @@ end; $$;
 
 
 --
+-- Name: get_daily_goal(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.get_daily_goal(p_token uuid) RETURNS numeric
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'extensions', 'pg_temp'
+    AS $$
+declare s staff_sessions%rowtype; g numeric;
+begin s := _session_check(p_token, 'reports'); select daily_revenue_goal into g from restaurants where id = s.restaurant_id; return g; end; $$;
+
+
+--
 -- Name: get_data_version(uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -7427,6 +7439,20 @@ begin
   update customers set spend_per_point = p_spend_per_point, point_value = p_point_value, birthday_discount_percent = p_birthday_discount_percent
     where id = p_id and restaurant_id = s.restaurant_id;
 end; $$;
+
+
+--
+-- Name: set_daily_goal(uuid, numeric); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.set_daily_goal(p_token uuid, p_goal numeric) RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'extensions', 'pg_temp'
+    AS $$
+declare s staff_sessions%rowtype;
+begin s := _session_check(p_token, 'reports');
+  if p_goal is not null and (p_goal < 0 or p_goal > 100000000) then raise exception 'Geçersiz hedef'; end if;
+  update restaurants set daily_revenue_goal = nullif(p_goal, 0) where id = s.restaurant_id; end; $$;
 
 
 --
@@ -10674,6 +10700,7 @@ CREATE TABLE public.restaurants (
     billing_address text,
     billing_city text,
     support_access_until timestamp with time zone,
+    daily_revenue_goal numeric,
     CONSTRAINT restaurants_default_vat_rate_check CHECK (((default_vat_rate >= (0)::numeric) AND (default_vat_rate <= (100)::numeric)))
 );
 
