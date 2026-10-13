@@ -829,6 +829,8 @@ async function renderOrderView(main, session){
     sb.rpc('get_live_orders', { p_token: session.session_token })
   ]));
   const statusEl = document.getElementById('orderStatus');
+  // Veri gelene kadar başka ekrana geçildiyse (eleman artık yok) çizimden vazgeç.
+  if(!statusEl) return;
   if(cfgRes.error || liveRes.error){
     statusEl.textContent = 'Veri yüklenemedi: ' + ((cfgRes.error||liveRes.error).message);
     statusEl.style.color = 'var(--red)';
