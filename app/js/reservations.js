@@ -79,7 +79,7 @@ async function renderReservationsContent(session, forceRefresh){
         <div class="field-group" style="${fgStyle(160)}"><label>E-posta (hatırlatma)</label><input style="margin:0;" id="rvCustEmail" type="email" placeholder="opsiyonel" autocapitalize="none"></div>
         <div class="field-group" style="${fgStyle(70)}"><label>Kişi</label><input style="margin:0;" id="rv_party" type="number" min="1" value="2"></div>
         <div class="field-group" style="${fgStyle(190)}"><label>Tarih & Saat</label><input style="margin:0;" id="rv_time" type="datetime-local"></div>
-        <div class="field-group" style="${fgStyle(120)}"><label>Masa (opsiyonel)</label><select style="margin:0;" id="rv_table"><option value="">-</option>${allTables.map(t => `<option value="${t.id}">${escapeHtml(t.name)}</option>`).join('')}</select></div>
+        <div class="field-group" style="${fgStyle(120)}"><label>Masa (opsiyonel)</label><select style="margin:0;" id="rv_table"><option value="">-</option>${tableOptionsHtml(null)}</select></div>
         <div class="field-group" style="${fgStyle(160, 2)}"><label>Not</label><input style="margin:0;" id="rv_notes" placeholder="opsiyonel"></div>
         <button style="${INLINE_BTN}" ${act('addReservation')}>+ Rezervasyon Ekle</button>
       </div>
@@ -150,7 +150,7 @@ async function openSeatReservationModal(id){
     <div style="display:flex;justify-content:space-between;"><h2 style="margin:0;">Masaya Oturt</h2><span style="cursor:pointer;color:var(--muted);" ${act('closeSeatResvModal')}>✕</span></div>
     <p class="muted" style="text-align:left;margin:8px 0 12px;"><b>${escapeHtml(r.customer_name)}</b> · ${r.party_size} kişi${r.phone ? ' · ' + escapeHtml(r.phone) : ''}</p>
     <div class="field-group"><label>Masa</label><select id="seatResvTable">
-      ${tables.map(t => `<option value="${t.id}" ${t.id===r.table_id?'selected':''}>${escapeHtml(t.zone)} · ${escapeHtml(t.name)}${busy.has(t.id)?' (dolu)':''}</option>`).join('')}
+      ${tableOptionsHtml(r.table_id, busy)}
     </select></div>
     <button style="margin-top:12px;" ${act('confirmSeatReservation', id)}>✓ Masaya Oturt</button>
   </div>`;
@@ -316,7 +316,7 @@ async function openSeatWaitlistModal(id){
     <div style="display:flex;justify-content:space-between;"><h2 style="margin:0;">Masaya Oturt</h2><span style="cursor:pointer;color:var(--muted);" ${act('removeEl','seatWlModalBg')}>✕</span></div>
     <p class="muted" style="text-align:left;margin:8px 0 12px;"><b>${escapeHtml(w.customer_name)}</b> · ${w.party_size} kişi${w.phone ? ' · ' + escapeHtml(w.phone) : ''}</p>
     <div class="field-group"><label>Masa</label><select id="seatWlTable">
-      ${tables.map(t => `<option value="${t.id}" ${busy.has(t.id)?'':''}>${escapeHtml(t.zone)} · ${escapeHtml(t.name)}${busy.has(t.id)?' (dolu)':''}</option>`).join('')}
+      ${tableOptionsHtml(null, busy)}
     </select></div>
     <button style="margin-top:12px;" ${act('confirmSeatWaitlist', id)}>✓ Masaya Oturt</button>
   </div>`;

@@ -339,3 +339,9 @@ function countUpEl(el){
     }));
   }).observe(document.documentElement, { childList: true, subtree: true });
 })();
+/* Masa seçim listesi: bölgelere göre gruplu, masa adları doğal sırada (Masa1, Masa2 … Masa10). */
+function tableOptionsHtml(selectedId, busy){
+  const nat = (a, b) => String(a.name).localeCompare(String(b.name), 'tr', { numeric: true, sensitivity: 'base' });
+  return ((APP.config && APP.config.zones) || []).map(z => `<optgroup label="${escapeAttr(z.name)}">${(z.tables||[]).slice().sort(nat).map(t =>
+    `<option value="${t.id}" ${t.id===selectedId?'selected':''}>${escapeHtml(t.name)}${busy && busy.has(t.id) ? ' (dolu)' : ''}</option>`).join('')}</optgroup>`).join('');
+}

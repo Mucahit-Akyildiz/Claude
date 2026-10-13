@@ -1907,3 +1907,8 @@ input.sw:checked{background:var(--c1);} input.sw:checked::after{transform:transl
 .oad-items{flex-basis:100%;margin-top:8px;padding:10px 12px;border-radius:12px;background:var(--panel);border:1px dashed var(--border);display:flex;flex-direction:column;gap:4px;font-size:13px;animation:osIn .25s ease both;}
 .oad-items > div{display:flex;justify-content:space-between;gap:8px;} .oad-tot{border-top:1px dashed var(--border);padding-top:6px;margin-top:2px;font-weight:800;}
 .oa-card{cursor:default;}
+/* "Bekliyor" işareti ızgara kartlarda düzeni kaydırmasın: kartın üst kenarına küçük etiket */
+.rv-card,.wl-card,.po-card,.cu-card,.oa-card,.pcard,.sp-li{position:relative;}
+:is(.rv-card,.wl-card,.po-card).badge-row::before{position:absolute;top:-9px;left:16px;margin:0 !important;padding:1px 8px;border-radius:999px;background:var(--red);color:#fff !important;font-size:10px !important;z-index:2;}
+:is(.rv-card,.wl-card).badge-row{box-shadow:inset 4px 0 0 var(--red),0 0 0 1.5px var(--red) !important;background:color-mix(in srgb,var(--red) 7%,var(--panel)) !important;}
+.kb-grid .kc-iname .kitchen-item-name,.kb-grid .kitchen-card .kc-iname{overflow-wrap:break-word !important;word-break:normal !important;hyphens:auto;}
