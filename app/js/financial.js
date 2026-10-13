@@ -737,7 +737,8 @@ async function renderPeriodAnalyticsContent(session){
   const monthCards = months.map((m, idx) => {
     const future = m.i > curM;
     const ch = idx > 0 ? pctChange(m.revenue, months[idx-1].revenue) : null;
-    return `<div class="pm-card${m===bestM && m.revenue>0 ? ' pm-best':''}${future?' pm-future':''}">
+    const mc = (SEASONS.find(se => se.m.includes(m.i)) || {}).c || 'var(--accent)';
+    return `<div class="pm-card${m===bestM && m.revenue>0 ? ' pm-best':''}${future?' pm-future':''}" style="--mc:${mc};">
       <div class="pm-head"><span>${m.name}</span>${m===bestM && m.revenue>0 ? '<span title="En yüksek ay">🏆</span>' : ''}</div>
       <div class="pm-rev">${future ? '—' : money(m.revenue)}</div>
       <div class="pm-bar"><div style="width:${Math.round(m.revenue/maxM*100)}%;"></div></div>
@@ -760,7 +761,7 @@ async function renderPeriodAnalyticsContent(session){
   const wd = {}; (d.weekdays||[]).forEach(r => { wd[r.dow] = r; });
   const days = DOW.map((name, i) => { const r = wd[i+1] || {}; return { name, avg: N(r.days) ? N(r.revenue)/N(r.days) : 0, checks:N(r.checks), total:N(r.revenue) }; });
   const maxD = Math.max(1, ...days.map(x => x.avg)), bestD = days.reduce((a, x) => x.avg > a.avg ? x : a, days[0]);
-  const dayCards = days.map(x => `<div class="pd-card${x===bestD && x.avg>0?' pm-best':''}">
+  const dayCards = days.map((x, i) => `<div class="pd-card${x===bestD && x.avg>0?' pm-best':''}${i>=5?' pd-weekend':''}">
       <div class="pd-name">${x.name.slice(0,3)}</div>
       <div class="pd-col"><div style="height:${Math.max(4, Math.round(x.avg/maxD*100))}%;"></div></div>
       <div class="pd-val">${money(x.avg)}</div><div class="pd-sub">${x.checks} hesap</div></div>`).join('');
@@ -771,16 +772,18 @@ async function renderPeriodAnalyticsContent(session){
       ${[nowY-2, nowY-1, nowY].map(y => `<button type="button" class="range-preset-btn${y===year?' active':''}" ${act('setPeriodYear', y)}>${y}</button>`).join('')}
       <span class="muted" style="flex:1;text-align:right;font-size:12.5px;">Bu sekme üstteki tarih aralığından bağımsızdır.</span>
     </div>
-    <div class="kpi-grid" style="margin-bottom:16px;">
-      ${kpi(year+' Toplam Ciro', money(yearRev), { color:'var(--accent)', sub: yearChecks+' hesap' })}
-      ${kpi('Yıllık Kâr', money(yearProfit), { color: yearProfit>=0?'var(--green)':'var(--red)' })}
-      ${kpi('Aylık Ortalama', money(yearRev / Math.max(1, Math.min(12, curM))), { sub: 'Geçen aylar üzerinden' })}
-      ${kpi('🏆 En İyi Ay', bestM.revenue ? bestM.name : '—', { color:'#eab308', sub: bestM.revenue ? money(bestM.revenue) : '' })}
+    <div class="fs-hero">
+      <div class="fs-hero-main"><div class="fs-cap">💰 ${year} Toplam Ciro</div><div class="fs-big">${money(yearRev)}</div><div class="fs-line">${yearChecks} hesap</div></div>
+      <div class="fs-hero-side">
+        <div class="fs-k" style="--k:${yearProfit<0?'var(--red)':'var(--green)'};"><div class="fs-cap">📈 Yıllık Kâr</div><div class="fs-mid">${money(yearProfit)}</div><div class="fs-line">${yearRev ? 'Marj %'+Math.round(yearProfit/yearRev*100) : '—'}</div></div>
+        <div class="fs-k" style="--k:#a78bfa;"><div class="fs-cap">📊 Aylık Ortalama</div><div class="fs-mid">${money(yearRev / Math.max(1, Math.min(12, curM)))}</div><div class="fs-line">geçen aylar</div></div>
+        <div class="fs-k" style="--k:#eab308;"><div class="fs-cap">🏆 En İyi Ay</div><div class="fs-mid">${bestM.revenue ? bestM.name : '—'}</div><div class="fs-line">${bestM.revenue ? money(bestM.revenue) : ''}</div></div>
+      </div>
     </div>
-    <div class="box" style="max-width:none;"><h2>🌦️ 4 Mevsim</h2><div class="ps-grid">${seasonCards}</div></div>
-    <div class="box" style="max-width:none;"><h2>📅 Aylar</h2><div class="pm-grid">${monthCards}</div></div>
-    <div class="box" style="max-width:none;"><h2>🗓️ Haftanın Günleri <span class="muted" style="font-size:12px;font-weight:400;">(günlük ortalama ciro)</span></h2><div class="pd-grid">${dayCards}</div></div>
-    <div class="box" style="max-width:none;"><h2>🪑 En Çok Çalışan Masalar <span class="muted" style="font-size:12px;font-weight:400;">(${year})</span></h2>
+    <div class="fs-panel pa-sec" style="--t:#22c55e;"><h3><i>🌦️</i>4 Mevsim</h3><div class="ps-grid">${seasonCards}</div></div>
+    <div class="fs-panel pa-sec" style="--t:var(--accent);"><h3><i>📅</i>Aylar <span class="pa-legend">${SEASONS.map(se => `<span><b style="background:${se.c};"></b>${se.k}</span>`).join('')}</span></h3><div class="pm-grid">${monthCards}</div></div>
+    <div class="fs-panel pa-sec" style="--t:#a78bfa;"><h3><i>🗓️</i>Haftanın Günleri <span class="muted" style="font-size:12px;font-weight:400;">günlük ortalama ciro</span></h3><div class="pd-grid">${dayCards}</div></div>
+    <div class="fs-panel pa-sec" style="--t:#f59e0b;"><h3><i>🪑</i>En Çok Çalışan Masalar <span class="muted" style="font-size:12px;font-weight:400;">${year}</span></h3>
       ${tables.length ? `<div class="settings-table-wrap"><table class="settings-table"><thead><tr><th>#</th><th>Masa</th><th>Hesap</th><th>Ciro</th><th>Ort. Hesap</th><th>Ort. Oturma</th></tr></thead><tbody>
         ${tables.map((t, i) => `<tr><td>${i===0?'🥇':i===1?'🥈':i===2?'🥉':i+1}</td><td class="col-name">${escapeHtml(t.table_name)}</td><td>${t.checks}</td><td><b>${money(t.revenue)}</b></td><td>${money(t.avg_check)}</td><td>${t.avg_minutes!=null ? t.avg_minutes+' dk' : '—'}</td></tr>`).join('')}
       </tbody></table></div>` : '<p class="muted">Bu yıl masa hesabı yok.</p>'}</div>`;
