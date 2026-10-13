@@ -781,7 +781,8 @@ async function renderNotificationSettingsView(main, session){
   `;
   if(session.isManager){
     const part = document.getElementById('notifSettingsPart');
-    if(part){ const b = document.createElement('div'); b.className = 'box'; b.style.maxWidth = 'none'; b.innerHTML = '<h2>👥 Kime Gitsin</h2><div id="notifRolesBody"><p class="muted">Yükleniyor…</p></div>';
+    if(part){ part.querySelectorAll('#notifRolesBox').forEach(x => x.remove());
+      const b = document.createElement('div'); b.id = 'notifRolesBox'; b.className = 'box'; b.style.maxWidth = 'none'; b.innerHTML = '<h2>👥 Kime Gitsin</h2><div id="notifRolesBody"><p class="muted">Yükleniyor…</p></div>';
       const first = part.querySelector(':scope > .box'); part.insertBefore(b, first); loadNotifRoles(); }
   }
   boxTabs(document.getElementById('notifSettingsPart'), 'notif');
