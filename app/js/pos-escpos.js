@@ -359,7 +359,7 @@ async function clearDraftCart(tableId){
   await releaseDraftStock(tableId);
   renderTableItems(tableId);
   const activeTab = document.querySelector('#prodStationTabs .tab.active');
-  if(activeTab) renderProductPick(activeTab.dataset.st, tableId);
+  renderProductPick(null, tableId);
 }
 
 function lastLoginInfo(){
