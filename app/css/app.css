@@ -963,3 +963,13 @@ button.chat-once{cursor:pointer;}
 .pc-save{width:auto;margin:0;padding:8px 16px;display:inline-flex;align-items:center;gap:6px;font-size:13px;}
 .pc-save:disabled{opacity:.4;cursor:default;}
 .pc-card.dirty{border-color:var(--accent);}
+
+/* Genel Özet: yumuşak renk vurguları */
+.fs-hero{background:linear-gradient(135deg,color-mix(in srgb,var(--accent) 16%,var(--panel)) 0%,var(--panel) 55%);border-color:color-mix(in srgb,var(--accent) 35%,var(--border));}
+.fs-big{color:var(--accent);}
+.fs-k{position:relative;padding:10px 12px 10px 14px;border-radius:12px;background:color-mix(in srgb,var(--k) 9%,transparent);}
+.fs-k::before{content:'';position:absolute;left:0;top:10px;bottom:10px;width:3px;border-radius:3px;background:var(--k);}
+.fs-k .fs-mid{color:var(--k);}
+.fs-panel{border-top:3px solid var(--t,var(--border));background:linear-gradient(180deg,color-mix(in srgb,var(--t,var(--panel)) 7%,var(--panel)) 0%,var(--panel) 40%);}
+.fs-panel h3{display:flex;align-items:center;gap:8px;color:var(--text);font-size:14px;}
+.fs-panel h3 i{font-style:normal;width:28px;height:28px;border-radius:9px;display:inline-flex;align-items:center;justify-content:center;background:color-mix(in srgb,var(--t) 18%,transparent);font-size:15px;}
