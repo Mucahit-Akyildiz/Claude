@@ -79,11 +79,9 @@ function openPackageModal(pseudoId){
     </div>`;
   document.body.appendChild(bg);
   bg.dataset.tableId = pseudoId;
-  const stations = APP.config.stations;
-  document.getElementById('prodStationTabs').innerHTML = stations.map((s,i) =>
-    `<div class="tab ${i===0?'active':''}" data-st="${s.id}" ${act('pickStationTab', s.id)}><span class="st-dot" style="background:${escapeAttr(s.color||'#888')}"></span>${escapeHtml(s.icon||'')} ${escapeHtml(s.name)}</div>`
-  ).join('');
-  renderProductPick(stations[0] ? stations[0].id : null, pseudoId);
+  // İstasyon sekmesi yok: tüm menüler tek listede; sipariş/fiş ürünün istasyonuna gider.
+  const stTabs = document.getElementById('prodStationTabs'); if(stTabs) stTabs.style.display = 'none';
+  renderProductPick(null, pseudoId);
   renderTableItems(pseudoId);
 }
 
@@ -99,11 +97,12 @@ function effectiveStock(p){
 /* Ürün seçimi: istasyonun alt menüleri solda (dar ekranda üstte kaydırılabilir) liste, ürünler sağda ızgara. */
 function renderProductPick(stationId, tableId){
   const el = document.getElementById('prodPick'); if(!el) return;
-  const all = APP.config.products.filter(p => p.station_id===stationId);
-  // Sıra: istasyonda tanımlanan alt menü sırası; yalnızca ürünü olan alt menüler gösterilir.
+  // Tüm menülerin ürünleri tek listede (istasyondan bağımsız); menüler Ayarlar sırasıyla.
+  stationId = '__all_menus';
+  const all = APP.config.products.slice();
   const used = new Set(all.map(p => p.category).filter(Boolean));
-  const stCats = (((APP.config.stations||[]).find(s => s.id === stationId) || {}).categories || []);
-  const cats = [...stCats.filter(c => used.has(c)), ...[...used].filter(c => !stCats.includes(c))];
+  const menuOrder = (APP.config.menus || []).map(m => m.name);
+  const cats = [...menuOrder.filter(c => used.has(c)), ...[...used].filter(c => !menuOrder.includes(c))];
   APP.prodPickCat = APP.prodPickCat || {};
   let cur = APP.prodPickCat[stationId];
   if(cur && cur !== '__all' && !cats.includes(cur)) cur = null;
@@ -174,7 +173,7 @@ function scheduleConfigResync(tableId){
     const bg = document.getElementById('tableModalBg');
     if(bg && bg.dataset.tableId===tableId){
       const activeTab = document.querySelector('#prodStationTabs .tab.active');
-      if(activeTab) renderProductPick(activeTab.dataset.st, tableId);
+      renderProductPick(null, tableId);
     }
   }, 1500);
 }
@@ -191,7 +190,7 @@ function addToDraft(tableId, productId){
   applyLocalStockDelta(productId, 1);
   renderTableItems(tableId);
   const activeTab = document.querySelector('#prodStationTabs .tab.active');
-  if(activeTab) renderProductPick(activeTab.dataset.st, tableId);
+  renderProductPick(null, tableId);
   // Sepete ekleme ekranda anında görünür; stok düşümü arka planda sunucuya gönderilir.
   const session = getSession();
   sb.rpc('adjust_stock', { p_token: session.session_token, p_product_id: productId, p_delta: -1 }).then(({error}) => {
@@ -209,7 +208,7 @@ function addToDraft(tableId, productId){
     applyLocalStockDelta(productId, -1);
     renderTableItems(tableId);
     const t = document.querySelector('#prodStationTabs .tab.active');
-    if(t) renderProductPick(t.dataset.st, tableId);
+    renderProductPick(null, tableId);
   });
 }
 async function changeDraftQty(tableId, idx, delta){
@@ -225,7 +224,7 @@ async function changeDraftQty(tableId, idx, delta){
   applyLocalStockDelta(productId, delta);
   renderTableItems(tableId);
   const activeTab = document.querySelector('#prodStationTabs .tab.active');
-  if(activeTab) renderProductPick(activeTab.dataset.st, tableId);
+  renderProductPick(null, tableId);
   if(serverDelta === 0) return;
   const session = getSession();
   const { error } = await sb.rpc('adjust_stock', { p_token: session.session_token, p_product_id: productId, p_delta: -serverDelta });
@@ -243,7 +242,7 @@ async function changeDraftQty(tableId, idx, delta){
     applyLocalStockDelta(productId, -delta);
     renderTableItems(tableId);
     const t = document.querySelector('#prodStationTabs .tab.active');
-    if(t) renderProductPick(t.dataset.st, tableId);
+    renderProductPick(null, tableId);
     return;
   }
   scheduleConfigResync(tableId);

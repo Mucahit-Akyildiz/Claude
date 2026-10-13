@@ -1438,11 +1438,9 @@ function openTableModal(tableId){
     </div>`;
   document.body.appendChild(bg);
   bg.dataset.tableId = tableId;
-  const stations = APP.config.stations;
-  document.getElementById('prodStationTabs').innerHTML = stations.map((s,i) =>
-    `<div class="tab ${i===0?'active':''}" data-st="${s.id}" ${act('pickStationTab', s.id)}><span class="st-dot" style="background:${escapeAttr(s.color||'#888')}"></span>${escapeHtml(s.icon||'')} ${escapeHtml(s.name)}</div>`
-  ).join('');
-  renderProductPick(stations[0] ? stations[0].id : null, tableId);
+  // İstasyon sekmesi yok: tüm menüler tek listede; sipariş/fiş ürünün istasyonuna gider.
+  const stTabs = document.getElementById('prodStationTabs'); if(stTabs) stTabs.style.display = 'none';
+  renderProductPick(null, tableId);
   renderTableItems(tableId);
 }
 async function closeTableModal(){
