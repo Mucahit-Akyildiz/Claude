@@ -325,7 +325,7 @@ async function renderReportContent(session){
       return `<tr><td style="${isPeak?'font-weight:700;':''}">${label}${isPeak?' 🔥':''}</td>
         <td>${hs.count}</td>
         <td>${money(hs.revenue)}</td>
-        <td><div style="background:var(--panel);border-radius:6px;height:14px;min-width:70px;overflow:hidden;"><div style="width:${pct}%;height:100%;background:${isPeak?'var(--accent)':'var(--accent2)'};"></div></div></td></tr>`;
+        <td><div style="background:var(--panel2);border-radius:999px;height:12px;min-width:70px;overflow:hidden;"><div style="width:${pct}%;height:100%;border-radius:999px;background:${isPeak?'linear-gradient(90deg,#f59e0b,#f97316)':'linear-gradient(90deg,color-mix(in srgb,#f97316 45%,transparent),#f97316)'};"></div></div></td></tr>`;
     }).join('') + '</tbody></table></div>';
 
   // Kapatılan Hesaplar listesi saat/masa/ödeme biçimine göre filtrelenebilir -
@@ -427,11 +427,11 @@ async function renderReportContent(session){
         <p class="fs-note">Personel / ikram hesapları ciroya dahil değildir.</p>
       </div>
     </div>
-    <div class="box" style="max-width:none;"><h2>Saatlik Yoğunluk${peakHour!==null?' <span class="muted" style="font-size:12px;font-weight:400;">(en yoğun: '+(peakHour<10?'0'+peakHour:peakHour)+':00 🔥)</span>':''}</h2>${hourlyHtml}</div>
-    <div class="box" style="max-width:none;"><h2>👤 Personel Performansı</h2>${staffRowsHtml}</div>
-    <div class="box" style="max-width:none;">
+    <div class="fs-panel pa-sec" style="--t:#f97316;"><h3><i>⏰</i>Saatlik Yoğunluk${peakHour!==null?' <span class="muted" style="font-size:12px;font-weight:400;">en yoğun: '+(peakHour<10?'0'+peakHour:peakHour)+':00 🔥</span>':''}</h3>${hourlyHtml}</div>
+    <div class="fs-panel pa-sec" style="--t:#a78bfa;"><h3><i>👤</i>Personel Performansı</h3>${staffRowsHtml}</div>
+    <div class="fs-panel pa-sec" style="--t:var(--green);">
       <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:6px;">
-        <h2 style="margin:0;">Kapatılan Hesaplar</h2>
+        <h3 style="margin:0;"><i>🧾</i>Kapatılan Hesaplar</h3>
         <span class="muted" style="font-size:12px;">${billsFilterActive ? (filteredBills.length+' / '+hist.length+' hesap') : (hist.length+' hesap')}</span>
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;">
