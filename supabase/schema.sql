@@ -4336,6 +4336,7 @@ begin
       'daily_number', o.daily_number, 'tags', o.tags,
       'customer_name', o.customer_name, 'customer_phone', o.customer_phone, 'note', o.note,
       'created_by', o.created_by, 'created_by_name', (select username from app_users where id = o.created_by), 'waitlist_id', o.waitlist_id,
+      'waitlist', (select json_build_object('joined_at', w.joined_at, 'quoted_wait_minutes', w.quoted_wait_minutes, 'party_size', w.party_size, 'status', w.status) from waitlist_entries w where w.id = o.waitlist_id),
       'items', (
         select coalesce(json_agg(json_build_object(
           'id', oi.id, 'name', oi.name, 'price', oi.price, 'cost', oi.cost,
