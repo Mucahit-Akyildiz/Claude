@@ -1843,3 +1843,6 @@ input.sw:checked{background:var(--c1);} input.sw:checked::after{transform:transl
 .st-tot{display:flex;flex-direction:column;align-items:center;gap:3px;font-size:13px;}
 .st-tbar{width:48px;height:5px;border-radius:999px;background:var(--panel2);overflow:hidden;} .st-tbar i{display:block;height:100%;background:var(--c2);border-radius:999px;}
 .st-sum{text-align:center;font-size:12px;font-weight:800;color:var(--muted);}
+.rp-panel h2{font-size:17px;display:flex;align-items:center;gap:8px;}
+#reportContent .settings-table th{font-size:11px;}
+#reportContent .settings-table tbody tr{transition:transform .12s;} #reportContent .settings-table tbody tr:hover{transform:translateX(2px);}

@@ -578,13 +578,9 @@ async function renderCustomerAnalyticsContent(session){
   const totalVisits = rows.reduce((s,c) => s+Number(c.total_visits||0), 0);
   const avgSpent = rows.length ? totalSpent/rows.length : 0;
   el.innerHTML = `
-    <div class="stat-grid">
-      <div class="box" style="text-align:center;"><div style="font-size:22px;font-weight:800;">${rows.length}</div><div class="muted" style="font-size:12px;">Müşteri</div></div>
-      <div class="box" style="text-align:center;"><div style="font-size:22px;font-weight:800;">${money(totalSpent)}</div><div class="muted" style="font-size:12px;">Toplam Harcama</div></div>
-      <div class="box" style="text-align:center;"><div style="font-size:22px;font-weight:800;">${money(avgSpent)}</div><div class="muted" style="font-size:12px;">Ortalama Harcama</div></div>
-      <div class="box" style="text-align:center;"><div style="font-size:22px;font-weight:800;">${totalVisits}</div><div class="muted" style="font-size:12px;">Toplam Ziyaret</div></div>
-    </div>
-    <div class="box" style="max-width:none;">
+    <div class="order-summary stat-chips" style="--n:4;"><div class="os-chip" style="--oc:var(--c1);"><span class="os-ic">👥</span><div><b>${rows.length}</b><small>Müşteri</small></div></div><div class="os-chip" style="--oc:var(--c2);"><span class="os-ic">💰</span><div><b>${money(totalSpent)}</b><small>Toplam Harcama</small></div></div><div class="os-chip" style="--oc:var(--c3);"><span class="os-ic">🧮</span><div><b>${money(avgSpent)}</b><small>Ortalama Harcama</small></div></div><div class="os-chip" style="--oc:var(--c4);"><span class="os-ic">🚪</span><div><b>${totalVisits}</b><small>Toplam Ziyaret</small></div></div></div>
+    ${rows.length ? `<div class="fs-panel pa-sec" style="--t:var(--c3);"><h3><i>🏆</i>En Değerli Müşteriler</h3>${raceHtml(rows.slice().sort((a,b) => Number(b.total_spent||0) - Number(a.total_spent||0)).slice(0,8).map(c => ({ label:c.name, value:Number(c.total_spent||0), display:money(c.total_spent||0), side:(c.total_visits||0) + ' ziyaret', sub:c.phone||'' })))}</div>` : ''}
+    <div class="fs-panel pa-sec rp-panel" style="--t:var(--c2);">
       <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:10px;">
         <h2 style="margin:0;">Müşteri Analizleri</h2>
         <input id="custAnalyticsSearchInput" placeholder="İsim veya telefon ara..." style="max-width:260px;" value="${escapeAttr(APP.customerAnalyticsSearch||'')}" ${actOn('input','debouncedCustomerAnalyticsSearch',['$value'])}>
@@ -632,7 +628,7 @@ async function renderTipPoolContent(session){
   const modeLabel = data.mode==='by_hours' ? 'Çalışılan Saate Göre' : 'Eşit Paylaşım';
   el.innerHTML = `
     ${canManage(session, 'tips') ? `
-    <div class="box" style="max-width:none;">
+    <div class="fs-panel pa-sec rp-panel" style="--t:var(--c3);">
       <h2>Bahşiş Havuzu Ayarları</h2>
       <p class="muted" style="margin-top:-6px;">Açarsanız, toplanan tüm bahşişler burada seçtiğiniz kurala göre personel arasında paylaştırılır (sadece raporlama amaçlıdır - ödemeyi yine kendiniz yaparsınız).</p>
       <label style="display:flex;align-items:center;gap:8px;font-weight:400;margin-bottom:10px;">
@@ -646,12 +642,10 @@ async function renderTipPoolContent(session){
       </div>
       <button style="margin-top:12px;max-width:220px;" ${act('saveTipPoolSettings')}>${ICON_SAVE}<span>Kaydet</span></button>
     </div>` : ''}
-    <div class="stat-grid">
-      <div class="box" style="text-align:center;"><div style="font-size:22px;font-weight:800;">${money(data.total_tip)}</div><div class="muted" style="font-size:12px;">Toplam Bahşiş</div></div>
-      <div class="box" style="text-align:center;"><div style="font-size:15px;font-weight:800;">${data.enabled ? modeLabel : 'Kapalı'}</div><div class="muted" style="font-size:12px;">Paylaşım Kuralı</div></div>
-    </div>
-    <div class="box" style="max-width:none;">
+    <div class="order-summary stat-chips" style="--n:2;"><div class="os-chip" style="--oc:var(--c1);"><span class="os-ic">💰</span><div><b>${money(data.total_tip)}</b><small>Toplam Bahşiş</small></div></div><div class="os-chip" style="--oc:var(--c2);"><span class="os-ic">⚖️</span><div><b>${data.enabled ? modeLabel : 'Kapalı'}</b><small>Paylaşım Kuralı</small></div></div></div>
+    <div class="fs-panel pa-sec rp-panel" style="--t:var(--c4);">
       <h2>${escapeHtml(reportDateRangeLabel())} Tarihli Paylaşım</h2>
+      ${shares.length ? raceHtml(shares.slice().sort((a,b) => Number(b.share_amount) - Number(a.share_amount)).map(x => ({ label:x.username, value:Number(x.share_amount), display:money(x.share_amount), side:formatShiftDuration(x.minutes) }))) : ''}
       ${!data.enabled ? '<p class="muted">Bahşiş havuzu kapalı. Yönetici açarsa burada personel payları görünecek.</p>' : ''}
       <div class="settings-table-wrap">
       <table class="settings-table">
@@ -899,12 +893,11 @@ async function renderWasteContent(session){
   const rows = (data && data.rows) || [];
   const totalCost = (data && data.total_cost) || 0;
   el.innerHTML = `
-    <div class="stat-grid">
-      <div class="box" style="text-align:center;"><div style="font-size:22px;font-weight:800;color:var(--red);">${money(totalCost)}</div><div class="muted" style="font-size:12px;">Toplam İsraf Maliyeti</div></div>
-      <div class="box" style="text-align:center;"><div style="font-size:22px;font-weight:800;">${rows.reduce((s,r)=>s+Number(r.qty),0)}</div><div class="muted" style="font-size:12px;">İsraf Edilen Adet</div></div>
-      <div class="box" style="text-align:center;"><div style="font-size:22px;font-weight:800;">${rows.length}</div><div class="muted" style="font-size:12px;">Kayıt Sayısı</div></div>
-    </div>
-    <div class="box" style="max-width:none;">
+    <div class="order-summary stat-chips" style="--n:3;"><div class="os-chip" style="--oc:var(--c1);"><span class="os-ic">🔥</span><div><b>${money(totalCost)}</b><small>Toplam İsraf Maliyeti</small></div></div><div class="os-chip" style="--oc:var(--c2);"><span class="os-ic">📦</span><div><b>${rows.reduce((s,r)=>s+Number(r.qty),0)}</b><small>İsraf Edilen Adet</small></div></div><div class="os-chip" style="--oc:var(--c3);"><span class="os-ic">🗂️</span><div><b>${rows.length}</b><small>Kayıt Sayısı</small></div></div></div>
+    ${rows.length ? (() => { const g = {}, rs = {}; rows.forEach(r => { g[r.product_name] = (g[r.product_name]||0) + Number(r.total_cost||0); const k = r.reason || 'Belirtilmedi'; rs[k] = (rs[k]||0) + Number(r.total_cost||0); });
+      return `<div class="ch-row"><div class="fs-panel pa-sec" style="--t:var(--danger,#ef4444);"><h3><i>🔥</i>En Çok İsraf Edilen</h3>${raceHtml(Object.entries(g).sort((a,b)=>b[1]-a[1]).slice(0,8).map(([k,v]) => ({ label:k, value:v, display:money(v), side: totalCost ? '%'+Math.round(v/totalCost*100) : '' })))}</div>
+        <div class="fs-panel pa-sec" style="--t:var(--c3);"><h3><i>❓</i>Sebeplere Göre</h3>${svgDonut(Object.entries(rs).sort((a,b)=>b[1]-a[1]).slice(0,4).map(([k,v], i) => ({ label:k, value:v, color:`var(--c${i+1})` })), { center: shortMoney(totalCost), sub:'₺ israf', money:true })}</div></div>`; })() : ''}
+    <div class="fs-panel pa-sec rp-panel" style="--t:var(--c1);">
       <h2>${escapeHtml(reportDateRangeLabel())} Tarihli İsraf Kayıtları</h2>
       <div class="settings-table-wrap">
       <table class="settings-table">
@@ -1270,13 +1263,10 @@ async function renderVatReportContent(session){
   const rates = data.rates || [];
   const gross = rates.reduce((s, r) => s + Number(r.gross), 0);
   el.innerHTML = `
-    <div class="stat-grid">
-      <div class="box" style="text-align:center;"><div style="font-size:22px;font-weight:800;">${money(gross)}</div><div class="muted" style="font-size:12px;">KDV Dahil Satış</div></div>
-      <div class="box" style="text-align:center;"><div style="font-size:22px;font-weight:800;">${money(data.base_total)}</div><div class="muted" style="font-size:12px;">Matrah (KDV Hariç)</div></div>
-      <div class="box" style="text-align:center;"><div style="font-size:22px;font-weight:800;color:var(--accent);">${money(data.vat_total)}</div><div class="muted" style="font-size:12px;">Hesaplanan KDV</div></div>
-      <div class="box" style="text-align:center;"><div style="font-size:22px;font-weight:800;">${data.sales_count}</div><div class="muted" style="font-size:12px;">Satış (Adisyon)</div></div>
-    </div>
-    <div class="box" style="max-width:none;">
+    <div class="order-summary stat-chips" style="--n:4;"><div class="os-chip" style="--oc:var(--c1);"><span class="os-ic">🧾</span><div><b>${money(gross)}</b><small>KDV Dahil Satış</small></div></div><div class="os-chip" style="--oc:var(--c2);"><span class="os-ic">📄</span><div><b>${money(data.base_total)}</b><small>Matrah (KDV Hariç)</small></div></div><div class="os-chip" style="--oc:var(--c3);"><span class="os-ic">🏛️</span><div><b>${money(data.vat_total)}</b><small>Hesaplanan KDV</small></div></div><div class="os-chip" style="--oc:var(--c4);"><span class="os-ic">🍽️</span><div><b>${data.sales_count}</b><small>Satış (Adisyon)</small></div></div></div>
+    ${rates.length ? `<div class="ch-row"><div class="fs-panel pa-sec" style="--t:var(--c1);"><h3><i>🏛️</i>Orana Göre KDV</h3>${raceHtml(rates.map(r => ({ label:'%' + r.rate + ' KDV', value:Number(r.vat), display:money(r.vat), side:money(r.gross), sub:'matrah ' + money(r.base) })))}</div>
+      <div class="fs-panel pa-sec" style="--t:var(--c2);"><h3><i>🍩</i>Satış Dağılımı</h3>${svgDonut(rates.map((r, i) => ({ label:'%' + r.rate, value:Number(r.gross), color:`var(--c${i%4+1})` })), { center: shortMoney(gross), sub:'₺ KDV dahil', money:true })}</div></div>` : ''}
+    <div class="fs-panel pa-sec rp-panel" style="--t:var(--c2);">
       <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;">
         <h2 style="margin:0;">KDV Oranlarına Göre · ${escapeHtml(reportDateRangeLabel())}</h2>
         <button type="button" class="ghost-btn" style="width:auto;margin:0;" ${act('exportVatReportCsv')}>⬇️ Dışa aktar</button>
@@ -1388,4 +1378,15 @@ function celebrate(){
     + '<div class="confetti-msg">🎉 Günlük hedefe ulaşıldı!</div>';
   document.body.appendChild(box);
   setTimeout(() => box.remove(), 4200);
+}
+
+/* Sıralı yatay çubuk listesi (en çok satanlar tarzı): [{label, value, display, side, sub}] */
+function raceHtml(items){
+  if(!items.length) return '<p class="muted">Veri yok.</p>';
+  const max = Math.max(1, ...items.map(x => x.value));
+  return `<div class="race">${items.map((x, i) => `<div class="race-row" style="--i:${Math.min(i,15)};--sc:var(--c${i%4+1});">
+    <span class="race-rank ${i<3?'top':''}">${['🥇','🥈','🥉'][i] || (i+1)}</span>
+    <div class="race-main"><div class="race-label"><b>${escapeHtml(x.label)}</b>${x.sub ? `<small>${escapeHtml(x.sub)}</small>` : ''}</div>
+      <div class="race-track"><div class="race-bar" style="width:${Math.max(3, Math.round(x.value/max*100))}%;"><span>${escapeHtml(x.display)}</span></div></div></div>
+    <span class="race-side">${escapeHtml(x.side||'')}</span></div>`).join('')}</div>`;
 }
