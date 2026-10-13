@@ -154,7 +154,7 @@ function openPayModal(orderId){
   bg.dataset.isBirthdayToday = '0';
   bg.dataset.giftCardCode = '';
   bg.dataset.giftCardBalance = '0';
-  bg.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:100;padding:16px;';
+  bg.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:flex-start;padding-top:max(16px,6vh) !important;overflow:auto;justify-content:center;z-index:100;padding:16px;';
   bg.onclick = (e) => { if(e.target===bg) bg.remove(); };
   bg.innerHTML = `<div class="pay-modal">
     <div class="pay-modal-header">
