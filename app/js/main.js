@@ -14,6 +14,8 @@
 function pushReminderBannerHtml(){
   if(APP.pushBannerDismissed) return '';
   if(!hasFeature('push_notifications')) return '';
+  // Masaüstü (Electron) uygulamasında web push yok; bildirimler Windows bildirimi olarak gelir.
+  if(typeof isDesktopApp === 'function' && isDesktopApp()) return '';
   let state;
   if(isNativeApp()){
     state = APP.nativePushPermState;
