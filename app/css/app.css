@@ -2010,3 +2010,33 @@ input.sw:checked{background:var(--c1);} input.sw:checked::after{transform:transl
 .au-legend .d{width:9px;height:9px;border-radius:50%}
 .au-legend .d.on{background:#22c55e;box-shadow:0 0 8px #22c55e}.au-legend .d.idle{background:#eab308}.au-legend .d.off{background:#9ca3af}
 .au-legend .au-auto{margin-left:auto}
+/* Ödeme penceresi v2 */
+.pm2{border-radius:24px!important;border:1px solid var(--border);box-shadow:0 30px 70px rgba(0,0,0,.5);animation:dgPop .25s cubic-bezier(.2,1.4,.4,1);position:relative;overflow:hidden}
+.pm2::before{content:'';position:absolute;inset:0 0 auto;height:4px;background:linear-gradient(90deg,var(--c1),var(--c2),var(--c3),var(--c4))}
+.pm2 .pm-title{display:flex;align-items:center;gap:12px}
+.pm2 .pm-title h2{margin:0}
+.pm2 .pm-title small{color:var(--muted);font-size:12.5px}
+.pm2 .pm-tic{width:44px;height:44px;border-radius:14px;display:grid;place-items:center;font-size:22px;background:linear-gradient(135deg,var(--c1),var(--c2));box-shadow:0 6px 18px color-mix(in srgb,var(--c1) 40%,transparent)}
+.pm2 .pay-items-card{display:flex;flex-direction:column;gap:8px;background:transparent!important;padding:0!important;border:0!important}
+.pm2 .pay-item-row{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 12px!important;border-radius:16px;border:1px solid var(--border)!important;background:color-mix(in srgb,var(--panel) 60%,var(--bg));transition:transform .15s,border-color .15s}
+.pm2 .pay-item-row:hover{border-color:var(--c1)!important;transform:translateY(-1px)}
+.pm2 .pay-item-row .row-top{flex:1 1 220px;display:flex;justify-content:space-between;align-items:center;gap:8px}
+.pm2 .pm-name{display:flex;align-items:center;gap:10px;min-width:0}
+.pm2 .pm-name b{display:block;font-size:14px}.pm2 .pm-name small{color:var(--muted);font-size:11.5px}
+.pm2 .pay-item-subtotal{font-size:15px}
+.pm2 .row-bottom{display:flex;align-items:center;gap:6px;padding:3px;border-radius:999px;background:var(--bg);border:1px solid var(--border)}
+.pm2 .row-bottom .qty-btn{width:30px;height:30px;border-radius:50%;padding:0;margin:0}
+.pm2 .pay-subtotal-row{display:flex;justify-content:space-between;padding:12px 14px;margin:10px 0;border-radius:14px;border:1px dashed var(--border);font-weight:700}
+.pm2 .pay-opt-tabs{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.pm2 .pay-opt-tab{border-radius:14px;padding:10px 6px;font-size:13px}
+.pm2 .pay-opt-tab.active,.pm2 .pay-opt-tab.on{background:linear-gradient(135deg,var(--c1),var(--c2));color:#fff;border-color:transparent}
+.pm2 .pay-total-banner{position:relative;overflow:hidden;border-radius:20px!important;padding:18px 20px!important;border:0!important;background:linear-gradient(135deg,color-mix(in srgb,var(--c1) 35%,var(--panel)),color-mix(in srgb,var(--c2) 30%,var(--panel)))!important}
+.pm2 .pay-total-banner::after{content:'';position:absolute;inset:0;background:linear-gradient(110deg,transparent 30%,rgba(255,255,255,.12) 50%,transparent 70%);background-size:250% 100%;animation:pmShine 3.5s linear infinite}
+@keyframes pmShine{from{background-position:150% 0}to{background-position:-100% 0}}
+.pm2 .pay-total-banner .amt{font-size:32px!important}
+.pm2 .pay-method-grid .pay-method-btn.cash,.pm2 .pay-method-grid .pay-method-btn.card{display:flex;flex-direction:column;align-items:center;gap:2px;padding:14px 8px!important;min-height:96px;border-radius:18px!important;transition:transform .15s,box-shadow .15s}
+.pm2 .pay-method-btn.cash{background:linear-gradient(135deg,#22c55e,#16a34a)!important;color:#fff!important}
+.pm2 .pay-method-btn.card{background:linear-gradient(135deg,#f59e0b,#d97706)!important;color:#fff!important}
+.pm2 .pay-method-btn:not(:disabled):hover{transform:translateY(-2px);box-shadow:0 10px 24px rgba(0,0,0,.3)}
+.pm2 .pm-ic{font-size:26px}.pm2 .pay-method-btn b{font-size:16px}.pm2 .pay-method-btn small{font-size:11px;opacity:.85}
+.pm2 .pay-method-btn.split,.pm2 .pay-method-btn.gift{border-radius:14px!important}

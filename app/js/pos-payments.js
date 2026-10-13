@@ -137,7 +137,7 @@ function openPayModal(orderId){
   const itemsHtml = unpaidItems.map(it => `
     <div class="pay-item-row">
       <div class="row-top">
-        <span>${escapeHtml(it.name)} <span class="muted" style="font-size:11px;">(${money(it.price)}/adet)</span></span>
+        <span class="pm-name">${avatarHtml(it.name)}<span><b>${escapeHtml(it.name)}</b><small>${money(it.price)} / adet</small></span></span>
         <span class="pay-item-subtotal" data-item-id="${it.id}" style="font-weight:700;">${money(it.price*it.qty)}</span>
       </div>
       <div class="row-bottom">
@@ -162,9 +162,9 @@ function openPayModal(orderId){
   bg.dataset.giftCardBalance = '0';
   bg.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:flex-start;padding-top:max(16px,6vh) !important;overflow:auto;justify-content:center;z-index:100;padding:16px;';
   bg.onclick = (e) => { if(e.target===bg) bg.remove(); };
-  bg.innerHTML = `<div class="pay-modal">
+  bg.innerHTML = `<div class="pay-modal pm2">
     <div class="pay-modal-header">
-      <h2>${escapeHtml(tableName)}</h2>
+      <div class="pm-title"><span class="pm-tic">💳</span><div><h2>${escapeHtml(tableName)}</h2><small>${unpaidItems.length} kalem · ${unpaidItems.reduce((s, i) => s + i.qty, 0)} adet ödenecek</small></div></div>
       <span class="pay-modal-close" ${act('removeEl','payModalBg')}>✕</span>
     </div>
     <div class="pay-body">
@@ -241,8 +241,8 @@ function openPayModal(orderId){
       <span class="amt" id="payFinalTotal">${money(subtotal)}</span>
     </div>
     <div class="pay-method-grid">
-      <button class="pay-method-btn cash" ${act('finishPaymentFull', 'cash')}>💵 Nakit</button>
-      <button class="pay-method-btn card" ${act('finishPaymentFull', 'card')}>💳 Kredi Kartı</button>
+      <button class="pay-method-btn cash" ${act('finishPaymentFull', 'cash')}><span class="pm-ic">💵</span><b>Nakit</b><small>Tam ödeme</small></button>
+      <button class="pay-method-btn card" ${act('finishPaymentFull', 'card')}><span class="pm-ic">💳</span><b>Kredi Kartı</b><small>POS cihazı</small></button>
     </div>
     <div class="pay-method-grid secondary">
       <button class="pay-method-btn gift" id="payGiftCardPayBtn" disabled ${act('finishPaymentFull', 'gift_card')}>🎁 Hediye Kartı ile Öde</button>
@@ -507,7 +507,7 @@ function recomputePaySelection(){
   const order = APP.liveOrders.find(o => o.order_id===bg.dataset.orderId);
   const subtotal = order.items.reduce((s,i) => s + i.price*(PAY_SELECTED_QTYS[i.id]||0), 0);
   bg.dataset.subtotal = String(subtotal);
-  document.getElementById('paySubtotalLine').textContent = 'Ara Toplam: '+money(subtotal);
+  document.getElementById('paySubtotalLine').innerHTML = '<span>Ara Toplam</span><span>'+money(subtotal)+'</span>';
   // İndirim varsa yeni seçime göre yeniden hesaplanır (yüzdeyse orana göre, tutarsa ara toplamı geçmeyecek şekilde).
   const discType = bg.dataset.discountType;
   const discValue = parseFloat(bg.dataset.discountValue||0);
