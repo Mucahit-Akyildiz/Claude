@@ -1,0 +1,3 @@
+-- Finansal Analiz > Dönemsel Analiz: get_period_analytics(p_token, p_date, p_date_to) ('reports')
+-- aylık / mevsimlik / haftanın günü ciro ve masa sıralaması (etiketli hesaplar hariç).
+-- Gövde canlı veritabanına uygulandı (bkz. supabase/schema.sql dökümü).

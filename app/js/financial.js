@@ -186,6 +186,7 @@ async function renderReportsView(main, session){
     </div>
     <div class="tabs" id="reportTabs">
       <div class="tab ${(APP.reportTab||'summary')==='summary'?'active':''}" data-tab="summary" ${act('setReportTab', 'summary')}>Genel Özet</div>
+      <div class="tab ${APP.reportTab==='period'?'active':''}" data-tab="period" ${act('setReportTab', 'period')}>📈 Dönemsel Analiz</div>
       <div class="tab ${APP.reportTab==='vat'?'active':''}" data-tab="vat" ${act('setReportTab', 'vat')}>🧾 KDV</div>
       <div class="tab ${APP.reportTab==='products'?'active':''}" data-tab="products" ${act('setReportTab', 'products')}>📦 Ürün İstatistikleri</div>
       <div class="tab ${APP.reportTab==='staff'?'active':''}" data-tab="staff" ${act('setReportTab', 'staff')}>👤 Personel Analizleri</div>
@@ -233,6 +234,7 @@ function setReportDateRangeDays(daysBack){
 }
 function renderReportTabContent(session){
   const tab = APP.reportTab||'summary';
+  if(tab==='period') return renderPeriodAnalyticsContent(session);
   if(tab==='vat') return renderVatReportContent(session);
   if(tab==='products') return renderProductStatsContent(session);
   if(tab==='staff') return renderStaffAnalyticsContent(session);
@@ -242,6 +244,16 @@ function renderReportTabContent(session){
   if(tab==='resv') return renderReservationAnalyticsContent(session);
   if(tab==='openacc') return renderOpenAccountsContent(session);
   return renderReportContent(session);
+}
+/* Okunur istatistik kartı: üstte etiket, altta büyük değer ve açıklama; renk sol şeritte. */
+function kpi(label, value, o){
+  o = o || {};
+  const click = o.click ? (() => { const [fn, arg] = o.click.split('|'); return act(fn, arg); })() : '';
+  return `<div class="kpi${o.click?' kpi-click':''}" style="--kpi-c:${o.color||'var(--border)'};" ${click}>
+    <div class="kpi-label">${label}</div>
+    <div class="kpi-value" style="${o.color && o.color!=='var(--muted)' ? 'color:'+o.color+';' : ''}">${value}</div>
+    ${o.sub ? `<div class="kpi-sub">${o.sub}</div>` : ''}
+  </div>`;
 }
 async function renderReportContent(session){
   const el = document.getElementById('reportContent'); if(!el) return;
@@ -383,22 +395,24 @@ async function renderReportContent(session){
   const timingHtml = (prepArr.length || stayArr.length) ? `<p class="muted" style="text-align:left;margin:0 0 10px;font-size:13px;">⏱ Ort. hazırlanma: <b>${avgMin(prepArr) ?? '—'} dk</b> · Ort. sipariş → ödeme: <b>${avgMin(stayArr) ?? '—'} dk</b></p>` : '';
 
   el.innerHTML = `
-    <div class="stat-grid">
-      <div class="box" style="text-align:center;"><div style="font-size:22px;font-weight:800;">${hist.length}</div><div class="muted" style="font-size:12px;">Kapatılan Hesap</div></div>
-      <div class="box" style="text-align:center;"><div style="font-size:22px;font-weight:800;">${money(totalRevenue)}</div><div class="muted" style="font-size:12px;">Toplam Ciro</div></div>
-      <div class="box" style="text-align:center;"><div style="font-size:22px;font-weight:800;">${money(totalCost)}</div><div class="muted" style="font-size:12px;">Toplam Maliyet</div></div>
-      <div class="box" style="text-align:center;"><div style="font-size:22px;font-weight:800;color:${profit>=0?'var(--green)':'var(--red)'};">${money(profit)}</div><div class="muted" style="font-size:12px;">Net Kâr</div></div>
-      <div class="box" style="text-align:center;cursor:pointer;" ${act('setReportTab', 'waste')} title="Detaylar için tıklayın"><div style="font-size:22px;font-weight:800;color:var(--red);">${money(wasteCost)}</div><div class="muted" style="font-size:12px;">🔥 İsraf Maliyeti</div></div>
-    </div>
-    <div class="stat-grid">
-      <div class="box" style="text-align:center;"><div style="font-size:20px;font-weight:800;color:var(--green);">${money(totalCash)}</div><div class="muted" style="font-size:12px;">💵 Nakit${totalRevenue?' ('+Math.round(totalCash/totalRevenue*100)+'%)':''}</div></div>
-      <div class="box" style="text-align:center;"><div style="font-size:20px;font-weight:800;color:var(--accent2);">${money(totalCard)}</div><div class="muted" style="font-size:12px;">💳 Kredi Kartı${totalRevenue?' ('+Math.round(totalCard/totalRevenue*100)+'%)':''}</div></div>
-      <div class="box" style="text-align:center;"><div style="font-size:20px;font-weight:800;color:var(--gift);">${money(totalGiftCard)}</div><div class="muted" style="font-size:12px;">🎁 Hediye Kartı${totalRevenue?' ('+Math.round(totalGiftCard/totalRevenue*100)+'%)':''}</div></div>
-      <div class="box" style="text-align:center;"><div style="font-size:20px;font-weight:800;color:var(--accent);">${money(totalDiscount)}</div><div class="muted" style="font-size:12px;">🏷️ İndirim (${discountedCount} hesap)</div></div>
-      <div class="box" style="text-align:center;"><div style="font-size:20px;font-weight:800;color:#eab308;">${money(taggedTotal)}</div><div class="muted" style="font-size:12px;">🏷️ Personel/İkram (${taggedHist.length} hesap, ciroya dahil değil)</div></div>
-      <div class="box" style="text-align:center;"><div style="font-size:20px;font-weight:800;color:var(--accent);">${money(totalTip)}</div><div class="muted" style="font-size:12px;">💰 Bahşiş</div></div>
-      <div class="box" style="text-align:center;"><div style="font-size:20px;font-weight:800;color:var(--accent2);">${money(totalBirthdayDiscount)}</div><div class="muted" style="font-size:12px;">🎂 Doğum Günü İndirimi (${birthdayCount} hesap)</div></div>
-    </div>
+    <div class="kpi-section"><h3>💰 Ciro ve Kâr</h3><div class="kpi-grid" id="kpiMain">
+      ${kpi('Toplam Ciro', money(totalRevenue), { color:'var(--accent)', sub: hist.length+' kapatılan hesap' })}
+      ${kpi('Net Kâr', money(profit), { color: profit>=0?'var(--green)':'var(--red)', sub: totalRevenue ? 'Kâr marjı %'+Math.round(profit/totalRevenue*100) : '' })}
+      ${kpi('Toplam Maliyet', money(totalCost), { color:'var(--muted)' })}
+      ${kpi('🔥 İsraf Maliyeti', money(wasteCost), { color:'var(--red)', sub:'Detay için tıklayın', click:"setReportTab|waste" })}
+    </div></div>
+    <div class="kpi-section"><h3>🍽️ Servis</h3><div class="kpi-grid" id="serviceMetrics"><p class="muted">Yükleniyor…</p></div></div>
+    <div class="kpi-section"><h3>💳 Ödeme Dağılımı</h3><div class="kpi-grid">
+      ${kpi('💵 Nakit', money(totalCash), { color:'var(--green)', sub: totalRevenue ? '%'+Math.round(totalCash/totalRevenue*100)+' ciro' : '' })}
+      ${kpi('💳 Kredi Kartı', money(totalCard), { color:'var(--accent2)', sub: totalRevenue ? '%'+Math.round(totalCard/totalRevenue*100)+' ciro' : '' })}
+      ${kpi('🎁 Hediye Kartı', money(totalGiftCard), { color:'var(--gift)', sub: totalRevenue ? '%'+Math.round(totalGiftCard/totalRevenue*100)+' ciro' : '' })}
+      ${kpi('💰 Bahşiş', money(totalTip), { color:'var(--accent)' })}
+    </div></div>
+    <div class="kpi-section"><h3>🏷️ İndirim ve İkram</h3><div class="kpi-grid">
+      ${kpi('İndirim', money(totalDiscount), { color:'var(--accent)', sub: discountedCount+' hesap' })}
+      ${kpi('🎂 Doğum Günü İndirimi', money(totalBirthdayDiscount), { color:'var(--accent2)', sub: birthdayCount+' hesap' })}
+      ${kpi('Personel / İkram', money(taggedTotal), { color:'#eab308', sub: taggedHist.length+' hesap · ciroya dahil değil' })}
+    </div></div>
     <div class="box" style="max-width:none;"><h2>Saatlik Yoğunluk${peakHour!==null?' <span class="muted" style="font-size:12px;font-weight:400;">(en yoğun: '+(peakHour<10?'0'+peakHour:peakHour)+':00 🔥)</span>':''}</h2>${hourlyHtml}</div>
     <div class="box" style="max-width:none;"><h2>👤 Personel Performansı</h2>${staffRowsHtml}</div>
     <div class="box" style="max-width:none;">
@@ -430,20 +444,17 @@ async function renderReportContent(session){
   `;
   // Servis metrikleri (ortalama hesap, masa devir hızı, oturma süresi) ayrı
   // RPC'den gelir ve kart ızgarasının hemen altına eklenir.
-  const grid = el.querySelector('.stat-grid');
-  if(grid){
-    const box = document.createElement('div');
-    box.className = 'stat-grid'; box.id = 'serviceMetrics'; box.style.marginTop = '10px';
-    grid.after(box);
+  const box = el.querySelector('#serviceMetrics');
+  if(box){
     sb.rpc('get_service_metrics', { p_token: session.session_token, p_date: APP.reportDate, p_date_to: APP.reportDateTo }).then(({ data: m }) => {
-      if(!m || !document.getElementById('serviceMetrics')) return;
-      const card = (v, l, t) => `<div class="box" style="text-align:center;" title="${escapeHtml(t)}"><div style="font-size:22px;font-weight:800;">${v}</div><div class="muted" style="font-size:12px;">${l}</div></div>`;
+      if(!document.getElementById('serviceMetrics')) return;
+      if(!m){ box.innerHTML = '<p class="muted">Servis metrikleri yüklenemedi.</p>'; return; }
       box.innerHTML =
-        card(money(m.avg_check), '🧾 Ortalama Hesap', 'Etiketsiz hesapların ortalama tutarı ('+m.checks+' hesap)') +
-        card(money(m.avg_check_dine_in), '🍽️ Ort. Masa Hesabı', m.dine_in_checks+' masa hesabı') +
-        card(money(m.avg_check_takeaway), '📦 Ort. Paket Hesabı', 'Paket/gel-al siparişleri') +
-        card(m.table_count ? String(m.table_turnover).replace('.',',')+'×' : '—', '🔄 Masa Devir Hızı', 'Masa başına günlük ortalama hesap sayısı ('+m.table_count+' masa, '+m.days+' gün)') +
-        card(m.avg_seat_minutes ? m.avg_seat_minutes+' dk' : '—', '⏱️ Ort. Oturma Süresi', 'Masa hesabının açılışından kapanışına');
+        kpi('🧾 Ortalama Hesap', money(m.avg_check), { sub: m.checks+' hesap' }) +
+        kpi('Ort. Masa Hesabı', money(m.avg_check_dine_in), { sub: m.dine_in_checks+' masa hesabı' }) +
+        kpi('📦 Ort. Paket Hesabı', money(m.avg_check_takeaway), { sub: 'Paket / gel-al' }) +
+        kpi('🔄 Masa Devir Hızı', m.table_count ? String(m.table_turnover).replace('.',',')+'×' : '—', { sub: 'Masa başına günlük hesap ('+m.table_count+' masa)' }) +
+        kpi('⏱️ Ort. Oturma Süresi', m.avg_seat_minutes ? m.avg_seat_minutes+' dk' : '—', { sub: 'Açılıştan kapanışa' });
     });
   }
 }
@@ -678,6 +689,44 @@ async function renderProcurementView(main, session){
 function setProcDate(which, v){ if(!v) return; if(which==='from') APP.procFrom = v; else APP.procTo = v; renderPurchaseReportContent(getSession()); }
 /* --- Satın Alma: seçilen tarih aralığında Tedarik & Satın Alma'dan verilen siparişler
    (bkz. get_purchase_report). Taslak ve iptaller toplamlara katılmaz. --- */
+/* --- Dönemsel Analiz: aylık ve mevsimlik ciro, haftanın günleri, en çok çalışan masalar
+   (bkz. get_period_analytics). Kısa aralıkta "Son 12 Ay" kısayolu önerilir. --- */
+function setReportLast12Months(){
+  const to = new Date(), from = new Date(); from.setMonth(from.getMonth()-11); from.setDate(1);
+  const f = (d) => d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+  APP.reportDate = f(from); APP.reportDateTo = f(to);
+  const a = document.getElementById('reportDateInput'); if(a) a.value = APP.reportDate;
+  const b = document.getElementById('reportDateToInput'); if(b) b.value = APP.reportDateTo;
+  renderReportTabContent(getSession());
+}
+async function renderPeriodAnalyticsContent(session){
+  const el = document.getElementById('reportContent'); if(!el) return;
+  const { data: d, error } = await withLoadingOverlay(sb.rpc('get_period_analytics', { p_token: session.session_token, p_date: APP.reportDate, p_date_to: APP.reportDateTo }));
+  if(error){ el.innerHTML = '<p class="muted">Yüklenemedi: '+escapeHtml(error.message)+'</p>'; return; }
+  const days = Math.round((new Date(APP.reportDateTo) - new Date(APP.reportDate)) / 86400000) + 1;
+  const MONTHS = ['Ocak','Şubat','Mart','Nisan','Mayıs','Haziran','Temmuz','Ağustos','Eylül','Ekim','Kasım','Aralık'];
+  const DOW = ['','Pazartesi','Salı','Çarşamba','Perşembe','Cuma','Cumartesi','Pazar'];
+  const SEASON_IC = { 'Kış':'❄️', 'İlkbahar':'🌱', 'Yaz':'☀️', 'Sonbahar':'🍂' };
+  const bars = (rows, label, val, sub) => {
+    if(!rows.length) return '<p class="muted">Bu aralıkta veri yok.</p>';
+    const max = Math.max(...rows.map(r => Number(val(r))||0)) || 1;
+    const top = rows.reduce((a, r) => (Number(val(r))||0) > (Number(val(a))||0) ? r : a, rows[0]);
+    return rows.map(r => `<div class="pa-row${r===top?' pa-top':''}">
+      <div class="pa-label">${label(r)}${r===top?' 🏆':''}</div>
+      <div class="pa-bar"><div style="width:${Math.round((Number(val(r))||0)/max*100)}%;"></div></div>
+      <div class="pa-val"><b>${money(val(r))}</b><span class="muted">${sub(r)}</span></div></div>`).join('');
+  };
+  const monthly = d.monthly || [], seasons = d.seasons || [], weekdays = d.weekdays || [], tables = d.tables || [];
+  el.innerHTML = `
+    ${days < 60 ? `<div class="box" style="max-width:none;display:flex;align-items:center;gap:12px;flex-wrap:wrap;"><span class="muted" style="flex:1;">Aylık ve mevsimlik karşılaştırma için daha uzun bir aralık seçin.</span><button type="button" style="width:auto;margin:0;" ${act('setReportLast12Months')}>📅 Son 12 Ay</button></div>` : ''}
+    <div class="box" style="max-width:none;"><h2>📅 Aylık Ciro</h2>${bars(monthly, r => { const [y,m] = r.ym.split('-'); return MONTHS[Number(m)-1]+' '+y; }, r => r.revenue, r => `${r.checks} hesap · ort. ${money(r.avg_check)} · kâr ${money(r.profit)}`)}</div>
+    <div class="box" style="max-width:none;"><h2>🌦️ Mevsimlere Göre</h2>${bars(seasons, r => (SEASON_IC[r.season]||'')+' '+r.season, r => r.revenue, r => `${r.checks} hesap · günlük ort. ${money(r.days ? r.revenue/r.days : 0)}`)}</div>
+    <div class="box" style="max-width:none;"><h2>🗓️ Haftanın Günleri</h2>${bars(weekdays, r => DOW[r.dow], r => r.days ? r.revenue/r.days : 0, r => `günlük ortalama · ${r.checks} hesap / ${r.days} gün`)}</div>
+    <div class="box" style="max-width:none;"><h2>🪑 En Çok Çalışan Masalar</h2>
+      ${tables.length ? `<div class="settings-table-wrap"><table class="settings-table"><thead><tr><th>#</th><th>Masa</th><th>Hesap</th><th>Ciro</th><th>Ort. Hesap</th><th>Ort. Oturma</th></tr></thead><tbody>
+        ${tables.map((t, i) => `<tr><td>${i===0?'🥇':i===1?'🥈':i===2?'🥉':i+1}</td><td class="col-name">${escapeHtml(t.table_name)}</td><td>${t.checks}</td><td><b>${money(t.revenue)}</b></td><td>${money(t.avg_check)}</td><td>${t.avg_minutes!=null ? t.avg_minutes+' dk' : '—'}</td></tr>`).join('')}
+      </tbody></table></div>` : '<p class="muted">Bu aralıkta masa hesabı yok.</p>'}</div>`;
+}
 async function renderPurchaseReportContent(session){
   const host = document.getElementById('procContent'); if(!host) return;
   const sub = APP.purchRepSub || 'orders';

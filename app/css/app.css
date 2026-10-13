@@ -860,3 +860,22 @@ button.chat-once{cursor:pointer;}
 .po-price-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:3px 0;}
 .po-price-row input{width:110px;margin:0;padding:6px 8px;font-size:13px;}
 .po-price-row input.po-price-missing{border-color:var(--red);}
+
+/* Finansal Analiz: okunur KPI kartları ve dönemsel çubuklar */
+.kpi-section{margin:0 0 16px;}
+.kpi-section h3{margin:0 0 8px;font-size:13px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;}
+.kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px;}
+.kpi{background:var(--panel);border:1px solid var(--border);border-left:4px solid var(--kpi-c,var(--border));border-radius:14px;padding:14px 16px;text-align:left;}
+.kpi-click{cursor:pointer;} .kpi-click:hover{border-color:var(--kpi-c);}
+.kpi-label{font-size:12.5px;color:var(--muted);font-weight:700;}
+.kpi-value{font-size:24px;font-weight:800;margin-top:4px;line-height:1.15;color:var(--text);}
+.kpi-sub{font-size:12px;color:var(--muted);margin-top:4px;}
+.pa-row{display:grid;grid-template-columns:150px 1fr minmax(170px,auto);gap:12px;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);}
+.pa-row:last-child{border-bottom:none;}
+.pa-label{font-weight:700;}
+.pa-bar{background:var(--panel2);border-radius:999px;height:12px;overflow:hidden;}
+.pa-bar>div{height:100%;background:var(--accent2);border-radius:999px;}
+.pa-top .pa-bar>div{background:var(--accent);}
+.pa-val{display:flex;flex-direction:column;align-items:flex-end;font-size:13px;}
+.pa-val .muted{font-size:11.5px;}
+@media (max-width:640px){ .pa-row{grid-template-columns:1fr;gap:4px;} .pa-val{align-items:flex-start;} .kpi-value{font-size:20px;} }
