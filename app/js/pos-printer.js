@@ -630,8 +630,8 @@ async function renderPrinterSettingsView(main, session){
   renderCashReceiptPreview();
   if(!PR_TABS.some(t => t.id === APP.printerTab)) APP.printerTab = 'design';
   const bar = document.createElement('div');
-  bar.className = 'tabs settings-tabs';
-  bar.innerHTML = PR_TABS.map(t => `<div class="tab" data-pr-tab="${t.id}" ${act('setPrinterTab', t.id)}>${t.ic} ${t.label}</div>`).join('');
+  bar.className = 'bx-tabs';
+  bar.innerHTML = PR_TABS.map((t, i) => `<button type="button" class="bx-tab" style="--sc:var(--c${i%4+1});" data-pr-tab="${t.id}" ${act('setPrinterTab', t.id)}><span class="bx-ic">${t.ic}</span>${t.label}</button>`).join('');
   if(boxes[0]) main.insertBefore(bar, boxes[0]);
   showPrinterPane();
   updateTicketPreview();
@@ -684,7 +684,7 @@ function renderCashReceiptPreview(){
 function testCashReceipt(){ printCashReceipt('Masa 3', CASH_SAMPLE, 790, 12); }
 function showPrinterPane(){
   document.querySelectorAll('#main .pr-pane').forEach(b => { b.style.display = b.dataset.prtab === APP.printerTab ? '' : 'none'; });
-  document.querySelectorAll('#main [data-pr-tab]').forEach(t => t.classList.toggle('active', t.dataset.prTab === APP.printerTab));
+  document.querySelectorAll('#main [data-pr-tab]').forEach(t => { t.classList.toggle('active', t.dataset.prTab === APP.printerTab); t.classList.toggle('on', t.dataset.prTab === APP.printerTab); });
 }
 function setPrinterTab(t){ APP.printerTab = t; showPrinterPane(); }
 /* Son 30 günde bu kullanıcıya gönderilen bildirimler (bkz. notification_log). Dokununca ilgili ekrana gider. */
@@ -792,6 +792,7 @@ async function renderNotificationSettingsView(main, session){
     </div>
     </div>
   `;
+  boxTabs(document.getElementById('notifSettingsPart'), 'notif');
   updateBellScopeStatus();
   initPushUI();
 }
