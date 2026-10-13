@@ -340,6 +340,11 @@ function requestNativeFcmToken(){
 }
 function getSavedFcmToken(){ try{ return localStorage.getItem('rys_fcm_token')||''; }catch(e){ return ''; } }
 function setSavedFcmToken(t){ try{ if(t) localStorage.setItem('rys_fcm_token', t); else localStorage.removeItem('rys_fcm_token'); }catch(e){} }
+/* Sipariş veren cihazda anında fiş (varsayılan açık); yazıcısı olmayan cihazda etkisiz. */
+function printOnOrderEnabled(){ try{ return localStorage.getItem('rys_print_on_order') !== '0'; }catch(e){ return true; } }
+function setPrintOnOrder(on){ try{ localStorage.setItem('rys_print_on_order', on ? '1' : '0'); }catch(e){} showToast(on ? 'Sipariş verilince fiş bu cihazda yazdırılacak' : 'Sipariş fişi bu cihazda otomatik yazdırılmayacak'); }
+// Bu cihazda gerçekten sessiz yazdırabilen bir yazıcı tanımlı mı (masaüstü / USB / kiosk)?
+function deviceHasSilentPrinter(){ return getPrinters().some(p => p.type==='electron' || p.type==='usb' || p.type==='silent-browser'); }
 function resolvePrinterForStation(stationId){
   const printers = getPrinters();
   const map = getStationPrinterMap();
@@ -528,6 +533,11 @@ async function renderPrinterSettingsView(main, session){
         <option value="" ${!activeId?'selected':''}>Tarayıcı Yazdırma Penceresi (varsayılan)</option>
         ${printers.map(p => `<option value="${p.id}" ${p.id===activeId?'selected':''}>${escapeHtml(p.name)} (${printerTypeLabel(p.type)})</option>`).join('')}
       </select>
+      <label style="display:flex;align-items:center;gap:8px;margin-top:12px;cursor:pointer;font-size:14px;">
+        <input type="checkbox" style="width:auto;margin:0;" ${printOnOrderEnabled()?'checked':''} ${actOn('change','setPrintOnOrder',['$checked'])}>
+        Bu cihazdan sipariş verilince fişi hemen yazdır (Sipariş Al / Paket Servis)
+      </label>
+      <p class="muted" style="text-align:left;font-size:12.5px;margin:4px 0 0;">Mutfak Ekranı açık olmasa bile sipariş gönderilince fiş bu cihazın yazıcısına basılır. Fişi başka bir cihazdaki mutfak ekranı basıyorsa kapatın (çift fiş çıkmasın).</p>
     </div>
 
     <div class="box" style="max-width:none;">
