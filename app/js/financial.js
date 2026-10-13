@@ -193,7 +193,7 @@ async function renderReportsView(main, session){
 function setReportTab(tab){
   if(tab !== APP.reportTab) pushScreen();
   APP.reportTab = tab;
-  document.querySelectorAll('#reportTabs .tab').forEach(t => t.classList.toggle('active', t.dataset.tab===tab));
+  document.querySelectorAll('#reportTabs .tab').forEach(t => { t.classList.toggle('active', t.dataset.tab===tab); t.classList.toggle('on', t.dataset.tab===tab); });
   renderReportTabContent(getSession());
 }
 function changeReportDate(v){
@@ -539,16 +539,15 @@ function buildHourlyPivotTable(rows){
   let grandTotal = 0;
   rows.forEach(r => { totalsByStaff[r.staff_name]+=r.count; totalsByHour[r.hour]+=r.count; grandTotal+=r.count; });
   const hourLabel = h => (h<10?'0'+h:h)+':00-'+((h+1)%24<10?'0'+((h+1)%24):(h+1)%24)+':00';
-  return `<div class="settings-table-wrap"><table class="settings-table" style="font-size:13px;">
-    <thead><tr><th>Personel</th>${hours.map(h => `<th style="text-align:center;">${hourLabel(h)}</th>`).join('')}<th style="text-align:center;font-weight:800;">Toplam</th></tr></thead>
-    <tbody>
-    ${staffNames.map(name => `<tr><td class="col-name">${escapeHtml(name)}</td>${hours.map(h => {
-      const v = lookup[name+'_'+h]||0;
-      return `<td style="text-align:center;${v?'':'color:var(--muted);'}">${v||'-'}</td>`;
-    }).join('')}<td style="text-align:center;font-weight:700;">${totalsByStaff[name]}</td></tr>`).join('')}
-    <tr style="border-top:2px solid var(--border);font-weight:700;"><td class="col-name">Toplam</td>${hours.map(h => `<td style="text-align:center;">${totalsByHour[h]}</td>`).join('')}<td style="text-align:center;">${grandTotal}</td></tr>
-    </tbody>
-  </table></div>`;
+  const max = Math.max(1, ...rows.map(r => r.count)), maxTot = Math.max(1, ...Object.values(totalsByStaff));
+  const lo = Math.min(...hours), hi = Math.max(...hours), hrs = []; for(let h = lo; h <= hi; h++) hrs.push(h);
+  return `<div class="hm st-hm" style="--cols:${hrs.length};grid-template-columns:150px repeat(var(--cols),minmax(26px,1fr)) 70px;">
+      <span></span>${hrs.map(h => `<span class="hm-h">${String(h).padStart(2,'0')}</span>`).join('')}<span class="hm-h">Toplam</span>
+      ${staffNames.slice().sort((x, y) => totalsByStaff[y] - totalsByStaff[x]).map((name, ri) => `<span class="st-who">${avatarHtml(name)}<b>${escapeHtml(name)}</b></span>${hrs.map((h, ci) => { const v = lookup[name+'_'+h]||0;
+        return `<span class="hm-c st-c ${ri===0?'hm-top':''}" tabindex="0" style="--v:${(v/max).toFixed(3)};--i:${ri*hrs.length+ci};">${v ? `<i>${v}</i><em>${escapeHtml(name)} · ${hourLabel(h)}<br><b>${v}</b></em>` : ''}</span>`; }).join('')}
+        <span class="st-tot"><b>${totalsByStaff[name]}</b><span class="st-tbar"><i style="width:${Math.round(totalsByStaff[name]/maxTot*100)}%;"></i></span></span>`).join('')}
+      <span class="st-who"><b>Toplam</b></span>${hrs.map(h => `<span class="st-sum">${totalsByHour[h]||'·'}</span>`).join('')}<span class="st-tot"><b>${grandTotal}</b></span>
+    </div>`;
 }
 async function renderStaffAnalyticsContent(session){
   const el = document.getElementById('reportContent'); if(!el) return;
@@ -556,17 +555,15 @@ async function renderStaffAnalyticsContent(session){
   if(error){ el.innerHTML = '<p class="muted">Yüklenemedi: '+error.message+'</p>'; return; }
   const ordersByHour = (data && data.orders_by_hour) || [];
   const paymentsByHour = (data && data.payments_by_hour) || [];
-  el.innerHTML = `
-    <div class="box" style="max-width:none;">
-      <h2>🍽️ Saatlik Sipariş Alma</h2>
-      <p class="muted" style="font-size:12px;margin-top:-6px;">Personelin hangi saatte kaç masa/paket siparişi aldığı (siparişin oluşturulma saatine göre).</p>
-      ${buildHourlyPivotTable(ordersByHour)}
-    </div>
-    <div class="box" style="max-width:none;">
-      <h2>💳 Saatlik Alınan Ödeme</h2>
-      <p class="muted" style="font-size:12px;margin-top:-6px;">Personelin hangi saatte kaç ödeme aldığı / hesap kapattığı.</p>
-      ${buildHourlyPivotTable(paymentsByHour)}
-    </div>
+  const sum = (arr) => arr.reduce((t, r) => t + (Number(r.count)||0), 0);
+  const top = (arr) => { const m = {}; arr.forEach(r => { m[r.staff_name] = (m[r.staff_name]||0) + r.count; }); const e = Object.entries(m).sort((x, y) => y[1]-x[1])[0]; return e ? e[0] + ' (' + e[1] + ')' : '—'; };
+  const peak = (arr) => { const m = {}; arr.forEach(r => { m[r.hour] = (m[r.hour]||0) + r.count; }); const e = Object.entries(m).sort((x, y) => y[1]-x[1])[0]; return e ? String(e[0]).padStart(2,'0') + ':00' : '—'; };
+  el.innerHTML = statChips([['🍽️', sum(ordersByHour), 'Alınan sipariş', 'var(--c1)'], ['💳', sum(paymentsByHour), 'Alınan ödeme', 'var(--c2)'],
+      ['🏆', escapeHtml(top(ordersByHour)), 'En çok sipariş alan', 'var(--c3)'], ['⏰', peak(ordersByHour), 'En yoğun saat', 'var(--c4)']]) + `
+    <div class="fs-panel pa-sec" style="--t:var(--c1);"><h3><i>🍽️</i>Saatlik Sipariş Alma <span class="muted" style="font-size:12px;font-weight:400;">kim hangi saatte kaç sipariş aldı · koyu = çok</span></h3>
+      ${buildHourlyPivotTable(ordersByHour)}</div>
+    <div class="fs-panel pa-sec" style="--t:var(--c2);"><h3><i>💳</i>Saatlik Alınan Ödeme <span class="muted" style="font-size:12px;font-weight:400;">kim hangi saatte kaç hesap kapattı</span></h3>
+      ${buildHourlyPivotTable(paymentsByHour)}</div>
   `;
 }
 
@@ -581,13 +578,9 @@ async function renderCustomerAnalyticsContent(session){
   const totalVisits = rows.reduce((s,c) => s+Number(c.total_visits||0), 0);
   const avgSpent = rows.length ? totalSpent/rows.length : 0;
   el.innerHTML = `
-    <div class="stat-grid">
-      <div class="box" style="text-align:center;"><div style="font-size:22px;font-weight:800;">${rows.length}</div><div class="muted" style="font-size:12px;">Müşteri</div></div>
-      <div class="box" style="text-align:center;"><div style="font-size:22px;font-weight:800;">${money(totalSpent)}</div><div class="muted" style="font-size:12px;">Toplam Harcama</div></div>
-      <div class="box" style="text-align:center;"><div style="font-size:22px;font-weight:800;">${money(avgSpent)}</div><div class="muted" style="font-size:12px;">Ortalama Harcama</div></div>
-      <div class="box" style="text-align:center;"><div style="font-size:22px;font-weight:800;">${totalVisits}</div><div class="muted" style="font-size:12px;">Toplam Ziyaret</div></div>
-    </div>
-    <div class="box" style="max-width:none;">
+    <div class="order-summary stat-chips" style="--n:4;"><div class="os-chip" style="--oc:var(--c1);"><span class="os-ic">👥</span><div><b>${rows.length}</b><small>Müşteri</small></div></div><div class="os-chip" style="--oc:var(--c2);"><span class="os-ic">💰</span><div><b>${money(totalSpent)}</b><small>Toplam Harcama</small></div></div><div class="os-chip" style="--oc:var(--c3);"><span class="os-ic">🧮</span><div><b>${money(avgSpent)}</b><small>Ortalama Harcama</small></div></div><div class="os-chip" style="--oc:var(--c4);"><span class="os-ic">🚪</span><div><b>${totalVisits}</b><small>Toplam Ziyaret</small></div></div></div>
+    ${rows.length ? `<div class="fs-panel pa-sec" style="--t:var(--c3);"><h3><i>🏆</i>En Değerli Müşteriler</h3>${raceHtml(rows.slice().sort((a,b) => Number(b.total_spent||0) - Number(a.total_spent||0)).slice(0,8).map(c => ({ label:c.name, value:Number(c.total_spent||0), display:money(c.total_spent||0), side:(c.total_visits||0) + ' ziyaret', sub:c.phone||'' })))}</div>` : ''}
+    <div class="fs-panel pa-sec rp-panel" style="--t:var(--c2);">
       <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:10px;">
         <h2 style="margin:0;">Müşteri Analizleri</h2>
         <input id="custAnalyticsSearchInput" placeholder="İsim veya telefon ara..." style="max-width:260px;" value="${escapeAttr(APP.customerAnalyticsSearch||'')}" ${actOn('input','debouncedCustomerAnalyticsSearch',['$value'])}>
@@ -635,7 +628,7 @@ async function renderTipPoolContent(session){
   const modeLabel = data.mode==='by_hours' ? 'Çalışılan Saate Göre' : 'Eşit Paylaşım';
   el.innerHTML = `
     ${canManage(session, 'tips') ? `
-    <div class="box" style="max-width:none;">
+    <div class="fs-panel pa-sec rp-panel" style="--t:var(--c3);">
       <h2>Bahşiş Havuzu Ayarları</h2>
       <p class="muted" style="margin-top:-6px;">Açarsanız, toplanan tüm bahşişler burada seçtiğiniz kurala göre personel arasında paylaştırılır (sadece raporlama amaçlıdır - ödemeyi yine kendiniz yaparsınız).</p>
       <label style="display:flex;align-items:center;gap:8px;font-weight:400;margin-bottom:10px;">
@@ -649,12 +642,10 @@ async function renderTipPoolContent(session){
       </div>
       <button style="margin-top:12px;max-width:220px;" ${act('saveTipPoolSettings')}>${ICON_SAVE}<span>Kaydet</span></button>
     </div>` : ''}
-    <div class="stat-grid">
-      <div class="box" style="text-align:center;"><div style="font-size:22px;font-weight:800;">${money(data.total_tip)}</div><div class="muted" style="font-size:12px;">Toplam Bahşiş</div></div>
-      <div class="box" style="text-align:center;"><div style="font-size:15px;font-weight:800;">${data.enabled ? modeLabel : 'Kapalı'}</div><div class="muted" style="font-size:12px;">Paylaşım Kuralı</div></div>
-    </div>
-    <div class="box" style="max-width:none;">
+    <div class="order-summary stat-chips" style="--n:2;"><div class="os-chip" style="--oc:var(--c1);"><span class="os-ic">💰</span><div><b>${money(data.total_tip)}</b><small>Toplam Bahşiş</small></div></div><div class="os-chip" style="--oc:var(--c2);"><span class="os-ic">⚖️</span><div><b>${data.enabled ? modeLabel : 'Kapalı'}</b><small>Paylaşım Kuralı</small></div></div></div>
+    <div class="fs-panel pa-sec rp-panel" style="--t:var(--c4);">
       <h2>${escapeHtml(reportDateRangeLabel())} Tarihli Paylaşım</h2>
+      ${shares.length ? raceHtml(shares.slice().sort((a,b) => Number(b.share_amount) - Number(a.share_amount)).map(x => ({ label:x.username, value:Number(x.share_amount), display:money(x.share_amount), side:formatShiftDuration(x.minutes) }))) : ''}
       ${!data.enabled ? '<p class="muted">Bahşiş havuzu kapalı. Yönetici açarsa burada personel payları görünecek.</p>' : ''}
       <div class="settings-table-wrap">
       <table class="settings-table">
@@ -902,12 +893,11 @@ async function renderWasteContent(session){
   const rows = (data && data.rows) || [];
   const totalCost = (data && data.total_cost) || 0;
   el.innerHTML = `
-    <div class="stat-grid">
-      <div class="box" style="text-align:center;"><div style="font-size:22px;font-weight:800;color:var(--red);">${money(totalCost)}</div><div class="muted" style="font-size:12px;">Toplam İsraf Maliyeti</div></div>
-      <div class="box" style="text-align:center;"><div style="font-size:22px;font-weight:800;">${rows.reduce((s,r)=>s+Number(r.qty),0)}</div><div class="muted" style="font-size:12px;">İsraf Edilen Adet</div></div>
-      <div class="box" style="text-align:center;"><div style="font-size:22px;font-weight:800;">${rows.length}</div><div class="muted" style="font-size:12px;">Kayıt Sayısı</div></div>
-    </div>
-    <div class="box" style="max-width:none;">
+    <div class="order-summary stat-chips" style="--n:3;"><div class="os-chip" style="--oc:var(--c1);"><span class="os-ic">🔥</span><div><b>${money(totalCost)}</b><small>Toplam İsraf Maliyeti</small></div></div><div class="os-chip" style="--oc:var(--c2);"><span class="os-ic">📦</span><div><b>${rows.reduce((s,r)=>s+Number(r.qty),0)}</b><small>İsraf Edilen Adet</small></div></div><div class="os-chip" style="--oc:var(--c3);"><span class="os-ic">🗂️</span><div><b>${rows.length}</b><small>Kayıt Sayısı</small></div></div></div>
+    ${rows.length ? (() => { const g = {}, rs = {}; rows.forEach(r => { g[r.product_name] = (g[r.product_name]||0) + Number(r.total_cost||0); const k = r.reason || 'Belirtilmedi'; rs[k] = (rs[k]||0) + Number(r.total_cost||0); });
+      return `<div class="ch-row"><div class="fs-panel pa-sec" style="--t:var(--danger,#ef4444);"><h3><i>🔥</i>En Çok İsraf Edilen</h3>${raceHtml(Object.entries(g).sort((a,b)=>b[1]-a[1]).slice(0,8).map(([k,v]) => ({ label:k, value:v, display:money(v), side: totalCost ? '%'+Math.round(v/totalCost*100) : '' })))}</div>
+        <div class="fs-panel pa-sec" style="--t:var(--c3);"><h3><i>❓</i>Sebeplere Göre</h3>${svgDonut(Object.entries(rs).sort((a,b)=>b[1]-a[1]).slice(0,4).map(([k,v], i) => ({ label:k, value:v, color:`var(--c${i+1})` })), { center: shortMoney(totalCost), sub:'₺ israf', money:true })}</div></div>`; })() : ''}
+    <div class="fs-panel pa-sec rp-panel" style="--t:var(--c1);">
       <h2>${escapeHtml(reportDateRangeLabel())} Tarihli İsraf Kayıtları</h2>
       <div class="settings-table-wrap">
       <table class="settings-table">
@@ -1015,10 +1005,8 @@ function setResvAnFilter(key, label){
 /* Tıklanabilir istatistik kartı: basınca alttaki liste o kayıtlarla filtrelenir. */
 function resvAnCard(label, value, color, key){
   const active = APP.resvAnFilter && APP.resvAnFilter.key===key;
-  return `<div class="card resv-an-card ${active?'active':''}" ${act('setResvAnFilter', key, label)} title="Listelemek için tıklayın">
-    <div class="muted" style="font-size:11px;text-transform:uppercase;letter-spacing:.04em;font-weight:700;">${escapeHtml(label)}</div>
-    <div style="font-size:22px;font-weight:800;margin-top:6px;${color?'color:'+color+';':''}">${value}</div>
-    <div class="resv-an-card-hint">${active ? '✓ Listeleniyor' : 'Listele ›'}</div>
+  return `<div class="os-chip os-click resv-an-card ${active?'active on':''}" style="--oc:${color||'var(--c1)'};" ${act('setResvAnFilter', key, label)} title="Listelemek için tıklayın">
+    <div style="min-width:0;"><small>${escapeHtml(label)}</small><b style="${color?'color:'+color+';':''}">${value}</b><small class="resv-an-card-hint">${active ? '✓ Listeleniyor' : 'Listele ›'}</small></div>
   </div>`;
 }
 // Rezervasyon/bekleme kaydına bağlı kapanan hesap(lar)ın detayını açar.
@@ -1137,7 +1125,7 @@ function drawResvAnalytics(){
       ${resvAnCard('Kişi Başı Harcama', sm.avg_per_guest!=null ? money(sm.avg_per_guest) : '—', null, 'revenue')}
     </div>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px;margin-bottom:18px;">
-      <div class="box" style="max-width:none;margin:0;">
+      <div class="fs-panel pa-sec" style="--t:var(--c2);margin:0;">
         <h3 style="margin:0 0 10px;">⏰ Rezervasyon Saatine Göre Geliş</h3>
         <p style="margin:0 0 8px;">Ortalama: ${sm.avg_arrival_diff==null ? '<span class="muted">veri yok</span>' : diffTxt(sm.avg_arrival_diff)}</p>
         <div style="display:flex;gap:8px;flex-wrap:wrap;font-size:13px;">
@@ -1147,7 +1135,7 @@ function drawResvAnalytics(){
         </div>
         <p class="muted" style="font-size:11.5px;text-align:left;margin:8px 0 0;">Geliş saati, rezervasyon "Oturdu" yapıldığında kaydedilir.</p>
       </div>
-      <div class="box" style="max-width:none;margin:0;">
+      <div class="fs-panel pa-sec" style="--t:var(--c2);margin:0;">
         <h3 style="margin:0 0 10px;">🕐 Saatlere Göre Yoğunluk</h3>
         ${byHour.length ? byHour.map(h => `<div class="resv-an-row ${isF('hour:'+h.hour)?'active':''}" ${act('setResvAnFilter', 'hour:'+h.hour, String(h.hour).padStart(2,'0')+':00 rezervasyonları')} style="display:flex;align-items:center;gap:8px;font-size:12.5px;margin:2px 0;padding:3px 4px;">
           <span style="width:44px;">${String(h.hour).padStart(2,'0')}:00</span>
@@ -1273,13 +1261,10 @@ async function renderVatReportContent(session){
   const rates = data.rates || [];
   const gross = rates.reduce((s, r) => s + Number(r.gross), 0);
   el.innerHTML = `
-    <div class="stat-grid">
-      <div class="box" style="text-align:center;"><div style="font-size:22px;font-weight:800;">${money(gross)}</div><div class="muted" style="font-size:12px;">KDV Dahil Satış</div></div>
-      <div class="box" style="text-align:center;"><div style="font-size:22px;font-weight:800;">${money(data.base_total)}</div><div class="muted" style="font-size:12px;">Matrah (KDV Hariç)</div></div>
-      <div class="box" style="text-align:center;"><div style="font-size:22px;font-weight:800;color:var(--accent);">${money(data.vat_total)}</div><div class="muted" style="font-size:12px;">Hesaplanan KDV</div></div>
-      <div class="box" style="text-align:center;"><div style="font-size:22px;font-weight:800;">${data.sales_count}</div><div class="muted" style="font-size:12px;">Satış (Adisyon)</div></div>
-    </div>
-    <div class="box" style="max-width:none;">
+    <div class="order-summary stat-chips" style="--n:4;"><div class="os-chip" style="--oc:var(--c1);"><span class="os-ic">🧾</span><div><b>${money(gross)}</b><small>KDV Dahil Satış</small></div></div><div class="os-chip" style="--oc:var(--c2);"><span class="os-ic">📄</span><div><b>${money(data.base_total)}</b><small>Matrah (KDV Hariç)</small></div></div><div class="os-chip" style="--oc:var(--c3);"><span class="os-ic">🏛️</span><div><b>${money(data.vat_total)}</b><small>Hesaplanan KDV</small></div></div><div class="os-chip" style="--oc:var(--c4);"><span class="os-ic">🍽️</span><div><b>${data.sales_count}</b><small>Satış (Adisyon)</small></div></div></div>
+    ${rates.length ? `<div class="ch-row"><div class="fs-panel pa-sec" style="--t:var(--c1);"><h3><i>🏛️</i>Orana Göre KDV</h3>${raceHtml(rates.map(r => ({ label:'%' + r.rate + ' KDV', value:Number(r.vat), display:money(r.vat), side:money(r.gross), sub:'matrah ' + money(r.base) })))}</div>
+      <div class="fs-panel pa-sec" style="--t:var(--c2);"><h3><i>🍩</i>Satış Dağılımı</h3>${svgDonut(rates.map((r, i) => ({ label:'%' + r.rate, value:Number(r.gross), color:`var(--c${i%4+1})` })), { center: shortMoney(gross), sub:'₺ KDV dahil', money:true })}</div></div>` : ''}
+    <div class="fs-panel pa-sec rp-panel" style="--t:var(--c2);">
       <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;">
         <h2 style="margin:0;">KDV Oranlarına Göre · ${escapeHtml(reportDateRangeLabel())}</h2>
         <button type="button" class="ghost-btn" style="width:auto;margin:0;" ${act('exportVatReportCsv')}>⬇️ Dışa aktar</button>
@@ -1391,4 +1376,15 @@ function celebrate(){
     + '<div class="confetti-msg">🎉 Günlük hedefe ulaşıldı!</div>';
   document.body.appendChild(box);
   setTimeout(() => box.remove(), 4200);
+}
+
+/* Sıralı yatay çubuk listesi (en çok satanlar tarzı): [{label, value, display, side, sub}] */
+function raceHtml(items){
+  if(!items.length) return '<p class="muted">Veri yok.</p>';
+  const max = Math.max(1, ...items.map(x => x.value));
+  return `<div class="race">${items.map((x, i) => `<div class="race-row" style="--i:${Math.min(i,15)};--sc:var(--c${i%4+1});">
+    <span class="race-rank ${i<3?'top':''}">${['🥇','🥈','🥉'][i] || (i+1)}</span>
+    <div class="race-main"><div class="race-label"><b>${escapeHtml(x.label)}</b>${x.sub ? `<small>${escapeHtml(x.sub)}</small>` : ''}</div>
+      <div class="race-track"><div class="race-bar" style="width:${Math.max(3, Math.round(x.value/max*100))}%;"><span>${escapeHtml(x.display)}</span></div></div></div>
+    <span class="race-side">${escapeHtml(x.side||'')}</span></div>`).join('')}</div>`;
 }

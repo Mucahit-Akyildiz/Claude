@@ -71,10 +71,7 @@ async function renderReservationsContent(session, forceRefresh){
       ['⏭️', next ? new Date(next.reservation_time).toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'}) : '—', next ? 'Sıradaki: '+escapeHtml(next.customer_name) : 'Sıradaki yok', 'var(--c4)']
     ]) + `<div class="box" style="max-width:none;">
     <h2>Rezervasyonlar</h2>
-    ${days.length ? days.map(k => `<div class="rv-day"><div class="rv-day-h">${dayLabel(k)}<span class="muted">${sorted.filter(r => dkey(r)===k).length} rezervasyon</span></div>
-      <div class="rv-list">${sorted.filter(r => dkey(r)===k).map(card).join('')}</div></div>`).join('')
-      : '<div class="empty-state"><div style="font-size:42px;">📅</div><p class="muted">Bekleyen ya da onaylı rezervasyon yok.</p></div>'}
-    <div class="add-row-panel">
+    <div class="add-row-panel" style="margin:0 0 16px;">
       <p>Yeni Rezervasyon</p>
       <div style="${INLINE_ROW}">
         <div class="field-group" style="${fgStyle(170, 2)}"><label>Müşteri Adı</label><input style="margin:0;" id="rvCustName" placeholder="Ad veya kayıtlı müşteri ara" autocomplete="off" ${actOn('input','tableCustSearch',['$value', 'rvCust'])}></div>
@@ -95,6 +92,9 @@ async function renderReservationsContent(session, forceRefresh){
       <input type="date" id="rvHistDate" value="${APP.rvHistDate || todayLocalDateStr()}" style="width:auto;margin:0;" ${actOn('change','setRvHistDate',['$value'])}>
     </div>
     <div id="rvHistWrap" style="margin-top:12px;"><p class="muted">Yükleniyor…</p></div>
+    ${days.length ? days.map(k => `<div class="rv-day"><div class="rv-day-h">${dayLabel(k)}<span class="muted">${sorted.filter(r => dkey(r)===k).length} rezervasyon</span></div>
+      <div class="rv-list">${sorted.filter(r => dkey(r)===k).map(card).join('')}</div></div>`).join('')
+      : '<div class="empty-state"><div style="font-size:42px;">📅</div><p class="muted">Bekleyen ya da onaylı rezervasyon yok.</p></div>'}
   </div>`;
   renderReservationHistory();
 }
@@ -221,6 +221,18 @@ async function renderWaitlistContent(session, forceRefresh){
       ['🍽️', rows.filter(hasOrder).length, 'Beklerken sipariş veren', 'var(--c4)']
     ]) + `<div class="box" style="max-width:none;">
     <h2>Bekleme Listesi</h2>
+    <div class="add-row-panel" style="margin:0 0 16px;">
+      <p>Bekleme Listesine Ekle</p>
+      <div style="${INLINE_ROW}">
+        <div class="field-group" style="${fgStyle(170, 2)}"><label>Müşteri Adı</label><input style="margin:0;" id="wlCustName" placeholder="Ad veya kayıtlı müşteri ara" autocomplete="off" ${actOn('input','tableCustSearch',['$value', 'wlCust'])}></div>
+        <div class="field-group" style="${fgStyle(130)}"><label>Telefon</label><input style="margin:0;" id="wlCustPhone" placeholder="05xx..." inputmode="tel" autocomplete="off" ${actOn('input','tableCustSearch',['$value', 'wlCust'])}></div>
+        <div class="field-group" style="${fgStyle(160)}"><label>E-posta (bildirim)</label><input style="margin:0;" id="wlCustEmail" type="email" placeholder="opsiyonel" autocapitalize="none"></div>
+        <div class="field-group" style="${fgStyle(70)}"><label>Kişi</label><input style="margin:0;" id="wl_party" type="number" min="1" value="2"></div>
+        <div class="field-group" style="${fgStyle(120)}"><label>Tahmini Bekleme (dk)</label><input style="margin:0;" id="wl_wait" type="number" min="0" placeholder="15"></div>
+        <button style="${INLINE_BTN}" ${act('addWaitlistEntry')}>+ Ekle</button>
+      </div>
+      <div id="wlCustSuggest"></div>
+    </div>
     ${rows.length ? `<div class="wl-list">${rows.map((w, i) => `
       <div class="wl-card" data-badge-id="${w.id}" style="--i:${i};">
         <div class="wl-no">${i+1}</div>
@@ -241,18 +253,6 @@ async function renderWaitlistContent(session, forceRefresh){
         </div>
       </div>`).join('')}</div>`
       : '<div class="empty-state"><div style="font-size:42px;">🧍</div><p class="muted">Bekleyen müşteri yok.</p></div>'}
-    <div class="add-row-panel">
-      <p>Bekleme Listesine Ekle</p>
-      <div style="${INLINE_ROW}">
-        <div class="field-group" style="${fgStyle(170, 2)}"><label>Müşteri Adı</label><input style="margin:0;" id="wlCustName" placeholder="Ad veya kayıtlı müşteri ara" autocomplete="off" ${actOn('input','tableCustSearch',['$value', 'wlCust'])}></div>
-        <div class="field-group" style="${fgStyle(130)}"><label>Telefon</label><input style="margin:0;" id="wlCustPhone" placeholder="05xx..." inputmode="tel" autocomplete="off" ${actOn('input','tableCustSearch',['$value', 'wlCust'])}></div>
-        <div class="field-group" style="${fgStyle(160)}"><label>E-posta (bildirim)</label><input style="margin:0;" id="wlCustEmail" type="email" placeholder="opsiyonel" autocapitalize="none"></div>
-        <div class="field-group" style="${fgStyle(70)}"><label>Kişi</label><input style="margin:0;" id="wl_party" type="number" min="1" value="2"></div>
-        <div class="field-group" style="${fgStyle(120)}"><label>Tahmini Bekleme (dk)</label><input style="margin:0;" id="wl_wait" type="number" min="0" placeholder="15"></div>
-        <button style="${INLINE_BTN}" ${act('addWaitlistEntry')}>+ Ekle</button>
-      </div>
-      <div id="wlCustSuggest"></div>
-    </div>
   </div>`;
   el.insertAdjacentHTML('beforeend', `<div class="box" style="max-width:none;margin-top:18px;">
     <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;">
