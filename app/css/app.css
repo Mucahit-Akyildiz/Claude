@@ -1873,3 +1873,26 @@ input.sw:checked{background:var(--c1);} input.sw:checked::after{transform:transl
 .cash-li{display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border-radius:12px;background:var(--panel2);font-size:13px;text-align:left;}
 .pp-card{flex-direction:row !important;justify-content:flex-start !important;align-items:center !important;height:auto !important;min-height:0 !important;}
 .pp-card::before,.pp-card::after{display:none !important;content:none !important;}
+
+/* ===== Mutfak kartı v2 ===== */
+.kb-grid .kitchen-card{padding:0 14px 14px;border-radius:22px !important;}
+.kb-grid .kc-age{margin:0 -14px 12px;}
+.kc-head{display:flex;align-items:center;gap:8px;}
+.kc-title{flex:1;min-width:0;display:flex;align-items:baseline;gap:8px;} .kc-title b{font-size:20px;font-weight:800;letter-spacing:-.01em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.kc-no{font-size:12px;font-weight:800;padding:2px 8px;border-radius:999px;background:var(--panel2);color:var(--muted);}
+.kc-print{width:34px;height:34px;margin:0;padding:0;border-radius:11px;background:var(--panel2);border:1px solid var(--border);box-shadow:none;font-size:15px;}
+.kc-meta{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:4px 0 10px;font-size:12px;color:var(--muted);font-weight:600;}
+.kc-items{display:flex;flex-direction:column;gap:8px;}
+.kc-item{display:grid !important;grid-template-columns:auto minmax(0,1fr) auto auto auto;align-items:center;gap:10px;padding:10px !important;border:0 !important;border-radius:16px;background:color-mix(in srgb,var(--kc) 7%,var(--panel2));transition:background .6s;}
+.kc-qty{width:38px;height:38px;border-radius:12px;display:grid;place-items:center;font-size:17px;font-weight:800;color:#fff;background:var(--kc);transition:background .6s;}
+.kc-iname{min-width:0;} .kc-iname .kitchen-item-name{font-size:15px;font-weight:700;line-height:1.25;overflow-wrap:anywhere;}
+.kc-extras{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px;} .kc-extras span{font-size:11.5px;font-weight:700;padding:2px 8px;border-radius:999px;background:color-mix(in srgb,var(--c1) 18%,transparent);color:var(--c1);}
+.kc-note{font-size:12px;color:var(--muted);font-style:italic;margin-top:4px;overflow-wrap:anywhere;}
+.kc-timer{font-size:15px;font-weight:800;font-variant-numeric:tabular-nums;min-width:48px;text-align:center;}
+.kc-waste{width:38px;height:38px;margin:0;padding:0;border-radius:12px;background:transparent;border:1px solid color-mix(in srgb,var(--danger,#ef4444) 40%,var(--border));box-shadow:none;font-size:15px;opacity:.75;transition:all .15s;}
+.kc-waste:hover{opacity:1;background:color-mix(in srgb,var(--danger,#ef4444) 18%,transparent);}
+.kc-ok{width:44px;height:44px;margin:0;padding:0;border-radius:50%;background:var(--ok,#22c55e);color:#fff;border:0;font-size:20px;font-weight:900;box-shadow:0 6px 16px color-mix(in srgb,var(--ok,#22c55e) 35%,transparent);transition:transform .15s;}
+.kc-ok:hover{transform:scale(1.08);}
+.kc-all{width:100%;margin:12px 0 0;padding:12px;border-radius:16px;font-weight:800;font-size:15px;background:linear-gradient(135deg,var(--ok,#22c55e),color-mix(in srgb,var(--ok,#22c55e) 70%,#000));color:#fff;box-shadow:0 8px 20px color-mix(in srgb,var(--ok,#22c55e) 25%,transparent);}
+.kb-grid .kc-state{display:none;}
+.kc-item.ki-warn .kitchen-item-name,.kc-item.ki-danger .kitchen-item-name{color:inherit !important;}

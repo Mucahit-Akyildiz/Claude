@@ -60,21 +60,25 @@ async function refreshKitchenItems(session){
     const oldest = Math.min(...pending.map(it => it.added_at ? new Date(it.added_at).getTime() : Infinity));
     cards.push({ at: isFinite(oldest) ? oldest : Infinity, html: `<div class="kitchen-card" data-order-id="${o.order_id}">
       <div class="kc-age"><i data-age-from="${isFinite(oldest) ? new Date(oldest).toISOString() : ''}"></i></div>
-      <div class="kc-state"><span class="kc-pill"></span><span class="kc-since"></span></div>
-      <div style="display:flex;justify-content:space-between;align-items:center;">
-        <b>${escapeHtml(tableName)}${o.daily_number?' <span class="muted" style="font-weight:400;font-size:12px;">#'+o.daily_number+'</span>':''}<span class="kc-late-badge">⏰ GECİKTİ</span>${orderWaiters(o).length ? '<div class="muted" style="font-weight:400;font-size:12px;margin-top:2px;">👤 ' + escapeHtml(orderWaiters(o).join(', ')) + '</div>' : ''}${waitlistInfoHtml(o)}</b>
-        <span style="cursor:pointer;color:var(--muted);font-size:16px;" ${act('reprintKitchenTicket', o.order_id)} title="Fişi tekrar yazdır">🖨️</span>
+      <div class="kc-head">
+        <div class="kc-title"><b>${escapeHtml(tableName)}</b>${o.daily_number ? `<span class="kc-no">#${o.daily_number}</span>` : ''}</div>
+        <span class="kc-pill"></span>
+        <button type="button" class="kc-print" ${act('reprintKitchenTicket', o.order_id)} title="Fişi tekrar yazdır">🖨️</button>
       </div>
-      ${kitchenGroupExtras(pending).map(({ it, extras }) => `<div class="kitchen-item-row" style="padding:10px 0;border-top:1px dashed var(--border);">
-        <div style="display:grid;grid-template-columns:1fr 64px auto auto;align-items:center;gap:10px;">
-          <span class="kitchen-item-name" style="min-width:0;overflow-wrap:anywhere;line-height:1.3;">${it.qty}x ${escapeHtml(it.name)}${extras.map(x => `<span class="ki-extra">+ ${x.qty}x ${escapeHtml(kitchenExtraName(x))}</span>`).join('')}</span>
-          <span class="kitchen-timer" data-added="${it.added_at||''}" data-id="${it.id}" data-name="${escapeAttr(tableName+' - '+it.qty+'x '+it.name)}" style="text-align:center;">-</span>
-          <button style="width:auto;padding:8px 10px;font-size:14px;background:var(--red);color:var(--btn-ink);" ${act('openWasteModal', it.id)} title="İsraf oldu (yandı/düştü/bozuldu)">🔥</button>
-          <button style="width:auto;padding:8px 14px;font-size:14px;background:var(--green);color:var(--btn-ink);" ${act('markReadyGroup', [it.id, ...extras.map(x => x.id)].join(','))}>Hazır</button>
-        </div>
-        ${it.note?'<div class="muted" style="font-size:12px;font-style:italic;margin-top:4px;overflow-wrap:anywhere;word-break:break-word;">Not: '+escapeHtml(it.note)+'</div>':''}
+      <div class="kc-meta">${orderWaiters(o).length ? '<span>👤 ' + escapeHtml(orderWaiters(o).join(', ')) + '</span>' : ''}<span class="kc-since"></span><span class="kc-late-badge">⏰ GECİKTİ</span></div>
+      ${waitlistInfoHtml(o)}
+      <div class="kc-items">
+      ${kitchenGroupExtras(pending).map(({ it, extras }) => `<div class="kitchen-item-row kc-item">
+        <span class="kc-qty">${it.qty}</span>
+        <div class="kc-iname"><span class="kitchen-item-name">${escapeHtml(it.name)}</span>
+          ${extras.length ? `<div class="kc-extras">${extras.map(x => `<span>+ ${x.qty}× ${escapeHtml(kitchenExtraName(x))}</span>`).join('')}</div>` : ''}
+          ${it.note ? `<div class="kc-note">📝 ${escapeHtml(it.note)}</div>` : ''}</div>
+        <span class="kitchen-timer kc-timer" data-added="${it.added_at||''}" data-id="${it.id}" data-name="${escapeAttr(tableName+' - '+it.qty+'x '+it.name)}">-</span>
+        <button type="button" class="kc-waste" ${act('openWasteModal', it.id)} title="İsraf oldu (yandı/düştü/bozuldu)">🔥</button>
+        <button type="button" class="kc-ok" ${act('markReadyGroup', [it.id, ...extras.map(x => x.id)].join(','))} title="Hazır">✓</button>
       </div>`).join('')}
-      <button style="margin-top:10px;background:var(--green);color:var(--btn-ink);" ${act('markAllReady', o.order_id)}>✅ Hepsi Hazır</button>
+      </div>
+      <button type="button" class="kc-all" ${act('markAllReady', o.order_id)}>✅ Hepsi Hazır</button>
       </div>` });
   });
   cards.sort((x, y) => x.at - y.at);
