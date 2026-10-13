@@ -1565,3 +1565,22 @@ input.sw:checked{background:var(--c1);} input.sw:checked::after{transform:transl
 .settings-section{background:var(--panel2);border:1px solid var(--border);border-radius:18px;padding:14px 16px;margin-bottom:12px;}
 .settings-section-title{display:flex;align-items:center;gap:8px;font-size:14px !important;font-weight:800 !important;color:var(--text) !important;text-transform:none !important;letter-spacing:0 !important;margin:0 0 10px !important;}
 #ticketPreviewWrap{position:sticky;top:16px;box-shadow:0 12px 30px rgba(0,0,0,.25);}
+
+/* ===== Peyk Bas-Konuş kanalları ===== */
+.rd-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px;}
+.rd-card{display:flex;flex-direction:column;gap:12px;padding:16px;border-radius:20px;background:var(--panel);border:1px solid var(--border);box-shadow:inset 0 3px 0 var(--sc);animation:osIn .35s ease both;animation-delay:calc(var(--i)*.04s);text-align:left;transition:transform .15s;}
+.rd-card:hover{transform:translateY(-2px);}
+.rd-card.on{background:linear-gradient(160deg,color-mix(in srgb,var(--ok,#22c55e) 14%,var(--panel)),var(--panel));border-color:color-mix(in srgb,var(--ok,#22c55e) 45%,transparent);box-shadow:inset 0 3px 0 var(--ok,#22c55e);}
+.rd-card.locked{opacity:.7;}
+.rd-top{display:flex;align-items:center;gap:10px;}
+.rd-ic{position:relative;width:46px;height:46px;flex:0 0 46px;border-radius:15px;display:grid;place-items:center;font-size:22px;background:color-mix(in srgb,var(--sc) 20%,transparent);}
+.rd-ic i{position:absolute;inset:-4px;border-radius:18px;border:2px solid var(--ok,#22c55e);animation:tcPulse 1.8s ease-in-out infinite;}
+.rd-mem{font-size:12.5px;color:var(--muted);min-height:18px;}
+.rd-btn{margin:0;width:100%;padding:11px;border-radius:14px;font-weight:800;}
+.rd-btn.leave{background:var(--panel2);color:var(--text);border:1px solid var(--border);box-shadow:none;}
+.rd-lock{font-size:12.5px;color:var(--muted);text-align:center;padding:10px;border-radius:12px;background:var(--panel2);}
+/* Mesajlar: liste rötuşu */
+.chat-item{transition:background .15s,transform .15s;border-radius:14px;}
+.chat-item:hover{transform:translateX(2px);}
+.chat-item.active{background:linear-gradient(135deg,color-mix(in srgb,var(--c1) 20%,var(--panel)),var(--panel2)) !important;box-shadow:inset 3px 0 0 var(--c1);}
+.chat-item.unread .chat-name{font-weight:800;}

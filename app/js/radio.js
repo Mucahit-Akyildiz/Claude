@@ -50,21 +50,16 @@ async function renderRadioView(main, session){
         <button type="button" style="margin:0;width:auto;" ${act('openRadioChannelEditor', null)}>＋ Yeni kanal</button>
       </div>
       <p class="muted" style="font-size:12.5px;text-align:left;margin:6px 0 12px;">Bir kanala bağlanın; alttaki telsiz paneli siz kapatana ya da çıkış yapana kadar tüm ekranlarda açık kalır. Konuşmak için <b>Bas-Konuş</b> düğmesini basılı tutun (bilgisayarda boşluk tuşu da çalışır).</p>
-      <div class="settings-table-wrap"><table class="settings-table">
-        <thead><tr><th>Kanal</th><th>Üyeler</th><th></th></tr></thead>
-        <tbody>
-        ${list.map(c => `<tr>
-          <td class="col-name"><div>${escapeHtml(c.name)}</div>${c.id===cur ? '<span class="role-badge" style="display:inline-block;white-space:nowrap;margin-top:6px;color:var(--accent);border-color:var(--accent);">● Bağlı</span>' : ''}</td>
-          <td style="font-size:12.5px;" ${c.id===cur ? 'data-radio-members="1"' : ''}>${radioMembersHtml(c, c.id===cur)}</td>
-          <td style="white-space:nowrap;">
-            ${c.is_member ? (c.id===cur
-              ? `<button class="sbtn" ${act('radioDisconnect', true)}>Ayrıl</button>`
-              : `<button class="sbtn" ${act('radioConnect', c.id)}>📻 Bağlan</button>`) : '<span class="muted" style="font-size:12px;">üye değilsiniz</span>'}
-            ${c.can_edit ? `<button class="sbtn" ${act('openRadioChannelEditor', c.id)}>Düzenle</button>
-              <button type="button" class="act-btn act-delete" ${act('removeRadioChannel', c.id)}>${ICON_TRASH}<span>Sil</span></button>` : ''}
-          </td></tr>`).join('')}
-        ${list.length ? '' : '<tr><td colspan="3" class="muted" style="text-align:center;">Henüz kanal yok. “Yeni kanal” ile oluşturun.</td></tr>'}
-        </tbody></table></div>
+      ${list.length ? `<div class="rd-grid">${list.map((c, i) => { const on = c.id===cur;
+        return `<div class="rd-card ${on?'on':''} ${c.is_member?'':'locked'}" style="--sc:var(--c${i%4+1});--i:${Math.min(i,12)};">
+          <div class="rd-top"><span class="rd-ic">📻${on ? '<i></i>' : ''}</span><div class="cu-id"><b>${escapeHtml(c.name)}</b><small>${(c.members||[]).length} üye${on ? ' · <span style="color:var(--ok,#22c55e);font-weight:700;">● Bağlı</span>' : ''}</small></div>
+            ${c.can_edit ? `<button type="button" class="ico-btn" title="Düzenle" ${act('openRadioChannelEditor', c.id)}>✏️</button><button type="button" class="ico-btn danger" title="Sil" ${act('removeRadioChannel', c.id)}>🗑</button>` : ''}</div>
+          <div class="rd-mem" ${on ? 'data-radio-members="1"' : ''}>${radioMembersHtml(c, on)}</div>
+          ${c.is_member ? (on
+            ? `<button type="button" class="rd-btn leave" ${act('radioDisconnect', true)}>⏏ Kanaldan Ayrıl</button>`
+            : `<button type="button" class="rd-btn" ${act('radioConnect', c.id)}>📻 Bağlan</button>`) : '<div class="rd-lock">🔒 Bu kanalın üyesi değilsiniz</div>'}
+        </div>`; }).join('')}</div>`
+        : '<div class="empty-state"><div style="font-size:42px;">📻</div><p class="muted">Henüz kanal yok. “Yeni kanal” ile oluşturun.</p></div>'}
     </div>`;
 }
 async function openRadioChannelEditor(id){
