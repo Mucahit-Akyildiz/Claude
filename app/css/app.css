@@ -2113,3 +2113,15 @@ input.sw:checked{background:var(--c1);} input.sw:checked::after{transform:transl
 .sent-bulk-go:disabled{opacity:.45}
 .sidebar .sb-pdel{font-size:15px;opacity:.6;transition:opacity .15s,background .15s}
 .sidebar .sb-pdel:hover{opacity:1;background:color-mix(in srgb,#ef4444 20%,transparent)!important}
+/* Finansal Analiz: İptaller */
+.cx-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px}
+.cx-card{position:relative;padding:14px 14px 12px 18px;border-radius:16px;border:1px solid var(--border);background:linear-gradient(135deg,color-mix(in srgb,#ef4444 9%,var(--panel)),var(--panel));overflow:hidden;animation:dgPop .3s both;animation-delay:calc(var(--i)*40ms)}
+.cx-card::before{content:'';position:absolute;left:0;top:0;bottom:0;width:4px;background:#ef4444}
+.cx-top{display:flex;align-items:center;gap:8px}.cx-top b{flex:1;min-width:0;overflow-wrap:anywhere;text-decoration:line-through;text-decoration-color:#ef444499}
+.cx-amt{color:#ef4444;font-weight:800;white-space:nowrap}
+.cx-meta{display:flex;flex-wrap:wrap;gap:10px;margin:6px 0;font-size:12px;color:var(--muted)}
+.cx-items{display:flex;flex-wrap:wrap;gap:5px}.cx-items span{font-size:11.5px;padding:3px 8px;border-radius:999px;background:var(--bg);border:1px solid var(--border)}
+.cx-list{display:flex;flex-direction:column;gap:6px}
+.cx-row{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:14px;border:1px solid var(--border)}
+.cx-q{font-weight:800;min-width:30px;color:#ef4444}
+.cx-n{flex:1;min-width:0}.cx-n b{display:block;overflow-wrap:anywhere}.cx-n small{color:var(--muted);font-size:11.5px}

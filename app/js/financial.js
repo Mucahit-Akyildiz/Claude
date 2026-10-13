@@ -198,7 +198,7 @@ async function renderReportsView(main, session){
       </div>
     </div>
     <div class="bx-tabs rp-tabs" id="reportTabs">
-      ${[['summary','📊','Genel Özet'],['period','📈','Dönemsel Analiz'],['vat','🧾','KDV'],['products','📦','Ürün İstatistikleri'],['staff','👤','Personel Analizleri'],['customers','🧑‍🤝‍🧑','Müşteri Analizleri'],['tips','💰','Bahşiş Havuzu'],['waste','🔥','İsraf'],['resv','📅','Rezervasyon Analizi'],['openacc','📒','Açık Hesaplar']].map(([k, ic, l], i) => `<button type="button" class="bx-tab tab ${(APP.reportTab||'summary')===k?'active on':''}" style="--sc:var(--c${i%4+1});" data-tab="${k}" ${act('setReportTab', k)}><span class="bx-ic">${ic}</span>${l}</button>`).join('')}
+      ${[['summary','📊','Genel Özet'],['period','📈','Dönemsel Analiz'],['vat','🧾','KDV'],['products','📦','Ürün İstatistikleri'],['staff','👤','Personel Analizleri'],['customers','🧑‍🤝‍🧑','Müşteri Analizleri'],['tips','💰','Bahşiş Havuzu'],['waste','🔥','İsraf'],['cancel','❌','İptaller'],['resv','📅','Rezervasyon Analizi'],['openacc','📒','Açık Hesaplar']].map(([k, ic, l], i) => `<button type="button" class="bx-tab tab ${(APP.reportTab||'summary')===k?'active on':''}" style="--sc:var(--c${i%4+1});" data-tab="${k}" ${act('setReportTab', k)}><span class="bx-ic">${ic}</span>${l}</button>`).join('')}
     </div>
     <div id="reportContent"></div>`;
   await renderReportTabContent(session);
@@ -245,6 +245,7 @@ function renderReportTabContent(session){
   if(tab==='customers') return renderCustomerAnalyticsContent(session);
   if(tab==='tips') return renderTipPoolContent(session);
   if(tab==='waste') return renderWasteContent(session);
+  if(tab==='cancel') return renderCancelReportContent(session);
   if(tab==='resv') return renderReservationAnalyticsContent(session);
   if(tab==='openacc') return renderOpenAccountsContent(session);
   return renderReportContent(session);
@@ -899,6 +900,47 @@ async function savePurchaseItemCost(itemId, value){
   showToast('Birim fiyat kaydedildi ✓');
   renderPurchaseReportContent(getSession());
   if(typeof refreshNavBadges === 'function') refreshNavBadges();
+}
+/* İptaller: mutfağa gönderildikten sonra iptal edilen ürünler ve tamamen iptal edilen masalar. */
+async function renderCancelReportContent(session){
+  const el = document.getElementById('reportContent'); if(!el) return;
+  const { data, error } = await withLoadingOverlay(sb.rpc('get_cancel_report', { p_token: session.session_token, p_date: APP.reportDate, p_date_to: APP.reportDateTo }));
+  if(error){ el.innerHTML = '<p class="muted">Yüklenemedi: '+escapeHtml(error.message)+'</p>'; return; }
+  const items = (data && data.items) || [], orders = (data && data.orders) || [];
+  const itemTotal = items.reduce((t, r) => t + Number(r.total||0), 0);
+  const orderTotal = orders.reduce((t, o) => t + Number(o.total||0), 0);
+  const cancelledOrderIds = new Set(orders.map(o => o.id));
+  const partialTotal = items.filter(r => !cancelledOrderIds.has(r.order_id)).reduce((t, r) => t + Number(r.total||0), 0);
+  const byProd = {}, byStaff = {};
+  items.forEach(r => { byProd[r.item_name] = (byProd[r.item_name]||0) + Number(r.qty||0); const k = r.cancelled_by || '—'; byStaff[k] = (byStaff[k]||0) + Number(r.total||0); });
+  orders.forEach(o => { const k = o.cancelled_by || '—'; if(!items.some(r => r.order_id===o.id)) byStaff[k] = (byStaff[k]||0) + Number(o.total||0); });
+  const dt = (iso) => new Date(iso).toLocaleString('tr-TR', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' });
+  const orderItems = (o) => { const list = (o.items||[]).length ? o.items : items.filter(r => r.order_id===o.id).map(r => ({ name:r.item_name, qty:r.qty, price:r.price })); return list; };
+  el.innerHTML = statChips([
+      ['❌', orders.length, 'İptal edilen masa', 'var(--danger,#ef4444)'],
+      ['🍽️', items.reduce((t, r) => t + Number(r.qty||0), 0), 'İptal edilen ürün (adet)', 'var(--c2)'],
+      ['💸', money(orderTotal + partialTotal), 'İptal tutarı', 'var(--c3)'],
+      ['👤', Object.keys(byStaff).length, 'İptal yapan personel', 'var(--c1)']
+    ]) + (items.length || orders.length ? `<div class="ch-row">
+      <div class="fs-panel pa-sec" style="--t:var(--danger,#ef4444);"><h3><i>🍽️</i>En Çok İptal Edilen Ürünler</h3>${items.length ? raceHtml(Object.entries(byProd).sort((a,b)=>b[1]-a[1]).slice(0,8).map(([k,v]) => ({ label:k, value:v, display:v+' adet' }))) : '<p class="muted">Ürün iptali yok.</p>'}</div>
+      <div class="fs-panel pa-sec" style="--t:var(--c1);"><h3><i>👤</i>Personele Göre İptal Tutarı</h3>${raceHtml(Object.entries(byStaff).sort((a,b)=>b[1]-a[1]).slice(0,8).map(([k,v]) => ({ label:k, value:v, display:money(v) })))}</div>
+    </div>` : '') + `
+    <div class="fs-panel pa-sec rp-panel" style="--t:var(--danger,#ef4444);">
+      <h2>❌ İptal Edilen Masalar <small class="muted">${escapeHtml(reportDateRangeLabel())}</small></h2>
+      ${orders.length ? `<div class="cx-grid">${orders.map((o, i) => { const li = orderItems(o); return `<div class="cx-card" style="--i:${Math.min(i,12)};">
+        <div class="cx-top"><b>${escapeHtml(o.table_name||'—')}</b>${o.daily_number ? `<span class="pchip">#${o.daily_number}</span>` : ''}<span class="cx-amt">${money(o.total)}</span></div>
+        <div class="cx-meta"><span>🕒 ${dt(o.at)}</span>${o.cancelled_by ? `<span>👤 ${escapeHtml(o.cancelled_by)}</span>` : ''}</div>
+        ${li.length ? `<div class="cx-items">${li.map(x => `<span>${x.qty}× ${escapeHtml(x.name)}</span>`).join('')}</div>` : '<div class="cx-items muted"><span>Ürün girilmeden kapatıldı</span></div>'}
+      </div>`; }).join('')}</div>` : '<p class="muted">Bu tarih aralığında iptal edilen masa yok.</p>'}
+    </div>
+    <div class="fs-panel pa-sec rp-panel" style="--t:var(--c2);">
+      <h2>🍽️ İptal Edilen Ürünler</h2>
+      ${items.length ? `<div class="cx-list">${items.map(r => `<div class="cx-row">
+        <span class="cx-q">${r.qty}×</span>
+        <div class="cx-n"><b>${escapeHtml(r.item_name)}</b><small>${escapeHtml(r.table_name||'')} · ${dt(r.created_at)}${r.cancelled_by ? ' · 👤 ' + escapeHtml(r.cancelled_by) : ''}</small></div>
+        <span class="pchip ${r.was_pending ? 'warn' : ''}">${r.was_pending ? '🍳 hazırlanırken' : '✓ hazırdı'}</span>
+        <b class="cx-amt">${money(r.total)}</b></div>`).join('')}</div>` : '<p class="muted">Bu tarih aralığında iptal edilen ürün yok.</p>'}
+    </div>`;
 }
 async function renderWasteContent(session){
   const el = document.getElementById('reportContent'); if(!el) return;
