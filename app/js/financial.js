@@ -1328,7 +1328,7 @@ function heatmapHtml(hist){
     <div class="hm" style="--cols:${hrs.length};">
       <span></span>${hrs.map(h => `<span class="hm-h">${String(h).padStart(2,'0')}</span>`).join('')}
       ${usedDays.map((di, ri) => `<span class="hm-d">${DAYS[di]}</span>${hrs.map((h, ci) => { const c = g[di+'_'+h], v = c ? c.r/max : 0;
-        return `<span class="hm-c" tabindex="0" style="--v:${v.toFixed(3)};--i:${ri*hrs.length+ci};">${c ? `<em>${DAYS[di]} ${String(h).padStart(2,'0')}:00<br><b>${escapeHtml(money(c.r))}</b><br>${c.c} hesap</em>` : ''}</span>`; }).join('')}`).join('')}
+        return `<span class="hm-c ${ri===0?'hm-top':''}" tabindex="0" style="--v:${v.toFixed(3)};--i:${ri*hrs.length+ci};">${c ? `<em>${DAYS[di]} ${String(h).padStart(2,'0')}:00<br><b>${escapeHtml(money(c.r))}</b><br>${c.c} hesap</em>` : ''}</span>`; }).join('')}`).join('')}
     </div>
     <div class="hm-leg"><small>Az</small><i></i><small>Çok</small></div></div>`;
 }
