@@ -574,9 +574,9 @@ function openSplitPay(){
   sbg.id = 'splitPayBg';
   sbg.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:100;padding:16px;';
   sbg.onclick = (e) => { if(e.target===sbg) sbg.remove(); };
-  sbg.innerHTML = `<div class="pay-modal" style="max-width:700px;">
+  sbg.innerHTML = `<div class="pay-modal pm2 sp2" style="max-width:720px;">
     <div class="pay-modal-header">
-      <h2>➗ Bölünmüş Ödeme</h2>
+      <div class="pm-title"><span class="pm-tic">➗</span><div><h2>Bölünmüş Ödeme</h2><small>Hesabı kişilere, nakit ve karta dağıtın</small></div></div>
       <span class="pay-modal-close" ${act('removeEl','splitPayBg')}>✕</span>
     </div>
     <div class="pay-total-banner" style="margin-top:14px;">
@@ -586,7 +586,7 @@ function openSplitPay(){
     ${tip>0 ? `<p class="muted" style="text-align:center;font-size:12px;margin:-10px 0 14px;">(bahşiş dahil: ${money(tip)})</p>` : ''}
 
     <div class="pay-options-grid" style="margin-top:14px;">
-      <div class="pay-option-card">
+      <div class="pay-option-card" data-opt="people">
         <h4>👥 Kişi Sayısına Göre Hesapla <span class="muted" style="font-weight:400;text-transform:none;">(opsiyonel)</span></h4>
         <div class="field-row" style="margin-bottom:10px;">
           <input id="splitPeople" type="number" min="1" placeholder="Toplam kişi">
@@ -595,14 +595,14 @@ function openSplitPay(){
         <button style="margin:0;" ${act('calcSplitPay', total)}>Hesapla</button>
       </div>
 
-      <div class="pay-option-card">
+      <div class="pay-option-card" data-opt="mix">
         <h4>💵 Nakit / 💳 Kart Dağılımı</h4>
         <label class="hint" style="display:block;margin-bottom:4px;">Nakit Tutar</label>
         <input id="splitCash" type="number" step="0.01" min="0" max="${total}" value="0" ${actOn('input','updateSplitPayPreview',[total])} style="margin-bottom:0;">
         <p id="splitCardPreview" class="hint" style="margin:8px 0 0;">Kredi Kartı: ${money(total)}</p>
       </div>
 
-      <div class="pay-option-card">
+      <div class="pay-option-card" data-opt="cashn">
         <h4>👥 Nakiti Birden Fazla Kişiye Böl <span class="muted" style="font-weight:400;text-transform:none;">(opsiyonel)</span></h4>
         <div class="field-row">
           <input id="cashChargeCount" type="number" min="1" value="1" style="flex:1;">
@@ -611,7 +611,7 @@ function openSplitPay(){
         <div id="cashChargesBox" style="margin-top:8px;"></div>
       </div>
 
-      <div class="pay-option-card">
+      <div class="pay-option-card" data-opt="cardn">
         <h4>💳 Kartı Birden Fazla Çekime Böl <span class="muted" style="font-weight:400;text-transform:none;">(opsiyonel)</span></h4>
         <div class="field-row">
           <input id="cardChargeCount" type="number" min="1" value="1" style="flex:1;">
@@ -621,7 +621,7 @@ function openSplitPay(){
       </div>
     </div>
 
-    <button class="pay-method-btn cash" style="margin-top:6px;" ${act('confirmSplitPay', orderId, total, discountAmount, tip, customerId, redeemPoints)}>✅ Onayla</button>
+    <button class="pay-method-btn cash sp-ok" ${act('confirmSplitPay', orderId, total, discountAmount, tip, customerId, redeemPoints)}>✅ Onayla</button>
   </div>`;
   document.body.appendChild(sbg);
 }

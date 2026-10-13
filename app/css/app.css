@@ -2040,3 +2040,20 @@ input.sw:checked{background:var(--c1);} input.sw:checked::after{transform:transl
 .pm2 .pay-method-btn:not(:disabled):hover{transform:translateY(-2px);box-shadow:0 10px 24px rgba(0,0,0,.3)}
 .pm2 .pm-ic{font-size:26px}.pm2 .pay-method-btn b{font-size:16px}.pm2 .pay-method-btn small{font-size:11px;opacity:.85}
 .pm2 .pay-method-btn.split,.pm2 .pay-method-btn.gift{border-radius:14px!important}
+/* Ödeme seçenek kartları + bölünmüş ödeme */
+.pm2 .pay-options-grid{gap:12px}
+.pm2 .pay-option-card{--sc:var(--c1);position:relative;border-radius:18px!important;padding:14px 16px 14px 20px!important;border:1px solid var(--border)!important;background:linear-gradient(135deg,color-mix(in srgb,var(--sc) 10%,var(--panel)),var(--panel))!important;overflow:hidden;animation:dgPop .2s}
+.pm2 .pay-option-card::before{content:'';position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--sc)}
+.pm2 .pay-option-card[data-opt="disc"],.pm2 .pay-option-card[data-opt="people"]{--sc:#8b5cf6}
+.pm2 .pay-option-card[data-opt="tip"],.pm2 .pay-option-card[data-opt="cashn"]{--sc:#22c55e}
+.pm2 .pay-option-card[data-opt="cust"],.pm2 .pay-option-card[data-opt="mix"]{--sc:#06b6d4}
+.pm2 .pay-option-card[data-opt="gift"],.pm2 .pay-option-card[data-opt="cardn"]{--sc:#f59e0b}
+.pm2 .pay-option-card h4{display:flex;align-items:center;gap:6px;margin:0 0 10px;color:var(--sc);font-size:12.5px;letter-spacing:.04em}
+.pm2 .pay-option-card input,.pm2 .pay-option-card select{border-radius:12px}
+.pm2 .pay-option-card button:not(.pay-chip){border-radius:12px;background:var(--sc);color:#fff}
+.pm2 .pay-chip{border-radius:999px;border:1px solid color-mix(in srgb,var(--sc) 50%,var(--border));background:color-mix(in srgb,var(--sc) 12%,transparent)}
+.pm2 .pay-chip:hover{background:var(--sc);color:#fff}
+.pm2 .pay-option-card .hint{display:inline-block;margin-top:8px;padding:3px 10px;border-radius:999px;background:color-mix(in srgb,var(--sc) 12%,transparent);font-size:11.5px}
+.sp2 .pay-options-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr))}
+.sp2 .pay-option-card .hint{display:block;border-radius:10px}
+.sp2 .sp-ok{width:100%;margin-top:14px;padding:16px!important;font-size:17px;font-weight:800;border-radius:18px!important;background:linear-gradient(135deg,#22c55e,#16a34a)!important;color:#fff!important}
