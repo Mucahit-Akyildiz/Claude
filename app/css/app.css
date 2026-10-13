@@ -1292,3 +1292,22 @@ input:focus,select:focus,textarea:focus{border-color:var(--accent);box-shadow:0 
 .pc-btn:hover{border-color:var(--accent);} .pc-btn.pc-edit{margin-left:auto;background:color-mix(in srgb,var(--accent) 18%,transparent);}
 tr.row-flash td{animation:rowFlash 1.6s ease;}
 @keyframes rowFlash{0%,40%{background:color-mix(in srgb,var(--accent) 25%,transparent);}100%{background:transparent;}}
+
+/* ===== Ürün düzenleme yan paneli ===== */
+.pdrawer-wrap{position:fixed;inset:0;z-index:190;}
+.pdrawer-bg{position:absolute;inset:0;background:rgba(0,0,0,.45);opacity:0;transition:opacity .25s;}
+.pdrawer{position:absolute;top:0;right:0;bottom:0;width:min(420px,100vw);background:var(--panel);border-left:1px solid var(--border);box-shadow:-20px 0 40px rgba(0,0,0,.3);display:flex;flex-direction:column;transform:translateX(100%);transition:transform .28s cubic-bezier(.2,.8,.2,1);}
+.pdrawer-wrap.open .pdrawer{transform:none;} .pdrawer-wrap.open .pdrawer-bg{opacity:1;}
+.pdrawer-head{display:flex;align-items:flex-start;gap:10px;padding:18px 20px;border-bottom:1px solid var(--border);background:linear-gradient(135deg,color-mix(in srgb,var(--c1) 18%,var(--panel)),var(--panel));}
+.pdrawer-head > div{flex:1;min-width:0;} .pdrawer-head h3{margin:2px 0 0;font-size:18px;}
+.pdrawer-x{width:36px;height:36px;margin:0;padding:0;border-radius:12px;background:var(--panel2);color:var(--text);border:1px solid var(--border);box-shadow:none;}
+.pdrawer-body{flex:1;overflow:auto;padding:16px 20px;display:flex;flex-direction:column;gap:4px;}
+.pdrawer-body label{font-size:12.5px;font-weight:700;color:var(--muted);margin-top:8px;}
+.pdrawer-body input,.pdrawer-body select{margin:0;width:100%;}
+.pdrawer-2{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+.pdrawer-margin{margin-top:8px;padding:10px 12px;border-radius:12px;background:var(--panel2);font-size:12.5px;}
+.pdrawer-margin .pcard-mbar{background:var(--panel);} .pdrawer-margin i{transition:width .3s,background .3s;}
+.pdrawer-check{display:flex !important;align-items:center;gap:8px;color:var(--text) !important;margin-top:12px !important;} .pdrawer-check input{width:auto !important;}
+.pdrawer-links{display:flex;flex-wrap:wrap;gap:6px;margin-top:14px;}
+.pdrawer-foot{display:flex;gap:10px;padding:14px 20px;border-top:1px solid var(--border);} .pdrawer-foot button{flex:1;margin:0;}
+#orderSummary{grid-template-columns:repeat(3,minmax(0,1fr));}

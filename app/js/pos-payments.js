@@ -1307,7 +1307,7 @@ function tableCardHtml(t){
     <div class="tc-top"><span class="tc-name">${escapeHtml(t.name)}</span>${c.order ? `<span class="tc-time">⏱ ${timeTxt}</span>` : ''}</div>
     ${c.state === 'empty' ? `<div class="tc-cta">＋ Sipariş al</div>` : `
       ${c.order && c.order.customer_name ? `<div class="tc-cust">👤 ${escapeHtml(c.order.customer_name)}</div>` : ''}
-      <div class="tc-total">${c.total ? money(c.total) : (c.draft.length ? c.draft.length + ' ürün sepette' : '—')}</div>
+      <div class="tc-total">${c.total ? c.unpaid.length + ' kalem' : (c.draft.length ? c.draft.length + ' ürün sepette' : '—')}</div>
       ${c.unpaid.length ? `<div class="tc-prog"><i style="width:${pct}%"></i></div><div class="tc-meta"><span>${c.ready}/${c.unpaid.length} hazır</span>${initials}</div>` : `<div class="tc-meta"><span>${label}</span>${initials}</div>`}`}
     <span class="tc-state">${label}</span>
   </div>`;
@@ -1318,9 +1318,8 @@ function renderOrderSummary(){
   const all = (APP.config.zones || []).flatMap(z => z.tables || []);
   const infos = all.map(tableCardInfo);
   const cnt = (s) => infos.filter(i => i.state === s).length;
-  const open = infos.reduce((x, i) => x + i.total, 0);
   const chip = (cls, ic, n, l) => `<div class="os-chip os-${cls}"><span class="os-ic">${ic}</span><div><b>${n}</b><small>${l}</small></div></div>`;
-  el.innerHTML = chip('empty','🪑', cnt('empty'), 'Boş masa') + chip('busy','🔥', cnt('busy') + cnt('wait'), 'Dolu masa') + chip('ready','✅', cnt('ready'), 'Hazır · ödeme bekliyor') + chip('money','💰', money(open), 'Açık hesap toplamı');
+  el.innerHTML = chip('empty','🪑', cnt('empty'), 'Boş masa') + chip('busy','🔥', cnt('busy') + cnt('wait'), 'Dolu masa') + chip('ready','✅', cnt('ready'), 'Hazır · ödeme bekliyor');
 }
 function renderTableFloorPlan(zone, el){
   if(!el) return;

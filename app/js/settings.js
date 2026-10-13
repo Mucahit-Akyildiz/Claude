@@ -1248,11 +1248,61 @@ function markProdDirty(e){
   updateProdSelection();
 }
 function setProdView(v){ APP.prodView = v; renderSettingsContent(getSession()); }
-// Kart görünümünde "Düzenle": tablo görünümüne geçip ürünün satırını vurgular.
+// Kart görünümünde "Düzenle": sağdan açılan düzenleme paneli.
 function editProductRow(pid){
-  APP.prodView = 'table'; renderSettingsContent(getSession());
-  setTimeout(() => { const tr = document.querySelector('tr[data-pid="'+pid+'"]'); if(!tr) return;
-    tr.scrollIntoView({ block:'center', behavior:'smooth' }); tr.classList.add('row-flash'); const i = document.getElementById('pr_name_'+pid); if(i) i.focus({ preventScroll:true }); }, 60);
+  const p = (APP.config.products||[]).find(x => x.id===pid); if(!p) return;
+  closeProdDrawer();
+  const rec = p.recipe && p.recipe.length>0, stations = APP.config.stations || [];
+  const d = document.createElement('div'); d.id = 'prodDrawer'; d.className = 'pdrawer-wrap';
+  d.innerHTML = `<div class="pdrawer-bg" ${act('closeProdDrawer')}></div>
+    <aside class="pdrawer" data-pid="${p.id}">
+      <div class="pdrawer-head"><div><small class="muted">Ürün düzenle</small><h3>${escapeHtml(p.name)}</h3></div><button type="button" class="pdrawer-x" ${act('closeProdDrawer')}>✕</button></div>
+      <div class="pdrawer-body" ${actOn('input','prodDrawerCalc',[])} ${actOn('change','prodDrawerCalc',[])}>
+        <label>Ürün Adı</label><input id="ed_name" value="${escapeAttr(p.name)}">
+        <div class="pdrawer-2"><div><label>Fiyat (₺)</label><input type="number" id="ed_price" value="${p.price}"></div><div><label>Maliyet (₺)</label><input type="number" id="ed_cost" value="${p.cost}"></div></div>
+        <div class="pdrawer-margin"><div class="pcard-mbar"><i id="ed_mbar"></i></div><span id="ed_mtxt"></span></div>
+        <label>Menü</label><select id="ed_menu">${prodMenuOptions(p.menu_id)}</select>
+        <label>İstasyon</label><select id="ed_st">${!p.station_id ? '<option value="" selected>— İstasyon yok —</option>' : ''}${stations.map(x => `<option value="${x.id}" ${x.id===p.station_id?'selected':''}>${escapeHtml(x.name)}</option>`).join('')}</select>
+        <div class="pdrawer-2"><div><label>KDV</label>${vatSelectHtml('ed_vat', p.vat_rate, true)}</div>
+          <div><label>Stok</label>${rec ? `<input disabled value="Reçeteli: ${p.available_qty==null?'?':p.available_qty} porsiyon">` : `<input type="number" id="ed_stock" value="${p.stock==null?'':p.stock}" placeholder="Sınırsız">`}</div></div>
+        <label class="pdrawer-check"><input type="checkbox" id="ed_print" ${p.print_ticket===false?'':'checked'}> 🖨️ Mutfak fişine yazdır</label>
+        <div class="pdrawer-links">
+          <button type="button" class="pc-btn" ${act('openRecipeModal', p.id)}>📋 Reçete</button>
+          <button type="button" class="pc-btn" ${act('openExtrasModal', p.id)}>➕ Ekstralar</button>
+          <button type="button" class="pc-btn" ${act('toggleProductAvailable', p.id)}>${p.available===false?'✓ Satışa Aç':'✕ Satışa Kapat'}</button>
+        </div>
+      </div>
+      <div class="pdrawer-foot"><button type="button" class="ghost-btn" ${act('closeProdDrawer')}>Vazgeç</button><button type="button" ${act('saveProdDrawer')}>Kaydet</button></div>
+    </aside>`;
+  document.body.appendChild(d);
+  prodDrawerCalc();
+  requestAnimationFrame(() => d.classList.add('open'));
+}
+function closeProdDrawer(){ const d = document.getElementById('prodDrawer'); if(d) d.remove(); }
+function prodDrawerCalc(){
+  const pr = parseFloat((document.getElementById('ed_price')||{}).value)||0, co = parseFloat((document.getElementById('ed_cost')||{}).value)||0;
+  const m = pr>0 ? Math.round((pr-co)/pr*100) : 0, bar = document.getElementById('ed_mbar'), t = document.getElementById('ed_mtxt'); if(!bar) return;
+  bar.style.width = Math.max(0,Math.min(100,m))+'%'; bar.style.background = m>=60?'var(--ok,#22c55e)':m>=35?'var(--c3)':'var(--danger,#ef4444)';
+  t.innerHTML = `Kâr: <b>${money(pr-co)}</b> · <b>%${m}</b> marj`;
+}
+async function saveProdDrawer(){
+  const box = document.querySelector('#prodDrawer .pdrawer'); if(!box) return;
+  const id = box.dataset.pid, p = APP.config.products.find(x => x.id===id); if(!p) return;
+  const v = (k) => document.getElementById('ed_'+k);
+  const name = v('name').value.trim(); if(!name){ alert('Ürün adı boş olamaz'); return; }
+  let stock = p.stock; if(v('stock')){ const raw = v('stock').value.trim(); stock = raw==='' ? null : parseInt(raw,10); }
+  const vat = v('vat').value !== '' ? Number(v('vat').value) : null, menu = v('menu').value || null, pr = v('print').checked;
+  const errors = await runProductBatch([{ name }], async (s) => {
+    const res = await sb.rpc('upsert_product', Object.assign({ p_token: s.session_token }, productPayload(p, { p_name: name, p_station_id: v('st').value || null,
+      p_price: parseFloat(v('price').value)||0, p_cost: parseFloat(v('cost').value)||0, p_stock: stock })));
+    if(res.error) return res;
+    if(pr !== (p.print_ticket !== false)){ const o = await sb.rpc('set_product_options', { p_token: s.session_token, p_product_id: id, p_category: p.category || null, p_print_ticket: pr }); if(o.error) return o; }
+    if(menu !== (p.menu_id || null)){ const o = await sb.rpc('set_product_menu', { p_token: s.session_token, p_product_id: id, p_menu_id: menu }); if(o.error) return o; }
+    if((p.vat_rate ?? null) === vat) return res;
+    return sb.rpc('set_product_vat', { p_token: s.session_token, p_product_id: id, p_rate: vat });
+  });
+  if(errors.length){ alert('Kaydedilemedi:\n\n' + errors.join('\n')); return; }
+  closeProdDrawer(); showToast(name + ' kaydedildi ✓');
 }
 function selectedProductIds(){ return [...document.querySelectorAll('.prod-sel:checked')].map(b => b.value); }
 function selectProdGroup(box){
@@ -1330,7 +1380,7 @@ async function toggleProductAvailable(pid){
   const open = p.available === false;
   const { error } = await sb.rpc('upsert_product', Object.assign({ p_token: getSession().session_token }, productPayload(p, { p_available: open })));
   if(error){ alert(error.message); return; }
-  p.available = open;
+  p.available = open; closeProdDrawer();
   showToast(p.name + (open ? ' satışa açıldı ✓' : ' satışa kapatıldı'));
   renderSettingsContent(getSession());
 }
