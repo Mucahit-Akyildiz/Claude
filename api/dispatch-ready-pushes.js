@@ -356,6 +356,29 @@ async function dispatchShiftEvent(supabase, shiftId, event) {
   return sendToUsers(supabase, [shift.user_id], { title: msgs[event][0], body: msgs[event][1], url: '/app/', tag: 'shift-' + shift.id });
 }
 
+// Satin alma siparisi verildi: Satin Alma (purchasing_reports) yetkisi olanlara ve
+// Yoneticiye push; siparisi veren haric. Bildirime dokununca Satin Alma ekrani acilir.
+async function dispatchPurchaseOrder(supabase, poId) {
+  const { data: po } = await supabase.from('purchase_orders').select('id, restaurant_id, status, created_by, supplier_id').eq('id', poId).maybeSingle();
+  if (!po || po.status !== 'ordered') return { sent: 0, note: 'not ordered' };
+  const [{ data: appUsers }, { data: roles }, { data: items }, { data: sup }, { data: by }] = await Promise.all([
+    supabase.from('app_users').select('id, role_ids').eq('restaurant_id', po.restaurant_id),
+    supabase.from('roles').select('id, is_system, permissions').eq('restaurant_id', po.restaurant_id),
+    supabase.from('purchase_order_items').select('quantity, ingredients(name, unit)').eq('purchase_order_id', po.id),
+    po.supplier_id ? supabase.from('suppliers').select('name').eq('id', po.supplier_id).maybeSingle() : Promise.resolve({ data: null }),
+    po.created_by ? supabase.from('app_users').select('username').eq('id', po.created_by).maybeSingle() : Promise.resolve({ data: null }),
+  ]);
+  const okRoles = new Set((roles || []).filter((rl) => rl.is_system || (rl.permissions || []).includes('purchasing_reports')).map((rl) => rl.id));
+  const ids = (appUsers || []).filter((u) => u.id !== po.created_by && (u.role_ids || []).some((rid) => okRoles.has(rid))).map((u) => u.id);
+  const list = (items || []).slice(0, 3).map((i) => (i.ingredients ? i.ingredients.name : '') + ' ' + Number(i.quantity) + ' ' + (i.ingredients ? i.ingredients.unit : '')).join(', ');
+  const more = (items || []).length > 3 ? ' +' + ((items || []).length - 3) : '';
+  return sendToUsers(supabase, ids, {
+    title: '🧾 Yeni satın alma siparişi',
+    body: ((by && by.username) || 'Bir personel') + (sup && sup.name ? ' · ' + sup.name : '') + ': ' + list + more + '. Birim fiyat girmek için dokunun.',
+    url: '/app/', view: 'procurement', tag: 'po-' + po.id,
+  });
+}
+
 // Uygulama ici mesaj: ozel mesaj aliciya, genel kanal mesaji gonderen haric
 // isletmedeki tum aktif personele push olarak gider.
 async function dispatchChatMessage(supabase, messageId) {
@@ -562,6 +585,13 @@ module.exports = async function handler(req, res) {
       const ids = Array.isArray(req.body && req.body.item_ids) ? req.body.item_ids.slice(0, 200) : [];
       if (!ids.length) { res.status(400).json({ error: 'item_ids required' }); return; }
       res.status(200).json(await dispatchItemsReady(supabase, ids));
+      return;
+    }
+
+    if (mode === 'purchase_order') {
+      const poId = req.body && req.body.po_id;
+      if (!poId) { res.status(400).json({ error: 'po_id required' }); return; }
+      res.status(200).json(await dispatchPurchaseOrder(supabase, poId));
       return;
     }
 

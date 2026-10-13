@@ -9,3 +9,7 @@
 -- Güncelleme: Satın Alma Finansal Analiz'den çıkarıldı, ayrı menü (view 'procurement').
 -- get_purchase_report / set_purchase_item_cost / tedarikçi RPC'leri yalnızca purchasing_reports
 -- (ve tedarikçilerde purchasing_suppliers) kabul eder; rozet anahtarı 'procurement'.
+-- Güncelleme 2: purchase_orders AFTER INSERT/UPDATE OF status tetikleyicisi (_purchase_order_push)
+-- sipariş verildiğinde push_dispatch (mode 'purchase_order') çağırır. Teslim alma Satın Alma
+-- menüsüne taşındı: get_purchase_order / receive_purchase_order_items purchasing_reports kabul eder;
+-- 'purchasing' rozeti kaldırıldı, 'procurement' rozeti teslim bekleyenleri de kapsar.
