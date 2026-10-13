@@ -96,7 +96,7 @@ async function renderReservationsContent(session, forceRefresh){
       <div class="rv-list">${sorted.filter(r => dkey(r)===k).map(card).join('')}</div></div>`).join('')
       : '<div class="empty-state"><div style="font-size:42px;">📅</div><p class="muted">Bekleyen ya da onaylı rezervasyon yok.</p></div>'}
   </div>`;
-  renderReservationHistory();
+  await renderReservationHistory();
 }
 /* Rezervasyon geçmişi: seçilen günün oturan / iptal / gelmeyen
    rezervasyonları; oturanlarda rezervasyon saatine göre erken/geç. */
@@ -261,7 +261,7 @@ async function renderWaitlistContent(session, forceRefresh){
     </div>
     <div id="wlHistWrap" style="margin-top:12px;"><p class="muted">Yükleniyor…</p></div>
   </div>`);
-  renderWaitlistHistory();
+  await renderWaitlistHistory();
   updateWaitlistTimers();
   startWaitlistTimerInterval();
 }
