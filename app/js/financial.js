@@ -401,26 +401,26 @@ async function renderReportContent(session){
   el.innerHTML = `
     <div class="fs-hero">
       <div class="fs-hero-main">
-        <div class="fs-cap">Toplam Ciro</div>
+        <div class="fs-cap">💰 Toplam Ciro</div>
         <div class="fs-big">${money(totalRevenue)}</div>
         <div class="fs-line">${hist.length} kapatılan hesap${hist.length ? ' · ortalama '+money(totalRevenue/Math.max(1,untaggedHist.length)) : ''}</div>
       </div>
       <div class="fs-hero-side">
-        <div><div class="fs-cap">Net Kâr</div><div class="fs-mid ${profit<0?'neg':''}">${money(profit)}</div><div class="fs-line">${totalRevenue ? 'Marj %'+Math.round(profit/totalRevenue*100) : '—'}</div></div>
-        <div><div class="fs-cap">Maliyet</div><div class="fs-mid">${money(totalCost)}</div><div class="fs-line">${totalRevenue ? '%'+Math.round(totalCost/totalRevenue*100)+' ciro' : '—'}</div></div>
-        <div class="fs-click" ${act('setReportTab','waste')} title="İsraf detayı"><div class="fs-cap">İsraf</div><div class="fs-mid">${money(wasteCost)}</div><div class="fs-line">Detay ›</div></div>
+        <div class="fs-k" style="--k:${profit<0?'var(--red)':'var(--green)'};"><div class="fs-cap">📈 Net Kâr</div><div class="fs-mid">${money(profit)}</div><div class="fs-line">${totalRevenue ? 'Marj %'+Math.round(profit/totalRevenue*100) : '—'}</div></div>
+        <div class="fs-k" style="--k:#f59e0b;"><div class="fs-cap">🧮 Maliyet</div><div class="fs-mid">${money(totalCost)}</div><div class="fs-line">${totalRevenue ? '%'+Math.round(totalCost/totalRevenue*100)+' ciro' : '—'}</div></div>
+        <div class="fs-k fs-click" style="--k:var(--red);" ${act('setReportTab','waste')} title="İsraf detayı"><div class="fs-cap">🔥 İsraf</div><div class="fs-mid">${money(wasteCost)}</div><div class="fs-line">Detay ›</div></div>
       </div>
     </div>
     <div class="fs-panels">
-      <div class="fs-panel"><h3>Ödeme Dağılımı</h3>
-        ${totalRevenue ? `<div class="fs-split">${[[totalCash,'var(--accent)'],[totalCard,'var(--accent2)'],[totalGiftCard,'var(--muted)']].map(([v,c]) => v>0 ? `<span style="flex:${v};background:${c};"></span>` : '').join('')}</div>` : ''}
-        ${fsRow('<i class="fs-dot" style="background:var(--accent);"></i>Nakit', money(totalCash), totalRevenue ? '%'+Math.round(totalCash/totalRevenue*100) : '')}
-        ${fsRow('<i class="fs-dot" style="background:var(--accent2);"></i>Kredi Kartı', money(totalCard), totalRevenue ? '%'+Math.round(totalCard/totalRevenue*100) : '')}
-        ${fsRow('<i class="fs-dot" style="background:var(--muted);"></i>Hediye Kartı', money(totalGiftCard), totalRevenue ? '%'+Math.round(totalGiftCard/totalRevenue*100) : '')}
+      <div class="fs-panel" style="--t:var(--accent);"><h3><i>💳</i>Ödeme Dağılımı</h3>
+        ${totalRevenue ? `<div class="fs-split">${[[totalCash,'var(--green)'],[totalCard,'var(--accent)'],[totalGiftCard,'var(--gift)']].map(([v,c]) => v>0 ? `<span style="flex:${v};background:${c};"></span>` : '').join('')}</div>` : ''}
+        ${fsRow('<i class="fs-dot" style="background:var(--green);"></i>Nakit', money(totalCash), totalRevenue ? '%'+Math.round(totalCash/totalRevenue*100) : '')}
+        ${fsRow('<i class="fs-dot" style="background:var(--accent);"></i>Kredi Kartı', money(totalCard), totalRevenue ? '%'+Math.round(totalCard/totalRevenue*100) : '')}
+        ${fsRow('<i class="fs-dot" style="background:var(--gift);"></i>Hediye Kartı', money(totalGiftCard), totalRevenue ? '%'+Math.round(totalGiftCard/totalRevenue*100) : '')}
         ${fsRow('Bahşiş', money(totalTip), '')}
       </div>
-      <div class="fs-panel"><h3>Servis</h3><div id="serviceMetrics"><p class="muted" style="font-size:13px;">Yükleniyor…</p></div></div>
-      <div class="fs-panel"><h3>İndirim ve İkram</h3>
+      <div class="fs-panel" style="--t:#a78bfa;"><h3><i>🍽️</i>Servis</h3><div id="serviceMetrics"><p class="muted" style="font-size:13px;">Yükleniyor…</p></div></div>
+      <div class="fs-panel" style="--t:#f59e0b;"><h3><i>🏷️</i>İndirim ve İkram</h3>
         ${fsRow('İndirim', money(totalDiscount), discountedCount+' hesap')}
         ${fsRow('Doğum günü indirimi', money(totalBirthdayDiscount), birthdayCount+' hesap')}
         ${fsRow('Personel / ikram', money(taggedTotal), taggedHist.length+' hesap')}
