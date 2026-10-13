@@ -1311,3 +1311,37 @@ tr.row-flash td{animation:rowFlash 1.6s ease;}
 .pdrawer-links{display:flex;flex-wrap:wrap;gap:6px;margin-top:14px;}
 .pdrawer-foot{display:flex;gap:10px;padding:14px 20px;border-top:1px solid var(--border);} .pdrawer-foot button{flex:1;margin:0;}
 #orderSummary{grid-template-columns:repeat(3,minmax(0,1fr));}
+
+/* ===== Ortak: özet sayaç / avatar / boş durum ===== */
+.stat-chips{grid-template-columns:repeat(var(--n,4),minmax(0,1fr));margin:6px 0 16px;}
+@media (max-width:900px){.stat-chips{grid-template-columns:repeat(2,minmax(0,1fr));}}
+.av{width:40px;height:40px;flex:0 0 40px;border-radius:14px;display:grid;place-items:center;font-weight:800;font-size:16px;color:#fff;background:linear-gradient(135deg,var(--ac),color-mix(in srgb,var(--ac) 55%,#000));box-shadow:0 4px 12px color-mix(in srgb,var(--ac) 35%,transparent);}
+.empty-state{text-align:center;padding:34px 10px;border:2px dashed var(--border);border-radius:18px;margin:8px 0 14px;}
+.empty-state p{margin:6px 0 0;}
+
+/* ===== Rezervasyon & bekleme listesi kartları ===== */
+.rv-day{margin:6px 0 18px;}
+.rv-day-h{display:flex;align-items:baseline;gap:10px;font-weight:800;font-size:16px;margin:0 0 10px;padding-left:12px;border-left:4px solid var(--accent);}
+.rv-day-h small{font-weight:600;color:var(--muted);font-size:13px;} .rv-day-h .muted{margin-left:auto;font-size:12.5px;font-weight:600;}
+.rv-list,.wl-list{display:flex;flex-direction:column;gap:10px;}
+.rv-card,.wl-card{--sc:var(--c1);display:grid;grid-template-columns:96px minmax(0,1fr) auto;gap:14px;align-items:center;padding:12px 14px;border-radius:18px;background:var(--panel);border:1px solid var(--border);box-shadow:inset 4px 0 0 var(--sc);animation:osIn .35s ease both;transition:transform .15s;}
+.rv-card:hover,.wl-card:hover{transform:translateX(3px);}
+.rv-card.st-pending{--sc:var(--c3);} .rv-card.st-confirmed{--sc:var(--c1);} .rv-card.st-seated{--sc:var(--ok,#22c55e);} .rv-card.st-cancelled,.rv-card.st-no_show{--sc:#94a3b8;opacity:.65;}
+.rv-card.late{--sc:var(--danger,#ef4444);}
+.rv-time{display:flex;flex-direction:column;align-items:center;gap:5px;padding:8px 4px;border-radius:14px;background:color-mix(in srgb,var(--sc) 14%,transparent);}
+.rv-time b{font-size:22px;font-weight:800;letter-spacing:-.02em;}
+.rv-pill{font-size:11px;font-weight:700;padding:2px 8px;border-radius:999px;background:var(--sc);color:#fff;}
+.rv-main{min-width:0;display:flex;flex-direction:column;gap:7px;}
+.rv-who{display:flex;align-items:center;gap:10px;min-width:0;} .rv-who > div{min-width:0;display:flex;flex-direction:column;}
+.rv-who b{font-size:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;} .rv-who small{font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.rv-meta,.wl-info{display:flex;flex-wrap:wrap;gap:5px;}
+.rv-note{font-size:12.5px;color:var(--muted);overflow-wrap:anywhere;}
+.rv-acts{display:flex;flex-wrap:wrap;gap:6px;justify-content:flex-end;max-width:330px;}
+.pc-btn.rv-ok{background:color-mix(in srgb,var(--c1) 20%,transparent);} .pc-btn.rv-seat{background:color-mix(in srgb,var(--ok,#22c55e) 22%,transparent);} .pc-btn.rv-del:hover{border-color:var(--danger,#ef4444);}
+.wl-card{grid-template-columns:44px minmax(160px,1fr) minmax(0,1.3fr) 110px auto;animation-delay:calc(var(--i)*.04s);}
+.wl-no{width:40px;height:40px;border-radius:50%;display:grid;place-items:center;font-weight:800;background:color-mix(in srgb,var(--c1) 20%,transparent);color:var(--text);}
+.wl-timer{text-align:center;font-size:14px;font-weight:700;padding:8px;border-radius:12px;background:var(--panel2);}
+@media (max-width:900px){
+  .rv-card{grid-template-columns:76px minmax(0,1fr);} .rv-card .rv-acts{grid-column:1/-1;justify-content:flex-start;max-width:none;}
+  .wl-card{grid-template-columns:40px minmax(0,1fr);} .wl-card .wl-info,.wl-card .wl-timer,.wl-card .rv-acts{grid-column:1/-1;justify-content:flex-start;max-width:none;}
+}

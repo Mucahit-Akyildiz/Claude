@@ -277,3 +277,13 @@ function svgDonut(segs, o){
     <div class="ch-legend">${segs.map(s => `<div><i style="background:${s.color}"></i><span>${escapeHtml(s.label)}</span><b>%${Math.round((Number(s.value)||0)/total*100)}</b></div>`).join('')}</div></div>`;
 }
 function shortMoney(v){ v = Number(v)||0; if(v >= 1e6) return (v/1e6).toLocaleString('tr-TR',{maximumFractionDigits:1})+' mn'; if(v >= 1e4) return Math.round(v/1000).toLocaleString('tr-TR')+' bin'; return Math.round(v).toLocaleString('tr-TR'); }
+/* Ekran üstü özet sayaçları: [[ikon, değer, etiket, renk], ...] */
+function statChips(list, cls){
+  return `<div class="order-summary stat-chips ${cls||''}" style="--n:${list.length};">${list.map(([ic, v, l, c]) =>
+    `<div class="os-chip" style="--oc:${c||'var(--c1)'};"><span class="os-ic">${ic}</span><div><b>${v}</b><small>${l}</small></div></div>`).join('')}</div>`;
+}
+/* İsimden baş harf + sabit renkli avatar */
+function avatarHtml(name, cls){
+  const s = String(name||'?').trim(); let h = 0; for(const ch of s) h = (h*31 + ch.charCodeAt(0)) >>> 0;
+  return `<span class="av ${cls||''}" style="--ac:var(--c${h%4+1});">${escapeHtml((s[0]||'?').toLocaleUpperCase('tr'))}</span>`;
+}
