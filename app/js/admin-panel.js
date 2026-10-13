@@ -845,7 +845,7 @@ const FEATURE_MASTER_LIST = [
   { id:'online_ordering', label:'Dışarıdan Online Sipariş', category:'Sipariş Kanalları', description:'Müşterilerin doğrudan telefonlarından erişebileceği online sipariş sayfası.' },
   { id:'qr_ordering', label:'QR Menü ile Müşteri Siparişi', category:'Sipariş Kanalları', description:'Müşterinin masadaki QR kodu okutup kendi telefonundan menüyü görüp sipariş isteği gönderebilmesi.' },
   { id:'multilang_menu', label:'Çok Dilli QR Menü', category:'Sipariş Kanalları', description:'QR menüde ürün adı/açıklamalarını birden fazla dilde gösterme.' },
-  { id:'purchasing', label:'Tedarikçi & Satın Alma', category:'Tedarik', description:'Tedarikçi ve satın alma sipariş yönetimi.' },
+  { id:'purchasing', label:'Tedarikçi & Satınalma', category:'Tedarik', description:'Tedarikçi ve satınalma sipariş yönetimi.' },
   { id:'ticket_design', label:'Fiş Tasarımı Özelleştirme', category:'Yazıcı', description:'Fiş/makbuz üzerindeki başlık, yazı tipi, logo gibi görsel ayarları merkezi olarak özelleştirme.' },
   { id:'efatura', label:'ÖKC / e-Fatura Entegrasyonu', category:'Entegrasyonlar', description:'Foriba, İzibiz, Logo, Nesbilgi gibi e-fatura entegratörleriyle bağlantı.' },
   { id:'marketplace', label:'Pazaryeri Entegrasyonu', category:'Entegrasyonlar', description:'Yemeksepeti, Trendyol Yemek, Getir Yemek siparişlerini tek ekrandan almak.' },

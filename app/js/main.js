@@ -141,7 +141,7 @@ function render(){
   if(APP.view==='order' || APP.view==='payments') setTimeout(refreshWaiterCalls, 900);
 }
 /* ---- Bekleyen iş sayıları (rozetler): menüde ilgili ekranın yanında,
-   ekran içi sekmelerde (Ayarlar > Vardiyalar, Satın Alma Siparişleri) ve
+   ekran içi sekmelerde (Ayarlar > Vardiyalar, Satınalma Siparişleri) ve
    mobil ☰ butonunda toplam. 20 sn'de bir, push geldiğinde ve uygulamaya
    dönüldüğünde get_nav_badges ile tazelenir. ---- */
 const NAV_BADGE_TABS = { settings: '#settingsContent', purchasing: '#purchTabs' };
@@ -481,7 +481,7 @@ function goBack(){
   if(AppPlugin && AppPlugin.minimizeApp) AppPlugin.minimizeApp();
 }
 /* ---- Ekran yığını: menü ekranı + ekran içi sekmeler (Ayarlar/Raporlar/Rezervasyon/
-   Satın Alma sekmesi, Kullanıcılar alt sekmesi, açık sohbet, mutfak istasyonu). Geri her
+   Satınalma sekmesi, Kullanıcılar alt sekmesi, açık sohbet, mutfak istasyonu). Geri her
    zaman bir önceki ekrana/sekmeye döner. Yığın sessionStorage'da tutulur; uygulama
    arka planda yeniden yüklense bile kaldığı ekrandan ve geri geçmişiyle açılır. */
 const SCREEN_KEYS = ['view','settingsTab','reportTab','usersSubTab','resvTab','purchTab','notifTab','chatConv','kitchenStation'];

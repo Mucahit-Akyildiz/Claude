@@ -373,7 +373,7 @@ async function dispatchPurchaseOrder(supabase, poId) {
   const list = (items || []).slice(0, 3).map((i) => (i.ingredients ? i.ingredients.name : '') + ' ' + Number(i.quantity) + ' ' + (i.ingredients ? i.ingredients.unit : '')).join(', ');
   const more = (items || []).length > 3 ? ' +' + ((items || []).length - 3) : '';
   return sendToUsers(supabase, ids, {
-    title: '🧾 Yeni satın alma siparişi',
+    title: '🧾 Yeni satınalma siparişi',
     body: ((by && by.username) || 'Bir personel') + (sup && sup.name ? ' · ' + sup.name : '') + ': ' + list + more + '. Birim fiyat girmek için dokunun.',
     url: '/app/', view: 'procurement', tag: 'po-' + po.id,
   });

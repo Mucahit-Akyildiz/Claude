@@ -1,12 +1,12 @@
-/* Tedarikçi & Satın Alma - app/index.html'den çıkarıldı. Klasik <script src>. */
-/* ================= TEDARİKÇİ & SATIN ALMA ================= */
+/* Tedarikçi & Satınalma - app/index.html'den çıkarıldı. Klasik <script src>. */
+/* ================= TEDARİKÇİ & SATINALMA ================= */
 async function renderPurchasingView(main, session){
   // Satın alma talepleri burada verilir; birim fiyat ve tedarikçiler
-  // Finansal Analiz > Satın Alma'dadır (izin: purchasing_reports / reports).
+  // Finansal Analiz > Satınalma'dadır (izin: purchasing_reports / reports).
   const canOrders = hasPurchPerm(session, 'orders') || hasPurchPerm(session, 'manage');
   APP.purchTab = 'orders';
-  main.innerHTML = `<h1>Satın Alma Siparişleri</h1>
-    <div id="purchContent">${canOrders ? '' : '<div class="box"><p class="muted">Tedarikçiler artık <b>Satın Alma → Tedarikçiler</b> altında.</p></div>'}</div>`;
+  main.innerHTML = `<h1>Satınalma Siparişleri</h1>
+    <div id="purchContent">${canOrders ? '' : '<div class="box"><p class="muted">Tedarikçiler artık <b>Satınalma → Tedarikçiler</b> altında.</p></div>'}</div>`;
   if(!canOrders) return;
   applyNavBadges();
   await renderPurchTabContent(session);
@@ -21,7 +21,7 @@ function setPurchTab(tab){
 function renderPurchTabContent(session){
   return renderPurchaseOrdersContent(session);
 }
-// Tedarikçi listesi Finansal Analiz > Satın Alma > Tedarikçiler içinde çizilir (APP.supplierTarget).
+// Tedarikçi listesi Finansal Analiz > Satınalma > Tedarikçiler içinde çizilir (APP.supplierTarget).
 async function renderSuppliersContent(session){
   const el = document.getElementById(APP.supplierTarget || 'purchContent'); if(!el) return;
   const { data, error } = await withLoadingOverlay(sb.rpc('list_suppliers', { p_token: session.session_token }));
@@ -126,7 +126,7 @@ async function renderPurchaseOrdersContent(session){
   const ownDraft = (p) => p.status==='draft' && (canManage || p.created_by===session.user_id);
   if(!APP.poDraftItems) APP.poDraftItems = [];
   el.innerHTML = `<div class="box" style="max-width:none;">
-    <p class="muted" style="text-align:left;margin:0 0 12px;font-size:13px;">İhtiyaç duyduğunuz hammaddeleri ve miktarları girip <b>Sipariş Ver</b>'e basın. Birim fiyat ve teslim alma <b>Satın Alma</b> menüsünden yapılır.</p>
+    <p class="muted" style="text-align:left;margin:0 0 12px;font-size:13px;">İhtiyaç duyduğunuz hammaddeleri ve miktarları girip <b>Sipariş Ver</b>'e basın. Birim fiyat ve teslim alma <b>Satınalma</b> menüsünden yapılır.</p>
     <div class="settings-table-wrap">
     <table class="settings-table">
       <thead><tr><th>Tedarikçi</th><th>Durum</th><th>Sipariş Tarihi</th><th>Beklenen</th><th>Tutar</th><th></th></tr></thead>
