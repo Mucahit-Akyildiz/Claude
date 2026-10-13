@@ -7174,6 +7174,8 @@ begin
   select * into w from waitlist_entries where id = p_id and restaurant_id = s.restaurant_id for update;
   if w.id is null then raise exception 'Kayıt bulunamadı'; end if;
   if p_table_id is null or not exists(select 1 from restaurant_tables where id = p_table_id and restaurant_id = s.restaurant_id) then raise exception 'Masa seçin'; end if;
+  if exists(select 1 from orders where restaurant_id = s.restaurant_id and table_id = p_table_id and status = 'open' and waitlist_id is distinct from w.id) then
+    raise exception 'Bu masa dolu: başka bir müşteri oturuyor. Lütfen boş bir masa seçin.'; end if;
   update waitlist_entries set status = 'seated', seated_at = now(), table_id = p_table_id where id = p_id;
   v_min := round(extract(epoch from (now() - w.joined_at))/60);
   v_note := '⏳ Bekleme listesi · ' || w.party_size || ' kişi · ' || v_min || ' dk bekledi';
