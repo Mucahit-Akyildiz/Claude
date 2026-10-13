@@ -59,6 +59,7 @@ async function refreshKitchenItems(session){
     // En uzun bekleyen sipariş önce: kart, içindeki en eski bekleyen ürünün zamanına göre sıralanır.
     const oldest = Math.min(...pending.map(it => it.added_at ? new Date(it.added_at).getTime() : Infinity));
     cards.push({ at: isFinite(oldest) ? oldest : Infinity, html: `<div class="kitchen-card" data-order-id="${o.order_id}">
+      <div class="kc-age"><i data-age-from="${isFinite(oldest) ? new Date(oldest).toISOString() : ''}"></i></div>
       <div style="display:flex;justify-content:space-between;align-items:center;">
         <b>${escapeHtml(tableName)}${o.daily_number?' <span class="muted" style="font-weight:400;font-size:12px;">#'+o.daily_number+'</span>':''}<span class="kc-late-badge">⏰ GECİKTİ</span>${orderWaiters(o).length ? '<div class="muted" style="font-weight:400;font-size:12px;margin-top:2px;">👤 ' + escapeHtml(orderWaiters(o).join(', ')) + '</div>' : ''}${waitlistInfoHtml(o)}</b>
         <span style="cursor:pointer;color:var(--muted);font-size:16px;" ${act('reprintKitchenTicket', o.order_id)} title="Fişi tekrar yazdır">🖨️</span>
@@ -77,7 +78,19 @@ async function refreshKitchenItems(session){
   });
   cards.sort((x, y) => x.at - y.at);
   // align-items:start: her kart kendi içeriği kadar uzar (sıradaki en uzun karta göre esneyip boş alan bırakmaz).
-  wrap.innerHTML = cards.length ? `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:12px;align-items:start;">${cards.map(c => c.html).join('')}</div>` : '<p class="muted">Bekleyen sipariş yok.</p>';
+  // Kanban: kartlar en eski bekleyen ürünün süresine göre Yeni / Bekliyor / Gecikti sütunlarında.
+  const nowMs = Date.now();
+  const age = (c) => isFinite(c.at) ? (nowMs - c.at) / 60000 : 0;
+  const cols = [
+    { k:'new', t:'🟢 Yeni', sub:'0–10 dk', list: cards.filter(c => age(c) < 10) },
+    { k:'warn', t:'🟡 Bekliyor', sub:'10–15 dk', list: cards.filter(c => age(c) >= 10 && age(c) < 15) },
+    { k:'late', t:'🔴 Gecikti', sub:'15 dk +', list: cards.filter(c => age(c) >= 15) },
+  ];
+  const itemsCount = Object.values(APP.kitchenPendingByTable).reduce((t, e) => t + e.items.reduce((x, i) => x + (Number(i.qty)||1), 0), 0);
+  const avg = cards.length ? Math.round(cards.reduce((t, c) => t + age(c), 0) / cards.length) : 0;
+  const stats = `<div class="kb-stats"><div><b>${cards.length}</b><small>sipariş</small></div><div><b>${itemsCount}</b><small>bekleyen ürün</small></div><div><b>${avg} dk</b><small>ort. bekleme</small></div><div class="${cols[2].list.length ? 'bad' : ''}"><b>${cols[2].list.length}</b><small>geciken</small></div></div>`;
+  wrap.innerHTML = stats + (cards.length ? `<div class="kb">${cols.map(col => `<div class="kb-col kb-${col.k}"><div class="kb-head"><span>${col.t}</span><small>${col.sub}</small><b>${col.list.length}</b></div>
+      <div class="kb-list">${col.list.map(c => c.html).join('') || '<div class="kb-empty">—</div>'}</div></div>`).join('')}</div>` : '<div class="kb-none">🎉 Bekleyen sipariş yok</div>');
 
   // Daha once gorulmemis (yeni gelen) urun varsa zil calsin ve fisini bu istasyonun
   // kendi yazicisina yazdir. Ilk yuklemede (isFirstLoad) hicbiri tetiklenmez.
@@ -149,6 +162,11 @@ function startKitchenPolling(session){
 }
 function updateKitchenTimers(){
   if(!APP.kitchenLateWarned) APP.kitchenLateWarned = new Set();
+  // Kartın üstündeki süre çubuğu 15 dakikaya doğru dolar.
+  document.querySelectorAll('.kc-age i[data-age-from]').forEach(el => {
+    const f = el.dataset.ageFrom; if(!f) return;
+    el.style.width = Math.min(100, (Date.now() - new Date(f).getTime()) / 9000) + '%';
+  });
   document.querySelectorAll('.kitchen-timer[data-added]').forEach(el => {
     const added = el.dataset.added;
     if(!added){ el.textContent='-'; return; }
