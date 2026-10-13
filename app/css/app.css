@@ -1836,3 +1836,10 @@ input.sw:checked{background:var(--c1);} input.sw:checked::after{transform:transl
 .chat-v3 .chat-sec:first-child{padding-top:4px;}
 @media (max-width:900px){.chat-shell.chat-v3{grid-template-columns:1fr;} .chat-rail{display:none;}}
 .cs-ring{animation:none;}
+/* Personel saatlik ısı ızgarası */
+.st-hm{align-items:center;}
+.st-who{display:flex;align-items:center;gap:8px;min-width:0;font-size:13px;} .st-who .av{width:30px;height:30px;flex:0 0 30px;font-size:12px;border-radius:10px;} .st-who b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.st-c{display:grid;place-items:center;} .st-c i{font-style:normal;font-size:12px;font-weight:800;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.4);}
+.st-tot{display:flex;flex-direction:column;align-items:center;gap:3px;font-size:13px;}
+.st-tbar{width:48px;height:5px;border-radius:999px;background:var(--panel2);overflow:hidden;} .st-tbar i{display:block;height:100%;background:var(--c2);border-radius:999px;}
+.st-sum{text-align:center;font-size:12px;font-weight:800;color:var(--muted);}

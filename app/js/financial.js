@@ -539,16 +539,15 @@ function buildHourlyPivotTable(rows){
   let grandTotal = 0;
   rows.forEach(r => { totalsByStaff[r.staff_name]+=r.count; totalsByHour[r.hour]+=r.count; grandTotal+=r.count; });
   const hourLabel = h => (h<10?'0'+h:h)+':00-'+((h+1)%24<10?'0'+((h+1)%24):(h+1)%24)+':00';
-  return `<div class="settings-table-wrap"><table class="settings-table" style="font-size:13px;">
-    <thead><tr><th>Personel</th>${hours.map(h => `<th style="text-align:center;">${hourLabel(h)}</th>`).join('')}<th style="text-align:center;font-weight:800;">Toplam</th></tr></thead>
-    <tbody>
-    ${staffNames.map(name => `<tr><td class="col-name">${escapeHtml(name)}</td>${hours.map(h => {
-      const v = lookup[name+'_'+h]||0;
-      return `<td style="text-align:center;${v?'':'color:var(--muted);'}">${v||'-'}</td>`;
-    }).join('')}<td style="text-align:center;font-weight:700;">${totalsByStaff[name]}</td></tr>`).join('')}
-    <tr style="border-top:2px solid var(--border);font-weight:700;"><td class="col-name">Toplam</td>${hours.map(h => `<td style="text-align:center;">${totalsByHour[h]}</td>`).join('')}<td style="text-align:center;">${grandTotal}</td></tr>
-    </tbody>
-  </table></div>`;
+  const max = Math.max(1, ...rows.map(r => r.count)), maxTot = Math.max(1, ...Object.values(totalsByStaff));
+  const lo = Math.min(...hours), hi = Math.max(...hours), hrs = []; for(let h = lo; h <= hi; h++) hrs.push(h);
+  return `<div class="hm st-hm" style="--cols:${hrs.length};grid-template-columns:150px repeat(var(--cols),minmax(26px,1fr)) 70px;">
+      <span></span>${hrs.map(h => `<span class="hm-h">${String(h).padStart(2,'0')}</span>`).join('')}<span class="hm-h">Toplam</span>
+      ${staffNames.slice().sort((x, y) => totalsByStaff[y] - totalsByStaff[x]).map((name, ri) => `<span class="st-who">${avatarHtml(name)}<b>${escapeHtml(name)}</b></span>${hrs.map((h, ci) => { const v = lookup[name+'_'+h]||0;
+        return `<span class="hm-c st-c ${ri===0?'hm-top':''}" tabindex="0" style="--v:${(v/max).toFixed(3)};--i:${ri*hrs.length+ci};">${v ? `<i>${v}</i><em>${escapeHtml(name)} · ${hourLabel(h)}<br><b>${v}</b></em>` : ''}</span>`; }).join('')}
+        <span class="st-tot"><b>${totalsByStaff[name]}</b><span class="st-tbar"><i style="width:${Math.round(totalsByStaff[name]/maxTot*100)}%;"></i></span></span>`).join('')}
+      <span class="st-who"><b>Toplam</b></span>${hrs.map(h => `<span class="st-sum">${totalsByHour[h]||'·'}</span>`).join('')}<span class="st-tot"><b>${grandTotal}</b></span>
+    </div>`;
 }
 async function renderStaffAnalyticsContent(session){
   const el = document.getElementById('reportContent'); if(!el) return;
@@ -556,17 +555,15 @@ async function renderStaffAnalyticsContent(session){
   if(error){ el.innerHTML = '<p class="muted">Yüklenemedi: '+error.message+'</p>'; return; }
   const ordersByHour = (data && data.orders_by_hour) || [];
   const paymentsByHour = (data && data.payments_by_hour) || [];
-  el.innerHTML = `
-    <div class="box" style="max-width:none;">
-      <h2>🍽️ Saatlik Sipariş Alma</h2>
-      <p class="muted" style="font-size:12px;margin-top:-6px;">Personelin hangi saatte kaç masa/paket siparişi aldığı (siparişin oluşturulma saatine göre).</p>
-      ${buildHourlyPivotTable(ordersByHour)}
-    </div>
-    <div class="box" style="max-width:none;">
-      <h2>💳 Saatlik Alınan Ödeme</h2>
-      <p class="muted" style="font-size:12px;margin-top:-6px;">Personelin hangi saatte kaç ödeme aldığı / hesap kapattığı.</p>
-      ${buildHourlyPivotTable(paymentsByHour)}
-    </div>
+  const sum = (arr) => arr.reduce((t, r) => t + (Number(r.count)||0), 0);
+  const top = (arr) => { const m = {}; arr.forEach(r => { m[r.staff_name] = (m[r.staff_name]||0) + r.count; }); const e = Object.entries(m).sort((x, y) => y[1]-x[1])[0]; return e ? e[0] + ' (' + e[1] + ')' : '—'; };
+  const peak = (arr) => { const m = {}; arr.forEach(r => { m[r.hour] = (m[r.hour]||0) + r.count; }); const e = Object.entries(m).sort((x, y) => y[1]-x[1])[0]; return e ? String(e[0]).padStart(2,'0') + ':00' : '—'; };
+  el.innerHTML = statChips([['🍽️', sum(ordersByHour), 'Alınan sipariş', 'var(--c1)'], ['💳', sum(paymentsByHour), 'Alınan ödeme', 'var(--c2)'],
+      ['🏆', escapeHtml(top(ordersByHour)), 'En çok sipariş alan', 'var(--c3)'], ['⏰', peak(ordersByHour), 'En yoğun saat', 'var(--c4)']]) + `
+    <div class="fs-panel pa-sec" style="--t:var(--c1);"><h3><i>🍽️</i>Saatlik Sipariş Alma <span class="muted" style="font-size:12px;font-weight:400;">kim hangi saatte kaç sipariş aldı · koyu = çok</span></h3>
+      ${buildHourlyPivotTable(ordersByHour)}</div>
+    <div class="fs-panel pa-sec" style="--t:var(--c2);"><h3><i>💳</i>Saatlik Alınan Ödeme <span class="muted" style="font-size:12px;font-weight:400;">kim hangi saatte kaç hesap kapattı</span></h3>
+      ${buildHourlyPivotTable(paymentsByHour)}</div>
   `;
 }
 
