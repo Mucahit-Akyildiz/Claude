@@ -444,6 +444,31 @@ async function dispatchIdleTables(supabase, orderIds) {
   return { sent };
 }
 
+// Yaklasan rezervasyon (4 saat kala, bkz. _send_reservation_reminders): rezervasyon
+// izni olan personele (veya bildirim ayarinda secilen rollere) hatirlatma.
+async function dispatchResvReminders(supabase, ids) {
+  if (!ids.length) return { sent: 0 };
+  const { data: rows } = await supabase.from('reservations')
+    .select('id, restaurant_id, status, customer_name, party_size, reservation_time, restaurant_tables(name)').in('id', ids);
+  let sent = 0;
+  for (const rv of rows || []) {
+    if (rv.status !== 'confirmed' && rv.status !== 'pending') continue;
+    const { data: appUsers } = await supabase.from('app_users').select('id, role_ids, is_active').eq('restaurant_id', rv.restaurant_id);
+    const { data: roles } = await supabase.from('roles').select('id, is_system, permissions').eq('restaurant_id', rv.restaurant_id);
+    const roleIds = await notifyRoleIds(supabase, rv.restaurant_id, 'reservation_reminder', roles, 'reservations');
+    const uids = (appUsers || []).filter((u) => u.is_active !== false && (u.role_ids || []).some((rid) => roleIds.has(rid))).map((u) => u.id);
+    const hm = new Date(rv.reservation_time).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Istanbul' });
+    const table = rv.restaurant_tables && rv.restaurant_tables.name;
+    const r = await sendToUsers(supabase, uids, {
+      title: '📅 Yaklaşan rezervasyon · ' + hm,
+      body: rv.customer_name + ' · ' + rv.party_size + ' kişi' + (table ? ' · ' + table : '') + (rv.status === 'pending' ? ' (henüz onaylanmadı)' : ''),
+      url: '/app/', view: 'reservations', tag: 'resv-' + rv.id,
+    });
+    sent += (r && r.sent) || 0;
+  }
+  return { sent };
+}
+
 // Telsiz kanalina yeni eklenen uyelere bildirim. Sadece gercekten o kanalin
 // uyesi olan kullanicilara gonderilir (govdedeki listeye korce guvenilmez).
 async function dispatchRadioAdded(supabase, channelId, userIds, by) {
@@ -562,6 +587,12 @@ module.exports = async function handler(req, res) {
     if (mode === 'idle_tables') {
       const ids = Array.isArray(req.body && req.body.order_ids) ? req.body.order_ids.slice(0, 200) : [];
       res.status(200).json(await dispatchIdleTables(supabase, ids));
+      return;
+    }
+
+    if (mode === 'resv_reminders') {
+      const ids = Array.isArray(req.body && req.body.ids) ? req.body.ids.slice(0, 200) : [];
+      res.status(200).json(await dispatchResvReminders(supabase, ids));
       return;
     }
 
