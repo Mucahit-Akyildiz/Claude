@@ -500,7 +500,7 @@ async function renderProductStatsContent(session){
     const val = APP.productStatsSort==='qty' ? r.qty : Number(r.revenue);
     const pct = maxVal ? Math.max(3, Math.round(val/maxVal*100)) : 0;
     const medal = ['🥇','🥈','🥉'][idx] || (idx+1);
-    return `<div class="race-row" style="--i:${Math.min(idx,15)};--sc:var(--c${idx%4+1});">
+    return `<div class="race-row" style="--i:${Math.min(idx,15)};--sc:${RACE_COLORS[idx%RACE_COLORS.length]};">
       <span class="race-rank ${idx<3?'top':''}">${medal}</span>
       <div class="race-main"><div class="race-label"><b>${escapeHtml(r.name)}</b>${r.station_name ? `<small>${escapeHtml(r.station_name)}</small>` : ''}</div>
         <div class="race-track"><div class="race-bar" style="width:${pct}%;"><span>${APP.productStatsSort==='qty' ? r.qty+' adet' : money(r.revenue)}</span></div></div></div>
