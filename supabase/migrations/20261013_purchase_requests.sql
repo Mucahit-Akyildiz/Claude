@@ -6,3 +6,6 @@
 -- * set_purchase_item_cost(p_token, p_item_id, p_unit_cost): kalem birim fiyatı.
 -- * _nav_badges: 'reports' rozeti = birim fiyatı girilmemiş verilmiş/teslim alınmış siparişler.
 -- Gövdeler canlı veritabanına uygulandı (bkz. supabase/schema.sql dökümü).
+-- Güncelleme: Satın Alma Finansal Analiz'den çıkarıldı, ayrı menü (view 'procurement').
+-- get_purchase_report / set_purchase_item_cost / tedarikçi RPC'leri yalnızca purchasing_reports
+-- (ve tedarikçilerde purchasing_suppliers) kabul eder; rozet anahtarı 'procurement'.

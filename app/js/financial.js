@@ -161,10 +161,8 @@ async function renderReportsView(main, session){
     const { data } = await withLoadingOverlay(sb.rpc('get_restaurant_config', { p_token: session.session_token }));
     if(data) APP.config = data;
   }
-  // Yalnızca Satın Alma yetkisi olan (purchasing_reports) kullanıcı sadece o sekmeyi görür, şifre kapısı yok.
-  const purchaseOnly = !canManage(session, 'reports');
-  if(purchaseOnly) APP.reportTab = 'purchase';
-  if(!APP.reportsUnlocked && !purchaseOnly){
+  if(APP.reportTab==='purchase') APP.reportTab = 'summary';
+  if(!APP.reportsUnlocked){
     renderReportsGate(main, session);
     return;
   }
@@ -186,7 +184,7 @@ async function renderReportsView(main, session){
         <button type="button" class="range-preset-btn" ${act('setReportDateRangeDays', 29)}>Son 30 Gün</button>
       </div>
     </div>
-    <div class="tabs" id="reportTabs">${purchaseOnly ? `<div class="tab active" data-tab="purchase">🚚 Satın Alma</div>` : `
+    <div class="tabs" id="reportTabs">
       <div class="tab ${(APP.reportTab||'summary')==='summary'?'active':''}" data-tab="summary" ${act('setReportTab', 'summary')}>Genel Özet</div>
       <div class="tab ${APP.reportTab==='vat'?'active':''}" data-tab="vat" ${act('setReportTab', 'vat')}>🧾 KDV</div>
       <div class="tab ${APP.reportTab==='products'?'active':''}" data-tab="products" ${act('setReportTab', 'products')}>📦 Ürün İstatistikleri</div>
@@ -196,7 +194,6 @@ async function renderReportsView(main, session){
       <div class="tab ${APP.reportTab==='waste'?'active':''}" data-tab="waste" ${act('setReportTab', 'waste')}>🔥 İsraf</div>
       <div class="tab ${APP.reportTab==='resv'?'active':''}" data-tab="resv" ${act('setReportTab', 'resv')}>📅 Rezervasyon Analizi</div>
       <div class="tab ${APP.reportTab==='openacc'?'active':''}" data-tab="openacc" ${act('setReportTab', 'openacc')}>📒 Açık Hesaplar</div>
-      <div class="tab ${APP.reportTab==='purchase'?'active':''}" data-tab="purchase" ${act('setReportTab', 'purchase')}>🚚 Satın Alma</div>`}
     </div>
     <div id="reportContent"></div>`;
   await renderReportTabContent(session);
@@ -244,7 +241,6 @@ function renderReportTabContent(session){
   if(tab==='waste') return renderWasteContent(session);
   if(tab==='resv') return renderReservationAnalyticsContent(session);
   if(tab==='openacc') return renderOpenAccountsContent(session);
-  if(tab==='purchase') return renderPurchaseReportContent(session);
   return renderReportContent(session);
 }
 async function renderReportContent(session){
@@ -662,10 +658,28 @@ async function renderTipPoolContent(session){
    report_waste (pos-core.js > openWasteModal/submitWaste). Maliyeti
    (unit_cost*qty) burada toplanıp gösteriliyor ki israfın kâr üzerindeki
    etkisi görünür olsun. */
+/* --- Satın Alma menüsü (ayrı ekran, izin purchasing_reports): tarih aralığı + alt sekmeler. --- */
+async function renderProcurementView(main, session){
+  if(!APP.procFrom){ const d = new Date(); d.setDate(d.getDate()-29); APP.procFrom = d.toISOString().slice(0,10); }
+  if(!APP.procTo) APP.procTo = todayLocalDateStr();
+  main.innerHTML = `<h1>Satın Alma</h1>
+    <div class="box" style="max-width:none;">
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+        <span class="muted" style="white-space:nowrap;">Tarih Aralığı</span>
+        <input type="date" value="${APP.procFrom}" ${actOn('change','setProcDate',['from','$value'])} style="width:auto;margin:0;">
+        <span class="muted">–</span>
+        <input type="date" value="${APP.procTo}" ${actOn('change','setProcDate',['to','$value'])} style="width:auto;margin:0;">
+      </div>
+    </div>
+    <div id="procContent"></div>`;
+  applyNavBadges();
+  await renderPurchaseReportContent(session);
+}
+function setProcDate(which, v){ if(!v) return; if(which==='from') APP.procFrom = v; else APP.procTo = v; renderPurchaseReportContent(getSession()); }
 /* --- Satın Alma: seçilen tarih aralığında Tedarik & Satın Alma'dan verilen siparişler
    (bkz. get_purchase_report). Taslak ve iptaller toplamlara katılmaz. --- */
 async function renderPurchaseReportContent(session){
-  const host = document.getElementById('reportContent'); if(!host) return;
+  const host = document.getElementById('procContent'); if(!host) return;
   const sub = APP.purchRepSub || 'orders';
   host.innerHTML = `<div class="tabs" id="purchRepTabs" style="margin-top:0;">
       <div class="tab ${sub==='orders'?'active':''}" data-tab="purchRepOrders" ${act('setPurchRepSub','orders')}>Satın Alma Siparişleri</div>
@@ -673,7 +687,7 @@ async function renderPurchaseReportContent(session){
     </div><div id="purchRepContent"></div>`;
   if(sub==='suppliers'){ APP.supplierTarget = 'purchRepContent'; return renderSuppliersContent(session); }
   const el = document.getElementById('purchRepContent');
-  const { data, error } = await withLoadingOverlay(sb.rpc('get_purchase_report', { p_token: session.session_token, p_date: APP.reportDate, p_date_to: APP.reportDateTo }));
+  const { data, error } = await withLoadingOverlay(sb.rpc('get_purchase_report', { p_token: session.session_token, p_date: APP.procFrom, p_date_to: APP.procTo }));
   if(error){ el.innerHTML = '<p class="muted">Yüklenemedi: '+escapeHtml(error.message)+'</p>'; return; }
   const rows = data || [];
   const live = rows.filter(p => p.status!=='draft' && p.status!=='cancelled');
