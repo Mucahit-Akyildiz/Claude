@@ -842,13 +842,13 @@ begin
       from purchase_orders p left join suppliers sp on sp.id = p.supplier_id where p.restaurant_id = r and p.status = 'ordered';
     v := v || jsonb_build_object('purchasing', jsonb_array_length(arr)); it := it || jsonb_build_object('purchasing', arr);
   end if;
-  -- Birim fiyatı girilmemiş satın alma siparişleri: Finansal Analiz > Satın Alma.
-  if _user_has_perm(u, 'reports') or _user_has_perm(u, 'purchasing_reports') then
+  -- Birim fiyatı girilmemiş satın alma siparişleri: Satın Alma menüsü.
+  if _user_has_perm(u, 'purchasing_reports') then
     select coalesce(jsonb_agg(jsonb_build_object('id', p.id, 'label', '🚚 ' || coalesce(sp.name, 'Tedarikçisiz') || ' · ' || to_char(p.order_date, 'DD.MM') || ' (birim fiyat bekliyor)', 'kind', 'purchase')), '[]') into arr
       from purchase_orders p left join suppliers sp on sp.id = p.supplier_id
       where p.restaurant_id = r and p.status in ('ordered','received')
         and exists(select 1 from purchase_order_items i where i.purchase_order_id = p.id and coalesce(i.unit_cost,0) = 0);
-    v := v || jsonb_build_object('reports', jsonb_array_length(arr)); it := it || jsonb_build_object('reports', arr);
+    v := v || jsonb_build_object('procurement', jsonb_array_length(arr)); it := it || jsonb_build_object('procurement', arr);
   end if;
   -- Masadan garson çağrıları: sipariş çağrısı Sipariş Al'a, ödeme çağrısı Ödemeler'e eklenir.
   if _user_has_perm(u, 'order') then
@@ -1270,7 +1270,7 @@ CREATE FUNCTION public._role_permission_catalog(p_restaurant_id uuid) RETURNS js
     union all
     select v.id, v.label, fc.category, fc.sort_order, v.sub
     from feature_catalog fc
-    cross join (values ('purchasing_orders','Satın Alma Talebi (sipariş verme)',1), ('purchasing_manage','Satın Alma Yönetimi (onay, teslim alma, iptal)',2), ('purchasing_suppliers','Tedarikçi Yönetimi',3), ('purchasing_reports','Finansal Analiz · Satın Alma (siparişler, birim fiyat, tedarikçiler)',4)) v(id,label,sub)
+    cross join (values ('purchasing_orders','Satın Alma Talebi (sipariş verme)',1), ('purchasing_manage','Satın Alma Yönetimi (onay, teslim alma, iptal)',2), ('purchasing_suppliers','Tedarikçi Yönetimi',3), ('purchasing_reports','Satın Alma (siparişler, birim fiyat, tedarikçiler)',4)) v(id,label,sub)
     where fc.id = 'purchasing' and fc.active and 'purchasing' = any(_restaurant_features(p_restaurant_id))
     union all
     select v.id, v.label, 'Yönetim', 9999, v.sub
@@ -3669,7 +3669,7 @@ CREATE FUNCTION public.delete_supplier(p_token uuid, p_id uuid) RETURNS void
     AS $$
 declare s staff_sessions%rowtype;
 begin
-  s := _session_check_any(p_token, array['purchasing_suppliers','purchasing_reports','reports']);
+  s := _session_check_any(p_token, array['purchasing_suppliers','purchasing_reports']);
   delete from suppliers where id = p_id and restaurant_id = s.restaurant_id;
 end;
 $$;
@@ -4653,10 +4653,10 @@ CREATE FUNCTION public.get_purchase_report(p_token uuid, p_date date, p_date_to 
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public', 'extensions', 'pg_temp'
     AS $$
--- Finansal Analiz > Satın Alma: tarih aralığında verilen satın alma siparişleri (kalemleriyle).
+-- Satın Alma menüsü: tarih aralığında verilen satın alma siparişleri (kalemleriyle).
 declare s staff_sessions%rowtype;
 begin
-  s := _session_check_any(p_token, array['reports','purchasing_reports']);
+  s := _session_check_any(p_token, array['purchasing_reports']);
   return (
     select coalesce(json_agg(row_to_json(po) order by po.order_date desc, po.created_at desc), '[]'::json)
     from (
@@ -5724,7 +5724,7 @@ CREATE FUNCTION public.list_suppliers(p_token uuid) RETURNS json
     AS $$
 declare s staff_sessions%rowtype;
 begin
-  s := _session_check_any(p_token, array['purchasing_orders','purchasing_manage','purchasing_suppliers','purchasing_reports','reports']);
+  s := _session_check_any(p_token, array['purchasing_orders','purchasing_manage','purchasing_suppliers','purchasing_reports']);
   return (
     select coalesce(json_agg(row_to_json(sp) order by sp.name), '[]'::json)
     from (select id, name, phone, email, address, notes from suppliers where restaurant_id = s.restaurant_id) sp
@@ -7494,10 +7494,10 @@ CREATE FUNCTION public.set_purchase_item_cost(p_token uuid, p_item_id uuid, p_un
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public', 'extensions', 'pg_temp'
     AS $$
--- Finansal Analiz > Satın Alma > Siparişler: talep edilen kalemin birim fiyatı girilir.
+-- Satın Alma menüsü > Siparişler: talep edilen kalemin birim fiyatı girilir.
 declare s staff_sessions%rowtype;
 begin
-  s := _session_check_any(p_token, array['reports','purchasing_reports']);
+  s := _session_check_any(p_token, array['purchasing_reports']);
   if p_unit_cost is null or p_unit_cost < 0 then raise exception 'Geçersiz birim fiyat'; end if;
   update purchase_order_items i set unit_cost = p_unit_cost
     from purchase_orders p where p.id = i.purchase_order_id and i.id = p_item_id and p.restaurant_id = s.restaurant_id;
@@ -9176,7 +9176,7 @@ CREATE FUNCTION public.upsert_supplier(p_token uuid, p_id uuid, p_name text, p_p
     AS $$
 declare s staff_sessions%rowtype; v_id uuid;
 begin
-  s := _session_check_any(p_token, array['purchasing_suppliers','purchasing_reports','reports']);
+  s := _session_check_any(p_token, array['purchasing_suppliers','purchasing_reports']);
   if p_name is null or trim(p_name)='' then raise exception 'Tedarikçi adı gerekli'; end if;
   if p_id is null then
     insert into suppliers (restaurant_id, name, phone, email, address, notes)
