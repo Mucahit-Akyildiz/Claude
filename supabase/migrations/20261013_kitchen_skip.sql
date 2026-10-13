@@ -3,3 +3,4 @@
 -- RPC'si (settings_stations / settings_products); get_restaurant_config products.kitchen_skip döner.
 -- Canlı veritabanına uygulandı.
 alter table products add column if not exists kitchen_skip boolean not null default false;
+-- Güncelleme: paket (orders.kind = 'takeaway') siparişler kitchen_skip ayarından etkilenmez.

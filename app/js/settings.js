@@ -623,7 +623,7 @@ function stationKitchenProductsHtml(st){
   if(rest.length) groups.push(['Diğer', rest]);
   return `<details class="st-kp" ${APP.stKpOpen===st.id?'open':''} style="flex-basis:100%;">
     <summary>🍳 İstasyona düşen ürünler · <b>${on}/${prods.length}</b>${on<prods.length ? ` <span class="muted">(${prods.length-on} ürün doğrudan hazır olur)</span>` : ''}</summary>
-    <p class="muted" style="font-size:12px;margin:6px 0 8px;">İşareti kaldırılan ürünler bu istasyonun ekranına ve yazıcısına düşmez; siparişte doğrudan <b>hazır</b> olur (örn. kasadan verilen su, hazır içecekler).</p>
+    <p class="muted" style="font-size:12px;margin:6px 0 8px;">İşareti kaldırılan ürünler bu istasyonun ekranına ve yazıcısına düşmez; masa siparişinde doğrudan <b>hazır</b> olur (örn. kasadan verilen su, hazır içecekler). <b>Paket siparişler etkilenmez</b>: paket siparişte girilen tüm ürünler istasyona ve fişe düşer.</p>
     ${groups.map(([name, list]) => `<div class="st-kp-grp"><div class="st-kp-h">📋 ${escapeHtml(name)} <span class="muted">${list.filter(p => !p.kitchen_skip).length}/${list.length}</span></div>
       <div class="st-kp-list">${list.map(p => `<label><input type="checkbox" style="width:auto;margin:0;" ${p.kitchen_skip ? '' : 'checked'} ${actOn('change','setProductKitchen',[p.id,'$checked',st.id])}>${escapeHtml(p.name)}</label>`).join('')}</div></div>`).join('')}
   </details>`;
