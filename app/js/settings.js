@@ -1625,6 +1625,7 @@ const ROLE_TEMPLATES = {
   'Garson': ['order','packages','settings_products','settings_ingredients','purchasing_orders'],
   'Mutfak': ['kitchen','settings_products','settings_ingredients','purchasing_orders'],
   'Kasiyer': ['order','packages','payments','tips','giftcards','crm'],
+  'Satın Alma': ['purchasing_orders','purchasing_manage','purchasing_suppliers','settings_ingredients'],
   'Müdür Yardımcısı': ['order','packages','kitchen','payments','reservations','crm','shifts','purchasing_orders','purchasing_manage','purchasing_suppliers','settings_products','settings_ingredients','settings_zones','settings_flags']
 };
 function applyRoleTemplate(name){

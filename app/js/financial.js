@@ -193,6 +193,7 @@ async function renderReportsView(main, session){
       <div class="tab ${APP.reportTab==='waste'?'active':''}" data-tab="waste" ${act('setReportTab', 'waste')}>🔥 İsraf</div>
       <div class="tab ${APP.reportTab==='resv'?'active':''}" data-tab="resv" ${act('setReportTab', 'resv')}>📅 Rezervasyon Analizi</div>
       <div class="tab ${APP.reportTab==='openacc'?'active':''}" data-tab="openacc" ${act('setReportTab', 'openacc')}>📒 Açık Hesaplar</div>
+      <div class="tab ${APP.reportTab==='purchase'?'active':''}" data-tab="purchase" ${act('setReportTab', 'purchase')}>🚚 Satın Alma</div>
     </div>
     <div id="reportContent"></div>`;
   await renderReportTabContent(session);
@@ -240,6 +241,7 @@ function renderReportTabContent(session){
   if(tab==='waste') return renderWasteContent(session);
   if(tab==='resv') return renderReservationAnalyticsContent(session);
   if(tab==='openacc') return renderOpenAccountsContent(session);
+  if(tab==='purchase') return renderPurchaseReportContent(session);
   return renderReportContent(session);
 }
 async function renderReportContent(session){
@@ -657,6 +659,37 @@ async function renderTipPoolContent(session){
    report_waste (pos-core.js > openWasteModal/submitWaste). Maliyeti
    (unit_cost*qty) burada toplanıp gösteriliyor ki israfın kâr üzerindeki
    etkisi görünür olsun. */
+/* --- Satın Alma: seçilen tarih aralığında Tedarik & Satın Alma'dan verilen siparişler
+   (bkz. get_purchase_report). Taslak ve iptaller toplamlara katılmaz. --- */
+async function renderPurchaseReportContent(session){
+  const el = document.getElementById('reportContent'); if(!el) return;
+  const { data, error } = await withLoadingOverlay(sb.rpc('get_purchase_report', { p_token: session.session_token, p_date: APP.reportDate, p_date_to: APP.reportDateTo }));
+  if(error){ el.innerHTML = '<p class="muted">Yüklenemedi: '+escapeHtml(error.message)+'</p>'; return; }
+  const rows = data || [];
+  const live = rows.filter(p => p.status!=='draft' && p.status!=='cancelled');
+  const total = live.reduce((t, p) => t + (Number(p.total_amount)||0), 0);
+  const recv = live.reduce((t, p) => t + (Number(p.received_amount)||0), 0);
+  const bySup = {};
+  live.forEach(p => { const k = p.supplier_name || '—'; bySup[k] = (bySup[k]||0) + (Number(p.total_amount)||0); });
+  const card = (v, l, c) => `<div class="box" style="text-align:center;"><div style="font-size:22px;font-weight:800;${c?'color:'+c+';':''}">${v}</div><div class="muted" style="font-size:12px;">${l}</div></div>`;
+  el.innerHTML = `
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:16px;">
+      ${card(live.length, '🚚 Sipariş')}${card(money(total), 'Sipariş Tutarı')}${card(money(recv), 'Teslim Alınan', 'var(--green)')}${card(money(Math.max(0,total-recv)), 'Bekleyen', '#d97706')}
+    </div>
+    ${Object.keys(bySup).length ? `<div class="box" style="max-width:none;margin-bottom:16px;"><h3 style="margin-top:0;">Tedarikçiye Göre</h3>${Object.entries(bySup).sort((a,b)=>b[1]-a[1]).map(([k,v]) => `<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);"><span>${escapeHtml(k)}</span><b>${money(v)}</b></div>`).join('')}</div>` : ''}
+    <div class="box" style="max-width:none;">
+      <h3 style="margin-top:0;">Siparişler</h3>
+      ${rows.length ? `<div class="settings-table-wrap"><table class="settings-table"><thead><tr><th>Tarih</th><th>Tedarikçi</th><th>Kalemler</th><th>Durum</th><th>Veren</th><th style="text-align:right;">Tutar</th></tr></thead><tbody>
+        ${rows.map(p => `<tr>
+          <td style="white-space:nowrap;">${new Date(p.order_date).toLocaleDateString('tr-TR')}</td>
+          <td>${escapeHtml(p.supplier_name || '—')}</td>
+          <td style="font-size:12.5px;">${(p.items||[]).map(i => `${escapeHtml(i.name)} ${Number(i.quantity)} ${escapeHtml(i.unit||'')}${Number(i.received)>0 ? ' <span class="muted">(teslim '+Number(i.received)+')</span>' : ''}`).join('<br>') || '<span class="muted">—</span>'}${p.notes ? `<div class="muted" style="margin-top:4px;">📝 ${escapeHtml(p.notes)}</div>` : ''}</td>
+          <td>${typeof poStatusBadge==='function' ? poStatusBadge(Object.assign({}, p, { ordered_total: (p.items||[]).reduce((t,i)=>t+Number(i.quantity||0),0), received_total: (p.items||[]).reduce((t,i)=>t+Math.min(Number(i.received||0),Number(i.quantity||0)),0) })) : escapeHtml(p.status)}</td>
+          <td>${escapeHtml(p.created_by_name || '—')}</td>
+          <td style="text-align:right;white-space:nowrap;font-weight:700;">${money(p.total_amount)}</td></tr>`).join('')}
+      </tbody></table></div>` : '<p class="muted">Bu dönemde satın alma siparişi yok.</p>'}
+    </div>`;
+}
 async function renderWasteContent(session){
   const el = document.getElementById('reportContent'); if(!el) return;
   const { data, error } = await withLoadingOverlay(sb.rpc('list_waste', { p_token: session.session_token, p_date: APP.reportDate, p_date_to: APP.reportDateTo }));
