@@ -111,28 +111,18 @@ async function renderReservationHistory(){
   const hm = (iso) => iso ? new Date(iso).toLocaleTimeString('tr-TR', { hour:'2-digit', minute:'2-digit' }) : '-';
   const cnt = (st) => rows.filter(r => r.status===st).length;
   wrap.innerHTML = `<p class="muted" style="text-align:left;margin:0 0 10px;font-size:13px;">${rows.length} kayıt · ${cnt('seated')} oturdu · ${cnt('cancelled')} iptal · ${cnt('no_show')} gelmedi</p>
-    <div class="settings-table-wrap"><table class="settings-table">
-      <thead><tr><th>Müşteri</th><th>Kişi</th><th>Rezervasyon</th><th>Sonuç</th><th>Masa</th><th>Saate göre</th><th></th></tr></thead>
-      <tbody>${rows.map(r => {
+    <div class="rh-grid">${rows.map((r, i) => {
         const d = r.seated_diff_minutes;
-        const diffTxt = d==null ? '<span class="muted">-</span>'
-          : d > 0 ? `<span style="color:var(--red);font-weight:700;">${d} dk geç geldi</span>`
-          : d < 0 ? `<span style="color:var(--green);font-weight:700;">${-d} dk erken geldi</span>`
-          : '<span style="color:var(--green);font-weight:700;">Tam zamanında</span>';
-        const result = r.status==='seated' ? `✅ Oturdu${r.seated_at ? ' ' + hm(r.seated_at) : ''}`
-          : r.status==='cancelled' ? `<span style="color:var(--red);">✕ İptal${r.closed_at ? ' ' + hm(r.closed_at) : ''}</span>`
-          : `<span style="color:var(--red);">🚫 Gelmedi</span>`;
-        return `<tr>
-          <td class="col-name">${escapeHtml(r.customer_name)}${r.phone ? `<div class="muted" style="font-size:11.5px;">${escapeHtml(r.phone)}</div>` : ''}${r.email ? `<div class="muted" title="${escapeAttr(r.email)}" style="font-size:11.5px;max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">✉️ ${escapeHtml(r.email)}</div>` : ''}${r.notes ? `<div class="muted" style="font-size:11px;overflow-wrap:anywhere;">${escapeHtml(r.notes)}</div>` : ''}</td>
-          <td>${r.party_size}</td>
-          <td>${hm(r.reservation_time)}</td>
-          <td>${result}</td>
-          <td>${r.table_name ? `<b>${escapeHtml(r.table_name)}</b>` : '<span class="muted">—</span>'}</td>
-          <td>${diffTxt}</td>
-          <td><button type="button" class="sbtn" style="width:auto;margin:0;" title="Yaklaşan rezervasyonlara geri al" ${act('changeReservationStatus', r.id, 'confirmed')}>↩ Geri Al</button></td>
-        </tr>`;
-      }).join('')}</tbody>
-    </table></div>`;
+        const st = r.status==='seated' ? 'ok' : 'bad';
+        const diffTxt = d==null ? '' : d > 0 ? `<span class="pchip warn">🐢 ${d} dk geç</span>` : d < 0 ? `<span class="pchip rh-good">⚡ ${-d} dk erken</span>` : '<span class="pchip rh-good">🎯 Tam zamanında</span>';
+        const result = r.status==='seated' ? `✅ Oturdu${r.seated_at ? ' · ' + hm(r.seated_at) : ''}` : r.status==='cancelled' ? `✕ İptal${r.closed_at ? ' · ' + hm(r.closed_at) : ''}` : '🚫 Gelmedi';
+        return `<div class="rh-card rh-${st}" style="--i:${Math.min(i,12)};">
+          <div class="rh-top">${avatarHtml(r.customer_name)}<div class="rh-who"><b>${escapeHtml(r.customer_name)}</b><small>${r.phone ? '📞 ' + escapeHtml(r.phone) : 'telefon yok'}</small></div><span class="rh-res">${result}</span></div>
+          <div class="rv-meta"><span class="pchip">🕒 ${hm(r.reservation_time)}</span><span class="pchip">👥 ${r.party_size} kişi</span><span class="pchip">🪑 ${r.table_name ? escapeHtml(r.table_name) : '—'}</span>${diffTxt}</div>
+          ${r.email ? `<div class="rh-note" title="${escapeAttr(r.email)}">✉️ ${escapeHtml(r.email)}</div>` : ''}${r.notes ? `<div class="rh-note">📝 ${escapeHtml(r.notes)}</div>` : ''}
+          <button type="button" class="pc-btn rh-undo" title="Yaklaşan rezervasyonlara geri al" ${act('changeReservationStatus', r.id, 'confirmed')}>↩ Geri Al</button>
+        </div>`;
+      }).join('')}</div>`;
 }
 /* "Oturdu": rezervasyonun masası yoksa masa sorulur; müşteri adı, telefonu,
    kişi sayısı ve notu o masada açılan siparişe yazılır (bkz. seat_reservation),
@@ -280,27 +270,17 @@ async function renderWaitlistHistory(){
   const avg = seated.length ? Math.round(seated.reduce((t, r) => t + Number(r.waited_minutes||0), 0) / seated.length) : null;
   const hm = (iso) => iso ? new Date(iso).toLocaleTimeString('tr-TR', { hour:'2-digit', minute:'2-digit' }) : '-';
   wrap.innerHTML = `<p class="muted" style="text-align:left;margin:0 0 10px;font-size:13px;">${rows.length} kayıt · ${seated.length} oturdu · ${rows.length - seated.length} ayrıldı${avg!=null ? ' · ortalama bekleme ' + avg + ' dk' : ''}</p>
-    <div class="settings-table-wrap"><table class="settings-table">
-      <thead><tr><th>Müşteri</th><th>Kişi</th><th>Katılım</th><th>Sonuç</th><th>Masa</th><th>Bekleme</th><th>Tahmine göre</th></tr></thead>
-      <tbody>${rows.map(r => {
+    <div class="rh-grid">${rows.map((r, i) => {
         const waited = Number(r.waited_minutes||0);
         const q = r.quoted_wait_minutes;
         const diff = (q!=null && r.status==='seated') ? waited - q : null;
-        const diffTxt = diff==null ? '<span class="muted">-</span>'
-          : diff > 0 ? `<span style="color:var(--red);font-weight:700;">${diff} dk geç</span>`
-          : diff < 0 ? `<span style="color:var(--green);font-weight:700;">${-diff} dk erken</span>`
-          : '<span style="color:var(--green);font-weight:700;">Tam zamanında</span>';
-        return `<tr>
-          <td class="col-name">${escapeHtml(r.customer_name)}${r.phone ? `<div class="muted" style="font-size:11.5px;">${escapeHtml(r.phone)}</div>` : ''}</td>
-          <td>${r.party_size}</td>
-          <td>${hm(r.joined_at)}</td>
-          <td>${r.status==='seated' ? `✅ ${hm(r.seated_at)}` : `<span style="color:var(--red);">✕ Ayrıldı ${hm(r.left_at)}</span>`}</td>
-          <td>${r.table_name ? `<b>${escapeHtml(r.table_name)}</b>` : '<span class="muted">—</span>'}</td>
-          <td>${waited} dk${q!=null ? ` <span class="muted" style="font-size:11.5px;">(tahmin ${q})</span>` : ''}</td>
-          <td>${diffTxt}</td>
-        </tr>`;
-      }).join('')}</tbody>
-    </table></div>`;
+        const diffTxt = diff==null ? '' : diff > 0 ? `<span class="pchip warn">🐢 tahminden ${diff} dk geç</span>` : diff < 0 ? `<span class="pchip rh-good">⚡ tahminden ${-diff} dk erken</span>` : '<span class="pchip rh-good">🎯 Tam zamanında</span>';
+        const ok = r.status==='seated';
+        return `<div class="rh-card rh-${ok?'ok':'bad'}" style="--i:${Math.min(i,12)};">
+          <div class="rh-top">${avatarHtml(r.customer_name)}<div class="rh-who"><b>${escapeHtml(r.customer_name)}</b><small>${r.phone ? '📞 ' + escapeHtml(r.phone) : 'telefon yok'}</small></div><span class="rh-res">${ok ? '✅ Oturdu · ' + hm(r.seated_at) : '✕ Ayrıldı · ' + hm(r.left_at)}</span></div>
+          <div class="rv-meta"><span class="pchip">🕒 ${hm(r.joined_at)} katıldı</span><span class="pchip">👥 ${r.party_size} kişi</span><span class="pchip">🪑 ${r.table_name ? escapeHtml(r.table_name) : '—'}</span><span class="pchip">⏳ ${waited} dk${q!=null ? ' (tahmin ' + q + ')' : ''}</span>${diffTxt}</div>
+        </div>`;
+      }).join('')}</div>`;
 }
 /* Bekleme listesinden "Oturdu": masa seçilir, masada müşteri adı/telefon ve
    bekleme notuyla sipariş açılır (bkz. seat_waitlist_entry). */

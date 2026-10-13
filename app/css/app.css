@@ -2076,3 +2076,14 @@ input.sw:checked{background:var(--c1);} input.sw:checked::after{transform:transl
 .rv-card.soon{border-color:#f59e0b!important;box-shadow:0 0 0 1px #f59e0b55,0 0 18px #f59e0b33;animation:rvSoon 2s ease-in-out infinite}
 @keyframes rvSoon{50%{box-shadow:0 0 0 1px #f59e0b88,0 0 26px #f59e0b55}}
 .pchip.rv-soon{background:#f59e0b22;color:#f59e0b;border-color:#f59e0b66;font-weight:700}
+/* Rezervasyon geçmişi kartları */
+.rh-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px;margin-bottom:16px}
+.rh-card{--sc:#22c55e;position:relative;display:flex;flex-direction:column;gap:10px;padding:14px 14px 12px 18px;border-radius:18px;border:1px solid var(--border);background:linear-gradient(135deg,color-mix(in srgb,var(--sc) 9%,var(--panel)),var(--panel));overflow:hidden;animation:dgPop .3s both;animation-delay:calc(var(--i)*40ms)}
+.rh-card::before{content:'';position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--sc)}
+.rh-card.rh-bad{--sc:#ef4444}
+.rh-top{display:flex;align-items:center;gap:10px}
+.rh-who{flex:1;min-width:0}.rh-who b{display:block;overflow-wrap:anywhere}.rh-who small{color:var(--muted);font-size:11.5px}
+.rh-res{font-size:12px;font-weight:800;padding:4px 10px;border-radius:999px;white-space:nowrap;color:var(--sc);background:color-mix(in srgb,var(--sc) 15%,transparent)}
+.rh-note{font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pchip.rh-good{background:#22c55e22;color:#22c55e;border-color:#22c55e55}
+.rh-undo{align-self:flex-end}
