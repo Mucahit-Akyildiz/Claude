@@ -1462,7 +1462,7 @@ function roleCheckboxes(idPrefix, selectedIds, disabled){
   // Yönetici (sistem) rolü yalnızca işletme sahibine aittir, başkasına atanamaz.
   const roles = (APP.config.roles||[]).filter(r => !r.is_system);
   return roles.map(r => `
-    <label style="display:flex;align-items:center;gap:6px;font-weight:400;font-size:13px;margin-bottom:4px;">
+    <label class="role-chk" style="display:flex;align-items:center;gap:6px;font-weight:400;font-size:13px;margin-bottom:4px;">
       <input type="checkbox" id="${idPrefix}_role_${r.id}" value="${r.id}" data-roles-group="${idPrefix}" ${selectedIds.includes(r.id)?'checked':''} style="width:auto;margin:0;" ${disabled?'disabled':''} ${actOn('change','enforceMaxTwoRoles',[idPrefix])}>
       ${escapeHtml(r.name)}
     </label>`).join('');
@@ -1513,7 +1513,7 @@ function ownerUserRow(u, session){
   const self = u.id === session.user_id;
   return `<tr data-uid="${u.id}" data-owner="1">
     <td></td>
-    <td class="col-name"><input value="${escapeAttr(u.username)}" id="us_name_${u.id}" ${self?'':'disabled'}></td>
+    <td class="col-name uc-name">${avatarHtml(u.username)}<input value="${escapeAttr(u.username)}" id="us_name_${u.id}" ${self?'':'disabled'}></td>
     <td class="col-name">${self ? `${passField('us_pass_'+u.id, false, true)}` : '<span class="muted">—</span>'}</td>
     <td class="col-name"><span class="role-badge">👑 İşletme Sahibi · Yönetici</span>${self ? '' : '<div class="muted" style="font-size:12px;margin-top:4px;">🔒 Değiştirilemez</div>'}</td>
   </tr>`;
@@ -1526,7 +1526,9 @@ function userIsPrivileged(u){
 }
 function renderUsersSettings(el, session){
   const canAssign = canManage(session, 'users_assign_roles');
-  el.innerHTML = `<div class="box" style="max-width:none;">
+  const us = APP.config.users || [], lic = APP.config.license || {};
+  el.innerHTML = statChips([['👥', us.length, 'Kullanıcı', 'var(--c1)'], ['✅', us.filter(u => u.is_active!==false).length, 'Aktif', 'var(--ok,#22c55e)'],
+      ['⏸', us.filter(u => u.is_active===false).length, 'Pasif', 'var(--c3)'], ['🎫', lic.max_users ? Math.max(0, lic.max_users - us.length) : '—', 'Eklenebilir kullanıcı', 'var(--c2)']]) + `<div class="box" style="max-width:none;">
     <h2>Kullanıcılar</h2>
     ${canAssign ? '' : '<p class="muted" style="text-align:left;font-size:12.5px;margin:-4px 0 12px;">🔒 Kullanıcı ekleme, rol değiştirme, pasife alma ve silme için <b>Kullanıcı Yönetimi</b> izni gerekir; yetkili kişilerin hesapları da kilitlidir. Diğer personelin adını ve şifresini değiştirebilirsiniz.</p>'}
     <div class="add-row-panel" style="margin:0 0 16px;${canAssign?'':'display:none;'}">
@@ -1551,7 +1553,7 @@ function renderUsersSettings(el, session){
       </div>
     </div>
     <p class="muted" id="userSelInfo" style="text-align:left;font-size:12.5px;margin:0 0 8px;">Satırdaki bilgileri değiştirip <b>Kaydet</b>'e basın${canAssign ? '; pasife almak / silmek için satırları seçin' : ''}.</p>
-    <div class="settings-table-wrap">
+    <div class="settings-table-wrap user-cards">
     <table class="settings-table">
       <thead><tr><th style="width:36px;">${canAssign ? `<input type="checkbox" id="userSelAll" style="width:auto;margin:0;" title="Tümünü seç" ${actOn('change','selectAllUsers',['$checked'])}>` : ''}</th><th>Kullanıcı Adı</th><th>Yeni Şifre</th><th>Roller (en fazla 2)</th></tr></thead>
       <tbody ${actOn('input','markUserDirty',['$event'])} ${actOn('change','markUserDirty',['$event'])}>
@@ -1559,7 +1561,7 @@ function renderUsersSettings(el, session){
         .map(u => { const locked = !canAssign && userIsPrivileged(u); return (isOwnerUser(u) ? ownerUserRow(u, session) : `
         <tr data-uid="${u.id}" style="${u.is_active===false?'opacity:.55;':''}">
           <td>${locked ? '<span title="Yetkili kullanıcı - düzenleme izniniz yok">🔒</span>' : !canAssign ? '' : `<input type="checkbox" class="user-sel" value="${u.id}" style="width:auto;margin:0;" ${actOn('change','updateUserSelection',[])}>`}</td>
-          <td class="col-name"><input value="${escapeAttr(u.username)}" id="us_name_${u.id}" ${locked?'disabled':''}>${u.is_active===false?'<span class="role-badge" style="color:var(--red);border-color:var(--red);margin-top:6px;display:inline-block;">Pasif</span>':''}</td>
+          <td class="col-name uc-name">${avatarHtml(u.username)}<input value="${escapeAttr(u.username)}" id="us_name_${u.id}" ${locked?'disabled':''}>${u.is_active===false?'<span class="role-badge" style="color:var(--red);border-color:var(--red);margin-top:6px;display:inline-block;">Pasif</span>':''}</td>
           <td class="col-name">${passField('us_pass_'+u.id, locked, true)}</td>
           <td class="col-name">${roleCheckboxes('us_'+u.id, u.role_ids||[], !canAssign)}</td>
         </tr>`).replace('<tr', `<tr data-uname="${escapeAttr(String(u.username).toLocaleLowerCase('tr'))}"`); }).join('')}
@@ -1592,31 +1594,34 @@ async function renderShiftsSettings(el, session){
     <h2>Vardiyalar</h2>
     <div id="shiftApprovalWrap"></div>
     <div id="shiftPendingWrap"></div>
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
-      <span class="muted">Tarih Seç</span>
+    <div class="sh-date">
+      <button type="button" class="ico-btn" title="Önceki gün" ${act('shiftDayStep', -1)}>‹</button>
       <input type="date" id="shiftsDateInput" value="${APP.shiftsDate}" ${actOn('change','changeShiftsDate',['$value'])}>
+      <button type="button" class="ico-btn" title="Sonraki gün" ${act('shiftDayStep', 1)}>›</button>
+      <button type="button" class="pc-btn" ${act('changeShiftsDate', todayLocalDateStr())}>Bugün</button>
     </div>
     <div id="shiftsTableWrap"><p class="muted">Yükleniyor…</p></div>
   </div>`;
   await renderShiftsTable(session);
 }
-function changeShiftsDate(v){ APP.shiftsDate = v; renderShiftsTable(getSession()); }
+function changeShiftsDate(v){ APP.shiftsDate = v; const i = document.getElementById('shiftsDateInput'); if(i) i.value = v; renderShiftsTable(getSession()); }
+function shiftDayStep(d){ const x = new Date(APP.shiftsDate+'T12:00'); x.setDate(x.getDate()+d); changeShiftsDate(x.getFullYear()+'-'+String(x.getMonth()+1).padStart(2,'0')+'-'+String(x.getDate()).padStart(2,'0')); }
 async function renderShiftsTable(session){
   const wrap = document.getElementById('shiftsTableWrap'); if(!wrap) return;
   const { data, error } = await withLoadingOverlay(sb.rpc('list_staff_shifts', { p_token: session.session_token, p_date: APP.shiftsDate }));
   if(error){ wrap.innerHTML = '<p class="muted">Yüklenemedi: '+error.message+'</p>'; return; }
   const approvalWrap = document.getElementById('shiftApprovalWrap');
   if(approvalWrap) approvalWrap.innerHTML = `
-    <label style="display:flex;align-items:flex-start;gap:10px;margin:0 0 14px;cursor:${canManage(session,'shifts')?'pointer':'default'};">
-      <input type="checkbox" style="width:auto;margin-top:3px;" ${data.approval_required?'checked':''} ${canManage(session,'shifts')?'':'disabled'} ${actOn('change','toggleShiftApproval',['$checked'])}>
+    <div class="sh-opts"><label class="sw-card">
+      <input type="checkbox" class="sw" ${data.approval_required?'checked':''} ${canManage(session,'shifts')?'':'disabled'} ${actOn('change','toggleShiftApproval',['$checked'])}>
       <span><b>Vardiya başlatma yönetici onayına bağlı</b><br>
       <span class="muted" style="font-size:12.5px;">Açıkken personel vardiyayı sadece <i>isteyebilir</i>; siz onayladığınızda başlar ve vardiyayı yalnızca yönetici bitirebilir.${canManage(session,'shifts')?'':' (Bu ayarı Yönetici değiştirebilir.)'}</span></span>
     </label>
-    <label style="display:flex;align-items:flex-start;gap:10px;margin:0 0 14px;cursor:${canManage(session,'shifts')?'pointer':'default'};">
-      <input type="checkbox" style="width:auto;margin-top:3px;" ${data.shift_required?'checked':''} ${canManage(session,'shifts')?'':'disabled'} ${actOn('change','toggleShiftRequired',['$checked'])}>
+    <label class="sw-card">
+      <input type="checkbox" class="sw" ${data.shift_required?'checked':''} ${canManage(session,'shifts')?'':'disabled'} ${actOn('change','toggleShiftRequired',['$checked'])}>
       <span><b>Vardiya açmadan çalışılamasın</b><br>
       <span class="muted" style="font-size:12.5px;">Açıkken personel vardiyasını başlatmadan Sipariş Al, Paket, Mutfak, Ödemeler, Rezervasyon ve Satınalma ekranlarını kullanamaz. Vardiya talebini gönderdiği anda çalışmaya başlayabilir; onayı siz sonradan verirsiniz. Yönetici ve <b>⏱ Vardiya Açmadan Çalışma</b> izni verilen roller (ör. Tam Yetkili, en fazla 3 kişi) bu kuraldan muaftır.</span></span>
-    </label>`;
+    </label></div>`;
   const pendWrap = document.getElementById('shiftPendingWrap');
   const pending = data.pending || [];
   const endReqs = data.end_requests || [];
@@ -1640,22 +1645,26 @@ async function renderShiftsTable(session){
         </span></div>`).join('')}
     </div>` : '');
   const rows = data.rows || [];
-  if(!rows.length){ wrap.innerHTML = '<p class="muted">Bu tarihte vardiya kaydı yok.</p>'; return; }
-  wrap.innerHTML = `<div class="settings-table-wrap">
-    <table class="settings-table">
-      <thead><tr><th>Personel</th><th>Giriş</th><th>Çıkış</th><th>Süre</th><th></th></tr></thead>
-      <tbody>
-      ${rows.map(r => `
-        <tr>
-          <td class="col-name">${escapeHtml(r.username)}${r.approved_by && r.approved_by!==r.username ? `<div class="muted" style="font-size:11.5px;">Onaylayan: ${escapeHtml(r.approved_by)}</div>` : ''}</td>
-          <td>${formatShiftTime(r.clock_in)}</td>
-          <td>${!r.clock_out && r.end_requested_at ? `<span style="color:#d9a400;font-weight:700;">🏁 ${formatShiftTime(r.end_requested_at)}'de bitirmek istedi</span>` : r.clock_out ? formatShiftTime(r.clock_out) + (r.ended_by && r.ended_by!==r.username ? `<div class="muted" style="font-size:11.5px;">${escapeHtml(r.ended_by)} bitirdi</div>` : '') : '<span class="muted">Devam ediyor</span>'}</td>
-          <td>${formatShiftDuration(r.duration_minutes)}${r.is_paused ? ' <span style="color:#d9a400;font-weight:700;font-size:12px;">⏸ Duraklatıldı</span>' : ''}${r.paused_minutes > 0 ? `<div class="muted" style="font-size:11.5px;">${formatShiftDuration(r.paused_minutes)} aktif değildi</div>` : ''}</td>
-          <td>${r.clock_out ? '' : `<button class="actBtn" style="width:auto;margin:0;background:var(--red);color:var(--btn-ink);" ${act('manageShift', r.id, 'end')}>⏹ Bitir</button>`}</td>
-        </tr>`).join('')}
-      </tbody>
-    </table>
-  </div>`;
+  if(!rows.length){ wrap.innerHTML = '<div class="empty-state"><div style="font-size:42px;">🕐</div><p class="muted">Bu tarihte vardiya kaydı yok.</p></div>'; return; }
+  const dayStart = new Date(APP.shiftsDate+'T00:00').getTime(), pos = (t) => Math.max(0, Math.min(100, (t - dayStart) / 864e5 * 100));
+  const nowPct = pos(Date.now()), totalMin = rows.reduce((x, r) => x + (Number(r.duration_minutes)||0), 0), live = rows.filter(r => !r.clock_out).length;
+  wrap.innerHTML = statChips([['🧑‍🍳', rows.length, 'Vardiya', 'var(--c1)'], ['🟢', live, 'Devam eden', 'var(--ok,#22c55e)'],
+      ['⏱', formatShiftDuration(totalMin), 'Toplam çalışma', 'var(--c2)'], ['⏸', rows.filter(r => r.is_paused).length, 'Duraklatılmış', 'var(--c3)']]) + `
+    <div class="sh-tl">
+      <div class="sh-axis"><span></span><div>${[0,3,6,9,12,15,18,21,24].map(h => `<i style="left:${h/24*100}%">${String(h).padStart(2,'0')}</i>`).join('')}</div><span></span></div>
+      ${rows.map((r, i) => { const a = pos(new Date(r.clock_in).getTime()), b = r.clock_out ? pos(new Date(r.clock_out).getTime()) : nowPct;
+        return `<div class="sh-row ${r.clock_out?'':'live'}" style="--i:${Math.min(i,12)};">
+          <div class="sh-who">${avatarHtml(r.username)}<div><b>${escapeHtml(r.username)}</b><small>${r.approved_by && r.approved_by!==r.username ? 'Onaylayan: '+escapeHtml(r.approved_by) : formatShiftTime(r.clock_in)+' → '+(r.clock_out ? formatShiftTime(r.clock_out) : 'devam ediyor')}</small></div></div>
+          <div class="sh-track">${nowPct>0 && nowPct<100 ? `<span class="sh-now" style="left:${nowPct}%"></span>` : ''}
+            <div class="sh-bar ${r.is_paused?'paused':''}" style="left:${a}%;width:${Math.max(1.2, b-a)}%;" title="${formatShiftTime(r.clock_in)} - ${r.clock_out ? formatShiftTime(r.clock_out) : 'şimdi'}"><span>${formatShiftDuration(r.duration_minutes)}</span></div></div>
+          <div class="sh-side">
+            ${!r.clock_out && r.end_requested_at ? `<span class="pchip warn">🏁 ${formatShiftTime(r.end_requested_at)}'de bitirmek istedi</span>` : ''}
+            ${r.is_paused ? '<span class="pchip warn">⏸ Duraklatıldı</span>' : ''}
+            ${r.paused_minutes > 0 ? `<span class="pchip">${formatShiftDuration(r.paused_minutes)} pasif</span>` : ''}
+            ${r.clock_out ? (r.ended_by && r.ended_by!==r.username ? `<span class="pchip">${escapeHtml(r.ended_by)} bitirdi</span>` : '<span class="pchip">✓ Bitti</span>') : `<button type="button" class="pc-btn rv-del" ${act('manageShift', r.id, 'end')}>⏹ Bitir</button>`}
+          </div>
+        </div>`; }).join('')}
+    </div>`;
 }
 async function manageShift(id, action){
   if(action==='end' && !confirm('Bu personelin vardiyası şimdi bitirilsin mi?')) return;
@@ -1715,23 +1724,22 @@ async function loadActiveUsers(){
   const { data, error } = await sb.rpc('list_active_staff', { p_token: session.session_token, p_minutes: APP.activeUsersMinutes || 5 });
   if(error){ body.innerHTML = '<p class="muted">Yüklenemedi: '+escapeHtml(error.message)+'</p>'; return; }
   const rows = data.rows || [];
-  body.innerHTML = `
-    <div class="home-grid" style="margin-top:0;margin-bottom:20px;">
-      ${statCard('Aktif Kullanıcı', data.active_users, 'var(--green)')}
-      ${statCard('Vardiyada', data.on_shift)}
-      ${statCard('Bugün Giren', data.today_users)}
-      ${statCard('Kullanıcı / Lisans', (data.total_users ?? '—') + ' / ' + (data.max_users ?? '—'), (data.max_users && data.total_users >= data.max_users) ? 'var(--red)' : null)}
-    </div>
-    ${data.max_users ? `<p class="muted" style="text-align:left;margin:-8px 0 16px;font-size:12.5px;">Sistemde ${data.total_users} kullanıcı var (${data.enabled_users} aktif, ${data.total_users - data.enabled_users} pasif) · paketiniz ${data.max_users} kullanıcıya izin veriyor · ${Math.max(0, data.max_users - data.total_users)} kullanıcı daha ekleyebilirsiniz.</p>` : ''}
-    ${!rows.length ? '<p class="muted">Bu sürede aktif kullanıcı yok.</p>' : `<div class="settings-table-wrap"><table class="settings-table">
-      <thead><tr><th>Kullanıcı</th><th>Rol</th><th>Son İşlem</th><th>Giriş</th><th>Vardiya</th></tr></thead>
-      <tbody>${rows.map(r => `<tr>
-        <td class="col-name">${r.online===false ? '⚪' : Date.now() - new Date(r.last_seen_at).getTime() < 120000 ? '🟢' : '🟡'} ${escapeHtml(r.username)}${r.online===false ? ' <span class="muted" style="font-size:11.5px;">çıkış yaptı' + (r.logged_out_at ? ' ' + new Date(r.logged_out_at).toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'}) : '') + '</span>' : ''}</td>
-        <td>${escapeHtml(r.roles||'—')}</td>
-        <td>${fmtRelativeTime(r.last_seen_at)}</td>
-        <td style="font-size:12.5px;">${new Date(r.login_at).toLocaleString('tr-TR', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' })}</td>
-        <td>${r.on_shift ? (r.shift_paused ? '<span class="role-badge" style="color:#d9a400;border-color:#d9a400;">⏸ Vardiya durdu</span>' : '<span class="role-badge" style="color:var(--green);border-color:var(--green);">Vardiyada</span>') + (r.shift_minutes != null ? ` <span class="muted" style="font-size:12px;">${formatShiftDuration(r.shift_minutes)}</span>` : '') : '<span class="muted">—</span>'}</td>
-      </tr>`).join('')}</tbody></table></div>`}`;
+  const full = data.max_users && data.total_users >= data.max_users;
+  body.innerHTML = statChips([['🟢', data.active_users, 'Aktif kullanıcı', 'var(--ok,#22c55e)'], ['🧑‍🍳', data.on_shift, 'Vardiyada', 'var(--c1)'],
+      ['📅', data.today_users, 'Bugün giren', 'var(--c2)'], ['🎫', (data.total_users ?? '—') + ' / ' + (data.max_users ?? '—'), 'Kullanıcı / lisans', full ? 'var(--danger,#ef4444)' : 'var(--c3)']]) + `
+    ${data.max_users ? `<p class="muted" style="text-align:left;margin:-6px 0 14px;font-size:12.5px;">${data.enabled_users} aktif, ${data.total_users - data.enabled_users} pasif kullanıcı · ${Math.max(0, data.max_users - data.total_users)} kullanıcı daha ekleyebilirsiniz.</p>` : ''}
+    ${!rows.length ? '<div class="empty-state"><div style="font-size:42px;">😴</div><p class="muted">Bu sürede aktif kullanıcı yok.</p></div>' : `<div class="au-grid">${rows.map((r, i) => {
+      const st = r.online===false ? 'off' : Date.now() - new Date(r.last_seen_at).getTime() < 120000 ? 'on' : 'idle';
+      return `<div class="au-card au-${st}" style="--i:${Math.min(i,12)};">
+        <div class="cu-top"><span class="au-av">${avatarHtml(r.username)}<i></i></span><div class="cu-id"><b>${escapeHtml(r.username)}</b><small>${escapeHtml(r.roles||'—')}</small></div>
+          <span class="au-st">${st==='on' ? 'Çevrimiçi' : st==='idle' ? 'Boşta' : 'Çıkış yaptı'}</span></div>
+        <div class="pcard-chips">
+          <span class="pchip">⚡ ${fmtRelativeTime(r.last_seen_at)}</span>
+          <span class="pchip">🔑 ${new Date(r.login_at).toLocaleString('tr-TR', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' })}</span>
+          ${r.online===false && r.logged_out_at ? `<span class="pchip">🚪 ${new Date(r.logged_out_at).toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'})}</span>` : ''}
+        </div>
+        ${r.on_shift ? `<div class="au-shift ${r.shift_paused?'paused':''}">${r.shift_paused ? '⏸ Vardiya durdu' : '🟢 Vardiyada'}${r.shift_minutes != null ? ' · '+formatShiftDuration(r.shift_minutes) : ''}</div>` : '<div class="au-shift none">Vardiyada değil</div>'}
+      </div>`; }).join('')}</div>`}`;
 }
 
 /* --- Veri Sıfırlama (yalnızca Yönetici): seçilen tarih aralığındaki işlem

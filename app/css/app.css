@@ -1494,3 +1494,56 @@ body.anim-done .tc.tc-ready{animation:tcPulse 2.2s ease-in-out infinite !importa
 @media (max-width:900px){.sub-hero{grid-template-columns:auto minmax(0,1fr);} .sub-cta{grid-column:1/-1;} .bill-grid{grid-template-columns:1fr;}}
 .sub-hero .error:empty{display:none;}
 .bill-grid .add-row-panel p.muted,#bankTransferBox p.muted{color:var(--muted);text-align:left;}
+
+/* ===== Kullanıcılar: tablo satırları kart olarak ===== */
+.user-cards .settings-table thead{display:none;}
+.user-cards .settings-table,.user-cards .settings-table tbody{display:block;width:100%;}
+.user-cards .settings-table tbody{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px;}
+.user-cards .settings-table tr{display:flex;flex-direction:column;gap:8px;position:relative;padding:14px;border-radius:18px;background:var(--panel);border:1px solid var(--border);box-shadow:inset 0 3px 0 var(--c1);}
+.user-cards .settings-table tr[data-owner]{box-shadow:inset 0 3px 0 var(--c3);}
+.user-cards .settings-table td{display:block;padding:0 !important;border:0 !important;background:transparent !important;}
+.user-cards .settings-table td:first-child{position:absolute;top:14px;right:14px;}
+.user-cards .settings-table td:first-child:empty{display:none;}
+.user-cards .uc-name{display:flex !important;align-items:center;gap:10px;padding-right:28px !important;}
+.user-cards .uc-name input{flex:1;min-width:0;margin:0;font-weight:800;font-size:15px;background:transparent;border-color:transparent;padding:5px 8px;}
+.user-cards .uc-name input:hover,.user-cards .uc-name input:focus{background:var(--panel2);border-color:var(--border);}
+.user-cards .uc-name .role-badge{position:absolute;bottom:14px;right:14px;margin:0 !important;}
+.user-cards tr[data-dirty]{outline:2px solid var(--accent);outline-offset:-2px;}
+.user-cards td:last-child{display:flex !important;flex-wrap:wrap;gap:6px;}
+.role-chk{margin:0 !important;padding:5px 10px;border-radius:999px;border:1px solid var(--border);background:var(--panel2);cursor:pointer;font-size:12.5px !important;font-weight:600 !important;transition:all .15s;}
+.role-chk input{display:none;}
+.role-chk:has(input:checked){background:color-mix(in srgb,var(--c1) 22%,transparent);border-color:var(--c1);color:var(--text);}
+.role-chk:has(input:checked)::before{content:'✓';font-weight:800;}
+.role-chk:has(input:disabled){opacity:.6;cursor:default;}
+
+/* ===== Vardiyalar: zaman çizelgesi ===== */
+.sh-opts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:0 0 16px;}
+.sw-card{display:flex !important;align-items:flex-start;gap:12px;margin:0 !important;padding:14px;border-radius:16px;background:var(--panel2);border:1px solid var(--border);cursor:pointer;text-align:left;font-weight:400 !important;}
+.sw-card:has(.sw:checked){border-color:color-mix(in srgb,var(--c1) 55%,transparent);background:color-mix(in srgb,var(--c1) 10%,var(--panel2));}
+input.sw{appearance:none;-webkit-appearance:none;width:42px !important;height:24px;flex:0 0 42px;margin:2px 0 0 !important;padding:0;border-radius:999px;background:var(--border);position:relative;cursor:pointer;transition:background .2s;border:0;}
+input.sw::after{content:'';position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:#fff;transition:transform .2s;box-shadow:0 1px 3px rgba(0,0,0,.3);}
+input.sw:checked{background:var(--c1);} input.sw:checked::after{transform:translateX(18px);}
+.sh-date{display:flex;align-items:center;gap:8px;margin:0 0 14px;} .sh-date input{width:auto;margin:0;}
+.sh-tl{display:flex;flex-direction:column;gap:8px;}
+.sh-axis,.sh-row{display:grid;grid-template-columns:200px minmax(0,1fr) 230px;gap:14px;align-items:center;}
+.sh-axis > div{position:relative;height:18px;} .sh-axis i{position:absolute;transform:translateX(-50%);font-style:normal;font-size:11px;color:var(--muted);font-weight:700;}
+.sh-row{padding:10px 12px;border-radius:16px;background:var(--panel);border:1px solid var(--border);animation:osIn .35s ease both;animation-delay:calc(var(--i)*.04s);}
+.sh-who{display:flex;align-items:center;gap:10px;min-width:0;} .sh-who > div{display:flex;flex-direction:column;min-width:0;} .sh-who small{font-size:11.5px;color:var(--muted);}
+.sh-track{position:relative;height:30px;border-radius:10px;background:repeating-linear-gradient(90deg,var(--panel2) 0 calc(12.5% - 1px),var(--border) calc(12.5% - 1px) 12.5%);}
+.sh-bar{position:absolute;top:3px;bottom:3px;border-radius:8px;background:linear-gradient(90deg,var(--c1),var(--c2));display:flex;align-items:center;justify-content:center;overflow:hidden;min-width:6px;animation:bcGrowX .7s ease both;transform-origin:left;}
+.sh-bar span{font-size:11px;font-weight:800;color:#fff;white-space:nowrap;padding:0 6px;}
+.sh-row.live .sh-bar{background:linear-gradient(90deg,var(--ok,#22c55e),var(--c1));} .sh-bar.paused{background:repeating-linear-gradient(45deg,var(--c3),var(--c3) 6px,color-mix(in srgb,var(--c3) 70%,#000) 6px 12px);}
+.sh-now{position:absolute;top:-4px;bottom:-4px;width:2px;background:var(--danger,#ef4444);z-index:1;border-radius:2px;}
+.sh-side{display:flex;flex-wrap:wrap;gap:5px;justify-content:flex-end;}
+@media (max-width:900px){.sh-opts{grid-template-columns:1fr;} .sh-axis{display:none;} .sh-row{grid-template-columns:1fr;} .sh-side{justify-content:flex-start;}}
+
+/* ===== Aktif kullanıcılar ===== */
+.au-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px;}
+.au-card{--ac2:var(--ok,#22c55e);display:flex;flex-direction:column;gap:10px;padding:14px;border-radius:18px;background:var(--panel);border:1px solid var(--border);box-shadow:inset 0 3px 0 var(--ac2);animation:osIn .35s ease both;animation-delay:calc(var(--i)*.03s);text-align:left;}
+.au-idle{--ac2:var(--c3);} .au-off{--ac2:#94a3b8;opacity:.7;}
+.au-av{position:relative;display:inline-flex;} .au-av i{position:absolute;right:-2px;bottom:-2px;width:13px;height:13px;border-radius:50%;background:var(--ac2);border:2px solid var(--panel);}
+.au-on .au-av i{animation:tcPulse 2s ease-in-out infinite;}
+.au-st{font-size:11.5px;font-weight:700;color:var(--ac2);white-space:nowrap;}
+.au-shift{font-size:12.5px;font-weight:700;padding:7px 10px;border-radius:10px;background:color-mix(in srgb,var(--ok,#22c55e) 14%,transparent);}
+.au-shift.paused{background:color-mix(in srgb,var(--c3) 18%,transparent);} .au-shift.none{background:var(--panel2);color:var(--muted);font-weight:600;}
+.user-cards .uc-name .role-badge{top:16px;bottom:auto;right:42px;}
