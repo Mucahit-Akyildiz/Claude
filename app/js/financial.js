@@ -701,12 +701,15 @@ async function renderProcurementView(main, session){
         <input type="date" value="${APP.procFrom}" ${actOn('change','setProcDate',['from','$value'])} style="width:auto;margin:0;">
         <span class="muted">–</span>
         <input type="date" value="${APP.procTo}" ${actOn('change','setProcDate',['to','$value'])} style="width:auto;margin:0;">
+        <span style="flex:1;"></span>
+        ${[[7,'Son 7 gün'],[30,'Son 30 gün'],[90,'Son 3 ay'],[365,'Son 1 yıl']].map(([d,l]) => `<button type="button" class="pc-btn" ${act('setProcRange', d)}>${l}</button>`).join('')}
       </div>
     </div>
     <div id="procContent"></div>`;
   applyNavBadges();
   await renderPurchaseReportContent(session);
 }
+function setProcRange(days){ const d = new Date(); d.setDate(d.getDate()-(days-1)); APP.procFrom = d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); APP.procTo = todayLocalDateStr(); renderProcurementView(document.getElementById('main'), getSession()); }
 function setProcDate(which, v){ if(!v) return; if(which==='from') APP.procFrom = v; else APP.procTo = v; renderPurchaseReportContent(getSession()); }
 /* --- Satınalma: seçilen tarih aralığında Tedarik & Satınalma'dan verilen siparişler
    (bkz. get_purchase_report). Taslak ve iptaller toplamlara katılmaz. --- */
@@ -802,9 +805,9 @@ async function renderPeriodAnalyticsContent(session){
 async function renderPurchaseReportContent(session){
   const host = document.getElementById('procContent'); if(!host) return;
   const sub = APP.purchRepSub || 'orders';
-  host.innerHTML = `<div class="tabs" id="purchRepTabs" style="margin-top:0;">
-      <div class="tab ${sub==='orders'?'active':''}" data-tab="purchRepOrders" ${act('setPurchRepSub','orders')}>Satınalma Siparişleri</div>
-      <div class="tab ${sub==='suppliers'?'active':''}" data-tab="purchRepSuppliers" ${act('setPurchRepSub','suppliers')}>Tedarikçiler</div>
+  host.innerHTML = `<div class="bx-tabs" id="purchRepTabs">
+      <button type="button" class="bx-tab ${sub==='orders'?'on':''}" style="--sc:var(--c1);" data-tab="purchRepOrders" ${act('setPurchRepSub','orders')}><span class="bx-ic">🧾</span>Satınalma Siparişleri</button>
+      <button type="button" class="bx-tab ${sub==='suppliers'?'on':''}" style="--sc:var(--c2);" data-tab="purchRepSuppliers" ${act('setPurchRepSub','suppliers')}><span class="bx-ic">🏭</span>Tedarikçiler</button>
     </div><div id="purchRepContent"></div>`;
   if(sub==='suppliers'){ APP.supplierTarget = 'purchRepContent'; return renderSuppliersContent(session); }
   const el = document.getElementById('purchRepContent');
@@ -860,6 +863,8 @@ async function renderPurchaseReportContent(session){
         ${shown.length ? shown.map(card).join('') : '<div class="fs-panel"><p class="muted" style="margin:0;">Bu filtrede sipariş yok.</p></div>'}
       </div>
       <div class="fs-panel pc-side" style="--t:#a78bfa;"><h3><i>🚚</i>Tedarikçiye Göre</h3>
+        ${total ? (() => { const e = Object.entries(bySup).sort((a,b)=>b[1]-a[1]); const top = e.slice(0,3), rest = e.slice(3).reduce((t,x)=>t+x[1],0);
+          return svgDonut(top.map(([k,v], i) => ({ label:k, value:v, color:`var(--c${i+1})` })).concat(rest ? [{ label:'Diğer', value:rest, color:'var(--c4)' }] : []), { center: shortMoney(total), sub:'₺ toplam', title:'Tedarikçi payları', money:true }); })() : ''}
         ${Object.keys(bySup).length ? Object.entries(bySup).sort((a,b)=>b[1]-a[1]).map(([k,v]) => fsRow(escapeHtml(k), money(v), total ? '%'+Math.round(v/total*100) : '')).join('') : '<p class="muted" style="font-size:13px;">Veri yok.</p>'}
         <p class="fs-note">Fiyatı girilmemiş kalemler tutara katılmaz. Fiyatları yazdıktan sonra siparişin <b>Kaydet</b> düğmesine basın.</p>
       </div>
