@@ -837,7 +837,7 @@ begin
       where sh.restaurant_id = r and sh.clock_out is null and (sh.status = 'pending' or (sh.status = 'approved' and sh.end_requested_at is not null));
     v := v || jsonb_build_object('settings', jsonb_array_length(arr)); it := it || jsonb_build_object('settings', arr);
   end if;
-  -- Birim fiyatı girilmemiş satın alma siparişleri: Satın Alma menüsü.
+  -- Birim fiyatı girilmemiş satın alma siparişleri: Satınalma menüsü.
   if _user_has_perm(u, 'purchasing_reports') then
     select coalesce(jsonb_agg(jsonb_build_object('id', p.id, 'label', '🚚 ' || coalesce(sp.name, 'Tedarikçisiz') || ' · ' || to_char(p.order_date, 'DD.MM') || case when exists(select 1 from purchase_order_items i where i.purchase_order_id = p.id and coalesce(i.unit_cost,0) = 0) then ' (birim fiyat bekliyor)' else ' (teslim bekliyor)' end, 'kind', 'purchase')), '[]') into arr
       from purchase_orders p left join suppliers sp on sp.id = p.supplier_id
@@ -1292,7 +1292,7 @@ CREATE FUNCTION public._role_permission_catalog(p_restaurant_id uuid) RETURNS js
     union all
     select v.id, v.label, fc.category, fc.sort_order, v.sub
     from feature_catalog fc
-    cross join (values ('purchasing_orders','Satın Alma Talebi (sipariş verme)',1), ('purchasing_manage','Satın Alma Yönetimi (onay, teslim alma, iptal)',2), ('purchasing_suppliers','Tedarikçi Yönetimi',3), ('purchasing_reports','Satın Alma (siparişler, birim fiyat, tedarikçiler)',4)) v(id,label,sub)
+    cross join (values ('purchasing_orders','Satınalma Talebi (sipariş verme)',1), ('purchasing_manage','Satınalma Yönetimi (onay, teslim alma, iptal)',2), ('purchasing_suppliers','Tedarikçi Yönetimi',3), ('purchasing_reports','Satınalma (siparişler, birim fiyat, tedarikçiler)',4)) v(id,label,sub)
     where fc.id = 'purchasing' and fc.active and 'purchasing' = any(_restaurant_features(p_restaurant_id))
     union all
     select v.id, v.label, 'Yönetim', 9999, v.sub
