@@ -359,6 +359,53 @@ async function saveIngredientUsage(ingredientId){
 
 /* --- Bir ürünün reçetesini düzenleme penceresi --- */
 let RECIPE_DRAFT = [];
+/* Ürün ekstraları: ana ürüne bağlı, siparişte ayrı kalem olarak eklenen seçenekler
+   (örn. Porsiyon Döner → Ek Döner +150 ₺). Ana ürünün istasyonuna ve fişine düşer. */
+function openExtrasModal(productId){
+  const prod = (APP.config.products || []).find(p => p.id === productId); if(!prod) return;
+  document.getElementById('extrasModalBg')?.remove();
+  const bg = document.createElement('div'); bg.id = 'extrasModalBg';
+  bg.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:flex-start;justify-content:center;z-index:100;padding:8vh 16px 16px;overflow:auto;';
+  bg.onclick = (e) => { if(e.target===bg) bg.remove(); };
+  const list = productExtras(productId);
+  bg.innerHTML = `<div style="background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:20px;max-width:480px;width:100%;">
+    <div style="display:flex;justify-content:space-between;align-items:center;"><h2 style="margin:0;">➕ ${escapeHtml(prod.name)} · Ekstralar</h2><span style="cursor:pointer;color:var(--muted);" ${act('removeEl','extrasModalBg')}>✕</span></div>
+    <p class="muted" style="text-align:left;font-size:13px;">Siparişte bu ürün eklenince ekstralar seçilebilir. Her ekstra ayrı kalem olarak eklenir, fiyatı hesaba yansır ve ürünün istasyonuna/fişine düşer.</p>
+    ${list.map(e => `<div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;">
+      <input id="xt_name_${e.id}" value="${escapeAttr(e.name)}" style="flex:1;margin:0;">
+      <input id="xt_price_${e.id}" type="number" min="0" step="0.01" value="${e.price}" style="width:110px;margin:0;" title="Ek fiyat (₺)">
+      ${actBtn('save', 'saveProductExtra', productId, e.id)}${actBtn('delete', 'removeProductExtra', productId, e.id)}
+    </div>`).join('') || '<p class="muted" style="font-size:13px;">Henüz ekstra yok.</p>'}
+    <div style="display:flex;gap:8px;align-items:center;border-top:1px dashed var(--border);padding-top:12px;margin-top:6px;">
+      <input id="xt_name_new" placeholder="örn. Ek Döner" style="flex:1;margin:0;">
+      <input id="xt_price_new" type="number" min="0" step="0.01" placeholder="Fiyat ₺" style="width:110px;margin:0;">
+      <button type="button" style="width:auto;margin:0;" ${act('saveProductExtra', productId, '')}>+ Ekle</button>
+    </div>
+  </div>`;
+  document.body.appendChild(bg);
+}
+async function saveProductExtra(productId, extraId){
+  const k = extraId || 'new';
+  const name = document.getElementById('xt_name_'+k).value.trim();
+  const price = parseFloat(document.getElementById('xt_price_'+k).value) || 0;
+  if(!name){ showToast('Ekstra adı girin'); return; }
+  const session = getSession();
+  const { error } = await sb.rpc('upsert_product_extra', { p_token: session.session_token, p_parent_id: productId, p_id: extraId || null, p_name: name, p_price: price });
+  if(error){ alert(error.message); return; }
+  const { data } = await sb.rpc('get_restaurant_config', { p_token: session.session_token }); if(data) APP.config = data;
+  showToast('Ekstra kaydedildi ✓');
+  openExtrasModal(productId);
+  if(APP.settingsTab==='products') renderSettingsContent(session);
+}
+async function removeProductExtra(productId, extraId){
+  if(!confirm('Bu ekstra silinsin mi?')) return;
+  const session = getSession();
+  const { error } = await sb.rpc('delete_product', { p_token: session.session_token, p_id: extraId });
+  if(error){ alert(friendlyDeleteError ? friendlyDeleteError(error.message) : error.message); return; }
+  const { data } = await sb.rpc('get_restaurant_config', { p_token: session.session_token }); if(data) APP.config = data;
+  openExtrasModal(productId);
+  if(APP.settingsTab==='products') renderSettingsContent(session);
+}
 function openRecipeModal(productId){
   const prod = APP.config.products.find(p => p.id===productId);
   RECIPE_DRAFT = (prod.recipe || []).map(r => ({ ingredient_id: r.ingredient_id, qty_per_unit: r.qty_per_unit, ingredient_name: r.ingredient_name, ingredient_unit: r.ingredient_unit }));
@@ -1052,6 +1099,7 @@ function renderProductsSettings(el, session){
               : '<span class="role-badge" style="color:var(--green);border-color:var(--green);">Satışta</span>'}</td>
           <td><div class="act-row">
             <button type="button" class="act-btn act-recipe" ${act('openRecipeModal', p.id)}><b>📋</b><span>Reçete</span></button>
+            <button type="button" class="act-btn act-recipe" title="Ekstralar (örn. Ek Döner)" ${act('openExtrasModal', p.id)}><b>➕</b><span>Ekstra${productExtras(p.id).length ? ' ('+productExtras(p.id).length+')' : ''}</span></button>
             ${hasFeature('multilang_menu') ? `<button type="button" class="act-btn act-lang" ${act('openTranslationsModal', p.id)} title="QR menüde diğer dillerde gösterilecek isim"><b>🌐</b><span>Çeviri</span></button>` : ''}
           </div></td>
         </tr>`).join('');

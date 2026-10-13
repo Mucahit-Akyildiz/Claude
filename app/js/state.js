@@ -89,7 +89,26 @@ function handleSessionInvalidated(){
   render();
 }
 
-const APP = { view:'home', config:null, selectedZone:null, draftCart:{}, liveOrders:[], authScreen:'login', selectedPackage:null, pendingSignup:null, adminView:'promos', settingsTab:'stations', mobileNavOpen:false };
+const APP = { view:'home', selectedZone:null, draftCart:{}, liveOrders:[], authScreen:'login', selectedPackage:null, pendingSignup:null, adminView:'promos', settingsTab:'stations', mobileNavOpen:false };
+
+/* Ürün ekstraları (parent_id dolu ürünler, örn. Porsiyon Döner → Ek Döner) normal ürün
+   listelerinde görünmesin diye config her atandığında ayrılır: APP.config.products yalnızca
+   ana ürünler, APP.config.extras ekstralar. */
+(function(){
+  let cfg = null;
+  Object.defineProperty(APP, 'config', { enumerable: true, configurable: true,
+    get(){ return cfg; },
+    set(v){
+      if(v && Array.isArray(v.products) && !v._extrasSplit){
+        v.extras = v.products.filter(p => p.parent_id);
+        v.products = v.products.filter(p => !p.parent_id);
+        Object.defineProperty(v, '_extrasSplit', { value: true });
+      }
+      cfg = v;
+    } });
+})();
+function productExtras(pid){ return ((APP.config && APP.config.extras) || []).filter(e => e.parent_id === pid); }
+function findProductAny(pid){ const c = APP.config || {}; return (c.products || []).find(p => p.id === pid) || (c.extras || []).find(p => p.id === pid); }
 
 const NAV_ITEMS = [
   { view:'order', icon:'🍽️', label:'Sipariş Al', perm:'order' },

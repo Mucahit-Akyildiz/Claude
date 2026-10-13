@@ -1024,3 +1024,9 @@ tr.po-row td:first-child{box-shadow:inset 4px 0 0 var(--st);}
 .st-kp-grp{margin-top:8px;} .st-kp-h{font-size:11.5px;font-weight:800;text-transform:uppercase;margin-bottom:4px;}
 .st-kp-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:4px 14px;}
 .st-kp-list label{display:flex;align-items:center;gap:8px;font-size:13.5px;cursor:pointer;margin:0;}
+
+/* Ekstra seçimi (sipariş) */
+.xp-box{background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:16px;width:100%;max-width:360px;}
+.xp-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;}
+.xp-item{display:flex;align-items:center;gap:10px;width:100%;margin:0 0 6px;padding:12px 14px;background:var(--panel2);border:1px solid var(--border);color:var(--text);border-radius:12px;box-shadow:none;font-weight:600;text-align:left;}
+.xp-item span:first-child{flex:1;} .xp-price{color:var(--accent);} .xp-n{background:var(--accent);color:var(--btn-ink);border-radius:999px;padding:0 8px;font-size:12px;}
