@@ -175,6 +175,13 @@ function printerTypeLabel(type){
   if(type==='electron') return 'Masaüstü Uygulaması (sessiz)';
   return 'Tarayıcı penceresi';
 }
+// Masaüstü uygulamasında Windows bildirimi denemesi (izin yoksa ister).
+function testDesktopNotification(){
+  if(!('Notification' in window)){ showToast('Bu cihaz bildirimleri desteklemiyor'); return; }
+  if(Notification.permission==='denied'){ alert('Bildirimler Windows ayarlarında kapalı. Ayarlar → Sistem → Bildirimler bölümünden Peyktan için açın.'); return; }
+  notifyDesktop('Test bildirimi: Windows bildirimleri çalışıyor ✓');
+  showToast('Test bildirimi gönderildi — ekranın sağ altına bakın');
+}
 function isDesktopApp(){ return !!(window.electronAPI && window.electronAPI.isElectron); }
 /* Android/iOS Capacitor kabuğu tespiti - masaüstünden ayrı, çünkü sadece
    telefon ekranında tabloların kart görünümüne dönmesini istiyoruz
@@ -716,7 +723,12 @@ async function renderNotificationSettingsView(main, session){
     <p class="muted" style="text-align:left;">Bu ayarlar sadece <b>bu ekrana/tarayıcıya</b> özeldir — her cihazda ayrı ayrı yapılandırılır, veritabanına kaydedilmez.</p>
 
     ${!hasFeature('push_notifications') ? `<div class="box" style="max-width:none;"><h2>📱 Push Bildirimleri (Uygulama Kapalıyken de)</h2>${lockedFeatureHtml()}</div>` : ''}
-    <div class="box" style="max-width:none;${hasFeature('push_notifications')?'':'display:none;'}">
+    ${isDesktopApp() && hasFeature('push_notifications') ? `<div class="box" style="max-width:none;">
+      <h2>🖥️ Windows Bildirimleri</h2>
+      <p class="muted" style="text-align:left;">Masaüstü uygulamasında bildirimler, uygulama açıkken (simge durumuna küçültülmüş ya da arka planda olsa bile) <b>Windows bildirimi</b> olarak gelir; ayrıca açmanız gerekmez. Windows'un kendi tarayıcı push altyapısı masaüstü uygulamasında çalışmadığı için uygulama tamamen kapalıyken bildirim gelmez — bunun için telefondaki Peyktan uygulamasında bildirimleri açın.</p>
+      <button type="button" class="sbtn" style="width:auto;max-width:260px;" ${act('testDesktopNotification')}>🔔 Test Bildirimi Göster</button>
+    </div>` : ''}
+    <div class="box" style="max-width:none;${hasFeature('push_notifications') && !isDesktopApp()?'':'display:none;'}">
       <h2>📱 Push Bildirimleri (Uygulama Kapalıyken de)</h2>
       <p class="muted" style="text-align:left;">Açarsanız, hazır bekleyen siparişiniz olduğunda bu cihaza — tarayıcı/uygulama kapalı olsa bile — bildirim göndeririz.</p>
       <p id="pushStatusText" class="muted" style="font-size:13px;margin:10px 0;"></p>
