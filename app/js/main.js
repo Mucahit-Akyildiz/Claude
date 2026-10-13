@@ -132,7 +132,7 @@ function render(){
           <button type="button" class="label" style="font-size:11px;color:var(--muted);text-decoration:underline;background:none;border:0;box-shadow:none;padding:0;margin:0;width:auto;cursor:pointer;" ${act('openDeleteAccountModal')}>Hesabımı Sil</button>
         </div>
         <nav>
-          ${items.map(i => `<div class="sb-item ${APP.view===i.view?'active':''}" data-view="${i.view}" ${act('goToView', i.view)} title="${i.label}"><span class="ic">${i.icon}</span><span class="label">${i.label}</span></div>`).join('')}
+          ${items.map((i, k) => `<div class="sb-item ${APP.view===i.view?'active':''}" style="--sc:var(--c${k%4+1});" data-view="${i.view}" ${act('goToView', i.view)} title="${i.label}"><span class="ic">${i.icon}</span><span class="label">${i.label}</span></div>`).join('')}
         </nav>
         <div class="sb-bottom">
           <div id="shiftWidget" class="shift-widget">${shiftWidgetHtml()}</div>

@@ -195,9 +195,15 @@ async function removeOrderFlag(id){
 /* --- Hammaddeler (reçete tabanlı stok) --- */
 function renderIngredientsSettings(el, session){
   const ings = APP.config.ingredients || [];
-  el.innerHTML = `<div class="box" style="max-width:none;">
+  const useCount = (id) => (APP.config.products||[]).filter(p => (p.recipe||[]).some(r => r.ingredient_id === id)).length;
+  const maxStock = Math.max(1, ...ings.map(i => Number(i.stock)||0));
+  const f = APP.ingFilter || 'all';
+  const shownIngs = f==='out' ? ings.filter(i => Number(i.stock)<=0) : f==='idle' ? ings.filter(i => !useCount(i.id)) : f==='waste' ? ings.filter(i => Number(i.waste_pct)>0) : ings;
+  const chip = (k, ic, v, l, c) => `<div class="os-chip os-click ${f===k?'on':''}" role="button" title="Listeyi filtrele" style="--oc:${c};" ${act('setIngFilter', k)}><span class="os-ic">${ic}</span><div><b>${v}</b><small>${l}</small></div></div>`;
+  el.innerHTML = `<div class="order-summary stat-chips" style="--n:4;">${chip('all','🥕', ings.length, 'Hammadde', 'var(--c1)')}${chip('out','⛔', ings.filter(i => Number(i.stock)<=0).length, 'Stoğu biten', 'var(--danger,#ef4444)')}${chip('idle','💤', ings.filter(i => !useCount(i.id)).length, 'Reçetede kullanılmayan', 'var(--c3)')}${chip('waste','✂️', ings.filter(i => Number(i.waste_pct)>0).length, 'Fire tanımlı', 'var(--c2)')}</div>
+  <div class="box" style="max-width:none;">
     <h2>Hammaddeler / Stok Kalemleri</h2>
-    <p class="muted" style="text-align:left;margin:0 0 16px;">Örn: "Köfte" (birim: adet, stok: 200), "Döner Eti" (birim: kg, stok: 20). Yeni bir hammadde eklediğinizde hangi ürünlerin onu kullandığını hemen soracağız — istediğiniz zaman "Kullanıldığı Ürünler" ile bunu tekrar düzenleyebilirsiniz. Aynı hammaddeyi paylaşan ürünlerin stoğu her zaman ortak ve anlık hesaplanır. <b>Fire %</b>: temizleme/kesim kaybıdır; reçeteye net miktarı girersiniz, stoktan fire eklenerek düşülür (örn. %10 fire, 60 g net → 66,7 g düşer). Satırları değiştirip <b>Kaydet</b>'e basın; silmek için satırları seçin.</p>
+    <details class="prod-info"><summary>ℹ️ Nasıl çalışır</summary><p class="muted" style="text-align:left;margin:0 0 12px;">Örn: "Köfte" (birim: adet, stok: 200), "Döner Eti" (birim: kg, stok: 20). Yeni bir hammadde eklediğinizde hangi ürünlerin onu kullandığını hemen soracağız — istediğiniz zaman "Kullanıldığı Ürünler" ile bunu tekrar düzenleyebilirsiniz. Aynı hammaddeyi paylaşan ürünlerin stoğu her zaman ortak ve anlık hesaplanır. <b>Fire %</b>: temizleme/kesim kaybıdır; reçeteye net miktarı girersiniz, stoktan fire eklenerek düşülür (örn. %10 fire, 60 g net → 66,7 g düşer). Kartları değiştirip <b>Kaydet</b>'e basın; silmek için kartları seçin.</p></details>
     <div class="add-row-panel">
       <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:0 0 10px;">
         ${listSearchHtml('ingredients', 'Hammadde ara…').replace('margin:0 0 12px;','margin:0;')}
@@ -219,42 +225,39 @@ function renderIngredientsSettings(el, session){
         <button style="${INLINE_BTN}" ${act('addIngredient')}>+ Hammadde Ekle</button>
       </div>
     </div>
-    <div class="settings-table-wrap">
-    <table class="settings-table">
-      <thead><tr><th style="width:36px;"><input type="checkbox" style="width:auto;margin:0;" title="Tümünü seç" ${actOn('change','selectAllIngredients',['$checked'])}></th><th>Hammadde Adı</th><th>Birim</th><th>Stok</th><th title="Temizleme/kesim kaybı: reçetedeki net miktara eklenerek stoktan düşülür">Fire %</th><th></th></tr></thead>
-      <tbody ${actOn('input','markIngDirty',['$event'])} ${actOn('change','markIngDirty',['$event'])}>
-      ${ings.map(i => `
-        <tr data-iid="${i.id}" class="${Number(i.stock)<=0 ? 'ing-out' : ''}" title="${Number(i.stock)<=0 ? 'Stok bitti — bu hammaddeyi kullanan ürünler satılamaz' : ''}">
-          <td><input type="checkbox" class="ing-sel" value="${i.id}" style="width:auto;margin:0;" ${actOn('change','updateIngSelection',[])}></td>
-          <td class="col-name"><input value="${escapeAttr(i.name)}" id="ing_name_${i.id}">${Number(i.stock)<=0 ? '<div class="ing-out-tag">● Stok bitti</div>' : ''}</td>
-          <td class="col-num"><select id="ing_unit_${i.id}">
-            ${['adet','gram','kg','ml','lt'].map(u => `<option value="${u}" ${u===i.unit?'selected':''}>${u}</option>`).join('')}
-          </select></td>
-          <td class="col-num"><input type="number" step="0.01" value="${i.stock}" id="ing_stock_${i.id}"></td>
-          <td class="col-num"><input type="number" step="0.1" min="0" max="99" value="${Number(i.waste_pct)||0}" id="ing_waste_${i.id}"></td>
-          <td style="white-space:nowrap;">
-            <button class="sbtn" style="background:var(--accent2);color:var(--btn-ink);" ${act('openIngredientUsageModal', i.id)}>Kullanıldığı Ürünler</button>
-          </td>
-        </tr>`).join('')}
-      </tbody>
-    </table>
+    <div style="display:flex;align-items:center;gap:8px;margin:4px 0 10px;"><label style="display:flex;align-items:center;gap:6px;margin:0;font-size:13px;font-weight:600;"><input type="checkbox" style="width:auto;margin:0;" ${actOn('change','selectAllIngredients',['$checked'])}> Tümünü seç</label></div>
+    <div class="ig-grid" ${actOn('input','markIngDirty',['$event'])} ${actOn('change','markIngDirty',['$event'])}>
+      ${shownIngs.map((i, k) => { const st = Number(i.stock)||0, out = st <= 0, uses = useCount(i.id), pct = Math.max(4, Math.min(100, st / maxStock * 100));
+        return `<div class="pcard ig-card ${out?'ig-out':''}" data-iid="${i.id}" data-name="${escapeAttr(String(i.name||'').toLocaleLowerCase('tr'))}" style="--i:${Math.min(k,12)};">
+        <div class="pcard-top"><input type="checkbox" class="ing-sel" value="${i.id}" ${actOn('change','updateIngSelection',[])}>
+          <input class="ig-name" value="${escapeAttr(i.name)}" id="ing_name_${i.id}">
+          <span class="ig-st ${out?'out':uses?'ok':'idle'}">${out ? '● Bitti' : uses ? '● Kullanımda' : '○ Kullanılmıyor'}</span></div>
+        <div class="ig-stock"><input type="number" step="0.01" value="${i.stock}" id="ing_stock_${i.id}" class="ig-qty">
+          <select id="ing_unit_${i.id}" class="ig-unit">${['adet','gram','kg','ml','lt'].map(u => `<option value="${u}" ${u===i.unit?'selected':''}>${u}</option>`).join('')}</select></div>
+        <div class="pcard-mbar"><i style="width:${out?0:pct}%;background:${out?'var(--danger,#ef4444)':pct<15?'var(--c3)':'var(--ok,#22c55e)'};"></i></div>
+        <div class="ig-foot">
+          <label class="ig-waste" title="Temizleme/kesim kaybı">Fire % <input type="number" step="0.1" min="0" max="99" value="${Number(i.waste_pct)||0}" id="ing_waste_${i.id}"></label>
+          <button type="button" class="pc-btn" ${act('openIngredientUsageModal', i.id)}>🍽️ ${uses} ürün</button>
+        </div>
+      </div>`; }).join('') || '<div class="empty-state" style="grid-column:1/-1;"><div style="font-size:38px;">🥕</div><p class="muted">Bu filtrede hammadde yok.</p></div>'}
     </div>
   </div>`;
 }
 /* Hammaddeler: değişen satırlar tek düğmeyle kaydedilir; silme seçilen satırlara toplu uygulanır. */
 function markIngDirty(e){
   if(!e.target || e.target.type==='checkbox') return;
-  const tr = e.target.closest('tr[data-iid]'); if(!tr) return;
-  tr.dataset.dirty = '1'; tr.style.boxShadow = 'inset 4px 0 0 var(--accent)';
+  const tr = e.target.closest('[data-iid]'); if(!tr) return;
+  tr.dataset.dirty = '1'; tr.classList.add('is-dirty');
   updateIngSelection();
 }
+function setIngFilter(k){ APP.ingFilter = APP.ingFilter===k ? 'all' : k; renderSettingsContent(getSession()); }
 function selectedIngredientIds(){ return [...document.querySelectorAll('.ing-sel:checked')].map(b => b.value); }
 function selectAllIngredients(on){
-  document.querySelectorAll('tr[data-iid]').forEach(tr => { const c = tr.querySelector('.ing-sel'); if(c && tr.style.display!=='none') c.checked = on; });
+  document.querySelectorAll('[data-iid]').forEach(tr => { const c = tr.querySelector('.ing-sel'); if(c && tr.style.display!=='none') c.checked = on; });
   updateIngSelection();
 }
 function updateIngSelection(){
-  const n = selectedIngredientIds().length, dirty = document.querySelectorAll('tr[data-iid][data-dirty]').length;
+  const n = selectedIngredientIds().length, dirty = document.querySelectorAll('[data-iid][data-dirty]').length;
   document.querySelectorAll('[data-ing-sel]').forEach(b => { b.disabled = !n; });
   const save = document.getElementById('ingSaveAllBtn');
   if(save){ save.disabled = !dirty; save.querySelector('span').textContent = dirty ? `Kaydet (${dirty})` : 'Kaydet'; }
@@ -262,7 +265,7 @@ function updateIngSelection(){
   if(info) info.innerHTML = [n ? `<b>${n}</b> hammadde seçili` : '', dirty ? `<b>${dirty}</b> satırda kaydedilmemiş değişiklik` : ''].filter(Boolean).join(' · ');
 }
 async function saveAllIngredients(){
-  const rows = [...document.querySelectorAll('tr[data-iid][data-dirty]')].map(tr => {
+  const rows = [...document.querySelectorAll('[data-iid][data-dirty]')].map(tr => {
     const id = tr.dataset.iid;
     return { id, name: document.getElementById('ing_name_'+id).value.trim(), unit: document.getElementById('ing_unit_'+id).value,
       stock: parseFloat(document.getElementById('ing_stock_'+id).value)||0, waste: parseFloat(document.getElementById('ing_waste_'+id).value)||0 };
@@ -1266,7 +1269,7 @@ function removeNewProductRecipeItem(idx){ NEW_PRODUCT_RECIPE_DRAFT.splice(idx,1)
 function markProdDirty(e){
   if(!e.target || (e.target.type==='checkbox' && !e.target.classList.contains('prod-print'))) return;
   const tr = e.target.closest('tr[data-pid]'); if(!tr) return;
-  tr.dataset.dirty = '1'; tr.style.boxShadow = 'inset 4px 0 0 var(--accent)';
+  tr.dataset.dirty = '1'; tr.classList.add('is-dirty');
   updateProdSelection();
 }
 function setProdFilter(k){ APP.prodFilter = (APP.prodFilter===k ? 'all' : k); renderSettingsContent(getSession()); }
@@ -2317,25 +2320,33 @@ async function renderProductMedia(el, session){
   APP.productMedia = data || [];
   const groups = []; const map = {};
   APP.productMedia.forEach(p => { const k = p.menu || 'Menüsüz'; if(!map[k]){ map[k] = { name: k, items: [] }; groups.push(map[k]); } map[k].items.push(p); });
-  el.innerHTML = `<div class="box" style="max-width:none;text-align:left;">
-    <h2 style="margin:0 0 6px;">📷 Fotoğraf & Açıklama</h2>
-    <p class="muted" style="margin:0 0 14px;font-size:13px;">Masalardaki QR menüde ve online sipariş sayfasında görünür. Sayfalardaki başlıklar otomatik olarak <b>menülerinizdir</b>; burada yalnızca fotoğraf ve açıklama girersiniz. Açıklama kutusundan çıkınca kaydedilir.</p>
-    ${groups.map(g => `<h3 style="margin:16px 0 8px;font-size:13px;color:var(--accent);text-transform:uppercase;letter-spacing:.03em;">${escapeHtml(g.name)} <span class="muted" style="font-weight:400;">(${g.items.length})</span></h3>
-      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:10px;">${g.items.map(p => `
-        <div style="display:flex;gap:12px;background:var(--panel2);border:1px solid var(--border);border-radius:12px;padding:10px;">
-          <div style="flex-shrink:0;display:flex;flex-direction:column;gap:6px;align-items:center;">
-            ${p.image ? `<img src="${p.image}" alt="" style="width:84px;height:84px;border-radius:10px;object-fit:cover;">` : '<div style="width:84px;height:84px;border-radius:10px;background:var(--panel);display:flex;align-items:center;justify-content:center;font-size:26px;">📷</div>'}
-            <label class="sbtn" style="width:84px;margin:0;cursor:pointer;text-align:center;font-size:12px;padding:4px 0;">${p.image ? 'Değiştir' : 'Fotoğraf'}<input type="file" accept="image/*" style="display:none;" ${actOn('change','uploadProductImage',[p.id, '$this'])}></label>
-            ${p.image ? `<button type="button" class="sbtn" style="width:84px;margin:0;font-size:12px;padding:4px 0;color:var(--red);" ${act('removeProductImage', p.id)}>Kaldır</button>` : ''}
+  const all = APP.productMedia, withImg = all.filter(p => p.image).length, withDesc = all.filter(p => (p.description||'').trim()).length;
+  const mf = APP.mediaFilter || 'all';
+  const pass = (p) => mf==='noimg' ? !p.image : mf==='nodesc' ? !(p.description||'').trim() : mf==='done' ? (p.image && (p.description||'').trim()) : true;
+  const chip = (k, ic, v, l, c) => `<div class="os-chip os-click ${mf===k?'on':''}" role="button" style="--oc:${c};" ${act('setMediaFilter', k)}><span class="os-ic">${ic}</span><div><b>${v}</b><small>${l}</small></div></div>`;
+  const pct = all.length ? Math.round((withImg + withDesc) / (all.length*2) * 100) : 0;
+  el.innerHTML = `<div class="order-summary stat-chips" style="--n:4;">${chip('all','🍽️', all.length, 'Ürün', 'var(--c1)')}${chip('noimg','📷', all.length - withImg, 'Fotoğrafsız', 'var(--c3)')}${chip('nodesc','✍️', all.length - withDesc, 'Açıklamasız', 'var(--c2)')}${chip('done','✅', all.filter(p => p.image && (p.description||'').trim()).length, 'Tamamlanan', 'var(--ok,#22c55e)')}</div>
+  <div class="box" style="max-width:none;text-align:left;">
+    <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;"><h2 style="margin:0;">📷 Fotoğraf & Açıklama</h2><span style="flex:1;"></span>
+      <div class="md-prog" title="Menü vitrininin tamamlanma oranı"><div class="pcard-mbar"><i style="width:${pct}%;background:linear-gradient(90deg,var(--c1),var(--c2));"></i></div><small>Vitrin %${pct} hazır</small></div></div>
+    <p class="muted" style="margin:6px 0 14px;font-size:13px;">QR menüde ve online sipariş sayfasında görünür. Başlıklar menülerinizdir. Açıklama kutusundan çıkınca kaydedilir.</p>
+    ${groups.map(g => { const items = g.items.filter(pass); return !items.length ? '' : `<div class="rv-day-h" style="margin:18px 0 10px;">${escapeHtml(g.name)}<span class="muted">${items.length} ürün</span></div>
+      <div class="md-grid">${items.map((p, k) => `
+        <div class="md-card ${p.image?'':'noimg'}" style="--i:${Math.min(k,12)};">
+          <label class="md-img" title="${p.image ? 'Fotoğrafı değiştir' : 'Fotoğraf yükle'}">
+            ${p.image ? `<img src="${p.image}" alt="">` : '<span class="md-ph">📷<small>Fotoğraf ekle</small></span>'}
+            <span class="md-over">${p.image ? '🔄 Değiştir' : '⬆️ Yükle'}</span>
+            <input type="file" accept="image/*" style="display:none;" ${actOn('change','uploadProductImage',[p.id, '$this'])}>
+          </label>
+          ${p.image ? `<button type="button" class="md-rm" title="Fotoğrafı kaldır" ${act('removeProductImage', p.id)}>✕</button>` : ''}
+          <div class="md-body">
+            <div class="md-title"><b>${escapeHtml(p.name)}</b><span>${money(p.price)}</span></div>
+            <textarea rows="3" maxlength="500" placeholder="Kısa, iştah açıcı bir açıklama yazın…" ${actOn('change','saveProductDescription',[p.id, '$value'])}>${escapeHtml(p.description || '')}</textarea>
           </div>
-          <div style="flex:1;min-width:0;">
-            <div style="font-weight:700;overflow-wrap:anywhere;">${escapeHtml(p.name)}</div>
-            <div class="muted" style="font-size:12px;margin-bottom:6px;">${money(p.price)}</div>
-            <textarea rows="3" maxlength="500" placeholder="Açıklama (örn. közlenmiş biber ve domatesle)" style="width:100%;margin:0;font-size:13px;resize:vertical;" ${actOn('change','saveProductDescription',[p.id, '$value'])}>${escapeHtml(p.description || '')}</textarea>
-          </div>
-        </div>`).join('')}</div>`).join('') || '<p class="muted">Henüz ürün yok.</p>'}
+        </div>`).join('')}</div>`; }).join('') || '<div class="empty-state"><div style="font-size:38px;">🎉</div><p class="muted">Bu filtrede ürün yok.</p></div>'}
   </div>`;
 }
+function setMediaFilter(k){ APP.mediaFilter = APP.mediaFilter===k ? 'all' : k; refreshMediaViews(); }
 async function saveProductDescription(pid, text){
   const { error } = await sb.rpc('set_product_description', { p_token: getSession().session_token, p_product_id: pid, p_text: text });
   if(error){ alert(error.message); return; }
