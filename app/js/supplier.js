@@ -145,7 +145,7 @@ async function renderPurchaseOrdersContent(session){
       <span class="pa-legend"><span><b style="background:#f59e0b;"></b>Teslim bekliyor ${cnt('ordered')}</span><span><b style="background:var(--green);"></b>Teslim alındı ${cnt('received')}</span>${cnt('draft') ? `<span><b style="background:#a78bfa;"></b>Taslak ${cnt('draft')}</span>` : ''}</span></h3>
     <div class="settings-table-wrap">
     <table class="settings-table">
-      <thead><tr><th>Tedarikçi</th><th>Durum</th><th>Sipariş Tarihi</th><th>Beklenen</th><th>Tutar</th><th></th></tr></thead>
+      <thead><tr><th>Tedarikçi</th><th>Durum</th><th>Sipariş Tarihi</th><th>Beklenen</th><th></th></tr></thead>
       <tbody>
       ${rows.map(p => `
         <tr class="po-row" style="--st:${PO_TONE[p.status]||'var(--muted)'};">
@@ -153,12 +153,11 @@ async function renderPurchaseOrdersContent(session){
           <td>${poStatusBadge(p)}${poItemsProgressHtml(p)}</td>
           <td>${fmtDateTr(p.order_date)}</td>
           <td>${p.expected_date ? fmtDateTr(p.expected_date) : '-'}</td>
-          <td>${money(p.total_amount)}</td>
           <td>
             ${ownDraft(p) ? `<button class="sbtn" ${act('markPOOrdered', p.id)}>Sipariş Ver</button><button type="button" class="act-btn act-delete" ${act('removePO', p.id)}>${ICON_TRASH}<span>Sil</span></button>` : ''}
           </td>
         </tr>`).join('')}
-      ${rows.length===0?'<tr><td colspan="6" class="muted" style="text-align:center;">Henüz sipariş yok.</td></tr>':''}
+      ${rows.length===0?'<tr><td colspan="5" class="muted" style="text-align:center;">Henüz sipariş yok.</td></tr>':''}
       </tbody>
     </table>
     </div>
