@@ -132,7 +132,7 @@ async function renderPurchaseOrdersContent(session){
       <thead><tr><th>Tedarikçi</th><th>Durum</th><th>Sipariş Tarihi</th><th>Beklenen</th><th>Tutar</th><th></th></tr></thead>
       <tbody>
       ${rows.map(p => `
-        <tr data-badge-id="${p.id}">
+        <tr>
           <td class="col-name">${escapeHtml(p.supplier_name||'-')}${p.created_by_name ? `<div class="muted" style="font-size:11.5px;">Oluşturan: ${escapeHtml(p.created_by_name)}</div>` : ''}</td>
           <td>${poStatusBadge(p)}${poItemsProgressHtml(p)}</td>
           <td>${fmtDateTr(p.order_date)}</td>
