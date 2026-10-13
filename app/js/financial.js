@@ -16,18 +16,22 @@ function renderReportsGate(main, session){
 }
 function renderReportsEnterGate(main, session){
   main.innerHTML = `<h1>Finansal Analiz</h1>
-    <div class="box" style="max-width:420px;">
-      <p class="muted">Bu ekrana erişmek için finansal analiz şifresini girin.</p>
-      <div class="pw-field-wrap">
-        <input type="password" id="rpEnterPass" placeholder="Şifre" ${actOn('keydown','onEnterKey',['$event','doUnlockReports'])}>
-        <button type="button" class="pw-eye-btn" ${act('toggleReportsPassVisibility', 'rpEnterPass')} title="Şifreyi göster/gizle">👁️</button>
+    <div class="rg-wrap">
+      <div class="rg-bg" aria-hidden="true">${['📊 Genel Özet','📈 Dönemsel Analiz','🧾 KDV','📦 Ürün İstatistikleri','👥 Personel','💰 Bahşiş','🔥 İsraf','📒 Açık Hesaplar'].map((t, i) => `<span style="--i:${i}">${t}</span>`).join('')}</div>
+      <div class="rg-card">
+        <div class="rg-lock"><span>🔒</span></div>
+        <h2>Finansal veriler korumalı</h2>
+        <p class="muted">Ciro, kâr ve personel raporlarını görmek için finansal analiz şifresini girin.</p>
+        <div class="pw-field-wrap">
+          <input type="password" id="rpEnterPass" placeholder="Şifre" autocomplete="current-password" ${actOn('keydown','onEnterKey',['$event','doUnlockReports'])}>
+          <button type="button" class="pw-eye-btn" ${act('toggleReportsPassVisibility', 'rpEnterPass')} title="Şifreyi göster/gizle">👁️</button>
+        </div>
+        <button id="rpEnterBtn" class="rg-btn" ${act('doUnlockReports')}>🔓 Kilidi Aç</button>
+        <div class="error" id="rpErr"></div>
+        <a href="#" class="rg-forgot" ${act('setReportsGateScreen','forgot1')}>Şifremi Unuttum</a>
       </div>
-      <button id="rpEnterBtn" ${act('doUnlockReports')}>Görüntüle</button>
-      <div class="error" id="rpErr"></div>
-      <p class="muted" style="text-align:center;margin-top:14px;font-size:13px;">
-        <a href="#" style="color:var(--accent);" ${act('setReportsGateScreen','forgot1')}>Şifremi Unuttum</a>
-      </p>
     </div>`;
+  setTimeout(() => { const i = document.getElementById('rpEnterPass'); if(i) i.focus(); }, 50);
 }
 async function doUnlockReports(){
   const session = getSession();
@@ -38,9 +42,9 @@ async function doUnlockReports(){
   const btn = document.getElementById('rpEnterBtn');
   btn.disabled = true; btn.textContent = 'Kontrol ediliyor...';
   const { data, error } = await sb.rpc('verify_reports_password', { p_token: session.session_token, p_password: password });
-  btn.disabled = false; btn.textContent = 'Görüntüle';
+  btn.disabled = false; btn.textContent = '🔓 Kilidi Aç';
   if(error){ errBox.textContent = error.message; return; }
-  if(!data){ errBox.textContent = 'Şifre hatalı'; return; }
+  if(!data){ errBox.textContent = 'Şifre hatalı'; const c = document.querySelector('.rg-card'); if(c){ c.classList.remove('rg-shake'); void c.offsetWidth; c.classList.add('rg-shake'); } return; }
   APP.reportsUnlocked = true;
   renderReportsView(document.getElementById('main'), session);
 }
@@ -496,7 +500,7 @@ async function renderProductStatsContent(session){
     const val = APP.productStatsSort==='qty' ? r.qty : Number(r.revenue);
     const pct = maxVal ? Math.max(3, Math.round(val/maxVal*100)) : 0;
     const medal = ['🥇','🥈','🥉'][idx] || (idx+1);
-    return `<div class="race-row" style="--i:${Math.min(idx,15)};--sc:var(--c${idx%4+1});">
+    return `<div class="race-row" style="--i:${Math.min(idx,15)};--sc:${RACE_COLORS[idx%RACE_COLORS.length]};">
       <span class="race-rank ${idx<3?'top':''}">${medal}</span>
       <div class="race-main"><div class="race-label"><b>${escapeHtml(r.name)}</b>${r.station_name ? `<small>${escapeHtml(r.station_name)}</small>` : ''}</div>
         <div class="race-track"><div class="race-bar" style="width:${pct}%;"><span>${APP.productStatsSort==='qty' ? r.qty+' adet' : money(r.revenue)}</span></div></div></div>
