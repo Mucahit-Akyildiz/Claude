@@ -1104,8 +1104,6 @@ body{background:radial-gradient(1200px 600px at 100% -10%, color-mix(in srgb,var
 .tab:hover:not(.active){border-color:color-mix(in srgb,var(--accent) 45%,var(--border));color:var(--text);transform:translateY(-1px);}
 .tab.active{background:linear-gradient(135deg,var(--grad-a),var(--grad-b));border-color:transparent;box-shadow:0 6px 16px color-mix(in srgb,var(--accent) 30%,transparent);}
 .sub-tab.active{box-shadow:0 4px 12px color-mix(in srgb,var(--accent) 18%,transparent);}
-/* Düğmeler */
-button:not(.ghost-btn):not(.sbtn):not(.act-btn):not(.tab):not(.pay-method-btn):not(.pp-cat):not(.pc-chip):not(.prod-avail):not(.pp-extra):not(.range-preset-btn):not(.qty-btn):not([style*="background"]){background:linear-gradient(135deg,var(--grad-a),color-mix(in srgb,var(--grad-a) 70%,var(--grad-b)));}
 /* Tablolar */
 .settings-table tbody tr td{transition:background .15s ease;}
 .settings-table tbody tr:hover td{background:color-mix(in srgb,var(--accent) 7%,var(--panel2));}
