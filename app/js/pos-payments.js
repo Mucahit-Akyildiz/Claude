@@ -572,7 +572,7 @@ function openSplitPay(){
   bg.remove();
   const sbg = document.createElement('div');
   sbg.id = 'splitPayBg';
-  sbg.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:100;padding:16px;';
+  sbg.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:flex-start;justify-content:center;z-index:100;padding:max(16px,4vh) 16px 16px;overflow:auto;';
   sbg.onclick = (e) => { if(e.target===sbg) sbg.remove(); };
   sbg.innerHTML = `<div class="pay-modal pm2 sp2" style="max-width:720px;">
     <div class="pay-modal-header">
@@ -1538,19 +1538,22 @@ async function openOpenAccountTransfer(){
   const total = Math.round(payFinalTotal()*100)/100;
   const m = document.createElement('div');
   m.id = 'openAccModalBg'; m.className = 'modal-bg';
-  m.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;z-index:140;padding:16px;';
+  m.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);display:flex;align-items:flex-start;justify-content:center;z-index:140;padding:max(16px,5vh) 16px 16px;overflow:auto;';
   m.onclick = (e) => { if(e.target===m) m.remove(); };
-  m.innerHTML = `<div style="background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:18px;max-width:440px;width:100%;max-height:90vh;overflow:auto;">
-    <h2 style="margin:0 0 4px;">📒 Açık Hesaba At</h2>
-    <p class="muted" style="margin:0 0 12px;font-size:13.5px;">Tutar: <b>${money(total)}</b> — seçilen hesaba borç olarak yazılır, masa kapanır.</p>
-    <input id="oaSearch" placeholder="🔍 Açık hesap ara…" ${actOn('input','drawOpenAccountList',['$value'])} style="margin:0 0 8px;">
-    <div id="oaList" style="max-height:220px;overflow:auto;border:1px solid var(--border);border-radius:10px;"></div>
-    <div class="add-row-panel" style="margin-top:12px;">
-      <p>Yeni Açık Hesap</p>
-      <input id="oaName" placeholder="Ad Soyad / Firma" style="margin-bottom:8px;">
-      <input id="oaPhone" placeholder="Telefon (opsiyonel)" inputmode="tel" style="margin-bottom:8px;">
-      <input id="oaNote" placeholder="Not (opsiyonel)" style="margin-bottom:8px;">
-      <button type="button" ${act('createOpenAccountAndTransfer')}>+ Oluştur ve Aktar</button>
+  m.innerHTML = `<div class="pay-modal pm2 oa2">
+    <div class="pay-modal-header">
+      <div class="pm-title"><span class="pm-tic" style="background:linear-gradient(135deg,#eab308,#f97316);">📒</span><div><h2>Açık Hesaba At</h2><small>Borç olarak yazılır, masa kapanır</small></div></div>
+      <span class="pay-modal-close" ${act('removeEl','openAccModalBg')}>✕</span>
+    </div>
+    <div class="oa-total"><div><small>Aktarılacak tutar</small><b>${money(total)}</b></div><span style="font-size:30px;">🧾</span></div>
+    <input id="oaSearch" placeholder="🔍 Açık hesap ara (ad / telefon)…" ${actOn('input','drawOpenAccountList',['$value'])} style="margin:0 0 10px;border-radius:12px;">
+    <div id="oaList"></div>
+    <div class="oa-new">
+      <p>➕ Yeni Açık Hesap</p>
+      <input id="oaName" placeholder="Ad Soyad / Firma">
+      <input id="oaPhone" placeholder="Telefon (opsiyonel)" inputmode="tel">
+      <input id="oaNote" placeholder="Not (opsiyonel)">
+      <button type="button" ${act('createOpenAccountAndTransfer')}>Oluştur ve Aktar</button>
     </div>
     <button type="button" class="ghost-btn" style="width:100%;margin-top:10px;" ${act('removeEl','openAccModalBg')}>Vazgeç</button>
   </div>`;
@@ -1561,9 +1564,9 @@ function drawOpenAccountList(q){
   const box = document.getElementById('oaList'); if(!box) return;
   q = String(q||'').trim().toLocaleLowerCase('tr');
   const rows = (APP.openAccounts||[]).filter(a => !q || a.name.toLocaleLowerCase('tr').includes(q) || String(a.phone||'').includes(q));
-  box.innerHTML = rows.length ? rows.map(a => `<div ${act('transferToOpenAccount', a.id)} style="display:flex;justify-content:space-between;gap:8px;padding:10px 12px;border-bottom:1px solid var(--border);cursor:pointer;">
-      <span style="min-width:0;overflow-wrap:anywhere;"><b>${escapeHtml(a.name)}</b>${a.phone ? ' <span class="muted">' + escapeHtml(a.phone) + '</span>' : ''}</span>
-      <span style="white-space:nowrap;color:${a.balance > 0 ? 'var(--red)' : 'var(--muted)'};">${money(a.balance)}</span></div>`).join('')
+  box.innerHTML = rows.length ? rows.map(a => `<div class="oa-row" ${act('transferToOpenAccount', a.id)}>${avatarHtml(a.name)}
+      <span class="oa-n"><b>${escapeHtml(a.name)}</b>${a.phone ? '<small>📞 ' + escapeHtml(a.phone) + '</small>' : ''}</span>
+      <span class="oa-b ${a.balance > 0 ? 'debt' : ''}">${money(a.balance)}</span></div>`).join('')
     : '<p class="muted" style="padding:10px;margin:0;">Açık hesap yok — aşağıdan yeni oluşturun.</p>';
 }
 async function createOpenAccountAndTransfer(){
