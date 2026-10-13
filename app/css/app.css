@@ -1847,3 +1847,29 @@ input.sw:checked{background:var(--c1);} input.sw:checked::after{transform:transl
 #reportContent .settings-table th{font-size:11px;}
 #reportContent .settings-table tbody tr{transition:transform .12s;} #reportContent .settings-table tbody tr:hover{transform:translateX(2px);}
 .resv-an-card{flex-direction:column;align-items:flex-start;} .resv-an-card small{display:block;} .resv-an-card b{font-size:22px;margin:2px 0;}
+
+/* ===== Yazıcı bölümlerinin içi ===== */
+.pp-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:10px;}
+.pp-card{display:flex;align-items:center;gap:12px;width:100%;margin:0;padding:12px;border-radius:16px;background:var(--panel2);border:1.5px solid var(--border);color:var(--text);box-shadow:none;text-align:left;cursor:pointer;transition:all .15s;}
+.pp-card:hover{border-color:color-mix(in srgb,var(--sc) 55%,transparent);transform:translateY(-1px);}
+.pp-card.on{border-color:var(--sc);background:linear-gradient(135deg,color-mix(in srgb,var(--sc) 18%,var(--panel2)),var(--panel2));box-shadow:0 8px 20px color-mix(in srgb,var(--sc) 20%,transparent);}
+.pp-static{cursor:default;} .pp-static:hover{transform:none;}
+.pp-ic{width:44px;height:44px;flex:0 0 44px;border-radius:14px;display:grid;place-items:center;font-size:22px;background:color-mix(in srgb,var(--sc) 18%,transparent);}
+.pp-txt{flex:1;min-width:0;display:flex;flex-direction:column;} .pp-txt b{font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;} .pp-txt small{font-size:12px;color:var(--muted);}
+.pp-radio{width:20px;height:20px;flex:0 0 20px;border-radius:50%;border:2px solid var(--border);transition:all .15s;}
+.pp-card.on .pp-radio{border:6px solid var(--sc);}
+.pp-acts{display:flex;gap:6px;align-items:center;}
+.pr-help{margin-top:12px;padding:10px 14px;border-radius:14px;background:var(--panel2);border:1px solid var(--border);} .pr-help summary{cursor:pointer;font-weight:700;font-size:13px;}
+.sp-flow{display:flex;flex-direction:column;gap:10px;margin-top:6px;}
+.spf-card{padding:12px;border-radius:16px;background:var(--panel2);border:1px solid var(--border);box-shadow:inset 4px 0 0 var(--sc);}
+.spf-row{display:flex;align-items:center;gap:12px;flex-wrap:wrap;}
+.spf-st{display:flex;align-items:center;gap:10px;min-width:180px;} .spf-ic{width:40px;height:40px;border-radius:13px;display:grid;place-items:center;font-size:20px;background:color-mix(in srgb,var(--sc) 22%,transparent);}
+.spf-arrow{font-size:20px;color:var(--sc);animation:spfArrow 1.6s ease-in-out infinite;}
+@keyframes spfArrow{50%{transform:translateX(5px);}}
+.spf-sel{flex:1;min-width:220px;margin:0;}
+.spf-card details{margin-top:10px !important;}
+.cash-prev{flex:0 0 auto;background:#e5e7eb;border-radius:18px;padding:16px;box-shadow:0 12px 30px rgba(0,0,0,.25);}
+.cash-info{flex:1;min-width:240px;display:flex;flex-direction:column;gap:10px;}
+.cash-li{display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border-radius:12px;background:var(--panel2);font-size:13px;text-align:left;}
+.pp-card{flex-direction:row !important;justify-content:flex-start !important;align-items:center !important;height:auto !important;min-height:0 !important;}
+.pp-card::before,.pp-card::after{display:none !important;content:none !important;}

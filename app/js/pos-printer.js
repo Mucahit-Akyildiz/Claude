@@ -387,6 +387,8 @@ function resolveBellSetting(stationId){
   return v;
 }
 
+const PR_TYPE = (t) => t==='usb' ? ['🔌','USB (doğrudan)'] : t==='silent-browser' ? ['🤫','Sessiz tarayıcı'] : t==='electron' ? ['💻','Masaüstü uygulaması'] : ['🖨️','Tarayıcı penceresi'];
+function pickActivePrinter(id){ setActivePrinterId(id); document.querySelectorAll('.pp-card[data-pid], .pp-grid .pp-card:not(.pp-static)').forEach(c => c.classList.remove('on')); renderPrinterSettingsView(document.getElementById('main'), getSession()); showToast('Bu ekranın yazıcısı güncellendi ✓'); }
 async function renderPrinterSettingsView(main, session){
   // Mutfak rolündeki kullanıcıların menüsünde "Sipariş Al"/"Ayarlar" yok -
   // bu yüzden APP.config hiç yüklenmemiş olabilir (istasyon listesi burada
@@ -528,38 +530,28 @@ async function renderPrinterSettingsView(main, session){
 
     <div class="box" style="max-width:none;">
       <h2>Bu Ekranın Yazıcısı</h2>
-      <p class="muted" style="text-align:left;">Hangi yazıcı seçiliyse, mutfağa sipariş gönderildiğinde fiş <b>doğrudan ona</b> (pencere açmadan) gönderilmeye çalışılır. Uygun bir USB yazıcı bulunamazsa otomatik olarak tarayıcının yazdırma penceresine döner.</p>
-      <select id="activePrinterSelect" ${actOn('change','setActivePrinterId',['$value'])} style="max-width:320px;">
-        <option value="" ${!activeId?'selected':''}>Tarayıcı Yazdırma Penceresi (varsayılan)</option>
-        ${printers.map(p => `<option value="${p.id}" ${p.id===activeId?'selected':''}>${escapeHtml(p.name)} (${printerTypeLabel(p.type)})</option>`).join('')}
-      </select>
-      <label style="display:flex;align-items:center;gap:8px;margin-top:12px;cursor:pointer;font-size:14px;">
-        <input type="checkbox" style="width:auto;margin:0;" ${printOnOrderEnabled()?'checked':''} ${actOn('change','setPrintOnOrder',['$checked'])}>
-        Bu cihazdan sipariş verilince fişi hemen yazdır (Sipariş Al / Paket Servis)
+      <p class="muted" style="text-align:left;margin:0 0 14px;">Seçili yazıcıya fiş <b>doğrudan</b> (pencere açmadan) gönderilir; uygun yazıcı yoksa tarayıcının yazdırma penceresi açılır.</p>
+      <div class="pp-grid">
+        ${[{ id:'', name:'Tarayıcı Yazdırma Penceresi', type:'browser', def:true }].concat(printers).map((p, i) => { const [ic, tl] = PR_TYPE(p.type), on = (p.id||'') === (activeId||'');
+          return `<button type="button" class="pp-card ${on?'on':''}" style="--sc:var(--c${i%4+1});" ${act('pickActivePrinter', p.id||'')}>
+            <span class="pp-ic">${ic}</span><span class="pp-txt"><b>${escapeHtml(p.name)}</b><small>${p.def ? 'Varsayılan' : tl}</small></span><span class="pp-radio"></span></button>`; }).join('')}
+      </div>
+      <label class="sw-card" style="margin-top:14px !important;">
+        <input type="checkbox" class="sw" ${printOnOrderEnabled()?'checked':''} ${actOn('change','setPrintOnOrder',['$checked'])}>
+        <span><b>Sipariş verilince fişi hemen bu cihazdan yazdır</b><br><span class="muted" style="font-size:12.5px;">Sipariş Al / Paket Servis'te sipariş gönderilince fiş bu cihazın yazıcısına basılır. Fişi başka cihazdaki mutfak ekranı basıyorsa kapatın (çift fiş çıkmasın).</span></span>
       </label>
-      <p class="muted" style="text-align:left;font-size:12.5px;margin:4px 0 0;">Mutfak Ekranı açık olmasa bile sipariş gönderilince fiş bu cihazın yazıcısına basılır. Fişi başka bir cihazdaki mutfak ekranı basıyorsa kapatın (çift fiş çıkmasın).</p>
     </div>
 
     <div class="box" style="max-width:none;">
       <h2>Yazıcılar</h2>
       ${!usbSupported ? '<p class="muted" style="text-align:left;">⚠️ Bu tarayıcı USB yazıcı bağlantısını (WebUSB) desteklemiyor — Chrome veya Edge kullanmanız gerekiyor. Yine de "Tarayıcı Yazdırma Penceresi" tipinde yazıcı ekleyebilirsiniz.</p>' : ''}
-      <div class="settings-table-wrap">
-      <table class="settings-table">
-        <thead><tr><th>Ad</th><th>Tür</th><th></th></tr></thead>
-        <tbody>
-        ${printers.map(p => `
-          <tr>
-            <td class="col-name">${escapeHtml(p.name)}</td>
-            <td class="col-name">${p.type==='usb' ? '🔌 USB (doğrudan)' : (p.type==='silent-browser' ? '🤫 Sessiz Tarayıcı Yazdırma' : (p.type==='electron' ? '💻 Masaüstü Uygulaması' : '🖨️ Tarayıcı penceresi'))}${p.type==='electron' && p.osPrinterName ? ' <span class="muted">('+escapeHtml(p.osPrinterName)+')</span>' : ''}</td>
-            <td style="white-space:nowrap;">
-              ${p.type==='usb' ? `<button class="sbtn" ${act('reconnectUsbPrinter', p.id)}>Bağlan</button>` : ''}
-              <button class="sbtn" ${act('testPrintPrinter', p.id)}>Test Yazdır</button>
-              <button type="button" class="act-btn act-delete" ${act('removePrinterEntry', p.id)}>${ICON_TRASH}<span>Sil</span></button>
-            </td>
-          </tr>`).join('')}
-        </tbody>
-      </table>
-      </div>
+      ${printers.length ? `<div class="pp-grid">${printers.map((p, i) => { const [ic, tl] = PR_TYPE(p.type);
+        return `<div class="pp-card pp-static" style="--sc:var(--c${i%4+1});">
+          <span class="pp-ic">${ic}</span><span class="pp-txt"><b>${escapeHtml(p.name)}</b><small>${tl}${p.type==='electron' && p.osPrinterName ? ' · '+escapeHtml(p.osPrinterName) : ''}</small></span>
+          <span class="pp-acts">${p.type==='usb' ? `<button type="button" class="pc-btn" ${act('reconnectUsbPrinter', p.id)}>Bağlan</button>` : ''}
+            <button type="button" class="pc-btn" ${act('testPrintPrinter', p.id)}>🖨️ Test</button>
+            <button type="button" class="ico-btn danger" title="Sil" ${act('removePrinterEntry', p.id)}>🗑</button></span>
+        </div>`; }).join('')}</div>` : '<div class="empty-state"><div style="font-size:38px;">🖨️</div><p class="muted">Henüz yazıcı eklenmedi. Aşağıdan ekleyin.</p></div>'}
       ${!isDesktopApp() ? `<p class="muted" style="text-align:left;margin-top:10px;font-size:12px;background:var(--panel2);border-radius:8px;padding:10px;">💻 Bu ekran şu an tarayıcıda açık. <b>Masaüstü Uygulaması</b> (Windows/macOS) yazıcıya hiçbir pencere açmadan, ekstra ayara gerek kalmadan basabiliyor — kurulursa "Masaüstü Uygulaması" tipini seçebilirsiniz.</p>` : ''}
       <div class="add-row-panel">
         <p>Yeni Yazıcı Ekle</p>
@@ -577,7 +569,7 @@ async function renderPrinterSettingsView(main, session){
         </div>
         <div id="npElectronWrap" class="field-group" style="margin-top:10px;"></div>
       </div>
-      <p class="muted" style="text-align:left;margin-top:14px;font-size:12px;">
+      <details class="pr-help"><summary>❔ Hangi bağlantı türünü seçmeliyim?</summary><p class="muted" style="text-align:left;margin:8px 0 0;font-size:12px;">
         Not: <b>USB (doğrudan)</b> yalnızca standart bir USB arayüzü üzerinden ham komut kabul eden küçük termal
         fiş yazıcılarında çalışır — Xerox, HP, Canon gibi normal/ofis yazıcılarının USB arayüzü işletim sisteminin
         kendi sürücüsünde olduğu için tarayıcı (WebUSB) bu tür yazıcılara asla erişemez, "USB" tipini seçseniz bile
@@ -586,38 +578,32 @@ async function renderPrinterSettingsView(main, session){
         (2) Chrome/Edge'i <code>--kiosk-printing</code> bayrağıyla başlatın (kısayolun hedefine ekleyin, örn.
         <code>"...\chrome.exe" --kiosk-printing</code>). <b>Masaüstü Uygulaması</b> kuruluysa bu iki adıma hiç gerek
         kalmadan aynı şekilde sessizce basar.
-      </p>
+      </p></details>
     </div>
 
     <div class="box" style="max-width:none;">
       <h2>İstasyon → Yazıcı Eşleştirme</h2>
       <p class="muted" style="text-align:left;">Her istasyonun ürünleri hangi yazıcıya basılsın? Örneğin Çayhane'nin ürünleri (çay, su, tiramisu gibi) bir yazıcıya, Izgara'nın ürünleri (döner, köfte gibi) başka bir yazıcıya gidebilir. Bir istasyona yazıcı seçmezseniz o istasyonun fişi "Bu Ekranın Yazıcısı" seçimini kullanır. Sipariş onaylandığında her istasyon için ayrı bir fiş kendi yazıcısına gönderilir.</p>
-      <div class="settings-table-wrap">
-      <table class="settings-table">
-        <thead><tr><th>İstasyon</th><th>Yazıcı</th></tr></thead>
-        <tbody>
-        ${APP.config.stations.map(s => `
-          <tr>
-            <td class="col-name">${escapeHtml(s.icon||'🍳')} ${escapeHtml(s.name)}</td>
-            <td>
-              <select ${actOn('change','setStationPrinter',[s.id, '$value'])}>
-                <option value="">Varsayılan (Bu Ekranın Yazıcısı)</option>
-                ${printers.map(p => `<option value="${p.id}" ${stationPrinterMap[s.id]===p.id?'selected':''}>${escapeHtml(p.name)} (${printerTypeLabel(p.type)})</option>`).join('')}
-              </select>
-            </td>
-          </tr>
-          <tr><td colspan="2" style="padding-top:0;">${stationPrintProductsHtml(s)}</td></tr>`).join('')}
-        </tbody>
-      </table>
-      </div>
+      <div class="sp-flow">${APP.config.stations.map((st, i) => `<div class="spf-card" style="--sc:${st.color||'var(--c'+(i%4+1)+')'};">
+        <div class="spf-row"><span class="spf-st"><span class="spf-ic">${escapeHtml(st.icon||'🍳')}</span><b>${escapeHtml(st.name)}</b></span>
+          <span class="spf-arrow">➜</span>
+          <select class="spf-sel" ${actOn('change','setStationPrinter',[st.id, '$value'])}>
+            <option value="">🖥️ Bu Ekranın Yazıcısı (varsayılan)</option>
+            ${printers.map(p => `<option value="${p.id}" ${stationPrinterMap[st.id]===p.id?'selected':''}>${PR_TYPE(p.type)[0]} ${escapeHtml(p.name)}</option>`).join('')}
+          </select></div>
+        ${stationPrintProductsHtml(st)}
+      </div>`).join('')}</div>
     </div>
     <div class="box" style="max-width:none;">
       <h2>🧾 Kasa Fişi</h2>
       <p class="muted" style="text-align:left;">Ödemeler ekranındaki <b>Kasa Fişi Yazdır</b> düğmesiyle basılan, ürün fiyatları ve toplam tutarı içeren hesap fişidir. Fiş Tasarımı'ndaki kağıt genişliği, yazı tipi, başlık ve alt notu kullanır; <b>Bu Ekranın Yazıcısı</b>na basılır.</p>
       <div style="display:flex;gap:24px;flex-wrap:wrap;align-items:flex-start;">
-        <div style="flex:0 0 auto;background:#e5e7eb;border-radius:14px;padding:14px;"><div id="cashReceiptPreview"></div></div>
-        <div style="flex:1;min-width:220px;">
-          <button type="button" style="width:auto;margin:0;" ${act('testCashReceipt')}>🖨️ Örnek Kasa Fişi Yazdır</button>
+        <div class="cash-prev"><div id="cashReceiptPreview"></div></div>
+        <div class="cash-info">
+          <div class="cash-li">📐 <span>Kağıt genişliği, yazı tipi, başlık ve alt not <b>Fiş Tasarımı</b>'ndan gelir.</span></div>
+          <div class="cash-li">🖨️ <span><b>Bu Ekranın Yazıcısı</b>'na basılır.</span></div>
+          <div class="cash-li">💳 <span>Ödemeler ekranındaki <b>Kasa Fişi Yazdır</b> düğmesiyle basılır.</span></div>
+          <button type="button" style="width:auto;margin:6px 0 0;" ${act('testCashReceipt')}>🖨️ Örnek Kasa Fişi Yazdır</button>
         </div>
       </div>
     </div>
