@@ -27,7 +27,10 @@ async function renderKitchenView(main, session){
   startKitchenPolling(session);
 }
 async function refreshKitchenItems(session){
-  const { data, error } = await sb.rpc('get_live_orders', { p_token: session.session_token });
+  const [{ data, error }, cancRes] = await Promise.all([
+    sb.rpc('get_live_orders', { p_token: session.session_token }),
+    sb.rpc('list_kitchen_cancellations', { p_token: session.session_token })
+  ]);
   const wrap = document.getElementById('kitchenWrap'); if(!wrap) return;
   if(error){ wrap.innerHTML = '<p class="muted">Yüklenemedi: '+error.message+'</p>'; return; }
   APP.liveOrders = data || [];
@@ -82,20 +85,21 @@ async function refreshKitchenItems(session){
       </div>` });
   });
   cards.sort((x, y) => x.at - y.at);
+  const cancelCards = kitchenCancelCards((cancRes && cancRes.data) || []);
   // align-items:start: her kart kendi içeriği kadar uzar (sıradaki en uzun karta göre esneyip boş alan bırakmaz).
   // Kanban: kartlar en eski bekleyen ürünün süresine göre Yeni / Bekliyor / Gecikti sütunlarında.
   const nowMs = Date.now();
   const age = (c) => isFinite(c.at) ? (nowMs - c.at) / 60000 : 0;
   const cols = [
     { k:'new', t:'🟢 Yeni', sub:'0–10 dk', list: cards.filter(c => age(c) < 10) },
-    { k:'warn', t:'🟡 Bekliyor', sub:'10–15 dk', list: cards.filter(c => age(c) >= 10 && age(c) < 15) },
-    { k:'late', t:'🔴 Gecikti', sub:'15 dk +', list: cards.filter(c => age(c) >= 15) },
+    { k:'warn', t:'🟡 Bekliyor', sub:'10–20 dk', list: cards.filter(c => age(c) >= 10 && age(c) < 20) },
+    { k:'late', t:'🔴 Gecikti', sub:'20 dk +', list: cards.filter(c => age(c) >= 20) },
   ];
   const itemsCount = Object.values(APP.kitchenPendingByTable).reduce((t, e) => t + e.items.reduce((x, i) => x + (Number(i.qty)||1), 0), 0);
   const avg = cards.length ? Math.round(cards.reduce((t, c) => t + age(c), 0) / cards.length) : 0;
   const stats = `<div class="kb-stats"><div><b>${cards.length}</b><small>sipariş</small></div><div><b>${itemsCount}</b><small>bekleyen ürün</small></div><div><b>${avg} dk</b><small>ort. bekleme</small></div><div class="${cols[2].list.length ? 'bad' : ''}"><b>${cols[2].list.length}</b><small>geciken</small></div></div>`;
-  wrap.innerHTML = stats + `<div class="kb-legend"><span class="lg-new">🟢 Yeni 0–10 dk</span><span class="lg-warn">🟡 Bekliyor 10–15 dk</span><span class="lg-late">🔴 Gecikti 15 dk +</span><small>En eski sipariş en başta · kartlar yerinde renk değiştirir</small></div>`
-    + (cards.length ? `<div class="kb-grid">${cards.map(c => c.html).join('')}</div>` : '<div class="kb-none">🎉 Bekleyen sipariş yok</div>');
+  wrap.innerHTML = stats + `<div class="kb-legend"><span class="lg-new">🟢 Yeni 0–10 dk</span><span class="lg-warn">🟡 Bekliyor 10–20 dk</span><span class="lg-late">🔴 Gecikti 20 dk +</span><small>En eski sipariş en başta · kartlar yerinde renk değiştirir</small></div>`
+    + (cards.length || cancelCards ? `<div class="kb-grid">${cancelCards}${cards.map(c => c.html).join('')}</div>` : '<div class="kb-none">🎉 Bekleyen sipariş yok</div>');
   updateKitchenTimers();
 
   // Daha once gorulmemis (yeni gelen) urun varsa zil calsin ve fisini bu istasyonun
@@ -114,6 +118,36 @@ async function refreshKitchenItems(session){
   }
   APP.kitchenSeenItemIds = currentIds;
   updateKitchenTimers();
+}
+/* İptal edilen siparişler: bu istasyona ait iptaller 15 sn boyunca üstü çizili
+   "İPTAL EDİLDİ" kartı olarak görünür ve bir kez istasyonun yazıcısına iptal fişi basılır. */
+const KITCHEN_CANCEL_SHOW_MS = 15000;
+function kitchenCancelCards(rows){
+  rows = rows.filter(r => r.station_id===APP.kitchenStation || r.station_id==null);
+  if(!APP.kitchenCancelSeen){ APP.kitchenCancelSeen = new Set(rows.map(r => r.id)); }
+  const fresh = rows.filter(r => !APP.kitchenCancelSeen.has(r.id));
+  fresh.forEach(r => APP.kitchenCancelSeen.add(r.id));
+  if(fresh.length){
+    playKitchenBell(APP.kitchenStation);
+    const byOrder = {};
+    fresh.forEach(r => { (byOrder[r.order_id] = byOrder[r.order_id] || []).push(r); });
+    Object.values(byOrder).forEach(list => {
+      const items = list.map(r => ({ product_id: r.product_id, station_id: r.station_id, name: '❌ İPTAL: ' + r.name, qty: r.qty, note: r.note }));
+      printKitchenTicketGrouped('❌ İPTAL · ' + (list[0].table_name || ''), items, true, list[0].daily_number)
+        .catch(e => console.error('İptal fişi yazdırılamadı:', e));
+    });
+  }
+  const now = Date.now();
+  const visible = rows.filter(r => now - new Date(r.created_at).getTime() < KITCHEN_CANCEL_SHOW_MS);
+  const groups = {};
+  visible.forEach(r => { (groups[r.order_id] = groups[r.order_id] || []).push(r); });
+  return Object.values(groups).map(list => `<div class="kitchen-card kc-cancel">
+      <div class="kc-cancel-x" aria-hidden="true"></div>
+      <div class="kc-head"><div class="kc-title"><b>${escapeHtml(list[0].table_name || '')}</b>${list[0].daily_number ? `<span class="kc-no">#${list[0].daily_number}</span>` : ''}</div><span class="kc-pill">❌ İptal</span></div>
+      <div class="kc-meta">${list[0].cancelled_by ? '<span>👤 ' + escapeHtml(list[0].cancelled_by) + '</span>' : ''}<span>${new Date(list[0].created_at).toLocaleTimeString('tr-TR', { hour:'2-digit', minute:'2-digit' })}</span></div>
+      <div class="kc-items">${list.map(r => `<div class="kitchen-item-row kc-item"><span class="kc-qty">${r.qty}</span><div class="kc-iname"><span class="kitchen-item-name">${escapeHtml(r.name)}</span></div></div>`).join('')}</div>
+      <div class="kc-cancel-stamp">SİPARİŞ İPTAL EDİLDİ</div>
+    </div>`).join('');
 }
 // Aynı adlı masa başka bölgede de varsa bölge adıyla gösterilir (Bahçe · Masa1).
 function tableNameForId(tableId){
@@ -160,7 +194,7 @@ function startKitchenPolling(session){
     if(APP.view==='kitchen' && APP.kitchenStation) refreshKitchenItems(session);
   }, 2000);
   APP.kitchenTimerInterval = setInterval(updateKitchenTimers, 1000);
-  // 15 dakikayi gecmis, hala hazir verilmemis siparisler icin sol tarafta
+  // 20 dakikayi gecmis, hala hazir verilmemis siparisler icin sol tarafta
   // (sag ustteki tek seferlik uyaridan ayri) her 3 dakikada bir tekrarlanan
   // hatirlatma - mutfak ekranindan uzaklasilsa/personel gozden kacirsa bile
   // gec kalmis siparisler unutulmasin diye.
@@ -168,13 +202,13 @@ function startKitchenPolling(session){
 }
 function updateKitchenTimers(){
   if(!APP.kitchenLateWarned) APP.kitchenLateWarned = new Set();
-  // Kartın üstündeki süre çubuğu 15 dakikaya doğru dolar.
+  // Kartın üstündeki süre çubuğu 20 dakikaya doğru dolar.
   document.querySelectorAll('.kc-age i[data-age-from]').forEach(el => {
     const f = el.dataset.ageFrom; if(!f) return;
     const mins = (Date.now() - new Date(f).getTime()) / 60000;
-    el.style.width = Math.min(100, mins / 15 * 100) + '%';
+    el.style.width = Math.min(100, mins / 20 * 100) + '%';
     const card = el.closest('.kitchen-card'); if(!card) return;
-    const st = mins >= 15 ? 'late' : mins >= 10 ? 'warn' : 'new';
+    const st = mins >= 20 ? 'late' : mins >= 10 ? 'warn' : 'new';
     card.classList.toggle('kc-new', st==='new'); card.classList.toggle('kc-warn', st==='warn'); card.classList.toggle('kc-late', st==='late');
     const pill = card.querySelector('.kc-pill'); if(pill) pill.textContent = st==='late' ? '🔴 Gecikti' : st==='warn' ? '🟡 Bekliyor' : '🟢 Yeni';
     const since = card.querySelector('.kc-since'); if(since) since.textContent = Math.floor(mins) + ' dk önce · ' + new Date(f).toLocaleTimeString('tr-TR', { hour:'2-digit', minute:'2-digit' });
@@ -185,22 +219,22 @@ function updateKitchenTimers(){
     const secs = Math.max(0, Math.floor((Date.now() - new Date(added).getTime())/1000));
     const mm = Math.floor(secs/60), ss = secs%60;
     el.textContent = mm + ':' + String(ss).padStart(2,'0');
-    // 0-10 dk yesil (varsayilan), 10-15 dk sari, 15 dk+ kirmizi.
-    el.classList.toggle('kt-warn', secs>=600 && secs<900);
-    el.classList.toggle('kt-danger', secs>=900);
+    // 0-10 dk yesil (varsayilan), 10-20 dk sari, 20 dk+ kirmizi.
+    el.classList.toggle('kt-warn', secs>=600 && secs<1200);
+    el.classList.toggle('kt-danger', secs>=1200);
     // Urun adi da (sadece sayac degil) ayni renge boyansin diye satirin
     // kendisine de ayni durum sinifi uygulanir.
     const row = el.closest('.kitchen-item-row');
     if(row){
-      row.classList.toggle('ki-warn', secs>=600 && secs<900);
-      row.classList.toggle('ki-danger', secs>=900);
+      row.classList.toggle('ki-warn', secs>=600 && secs<1200);
+      row.classList.toggle('ki-danger', secs>=1200);
     }
-    // 15 dakikayi gectiginde, urun basina bir kez sag ustte uyari mesaji
+    // 20 dakikayi gectiginde, urun basina bir kez sag ustte uyari mesaji
     // goster - en az 30 saniye ekranda kalsin diye suresi acikca veriliyor.
     const itemId = el.dataset.id;
-    if(secs>=900 && itemId && !APP.kitchenLateWarned.has(itemId)){
+    if(secs>=1200 && itemId && !APP.kitchenLateWarned.has(itemId)){
       APP.kitchenLateWarned.add(itemId);
-      showToast('⏰ ' + (el.dataset.name||'Bir sipariş') + ' 15 dakikayı geçti!', 30000, null, () => goToView('kitchen'), true);
+      showToast('⏰ ' + (el.dataset.name||'Bir sipariş') + ' 20 dakikayı geçti!', 30000, null, () => goToView('kitchen'), true);
     }
   });
   // Kartin arka plani, icindeki en gec kalmis urunun rengine gore hafifce tonlanir.
@@ -215,7 +249,7 @@ function updateKitchenTimers(){
     card.classList.toggle('kc-danger', worst==='danger');
   });
 }
-/* Hala hazir verilmemis (15 dk+ gecikmis) urunleri sol tarafta toplu bir
+/* Hala hazir verilmemis (20 dk+ gecikmis) urunleri sol tarafta toplu bir
    bildirimle hatirlatir - startKitchenPolling icinde 3 dakikada bir cagrilir. */
 function checkLateOrdersReminder(){
   if(APP.view!=='kitchen' || !APP.kitchenStation) return;

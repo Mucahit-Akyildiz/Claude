@@ -425,6 +425,7 @@ function radioNative(action, name){
    yeniden çizmek basılı tutmayı (pointer capture) koparıp konuşmayı kesiyordu. */
 function drawRadioDock(){
   let dock = document.getElementById('radioDock');
+  document.body.classList.toggle('has-radio', !!RADIO.channel);
   if(!RADIO.channel){ if(dock) dock.remove(); return; }
   if(!dock){
     dock = document.createElement('div'); dock.id = 'radioDock';
@@ -439,6 +440,9 @@ function drawRadioDock(){
       <button type="button" id="radioMicBtn" class="ghost-btn" style="margin:0;width:auto;padding:8px 10px;" title="Mikrofon seç">🎤</button>
       <button type="button" id="radioClose" class="ghost-btn" style="margin:0;width:auto;padding:8px 10px;" title="Telsizi kapat">✕</button>`;
     document.body.appendChild(dock);
+    // Mobilde mesaj yazma alanı telsiz çubuğunun altında kalmasın: yüksekliği CSS'e ver.
+    const setH = () => document.documentElement.style.setProperty('--rdock-h', (dock.offsetHeight + 24) + 'px');
+    setH(); if(window.ResizeObserver) new ResizeObserver(setH).observe(dock);
     dock.querySelector('#radioInfo').onclick = () => {
       const needAudio = !RADIO.nativeAudio && (!RADIO.ctx || RADIO.ctx.state !== 'running');
       radioAudioCtx(); RADIO.missed = false; setTimeout(drawRadioDock, 100);
