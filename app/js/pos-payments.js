@@ -1067,10 +1067,11 @@ async function rejectCustomerRequest(id){
 }
 function renderZoneTabs(){
   const el = document.getElementById('zoneTabs'); if(!el) return;
-  // Her bölge sekmesinde o bölgedeki açık (dolu) masa sayısı rozet olarak görünür.
+  // Bölge sekmesi: gri "dolu/toplam" bilgisi + yalnızca ilgilenilmesi gereken masa varsa (sipariş bekleyen) kırmızı rozet.
   el.innerHTML = APP.config.zones.map(z => {
-    const open = (z.tables||[]).filter(t => liveOrderForTable(t.id)).length;
-    return `<div class="tab ${z.id===APP.selectedZone?'active':''}" ${act('selectZone', z.id)}>${escapeHtml(z.name)}${open ? ` <span class="zone-badge" title="${open} açık masa">${open}</span>` : ''}</div>`;
+    const ts = z.tables || [], open = ts.filter(t => liveOrderForTable(t.id)).length;
+    const need = ts.filter(t => { const o = liveOrderForTable(t.id); return o && !(o.items || []).length; }).length;
+    return `<div class="tab ${z.id===APP.selectedZone?'active':''}" ${act('selectZone', z.id)}>${escapeHtml(z.name)}<span class="zone-occ" title="${open} dolu / ${ts.length} masa">${open}/${ts.length}</span>${need ? `<span class="zone-badge" title="${need} masada sipariş bekleniyor">${need}</span>` : ''}</div>`;
   }).join('');
 }
 function selectZone(id){ APP.selectedZone = id; renderZoneTabs(); renderTableGrid(); }
@@ -1291,7 +1292,7 @@ function tableCardInfo(t){
   if(order || draft.length || outbox){
     state = 'busy';
     if(unpaid.length && ready === unpaid.length) state = 'ready';
-    if(order && !items.length && mins >= 5) state = 'wait';
+    if(order && !items.length) state = 'wait';
     if(outbox) state = 'wait';
   }
   return { order, draft, unpaid, ready, total, mins, outbox, state };
@@ -1303,7 +1304,7 @@ function tableCardHtml(t){
   const pct = c.unpaid.length ? Math.round(c.ready / c.unpaid.length * 100) : 0;
   const label = { empty:'Boş', busy:'Hazırlanıyor', ready:'Hazır · ödeme', wait: c.outbox ? 'Gönderilmeyi bekliyor' : 'Sipariş bekleniyor' }[c.state];
   const timeTxt = c.mins >= 60 ? Math.floor(c.mins/60) + 's ' + (c.mins%60) + 'dk' : c.mins + ' dk';
-  return `<div class="tc tc-${c.state}" ${act('openTableModal', t.id)}>
+  return `<div class="tc tc-${c.state}" ${c.order && !c.order.items?.length ? `data-badge-id="${c.order.order_id}"` : ""} ${act('openTableModal', t.id)}>
     <div class="tc-top"><span class="tc-name">${escapeHtml(t.name)}</span>${c.order ? `<span class="tc-time">⏱ ${timeTxt}</span>` : ''}</div>
     ${c.state === 'empty' ? `<div class="tc-cta">＋ Sipariş al</div>` : `
       ${c.order && c.order.customer_name ? `<div class="tc-cust">👤 ${escapeHtml(c.order.customer_name)}</div>` : ''}
@@ -1319,7 +1320,7 @@ function renderOrderSummary(){
   const infos = all.map(tableCardInfo);
   const cnt = (s) => infos.filter(i => i.state === s).length;
   const chip = (cls, ic, n, l) => `<div class="os-chip os-${cls}"><span class="os-ic">${ic}</span><div><b>${n}</b><small>${l}</small></div></div>`;
-  el.innerHTML = chip('empty','🪑', cnt('empty'), 'Boş masa') + chip('busy','🔥', cnt('busy') + cnt('wait'), 'Dolu masa') + chip('ready','✅', cnt('ready'), 'Hazır · ödeme bekliyor');
+  el.innerHTML = chip('empty','🪑', cnt('empty'), 'Boş masa') + chip('wait','🕒', cnt('wait'), 'Sipariş bekleniyor') + chip('busy','🔥', cnt('busy'), 'Hazırlanıyor') + chip('ready','✅', cnt('ready'), 'Hazır · ödeme bekliyor');
 }
 function renderTableFloorPlan(zone, el){
   if(!el) return;

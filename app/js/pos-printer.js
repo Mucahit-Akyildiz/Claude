@@ -779,7 +779,58 @@ async function renderNotificationSettingsView(main, session){
     </div>
     </div>
   `;
+  if(session.isManager){
+    const part = document.getElementById('notifSettingsPart');
+    if(part){ const b = document.createElement('div'); b.className = 'box'; b.style.maxWidth = 'none'; b.innerHTML = '<h2>👥 Kime Gitsin</h2><div id="notifRolesBody"><p class="muted">Yükleniyor…</p></div>';
+      const first = part.querySelector(':scope > .box'); part.insertBefore(b, first); loadNotifRoles(); }
+  }
   boxTabs(document.getElementById('notifSettingsPart'), 'notif');
   updateBellScopeStatus();
   initPushUI();
+}
+
+/* Bildirimler > Kime Gitsin: her bildirim türünün hangi rollere (push) gideceği. Ayar yoksa izne göre varsayılan. */
+const NOTIF_TYPES = [
+  { k:'customer_request', ic:'📱', t:'QR / online sipariş talebi', d:'Müşteri menüden sipariş gönderince', perm:'order' },
+  { k:'idle_table', ic:'🪑', t:'Sipariş bekleyen masa', d:'Masaya oturan müşterinin siparişi girilmeyince', perm:'order' },
+  { k:'waiter_order', ic:'🙋', t:'Garson çağrısı (sipariş)', d:'Masadan sipariş için garson çağrılınca', perm:'order' },
+  { k:'waiter_payment', ic:'💳', t:'Garson çağrısı (hesap)', d:'Masadan hesap istenince', perm:'payments' },
+  { k:'kitchen_late', ic:'⏰', t:'Geciken mutfak siparişi', d:'Ürün 15 dakikayı geçince', perm:'kitchen' },
+  { k:'shift', ic:'🕐', t:'Vardiya talepleri', d:'Personel vardiya başlatmak/bitirmek isteyince', perm:'shifts' },
+  { k:'purchase_order', ic:'🚚', t:'Satınalma siparişi', d:'Yeni satınalma siparişi verilince', perm:'purchasing_reports' },
+];
+async function loadNotifRoles(){
+  const box = document.getElementById('notifRolesBody'); if(!box) return;
+  const { data, error } = await sb.rpc('get_notification_roles', { p_token: getSession().session_token });
+  if(error){ box.innerHTML = '<p class="muted">Yüklenemedi: ' + escapeHtml(error.message) + '</p>'; return; }
+  APP.notifRoles = data || {};
+  drawNotifRoles();
+}
+function notifRolesFor(type){
+  const cfg = (APP.notifRoles || {})[type.k], roles = APP.config.roles || [];
+  return Array.isArray(cfg) ? cfg : roles.filter(r => r.is_system || (r.permissions || []).includes(type.perm)).map(r => r.id);
+}
+function drawNotifRoles(){
+  const box = document.getElementById('notifRolesBody'); if(!box) return;
+  const roles = APP.config.roles || [];
+  box.innerHTML = `<p class="muted" style="text-align:left;margin:0 0 14px;font-size:13px;">Her bildirimin hangi rollerdeki kişilere (telefon / masaüstü bildirimi olarak) gideceğini seçin. Değişiklik hemen kaydedilir. Ekrandaki kırmızı rozetler ise yetkisi olan herkese görünmeye devam eder.</p>
+    <div class="nr-list">${NOTIF_TYPES.map((t, i) => { const sel = notifRolesFor(t), custom = Array.isArray((APP.notifRoles||{})[t.k]);
+      return `<div class="nr-row" style="--sc:var(--c${i%4+1});">
+        <div class="nr-head"><span class="nr-ic">${t.ic}</span><div class="cu-id"><b>${t.t}</b><small>${t.d}</small></div>
+          ${custom ? `<button type="button" class="pc-btn" title="İzne göre varsayılana dön" ${act('resetNotifRoles', t.k)}>↺ Varsayılan</button>` : '<span class="pchip">varsayılan</span>'}</div>
+        <div class="nr-roles">${roles.map(r => `<button type="button" class="nr-chip ${sel.includes(r.id)?'on':''}" ${act('toggleNotifRole', t.k, r.id)}>${sel.includes(r.id) ? '✓ ' : ''}${escapeHtml(r.name)}</button>`).join('')}
+          ${sel.length ? '' : '<span class="muted" style="font-size:12px;">⚠️ Bu bildirim kimseye gitmez</span>'}</div>
+      </div>`; }).join('')}</div>`;
+}
+async function toggleNotifRole(type, roleId){
+  const t = NOTIF_TYPES.find(x => x.k === type); if(!t) return;
+  const cur = notifRolesFor(t), next = cur.includes(roleId) ? cur.filter(x => x !== roleId) : cur.concat(roleId);
+  const { error } = await sb.rpc('set_notification_roles', { p_token: getSession().session_token, p_type: type, p_role_ids: next });
+  if(error){ alert(error.message); return; }
+  APP.notifRoles = Object.assign({}, APP.notifRoles, { [type]: next }); drawNotifRoles(); showToast('Kaydedildi ✓');
+}
+async function resetNotifRoles(type){
+  const { error } = await sb.rpc('set_notification_roles', { p_token: getSession().session_token, p_type: type, p_role_ids: null });
+  if(error){ alert(error.message); return; }
+  const n = Object.assign({}, APP.notifRoles); delete n[type]; APP.notifRoles = n; drawNotifRoles(); showToast('Varsayılana döndü');
 }
