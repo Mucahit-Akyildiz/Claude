@@ -142,29 +142,21 @@ function renderOrderFlagsSettings(el, session){
   el.innerHTML = `<div class="box" style="max-width:none;">
     <h2>Sipariş Etiketleri</h2>
     <p class="muted" style="text-align:left;margin:0 0 16px;">Sipariş al ekranında, siparişi mutfağa göndermeden önce işaretlenebilecek checkbox'lar (örn. "Personel Yemeği", "İkram"). İşaretlenen siparişlerde stok yine düşer, ama Finansal Analiz'deki ciro/net kârdan hariç tutulup ayrı bir toplam olarak gösterilir. İstediğiniz kadar etiket ekleyebilirsiniz.</p>
-    <div class="settings-table-wrap">
-    <table class="settings-table">
-      <thead><tr><th>Etiket</th><th></th></tr></thead>
-      <tbody>
-      ${flags.map(f => `
-        <tr>
-          <td class="col-name"><input value="${escapeAttr(f.label)}" id="flag_label_${f.id}"></td>
-          <td style="white-space:nowrap;">
-            <button type="button" class="act-btn act-save" ${act('saveOrderFlag', f.id)}>${ICON_SAVE}<span>Kaydet</span></button>
-            <button type="button" class="act-btn act-delete" ${act('removeOrderFlag', f.id)}>${ICON_TRASH}<span>Sil</span></button>
-          </td>
-        </tr>`).join('')}
-      ${flags.length===0 ? '<tr><td colspan="2" class="muted" style="padding:10px 4px;">Henüz etiket eklenmedi.</td></tr>' : ''}
-      </tbody>
-    </table>
-    </div>
-    <div class="add-row-panel">
-      <p>Yeni Etiket Ekle</p>
-      <div style="display:flex;gap:10px;align-items:end;">
-        <div class="field-group" style="flex:1;"><label>Etiket Adı</label><input id="nf_label" placeholder="örn. Personel Yemeği"></div>
-        <button style="max-width:160px;" ${act('addOrderFlag')}>+ Etiket Ekle</button>
+    <div class="fl-grid">
+      ${flags.map((f, i) => `<div class="fl-card" style="--sc:var(--c${i%4+1});--i:${Math.min(i,12)};">
+        <span class="fl-ic">🏷️</span>
+        <input class="fl-name" value="${escapeAttr(f.label)}" id="flag_label_${f.id}" title="Adı değiştirip Enter'a basın" ${actOn('keydown','onEnterCall',['$event','saveOrderFlag', f.id])}>
+        <button type="button" class="ico-btn" title="Kaydet" ${act('saveOrderFlag', f.id)}>💾</button>
+        <button type="button" class="ico-btn danger" title="Sil" ${act('removeOrderFlag', f.id)}>🗑</button>
+      </div>`).join('')}
+      <div class="fl-card fl-new">
+        <span class="fl-ic">＋</span>
+        <input class="fl-name" id="nf_label" placeholder="Yeni etiket (örn. Personel Yemeği)" ${actOn('keydown','onEnterCall',['$event','addOrderFlag'])}>
+        <button type="button" class="fl-add" ${act('addOrderFlag')}>Ekle</button>
       </div>
     </div>
+    ${flags.length ? `<div class="fl-prev"><small>👀 Sipariş ekranında böyle görünür</small>
+      <div>${flags.map((f, i) => `<span class="fl-chip" style="--sc:var(--c${i%4+1});"><i>${i===0?'✓':''}</i>${escapeHtml(f.label)}</span>`).join('')}</div></div>` : ''}
   </div>`;
 }
 async function saveOrderFlag(id){
@@ -195,9 +187,15 @@ async function removeOrderFlag(id){
 /* --- Hammaddeler (reçete tabanlı stok) --- */
 function renderIngredientsSettings(el, session){
   const ings = APP.config.ingredients || [];
-  el.innerHTML = `<div class="box" style="max-width:none;">
+  const useCount = (id) => (APP.config.products||[]).filter(p => (p.recipe||[]).some(r => r.ingredient_id === id)).length;
+  const maxStock = Math.max(1, ...ings.map(i => Number(i.stock)||0));
+  const f = APP.ingFilter || 'all';
+  const shownIngs = f==='out' ? ings.filter(i => Number(i.stock)<=0) : f==='idle' ? ings.filter(i => !useCount(i.id)) : f==='waste' ? ings.filter(i => Number(i.waste_pct)>0) : ings;
+  const chip = (k, ic, v, l, c) => `<div class="os-chip os-click ${f===k?'on':''}" role="button" title="Listeyi filtrele" style="--oc:${c};" ${act('setIngFilter', k)}><span class="os-ic">${ic}</span><div><b>${v}</b><small>${l}</small></div></div>`;
+  el.innerHTML = `<div class="order-summary stat-chips" style="--n:4;">${chip('all','🥕', ings.length, 'Hammadde', 'var(--c1)')}${chip('out','⛔', ings.filter(i => Number(i.stock)<=0).length, 'Stoğu biten', 'var(--danger,#ef4444)')}${chip('idle','💤', ings.filter(i => !useCount(i.id)).length, 'Reçetede kullanılmayan', 'var(--c3)')}${chip('waste','✂️', ings.filter(i => Number(i.waste_pct)>0).length, 'Fire tanımlı', 'var(--c2)')}</div>
+  <div class="box" style="max-width:none;">
     <h2>Hammaddeler / Stok Kalemleri</h2>
-    <p class="muted" style="text-align:left;margin:0 0 16px;">Örn: "Köfte" (birim: adet, stok: 200), "Döner Eti" (birim: kg, stok: 20). Yeni bir hammadde eklediğinizde hangi ürünlerin onu kullandığını hemen soracağız — istediğiniz zaman "Kullanıldığı Ürünler" ile bunu tekrar düzenleyebilirsiniz. Aynı hammaddeyi paylaşan ürünlerin stoğu her zaman ortak ve anlık hesaplanır. <b>Fire %</b>: temizleme/kesim kaybıdır; reçeteye net miktarı girersiniz, stoktan fire eklenerek düşülür (örn. %10 fire, 60 g net → 66,7 g düşer). Satırları değiştirip <b>Kaydet</b>'e basın; silmek için satırları seçin.</p>
+    <details class="prod-info"><summary>ℹ️ Nasıl çalışır</summary><p class="muted" style="text-align:left;margin:0 0 12px;">Örn: "Köfte" (birim: adet, stok: 200), "Döner Eti" (birim: kg, stok: 20). Yeni bir hammadde eklediğinizde hangi ürünlerin onu kullandığını hemen soracağız — istediğiniz zaman "Kullanıldığı Ürünler" ile bunu tekrar düzenleyebilirsiniz. Aynı hammaddeyi paylaşan ürünlerin stoğu her zaman ortak ve anlık hesaplanır. <b>Fire %</b>: temizleme/kesim kaybıdır; reçeteye net miktarı girersiniz, stoktan fire eklenerek düşülür (örn. %10 fire, 60 g net → 66,7 g düşer). Kartları değiştirip <b>Kaydet</b>'e basın; silmek için kartları seçin.</p></details>
     <div class="add-row-panel">
       <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:0 0 10px;">
         ${listSearchHtml('ingredients', 'Hammadde ara…').replace('margin:0 0 12px;','margin:0;')}
@@ -219,42 +217,39 @@ function renderIngredientsSettings(el, session){
         <button style="${INLINE_BTN}" ${act('addIngredient')}>+ Hammadde Ekle</button>
       </div>
     </div>
-    <div class="settings-table-wrap">
-    <table class="settings-table">
-      <thead><tr><th style="width:36px;"><input type="checkbox" style="width:auto;margin:0;" title="Tümünü seç" ${actOn('change','selectAllIngredients',['$checked'])}></th><th>Hammadde Adı</th><th>Birim</th><th>Stok</th><th title="Temizleme/kesim kaybı: reçetedeki net miktara eklenerek stoktan düşülür">Fire %</th><th></th></tr></thead>
-      <tbody ${actOn('input','markIngDirty',['$event'])} ${actOn('change','markIngDirty',['$event'])}>
-      ${ings.map(i => `
-        <tr data-iid="${i.id}" class="${Number(i.stock)<=0 ? 'ing-out' : ''}" title="${Number(i.stock)<=0 ? 'Stok bitti — bu hammaddeyi kullanan ürünler satılamaz' : ''}">
-          <td><input type="checkbox" class="ing-sel" value="${i.id}" style="width:auto;margin:0;" ${actOn('change','updateIngSelection',[])}></td>
-          <td class="col-name"><input value="${escapeAttr(i.name)}" id="ing_name_${i.id}">${Number(i.stock)<=0 ? '<div class="ing-out-tag">● Stok bitti</div>' : ''}</td>
-          <td class="col-num"><select id="ing_unit_${i.id}">
-            ${['adet','gram','kg','ml','lt'].map(u => `<option value="${u}" ${u===i.unit?'selected':''}>${u}</option>`).join('')}
-          </select></td>
-          <td class="col-num"><input type="number" step="0.01" value="${i.stock}" id="ing_stock_${i.id}"></td>
-          <td class="col-num"><input type="number" step="0.1" min="0" max="99" value="${Number(i.waste_pct)||0}" id="ing_waste_${i.id}"></td>
-          <td style="white-space:nowrap;">
-            <button class="sbtn" style="background:var(--accent2);color:var(--btn-ink);" ${act('openIngredientUsageModal', i.id)}>Kullanıldığı Ürünler</button>
-          </td>
-        </tr>`).join('')}
-      </tbody>
-    </table>
+    <div style="display:flex;align-items:center;gap:8px;margin:4px 0 10px;"><label style="display:flex;align-items:center;gap:6px;margin:0;font-size:13px;font-weight:600;"><input type="checkbox" style="width:auto;margin:0;" ${actOn('change','selectAllIngredients',['$checked'])}> Tümünü seç</label></div>
+    <div class="ig-grid" ${actOn('input','markIngDirty',['$event'])} ${actOn('change','markIngDirty',['$event'])}>
+      ${shownIngs.map((i, k) => { const st = Number(i.stock)||0, out = st <= 0, uses = useCount(i.id), pct = Math.max(4, Math.min(100, st / maxStock * 100));
+        return `<div class="pcard ig-card ${out?'ig-out':''}" data-iid="${i.id}" data-name="${escapeAttr(String(i.name||'').toLocaleLowerCase('tr'))}" style="--i:${Math.min(k,12)};">
+        <div class="pcard-top"><input type="checkbox" class="ing-sel" value="${i.id}" ${actOn('change','updateIngSelection',[])}>
+          <input class="ig-name" value="${escapeAttr(i.name)}" id="ing_name_${i.id}">
+          <span class="ig-st ${out?'out':uses?'ok':'idle'}">${out ? '● Bitti' : uses ? '● Kullanımda' : '○ Kullanılmıyor'}</span></div>
+        <div class="ig-stock"><input type="number" step="0.01" value="${i.stock}" id="ing_stock_${i.id}" class="ig-qty">
+          <select id="ing_unit_${i.id}" class="ig-unit">${['adet','gram','kg','ml','lt'].map(u => `<option value="${u}" ${u===i.unit?'selected':''}>${u}</option>`).join('')}</select></div>
+        <div class="pcard-mbar"><i style="width:${out?0:pct}%;background:${out?'var(--danger,#ef4444)':pct<15?'var(--c3)':'var(--ok,#22c55e)'};"></i></div>
+        <div class="ig-foot">
+          <label class="ig-waste" title="Temizleme/kesim kaybı">Fire % <input type="number" step="0.1" min="0" max="99" value="${Number(i.waste_pct)||0}" id="ing_waste_${i.id}"></label>
+          <button type="button" class="pc-btn" ${act('openIngredientUsageModal', i.id)}>🍽️ ${uses} ürün</button>
+        </div>
+      </div>`; }).join('') || '<div class="empty-state" style="grid-column:1/-1;"><div style="font-size:38px;">🥕</div><p class="muted">Bu filtrede hammadde yok.</p></div>'}
     </div>
   </div>`;
 }
 /* Hammaddeler: değişen satırlar tek düğmeyle kaydedilir; silme seçilen satırlara toplu uygulanır. */
 function markIngDirty(e){
   if(!e.target || e.target.type==='checkbox') return;
-  const tr = e.target.closest('tr[data-iid]'); if(!tr) return;
-  tr.dataset.dirty = '1'; tr.style.boxShadow = 'inset 4px 0 0 var(--accent)';
+  const tr = e.target.closest('[data-iid]'); if(!tr) return;
+  tr.dataset.dirty = '1'; tr.classList.add('is-dirty');
   updateIngSelection();
 }
+function setIngFilter(k){ APP.ingFilter = APP.ingFilter===k ? 'all' : k; renderSettingsContent(getSession()); }
 function selectedIngredientIds(){ return [...document.querySelectorAll('.ing-sel:checked')].map(b => b.value); }
 function selectAllIngredients(on){
-  document.querySelectorAll('tr[data-iid]').forEach(tr => { const c = tr.querySelector('.ing-sel'); if(c && tr.style.display!=='none') c.checked = on; });
+  document.querySelectorAll('[data-iid]').forEach(tr => { const c = tr.querySelector('.ing-sel'); if(c && tr.style.display!=='none') c.checked = on; });
   updateIngSelection();
 }
 function updateIngSelection(){
-  const n = selectedIngredientIds().length, dirty = document.querySelectorAll('tr[data-iid][data-dirty]').length;
+  const n = selectedIngredientIds().length, dirty = document.querySelectorAll('[data-iid][data-dirty]').length;
   document.querySelectorAll('[data-ing-sel]').forEach(b => { b.disabled = !n; });
   const save = document.getElementById('ingSaveAllBtn');
   if(save){ save.disabled = !dirty; save.querySelector('span').textContent = dirty ? `Kaydet (${dirty})` : 'Kaydet'; }
@@ -262,7 +257,7 @@ function updateIngSelection(){
   if(info) info.innerHTML = [n ? `<b>${n}</b> hammadde seçili` : '', dirty ? `<b>${dirty}</b> satırda kaydedilmemiş değişiklik` : ''].filter(Boolean).join(' · ');
 }
 async function saveAllIngredients(){
-  const rows = [...document.querySelectorAll('tr[data-iid][data-dirty]')].map(tr => {
+  const rows = [...document.querySelectorAll('[data-iid][data-dirty]')].map(tr => {
     const id = tr.dataset.iid;
     return { id, name: document.getElementById('ing_name_'+id).value.trim(), unit: document.getElementById('ing_unit_'+id).value,
       stock: parseFloat(document.getElementById('ing_stock_'+id).value)||0, waste: parseFloat(document.getElementById('ing_waste_'+id).value)||0 };
@@ -559,61 +554,65 @@ function pickStationIcon(targetId, icon){
   if(bg) bg.remove();
 }
 function renderStationsSettings(el, session){
-  const menus = APP.config.menus || [];
-  const stName = (id) => ((APP.config.stations||[]).find(x => x.id === id) || {}).name || '';
+  const menus = APP.config.menus || [], stations = APP.config.stations || [];
   const prodCount = (mid) => (APP.config.products||[]).filter(p => p.menu_id === mid).length;
-  const menuBox = `<div class="box" style="max-width:none;">
-    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:6px;">
-      <h2 style="margin:0;">📋 Menüler</h2><span class="muted" style="font-size:12px;">${menus.length} menü</span>
-    </div>
-    <p class="muted" style="text-align:left;margin:0 0 12px;font-size:13px;">Önce menülerinizi oluşturun (Çorbalar, Izgaralar, İçecekler…). Ürünler menüye bağlanır; aşağıda her istasyona hangi menülerin gideceğini seçersiniz. Bir menünün ürünleri, bağlı olduğu istasyonun ekranına ve yazıcısına düşer.</p>
-    <div style="display:flex;flex-direction:column;gap:8px;">
-      ${menus.map((m, i) => `<div style="display:flex;align-items:center;gap:8px;background:var(--panel2);border:1px solid var(--border);border-radius:12px;padding:8px 10px;flex-wrap:wrap;">
-        <div style="display:flex;flex-direction:column;gap:2px;">
-          <button type="button" class="ghost-btn" style="width:28px;height:20px;padding:0;margin:0;font-size:11px;" ${i===0?'disabled':''} title="Yukarı" ${act('moveMenu', m.id, -1)}>▲</button>
-          <button type="button" class="ghost-btn" style="width:28px;height:20px;padding:0;margin:0;font-size:11px;" ${i===menus.length-1?'disabled':''} title="Aşağı" ${act('moveMenu', m.id, 1)}>▼</button>
-        </div>
-        <input value="${escapeAttr(m.name)}" id="menu_name_${m.id}" style="flex:1;min-width:140px;margin:0;font-weight:700;">
-        <span class="muted" style="font-size:12px;white-space:nowrap;">${prodCount(m.id)} ürün · ${m.station_id ? '🍳 ' + escapeHtml(stName(m.station_id)) : '<span style="color:var(--red);">istasyon seçilmedi</span>'}</span>
+  const menuCard = (m) => { const i = menus.indexOf(m);
+    return `<div class="mn-card">
+      <div class="mn-row">
+        <div class="mn-ord"><button type="button" ${i===0?'disabled':''} title="Yukarı" ${act('moveMenu', m.id, -1)}>▲</button><button type="button" ${i===menus.length-1?'disabled':''} title="Aşağı" ${act('moveMenu', m.id, 1)}>▼</button></div>
+        <input class="mn-name" value="${escapeAttr(m.name)}" id="menu_name_${m.id}" title="Adı değiştirip Enter'a basın" ${actOn('keydown','onEnterCall',['$event','saveMenu', m.id])}>
+        <button type="button" class="ico-btn" title="Adı kaydet" ${act('saveMenu', m.id)}>💾</button>
+        <button type="button" class="ico-btn danger" title="Menüyü sil" ${act('removeMenu', m.id)}>🗑</button>
+      </div>
+      <div class="mn-row mn-foot">
+        <span class="pchip">🍽️ ${prodCount(m.id)} ürün</span>
+        <select class="mn-move" title="Bu menünün gideceği istasyon" ${actOn('change','moveMenuToStation',[m.id,'$value'])}>
+          <option value="">— İstasyon yok —</option>${stations.map(x => `<option value="${x.id}" ${x.id===m.station_id?'selected':''}>${escapeHtml(x.icon||'🍳')} ${escapeHtml(x.name)}</option>`).join('')}
+        </select>
         ${menuAvailBtn(m.id)}
-        ${actBtn('save', 'saveMenu', m.id)}
-        ${actBtn('delete', 'removeMenu', m.id)}
-      </div>`).join('')}
-      <div style="display:flex;align-items:center;gap:8px;border:1.5px dashed var(--border);border-radius:12px;padding:8px 10px;">
-        <input id="newMenuName" placeholder="Yeni menü adı (örn. Çorbalar)" style="flex:1;margin:0;" ${actOn('keydown','newMenuKey',['$event'])}>
-        <button style="width:auto;margin:0;padding:0 18px;height:38px;" ${act('addMenu')}>+ Menü Ekle</button>
       </div>
-    </div>
-  </div>`;
-  const rowHtml = (s) => `
-    <div style="display:flex;align-items:center;gap:12px;background:var(--panel2);border:1px solid var(--border);border-radius:12px;padding:10px 12px;flex-wrap:wrap;">
-      ${stationIconPickerHtml('st_icon_'+s.id, s.icon||'🍳', `border-radius:50%;background:${s.color}26;border-color:${s.color};`)}
-      <input value="${escapeAttr(s.name)}" id="st_name_${s.id}" placeholder="İstasyon adı" style="flex:1;min-width:120px;margin:0;font-weight:700;">
-      <input type="color" value="${s.color}" id="st_color_${s.id}" title="Renk" style="padding:2px;height:38px;width:42px;flex-shrink:0;margin:0;">
-      ${actBtn('save', 'saveStation', s.id)}
-      ${actBtn('delete', 'removeStation', s.id)}
-      <div style="flex-basis:100%;display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding-left:2px;">
-        <span class="muted" style="font-size:12px;font-weight:700;margin-right:2px;">Menüler:</span>
-        ${menus.length ? menus.map(m => { const on = m.station_id === s.id; const other = !on && m.station_id ? stName(m.station_id) : '';
-          return `<button type="button" class="menu-chip ${on?'on':''}" title="${on ? 'Bu istasyondan çıkar' : other ? other + ' istasyonundan bu istasyona taşı' : 'Bu istasyona ekle'}" ${act('toggleStationMenu', s.id, m.id)}>${on ? '✓ ' : '+ '}${escapeHtml(m.name)}${other ? ` <small>(${escapeHtml(other)})</small>` : ''}</button>`; }).join('') : '<span class="muted" style="font-size:12px;">Önce yukarıdan menü ekleyin.</span>'}
+    </div>`; };
+  const col = (s) => { const list = menus.filter(m => m.station_id === s.id);
+    return `<div class="st-col" style="--sc:${s.color||'var(--c1)'};">
+      <div class="st-col-head">
+        ${stationIconPickerHtml('st_icon_'+s.id, s.icon||'🍳', '')}
+        <input class="st-col-name" value="${escapeAttr(s.name)}" id="st_name_${s.id}" placeholder="İstasyon adı" ${actOn('keydown','onEnterCall',['$event','saveStation', s.id])}>
+        <input type="color" class="st-col-color" value="${s.color}" id="st_color_${s.id}" title="Renk">
+        <button type="button" class="ico-btn" title="Kaydet" ${act('saveStation', s.id)}>💾</button>
+        <button type="button" class="ico-btn danger" title="İstasyonu sil" ${act('removeStation', s.id)}>🗑</button>
       </div>
+      <div class="st-col-sub">${list.length} menü · ${(APP.config.products||[]).filter(p => p.station_id===s.id).length} ürün</div>
+      <div class="st-col-body">${list.map(menuCard).join('') || '<div class="st-empty">Bu istasyona menü bağlı değil.<br>Bir menünün altındaki seçimden buraya taşıyın.</div>'}</div>
       ${stationKitchenProductsHtml(s)}
-    </div>`;
-  el.innerHTML = menuBox + `<div class="box" style="max-width:none;">
-    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:14px;">
-      <h2 style="margin:0;">Mutfak İstasyonları</h2>
-      <span class="muted" style="font-size:12px;">${APP.config.stations.length} istasyon</span>
-    </div>
-    <div style="display:flex;flex-direction:column;gap:10px;">
-      ${APP.config.stations.map(rowHtml).join('')}
-      <div style="display:flex;align-items:center;gap:12px;background:transparent;border:1.5px dashed var(--border);border-radius:12px;padding:10px 12px;flex-wrap:wrap;">
-        ${stationIconPickerHtml('newStIcon','🍳', 'border-radius:50%;')}
-        <input id="newStName" placeholder="Yeni istasyon adı (örn. Fırın)" style="flex:1;min-width:160px;margin:0;">
-        <input type="color" id="newStColor" value="#b6a48d" title="Renk" style="padding:2px;height:38px;width:42px;flex-shrink:0;margin:0;">
-        <button style="width:auto;margin:0;padding:0 18px;height:38px;" ${act('addStation')}>+ Ekle</button>
+    </div>`; };
+  const free = menus.filter(m => !m.station_id || !stations.some(x => x.id === m.station_id));
+  el.innerHTML = statChips([['📋', menus.length, 'Menü', 'var(--c1)'], ['🍳', stations.length, 'İstasyon', 'var(--c2)'],
+      ['🍽️', (APP.config.products||[]).length, 'Ürün', 'var(--c3)'], ['⚠️', free.length, 'İstasyonsuz menü', free.length ? 'var(--danger,#ef4444)' : 'var(--c4)']]) +
+    `<div class="box" style="max-width:none;">
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;"><h2 style="margin:0;">Menüler & İstasyonlar</h2></div>
+    <p class="muted" style="text-align:left;margin:6px 0 14px;font-size:13px;">Her sütun bir mutfak istasyonu. İçindeki menülerin ürünleri o istasyonun ekranına ve yazıcısına düşer. Menüyü başka istasyona taşımak için kartındaki seçimi değiştirin.</p>
+    <div class="st-board">
+      <div class="st-col st-free" style="--sc:#94a3b8;">
+        <div class="st-col-head"><span class="st-free-ic">📋</span><b class="st-col-title">İstasyonsuz menüler</b></div>
+        <div class="st-col-sub">${free.length ? 'Bu menülerin ürünleri hiçbir istasyona düşmez' : 'Tüm menüler bir istasyona bağlı ✓'}</div>
+        <div class="st-col-body">${free.map(menuCard).join('')}</div>
+        <div class="st-add"><input id="newMenuName" placeholder="Yeni menü (örn. Çorbalar)" ${actOn('keydown','newMenuKey',['$event'])}><button type="button" ${act('addMenu')}>+ Menü</button></div>
+      </div>
+      ${stations.map(col).join('')}
+      <div class="st-col st-new">
+        <div class="st-col-head">${stationIconPickerHtml('newStIcon','🍳', '')}<b class="st-col-title">Yeni istasyon</b></div>
+        <div class="st-add" style="flex-direction:column;align-items:stretch;">
+          <input id="newStName" placeholder="İstasyon adı (örn. Fırın)" ${actOn('keydown','onEnterCall',['$event','addStation'])}>
+          <div style="display:flex;gap:8px;"><input type="color" id="newStColor" value="#b6a48d" title="Renk" class="st-col-color"><button type="button" style="flex:1;" ${act('addStation')}>+ İstasyon Ekle</button></div>
+        </div>
       </div>
     </div>
   </div>`;
+}
+function moveMenuToStation(menuId, stationId){
+  const m = (APP.config.menus || []).find(x => x.id === menuId); if(!m) return;
+  if(!stationId){ if(m.station_id) toggleStationMenu(m.station_id, menuId); return; }
+  if(m.station_id !== stationId) toggleStationMenu(stationId, menuId);
 }
 /* İstasyon kartında: seçili menülerin ürünleri istasyona (mutfak ekranı + fiş) düşsün mü?
    İşaretsiz ürün siparişte doğrudan "hazır" olur (bkz. products.kitchen_skip). */
@@ -778,40 +777,50 @@ function setZonesSubTab(t){
 }
 function renderZonesSettings(el, session){
   const natural = (a, b) => String(a.name).localeCompare(String(b.name), 'tr', { numeric:true, sensitivity:'base' });
-  el.innerHTML = `<div class="box" style="max-width:none;">
-    <h2>Bölgeler ve Masalar</h2>
-    <p class="muted" style="text-align:left;margin:-6px 0 12px;font-size:13px;">Masalar sırayla listelenir. Masa adına tıklayarak yeniden adlandırabilir, ▦ ile QR kodunu açabilirsiniz. Toplu eklemek için <b>Masa 1-10</b> gibi yazın.</p>
-    <div style="display:flex;gap:8px;flex-wrap:wrap;margin:0 0 14px;">
-      <button type="button" class="ghost-btn" style="width:auto;margin:0;" ${act('showAllTableQrs')}>▦ Tüm QR Kodlarını Göster / Yazdır</button>
-      <button type="button" class="ghost-btn" style="width:auto;margin:0;" ${act('downloadAllTableQrs')}>⬇ Tüm QR Kodlarını İndir</button>
+  const zones = APP.config.zones || [];
+  if(!zones.some(z => z.id === APP.zoneSel)) APP.zoneSel = zones.length ? zones[0].id : null;
+  const z = zones.find(x => x.id === APP.zoneSel);
+  const total = zones.reduce((x, q) => x + q.tables.length, 0);
+  el.innerHTML = statChips([['📍', zones.length, 'Bölge', 'var(--c1)'], ['🪑', total, 'Toplam masa', 'var(--c2)'],
+      ['▦', zones.reduce((x, q) => x + q.tables.filter(t => t.qr_token).length, 0), 'QR kodlu masa', 'var(--c3)']]) +
+    `<div class="box" style="max-width:none;">
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:14px;">
+      <h2 style="margin:0;">Bölgeler & Masalar</h2><span style="flex:1;"></span>
+      <button type="button" class="pc-btn" ${act('showAllTableQrs')}>▦ Tüm QR'ları Yazdır</button>
+      <button type="button" class="pc-btn" ${act('downloadAllTableQrs')}>⬇ Tüm QR'ları İndir</button>
     </div>
-    ${APP.config.zones.map(z => `
-      <div class="zone-card">
-        <div class="zone-head">
-          <span class="zone-ic">📍</span>
-          <input value="${escapeAttr(z.name)}" id="zn_name_${z.id}" class="zone-name" ${actOn('keydown','onEnterCall',['$event','saveZone', z.id])}>
-          <span class="zone-count">${z.tables.length} masa</span>
-          <button type="button" class="act-btn act-save" ${act('saveZone', z.id)}>${ICON_SAVE}<span>Kaydet</span></button>
-          <button type="button" class="act-btn act-delete" ${act('removeZone', z.id)}>${ICON_TRASH}<span>Sil</span></button>
-        </div>
-        <div class="zone-tables">
-          ${z.tables.slice().sort(natural).map(t => `<div class="zone-table">
-            <span class="zt-name" title="Yeniden adlandır" ${act('renameTable', t.id, z.id, t.name)}>${escapeHtml(t.name)}</span>
-            <button type="button" class="zt-btn" title="QR Menü Kodu" ${act('showTableQr', t.id, t.qr_token)}>▦</button>
-            <button type="button" class="zt-btn zt-del" title="Sil" ${act('removeTable', t.id)}>✕</button>
-          </div>`).join('') || '<span class="muted" style="font-size:13px;">Bu bölgede henüz masa yok.</span>'}
-        </div>
-        <div class="zone-add">
-          <input id="newTable_${z.id}" placeholder="Yeni masa adı (örn. Masa 11 ya da Masa 1-10)" ${actOn('keydown','onEnterCall',['$event','addTable', z.id])}>
-          <button type="button" ${act('addTable', z.id)}>+ Masa</button>
-        </div>
-      </div>`).join('')}
-    <div class="zone-add zone-add-new">
-      <input id="newZoneName" placeholder="Yeni bölge adı (örn. Teras)" ${actOn('keydown','onEnterCall',['$event','addZone'])}>
-      <button type="button" ${act('addZone')}>+ Bölge Ekle</button>
+    <div class="zn-layout">
+      <div class="zn-list">
+        ${zones.map((q, i) => `<button type="button" class="zn-item ${q.id===APP.zoneSel?'on':''}" style="--zc:var(--c${i%4+1});" ${act('selectZoneSetting', q.id)}>
+          <span class="zn-dot">📍</span><span class="zn-txt"><b>${escapeHtml(q.name)}</b><small>${q.tables.length} masa</small></span></button>`).join('')}
+        <div class="zn-new"><input id="newZoneName" placeholder="Yeni bölge (örn. Teras)" ${actOn('keydown','onEnterCall',['$event','addZone'])}><button type="button" ${act('addZone')}>+</button></div>
+      </div>
+      <div class="zn-panel">
+        ${z ? `<div class="zn-head">
+            <input value="${escapeAttr(z.name)}" id="zn_name_${z.id}" class="zn-title" title="Adı değiştirip Enter'a basın" ${actOn('keydown','onEnterCall',['$event','saveZone', z.id])}>
+            <button type="button" class="ico-btn" title="Bölge adını kaydet" ${act('saveZone', z.id)}>💾</button>
+            <button type="button" class="ico-btn danger" title="Bölgeyi sil" ${act('removeZone', z.id)}>🗑</button>
+          </div>
+          <div class="zn-tiles">
+            ${z.tables.slice().sort(natural).map((t, i) => `<div class="zn-tile" style="--i:${Math.min(i,20)};">
+              <button type="button" class="zn-tname" title="Yeniden adlandır" ${act('renameTable', t.id, z.id, t.name)}>${escapeHtml(t.name)}</button>
+              <div class="zn-tacts">
+                <button type="button" title="QR Menü Kodu" ${act('showTableQr', t.id, t.qr_token)}>▦ QR</button>
+                <button type="button" class="danger" title="Masayı sil" ${act('removeTable', t.id)}>✕</button>
+              </div>
+            </div>`).join('')}
+            <div class="zn-tile zn-addtile">
+              <input id="newTable_${z.id}" placeholder="Masa 21 ya da Masa 1-10" ${actOn('keydown','onEnterCall',['$event','addTable', z.id])}>
+              <button type="button" ${act('addTable', z.id)}>+ Masa Ekle</button>
+            </div>
+          </div>
+          <p class="muted" style="font-size:12px;margin:12px 0 0;text-align:left;">İpucu: Masa adına tıklayıp yeniden adlandırabilirsiniz. Toplu eklemek için <b>Masa 1-10</b> yazın.</p>`
+        : '<div class="empty-state"><div style="font-size:42px;">📍</div><p class="muted">Soldan ilk bölgenizi ekleyin (örn. Salon, Bahçe).</p></div>'}
+      </div>
     </div>
   </div>`;
 }
+function selectZoneSetting(id){ APP.zoneSel = id; renderSettingsContent(getSession()); }
 async function renameTable(id, zoneId, current){
   const name = (prompt('Masa adı:', current) || '').trim();
   if(!name || name===current) return;
@@ -1159,17 +1168,25 @@ function renderProductsSettings(el, session){
   const sale = products.filter(p => p.available!==false).length;
   const priced = products.filter(p => Number(p.price)>0);
   const avgM = priced.length ? Math.round(priced.reduce((a,p) => a + (p.price-(p.cost||0))/p.price, 0)/priced.length*100) : 0;
+  const pf = APP.prodFilter || 'all';
+  const mOf = (p) => Number(p.price)>0 ? (p.price-(p.cost||0))/p.price : 1;
+  const isLow = (p) => { const q = p.recipe && p.recipe.length ? p.available_qty : p.stock; return q!=null && q<=5; };
+  const lowMN = products.filter(p => Number(p.price)>0 && mOf(p) < .35).length;
+  const shown = pf==='on' ? products.filter(p => p.available!==false) : pf==='off' ? products.filter(p => p.available===false)
+    : pf==='low' ? products.filter(isLow) : pf==='lowmargin' ? products.filter(p => Number(p.price)>0 && mOf(p) < .35) : products;
   const lowN = products.filter(p => { const q = p.recipe && p.recipe.length ? p.available_qty : p.stock; return q!=null && q<=5; }).length;
   el.innerHTML = `<div class="box" style="max-width:none;">
     <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;"><h2 style="margin:0;">Ürünler</h2><span style="flex:1;"></span>
       <div class="seg">${[['cards','▦ Kart'],['table','☰ Tablo']].map(([k,l]) => `<button type="button" class="${(cardMode?'cards':'table')===k?'on':''}" ${act('setProdView', k)}>${l}</button>`).join('')}</div></div>
     <div class="order-summary prod-summary" style="margin:12px 0 14px;">
-      <div class="os-chip" style="--oc:var(--c1);"><span class="os-ic">🍔</span><div><b>${products.length}</b><small>Ürün</small></div></div>
-      <div class="os-chip" style="--oc:var(--ok,#22c55e);"><span class="os-ic">✅</span><div><b>${sale}</b><small>Satışta</small></div></div>
-      <div class="os-chip" style="--oc:var(--danger,#ef4444);"><span class="os-ic">⛔</span><div><b>${products.length-sale}</b><small>Kapalı</small></div></div>
-      <div class="os-chip" style="--oc:var(--c2);"><span class="os-ic">📈</span><div><b>%${avgM}</b><small>Ort. marj</small></div></div>
-      <div class="os-chip" style="--oc:var(--c3);"><span class="os-ic">⚠️</span><div><b>${lowN}</b><small>Stok azalan</small></div></div>
+      <div class="os-chip os-click ${pf==='all'?'on':''}" role="button" title="Listeyi filtrele" ${act('setProdFilter', 'all')} style="--oc:var(--c1);"><span class="os-ic">🍔</span><div><b>${products.length}</b><small>Ürün</small></div></div>
+      <div class="os-chip os-click ${pf==='on'?'on':''}" role="button" title="Listeyi filtrele" ${act('setProdFilter', 'on')} style="--oc:var(--ok,#22c55e);"><span class="os-ic">✅</span><div><b>${sale}</b><small>Satışta</small></div></div>
+      <div class="os-chip os-click ${pf==='off'?'on':''}" role="button" title="Listeyi filtrele" ${act('setProdFilter', 'off')} style="--oc:var(--danger,#ef4444);"><span class="os-ic">⛔</span><div><b>${products.length-sale}</b><small>Kapalı</small></div></div>
+      <div class="os-chip os-click ${pf==='lowmargin'?'on':''}" role="button" title="Listeyi filtrele" ${act('setProdFilter', 'lowmargin')} style="--oc:var(--c2);"><span class="os-ic">📈</span><div><b>${lowMN}</b><small>Düşük marj (ort. %${avgM})</small></div></div>
+      <div class="os-chip os-click ${pf==='low'?'on':''}" role="button" title="Listeyi filtrele" ${act('setProdFilter', 'low')} style="--oc:var(--c3);"><span class="os-ic">⚠️</span><div><b>${lowN}</b><small>Stok azalan</small></div></div>
     </div>
+    ${pf!=='all' ? `<div class="pf-note">🔎 <b>${{on:'Satıştaki',off:'Kapalı',low:'Stoğu azalan',lowmargin:'Düşük marjlı'}[pf]} ürünler</b> gösteriliyor (${shown.length})<button type="button" class="pc-btn" ${act('setProdFilter', 'all')}>✕ Tümünü göster</button></div>` : ''}
+    ${pf!=='all' && !shown.length ? '<div class="empty-state"><div style="font-size:38px;">🎉</div><p class="muted">Bu filtrede ürün yok.</p></div>' : ''}
     <details class="prod-info"><summary>ℹ️ Nasıl çalışır · Varsayılan KDV: %${APP.config.default_vat_rate ?? 10}</summary>
     <p class="muted" style="text-align:left;margin:-6px 0 12px;font-size:13px;"><b>Menü</b>: ürünün menüsü (menüleri ve hangi istasyona gideceklerini <b>Menüler & İstasyonlar</b> sekmesinde ayarlayın); ürünün istasyonu menüden gelir. <b>🖨️ Fiş</b> işareti kaldırılan ürünler mutfak fişine yazdırılmaz (ekranda yine görünür).</p>
     <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 10px;">
@@ -1211,8 +1228,8 @@ function renderProductsSettings(el, session){
       </details>
     </div>
     <div id="prodGroups" ${actOn('input','markProdDirty',['$event'])} ${actOn('change','markProdDirty',['$event'])}>
-    ${(APP.config.menus||[]).map(m => { const st = stations.find(x => x.id===m.station_id); return groupHtml(m.name, st ? st.color : null, products.filter(p => p.menu_id===m.id), null, m.id, st ? st.name : 'istasyon seçilmedi'); }).join('')}
-    ${groupHtml('Menüsüz', null, products.filter(p => !p.menu_id || !(APP.config.menus||[]).some(m => m.id===p.menu_id)))}
+    ${(APP.config.menus||[]).map(m => { const st = stations.find(x => x.id===m.station_id); return groupHtml(m.name, st ? st.color : null, shown.filter(p => p.menu_id===m.id), null, m.id, st ? st.name : 'istasyon seçilmedi'); }).join('')}
+    ${groupHtml('Menüsüz', null, shown.filter(p => !p.menu_id || !(APP.config.menus||[]).some(m => m.id===p.menu_id)))}
     </div>
 
   </div>`;
@@ -1244,15 +1261,66 @@ function removeNewProductRecipeItem(idx){ NEW_PRODUCT_RECIPE_DRAFT.splice(idx,1)
 function markProdDirty(e){
   if(!e.target || (e.target.type==='checkbox' && !e.target.classList.contains('prod-print'))) return;
   const tr = e.target.closest('tr[data-pid]'); if(!tr) return;
-  tr.dataset.dirty = '1'; tr.style.boxShadow = 'inset 4px 0 0 var(--accent)';
+  tr.dataset.dirty = '1'; tr.classList.add('is-dirty');
   updateProdSelection();
 }
+function setProdFilter(k){ APP.prodFilter = (APP.prodFilter===k ? 'all' : k); renderSettingsContent(getSession()); }
 function setProdView(v){ APP.prodView = v; renderSettingsContent(getSession()); }
-// Kart görünümünde "Düzenle": tablo görünümüne geçip ürünün satırını vurgular.
+// Kart görünümünde "Düzenle": sağdan açılan düzenleme paneli.
 function editProductRow(pid){
-  APP.prodView = 'table'; renderSettingsContent(getSession());
-  setTimeout(() => { const tr = document.querySelector('tr[data-pid="'+pid+'"]'); if(!tr) return;
-    tr.scrollIntoView({ block:'center', behavior:'smooth' }); tr.classList.add('row-flash'); const i = document.getElementById('pr_name_'+pid); if(i) i.focus({ preventScroll:true }); }, 60);
+  const p = (APP.config.products||[]).find(x => x.id===pid); if(!p) return;
+  closeProdDrawer();
+  const rec = p.recipe && p.recipe.length>0, stations = APP.config.stations || [];
+  const d = document.createElement('div'); d.id = 'prodDrawer'; d.className = 'pdrawer-wrap';
+  d.innerHTML = `<div class="pdrawer-bg" ${act('closeProdDrawer')}></div>
+    <aside class="pdrawer" data-pid="${p.id}">
+      <div class="pdrawer-head"><div><small class="muted">Ürün düzenle</small><h3>${escapeHtml(p.name)}</h3></div><button type="button" class="pdrawer-x" ${act('closeProdDrawer')}>✕</button></div>
+      <div class="pdrawer-body" ${actOn('input','prodDrawerCalc',[])} ${actOn('change','prodDrawerCalc',[])}>
+        <label>Ürün Adı</label><input id="ed_name" value="${escapeAttr(p.name)}">
+        <div class="pdrawer-2"><div><label>Fiyat (₺)</label><input type="number" id="ed_price" value="${p.price}"></div><div><label>Maliyet (₺)</label><input type="number" id="ed_cost" value="${p.cost}"></div></div>
+        <div class="pdrawer-margin"><div class="pcard-mbar"><i id="ed_mbar"></i></div><span id="ed_mtxt"></span></div>
+        <label>Menü</label><select id="ed_menu">${prodMenuOptions(p.menu_id)}</select>
+        <label>İstasyon</label><select id="ed_st">${!p.station_id ? '<option value="" selected>— İstasyon yok —</option>' : ''}${stations.map(x => `<option value="${x.id}" ${x.id===p.station_id?'selected':''}>${escapeHtml(x.name)}</option>`).join('')}</select>
+        <div class="pdrawer-2"><div><label>KDV</label>${vatSelectHtml('ed_vat', p.vat_rate, true)}</div>
+          <div><label>Stok</label>${rec ? `<input disabled value="Reçeteli: ${p.available_qty==null?'?':p.available_qty} porsiyon">` : `<input type="number" id="ed_stock" value="${p.stock==null?'':p.stock}" placeholder="Sınırsız">`}</div></div>
+        <label class="pdrawer-check"><input type="checkbox" id="ed_print" ${p.print_ticket===false?'':'checked'}> 🖨️ Mutfak fişine yazdır</label>
+        <div class="pdrawer-links">
+          <button type="button" class="pc-btn" ${act('openRecipeModal', p.id)}>📋 Reçete</button>
+          <button type="button" class="pc-btn" ${act('openExtrasModal', p.id)}>➕ Ekstralar</button>
+          <button type="button" class="pc-btn" ${act('toggleProductAvailable', p.id)}>${p.available===false?'✓ Satışa Aç':'✕ Satışa Kapat'}</button>
+        </div>
+      </div>
+      <div class="pdrawer-foot"><button type="button" class="ghost-btn" ${act('closeProdDrawer')}>Vazgeç</button><button type="button" ${act('saveProdDrawer')}>Kaydet</button></div>
+    </aside>`;
+  document.body.appendChild(d);
+  prodDrawerCalc();
+  requestAnimationFrame(() => d.classList.add('open'));
+}
+function closeProdDrawer(){ const d = document.getElementById('prodDrawer'); if(d) d.remove(); }
+function prodDrawerCalc(){
+  const pr = parseFloat((document.getElementById('ed_price')||{}).value)||0, co = parseFloat((document.getElementById('ed_cost')||{}).value)||0;
+  const m = pr>0 ? Math.round((pr-co)/pr*100) : 0, bar = document.getElementById('ed_mbar'), t = document.getElementById('ed_mtxt'); if(!bar) return;
+  bar.style.width = Math.max(0,Math.min(100,m))+'%'; bar.style.background = m>=60?'var(--ok,#22c55e)':m>=35?'var(--c3)':'var(--danger,#ef4444)';
+  t.innerHTML = `Kâr: <b>${money(pr-co)}</b> · <b>%${m}</b> marj`;
+}
+async function saveProdDrawer(){
+  const box = document.querySelector('#prodDrawer .pdrawer'); if(!box) return;
+  const id = box.dataset.pid, p = APP.config.products.find(x => x.id===id); if(!p) return;
+  const v = (k) => document.getElementById('ed_'+k);
+  const name = v('name').value.trim(); if(!name){ alert('Ürün adı boş olamaz'); return; }
+  let stock = p.stock; if(v('stock')){ const raw = v('stock').value.trim(); stock = raw==='' ? null : parseInt(raw,10); }
+  const vat = v('vat').value !== '' ? Number(v('vat').value) : null, menu = v('menu').value || null, pr = v('print').checked;
+  const errors = await runProductBatch([{ name }], async (s) => {
+    const res = await sb.rpc('upsert_product', Object.assign({ p_token: s.session_token }, productPayload(p, { p_name: name, p_station_id: v('st').value || null,
+      p_price: parseFloat(v('price').value)||0, p_cost: parseFloat(v('cost').value)||0, p_stock: stock })));
+    if(res.error) return res;
+    if(pr !== (p.print_ticket !== false)){ const o = await sb.rpc('set_product_options', { p_token: s.session_token, p_product_id: id, p_category: p.category || null, p_print_ticket: pr }); if(o.error) return o; }
+    if(menu !== (p.menu_id || null)){ const o = await sb.rpc('set_product_menu', { p_token: s.session_token, p_product_id: id, p_menu_id: menu }); if(o.error) return o; }
+    if((p.vat_rate ?? null) === vat) return res;
+    return sb.rpc('set_product_vat', { p_token: s.session_token, p_product_id: id, p_rate: vat });
+  });
+  if(errors.length){ alert('Kaydedilemedi:\n\n' + errors.join('\n')); return; }
+  closeProdDrawer(); showToast(name + ' kaydedildi ✓');
 }
 function selectedProductIds(){ return [...document.querySelectorAll('.prod-sel:checked')].map(b => b.value); }
 function selectProdGroup(box){
@@ -1330,7 +1398,7 @@ async function toggleProductAvailable(pid){
   const open = p.available === false;
   const { error } = await sb.rpc('upsert_product', Object.assign({ p_token: getSession().session_token }, productPayload(p, { p_available: open })));
   if(error){ alert(error.message); return; }
-  p.available = open;
+  p.available = open; closeProdDrawer();
   showToast(p.name + (open ? ' satışa açıldı ✓' : ' satışa kapatıldı'));
   renderSettingsContent(getSession());
 }
@@ -1386,7 +1454,7 @@ function roleCheckboxes(idPrefix, selectedIds, disabled){
   // Yönetici (sistem) rolü yalnızca işletme sahibine aittir, başkasına atanamaz.
   const roles = (APP.config.roles||[]).filter(r => !r.is_system);
   return roles.map(r => `
-    <label style="display:flex;align-items:center;gap:6px;font-weight:400;font-size:13px;margin-bottom:4px;">
+    <label class="role-chk" style="display:flex;align-items:center;gap:6px;font-weight:400;font-size:13px;margin-bottom:4px;">
       <input type="checkbox" id="${idPrefix}_role_${r.id}" value="${r.id}" data-roles-group="${idPrefix}" ${selectedIds.includes(r.id)?'checked':''} style="width:auto;margin:0;" ${disabled?'disabled':''} ${actOn('change','enforceMaxTwoRoles',[idPrefix])}>
       ${escapeHtml(r.name)}
     </label>`).join('');
@@ -1437,7 +1505,7 @@ function ownerUserRow(u, session){
   const self = u.id === session.user_id;
   return `<tr data-uid="${u.id}" data-owner="1">
     <td></td>
-    <td class="col-name"><input value="${escapeAttr(u.username)}" id="us_name_${u.id}" ${self?'':'disabled'}></td>
+    <td class="col-name uc-name">${avatarHtml(u.username)}<input value="${escapeAttr(u.username)}" id="us_name_${u.id}" ${self?'':'disabled'}></td>
     <td class="col-name">${self ? `${passField('us_pass_'+u.id, false, true)}` : '<span class="muted">—</span>'}</td>
     <td class="col-name"><span class="role-badge">👑 İşletme Sahibi · Yönetici</span>${self ? '' : '<div class="muted" style="font-size:12px;margin-top:4px;">🔒 Değiştirilemez</div>'}</td>
   </tr>`;
@@ -1450,7 +1518,9 @@ function userIsPrivileged(u){
 }
 function renderUsersSettings(el, session){
   const canAssign = canManage(session, 'users_assign_roles');
-  el.innerHTML = `<div class="box" style="max-width:none;">
+  const us = APP.config.users || [], lic = APP.config.license || {};
+  el.innerHTML = statChips([['👥', us.length, 'Kullanıcı', 'var(--c1)'], ['✅', us.filter(u => u.is_active!==false).length, 'Aktif', 'var(--ok,#22c55e)'],
+      ['⏸', us.filter(u => u.is_active===false).length, 'Pasif', 'var(--c3)'], ['🎫', lic.max_users ? Math.max(0, lic.max_users - us.length) : '—', 'Eklenebilir kullanıcı', 'var(--c2)']]) + `<div class="box" style="max-width:none;">
     <h2>Kullanıcılar</h2>
     ${canAssign ? '' : '<p class="muted" style="text-align:left;font-size:12.5px;margin:-4px 0 12px;">🔒 Kullanıcı ekleme, rol değiştirme, pasife alma ve silme için <b>Kullanıcı Yönetimi</b> izni gerekir; yetkili kişilerin hesapları da kilitlidir. Diğer personelin adını ve şifresini değiştirebilirsiniz.</p>'}
     <div class="add-row-panel" style="margin:0 0 16px;${canAssign?'':'display:none;'}">
@@ -1475,7 +1545,7 @@ function renderUsersSettings(el, session){
       </div>
     </div>
     <p class="muted" id="userSelInfo" style="text-align:left;font-size:12.5px;margin:0 0 8px;">Satırdaki bilgileri değiştirip <b>Kaydet</b>'e basın${canAssign ? '; pasife almak / silmek için satırları seçin' : ''}.</p>
-    <div class="settings-table-wrap">
+    <div class="settings-table-wrap user-cards">
     <table class="settings-table">
       <thead><tr><th style="width:36px;">${canAssign ? `<input type="checkbox" id="userSelAll" style="width:auto;margin:0;" title="Tümünü seç" ${actOn('change','selectAllUsers',['$checked'])}>` : ''}</th><th>Kullanıcı Adı</th><th>Yeni Şifre</th><th>Roller (en fazla 2)</th></tr></thead>
       <tbody ${actOn('input','markUserDirty',['$event'])} ${actOn('change','markUserDirty',['$event'])}>
@@ -1483,7 +1553,7 @@ function renderUsersSettings(el, session){
         .map(u => { const locked = !canAssign && userIsPrivileged(u); return (isOwnerUser(u) ? ownerUserRow(u, session) : `
         <tr data-uid="${u.id}" style="${u.is_active===false?'opacity:.55;':''}">
           <td>${locked ? '<span title="Yetkili kullanıcı - düzenleme izniniz yok">🔒</span>' : !canAssign ? '' : `<input type="checkbox" class="user-sel" value="${u.id}" style="width:auto;margin:0;" ${actOn('change','updateUserSelection',[])}>`}</td>
-          <td class="col-name"><input value="${escapeAttr(u.username)}" id="us_name_${u.id}" ${locked?'disabled':''}>${u.is_active===false?'<span class="role-badge" style="color:var(--red);border-color:var(--red);margin-top:6px;display:inline-block;">Pasif</span>':''}</td>
+          <td class="col-name uc-name">${avatarHtml(u.username)}<input value="${escapeAttr(u.username)}" id="us_name_${u.id}" ${locked?'disabled':''}>${u.is_active===false?'<span class="role-badge" style="color:var(--red);border-color:var(--red);margin-top:6px;display:inline-block;">Pasif</span>':''}</td>
           <td class="col-name">${passField('us_pass_'+u.id, locked, true)}</td>
           <td class="col-name">${roleCheckboxes('us_'+u.id, u.role_ids||[], !canAssign)}</td>
         </tr>`).replace('<tr', `<tr data-uname="${escapeAttr(String(u.username).toLocaleLowerCase('tr'))}"`); }).join('')}
@@ -1516,31 +1586,34 @@ async function renderShiftsSettings(el, session){
     <h2>Vardiyalar</h2>
     <div id="shiftApprovalWrap"></div>
     <div id="shiftPendingWrap"></div>
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
-      <span class="muted">Tarih Seç</span>
+    <div class="sh-date">
+      <button type="button" class="ico-btn" title="Önceki gün" ${act('shiftDayStep', -1)}>‹</button>
       <input type="date" id="shiftsDateInput" value="${APP.shiftsDate}" ${actOn('change','changeShiftsDate',['$value'])}>
+      <button type="button" class="ico-btn" title="Sonraki gün" ${act('shiftDayStep', 1)}>›</button>
+      <button type="button" class="pc-btn" ${act('changeShiftsDate', todayLocalDateStr())}>Bugün</button>
     </div>
     <div id="shiftsTableWrap"><p class="muted">Yükleniyor…</p></div>
   </div>`;
   await renderShiftsTable(session);
 }
-function changeShiftsDate(v){ APP.shiftsDate = v; renderShiftsTable(getSession()); }
+function changeShiftsDate(v){ APP.shiftsDate = v; const i = document.getElementById('shiftsDateInput'); if(i) i.value = v; renderShiftsTable(getSession()); }
+function shiftDayStep(d){ const x = new Date(APP.shiftsDate+'T12:00'); x.setDate(x.getDate()+d); changeShiftsDate(x.getFullYear()+'-'+String(x.getMonth()+1).padStart(2,'0')+'-'+String(x.getDate()).padStart(2,'0')); }
 async function renderShiftsTable(session){
   const wrap = document.getElementById('shiftsTableWrap'); if(!wrap) return;
   const { data, error } = await withLoadingOverlay(sb.rpc('list_staff_shifts', { p_token: session.session_token, p_date: APP.shiftsDate }));
   if(error){ wrap.innerHTML = '<p class="muted">Yüklenemedi: '+error.message+'</p>'; return; }
   const approvalWrap = document.getElementById('shiftApprovalWrap');
   if(approvalWrap) approvalWrap.innerHTML = `
-    <label style="display:flex;align-items:flex-start;gap:10px;margin:0 0 14px;cursor:${canManage(session,'shifts')?'pointer':'default'};">
-      <input type="checkbox" style="width:auto;margin-top:3px;" ${data.approval_required?'checked':''} ${canManage(session,'shifts')?'':'disabled'} ${actOn('change','toggleShiftApproval',['$checked'])}>
+    <div class="sh-opts"><label class="sw-card">
+      <input type="checkbox" class="sw" ${data.approval_required?'checked':''} ${canManage(session,'shifts')?'':'disabled'} ${actOn('change','toggleShiftApproval',['$checked'])}>
       <span><b>Vardiya başlatma yönetici onayına bağlı</b><br>
       <span class="muted" style="font-size:12.5px;">Açıkken personel vardiyayı sadece <i>isteyebilir</i>; siz onayladığınızda başlar ve vardiyayı yalnızca yönetici bitirebilir.${canManage(session,'shifts')?'':' (Bu ayarı Yönetici değiştirebilir.)'}</span></span>
     </label>
-    <label style="display:flex;align-items:flex-start;gap:10px;margin:0 0 14px;cursor:${canManage(session,'shifts')?'pointer':'default'};">
-      <input type="checkbox" style="width:auto;margin-top:3px;" ${data.shift_required?'checked':''} ${canManage(session,'shifts')?'':'disabled'} ${actOn('change','toggleShiftRequired',['$checked'])}>
+    <label class="sw-card">
+      <input type="checkbox" class="sw" ${data.shift_required?'checked':''} ${canManage(session,'shifts')?'':'disabled'} ${actOn('change','toggleShiftRequired',['$checked'])}>
       <span><b>Vardiya açmadan çalışılamasın</b><br>
       <span class="muted" style="font-size:12.5px;">Açıkken personel vardiyasını başlatmadan Sipariş Al, Paket, Mutfak, Ödemeler, Rezervasyon ve Satınalma ekranlarını kullanamaz. Vardiya talebini gönderdiği anda çalışmaya başlayabilir; onayı siz sonradan verirsiniz. Yönetici ve <b>⏱ Vardiya Açmadan Çalışma</b> izni verilen roller (ör. Tam Yetkili, en fazla 3 kişi) bu kuraldan muaftır.</span></span>
-    </label>`;
+    </label></div>`;
   const pendWrap = document.getElementById('shiftPendingWrap');
   const pending = data.pending || [];
   const endReqs = data.end_requests || [];
@@ -1564,22 +1637,26 @@ async function renderShiftsTable(session){
         </span></div>`).join('')}
     </div>` : '');
   const rows = data.rows || [];
-  if(!rows.length){ wrap.innerHTML = '<p class="muted">Bu tarihte vardiya kaydı yok.</p>'; return; }
-  wrap.innerHTML = `<div class="settings-table-wrap">
-    <table class="settings-table">
-      <thead><tr><th>Personel</th><th>Giriş</th><th>Çıkış</th><th>Süre</th><th></th></tr></thead>
-      <tbody>
-      ${rows.map(r => `
-        <tr>
-          <td class="col-name">${escapeHtml(r.username)}${r.approved_by && r.approved_by!==r.username ? `<div class="muted" style="font-size:11.5px;">Onaylayan: ${escapeHtml(r.approved_by)}</div>` : ''}</td>
-          <td>${formatShiftTime(r.clock_in)}</td>
-          <td>${!r.clock_out && r.end_requested_at ? `<span style="color:#d9a400;font-weight:700;">🏁 ${formatShiftTime(r.end_requested_at)}'de bitirmek istedi</span>` : r.clock_out ? formatShiftTime(r.clock_out) + (r.ended_by && r.ended_by!==r.username ? `<div class="muted" style="font-size:11.5px;">${escapeHtml(r.ended_by)} bitirdi</div>` : '') : '<span class="muted">Devam ediyor</span>'}</td>
-          <td>${formatShiftDuration(r.duration_minutes)}${r.is_paused ? ' <span style="color:#d9a400;font-weight:700;font-size:12px;">⏸ Duraklatıldı</span>' : ''}${r.paused_minutes > 0 ? `<div class="muted" style="font-size:11.5px;">${formatShiftDuration(r.paused_minutes)} aktif değildi</div>` : ''}</td>
-          <td>${r.clock_out ? '' : `<button class="actBtn" style="width:auto;margin:0;background:var(--red);color:var(--btn-ink);" ${act('manageShift', r.id, 'end')}>⏹ Bitir</button>`}</td>
-        </tr>`).join('')}
-      </tbody>
-    </table>
-  </div>`;
+  if(!rows.length){ wrap.innerHTML = '<div class="empty-state"><div style="font-size:42px;">🕐</div><p class="muted">Bu tarihte vardiya kaydı yok.</p></div>'; return; }
+  const dayStart = new Date(APP.shiftsDate+'T00:00').getTime(), pos = (t) => Math.max(0, Math.min(100, (t - dayStart) / 864e5 * 100));
+  const nowPct = pos(Date.now()), totalMin = rows.reduce((x, r) => x + (Number(r.duration_minutes)||0), 0), live = rows.filter(r => !r.clock_out).length;
+  wrap.innerHTML = statChips([['🧑‍🍳', rows.length, 'Vardiya', 'var(--c1)'], ['🟢', live, 'Devam eden', 'var(--ok,#22c55e)'],
+      ['⏱', formatShiftDuration(totalMin), 'Toplam çalışma', 'var(--c2)'], ['⏸', rows.filter(r => r.is_paused).length, 'Duraklatılmış', 'var(--c3)']]) + `
+    <div class="sh-tl">
+      <div class="sh-axis"><span></span><div>${[0,3,6,9,12,15,18,21,24].map(h => `<i style="left:${h/24*100}%">${String(h).padStart(2,'0')}</i>`).join('')}</div><span></span></div>
+      ${rows.map((r, i) => { const a = pos(new Date(r.clock_in).getTime()), b = r.clock_out ? pos(new Date(r.clock_out).getTime()) : nowPct;
+        return `<div class="sh-row ${r.clock_out?'':'live'}" style="--i:${Math.min(i,12)};">
+          <div class="sh-who">${avatarHtml(r.username)}<div><b>${escapeHtml(r.username)}</b><small>${r.approved_by && r.approved_by!==r.username ? 'Onaylayan: '+escapeHtml(r.approved_by) : formatShiftTime(r.clock_in)+' → '+(r.clock_out ? formatShiftTime(r.clock_out) : 'devam ediyor')}</small></div></div>
+          <div class="sh-track">${nowPct>0 && nowPct<100 ? `<span class="sh-now" style="left:${nowPct}%"></span>` : ''}
+            <div class="sh-bar ${r.is_paused?'paused':''}" style="left:${a}%;width:${Math.max(1.2, b-a)}%;" title="${formatShiftTime(r.clock_in)} - ${r.clock_out ? formatShiftTime(r.clock_out) : 'şimdi'}"><span>${formatShiftDuration(r.duration_minutes)}</span></div></div>
+          <div class="sh-side">
+            ${!r.clock_out && r.end_requested_at ? `<span class="pchip warn">🏁 ${formatShiftTime(r.end_requested_at)}'de bitirmek istedi</span>` : ''}
+            ${r.is_paused ? '<span class="pchip warn">⏸ Duraklatıldı</span>' : ''}
+            ${r.paused_minutes > 0 ? `<span class="pchip">${formatShiftDuration(r.paused_minutes)} pasif</span>` : ''}
+            ${r.clock_out ? (r.ended_by && r.ended_by!==r.username ? `<span class="pchip">${escapeHtml(r.ended_by)} bitirdi</span>` : '<span class="pchip">✓ Bitti</span>') : `<button type="button" class="pc-btn rv-del" ${act('manageShift', r.id, 'end')}>⏹ Bitir</button>`}
+          </div>
+        </div>`; }).join('')}
+    </div>`;
 }
 async function manageShift(id, action){
   if(action==='end' && !confirm('Bu personelin vardiyası şimdi bitirilsin mi?')) return;
@@ -1639,23 +1716,22 @@ async function loadActiveUsers(){
   const { data, error } = await sb.rpc('list_active_staff', { p_token: session.session_token, p_minutes: APP.activeUsersMinutes || 5 });
   if(error){ body.innerHTML = '<p class="muted">Yüklenemedi: '+escapeHtml(error.message)+'</p>'; return; }
   const rows = data.rows || [];
-  body.innerHTML = `
-    <div class="home-grid" style="margin-top:0;margin-bottom:20px;">
-      ${statCard('Aktif Kullanıcı', data.active_users, 'var(--green)')}
-      ${statCard('Vardiyada', data.on_shift)}
-      ${statCard('Bugün Giren', data.today_users)}
-      ${statCard('Kullanıcı / Lisans', (data.total_users ?? '—') + ' / ' + (data.max_users ?? '—'), (data.max_users && data.total_users >= data.max_users) ? 'var(--red)' : null)}
-    </div>
-    ${data.max_users ? `<p class="muted" style="text-align:left;margin:-8px 0 16px;font-size:12.5px;">Sistemde ${data.total_users} kullanıcı var (${data.enabled_users} aktif, ${data.total_users - data.enabled_users} pasif) · paketiniz ${data.max_users} kullanıcıya izin veriyor · ${Math.max(0, data.max_users - data.total_users)} kullanıcı daha ekleyebilirsiniz.</p>` : ''}
-    ${!rows.length ? '<p class="muted">Bu sürede aktif kullanıcı yok.</p>' : `<div class="settings-table-wrap"><table class="settings-table">
-      <thead><tr><th>Kullanıcı</th><th>Rol</th><th>Son İşlem</th><th>Giriş</th><th>Vardiya</th></tr></thead>
-      <tbody>${rows.map(r => `<tr>
-        <td class="col-name">${r.online===false ? '⚪' : Date.now() - new Date(r.last_seen_at).getTime() < 120000 ? '🟢' : '🟡'} ${escapeHtml(r.username)}${r.online===false ? ' <span class="muted" style="font-size:11.5px;">çıkış yaptı' + (r.logged_out_at ? ' ' + new Date(r.logged_out_at).toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'}) : '') + '</span>' : ''}</td>
-        <td>${escapeHtml(r.roles||'—')}</td>
-        <td>${fmtRelativeTime(r.last_seen_at)}</td>
-        <td style="font-size:12.5px;">${new Date(r.login_at).toLocaleString('tr-TR', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' })}</td>
-        <td>${r.on_shift ? (r.shift_paused ? '<span class="role-badge" style="color:#d9a400;border-color:#d9a400;">⏸ Vardiya durdu</span>' : '<span class="role-badge" style="color:var(--green);border-color:var(--green);">Vardiyada</span>') + (r.shift_minutes != null ? ` <span class="muted" style="font-size:12px;">${formatShiftDuration(r.shift_minutes)}</span>` : '') : '<span class="muted">—</span>'}</td>
-      </tr>`).join('')}</tbody></table></div>`}`;
+  const full = data.max_users && data.total_users >= data.max_users;
+  body.innerHTML = statChips([['🟢', data.active_users, 'Aktif kullanıcı', 'var(--ok,#22c55e)'], ['🧑‍🍳', data.on_shift, 'Vardiyada', 'var(--c1)'],
+      ['📅', data.today_users, 'Bugün giren', 'var(--c2)'], ['🎫', (data.total_users ?? '—') + ' / ' + (data.max_users ?? '—'), 'Kullanıcı / lisans', full ? 'var(--danger,#ef4444)' : 'var(--c3)']]) + `
+    ${data.max_users ? `<p class="muted" style="text-align:left;margin:-6px 0 14px;font-size:12.5px;">${data.enabled_users} aktif, ${data.total_users - data.enabled_users} pasif kullanıcı · ${Math.max(0, data.max_users - data.total_users)} kullanıcı daha ekleyebilirsiniz.</p>` : ''}
+    ${!rows.length ? '<div class="empty-state"><div style="font-size:42px;">😴</div><p class="muted">Bu sürede aktif kullanıcı yok.</p></div>' : `<div class="au-grid">${rows.map((r, i) => {
+      const st = r.online===false ? 'off' : Date.now() - new Date(r.last_seen_at).getTime() < 120000 ? 'on' : 'idle';
+      return `<div class="au-card au-${st}" style="--i:${Math.min(i,12)};">
+        <div class="cu-top"><span class="au-av">${avatarHtml(r.username)}<i></i></span><div class="cu-id"><b>${escapeHtml(r.username)}</b><small>${escapeHtml(r.roles||'—')}</small></div>
+          <span class="au-st">${st==='on' ? 'Çevrimiçi' : st==='idle' ? 'Boşta' : 'Çıkış yaptı'}</span></div>
+        <div class="pcard-chips">
+          <span class="pchip">⚡ ${fmtRelativeTime(r.last_seen_at)}</span>
+          <span class="pchip">🔑 ${new Date(r.login_at).toLocaleString('tr-TR', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' })}</span>
+          ${r.online===false && r.logged_out_at ? `<span class="pchip">🚪 ${new Date(r.logged_out_at).toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'})}</span>` : ''}
+        </div>
+        ${r.on_shift ? `<div class="au-shift ${r.shift_paused?'paused':''}">${r.shift_paused ? '⏸ Vardiya durdu' : '🟢 Vardiyada'}${r.shift_minutes != null ? ' · '+formatShiftDuration(r.shift_minutes) : ''}</div>` : '<div class="au-shift none">Vardiyada değil</div>'}
+      </div>`; }).join('')}</div>`}`;
 }
 
 /* --- Veri Sıfırlama (yalnızca Yönetici): seçilen tarih aralığındaki işlem
@@ -2244,25 +2320,33 @@ async function renderProductMedia(el, session){
   APP.productMedia = data || [];
   const groups = []; const map = {};
   APP.productMedia.forEach(p => { const k = p.menu || 'Menüsüz'; if(!map[k]){ map[k] = { name: k, items: [] }; groups.push(map[k]); } map[k].items.push(p); });
-  el.innerHTML = `<div class="box" style="max-width:none;text-align:left;">
-    <h2 style="margin:0 0 6px;">📷 Fotoğraf & Açıklama</h2>
-    <p class="muted" style="margin:0 0 14px;font-size:13px;">Masalardaki QR menüde ve online sipariş sayfasında görünür. Sayfalardaki başlıklar otomatik olarak <b>menülerinizdir</b>; burada yalnızca fotoğraf ve açıklama girersiniz. Açıklama kutusundan çıkınca kaydedilir.</p>
-    ${groups.map(g => `<h3 style="margin:16px 0 8px;font-size:13px;color:var(--accent);text-transform:uppercase;letter-spacing:.03em;">${escapeHtml(g.name)} <span class="muted" style="font-weight:400;">(${g.items.length})</span></h3>
-      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:10px;">${g.items.map(p => `
-        <div style="display:flex;gap:12px;background:var(--panel2);border:1px solid var(--border);border-radius:12px;padding:10px;">
-          <div style="flex-shrink:0;display:flex;flex-direction:column;gap:6px;align-items:center;">
-            ${p.image ? `<img src="${p.image}" alt="" style="width:84px;height:84px;border-radius:10px;object-fit:cover;">` : '<div style="width:84px;height:84px;border-radius:10px;background:var(--panel);display:flex;align-items:center;justify-content:center;font-size:26px;">📷</div>'}
-            <label class="sbtn" style="width:84px;margin:0;cursor:pointer;text-align:center;font-size:12px;padding:4px 0;">${p.image ? 'Değiştir' : 'Fotoğraf'}<input type="file" accept="image/*" style="display:none;" ${actOn('change','uploadProductImage',[p.id, '$this'])}></label>
-            ${p.image ? `<button type="button" class="sbtn" style="width:84px;margin:0;font-size:12px;padding:4px 0;color:var(--red);" ${act('removeProductImage', p.id)}>Kaldır</button>` : ''}
+  const all = APP.productMedia, withImg = all.filter(p => p.image).length, withDesc = all.filter(p => (p.description||'').trim()).length;
+  const mf = APP.mediaFilter || 'all';
+  const pass = (p) => mf==='noimg' ? !p.image : mf==='nodesc' ? !(p.description||'').trim() : mf==='done' ? (p.image && (p.description||'').trim()) : true;
+  const chip = (k, ic, v, l, c) => `<div class="os-chip os-click ${mf===k?'on':''}" role="button" style="--oc:${c};" ${act('setMediaFilter', k)}><span class="os-ic">${ic}</span><div><b>${v}</b><small>${l}</small></div></div>`;
+  const pct = all.length ? Math.round((withImg + withDesc) / (all.length*2) * 100) : 0;
+  el.innerHTML = `<div class="order-summary stat-chips" style="--n:4;">${chip('all','🍽️', all.length, 'Ürün', 'var(--c1)')}${chip('noimg','📷', all.length - withImg, 'Fotoğrafsız', 'var(--c3)')}${chip('nodesc','✍️', all.length - withDesc, 'Açıklamasız', 'var(--c2)')}${chip('done','✅', all.filter(p => p.image && (p.description||'').trim()).length, 'Tamamlanan', 'var(--ok,#22c55e)')}</div>
+  <div class="box" style="max-width:none;text-align:left;">
+    <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;"><h2 style="margin:0;">📷 Fotoğraf & Açıklama</h2><span style="flex:1;"></span>
+      <div class="md-prog" title="Menü vitrininin tamamlanma oranı"><div class="pcard-mbar"><i style="width:${pct}%;background:linear-gradient(90deg,var(--c1),var(--c2));"></i></div><small>Vitrin %${pct} hazır</small></div></div>
+    <p class="muted" style="margin:6px 0 14px;font-size:13px;">QR menüde ve online sipariş sayfasında görünür. Başlıklar menülerinizdir. Açıklama kutusundan çıkınca kaydedilir.</p>
+    ${groups.map(g => { const items = g.items.filter(pass); return !items.length ? '' : `<div class="rv-day-h" style="margin:18px 0 10px;">${escapeHtml(g.name)}<span class="muted">${items.length} ürün</span></div>
+      <div class="md-grid">${items.map((p, k) => `
+        <div class="md-card ${p.image?'':'noimg'}" style="--i:${Math.min(k,12)};">
+          <label class="md-img" title="${p.image ? 'Fotoğrafı değiştir' : 'Fotoğraf yükle'}">
+            ${p.image ? `<img src="${p.image}" alt="">` : '<span class="md-ph">📷<small>Fotoğraf ekle</small></span>'}
+            <span class="md-over">${p.image ? '🔄 Değiştir' : '⬆️ Yükle'}</span>
+            <input type="file" accept="image/*" style="display:none;" ${actOn('change','uploadProductImage',[p.id, '$this'])}>
+          </label>
+          ${p.image ? `<button type="button" class="md-rm" title="Fotoğrafı kaldır" ${act('removeProductImage', p.id)}>✕</button>` : ''}
+          <div class="md-body">
+            <div class="md-title"><b>${escapeHtml(p.name)}</b><span>${money(p.price)}</span></div>
+            <textarea rows="3" maxlength="500" placeholder="Kısa, iştah açıcı bir açıklama yazın…" ${actOn('change','saveProductDescription',[p.id, '$value'])}>${escapeHtml(p.description || '')}</textarea>
           </div>
-          <div style="flex:1;min-width:0;">
-            <div style="font-weight:700;overflow-wrap:anywhere;">${escapeHtml(p.name)}</div>
-            <div class="muted" style="font-size:12px;margin-bottom:6px;">${money(p.price)}</div>
-            <textarea rows="3" maxlength="500" placeholder="Açıklama (örn. közlenmiş biber ve domatesle)" style="width:100%;margin:0;font-size:13px;resize:vertical;" ${actOn('change','saveProductDescription',[p.id, '$value'])}>${escapeHtml(p.description || '')}</textarea>
-          </div>
-        </div>`).join('')}</div>`).join('') || '<p class="muted">Henüz ürün yok.</p>'}
+        </div>`).join('')}</div>`; }).join('') || '<div class="empty-state"><div style="font-size:38px;">🎉</div><p class="muted">Bu filtrede ürün yok.</p></div>'}
   </div>`;
 }
+function setMediaFilter(k){ APP.mediaFilter = APP.mediaFilter===k ? 'all' : k; refreshMediaViews(); }
 async function saveProductDescription(pid, text){
   const { error } = await sb.rpc('set_product_description', { p_token: getSession().session_token, p_product_id: pid, p_text: text });
   if(error){ alert(error.message); return; }
@@ -2371,21 +2455,25 @@ function renderSubscriptionPanel(lic){
   const statusText = expired
     ? 'Süreniz doldu — devam etmek için ödeme yapın.'
     : (daysLeft + ' gün kaldı (bitiş: ' + expires.toLocaleDateString('tr-TR') + ')');
+  const totalDays = 30, ring = Math.max(0, Math.min(1, daysLeft / totalDays)), C = 2*Math.PI*42;
+  const used = APP.config.users.length, max = lic.max_users || 1, up = Math.min(100, Math.round(used/max*100));
   return `
-    <div class="add-row-panel" style="border-color:${color};margin-bottom:16px;">
-      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
-        <div>
-          <div class="role-badge" style="margin-bottom:6px;">${escapeHtml(lic.package_id)} · ${APP.config.users.length}/${lic.max_users} kullanıcı</div>
-          <div style="color:${color};font-weight:700;font-size:13.5px;">${statusText}</div>
-        </div>
-        <div style="display:flex;align-items:center;gap:6px;">
-          <button id="renewBtn" disabled title="Kartla ödeme yakında açılacak" style="width:auto;padding:10px 18px;margin:0;opacity:.55;cursor:not-allowed;">💳 Kredi Kartı ile Öde</button>
-          <span class="role-badge" style="color:var(--accent);border-color:var(--accent);white-space:nowrap;">🔜 Yakında</span>
-        </div>
+    <div class="sub-hero" style="--hc:${color};">
+      <div class="sub-ring"><svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="42" class="trk"/><circle cx="50" cy="50" r="42" class="val" style="stroke-dasharray:${C};stroke-dashoffset:${C*(1-ring)};"/></svg>
+        <div><b>${expired ? '0' : daysLeft}</b><small>gün</small></div></div>
+      <div class="sub-info">
+        <small class="muted">Mevcut paket</small>
+        <h3>${escapeHtml(lic.package_id)}</h3>
+        <div class="sub-status">${expired ? '⛔ ' : soon ? '⚠️ ' : '✅ '}${statusText}</div>
+        <div class="sub-users"><div class="pcard-mbar"><i style="width:${up}%;background:${up>=90?'var(--c3)':'var(--c1)'};"></i></div><small>👥 ${used} / ${max} kullanıcı</small></div>
       </div>
-      <div class="error" id="renewErr" style="text-align:left;margin-top:8px;"></div>
-    </div>
-    ${billingCycleSelectorHtml()}`;
+      <div class="sub-cta">
+        ${billingCycleSelectorHtml()}
+        <button id="renewBtn" disabled title="Kartla ödeme yakında açılacak">💳 Kredi Kartı ile Öde</button>
+        <span class="sub-soon">🔜 Kart ile ödeme yakında</span>
+      </div>
+      <div class="error" id="renewErr" style="grid-column:1/-1;text-align:left;"></div>
+    </div>`;
 }
 /* Aylık/Yıllık seçimi - hem (ileride açılacak) kart ödemesini hem de
    havale bildirimini etkiler, bu yüzden abonelik panelinin en üstünde tek
@@ -2394,13 +2482,7 @@ function renderSubscriptionPanel(lic){
    12 katı (indirimsiz) sunucuda otomatik hesaplanır. */
 function billingCycleSelectorHtml(){
   const cycle = APP.billingCycle || 'monthly';
-  return `<div class="add-row-panel" style="margin-bottom:16px;">
-    <h3 style="margin:0 0 10px;">Ödeme Dönemi</h3>
-    <div style="display:flex;gap:8px;">
-      <button class="sbtn" style="width:auto;${cycle==='monthly'?'':'opacity:.55;'}" ${act('setBillingCycle', 'monthly')}>Aylık</button>
-      <button class="sbtn" style="width:auto;${cycle==='yearly'?'':'opacity:.55;'}" ${act('setBillingCycle', 'yearly')}>Yıllık</button>
-    </div>
-  </div>`;
+  return `<div class="seg sub-seg">${[['monthly','Aylık'],['yearly','Yıllık']].map(([k,l]) => `<button type="button" class="${cycle===k?'on':''}" ${act('setBillingCycle', k)}>${l}</button>`).join('')}</div>`;
 }
 function setBillingCycle(cycle){
   APP.billingCycle = cycle;
@@ -2453,8 +2535,10 @@ function renderBillingSettings(el, session){
   el.innerHTML = `<div class="box" style="max-width:none;">
     <h2>💳 Abonelik ve Ödemeler</h2>
     ${lic ? renderSubscriptionPanel(lic) : '<p class="muted">Abonelik bilgisi bulunamadı.</p>'}
-    <div id="billingIdentityBox">${renderBillingIdentityBox(lic)}</div>
-    <div id="billingAddressBox">${renderBillingAddressBox(lic)}</div>
+    <div class="bill-grid">
+      <div id="billingIdentityBox">${renderBillingIdentityBox(lic)}</div>
+      <div id="billingAddressBox">${renderBillingAddressBox(lic)}</div>
+    </div>
     <div id="bankTransferBox"><p class="muted">Yükleniyor…</p></div>
   </div>`;
   loadBankTransferStatus(session);
@@ -2711,18 +2795,21 @@ async function renderSupportAccessSettings(el, session){
   el.innerHTML = `<div class="box" style="max-width:none;text-align:left;">
     <h2 style="margin:0 0 6px;">🛟 Peyktan Destek Erişimi</h2>
     <p class="muted" style="font-size:13px;margin:0 0 14px;">Bir sorun için Peyktan'dan yardım istediğinizde, destek ekibinin işletmenize girip sorunu görebilmesi için süreli izin verin. Şifrenizi paylaşmanız gerekmez. Destek ekibi yalnızca izin süresince ve en fazla 1 saatlik oturumlarla girebilir; her giriş aşağıda listelenir. İzni istediğiniz an kaldırabilirsiniz.</p>
-    <div style="padding:12px 14px;border:1px solid var(--border);border-radius:12px;margin-bottom:14px;background:var(--panel2);">
-      ${until ? `<b style="color:var(--green);">● İzin açık</b> <span class="muted">— ${escapeHtml(fmt(until))} tarihine kadar</span>` : '<b class="muted">● İzin kapalı</b> <span class="muted">— destek ekibi işletmenize giremez</span>'}
+    <div class="sp-hero ${until?'on':''}">
+      <div class="sp-shield">${until ? '🔓' : '🔒'}</div>
+      <div class="sp-info"><b>${until ? 'Destek erişimi açık' : 'Destek erişimi kapalı'}</b>
+        <small>${until ? escapeHtml(fmt(until)) + ' tarihine kadar · ' + Math.max(1, Math.round((until - Date.now())/36e5)) + ' saat kaldı' : 'Destek ekibi işletmenize giremez'}</small></div>
+      <div class="sp-acts">
+        <button type="button" class="sp-btn" ${act('setSupportAccess', 24)}>⏱ ${until ? '24 saat uzat' : '24 saat izin ver'}</button>
+        <button type="button" class="pc-btn" ${act('setSupportAccess', 2)}>Sadece 2 saat</button>
+        ${until ? `<button type="button" class="pc-btn rv-del" ${act('setSupportAccess', 0)}>✕ İzni kaldır</button>` : ''}
+      </div>
     </div>
-    <div style="display:flex;gap:8px;flex-wrap:wrap;">
-      <button type="button" style="width:auto;margin:0;" ${act('setSupportAccess', 24)}>${until ? '24 saat uzat' : '24 saat izin ver'}</button>
-      <button type="button" class="ghost-btn" style="width:auto;margin:0;" ${act('setSupportAccess', 2)}>Sadece 2 saat</button>
-      ${until ? `<button type="button" class="ghost-btn" style="width:auto;margin:0;color:var(--red);border-color:var(--red);" ${act('setSupportAccess', 0)}>İzni kaldır</button>` : ''}
-    </div>
-    <h3 style="margin:22px 0 8px;">Destek girişleri</h3>
-    ${log.length ? `<div class="settings-table-wrap"><table class="settings-table"><thead><tr><th>Tarih</th><th>Kim</th><th>Oturum bitişi</th></tr></thead><tbody>
-      ${log.map(l => `<tr><td>${escapeHtml(fmt(l.at))}</td><td>${escapeHtml(l.admin || 'Peyktan Destek')}</td><td>${l.until ? escapeHtml(fmt(l.until)) : '-'}</td></tr>`).join('')}
-    </tbody></table></div>` : '<p class="muted">Henüz destek girişi olmadı.</p>'}
+    <div class="rv-day-h" style="margin:22px 0 10px;">Destek girişleri<span class="muted">${log.length} giriş</span></div>
+    ${log.length ? `<div class="sp-log">${log.map((l, i) => `<div class="sp-li" style="--i:${Math.min(i,12)};">
+        <span class="sp-dot"></span>${avatarHtml(l.admin || 'P')}
+        <div class="cu-id"><b>${escapeHtml(l.admin || 'Peyktan Destek')}</b><small>Giriş: ${escapeHtml(fmt(l.at))}${l.until ? ' · oturum bitişi ' + escapeHtml(fmt(l.until)) : ''}</small></div>
+      </div>`).join('')}</div>` : '<div class="empty-state"><div style="font-size:38px;">🛟</div><p class="muted">Henüz destek girişi olmadı.</p></div>'}
   </div>`;
 }
 async function setSupportAccess(hours){

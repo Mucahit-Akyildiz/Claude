@@ -42,28 +42,38 @@ async function renderReservationsContent(session, forceRefresh){
   }
   const rows = APP.reservationsCache;
   const allTables = (APP.config.zones||[]).flatMap(z => z.tables);
-  el.innerHTML = `<div class="box" style="max-width:none;">
+  const today = todayLocalDateStr(), dkey = (r) => { const d = new Date(r.reservation_time); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); };
+  const sorted = [...rows].sort((x, y) => new Date(x.reservation_time) - new Date(y.reservation_time));
+  const todays = sorted.filter(r => dkey(r) === today), next = sorted.find(r => new Date(r.reservation_time) >= new Date());
+  const days = [...new Set(sorted.map(dkey))];
+  const dayLabel = (k) => { const d = new Date(k+'T00:00'); const diff = Math.round((d - new Date(today+'T00:00'))/86400000);
+    return (diff===0 ? 'Bugün' : diff===1 ? 'Yarın' : diff===-1 ? 'Dün' : '') + ' <small>' + d.toLocaleDateString('tr-TR',{weekday:'long', day:'numeric', month:'long'}) + '</small>'; };
+  const card = (r) => { const t = new Date(r.reservation_time), late = t < new Date() && r.status !== 'seated';
+    return `<div class="rv-card st-${r.status}${late?' late':''}" data-badge-id="${r.id}">
+      <div class="rv-time"><b>${t.toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'})}</b><span class="rv-pill">${RESV_STATUS_LABELS[r.status]||r.status}</span></div>
+      <div class="rv-main">
+        <div class="rv-who">${avatarHtml(r.customer_name)}<div><b>${escapeHtml(r.customer_name)}</b><small>${r.phone ? '📞 '+escapeHtml(r.phone) : 'telefon yok'}</small></div></div>
+        <div class="rv-meta"><span class="pchip">👥 ${r.party_size} kişi</span><span class="pchip">🪑 ${escapeHtml(r.table_name||'Masa seçilmedi')}</span>${late ? '<span class="pchip warn">⏰ saati geçti</span>' : ''}</div>
+        ${r.notes ? `<div class="rv-note">📝 ${escapeHtml(r.notes)}</div>` : ''}
+      </div>
+      <div class="rv-acts">
+        ${r.status==='pending' ? `<button type="button" class="pc-btn rv-ok" ${act('changeReservationStatus', r.id, 'confirmed')}>✓ Onayla</button>` : ''}
+        <button type="button" class="pc-btn rv-seat" ${act('changeReservationStatus', r.id, 'seated')}>🪑 Oturdu</button>
+        <button type="button" class="pc-btn" ${act('changeReservationStatus', r.id, 'no_show')}>Gelmedi</button>
+        <button type="button" class="pc-btn" ${act('changeReservationStatus', r.id, 'cancelled')}>İptal</button>
+        <button type="button" class="pc-btn rv-del" title="Sil" ${act('removeReservation', r.id)}>🗑</button>
+      </div>
+    </div>`; };
+  el.innerHTML = statChips([
+      ['📅', todays.length, 'Bugünkü rezervasyon', 'var(--c1)'],
+      ['👥', todays.reduce((x, r) => x + (Number(r.party_size)||0), 0), 'Bugün beklenen kişi', 'var(--c2)'],
+      ['⏳', rows.filter(r => r.status==='pending').length, 'Onay bekleyen', 'var(--c3)'],
+      ['⏭️', next ? new Date(next.reservation_time).toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'}) : '—', next ? 'Sıradaki: '+escapeHtml(next.customer_name) : 'Sıradaki yok', 'var(--c4)']
+    ]) + `<div class="box" style="max-width:none;">
     <h2>Rezervasyonlar</h2>
-    <div class="settings-table-wrap">
-    <table class="settings-table">
-      <thead><tr><th>Müşteri</th><th>Telefon</th><th>Kişi</th><th>Zaman</th><th>Masa</th><th>Durum</th><th></th></tr></thead>
-      <tbody>
-      ${rows.map(r => `
-        <tr data-badge-id="${r.id}">
-          <td class="col-name">${escapeHtml(r.customer_name)}${r.notes?'<div class="muted" style="font-size:11px;overflow-wrap:anywhere;word-break:break-word;">'+escapeHtml(r.notes)+'</div>':''}</td>
-          <td>${escapeHtml(r.phone||'-')}</td>
-          <td>${r.party_size}</td>
-          <td>${new Date(r.reservation_time).toLocaleString('tr-TR',{dateStyle:'short',timeStyle:'short'})}</td>
-          <td>${escapeHtml(r.table_name||'-')}</td>
-          <td><select ${actOn('change','changeReservationStatus',[r.id, '$value'])}>
-            ${Object.keys(RESV_STATUS_LABELS).map(s => `<option value="${s}" ${r.status===s?'selected':''}>${RESV_STATUS_LABELS[s]}</option>`).join('')}
-          </select></td>
-          <td><button type="button" class="act-btn act-delete" ${act('removeReservation', r.id)}>${ICON_TRASH}<span>Sil</span></button></td>
-        </tr>`).join('')}
-      ${rows.length===0?'<tr><td colspan="7" class="muted" style="text-align:center;">Bekleyen ya da onaylı rezervasyon yok.</td></tr>':''}
-      </tbody>
-    </table>
-    </div>
+    ${days.length ? days.map(k => `<div class="rv-day"><div class="rv-day-h">${dayLabel(k)}<span class="muted">${sorted.filter(r => dkey(r)===k).length} rezervasyon</span></div>
+      <div class="rv-list">${sorted.filter(r => dkey(r)===k).map(card).join('')}</div></div>`).join('')
+      : '<div class="empty-state"><div style="font-size:42px;">📅</div><p class="muted">Bekleyen ya da onaylı rezervasyon yok.</p></div>'}
     <div class="add-row-panel">
       <p>Yeni Rezervasyon</p>
       <div style="${INLINE_ROW}">
@@ -202,31 +212,35 @@ async function renderWaitlistContent(session, forceRefresh){
     if(live && !live.error) APP.liveOrders = live.data || [];
   }
   const rows = APP.waitlistCache;
-  el.innerHTML = `<div class="box" style="max-width:none;">
+  const hasOrder = (w) => (APP.liveOrders||[]).some(o => o.kind==='waitlist' && o.waitlist_id===w.id);
+  const avgWait = rows.length ? Math.round(rows.reduce((x, w) => x + (Date.now() - new Date(w.joined_at).getTime())/60000, 0) / rows.length) : 0;
+  el.innerHTML = statChips([
+      ['🧍', rows.length, 'Sırada bekleyen', 'var(--c1)'],
+      ['👥', rows.reduce((x, w) => x + (Number(w.party_size)||0), 0), 'Toplam kişi', 'var(--c2)'],
+      ['⏱', avgWait + ' dk', 'Ortalama bekleme', 'var(--c3)'],
+      ['🍽️', rows.filter(hasOrder).length, 'Beklerken sipariş veren', 'var(--c4)']
+    ]) + `<div class="box" style="max-width:none;">
     <h2>Bekleme Listesi</h2>
-    <div class="settings-table-wrap">
-    <table class="settings-table">
-      <thead><tr><th>Müşteri</th><th>Telefon</th><th>Kişi</th><th>Bekleme</th><th>Katılım / Tahmini</th><th></th></tr></thead>
-      <tbody>
-      ${rows.map(w => `
-        <tr data-badge-id="${w.id}">
-          <td class="col-name">${escapeHtml(w.customer_name)}${w.email ? `<div class="muted" title="${escapeAttr(w.email)}" style="font-size:11.5px;max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">✉️ ${escapeHtml(w.email)}</div>` : ''}</td>
-          <td>${escapeHtml(w.phone||'-')}</td>
-          <td>${w.party_size}</td>
-          <td><span class="waitlist-timer" data-joined="${w.joined_at}" data-quoted="${w.quoted_wait_minutes||''}">-</span></td>
-          <td style="white-space:nowrap;">${new Date(w.joined_at).toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'})}${w.quoted_wait_minutes!=null ? `<div style="font-size:12px;color:var(--accent);font-weight:700;" title="Tahmini masa saati (katılım + bekleme süresi)">⏱ ${new Date(new Date(w.joined_at).getTime() + w.quoted_wait_minutes*60000).toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'})}</div>` : ''}</td>
-          <td>
-            ${w.phone ? `<button class="sbtn" title="Müşteriye 'Masanız hazır' SMS'i gönder" ${act('notifyWaitlistReady', w.id)}>📱 Masa Hazır</button>` : ''}
-            <button class="sbtn" title="Kalan bekleme süresini güncelle${w.email ? ' - müşteriye e-posta gider' : ''}" ${act('updateWaitlistWait', w.id)}>⏱ Süre</button>
-            <button class="sbtn" title="Beklerken sipariş al - mutfağa hemen düşer" ${act('openWaitlistOrderModal', w.id)}>🍽️ Sipariş${(APP.liveOrders||[]).some(o => o.kind==='waitlist' && o.waitlist_id===w.id) ? ' ✓' : ''}</button>
-            <button class="sbtn" ${act('openSeatWaitlistModal', w.id)}>Oturdu</button>
-            <button class="sbtn" style="background:var(--red);color:var(--btn-ink);" ${act('changeWaitlistStatus', w.id, 'cancelled')}>İptal</button>
-          </td>
-        </tr>`).join('')}
-      ${rows.length===0?'<tr><td colspan="6" class="muted" style="text-align:center;">Bekleyen müşteri yok.</td></tr>':''}
-      </tbody>
-    </table>
-    </div>
+    ${rows.length ? `<div class="wl-list">${rows.map((w, i) => `
+      <div class="wl-card" data-badge-id="${w.id}" style="--i:${i};">
+        <div class="wl-no">${i+1}</div>
+        <div class="rv-who">${avatarHtml(w.customer_name)}<div><b>${escapeHtml(w.customer_name)}</b><small>${w.phone ? '📞 '+escapeHtml(w.phone) : ''}${w.email ? ' ✉️ '+escapeHtml(w.email) : ''}</small></div></div>
+        <div class="wl-info">
+          <span class="pchip">👥 ${w.party_size} kişi</span>
+          <span class="pchip">🕐 ${new Date(w.joined_at).toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'})} katıldı</span>
+          ${w.quoted_wait_minutes!=null ? `<span class="pchip">🎯 ${new Date(new Date(w.joined_at).getTime() + w.quoted_wait_minutes*60000).toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'})} tahmini</span>` : ''}
+          ${hasOrder(w) ? '<span class="pchip warn">🍽️ sipariş verdi</span>' : ''}
+        </div>
+        <div class="wl-timer"><span class="waitlist-timer" data-joined="${w.joined_at}" data-quoted="${w.quoted_wait_minutes||''}">-</span></div>
+        <div class="rv-acts">
+          ${w.phone ? `<button type="button" class="pc-btn" title="Müşteriye 'Masanız hazır' SMS'i gönder" ${act('notifyWaitlistReady', w.id)}>📱 Masa Hazır</button>` : ''}
+          <button type="button" class="pc-btn" title="Kalan bekleme süresini güncelle" ${act('updateWaitlistWait', w.id)}>⏱ Süre</button>
+          <button type="button" class="pc-btn" title="Beklerken sipariş al" ${act('openWaitlistOrderModal', w.id)}>🍽️ Sipariş${hasOrder(w) ? ' ✓' : ''}</button>
+          <button type="button" class="pc-btn rv-seat" ${act('openSeatWaitlistModal', w.id)}>🪑 Oturdu</button>
+          <button type="button" class="pc-btn rv-del" ${act('changeWaitlistStatus', w.id, 'cancelled')}>İptal</button>
+        </div>
+      </div>`).join('')}</div>`
+      : '<div class="empty-state"><div style="font-size:42px;">🧍</div><p class="muted">Bekleyen müşteri yok.</p></div>'}
     <div class="add-row-panel">
       <p>Bekleme Listesine Ekle</p>
       <div style="${INLINE_ROW}">
