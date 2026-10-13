@@ -1719,7 +1719,7 @@ input.sw:checked{background:var(--c1);} input.sw:checked::after{transform:transl
 .kb-legend{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:0 0 12px;}
 .kb-legend span{font-size:12px;font-weight:700;padding:4px 10px;border-radius:999px;background:var(--panel2);}
 .kb-legend small{margin-left:auto;font-size:12px;color:var(--muted);}
-.kb-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:14px;align-items:start;}
+.kb-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:14px;align-items:start;}
 .kb-grid .kitchen-card{--kc:var(--ok,#22c55e);margin:0;border:1.5px solid color-mix(in srgb,var(--kc) 45%,var(--border)) !important;border-left:1.5px solid color-mix(in srgb,var(--kc) 45%,var(--border)) !important;background:linear-gradient(180deg,color-mix(in srgb,var(--kc) 12%,var(--panel)),var(--panel) 60%) !important;padding-top:0;overflow:hidden;transition:border-color .6s,background .6s,box-shadow .6s;}
 .kb-grid .kitchen-card.kc-warn{--kc:#f59e0b;}
 .kb-grid .kitchen-card.kc-late{--kc:var(--danger,#ef4444);box-shadow:0 0 0 1px color-mix(in srgb,var(--kc) 40%,transparent),0 10px 28px color-mix(in srgb,var(--kc) 22%,transparent);animation:kcLate 2s ease-in-out infinite;}
@@ -2087,3 +2087,22 @@ input.sw:checked{background:var(--c1);} input.sw:checked::after{transform:transl
 .rh-note{font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .pchip.rh-good{background:#22c55e22;color:#22c55e;border-color:#22c55e55}
 .rh-undo{align-self:flex-end}
+/* Telsiz açıkken mobilde mesaj yazma alanı telsiz çubuğunun üstünde kalsın */
+@media (max-width:820px){
+  body.has-radio .chat-input{padding-bottom:calc(var(--rdock-h,84px) + env(safe-area-inset-bottom,0px))!important}
+  body.has-radio .chat-msgs,body.has-radio .chat-body{scroll-padding-bottom:var(--rdock-h,84px)}
+}
+@media (min-width:1100px){ .kb-grid{grid-template-columns:repeat(4,minmax(0,1fr));} }
+.kb-grid .kc-item{gap:6px}
+/* Gönderilen ürün iptal butonu */
+.sent-cancel{width:auto!important;margin:0!important;padding:3px 9px!important;font-size:11.5px!important;border-radius:999px!important;background:transparent!important;border:1px solid var(--red,#ef4444)!important;color:var(--red,#ef4444)!important;box-shadow:none!important}
+.sent-cancel:hover{background:var(--red,#ef4444)!important;color:#fff!important}
+/* Mutfak: iptal edilen sipariş kartı (15 sn) */
+.kb-grid .kitchen-card.kc-cancel{--kc:#ef4444;position:relative;opacity:.95}
+.kc-cancel .kitchen-item-name,.kc-cancel .kc-title b{text-decoration:line-through;text-decoration-thickness:2px;text-decoration-color:#ef4444}
+.kc-cancel .kc-pill{background:#ef4444;color:#fff}
+.kc-cancel-x{position:absolute;inset:0;pointer-events:none;background:linear-gradient(to top right,transparent calc(50% - 2px),#ef4444aa calc(50% - 2px),#ef4444aa calc(50% + 2px),transparent calc(50% + 2px)),linear-gradient(to top left,transparent calc(50% - 2px),#ef4444aa calc(50% - 2px),#ef4444aa calc(50% + 2px),transparent calc(50% + 2px))}
+.kc-cancel-stamp{margin:10px 0 4px;padding:10px;border-radius:12px;text-align:center;font-weight:900;letter-spacing:.06em;color:#fff;background:#ef4444;animation:kcStamp 1s ease-in-out infinite alternate}
+@keyframes kcCancelIn{from{transform:scale(.9);opacity:0}}
+@keyframes kcCancelOut{0%,85%{opacity:.95}100%{opacity:.35}}
+@keyframes kcStamp{to{filter:brightness(1.25)}}

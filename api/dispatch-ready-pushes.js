@@ -180,14 +180,14 @@ async function dispatchCustomerOrderRequests(supabase) {
   return { sent, requests: notifiedIds.length };
 }
 
-// Mutfakta 15 dakikadan uzun suredir 'pending' kalmis (henuz hazir isaretlenmemis)
+// Mutfakta 20 dakikadan uzun suredir 'pending' kalmis (henuz hazir isaretlenmemis)
 // urunleri bulur ve o restoranda 'kitchen' izni olan personelin push aboneliklerine
 // bildirim gonderir - boylece mutfak ekranindan uzaklasilsa, sekme arka plana
 // alinsa hatta tarayici kapali olsa bile gecikme fark edilir. Ayni urun icin
-// bildirim 15. dakikada, sonra 20., 25. ... dakikalarda gider (her dakika kontrol edilir,
+// bildirim 20. dakikada, sonra 25., 30. ... dakikalarda gider (her dakika kontrol edilir,
 // order_items.late_push_milestone ile hangi kademenin bildirildigi takip edilir).
 async function dispatchLateKitchenItems(supabase) {
-  const lateCutoff = new Date(Date.now() - 15 * 60 * 1000).toISOString();
+  const lateCutoff = new Date(Date.now() - 20 * 60 * 1000).toISOString();
   const { data: lateItems, error } = await selectAll(() => supabase
     .from('order_items')
     .select('id, name, added_at, late_push_notified_at, late_push_milestone, orders!inner(id, restaurant_id, status)')
@@ -196,10 +196,10 @@ async function dispatchLateKitchenItems(supabase) {
     .lte('added_at', lateCutoff).order('id'));
   if (error) return { sent: 0, items: 0 };
 
-  // Bildirim 15. dakikada, sonra her 5 dakikada bir (20., 25., 30. ...) gider: ürünün
-  // "kademesi" = (geçen dk - 15) / 5. Bu iş her dakika çalışır; kademe ilerlediyse bildirilir.
+  // Bildirim 20. dakikada, sonra her 5 dakikada bir (25., 30., 35. ...) gider: ürünün
+  // "kademesi" = (geçen dk - 20) / 5. Bu iş her dakika çalışır; kademe ilerlediyse bildirilir.
   const now = Date.now();
-  const milestoneOf = (it) => Math.floor(((now - new Date(it.added_at).getTime()) / 60000 - 15) / 5);
+  const milestoneOf = (it) => Math.floor(((now - new Date(it.added_at).getTime()) / 60000 - 20) / 5);
   const items = (lateItems || []).filter((it) => milestoneOf(it) > (it.late_push_milestone == null ? -1 : it.late_push_milestone));
   if (items.length === 0) return { sent: 0, items: 0 };
 
@@ -234,7 +234,7 @@ async function dispatchLateKitchenItems(supabase) {
 
       const names = rows.map((r) => r.name).filter(Boolean);
       const shown = names.slice(0, 3).join(', ') + (names.length > 3 ? ' ve ' + (names.length - 3) + ' tane daha' : '');
-      const maxMin = Math.max(...rows.map((r) => 15 + 5 * milestoneOf(r)));
+      const maxMin = Math.max(...rows.map((r) => 20 + 5 * milestoneOf(r)));
       const payload = {
         title: '⏰ Geciken sipariş',
         body: shown + ' ' + maxMin + ' dakikayı geçti!',
