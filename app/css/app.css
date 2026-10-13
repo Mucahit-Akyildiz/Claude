@@ -1912,3 +1912,10 @@ input.sw:checked{background:var(--c1);} input.sw:checked::after{transform:transl
 :is(.rv-card,.wl-card,.po-card).badge-row::before{position:absolute;top:-9px;left:16px;margin:0 !important;padding:1px 8px;border-radius:999px;background:var(--red);color:#fff !important;font-size:10px !important;z-index:2;}
 :is(.rv-card,.wl-card).badge-row{box-shadow:inset 4px 0 0 var(--red),0 0 0 1.5px var(--red) !important;background:color-mix(in srgb,var(--red) 7%,var(--panel)) !important;}
 .kb-grid .kc-iname .kitchen-item-name,.kb-grid .kitchen-card .kc-iname{overflow-wrap:break-word !important;word-break:normal !important;hyphens:auto;}
+.kc-item{grid-template-columns:auto minmax(0,1fr) auto !important;}
+.kc-ctrl{display:flex;align-items:center;gap:6px;}
+.kc-ctrl .kc-timer{min-width:40px;font-size:14px;}
+.kc-ctrl .kc-waste{width:32px;height:32px;font-size:13px;border-radius:10px;}
+.kc-ctrl .kc-ok{width:40px;height:40px;font-size:18px;}
+.kb-grid{grid-template-columns:repeat(auto-fill,minmax(340px,1fr));}
+.kc-iname .kitchen-item-name{word-break:keep-all !important;overflow-wrap:normal !important;hyphens:manual !important;}

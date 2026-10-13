@@ -73,9 +73,9 @@ async function refreshKitchenItems(session){
         <div class="kc-iname"><span class="kitchen-item-name">${escapeHtml(it.name)}</span>
           ${extras.length ? `<div class="kc-extras">${extras.map(x => `<span>+ ${x.qty}× ${escapeHtml(kitchenExtraName(x))}</span>`).join('')}</div>` : ''}
           ${it.note ? `<div class="kc-note">📝 ${escapeHtml(it.note)}</div>` : ''}</div>
-        <span class="kitchen-timer kc-timer" data-added="${it.added_at||''}" data-id="${it.id}" data-name="${escapeAttr(tableName+' - '+it.qty+'x '+it.name)}">-</span>
+        <span class="kc-ctrl"><span class="kitchen-timer kc-timer" data-added="${it.added_at||''}" data-id="${it.id}" data-name="${escapeAttr(tableName+' - '+it.qty+'x '+it.name)}">-</span>
         <button type="button" class="kc-waste" ${act('openWasteModal', it.id)} title="İsraf oldu (yandı/düştü/bozuldu)">🔥</button>
-        <button type="button" class="kc-ok" ${act('markReadyGroup', [it.id, ...extras.map(x => x.id)].join(','))} title="Hazır">✓</button>
+        <button type="button" class="kc-ok" ${act('markReadyGroup', [it.id, ...extras.map(x => x.id)].join(','))} title="Hazır">✓</button></span>
       </div>`).join('')}
       </div>
       <button type="button" class="kc-all" ${act('markAllReady', o.order_id)}>✅ Hepsi Hazır</button>
