@@ -642,16 +642,19 @@ function stationPrintProductsHtml(st){
   const prods = ((APP.config && APP.config.products) || []).filter(p => p.station_id === st.id);
   if(!prods.length) return '<p class="muted" style="margin:0;font-size:12.5px;">Bu istasyonda ürün yok.</p>';
   const off = prods.filter(p => p.print_ticket === false).length;
+  // Ürünler menülerine göre gruplanır (Ayarlar → Menüler & İstasyonlar sırasıyla).
+  const menus = (APP.config && APP.config.menus) || [];
   const groups = {};
-  prods.forEach(p => { const k = p.category || ''; (groups[k] = groups[k] || []).push(p); });
-  const order = [...(st.categories || []).filter(c => groups[c]), ...Object.keys(groups).filter(k => k && !(st.categories || []).includes(k)), ...(groups[''] ? [''] : [])];
+  prods.forEach(p => { const k = p.menu_id || ''; (groups[k] = groups[k] || []).push(p); });
+  const order = [...menus.map(m => m.id).filter(id => groups[id]), ...Object.keys(groups).filter(k => k && !menus.some(m => m.id===k)), ...(groups[''] ? [''] : [])];
+  const menuName = (k) => k ? ((menus.find(m => m.id===k) || {}).name || 'Menü') : 'Menüsüz';
   return `<details ${APP.prOpenSt===st.id?'open':''} style="background:var(--panel2);border:1px solid var(--border);border-radius:10px;padding:8px 12px;">
     <summary style="cursor:pointer;font-size:13px;font-weight:700;">🧾 Fişe çıkacak ürünler · ${prods.length - off}/${prods.length}${off ? ` <span class="muted" style="font-weight:400;">(${off} ürün fişe çıkmaz)</span>` : ''}</summary>
     <div style="display:flex;gap:8px;margin:10px 0 6px;flex-wrap:wrap;">
       <button type="button" class="ghost-btn" style="width:auto;margin:0;padding:5px 12px;font-size:12.5px;" ${act('setStationPrintAll', st.id, true)}>Tümü fişe çıksın</button>
       <button type="button" class="ghost-btn" style="width:auto;margin:0;padding:5px 12px;font-size:12.5px;" ${act('setStationPrintAll', st.id, false)}>Hiçbiri çıkmasın</button>
     </div>
-    ${order.map(k => `<div style="margin-top:8px;"><div class="muted" style="font-size:11.5px;font-weight:700;text-transform:uppercase;margin-bottom:4px;">${escapeHtml(k || 'Alt menüsüz')}</div>
+    ${order.map(k => `<div style="margin-top:10px;background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:8px 10px;"><div style="font-size:12px;font-weight:800;text-transform:uppercase;margin-bottom:6px;display:flex;justify-content:space-between;"><span>📋 ${escapeHtml(menuName(k))}</span><span class="muted" style="font-weight:600;">${groups[k].filter(p => p.print_ticket !== false).length}/${groups[k].length}</span></div>
       <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:4px 14px;">${groups[k].map(p => `<label style="display:flex;align-items:center;gap:8px;font-size:13.5px;cursor:pointer;margin:0;"><input type="checkbox" style="width:auto;margin:0;" ${p.print_ticket === false ? '' : 'checked'} ${actOn('change','setProductPrint',[p.id, '$checked'])}>${escapeHtml(p.name)}</label>`).join('')}</div></div>`).join('')}
   </details>`;
 }
