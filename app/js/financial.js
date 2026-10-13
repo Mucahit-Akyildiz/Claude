@@ -791,7 +791,7 @@ async function renderPeriodAnalyticsContent(session){
       </div>
     </div>
     <div class="ch-row">
-      <div class="fs-panel pa-sec" style="--t:#a78bfa;"><h3><i>🗓️</i>Haftanın Günleri <span class="muted" style="font-size:12px;font-weight:400;">günlük ortalama ciro</span></h3>${svgBarChart(days.map(x => ({ label: x.name.slice(0,3), value: x.avg, display: money(x.avg) + ' / gün · ' + x.checks + ' hesap' })), { title:'Haftanın günleri', height: 200 })}</div>
+      <div class="fs-panel pa-sec" style="--t:#a78bfa;"><h3><i>🗓️</i>Haftanın Günleri <span class="muted" style="font-size:12px;font-weight:400;">günlük ortalama ciro</span></h3>${svgBarChart(days.map(x => ({ label: ({Pazartesi:'Pzt',Salı:'Sal',Çarşamba:'Çar',Perşembe:'Per',Cuma:'Cum',Cumartesi:'Cmt',Pazar:'Paz'})[x.name] || x.name.slice(0,3), value: x.avg, display: money(x.avg) + ' / gün · ' + x.checks + ' hesap' })), { title:'Haftanın günleri', height: 200 })}</div>
       <div class="fs-panel pa-sec" style="--t:#22c55e;"><h3><i>🍩</i>Mevsim Payları</h3>${svgDonut(seasons.map(se => ({ label: se.ic + ' ' + se.k, value: se.rev, color: se.c })), { center: shortMoney(yearRev), sub:'₺ ' + year, title:'Mevsim payları', money:true })}</div>
     </div>
     <div class="fs-panel pa-sec" style="--t:#22c55e;"><h3><i>🌦️</i>4 Mevsim</h3><div class="ps-grid">${seasonCards}</div></div>
