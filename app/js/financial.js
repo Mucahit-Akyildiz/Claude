@@ -895,7 +895,7 @@ async function renderWasteContent(session){
   el.innerHTML = `
     <div class="order-summary stat-chips" style="--n:3;"><div class="os-chip" style="--oc:var(--c1);"><span class="os-ic">🔥</span><div><b>${money(totalCost)}</b><small>Toplam İsraf Maliyeti</small></div></div><div class="os-chip" style="--oc:var(--c2);"><span class="os-ic">📦</span><div><b>${rows.reduce((s,r)=>s+Number(r.qty),0)}</b><small>İsraf Edilen Adet</small></div></div><div class="os-chip" style="--oc:var(--c3);"><span class="os-ic">🗂️</span><div><b>${rows.length}</b><small>Kayıt Sayısı</small></div></div></div>
     ${rows.length ? (() => { const g = {}, rs = {}; rows.forEach(r => { g[r.product_name] = (g[r.product_name]||0) + Number(r.total_cost||0); const k = r.reason || 'Belirtilmedi'; rs[k] = (rs[k]||0) + Number(r.total_cost||0); });
-      return `<div class="ch-row"><div class="fs-panel pa-sec" style="--t:var(--danger,#ef4444);"><h3><i>🔥</i>En Çok İsraf Edilen</h3>${raceHtml(Object.entries(g).sort((a,b)=>b[1]-a[1]).slice(0,8).map(([k,v]) => ({ label:k, value:v, display:money(v), side: totalCost ? '%'+Math.round(v/totalCost*100) : '' })))}</div>
+      return `<div class="ch-row"><div class="fs-panel pa-sec" style="--t:var(--danger,#ef4444);"><h3><i>🔥</i>En Çok İsraf Edilen</h3>${raceHtml(Object.entries(g).sort((a,b)=>b[1]-a[1]).slice(0,8).map(([k,v]) => ({ label:k, value:v, display:money(v), side: v > 0 ? (totalCost ? '%'+Math.round(v/totalCost*100) : '') : '⚠️ maliyet yok' })))}${rows.some(r => !(Number(r.unit_cost) > 0)) ? '<p class="fs-note">⚠️ Maliyeti girilmemiş ürünlerin israfı 0 TL görünür. Ayarlar → Ürünler\'den ürünün maliyetini girin.</p>' : ''}</div>
         <div class="fs-panel pa-sec" style="--t:var(--c3);"><h3><i>❓</i>Sebeplere Göre</h3>${svgDonut(Object.entries(rs).sort((a,b)=>b[1]-a[1]).slice(0,4).map(([k,v], i) => ({ label:k, value:v, color:`var(--c${i+1})` })), { center: shortMoney(totalCost), sub:'₺ israf', money:true })}</div></div>`; })() : ''}
     <div class="fs-panel pa-sec rp-panel" style="--t:var(--c1);">
       <h2>${escapeHtml(reportDateRangeLabel())} Tarihli İsraf Kayıtları</h2>
@@ -907,7 +907,7 @@ async function renderWasteContent(session){
           <tr>
             <td class="col-name">${escapeHtml(r.product_name)}</td>
             <td>${r.qty}</td>
-            <td>${money(r.unit_cost)}</td>
+            <td>${Number(r.unit_cost) > 0 ? money(r.unit_cost) : '<span class="pchip warn" title="Bu ürünün maliyeti girilmemiş; Ayarlar → Ürünler\'den maliyet girin">⚠️ maliyet yok</span>'}</td>
             <td style="color:var(--red);font-weight:700;">${money(r.total_cost)}</td>
             <td>${escapeHtml(r.reason||'-')}</td>
             <td>${escapeHtml(r.staff_name||'-')}</td>
