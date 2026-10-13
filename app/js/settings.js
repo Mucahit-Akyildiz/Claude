@@ -1339,7 +1339,7 @@ function updateProdSelection(){
    "Satışa Kapat", en az biri kapalıysa "Satışa Aç" gösterilir. */
 function menuAvailBtn(menuId){
   const list = (APP.config.products || []).filter(p => p.menu_id === menuId);
-  if(!list.length) return '';
+  if(!list.length) return `<button type="button" class="act-btn act-close" disabled title="Bu menüde henüz ürün yok; ürün ekleyince satışa açıp kapatabilirsiniz"><b>✕</b><span>Satışa Kapat</span></button>`;
   const closed = list.filter(p => p.available === false).length;
   return closed
     ? `<button type="button" class="act-btn act-open" title="${closed}/${list.length} ürün satışta değil" ${act('setMenuAvailable', menuId, true)}><b>✓</b><span>Satışa Aç</span></button>`
