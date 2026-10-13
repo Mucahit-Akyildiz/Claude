@@ -193,7 +193,7 @@ async function renderReportsView(main, session){
 function setReportTab(tab){
   if(tab !== APP.reportTab) pushScreen();
   APP.reportTab = tab;
-  document.querySelectorAll('#reportTabs .tab').forEach(t => t.classList.toggle('active', t.dataset.tab===tab));
+  document.querySelectorAll('#reportTabs .tab').forEach(t => { t.classList.toggle('active', t.dataset.tab===tab); t.classList.toggle('on', t.dataset.tab===tab); });
   renderReportTabContent(getSession());
 }
 function changeReportDate(v){
