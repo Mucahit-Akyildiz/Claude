@@ -2111,3 +2111,5 @@ input.sw:checked{background:var(--c1);} input.sw:checked::after{transform:transl
 .sent-bulk .ghost-btn{flex:1;margin:0!important}
 .sent-bulk-go{flex:1;margin:0!important;background:var(--red,#ef4444)!important;color:#fff!important;border-radius:12px}
 .sent-bulk-go:disabled{opacity:.45}
+.sidebar .sb-pdel{font-size:15px;opacity:.6;transition:opacity .15s,background .15s}
+.sidebar .sb-pdel:hover{opacity:1;background:color-mix(in srgb,#ef4444 20%,transparent)!important}
