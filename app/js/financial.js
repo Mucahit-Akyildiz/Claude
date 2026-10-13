@@ -683,11 +683,11 @@ async function renderTipPoolContent(session){
    report_waste (pos-core.js > openWasteModal/submitWaste). Maliyeti
    (unit_cost*qty) burada toplanıp gösteriliyor ki israfın kâr üzerindeki
    etkisi görünür olsun. */
-/* --- Satın Alma menüsü (ayrı ekran, izin purchasing_reports): tarih aralığı + alt sekmeler. --- */
+/* --- Satınalma menüsü (ayrı ekran, izin purchasing_reports): tarih aralığı + alt sekmeler. --- */
 async function renderProcurementView(main, session){
   if(!APP.procFrom){ const d = new Date(); d.setDate(d.getDate()-29); APP.procFrom = d.toISOString().slice(0,10); }
   if(!APP.procTo) APP.procTo = todayLocalDateStr();
-  main.innerHTML = `<h1>Satın Alma</h1>
+  main.innerHTML = `<h1>Satınalma</h1>
     <div class="box" style="max-width:none;">
       <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
         <span class="muted" style="white-space:nowrap;">Tarih Aralığı</span>
@@ -701,7 +701,7 @@ async function renderProcurementView(main, session){
   await renderPurchaseReportContent(session);
 }
 function setProcDate(which, v){ if(!v) return; if(which==='from') APP.procFrom = v; else APP.procTo = v; renderPurchaseReportContent(getSession()); }
-/* --- Satın Alma: seçilen tarih aralığında Tedarik & Satın Alma'dan verilen siparişler
+/* --- Satınalma: seçilen tarih aralığında Tedarik & Satınalma'dan verilen siparişler
    (bkz. get_purchase_report). Taslak ve iptaller toplamlara katılmaz. --- */
 /* --- Dönemsel Analiz: aylık ve mevsimlik ciro, haftanın günleri, en çok çalışan masalar
    (bkz. get_period_analytics). Kısa aralıkta "Son 12 Ay" kısayolu önerilir. --- */
@@ -789,7 +789,7 @@ async function renderPurchaseReportContent(session){
   const host = document.getElementById('procContent'); if(!host) return;
   const sub = APP.purchRepSub || 'orders';
   host.innerHTML = `<div class="tabs" id="purchRepTabs" style="margin-top:0;">
-      <div class="tab ${sub==='orders'?'active':''}" data-tab="purchRepOrders" ${act('setPurchRepSub','orders')}>Satın Alma Siparişleri</div>
+      <div class="tab ${sub==='orders'?'active':''}" data-tab="purchRepOrders" ${act('setPurchRepSub','orders')}>Satınalma Siparişleri</div>
       <div class="tab ${sub==='suppliers'?'active':''}" data-tab="purchRepSuppliers" ${act('setPurchRepSub','suppliers')}>Tedarikçiler</div>
     </div><div id="purchRepContent"></div>`;
   if(sub==='suppliers'){ APP.supplierTarget = 'purchRepContent'; return renderSuppliersContent(session); }
@@ -800,31 +800,56 @@ async function renderPurchaseReportContent(session){
   const live = rows.filter(p => p.status!=='draft' && p.status!=='cancelled');
   const total = live.reduce((t, p) => t + (Number(p.total_amount)||0), 0);
   const recv = live.reduce((t, p) => t + (Number(p.received_amount)||0), 0);
+  const needPrice = (p) => p.status!=='draft' && p.status!=='cancelled' && (p.items||[]).some(i => !(Number(i.unit_cost)>0));
+  const needRecv = (p) => p.status==='ordered';
+  const cnt = { all: rows.length, price: rows.filter(needPrice).length, recv: rows.filter(needRecv).length, done: rows.filter(p => p.status==='received' && !needPrice(p)).length };
+  const flt = APP.procFilter || 'all';
+  const shown = rows.filter(p => flt==='price' ? needPrice(p) : flt==='recv' ? needRecv(p) : flt==='done' ? (p.status==='received' && !needPrice(p)) : true);
   const bySup = {};
-  live.forEach(p => { const k = p.supplier_name || '—'; bySup[k] = (bySup[k]||0) + (Number(p.total_amount)||0); });
-  const card = (v, l, c) => `<div class="box" style="text-align:center;"><div style="font-size:22px;font-weight:800;${c?'color:'+c+';':''}">${v}</div><div class="muted" style="font-size:12px;">${l}</div></div>`;
+  live.forEach(p => { const k = p.supplier_name || 'Tedarikçisiz'; bySup[k] = (bySup[k]||0) + (Number(p.total_amount)||0); });
+  const statusOf = (p) => typeof poStatusBadge==='function' ? poStatusBadge(Object.assign({}, p, { ordered_total: (p.items||[]).reduce((t,i)=>t+Number(i.quantity||0),0), received_total: (p.items||[]).reduce((t,i)=>t+Math.min(Number(i.received||0),Number(i.quantity||0)),0) })) : escapeHtml(p.status);
+  const chip = (k, l) => `<button type="button" class="pc-chip${flt===k?' active':''}" ${act('setProcFilter', k)}>${l}<span>${cnt[k]}</span></button>`;
+  const card = (p) => {
+    const attn = needPrice(p) || needRecv(p);
+    return `<div class="pc-card${attn?' attn':''}">
+      <div class="pc-head">
+        <div class="pc-title"><b>${escapeHtml(p.supplier_name || 'Tedarikçisiz')}</b>
+          <span>${new Date(p.order_date).toLocaleDateString('tr-TR')} · ${escapeHtml(p.created_by_name || '—')}${p.expected_date ? ' · beklenen '+new Date(p.expected_date).toLocaleDateString('tr-TR') : ''}</span></div>
+        <div class="pc-right">${statusOf(p)}<span class="pc-total">${money(p.total_amount)}</span>
+          ${p.status==='ordered' ? `<button type="button" class="sbtn" style="width:auto;margin:0;white-space:nowrap;" ${act('openReceivePOModal', p.id)}>📦 Teslim Al</button>` : ''}</div>
+      </div>
+      <div class="pc-items">
+        <div class="pc-item pc-item-h"><span>Hammadde</span><span>Miktar</span><span>Birim fiyat</span><span>Tutar</span></div>
+        ${(p.items||[]).map(i => { const q = Number(i.quantity)||0, c = Number(i.unit_cost)||0; return `<div class="pc-item">
+          <span class="pc-name">${escapeHtml(i.name)}</span>
+          <span>${q} ${escapeHtml(i.unit||'')}${Number(i.received)>0 && Number(i.received)<q ? ` <small class="muted">(teslim ${Number(i.received)})</small>` : ''}</span>
+          <span class="pc-price"><input type="number" min="0" step="0.01" placeholder="Fiyat girin" value="${c>0 ? c : ''}" class="${c>0 ? '' : 'missing'}" ${actOn('change','savePurchaseItemCost',[i.id,'$value'])}><small>/${escapeHtml(i.unit||'')}</small></span>
+          <span class="pc-line">${c>0 ? money(q*c) : '<span class="muted">—</span>'}</span></div>`; }).join('') || '<p class="muted">Kalem yok.</p>'}
+      </div>
+      ${p.notes ? `<div class="pc-note">📝 ${escapeHtml(p.notes)}</div>` : ''}
+    </div>`;
+  };
   el.innerHTML = `
-    ${rows.some(p => p.status!=='draft' && p.status!=='cancelled' && (p.items||[]).some(i => !(Number(i.unit_cost)>0))) ? '<p class="muted" style="text-align:left;margin:0 0 12px;">🔴 Kırmızı çerçeveli kalemlerin birim fiyatı girilmemiş. Fiyatı yazıp kutudan çıkınca kaydedilir.</p>' : ''}
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:16px;">
-      ${card(live.length, '🚚 Sipariş')}${card(money(total), 'Sipariş Tutarı')}${card(money(recv), 'Teslim Alınan', 'var(--green)')}${card(money(Math.max(0,total-recv)), 'Bekleyen', '#d97706')}
+    <div class="fs-hero">
+      <div class="fs-hero-main"><div class="fs-cap">Sipariş Tutarı</div><div class="fs-big">${money(total)}</div><div class="fs-line">${live.length} sipariş</div></div>
+      <div class="fs-hero-side">
+        <div><div class="fs-cap">Teslim Alınan</div><div class="fs-mid">${money(recv)}</div><div class="fs-line">${total ? '%'+Math.round(recv/total*100) : '—'}</div></div>
+        <div><div class="fs-cap">Teslim Bekleyen</div><div class="fs-mid">${money(Math.max(0,total-recv))}</div><div class="fs-line">${cnt.recv} sipariş</div></div>
+        <div class="fs-click" ${act('setProcFilter','price')}><div class="fs-cap">Fiyat Bekleyen</div><div class="fs-mid ${cnt.price?'neg':''}">${cnt.price}</div><div class="fs-line">sipariş · göster ›</div></div>
+      </div>
     </div>
-    ${Object.keys(bySup).length ? `<div class="box" style="max-width:none;margin-bottom:16px;"><h3 style="margin-top:0;">Tedarikçiye Göre</h3>${Object.entries(bySup).sort((a,b)=>b[1]-a[1]).map(([k,v]) => `<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);"><span>${escapeHtml(k)}</span><b>${money(v)}</b></div>`).join('')}</div>` : ''}
-    <div class="box" style="max-width:none;">
-      <h3 style="margin-top:0;">Satın Alma Siparişleri</h3>
-      ${rows.length ? `<div class="settings-table-wrap"><table class="settings-table"><thead><tr><th>Tarih</th><th>Tedarikçi</th><th>Kalemler</th><th>Durum</th><th>Veren</th><th style="text-align:right;">Tutar</th><th></th></tr></thead><tbody>
-        ${rows.map(p => `<tr data-badge-id="${p.id}">
-          <td style="white-space:nowrap;">${new Date(p.order_date).toLocaleDateString('tr-TR')}</td>
-          <td>${escapeHtml(p.supplier_name || '—')}</td>
-          <td style="font-size:12.5px;">${(p.items||[]).map(i => `<div class="po-price-row"><span style="flex:1;min-width:120px;">${escapeHtml(i.name)} <b>${Number(i.quantity)}</b> ${escapeHtml(i.unit||'')}${Number(i.received)>0 ? ' <span class="muted">(teslim '+Number(i.received)+')</span>' : ''}</span>
-            <input type="number" min="0" step="0.01" placeholder="Birim fiyat" value="${Number(i.unit_cost)>0 ? Number(i.unit_cost) : ''}" class="${Number(i.unit_cost)>0 ? '' : 'po-price-missing'}" title="Birim fiyat (${escapeAttr(i.unit||'')} başına)" ${actOn('change','savePurchaseItemCost',[i.id,'$value'])}>
-            <span class="muted" style="white-space:nowrap;">/${escapeHtml(i.unit||'')}</span></div>`).join('') || '<span class="muted">—</span>'}${p.notes ? `<div class="muted" style="margin-top:4px;">📝 ${escapeHtml(p.notes)}</div>` : ''}</td>
-          <td>${typeof poStatusBadge==='function' ? poStatusBadge(Object.assign({}, p, { ordered_total: (p.items||[]).reduce((t,i)=>t+Number(i.quantity||0),0), received_total: (p.items||[]).reduce((t,i)=>t+Math.min(Number(i.received||0),Number(i.quantity||0)),0) })) : escapeHtml(p.status)}</td>
-          <td>${escapeHtml(p.created_by_name || '—')}</td>
-          <td style="text-align:right;white-space:nowrap;font-weight:700;">${money(p.total_amount)}</td>
-          <td>${p.status!=='received' && p.status!=='cancelled' && p.status!=='draft' ? `<button type="button" class="sbtn" style="width:auto;margin:0;white-space:nowrap;" ${act('openReceivePOModal', p.id)}>📦 Teslim Al</button>` : ''}</td></tr>`).join('')}
-      </tbody></table></div>` : '<p class="muted">Bu dönemde satın alma siparişi yok.</p>'}
+    <div class="pc-layout">
+      <div>
+        <div class="pc-chips">${chip('all','Tümü')}${chip('price','Fiyat bekleyen')}${chip('recv','Teslim bekleyen')}${chip('done','Tamamlanan')}</div>
+        ${shown.length ? shown.map(card).join('') : '<div class="fs-panel"><p class="muted" style="margin:0;">Bu filtrede sipariş yok.</p></div>'}
+      </div>
+      <div class="fs-panel pc-side"><h3>Tedarikçiye Göre</h3>
+        ${Object.keys(bySup).length ? Object.entries(bySup).sort((a,b)=>b[1]-a[1]).map(([k,v]) => fsRow(escapeHtml(k), money(v), total ? '%'+Math.round(v/total*100) : '')).join('') : '<p class="muted" style="font-size:13px;">Veri yok.</p>'}
+        <p class="fs-note">Fiyatı girilmemiş kalemler tutara katılmaz. Fiyatı yazıp kutudan çıkınca kaydedilir.</p>
+      </div>
     </div>`;
 }
+function setProcFilter(k){ APP.procFilter = k; renderPurchaseReportContent(getSession()); }
 function setPurchRepSub(sub){ APP.purchRepSub = sub; renderPurchaseReportContent(getSession()); }
 async function savePurchaseItemCost(itemId, value){
   const v = parseFloat(String(value).replace(',', '.'));

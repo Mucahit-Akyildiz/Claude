@@ -1382,7 +1382,7 @@ async function renderShiftsTable(session){
     <label style="display:flex;align-items:flex-start;gap:10px;margin:0 0 14px;cursor:${canManage(session,'shifts')?'pointer':'default'};">
       <input type="checkbox" style="width:auto;margin-top:3px;" ${data.shift_required?'checked':''} ${canManage(session,'shifts')?'':'disabled'} ${actOn('change','toggleShiftRequired',['$checked'])}>
       <span><b>Vardiya açmadan çalışılamasın</b><br>
-      <span class="muted" style="font-size:12.5px;">Açıkken personel vardiyasını başlatmadan Sipariş Al, Paket, Mutfak, Ödemeler, Rezervasyon ve Satın Alma ekranlarını kullanamaz. Vardiya talebini gönderdiği anda çalışmaya başlayabilir; onayı siz sonradan verirsiniz. Yönetici ve <b>⏱ Vardiya Açmadan Çalışma</b> izni verilen roller (ör. Tam Yetkili, en fazla 3 kişi) bu kuraldan muaftır.</span></span>
+      <span class="muted" style="font-size:12.5px;">Açıkken personel vardiyasını başlatmadan Sipariş Al, Paket, Mutfak, Ödemeler, Rezervasyon ve Satınalma ekranlarını kullanamaz. Vardiya talebini gönderdiği anda çalışmaya başlayabilir; onayı siz sonradan verirsiniz. Yönetici ve <b>⏱ Vardiya Açmadan Çalışma</b> izni verilen roller (ör. Tam Yetkili, en fazla 3 kişi) bu kuraldan muaftır.</span></span>
     </label>`;
   const pendWrap = document.getElementById('shiftPendingWrap');
   const pending = data.pending || [];
@@ -1625,7 +1625,7 @@ const ROLE_TEMPLATES = {
   'Garson': ['order','packages','settings_products','settings_ingredients','purchasing_orders'],
   'Mutfak': ['kitchen','settings_products','settings_ingredients','purchasing_orders'],
   'Kasiyer': ['order','packages','payments','tips','giftcards','crm'],
-  'Satın Alma': ['purchasing_orders','purchasing_manage','purchasing_suppliers','purchasing_reports','settings_ingredients'],
+  'Satınalma': ['purchasing_orders','purchasing_manage','purchasing_suppliers','purchasing_reports','settings_ingredients'],
   'Müdür Yardımcısı': ['order','packages','kitchen','payments','reservations','crm','shifts','purchasing_orders','purchasing_manage','purchasing_suppliers','settings_products','settings_ingredients','settings_zones','settings_flags']
 };
 function applyRoleTemplate(name){
@@ -2145,7 +2145,7 @@ async function saveAccountingSettings(){
   const key = document.getElementById('int_accounting_key').value;
   const enabled = document.getElementById('int_accounting_enabled').checked;
   const { error } = await sb.rpc('update_accounting_settings', { p_token: session.session_token, p_provider: provider, p_api_key: key||null, p_enabled: enabled });
-  if(error){ alert(error.message==='PAKET_OZELLIK_YOK' ? 'Muhasebe Entegrasyonu paketinizde dahil değil - ayrı bir eklenti olarak satın almak için bizimle iletişime geçin.' : error.message); return; }
+  if(error){ alert(error.message==='PAKET_OZELLIK_YOK' ? 'Muhasebe Entegrasyonu paketinizde dahil değil - ayrı bir eklenti olarak satınalmak için bizimle iletişime geçin.' : error.message); return; }
   renderSettingsContent(session);
   showToast('Kaydedildi ✓');
 }

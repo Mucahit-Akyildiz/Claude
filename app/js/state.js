@@ -20,11 +20,11 @@ const PERMISSION_LABELS = {
   settings_flags: 'Ayarlar · Sipariş Etiketleri',
   crm: 'Müşteriler (CRM)',
   reservations: 'Rezervasyonlar',
-  purchasing: 'Satın Alma',
-  purchasing_orders: 'Satın Alma Talebi (sipariş verme)',
-  purchasing_manage: 'Satın Alma Yönetimi',
+  purchasing: 'Satınalma',
+  purchasing_orders: 'Satınalma Talebi (sipariş verme)',
+  purchasing_manage: 'Satınalma Yönetimi',
   purchasing_suppliers: 'Tedarikçi Yönetimi',
-  purchasing_reports: 'Satın Alma (siparişler, birim fiyat, tedarikçiler)',
+  purchasing_reports: 'Satınalma (siparişler, birim fiyat, tedarikçiler)',
   shifts: 'Vardiyalar',
   messages: 'Mesajlaşma',
   radio: 'Peyk Bas-Konuş (Telsiz)',
@@ -32,7 +32,7 @@ const PERMISSION_LABELS = {
 function hasPerm(session, perm){ return (session.permissions||[]).includes(perm); }
 /* Yönetici (işletme sahibi) her şeyi yapar; diğerleri ilgili izin rollerine verilmişse. */
 function canManage(session, perm){ return !!session.isManager || hasPerm(session, perm); }
-/* Tedarikçi & Satın Alma alt izinleri: purchasing_orders (sipariş verme),
+/* Tedarikçi & Satınalma alt izinleri: purchasing_orders (sipariş verme),
    purchasing_manage (onay/teslim/iptal), purchasing_suppliers (tedarikçiler).
    Eski 'purchasing' izni ve Yönetici hepsini kapsar. */
 function hasPurchPerm(session, sub){
@@ -97,11 +97,11 @@ const NAV_ITEMS = [
   { view:'kitchen', icon:'🧑‍🍳', label:'Mutfak Ekranı', perm:'kitchen' },
   { view:'reservations', icon:'📅', label:'Rezervasyonlar', perm:'reservations' },
   { view:'crm', icon:'👥', label:'Müşteriler', perm:'crm' },
-  { view:'purchasing', icon:'🚚', label:'Satın Alma Siparişleri', perm:'purchasing' },
+  { view:'purchasing', icon:'🚚', label:'Satınalma Siparişleri', perm:'purchasing' },
   { view:'printerSettings', icon:'🖨️', label:'Yazıcı Ayarları' },
   { view:'notificationSettings', icon:'🔔', label:'Bildirimler' },
   { view:'payments', icon:'💳', label:'Ödemeler', perm:'payments' },
-  { view:'procurement', icon:'🧾', label:'Satın Alma' },
+  { view:'procurement', icon:'🧾', label:'Satınalma' },
   { view:'reports', icon:'📊', label:'Finansal Analiz' },
   { view:'messages', icon:'💬', label:'Mesajlar' },
   { view:'radio', icon:'📻', label:'Peyk Bas-Konuş' },
@@ -125,7 +125,7 @@ const NAV_ITEMS = [
 function hasFeature(f){ return !!(APP.config && (APP.config.features||[]).includes(f)); }
 function navItemVisible(item, session){
   if(item.view==='reports') return canManage(session, 'reports');
-  // Satın Alma (siparişler + birim fiyat + tedarikçiler): ayrı rol izni purchasing_reports.
+  // Satınalma (siparişler + birim fiyat + tedarikçiler): ayrı rol izni purchasing_reports.
   if(item.view==='procurement') return canManage(session, 'purchasing_reports');
   if(item.view==='printerSettings') return canManage(session, 'printer_settings');
   // Mesajlaşma rol izniyle açılır (Ayarlar > Roller); Yönetici her zaman görür.
