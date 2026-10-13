@@ -4,7 +4,7 @@
    sadece Yönetici'ye (is_manager) açık - bir role bu yetkiyi vermek
    mümkün değil (bkz. manager_upsert_role'un izin backend'i). */
 const SETTINGS_TABS = [
-  { tab:'stations', perm:'settings_stations', label:'İstasyonlar' },
+  { tab:'stations', perm:'settings_stations', label:'Menüler & İstasyonlar' },
   { tab:'zones', perm:'settings_zones', label:'Bölgeler & Masalar' },
   { tab:'products', label:'Ürünler & Hammaddeler' }, // alt sekmeler: Ürünler, Hammaddeler
   { tab:'flags', perm:'settings_flags', label:'Sipariş Etiketleri' },
@@ -96,7 +96,7 @@ function renderUsersTabWithSubtabs(el, session){
   if(tabs.length === 1){ el.innerHTML = '<div id="usersSubContent"></div>'; draw(document.getElementById('usersSubContent')); return; }
   // Alt sekmeler kartın içinde, üst menüden ayrışan altı çizili stilde.
   el.innerHTML = `<div class="box sub-tabs-box" style="max-width:none;">
-      <div class="sub-tabs" id="usersSubTabs">${tabs.map(t => `<div role="tab" tabindex="0" class="sub-tab ${sub===t.id?'active':''}" ${act('setUsersSubTab', t.id)}><span class="sub-tab-ic">${t.ic}</span>${t.label}</div>`).join('')}</div>
+      <div class="sub-tabs" id="usersSubTabs">${tabs.map(t => `<div role="tab" tabindex="0" class="sub-tab ${sub===t.id?'active':''}" data-sub="${t.id}" ${act('setUsersSubTab', t.id)}><span class="sub-tab-ic">${t.ic}</span>${t.label}</div>`).join('')}</div>
       <div id="usersSubContent" class="sub-tabs-content"></div>
     </div>`;
   draw(document.getElementById('usersSubContent'));
@@ -193,7 +193,7 @@ function renderIngredientsSettings(el, session){
   const ings = APP.config.ingredients || [];
   el.innerHTML = `<div class="box" style="max-width:none;">
     <h2>Hammaddeler / Stok Kalemleri</h2>
-    <p class="muted" style="text-align:left;margin:0 0 16px;">Örn: "Köfte" (birim: adet, stok: 200), "Döner Eti" (birim: kg, stok: 20). Yeni bir hammadde eklediğinizde hangi ürünlerin onu kullandığını hemen soracağız — istediğiniz zaman "Kullanıldığı Ürünler" ile bunu tekrar düzenleyebilirsiniz. Aynı hammaddeyi paylaşan ürünlerin stoğu her zaman ortak ve anlık hesaplanır. Satırları değiştirip <b>Kaydet</b>'e basın; silmek için satırları seçin.</p>
+    <p class="muted" style="text-align:left;margin:0 0 16px;">Örn: "Köfte" (birim: adet, stok: 200), "Döner Eti" (birim: kg, stok: 20). Yeni bir hammadde eklediğinizde hangi ürünlerin onu kullandığını hemen soracağız — istediğiniz zaman "Kullanıldığı Ürünler" ile bunu tekrar düzenleyebilirsiniz. Aynı hammaddeyi paylaşan ürünlerin stoğu her zaman ortak ve anlık hesaplanır. <b>Fire %</b>: temizleme/kesim kaybıdır; reçeteye net miktarı girersiniz, stoktan fire eklenerek düşülür (örn. %10 fire, 60 g net → 66,7 g düşer). Satırları değiştirip <b>Kaydet</b>'e basın; silmek için satırları seçin.</p>
     <div class="add-row-panel">
       <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:0 0 10px;">
         ${listSearchHtml('ingredients', 'Hammadde ara…').replace('margin:0 0 12px;','margin:0;')}
@@ -211,12 +211,13 @@ function renderIngredientsSettings(el, session){
           <option value="adet">adet</option><option value="gram">gram</option><option value="kg">kg</option><option value="ml">ml</option><option value="lt">lt</option>
         </select></div>
         <div class="field-group" style="${fgStyle(130)}"><label>Başlangıç Stoku</label><input type="number" step="0.01" id="ni_stock" placeholder="0" style="margin:0;"></div>
+        <div class="field-group" style="${fgStyle(110)}"><label>Fire %</label><input type="number" step="0.1" min="0" max="99" id="ni_waste" placeholder="0" style="margin:0;"></div>
         <button style="${INLINE_BTN}" ${act('addIngredient')}>+ Hammadde Ekle</button>
       </div>
     </div>
     <div class="settings-table-wrap">
     <table class="settings-table">
-      <thead><tr><th style="width:36px;"><input type="checkbox" style="width:auto;margin:0;" title="Tümünü seç" ${actOn('change','selectAllIngredients',['$checked'])}></th><th>Hammadde Adı</th><th>Birim</th><th>Stok</th><th></th></tr></thead>
+      <thead><tr><th style="width:36px;"><input type="checkbox" style="width:auto;margin:0;" title="Tümünü seç" ${actOn('change','selectAllIngredients',['$checked'])}></th><th>Hammadde Adı</th><th>Birim</th><th>Stok</th><th title="Temizleme/kesim kaybı: reçetedeki net miktara eklenerek stoktan düşülür">Fire %</th><th></th></tr></thead>
       <tbody ${actOn('input','markIngDirty',['$event'])} ${actOn('change','markIngDirty',['$event'])}>
       ${ings.map(i => `
         <tr data-iid="${i.id}">
@@ -226,6 +227,7 @@ function renderIngredientsSettings(el, session){
             ${['adet','gram','kg','ml','lt'].map(u => `<option value="${u}" ${u===i.unit?'selected':''}>${u}</option>`).join('')}
           </select></td>
           <td class="col-num"><input type="number" step="0.01" value="${i.stock}" id="ing_stock_${i.id}"></td>
+          <td class="col-num"><input type="number" step="0.1" min="0" max="99" value="${Number(i.waste_pct)||0}" id="ing_waste_${i.id}"></td>
           <td style="white-space:nowrap;">
             <button class="sbtn" style="background:var(--accent2);color:var(--btn-ink);" ${act('openIngredientUsageModal', i.id)}>Kullanıldığı Ürünler</button>
           </td>
@@ -259,13 +261,13 @@ async function saveAllIngredients(){
   const rows = [...document.querySelectorAll('tr[data-iid][data-dirty]')].map(tr => {
     const id = tr.dataset.iid;
     return { id, name: document.getElementById('ing_name_'+id).value.trim(), unit: document.getElementById('ing_unit_'+id).value,
-      stock: parseFloat(document.getElementById('ing_stock_'+id).value)||0 };
+      stock: parseFloat(document.getElementById('ing_stock_'+id).value)||0, waste: parseFloat(document.getElementById('ing_waste_'+id).value)||0 };
   });
   if(!rows.length) return;
   if(rows.some(r => !r.name)){ alert('Hammadde adı boş olamaz'); return; }
   const session = getSession(); const errors = [];
   await withLoadingOverlay((async () => {
-    for(const r of rows){ const { error } = await sb.rpc('upsert_ingredient', { p_token: session.session_token, p_id: r.id, p_name: r.name, p_unit: r.unit, p_stock: r.stock }); if(error) errors.push(r.name + ': ' + error.message); }
+    for(const r of rows){ const { error } = await sb.rpc('upsert_ingredient', { p_token: session.session_token, p_id: r.id, p_name: r.name, p_unit: r.unit, p_stock: r.stock, p_waste_pct: r.waste }); if(error) errors.push(r.name + ': ' + error.message); }
   })());
   renderSettingsView(document.getElementById('main'), session);
   if(errors.length) alert('Bazı hammaddeler kaydedilemedi:\n\n' + errors.join('\n')); else showToast(rows.length + ' hammadde kaydedildi ✓');
@@ -286,8 +288,9 @@ async function addIngredient(){
   const name = document.getElementById('ni_name').value.trim();
   const unit = document.getElementById('ni_unit').value;
   const stock = parseFloat(document.getElementById('ni_stock').value)||0;
+  const waste = parseFloat(document.getElementById('ni_waste').value)||0;
   if(!name) return;
-  const { data, error } = await sb.rpc('upsert_ingredient', { p_token: session.session_token, p_id: null, p_name: name, p_unit: unit, p_stock: stock });
+  const { data, error } = await sb.rpc('upsert_ingredient', { p_token: session.session_token, p_id: null, p_name: name, p_unit: unit, p_stock: stock, p_waste_pct: waste });
   if(error){ alert(error.message); return; }
   await renderSettingsView(document.getElementById('main'), session);
   // Hammadde eklenir eklenmez, hangi urunlerin kullandigini sormaya devam et.
@@ -308,7 +311,7 @@ function openIngredientUsageModal(ingredientId){
   bg.onclick = (e) => { if(e.target===bg) bg.remove(); };
   bg.innerHTML = `<div style="background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:20px;max-width:480px;width:100%;max-height:88vh;overflow:auto;">
     <div style="display:flex;justify-content:space-between;"><h2 style="margin:0;">${escapeHtml(ingredientName)} - Kullanıldığı Ürünler</h2><span style="cursor:pointer;color:var(--muted);" ${act('removeEl','ingUsageModalBg')}>✕</span></div>
-    <p class="muted" style="text-align:left;">Bu hammaddeyi hangi ürünler kullanıyor, 1 porsiyonda ne kadar tüketiliyor${unit?' ('+escapeHtml(unit)+')':''}? Seçmediğiniz ürünlerden bu hammadde kaldırılır (o ürünlerin diğer hammaddeleri etkilenmez).</p>
+    <p class="muted" style="text-align:left;">Bu hammaddeyi hangi ürünler kullanıyor, 1 porsiyonda net ne kadar tüketiliyor${unit?' ('+escapeHtml(unit)+')':''}?${ingredient && Number(ingredient.waste_pct)>0 ? ' Stoktan %'+Number(ingredient.waste_pct)+' fire eklenerek düşülür.' : ''} Seçmediğiniz ürünlerden bu hammadde kaldırılır (o ürünlerin diğer hammaddeleri etkilenmez).</p>
     <div id="ingUsageItemsBox"></div>
     <button style="margin-top:14px;" ${act('saveIngredientUsage', ingredientId)}>${ICON_SAVE}<span>Kaydet</span></button>
   </div>`;

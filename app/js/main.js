@@ -186,14 +186,17 @@ function applyTabBadges(){
   });
   const resvItems = badgeItems('reservations');
   const tabs = {
+    users: b.settings || 0,
     shifts: b.settings || 0,
     orders: b.purchasing || 0,
     reservations: resvItems.filter(x => x.kind==='reservation').length,
     waitlist: resvItems.filter(x => x.kind==='waitlist').length,
   };
-  document.querySelectorAll('.tabs .tab[data-tab]').forEach(el => {
-    if(!(el.dataset.tab in tabs)) return;
-    const want = el.classList.contains('active') ? 0 : tabs[el.dataset.tab];
+  // Üst sekmeler (data-tab) ve alt sekmeler (data-sub, örn. Kullanıcılar > Vardiyalar).
+  document.querySelectorAll('.tabs .tab[data-tab], .sub-tab[data-sub]').forEach(el => {
+    const key = el.dataset.tab || el.dataset.sub;
+    if(!(key in tabs)) return;
+    const want = el.classList.contains('active') ? 0 : tabs[key];
     const cur = el.querySelector('.nav-badge');
     const curN = cur ? cur.textContent : '';
     const wantTxt = want > 0 ? (want > 99 ? '99+' : String(want)) : '';
