@@ -2795,18 +2795,21 @@ async function renderSupportAccessSettings(el, session){
   el.innerHTML = `<div class="box" style="max-width:none;text-align:left;">
     <h2 style="margin:0 0 6px;">🛟 Peyktan Destek Erişimi</h2>
     <p class="muted" style="font-size:13px;margin:0 0 14px;">Bir sorun için Peyktan'dan yardım istediğinizde, destek ekibinin işletmenize girip sorunu görebilmesi için süreli izin verin. Şifrenizi paylaşmanız gerekmez. Destek ekibi yalnızca izin süresince ve en fazla 1 saatlik oturumlarla girebilir; her giriş aşağıda listelenir. İzni istediğiniz an kaldırabilirsiniz.</p>
-    <div style="padding:12px 14px;border:1px solid var(--border);border-radius:12px;margin-bottom:14px;background:var(--panel2);">
-      ${until ? `<b style="color:var(--green);">● İzin açık</b> <span class="muted">— ${escapeHtml(fmt(until))} tarihine kadar</span>` : '<b class="muted">● İzin kapalı</b> <span class="muted">— destek ekibi işletmenize giremez</span>'}
+    <div class="sp-hero ${until?'on':''}">
+      <div class="sp-shield">${until ? '🔓' : '🔒'}</div>
+      <div class="sp-info"><b>${until ? 'Destek erişimi açık' : 'Destek erişimi kapalı'}</b>
+        <small>${until ? escapeHtml(fmt(until)) + ' tarihine kadar · ' + Math.max(1, Math.round((until - Date.now())/36e5)) + ' saat kaldı' : 'Destek ekibi işletmenize giremez'}</small></div>
+      <div class="sp-acts">
+        <button type="button" class="sp-btn" ${act('setSupportAccess', 24)}>⏱ ${until ? '24 saat uzat' : '24 saat izin ver'}</button>
+        <button type="button" class="pc-btn" ${act('setSupportAccess', 2)}>Sadece 2 saat</button>
+        ${until ? `<button type="button" class="pc-btn rv-del" ${act('setSupportAccess', 0)}>✕ İzni kaldır</button>` : ''}
+      </div>
     </div>
-    <div style="display:flex;gap:8px;flex-wrap:wrap;">
-      <button type="button" style="width:auto;margin:0;" ${act('setSupportAccess', 24)}>${until ? '24 saat uzat' : '24 saat izin ver'}</button>
-      <button type="button" class="ghost-btn" style="width:auto;margin:0;" ${act('setSupportAccess', 2)}>Sadece 2 saat</button>
-      ${until ? `<button type="button" class="ghost-btn" style="width:auto;margin:0;color:var(--red);border-color:var(--red);" ${act('setSupportAccess', 0)}>İzni kaldır</button>` : ''}
-    </div>
-    <h3 style="margin:22px 0 8px;">Destek girişleri</h3>
-    ${log.length ? `<div class="settings-table-wrap"><table class="settings-table"><thead><tr><th>Tarih</th><th>Kim</th><th>Oturum bitişi</th></tr></thead><tbody>
-      ${log.map(l => `<tr><td>${escapeHtml(fmt(l.at))}</td><td>${escapeHtml(l.admin || 'Peyktan Destek')}</td><td>${l.until ? escapeHtml(fmt(l.until)) : '-'}</td></tr>`).join('')}
-    </tbody></table></div>` : '<p class="muted">Henüz destek girişi olmadı.</p>'}
+    <div class="rv-day-h" style="margin:22px 0 10px;">Destek girişleri<span class="muted">${log.length} giriş</span></div>
+    ${log.length ? `<div class="sp-log">${log.map((l, i) => `<div class="sp-li" style="--i:${Math.min(i,12)};">
+        <span class="sp-dot"></span>${avatarHtml(l.admin || 'P')}
+        <div class="cu-id"><b>${escapeHtml(l.admin || 'Peyktan Destek')}</b><small>Giriş: ${escapeHtml(fmt(l.at))}${l.until ? ' · oturum bitişi ' + escapeHtml(fmt(l.until)) : ''}</small></div>
+      </div>`).join('')}</div>` : '<div class="empty-state"><div style="font-size:38px;">🛟</div><p class="muted">Henüz destek girişi olmadı.</p></div>'}
   </div>`;
 }
 async function setSupportAccess(hours){
