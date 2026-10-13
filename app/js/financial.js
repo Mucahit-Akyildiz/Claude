@@ -940,7 +940,7 @@ async function openSaleDetailModal(historyId){
   const row = (k, v, strong) => `<div style="display:flex;justify-content:space-between;${strong?'font-weight:800;font-size:15px;margin-top:4px;':''}"><span>${k}</span><span>${v}</span></div>`;
   const bg = document.createElement('div');
   bg.id = 'saleDetailModalBg';
-  bg.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:100;padding:16px;';
+  bg.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:300;padding:16px;';
   bg.onclick = (e) => { if(e.target===bg) bg.remove(); };
   bg.innerHTML = `<div style="background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:20px;max-width:420px;width:100%;max-height:88vh;overflow:auto;">
     <div style="display:flex;justify-content:space-between;align-items:center;">
@@ -1265,6 +1265,7 @@ async function toggleOaSale(historyId, boxId){
   box.hidden = false;
 }
 async function collectOpenAccount(id){
+  { const dr = document.getElementById('oaEntriesModalBg'); if(dr) dr.remove(); }
   const a = ((APP.openAccReport||{}).accounts||[]).find(x => x.id===id); if(!a) return;
   const v = prompt('"' + a.name + '" hesabından tahsil edilecek tutar (bakiye ' + money(a.balance) + '):', String(Math.round(a.balance*100)/100));
   if(v === null) return;
