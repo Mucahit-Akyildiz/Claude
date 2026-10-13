@@ -842,13 +842,13 @@ async function checkForAppUpdate(){
     if(!Object.keys(tags).length) return;
     if(!UPDATE_WATCH.tags){ UPDATE_WATCH.tags = tags; return; }
     const changed = Object.keys(tags).some(u => UPDATE_WATCH.tags[u] && tags[u] && UPDATE_WATCH.tags[u] !== tags[u]);
-    if(changed){ UPDATE_WATCH.ready = true; showAppUpdateBar(); }
+    if(changed){ UPDATE_WATCH.ready = true; showWebUpdateBar(); }
   } finally { UPDATE_WATCH.checking = false; }
 }
-function showAppUpdateBar(){
-  if(document.getElementById('appUpdateBar')) return;
+function showWebUpdateBar(){
+  if(document.getElementById('webUpdateBar')) return;
   const bar = document.createElement('div');
-  bar.id = 'appUpdateBar';
+  bar.id = 'webUpdateBar';
   bar.style.cssText = 'position:fixed;left:50%;bottom:16px;transform:translateX(-50%);z-index:9999;background:var(--accent,#0e8fa3);color:#fff;border-radius:999px;padding:10px 18px;box-shadow:0 6px 24px rgba(0,0,0,.25);display:flex;gap:12px;align-items:center;font-weight:700;font-size:14px;max-width:calc(100% - 32px);';
   bar.innerHTML = '<span>🔄 Yeni sürüm hazır</span><button type="button" style="width:auto;margin:0;padding:6px 14px;border-radius:999px;background:#fff;color:var(--accent,#0e8fa3);font-weight:800;">Yenile</button>';
   bar.querySelector('button').onclick = () => location.reload();
