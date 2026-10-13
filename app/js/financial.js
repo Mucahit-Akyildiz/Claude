@@ -427,7 +427,13 @@ async function renderReportContent(session){
         <p class="fs-note">Personel / ikram hesapları ciroya dahil değildir.</p>
       </div>
     </div>
-    <div class="fs-panel pa-sec" style="--t:#f97316;"><h3><i>⏰</i>Saatlik Yoğunluk${peakHour!==null?' <span class="muted" style="font-size:12px;font-weight:400;">en yoğun: '+(peakHour<10?'0'+peakHour:peakHour)+':00 🔥</span>':''}</h3>${hourlyHtml}</div>
+    <div class="ch-row">
+      <div class="fs-panel pa-sec" style="--t:var(--c1);"><h3><i>📊</i>Saatlik Ciro${peakHour!==null?' <span class="muted" style="font-size:12px;font-weight:400;">en yoğun: '+(peakHour<10?'0'+peakHour:peakHour)+':00</span>':''}</h3>
+        ${svgBarChart(hourKeys.map(h => ({ label: (h<10?'0'+h:h)+':00', value: hourStats[h].revenue, short: shortMoney(hourStats[h].revenue), display: money(hourStats[h].revenue) + ' · ' + hourStats[h].count + ' sipariş' })), { title:'Saatlik ciro' })}</div>
+      <div class="fs-panel pa-sec" style="--t:var(--c2);"><h3><i>🍩</i>Ödeme Türleri</h3>
+        ${svgDonut([{ label:'Nakit', value: totalCash, color:'var(--c1)' }, { label:'Kart', value: totalCard, color:'var(--c2)' }, { label:'Hediye Kartı', value: totalGiftCard, color:'var(--c3)' }], { center: shortMoney(totalCash+totalCard+totalGiftCard), sub:'TL', title:'Ödeme türleri' })}</div>
+    </div>
+    <details class="fs-panel pa-sec" style="--t:#f97316;"><summary style="cursor:pointer;"><h3 style="display:inline-flex;margin:0;"><i>⏰</i>Saatlik Yoğunluk Tablosu</h3></summary>${hourlyHtml}</details>
     <div class="fs-panel pa-sec" style="--t:#a78bfa;"><h3><i>👤</i>Personel Performansı</h3>${staffRowsHtml}</div>
     <div class="fs-panel pa-sec" style="--t:var(--green);">
       <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:6px;">
@@ -781,6 +787,7 @@ async function renderPeriodAnalyticsContent(session){
       </div>
     </div>
     <div class="fs-panel pa-sec" style="--t:#22c55e;"><h3><i>🌦️</i>4 Mevsim</h3><div class="ps-grid">${seasonCards}</div></div>
+    <div class="fs-panel pa-sec" style="--t:var(--c1);"><h3><i>📊</i>${year} Aylık Ciro</h3>${svgBarChart(months.map(m => ({ label: m.name.slice(0,3), value: m.revenue, short: m.revenue ? shortMoney(m.revenue) : '', display: money(m.revenue) + ' · ' + m.checks + ' hesap' })), { title:'Aylık ciro', height: 200 })}</div>
     <div class="fs-panel pa-sec" style="--t:var(--accent);"><h3><i>📅</i>Aylar <span class="pa-legend">${SEASONS.map(se => `<span><b style="background:${se.c};"></b>${se.k}</span>`).join('')}</span></h3><div class="pm-grid">${monthCards}</div></div>
     <div class="fs-panel pa-sec" style="--t:#a78bfa;"><h3><i>🗓️</i>Haftanın Günleri <span class="muted" style="font-size:12px;font-weight:400;">günlük ortalama ciro</span></h3><div class="pd-grid">${dayCards}</div></div>
     <div class="fs-panel pa-sec" style="--t:#f59e0b;"><h3><i>🪑</i>En Çok Çalışan Masalar <span class="muted" style="font-size:12px;font-weight:400;">${year}</span></h3>

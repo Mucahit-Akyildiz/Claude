@@ -240,3 +240,38 @@ function touchSharedMic(){ clearTimeout(SHARED_MIC_TIMER); SHARED_MIC_TIMER = se
 function releaseSharedMic(){ clearTimeout(SHARED_MIC_TIMER);
   // Mikrofon bırakılınca sessiz modda da çalabilmek için tekrar 'çalma' moduna dönülür.
   if(SHARED_MIC){ SHARED_MIC.getTracks().forEach(t => t.stop()); try{ if(navigator.audioSession && navigator.audioSession.type === 'play-and-record') navigator.audioSession.type = 'playback'; }catch(e){} } SHARED_MIC = null; SHARED_MIC_KEY = ''; if(typeof RADIO !== 'undefined' && RADIO.mic && RADIO.mic.getAudioTracks().every(t => t.readyState !== 'live')) RADIO.mic = null; }
+
+/* ---- Hafif SVG grafikler (harici kütüphane yok, CSP uyumlu) ----
+   Renkler CSS değişkenlerinden (--c1..--c4) gelir; açık/koyu temada ayrı tonlar. */
+function svgBarChart(data, o){
+  o = o || {};
+  if(!data.length) return '<p class="muted">Veri yok.</p>';
+  const W = 640, H = o.height || 180, padB = 26, padT = 18;
+  const max = Math.max(...data.map(d => Number(d.value)||0)) || 1;
+  const n = data.length, slot = W / n, bw = Math.max(6, Math.min(44, slot * 0.62));
+  const peak = data.reduce((a, d) => (Number(d.value)||0) > (Number(a.value)||0) ? d : a, data[0]);
+  const bars = data.map((d, i) => {
+    const v = Number(d.value)||0, h = Math.round((v / max) * (H - padB - padT)), x = i * slot + (slot - bw) / 2, y = H - padB - h;
+    const isPeak = d === peak && v > 0;
+    return `<g class="ch-bar${isPeak ? ' peak' : ''}"><rect class="ch-hit" x="${i*slot}" y="0" width="${slot}" height="${H}"></rect>
+      <path d="M${x},${H-padB} V${y+4} Q${x},${y} ${x+4},${y} H${x+bw-4} Q${x+bw},${y} ${x+bw},${y+4} V${H-padB} Z"></path>
+      ${isPeak || n <= 8 ? `<text class="ch-val" x="${x+bw/2}" y="${y-5}" text-anchor="middle">${escapeHtml(d.short || '')}</text>` : ''}
+      <text class="ch-lbl" x="${x+bw/2}" y="${H-8}" text-anchor="middle">${escapeHtml(d.label)}</text>
+      <title>${escapeHtml(d.label + ': ' + (d.display || v))}</title></g>`;
+  }).join('');
+  return `<svg class="ch-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="${escapeAttr(o.title||'Grafik')}"><line class="ch-base" x1="0" y1="${H-padB}" x2="${W}" y2="${H-padB}"></line>${bars}</svg>`;
+}
+function svgDonut(segs, o){
+  o = o || {};
+  const total = segs.reduce((t, s) => t + (Number(s.value)||0), 0);
+  if(!total) return '<p class="muted">Veri yok.</p>';
+  const R = 52, C = 2 * Math.PI * R; let off = 0;
+  const arcs = segs.filter(s => s.value > 0).map(s => {
+    const len = (s.value / total) * C, gap = segs.filter(x => x.value > 0).length > 1 ? 2 : 0;
+    const el = `<circle r="${R}" cx="70" cy="70" fill="none" stroke="${s.color}" stroke-width="18" stroke-dasharray="${Math.max(0, len - gap)} ${C}" stroke-dashoffset="${-off}" transform="rotate(-90 70 70)"><title>${escapeHtml(s.label + ': %' + Math.round(s.value/total*100))}</title></circle>`;
+    off += len; return el;
+  }).join('');
+  return `<div class="ch-donut"><svg viewBox="0 0 140 140" role="img" aria-label="${escapeAttr(o.title||'Dağılım')}"><circle r="${R}" cx="70" cy="70" fill="none" stroke="var(--panel2)" stroke-width="18"></circle>${arcs}<text x="70" y="66" text-anchor="middle" class="ch-dc-big">${escapeHtml(o.center||'')}</text><text x="70" y="84" text-anchor="middle" class="ch-dc-sm">${escapeHtml(o.sub||'')}</text></svg>
+    <div class="ch-legend">${segs.map(s => `<div><i style="background:${s.color}"></i><span>${escapeHtml(s.label)}</span><b>%${Math.round((Number(s.value)||0)/total*100)}</b></div>`).join('')}</div></div>`;
+}
+function shortMoney(v){ v = Number(v)||0; return v >= 1e6 ? (v/1e6).toFixed(1).replace('.',',')+'M' : v >= 1000 ? Math.round(v/1000)+'B' : String(Math.round(v)); }
