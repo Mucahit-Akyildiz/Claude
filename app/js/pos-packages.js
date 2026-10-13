@@ -281,6 +281,36 @@ async function cancelSentItem(tableId, itemId){
   if(data && data.order_closed && !(APP.draftCart[tableId]||[]).length){ await closeTableModal(); render(); return; }
   renderTableItems(tableId);
 }
+/* Toplu iptal: gönderilen ürünlerde seçim (masa bazında, yenilemelerde korunur). */
+function sentSel(tableId){ APP.sentCancelSel = APP.sentCancelSel || {}; return APP.sentCancelSel[tableId] = APP.sentCancelSel[tableId] || new Set(); }
+function toggleSentSel(tableId, itemId, el){ const s = sentSel(tableId); if(el.checked) s.add(itemId); else s.delete(itemId); renderTableItems(tableId); }
+function selectAllSent(tableId){
+  const order = liveOrderForTable(tableId); if(!order) return;
+  const ids = order.items.filter(i => !i.paid).map(i => i.id), s = sentSel(tableId);
+  if(ids.every(id => s.has(id))) s.clear(); else ids.forEach(id => s.add(id));
+  renderTableItems(tableId);
+}
+async function cancelSelectedSent(tableId){
+  const order = liveOrderForTable(tableId); if(!order) return;
+  const s = sentSel(tableId);
+  const list = order.items.filter(i => s.has(i.id) && !i.paid);
+  if(!list.length) return;
+  if(!confirm(list.length + ' ürün iptal edilsin mi?\n' + list.map(i => '• ' + i.qty + 'x ' + i.name).join('\n') + '\n\nHazırlanan ürünler için istasyona iptal fişi gönderilecek.')) return;
+  const session = getSession();
+  let closed = false, failed = 0;
+  await withLoadingOverlay((async () => {
+    for(const it of list){
+      const { data, error } = await sb.rpc('cancel_order_item', { p_token: session.session_token, p_item_id: it.id });
+      if(error) failed++; else if(data && data.order_closed) closed = true;
+    }
+  })());
+  s.clear();
+  const { data: live } = await sb.rpc('get_live_orders', { p_token: session.session_token });
+  APP.liveOrders = live || [];
+  showToast(failed ? '⚠️ ' + failed + ' ürün iptal edilemedi' : '❌ ' + list.length + ' ürün iptal edildi');
+  if(closed && !(APP.draftCart[tableId]||[]).length){ await closeTableModal(); render(); return; }
+  renderTableItems(tableId);
+}
 function renderTableItems(tableId){
   const sentWrap = document.getElementById('sentItemsWrap');
   const draftWrap = document.getElementById('draftItemsWrap');
@@ -293,8 +323,11 @@ function renderTableItems(tableId){
     sentWrap.innerHTML = `<p style="font-weight:700;margin-bottom:2px;">Mutfağa Gönderilen</p>${opened ? `<p class="muted" style="margin:0 0 6px;font-size:12px;">🕒 Sipariş açıldı: ${opened}${order.created_by_name ? ' · 👤 ' + escapeHtml(order.created_by_name) : ''}</p>` : ''}${orderWaiters(order).length > 1 ? `<p class="muted" style="margin:0 0 6px;font-size:12px;">İlgilenen garsonlar: ${escapeHtml(orderWaiters(order).join(', '))}</p>` : ''}` + order.items.map(it => `
       <div style="display:flex;justify-content:space-between;gap:8px;padding:6px 0;border-bottom:1px solid var(--border);font-size:13px;">
         <span style="min-width:0;overflow-wrap:anywhere;">${escapeHtml(it.name)} x${it.qty} ${it.status==='ready'?'<span style="color:var(--green);">✓ Hazır</span>':'<span class="muted">Hazırlanıyor</span>'}</span>
-        <span class="muted" style="white-space:nowrap;font-size:12px;display:flex;align-items:center;gap:6px;">${it.added_by_name ? '👤 ' + escapeHtml(it.added_by_name) + ' · ' : ''}🕒 ${hm(it.added_at)}${it.ready_at ? ' · ✓ ' + hm(it.ready_at) : ''}${it.paid ? '' : `<button type="button" class="sent-cancel" title="Bu ürünü iptal et" ${act('cancelSentItem', tableId, it.id)}>✕ İptal</button>`}</span>
-      </div>`).join('');
+        <span class="muted" style="white-space:nowrap;font-size:12px;display:flex;align-items:center;gap:6px;">${it.added_by_name ? '👤 ' + escapeHtml(it.added_by_name) + ' · ' : ''}🕒 ${hm(it.added_at)}${it.ready_at ? ' · ✓ ' + hm(it.ready_at) : ''}${it.paid ? '' : `<button type="button" class="sent-cancel" title="Bu ürünü iptal et" ${act('cancelSentItem', tableId, it.id)}>✕ İptal</button><input type="checkbox" class="sent-sel" title="Toplu iptal için seç" ${sentSel(tableId).has(it.id)?'checked':''} ${actOn('change','toggleSentSel',[tableId, it.id, '$this'])}>`}</span>
+      </div>`).join('') + (order.items.some(i => !i.paid) ? `<div class="sent-bulk">
+        <button type="button" class="ghost-btn" ${act('selectAllSent', tableId)}>☑️ ${order.items.filter(i => !i.paid).every(i => sentSel(tableId).has(i.id)) ? 'Seçimi Kaldır' : 'Tümünü Seç'}</button>
+        <button type="button" class="sent-bulk-go" ${sentSel(tableId).size ? '' : 'disabled'} ${act('cancelSelectedSent', tableId)}>✕ Seçilenleri İptal Et${sentSel(tableId).size ? ' (' + sentSel(tableId).size + ')' : ''}</button>
+      </div>` : '');
   } else { sentWrap.innerHTML = ''; }
   // Çevrimdışıyken onaylanıp cihazda bekleyen siparişler (bkz. offline.js).
   const pending = typeof outboxAll === 'function' ? outboxAll().filter(e => e.tableKey === tableId) : [];
