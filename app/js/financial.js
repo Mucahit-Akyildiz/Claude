@@ -812,7 +812,7 @@ async function renderPurchaseReportContent(session){
     <div class="box" style="max-width:none;">
       <h3 style="margin-top:0;">Satın Alma Siparişleri</h3>
       ${rows.length ? `<div class="settings-table-wrap"><table class="settings-table"><thead><tr><th>Tarih</th><th>Tedarikçi</th><th>Kalemler</th><th>Durum</th><th>Veren</th><th style="text-align:right;">Tutar</th><th></th></tr></thead><tbody>
-        ${rows.map(p => `<tr>
+        ${rows.map(p => `<tr data-badge-id="${p.id}">
           <td style="white-space:nowrap;">${new Date(p.order_date).toLocaleDateString('tr-TR')}</td>
           <td>${escapeHtml(p.supplier_name || '—')}</td>
           <td style="font-size:12.5px;">${(p.items||[]).map(i => `<div class="po-price-row"><span style="flex:1;min-width:120px;">${escapeHtml(i.name)} <b>${Number(i.quantity)}</b> ${escapeHtml(i.unit||'')}${Number(i.received)>0 ? ' <span class="muted">(teslim '+Number(i.received)+')</span>' : ''}</span>
