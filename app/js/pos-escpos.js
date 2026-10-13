@@ -296,7 +296,7 @@ function updateTicketPreview(){
 function openMoveTableModal(fromTableId){
   const zones = (APP.config && APP.config.zones) || [];
   const opts = zones.map(z => {
-    const ts = z.tables.filter(t => t.id !== fromTableId);
+    const ts = z.tables.filter(t => t.id !== fromTableId).sort((a, b) => String(a.name).localeCompare(String(b.name), 'tr', { numeric: true, sensitivity: 'base' }));
     if(!ts.length) return '';
     return `<optgroup label="${escapeHtml(z.name)}">${ts.map(t => `<option value="${t.id}">${escapeHtml(t.name)}${liveOrderForTable(t.id)?' (dolu - birleştir)':''}</option>`).join('')}</optgroup>`;
   }).join('');
