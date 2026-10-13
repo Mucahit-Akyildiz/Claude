@@ -1931,3 +1931,4 @@ input.sw:checked{background:var(--c1);} input.sw:checked::after{transform:transl
 .zone-occ{margin-left:7px;font-size:11px;font-weight:700;padding:1px 7px;border-radius:999px;background:color-mix(in srgb,currentColor 14%,transparent);opacity:.85;}
 #orderSummary{grid-template-columns:repeat(4,minmax(0,1fr));} .os-wait{--oc:#f59e0b;}
 @media (max-width:900px){#orderSummary{grid-template-columns:repeat(2,minmax(0,1fr));}}
+.tc.badge-row::before{display:none !important;content:none !important;} .tc.badge-row{animation:tcPulse 2.2s ease-in-out infinite;}
