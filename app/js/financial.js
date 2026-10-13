@@ -48,21 +48,44 @@ async function doUnlockReports(){
   APP.reportsUnlocked = true;
   renderReportsView(document.getElementById('main'), session);
 }
-function renderReportsSetPasswordGate(main, session){
-  main.innerHTML = `<h1>Finansal Analiz</h1>
-    <div class="box" style="max-width:420px;">
-      <p class="muted">Bu ekranı korumak için bir şifre belirleyin. Bu şifreyi bilen herhangi bir yönetici finansal verileri görüntüleyebilir.</p>
-      <div class="pw-field-wrap">
-        <input type="password" id="rpSetPass" placeholder="Yeni şifre">
-        <button type="button" class="pw-eye-btn" ${act('toggleReportsPassVisibility', 'rpSetPass', 'rpSetPass2')} title="Şifreyi göster/gizle">👁️</button>
+function rgShell(icon, title, desc, inner, steps){
+  return `<h1>Finansal Analiz</h1>
+    <div class="rg-wrap">
+      <div class="rg-bg" aria-hidden="true">${['📊 Genel Özet','📈 Dönemsel Analiz','🧾 KDV','📦 Ürün İstatistikleri','👥 Personel','💰 Bahşiş','🔥 İsraf','📒 Açık Hesaplar'].map((t, i) => `<span style="--i:${i}">${t}</span>`).join('')}</div>
+      <div class="rg-card">
+        ${steps || ''}
+        <div class="rg-lock"><span>${icon}</span></div>
+        <h2>${title}</h2>
+        <p class="muted">${desc}</p>
+        ${inner}
       </div>
-      <div class="pw-field-wrap">
-        <input type="password" id="rpSetPass2" placeholder="Yeni şifre (tekrar)">
-        <button type="button" class="pw-eye-btn" ${act('toggleReportsPassVisibility', 'rpSetPass', 'rpSetPass2')} title="Şifreyi göster/gizle">👁️</button>
-      </div>
-      <button id="rpSetBtn" ${act('doSetReportsPassword')}>Şifreyi Belirle</button>
-      <div class="error" id="rpErr"></div>
     </div>`;
+}
+function rgSteps(cur){
+  return `<div class="rg-steps">${['E-posta','Kod & yeni şifre'].map((l, i) => `<span class="${i+1<cur?'done':i+1===cur?'on':''}"><b>${i+1<cur?'✓':i+1}</b>${l}</span>`).join('<i></i>')}</div>`;
+}
+function rgPassStrength(v, barId){
+  const el = document.getElementById(barId || 'rgStrength'); if(!el) return;
+  let sc = 0; if(v.length >= 4) sc++; if(v.length >= 8) sc++; if(/[A-ZÇĞİÖŞÜ]/.test(v) && /[a-zçğıöşü]/.test(v)) sc++; if(/\d/.test(v) && /[^\wçğıöşüÇĞİÖŞÜ]/.test(v)) sc++;
+  el.dataset.s = v ? sc : '';
+  el.querySelector('small').textContent = v ? ['Çok zayıf','Zayıf','Orta','İyi','Güçlü'][sc] : '';
+}
+function rgPassFields(id1, id2, btnId, btnLabel, fn){
+  return `<div class="pw-field-wrap">
+      <input type="password" id="${id1}" placeholder="Yeni şifre" autocomplete="new-password" ${actOn('input','rgPassStrength',['$value'])}>
+      <button type="button" class="pw-eye-btn" ${act('toggleReportsPassVisibility', id1, id2)} title="Şifreyi göster/gizle">👁️</button>
+    </div>
+    <div class="rg-strength" id="rgStrength"><i></i><i></i><i></i><i></i><small></small></div>
+    <div class="pw-field-wrap">
+      <input type="password" id="${id2}" placeholder="Yeni şifre (tekrar)" autocomplete="new-password" ${actOn('keydown','onEnterKey',['$event',fn])}>
+      <button type="button" class="pw-eye-btn" ${act('toggleReportsPassVisibility', id1, id2)} title="Şifreyi göster/gizle">👁️</button>
+    </div>
+    <button id="${btnId}" class="rg-btn" ${act(fn)}>${btnLabel}</button>`;
+}
+function renderReportsSetPasswordGate(main, session){
+  main.innerHTML = rgShell('🛡️', 'Finansal analizi koruyun', 'Ciro ve kâr verilerini korumak için bir şifre belirleyin. Bu şifreyi bilen her yönetici raporları görebilir.',
+    rgPassFields('rpSetPass', 'rpSetPass2', 'rpSetBtn', '🛡️ Şifreyi Belirle', 'doSetReportsPassword') + '<div class="error" id="rpErr"></div>');
+  setTimeout(() => { const i = document.getElementById('rpSetPass'); if(i) i.focus(); }, 50);
 }
 async function doSetReportsPassword(){
   const session = getSession();
@@ -75,7 +98,7 @@ async function doSetReportsPassword(){
   const btn = document.getElementById('rpSetBtn');
   btn.disabled = true; btn.textContent = 'Kaydediliyor...';
   const { error } = await sb.rpc('set_reports_password', { p_token: session.session_token, p_new_password: p1 });
-  btn.disabled = false; btn.textContent = 'Şifreyi Belirle';
+  btn.disabled = false; btn.textContent = '🛡️ Şifreyi Belirle';
   if(error){ errBox.textContent = error.message; return; }
   APP.config.license.reports_password_set = true;
   APP.reportsUnlocked = true;
@@ -83,32 +106,18 @@ async function doSetReportsPassword(){
 }
 function renderReportsForgotGate(main, session){
   const step = APP.reportsGateScreen === 'forgot2' ? 2 : 1;
-  main.innerHTML = `<h1>Finansal Analiz</h1>
-    <div class="box" style="max-width:420px;">
-      <p class="muted" id="rpFgSub">${step===1
-        ? 'İşletmenizin kayıtlı e-postasına bir doğrulama kodu gönderelim.'
-        : 'E-postanıza gönderilen kodu ve yeni şifrenizi girin.'}</p>
-      <div id="rpFgStep1" style="display:${step===1?'block':'none'};">
-        <button id="rpFgSendBtn" ${act('doStartReportsPasswordReset')}>Kod Gönder</button>
+  main.innerHTML = rgShell(step===1 ? '✉️' : '🔑', step===1 ? 'Şifreni mi unuttun?' : 'Yeni şifre belirle',
+    `<span id="rpFgSub">${step===1 ? 'İşletmenizin kayıtlı e-postasına bir doğrulama kodu gönderelim.' : 'E-postanıza gönderilen kodu ve yeni şifrenizi girin.'}</span>`,
+    `<div id="rpFgStep1" style="display:${step===1?'block':'none'};">
+        <button id="rpFgSendBtn" class="rg-btn" ${act('doStartReportsPasswordReset')}>✉️ Kod Gönder</button>
       </div>
       <div id="rpFgStep2" style="display:${step===2?'block':'none'};">
         <p class="muted" id="rpFgOtpInfo" style="text-align:center;"></p>
-        <input id="rpFgOtp" placeholder="6 haneli kod" maxlength="6" style="text-align:center;font-size:20px;letter-spacing:4px;">
-        <div class="pw-field-wrap">
-          <input type="password" id="rpFgNewPass" placeholder="Yeni şifre">
-          <button type="button" class="pw-eye-btn" ${act('toggleReportsPassVisibility', 'rpFgNewPass', 'rpFgNewPass2')} title="Şifreyi göster/gizle">👁️</button>
-        </div>
-        <div class="pw-field-wrap">
-          <input type="password" id="rpFgNewPass2" placeholder="Yeni şifre (tekrar)">
-          <button type="button" class="pw-eye-btn" ${act('toggleReportsPassVisibility', 'rpFgNewPass', 'rpFgNewPass2')} title="Şifreyi göster/gizle">👁️</button>
-        </div>
-        <button id="rpFgVerifyBtn" ${act('doVerifyReportsPasswordReset')}>Şifreyi Güncelle</button>
+        <input id="rpFgOtp" class="rg-otp" placeholder="••••••" maxlength="6" inputmode="numeric" autocomplete="one-time-code">
+        ${rgPassFields('rpFgNewPass', 'rpFgNewPass2', 'rpFgVerifyBtn', '🔑 Şifreyi Güncelle', 'doVerifyReportsPasswordReset')}
       </div>
       <div class="error" id="rpErr"></div>
-      <p class="muted" style="text-align:center;margin-top:14px;font-size:13px;">
-        <a href="#" style="color:var(--accent);" ${act('setReportsGateScreen',null)}>← Şifreyle Gir</a>
-      </p>
-    </div>`;
+      <a href="#" class="rg-forgot" ${act('setReportsGateScreen',null)}>← Şifreyle Gir</a>`, rgSteps(step));
 }
 function toggleReportsPassVisibility(id1, id2){
   const f1 = document.getElementById(id1);
@@ -116,7 +125,7 @@ function toggleReportsPassVisibility(id1, id2){
   const showing = f1.type === 'text';
   const nextType = showing ? 'password' : 'text';
   f1.type = nextType; if(f2) f2.type = nextType;
-  const wrap = f1.closest('.box');
+  const wrap = f1.closest('.box, .rg-card');
   if(wrap) wrap.querySelectorAll('.pw-eye-btn').forEach(b => {
     if(!f2 || b.closest('.pw-field-wrap').contains(f1) || b.closest('.pw-field-wrap').contains(f2)) b.textContent = showing ? '👁️' : '🙈';
   });
@@ -128,7 +137,7 @@ async function doStartReportsPasswordReset(){
   const btn = document.getElementById('rpFgSendBtn');
   btn.disabled = true; btn.textContent = 'Gönderiliyor...';
   const { data, error } = await sb.rpc('start_reports_password_reset', { p_token: session.session_token });
-  btn.disabled = false; btn.textContent = 'Kod Gönder';
+  btn.disabled = false; btn.textContent = '✉️ Kod Gönder';
   if(error){ errBox.textContent = error.message; return; }
   APP.reportsGateScreen = 'forgot2';
   renderReportsGate(document.getElementById('main'), session);
@@ -152,7 +161,7 @@ async function doVerifyReportsPasswordReset(){
   const btn = document.getElementById('rpFgVerifyBtn');
   btn.disabled = true; btn.textContent = 'Güncelleniyor...';
   const { data, error } = await sb.rpc('verify_reports_password_reset', { p_token: session.session_token, p_otp: otp, p_new_password: newPass });
-  btn.disabled = false; btn.textContent = 'Şifreyi Güncelle';
+  btn.disabled = false; btn.textContent = '🔑 Şifreyi Güncelle';
   if(error){ errBox.textContent = error.message; return; }
   if(data === false){ errBox.textContent = 'Kod hatalı'; return; }
   APP.reportsGateScreen = null;
