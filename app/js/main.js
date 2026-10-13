@@ -73,8 +73,18 @@ function renderMainView(main, session){
   else if(APP.view==='help') p = renderHelpView(main, session);
   return Promise.resolve(p);
 }
+/* Giriş animasyonları yalnız ekrana ilk girişte oynar; periyodik yenilemelerde
+   (masa/mutfak/ödeme listeleri) tekrar oynayıp ekranı titretmesin diye kapatılır. */
+let ANIM_TIMER = null;
+function armEntranceAnim(){
+  if(APP.view === APP._animView) return;
+  APP._animView = APP.view;
+  document.body.classList.remove('anim-done');
+  clearTimeout(ANIM_TIMER); ANIM_TIMER = setTimeout(() => document.body.classList.add('anim-done'), 900);
+}
 function render(){
   if(isAdminMode()){ renderAdminArea(); return; }
+  armEntranceAnim();
 
   const app = document.getElementById('app');
   const session = getSession();

@@ -1159,17 +1159,25 @@ function renderProductsSettings(el, session){
   const sale = products.filter(p => p.available!==false).length;
   const priced = products.filter(p => Number(p.price)>0);
   const avgM = priced.length ? Math.round(priced.reduce((a,p) => a + (p.price-(p.cost||0))/p.price, 0)/priced.length*100) : 0;
+  const pf = APP.prodFilter || 'all';
+  const mOf = (p) => Number(p.price)>0 ? (p.price-(p.cost||0))/p.price : 1;
+  const isLow = (p) => { const q = p.recipe && p.recipe.length ? p.available_qty : p.stock; return q!=null && q<=5; };
+  const lowMN = products.filter(p => Number(p.price)>0 && mOf(p) < .35).length;
+  const shown = pf==='on' ? products.filter(p => p.available!==false) : pf==='off' ? products.filter(p => p.available===false)
+    : pf==='low' ? products.filter(isLow) : pf==='lowmargin' ? products.filter(p => Number(p.price)>0 && mOf(p) < .35) : products;
   const lowN = products.filter(p => { const q = p.recipe && p.recipe.length ? p.available_qty : p.stock; return q!=null && q<=5; }).length;
   el.innerHTML = `<div class="box" style="max-width:none;">
     <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;"><h2 style="margin:0;">Ürünler</h2><span style="flex:1;"></span>
       <div class="seg">${[['cards','▦ Kart'],['table','☰ Tablo']].map(([k,l]) => `<button type="button" class="${(cardMode?'cards':'table')===k?'on':''}" ${act('setProdView', k)}>${l}</button>`).join('')}</div></div>
     <div class="order-summary prod-summary" style="margin:12px 0 14px;">
-      <div class="os-chip" style="--oc:var(--c1);"><span class="os-ic">🍔</span><div><b>${products.length}</b><small>Ürün</small></div></div>
-      <div class="os-chip" style="--oc:var(--ok,#22c55e);"><span class="os-ic">✅</span><div><b>${sale}</b><small>Satışta</small></div></div>
-      <div class="os-chip" style="--oc:var(--danger,#ef4444);"><span class="os-ic">⛔</span><div><b>${products.length-sale}</b><small>Kapalı</small></div></div>
-      <div class="os-chip" style="--oc:var(--c2);"><span class="os-ic">📈</span><div><b>%${avgM}</b><small>Ort. marj</small></div></div>
-      <div class="os-chip" style="--oc:var(--c3);"><span class="os-ic">⚠️</span><div><b>${lowN}</b><small>Stok azalan</small></div></div>
+      <div class="os-chip os-click ${pf==='all'?'on':''}" role="button" title="Listeyi filtrele" ${act('setProdFilter', 'all')} style="--oc:var(--c1);"><span class="os-ic">🍔</span><div><b>${products.length}</b><small>Ürün</small></div></div>
+      <div class="os-chip os-click ${pf==='on'?'on':''}" role="button" title="Listeyi filtrele" ${act('setProdFilter', 'on')} style="--oc:var(--ok,#22c55e);"><span class="os-ic">✅</span><div><b>${sale}</b><small>Satışta</small></div></div>
+      <div class="os-chip os-click ${pf==='off'?'on':''}" role="button" title="Listeyi filtrele" ${act('setProdFilter', 'off')} style="--oc:var(--danger,#ef4444);"><span class="os-ic">⛔</span><div><b>${products.length-sale}</b><small>Kapalı</small></div></div>
+      <div class="os-chip os-click ${pf==='lowmargin'?'on':''}" role="button" title="Listeyi filtrele" ${act('setProdFilter', 'lowmargin')} style="--oc:var(--c2);"><span class="os-ic">📈</span><div><b>${lowMN}</b><small>Düşük marj (ort. %${avgM})</small></div></div>
+      <div class="os-chip os-click ${pf==='low'?'on':''}" role="button" title="Listeyi filtrele" ${act('setProdFilter', 'low')} style="--oc:var(--c3);"><span class="os-ic">⚠️</span><div><b>${lowN}</b><small>Stok azalan</small></div></div>
     </div>
+    ${pf!=='all' ? `<div class="pf-note">🔎 <b>${{on:'Satıştaki',off:'Kapalı',low:'Stoğu azalan',lowmargin:'Düşük marjlı'}[pf]} ürünler</b> gösteriliyor (${shown.length})<button type="button" class="pc-btn" ${act('setProdFilter', 'all')}>✕ Tümünü göster</button></div>` : ''}
+    ${pf!=='all' && !shown.length ? '<div class="empty-state"><div style="font-size:38px;">🎉</div><p class="muted">Bu filtrede ürün yok.</p></div>' : ''}
     <details class="prod-info"><summary>ℹ️ Nasıl çalışır · Varsayılan KDV: %${APP.config.default_vat_rate ?? 10}</summary>
     <p class="muted" style="text-align:left;margin:-6px 0 12px;font-size:13px;"><b>Menü</b>: ürünün menüsü (menüleri ve hangi istasyona gideceklerini <b>Menüler & İstasyonlar</b> sekmesinde ayarlayın); ürünün istasyonu menüden gelir. <b>🖨️ Fiş</b> işareti kaldırılan ürünler mutfak fişine yazdırılmaz (ekranda yine görünür).</p>
     <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 10px;">
@@ -1211,8 +1219,8 @@ function renderProductsSettings(el, session){
       </details>
     </div>
     <div id="prodGroups" ${actOn('input','markProdDirty',['$event'])} ${actOn('change','markProdDirty',['$event'])}>
-    ${(APP.config.menus||[]).map(m => { const st = stations.find(x => x.id===m.station_id); return groupHtml(m.name, st ? st.color : null, products.filter(p => p.menu_id===m.id), null, m.id, st ? st.name : 'istasyon seçilmedi'); }).join('')}
-    ${groupHtml('Menüsüz', null, products.filter(p => !p.menu_id || !(APP.config.menus||[]).some(m => m.id===p.menu_id)))}
+    ${(APP.config.menus||[]).map(m => { const st = stations.find(x => x.id===m.station_id); return groupHtml(m.name, st ? st.color : null, shown.filter(p => p.menu_id===m.id), null, m.id, st ? st.name : 'istasyon seçilmedi'); }).join('')}
+    ${groupHtml('Menüsüz', null, shown.filter(p => !p.menu_id || !(APP.config.menus||[]).some(m => m.id===p.menu_id)))}
     </div>
 
   </div>`;
@@ -1247,6 +1255,7 @@ function markProdDirty(e){
   tr.dataset.dirty = '1'; tr.style.boxShadow = 'inset 4px 0 0 var(--accent)';
   updateProdSelection();
 }
+function setProdFilter(k){ APP.prodFilter = (APP.prodFilter===k ? 'all' : k); renderSettingsContent(getSession()); }
 function setProdView(v){ APP.prodView = v; renderSettingsContent(getSession()); }
 // Kart görünümünde "Düzenle": sağdan açılan düzenleme paneli.
 function editProductRow(pid){

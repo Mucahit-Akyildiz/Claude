@@ -1345,3 +1345,11 @@ tr.row-flash td{animation:rowFlash 1.6s ease;}
   .rv-card{grid-template-columns:76px minmax(0,1fr);} .rv-card .rv-acts{grid-column:1/-1;justify-content:flex-start;max-width:none;}
   .wl-card{grid-template-columns:40px minmax(0,1fr);} .wl-card .wl-info,.wl-card .wl-timer,.wl-card .rv-acts{grid-column:1/-1;justify-content:flex-start;max-width:none;}
 }
+/* Periyodik yenilemede giriş animasyonları tekrar oynamasın */
+body.anim-done :is(#orderSummary .os-chip,#paySummary .os-chip,.tc,.kb-stats>div,.kb .kitchen-card,.pk){animation:none !important;}
+body.anim-done .tc.tc-ready{animation:tcPulse 2.2s ease-in-out infinite !important;}
+.os-click{cursor:pointer;transition:transform .15s,border-color .15s,box-shadow .15s;}
+.os-click:hover{transform:translateY(-2px);border-color:color-mix(in srgb,var(--oc) 60%,transparent);}
+.os-click.on{border-color:var(--oc);box-shadow:0 0 0 2px color-mix(in srgb,var(--oc) 35%,transparent),0 8px 22px color-mix(in srgb,var(--oc) 25%,transparent);}
+.pf-note{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:-4px 0 12px;padding:9px 12px;border-radius:12px;background:var(--panel2);font-size:13px;}
+.pf-note .pc-btn{margin-left:auto;}
