@@ -837,17 +837,12 @@ begin
       where sh.restaurant_id = r and sh.clock_out is null and (sh.status = 'pending' or (sh.status = 'approved' and sh.end_requested_at is not null));
     v := v || jsonb_build_object('settings', jsonb_array_length(arr)); it := it || jsonb_build_object('settings', arr);
   end if;
-  if _user_has_perm(u, 'purchasing_manage') then
-    select coalesce(jsonb_agg(jsonb_build_object('id', p.id, 'label', coalesce(sp.name, 'Tedarikçisiz') || ' · ' || to_char(p.order_date, 'DD.MM') || ' (teslim bekliyor)')), '[]') into arr
-      from purchase_orders p left join suppliers sp on sp.id = p.supplier_id where p.restaurant_id = r and p.status = 'ordered';
-    v := v || jsonb_build_object('purchasing', jsonb_array_length(arr)); it := it || jsonb_build_object('purchasing', arr);
-  end if;
   -- Birim fiyatı girilmemiş satın alma siparişleri: Satın Alma menüsü.
   if _user_has_perm(u, 'purchasing_reports') then
-    select coalesce(jsonb_agg(jsonb_build_object('id', p.id, 'label', '🚚 ' || coalesce(sp.name, 'Tedarikçisiz') || ' · ' || to_char(p.order_date, 'DD.MM') || ' (birim fiyat bekliyor)', 'kind', 'purchase')), '[]') into arr
+    select coalesce(jsonb_agg(jsonb_build_object('id', p.id, 'label', '🚚 ' || coalesce(sp.name, 'Tedarikçisiz') || ' · ' || to_char(p.order_date, 'DD.MM') || case when exists(select 1 from purchase_order_items i where i.purchase_order_id = p.id and coalesce(i.unit_cost,0) = 0) then ' (birim fiyat bekliyor)' else ' (teslim bekliyor)' end, 'kind', 'purchase')), '[]') into arr
       from purchase_orders p left join suppliers sp on sp.id = p.supplier_id
-      where p.restaurant_id = r and p.status in ('ordered','received')
-        and exists(select 1 from purchase_order_items i where i.purchase_order_id = p.id and coalesce(i.unit_cost,0) = 0);
+      where p.restaurant_id = r and (p.status = 'ordered' or (p.status = 'received'
+        and exists(select 1 from purchase_order_items i where i.purchase_order_id = p.id and coalesce(i.unit_cost,0) = 0)));
     v := v || jsonb_build_object('procurement', jsonb_array_length(arr)); it := it || jsonb_build_object('procurement', arr);
   end if;
   -- Masadan garson çağrıları: sipariş çağrısı Sipariş Al'a, ödeme çağrısı Ödemeler'e eklenir.
@@ -1066,6 +1061,33 @@ CREATE FUNCTION public._product_reserved_qty(p_pid uuid) RETURNS integer
   where r.status = 'pending' and r.created_at > now() - interval '2 hours'
     and r.restaurant_id = (select restaurant_id from products where id = p_pid)
     and (x->>'product_id') = p_pid::text;
+$$;
+
+
+--
+-- Name: _purchase_order_push(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public._purchase_order_push() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'extensions', 'pg_temp'
+    AS $$
+-- Satın alma siparişi verildiğinde (status -> ordered) Satın Alma yetkililerine push.
+declare v_url text; v_secret text;
+begin
+  if new.status = 'ordered' and (tg_op = 'INSERT' or old.status is distinct from 'ordered') then
+    begin
+      select value into v_url from _psv where key = 'push_dispatch_url';
+      select value into v_secret from _psv where key = 'push_dispatch_secret';
+      if coalesce(v_url,'') <> '' then
+        perform net.http_post(url := v_url, headers := jsonb_build_object('Content-Type','application/json','x-push-secret', coalesce(v_secret,'')),
+          body := jsonb_build_object('mode','purchase_order','po_id', new.id));
+      end if;
+    exception when others then null;
+    end;
+  end if;
+  return new;
+end;
 $$;
 
 
@@ -4667,7 +4689,7 @@ CREATE FUNCTION public.get_purchase_order(p_token uuid, p_id uuid) RETURNS json
     AS $$
 declare s staff_sessions%rowtype;
 begin
-  s := _session_check_any(p_token, array['purchasing_orders','purchasing_manage']);
+  s := _session_check_any(p_token, array['purchasing_orders','purchasing_manage','purchasing_reports']);
   return (
     select json_build_object(
       'id', p.id, 'status', p.status, 'order_date', p.order_date, 'expected_date', p.expected_date,
@@ -6520,7 +6542,7 @@ declare
   v_qty numeric;
   v_remaining int;
 begin
-  s := _session_check(p_token, 'purchasing_manage');
+  s := _session_check_any(p_token, array['purchasing_manage','purchasing_reports']);
   select * into v_po from purchase_orders where id = p_id and restaurant_id = s.restaurant_id;
   if v_po.id is null then raise exception 'Sipariş bulunamadı'; end if;
   if v_po.status = 'cancelled' then raise exception 'İptal edilmiş sipariş teslim alınamaz'; end if;
@@ -12348,6 +12370,13 @@ CREATE INDEX waiter_calls_pending ON public.waiter_calls USING btree (restaurant
 --
 
 CREATE INDEX waiter_calls_table_id_idx ON public.waiter_calls USING btree (table_id);
+
+
+--
+-- Name: purchase_orders purchase_order_push; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER purchase_order_push AFTER INSERT OR UPDATE OF status ON public.purchase_orders FOR EACH ROW EXECUTE FUNCTION public._purchase_order_push();
 
 
 --
