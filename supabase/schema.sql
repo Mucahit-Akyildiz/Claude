@@ -6847,6 +6847,81 @@ end; $$;
 
 
 --
+-- Name: reset_restaurant_data_ts(uuid, text, timestamp without time zone, timestamp without time zone, text[]); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.reset_restaurant_data_ts(p_token uuid, p_password text, p_from timestamp without time zone, p_to timestamp without time zone, p_categories text[]) RETURNS json
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'extensions', 'pg_temp'
+    AS $$
+declare
+  s staff_sessions%rowtype; v_user app_users%rowtype; v_code text; v_fail int;
+  v_start timestamptz; v_end timestamptz; v_n int; v_res jsonb := '{}'::jsonb;
+begin
+  s := _session_check(p_token);
+  if not exists(select 1 from app_users au join roles rl on rl.id = any(au.role_ids) where au.id = s.user_id and (rl.is_system or 'settings_datareset' = any(rl.permissions))) then
+    raise exception 'Verileri yalnızca Yönetici sıfırlayabilir';
+  end if;
+  select * into v_user from app_users where id = s.user_id;
+  select code into v_code from restaurants where id = s.restaurant_id;
+  select count(*) into v_fail from login_failures where restaurant_code = v_code and username = v_user.username and created_at > now() - interval '15 minutes';
+  if v_fail >= 10 then raise exception 'Çok fazla hatalı deneme yapıldı, lütfen 15 dakika sonra tekrar deneyin'; end if;
+  if v_user.password is distinct from crypt(coalesce(p_password,''), v_user.password) then
+    insert into login_failures (restaurant_code, username) values (v_code, v_user.username);
+    return json_build_object('ok', false, 'error', 'Şifre hatalı');
+  end if;
+  if p_categories is null or cardinality(p_categories) = 0 then raise exception 'En az bir veri türü seçin'; end if;
+  v_start := coalesce((p_from at time zone 'Europe/Istanbul'), '-infinity'::timestamptz);
+  v_end := coalesce((p_to at time zone 'Europe/Istanbul'), 'infinity'::timestamptz);
+  if v_start >= v_end then raise exception 'Tarih aralığı geçersiz'; end if;
+
+  if 'sales' = any(p_categories) then
+    delete from invoices where restaurant_id = s.restaurant_id and efatura_uuid is null and created_at >= v_start and created_at < v_end;
+    delete from sales_history where restaurant_id = s.restaurant_id and closed_at >= v_start and closed_at < v_end
+      and not exists(select 1 from invoices i where i.history_id = sales_history.id);
+    get diagnostics v_n = row_count; v_res := v_res || jsonb_build_object('sales', v_n);
+    delete from orders where restaurant_id = s.restaurant_id and status in ('closed','cancelled') and created_at >= v_start and created_at < v_end;
+    delete from customer_order_requests where restaurant_id = s.restaurant_id and status <> 'pending' and created_at >= v_start and created_at < v_end;
+    delete from sms_outbox where restaurant_id = s.restaurant_id and created_at >= v_start and created_at < v_end;
+  end if;
+  if 'waste' = any(p_categories) then
+    delete from waste_log where restaurant_id = s.restaurant_id and created_at >= v_start and created_at < v_end;
+    get diagnostics v_n = row_count; v_res := v_res || jsonb_build_object('waste', v_n);
+  end if;
+  if 'shifts' = any(p_categories) then
+    delete from staff_shifts where restaurant_id = s.restaurant_id and clock_out is not null and clock_in >= v_start and clock_in < v_end;
+    get diagnostics v_n = row_count; v_res := v_res || jsonb_build_object('shifts', v_n);
+  end if;
+  if 'reservations' = any(p_categories) then
+    delete from reservations where restaurant_id = s.restaurant_id and reservation_time >= v_start and reservation_time < v_end;
+    get diagnostics v_n = row_count; v_res := v_res || jsonb_build_object('reservations', v_n);
+    delete from waitlist_entries where restaurant_id = s.restaurant_id and joined_at >= v_start and joined_at < v_end;
+  end if;
+  if 'purchases' = any(p_categories) then
+    delete from purchase_orders where restaurant_id = s.restaurant_id and created_at >= v_start and created_at < v_end;
+    get diagnostics v_n = row_count; v_res := v_res || jsonb_build_object('purchases', v_n);
+  end if;
+  if 'messages' = any(p_categories) then
+    delete from chat_messages where restaurant_id = s.restaurant_id and created_at >= v_start and created_at < v_end;
+    get diagnostics v_n = row_count; v_res := v_res || jsonb_build_object('messages', v_n);
+  end if;
+  if 'waiter_calls' = any(p_categories) then
+    delete from waiter_calls where restaurant_id = s.restaurant_id and status <> 'pending' and created_at >= v_start and created_at < v_end;
+    get diagnostics v_n = row_count; v_res := v_res || jsonb_build_object('waiter_calls', v_n);
+  end if;
+  if 'audit' = any(p_categories) then
+    delete from audit_log where restaurant_id = s.restaurant_id and created_at >= v_start and created_at < v_end;
+    get diagnostics v_n = row_count; v_res := v_res || jsonb_build_object('audit', v_n);
+  end if;
+  if 'customers' = any(p_categories) then
+    delete from customers where restaurant_id = s.restaurant_id and created_at >= v_start and created_at < v_end;
+    get diagnostics v_n = row_count; v_res := v_res || jsonb_build_object('customers', v_n);
+  end if;
+  return json_build_object('ok', true, 'removed', v_res);
+end; $$;
+
+
+--
 -- Name: resolve_waiter_call(uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -7057,29 +7132,27 @@ CREATE FUNCTION public.seat_reservation(p_token uuid, p_id uuid, p_table_id uuid
 declare s staff_sessions%rowtype; v_r reservations%rowtype; v_table uuid; v_order uuid; v_daily int; v_note text;
 begin
   s := _session_check(p_token, 'reservations');
-  -- Masada aynı anda iki açık sipariş oluşmasın: kontrol kilitten sonra yapılır.
   perform 1 from restaurants where id = s.restaurant_id for update;
   select * into v_r from reservations where id = p_id and restaurant_id = s.restaurant_id for update;
   if v_r.id is null then raise exception 'Rezervasyon bulunamadı'; end if;
   v_table := coalesce(p_table_id, v_r.table_id);
   if v_table is null then raise exception 'Önce bir masa seçin'; end if;
   if not exists(select 1 from restaurant_tables where id = v_table and restaurant_id = s.restaurant_id) then raise exception 'Geçersiz masa'; end if;
+  if exists(select 1 from orders o where o.restaurant_id = s.restaurant_id and o.table_id = v_table and o.status = 'open' and o.reservation_id is distinct from v_r.id) then
+    raise exception 'Bu masa dolu: başka bir müşteri oturuyor. Lütfen boş bir masa seçin.';
+  end if;
   update reservations set status = 'seated', table_id = v_table, seated_at = now(), closed_at = null where id = p_id;
   v_note := '📅 Rezervasyon · ' || v_r.party_size || ' kişi' || coalesce(' · ' || nullif(trim(v_r.notes),''), '');
   select id into v_order from orders where restaurant_id = s.restaurant_id and table_id = v_table and status = 'open' limit 1;
   if v_order is null then
-    perform 1 from restaurants where id = s.restaurant_id for update;
     select coalesce(max(o.daily_number), 0) + 1 into v_daily from orders o
       where o.restaurant_id = s.restaurant_id and (o.created_at at time zone 'Europe/Istanbul')::date = (now() at time zone 'Europe/Istanbul')::date;
     insert into orders (restaurant_id, table_id, kind, status, daily_number, customer_name, customer_phone, note, created_by, reservation_id)
       values (s.restaurant_id, v_table, 'dine_in', 'open', v_daily, v_r.customer_name, v_r.phone, v_note, s.user_id, v_r.id)
       returning id into v_order;
   else
-    update orders set customer_name = coalesce(customer_name, v_r.customer_name),
-      customer_phone = coalesce(customer_phone, v_r.phone),
-      note = case when note is null or note = '' then v_note else note end,
-      reservation_id = coalesce(reservation_id, v_r.id)
-      where id = v_order;
+    update orders set customer_name = coalesce(customer_name, v_r.customer_name), customer_phone = coalesce(customer_phone, v_r.phone),
+      note = case when note is null or note = '' then v_note else note end, reservation_id = coalesce(reservation_id, v_r.id) where id = v_order;
   end if;
   return json_build_object('order_id', v_order, 'table_id', v_table);
 end; $$;
