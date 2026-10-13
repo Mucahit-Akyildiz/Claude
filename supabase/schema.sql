@@ -4638,6 +4638,35 @@ $$;
 
 
 --
+-- Name: get_purchase_report(uuid, date, date); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.get_purchase_report(p_token uuid, p_date date, p_date_to date) RETURNS json
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'extensions', 'pg_temp'
+    AS $$
+-- Finansal Analiz > Satın Alma: tarih aralığında verilen satın alma siparişleri (kalemleriyle).
+declare s staff_sessions%rowtype;
+begin
+  s := _session_check(p_token, 'reports');
+  return (
+    select coalesce(json_agg(row_to_json(po) order by po.order_date desc, po.created_at desc), '[]'::json)
+    from (
+      select p.id, p.status, p.order_date, p.expected_date, p.received_date, p.notes, p.created_at,
+        sp.name as supplier_name, (select username from app_users where id = p.created_by) as created_by_name,
+        (select coalesce(sum(i.quantity*i.unit_cost),0) from purchase_order_items i where i.purchase_order_id = p.id) as total_amount,
+        (select coalesce(sum(least(i.received_quantity, i.quantity)*i.unit_cost),0) from purchase_order_items i where i.purchase_order_id = p.id) as received_amount,
+        (select coalesce(json_agg(json_build_object('name', ig.name, 'unit', ig.unit, 'quantity', i.quantity, 'received', i.received_quantity, 'unit_cost', i.unit_cost) order by ig.name), '[]'::json)
+           from purchase_order_items i join ingredients ig on ig.id = i.ingredient_id where i.purchase_order_id = p.id) as items
+      from purchase_orders p left join suppliers sp on sp.id = p.supplier_id
+      where p.restaurant_id = s.restaurant_id and p.order_date between p_date and coalesce(p_date_to, p_date)
+    ) po
+  );
+end;
+$$;
+
+
+--
 -- Name: get_push_subscription_status(uuid, text); Type: FUNCTION; Schema: public; Owner: -
 --
 
