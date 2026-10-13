@@ -1700,26 +1700,30 @@ function renderActiveUsersSettings(el){
         </select>
       </div>
     </div>
-    <p class="muted" style="margin:6px 0 16px;font-size:12.5px;text-align:left;">Seçilen süre içinde uygulamada işlem yapan (ekranı açık olan) personel; çıkış yapanlar ⚪ ile gösterilir. 20 saniyede bir otomatik yenilenir. Personel 2 dakikadan uzun süre aktif değilse (🟡) vardiya sayacı durur, yeniden aktif olunca devam eder.</p>
+    <div class="au-legend">
+      <span><i class="d on"></i>Çevrimiçi</span><span><i class="d idle"></i>Boşta · 2 dk+ işlem yok, vardiya sayacı durur</span><span><i class="d off"></i>Çıkış yaptı</span>
+      <span class="au-auto" title="Liste 20 saniyede bir kendiliğinden yenilenir">🔄 20 sn'de bir yenilenir</span>
+    </div>
     <div id="activeUsersBody"><p class="muted">Yükleniyor...</p></div>
   </div>`;
   loadActiveUsers();
   if(ACTIVE_USERS_TIMER) clearInterval(ACTIVE_USERS_TIMER);
   ACTIVE_USERS_TIMER = setInterval(() => {
     if(APP.view!=='settings' || APP.settingsTab!=='users' || !document.getElementById('activeUsersBody')){ clearInterval(ACTIVE_USERS_TIMER); ACTIVE_USERS_TIMER = null; return; }
-    loadActiveUsers();
+    loadActiveUsers(true);
   }, 20000);
 }
-async function loadActiveUsers(){
+async function loadActiveUsers(quiet){
   const session = getSession(); const body = document.getElementById('activeUsersBody');
   if(!session || !body) return;
   const { data, error } = await sb.rpc('list_active_staff', { p_token: session.session_token, p_minutes: APP.activeUsersMinutes || 5 });
   if(error){ body.innerHTML = '<p class="muted">Yüklenemedi: '+escapeHtml(error.message)+'</p>'; return; }
   const rows = data.rows || [];
   const full = data.max_users && data.total_users >= data.max_users;
+  // Otomatik yenilemede giriş animasyonları/sayaçlar tekrar oynamasın.
+  if(quiet){ body.dataset.snap = '1'; APP.silentLoad = true; } else delete body.dataset.snap;
   body.innerHTML = statChips([['🟢', data.active_users, 'Aktif kullanıcı', 'var(--ok,#22c55e)'], ['🧑‍🍳', data.on_shift, 'Vardiyada', 'var(--c1)'],
-      ['📅', data.today_users, 'Bugün giren', 'var(--c2)'], ['🎫', (data.total_users ?? '—') + ' / ' + (data.max_users ?? '—'), 'Kullanıcı / lisans', full ? 'var(--danger,#ef4444)' : 'var(--c3)']]) + `
-    ${data.max_users ? `<p class="muted" style="text-align:left;margin:-6px 0 14px;font-size:12.5px;">${data.enabled_users} aktif, ${data.total_users - data.enabled_users} pasif kullanıcı · ${Math.max(0, data.max_users - data.total_users)} kullanıcı daha ekleyebilirsiniz.</p>` : ''}
+      ['📅', data.today_users, 'Bugün giren', 'var(--c2)'], ['🎫', (data.total_users ?? '—') + ' / ' + (data.max_users ?? '—'), data.max_users ? 'Lisans · ' + Math.max(0, data.max_users - data.total_users) + ' boş yer' + (data.total_users - data.enabled_users ? ' · ' + (data.total_users - data.enabled_users) + ' pasif' : '') : 'Kullanıcı / lisans', full ? 'var(--danger,#ef4444)' : 'var(--c3)']]) + `
     ${!rows.length ? '<div class="empty-state"><div style="font-size:42px;">😴</div><p class="muted">Bu sürede aktif kullanıcı yok.</p></div>' : `<div class="au-grid">${rows.map((r, i) => {
       const st = r.online===false ? 'off' : Date.now() - new Date(r.last_seen_at).getTime() < 120000 ? 'on' : 'idle';
       return `<div class="au-card au-${st}" style="--i:${Math.min(i,12)};">
@@ -1732,6 +1736,7 @@ async function loadActiveUsers(){
         </div>
         ${r.on_shift ? `<div class="au-shift ${r.shift_paused?'paused':''}">${r.shift_paused ? '⏸ Vardiya durdu' : '🟢 Vardiyada'}${r.shift_minutes != null ? ' · '+formatShiftDuration(r.shift_minutes) : ''}</div>` : '<div class="au-shift none">Vardiyada değil</div>'}
       </div>`; }).join('')}</div>`}`;
+  if(quiet) setTimeout(() => { APP.silentLoad = false; }, 0);
 }
 
 /* --- Veri Sıfırlama (yalnızca Yönetici): seçilen tarih aralığındaki işlem

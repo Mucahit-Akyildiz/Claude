@@ -1400,13 +1400,40 @@ function goalRingHtml(rev, goal){
     <div class="gr-cap">${goal ? escapeHtml(shortMoney(rev)) + ' / ' + escapeHtml(shortMoney(goal)) + ' ₺' : 'Günlük ciro hedefi'}</div>
   </div>`;
 }
-async function editDailyGoal(cur){
-  const v = prompt('Günlük ciro hedefi (₺) — boş bırakırsanız kaldırılır:', cur ? String(cur) : '');
-  if(v === null) return;
-  const n = v.trim() === '' ? null : Number(v.replace(/\./g,'').replace(',', '.'));
-  if(n !== null && !(n >= 0)){ alert('Geçerli bir tutar girin'); return; }
+function editDailyGoal(cur){
+  const old = document.getElementById('dgModal'); if(old) old.remove();
+  const bg = document.createElement('div'); bg.id = 'dgModal'; bg.className = 'dg-bg';
+  const presets = [5000, 10000, 20000, 30000, 50000, 75000, 100000];
+  bg.innerHTML = `<div class="dg-card">
+    <button type="button" class="dg-x" ${act('closeDailyGoal')} title="Kapat">✕</button>
+    <div class="dg-ic">🎯</div>
+    <h2>Günlük Ciro Hedefi</h2>
+    <p class="muted">Her gün ulaşmak istediğiniz ciroyu belirleyin; Genel Özet'teki halka buna göre dolar.</p>
+    <div class="dg-input"><input id="dgVal" type="text" inputmode="numeric" placeholder="0" value="${cur ? Number(cur).toLocaleString('tr-TR') : ''}" ${actOn('input','dgFormat',['$value'])} ${actOn('keydown','onEnterKey',['$event','saveDailyGoal'])}><span>₺</span></div>
+    <div class="dg-presets">${presets.map(v => `<button type="button" class="pc-btn" ${act('dgPick', v)}>${shortMoney(v)} ₺</button>`).join('')}</div>
+    <div class="dg-acts">
+      ${cur ? `<button type="button" class="pc-btn dg-del" ${act('saveDailyGoal', 'clear')}>🗑 Hedefi Kaldır</button>` : '<span></span>'}
+      <div><button type="button" class="pc-btn" ${act('closeDailyGoal')}>Vazgeç</button>
+      <button type="button" class="rg-btn dg-save" ${act('saveDailyGoal')}>Kaydet</button></div>
+    </div>
+  </div>`;
+  bg.addEventListener('click', e => { if(e.target === bg) closeDailyGoal(); });
+  document.body.appendChild(bg);
+  setTimeout(() => { const i = document.getElementById('dgVal'); if(i){ i.focus(); i.select(); } }, 30);
+}
+function closeDailyGoal(){ const m = document.getElementById('dgModal'); if(m) m.remove(); }
+function dgFormat(v){
+  const i = document.getElementById('dgVal'); const d = String(v).replace(/\D/g, '');
+  i.value = d ? Number(d).toLocaleString('tr-TR') : '';
+}
+function dgPick(v){ const i = document.getElementById('dgVal'); i.value = Number(v).toLocaleString('tr-TR'); i.focus(); }
+async function saveDailyGoal(mode){
+  const raw = mode === 'clear' ? '' : (document.getElementById('dgVal').value || '').replace(/\D/g, '');
+  const n = raw === '' ? null : Number(raw);
+  if(mode !== 'clear' && !n){ showToast('Geçerli bir tutar girin'); return; }
   const { error } = await sb.rpc('set_daily_goal', { p_token: getSession().session_token, p_goal: n });
   if(error){ alert(error.message); return; }
+  closeDailyGoal();
   showToast(n ? 'Günlük hedef kaydedildi 🎯' : 'Günlük hedef kaldırıldı');
   renderReportTabContent(getSession());
 }
