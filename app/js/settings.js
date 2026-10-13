@@ -220,9 +220,9 @@ function renderIngredientsSettings(el, session){
       <thead><tr><th style="width:36px;"><input type="checkbox" style="width:auto;margin:0;" title="Tümünü seç" ${actOn('change','selectAllIngredients',['$checked'])}></th><th>Hammadde Adı</th><th>Birim</th><th>Stok</th><th title="Temizleme/kesim kaybı: reçetedeki net miktara eklenerek stoktan düşülür">Fire %</th><th></th></tr></thead>
       <tbody ${actOn('input','markIngDirty',['$event'])} ${actOn('change','markIngDirty',['$event'])}>
       ${ings.map(i => `
-        <tr data-iid="${i.id}">
+        <tr data-iid="${i.id}" class="${Number(i.stock)<=0 ? 'ing-out' : ''}" title="${Number(i.stock)<=0 ? 'Stok bitti — bu hammaddeyi kullanan ürünler satılamaz' : ''}">
           <td><input type="checkbox" class="ing-sel" value="${i.id}" style="width:auto;margin:0;" ${actOn('change','updateIngSelection',[])}></td>
-          <td class="col-name"><input value="${escapeAttr(i.name)}" id="ing_name_${i.id}"></td>
+          <td class="col-name"><input value="${escapeAttr(i.name)}" id="ing_name_${i.id}">${Number(i.stock)<=0 ? '<div class="ing-out-tag">● Stok bitti</div>' : ''}</td>
           <td class="col-num"><select id="ing_unit_${i.id}">
             ${['adet','gram','kg','ml','lt'].map(u => `<option value="${u}" ${u===i.unit?'selected':''}>${u}</option>`).join('')}
           </select></td>

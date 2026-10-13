@@ -1047,3 +1047,9 @@ tr.po-row td:first-child{box-shadow:inset 4px 0 0 var(--st);}
 .prod-avail i{width:8px;height:8px;border-radius:50%;background:currentColor;}
 .prod-avail.on{color:var(--green);border-color:var(--green);} .prod-avail.off{color:var(--red);border-color:var(--red);}
 #settingsContent .add-row-panel{position:sticky;top:0;z-index:5;}
+
+/* Hammaddeler: stoğu biten satır kırmızı */
+tr.ing-out td{background:color-mix(in srgb,var(--red) 10%,transparent) !important;}
+tr.ing-out td:first-child{box-shadow:inset 4px 0 0 var(--red);}
+tr.ing-out input[id^="ing_stock_"]{border-color:var(--red);color:var(--red);font-weight:700;}
+.ing-out-tag{color:var(--red);font-size:11px;font-weight:800;margin-top:3px;}
