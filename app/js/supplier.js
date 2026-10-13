@@ -6,7 +6,7 @@ async function renderPurchasingView(main, session){
   const canOrders = hasPurchPerm(session, 'orders') || hasPurchPerm(session, 'manage');
   APP.purchTab = 'orders';
   main.innerHTML = `<h1>Satın Alma Siparişleri</h1>
-    <div id="purchContent">${canOrders ? '' : '<div class="box"><p class="muted">Tedarikçiler artık <b>Finansal Analiz → Satın Alma → Tedarikçiler</b> altında.</p></div>'}</div>`;
+    <div id="purchContent">${canOrders ? '' : '<div class="box"><p class="muted">Tedarikçiler artık <b>Satın Alma → Tedarikçiler</b> altında.</p></div>'}</div>`;
   if(!canOrders) return;
   applyNavBadges();
   await renderPurchTabContent(session);
@@ -126,7 +126,7 @@ async function renderPurchaseOrdersContent(session){
   if(!APP.poDraftItems) APP.poDraftItems = [];
   el.innerHTML = `<div class="box" style="max-width:none;">
     <h2>Satın Alma Talepleri</h2>
-    <p class="muted" style="text-align:left;margin:-6px 0 12px;font-size:13px;">Talep ettiğiniz hammaddeleri ve miktarları girip <b>Sipariş Ver</b>'e basın; birim fiyatlar Finansal Analiz → Satın Alma'da girilir.</p>
+    <p class="muted" style="text-align:left;margin:-6px 0 12px;font-size:13px;">Talep ettiğiniz hammaddeleri ve miktarları girip <b>Sipariş Ver</b>'e basın; birim fiyatlar <b>Satın Alma</b> menüsünde girilir.</p>
     <div class="settings-table-wrap">
     <table class="settings-table">
       <thead><tr><th>Tedarikçi</th><th>Durum</th><th>Sipariş Tarihi</th><th>Beklenen</th><th>Tutar</th><th></th></tr></thead>

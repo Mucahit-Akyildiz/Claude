@@ -65,6 +65,7 @@ function renderMainView(main, session){
   else if(APP.view==='reservations') p = renderReservationsView(main, session);
   else if(APP.view==='crm') p = renderCrmView(main, session);
   else if(APP.view==='purchasing') p = renderPurchasingView(main, session);
+  else if(APP.view==='procurement') p = renderProcurementView(main, session);
   else if(APP.view==='messages') p = renderMessagesView(main, session);
   else if(APP.view==='radio') p = renderRadioView(main, session);
   else if(APP.view==='help') p = renderHelpView(main, session);
@@ -132,7 +133,7 @@ function render(){
           <button class="sb-logout" ${act('doLogout')} title="Çıkış Yap">🚪<span class="label"> Çıkış Yap</span></button>
         </div>
       </aside>
-      <div class="content-area"><div class="content-inner ${(['settings','reports','reservations','crm','purchasing','radio'].includes(APP.view))?'content-inner-wide':''}">${pushReminderBannerHtml()}${APP.view && APP.view!=='home' ? `<button type="button" class="back-link" ${act('goBack')}>← Geri</button>` : ''}<main id="main"></main></div></div>
+      <div class="content-area"><div class="content-inner ${(['settings','reports','reservations','crm','purchasing','procurement','radio'].includes(APP.view))?'content-inner-wide':''}">${pushReminderBannerHtml()}${APP.view && APP.view!=='home' ? `<button type="button" class="back-link" ${act('goBack')}>← Geri</button>` : ''}<main id="main"></main></div></div>
     </div>`;
   const main = document.getElementById('main');
   renderMainView(main, session);
@@ -189,8 +190,7 @@ function applyTabBadges(){
     users: b.settings || 0,
     shifts: b.settings || 0,
     orders: b.purchasing || 0,
-    purchase: b.reports || 0,
-    purchRepOrders: b.reports || 0,
+    purchRepOrders: b.procurement || 0,
     reservations: resvItems.filter(x => x.kind==='reservation').length,
     waitlist: resvItems.filter(x => x.kind==='waitlist').length,
   };
@@ -238,7 +238,7 @@ function openBadgePopover(view, anchor){
     if(view==='settings') APP.settingsTab = 'shifts';
     if(view==='reservations') APP.resvTab = items.every(x => x.kind==='waitlist') ? 'waitlist' : 'reservations';
     if(view==='purchasing') APP.purchTab = 'orders';
-    if(view==='reports'){ APP.reportTab = 'purchase'; APP.purchRepSub = 'orders'; }
+    if(view==='procurement') APP.purchRepSub = 'orders';
     goToView(view);
   };
   document.body.appendChild(pop);
