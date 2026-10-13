@@ -87,14 +87,17 @@ async function renderReservationsContent(session, forceRefresh){
     </div>
   </div>
   <div class="box" style="max-width:none;margin-top:18px;">
+    <h2 style="margin:0 0 12px;">Yaklaşan Rezervasyonlar</h2>
+    ${days.length ? days.map(k => `<div class="rv-day"><div class="rv-day-h">${dayLabel(k)}<span class="muted">${sorted.filter(r => dkey(r)===k).length} rezervasyon</span></div>
+      <div class="rv-list">${sorted.filter(r => dkey(r)===k).map(card).join('')}</div></div>`).join('')
+      : '<div class="empty-state"><div style="font-size:42px;">📅</div><p class="muted">Bekleyen ya da onaylı rezervasyon yok.</p></div>'}
+  </div>
+  <div class="box" style="max-width:none;margin-top:18px;">
     <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;">
       <h2 style="margin:0;">Geçmiş</h2>
       <input type="date" id="rvHistDate" value="${APP.rvHistDate || todayLocalDateStr()}" style="width:auto;margin:0;" ${actOn('change','setRvHistDate',['$value'])}>
     </div>
     <div id="rvHistWrap" style="margin-top:12px;"><p class="muted">Yükleniyor…</p></div>
-    ${days.length ? days.map(k => `<div class="rv-day"><div class="rv-day-h">${dayLabel(k)}<span class="muted">${sorted.filter(r => dkey(r)===k).length} rezervasyon</span></div>
-      <div class="rv-list">${sorted.filter(r => dkey(r)===k).map(card).join('')}</div></div>`).join('')
-      : '<div class="empty-state"><div style="font-size:42px;">📅</div><p class="muted">Bekleyen ya da onaylı rezervasyon yok.</p></div>'}
   </div>`;
   if(!APP.silentLoad) refreshNavBadges();
   await renderReservationHistory();
