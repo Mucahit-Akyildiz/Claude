@@ -90,28 +90,6 @@ function pickStationTab(stId){
   const tableId = document.getElementById('tableModalBg').dataset.tableId;
   renderProductPick(stId, tableId);
 }
-/* Ekstrası olan ürün sepete eklenince ekstra seçimi açılır (örn. Ek Döner, Ek Lavaş). */
-function openExtrasPicker(tableId, productId){
-  const prod = (APP.config.products || []).find(p => p.id === productId); if(!prod) return;
-  const list = productExtras(productId).filter(e => e.available !== false); if(!list.length) return;
-  document.getElementById('extrasPickBg')?.remove();
-  const bg = document.createElement('div'); bg.id = 'extrasPickBg';
-  bg.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;z-index:120;padding:16px;';
-  bg.onclick = (e) => { if(e.target===bg) bg.remove(); };
-  const draw = () => {
-    const cart = APP.draftCart[tableId] || [];
-    bg.innerHTML = `<div class="xp-box">
-      <div class="xp-head"><b>➕ ${escapeHtml(prod.name)} için ekstra</b><span style="cursor:pointer;color:var(--muted);" ${act('removeEl','extrasPickBg')}>✕</span></div>
-      ${list.map(e => { const n = (cart.find(i => i.product_id === e.id) || {}).qty || 0; return `<button type="button" class="xp-item" ${act('pickExtra', tableId, e.id)}><span>${escapeHtml(e.name)}</span><span class="xp-price">+${money(e.price)}</span>${n ? `<span class="xp-n">${n}</span>` : ''}</button>`; }).join('')}
-      <button type="button" style="margin-top:10px;" ${act('removeEl','extrasPickBg')}>Tamam</button>
-    </div>`;
-  };
-  bg._draw = draw; draw(); document.body.appendChild(bg);
-}
-function pickExtra(tableId, extraId){
-  addToDraft(tableId, extraId, true);
-  const bg = document.getElementById('extrasPickBg'); if(bg && bg._draw) bg._draw();
-}
 function effectiveStock(p){
   if(p.recipe && p.recipe.length>0) return p.available_qty;
   return p.stock;
@@ -138,7 +116,12 @@ function renderProductPick(stationId, tableId){
     const off = p.available===false || (stock!=null && stock<=0);
     let badge = '';
     if(p.available===false) badge = '<div class="pp-badge" style="color:var(--red);">Satışta Değil</div>';
-    else if(stock!=null && stock<=0) badge = '<div class="pp-badge" style="color:var(--red);">Stok Yok</div>';
+    else if(stock!=null && stock<=0){
+      // Reçeteli üründe hangi hammaddenin bittiği de yazılır (örn. "Stok Yok · Lavaş").
+      const ings = APP.config.ingredients || [];
+      const miss = (p.recipe || []).filter(r => { const i = ings.find(x => x.id === r.ingredient_id); return i && r.qty_per_unit > 0 && i.stock < r.qty_per_unit; }).map(r => r.ingredient_name);
+      badge = '<div class="pp-badge" style="color:var(--red);">Stok Yok' + (miss.length ? ' · ' + escapeHtml(miss.join(', ')) : '') + '</div>';
+    }
     else if(stock!=null && stock<=10) badge = '<div class="pp-badge" style="color:var(--accent);">Son '+stock+' porsiyon</div>';
     const inCart = ((APP.draftCart && APP.draftCart[tableId]) || []).filter(i => i.product_id === p.id).reduce((n, i) => n + i.qty, 0);
     return `<div class="prod-pick-card pp-card ${off?'off':''}" ${off?'':act('addToDraft', tableId, p.id)}>
@@ -148,7 +131,15 @@ function renderProductPick(stationId, tableId){
   }).join('') : '<p class="muted" style="grid-column:1/-1;">Bu bölümde ürün yok.</p>';
   el.className = 'pp-wrap' + (cats.length ? ' has-cats' : '');
   el.removeAttribute('style');
-  el.innerHTML = side + `<div class="pp-grid">${cards}</div>`;
+  // Ekstralar: sepetteki ürünlerin ekstraları ürünlerin altında seçilir (açılır pencere yok).
+  const cart = (APP.draftCart && APP.draftCart[tableId]) || [];
+  const parents = [...new Set(cart.map(i => i.product_id))].map(id => (APP.config.products || []).find(p => p.id === id)).filter(p => p && productExtras(p.id).some(e => e.available !== false));
+  const extrasHtml = parents.length ? `<div class="pp-extras"><div class="pp-extras-h">➕ Ekstralar</div>
+    ${parents.map(par => `<div class="pp-extras-row"><span class="pp-extras-for">${escapeHtml(par.name)}</span>
+      ${productExtras(par.id).filter(e => e.available !== false).map(e => { const n = (cart.find(i => i.product_id === e.id) || {}).qty || 0;
+        return `<button type="button" class="pp-extra ${n?'on':''}" ${act('addToDraft', tableId, e.id)}>${escapeHtml(e.name)}<small>${Number(e.price) ? '+'+money(e.price) : 'ücretsiz'}</small>${n ? `<b>${n}</b>` : ''}</button>`; }).join('')}</div>`).join('')}
+  </div>` : '';
+  el.innerHTML = side + `<div class="pp-main"><div class="pp-grid">${cards}</div>${extrasHtml}</div>`;
 }
 function setProdPickCat(stationId, cat, tableId){
   APP.prodPickCat = APP.prodPickCat || {}; APP.prodPickCat[stationId] = cat;
@@ -214,7 +205,6 @@ function addToDraft(tableId, productId, noExtrasPrompt){
     const name = parent ? '+ ' + prod.name + ' (' + parent.name + ')' : prod.name;
     draft.push({ product_id:productId, name, price:prod.price, cost:prod.cost, station_id:prod.station_id, qty:1, note:'' });
   }
-  if(!noExtrasPrompt && !prod.parent_id && productExtras(productId).some(e => e.available !== false)) setTimeout(() => openExtrasPicker(tableId, productId), 0);
   applyLocalStockDelta(productId, 1);
   renderTableItems(tableId);
   const activeTab = document.querySelector('#prodStationTabs .tab.active');
