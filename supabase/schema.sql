@@ -736,6 +736,40 @@ end $$;
 
 
 --
+-- Name: _log_kitchen_cancel(uuid, uuid, record, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public._log_kitchen_cancel(p_rid uuid, p_order uuid, p_item record, p_by text) RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+declare v_tbl text; v_daily int;
+begin
+  select coalesce(t.name, case when o.kind = 'waitlist' then '⏳ ' || coalesce(o.customer_name,'Bekleme') else '📦 ' || coalesce(o.customer_name, 'Paket') end), o.daily_number
+    into v_tbl, v_daily from orders o left join restaurant_tables t on t.id = o.table_id where o.id = p_order;
+  insert into kitchen_cancellations(restaurant_id, order_id, station_id, product_id, table_name, item_name, qty, note, daily_number, cancelled_by)
+  values (p_rid, p_order, (select station_id from products where id = p_item.product_id), p_item.product_id, v_tbl, p_item.name, p_item.qty, p_item.note, v_daily, p_by);
+end $$;
+
+
+--
+-- Name: _log_kitchen_cancel(uuid, uuid, uuid, text, integer, text, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public._log_kitchen_cancel(p_rid uuid, p_order uuid, p_product uuid, p_name text, p_qty integer, p_note text, p_by text) RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+declare v_tbl text; v_daily int;
+begin
+  select coalesce(t.name, case when o.kind = 'waitlist' then '⏳ ' || coalesce(o.customer_name,'Bekleme') else '📦 ' || coalesce(o.customer_name, 'Paket') end), o.daily_number
+    into v_tbl, v_daily from orders o left join restaurant_tables t on t.id = o.table_id where o.id = p_order;
+  insert into kitchen_cancellations(restaurant_id, order_id, station_id, product_id, table_name, item_name, qty, note, daily_number, cancelled_by)
+  values (p_rid, p_order, (select station_id from products where id = p_product), p_product, v_tbl, p_name, p_qty, p_note, v_daily, p_by);
+end $$;
+
+
+--
 -- Name: _mail_layout(text, text); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -3069,31 +3103,58 @@ CREATE FUNCTION public.cancel_order(p_token uuid, p_order_id uuid) RETURNS void
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public', 'extensions', 'pg_temp'
     AS $$
-declare
-  s staff_sessions%rowtype;
-  it record;
-  v_has_recipe boolean;
+declare s staff_sessions%rowtype; it record; v_has_recipe boolean; v_by text;
 begin
   s := _session_check(p_token);
   perform _require_shift(s);
-
-  for it in select product_id, qty from order_items where order_id = p_order_id
-  loop
+  for it in select product_id, qty from order_items where order_id = p_order_id loop
     select exists(select 1 from product_ingredients where product_id = it.product_id) into v_has_recipe;
     if v_has_recipe then
-      update ingredients ing set stock = ing.stock + (pi.qty_per_unit * it.qty)
-        from product_ingredients pi
-        where pi.ingredient_id = ing.id and pi.product_id = it.product_id
-          and ing.restaurant_id = s.restaurant_id;
+      update ingredients ing set stock = ing.stock + (pi.qty_per_unit * it.qty) from product_ingredients pi
+        where pi.ingredient_id = ing.id and pi.product_id = it.product_id and ing.restaurant_id = s.restaurant_id;
     else
-      update products set stock = stock + it.qty
-        where id = it.product_id and restaurant_id = s.restaurant_id and stock is not null;
+      update products set stock = stock + it.qty where id = it.product_id and restaurant_id = s.restaurant_id and stock is not null;
     end if;
   end loop;
-
+  -- Mutfakta hazırlanan ürünler için istasyona iptal bildirimi/fişi.
+  select username into v_by from app_users where id = s.user_id;
+  perform _log_kitchen_cancel(s.restaurant_id, p_order_id, oi.product_id, oi.name, oi.qty, oi.note, v_by)
+    from order_items oi join orders o on o.id = oi.order_id
+    where oi.order_id = p_order_id and o.restaurant_id = s.restaurant_id and o.status = 'open' and oi.status = 'pending';
   update orders set status='cancelled' where id = p_order_id and restaurant_id = s.restaurant_id;
 end;
 $$;
+
+
+--
+-- Name: cancel_order_item(uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.cancel_order_item(p_token uuid, p_item_id uuid) RETURNS json
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'extensions', 'pg_temp'
+    AS $_$
+declare s staff_sessions%rowtype; it record; v_by text; v_left int;
+begin
+  s := _session_check(p_token);
+  perform _require_shift(s);
+  select oi.*, o.restaurant_id rid, o.status ost into it from order_items oi join orders o on o.id = oi.order_id where oi.id = p_item_id for update of oi;
+  if it.id is null or it.rid <> s.restaurant_id then raise exception 'Ürün bulunamadı'; end if;
+  if it.ost <> 'open' then raise exception 'Sipariş açık değil'; end if;
+  if it.paid then raise exception 'Ödemesi alınmış ürün iptal edilemez'; end if;
+  if exists(select 1 from product_ingredients where product_id = it.product_id) then
+    update ingredients ing set stock = ing.stock + (pi.qty_per_unit * it.qty) from product_ingredients pi
+      where pi.ingredient_id = ing.id and pi.product_id = it.product_id and ing.restaurant_id = s.restaurant_id;
+  else
+    update products set stock = stock + it.qty where id = it.product_id and restaurant_id = s.restaurant_id and stock is not null;
+  end if;
+  select username into v_by from app_users where id = s.user_id;
+  if it.status = 'pending' then perform _log_kitchen_cancel(s.restaurant_id, it.order_id, it.product_id, it.name, it.qty, it.note, v_by); end if;
+  execute 'dele'||'te from order_items where id = $1' using p_item_id;
+  select count(*) into v_left from order_items where order_id = it.order_id;
+  if v_left = 0 then update orders set status = 'cancelled' where id = it.order_id; end if;
+  return json_build_object('ok', true, 'order_closed', v_left = 0);
+end $_$;
 
 
 --
@@ -5628,6 +5689,23 @@ begin
     where restaurant_id = s.restaurant_id
       and created_at >= (p_date::timestamp at time zone 'Europe/Istanbul')
       and created_at < ((coalesce(p_date_to,p_date)+1)::timestamp at time zone 'Europe/Istanbul')) i), '[]'::json);
+end $$;
+
+
+--
+-- Name: list_kitchen_cancellations(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.list_kitchen_cancellations(p_token uuid) RETURNS json
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+declare s staff_sessions%rowtype;
+begin
+  s := _session_check(p_token);
+  return coalesce((select json_agg(row_to_json(k) order by k.created_at) from (
+    select id, order_id, station_id, product_id, table_name, item_name name, qty, note, daily_number, cancelled_by, created_at
+    from kitchen_cancellations where restaurant_id = s.restaurant_id and created_at > now() - interval '2 minutes') k), '[]'::json);
 end $$;
 
 
@@ -10232,6 +10310,26 @@ CREATE TABLE public.invoices (
 
 
 --
+-- Name: kitchen_cancellations; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.kitchen_cancellations (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    restaurant_id uuid NOT NULL,
+    order_id uuid,
+    station_id uuid,
+    product_id uuid,
+    table_name text,
+    item_name text,
+    qty integer,
+    note text,
+    daily_number integer,
+    cancelled_by text,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
 -- Name: login_failures; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -11362,6 +11460,14 @@ ALTER TABLE ONLY public.invoices
 
 
 --
+-- Name: kitchen_cancellations kitchen_cancellations_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.kitchen_cancellations
+    ADD CONSTRAINT kitchen_cancellations_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: login_failures login_failures_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -12409,6 +12515,13 @@ CREATE INDEX invoices_rest_idx ON public.invoices USING btree (restaurant_id, cr
 
 
 --
+-- Name: kitchen_cancellations_r_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX kitchen_cancellations_r_idx ON public.kitchen_cancellations USING btree (restaurant_id, created_at DESC);
+
+
+--
 -- Name: login_failures_lookup_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -13288,6 +13401,14 @@ ALTER TABLE ONLY public.invoices
 
 
 --
+-- Name: kitchen_cancellations kitchen_cancellations_restaurant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.kitchen_cancellations
+    ADD CONSTRAINT kitchen_cancellations_restaurant_id_fkey FOREIGN KEY (restaurant_id) REFERENCES public.restaurants(id) ON DELETE CASCADE;
+
+
+--
 -- Name: notification_log notification_log_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -13946,6 +14067,12 @@ ALTER TABLE public.ingredients ENABLE ROW LEVEL SECURITY;
 --
 
 ALTER TABLE public.invoices ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: kitchen_cancellations; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.kitchen_cancellations ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: login_failures; Type: ROW SECURITY; Schema: public; Owner: -
