@@ -1640,7 +1640,9 @@ begin
   update products p set station_id = case when p.station_override then p.station_id else m.station_id end, category = m.name
     from menus m where m.id = p.menu_id and p.restaurant_id = p_rid
       and (p.station_id is distinct from case when p.station_override then p.station_id else m.station_id end or p.category is distinct from m.name);
-  update products set category = null where restaurant_id = p_rid and menu_id is null and category is not null;
+  update products set category = null where restaurant_id = p_rid and menu_id is null and category is not null and parent_id is null;
+  -- Ekstralar (parent_id) ana ürünün istasyonunu izler.
+  update products c set station_id = pp.station_id from products pp where c.parent_id = pp.id and c.restaurant_id = p_rid and c.station_id is distinct from pp.station_id;
   update stations st set categories = coalesce((select array_agg(m.name order by m.sort, m.created_at) from menus m where m.station_id = st.id), '{}')
     where st.restaurant_id = p_rid;
 end $$;
@@ -4468,7 +4470,7 @@ begin
       from online_menu_sections sec where restaurant_id = s.restaurant_id),
     'products', (select coalesce(json_agg(json_build_object('id', p.id, 'name', p.name, 'price', p.price, 'station_name', st.name, 'available', p.available,
         'image', (select data from product_images pi where pi.product_id = p.id)) order by st.name, p.name), '[]'::json)
-      from products p left join stations st on st.id = p.station_id where p.restaurant_id = s.restaurant_id));
+      from products p left join stations st on st.id = p.station_id where p.restaurant_id = s.restaurant_id and p.parent_id is null));
 end; $$;
 
 
@@ -4637,7 +4639,7 @@ begin
         'id', p.id, 'name', p.name, 'price', p.price, 'station_name', st.name, 'category', p.category, 'cat_pos', array_position(st.categories, p.category), 'description', p.description, 'menu_sort', (select mm.sort from menus mm where mm.id = p.menu_id), 'max_qty', _product_public_qty(p.id), 'image', (select data from product_images pi where pi.product_id = p.id), 'name_translations', case when _restaurant_has_feature(v_restaurant.id, 'multilang_menu') then p.name_translations else null end
       ) order by st.name, p.name), '[]'::json)
       from products p left join stations st on st.id = p.station_id
-      where p.restaurant_id = v_table.restaurant_id and p.available = true
+      where p.restaurant_id = v_table.restaurant_id and p.available = true and p.parent_id is null
     )
   );
 end;
@@ -4672,7 +4674,7 @@ begin
         'image', (select data from product_images pi where pi.product_id = p.id), 'max_qty', _product_public_qty(p.id)
       ) order by st.name, p.name), '[]'::json)
       from products p left join stations st on st.id = p.station_id
-      where p.restaurant_id = v_restaurant.id and p.available = true
+      where p.restaurant_id = v_restaurant.id and p.available = true and p.parent_id is null
     )
   );
 end;
@@ -4875,7 +4877,7 @@ begin
         select coalesce(json_agg(json_build_object(
           'id', p.id, 'name', p.name, 'price', p.price, 'cost', p.cost,
           'stock', p.stock, 'available', p.available, 'station_id', p.station_id,
-          'name_translations', p.name_translations, 'vat_rate', p.vat_rate, 'category', p.category, 'print_ticket', p.print_ticket, 'kitchen_skip', p.kitchen_skip, 'menu_id', p.menu_id,
+          'name_translations', p.name_translations, 'vat_rate', p.vat_rate, 'category', p.category, 'print_ticket', p.print_ticket, 'kitchen_skip', p.kitchen_skip, 'parent_id', p.parent_id, 'menu_id', p.menu_id,
           'recipe', (
             select coalesce(json_agg(json_build_object(
               'ingredient_id', pi.ingredient_id, 'qty_per_unit', round(pi.qty_per_unit * (1 - i.waste_pct/100), 6), 'gross_qty', pi.qty_per_unit, 'waste_pct', i.waste_pct,
@@ -5642,7 +5644,7 @@ begin
   s := _session_check(p_token, 'settings_products');
   return (select coalesce(json_agg(json_build_object('id', p.id, 'name', p.name, 'price', p.price, 'menu', m.name, 'menu_sort', m.sort, 'description', p.description,
       'image', (select data from product_images pi where pi.product_id = p.id)) order by m.sort nulls last, m.name, p.name), '[]'::json)
-    from products p left join menus m on m.id = p.menu_id where p.restaurant_id = s.restaurant_id);
+    from products p left join menus m on m.id = p.menu_id where p.restaurant_id = s.restaurant_id and p.parent_id is null);
 end $$;
 
 
@@ -9174,6 +9176,35 @@ $$;
 
 
 --
+-- Name: upsert_product_extra(uuid, uuid, uuid, text, numeric); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.upsert_product_extra(p_token uuid, p_parent_id uuid, p_id uuid, p_name text, p_price numeric) RETURNS uuid
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+-- Ürün ekstrası (örn. Porsiyon Döner → Ek Döner): ana ürüne bağlı gizli ürün satırı; siparişe ayrı
+-- kalem olarak eklenir, fiyatı sunucudan gelir, ana ürünün istasyonuna ve fişine düşer.
+declare s staff_sessions%rowtype; v_par products%rowtype; v_id uuid;
+begin
+  s := _session_check(p_token, 'settings_products');
+  select * into v_par from products where id = p_parent_id and restaurant_id = s.restaurant_id and parent_id is null;
+  if v_par.id is null then raise exception 'Ürün bulunamadı'; end if;
+  if nullif(trim(coalesce(p_name,'')),'') is null then raise exception 'Ekstra adı gerekli'; end if;
+  if coalesce(p_price,0) < 0 then raise exception 'Fiyat negatif olamaz'; end if;
+  if p_id is null then
+    insert into products (restaurant_id, station_id, name, price, cost, available, parent_id, print_ticket, vat_rate)
+    values (s.restaurant_id, v_par.station_id, trim(p_name), coalesce(p_price,0), 0, true, v_par.id, v_par.print_ticket, v_par.vat_rate) returning id into v_id;
+  else
+    update products set name = trim(p_name), price = coalesce(p_price,0), station_id = v_par.station_id
+      where id = p_id and parent_id = v_par.id and restaurant_id = s.restaurant_id returning id into v_id;
+    if v_id is null then raise exception 'Ekstra bulunamadı'; end if;
+  end if;
+  return v_id;
+end $$;
+
+
+--
 -- Name: upsert_purchase_order(uuid, uuid, uuid, date, text, jsonb); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -10380,6 +10411,7 @@ CREATE TABLE public.products (
     description text,
     station_override boolean DEFAULT false NOT NULL,
     kitchen_skip boolean DEFAULT false NOT NULL,
+    parent_id uuid,
     CONSTRAINT products_stock_nonneg CHECK (((stock IS NULL) OR (stock >= 0))),
     CONSTRAINT products_vat_rate_check CHECK (((vat_rate IS NULL) OR ((vat_rate >= (0)::numeric) AND (vat_rate <= (100)::numeric))))
 );
@@ -12302,6 +12334,13 @@ CREATE INDEX product_images_restaurant_id_idx ON public.product_images USING btr
 
 
 --
+-- Name: products_parent_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX products_parent_idx ON public.products USING btree (parent_id);
+
+
+--
 -- Name: public_cart_holds_product; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -13258,6 +13297,14 @@ ALTER TABLE ONLY public.product_ingredients
 
 ALTER TABLE ONLY public.product_ingredients
     ADD CONSTRAINT product_ingredients_product_id_fkey FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE;
+
+
+--
+-- Name: products products_parent_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.products
+    ADD CONSTRAINT products_parent_id_fkey FOREIGN KEY (parent_id) REFERENCES products(id) ON DELETE CASCADE;
 
 
 --
