@@ -1303,7 +1303,7 @@ function tableCardHtml(t){
   const pct = c.unpaid.length ? Math.round(c.ready / c.unpaid.length * 100) : 0;
   const label = { empty:'Boş', busy:'Hazırlanıyor', ready:'Hazır · ödeme', wait: c.outbox ? 'Gönderilmeyi bekliyor' : 'Sipariş bekleniyor' }[c.state];
   const timeTxt = c.mins >= 60 ? Math.floor(c.mins/60) + 's ' + (c.mins%60) + 'dk' : c.mins + ' dk';
-  return `<div class="tc tc-${c.state}" ${act('openTableModal', t.id)}>
+  return `<div class="tc tc-${c.state}" ${c.order && !c.order.items?.length ? `data-badge-id="${c.order.order_id}"` : ""} ${act('openTableModal', t.id)}>
     <div class="tc-top"><span class="tc-name">${escapeHtml(t.name)}</span>${c.order ? `<span class="tc-time">⏱ ${timeTxt}</span>` : ''}</div>
     ${c.state === 'empty' ? `<div class="tc-cta">＋ Sipariş al</div>` : `
       ${c.order && c.order.customer_name ? `<div class="tc-cust">👤 ${escapeHtml(c.order.customer_name)}</div>` : ''}

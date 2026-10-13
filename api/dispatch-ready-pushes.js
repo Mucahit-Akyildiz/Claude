@@ -60,6 +60,18 @@ async function badgeFor(userId) {
 // Bildirim geçmişi (uygulamada Bildirimler ekranı): her kullanıcıya giden bildirim bir kez
 // kaydedilir. Aynı bildirim (ör. dakikada bir tekrar eden hazır sipariş hatırlatması ya da
 // aynı kullanıcının birden fazla cihazı) aynı saat içinde tek satır olur.
+
+// Bildirim türü → hangi roller alsın (Bildirimler > Kime Gitsin ayarı, restaurants.notification_roles).
+// Ayar yoksa varsayılan: ilgili izne sahip roller + Yönetici.
+async function notifyRoleIds(supabase, restaurantId, type, roles, perm) {
+  try {
+    const { data } = await supabase.from('restaurants').select('notification_roles').eq('id', restaurantId).maybeSingle();
+    const cfg = data && data.notification_roles && data.notification_roles[type];
+    if (Array.isArray(cfg)) return new Set(cfg);
+  } catch (e) { /* ayar okunamazsa varsayılana düş */ }
+  return new Set((roles || []).filter((rl) => rl.is_system || (rl.permissions || []).includes(perm)).map((rl) => rl.id));
+}
+
 async function logNotification(sub, p) {
   if (!SUPA_CLIENT || !sub.user_id || !p || !p.title) return;
   const key = [p.tag || '', p.title, p.body || '', Math.floor(Date.now() / 3600000)].join('|').slice(0, 500);
@@ -125,9 +137,7 @@ async function dispatchCustomerOrderRequests(supabase) {
       .from('roles')
       .select('id, is_system, permissions')
       .eq('restaurant_id', restaurantId);
-    const orderRoleIds = new Set(
-      (roles || []).filter((rl) => rl.is_system || (rl.permissions || []).includes('order')).map((rl) => rl.id)
-    );
+    const orderRoleIds = await notifyRoleIds(supabase, restaurantId, 'customer_request', roles, 'order');
     const staffUserIds = (appUsers || [])
       .filter((u) => (u.role_ids || []).some((rid) => orderRoleIds.has(rid)))
       .map((u) => u.id);
@@ -211,9 +221,7 @@ async function dispatchLateKitchenItems(supabase) {
       .from('roles')
       .select('id, is_system, permissions')
       .eq('restaurant_id', restaurantId);
-    const kitchenRoleIds = new Set(
-      (roles || []).filter((rl) => rl.is_system || (rl.permissions || []).includes('kitchen')).map((rl) => rl.id)
-    );
+    const kitchenRoleIds = await notifyRoleIds(supabase, restaurantId, 'kitchen_late', roles, 'kitchen');
     const staffUserIds = (appUsers || [])
       .filter((u) => (u.role_ids || []).some((rid) => kitchenRoleIds.has(rid)))
       .map((u) => u.id);
@@ -333,7 +341,7 @@ async function dispatchShiftEvent(supabase, shiftId, event) {
     if (event === 'request' && shift.status !== 'pending') return { sent: 0, note: 'not pending' };
     const { data: appUsers } = await supabase.from('app_users').select('id, role_ids').eq('restaurant_id', shift.restaurant_id);
     const { data: roles } = await supabase.from('roles').select('id, is_system, permissions').eq('restaurant_id', shift.restaurant_id);
-    const mgrRoleIds = new Set((roles || []).filter((rl) => rl.is_system || (rl.permissions || []).includes('shifts')).map((rl) => rl.id));
+    const mgrRoleIds = await notifyRoleIds(supabase, shift.restaurant_id, 'shift', roles, 'shifts');
     const mgrIds = (appUsers || []).filter((u) => u.id !== shift.user_id && (u.role_ids || []).some((rid) => mgrRoleIds.has(rid))).map((u) => u.id);
     return sendToUsers(supabase, mgrIds, event === 'request' ? {
       title: '🕒 Vardiya onayı bekleniyor',
@@ -368,7 +376,7 @@ async function dispatchPurchaseOrder(supabase, poId) {
     po.supplier_id ? supabase.from('suppliers').select('name').eq('id', po.supplier_id).maybeSingle() : Promise.resolve({ data: null }),
     po.created_by ? supabase.from('app_users').select('username').eq('id', po.created_by).maybeSingle() : Promise.resolve({ data: null }),
   ]);
-  const okRoles = new Set((roles || []).filter((rl) => rl.is_system || (rl.permissions || []).includes('purchasing_reports')).map((rl) => rl.id));
+  const okRoles = await notifyRoleIds(supabase, po.restaurant_id, 'purchase_order', roles, 'purchasing_reports');
   const ids = (appUsers || []).filter((u) => u.id !== po.created_by && (u.role_ids || []).some((rid) => okRoles.has(rid))).map((u) => u.id);
   const list = (items || []).slice(0, 3).map((i) => (i.ingredients ? i.ingredients.name : '') + ' ' + Number(i.quantity) + ' ' + (i.ingredients ? i.ingredients.unit : '')).join(', ');
   const more = (items || []).length > 3 ? ' +' + ((items || []).length - 3) : '';
@@ -422,7 +430,7 @@ async function dispatchIdleTables(supabase, orderIds) {
     if (count) continue;
     const { data: appUsers } = await supabase.from('app_users').select('id, role_ids, is_active').eq('restaurant_id', o.restaurant_id);
     const { data: roles } = await supabase.from('roles').select('id, is_system, permissions').eq('restaurant_id', o.restaurant_id);
-    const roleIds = new Set((roles || []).filter((rl) => rl.is_system || (rl.permissions || []).includes('order')).map((rl) => rl.id));
+    const roleIds = await notifyRoleIds(supabase, o.restaurant_id, 'idle_table', roles, 'order');
     const ids = (appUsers || []).filter((u) => u.is_active !== false && (u.role_ids || []).some((rid) => roleIds.has(rid))).map((u) => u.id);
     const mins = Math.max(1, Math.round((Date.now() - new Date(o.created_at).getTime()) / 60000));
     const table = (o.restaurant_tables && o.restaurant_tables.name) || 'Bir masa';
@@ -463,7 +471,7 @@ async function dispatchWaiterCall(supabase, callId) {
   const perm = call.kind === 'payment' ? 'payments' : 'order';
   const { data: appUsers } = await supabase.from('app_users').select('id, role_ids, is_active').eq('restaurant_id', call.restaurant_id);
   const { data: roles } = await supabase.from('roles').select('id, is_system, permissions').eq('restaurant_id', call.restaurant_id);
-  const roleIds = new Set((roles || []).filter((rl) => rl.is_system || (rl.permissions || []).includes(perm)).map((rl) => rl.id));
+  const roleIds = await notifyRoleIds(supabase, call.restaurant_id, call.kind === 'payment' ? 'waiter_payment' : 'waiter_order', roles, perm);
   const ids = (appUsers || []).filter((u) => u.is_active !== false && (u.role_ids || []).some((rid) => roleIds.has(rid))).map((u) => u.id);
   const table = (call.restaurant_tables && call.restaurant_tables.name) || 'Bir masa';
   return sendToUsers(supabase, ids, call.kind === 'payment' ? {
