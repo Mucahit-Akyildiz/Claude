@@ -903,6 +903,25 @@ end; $$;
 
 
 --
+-- Name: _order_item_kitchen_skip(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public._order_item_kitchen_skip() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+-- İstasyona düşmeyecek ürünler (products.kitchen_skip) siparişte doğrudan "hazır" olur:
+-- mutfak ekranında görünmez, fişe basılmaz, ödeme beklemeden alınabilir.
+begin
+  if new.status = 'pending' and new.product_id is not null and exists(select 1 from products where id = new.product_id and kitchen_skip) then
+    new.status := 'ready';
+    begin new.ready_at := now(); exception when others then null; end;
+  end if;
+  return new;
+end $$;
+
+
+--
 -- Name: _order_item_ready_at(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -4856,7 +4875,7 @@ begin
         select coalesce(json_agg(json_build_object(
           'id', p.id, 'name', p.name, 'price', p.price, 'cost', p.cost,
           'stock', p.stock, 'available', p.available, 'station_id', p.station_id,
-          'name_translations', p.name_translations, 'vat_rate', p.vat_rate, 'category', p.category, 'print_ticket', p.print_ticket, 'menu_id', p.menu_id,
+          'name_translations', p.name_translations, 'vat_rate', p.vat_rate, 'category', p.category, 'print_ticket', p.print_ticket, 'kitchen_skip', p.kitchen_skip, 'menu_id', p.menu_id,
           'recipe', (
             select coalesce(json_agg(json_build_object(
               'ingredient_id', pi.ingredient_id, 'qty_per_unit', round(pi.qty_per_unit * (1 - i.waste_pct/100), 6), 'gross_qty', pi.qty_per_unit, 'waste_pct', i.waste_pct,
@@ -7483,6 +7502,22 @@ begin
   insert into product_images(product_id, restaurant_id, data, updated_at) values (p_product_id, s.restaurant_id, p_data, now())
     on conflict (product_id) do update set data = excluded.data, updated_at = now();
 end; $_$;
+
+
+--
+-- Name: set_product_kitchen(uuid, uuid, boolean); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.set_product_kitchen(p_token uuid, p_product_id uuid, p_on boolean) RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+declare s staff_sessions%rowtype;
+begin
+  s := _session_check_any(p_token, array['settings_stations','settings_products']);
+  update products set kitchen_skip = not coalesce(p_on, true) where id = p_product_id and restaurant_id = s.restaurant_id;
+  if not found then raise exception 'Ürün bulunamadı'; end if;
+end $$;
 
 
 --
@@ -10344,6 +10379,7 @@ CREATE TABLE public.products (
     menu_id uuid,
     description text,
     station_override boolean DEFAULT false NOT NULL,
+    kitchen_skip boolean DEFAULT false NOT NULL,
     CONSTRAINT products_stock_nonneg CHECK (((stock IS NULL) OR (stock >= 0))),
     CONSTRAINT products_vat_rate_check CHECK (((vat_rate IS NULL) OR ((vat_rate >= (0)::numeric) AND (vat_rate <= (100)::numeric))))
 );
@@ -12382,6 +12418,13 @@ CREATE INDEX waiter_calls_pending ON public.waiter_calls USING btree (restaurant
 --
 
 CREATE INDEX waiter_calls_table_id_idx ON public.waiter_calls USING btree (table_id);
+
+
+--
+-- Name: order_items order_item_kitchen_skip; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER order_item_kitchen_skip BEFORE INSERT ON public.order_items FOR EACH ROW EXECUTE FUNCTION public._order_item_kitchen_skip();
 
 
 --
