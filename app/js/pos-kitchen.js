@@ -60,7 +60,7 @@ async function refreshKitchenItems(session){
     const oldest = Math.min(...pending.map(it => it.added_at ? new Date(it.added_at).getTime() : Infinity));
     cards.push({ at: isFinite(oldest) ? oldest : Infinity, html: `<div class="kitchen-card" data-order-id="${o.order_id}">
       <div style="display:flex;justify-content:space-between;align-items:center;">
-        <b>${escapeHtml(tableName)}${o.daily_number?' <span class="muted" style="font-weight:400;font-size:12px;">#'+o.daily_number+'</span>':''}<span class="kc-late-badge">⏰ GECİKTİ</span>${orderWaiters(o).length ? '<div class="muted" style="font-weight:400;font-size:12px;margin-top:2px;">👤 ' + escapeHtml(orderWaiters(o).join(', ')) + '</div>' : ''}</b>
+        <b>${escapeHtml(tableName)}${o.daily_number?' <span class="muted" style="font-weight:400;font-size:12px;">#'+o.daily_number+'</span>':''}<span class="kc-late-badge">⏰ GECİKTİ</span>${orderWaiters(o).length ? '<div class="muted" style="font-weight:400;font-size:12px;margin-top:2px;">👤 ' + escapeHtml(orderWaiters(o).join(', ')) + '</div>' : ''}${waitlistInfoHtml(o)}</b>
         <span style="cursor:pointer;color:var(--muted);font-size:16px;" ${act('reprintKitchenTicket', o.order_id)} title="Fişi tekrar yazdır">🖨️</span>
       </div>
       ${pending.map(it => `<div class="kitchen-item-row" style="padding:10px 0;border-top:1px dashed var(--border);">
@@ -107,6 +107,18 @@ function tableNameForId(tableId){
     return dup ? z.name + ' · ' + t.name : t.name;
   }
   return 'Masa';
+}
+/* Bekleme listesinden gelen sipariş: etiket + kişi sayısı + (süre verildiyse) tahmini oturma saati. */
+function waitlistInfoHtml(o){
+  if(!o.waitlist_id) return '';
+  const w = o.waitlist || {};
+  let eta = '';
+  if(w.quoted_wait_minutes && w.joined_at){
+    const t = new Date(new Date(w.joined_at).getTime() + w.quoted_wait_minutes * 60000);
+    const left = Math.round((t - Date.now()) / 60000);
+    eta = ' · 🪑 tahmini oturma ' + t.toLocaleTimeString('tr-TR', { hour:'2-digit', minute:'2-digit' }) + (left > 0 ? ' (' + left + ' dk kaldı)' : ' (süre doldu)');
+  }
+  return `<div class="kc-wl">⏳ Bekleme listesinden${w.party_size ? ' · ' + w.party_size + ' kişi' : ''}${eta}</div>`;
 }
 function orderDisplayName(o){
   if(o.kind==='takeaway') return '📦 Paket' + (o.customer_name ? ' - '+o.customer_name : '');
