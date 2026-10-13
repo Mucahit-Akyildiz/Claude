@@ -48,12 +48,12 @@ async function renderReservationsContent(session, forceRefresh){
   const days = [...new Set(sorted.map(dkey))];
   const dayLabel = (k) => { const d = new Date(k+'T00:00'); const diff = Math.round((d - new Date(today+'T00:00'))/86400000);
     return (diff===0 ? 'Bugün' : diff===1 ? 'Yarın' : diff===-1 ? 'Dün' : '') + ' <small>' + d.toLocaleDateString('tr-TR',{weekday:'long', day:'numeric', month:'long'}) + '</small>'; };
-  const card = (r) => { const t = new Date(r.reservation_time), late = t < new Date() && r.status !== 'seated';
-    return `<div class="rv-card st-${r.status}${late?' late':''}" data-badge-id="${r.id}">
+  const card = (r) => { const t = new Date(r.reservation_time), late = t < new Date() && r.status !== 'seated'; const mins = Math.round((t - new Date())/60000), soon = !late && mins <= 60 && mins >= 0;
+    return `<div class="rv-card st-${r.status}${late?' late':''}${soon?' soon':''}" data-badge-id="${r.id}">
       <div class="rv-time"><b>${t.toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'})}</b><span class="rv-pill">${RESV_STATUS_LABELS[r.status]||r.status}</span></div>
       <div class="rv-main">
         <div class="rv-who">${avatarHtml(r.customer_name)}<div><b>${escapeHtml(r.customer_name)}</b><small>${r.phone ? '📞 '+escapeHtml(r.phone) : 'telefon yok'}</small></div></div>
-        <div class="rv-meta"><span class="pchip">👥 ${r.party_size} kişi</span><span class="pchip">🪑 ${escapeHtml(r.table_name||'Masa seçilmedi')}</span>${late ? '<span class="pchip warn">⏰ saati geçti</span>' : ''}</div>
+        <div class="rv-meta"><span class="pchip">👥 ${r.party_size} kişi</span><span class="pchip">🪑 ${escapeHtml(r.table_name||'Masa seçilmedi')}</span>${late ? '<span class="pchip warn">⏰ saati geçti</span>' : ''}${soon ? `<span class="pchip rv-soon">⏳ ${mins} dk kaldı</span>` : ''}</div>
         ${r.notes ? `<div class="rv-note">📝 ${escapeHtml(r.notes)}</div>` : ''}
       </div>
       <div class="rv-acts">

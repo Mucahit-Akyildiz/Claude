@@ -2073,3 +2073,6 @@ input.sw:checked{background:var(--c1);} input.sw:checked::after{transform:transl
 .oa2 .oa-new p{margin:0 0 10px;font-weight:800;color:#eab308;font-size:13px}
 .oa2 .oa-new input{margin-bottom:8px;border-radius:12px}
 .oa2 .oa-new button{width:100%;border-radius:12px;background:linear-gradient(135deg,#eab308,#f97316);color:#fff;font-weight:800}
+.rv-card.soon{border-color:#f59e0b!important;box-shadow:0 0 0 1px #f59e0b55,0 0 18px #f59e0b33;animation:rvSoon 2s ease-in-out infinite}
+@keyframes rvSoon{50%{box-shadow:0 0 0 1px #f59e0b88,0 0 26px #f59e0b55}}
+.pchip.rv-soon{background:#f59e0b22;color:#f59e0b;border-color:#f59e0b66;font-weight:700}
