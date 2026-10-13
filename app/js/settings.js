@@ -1751,34 +1751,52 @@ const RESET_CATEGORIES = [
 ];
 // Hiçbir seçenekle silinmeyen kalıcı veriler (kullanıcıya bilgi olarak gösterilir).
 const RESET_KEPT = ['Ürünler, ekstralar ve reçeteler','Menüler ve istasyonlar','Hammaddeler ve stok miktarları','Bölgeler ve masalar','Kullanıcılar ve roller','Tedarikçiler','Hediye kartları ve bakiyeleri','Açık hesaplar ve borç kayıtları','Açık (ödenmemiş) siparişler ve devam eden vardiyalar','E-faturası kesilmiş satışlar (yasal kayıt)','Ayarlar, fiş tasarımı ve entegrasyonlar'];
+const RESET_ICONS = { sales:'🧾', waste:'🔥', shifts:'🕐', reservations:'📅', purchases:'🚚', messages:'💬', waiter_calls:'🛎️', audit:'📜', customers:'👥' };
 function renderDataResetSettings(el){
-  el.innerHTML = `<div class="box" style="max-width:640px;">
+  const R = [['1m','1 ay'],['3m','3 ay'],['6m','6 ay'],['1y','1 yıl'],['all','Tümü'],['custom','Tarih seç']];
+  el.innerHTML = `<div class="box" style="max-width:none;text-align:left;">
     <h2>🗑️ Verileri Sıfırla</h2>
-    <p class="muted" style="text-align:left;">Seçtiğiniz dönemdeki işlem verilerini <b>kalıcı olarak</b> siler. Silmek istediklerinizi aşağıdan seçin.</p>
-    <div class="field-group"><label>Dönem</label>
-      <select id="resetRange" ${actOn('change','toggleResetCustom',['$value'])}>
-        <option value="1m">Son 1 ay</option>
-        <option value="3m" selected>Son 3 ay</option>
-        <option value="6m">Son 6 ay</option>
-        <option value="1y">Son 1 yıl</option>
-        <option value="all">Tümü (tüm zamanlar)</option>
-        <option value="custom">Tarih aralığı seç…</option>
-      </select>
+    <p class="muted" style="margin:0 0 14px;">Seçtiğiniz dönemdeki işlem verilerini <b>kalıcı olarak</b> siler. Bu işlem geri alınamaz.</p>
+    <div class="dr-layout">
+      <div>
+        <div class="dr-step"><span>1</span>Dönem</div>
+        <select id="resetRange" style="display:none;" ${actOn('change','toggleResetCustom',['$value'])}>${R.map(([k,l]) => `<option value="${k}" ${k==='3m'?'selected':''}>${l}</option>`).join('')}</select>
+        <div class="seg dr-seg">${R.map(([k,l]) => `<button type="button" data-rr="${k}" class="${k==='3m'?'on':''}" ${act('setResetRange', k)}>${k==='all'||k==='custom' ? l : 'Son ' + l}</button>`).join('')}</div>
+        <div id="resetCustom" style="display:none;gap:10px;flex-wrap:wrap;margin-top:10px;">
+          <div class="field-group" style="flex:1;min-width:140px;"><label>Başlangıç</label><input type="date" id="resetFrom"></div>
+          <div class="field-group" style="flex:1;min-width:140px;"><label>Bitiş</label><input type="date" id="resetTo" value="${todayLocalDateStr()}"></div>
+        </div>
+        <div class="dr-step" style="margin-top:18px;"><span>2</span>Silinecek veriler <small class="muted" id="drCount"></small></div>
+        <div class="dr-grid" ${actOn('change','updateResetCount',[])}>
+          ${RESET_CATEGORIES.map(c => `<label class="dr-card ${c.warn?'warn':''}">
+            <input type="checkbox" class="resetCat" value="${c.id}" ${c.off?'':'checked'}>
+            <span class="dr-ic">${RESET_ICONS[c.id]||'🗂️'}</span>
+            <span class="dr-txt"><b>${c.label}${c.warn?' <em>⚠️ dikkat</em>':''}</b>${c.hint?`<small>${c.hint}</small>`:''}</span>
+            <span class="dr-chk"></span>
+          </label>`).join('')}
+        </div>
+      </div>
+      <div class="dr-side">
+        <details class="dr-kept"><summary>🔒 Silinmeyecek veriler <small>(${RESET_KEPT.length})</small></summary>
+          <ul>${RESET_KEPT.map(k => `<li>✓ ${k}</li>`).join('')}</ul></details>
+        <div class="dr-danger">
+          <div class="dr-step"><span>3</span>Onayla</div>
+          <p class="muted" style="font-size:12.5px;margin:0 0 10px;">Silmeden önce son bir kez soracağız.</p>
+          <label style="font-size:12.5px;font-weight:700;">Giriş şifreniz</label>
+          <input type="password" id="resetPassword" autocomplete="current-password" placeholder="••••••••" style="margin:6px 0 12px;">
+          <button type="button" class="dr-btn" ${act('doDataReset')}>🗑️ Verileri Kalıcı Olarak Sil</button>
+        </div>
+      </div>
     </div>
-    <div id="resetCustom" style="display:none;gap:10px;flex-wrap:wrap;">
-      <div class="field-group" style="flex:1;min-width:140px;"><label>Başlangıç</label><input type="date" id="resetFrom"></div>
-      <div class="field-group" style="flex:1;min-width:140px;"><label>Bitiş</label><input type="date" id="resetTo" value="${todayLocalDateStr()}"></div>
-    </div>
-    <div class="field-group"><label>Silinecek veriler</label></div>
-    ${RESET_CATEGORIES.map(c => `<label style="display:flex;gap:10px;align-items:flex-start;margin:0 0 10px;cursor:pointer;">
-      <input type="checkbox" class="resetCat" value="${c.id}" style="width:auto;margin-top:3px;" ${c.off?'':'checked'}>
-      <span>${c.label}${c.warn?' <span style="color:var(--red);font-size:12px;font-weight:700;">⚠️ dikkat</span>':''}${c.hint?`<br><span class="muted" style="font-size:12px;">${c.hint}</span>`:''}</span></label>`).join('')}
-    <div class="reset-kept"><b>🔒 Silinmeyecek veriler</b><span class="muted" style="font-size:12px;">Hangi seçeneği işaretlerseniz işaretleyin bunlar korunur:</span>
-      <ul>${RESET_KEPT.map(k => `<li>${k}</li>`).join('')}</ul></div>
-    <div class="field-group" style="margin-top:14px;"><label>Onay için giriş şifreniz</label><input type="password" id="resetPassword" autocomplete="current-password"></div>
-    <button style="background:var(--red);color:var(--btn-ink);max-width:260px;" ${act('doDataReset')}>Verileri Kalıcı Olarak Sil</button>
   </div>`;
+  updateResetCount();
 }
+function setResetRange(k){
+  const sel = document.getElementById('resetRange'); if(!sel) return;
+  sel.value = k; document.querySelectorAll('[data-rr]').forEach(b => b.classList.toggle('on', b.dataset.rr === k));
+  toggleResetCustom(k);
+}
+function updateResetCount(){ const n = document.querySelectorAll('.resetCat:checked').length, el = document.getElementById('drCount'); if(el) el.textContent = n + ' / ' + RESET_CATEGORIES.length + ' seçili'; }
 function resetRangeDates(){
   const v = document.getElementById('resetRange').value;
   const today = todayLocalDateStr();
