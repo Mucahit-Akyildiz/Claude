@@ -195,13 +195,26 @@ async function renderReportsView(main, session){
         <button type="button" class="range-preset-btn" ${act('setReportDateRangeDays', 6)}>Son 7 Gün</button>
         <button type="button" class="range-preset-btn" ${act('setReportDateRangeDays', 9)}>Son 10 Gün</button>
         <button type="button" class="range-preset-btn" ${act('setReportDateRangeDays', 29)}>Son 30 Gün</button>
+        <span style="flex:1;"></span>
+        <button type="button" class="range-preset-btn" ${act('exportAnalytics')} title="Bu sekmeyi Excel'de açılabilir dosya olarak indir">⬇ Excel</button>
+        <button type="button" class="range-preset-btn" ${act('printAnalytics')} title="Yazdır veya PDF olarak kaydet">🖨️ PDF</button>
       </div>
+      <div class="an-search-wrap"><input id="anSearch" class="an-search" placeholder="🔍 Raporlarda ara: ürün, masa, personel, hammadde ya da “nakit”, “stok”, “kâr”…" autocomplete="off" ${actOn('input','anSearch',['$value'])}><div id="anSearchRes" class="an-sres" hidden></div></div>
     </div>
-    <div class="bx-tabs rp-tabs" id="reportTabs">
-      ${[['summary','📊','Genel Özet'],['period','📈','Dönemsel Analiz'],['vat','🧾','KDV'],['products','📦','Ürün İstatistikleri'],['staff','👤','Personel Analizleri'],['customers','🧑‍🤝‍🧑','Müşteri Analizleri'],['tips','💰','Bahşiş Havuzu'],['waste','🔥','İsraf'],['cancel','❌','İptaller'],['resv','📅','Rezervasyon Analizi'],['openacc','📒','Açık Hesaplar']].map(([k, ic, l], i) => `<button type="button" class="bx-tab tab ${(APP.reportTab||'summary')===k?'active on':''}" style="--sc:var(--c${i%4+1});" data-tab="${k}" ${act('setReportTab', k)}><span class="bx-ic">${ic}</span>${l}</button>`).join('')}
-    </div>
-    <div id="reportContent"></div>`;
+    <div class="set-layout rp-layout">
+      <nav class="tabs settings-tabs set-nav" id="reportTabs">
+        ${reportTabList().map(([k, ic, l, dsc], i) => `<div class="tab set-item ${(APP.reportTab||'summary')===k?'active on':''}" data-tab="${k}" style="--i:${i};--sc:${RACE_COLORS[i%RACE_COLORS.length]};" ${act('setReportTab', k)}><span class="set-ico">${ic}</span><span class="set-txt"><b>${l}</b><small>${dsc}</small></span></div>`).join('')}
+      </nav>
+      <div id="reportContent" class="set-content"></div>
+    </div>`;
   await renderReportTabContent(session);
+}
+function reportTabList(){
+  const dsc = { summary:'Ciro, kâr, ödemeler', cockpit:'Karşılaştırma, tahmin, uyarılar', menueng:'Kârlılık haritası', tablemap:'Masa bazlı ciro', heat:'Gün × saat yoğunluğu',
+    stockf:'Ne zaman bitecek', zreport:'Z raporu, yazdır', waiters:'Personel performansı', journey:'Sadakat, kayıp müşteri', period:'Saatlik / günlük', vat:'Vergi dağılımı',
+    products:'En çok satanlar', staff:'Personel ısı haritası', customers:'Müşteri harcamaları', tips:'Bahşiş dağılımı', waste:'Fire ve israf', cancel:'İptal masa ve ürünler',
+    resv:'Rezervasyon performansı', openacc:'Veresiye bakiyeleri' };
+  return [['summary','📊','Genel Özet'], ...AN_TABS, ['period','📈','Dönemsel Analiz'],['vat','🧾','KDV'],['products','📦','Ürün İstatistikleri'],['staff','👤','Personel Analizleri'],['customers','🧑‍🤝‍🧑','Müşteri Analizleri'],['tips','💰','Bahşiş Havuzu'],['waste','🔥','İsraf'],['cancel','❌','İptaller'],['resv','📅','Rezervasyon Analizi'],['openacc','📒','Açık Hesaplar']].map(t => [...t, dsc[t[0]] || '']);
 }
 function setReportTab(tab){
   if(tab !== APP.reportTab) pushScreen();
@@ -246,6 +259,14 @@ function renderReportTabContent(session){
   if(tab==='tips') return renderTipPoolContent(session);
   if(tab==='waste') return renderWasteContent(session);
   if(tab==='cancel') return renderCancelReportContent(session);
+  if(tab==='cockpit') return renderCockpitContent(session);
+  if(tab==='menueng') return renderMenuEngContent(session);
+  if(tab==='tablemap') return renderTableMapContent(session);
+  if(tab==='heat') return renderHeatContent(session);
+  if(tab==='stockf') return renderStockForecastContent(session);
+  if(tab==='zreport') return renderZReportContent(session);
+  if(tab==='waiters') return renderWaiterCardsContent(session);
+  if(tab==='journey') return renderJourneyContent(session);
   if(tab==='resv') return renderReservationAnalyticsContent(session);
   if(tab==='openacc') return renderOpenAccountsContent(session);
   return renderReportContent(session);
