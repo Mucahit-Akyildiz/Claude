@@ -2132,3 +2132,7 @@ input.sw:checked{background:var(--c1);} input.sw:checked::after{transform:transl
 .tc-zone-h{grid-column:1/-1;display:flex;align-items:center;gap:10px;margin:8px 0 -2px;font-size:13px;color:var(--muted)}
 .tc-zone-h b{color:var(--text);font-size:15px}
 .tc-zone-h::after{content:'';flex:1;height:1px;background:var(--border)}
+.pchip.rh-bad{background:#ef444422!important;color:#ef4444!important;border-color:#ef444466!important}
+.ct-mask{white-space:nowrap}
+.ct-rev{cursor:pointer;border-bottom:1px dashed currentColor}
+.ct-rev a{color:var(--accent)}

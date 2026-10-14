@@ -349,3 +349,24 @@ function tableOptionsHtml(selectedId, busy){
   return ((APP.config && APP.config.zones) || []).map(z => `<optgroup label="${escapeAttr(z.name)}">${(z.tables||[]).slice().sort(nat).map(t =>
     `<option value="${t.id}" ${t.id===selectedId?'selected':''}>${escapeHtml(t.name)}${busy && busy.has(t.id) ? ' (dolu)' : ''}</option>`).join('')}</optgroup>`).join('');
 }
+/* KVKK: müşteri telefon / e-postası listelerde maskeli görünür; yalnızca Yönetici
+   dokunarak tam halini görebilir (tam değer yönetici olmayanların sayfasına hiç yazılmaz). */
+function maskPhone(p){ const d = String(p||'').replace(/\D/g, ''); if(d.length < 6) return '•••'; return d.slice(0, 4) + ' *** ** ' + d.slice(-2); }
+function maskEmail(e){ const [u, dom] = String(e||'').split('@'); if(!dom) return '•••'; return u.slice(0, 2) + '***@' + dom; }
+function contactHtml(val, kind){
+  if(!val) return '';
+  const ic = kind==='email' ? '✉️ ' : '📞 ';
+  const masked = kind==='email' ? maskEmail(val) : maskPhone(val);
+  const s = typeof getSession === 'function' ? getSession() : null;
+  if(!(s && s.isManager)) return `<span class="ct-mask" title="Kişisel veri (KVKK) — sadece yönetici görebilir">${ic}${escapeHtml(masked)}</span>`;
+  return `<span class="ct-mask ct-rev" role="button" title="Tam halini göster" data-full="${escapeAttr(val)}" data-kind="${kind||'phone'}" ${actStop('revealContact', '$this')}>${ic}${escapeHtml(masked)} 👁</span>`;
+}
+function phoneHtml(p){ return contactHtml(p, 'phone'); }
+function emailHtml(e){ return contactHtml(e, 'email'); }
+function revealContact(el){
+  const full = el.dataset.full, kind = el.dataset.kind;
+  if(el.dataset.shown){ el.innerHTML = (kind==='email' ? '✉️ ' : '📞 ') + escapeHtml(kind==='email' ? maskEmail(full) : maskPhone(full)) + ' 👁'; delete el.dataset.shown; return; }
+  el.innerHTML = kind==='email' ? `✉️ <a href="mailto:${escapeAttr(full)}">${escapeHtml(full)}</a>` : `📞 <a href="tel:${escapeAttr(full)}">${escapeHtml(full)}</a>`;
+  el.dataset.shown = '1';
+  setTimeout(() => { if(el.dataset.shown) revealContact(el); }, 15000);
+}

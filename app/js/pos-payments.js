@@ -1399,7 +1399,7 @@ function tableCustomerInnerHtml(tableId, editing){
   }
   return `<div style="background:var(--panel2);border:1px solid var(--border);border-radius:12px;padding:10px 12px;margin-bottom:12px;font-size:13.5px;display:flex;gap:10px;align-items:flex-start;">
     <div style="flex:1;min-width:0;">
-      ${name ? `<div><b>👤 ${escapeHtml(name)}</b>${phone ? ` · <a href="tel:${escapeAttr(phone)}" style="color:var(--accent);">${escapeHtml(phone)}</a>` : ''}</div>` : (phone ? `<div>📞 <a href="tel:${escapeAttr(phone)}" style="color:var(--accent);">${escapeHtml(phone)}</a></div>` : '')}
+      ${name ? `<div><b>👤 ${escapeHtml(name)}</b>${phone ? ` · ${phoneHtml(phone)}` : ''}</div>` : (phone ? `<div>${phoneHtml(phone)}</div>` : '')}
       ${o.note ? `<div class="muted" style="margin-top:3px;overflow-wrap:anywhere;">${escapeHtml(o.note)}</div>` : ''}
     </div>
     <button type="button" class="sbtn" style="width:auto;margin:0;" ${act('editTableCustomer', tableId, false)}>✏️</button>
@@ -1578,7 +1578,7 @@ function drawOpenAccountList(q){
   q = String(q||'').trim().toLocaleLowerCase('tr');
   const rows = (APP.openAccounts||[]).filter(a => !q || a.name.toLocaleLowerCase('tr').includes(q) || String(a.phone||'').includes(q));
   box.innerHTML = rows.length ? rows.map(a => `<div class="oa-row" ${act('transferToOpenAccount', a.id)}>${avatarHtml(a.name)}
-      <span class="oa-n"><b>${escapeHtml(a.name)}</b>${a.phone ? '<small>📞 ' + escapeHtml(a.phone) + '</small>' : ''}</span>
+      <span class="oa-n"><b>${escapeHtml(a.name)}</b>${a.phone ? '<small>' + phoneHtml(a.phone) + '</small>' : ''}</span>
       <span class="oa-b ${a.balance > 0 ? 'debt' : ''}">${money(a.balance)}</span></div>`).join('')
     : '<p class="muted" style="padding:10px;margin:0;">Açık hesap yok — aşağıdan yeni oluşturun.</p>';
 }

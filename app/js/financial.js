@@ -1137,7 +1137,7 @@ function drawResvAnalytics(){
         ${rows.map(r => {
           const d = (r.status==='seated' && r.quoted!=null) ? Number(r.waited) - Number(r.quoted) : null;
           return `<tr>
-          <td class="col-name">${escapeHtml(r.customer_name)}${r.phone ? `<div class="muted" style="font-size:11.5px;">${escapeHtml(r.phone)}</div>` : ''}</td>
+          <td class="col-name">${escapeHtml(r.customer_name)}${r.phone ? `<div class="muted" style="font-size:11.5px;">${phoneHtml(r.phone)}</div>` : ''}</td>
           <td>${r.party_size}</td>
           <td>${dt(r.joined_at)} ${hm(r.joined_at)}</td>
           <td>${r.status==='seated' ? '✅ Oturdu ' + hm(r.seated_at) : r.status==='cancelled' ? `<span style="color:var(--red);">✕ Ayrıldı ${hm(r.left_at)}</span>` : '<span class="muted">Bekliyor</span>'}</td>
@@ -1208,7 +1208,7 @@ function drawResvAnalytics(){
     ${filterBar(rows.length)}
     ${rows.length ? `<div class="settings-table-wrap"><table class="settings-table"><thead><tr><th>Müşteri</th><th>Kişi</th><th>Rezervasyon</th><th>Geliş</th><th>Saate göre</th><th>Masa</th><th>Durum</th><th>Sipariş</th><th></th></tr></thead><tbody>
       ${rows.map(r => `<tr>
-        <td class="col-name">${escapeHtml(r.customer_name)}${r.phone ? `<div class="muted" style="font-size:11.5px;">${escapeHtml(r.phone)}</div>` : ''}${r.notes ? `<div class="muted" style="font-size:11px;overflow-wrap:anywhere;">${escapeHtml(r.notes)}</div>` : ''}</td>
+        <td class="col-name">${escapeHtml(r.customer_name)}${r.phone ? `<div class="muted" style="font-size:11.5px;">${phoneHtml(r.phone)}</div>` : ''}${r.notes ? `<div class="muted" style="font-size:11px;overflow-wrap:anywhere;">${escapeHtml(r.notes)}</div>` : ''}</td>
         <td>${r.party_size}</td>
         <td>${dt(r.reservation_time)} ${hm(r.reservation_time)}</td>
         <td>${r.seated_at ? hm(r.seated_at) : '<span class="muted">-</span>'}</td>
@@ -1284,7 +1284,7 @@ async function showOpenAccEntries(id){
   const w = document.createElement('div'); w.id = 'oaEntriesModalBg'; w.className = 'pdrawer-wrap';
   w.innerHTML = `<div class="pdrawer-bg" ${act('removeEl','oaEntriesModalBg')}></div>
     <aside class="pdrawer oa-drawer">
-      <div class="pdrawer-head">${avatarHtml(a.name)}<div><small class="muted">Açık hesap</small><h3>${escapeHtml(a.name)}</h3>${a.phone ? `<small class="muted">📞 ${escapeHtml(a.phone)}</small>` : ''}</div>
+      <div class="pdrawer-head">${avatarHtml(a.name)}<div><small class="muted">Açık hesap</small><h3>${escapeHtml(a.name)}</h3>${a.phone ? `<small class="muted">${phoneHtml(a.phone)}</small>` : ''}</div>
         <button type="button" class="pdrawer-x" ${act('removeEl','oaEntriesModalBg')}>✕</button></div>
       <div class="pdrawer-body">
         <div class="oad-bal ${debt?'debt':''}"><small>Güncel bakiye</small><b>${money(a.balance)}</b><span>${debt ? '● Borçlu' : '✓ Hesap kapalı'}</span></div>
