@@ -2285,3 +2285,20 @@ input.sw:checked{background:var(--c1);} input.sw:checked::after{transform:transl
 .an-tl-i{display:flex;align-items:flex-start;gap:10px;padding:8px 0;border-bottom:1px dashed var(--border)}
 .an-tl-i>i{width:10px;height:10px;border-radius:50%;background:var(--c1);margin-top:5px;flex:0 0 10px;box-shadow:0 0 0 4px color-mix(in srgb,var(--c1) 20%,transparent)}
 .an-tl-i>div{flex:1;min-width:0}.an-tl-i b{display:block;font-size:13px}.an-tl-i small{font-size:11.5px;color:var(--muted)}.an-tl-i>span{font-weight:800;white-space:nowrap}
+/* Sipariş Al menü sırası */
+.mo-wrap{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(220px,1fr);gap:16px;align-items:start}
+@media (max-width:800px){.mo-wrap{grid-template-columns:1fr}}
+.mo-list{display:flex;flex-direction:column;gap:8px}
+.mo-item{--sc:var(--c1);display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:14px;border:1px solid var(--border);border-left:4px solid var(--sc);background:linear-gradient(90deg,color-mix(in srgb,var(--sc) 10%,var(--panel)),var(--panel));transition:transform .15s,box-shadow .15s,opacity .15s}
+.mo-item[draggable]{cursor:grab}
+.mo-item.dragging{opacity:.5;transform:scale(.98);box-shadow:0 10px 26px rgba(0,0,0,.35)}
+.mo-item.mo-fixed{--sc:var(--c1);opacity:.75}.mo-item.mo-fixed small{margin-left:auto;font-size:11.5px;color:var(--muted)}
+.mo-grip{color:var(--muted);letter-spacing:-2px;font-weight:800;user-select:none}
+.mo-no{width:26px;height:26px;border-radius:8px;display:grid;place-items:center;font-weight:800;font-size:12.5px;background:var(--sc);color:#fff;flex:0 0 26px}
+.mo-txt{flex:1;min-width:0}.mo-txt b{display:block}.mo-txt small{font-size:11.5px;color:var(--muted)}
+.mo-arrows{display:flex;gap:4px}.mo-arrows button{width:30px;height:30px;padding:0;margin:0;border-radius:9px;font-size:11px}
+.mo-preview{position:sticky;top:12px;padding:12px;border-radius:16px;border:1px dashed var(--border)}
+.mo-pv{margin-top:8px;display:flex;flex-direction:column;gap:4px}
+.mo-pv-i{display:flex;justify-content:space-between;padding:9px 12px;border-radius:10px;font-size:12.5px;font-weight:700;text-transform:uppercase;color:var(--muted)}
+.mo-pv-i.on{background:color-mix(in srgb,var(--c1) 18%,transparent);color:var(--text);border-left:3px solid var(--c1)}
+.mo-pv-i em{font-style:normal;font-size:11px;padding:1px 7px;border-radius:999px;background:var(--border)}
