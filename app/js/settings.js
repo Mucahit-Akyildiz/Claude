@@ -1595,11 +1595,24 @@ async function renderShiftsSettings(el, session){
     <div id="shiftsTableWrap"><p class="muted">Yükleniyor…</p></div>
   </div>`;
   await renderShiftsTable(session);
+  // Sekme açıkken yeni vardiya istekleri / değişiklikler 20 sn'de bir sessizce gelir (animasyonsuz, yanıp sönmeden).
+  if(SHIFTS_TIMER) clearInterval(SHIFTS_TIMER);
+  SHIFTS_TIMER = setInterval(() => {
+    if(APP.view!=='settings' || !document.getElementById('shiftsTableWrap')){ clearInterval(SHIFTS_TIMER); SHIFTS_TIMER = null; return; }
+    if(typeof uiBusyForAutoRefresh==='function' && uiBusyForAutoRefresh()) return;
+    renderShiftsTable(getSession(), true);
+  }, 20000);
 }
+let SHIFTS_TIMER = null;
 function changeShiftsDate(v){ APP.shiftsDate = v; const i = document.getElementById('shiftsDateInput'); if(i) i.value = v; renderShiftsTable(getSession()); }
 function shiftDayStep(d){ const x = new Date(APP.shiftsDate+'T12:00'); x.setDate(x.getDate()+d); changeShiftsDate(x.getFullYear()+'-'+String(x.getMonth()+1).padStart(2,'0')+'-'+String(x.getDate()).padStart(2,'0')); }
-async function renderShiftsTable(session){
+async function renderShiftsTable(session, quiet){
   const wrap = document.getElementById('shiftsTableWrap'); if(!wrap) return;
+  const box = wrap.closest('.box');
+  if(quiet){ if(box) box.dataset.snap = '1'; APP.silentLoad = true; } else if(box) delete box.dataset.snap;
+  try { await renderShiftsTableInner(session, wrap); } finally { if(quiet) setTimeout(() => { APP.silentLoad = false; }, 0); }
+}
+async function renderShiftsTableInner(session, wrap){
   const { data, error } = await withLoadingOverlay(sb.rpc('list_staff_shifts', { p_token: session.session_token, p_date: APP.shiftsDate }));
   if(error){ wrap.innerHTML = '<p class="muted">Yüklenemedi: '+error.message+'</p>'; return; }
   const approvalWrap = document.getElementById('shiftApprovalWrap');
