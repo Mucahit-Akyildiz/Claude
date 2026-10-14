@@ -4067,6 +4067,72 @@ end; $$;
 
 
 --
+-- Name: get_analytics_bundle(uuid, date, date); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.get_analytics_bundle(p_token uuid, p_date date, p_date_to date DEFAULT NULL::date) RETURNS json
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'extensions', 'pg_temp'
+    AS $$
+declare s staff_sessions%rowtype; r uuid; d1 date; d2 date; n int; f timestamptz; t timestamptz; pf timestamptz; pt timestamptz; res json;
+begin
+  s := _session_check(p_token, 'reports'); r := s.restaurant_id;
+  d1 := p_date; d2 := coalesce(p_date_to, p_date); n := (d2 - d1) + 1;
+  f := d1::timestamp at time zone 'Europe/Istanbul'; t := (d2 + 1)::timestamp at time zone 'Europe/Istanbul';
+  pf := (d1 - n)::timestamp at time zone 'Europe/Istanbul'; pt := f;
+  with sh as (select * from sales_history where restaurant_id = r and closed_at >= pf and closed_at < t),
+  cur as (select * from sh where closed_at >= f),
+  prv as (select * from sh where closed_at < f),
+  oi as (select oi.*, o.created_by from order_items oi join orders o on o.id = oi.order_id
+         where o.restaurant_id = r and oi.paid and oi.paid_at >= f and oi.paid_at < t),
+  kpi as (select json_build_object(
+      'revenue', coalesce(sum(total),0), 'checks', count(*), 'discount', coalesce(sum(discount_amount),0)+coalesce(sum(birthday_discount_amount),0),
+      'tips', coalesce(sum(tip_amount),0), 'cost', coalesce(sum(cost),0), 'cash', coalesce(sum(cash_amount),0), 'card', coalesce(sum(card_amount),0),
+      'gift', coalesce(sum(gift_card_amount),0), 'comp', coalesce(sum(subtotal) filter (where tags is not null and cardinality(tags) > 0),0),
+      'comp_n', count(*) filter (where tags is not null and cardinality(tags) > 0), 'birthday', coalesce(sum(birthday_discount_amount),0),
+      'avg_min', coalesce(round(avg(extract(epoch from (closed_at - ordered_at))/60) filter (where ordered_at is not null and kind = 'dine_in')),0)) j from cur),
+  pkpi as (select json_build_object('revenue', coalesce(sum(total),0), 'checks', count(*), 'discount', coalesce(sum(discount_amount),0), 'tips', coalesce(sum(tip_amount),0), 'cost', coalesce(sum(cost),0)) j from prv)
+  select json_build_object(
+    'days', n,
+    'kpi', (select j from kpi), 'prev', (select j from pkpi),
+    'cancel', json_build_object(
+       'cur', (select json_build_object('n', count(*), 'amount', coalesce(sum(coalesce(price,0)*qty),0)) from kitchen_cancellations where restaurant_id = r and kind = 'item' and created_at >= f and created_at < t),
+       'orders', (select count(*) from orders where restaurant_id = r and status = 'cancelled' and coalesce(cancelled_at, created_at) >= f and coalesce(cancelled_at, created_at) < t),
+       'prev_orders', (select count(*) from orders where restaurant_id = r and status = 'cancelled' and coalesce(cancelled_at, created_at) >= pf and coalesce(cancelled_at, created_at) < pt)),
+    'waste', (select coalesce(sum(total_cost),0) from waste_log where restaurant_id = r and created_at >= f and created_at < t),
+    'daily', coalesce((select json_agg(x order by x.d) from (select (closed_at at time zone 'Europe/Istanbul')::date d, sum(total) rev, count(*) n from cur group by 1) x), '[]'),
+    'month', coalesce((select json_agg(x order by x.d) from (select (closed_at at time zone 'Europe/Istanbul')::date d, sum(total) rev from sales_history
+        where restaurant_id = r and closed_at >= date_trunc('month', now() at time zone 'Europe/Istanbul') at time zone 'Europe/Istanbul' group by 1) x), '[]'),
+    'heat', coalesce((select json_agg(x) from (select extract(isodow from closed_at at time zone 'Europe/Istanbul')::int dow, extract(hour from closed_at at time zone 'Europe/Istanbul')::int h,
+        sum(total) rev, count(*) n from cur group by 1,2) x), '[]'),
+    'products', coalesce((select json_agg(x) from (select coalesce(oi.product_id::text, oi.name) k, max(oi.name) name, sum(oi.qty) qty, sum(oi.price*oi.qty) rev, sum(coalesce(oi.cost, p.cost, 0)*oi.qty) cost
+        from oi left join products p on p.id = oi.product_id group by 1) x), '[]'),
+    'tables', coalesce((select json_agg(x) from (select table_name, sum(total) rev, count(*) n, round(avg(extract(epoch from (closed_at - ordered_at))/60) filter (where ordered_at is not null)) mins
+        from cur where kind = 'dine_in' and table_name is not null group by 1) x), '[]'),
+    'staff', coalesce((select json_agg(x) from (select u.id, u.username, coalesce(sum(c.total),0) rev, count(c.id) n, coalesce(sum(c.tip_amount),0) tips,
+        (select count(*) from kitchen_cancellations k where k.restaurant_id = r and k.kind='item' and k.cancelled_by = u.username and k.created_at >= f and k.created_at < t)
+          + (select count(*) from orders o2 where o2.restaurant_id = r and o2.status='cancelled' and o2.cancelled_by = u.id and o2.cancelled_at >= f and o2.cancelled_at < t) cancels,
+        (select oi2.name from oi oi2 where oi2.added_by = u.id group by oi2.name order by sum(oi2.qty) desc limit 1) top_product,
+        (select coalesce(sum(oi3.qty),0) from oi oi3 where oi3.added_by = u.id) items
+        from app_users u left join cur c on c.staff_user_id = u.id where u.restaurant_id = r group by u.id, u.username having count(c.id) > 0 or exists(select 1 from oi oi4 where oi4.added_by = u.id)) x), '[]'),
+    'customers', json_build_object(
+       'new', (select count(*) from customers where restaurant_id = r and created_at >= f and created_at < t),
+       'visits', (select count(distinct customer_id) from cur where customer_id is not null),
+       'returning', (select count(distinct c.customer_id) from cur c join customers cu on cu.id = c.customer_id where cu.created_at < f),
+       'at_risk', coalesce((select json_agg(x) from (select id, name, phone, total_visits, total_spent, last_visit_at from customers
+          where restaurant_id = r and total_visits >= 3 and last_visit_at < now() - interval '60 days' order by total_spent desc limit 12) x), '[]'),
+       'avg_return_days', (select round(avg(extract(epoch from (last_visit_at - created_at))/86400 / nullif(total_visits - 1, 0))) from customers where restaurant_id = r and total_visits > 1)),
+    'stock', coalesce((select json_agg(x order by x.days_left nulls last) from (
+        select ing.id, ing.name, ing.unit, ing.stock,
+          round(coalesce((select sum(pi.qty_per_unit * oi5.qty) from order_items oi5 join orders o5 on o5.id = oi5.order_id join product_ingredients pi on pi.product_id = oi5.product_id
+             where o5.restaurant_id = r and pi.ingredient_id = ing.id and oi5.added_at >= now() - interval '14 days'), 0) / 14.0, 3) per_day
+        from ingredients ing where ing.restaurant_id = r) y cross join lateral (select y.*, case when y.per_day > 0 then round(y.stock / y.per_day, 1) end days_left) x), '[]')
+  ) into res;
+  return res;
+end $$;
+
+
+--
 -- Name: get_bank_transfer_status(uuid, text); Type: FUNCTION; Schema: public; Owner: -
 --
 
