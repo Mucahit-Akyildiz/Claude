@@ -48,8 +48,9 @@ async function renderReservationsContent(session, forceRefresh){
   const days = [...new Set(sorted.map(dkey))];
   const dayLabel = (k) => { const d = new Date(k+'T00:00'); const diff = Math.round((d - new Date(today+'T00:00'))/86400000);
     return (diff===0 ? 'Bugün' : diff===1 ? 'Yarın' : diff===-1 ? 'Dün' : '') + ' <small>' + d.toLocaleDateString('tr-TR',{weekday:'long', day:'numeric', month:'long'}) + '</small>'; };
+  const rvTags = (r) => [dkey(r)===today ? 'today' : '', r.status==='pending' ? 'pending' : '', next && r.id===next.id ? 'next' : ''].filter(Boolean).join(' ') || 'none';
   const card = (r) => { const t = new Date(r.reservation_time), late = t < new Date() && r.status !== 'seated'; const mins = Math.round((t - new Date())/60000), soon = !late && mins <= 120 && mins >= 0;
-    return `<div class="rv-card st-${r.status}${late?' late':''}${soon?' soon':''}" data-badge-id="${r.id}">
+    return `<div class="rv-card st-${r.status}${late?' late':''}${soon?' soon':''}" data-cf-tags="${rvTags(r)}" data-badge-id="${r.id}">
       <div class="rv-time"><b>${t.toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'})}</b><span class="rv-pill">${RESV_STATUS_LABELS[r.status]||r.status}</span></div>
       <div class="rv-main">
         <div class="rv-who">${avatarHtml(r.customer_name)}<div><b>${escapeHtml(r.customer_name)}</b><small>${r.phone ? phoneHtml(r.phone) : 'telefon yok'}</small></div></div>
@@ -65,11 +66,11 @@ async function renderReservationsContent(session, forceRefresh){
       </div>
     </div>`; };
   el.innerHTML = statChips([
-      ['📅', todays.length, 'Bugünkü rezervasyon', 'var(--c1)'],
-      ['👥', todays.reduce((x, r) => x + (Number(r.party_size)||0), 0), 'Bugün beklenen kişi', 'var(--c2)'],
-      ['⏳', rows.filter(r => r.status==='pending').length, 'Onay bekleyen', 'var(--c3)'],
-      ['⏭️', next ? new Date(next.reservation_time).toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'}) : '—', next ? 'Sıradaki: '+escapeHtml(next.customer_name) : 'Sıradaki yok', 'var(--c4)']
-    ]) + `<div class="box" style="max-width:none;">
+      ['📅', todays.length, 'Bugünkü rezervasyon', 'var(--c1)', 'today'],
+      ['👥', todays.reduce((x, r) => x + (Number(r.party_size)||0), 0), 'Bugün beklenen kişi', 'var(--c2)', 'today'],
+      ['⏳', rows.filter(r => r.status==='pending').length, 'Onay bekleyen', 'var(--c3)', 'pending'],
+      ['⏭️', next ? new Date(next.reservation_time).toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'}) : '—', next ? 'Sıradaki: '+escapeHtml(next.customer_name) : 'Sıradaki yok', 'var(--c4)', next ? 'next' : '']
+    ], '', 'resv') + `<div class="box" style="max-width:none;">
     <h2>Rezervasyonlar</h2>
     <div class="add-row-panel" style="margin:0 0 16px;">
       <p>Yeni Rezervasyon</p>
@@ -87,11 +88,11 @@ async function renderReservationsContent(session, forceRefresh){
     </div>
   </div>
   <div class="box" style="max-width:none;margin-top:18px;">
-    <h2 style="margin:0 0 12px;">Yaklaşan Rezervasyonlar</h2>
-    ${days.length ? days.map(k => `<div class="rv-day"><div class="rv-day-h">${dayLabel(k)}<span class="muted">${sorted.filter(r => dkey(r)===k).length} rezervasyon</span></div>
+    <h2 style="margin:0 0 12px;">Yaklaşan Rezervasyonlar</h2><div data-cf-scope="resv">
+    ${days.length ? days.map(k => `<div class="rv-day" data-cf-tags="${[...new Set(sorted.filter(r => dkey(r)===k).flatMap(r => rvTags(r).split(' ')))].join(' ')}"><div class="rv-day-h">${dayLabel(k)}<span class="muted">${sorted.filter(r => dkey(r)===k).length} rezervasyon</span></div>
       <div class="rv-list">${sorted.filter(r => dkey(r)===k).map(card).join('')}</div></div>`).join('')
       : '<div class="empty-state"><div style="font-size:42px;">📅</div><p class="muted">Bekleyen ya da onaylı rezervasyon yok.</p></div>'}
-  </div>
+  </div></div>
   <div class="box" style="max-width:none;margin-top:18px;">
     <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;">
       <h2 style="margin:0;">Geçmiş</h2>
@@ -210,11 +211,11 @@ async function renderWaitlistContent(session, forceRefresh){
   const hasOrder = (w) => (APP.liveOrders||[]).some(o => o.kind==='waitlist' && o.waitlist_id===w.id);
   const avgWait = rows.length ? Math.round(rows.reduce((x, w) => x + (Date.now() - new Date(w.joined_at).getTime())/60000, 0) / rows.length) : 0;
   el.innerHTML = statChips([
-      ['🧍', rows.length, 'Sırada bekleyen', 'var(--c1)'],
+      ['🧍', rows.length, 'Sırada bekleyen', 'var(--c1)', 'all'],
       ['👥', rows.reduce((x, w) => x + (Number(w.party_size)||0), 0), 'Toplam kişi', 'var(--c2)'],
       ['⏱', avgWait + ' dk', 'Ortalama bekleme', 'var(--c3)'],
-      ['🍽️', rows.filter(hasOrder).length, 'Beklerken sipariş veren', 'var(--c4)']
-    ]) + `<div class="box" style="max-width:none;">
+      ['🍽️', rows.filter(hasOrder).length, 'Beklerken sipariş veren', 'var(--c4)', 'ordered']
+    ], '', 'wl') + `<div class="box" style="max-width:none;">
     <h2>Bekleme Listesi</h2>
     <div class="add-row-panel" style="margin:0 0 16px;">
       <p>Bekleme Listesine Ekle</p>
@@ -228,8 +229,8 @@ async function renderWaitlistContent(session, forceRefresh){
       </div>
       <div id="wlCustSuggest"></div>
     </div>
-    ${rows.length ? `<div class="wl-list">${rows.map((w, i) => `
-      <div class="wl-card" data-badge-id="${w.id}" style="--i:${i};">
+    ${rows.length ? `<div class="wl-list" data-cf-scope="wl">${rows.map((w, i) => `
+      <div class="wl-card" data-cf-tags="${hasOrder(w) ? 'ordered' : 'noorder'}" data-badge-id="${w.id}" style="--i:${i};">
         <div class="wl-no">${i+1}</div>
         <div class="rv-who">${avatarHtml(w.customer_name)}<div><b>${escapeHtml(w.customer_name)}</b><small>${w.phone ? phoneHtml(w.phone) : ''}${w.email ? ' ' + emailHtml(w.email) : ''}</small></div></div>
         <div class="wl-info">

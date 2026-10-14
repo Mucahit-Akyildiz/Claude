@@ -278,9 +278,29 @@ function svgDonut(segs, o){
 }
 function shortMoney(v){ v = Number(v)||0; if(v >= 1e6) return (v/1e6).toLocaleString('tr-TR',{maximumFractionDigits:1})+' mn'; if(v >= 1e4) return Math.round(v/1000).toLocaleString('tr-TR')+' bin'; return Math.round(v).toLocaleString('tr-TR'); }
 /* Ekran üstü özet sayaçları: [[ikon, değer, etiket, renk], ...] */
-function statChips(list, cls){
-  return `<div class="order-summary stat-chips ${cls||''}" style="--n:${list.length};">${list.map(([ic, v, l, c]) =>
-    `<div class="os-chip" style="--oc:${c||'var(--c1)'};"><span class="os-ic">${ic}</span><div><b>${v}</b><small>${l}</small></div></div>`).join('')}</div>`;
+function statChips(list, cls, scope){
+  const cur = scope ? ((APP.cf || {})[scope] || '') : '';
+  return `<div class="order-summary stat-chips ${cls||''}" style="--n:${list.length};">${list.map(([ic, v, l, c, key]) => {
+    const click = scope && key;
+    return `<div class="os-chip ${click ? 'os-click' : ''} ${click && cur===key ? 'on' : ''}" style="--oc:${c||'var(--c1)'};" ${click ? `role="button" data-cf-chip="${scope}" data-cf-key="${escapeAttr(key)}" title="${String(key).startsWith('go:') ? 'Aç' : cur===key ? 'Filtreyi kaldır' : 'Sadece bunları göster'}" ${actStop('chipFilter', scope, key)}` : ''}><span class="os-ic">${ic}</span><div><b>${v}</b><small>${l}</small></div></div>`; }).join('')}</div>`;
+}
+/* Tıklanabilir gösterge filtresi: kapsayıcıda data-cf-scope="<scope>", öğelerde
+   data-cf-tags="etiket1 etiket2". Filtre, sayfa yeniden çizilse de korunur (stil kuralı head'de).
+   'go:fonksiyon:arg' anahtarı filtre yerine o fonksiyonu çağırır. */
+function chipFilter(scope, key){
+  if(String(key).startsWith('go:')){ const [, fn, arg] = String(key).split(':'); if(typeof window[fn]==='function') window[fn](arg); return; }
+  APP.cf = APP.cf || {};
+  APP.cf[scope] = (APP.cf[scope]===key || key==='all') ? '' : key;
+  applyChipFilters();
+  document.querySelectorAll(`[data-cf-chip="${scope}"]`).forEach(c => c.classList.toggle('on', c.dataset.cfKey===APP.cf[scope]));
+  const box = document.querySelector(`[data-cf-scope="${scope}"]`);
+  if(box && APP.cf[scope]) box.scrollIntoView({ behavior:'smooth', block:'nearest' });
+}
+function applyChipFilters(){
+  let st = document.getElementById('cfStyle');
+  if(!st){ st = document.createElement('style'); st.id = 'cfStyle'; document.head.appendChild(st); }
+  st.textContent = Object.entries(APP.cf || {}).filter(([, k]) => k).map(([sc, k]) =>
+    `[data-cf-scope="${sc}"] [data-cf-tags]:not([data-cf-tags~="${String(k).replace(/[^\w-]/g, '')}"]){display:none !important}`).join('\n');
 }
 /* İsimden baş harf + sabit renkli avatar */
 function avatarHtml(name, cls){

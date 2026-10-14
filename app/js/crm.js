@@ -8,8 +8,8 @@ async function renderCrmView(main, session){
   const loyalty = APP.config.loyalty || { enabled:false, spend_per_point:10, point_value:1, birthday_discount_percent:0 };
   const bdays = rows.filter(c => { const b = crmBirthdayInfo(c.birthday); return b && b.days <= 30; }).length;
   main.innerHTML = `<h1>Müşteriler</h1>
-    ${statChips([['👥', rows.length, APP.crmSearch ? 'Aramada bulunan' : 'Kayıtlı müşteri', 'var(--c1)'], ['⭐', rows.reduce((x, c) => x + (Number(c.points_balance)||0), 0), 'Toplam puan', 'var(--c3)'],
-      ['🎂', bdays, '30 gün içinde doğum günü', 'var(--c2)'], ['💎', rows.filter(c => (Number(c.points_balance)||0) >= 200).length, 'Altın ve üstü müşteri', 'var(--c4)']])}
+    ${statChips([['👥', rows.length, APP.crmSearch ? 'Aramada bulunan' : 'Kayıtlı müşteri', 'var(--c1)', 'all'], ['⭐', rows.reduce((x, c) => x + (Number(c.points_balance)||0), 0), 'Toplam puan', 'var(--c3)', 'pts'],
+      ['🎂', bdays, '30 gün içinde doğum günü', 'var(--c2)', 'bday'], ['💎', rows.filter(c => (Number(c.points_balance)||0) >= 200).length, 'Altın ve üstü müşteri', 'var(--c4)', 'gold']], '', 'crm')}
     ${canManage(session, 'crm') ? `
     <div class="box" style="max-width:none;">
       <h2>Sadakat Programı</h2>
@@ -54,9 +54,9 @@ async function renderCrmView(main, session){
           </div>
         </details>
       </div>
-      ${rows.length ? `<div class="cu-grid">${rows.map((c, i) => { const bd = crmBirthdayInfo(c.birthday), custom = (c.spend_per_point!=null || c.point_value!=null || c.birthday_discount_percent!=null);
+      ${rows.length ? `<div class="cu-grid" data-cf-scope="crm">${rows.map((c, i) => { const bd = crmBirthdayInfo(c.birthday), custom = (c.spend_per_point!=null || c.point_value!=null || c.birthday_discount_percent!=null);
         const pts = Number(c.points_balance)||0, tier = pts>=500 ? ['💎','Elmas','var(--c2)'] : pts>=200 ? ['🥇','Altın','var(--c3)'] : pts>=50 ? ['🥈','Gümüş','var(--c1)'] : ['🌱','Yeni','#94a3b8'];
-        return `<div class="cu-card" style="--i:${Math.min(i,12)};--tc:${tier[2]};">
+        return `<div class="cu-card" data-cf-tags="${(Number(c.points_balance)||0) > 0 ? 'pts' : ''}${bd && bd.days <= 30 ? ' bday' : ''}${(Number(c.points_balance)||0) >= 200 ? ' gold' : ''}" style="--i:${Math.min(i,12)};--tc:${tier[2]};">
           <div class="cu-top">${avatarHtml(c.name)}<div class="cu-id"><b>${escapeHtml(c.name)}</b><small>${c.phone ? phoneHtml(c.phone) : 'telefon yok'}</small></div><span class="cu-tier">${tier[0]} ${tier[1]}</span></div>
           <div class="cu-pts"><b>${pts}</b><span>puan</span>${loyalty.enabled && loyalty.point_value ? `<small>≈ ${money(pts * Number(c.point_value ?? loyalty.point_value))} indirim</small>` : ''}</div>
           <div class="pcard-chips">
