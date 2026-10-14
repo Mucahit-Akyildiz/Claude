@@ -52,7 +52,7 @@ async function renderReservationsContent(session, forceRefresh){
     return `<div class="rv-card st-${r.status}${late?' late':''}${soon?' soon':''}" data-badge-id="${r.id}">
       <div class="rv-time"><b>${t.toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'})}</b><span class="rv-pill">${RESV_STATUS_LABELS[r.status]||r.status}</span></div>
       <div class="rv-main">
-        <div class="rv-who">${avatarHtml(r.customer_name)}<div><b>${escapeHtml(r.customer_name)}</b><small>${r.phone ? '📞 '+escapeHtml(r.phone) : 'telefon yok'}</small></div></div>
+        <div class="rv-who">${avatarHtml(r.customer_name)}<div><b>${escapeHtml(r.customer_name)}</b><small>${r.phone ? phoneHtml(r.phone) : 'telefon yok'}</small></div></div>
         <div class="rv-meta"><span class="pchip">👥 ${r.party_size} kişi</span><span class="pchip">🪑 ${escapeHtml(r.table_name||'Masa seçilmedi')}</span>${late ? '<span class="pchip warn">⏰ saati geçti</span>' : ''}${soon ? `<span class="pchip rv-soon">⏳ ${mins} dk kaldı</span>` : ''}</div>
         ${r.notes ? `<div class="rv-note">📝 ${escapeHtml(r.notes)}</div>` : ''}
       </div>
@@ -117,12 +117,13 @@ async function renderReservationHistory(){
     <div class="rh-grid">${rows.map((r, i) => {
         const d = r.seated_diff_minutes;
         const st = r.status==='seated' ? 'ok' : 'bad';
-        const diffTxt = d==null ? '' : d > 0 ? `<span class="pchip warn">🐢 ${d} dk geç</span>` : d < 0 ? `<span class="pchip rh-good">⚡ ${-d} dk erken</span>` : '<span class="pchip rh-good">🎯 Tam zamanında</span>';
+        const dur = (m) => m >= 1440 ? Math.round(m/1440) + ' gün' : m >= 60 ? Math.floor(m/60) + ' sa ' + (m%60) + ' dk' : m + ' dk';
+        const diffTxt = d==null ? '' : d > 0 ? `<span class="pchip rh-bad">🐢 ${dur(d)} geç</span>` : d < 0 ? `<span class="pchip rh-good">⚡ ${dur(-d)} erken</span>` : '<span class="pchip rh-good">🎯 Tam zamanında</span>';
         const result = r.status==='seated' ? `✅ Oturdu${r.seated_at ? ' · ' + hm(r.seated_at) : ''}` : r.status==='cancelled' ? `✕ İptal${r.closed_at ? ' · ' + hm(r.closed_at) : ''}` : '🚫 Gelmedi';
         return `<div class="rh-card rh-${st}" style="--i:${Math.min(i,12)};">
-          <div class="rh-top">${avatarHtml(r.customer_name)}<div class="rh-who"><b>${escapeHtml(r.customer_name)}</b><small>${r.phone ? '📞 ' + escapeHtml(r.phone) : 'telefon yok'}</small></div><span class="rh-res">${result}</span></div>
+          <div class="rh-top">${avatarHtml(r.customer_name)}<div class="rh-who"><b>${escapeHtml(r.customer_name)}</b><small>${r.phone ? phoneHtml(r.phone) : 'telefon yok'}</small></div><span class="rh-res">${result}</span></div>
           <div class="rv-meta"><span class="pchip">🕒 ${hm(r.reservation_time)}</span><span class="pchip">👥 ${r.party_size} kişi</span><span class="pchip">🪑 ${r.table_name ? escapeHtml(r.table_name) : '—'}</span>${diffTxt}</div>
-          ${r.email ? `<div class="rh-note" title="${escapeAttr(r.email)}">✉️ ${escapeHtml(r.email)}</div>` : ''}${r.notes ? `<div class="rh-note">📝 ${escapeHtml(r.notes)}</div>` : ''}
+          ${r.email ? `<div class="rh-note">${emailHtml(r.email)}</div>` : ''}${r.notes ? `<div class="rh-note">📝 ${escapeHtml(r.notes)}</div>` : ''}
           <button type="button" class="pc-btn rh-undo" title="Yaklaşan rezervasyonlara geri al" ${act('changeReservationStatus', r.id, 'confirmed')}>↩ Geri Al</button>
         </div>`;
       }).join('')}</div>`;
@@ -142,7 +143,7 @@ async function openSeatReservationModal(id){
   bg.onclick = (e) => { if(e.target===bg){ bg.remove(); renderReservationsContent(getSession()); } };
   bg.innerHTML = `<div style="background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:20px;max-width:380px;width:100%;">
     <div style="display:flex;justify-content:space-between;"><h2 style="margin:0;">Masaya Oturt</h2><span style="cursor:pointer;color:var(--muted);" ${act('closeSeatResvModal')}>✕</span></div>
-    <p class="muted" style="text-align:left;margin:8px 0 12px;"><b>${escapeHtml(r.customer_name)}</b> · ${r.party_size} kişi${r.phone ? ' · ' + escapeHtml(r.phone) : ''}</p>
+    <p class="muted" style="text-align:left;margin:8px 0 12px;"><b>${escapeHtml(r.customer_name)}</b> · ${r.party_size} kişi${r.phone ? ' · ' + phoneHtml(r.phone) : ''}</p>
     <div class="field-group"><label>Masa</label><select id="seatResvTable">
       ${tableOptionsHtml(r.table_id, busy)}
     </select></div>
@@ -230,7 +231,7 @@ async function renderWaitlistContent(session, forceRefresh){
     ${rows.length ? `<div class="wl-list">${rows.map((w, i) => `
       <div class="wl-card" data-badge-id="${w.id}" style="--i:${i};">
         <div class="wl-no">${i+1}</div>
-        <div class="rv-who">${avatarHtml(w.customer_name)}<div><b>${escapeHtml(w.customer_name)}</b><small>${w.phone ? '📞 '+escapeHtml(w.phone) : ''}${w.email ? ' ✉️ '+escapeHtml(w.email) : ''}</small></div></div>
+        <div class="rv-who">${avatarHtml(w.customer_name)}<div><b>${escapeHtml(w.customer_name)}</b><small>${w.phone ? phoneHtml(w.phone) : ''}${w.email ? ' ' + emailHtml(w.email) : ''}</small></div></div>
         <div class="wl-info">
           <span class="pchip">👥 ${w.party_size} kişi</span>
           <span class="pchip">🕐 ${new Date(w.joined_at).toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'})} katıldı</span>
@@ -277,10 +278,10 @@ async function renderWaitlistHistory(){
         const waited = Number(r.waited_minutes||0);
         const q = r.quoted_wait_minutes;
         const diff = (q!=null && r.status==='seated') ? waited - q : null;
-        const diffTxt = diff==null ? '' : diff > 0 ? `<span class="pchip warn">🐢 tahminden ${diff} dk geç</span>` : diff < 0 ? `<span class="pchip rh-good">⚡ tahminden ${-diff} dk erken</span>` : '<span class="pchip rh-good">🎯 Tam zamanında</span>';
+        const diffTxt = diff==null ? '' : diff > 0 ? `<span class="pchip rh-bad">🐢 tahminden ${diff} dk geç</span>` : diff < 0 ? `<span class="pchip rh-good">⚡ tahminden ${-diff} dk erken</span>` : '<span class="pchip rh-good">🎯 Tam zamanında</span>';
         const ok = r.status==='seated';
         return `<div class="rh-card rh-${ok?'ok':'bad'}" style="--i:${Math.min(i,12)};">
-          <div class="rh-top">${avatarHtml(r.customer_name)}<div class="rh-who"><b>${escapeHtml(r.customer_name)}</b><small>${r.phone ? '📞 ' + escapeHtml(r.phone) : 'telefon yok'}</small></div><span class="rh-res">${ok ? '✅ Oturdu · ' + hm(r.seated_at) : '✕ Ayrıldı · ' + hm(r.left_at)}</span></div>
+          <div class="rh-top">${avatarHtml(r.customer_name)}<div class="rh-who"><b>${escapeHtml(r.customer_name)}</b><small>${r.phone ? phoneHtml(r.phone) : 'telefon yok'}</small></div><span class="rh-res">${ok ? '✅ Oturdu · ' + hm(r.seated_at) : '✕ Ayrıldı · ' + hm(r.left_at)}</span></div>
           <div class="rv-meta"><span class="pchip">🕒 ${hm(r.joined_at)} katıldı</span><span class="pchip">👥 ${r.party_size} kişi</span><span class="pchip">🪑 ${r.table_name ? escapeHtml(r.table_name) : '—'}</span><span class="pchip">⏳ ${waited} dk${q!=null ? ' (tahmin ' + q + ')' : ''}</span>${diffTxt}</div>
         </div>`;
       }).join('')}</div>`;
@@ -299,7 +300,7 @@ async function openSeatWaitlistModal(id){
   bg.onclick = (e) => { if(e.target===bg) bg.remove(); };
   bg.innerHTML = `<div style="background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:20px;max-width:380px;width:100%;">
     <div style="display:flex;justify-content:space-between;"><h2 style="margin:0;">Masaya Oturt</h2><span style="cursor:pointer;color:var(--muted);" ${act('removeEl','seatWlModalBg')}>✕</span></div>
-    <p class="muted" style="text-align:left;margin:8px 0 12px;"><b>${escapeHtml(w.customer_name)}</b> · ${w.party_size} kişi${w.phone ? ' · ' + escapeHtml(w.phone) : ''}</p>
+    <p class="muted" style="text-align:left;margin:8px 0 12px;"><b>${escapeHtml(w.customer_name)}</b> · ${w.party_size} kişi${w.phone ? ' · ' + phoneHtml(w.phone) : ''}</p>
     <div class="field-group"><label>Masa</label><select id="seatWlTable">
       ${tableOptionsHtml(null, busy)}
     </select></div>

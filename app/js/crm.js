@@ -57,10 +57,10 @@ async function renderCrmView(main, session){
       ${rows.length ? `<div class="cu-grid">${rows.map((c, i) => { const bd = crmBirthdayInfo(c.birthday), custom = (c.spend_per_point!=null || c.point_value!=null || c.birthday_discount_percent!=null);
         const pts = Number(c.points_balance)||0, tier = pts>=500 ? ['💎','Elmas','var(--c2)'] : pts>=200 ? ['🥇','Altın','var(--c3)'] : pts>=50 ? ['🥈','Gümüş','var(--c1)'] : ['🌱','Yeni','#94a3b8'];
         return `<div class="cu-card" style="--i:${Math.min(i,12)};--tc:${tier[2]};">
-          <div class="cu-top">${avatarHtml(c.name)}<div class="cu-id"><b>${escapeHtml(c.name)}</b><small>${c.phone ? '📞 '+escapeHtml(c.phone) : 'telefon yok'}</small></div><span class="cu-tier">${tier[0]} ${tier[1]}</span></div>
+          <div class="cu-top">${avatarHtml(c.name)}<div class="cu-id"><b>${escapeHtml(c.name)}</b><small>${c.phone ? phoneHtml(c.phone) : 'telefon yok'}</small></div><span class="cu-tier">${tier[0]} ${tier[1]}</span></div>
           <div class="cu-pts"><b>${pts}</b><span>puan</span>${loyalty.enabled && loyalty.point_value ? `<small>≈ ${money(pts * Number(c.point_value ?? loyalty.point_value))} indirim</small>` : ''}</div>
           <div class="pcard-chips">
-            ${c.email ? `<span class="pchip" title="${escapeAttr(c.email)}">✉️ ${escapeHtml(c.email)}</span>` : ''}
+            ${c.email ? `<span class="pchip">${emailHtml(c.email)}</span>` : ''}
             ${bd ? `<span class="pchip ${bd.soon?'warn':''}">🎂 ${bd.text}</span>` : ''}
             ${custom ? `<span class="pchip" title="${escapeAttr(customerLoyaltySummary(c))}">⭐ Özel sadakat</span>` : ''}
           </div>
