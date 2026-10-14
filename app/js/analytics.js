@@ -232,13 +232,50 @@ async function renderZReportContent(session){
     ['🎁 İkram / personel (' + (k.comp_n || 0) + ' hesap)', money(k.comp)], ['❌ İptal edilen masa', c.orders || 0], ['❌ İptal edilen ürün tutarı', money(c.cur && c.cur.amount)], ['🔥 İsraf maliyeti', money(d.waste)], ['—'],
     ['Ürün maliyeti', money(k.cost)], ['BRÜT KÂR', money(anN(k.revenue) - anN(k.cost) - anN(d.waste)), 'big']];
   anSetExport('gun-sonu', ['Kalem', 'Tutar'], rows.filter(r => r.length > 1).map(r => [r[0], String(r[1]).replace(/<[^>]+>/g, '')]));
+  APP.anZRows = rows;
   const s = getSession();
   el.innerHTML = `<div class="an-z-wrap"><div class="an-z" id="anZ">
       <div class="an-z-h"><b>${escapeHtml(s.restaurant_name || '')}</b><span>GÜN SONU RAPORU</span><small>${escapeHtml(reportDateRangeLabel())} · ${new Date().toLocaleString('tr-TR', { dateStyle: 'short', timeStyle: 'short' })}</small></div>
       ${rows.map(r => r.length === 1 ? '<div class="an-z-sep"></div>' : `<div class="an-z-r ${r[2] || ''}"><span>${r[0]}</span><b>${r[1]}</b></div>`).join('')}
       <div class="an-z-f">Peyktan · ${escapeHtml(s.username || '')}</div>
     </div>
-    <div class="an-z-acts"><button type="button" ${act('printZReport')}>🖨️ Yazdır / PDF</button><button type="button" class="ghost-btn" ${act('exportAnalytics')}>⬇ Excel (CSV)</button></div></div>`;
+    <div class="an-z-acts"><button type="button" ${act('printZToReceipt')}>🧾 Fiş Yazıcısına Gönder</button><button type="button" class="ghost-btn" ${act('printZReport')}>🖨️ Yazdır / PDF</button><button type="button" class="ghost-btn" ${act('exportAnalytics')}>⬇ Excel (CSV)</button></div></div>`;
+}
+/* Gün sonu raporunu kasa fişlerinin gittiği "Bu Ekranın Yazıcısı"na 80 mm fiş olarak basar. */
+async function printZToReceipt(){
+  const rows = APP.anZRows || []; if(!rows.length) return;
+  const s = getSession(), printer = getPrinters().find(p => p.id===getActivePrinterId());
+  if(!printer){ showToast('⚠️ Bu ekran için yazıcı seçili değil — Yazıcı Ayarları\'ndan seçin'); return; }
+  const plain = (v) => String(v).replace(/<[^>]+>/g, '').replace(/[^\x20-\x7EçğıöşüÇĞİÖŞÜ₺−]/g, '').trim();
+  const head = [s.restaurant_name || '', 'GUN SONU RAPORU', reportDateRangeLabel(), new Date().toLocaleString('tr-TR', { dateStyle: 'short', timeStyle: 'short' })];
+  if(printer.type==='usb'){
+    const W = 42, enc = (t) => escposEncodeText(t), parts = [];
+    const push = (...b) => parts.push(new Uint8Array(b));
+    push(0x1b, 0x40, 0x1b, 0x61, 1, 0x1b, 0x45, 1); parts.push(enc(head[0] + '\n' + head[1] + '\n')); push(0x1b, 0x45, 0); parts.push(enc(head[2] + '\n' + head[3] + '\n'));
+    push(0x1b, 0x61, 0); parts.push(enc('-'.repeat(W) + '\n'));
+    rows.forEach(r => {
+      if(r.length === 1){ parts.push(enc('-'.repeat(W) + '\n')); return; }
+      const l = plain(r[0]), v = plain(r[1]), line = l.slice(0, W - v.length - 1).padEnd(W - v.length) + v;
+      if(r[2] === 'big'){ push(0x1b, 0x45, 1); parts.push(enc(line + '\n')); push(0x1b, 0x45, 0); } else parts.push(enc(line + '\n'));
+    });
+    push(0x1b, 0x61, 1); parts.push(enc('\nPeyktan - ' + (s.username || '') + '\n\n\n\n')); push(0x1d, 0x56, 0x42, 0x00);
+    const total = parts.reduce((t, p) => t + p.length, 0), bytes = new Uint8Array(total); let o = 0; parts.forEach(p => { bytes.set(p, o); o += p.length; });
+    const ok = await sendToUsbPrinter(printer, bytes);
+    showToast(ok ? '🧾 Gün sonu raporu yazıcıya gönderildi' : '⚠️ Yazıcıya gönderilemedi' + (LAST_USB_ERROR ? ' — ' + LAST_USB_ERROR : ''));
+    return;
+  }
+  const el = document.getElementById('printArea'); if(!el) return;
+  applyTicketDesignStyle(el, getTicketDesign());
+  el.innerHTML = `<div style="text-align:center;"><b style="font-size:1.15em;">${escapeHtml(head[0])}</b><br><b>GÜN SONU RAPORU</b><br><small>${escapeHtml(head[2])}<br>${escapeHtml(head[3])}</small></div><hr>`
+    + rows.map(r => r.length === 1 ? '<hr style="border-style:dashed;">' : `<div style="display:flex;justify-content:space-between;gap:6px;${r[2]==='big'?'font-weight:800;font-size:1.1em;':''}"><span>${r[0]}</span><span style="white-space:nowrap;">${r[1]}</span></div>`).join('')
+    + `<div style="text-align:center;margin-top:8px;"><small>Peyktan · ${escapeHtml(s.username || '')}</small></div>`;
+  await new Promise(r => setTimeout(r, 80));
+  if(printer.type==='electron' && isDesktopApp()){
+    const res = await window.electronAPI.silentPrint(printer.osPrinterName);
+    showToast(res && res.success ? '🧾 Gün sonu raporu yazıcıya gönderildi' : '⚠️ Yazıcıya gönderilemedi' + (res && res.errorType ? ' — ' + res.errorType : ''));
+    return;
+  }
+  window.print();
 }
 function printZReport(){ document.body.classList.add('print-z'); window.print(); setTimeout(() => document.body.classList.remove('print-z'), 500); }
 
