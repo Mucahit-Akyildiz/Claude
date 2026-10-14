@@ -559,7 +559,6 @@ function renderStationsSettings(el, session){
   const menuCard = (m) => { const i = menus.indexOf(m);
     return `<div class="mn-card">
       <div class="mn-row">
-        <div class="mn-ord"><button type="button" ${i===0?'disabled':''} title="Yukarı" ${act('moveMenu', m.id, -1)}>▲</button><button type="button" ${i===menus.length-1?'disabled':''} title="Aşağı" ${act('moveMenu', m.id, 1)}>▼</button></div>
         <input class="mn-name" value="${escapeAttr(m.name)}" id="menu_name_${m.id}" title="Adı değiştirip Enter'a basın" ${actOn('keydown','onEnterCall',['$event','saveMenu', m.id])}>
         <button type="button" class="ico-btn" title="Adı kaydet" ${act('saveMenu', m.id)}>💾</button>
         <button type="button" class="ico-btn danger" title="Menüyü sil" ${act('removeMenu', m.id)}>🗑</button>
@@ -607,7 +606,46 @@ function renderStationsSettings(el, session){
         </div>
       </div>
     </div>
+  </div>
+  <div class="box mo-box" style="max-width:none;margin-top:18px;">
+    <h2 style="margin:0 0 4px;">📋 Sipariş Al Ekranında Menü Sırası</h2>
+    <p class="muted" style="text-align:left;margin:0 0 14px;font-size:13px;">Menüleri sürükleyip bırakın ya da oklarla taşıyın. Sipariş Al ekranındaki soldaki menü listesi bu sırayla görünür.</p>
+    <div class="mo-wrap">
+      <div class="mo-list" id="menuOrderList">
+        <div class="mo-item mo-fixed"><span class="mo-no">★</span><b>Tümü</b><small>her zaman en üstte</small></div>
+        ${menus.map((m, i) => { const st = stations.find(x => x.id === m.station_id);
+          return `<div class="mo-item" draggable="true" data-id="${m.id}" style="--sc:${(st && st.color) || '#94a3b8'};">
+            <span class="mo-grip" title="Sürükle">⋮⋮</span><span class="mo-no">${i + 1}</span>
+            <div class="mo-txt"><b>${escapeHtml(m.name)}</b><small>${prodCount(m.id)} ürün${st ? ' · ' + escapeHtml(st.icon || '🍳') + ' ' + escapeHtml(st.name) : ' · istasyonsuz'}</small></div>
+            <div class="mo-arrows"><button type="button" ${i===0?'disabled':''} title="Yukarı" ${act('moveMenu', m.id, -1)}>▲</button><button type="button" ${i===menus.length-1?'disabled':''} title="Aşağı" ${act('moveMenu', m.id, 1)}>▼</button></div>
+          </div>`; }).join('')}
+      </div>
+      <div class="mo-preview"><small class="muted">Önizleme · Sipariş Al</small>
+        <div class="mo-pv"><div class="mo-pv-i on">Tümü <em>${(APP.config.products||[]).length}</em></div>${menus.map(m => `<div class="mo-pv-i">${escapeHtml(m.name)} <em>${prodCount(m.id)}</em></div>`).join('')}</div>
+      </div>
+    </div>
   </div>`;
+  initMenuOrderDnD();
+}
+/* Menü sırası: sürükle-bırak (HTML5 DnD + dokunmatik için oklar). */
+function initMenuOrderDnD(){
+  const list = document.getElementById('menuOrderList'); if(!list) return;
+  let drag = null;
+  list.querySelectorAll('.mo-item[draggable]').forEach(it => {
+    it.addEventListener('dragstart', e => { drag = it; it.classList.add('dragging'); e.dataTransfer.effectAllowed = 'move'; try{ e.dataTransfer.setData('text/plain', it.dataset.id); }catch(x){} });
+    it.addEventListener('dragend', () => { it.classList.remove('dragging'); list.querySelectorAll('.drop-over').forEach(x => x.classList.remove('drop-over'));
+      if(!drag) return; drag = null;
+      const ids = [...list.querySelectorAll('.mo-item[data-id]')].map(x => x.dataset.id);
+      const cur = (APP.config.menus || []).map(m => m.id);
+      if(ids.join() !== cur.join()) menuRpc('set_menu_order', { p_ids: ids }, 'Menü sırası kaydedildi ✓');
+    });
+    it.addEventListener('dragover', e => {
+      e.preventDefault(); if(!drag || drag === it) return;
+      const r = it.getBoundingClientRect(), after = e.clientY > r.top + r.height / 2;
+      list.insertBefore(drag, after ? it.nextSibling : it);
+      [...list.querySelectorAll('.mo-item[data-id]')].forEach((x, i) => { const n = x.querySelector('.mo-no'); if(n) n.textContent = i + 1; });
+    });
+  });
 }
 function moveMenuToStation(menuId, stationId){
   const m = (APP.config.menus || []).find(x => x.id === menuId); if(!m) return;

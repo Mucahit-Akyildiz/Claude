@@ -289,13 +289,15 @@ async function renderWaiterCardsContent(session){
   const topTips = st.slice().sort((a, b) => anN(b.tips) - anN(a.tips))[0];
   anSetExport('garsonlar', ['Personel', 'Ciro', 'Hesap', 'Ort. hesap', 'Bahşiş', 'Ürün adedi', 'İptal', 'En çok sattığı'], st.map(x => [x.username, x.rev, x.n, x.n ? (x.rev / x.n).toFixed(2) : 0, x.tips, x.items, x.cancels, x.top_product || '']));
   el.innerHTML = `<div class="an-waiters">${st.map((x, i) => { const cr = anN(x.items) ? anN(x.cancels) / (anN(x.items) + anN(x.cancels)) * 100 : 0;
-    return `<div class="an-w ${i === 0 ? 'mvp' : ''}" style="--i:${i};">
+    return `<div class="an-w an-click ${i === 0 ? 'mvp' : ''}" style="--i:${i};" title="Detaylı kartı aç" ${act('openStaffDetail', x.id)}>
       ${i === 0 ? '<div class="an-w-badge">🏆 Dönemin Garsonu</div>' : x === topTips && anN(x.tips) ? '<div class="an-w-badge tip">💸 Bahşiş Şampiyonu</div>' : ''}
       <div class="an-w-top">${avatarHtml(x.username)}<div><b>${escapeHtml(x.username)}</b><small>#${i + 1} sırada</small></div></div>
       <div class="an-w-rev"><b>${money(x.rev)}</b><div class="an-w-bar"><i style="width:${anN(x.rev) / maxR * 100}%"></i></div></div>
       <div class="an-w-grid"><div><b>${x.n}</b><small>hesap</small></div><div><b>${money(x.n ? x.rev / x.n : 0)}</b><small>ort. hesap</small></div>
         <div><b>${money(x.tips)}</b><small>bahşiş</small></div><div><b>${x.items}</b><small>ürün girdi</small></div>
-        <div class="${cr > 10 ? 'bad' : ''}"><b>${x.cancels}</b><small>iptal${cr ? ' · %' + cr.toFixed(0) : ''}</small></div><div><b title="${escapeAttr(x.top_product || '')}">${escapeHtml(x.top_product || '—')}</b><small>en çok sattığı</small></div></div>
+        <div class="${cr > 10 ? 'bad' : ''}"><b>${x.cancels}</b><small>iptal${cr ? ' · %' + cr.toFixed(0) : ''}</small></div><div><b title="${escapeAttr(x.top_product || '')}">${escapeHtml(x.top_product || '—')}</b><small>en çok sattığı</small></div>
+        <div><b>${x.shifts || 0}</b><small>vardiya</small></div></div>
+      <div class="an-w-more">Detaylı kart için dokunun ›</div>
     </div>`; }).join('')}</div>`;
 }
 
@@ -306,7 +308,10 @@ async function renderJourneyContent(session){
   const c = d.customers || {};
   const ret = anN(c.returning), nw = Math.max(0, anN(c.visits) - ret);
   const risk = c.at_risk || [];
-  anSetExport('musteri-yolculugu', ['Müşteri', 'Ziyaret', 'Toplam harcama', 'Son ziyaret'], risk.map(x => [x.name, x.total_visits, x.total_spent, x.last_visit_at]));
+  const { data: tops } = await sb.rpc('get_customer_cards', { p_token: session.session_token, p_date: APP.reportDate, p_date_to: APP.reportDateTo });
+  const top = tops || [];
+  const tier = (p) => anN(p) >= 1000 ? ['💎', 'Platin', '#a855f7'] : anN(p) >= 500 ? ['🥇', 'Altın', '#f59e0b'] : anN(p) >= 200 ? ['🥈', 'Gümüş', '#94a3b8'] : ['🥉', 'Bronz', '#c2410c'];
+  anSetExport('musteri-yolculugu', ['Müşteri', 'Dönem ziyaret', 'Dönem harcama', 'Toplam ziyaret', 'Toplam harcama', 'En sevdiği'], top.map(x => [x.name, x.visits, x.rev, x.total_visits, x.total_spent, x.top_product || '']));
   el.innerHTML = statChips([['🆕', c.new || 0, 'Yeni kayıtlı müşteri', 'var(--c1)'], ['🔁', ret, 'Tekrar gelen müşteri', '#22c55e'],
       ['📆', c.avg_return_days ? c.avg_return_days + ' gün' : '—', 'Ortalama geri dönüş süresi', 'var(--c2)'], ['⚠️', risk.length, 'Kaybedilmek üzere', '#ef4444']]) +
     `<div class="ch-row">
@@ -317,7 +322,81 @@ async function renderJourneyContent(session){
         ${risk.length ? `<div class="an-risk">${risk.map(x => `<div class="an-risk-r">${avatarHtml(x.name)}<div><b>${escapeHtml(x.name)}</b><small>${x.phone ? phoneHtml(x.phone) : ''}</small></div>
           <span>${x.total_visits} ziyaret</span><span>${money(x.total_spent)}</span><em>${Math.round((Date.now() - new Date(x.last_visit_at).getTime()) / 86400000)} gün önce</em></div>`).join('')}</div>
           <p class="fs-note">💡 Bu müşterilere özel bir indirim veya kampanya ile geri dönmelerini sağlayabilirsiniz.</p>` : '<p class="muted">Harika — kaybedilmek üzere olan sadık müşteri yok.</p>'}</div>
+    </div>
+    <div class="fs-panel pa-sec rp-panel" style="--t:#f59e0b;"><h3><i>👑</i>Bu Dönemin En Değerli Müşterileri <small class="muted">· detay için karta dokunun</small></h3>
+      ${top.length ? `<div class="an-waiters">${top.map((x, i) => { const t = tier(x.points_balance);
+        return `<div class="an-w an-click ${i === 0 ? 'mvp' : ''}" style="--i:${Math.min(i, 12)};" ${act('openCustomerDetail', x.id)}>
+          ${i === 0 ? '<div class="an-w-badge">👑 Dönemin Müşterisi</div>' : ''}
+          <div class="an-w-top">${avatarHtml(x.name)}<div><b>${escapeHtml(x.name)}</b><small>${x.phone ? phoneHtml(x.phone) : 'telefon yok'}</small></div><span class="an-tier" style="--t:${t[2]};">${t[0]} ${t[1]}</span></div>
+          <div class="an-w-rev"><b>${money(x.rev)}</b><small class="muted"> bu dönem</small></div>
+          <div class="an-w-grid"><div><b>${x.visits}</b><small>dönem ziyaret</small></div><div><b>${x.total_visits}</b><small>toplam ziyaret</small></div><div><b>${anN(x.points_balance).toLocaleString('tr-TR')}</b><small>puan</small></div>
+            <div style="grid-column:span 2;"><b title="${escapeAttr(x.top_product || '')}">❤️ ${escapeHtml(x.top_product || '—')}</b><small>en sevdiği ürün</small></div><div><b>${money(x.total_spent)}</b><small>ömür boyu</small></div></div>
+          <div class="an-w-more">Detaylı kart için dokunun ›</div></div>`; }).join('')}</div>` : '<p class="muted">Bu dönemde kayıtlı müşteriye satış yok. Ödemede müşteri seçildiğinde burada görünür.</p>'}
     </div>`;
+}
+
+/* ---------- Büyük detay kartları (personel / müşteri) ---------- */
+function anModal(html, accent){
+  const old = document.getElementById('anModal'); if(old) old.remove();
+  const bg = document.createElement('div'); bg.id = 'anModal'; bg.className = 'dg-bg';
+  bg.innerHTML = `<div class="an-modal" style="--t:${accent || 'var(--c1)'};"><button type="button" class="dg-x" ${act('closeAnModal')} title="Kapat">✕</button>${html}</div>`;
+  bg.addEventListener('click', e => { if(e.target === bg) closeAnModal(); });
+  document.body.appendChild(bg);
+}
+function closeAnModal(){ const m = document.getElementById('anModal'); if(m) m.remove(); }
+function anMiniBars(list, labelFn, valFn, color, fmt){
+  const max = Math.max(1, ...list.map(valFn));
+  return `<div class="an-bars an-bars-sm">${list.map((x, i) => `<div class="an-bar" style="--i:${i};" title="${escapeAttr(labelFn(x) + ' · ' + (fmt ? fmt(valFn(x)) : valFn(x)))}"><span class="an-bar-v">${valFn(x) ? (fmt ? fmt(valFn(x)) : valFn(x)) : ''}</span><i style="height:${Math.max(3, valFn(x) / max * 100)}%;${color ? 'background:linear-gradient(180deg,' + color + ',' + color + '33);' : ''}"></i><small>${labelFn(x)}</small></div>`).join('')}</div>`;
+}
+const AN_DAYS = ['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz'];
+async function openStaffDetail(id){
+  const session = getSession();
+  const { data: d, error } = await withLoadingOverlay(sb.rpc('get_staff_detail', { p_token: session.session_token, p_user: id, p_date: APP.reportDate, p_date_to: APP.reportDateTo }));
+  if(error){ alert(error.message); return; }
+  const sl = d.sales || {}, sh = d.shifts || {};
+  const hrs = anN(sh.minutes) / 60, perHour = hrs ? anN(sl.rev) / hrs : 0;
+  const hours = []; const hm = {}; (d.hours || []).forEach(h => { hm[h.h] = anN(h.qty); });
+  const hk = Object.keys(hm).map(Number); if(hk.length) for(let h = Math.min(...hk); h <= Math.max(...hk); h++) hours.push({ h, q: hm[h] || 0 });
+  anModal(`<div class="an-m-head">${avatarHtml(d.user.username)}<div><h2>${escapeHtml(d.user.username)}</h2><small>${escapeHtml(reportDateRangeLabel())} · personel performans kartı</small></div></div>
+    <div class="an-m-kpis">
+      ${[['💰', 'Ciro', money(sl.rev)], ['🧾', 'Hesap', sl.n || 0], ['📊', 'Ort. hesap', money(sl.n ? sl.rev / sl.n : 0)], ['💸', 'Bahşiş', money(sl.tips)],
+         ['🕒', 'Vardiya', (sh.n || 0) + ' vardiya'], ['📅', 'Çalıştığı gün', (sh.days || 0) + ' gün'], ['⏱', 'Çalışma süresi', Math.floor(hrs) + ' sa ' + Math.round((hrs % 1) * 60) + ' dk'], ['⚡', 'Saatlik ciro', money(perHour)]]
+        .map(([ic, l, v], i) => `<div class="an-m-k" style="--i:${i};"><span>${ic}</span><small>${l}</small><b>${v}</b></div>`).join('')}
+    </div>
+    <div class="an-m-grid">
+      <div class="fs-panel pa-sec" style="--t:var(--c1);"><h3><i>🍽️</i>En Çok Sattığı Ürünler</h3>${(d.products || []).length ? raceHtml(d.products.map(x => ({ label: x.name, value: anN(x.qty), display: x.qty + ' adet', side: money(x.rev) }))) : '<p class="muted">Ürün yok.</p>'}</div>
+      <div class="fs-panel pa-sec" style="--t:var(--c2);"><h3><i>📈</i>Günlük Ciro</h3>${(d.daily || []).length ? anMiniBars(d.daily, x => new Date(x.d + 'T12:00').toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' }), x => anN(x.rev), 'var(--c2)', shortMoney) : '<p class="muted">Satış yok.</p>'}</div>
+      <div class="fs-panel pa-sec" style="--t:#f97316;"><h3><i>⏰</i>Saatlere Göre Girdiği Ürün</h3>${hours.length ? anMiniBars(hours, x => String(x.h).padStart(2, '0'), x => x.q, '#f97316') : '<p class="muted">Veri yok.</p>'}</div>
+      <div class="fs-panel pa-sec" style="--t:#06b6d4;"><h3><i>💳</i>Ödeme Dağılımı</h3>${anN(sl.cash) + anN(sl.card) ? svgDonut([{ label: 'Nakit', value: anN(sl.cash), color: '#22c55e' }, { label: 'Kart', value: anN(sl.card), color: '#3b82f6' }], { center: shortMoney(anN(sl.cash) + anN(sl.card)), sub: '₺', money: true }) : '<p class="muted">Ödeme yok.</p>'}</div>
+      <div class="fs-panel pa-sec" style="--t:#22c55e;"><h3><i>🪑</i>En Çok Kazandırdığı Masalar</h3>${(d.tables || []).length ? raceHtml(d.tables.map(x => ({ label: x.table_name, value: anN(x.rev), display: money(x.rev), side: x.n + ' hesap' }))) : '<p class="muted">Masa yok.</p>'}
+        ${sl.avg_min ? `<p class="fs-note">⏱ Masalarında ortalama oturma: <b>${sl.avg_min} dk</b> · İndirim verdiği: <b>${money(sl.discount)}</b></p>` : ''}</div>
+      <div class="fs-panel pa-sec" style="--t:#ef4444;"><h3><i>❌</i>Son İptaller</h3>${(d.cancels || []).length ? `<div class="cx-list">${d.cancels.map(x => `<div class="cx-row"><span class="cx-q">${x.qty}×</span><div class="cx-n"><b>${escapeHtml(x.name)}</b><small>${new Date(x.created_at).toLocaleString('tr-TR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</small></div></div>`).join('')}</div>` : '<p class="muted">İptal yok 👍</p>'}</div>
+    </div>`, 'var(--c1)');
+}
+async function openCustomerDetail(id){
+  const session = getSession();
+  const { data: d, error } = await withLoadingOverlay(sb.rpc('get_customer_detail', { p_token: session.session_token, p_customer: id }));
+  if(error){ alert(error.message); return; }
+  const c = d.customer || {}, st = d.stats || {};
+  const dows = AN_DAYS.map((n, i) => ({ n, v: anN(((d.dows || []).find(x => x.dow === i + 1) || {}).n) }));
+  const hm = {}; (d.hours || []).forEach(h => { hm[h.h] = anN(h.n); }); const hk = Object.keys(hm).map(Number); const hours = [];
+  if(hk.length) for(let h = Math.min(...hk); h <= Math.max(...hk); h++) hours.push({ h, v: hm[h] || 0 });
+  const favDay = dows.reduce((a, b) => b.v > a.v ? b : a, dows[0]);
+  const favHour = hours.length ? hours.reduce((a, b) => b.v > a.v ? b : a) : null;
+  const dt = (x) => x ? new Date(x).toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric' }) : '—';
+  anModal(`<div class="an-m-head">${avatarHtml(c.name)}<div><h2>${escapeHtml(c.name)}</h2><small>${c.phone ? phoneHtml(c.phone) : ''}${c.email ? ' · ' + emailHtml(c.email) : ''}${c.birthday ? ' · 🎂 ' + new Date(c.birthday + 'T12:00').toLocaleDateString('tr-TR', { day: 'numeric', month: 'long' }) : ''}</small></div></div>
+    <div class="an-m-kpis">
+      ${[['🔁', 'Ziyaret', st.n || 0], ['💰', 'Toplam harcama', money(st.rev)], ['📊', 'Ort. hesap', money(st.avg)], ['⭐', 'Puan', anN(c.points).toLocaleString('tr-TR')],
+         ['💸', 'Bıraktığı bahşiş', money(st.tips)], ['🗓️', 'En sevdiği gün', favDay && favDay.v ? favDay.n : '—'], ['⏰', 'Genelde geldiği saat', favHour ? String(favHour.h).padStart(2, '0') + ':00' : '—'], ['🕒', 'Son ziyaret', st.last ? Math.round((Date.now() - new Date(st.last).getTime()) / 86400000) + ' gün önce' : '—']]
+        .map(([ic, l, v], i) => `<div class="an-m-k" style="--i:${i};"><span>${ic}</span><small>${l}</small><b>${v}</b></div>`).join('')}
+    </div>
+    <div class="an-m-grid">
+      <div class="fs-panel pa-sec" style="--t:#ef4444;"><h3><i>❤️</i>En Çok Seçtiği Ürünler</h3>${(d.products || []).length ? raceHtml(d.products.map(x => ({ label: x.name, value: anN(x.qty), display: x.qty + ' kez', side: money(x.rev) }))) : '<p class="muted">Ürün kaydı yok.</p>'}</div>
+      <div class="fs-panel pa-sec" style="--t:var(--c2);"><h3><i>🗓️</i>Haftanın Günleri</h3>${anMiniBars(dows, x => x.n, x => x.v, 'var(--c2)')}</div>
+      <div class="fs-panel pa-sec" style="--t:#f97316;"><h3><i>⏰</i>Geliş Saatleri</h3>${hours.length ? anMiniBars(hours, x => String(x.h).padStart(2, '0'), x => x.v, '#f97316') : '<p class="muted">Veri yok.</p>'}</div>
+      <div class="fs-panel pa-sec" style="--t:var(--c1);"><h3><i>🧾</i>Son Ziyaretler</h3>${(d.visits || []).length ? `<div class="an-tl">${d.visits.map(v => `<div class="an-tl-i"><i></i><div><b>${new Date(v.closed_at).toLocaleString('tr-TR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}${v.table_name ? ' · ' + escapeHtml(v.table_name) : ''}</b><small>${escapeHtml(v.items || '')}</small></div><span>${money(v.total)}</span></div>`).join('')}</div>` : '<p class="muted">Ziyaret yok.</p>'}</div>
+    </div>
+    <p class="fs-note">İlk ziyaret: <b>${dt(st.first)}</b> · Kayıt: <b>${dt(c.created_at)}</b> · Kazandığı puan: <b>${anN(st.points_earned).toLocaleString('tr-TR')}</b> · Kullandığı: <b>${anN(st.points_redeemed).toLocaleString('tr-TR')}</b>${c.notes ? ' · 📝 ' + escapeHtml(c.notes) : ''}</p>`, '#f59e0b');
 }
 
 /* ---------- 🔍 Akıllı arama ve dışa aktarma ---------- */
