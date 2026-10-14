@@ -2125,3 +2125,10 @@ input.sw:checked{background:var(--c1);} input.sw:checked::after{transform:transl
 .cx-row{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:14px;border:1px solid var(--border)}
 .cx-q{font-weight:800;min-width:30px;color:#ef4444}
 .cx-n{flex:1;min-width:0}.cx-n b{display:block;overflow-wrap:anywhere}.cx-n small{color:var(--muted);font-size:11.5px}
+/* Sipariş Al: tıklanabilir durum göstergeleri + Tüm masalar */
+#orderSummary{grid-template-columns:repeat(5,minmax(0,1fr))!important}
+@media (max-width:900px){#orderSummary{grid-template-columns:repeat(2,minmax(0,1fr))!important}}
+#orderSummary .os-all{--oc:var(--c1)}#orderSummary .os-empty{--oc:#94a3b8}#orderSummary .os-busy{--oc:#3b82f6}#orderSummary .os-ready{--oc:#22c55e}
+.tc-zone-h{grid-column:1/-1;display:flex;align-items:center;gap:10px;margin:8px 0 -2px;font-size:13px;color:var(--muted)}
+.tc-zone-h b{color:var(--text);font-size:15px}
+.tc-zone-h::after{content:'';flex:1;height:1px;background:var(--border)}

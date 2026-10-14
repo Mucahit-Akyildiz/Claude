@@ -1071,10 +1071,10 @@ function renderZoneTabs(){
   el.innerHTML = APP.config.zones.map(z => {
     const ts = z.tables || [], open = ts.filter(t => liveOrderForTable(t.id)).length;
     const need = ts.filter(t => { const o = liveOrderForTable(t.id); return o && !(o.items || []).length; }).length;
-    return `<div class="tab ${z.id===APP.selectedZone?'active':''}" ${act('selectZone', z.id)}>${escapeHtml(z.name)}<span class="zone-occ" title="${open} dolu / ${ts.length} masa">${open}/${ts.length}</span>${need ? `<span class="zone-badge" title="${need} masada sipariş bekleniyor">${need}</span>` : ''}</div>`;
+    return `<div class="tab ${z.id===APP.selectedZone && !APP.orderStateFilter?'active':''}" ${act('selectZone', z.id)}>${escapeHtml(z.name)}<span class="zone-occ" title="${open} dolu / ${ts.length} masa">${open}/${ts.length}</span>${need ? `<span class="zone-badge" title="${need} masada sipariş bekleniyor">${need}</span>` : ''}</div>`;
   }).join('');
 }
-function selectZone(id){ APP.selectedZone = id; renderZoneTabs(); renderTableGrid(); }
+function selectZone(id){ APP.selectedZone = id; APP.orderStateFilter = null; renderZoneTabs(); renderTableGrid(); }
 /* ---- Masa QR'ını okutarak hızlı geçiş ----
    Her masanın QR kodu /menu/?t=<qr_token> linkini kodluyor (bkz.
    showTableQr, settings.js). Burada aynı QR personel tarafından
@@ -1271,6 +1271,16 @@ function renderTableGrid(){
   if(gridEl) gridEl.style.display = 'grid';
   if(fpEl) fpEl.style.display = 'none';
   const el = gridEl; if(!el) return;
+  // Üstteki göstergeye tıklandıysa: tüm bölgelerden o durumdaki masalar (Tümü = hepsi), bölge başlıklarıyla.
+  const f = APP.orderStateFilter;
+  if(f){
+    const byName = (a, b) => String(a.name).localeCompare(String(b.name), 'tr', { numeric:true, sensitivity:'base' });
+    const groups = (APP.config.zones || []).map(z => ({ z, list: (z.tables || []).filter(t => f==='all' || tableCardInfo(t).state===f).sort(byName) })).filter(g => g.list.length);
+    el.innerHTML = groups.length ? groups.map(g => `<div class="tc-zone-h"><b>${escapeHtml(g.z.name)}</b><span>${g.list.length} masa</span></div>${g.list.map(t => tableCardHtml(t)).join('')}`).join('')
+      : '<div class="tc-zone-h" style="justify-content:center;"><span>Bu durumda masa yok.</span></div>';
+    renderOrderSummary();
+    return;
+  }
   if(!zone || zone.tables.length===0){ el.innerHTML = '<p class="muted">Bu bölgede masa yok.</p>'; return; }
   // Masalar isme göre doğal sırada (Masa2 < Masa10) listelenir.
   const sorted = zone.tables.slice().sort((a,b) => String(a.name).localeCompare(String(b.name), 'tr', { numeric:true, sensitivity:'base' }));
@@ -1313,14 +1323,17 @@ function tableCardHtml(t){
     <span class="tc-state">${label}</span>
   </div>`;
 }
-/* Sipariş Al üst özet şeridi: tüm bölgelerdeki masaların anlık durumu. */
+function setOrderStateFilter(k){ APP.orderStateFilter = APP.orderStateFilter===k ? null : k; if(APP.orderStateFilter) APP.orderTableViewMode = 'grid'; renderTableGrid(); }
+/* Sipariş Al üst özet şeridi: tüm bölgelerdeki masaların anlık durumu (tıklanınca filtreler). */
 function renderOrderSummary(){
   const el = document.getElementById('orderSummary'); if(!el) return;
   const all = (APP.config.zones || []).flatMap(z => z.tables || []);
   const infos = all.map(tableCardInfo);
   const cnt = (s) => infos.filter(i => i.state === s).length;
-  const chip = (cls, ic, n, l) => `<div class="os-chip os-${cls}"><span class="os-ic">${ic}</span><div><b>${n}</b><small>${l}</small></div></div>`;
-  el.innerHTML = chip('empty','🪑', cnt('empty'), 'Boş masa') + chip('wait','🕒', cnt('wait'), 'Sipariş bekleniyor') + chip('busy','🔥', cnt('busy'), 'Hazırlanıyor') + chip('ready','✅', cnt('ready'), 'Hazır · ödeme bekliyor');
+  const f = APP.orderStateFilter;
+  const chip = (cls, ic, n, l) => `<div class="os-chip os-click os-${cls} ${f===cls?'on':''}" role="button" title="${f===cls ? 'Filtreyi kaldır' : 'Bu masaları göster'}" ${act('setOrderStateFilter', cls)}><span class="os-ic">${ic}</span><div><b>${n}</b><small>${l}</small></div></div>`;
+  el.style.setProperty('--n', 5);
+  el.innerHTML = chip('all','🍽️', all.length, 'Tüm masalar') + chip('empty','🪑', cnt('empty'), 'Boş masa') + chip('wait','🕒', cnt('wait'), 'Sipariş bekleniyor') + chip('busy','🔥', cnt('busy'), 'Hazırlanıyor') + chip('ready','✅', cnt('ready'), 'Hazır · ödeme bekliyor');
 }
 function renderTableFloorPlan(zone, el){
   if(!el) return;
