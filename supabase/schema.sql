@@ -4113,7 +4113,7 @@ begin
         (select count(*) from kitchen_cancellations k where k.restaurant_id = r and k.kind='item' and k.cancelled_by = u.username and k.created_at >= f and k.created_at < t)
           + (select count(*) from orders o2 where o2.restaurant_id = r and o2.status='cancelled' and o2.cancelled_by = u.id and o2.cancelled_at >= f and o2.cancelled_at < t) cancels,
         (select oi2.name from oi oi2 where oi2.added_by = u.id group by oi2.name order by sum(oi2.qty) desc limit 1) top_product,
-        (select coalesce(sum(oi3.qty),0) from oi oi3 where oi3.added_by = u.id) items
+        (select coalesce(sum(oi3.qty),0) from oi oi3 where oi3.added_by = u.id) items, (select count(*) from staff_shifts ss2 where ss2.restaurant_id = r and ss2.user_id = u.id and ss2.clock_in >= f and ss2.clock_in < t and ss2.status <> 'pending') shifts
         from app_users u left join cur c on c.staff_user_id = u.id where u.restaurant_id = r group by u.id, u.username having count(c.id) > 0 or exists(select 1 from oi oi4 where oi4.added_by = u.id)) x), '[]'),
     'customers', json_build_object(
        'new', (select count(*) from customers where restaurant_id = r and created_at >= f and created_at < t),
@@ -4457,6 +4457,53 @@ begin
     ) c
   );
 end; $$;
+
+
+--
+-- Name: get_customer_cards(uuid, date, date); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.get_customer_cards(p_token uuid, p_date date, p_date_to date DEFAULT NULL::date) RETURNS json
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'extensions', 'pg_temp'
+    AS $$
+declare s staff_sessions%rowtype; r uuid; f timestamptz; t timestamptz;
+begin
+  s := _session_check(p_token, 'reports'); r := s.restaurant_id;
+  f := p_date::timestamp at time zone 'Europe/Istanbul'; t := (coalesce(p_date_to, p_date) + 1)::timestamp at time zone 'Europe/Istanbul';
+  return coalesce((select json_agg(x order by x.rev desc) from (
+    select c.id, c.name, c.phone, c.points_balance, c.total_visits, c.total_spent, c.last_visit_at, count(sh.id) visits, sum(sh.total) rev,
+      (select oi.name from order_items oi join sales_history s2 on s2.order_id = oi.order_id where s2.customer_id = c.id and s2.restaurant_id = r group by oi.name order by sum(oi.qty) desc limit 1) top_product
+    from customers c join sales_history sh on sh.customer_id = c.id and sh.restaurant_id = r and sh.closed_at >= f and sh.closed_at < t
+    where c.restaurant_id = r group by c.id order by sum(sh.total) desc limit 24) x), '[]'::json);
+end $$;
+
+
+--
+-- Name: get_customer_detail(uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.get_customer_detail(p_token uuid, p_customer uuid) RETURNS json
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'extensions', 'pg_temp'
+    AS $$
+declare s staff_sessions%rowtype; r uuid; res json;
+begin
+  s := _session_check(p_token, 'reports'); r := s.restaurant_id;
+  if not exists(select 1 from customers where id = p_customer and restaurant_id = r) then raise exception 'Müşteri bulunamadı'; end if;
+  with sh as (select * from sales_history where restaurant_id = r and customer_id = p_customer),
+  oi as (select oi.* from order_items oi join sh on sh.order_id = oi.order_id)
+  select json_build_object(
+    'customer', (select json_build_object('name', name, 'phone', phone, 'email', email, 'birthday', birthday, 'points', points_balance, 'visits', total_visits, 'spent', total_spent, 'created_at', created_at, 'last_visit_at', last_visit_at, 'notes', notes) from customers where id = p_customer),
+    'stats', (select json_build_object('n', count(*), 'rev', coalesce(sum(total),0), 'avg', coalesce(avg(total),0), 'tips', coalesce(sum(tip_amount),0), 'points_earned', coalesce(sum(points_earned),0), 'points_redeemed', coalesce(sum(points_redeemed),0),
+        'first', min(closed_at), 'last', max(closed_at)) from sh),
+    'products', coalesce((select json_agg(x) from (select name, sum(qty) qty, sum(price*qty) rev from oi group by name order by sum(qty) desc limit 10) x), '[]'),
+    'dows', coalesce((select json_agg(x order by x.dow) from (select extract(isodow from closed_at at time zone 'Europe/Istanbul')::int dow, count(*) n from sh group by 1) x), '[]'),
+    'hours', coalesce((select json_agg(x order by x.h) from (select extract(hour from closed_at at time zone 'Europe/Istanbul')::int h, count(*) n from sh group by 1) x), '[]'),
+    'visits', coalesce((select json_agg(x order by x.closed_at desc) from (select closed_at, table_name, total, (select string_agg(oi2.qty || 'x ' || oi2.name, ', ') from order_items oi2 where oi2.order_id = sh.order_id) items from sh order by closed_at desc limit 8) x), '[]')
+  ) into res;
+  return res;
+end $$;
 
 
 --
@@ -5255,6 +5302,39 @@ begin
       'table_turnover', case when v_tables > 0 then round((count(*) filter (where kind = 'dine_in'))::numeric / v_tables / v_days, 2) else 0 end
     ) from checks
   );
+end $$;
+
+
+--
+-- Name: get_staff_detail(uuid, uuid, date, date); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.get_staff_detail(p_token uuid, p_user uuid, p_date date, p_date_to date DEFAULT NULL::date) RETURNS json
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'extensions', 'pg_temp'
+    AS $$
+declare s staff_sessions%rowtype; r uuid; f timestamptz; t timestamptz; res json;
+begin
+  s := _session_check(p_token, 'reports'); r := s.restaurant_id;
+  f := p_date::timestamp at time zone 'Europe/Istanbul'; t := (coalesce(p_date_to, p_date) + 1)::timestamp at time zone 'Europe/Istanbul';
+  if not exists(select 1 from app_users where id = p_user and restaurant_id = r) then raise exception 'Personel bulunamadı'; end if;
+  with sh as (select * from sales_history where restaurant_id = r and staff_user_id = p_user and closed_at >= f and closed_at < t),
+  oi as (select oi.* from order_items oi join orders o on o.id = oi.order_id where o.restaurant_id = r and oi.added_by = p_user and oi.added_at >= f and oi.added_at < t),
+  shf as (select * from staff_shifts where restaurant_id = r and user_id = p_user and clock_in < t and coalesce(clock_out, now()) >= f and status <> 'pending')
+  select json_build_object(
+    'user', (select json_build_object('username', username, 'created_at', created_at) from app_users where id = p_user),
+    'shifts', (select json_build_object('n', count(*), 'minutes', coalesce(round(sum(extract(epoch from (coalesce(clock_out, now()) - clock_in)) - coalesce(paused_seconds,0))/60),0),
+        'days', count(distinct (clock_in at time zone 'Europe/Istanbul')::date)) from shf),
+    'sales', (select json_build_object('rev', coalesce(sum(total),0), 'n', count(*), 'tips', coalesce(sum(tip_amount),0), 'cash', coalesce(sum(cash_amount),0), 'card', coalesce(sum(card_amount),0),
+        'discount', coalesce(sum(discount_amount),0), 'avg_min', round(avg(extract(epoch from (closed_at - ordered_at))/60) filter (where ordered_at is not null))) from sh),
+    'products', coalesce((select json_agg(x) from (select name, sum(qty) qty, sum(price*qty) rev from oi group by name order by sum(qty) desc limit 10) x), '[]'),
+    'hours', coalesce((select json_agg(x order by x.h) from (select extract(hour from added_at at time zone 'Europe/Istanbul')::int h, sum(qty) qty from oi group by 1) x), '[]'),
+    'daily', coalesce((select json_agg(x order by x.d) from (select (closed_at at time zone 'Europe/Istanbul')::date d, sum(total) rev from sh group by 1) x), '[]'),
+    'cancels', coalesce((select json_agg(x) from (select k.item_name name, k.qty, k.created_at from kitchen_cancellations k join app_users u on u.username = k.cancelled_by
+        where k.restaurant_id = r and u.id = p_user and k.kind = 'item' and k.created_at >= f and k.created_at < t order by k.created_at desc limit 8) x), '[]'),
+    'tables', coalesce((select json_agg(x) from (select table_name, count(*) n, sum(total) rev from sh where table_name is not null group by 1 order by sum(total) desc limit 5) x), '[]')
+  ) into res;
+  return res;
 end $$;
 
 
