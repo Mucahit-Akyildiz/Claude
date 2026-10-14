@@ -614,30 +614,23 @@ async function renderCustomerAnalyticsContent(session){
   const avgSpent = rows.length ? totalSpent/rows.length : 0;
   el.innerHTML = `
     <div class="order-summary stat-chips" style="--n:4;"><div class="os-chip" style="--oc:var(--c1);"><span class="os-ic">👥</span><div><b>${rows.length}</b><small>Müşteri</small></div></div><div class="os-chip" style="--oc:var(--c2);"><span class="os-ic">💰</span><div><b>${money(totalSpent)}</b><small>Toplam Harcama</small></div></div><div class="os-chip" style="--oc:var(--c3);"><span class="os-ic">🧮</span><div><b>${money(avgSpent)}</b><small>Ortalama Harcama</small></div></div><div class="os-chip" style="--oc:var(--c4);"><span class="os-ic">🚪</span><div><b>${totalVisits}</b><small>Toplam Ziyaret</small></div></div></div>
-    ${rows.length ? `<div class="fs-panel pa-sec" style="--t:var(--c3);"><h3><i>🏆</i>En Değerli Müşteriler</h3>${raceHtml(rows.slice().sort((a,b) => Number(b.total_spent||0) - Number(a.total_spent||0)).slice(0,8).map(c => ({ label:c.name, value:Number(c.total_spent||0), display:money(c.total_spent||0), side:(c.total_visits||0) + ' ziyaret', sub:c.phone||'' })))}</div>` : ''}
+    ${rows.length ? `<div class="fs-panel pa-sec" style="--t:var(--c3);"><h3><i>🏆</i>En Değerli Müşteriler</h3>${raceHtml(rows.slice().sort((a,b) => Number(b.total_spent||0) - Number(a.total_spent||0)).slice(0,8).map(c => ({ label:c.name, value:Number(c.total_spent||0), display:money(c.total_spent||0), side:(c.total_visits||0) + ' ziyaret', sub:c.phone ? maskPhone(c.phone) : '' })))}</div>` : ''}
     <div class="fs-panel pa-sec rp-panel" style="--t:var(--c2);">
       <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:10px;">
         <h2 style="margin:0;">Müşteri Analizleri</h2>
         <input id="custAnalyticsSearchInput" placeholder="İsim veya telefon ara..." style="max-width:260px;" value="${escapeAttr(APP.customerAnalyticsSearch||'')}" ${actOn('input','debouncedCustomerAnalyticsSearch',['$value'])}>
       </div>
-      <div class="settings-table-wrap">
-      <table class="settings-table">
-        <thead><tr><th>Ad</th><th>Telefon</th><th>🎂 Doğum Günü</th><th>Puan</th><th>Ziyaret</th><th>Toplam Harcama</th><th>Son Ziyaret</th></tr></thead>
-        <tbody>
-        ${rows.map(c => `
-          <tr>
-            <td class="col-name">${escapeHtml(c.name)}</td>
-            <td>${escapeHtml(c.phone||'-')}</td>
-            <td>${c.birthday ? new Date(c.birthday+'T00:00:00').toLocaleDateString('tr-TR') : '-'}</td>
-            <td>${c.points_balance}</td>
-            <td>${c.total_visits}</td>
-            <td>${money(c.total_spent)}</td>
-            <td>${c.last_visit_at ? new Date(c.last_visit_at).toLocaleDateString('tr-TR') : '-'}</td>
-          </tr>`).join('')}
-        ${rows.length===0?'<tr><td colspan="7" class="muted" style="text-align:center;">Müşteri yok.</td></tr>':''}
-        </tbody>
-      </table>
-      </div>
+      ${rows.length ? `<div class="an-waiters">${rows.map((c, i) => { const pts = Number(c.points_balance)||0;
+        const t = pts >= 1000 ? ['💎', 'Platin', '#a855f7'] : pts >= 500 ? ['🥇', 'Altın', '#f59e0b'] : pts >= 200 ? ['🥈', 'Gümüş', '#94a3b8'] : ['🥉', 'Bronz', '#c2410c'];
+        const bd = c.birthday ? crmBirthdayInfo(c.birthday) : null;
+        const ago = c.last_visit_at ? Math.round((Date.now() - new Date(c.last_visit_at).getTime()) / 86400000) : null;
+        return `<div class="an-w an-click ${i === 0 && !APP.customerAnalyticsSearch ? 'mvp' : ''}" style="--i:${Math.min(i, 12)};" ${act('openCustomerDetail', c.id)}>
+          ${bd && bd.days <= 7 ? `<div class="an-w-badge tip">🎂 ${bd.days === 0 ? 'Bugün doğum günü' : bd.days + ' gün sonra doğum günü'}</div>` : (i === 0 && !APP.customerAnalyticsSearch ? '<div class="an-w-badge">👑 En değerli</div>' : '')}
+          <div class="an-w-top">${avatarHtml(c.name)}<div><b>${escapeHtml(c.name)}</b><small>${c.phone ? phoneHtml(c.phone) : 'telefon yok'}</small></div><span class="an-tier" style="--t:${t[2]};">${t[0]} ${t[1]}</span></div>
+          <div class="an-w-rev"><b>${money(c.total_spent)}</b><small class="muted"> toplam harcama</small></div>
+          <div class="an-w-grid"><div><b>${c.total_visits||0}</b><small>ziyaret</small></div><div><b>${money((Number(c.total_visits)||0) ? (Number(c.total_spent)||0) / Number(c.total_visits) : 0)}</b><small>ort. hesap</small></div><div><b>${pts.toLocaleString('tr-TR')}</b><small>puan</small></div>
+            <div><b>${c.birthday ? new Date(c.birthday+'T00:00:00').toLocaleDateString('tr-TR', { day:'numeric', month:'short' }) : '—'}</b><small>doğum günü</small></div><div class="${ago != null && ago > 60 ? 'bad' : ''}"><b>${ago == null ? '—' : ago === 0 ? 'bugün' : ago + ' gün'}</b><small>son ziyaret</small></div><div><b>${c.created_at ? new Date(c.created_at).toLocaleDateString('tr-TR', { month:'short', year:'numeric' }) : '—'}</b><small>müşteri olalı</small></div></div>
+          <div class="an-w-more">Detaylı kart için dokunun ›</div></div>`; }).join('')}</div>` : '<p class="muted">Müşteri yok.</p>'}
     </div>`;
 }
 let CUST_ANALYTICS_SEARCH_TIMER = null;
