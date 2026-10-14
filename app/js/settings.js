@@ -573,7 +573,7 @@ function renderStationsSettings(el, session){
       </div>
     </div>`; };
   const col = (s) => { const list = menus.filter(m => m.station_id === s.id);
-    return `<div class="st-col" style="--sc:${s.color||'var(--c1)'};">
+    return `<div class="st-col" data-cf-tags="station" style="--sc:${s.color||'var(--c1)'};">
       <div class="st-col-head">
         ${stationIconPickerHtml('st_icon_'+s.id, s.icon||'🍳', '')}
         <input class="st-col-name" value="${escapeAttr(s.name)}" id="st_name_${s.id}" placeholder="İstasyon adı" ${actOn('keydown','onEnterCall',['$event','saveStation', s.id])}>
@@ -586,20 +586,20 @@ function renderStationsSettings(el, session){
       ${stationKitchenProductsHtml(s)}
     </div>`; };
   const free = menus.filter(m => !m.station_id || !stations.some(x => x.id === m.station_id));
-  el.innerHTML = statChips([['📋', menus.length, 'Menü', 'var(--c1)'], ['🍳', stations.length, 'İstasyon', 'var(--c2)'],
-      ['🍽️', (APP.config.products||[]).length, 'Ürün', 'var(--c3)'], ['⚠️', free.length, 'İstasyonsuz menü', free.length ? 'var(--danger,#ef4444)' : 'var(--c4)']]) +
+  el.innerHTML = statChips([['📋', menus.length, 'Menü', 'var(--c1)', 'all'], ['🍳', stations.length, 'İstasyon', 'var(--c2)', 'station'],
+      ['🍽️', (APP.config.products||[]).length, 'Ürün', 'var(--c3)', 'go:setSettingsTab:products'], ['⚠️', free.length, 'İstasyonsuz menü', free.length ? 'var(--danger,#ef4444)' : 'var(--c4)', 'free']], '', 'menus') +
     `<div class="box" style="max-width:none;">
     <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;"><h2 style="margin:0;">Menüler & İstasyonlar</h2></div>
     <p class="muted" style="text-align:left;margin:6px 0 14px;font-size:13px;">Her sütun bir mutfak istasyonu. İçindeki menülerin ürünleri o istasyonun ekranına ve yazıcısına düşer. Menüyü başka istasyona taşımak için kartındaki seçimi değiştirin.</p>
-    <div class="st-board">
-      <div class="st-col st-free" style="--sc:#94a3b8;">
+    <div class="st-board" data-cf-scope="menus">
+      <div class="st-col st-free" data-cf-tags="free" style="--sc:#94a3b8;">
         <div class="st-col-head"><span class="st-free-ic">📋</span><b class="st-col-title">İstasyonsuz menüler</b></div>
         <div class="st-col-sub">${free.length ? 'Bu menülerin ürünleri hiçbir istasyona düşmez' : 'Tüm menüler bir istasyona bağlı ✓'}</div>
         <div class="st-col-body">${free.map(menuCard).join('')}</div>
         <div class="st-add"><input id="newMenuName" placeholder="Yeni menü (örn. Çorbalar)" ${actOn('keydown','newMenuKey',['$event'])}><button type="button" ${act('addMenu')}>+ Menü</button></div>
       </div>
       ${stations.map(col).join('')}
-      <div class="st-col st-new">
+      <div class="st-col st-new" data-cf-tags="station">
         <div class="st-col-head">${stationIconPickerHtml('newStIcon','🍳', '')}<b class="st-col-title">Yeni istasyon</b></div>
         <div class="st-add" style="flex-direction:column;align-items:stretch;">
           <input id="newStName" placeholder="İstasyon adı (örn. Fırın)" ${actOn('keydown','onEnterCall',['$event','addStation'])}>
@@ -781,8 +781,8 @@ function renderZonesSettings(el, session){
   if(!zones.some(z => z.id === APP.zoneSel)) APP.zoneSel = zones.length ? zones[0].id : null;
   const z = zones.find(x => x.id === APP.zoneSel);
   const total = zones.reduce((x, q) => x + q.tables.length, 0);
-  el.innerHTML = statChips([['📍', zones.length, 'Bölge', 'var(--c1)'], ['🪑', total, 'Toplam masa', 'var(--c2)'],
-      ['▦', zones.reduce((x, q) => x + q.tables.filter(t => t.qr_token).length, 0), 'QR kodlu masa', 'var(--c3)']]) +
+  el.innerHTML = statChips([['📍', zones.length, 'Bölge', 'var(--c1)'], ['🪑', total, 'Toplam masa', 'var(--c2)', 'all'],
+      ['▦', zones.reduce((x, q) => x + q.tables.filter(t => t.qr_token).length, 0), 'QR kodlu masa', 'var(--c3)', 'qr'], ['⬜', zones.reduce((x, q) => x + q.tables.filter(t => !t.qr_token).length, 0), 'QR kodsuz masa', 'var(--c4)', 'noqr']], '', 'zones') +
     `<div class="box" style="max-width:none;">
     <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:14px;">
       <h2 style="margin:0;">Bölgeler & Masalar</h2><span style="flex:1;"></span>
@@ -801,8 +801,8 @@ function renderZonesSettings(el, session){
             <button type="button" class="ico-btn" title="Bölge adını kaydet" ${act('saveZone', z.id)}>💾</button>
             <button type="button" class="ico-btn danger" title="Bölgeyi sil" ${act('removeZone', z.id)}>🗑</button>
           </div>
-          <div class="zn-tiles">
-            ${z.tables.slice().sort(natural).map((t, i) => `<div class="zn-tile" style="--i:${Math.min(i,20)};">
+          <div class="zn-tiles" data-cf-scope="zones">
+            ${z.tables.slice().sort(natural).map((t, i) => `<div class="zn-tile" data-cf-tags="${t.qr_token ? 'qr' : 'noqr'}" style="--i:${Math.min(i,20)};">
               <button type="button" class="zn-tname" title="Yeniden adlandır" ${act('renameTable', t.id, z.id, t.name)}>${escapeHtml(t.name)}</button>
               <div class="zn-tacts">
                 <button type="button" title="QR Menü Kodu" ${act('showTableQr', t.id, t.qr_token)}>▦ QR</button>
@@ -1519,8 +1519,8 @@ function userIsPrivileged(u){
 function renderUsersSettings(el, session){
   const canAssign = canManage(session, 'users_assign_roles');
   const us = APP.config.users || [], lic = APP.config.license || {};
-  el.innerHTML = statChips([['👥', us.length, 'Kullanıcı', 'var(--c1)'], ['✅', us.filter(u => u.is_active!==false).length, 'Aktif', 'var(--ok,#22c55e)'],
-      ['⏸', us.filter(u => u.is_active===false).length, 'Pasif', 'var(--c3)'], ['🎫', lic.max_users ? Math.max(0, lic.max_users - us.length) : '—', 'Eklenebilir kullanıcı', 'var(--c2)']]) + `<div class="box" style="max-width:none;">
+  el.innerHTML = statChips([['👥', us.length, 'Kullanıcı', 'var(--c1)', 'all'], ['✅', us.filter(u => u.is_active!==false).length, 'Aktif', 'var(--ok,#22c55e)', 'on'],
+      ['⏸', us.filter(u => u.is_active===false).length, 'Pasif', 'var(--c3)', 'off'], ['🎫', lic.max_users ? Math.max(0, lic.max_users - us.length) : '—', 'Eklenebilir kullanıcı', 'var(--c2)']], '', 'users') + `<div class="box" style="max-width:none;">
     <h2>Kullanıcılar</h2>
     ${canAssign ? '' : '<p class="muted" style="text-align:left;font-size:12.5px;margin:-4px 0 12px;">🔒 Kullanıcı ekleme, rol değiştirme, pasife alma ve silme için <b>Kullanıcı Yönetimi</b> izni gerekir; yetkili kişilerin hesapları da kilitlidir. Diğer personelin adını ve şifresini değiştirebilirsiniz.</p>'}
     <div class="add-row-panel" style="margin:0 0 16px;${canAssign?'':'display:none;'}">
@@ -1548,10 +1548,10 @@ function renderUsersSettings(el, session){
     <div class="settings-table-wrap user-cards">
     <table class="settings-table">
       <thead><tr><th style="width:36px;">${canAssign ? `<input type="checkbox" id="userSelAll" style="width:auto;margin:0;" title="Tümünü seç" ${actOn('change','selectAllUsers',['$checked'])}>` : ''}</th><th>Kullanıcı Adı</th><th>Yeni Şifre</th><th>Roller (en fazla 2)</th></tr></thead>
-      <tbody ${actOn('input','markUserDirty',['$event'])} ${actOn('change','markUserDirty',['$event'])}>
+      <tbody data-cf-scope="users" ${actOn('input','markUserDirty',['$event'])} ${actOn('change','markUserDirty',['$event'])}>
       ${APP.config.users.slice().sort((x, y) => String(x.username).localeCompare(String(y.username), 'tr', { sensitivity: 'base' }))
         .map(u => { const locked = !canAssign && userIsPrivileged(u); return (isOwnerUser(u) ? ownerUserRow(u, session) : `
-        <tr data-uid="${u.id}" style="${u.is_active===false?'opacity:.55;':''}">
+        <tr data-uid="${u.id}" data-cf-tags="${u.is_active===false ? 'off' : 'on'}" style="${u.is_active===false?'opacity:.55;':''}">
           <td>${locked ? '<span title="Yetkili kullanıcı - düzenleme izniniz yok">🔒</span>' : !canAssign ? '' : `<input type="checkbox" class="user-sel" value="${u.id}" style="width:auto;margin:0;" ${actOn('change','updateUserSelection',[])}>`}</td>
           <td class="col-name uc-name">${avatarHtml(u.username)}<input value="${escapeAttr(u.username)}" id="us_name_${u.id}" ${locked?'disabled':''}>${u.is_active===false?'<span class="role-badge" style="color:var(--red);border-color:var(--red);margin-top:6px;display:inline-block;">Pasif</span>':''}</td>
           <td class="col-name">${passField('us_pass_'+u.id, locked, true)}</td>
@@ -1653,12 +1653,12 @@ async function renderShiftsTableInner(session, wrap){
   if(!rows.length){ wrap.innerHTML = '<div class="empty-state"><div style="font-size:42px;">🕐</div><p class="muted">Bu tarihte vardiya kaydı yok.</p></div>'; return; }
   const dayStart = new Date(APP.shiftsDate+'T00:00').getTime(), pos = (t) => Math.max(0, Math.min(100, (t - dayStart) / 864e5 * 100));
   const nowPct = pos(Date.now()), totalMin = rows.reduce((x, r) => x + (Number(r.duration_minutes)||0), 0), live = rows.filter(r => !r.clock_out).length;
-  wrap.innerHTML = statChips([['🧑‍🍳', rows.length, 'Vardiya', 'var(--c1)'], ['🟢', live, 'Devam eden', 'var(--ok,#22c55e)'],
-      ['⏱', formatShiftDuration(totalMin), 'Toplam çalışma', 'var(--c2)'], ['⏸', rows.filter(r => r.is_paused).length, 'Duraklatılmış', 'var(--c3)']]) + `
-    <div class="sh-tl">
+  wrap.innerHTML = statChips([['🧑‍🍳', rows.length, 'Vardiya', 'var(--c1)', 'all'], ['🟢', live, 'Devam eden', 'var(--ok,#22c55e)', 'live'],
+      ['⏱', formatShiftDuration(totalMin), 'Toplam çalışma', 'var(--c2)', 'done'], ['⏸', rows.filter(r => r.is_paused).length, 'Duraklatılmış', 'var(--c3)', 'paused']], '', 'shifts') + `
+    <div class="sh-tl" data-cf-scope="shifts">
       <div class="sh-axis"><span></span><div>${[0,3,6,9,12,15,18,21,24].map(h => `<i style="left:${h/24*100}%">${String(h).padStart(2,'0')}</i>`).join('')}</div><span></span></div>
       ${rows.map((r, i) => { const a = pos(new Date(r.clock_in).getTime()), b = r.clock_out ? pos(new Date(r.clock_out).getTime()) : nowPct;
-        return `<div class="sh-row ${r.clock_out?'':'live'}" style="--i:${Math.min(i,12)};">
+        return `<div class="sh-row ${r.clock_out?'':'live'}" data-cf-tags="${r.clock_out ? 'done' : 'live'}${r.is_paused ? ' paused' : ''}" style="--i:${Math.min(i,12)};">
           <div class="sh-who">${avatarHtml(r.username)}<div><b>${escapeHtml(r.username)}</b><small>${r.approved_by && r.approved_by!==r.username ? 'Onaylayan: '+escapeHtml(r.approved_by) : formatShiftTime(r.clock_in)+' → '+(r.clock_out ? formatShiftTime(r.clock_out) : 'devam ediyor')}</small></div></div>
           <div class="sh-track">${nowPct>0 && nowPct<100 ? `<span class="sh-now" style="left:${nowPct}%"></span>` : ''}
             <div class="sh-bar ${r.is_paused?'paused':''}" style="left:${a}%;width:${Math.max(1.2, b-a)}%;" title="${formatShiftTime(r.clock_in)} - ${r.clock_out ? formatShiftTime(r.clock_out) : 'şimdi'}"><span>${formatShiftDuration(r.duration_minutes)}</span></div></div>
@@ -1735,11 +1735,11 @@ async function loadActiveUsers(quiet){
   const full = data.max_users && data.total_users >= data.max_users;
   // Otomatik yenilemede giriş animasyonları/sayaçlar tekrar oynamasın.
   if(quiet){ body.dataset.snap = '1'; APP.silentLoad = true; } else delete body.dataset.snap;
-  body.innerHTML = statChips([['🟢', data.active_users, 'Aktif kullanıcı', 'var(--ok,#22c55e)'], ['🧑‍🍳', data.on_shift, 'Vardiyada', 'var(--c1)'],
-      ['📅', data.today_users, 'Bugün giren', 'var(--c2)'], ['🎫', (data.total_users ?? '—') + ' / ' + (data.max_users ?? '—'), data.max_users ? 'Lisans · ' + Math.max(0, data.max_users - data.total_users) + ' boş yer' + (data.total_users - data.enabled_users ? ' · ' + (data.total_users - data.enabled_users) + ' pasif' : '') : 'Kullanıcı / lisans', full ? 'var(--danger,#ef4444)' : 'var(--c3)']]) + `
-    ${!rows.length ? '<div class="empty-state"><div style="font-size:42px;">😴</div><p class="muted">Bu sürede aktif kullanıcı yok.</p></div>' : `<div class="au-grid">${rows.map((r, i) => {
+  body.innerHTML = statChips([['🟢', data.active_users, 'Aktif kullanıcı', 'var(--ok,#22c55e)', 'on'], ['🧑‍🍳', data.on_shift, 'Vardiyada', 'var(--c1)', 'shift'],
+      ['📅', data.today_users, 'Bugün giren', 'var(--c2)', 'all'], ['🎫', (data.total_users ?? '—') + ' / ' + (data.max_users ?? '—'), data.max_users ? 'Lisans · ' + Math.max(0, data.max_users - data.total_users) + ' boş yer' + (data.total_users - data.enabled_users ? ' · ' + (data.total_users - data.enabled_users) + ' pasif' : '') : 'Kullanıcı / lisans', full ? 'var(--danger,#ef4444)' : 'var(--c3)']], '', 'active') + `
+    ${!rows.length ? '<div class="empty-state"><div style="font-size:42px;">😴</div><p class="muted">Bu sürede aktif kullanıcı yok.</p></div>' : `<div class="au-grid" data-cf-scope="active">${rows.map((r, i) => {
       const st = r.online===false ? 'off' : Date.now() - new Date(r.last_seen_at).getTime() < 120000 ? 'on' : 'idle';
-      return `<div class="au-card au-${st}" style="--i:${Math.min(i,12)};">
+      return `<div class="au-card au-${st}" data-cf-tags="${st}${r.on_shift ? ' shift' : ''}" style="--i:${Math.min(i,12)};">
         <div class="cu-top"><span class="au-av">${avatarHtml(r.username)}<i></i></span><div class="cu-id"><b>${escapeHtml(r.username)}</b><small>${escapeHtml(r.roles||'—')}</small></div>
           <span class="au-st">${st==='on' ? 'Çevrimiçi' : st==='idle' ? 'Boşta' : 'Çıkış yaptı'}</span></div>
         <div class="pcard-chips">
@@ -1946,14 +1946,14 @@ function roleCardHtml(r, i){
 function renderRolesSettings(el, session){
   const roles = APP.config.roles || [];
   const custom = roles.filter(r => !r.is_system);
-  el.innerHTML = statChips([['🔑', roles.length, 'Rol', 'var(--c1)'], ['👥', roles.reduce((x, r) => x + (Number(r.user_count)||0), 0), 'Rol atanmış kullanıcı', 'var(--c2)'],
-      ['⏱', custom.filter(r => r.shift_exempt).length, 'Vardiyasız rol', 'var(--c3)'], ['💤', custom.filter(r => !Number(r.user_count)).length, 'Kullanılmayan rol', 'var(--c4)']]) + `<div class="box" style="max-width:none;">
+  el.innerHTML = statChips([['🔑', roles.length, 'Rol', 'var(--c1)', 'all'], ['👥', roles.reduce((x, r) => x + (Number(r.user_count)||0), 0), 'Rol atanmış kullanıcı', 'var(--c2)', 'used'],
+      ['⏱', custom.filter(r => r.shift_exempt).length, 'Vardiyasız rol', 'var(--c3)', 'exempt'], ['💤', custom.filter(r => !Number(r.user_count)).length, 'Kullanılmayan rol', 'var(--c4)', 'unused']], '', 'roles') + `<div class="box" style="max-width:none;">
     <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;">
       <div><h2 style="margin-bottom:4px;">Roller</h2>
         <p class="muted" style="margin:0 0 16px;">Bir role tıklayarak hangi ekranlara erişebileceğini seçin. Bir kullanıcıya en fazla 2 rol verilebilir; izinleri birleşir.</p></div>
       <button style="width:auto;margin:0;" ${act('openNewRoleCard')}>+ Yeni Rol</button>
     </div>
-    <div class="role-list">${roles.map((r, i) => roleCardHtml(r, i)).join('')}</div>
+    <div class="role-list" data-cf-scope="roles">${roles.map((r, i) => roleCardHtml(r, i).replace('<div class="role-card', `<div data-cf-tags="${Number(r.user_count) ? 'used' : 'unused'}${r.shift_exempt ? ' exempt' : ''}" class="role-card`)).join('')}</div>
     <div class="role-card" data-role-card="new_role" style="border-style:dashed;">
       <div class="role-head" ${act('toggleRoleCard', 'new_role')}>
         <div class="role-avatar">＋</div>
