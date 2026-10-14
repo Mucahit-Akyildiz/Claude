@@ -120,9 +120,9 @@ function render(){
       </div>
       <div class="sidebar-backdrop ${APP.mobileNavOpen?'show':''}" ${act('closeMobileNav')}></div>
       <aside class="sidebar ${collapsed?'collapsed':''} ${APP.mobileNavOpen?'mobile-open':''}">
-        <div class="app-brand-row"><img src="/assets/images/logo.webp" alt="Peyktan" class="app-brand-logo"><span class="app-brand-text">Peyktan</span></div>
-        <div class="sb-top">
-          <div class="sb-brand" ${act('goHome')}><span class="label">${escapeHtml(session.restaurant_name)}</span></div>
+        <div class="sb-head">
+          <img src="/assets/images/logo.webp" alt="Peyktan" class="sb-head-logo" ${act('goHome')}>
+          <div class="sb-head-txt label" ${act('goHome')}><b>Peyktan</b><small>${escapeHtml(session.restaurant_name)}</small></div>
           <button class="sb-collapse-btn" ${act('toggleSidebar')} title="Menüyü daralt/genişlet">${collapsed?'»':'«'}</button>
           <button class="sb-mobile-close" ${act('closeMobileNav')} aria-label="Menüyü kapat">✕</button>
         </div>

@@ -2136,3 +2136,26 @@ input.sw:checked{background:var(--c1);} input.sw:checked::after{transform:transl
 .ct-mask{white-space:nowrap}
 .ct-rev{cursor:pointer;border-bottom:1px dashed currentColor}
 .ct-rev a{color:var(--accent)}
+/* Kenar çubuğu üst kartı (logo + marka + işletme) */
+.sidebar .sb-head{display:flex;align-items:center;gap:10px;margin:12px 10px 10px;padding:10px 10px 10px 12px;border-radius:16px;background:linear-gradient(135deg,color-mix(in srgb,var(--c2) 14%,transparent),color-mix(in srgb,var(--c1) 8%,transparent));border:1px solid var(--sb-border,rgba(255,255,255,.08))}
+.sidebar .sb-head-logo{width:34px;height:34px;border-radius:10px;object-fit:contain;flex:0 0 34px;cursor:pointer;background:rgba(0,0,0,.25);padding:3px}
+.sidebar .sb-head-txt{flex:1;min-width:0;cursor:pointer;line-height:1.15}
+.sidebar .sb-head-txt b{display:block;font-family:'Poppins',sans-serif;font-weight:800;font-size:14px;letter-spacing:.08em;text-transform:uppercase;color:var(--sb-text)}
+.sidebar .sb-head-txt small{display:block;font-size:11.5px;font-weight:700;color:var(--c1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;letter-spacing:.02em}
+.sidebar .sb-head .sb-collapse-btn{flex:0 0 auto;width:30px;height:30px;padding:0;margin:0;border-radius:10px}
+.sidebar .sb-head .sb-mobile-close{flex:0 0 auto}
+.sidebar.collapsed .sb-head{flex-direction:column;margin:10px 6px 8px;padding:8px 4px;gap:6px}
+.sidebar.collapsed .sb-head-txt{display:none}
+/* Kenar çubuğu alt kartı: vardiya + hızlı işlemler tek kartta */
+.sidebar .sb-bottom{margin:8px 10px 12px;padding:10px;border-radius:16px;border:1px solid var(--sb-border,rgba(255,255,255,.08));background:color-mix(in srgb,var(--panel) 70%,transparent);display:flex;flex-direction:column;gap:10px;border-top:1px solid var(--sb-border,rgba(255,255,255,.08))}
+.sidebar .sb-bottom .shift-widget{margin:0!important;padding:0!important;border:0!important;background:transparent!important;display:flex;flex-direction:column;gap:8px}
+.sidebar .sb-bottom .shift-status{display:flex;align-items:center;gap:6px;font-size:12px;font-weight:700;color:var(--muted)}
+.sidebar .sb-bottom .shift-status.on{color:#22c55e}
+.sidebar .sb-bottom .sb-shift-btn{width:100%;margin:0;border-radius:12px;padding:9px 10px;font-weight:800}
+.sidebar .sb-bottom .sb-actrow{display:grid;grid-template-columns:2fr 1fr 1fr;gap:6px;padding-top:10px;border-top:1px dashed var(--sb-border,rgba(255,255,255,.1))}
+.sidebar .sb-bottom .theme-toggle{display:grid;grid-template-columns:1fr 1fr;gap:2px;padding:3px;border-radius:12px;background:rgba(0,0,0,.2);margin:0}
+.sidebar .sb-bottom .theme-toggle button,.sidebar .sb-bottom .sb-ib{height:34px;margin:0;padding:0;border-radius:10px;display:grid;place-items:center;font-size:15px}
+.sidebar .sb-bottom .sb-ib{background:rgba(0,0,0,.2);border:0}
+.sidebar .sb-bottom .sb-ib.danger:hover{background:#ef444433}
+.sidebar.collapsed .sb-bottom{margin:6px;padding:6px}
+.sidebar.collapsed .sb-bottom .sb-actrow{grid-template-columns:1fr}
