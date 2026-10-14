@@ -398,7 +398,7 @@ function uiBusyForAutoRefresh(){
   }
   return false;
 }
-const AUTO_REFRESH_SKIP = ['home','reports','printerSettings','notificationSettings','help'];
+const AUTO_REFRESH_SKIP = ['home','reports','settings','printerSettings','notificationSettings','help'];
 function autoRefreshCurrentView(session){
   if(APP.view==='kitchen'){ if(APP.kitchenStation) refreshKitchenItems(session); return; }
   if(APP.view==='order' || APP.view==='packages'){ refreshOrderLiveStatus(session); return; }
