@@ -2302,3 +2302,42 @@ input.sw:checked{background:var(--c1);} input.sw:checked::after{transform:transl
 .mo-pv-i{display:flex;justify-content:space-between;padding:9px 12px;border-radius:10px;font-size:12.5px;font-weight:700;text-transform:uppercase;color:var(--muted)}
 .mo-pv-i.on{background:color-mix(in srgb,var(--c1) 18%,transparent);color:var(--text);border-left:3px solid var(--c1)}
 .mo-pv-i em{font-style:normal;font-size:11px;padding:1px 7px;border-radius:999px;background:var(--border)}
+/* Sipariş Al penceresi v2: arama, renkli menüler, büyük ürün kartları */
+.pp-search{position:relative;display:flex;align-items:center;gap:8px;margin-bottom:12px}
+.pp-search input{flex:1;margin:0!important;border-radius:14px!important;padding:11px 14px!important;font-size:14px;background:color-mix(in srgb,var(--c1) 5%,var(--bg))!important}
+.pp-search-n{position:absolute;right:46px;font-size:11.5px;color:var(--muted)}
+.pp-search-x{width:36px!important;height:36px;padding:0!important;margin:0!important;border-radius:12px!important;background:var(--panel2)!important;color:var(--text)!important;box-shadow:none!important}
+.pp-cat{--mc:var(--c1);padding:11px 12px!important;border-radius:12px!important;gap:10px!important;justify-content:flex-start!important}
+.pp-cat span{flex:1;min-width:0;text-align:left;line-height:1.25}
+.pp-dot{width:10px;height:10px;border-radius:50%;background:var(--mc);flex:0 0 10px;box-shadow:0 0 0 3px color-mix(in srgb,var(--mc) 22%,transparent)}
+.pp-cat.active{background:color-mix(in srgb,var(--mc) 16%,transparent)!important}
+.pp-cat.active::before{background:var(--mc)!important}
+.pp-cat.active b{background:var(--mc)!important;color:#fff!important}
+.pp-grid{grid-template-columns:repeat(auto-fill,minmax(170px,1fr))!important;gap:10px!important}
+.pp-card{--mc:var(--c1);position:relative;display:flex!important;flex-direction:column;justify-content:space-between;gap:8px;min-height:96px;padding:12px 12px 10px 16px!important;border-radius:16px!important;border:1px solid var(--border)!important;background:linear-gradient(150deg,color-mix(in srgb,var(--mc) 9%,var(--panel)),var(--panel))!important;overflow:hidden;transition:transform .12s,box-shadow .15s,border-color .15s;cursor:pointer;user-select:none}
+.pp-card::before{content:'';position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--mc)}
+.pp-card:not(.off):hover{transform:translateY(-2px);border-color:color-mix(in srgb,var(--mc) 55%,var(--border))!important;box-shadow:0 10px 22px color-mix(in srgb,var(--mc) 18%,transparent)}
+.pp-card:not(.off):active{transform:scale(.97)}
+.pp-card.in{border-color:var(--mc)!important;box-shadow:0 0 0 1px var(--mc),0 8px 20px color-mix(in srgb,var(--mc) 20%,transparent)}
+.pp-card .pp-name{font-weight:700;font-size:14.5px;line-height:1.25;padding-right:22px}
+.pp-foot{display:flex;align-items:center;justify-content:space-between;gap:6px}
+.pp-card .pp-price{font-weight:800;font-size:14px;color:var(--mc)}
+.pp-plus{width:28px;height:28px;border-radius:9px;display:grid;place-items:center;font-weight:800;background:color-mix(in srgb,var(--mc) 16%,transparent);color:var(--mc);transition:background .15s}
+.pp-card:hover .pp-plus{background:var(--mc);color:#fff}
+.pp-step{display:flex;gap:4px}
+.pp-step button{width:30px!important;height:30px;padding:0!important;margin:0!important;border-radius:9px!important;font-weight:800;font-size:16px;background:var(--mc)!important;color:#fff!important;border:0!important;box-shadow:none!important}
+.pp-step button:first-child{background:color-mix(in srgb,var(--mc) 18%,var(--panel))!important;color:var(--text)!important}
+.pp-card .pp-qty{position:absolute;top:8px;right:8px;min-width:24px;height:24px;padding:0 6px;border-radius:999px;display:grid;place-items:center;font-size:12px;font-weight:800;background:var(--mc);color:#fff;animation:dgPop .2s}
+.pp-card .pp-badge{font-size:11px;font-weight:700}
+.pp-card.off{opacity:.45;filter:grayscale(.6);cursor:not-allowed}
+.pp-grid .pp-card{flex-direction:column!important;align-items:stretch!important;text-align:left!important}
+.pp-grid .pp-card .pp-name{word-break:normal!important;overflow-wrap:break-word;white-space:normal}
+.pp-grid .pp-card .pp-foot{margin-top:auto}
+.pp-grid .pp-card .pp-badge{position:static!important;margin:0!important}
+@media (max-width:600px){
+  .pp-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:8px!important}
+  .pp-grid .pp-card{min-height:86px;padding:10px 10px 9px 13px!important}
+  .pp-grid .pp-card .pp-name{font-size:13.5px;padding-right:18px}
+  .pp-grid .pp-card .pp-price{font-size:13px}
+  .pp-step button,.pp-plus{width:28px!important;height:28px}
+}
