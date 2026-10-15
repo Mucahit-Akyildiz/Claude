@@ -332,7 +332,13 @@ async function confirmMoveTable(fromTableId){
   render();
 }
 async function cancelTableOrder(tableId){
-  if(!await uiConfirm('Bu masadaki sipariş, mutfağa gönderilenler dahil tamamen iptal edilecek.\nHazırlanan ürünler için istasyonlara iptal fişi gider.', { title:'Sipariş iptal edilsin mi?', okText:'Evet, İptal Et', danger:true })) return;
+  const sent = liveOrderForTable(tableId);
+  const draftN = ((APP.draftCart && APP.draftCart[tableId]) || []).length;
+  const pendingN = sent ? sent.items.filter(i => i.status==='pending' && !i.paid).length : 0;
+  let msg, title;
+  if(!sent){ title = 'Sepet iptal edilsin mi?'; msg = 'Henüz mutfağa gönderilmemiş ' + draftN + ' ürün silinecek.\nMutfağa bir şey gitmediği için iptal fişi basılmaz.'; }
+  else { title = 'Sipariş iptal edilsin mi?'; msg = 'Bu masadaki mutfağa gönderilmiş sipariş tamamen iptal edilecek' + (draftN ? ' (sepetteki gönderilmemiş ürünler de silinir)' : '') + '.' + (pendingN ? '\nHazırlanmakta olan ' + pendingN + ' ürün için istasyona iptal fişi gider.' : '\nTüm ürünler hazır olduğu için iptal fişi basılmaz.'); }
+  if(!await uiConfirm(msg, { title, okText:'Evet, İptal Et', danger:true })) return;
   const session = getSession();
   // Sepette henüz gönderilmemiş ürün varsa stoğunu geri ekle (aksi halde iptal ile birlikte kalıcı kaybolur).
   await releaseDraftStock(tableId);
