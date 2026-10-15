@@ -913,9 +913,17 @@ function refreshMessagesView(){
 function chatPeople(){
   return (APP.chatItems || []).filter(c => !c.is_group && !c.is_all && c.name).map(c => c.name);
 }
+/* Açık sohbette etiketlenebilecek kişiler: grupta yalnızca üyeler, birebirde karşı taraf,
+   "Genel (herkes)" kanalında tüm ekip. */
+function chatConvPeople(){
+  const c = (APP.chatItems || []).find(x => x.conv === APP.chatConv);
+  if(!c || c.is_all) return chatPeople();
+  if(c.is_group) return String(c.roles || '').split(',').map(x => x.trim()).filter(Boolean);
+  return c.name ? [c.name] : [];
+}
 function chatBodyHtml(body){
   const html = escapeHtml(body);
-  const names = chatPeople(); const me = ((getSession() || {}).username || '').toLocaleLowerCase('tr');
+  const names = chatConvPeople().slice(); const me = ((getSession() || {}).username || '').toLocaleLowerCase('tr');
   if(me && !names.includes((getSession() || {}).username)) names.push(getSession().username);
   if(!names.length) return html;
   const lower = new Map(names.map(n => [n.toLocaleLowerCase('tr'), n]));
@@ -932,7 +940,7 @@ function updateChatMention(t){
   if(!m){ box.classList.remove('open'); box.innerHTML = ''; return; }
   const q = m[2].toLocaleLowerCase('tr');
   const me = (getSession() || {}).username;
-  const list = ['herkes', ...chatPeople().filter(n => n !== me)].filter(n => n.toLocaleLowerCase('tr').includes(q)).slice(0, 8);
+  const list = ['herkes', ...chatConvPeople().filter(n => n !== me)].filter(n => n.toLocaleLowerCase('tr').includes(q)).slice(0, 8);
   if(!list.length){ box.classList.remove('open'); box.innerHTML = ''; return; }
   APP.chatMentionSel = 0;
   box.innerHTML = list.map((n, i) => `<button type="button" class="${i===0?'sel':''}" data-name="${escapeAttr(n)}" data-keep-focus ${act('insertChatMention','$data.name')}>${n==='herkes' ? '📣 <b>@herkes</b> <span class="muted">— sohbetteki herkes</span>' : chatAvatar({ name: n }, 24) + ' <b>' + escapeHtml(n) + '</b>'}</button>`).join('');
