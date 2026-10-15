@@ -331,14 +331,23 @@ async function confirmMoveTable(fromTableId){
   showToast(data && data.mode==='merged' ? '🔀 Masalar birleştirildi ✓' : '🔀 Masa taşındı ✓');
   render();
 }
+/* Alttaki "İptal Et": yalnızca bu girişte eklenen (gönderilmemiş) sepeti iptal eder. Mutfağa
+   gönderilmiş ürünler buradan iptal edilmez — onlar ürün yanındaki ✕ İptal veya "Seçilenleri
+   İptal Et" ile iptal edilir. Hiç ürün girilmemiş (boş açılmış) masa ise boşaltılır. */
 async function cancelTableOrder(tableId){
   const sent = liveOrderForTable(tableId);
   const draftN = ((APP.draftCart && APP.draftCart[tableId]) || []).length;
-  const pendingN = sent ? sent.items.filter(i => i.status==='pending' && !i.paid).length : 0;
-  let msg, title;
-  if(!sent){ title = 'Sepet iptal edilsin mi?'; msg = 'Henüz mutfağa gönderilmemiş ' + draftN + ' ürün silinecek.\nMutfağa bir şey gitmediği için iptal fişi basılmaz.'; }
-  else { title = 'Sipariş iptal edilsin mi?'; msg = 'Bu masadaki mutfağa gönderilmiş sipariş tamamen iptal edilecek' + (draftN ? ' (sepetteki gönderilmemiş ürünler de silinir)' : '') + '.' + (pendingN ? '\nHazırlanmakta olan ' + pendingN + ' ürün için istasyona iptal fişi gider.' : '\nTüm ürünler hazır olduğu için iptal fişi basılmaz.'); }
-  if(!await uiConfirm(msg, { title, okText:'Evet, İptal Et', danger:true })) return;
+  const sentN = sent ? sent.items.length : 0;
+  if(draftN){
+    if(!await uiConfirm('Henüz mutfağa gönderilmemiş ' + draftN + ' ürün silinecek.\nMutfağa bir şey gitmediği için iptal fişi basılmaz.' + (sentN ? '\nMutfağa gönderilmiş ürünler aynen kalır.' : ''), { title:'Yeni giriş iptal edilsin mi?', okText:'Evet, İptal Et', danger:true })) return;
+    await releaseDraftStock(tableId);
+    if(sentN){ await closeTableModal(); render(); return; }
+  } else if(sentN){
+    showToast('Gönderilmemiş yeni ürün yok. Mutfağa gidenleri iptal etmek için ürünlerin yanındaki ✕ İptal veya "Seçilenleri İptal Et"i kullanın.');
+    return;
+  } else if(sent){
+    if(!await uiConfirm('Bu masada henüz sipariş girilmedi. Masa boşaltılsın mı?', { title:'Masa boşaltılsın mı?', okText:'Boşalt', danger:true })) return;
+  } else { await closeTableModal(); return; }
   const session = getSession();
   // Sepette henüz gönderilmemiş ürün varsa stoğunu geri ekle (aksi halde iptal ile birlikte kalıcı kaybolur).
   await releaseDraftStock(tableId);
