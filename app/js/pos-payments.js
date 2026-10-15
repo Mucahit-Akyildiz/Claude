@@ -1466,6 +1466,7 @@ async function saveTableCustomer(tableId, quiet){
 }
 /* ---- Masa penceresi: ürün ekle, sepete at, mutfağa gönder ---- */
 function openTableModal(tableId){
+  APP.prodSearch = '';
   const tableName = tableNameForId(tableId);
   if(!APP.draftCart) APP.draftCart = {};
   if(!APP.draftCart[tableId]) APP.draftCart[tableId] = [];

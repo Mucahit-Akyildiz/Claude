@@ -107,10 +107,13 @@ function renderProductPick(stationId, tableId){
   let cur = APP.prodPickCat[stationId];
   if(cur && cur !== '__all' && !cats.includes(cur)) cur = null;
   cur = cur || '__all';
-  const prods = (!cats.length || cur === '__all') ? all : all.filter(p => p.category === cur);
+  const q = String(APP.prodSearch || '').trim().toLocaleLowerCase('tr');
+  const prods = q ? all.filter(p => String(p.name).toLocaleLowerCase('tr').includes(q)) : ((!cats.length || cur === '__all') ? all : all.filter(p => p.category === cur));
+  // Menü rengi: menünün bağlı olduğu istasyonun rengi.
+  const menuColor = (cat) => { const m = (APP.config.menus || []).find(x => x.name === cat); const st = m && (APP.config.stations || []).find(x => x.id === m.station_id); return (st && st.color) || 'var(--c1)'; };
   const count = (c) => c === '__all' ? all.length : all.filter(p => p.category === c).length;
   const side = cats.length ? `<div class="pp-cats">${[['__all','Tümü'], ...cats.map(c => [c, c])].map(([v, l]) =>
-    `<button type="button" class="pp-cat ${cur===v?'active':''}" data-cat="${escapeAttr(v)}" ${actStop('setProdPickCat', stationId, '$data.cat', tableId)}><span>${escapeHtml(l)}</span><b>${count(v)}</b></button>`).join('')}</div>` : '';
+    `<button type="button" class="pp-cat ${cur===v && !q?'active':''}" style="--mc:${v==='__all' ? 'var(--c1)' : menuColor(v)};" data-cat="${escapeAttr(v)}" ${actStop('setProdPickCat', stationId, '$data.cat', tableId)}><i class="pp-dot"></i><span>${escapeHtml(l)}</span><b>${count(v)}</b></button>`).join('')}</div>` : '';
   const cards = prods.length ? prods.map(p => {
     const stock = effectiveStock(p);
     const off = p.available===false || (stock!=null && stock<=0);
@@ -124,9 +127,11 @@ function renderProductPick(stationId, tableId){
     }
     else if(stock!=null && stock<=10) badge = '<div class="pp-badge" style="color:var(--accent);">Son '+stock+' porsiyon</div>';
     const inCart = ((APP.draftCart && APP.draftCart[tableId]) || []).filter(i => i.product_id === p.id).reduce((n, i) => n + i.qty, 0);
-    return `<div class="prod-pick-card pp-card ${off?'off':''}" ${off?'':act('addToDraft', tableId, p.id)}>
+    const dIdx = ((APP.draftCart && APP.draftCart[tableId]) || []).findIndex(i => i.product_id === p.id);
+    return `<div class="prod-pick-card pp-card ${off?'off':''} ${inCart?'in':''}" style="--mc:${menuColor(p.category)};" ${off?'':act('addToDraft', tableId, p.id)}>
       ${inCart ? `<span class="pp-qty">${inCart}</span>` : ''}
-      <div class="pp-name">${escapeHtml(p.name)}</div><div class="pp-price">${money(p.price)}</div>${badge}
+      <div class="pp-name">${escapeHtml(p.name)}</div>
+      <div class="pp-foot"><div class="pp-price">${money(p.price)}</div>${inCart && dIdx >= 0 ? `<span class="pp-step"><button type="button" title="Azalt" ${actStop('changeDraftQty', tableId, dIdx, -1)}>−</button><button type="button" title="Arttır" ${actStop('addToDraft', tableId, p.id)}>+</button></span>` : (off ? '' : '<span class="pp-plus">＋</span>')}</div>${badge}
     </div>`;
   }).join('') : '<p class="muted" style="grid-column:1/-1;">Bu bölümde ürün yok.</p>';
   el.className = 'pp-wrap' + (cats.length ? ' has-cats' : '');
@@ -139,9 +144,13 @@ function renderProductPick(stationId, tableId){
       ${productExtras(par.id).filter(e => e.available !== false).map(e => { const n = (cart.find(i => i.product_id === e.id) || {}).qty || 0;
         return `<button type="button" class="pp-extra ${n?'on':''}" ${act('addToDraft', tableId, e.id)}>${escapeHtml(e.name)}<small>${Number(e.price) ? '+'+money(e.price) : 'ücretsiz'}</small>${n ? `<b>${n}</b>` : ''}</button>`; }).join('')}</div>`).join('')}
   </div>` : '';
-  el.innerHTML = side + `<div class="pp-main"><div class="pp-grid">${cards}</div>${extrasHtml}</div>`;
+  const searchHtml = `<div class="pp-search"><input id="ppSearch" placeholder="🔍 Ürün ara…" autocomplete="off" value="${escapeAttr(APP.prodSearch || '')}" ${actOn('input','setProdSearch',['$value', tableId])}>${q ? `<span class="pp-search-n">${prods.length} sonuç</span><button type="button" class="pp-search-x" title="Temizle" ${act('setProdSearch', '', tableId)}>✕</button>` : ''}</div>`;
+  const focused = document.activeElement && document.activeElement.id === 'ppSearch';
+  el.innerHTML = side + `<div class="pp-main">${searchHtml}<div class="pp-grid">${cards}</div>${extrasHtml}</div>`;
+  if(focused){ const i = document.getElementById('ppSearch'); if(i){ i.focus(); i.setSelectionRange(i.value.length, i.value.length); } }
 }
-function setProdPickCat(stationId, cat, tableId){
+function setProdSearch(v, tableId){ APP.prodSearch = v; renderProductPick(null, tableId); }
+function setProdPickCat(stationId, cat, tableId){ APP.prodSearch = '';
   APP.prodPickCat = APP.prodPickCat || {}; APP.prodPickCat[stationId] = cat;
   renderProductPick(stationId, tableId);
 }
