@@ -2334,3 +2334,10 @@ input.sw:checked{background:var(--c1);} input.sw:checked::after{transform:transl
 .pp-grid .pp-card .pp-name{word-break:normal!important;overflow-wrap:break-word;white-space:normal}
 .pp-grid .pp-card .pp-foot{margin-top:auto}
 .pp-grid .pp-card .pp-badge{position:static!important;margin:0!important}
+@media (max-width:600px){
+  .pp-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:8px!important}
+  .pp-grid .pp-card{min-height:86px;padding:10px 10px 9px 13px!important}
+  .pp-grid .pp-card .pp-name{font-size:13.5px;padding-right:18px}
+  .pp-grid .pp-card .pp-price{font-size:13px}
+  .pp-step button,.pp-plus{width:28px!important;height:28px}
+}
