@@ -147,7 +147,7 @@ async function renderDeletedAccountsAdmin(main, admin){
     </table>`}`;
 }
 async function releaseDeletedAccount(id){
-  if(!confirm('Bu kayıt kalıcı olarak silinecek ve aynı e-posta/telefonla yeniden hesap açılabilecek. Emin misiniz?')) return;
+  if(!await uiConfirm('Bu kayıt kalıcı olarak silinecek ve aynı e-posta/telefonla yeniden hesap açılabilecek. Emin misiniz?')) return;
   const admin = getAdminSession();
   const { error } = await sb.rpc('admin_release_deleted_account', { p_token: admin.session_token, p_id: id });
   if(error){ alert(error.message); return; }
@@ -383,7 +383,7 @@ async function savePackageRow(id){
 }
 async function deletePackageRow(id, restaurantCount){
   if(restaurantCount>0){ alert('Bu paketi kullanan '+restaurantCount+' işletme var, silmeden önce onları başka bir pakete taşıyın.'); return; }
-  if(!confirm('"'+id+'" paketini silmek istediğinize emin misiniz?')) return;
+  if(!await uiConfirm('"'+id+'" paketini silmek istediğinize emin misiniz?')) return;
   const admin = getAdminSession();
   const { error } = await sb.rpc('admin_delete_package', { p_token: admin.session_token, p_id: id });
   if(error){ alert(error.message); return; }
@@ -632,7 +632,7 @@ async function showRestaurantAudit(id){
 async function deleteRestaurantAdmin(id){
   const r = (APP.adminRestaurants||[]).find(x => x.id===id);
   if(!r) return;
-  const code = prompt('"'+r.name+'" işletmesi ve TÜM verileri (menü, siparişler, satışlar, müşteriler, kullanıcılar) KALICI olarak silinecek. Bu işlem geri alınamaz.\n\nOnaylamak için işletme kodunu yazın: '+r.code);
+  const code = await uiPrompt('"'+r.name+'" işletmesi ve TÜM verileri (menü, siparişler, satışlar, müşteriler, kullanıcılar) KALICI olarak silinecek. Bu işlem geri alınamaz.\n\nOnaylamak için işletme kodunu yazın: '+r.code);
   if(code===null) return;
   const admin = getAdminSession();
   const { error } = await sb.rpc('admin_delete_restaurant', { p_token: admin.session_token, p_restaurant_id: id, p_confirm_code: code.trim() });
@@ -644,7 +644,7 @@ async function toggleRestaurantActive(id, makeActive){
   const msg = makeActive
     ? 'Bu işletmeyi aktif etmek istediğinize emin misiniz?'
     : 'Bu işletmeyi pasif etmek istediğinize emin misiniz? Personel giriş yapamaz hale gelir.';
-  if(!confirm(msg)) return;
+  if(!await uiConfirm(msg)) return;
   const admin = getAdminSession();
   const { error } = await sb.rpc('admin_set_restaurant_active', { p_token: admin.session_token, p_restaurant_id: id, p_active: makeActive });
   if(error){ alert(error.message); return; }
@@ -736,7 +736,7 @@ async function toggleCompanyActive(id, makeActive){
   const msg = makeActive
     ? 'Bu şirketi aktif etmek istediğinize emin misiniz?'
     : 'Bu şirketi pasif etmek istediğinize emin misiniz? Şirket ve tüm şubeleri giriş yapamaz hale gelir.';
-  if(!confirm(msg)) return;
+  if(!await uiConfirm(msg)) return;
   const admin = getAdminSession();
   const { error } = await sb.rpc('admin_set_company_active', { p_token: admin.session_token, p_id: id, p_active: makeActive });
   if(error){ alert(error.message); return; }
@@ -744,7 +744,7 @@ async function toggleCompanyActive(id, makeActive){
   refreshCompaniesList(admin);
 }
 async function deleteCompany(id, name){
-  if(!confirm('"'+name+'" şirketini KALICI olarak silmek istediğinize emin misiniz?\n\nBu geri alınamaz. Bağlı şubeler silinmez, sadece şirketten ayrılıp kendi bağımsız paketlerine döner (varsa) - şirketin abonelik durumunu artık paylaşmazlar.')) return;
+  if(!await uiConfirm('"'+name+'" şirketini KALICI olarak silmek istediğinize emin misiniz?\n\nBu geri alınamaz. Bağlı şubeler silinmez, sadece şirketten ayrılıp kendi bağımsız paketlerine döner (varsa) - şirketin abonelik durumunu artık paylaşmazlar.')) return;
   const admin = getAdminSession();
   const { error } = await sb.rpc('admin_delete_company', { p_token: admin.session_token, p_id: id });
   if(error){ alert(error.message); return; }
@@ -953,7 +953,7 @@ async function saveFeatureRow(id){
   if(!label){ alert('Ad gerekli'); return; }
   const prev = (APP.featureCatalog||[]).find(f => f.id===id);
   if(isAddon && prev && !prev.is_addon){
-    if(!confirm('"'+label+'" eklentiye çevrilecek.\n\nBu özellik tüm paketlerden otomatik olarak çıkarılır. Şu an bu özelliği içeren bir paketi kullanan işletme/şirketlerin erişimi kaybolmaz: onlara eklenti olarak otomatik atanır.\n\nDevam edilsin mi?')) return;
+    if(!await uiConfirm('"'+label+'" eklentiye çevrilecek.\n\nBu özellik tüm paketlerden otomatik olarak çıkarılır. Şu an bu özelliği içeren bir paketi kullanan işletme/şirketlerin erişimi kaybolmaz: onlara eklenti olarak otomatik atanır.\n\nDevam edilsin mi?')) return;
   }
   const { error } = await sb.rpc('admin_upsert_feature', { p_token: admin.session_token, p_id: id, p_label: label, p_category: cat, p_is_addon: isAddon, p_price: price, p_description: desc||null, p_active: active });
   if(error){ alert(error.message); return; }
@@ -978,7 +978,7 @@ async function createFeatureSubmit(){
   refreshFeatureCatalogList(admin);
 }
 async function deleteFeatureRow(id){
-  if(!confirm('Bu özelliği silmek istediğinize emin misiniz? Bu özelliğe sahip paketler ve eklenti atamaları etkilenir.')) return;
+  if(!await uiConfirm('Bu özelliği silmek istediğinize emin misiniz? Bu özelliğe sahip paketler ve eklenti atamaları etkilenir.')) return;
   const admin = getAdminSession();
   const { error } = await sb.rpc('admin_delete_feature', { p_token: admin.session_token, p_id: id });
   if(error){ alert(error.message); return; }
@@ -1150,8 +1150,8 @@ async function reviewBankTransferNotice(id, approve){
   const admin = getAdminSession();
   let adminNote = null;
   if(!approve){
-    adminNote = prompt('Reddetme sebebi (opsiyonel):') || null;
-  } else if(!confirm('Bu havale bildirimini onaylıyor musunuz? Onaylanınca abonelik uzatılır (eklenti bildirimiyse eklenti açılır).')){
+    adminNote = await uiPrompt('Reddetme sebebi (opsiyonel):') || null;
+  } else if(!await uiConfirm('Bu havale bildirimini onaylıyor musunuz? Onaylanınca abonelik uzatılır (eklenti bildirimiyse eklenti açılır).')){
     return;
   }
   const { error } = await sb.rpc('admin_review_bank_transfer_notice', {
@@ -1289,7 +1289,7 @@ async function enableAdminTotp(){
   loadAdminTotpBox();
 }
 async function disableAdminTotp(){
-  if(!confirm('2 adımlı doğrulama kapatılsın mı? Admin girişi sadece şifreyle yapılır.')) return;
+  if(!await uiConfirm('2 adımlı doğrulama kapatılsın mı? Admin girişi sadece şifreyle yapılır.')) return;
   const admin = getAdminSession();
   const { error } = await sb.rpc('admin_totp_disable', { p_token: admin.session_token, p_code: document.getElementById('totpOffCode').value.trim() });
   if(error){ document.getElementById('totpErr').textContent = error.message; return; }
@@ -1317,7 +1317,7 @@ async function togglePromo(id){
   refreshPromoList(admin);
 }
 async function deletePromo(id){
-  if(!confirm('Bu kodu silmek istediğinize emin misiniz?')) return;
+  if(!await uiConfirm('Bu kodu silmek istediğinize emin misiniz?')) return;
   const admin = getAdminSession();
   const { error } = await sb.rpc('delete_promo_code', { p_token: admin.session_token, p_id: id });
   if(error){ alert(error.message); return; }
@@ -1548,14 +1548,14 @@ async function doExtendSubscription(id, args){
 function setAdminErrorsAll(on){ APP.adminErrorsAll = on; renderClientErrorsAdmin(document.getElementById('main'), getAdminSession()); }
 function copySupportCode(){ navigator.clipboard.writeText(document.getElementById('supCode').value).then(() => showToast('Kod kopyalandı ✓')); }
 function extendSubscriptionUntil(id){ const v = document.getElementById('extendUntil').value; if(!v){ alert('Tarih seçin'); return; } doExtendSubscription(id, { p_until: v }); }
-function extendSubscriptionUnlimited(id){ if(confirm('Abonelik süresiz yapılsın mı?')) doExtendSubscription(id, { p_unlimited: true }); }
+async function extendSubscriptionUnlimited(id){ if(await uiConfirm('Abonelik süresiz yapılsın mı?')) doExtendSubscription(id, { p_unlimited: true }); }
 
 /* İşletme izin verdiyse (Ayarlar > Destek Erişimi) 1 saatlik destek oturumu açar ve işletmenin
    uygulamasını yeni sekmede yönetici yetkisiyle açar. Oturum bilgisi URL'de taşınmaz: aynı
    kökenli yeni sekme localStorage'dan bir kez okuyup siler. */
 async function startSupportSession(restaurantId, name){
   const admin = getAdminSession(); if(!admin) return;
-  if(!confirm('"' + name + '" işletmesine destek olarak girilsin mi? Giriş işletmenin kaydında görünür.')) return;
+  if(!await uiConfirm('"' + name + '" işletmesine destek olarak girilsin mi? Giriş işletmenin kaydında görünür.')) return;
   const { data, error } = await sb.rpc('admin_start_support_session', { p_token: admin.session_token, p_restaurant_id: restaurantId });
   if(error){ alert(error.message); return; }
   try{ localStorage.setItem('rys_support_handoff', JSON.stringify({ at: Date.now(), s: data })); }catch(e){ alert('Tarayıcı depolaması kullanılamıyor.'); return; }

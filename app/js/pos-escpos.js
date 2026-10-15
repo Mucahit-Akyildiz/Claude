@@ -318,7 +318,7 @@ function openMoveTableModal(fromTableId){
 }
 async function confirmMoveTable(fromTableId){
   const to = document.getElementById('moveTarget').value;
-  if((APP.draftCart && (APP.draftCart[fromTableId]||[]).length) && !confirm('Henüz gönderilmemiş sepet ürünleri taşınmaz, önce gönderin. Yine de devam edilsin mi?')) return;
+  if((APP.draftCart && (APP.draftCart[fromTableId]||[]).length) && !await uiConfirm('Henüz gönderilmemiş sepet ürünleri taşınmaz, önce gönderin. Yine de devam edilsin mi?')) return;
   const btn = document.getElementById('moveBtn'); btn.disabled = true;
   const session = getSession();
   const { data, error } = await sb.rpc('move_table_order', { p_token: session.session_token, p_from_table_id: fromTableId, p_to_table_id: to });
@@ -332,7 +332,7 @@ async function confirmMoveTable(fromTableId){
   render();
 }
 async function cancelTableOrder(tableId){
-  if(!confirm('Bu masadaki siparişi (mutfağa gönderilenler dahil) tamamen iptal etmek istediğinize emin misiniz?')) return;
+  if(!await uiConfirm('Bu masadaki sipariş, mutfağa gönderilenler dahil tamamen iptal edilecek.\nHazırlanan ürünler için istasyonlara iptal fişi gider.', { title:'Sipariş iptal edilsin mi?', okText:'Evet, İptal Et', danger:true })) return;
   const session = getSession();
   // Sepette henüz gönderilmemiş ürün varsa stoğunu geri ekle (aksi halde iptal ile birlikte kalıcı kaybolur).
   await releaseDraftStock(tableId);
@@ -355,7 +355,7 @@ async function cancelTableOrder(tableId){
 async function clearDraftCart(tableId){
   const draft = APP.draftCart[tableId];
   if(!draft || draft.length===0) return;
-  if(!confirm('Henüz gönderilmemiş sepetteki ürünler temizlensin mi?')) return;
+  if(!await uiConfirm('Henüz gönderilmemiş sepetteki ürünler silinecek.', { title:'Sepet boşaltılsın mı?', okText:'Boşalt', danger:true })) return;
   await releaseDraftStock(tableId);
   renderTableItems(tableId);
   const activeTab = document.querySelector('#prodStationTabs .tab.active');

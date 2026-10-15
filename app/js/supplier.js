@@ -76,7 +76,7 @@ async function saveSupplier(){
   showToast('Kaydedildi ✓');
 }
 async function removeSupplier(id){
-  if(!confirm('Bu tedarikçiyi silmek istediğinize emin misiniz?')) return;
+  if(!await uiConfirm('Bu tedarikçiyi silmek istediğinize emin misiniz?')) return;
   const session = getSession();
   const { error } = await sb.rpc('delete_supplier', { p_token: session.session_token, p_id: id });
   if(error){ alert(error.message); return; }
@@ -197,7 +197,7 @@ async function markPOOrdered(id){
   showToast(data && data.email_sent ? 'Sipariş verildi, tedarikçiye e-posta gönderildi ✓' : 'Sipariş verildi (tedarikçiye e-posta gönderilmedi — e-posta adresi kayıtlı değil ya da e-posta sistemi henüz ayarlanmadı)');
 }
 async function removePO(id){
-  if(!confirm('Bu siparişi silmek istediğinize emin misiniz?')) return;
+  if(!await uiConfirm('Bu siparişi silmek istediğinize emin misiniz?')) return;
   const session = getSession();
   const { error } = await sb.rpc('delete_purchase_order', { p_token: session.session_token, p_id: id });
   if(error){ alert(error.message); return; }

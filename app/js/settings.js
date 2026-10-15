@@ -177,7 +177,7 @@ async function addOrderFlag(){
   await renderSettingsView(document.getElementById('main'), session);
 }
 async function removeOrderFlag(id){
-  if(!confirm('Bu etiket silinsin mi?')) return;
+  if(!await uiConfirm('Bu etiket silinsin mi?')) return;
   const session = getSession();
   const { error } = await sb.rpc('delete_order_flag', { p_token: session.session_token, p_flag_id: id });
   if(error){ alert(error.message); return; }
@@ -274,7 +274,7 @@ async function saveAllIngredients(){
 async function bulkDeleteIngredients(){
   const ids = selectedIngredientIds(); if(!ids.length) return;
   const list = ids.map(id => (APP.config.ingredients||[]).find(x => x.id===id)).filter(Boolean);
-  if(!confirm(list.length + ' hammadde silinsin mi? Bunlara bağlı reçeteler de silinir.\n\n' + list.map(i => i.name).join(', '))) return;
+  if(!await uiConfirm(list.length + ' hammadde silinsin mi? Bunlara bağlı reçeteler de silinir.\n\n' + list.map(i => i.name).join(', '))) return;
   const session = getSession(); const errors = [];
   await withLoadingOverlay((async () => {
     for(const i of list){ const { error } = await sb.rpc('delete_ingredient', { p_token: session.session_token, p_id: i.id }); if(error) errors.push(i.name + ': ' + friendlyDeleteError(error.message)); }
@@ -397,7 +397,7 @@ async function saveProductExtra(productId, extraId){
   if(APP.settingsTab==='products') renderSettingsContent(session);
 }
 async function removeProductExtra(productId, extraId){
-  if(!confirm('Bu ekstra silinsin mi?')) return;
+  if(!await uiConfirm('Bu ekstra silinsin mi?')) return;
   const session = getSession();
   const { error } = await sb.rpc('delete_product', { p_token: session.session_token, p_id: extraId });
   if(error){ alert(friendlyDeleteError ? friendlyDeleteError(error.message) : error.message); return; }
@@ -690,10 +690,10 @@ async function menuRpc(fn, args, okMsg){
 function newMenuKey(e){ if(e.key === 'Enter'){ e.preventDefault(); addMenu(); } }
 function addMenu(){ const v = (document.getElementById('newMenuName')||{}).value || ''; if(!v.trim()) return; menuRpc('upsert_menu', { p_id: null, p_name: v.trim() }, 'Menü eklendi ✓'); }
 function saveMenu(id){ const v = (document.getElementById('menu_name_'+id)||{}).value || ''; menuRpc('upsert_menu', { p_id: id, p_name: v.trim() }, 'Kaydedildi ✓'); }
-function removeMenu(id){
+async function removeMenu(id){
   const m = (APP.config.menus||[]).find(x => x.id === id) || {};
   const n = (APP.config.products||[]).filter(p => p.menu_id === id).length;
-  if(!confirm(`"${m.name}" menüsü silinsin mi?` + (n ? `\n\n${n} ürün menüsüz kalacak (ürünler silinmez, istasyonları değişmez).` : ''))) return;
+  if(!await uiConfirm(`"${m.name}" menüsü silinsin mi?` + (n ? `\n\n${n} ürün menüsüz kalacak (ürünler silinmez, istasyonları değişmez).` : ''))) return;
   menuRpc('delete_menu', { p_id: id }, 'Menü silindi');
 }
 function moveMenu(id, dir){
@@ -735,7 +735,7 @@ async function removeStation(id){
     alert('Bu istasyona bağlı '+linkedCount+' ürün var. Önce Ürünler sekmesinden bu ürünleri başka bir istasyona taşıyın veya silin, sonra bu istasyonu silebilirsiniz.');
     return;
   }
-  if(!confirm('İstasyonu silmek istediğinize emin misiniz?')) return;
+  if(!await uiConfirm('İstasyonu silmek istediğinize emin misiniz?')) return;
   const session = getSession();
   const { error } = await sb.rpc('delete_station', { p_token: session.session_token, p_id: id });
   if(error){
@@ -860,7 +860,7 @@ function renderZonesSettings(el, session){
 }
 function selectZoneSetting(id){ APP.zoneSel = id; renderSettingsContent(getSession()); }
 async function renameTable(id, zoneId, current){
-  const name = (prompt('Masa adı:', current) || '').trim();
+  const name = (await uiPrompt('Masa adı:', current) || '').trim();
   if(!name || name===current) return;
   const session = getSession();
   const { error } = await sb.rpc('upsert_table', { p_token: session.session_token, p_id: id, p_zone_id: zoneId, p_name: name });
@@ -888,7 +888,7 @@ function friendlyDeleteError(msg){
   return msg;
 }
 async function removeZone(id){
-  if(!confirm('Bölgeyi ve içindeki masaları silmek istediğinize emin misiniz?')) return;
+  if(!await uiConfirm('Bölgeyi ve içindeki masaları silmek istediğinize emin misiniz?')) return;
   const session = getSession();
   const { error } = await sb.rpc('delete_zone', { p_token: session.session_token, p_id: id });
   if(error){ alert(friendlyDeleteError(error.message)); return; }
@@ -911,7 +911,7 @@ async function addTableInner(session, zoneId, name){
   if(m){
     const from = parseInt(m[2],10), to = parseInt(m[3],10);
     if(to < from || to - from > 99){ alert('Aralık en fazla 100 masa olabilir.'); return; }
-    if(!confirm(`${to-from+1} masa eklenecek (${m[1]}${from} … ${m[1]}${to}). Devam edilsin mi?`)) return;
+    if(!await uiConfirm(`${to-from+1} masa eklenecek (${m[1]}${from} … ${m[1]}${to}). Devam edilsin mi?`)) return;
     names = []; for(let i=from;i<=to;i++) names.push(m[1] + i);
   }
   // Bu bölgede zaten var olan adlar atlanır (büyük/küçük harf fark etmez); diğer bölgelerde aynı ad olabilir.
@@ -930,7 +930,7 @@ async function addTableInner(session, zoneId, name){
   renderSettingsView(document.getElementById('main'), session);
 }
 async function removeTable(id){
-  if(!confirm('Masayı silmek istediğinize emin misiniz?')) return;
+  if(!await uiConfirm('Masayı silmek istediğinize emin misiniz?')) return;
   const session = getSession();
   const { error } = await sb.rpc('delete_table', { p_token: session.session_token, p_id: id });
   if(error){ alert(friendlyDeleteError(error.message)); return; }
@@ -1066,7 +1066,7 @@ function printAllTableQrs(){
 // Her masa için ayrı PNG (QR + masa adı) indirilir; görseller CORS'lu yüklenip tuvale çizilir.
 async function downloadAllTableQrs(){
   const list = allTablesForQr(); if(!list.length){ showToast('Henüz masa yok'); return; }
-  if(!confirm(list.length + ' QR kodu PNG olarak indirilecek. Tarayıcı "birden fazla dosya indirme" izni sorarsa İzin Ver deyin.')) return;
+  if(!await uiConfirm(list.length + ' QR kodu PNG olarak indirilecek. Tarayıcı "birden fazla dosya indirme" izni sorarsa İzin Ver deyin.')) return;
   const load = (src) => new Promise((res, rej) => { const im = new Image(); im.crossOrigin = 'anonymous'; im.onload = () => res(im); im.onerror = rej; im.src = src; });
   let ok = 0;
   await withLoadingOverlay((async () => {
@@ -1387,7 +1387,7 @@ async function setMenuAvailable(menuId, open){
   const menu = (APP.config.menus || []).find(m => m.id === menuId);
   const list = (APP.config.products || []).filter(p => p.menu_id === menuId && (p.available !== false) !== open);
   if(!list.length) return;
-  if(!open && !confirm((menu ? menu.name : 'Bu menü') + ' menüsündeki ' + list.length + ' ürün satışa kapatılsın mı?')) return;
+  if(!open && !await uiConfirm((menu ? menu.name : 'Bu menü') + ' menüsündeki ' + list.length + ' ürün satışa kapatılsın mı?')) return;
   const errors = await runProductBatch(list, (s, p) => sb.rpc('upsert_product', Object.assign({ p_token: s.session_token }, productPayload(p, { p_available: open }))));
   if(errors.length) alert('Bazı ürünler güncellenemedi:\n\n' + errors.join('\n'));
   else showToast((menu ? menu.name : 'Menü') + ': ' + list.length + ' ürün ' + (open ? 'satışa açıldı ✓' : 'satışa kapatıldı'));
@@ -1450,7 +1450,7 @@ async function bulkProductAvailable(open){
 async function bulkDeleteProducts(){
   const ids = selectedProductIds(); if(!ids.length) return;
   const list = ids.map(id => APP.config.products.find(p => p.id===id)).filter(Boolean).map(p => ({ id: p.id, name: p.name, friendly: true }));
-  if(!confirm(list.length + ' ürün silinsin mi?\n\n' + list.map(p => p.name).join(', '))) return;
+  if(!await uiConfirm(list.length + ' ürün silinsin mi?\n\n' + list.map(p => p.name).join(', '))) return;
   const errors = await runProductBatch(list, (s, p) => sb.rpc('delete_product', { p_token: s.session_token, p_id: p.id }));
   if(errors.length) alert('Bazı ürünler silinemedi:\n\n' + errors.join('\n')); else showToast(list.length + ' ürün silindi');
 }
@@ -1710,7 +1710,7 @@ async function renderShiftsTableInner(session, wrap){
     </div>`;
 }
 async function manageShift(id, action){
-  if(action==='end' && !confirm('Bu personelin vardiyası şimdi bitirilsin mi?')) return;
+  if(action==='end' && !await uiConfirm('Bu personelin vardiyası şimdi bitirilsin mi?')) return;
   const session = getSession();
   const { error } = await withLoadingOverlay(sb.rpc('manage_staff_shift', { p_token: session.session_token, p_shift_id: id, p_action: action }));
   if(error){ showToast(error.message); return; }
@@ -1874,7 +1874,7 @@ async function doDataReset(){
   const r = resetRangeDates();
   if(document.getElementById('resetRange').value==='custom' && !r.from && !r.to){ showToast('Tarih aralığı seçin'); return; }
   const names = RESET_CATEGORIES.filter(c => cats.includes(c.id)).map(c => '• ' + c.label).join('\n');
-  if(!confirm(r.label + ' şu veriler kalıcı olarak silinecek:\n\n' + names + '\n\nBu işlem GERİ ALINAMAZ. Devam edilsin mi?')) return;
+  if(!await uiConfirm(r.label + ' şu veriler kalıcı olarak silinecek:\n\n' + names + '\n\nBu işlem GERİ ALINAMAZ. Devam edilsin mi?')) return;
   const session = getSession();
   const { data, error } = await withLoadingOverlay(sb.rpc('reset_restaurant_data_ts', { p_token: session.session_token, p_password: pw, p_from: r.from, p_to: r.to, p_categories: cats }));
   if(error){ showToast(error.message); return; }
@@ -2032,7 +2032,7 @@ async function createRole(){
   renderSettingsView(document.getElementById('main'), session);
 }
 async function deleteRole(id){
-  if(!confirm('Bu rolü silmek istediğinize emin misiniz?')) return;
+  if(!await uiConfirm('Bu rolü silmek istediğinize emin misiniz?')) return;
   const session = getSession();
   const { error } = await sb.rpc('manager_delete_role', { p_token: session.session_token, p_id: id });
   if(error){ alert(error.message); return; }
@@ -2248,7 +2248,7 @@ async function loadAddonPurchaseBox(el, addonId){
 async function submitAddonTransfer(btn, addonId){
   const wrap = btn.closest('.addon-buy');
   const noteEl = wrap && wrap.querySelector('.addon-note');
-  if(!confirm('Havale/EFT ödemesini yaptığınızı onaylıyor musunuz?')) return;
+  if(!await uiConfirm('Havale/EFT ödemesini yaptığınızı onaylıyor musunuz?')) return;
   btn.disabled = true;
   const session = getSession();
   const { error } = await sb.rpc('submit_addon_transfer_notice', { p_token: session.session_token, p_addon_id: addonId, p_note: noteEl ? (noteEl.value.trim()||null) : null });
@@ -2335,7 +2335,7 @@ async function saveOnlineSectionName(id){
   if(await saveOnlineSection(sec)) showToast('Kaydedildi ✓');
 }
 async function removeOnlineSection(id){
-  if(!confirm('Bu başlık silinsin mi? (Ürünler silinmez)')) return;
+  if(!await uiConfirm('Bu başlık silinsin mi? (Ürünler silinmez)')) return;
   const session = getSession();
   const { error } = await sb.rpc('remove_online_menu_section', { p_token: session.session_token, p_id: id });
   if(error){ alert(error.message); return; }
@@ -2449,7 +2449,7 @@ async function uploadProductImage(productId, input){
   refreshMediaViews();
 }
 async function removeProductImage(productId){
-  if(!confirm('Fotoğraf kaldırılsın mı?')) return;
+  if(!await uiConfirm('Fotoğraf kaldırılsın mı?')) return;
   const session = getSession();
   const { error } = await sb.rpc('set_product_image', { p_token: session.session_token, p_product_id: productId, p_data: null });
   if(error){ alert(error.message); return; }
@@ -2825,7 +2825,7 @@ async function saveAllUsers(){
 async function bulkUserActive(activate){
   const ids = selectedUserIds(); if(!ids.length) return;
   const names = ids.map(id => ((APP.config.users||[]).find(x => x.id===id) || {}).username).filter(Boolean);
-  if(!activate && !confirm(names.length + ' kullanıcı pasife alınsın mı?\n\n' + names.join(', ') + '\n\nGiriş yapamazlar ve açık oturumları hemen kapanır. Kayıtları silinmez, istediğinizde tekrar aktifleştirebilirsiniz.')) return;
+  if(!activate && !await uiConfirm(names.length + ' kullanıcı pasife alınsın mı?\n\n' + names.join(', ') + '\n\nGiriş yapamazlar ve açık oturumları hemen kapanır. Kayıtları silinmez, istediğinizde tekrar aktifleştirebilirsiniz.')) return;
   const session = getSession(); const errors = [];
   await withLoadingOverlay((async () => {
     for(const id of ids){
@@ -2840,7 +2840,7 @@ async function bulkUserActive(activate){
 async function bulkDeleteUsers(){
   const ids = selectedUserIds(); if(!ids.length) return;
   const names = ids.map(id => ((APP.config.users||[]).find(x => x.id===id) || {}).username).filter(Boolean);
-  if(!confirm(names.length + ' kullanıcı kalıcı olarak silinsin mi?\n\n' + names.join(', '))) return;
+  if(!await uiConfirm(names.length + ' kullanıcı kalıcı olarak silinsin mi?\n\n' + names.join(', '))) return;
   const session = getSession(); const errors = [];
   await withLoadingOverlay((async () => {
     for(const id of ids){
@@ -2896,7 +2896,7 @@ async function renderSupportAccessSettings(el, session){
 }
 async function setSupportAccess(hours){
   const session = getSession(); if(!session) return;
-  if(!hours && !confirm('Destek erişim izni kaldırılsın mı? Açık destek oturumu varsa hemen kapanır.')) return;
+  if(!hours && !await uiConfirm('Destek erişim izni kaldırılsın mı? Açık destek oturumu varsa hemen kapanır.')) return;
   const { error } = await sb.rpc('set_support_access', { p_token: session.session_token, p_hours: hours });
   if(error){ alert(error.message); return; }
   showToast(hours ? '🛟 Destek erişimine izin verildi' : 'Destek erişim izni kaldırıldı');

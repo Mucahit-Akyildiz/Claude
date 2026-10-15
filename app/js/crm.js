@@ -130,7 +130,7 @@ async function saveCrmCustomer(){
   showToast(id ? 'Güncellendi ✓' : 'Müşteri eklendi ✓');
 }
 async function removeCustomer(id){
-  if(!confirm('Bu müşteriyi silmek istediğinize emin misiniz?')) return;
+  if(!await uiConfirm('Bu müşteriyi silmek istediğinize emin misiniz?')) return;
   const session = getSession();
   const { error } = await sb.rpc('delete_customer', { p_token: session.session_token, p_id: id });
   if(error){ alert(error.message); return; }

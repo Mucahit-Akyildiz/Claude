@@ -2341,3 +2341,18 @@ input.sw:checked{background:var(--c1);} input.sw:checked::after{transform:transl
   .pp-grid .pp-card .pp-price{font-size:13px}
   .pp-step button,.pp-plus{width:28px!important;height:28px}
 }
+/* Uygulama içi onay penceresi */
+.uc-card .uc-msg{margin:6px 0 18px;font-size:13.5px;color:var(--muted)}
+.uc-card .uc-msg p{margin:4px 0}
+.uc-li{display:flex;align-items:center;gap:8px;text-align:left;margin:4px auto;max-width:300px;padding:7px 12px;border-radius:10px;background:var(--bg);border:1px solid var(--border);color:var(--text);font-weight:600}
+.uc-li::before{content:'✕';color:#ef4444;font-weight:800}
+.uc-acts{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.uc-acts button{width:100%;margin:0;padding:12px;border-radius:14px;font-weight:800}
+.uc-yes{background:linear-gradient(135deg,var(--c1),var(--c2))!important;color:#fff!important;border:0}
+.uc-card.danger .dg-ic{background:linear-gradient(135deg,#ef4444,#f97316);box-shadow:0 0 28px #ef444455}
+.uc-card.danger .uc-yes{background:linear-gradient(135deg,#ef4444,#dc2626)!important}
+.uc-acts.one{grid-template-columns:1fr}
+.uc-in{width:100%;margin:0 0 16px!important;border-radius:12px!important;text-align:center;font-size:15px}
+.uc-card.warn .dg-ic{background:linear-gradient(135deg,#f59e0b,#f97316);box-shadow:0 0 28px #f59e0b55}
+.uc-card.warn .uc-yes{background:linear-gradient(135deg,#f59e0b,#ea580c)!important}
+.ui-alert .uc-msg{font-size:14.5px;color:var(--text)}

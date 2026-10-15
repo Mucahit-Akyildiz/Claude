@@ -101,7 +101,7 @@ async function saveRadioChannel(id){
   if(APP.view==='radio') renderRadioView(document.getElementById('main'), session);
 }
 async function removeRadioChannel(id){
-  if(!confirm('Bu telsiz kanalı silinsin mi?')) return;
+  if(!await uiConfirm('Bu telsiz kanalı silinsin mi?')) return;
   const session = getSession();
   const { error } = await sb.rpc('remove_radio_channel', { p_token: session.session_token, p_id: id });
   if(error){ alert(error.message); return; }

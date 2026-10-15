@@ -1059,7 +1059,7 @@ async function approveCustomerRequest(id){
   refreshOrderLiveStatus(session);
 }
 async function rejectCustomerRequest(id){
-  if(!confirm('Bu isteği reddetmek istediğinize emin misiniz?')) return;
+  if(!await uiConfirm('Bu isteği reddetmek istediğinize emin misiniz?')) return;
   const session = getSession();
   const { error } = await sb.rpc('reject_customer_order_request', { p_token: session.session_token, p_request_id: id });
   if(error){ alert(error.message); return; }
@@ -1595,7 +1595,7 @@ async function transferToOpenAccount(accountId, nameHint){
   const bg = document.getElementById('payModalBg'); if(!bg) return;
   const acc = (APP.openAccounts||[]).find(a => a.id===accountId);
   const total = Math.round(payFinalTotal()*100)/100;
-  if(!confirm(money(total) + ' "' + ((acc && acc.name) || nameHint || 'açık hesap') + '" hesabına aktarılsın mı?')) return;
+  if(!await uiConfirm(money(total) + ' "' + ((acc && acc.name) || nameHint || 'açık hesap') + '" hesabına aktarılsın mı?')) return;
   const subtotal = parseFloat(bg.dataset.subtotal||0);
   const { data, error } = await withLoadingOverlay(sb.rpc('transfer_to_open_account', { p_token: getSession().session_token,
     p_order_id: bg.dataset.orderId, p_account_id: accountId, p_item_qtys: buildPayItemQtys(), p_discount_amount: Math.max(0, Math.round((subtotal - total)*100)/100) }));

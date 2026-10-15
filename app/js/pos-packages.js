@@ -280,7 +280,7 @@ async function cancelSentItem(tableId, itemId){
   const order = liveOrderForTable(tableId);
   const it = order && order.items.find(i => i.id===itemId);
   if(!it) return;
-  if(!confirm(it.qty + 'x ' + it.name + ' iptal edilsin mi?' + (it.status==='pending' ? '\nİstasyona iptal fişi gönderilecek.' : ''))) return;
+  if(!await uiConfirm(it.qty + '× ' + it.name + (it.status==='pending' ? '\nİstasyona iptal fişi gönderilecek.' : ''), { title:'Ürün iptal edilsin mi?', okText:'Evet, İptal Et', danger:true })) return;
   const session = getSession();
   const { data, error } = await withLoadingOverlay(sb.rpc('cancel_order_item', { p_token: session.session_token, p_item_id: itemId }));
   if(error){ alert('İptal edilemedi: ' + error.message); return; }
@@ -304,7 +304,7 @@ async function cancelSelectedSent(tableId){
   const s = sentSel(tableId);
   const list = order.items.filter(i => s.has(i.id) && !i.paid);
   if(!list.length) return;
-  if(!confirm(list.length + ' ürün iptal edilsin mi?\n' + list.map(i => '• ' + i.qty + 'x ' + i.name).join('\n') + '\n\nHazırlanan ürünler için istasyona iptal fişi gönderilecek.')) return;
+  if(!await uiConfirm(list.length + ' ürün iptal edilecek:\n' + list.map(i => '• ' + i.qty + 'x ' + i.name).join('\n') + '\n\nHazırlanan ürünler için istasyona iptal fişi gönderilecek.', { title:'Seçilenler iptal edilsin mi?', okText:'Evet, İptal Et', danger:true })) return;
   const session = getSession();
   let closed = false, failed = 0;
   await withLoadingOverlay((async () => {

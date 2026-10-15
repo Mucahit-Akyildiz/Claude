@@ -190,7 +190,7 @@ async function changeReservationStatus(id, status){
   showToast('Durum güncellendi ✓');
 }
 async function removeReservation(id){
-  if(!confirm('Bu rezervasyonu silmek istediğinize emin misiniz?')) return;
+  if(!await uiConfirm('Bu rezervasyonu silmek istediğinize emin misiniz?')) return;
   const session = getSession();
   const { error } = await sb.rpc('delete_reservation', { p_token: session.session_token, p_id: id });
   if(error){ alert(error.message); return; }
@@ -381,7 +381,7 @@ async function addWaitlistEntry(){
 async function updateWaitlistWait(id){
   const w = (APP.waitlistCache||[]).find(x => x.id===id); if(!w) return;
   const left = w.quoted_wait_minutes!=null ? Math.max(0, Math.round((new Date(w.joined_at).getTime() + w.quoted_wait_minutes*60000 - Date.now())/60000)) : 15;
-  const v = prompt(`${w.customer_name} için kalan bekleme süresi (dakika):${w.email ? '\n\nMüşteriye e-posta ile bildirilecek.' : ''}`, String(left));
+  const v = await uiPrompt(`${w.customer_name} için kalan bekleme süresi (dakika):${w.email ? '\n\nMüşteriye e-posta ile bildirilecek.' : ''}`, String(left));
   if(v === null) return;
   const mins = parseInt(v, 10);
   if(!(mins >= 0)){ alert('Geçerli bir dakika girin'); return; }

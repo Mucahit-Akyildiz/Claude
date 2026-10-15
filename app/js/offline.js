@@ -126,8 +126,8 @@ function openOutboxModal(){
 }
 async function flushOutboxNow(){ await flushOutbox(); if(document.getElementById('outboxBg')) openOutboxModal(); }
 async function retryOutboxEntry(id){ const list = outboxAll(); const e = list.find(x => x.id === id); if(e){ delete e.error; outboxSave(list); } await flushOutboxNow(); }
-function discardOutboxEntry(id){
-  if(!confirm('Bu sipariş gönderilmeden silinsin mi?')) return;
+async function discardOutboxEntry(id){
+  if(!await uiConfirm('Bu sipariş gönderilmeden silinsin mi?')) return;
   outboxSave(outboxAll().filter(x => x.id !== id)); openOutboxModal();
 }
 
