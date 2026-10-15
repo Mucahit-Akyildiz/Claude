@@ -390,3 +390,26 @@ function revealContact(el){
   el.dataset.shown = '1';
   setTimeout(() => { if(el.dataset.shown) revealContact(el); }, 15000);
 }
+/* Tarayıcının gri confirm() kutusu yerine uygulama tasarımında onay penceresi. Promise<boolean> döner. */
+function uiConfirm(message, o){
+  o = o || {};
+  return new Promise(resolve => {
+    const old = document.getElementById('uiConfirm'); if(old) old.remove();
+    const bg = document.createElement('div'); bg.id = 'uiConfirm'; bg.className = 'dg-bg'; bg.style.zIndex = 3000;
+    const lines = String(message).split('\n');
+    bg.innerHTML = `<div class="dg-card uc-card ${o.danger ? 'danger' : ''}">
+      <div class="dg-ic">${o.icon || (o.danger ? '🗑️' : '❓')}</div>
+      <h2>${escapeHtml(o.title || 'Emin misiniz?')}</h2>
+      <div class="uc-msg">${lines.map(l => l.trim().startsWith('•') ? `<div class="uc-li">${escapeHtml(l.trim().slice(1).trim())}</div>` : l.trim() ? `<p>${escapeHtml(l)}</p>` : '').join('')}</div>
+      <div class="uc-acts"><button type="button" class="pc-btn uc-no">${escapeHtml(o.cancelText || 'Vazgeç')}</button><button type="button" class="uc-yes">${escapeHtml(o.okText || 'Evet')}</button></div>
+    </div>`;
+    const done = (v) => { bg.remove(); document.removeEventListener('keydown', key); resolve(v); };
+    const key = (e) => { if(e.key === 'Escape') done(false); if(e.key === 'Enter') done(true); };
+    bg.addEventListener('click', e => { if(e.target === bg) done(false); });
+    bg.querySelector('.uc-no').addEventListener('click', () => done(false));
+    bg.querySelector('.uc-yes').addEventListener('click', () => done(true));
+    document.addEventListener('keydown', key);
+    document.body.appendChild(bg);
+    setTimeout(() => { const y = bg.querySelector('.uc-yes'); if(y) y.focus(); }, 30);
+  });
+}
