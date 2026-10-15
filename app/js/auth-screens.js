@@ -696,7 +696,7 @@ async function submitDeleteAccount(){
   const codeEl = document.getElementById('delAccConfirmCode');
   errBox.textContent = '';
   if(!password){ errBox.textContent = 'Şifrenizi girin'; return; }
-  if(!confirm('Hesabınız kalıcı olarak silinecek. Emin misiniz?')) return;
+  if(!await uiConfirm('Hesabınız kalıcı olarak silinecek. Emin misiniz?')) return;
   const btn = document.getElementById('delAccBtn');
   btn.disabled = true; btn.textContent = 'Siliniyor...';
   const { data, error } = await sb.rpc('delete_my_account', {

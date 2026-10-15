@@ -1338,11 +1338,11 @@ async function toggleOaSale(historyId, boxId){
 async function collectOpenAccount(id){
   { const dr = document.getElementById('oaEntriesModalBg'); if(dr) dr.remove(); }
   const a = ((APP.openAccReport||{}).accounts||[]).find(x => x.id===id); if(!a) return;
-  const v = prompt('"' + a.name + '" hesabından tahsil edilecek tutar (bakiye ' + money(a.balance) + '):', String(Math.round(a.balance*100)/100));
+  const v = await uiPrompt('"' + a.name + '" hesabından tahsil edilecek tutar (bakiye ' + money(a.balance) + '):', String(Math.round(a.balance*100)/100));
   if(v === null) return;
   const amount = parseFloat(String(v).replace(',', '.'));
   if(!(amount > 0)){ alert('Geçerli bir tutar girin'); return; }
-  const method = confirm('Kartla mı alındı? (Tamam = Kart, İptal = Nakit)') ? 'card' : 'cash';
+  const method = await uiConfirm('Tahsilat nasıl alındı?', { title:'Ödeme yöntemi', icon:'💳', okText:'💳 Kart', cancelText:'💵 Nakit' }) ? 'card' : 'cash';
   const { error } = await withLoadingOverlay(sb.rpc('collect_open_account', { p_token: getSession().session_token, p_account_id: id, p_amount: amount, p_method: method }));
   if(error){ alert(error.message); return; }
   showToast('✅ ' + money(amount) + ' tahsil edildi');

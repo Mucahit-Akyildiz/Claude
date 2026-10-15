@@ -392,7 +392,8 @@ function revealContact(el){
 }
 /* Tarayıcının gri confirm() kutusu yerine uygulama tasarımında onay penceresi. Promise<boolean> döner. */
 function uiConfirm(message, o){
-  o = o || {};
+  o = Object.assign({}, o || {});
+  if(o.danger == null) o.danger = /sil|iptal|kaldır|sıfırla|geri alınamaz|kalıcı/i.test(String(message));
   return new Promise(resolve => {
     const old = document.getElementById('uiConfirm'); if(old) old.remove();
     const bg = document.createElement('div'); bg.id = 'uiConfirm'; bg.className = 'dg-bg'; bg.style.zIndex = 3000;
@@ -411,5 +412,44 @@ function uiConfirm(message, o){
     document.addEventListener('keydown', key);
     document.body.appendChild(bg);
     setTimeout(() => { const y = bg.querySelector('.uc-yes'); if(y) y.focus(); }, 30);
+  });
+}
+/* Tarayıcının alert() kutusu yerine uygulama içi bilgi penceresi (engellemez). */
+function uiAlert(message, o){
+  o = o || {};
+  return new Promise(resolve => {
+    const bg = document.createElement('div'); bg.className = 'dg-bg ui-alert'; bg.style.zIndex = 3001;
+    const txt = String(message == null ? '' : message);
+    const bad = /hata|başarısız|geçersiz|yüklenemedi|edilemedi|gönderilemedi|bulunamadı|yetki|izin|olmalı|giriniz|girin|seçin/i.test(txt);
+    bg.innerHTML = `<div class="dg-card uc-card ${bad ? 'warn' : ''}"><div class="dg-ic">${o.icon || (bad ? '⚠️' : 'ℹ️')}</div>
+      <div class="uc-msg">${txt.split('\n').map(l => l.trim() ? `<p>${escapeHtml(l)}</p>` : '').join('')}</div>
+      <div class="uc-acts one"><button type="button" class="uc-yes">${escapeHtml(o.okText || 'Tamam')}</button></div></div>`;
+    const done = () => { bg.remove(); document.removeEventListener('keydown', key); resolve(); };
+    const key = (e) => { if(e.key === 'Escape' || e.key === 'Enter'){ e.preventDefault(); done(); } };
+    bg.addEventListener('click', e => { if(e.target === bg) done(); });
+    bg.querySelector('.uc-yes').addEventListener('click', done);
+    document.addEventListener('keydown', key);
+    document.body.appendChild(bg);
+    setTimeout(() => { const y = bg.querySelector('.uc-yes'); if(y) y.focus(); }, 30);
+  });
+}
+window.alert = function(m){ uiAlert(m); };
+/* prompt() yerine: metin girişi isteyen pencere. Promise<string|null>. */
+function uiPrompt(message, def, o){
+  o = o || {};
+  return new Promise(resolve => {
+    const bg = document.createElement('div'); bg.className = 'dg-bg'; bg.style.zIndex = 3000;
+    bg.innerHTML = `<div class="dg-card uc-card ${o.danger ? 'danger' : ''}"><div class="dg-ic">${o.icon || (o.danger ? '⚠️' : '✏️')}</div>
+      <div class="uc-msg">${String(message).split('\n').map(l => l.trim() ? `<p>${escapeHtml(l)}</p>` : '').join('')}</div>
+      <input class="uc-in" type="text" value="${escapeAttr(def == null ? '' : def)}">
+      <div class="uc-acts"><button type="button" class="pc-btn uc-no">Vazgeç</button><button type="button" class="uc-yes">${escapeHtml(o.okText || 'Tamam')}</button></div></div>`;
+    const inp = bg.querySelector('.uc-in');
+    const done = (v) => { bg.remove(); resolve(v); };
+    inp.addEventListener('keydown', e => { if(e.key === 'Enter') done(inp.value); if(e.key === 'Escape') done(null); });
+    bg.addEventListener('click', e => { if(e.target === bg) done(null); });
+    bg.querySelector('.uc-no').addEventListener('click', () => done(null));
+    bg.querySelector('.uc-yes').addEventListener('click', () => done(inp.value));
+    document.body.appendChild(bg);
+    setTimeout(() => { inp.focus(); inp.select(); }, 30);
   });
 }

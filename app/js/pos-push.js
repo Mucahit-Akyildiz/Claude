@@ -276,10 +276,10 @@ function previewBellCustom(id){
   const item = getKitchenBellSounds().library.find(x => x.id === id);
   if(item) playUploadedBell(item.data).catch(() => alert('Bu ses dosyası çalınamadı (bozuk ya da desteklenmeyen format olabilir).'));
 }
-function deleteBellCustom(id){
+async function deleteBellCustom(id){
   const sounds = getKitchenBellSounds();
   const item = sounds.library.find(x => x.id === id);
-  if(!item || !confirm('"' + item.name + '" sesi silinsin mi? Bu sesi kullanan istasyonlar varsayılan zile döner.')) return;
+  if(!item || !await uiConfirm('"' + item.name + '" sesi silinsin mi? Bu sesi kullanan istasyonlar varsayılan zile döner.')) return;
   sounds.library = sounds.library.filter(x => x.id !== id);
   if(sounds.default && sounds.default.custom === id) sounds.default = null;
   Object.keys(sounds.perStation).forEach(k => { if(sounds.perStation[k] && sounds.perStation[k].custom === id) delete sounds.perStation[k]; });
@@ -354,7 +354,7 @@ async function saveTicketDesign(){
   if(ok) showToast('Kaydedildi ✓ (tüm cihazlarda geçerli)');
 }
 async function resetTicketDesign(){
-  if(!confirm('Fiş tasarımı varsayılan ayarlara sıfırlansın mı?')) return;
+  if(!await uiConfirm('Fiş tasarımı varsayılan ayarlara sıfırlansın mı?')) return;
   await setTicketDesign(TICKET_DESIGN_DEFAULTS);
   renderPrinterSettingsView(document.getElementById('main'), getSession());
   showToast('Varsayılana sıfırlandı ✓');
@@ -433,8 +433,8 @@ async function addPrinterEntry(){
   renderSettingsFromCurrentSession();
   showToast(isFirstPrinter ? 'Yazıcı eklendi ve bu ekranın yazıcısı yapıldı ✓' : 'Yazıcı eklendi ✓');
 }
-function removePrinterEntry(id){
-  if(!confirm('Bu yazıcıyı silmek istediğinize emin misiniz?')) return;
+async function removePrinterEntry(id){
+  if(!await uiConfirm('Bu yazıcıyı silmek istediğinize emin misiniz?')) return;
   setPrinters(getPrinters().filter(p => p.id!==id));
   if(getActivePrinterId()===id) setActivePrinterId('');
   renderSettingsFromCurrentSession();

@@ -2351,3 +2351,8 @@ input.sw:checked{background:var(--c1);} input.sw:checked::after{transform:transl
 .uc-yes{background:linear-gradient(135deg,var(--c1),var(--c2))!important;color:#fff!important;border:0}
 .uc-card.danger .dg-ic{background:linear-gradient(135deg,#ef4444,#f97316);box-shadow:0 0 28px #ef444455}
 .uc-card.danger .uc-yes{background:linear-gradient(135deg,#ef4444,#dc2626)!important}
+.uc-acts.one{grid-template-columns:1fr}
+.uc-in{width:100%;margin:0 0 16px!important;border-radius:12px!important;text-align:center;font-size:15px}
+.uc-card.warn .dg-ic{background:linear-gradient(135deg,#f59e0b,#f97316);box-shadow:0 0 28px #f59e0b55}
+.uc-card.warn .uc-yes{background:linear-gradient(135deg,#f59e0b,#ea580c)!important}
+.ui-alert .uc-msg{font-size:14.5px;color:var(--text)}

@@ -95,7 +95,7 @@ async function requestChatPermissions(){
     if(pushOff && typeof togglePushNotifications === 'function' && !getSavedFcmTokenSafe()) await togglePushNotifications();
   }catch(e){}
   if(NP && !ex.bluetooth && NP.requestBluetooth){ try{ await NP.requestBluetooth(); }catch(e){} }
-  if(NP && !ex.fullScreen && NP.openFullScreenSettings && confirm('Telefon kilitliyken gelen aramaların tam ekran görünmesi için açılacak ekranda Peyktan\'a izin verin.')){ try{ await NP.openFullScreenSettings(); }catch(e){} }
+  if(NP && !ex.fullScreen && NP.openFullScreenSettings && await uiConfirm('Telefon kilitliyken gelen aramaların tam ekran görünmesi için açılacak ekranda Peyktan\'a izin verin.')){ try{ await NP.openFullScreenSettings(); }catch(e){} }
   const missing = [!got.microphone ? 'mikrofon' : null, !got.camera ? 'kamera' : null].filter(Boolean);
   showToast(missing.length ? 'Verilmeyen izin: ' + missing.join(', ') + ' — telefon Ayarlar > Uygulamalar > Peyktan > İzinler\'den açabilirsiniz' : 'İzinler verildi ✓', 6000);
 }
@@ -654,7 +654,7 @@ function copyChatMessage(id){
 }
 async function deleteChatMessage(id){
   document.querySelectorAll('.chat-react-bar').forEach(b => b.remove());
-  if(!confirm('Bu mesaj herkesten silinsin mi?')) return;
+  if(!await uiConfirm('Bu mesaj herkesten silinsin mi?')) return;
   const session = getSession();
   const { error } = await sb.rpc('delete_chat_message', { p_token: session.session_token, p_message_id: id });
   if(error){ alert(error.message); return; }
@@ -711,7 +711,7 @@ async function downloadChatFile(id){
 }
 /* Tek görüntülemelik fotoğraf: bir kez açılır, kaydedilemez; kapatınca bir daha açılmaz. */
 async function openViewOnce(id){
-  if(!confirm('Bu fotoğraf yalnızca bir kez görüntülenebilir. Açılsın mı?')) return;
+  if(!await uiConfirm('Bu fotoğraf yalnızca bir kez görüntülenebilir. Açılsın mı?')) return;
   let r;
   try{ r = await withLoadingOverlay(chatFetch(id, '&once=1')); }catch(e){ alert('Açılamadı'); return; }
   if(!r.ok){
@@ -894,7 +894,7 @@ function openChatGroupMenu(conv){
   setTimeout(() => document.addEventListener('click', function close(){ menu.remove(); document.removeEventListener('click', close); }), 0);
 }
 async function leaveChatGroup(conv){
-  if(!confirm('Bu gruptan çıkılsın mı?')) return;
+  if(!await uiConfirm('Bu gruptan çıkılsın mı?')) return;
   const session = getSession();
   const { error } = await sb.rpc('leave_chat_group', { p_token: session.session_token, p_group_id: conv.slice(2) });
   if(error){ alert(error.message); return; }
