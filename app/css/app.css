@@ -2356,3 +2356,13 @@ input.sw:checked{background:var(--c1);} input.sw:checked::after{transform:transl
 .uc-card.warn .dg-ic{background:linear-gradient(135deg,#f59e0b,#f97316);box-shadow:0 0 28px #f59e0b55}
 .uc-card.warn .uc-yes{background:linear-gradient(135deg,#f59e0b,#ea580c)!important}
 .ui-alert .uc-msg{font-size:14.5px;color:var(--text)}
+/* Mutfak kartı: dar ekranda (tablet) ürün adı harf harf alt alta kırılmasın; kontroller alta geçsin */
+.kb-grid .kc-item{display:flex!important;flex-wrap:wrap;align-items:center}
+.kb-grid .kc-item .kc-qty{flex:0 0 auto}
+.kb-grid .kc-item .kc-iname{flex:1 1 130px;min-width:130px}
+.kb-grid .kc-item .kc-ctrl{margin-left:auto;flex:0 0 auto}
+.kb-grid .kc-iname .kitchen-item-name{word-break:normal!important;overflow-wrap:break-word!important}
+.kb-grid .kc-title{min-width:0;flex:1}
+.kb-grid .kc-title b{white-space:normal!important;overflow:visible!important;text-overflow:clip!important;word-break:break-word}
+@media (min-width:1100px) and (max-width:1500px){ .kb-grid{grid-template-columns:repeat(auto-fill,minmax(280px,1fr))!important;} }
+.kb-grid .kc-no{white-space:nowrap;flex:0 0 auto}
