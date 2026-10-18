@@ -854,7 +854,7 @@ declare s staff_sessions%rowtype; r uuid; u uuid; v jsonb := '{}'::jsonb; it jso
 begin
   r := p_rest; u := p_user;
   if _user_has_perm(u, 'order') then
-    select coalesce(jsonb_agg(jsonb_build_object('id', c.id, 'label', coalesce(t.name, case c.order_type when 'delivery' then 'Teslimat' when 'pickup' then 'Gel-Al' else 'Online' end) || coalesce(' · ' || c.customer_name, ''))), '[]') into arr
+    select coalesce(jsonb_agg(jsonb_build_object('id', c.id, 'label', coalesce(t.name, case c.order_type when 'delivery' then 'Teslimat' when 'pickup' then 'Gel-Al' else 'Online' end) || coalesce(' · ' || c.customer_name, ''), 'kind', 'customer_request', 'otype', c.order_type, 'table', t.name, 'name', c.customer_name)), '[]') into arr
       from customer_order_requests c left join restaurant_tables t on t.id = c.table_id where c.restaurant_id = r and c.status = 'pending';
     v := v || jsonb_build_object('order', jsonb_array_length(arr)); it := it || jsonb_build_object('order', arr);
   end if;
@@ -865,8 +865,8 @@ begin
     v := v || jsonb_build_object('kitchen', jsonb_array_length(arr)); it := it || jsonb_build_object('kitchen', arr);
   end if;
   if _user_has_perm(u, 'payments') then
-    select coalesce(jsonb_agg(jsonb_build_object('id', x.id, 'label', x.label)), '[]') into arr from (
-      select distinct o.id, coalesce(t.name, '📦 ' || coalesce(o.customer_name, 'Paket #' || o.daily_number)) label
+    select coalesce(jsonb_agg(jsonb_build_object('id', x.id, 'label', x.label, 'kind', 'ready', 'table', x.tname)), '[]') into arr from (
+      select distinct o.id, coalesce(t.name, '📦 ' || coalesce(o.customer_name, 'Paket #' || o.daily_number)) label, coalesce(t.name, 'Paket ' || coalesce(o.customer_name, '')) tname
       from orders o join order_items oi on oi.order_id = o.id left join restaurant_tables t on t.id = o.table_id
       where o.restaurant_id = r and o.status = 'open' and oi.status = 'ready' and not oi.paid and o.kind <> 'waitlist'
         and not exists(select 1 from order_items p2 where p2.order_id = o.id and p2.status = 'pending' and not p2.paid)) x;
@@ -911,13 +911,13 @@ begin
   end if;
   -- Masadan garson çağrıları: sipariş çağrısı Sipariş Al'a, ödeme çağrısı Ödemeler'e eklenir.
   if _user_has_perm(u, 'order') then
-    select coalesce(jsonb_agg(jsonb_build_object('id', w.id, 'label', '🙋 ' || coalesce(t.name,'Masa') || ' · sipariş için garson çağırıyor', 'kind', 'waiter_call')), '[]') into arr
+    select coalesce(jsonb_agg(jsonb_build_object('id', w.id, 'label', '🙋 ' || coalesce(t.name,'Masa') || ' · sipariş için garson çağırıyor', 'kind', 'waiter_call', 'table', t.name)), '[]') into arr
       from waiter_calls w left join restaurant_tables t on t.id = w.table_id where w.restaurant_id = r and w.status = 'pending' and w.kind = 'order' and w.created_at > now() - interval '3 hours';
     v := v || jsonb_build_object('order', coalesce((v->>'order')::int,0) + jsonb_array_length(arr));
     it := it || jsonb_build_object('order', coalesce(it->'order','[]'::jsonb) || arr);
   end if;
   if _user_has_perm(u, 'payments') then
-    select coalesce(jsonb_agg(jsonb_build_object('id', w.id, 'label', '💳 ' || coalesce(t.name,'Masa') || ' · hesap istiyor', 'kind', 'waiter_call')), '[]') into arr
+    select coalesce(jsonb_agg(jsonb_build_object('id', w.id, 'label', '💳 ' || coalesce(t.name,'Masa') || ' · hesap istiyor', 'kind', 'waiter_call', 'table', t.name)), '[]') into arr
       from waiter_calls w left join restaurant_tables t on t.id = w.table_id where w.restaurant_id = r and w.status = 'pending' and w.kind = 'payment' and w.created_at > now() - interval '3 hours';
     v := v || jsonb_build_object('payments', coalesce((v->>'payments')::int,0) + jsonb_array_length(arr));
     it := it || jsonb_build_object('payments', coalesce(it->'payments','[]'::jsonb) || arr);
@@ -937,6 +937,12 @@ begin
             select id, 'reservation', customer_name, table_id, seated_at from reservations where restaurant_id = r and seated_at > now() - interval '5 minutes') st_
       left join restaurant_tables tb_ on tb_.id = st_.stid;
     v := v || jsonb_build_object('_seated', arr);
+    -- 15 dakika içinde başlayacak (henüz oturmamış) rezervasyonlar: sesli hatırlatma.
+    select coalesce(jsonb_agg(jsonb_build_object('id', rs_.id, 'name', rs_.customer_name, 'party', rs_.party_size, 'table', tb2_.name, 'time', rs_.reservation_time)), '[]') into arr
+      from reservations rs_ left join restaurant_tables tb2_ on tb2_.id = rs_.table_id
+      where rs_.restaurant_id = r and rs_.status in ('pending', 'confirmed') and rs_.seated_at is null
+        and rs_.reservation_time between now() - interval '5 minutes' and now() + interval '15 minutes';
+    v := v || jsonb_build_object('_upcoming', arr);
   end if;
   return v || jsonb_build_object('_items', it);
 end; $$;
