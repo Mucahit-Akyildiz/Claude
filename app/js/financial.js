@@ -811,10 +811,13 @@ async function renderPeriodAnalyticsContent(session){
 async function renderPurchaseReportContent(session){
   const host = document.getElementById('procContent'); if(!host) return;
   const sub = APP.purchRepSub || 'orders';
-  host.innerHTML = `<div class="bx-tabs" id="purchRepTabs">
-      <button type="button" class="bx-tab ${sub==='orders'?'on':''}" style="--sc:var(--c1);" data-tab="purchRepOrders" ${act('setPurchRepSub','orders')}><span class="bx-ic">🧾</span>Satınalma Siparişleri</button>
-      <button type="button" class="bx-tab ${sub==='suppliers'?'on':''}" style="--sc:var(--c2);" data-tab="purchRepSuppliers" ${act('setPurchRepSub','suppliers')}><span class="bx-ic">🏭</span>Tedarikçiler</button>
-    </div><div id="purchRepContent"></div>`;
+  // Diğer ekranlar gibi soldaki kartlı menü (mobilde üstte şerit).
+  host.innerHTML = `<div class="set-layout">
+      <nav class="tabs settings-tabs set-nav" id="purchRepTabs">
+        <div class="tab set-item ${sub==='orders'?'active on':''}" style="--i:0;--sc:var(--c1);" data-tab="purchRepOrders" ${act('setPurchRepSub','orders')}><span class="set-ico">🧾</span><span class="set-txt"><b>Satınalma Siparişleri</b><small>Tutar, teslim, fiyat bekleyen</small></span></div>
+        <div class="tab set-item ${sub==='suppliers'?'active on':''}" style="--i:1;--sc:var(--c2);" data-tab="purchRepSuppliers" ${act('setPurchRepSub','suppliers')}><span class="set-ico">🏭</span><span class="set-txt"><b>Tedarikçiler</b><small>Firma ve iletişim</small></span></div>
+      </nav>
+      <div id="purchRepContent" class="set-content"></div></div>`;
   if(sub==='suppliers'){ APP.supplierTarget = 'purchRepContent'; return renderSuppliersContent(session); }
   const el = document.getElementById('purchRepContent');
   const { data, error } = await withLoadingOverlay(sb.rpc('get_purchase_report', { p_token: session.session_token, p_date: APP.procFrom, p_date_to: APP.procTo }));

@@ -7,19 +7,23 @@ async function renderReservationsView(main, session){
   // güncellemesi) her zaman görünür.
   APP.reservationsCache = null;
   APP.waitlistCache = null;
+  // Diğer ayar/rapor sayfaları gibi bölümler soldaki menüde (mobilde üstte kaydırılabilir şerit).
+  const cur = APP.resvTab || 'reservations';
+  const RESV_TABS = [['reservations','📅','Rezervasyonlar','Yaklaşan, yeni ve geçmiş'], ['waitlist','⏳','Bekleme Listesi','Sıra, tahmini süre, masa hazır']];
   main.innerHTML = `<h1>Rezervasyonlar ve Bekleme Listesi</h1>
-    <div class="tabs" id="resvTabs">
-      <div class="tab ${(APP.resvTab||'reservations')==='reservations'?'active':''}" data-tab="reservations" ${act('setResvTab', 'reservations')}>Rezervasyonlar</div>
-      <div class="tab ${APP.resvTab==='waitlist'?'active':''}" data-tab="waitlist" ${act('setResvTab', 'waitlist')}>Bekleme Listesi</div>
-    </div>
-    <div id="resvContent"></div>`;
+    <div class="set-layout">
+      <nav class="tabs settings-tabs set-nav" id="resvTabs">
+        ${RESV_TABS.map(([k, ic, l, d], i) => `<div class="tab set-item ${cur===k?'active on':''}" data-tab="${k}" style="--i:${i};--sc:var(--c${i+1});" ${act('setResvTab', k)}><span class="set-ico">${ic}</span><span class="set-txt"><b>${l}</b><small>${d}</small></span></div>`).join('')}
+      </nav>
+      <div id="resvContent" class="set-content"></div>
+    </div>`;
   await renderResvTabContent(session);
 }
 function setResvTab(tab){
   if(tab !== APP.resvTab) pushScreen();
   setTimeout(applyNavBadges, 0);
   APP.resvTab = tab;
-  document.querySelectorAll('#resvTabs .tab').forEach(t => t.classList.toggle('active', t.dataset.tab===tab));
+  document.querySelectorAll('#resvTabs .tab').forEach(t => { const on = t.dataset.tab===tab; t.classList.toggle('active', on); t.classList.toggle('on', on); });
   // Önbellek sekmeler arasında korunuyordu (yalnızca görünüme YENİDEN
   // girişte sıfırlanıyordu) - bu da aynı görünümü açık tutup sekme
   // değiştiren personelin, başka bir cihazdan/başka bir personelden gelen

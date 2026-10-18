@@ -62,22 +62,29 @@ const HELP_TOPICS = [
 
 function renderHelpView(main, session){
   APP.helpOpen = APP.helpOpen || {};
+  if(APP.helpCat == null) APP.helpCat = 'video';
+  // Diğer ayar/rapor ekranları gibi: solda bölümler (video, konu başlıkları, destek), sağda içerik.
+  const nav = [['video', '🎬', 'Eğitim Videosu', 'Peyktan nasıl kullanılır? (6 dk)'],
+    ...HELP_TOPICS.map((c, ci) => [String(ci), c.icon, c.cat, c.items.length + ' soru']),
+    ['support', '💬', 'Destek', 'Bize ulaşın']];
   main.innerHTML = `
     <h1>❓ Yardım</h1>
-    <p class="muted" style="text-align:left;margin:-4px 0 14px;">Peyktan'ı kullanırken aklınıza takılanlar. Aradığınızı bulamazsanız en alttan bize ulaşın.</p>
-    <details class="box" style="max-width:none;margin:0 0 14px;" open>
-      <summary style="cursor:pointer;font-weight:800;">🎬 Eğitim videosu · Peyktan nasıl kullanılır? (6 dk)</summary>
-      <video controls preload="none" playsinline poster="/assets/video/peyktan-egitim-poster.jpg" style="width:100%;max-width:880px;display:block;margin-top:12px;border-radius:12px;background:#0f1416;aspect-ratio:16/9;">
-        <source src="/assets/video/peyktan-egitim.mp4" type="video/mp4">
-      </video>
-    </details>
-    <input id="helpSearch" class="list-search" placeholder="🔍 Yardımda ara… (ör. açık hesap, bildirim, reçete)" value="${escapeAttr(APP.helpSearch||'')}" ${actOn('input', 'setHelpSearch', ['$value'])} style="max-width:520px;margin:0 0 14px;">
-    <div id="helpTopics"></div>
-    <div class="box" style="max-width:none;">
-      <h2>💬 Destek</h2>
-      <p class="muted" style="text-align:left;margin:0 0 10px;">Sorununuzu ekran görüntüsüyle birlikte yazarsanız en hızlı şekilde yardımcı oluruz.</p>
-      <a href="mailto:destek@peyktan.com?subject=${encodeURIComponent('Peyktan destek - ' + (session.restaurant_name||''))}" style="display:inline-block;"><button type="button" style="width:auto;padding:10px 18px;">✉️ destek@peyktan.com</button></a>
+    <p class="muted" style="text-align:left;margin:-4px 0 14px;">Peyktan'ı kullanırken aklınıza takılanlar. Aradığınızı bulamazsanız "Destek"ten bize ulaşın.</p>
+    <div class="set-layout">
+      <nav class="tabs settings-tabs set-nav" id="helpNav">
+        ${nav.map(([k, ic, l, d], i) => `<div class="tab set-item ${String(APP.helpCat)===k?'active on':''}" data-help="${k}" style="--i:${i};--sc:${RACE_COLORS[i % RACE_COLORS.length]};" ${act('setHelpCat', k)}><span class="set-ico">${ic}</span><span class="set-txt"><b>${escapeHtml(l)}</b><small>${escapeHtml(d)}</small></span></div>`).join('')}
+      </nav>
+      <div class="set-content" id="helpContent">
+        <input id="helpSearch" class="list-search" placeholder="🔍 Tüm yardımda ara… (ör. açık hesap, bildirim, reçete)" value="${escapeAttr(APP.helpSearch||'')}" ${actOn('input', 'setHelpSearch', ['$value'])} style="max-width:none;margin:0 0 14px;">
+        <div id="helpTopics"></div>
+      </div>
     </div>`;
+  drawHelpTopics();
+}
+function setHelpCat(k){
+  APP.helpCat = k; APP.helpSearch = '';
+  const inp = document.getElementById('helpSearch'); if(inp) inp.value = '';
+  document.querySelectorAll('#helpNav [data-help]').forEach(t => { const on = t.dataset.help === String(k); t.classList.toggle('active', on); t.classList.toggle('on', on); });
   drawHelpTopics();
 }
 function drawHelpTopics(){
@@ -85,7 +92,20 @@ function drawHelpTopics(){
   const q = String(APP.helpSearch||'').trim().toLocaleLowerCase('tr');
   const strip = (h) => h.replace(/<[^>]+>/g, ' ');
   const session = getSession();
+  if(!q && APP.helpCat === 'video'){
+    box.innerHTML = `<div class="box" style="max-width:none;"><h2>🎬 Eğitim videosu · Peyktan nasıl kullanılır?</h2>
+      <video controls preload="none" playsinline poster="/assets/video/peyktan-egitim-poster.jpg" style="width:100%;max-width:880px;display:block;border-radius:14px;background:#0f1416;aspect-ratio:16/9;">
+        <source src="/assets/video/peyktan-egitim.mp4" type="video/mp4"></video></div>`;
+    return;
+  }
+  if(!q && APP.helpCat === 'support'){
+    box.innerHTML = `<div class="box" style="max-width:none;"><h2>💬 Destek</h2>
+      <p class="muted" style="text-align:left;margin:0 0 10px;">Sorununuzu ekran görüntüsüyle birlikte yazarsanız en hızlı şekilde yardımcı oluruz.</p>
+      <a href="mailto:destek@peyktan.com?subject=${encodeURIComponent('Peyktan destek - ' + ((session && session.restaurant_name)||''))}" style="display:inline-block;"><button type="button" style="width:auto;padding:10px 18px;">✉️ destek@peyktan.com</button></a></div>`;
+    return;
+  }
   const html = HELP_TOPICS.map((c, ci) => {
+    if(!q && String(ci) !== String(APP.helpCat)) return '';
     const items = c.items.map((it, ii) => ({ it, key: ci + '_' + ii }))
       .filter(({ it }) => !q || (it.q + ' ' + strip(it.a) + ' ' + c.cat).toLocaleLowerCase('tr').includes(q));
     if(!items.length) return '';
@@ -95,16 +115,15 @@ function drawHelpTopics(){
         const open = q ? true : !!APP.helpOpen[key];
         const item = it.view && NAV_ITEMS.find(n => n.view === it.view);
         const canGo = it.view && session && (it.view === 'home' || (item && navItemVisible(item, session)));
-        return `<div style="border-top:1px solid var(--border);">
-          <div ${act('toggleHelpTopic', key)} style="cursor:pointer;display:flex;justify-content:space-between;gap:10px;padding:12px 2px;font-weight:700;">
-            <span>${escapeHtml(it.q)}</span><span class="muted">${open ? '−' : '+'}</span></div>
-          ${open ? `<div class="help-answer" style="padding:0 2px 14px;line-height:1.6;font-size:14px;">${it.a}
+        return `<div class="help-q ${open ? 'open' : ''}">
+          <div ${act('toggleHelpTopic', key)} class="help-q-h"><span>${escapeHtml(it.q)}</span><span class="help-q-ic">${open ? '−' : '+'}</span></div>
+          ${open ? `<div class="help-answer">${it.a}
             ${canGo ? `<div style="margin-top:8px;"><button type="button" class="sbtn" style="width:auto;" ${act('goToView', it.view)}>➜ ${escapeHtml(item ? item.label : 'Ekrana git')}</button></div>` : ''}</div>` : ''}
         </div>`;
       }).join('')}
     </div>`;
   }).join('');
-  box.innerHTML = html || '<p class="muted">Aramanızla eşleşen bir konu bulunamadı. Aşağıdan destek ekibine yazabilirsiniz.</p>';
+  box.innerHTML = html || '<p class="muted">Aramanızla eşleşen bir konu bulunamadı. Soldaki "Destek"ten bize yazabilirsiniz.</p>';
 }
 
 function setHelpSearch(v){ APP.helpSearch = v; drawHelpTopics(); }

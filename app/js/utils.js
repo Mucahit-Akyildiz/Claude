@@ -351,7 +351,7 @@ function countUpEl(el){
 }
 (function(){
   if(typeof MutationObserver === 'undefined' || window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-  const SEL = '.os-chip b, .fs-big, .fs-mid, .cu-pts b, .sub-ring b, .ig-stockv';
+  const SEL = '.os-chip b, .fs-big, .fs-mid, .cu-pts b, .sub-ring b, .ig-stockv, .kb-stats b, .an-kpi > b, .ps-stats b';
   const POLLED = '#orderSummary, #paySummary, .kb-stats';
   new MutationObserver(muts => {
     // Sessiz yenilemede (eski ekranın kopyası gösterilirken) ve periyodik yenilemede sayılmaz.
@@ -453,3 +453,24 @@ function uiPrompt(message, def, o){
     setTimeout(() => { inp.focus(); inp.select(); }, 30);
   });
 }
+/* Menü/sekme geçiş efekti: soldaki menülü (set-layout) ekranlarda ve kutu sekmelerinde
+   bir bölümden diğerine geçerken içerik yumuşakça kayarak belirir. Tek yerden, tüm ekranlarda
+   aynı; yalnızca kullanıcının tıklamasıyla çalışır (arka plan yenilemelerinde titreme olmaz). */
+function paneAnim(el){
+  if(!el) return;
+  el.classList.remove('pane-anim'); void el.offsetWidth; el.classList.add('pane-anim');
+  clearTimeout(el._paneT); el._paneT = setTimeout(() => el.classList.remove('pane-anim'), 1500); // içeriği sonradan (sunucudan) gelen bölümler de efekti alsın
+}
+document.addEventListener('click', (e) => {
+  let t = e.target && e.target.closest && e.target.closest('.set-nav .tab, .sub-tabs .sub-tab, .bx-tabs .bx-tab');
+  if(!t) return;
+  const navId = (t.closest('[id]') || {}).id;
+  setTimeout(() => {
+    // Menü tıklamada baştan çizildiyse (eski öğe sayfadan kalktıysa) yenisini bul.
+    if(!document.contains(t) && navId){ const n = document.getElementById(navId); if(n) t = n.querySelector('.active, .on') || n; }
+    const lay = t.closest('.set-layout');
+    if(lay) return paneAnim(lay.querySelector(':scope > .set-content'));
+    const bar = t.closest('.bx-tabs'); if(bar) return paneAnim(bar.parentElement);
+    const sub = t.closest('.box'); if(sub && sub.nextElementSibling) paneAnim(sub.parentElement);
+  }, 20);
+}, true);
