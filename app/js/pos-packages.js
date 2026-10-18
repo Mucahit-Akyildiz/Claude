@@ -32,8 +32,15 @@ function renderPackageGrid(){
     const total = o.items.reduce((s,i) => s+i.price*i.qty, 0);
     const allReady = o.items.length>0 && o.items.every(i => i.status==='ready');
     const label = o.customer_name || ('Paket #'+(o.daily_number||''));
+    const pickup = pkgTypeOf(o) === 'pickup';
+    let eta = '';
+    if(pickup && o.pickup_at){
+      const left = Math.round((new Date(o.pickup_at) - Date.now()) / 60000);
+      const hm = new Date(o.pickup_at).toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'});
+      eta = `<div style="margin-top:5px;"><span class="pk-badge ${left < 0 ? 'late' : ''}">🕒 ${hm} · ${left < 0 ? Math.abs(left) + ' dk geçti' : left + ' dk kaldı'}</span></div>`;
+    }
     return `<div class="table-cell" style="cursor:pointer;background:rgba(244,63,94,.14);border-color:var(--red);color:var(--red);overflow-wrap:anywhere;word-break:break-word;" ${act('openPackageModal', 'pkg_'+o.order_id)}>
-      📦 ${escapeHtml(label)}<div style="font-size:11px;margin-top:4px;font-weight:400;">${o.items.length} ürün - ${allReady?'Hazır':'hazırlanıyor'} · ${money(total)}</div></div>`;
+      ${pickup ? '🥡' : '🛵'} ${escapeHtml(label)}<div style="font-size:11px;margin-top:4px;font-weight:400;">${pickup ? 'Gel-Al' : 'Paket'} · ${o.items.length} ürün - ${allReady?'Hazır':'hazırlanıyor'} · ${money(total)}</div>${eta}</div>`;
   });
   cards.push(`<div class="table-cell" style="cursor:pointer;" ${act('openPackageModal','pkg_new')}>➕<div style="font-size:11px;margin-top:4px;font-weight:400;">Yeni Paket Sipariş</div></div>`);
   el.innerHTML = cards.join('');
@@ -42,6 +49,7 @@ function openPackageModal(pseudoId){
   if(!APP.draftCart) APP.draftCart = {};
   if(!APP.draftCart[pseudoId]) APP.draftCart[pseudoId] = [];
   const existing = pseudoId==='pkg_new' ? null : liveOrderForTable(pseudoId);
+  if(pseudoId==='pkg_new'){ APP.pkgType = 'delivery'; APP.pkgPickupMin = null; }
   const isWl = pseudoId.indexOf('wl_')===0;
   const wlEntry = isWl ? (APP.waitlistCache||[]).find(w => w.id===pseudoId.slice(3)) : null;
   const title = isWl ? '⏳ ' + escapeHtml((wlEntry && wlEntry.customer_name) || (existing && existing.customer_name) || 'Bekleme Listesi') + ' <span class="muted" style="font-size:13px;font-weight:600;">bekleme listesi</span>'
@@ -66,7 +74,8 @@ function openPackageModal(pseudoId){
       ${isWl ? '<p class="muted" style="text-align:left;margin:0 0 6px;font-size:12.5px;">Siparişler hemen mutfağa düşer; müşteri oturtulunca masaya taşınır.</p>' : `<div class="field-group"><label>Müşteri Adı</label><input id="pkgCustName" maxlength="60" placeholder="örn. Ahmet Bey veya kayıtlı müşteri ara" autocomplete="off" ${actOn('input','tableCustSearch',['$value','pkgCust'])} value="${escapeAttr((existing&&existing.customer_name)||'')}"></div>
       <div class="field-group"><label>Telefon</label><input id="pkgCustPhone" placeholder="örn. 5551234567" autocomplete="off" inputmode="tel" ${actOn('input','tableCustSearch',['$value','pkgCust'])} value="${escapeAttr((existing&&existing.customer_phone)||'')}"></div>
       <div id="pkgCustSuggest" style="margin:-6px 0 10px;"></div>
-      <div class="field-group"><label>Teslimat Adresi</label><textarea id="pkgAddress" rows="2" placeholder="örn. Atatürk Cad. No:12 D:4 (gel-al ise boş bırakın)" style="resize:vertical;min-height:44px;">${escapeHtml((existing&&existing.delivery_address)||'')}</textarea></div>
+      ${pkgTypeHtml(existing)}
+      <div class="field-group" id="pkgAddrWrap" style="${pkgTypeOf(existing)==='pickup'?'display:none;':''}"><label>Teslimat Adresi</label><textarea id="pkgAddress" rows="2" placeholder="örn. Atatürk Cad. No:12 D:4" style="resize:vertical;min-height:44px;">${escapeHtml((existing&&existing.delivery_address)||'')}</textarea></div>
       <div class="field-group"><label>Not</label><input id="pkgNote" placeholder="örn. Yan sokak, 2. kat" value="${escapeAttr((existing&&existing.note)||'')}"></div>`}
           <div id="sentItemsWrap"></div>
           <div id="draftItemsWrap"></div>
@@ -423,7 +432,9 @@ async function confirmOrder(tableId){
       p_customer_name: nameEl ? (nameEl.value.trim()||null) : null,
       p_customer_phone: phoneEl ? (phoneEl.value.trim()||null) : null,
       p_note: noteEl ? (noteEl.value.trim()||null) : null,
-      p_address: (document.getElementById('pkgAddress') || {}).value ? document.getElementById('pkgAddress').value.trim() : null,
+      p_address: APP.pkgType !== 'pickup' && (document.getElementById('pkgAddress') || {}).value ? document.getElementById('pkgAddress').value.trim() : null,
+      p_takeaway_type: APP.pkgType || 'delivery',
+      p_pickup_min: APP.pkgType === 'pickup' && APP.pkgPickupMin ? String(APP.pkgPickupMin) : null,
       p_tags: tags
     };
   } else {
@@ -484,4 +495,42 @@ async function openWaitlistOrderModal(wlId){
   APP.liveOrders = liveRes.data || [];
   if(cfgRes.data) APP.config = cfgRes.data;
   openPackageModal('wl_' + wlId);
+}
+
+/* Paket servis türü: 🛵 Paket (teslimat, adres) veya 🥡 Gel-Al (müşteri gelip alır,
+   yaklaşık hazır olma / teslim alma süresi). */
+const PKG_PICKUP_MINS = [10, 15, 20, 30, 45, 60];
+function pkgTypeOf(o){ return (o && o.takeaway_type) || (o && o.order_id ? (o.delivery_address ? 'delivery' : (o.pickup_at ? 'pickup' : 'delivery')) : (APP.pkgType || 'delivery')); }
+function pkgTypeHtml(existing){
+  APP.pkgType = pkgTypeOf(existing);
+  const leftMin = existing && existing.pickup_at ? Math.max(0, Math.round((new Date(existing.pickup_at) - Date.now()) / 60000)) : null;
+  APP.pkgPickupMin = existing ? null : (APP.pkgPickupMin || 15);
+  const chip = (m) => `<button type="button" class="pk-chip ${APP.pkgPickupMin===m?'on':''}" data-min="${m}" ${act('setPkgPickupMin', m)}>${m} dk</button>`;
+  return `<div class="field-group"><label>Sipariş Türü</label>
+      <div class="pk-type">
+        <button type="button" class="pk-type-btn ${APP.pkgType!=='pickup'?'on':''}" data-pt="delivery" ${act('setPkgType','delivery')}>🛵 Paket<small>Adrese teslim</small></button>
+        <button type="button" class="pk-type-btn ${APP.pkgType==='pickup'?'on':''}" data-pt="pickup" ${act('setPkgType','pickup')}>🥡 Gel-Al<small>Müşteri gelip alır</small></button>
+      </div></div>
+    <div class="field-group" id="pkgPickupWrap" style="${APP.pkgType==='pickup'?'':'display:none;'}"><label>Yaklaşık Teslim Alma Süresi${leftMin!=null ? ` <span class="muted" style="font-weight:400;">(şu an: ${existing.pickup_at ? new Date(existing.pickup_at).toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'}) : ''}, ${leftMin} dk kaldı)</span>` : ''}</label>
+      <div class="pk-chips">${PKG_PICKUP_MINS.map(chip).join('')}
+        <input type="number" min="1" max="600" inputmode="numeric" class="pk-chip-in" placeholder="Diğer" value="${APP.pkgPickupMin && !PKG_PICKUP_MINS.includes(APP.pkgPickupMin) ? APP.pkgPickupMin : ''}" ${actOn('input','setPkgPickupMin',['$value'])}>
+      </div>
+      <small class="muted" id="pkgPickupHint">${pkgPickupHint()}</small></div>`;
+}
+function pkgPickupHint(){
+  if(!APP.pkgPickupMin) return 'Süre seçmezseniz mevcut süre korunur.';
+  return 'Müşteri yaklaşık ' + new Date(Date.now() + APP.pkgPickupMin * 60000).toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'}) + ' civarı gelip alacak.';
+}
+function setPkgType(t){
+  APP.pkgType = t;
+  document.querySelectorAll('.pk-type-btn').forEach(b => b.classList.toggle('on', b.dataset.pt === t));
+  const a = document.getElementById('pkgAddrWrap'), p = document.getElementById('pkgPickupWrap');
+  if(a) a.style.display = t === 'pickup' ? 'none' : '';
+  if(p) p.style.display = t === 'pickup' ? '' : 'none';
+  if(t === 'pickup' && !APP.pkgPickupMin) setPkgPickupMin(15);
+}
+function setPkgPickupMin(m){
+  const n = parseInt(m, 10); APP.pkgPickupMin = n > 0 ? Math.min(n, 600) : null;
+  document.querySelectorAll('.pk-chip[data-min]').forEach(b => b.classList.toggle('on', Number(b.dataset.min) === APP.pkgPickupMin));
+  const h = document.getElementById('pkgPickupHint'); if(h) h.textContent = pkgPickupHint();
 }

@@ -30,13 +30,14 @@ function ticketWaiter(items){
 function pkgTicketLines(design){
   const p = design && design.pkg; if(!p) return [];
   const out = [];
+  if(p.type) out.push(['Tür', p.type === 'pickup' ? 'GEL-AL' + (p.pickupAt ? ' · ' + new Date(p.pickupAt).toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'}) + "'de alınacak" : '') : 'PAKET (teslimat)']);
   if(design.pkgShowName !== false && p.name) out.push(['Müşteri', p.name]);
   if(design.pkgShowPhone !== false && p.phone) out.push(['Telefon', p.phone]);
   if(design.pkgShowAddress !== false && p.address) out.push(['Adres', p.address]);
   if(design.pkgShowNote !== false && p.note) out.push(['Not', p.note]);
   return out;
 }
-function pkgInfoFromOrder(o){ return o && o.kind === 'takeaway' ? { name: o.customer_name || '', phone: o.customer_phone || '', address: o.delivery_address || '', note: o.note || '' } : null; }
+function pkgInfoFromOrder(o){ return o && o.kind === 'takeaway' ? { name: o.customer_name || '', phone: o.customer_phone || '', address: o.delivery_address || '', note: o.note || '', type: o.takeaway_type || (o.pickup_at ? 'pickup' : (o.delivery_address ? 'delivery' : '')), pickupAt: o.pickup_at || null } : null; }
 function buildEscPosTicket(restaurantName, tableName, items, design, dailyNumber){
   const chunks = [];
   const push = (arr) => chunks.push(arr instanceof Uint8Array ? arr : new Uint8Array(arr));
