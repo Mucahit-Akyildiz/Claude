@@ -724,15 +724,33 @@ async function loadNotificationHistory(){
       <div class="muted" style="font-size:12px;white-space:nowrap;font-weight:400;">${when}</div></div>`;
   }).join('') + '</div>';
 }
-function setNotifTab(t){
-  if(t === (APP.notifTab || 'settings')) return;
-  pushScreen();
-  APP.notifTab = t;
-  const h = document.getElementById('notifHistoryPart'), st = document.getElementById('notifSettingsPart');
-  if(h) h.style.display = t==='history' ? '' : 'none';
-  if(st) st.style.display = t==='settings' ? '' : 'none';
-  document.querySelectorAll('#main .sub-tabs .sub-tab').forEach((el, i) => el.classList.toggle('active', (i===0) === (t==='settings')));
-  if(t==='history') loadNotificationHistory();
+/* Bildirimler sayfası: bölümler (Kime Gitsin, Push, Sesli, Zil, Geçmiş) diğer
+   ayar sayfaları gibi soldaki menüde; seçilen bölüm sağda gösterilir. */
+const NOTIF_DESC = [[/Kime/, 'Hangi rol hangi bildirimi alır'], [/Windows/, 'Masaüstü uygulaması'], [/Push/, 'Uygulama kapalıyken de'], [/Sesli/, 'Zil ve sesli okuma, ses seçimi'], [/Zil/, 'Mutfak yeni sipariş zili'], [/Geçmiş/, 'Son 30 gün']];
+function notifSideNav(part){
+  if(!part) return;
+  const hist = document.createElement('div'); hist.className = 'box'; hist.style.maxWidth = 'none';
+  hist.innerHTML = '<h2>🕘 Geçmiş Bildirimler</h2><div id="notifHistory"><p class="muted">Yükleniyor…</p></div>';
+  part.appendChild(hist);
+  const boxes = [...part.querySelectorAll(':scope > .box')].filter(b => b.querySelector(':scope > h2') && b.style.display !== 'none');
+  const items = boxes.map(b => {
+    const t = b.querySelector(':scope > h2').textContent.trim();
+    const m = t.match(/^(\p{Extended_Pictographic}\uFE0F?)\s*(.*)$/u);
+    return { ic: m ? m[1] : '🔔', label: (m ? m[2] : t).replace(/\s*\(.*\)$/, ''), desc: (NOTIF_DESC.find(([r]) => r.test(t)) || [, ''])[1] };
+  });
+  let cur = items.findIndex(x => x.label === APP.notifPane); if(cur < 0) cur = 0;
+  const layout = document.createElement('div'); layout.className = 'set-layout pr-layout';
+  layout.innerHTML = `<nav class="tabs settings-tabs set-nav">${items.map((t, i) => `<div class="tab set-item" data-nf-tab="${i}" style="--i:${i};--sc:var(--c${i%4+1});" ${act('setNotifPane', i, t.label)}><span class="set-ico">${t.ic}</span><span class="set-txt"><b>${escapeHtml(t.label)}</b><small>${t.desc}</small></span></div>`).join('')}</nav><div class="set-content nf-content"></div>`;
+  part.insertBefore(layout, boxes[0]);
+  const content = layout.querySelector('.nf-content');
+  boxes.forEach((b, i) => { b.dataset.nfIdx = i; content.appendChild(b); });
+  setNotifPane(cur, items[cur].label);
+}
+function setNotifPane(idx, label){
+  APP.notifPane = label;
+  document.querySelectorAll('#main [data-nf-idx]').forEach(b => { b.style.display = Number(b.dataset.nfIdx) === idx ? '' : 'none'; });
+  document.querySelectorAll('#main [data-nf-tab]').forEach(t => { const on = Number(t.dataset.nfTab) === idx; t.classList.toggle('active', on); t.classList.toggle('on', on); });
+  if(/Geçmiş/.test(label)) loadNotificationHistory();
 }
 async function renderNotificationSettingsView(main, session){
   if(!APP.config){
@@ -740,20 +758,9 @@ async function renderNotificationSettingsView(main, session){
     if(error){ main.innerHTML = '<h1>Bildirim Ayarları</h1><p class="muted">Yüklenemedi: '+error.message+'</p>'; return; }
     APP.config = data;
   }
-  const ntab = APP.notifTab || 'settings';
-  if(ntab==='history') setTimeout(loadNotificationHistory, 0);
   main.innerHTML = `
     <h1>Bildirimler</h1>
-    <div class="box sub-tabs-box" style="max-width:none;">
-      <div class="sub-tabs">
-        <div role="tab" tabindex="0" class="sub-tab ${ntab==='settings'?'active':''}" ${act('setNotifTab', 'settings')}><span class="sub-tab-ic">⚙️</span>Bildirim Ayarları</div>
-        <div role="tab" tabindex="0" class="sub-tab ${ntab==='history'?'active':''}" ${act('setNotifTab', 'history')}><span class="sub-tab-ic">🕘</span>Geçmiş Bildirimler</div>
-      </div>
-    </div>
-    <div class="box" id="notifHistoryPart" style="max-width:none;${ntab==='history'?'':'display:none;'}">
-      <div id="notifHistory"><p class="muted">Yükleniyor…</p></div>
-    </div>
-    <div id="notifSettingsPart" style="${ntab==='settings'?'':'display:none;'}">
+    <div id="notifSettingsPart">
     <p class="muted" style="text-align:left;">Bu ayarlar sadece <b>bu ekrana/tarayıcıya</b> özeldir — her cihazda ayrı ayrı yapılandırılır, veritabanına kaydedilmez.</p>
 
     ${!hasFeature('push_notifications') ? `<div class="box" style="max-width:none;"><h2>📱 Push Bildirimleri (Uygulama Kapalıyken de)</h2>${lockedFeatureHtml()}</div>` : ''}
@@ -820,7 +827,7 @@ async function renderNotificationSettingsView(main, session){
       const b = document.createElement('div'); b.id = 'notifRolesBox'; b.className = 'box'; b.style.maxWidth = 'none'; b.innerHTML = '<h2>👥 Kime Gitsin</h2><div id="notifRolesBody"><p class="muted">Yükleniyor…</p></div>';
       const first = part.querySelector(':scope > .box'); part.insertBefore(b, first); loadNotifRoles(); }
   }
-  boxTabs(document.getElementById('notifSettingsPart'), 'notif');
+  notifSideNav(document.getElementById('notifSettingsPart'));
   updateBellScopeStatus();
   initPushUI();
 }
