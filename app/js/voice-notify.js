@@ -37,7 +37,21 @@ const VOICE_CLOUD_LIST = {
     ['adam','Adam — erkek, derin'],['antoni','Antoni — erkek, dengeli'],['daniel','Daniel — erkek, haber spikeri'],['george','George — erkek, olgun'],['brian','Brian — erkek, tok'],['callum','Callum — erkek, genç']],
   azure: [['emel','Emel — kadın'],['ahmet','Ahmet — erkek']],
 };
-fetch('/api/tts').then(r => r.json()).then(j => { VOICE_CLOUD = !!j.enabled; VOICE_CLOUD_PROVIDER = j.provider || 'azure'; const el = document.getElementById('voiceNameSel'); if(el) el.outerHTML = voiceSelectHtml(); }).catch(() => { VOICE_CLOUD = false; });
+// ElevenLabs hesabındaki tüm sesleri (Voice Library'den eklenenler dahil) listeye katar.
+const VOICE_GENDER_TR = { female: 'kadın', male: 'erkek', neutral: 'nötr' };
+function voiceLoadCloudList(){
+  fetch('/api/tts?voices=1').then(r => r.json()).then(j => {
+    const vs = (j.voices || []).filter(v => v.id && v.name);
+    if(!vs.length) return;
+    const known = new Set(VOICE_CLOUD_LIST.elevenlabs.map(([k]) => k));
+    const extra = vs.filter(v => !VOICE_CLOUD_LIST.elevenlabs.some(([, l]) => l.split(' —')[0].toLowerCase()===String(v.name).split(' ')[0].toLowerCase()))
+      .filter(v => !known.has(v.id))
+      .map(v => [v.id, v.name.split(' - ')[0] + ' — ' + [VOICE_GENDER_TR[v.gender] || v.gender, v.desc].filter(Boolean).join(', ')]);
+    VOICE_CLOUD_LIST.elevenlabs = VOICE_CLOUD_LIST.elevenlabs.concat(extra);
+    const el = document.getElementById('voiceNameSel'); if(el) el.outerHTML = voiceSelectHtml();
+  }).catch(() => {});
+}
+fetch('/api/tts').then(r => r.json()).then(j => { VOICE_CLOUD = !!j.enabled; VOICE_CLOUD_PROVIDER = j.provider || 'azure'; if(j.provider==='elevenlabs') voiceLoadCloudList(); const el = document.getElementById('voiceNameSel'); if(el) el.outerHTML = voiceSelectHtml(); }).catch(() => { VOICE_CLOUD = false; });
 async function voiceCloudPlay(text, voice){
   const p = getVoicePrefs(), s = getSession(); if(!s) throw new Error('no session');
   const k = voice + '|' + p.rate + '|' + text;
@@ -108,7 +122,7 @@ function voiceSelectHtml(){
   const cl = VOICE_CLOUD_LIST[VOICE_CLOUD_PROVIDER] || [];
   // Eski "emel/ahmet" seçimi listedeki ilk kadın/erkek sese karşılık gelir.
   const curC = cur==='cloud:emel' && VOICE_CLOUD_PROVIDER==='elevenlabs' ? 'cloud:sarah' : cur==='cloud:ahmet' && VOICE_CLOUD_PROVIDER==='elevenlabs' ? 'cloud:adam' : cur;
-  const cloudOpts = VOICE_CLOUD && cl.length ? `<optgroup label="⭐⭐ Doğal sesler">${cl.map(([v,l]) => `<option value="cloud:${v}" ${curC==='cloud:'+v?'selected':''}>${l}</option>`).join('')}</optgroup>` : '';
+  const cloudOpts = VOICE_CLOUD && cl.length ? `<optgroup label="⭐⭐ Doğal sesler (${cl.length})">${cl.map(([v,l]) => `<option value="cloud:${v}" ${curC==='cloud:'+v?'selected':''}>${l}</option>`).join('')}</optgroup>` : '';
   if(!list.length && !cloudOpts) return '<select id="voiceNameSel" style="width:auto;" disabled><option>Türkçe ses bulunamadı</option></select>';
   return `<select id="voiceNameSel" style="width:auto;max-width:260px;" ${actOn('change','setVoiceName',['$value'])}>${cloudOpts}${list.length && cloudOpts ? '<optgroup label="Cihaz sesleri">' : ''}${list.map(v => `<option value="${escapeAttr(v.name)}" ${v.name===cur?'selected':''}>${escapeHtml(v.name.replace(/^(Microsoft|Google)\s*/,''))}${/natural|neural|online/i.test(v.name)?' ⭐':''}</option>`).join('')}${list.length && cloudOpts ? '</optgroup>' : ''}</select>`;
 }
