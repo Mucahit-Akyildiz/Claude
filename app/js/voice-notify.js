@@ -54,10 +54,23 @@ async function voiceCloudPlay(text, voice){
     }
     url = URL.createObjectURL(blob); VOICE_CLOUD_MEM.set(k, url);
   }
+  voiceStop();
   const a = new Audio(url); a.volume = Math.max(0.2, (getBellVolume() || 100) / 100);
-  await a.play();
+  VOICE_AUDIO = a;
+  let started = false; a.addEventListener('playing', () => { started = true; }, { once: true });
+  try{ await a.play(); }
+  catch(e){ if(!started) throw e; }
+}
+// Çalan sesi/okumayı durdurur: yeni okuma eskisinin üstüne binmesin.
+let VOICE_AUDIO = null, VOICE_LAST = { t: '', at: 0 };
+function voiceStop(){
+  try{ if(VOICE_AUDIO){ VOICE_AUDIO.pause(); VOICE_AUDIO = null; } }catch(e){}
+  try{ if(window.speechSynthesis) speechSynthesis.cancel(); }catch(e){}
 }
 function voiceSpeak(text){
+  // Aynı cümle 4 sn içinde ikinci kez gelirse (ör. aynı anda iki tetikleme) tekrar okunmaz.
+  if(text===VOICE_LAST.t && Date.now() - VOICE_LAST.at < 4000) return;
+  VOICE_LAST = { t: text, at: Date.now() };
   const name = getVoicePrefs().voiceName;
   const cloud = name.startsWith('cloud:') ? name.slice(6) : (!name && VOICE_CLOUD ? 'emel' : null);
   if(cloud && VOICE_CLOUD !== false){ voiceCloudPlay(text, cloud).catch(() => voiceDeviceSpeak(text)); return; }
@@ -65,6 +78,8 @@ function voiceSpeak(text){
 }
 function voiceDeviceSpeak(text){
   try{
+    if(VOICE_AUDIO && !VOICE_AUDIO.paused) return;
+    if(window.speechSynthesis) speechSynthesis.cancel();
     if(!window.speechSynthesis || !text) return;
     const u = new SpeechSynthesisUtterance(text);
     u.lang = 'tr-TR'; u.rate = getVoicePrefs().rate;
@@ -84,7 +99,7 @@ function voicePick(){
   const list = voiceList(), name = getVoicePrefs().voiceName.replace(/^cloud:.*/, '');
   return list.find(v => v.name===name) || list[0] || null;
 }
-function setVoiceName(n){ const p = getVoicePrefs(); p.voiceName = n; setVoicePrefs(p); voiceSpeak('Masa 34 sipariş bekliyor'); }
+function setVoiceName(n){ const p = getVoicePrefs(); p.voiceName = n; setVoicePrefs(p); VOICE_LAST.t = ''; voiceSpeak('Masa 34 sipariş bekliyor'); }
 try{ if(window.speechSynthesis) speechSynthesis.onvoiceschanged = () => { const el = document.getElementById('voiceNameSel'); if(el) el.outerHTML = voiceSelectHtml(); }; }catch(e){}
 function voiceSelectHtml(){
   const list = voiceList(), pn = getVoicePrefs().voiceName;
@@ -97,7 +112,7 @@ function voiceSelectHtml(){
   if(!list.length && !cloudOpts) return '<select id="voiceNameSel" style="width:auto;" disabled><option>Türkçe ses bulunamadı</option></select>';
   return `<select id="voiceNameSel" style="width:auto;max-width:260px;" ${actOn('change','setVoiceName',['$value'])}>${cloudOpts}${list.length && cloudOpts ? '<optgroup label="Cihaz sesleri">' : ''}${list.map(v => `<option value="${escapeAttr(v.name)}" ${v.name===cur?'selected':''}>${escapeHtml(v.name.replace(/^(Microsoft|Google)\s*/,''))}${/natural|neural|online/i.test(v.name)?' ⭐':''}</option>`).join('')}${list.length && cloudOpts ? '</optgroup>' : ''}</select>`;
 }
-function testVoice(type){ const t = VOICE_TYPES.find(x => x.id===type); if(t) voiceSpeak(t.sample); }
+function testVoice(type){ const t = VOICE_TYPES.find(x => x.id===type); VOICE_LAST.t = ''; if(t) voiceSpeak(t.sample); }
 function voiceTypeOf(view){ return VOICE_TYPES.some(t => t.id===view) ? view : 'other'; }
 function voiceTableName(x){ const t = String(x.table || '').trim(); return t ? (/^\d+$/.test(t) ? 'Masa ' + t : t) : ''; }
 function voiceTextFor(type, items){
