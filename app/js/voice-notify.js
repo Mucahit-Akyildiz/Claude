@@ -49,7 +49,9 @@ function voiceLoadCloudList(){
     const known = new Set(VOICE_CLOUD_LIST.elevenlabs.map(([k]) => k));
     const extra = vs.filter(v => !VOICE_CLOUD_LIST.elevenlabs.some(([, l]) => l.split(' —')[0].toLowerCase()===String(v.name).split(' ')[0].toLowerCase()))
       .filter(v => !known.has(v.id))
-      .map(v => [v.id, v.name.split(' - ')[0] + ' — ' + [VOICE_GENDER_TR[v.gender] || v.gender, v.desc].filter(Boolean).join(', ') + (v.category && v.category !== 'premade' ? ' 💎 ücretli plan' : '')]);
+      // Ücretsiz plan API'de yalnızca hazır (premade) sesleri kullanabiliyor; kütüphane sesleri listelenmez.
+      .filter(v => !v.category || v.category === 'premade')
+      .map(v => [v.id, v.name.split(' - ')[0] + ' — ' + [VOICE_GENDER_TR[v.gender] || v.gender, v.desc].filter(Boolean).join(', ')]);
     VOICE_CLOUD_LIST.elevenlabs = VOICE_CLOUD_LIST.elevenlabs.concat(extra);
     const el = document.getElementById('voiceNameSel'); if(el) el.outerHTML = voiceSelectHtml();
   }).catch(() => {});
