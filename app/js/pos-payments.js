@@ -1564,8 +1564,10 @@ async function openOpenAccountTransfer(){
     <div id="oaList"></div>
     <div class="oa-new">
       <p>➕ Yeni Açık Hesap</p>
-      <input id="oaName" placeholder="Ad Soyad / Firma">
-      <input id="oaPhone" placeholder="Telefon (opsiyonel)" inputmode="tel">
+      <input id="oaName" maxlength="60" placeholder="Ad Soyad / Firma — kayıtlı müşteri ara" autocomplete="off" ${actOn('input','tableCustSearch',['$value','oa'])}>
+      <input id="oaPhone" placeholder="Telefon (opsiyonel)" inputmode="tel" autocomplete="off" ${actOn('input','tableCustSearch',['$value','oa'])}>
+      <div id="oaSuggest" style="margin:-4px 0 8px;"></div>
+      <small class="muted" style="display:block;margin:-2px 0 8px;font-size:11.5px;">Kayıtlı müşteri değilse Müşteriler'e otomatik eklenir.</small>
       <input id="oaNote" placeholder="Not (opsiyonel)">
       <button type="button" ${act('createOpenAccountAndTransfer')}>Oluştur ve Aktar</button>
     </div>
@@ -1586,6 +1588,9 @@ function drawOpenAccountList(q){
 async function createOpenAccountAndTransfer(){
   const name = document.getElementById('oaName').value.trim();
   if(!name){ alert('Açık hesap için ad girin'); return; }
+  // Seçilen müşterinin zaten açık hesabı varsa yenisi açılmaz, mevcut hesaba aktarılır.
+  const same = (APP.openAccounts||[]).find(a => a.name.toLocaleLowerCase('tr') === name.toLocaleLowerCase('tr'));
+  if(same){ transferToOpenAccount(same.id, same.name); return; }
   const { data, error } = await withLoadingOverlay(sb.rpc('create_open_account', { p_token: getSession().session_token, p_name: name,
     p_phone: document.getElementById('oaPhone').value.trim() || null, p_note: document.getElementById('oaNote').value.trim() || null }));
   if(error){ alert(error.message); return; }
