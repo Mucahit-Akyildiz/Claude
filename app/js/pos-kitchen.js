@@ -70,6 +70,7 @@ async function refreshKitchenItems(session){
       </div>
       <div class="kc-meta">${orderWaiters(o).length ? '<span>👤 ' + escapeHtml(orderWaiters(o).join(', ')) + '</span>' : ''}<span class="kc-since"></span><span class="kc-late-badge">⏰ GECİKTİ</span></div>
       ${waitlistInfoHtml(o)}
+      ${kitchenPickupHtml(o)}
       <div class="kc-items">
       ${kitchenGroupExtras(pending).map(({ it, extras }) => `<div class="kitchen-item-row kc-item">
         <span class="kc-qty">${it.qty}</span>
@@ -633,3 +634,14 @@ function clearKitchenStation(){ APP.kitchenStation = null; render(); }
 function wasteUseMaxQty(q){ document.getElementById('wasteQty').value = q; removeEl('wasteStockModalBg'); }
 function wasteGoStockSettings(tab){ removeEl('wasteStockModalBg'); closeWasteModal(); APP.settingsTab = 'products'; APP.productsSubTab = tab; goToView('settings'); }
 function wastePickOtherProduct(){ removeEl('wasteStockModalBg'); const el = document.getElementById('wasteProduct'); if(el) el.focus(); }
+
+/* Mutfak kartı: paket türü ve gel-al siparişinde müşterinin yaklaşık alış saati. */
+function kitchenPickupHtml(o){
+  if(!o || o.kind !== 'takeaway') return '';
+  const t = typeof pkgTypeOf === 'function' ? pkgTypeOf(o) : (o.takeaway_type || 'delivery');
+  if(t !== 'pickup') return '<div class="kc-pickup">🛵 Paket · adrese teslim</div>';
+  if(!o.pickup_at) return '<div class="kc-pickup">🥡 Gel-Al</div>';
+  const left = Math.round((new Date(o.pickup_at) - Date.now()) / 60000);
+  const hm = new Date(o.pickup_at).toLocaleTimeString('tr-TR', { hour:'2-digit', minute:'2-digit' });
+  return `<div class="kc-pickup ${left < 0 ? 'late' : left <= 5 ? 'soon' : ''}">🥡 Gel-Al · müşteri <b>${hm}</b>'de alacak <span>(${left < 0 ? Math.abs(left) + ' dk geçti' : left + ' dk kaldı'})</span></div>`;
+}
