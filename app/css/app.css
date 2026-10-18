@@ -2411,3 +2411,8 @@ input.sw:checked{background:var(--c1);} input.sw:checked::after{transform:transl
 .kc-pickup.soon{background:rgba(234,179,8,.14);border-color:rgba(234,179,8,.45);}
 .kc-pickup.late{background:rgba(239,68,68,.15);border-color:rgba(239,68,68,.45);}
 .kc-pickup.late span{color:#ef4444;}
+
+/* Mutfağa gönderilen ürün satırı: dar ekranda saat/garson/iptal alt satıra iner, ürün adı harf harf kırılmaz. */
+.sent-row{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:4px 8px;padding:6px 0;border-bottom:1px solid var(--border);font-size:13px;}
+.sent-name{flex:1 1 180px;min-width:0;overflow-wrap:break-word;}
+.sent-meta{display:flex;flex-wrap:wrap;align-items:center;justify-content:flex-end;gap:6px;font-size:12px;margin-left:auto;}
