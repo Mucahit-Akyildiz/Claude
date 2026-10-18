@@ -2372,3 +2372,21 @@ input.sw:checked{background:var(--c1);} input.sw:checked::after{transform:transl
 .pk-opts{display:flex;flex-direction:column;gap:10px}
 .pk-prev{padding:12px;border-radius:16px;border:1px dashed var(--border);display:flex;flex-direction:column;gap:8px;align-items:center}
 .ticket-pkg{margin:4px 0;line-height:1.45}
+
+/* Sesli bildirim ayarları */
+.vn-list{display:flex;flex-direction:column;gap:6px;}
+.vn-row{display:grid;grid-template-columns:1fr 90px 90px 90px;align-items:center;gap:8px;padding:10px 12px;border-radius:12px;background:var(--surface-2,rgba(127,127,127,.06));}
+.vn-row small{display:block;font-size:12px;margin-top:2px;}
+.vn-head{background:none;font-size:12px;font-weight:700;color:var(--muted);padding:2px 12px;}
+@media (max-width:600px){.vn-row{grid-template-columns:1fr 60px 60px;}.vn-row>span:last-child{grid-column:1/-1;}}
+
+/* Ay sonu tahmini: tarih ekseni + üzerine gelince değer */
+.an-chart-wrap{position:relative;touch-action:pan-y;cursor:crosshair;}
+.an-hover-line{stroke:var(--muted);stroke-width:1;stroke-dasharray:3 3;vector-effect:non-scaling-stroke;}
+.an-hover-dot{position:absolute;width:10px;height:10px;margin:-5px 0 0 -5px;border-radius:50%;background:var(--c1);box-shadow:0 0 0 2px var(--panel,#fff);pointer-events:none;}
+.an-hover-dot.proj{background:var(--c2);}
+.an-tip{position:absolute;pointer-events:none;background:var(--panel,#fff);border:1px solid var(--line,rgba(127,127,127,.25));border-radius:10px;padding:7px 10px;box-shadow:0 6px 18px rgba(0,0,0,.15);white-space:nowrap;display:flex;flex-direction:column;gap:1px;font-size:12px;z-index:5;}
+.an-tip b{font-size:15px;}
+.an-axis{position:relative;height:18px;margin-top:2px;font-size:11px;color:var(--muted);}
+.an-axis span{position:absolute;transform:translateX(-50%);white-space:nowrap;}
+.an-axis span:first-child{transform:none;}.an-axis span:last-child{transform:translateX(-100%);}

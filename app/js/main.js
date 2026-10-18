@@ -275,7 +275,8 @@ async function refreshNavBadges(){
   try{ if(navigator.setAppBadge){ total > 0 ? navigator.setAppBadge(total) : navigator.clearAppBadge(); } }catch(e){}
   // Yeni bir bekleyen iş geldiyse Peyktan bildirim sesi (mutfak kendi zilini çalar).
   const soundTotal = visible.filter(i => i.view!=='kitchen').reduce((t, i) => t + (data[i.view] || 0), 0);
-  if(APP.lastSoundTotal != null && soundTotal > APP.lastSoundTotal) playPeyktanSound();
+  const voiceSound = processVoiceBadges(data, visible.map(i => i.view));
+  if(APP.lastSoundTotal != null && soundTotal > APP.lastSoundTotal && (voiceSound || !getVoicePrefs().enabled)) playPeyktanSound();
   APP.lastSoundTotal = soundTotal;
 }
 /* Peyktan'ın sabit bildirim sesi (assets/sounds/peyktan.wav - Android
