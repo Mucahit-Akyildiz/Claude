@@ -1,16 +1,20 @@
 /* ---- Sesli bildirimler: rozetlere yeni bekleyen iş düştüğünde (ve mutfakta
    bir ürün 20 dk'yı geçtiğinde) cihaz Türkçe konuşarak duyurur, ör.
-   "Masa 34 sipariş verildi", "Masa 42: Adana, Köfte 20 dakikadır bekliyor".
+   "12 numaralı masadan yeni sipariş geldi", "12 numaralı masanın Adana siparişi 20 dakikadır bekliyor".
    Ayarlar kişiye/cihaza özeldir (localStorage), veritabanına yazılmaz. ---- */
 const VOICE_TYPES = [
-  { id:'kitchen',      ic:'🍳', label:'Mutfağa yeni sipariş', sample:'Masa 34 sipariş verildi' },
-  { id:'late',         ic:'⏰', label:'Bekleyen mutfak siparişi (20 dk)', sample:'Masa 42: Adana, Köfte 20 dakikadır bekliyor' },
+  { id:'kitchen',      ic:'🍳', label:'Mutfağa yeni sipariş', sample:'12 numaralı masadan yeni sipariş geldi' },
+  { id:'late',         ic:'⏰', label:'Bekleyen mutfak siparişi (20 dk)', sample:'12 numaralı masanın Adana ve Köfte siparişi 20 dakikadır bekliyor' },
+  { id:'qr',           ic:'📱', label:'QR menüden sipariş', sample:'12 numaralı masadan QR menü siparişi geldi, onay bekliyor' },
+  { id:'online',       ic:'🛵', label:'Online sipariş', sample:'Ahmet Yılmaz adına online gel-al siparişi geldi' },
+  { id:'waiter',       ic:'🙋', label:'Garson çağırma', sample:'12 numaralı masa garson çağırıyor' },
+  { id:'bill',         ic:'💳', label:'Hesap isteme', sample:'12 numaralı masa hesap istiyor' },
+  { id:'ready',        ic:'✅', label:'Sipariş hazır', sample:'12 numaralı masanın siparişi hazır' },
   { id:'seated',       ic:'🪑', label:'Misafir masaya oturdu', sample:'Bekleme listesindeki Ahmet Bey 12 numaralı masaya oturdu' },
-  { id:'payments',     ic:'💳', label:'Ödeme / hesap bekleyen', sample:'Masa 12 hesap bekliyor' },
-  { id:'packages',     ic:'📦', label:'Paket servis', sample:'Yeni paket siparişi' },
-  { id:'reservations', ic:'📅', label:'Rezervasyon / bekleme listesi', sample:'Yeni rezervasyon' },
-  { id:'messages',     ic:'💬', label:'Mesajlar', sample:'Yeni mesaj' },
-  { id:'other',        ic:'🔔', label:'Diğer bildirimler', sample:'Yeni bildirim' },
+  { id:'resvsoon',     ic:'⏳', label:'Rezervasyon hatırlatma (15 dk)', sample:'Ahmet Bey adına 4 kişilik rezervasyon 15 dakika sonra, 12 numaralı masa' },
+  { id:'reservations', ic:'📅', label:'Yeni rezervasyon / bekleme listesi', sample:'Yeni rezervasyon talebi var' },
+  { id:'messages',     ic:'💬', label:'Mesajlar', sample:'Yeni mesajınız var' },
+  { id:'other',        ic:'🔔', label:'Diğer bildirimler', sample:'Yeni bildiriminiz var' },
 ];
 const VOICE_LATE_MIN = 20;
 const VOICE_KEY = 'peyk_voice_prefs';
@@ -18,7 +22,7 @@ function getVoicePrefs(){
   let p = {};
   try{ p = JSON.parse(localStorage.getItem(VOICE_KEY) || '{}') || {}; }catch(e){}
   const out = { enabled: p.enabled !== false, rate: p.rate || 1, voiceName: p.voiceName || '', types: {} };
-  VOICE_TYPES.forEach(t => { const v = (p.types || {})[t.id] || {}; out.types[t.id] = { sound: v.sound !== false, voice: v.voice != null ? !!v.voice : (t.id==='kitchen' || t.id==='late' || t.id==='seated') }; });
+  VOICE_TYPES.forEach(t => { const v = (p.types || {})[t.id] || {}; out.types[t.id] = { sound: v.sound !== false, voice: v.voice != null ? !!v.voice : !['messages','other','reservations'].includes(t.id) }; });
   return out;
 }
 function setVoicePrefs(p){ try{ localStorage.setItem(VOICE_KEY, JSON.stringify(p)); }catch(e){} }
@@ -120,7 +124,7 @@ function voicePick(){
   const list = voiceList(), name = getVoicePrefs().voiceName.replace(/^cloud:.*/, '');
   return list.find(v => v.name===name) || list[0] || null;
 }
-function setVoiceName(n){ const p = getVoicePrefs(); p.voiceName = n; setVoicePrefs(p); VOICE_LAST.t = ''; VOICE_SHOW_ERR = true; voiceSpeak('Masa 34 sipariş verildi'); setTimeout(() => { VOICE_SHOW_ERR = false; }, 8000); }
+function setVoiceName(n){ const p = getVoicePrefs(); p.voiceName = n; setVoicePrefs(p); VOICE_LAST.t = ''; VOICE_SHOW_ERR = true; voiceSpeak('12 numaralı masadan yeni sipariş geldi'); setTimeout(() => { VOICE_SHOW_ERR = false; }, 8000); }
 try{ if(window.speechSynthesis) speechSynthesis.onvoiceschanged = () => { const el = document.getElementById('voiceNameSel'); if(el) el.outerHTML = voiceSelectHtml(); }; }catch(e){}
 function voiceSelectHtml(){
   const list = voiceList(), pn = getVoicePrefs().voiceName;
@@ -134,24 +138,47 @@ function voiceSelectHtml(){
   return `<select id="voiceNameSel" style="width:auto;max-width:260px;" ${actOn('change','setVoiceName',['$value'])}>${cloudOpts}${list.length && cloudOpts ? '<optgroup label="Cihaz sesleri">' : ''}${list.map(v => `<option value="${escapeAttr(v.name)}" ${v.name===cur?'selected':''}>${escapeHtml(v.name.replace(/^(Microsoft|Google)\s*/,''))}${/natural|neural|online/i.test(v.name)?' ⭐':''}</option>`).join('')}${list.length && cloudOpts ? '</optgroup>' : ''}</select>`;
 }
 function testVoice(type){ const t = VOICE_TYPES.find(x => x.id===type); VOICE_LAST.t = ''; VOICE_SHOW_ERR = true; if(t) voiceSpeak(t.sample); setTimeout(() => { VOICE_SHOW_ERR = false; }, 8000); }
-function voiceTypeOf(view){ return VOICE_TYPES.some(t => t.id===view) ? view : 'other'; }
-function voiceTableName(x){ const t = String(x.table || '').trim(); return t ? (/^\d+$/.test(t) ? 'Masa ' + t : t) : ''; }
+// Rozet öğesinin sesli bildirim türü (null: okunmaz, ör. boş masa hatırlatması).
+function voiceTypeOf(view, x){
+  const k = x && x.kind;
+  if(view==='kitchen') return 'kitchen';
+  if(view==='order') return k==='customer_request' ? (x.table ? 'qr' : 'online') : k==='waiter_call' ? 'waiter' : k==='idle_table' ? null : 'other';
+  if(view==='payments') return k==='waiter_call' ? 'bill' : k==='ready' ? 'ready' : 'other';
+  if(view==='reservations' || view==='messages') return view;
+  return 'other';
+}
+// Masa adını cümleye uygun hale getirir: "12" -> "12 numaralı masa", "Bahçe 3" -> "Bahçe 3 masası", "Paket Ahmet" olduğu gibi.
+function voiceMasa(tb, hal){
+  let t = String(tb || '').trim().replace(/^masa\s+/i, '');
+  if(!t) return { nom:'bir masa', abl:'bir masadan', gen:'bir masanın', dat:'bir masaya' }[hal];
+  if(/^paket\b/i.test(t)) return { nom:t, abl:t + ' için', gen:t, dat:t }[hal];
+  if(/^\d+$/.test(t)) return t + ' numaralı ' + { nom:'masa', abl:'masadan', gen:'masanın', dat:'masaya' }[hal];
+  return t + ' ' + { nom:'masası', abl:'masasından', gen:'masasının', dat:'masasına' }[hal];
+}
+const voiceList2 = (a) => a.length < 2 ? (a[0] || '') : a.slice(0, -1).join(', ') + ' ve ' + a[a.length - 1];
+const voiceTables = (items) => [...new Set(items.map(x => String(x.table || '').trim()))];
 function voiceTextFor(type, items){
-  if(type==='kitchen'){
-    const tables = [...new Set(items.map(voiceTableName).filter(Boolean))];
-    return tables.length ? tables.join(', ') + ' sipariş verildi' : 'Yeni sipariş verildi';
+  const T = voiceTables(items);
+  switch(type){
+    case 'kitchen': return T.map(t => voiceMasa(t, 'abl') + ' yeni sipariş geldi').join('. ');
+    case 'late': {
+      const byT = {}; items.forEach(x => { const k = String(x.table || '').trim(); (byT[k] = byT[k] || []).push(x.name || 'ürün'); });
+      return Object.entries(byT).map(([t, ns]) => voiceMasa(t, 'gen') + ' ' + voiceList2([...new Set(ns)]) + ' siparişi ' + VOICE_LATE_MIN + ' dakikadır bekliyor').join('. ');
+    }
+    case 'qr': return T.map(t => voiceMasa(t, 'abl') + ' QR menü siparişi geldi, onay bekliyor').join('. ');
+    case 'online': return items.map(x => (x.name ? x.name + ' adına ' : 'Yeni ') + 'online ' + (x.otype==='delivery' ? 'teslimat' : x.otype==='pickup' ? 'gel-al' : '') + ' siparişi geldi').join('. ').replace(/\s+/g, ' ');
+    case 'waiter': return T.map(t => voiceMasa(t, 'nom') + ' garson çağırıyor').join('. ');
+    case 'bill': return T.map(t => voiceMasa(t, 'nom') + ' hesap istiyor').join('. ');
+    case 'ready': return T.map(t => voiceMasa(t, 'gen') + ' siparişi hazır').join('. ');
+    case 'seated': return items.map(x => (x.kind==='waitlist' ? 'Bekleme listesindeki ' : 'Rezervasyonlu ') + (x.name || 'misafir') + ' ' + voiceMasa(x.table, 'dat') + ' oturdu').join('. ');
+    case 'resvsoon': return items.map(x => {
+      const mins = Math.round((new Date(x.time).getTime() - Date.now()) / 60000);
+      const when = mins > 1 ? mins + ' dakika sonra' : 'şimdi';
+      return (x.name ? x.name + ' adına ' : '') + (x.party ? x.party + ' kişilik ' : '') + 'rezervasyon ' + when + (x.table ? ', ' + voiceMasa(x.table, 'nom') : '');
+    }).join('. ');
   }
-  if(type==='late'){
-    const byT = {};
-    items.forEach(x => { const k = voiceTableName(x) || 'Bir masa'; (byT[k] = byT[k] || []).push(x.name || 'ürün'); });
-    return Object.entries(byT).map(([t, ns]) => t + ': ' + [...new Set(ns)].join(', ') + ' ' + VOICE_LATE_MIN + ' dakikadır bekliyor').join('. ');
-  }
-  if(type==='seated') return items.map(x => {
-    const tb = String(x.table || '').trim(), where = !tb ? 'masaya' : /^\d+$/.test(tb) ? tb + ' numaralı masaya' : tb + ' masasına';
-    return (x.kind==='waitlist' ? 'Bekleme listesindeki ' : 'Rezervasyonlu ') + (x.name || 'misafir') + ' ' + where + ' oturdu';
-  }).join('. ');
   const t = VOICE_TYPES.find(x => x.id===type);
-  return items.length===1 && items[0].label ? items[0].label : (t ? t.sample : 'Yeni bildirim');
+  return t ? t.sample : 'Yeni bildiriminiz var';
 }
 /* refreshNavBadges'ten her tazelemede çağrılır. İlk çağrı yalnızca mevcut
    durumu öğrenir (açılışta eski işleri okumasın). Dönüş: ses çalındıysa true. */
@@ -164,7 +191,7 @@ function voiceIsSelf(x){
   const now = Date.now(), name = String(x.table || '').toLocaleLowerCase('tr').trim();
   return VOICE_SELF.some(s => now - s.at <= 90000 && (!s.label || !name || s.label.trim() === name || s.label.includes(name) || name.includes(s.label)));
 }
-let VOICE_SEEN = null, VOICE_LATE_SEEN = new Set();
+let VOICE_SEEN = null, VOICE_LATE_SEEN = new Set(), VOICE_RESV_SEEN = new Set();
 function processVoiceBadges(data, visibleViews){
   const items = (data && data._items) || {};
   const ids = new Set();
@@ -172,8 +199,14 @@ function processVoiceBadges(data, visibleViews){
   visibleViews.forEach(v => (items[v] || []).forEach(x => {
     const key = v + ':' + (x.id || x.label);
     ids.add(key);
-    if(VOICE_SEEN && !VOICE_SEEN.has(key)) (fresh[voiceTypeOf(v)] = fresh[voiceTypeOf(v)] || []).push(x);
+    const ty = voiceTypeOf(v, x);
+    if(ty && VOICE_SEEN && !VOICE_SEEN.has(key)) (fresh[ty] = fresh[ty] || []).push(x);
   }));
+  // Yaklaşan rezervasyonlar (15 dk içinde, sunucudan _upcoming): her rezervasyon bir kez.
+  (data && data._upcoming || []).forEach(x => {
+    const key = 'soon:' + x.id; ids.add(key);
+    if(!VOICE_RESV_SEEN.has(x.id)){ VOICE_RESV_SEEN.add(x.id); if(VOICE_SEEN) (fresh.resvsoon = fresh.resvsoon || []).push(x); }
+  });
   // Masaya oturan bekleme listesi / rezervasyon misafirleri (son 5 dk, sunucudan _seated).
   (data && data._seated || []).forEach(x => {
     const key = 'seat:' + x.id; ids.add(key);
@@ -203,7 +236,7 @@ function voiceSettingsHtml(){
   const sw = (type, key, on) => `<input type="checkbox" class="sw" ${on?'checked':''} ${actOn('change','setVoiceOpt',[type, key, '$checked'])}>`;
   return `<div class="box" style="max-width:none;">
     <h2>🗣️ Sesli ve Sesli Okunan Bildirimler</h2>
-    <p class="muted" style="text-align:left;">Her bildirim türü için bu cihazda <b>zil sesi</b> çalınsın mı ve bildirim <b>sesli okunsun</b> mu (ör. “Masa 34 sipariş verildi”) seçin. Mutfakta ${VOICE_LATE_MIN} dakikayı geçen ürünler bir kez “… dakikadır bekliyor” diye okunur.</p>
+    <p class="muted" style="text-align:left;">Her bildirim türü için bu cihazda <b>zil sesi</b> çalınsın mı ve bildirim <b>sesli okunsun</b> mu (ör. “12 numaralı masadan yeni sipariş geldi”) seçin. Mutfakta ${VOICE_LATE_MIN} dakikayı geçen ürünler bir kez “… dakikadır bekliyor” diye okunur.</p>
     <div style="display:flex;align-items:center;gap:10px;margin:10px 0 14px;flex-wrap:wrap;">${sw('*','enabled',p.enabled)}<b>Sesli bildirimler açık</b>
       <span class="muted" style="margin-left:auto;font-size:12.5px;">Ses</span>${voiceSelectHtml()}
       <span class="muted" style="font-size:12.5px;">Hız</span>
