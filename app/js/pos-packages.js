@@ -157,7 +157,8 @@ function renderProductPick(stationId, tableId){
   </div>` : '';
   const searchHtml = `<div class="pp-search"><input id="ppSearch" placeholder="🔍 Ürün ara…" autocomplete="off" value="${escapeAttr(APP.prodSearch || '')}" ${actOn('input','setProdSearch',['$value', tableId])}>${q ? `<span class="pp-search-n">${prods.length} sonuç</span><button type="button" class="pp-search-x" title="Temizle" ${act('setProdSearch', '', tableId)}>✕</button>` : ''}</div>`;
   const focused = document.activeElement && document.activeElement.id === 'ppSearch';
-  el.innerHTML = side + `<div class="pp-main">${searchHtml}<div class="pp-grid">${cards}</div>${extrasHtml}</div>`;
+  el.innerHTML = side + `<div class="pp-main">${searchHtml}${q ? '' : quickTopHtml(tableId)}<div class="pp-grid">${cards}</div>${extrasHtml}</div>`;
+  loadOrderQuickPicks(tableId);
   if(focused){ const i = document.getElementById('ppSearch'); if(i){ i.focus(); i.setSelectionRange(i.value.length, i.value.length); } }
 }
 function setProdSearch(v, tableId){ APP.prodSearch = v; renderProductPick(null, tableId); }
@@ -340,7 +341,7 @@ function renderTableItems(tableId){
     // Her ürün için sipariş edildiği ve hazır olduğu saat (ödeme saati Finansal Analiz'de).
     const hm = (t) => t ? new Date(t).toLocaleTimeString('tr-TR', { hour:'2-digit', minute:'2-digit' }) : '';
     const opened = order.created_at ? new Date(order.created_at).toLocaleString('tr-TR', { day:'numeric', month:'long', hour:'2-digit', minute:'2-digit' }) : '';
-    sentWrap.innerHTML = `<p style="font-weight:700;margin-bottom:2px;">Mutfağa Gönderilen</p>${opened ? `<p class="muted" style="margin:0 0 6px;font-size:12px;">🕒 Sipariş açıldı: ${opened}${order.created_by_name ? ' · 👤 ' + escapeHtml(order.created_by_name) : ''}</p>` : ''}${orderWaiters(order).length > 1 ? `<p class="muted" style="margin:0 0 6px;font-size:12px;">İlgilenen garsonlar: ${escapeHtml(orderWaiters(order).join(', '))}</p>` : ''}` + order.items.map(it => `
+    sentWrap.innerHTML = `<p style="font-weight:700;margin-bottom:2px;display:flex;justify-content:space-between;align-items:center;gap:8px;">Mutfağa Gönderilen<button type="button" class="ghost-btn repeat-btn" title="Son gönderilen ürünleri sepete tekrar ekle" ${act('repeatLastRound', tableId)}>🔁 Aynısından</button></p>${opened ? `<p class="muted" style="margin:0 0 6px;font-size:12px;">🕒 Sipariş açıldı: ${opened}${order.created_by_name ? ' · 👤 ' + escapeHtml(order.created_by_name) : ''}</p>` : ''}${orderWaiters(order).length > 1 ? `<p class="muted" style="margin:0 0 6px;font-size:12px;">İlgilenen garsonlar: ${escapeHtml(orderWaiters(order).join(', '))}</p>` : ''}` + order.items.map(it => `
       <div class="sent-row">
         <span class="sent-name">${escapeHtml(it.name)} x${it.qty} ${it.status==='ready'?'<span style="color:var(--green);">✓ Hazır</span>':'<span class="muted">Hazırlanıyor</span>'}</span>
         <span class="muted sent-meta">${it.added_by_name ? '👤 ' + escapeHtml(it.added_by_name) + ' · ' : ''}🕒 ${hm(it.added_at)}${it.ready_at ? ' · ✓ ' + hm(it.ready_at) : ''}${it.paid ? '' : `<button type="button" class="sent-cancel" title="Bu ürünü iptal et" ${act('cancelSentItem', tableId, it.id)}>✕ İptal</button><input type="checkbox" class="sent-sel" title="Toplu iptal için seç" ${sentSel(tableId).has(it.id)?'checked':''} ${actOn('change','toggleSentSel',[tableId, it.id, '$this'])}>`}</span>
@@ -393,6 +394,7 @@ function renderTableItems(tableId){
             </span>
           </div>
           <input type="text" placeholder="Not ekle (örn. az pişmiş, acısız...)" value="${escapeAttr(it.note||'')}" style="margin:6px 0 0;font-size:12px;padding:6px 10px;" ${actOn('input','updateDraftItemNote',[tableId, idx, '$value'])}>
+          ${!String(it.name).startsWith('+ ') ? `<div class="note-chips">${quickNoteList().map(n => `<button type="button" class="note-chip ${noteHas(it.note, n) ? 'on' : ''}" ${act('toggleDraftNoteChip', tableId, idx, n)}>${escapeHtml(n)}</button>`).join('')}</div>` : ''}
         </div>`; }).join('') +
       `<div style="text-align:right;font-weight:700;margin-top:8px;">Toplam: ${money(total)}</div>
       </div>`;
@@ -534,4 +536,52 @@ function setPkgPickupMin(m){
   const n = parseInt(m, 10); APP.pkgPickupMin = n > 0 ? Math.min(n, 600) : null;
   document.querySelectorAll('.pk-chip[data-min]').forEach(b => b.classList.toggle('on', Number(b.dataset.min) === APP.pkgPickupMin));
   const h = document.getElementById('pkgPickupHint'); if(h) h.textContent = pkgPickupHint();
+}
+
+/* ---- Sipariş ekranı kısayolları: sık satılanlar, hızlı not çipleri, son siparişi tekrarla ---- */
+const QUICK_NOTES_DEFAULT = ['Az pişmiş', 'Çok pişmiş', 'Acısız', 'Acılı', 'Soğansız', 'Sossuz'];
+function loadOrderQuickPicks(tableId){
+  if(APP.quickPicks && Date.now() - APP.quickPicks.at < 30 * 60000) return;
+  if(APP.quickPicksLoading) return; APP.quickPicksLoading = true;
+  sb.rpc('get_order_quickpicks', { p_token: getSession().session_token }).then(({ data }) => {
+    APP.quickPicksLoading = false;
+    APP.quickPicks = { at: Date.now(), top: (data && data.top) || [], notes: (data && data.notes) || [] };
+    if(document.getElementById('prodPick') && !document.getElementById('ppQuick')) renderProductPick(null, tableId);
+  }).catch(() => { APP.quickPicksLoading = false; });
+}
+function quickTopHtml(tableId){
+  const top = ((APP.quickPicks && APP.quickPicks.top) || []).map(id => (APP.config.products || []).find(p => p.id === id))
+    .filter(p => p && p.available !== false && !(effectiveStock(p) != null && effectiveStock(p) <= 0));
+  if(!top.length) return '';
+  return `<div class="pp-quick" id="ppQuick"><span class="pp-quick-h">⭐ Sık satılanlar</span>${top.map(p => `<button type="button" class="pp-quick-b" ${act('addToDraft', tableId, p.id)}>${escapeHtml(p.name)}<small>${money(p.price)}</small></button>`).join('')}</div>`;
+}
+function quickNoteList(){
+  const extra = ((APP.quickPicks && APP.quickPicks.notes) || []).filter(n => !QUICK_NOTES_DEFAULT.some(d => d.toLocaleLowerCase('tr') === String(n).toLocaleLowerCase('tr')));
+  return [...QUICK_NOTES_DEFAULT, ...extra].slice(0, 9);
+}
+const noteParts = (note) => String(note || '').split(',').map(x => x.trim()).filter(Boolean);
+const noteHas = (note, n) => noteParts(note).some(x => x.toLocaleLowerCase('tr') === n.toLocaleLowerCase('tr'));
+function toggleDraftNoteChip(tableId, idx, n){
+  const it = (APP.draftCart[tableId] || [])[idx]; if(!it) return;
+  const parts = noteParts(it.note);
+  const i = parts.findIndex(x => x.toLocaleLowerCase('tr') === n.toLocaleLowerCase('tr'));
+  if(i >= 0) parts.splice(i, 1); else parts.push(n);
+  it.note = parts.join(', ');
+  renderTableItems(tableId);
+}
+// Masanın en son gönderilen turunu (son 2 dk içinde eklenen ürünler) sepete aynı adet ve notla ekler.
+function repeatLastRound(tableId){
+  const order = liveOrderForTable(tableId); if(!order) return;
+  const items = order.items.filter(i => i.status !== 'cancelled' && i.added_at && i.product_id);
+  if(!items.length){ showToast('Tekrarlanacak ürün yok'); return; }
+  const last = Math.max(...items.map(i => new Date(i.added_at).getTime()));
+  const round = items.filter(i => last - new Date(i.added_at).getTime() <= 120000);
+  let n = 0;
+  round.forEach(it => {
+    for(let k = 0; k < (Number(it.qty) || 1); k++){ addToDraft(tableId, it.product_id); n++; }
+    const d = (APP.draftCart[tableId] || []).find(x => x.product_id === it.product_id);
+    if(d && it.note && !d.note) d.note = it.note;
+  });
+  renderTableItems(tableId);
+  if(n) showToast('🔁 ' + n + ' ürün sepete eklendi — kontrol edip gönderin');
 }

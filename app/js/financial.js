@@ -210,7 +210,7 @@ async function renderReportsView(main, session){
   await renderReportTabContent(session);
 }
 function reportTabList(){
-  const dsc = { summary:'Ciro, kâr, ödemeler', cockpit:'Karşılaştırma, tahmin, uyarılar', menueng:'Kârlılık haritası', tablemap:'Masa bazlı ciro', heat:'Gün × saat yoğunluğu',
+  const dsc = { summary:'Ciro, kâr, ödemeler', cockpit:'Karşılaştırma, tahmin, uyarılar', menueng:'Kârlılık haritası', tablemap:'Masa bazlı ciro', heat:'Gün × saat yoğunluğu', channels:'Masa, paket, gel-al, online', speed:'Hazırlama ve yanıt süreleri',
     stockf:'Ne zaman bitecek', zreport:'Z raporu, yazdır', waiters:'Personel performansı', journey:'Sadakat, kayıp müşteri', period:'Saatlik / günlük', vat:'Vergi dağılımı',
     products:'En çok satanlar', staff:'Personel ısı haritası', customers:'Müşteri harcamaları', tips:'Bahşiş dağılımı', waste:'Fire ve israf', cancel:'İptal masa ve ürünler',
     resv:'Rezervasyon performansı', openacc:'Veresiye bakiyeleri' };
@@ -260,6 +260,8 @@ function renderReportTabContent(session){
   if(tab==='waste') return renderWasteContent(session);
   if(tab==='cancel') return renderCancelReportContent(session);
   if(tab==='cockpit') return renderCockpitContent(session);
+  if(tab==='channels') return renderChannelsContent(session);
+  if(tab==='speed') return renderSpeedContent(session);
   if(tab==='menueng') return renderMenuEngContent(session);
   if(tab==='tablemap') return renderTableMapContent(session);
   if(tab==='heat') return renderHeatContent(session);

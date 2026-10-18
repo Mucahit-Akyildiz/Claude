@@ -207,6 +207,11 @@ async function renderWaitlistContent(session, forceRefresh){
     APP.waitlistCache = data || [];
     if(live && !live.error) APP.liveOrders = live.data || [];
   }
+  // Sistem tahmini: boş masalar ve dolu masaların ortalama kalış süresine göre her sıra için bekleme (dk).
+  try{ const r = await sb.rpc('get_waitlist_estimate', { p_token: session.session_token }); if(!r.error) APP.wlEstimate = r.data; }catch(e){}
+  const est = APP.wlEstimate || null;
+  const estFor = (i) => est && est.per_position ? est.per_position[i] : null;
+  const estTxt = (m) => m == null ? '' : (m <= 0 ? 'hemen (boş masa var)' : '≈ ' + m + ' dk');
   const rows = APP.waitlistCache;
   const hasOrder = (w) => (APP.liveOrders||[]).some(o => o.kind==='waitlist' && o.waitlist_id===w.id);
   const avgWait = rows.length ? Math.round(rows.reduce((x, w) => x + (Date.now() - new Date(w.joined_at).getTime())/60000, 0) / rows.length) : 0;
@@ -214,7 +219,8 @@ async function renderWaitlistContent(session, forceRefresh){
       ['🧍', rows.length, 'Sırada bekleyen', 'var(--c1)', 'all'],
       ['👥', rows.reduce((x, w) => x + (Number(w.party_size)||0), 0), 'Toplam kişi', 'var(--c2)'],
       ['⏱', avgWait + ' dk', 'Ortalama bekleme', 'var(--c3)'],
-      ['🍽️', rows.filter(hasOrder).length, 'Beklerken sipariş veren', 'var(--c4)', 'ordered']
+      ['🍽️', rows.filter(hasOrder).length, 'Beklerken sipariş veren', 'var(--c4)', 'ordered'],
+      ...(est ? [['🎯', est.next <= 0 ? 'Hemen' : '≈ ' + est.next + ' dk', 'Yeni gelen için tahmini', 'var(--c1)']] : [])
     ], '', 'wl') + `<div class="box" style="max-width:none;">
     <h2>Bekleme Listesi</h2>
     <div class="add-row-panel" style="margin:0 0 16px;">
@@ -224,7 +230,7 @@ async function renderWaitlistContent(session, forceRefresh){
         <div class="field-group" style="${fgStyle(130)}"><label>Telefon</label><input style="margin:0;" id="wlCustPhone" placeholder="05xx..." inputmode="tel" autocomplete="off" ${actOn('input','tableCustSearch',['$value', 'wlCust'])}></div>
         <div class="field-group" style="${fgStyle(160)}"><label>E-posta (bildirim)</label><input style="margin:0;" id="wlCustEmail" type="email" placeholder="opsiyonel" autocapitalize="none"></div>
         <div class="field-group" style="${fgStyle(70)}"><label>Kişi</label><input style="margin:0;" id="wl_party" type="number" min="1" value="2"></div>
-        <div class="field-group" style="${fgStyle(120)}"><label>Tahmini Bekleme (dk)</label><input style="margin:0;" id="wl_wait" type="number" min="0" placeholder="15"></div>
+        <div class="field-group" style="${fgStyle(120)}"><label>Tahmini Bekleme (dk)</label><input style="margin:0;" id="wl_wait" type="number" min="0" placeholder="${est && est.next != null ? est.next : 15}" value="${est && est.next > 0 ? est.next : ''}" title="Sistem tahmini: masaların ortalama kalış süresi ${est ? est.avg_stay : '—'} dk"></div>
         <button style="${INLINE_BTN}" ${act('addWaitlistEntry')}>+ Ekle</button>
       </div>
       <div id="wlCustSuggest"></div>
@@ -237,6 +243,7 @@ async function renderWaitlistContent(session, forceRefresh){
           <span class="pchip">👥 ${w.party_size} kişi</span>
           <span class="pchip">🕐 ${new Date(w.joined_at).toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'})} katıldı</span>
           ${w.quoted_wait_minutes!=null ? `<span class="pchip">🎯 ${new Date(new Date(w.joined_at).getTime() + w.quoted_wait_minutes*60000).toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'})} tahmini</span>` : ''}
+          ${estFor(i) != null ? `<span class="pchip" title="Boş masalar ve masaların ortalama kalış süresine göre">🤖 ${estTxt(estFor(i))}</span>` : ''}
           ${hasOrder(w) ? '<span class="pchip warn">🍽️ sipariş verdi</span>' : ''}
         </div>
         <div class="wl-timer"><span class="waitlist-timer" data-joined="${w.joined_at}" data-quoted="${w.quoted_wait_minutes||''}">-</span></div>

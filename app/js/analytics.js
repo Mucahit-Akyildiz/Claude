@@ -4,6 +4,7 @@
    değişene kadar sekmeler arasında önbellekte tutulur. Klasik <script src>. */
 const AN_TABS = [
   ['cockpit','🧭','Kokpit'], ['menueng','⭐','Menü Mühendisliği'], ['tablemap','🗺️','Masa Haritası'], ['heat','🔥','Yoğunluk'],
+  ['channels','🛵','Satış Kanalları'], ['speed','⚡','Hizmet Hızı'],
   ['stockf','📦','Stok Tahmini'], ['zreport','🧾','Gün Sonu'], ['waiters','🏅','Garson Kartları'], ['journey','🔁','Müşteri Yolculuğu']
 ];
 async function anBundle(session){
@@ -473,3 +474,72 @@ function exportAnalytics(){
   setTimeout(() => URL.revokeObjectURL(a.href), 2000);
 }
 function printAnalytics(){ document.body.classList.add('print-report'); window.print(); setTimeout(() => document.body.classList.remove('print-report'), 500); }
+
+/* ---------- 🛵 SATIŞ KANALLARI ve ⚡ HİZMET HIZI ---------- */
+async function anChannelSpeed(session){
+  const key = APP.reportDate + '|' + APP.reportDateTo;
+  if(APP.csCache && APP.csCache.key === key && Date.now() - APP.csCache.at < 60000) return APP.csCache.data;
+  const { data, error } = await withLoadingOverlay(sb.rpc('get_channel_speed_report', { p_token: session.session_token, p_date: APP.reportDate, p_date_to: APP.reportDateTo || null }));
+  if(error) throw error;
+  APP.csCache = { key, at: Date.now(), data };
+  return data;
+}
+const CH_META = { table:['🍽️','Masa','var(--c1)'], waitlist:['⏳','Bekleme listesi','var(--c3)'], delivery:['🛵','Paket (teslimat)','var(--c2)'], pickup:['🥡','Gel-Al','#f59e0b'], online:['🌐','Online sipariş','#22c55e'] };
+async function renderChannelsContent(session){
+  const el = document.getElementById('reportContent'); if(!el) return;
+  let d; try { d = await anChannelSpeed(session); } catch(e){ return anErr(el, e); }
+  const ch = d.channels || [], tot = ch.reduce((t, x) => t + anN(x.rev), 0), totN = ch.reduce((t, x) => t + anN(x.n), 0);
+  anSetExport('satis-kanallari', ['Kanal', 'Hesap', 'Ciro', 'Ortalama sepet', 'Pay %'], ch.map(x => [(CH_META[x.ch] || [,x.ch])[1], x.n, x.rev, x.avg, tot ? (anN(x.rev) / tot * 100).toFixed(1) : 0]));
+  if(!ch.length){ el.innerHTML = '<div class="empty-state"><div style="font-size:42px;">🛵</div><p class="muted">Bu aralıkta kapanan hesap yok.</p></div>'; return; }
+  // Saatlik dağılım: her saat için kanallara göre yığılmış çubuk.
+  const hours = d.hours || [], byH = {}; hours.forEach(x => { (byH[x.h] = byH[x.h] || {})[x.ch] = anN(x.rev); });
+  const hs = Object.keys(byH).map(Number); const h0 = Math.min(...hs), h1 = Math.max(...hs);
+  const maxH = Math.max(1, ...Object.values(byH).map(o => Object.values(o).reduce((a, b) => a + b, 0)));
+  const order = ch.map(x => x.ch);
+  const bars = []; for(let h = h0; h <= h1; h++){ const o = byH[h] || {}, sum = Object.values(o).reduce((a, b) => a + b, 0);
+    bars.push(`<div class="cs-hbar" title="${String(h).padStart(2,'0')}:00 · ${money(sum)}"><div class="cs-hstack" style="height:${(sum / maxH * 100).toFixed(1)}%;">${order.filter(c => o[c]).map(c => `<i style="flex:${o[c]};background:${(CH_META[c] || [,,'var(--muted)'])[2]};" title="${(CH_META[c]||[,c])[1]} · ${money(o[c])}"></i>`).join('')}</div><small>${String(h).padStart(2,'0')}</small></div>`); }
+  el.innerHTML = `
+    <div class="an-kpis">
+      ${ch.map(x => { const m = CH_META[x.ch] || ['•', x.ch, 'var(--c1)']; return anKpi(m[0], m[1], money(x.rev), `${x.n} hesap · ort. ${money(x.avg)}`, tot ? `<span class="an-d up">%${Math.round(anN(x.rev) / tot * 100)}</span>` : '', '', m[2]); }).join('')}
+    </div>
+    <div class="fs-panel pa-sec" style="--t:var(--c1);">
+      <h3><i>📊</i>Kanal payları</h3>
+      <div class="cs-share">${ch.map(x => `<i style="flex:${anN(x.rev)};background:${(CH_META[x.ch]||[,,'var(--muted)'])[2]};" title="${(CH_META[x.ch]||[,x.ch])[1]} · %${(anN(x.rev) / tot * 100).toFixed(1)}"></i>`).join('')}</div>
+      <div class="an-legend">${ch.map(x => `<span><i style="background:${(CH_META[x.ch]||[,,'var(--muted)'])[2]};"></i>${(CH_META[x.ch]||[,x.ch])[1]} · %${(anN(x.rev) / tot * 100).toFixed(1)} · ${Math.round(anN(x.n) / totN * 100)}% hesap</span>`).join('')}</div>
+    </div>
+    <div class="fs-panel pa-sec" style="--t:var(--c2);">
+      <h3><i>🕐</i>Saatlere göre kanal cirosu</h3>
+      <div class="cs-hours">${bars.join('')}</div>
+      <p class="fs-note">Çubuğun üzerine gelince saat ve kanal tutarı görünür. Paket ve gel-al yoğunluğuna göre kurye ve personel planlayabilirsiniz.</p>
+    </div>`;
+}
+async function renderSpeedContent(session){
+  const el = document.getElementById('reportContent'); if(!el) return;
+  let d; try { d = await anChannelSpeed(session); } catch(e){ return anErr(el, e); }
+  const k = d.kitchen || {}, pk = d.pickup || {}, calls = d.calls || [], st = d.stations || [], slow = d.slow || [];
+  const call = (kind) => calls.find(c => c.kind === kind) || {};
+  const lateP = anN(k.n) ? Math.round(anN(k.late) / anN(k.n) * 100) : 0;
+  anSetExport('hizmet-hizi', ['İstasyon', 'Ürün', 'Ort. dk', '%90 dk', '20 dk üstü'], st.map(x => [x.station, x.n, x.avg, x.p90, x.late]));
+  const maxSt = Math.max(1, ...st.map(x => anN(x.p90)));
+  const maxSl = Math.max(1, ...slow.map(x => anN(x.avg)));
+  el.innerHTML = `
+    <div class="an-kpis">
+      ${anKpi('🍳', 'Ort. hazırlama', (k.avg ?? '—') + ' dk', `${k.n || 0} ürün`, '', '', 'var(--c1)')}
+      ${anKpi('⏰', '20 dk üstü', '%' + lateP, `${k.late || 0} ürün geç hazırlandı`, '', '', lateP > 25 ? '#ef4444' : '#f59e0b')}
+      ${anKpi('🙋', 'Garson çağrısı yanıtı', call('order').avg != null ? call('order').avg + ' dk' : '—', `${call('order').n || 0} çağrı`, '', '', 'var(--c2)')}
+      ${anKpi('💳', 'Hesap isteği yanıtı', call('payment').avg != null ? call('payment').avg + ' dk' : '—', `${call('payment').n || 0} istek`, '', '', 'var(--c3)')}
+      ${anKpi('🥡', 'Gel-al zamanında hazır', anN(pk.n) ? '%' + Math.round(anN(pk.on_time) / anN(pk.n) * 100) : '—', anN(pk.n) ? `${pk.on_time}/${pk.n} sipariş` : 'süre girilmiş gel-al yok', '', '', '#22c55e')}
+    </div>
+    <div class="ch-row">
+      <div class="fs-panel pa-sec" style="--t:var(--c1);flex:1;">
+        <h3><i>🏭</i>İstasyonlara göre hazırlama</h3>
+        ${st.length ? st.map(x => `<div class="cs-row"><span class="cs-lbl">${escapeHtml(x.icon || '🍳')} ${escapeHtml(x.station)}<small>${x.n} ürün · ${x.late} geç</small></span>
+          <span class="cs-track"><i class="cs-avg" style="width:${(anN(x.avg) / maxSt * 100).toFixed(1)}%;"></i><i class="cs-p90" style="left:${(anN(x.p90) / maxSt * 100).toFixed(1)}%;" title="Siparişlerin %90'ı bu sürede hazır"></i></span>
+          <b>${x.avg} dk</b></div>`).join('') + '<p class="fs-note">Çubuk ortalama süre; ince çizgi siparişlerin %90\'ının hazır olduğu süre.</p>' : '<p class="muted">Veri yok.</p>'}
+      </div>
+      <div class="fs-panel pa-sec" style="--t:#ef4444;flex:1;">
+        <h3><i>🐢</i>En yavaş hazırlanan ürünler</h3>
+        ${slow.length ? slow.map(x => `<div class="cs-row"><span class="cs-lbl">${escapeHtml(x.name)}<small>${x.n} kez</small></span><span class="cs-track"><i class="cs-avg" style="width:${(anN(x.avg) / maxSl * 100).toFixed(1)}%;background:${anN(x.avg) > 20 ? '#ef4444' : 'var(--c2)'};"></i></span><b>${x.avg} dk</b></div>`).join('') : '<p class="muted">Veri yok.</p>'}
+      </div>
+    </div>`;
+}
