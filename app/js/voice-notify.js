@@ -27,7 +27,37 @@ function setVoiceOpt(type, key, on){
   else p.types[type][key] = !!on;
   setVoicePrefs(p);
 }
+/* Bulut ses (Azure Neural, /api/tts): sunucuda anahtar varsa varsayılan budur;
+   üretilen ses cihazda saklanır, aynı cümle tekrar istenmez. Hata olursa
+   cihazın kendi sesine düşülür. */
+let VOICE_CLOUD = null; const VOICE_CLOUD_MEM = new Map();
+fetch('/api/tts').then(r => r.json()).then(j => { VOICE_CLOUD = !!j.enabled; const el = document.getElementById('voiceNameSel'); if(el) el.outerHTML = voiceSelectHtml(); }).catch(() => { VOICE_CLOUD = false; });
+async function voiceCloudPlay(text, voice){
+  const p = getVoicePrefs(), s = getSession(); if(!s) throw new Error('no session');
+  const k = voice + '|' + p.rate + '|' + text;
+  let url = VOICE_CLOUD_MEM.get(k);
+  if(!url){
+    const cacheKey = '/tts-cache/' + encodeURIComponent(k);
+    let blob = null, cache = null;
+    try{ cache = await caches.open('peyktan-tts'); const hit = await cache.match(cacheKey); if(hit) blob = await hit.blob(); }catch(e){}
+    if(!blob){
+      const r = await fetch('/api/tts', { method:'POST', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify({ text, voice, rate: p.rate, token: s.session_token }) });
+      if(!r.ok) throw new Error('tts ' + r.status);
+      blob = await r.blob();
+      try{ if(cache) await cache.put(cacheKey, new Response(blob, { headers:{ 'Content-Type':'audio/mpeg' } })); }catch(e){}
+    }
+    url = URL.createObjectURL(blob); VOICE_CLOUD_MEM.set(k, url);
+  }
+  const a = new Audio(url); a.volume = Math.max(0.2, (getBellVolume() || 100) / 100);
+  await a.play();
+}
 function voiceSpeak(text){
+  const name = getVoicePrefs().voiceName;
+  const cloud = name.startsWith('cloud:') ? name.slice(6) : (!name && VOICE_CLOUD ? 'emel' : null);
+  if(cloud && VOICE_CLOUD !== false){ voiceCloudPlay(text, cloud).catch(() => voiceDeviceSpeak(text)); return; }
+  voiceDeviceSpeak(text);
+}
+function voiceDeviceSpeak(text){
   try{
     if(!window.speechSynthesis || !text) return;
     const u = new SpeechSynthesisUtterance(text);
@@ -45,15 +75,18 @@ function voiceList(){
   }catch(e){ return []; }
 }
 function voicePick(){
-  const list = voiceList(), name = getVoicePrefs().voiceName;
+  const list = voiceList(), name = getVoicePrefs().voiceName.replace(/^cloud:.*/, '');
   return list.find(v => v.name===name) || list[0] || null;
 }
 function setVoiceName(n){ const p = getVoicePrefs(); p.voiceName = n; setVoicePrefs(p); voiceSpeak('Masa 34 sipariş bekliyor'); }
 try{ if(window.speechSynthesis) speechSynthesis.onvoiceschanged = () => { const el = document.getElementById('voiceNameSel'); if(el) el.outerHTML = voiceSelectHtml(); }; }catch(e){}
 function voiceSelectHtml(){
-  const list = voiceList(), cur = (voicePick() || {}).name;
-  if(!list.length) return '<select id="voiceNameSel" style="width:auto;" disabled><option>Türkçe ses bulunamadı</option></select>';
-  return `<select id="voiceNameSel" style="width:auto;max-width:260px;" ${actOn('change','setVoiceName',['$value'])}>${list.map(v => `<option value="${escapeAttr(v.name)}" ${v.name===cur?'selected':''}>${escapeHtml(v.name.replace(/^(Microsoft|Google)\s*/,''))}${/natural|neural|online/i.test(v.name)?' ⭐':''}</option>`).join('')}</select>`;
+  const list = voiceList(), pn = getVoicePrefs().voiceName;
+  const cloudCur = pn.startsWith('cloud:') ? pn : (!pn && VOICE_CLOUD ? 'cloud:emel' : '');
+  const cur = cloudCur || (voicePick() || {}).name;
+  const cloudOpts = VOICE_CLOUD ? [['cloud:emel','Emel (doğal, kadın) ⭐⭐'],['cloud:ahmet','Ahmet (doğal, erkek) ⭐⭐']].map(([v,l]) => `<option value="${v}" ${cur===v?'selected':''}>${l}</option>`).join('') : '';
+  if(!list.length && !cloudOpts) return '<select id="voiceNameSel" style="width:auto;" disabled><option>Türkçe ses bulunamadı</option></select>';
+  return `<select id="voiceNameSel" style="width:auto;max-width:260px;" ${actOn('change','setVoiceName',['$value'])}>${cloudOpts}${list.map(v => `<option value="${escapeAttr(v.name)}" ${v.name===cur?'selected':''}>${escapeHtml(v.name.replace(/^(Microsoft|Google)\s*/,''))}${/natural|neural|online/i.test(v.name)?' ⭐':''}</option>`).join('')}</select>`;
 }
 function testVoice(type){ const t = VOICE_TYPES.find(x => x.id===type); if(t) voiceSpeak(t.sample); }
 function voiceTypeOf(view){ return VOICE_TYPES.some(t => t.id===view) ? view : 'other'; }
@@ -124,6 +157,6 @@ function voiceSettingsHtml(){
       </div>`).join('')}
     </div>
     ${window.speechSynthesis ? '' : '<p class="muted" style="color:var(--danger);">Bu cihaz/tarayıcı sesli okumayı desteklemiyor.</p>'}
-    <p class="muted" style="font-size:12.5px;text-align:left;margin-top:10px;">Sesler cihazın kendi Türkçe okuma motorundan gelir. ⭐ işaretli “doğal” sesler en iyisidir: Windows'ta Microsoft Edge ya da Ayarlar › Zaman ve Dil › Konuşma'dan <b>Emel / Ahmet (Natural)</b>, Android'de “Google Konuşma Hizmetleri” Türkçe paketi önerilir.</p>
+    <p class="muted" style="font-size:12.5px;text-align:left;margin-top:10px;">⭐⭐ Emel/Ahmet doğal bulut sesleridir (her cihazda aynı). Diğer sesler cihazın kendi Türkçe okuma motorundan gelir. ⭐ işaretli “doğal” sesler en iyisidir: Windows'ta Microsoft Edge ya da Ayarlar › Zaman ve Dil › Konuşma'dan <b>Emel / Ahmet (Natural)</b>, Android'de “Google Konuşma Hizmetleri” Türkçe paketi önerilir.</p>
   </div>`;
 }
