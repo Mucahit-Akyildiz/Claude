@@ -167,7 +167,7 @@ function processVoiceBadges(data, visibleViews){
   visibleViews.forEach(v => (items[v] || []).forEach(x => {
     const key = v + ':' + (x.id || x.label);
     ids.add(key);
-    if(VOICE_SEEN && !VOICE_SEEN.has(key) && !(v==='kitchen' && voiceIsSelf(x))) (fresh[voiceTypeOf(v)] = fresh[voiceTypeOf(v)] || []).push(x);
+    if(VOICE_SEEN && !VOICE_SEEN.has(key)) (fresh[voiceTypeOf(v)] = fresh[voiceTypeOf(v)] || []).push(x);
   }));
   const late = [];
   (items.kitchen || []).forEach(x => {
