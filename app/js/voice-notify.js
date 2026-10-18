@@ -84,7 +84,7 @@ function voiceSelectHtml(){
   const list = voiceList(), pn = getVoicePrefs().voiceName;
   const cloudCur = pn.startsWith('cloud:') ? pn : (!pn && VOICE_CLOUD ? 'cloud:emel' : '');
   const cur = cloudCur || (voicePick() || {}).name;
-  const cloudOpts = VOICE_CLOUD ? [['cloud:emel','Emel (doğal, kadın) ⭐⭐'],['cloud:ahmet','Ahmet (doğal, erkek) ⭐⭐']].map(([v,l]) => `<option value="${v}" ${cur===v?'selected':''}>${l}</option>`).join('') : '';
+  const cloudOpts = VOICE_CLOUD ? [['cloud:emel','Doğal ses — kadın ⭐⭐'],['cloud:ahmet','Doğal ses — erkek ⭐⭐']].map(([v,l]) => `<option value="${v}" ${cur===v?'selected':''}>${l}</option>`).join('') : '';
   if(!list.length && !cloudOpts) return '<select id="voiceNameSel" style="width:auto;" disabled><option>Türkçe ses bulunamadı</option></select>';
   return `<select id="voiceNameSel" style="width:auto;max-width:260px;" ${actOn('change','setVoiceName',['$value'])}>${cloudOpts}${list.map(v => `<option value="${escapeAttr(v.name)}" ${v.name===cur?'selected':''}>${escapeHtml(v.name.replace(/^(Microsoft|Google)\s*/,''))}${/natural|neural|online/i.test(v.name)?' ⭐':''}</option>`).join('')}</select>`;
 }
@@ -157,6 +157,6 @@ function voiceSettingsHtml(){
       </div>`).join('')}
     </div>
     ${window.speechSynthesis ? '' : '<p class="muted" style="color:var(--danger);">Bu cihaz/tarayıcı sesli okumayı desteklemiyor.</p>'}
-    <p class="muted" style="font-size:12.5px;text-align:left;margin-top:10px;">⭐⭐ Emel/Ahmet doğal bulut sesleridir (her cihazda aynı). Diğer sesler cihazın kendi Türkçe okuma motorundan gelir. ⭐ işaretli “doğal” sesler en iyisidir: Windows'ta Microsoft Edge ya da Ayarlar › Zaman ve Dil › Konuşma'dan <b>Emel / Ahmet (Natural)</b>, Android'de “Google Konuşma Hizmetleri” Türkçe paketi önerilir.</p>
+    <p class="muted" style="font-size:12.5px;text-align:left;margin-top:10px;">⭐⭐ doğal bulut sesleridir (her cihazda aynı). Diğer sesler cihazın kendi Türkçe okuma motorundan gelir. ⭐ işaretli “doğal” sesler en iyisidir: Windows'ta Microsoft Edge ya da Ayarlar › Zaman ve Dil › Konuşma'dan <b>Emel / Ahmet (Natural)</b>, Android'de “Google Konuşma Hizmetleri” Türkçe paketi önerilir.</p>
   </div>`;
 }
