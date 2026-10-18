@@ -79,7 +79,22 @@ async function voiceCloudPlay(text, voice){
     url = URL.createObjectURL(blob); VOICE_CLOUD_MEM.set(k, url);
   }
   voiceStop();
-  const a = new Audio(url); a.volume = Math.max(0.2, (getBellVolume() || 100) / 100);
+  const vol = Math.max(0.2, (getBellVolume() || 100) / 100);
+  // Önce Web Audio (ilk dokunuşta açılan ses motoru): iOS/Android uygulamaları ve
+  // tabletler, dokunuş olmadan başlatılan <audio> çalmayı engelleyebiliyor.
+  const ctx = typeof KITCHEN_AUDIO_CTX !== 'undefined' ? KITCHEN_AUDIO_CTX : null;
+  if(ctx && ctx.state === 'running'){
+    try{
+      let buf = VOICE_BUF_MEM.get(k);
+      if(!buf){ buf = await ctx.decodeAudioData(await (await fetch(url)).arrayBuffer()); VOICE_BUF_MEM.set(k, buf); }
+      const src = ctx.createBufferSource(), g = ctx.createGain();
+      g.gain.value = vol; src.buffer = buf; src.connect(g); g.connect(ctx.destination); src.start();
+      VOICE_AUDIO = { pause(){ try{ src.stop(); }catch(e){} }, paused: false };
+      src.onended = () => { if(VOICE_AUDIO) VOICE_AUDIO.paused = true; };
+      return;
+    }catch(e){ /* <audio> ile denenir */ }
+  }
+  const a = VOICE_AUDIO_EL || new Audio(); a.src = url; a.volume = vol;
   VOICE_AUDIO = a;
   let started = false; a.addEventListener('playing', () => { started = true; }, { once: true });
   try{ await a.play(); }
@@ -88,6 +103,18 @@ async function voiceCloudPlay(text, voice){
 // Çalan sesi/okumayı durdurur: yeni okuma eskisinin üstüne binmesin.
 let VOICE_LAST_ERR = '', VOICE_SHOW_ERR = false;
 let VOICE_AUDIO = null, VOICE_LAST = { t: '', at: 0 };
+const VOICE_BUF_MEM = new Map();
+// Mobil/tablet: ilk dokunuşta tek bir <audio> öğesi ve cihaz okuma motoru "açılır";
+// sonraki bildirimler aynı öğeyle dokunuş beklemeden çalar.
+let VOICE_AUDIO_EL = null;
+['pointerdown','touchend','keydown'].forEach(ev => document.addEventListener(ev, function unlockVoice(){
+  try{
+    if(!VOICE_AUDIO_EL){ VOICE_AUDIO_EL = new Audio(); VOICE_AUDIO_EL.setAttribute('playsinline', ''); }
+    VOICE_AUDIO_EL.src = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=';
+    VOICE_AUDIO_EL.play().catch(() => {});
+    if(window.speechSynthesis){ const u = new SpeechSynthesisUtterance(' '); u.volume = 0; speechSynthesis.speak(u); }
+  }catch(e){}
+}, { once: true, passive: true }));
 function voiceStop(){
   try{ if(VOICE_AUDIO){ VOICE_AUDIO.pause(); VOICE_AUDIO = null; } }catch(e){}
   try{ if(window.speechSynthesis) speechSynthesis.cancel(); }catch(e){}

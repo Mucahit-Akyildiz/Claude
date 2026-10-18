@@ -32,6 +32,8 @@ public class MainActivity extends BridgeActivity {
     public void onCreate(Bundle savedInstanceState) {
         registerPlugin(PeykRadioPlugin.class);
         super.onCreate(savedInstanceState);
+        // Sesli bildirimler (doğal ses / cihaz sesi) dokunuş beklemeden çalabilsin.
+        try { getBridge().getWebView().getSettings().setMediaPlaybackRequiresUserGesture(false); } catch (Exception e) { }
         PeykCallNotifier.handleIntent(this, getIntent());
         updateLauncher = registerForActivityResult(new ActivityResultContracts.StartIntentSenderForResult(), result -> {});
         checkForUpdate();
