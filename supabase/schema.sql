@@ -599,6 +599,31 @@ CREATE FUNCTION public._enc(p text) RETURNS text
 
 
 --
+-- Name: _ensure_customer(uuid, text, text, boolean); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public._ensure_customer(p_rest uuid, p_name text, p_phone text, p_allow_no_phone boolean DEFAULT false) RETURNS uuid
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+declare v_id uuid; v_name text := left(btrim(coalesce(p_name,'')), 60); v_digits text := regexp_replace(coalesce(p_phone,''), '\D', '', 'g');
+begin
+  if v_name = '' then return null; end if;
+  if length(v_digits) >= 7 then
+    select id into v_id from customers where restaurant_id = p_rest and right(regexp_replace(coalesce(phone,''), '\D', '', 'g'), 10) = right(v_digits, 10) limit 1;
+  elsif p_allow_no_phone then
+    select id into v_id from customers where restaurant_id = p_rest and lower(name) = lower(v_name) limit 1;
+  else
+    return null;
+  end if;
+  if v_id is null then
+    insert into customers (restaurant_id, name, phone) values (p_rest, v_name, nullif(btrim(coalesce(p_phone,'')), '')) returning id into v_id;
+  end if;
+  return v_id;
+end $$;
+
+
+--
 -- Name: _guard_owner_target(uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -943,6 +968,13 @@ begin
       where rs_.restaurant_id = r and rs_.status in ('pending', 'confirmed') and rs_.seated_at is null
         and rs_.reservation_time between now() - interval '5 minutes' and now() + interval '15 minutes';
     v := v || jsonb_build_object('_upcoming', arr);
+    -- Alış saati gelmiş, hâlâ açık gel-al siparişleri (son 2 saat): sesli bildirim.
+    select coalesce(jsonb_agg(jsonb_build_object('id', po_.id, 'name', po_.customer_name, 'no', po_.daily_number, 'at', po_.pickup_at,
+             'ready', not exists (select 1 from order_items oi2 where oi2.order_id = po_.id and oi2.status = 'pending'))), '[]') into arr
+      from orders po_
+      where po_.restaurant_id = r and po_.kind = 'takeaway' and po_.status = 'open' and po_.takeaway_type = 'pickup'
+        and po_.pickup_at <= now() and po_.pickup_at > now() - interval '2 hours';
+    v := v || jsonb_build_object('_pickups', arr);
   end if;
   return v || jsonb_build_object('_items', it);
 end; $$;
@@ -3509,6 +3541,8 @@ begin
     raise exception 'Bu adla bir açık hesap zaten var'; end if;
   insert into open_accounts(restaurant_id, name, phone, note, created_by)
     values (s.restaurant_id, trim(p_name), nullif(trim(coalesce(p_phone,'')),''), nullif(trim(coalesce(p_note,'')),''), s.user_id) returning id into v_id;
+  -- Açık hesap sahibi kayıtlı müşteri değilse Müşteriler'e otomatik eklenir.
+  begin perform _ensure_customer(s.restaurant_id, p_name, p_phone, true); exception when others then null; end;
   return v_id;
 end; $$;
 
@@ -7732,6 +7766,8 @@ begin
     );
   end loop;
 
+  -- Telefonu girilen paket müşterisi kayıtlı değilse Müşteriler'e otomatik eklenir.
+  begin perform _ensure_customer(s.restaurant_id, p_customer_name, p_customer_phone); exception when others then null; end;
   return query select v_order_id, v_daily_number;
 end;
 $$;
