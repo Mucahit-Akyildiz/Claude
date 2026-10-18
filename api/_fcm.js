@@ -110,6 +110,9 @@ async function sendFcmNotification(fcmToken, payload) {
         // simgesinde görünen sayı.
         android: {
           priority: 'high',
+          // Cihaz çevrimdışıyken bekletilen bildirim 15 dk sonra düşer; telefon
+          // tekrar bağlanınca saatler önceki eski bildirimler toplu gelmesin.
+          ttl: '900s',
           notification: Object.assign(
             { channel_id: payload.channel || 'default' },
             payload.channel === 'peyktan_v1' ? { sound: 'peyktan' } : {},
