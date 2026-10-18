@@ -411,15 +411,15 @@ async function renderPrinterSettingsView(main, session){
   const usbSupported = !!(navigator.usb);
   main.innerHTML = `
     <h1>Yazıcı Ayarları <span class="role-badge" style="margin-left:6px;vertical-align:middle;">Sadece Yönetici</span></h1>
-    <div class="pr-note">
-      <p style="margin:0;font-weight:700;font-size:13px;">✓ Fiş Tasarımı artık tüm işletmede ortak — burada kaydettiğiniz tasarım, hangi cihazdan/kim basarsa bassın her fişte aynı şekilde uygulanır.</p>
+    <details class="pr-note">
+      <summary style="cursor:pointer;font-weight:700;font-size:13px;">ℹ️ Fiş tasarımı tüm işletmede ortaktır; yazıcı seçimleri ise bu cihaza özeldir. <span class="muted" style="font-weight:500;">(ayrıntı)</span></summary>
       <p class="muted" style="margin:8px 0 0;text-align:left;font-size:12px;">⚠️ <b>Yazıcılar</b> ve <b>İstasyon → Yazıcı Eşleştirme</b> ise hâlâ <u>şu an bu ekranı açtığınız cihaza</u> özeldir (bir yazıcı fiziksel olarak hangi bilgisayara bağlıysa fiş oradan basılır, bu merkezi bir ayarla belirlenemez). Yeni bir kasa/mutfak bilgisayarı kurduğunuzda, o bilgisayarda da Yönetici olarak giriş yapıp yazıcı seçimini orada tekrar yapmanız gerekir.</p>
-    </div>
+    </details>
 
     <div class="box" style="max-width:none;">
       <h2>Fiş Tasarımı</h2>
-      <div style="display:flex;gap:24px;flex-wrap:wrap;align-items:flex-start;">
-        <div style="flex:1;min-width:280px;">
+      <div class="td-layout">
+        <div class="td-form">
 
           <div class="settings-section">
             <p class="settings-section-title">📄 Kağıt &amp; Yazı Tipi</p>
@@ -442,7 +442,7 @@ async function renderPrinterSettingsView(main, session){
             </div>
           </div>
 
-          <div class="settings-section">
+          <div class="settings-section td-wide">
             <p class="settings-section-title">✍️ Fiş İçeriği</p>
             <label style="display:block;font-size:12.5px;font-weight:700;color:var(--muted);">Fiş Başlığında Ek Not (opsiyonel)</label>
             <div class="rte-toolbar" data-target="td_header">${ticketRteToolbarHtml('td_header')}</div>
@@ -519,14 +519,14 @@ async function renderPrinterSettingsView(main, session){
             </div>
           </div>
 
-          <div style="display:flex;gap:10px;margin-top:16px;">
-            <button style="flex:1;margin-top:0;" ${act('saveTicketDesign')}>Tasarımı Kaydet</button>
+          <div class="td-wide td-save">
+            <button style="flex:1;margin-top:0;" ${act('saveTicketDesign')}>💾 Tasarımı Kaydet</button>
             <button class="ghost-btn" style="flex:1;margin-top:0;" ${act('resetTicketDesign')}>Varsayılana Sıfırla</button>
           </div>
         </div>
-        <div style="position:sticky;top:16px;">
-          <p class="muted" style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;margin:0 0 8px;">Önizleme</p>
-          <div id="ticketPreviewWrap" style="background:#e9e9ec;border-radius:10px;padding:16px;display:flex;justify-content:center;">
+        <div class="td-prev">
+          <p class="muted" style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;margin:0 0 8px;">🧾 Canlı Önizleme</p>
+          <div id="ticketPreviewWrap" style="background:#e9e9ec;border-radius:14px;padding:16px;display:flex;justify-content:center;overflow:auto;max-width:100%;">
             <div id="ticketPreview"></div>
           </div>
         </div>

@@ -2503,3 +2503,15 @@ input.sw:checked{background:var(--c1);} input.sw:checked::after{transform:transl
   .om-mbar-n{min-width:26px;height:26px;border-radius:999px;display:grid;place-items:center;background:rgba(0,0,0,.2);font-size:13px;}
   .om-mbar b{margin-left:auto;}
 }
+
+/* Yazıcı Ayarları › Fiş Tasarımı: ayar kartları ızgarada, önizleme sağda sabit; sayfa yana taşmaz */
+.td-layout{display:grid;grid-template-columns:minmax(0,1fr) minmax(260px,340px);gap:20px;align-items:start;}
+.td-form{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr));gap:12px;align-items:start;min-width:0;}
+.td-form > .settings-section{margin:0 !important;min-width:0;}
+.td-form .td-wide{grid-column:1/-1;}
+.td-save{display:flex;gap:10px;position:sticky;bottom:0;z-index:2;padding:10px 0 2px;background:linear-gradient(transparent,var(--panel) 35%);}
+.td-prev{position:sticky;top:14px;min-width:0;}
+.td-prev #ticketPreview{max-width:100%;}
+.pr-content{min-width:0;} .pr-content > .box{max-width:100% !important;overflow-x:hidden;}
+details.pr-note summary{list-style:none;} details.pr-note summary::-webkit-details-marker{display:none;}
+@media (max-width:1100px){.td-layout{grid-template-columns:minmax(0,1fr);} .td-prev{position:static;order:-1;}}
