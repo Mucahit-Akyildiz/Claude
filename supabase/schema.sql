@@ -4299,6 +4299,60 @@ end $$;
 
 
 --
+-- Name: get_channel_speed_report(uuid, date, date); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.get_channel_speed_report(p_token uuid, p_date date, p_date_to date DEFAULT NULL::date) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+declare s staff_sessions%rowtype; d1 timestamptz; d2 timestamptz; v_ch jsonb; v_hours jsonb; v_st jsonb; v_prod jsonb; v_calls jsonb; v_pick jsonb; v_late jsonb;
+begin
+  s := _session_check(p_token, 'reports');
+  d1 := (p_date::timestamp at time zone 'Europe/Istanbul');
+  d2 := ((coalesce(p_date_to, p_date) + 1)::timestamp at time zone 'Europe/Istanbul');
+  -- Satış kanalları (kapanan hesaplar).
+  with sh as (
+    select h.total, h.closed_at, case
+        when o.kind = 'waitlist' then 'waitlist'
+        when o.kind = 'takeaway' and (o.note like '🛵 Teslimat%' or o.note like '🥡 Gel-al siparişi%') then 'online'
+        when o.kind = 'takeaway' and coalesce(o.takeaway_type, case when o.delivery_address is not null then 'delivery' end) = 'delivery' then 'delivery'
+        when o.kind = 'takeaway' then 'pickup'
+        else 'table' end ch
+      from sales_history h left join orders o on o.id = h.order_id
+     where h.restaurant_id = s.restaurant_id and h.closed_at >= d1 and h.closed_at < d2)
+  select coalesce(jsonb_agg(jsonb_build_object('ch', ch, 'n', n, 'rev', rev, 'avg', round(rev / nullif(n,0), 2)) order by rev desc), '[]'),
+         (select coalesce(jsonb_agg(jsonb_build_object('ch', ch, 'h', h, 'rev', rev)), '[]') from (select ch, extract(hour from closed_at at time zone 'Europe/Istanbul')::int h, sum(total) rev from sh group by 1, 2) z)
+    into v_ch, v_hours
+    from (select ch, count(*) n, sum(total) rev from sh group by ch) x;
+  -- Hazırlama süresi (ürün eklenmesi → hazır), istasyon ve ürün bazında.
+  with it as (
+    select oi.name, pr.station_id, extract(epoch from (oi.ready_at - oi.added_at)) / 60 m
+      from order_items oi join orders o on o.id = oi.order_id left join products pr on pr.id = oi.product_id
+     where o.restaurant_id = s.restaurant_id and oi.added_at >= d1 and oi.added_at < d2 and oi.ready_at is not null
+       and oi.ready_at > oi.added_at and oi.ready_at < oi.added_at + interval '4 hours' and oi.name not like '+ %')
+  select (select coalesce(jsonb_agg(jsonb_build_object('station', coalesce(st.name, 'İstasyonsuz'), 'icon', st.icon, 'n', n, 'avg', round(av::numeric, 1), 'p90', round(p90::numeric, 1), 'late', late) order by av desc), '[]')
+            from (select station_id, count(*) n, avg(m) av, percentile_cont(0.9) within group (order by m) p90, count(*) filter (where m > 20) late from it group by station_id) a
+            left join stations st on st.id = a.station_id),
+         (select coalesce(jsonb_agg(jsonb_build_object('name', name, 'n', n, 'avg', round(av::numeric, 1)) order by av desc), '[]')
+            from (select name, count(*) n, avg(m) av from it group by name having count(*) >= 2 order by avg(m) desc limit 10) b),
+         (select jsonb_build_object('n', count(*), 'late', count(*) filter (where m > 20), 'avg', round(avg(m)::numeric, 1)) from it)
+    into v_st, v_prod, v_late;
+  -- Garson çağrısı / hesap isteğine yanıt süresi.
+  select coalesce(jsonb_agg(jsonb_build_object('kind', kind, 'n', n, 'avg', round(av::numeric, 1), 'open', op)), '[]') into v_calls from (
+    select kind, count(*) filter (where done_at is not null) n, avg(extract(epoch from (done_at - created_at)) / 60) filter (where done_at is not null and done_at < created_at + interval '2 hours') av,
+           count(*) filter (where done_at is null) op
+      from waiter_calls where restaurant_id = s.restaurant_id and created_at >= d1 and created_at < d2 group by kind) c;
+  -- Gel-al: sipariş alış saatinde hazır mıydı?
+  select jsonb_build_object('n', count(*), 'on_time', count(*) filter (where rdy <= pickup_at), 'avg_early', round(avg(extract(epoch from (pickup_at - rdy)) / 60)::numeric, 1)) into v_pick from (
+    select o.pickup_at, (select max(oi.ready_at) from order_items oi where oi.order_id = o.id) rdy
+      from orders o where o.restaurant_id = s.restaurant_id and o.takeaway_type = 'pickup' and o.pickup_at is not null and o.created_at >= d1 and o.created_at < d2) p
+   where rdy is not null;
+  return jsonb_build_object('channels', v_ch, 'hours', v_hours, 'stations', v_st, 'slow', v_prod, 'kitchen', v_late, 'calls', v_calls, 'pickup', v_pick);
+end $$;
+
+
+--
 -- Name: get_chat_attachment(uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -4865,6 +4919,33 @@ begin
       where e.restaurant_id = s.restaurant_id and e.created_at >= v_from and e.created_at < v_to
       order by e.created_at desc limit 500) y));
 end; $$;
+
+
+--
+-- Name: get_order_quickpicks(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.get_order_quickpicks(p_token uuid) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+declare s staff_sessions%rowtype; v_top jsonb; v_notes jsonb;
+begin
+  s := _session_check(p_token, 'order');
+  -- Son 30 günün en çok satan 8 ürünü (ekstralar/ikramlar hariç, satıştaki ürünler).
+  select coalesce(jsonb_agg(x.product_id), '[]') into v_top from (
+    select oi.product_id, sum(oi.qty) n from order_items oi join orders o on o.id = oi.order_id
+      join products p on p.id = oi.product_id
+     where o.restaurant_id = s.restaurant_id and oi.added_at > now() - interval '30 days' and oi.status <> 'cancelled'
+       and coalesce(p.available, true)
+     group by oi.product_id order by n desc limit 8) x;
+  -- En sık yazılan ürün notları (hızlı not çipleri).
+  select coalesce(jsonb_agg(x.note), '[]') into v_notes from (
+    select btrim(oi.note) note, count(*) n from order_items oi join orders o on o.id = oi.order_id
+     where o.restaurant_id = s.restaurant_id and oi.added_at > now() - interval '60 days' and coalesce(btrim(oi.note),'') <> '' and length(btrim(oi.note)) <= 24
+     group by btrim(oi.note) having count(*) >= 3 order by n desc limit 6) x;
+  return jsonb_build_object('top', v_top, 'notes', v_notes);
+end $$;
 
 
 --
@@ -5545,6 +5626,41 @@ begin
           'base', round(gross * 100 / (100 + rate), 2), 'vat', round(gross - gross * 100 / (100 + rate), 2)) order by rate) from by_rate), '[]'::json),
       'vat_total', coalesce((select round(sum(gross - gross * 100 / (100 + rate)), 2) from by_rate), 0),
       'base_total', coalesce((select round(sum(gross * 100 / (100 + rate)), 2) from by_rate), 0)));
+end $$;
+
+
+--
+-- Name: get_waitlist_estimate(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.get_waitlist_estimate(p_token uuid) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+declare s staff_sessions%rowtype; v_avg numeric; v_free int; v_rem int[]; v_ahead int; v_est int[] := '{}'; i int;
+begin
+  s := _session_check(p_token, 'reservations');
+  -- Son 30 günde masa siparişlerinin ortalama kalış süresi (dk), 20–180 arası sınırlanır.
+  select avg(extract(epoch from (sh.closed_at - o.created_at)) / 60) into v_avg
+    from sales_history sh join orders o on o.id = sh.order_id
+   where o.restaurant_id = s.restaurant_id and o.kind = 'dine_in' and sh.closed_at > now() - interval '30 days'
+     and sh.closed_at > o.created_at and sh.closed_at < o.created_at + interval '6 hours';
+  v_avg := least(180, greatest(20, coalesce(v_avg, 60)));
+  select count(*) into v_free from restaurant_tables t
+   where t.restaurant_id = s.restaurant_id and not exists (select 1 from orders o where o.table_id = t.id and o.status = 'open');
+  -- Dolu masaların tahmini kalan süreleri (en erken boşalacak önce).
+  select coalesce(array_agg(r order by r), '{}') into v_rem from (
+    select greatest(5, round(v_avg - extract(epoch from (now() - o.created_at)) / 60))::int r
+      from orders o where o.restaurant_id = s.restaurant_id and o.status = 'open' and o.table_id is not null) x;
+  select count(*) into v_ahead from waitlist_entries where restaurant_id = s.restaurant_id and status = 'waiting';
+  -- Sıradaki her grup (mevcut bekleyenler + yeni gelecek) için tahmin: önce boş masalar, sonra boşalacaklar.
+  for i in 1 .. v_ahead + 1 loop
+    if i <= v_free then v_est := v_est || 0;
+    elsif i - v_free <= coalesce(array_length(v_rem, 1), 0) then v_est := v_est || v_rem[i - v_free];
+    else v_est := v_est || (coalesce(v_rem[array_length(v_rem,1)], 0) + round(v_avg * ceil((i - v_free - coalesce(array_length(v_rem,1),0))::numeric / greatest(1, coalesce(array_length(v_rem,1),1))))::int);
+    end if;
+  end loop;
+  return jsonb_build_object('avg_stay', round(v_avg), 'free_tables', v_free, 'per_position', to_jsonb(v_est), 'next', v_est[v_ahead + 1]);
 end $$;
 
 
