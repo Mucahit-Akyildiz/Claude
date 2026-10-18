@@ -12,6 +12,7 @@ const VOICE_TYPES = [
   { id:'ready',        ic:'✅', label:'Sipariş hazır', sample:'12 numaralı masanın siparişi hazır' },
   { id:'seated',       ic:'🪑', label:'Misafir masaya oturdu', sample:'Bekleme listesindeki Ahmet Bey 12 numaralı masaya oturdu' },
   { id:'resvsoon',     ic:'⏳', label:'Rezervasyon hatırlatma (15 dk)', sample:'Ahmet Bey adına 4 kişilik rezervasyon 15 dakika sonra, 12 numaralı masa' },
+  { id:'pickup',       ic:'🥡', label:'Gel-al alış saati geldi', sample:'Hakan Bey adına gel-al siparişinin alış saati geldi' },
   { id:'reservations', ic:'📅', label:'Yeni rezervasyon / bekleme listesi', sample:'Yeni rezervasyon talebi var' },
   { id:'messages',     ic:'💬', label:'Mesajlar', sample:'Yeni mesajınız var' },
   { id:'other',        ic:'🔔', label:'Diğer bildirimler', sample:'Yeni bildiriminiz var' },
@@ -198,6 +199,7 @@ function voiceTextFor(type, items){
     case 'bill': return T.map(t => voiceMasa(t, 'nom') + ' hesap istiyor').join('. ');
     case 'ready': return T.map(t => voiceMasa(t, 'gen') + ' siparişi hazır').join('. ');
     case 'seated': return items.map(x => (x.kind==='waitlist' ? 'Bekleme listesindeki ' : 'Rezervasyonlu ') + (x.name || 'misafir') + ' ' + voiceMasa(x.table, 'dat') + ' oturdu').join('. ');
+    case 'pickup': return items.map(x => (x.name ? x.name + ' adına' : (x.no ? x.no + ' numaralı' : 'Bir')) + ' gel-al siparişinin alış saati geldi' + (x.ready ? '' : ', sipariş henüz hazır değil')).join('. ');
     case 'resvsoon': return items.map(x => {
       const mins = Math.round((new Date(x.time).getTime() - Date.now()) / 60000);
       const when = mins > 1 ? mins + ' dakika sonra' : 'şimdi';
@@ -229,6 +231,11 @@ function processVoiceBadges(data, visibleViews){
     const ty = voiceTypeOf(v, x);
     if(ty && VOICE_SEEN && !VOICE_SEEN.has(key)) (fresh[ty] = fresh[ty] || []).push(x);
   }));
+  // Alış saati gelen gel-al siparişleri (sunucudan _pickups): her sipariş bir kez.
+  (data && data._pickups || []).forEach(x => {
+    const key = 'pick:' + x.id + ':' + x.at; ids.add(key);
+    if(VOICE_SEEN && !VOICE_SEEN.has(key)) (fresh.pickup = fresh.pickup || []).push(x);
+  });
   // Yaklaşan rezervasyonlar (15 dk içinde, sunucudan _upcoming): her rezervasyon bir kez.
   (data && data._upcoming || []).forEach(x => {
     const key = 'soon:' + x.id; ids.add(key);
