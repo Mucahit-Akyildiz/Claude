@@ -462,9 +462,12 @@ function paneAnim(el){
   clearTimeout(el._paneT); el._paneT = setTimeout(() => el.classList.remove('pane-anim'), 1500); // içeriği sonradan (sunucudan) gelen bölümler de efekti alsın
 }
 document.addEventListener('click', (e) => {
-  const t = e.target && e.target.closest && e.target.closest('.set-nav .tab, .sub-tabs .sub-tab, .bx-tabs .bx-tab');
+  let t = e.target && e.target.closest && e.target.closest('.set-nav .tab, .sub-tabs .sub-tab, .bx-tabs .bx-tab');
   if(!t) return;
+  const navId = (t.closest('[id]') || {}).id;
   setTimeout(() => {
+    // Menü tıklamada baştan çizildiyse (eski öğe sayfadan kalktıysa) yenisini bul.
+    if(!document.contains(t) && navId){ const n = document.getElementById(navId); if(n) t = n.querySelector('.active, .on') || n; }
     const lay = t.closest('.set-layout');
     if(lay) return paneAnim(lay.querySelector(':scope > .set-content'));
     const bar = t.closest('.bx-tabs'); if(bar) return paneAnim(bar.parentElement);
