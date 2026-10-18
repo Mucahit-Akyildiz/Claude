@@ -402,21 +402,20 @@ async function renderReportContent(session){
     const dOpt = { day:'numeric', month:'short' };
     const dS = new Date(o.closed_at).toLocaleDateString('tr-TR', { ...dOpt, year:'numeric' });
     const oD = o.ordered_at ? new Date(o.ordered_at).toLocaleDateString('tr-TR', { ...dOpt, year:'numeric' }) : '—';
-    return `<tr><td style="white-space:nowrap;">${oD}</td><td style="white-space:nowrap;">${hmS(o.ordered_at)}</td>
-      <td>${hmS(o.ready_at)}${prep!=null ? ` <span class="muted" style="font-size:11px;">(${prep} dk)</span>` : ''}</td>
-      <td style="white-space:nowrap;">${dS}</td>
-      <td>${t}${stay!=null ? ` <span class="muted" style="font-size:11px;">(${stay} dk)</span>` : ''}</td>
+    // Tarih ve saat tek hücrede (tablo yatay kaymasın); aynı gün ise tarih yalnızca ödeme hücresinde.
+    const sameDay = oD === dS;
+    return `<tr><td style="white-space:nowrap;">${hmS(o.ordered_at)}${sameDay ? '' : `<div class="muted" style="font-size:11px;">${oD}</div>`}</td>
+      <td style="white-space:nowrap;">${hmS(o.ready_at)}${prep!=null ? `<div class="muted" style="font-size:11px;">${prep} dk</div>` : ''}</td>
+      <td style="white-space:nowrap;">${t}${stay!=null ? ` <span class="muted" style="font-size:11px;">(${stay} dk)</span>` : ''}<div class="muted" style="font-size:11px;">${dS}</div></td>
       <td class="col-name">${escapeHtml(billLabel(o))}${srcBadge}${tagBadge}</td>
-      <td>${(o.waiters || o.order_taken_by_name) ? escapeHtml(o.waiters || o.order_taken_by_name) : '<span class="muted">—</span>'}</td>
-      <td>${o.customer_name ? `${o.customer_id ? '⭐ ' : ''}${escapeHtml(o.customer_name)}${o.customer_phone ? `<div class="muted" style="font-size:11px;">${escapeHtml(o.customer_phone)}</div>` : ''}` : '<span class="muted">—</span>'}</td>
-      <td style="white-space:nowrap;">${money(o.total)}</td>
-      <td style="white-space:nowrap;${o.discount_amount>0?'color:var(--red);':''}">${discTxt}</td>
-      <td style="${o.payment_method==='split'?'':'white-space:nowrap;'}">${methodLabel}</td>
-      <td><button type="button" class="sbtn" style="width:auto;margin:0;" ${act('openSaleDetailModal', o.id)}>🔍 Detay</button></td></tr>`;
+      <td>${(o.waiters || o.order_taken_by_name) ? escapeHtml(o.waiters || o.order_taken_by_name) : '<span class="muted">—</span>'}${o.customer_name ? `<div style="font-size:12px;">${o.customer_id ? '⭐ ' : '👤 '}${escapeHtml(o.customer_name)}</div>${o.customer_phone ? `<div class="muted" style="font-size:11px;">${escapeHtml(o.customer_phone)}</div>` : ''}` : ''}</td>
+      <td style="white-space:nowrap;"><b>${money(o.total)}</b>${o.discount_amount>0 ? `<div style="font-size:11px;color:var(--red);">${discTxt}</div>` : ''}</td>
+      <td style="font-size:13px;">${methodLabel}</td>
+      <td><button type="button" class="sbtn" style="width:auto;margin:0;padding:6px 10px;" title="Detay" ${act('openSaleDetailModal', o.id)}>🔍</button></td></tr>`;
   };
   const billsHtml = hist.length===0 ? '<p class="muted">Bu tarihte kapatılmış hesap yok.</p>'
     : filteredBills.length===0 ? '<p class="muted">Bu filtrede kapatılmış hesap yok.</p>'
-    : `<div class="settings-table-wrap"><table class="settings-table"><thead><tr><th>Sipariş Tarihi</th><th>Sipariş Saati</th><th>Hazır</th><th>Ödeme Tarihi</th><th>Ödeme Saati</th><th>Masa</th><th>Garson</th><th>Müşteri</th><th>Tutar</th><th>İndirim</th><th>Ödeme</th><th></th></tr></thead><tbody>` +
+    : `<div class="settings-table-wrap"><table class="settings-table"><thead><tr><th>Sipariş</th><th>Hazır</th><th>Ödeme</th><th>Masa</th><th>Garson / Müşteri</th><th>Tutar</th><th>Yöntem</th><th></th></tr></thead><tbody>` +
       filteredBills.map(billRowHtml).join('') + '</tbody></table></div>';
   // Ortalama süreler: sipariş → hazır (mutfak) ve sipariş → ödeme (masada kalış).
   const avgMin = (arr) => arr.length ? Math.round(arr.reduce((x, y) => x + y, 0) / arr.length) : null;
