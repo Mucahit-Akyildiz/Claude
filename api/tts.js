@@ -19,6 +19,19 @@ const esc = (s) => String(s).replace(/[<>&'"]/g, (c) => ({ '<': '&lt;', '>': '&g
 module.exports = async function handler(req, res) {
   const eleven = process.env.ELEVENLABS_API_KEY;
   const key = eleven || process.env.AZURE_SPEECH_KEY, region = process.env.AZURE_SPEECH_REGION || 'westeurope';
+  // Hesaptaki tüm sesler (hazır sesler + ElevenLabs'ta "My Voices"a eklenenler).
+  // Anahtarda "Voices: Read" izni yoksa boş döner, istemci sabit listeyi kullanır.
+  if (req.method === 'GET' && eleven && req.query && req.query.voices) {
+    try {
+      const r = await fetch('https://api.elevenlabs.io/v1/voices', { headers: { 'xi-api-key': eleven } });
+      if (!r.ok) { res.status(200).json({ voices: [] }); return; }
+      const j = await r.json();
+      const voices = (j.voices || []).map((v) => ({ id: v.voice_id, name: v.name, gender: (v.labels || {}).gender || '', desc: (v.labels || {}).description || (v.labels || {}).descriptive || '', category: v.category || '' }));
+      res.setHeader('Cache-Control', 'private, max-age=600');
+      res.status(200).json({ voices });
+    } catch (e) { res.status(200).json({ voices: [] }); }
+    return;
+  }
   if (req.method === 'GET') { res.status(200).json({ enabled: !!key, provider: eleven ? 'elevenlabs' : (key ? 'azure' : null) }); return; }
   if (req.method !== 'POST') { res.status(405).json({ error: 'method not allowed' }); return; }
   if (!key) { res.status(503).json({ error: 'TTS yapılandırılmamış' }); return; }
@@ -33,7 +46,7 @@ module.exports = async function handler(req, res) {
     if (sErr) { res.status(403).json({ error: 'Yetkisiz' }); return; }
     if (eleven) {
       // Hazır sesler (ortam değişkeniyle değiştirilebilir): kadın / erkek.
-      const vid = ELEVEN_VOICES[b.voice] || (b.voice === 'ahmet' ? (process.env.ELEVENLABS_VOICE_MALE || ELEVEN_VOICES.adam) : (process.env.ELEVENLABS_VOICE_FEMALE || ELEVEN_VOICES.sarah));
+      const vid = ELEVEN_VOICES[b.voice] || (/^[A-Za-z0-9]{16,32}$/.test(String(b.voice || '')) ? b.voice : null) || (b.voice === 'ahmet' ? (process.env.ELEVENLABS_VOICE_MALE || ELEVEN_VOICES.adam) : (process.env.ELEVENLABS_VOICE_FEMALE || ELEVEN_VOICES.sarah));
       const r = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${vid}?output_format=mp3_44100_64`, {
         method: 'POST',
         headers: { 'xi-api-key': eleven, 'Content-Type': 'application/json', Accept: 'audio/mpeg' },
