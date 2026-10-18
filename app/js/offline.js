@@ -46,6 +46,8 @@ function queueStockReturn(productId, qty){
 async function submitOrderSafely(kind, args, tableKey, label){
   const session = getSession();
   const entry = { id: newClientId(), kind, args, tableKey, label, at: Date.now() };
+  // Bu cihazın kendi gönderdiği sipariş sesli "sipariş bekliyor" diye okunmasın.
+  if(typeof voiceMarkSelfOrder === 'function') voiceMarkSelfOrder(label);
   if(!navigator.onLine){ outboxAdd(entry); return { ok: true, queued: true }; }
   let res;
   try{ res = await sb.rpc('submit_offline_order', { p_token: session.session_token, p_client_id: entry.id, p_kind: kind, p_args: args }); }

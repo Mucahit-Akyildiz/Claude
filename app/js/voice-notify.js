@@ -150,6 +150,13 @@ function voiceTextFor(type, items){
 }
 /* refreshNavBadges'ten her tazelemede çağrılır. İlk çağrı yalnızca mevcut
    durumu öğrenir (açılışta eski işleri okumasın). Dönüş: ses çalındıysa true. */
+// Kendi gönderdiğimiz siparişler: masa adı + zaman; mutfak sesli bildiriminde atlanır.
+const VOICE_SELF = [];
+function voiceMarkSelfOrder(label){ VOICE_SELF.push({ label: String(label || '').toLocaleLowerCase('tr'), at: Date.now() }); while(VOICE_SELF.length > 20) VOICE_SELF.shift(); }
+function voiceIsSelf(x){
+  const t = x.at ? new Date(x.at).getTime() : Date.now(), name = String(x.table || '').toLocaleLowerCase('tr');
+  return VOICE_SELF.some(s => t >= s.at - 10000 && t <= s.at + 60000 && (!s.label || !name || s.label.includes(name) || name.includes(s.label)));
+}
 let VOICE_SEEN = null, VOICE_LATE_SEEN = new Set();
 function processVoiceBadges(data, visibleViews){
   const items = (data && data._items) || {};
@@ -158,7 +165,7 @@ function processVoiceBadges(data, visibleViews){
   visibleViews.forEach(v => (items[v] || []).forEach(x => {
     const key = v + ':' + (x.id || x.label);
     ids.add(key);
-    if(VOICE_SEEN && !VOICE_SEEN.has(key)) (fresh[voiceTypeOf(v)] = fresh[voiceTypeOf(v)] || []).push(x);
+    if(VOICE_SEEN && !VOICE_SEEN.has(key) && !(v==='kitchen' && voiceIsSelf(x))) (fresh[voiceTypeOf(v)] = fresh[voiceTypeOf(v)] || []).push(x);
   }));
   const late = [];
   (items.kitchen || []).forEach(x => {
