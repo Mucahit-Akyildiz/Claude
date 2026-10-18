@@ -453,3 +453,21 @@ function uiPrompt(message, def, o){
     setTimeout(() => { inp.focus(); inp.select(); }, 30);
   });
 }
+/* Menü/sekme geçiş efekti: soldaki menülü (set-layout) ekranlarda ve kutu sekmelerinde
+   bir bölümden diğerine geçerken içerik yumuşakça kayarak belirir. Tek yerden, tüm ekranlarda
+   aynı; yalnızca kullanıcının tıklamasıyla çalışır (arka plan yenilemelerinde titreme olmaz). */
+function paneAnim(el){
+  if(!el) return;
+  el.classList.remove('pane-anim'); void el.offsetWidth; el.classList.add('pane-anim');
+  clearTimeout(el._paneT); el._paneT = setTimeout(() => el.classList.remove('pane-anim'), 1500); // içeriği sonradan (sunucudan) gelen bölümler de efekti alsın
+}
+document.addEventListener('click', (e) => {
+  const t = e.target && e.target.closest && e.target.closest('.set-nav .tab, .sub-tabs .sub-tab, .bx-tabs .bx-tab');
+  if(!t) return;
+  setTimeout(() => {
+    const lay = t.closest('.set-layout');
+    if(lay) return paneAnim(lay.querySelector(':scope > .set-content'));
+    const bar = t.closest('.bx-tabs'); if(bar) return paneAnim(bar.parentElement);
+    const sub = t.closest('.box'); if(sub && sub.nextElementSibling) paneAnim(sub.parentElement);
+  }, 20);
+}, true);

@@ -2515,3 +2515,16 @@ input.sw:checked{background:var(--c1);} input.sw:checked::after{transform:transl
 .pr-content{min-width:0;} .pr-content > .box{max-width:100% !important;overflow-x:hidden;}
 details.pr-note summary{list-style:none;} details.pr-note summary::-webkit-details-marker{display:none;}
 @media (max-width:1100px){.td-layout{grid-template-columns:minmax(0,1fr);} .td-prev{position:static;order:-1;}}
+/* Bölüm geçiş efekti (bkz. paneAnim) */
+@keyframes paneIn{from{opacity:0;transform:translateY(12px) scale(.995);}to{opacity:1;transform:none;}}
+.pane-anim > :not([style*="display: none"]):not([style*="display:none"]){animation:paneIn .38s cubic-bezier(.2,.8,.2,1) both;}
+.pane-anim > :nth-child(2){animation-delay:.04s;} .pane-anim > :nth-child(3){animation-delay:.08s;} .pane-anim > :nth-child(n+4){animation-delay:.12s;}
+@media (prefers-reduced-motion:reduce){.pane-anim > *{animation:none !important;}}
+
+/* Yardım: soru başlıkları */
+.help-q{border-top:1px solid var(--border);}
+.help-q-h{cursor:pointer;display:flex;justify-content:space-between;gap:10px;padding:12px 4px;font-weight:700;border-radius:10px;transition:background .15s;}
+.help-q-h:hover{background:var(--panel2);}
+.help-q-ic{width:24px;height:24px;flex:0 0 24px;border-radius:50%;display:grid;place-items:center;background:var(--panel2);color:var(--accent);font-weight:800;}
+.help-q.open .help-q-ic{background:var(--accent);color:var(--btn-ink);}
+.help-answer{padding:0 4px 14px;line-height:1.6;font-size:14px;animation:paneIn .3s cubic-bezier(.2,.8,.2,1) both;}
