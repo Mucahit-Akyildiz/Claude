@@ -929,6 +929,15 @@ begin
   v := v || jsonb_build_object('messages', coalesce((select sum(n) from _chat_unread(u, r)), 0));
   it := it || jsonb_build_object('messages', arr);
   end if;
+  -- Son 5 dakikada masaya oturan bekleme listesi / rezervasyon misafirleri (sesli bildirim için).
+  if _user_has_perm(u, 'reservations') or _user_has_perm(u, 'order') then
+    select coalesce(jsonb_agg(jsonb_build_object('id', st_.sid, 'kind', st_.skind, 'name', st_.sname, 'table', tb_.name, 'at', st_.sat)), '[]') into arr
+      from (select id sid, 'waitlist' skind, customer_name sname, table_id stid, seated_at sat from waitlist_entries where restaurant_id = r and seated_at > now() - interval '5 minutes'
+            union all
+            select id, 'reservation', customer_name, table_id, seated_at from reservations where restaurant_id = r and seated_at > now() - interval '5 minutes') st_
+      left join restaurant_tables tb_ on tb_.id = st_.stid;
+    v := v || jsonb_build_object('_seated', arr);
+  end if;
   return v || jsonb_build_object('_items', it);
 end; $$;
 
