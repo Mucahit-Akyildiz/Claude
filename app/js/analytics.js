@@ -65,6 +65,7 @@ async function renderCockpitContent(session){
   const line = ptsA.map(([i, v], j) => (j ? 'L' : 'M') + X(i).toFixed(1) + ' ' + Y(v).toFixed(1)).join(' ');
   const area = ptsA.length ? line + ` L${X(day).toFixed(1)} ${H - 10} L${X(1).toFixed(1)} ${H - 10} Z` : '';
   const projLine = ptsA.length ? `M${X(day).toFixed(1)} ${Y(cum).toFixed(1)} L${X(dim).toFixed(1)} ${Y(proj).toFixed(1)}` : '';
+  const mName = now.toLocaleDateString('tr-TR', { month: 'short' });
   anSetExport('kokpit', ['Gösterge', 'Bu dönem', 'Önceki dönem'], [['Ciro', k.revenue, p.revenue], ['Hesap', k.checks, p.checks], ['Ortalama hesap', avg.toFixed(2), pavg.toFixed(2)], ['İndirim', k.discount, p.discount], ['Bahşiş', k.tips, p.tips], ['Maliyet', k.cost, p.cost]]);
   el.innerHTML = `
     <div class="an-cmp-note">⇄ Tüm oklar seçili aralığı <b>bir önceki aynı uzunluktaki dönemle</b> (${d.days} gün) karşılaştırır. Kartlara tıklayarak detaya inin.</div>
@@ -82,12 +83,18 @@ async function renderCockpitContent(session){
       <div class="fs-panel pa-sec" style="--t:var(--c1);flex:2;">
         <h3><i>🔮</i>Ay Sonu Tahmini</h3>
         <div class="an-proj"><div><small>Ay başından beri</small><b>${money(mtd)}</b></div><div><small>Bu gidişle ay sonu</small><b class="an-grad">≈ ${money(proj)}</b></div>${monthGoal ? `<div><small>Aylık hedef</small><b>${money(monthGoal)}</b></div>` : ''}</div>
+        <div class="an-chart-wrap" id="anProjChart">
         <svg class="an-chart" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">
           <defs><linearGradient id="anArea" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="var(--c1)" stop-opacity=".45"/><stop offset="1" stop-color="var(--c1)" stop-opacity="0"/></linearGradient></defs>
           ${monthGoal ? `<line x1="8" x2="${W - 8}" y1="${Y(monthGoal)}" y2="${Y(monthGoal)}" class="an-goal"/>` : ''}
           <path d="${area}" fill="url(#anArea)"/><path d="${line}" class="an-line"/><path d="${projLine}" class="an-projline"/>
           ${ptsA.length ? `<circle cx="${X(day)}" cy="${Y(cum)}" r="4.5" class="an-dot"/>` : ''}
+          <line class="an-hover-line" y1="4" y2="${H - 10}" style="display:none;"/>
         </svg>
+        <span class="an-hover-dot" style="display:none;"></span>
+        <div class="an-tip" style="display:none;"></div>
+        </div>
+        <div class="an-axis">${[1, 8, 15, 22, dim].map(i => `<span style="left:${(X(i) / W * 100).toFixed(2)}%">${i} ${mName}</span>`).join('')}</div>
         <div class="an-legend"><span><i class="l1"></i>Gerçekleşen</span><span><i class="l2"></i>Tahmin</span>${monthGoal ? '<span><i class="l3"></i>Hedef</span>' : ''}</div>
       </div>
       <div class="fs-panel pa-sec" style="--t:#22c55e;">
@@ -103,6 +110,32 @@ async function renderCockpitContent(session){
       <h3><i>🚨</i>Akıllı Uyarılar</h3>
       ${al.length ? `<div class="an-alerts">${al.map(([t, ic, txt, tab]) => `<div class="an-alert ${t} an-click" ${act('setReportTab', tab)}><span>${ic}</span><div>${txt}</div><span class="an-go">›</span></div>`).join('')}</div>` : '<div class="an-alert good"><span>✅</span><div>Her şey yolunda görünüyor — dikkat gerektiren bir durum yok.</div></div>'}
     </div>`;
+  anBindProjHover({ W, H, X, Y, dim, day, cum, proj, ptsA, monthGoal, now });
+}
+/* Ay sonu grafiği: üzerine gelince o günün tarihi ve kümülatif (gerçekleşen
+   ya da tahmini) ciro gösterilir. */
+function anBindProjHover(o){
+  const wrap = document.getElementById('anProjChart'); if(!wrap || !o.ptsA.length) return;
+  const svg = wrap.querySelector('svg'), ln = wrap.querySelector('.an-hover-line'), dot = wrap.querySelector('.an-hover-dot'), tip = wrap.querySelector('.an-tip');
+  const valAt = (i) => i <= o.day ? o.ptsA[i - 1][1] : o.cum + (o.proj - o.cum) * (i - o.day) / Math.max(1, o.dim - o.day);
+  const hide = () => { ln.style.display = dot.style.display = tip.style.display = 'none'; };
+  wrap.addEventListener('pointermove', (e) => {
+    const r = svg.getBoundingClientRect();
+    const fx = (e.clientX - r.left) / r.width * o.W;
+    const i = Math.min(o.dim, Math.max(1, Math.round((fx - 8) / (o.W - 16) * (o.dim - 1) + 1)));
+    const v = valAt(i), x = o.X(i), y = o.Y(v), future = i > o.day;
+    ln.setAttribute('x1', x); ln.setAttribute('x2', x); ln.style.display = '';
+    const px = x / o.W * r.width, py = y / o.H * r.height;
+    dot.style.left = px + 'px'; dot.style.top = py + 'px'; dot.style.display = ''; dot.classList.toggle('proj', future);
+    const date = new Date(o.now.getFullYear(), o.now.getMonth(), i).toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', weekday: 'short' });
+    tip.innerHTML = `<small>${date}${i === o.day ? ' · bugün' : ''}</small><b>${future ? '≈ ' : ''}${money(v)}</b><span class="muted">${future ? 'tahmini kümülatif' : 'gerçekleşen kümülatif'}</span>`
+      + (o.monthGoal ? `<span class="muted">hedefin %${Math.round(v / o.monthGoal * 100)}'i</span>` : '');
+    tip.style.display = '';
+    const tw = tip.offsetWidth;
+    tip.style.left = Math.min(Math.max(0, px - tw / 2), r.width - tw) + 'px';
+    tip.style.top = Math.max(0, py - tip.offsetHeight - 12) + 'px';
+  });
+  wrap.addEventListener('pointerleave', hide);
 }
 function anDailyBars(daily){
   if(!daily.length) return '';

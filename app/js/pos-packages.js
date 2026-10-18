@@ -66,6 +66,7 @@ function openPackageModal(pseudoId){
       ${isWl ? '<p class="muted" style="text-align:left;margin:0 0 6px;font-size:12.5px;">Siparişler hemen mutfağa düşer; müşteri oturtulunca masaya taşınır.</p>' : `<div class="field-group"><label>Müşteri Adı</label><input id="pkgCustName" placeholder="örn. Ahmet Bey veya kayıtlı müşteri ara" autocomplete="off" ${actOn('input','tableCustSearch',['$value','pkgCust'])} value="${escapeAttr((existing&&existing.customer_name)||'')}"></div>
       <div class="field-group"><label>Telefon</label><input id="pkgCustPhone" placeholder="örn. 5551234567" autocomplete="off" inputmode="tel" ${actOn('input','tableCustSearch',['$value','pkgCust'])} value="${escapeAttr((existing&&existing.customer_phone)||'')}"></div>
       <div id="pkgCustSuggest" style="margin:-6px 0 10px;"></div>
+      <div class="field-group"><label>Teslimat Adresi</label><textarea id="pkgAddress" rows="2" placeholder="örn. Atatürk Cad. No:12 D:4 (gel-al ise boş bırakın)" style="resize:vertical;min-height:44px;">${escapeHtml((existing&&existing.delivery_address)||'')}</textarea></div>
       <div class="field-group"><label>Not</label><input id="pkgNote" placeholder="örn. Yan sokak, 2. kat" value="${escapeAttr((existing&&existing.note)||'')}"></div>`}
           <div id="sentItemsWrap"></div>
           <div id="draftItemsWrap"></div>
@@ -422,6 +423,7 @@ async function confirmOrder(tableId){
       p_customer_name: nameEl ? (nameEl.value.trim()||null) : null,
       p_customer_phone: phoneEl ? (phoneEl.value.trim()||null) : null,
       p_note: noteEl ? (noteEl.value.trim()||null) : null,
+      p_address: (document.getElementById('pkgAddress') || {}).value ? document.getElementById('pkgAddress').value.trim() : null,
       p_tags: tags
     };
   } else {
@@ -464,7 +466,7 @@ async function confirmOrder(tableId){
       const fresh = (o.items || []).filter(i => !prevItemIds.has(i.id) && i.status==='pending' && !APP.locallyPrintedItemIds.has(i.id));
       if(!fresh.length) return;
       fresh.forEach(i => APP.locallyPrintedItemIds.add(i.id));
-      printKitchenTicketGrouped(orderDisplayName(o), fresh, true, o.daily_number)
+      printKitchenTicketGrouped(orderDisplayName(o), fresh, true, o.daily_number, pkgInfoFromOrder(o))
         .catch(e => { console.error('Fiş yazdırma hatası:', e); showToast('⚠️ Fiş yazdırılırken beklenmeyen bir hata oluştu'); });
     });
   }

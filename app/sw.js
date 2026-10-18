@@ -25,6 +25,7 @@ const SHELL = [
   '/app/js/pos-payments.js',
   '/app/js/pos-packages.js',
   '/app/js/pos-printer.js',
+  '/app/js/voice-notify.js',
   '/app/js/pos-push.js',
   '/app/js/pos-escpos.js',
   '/app/js/messages.js',

@@ -26,6 +26,17 @@ function ticketWaiter(items){
   if(!names.length){ const s = getSession(); if(s && s.username) names.push(s.username); }
   return names.join(', ');
 }
+/* Paket servis fişinde basılacak müşteri/teslimat satırları (Yazıcı Ayarları > Paket Servis Fişi'ndeki seçimlere göre). */
+function pkgTicketLines(design){
+  const p = design && design.pkg; if(!p) return [];
+  const out = [];
+  if(design.pkgShowName !== false && p.name) out.push(['Müşteri', p.name]);
+  if(design.pkgShowPhone !== false && p.phone) out.push(['Telefon', p.phone]);
+  if(design.pkgShowAddress !== false && p.address) out.push(['Adres', p.address]);
+  if(design.pkgShowNote !== false && p.note) out.push(['Not', p.note]);
+  return out;
+}
+function pkgInfoFromOrder(o){ return o && o.kind === 'takeaway' ? { name: o.customer_name || '', phone: o.customer_phone || '', address: o.delivery_address || '', note: o.note || '' } : null; }
 function buildEscPosTicket(restaurantName, tableName, items, design, dailyNumber){
   const chunks = [];
   const push = (arr) => chunks.push(arr instanceof Uint8Array ? arr : new Uint8Array(arr));
@@ -46,6 +57,7 @@ function buildEscPosTicket(restaurantName, tableName, items, design, dailyNumber
   push(escposEncodeText(headerDateLine + '\n'));
   if(design.showWaiter && ticketWaiter(items)) push(escposEncodeText('Garson: ' + ticketWaiter(items) + '\n'));
   push([0x1B, 0x61, 0x00]); // left align
+  pkgTicketLines(design).forEach(([k, v], i) => { if(i === 0) push(escposEncodeText('-'.repeat(lineWidth) + '\n')); push([0x1B, 0x45, 0x01]); push(escposEncodeText(k + ': ')); push([0x1B, 0x45, 0x00]); push(escposEncodeText(v + '\n')); });
   // Termal yazıcılarda ince yazı çoğunlukla silik/soluk çıkıyor - Kalın Yazı
   // ayarı açıksa ürün satırları da bold basılır (bkz. Yazıcı Ayarları > Fiş Tasarımı).
   if(design.bold) push([0x1B, 0x45, 0x01]);
@@ -118,11 +130,11 @@ async function sendToUsbPrinterNow(printer, bytes){
 function reprintKitchenTicket(tableId){
   const entry = APP.kitchenPendingByTable && APP.kitchenPendingByTable[tableId];
   if(!entry){ alert('Bu masa için bekleyen ürün kalmadı.'); return; }
-  printKitchenTicketGrouped(entry.tableName, entry.items, false, entry.dailyNumber);
+  printKitchenTicketGrouped(entry.tableName, entry.items, false, entry.dailyNumber, entry.pkg);
 }
 /* Ürünleri istasyona göre gruplar, her istasyonun fişini o istasyona atanmış
    yazıcıya (atanmamışsa "Bu Ekranın Yazıcısı"na) ayrı ayrı gönderir. */
-async function printKitchenTicketGrouped(tableName, items, silent, dailyNumber){
+async function printKitchenTicketGrouped(tableName, items, silent, dailyNumber, pkg){
   const groups = {};
   // "Fişe gönderme" işaretli ürünler (Ayarlar → Ürünler → 🖨️ Fiş) yazdırılmaz.
   const noPrint = new Set(((APP.config && APP.config.products) || []).filter(p => p.print_ticket === false).map(p => p.id));
@@ -138,7 +150,7 @@ async function printKitchenTicketGrouped(tableName, items, silent, dailyNumber){
   });
   for(const key of Object.keys(groups)){
     const printer = resolvePrinterForStation(key || null);
-    await printKitchenTicket(tableName, groups[key], printer, silent, dailyNumber);
+    await printKitchenTicket(tableName, groups[key], printer, silent, dailyNumber, pkg ? { pkg } : undefined);
   }
 }
 async function printKitchenTicket(tableName, items, printerOverride, silent, dailyNumber, designExtra){
@@ -250,6 +262,7 @@ function buildTicketHtml(restaurantName, tableName, items, design, dailyNumber){
     <div class="ticket-meta" style="${ticketPartStyle(design,'Text')}">${(showOrderNumber && dailyNumber)?('Sipariş No: '+dailyNumber+' · '):''}${escapeHtml(tableName)}</div>
     <div class="ticket-meta" style="${ticketPartStyle(design,'Text')}">${dateLine}</div>
     ${design.showWaiter && ticketWaiter(items) ? `<div class="ticket-meta" style="${ticketPartStyle(design,'Text')}">Garson: ${escapeHtml(ticketWaiter(items))}</div>` : ''}
+    ${pkgTicketLines(design).length ? `<div class="ticket-line"></div><div class="ticket-pkg" style="${ticketPartStyle(design,'Text')}text-align:left;">${pkgTicketLines(design).map(([k, v]) => `<div><b>${k}:</b> ${escapeHtml(v)}</div>`).join('')}</div>` : ''}
     <div class="ticket-line"></div>
     ${items.map(it => `
       <div class="ticket-item" style="${ticketPartStyle(design,'Text')}"><span><span class="qty">${it.qty}x</span>${escapeHtml(it.name)}</span>${design.priced ? `<span style="white-space:nowrap;">${money((Number(it.price)||0)*it.qty)}</span>` : (showItemTime?`<span class="ticket-time" style="${ticketPartStyle(design,'Time')}font-weight:${timeWeight} !important;">${formatItemTime(it, design)}</span>`:'')}</div>

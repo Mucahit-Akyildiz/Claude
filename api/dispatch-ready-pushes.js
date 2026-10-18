@@ -100,7 +100,9 @@ async function sendToSub(sub, payloadObj) {
   }
   await webpush.sendNotification(
     { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
-    JSON.stringify(payloadObj)
+    JSON.stringify(payloadObj),
+    // Çevrimdışı cihaza en fazla 15 dk bekletilir (varsayılan 4 hafta: cihaz açılınca eski bildirimler yağıyordu).
+    { TTL: 900, urgency: 'high' }
   );
 }
 
