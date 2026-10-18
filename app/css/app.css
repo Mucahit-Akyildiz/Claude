@@ -2390,3 +2390,6 @@ input.sw:checked{background:var(--c1);} input.sw:checked::after{transform:transl
 .an-axis{position:relative;height:18px;margin-top:2px;font-size:11px;color:var(--muted);}
 .an-axis span{position:absolute;transform:translateX(-50%);white-space:nowrap;}
 .an-axis span:first-child{transform:none;}.an-axis span:last-child{transform:translateX(-100%);}
+/* Uzun, boşluksuz metinler (ör. müşteri adı) tablo hücresini taşırmasın. */
+.settings-table td{overflow-wrap:anywhere;word-break:break-word;}
+.settings-table td.col-name, .settings-table td:has(> .muted){max-width:260px;}
