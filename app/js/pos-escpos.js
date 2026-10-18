@@ -154,7 +154,29 @@ async function printKitchenTicketGrouped(tableName, items, silent, dailyNumber, 
     await printKitchenTicket(tableName, groups[key], printer, silent, dailyNumber, pkg ? { pkg } : undefined);
   }
 }
+/* ---- Yazdırma geçmişi: bu cihazdan basılan her fiş (son 60) ve yazıcı başına
+   son durum. Cihaza özeldir (localStorage); Yazıcı Ayarları'nda görünür, yeniden basılabilir. ---- */
+let PRINT_RESULT = { ok: false, err: '' };
+const PRINT_LOG_KEY = 'peyk_print_log';
+function getPrintLog(){ try{ return JSON.parse(localStorage.getItem(PRINT_LOG_KEY) || '[]') || []; }catch(e){ return []; } }
+function addPrintLog(entry){
+  const log = getPrintLog(); log.unshift(entry);
+  try{ localStorage.setItem(PRINT_LOG_KEY, JSON.stringify(log.slice(0, 60))); }catch(e){}
+  const box = document.getElementById('printLogBox'); if(box) box.innerHTML = printLogHtml();
+  if(document.getElementById('printerStatusCards')) renderPrinterStatusCards();
+}
 async function printKitchenTicket(tableName, items, printerOverride, silent, dailyNumber, designExtra){
+  const printers = getPrinters();
+  const printer = printerOverride || printers.find(p => p.id===getActivePrinterId());
+  await printKitchenTicketRaw(tableName, items, printerOverride, silent, dailyNumber, designExtra);
+  const kind = designExtra && designExtra.priced ? 'cash' : (designExtra && designExtra.pkg ? 'pkg' : 'kitchen');
+  addPrintLog({ at: Date.now(), kind, table: tableName, no: dailyNumber || null, printerId: printer ? printer.id : null, printerName: printer ? printer.name : 'Yazıcı yok',
+    ok: !!PRINT_RESULT.ok, err: PRINT_RESULT.err || '', note: PRINT_RESULT.note || '', auto: !!silent,
+    items: (items || []).slice(0, 60).map(it => ({ qty: it.qty, name: it.name, price: it.price, note: it.note || '', product_id: it.product_id, station_id: it.station_id, added_at: it.added_at })),
+    extra: designExtra ? JSON.parse(JSON.stringify(designExtra)) : null });
+}
+async function printKitchenTicketRaw(tableName, items, printerOverride, silent, dailyNumber, designExtra){
+  PRINT_RESULT = { ok: false, err: '' };
   const session = getSession();
   const restaurantName = session ? session.restaurant_name : '';
   const design = Object.assign({}, getTicketDesign(), designExtra || {});
@@ -175,10 +197,12 @@ async function printKitchenTicket(tableName, items, printerOverride, silent, dai
       const result = await window.electronAPI.silentPrint(printer.osPrinterName);
       if(!result || !result.success){
         console.warn('Masaustu uygulamasi yazdirma basarisiz:', result && result.errorType);
+        PRINT_RESULT = { ok: false, err: (result && result.errorType) || 'Masaüstü yazdırma başarısız' };
         if(silent) showToast('⚠️ "'+printer.name+'" yazıcısına fiş gönderilemedi'+(result&&result.errorType?' — '+result.errorType:'')+'. Yazıcı bağlantısını kontrol edin');
         return;
       }
     }
+    PRINT_RESULT = { ok: true };
     return;
   } else if(printer && printer.type==='usb'){
     let bytes = buildEscPosTicket(restaurantName, tableName, items, design, dailyNumber);
@@ -189,7 +213,8 @@ async function printKitchenTicket(tableName, items, printerOverride, silent, dai
       bytes = combined;
     }
     const ok = await sendToUsbPrinter(printer, bytes);
-    if(ok) return; // basarili - tarayici penceresi ACILMADI
+    if(ok){ PRINT_RESULT = { ok: true }; return; } // basarili - tarayici penceresi ACILMADI
+    PRINT_RESULT = { ok: false, err: LAST_USB_ERROR || 'USB yazıcıya ulaşılamadı' };
     console.warn('USB yaziciya ulasilamadi.');
     if(silent) showToast('⚠️ "'+printer.name+'" yazıcısına fiş gönderilemedi'+(LAST_USB_ERROR?' — '+LAST_USB_ERROR:'')+'. Bağlantıyı kontrol edin');
   } else if(printer && printer.type==='silent-browser'){
@@ -202,10 +227,13 @@ async function printKitchenTicket(tableName, items, printerOverride, silent, dai
     applyTicketDesignStyle(el, design);
     el.innerHTML = buildTicketHtml(restaurantName, tableName, items, design, dailyNumber);
     setTimeout(() => window.print(), 100);
+    PRINT_RESULT = { ok: true, note: 'tarayıcı (sessiz)' };
     return;
   } else if(!printer && silent){
+    PRINT_RESULT = { ok: false, err: 'Yazıcı seçili değil' };
     showToast('⚠️ Fiş yazdırılamadı: bu ekran/istasyon için yazıcı seçili değil');
   } else if(printer && printer.type==='browser' && silent){
+    PRINT_RESULT = { ok: false, err: 'Tarayıcı yazıcısı otomatik basamaz' };
     showToast('⚠️ "'+printer.name+'" sessiz/otomatik yazdırma için ayarlanmamış (bu tür her seferinde yazdırma penceresi açar) — Yazıcı Ayarları\'ndan "Masaüstü Uygulaması", "Sessiz Tarayıcı Yazdırma (kiosk-printing)" veya USB tipini kullanın');
   }
 
@@ -218,6 +246,7 @@ async function printKitchenTicket(tableName, items, printerOverride, silent, dai
   applyTicketDesignStyle(el, design);
   el.innerHTML = buildTicketHtml(restaurantName, tableName, items, design, dailyNumber);
   setTimeout(() => window.print(), 100);
+  PRINT_RESULT = { ok: true, note: 'yazdırma penceresi' };
 }
 /* Kasa fişi: fiyatlı hesap fişi (ödeme ekranından); "Bu Ekranın Yazıcısı"na basılır. */
 async function printCashReceipt(tableName, items, total, dailyNumber){

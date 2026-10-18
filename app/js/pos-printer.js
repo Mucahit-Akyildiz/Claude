@@ -614,15 +614,21 @@ async function renderPrinterSettingsView(main, session){
     </div>
   `;
   // Her bölüm ayrı sekmede (tek uzun sayfa yerine).
-  const PR_TABS = [{ id:'design', ic:'🧾', label:'Fiş Tasarımı' }, { id:'cash', ic:'💵', label:'Kasa Fişi' }, { id:'device', ic:'💻', label:'Bu Ekranın Yazıcısı' }, { id:'printers', ic:'🖨️', label:'Yazıcılar' }, { id:'stations', ic:'🔀', label:'İstasyon → Yazıcı' }, { id:'pkg', ic:'📦', label:'Paket Servis Fişi' }];
+  const PR_TABS = [{ id:'design', ic:'🧾', label:'Fiş Tasarımı' }, { id:'cash', ic:'💵', label:'Kasa Fişi' }, { id:'device', ic:'💻', label:'Bu Ekranın Yazıcısı' }, { id:'printers', ic:'🖨️', label:'Yazıcılar' }, { id:'stations', ic:'🔀', label:'İstasyon → Yazıcı' }, { id:'pkg', ic:'📦', label:'Paket Servis Fişi' }, { id:'status', ic:'📡', label:'Durum ve Geçmiş' }];
   const PR_ORDER = ['design', 'device', 'printers', 'stations', 'cash']; // kutuların sayfadaki sırası
   const boxes = [...main.querySelectorAll(':scope > .box')];
   boxes.forEach((b, i) => { if(PR_ORDER[i]){ b.dataset.prtab = PR_ORDER[i]; b.classList.add('pr-pane'); } });
   const pkgBox = document.createElement('div'); pkgBox.className = 'box pr-pane'; pkgBox.style.maxWidth = 'none'; pkgBox.dataset.prtab = 'pkg';
   pkgBox.innerHTML = pkgTicketSettingsHtml(); boxes.push(pkgBox);
+  const stBox = document.createElement('div'); stBox.className = 'box pr-pane'; stBox.style.maxWidth = 'none'; stBox.dataset.prtab = 'status';
+  stBox.innerHTML = `<h2>📡 Yazıcı Durumu</h2><p class="muted" style="text-align:left;margin:0 0 12px;font-size:13px;">Bu cihazdan gönderilen fişlere göre her yazıcının son durumu. Kırmızı kart: son fiş basılamadı.</p>
+    <div id="printerStatusCards" class="ps-grid"></div>
+    <h2 style="margin-top:22px;display:flex;justify-content:space-between;align-items:center;gap:8px;">🕘 Yazdırma Geçmişi <button type="button" class="ghost-btn" style="width:auto;margin:0;padding:5px 12px;font-size:12.5px;" ${act('clearPrintLog')}>Temizle</button></h2>
+    <div id="printLogBox">${printLogHtml()}</div>`;
+  boxes.push(stBox);
   renderCashReceiptPreview();
   if(!PR_TABS.some(t => t.id === APP.printerTab)) APP.printerTab = 'design';
-  const PR_DESC = { design:'Mutfak fişinin görünümü', cash:'Müşteri / kasa fişi', device:'Bu cihazda kullanılacak yazıcı', printers:'Tanımlı yazıcılar', stations:'Hangi istasyon hangi yazıcıya', pkg:'Müşteri, telefon, adres' };
+  const PR_DESC = { design:'Mutfak fişinin görünümü', cash:'Müşteri / kasa fişi', device:'Bu cihazda kullanılacak yazıcı', printers:'Tanımlı yazıcılar', stations:'Hangi istasyon hangi yazıcıya', pkg:'Müşteri, telefon, adres', status:'Yazıcı durumu, son basılan fişler' };
   const layout = document.createElement('div'); layout.className = 'set-layout pr-layout';
   layout.innerHTML = `<nav class="tabs settings-tabs set-nav">${PR_TABS.map((t, i) => `<div class="tab set-item" data-pr-tab="${t.id}" style="--i:${i};--sc:var(--c${i%4+1});" ${act('setPrinterTab', t.id)}><span class="set-ico">${t.ic}</span><span class="set-txt"><b>${t.label}</b><small>${PR_DESC[t.id]||''}</small></span></div>`).join('')}</nav><div class="set-content pr-content"></div>`;
   if(boxes[0]) main.insertBefore(layout, boxes[0]);
@@ -630,6 +636,7 @@ async function renderPrinterSettingsView(main, session){
   showPrinterPane();
   updateTicketPreview();
   renderPkgTicketPreview();
+  renderPrinterStatusCards();
   onNewPrinterTypeChange();
 }
 /* Paket servis siparişlerinin mutfak fişinde basılacak müşteri/teslimat bilgileri. */
@@ -886,4 +893,48 @@ async function resetNotifRoles(type){
   const { error } = await sb.rpc('set_notification_roles', { p_token: getSession().session_token, p_type: type, p_role_ids: null });
   if(error){ alert(error.message); return; }
   const n = Object.assign({}, APP.notifRoles); delete n[type]; APP.notifRoles = n; drawNotifRoles(); showToast('Varsayılana döndü');
+}
+
+/* Yazıcı Ayarları > Durum ve Geçmiş */
+const PRINT_KIND = { kitchen:'🍳 Mutfak fişi', pkg:'📦 Paket fişi', cash:'💵 Kasa fişi' };
+const agoTxt = (t) => { const m = Math.round((Date.now() - t) / 60000); return m < 1 ? 'az önce' : m < 60 ? m + ' dk önce' : m < 1440 ? Math.round(m / 60) + ' sa önce' : new Date(t).toLocaleDateString('tr-TR', { day:'numeric', month:'short' }); };
+function renderPrinterStatusCards(){
+  const box = document.getElementById('printerStatusCards'); if(!box) return;
+  const log = getPrintLog(), printers = getPrinters();
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  if(!printers.length){ box.innerHTML = '<p class="muted">Tanımlı yazıcı yok — "Yazıcılar" sekmesinden ekleyin.</p>'; return; }
+  box.innerHTML = printers.map(p => {
+    const mine = log.filter(e => e.printerId === p.id), last = mine[0];
+    const todayN = mine.filter(e => e.at >= today.getTime() && e.ok).length, fails = mine.filter(e => e.at >= today.getTime() && !e.ok).length;
+    const state = !last ? 'idle' : last.ok ? 'ok' : 'err';
+    const stations = ((APP.config && APP.config.stations) || []).filter(st => resolvePrinterForStation(st.id) && resolvePrinterForStation(st.id).id === p.id).map(st => (st.icon || '🍳') + ' ' + st.name);
+    return `<div class="ps-card ${state}">
+      <div class="ps-top"><span class="ps-dot"></span><b>${escapeHtml(p.name)}</b>${p.id === getActivePrinterId() ? '<span class="pchip">Bu ekran</span>' : ''}</div>
+      <small class="muted">${escapeHtml({ usb:'USB (doğrudan)', electron:'Masaüstü uygulaması', 'silent-browser':'Sessiz tarayıcı', browser:'Tarayıcı penceresi' }[p.type] || p.type || '')}${stations.length ? ' · ' + escapeHtml(stations.join(', ')) : ''}</small>
+      <div class="ps-stats"><span><b>${todayN}</b> bugün</span>${fails ? `<span class="bad"><b>${fails}</b> hata</span>` : ''}<span>${last ? 'Son: ' + agoTxt(last.at) : 'Henüz fiş yok'}</span></div>
+      ${last && !last.ok ? `<div class="ps-err">⚠️ ${escapeHtml(last.err || 'Basılamadı')}</div>` : ''}
+      <button type="button" class="sbtn" style="width:auto;margin:8px 0 0;padding:6px 12px;font-size:12.5px;" ${act('testPrintPrinter', p.id)}>🖨️ Test Yazdır</button>
+    </div>`;
+  }).join('');
+}
+function printLogHtml(){
+  const log = getPrintLog();
+  if(!log.length) return '<p class="muted">Bu cihazdan henüz fiş basılmadı.</p>';
+  return '<div class="pl-list">' + log.map((e, i) => `<div class="pl-row ${e.ok ? '' : 'err'}">
+    <span class="pl-ic">${e.ok ? '✅' : '❌'}</span>
+    <span class="pl-main"><b>${escapeHtml(e.table || '')}${e.no ? ' #' + e.no : ''}</b> <span class="muted">· ${PRINT_KIND[e.kind] || 'Fiş'} · ${(e.items || []).reduce((n, x) => n + (Number(x.qty) || 0), 0)} ürün${e.auto ? ' · otomatik' : ''}</span>
+      <small class="muted">${new Date(e.at).toLocaleTimeString('tr-TR', { hour:'2-digit', minute:'2-digit' })} · ${escapeHtml(e.printerName || '')}${e.ok ? (e.note ? ' · ' + escapeHtml(e.note) : '') : ' · ' + escapeHtml(e.err || 'basılamadı')}</small></span>
+    <button type="button" class="ghost-btn pl-re" title="Bu fişi tekrar yazdır" ${act('reprintFromLog', i)}>🔁 Tekrar</button></div>`).join('') + '</div>';
+}
+async function reprintFromLog(i){
+  const e = getPrintLog()[i]; if(!e) return;
+  const printer = e.printerId ? getPrinters().find(p => p.id === e.printerId) : null;
+  await printKitchenTicket(e.table, e.items || [], printer || null, false, e.no, e.extra || undefined);
+  showToast(PRINT_RESULT.ok ? '🖨️ Fiş tekrar gönderildi' : '⚠️ Basılamadı: ' + (PRINT_RESULT.err || ''));
+}
+async function clearPrintLog(){
+  if(!await uiConfirm('Bu cihazdaki yazdırma geçmişi silinsin mi?')) return;
+  try{ localStorage.removeItem(PRINT_LOG_KEY); }catch(e){}
+  const box = document.getElementById('printLogBox'); if(box) box.innerHTML = printLogHtml();
+  renderPrinterStatusCards();
 }
