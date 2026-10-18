@@ -7,12 +7,19 @@
 const { createClient } = require('@supabase/supabase-js');
 
 const VOICES = { emel: 'tr-TR-EmelNeural', ahmet: 'tr-TR-AhmetNeural' };
+// ElevenLabs hazır sesleri (istemcideki VOICE_CLOUD_LIST ile aynı anahtarlar).
+const ELEVEN_VOICES = {
+  sarah: 'EXAVITQu4vr4xnSDxMaL', rachel: '21m00Tcm4TlvDq8ikWAM', charlotte: 'XB0fDUnXU5powFXDhCwa', alice: 'Xb7hH8MSUJpSbSDYk0k2',
+  matilda: 'XrExE9yKIg1WjnMlVkOX', lily: 'pFZP5JQG7iQjIQuC4Bku',
+  adam: 'pNInz6obpgDQGcFmaJgB', antoni: 'ErXwobaYiN019PkySvjV', daniel: 'onwK4e9ZLuTAKqWW03F9', george: 'JBFqnCBsd6RMkjVDRZzb',
+  brian: 'nPczCjzI2devNBz1zQrb', callum: 'N2lVS1w4EtoT3dr4eOWO',
+};
 const esc = (s) => String(s).replace(/[<>&'"]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', "'": '&apos;', '"': '&quot;' }[c]));
 
 module.exports = async function handler(req, res) {
   const eleven = process.env.ELEVENLABS_API_KEY;
   const key = eleven || process.env.AZURE_SPEECH_KEY, region = process.env.AZURE_SPEECH_REGION || 'westeurope';
-  if (req.method === 'GET') { res.status(200).json({ enabled: !!key }); return; }
+  if (req.method === 'GET') { res.status(200).json({ enabled: !!key, provider: eleven ? 'elevenlabs' : (key ? 'azure' : null) }); return; }
   if (req.method !== 'POST') { res.status(405).json({ error: 'method not allowed' }); return; }
   if (!key) { res.status(503).json({ error: 'TTS yapılandırılmamış' }); return; }
   try {
@@ -26,7 +33,7 @@ module.exports = async function handler(req, res) {
     if (sErr) { res.status(403).json({ error: 'Yetkisiz' }); return; }
     if (eleven) {
       // Hazır sesler (ortam değişkeniyle değiştirilebilir): kadın / erkek.
-      const vid = b.voice === 'ahmet' ? (process.env.ELEVENLABS_VOICE_MALE || 'pNInz6obpgDQGcFmaJgB') : (process.env.ELEVENLABS_VOICE_FEMALE || 'EXAVITQu4vr4xnSDxMaL');
+      const vid = ELEVEN_VOICES[b.voice] || (b.voice === 'ahmet' ? (process.env.ELEVENLABS_VOICE_MALE || ELEVEN_VOICES.adam) : (process.env.ELEVENLABS_VOICE_FEMALE || ELEVEN_VOICES.sarah));
       const r = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${vid}?output_format=mp3_44100_64`, {
         method: 'POST',
         headers: { 'xi-api-key': eleven, 'Content-Type': 'application/json', Accept: 'audio/mpeg' },
