@@ -70,7 +70,7 @@ function openPackageModal(pseudoId){
           <div id="prodPick"></div>
         </div>
         <div class="order-modal-cart">
-          <div class="om-cart-head">🧾 Sipariş</div>
+          <div class="om-cart-head">🧾 Sipariş<span class="om-cart-total"></span></div>
       ${isWl ? '<p class="muted" style="text-align:left;margin:0 0 6px;font-size:12.5px;">Siparişler hemen mutfağa düşer; müşteri oturtulunca masaya taşınır.</p>' : `<div class="field-group"><label>Müşteri Adı</label><input id="pkgCustName" maxlength="60" placeholder="örn. Ahmet Bey veya kayıtlı müşteri ara" autocomplete="off" ${actOn('input','tableCustSearch',['$value','pkgCust'])} value="${escapeAttr((existing&&existing.customer_name)||'')}"></div>
       <div class="field-group"><label>Telefon</label><input id="pkgCustPhone" placeholder="örn. 5551234567" autocomplete="off" inputmode="tel" ${actOn('input','tableCustSearch',['$value','pkgCust'])} value="${escapeAttr((existing&&existing.customer_phone)||'')}"></div>
       <div id="pkgCustSuggest" style="margin:-6px 0 10px;"></div>
@@ -83,6 +83,7 @@ function openPackageModal(pseudoId){
           ${orderFlagsHtml(pseudoId)}
         </div>
       </div>
+      ${omMobileBarHtml(pseudoId)}
       <div class="modal-sticky-actions">
         <button class="ghost-btn" style="flex:1;margin-top:0;color:var(--red);border-color:var(--red);" ${act('cancelTableOrder', pseudoId)} ${existing?'':'disabled'}>🗑️ İptal Et</button>
         <button id="confirmBtn" style="flex:1;margin-top:0;" disabled ${act('confirmOrder', pseudoId)}>✅ Onayla ve Gönder</button>
@@ -124,7 +125,7 @@ function renderProductPick(stationId, tableId){
   const menuColor = (cat) => { const m = (APP.config.menus || []).find(x => x.name === cat); const st = m && (APP.config.stations || []).find(x => x.id === m.station_id); return (st && st.color) || 'var(--c1)'; };
   const count = (c) => c === '__all' ? all.length : all.filter(p => p.category === c).length;
   const side = cats.length ? `<div class="pp-cats">${[['__all','Tümü'], ...cats.map(c => [c, c])].map(([v, l]) =>
-    `<button type="button" class="pp-cat ${cur===v && !q?'active':''}" style="--mc:${v==='__all' ? 'var(--c1)' : menuColor(v)};" data-cat="${escapeAttr(v)}" ${actStop('setProdPickCat', stationId, '$data.cat', tableId)}><i class="pp-dot"></i><span>${escapeHtml(l)}</span><b>${count(v)}</b></button>`).join('')}</div>` : '';
+    `<button type="button" class="pp-cat ${cur===v && !q?'active':''}" style="--mc:${v==='__all' ? 'var(--c1)' : menuColor(v)};" data-cat="${escapeAttr(v)}" ${actStop('setProdPickCat', stationId, '$data.cat', tableId)}><span class="pp-cat-ic">${v==='__all' ? '🍽️' : catIcon(l)}</span><span class="pp-cat-t"><span>${escapeHtml(l)}</span><small>${count(v)} ürün</small></span></button>`).join('')}</div>` : '';
   const cards = prods.length ? prods.map(p => {
     const stock = effectiveStock(p);
     const off = p.available===false || (stock!=null && stock<=0);
@@ -401,6 +402,7 @@ function renderTableItems(tableId){
   }
   const confirmBtn = document.getElementById('confirmBtn');
   if(confirmBtn) confirmBtn.disabled = draft.length===0;
+  updateOmMobileBar(tableId);
 }
 /* Not girilirken her tuş vuruşunda tüm sepeti yeniden çizmiyoruz (yazarken
    imleç/odak kaybolmasın diye) - sadece draft dizisindeki değeri güncelliyor. */
@@ -584,4 +586,30 @@ function repeatLastRound(tableId){
   });
   renderTableItems(tableId);
   if(n) showToast('🔁 ' + n + ' ürün sepete eklendi — kontrol edip gönderin');
+}
+
+/* Menü (kategori) simgesi: adından tahmin edilir, bulunamazsa baş harfi. */
+const CAT_ICONS = [[/içecek|icecek|meşrubat|soğuk/i,'🥤'],[/tatlı|tatli|baklava|dessert/i,'🍰'],[/kahve|coffee|espresso/i,'☕'],[/çay|cay/i,'🍵'],[/ızgara|izgara|kebap|kebab|mangal/i,'🔥'],[/döner|doner|dürüm/i,'🥙'],[/çorba|corba/i,'🍲'],[/pide|lahmacun|fırın|firin/i,'🫓'],[/pizza/i,'🍕'],[/burger|hamburger/i,'🍔'],[/salata/i,'🥗'],[/kahvaltı|kahvalti/i,'🍳'],[/balık|balik|deniz/i,'🐟'],[/tavuk|piliç/i,'🍗'],[/makarna|pasta/i,'🍝'],[/meze|ara sıcak|başlangıç/i,'🥟'],[/alkol|bira|şarap|rakı/i,'🍺'],[/çocuk/i,'🧒']];
+function catIcon(name){ const m = CAT_ICONS.find(([r]) => r.test(String(name))); return m ? m[1] : `<b>${escapeHtml(String(name).trim().charAt(0).toLocaleUpperCase('tr') || '•')}</b>`; }
+/* Mobil: sipariş penceresinin altında sepet özeti; dokununca sepet tam ekran açılır. */
+function omMobileBarHtml(tableId){
+  return `<button type="button" class="om-mbar" id="omMbar" ${act('toggleOmCart')}><span class="om-mbar-n" id="omMbarN">0</span><span id="omMbarT">Sepet boş</span><b id="omMbarGo">Sepeti Gör ›</b></button>`;
+}
+function toggleOmCart(force){
+  const m = document.querySelector('#tableModalBg .order-modal'); if(!m) return;
+  const on = typeof force === 'boolean' ? force : !m.classList.contains('om-show-cart');
+  m.classList.toggle('om-show-cart', on);
+  const g = document.getElementById('omMbarGo'); if(g) g.textContent = on ? '‹ Ürünlere Dön' : 'Sepeti Gör ›';
+  const sc = m.querySelector(on ? '.order-modal-cart' : '.order-modal-menu'); if(sc) sc.scrollTop = 0;
+}
+function updateOmMobileBar(tableId){
+  const draft = (APP.draftCart && APP.draftCart[tableId]) || [];
+  const n = draft.reduce((a, i) => a + (Number(i.qty) || 0), 0), t = draft.reduce((a, i) => a + i.price * i.qty, 0);
+  const order = liveOrderForTable(tableId), sent = order ? order.items.length : 0;
+  const nEl = document.getElementById('omMbarN'), tEl = document.getElementById('omMbarT'), bar = document.getElementById('omMbar');
+  if(!bar) return;
+  nEl.textContent = n; bar.classList.toggle('has', n > 0);
+  tEl.textContent = n ? 'Yeni: ' + money(t) : (sent ? sent + ' ürün mutfakta' : 'Sepet boş');
+  const head = document.querySelector('#tableModalBg .om-cart-total');
+  if(head) head.textContent = n ? n + ' ürün · ' + money(t) : '';
 }
