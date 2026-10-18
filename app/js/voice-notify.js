@@ -5,6 +5,7 @@
 const VOICE_TYPES = [
   { id:'kitchen',      ic:'🍳', label:'Mutfağa yeni sipariş', sample:'Masa 34 sipariş verildi' },
   { id:'late',         ic:'⏰', label:'Bekleyen mutfak siparişi (20 dk)', sample:'Masa 42: Adana, Köfte 20 dakikadır bekliyor' },
+  { id:'seated',       ic:'🪑', label:'Misafir masaya oturdu', sample:'Bekleme listesindeki Ahmet Bey 12 numaralı masaya oturdu' },
   { id:'payments',     ic:'💳', label:'Ödeme / hesap bekleyen', sample:'Masa 12 hesap bekliyor' },
   { id:'packages',     ic:'📦', label:'Paket servis', sample:'Yeni paket siparişi' },
   { id:'reservations', ic:'📅', label:'Rezervasyon / bekleme listesi', sample:'Yeni rezervasyon' },
@@ -17,7 +18,7 @@ function getVoicePrefs(){
   let p = {};
   try{ p = JSON.parse(localStorage.getItem(VOICE_KEY) || '{}') || {}; }catch(e){}
   const out = { enabled: p.enabled !== false, rate: p.rate || 1, voiceName: p.voiceName || '', types: {} };
-  VOICE_TYPES.forEach(t => { const v = (p.types || {})[t.id] || {}; out.types[t.id] = { sound: v.sound !== false, voice: v.voice != null ? !!v.voice : (t.id==='kitchen' || t.id==='late') }; });
+  VOICE_TYPES.forEach(t => { const v = (p.types || {})[t.id] || {}; out.types[t.id] = { sound: v.sound !== false, voice: v.voice != null ? !!v.voice : (t.id==='kitchen' || t.id==='late' || t.id==='seated') }; });
   return out;
 }
 function setVoicePrefs(p){ try{ localStorage.setItem(VOICE_KEY, JSON.stringify(p)); }catch(e){} }
@@ -145,6 +146,10 @@ function voiceTextFor(type, items){
     items.forEach(x => { const k = voiceTableName(x) || 'Bir masa'; (byT[k] = byT[k] || []).push(x.name || 'ürün'); });
     return Object.entries(byT).map(([t, ns]) => t + ': ' + [...new Set(ns)].join(', ') + ' ' + VOICE_LATE_MIN + ' dakikadır bekliyor').join('. ');
   }
+  if(type==='seated') return items.map(x => {
+    const tb = String(x.table || '').trim(), where = !tb ? 'masaya' : /^\d+$/.test(tb) ? tb + ' numaralı masaya' : tb + ' masasına';
+    return (x.kind==='waitlist' ? 'Bekleme listesindeki ' : 'Rezervasyonlu ') + (x.name || 'misafir') + ' ' + where + ' oturdu';
+  }).join('. ');
   const t = VOICE_TYPES.find(x => x.id===type);
   return items.length===1 && items[0].label ? items[0].label : (t ? t.sample : 'Yeni bildirim');
 }
@@ -169,6 +174,11 @@ function processVoiceBadges(data, visibleViews){
     ids.add(key);
     if(VOICE_SEEN && !VOICE_SEEN.has(key)) (fresh[voiceTypeOf(v)] = fresh[voiceTypeOf(v)] || []).push(x);
   }));
+  // Masaya oturan bekleme listesi / rezervasyon misafirleri (son 5 dk, sunucudan _seated).
+  (data && data._seated || []).forEach(x => {
+    const key = 'seat:' + x.id; ids.add(key);
+    if(VOICE_SEEN && !VOICE_SEEN.has(key)) (fresh.seated = fresh.seated || []).push(x);
+  });
   const late = [];
   (items.kitchen || []).forEach(x => {
     if(!x.at || VOICE_LATE_SEEN.has(x.id)) return;
