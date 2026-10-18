@@ -859,7 +859,7 @@ begin
     v := v || jsonb_build_object('order', jsonb_array_length(arr)); it := it || jsonb_build_object('order', arr);
   end if;
   if _user_has_perm(u, 'kitchen') then
-    select coalesce(jsonb_agg(jsonb_build_object('id', oi.id, 'label', oi.qty || 'x ' || oi.name || ' · ' || coalesce(t.name, case when o.kind = 'waitlist' then '⏳ ' || coalesce(o.customer_name, 'Bekleme') else 'Paket' end), 'station', pr.station_id)), '[]') into arr
+    select coalesce(jsonb_agg(jsonb_build_object('id', oi.id, 'label', oi.qty || 'x ' || oi.name || ' · ' || coalesce(t.name, case when o.kind = 'waitlist' then '⏳ ' || coalesce(o.customer_name, 'Bekleme') else 'Paket' end), 'station', pr.station_id, 'at', oi.added_at, 'name', oi.name, 'qty', oi.qty, 'table', coalesce(t.name, case when o.kind = 'waitlist' then coalesce(o.customer_name, 'Bekleme listesi') else 'Paket ' || coalesce(o.customer_name, '') end))), '[]') into arr
       from order_items oi join orders o on o.id = oi.order_id left join restaurant_tables t on t.id = o.table_id left join products pr on pr.id = oi.product_id
       where o.restaurant_id = r and o.status = 'open' and oi.status = 'pending';
     v := v || jsonb_build_object('kitchen', jsonb_array_length(arr)); it := it || jsonb_build_object('kitchen', arr);
@@ -4596,7 +4596,7 @@ begin
     select coalesce(json_agg(json_build_object(
       'order_id', o.id, 'table_id', o.table_id, 'kind', o.kind, 'created_at', o.created_at,
       'daily_number', o.daily_number, 'tags', o.tags,
-      'customer_name', o.customer_name, 'customer_phone', o.customer_phone, 'note', o.note,
+      'customer_name', o.customer_name, 'customer_phone', o.customer_phone, 'delivery_address', o.delivery_address, 'note', o.note,
       'created_by', o.created_by, 'created_by_name', (select username from app_users where id = o.created_by), 'waitlist_id', o.waitlist_id,
       'waitlist', (select json_build_object('joined_at', w.joined_at, 'quoted_wait_minutes', w.quoted_wait_minutes, 'party_size', w.party_size, 'status', w.status) from waitlist_entries w where w.id = o.waitlist_id),
       'items', (
@@ -8870,6 +8870,13 @@ begin
     perform send_order(p_token, (p_args->>'p_table_id')::uuid, (p_args->'p_items')::json, v_tags);
   elsif p_kind = 'takeaway' then
     perform send_takeaway_order(p_token, (p_args->'p_items')::json, nullif(p_args->>'p_order_id','')::uuid, p_args->>'p_customer_name', p_args->>'p_customer_phone', p_args->>'p_note', v_tags);
+    if coalesce(p_args->>'p_address','') <> '' or nullif(p_args->>'p_order_id','') is not null then
+      update orders set delivery_address = nullif(p_args->>'p_address','')
+      where id = coalesce(nullif(p_args->>'p_order_id','')::uuid,
+        (select o.id from orders o join staff_sessions ss on ss.token = p_token
+          where o.restaurant_id = ss.restaurant_id and o.kind = 'takeaway' and o.created_by = ss.user_id and o.created_at > now() - interval '1 minute'
+          order by o.created_at desc limit 1));
+    end if;
   elsif p_kind = 'waitlist' then
     perform send_waitlist_order(p_token, (p_args->>'p_waitlist_id')::uuid, (p_args->'p_items')::json, v_tags);
   else
@@ -10739,7 +10746,8 @@ CREATE TABLE public.orders (
     waitlist_id uuid,
     idle_stage smallint DEFAULT 0 NOT NULL,
     cancelled_at timestamp with time zone,
-    cancelled_by uuid
+    cancelled_by uuid,
+    delivery_address text
 );
 
 
