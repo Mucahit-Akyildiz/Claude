@@ -2366,3 +2366,9 @@ input.sw:checked{background:var(--c1);} input.sw:checked::after{transform:transl
 .kb-grid .kc-title b{white-space:normal!important;overflow:visible!important;text-overflow:clip!important;word-break:break-word}
 @media (min-width:1100px) and (max-width:1500px){ .kb-grid{grid-template-columns:repeat(auto-fill,minmax(280px,1fr))!important;} }
 .kb-grid .kc-no{white-space:nowrap;flex:0 0 auto}
+/* Paket servis fişi ayarı */
+.pk-wrap{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(240px,1fr);gap:18px;align-items:start}
+@media (max-width:800px){.pk-wrap{grid-template-columns:1fr}}
+.pk-opts{display:flex;flex-direction:column;gap:10px}
+.pk-prev{padding:12px;border-radius:16px;border:1px dashed var(--border);display:flex;flex-direction:column;gap:8px;align-items:center}
+.ticket-pkg{margin:4px 0;line-height:1.45}

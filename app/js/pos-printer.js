@@ -59,9 +59,14 @@ function getTicketDesign(){
     transformText: d.transformText || 'none',
     transformNote: d.transformNote || 'none',
     transformTime: d.transformTime || 'none',
+    // Paket servis fişi: siparişin kime ait olduğu ve teslimat bilgileri (seçime bağlı).
+    pkgShowName: d.pkgShowName !== false,
+    pkgShowPhone: d.pkgShowPhone !== false,
+    pkgShowAddress: d.pkgShowAddress !== false,
+    pkgShowNote: d.pkgShowNote !== false,
   };
 }
-const TICKET_DESIGN_DEFAULTS = { width:'80', header:'', footer:'', fontFamily:'Courier New', bold:true, marginTop:4, marginRight:4, marginBottom:4, marginLeft:4, showOrderNumber:true, showItemTime:true, copies:1, timeFormat:'24', timeBold:true, showHeaderTime:false, showWaiter:false, colorTitle:'#000000', colorText:'#000000', colorNote:'#000000', colorTime:'#000000', sizeTitle:15, sizeText:13, sizeNote:11, sizeTime:11, transformTitle:'uppercase', transformText:'none', transformNote:'none', transformTime:'none' };
+const TICKET_DESIGN_DEFAULTS = { width:'80', header:'', footer:'', fontFamily:'Courier New', bold:true, marginTop:4, marginRight:4, marginBottom:4, marginLeft:4, showOrderNumber:true, showItemTime:true, copies:1, timeFormat:'24', timeBold:true, showHeaderTime:false, showWaiter:false, colorTitle:'#000000', colorText:'#000000', colorNote:'#000000', colorTime:'#000000', sizeTitle:15, sizeText:13, sizeNote:11, sizeTime:11, transformTitle:'uppercase', transformText:'none', transformNote:'none', transformTime:'none', pkgShowName:true, pkgShowPhone:true, pkgShowAddress:true, pkgShowNote:true };
 async function setTicketDesign(d){
   const session = getSession();
   const { error } = await sb.rpc('update_ticket_design', { p_token: session.session_token, p_design: d });
@@ -609,20 +614,49 @@ async function renderPrinterSettingsView(main, session){
     </div>
   `;
   // Her bölüm ayrı sekmede (tek uzun sayfa yerine).
-  const PR_TABS = [{ id:'design', ic:'🧾', label:'Fiş Tasarımı' }, { id:'cash', ic:'💵', label:'Kasa Fişi' }, { id:'device', ic:'💻', label:'Bu Ekranın Yazıcısı' }, { id:'printers', ic:'🖨️', label:'Yazıcılar' }, { id:'stations', ic:'🔀', label:'İstasyon → Yazıcı' }];
+  const PR_TABS = [{ id:'design', ic:'🧾', label:'Fiş Tasarımı' }, { id:'cash', ic:'💵', label:'Kasa Fişi' }, { id:'device', ic:'💻', label:'Bu Ekranın Yazıcısı' }, { id:'printers', ic:'🖨️', label:'Yazıcılar' }, { id:'stations', ic:'🔀', label:'İstasyon → Yazıcı' }, { id:'pkg', ic:'📦', label:'Paket Servis Fişi' }];
   const PR_ORDER = ['design', 'device', 'printers', 'stations', 'cash']; // kutuların sayfadaki sırası
   const boxes = [...main.querySelectorAll(':scope > .box')];
   boxes.forEach((b, i) => { if(PR_ORDER[i]){ b.dataset.prtab = PR_ORDER[i]; b.classList.add('pr-pane'); } });
+  const pkgBox = document.createElement('div'); pkgBox.className = 'box pr-pane'; pkgBox.style.maxWidth = 'none'; pkgBox.dataset.prtab = 'pkg';
+  pkgBox.innerHTML = pkgTicketSettingsHtml(); boxes.push(pkgBox);
   renderCashReceiptPreview();
   if(!PR_TABS.some(t => t.id === APP.printerTab)) APP.printerTab = 'design';
-  const PR_DESC = { design:'Mutfak fişinin görünümü', cash:'Müşteri / kasa fişi', device:'Bu cihazda kullanılacak yazıcı', printers:'Tanımlı yazıcılar', stations:'Hangi istasyon hangi yazıcıya' };
+  const PR_DESC = { design:'Mutfak fişinin görünümü', cash:'Müşteri / kasa fişi', device:'Bu cihazda kullanılacak yazıcı', printers:'Tanımlı yazıcılar', stations:'Hangi istasyon hangi yazıcıya', pkg:'Müşteri, telefon, adres' };
   const layout = document.createElement('div'); layout.className = 'set-layout pr-layout';
   layout.innerHTML = `<nav class="tabs settings-tabs set-nav">${PR_TABS.map((t, i) => `<div class="tab set-item" data-pr-tab="${t.id}" style="--i:${i};--sc:var(--c${i%4+1});" ${act('setPrinterTab', t.id)}><span class="set-ico">${t.ic}</span><span class="set-txt"><b>${t.label}</b><small>${PR_DESC[t.id]||''}</small></span></div>`).join('')}</nav><div class="set-content pr-content"></div>`;
   if(boxes[0]) main.insertBefore(layout, boxes[0]);
   const content = layout.querySelector('.pr-content'); boxes.forEach(b => content.appendChild(b));
   showPrinterPane();
   updateTicketPreview();
+  renderPkgTicketPreview();
   onNewPrinterTypeChange();
+}
+/* Paket servis siparişlerinin mutfak fişinde basılacak müşteri/teslimat bilgileri. */
+const PKG_SAMPLE = { name:'Ahmet Yılmaz', phone:'0555 123 45 67', address:'Atatürk Cad. No:12 D:4, Merkez', note:'Kapıda kartla ödeme' };
+function pkgTicketSettingsHtml(){
+  const d = getTicketDesign();
+  const row = (k, ic, l, sub) => `<label class="sw-card pk-opt"><input type="checkbox" class="sw" ${d[k] ? 'checked' : ''} ${actOn('change','setPkgTicketOpt',[k, '$checked'])}><span><b>${ic} ${l}</b><br><span class="muted" style="font-size:12.5px;">${sub}</span></span></label>`;
+  return `<h2>📦 Paket Servis Sipariş Fişi</h2>
+    <p class="muted" style="text-align:left;margin:0 0 14px;font-size:13px;">Paket Servis'ten sipariş geldiğinde istasyon fişinin üstünde aşağıda seçtiğiniz bilgiler basılır. Masa siparişlerinde bu bölüm çıkmaz.</p>
+    <div class="pk-wrap"><div class="pk-opts">
+      ${row('pkgShowName', '👤', 'Sipariş kime ait', 'Müşteri adı')}
+      ${row('pkgShowPhone', '📞', 'Telefon', 'Kuryenin araması için')}
+      ${row('pkgShowAddress', '📍', 'Teslimat adresi', 'Paket formundaki adres')}
+      ${row('pkgShowNote', '📝', 'Sipariş notu', 'Örn. kapıda kartla ödeme')}
+    </div>
+    <div class="pk-prev"><small class="muted">Önizleme</small><div id="pkgTicketPreview" class="ticket-paper"></div></div></div>`;
+}
+function renderPkgTicketPreview(){
+  const el = document.getElementById('pkgTicketPreview'); if(!el) return;
+  const design = Object.assign({}, getTicketDesign(), { pkg: PKG_SAMPLE });
+  applyTicketDesignStyle(el, design, 'ticket-paper');
+  const s = getSession();
+  el.innerHTML = buildTicketHtml(s ? s.restaurant_name : 'İŞLETME ADI', '📦 Paket - Ahmet Yılmaz', [{ qty:2, name:'Lahmacun', added_at:new Date().toISOString() }, { qty:1, name:'Ayran', added_at:new Date().toISOString() }], design, 18);
+}
+async function setPkgTicketOpt(k, on){
+  const d = Object.assign({}, (APP.config && APP.config.ticket_design) || {}); d[k] = !!on;
+  if(await setTicketDesign(d)){ renderPkgTicketPreview(); showToast('Paket fişi ayarı kaydedildi ✓'); }
 }
 /* İstasyonun ürünleri: hangileri mutfak fişine basılsın (işaret kaldırılırsa fişe çıkmaz, ekranda görünür). */
 function stationPrintProductsHtml(st){

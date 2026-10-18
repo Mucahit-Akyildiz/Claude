@@ -332,7 +332,9 @@ function readTicketTypography(){
   return out;
 }
 async function saveTicketDesign(){
+  const prev = (APP.config && APP.config.ticket_design) || {};
   const ok = await setTicketDesign({
+    pkgShowName: prev.pkgShowName, pkgShowPhone: prev.pkgShowPhone, pkgShowAddress: prev.pkgShowAddress, pkgShowNote: prev.pkgShowNote,
     width: document.getElementById('td_width').value,
     header: sanitizeRichHtml(document.getElementById('td_header').innerHTML.trim()),
     footer: sanitizeRichHtml(document.getElementById('td_footer').innerHTML.trim()),
