@@ -351,7 +351,7 @@ function countUpEl(el){
 }
 (function(){
   if(typeof MutationObserver === 'undefined' || window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-  const SEL = '.os-chip b, .fs-big, .fs-mid, .cu-pts b, .sub-ring b, .ig-stockv';
+  const SEL = '.os-chip b, .fs-big, .fs-mid, .cu-pts b, .sub-ring b, .ig-stockv, .kb-stats b, .an-kpi > b, .ps-stats b';
   const POLLED = '#orderSummary, #paySummary, .kb-stats';
   new MutationObserver(muts => {
     // Sessiz yenilemede (eski ekranın kopyası gösterilirken) ve periyodik yenilemede sayılmaz.
