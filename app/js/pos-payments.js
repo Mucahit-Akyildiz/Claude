@@ -1486,7 +1486,7 @@ function openTableModal(tableId){
           <div id="prodPick"></div>
         </div>
         <div class="order-modal-cart">
-          <div class="om-cart-head">🧾 Sipariş</div>
+          <div class="om-cart-head">🧾 Sipariş<span class="om-cart-total"></span></div>
           ${tableCustomerInfoHtml(tableId)}
           <div id="sentItemsWrap"></div>
           <div id="draftItemsWrap"></div>
@@ -1494,6 +1494,7 @@ function openTableModal(tableId){
           ${(String(tableId).indexOf('pkg_')!==0 && String(tableId).indexOf('wl_')!==0 && liveOrderForTable(tableId)) ? `<button class="ghost-btn" style="width:100%;margin-top:12px;" ${act('openMoveTableModal', tableId)}>🔀 Masayı Taşı / Birleştir</button>` : ''}
         </div>
       </div>
+      ${omMobileBarHtml(tableId)}
       <div class="modal-sticky-actions">
         <button class="ghost-btn" style="flex:1;margin-top:0;color:var(--red);border-color:var(--red);" ${act('cancelTableOrder', tableId)}>🗑️ İptal Et</button>
         <button id="confirmBtn" style="flex:1;margin-top:0;" disabled ${act('confirmOrder', tableId)}>✅ Onayla ve Gönder</button>
