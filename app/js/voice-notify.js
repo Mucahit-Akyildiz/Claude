@@ -154,8 +154,10 @@ function voiceTextFor(type, items){
 const VOICE_SELF = [];
 function voiceMarkSelfOrder(label){ VOICE_SELF.push({ label: String(label || '').toLocaleLowerCase('tr'), at: Date.now() }); while(VOICE_SELF.length > 20) VOICE_SELF.shift(); }
 function voiceIsSelf(x){
-  const t = x.at ? new Date(x.at).getTime() : Date.now(), name = String(x.table || '').toLocaleLowerCase('tr');
-  return VOICE_SELF.some(s => t >= s.at - 10000 && t <= s.at + 60000 && (!s.label || !name || s.label.includes(name) || name.includes(s.label)));
+  // Sunucu saati ile cihaz saati farklı olabilir: ürünün eklenme saatine değil,
+  // bu cihazın gönderimden sonraki 90 sn içinde gördüğü yeni ürünlere bakılır.
+  const now = Date.now(), name = String(x.table || '').toLocaleLowerCase('tr').trim();
+  return VOICE_SELF.some(s => now - s.at <= 90000 && (!s.label || !name || s.label.trim() === name || s.label.includes(name) || name.includes(s.label)));
 }
 let VOICE_SEEN = null, VOICE_LATE_SEEN = new Set();
 function processVoiceBadges(data, visibleViews){
