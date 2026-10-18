@@ -729,6 +729,15 @@ async function loadNotificationHistory(){
 const NOTIF_DESC = [[/Kime/, 'Hangi rol hangi bildirimi alır'], [/Windows/, 'Masaüstü uygulaması'], [/Push/, 'Uygulama kapalıyken de'], [/Sesli/, 'Zil ve sesli okuma, ses seçimi'], [/Zil/, 'Mutfak yeni sipariş zili'], [/Geçmiş/, 'Son 30 gün']];
 function notifSideNav(part){
   if(!part) return;
+  // Sayfa aynı DOM üzerinde ikinci kez kurulursa (ör. arka arkaya yenileme)
+  // eski menüyü söküp kutuları geri koy; menü iki kez oluşmasın.
+  part.querySelectorAll(':scope > .set-layout').forEach(l => {
+    l.querySelectorAll('.nf-content > .box').forEach(b => { b.style.display = ''; delete b.dataset.nfIdx; l.before(b); });
+    l.remove();
+  });
+  part.querySelectorAll('#notifHistory').forEach(h => { const b = h.closest('.box'); if(b) b.remove(); });
+  const roles = part.querySelector('#notifRolesBox'); const firstBox = part.querySelector(':scope > .box');
+  if(roles && firstBox && roles !== firstBox) part.insertBefore(roles, firstBox);
   const hist = document.createElement('div'); hist.className = 'box'; hist.style.maxWidth = 'none';
   hist.innerHTML = '<h2>🕘 Geçmiş Bildirimler</h2><div id="notifHistory"><p class="muted">Yükleniyor…</p></div>';
   part.appendChild(hist);
