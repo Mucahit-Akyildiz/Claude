@@ -16,7 +16,7 @@ const VOICE_KEY = 'peyk_voice_prefs';
 function getVoicePrefs(){
   let p = {};
   try{ p = JSON.parse(localStorage.getItem(VOICE_KEY) || '{}') || {}; }catch(e){}
-  const out = { enabled: p.enabled !== false, rate: p.rate || 1, types: {} };
+  const out = { enabled: p.enabled !== false, rate: p.rate || 1, voiceName: p.voiceName || '', types: {} };
   VOICE_TYPES.forEach(t => { const v = (p.types || {})[t.id] || {}; out.types[t.id] = { sound: v.sound !== false, voice: v.voice != null ? !!v.voice : (t.id==='kitchen' || t.id==='late') }; });
   return out;
 }
@@ -32,10 +32,28 @@ function voiceSpeak(text){
     if(!window.speechSynthesis || !text) return;
     const u = new SpeechSynthesisUtterance(text);
     u.lang = 'tr-TR'; u.rate = getVoicePrefs().rate;
-    const v = speechSynthesis.getVoices().find(x => /^tr/i.test(x.lang));
+    const v = voicePick();
     if(v) u.voice = v;
     speechSynthesis.speak(u);
   }catch(e){}
+}
+/* Cihazdaki Türkçe sesler; doğal (neural/online) sesler öne alınır. */
+function voiceList(){
+  try{
+    const score = (v) => (/natural|neural|online/i.test(v.name) ? 0 : /google/i.test(v.name) ? 1 : /microsoft/i.test(v.name) ? 2 : 3);
+    return speechSynthesis.getVoices().filter(x => /^tr/i.test(x.lang)).sort((a, b) => score(a) - score(b));
+  }catch(e){ return []; }
+}
+function voicePick(){
+  const list = voiceList(), name = getVoicePrefs().voiceName;
+  return list.find(v => v.name===name) || list[0] || null;
+}
+function setVoiceName(n){ const p = getVoicePrefs(); p.voiceName = n; setVoicePrefs(p); voiceSpeak('Masa 34 sipariş bekliyor'); }
+try{ if(window.speechSynthesis) speechSynthesis.onvoiceschanged = () => { const el = document.getElementById('voiceNameSel'); if(el) el.outerHTML = voiceSelectHtml(); }; }catch(e){}
+function voiceSelectHtml(){
+  const list = voiceList(), cur = (voicePick() || {}).name;
+  if(!list.length) return '<select id="voiceNameSel" style="width:auto;" disabled><option>Türkçe ses bulunamadı</option></select>';
+  return `<select id="voiceNameSel" style="width:auto;max-width:260px;" ${actOn('change','setVoiceName',['$value'])}>${list.map(v => `<option value="${escapeAttr(v.name)}" ${v.name===cur?'selected':''}>${escapeHtml(v.name.replace(/^(Microsoft|Google)\s*/,''))}${/natural|neural|online/i.test(v.name)?' ⭐':''}</option>`).join('')}</select>`;
 }
 function testVoice(type){ const t = VOICE_TYPES.find(x => x.id===type); if(t) voiceSpeak(t.sample); }
 function voiceTypeOf(view){ return VOICE_TYPES.some(t => t.id===view) ? view : 'other'; }
@@ -90,8 +108,9 @@ function voiceSettingsHtml(){
   return `<div class="box" style="max-width:none;">
     <h2>🗣️ Sesli ve Sesli Okunan Bildirimler</h2>
     <p class="muted" style="text-align:left;">Her bildirim türü için bu cihazda <b>zil sesi</b> çalınsın mı ve bildirim <b>sesli okunsun</b> mu (ör. “Masa 34 sipariş bekliyor”) seçin. Mutfakta ${VOICE_LATE_MIN} dakikayı geçen ürünler bir kez “gecikti” diye okunur.</p>
-    <div style="display:flex;align-items:center;gap:10px;margin:10px 0 14px;">${sw('*','enabled',p.enabled)}<b>Sesli bildirimler açık</b>
-      <span class="muted" style="margin-left:auto;font-size:12.5px;">Okuma hızı</span>
+    <div style="display:flex;align-items:center;gap:10px;margin:10px 0 14px;flex-wrap:wrap;">${sw('*','enabled',p.enabled)}<b>Sesli bildirimler açık</b>
+      <span class="muted" style="margin-left:auto;font-size:12.5px;">Ses</span>${voiceSelectHtml()}
+      <span class="muted" style="font-size:12.5px;">Hız</span>
       <select style="width:auto;" ${actOn('change','setVoiceOpt',['*','rate','$value'])}>
         ${[[0.8,'Yavaş'],[1,'Normal'],[1.2,'Hızlı']].map(([v,l]) => `<option value="${v}" ${p.rate==v?'selected':''}>${l}</option>`).join('')}
       </select></div>
@@ -105,5 +124,6 @@ function voiceSettingsHtml(){
       </div>`).join('')}
     </div>
     ${window.speechSynthesis ? '' : '<p class="muted" style="color:var(--danger);">Bu cihaz/tarayıcı sesli okumayı desteklemiyor.</p>'}
+    <p class="muted" style="font-size:12.5px;text-align:left;margin-top:10px;">Sesler cihazın kendi Türkçe okuma motorundan gelir. ⭐ işaretli “doğal” sesler en iyisidir: Windows'ta Microsoft Edge ya da Ayarlar › Zaman ve Dil › Konuşma'dan <b>Emel / Ahmet (Natural)</b>, Android'de “Google Konuşma Hizmetleri” Türkçe paketi önerilir.</p>
   </div>`;
 }
