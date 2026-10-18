@@ -1,10 +1,10 @@
 /* ---- Sesli bildirimler: rozetlere yeni bekleyen iş düştüğünde (ve mutfakta
    bir ürün 20 dk'yı geçtiğinde) cihaz Türkçe konuşarak duyurur, ör.
-   "Masa 34 sipariş bekliyor", "Masa 42: Adana, Köfte gecikti".
+   "Masa 34 sipariş verildi", "Masa 42: Adana, Köfte 20 dakikadır bekliyor".
    Ayarlar kişiye/cihaza özeldir (localStorage), veritabanına yazılmaz. ---- */
 const VOICE_TYPES = [
-  { id:'kitchen',      ic:'🍳', label:'Mutfağa yeni sipariş', sample:'Masa 34 sipariş bekliyor' },
-  { id:'late',         ic:'⏰', label:'Geciken mutfak siparişi', sample:'Masa 42: Adana, Köfte gecikti' },
+  { id:'kitchen',      ic:'🍳', label:'Mutfağa yeni sipariş', sample:'Masa 34 sipariş verildi' },
+  { id:'late',         ic:'⏰', label:'Bekleyen mutfak siparişi (20 dk)', sample:'Masa 42: Adana, Köfte 20 dakikadır bekliyor' },
   { id:'payments',     ic:'💳', label:'Ödeme / hesap bekleyen', sample:'Masa 12 hesap bekliyor' },
   { id:'packages',     ic:'📦', label:'Paket servis', sample:'Yeni paket siparişi' },
   { id:'reservations', ic:'📅', label:'Rezervasyon / bekleme listesi', sample:'Yeni rezervasyon' },
@@ -119,7 +119,7 @@ function voicePick(){
   const list = voiceList(), name = getVoicePrefs().voiceName.replace(/^cloud:.*/, '');
   return list.find(v => v.name===name) || list[0] || null;
 }
-function setVoiceName(n){ const p = getVoicePrefs(); p.voiceName = n; setVoicePrefs(p); VOICE_LAST.t = ''; VOICE_SHOW_ERR = true; voiceSpeak('Masa 34 sipariş bekliyor'); setTimeout(() => { VOICE_SHOW_ERR = false; }, 8000); }
+function setVoiceName(n){ const p = getVoicePrefs(); p.voiceName = n; setVoicePrefs(p); VOICE_LAST.t = ''; VOICE_SHOW_ERR = true; voiceSpeak('Masa 34 sipariş verildi'); setTimeout(() => { VOICE_SHOW_ERR = false; }, 8000); }
 try{ if(window.speechSynthesis) speechSynthesis.onvoiceschanged = () => { const el = document.getElementById('voiceNameSel'); if(el) el.outerHTML = voiceSelectHtml(); }; }catch(e){}
 function voiceSelectHtml(){
   const list = voiceList(), pn = getVoicePrefs().voiceName;
@@ -138,12 +138,12 @@ function voiceTableName(x){ const t = String(x.table || '').trim(); return t ? (
 function voiceTextFor(type, items){
   if(type==='kitchen'){
     const tables = [...new Set(items.map(voiceTableName).filter(Boolean))];
-    return tables.length ? tables.join(', ') + ' sipariş bekliyor' : 'Yeni mutfak siparişi';
+    return tables.length ? tables.join(', ') + ' sipariş verildi' : 'Yeni sipariş verildi';
   }
   if(type==='late'){
     const byT = {};
     items.forEach(x => { const k = voiceTableName(x) || 'Bir masa'; (byT[k] = byT[k] || []).push(x.name || 'ürün'); });
-    return Object.entries(byT).map(([t, ns]) => t + ': ' + [...new Set(ns)].join(', ') + ' gecikti').join('. ');
+    return Object.entries(byT).map(([t, ns]) => t + ': ' + [...new Set(ns)].join(', ') + ' ' + VOICE_LATE_MIN + ' dakikadır bekliyor').join('. ');
   }
   const t = VOICE_TYPES.find(x => x.id===type);
   return items.length===1 && items[0].label ? items[0].label : (t ? t.sample : 'Yeni bildirim');
@@ -167,7 +167,7 @@ function processVoiceBadges(data, visibleViews){
   visibleViews.forEach(v => (items[v] || []).forEach(x => {
     const key = v + ':' + (x.id || x.label);
     ids.add(key);
-    if(VOICE_SEEN && !VOICE_SEEN.has(key) && !(v==='kitchen' && voiceIsSelf(x))) (fresh[voiceTypeOf(v)] = fresh[voiceTypeOf(v)] || []).push(x);
+    if(VOICE_SEEN && !VOICE_SEEN.has(key)) (fresh[voiceTypeOf(v)] = fresh[voiceTypeOf(v)] || []).push(x);
   }));
   const late = [];
   (items.kitchen || []).forEach(x => {
@@ -193,7 +193,7 @@ function voiceSettingsHtml(){
   const sw = (type, key, on) => `<input type="checkbox" class="sw" ${on?'checked':''} ${actOn('change','setVoiceOpt',[type, key, '$checked'])}>`;
   return `<div class="box" style="max-width:none;">
     <h2>🗣️ Sesli ve Sesli Okunan Bildirimler</h2>
-    <p class="muted" style="text-align:left;">Her bildirim türü için bu cihazda <b>zil sesi</b> çalınsın mı ve bildirim <b>sesli okunsun</b> mu (ör. “Masa 34 sipariş bekliyor”) seçin. Mutfakta ${VOICE_LATE_MIN} dakikayı geçen ürünler bir kez “gecikti” diye okunur.</p>
+    <p class="muted" style="text-align:left;">Her bildirim türü için bu cihazda <b>zil sesi</b> çalınsın mı ve bildirim <b>sesli okunsun</b> mu (ör. “Masa 34 sipariş verildi”) seçin. Mutfakta ${VOICE_LATE_MIN} dakikayı geçen ürünler bir kez “… dakikadır bekliyor” diye okunur.</p>
     <div style="display:flex;align-items:center;gap:10px;margin:10px 0 14px;flex-wrap:wrap;">${sw('*','enabled',p.enabled)}<b>Sesli bildirimler açık</b>
       <span class="muted" style="margin-left:auto;font-size:12.5px;">Ses</span>${voiceSelectHtml()}
       <span class="muted" style="font-size:12.5px;">Hız</span>
