@@ -775,6 +775,20 @@ end $$;
 
 
 --
+-- Name: _link_order_review(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public._link_order_review(p_history_id uuid) RETURNS void
+    LANGUAGE sql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+  update reviews rv set sales_history_id = sh.id, customer_id = coalesce(rv.customer_id, sh.customer_id), staff_user_id = coalesce(rv.staff_user_id, sh.staff_user_id)
+    from sales_history sh where sh.id = p_history_id and rv.order_id = sh.order_id and rv.sales_history_id is null
+      and not exists(select 1 from reviews x where x.sales_history_id = sh.id);
+$$;
+
+
+--
 -- Name: _log_cancel2(uuid, uuid, uuid, text, integer, text, text, numeric, boolean); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -3758,6 +3772,7 @@ begin
   s := _session_check(p_token, 'payments');
   select * into h from sales_history where id = p_history_id and restaurant_id = s.restaurant_id;
   if h.id is null then raise exception 'Hesap bulunamadı'; end if;
+  perform _link_order_review(h.id);
   insert into reviews(restaurant_id, sales_history_id, customer_id, table_name, staff_user_id)
     values (s.restaurant_id, h.id, h.customer_id, h.table_name, h.staff_user_id)
     on conflict (sales_history_id) do nothing;
@@ -5900,21 +5915,29 @@ end $$;
 CREATE FUNCTION public.get_table_review(p_qr_token uuid) RETURNS json
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public', 'extensions', 'pg_temp'
-    AS $$ declare v_t restaurant_tables%rowtype; h sales_history%rowtype; v_tok uuid; v_rated boolean;
+    AS $$ declare v_t restaurant_tables%rowtype; h sales_history%rowtype; o orders%rowtype; v_tok uuid; v_rated boolean;
 begin
-  -- Masa QR menüsü: masanın son 2 saatte tamamen ödenmiş hesabı varsa değerlendirme linki döner.
+  -- Masa QR menüsü: masada açık hesap varsa (yemek sırasında) ya da son 2 saatte ödenmiş hesap varsa değerlendirme linki döner.
   select * into v_t from restaurant_tables where qr_token = p_qr_token;
   if v_t.id is null then return null; end if;
-  select sh.* into h from sales_history sh join orders o on o.id = sh.order_id
-   where o.table_id = v_t.id and o.status = 'closed' and sh.closed_at > now() - interval '2 hours'
+  select * into o from orders where table_id = v_t.id and status = 'open' order by created_at desc limit 1;
+  if o.id is not null then
+    insert into reviews(restaurant_id, order_id, table_name, staff_user_id)
+      values (o.restaurant_id, o.id, v_t.name, o.created_by) on conflict (order_id) do nothing;
+    select token, rating is not null into v_tok, v_rated from reviews where order_id = o.id;
+    if v_rated then return null; end if;
+    return json_build_object('token', v_tok);
+  end if;
+  select sh.* into h from sales_history sh join orders o2 on o2.id = sh.order_id
+   where o2.table_id = v_t.id and o2.status = 'closed' and sh.closed_at > now() - interval '2 hours'
    order by sh.closed_at desc limit 1;
   if h.id is null then return null; end if;
+  perform _link_order_review(h.id);
+  if exists(select 1 from reviews where order_id = h.order_id and rating is not null) then return null; end if;
   insert into reviews(restaurant_id, sales_history_id, customer_id, table_name, staff_user_id)
     values (h.restaurant_id, h.id, h.customer_id, h.table_name, h.staff_user_id) on conflict (sales_history_id) do nothing;
   select token, rating is not null into v_tok, v_rated from reviews where sales_history_id = h.id;
   if v_rated then return null; end if;
-  -- Masada yeni bir hesap açıldıysa (yeni müşteri) eski hesabın değerlendirmesi gösterilmez.
-  if exists(select 1 from orders where table_id = v_t.id and status = 'open' and created_at > h.closed_at) then return null; end if;
   return json_build_object('token', v_tok);
 end $$;
 
@@ -12049,6 +12072,7 @@ CREATE TABLE public.reviews (
     seen boolean DEFAULT false NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     rated_at timestamp with time zone,
+    order_id uuid,
     CONSTRAINT reviews_rating_check CHECK (((rating >= 1) AND (rating <= 5)))
 );
 
@@ -13946,6 +13970,13 @@ CREATE UNIQUE INDEX restaurants_phone_unique ON public.restaurants USING btree (
 
 
 --
+-- Name: reviews_order_id_key; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX reviews_order_id_key ON public.reviews USING btree (order_id);
+
+
+--
 -- Name: reviews_rest; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -15097,6 +15128,14 @@ ALTER TABLE ONLY public.restaurant_tables
 
 ALTER TABLE ONLY public.restaurants
     ADD CONSTRAINT restaurants_company_id_fkey FOREIGN KEY (company_id) REFERENCES public.companies(id) ON DELETE SET NULL;
+
+
+--
+-- Name: reviews reviews_order_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.reviews
+    ADD CONSTRAINT reviews_order_id_fkey FOREIGN KEY (order_id) REFERENCES public.orders(id) ON DELETE SET NULL;
 
 
 --
