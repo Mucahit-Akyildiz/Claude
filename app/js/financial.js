@@ -316,7 +316,8 @@ async function renderReportContent(session){
     hourStats[hr].count += 1;
     hourStats[hr].revenue += Number(o.total);
   });
-  taggedHist.forEach(o => { taggedTotal += Number(o.total); });
+  // İkram hesapları ödemesiz kapandığında tutarı 0 yazılır; ikram değeri ürünlerin toplamıdır (subtotal).
+  taggedHist.forEach(o => { taggedTotal += Number(o.subtotal != null && Number(o.subtotal) > 0 ? o.subtotal : o.total) || 0; });
   hist.forEach(o => { totalCash += Number(o.cash_amount||0); totalCard += Number(o.card_amount||0); totalGiftCard += Number(o.gift_card_amount||0); totalTip += Number(o.tip_amount||0); });
   const profit = totalRevenue - totalCost;
 
