@@ -5179,6 +5179,29 @@ end $$;
 
 
 --
+-- Name: get_payroll(uuid, date, date); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.get_payroll(p_token uuid, p_date date, p_date_to date) RETURNS json
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'extensions', 'pg_temp'
+    AS $$ declare s staff_sessions%rowtype; f timestamptz; t timestamptz;
+begin
+  s := _session_check(p_token, 'reports');
+  f := p_date::timestamp at time zone 'Europe/Istanbul';
+  t := (coalesce(p_date_to, p_date) + 1)::timestamp at time zone 'Europe/Istanbul';
+  return coalesce((select json_agg(x order by x.username) from (
+    select au.id, au.username, au.is_active, au.hourly_wage, au.commission_pct,
+      coalesce((select sum(_shift_worked_seconds(sh)) from staff_shifts sh where sh.user_id = au.id and sh.status in ('approved','ended','closed') and sh.clock_in >= f and sh.clock_in < t), 0) / 3600.0 as hours,
+      coalesce((select count(*) from staff_shifts sh where sh.user_id = au.id and sh.status in ('approved','ended','closed') and sh.clock_in >= f and sh.clock_in < t), 0) as shifts,
+      coalesce((select sum(total) from sales_history h where h.staff_user_id = au.id and h.closed_at >= f and h.closed_at < t), 0) as sales,
+      coalesce((select count(*) from sales_history h where h.staff_user_id = au.id and h.closed_at >= f and h.closed_at < t), 0) as checks,
+      coalesce((select sum(tip_amount) from sales_history h where h.staff_user_id = au.id and h.closed_at >= f and h.closed_at < t), 0) as tips
+    from app_users au where au.restaurant_id = s.restaurant_id) x), '[]'::json);
+end $$;
+
+
+--
 -- Name: get_period_analytics(uuid, date, date); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -8950,6 +8973,22 @@ end; $$;
 
 
 --
+-- Name: set_staff_pay(uuid, uuid, numeric, numeric); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.set_staff_pay(p_token uuid, p_user_id uuid, p_hourly_wage numeric, p_commission_pct numeric) RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'extensions', 'pg_temp'
+    AS $$ declare s staff_sessions%rowtype;
+begin
+  s := _session_check(p_token, 'reports');
+  if coalesce(p_hourly_wage,0) < 0 or coalesce(p_commission_pct,0) < 0 or coalesce(p_commission_pct,0) > 50 then raise exception 'Geçersiz değer (prim %%0-50)'; end if;
+  update app_users set hourly_wage = nullif(p_hourly_wage,0), commission_pct = nullif(p_commission_pct,0) where id = p_user_id and restaurant_id = s.restaurant_id;
+  if not found then raise exception 'Kullanıcı bulunamadı'; end if;
+end $$;
+
+
+--
 -- Name: set_staff_user_active(uuid, uuid, boolean); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -10886,6 +10925,8 @@ CREATE TABLE public.app_users (
     role_ids uuid[] DEFAULT '{}'::uuid[] NOT NULL,
     is_company_owner boolean DEFAULT false NOT NULL,
     is_active boolean DEFAULT true NOT NULL,
+    hourly_wage numeric,
+    commission_pct numeric,
     CONSTRAINT role_ids_len CHECK (((array_length(role_ids, 1) >= 1) AND (array_length(role_ids, 1) <= 2)))
 );
 
