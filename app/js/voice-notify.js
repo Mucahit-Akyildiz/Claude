@@ -126,26 +126,54 @@ function voiceStop(){
   try{ if(VOICE_AUDIO){ VOICE_AUDIO.pause(); VOICE_AUDIO = null; } }catch(e){}
   try{ if(window.speechSynthesis) speechSynthesis.cancel(); }catch(e){}
 }
+// Bildirimler sıraya alınır: biri bitmeden diğeri başlamaz (üst üste binmesin).
+const VOICE_QUEUE = []; let VOICE_BUSY = false;
 function voiceSpeak(text){
   // Aynı cümle 4 sn içinde ikinci kez gelirse (ör. aynı anda iki tetikleme) tekrar okunmaz.
-  if(text===VOICE_LAST.t && Date.now() - VOICE_LAST.at < 4000) return;
+  if(!text || (text===VOICE_LAST.t && Date.now() - VOICE_LAST.at < 4000) || VOICE_QUEUE.includes(text)) return;
   VOICE_LAST = { t: text, at: Date.now() };
+  if(VOICE_QUEUE.length >= 6) VOICE_QUEUE.shift();
+  VOICE_QUEUE.push(text);
+  voiceNext();
+}
+async function voiceNext(){
+  if(VOICE_BUSY || !VOICE_QUEUE.length) return;
+  VOICE_BUSY = true;
+  const text = VOICE_QUEUE.shift();
+  try{ await voicePlayOne(text); }catch(e){}
+  setTimeout(() => { VOICE_BUSY = false; voiceNext(); }, 400);
+}
+async function voicePlayOne(text){
   const name = getVoicePrefs().voiceName;
   const cloud = name.startsWith('cloud:') ? name.slice(6) : (!name && VOICE_CLOUD ? 'emel' : null);
-  if(cloud && VOICE_CLOUD !== false){ voiceCloudPlay(text, cloud).catch((e) => { VOICE_LAST_ERR = String((e && e.message) || e); voiceDeviceSpeak(text); if(VOICE_SHOW_ERR) showToast('⚠️ Doğal ses çalınamadı, cihaz sesi kullanıldı: ' + VOICE_LAST_ERR, 7000); }); return; }
-  voiceDeviceSpeak(text);
+  if(cloud && VOICE_CLOUD !== false){
+    try{ await voiceCloudPlay(text, cloud); return await voiceWaitEnd(30000); }
+    catch(e){ VOICE_LAST_ERR = String((e && e.message) || e); if(VOICE_SHOW_ERR) showToast('⚠️ Doğal ses çalınamadı, cihaz sesi kullanıldı: ' + VOICE_LAST_ERR, 7000); }
+  }
+  return voiceDeviceSpeak(text);
+}
+// Çalan bulut sesinin bitmesini bekler (en fazla ms).
+function voiceWaitEnd(ms){
+  return new Promise(res => {
+    const t0 = Date.now();
+    const iv = setInterval(() => { if(!VOICE_AUDIO || VOICE_AUDIO.paused || VOICE_AUDIO.ended || Date.now() - t0 > ms){ clearInterval(iv); res(); } }, 200);
+  });
 }
 function voiceDeviceSpeak(text){
-  try{
-    if(VOICE_AUDIO && !VOICE_AUDIO.paused) return;
-    if(window.speechSynthesis) speechSynthesis.cancel();
-    if(!window.speechSynthesis || !text) return;
-    const u = new SpeechSynthesisUtterance(text);
-    u.lang = 'tr-TR'; u.rate = getVoicePrefs().rate;
-    const v = voicePick();
-    if(v) u.voice = v;
-    speechSynthesis.speak(u);
-  }catch(e){}
+  return new Promise(res => {
+    try{
+      if(!window.speechSynthesis || !text) return res();
+      speechSynthesis.cancel();
+      const u = new SpeechSynthesisUtterance(text);
+      u.lang = 'tr-TR'; u.rate = getVoicePrefs().rate;
+      const v = voicePick();
+      if(v) u.voice = v;
+      const done = () => { clearTimeout(to); res(); };
+      const to = setTimeout(res, Math.max(6000, text.length * 120));
+      u.onend = done; u.onerror = done;
+      speechSynthesis.speak(u);
+    }catch(e){ res(); }
+  });
 }
 /* Cihazdaki Türkçe sesler; doğal (neural/online) sesler öne alınır. */
 function voiceList(){

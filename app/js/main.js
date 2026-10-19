@@ -331,8 +331,16 @@ function startNavBadges(){
   // açık ekranlara da yenileme gerekmeden yansısın).
   // Rozetler (ve onlara bağlı sesli bildirimler: 20 dk gecikme, gel-al saati, rezervasyon hatırlatma)
   // 10 sn'de bir; sekme arka plandayken de devam eder ki bildirim gecikmesin.
-  NAV_BADGE_TIMER = setInterval(() => { if(!getSession()) return; refreshNavBadges(); if(document.visibilityState==='visible') syncMyPermissions(); }, 10000);
+  const navTick = () => { if(!getSession()) return; refreshNavBadges(); if(document.visibilityState==='visible') syncMyPermissions(); };
+  // Arka plan sekmesinde de zamanında çalışsın diye worker zamanlayıcısı; yoksa normal setInterval.
+  try{
+    if(!window.NAV_TICK_WORKER && window.Worker){ window.NAV_TICK_WORKER = new Worker('/app/js/tick-worker.js'); }
+    if(window.NAV_TICK_WORKER){ window.NAV_TICK_WORKER.onmessage = navTick; window.NAV_TICK_WORKER.postMessage({ ms: 10000 }); }
+    else NAV_BADGE_TIMER = setInterval(navTick, 10000);
+  }catch(e){ NAV_BADGE_TIMER = setInterval(navTick, 10000); }
 }
+// Sekmeye geri dönülünce beklemeden güncel bildirimler alınır.
+document.addEventListener('visibilitychange', () => { if(!document.hidden && getSession()) refreshNavBadges(); });
 /* ---- Çoklu kullanımda canlı ekran: veritabanındaki her değişiklik işletmenin
    sayaç değerini artırır (bkz. _bump_data_version). Açık ekran 3 sn'de bir bu
    değere bakar; değişmişse rozetleri tazeler ve - kullanıcı bir form

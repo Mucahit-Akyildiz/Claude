@@ -1003,6 +1003,7 @@ async function renderOrderView(main, session){
   }
   APP.config = cfgRes.data;
   APP.liveOrders = liveRes.data || [];
+  if(!statusEl.isConnected) return; // yanıt gelmeden başka ekrana geçildi
   statusEl.textContent = '';
   if(!APP.config.zones || APP.config.zones.length===0){
     document.getElementById('tableGrid').innerHTML = '<p class="muted">Henüz bölge/masa eklenmemiş.</p>';

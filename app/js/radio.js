@@ -220,7 +220,7 @@ function radioBusyBy(){
   const me = getSession();
   return RADIO.floor && me && RADIO.floor.u !== me.user_id ? RADIO.floor : null;
 }
-const RADIO_BUILD = 'r9';
+const RADIO_BUILD = 'r10';
 function radioLog(msg){ try{ if(typeof reportClientError === 'function') reportClientError('radio', msg + ' | ' + RADIO_BUILD, 'radio.js'); }catch(e){} }
 async function radioStartTalk(){
   if(RADIO.talking) return;
@@ -619,7 +619,9 @@ function radioScheduleReconnect(reason, delay){
     if(!RADIO.channel || RADIO.talking) return;
     if(radioChannelHealthy() && !/ön plana|internet/.test(reason)) return; // bu arada düzeldiyse dokunma
     RADIO_LAST_RECONNECT = Date.now(); RADIO_RECONNECT_FAILS++; RADIO_JOINING_SINCE = 0;
-    radioLog('bağlantı yenileniyor: ' + reason);
+    // Kendiliğinden düzelen kopmalar (arka plandan dönüş, internet geri gelmesi) hata değildir;
+    // yalnızca art arda 3 denemede bağlanamazsa Hatalar'a kaydedilir.
+    if(RADIO_RECONNECT_FAILS >= 3) radioLog('bağlantı kurulamıyor (' + RADIO_RECONNECT_FAILS + '. deneme): ' + reason);
     radioConnect(RADIO.channel.id, true);
   }, wait);
 }

@@ -7,10 +7,12 @@ async function renderKitchenView(main, session){
     const { data } = await withLoadingOverlay(sb.rpc('get_restaurant_config', { p_token: session.session_token }));
     APP.config = data;
   }
+  // Kayıtlı istasyon silinmişse (ya da yapılandırma yoksa) istasyon seçimine dönülür.
+  if(APP.kitchenStation && !((APP.config && APP.config.stations) || []).some(s => s.id===APP.kitchenStation)) APP.kitchenStation = null;
   if(!APP.kitchenStation){
     stopKitchenPolling();
     main.innerHTML = `<h1>Mutfak Ekranı</h1><p class="muted">İstasyon seçin</p><div class="home-grid">` +
-      APP.config.stations.map(s => `<div class="card" data-station-card="${s.id}" style="position:relative;border-left:4px solid ${s.color}" ${act('pickKitchenStation', s.id)}><div class="icon">${escapeHtml(s.icon||'🍳')}</div><h3>${escapeHtml(s.name)}</h3></div>`).join('') +
+      ((APP.config && APP.config.stations) || []).map(s => `<div class="card" data-station-card="${s.id}" style="position:relative;border-left:4px solid ${s.color}" ${act('pickKitchenStation', s.id)}><div class="icon">${escapeHtml(s.icon||'🍳')}</div><h3>${escapeHtml(s.name)}</h3></div>`).join('') +
       `</div>`;
     return;
   }
