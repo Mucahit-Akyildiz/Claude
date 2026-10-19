@@ -11,7 +11,7 @@ const SETTINGS_TABS = [
   { tab:'users', label:'Kullanıcılar & Vardiyalar', ico:'👥', desc:'Personel, vardiya' }, // alt sekmeler: Kullanıcılar, Aktif, Vardiyalar
   { tab:'roles', perm:'settings_roles', label:'Roller', ico:'🔑', desc:'Yetkiler' },
   { tab:'integrations', perm:'settings_integrations', label:'Entegrasyonlar', ico:'🔌', desc:'Platformlar, yazıcılar' },
-  { tab:'billing', label:'Abonelik & Hediye Kartları', ico:'💳', desc:'Plan, fatura, kartlar' }, // alt sekmeler
+  { tab:'billing', label:'Abonelik, Hediye Kartı & Kampanya', ico:'💳', desc:'Plan, fatura, kartlar, kuponlar' }, // alt sekmeler
   { tab:'security', label:'Güvenlik', ico:'🛡️', desc:'Destek, kayıt, sıfırlama' }, // alt sekmeler: Destek Erişimi, Değişiklik Kaydı, Veri Sıfırlama
 ];
 function settingsTabVisible(t, session){
@@ -19,7 +19,7 @@ function settingsTabVisible(t, session){
   if(t.tab==='users') return canManage(session, 'settings_users') || canManage(session, 'shifts');
   if(t.tab==='products') return canManage(session, 'settings_products') || canManage(session, 'settings_ingredients');
   if(t.tab==='security') return canManage(session, 'settings_support') || canManage(session, 'settings_audit') || canManage(session, 'settings_datareset');
-  if(t.tab==='billing') return canManage(session, 'settings_billing') || canManage(session, 'giftcards') || hasPerm(session, 'payments');
+  if(t.tab==='billing') return canManage(session, 'settings_billing') || canManage(session, 'giftcards') || hasPerm(session, 'payments') || canManage(session, 'crm');
   return t.managerOnly ? !!session.isManager : canManage(session, t.perm);
 }
 async function renderSettingsView(main, session){
@@ -28,7 +28,7 @@ async function renderSettingsView(main, session){
   APP.config = data;
   // Eski sekme adları (bildirimden/kayıtlı ekrandan gelebilir) yeni sekme + alt sekmeye çevrilir.
   const LEGACY_TABS = { shifts:['users','usersSubTab','shifts'], ingredients:['products','productsSubTab','ingredients'], floorplan:['zones','zonesSubTab','floorplan'],
-    giftcards:['billing','billingSubTab','giftcards'], datareset:['security','securitySubTab','datareset'], support:['security','securitySubTab','support'], audit:['security','securitySubTab','audit'] };
+    giftcards:['billing','billingSubTab','giftcards'], promos:['billing','billingSubTab','promos'], datareset:['security','securitySubTab','datareset'], support:['security','securitySubTab','support'], audit:['security','securitySubTab','audit'] };
   const lg = LEGACY_TABS[APP.settingsTab]; if(lg){ APP.settingsTab = lg[0]; APP[lg[1]] = lg[2]; }
   const visibleTabs = SETTINGS_TABS.filter(t => settingsTabVisible(t, session));
   if(!visibleTabs.some(t => t.tab===APP.settingsTab)) APP.settingsTab = visibleTabs.length ? visibleTabs[0].tab : null;
@@ -788,16 +788,25 @@ function setProductsSubTab(t){
   const el = document.getElementById('settingsContent');
   if(el) renderProductsTabWithSubtabs(el, getSession());
 }
-/* Abonelik & Hediye Kartları sekmesi: yetkiye göre iki alt sekme. */
+/* Kampanya & Kuponlar (Abonelik / Hediye Kartları'nın yanında): yönetim crm.js'teki renderPromoBody ile. */
+function renderPromosSettings(el){
+  APP.promoEdit = null;
+  el.innerHTML = `<div class="box" style="max-width:none;"><h2>🎟️ Kampanya & Kuponlar</h2>
+    <p class="muted" style="text-align:left;margin:-6px 0 14px;font-size:13px;">Kupon kodu ödeme ekranında İndirim bölümünden girilir; otomatik kampanyalar (happy hour) belirlenen gün ve saatte ödeme ekranında tek tıkla önerilir.</p>
+    <div id="promoBody"><p class="muted">Yükleniyor…</p></div></div>`;
+  renderPromoBody();
+}
+/* Abonelik & Hediye Kartları sekmesi: yetkiye göre alt sekmeler. */
 function billingBox(){ return document.getElementById('billingSubContent') || document.getElementById('settingsContent'); }
 function renderBillingTabWithSubtabs(el, session){
   const tabs = [
     canManage(session, 'settings_billing') ? { id:'billing', ic:'💳', label:'Abonelik' } : null,
     (canManage(session, 'giftcards') || hasPerm(session, 'payments')) ? { id:'giftcards', ic:'🎁', label:'Hediye Kartları' } : null,
+    canManage(session, 'crm') ? { id:'promos', ic:'🎟️', label:'Kampanya & Kuponlar' } : null,
   ].filter(Boolean);
   if(!tabs.length){ el.innerHTML = ''; return; }
   if(!tabs.some(t => t.id === APP.billingSubTab)) APP.billingSubTab = tabs[0].id;
-  const draw = (box) => APP.billingSubTab === 'giftcards' ? renderGiftCardsSettings(box, session) : renderBillingSettings(box, session);
+  const draw = (box) => APP.billingSubTab === 'giftcards' ? renderGiftCardsSettings(box, session) : APP.billingSubTab === 'promos' ? renderPromosSettings(box) : renderBillingSettings(box, session);
   if(tabs.length === 1){ draw(el); return; }
   el.innerHTML = `<div class="box sub-tabs-box" style="max-width:none;">
       <div class="sub-tabs">${tabs.map(t => `<div role="tab" tabindex="0" class="sub-tab ${APP.billingSubTab===t.id?'active':''}" ${act('setBillingSubTab', t.id)}><span class="sub-tab-ic">${t.ic}</span>${t.label}</div>`).join('')}</div>

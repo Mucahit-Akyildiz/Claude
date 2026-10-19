@@ -45,7 +45,7 @@ const assert = (c, m) => { if(!c) throw new Error(m); };
     page.on('pageerror', e => errors.push(e.message));
     await page.addInitScript(() => {
       sessionStorage.setItem('staff_session', JSON.stringify({ session_token: '0', user_id: 'u1', restaurant_id: 'r1', isManager: true, restaurant_name: 'TEST', username: 'test',
-        permissions: ['order','packages','payments','kitchen','reservations','crm','reports','purchasing','purchasing_reports','settings_users','settings_ingredients','printer_settings'] }));
+        permissions: ['order','packages','payments','kitchen','reservations','crm','reports','purchasing','purchasing_reports','settings_users','settings_ingredients','printer_settings','settings_billing'] }));
     });
     await page.goto(base + '/app/'); await page.waitForTimeout(1500);
     const view = async (v, sel) => { await page.evaluate(x => goToView(x), v); await page.waitForSelector(sel, { timeout: 8000 }); };
@@ -77,7 +77,7 @@ const assert = (c, m) => { if(!c) throw new Error(m); };
     });
     await check(T('Müşteriler + kampanyalar'), async () => {
       await view('crm', '.cu-grid, .empty-state');
-      await page.evaluate(() => openPromoSheet()); await page.waitForSelector('#promoSheet.open .pr-form', { timeout: 5000 }); await page.evaluate(() => closeSheet());
+      await page.evaluate(() => { document.getElementById('main').innerHTML = '<div id="tst"></div>'; renderPromosSettings(document.getElementById('tst')); }); await page.waitForSelector('#promoBody .pr-form', { timeout: 5000 });
     });
     await check(T('Satınalma Siparişleri + kritik stok'), async () => {
       await view('purchasing', '.ls-banner');
@@ -91,6 +91,21 @@ const assert = (c, m) => { if(!c) throw new Error(m); };
     await check(T('Ayarlar: hammaddeler ve kullanıcılar'), async () => {
       await page.evaluate(() => { document.getElementById('main').innerHTML = '<div id="tst"></div>'; renderIngredientsSettings(document.getElementById('tst'), getSession()); });
       await page.waitForSelector('.ig-grid'); await page.evaluate(() => openSheet('ingSheet')); await page.waitForSelector('#ingSheet.open #ni_name'); await page.evaluate(() => closeSheet());
+    });
+    await check(T('çevrimdışı: sipariş kuyruğa alınır, bağlantı gelince gönderilir'), async () => {
+      await view('order', '#zoneTabs');
+      await ctx.setOffline(true); await page.waitForTimeout(200);
+      await page.evaluate(() => openTableModal('t5')); await page.waitForSelector('.pp-card', { timeout: 8000 });
+      await page.click('.pp-card >> nth=1'); await page.waitForTimeout(200);
+      await page.click('#confirmBtn'); await page.waitForTimeout(800);
+      const q = await page.evaluate(() => outboxAll().length);
+      assert(q >= 1, 'çevrimdışı sipariş kuyruğa alınmadı (kuyruk: ' + q + ')');
+      assert(await page.$('#offlineBar'), 'çevrimdışı uyarı şeridi görünmedi');
+      await ctx.setOffline(false); await page.waitForTimeout(2500);
+      const left = await page.evaluate(() => outboxAll().length);
+      assert(left === 0, 'bağlantı gelince kuyruk boşalmadı (kalan: ' + left + ')');
+      assert(await page.evaluate(() => (window.__RPC_CALLS || []).includes('submit_offline_order')), 'sipariş sunucuya gönderilmedi');
+      await page.keyboard.press('Escape'); await page.waitForTimeout(300);
     });
     await check(T('F1 kısayol listesi'), async () => { await page.keyboard.press('F1'); await page.waitForSelector('#scHelp.open'); await page.keyboard.press('Escape'); });
     await check(T('sayfa hatası yok'), async () => { assert(errors.length === 0, errors.slice(0, 3).join(' | ')); });
