@@ -74,28 +74,12 @@ async function renderReservationsContent(session, forceRefresh){
       ['👥', todays.reduce((x, r) => x + (Number(r.party_size)||0), 0), 'Bugün beklenen kişi', 'var(--c2)', 'today'],
       ['⏳', rows.filter(r => r.status==='pending').length, 'Onay bekleyen', 'var(--c3)', 'pending'],
       ['⏭️', next ? new Date(next.reservation_time).toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'}) : '—', next ? 'Sıradaki: '+escapeHtml(next.customer_name) : 'Sıradaki yok', 'var(--c4)', next ? 'next' : '']
-    ], '', 'resv') + `<div class="box" style="max-width:none;">
-    <h2>Rezervasyonlar</h2>
-    <div class="add-row-panel" style="margin:0 0 16px;">
-      <p>Yeni Rezervasyon</p>
-      <div style="${INLINE_ROW}">
-        <div class="field-group" style="${fgStyle(170, 2)}"><label>Müşteri Adı</label><input style="margin:0;" id="rvCustName" placeholder="Ad veya kayıtlı müşteri ara" autocomplete="off" ${actOn('input','tableCustSearch',['$value', 'rvCust'])}></div>
-        <div class="field-group" style="${fgStyle(130)}"><label>Telefon</label><input style="margin:0;" id="rvCustPhone" placeholder="05xx..." inputmode="tel" autocomplete="off" ${actOn('input','tableCustSearch',['$value', 'rvCust'])}></div>
-        <div class="field-group" style="${fgStyle(160)}"><label>E-posta (hatırlatma)</label><input style="margin:0;" id="rvCustEmail" type="email" placeholder="opsiyonel" autocapitalize="none"></div>
-        <div class="field-group" style="${fgStyle(70)}"><label>Kişi</label><input style="margin:0;" id="rv_party" type="number" min="1" value="2"></div>
-        <div class="field-group" style="${fgStyle(190)}"><label>Tarih & Saat</label><input style="margin:0;" id="rv_time" type="datetime-local"></div>
-        <div class="field-group" style="${fgStyle(120)}"><label>Masa (opsiyonel)</label><select style="margin:0;" id="rv_table"><option value="">-</option>${tableOptionsHtml(null)}</select></div>
-        <div class="field-group" style="${fgStyle(160, 2)}"><label>Not</label><input style="margin:0;" id="rv_notes" placeholder="opsiyonel"></div>
-        <button style="${INLINE_BTN}" ${act('addReservation')}>+ Rezervasyon Ekle</button>
-      </div>
-      <div id="rvCustSuggest"></div>
-    </div>
-  </div>
-  <div class="box" style="max-width:none;margin-top:18px;">
-    <h2 style="margin:0 0 12px;">Yaklaşan Rezervasyonlar</h2><div data-cf-scope="resv">
+    ], '', 'resv') + `${sheetHtml('rvSheet', '📅', 'Yeni Rezervasyon', rvFormHtml(), 'var(--c1)')}
+  <div class="box" style="max-width:none;">
+    <div class="fsheet-bar" style="margin:0 0 12px;"><h2 style="margin:0;">Yaklaşan Rezervasyonlar</h2>${sheetBtnHtml('rvSheet','+ Yeni Rezervasyon')}</div><div data-cf-scope="resv">
     ${days.length ? days.map(k => `<div class="rv-day" data-cf-tags="${[...new Set(sorted.filter(r => dkey(r)===k).flatMap(r => rvTags(r).split(' ')))].join(' ')}"><div class="rv-day-h">${dayLabel(k)}<span class="muted">${sorted.filter(r => dkey(r)===k).length} rezervasyon</span></div>
       <div class="rv-list">${sorted.filter(r => dkey(r)===k).map(card).join('')}</div></div>`).join('')
-      : '<div class="empty-state"><div style="font-size:42px;">📅</div><p class="muted">Bekleyen ya da onaylı rezervasyon yok.</p></div>'}
+      : '<div class="empty-state rv-empty"><div class="om-empty-ic">📅</div><b>Yaklaşan rezervasyon yok</b><p class="muted">Yukarıdaki formdan birkaç dokunuşla yeni rezervasyon ekleyebilirsiniz.</p></div>'}
   </div></div>
   <div class="box" style="max-width:none;margin-top:18px;">
     <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;">
@@ -175,9 +159,11 @@ async function addReservation(){
   const timeVal = document.getElementById('rv_time').value;
   const tableId = document.getElementById('rv_table').value || null;
   const notes = document.getElementById('rv_notes').value.trim();
-  if(!name || !timeVal){ alert('Müşteri adı ve zaman gerekli'); return; }
+  if(!name || !timeVal){ alert(!name ? 'Müşteri adını yazın' : 'Gün ve saat seçin'); return; }
   const { error } = await sb.rpc('upsert_reservation', { p_token: session.session_token, p_id: null, p_customer_name: name, p_phone: phone||null, p_party_size: party, p_reservation_time: new Date(timeVal).toISOString(), p_table_id: tableId, p_notes: notes||null, p_email: email||null });
   if(error){ alert(error.message); return; }
+  APP.rvForm = null;
+  closeSheet('rvSheet');
   renderReservationsContent(session, true);
   showToast('Rezervasyon eklendi ✓');
 }
@@ -226,19 +212,23 @@ async function renderWaitlistContent(session, forceRefresh){
       ['🍽️', rows.filter(hasOrder).length, 'Beklerken sipariş veren', 'var(--c4)', 'ordered'],
       ...(est ? [['🎯', est.next <= 0 ? 'Hemen' : '≈ ' + est.next + ' dk', 'Yeni gelen için tahmini', 'var(--c1)']] : [])
     ], '', 'wl') + `<div class="box" style="max-width:none;">
-    <h2>Bekleme Listesi</h2>
-    <div class="add-row-panel" style="margin:0 0 16px;">
-      <p>Bekleme Listesine Ekle</p>
-      <div style="${INLINE_ROW}">
-        <div class="field-group" style="${fgStyle(170, 2)}"><label>Müşteri Adı</label><input style="margin:0;" id="wlCustName" placeholder="Ad veya kayıtlı müşteri ara" autocomplete="off" ${actOn('input','tableCustSearch',['$value', 'wlCust'])}></div>
-        <div class="field-group" style="${fgStyle(130)}"><label>Telefon</label><input style="margin:0;" id="wlCustPhone" placeholder="05xx..." inputmode="tel" autocomplete="off" ${actOn('input','tableCustSearch',['$value', 'wlCust'])}></div>
-        <div class="field-group" style="${fgStyle(160)}"><label>E-posta (bildirim)</label><input style="margin:0;" id="wlCustEmail" type="email" placeholder="opsiyonel" autocapitalize="none"></div>
-        <div class="field-group" style="${fgStyle(70)}"><label>Kişi</label><input style="margin:0;" id="wl_party" type="number" min="1" value="2"></div>
-        <div class="field-group" style="${fgStyle(120)}"><label>Tahmini Bekleme (dk)</label><input style="margin:0;" id="wl_wait" type="number" min="0" placeholder="${est && est.next != null ? est.next : 15}" value="${est && est.next > 0 ? est.next : ''}" title="Sistem tahmini: masaların ortalama kalış süresi ${est ? est.avg_stay : '—'} dk"></div>
-        <button style="${INLINE_BTN}" ${act('addWaitlistEntry')}>+ Ekle</button>
+    <div class="fsheet-bar" style="margin:0 0 12px;"><h2 style="margin:0;">Bekleme Listesi</h2>${sheetBtnHtml('wlSheet','+ Sıraya Ekle')}</div>
+    ${sheetHtml('wlSheet', '🧍', 'Bekleme Listesine Ekle', `
+      <div class="rvf-sec">
+        <div class="rvf-t">👤 Müşteri</div>
+        <input id="wlCustName" placeholder="Ad veya kayıtlı müşteri ara" autocomplete="off" ${actOn('input','tableCustSearch',['$value', 'wlCust'])}>
+        <div id="wlCustSuggest"></div>
+        <div class="rvf-2"><input id="wlCustPhone" placeholder="Telefon (SMS için)" inputmode="tel" autocomplete="off" ${actOn('input','tableCustSearch',['$value', 'wlCust'])}><input id="wlCustEmail" type="email" placeholder="E-posta (opsiyonel)" autocapitalize="none"></div>
       </div>
-      <div id="wlCustSuggest"></div>
-    </div>
+      <div class="rvf-sec">
+        <div class="rvf-t">👥 Kaç kişi</div>
+        <div class="rvf-chips">${[1,2,3,4,5,6,8].map(n => `<button type="button" class="rvf-chip rvf-n wl-pn ${n===2?'on':''}" ${act('setWlChip','wl_party',n,'$this')}>${n}</button>`).join('')}<input id="wl_party" class="rvf-pin" type="number" min="1" value="2"></div>
+      </div>
+      <div class="rvf-sec">
+        <div class="rvf-t">⏱ Tahmini bekleme (dk)${est ? ` <span class="muted" style="font-weight:400;">· sistem tahmini: ${est.next <= 0 ? 'hemen' : '≈ ' + est.next + ' dk'}</span>` : ''}</div>
+        <div class="rvf-chips">${[5,10,15,20,30,45].map(n => `<button type="button" class="rvf-chip rvf-n ${est && est.next===n?'on':''}" ${act('setWlChip','wl_wait',n,'$this')}>${n}</button>`).join('')}<input id="wl_wait" class="rvf-pin" type="number" min="0" placeholder="${est && est.next != null ? est.next : 15}" value="${est && est.next > 0 ? est.next : ''}"></div>
+      </div>
+      <div class="fsheet-foot"><button type="button" class="ghost-btn" ${act('closeSheet','wlSheet')}>Vazgeç</button><button ${act('addWaitlistEntry')}>🧍 Sıraya Ekle</button></div>`, 'var(--c2)')}
     ${rows.length ? `<div class="wl-list" data-cf-scope="wl">${rows.map((w, i) => `
       <div class="wl-card" data-cf-tags="${hasOrder(w) ? 'ordered' : 'noorder'}" data-badge-id="${w.id}" style="--i:${i};">
         <div class="wl-no">${i+1}</div>
@@ -259,7 +249,7 @@ async function renderWaitlistContent(session, forceRefresh){
           <button type="button" class="pc-btn rv-del" ${act('changeWaitlistStatus', w.id, 'cancelled')}>İptal</button>
         </div>
       </div>`).join('')}</div>`
-      : '<div class="empty-state"><div style="font-size:42px;">🧍</div><p class="muted">Bekleyen müşteri yok.</p></div>'}
+      : `<div class="empty-state rv-empty"><div class="om-empty-ic">🧍</div><b>Sırada bekleyen yok</b><p class="muted">Masa boşalmasını bekleyen müşteriyi eklemek için <b>+ Sıraya Ekle</b>.</p></div>`}
   </div>`;
   el.insertAdjacentHTML('beforeend', `<div class="box" style="max-width:none;margin-top:18px;">
     <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;">
@@ -374,6 +364,10 @@ function updateWaitlistTimers(){
     }
   });
 }
+function setWlChip(id, n, btn){
+  const inp = document.getElementById(id); if(inp) inp.value = n;
+  if(btn && btn.parentNode) btn.parentNode.querySelectorAll('.rvf-chip').forEach(b => b.classList.toggle('on', b === btn));
+}
 async function addWaitlistEntry(){
   const session = getSession();
   const name = document.getElementById('wlCustName').value.trim();
@@ -384,6 +378,7 @@ async function addWaitlistEntry(){
   if(!name){ alert('Müşteri adı gerekli'); return; }
   const { error } = await sb.rpc('add_waitlist_entry', { p_token: session.session_token, p_customer_name: name, p_phone: phone||null, p_party_size: party, p_quoted_wait_minutes: wait, p_email: email||null });
   if(error){ alert(error.message); return; }
+  closeSheet('wlSheet');
   renderWaitlistContent(session, true);
   showToast(email ? 'Bekleme listesine eklendi, müşteriye e-posta gönderildi ✓' : 'Bekleme listesine eklendi ✓');
 }
@@ -418,3 +413,58 @@ async function changeWaitlistStatus(id, status){
 function setRvHistDate(v){ APP.rvHistDate = v; renderReservationHistory(); }
 function setWlHistDate(v){ APP.wlHistDate = v; renderWaitlistHistory(); }
 function closeSeatResvModal(){ removeEl('seatResvModalBg'); renderReservationsContent(getSession()); }
+
+/* ---- Yeni rezervasyon formu: adım adım kartlar, gün / saat / kişi çipleri ---- */
+const RV_TIMES = ['12:00','13:00','14:00','18:00','19:00','19:30','20:00','20:30','21:00','22:00'];
+function rvFormHtml(){
+  const d0 = new Date(); d0.setHours(0,0,0,0);
+  const days = Array.from({ length: 7 }, (_, i) => { const d = new Date(d0); d.setDate(d.getDate() + i); return d; });
+  const iso = (d) => d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+  const dl = (d, i) => i === 0 ? 'Bugün' : i === 1 ? 'Yarın' : d.toLocaleDateString('tr-TR', { weekday:'short' });
+  APP.rvForm = APP.rvForm || { day: iso(days[0]), time: '', party: 2 };
+  const f = APP.rvForm;
+  return `<div class="rvf">
+    <div class="rvf-head"><span class="rvf-ic">✨</span><div><b>Yeni Rezervasyon</b><small>Gün, saat ve kişi sayısını seçin; müşteri bilgisini yazın</small></div></div>
+    <div class="rvf-grid">
+      <div class="rvf-sec">
+        <div class="rvf-t">👤 Müşteri</div>
+        <input id="rvCustName" placeholder="Ad Soyad veya kayıtlı müşteri ara" autocomplete="off" ${actOn('input','tableCustSearch',['$value', 'rvCust'])} ${actOn('change','rvSummary',[])}>
+        <div id="rvCustSuggest"></div>
+        <div class="rvf-2"><input id="rvCustPhone" placeholder="📞 Telefon" inputmode="tel" autocomplete="off" ${actOn('input','tableCustSearch',['$value', 'rvCust'])}>
+          <input id="rvCustEmail" type="email" placeholder="✉️ E-posta (hatırlatma)" autocapitalize="none"></div>
+      </div>
+      <div class="rvf-sec">
+        <div class="rvf-t">📅 Ne zaman?</div>
+        <div class="rvf-chips" id="rvDays">${days.map((d, i) => `<button type="button" class="rvf-chip rvf-day ${f.day===iso(d)?'on':''}" data-v="${iso(d)}" ${act('setRvDay', iso(d))}><b>${dl(d, i)}</b><small>${d.getDate()} ${d.toLocaleDateString('tr-TR',{month:'short'})}</small></button>`).join('')}</div>
+        <div class="rvf-chips" id="rvTimes">${RV_TIMES.map(t => `<button type="button" class="rvf-chip ${f.time===t?'on':''}" data-v="${t}" ${act('setRvTime', t)}>${t}</button>`).join('')}</div>
+        <div class="rvf-row"><span class="muted">veya</span><input id="rv_time" type="datetime-local" ${actOn('change','rvFromInput',['$value'])}></div>
+      </div>
+      <div class="rvf-sec">
+        <div class="rvf-t">👥 Kaç kişi?</div>
+        <div class="rvf-chips" id="rvParty">${[1,2,3,4,5,6,8,10].map(n => `<button type="button" class="rvf-chip rvf-n ${f.party===n?'on':''}" data-v="${n}" ${act('setRvParty', n)}>${n}</button>`).join('')}
+          <input id="rv_party" type="number" min="1" value="${f.party}" class="rvf-pin" ${actOn('input','setRvParty',['$value'])}></div>
+        <div class="rvf-t" style="margin-top:12px;">🪑 Masa ve not</div>
+        <div class="rvf-2"><select id="rv_table" ${actOn('change','rvSummary',[])}><option value="">Masa seçilmedi</option>${tableOptionsHtml(null)}</select>
+          <input id="rv_notes" placeholder="📝 Not (doğum günü, cam kenarı…)"></div>
+      </div>
+    </div>
+    <div class="rvf-foot"><div id="rvSummary" class="rvf-sum"></div><button type="button" class="rvf-save" ${act('addReservation')}>📅 Rezervasyonu Kaydet</button></div>
+  </div>`;
+}
+function rvApplyTime(){
+  const f = APP.rvForm || {}; const inp = document.getElementById('rv_time');
+  if(inp && f.day && f.time) inp.value = f.day + 'T' + f.time;
+  rvSummary();
+}
+function rvMark(boxId, v){ document.querySelectorAll('#' + boxId + ' .rvf-chip').forEach(b => b.classList.toggle('on', b.dataset.v === String(v))); }
+function setRvDay(v){ APP.rvForm.day = v; rvMark('rvDays', v); rvApplyTime(); }
+function setRvTime(v){ APP.rvForm.time = v; rvMark('rvTimes', v); rvApplyTime(); }
+function setRvParty(v){ const n = parseInt(v, 10); if(!(n > 0)) return; APP.rvForm.party = n; rvMark('rvParty', n); const i = document.getElementById('rv_party'); if(i && String(i.value) !== String(n)) i.value = n; rvSummary(); }
+function rvFromInput(v){ if(!v) return; const [d, t] = v.split('T'); APP.rvForm.day = d; APP.rvForm.time = (t || '').slice(0, 5); rvMark('rvDays', d); rvMark('rvTimes', APP.rvForm.time); rvSummary(); }
+function rvSummary(){
+  const el = document.getElementById('rvSummary'); if(!el) return;
+  const f = APP.rvForm || {}, name = (document.getElementById('rvCustName') || {}).value || '';
+  const tSel = document.getElementById('rv_table'), tName = tSel && tSel.value ? tSel.options[tSel.selectedIndex].text : '';
+  const when = f.day && f.time ? new Date(f.day + 'T' + f.time).toLocaleString('tr-TR', { weekday:'long', day:'numeric', month:'long', hour:'2-digit', minute:'2-digit' }) : '';
+  el.innerHTML = [name.trim() ? '👤 <b>' + escapeHtml(name.trim()) + '</b>' : '', when ? '📅 ' + escapeHtml(when) : '<span class="muted">Saat seçin</span>', '👥 ' + (f.party || 2) + ' kişi', tName ? '🪑 ' + escapeHtml(tName) : ''].filter(Boolean).join(' · ');
+}

@@ -474,3 +474,29 @@ document.addEventListener('click', (e) => {
     const sub = t.closest('.box'); if(sub && sub.nextElementSibling) paneAnim(sub.parentElement);
   }, 20);
 }, true);
+
+/* Açılır form penceresi: uzun ekleme formları sayfayı aşağı itmesin diye
+   sayfada yalnızca bir "+ Yeni" butonu durur; form bu pencerede açılır.
+   Form alanları DOM'da kaldığı için mevcut kaydet fonksiyonları id'lerle çalışır. */
+function sheetHtml(id, icon, title, body, tone){
+  return `<div class="fsheet" id="${id}" style="--t:${tone||'var(--accent)'};">
+    <button type="button" class="fsheet-bg" aria-label="Kapat" ${act('closeSheet', id)}></button>
+    <div class="fsheet-panel" role="dialog" aria-modal="true">
+      <div class="fsheet-head"><span class="fsheet-ic">${icon}</span><b id="${id}Title">${title}</b><button type="button" class="fsheet-x" title="Kapat" ${act('closeSheet', id)}>✕</button></div>
+      <div class="fsheet-body">${body}</div>
+    </div>
+  </div>`;
+}
+function sheetBtnHtml(id, label){
+  return `<button type="button" class="fsheet-open" ${act('openSheet', id)}>${label}</button>`;
+}
+function openSheet(id){
+  const el = document.getElementById(id); if(!el) return;
+  el.classList.add('open'); document.body.classList.add('fsheet-lock');
+  const f = el.querySelector('input:not([type=hidden]):not([type=checkbox]),select,textarea'); if(f && window.innerWidth > 600) setTimeout(() => f.focus(), 60);
+}
+function closeSheet(id){
+  const el = id ? document.getElementById(id) : document.querySelector('.fsheet.open'); if(el) el.classList.remove('open');
+  if(!document.querySelector('.fsheet.open')) document.body.classList.remove('fsheet-lock');
+}
+document.addEventListener('keydown', e => { if(e.key === 'Escape' && document.querySelector('.fsheet.open')) closeSheet(); });

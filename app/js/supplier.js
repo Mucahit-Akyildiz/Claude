@@ -123,18 +123,16 @@ async function renderPurchaseOrdersContent(session){
   const pf = APP.poFilter || 'all';
   const shown = pf==='all' ? rows : pf==='late' ? rows.filter(isLate) : rows.filter(p => p.status===pf);
   el.innerHTML = `
-  <div class="fs-panel pa-sec po-new" style="--t:var(--accent);">
-    <h3><i>🛒</i>Yeni Sipariş</h3>
-    <p class="muted" style="text-align:left;margin:0 0 12px;font-size:13px;">İhtiyaç duyduğunuz hammaddeleri ve miktarları girip <b>Sipariş Ver</b>'e basın. Birim fiyat ve teslim alma <b>Satınalma</b> menüsünden yapılır.</p>
-      <div style="${INLINE_ROW}">
-        <div class="field-group" style="${fgStyle(180, 2)}"><label>Tedarikçi</label><select id="po_supplier" style="margin:0;"><option value="">-</option>${suppliers.map(s => `<option value="${s.id}">${escapeHtml(s.name)}</option>`).join('')}</select></div>
-        <div class="field-group" style="${fgStyle(140)}"><label>Beklenen Tarih</label><input id="po_expected" type="date" style="margin:0;"></div>
-        <div class="field-group" style="${fgStyle(200, 2)}"><label>Not</label><input id="po_notes" placeholder="opsiyonel" style="margin:0;"></div>
-        <button type="button" class="ghost-btn" style="${INLINE_BTN}" ${act('addPoDraftItemRow')}>+ Hammadde Ekle</button>
-        <button style="${INLINE_BTN}" ${act('createPurchaseOrder')}>Sipariş Ver</button>
+  <div class="fsheet-bar" style="margin:0 0 14px;"><p class="muted" style="margin:0;font-size:13px;text-align:left;">Hammadde ihtiyacınızı tedarikçiye sipariş olarak iletin.</p>${sheetBtnHtml('poSheet','🛒 Yeni Sipariş')}</div>
+  ${sheetHtml('poSheet', '🛒', 'Yeni Sipariş', `<p class="muted" style="text-align:left;margin:0 0 12px;font-size:13px;">İhtiyaç duyduğunuz hammaddeleri ve miktarları girip <b>Sipariş Ver</b>'e basın. Birim fiyat ve teslim alma <b>Satınalma</b> menüsünden yapılır.</p>
+      <div class="fsheet-grid">
+        <div class="field-group"><label>Tedarikçi</label><select id="po_supplier"><option value="">-</option>${suppliers.map(s => `<option value="${s.id}">${escapeHtml(s.name)}</option>`).join('')}</select></div>
+        <div class="field-group"><label>Beklenen Tarih</label><input id="po_expected" type="date"></div>
+        <div class="field-group wide"><label>Not</label><input id="po_notes" placeholder="opsiyonel"></div>
       </div>
-      <div id="poItemsWrap" style="margin-top:10px;">${renderPoDraftItemsHtml()}</div>
-  </div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin:16px 0 8px;"><b style="font-size:14px;">📦 Hammaddeler</b><button type="button" class="ghost-btn" style="width:auto;margin:0;" ${act('addPoDraftItemRow')}>+ Hammadde Ekle</button></div>
+      <div id="poItemsWrap">${renderPoDraftItemsHtml()}</div>
+      <div class="fsheet-foot"><button type="button" class="ghost-btn" ${act('closeSheet','poSheet')}>Vazgeç</button><button ${act('createPurchaseOrder')}>🛒 Sipariş Ver</button></div>`, 'var(--accent)')}
   ${statChipsClick([['all','📋', rows.length, 'Tüm siparişler', 'var(--c1)'], ['ordered','🚚', cnt('ordered'), 'Teslim bekliyor', '#f59e0b'],
       ['late','⏰', rows.filter(isLate).length, 'Gecikmiş', 'var(--danger,#ef4444)'], ['received','✅', cnt('received'), 'Teslim alındı', 'var(--ok,#22c55e)']], pf, 'setPoFilter')}
   <div class="fs-panel pa-sec" style="--t:#f59e0b;">
@@ -186,6 +184,7 @@ async function createPurchaseOrder(){
   const { error } = await sb.rpc('upsert_purchase_order', { p_token: session.session_token, p_id: null, p_supplier_id: supplierId, p_expected_date: expected, p_notes: notes, p_items: items });
   if(error){ alert(error.message); return; }
   APP.poDraftItems = [];
+  closeSheet('poSheet');
   renderPurchaseOrdersContent(session);
   showToast('Sipariş verildi ✓');
 }

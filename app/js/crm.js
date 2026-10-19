@@ -10,50 +10,18 @@ async function renderCrmView(main, session){
   main.innerHTML = `<h1>Müşteriler</h1>
     ${statChips([['👥', rows.length, APP.crmSearch ? 'Aramada bulunan' : 'Kayıtlı müşteri', 'var(--c1)', 'all'], ['⭐', rows.reduce((x, c) => x + (Number(c.points_balance)||0), 0), 'Toplam puan', 'var(--c3)', 'pts'],
       ['🎂', bdays, '30 gün içinde doğum günü', 'var(--c2)', 'bday'], ['💎', rows.filter(c => (Number(c.points_balance)||0) >= 200).length, 'Altın ve üstü müşteri', 'var(--c4)', 'gold']], '', 'crm')}
-    ${canManage(session, 'crm') ? `
-    <div class="box" style="max-width:none;">
-      <h2>Sadakat Programı</h2>
-      <div style="${INLINE_ROW}">
-        <label style="display:flex;align-items:center;gap:8px;font-weight:600;margin:0 0 10px;flex:0 0 auto;">
-          <input type="checkbox" id="loy_enabled" ${loyalty.enabled?'checked':''} style="width:auto;margin:0;"> Sadakat puanları aktif
-        </label>
-        <div class="field-group" style="${fgStyle(150)}"><label>Kaç TL harcamada 1 puan</label><input id="loy_spend" type="number" min="1" step="0.01" value="${loyalty.spend_per_point}" style="margin:0;"></div>
-        <div class="field-group" style="${fgStyle(150)}"><label>1 puan kaç TL indirim</label><input id="loy_value" type="number" min="0" step="0.01" value="${loyalty.point_value}" style="margin:0;"></div>
-        <div class="field-group" style="${fgStyle(150)}"><label>🎂 Doğum günü indirimi (%)</label><input id="loy_birthday_pct" type="number" min="0" max="100" step="1" value="${loyalty.birthday_discount_percent||0}" style="margin:0;"></div>
-        <button style="${INLINE_BTN}" ${act('saveLoyaltySettings')}>${ICON_SAVE}<span>Kaydet</span></button>
-      </div>
-      <p class="muted" style="font-size:12px;margin:8px 0 0;text-align:left;">Müşterinin doğum günü kaydedilmişse, o gün ödeme alırken bu yüzde otomatik indirim olarak uygulanır (0 = kapalı).</p>
-    </div>` : ''}
     <div class="box" style="max-width:none;">
       <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
         <h2 style="margin:0;">Müşteri Listesi</h2>
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:nowrap;flex:1 1 auto;justify-content:flex-end;min-width:0;">
+          <button type="button" class="fsheet-open" style="flex:0 0 auto;" ${act('newCustomer')}>+ Yeni Müşteri</button>
           <input id="crmSearchInput" placeholder="İsim veya telefon ara..." style="flex:0 1 260px;min-width:120px;width:auto;margin:0;" value="${escapeAttr(APP.crmSearch||'')}" ${actOn('input', 'debouncedCrmSearch', ['$value'])}>
+          ${canManage(session, 'crm') ? `<button type="button" class="ghost-btn" style="width:auto;flex:0 0 auto;white-space:nowrap;margin:0;" ${act('openSheet','crmLoySheet')} title="Puan ve doğum günü indirimi ayarları">⭐ Sadakat${loyalty.enabled ? '' : ' (kapalı)'}</button>` : ''}
           <button type="button" class="ghost-btn" style="width:auto;flex:0 0 auto;white-space:nowrap;margin:0;" ${act('exportCustomersCsv')} title="Tüm müşterileri Excel'de açılabilen CSV olarak indir">⬇️ Dışa aktar</button>
           ${canManage(session, 'crm') ? `<button type="button" class="ghost-btn" style="width:auto;flex:0 0 auto;white-space:nowrap;margin:0;" ${act('openCustomerImport')} title="CSV dosyasından müşteri yükle">⬆️ İçe aktar</button>` : ''}
         </div>
       </div>
       <p class="muted" style="font-size:12px;margin:6px 0 10px;text-align:left;">Harcama/ziyaret/doğum günü gibi detaylı analizler için <b>Finansal Analiz &gt; Müşteri Analizleri</b> sekmesine bakın.</p>
-      <div class="add-row-panel" style="margin:0 0 16px;">
-        <p id="crmFormTitle">Yeni Müşteri Ekle</p>
-        <input type="hidden" id="crm_edit_id">
-        <div style="${INLINE_ROW}">
-          <div class="field-group" style="${fgStyle(170, 2)}"><label>Ad Soyad</label><input id="crm_name" placeholder="örn. Ahmet Yılmaz" style="margin:0;"></div>
-          <div class="field-group" style="${fgStyle(130)}"><label>Telefon</label><input id="crm_phone" placeholder="05xx..." style="margin:0;"></div>
-          <div class="field-group" style="${fgStyle(160)}"><label>E-posta</label><input id="crm_email" placeholder="opsiyonel" style="margin:0;"></div>
-          <div class="field-group" style="${fgStyle(140)}"><label>🎂 Doğum Günü</label><input id="crm_birthday" type="date" style="margin:0;"></div>
-          <div class="field-group" style="${fgStyle(160, 2)}"><label>Not</label><input id="crm_notes" placeholder="opsiyonel" style="margin:0;"></div>
-          <button style="${INLINE_BTN}" ${act('saveCrmCustomer')}>${ICON_SAVE}<span>Kaydet</span></button>
-        </div>
-        <details id="crmLoyaltyBox" style="margin-top:10px;border:1px solid var(--border);border-radius:12px;padding:10px 12px;background:var(--panel);">
-          <summary style="cursor:pointer;font-weight:700;font-size:13.5px;">⭐ Bu müşteriye özel sadakat ayarı <span class="muted" style="font-weight:400;">(boş bırakılan alan genel ayarı kullanır)</span></summary>
-          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin-top:10px;">
-            <div class="field-group"><label>Kaç TL harcamada 1 puan</label><input id="crm_spp" type="number" min="0.01" step="0.01" placeholder="Genel: ${escapeAttr(String(loyalty.spend_per_point ?? ''))}"></div>
-            <div class="field-group"><label>1 puan kaç TL indirim</label><input id="crm_pv" type="number" min="0" step="0.01" placeholder="Genel: ${escapeAttr(String(loyalty.point_value ?? ''))}"></div>
-            <div class="field-group"><label>🎂 Doğum günü indirimi (%)</label><input id="crm_bdp" type="number" min="0" max="100" step="1" placeholder="Genel: ${escapeAttr(String(loyalty.birthday_discount_percent ?? 0))}"></div>
-          </div>
-        </details>
-      </div>
       ${rows.length ? `<div class="cu-grid" data-cf-scope="crm">${rows.map((c, i) => { const bd = crmBirthdayInfo(c.birthday), custom = (c.spend_per_point!=null || c.point_value!=null || c.birthday_discount_percent!=null);
         const pts = Number(c.points_balance)||0, tier = pts>=500 ? ['💎','Elmas','var(--c2)'] : pts>=200 ? ['🥇','Altın','var(--c3)'] : pts>=50 ? ['🥈','Gümüş','var(--c1)'] : ['🌱','Yeni','#94a3b8'];
         return `<div class="cu-card" data-cf-tags="${(Number(c.points_balance)||0) > 0 ? 'pts' : ''}${bd && bd.days <= 30 ? ' bday' : ''}${(Number(c.points_balance)||0) >= 200 ? ' gold' : ''}" style="--i:${Math.min(i,12)};--tc:${tier[2]};">
@@ -68,7 +36,34 @@ async function renderCrmView(main, session){
           <div class="pcard-acts"><button type="button" class="pc-btn pc-edit" style="margin-left:0;" ${act('editCustomer', c.id)}>✏️ Düzenle</button><button type="button" class="pc-btn rv-del" style="margin-left:auto;" ${act('removeCustomer', c.id)}>🗑 Sil</button></div>
         </div>`; }).join('')}</div>`
         : '<div class="empty-state"><div style="font-size:42px;">👥</div><p class="muted">Müşteri yok.</p></div>'}
-    </div>`;
+    </div>
+    ${sheetHtml('crmSheet', '👤', 'Yeni Müşteri', `<input type="hidden" id="crm_edit_id">
+        <div class="fsheet-grid">
+          <div class="field-group wide"><label>Ad Soyad</label><input id="crm_name" placeholder="örn. Ahmet Yılmaz"></div>
+          <div class="field-group"><label>Telefon</label><input id="crm_phone" placeholder="05xx..." inputmode="tel"></div>
+          <div class="field-group"><label>E-posta</label><input id="crm_email" placeholder="opsiyonel" autocapitalize="none"></div>
+          <div class="field-group"><label>🎂 Doğum Günü</label><input id="crm_birthday" type="date"></div>
+          <div class="field-group"><label>Not</label><input id="crm_notes" placeholder="opsiyonel"></div>
+        </div>
+        <details id="crmLoyaltyBox" style="margin-top:10px;border:1px solid var(--border);border-radius:12px;padding:10px 12px;background:var(--panel);">
+          <summary style="cursor:pointer;font-weight:700;font-size:13.5px;">⭐ Bu müşteriye özel sadakat ayarı <span class="muted" style="font-weight:400;">(boş bırakılan alan genel ayarı kullanır)</span></summary>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin-top:10px;">
+            <div class="field-group"><label>Kaç TL harcamada 1 puan</label><input id="crm_spp" type="number" min="0.01" step="0.01" placeholder="Genel: ${escapeAttr(String(loyalty.spend_per_point ?? ''))}"></div>
+            <div class="field-group"><label>1 puan kaç TL indirim</label><input id="crm_pv" type="number" min="0" step="0.01" placeholder="Genel: ${escapeAttr(String(loyalty.point_value ?? ''))}"></div>
+            <div class="field-group"><label>🎂 Doğum günü indirimi (%)</label><input id="crm_bdp" type="number" min="0" max="100" step="1" placeholder="Genel: ${escapeAttr(String(loyalty.birthday_discount_percent ?? 0))}"></div>
+          </div>
+        </details>
+        <div class="fsheet-foot"><button type="button" class="ghost-btn" ${act('closeSheet','crmSheet')}>Vazgeç</button><button ${act('saveCrmCustomer')}>${ICON_SAVE}<span>Kaydet</span></button></div>`, 'var(--c1)')}
+    ${canManage(session, 'crm') ? sheetHtml('crmLoySheet', '⭐', 'Sadakat Programı', `<label style="display:flex;align-items:center;gap:8px;font-weight:600;margin:0 0 14px;">
+          <input type="checkbox" id="loy_enabled" ${loyalty.enabled?'checked':''} style="width:auto;margin:0;"> Sadakat puanları aktif
+        </label>
+        <div class="fsheet-grid">
+          <div class="field-group"><label>Kaç TL harcamada 1 puan</label><input id="loy_spend" type="number" min="1" step="0.01" value="${loyalty.spend_per_point}"></div>
+          <div class="field-group"><label>1 puan kaç TL indirim</label><input id="loy_value" type="number" min="0" step="0.01" value="${loyalty.point_value}"></div>
+          <div class="field-group wide"><label>🎂 Doğum günü indirimi (%)</label><input id="loy_birthday_pct" type="number" min="0" max="100" step="1" value="${loyalty.birthday_discount_percent||0}"></div>
+        </div>
+        <p class="muted" style="font-size:12px;margin:10px 0 0;text-align:left;">Müşterinin doğum günü kaydedilmişse, o gün ödeme alırken bu yüzde otomatik indirim olarak uygulanır (0 = kapalı).</p>
+        <div class="fsheet-foot"><button type="button" class="ghost-btn" ${act('closeSheet','crmLoySheet')}>Vazgeç</button><button ${act('saveLoyaltySettings')}>${ICON_SAVE}<span>Kaydet</span></button></div>`, 'var(--c3)') : ''}`;
 }
 function crmBirthdayInfo(b){
   if(!b) return null; const d = new Date(b+'T00:00'); if(isNaN(d)) return null;
@@ -93,6 +88,12 @@ function debouncedCrmSearch(v){
     if(inp){ inp.focus(); inp.setSelectionRange(inp.value.length, inp.value.length); }
   }, 350);
 }
+function newCustomer(){
+  ['crm_edit_id','crm_name','crm_phone','crm_email','crm_notes','crm_birthday','crm_spp','crm_pv','crm_bdp'].forEach(k => { const e = document.getElementById(k); if(e) e.value = ''; });
+  const b = document.getElementById('crmLoyaltyBox'); if(b) b.open = false;
+  document.getElementById('crmSheetTitle').textContent = 'Yeni Müşteri';
+  openSheet('crmSheet');
+}
 function editCustomer(id){
   const c = (APP.crmRows||[]).find(x => x.id===id); if(!c) return;
   document.getElementById('crm_edit_id').value = c.id;
@@ -105,8 +106,8 @@ function editCustomer(id){
   document.getElementById('crm_pv').value = c.point_value ?? '';
   document.getElementById('crm_bdp').value = c.birthday_discount_percent ?? '';
   document.getElementById('crmLoyaltyBox').open = (c.spend_per_point!=null || c.point_value!=null || c.birthday_discount_percent!=null);
-  document.getElementById('crmFormTitle').textContent = 'Müşteriyi Düzenle';
-  document.getElementById('crm_name').scrollIntoView({ behavior:'smooth', block:'center' });
+  document.getElementById('crmSheetTitle').textContent = 'Müşteriyi Düzenle';
+  openSheet('crmSheet');
 }
 async function saveCrmCustomer(){
   const session = getSession();
@@ -126,6 +127,7 @@ async function saveCrmCustomer(){
     const { error: e2 } = await sb.rpc('set_customer_loyalty', { p_token: session.session_token, p_id: custId, p_spend_per_point: spp, p_point_value: pv, p_birthday_discount_percent: bdp });
     if(e2){ alert('Müşteri kaydedildi ama özel sadakat ayarı kaydedilemedi: ' + e2.message); }
   }
+  closeSheet('crmSheet');
   renderCrmView(document.getElementById('main'), session);
   showToast(id ? 'Güncellendi ✓' : 'Müşteri eklendi ✓');
 }
@@ -147,6 +149,8 @@ async function saveLoyaltySettings(){
   const { error } = await sb.rpc('update_loyalty_settings', { p_token: session.session_token, p_enabled: enabled, p_spend_per_point: spend, p_point_value: value, p_birthday_discount_percent: birthdayPct });
   if(error){ alert(error.message); return; }
   APP.config.loyalty = { enabled, spend_per_point: spend, point_value: value, birthday_discount_percent: birthdayPct };
+  closeSheet('crmLoySheet');
+  renderCrmView(document.getElementById('main'), session);
   showToast('Sadakat ayarları kaydedildi ✓');
 }
 
