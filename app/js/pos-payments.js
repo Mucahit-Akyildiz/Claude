@@ -849,7 +849,7 @@ async function finishPayment(orderId, method, total, cash, card, discountAmount,
     // E-posta penceresi yalnızca ödeme ekranında "e-postayla gönder"
     // işaretlendiyse açılır (her hesapta tekrar sorulmaz).
     if(APP.payWantsEmail){ APP.payWantsEmail = false; openInvoiceEmailModal(hid); }
-    else showToast('Ödeme alındı ✓');
+    else showAfterPayCard(hid, customerId);
     if(APP.view!=='payments') renderPaymentsView(document.getElementById('main'), session);
   }
 }
@@ -913,6 +913,38 @@ async function sendInvoiceEmail(historyId){
 /* --- Google Yorumları'na yönlendirme: hesap tamamen kapandığında (bkz.
    yukarısı) personele gösterilen toast'a dokununca, müşterinin telefonuyla
    okutabileceği bir QR kod açılır (bkz. Ayarlar > Entegrasyonlar). --- */
+/* Ödeme sonrası kısa süre görünen kart: müşteriden değerlendirme istemek için
+   QR göster ya da (kayıtlı müşteri telefonu varsa) SMS ile link gönder. */
+function showAfterPayCard(historyId, customerId){
+  removeEl('afterPayCard');
+  if(!historyId){ showToast('Ödeme alındı ✓'); return; }
+  const el = document.createElement('div');
+  el.id = 'afterPayCard'; el.className = 'ap-card';
+  el.innerHTML = `<div class="ap-h"><span>✅</span><b>Ödeme alındı</b><button type="button" class="ap-x" ${act('removeEl','afterPayCard')}>✕</button></div>
+    <div class="ap-acts"><button type="button" ${act('showReviewQr', historyId)}>⭐ Değerlendirme QR</button>${customerId ? `<button type="button" class="ghost-btn" ${act('sendReviewSms', historyId)}>📱 SMS ile iste</button>` : ''}</div>`;
+  document.body.appendChild(el);
+  clearTimeout(window._apT); window._apT = setTimeout(() => removeEl('afterPayCard'), 15000);
+}
+async function showReviewQr(historyId){
+  removeEl('afterPayCard');
+  const { data, error } = await sb.rpc('create_review_link', { p_token: getSession().session_token, p_history_id: historyId, p_send_sms: false });
+  if(error){ alert(error.message); return; }
+  const url = window.location.origin + '/degerlendirme/?t=' + data.token;
+  const bg = document.createElement('div');
+  bg.id = 'reviewQrBg'; bg.className = 'rq-bg';
+  bg.onclick = (e) => { if(e.target===bg) bg.remove(); };
+  bg.innerHTML = `<div class="rq-box"><div class="rq-h"><h2>⭐ Bizi Değerlendirin</h2><button type="button" class="ap-x" ${act('removeEl','reviewQrBg')}>✕</button></div>
+    <p class="muted">Müşteriye telefonuyla okutması için gösterin. 4-5 yıldız verenler Google yorumuna yönlendirilir.</p>
+    <img src="https://api.qrserver.com/v1/create-qr-code/?size=260x260&data=${encodeURIComponent(url)}" alt="QR">
+    <button type="button" class="ghost-btn" ${act('copyText', url, 'Link kopyalandı ✓')}>🔗 Linki Kopyala</button></div>`;
+  document.body.appendChild(bg);
+}
+async function sendReviewSms(historyId){
+  removeEl('afterPayCard');
+  const { error } = await sb.rpc('create_review_link', { p_token: getSession().session_token, p_history_id: historyId, p_send_sms: true });
+  if(error){ alert(error.message); return; }
+  showToast('📱 Değerlendirme linki SMS ile gönderildi ✓');
+}
 function showGoogleReviewQr(){
   const url = APP.config && APP.config.google_review_url;
   if(!url) return;

@@ -13,9 +13,10 @@ async function renderCrmView(main, session){
     <div class="box" style="max-width:none;">
       <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
         <h2 style="margin:0;">Müşteri Listesi</h2>
-        <div style="display:flex;gap:8px;align-items:center;flex-wrap:nowrap;flex:1 1 auto;justify-content:flex-end;min-width:0;">
+        <div class="crm-hbtns" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;flex:1 1 auto;justify-content:flex-end;min-width:0;">
           <button type="button" class="fsheet-open" style="flex:0 0 auto;" ${act('newCustomer')}>+ Yeni Müşteri</button>
           <input id="crmSearchInput" placeholder="İsim veya telefon ara..." style="flex:0 1 260px;min-width:120px;width:auto;margin:0;" value="${escapeAttr(APP.crmSearch||'')}" ${actOn('input', 'debouncedCrmSearch', ['$value'])}>
+          <button type="button" class="ghost-btn" style="width:auto;flex:0 0 auto;white-space:nowrap;margin:0;" ${act('openReviewsSheet')} title="Müşteri değerlendirmeleri">⭐ Değerlendirmeler</button>
           ${canManage(session, 'crm') ? `<button type="button" class="ghost-btn" style="width:auto;flex:0 0 auto;white-space:nowrap;margin:0;" ${act('openPromoSheet')} title="Kupon kodları ve happy hour gibi otomatik kampanyalar">🎟️ Kampanyalar</button>` : ''}
           ${canManage(session, 'crm') ? `<button type="button" class="ghost-btn" style="width:auto;flex:0 0 auto;white-space:nowrap;margin:0;" ${act('openSheet','crmLoySheet')} title="Puan ve doğum günü indirimi ayarları">⭐ Sadakat${loyalty.enabled ? '' : ' (kapalı)'}</button>` : ''}
           <button type="button" class="ghost-btn" style="width:auto;flex:0 0 auto;white-space:nowrap;margin:0;" ${act('exportCustomersCsv')} title="Tüm müşterileri Excel'de açılabilen CSV olarak indir">⬇️ Dışa aktar</button>
@@ -55,6 +56,7 @@ async function renderCrmView(main, session){
           </div>
         </details>
         <div class="fsheet-foot"><button type="button" class="ghost-btn" ${act('closeSheet','crmSheet')}>Vazgeç</button><button ${act('saveCrmCustomer')}>${ICON_SAVE}<span>Kaydet</span></button></div>`, 'var(--c1)')}
+    ${sheetHtml('reviewsSheet', '⭐', 'Müşteri Değerlendirmeleri', '<div id="reviewsBody"><p class="muted">Yükleniyor…</p></div>', 'var(--c3)')}
     ${canManage(session, 'crm') ? sheetHtml('promoSheet', '🎟️', 'Kampanya ve Kuponlar', '<div id="promoBody"><p class="muted">Yükleniyor…</p></div>', 'var(--c4)') : ''}
     ${canManage(session, 'crm') ? sheetHtml('crmLoySheet', '⭐', 'Sadakat Programı', `<label style="display:flex;align-items:center;gap:8px;font-weight:600;margin:0 0 14px;">
           <input type="checkbox" id="loy_enabled" ${loyalty.enabled?'checked':''} style="width:auto;margin:0;"> Sadakat puanları aktif
@@ -357,3 +359,30 @@ async function removePromo(id){
   if(error){ alert(error.message); return; }
   renderPromoBody();
 }
+
+/* ---- Müşteri değerlendirmeleri ----
+   Ödeme sonrası QR/SMS ile gönderilen linkten gelen puan ve yorumlar. Açılınca düşük puan rozeti temizlenir. */
+async function openReviewsSheet(){ openSheet('reviewsSheet'); APP.reviewDays = APP.reviewDays || 30; await renderReviewsBody(); }
+function setReviewDays(d){ APP.reviewDays = d; renderReviewsBody(); }
+async function renderReviewsBody(){
+  const body = document.getElementById('reviewsBody'); if(!body) return;
+  const session = getSession();
+  const { data, error } = await sb.rpc('list_reviews', { p_token: session.session_token, p_days: APP.reviewDays });
+  if(error){ body.innerHTML = '<p class="muted">Yüklenemedi: ' + escapeHtml(error.message) + '</p>'; return; }
+  const st = data.stats || {}, rows = data.rows || [], dist = st.dist || [0,0,0,0,0], max = Math.max(1, ...dist);
+  const f = APP.reviewFilter || 'all', shown = f==='low' ? rows.filter(r => r.rating <= 3) : f==='high' ? rows.filter(r => r.rating >= 4) : rows;
+  const stars = (n) => '<span class="rvw-st">' + '★'.repeat(n) + '<i>' + '★'.repeat(5-n) + '</i></span>';
+  body.innerHTML = `<div class="rvf-chips" style="margin-bottom:12px;">${[[7,'7 gün'],[30,'30 gün'],[90,'90 gün']].map(([d, l]) => `<button type="button" class="rvf-chip ${APP.reviewDays===d?'on':''}" ${act('setReviewDays', d)}>${l}</button>`).join('')}</div>
+    <div class="rvw-sum">
+      <div class="rvw-avg"><b>${st.n ? Number(st.avg).toLocaleString('tr-TR') : '—'}</b>${stars(Math.round(Number(st.avg)||0))}<small>${st.n||0} değerlendirme · ${st.sent||0} link</small></div>
+      <div class="rvw-dist">${[5,4,3,2,1].map(n => `<div class="rvw-row"><span>${n}★</span><div class="rvw-bar"><i style="width:${dist[n-1]/max*100}%;"></i></div><b>${dist[n-1]}</b></div>`).join('')}</div>
+    </div>
+    <div class="rvf-chips" style="margin:12px 0;">${[['all','Tümü'],['low','😞 1-3 yıldız'],['high','🤩 4-5 yıldız']].map(([k, l]) => `<button type="button" class="rvf-chip ${f===k?'on':''}" ${act('setReviewFilter', k)}>${l}</button>`).join('')}</div>
+    ${shown.length ? `<div class="rvw-list">${shown.map(r => `<div class="rvw-card ${r.rating <= 3 ? 'low' : ''} ${r.seen ? '' : 'new'}">
+        <div class="rvw-top">${stars(r.rating)}<small>${new Date(r.rated_at).toLocaleString('tr-TR',{dateStyle:'short',timeStyle:'short'})}</small></div>
+        ${r.comment ? `<p>“${escapeHtml(r.comment)}”</p>` : '<p class="muted">Yorum yazılmadı</p>'}
+        <div class="pcard-chips">${r.customer_name ? `<span class="pchip">👤 ${escapeHtml(r.customer_name)}</span>` : ''}${r.customer_phone ? `<span class="pchip">${phoneHtml(r.customer_phone)}</span>` : ''}${r.table_name ? `<span class="pchip">🪑 ${escapeHtml(r.table_name)}</span>` : ''}${r.staff ? `<span class="pchip">🧑‍🍳 ${escapeHtml(r.staff)}</span>` : ''}</div>
+      </div>`).join('')}</div>` : `<div class="empty-state rv-empty"><div class="om-empty-ic">⭐</div><b>Henüz değerlendirme yok</b><p class="muted">Ödeme alındıktan sonra çıkan <b>⭐ Değerlendirme QR</b> ya da <b>📱 SMS ile iste</b> ile müşteriden puan isteyin.</p></div>`}`;
+  if(rows.some(r => !r.seen)){ await sb.rpc('mark_reviews_seen', { p_token: session.session_token }); refreshNavBadges(); }
+}
+function setReviewFilter(k){ APP.reviewFilter = k; renderReviewsBody(); }
