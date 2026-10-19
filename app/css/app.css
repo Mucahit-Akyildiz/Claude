@@ -2584,3 +2584,26 @@ details.pr-note summary{list-style:none;} details.pr-note summary::-webkit-detai
 #confirmBtn:not(:disabled){background:linear-gradient(135deg,var(--accent),color-mix(in srgb,var(--accent) 65%,#7c3aed));box-shadow:0 8px 22px color-mix(in srgb,var(--accent) 35%,transparent);}
 .om-cb-sum{margin-left:8px;padding:2px 10px;border-radius:999px;background:rgba(0,0,0,.18);font-weight:800;}
 @media (max-width:600px){.om-sub,.om-table .om-sub{margin-left:0;} .order-modal.om-table > div:first-child h2::before{width:32px;height:32px;font-size:16px;}}
+
+/* Gönderilecek ürünler (taslak sepet) */
+.dc-box{margin:10px 0;padding:12px;border-radius:16px;background:linear-gradient(160deg,color-mix(in srgb,var(--accent) 10%,var(--panel)),var(--panel) 70%);border:1.5px solid color-mix(in srgb,var(--accent) 40%,var(--border));box-shadow:0 8px 22px rgba(0,0,0,.18);}
+.dc-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;}
+.dc-title{font-weight:800;font-size:14px;} .dc-title b{display:inline-grid;place-items:center;min-width:22px;height:22px;border-radius:999px;background:var(--accent);color:var(--btn-ink);font-size:12px;margin-left:4px;padding:0 6px;}
+.dc-clear{width:auto;margin:0;padding:5px 10px;font-size:12px;border-radius:999px;background:transparent;border:1px solid color-mix(in srgb,var(--red) 60%,transparent);color:var(--red);box-shadow:none;}
+.dc-item{position:relative;padding:10px 10px 8px 14px;margin-bottom:8px;border-radius:12px;background:var(--panel2);border:1px solid var(--border);animation:osIn .25s ease both;}
+.dc-item::before{content:"";position:absolute;left:0;top:8px;bottom:8px;width:4px;border-radius:0 4px 4px 0;background:var(--mc);}
+.dc-item.dc-extra{margin-left:14px;padding-top:6px;padding-bottom:6px;opacity:.95;}
+.dc-row{display:grid;grid-template-columns:minmax(0,1fr) auto auto;align-items:center;gap:10px;}
+.dc-info b{display:block;font-size:13.5px;overflow-wrap:break-word;} .dc-info small{font-size:11.5px;color:var(--muted);}
+.dc-step{display:flex;align-items:center;gap:2px;background:var(--panel);border:1px solid var(--border);border-radius:999px;padding:2px;}
+.dc-step button{width:28px;height:28px;margin:0;padding:0;border-radius:50%;font-weight:800;font-size:15px;background:transparent;color:var(--text);border:0;box-shadow:none;}
+.dc-step button:last-child{background:var(--mc);color:#fff;}
+.dc-step span{min-width:22px;text-align:center;font-weight:800;font-size:13.5px;}
+.dc-sum{font-weight:800;font-size:13.5px;min-width:74px;text-align:right;}
+.dc-note-row{display:flex;align-items:center;gap:8px;margin-top:6px;flex-wrap:wrap;}
+.dc-note{font-size:12px;font-weight:700;color:#f59e0b;background:color-mix(in srgb,#f59e0b 12%,transparent);border-radius:8px;padding:2px 8px;}
+.dc-note-btn{width:auto;margin:0;padding:3px 9px;font-size:11.5px;font-weight:700;border-radius:999px;background:transparent;color:var(--muted);border:1px dashed var(--border);box-shadow:none;}
+.dc-note-btn.on,.dc-note-btn:hover{color:var(--accent);border-color:var(--accent);}
+.dc-note-edit{margin-top:8px;animation:paneIn .25s ease both;} .dc-note-edit input{margin:0 0 6px;font-size:12.5px;padding:7px 10px;border-radius:10px;}
+.dc-total{display:flex;justify-content:space-between;align-items:center;margin-top:4px;padding:10px 4px 2px;border-top:1px dashed var(--border);} .dc-total span{color:var(--muted);font-weight:700;} .dc-total b{font-size:18px;}
+@media (max-width:600px){.om-cb-sum{display:none;}}

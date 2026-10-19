@@ -375,30 +375,29 @@ function renderTableItems(tableId){
   if(draft.length===0){
     draftWrap.innerHTML = (order && order.items.length>0) || pending.length ? '' : '<div class="om-empty"><div class="om-empty-ic">🍽️</div><b>Sepet boş</b><span>Menüden ürünlere dokunarak ekleyin.</span><small>⭐ Sık satılanlar en üstte</small></div>';
   } else {
-    let total=0;
-    draftWrap.innerHTML = `<div style="border:1px dashed var(--accent);border-radius:10px;padding:10px;margin:10px 0;">
-      <div style="display:flex;justify-content:space-between;align-items:center;">
-        <p style="font-weight:700;color:var(--accent);margin:0;">Sepet (Gönderilmedi)</p>
-        <button style="width:auto;padding:4px 10px;margin:0;font-size:12px;background:transparent;border:1px solid var(--red);color:var(--red);box-shadow:none;" ${act('clearDraftCart', tableId)}>Sepeti Boşalt</button>
-      </div>` +
-      draft.map((it,idx) => { total += it.price*it.qty; return `
-        <div style="padding:8px 0;border-bottom:1px solid var(--border);font-size:13.5px;">
-          <div style="display:flex;justify-content:space-between;align-items:center;">
-            <div>
-              <div>${escapeHtml(it.name)}</div>
-              <div class="muted" style="font-size:12px;">${money(it.price*it.qty)}</div>
-            </div>
-            <span style="display:flex;align-items:center;gap:8px;">
-              <button class="qty-btn" ${act('changeDraftQty', tableId, idx, -1)}>-</button>
-              <span style="min-width:16px;text-align:center;font-weight:700;">${it.qty}</span>
-              <button class="qty-btn" ${act('changeDraftQty', tableId, idx, 1)}>+</button>
-            </span>
+    // Gönderilecek ürünler: her ürün bir kart (adet adımlayıcı, tutar); not alanı "📝 Not" ile açılır.
+    const total = draft.reduce((x, i) => x + i.price * i.qty, 0), cnt = draft.reduce((x, i) => x + i.qty, 0);
+    APP.noteOpen = APP.noteOpen || {};
+    draftWrap.innerHTML = `<div class="dc-box">
+      <div class="dc-head"><span class="dc-title">🛒 Gönderilecek <b>${cnt}</b></span><button type="button" class="dc-clear" ${act('clearDraftCart', tableId)}>🗑️ Boşalt</button></div>
+      ${draft.map((it, idx) => { const extra = String(it.name).startsWith('+ '); const nOpen = APP.noteOpen[tableId + ':' + idx] || false;
+        const p = findProductAny(it.product_id) || {};
+        const mc = ((APP.config.stations || []).find(x => x.id === (p.station_id || it.station_id)) || {}).color || 'var(--accent)';
+        return `<div class="dc-item ${extra ? 'dc-extra' : ''}" style="--mc:${mc};">
+          <div class="dc-row">
+            <div class="dc-info"><b>${escapeHtml(it.name)}</b><small>${money(it.price)} × ${it.qty}</small></div>
+            <div class="dc-step"><button type="button" ${act('changeDraftQty', tableId, idx, -1)}>${it.qty > 1 ? '−' : '🗑'}</button><span>${it.qty}</span><button type="button" ${act('changeDraftQty', tableId, idx, 1)}>+</button></div>
+            <div class="dc-sum">${money(it.price * it.qty)}</div>
           </div>
-          <input type="text" placeholder="Not ekle (örn. az pişmiş, acısız...)" value="${escapeAttr(it.note||'')}" style="margin:6px 0 0;font-size:12px;padding:6px 10px;" ${actOn('input','updateDraftItemNote',[tableId, idx, '$value'])}>
-          ${!String(it.name).startsWith('+ ') ? `<div class="note-chips">${quickNoteList().map(n => `<button type="button" class="note-chip ${noteHas(it.note, n) ? 'on' : ''}" ${act('toggleDraftNoteChip', tableId, idx, n)}>${escapeHtml(n)}</button>`).join('')}</div>` : ''}
-        </div>`; }).join('') +
-      `<div style="text-align:right;font-weight:700;margin-top:8px;">Toplam: ${money(total)}</div>
-      </div>`;
+          ${extra ? '' : `<div class="dc-note-row">
+            ${it.note ? `<span class="dc-note">📝 ${escapeHtml(it.note)}</span>` : ''}
+            <button type="button" class="dc-note-btn ${nOpen ? 'on' : ''}" ${act('toggleDraftNote', tableId, idx)}>${it.note ? '✏️ Düzenle' : '📝 Not ekle'}</button>
+          </div>
+          ${nOpen ? `<div class="dc-note-edit"><input type="text" placeholder="Not yazın (örn. az pişmiş, acısız…)" value="${escapeAttr(it.note||'')}" ${actOn('input','updateDraftItemNote',[tableId, idx, '$value'])}>
+            <div class="note-chips">${quickNoteList().map(n => `<button type="button" class="note-chip ${noteHas(it.note, n) ? 'on' : ''}" ${act('toggleDraftNoteChip', tableId, idx, n)}>${escapeHtml(n)}</button>`).join('')}</div></div>` : ''}`}
+        </div>`; }).join('')}
+      <div class="dc-total"><span>Toplam</span><b>${money(total)}</b></div>
+    </div>`;
   }
   const confirmBtn = document.getElementById('confirmBtn');
   if(confirmBtn) confirmBtn.disabled = draft.length===0;
@@ -626,3 +625,5 @@ function updateOmMobileBar(tableId){
       : '<span>✨ Yeni sipariş</span>';
   }
 }
+
+function toggleDraftNote(tableId, idx){ APP.noteOpen = APP.noteOpen || {}; const k = tableId + ':' + idx; APP.noteOpen[k] = !APP.noteOpen[k]; renderTableItems(tableId); if(APP.noteOpen[k]) setTimeout(() => { const i = document.querySelector('.dc-note-edit input'); if(i) i.focus(); }, 30); }
