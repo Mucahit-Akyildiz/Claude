@@ -987,3 +987,21 @@ document.addEventListener('visibilitychange', () => {
     refreshNavBadges();
   }catch(e){}
 });
+/* Uygulama ekrandayken bildirim merkezinde biriken eski Peyktan bildirimleri
+   (ör. ödenmiş masanın "siparişi hazır" bildirimi) temizlenir; güncel durum zaten uygulamada görünür. */
+function clearShownPushNotifications(){
+  try{
+    if(document.hidden) return;
+    const PN = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.PushNotifications;
+    if(PN && PN.removeAllDeliveredNotifications) PN.removeAllDeliveredNotifications().catch(() => {});
+    if(!navigator.serviceWorker) return;
+    navigator.serviceWorker.getRegistration('/app/').then(reg => {
+      if(!reg || !reg.getNotifications) return;
+      reg.getNotifications().then(list => list.forEach(n => n.close()));
+    }).catch(() => {});
+  }catch(e){}
+}
+document.addEventListener('visibilitychange', clearShownPushNotifications);
+window.addEventListener('focus', clearShownPushNotifications);
+setInterval(clearShownPushNotifications, 60000);
+clearShownPushNotifications();
