@@ -1,0 +1,11 @@
+# Siteye/fonksiyonlara hiç sunulmayan klasörler: her deployment'a boşuna yüklenmesin.
+# (Mobil ve masaüstü uygulamalar canlı siteyi https üzerinden açar; kendi kopyalarını taşımaz.)
+mobile/
+desktop/
+docs/
+supabase/
+tests/
+scripts/
+.github/
+.claude/
+README.md
