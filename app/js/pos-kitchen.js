@@ -64,7 +64,7 @@ async function refreshKitchenItems(session){
     cards.push({ at: isFinite(oldest) ? oldest : Infinity, html: `<div class="kitchen-card" data-order-id="${o.order_id}">
       <div class="kc-age"><i data-age-from="${isFinite(oldest) ? new Date(oldest).toISOString() : ''}"></i></div>
       <div class="kc-head">
-        <div class="kc-title"><b>${escapeHtml(tableName)}</b>${o.daily_number ? `<span class="kc-no">#${o.daily_number}</span>` : ''}</div>
+        <div class="kc-title"><b>${escapeHtml(tableName)}</b>${o.daily_number ? `<span class="kc-no">#${o.daily_number}</span>` : ''}${(o.tags || []).map(t => `<span class="kc-tag">🏷️ ${escapeHtml(t)}</span>`).join('')}</div>
         <span class="kc-pill"></span>
         <button type="button" class="kc-print" ${act('reprintKitchenTicket', o.order_id)} title="Fişi tekrar yazdır">🖨️</button>
       </div>
