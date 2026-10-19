@@ -68,6 +68,8 @@ async function init(){
   }
   STATE.menu = data;
   renderMenu();
+  checkTableReview();
+  setInterval(checkTableReview, 60000);
   // Stok anlık: diğer masaların sepetleri/siparişleri düştükçe menü 5 sn'de bir yenilenir;
   // sepetteki ayırmalar dakikada bir tazelenir.
   setInterval(refreshMenuStock, 5000);
@@ -289,4 +291,22 @@ function zoomProductImage(src){
   const img = document.createElement('img'); img.src = src; img.alt = '';
   ov.appendChild(img); ov.addEventListener('click', () => ov.remove());
   document.body.appendChild(ov);
+}
+
+/* Hesap ödendikten sonra (2 saat içinde) masadaki QR menü açılırsa en üstte
+   "Bizi değerlendirin" bandı çıkar; o hesabın değerlendirme sayfasına gider. */
+const RV_TXT = { tr: ['⭐ Hesabınız ödendi — bizi değerlendirir misiniz?', 'Değerlendir'], en: ['⭐ Your bill is paid — how was your visit?', 'Rate us'],
+  ar: ['⭐ تم دفع فاتورتك — كيف كانت زيارتك؟', 'قيّمنا'], de: ['⭐ Rechnung bezahlt — wie war Ihr Besuch?', 'Bewerten'], ru: ['⭐ Счёт оплачен — как вам у нас?', 'Оценить'] };
+async function checkTableReview(){
+  if(document.hidden) return;
+  const { data } = await sb.rpc('get_table_review', { p_qr_token: QR_TOKEN });
+  const old = document.getElementById('rvBanner');
+  if(!data || !data.token){ if(old) old.remove(); return; }
+  if(old) return;
+  const tx = RV_TXT[STATE.lang] || RV_TXT.tr;
+  const a = document.createElement('a');
+  a.id = 'rvBanner'; a.className = 'rv-banner';
+  a.href = '/degerlendirme/?t=' + encodeURIComponent(data.token);
+  a.innerHTML = `<span>${escapeHtml(tx[0])}</span><b>${escapeHtml(tx[1])} →</b>`;
+  document.body.prepend(a);
 }

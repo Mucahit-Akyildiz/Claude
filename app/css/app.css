@@ -2769,3 +2769,11 @@ body.fsheet-lock{overflow:hidden;}
   .pr-tbl td[data-l]:not([data-l="Personel"])::before{content:attr(data-l);color:var(--muted);font-size:12px;font-weight:700;}
   .pr-tbl td .pc-btn{width:100%;}
 }
+/* Klavye kısayolları */
+.sc-k{display:inline-block;font:700 10px/1 ui-monospace,Consolas,monospace;padding:3px 5px;border-radius:5px;background:rgba(0,0,0,.18);color:inherit;opacity:.75;margin-right:6px;vertical-align:middle;border:1px solid rgba(255,255,255,.25);}
+.pay-method-btn.cash .sc-k,.pay-method-btn.card .sc-k{position:absolute;top:8px;left:8px;margin:0;}
+.pay-method-btn{position:relative;}
+@media (hover:none),(max-width:820px){.sc-k{display:none;}}
+.sc-list{display:flex;flex-direction:column;gap:8px;}
+.sc-row{display:flex;align-items:center;gap:12px;} .sc-row span{font-size:14px;}
+.sc-row kbd{min-width:46px;text-align:center;font:700 12px ui-monospace,Consolas,monospace;padding:6px 8px;border-radius:8px;background:var(--panel2,rgba(127,127,127,.15));border:1px solid var(--border);box-shadow:0 2px 0 var(--border);}

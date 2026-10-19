@@ -1,0 +1,3 @@
+-- Masa QR menüsünde değerlendirme bandı: masanın son 2 saatte tamamen ödenmiş hesabı varsa
+-- (ve masada sonrasında yeni hesap açılmadıysa, henüz puanlanmadıysa) değerlendirme token'ı döner.
+-- get_table_review(p_qr_token uuid) returns json {token} | null — herkese açık (anon).

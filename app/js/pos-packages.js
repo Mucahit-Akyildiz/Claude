@@ -98,7 +98,7 @@ function openPackageModal(pseudoId){
       ${omMobileBarHtml(pseudoId)}
       <div class="modal-sticky-actions">
         <button class="ghost-btn" style="flex:1;margin-top:0;color:var(--red);border-color:var(--red);" ${act('cancelTableOrder', pseudoId)} ${existing?'':'disabled'}>🗑️ İptal Et</button>
-        <button id="confirmBtn" style="flex:1;margin-top:0;" disabled ${act('confirmOrder', pseudoId)}>✅ Onayla ve Gönder</button>
+        <button id="confirmBtn" style="flex:1;margin-top:0;" disabled ${act('confirmOrder', pseudoId)}><kbd class="sc-k">F9</kbd>✅ Onayla ve Gönder</button>
       </div>
     </div>`;
   document.body.appendChild(bg);

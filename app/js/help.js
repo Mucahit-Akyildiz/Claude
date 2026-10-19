@@ -69,7 +69,7 @@ function renderHelpView(main, session){
     ['support', '💬', 'Destek', 'Bize ulaşın']];
   main.innerHTML = `
     <h1>❓ Yardım</h1>
-    <p class="muted" style="text-align:left;margin:-4px 0 14px;">Peyktan'ı kullanırken aklınıza takılanlar. Aradığınızı bulamazsanız "Destek"ten bize ulaşın.</p>
+    <div class="fsheet-bar" style="margin:-4px 0 14px;"><p class="muted" style="text-align:left;margin:0;">Peyktan'ı kullanırken aklınıza takılanlar. Aradığınızı bulamazsanız "Destek"ten bize ulaşın.</p><button type="button" class="ghost-btn" style="width:auto;margin:0;" ${act('showShortcutHelp')}>⌨️ Klavye Kısayolları (F1)</button></div>
     <div class="set-layout">
       <nav class="tabs settings-tabs set-nav" id="helpNav">
         ${nav.map(([k, ic, l, d], i) => `<div class="tab set-item ${String(APP.helpCat)===k?'active on':''}" data-help="${k}" style="--i:${i};--sc:${RACE_COLORS[i % RACE_COLORS.length]};" ${act('setHelpCat', k)}><span class="set-ico">${ic}</span><span class="set-txt"><b>${escapeHtml(l)}</b><small>${escapeHtml(d)}</small></span></div>`).join('')}
