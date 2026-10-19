@@ -192,6 +192,7 @@ function startKitchenPolling(session){
   // Yeni siparisleri yakalamak icin arka planda periyodik yenileme (websocket/canli
   // abonelik kurulmadigi icin en basit ve guvenilir yontem bu).
   APP.kitchenPollInterval = setInterval(() => {
+    if(document.hidden) return;
     if(APP.view==='kitchen' && APP.kitchenStation) refreshKitchenItems(session);
   }, 2000);
   APP.kitchenTimerInterval = setInterval(updateKitchenTimers, 1000);
