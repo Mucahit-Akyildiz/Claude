@@ -2528,3 +2528,9 @@ details.pr-note summary{list-style:none;} details.pr-note summary::-webkit-detai
 .help-q-ic{width:24px;height:24px;flex:0 0 24px;border-radius:50%;display:grid;place-items:center;background:var(--panel2);color:var(--accent);font-weight:800;}
 .help-q.open .help-q-ic{background:var(--accent);color:var(--btn-ink);}
 .help-answer{padding:0 4px 14px;line-height:1.6;font-size:14px;animation:paneIn .3s cubic-bezier(.2,.8,.2,1) both;}
+
+/* İkram kartı */
+.pk.pk-is-comp{border-color:color-mix(in srgb,#a855f7 55%,var(--border));background:linear-gradient(160deg,color-mix(in srgb,#a855f7 12%,var(--panel)),var(--panel) 70%);}
+.pk-comp{margin:-4px -6px 2px;padding:6px 10px;border-radius:12px;background:color-mix(in srgb,#a855f7 18%,transparent);color:var(--text);font-size:12.5px;font-weight:800;}
+.pk-comp-cd{display:inline-grid;place-items:center;min-width:24px;height:24px;border-radius:999px;background:#a855f7;color:#fff;font-size:12px;margin:0 2px;}
+.pk-comp-done{animation:kcCancelOut 1s ease forwards;}

@@ -19,6 +19,16 @@ const { createClient } = require('@supabase/supabase-js');
 const webpush = require('web-push');
 const { sendFcmNotification, getServiceAccount } = require('./_fcm');
 
+// Bildirim metinleri uygulamadaki sesli bildirimlerle aynı kalıpta (bkz. app/js/voice-notify.js voiceMasa):
+// "12" -> "12 numaralı masa(dan/nın)", "Bahçe 3" -> "Bahçe 3 masası(ndan/nın)", "Paket …" olduğu gibi.
+function masa(tb, hal) {
+  let t = String(tb || '').trim().replace(/^masa\s+/i, '');
+  const H = { nom: ['masa', 'masası'], abl: ['masadan', 'masasından'], gen: ['masanın', 'masasının'] };
+  if (!t) return { nom: 'Bir masa', abl: 'Bir masadan', gen: 'Bir masanın' }[hal];
+  if (/^(📦\s*)?paket\b/i.test(t)) return t.replace(/^📦\s*/, '');
+  return /^\d+$/.test(t) ? t + ' numaralı ' + H[hal][0] : t + ' ' + H[hal][1];
+}
+
 const PUSH_DISPATCH_SECRET = process.env.PUSH_DISPATCH_SECRET;
 const VAPID_PUBLIC_KEY = process.env.VAPID_PUBLIC_KEY;
 const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY;
@@ -150,10 +160,12 @@ async function dispatchCustomerOrderRequests(supabase) {
         .select('*')
         .in('user_id', staffUserIds);
 
-      const labels = rows.map((r) => (r.restaurant_tables && r.restaurant_tables.name) || r.customer_name || 'Masa');
-      const shown = labels.slice(0, 3).join(', ') + (labels.length > 3 ? ' ve ' + (labels.length - 3) + ' tane daha' : '');
+      const labels = rows.map((r) => (r.restaurant_tables && r.restaurant_tables.name)
+        ? masa(r.restaurant_tables.name, 'abl') + ' QR menü siparişi geldi'
+        : (r.customer_name ? r.customer_name + ' adına online sipariş geldi' : 'Yeni online sipariş geldi'));
+      const shown = labels.slice(0, 3).join('. ') + (labels.length > 3 ? ' ve ' + (labels.length - 3) + ' sipariş daha' : '') + ', onay bekliyor';
       const payload = {
-        title: '📱 Onay bekleyen müşteri sipariş isteği',
+        title: rows.some((r) => r.restaurant_tables) ? '📱 QR menüden sipariş' : '🛵 Online sipariş',
         body: shown,
         url: '/app/',
         view: 'order',
@@ -238,8 +250,8 @@ async function dispatchLateKitchenItems(supabase) {
       const shown = names.slice(0, 3).join(', ') + (names.length > 3 ? ' ve ' + (names.length - 3) + ' tane daha' : '');
       const maxMin = Math.max(...rows.map((r) => 20 + 5 * milestoneOf(r)));
       const payload = {
-        title: '⏰ Geciken sipariş',
-        body: shown + ' ' + maxMin + ' dakikayı geçti!',
+        title: '⏰ Bekleyen mutfak siparişi',
+        body: shown + ' siparişi ' + maxMin + ' dakikadır bekliyor',
         url: '/app/',
         view: 'kitchen',
         // Her hatırlatma ayrı bildirim olsun (aynı etiket öncekini sessizce değiştiriyordu).
@@ -462,8 +474,8 @@ async function dispatchResvReminders(supabase, ids) {
     const hm = new Date(rv.reservation_time).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Istanbul' });
     const table = rv.restaurant_tables && rv.restaurant_tables.name;
     const r = await sendToUsers(supabase, uids, {
-      title: '📅 Yaklaşan rezervasyon · ' + hm,
-      body: rv.customer_name + ' · ' + rv.party_size + ' kişi' + (table ? ' · ' + table : '') + (rv.status === 'pending' ? ' (henüz onaylanmadı)' : ''),
+      title: '⏳ Rezervasyon hatırlatma · ' + hm,
+      body: rv.customer_name + ' adına ' + rv.party_size + ' kişilik rezervasyon saat ' + hm + "'de" + (table ? ', ' + masa(table, 'nom') : '') + (rv.status === 'pending' ? ' (henüz onaylanmadı)' : ''),
       url: '/app/', view: 'reservations', tag: 'resv-' + rv.id,
     });
     sent += (r && r.sent) || 0;
@@ -502,9 +514,9 @@ async function dispatchWaiterCall(supabase, callId) {
   const ids = (appUsers || []).filter((u) => u.is_active !== false && (u.role_ids || []).some((rid) => roleIds.has(rid))).map((u) => u.id);
   const table = (call.restaurant_tables && call.restaurant_tables.name) || 'Bir masa';
   return sendToUsers(supabase, ids, call.kind === 'payment' ? {
-    title: '💳 Hesap isteniyor', body: table + ' ödeme için garson çağırıyor.', url: '/app/', view: 'payments', tag: 'waiter-call-' + call.id,
+    title: '💳 Hesap isteme', body: masa(table, 'nom') + ' hesap istiyor', url: '/app/', view: 'payments', tag: 'waiter-call-' + call.id,
   } : {
-    title: '🙋 Garson çağrısı', body: table + ' sipariş vermek için garson çağırıyor.', url: '/app/', view: 'order', tag: 'waiter-call-' + call.id,
+    title: '🙋 Garson çağırma', body: masa(table, 'nom') + ' garson çağırıyor', url: '/app/', view: 'order', tag: 'waiter-call-' + call.id,
   });
 }
 
@@ -546,7 +558,7 @@ async function dispatchItemsReady(supabase, itemIds) {
   let sent = 0;
   for (const [uid, v] of byUser) {
     const body = v.items.slice(0, 4).join(', ') + (v.items.length > 4 ? ' ve ' + (v.items.length - 4) + ' ürün daha' : '');
-    const res = await sendToUsers(supabase, [uid], { title: '✅ Sipariş hazır · ' + v.label, body, url: '/app/', view: 'order', tag: 'ready-' + v.label });
+    const res = await sendToUsers(supabase, [uid], { title: '✅ ' + masa(v.label, 'gen') + ' siparişi hazır', body, url: '/app/', view: 'order', tag: 'ready-' + v.label });
     sent += (res && res.sent) || 0;
   }
   return { sent, users: byUser.size };
@@ -720,7 +732,7 @@ module.exports = async function handler(req, res) {
       await Promise.all((subs || []).map(async (sub) => {
         const labels = ordersByStaff.get(sub.user_id) || [];
         if (labels.length === 0) return;
-        const shown = labels.slice(0, 3).join(', ') + (labels.length > 3 ? ' ve ' + (labels.length - 3) + ' tane daha' : '');
+        const shown = labels.slice(0, 3).map((l) => masa(l, 'gen')).join(', ') + (labels.length > 3 ? ' ve ' + (labels.length - 3) + ' masanın daha' : '') + ' siparişi hazır, servis bekliyor';
         const payload = {
           title: '🔔 Hazır sipariş bekliyor',
           body: shown,

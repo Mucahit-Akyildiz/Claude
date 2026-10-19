@@ -365,7 +365,7 @@ async function renderReportContent(session){
   const billLabel = (o) => (o.kind==='takeaway' ? '📦 Paket' : (o.table_name||'-'));
   const billTableOptions = [...new Set(hist.map(billLabel))].sort();
   const billHourOptions = [...new Set(hist.map(o => new Date(o.closed_at).getHours()))].sort((a,b)=>a-b);
-  const METHOD_LABELS = { cash:'💵 Nakit', card:'💳 Kredi Kartı', gift_card:'🎁 Hediye Kartı', split:'➗ Bölünmüş', open_account:'📒 Açık Hesap' };
+  const METHOD_LABELS = { cash:'💵 Nakit', card:'💳 Kredi Kartı', gift_card:'🎁 Hediye Kartı', split:'➗ Bölünmüş', open_account:'📒 Açık Hesap', comp:'🎁 İkram' };
   const billMethodOptions = [...new Set(hist.map(o => o.payment_method))].filter(Boolean).sort();
 
   // Hesabın kaynağı: rezervasyondan / bekleme listesinden oturtulan masa,
@@ -1009,7 +1009,7 @@ async function openSaleDetailModal(historyId){
   const session = getSession();
   const { data: d, error } = await withLoadingOverlay(sb.rpc('get_sale_detail', { p_token: session.session_token, p_history_id: historyId }));
   if(error){ alert(error.message); return; }
-  const methods = { cash:'💵 Nakit', card:'💳 Kart', gift_card:'🎁 Hediye Kartı', split:'➗ Bölünmüş', open_account:'📒 Açık Hesap' };
+  const methods = { cash:'💵 Nakit', card:'💳 Kart', gift_card:'🎁 Hediye Kartı', split:'➗ Bölünmüş', open_account:'📒 Açık Hesap', comp:'🎁 İkram' };
   const label = d.kind==='takeaway' ? '📦 Paket' : (d.table_name || '-');
   const row = (k, v, strong) => `<div style="display:flex;justify-content:space-between;${strong?'font-weight:800;font-size:15px;margin-top:4px;':''}"><span>${k}</span><span>${v}</span></div>`;
   const bg = document.createElement('div');
