@@ -22,9 +22,16 @@ async function renderKitchenView(main, session){
     </div></div>
     <div id="kitchenWrap"></div>`;
   APP.kitchenSeenItemIds = null; // yeni istasyona gecince onceki urunler icin zil calmasin
-  APP.kitchenLateWarned = new Set();
+  kitchenLateWarnedSet(); // uyarılan ürünler ekran yenilense de hatırlanır (tekrar uyarı çıkmaz)
   await refreshKitchenItems(session);
   startKitchenPolling(session);
+}
+function kitchenLateWarnedSet(){
+  if(!APP.kitchenLateWarned){
+    let ids = []; try{ ids = JSON.parse(sessionStorage.getItem('peyk_kitchen_late') || '[]') || []; }catch(e){}
+    APP.kitchenLateWarned = new Set(ids);
+  }
+  return APP.kitchenLateWarned;
 }
 async function refreshKitchenItems(session){
   const [{ data, error }, cancRes] = await Promise.all([
@@ -203,7 +210,8 @@ function startKitchenPolling(session){
   APP.kitchenReminderInterval = setInterval(checkLateOrdersReminder, 180000);
 }
 function updateKitchenTimers(){
-  if(!APP.kitchenLateWarned) APP.kitchenLateWarned = new Set();
+  kitchenLateWarnedSet();
+  const lateNew = [];
   // Kartın üstündeki süre çubuğu 20 dakikaya doğru dolar.
   document.querySelectorAll('.kc-age i[data-age-from]').forEach(el => {
     const f = el.dataset.ageFrom; if(!f) return;
@@ -236,9 +244,15 @@ function updateKitchenTimers(){
     const itemId = el.dataset.id;
     if(secs>=1200 && itemId && !APP.kitchenLateWarned.has(itemId)){
       APP.kitchenLateWarned.add(itemId);
-      showToast('⏰ ' + (el.dataset.name||'Bir sipariş') + ' 20 dakikayı geçti!', 30000, null, () => goToView('kitchen'), true);
+      lateNew.push(el.dataset.name || 'Bir sipariş');
     }
   });
+  // Aynı anda geciken ürünler tek uyarıda toplanır.
+  if(lateNew.length){
+    try{ sessionStorage.setItem('peyk_kitchen_late', JSON.stringify([...APP.kitchenLateWarned].slice(-500))); }catch(e){}
+    const shown = lateNew.slice(0, 3).join(', ') + (lateNew.length > 3 ? ' ve ' + (lateNew.length - 3) + ' ürün daha' : '');
+    showToast('⏰ ' + shown + ' 20 dakikayı geçti!', 30000, null, () => goToView('kitchen'), true);
+  }
   // Kartin arka plani, icindeki en gec kalmis urunun rengine gore hafifce tonlanir.
   document.querySelectorAll('.kitchen-card').forEach(card => {
     const timers = card.querySelectorAll('.kitchen-timer');
