@@ -976,3 +976,13 @@ setTimeout(() => {
     if(window.electronAPI && window.electronAPI.isElectron && 'Notification' in window && Notification.permission === 'default') Notification.requestPermission();
   }catch(e){}
 }, 3000);
+
+// Arka plandan dönünce canlı ekranlar beklemeden tazelensin (yoklama gizliyken durduğu için).
+document.addEventListener('visibilitychange', () => {
+  const s = getSession(); if(document.hidden || !s) return;
+  try{
+    if(APP.view === 'kitchen' && APP.kitchenStation && typeof refreshKitchenItems === 'function') refreshKitchenItems(s);
+    else if((APP.view === 'order' || APP.view === 'packages') && typeof refreshOrderLiveStatus === 'function') refreshOrderLiveStatus(s);
+    refreshNavBadges();
+  }catch(e){}
+});

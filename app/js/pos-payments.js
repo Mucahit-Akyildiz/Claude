@@ -1022,7 +1022,9 @@ function startOrderPolling(session){
   // Mutfaktan "Hazır" işaretlenince Sipariş Al ekranındaki masa kartları (X ürün
   // hazırlanıyor/hazır) başka bir cihazdan geldiği için otomatik yenilenmez -
   // bu yüzden burada da kitchen ekranındaki gibi periyodik arka plan yenileme var.
+  // Sekme arka plandayken (başka sekme/uygulama simge durumunda) sorgu atılmaz; geri gelince hemen yenilenir.
   APP.orderPollInterval = setInterval(() => {
+    if(document.hidden) return;
     if(APP.view==='order' || APP.view==='packages') refreshOrderLiveStatus(session);
   }, 5000);
 }
