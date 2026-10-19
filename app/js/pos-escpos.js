@@ -58,6 +58,8 @@ function buildEscPosTicket(restaurantName, tableName, items, design, dailyNumber
   push(escposEncodeText(headerDateLine + '\n'));
   if(design.showWaiter && ticketWaiter(items)) push(escposEncodeText('Garson: ' + ticketWaiter(items) + '\n'));
   push([0x1B, 0x61, 0x00]); // left align
+  // Sipariş etiketi (Personel, Talebe…): kalın ve büyük, ortada.
+  if(design.tags && design.tags.length){ push([0x1B, 0x61, 0x01, 0x1B, 0x45, 0x01, 0x1D, 0x21, 0x01]); push(escposEncodeText('*** ' + design.tags.join(', ').toLocaleUpperCase('tr') + ' ***\n')); push([0x1D, 0x21, 0x00, 0x1B, 0x45, 0x00, 0x1B, 0x61, 0x00]); }
   pkgTicketLines(design).forEach(([k, v], i) => { if(i === 0) push(escposEncodeText('-'.repeat(lineWidth) + '\n')); push([0x1B, 0x45, 0x01]); push(escposEncodeText(k + ': ')); push([0x1B, 0x45, 0x00]); push(escposEncodeText(v + '\n')); });
   // Termal yazıcılarda ince yazı çoğunlukla silik/soluk çıkıyor - Kalın Yazı
   // ayarı açıksa ürün satırları da bold basılır (bkz. Yazıcı Ayarları > Fiş Tasarımı).
@@ -131,11 +133,11 @@ async function sendToUsbPrinterNow(printer, bytes){
 function reprintKitchenTicket(tableId){
   const entry = APP.kitchenPendingByTable && APP.kitchenPendingByTable[tableId];
   if(!entry){ alert('Bu masa için bekleyen ürün kalmadı.'); return; }
-  printKitchenTicketGrouped(entry.tableName, entry.items, false, entry.dailyNumber, entry.pkg);
+  printKitchenTicketGrouped(entry.tableName, entry.items, false, entry.dailyNumber, entry.pkg, entry.tags);
 }
 /* Ürünleri istasyona göre gruplar, her istasyonun fişini o istasyona atanmış
    yazıcıya (atanmamışsa "Bu Ekranın Yazıcısı"na) ayrı ayrı gönderir. */
-async function printKitchenTicketGrouped(tableName, items, silent, dailyNumber, pkg){
+async function printKitchenTicketGrouped(tableName, items, silent, dailyNumber, pkg, tags){
   const groups = {};
   // "Fişe gönderme" işaretli ürünler (Ayarlar → Ürünler → 🖨️ Fiş) yazdırılmaz.
   const noPrint = new Set(((APP.config && APP.config.products) || []).filter(p => p.print_ticket === false).map(p => p.id));
@@ -151,7 +153,8 @@ async function printKitchenTicketGrouped(tableName, items, silent, dailyNumber, 
   });
   for(const key of Object.keys(groups)){
     const printer = resolvePrinterForStation(key || null);
-    await printKitchenTicket(tableName, groups[key], printer, silent, dailyNumber, pkg ? { pkg } : undefined);
+    const extra = {}; if(pkg) extra.pkg = pkg; if(tags && tags.length) extra.tags = tags;
+    await printKitchenTicket(tableName, groups[key], printer, silent, dailyNumber, Object.keys(extra).length ? extra : undefined);
   }
 }
 /* ---- Yazdırma geçmişi: bu cihazdan basılan her fiş (son 60) ve yazıcı başına
@@ -292,6 +295,7 @@ function buildTicketHtml(restaurantName, tableName, items, design, dailyNumber){
     <div class="ticket-meta" style="${ticketPartStyle(design,'Text')}">${(showOrderNumber && dailyNumber)?('Sipariş No: '+dailyNumber+' · '):''}${escapeHtml(tableName)}</div>
     <div class="ticket-meta" style="${ticketPartStyle(design,'Text')}">${dateLine}</div>
     ${design.showWaiter && ticketWaiter(items) ? `<div class="ticket-meta" style="${ticketPartStyle(design,'Text')}">Garson: ${escapeHtml(ticketWaiter(items))}</div>` : ''}
+    ${design.tags && design.tags.length ? `<div style="text-align:center;font-weight:800;font-size:1.25em;margin:4px 0;">*** ${escapeHtml(design.tags.join(', ').toLocaleUpperCase('tr'))} ***</div>` : ''}
     ${pkgTicketLines(design).length ? `<div class="ticket-line"></div><div class="ticket-pkg" style="${ticketPartStyle(design,'Text')}text-align:left;">${pkgTicketLines(design).map(([k, v]) => `<div><b>${k}:</b> ${escapeHtml(v)}</div>`).join('')}</div>` : ''}
     <div class="ticket-line"></div>
     ${items.map(it => `

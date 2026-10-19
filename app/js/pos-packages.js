@@ -373,7 +373,7 @@ function renderTableItems(tableId){
     return;
   }
   if(draft.length===0){
-    draftWrap.innerHTML = (order && order.items.length>0) || pending.length ? '' : '<div class="om-empty"><div style="font-size:34px;">🍽️</div><b>Sepet boş</b><span>Soldaki menüden ürünlere dokunarak ekleyin.</span></div>';
+    draftWrap.innerHTML = (order && order.items.length>0) || pending.length ? '' : '<div class="om-empty"><div class="om-empty-ic">🍽️</div><b>Sepet boş</b><span>Menüden ürünlere dokunarak ekleyin.</span><small>⭐ Sık satılanlar en üstte</small></div>';
   } else {
     let total=0;
     draftWrap.innerHTML = `<div style="border:1px dashed var(--accent);border-radius:10px;padding:10px;margin:10px 0;">
@@ -482,7 +482,7 @@ async function confirmOrder(tableId){
       const fresh = (o.items || []).filter(i => !prevItemIds.has(i.id) && i.status==='pending' && !APP.locallyPrintedItemIds.has(i.id));
       if(!fresh.length) return;
       fresh.forEach(i => APP.locallyPrintedItemIds.add(i.id));
-      printKitchenTicketGrouped(orderDisplayName(o), fresh, true, o.daily_number, pkgInfoFromOrder(o))
+      printKitchenTicketGrouped(orderDisplayName(o), fresh, true, o.daily_number, pkgInfoFromOrder(o), o.tags || [])
         .catch(e => { console.error('Fiş yazdırma hatası:', e); showToast('⚠️ Fiş yazdırılırken beklenmeyen bir hata oluştu'); });
     });
   }

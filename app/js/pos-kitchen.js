@@ -54,10 +54,10 @@ async function refreshKitchenItems(session){
     if(pending.length===0) return;
     pending.forEach(it => currentIds.add(it.id));
     const tableName = orderDisplayName(o);
-    APP.kitchenPendingByTable[o.order_id] = { tableName, items: pending, dailyNumber: o.daily_number, pkg: pkgInfoFromOrder(o) };
+    APP.kitchenPendingByTable[o.order_id] = { tableName, items: pending, dailyNumber: o.daily_number, pkg: pkgInfoFromOrder(o), tags: o.tags || [] };
     if(!isFirstLoad){
       const freshItems = pending.filter(it => !APP.kitchenSeenItemIds.has(it.id));
-      if(freshItems.length>0) newItemsByTable[o.order_id] = { tableName, dailyNumber: o.daily_number, items: freshItems, pkg: pkgInfoFromOrder(o) };
+      if(freshItems.length>0) newItemsByTable[o.order_id] = { tableName, dailyNumber: o.daily_number, items: freshItems, pkg: pkgInfoFromOrder(o), tags: o.tags || [] };
     }
     // En uzun bekleyen sipariş önce: kart, içindeki en eski bekleyen ürünün zamanına göre sıralanır.
     const oldest = Math.min(...pending.map(it => it.added_at ? new Date(it.added_at).getTime() : Infinity));
@@ -113,7 +113,7 @@ async function refreshKitchenItems(session){
       const printed = APP.locallyPrintedItemIds || new Set();
       const toPrint = entry.items.filter(it => !printed.has(it.id));
       if(!toPrint.length) return;
-      printKitchenTicketGrouped(entry.tableName, toPrint, true, entry.dailyNumber, entry.pkg)
+      printKitchenTicketGrouped(entry.tableName, toPrint, true, entry.dailyNumber, entry.pkg, entry.tags)
         .catch(e => { console.error('Fiş yazdırma hatası:', e); showToast('⚠️ Fiş yazdırılırken beklenmeyen bir hata oluştu'); });
     });
   }
