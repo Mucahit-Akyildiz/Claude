@@ -1522,7 +1522,7 @@ function openTableModal(tableId){
   bg.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:flex-start;justify-content:center;z-index:100;padding:7vh 16px 16px;overflow-y:auto;';
   bg.onclick = (e) => { if(e.target===bg) closeTableModal(); };
   bg.innerHTML = `
-    <div class="order-modal">
+    <div class="order-modal om-table">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
         <h2 style="margin:0;">${escapeHtml(tableName)}</h2>
         <span style="cursor:pointer;color:var(--muted);font-size:20px;" ${act('closeTableModal')}>✕</span>
