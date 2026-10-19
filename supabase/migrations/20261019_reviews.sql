@@ -96,3 +96,5 @@ do $$ declare f text; begin
   end loop;
 end $$;
 -- _nav_badges: 'crm' anahtarı altında görülmemiş düşük puanlı (<=3) değerlendirmeler (kind: review).
+-- Güncelleme: değerlendirmeler Finansal Analiz'e taşındı → list_reviews / mark_reviews_seen 'reports' izni;
+-- _nav_badges düşük puan rozeti 'reports' anahtarı altında (Finansal Analiz menüsü).

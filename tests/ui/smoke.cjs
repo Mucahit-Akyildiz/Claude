@@ -87,6 +87,7 @@ const assert = (c, m) => { if(!c) throw new Error(m); };
       await page.evaluate(() => { APP.reportsUnlocked = true; }); await view('reports', '#reportContent');
       await page.evaluate(() => setReportTab('zreport')); await page.waitForSelector('#ccCounted', { timeout: 8000 });
       await page.evaluate(() => setReportTab('payroll')); await page.waitForSelector('.pr-tbl', { timeout: 8000 });
+      await page.evaluate(() => setReportTab('reviews')); await page.waitForSelector('#reviewsBody .rvw-sum', { timeout: 8000 });
     });
     await check(T('Ayarlar: hammaddeler ve kullanıcılar'), async () => {
       await page.evaluate(() => { document.getElementById('main').innerHTML = '<div id="tst"></div>'; renderIngredientsSettings(document.getElementById('tst'), getSession()); });
