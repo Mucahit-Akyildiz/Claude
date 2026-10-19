@@ -58,7 +58,7 @@ async function renderReservationsContent(session, forceRefresh){
       <div class="rv-time"><b>${t.toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'})}</b><span class="rv-pill">${RESV_STATUS_LABELS[r.status]||r.status}</span></div>
       <div class="rv-main">
         <div class="rv-who">${avatarHtml(r.customer_name)}<div><b>${escapeHtml(r.customer_name)}</b><small>${r.phone ? phoneHtml(r.phone) : 'telefon yok'}</small></div></div>
-        <div class="rv-meta"><span class="pchip">👥 ${r.party_size} kişi</span><span class="pchip">🪑 ${escapeHtml(r.table_name||'Masa seçilmedi')}</span>${late ? '<span class="pchip warn">⏰ saati geçti</span>' : ''}${soon ? `<span class="pchip rv-soon">⏳ ${mins} dk kaldı</span>` : ''}</div>
+        <div class="rv-meta"><span class="pchip">👥 ${r.party_size} kişi</span><span class="pchip">🪑 ${escapeHtml(r.table_name||'Masa seçilmedi')}</span>${r.source==='online' ? '<span class="pchip rv-online" title="Müşteri online rezervasyon sayfasından gönderdi">🌐 Online</span>' : ''}${late ? '<span class="pchip warn">⏰ saati geçti</span>' : ''}${soon ? `<span class="pchip rv-soon">⏳ ${mins} dk kaldı</span>` : ''}</div>
         ${r.notes ? `<div class="rv-note">📝 ${escapeHtml(r.notes)}</div>` : ''}
       </div>
       <div class="rv-acts">
@@ -76,7 +76,8 @@ async function renderReservationsContent(session, forceRefresh){
       ['⏭️', next ? new Date(next.reservation_time).toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'}) : '—', next ? 'Sıradaki: '+escapeHtml(next.customer_name) : 'Sıradaki yok', 'var(--c4)', next ? 'next' : '']
     ], '', 'resv') + `${sheetHtml('rvSheet', '📅', 'Yeni Rezervasyon', rvFormHtml(), 'var(--c1)')}
   <div class="box" style="max-width:none;">
-    <div class="fsheet-bar" style="margin:0 0 12px;"><h2 style="margin:0;">Yaklaşan Rezervasyonlar</h2>${sheetBtnHtml('rvSheet','+ Yeni Rezervasyon')}</div><div data-cf-scope="resv">
+    <div class="fsheet-bar" style="margin:0 0 12px;"><h2 style="margin:0;">Yaklaşan Rezervasyonlar</h2><div style="display:flex;gap:8px;flex-wrap:wrap;"><button type="button" class="ghost-btn" style="width:auto;margin:0;" ${act('openOnlineResvSheet')} title="Müşterilerin kendisi rezervasyon yapabileceği sayfa">🌐 Online Rezervasyon</button>${sheetBtnHtml('rvSheet','+ Yeni Rezervasyon')}</div></div>
+    ${sheetHtml('onlineResvSheet', '🌐', 'Online Rezervasyon', '<div id="onlineResvBody"><p class="muted">Yükleniyor…</p></div>', 'var(--c2)')}<div data-cf-scope="resv">
     ${days.length ? days.map(k => `<div class="rv-day" data-cf-tags="${[...new Set(sorted.filter(r => dkey(r)===k).flatMap(r => rvTags(r).split(' ')))].join(' ')}"><div class="rv-day-h">${dayLabel(k)}<span class="muted">${sorted.filter(r => dkey(r)===k).length} rezervasyon</span></div>
       <div class="rv-list">${sorted.filter(r => dkey(r)===k).map(card).join('')}</div></div>`).join('')
       : '<div class="empty-state rv-empty"><div class="om-empty-ic">📅</div><b>Yaklaşan rezervasyon yok</b><p class="muted">Yukarıdaki formdan birkaç dokunuşla yeni rezervasyon ekleyebilirsiniz.</p></div>'}
@@ -467,4 +468,26 @@ function rvSummary(){
   const tSel = document.getElementById('rv_table'), tName = tSel && tSel.value ? tSel.options[tSel.selectedIndex].text : '';
   const when = f.day && f.time ? new Date(f.day + 'T' + f.time).toLocaleString('tr-TR', { weekday:'long', day:'numeric', month:'long', hour:'2-digit', minute:'2-digit' }) : '';
   el.innerHTML = [name.trim() ? '👤 <b>' + escapeHtml(name.trim()) + '</b>' : '', when ? '📅 ' + escapeHtml(when) : '<span class="muted">Saat seçin</span>', '👥 ' + (f.party || 2) + ' kişi', tName ? '🪑 ' + escapeHtml(tName) : ''].filter(Boolean).join(' · ');
+}
+
+/* Online rezervasyon: müşteri /rezervasyon/?r=KOD sayfasından istek gönderir; istek
+   "onay bekliyor" olarak listeye ve menü rozetine düşer. */
+async function openOnlineResvSheet(){ openSheet('onlineResvSheet'); await renderOnlineResvBody(); }
+async function renderOnlineResvBody(){
+  const body = document.getElementById('onlineResvBody'); if(!body) return;
+  const { data, error } = await sb.rpc('get_online_reservation_settings', { p_token: getSession().session_token });
+  if(error || !data){ body.innerHTML = '<p class="muted">Yüklenemedi' + (error ? ': ' + escapeHtml(error.message) : '') + '</p>'; return; }
+  const url = window.location.origin + '/rezervasyon/?r=' + encodeURIComponent(data.code || '');
+  const qr = 'https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=' + encodeURIComponent(url);
+  body.innerHTML = `<p class="muted" style="text-align:left;margin:0 0 12px;font-size:13px;">Müşterileriniz bu sayfadan gün, saat ve kişi sayısı seçip rezervasyon isteği gönderir. İstekler <b>Onay bekliyor</b> olarak listeye ve menü rozetine düşer; siz onaylarsınız.</p>
+    <label class="olr-toggle ${data.enabled ? 'on' : ''}"><input type="checkbox" ${data.enabled ? 'checked' : ''} ${actOn('change','toggleOnlineResv',['$checked'])}><span class="olr-sw"></span><b>${data.enabled ? 'Online rezervasyon açık' : 'Online rezervasyon kapalı'}</b></label>
+    ${data.enabled ? `<div class="olr-link"><img src="${qr}" alt="QR"><div><p class="muted" style="margin:0 0 6px;font-size:12px;">Instagram bio'nuza, Google İşletme profilinize, web sitenize ya da masa standına koyun.</p>
+      <p style="font-size:13px;overflow-wrap:anywhere;margin:0 0 10px;">${escapeHtml(url)}</p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;"><button type="button" style="width:auto;margin:0;" ${act('copyText', url, 'Link kopyalandı ✓')}>🔗 Linki Kopyala</button><a class="ghost-btn" style="width:auto;margin:0;display:inline-flex;align-items:center;padding:10px 14px;border-radius:12px;text-decoration:none;" href="${url}" target="_blank" rel="noopener">👁 Sayfayı Aç</a></div></div></div>` : ''}`;
+}
+async function toggleOnlineResv(on){
+  const { error } = await sb.rpc('set_online_reservations', { p_token: getSession().session_token, p_enabled: on });
+  if(error){ alert(error.message); }
+  else showToast(on ? 'Online rezervasyon açıldı ✓' : 'Online rezervasyon kapatıldı');
+  renderOnlineResvBody();
 }

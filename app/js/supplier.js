@@ -8,6 +8,8 @@ async function renderPurchasingView(main, session){
   main.innerHTML = `<h1>Satınalma Siparişleri</h1>
     <div id="purchContent">${canOrders ? '' : '<div class="box"><p class="muted">Tedarikçiler artık <b>Satınalma → Tedarikçiler</b> altında.</p></div>'}</div>`;
   if(!canOrders) return;
+  // Kritik stok uyarısı güncel stokla hesaplansın.
+  try{ const { data } = await sb.rpc('get_restaurant_config', { p_token: session.session_token }); if(data) APP.config = data; }catch(e){}
   applyNavBadges();
   await renderPurchTabContent(session);
 }
@@ -123,6 +125,7 @@ async function renderPurchaseOrdersContent(session){
   const pf = APP.poFilter || 'all';
   const shown = pf==='all' ? rows : pf==='late' ? rows.filter(isLate) : rows.filter(p => p.status===pf);
   el.innerHTML = `
+  ${lowStockBannerHtml()}
   <div class="fsheet-bar" style="margin:0 0 14px;"><p class="muted" style="margin:0;font-size:13px;text-align:left;">Hammadde ihtiyacınızı tedarikçiye sipariş olarak iletin.</p>${sheetBtnHtml('poSheet','🛒 Yeni Sipariş')}</div>
   ${sheetHtml('poSheet', '🛒', 'Yeni Sipariş', `<p class="muted" style="text-align:left;margin:0 0 12px;font-size:13px;">İhtiyaç duyduğunuz hammaddeleri ve miktarları girip <b>Sipariş Ver</b>'e basın. Birim fiyat ve teslim alma <b>Satınalma</b> menüsünden yapılır.</p>
       <div class="fsheet-grid">
@@ -150,6 +153,26 @@ async function renderPurchaseOrdersContent(session){
       </div>`; }).join('')}</div>`
       : '<div class="empty-state"><div style="font-size:42px;">📋</div><p class="muted">Bu filtrede sipariş yok.</p></div>'}
   </div>`;
+}
+/* Kritik stok: minimum seviyenin altındaki hammaddeler için uyarı ve tek tıkla sipariş taslağı. */
+function lowStockList(){
+  return ((APP.config && APP.config.ingredients) || []).filter(i => Number(i.min_stock) > 0 && Number(i.stock) <= Number(i.min_stock));
+}
+function lowStockBannerHtml(){
+  const low = lowStockList(); if(!low.length) return '';
+  return `<div class="ls-banner">
+    <div class="ls-head"><span class="ls-ic">📉</span><div><b>${low.length} hammadde kritik seviyede</b><small>Minimum stok seviyesinin altına inenler</small></div>
+      <button type="button" class="ls-btn" ${act('draftLowStockOrder')}>🛒 Sipariş taslağı hazırla</button></div>
+    <div class="ls-chips">${low.map(i => `<span class="pchip ${Number(i.stock) <= 0 ? 'warn' : ''}">${escapeHtml(i.name)} · <b>${fmtQty(Number(i.stock)||0)}</b> / ${fmtQty(Number(i.min_stock))} ${escapeHtml(i.unit||'')}</span>`).join('')}</div>
+  </div>`;
+}
+function draftLowStockOrder(){
+  const low = lowStockList(); if(!low.length) return;
+  // Önerilen miktar: stoğu minimumun iki katına tamamlayacak kadar.
+  const have = new Set((APP.poDraftItems||[]).map(x => x.ingredient_id));
+  low.forEach(i => { if(!have.has(i.id)) APP.poDraftItems.push({ ingredient_id: i.id, quantity: String(Math.max(0, Math.round((Number(i.min_stock)*2 - Math.max(0, Number(i.stock)||0))*100)/100)), unit_cost: '' }); });
+  document.getElementById('poItemsWrap').innerHTML = renderPoDraftItemsHtml();
+  openSheet('poSheet');
 }
 function renderPoDraftItemsHtml(){
   const ingredients = (APP.config && APP.config.ingredients) || [];

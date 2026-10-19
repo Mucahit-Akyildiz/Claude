@@ -190,12 +190,13 @@ function renderIngredientsSettings(el, session){
   const useCount = (id) => (APP.config.products||[]).filter(p => (p.recipe||[]).some(r => r.ingredient_id === id)).length;
   const maxStock = Math.max(1, ...ings.map(i => Number(i.stock)||0));
   const f = APP.ingFilter || 'all';
-  const shownIngs = f==='out' ? ings.filter(i => Number(i.stock)<=0) : f==='idle' ? ings.filter(i => !useCount(i.id)) : f==='waste' ? ings.filter(i => Number(i.waste_pct)>0) : ings;
+  const isLow = (i) => Number(i.min_stock) > 0 && Number(i.stock) <= Number(i.min_stock);
+  const shownIngs = f==='low' ? ings.filter(isLow) : f==='out' ? ings.filter(i => Number(i.stock)<=0) : f==='idle' ? ings.filter(i => !useCount(i.id)) : f==='waste' ? ings.filter(i => Number(i.waste_pct)>0) : ings;
   const chip = (k, ic, v, l, c) => `<div class="os-chip os-click ${f===k?'on':''}" role="button" title="Listeyi filtrele" style="--oc:${c};" ${act('setIngFilter', k)}><span class="os-ic">${ic}</span><div><b>${v}</b><small>${l}</small></div></div>`;
-  el.innerHTML = `<div class="order-summary stat-chips" style="--n:4;">${chip('all','🥕', ings.length, 'Hammadde', 'var(--c1)')}${chip('out','⛔', ings.filter(i => Number(i.stock)<=0).length, 'Stoğu biten', 'var(--danger,#ef4444)')}${chip('idle','💤', ings.filter(i => !useCount(i.id)).length, 'Reçetede kullanılmayan', 'var(--c3)')}${chip('waste','✂️', ings.filter(i => Number(i.waste_pct)>0).length, 'Fire tanımlı', 'var(--c2)')}</div>
+  el.innerHTML = `<div class="order-summary stat-chips" style="--n:5;">${chip('all','🥕', ings.length, 'Hammadde', 'var(--c1)')}${chip('low','📉', ings.filter(isLow).length, 'Kritik stok', 'var(--c3)')}${chip('out','⛔', ings.filter(i => Number(i.stock)<=0).length, 'Stoğu biten', 'var(--danger,#ef4444)')}${chip('idle','💤', ings.filter(i => !useCount(i.id)).length, 'Reçetede kullanılmayan', 'var(--c3)')}${chip('waste','✂️', ings.filter(i => Number(i.waste_pct)>0).length, 'Fire tanımlı', 'var(--c2)')}</div>
   <div class="box" style="max-width:none;">
     <h2>Hammaddeler / Stok Kalemleri</h2>
-    <details class="prod-info"><summary>ℹ️ Nasıl çalışır</summary><p class="muted" style="text-align:left;margin:0 0 12px;">Örn: "Köfte" (birim: adet, stok: 200), "Döner Eti" (birim: kg, stok: 20). Yeni bir hammadde eklediğinizde hangi ürünlerin onu kullandığını hemen soracağız — istediğiniz zaman "Kullanıldığı Ürünler" ile bunu tekrar düzenleyebilirsiniz. Aynı hammaddeyi paylaşan ürünlerin stoğu her zaman ortak ve anlık hesaplanır. <b>Fire %</b>: temizleme/kesim kaybıdır; reçeteye net miktarı girersiniz, stoktan fire eklenerek düşülür (örn. %10 fire, 60 g net → 66,7 g düşer). Kartları değiştirip <b>Kaydet</b>'e basın; silmek için kartları seçin.</p></details>
+    <details class="prod-info"><summary>ℹ️ Nasıl çalışır</summary><p class="muted" style="text-align:left;margin:0 0 12px;">Örn: "Köfte" (birim: adet, stok: 200), "Döner Eti" (birim: kg, stok: 20). Yeni bir hammadde eklediğinizde hangi ürünlerin onu kullandığını hemen soracağız — istediğiniz zaman "Kullanıldığı Ürünler" ile bunu tekrar düzenleyebilirsiniz. Aynı hammaddeyi paylaşan ürünlerin stoğu her zaman ortak ve anlık hesaplanır. <b>Min</b>: stok bu seviyeye inince Satınalma Siparişleri menüsünde uyarı çıkar ve tek tıkla sipariş taslağı hazırlanır. <b>Fire %</b>: temizleme/kesim kaybıdır; reçeteye net miktarı girersiniz, stoktan fire eklenerek düşülür (örn. %10 fire, 60 g net → 66,7 g düşer). Kartları değiştirip <b>Kaydet</b>'e basın; silmek için kartları seçin.</p></details>
     <div class="add-row-panel">
       <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:0 0 10px;">
         ${listSearchHtml('ingredients', 'Hammadde ara…').replace('margin:0 0 12px;','margin:0;')}
@@ -223,12 +224,13 @@ function renderIngredientsSettings(el, session){
         return `<div class="pcard ig-card ${out?'ig-out':''}" data-iid="${i.id}" data-name="${escapeAttr(String(i.name||'').toLocaleLowerCase('tr'))}" style="--i:${Math.min(k,12)};">
         <div class="pcard-top"><input type="checkbox" class="ing-sel" value="${i.id}" ${actOn('change','updateIngSelection',[])}>
           <input class="ig-name" value="${escapeAttr(i.name)}" id="ing_name_${i.id}">
-          <span class="ig-st ${out?'out':uses?'ok':'idle'}">${out ? '● Bitti' : uses ? '● Kullanımda' : '○ Kullanılmıyor'}</span></div>
+          <span class="ig-st ${out?'out':isLow(i)?'low':uses?'ok':'idle'}">${out ? '● Bitti' : isLow(i) ? '● Kritik' : uses ? '● Kullanımda' : '○ Kullanılmıyor'}</span></div>
         <div class="ig-stock"><input type="number" step="0.01" value="${i.stock}" id="ing_stock_${i.id}" class="ig-qty">
           <select id="ing_unit_${i.id}" class="ig-unit">${['adet','gram','kg','ml','lt'].map(u => `<option value="${u}" ${u===i.unit?'selected':''}>${u}</option>`).join('')}</select></div>
-        <div class="pcard-mbar"><i style="width:${out?0:pct}%;background:${out?'var(--danger,#ef4444)':pct<15?'var(--c3)':'var(--ok,#22c55e)'};"></i></div>
+        <div class="pcard-mbar"><i style="width:${out?0:pct}%;background:${out?'var(--danger,#ef4444)':isLow(i)||pct<15?'var(--c3)':'var(--ok,#22c55e)'};"></i></div>
         <div class="ig-foot">
           <label class="ig-waste" title="Temizleme/kesim kaybı">Fire % <input type="number" step="0.1" min="0" max="99" value="${Number(i.waste_pct)||0}" id="ing_waste_${i.id}"></label>
+          <label class="ig-waste" title="Stok bu seviyeye inince uyarı verilir (boş = uyarı yok)">Min <input type="number" step="0.01" min="0" value="${Number(i.min_stock)||''}" placeholder="—" id="ing_min_${i.id}"></label>
           <button type="button" class="pc-btn" ${act('openIngredientUsageModal', i.id)}>🍽️ ${uses} ürün</button>
         </div>
       </div>`; }).join('') || '<div class="empty-state" style="grid-column:1/-1;"><div style="font-size:38px;">🥕</div><p class="muted">Bu filtrede hammadde yok.</p></div>'}
@@ -260,13 +262,15 @@ async function saveAllIngredients(){
   const rows = [...document.querySelectorAll('[data-iid][data-dirty]')].map(tr => {
     const id = tr.dataset.iid;
     return { id, name: document.getElementById('ing_name_'+id).value.trim(), unit: document.getElementById('ing_unit_'+id).value,
-      stock: parseFloat(document.getElementById('ing_stock_'+id).value)||0, waste: parseFloat(document.getElementById('ing_waste_'+id).value)||0 };
+      stock: parseFloat(document.getElementById('ing_stock_'+id).value)||0, waste: parseFloat(document.getElementById('ing_waste_'+id).value)||0,
+      min: parseFloat(document.getElementById('ing_min_'+id).value)||0 };
   });
   if(!rows.length) return;
   if(rows.some(r => !r.name)){ alert('Hammadde adı boş olamaz'); return; }
   const session = getSession(); const errors = [];
   await withLoadingOverlay((async () => {
-    for(const r of rows){ const { error } = await sb.rpc('upsert_ingredient', { p_token: session.session_token, p_id: r.id, p_name: r.name, p_unit: r.unit, p_stock: r.stock, p_waste_pct: r.waste }); if(error) errors.push(r.name + ': ' + error.message); }
+    for(const r of rows){ const { error } = await sb.rpc('upsert_ingredient', { p_token: session.session_token, p_id: r.id, p_name: r.name, p_unit: r.unit, p_stock: r.stock, p_waste_pct: r.waste }); if(error){ errors.push(r.name + ': ' + error.message); continue; }
+      const { error: e2 } = await sb.rpc('set_ingredient_min', { p_token: session.session_token, p_id: r.id, p_min: r.min }); if(e2) errors.push(r.name + ': ' + e2.message); }
   })());
   renderSettingsView(document.getElementById('main'), session);
   if(errors.length) alert('Bazı hammaddeler kaydedilemedi:\n\n' + errors.join('\n')); else showToast(rows.length + ' hammadde kaydedildi ✓');

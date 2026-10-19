@@ -222,6 +222,11 @@ function openPayModal(orderId){
           <button style="width:auto;padding:0 14px;margin:0;" ${act('applyPayDiscount')}>Uygula</button>
         </div>
         <p id="discInfo" class="hint">İndirim yok</p>
+        <div class="field-row cp-row">
+          <input id="couponCode" placeholder="🎟️ Kupon kodu" autocapitalize="characters" autocomplete="off" style="flex:1;text-transform:uppercase;">
+          <button type="button" class="ghost-btn" style="width:auto;padding:0 14px;margin:0;" ${act('applyCoupon')}>Kuponu Uygula</button>
+        </div>
+        <div id="promoChips" class="pay-chip-row"></div>
       </div>
       <div class="pay-option-card" data-opt="tip" hidden>
         <h4>💸 Bahşiş</h4>
@@ -296,6 +301,7 @@ function openPayModal(orderId){
   </div>`;
   document.body.appendChild(bg);
   autoSelectPayCustomer(order);
+  loadActivePromos();
   updatePayReadiness();
 }
 /* Masaya girilmiş müşteri kayıtlıysa ödeme ekranında otomatik seçilir
@@ -400,6 +406,14 @@ async function lookupPayCustomer(picked){
   const birthdayPct = Number(bg.dataset.birthdayPct) || 0;
   infoEl.textContent = data.name + (data.phone || phone ? ' · 📞 ' + (data.phone || phone) : '') + ' · ' + data.points_balance + ' puan' + (data.custom_loyalty ? ' · ⭐ özel sadakat' : '') +
     (data.is_birthday_today && birthdayPct>0 ? ' · 🎂 Bugün doğum günü! %'+birthdayPct+' indirim uygulanacak' : '');
+  // Sadakat seviyesi: rozet + seviye indirimi (başka indirim yoksa otomatik uygulanır).
+  const tier = data.tier;
+  if(tier){ infoEl.textContent += ' · ' + (tier.icon||'⭐') + ' ' + tier.name + (Number(tier.mult) > 1 ? ' (x' + Number(tier.mult) + ' puan)' : ''); }
+  if(tier && Number(tier.disc) > 0 && !(parseFloat(bg.dataset.discountValue||0) > 0)){
+    bg.dataset.discountType = 'percent'; bg.dataset.discountValue = String(Number(tier.disc));
+    clearPromo(bg); bg.dataset.promoName = (tier.icon||'⭐') + ' ' + tier.name + ' üye indirimi';
+    showToast((tier.icon||'⭐') + ' ' + tier.name + ' üye: %' + Number(tier.disc) + ' indirim uygulandı');
+  }
   if(loyalty.enabled && data.points_balance>0){
     redeemWrap.style.display = 'block';
     document.getElementById('payRedeemPoints').max = data.points_balance;
@@ -582,7 +596,12 @@ function recomputePaySelection(){
   if(discAmount>subtotal) discAmount = subtotal;
   bg.dataset.discountAmount = String(discAmount);
   const discInfo = document.getElementById('discInfo');
-  if(discInfo) discInfo.textContent = discAmount>0 ? ('İndirim: -'+money(discAmount)+(discType==='percent'?' (%'+discValue+')':'')) : 'İndirim yok';
+  if(bg.dataset.promoId && subtotal < (Number(bg.dataset.promoMin)||0)){
+    // Seçim azaltılınca kampanyanın alt limiti tutmuyorsa kampanya kaldırılır.
+    showToast('Kampanya kaldırıldı: en az ' + money(Number(bg.dataset.promoMin)) + ' gerekli');
+    bg.dataset.discountType = ''; bg.dataset.discountValue = '0'; clearPromo(bg); discAmount = 0; bg.dataset.discountAmount = '0';
+  }
+  if(discInfo) discInfo.textContent = discAmount>0 ? ((bg.dataset.promoName ? '🎟️ ' + bg.dataset.promoName + ' · ' : '') + 'İndirim: -'+money(discAmount)+(bg.dataset.discountType==='percent'?' (%'+discValue+')':'')) : 'İndirim yok';
   updatePayFinalTotalLine();
 }
 function applyPayDiscount(){
@@ -592,7 +611,41 @@ function applyPayDiscount(){
   if(val<0) val=0;
   bg.dataset.discountType = type;
   bg.dataset.discountValue = String(val);
+  clearPromo(bg);
   recomputePaySelection();
+}
+/* --- Kampanya / kupon: kupon kodu ya da şu an geçerli otomatik kampanya (happy hour vb.)
+   indirim olarak uygulanır; ödeme tamamlanınca kullanım kaydedilir (redeem_promotion). --- */
+function clearPromo(bg){ delete bg.dataset.promoId; delete bg.dataset.promoName; delete bg.dataset.promoMin; document.querySelectorAll('#promoChips .pay-chip').forEach(c => c.classList.remove('on')); }
+function setPromo(p){
+  const bg = document.getElementById('payModalBg'); if(!bg) return;
+  bg.dataset.discountType = p.disc_type; bg.dataset.discountValue = String(p.disc_value);
+  bg.dataset.promoId = p.id; bg.dataset.promoName = p.name; bg.dataset.promoMin = String(p.min_total || 0);
+  document.querySelectorAll('#promoChips .pay-chip').forEach(c => c.classList.toggle('on', c.dataset.pid === p.id));
+  recomputePaySelection();
+  showToast('🎟️ ' + p.name + ' uygulandı');
+}
+async function applyCoupon(){
+  const bg = document.getElementById('payModalBg'), code = document.getElementById('couponCode').value.trim();
+  if(!code){ showToast('Kupon kodunu yazın'); return; }
+  const { data, error } = await sb.rpc('check_coupon', { p_token: getSession().session_token, p_code: code, p_subtotal: parseFloat(bg.dataset.subtotal)||0 });
+  if(error){ alert(error.message); return; }
+  setPromo(data);
+}
+async function loadActivePromos(){
+  const box = document.getElementById('promoChips'); if(!box) return;
+  const { data } = await sb.rpc('list_active_promotions', { p_token: getSession().session_token });
+  APP.activePromos = data || [];
+  if(!document.getElementById('promoChips')) return;
+  box.innerHTML = APP.activePromos.map(p => `<button type="button" class="pay-chip promo-chip" data-pid="${p.id}" title="${p.min_total > 0 ? 'En az ' + escapeAttr(money(p.min_total)) : ''}" ${act('applyActivePromo', p.id)}>🎉 ${escapeHtml(p.name)} · ${p.disc_type==='percent' ? '%' + p.disc_value : money(p.disc_value)}</button>`).join('');
+  const tab = document.querySelector('.pay-opt-tab[data-opt="disc"]');
+  if(tab && APP.activePromos.length) tab.classList.add('has-promo');
+}
+function applyActivePromo(id){
+  const p = (APP.activePromos||[]).find(x => x.id === id); if(!p) return;
+  const bg = document.getElementById('payModalBg');
+  if((parseFloat(bg.dataset.subtotal)||0) < (Number(p.min_total)||0)){ alert('Bu kampanya için en az ' + money(p.min_total) + ' harcama gerekli'); return; }
+  setPromo(p);
 }
 function payFinalTotal(){
   const bg = document.getElementById('payModalBg');
@@ -779,7 +832,11 @@ async function finishPayment(orderId, method, total, cash, card, discountAmount,
   }
   const session = getSession();
   if(error){ alert('Ödeme kaydedilemedi: '+error.message); return; }
-  const bg = document.getElementById('payModalBg'); if(bg) bg.remove();
+  const bg = document.getElementById('payModalBg');
+  if(bg && bg.dataset.promoId && (discountAmount||0) > 0){
+    sb.rpc('redeem_promotion', { p_token: session.session_token, p_id: bg.dataset.promoId, p_history_id: (data && data.history_id) || null, p_amount: discountAmount });
+  }
+  if(bg) bg.remove();
   const { data: liveData } = await sb.rpc('get_live_orders', { p_token: session.session_token });
   APP.liveOrders = liveData || [];
   // Ödeme al(n)dığı an, arkadaki masa/paket kartlarının tutarı da hemen
@@ -800,7 +857,7 @@ async function finishPayment(orderId, method, total, cash, card, discountAmount,
     // E-posta penceresi yalnızca ödeme ekranında "e-postayla gönder"
     // işaretlendiyse açılır (her hesapta tekrar sorulmaz).
     if(APP.payWantsEmail){ APP.payWantsEmail = false; openInvoiceEmailModal(hid); }
-    else showToast('Ödeme alındı ✓');
+    else showAfterPayCard(hid, customerId);
     if(APP.view!=='payments') renderPaymentsView(document.getElementById('main'), session);
   }
 }
@@ -864,6 +921,38 @@ async function sendInvoiceEmail(historyId){
 /* --- Google Yorumları'na yönlendirme: hesap tamamen kapandığında (bkz.
    yukarısı) personele gösterilen toast'a dokununca, müşterinin telefonuyla
    okutabileceği bir QR kod açılır (bkz. Ayarlar > Entegrasyonlar). --- */
+/* Ödeme sonrası kısa süre görünen kart: müşteriden değerlendirme istemek için
+   QR göster ya da (kayıtlı müşteri telefonu varsa) SMS ile link gönder. */
+function showAfterPayCard(historyId, customerId){
+  removeEl('afterPayCard');
+  if(!historyId){ showToast('Ödeme alındı ✓'); return; }
+  const el = document.createElement('div');
+  el.id = 'afterPayCard'; el.className = 'ap-card';
+  el.innerHTML = `<div class="ap-h"><span>✅</span><b>Ödeme alındı</b><button type="button" class="ap-x" ${act('removeEl','afterPayCard')}>✕</button></div>
+    <div class="ap-acts"><button type="button" ${act('showReviewQr', historyId)}>⭐ Değerlendirme QR</button>${customerId ? `<button type="button" class="ghost-btn" ${act('sendReviewSms', historyId)}>📱 SMS ile iste</button>` : ''}</div>`;
+  document.body.appendChild(el);
+  clearTimeout(window._apT); window._apT = setTimeout(() => removeEl('afterPayCard'), 15000);
+}
+async function showReviewQr(historyId){
+  removeEl('afterPayCard');
+  const { data, error } = await sb.rpc('create_review_link', { p_token: getSession().session_token, p_history_id: historyId, p_send_sms: false });
+  if(error){ alert(error.message); return; }
+  const url = window.location.origin + '/degerlendirme/?t=' + data.token;
+  const bg = document.createElement('div');
+  bg.id = 'reviewQrBg'; bg.className = 'rq-bg';
+  bg.onclick = (e) => { if(e.target===bg) bg.remove(); };
+  bg.innerHTML = `<div class="rq-box"><div class="rq-h"><h2>⭐ Bizi Değerlendirin</h2><button type="button" class="ap-x" ${act('removeEl','reviewQrBg')}>✕</button></div>
+    <p class="muted">Müşteriye telefonuyla okutması için gösterin. 4-5 yıldız verenler Google yorumuna yönlendirilir.</p>
+    <img src="https://api.qrserver.com/v1/create-qr-code/?size=260x260&data=${encodeURIComponent(url)}" alt="QR">
+    <button type="button" class="ghost-btn" ${act('copyText', url, 'Link kopyalandı ✓')}>🔗 Linki Kopyala</button></div>`;
+  document.body.appendChild(bg);
+}
+async function sendReviewSms(historyId){
+  removeEl('afterPayCard');
+  const { error } = await sb.rpc('create_review_link', { p_token: getSession().session_token, p_history_id: historyId, p_send_sms: true });
+  if(error){ alert(error.message); return; }
+  showToast('📱 Değerlendirme linki SMS ile gönderildi ✓');
+}
 function showGoogleReviewQr(){
   const url = APP.config && APP.config.google_review_url;
   if(!url) return;
