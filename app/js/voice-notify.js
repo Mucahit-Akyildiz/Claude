@@ -244,7 +244,7 @@ function processVoiceBadges(data, visibleViews){
   // Yaklaşan rezervasyonlar (15 dk içinde, sunucudan _upcoming): her rezervasyon bir kez.
   (data && data._upcoming || []).forEach(x => {
     const key = 'soon:' + x.id; ids.add(key);
-    if(!VOICE_RESV_SEEN.has(x.id)){ VOICE_RESV_SEEN.add(x.id); if(VOICE_SEEN) (fresh.resvsoon = fresh.resvsoon || []).push(x); }
+    if(!VOICE_RESV_SEEN.has(x.id)){ VOICE_RESV_SEEN.add(x.id); (fresh.resvsoon = fresh.resvsoon || []).push(x); }
   });
   // Masaya oturan bekleme listesi / rezervasyon misafirleri (son 5 dk, sunucudan _seated).
   (data && data._seated || []).forEach(x => {
@@ -274,7 +274,8 @@ function processVoiceBadges(data, visibleViews){
   }
   const first = !VOICE_SEEN;
   VOICE_SEEN = ids;
-  if(first) return false;
+  // Uygulama ilk açıldığında eski bildirimler okunmaz; ama 15 dk içindeki rezervasyon yine hatırlatılır.
+  if(first){ if(!fresh.resvsoon) return false; Object.keys(fresh).forEach(k => { if(k !== 'resvsoon') delete fresh[k]; }); }
   const p = getVoicePrefs();
   if(!p.enabled) return false;
   let sound = false;
