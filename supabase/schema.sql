@@ -5937,13 +5937,13 @@ CREATE FUNCTION public.get_table_review(p_qr_token uuid) RETURNS json
     SET search_path TO 'public', 'extensions', 'pg_temp'
     AS $$ declare v_t restaurant_tables%rowtype; h sales_history%rowtype; o orders%rowtype; v_tok uuid; v_rated boolean;
 begin
-  -- Masa QR menüsü: masada açık hesap varsa (yemek sırasında) ya da son 2 saatte ödenmiş hesap varsa değerlendirme linki döner.
+  -- Masa QR menüsü: açık hesap varsa o hesaba, son 2 saatte ödenmiş hesap varsa ona, hiçbiri yoksa masaya bağlı değerlendirme linki döner.
   select * into v_t from restaurant_tables where qr_token = p_qr_token;
   if v_t.id is null then return null; end if;
   select * into o from orders where table_id = v_t.id and status = 'open' order by created_at desc limit 1;
   if o.id is not null then
-    insert into reviews(restaurant_id, order_id, table_name, staff_user_id)
-      values (o.restaurant_id, o.id, v_t.name, o.created_by) on conflict (order_id) do nothing;
+    insert into reviews(restaurant_id, order_id, table_id, table_name, staff_user_id)
+      values (o.restaurant_id, o.id, v_t.id, v_t.name, o.created_by) on conflict (order_id) do nothing;
     select token, rating is not null into v_tok, v_rated from reviews where order_id = o.id;
     if v_rated then return null; end if;
     return json_build_object('token', v_tok);
@@ -5951,13 +5951,22 @@ begin
   select sh.* into h from sales_history sh join orders o2 on o2.id = sh.order_id
    where o2.table_id = v_t.id and o2.status = 'closed' and sh.closed_at > now() - interval '2 hours'
    order by sh.closed_at desc limit 1;
-  if h.id is null then return null; end if;
-  perform _link_order_review(h.id);
-  if exists(select 1 from reviews where order_id = h.order_id and rating is not null) then return null; end if;
-  insert into reviews(restaurant_id, sales_history_id, customer_id, table_name, staff_user_id)
-    values (h.restaurant_id, h.id, h.customer_id, h.table_name, h.staff_user_id) on conflict (sales_history_id) do nothing;
-  select token, rating is not null into v_tok, v_rated from reviews where sales_history_id = h.id;
-  if v_rated then return null; end if;
+  if h.id is not null then
+    perform _link_order_review(h.id);
+    if exists(select 1 from reviews where order_id = h.order_id and rating is not null) then return null; end if;
+    insert into reviews(restaurant_id, sales_history_id, customer_id, table_id, table_name, staff_user_id)
+      values (h.restaurant_id, h.id, h.customer_id, v_t.id, h.table_name, h.staff_user_id) on conflict (sales_history_id) do nothing;
+    select token, rating is not null into v_tok, v_rated from reviews where sales_history_id = h.id;
+    if v_rated then return null; end if;
+    return json_build_object('token', v_tok);
+  end if;
+  -- Siparişsiz masa: bu masadan son 3 saatte değerlendirme yapıldıysa tekrar sorulmaz; yoksa masaya bağlı tek bir bekleyen değerlendirme kullanılır.
+  if exists(select 1 from reviews where table_id = v_t.id and rating is not null and rated_at > now() - interval '3 hours') then return null; end if;
+  select token into v_tok from reviews where table_id = v_t.id and order_id is null and sales_history_id is null and rating is null
+    and created_at > now() - interval '3 hours' order by created_at desc limit 1;
+  if v_tok is null then
+    insert into reviews(restaurant_id, table_id, table_name) values (v_t.restaurant_id, v_t.id, v_t.name) returning token into v_tok;
+  end if;
   return json_build_object('token', v_tok);
 end $$;
 
@@ -12093,6 +12102,7 @@ CREATE TABLE public.reviews (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     rated_at timestamp with time zone,
     order_id uuid,
+    table_id uuid,
     CONSTRAINT reviews_rating_check CHECK (((rating >= 1) AND (rating <= 5)))
 );
 
@@ -15185,6 +15195,14 @@ ALTER TABLE ONLY public.reviews
 
 ALTER TABLE ONLY public.reviews
     ADD CONSTRAINT reviews_restaurant_id_fkey FOREIGN KEY (restaurant_id) REFERENCES public.restaurants(id) ON DELETE CASCADE;
+
+
+--
+-- Name: reviews reviews_table_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.reviews
+    ADD CONSTRAINT reviews_table_id_fkey FOREIGN KEY (table_id) REFERENCES public.restaurant_tables(id) ON DELETE SET NULL;
 
 
 --
