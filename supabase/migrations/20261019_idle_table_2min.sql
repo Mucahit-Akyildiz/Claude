@@ -1,0 +1,2 @@
+-- "Sipariş bekleniyor": masaya müşteri girilip 2 dakika içinde ürün girilmezse uyarı/bildirim
+-- (önceden rozet hemen, push 5. dakikada çıkıyordu). _nav_badges ve _cron_idle_tables canlıda güncellendi.
