@@ -2606,3 +2606,4 @@ details.pr-note summary{list-style:none;} details.pr-note summary::-webkit-detai
 .dc-note-btn.on,.dc-note-btn:hover{color:var(--accent);border-color:var(--accent);}
 .dc-note-edit{margin-top:8px;animation:paneIn .25s ease both;} .dc-note-edit input{margin:0 0 6px;font-size:12.5px;padding:7px 10px;border-radius:10px;}
 .dc-total{display:flex;justify-content:space-between;align-items:center;margin-top:4px;padding:10px 4px 2px;border-top:1px dashed var(--border);} .dc-total span{color:var(--muted);font-weight:700;} .dc-total b{font-size:18px;}
+@media (max-width:600px){.om-cb-sum{display:none;}}
