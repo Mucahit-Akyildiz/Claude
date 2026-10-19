@@ -261,10 +261,15 @@ async function renderZReportContent(session){
   const rows = [
     ['Brüt satış (indirim öncesi)', money(gross)], ['İndirimler', '−' + money(anN(k.discount) - anN(k.birthday))], ['Doğum günü indirimi', '−' + money(k.birthday)],
     ['NET CİRO', money(k.revenue), 'big'], ['—'],
-    ['💵 Nakit', money(k.cash)], ['💳 Kredi kartı', money(k.card)], ['🎁 Hediye kartı', money(k.gift)], ['—'],
+    ['💵 Nakit', money(k.cash)], ['💳 Kredi kartı', money(k.card)], ['🎁 Hediye kartı', money(k.gift)], ...(anN(k.points) ? [['⭐ Puanla ödeme', money(k.points)]] : []), ['—'],
     ['Hesap sayısı', k.checks || 0], ['Ortalama hesap', money(k.checks ? k.revenue / k.checks : 0)], ['Bahşiş', money(k.tips)], ['—'],
     ['🎁 İkram / personel (' + (k.comp_n || 0) + ' hesap)', money(k.comp)], ['❌ İptal edilen masa', c.orders || 0], ['❌ İptal edilen ürün tutarı', money(c.cur && c.cur.amount)], ['🔥 İsraf maliyeti', money(d.waste)], ['—'],
     ['Ürün maliyeti', money(k.cost)], ['BRÜT KÂR', money(anN(k.revenue) - anN(k.cost) - anN(d.waste)), 'big']];
+  // Kasa sayımı: seçilen günün son sayımı rapora (fiş/PDF/Excel) eklenir.
+  let counts = [];
+  try{ const r = await sb.rpc('list_cash_counts', { p_token: session.session_token, p_date: APP.reportDate, p_date_to: APP.reportDateTo || APP.reportDate }); if(!r.error) counts = r.data || []; }catch(e){}
+  const lastC = counts[0];
+  if(lastC) rows.push(['—'], ['🧮 Sayılan nakit', money(lastC.counted)], ['Kasa farkı', (anN(lastC.diff) > 0 ? '+' : '') + money(lastC.diff), 'big']);
   anSetExport('gun-sonu', ['Kalem', 'Tutar'], rows.filter(r => r.length > 1).map(r => [r[0], String(r[1]).replace(/<[^>]+>/g, '')]));
   APP.anZRows = rows;
   const s = getSession();
@@ -273,7 +278,35 @@ async function renderZReportContent(session){
       ${rows.map(r => r.length === 1 ? '<div class="an-z-sep"></div>' : `<div class="an-z-r ${r[2] || ''}"><span>${r[0]}</span><b>${r[1]}</b></div>`).join('')}
       <div class="an-z-f">Peyktan · ${escapeHtml(s.username || '')}</div>
     </div>
-    <div class="an-z-acts"><button type="button" ${act('printZToReceipt')}>🧾 Fiş Yazıcısına Gönder</button><button type="button" class="ghost-btn" ${act('printZReport')}>🖨️ Yazdır / PDF</button><button type="button" class="ghost-btn" ${act('exportAnalytics')}>⬇ Excel (CSV)</button></div></div>`;
+    <div class="an-z-acts"><button type="button" ${act('printZToReceipt')}>🧾 Fiş Yazıcısına Gönder</button><button type="button" class="ghost-btn" ${act('printZReport')}>🖨️ Yazdır / PDF</button><button type="button" class="ghost-btn" ${act('exportAnalytics')}>⬇ Excel (CSV)</button></div>
+    <div class="cc-box">
+      <div class="cc-h"><span class="cc-ic">🧮</span><div><b>Kasa Sayımı</b><small>Kasadaki nakdi sayıp girin; sistemdeki nakit satışla fark hesaplanır</small></div></div>
+      <div class="cc-grid">
+        <div class="cc-stat"><small>Sistemde nakit</small><b id="ccExpected" data-v="${anN(k.cash)}">${money(k.cash)}</b></div>
+        <div class="field-group"><label>Sayılan nakit (TL)</label><input id="ccCounted" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0,00" ${actOn('input','updateCashDiff',[])}></div>
+        <div class="cc-stat" id="ccDiffBox"><small>Fark</small><b id="ccDiff">—</b></div>
+      </div>
+      <input id="ccNote" placeholder="Not (opsiyonel) — örn. açılış kasası 500 TL dahil">
+      <button type="button" class="cc-save" ${act('saveCashCount')}>💾 Sayımı Kaydet</button>
+      ${counts.length ? `<div class="cc-list">${counts.map(c => `<div class="cc-row"><span>${new Date(c.created_at).toLocaleString('tr-TR',{dateStyle:'short',timeStyle:'short'})} · ${escapeHtml(c.username||'')}${c.note ? ' · ' + escapeHtml(c.note) : ''}</span><b class="${anN(c.diff) < 0 ? 'neg' : anN(c.diff) > 0 ? 'pos' : ''}">${money(c.counted)} · ${anN(c.diff) > 0 ? '+' : ''}${money(c.diff)}</b></div>`).join('')}</div>` : ''}
+    </div></div>`;
+}
+function updateCashDiff(){
+  const exp = Number(document.getElementById('ccExpected').dataset.v) || 0, v = document.getElementById('ccCounted').value;
+  const el = document.getElementById('ccDiff'), box = document.getElementById('ccDiffBox');
+  if(v === ''){ el.textContent = '—'; box.className = 'cc-stat'; return; }
+  const d = Math.round(((Number(v) || 0) - exp) * 100) / 100;
+  el.textContent = (d > 0 ? '+' : '') + money(d) + (d === 0 ? ' ✓' : d < 0 ? ' eksik' : ' fazla');
+  box.className = 'cc-stat ' + (d < 0 ? 'neg' : d > 0 ? 'pos' : 'ok');
+}
+async function saveCashCount(){
+  const v = document.getElementById('ccCounted').value;
+  if(v === ''){ alert('Sayılan nakit tutarını girin'); return; }
+  const session = getSession();
+  const { error } = await sb.rpc('save_cash_count', { p_token: session.session_token, p_date: APP.reportDateTo || APP.reportDate, p_expected: Number(document.getElementById('ccExpected').dataset.v) || 0, p_counted: Number(v), p_note: document.getElementById('ccNote').value });
+  if(error){ alert(error.message); return; }
+  showToast('Kasa sayımı kaydedildi ✓');
+  renderZReportContent(session);
 }
 /* Gün sonu raporunu kasa fişlerinin gittiği "Bu Ekranın Yazıcısı"na 80 mm fiş olarak basar. */
 async function printZToReceipt(){
