@@ -9,7 +9,7 @@ async function renderCrmView(main, session){
   const bdays = rows.filter(c => { const b = crmBirthdayInfo(c.birthday); return b && b.days <= 30; }).length;
   main.innerHTML = `<h1>Müşteriler</h1>
     ${statChips([['👥', rows.length, APP.crmSearch ? 'Aramada bulunan' : 'Kayıtlı müşteri', 'var(--c1)', 'all'], ['⭐', rows.reduce((x, c) => x + (Number(c.points_balance)||0), 0), 'Toplam puan', 'var(--c3)', 'pts'],
-      ['🎂', bdays, '30 gün içinde doğum günü', 'var(--c2)', 'bday'], ['💎', rows.filter(c => (Number(c.points_balance)||0) >= 200).length, 'Altın ve üstü müşteri', 'var(--c4)', 'gold']], '', 'crm')}
+      ['🎂', bdays, '30 gün içinde doğum günü', 'var(--c2)', 'bday'], ['💎', rows.filter(c => crmTier(c).rank >= 2).length, (crmTiers()[1] ? crmTiers()[1].name : 'Altın') + ' ve üstü müşteri', 'var(--c4)', 'gold']], '', 'crm')}
     <div class="box" style="max-width:none;">
       <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
         <h2 style="margin:0;">Müşteri Listesi</h2>
@@ -25,8 +25,8 @@ async function renderCrmView(main, session){
       </div>
       <p class="muted" style="font-size:12px;margin:6px 0 10px;text-align:left;">Harcama/ziyaret/doğum günü gibi detaylı analizler için <b>Finansal Analiz &gt; Müşteri Analizleri</b> sekmesine bakın.</p>
       ${rows.length ? `<div class="cu-grid" data-cf-scope="crm">${rows.map((c, i) => { const bd = crmBirthdayInfo(c.birthday), custom = (c.spend_per_point!=null || c.point_value!=null || c.birthday_discount_percent!=null);
-        const pts = Number(c.points_balance)||0, tier = pts>=500 ? ['💎','Elmas','var(--c2)'] : pts>=200 ? ['🥇','Altın','var(--c3)'] : pts>=50 ? ['🥈','Gümüş','var(--c1)'] : ['🌱','Yeni','#94a3b8'];
-        return `<div class="cu-card" data-cf-tags="${(Number(c.points_balance)||0) > 0 ? 'pts' : ''}${bd && bd.days <= 30 ? ' bday' : ''}${(Number(c.points_balance)||0) >= 200 ? ' gold' : ''}" style="--i:${Math.min(i,12)};--tc:${tier[2]};">
+        const pts = Number(c.points_balance)||0, tr = crmTier(c), tier = [tr.icon, tr.name, tr.color];
+        return `<div class="cu-card" data-cf-tags="${(Number(c.points_balance)||0) > 0 ? 'pts' : ''}${bd && bd.days <= 30 ? ' bday' : ''}${crmTier(c).rank >= 2 ? ' gold' : ''}" style="--i:${Math.min(i,12)};--tc:${tier[2]};">
           <div class="cu-top">${avatarHtml(c.name)}<div class="cu-id"><b>${escapeHtml(c.name)}</b><small>${c.phone ? phoneHtml(c.phone) : 'telefon yok'}</small></div><span class="cu-tier">${tier[0]} ${tier[1]}</span></div>
           <div class="cu-pts"><b>${pts}</b><span>puan</span>${loyalty.enabled && loyalty.point_value ? `<small>≈ ${money(pts * Number(c.point_value ?? loyalty.point_value))} indirim</small>` : ''}</div>
           <div class="pcard-chips">
@@ -67,7 +67,51 @@ async function renderCrmView(main, session){
           <div class="field-group wide"><label>🎂 Doğum günü indirimi (%)</label><input id="loy_birthday_pct" type="number" min="0" max="100" step="1" value="${loyalty.birthday_discount_percent||0}"></div>
         </div>
         <p class="muted" style="font-size:12px;margin:10px 0 0;text-align:left;">Müşterinin doğum günü kaydedilmişse, o gün ödeme alırken bu yüzde otomatik indirim olarak uygulanır (0 = kapalı).</p>
-        <div class="fsheet-foot"><button type="button" class="ghost-btn" ${act('closeSheet','crmLoySheet')}>Vazgeç</button><button ${act('saveLoyaltySettings')}>${ICON_SAVE}<span>Kaydet</span></button></div>`, 'var(--c3)') : ''}`;
+        <div class="fsheet-foot"><button type="button" class="ghost-btn" ${act('closeSheet','crmLoySheet')}>Vazgeç</button><button ${act('saveLoyaltySettings')}>${ICON_SAVE}<span>Kaydet</span></button></div>
+        <div class="tier-box">
+          <div class="rvf-t">🏆 Sadakat seviyeleri</div>
+          <p class="muted" style="font-size:12px;margin:0 0 10px;text-align:left;">Seviye, müşterinin <b>toplam kazandığı</b> puana göre belirlenir (puan harcanınca düşmez). <b>Çarpan</b>: o seviyedeki müşteri her harcamada kaç kat puan kazanır (örn. 1,5). <b>İndirim</b>: ödeme ekranında müşteri seçilince otomatik uygulanır.</p>
+          <div id="tierRows">${tierRowsHtml()}</div>
+          <div class="fsheet-foot"><button type="button" class="ghost-btn" ${act('addTierRow')}>+ Seviye ekle</button><button ${act('saveLoyaltyTiers')}>🏆 Seviyeleri Kaydet</button></div>
+        </div>`, 'var(--c3)') : ''}`;
+}
+/* Sadakat seviyesi: yaşam boyu kazanılan puana göre (puan harcanınca seviye düşmez).
+   Seviyeler Müşteriler > ⭐ Sadakat'tan düzenlenir; puan çarpanı sunucuda uygulanır. */
+const TIER_COLORS = ['var(--c1)', 'var(--c3)', 'var(--c2)', 'var(--c4)', '#a855f7', '#ef4444'];
+function crmTiers(){
+  const t = (APP.config && APP.config.loyalty && APP.config.loyalty.tiers) || [{ name:'Gümüş', icon:'🥈', min:50, mult:1, disc:0 }, { name:'Altın', icon:'🥇', min:200, mult:1, disc:0 }, { name:'Elmas', icon:'💎', min:500, mult:1, disc:0 }];
+  return t.slice().sort((a, b) => Number(a.min) - Number(b.min));
+}
+function crmTier(c){
+  const lp = Number(c.lifetime_points != null ? c.lifetime_points : c.points_balance) || 0, ts = crmTiers();
+  let idx = -1; ts.forEach((t, i) => { if(lp >= Number(t.min)) idx = i; });
+  if(idx < 0) return { rank: 0, icon: '🌱', name: 'Yeni', color: '#94a3b8', mult: 1, disc: 0 };
+  const t = ts[idx]; return { rank: idx + 1, icon: t.icon || '⭐', name: t.name, color: TIER_COLORS[idx % TIER_COLORS.length], mult: Number(t.mult) || 1, disc: Number(t.disc) || 0 };
+}
+function tierRowsHtml(){
+  return crmTiers().map((t, i) => `<div class="tier-row" data-ti="${i}">
+    <input class="ti-icon" value="${escapeAttr(t.icon||'⭐')}" maxlength="4" title="Simge">
+    <input class="ti-name" value="${escapeAttr(t.name)}" placeholder="Seviye adı">
+    <label>Puan ≥<input class="ti-min" type="number" min="0" step="1" value="${Number(t.min)}"></label>
+    <label>Çarpan<input class="ti-mult" type="number" min="1" max="5" step="0.05" value="${Number(t.mult)||1}"></label>
+    <label>İndirim %<input class="ti-disc" type="number" min="0" max="50" step="1" value="${Number(t.disc)||0}"></label>
+    <button type="button" class="pc-btn rv-del" ${act('removeTierRow', '$this')}>✕</button></div>`).join('');
+}
+function addTierRow(){
+  const box = document.getElementById('tierRows'); if(!box || box.children.length >= 6) return;
+  box.insertAdjacentHTML('beforeend', `<div class="tier-row"><input class="ti-icon" value="⭐" maxlength="4"><input class="ti-name" placeholder="Seviye adı"><label>Puan ≥<input class="ti-min" type="number" min="0" step="1" value="1000"></label><label>Çarpan<input class="ti-mult" type="number" min="1" max="5" step="0.05" value="1"></label><label>İndirim %<input class="ti-disc" type="number" min="0" max="50" step="1" value="0"></label><button type="button" class="pc-btn rv-del" ${act('removeTierRow', '$this')}>✕</button></div>`);
+}
+function removeTierRow(btn){ const r = btn.closest('.tier-row'); if(r) r.remove(); }
+async function saveLoyaltyTiers(){
+  const tiers = [...document.querySelectorAll('#tierRows .tier-row')].map((r, i) => ({ key: 't' + i, icon: r.querySelector('.ti-icon').value.trim() || '⭐', name: r.querySelector('.ti-name').value.trim(),
+    min: Number(r.querySelector('.ti-min').value) || 0, mult: Number(r.querySelector('.ti-mult').value) || 1, disc: Number(r.querySelector('.ti-disc').value) || 0 }));
+  if(tiers.some(t => !t.name)){ alert('Seviye adı boş olamaz'); return; }
+  const { error } = await sb.rpc('update_loyalty_tiers', { p_token: getSession().session_token, p_tiers: tiers });
+  if(error){ alert(error.message); return; }
+  APP.config.loyalty = Object.assign({}, APP.config.loyalty, { tiers });
+  closeSheet('crmLoySheet');
+  renderCrmView(document.getElementById('main'), getSession());
+  showToast('Sadakat seviyeleri kaydedildi ✓');
 }
 function crmBirthdayInfo(b){
   if(!b) return null; const d = new Date(b+'T00:00'); if(isNaN(d)) return null;

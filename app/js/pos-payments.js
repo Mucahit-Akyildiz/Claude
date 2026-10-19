@@ -406,6 +406,14 @@ async function lookupPayCustomer(picked){
   const birthdayPct = Number(bg.dataset.birthdayPct) || 0;
   infoEl.textContent = data.name + (data.phone || phone ? ' · 📞 ' + (data.phone || phone) : '') + ' · ' + data.points_balance + ' puan' + (data.custom_loyalty ? ' · ⭐ özel sadakat' : '') +
     (data.is_birthday_today && birthdayPct>0 ? ' · 🎂 Bugün doğum günü! %'+birthdayPct+' indirim uygulanacak' : '');
+  // Sadakat seviyesi: rozet + seviye indirimi (başka indirim yoksa otomatik uygulanır).
+  const tier = data.tier;
+  if(tier){ infoEl.textContent += ' · ' + (tier.icon||'⭐') + ' ' + tier.name + (Number(tier.mult) > 1 ? ' (x' + Number(tier.mult) + ' puan)' : ''); }
+  if(tier && Number(tier.disc) > 0 && !(parseFloat(bg.dataset.discountValue||0) > 0)){
+    bg.dataset.discountType = 'percent'; bg.dataset.discountValue = String(Number(tier.disc));
+    clearPromo(bg); bg.dataset.promoName = (tier.icon||'⭐') + ' ' + tier.name + ' üye indirimi';
+    showToast((tier.icon||'⭐') + ' ' + tier.name + ' üye: %' + Number(tier.disc) + ' indirim uygulandı');
+  }
   if(loyalty.enabled && data.points_balance>0){
     redeemWrap.style.display = 'block';
     document.getElementById('payRedeemPoints').max = data.points_balance;

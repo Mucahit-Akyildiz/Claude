@@ -2731,3 +2731,14 @@ body.fsheet-lock{overflow:hidden;}
 .rvw-card p{margin:6px 0 8px;font-size:14px;}
 @media (max-width:600px){.rvw-sum{grid-template-columns:1fr;}}
 @media (max-width:600px){.crm-hbtns{justify-content:flex-start !important;} .crm-hbtns > *{flex:1 1 auto !important;} .crm-hbtns #crmSearchInput{flex:1 1 100% !important;order:-1;}}
+/* Sadakat seviyeleri düzenleyici */
+.tier-box{border-top:1px dashed var(--border);margin-top:16px;padding-top:12px;}
+.tier-row{display:grid;grid-template-columns:52px 1fr repeat(3,92px) 34px;gap:8px;align-items:end;margin-bottom:8px;}
+.tier-row input{margin:0;} .tier-row .ti-icon{text-align:center;font-size:18px;padding:8px 4px;}
+.tier-row label{font-size:11px;color:var(--muted);font-weight:700;display:flex;flex-direction:column;gap:3px;margin:0;}
+.tier-row .pc-btn{height:40px;}
+@media (max-width:600px){
+  .tier-row{grid-template-columns:52px 1fr 1fr 1fr 40px;grid-template-areas:"ic nm nm nm x" "mn mn ml ds ds";padding:8px;border:1px solid var(--border);border-radius:12px;}
+  .tier-row .ti-icon{grid-area:ic;} .tier-row .ti-name{grid-area:nm;} .tier-row .pc-btn{grid-area:x;}
+  .tier-row label:nth-of-type(1){grid-area:mn;} .tier-row label:nth-of-type(2){grid-area:ml;} .tier-row label:nth-of-type(3){grid-area:ds;}
+}
