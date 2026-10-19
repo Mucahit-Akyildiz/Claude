@@ -1976,14 +1976,15 @@ function roleCardHtml(r, i){
   const g = 'role_'+r.id, perms = r.permissions || [];
   return `
     <div class="role-card" data-role-card="${g}" style="--sc:${sc};">
-      <div class="role-head" ${act('toggleRoleCard', g)}>
+      <div class="role-head" ${act('openSheet', 'rs_'+g)}>
         <div class="role-avatar">${escapeHtml((r.name||'?')[0].toLocaleUpperCase('tr'))}</div>
         <div class="role-title"><b>${escapeHtml(r.name)}</b>${r.shift_exempt ? ' <span class="role-badge" style="margin-left:6px;font-size:11px;padding:3px 9px;" title="Vardiya açmadan çalışabilir">⏱ Vardiyasız</span>' : ''}<div class="role-sub">${escapeHtml(rolePermSummary(perms))}</div></div>
         <div class="role-meta"><span class="role-chip">👥 ${r.user_count}</span><span class="role-pbar" title="İzin kapsamı"><i style="width:${Math.round(perms.filter(p => rolePermissionCatalog().some(c => c.id===p)).length/total*100)}%;"></i></span><span class="role-chip accent role-perm-count">${perms.filter(p => rolePermissionCatalog().some(c => c.id===p)).length} / ${total} izin</span></div>
         <span class="role-chevron">▶</span>
       </div>
-      <div class="role-body">
-        <div class="field-group" style="max-width:320px;margin-top:12px;"><label>Rol Adı</label><input value="${escapeAttr(r.name)}" id="role_name_${r.id}" ${actOn('input','markRoleDirty',[g])}></div>
+    </div>
+    ${sheetHtml('rs_'+g, escapeHtml((r.name||'?')[0].toLocaleUpperCase('tr')), escapeHtml(r.name) + ' rolü', `
+        <div class="field-group" style="margin:0 0 6px;"><label>Rol Adı</label><input value="${escapeAttr(r.name)}" id="role_name_${r.id}" ${actOn('input','markRoleDirty',[g])}></div>
         ${permissionCheckboxes(g, perms)}
         <div class="role-actions">
           <button class="ghost-btn" style="width:auto;margin:0;color:var(--red);border-color:var(--red);" ${act('deleteRole', r.id)} ${r.user_count>0?`title="Bu role atanmış ${r.user_count} kullanıcı var"`:''}>${ICON_TRASH}<span>Rolü Sil</span></button>
@@ -1991,8 +1992,7 @@ function roleCardHtml(r, i){
           <span class="role-dirty-note">● Kaydedilmemiş değişiklik</span>
           <button style="width:auto;margin:0;padding:10px 22px;" ${act('saveRole', r.id)}>${ICON_SAVE}<span>Kaydet</span></button>
         </div>
-      </div>
-    </div>`;
+`, sc)}`;
 }
 function renderRolesSettings(el, session){
   const roles = APP.config.roles || [];
@@ -2006,23 +2006,23 @@ function renderRolesSettings(el, session){
     </div>
     <div class="role-list" data-cf-scope="roles">${roles.map((r, i) => roleCardHtml(r, i).replace('<div class="role-card', `<div data-cf-tags="${Number(r.user_count) ? 'used' : 'unused'}${r.shift_exempt ? ' exempt' : ''}" class="role-card`)).join('')}</div>
     <div class="role-card" data-role-card="new_role" style="border-style:dashed;">
-      <div class="role-head" ${act('toggleRoleCard', 'new_role')}>
+      <div class="role-head" ${act('openNewRoleCard')}>
         <div class="role-avatar">＋</div>
         <div class="role-title"><b>Yeni Rol Oluştur</b><div class="role-sub">Hazır şablonla başlayın ya da izinleri kendiniz seçin</div></div>
         <div class="role-meta"><span class="role-chip accent role-perm-count">0 / ${rolePermissionCatalog().length} izin</span></div>
         <span class="role-chevron">▶</span>
       </div>
-      <div class="role-body">
+    </div>
+    ${sheetHtml('rs_new_role', '＋', 'Yeni Rol', `
         <div class="role-templates"><span class="muted" style="font-size:12px;align-self:center;">Şablon:</span>
           ${Object.keys(ROLE_TEMPLATES).map(t => `<button class="sbtn" style="margin:0;" ${act('applyRoleTemplate', jsArg(t))}>${escapeHtml(t)}</button>`).join('')}
         </div>
-        <div class="field-group" style="max-width:320px;margin-top:10px;"><label>Rol Adı</label><input id="new_role_name" placeholder="örn. Kasiyer" ${actOn('input','markRoleDirty',['new_role'])}></div>
+        <div class="field-group" style="margin:10px 0 6px;"><label>Rol Adı</label><input id="new_role_name" placeholder="örn. Kasiyer" ${actOn('input','markRoleDirty',['new_role'])}></div>
         ${permissionCheckboxes('new_role', [])}
         <div class="role-actions"><span class="spacer"></span>
           <button style="width:auto;margin:0;padding:10px 22px;" ${act('createRole')}>+ Rolü Oluştur</button>
         </div>
-      </div>
-    </div>
+`, 'var(--c1)')}
   </div>`;
 }
 async function saveRole(id){
@@ -2032,6 +2032,7 @@ async function saveRole(id){
   if(!name){ alert('Rol adı gerekli'); return; }
   const { error } = await sb.rpc('manager_upsert_role', { p_token: session.session_token, p_id: id, p_name: name, p_permissions: perms });
   if(error){ alert(error.message); return; }
+  closeSheet();
   renderSettingsView(document.getElementById('main'), session);
   showToast('Kaydedildi ✓');
 }
@@ -2042,6 +2043,7 @@ async function createRole(){
   if(!name){ alert('Rol adı gerekli'); return; }
   const { error } = await sb.rpc('manager_upsert_role', { p_token: session.session_token, p_id: null, p_name: name, p_permissions: perms });
   if(error){ alert(error.message); return; }
+  closeSheet();
   renderSettingsView(document.getElementById('main'), session);
 }
 async function deleteRole(id){
@@ -2049,6 +2051,7 @@ async function deleteRole(id){
   const session = getSession();
   const { error } = await sb.rpc('manager_delete_role', { p_token: session.session_token, p_id: id });
   if(error){ alert(error.message); return; }
+  closeSheet();
   renderSettingsView(document.getElementById('main'), session);
 }
 
@@ -2873,7 +2876,7 @@ function filterIconPicker(targetId, current, q){ document.getElementById('iconPi
 function setUserSearch(v){ APP.userSearch = v; filterUserRows(); }
 function setActiveUsersMinutes(v){ APP.activeUsersMinutes = Number(v); loadActiveUsers(); }
 function toggleResetCustom(v){ document.getElementById('resetCustom').style.display = v === 'custom' ? 'flex' : 'none'; }
-function openNewRoleCard(){ toggleRoleCard('new_role'); const el = document.getElementById('new_role_name'); if(el) el.focus(); }
+function openNewRoleCard(){ openSheet('rs_new_role'); }
 function setOnlineMenuTab(t){ APP.onlineMenuTab = t; drawOnlineMenuEditor(); }
 function filterOmsPickList(v){ const q = String(v).toLocaleLowerCase('tr'); document.querySelectorAll('#omsPickList label').forEach(l => { l.style.display = l.textContent.toLocaleLowerCase('tr').includes(q) ? 'flex' : 'none'; }); }
 function editBillingField(flag){ APP[flag] = true; renderBillingSettings(billingBox(), getSession()); }
