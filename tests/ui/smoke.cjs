@@ -77,7 +77,8 @@ const assert = (c, m) => { if(!c) throw new Error(m); };
     });
     await check(T('Müşteriler + kampanyalar'), async () => {
       await view('crm', '.cu-grid, .empty-state');
-      await page.evaluate(() => { document.getElementById('main').innerHTML = '<div id="tst"></div>'; renderPromosSettings(document.getElementById('tst')); }); await page.waitForSelector('#promoBody .pr-form', { timeout: 5000 });
+      await page.evaluate(() => { document.getElementById('main').innerHTML = '<div id="tst"></div>'; renderPromosSettings(document.getElementById('tst')); }); await page.waitForSelector('#promoBody .fsheet-open', { timeout: 5000 });
+      await page.evaluate(() => newPromo()); await page.waitForSelector('#promoFormSheet.open #pr_name', { timeout: 5000 }); await page.evaluate(() => closeSheet());
     });
     await check(T('Satınalma Siparişleri + kritik stok'), async () => {
       await view('purchasing', '.ls-banner');
