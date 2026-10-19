@@ -1395,12 +1395,13 @@ function orderFlagsHtml(pseudoId){
     APP.orderFlagSelections[pseudoId] = (existing && existing.tags) ? existing.tags.slice() : [];
   }
   const sel = APP.orderFlagSelections[pseudoId];
-  return `<div style="margin-top:14px;padding:10px 12px;background:var(--panel2);border-radius:10px;">
-    <p class="muted" style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;margin:0 0 8px;">Sipariş Etiketleri</p>
-    <div style="display:flex;flex-wrap:wrap;gap:12px;">
-      ${flags.map(f => `<label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;">
-        <input type="checkbox" style="width:auto;margin:0;" data-label="${escapeAttr(f.label)}" ${sel.includes(f.label)?'checked':''} ${actOn('change','toggleOrderFlag',[pseudoId, f.label, '$checked'])}>
-        ${escapeHtml(f.label)}
+  // Etiketler dokunmalı çipler: seçili etiket mor yanar; ikram etiketi hesabı ödemesiz kapatır.
+  return `<div class="of-box">
+    <div class="of-head"><span>🏷️ Sipariş Etiketleri</span><small>İkram: ödemesiz kapanır</small></div>
+    <div class="of-chips">
+      ${flags.map(f => `<label class="of-chip">
+        <input type="checkbox" data-label="${escapeAttr(f.label)}" ${sel.includes(f.label)?'checked':''} ${actOn('change','toggleOrderFlag',[pseudoId, f.label, '$checked'])}>
+        <span>${/personel/i.test(f.label) ? '👔' : /talebe|öğrenci|ogrenci/i.test(f.label) ? '🎓' : '🎁'} ${escapeHtml(f.label)}</span>
       </label>`).join('')}
     </div>
   </div>`;
@@ -1434,7 +1435,7 @@ function tableCustomerInnerHtml(tableId, editing){
     </div>`;
   }
   if(!o || !(name || phone || o.note)){
-    return `<button type="button" class="ghost-btn" style="width:100%;margin:0 0 12px;" ${act('editTableCustomer', tableId, true)}>👤 Müşteri Adı Ekle</button>`;
+    return `<button type="button" class="om-cust-btn" ${act('editTableCustomer', tableId, true)}><span class="om-cust-ic">👤</span><span><b>Müşteri ekle</b><small>Ad, telefon veya kayıtlı müşteri</small></span><span class="om-cust-plus">＋</span></button>`;
   }
   return `<div style="background:var(--panel2);border:1px solid var(--border);border-radius:12px;padding:10px 12px;margin-bottom:12px;font-size:13.5px;display:flex;gap:10px;align-items:flex-start;">
     <div style="flex:1;min-width:0;">
