@@ -304,13 +304,14 @@ async function renderReportContent(session){
   const untaggedHist = hist.filter(o => !o.tags || o.tags.length===0);
   const taggedHist = hist.filter(o => o.tags && o.tags.length>0);
 
-  let totalRevenue=0, totalCost=0, totalCash=0, totalCard=0, totalGiftCard=0, totalDiscount=0, discountedCount=0, taggedTotal=0, totalTip=0, totalBirthdayDiscount=0, birthdayCount=0;
+  let totalRevenue=0, totalCost=0, totalCash=0, totalCard=0, totalGiftCard=0, totalDiscount=0, discountedCount=0, taggedTotal=0, totalTip=0, totalBirthdayDiscount=0, birthdayCount=0, totalPoints=0, pointsCount=0;
   const hourStats = {};
   untaggedHist.forEach(o => {
     totalRevenue += Number(o.total); totalCost += Number(o.cost);
     totalDiscount += Number(o.discount_amount||0);
     if(o.discount_amount>0) discountedCount++;
     if(o.birthday_discount_amount>0){ totalBirthdayDiscount += Number(o.birthday_discount_amount); birthdayCount++; }
+    if(Number(o.points_amount) > 0){ totalPoints += Number(o.points_amount); pointsCount++; }
     const hr = new Date(o.closed_at).getHours();
     if(!hourStats[hr]) hourStats[hr] = {count:0, revenue:0};
     hourStats[hr].count += 1;
@@ -366,7 +367,7 @@ async function renderReportContent(session){
   const billLabel = (o) => (o.kind==='takeaway' ? '📦 Paket' : (o.table_name||'-'));
   const billTableOptions = [...new Set(hist.map(billLabel))].sort();
   const billHourOptions = [...new Set(hist.map(o => new Date(o.closed_at).getHours()))].sort((a,b)=>a-b);
-  const METHOD_LABELS = { cash:'💵 Nakit', card:'💳 Kredi Kartı', gift_card:'🎁 Hediye Kartı', split:'➗ Bölünmüş', open_account:'📒 Açık Hesap', comp:'🎁 İkram' };
+  const METHOD_LABELS = { cash:'💵 Nakit', card:'💳 Kredi Kartı', gift_card:'🎁 Hediye Kartı', split:'➗ Bölünmüş', open_account:'📒 Açık Hesap', comp:'🎁 İkram', points:'⭐ Puan' };
   const billMethodOptions = [...new Set(hist.map(o => o.payment_method))].filter(Boolean).sort();
 
   // Hesabın kaynağı: rezervasyondan / bekleme listesinden oturtulan masa,
@@ -412,7 +413,7 @@ async function renderReportContent(session){
       <td style="white-space:nowrap;">${t}${stay!=null ? ` <span class="muted" style="font-size:11px;">(${stay} dk)</span>` : ''}<div class="muted" style="font-size:11px;">${dS}</div></td>
       <td class="col-name">${escapeHtml(billLabel(o))}${srcBadge}${tagBadge}</td>
       <td>${(o.waiters || o.order_taken_by_name) ? escapeHtml(o.waiters || o.order_taken_by_name) : '<span class="muted">—</span>'}${o.customer_name ? `<div style="font-size:12px;">${o.customer_id ? '⭐ ' : '👤 '}${escapeHtml(o.customer_name)}</div>${o.customer_phone ? `<div class="muted" style="font-size:11px;">${escapeHtml(o.customer_phone)}</div>` : ''}` : ''}</td>
-      <td style="white-space:nowrap;"><b>${money(o.total)}</b>${o.discount_amount>0 ? `<div style="font-size:11px;color:var(--red);">${discTxt}</div>` : ''}</td>
+      <td style="white-space:nowrap;"><b>${money(o.total)}</b>${o.discount_amount>0 ? `<div style="font-size:11px;color:var(--red);">${discTxt}</div>` : ''}${Number(o.points_amount) > 0 ? `<div style="font-size:11px;color:#f59e0b;">⭐ ${money(o.points_amount)} puan</div>` : ''}</td>
       <td style="font-size:13px;">${methodLabel}</td>
       <td><button type="button" class="sbtn" style="width:auto;margin:0;padding:6px 10px;" title="Detay" ${act('openSaleDetailModal', o.id)}>🔍</button></td></tr>`;
   };
@@ -450,8 +451,9 @@ async function renderReportContent(session){
         ${fsRow('Bahşiş', money(totalTip), '')}
       </div>
       <div class="fs-panel" style="--t:#a78bfa;"><h3><i>🍽️</i>Servis</h3><div id="serviceMetrics"><p class="muted" style="font-size:13px;">Yükleniyor…</p></div></div>
-      <div class="fs-panel" style="--t:#f59e0b;"><h3><i>🏷️</i>İndirim ve İkram</h3>
+      <div class="fs-panel" style="--t:#f59e0b;"><h3><i>🏷️</i>İndirim, Puan ve İkram</h3>
         ${fsRow('İndirim', money(totalDiscount), discountedCount+' hesap')}
+        ${fsRow('⭐ Puanla ödeme', money(totalPoints), pointsCount+' hesap')}
         ${fsRow('Doğum günü indirimi', money(totalBirthdayDiscount), birthdayCount+' hesap')}
         ${fsRow('Personel / ikram', money(taggedTotal), taggedHist.length+' hesap')}
         <p class="fs-note">Personel / ikram hesapları ciroya dahil değildir.</p>
@@ -1010,7 +1012,7 @@ async function openSaleDetailModal(historyId){
   const session = getSession();
   const { data: d, error } = await withLoadingOverlay(sb.rpc('get_sale_detail', { p_token: session.session_token, p_history_id: historyId }));
   if(error){ alert(error.message); return; }
-  const methods = { cash:'💵 Nakit', card:'💳 Kart', gift_card:'🎁 Hediye Kartı', split:'➗ Bölünmüş', open_account:'📒 Açık Hesap', comp:'🎁 İkram' };
+  const methods = { cash:'💵 Nakit', card:'💳 Kart', gift_card:'🎁 Hediye Kartı', split:'➗ Bölünmüş', open_account:'📒 Açık Hesap', comp:'🎁 İkram', points:'⭐ Puan' };
   const label = d.kind==='takeaway' ? '📦 Paket' : (d.table_name || '-');
   const row = (k, v, strong) => `<div style="display:flex;justify-content:space-between;${strong?'font-weight:800;font-size:15px;margin-top:4px;':''}"><span>${k}</span><span>${v}</span></div>`;
   const bg = document.createElement('div');

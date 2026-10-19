@@ -247,6 +247,7 @@ function openPayModal(orderId){
         <p id="payCustomerInfo" class="hint">Müşteri seçilmedi</p>
         <div id="payRedeemWrap" style="display:none;margin-top:8px;">
           <input id="payRedeemPoints" type="number" min="0" step="1" placeholder="Kullanılacak puan" style="margin:0;" ${actOn('input','applyRedeemPoints',['$value'])}>
+          <div id="payPointsBox" class="pts-box" hidden></div>
         </div>
       </div>
       <div class="pay-option-card" data-opt="gift" hidden>
@@ -407,6 +408,24 @@ function applyRedeemPoints(v){
   if(pts<0) pts=0; if(pts>maxPts) pts=maxPts;
   bg.dataset.redeemPoints = String(pts);
   recomputePaySelection();
+  updatePointsBox();
+}
+/* Puan girilince: puan değeri hesabı karşılıyorsa "⭐ Puanla Öde" (ödeme yöntemi: puan),
+   karşılamıyorsa kalan tutarın nakit/kartla alınacağı gösterilir. Puan indirimden ayrı kaydedilir. */
+function updatePointsBox(){
+  const bg = document.getElementById('payModalBg'), box = document.getElementById('payPointsBox'); if(!bg || !box) return;
+  const pts = parseFloat(bg.dataset.redeemPoints || 0);
+  if(!(pts > 0)){ box.hidden = true; return; }
+  const pv = bg.dataset.pointValue ? Number(bg.dataset.pointValue) : ((APP.config && APP.config.loyalty && APP.config.loyalty.point_value) || 1);
+  const left = Math.round(payFinalTotal() * 100) / 100;
+  box.hidden = false;
+  box.innerHTML = `<div class="pts-line">⭐ ${pts} puan = <b>${money(pts * pv)}</b></div>` + (left <= 0.009
+    ? `<button type="button" class="pts-pay" ${act('payWithPoints')}>⭐ Puanla Öde</button>`
+    : `<div class="pts-left">Kalan <b>${money(left)}</b> nakit veya kartla alınır</div>`);
+}
+async function payWithPoints(){
+  if(Math.round(payFinalTotal() * 100) / 100 > 0.009){ showToast('Puan hesabı karşılamıyor'); return; }
+  await finishPaymentFull('points');
 }
 async function lookupPayGiftCard(){
   const bg = document.getElementById('payModalBg');
