@@ -263,6 +263,15 @@ function processVoiceBadges(data, visibleViews){
     if(VOICE_SEEN) late.push(Object.assign({}, x, { lateMin: VOICE_LATE_MIN + stage * 5 }));
   });
   if(late.length && visibleViews.includes('kitchen')) fresh.late = late;
+  // Yazılı uyarı sesli okumayla aynı anda çıksın (mutfak ekranının kendi uyarısı bu ürünler için tekrar çıkmaz).
+  if(late.length && visibleViews.includes('kitchen') && typeof kitchenLateWarnedSet === 'function'){
+    const seen = kitchenLateWarnedSet();
+    late.forEach(x => seen.add(String(x.id)));
+    try{ sessionStorage.setItem('peyk_kitchen_late', JSON.stringify([...seen].slice(-500))); }catch(e){}
+    const names = late.map(x => (x.table ? x.table + ' - ' : '') + (x.qty ? x.qty + 'x ' : '') + (x.name || 'ürün'));
+    const maxMin = Math.max(...late.map(x => x.lateMin || VOICE_LATE_MIN));
+    showToast('⏰ ' + names.slice(0, 3).join(', ') + (names.length > 3 ? ' ve ' + (names.length - 3) + ' ürün daha' : '') + ' ' + maxMin + ' dakikayı geçti!', 30000, null, () => goToView('kitchen'), true);
+  }
   const first = !VOICE_SEEN;
   VOICE_SEEN = ids;
   if(first) return false;
