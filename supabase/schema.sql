@@ -454,12 +454,12 @@ CREATE FUNCTION public._cron_idle_tables() RETURNS void
     AS $$
 declare v_url text; v_secret text; v_ids uuid[];
 begin
-  -- Masaya oturtulmuş (açık sipariş var) ama hiç ürün girilmemiş masalar: 5. ve 15. dakikada bildirim.
+  -- Masaya oturtulmuş (açık sipariş var) ama hiç ürün girilmemiş masalar: 2. ve 15. dakikada bildirim.
   with due as (
     select o.id, case when o.created_at < now() - interval '15 minutes' then 2 else 1 end stage
     from orders o
     where o.status = 'open' and o.kind = 'dine_in' and o.table_id is not null
-      and o.created_at < now() - interval '5 minutes' and o.created_at > now() - interval '3 hours'
+      and o.created_at < now() - interval '2 minutes' and o.created_at > now() - interval '3 hours'
       and o.idle_stage < case when o.created_at < now() - interval '15 minutes' then 2 else 1 end
       and not exists (select 1 from order_items oi where oi.order_id = o.id)
   ), upd as (
@@ -989,6 +989,7 @@ begin
     select coalesce(jsonb_agg(jsonb_build_object('id', o.id, 'label', '🪑 ' || coalesce(t.name,'Masa') || coalesce(' · ' || o.customer_name, '') || ' · sipariş bekleniyor', 'kind', 'idle_table')), '[]') into arr
       from orders o left join restaurant_tables t on t.id = o.table_id
       where o.restaurant_id = r and o.status = 'open' and o.table_id is not null
+        and o.created_at < now() - interval '2 minutes'
         and not exists(select 1 from order_items oi where oi.order_id = o.id);
     v := v || jsonb_build_object('order', coalesce((v->>'order')::int,0) + jsonb_array_length(arr));
     it := it || jsonb_build_object('order', coalesce(it->'order','[]'::jsonb) || arr);
