@@ -1398,9 +1398,9 @@ function tableStatus(t){
   if(order && order.customer_name){
     if(!occupied){
       occupied = true; sub = '👤 ' + escapeHtml(order.customer_name);
-      // Oturtulmuş ama sipariş girilmemiş: 5 dk sonra uyarı (garsonlara bildirim de gider, bkz. _cron_idle_tables).
+      // Oturtulmuş ama sipariş girilmemiş: 2 dk sonra uyarı (garsonlara bildirim de gider, bkz. _cron_idle_tables).
       const mins = order.created_at ? Math.floor((Date.now() - new Date(order.created_at).getTime()) / 60000) : 0;
-      if(!order.items.length && mins >= 5) sub += '<br><b style="color:var(--amber, #f59e0b);">⏳ Sipariş bekleniyor · ' + mins + ' dk</b>';
+      if(!order.items.length && mins >= 2) sub += '<br><b style="color:var(--amber, #f59e0b);">⏳ Sipariş bekleniyor · ' + mins + ' dk</b>';
     }
     else sub = '👤 ' + escapeHtml(order.customer_name) + '<br>' + sub;
   }
