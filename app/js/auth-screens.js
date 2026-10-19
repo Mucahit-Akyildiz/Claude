@@ -161,7 +161,14 @@ async function renderCompanyPanelContent(companySession){
 
   el.innerHTML = `
     <div class="box" style="max-width:none;">
-      <h2>Şubeler (${branches.length})</h2>
+      <div class="fsheet-bar" style="margin:0 0 12px;"><h2 style="margin:0;">Şubeler (${branches.length})</h2>${branches.length > 1 ? `<button type="button" class="ghost-btn" style="width:auto;margin:0;" ${act('openCopyMenuSheet')}>📋 Menüyü Başka Şubeye Kopyala</button>` : ''}</div>
+      ${branches.length > 1 ? sheetHtml('copyMenuSheet', '📋', 'Menüyü Kopyala', `
+        <p class="muted" style="text-align:left;font-size:13px;margin:0 0 12px;">Kaynak şubenin istasyonları, menüleri, ürünleri (fiyat, KDV, açıklama, varyantlar), hammaddeleri ve reçeteleri hedef şubeye kopyalanır. Stoklar kopyalanmaz. Yalnızca <b>henüz ürünü olmayan</b> şubeye kopyalanabilir.</p>
+        <div class="fsheet-grid">
+          <div class="field-group"><label>Kaynak şube</label><select id="cmFrom">${branches.map(b => `<option value="${b.id}">${escapeHtml(b.name)}</option>`).join('')}</select></div>
+          <div class="field-group"><label>Hedef şube</label><select id="cmTo">${branches.map((b, i) => `<option value="${b.id}" ${i===1?'selected':''}>${escapeHtml(b.name)}</option>`).join('')}</select></div>
+        </div>
+        <div class="fsheet-foot"><button type="button" class="ghost-btn" ${act('closeSheet','copyMenuSheet')}>Vazgeç</button><button ${act('doCopyBranchMenu')}>📋 Kopyala</button></div>`, 'var(--c2)') : ''}
       <div class="table-grid">
         ${branches.map(b => `
           <div class="table-cell" style="cursor:pointer;text-align:left;padding:14px;" ${act('enterBranch', b.id)}>
@@ -210,6 +217,18 @@ async function renderCompanyPanelContent(companySession){
         <div style="text-align:right;font-weight:800;font-size:16px;color:${grandProfit>=0?'var(--green)':'var(--red)'};">Toplam Kâr: ${money(grandProfit)}</div>
       </div>
     </div>`;
+}
+function openCopyMenuSheet(){ openSheet('copyMenuSheet'); }
+async function doCopyBranchMenu(){
+  const from = document.getElementById('cmFrom').value, to = document.getElementById('cmTo').value;
+  if(from === to){ alert('Kaynak ve hedef şube farklı olmalı'); return; }
+  const fromName = document.getElementById('cmFrom').selectedOptions[0].textContent, toName = document.getElementById('cmTo').selectedOptions[0].textContent;
+  if(!await uiConfirm(fromName + ' şubesinin menüsü ' + toName + ' şubesine kopyalansın mı?')) return;
+  const cs = getCompanySession();
+  const { data, error } = await sb.rpc('copy_branch_menu', { p_company_token: cs.session_token, p_from: from, p_to: to });
+  if(error){ alert(error.message); return; }
+  closeSheet('copyMenuSheet');
+  showToast('📋 Kopyalandı: ' + data.products + ' ürün, ' + data.menus + ' menü, ' + data.ingredients + ' hammadde ✓');
 }
 function changeCompanyDashboardDate(v){
   APP.companyDashboardDate = v;
