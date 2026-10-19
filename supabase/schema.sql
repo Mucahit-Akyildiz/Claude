@@ -4093,6 +4093,36 @@ $$;
 
 
 --
+-- Name: dispatch_order(uuid, uuid, uuid, boolean); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.dispatch_order(p_token uuid, p_order_id uuid, p_courier uuid, p_send_sms boolean DEFAULT false) RETURNS json
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'extensions', 'pg_temp'
+    AS $$ declare s staff_sessions%rowtype; o orders%rowtype; v_name text; v_courier text; v_sent boolean := false;
+begin
+  s := _session_check(p_token, 'packages');
+  select * into o from orders where id = p_order_id and restaurant_id = s.restaurant_id for update;
+  if o.id is null then raise exception 'Sipariş bulunamadı'; end if;
+  if o.kind <> 'takeaway' then raise exception 'Sadece paket siparişler kuryeye verilebilir'; end if;
+  if p_courier is not null then
+    select username into v_courier from app_users where id = p_courier and restaurant_id = s.restaurant_id;
+    if v_courier is null then raise exception 'Kurye bulunamadı'; end if;
+  end if;
+  update orders set courier_user_id = p_courier, dispatched_at = coalesce(dispatched_at, now()), delivered_at = null,
+    tracking_token = coalesce(tracking_token, gen_random_uuid()) where id = o.id returning * into o;
+  if p_send_sms then
+    if coalesce(o.customer_phone,'') = '' then raise exception 'Siparişte müşteri telefonu yok'; end if;
+    if not coalesce((select sms_enabled from restaurants where id = s.restaurant_id), false) then raise exception 'SMS bildirimleri kapalı (Ayarlar > Entegrasyonlar)'; end if;
+    select name into v_name from restaurants where id = s.restaurant_id;
+    perform _send_sms(s.restaurant_id, o.customer_phone, v_name || ': Siparisiniz yola cikti! Takip: https://www.peyktan.com/takip/?t=' || o.tracking_token, 'delivery_dispatched');
+    v_sent := true;
+  end if;
+  return json_build_object('tracking_token', o.tracking_token, 'sms_sent', v_sent);
+end $$;
+
+
+--
 -- Name: email_invoice(uuid, uuid, text, text, text, text, text); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -4898,7 +4928,7 @@ begin
       'order_id', o.id, 'table_id', o.table_id, 'kind', o.kind, 'created_at', o.created_at,
       'daily_number', o.daily_number, 'tags', o.tags,
       'customer_name', o.customer_name, 'customer_phone', o.customer_phone, 'delivery_address', o.delivery_address, 'takeaway_type', o.takeaway_type, 'pickup_at', o.pickup_at, 'note', o.note,
-      'created_by', o.created_by, 'created_by_name', (select username from app_users where id = o.created_by), 'waitlist_id', o.waitlist_id,
+      'created_by', o.created_by, 'created_by_name', (select username from app_users where id = o.created_by), 'waitlist_id', o.waitlist_id, 'courier_user_id', o.courier_user_id, 'courier_name', (select username from app_users where id = o.courier_user_id), 'dispatched_at', o.dispatched_at, 'delivered_at', o.delivered_at, 'tracking_token', o.tracking_token,
       'waitlist', (select json_build_object('joined_at', w.joined_at, 'quoted_wait_minutes', w.quoted_wait_minutes, 'party_size', w.party_size, 'status', w.status) from waitlist_entries w where w.id = o.waitlist_id),
       'items', (
         select coalesce(json_agg(json_build_object(
@@ -5348,6 +5378,28 @@ begin
   select * into r from restaurants where id = rv.restaurant_id;
   return json_build_object('name', r.name, 'rated', rv.rating is not null, 'rating', rv.rating,
     'google_url', case when rv.rating >= 4 then r.google_review_url end);
+end $$;
+
+
+--
+-- Name: get_public_tracking(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.get_public_tracking(p_tracking uuid) RETURNS json
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'extensions', 'pg_temp'
+    AS $$ declare o orders%rowtype; v_rest text; v_courier text; v_ready boolean;
+begin
+  if p_tracking is null then return null; end if;
+  select * into o from orders where tracking_token = p_tracking;
+  if o.id is null or o.created_at < now() - interval '2 days' then return null; end if;
+  select name into v_rest from restaurants where id = o.restaurant_id;
+  select split_part(username, ' ', 1) into v_courier from app_users where id = o.courier_user_id;
+  v_ready := not exists(select 1 from order_items where order_id = o.id and status = 'pending');
+  return json_build_object('restaurant', v_rest, 'no', o.daily_number, 'courier', v_courier,
+    'status', case when o.delivered_at is not null then 'delivered' when o.dispatched_at is not null then 'on_the_way' when v_ready then 'ready' else 'preparing' end,
+    'created_at', o.created_at, 'dispatched_at', o.dispatched_at, 'delivered_at', o.delivered_at,
+    'items', (select coalesce(sum(qty),0) from order_items where order_id = o.id));
 end $$;
 
 
@@ -7006,6 +7058,21 @@ begin
     and order_id in (select id from orders where restaurant_id = s.restaurant_id);
 end;
 $$;
+
+
+--
+-- Name: mark_order_delivered(uuid, uuid, boolean); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.mark_order_delivered(p_token uuid, p_order_id uuid, p_undo boolean DEFAULT false) RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'extensions', 'pg_temp'
+    AS $$ declare s staff_sessions%rowtype;
+begin
+  s := _session_check(p_token, 'packages');
+  update orders set delivered_at = case when p_undo then null else now() end where id = p_order_id and restaurant_id = s.restaurant_id and dispatched_at is not null;
+  if not found then raise exception 'Önce siparişi kuryeye verin'; end if;
+end $$;
 
 
 --
@@ -11437,7 +11504,11 @@ CREATE TABLE public.orders (
     cancelled_by uuid,
     delivery_address text,
     takeaway_type text,
-    pickup_at timestamp with time zone
+    pickup_at timestamp with time zone,
+    courier_user_id uuid,
+    dispatched_at timestamp with time zone,
+    delivered_at timestamp with time zone,
+    tracking_token uuid
 );
 
 
@@ -13602,6 +13673,13 @@ CREATE INDEX open_accounts_restaurant_id_idx ON public.open_accounts USING btree
 --
 
 CREATE UNIQUE INDEX orders_one_open_per_table ON public.orders USING btree (table_id) WHERE ((status = 'open'::text) AND (table_id IS NOT NULL));
+
+
+--
+-- Name: orders_tracking_token_uq; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX orders_tracking_token_uq ON public.orders USING btree (tracking_token) WHERE (tracking_token IS NOT NULL);
 
 
 --
