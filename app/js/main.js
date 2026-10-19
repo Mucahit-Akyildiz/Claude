@@ -299,6 +299,8 @@ let PEYKTAN_SOUND_BUF = null, PEYKTAN_SOUND_LAST = 0;
 async function playPeyktanSound(){
   // Aynı olay hem bildirim (push) hem rozet artışı olarak gelebilir; 5 sn içinde tek ses.
   if(Date.now() - PEYKTAN_SOUND_LAST < 5000) return;
+  // Sesli okuma sürerken zil çalınmaz (üst üste binmesin).
+  if(typeof voiceIsBusy === 'function' && voiceIsBusy()) return;
   // Kişinin kendi yaptığı işlemin (ör. mutfakta "hazır") doğurduğu bildirimde ses çalmaz.
   if(Date.now() < (APP.selfActionUntil || 0)) return;
   // Mobil uygulama arka plandayken (ör. telsiz açık olduğu için çalışmaya devam ederken)

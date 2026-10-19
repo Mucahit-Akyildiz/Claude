@@ -131,16 +131,38 @@ const VOICE_QUEUE = []; let VOICE_BUSY = false;
 function voiceSpeak(text){
   // Aynı cümle 4 sn içinde ikinci kez gelirse (ör. aynı anda iki tetikleme) tekrar okunmaz.
   if(!text || (text===VOICE_LAST.t && Date.now() - VOICE_LAST.at < 4000) || VOICE_QUEUE.includes(text)) return;
+  // Uygulama birden fazla sekmede/pencerede açıksa aynı bildirimi yalnızca biri okur.
+  if(voiceRecentAcrossTabs(text)) return;
   VOICE_LAST = { t: text, at: Date.now() };
   if(VOICE_QUEUE.length >= 6) VOICE_QUEUE.shift();
   VOICE_QUEUE.push(text);
   voiceNext();
 }
+const VOICE_TAB_ID = Math.random().toString(36).slice(2);
+function voiceRecentAcrossTabs(text){
+  try{
+    const now = Date.now();
+    const list = (JSON.parse(localStorage.getItem('peyk_voice_recent') || '[]') || []).filter(x => now - x.at < 20000);
+    if(list.some(x => x.t === text)) return true;
+    list.push({ t: text, at: now });
+    localStorage.setItem('peyk_voice_recent', JSON.stringify(list.slice(-20)));
+  }catch(e){}
+  return false;
+}
+// Başka bir sekme şu an okuyorsa beklenir (sekmeler arası tek ses).
+function voiceOtherTabBusy(){
+  try{ const b = JSON.parse(localStorage.getItem('peyk_voice_busy') || 'null'); return !!(b && b.id !== VOICE_TAB_ID && b.until > Date.now()); }catch(e){ return false; }
+}
+function voiceSetBusy(ms){ try{ if(ms) localStorage.setItem('peyk_voice_busy', JSON.stringify({ id: VOICE_TAB_ID, until: Date.now() + ms })); else localStorage.removeItem('peyk_voice_busy'); }catch(e){} }
+function voiceIsBusy(){ return VOICE_BUSY || voiceOtherTabBusy(); }
 async function voiceNext(){
   if(VOICE_BUSY || !VOICE_QUEUE.length) return;
+  if(voiceOtherTabBusy()){ setTimeout(voiceNext, 500); return; }
   VOICE_BUSY = true;
   const text = VOICE_QUEUE.shift();
+  voiceSetBusy(Math.max(8000, text.length * 150));
   try{ await voicePlayOne(text); }catch(e){}
+  voiceSetBusy(0);
   setTimeout(() => { VOICE_BUSY = false; voiceNext(); }, 400);
 }
 async function voicePlayOne(text){
@@ -148,7 +170,10 @@ async function voicePlayOne(text){
   const cloud = name.startsWith('cloud:') ? name.slice(6) : (!name && VOICE_CLOUD ? 'emel' : null);
   if(cloud && VOICE_CLOUD !== false){
     try{ await voiceCloudPlay(text, cloud); return await voiceWaitEnd(30000); }
-    catch(e){ VOICE_LAST_ERR = String((e && e.message) || e); if(VOICE_SHOW_ERR) showToast('⚠️ Doğal ses çalınamadı, cihaz sesi kullanıldı: ' + VOICE_LAST_ERR, 7000); }
+    catch(e){
+      // Ses aslında çalmaya başladıysa (geç gelen hata) aynı cümle cihaz sesiyle tekrar okunmaz.
+      if(VOICE_AUDIO && !VOICE_AUDIO.paused) return await voiceWaitEnd(30000);
+      VOICE_LAST_ERR = String((e && e.message) || e); if(VOICE_SHOW_ERR) showToast('⚠️ Doğal ses çalınamadı, cihaz sesi kullanıldı: ' + VOICE_LAST_ERR, 7000); }
   }
   return voiceDeviceSpeak(text);
 }
@@ -199,7 +224,7 @@ function voiceSelectHtml(){
   if(!list.length && !cloudOpts) return '<select id="voiceNameSel" style="width:auto;" disabled><option>Türkçe ses bulunamadı</option></select>';
   return `<select id="voiceNameSel" style="width:auto;max-width:260px;" ${actOn('change','setVoiceName',['$value'])}>${cloudOpts}${list.length && cloudOpts ? '<optgroup label="Cihaz sesleri">' : ''}${list.map(v => `<option value="${escapeAttr(v.name)}" ${v.name===cur?'selected':''}>${escapeHtml(v.name.replace(/^(Microsoft|Google)\s*/,''))}${/natural|neural|online/i.test(v.name)?' ⭐':''}</option>`).join('')}${list.length && cloudOpts ? '</optgroup>' : ''}</select>`;
 }
-function testVoice(type){ const t = VOICE_TYPES.find(x => x.id===type); VOICE_LAST.t = ''; VOICE_SHOW_ERR = true; if(t) voiceSpeak(t.sample); setTimeout(() => { VOICE_SHOW_ERR = false; }, 8000); }
+function testVoice(type){ const t = VOICE_TYPES.find(x => x.id===type); VOICE_LAST.t = ''; try{ localStorage.removeItem('peyk_voice_recent'); }catch(e){} VOICE_SHOW_ERR = true; if(t) voiceSpeak(t.sample); setTimeout(() => { VOICE_SHOW_ERR = false; }, 8000); }
 // Rozet öğesinin sesli bildirim türü.
 function voiceTypeOf(view, x){
   const k = x && x.kind;
