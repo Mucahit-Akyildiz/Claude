@@ -947,7 +947,7 @@ async function showReviewQr(historyId){
   bg.id = 'reviewQrBg'; bg.className = 'rq-bg';
   bg.onclick = (e) => { if(e.target===bg) bg.remove(); };
   bg.innerHTML = `<div class="rq-box"><div class="rq-h"><h2>⭐ Bizi Değerlendirin</h2><button type="button" class="ap-x" ${act('removeEl','reviewQrBg')}>✕</button></div>
-    <p class="muted">Müşteriye telefonuyla okutması için gösterin. 4-5 yıldız verenler Google yorumuna yönlendirilir.</p>
+    <p class="muted">Müşteriye telefonuyla okutması için gösterin. Müşteri masadaki QR menüyü açtığında da 2 saat boyunca "Bizi değerlendirin" bandı çıkar. 4-5 yıldız verenler Google yorumuna yönlendirilir.</p>
     <img src="https://api.qrserver.com/v1/create-qr-code/?size=260x260&data=${encodeURIComponent(url)}" alt="QR">
     <button type="button" class="ghost-btn" ${act('copyText', url, 'Link kopyalandı ✓')}>🔗 Linki Kopyala</button></div>`;
   document.body.appendChild(bg);
