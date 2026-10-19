@@ -359,6 +359,25 @@ $$;
 
 
 --
+-- Name: _contact_auto_customer_trg(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public._contact_auto_customer_trg() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+declare j jsonb := to_jsonb(new); o jsonb := case when tg_op = 'UPDATE' then to_jsonb(old) else '{}'::jsonb end;
+  v_phone text := coalesce(j->>'phone', j->>'customer_phone');
+begin
+  -- Rezervasyon, bekleme listesi, QR/online sipariş: telefonu olan kişi müşterilerde yoksa kaydedilir.
+  if v_phone is not null and (tg_op = 'INSERT' or v_phone is distinct from coalesce(o->>'phone', o->>'customer_phone') or (j->>'customer_name') is distinct from (o->>'customer_name')) then
+    perform _auto_customer(new.restaurant_id, j->>'customer_name', v_phone, j->>'email');
+  end if;
+  return null;
+end $$;
+
+
+--
 -- Name: _cron_dispatch_customer_requests(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -14324,6 +14343,27 @@ CREATE TRIGGER trg_bump_dv AFTER INSERT OR DELETE OR UPDATE ON public.waste_log 
 --
 
 CREATE TRIGGER trg_bump_dv AFTER INSERT OR DELETE OR UPDATE ON public.zones FOR EACH ROW EXECUTE FUNCTION _bump_data_version();
+
+
+--
+-- Name: customer_order_requests trg_contact_auto_customer; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_contact_auto_customer AFTER INSERT OR UPDATE ON public.customer_order_requests FOR EACH ROW EXECUTE FUNCTION _contact_auto_customer_trg();
+
+
+--
+-- Name: reservations trg_contact_auto_customer; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_contact_auto_customer AFTER INSERT OR UPDATE ON public.reservations FOR EACH ROW EXECUTE FUNCTION _contact_auto_customer_trg();
+
+
+--
+-- Name: waitlist_entries trg_contact_auto_customer; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_contact_auto_customer AFTER INSERT OR UPDATE ON public.waitlist_entries FOR EACH ROW EXECUTE FUNCTION _contact_auto_customer_trg();
 
 
 --
