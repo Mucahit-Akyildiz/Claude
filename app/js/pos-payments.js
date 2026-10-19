@@ -299,7 +299,7 @@ function openPayModal(orderId){
   updatePayReadiness();
 }
 /* Masaya girilmiş müşteri kayıtlıysa ödeme ekranında otomatik seçilir
-   (telefon varsa telefonla, yoksa isimle tek ve birebir eşleşmede). */
+   (telefon varsa telefonla, yoksa isimle tek ve birebir eşleşmede; telefonsuz kayıtlar id ile). */
 async function autoSelectPayCustomer(order){
   const input = document.getElementById('payCustomerPhone');
   if(!input) return;
@@ -307,8 +307,11 @@ async function autoSelectPayCustomer(order){
   const name = (order.customer_name || '').trim();
   if(!phone && name.length >= 2){
     const { data } = await sb.rpc('search_customers_quick', { p_token: getSession().session_token, p_search: name });
-    const exact = (data || []).filter(c => (c.name || '').trim().toLocaleLowerCase('tr') === name.toLocaleLowerCase('tr') && c.phone);
-    if(exact.length === 1) phone = exact[0].phone;
+    const exact = (data || []).filter(c => (c.name || '').trim().toLocaleLowerCase('tr') === name.toLocaleLowerCase('tr'));
+    if(exact.length === 1){
+      if(exact[0].phone) phone = exact[0].phone;
+      else { if(!document.getElementById('payModalBg') || input.value) return; input.value = exact[0].name; return lookupPayCustomer(exact[0]); }
+    }
   }
   if(!phone || !document.getElementById('payModalBg') || input.value) return;
   input.value = phone;
@@ -357,21 +360,25 @@ function handleCashReceivedInput(v){
   document.getElementById('tipInfo').textContent = tip>0 ? 'Bahşiş: '+money(tip)+' (alınan nakitten hesaplandı)' : 'Bahşiş yok';
   updatePayFinalTotalLine();
 }
-async function lookupPayCustomer(){
+async function lookupPayCustomer(picked){
   const bg = document.getElementById('payModalBg');
   let phone = document.getElementById('payCustomerPhone').value.trim();
+  // Telefonu olmayan kayıtlı müşteri listeden seçildiyse id ile getirilir.
+  let byId = picked && picked.id ? picked.id : null;
   const infoEl = document.getElementById('payCustomerInfo');
   const redeemWrap = document.getElementById('payRedeemWrap');
-  if(!phone){ infoEl.textContent = 'Ad veya telefon girin'; return; }
-  // İsimle yazıldıysa: tek eşleşme varsa onun telefonu kullanılır, birden fazlaysa liste gösterilir.
-  if(/[a-zA-ZçğıöşüÇĞİÖŞÜ]/.test(phone)){
+  if(!phone && !byId){ infoEl.textContent = 'Ad veya telefon girin'; return; }
+  // İsimle yazıldıysa: tek eşleşme varsa o müşteri seçilir, birden fazlaysa liste gösterilir.
+  if(!byId && /[a-zA-ZçğıöşüÇĞİÖŞÜ]/.test(phone)){
     const { data: hits } = await sb.rpc('search_customers_quick', { p_token: getSession().session_token, p_search: phone });
-    const list = (hits || []).filter(h => h.phone);
-    if(list.length === 1){ phone = list[0].phone; document.getElementById('payCustomerPhone').value = phone; }
-    else { tableCustSearch(phone, 'payCust'); infoEl.textContent = list.length ? 'Listeden müşteriyi seçin' : 'Telefonu kayıtlı müşteri bulunamadı'; return; }
+    const list = hits || [];
+    if(list.length === 1){ byId = list[0].id; if(list[0].phone){ phone = list[0].phone; document.getElementById('payCustomerPhone').value = phone; } }
+    else { tableCustSearch(phone, 'payCust'); infoEl.textContent = list.length ? 'Listeden müşteriyi seçin' : 'Kayıtlı müşteri bulunamadı'; return; }
   }
   const session = getSession();
-  const { data, error } = await sb.rpc('get_customer_by_phone', { p_token: session.session_token, p_phone: phone });
+  const { data, error } = byId
+    ? await sb.rpc('get_customer_by_id', { p_token: session.session_token, p_id: byId })
+    : await sb.rpc('get_customer_by_phone', { p_token: session.session_token, p_phone: phone });
   if(error || !data){
     infoEl.textContent = 'Müşteri bulunamadı';
     bg.dataset.customerId = '';
@@ -1491,7 +1498,7 @@ function pickTableCustomer(i, prefix){
   if(prefix === 'payCust'){
     document.getElementById('payCustomerPhone').value = c.phone || c.name || '';
     document.getElementById('payCustSuggest').innerHTML = '';
-    lookupPayCustomer(c.phone ? null : c);
+    lookupPayCustomer(c);
     return;
   }
   document.getElementById(prefix + 'Name').value = c.name || '';
