@@ -5852,6 +5852,32 @@ end $$;
 
 
 --
+-- Name: get_table_review(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.get_table_review(p_qr_token uuid) RETURNS json
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'extensions', 'pg_temp'
+    AS $$ declare v_t restaurant_tables%rowtype; h sales_history%rowtype; v_tok uuid; v_rated boolean;
+begin
+  -- Masa QR menüsü: masanın son 2 saatte tamamen ödenmiş hesabı varsa değerlendirme linki döner.
+  select * into v_t from restaurant_tables where qr_token = p_qr_token;
+  if v_t.id is null then return null; end if;
+  select sh.* into h from sales_history sh join orders o on o.id = sh.order_id
+   where o.table_id = v_t.id and o.status = 'closed' and sh.closed_at > now() - interval '2 hours'
+   order by sh.closed_at desc limit 1;
+  if h.id is null then return null; end if;
+  insert into reviews(restaurant_id, sales_history_id, customer_id, table_name, staff_user_id)
+    values (h.restaurant_id, h.id, h.customer_id, h.table_name, h.staff_user_id) on conflict (sales_history_id) do nothing;
+  select token, rating is not null into v_tok, v_rated from reviews where sales_history_id = h.id;
+  if v_rated then return null; end if;
+  -- Masada yeni bir hesap açıldıysa (yeni müşteri) eski hesabın değerlendirmesi gösterilmez.
+  if exists(select 1 from orders where table_id = v_t.id and status = 'open' and created_at > h.closed_at) then return null; end if;
+  return json_build_object('token', v_tok);
+end $$;
+
+
+--
 -- Name: get_tip_pool_report(uuid, date, date); Type: FUNCTION; Schema: public; Owner: -
 --
 
