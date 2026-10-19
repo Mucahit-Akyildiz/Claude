@@ -7,6 +7,7 @@ let chromium;
 try { ({ chromium } = require('playwright')); } catch(e) { ({ chromium } = require(process.env.PLAYWRIGHT_MODULE || '/opt/node22/lib/node_modules/playwright')); }
 const ROOT = path.resolve(__dirname, '../..');
 const FAKE = fs.readFileSync(path.join(__dirname, 'fake-supabase.js'), 'utf8');
+const PUBLIC_FAKE = 'window.supabase={createClient:function(){return {rpc:async function(n){var d=window.__PUBLIC_RPC||{};return {data:d[n]||null,error:null};}};}};';
 const TYPES = { '.html':'text/html', '.js':'application/javascript', '.css':'text/css', '.json':'application/json', '.webmanifest':'application/manifest+json', '.png':'image/png', '.webp':'image/webp', '.svg':'image/svg+xml', '.mp3':'audio/mpeg', '.jpg':'image/jpeg' };
 
 function serve(){
@@ -38,7 +39,7 @@ const assert = (c, m) => { if(!c) throw new Error(m); };
     const ctx = await browser.newContext({ viewport: { width: w, height: h } });
     // Playwright'ta son eklenen yönlendirme önce çalışır: önce dış istekleri kes, sonra taklit Supabase.
     await ctx.route(/^https?:\/\/(?!127\.0\.0\.1)/, r => r.abort());
-    await ctx.route(/cdn\.jsdelivr\.net\/npm\/@supabase.*/, r => r.fulfill({ contentType: 'application/javascript', body: FAKE }));
+    await ctx.route(/^https:\/\/cdn\.jsdelivr\.net\/npm\/@supabase\//, r => r.fulfill({ contentType: 'application/javascript', body: FAKE }));
     const page = await ctx.newPage();
     const errors = [];
     page.on('pageerror', e => errors.push(e.message));
@@ -101,9 +102,10 @@ const assert = (c, m) => { if(!c) throw new Error(m); };
                                ['/takip/?t=11111111-2222-3333-4444-555555555555', { get_public_tracking: { restaurant: 'Test', status: 'on_the_way', created_at: new Date().toISOString(), items: 1 } }, '.steps']]){
     await check('herkese açık sayfa ' + pg.split('?')[0], async () => {
       const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } });
-      const fake = `window.supabase={createClient:()=>({rpc:async(n)=>({data:(${JSON.stringify(rpc)})[n]||null,error:null})})};`;
+      // Yanıtlar sayfaya veri olarak verilir (kod metni birleştirilmez); taklit betik sabittir.
+      await ctx.addInitScript(data => { window.__PUBLIC_RPC = data; }, rpc);
       await ctx.route(/^https?:\/\/(?!127\.0\.0\.1)/, r => r.abort());
-      await ctx.route(/cdn\.jsdelivr\.net.*/, r => r.fulfill({ contentType: 'application/javascript', body: fake }));
+      await ctx.route(/^https:\/\/cdn\.jsdelivr\.net\//, r => r.fulfill({ contentType: 'application/javascript', body: PUBLIC_FAKE }));
       const page = await ctx.newPage(); const errs = []; page.on('pageerror', e => errs.push(e.message));
       await page.goto(base + pg); await page.waitForSelector(sel, { timeout: 8000 });
       assert(!errs.length, errs.join(' | ')); await ctx.close();
