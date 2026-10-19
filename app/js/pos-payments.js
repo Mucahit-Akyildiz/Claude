@@ -284,14 +284,14 @@ function openPayModal(orderId){
       <span class="amt" id="payFinalTotal">${money(subtotal)}</span>
     </div>
     <div class="pay-method-grid">
-      <button class="pay-method-btn cash" ${act('finishPaymentFull', 'cash')}><span class="pm-ic">💵</span><b>Nakit</b><small>Tam ödeme</small></button>
-      <button class="pay-method-btn card" ${act('finishPaymentFull', 'card')}><span class="pm-ic">💳</span><b>Kredi Kartı</b><small>POS cihazı</small></button>
+      <button class="pay-method-btn cash" id="payCashBtn" ${act('finishPaymentFull', 'cash')}><kbd class="sc-k">F2</kbd><span class="pm-ic">💵</span><b>Nakit</b><small>Tam ödeme</small></button>
+      <button class="pay-method-btn card" id="payCardBtn" ${act('finishPaymentFull', 'card')}><kbd class="sc-k">F3</kbd><span class="pm-ic">💳</span><b>Kredi Kartı</b><small>POS cihazı</small></button>
     </div>
     <div class="pay-method-grid secondary">
       <button class="pay-method-btn gift" id="payGiftCardPayBtn" disabled ${act('finishPaymentFull', 'gift_card')}>🎁 Hediye Kartı ile Öde</button>
-      <button class="pay-method-btn split" ${act('openSplitPay')}>➗ Bölünmüş Ödeme</button>
+      <button class="pay-method-btn split" id="paySplitBtn" ${act('openSplitPay')}><kbd class="sc-k">F4</kbd>➗ Bölünmüş Ödeme</button>
     </div>
-    <button type="button" class="pay-method-btn split" style="width:100%;margin-top:10px;" ${act('openOpenAccountTransfer')}>📒 Açık Hesaba At</button>
+    <button type="button" class="pay-method-btn split" id="payOpenAccBtn" style="width:100%;margin-top:10px;" ${act('openOpenAccountTransfer')}><kbd class="sc-k">F8</kbd>📒 Açık Hesaba At</button>
     <div class="pay-extra-row">
     <button type="button" class="ghost-btn" ${act('printPayReceipt')}>🧾 Kasa Fişi Yazdır (fiyatlı)</button>
     <label class="pay-email-toggle ${APP.payWantsEmail?'on':''}">
@@ -1664,7 +1664,7 @@ function openTableModal(tableId){
       ${omMobileBarHtml(tableId)}
       <div class="modal-sticky-actions">
         <button class="ghost-btn" style="flex:1;margin-top:0;color:var(--red);border-color:var(--red);" ${act('cancelTableOrder', tableId)}>🗑️ İptal Et</button>
-        <button id="confirmBtn" style="flex:1;margin-top:0;" disabled ${act('confirmOrder', tableId)}>✅ Onayla ve Gönder</button>
+        <button id="confirmBtn" style="flex:1;margin-top:0;" disabled ${act('confirmOrder', tableId)}><kbd class="sc-k">F9</kbd>✅ Onayla ve Gönder</button>
       </div>
     </div>`;
   document.body.appendChild(bg);

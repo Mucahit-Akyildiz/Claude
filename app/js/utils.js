@@ -499,4 +499,3 @@ function closeSheet(id){
   const el = id ? document.getElementById(id) : document.querySelector('.fsheet.open'); if(el) el.classList.remove('open');
   if(!document.querySelector('.fsheet.open')) document.body.classList.remove('fsheet-lock');
 }
-document.addEventListener('keydown', e => { if(e.key === 'Escape' && document.querySelector('.fsheet.open')) closeSheet(); });
