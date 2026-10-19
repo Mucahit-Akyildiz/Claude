@@ -10,6 +10,7 @@ const VOICE_TYPES = [
   { id:'waiter',       ic:'🙋', label:'Garson çağırma', sample:'12 numaralı masa garson çağırıyor' },
   { id:'bill',         ic:'💳', label:'Hesap isteme', sample:'12 numaralı masa hesap istiyor' },
   { id:'ready',        ic:'✅', label:'Sipariş hazır', sample:'12 numaralı masanın siparişi hazır' },
+  { id:'idle',         ic:'🪑', label:'Sipariş bekleyen masa', sample:'12 numaralı masanın siparişi bekleniyor, misafir masada oturuyor' },
   { id:'seated',       ic:'🪑', label:'Misafir masaya oturdu', sample:'Bekleme listesindeki Ahmet Bey 12 numaralı masaya oturdu' },
   { id:'resvsoon',     ic:'⏳', label:'Rezervasyon hatırlatma (15 dk)', sample:'Ahmet Bey adına 4 kişilik rezervasyon 15 dakika sonra, 12 numaralı masa' },
   { id:'pickup',       ic:'🥡', label:'Gel-al alış saati geldi', sample:'Hakan Bey adına gel-al siparişinin alış saati geldi' },
@@ -23,7 +24,7 @@ function getVoicePrefs(){
   let p = {};
   try{ p = JSON.parse(localStorage.getItem(VOICE_KEY) || '{}') || {}; }catch(e){}
   const out = { enabled: p.enabled !== false, rate: p.rate || 1, voiceName: p.voiceName || '', types: {} };
-  VOICE_TYPES.forEach(t => { const v = (p.types || {})[t.id] || {}; out.types[t.id] = { sound: v.sound !== false, voice: v.voice != null ? !!v.voice : !['messages','other','reservations'].includes(t.id) }; });
+  VOICE_TYPES.forEach(t => { const v = (p.types || {})[t.id] || {}; out.types[t.id] = { sound: v.sound !== false, voice: v.voice != null ? !!v.voice : !['messages','other'].includes(t.id) }; });
   return out;
 }
 function setVoicePrefs(p){ try{ localStorage.setItem(VOICE_KEY, JSON.stringify(p)); }catch(e){} }
@@ -171,18 +172,18 @@ function voiceSelectHtml(){
   return `<select id="voiceNameSel" style="width:auto;max-width:260px;" ${actOn('change','setVoiceName',['$value'])}>${cloudOpts}${list.length && cloudOpts ? '<optgroup label="Cihaz sesleri">' : ''}${list.map(v => `<option value="${escapeAttr(v.name)}" ${v.name===cur?'selected':''}>${escapeHtml(v.name.replace(/^(Microsoft|Google)\s*/,''))}${/natural|neural|online/i.test(v.name)?' ⭐':''}</option>`).join('')}${list.length && cloudOpts ? '</optgroup>' : ''}</select>`;
 }
 function testVoice(type){ const t = VOICE_TYPES.find(x => x.id===type); VOICE_LAST.t = ''; VOICE_SHOW_ERR = true; if(t) voiceSpeak(t.sample); setTimeout(() => { VOICE_SHOW_ERR = false; }, 8000); }
-// Rozet öğesinin sesli bildirim türü (null: okunmaz, ör. boş masa hatırlatması).
+// Rozet öğesinin sesli bildirim türü.
 function voiceTypeOf(view, x){
   const k = x && x.kind;
   if(view==='kitchen') return 'kitchen';
-  if(view==='order') return k==='customer_request' ? (x.table ? 'qr' : 'online') : k==='waiter_call' ? 'waiter' : k==='idle_table' ? null : 'other';
+  if(view==='order') return k==='customer_request' ? (x.table ? 'qr' : 'online') : k==='waiter_call' ? 'waiter' : k==='idle_table' ? 'idle' : 'other';
   if(view==='payments') return k==='waiter_call' ? 'bill' : k==='ready' ? 'ready' : 'other';
   if(view==='reservations' || view==='messages') return view;
   return 'other';
 }
 // Masa adını cümleye uygun hale getirir: "12" -> "12 numaralı masa", "Bahçe 3" -> "Bahçe 3 masası", "Paket Ahmet" olduğu gibi.
 function voiceMasa(tb, hal){
-  let t = String(tb || '').trim().replace(/^masa\s+/i, '');
+  let t = String(tb || '').trim().replace(/^masa\s*(?=\d)|^masa\s+/i, '');
   if(!t) return { nom:'bir masa', abl:'bir masadan', gen:'bir masanın', dat:'bir masaya' }[hal];
   if(/^paket\b/i.test(t)) return { nom:t, abl:t + ' için', gen:t, dat:t }[hal];
   if(/^\d+$/.test(t)) return t + ' numaralı ' + { nom:'masa', abl:'masadan', gen:'masanın', dat:'masaya' }[hal];
@@ -205,6 +206,14 @@ function voiceTextFor(type, items){
     case 'ready': return T.map(t => voiceMasa(t, 'gen') + ' siparişi hazır').join('. ');
     case 'seated': return items.map(x => (x.kind==='waitlist' ? 'Bekleme listesindeki ' : 'Rezervasyonlu ') + (x.name || 'misafir') + ' ' + voiceMasa(x.table, 'dat') + ' oturdu').join('. ');
     case 'pickup': return items.map(x => (x.name ? x.name + ' adına' : (x.no ? x.no + ' numaralı' : 'Bir')) + ' gel-al siparişinin alış saati geldi' + (x.ready ? '' : ', sipariş henüz hazır değil')).join('. ');
+    case 'idle': return items.map(x => { const t = String(x.label || '').replace(/^🪑\s*/, '').split(' · ')[0]; return voiceMasa(t, 'gen') + ' siparişi bekleniyor, misafir masada oturuyor'; }).join('. ');
+    case 'reservations': return items.map(x => {
+      const name = x.name || String(x.label || '').replace(/^\W+/u, '').split(/ · | \(/)[0].trim();
+      if(x.kind === 'waitlist') return 'Bekleme listesine yeni misafir eklendi' + (name ? ': ' + name : '');
+      return /onay bekliyor/.test(x.label || '') ? 'Yeni rezervasyon talebi var' + (name ? ', ' + name + ' adına' : '') : (name ? name + ' adına rezervasyon yaklaşıyor' : 'Rezervasyon yaklaşıyor');
+    }).join('. ');
+    case 'messages': return 'Yeni mesajınız var';
+    case 'other': return items.length === 1 && items[0].label ? String(items[0].label).replace(/^\W+/u, '') : 'Yeni bildiriminiz var';
     case 'resvsoon': return items.map(x => {
       const mins = Math.round((new Date(x.time).getTime() - Date.now()) / 60000);
       const when = mins > 1 ? mins + ' dakika sonra' : 'şimdi';
