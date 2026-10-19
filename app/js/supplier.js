@@ -30,7 +30,7 @@ async function renderSuppliersContent(session){
   const rows = error ? [] : (data||[]);
   APP.supplierRows = rows;
   el.innerHTML = `<div class="box" style="max-width:none;">
-    <h2>Tedarikçiler</h2>
+    <div class="fsheet-bar" style="margin:0 0 12px;"><h2 style="margin:0;">Tedarikçiler</h2><button type="button" class="fsheet-open" ${act('newSupplier')}>+ Yeni Tedarikçi</button></div>
     ${rows.length ? `<div class="cu-grid">${rows.map((x, i) => `<div class="cu-card" style="--i:${Math.min(i,12)};--tc:var(--c${i%4+1});">
       <div class="cu-top">${avatarHtml(x.name)}<div class="cu-id"><b>${escapeHtml(x.name)}</b><small>Tedarikçi</small></div></div>
       <div class="sup-lines">
@@ -41,17 +41,14 @@ async function renderSuppliersContent(session){
       </div>
       <div class="pcard-acts"><button type="button" class="pc-btn pc-edit" style="margin-left:0;" ${act('editSupplier', x.id)}>✏️ Düzenle</button><button type="button" class="pc-btn rv-del" style="margin-left:auto;" ${act('removeSupplier', x.id)}>🗑 Sil</button></div>
     </div>`).join('')}</div>` : '<div class="empty-state"><div style="font-size:42px;">🏭</div><p class="muted">Henüz tedarikçi yok.</p></div>'}
-    <div class="add-row-panel">
-      <p id="supFormTitle">Yeni Tedarikçi Ekle</p>
-      <input type="hidden" id="sup_edit_id">
-      <div style="${INLINE_ROW}">
-        <div class="field-group" style="${fgStyle(180, 2)}"><label>Ad</label><input id="sup_name" placeholder="örn. ABC Gıda Toptan" style="margin:0;"></div>
-        <div class="field-group" style="${fgStyle(130)}"><label>Telefon</label><input id="sup_phone" placeholder="opsiyonel" style="margin:0;"></div>
-        <div class="field-group" style="${fgStyle(160)}"><label>E-posta</label><input id="sup_email" placeholder="opsiyonel" style="margin:0;"></div>
-        <div class="field-group" style="${fgStyle(200, 2)}"><label>Adres</label><input id="sup_address" placeholder="opsiyonel" style="margin:0;"></div>
-        <button style="${INLINE_BTN}" ${act('saveSupplier')}>${ICON_SAVE}<span>Kaydet</span></button>
+    ${sheetHtml('supSheet', '🏭', 'Yeni Tedarikçi', `<input type="hidden" id="sup_edit_id">
+      <div class="fsheet-grid">
+        <div class="field-group wide"><label>Ad</label><input id="sup_name" placeholder="örn. ABC Gıda Toptan"></div>
+        <div class="field-group"><label>Telefon</label><input id="sup_phone" placeholder="opsiyonel" inputmode="tel"></div>
+        <div class="field-group"><label>E-posta</label><input id="sup_email" placeholder="opsiyonel" autocapitalize="none"></div>
+        <div class="field-group wide"><label>Adres</label><input id="sup_address" placeholder="opsiyonel"></div>
       </div>
-    </div>
+      <div class="fsheet-foot"><button type="button" class="ghost-btn" ${act('closeSheet','supSheet')}>Vazgeç</button><button ${act('saveSupplier')}>${ICON_SAVE}<span>Kaydet</span></button></div>`, 'var(--c2)')}
   </div>`;
 }
 function editSupplier(id){
@@ -61,7 +58,13 @@ function editSupplier(id){
   document.getElementById('sup_phone').value = s.phone||'';
   document.getElementById('sup_email').value = s.email||'';
   document.getElementById('sup_address').value = s.address||'';
-  document.getElementById('supFormTitle').textContent = 'Tedarikçiyi Düzenle';
+  document.getElementById('supSheetTitle').textContent = 'Tedarikçiyi Düzenle';
+  openSheet('supSheet');
+}
+function newSupplier(){
+  ['sup_edit_id','sup_name','sup_phone','sup_email','sup_address'].forEach(k => { const e = document.getElementById(k); if(e) e.value = ''; });
+  document.getElementById('supSheetTitle').textContent = 'Yeni Tedarikçi';
+  openSheet('supSheet');
 }
 async function saveSupplier(){
   const session = getSession();
@@ -74,6 +77,7 @@ async function saveSupplier(){
     p_address: document.getElementById('sup_address').value.trim()||null,
     p_notes: null });
   if(error){ alert(error.message); return; }
+  closeSheet('supSheet');
   renderSuppliersContent(session);
   showToast('Kaydedildi ✓');
 }
