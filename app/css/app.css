@@ -2754,3 +2754,18 @@ body.fsheet-lock{overflow:hidden;}
 .cr-sum{border:1px solid var(--border);border-radius:12px;padding:10px 12px;} .cr-sum b{display:block;} .cr-sum small{color:var(--muted);}
 .cr-sms{display:flex;gap:8px;align-items:center;margin:14px 0 0;font-size:13.5px;font-weight:600;} .cr-sms input{width:auto;margin:0;}
 @keyframes crPulse{0%,100%{box-shadow:0 0 0 0 color-mix(in srgb,var(--c1) 50%,transparent);}50%{box-shadow:0 0 0 6px transparent;}}
+/* Puantaj & Prim */
+.pr-wrap{overflow-x:auto;}
+.pr-tbl{width:100%;border-collapse:collapse;font-size:13.5px;}
+.pr-tbl th{text-align:left;font-size:11.5px;color:var(--muted);font-weight:700;padding:8px;border-bottom:1px solid var(--border);white-space:nowrap;}
+.pr-tbl td{padding:8px 6px;border-bottom:1px solid var(--border);white-space:nowrap;vertical-align:middle;}
+.pr-who{display:flex;gap:8px;align-items:center;} .pr-who b{display:block;} .pr-who small{color:var(--muted);font-size:11.5px;}
+.pr-in{width:72px !important;margin:0 !important;padding:7px 9px !important;}
+.pr-total{color:var(--c4);}
+@media (max-width:700px){
+  .pr-tbl thead{display:none;} .pr-tbl,.pr-tbl tbody,.pr-tbl tr,.pr-tbl td{display:block;width:100%;}
+  .pr-tbl tr{border:1px solid var(--border);border-radius:14px;padding:8px 10px;margin-bottom:10px;}
+  .pr-tbl td{border:0;padding:5px 0;display:flex;justify-content:space-between;align-items:center;gap:10px;white-space:normal;}
+  .pr-tbl td[data-l]:not([data-l="Personel"])::before{content:attr(data-l);color:var(--muted);font-size:12px;font-weight:700;}
+  .pr-tbl td .pc-btn{width:100%;}
+}

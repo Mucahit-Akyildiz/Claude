@@ -576,3 +576,46 @@ async function renderSpeedContent(session){
       </div>
     </div>`;
 }
+
+/* ---------- 💼 PUANTAJ & PRİM ----------
+   Vardiya kayıtlarından çalışılan saat (mola düşülmüş), saatlik ücretle maaş; personelin
+   ödemesini aldığı hesapların cirosundan prim. Bordro yerine geçmez, ön hesap içindir. */
+async function renderPayrollContent(session){
+  const el = document.getElementById('reportContent'); if(!el) return;
+  const { data, error } = await withLoadingOverlay(sb.rpc('get_payroll', { p_token: session.session_token, p_date: APP.reportDate, p_date_to: APP.reportDateTo }));
+  if(error) return anErr(el, error);
+  const rows = (data || []).filter(r => r.is_active !== false || anN(r.hours) || anN(r.sales)).map(r => {
+    const wage = anN(r.hours) * anN(r.hourly_wage), prim = anN(r.sales) * anN(r.commission_pct) / 100;
+    return Object.assign({}, r, { wage, prim, total: wage + prim });
+  });
+  APP.payrollRows = rows;
+  const sum = (k) => rows.reduce((x, r) => x + anN(r[k]), 0);
+  const h = (v) => { const m = Math.round(anN(v) * 60); return Math.floor(m / 60) + ' sa ' + String(m % 60).padStart(2, '0') + ' dk'; };
+  anSetExport('puantaj-prim', ['Personel', 'Vardiya', 'Çalışma (saat)', 'Saatlik ücret', 'Maaş', 'Satış', 'Prim %', 'Prim', 'Bahşiş', 'Toplam (maaş+prim)'],
+    rows.map(r => [r.username, r.shifts, anN(r.hours).toFixed(2), anN(r.hourly_wage), r.wage.toFixed(2), anN(r.sales).toFixed(2), anN(r.commission_pct), r.prim.toFixed(2), anN(r.tips).toFixed(2), r.total.toFixed(2)]));
+  el.innerHTML = `${statChips([['⏱', h(sum('hours')), 'Toplam çalışma', 'var(--c1)'], ['💵', money(sum('wage')), 'Saatlik ücret toplamı', 'var(--c2)'], ['🎯', money(sum('prim')), 'Prim toplamı', 'var(--c3)'], ['💼', money(sum('total')), 'Ödenecek (maaş + prim)', 'var(--c4)']], '', 'pay')}
+    <div class="fs-panel pa-sec" style="--t:var(--c4);">
+      <h3><i>💼</i>Puantaj & Prim <span class="muted" style="font-weight:500;font-size:12px;margin-left:6px;">${escapeHtml(reportDateRangeLabel())}</span></h3>
+      <p class="muted" style="text-align:left;font-size:12.5px;margin:0 0 12px;">Çalışma süresi onaylı vardiyalardan, molalar düşülerek hesaplanır. Prim, personelin ödemesini aldığı hesapların cirosu üzerinden. Ücret ve prim oranını satırdan girip <b>Kaydet</b>'e basın. Bordro yerine geçmez.</p>
+      ${rows.length ? `<div class="pr-wrap"><table class="pr-tbl"><thead><tr><th>Personel</th><th>Çalışma</th><th>Saatlik ücret</th><th>Maaş</th><th>Satış</th><th>Prim %</th><th>Prim</th><th>Toplam</th><th></th></tr></thead><tbody>
+        ${rows.map(r => `<tr data-uid="${r.id}">
+          <td data-l="Personel"><div class="pr-who">${avatarHtml(r.username)}<div><b>${escapeHtml(r.username)}</b><small>${r.shifts} vardiya · ${r.checks} hesap${anN(r.tips) ? ' · ' + money(r.tips) + ' bahşiş' : ''}</small></div></div></td>
+          <td data-l="Çalışma">${h(r.hours)}</td>
+          <td data-l="Saatlik ücret"><input class="pr-in pr-wage" type="number" min="0" step="0.5" value="${anN(r.hourly_wage) || ''}" placeholder="₺/saat"></td>
+          <td data-l="Maaş"><b>${money(r.wage)}</b></td>
+          <td data-l="Satış">${money(r.sales)}</td>
+          <td data-l="Prim %"><input class="pr-in pr-pct" type="number" min="0" max="50" step="0.5" value="${anN(r.commission_pct) || ''}" placeholder="%"></td>
+          <td data-l="Prim"><b>${money(r.prim)}</b></td>
+          <td data-l="Toplam"><b class="pr-total">${money(r.total)}</b></td>
+          <td><button type="button" class="pc-btn pc-edit" ${act('saveStaffPay', r.id, '$this')}>💾 Kaydet</button></td>
+        </tr>`).join('')}</tbody></table></div>` : '<div class="empty-state"><div style="font-size:42px;">💼</div><p class="muted">Bu tarihlerde personel kaydı yok.</p></div>'}
+    </div>`;
+}
+async function saveStaffPay(userId, btn){
+  const tr = btn.closest('tr');
+  const wage = Number(tr.querySelector('.pr-wage').value) || 0, pct = Number(tr.querySelector('.pr-pct').value) || 0;
+  const { error } = await sb.rpc('set_staff_pay', { p_token: getSession().session_token, p_user_id: userId, p_hourly_wage: wage, p_commission_pct: pct });
+  if(error){ alert(error.message); return; }
+  showToast('Ücret ve prim kaydedildi ✓');
+  renderPayrollContent(getSession());
+}
