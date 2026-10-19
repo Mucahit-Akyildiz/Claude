@@ -13148,6 +13148,13 @@ CREATE INDEX cash_counts_rest_date ON public.cash_counts USING btree (restaurant
 
 
 --
+-- Name: cash_counts_user_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX cash_counts_user_idx ON public.cash_counts USING btree (user_id);
+
+
+--
 -- Name: chat_group_members_user_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -13236,6 +13243,13 @@ CREATE UNIQUE INDEX companies_code_ci_key ON public.companies USING btree (lower
 --
 
 CREATE INDEX company_sessions_company_idx ON public.company_sessions USING btree (company_id);
+
+
+--
+-- Name: cor_pending_rest; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX cor_pending_rest ON public.customer_order_requests USING btree (restaurant_id) WHERE (status = 'pending'::text);
 
 
 --
@@ -13736,10 +13750,24 @@ CREATE INDEX open_accounts_restaurant_id_idx ON public.open_accounts USING btree
 
 
 --
+-- Name: order_items_pending_order; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX order_items_pending_order ON public.order_items USING btree (order_id) WHERE (status = 'pending'::text);
+
+
+--
 -- Name: orders_one_open_per_table; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE UNIQUE INDEX orders_one_open_per_table ON public.orders USING btree (table_id) WHERE ((status = 'open'::text) AND (table_id IS NOT NULL));
+
+
+--
+-- Name: orders_open_by_rest; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX orders_open_by_rest ON public.orders USING btree (restaurant_id) WHERE (status = 'open'::text);
 
 
 --
@@ -13775,6 +13803,20 @@ CREATE INDEX products_parent_idx ON public.products USING btree (parent_id);
 --
 
 CREATE INDEX promotion_uses_promo ON public.promotion_uses USING btree (promotion_id);
+
+
+--
+-- Name: promotion_uses_rest_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX promotion_uses_rest_idx ON public.promotion_uses USING btree (restaurant_id);
+
+
+--
+-- Name: promotion_uses_user_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX promotion_uses_user_idx ON public.promotion_uses USING btree (user_id);
 
 
 --
@@ -13820,6 +13862,13 @@ CREATE INDEX rate_limit_events_idx ON public.rate_limit_events USING btree (buck
 
 
 --
+-- Name: reservations_rest_time; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX reservations_rest_time ON public.reservations USING btree (restaurant_id, reservation_time) WHERE (status = ANY (ARRAY['pending'::text, 'confirmed'::text]));
+
+
+--
 -- Name: restaurant_tables_qr_token_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -13862,6 +13911,13 @@ CREATE INDEX reviews_rest ON public.reviews USING btree (restaurant_id, rated_at
 
 
 --
+-- Name: sales_history_rest_closed; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX sales_history_rest_closed ON public.sales_history USING btree (restaurant_id, closed_at DESC);
+
+
+--
 -- Name: sms_outbox_created_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -13894,6 +13950,13 @@ CREATE INDEX staff_shifts_restaurant_idx ON public.staff_shifts USING btree (res
 --
 
 CREATE INDEX staff_shifts_user_open_idx ON public.staff_shifts USING btree (user_id) WHERE (clock_out IS NULL);
+
+
+--
+-- Name: support_access_log_rest_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX support_access_log_rest_idx ON public.support_access_log USING btree (restaurant_id);
 
 
 --
