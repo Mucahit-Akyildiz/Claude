@@ -946,10 +946,10 @@ begin
     v := v || jsonb_build_object('purchasing', jsonb_array_length(arr)); it := it || jsonb_build_object('purchasing', arr);
   end if;
   -- Görülmemiş düşük puanlı müşteri değerlendirmeleri (Müşteriler menüsü).
-  if _user_has_perm(u, 'crm') then
+  if _user_has_perm(u, 'reports') then
     select coalesce(jsonb_agg(jsonb_build_object('id', rv.id, 'label', repeat('★', rv.rating) || ' ' || coalesce(rv.table_name, 'Hesap') || coalesce(' · ' || left(rv.comment, 60), ''), 'kind', 'review')), '[]') into arr
       from reviews rv where rv.restaurant_id = r and rv.rating is not null and rv.rating <= 3 and not rv.seen;
-    v := v || jsonb_build_object('crm', jsonb_array_length(arr)); it := it || jsonb_build_object('crm', arr);
+    v := v || jsonb_build_object('reports', jsonb_array_length(arr)); it := it || jsonb_build_object('reports', arr);
   end if;
   -- Masaya oturtulmuş ama henüz siparişi girilmemiş masalar (rezervasyon/bekleme listesinden oturan).
   if _user_has_perm(u, 'order') then
@@ -6666,7 +6666,7 @@ CREATE FUNCTION public.list_reviews(p_token uuid, p_days integer DEFAULT 30) RET
     SET search_path TO 'public', 'extensions', 'pg_temp'
     AS $$ declare s staff_sessions%rowtype;
 begin
-  s := _session_check(p_token, 'crm');
+  s := _session_check(p_token, 'reports');
   return json_build_object(
     'stats', (select json_build_object('n', count(*), 'avg', round(avg(rating)::numeric, 2),
         'dist', json_build_array(count(*) filter (where rating=1), count(*) filter (where rating=2), count(*) filter (where rating=3), count(*) filter (where rating=4), count(*) filter (where rating=5)),
@@ -7133,7 +7133,7 @@ CREATE FUNCTION public.mark_reviews_seen(p_token uuid) RETURNS void
     SET search_path TO 'public', 'extensions', 'pg_temp'
     AS $$ declare s staff_sessions%rowtype;
 begin
-  s := _session_check(p_token, 'crm');
+  s := _session_check(p_token, 'reports');
   update reviews set seen = true where restaurant_id = s.restaurant_id and not seen and rating is not null;
 end $$;
 
