@@ -21,21 +21,26 @@ async function renderGiftCardsSettings(el, session){
   el.innerHTML = `<div class="box" style="max-width:none;">
     <h2>🎁 Hediye Kartları</h2>
     <p class="muted" style="text-align:left;margin:-8px 0 16px;">Burada yeni hediye kartı oluşturup mevcut kartların bakiyesini görebilirsiniz. Bir kartı ödeme olarak kullanmak için Ödemeler ekranında hesabı açıp "Hediye Kartı" alanına kodu girin.</p>
-    <div class="add-row-panel">
-      <p>Yeni Hediye Kartı Oluştur</p>
-      <div style="${INLINE_ROW}">
-        <div class="field-group" style="${fgStyle(140)}"><label>Tutar</label><input id="gcNewAmount" type="number" min="0" step="0.01" placeholder="örn. 200" style="margin:0;"></div>
-        <div class="field-group" style="${fgStyle(220, 2)}"><label>Not (opsiyonel)</label><input id="gcNewNote" placeholder="örn. hediye" style="margin:0;"></div>
-        <button style="${INLINE_BTN}" ${act('createGiftCard')}>+ Kart Oluştur</button>
+    <div class="fsheet-bar" style="margin:0 0 4px;"><span></span>${sheetBtnHtml('gcSheet','+ Yeni Hediye Kartı')}</div>
+    ${sheetHtml('gcSheet', '🎁', 'Yeni Hediye Kartı', `
+      <div class="rvf-t">💰 Tutar</div>
+      <div class="rvf-chips">${[100,200,250,500,1000].map(n => `<button type="button" class="rvf-chip" ${act('setGcAmount', n, '$this')}>${n} ₺</button>`).join('')}</div>
+      <div class="fsheet-grid" style="margin-top:10px;">
+        <div class="field-group"><label>Tutar (₺)</label><input id="gcNewAmount" type="number" min="0" step="0.01" placeholder="örn. 200"></div>
+        <div class="field-group"><label>Not (opsiyonel)</label><input id="gcNewNote" placeholder="örn. doğum günü hediyesi"></div>
       </div>
       <div id="gcNewResult" style="margin-top:10px;"></div>
-    </div>
+      <div class="fsheet-foot"><button type="button" class="ghost-btn" ${act('closeSheet','gcSheet')}>Kapat</button><button ${act('createGiftCard')}>🎁 Kart Oluştur</button></div>`, 'var(--c4)')}
     <div style="margin-top:18px;">
       <input id="gcSearchInput" placeholder="Kod, müşteri adı veya telefon ara..." ${actOn('input','debouncedGiftCardSearch',['$value'])}>
     </div>
     <div id="gcListWrap" style="margin-top:10px;"><p class="muted">Yükleniyor…</p></div>
   </div>`;
   await refreshGiftCardList(session);
+}
+function setGcAmount(n, btn){
+  document.getElementById('gcNewAmount').value = n;
+  btn.parentNode.querySelectorAll('.rvf-chip').forEach(b => b.classList.toggle('on', b === btn));
 }
 async function createGiftCard(){
   const session = getSession();

@@ -548,7 +548,7 @@ async function renderPrinterSettingsView(main, session){
     </div>
 
     <div class="box" style="max-width:none;">
-      <h2>Yazıcılar</h2>
+      <div class="fsheet-bar" style="margin:0 0 12px;"><h2 style="margin:0;">Yazıcılar</h2>${sheetBtnHtml('printerSheet','+ Yeni Yazıcı')}</div>
       ${!usbSupported ? '<p class="muted" style="text-align:left;">⚠️ Bu tarayıcı USB yazıcı bağlantısını (WebUSB) desteklemiyor — Chrome veya Edge kullanmanız gerekiyor. Yine de "Tarayıcı Yazdırma Penceresi" tipinde yazıcı ekleyebilirsiniz.</p>' : ''}
       ${printers.length ? `<div class="pp-grid">${printers.map((p, i) => { const [ic, tl] = PR_TYPE(p.type);
         return `<div class="pp-card pp-static" style="--sc:var(--c${i%4+1});">
@@ -556,13 +556,12 @@ async function renderPrinterSettingsView(main, session){
           <span class="pp-acts">${p.type==='usb' ? `<button type="button" class="pc-btn" ${act('reconnectUsbPrinter', p.id)}>Bağlan</button>` : ''}
             <button type="button" class="pc-btn" ${act('testPrintPrinter', p.id)}>🖨️ Test</button>
             <button type="button" class="ico-btn danger" title="Sil" ${act('removePrinterEntry', p.id)}>🗑</button></span>
-        </div>`; }).join('')}</div>` : '<div class="empty-state"><div style="font-size:38px;">🖨️</div><p class="muted">Henüz yazıcı eklenmedi. Aşağıdan ekleyin.</p></div>'}
+        </div>`; }).join('')}</div>` : '<div class="empty-state"><div style="font-size:38px;">🖨️</div><p class="muted">Henüz yazıcı eklenmedi. <b>+ Yeni Yazıcı</b> ile ekleyin.</p></div>'}
       ${!isDesktopApp() ? `<p class="muted" style="text-align:left;margin-top:10px;font-size:12px;background:var(--panel2);border-radius:8px;padding:10px;">💻 Bu ekran şu an tarayıcıda açık. <b>Masaüstü Uygulaması</b> (Windows/macOS) yazıcıya hiçbir pencere açmadan, ekstra ayara gerek kalmadan basabiliyor — kurulursa "Masaüstü Uygulaması" tipini seçebilirsiniz.</p>` : ''}
-      <div class="add-row-panel">
-        <p>Yeni Yazıcı Ekle</p>
-        <div style="display:grid;grid-template-columns:2fr 1.4fr auto;gap:10px;align-items:end;">
-          <div class="field-group"><label>Yazıcı Adı</label><input id="np_pname" placeholder="örn. Mutfak Yazıcısı"></div>
-          <div class="field-group"><label>Bağlantı Türü</label>
+      ${sheetHtml('printerSheet', '🖨️', 'Yeni Yazıcı', `
+        <div class="fsheet-grid">
+          <div class="field-group wide"><label>Yazıcı Adı</label><input id="np_pname" placeholder="örn. Mutfak Yazıcısı"></div>
+          <div class="field-group wide"><label>Bağlantı Türü</label>
             <select id="np_ptype" ${actOn('change','onNewPrinterTypeChange',[])}>
               <option value="electron" ${isDesktopApp()?'selected':''}>Masaüstü Uygulaması (sessiz, önerilir)</option>
               <option value="browser" ${isDesktopApp()?'':'selected'}>Tarayıcı Yazdırma Penceresi (her seferinde açılır)</option>
@@ -570,10 +569,9 @@ async function renderPrinterSettingsView(main, session){
               <option value="silent-browser">Sessiz Tarayıcı Yazdırma (normal/ofis yazıcıları için, kiosk-printing gerekir)</option>
             </select>
           </div>
-          <button style="width:auto;" ${act('addPrinterEntry')}>+ Ekle</button>
         </div>
         <div id="npElectronWrap" class="field-group" style="margin-top:10px;"></div>
-      </div>
+        <div class="fsheet-foot"><button type="button" class="ghost-btn" ${act('closeSheet','printerSheet')}>Vazgeç</button><button ${act('addPrinterEntry')}>+ Yazıcı Ekle</button></div>`, 'var(--c1)')}
       <details class="pr-help"><summary>❔ Hangi bağlantı türünü seçmeliyim?</summary><p class="muted" style="text-align:left;margin:8px 0 0;font-size:12px;">
         Not: <b>USB (doğrudan)</b> yalnızca standart bir USB arayüzü üzerinden ham komut kabul eden küçük termal
         fiş yazıcılarında çalışır — Xerox, HP, Canon gibi normal/ofis yazıcılarının USB arayüzü işletim sisteminin

@@ -432,6 +432,7 @@ async function addPrinterEntry(){
   // sadece listeye eklenip hicbir yerde secilmedigi icin sessizce kullanilmama
   // durumu (kullanici siparis verdiginde hicbir sey basmadan gecmesi) onlenir.
   if(isFirstPrinter) setActivePrinterId(id);
+  closeSheet('printerSheet');
   renderSettingsFromCurrentSession();
   showToast(isFirstPrinter ? 'Yazıcı eklendi ve bu ekranın yazıcısı yapıldı ✓' : 'Yazıcı eklendi ✓');
 }

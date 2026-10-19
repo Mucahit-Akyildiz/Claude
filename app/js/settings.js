@@ -195,7 +195,7 @@ function renderIngredientsSettings(el, session){
   const chip = (k, ic, v, l, c) => `<div class="os-chip os-click ${f===k?'on':''}" role="button" title="Listeyi filtrele" style="--oc:${c};" ${act('setIngFilter', k)}><span class="os-ic">${ic}</span><div><b>${v}</b><small>${l}</small></div></div>`;
   el.innerHTML = `<div class="order-summary stat-chips" style="--n:5;">${chip('all','🥕', ings.length, 'Hammadde', 'var(--c1)')}${chip('low','📉', ings.filter(isLow).length, 'Kritik stok', 'var(--c3)')}${chip('out','⛔', ings.filter(i => Number(i.stock)<=0).length, 'Stoğu biten', 'var(--danger,#ef4444)')}${chip('idle','💤', ings.filter(i => !useCount(i.id)).length, 'Reçetede kullanılmayan', 'var(--c3)')}${chip('waste','✂️', ings.filter(i => Number(i.waste_pct)>0).length, 'Fire tanımlı', 'var(--c2)')}</div>
   <div class="box" style="max-width:none;">
-    <h2>Hammaddeler / Stok Kalemleri</h2>
+    <div class="fsheet-bar" style="margin:0 0 12px;"><h2 style="margin:0;">Hammaddeler / Stok Kalemleri</h2>${sheetBtnHtml('ingSheet','+ Yeni Hammadde')}</div>
     <details class="prod-info"><summary>ℹ️ Nasıl çalışır</summary><p class="muted" style="text-align:left;margin:0 0 12px;">Örn: "Köfte" (birim: adet, stok: 200), "Döner Eti" (birim: kg, stok: 20). Yeni bir hammadde eklediğinizde hangi ürünlerin onu kullandığını hemen soracağız — istediğiniz zaman "Kullanıldığı Ürünler" ile bunu tekrar düzenleyebilirsiniz. Aynı hammaddeyi paylaşan ürünlerin stoğu her zaman ortak ve anlık hesaplanır. <b>Min</b>: stok bu seviyeye inince Satınalma Siparişleri menüsünde uyarı çıkar ve tek tıkla sipariş taslağı hazırlanır. <b>Fire %</b>: temizleme/kesim kaybıdır; reçeteye net miktarı girersiniz, stoktan fire eklenerek düşülür (örn. %10 fire, 60 g net → 66,7 g düşer). Kartları değiştirip <b>Kaydet</b>'e basın; silmek için kartları seçin.</p></details>
     <div class="add-row-panel">
       <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:0 0 10px;">
@@ -207,17 +207,16 @@ function renderIngredientsSettings(el, session){
         </div>
       </div>
       <p class="muted" id="ingSelInfo" style="text-align:left;font-size:12.5px;margin:-4px 0 8px;text-transform:none;letter-spacing:0;font-weight:400;"></p>
-      <p>Yeni Hammadde Ekle</p>
-      <div style="${INLINE_ROW}">
-        <div class="field-group" style="${fgStyle(200, 2)}"><label>Hammadde Adı</label><input id="ni_name" placeholder="örn. Döner Eti" style="margin:0;"></div>
-        <div class="field-group" style="${fgStyle(110)}"><label>Birim</label><select id="ni_unit" style="margin:0;">
-          <option value="adet">adet</option><option value="gram">gram</option><option value="kg">kg</option><option value="ml">ml</option><option value="lt">lt</option>
-        </select></div>
-        <div class="field-group" style="${fgStyle(130)}"><label>Başlangıç Stoku</label><input type="number" step="0.01" id="ni_stock" placeholder="0" style="margin:0;"></div>
-        <div class="field-group" style="${fgStyle(110)}"><label>Fire %</label><input type="number" step="0.1" min="0" max="99" id="ni_waste" placeholder="0" style="margin:0;"></div>
-        <button style="${INLINE_BTN}" ${act('addIngredient')}>+ Hammadde Ekle</button>
-      </div>
     </div>
+    ${sheetHtml('ingSheet', '🥕', 'Yeni Hammadde', `
+      <div class="fsheet-grid">
+        <div class="field-group wide"><label>Hammadde Adı</label><input id="ni_name" placeholder="örn. Döner Eti"></div>
+        <div class="field-group"><label>Birim</label><select id="ni_unit"><option value="adet">adet</option><option value="gram">gram</option><option value="kg">kg</option><option value="ml">ml</option><option value="lt">lt</option></select></div>
+        <div class="field-group"><label>Başlangıç Stoku</label><input type="number" step="0.01" id="ni_stock" placeholder="0"></div>
+        <div class="field-group"><label>Fire %</label><input type="number" step="0.1" min="0" max="99" id="ni_waste" placeholder="0"></div>
+      </div>
+      <p class="muted" style="font-size:12px;text-align:left;margin:10px 0 0;">Ekledikten sonra hangi ürünlerin bu hammaddeyi kullandığını soracağız.</p>
+      <div class="fsheet-foot"><button type="button" class="ghost-btn" ${act('closeSheet','ingSheet')}>Vazgeç</button><button ${act('addIngredient')}>+ Hammadde Ekle</button></div>`, 'var(--c3)')}
     <div style="display:flex;align-items:center;gap:8px;margin:4px 0 10px;"><label style="display:flex;align-items:center;gap:6px;margin:0;font-size:13px;font-weight:600;"><input type="checkbox" style="width:auto;margin:0;" ${actOn('change','selectAllIngredients',['$checked'])}> Tümünü seç</label></div>
     <div class="ig-grid" ${actOn('input','markIngDirty',['$event'])} ${actOn('change','markIngDirty',['$event'])}>
       ${shownIngs.map((i, k) => { const st = Number(i.stock)||0, out = st <= 0, uses = useCount(i.id), pct = Math.max(4, Math.min(100, st / maxStock * 100));
@@ -292,9 +291,10 @@ async function addIngredient(){
   const unit = document.getElementById('ni_unit').value;
   const stock = parseFloat(document.getElementById('ni_stock').value)||0;
   const waste = parseFloat(document.getElementById('ni_waste').value)||0;
-  if(!name) return;
+  if(!name){ alert('Hammadde adı gerekli'); return; }
   const { data, error } = await sb.rpc('upsert_ingredient', { p_token: session.session_token, p_id: null, p_name: name, p_unit: unit, p_stock: stock, p_waste_pct: waste });
   if(error){ alert(error.message); return; }
+  closeSheet('ingSheet');
   await renderSettingsView(document.getElementById('main'), session);
   // Hammadde eklenir eklenmez, hangi urunlerin kullandigini sormaya devam et.
   if(data) openIngredientUsageModal(data);
@@ -1563,17 +1563,15 @@ function renderUsersSettings(el, session){
   const us = APP.config.users || [], lic = APP.config.license || {};
   el.innerHTML = statChips([['👥', us.length, 'Kullanıcı', 'var(--c1)', 'all'], ['✅', us.filter(u => u.is_active!==false).length, 'Aktif', 'var(--ok,#22c55e)', 'on'],
       ['⏸', us.filter(u => u.is_active===false).length, 'Pasif', 'var(--c3)', 'off'], ['🎫', lic.max_users ? Math.max(0, lic.max_users - us.length) : '—', 'Eklenebilir kullanıcı', 'var(--c2)']], '', 'users') + `<div class="box" style="max-width:none;">
-    <h2>Kullanıcılar</h2>
+    <div class="fsheet-bar" style="margin:0 0 12px;"><h2 style="margin:0;">Kullanıcılar</h2>${canAssign ? sheetBtnHtml('userSheet','+ Yeni Kullanıcı') : ''}</div>
     ${canAssign ? '' : '<p class="muted" style="text-align:left;font-size:12.5px;margin:-4px 0 12px;">🔒 Kullanıcı ekleme, rol değiştirme, pasife alma ve silme için <b>Kullanıcı Yönetimi</b> izni gerekir; yetkili kişilerin hesapları da kilitlidir. Diğer personelin adını ve şifresini değiştirebilirsiniz.</p>'}
-    <div class="add-row-panel" style="margin:0 0 16px;${canAssign?'':'display:none;'}">
-      <p>Yeni Kullanıcı Ekle</p>
-      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;align-items:start;">
-        <div class="field-group"><label>Kullanıcı Adı</label><input id="nu_name" placeholder="örn. ahmet"></div>
+    ${canAssign ? sheetHtml('userSheet', '👤', 'Yeni Kullanıcı', `
+      <div class="fsheet-grid">
+        <div class="field-group"><label>Kullanıcı Adı</label><input id="nu_name" placeholder="örn. ahmet" autocapitalize="none"></div>
         <div class="field-group"><label>Şifre</label>${passField('nu_pass', false, false)}</div>
-        <div class="field-group"><label>Roller (en fazla 2)</label>${roleCheckboxes('nu', [])}</div>
+        <div class="field-group wide"><label>Roller (en fazla 2)</label>${roleCheckboxes('nu', [])}</div>
       </div>
-      <button style="margin-top:12px;max-width:220px;" ${act('addUser')}>+ Kullanıcı Ekle</button>
-    </div>
+      <div class="fsheet-foot"><button type="button" class="ghost-btn" ${act('closeSheet','userSheet')}>Vazgeç</button><button ${act('addUser')}>+ Kullanıcı Ekle</button></div>`, 'var(--c1)') : ''}
     <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:0 0 10px;">
       <input id="userSearch" placeholder="🔍 Kullanıcı ara…" value="${escapeAttr(APP.userSearch||'')}" ${actOn('input','setUserSearch',['$value'])} style="max-width:320px;margin:0;">
       <span class="spacer" style="flex:1;"></span>
@@ -2776,6 +2774,7 @@ async function addUser(){
   if(roleIds.length===0){ alert('En az 1 rol seçmelisiniz'); return; }
   const { error } = await sb.rpc('create_staff_user', { p_token: session.session_token, p_username: username, p_password: password, p_role_ids: roleIds });
   if(error){ alert(error.message); return; }
+  closeSheet('userSheet');
   renderSettingsView(document.getElementById('main'), session);
 }
 /* Kullanıcılar: satırlardaki değişiklikler tek düğmeyle kaydedilir; pasife alma /
