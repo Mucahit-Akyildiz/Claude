@@ -39,9 +39,21 @@ function renderPackageGrid(){
       const hm = new Date(o.pickup_at).toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'});
       eta = `<div style="margin-top:5px;"><span class="pk-badge ${left < 0 ? 'late' : ''}">🕒 ${hm} · ${left < 0 ? Math.abs(left) + ' dk geçti' : left + ' dk kaldı'}</span></div>`;
     }
-    return `<div class="table-cell" style="cursor:pointer;background:rgba(244,63,94,.14);border-color:var(--red);color:var(--red);overflow-wrap:anywhere;word-break:break-word;" ${act('openPackageModal', 'pkg_'+o.order_id)}>
-      ${pickup ? '🥡' : '🛵'} ${escapeHtml(label)}<div style="font-size:11px;margin-top:4px;font-weight:400;">${pickup ? 'Gel-Al' : 'Paket'} · ${o.items.length} ürün - ${allReady?'Hazır':'hazırlanıyor'} · ${money(total)}</div>${eta}</div>`;
+    // Kurye durumu (yalnızca teslimat): kuryeye ver → yolda → teslim edildi (ödeme bekliyor).
+    let courier = '';
+    if(!pickup){
+      const mins = (t) => Math.max(0, Math.round((Date.now() - new Date(t)) / 60000));
+      courier = o.delivered_at ? `<div class="cr-row"><span class="pk-badge cr-done">✅ Teslim edildi · ödeme bekliyor</span><button type="button" class="cr-btn ghost" title="Teslim edildi işaretini geri al" ${actStop('markDelivered', o.order_id, true)}>↩</button></div>`
+        : o.dispatched_at ? `<div class="cr-row"><span class="pk-badge cr-way">🛵 Yolda${o.courier_name ? ' · ' + escapeHtml(o.courier_name) : ''} · ${mins(o.dispatched_at)} dk</span><button type="button" class="cr-btn" ${actStop('markDelivered', o.order_id, false)}>✅ Teslim</button></div>`
+        : `<div class="cr-row"><button type="button" class="cr-btn ${allReady ? 'hot' : ''}" ${actStop('openCourierSheet', o.order_id)}>🛵 Kuryeye Ver</button></div>`;
+    }
+    return `<div class="table-cell pk-cell ${o.delivered_at ? 'pk-delivered' : o.dispatched_at ? 'pk-way' : ''}" style="cursor:pointer;background:rgba(244,63,94,.14);border-color:var(--red);color:var(--red);overflow-wrap:anywhere;word-break:break-word;" ${act('openPackageModal', 'pkg_'+o.order_id)}>
+      ${pickup ? '🥡' : '🛵'} ${escapeHtml(label)}<div style="font-size:11px;margin-top:4px;font-weight:400;">${pickup ? 'Gel-Al' : 'Paket'} · ${o.items.length} ürün - ${allReady?'Hazır':'hazırlanıyor'} · ${money(total)}</div>${eta}${courier}</div>`;
   });
+  const del = pkgOrders.filter(o => pkgTypeOf(o) !== 'pickup');
+  const sum = document.getElementById('pkgStatus');
+  if(sum && del.length) sum.innerHTML = statChips([['👨‍🍳', del.filter(o => !o.dispatched_at).length, 'Hazırlanıyor / kurye bekliyor', 'var(--c3)'], ['🛵', del.filter(o => o.dispatched_at && !o.delivered_at).length, 'Yolda', 'var(--c1)'], ['✅', del.filter(o => o.delivered_at).length, 'Teslim edildi, ödeme bekliyor', 'var(--ok,#22c55e)']], '', 'pkg');
+  if(!document.getElementById('courierSheet')) document.body.insertAdjacentHTML('beforeend', sheetHtml('courierSheet', '🛵', 'Kuryeye Ver', '<div id="courierBody"></div>', 'var(--c1)'));
   cards.push(`<div class="table-cell" style="cursor:pointer;" ${act('openPackageModal','pkg_new')}>➕<div style="font-size:11px;margin-top:4px;font-weight:400;">Yeni Paket Sipariş</div></div>`);
   el.innerHTML = cards.join('');
 }
@@ -627,3 +639,51 @@ function updateOmMobileBar(tableId){
 }
 
 function toggleDraftNote(tableId, idx){ APP.noteOpen = APP.noteOpen || {}; const k = tableId + ':' + idx; APP.noteOpen[k] = !APP.noteOpen[k]; renderTableItems(tableId); if(APP.noteOpen[k]) setTimeout(() => { const i = document.querySelector('.dc-note-edit input'); if(i) i.focus(); }, 30); }
+
+/* ---- Kurye takibi ----
+   Teslimat siparişi kuryeye verilir (isteğe bağlı müşteriye SMS ile takip linki), teslim edilince işaretlenir.
+   Müşteri /takip/?t=TOKEN sayfasından durumu görür. Ödeme her zamanki gibi Ödemeler'den alınır. */
+function openCourierSheet(orderId){
+  const o = (APP.liveOrders||[]).find(x => x.order_id === orderId); if(!o) return;
+  const users = ((APP.config && APP.config.users) || []).filter(u => u.is_active !== false).sort((a, b) => String(a.username).localeCompare(String(b.username), 'tr'));
+  APP.courierPick = { orderId, courier: (APP.lastCourier && users.some(u => u.id === APP.lastCourier)) ? APP.lastCourier : null };
+  document.getElementById('courierBody').innerHTML = `
+    <div class="cr-sum"><b>${escapeHtml(o.customer_name || ('Paket #' + (o.daily_number||'')))}</b>${o.delivery_address ? `<small>📍 ${escapeHtml(o.delivery_address)}</small>` : ''}</div>
+    <div class="rvf-t" style="margin-top:12px;">🧑 Kurye</div>
+    <div class="rvf-chips" id="crChips">${users.map(u => `<button type="button" class="rvf-chip ${APP.courierPick.courier===u.id?'on':''}" data-uid="${u.id}" ${act('pickCourier', u.id)}>${escapeHtml(u.username)}</button>`).join('') || '<p class="muted">Kullanıcı yok</p>'}</div>
+    ${o.customer_phone ? `<label class="cr-sms"><input type="checkbox" id="crSms" checked> 📱 Müşteriye SMS ile takip linki gönder</label>` : '<p class="muted" style="font-size:12px;text-align:left;">Siparişte telefon olmadığı için SMS gönderilemez; takip linkini kopyalayıp iletebilirsiniz.</p>'}
+    <div class="fsheet-foot"><button type="button" class="ghost-btn" ${act('closeSheet','courierSheet')}>Vazgeç</button><button ${act('confirmDispatch')}>🛵 Yola Çıkar</button></div>`;
+  openSheet('courierSheet');
+}
+function pickCourier(uid){ APP.courierPick.courier = uid; document.querySelectorAll('#crChips .rvf-chip').forEach(b => b.classList.toggle('on', b.dataset.uid === uid)); }
+async function confirmDispatch(){
+  const pk = APP.courierPick; if(!pk) return;
+  if(!pk.courier){ alert('Kurye seçin'); return; }
+  const sms = !!(document.getElementById('crSms') && document.getElementById('crSms').checked);
+  const session = getSession();
+  let { data, error } = await sb.rpc('dispatch_order', { p_token: session.session_token, p_order_id: pk.orderId, p_courier: pk.courier, p_send_sms: sms });
+  if(error && sms){
+    // SMS gönderilemese de (kapalı/kredi yok) sipariş yola çıkarılsın; personele bildirilir.
+    const msg = error.message;
+    ({ data, error } = await sb.rpc('dispatch_order', { p_token: session.session_token, p_order_id: pk.orderId, p_courier: pk.courier, p_send_sms: false }));
+    if(!error) alert('Sipariş yola çıkarıldı ama SMS gönderilemedi: ' + msg);
+  }
+  if(error){ alert(error.message); return; }
+  APP.lastCourier = pk.courier;
+  closeSheet('courierSheet');
+  const url = window.location.origin + '/takip/?t=' + data.tracking_token;
+  if(data.sms_sent) showToast('🛵 Yola çıktı · müşteriye takip SMS\'i gönderildi ✓');
+  else { copyText(url, '🛵 Yola çıktı · takip linki kopyalandı'); }
+  await refreshPackagesLive();
+}
+async function markDelivered(orderId, undo){
+  const { error } = await sb.rpc('mark_order_delivered', { p_token: getSession().session_token, p_order_id: orderId, p_undo: !!undo });
+  if(error){ alert(error.message); return; }
+  showToast(undo ? 'Teslim işareti geri alındı' : '✅ Teslim edildi — ödemeyi Ödemeler\'den alabilirsiniz');
+  await refreshPackagesLive();
+}
+async function refreshPackagesLive(){
+  const { data } = await sb.rpc('get_live_orders', { p_token: getSession().session_token });
+  if(data) APP.liveOrders = data;
+  renderPackageGrid();
+}

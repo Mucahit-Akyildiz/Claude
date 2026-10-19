@@ -2742,3 +2742,15 @@ body.fsheet-lock{overflow:hidden;}
   .tier-row .ti-icon{grid-area:ic;} .tier-row .ti-name{grid-area:nm;} .tier-row .pc-btn{grid-area:x;}
   .tier-row label:nth-of-type(1){grid-area:mn;} .tier-row label:nth-of-type(2){grid-area:ml;} .tier-row label:nth-of-type(3){grid-area:ds;}
 }
+/* Kurye takibi (Paket Servis) */
+.cr-row{display:flex;gap:6px;align-items:center;justify-content:center;flex-wrap:wrap;margin-top:7px;}
+.cr-btn{width:auto;margin:0;padding:6px 10px;font-size:12px;border-radius:10px;}
+.cr-btn.hot{background:linear-gradient(135deg,var(--c1),var(--c2));animation:crPulse 1.6s ease-in-out infinite;}
+.cr-btn.ghost{background:transparent;border:1px solid currentColor;color:inherit;}
+.pk-badge.cr-way{background:color-mix(in srgb,var(--c1) 18%,transparent);color:var(--c1);}
+.pk-badge.cr-done{background:color-mix(in srgb,var(--ok,#22c55e) 18%,transparent);color:var(--ok,#22c55e);}
+.table-cell.pk-way{background:color-mix(in srgb,var(--c1) 12%,transparent) !important;border-color:var(--c1) !important;color:var(--c1) !important;}
+.table-cell.pk-delivered{background:color-mix(in srgb,var(--ok,#22c55e) 12%,transparent) !important;border-color:var(--ok,#22c55e) !important;color:var(--ok,#22c55e) !important;}
+.cr-sum{border:1px solid var(--border);border-radius:12px;padding:10px 12px;} .cr-sum b{display:block;} .cr-sum small{color:var(--muted);}
+.cr-sms{display:flex;gap:8px;align-items:center;margin:14px 0 0;font-size:13.5px;font-weight:600;} .cr-sms input{width:auto;margin:0;}
+@keyframes crPulse{0%,100%{box-shadow:0 0 0 0 color-mix(in srgb,var(--c1) 50%,transparent);}50%{box-shadow:0 0 0 6px transparent;}}
