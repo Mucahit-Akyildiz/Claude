@@ -247,6 +247,7 @@ function openPayModal(orderId){
         <p id="payCustomerInfo" class="hint">Müşteri seçilmedi</p>
         <div id="payRedeemWrap" style="display:none;margin-top:8px;">
           <input id="payRedeemPoints" type="number" min="0" step="1" placeholder="Kullanılacak puan" style="margin:0;" ${actOn('input','applyRedeemPoints',['$value'])}>
+          <div id="payPointsBox" class="pts-box" hidden></div>
         </div>
       </div>
       <div class="pay-option-card" data-opt="gift" hidden>
@@ -298,7 +299,7 @@ function openPayModal(orderId){
   updatePayReadiness();
 }
 /* Masaya girilmiş müşteri kayıtlıysa ödeme ekranında otomatik seçilir
-   (telefon varsa telefonla, yoksa isimle tek ve birebir eşleşmede). */
+   (telefon varsa telefonla, yoksa isimle tek ve birebir eşleşmede; telefonsuz kayıtlar id ile). */
 async function autoSelectPayCustomer(order){
   const input = document.getElementById('payCustomerPhone');
   if(!input) return;
@@ -306,8 +307,11 @@ async function autoSelectPayCustomer(order){
   const name = (order.customer_name || '').trim();
   if(!phone && name.length >= 2){
     const { data } = await sb.rpc('search_customers_quick', { p_token: getSession().session_token, p_search: name });
-    const exact = (data || []).filter(c => (c.name || '').trim().toLocaleLowerCase('tr') === name.toLocaleLowerCase('tr') && c.phone);
-    if(exact.length === 1) phone = exact[0].phone;
+    const exact = (data || []).filter(c => (c.name || '').trim().toLocaleLowerCase('tr') === name.toLocaleLowerCase('tr'));
+    if(exact.length === 1){
+      if(exact[0].phone) phone = exact[0].phone;
+      else { if(!document.getElementById('payModalBg') || input.value) return; input.value = exact[0].name; return lookupPayCustomer(exact[0]); }
+    }
   }
   if(!phone || !document.getElementById('payModalBg') || input.value) return;
   input.value = phone;
@@ -356,21 +360,25 @@ function handleCashReceivedInput(v){
   document.getElementById('tipInfo').textContent = tip>0 ? 'Bahşiş: '+money(tip)+' (alınan nakitten hesaplandı)' : 'Bahşiş yok';
   updatePayFinalTotalLine();
 }
-async function lookupPayCustomer(){
+async function lookupPayCustomer(picked){
   const bg = document.getElementById('payModalBg');
   let phone = document.getElementById('payCustomerPhone').value.trim();
+  // Telefonu olmayan kayıtlı müşteri listeden seçildiyse id ile getirilir.
+  let byId = picked && picked.id ? picked.id : null;
   const infoEl = document.getElementById('payCustomerInfo');
   const redeemWrap = document.getElementById('payRedeemWrap');
-  if(!phone){ infoEl.textContent = 'Ad veya telefon girin'; return; }
-  // İsimle yazıldıysa: tek eşleşme varsa onun telefonu kullanılır, birden fazlaysa liste gösterilir.
-  if(/[a-zA-ZçğıöşüÇĞİÖŞÜ]/.test(phone)){
+  if(!phone && !byId){ infoEl.textContent = 'Ad veya telefon girin'; return; }
+  // İsimle yazıldıysa: tek eşleşme varsa o müşteri seçilir, birden fazlaysa liste gösterilir.
+  if(!byId && /[a-zA-ZçğıöşüÇĞİÖŞÜ]/.test(phone)){
     const { data: hits } = await sb.rpc('search_customers_quick', { p_token: getSession().session_token, p_search: phone });
-    const list = (hits || []).filter(h => h.phone);
-    if(list.length === 1){ phone = list[0].phone; document.getElementById('payCustomerPhone').value = phone; }
-    else { tableCustSearch(phone, 'payCust'); infoEl.textContent = list.length ? 'Listeden müşteriyi seçin' : 'Telefonu kayıtlı müşteri bulunamadı'; return; }
+    const list = hits || [];
+    if(list.length === 1){ byId = list[0].id; if(list[0].phone){ phone = list[0].phone; document.getElementById('payCustomerPhone').value = phone; } }
+    else { tableCustSearch(phone, 'payCust'); infoEl.textContent = list.length ? 'Listeden müşteriyi seçin' : 'Kayıtlı müşteri bulunamadı'; return; }
   }
   const session = getSession();
-  const { data, error } = await sb.rpc('get_customer_by_phone', { p_token: session.session_token, p_phone: phone });
+  const { data, error } = byId
+    ? await sb.rpc('get_customer_by_id', { p_token: session.session_token, p_id: byId })
+    : await sb.rpc('get_customer_by_phone', { p_token: session.session_token, p_phone: phone });
   if(error || !data){
     infoEl.textContent = 'Müşteri bulunamadı';
     bg.dataset.customerId = '';
@@ -407,6 +415,24 @@ function applyRedeemPoints(v){
   if(pts<0) pts=0; if(pts>maxPts) pts=maxPts;
   bg.dataset.redeemPoints = String(pts);
   recomputePaySelection();
+  updatePointsBox();
+}
+/* Puan girilince: puan değeri hesabı karşılıyorsa "⭐ Puanla Öde" (ödeme yöntemi: puan),
+   karşılamıyorsa kalan tutarın nakit/kartla alınacağı gösterilir. Puan indirimden ayrı kaydedilir. */
+function updatePointsBox(){
+  const bg = document.getElementById('payModalBg'), box = document.getElementById('payPointsBox'); if(!bg || !box) return;
+  const pts = parseFloat(bg.dataset.redeemPoints || 0);
+  if(!(pts > 0)){ box.hidden = true; return; }
+  const pv = bg.dataset.pointValue ? Number(bg.dataset.pointValue) : ((APP.config && APP.config.loyalty && APP.config.loyalty.point_value) || 1);
+  const left = Math.round(payFinalTotal() * 100) / 100;
+  box.hidden = false;
+  box.innerHTML = `<div class="pts-line">⭐ ${pts} puan = <b>${money(pts * pv)}</b></div>` + (left <= 0.009
+    ? `<button type="button" class="pts-pay" ${act('payWithPoints')}>⭐ Puanla Öde</button>`
+    : `<div class="pts-left">Kalan <b>${money(left)}</b> nakit veya kartla alınır</div>`);
+}
+async function payWithPoints(){
+  if(Math.round(payFinalTotal() * 100) / 100 > 0.009){ showToast('Puan hesabı karşılamıyor'); return; }
+  await finishPaymentFull('points');
 }
 async function lookupPayGiftCard(){
   const bg = document.getElementById('payModalBg');
@@ -1472,7 +1498,7 @@ function pickTableCustomer(i, prefix){
   if(prefix === 'payCust'){
     document.getElementById('payCustomerPhone').value = c.phone || c.name || '';
     document.getElementById('payCustSuggest').innerHTML = '';
-    lookupPayCustomer(c.phone ? null : c);
+    lookupPayCustomer(c);
     return;
   }
   document.getElementById(prefix + 'Name').value = c.name || '';
