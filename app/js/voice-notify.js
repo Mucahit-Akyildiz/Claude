@@ -72,7 +72,12 @@ async function voiceCloudPlay(text, voice){
     let blob = null, cache = null;
     try{ cache = await caches.open('peyktan-tts'); const hit = await cache.match(cacheKey); if(hit) blob = await hit.blob(); }catch(e){}
     if(!blob){
-      const r = await fetch('/api/tts', { method:'POST', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify({ text, voice, rate: p.rate, token: s.session_token }) });
+      // Doğal ses 4 sn içinde gelmezse beklenmez, cihaz sesiyle hemen okunur (bildirim gecikmesin).
+      const ctl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+      const to = ctl ? setTimeout(() => ctl.abort(), 4000) : null;
+      let r;
+      try{ r = await fetch('/api/tts', { method:'POST', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify({ text, voice, rate: p.rate, token: s.session_token }), signal: ctl ? ctl.signal : undefined }); }
+      finally{ if(to) clearTimeout(to); }
       if(!r.ok){ let m = 'tts ' + r.status; try{ m = (await r.json()).error || m; }catch(e){} throw new Error(m); }
       blob = await r.blob();
       try{ if(cache) await cache.put(cacheKey, new Response(blob, { headers:{ 'Content-Type':'audio/mpeg' } })); }catch(e){}

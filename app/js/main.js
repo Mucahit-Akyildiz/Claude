@@ -265,8 +265,10 @@ function openBadgePopover(view, anchor){
 let NAV_BADGE_TIMER = null;
 async function refreshNavBadges(){
   const s = getSession(); if(!s) return;
+  // Üst üste binen isteklerde eski cevap yenisinin üstüne yazılmasın (aynı bildirim iki kez okunmasın).
+  const seq = (APP.navBadgeSeq = (APP.navBadgeSeq || 0) + 1);
   const { data, error } = await sb.rpc('get_nav_badges', { p_token: s.session_token });
-  if(error || !data) return;
+  if(error || !data || seq !== APP.navBadgeSeq) return;
   APP.navBadges = data;
   applyNavBadges();
   // Uygulama simgesindeki sayı (kurulu web uygulamasında / destekleyen tarayıcıda).
@@ -326,7 +328,9 @@ function startNavBadges(){
   if(NAV_BADGE_TIMER) clearInterval(NAV_BADGE_TIMER);
   // Rozetler ve rol izinleri 20 sn'de bir tazelenir (Roller'deki değişiklik
   // açık ekranlara da yenileme gerekmeden yansısın).
-  NAV_BADGE_TIMER = setInterval(() => { if(getSession() && document.visibilityState==='visible'){ refreshNavBadges(); syncMyPermissions(); } }, 20000);
+  // Rozetler (ve onlara bağlı sesli bildirimler: 20 dk gecikme, gel-al saati, rezervasyon hatırlatma)
+  // 10 sn'de bir; sekme arka plandayken de devam eder ki bildirim gecikmesin.
+  NAV_BADGE_TIMER = setInterval(() => { if(!getSession()) return; refreshNavBadges(); if(document.visibilityState==='visible') syncMyPermissions(); }, 10000);
 }
 /* ---- Çoklu kullanımda canlı ekran: veritabanındaki her değişiklik işletmenin
    sayaç değerini artırır (bkz. _bump_data_version). Açık ekran 3 sn'de bir bu
