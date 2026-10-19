@@ -3368,6 +3368,28 @@ end; $$;
 
 
 --
+-- Name: close_comp_order(uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.close_comp_order(p_token uuid, p_order_id uuid) RETURNS json
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+declare s staff_sessions%rowtype; v_tags text[]; v_sub numeric; r json;
+begin
+  s := _session_check(p_token, 'payments');
+  select tags into v_tags from orders where id = p_order_id and restaurant_id = s.restaurant_id and status = 'open';
+  if v_tags is null or cardinality(v_tags) = 0 then raise exception 'İkram etiketi olmayan sipariş ödemesiz kapatılamaz'; end if;
+  select coalesce(sum(price * qty), 0) into v_sub from order_items where order_id = p_order_id and paid = false;
+  if v_sub <= 0 and not exists (select 1 from order_items where order_id = p_order_id and paid = false) then return json_build_object('order_closed', false, 'skipped', true); end if;
+  -- Ödeme akışının kendisi (stok, kalem kapama, masa kapama) kullanılır; ikram olarak tutar 0, indirim 0 yazılır.
+  r := pay_order_items(p_token, p_order_id, 'comp', 0, 0, v_sub);
+  update sales_history set payment_method = 'comp', discount_amount = 0, total = 0 where id = (r->>'history_id')::uuid;
+  return r;
+end $$;
+
+
+--
 -- Name: collect_open_account(uuid, uuid, numeric, text, text); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -7578,7 +7600,7 @@ declare s staff_sessions%rowtype;
 begin
   -- Sipariş Al, Paket ve Rezervasyon ekranlarında kayıtlı müşteri önerisi.
   s := _session_check(p_token);
-  if not (_user_has_perm(s.user_id, 'order') or _user_has_perm(s.user_id, 'packages') or _user_has_perm(s.user_id, 'reservations')) then
+  if not (_user_has_perm(s.user_id, 'order') or _user_has_perm(s.user_id, 'packages') or _user_has_perm(s.user_id, 'reservations') or _user_has_perm(s.user_id, 'payments')) then
     raise exception 'Bu işlem için yetkiniz yok';
   end if;
   if length(coalesce(trim(p_search),'')) < 2 then return '[]'::json; end if;
