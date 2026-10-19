@@ -16,8 +16,6 @@ async function renderCrmView(main, session){
         <div class="crm-hbtns" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;flex:1 1 auto;justify-content:flex-end;min-width:0;">
           <button type="button" class="fsheet-open" style="flex:0 0 auto;" ${act('newCustomer')}>+ Yeni Müşteri</button>
           <input id="crmSearchInput" placeholder="İsim veya telefon ara..." style="flex:0 1 260px;min-width:120px;width:auto;margin:0;" value="${escapeAttr(APP.crmSearch||'')}" ${actOn('input', 'debouncedCrmSearch', ['$value'])}>
-          <button type="button" class="ghost-btn" style="width:auto;flex:0 0 auto;white-space:nowrap;margin:0;" ${act('openReviewsSheet')} title="Müşteri değerlendirmeleri">⭐ Değerlendirmeler</button>
-          ${canManage(session, 'crm') ? `<button type="button" class="ghost-btn" style="width:auto;flex:0 0 auto;white-space:nowrap;margin:0;" ${act('openPromoSheet')} title="Kupon kodları ve happy hour gibi otomatik kampanyalar">🎟️ Kampanyalar</button>` : ''}
           ${canManage(session, 'crm') ? `<button type="button" class="ghost-btn" style="width:auto;flex:0 0 auto;white-space:nowrap;margin:0;" ${act('openSheet','crmLoySheet')} title="Puan ve doğum günü indirimi ayarları">⭐ Sadakat${loyalty.enabled ? '' : ' (kapalı)'}</button>` : ''}
           <button type="button" class="ghost-btn" style="width:auto;flex:0 0 auto;white-space:nowrap;margin:0;" ${act('exportCustomersCsv')} title="Tüm müşterileri Excel'de açılabilen CSV olarak indir">⬇️ Dışa aktar</button>
           ${canManage(session, 'crm') ? `<button type="button" class="ghost-btn" style="width:auto;flex:0 0 auto;white-space:nowrap;margin:0;" ${act('openCustomerImport')} title="CSV dosyasından müşteri yükle">⬆️ İçe aktar</button>` : ''}
@@ -56,8 +54,6 @@ async function renderCrmView(main, session){
           </div>
         </details>
         <div class="fsheet-foot"><button type="button" class="ghost-btn" ${act('closeSheet','crmSheet')}>Vazgeç</button><button ${act('saveCrmCustomer')}>${ICON_SAVE}<span>Kaydet</span></button></div>`, 'var(--c1)')}
-    ${sheetHtml('reviewsSheet', '⭐', 'Müşteri Değerlendirmeleri', '<div id="reviewsBody"><p class="muted">Yükleniyor…</p></div>', 'var(--c3)')}
-    ${canManage(session, 'crm') ? sheetHtml('promoSheet', '🎟️', 'Kampanya ve Kuponlar', '<div id="promoBody"><p class="muted">Yükleniyor…</p></div>', 'var(--c4)') : ''}
     ${canManage(session, 'crm') ? sheetHtml('crmLoySheet', '⭐', 'Sadakat Programı', `<label style="display:flex;align-items:center;gap:8px;font-weight:600;margin:0 0 14px;">
           <input type="checkbox" id="loy_enabled" ${loyalty.enabled?'checked':''} style="width:auto;margin:0;"> Sadakat puanları aktif
         </label>
@@ -326,10 +322,9 @@ async function runCustomerImport(){
    'coupon': ödeme ekranında kodla uygulanır. 'auto': belirlenen gün/saatte ödeme ekranında
    tek tıkla önerilir (örn. happy hour). Kullanımlar redeem_promotion ile sayılır. */
 const PROMO_DAYS = ['Pzt','Sal','Çar','Per','Cum','Cmt','Paz'];
-async function openPromoSheet(){
-  openSheet('promoSheet');
-  APP.promoEdit = null;
-  await renderPromoBody();
+function openPromoSheet(){
+  // Kampanyalar Ayarlar > Abonelik, Hediye Kartı & Kampanya > Kampanya & Kuponlar altında.
+  APP.settingsTab = 'billing'; APP.billingSubTab = 'promos'; goToView('settings');
 }
 async function renderPromoBody(){
   const body = document.getElementById('promoBody'); if(!body) return;
@@ -406,7 +401,14 @@ async function removePromo(id){
 
 /* ---- Müşteri değerlendirmeleri ----
    Ödeme sonrası QR/SMS ile gönderilen linkten gelen puan ve yorumlar. Açılınca düşük puan rozeti temizlenir. */
-async function openReviewsSheet(){ openSheet('reviewsSheet'); APP.reviewDays = APP.reviewDays || 30; await renderReviewsBody(); }
+// Finansal Analiz > Müşteri Değerlendirmeleri sekmesi (rapor izni olan roller görür).
+async function renderReviewsReport(session){
+  const el = document.getElementById('reportContent'); if(!el) return;
+  APP.reviewDays = APP.reviewDays || 30;
+  el.innerHTML = '<div class="box" style="max-width:none;"><h2>⭐ Müşteri Değerlendirmeleri</h2><div id="reviewsBody"><p class="muted">Yükleniyor…</p></div></div>';
+  await renderReviewsBody();
+}
+function openReviewsSheet(){ APP.reportTab = 'reviews'; goToView('reports'); }
 function setReviewDays(d){ APP.reviewDays = d; renderReviewsBody(); }
 async function renderReviewsBody(){
   const body = document.getElementById('reviewsBody'); if(!body) return;

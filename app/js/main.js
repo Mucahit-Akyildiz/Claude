@@ -207,6 +207,7 @@ function applyTabBadges(){
     users: b.settings || 0,
     shifts: b.settings || 0,
     purchRepOrders: b.procurement || 0,
+    reviews: badgeItems('reports').filter(x => x.kind==='review').length,
     reservations: resvItems.filter(x => x.kind==='reservation').length,
     waitlist: resvItems.filter(x => x.kind==='waitlist').length,
   };

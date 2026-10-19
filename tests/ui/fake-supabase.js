@@ -33,7 +33,10 @@
   window.__MOCK = MOCK;
   const q = () => { const p = Promise.resolve({data:[],error:null}); const o = new Proxy(function(){}, {get:(t,k)=> k==='then' ? p.then.bind(p) : (()=>o), apply:()=>o}); return o; };
   window.supabase = { createClient(){ return {
-    rpc: async (n) => ({ data: n in MOCK ? JSON.parse(JSON.stringify(MOCK[n])) : null, error: null }),
+    // Çevrimdışıyken gerçek istemci gibi ağ hatası döner; çağrılar testler için kaydedilir.
+    rpc: async (n, args) => { if(!navigator.onLine) return { data: null, error: { message: 'TypeError: Failed to fetch' } };
+      (window.__RPC_CALLS = window.__RPC_CALLS || []).push(n);
+      return { data: n in MOCK ? JSON.parse(JSON.stringify(MOCK[n])) : (n === 'submit_offline_order' ? { ok: true } : null), error: null }; },
     from: () => q(), channel: () => ({ on(){return this;}, subscribe(){return this;}, send(){}, track(){}, presenceState(){return {};} }),
     removeChannel(){}, storage: { from: () => q() }, auth: { getSession: async()=>({data:{}}) , onAuthStateChange(){ return {data:{subscription:{unsubscribe(){}}}}; } } }; } };
 })();
