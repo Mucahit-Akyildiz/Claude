@@ -612,4 +612,17 @@ function updateOmMobileBar(tableId){
   tEl.textContent = n ? 'Yeni: ' + money(t) : (sent ? sent + ' ürün mutfakta' : 'Sepet boş');
   const head = document.querySelector('#tableModalBg .om-cart-total');
   if(head) head.textContent = n ? n + ' ürün · ' + money(t) : '';
+  // Onay butonunda yeni ürünlerin tutarı; başlığın altında masanın durumu.
+  const cb = document.getElementById('confirmBtn');
+  if(cb && !cb.dataset.busy) cb.innerHTML = n ? `✅ Onayla ve Gönder <span class="om-cb-sum">${money(t)}</span>` : '✅ Onayla ve Gönder';
+  const h2 = document.querySelector('#tableModalBg .order-modal h2');
+  if(h2){
+    let sub = document.getElementById('omSub');
+    if(!sub){ sub = document.createElement('div'); sub.id = 'omSub'; sub.className = 'om-sub'; h2.after(sub); }
+    const mins = order && order.created_at ? Math.max(0, Math.round((Date.now() - new Date(order.created_at)) / 60000)) : null;
+    const due = order ? order.items.filter(i => !i.paid).reduce((a, i) => a + i.price * i.qty, 0) : 0;
+    sub.innerHTML = order
+      ? `<span>🕒 ${mins} dk önce açıldı</span>${order.created_by_name ? `<span>👤 ${escapeHtml(order.created_by_name)}</span>` : ''}<span>🍳 ${sent} ürün mutfakta</span><span>💰 ${money(due)}</span>${(order.tags || []).map(x => `<span class="om-sub-tag">🏷️ ${escapeHtml(x)}</span>`).join('')}`
+      : '<span>✨ Yeni sipariş</span>';
+  }
 }
