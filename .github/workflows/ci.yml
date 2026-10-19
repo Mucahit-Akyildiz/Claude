@@ -29,7 +29,7 @@ jobs:
 
       - name: JavaScript dosyalarının sözdizimi kontrolü
         run: |
-          for f in $(find api app/js assets/js siparis menu hesap-silme -name '*.js'); do
+          for f in $(find api app/js assets/js siparis menu hesap-silme rezervasyon degerlendirme takip -name '*.js'); do
             echo "checking $f"
             node --check "$f" || exit 1
           done
@@ -49,3 +49,19 @@ jobs:
             if (hadError) process.exit(1);
             console.log(i + ' inline <script> bloğu kontrol edildi, sorun yok.');
           "
+
+  ui-tests:
+    # Arayüz duman testleri: uygulama gerçek Chromium'da açılır, Supabase taklit edilir
+    # (tests/ui/fake-supabase.js). Ana ekranlar, ödeme/sipariş/kurye pencereleri ve
+    # herkese açık sayfalar gezilir; herhangi bir JS hatası CI'ı kırar.
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 20
+      - name: Playwright kur
+        run: npm install --no-save --no-package-lock playwright@1.48.2 && npx playwright install --with-deps chromium
+      - name: Arayüz testleri
+        run: node tests/ui/smoke.cjs
