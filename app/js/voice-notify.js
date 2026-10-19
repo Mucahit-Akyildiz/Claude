@@ -154,6 +154,7 @@ function voiceOtherTabBusy(){
   try{ const b = JSON.parse(localStorage.getItem('peyk_voice_busy') || 'null'); return !!(b && b.id !== VOICE_TAB_ID && b.until > Date.now()); }catch(e){ return false; }
 }
 function voiceSetBusy(ms){ try{ if(ms) localStorage.setItem('peyk_voice_busy', JSON.stringify({ id: VOICE_TAB_ID, until: Date.now() + ms })); else localStorage.removeItem('peyk_voice_busy'); }catch(e){} }
+function voiceWillSpeak(type){ const p = getVoicePrefs(); return !!(p.enabled && p.types[type] && p.types[type].voice); }
 function voiceIsBusy(){ return VOICE_BUSY || voiceOtherTabBusy(); }
 async function voiceNext(){
   if(VOICE_BUSY || !VOICE_QUEUE.length) return;
@@ -345,7 +346,8 @@ function processVoiceBadges(data, visibleViews){
   let sound = false;
   Object.entries(fresh).forEach(([type, list]) => {
     const tp = p.types[type]; if(!tp) return;
-    if(tp.sound && type!=='kitchen') sound = true;
+    // Sesli okunan bildirimde zil ayrıca çalınmaz; zil yalnızca sesli okuma kapalı türlerde.
+    if(tp.sound && !tp.voice && type!=='kitchen') sound = true;
     if(tp.voice) voiceSpeak(voiceTextFor(type, list));
     // Uygulama arka plandaysa (başka pencere/sekme açık) bilgisayarda da bildirim kutusu çıksın.
     voiceDesktopNotify(type, list);

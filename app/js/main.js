@@ -799,7 +799,11 @@ document.addEventListener('visibilitychange', () => { if(document.visibilityStat
 if('serviceWorker' in navigator){
   navigator.serviceWorker.addEventListener('message', (event) => {
     if(event.data && event.data.type==='peyktan-navigate' && event.data.view) goToView(event.data.view);
-    if(event.data && event.data.type==='peyktan-sound'){ playPeyktanSound(); refreshNavBadges(); }
+    if(event.data && event.data.type==='peyktan-sound'){
+      // Sesli bildirim açıksa zil ayrıca çalınmaz: rozet yenilenince bildirim tek seferde (sesli) okunur.
+      if(!(typeof getVoicePrefs === 'function' && getVoicePrefs().enabled)) playPeyktanSound();
+      refreshNavBadges();
+    }
   });
 }
 // Servis çalışanı izin istemeden erkenden kaydedilir (bildirim izni ayrı,
