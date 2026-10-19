@@ -9,3 +9,5 @@ scripts/
 .github/
 .claude/
 README.md
+# Eğitim videosu jsDelivr'den (GitHub) sunulur; her deployment'a kopyalanmasın.
+assets/video/*.mp4
