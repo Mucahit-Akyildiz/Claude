@@ -295,8 +295,8 @@ function zoomProductImage(src){
 
 /* Hesap ödendikten sonra (2 saat içinde) masadaki QR menü açılırsa en üstte
    "Bizi değerlendirin" bandı çıkar; o hesabın değerlendirme sayfasına gider. */
-const RV_TXT = { tr: ['⭐ Hesabınız ödendi — bizi değerlendirir misiniz?', 'Değerlendir'], en: ['⭐ Your bill is paid — how was your visit?', 'Rate us'],
-  ar: ['⭐ تم دفع فاتورتك — كيف كانت زيارتك؟', 'قيّمنا'], de: ['⭐ Rechnung bezahlt — wie war Ihr Besuch?', 'Bewerten'], ru: ['⭐ Счёт оплачен — как вам у нас?', 'Оценить'] };
+const RV_TXT = { tr: ['⭐ Bizi değerlendirmek ister misiniz?', 'Değerlendir'], en: ['⭐ Would you like to rate us?', 'Rate us'],
+  ar: ['⭐ هل ترغب في تقييمنا؟', 'قيّمنا'], de: ['⭐ Möchten Sie uns bewerten?', 'Bewerten'], ru: ['⭐ Хотите оценить нас?', 'Оценить'] };
 async function checkTableReview(){
   if(document.hidden) return;
   const { data } = await sb.rpc('get_table_review', { p_qr_token: QR_TOKEN });
