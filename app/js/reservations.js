@@ -30,18 +30,26 @@ function setResvTab(tab){
   // güncellemeyi (yeni rezervasyon, durum değişikliği vb.) görememesine
   // yol açıyordu. Rezervasyon/bekleme listesi az sayıda satır içerdiği için
   // her sekme tıklamasında yeniden çekmenin maliyeti ihmal edilebilir.
-  renderResvTabContent(getSession(), true);
+  // Önce eldeki veriyle sekme anında çizilir, ardından güncel veri arka planda çekilip yeniden çizilir
+  // (ağ yanıtı beklenirken eski sekme ekranda kalıyordu).
+  const session = getSession();
+  const cached = tab==='waitlist' ? APP.waitlistCache : APP.reservationsCache;
+  if(cached) renderResvTabContent(session, false).then(() => { if(APP.resvTab===tab) renderResvTabContent(session, true, true); });
+  else renderResvTabContent(session, true);
 }
-function renderResvTabContent(session, forceRefresh){
-  return (APP.resvTab||'reservations')==='waitlist' ? renderWaitlistContent(session, forceRefresh) : renderReservationsContent(session, forceRefresh);
+function renderResvTabContent(session, forceRefresh, quiet){
+  return (APP.resvTab||'reservations')==='waitlist' ? renderWaitlistContent(session, forceRefresh, quiet) : renderReservationsContent(session, forceRefresh, quiet);
 }
 const RESV_STATUS_LABELS = { pending:'Bekliyor', confirmed:'Onaylandı', seated:'Oturdu', cancelled:'İptal', no_show:'Gelmedi' };
-async function renderReservationsContent(session, forceRefresh){
+async function renderReservationsContent(session, forceRefresh, quiet){
   const el = document.getElementById('resvContent'); if(!el) return;
   if(!APP.config){ const { data } = await withLoadingOverlay(sb.rpc('get_restaurant_config', { p_token: session.session_token })); if(data) APP.config = data; }
   if(forceRefresh || !APP.reservationsCache){
-    const { data, error } = await withLoadingOverlay(sb.rpc('list_reservations', { p_token: session.session_token, p_date: null }));
-    if(error){ el.innerHTML = '<p class="muted">Yüklenemedi: '+error.message+'</p>'; return; }
+    const req = sb.rpc('list_reservations', { p_token: session.session_token, p_date: null });
+    const { data, error } = await (quiet ? req : withLoadingOverlay(req));
+    // Yanıt gelene kadar başka sekmeye geçildiyse o sekmenin içeriği ezilmez.
+    if((APP.resvTab||'reservations')!=='reservations' || APP.view!=='reservations') return;
+    if(error){ if(!quiet) el.innerHTML = '<p class="muted">Yüklenemedi: '+escapeHtml(error.message)+'</p>'; return; }
     APP.reservationsCache = data || [];
   }
   const rows = APP.reservationsCache;
@@ -187,19 +195,22 @@ async function removeReservation(id){
   if(error){ alert(error.message); return; }
   renderReservationsContent(session, true);
 }
-async function renderWaitlistContent(session, forceRefresh){
+async function renderWaitlistContent(session, forceRefresh, quiet){
   const el = document.getElementById('resvContent'); if(!el) return;
   if(forceRefresh || !APP.waitlistCache){
-    const [{ data, error }, live] = await withLoadingOverlay(Promise.all([
+    const req = Promise.all([
       sb.rpc('list_waitlist', { p_token: session.session_token }),
       sb.rpc('get_live_orders', { p_token: session.session_token })
-    ]));
-    if(error){ el.innerHTML = '<p class="muted">Yüklenemedi: '+error.message+'</p>'; return; }
+    ]);
+    const [{ data, error }, live] = await (quiet ? req : withLoadingOverlay(req));
+    if(APP.resvTab!=='waitlist' || APP.view!=='reservations') return;
+    if(error){ if(!quiet) el.innerHTML = '<p class="muted">Yüklenemedi: '+escapeHtml(error.message)+'</p>'; return; }
     APP.waitlistCache = data || [];
     if(live && !live.error) APP.liveOrders = live.data || [];
   }
   // Sistem tahmini: boş masalar ve dolu masaların ortalama kalış süresine göre her sıra için bekleme (dk).
-  try{ const r = await sb.rpc('get_waitlist_estimate', { p_token: session.session_token }); if(!r.error) APP.wlEstimate = r.data; }catch(e){}
+  if(forceRefresh || !APP.wlEstimate){ try{ const r = await sb.rpc('get_waitlist_estimate', { p_token: session.session_token }); if(!r.error) APP.wlEstimate = r.data; }catch(e){} }
+  if(APP.resvTab!=='waitlist' || APP.view!=='reservations') return;
   const est = APP.wlEstimate || null;
   const estFor = (i) => est && est.per_position ? est.per_position[i] : null;
   const estTxt = (m) => m == null ? '' : (m <= 0 ? 'hemen (boş masa var)' : '≈ ' + m + ' dk');
