@@ -99,23 +99,54 @@ function renderPayGrid(){
     const ready = unpaid.filter(i => i.status === 'ready').length, allReady = ready === unpaid.length;
     const mins = o.created_at ? Math.max(0, Math.floor((Date.now() - new Date(o.created_at).getTime()) / 60000)) : 0;
     const lines = unpaid.slice(0, 3).map(i => `<div class="pk-line"><span>${i.qty}× ${escapeHtml(i.name)}</span><span>${money(i.price * i.qty)}</span></div>`).join('');
-    return `<div class="pk ${allReady ? 'pk-ready' : 'pk-busy'}" data-badge-id="${o.order_id}" ${act('openPayModal', o.order_id)}>
+    // İkram (Personel/Talebe gibi sipariş etiketi): hazır olunca 15 sn ekranda kalır, sonra ödemesiz kapanır.
+    const comp = (o.tags || []).length > 0;
+    if(comp && allReady && unpaid.length){ APP.compAt = APP.compAt || {}; if(!APP.compAt[o.order_id]) APP.compAt[o.order_id] = Date.now() + 15000; }
+    const compRibbon = comp ? `<div class="pk-comp">🎁 İkram · ${escapeHtml(o.tags.join(', '))}${allReady && unpaid.length ? ` <span class="pk-comp-cd" data-comp-until="${APP.compAt[o.order_id]}">15</span> sn sonra ödemesiz kapanır` : ' · hazır olunca ödemesiz kapanır'}</div>` : '';
+    return `<div class="pk ${allReady ? 'pk-ready' : 'pk-busy'} ${comp ? 'pk-is-comp' : ''}" data-badge-id="${o.order_id}" ${act('openPayModal', o.order_id)}>
+      ${compRibbon}
       <div class="pk-head"><b>${name}</b><span class="pk-time">⏱ ${mins} dk</span></div>
       <div class="pk-status">${allReady ? '✅ Hepsi hazır' : '🔥 ' + ready + '/' + unpaid.length + ' hazır'}${waitersLine(o) ? ' · ' + waitersLine(o) : ''}</div>
       <div class="pk-lines">${lines}${unpaid.length > 3 ? `<div class="pk-more">+${unpaid.length - 3} ürün daha</div>` : ''}</div>
-      <div class="pk-foot"><span class="pk-total">${money(total)}</span><span class="pk-btn">💳 Hesabı Al</span></div>
+      <div class="pk-foot"><span class="pk-total">${comp ? '<s class="muted" style="font-size:.7em;">' + money(total) + '</s> 0,00 TL' : money(total)}</span><span class="pk-btn">${comp ? '🎁 İkram' : '💳 Hesabı Al'}</span></div>
     </div>`;
   };
   const orders = [];
   APP.config.zones.flatMap(z => z.tables).forEach(t => { const o = liveOrderForTable(t.id); if(o && o.items.some(i => !i.paid)) orders.push({ o, name: escapeHtml(tableNameForId(t.id)) }); });
   (APP.liveOrders || []).filter(o => o.kind === 'takeaway' && o.items.some(i => !i.paid)).forEach(o => orders.push({ o, name: '📦 ' + escapeHtml(o.customer_name || ('Paket #' + (o.daily_number || ''))) }));
-  const sum = orders.reduce((x, r) => x + r.o.items.filter(i => !i.paid).reduce((y, i) => y + i.price * i.qty, 0), 0);
+  const sum = orders.filter(r => !(r.o.tags || []).length).reduce((x, r) => x + r.o.items.filter(i => !i.paid).reduce((y, i) => y + i.price * i.qty, 0), 0);
   const readyN = orders.filter(r => r.o.items.filter(i => !i.paid).every(i => i.status === 'ready')).length;
   const strip = document.getElementById('paySummary');
   if(strip) strip.innerHTML = `<div class="os-chip os-busy"><span class="os-ic">🧾</span><div><b>${orders.length}</b><small>Açık hesap</small></div></div><div class="os-chip os-ready"><span class="os-ic">✅</span><div><b>${readyN}</b><small>Hazır · ödeme bekliyor</small></div></div><div class="os-chip os-money"><span class="os-ic">💰</span><div><b>${money(sum)}</b><small>Tahsil edilecek toplam</small></div></div>`;
   orders.sort((x, y) => new Date(x.o.created_at || 0) - new Date(y.o.created_at || 0));
   grid.className = 'pk-grid';
   grid.innerHTML = orders.length ? orders.map(r => card(r.o, r.name)).join('') : '<div class="kb-none">🎉 Açık hesap yok</div>';
+  startCompTicker();
+}
+/* İkram geri sayımı: süresi dolan ikram siparişi close_comp_order ile ödemesiz kapanır
+   (Finansal Analiz'de ikram olarak; ciroya girmez). Aynı anda başka cihaz kapatırsa hata yok sayılır. */
+let COMP_TICKER = null;
+function startCompTicker(){
+  if(COMP_TICKER) return;
+  COMP_TICKER = setInterval(async () => {
+    const els = document.querySelectorAll('[data-comp-until]');
+    if(!els.length && APP.view !== 'payments'){ clearInterval(COMP_TICKER); COMP_TICKER = null; return; }
+    for(const el of els){
+      const left = Math.ceil((Number(el.dataset.compUntil) - Date.now()) / 1000);
+      el.textContent = Math.max(0, left);
+      const card = el.closest('[data-badge-id]'), oid = card && card.dataset.badgeId;
+      if(left <= 0 && oid && !(APP.compClosing || {})[oid]){
+        APP.compClosing = APP.compClosing || {}; APP.compClosing[oid] = true;
+        if(document.getElementById('payModalBg')) { APP.compClosing[oid] = false; continue; } // ödeme penceresi açıkken bekle
+        const { error } = await sb.rpc('close_comp_order', { p_token: getSession().session_token, p_order_id: oid });
+        if(!error){ card.classList.add('pk-comp-done'); showToast('🎁 İkram kaydedildi, hesap kapandı'); }
+        delete APP.compAt[oid];
+        const { data: lo } = await sb.rpc('get_live_orders', { p_token: getSession().session_token });
+        if(lo) APP.liveOrders = lo;
+        setTimeout(() => { if(typeof renderPayGrid === 'function') renderPayGrid(); }, 400);
+      }
+    }
+  }, 1000);
 }
 /* Ödenecek ürünler adet bazında seçilebilir (örn. 4 Izgara Köfte'den sadece
    1'i) - sadece seçilen adetlerin tutarı için ödeme alınır, geri kalanı
