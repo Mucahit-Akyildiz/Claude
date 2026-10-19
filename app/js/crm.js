@@ -338,6 +338,7 @@ async function renderPromoBody(){
     p.days && p.days.length ? p.days.map(d => PROMO_DAYS[d-1]).join(',') : '', p.hour_from && p.hour_to ? t5(p.hour_from) + '–' + t5(p.hour_to) : '',
     p.ends_on ? '→ ' + fmtDateTr(p.ends_on) : '', p.max_uses ? p.used_count + '/' + p.max_uses + ' kullanım' : p.used_count + ' kullanım'].filter(Boolean).join(' · ');
   body.innerHTML = `
+    <div class="fsheet-bar" style="margin:0 0 12px;"><span class="muted" style="font-size:13px;">${APP.promos.length} kampanya</span><button type="button" class="fsheet-open" ${act('newPromo')}>+ Yeni Kampanya</button></div>
     ${APP.promos.length ? `<div class="pr-list">${APP.promos.map(p => `<div class="pr-card ${p.valid_now ? 'live' : ''} ${p.active ? '' : 'off'}">
         <div class="pr-top"><span class="pr-kind">${p.kind==='coupon' ? '🎟️' : '🎉'}</span><div class="pr-id"><b>${escapeHtml(p.name)}</b>${p.code ? `<code>${escapeHtml(p.code)}</code>` : '<small>Otomatik kampanya</small>'}</div>
           <span class="pr-st">${!p.active ? '⏸ Pasif' : p.valid_now ? '● Şu an geçerli' : '○ Zamanı değil'}</span></div>
@@ -345,9 +346,13 @@ async function renderPromoBody(){
         <div class="pr-acts"><button type="button" class="pc-btn pc-edit" style="margin-left:0;" ${act('editPromo', p.id)}>✏️ Düzenle</button>
           <button type="button" class="pc-btn" ${act('togglePromoActive', p.id)}>${p.active ? '⏸ Durdur' : '▶ Başlat'}</button>
           <button type="button" class="pc-btn rv-del" style="margin-left:auto;" ${act('removePromo', p.id)}>🗑</button></div>
-      </div>`).join('')}</div>` : `<div class="empty-state rv-empty"><div class="om-empty-ic">🎟️</div><b>Henüz kampanya yok</b><p class="muted">Aşağıdan ilk kuponunuzu ya da happy hour kampanyanızı oluşturun.</p></div>`}
+      </div>`).join('')}</div>` : `<div class="empty-state rv-empty"><div class="om-empty-ic">🎟️</div><b>Henüz kampanya yok</b><p class="muted"><b>+ Yeni Kampanya</b> ile ilk kuponunuzu ya da happy hour kampanyanızı oluşturun.</p></div>`}
+`;
+  if(!document.getElementById('promoFormSheet')) document.body.insertAdjacentHTML('beforeend', sheetHtml('promoFormSheet', '🎟️', 'Yeni Kampanya', '<div id="promoFormBody"></div>', 'var(--c4)'));
+  document.getElementById('promoFormSheetTitle').textContent = e.id ? 'Kampanyayı Düzenle' : 'Yeni Kampanya';
+  document.getElementById('promoFormBody').innerHTML = `
     <div class="pr-form">
-      <div class="rvf-t">${e.id ? '✏️ Kampanyayı düzenle' : '➕ Yeni kampanya'}</div>
+      
       <div class="rvf-chips"><button type="button" class="rvf-chip ${e.kind==='coupon'?'on':''}" ${act('setPromoKind','coupon')}>🎟️ Kupon kodu</button><button type="button" class="rvf-chip ${e.kind==='auto'?'on':''}" ${act('setPromoKind','auto')}>🎉 Otomatik (happy hour)</button></div>
       <div class="fsheet-grid" style="margin-top:10px;">
         <div class="field-group"><label>Kampanya adı</label><input id="pr_name" value="${val('name')}" placeholder="${e.kind==='coupon' ? 'örn. Hoş geldin indirimi' : 'örn. Happy Hour'}"></div>
@@ -361,7 +366,7 @@ async function renderPromoBody(){
         <div class="field-group wide"><label>Günler (boş = her gün)</label><div class="rvf-chips" id="pr_days">${PROMO_DAYS.map((d, i) => `<button type="button" class="rvf-chip rvf-n ${(e.days||[]).includes(i+1)?'on':''}" data-d="${i+1}" ${act('togglePromoDay','$this')}>${d}</button>`).join('')}</div></div>
         <div class="field-group"><label>Kullanım limiti</label><input id="pr_max" type="number" min="1" step="1" value="${val('max_uses')}" placeholder="sınırsız"></div>
       </div>
-      <div class="fsheet-foot">${e.id ? `<button type="button" class="ghost-btn" ${act('newPromo')}>Vazgeç</button>` : ''}<button ${act('savePromo')}>💾 ${e.id ? 'Güncelle' : 'Kampanyayı Kaydet'}</button></div>
+      <div class="fsheet-foot"><button type="button" class="ghost-btn" ${act('closeSheet','promoFormSheet')}>Vazgeç</button><button ${act('savePromo')}>💾 ${e.id ? 'Güncelle' : 'Kampanyayı Kaydet'}</button></div>
     </div>`;
 }
 function promoFormState(){
@@ -372,8 +377,8 @@ function promoFormState(){
 }
 function setPromoKind(k){ APP.promoEdit = Object.assign(promoFormState(), { kind: k }); renderPromoBody(); }
 function togglePromoDay(btn){ btn.classList.toggle('on'); }
-function newPromo(){ APP.promoEdit = null; renderPromoBody(); }
-function editPromo(id){ const p = (APP.promos||[]).find(x => x.id === id); if(!p) return; APP.promoEdit = Object.assign({}, p, { days: p.days || [] }); renderPromoBody().then(() => { const f = document.querySelector('.pr-form'); if(f) f.scrollIntoView({ behavior:'smooth', block:'start' }); }); }
+async function newPromo(){ APP.promoEdit = null; await renderPromoBody(); openSheet('promoFormSheet'); }
+async function editPromo(id){ const p = (APP.promos||[]).find(x => x.id === id); if(!p) return; APP.promoEdit = Object.assign({}, p, { days: p.days || [] }); await renderPromoBody(); openSheet('promoFormSheet'); }
 async function savePromo(){
   const st = promoFormState();
   if(!st.name.trim()){ alert('Kampanya adı gerekli'); return; }
@@ -384,7 +389,7 @@ async function savePromo(){
     starts_on: st.starts_on, ends_on: st.ends_on, hour_from: st.hour_from, hour_to: st.hour_to, max_uses: st.max_uses, days: st.days, active: st.active == null ? true : st.active };
   const { error } = await sb.rpc('upsert_promotion', { p_token: getSession().session_token, p_data: payload });
   if(error){ alert(error.message); return; }
-  APP.promoEdit = null; showToast('Kampanya kaydedildi ✓'); renderPromoBody();
+  APP.promoEdit = null; closeSheet('promoFormSheet'); showToast('Kampanya kaydedildi ✓'); renderPromoBody();
 }
 async function togglePromoActive(id){
   const p = (APP.promos||[]).find(x => x.id === id); if(!p) return;
