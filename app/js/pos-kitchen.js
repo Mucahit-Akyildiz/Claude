@@ -73,7 +73,7 @@ async function refreshKitchenItems(session){
     cards.push({ at: isFinite(oldest) ? oldest : Infinity, html: `<div class="kitchen-card" data-order-id="${o.order_id}">
       <div class="kc-age"><i data-age-from="${isFinite(oldest) ? new Date(oldest).toISOString() : ''}"></i></div>
       <div class="kc-head">
-        <div class="kc-title"><b>${escapeHtml(tableName)}</b>${o.daily_number ? `<span class="kc-no">#${o.daily_number}</span>` : ''}${(o.tags || []).map(t => `<span class="kc-tag">🏷️ ${escapeHtml(t)}</span>`).join('')}</div>
+        <div class="kc-title">${(() => { const zn = o.table_id ? zoneNameForTable(o.table_id) : ''; return zn && !tableName.startsWith(zn + ' · ') ? `<span class="kc-zone">${escapeHtml(zn)}</span>` : ''; })()}<b>${escapeHtml(tableName)}</b>${o.daily_number ? `<span class="kc-no">#${o.daily_number}</span>` : ''}${(o.tags || []).map(t => `<span class="kc-tag">🏷️ ${escapeHtml(t)}</span>`).join('')}</div>
         <span class="kc-pill"></span>
         <button type="button" class="kc-print" ${act('reprintKitchenTicket', o.order_id)} title="Fişi tekrar yazdır">🖨️</button>
       </div>
@@ -116,7 +116,8 @@ async function refreshKitchenItems(session){
   // kendi yazicisina yazdir. Ilk yuklemede (isFirstLoad) hicbiri tetiklenmez.
   const hasNew = Object.keys(newItemsByTable).length>0;
   if(hasNew){
-    playKitchenBell(APP.kitchenStation);
+    // Yeni sipariş sesli okunacaksa zil ayrıca çalmaz (iki ses üst üste binmesin).
+    if(!(typeof voiceWillSpeak === 'function' && voiceWillSpeak('kitchen'))) playKitchenBell(APP.kitchenStation);
     Object.values(newItemsByTable).forEach(entry => {
       // Bu cihazda sipariş verilirken zaten basılan ürünler tekrar basılmaz.
       const printed = APP.locallyPrintedItemIds || new Set();
@@ -160,6 +161,11 @@ function kitchenCancelCards(rows){
     </div>`).join('');
 }
 // Aynı adlı masa başka bölgede de varsa bölge adıyla gösterilir (Bahçe · Masa1).
+// Masanın bulunduğu bölüm (ör. Bahçe, Salon): mutfak kartında masa adının yanında gösterilir.
+function zoneNameForTable(tableId){
+  const z = ((APP.config && APP.config.zones) || []).find(z => (z.tables || []).some(t => t.id===tableId));
+  return z ? String(z.name || '').trim() : '';
+}
 function tableNameForId(tableId){
   const zones = APP.config.zones || [];
   for(const z of zones){
