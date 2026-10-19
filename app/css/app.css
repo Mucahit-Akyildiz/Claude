@@ -2685,3 +2685,16 @@ body.fsheet-lock{overflow:hidden;}
 .cc-list{border-top:1px dashed var(--border);padding-top:8px;display:flex;flex-direction:column;gap:6px;}
 .cc-row{display:flex;justify-content:space-between;gap:8px;font-size:12.5px;} .cc-row span{color:var(--muted);} .cc-row b.neg{color:var(--danger,#ef4444);} .cc-row b.pos{color:#f59e0b;}
 @media (max-width:600px){.cc-grid{grid-template-columns:1fr 1fr;} .cc-grid .field-group{grid-column:1/-1;order:-1;} .cc-save{width:100%;}}
+/* Kampanya ve kuponlar */
+.pr-list{display:flex;flex-direction:column;gap:10px;margin-bottom:16px;}
+.pr-card{border:1px solid var(--border);border-left:4px solid var(--muted);border-radius:14px;padding:10px 12px;background:var(--bg2,transparent);}
+.pr-card.live{border-left-color:var(--ok,#22c55e);} .pr-card.off{opacity:.6;}
+.pr-top{display:flex;align-items:center;gap:10px;} .pr-kind{font-size:22px;} .pr-id{flex:1;min-width:0;} .pr-id b{display:block;}
+.pr-id code{font-size:12px;padding:1px 6px;border-radius:6px;background:color-mix(in srgb,var(--c4) 20%,transparent);font-weight:700;letter-spacing:.5px;}
+.pr-id small{color:var(--muted);font-size:12px;} .pr-st{font-size:11.5px;font-weight:700;white-space:nowrap;color:var(--muted);} .pr-card.live .pr-st{color:var(--ok,#22c55e);}
+.pr-desc{font-size:12.5px;color:var(--muted);margin:6px 0;}
+.pr-acts{display:flex;gap:6px;flex-wrap:wrap;}
+.pr-form{border-top:1px dashed var(--border);padding-top:12px;}
+.pay-opt-tab.has-promo{position:relative;} .pay-opt-tab.has-promo::after{content:'🎉';position:absolute;top:-8px;right:-4px;font-size:13px;}
+.promo-chip{border-color:color-mix(in srgb,var(--c4) 60%,transparent) !important;} .promo-chip.on{background:linear-gradient(135deg,var(--c4),var(--c1));color:#fff;}
+.cp-row{margin-top:8px;}

@@ -16,6 +16,7 @@ async function renderCrmView(main, session){
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:nowrap;flex:1 1 auto;justify-content:flex-end;min-width:0;">
           <button type="button" class="fsheet-open" style="flex:0 0 auto;" ${act('newCustomer')}>+ Yeni Müşteri</button>
           <input id="crmSearchInput" placeholder="İsim veya telefon ara..." style="flex:0 1 260px;min-width:120px;width:auto;margin:0;" value="${escapeAttr(APP.crmSearch||'')}" ${actOn('input', 'debouncedCrmSearch', ['$value'])}>
+          ${canManage(session, 'crm') ? `<button type="button" class="ghost-btn" style="width:auto;flex:0 0 auto;white-space:nowrap;margin:0;" ${act('openPromoSheet')} title="Kupon kodları ve happy hour gibi otomatik kampanyalar">🎟️ Kampanyalar</button>` : ''}
           ${canManage(session, 'crm') ? `<button type="button" class="ghost-btn" style="width:auto;flex:0 0 auto;white-space:nowrap;margin:0;" ${act('openSheet','crmLoySheet')} title="Puan ve doğum günü indirimi ayarları">⭐ Sadakat${loyalty.enabled ? '' : ' (kapalı)'}</button>` : ''}
           <button type="button" class="ghost-btn" style="width:auto;flex:0 0 auto;white-space:nowrap;margin:0;" ${act('exportCustomersCsv')} title="Tüm müşterileri Excel'de açılabilen CSV olarak indir">⬇️ Dışa aktar</button>
           ${canManage(session, 'crm') ? `<button type="button" class="ghost-btn" style="width:auto;flex:0 0 auto;white-space:nowrap;margin:0;" ${act('openCustomerImport')} title="CSV dosyasından müşteri yükle">⬆️ İçe aktar</button>` : ''}
@@ -54,6 +55,7 @@ async function renderCrmView(main, session){
           </div>
         </details>
         <div class="fsheet-foot"><button type="button" class="ghost-btn" ${act('closeSheet','crmSheet')}>Vazgeç</button><button ${act('saveCrmCustomer')}>${ICON_SAVE}<span>Kaydet</span></button></div>`, 'var(--c1)')}
+    ${canManage(session, 'crm') ? sheetHtml('promoSheet', '🎟️', 'Kampanya ve Kuponlar', '<div id="promoBody"><p class="muted">Yükleniyor…</p></div>', 'var(--c4)') : ''}
     ${canManage(session, 'crm') ? sheetHtml('crmLoySheet', '⭐', 'Sadakat Programı', `<label style="display:flex;align-items:center;gap:8px;font-weight:600;margin:0 0 14px;">
           <input type="checkbox" id="loy_enabled" ${loyalty.enabled?'checked':''} style="width:auto;margin:0;"> Sadakat puanları aktif
         </label>
@@ -272,4 +274,86 @@ async function runCustomerImport(){
     + (data.errors && data.errors.length ? '<ul style="margin:6px 0 0;padding-left:18px;">' + data.errors.map(e => '<li>Satır ' + (e.row + 1) + ': ' + escapeHtml(e.error) + '</li>').join('') + '</ul>' : '');
   document.getElementById('crmImportBtn').disabled = true; APP.crmImportRows = null;
   renderCrmView(document.getElementById('main'), session);
+}
+
+/* ---- Kampanya ve kuponlar ----
+   'coupon': ödeme ekranında kodla uygulanır. 'auto': belirlenen gün/saatte ödeme ekranında
+   tek tıkla önerilir (örn. happy hour). Kullanımlar redeem_promotion ile sayılır. */
+const PROMO_DAYS = ['Pzt','Sal','Çar','Per','Cum','Cmt','Paz'];
+async function openPromoSheet(){
+  openSheet('promoSheet');
+  APP.promoEdit = null;
+  await renderPromoBody();
+}
+async function renderPromoBody(){
+  const body = document.getElementById('promoBody'); if(!body) return;
+  const { data, error } = await sb.rpc('list_promotions', { p_token: getSession().session_token });
+  if(error){ body.innerHTML = '<p class="muted">Yüklenemedi: ' + escapeHtml(error.message) + '</p>'; return; }
+  APP.promos = data || [];
+  const e = APP.promoEdit || { kind:'coupon', disc_type:'percent', days:[] };
+  const val = (k) => e[k] == null ? '' : escapeAttr(String(e[k]));
+  const t5 = (v) => v ? String(v).slice(0,5) : '';
+  const descr = (p) => [p.disc_type==='percent' ? '%' + Number(p.disc_value) : money(p.disc_value), p.min_total > 0 ? 'min ' + money(p.min_total) : '',
+    p.days && p.days.length ? p.days.map(d => PROMO_DAYS[d-1]).join(',') : '', p.hour_from && p.hour_to ? t5(p.hour_from) + '–' + t5(p.hour_to) : '',
+    p.ends_on ? '→ ' + fmtDateTr(p.ends_on) : '', p.max_uses ? p.used_count + '/' + p.max_uses + ' kullanım' : p.used_count + ' kullanım'].filter(Boolean).join(' · ');
+  body.innerHTML = `
+    ${APP.promos.length ? `<div class="pr-list">${APP.promos.map(p => `<div class="pr-card ${p.valid_now ? 'live' : ''} ${p.active ? '' : 'off'}">
+        <div class="pr-top"><span class="pr-kind">${p.kind==='coupon' ? '🎟️' : '🎉'}</span><div class="pr-id"><b>${escapeHtml(p.name)}</b>${p.code ? `<code>${escapeHtml(p.code)}</code>` : '<small>Otomatik kampanya</small>'}</div>
+          <span class="pr-st">${!p.active ? '⏸ Pasif' : p.valid_now ? '● Şu an geçerli' : '○ Zamanı değil'}</span></div>
+        <div class="pr-desc">${descr(p)}${Number(p.total_discount) > 0 ? ' · toplam ' + money(p.total_discount) + ' indirim' : ''}</div>
+        <div class="pr-acts"><button type="button" class="pc-btn pc-edit" style="margin-left:0;" ${act('editPromo', p.id)}>✏️ Düzenle</button>
+          <button type="button" class="pc-btn" ${act('togglePromoActive', p.id)}>${p.active ? '⏸ Durdur' : '▶ Başlat'}</button>
+          <button type="button" class="pc-btn rv-del" style="margin-left:auto;" ${act('removePromo', p.id)}>🗑</button></div>
+      </div>`).join('')}</div>` : `<div class="empty-state rv-empty"><div class="om-empty-ic">🎟️</div><b>Henüz kampanya yok</b><p class="muted">Aşağıdan ilk kuponunuzu ya da happy hour kampanyanızı oluşturun.</p></div>`}
+    <div class="pr-form">
+      <div class="rvf-t">${e.id ? '✏️ Kampanyayı düzenle' : '➕ Yeni kampanya'}</div>
+      <div class="rvf-chips"><button type="button" class="rvf-chip ${e.kind==='coupon'?'on':''}" ${act('setPromoKind','coupon')}>🎟️ Kupon kodu</button><button type="button" class="rvf-chip ${e.kind==='auto'?'on':''}" ${act('setPromoKind','auto')}>🎉 Otomatik (happy hour)</button></div>
+      <div class="fsheet-grid" style="margin-top:10px;">
+        <div class="field-group"><label>Kampanya adı</label><input id="pr_name" value="${val('name')}" placeholder="${e.kind==='coupon' ? 'örn. Hoş geldin indirimi' : 'örn. Happy Hour'}"></div>
+        ${e.kind==='coupon' ? `<div class="field-group"><label>Kupon kodu</label><input id="pr_code" value="${val('code')}" placeholder="örn. HOSGELDIN10" style="text-transform:uppercase;"></div>` : '<div></div>'}
+        <div class="field-group"><label>İndirim</label><div style="display:flex;gap:6px;"><input id="pr_value" type="number" min="0" step="0.01" value="${val('disc_value')}" style="flex:1;"><select id="pr_type" style="width:70px;"><option value="percent" ${e.disc_type==='percent'?'selected':''}>%</option><option value="amount" ${e.disc_type==='amount'?'selected':''}>₺</option></select></div></div>
+        <div class="field-group"><label>En az harcama (₺)</label><input id="pr_min" type="number" min="0" step="0.01" value="${Number(e.min_total)||''}" placeholder="yok"></div>
+        <div class="field-group"><label>Başlangıç</label><input id="pr_start" type="date" value="${val('starts_on')}"></div>
+        <div class="field-group"><label>Bitiş</label><input id="pr_end" type="date" value="${val('ends_on')}"></div>
+        <div class="field-group"><label>Saat başlangıç</label><input id="pr_hfrom" type="time" value="${t5(e.hour_from)}"></div>
+        <div class="field-group"><label>Saat bitiş</label><input id="pr_hto" type="time" value="${t5(e.hour_to)}"></div>
+        <div class="field-group wide"><label>Günler (boş = her gün)</label><div class="rvf-chips" id="pr_days">${PROMO_DAYS.map((d, i) => `<button type="button" class="rvf-chip rvf-n ${(e.days||[]).includes(i+1)?'on':''}" data-d="${i+1}" ${act('togglePromoDay','$this')}>${d}</button>`).join('')}</div></div>
+        <div class="field-group"><label>Kullanım limiti</label><input id="pr_max" type="number" min="1" step="1" value="${val('max_uses')}" placeholder="sınırsız"></div>
+      </div>
+      <div class="fsheet-foot">${e.id ? `<button type="button" class="ghost-btn" ${act('newPromo')}>Vazgeç</button>` : ''}<button ${act('savePromo')}>💾 ${e.id ? 'Güncelle' : 'Kampanyayı Kaydet'}</button></div>
+    </div>`;
+}
+function promoFormState(){
+  const g = (id) => { const el = document.getElementById(id); return el ? el.value : ''; };
+  return Object.assign({}, APP.promoEdit || { kind:'coupon' }, { name: g('pr_name'), code: g('pr_code'), disc_value: g('pr_value'), disc_type: g('pr_type') || 'percent',
+    min_total: g('pr_min'), starts_on: g('pr_start'), ends_on: g('pr_end'), hour_from: g('pr_hfrom'), hour_to: g('pr_hto'), max_uses: g('pr_max'),
+    days: [...document.querySelectorAll('#pr_days .rvf-chip.on')].map(b => Number(b.dataset.d)) });
+}
+function setPromoKind(k){ APP.promoEdit = Object.assign(promoFormState(), { kind: k }); renderPromoBody(); }
+function togglePromoDay(btn){ btn.classList.toggle('on'); }
+function newPromo(){ APP.promoEdit = null; renderPromoBody(); }
+function editPromo(id){ const p = (APP.promos||[]).find(x => x.id === id); if(!p) return; APP.promoEdit = Object.assign({}, p, { days: p.days || [] }); renderPromoBody().then(() => { const f = document.querySelector('.pr-form'); if(f) f.scrollIntoView({ behavior:'smooth', block:'start' }); }); }
+async function savePromo(){
+  const st = promoFormState();
+  if(!st.name.trim()){ alert('Kampanya adı gerekli'); return; }
+  if(st.kind === 'coupon' && !String(st.code||'').trim()){ alert('Kupon kodu gerekli'); return; }
+  if(!(Number(st.disc_value) > 0)){ alert('İndirim değeri girin'); return; }
+  if(st.kind === 'auto' && !st.hour_from && !(st.days||[]).length && !st.starts_on){ if(!await uiConfirm('Gün/saat seçmediniz: kampanya her ödemede önerilecek. Devam edilsin mi?')) return; }
+  const payload = { id: st.id || '', name: st.name, kind: st.kind, code: st.code || '', disc_type: st.disc_type, disc_value: st.disc_value, min_total: st.min_total,
+    starts_on: st.starts_on, ends_on: st.ends_on, hour_from: st.hour_from, hour_to: st.hour_to, max_uses: st.max_uses, days: st.days, active: st.active == null ? true : st.active };
+  const { error } = await sb.rpc('upsert_promotion', { p_token: getSession().session_token, p_data: payload });
+  if(error){ alert(error.message); return; }
+  APP.promoEdit = null; showToast('Kampanya kaydedildi ✓'); renderPromoBody();
+}
+async function togglePromoActive(id){
+  const p = (APP.promos||[]).find(x => x.id === id); if(!p) return;
+  const { error } = await sb.rpc('upsert_promotion', { p_token: getSession().session_token, p_data: Object.assign({}, p, { active: !p.active, days: p.days || [] }) });
+  if(error){ alert(error.message); return; }
+  renderPromoBody();
+}
+async function removePromo(id){
+  if(!await uiConfirm('Bu kampanya silinsin mi?')) return;
+  const { error } = await sb.rpc('delete_promotion', { p_token: getSession().session_token, p_id: id });
+  if(error){ alert(error.message); return; }
+  renderPromoBody();
 }
