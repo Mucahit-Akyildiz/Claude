@@ -4,7 +4,7 @@
    Ayarlar kişiye/cihaza özeldir (localStorage), veritabanına yazılmaz. ---- */
 const VOICE_TYPES = [
   { id:'kitchen',      ic:'🍳', label:'Mutfağa yeni sipariş', sample:'12 numaralı masadan yeni sipariş geldi' },
-  { id:'late',         ic:'⏰', label:'Bekleyen mutfak siparişi (20 dk)', sample:'12 numaralı masanın Adana ve Köfte siparişi 20 dakikadır bekliyor' },
+  { id:'late',         ic:'⏰', label:'Bekleyen mutfak siparişi (20 dk, sonra 5 dk’da bir)', sample:'12 numaralı masanın Adana ve Köfte siparişi 20 dakikadır bekliyor' },
   { id:'qr',           ic:'📱', label:'QR menüden sipariş', sample:'12 numaralı masadan QR menü siparişi geldi, onay bekliyor' },
   { id:'online',       ic:'🛵', label:'Online sipariş', sample:'Ahmet Yılmaz adına online gel-al siparişi geldi' },
   { id:'waiter',       ic:'🙋', label:'Garson çağırma', sample:'12 numaralı masa garson çağırıyor' },
@@ -195,8 +195,8 @@ function voiceTextFor(type, items){
   switch(type){
     case 'kitchen': return T.map(t => voiceMasa(t, 'abl') + ' yeni sipariş geldi').join('. ');
     case 'late': {
-      const byT = {}; items.forEach(x => { const k = String(x.table || '').trim(); (byT[k] = byT[k] || []).push(x.name || 'ürün'); });
-      return Object.entries(byT).map(([t, ns]) => voiceMasa(t, 'gen') + ' ' + voiceList2([...new Set(ns)]) + ' siparişi ' + VOICE_LATE_MIN + ' dakikadır bekliyor').join('. ');
+      const byT = {}, minT = {}; items.forEach(x => { const k = String(x.table || '').trim(); (byT[k] = byT[k] || []).push(x.name || 'ürün'); minT[k] = Math.max(minT[k] || 0, x.lateMin || VOICE_LATE_MIN); });
+      return Object.entries(byT).map(([t, ns]) => voiceMasa(t, 'gen') + ' ' + voiceList2([...new Set(ns)]) + ' siparişi ' + minT[t] + ' dakikadır bekliyor').join('. ');
     }
     case 'qr': return T.map(t => voiceMasa(t, 'abl') + ' QR menü siparişi geldi, onay bekliyor').join('. ');
     case 'online': return items.map(x => (x.name ? x.name + ' adına ' : 'Yeni ') + 'online ' + (x.otype==='delivery' ? 'teslimat' : x.otype==='pickup' ? 'gel-al' : '') + ' siparişi geldi').join('. ').replace(/\s+/g, ' ');
@@ -225,7 +225,7 @@ function voiceIsSelf(x){
   const now = Date.now(), name = String(x.table || '').toLocaleLowerCase('tr').trim();
   return VOICE_SELF.some(s => now - s.at <= 90000 && (!s.label || !name || s.label.trim() === name || s.label.includes(name) || name.includes(s.label)));
 }
-let VOICE_SEEN = null, VOICE_LATE_SEEN = new Set(), VOICE_RESV_SEEN = new Set();
+let VOICE_SEEN = null, VOICE_LATE_SEEN = new Map(), VOICE_RESV_SEEN = new Set();
 function processVoiceBadges(data, visibleViews){
   const items = (data && data._items) || {};
   const ids = new Set();
@@ -253,8 +253,14 @@ function processVoiceBadges(data, visibleViews){
   });
   const late = [];
   (items.kitchen || []).forEach(x => {
-    if(!x.at || VOICE_LATE_SEEN.has(x.id)) return;
-    if(Date.now() - new Date(x.at).getTime() >= VOICE_LATE_MIN * 60000){ VOICE_LATE_SEEN.add(x.id); if(VOICE_SEEN) late.push(x); }
+    if(!x.at) return;
+    // 20. dakikada, sonra her 5 dakikada bir (25, 30, ...) yeniden okunur (telefon bildirimiyle aynı kademeler).
+    const mins = (Date.now() - new Date(x.at).getTime()) / 60000;
+    if(mins < VOICE_LATE_MIN) return;
+    const stage = Math.floor((mins - VOICE_LATE_MIN) / 5);
+    if(VOICE_LATE_SEEN.has(x.id) && VOICE_LATE_SEEN.get(x.id) >= stage) return;
+    VOICE_LATE_SEEN.set(x.id, stage);
+    if(VOICE_SEEN) late.push(Object.assign({}, x, { lateMin: VOICE_LATE_MIN + stage * 5 }));
   });
   if(late.length && visibleViews.includes('kitchen')) fresh.late = late;
   const first = !VOICE_SEEN;
@@ -285,7 +291,7 @@ function voiceSettingsHtml(){
   const sw = (type, key, on) => `<input type="checkbox" class="sw" ${on?'checked':''} ${actOn('change','setVoiceOpt',[type, key, '$checked'])}>`;
   return `<div class="box" style="max-width:none;">
     <h2>🗣️ Sesli ve Sesli Okunan Bildirimler</h2>
-    <p class="muted" style="text-align:left;">Her bildirim türü için bu cihazda <b>zil sesi</b> çalınsın mı ve bildirim <b>sesli okunsun</b> mu (ör. “12 numaralı masadan yeni sipariş geldi”) seçin. Mutfakta ${VOICE_LATE_MIN} dakikayı geçen ürünler bir kez “… dakikadır bekliyor” diye okunur.</p>
+    <p class="muted" style="text-align:left;">Her bildirim türü için bu cihazda <b>zil sesi</b> çalınsın mı ve bildirim <b>sesli okunsun</b> mu (ör. “12 numaralı masadan yeni sipariş geldi”) seçin. Mutfakta ${VOICE_LATE_MIN} dakikayı geçen ürünler “… dakikadır bekliyor” diye okunur ve hazır olana kadar 5 dakikada bir tekrarlanır.</p>
     <div style="display:flex;align-items:center;gap:10px;margin:10px 0 14px;flex-wrap:wrap;">${sw('*','enabled',p.enabled)}<b>Sesli bildirimler açık</b>
       <span class="muted" style="margin-left:auto;font-size:12.5px;">Ses</span>${voiceSelectHtml()}
       <span class="muted" style="font-size:12.5px;">Hız</span>
