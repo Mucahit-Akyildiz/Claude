@@ -209,9 +209,10 @@ function openPayModal(orderId){
       <div class="pay-option-card" data-opt="cust" hidden>
         <h4>🧑 Müşteri</h4>
         <div class="field-row">
-          <input id="payCustomerPhone" placeholder="Telefon ile ara" style="flex:1;">
+          <input id="payCustomerPhone" placeholder="Ad veya telefon ile ara" autocomplete="off" style="flex:1;" ${actOn('input','tableCustSearch',['$value','payCust'])}>
           <button style="width:auto;padding:0 14px;margin:0;" ${act('lookupPayCustomer')}>Bul</button>
         </div>
+        <div id="payCustSuggest"></div>
         <p id="payCustomerInfo" class="hint">Müşteri seçilmedi</p>
         <div id="payRedeemWrap" style="display:none;margin-top:8px;">
           <input id="payRedeemPoints" type="number" min="0" step="1" placeholder="Kullanılacak puan" style="margin:0;" ${actOn('input','applyRedeemPoints',['$value'])}>
@@ -326,10 +327,17 @@ function handleCashReceivedInput(v){
 }
 async function lookupPayCustomer(){
   const bg = document.getElementById('payModalBg');
-  const phone = document.getElementById('payCustomerPhone').value.trim();
+  let phone = document.getElementById('payCustomerPhone').value.trim();
   const infoEl = document.getElementById('payCustomerInfo');
   const redeemWrap = document.getElementById('payRedeemWrap');
-  if(!phone){ infoEl.textContent = 'Telefon girin'; return; }
+  if(!phone){ infoEl.textContent = 'Ad veya telefon girin'; return; }
+  // İsimle yazıldıysa: tek eşleşme varsa onun telefonu kullanılır, birden fazlaysa liste gösterilir.
+  if(/[a-zA-ZçğıöşüÇĞİÖŞÜ]/.test(phone)){
+    const { data: hits } = await sb.rpc('search_customers_quick', { p_token: getSession().session_token, p_search: phone });
+    const list = (hits || []).filter(h => h.phone);
+    if(list.length === 1){ phone = list[0].phone; document.getElementById('payCustomerPhone').value = phone; }
+    else { tableCustSearch(phone, 'payCust'); infoEl.textContent = list.length ? 'Listeden müşteriyi seçin' : 'Telefonu kayıtlı müşteri bulunamadı'; return; }
+  }
   const session = getSession();
   const { data, error } = await sb.rpc('get_customer_by_phone', { p_token: session.session_token, p_phone: phone });
   if(error || !data){
@@ -351,7 +359,7 @@ async function lookupPayCustomer(){
   bg.dataset.pointValue = String(data.point_value ?? loyalty.point_value ?? 1);
   bg.dataset.birthdayPct = String(data.birthday_discount_percent ?? loyalty.birthday_discount_percent ?? 0);
   const birthdayPct = Number(bg.dataset.birthdayPct) || 0;
-  infoEl.textContent = data.name + ' · ' + data.points_balance + ' puan' + (data.custom_loyalty ? ' · ⭐ özel sadakat' : '') +
+  infoEl.textContent = data.name + (data.phone || phone ? ' · 📞 ' + (data.phone || phone) : '') + ' · ' + data.points_balance + ' puan' + (data.custom_loyalty ? ' · ⭐ özel sadakat' : '') +
     (data.is_birthday_today && birthdayPct>0 ? ' · 🎂 Bugün doğum günü! %'+birthdayPct+' indirim uygulanacak' : '');
   if(loyalty.enabled && data.points_balance>0){
     redeemWrap.style.display = 'block';
@@ -1428,6 +1436,13 @@ function tableCustSearch(q, prefix){
 function pickTableCustomer(i, prefix){
   prefix = prefix || 'tableCust';
   const c = (APP.tableCustHits||[])[i]; if(!c) return;
+  // Ödeme ekranı: seçilen müşterinin telefonuyla sadakat bilgisi getirilir.
+  if(prefix === 'payCust'){
+    document.getElementById('payCustomerPhone').value = c.phone || c.name || '';
+    document.getElementById('payCustSuggest').innerHTML = '';
+    lookupPayCustomer(c.phone ? null : c);
+    return;
+  }
   document.getElementById(prefix + 'Name').value = c.name || '';
   document.getElementById(prefix + 'Phone').value = c.phone || '';
   const emailEl = document.getElementById(prefix + 'Email');
