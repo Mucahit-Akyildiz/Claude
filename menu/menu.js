@@ -293,8 +293,8 @@ function zoomProductImage(src){
   document.body.appendChild(ov);
 }
 
-/* Masada açık hesap varken (yemek sırasında) ya da hesap ödendikten sonra 2 saat içinde
-   QR menüde en üstte "Bizi değerlendirin" bandı çıkar; o hesabın değerlendirme sayfasına gider. */
+/* Masa QR menüsünde en üstte "Bizi değerlendirin" bandı her zaman çıkar: açık hesap ya da son 2 saatte
+   ödenmiş hesap varsa ona, yoksa masaya bağlı değerlendirmeye gider (değerlendirme yapılınca kaybolur). */
 const RV_TXT = { tr: ['⭐ Bizi değerlendirmek ister misiniz?', 'Değerlendir'], en: ['⭐ Would you like to rate us?', 'Rate us'],
   ar: ['⭐ هل ترغب في تقييمنا؟', 'قيّمنا'], de: ['⭐ Möchten Sie uns bewerten?', 'Bewerten'], ru: ['⭐ Хотите оценить нас?', 'Оценить'] };
 async function checkTableReview(){
