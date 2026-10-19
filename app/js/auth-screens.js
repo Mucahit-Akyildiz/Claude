@@ -254,18 +254,16 @@ function changeCompanyDashboardBranch(v){
   renderCompanyPanelContent(getCompanySession());
 }
 function openCreateBranchModal(){
-  const bg = document.createElement('div');
-  bg.id = 'createBranchBg';
-  bg.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:100;padding:16px;';
-  bg.onclick = (e) => { if(e.target===bg) bg.remove(); };
-  bg.innerHTML = `<div style="background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:20px;max-width:380px;width:100%;">
-    <div style="display:flex;justify-content:space-between;"><h2 style="margin:0;">Yeni Şube Ekle</h2><span style="cursor:pointer;color:var(--muted);" ${act('removeEl','createBranchBg')}>✕</span></div>
-    <input id="newBranchName" placeholder="Şube adı (örn. Kadıköy Şubesi)" style="margin-top:14px;">
-    <input id="newBranchCode" placeholder="Şube kodu (örn. kadikoy2026)" autocapitalize="none">
+  removeEl('createBranchBg');
+  document.body.insertAdjacentHTML('beforeend', `<div id="createBranchBg">${sheetHtml('branchSheet', '🏢', 'Yeni Şube', `
+    <div class="fsheet-grid">
+      <div class="field-group wide"><label>Şube adı</label><input id="newBranchName" placeholder="örn. Kadıköy Şubesi"></div>
+      <div class="field-group wide"><label>Şube kodu</label><input id="newBranchCode" placeholder="örn. kadikoy2026" autocapitalize="none"></div>
+    </div>
+    <p class="muted" style="font-size:12px;text-align:left;margin:10px 0 0;">Şube kodu personelin giriş ekranında kullanılır; daha sonra menüyü mevcut bir şubeden kopyalayabilirsiniz.</p>
     <div class="error" id="newBranchErr"></div>
-    <button id="newBranchBtn" ${act('createBranchSubmit')}>Şubeyi Oluştur</button>
-  </div>`;
-  document.body.appendChild(bg);
+    <div class="fsheet-foot"><button type="button" class="ghost-btn" ${act('closeSheet','branchSheet')}>Vazgeç</button><button id="newBranchBtn" ${act('createBranchSubmit')}>🏢 Şubeyi Oluştur</button></div>`, 'var(--c1)')}</div>`);
+  openSheet('branchSheet');
 }
 async function createBranchSubmit(){
   const companySession = getCompanySession(); if(!companySession) return;
@@ -279,7 +277,7 @@ async function createBranchSubmit(){
   const { error } = await sb.rpc('create_branch', { p_company_token: companySession.session_token, p_name: name, p_code: code });
   btn.disabled = false; btn.textContent = 'Şubeyi Oluştur';
   if(error){ errEl.textContent = error.message; return; }
-  const bg = document.getElementById('createBranchBg'); if(bg) bg.remove();
+  closeSheet('branchSheet'); removeEl('createBranchBg');
   showToast('Şube oluşturuldu ✓');
   renderCompanyPanelContent(companySession);
 }

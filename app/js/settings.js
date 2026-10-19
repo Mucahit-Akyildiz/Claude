@@ -1250,6 +1250,7 @@ function renderProductsSettings(el, session){
     <div class="add-row-panel">
     <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:0 0 10px;">
         ${listSearchHtml('products', 'Ürün ara…').replace('margin:0 0 12px;','margin:0;')}
+        ${sheetBtnHtml('prodSheet','+ Yeni Ürün')}
         <span style="flex:1;"></span>
         <div class="act-row">
           <button type="button" class="act-btn act-save" id="prodSaveAllBtn" ${act('saveAllProducts')} disabled>${ICON_SAVE}<span>Kaydet</span></button>
@@ -1259,24 +1260,24 @@ function renderProductsSettings(el, session){
         </div>
       </div>
       <p class="muted" id="prodSelInfo" style="text-align:left;font-size:12.5px;margin:-4px 0 8px;text-transform:none;letter-spacing:0;font-weight:400;min-height:0;"></p>
-      <details class="prod-add" ${products.length ? '' : 'open'}><summary>➕ Yeni Ürün Ekle</summary>
-      <div class="add-row-inline" style="display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;">
-        <div class="field-group grow" style="margin:0;min-width:0;flex:2 1 170px;width:auto;"><label>Ürün Adı</label><input style="margin:0;width:100%;" id="np_name" placeholder="örn. Izgara Köfte"></div>
-        <div class="field-group" style="margin:0;min-width:0;flex:1.6 1 150px;width:auto;"><label>Menü</label><select style="margin:0;width:100%;" id="np_menu">${prodMenuOptions((APP.config.menus[0]||{}).id)}</select></div>
-        <div class="field-group" style="margin:0;min-width:0;flex:1 1 90px;width:auto;"><label>Fiyat (₺)</label><input style="margin:0;width:100%;" type="number" id="np_price" placeholder="0"></div>
-        <div class="field-group" style="margin:0;min-width:0;flex:1 1 90px;width:auto;"><label>Maliyet (₺)</label><input style="margin:0;width:100%;" type="number" id="np_cost" placeholder="0"></div>
-        <div class="field-group" style="margin:0;min-width:0;flex:1 1 110px;width:auto;"><label>KDV</label>${vatSelectHtml('np_vat', null, true, 'style="margin:0;width:100%;"')}</div>
-        <div class="field-group" style="margin:0;min-width:0;flex:1 1 100px;width:auto;"><label>Stok</label><input style="margin:0;width:100%;" type="number" id="np_stock" placeholder="Sınırsız" title="Boş = sınırsız; reçete eklerseniz bu alan kullanılmaz"></div>
-        ${(APP.config.ingredients||[]).length===0 ? '' : `
-        <div class="field-group grow" style="margin:0;min-width:0;flex:2 1 170px;width:auto;"><label>Reçete (opsiyonel)</label><select style="margin:0;width:100%;" id="npRecipeIngSelect">
-          ${APP.config.ingredients.map(i => `<option value="${i.id}" data-unit="${i.unit}" data-name="${escapeAttr(i.name)}">${escapeHtml(i.name)} (${i.unit})</option>`).join('')}
-        </select></div>
-        <div class="field-group" style="margin:0;min-width:0;flex:1 1 80px;width:auto;"><label>Miktar</label><input style="margin:0;width:100%;" type="number" step="0.01" id="npRecipeQtyInput" placeholder="0"></div>
-        <button type="button" class="ghost-btn" style="width:auto;margin:0;white-space:nowrap;flex:0 0 auto;" ${act('addNewProductRecipeItem')} title="Hammaddeyi reçeteye ekle">＋ Reçeteye</button>`}
-        <button type="button" style="width:auto;margin:0;white-space:nowrap;flex:0 0 auto;padding-left:18px;padding-right:18px;" ${act('addProduct')}>+ Ürün Ekle</button>
+${sheetHtml('prodSheet', '🍽️', 'Yeni Ürün', `
+      <div class="fsheet-grid">
+        <div class="field-group wide"><label>Ürün Adı</label><input id="np_name" placeholder="örn. Izgara Köfte"></div>
+        <div class="field-group"><label>Menü</label><select id="np_menu">${prodMenuOptions((APP.config.menus[0]||{}).id)}</select></div>
+        <div class="field-group"><label>KDV</label>${vatSelectHtml('np_vat', null, true, '')}</div>
+        <div class="field-group"><label>Fiyat (₺)</label><input type="number" id="np_price" placeholder="0" inputmode="decimal"></div>
+        <div class="field-group"><label>Maliyet (₺)</label><input type="number" id="np_cost" placeholder="0" inputmode="decimal"></div>
+        <div class="field-group wide"><label>Stok</label><input type="number" id="np_stock" placeholder="Sınırsız" title="Boş = sınırsız; reçete eklerseniz bu alan kullanılmaz"></div>
       </div>
+      ${(APP.config.ingredients||[]).length===0 ? '' : `
+      <div class="rvf-t" style="margin-top:14px;">🥕 Reçete (opsiyonel)</div>
+      <div style="display:grid;grid-template-columns:1fr 90px auto;gap:8px;align-items:end;">
+        <select id="npRecipeIngSelect" style="margin:0;">${APP.config.ingredients.map(i => `<option value="${i.id}" data-unit="${i.unit}" data-name="${escapeAttr(i.name)}">${escapeHtml(i.name)} (${i.unit})</option>`).join('')}</select>
+        <input type="number" step="0.01" id="npRecipeQtyInput" placeholder="Miktar" style="margin:0;">
+        <button type="button" class="ghost-btn" style="width:auto;margin:0;" ${act('addNewProductRecipeItem')}>＋ Ekle</button>
+      </div>`}
       <div id="npRecipeItemsBox"></div>
-      </details>
+      <div class="fsheet-foot"><button type="button" class="ghost-btn" ${act('closeSheet','prodSheet')}>Vazgeç</button><button ${act('addProduct')}>+ Ürün Ekle</button></div>`, 'var(--c1)')}
     </div>
     <div id="prodGroups" ${actOn('input','markProdDirty',['$event'])} ${actOn('change','markProdDirty',['$event'])}>
     ${(APP.config.menus||[]).map(m => { const st = stations.find(x => x.id===m.station_id); return groupHtml(m.name, st ? st.color : null, shown.filter(p => p.menu_id===m.id), null, m.id, st ? st.name : 'istasyon seçilmedi'); }).join('')}
@@ -1492,6 +1493,7 @@ async function addProduct(){
     if(recError){ alert('Ürün eklendi ama reçete kaydedilemedi: ' + recError.message); }
   }
   NEW_PRODUCT_RECIPE_DRAFT = [];
+  closeSheet('prodSheet');
   renderSettingsView(document.getElementById('main'), session);
 }
 
