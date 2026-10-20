@@ -3051,8 +3051,8 @@ async function renderTenantIntegrations(session){
   const opt = (v, cur, l) => `<option value="${v}" ${cur===v?'selected':''}>${l}</option>`;
   const st = (ok, txt) => `<span class="ti-st ${ok?'ok':''}">${ok ? '● Bağlı' : '○ ' + txt}</span>`;
   const cards = [`<div class="ti-card">
-      <div class="ti-h"><span>📱</span><b>SMS</b>${st(sm.provider && sm.user && sm.has_pass, 'Peyktan hesabı kullanılıyor')}</div>
-      <p class="muted ti-d">Müşteri SMS'leri (rezervasyon, masa hazır, sipariş) <b>sizin</b> SMS hesabınızdan, kendi başlığınızla gider. Bağlamazsanız geçici olarak Peyktan hesabından gönderilir.</p>
+      <div class="ti-h"><span>📱</span><b>SMS</b>${st(sm.provider && sm.user && sm.has_pass, 'Bağlı değil — gönderilmez')}</div>
+      <p class="muted ti-d">Müşteri SMS'leri (rezervasyon, masa hazır, sipariş) <b>sizin</b> SMS hesabınızdan, kendi başlığınızla gider. Bağlamazsanız müşterilere SMS gönderilmez.</p>
       <label>Sağlayıcı</label><select id="ti_sms_provider">${opt('', sm.provider || '', 'Bağlı değil')}${opt('netgsm', sm.provider, 'NetGSM')}</select>
       <label>API kullanıcı adı (NetGSM kullanıcı kodu)</label><input id="ti_sms_user" value="${escapeAttr(sm.user || '')}" placeholder="850xxxxxxx">
       <label>API şifresi / anahtarı</label><input id="ti_sms_pass" type="password" placeholder="${sm.has_pass ? '•••••• (kayıtlı — değiştirmek için yazın)' : 'NetGSM API alt kullanıcı şifresi'}" autocomplete="new-password">
@@ -3060,8 +3060,8 @@ async function renderTenantIntegrations(session){
       <label>Gönderen başlığı</label><input id="ti_sms_header" value="${escapeAttr(sm.header || '')}" placeholder="ÖRN. LEZZETSOFR" maxlength="11">
       <button type="button" ${act('saveTenantInt', 'sms')}>💾 Kaydet</button>
     </div>`, `<div class="ti-card">
-      <div class="ti-h"><span>✉️</span><b>E-posta</b>${st(ml.provider && ml.key_tail && ml.from, 'Peyktan hesabı kullanılıyor')}</div>
-      <p class="muted ti-d">Fiş, fatura, rezervasyon ve bekleme listesi e-postaları kendi alan adınızdan (ör. info@restoraniniz.com) gider. Resend veya Brevo hesabınızdaki API anahtarını girin; alan adınızı orada doğrulamanız gerekir.</p>
+      <div class="ti-h"><span>✉️</span><b>E-posta</b>${st(ml.provider && ml.key_tail && ml.from, 'Bağlı değil — gönderilmez')}</div>
+      <p class="muted ti-d">Fiş, fatura, rezervasyon ve bekleme listesi e-postaları kendi alan adınızdan (ör. info@restoraniniz.com) gider. Resend veya Brevo hesabınızdaki API anahtarını girin; alan adınızı orada doğrulamanız gerekir. Bağlamazsanız müşterilere e-posta gönderilmez.</p>
       <label>Sağlayıcı</label><select id="ti_mail_provider">${opt('', ml.provider || '', 'Bağlı değil')}${opt('resend', ml.provider, 'Resend')}${opt('brevo', ml.provider, 'Brevo (Sendinblue)')}</select>
       <label>API anahtarı</label><input id="ti_mail_key" type="password" placeholder="${ml.key_tail ? '••••' + escapeAttr(ml.key_tail) + ' (kayıtlı — değiştirmek için yazın)' : 'API anahtarı'}" autocomplete="new-password">
       <label>Gönderen e-posta</label><input id="ti_mail_from" type="email" value="${escapeAttr(ml.from || '')}" placeholder="info@restoraniniz.com">

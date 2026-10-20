@@ -1,0 +1,1 @@
+-- _send_email_r / _send_sms: Peyktan platform yedeği kaldırıldı; müşteri e-posta/SMS'i yalnızca işletmenin kendi hesabıyla (OTP hariç)
