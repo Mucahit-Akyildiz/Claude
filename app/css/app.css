@@ -2859,3 +2859,12 @@ body.fsheet-lock{overflow:hidden;}
   .chat-modern.has-conv .chat-list-wrap{display:none;}
   .chat-modern:not(.has-conv) .chat-pane{display:none;}
 }
+/* Zorunlu gün sonu kapanışı */
+.dc-banner{display:flex;align-items:center;gap:10px;width:100%;max-width:1100px;margin:0 0 14px;padding:12px 16px;border-radius:14px;border:1px solid var(--danger,#ef4444);background:color-mix(in srgb,var(--danger,#ef4444) 10%,var(--panel));color:var(--text);text-align:left;font-size:14px;box-shadow:none;cursor:pointer;}
+.dc-banner span{flex:1;}
+.dc-banner.info{border-color:var(--amber,#f59e0b);background:color-mix(in srgb,var(--amber,#f59e0b) 10%,var(--panel));cursor:default;}
+.dc-go{white-space:nowrap;color:var(--danger,#ef4444);}
+.dc-gate{max-width:440px;margin:40px auto;text-align:center;padding:28px;border-radius:20px;border:1px solid var(--border);background:var(--panel);}
+.dc-gate b{display:block;font-size:18px;margin:6px 0;}
+.dc-gate button{width:auto;padding:10px 20px;margin-top:8px;}
+.dc-sum{display:flex;flex-wrap:wrap;gap:8px 16px;padding:10px 12px;border-radius:12px;background:var(--panel2);margin-bottom:12px;font-size:13.5px;}

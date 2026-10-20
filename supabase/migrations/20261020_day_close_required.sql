@@ -1,0 +1,4 @@
+-- Zorunlu gün sonu kapanışı: cash_counts.skipped, restaurants.day_close_reminded_on,
+-- _prev_business_day, get_day_close_status (önceki iş günü satış var + sayım yok => pending),
+-- skip_cash_count (gerekçeyle "kasa sayılamadı"), _cron_day_close_reminder (pg_cron day_close_reminder_15m,
+-- 23:00 sonrası push: mode day_close_reminder), list_cash_counts skipped döner. Canlıya uygulandı.

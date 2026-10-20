@@ -401,6 +401,26 @@ async function dispatchPurchaseOrder(supabase, poId) {
   });
 }
 
+// Gun sonu kasa sayimi yapilmadi: rapor yetkisi olanlara (ve Yoneticiye) aksam hatirlatmasi (bkz. _cron_day_close_reminder).
+async function dispatchDayCloseReminder(supabase, restaurantIds) {
+  let sent = 0;
+  for (const rid of restaurantIds) {
+    const [{ data: appUsers }, { data: roles }] = await Promise.all([
+      supabase.from('app_users').select('id, role_ids, is_active').eq('restaurant_id', rid),
+      supabase.from('roles').select('id, is_system, permissions').eq('restaurant_id', rid),
+    ]);
+    const ok = new Set((roles || []).filter((r) => r.is_system || (r.permissions || []).includes('reports')).map((r) => r.id));
+    const ids = (appUsers || []).filter((u) => u.is_active !== false && (u.role_ids || []).some((x) => ok.has(x))).map((u) => u.id);
+    const r = await sendToUsers(supabase, ids, {
+      title: '🧾 Gün sonu kapanışı bekleniyor',
+      body: 'Bugünün kasa sayımı henüz yapılmadı. Finansal Analiz > Gün Sonu ekranından kapatın.',
+      url: '/app/', view: 'reports', tag: 'day-close-' + rid,
+    });
+    sent += (r && r.sent) || 0;
+  }
+  return { sent };
+}
+
 // Uygulama ici mesaj: ozel mesaj aliciya, genel kanal mesaji gonderen haric
 // isletmedeki tum aktif personele push olarak gider.
 async function dispatchChatMessage(supabase, messageId) {
@@ -595,6 +615,12 @@ module.exports = async function handler(req, res) {
       const messageId = req.body && req.body.message_id;
       if (!messageId) { res.status(400).json({ error: 'message_id required' }); return; }
       res.status(200).json(await dispatchChatMessage(supabase, messageId));
+      return;
+    }
+
+    if (mode === 'day_close_reminder') {
+      const ids = Array.isArray(req.body && req.body.restaurant_ids) ? req.body.restaurant_ids.slice(0, 500) : [];
+      res.status(200).json(await dispatchDayCloseReminder(supabase, ids));
       return;
     }
 

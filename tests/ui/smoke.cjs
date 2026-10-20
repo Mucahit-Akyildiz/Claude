@@ -71,6 +71,11 @@ const assert = (c, m) => { if(!c) throw new Error(m); };
       await page.keyboard.press('Escape'); await page.waitForTimeout(200);
       assert(!(await page.$('#payModalBg')), 'Esc ödeme penceresini kapatmalı');
     });
+    await check(T('zorunlu gün sonu kapanışı penceresi'), async () => {
+      await page.evaluate(() => { APP.dayClose = { pending:true, can_close:true, date:'2026-10-19', bills:3, expected_cash:1200, at:Date.now() }; openPayModal('o1'); });
+      await page.waitForSelector('#dayCloseSheet.open #dcCounted', { timeout: 3000 });
+      await page.evaluate(() => { closeSheet('dayCloseSheet'); APP.dayClose = { pending:false, at:Date.now() }; });
+    });
     await check(T('Paket Servis + kurye'), async () => {
       await view('packages', '#packageGrid .table-cell');
       await page.evaluate(() => openCourierSheet('o3')); await page.waitForSelector('#courierSheet.open #crChips', { timeout: 5000 });

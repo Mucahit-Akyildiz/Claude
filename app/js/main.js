@@ -625,6 +625,7 @@ async function homeLoadSummary(session){
   const el = document.getElementById('homeNow'); if(!el) return;
   let d = null;
   try{ const r = await sb.rpc('get_home_summary', { p_token: session.session_token }); if(!r.error) d = r.data; }catch(e){}
+  if(typeof dayCloseCheck === 'function') await dayCloseCheck(session);
   if(!d || APP.view !== 'home' || !document.getElementById('homeNow')) return;
   const it = (APP.navBadges && APP.navBadges._items) || {};
   const ready = (it.payments || []).filter(x => x.kind==='ready').length;
@@ -644,7 +645,7 @@ async function homeLoadSummary(session){
     const pct = d.goal ? Math.min(100, Math.round(d.revenue_today / d.goal * 100)) : null;
     c('💰', money(d.revenue_today), 'Bugünkü ciro · ' + d.bills_today + ' hesap' + (pct != null ? ' · hedefin %' + pct + "'i" : ''), null);
   }
-  el.innerHTML = cards.length ? `<h3 class="hq-title">📍 Şu an</h3><div class="hm-stats">${cards.join('')}</div>` : '';
+  el.innerHTML = (typeof dayCloseBannerHtml === 'function' ? dayCloseBannerHtml() : '') + (cards.length ? `<h3 class="hq-title">📍 Şu an</h3><div class="hm-stats">${cards.join('')}</div>` : '');
 }
 function goQuickManage(tab){ APP.settingsTab = tab; if(tab==='products') APP.productsSubTab = 'products'; goToView('settings'); }
 function notReadyYet(){ alert('Bu ekran bir sonraki adımda eklenecek.'); }

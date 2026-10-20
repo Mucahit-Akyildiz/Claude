@@ -2,14 +2,79 @@
    paylaşılır ve dosyalar index.html'deki sırayla yüklenir (sıra önemli). */
 /* ================= ÖDEMELER ================= */
 async function openPaymentsView(){ APP.view='payments'; render(); }
+/* ---- Zorunlu gün sonu kapanışı: önceki iş gününün kasa sayımı yapılmadıysa rapor yetkilisi
+   (yönetici/kasa) Ödemeler'i açmadan önce sayımı kaydeder ya da "Kasa sayılamadı" gerekçesi yazar.
+   Diğer personel engellenmez, yalnızca uyarı bandı görür. ---- */
+async function dayCloseCheck(session, force){
+  const dc = APP.dayClose;
+  if(!force && dc && Date.now() - dc.at < 60000) return dc;
+  try{ const { data, error } = await sb.rpc('get_day_close_status', { p_token: session.session_token }); if(!error && data) APP.dayClose = Object.assign({ at: Date.now() }, data); }catch(e){}
+  return APP.dayClose || null;
+}
+function dayCloseBlocks(){ const d = APP.dayClose; return !!(d && d.pending && d.can_close); }
+function dayCloseDateTxt(d){ try{ return new Date(d + 'T12:00:00').toLocaleDateString('tr-TR', { day:'numeric', month:'long', weekday:'long' }); }catch(e){ return d; } }
+function openDayCloseSheet(){
+  const d = APP.dayClose; if(!d) return;
+  let host = document.getElementById('dayCloseHost');
+  if(!host){ host = document.createElement('div'); host.id = 'dayCloseHost'; document.body.appendChild(host); }
+  host.innerHTML = sheetHtml('dayCloseSheet', '🧾', 'Gün sonu kapanışı', `
+    <p class="muted" style="text-align:left;margin:0 0 12px;"><b>${escapeHtml(dayCloseDateTxt(d.date))}</b> gününün kasa sayımı yapılmadı. Ödeme almadan önce kapatın.</p>
+    <div class="dc-sum"><span>🧾 ${d.bills} hesap</span><span>💵 Beklenen nakit: <b>${money(d.expected_cash)}</b></span></div>
+    <div id="dcCountBox">
+      <label>Kasada sayılan nakit (₺)</label><input type="number" id="dcCounted" min="0" step="0.01" inputmode="decimal" placeholder="Örn. ${Math.round(Number(d.expected_cash)||0)}">
+      <label>Not (isteğe bağlı)</label><input id="dcNote" maxlength="200" placeholder="Açılış nakdi, fark açıklaması…">
+      <div class="fsheet-foot"><button type="button" class="ghost-btn" ${act('dayCloseToggleSkip', true)}>Kasa sayılamadı</button><button type="button" ${act('submitDayClose')}>✓ Kaydet ve kapat</button></div>
+    </div>
+    <div id="dcSkipBox" style="display:none;">
+      <label>Kasa neden sayılamadı? (zorunlu)</label><textarea id="dcReason" rows="3" maxlength="300" placeholder="Örn. kasa sorumlusu erken çıktı"></textarea>
+      <p class="muted" style="font-size:12px;text-align:left;margin:4px 0 0;">Bu kayıt Gün Sonu raporunda kırmızı uyarı olarak görünür.</p>
+      <div class="fsheet-foot"><button type="button" class="ghost-btn" ${act('dayCloseToggleSkip', false)}>← Geri</button><button type="button" ${act('submitDayCloseSkip')}>Gerekçeyle kapat</button></div>
+    </div>`, 'var(--c3)');
+  openSheet('dayCloseSheet');
+}
+function dayCloseToggleSkip(on){ const a = document.getElementById('dcCountBox'), b = document.getElementById('dcSkipBox'); if(a) a.style.display = on ? 'none' : ''; if(b) b.style.display = on ? '' : 'none'; }
+async function dayCloseDone(msg){
+  closeSheet('dayCloseSheet'); APP.dayClose = null; showToast(msg);
+  const s = getSession(); if(s) await dayCloseCheck(s, true);
+  render();
+}
+async function submitDayClose(){
+  const d = APP.dayClose, s = getSession(); if(!d || !s) return;
+  const raw = (document.getElementById('dcCounted')||{}).value;
+  if(raw === '' || raw == null){ alert('Lütfen kasada sayılan nakdi girin.'); return; }
+  const { error } = await withLoadingOverlay(sb.rpc('save_cash_count', { p_token: s.session_token, p_date: d.date, p_expected: Number(d.expected_cash)||0, p_counted: Number(raw), p_note: (document.getElementById('dcNote')||{}).value || null }));
+  if(error){ alert(error.message); return; }
+  dayCloseDone('Gün sonu kapandı ✓');
+}
+async function submitDayCloseSkip(){
+  const d = APP.dayClose, s = getSession(); if(!d || !s) return;
+  const reason = ((document.getElementById('dcReason')||{}).value || '').trim();
+  if(reason.length < 3){ alert('Lütfen kasanın neden sayılamadığını yazın.'); return; }
+  const { error } = await withLoadingOverlay(sb.rpc('skip_cash_count', { p_token: s.session_token, p_date: d.date, p_reason: reason }));
+  if(error){ alert(error.message); return; }
+  dayCloseDone('Gün sonu gerekçeyle kapatıldı');
+}
+function dayCloseBannerHtml(){
+  const d = APP.dayClose; if(!d || !d.pending) return '';
+  return d.can_close
+    ? `<button type="button" class="dc-banner" ${act('openDayCloseSheet')}>🧾 <span><b>${escapeHtml(dayCloseDateTxt(d.date))}</b> gün sonu kapanışı yapılmadı.</span><b class="dc-go">Şimdi kapat →</b></button>`
+    : `<div class="dc-banner info">🧾 <span>Dünün gün sonu kapanışı yapılmadı. Yönetici/kasa sorumlusu kapatmalı.</span></div>`;
+}
 async function renderPaymentsView(main, session){
+  // Gün sonu kapanmadıysa rapor yetkilisi önce kapatır.
+  await dayCloseCheck(session);
+  if(dayCloseBlocks()){
+    main.innerHTML = `<h1>Ödemeler</h1><div class="dc-gate"><div style="font-size:46px;">🧾</div><b>Önce gün sonunu kapatın</b><p class="muted">${escapeHtml(dayCloseDateTxt(APP.dayClose.date))} gününün kasa sayımı yapılmadı. Kapattıktan sonra ödeme alabilirsiniz.</p><button type="button" ${act('openDayCloseSheet')}>🧾 Gün sonunu kapat</button></div>`;
+    openDayCloseSheet();
+    return;
+  }
   const [cfgRes, liveRes] = await withLoadingOverlay(Promise.all([
     APP.config ? {data:APP.config} : sb.rpc('get_restaurant_config', { p_token: session.session_token }),
     sb.rpc('get_live_orders', { p_token: session.session_token })
   ]));
   if(!APP.config) APP.config = cfgRes.data;
   APP.liveOrders = liveRes.data || [];
-  main.innerHTML = `<h1>Ödemeler <button class="sbtn" style="width:auto;display:inline-flex;vertical-align:middle;margin-left:10px;" ${act('openTableScanModal')}>📷 Masa Tara</button></h1><div class="muted" id="payStatus"></div><div class="order-summary pay-summary" id="paySummary"></div><div class="pk-grid" id="payGrid"></div>`;
+  main.innerHTML = `<h1>Ödemeler <button class="sbtn" style="width:auto;display:inline-flex;vertical-align:middle;margin-left:10px;" ${act('openTableScanModal')}>📷 Masa Tara</button></h1>${dayCloseBannerHtml()}<div class="muted" id="payStatus"></div><div class="order-summary pay-summary" id="paySummary"></div><div class="pk-grid" id="payGrid"></div>`;
   renderPayGrid();
 }
 /* --- Hediye Kartları: yeni kart oluşturma (kod üretimi) ve mevcut
@@ -161,6 +226,7 @@ let PAY_SELECTED_QTYS = {};
    satır içi olay koduna gömülmesi tırnak-kaçışı XSS'ine açıktı, bkz. güvenlik notu),
    order bulunduktan sonra buradan türetiliyor. */
 function openPayModal(orderId){
+  if(dayCloseBlocks()){ openDayCloseSheet(); return; }
   const order = APP.liveOrders.find(o => o.order_id===orderId);
   if(!order) return;
   const tableName = order.kind==='takeaway'
