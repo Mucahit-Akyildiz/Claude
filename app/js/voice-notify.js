@@ -48,7 +48,7 @@ const VOICE_CLOUD_LIST = {
 let VOICE_LIST_ERR = '';
 const VOICE_GENDER_TR = { female: 'kadın', male: 'erkek', neutral: 'nötr' };
 function voiceLoadCloudList(){
-  fetch('/api/tts?voices=1').then(r => r.json()).then(j => {
+  fetch('/api/tts?voices=1&token=' + encodeURIComponent((getSession() || {}).session_token || '')).then(r => r.json()).then(j => {
     VOICE_LIST_ERR = j.error || '';
     const note = document.getElementById('voiceListErr'); if(note) note.textContent = VOICE_LIST_ERR ? 'Hesaptaki sesler alınamadı: ' + VOICE_LIST_ERR : '';
     const vs = (j.voices || []).filter(v => v.id && v.name);

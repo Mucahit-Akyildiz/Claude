@@ -1,0 +1,8 @@
+-- Güvenlik bulguları:
+-- 1) tenant_integrations: sms_pass, mail_api_key, pay_api_key, pay_secret artık _enc() ile şifreli; okurken _dec().
+--    api/order-pay.js anahtarları yalnızca service_role'e açık _tenant_pay_creds(p_rest) ile alır. Mevcut kayıtlar şifrelendi.
+-- 2) _finalize_online_payment: eksik ödemede raise yerine amount_mismatch kaydı + return null.
+-- 3) submit_public_reservation / submit_public_order / start_public_order_payment: işletme başına saatlik + IP başına (_client_ip) sınır.
+-- 4) _tts_quota(p_token): oturum + işletme başına günde 300 cümle.
+-- 5) submit_public_review: Google linki puandan bağımsız döner.
+-- 7) _order_items_set_added_by, _trim_customer_name, _urlenc, _client_ip: search_path sabitlendi.

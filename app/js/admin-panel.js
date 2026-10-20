@@ -1253,7 +1253,7 @@ function loadQrLib(){
   if(QRCODE_LOADING) return QRCODE_LOADING;
   QRCODE_LOADING = new Promise((res, rej) => {
     const sc = document.createElement('script');
-    sc.src = 'https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js';
+    sc.src = '/assets/vendor/qrcode.js';
     sc.integrity = 'sha384-8FWZA6BGMXhsfO+BLtrJK0We6gg5o1JyO8xQm6peWDEUs17ACA5ziE/NIAkl9z2k';
     sc.crossOrigin = 'anonymous'; sc.onload = res; sc.onerror = rej;
     document.head.appendChild(sc);

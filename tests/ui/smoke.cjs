@@ -39,7 +39,7 @@ const assert = (c, m) => { if(!c) throw new Error(m); };
     const ctx = await browser.newContext({ viewport: { width: w, height: h } });
     // Playwright'ta son eklenen yönlendirme önce çalışır: önce dış istekleri kes, sonra taklit Supabase.
     await ctx.route(/^https?:\/\/(?!127\.0\.0\.1)/, r => r.abort());
-    await ctx.route(/^https:\/\/cdn\.jsdelivr\.net\/npm\/@supabase\//, r => r.fulfill({ contentType: 'application/javascript', body: FAKE }));
+    await ctx.route(/\/assets\/vendor\/supabase\.js$/, r => r.fulfill({ contentType: 'application/javascript', body: FAKE }));
     const page = await ctx.newPage();
     const errors = [];
     page.on('pageerror', e => errors.push(e.message));
@@ -137,7 +137,7 @@ const assert = (c, m) => { if(!c) throw new Error(m); };
       // Yanıtlar sayfaya veri olarak verilir (kod metni birleştirilmez); taklit betik sabittir.
       await ctx.addInitScript(data => { window.__PUBLIC_RPC = data; }, rpc);
       await ctx.route(/^https?:\/\/(?!127\.0\.0\.1)/, r => r.abort());
-      await ctx.route(/^https:\/\/cdn\.jsdelivr\.net\//, r => r.fulfill({ contentType: 'application/javascript', body: PUBLIC_FAKE }));
+      await ctx.route(/\/assets\/vendor\/supabase\.js$/, r => r.fulfill({ contentType: 'application/javascript', body: PUBLIC_FAKE }));
       const page = await ctx.newPage(); const errs = []; page.on('pageerror', e => errs.push(e.message));
       await page.goto(base + pg); await page.waitForSelector(sel, { timeout: 8000 });
       assert(!errs.length, errs.join(' | ')); await ctx.close();

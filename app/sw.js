@@ -2,14 +2,14 @@
 // Önbellek stratejisi "önce ağ": internet varken her zaman sunucudaki güncel dosya
 // kullanılır (POS hep canlı kalır), önbellek yalnızca bağlantı yokken devreye girer.
 // Veri (Supabase API) önbelleğe ALINMAZ; çevrimdışı veri offline.js'te yönetilir.
-const SHELL_CACHE = 'peyktan-shell-v42';
+const SHELL_CACHE = 'peyktan-shell-v43';
 const SHELL = [
   '/app/',
   '/app/manifest.webmanifest',
   '/app/css/app.css',
   '/assets/images/logo.webp',
   '/app/js/theme-init.js',
-  'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js',
+  '/assets/vendor/supabase.js',
   '/assets/js/act.js',
   '/app/js/api.js',
   '/app/js/state.js',
@@ -51,7 +51,7 @@ self.addEventListener('activate', (event) => {
 });
 function _shellRequest(url) {
   if (url.origin === self.location.origin) return url.pathname.startsWith('/app/') || url.pathname.startsWith('/assets/');
-  return url.hostname === 'cdn.jsdelivr.net';
+  return false;
 }
 self.addEventListener('fetch', (event) => {
   const req = event.request;

@@ -34,6 +34,9 @@ module.exports = async function handler(req, res) {
   // Anahtarda "Voices: Read" izni yoksa boş döner, istemci sabit listeyi kullanır.
   if (req.method === 'GET' && eleven && req.query && req.query.voices) {
     try {
+      const sb = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
+      const { error: vErr } = req.query.token ? await sb.rpc('_session_check', { p_token: String(req.query.token) }) : { error: true };
+      if (vErr) { res.status(403).json({ voices: [], error: 'Yetkisiz' }); return; }
       const r = await fetch('https://api.elevenlabs.io/v1/voices', { headers: { 'xi-api-key': eleven } });
       if (!r.ok) { const t = await r.text(); res.status(200).json({ voices: [], error: elevenErr(r.status, t) }); return; }
       const j = await r.json();
@@ -53,8 +56,9 @@ module.exports = async function handler(req, res) {
     const rate = Math.min(1.5, Math.max(0.7, Number(b.rate) || 1));
     if (!text || !b.token) { res.status(400).json({ error: 'Eksik bilgi' }); return; }
     const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
-    const { error: sErr } = await supabase.rpc('_session_check', { p_token: b.token });
-    if (sErr) { res.status(403).json({ error: 'Yetkisiz' }); return; }
+    // Oturum + işletme başına günlük kota (ElevenLabs kredisini korur).
+    const { error: sErr } = await supabase.rpc('_tts_quota', { p_token: b.token });
+    if (sErr) { const quota = /Çok fazla/.test(sErr.message || ''); res.status(quota ? 429 : 403).json({ error: quota ? 'Günlük sesli bildirim kotası doldu' : 'Yetkisiz' }); return; }
     if (eleven) {
       // Hazır sesler (ortam değişkeniyle değiştirilebilir): kadın / erkek.
       const vid = ELEVEN_VOICES[b.voice] || (/^[A-Za-z0-9]{16,32}$/.test(String(b.voice || '')) ? b.voice : null) || (b.voice === 'ahmet' ? (process.env.ELEVENLABS_VOICE_MALE || ELEVEN_VOICES.adam) : (process.env.ELEVENLABS_VOICE_FEMALE || ELEVEN_VOICES.sarah));
