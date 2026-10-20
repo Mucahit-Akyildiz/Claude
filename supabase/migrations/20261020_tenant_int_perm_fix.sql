@@ -1,0 +1,1 @@
+-- get_tenant_integrations/save_tenant_integration: izin anahtarı settings_integrations -> settings_flags (paketlerde olmayan anahtar PAKET_OZELLIK_YOK veriyordu)
