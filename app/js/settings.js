@@ -3054,11 +3054,13 @@ const TI_SMS = {
   netgsm: { ic:'🟧', d:'En yaygın', n:'NetGSM', u:'Kullanıcı kodu (850xxxxxxx)', p:'API alt kullanıcı şifresi', h:'NetGSM panelinde <b>Abonelik İşlemleri → API İşlemleri</b>\'nden API alt kullanıcısı oluşturun.' },
   iletimerkezi: { ic:'🟦', d:'Kurumsal SMS', n:'İleti Merkezi', u:'Public key (API anahtarı)', p:'Secret key (gizli anahtar)', h:'İleti Merkezi panelinde <b>Ayarlar → Güvenlik → API Anahtarları</b>\'ndan alın.' },
   verimor: { ic:'🟩', d:'Bulut santral + SMS', n:'Verimor', u:'Kullanıcı adı (908501234567)', p:'API şifresi', h:'Verimor OİM panelinde <b>SMS → API Ayarları</b>\'ndan API şifresi belirleyin.' },
+  other: { ic:'➕', d:'Başka firma (HTTP API)', n:'Diğer', u:'Kullanıcı adı (isteğe bağlı)', p:'Şifre / API anahtarı (isteğe bağlı)', h:'Firmanızın "HTTP GET ile SMS gönder" adresini yazın; <b>{phone}</b>, <b>{message}</b> zorunlu, <b>{user}</b> <b>{pass}</b> <b>{header}</b> isteğe bağlı. Ör: https://api.firma.com/send?user={user}&pass={pass}&to={phone}&text={message}&from={header}' },
   vatansms: { ic:'🟥', d:'Uygun fiyatlı', n:'VatanSMS', u:'API ID', p:'API Key', h:'VatanSMS panelinde <b>Hesabım → API Bilgileri</b> sayfasında bulunur.' },
 };
 function tiSmsProv(v){ const c = TI_SMS[v] || TI_SMS.netgsm; const set = (id, h) => { const e = document.getElementById(id); if(e) e.innerHTML = h; };
   set('ti_sms_ul', c.u); set('ti_sms_pl', c.p); set('ti_sms_h', 'ℹ️ ' + c.h); }
-function tiSmsPick(id, v){ ixPick(id, v); tiSmsProv(v); }
+function tiSmsPick(id, v){ ixPick(id, v); tiSmsProv(v); const w = document.getElementById('ti_sms_urlw'); if(w) w.style.display = v === 'other' ? '' : 'none'; }
+function tiMailPick(id, v){ ixPick(id, v); const o = v === 'other'; const w = document.getElementById('ti_mail_otherw'), f = document.getElementById('ti_mail_fields'); if(w) w.style.display = o ? '' : 'none'; if(f) f.style.display = o ? 'none' : ''; }
 async function renderTenantIntegrations(session){
   const bs = document.getElementById('tiSms'), bm = document.getElementById('tiMail'), bp = document.getElementById('tiPay'); if(!bs && !bm && !bp) return;
   const { data, error } = await sb.rpc('get_tenant_integrations', { p_token: session.session_token });
@@ -3068,30 +3070,35 @@ async function renderTenantIntegrations(session){
   const st = (ok, txt) => `<span class="ti-st ${ok?'ok':''}">${ok ? '● Bağlı' : '○ ' + txt}</span>`;
   const tiles = (id, cur, list, fn) => `<input type="hidden" id="${id}" value="${escapeAttr(cur||'')}"><div class="ix-tiles">${list.map(([v, ic, n, d]) =>
       `<button type="button" class="ix-tile ${cur===v?'on':''}" ${act(fn, id, v)} data-v="${v}"><span>${ic}</span><b>${n}</b><small>${d}</small></button>`).join('')}</div>`;
-  const smsOk = !!(sm.provider && sm.user && sm.has_pass), mailOk = !!(ml.provider && ml.key_tail && ml.from);
+  const mailWait = ml.provider === 'other';
+  const smsOk = !!(sm.provider === 'other' ? sm.url : (sm.provider && sm.user && sm.has_pass)), mailOk = !!(ml.provider && ml.key_tail && ml.from);
   const sc = TI_SMS[sm.provider] || TI_SMS.netgsm;
   const cards = [`<div class="ix-sec"><div class="ix-st">1 · SMS firmanızı seçin <span class="ti-st ${smsOk?'ok':''}">${smsOk?'● Bağlı':'○ Bağlı değil — gönderilmez'}</span></div>
-      ${tiles('ti_sms_provider', sm.provider, [['', '🚫', 'Bağlı değil', 'SMS gönderilmez'], ...Object.keys(TI_SMS).map(k => [k, TI_SMS[k].ic, TI_SMS[k].n, TI_SMS[k].d])], 'tiSmsPick')}</div>
+      ${tiles('ti_sms_provider', sm.provider, [['', '🚫', 'Bağlı değil', 'SMS gönderilmez'], ...Object.keys(TI_SMS).sort((a, b) => (a==='other') - (b==='other')).map(k => [k, TI_SMS[k].ic, TI_SMS[k].n, TI_SMS[k].d])], 'tiSmsPick')}</div>
     <div class="ix-sec"><div class="ix-st">2 · Hesap bilgileri</div>
       <div class="ix-form">
         <div><label id="ti_sms_ul">${sc.u}</label><input id="ti_sms_user" value="${escapeAttr(sm.user || '')}" autocomplete="off"></div>
         <div><label id="ti_sms_pl">${sc.p}</label><input id="ti_sms_pass" type="password" placeholder="${sm.has_pass ? '•••••••• kayıtlı — değiştirmek için yazın' : ''}" autocomplete="new-password"></div>
         <div><label>Gönderen başlığı</label><input id="ti_sms_header" value="${escapeAttr(sm.header || '')}" placeholder="ÖRN. LEZZETSOFR" maxlength="11"></div>
+        <div id="ti_sms_urlw" style="grid-column:1/-1;${sm.provider==='other'?'':'display:none;'}"><label>🌐 API adresi</label><input id="ti_sms_url" value="${escapeAttr(sm.url || '')}" placeholder="https://api.firma.com/send?to={phone}&text={message}"></div>
       </div></div>
     <p class="ix-note" id="ti_sms_h">ℹ️ ${sc.h}</p>
     <button class="ix-save" type="button" ${act('saveTenantInt', 'sms')}>${ICON_SAVE}<span>Kaydet</span></button>`,
   `<div class="oo-hero ${mailOk?'on':''}"><div class="oo-hero-ic">✉️</div>
       <div class="oo-hero-t"><b>Kendi alan adınızdan e-posta</b><small>Fiş, fatura, rezervasyon ve bekleme listesi e-postaları ör. info@restoraniniz.com adresinden gider. Bağlamazsanız müşterilere e-posta gönderilmez.</small></div>
-      <span class="ti-st ${mailOk?'ok':''}">${mailOk?'● Bağlı':'○ Bağlı değil'}</span></div>
+      <span class="ti-st ${mailOk&&!mailWait?'ok':''}">${mailWait?'⏳ Ekleniyor':mailOk?'● Bağlı':'○ Bağlı değil'}</span></div>
     <div class="ix-sec"><div class="ix-st">1 · E-posta servisinizi seçin</div>
-      ${tiles('ti_mail_provider', ml.provider, [['', '🚫', 'Bağlı değil', 'E-posta gönderilmez'], ['resend', '⚡', 'Resend', 'Geliştirici dostu, hızlı'], ['brevo', '💙', 'Brevo', 'Sendinblue, ücretsiz kota']], 'ixPick')}</div>
-    <div class="ix-sec"><div class="ix-st">2 · Gönderim bilgileri</div>
+      ${tiles('ti_mail_provider', ml.provider, [['', '🚫', 'Bağlı değil', 'E-posta gönderilmez'], ['resend', '⚡', 'Resend', 'Geliştirici dostu, hızlı'], ['brevo', '💙', 'Brevo', 'Sendinblue, ücretsiz kota'], ['sendgrid', '🔷', 'SendGrid', 'Twilio SendGrid'], ['postmark', '📮', 'Postmark', 'Yüksek teslim oranı'], ['other', '➕', 'Diğer', 'Başka firma']], 'tiMailPick')}</div>
+    <div class="ix-sec" id="ti_mail_otherw" style="${ml.provider==='other'?'':'display:none;'}"><div class="ix-st">2 · Hangi firmayı kullanıyorsunuz?</div>
+      <div class="ix-form"><div><label>Firma adı</label><input id="ti_mail_other" value="${escapeAttr(ml.other || '')}" placeholder="ör. Mailgun, Amazon SES, Yandex"></div></div>
+      <p class="ix-note">⏳ Kaydedin, firmanızı listeye ekleyelim. Eklenene kadar müşterilere e-posta gönderilmez.</p></div>
+    <div class="ix-sec" id="ti_mail_fields" style="${ml.provider==='other'?'display:none;':''}"><div class="ix-st">2 · Gönderim bilgileri</div>
       <div class="ix-form">
         <div><label>🔑 API anahtarı</label><input id="ti_mail_key" type="password" placeholder="${ml.key_tail ? '••••' + escapeAttr(ml.key_tail) + ' kayıtlı — değiştirmek için yazın' : 'API anahtarı'}" autocomplete="new-password"></div>
         <div><label>Gönderen e-posta</label><input id="ti_mail_from" type="email" value="${escapeAttr(ml.from || '')}" placeholder="info@restoraniniz.com"></div>
         <div><label>Gönderen adı</label><input id="ti_mail_from_name" value="${escapeAttr(ml.from_name || '')}" placeholder="Restoran adınız"></div>
       </div></div>
-    <p class="ix-note">ℹ️ Alan adınızı seçtiğiniz serviste doğrulamanız gerekir (DNS kayıtları). Resend: <b>Domains</b>, Brevo: <b>Senders & Domains</b> sayfası.</p>
+    <p class="ix-note">ℹ️ Alan adınızı seçtiğiniz serviste doğrulamanız gerekir (DNS kayıtları). Resend: <b>Domains</b>, Brevo: <b>Senders & Domains</b>, SendGrid: <b>Sender Authentication</b>, Postmark: <b>Sender Signatures</b>.</p>
     <button class="ix-save" type="button" ${act('saveTenantInt', 'mail')}>${ICON_SAVE}<span>Kaydet</span></button>`, `<div class="ti-card">
       <div class="ti-h"><span>💳</span><b>Online ödeme</b>${st((py.mode||'off')!=='off', 'Kapıda ödeme')}</div>
       <p class="muted ti-d">Açarsanız online sipariş sayfasında müşteri kartla ödeyebilir; para doğrudan <b>sizin</b> sanal POS hesabınıza geçer. Kapalıyken müşteri kapıda öder.</p>
@@ -3118,8 +3125,8 @@ function tiPayToggle(mode){
 async function saveTenantInt(kind){
   const v = (id) => ((document.getElementById(id) || {}).value || '').trim();
   const c = (id) => !!(document.getElementById(id) || {}).checked;
-  const data = kind==='sms' ? { provider: v('ti_sms_provider'), user: v('ti_sms_user'), pass: v('ti_sms_pass'), header: v('ti_sms_header') }
-    : kind==='mail' ? { provider: v('ti_mail_provider'), key: v('ti_mail_key'), from: v('ti_mail_from'), from_name: v('ti_mail_from_name') }
+  const data = kind==='sms' ? { provider: v('ti_sms_provider'), user: v('ti_sms_user'), pass: v('ti_sms_pass'), header: v('ti_sms_header'), url: v('ti_sms_url') }
+    : kind==='mail' ? { provider: v('ti_mail_provider'), key: v('ti_mail_key'), from: v('ti_mail_from'), from_name: v('ti_mail_from_name'), other: v('ti_mail_other') }
     : { mode: (document.querySelector('input[name=ti_pay_mode]:checked') || {}).value || 'off', provider: v('ti_pay_provider'), key: v('ti_pay_key'), secret: v('ti_pay_secret'), sandbox: c('ti_pay_sandbox') };
   const s = getSession();
   const { error } = await withLoadingOverlay(sb.rpc('save_tenant_integration', { p_token: s.session_token, p_kind: kind, p_data: data }));
