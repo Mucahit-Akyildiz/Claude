@@ -69,7 +69,7 @@ async function renderAllowancesSettings(el){
         </div>
       </div>
     </div>
-    <p class="ix-note">ℹ️ Kişi seçildiğinde etiketi otomatik işaretlenir. Kullanıcı limiti, siparişi alan kullanıcı kendi etiketini seçtiğinde kendi limitinden düşer. ${flags.length ? '' : '<b>Önce Ayarlar → Sipariş Etiketleri\'nden bir etiket ekleyin.</b>'}</p>
+    <p class="ix-note">ℹ️ Kişi seçildiğinde etiketi otomatik işaretlenir. Sipariş penceresinde kişi ya da kullanıcı adıyla aranıp seçilebilir; böylece bir kullanıcı başkası adına da sipariş girebilir. Kimse seçilmezse, siparişi alan kullanıcı kendi etiketini seçtiğinde kendi limitinden düşer. ${flags.length ? '' : '<b>Önce Ayarlar → Sipariş Etiketleri\'nden bir etiket ekleyin.</b>'}</p>
   </div>`;
 }
 async function saveAllowanceForm(kind, id){
@@ -142,17 +142,16 @@ function refreshOrderAllowancePick(){
   loadAllowances().then(() => document.querySelectorAll('.al-pick-wrap').forEach(w => { w.innerHTML = orderAllowanceInner(w.dataset.pid); }));
 }
 function orderAllowanceInner(pseudoId){
-  const persons = (APP.allowances || []).filter(a => a.kind === 'person' && a.is_active);
-  if(!persons.length) return '';
+  if(!(APP.allowances || []).some(a => a.is_active)) return '';
   APP.orderAllowance = APP.orderAllowance || {};
   if(!(pseudoId in APP.orderAllowance)){ const ex = liveOrderForTable(pseudoId); APP.orderAllowance[pseudoId] = (ex && ex.allowance_id) || null; }
   const cur = allowanceById(APP.orderAllowance[pseudoId]);
   const pid = escapeAttr(String(pseudoId));
   return `<div class="of-box al-pick">
-    <div class="of-head"><span>🎓 Limitli kişi</span><small>Ad (2 harf) veya telefonla arayın</small></div>
-    ${cur ? `<div class="al-sel"><span class="al-sel-ic">🎓</span><div><b>${escapeHtml(cur.name)}</b><small>${money(cur.remaining)} kaldı${cur.phone ? ' · ' + escapeHtml(maskPhoneAl(cur.phone)) : ''}${cur.flag_label ? ' · 🏷️ ' + escapeHtml(cur.flag_label) : ''}</small></div>
+    <div class="of-head"><span>💳 Limitli kişi / kullanıcı</span><small>Ad (2 harf) veya telefonla arayın</small></div>
+    ${cur ? `<div class="al-sel"><span class="al-sel-ic">${cur.kind === 'user' ? '👔' : '🎓'}</span><div><b>${escapeHtml(cur.name)}</b><small>${money(cur.remaining)} kaldı${cur.phone ? ' · ' + escapeHtml(maskPhoneAl(cur.phone)) : ''}${cur.flag_label ? ' · 🏷️ ' + escapeHtml(cur.flag_label) : ''}</small></div>
       <button type="button" class="al-x" title="Kaldır" ${act('pickOrderAllowance', pseudoId, cur.id)}>✕</button></div>`
-    : `<input class="al-search" type="search" placeholder="🔍 Kişi ara: ad veya telefon" autocomplete="off" data-pid="${pid}" ${actOn('input','alSearch',[pseudoId, '$value'])}>
+    : `<input class="al-search" type="search" placeholder="🔍 Kişi veya kullanıcı ara: ad / telefon" autocomplete="off" data-pid="${pid}" ${actOn('input','alSearch',[pseudoId, '$value'])}>
       <div class="al-results" id="alRes_${pid}"></div>`}
   </div>`;
 }
@@ -164,8 +163,8 @@ function alSearch(pseudoId, q){
   const byPhone = digits.length >= 3 && digits.length === t.replace(/[\s()+-]/g, '').length;
   if(!byPhone && t.length < 2){ box.innerHTML = ''; return; }
   const k = t.toLocaleLowerCase('tr');
-  const hits = (APP.allowances || []).filter(a => a.kind === 'person' && a.is_active && (byPhone ? String(a.phone || '').replace(/\D/g, '').includes(digits) : String(a.name || '').toLocaleLowerCase('tr').includes(k))).slice(0, 8);
-  box.innerHTML = hits.length ? hits.map(a => `<button type="button" class="al-hit" ${act('pickOrderAllowance', pseudoId, a.id)}><b>${escapeHtml(a.name)}</b><small>${a.phone ? escapeHtml(maskPhoneAl(a.phone)) + ' · ' : ''}${money(a.remaining)} kaldı</small></button>`).join('')
+  const hits = (APP.allowances || []).filter(a => a.is_active && (byPhone ? String(a.phone || '').replace(/\D/g, '').includes(digits) : String(a.name || '').toLocaleLowerCase('tr').includes(k))).slice(0, 8);
+  box.innerHTML = hits.length ? hits.map(a => `<button type="button" class="al-hit" ${act('pickOrderAllowance', pseudoId, a.id)}><b>${a.kind === 'user' ? '👔' : '🎓'} ${escapeHtml(a.name)}</b><small>${a.phone ? escapeHtml(maskPhoneAl(a.phone)) + ' · ' : ''}${money(a.remaining)} kaldı</small></button>`).join('')
     : '<p class="muted al-empty">Eşleşen kişi yok</p>';
 }
 function pickOrderAllowance(pseudoId, id){
