@@ -2941,3 +2941,46 @@ body.fsheet-lock{overflow:hidden;}
 @keyframes dcxUp{from{opacity:0;transform:translateY(10px);}to{opacity:1;transform:none;}}
 @keyframes dcxPulse{0%,100%{opacity:.85;}50%{opacity:.5;}}
 @media (prefers-reduced-motion: reduce){.dcx-kpi,.dcx-day,.dcx-colv i,.dcx-diff,.dcx-ic,.dcx-row{animation:none !important;}}
+/* Gün Sonu: Günü Kapat düzeni */
+.zc-wrap{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:20px;align-items:start;}
+.zc-main{display:flex;flex-direction:column;gap:12px;}
+.zc-head{display:flex;align-items:center;justify-content:space-between;gap:10px;}
+.zc-head h3{margin:0;font-size:19px;} .zc-head small{color:var(--muted);}
+.zc-hist{width:auto;padding:7px 12px;font-size:12.5px;}
+.zc-status{display:flex;align-items:center;gap:14px;padding:16px 18px;border-radius:18px;border:1px solid var(--border);animation:dcxUp .4s ease backwards;}
+.zc-status b{font-size:16px;display:block;} .zc-status small{color:var(--muted);font-size:12.5px;}
+.zc-status>div:nth-child(2){flex:1;min-width:0;}
+.zc-big{font-size:30px;}
+.zc-status.ok{background:color-mix(in srgb,var(--ok,#22c55e) 12%,var(--panel));border-color:color-mix(in srgb,var(--ok,#22c55e) 45%,transparent);}
+.zc-status.wait{background:color-mix(in srgb,var(--accent) 10%,var(--panel));border-color:color-mix(in srgb,var(--accent) 40%,transparent);}
+.zc-status.skip{background:color-mix(in srgb,var(--amber,#f59e0b) 12%,var(--panel));border-color:color-mix(in srgb,var(--amber,#f59e0b) 45%,transparent);}
+.zc-res{text-align:right;} .zc-res b{font-size:20px;} .zc-res.neg b{color:var(--danger,#ef4444);} .zc-res.pos b{color:var(--ok,#16a34a);} .zc-res.ok b{color:var(--ok,#16a34a);}
+.zc-step{display:flex;align-items:center;gap:12px;margin-top:8px;}
+.zc-n{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;font-weight:800;background:var(--accent);color:#fff;flex-shrink:0;}
+.zc-step b{display:block;font-size:14.5px;} .zc-step small{color:var(--muted);font-size:12.5px;}
+.zc-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;}
+.zc-stat{padding:12px 14px;border-radius:14px;border:1px solid var(--border);border-top:3px solid var(--sc);background:var(--panel);animation:dcxUp .4s ease backwards;}
+.zc-stat span{font-size:18px;} .zc-stat small{display:block;color:var(--muted);font-size:12px;margin-top:2px;} .zc-stat b{display:block;font-size:18px;margin-top:2px;}
+.zc-count{display:flex;align-items:stretch;gap:12px;}
+.zc-exp,.zc-in{flex:1;padding:14px 16px;border-radius:16px;border:1px solid var(--border);background:var(--panel);margin:0;}
+.zc-exp small,.zc-in small{display:block;color:var(--muted);font-size:12.5px;font-weight:600;}
+.zc-exp b{display:block;font-size:26px;margin-top:6px;}
+.zc-in{border:2px solid var(--accent);background:color-mix(in srgb,var(--accent) 6%,var(--panel));}
+.zc-in span{display:flex;align-items:center;gap:6px;margin-top:4px;}
+.zc-in input{flex:1;margin:0;padding:6px 0;border:0;background:transparent;font-size:26px;font-weight:800;box-shadow:none;outline:none;min-width:0;}
+.zc-in em{font-style:normal;font-size:22px;font-weight:800;color:var(--muted);}
+.zc-vs{align-self:center;font-size:22px;color:var(--muted);}
+.zc-msg{padding:12px 14px;border-radius:14px;background:var(--panel2);font-size:13.5px;color:var(--muted);transition:background .2s,color .2s;}
+.zc-msg.ok{background:color-mix(in srgb,var(--ok,#22c55e) 14%,transparent);color:var(--text);}
+.zc-msg.neg{background:color-mix(in srgb,var(--danger,#ef4444) 13%,transparent);color:var(--text);}
+.zc-msg.pos{background:color-mix(in srgb,var(--amber,#f59e0b) 15%,transparent);color:var(--text);}
+.zc-note{margin:0;}
+.zc-close{padding:15px;font-size:16px;font-weight:800;border-radius:16px;background:linear-gradient(135deg,var(--accent),#6d28d9);color:#fff;border:0;}
+.zc-close:hover{filter:brightness(1.08);transform:translateY(-1px);}
+.zc-more summary{cursor:pointer;color:var(--muted);font-size:13px;margin:6px 0;}
+.zc-side{position:sticky;top:12px;display:flex;flex-direction:column;gap:10px;}
+.zc-side-t{font-weight:800;font-size:13.5px;color:var(--muted);}
+.zc-side .an-z{max-width:none;margin:0;font-size:12px;}
+.zc-acts{display:flex;gap:8px;} .zc-acts button{flex:1;width:auto;padding:9px 8px;font-size:13px;}
+@media (max-width:1100px){.zc-wrap{grid-template-columns:1fr;}.zc-side{position:static;}}
+@media (max-width:640px){.zc-stats{grid-template-columns:1fr 1fr;}.zc-count{flex-direction:column;}.zc-vs{transform:rotate(90deg);}}
