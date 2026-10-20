@@ -8410,7 +8410,7 @@ begin
     if coalesce(trim(p_data->>'name'),'') = '' then raise exception 'Kişi adını girin'; end if;
   elsif v_user is null or not exists(select 1 from app_users where id = v_user and restaurant_id = s.restaurant_id) then raise exception 'Kullanıcı seçin';
   end if;
-  if v_flag is not null and not exists(select 1 from order_flags where restaurant_id = s.restaurant_id and label = v_flag) then raise exception 'Sipariş etiketi bulunamadı'; end if;
+  if v_flag is not null and not exists(select 1 from order_flag_defs where restaurant_id = s.restaurant_id and label = v_flag) then raise exception 'Sipariş etiketi bulunamadı'; end if;
   if v_id is null then
     if v_kind = 'user' and exists(select 1 from allowances where restaurant_id = s.restaurant_id and user_id = v_user) then raise exception 'Bu kullanıcının zaten bir limiti var'; end if;
     insert into allowances(restaurant_id, kind, name, user_id, flag_label, period, limit_amount, is_active)
