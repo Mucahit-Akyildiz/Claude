@@ -1704,7 +1704,16 @@ begin
     perform net.http_post(url := 'https://api.brevo.com/v3/smtp/email',
       headers := jsonb_build_object('api-key', t.mail_api_key, 'Content-Type','application/json', 'accept','application/json'),
       body := jsonb_build_object('sender', jsonb_build_object('name', v_name, 'email', t.mail_from), 'to', jsonb_build_array(jsonb_build_object('email', p_to)), 'subject', p_subject, 'htmlContent', p_html));
-  else return _send_email(p_to, p_subject, p_html); end if;
+  elsif t.mail_provider = 'sendgrid' then
+    perform net.http_post(url := 'https://api.sendgrid.com/v3/mail/send',
+      headers := jsonb_build_object('Authorization','Bearer '||t.mail_api_key,'Content-Type','application/json'),
+      body := jsonb_build_object('personalizations', jsonb_build_array(jsonb_build_object('to', jsonb_build_array(jsonb_build_object('email', p_to)))),
+        'from', jsonb_build_object('email', t.mail_from, 'name', v_name), 'subject', p_subject, 'content', jsonb_build_array(jsonb_build_object('type','text/html','value', p_html))));
+  elsif t.mail_provider = 'postmark' then
+    perform net.http_post(url := 'https://api.postmarkapp.com/email',
+      headers := jsonb_build_object('X-Postmark-Server-Token', t.mail_api_key, 'Content-Type','application/json', 'Accept','application/json'),
+      body := jsonb_build_object('From', v_name || ' <' || t.mail_from || '>', 'To', p_to, 'Subject', p_subject, 'HtmlBody', p_html, 'MessageStream', 'outbound'));
+  else return false; end if;
   return true;
 end $$;
 
@@ -1790,7 +1799,7 @@ CREATE FUNCTION public._send_sms(p_restaurant_id uuid, p_phone text, p_message t
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public', 'extensions', 'pg_temp'
     AS $$
-declare v_phone text := _normalize_tr_phone(p_phone); v_provider text; v_user text; v_pass text; v_header text; v_id bigint;
+declare v_phone text := _normalize_tr_phone(p_phone); v_provider text; v_user text; v_pass text; v_header text; v_id bigint; v_url text;
 begin
   if v_phone is null or coalesce(trim(p_message),'') = '' then return; end if;
   if p_purpose <> 'otp' and not coalesce((select sms_enabled from restaurants where id = p_restaurant_id), false) then return; end if;
@@ -1808,13 +1817,19 @@ begin
   -- İşletmenin kendi SMS hesabı varsa (Ayarlar > Entegrasyonlar) onunla gönderilir; kayıt/şifre kodları Peyktan hesabından. Diğer SMSler yalnızca işletmenin kendi hesabıyla gider.
   if p_purpose <> 'otp' and p_restaurant_id is not null then
     v_provider := null; v_user := null; v_pass := null; v_header := null;
-    select t.sms_provider, t.sms_user, t.sms_pass, t.sms_header
-      into v_provider, v_user, v_pass, v_header
-      from tenant_integrations t where t.restaurant_id = p_restaurant_id and t.sms_provider is not null and t.sms_user is not null and t.sms_pass is not null;
+    select t.sms_provider, t.sms_user, t.sms_pass, t.sms_header, t.sms_url
+      into v_provider, v_user, v_pass, v_header, v_url
+      from tenant_integrations t where t.restaurant_id = p_restaurant_id and t.sms_provider is not null and (t.sms_provider = 'other' and t.sms_url is not null or t.sms_user is not null and t.sms_pass is not null);
   end if;
   insert into sms_outbox (restaurant_id, phone, message, purpose, status, provider)
     values (p_restaurant_id, v_phone, left(p_message, 480), p_purpose, 'queued', v_provider) returning id into v_id;
-  if v_user is null or v_pass is null then v_provider := null; end if;
+  if v_provider is distinct from 'other' and (v_user is null or v_pass is null) then v_provider := null; end if;
+  if v_provider = 'other' and v_url ~ '^https://' then
+    perform net.http_get(url := replace(replace(replace(replace(replace(v_url, '{phone}', v_phone), '{message}', _urlenc(left(p_message, 480))),
+      '{user}', _urlenc(coalesce(v_user,''))), '{pass}', _urlenc(coalesce(v_pass,''))), '{header}', _urlenc(coalesce(v_header,''))));
+    update sms_outbox set status = 'dispatched', dispatched_at = now() where id = v_id;
+    return;
+  end if;
   if v_provider = 'netgsm' then
     perform net.http_get(url := 'https://api.netgsm.com.tr/sms/send/get/', params := jsonb_build_object(
       'usercode', v_user, 'password', v_pass, 'gsmno', v_phone, 'message', left(p_message, 480),
@@ -2202,6 +2217,19 @@ begin
   if new.customer_name is not null then new.customer_name := left(btrim(regexp_replace(new.customer_name, '\s+', ' ', 'g')), 60); end if;
   return new;
 end $$;
+
+
+--
+-- Name: _urlenc(text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public._urlenc(p text) RETURNS text
+    LANGUAGE sql IMMUTABLE
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+  select coalesce(string_agg(case when b between 48 and 57 or b between 65 and 90 or b between 97 and 122 or b in (45,46,95,126) then chr(b) else '%' || upper(lpad(to_hex(b),2,'0')) end, '' order by i), '')
+  from (select i, get_byte(convert_to(coalesce(p,''),'UTF8'), i) b from generate_series(0, octet_length(convert_to(coalesce(p,''),'UTF8'))-1) i) x
+$$;
 
 
 --
@@ -6227,8 +6255,8 @@ begin
   s := _session_check(p_token, 'settings_flags');
   select * into t from tenant_integrations where restaurant_id = s.restaurant_id;
   return json_build_object(
-    'sms', json_build_object('provider', t.sms_provider, 'user', t.sms_user, 'header', t.sms_header, 'has_pass', t.sms_pass is not null),
-    'mail', json_build_object('provider', t.mail_provider, 'from', t.mail_from, 'from_name', t.mail_from_name, 'key_tail', right(t.mail_api_key, 4)),
+    'sms', json_build_object('provider', t.sms_provider, 'user', t.sms_user, 'header', t.sms_header, 'has_pass', t.sms_pass is not null, 'url', t.sms_url),
+    'mail', json_build_object('provider', t.mail_provider, 'from', t.mail_from, 'from_name', t.mail_from_name, 'key_tail', right(t.mail_api_key, 4), 'other', t.mail_other),
     'pay', json_build_object('enabled', coalesce(t.pay_enabled,false), 'mode', coalesce(t.pay_mode,'off'), 'provider', t.pay_provider, 'sandbox', coalesce(t.pay_sandbox,true), 'key_tail', right(t.pay_api_key, 4), 'has_secret', t.pay_secret is not null));
 end $$;
 
@@ -8415,13 +8443,15 @@ begin
   if p_kind = 'sms' then
     update tenant_integrations set sms_provider = nullif(p_data->>'provider',''), sms_user = nullif(trim(p_data->>'user'),''),
       sms_pass = coalesce(nullif(p_data->>'pass',''), case when nullif(p_data->>'provider','') is null then null else sms_pass end),
-      sms_header = nullif(upper(trim(p_data->>'header')),''), updated_at = now() where restaurant_id = s.restaurant_id;
+      sms_header = nullif(upper(trim(p_data->>'header')),''), sms_url = nullif(trim(p_data->>'url'),''), updated_at = now() where restaurant_id = s.restaurant_id;
+    if exists(select 1 from tenant_integrations where restaurant_id = s.restaurant_id and sms_provider = 'other' and (sms_url is null or sms_url !~ '^https://' or position('{phone}' in sms_url) = 0 or position('{message}' in sms_url) = 0)) then
+      raise exception 'Diğer sağlayıcı için https:// ile başlayan, {phone} ve {message} içeren bir API adresi girin'; end if;
   elsif p_kind = 'mail' then
     v := lower(trim(coalesce(p_data->>'from','')));
     if v <> '' and v !~ '^[^@\s]+@[^@\s]+\.[^@\s]+$' then raise exception 'Gönderen e-posta adresi geçersiz'; end if;
     update tenant_integrations set mail_provider = nullif(p_data->>'provider',''),
       mail_api_key = coalesce(nullif(trim(p_data->>'key'),''), case when nullif(p_data->>'provider','') is null then null else mail_api_key end),
-      mail_from = nullif(v,''), mail_from_name = nullif(trim(p_data->>'from_name'),''), updated_at = now() where restaurant_id = s.restaurant_id;
+      mail_from = nullif(v,''), mail_from_name = nullif(trim(p_data->>'from_name'),''), mail_other = nullif(trim(p_data->>'other'),''), updated_at = now() where restaurant_id = s.restaurant_id;
   elsif p_kind = 'pay' then
     update tenant_integrations set pay_mode = case when p_data->>'mode' in ('off','optional','required') then p_data->>'mode' else 'off' end,
       pay_enabled = coalesce(p_data->>'mode','off') <> 'off', pay_provider = nullif(p_data->>'provider',''),
@@ -12740,7 +12770,9 @@ CREATE TABLE public.tenant_integrations (
     pay_secret text,
     pay_sandbox boolean DEFAULT true NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    pay_mode text DEFAULT 'off'::text NOT NULL
+    pay_mode text DEFAULT 'off'::text NOT NULL,
+    sms_url text,
+    mail_other text
 );
 
 
