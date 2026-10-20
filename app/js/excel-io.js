@@ -144,8 +144,8 @@ async function importUsersExcel(){
 function excelBarHtml(kind){
   const fn = kind === 'users' ? ['exportUsersExcel', 'importUsersExcel', 'downloadUserTemplate'] : ['exportAllowancesExcel', 'importAllowancesExcel', 'downloadAllowanceTemplate'];
   return `<div class="xl-bar">
-    <button type="button" class="xl-btn" ${act(fn[0])}><span>⬇️</span>Excel'e aktar</button>
-    <button type="button" class="xl-btn" ${act(fn[1])}><span>⬆️</span>Excel'den yükle</button>
+    <button type="button" class="xl-btn" ${act(fn[0])}><span>⬇️</span>Dışa aktar</button>
+    <button type="button" class="xl-btn" ${act(fn[1])}><span>⬆️</span>İçe aktar</button>
     <button type="button" class="xl-link" ${act(fn[2])}>📄 Şablon indir</button>
   </div>`;
 }
