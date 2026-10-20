@@ -1814,10 +1814,28 @@ begin
   end if;
   insert into sms_outbox (restaurant_id, phone, message, purpose, status, provider)
     values (p_restaurant_id, v_phone, left(p_message, 480), p_purpose, 'queued', v_provider) returning id into v_id;
-  if v_provider = 'netgsm' and v_user is not null and v_pass is not null then
+  if v_user is null or v_pass is null then v_provider := null; end if;
+  if v_provider = 'netgsm' then
     perform net.http_get(url := 'https://api.netgsm.com.tr/sms/send/get/', params := jsonb_build_object(
       'usercode', v_user, 'password', v_pass, 'gsmno', v_phone, 'message', left(p_message, 480),
       'msgheader', coalesce(v_header, v_user), 'dil', 'TR'));
+    update sms_outbox set status = 'dispatched', dispatched_at = now() where id = v_id;
+  elsif v_provider = 'verimor' then
+    perform net.http_post(url := 'https://sms.verimor.com.tr/v2/send.json', headers := '{"Content-Type":"application/json"}'::jsonb,
+      body := jsonb_build_object('username', v_user, 'password', v_pass, 'source_addr', v_header,
+        'messages', jsonb_build_array(jsonb_build_object('msg', left(p_message, 480), 'dest', v_phone))));
+    update sms_outbox set status = 'dispatched', dispatched_at = now() where id = v_id;
+  elsif v_provider = 'iletimerkezi' then
+    perform net.http_post(url := 'https://api.iletimerkezi.com/v1/send-sms/json', headers := '{"Content-Type":"application/json"}'::jsonb,
+      body := jsonb_build_object('request', jsonb_build_object(
+        'authentication', jsonb_build_object('key', v_user, 'hash', encode(extensions.hmac(v_user, v_pass, 'sha256'), 'hex')),
+        'order', jsonb_build_object('sender', v_header, 'iys', '0',
+          'message', jsonb_build_object('text', left(p_message, 480), 'receipents', jsonb_build_object('number', jsonb_build_array(v_phone)))))));
+    update sms_outbox set status = 'dispatched', dispatched_at = now() where id = v_id;
+  elsif v_provider = 'vatansms' then
+    perform net.http_post(url := 'https://api.vatansms.net/api/v1/1toN', headers := '{"Content-Type":"application/json"}'::jsonb,
+      body := jsonb_build_object('api_id', v_user, 'api_key', v_pass, 'sender', v_header, 'message_type', 'normal',
+        'message', left(p_message, 480), 'message_content_type', 'bilgi', 'phones', jsonb_build_array(v_phone)));
     update sms_outbox set status = 'dispatched', dispatched_at = now() where id = v_id;
   else
     update sms_outbox set status = 'no_provider' where id = v_id;
