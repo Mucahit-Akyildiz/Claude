@@ -269,7 +269,8 @@ async function renderZReportContent(session){
   let counts = [];
   try{ const r = await sb.rpc('list_cash_counts', { p_token: session.session_token, p_date: APP.reportDate, p_date_to: APP.reportDateTo || APP.reportDate }); if(!r.error) counts = r.data || []; }catch(e){}
   const lastC = counts[0];
-  if(lastC) rows.push(['—'], ['🧮 Sayılan nakit', money(lastC.counted)], ['Kasa farkı', (anN(lastC.diff) > 0 ? '+' : '') + money(lastC.diff), 'big']);
+  if(lastC && lastC.skipped) rows.push(['—'], ['⚠️ Kasa sayılmadı', escapeHtml(lastC.note || ''), 'big']);
+  else if(lastC) rows.push(['—'], ['🧮 Sayılan nakit', money(lastC.counted)], ['Kasa farkı', (anN(lastC.diff) > 0 ? '+' : '') + money(lastC.diff), 'big']);
   anSetExport('gun-sonu', ['Kalem', 'Tutar'], rows.filter(r => r.length > 1).map(r => [r[0], String(r[1]).replace(/<[^>]+>/g, '')]));
   APP.anZRows = rows;
   const s = getSession();
@@ -288,7 +289,7 @@ async function renderZReportContent(session){
       </div>
       <input id="ccNote" placeholder="Not (opsiyonel) — örn. açılış kasası 500 TL dahil">
       <button type="button" class="cc-save" ${act('saveCashCount')}>💾 Sayımı Kaydet</button>
-      ${counts.length ? `<div class="cc-list">${counts.map(c => `<div class="cc-row"><span>${new Date(c.created_at).toLocaleString('tr-TR',{dateStyle:'short',timeStyle:'short'})} · ${escapeHtml(c.username||'')}${c.note ? ' · ' + escapeHtml(c.note) : ''}</span><b class="${anN(c.diff) < 0 ? 'neg' : anN(c.diff) > 0 ? 'pos' : ''}">${money(c.counted)} · ${anN(c.diff) > 0 ? '+' : ''}${money(c.diff)}</b></div>`).join('')}</div>` : ''}
+      ${counts.length ? `<div class="cc-list">${counts.map(c => `<div class="cc-row"><span>${new Date(c.created_at).toLocaleString('tr-TR',{dateStyle:'short',timeStyle:'short'})} · ${escapeHtml(c.username||'')}${c.note ? ' · ' + escapeHtml(c.note) : ''}</span>${c.skipped ? '<b class="neg">⚠️ Sayılmadı</b>' : `<b class="${anN(c.diff) < 0 ? 'neg' : anN(c.diff) > 0 ? 'pos' : ''}">${money(c.counted)} · ${anN(c.diff) > 0 ? '+' : ''}${money(c.diff)}</b>`}</div>`).join('')}</div>` : ''}
     </div></div>`;
 }
 function updateCashDiff(){
@@ -303,6 +304,7 @@ async function saveCashCount(){
   const v = document.getElementById('ccCounted').value;
   if(v === ''){ alert('Sayılan nakit tutarını girin'); return; }
   const session = getSession();
+  APP.dayClose = null;
   const { error } = await sb.rpc('save_cash_count', { p_token: session.session_token, p_date: APP.reportDateTo || APP.reportDate, p_expected: Number(document.getElementById('ccExpected').dataset.v) || 0, p_counted: Number(v), p_note: document.getElementById('ccNote').value });
   if(error){ alert(error.message); return; }
   showToast('Kasa sayımı kaydedildi ✓');
