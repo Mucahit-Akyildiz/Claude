@@ -417,7 +417,7 @@ begin
     d := (ws at time zone 'Europe/Istanbul')::date;
     if r.day_close_reminded_on = d then continue; end if;
     if not exists(select 1 from sales_history where restaurant_id = r.id and closed_at >= ws) then continue; end if;
-    if exists(select 1 from cash_counts where restaurant_id = r.id and (business_date = d or created_at >= ws)) then continue; end if;
+    if exists(select 1 from cash_counts where restaurant_id = r.id and business_date = d) then continue; end if;
     update restaurants set day_close_reminded_on = d where id = r.id;
     ids := ids || r.id;
   end loop;
@@ -5044,7 +5044,7 @@ begin
   s := _session_check(p_token);
   select * into p from _prev_business_day(s.restaurant_id);
   select count(*), coalesce(sum(cash_amount),0) into n, cash from sales_history where restaurant_id = s.restaurant_id and closed_at >= p.w_start and closed_at < p.w_end;
-  done := exists(select 1 from cash_counts where restaurant_id = s.restaurant_id and (business_date = p.d or (created_at >= p.w_start and created_at < p.w_end)));
+  done := exists(select 1 from cash_counts where restaurant_id = s.restaurant_id and business_date = p.d);
   return json_build_object('pending', n > 0 and not done, 'date', p.d, 'bills', n, 'expected_cash', cash,
     'can_close', _user_has_perm(s.user_id, 'reports'));
 end $$;
@@ -6611,6 +6611,35 @@ $$;
 
 
 --
+-- Name: list_day_closes(uuid, integer); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.list_day_closes(p_token uuid, p_days integer DEFAULT 30) RETURNS json
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+declare s staff_sessions%rowtype; h int; w_end timestamptz;
+begin
+  -- Son N iş gününün kapanış durumu (gün sonu saatine göre): satış, beklenen nakit, sayım, fark, kapatan.
+  s := _session_check(p_token, 'reports');
+  select coalesce(day_end_hour,5) into h from restaurants where id = s.restaurant_id;
+  w_end := (date_trunc('day', (now() at time zone 'Europe/Istanbul') - make_interval(hours => h)) + make_interval(days => 1, hours => h)) at time zone 'Europe/Istanbul';
+  return coalesce((select json_agg(x order by x.d desc) from (
+    select (ws at time zone 'Europe/Istanbul')::date d, ws < w_end - interval '1 day' as past,
+      (select count(*) from sales_history where restaurant_id = s.restaurant_id and closed_at >= ws and closed_at < ws + interval '1 day') bills,
+      (select coalesce(sum(total),0) from sales_history where restaurant_id = s.restaurant_id and closed_at >= ws and closed_at < ws + interval '1 day') revenue,
+      (select coalesce(sum(cash_amount),0) from sales_history where restaurant_id = s.restaurant_id and closed_at >= ws and closed_at < ws + interval '1 day') expected_cash,
+      c.counted, c.diff, c.skipped, c.note, c.created_at closed_at, c.username closed_by
+    from generate_series(w_end - make_interval(days => greatest(1, least(coalesce(p_days,30), 120))), w_end - interval '1 day', interval '1 day') ws
+    left join lateral (
+      select cc.counted, cc.counted - cc.expected diff, cc.skipped, cc.note, cc.created_at, au.username
+        from cash_counts cc left join app_users au on au.id = cc.user_id
+       where cc.restaurant_id = s.restaurant_id and cc.business_date = (ws at time zone 'Europe/Istanbul')::date
+       order by cc.created_at desc limit 1) c on true) x), '[]'::json);
+end $$;
+
+
+--
 -- Name: list_feature_labels(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -8112,15 +8141,19 @@ end; $$;
 CREATE FUNCTION public.save_cash_count(p_token uuid, p_date date, p_expected numeric, p_counted numeric, p_note text) RETURNS uuid
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public', 'extensions', 'pg_temp'
-    AS $$ declare s staff_sessions%rowtype; v uuid; v_today date := (now() at time zone 'Europe/Istanbul')::date;
+    AS $$ declare s staff_sessions%rowtype; v uuid; v_today date := (now() at time zone 'Europe/Istanbul')::date; v_d date; h int;
 begin
   s := _session_check(p_token, 'reports');
   if p_counted is null or p_counted < 0 then raise exception 'Sayılan nakit geçersiz'; end if;
+  select coalesce(day_end_hour,5) into h from restaurants where id = s.restaurant_id;
+  v_d := coalesce(p_date, v_today);
+  -- Gece gün sonu saatinden önce yapılan "bugün" sayımı önceki iş gününe yazılır (ör. 01:00'deki sayım dünün kapanışıdır).
+  if v_d = v_today and extract(hour from now() at time zone 'Europe/Istanbul') < h then v_d := v_today - 1; end if;
   insert into cash_counts(restaurant_id, business_date, expected, counted, note, user_id)
-    values (s.restaurant_id, coalesce(p_date, v_today), coalesce(p_expected,0), p_counted, nullif(trim(p_note),''), s.user_id)
+    values (s.restaurant_id, v_d, coalesce(p_expected,0), p_counted, nullif(trim(p_note),''), s.user_id)
     returning id into v;
   -- Gün sonu kasa sayımı alınınca (bugün için) diğer personelin açık vardiyaları kapanır; sayımı yapanınki gün sonu saatinde kapanır.
-  if coalesce(p_date, v_today) >= v_today - 1 then perform _auto_close_shifts(s.restaurant_id, now(), s.user_id); end if;
+  if v_d >= v_today - 1 then perform _auto_close_shifts(s.restaurant_id, now(), s.user_id); end if;
   return v;
 end $$;
 
