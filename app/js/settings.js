@@ -92,11 +92,12 @@ function renderUsersTabWithSubtabs(el, session){
     canManage(session, 'settings_users') ? { id:'list', ic:'👥', label:'Kullanıcılar' } : null,
     canManage(session, 'settings_users') ? { id:'active', ic:'🟢', label:'Aktif Kullanıcılar' } : null,
     hasPerm(session, 'shifts') || canManage(session, 'shifts') ? { id:'shifts', ic:'⏱️', label:'Vardiyalar' } : null,
+    canManage(session, 'settings_users') ? { id:'limits', ic:'💳', label:'Limitler' } : null,
   ].filter(Boolean);
   if(!tabs.length){ el.innerHTML = ''; return; }
   if(!tabs.some(t => t.id === APP.usersSubTab)) APP.usersSubTab = tabs[0].id;
   const sub = APP.usersSubTab;
-  const draw = (box) => sub==='active' ? renderActiveUsersSettings(box) : sub==='shifts' ? renderShiftsSettings(box, session) : renderUsersSettings(box, session);
+  const draw = (box) => sub==='limits' ? renderAllowancesSettings(box) : sub==='active' ? renderActiveUsersSettings(box) : sub==='shifts' ? renderShiftsSettings(box, session) : renderUsersSettings(box, session);
   if(tabs.length === 1){ el.innerHTML = '<div id="usersSubContent"></div>'; draw(document.getElementById('usersSubContent')); return; }
   // Alt sekmeler kartın içinde, üst menüden ayrışan altı çizili stilde.
   el.innerHTML = `<div class="box sub-tabs-box" style="max-width:none;">

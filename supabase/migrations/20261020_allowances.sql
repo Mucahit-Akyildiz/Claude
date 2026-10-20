@@ -1,0 +1,5 @@
+-- pg_net: public şemasından extensions şemasına taşındı (drop + create extension pg_net schema extensions); anon/authenticated net şeması erişimi kaldırıldı.
+-- Limitli hesaplar: allowances (kişi: günlük devretmez; kullanıcı: günlük devreden / aylık), allowance_usage, orders.allowance_id.
+-- _biz_date, _allowance_remaining, list_allowances, save_allowance, delete_allowance, set_order_allowance.
+-- sales_history AFTER INSERT tetikleyicisi _sales_history_allowance: comp kapanışta tüm tutar, normal ödemede limit kadar indirim kullanım olarak yazılır.
+-- get_live_orders: allowance_id/name/remaining; close_comp_order: limit yetmezse reddeder.

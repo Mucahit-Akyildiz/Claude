@@ -170,9 +170,11 @@ function renderPayGrid(){
     const mins = o.created_at ? Math.max(0, Math.floor((Date.now() - new Date(o.created_at).getTime()) / 60000)) : 0;
     const lines = unpaid.slice(0, 3).map(i => `<div class="pk-line"><span>${i.qty}× ${escapeHtml(i.name)}</span><span>${money(i.price * i.qty)}</span></div>`).join('');
     // İkram (Personel/Talebe gibi sipariş etiketi): hazır olunca 15 sn ekranda kalır, sonra ödemesiz kapanır.
-    const comp = (o.tags || []).length > 0;
+    const cov = typeof allowanceCovers === 'function' ? allowanceCovers(o) : null;
+    const comp = (o.tags || []).length > 0 && cov !== false;
+    const alNote = cov === false ? `<div class="pk-comp pk-al-over">💳 ${escapeHtml(o.allowance_name || 'Limit')} · limit ${money(o.allowance_remaining || 0)} düşülecek, fark ${money(Math.max(0, total - Number(o.allowance_remaining || 0)))}</div>` : '';
     if(comp && allReady && unpaid.length){ APP.compAt = APP.compAt || {}; if(!APP.compAt[o.order_id]) APP.compAt[o.order_id] = Date.now() + 15000; }
-    const compRibbon = comp ? `<div class="pk-comp">🎁 İkram · ${escapeHtml(o.tags.join(', '))}${allReady && unpaid.length ? ` <span class="pk-comp-cd" data-comp-until="${APP.compAt[o.order_id]}">15</span> sn sonra ödemesiz kapanır` : ' · hazır olunca ödemesiz kapanır'}</div>` : '';
+    const compRibbon = alNote || (comp ? `<div class="pk-comp">${o.allowance_id ? '💳 ' + escapeHtml(o.allowance_name || '') + ' · limitten' : '🎁 İkram'} · ${escapeHtml(o.tags.join(', '))}${allReady && unpaid.length ? ` <span class="pk-comp-cd" data-comp-until="${APP.compAt[o.order_id]}">15</span> sn sonra ödemesiz kapanır` : ' · hazır olunca ödemesiz kapanır'}</div>` : '');
     return `<div class="pk ${allReady ? 'pk-ready' : 'pk-busy'} ${comp ? 'pk-is-comp' : ''}" data-badge-id="${o.order_id}" ${act('openPayModal', o.order_id)}>
       ${compRibbon}
       <div class="pk-head"><b>${name}</b><span class="pk-time">⏱ ${mins} dk</span></div>
@@ -184,7 +186,10 @@ function renderPayGrid(){
   const orders = [];
   APP.config.zones.flatMap(z => z.tables).forEach(t => { const o = liveOrderForTable(t.id); if(o && o.items.some(i => !i.paid)) orders.push({ o, name: escapeHtml(tableNameForId(t.id)) }); });
   (APP.liveOrders || []).filter(o => o.kind === 'takeaway' && o.items.some(i => !i.paid)).forEach(o => orders.push({ o, name: '📦 ' + escapeHtml(o.customer_name || ('Paket #' + (o.daily_number || ''))) }));
-  const sum = orders.filter(r => !(r.o.tags || []).length).reduce((x, r) => x + r.o.items.filter(i => !i.paid).reduce((y, i) => y + i.price * i.qty, 0), 0);
+  const due = (o) => { const t = o.items.filter(i => !i.paid).reduce((y, i) => y + i.price * i.qty, 0);
+    if(o.allowance_id) return Math.max(0, t - Number(o.allowance_remaining || 0));
+    return (o.tags || []).length ? 0 : t; };
+  const sum = orders.reduce((x, r) => x + due(r.o), 0);
   const readyN = orders.filter(r => r.o.items.filter(i => !i.paid).every(i => i.status === 'ready')).length;
   const strip = document.getElementById('paySummary');
   if(strip) strip.innerHTML = `<div class="os-chip os-busy"><span class="os-ic">🧾</span><div><b>${orders.length}</b><small>Açık hesap</small></div></div><div class="os-chip os-ready"><span class="os-ic">✅</span><div><b>${readyN}</b><small>Hazır · ödeme bekliyor</small></div></div><div class="os-chip os-money"><span class="os-ic">💰</span><div><b>${money(sum)}</b><small>Tahsil edilecek toplam</small></div></div>`;
@@ -371,6 +376,12 @@ function openPayModal(orderId){
     </div>
   </div>`;
   document.body.appendChild(bg);
+  // Limitli hesap: kalan limit indirim olarak uygulanır, fark tahsil edilir (kullanım sunucuda kaydedilir).
+  if(order.allowance_id && Number(order.allowance_remaining) > 0){
+    bg.dataset.discountType = 'amount'; bg.dataset.discountValue = String(Number(order.allowance_remaining));
+    bg.dataset.promoName = '💳 Limit · ' + (order.allowance_name || '');
+    recomputePaySelection();
+  }
   autoSelectPayCustomer(order);
   loadActivePromos();
   updatePayReadiness();
@@ -1704,6 +1715,7 @@ async function saveTableCustomer(tableId, quiet){
 }
 /* ---- Masa penceresi: ürün ekle, sepete at, mutfağa gönder ---- */
 function openTableModal(tableId){
+  if(typeof refreshOrderAllowancePick === 'function') setTimeout(refreshOrderAllowancePick, 0);
   APP.prodSearch = '';
   const tableName = tableNameForId(tableId);
   if(!APP.draftCart) APP.draftCart = {};
@@ -1728,7 +1740,7 @@ function openTableModal(tableId){
           ${tableCustomerInfoHtml(tableId)}
           <div id="sentItemsWrap"></div>
           <div id="draftItemsWrap"></div>
-          ${orderFlagsHtml(tableId)}
+          ${orderAllowanceHtml(tableId)}${orderFlagsHtml(tableId)}
           ${(String(tableId).indexOf('pkg_')!==0 && String(tableId).indexOf('wl_')!==0 && liveOrderForTable(tableId)) ? `<button class="ghost-btn" style="width:100%;margin-top:12px;" ${act('openMoveTableModal', tableId)}>🔀 Masayı Taşı / Birleştir</button>` : ''}
         </div>
       </div>
@@ -1754,6 +1766,7 @@ async function closeTableModal(){
     // Pencere kapatılınca işaretli Sipariş Etiketleri de sıfırlanır - bir
     // sonraki açılışta (yeni sipariş için) baştan seçilmesi gerekir.
     delete APP.orderFlagSelections?.[tableId];
+    delete APP.orderAllowance?.[tableId];
   }
   renderTableGrid();
 }
