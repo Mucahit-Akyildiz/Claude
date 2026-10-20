@@ -1,0 +1,5 @@
+-- İşletmenin kendi hesapları: tenant_integrations (RLS açık, anon/authenticated erişimi yok; gizli değerler istemciye dönmez).
+-- get_tenant_integrations (yalnızca durum/son 4 hane), save_tenant_integration(sms|mail|pay),
+-- _send_email_r (Resend/Brevo, yoksa Peyktan hesabı), _send_sms işletme hesabını tercih eder (OTP Peyktan'dan),
+-- e-posta gönderen fonksiyonlar (email_invoice, email_receipt, _reservation_send_mail, _waitlist_send_mail) _send_email_r kullanır.
+-- restaurants.terms_accepted_at (yeni kayıtlarda now()). Canlıya uygulandı.
