@@ -2161,15 +2161,25 @@ async function renderIntegrationsSettings(el, session){
     <div class="field-group" style="max-width:500px;"><label>Google Yorum Linki</label><input id="int_google_review_url" placeholder="https://g.page/r/..." value="${escapeAttr(APP.config.google_review_url||'')}"></div>
     <button style="margin-top:12px;max-width:220px;" ${act('saveGoogleReviewUrl')}>${ICON_SAVE}<span>Kaydet</span></button>
   </div>
-  <div class="box" style="max-width:none;">
+  <div class="box oo-box" style="max-width:none;">
     <h2>🛵 Dışarıdan Online Sipariş</h2>
-    <p class="muted" style="margin-top:-6px;">Masaya bağlı olmayan, gel-al veya paket teslimat siparişleri için müşterilerinizin doğrudan telefonlarından erişebileceği bir sipariş sayfası. Açtığınızda gelen sipariş istekleri, masa siparişleri gibi "Sipariş Al" ekranınızdaki bildirim şeridinde görünür ve onayladığınızda Paket Servis'e düşer.</p>
-    <label style="display:flex;align-items:center;gap:8px;font-weight:600;margin:10px 0;">
-      <input type="checkbox" id="int_online_ordering_enabled" ${APP.config.online_ordering&&APP.config.online_ordering.enabled?'checked':''} style="width:auto;margin:0;" ${actOn('change','saveOnlineOrderingSettings',[])}> Aktif
-    </label>
-    ${APP.config.online_ordering && APP.config.online_ordering.enabled ? onlineOrderingLinkHtml() : ''}
-    <button type="button" class="ghost-btn" style="max-width:320px;margin-top:12px;" ${act('goProductMedia')}>📷 Ürün Fotoğrafları & Açıklamaları</button>
-    <p class="muted" style="text-align:left;font-size:12px;margin-top:6px;">Sayfadaki başlıklar otomatik olarak menülerinizdir (Ayarlar → İstasyonlar → Menüler).</p>
+    <div class="oo-hero ${APP.config.online_ordering && APP.config.online_ordering.enabled?'on':''}">
+      <div class="oo-hero-ic">🛵</div>
+      <div class="oo-hero-t"><b>Kendi sipariş sayfanız</b><small>Müşteriler telefondan gel-al veya paket sipariş verir; istekler "Sipariş Al" şeridine düşer, onaylayınca Paket Servis'e geçer. Komisyon yok.</small></div>
+      <label class="oo-switch" title="Sipariş sayfasını aç/kapat">
+        <input type="checkbox" id="int_online_ordering_enabled" ${APP.config.online_ordering && APP.config.online_ordering.enabled?'checked':''} ${actOn('change','saveOnlineOrderingSettings',[])}>
+        <span class="oo-track"><span class="oo-thumb"></span></span><em>${APP.config.online_ordering && APP.config.online_ordering.enabled?'Açık':'Kapalı'}</em>
+      </label>
+    </div>
+    <div class="oo-grid">
+      <div class="oo-col">${APP.config.online_ordering && APP.config.online_ordering.enabled ? onlineOrderingLinkHtml() : `<div class="oo-share oo-off"><span>🔒</span><b>Sayfa kapalı</b><small>Açtığınızda burada QR kodunuz ve paylaşım linkiniz çıkar.</small></div>`}
+        <div class="oo-quick">
+          <button type="button" class="oo-chip" ${act('goProductMedia')}><span>📷</span><b>Ürün fotoğrafları</b><small>Görsel & açıklama ekle</small></button>
+          <div class="oo-chip oo-chip-info"><span>📚</span><b>Başlıklar = menüleriniz</b><small>Ayarlar → İstasyonlar → Menüler</small></div>
+        </div>
+      </div>
+      <div class="oo-col" id="ooPayCol"></div>
+    </div>
   </div>`;
   // Paketinizde/eklentilerinizde olmayan bölümler kilitli gösterilir
   // (sunucu da ilgili RPC'lerde PAKET_OZELLIK_YOK ile reddediyor).
@@ -2231,7 +2241,7 @@ async function renderIntegrationsSettings(el, session){
   });
   // Online kartla ödeme, Online Sipariş sekmesinin içinde.
   const onl = boxes.find(x => x.dataset.int === 'online');
-  if(onl){ const d = document.createElement('div'); d.id = 'tiPay'; onl.appendChild(d); }
+  if(onl){ const d = document.createElement('div'); d.id = 'tiPay'; (onl.querySelector('#ooPayCol') || onl).appendChild(d); }
   if(!INT_TABS.some(t => t.id === APP.integrationsSubTab)) APP.integrationsSubTab = 'online';
   const INT_DESC = { online:'Kendi sipariş sayfanız ve kartla ödeme', google:'İşletme yorumlarını takip edin', sms:'Müşterilere SMS bildirimi', mail:'Kendi alan adınızdan e-posta', pay:'iyzico / PayTR ile kartla ödeme', invoice:'Faturada görünecek bilgiler',
     efatura:'Yazarkasa ve e-Fatura/e-Arşiv', marketplace:'Pazaryeri menü eşitleme', accounting:'Muhasebe yazılımına aktarım' };
@@ -2514,13 +2524,18 @@ function lockedFeatureHtml(){
 }
 function onlineOrderingLinkHtml(){
   const url = window.location.origin + '/siparis/?r=' + encodeURIComponent(APP.config.online_ordering.code);
-  const qrImgUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=' + encodeURIComponent(url);
-  return `<div style="background:var(--panel2);border-radius:10px;padding:12px;display:flex;gap:14px;align-items:center;flex-wrap:wrap;">
-    <img src="${qrImgUrl}" alt="QR" style="width:110px;height:110px;border-radius:8px;background:#fff;padding:6px;flex-shrink:0;">
-    <div style="min-width:0;flex:1;">
-      <p class="muted" style="font-size:12px;margin:0 0 6px;">Bu linki sosyal medya bio'nuza, Google İşletme profilinize ya da bir masa standına koyabilirsiniz.</p>
-      <p style="font-size:13px;overflow-wrap:anywhere;word-break:break-word;margin:0 0 8px;">${escapeHtml(url)}</p>
-      <button style="width:auto;padding:8px 12px;margin:0;" ${act('copyText', url, 'Link kopyalandı ✓')}>🔗 Linki Kopyala</button>
+  const qrImgUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=240x240&margin=0&data=' + encodeURIComponent(url);
+  return `<div class="oo-share">
+    <div class="oo-qr"><img src="${qrImgUrl}" alt="QR"></div>
+    <div class="oo-share-t">
+      <span class="oo-live">● Yayında</span>
+      <b>Paylaşmaya hazır</b>
+      <small>Instagram bio'su, Google İşletme profili, WhatsApp veya masa standı — her yerde çalışır.</small>
+      <div class="oo-url">${escapeHtml(url.replace(/^https?:\/\//, ''))}</div>
+      <div class="oo-btns">
+        <button type="button" ${act('copyText', url, 'Link kopyalandı ✓')}>🔗 Kopyala</button>
+        <a class="oo-open" href="${escapeAttr(url)}" target="_blank" rel="noopener">↗ Sayfayı aç</a>
+      </div>
     </div>
   </div>`;
 }
