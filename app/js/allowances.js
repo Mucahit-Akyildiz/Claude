@@ -146,16 +146,37 @@ function orderAllowanceInner(pseudoId){
   APP.orderAllowance = APP.orderAllowance || {};
   if(!(pseudoId in APP.orderAllowance)){ const ex = liveOrderForTable(pseudoId); APP.orderAllowance[pseudoId] = (ex && ex.allowance_id) || null; }
   const cur = allowanceById(APP.orderAllowance[pseudoId]);
+  // Masa ve pakette arama müşteri kutusunda birleşik; burada yalnızca seçilen limit gösterilir.
+  if(!cur && String(pseudoId).indexOf('wl_') !== 0) return '';
   const pid = escapeAttr(String(pseudoId));
   return `<div class="of-box al-pick">
-    <div class="of-head"><span>💳 Limitli kişi / kullanıcı</span><small>Ad (2 harf) veya telefonla arayın</small></div>
+    <div class="of-head"><span>💳 Limit</span><small>${cur ? 'Bu hesap limitten düşer' : 'Ad (2 harf) veya telefonla arayın'}</small></div>
     ${cur ? `<div class="al-sel"><span class="al-sel-ic">${cur.kind === 'user' ? '👔' : '🎓'}</span><div><b>${escapeHtml(cur.name)}</b><small>${money(cur.remaining)} kaldı${cur.phone ? ' · ' + escapeHtml(maskPhoneAl(cur.phone)) : ''}${cur.flag_label ? ' · 🏷️ ' + escapeHtml(cur.flag_label) : ''}</small></div>
       <button type="button" class="al-x" title="Kaldır" ${act('pickOrderAllowance', pseudoId, cur.id)}>✕</button></div>`
-    : `<input class="al-search" type="search" placeholder="🔍 Kişi veya kullanıcı ara: ad / telefon" autocomplete="off" data-pid="${pid}" ${actOn('input','alSearch',[pseudoId, '$value'])}>
+    : String(pseudoId).indexOf('wl_') !== 0 ? '' : `<input class="al-search" type="search" placeholder="🔍 Kişi veya kullanıcı ara: ad / telefon" autocomplete="off" data-pid="${pid}" ${actOn('input','alSearch',[pseudoId, '$value'])}>
       <div class="al-results" id="alRes_${pid}"></div>`}
   </div>`;
 }
 // Telefonun yalnızca son 4 hanesi gösterilir (KVKK).
+function allowanceSearchHits(q){
+  const t = String(q || '').trim(), digits = t.replace(/\D/g, '');
+  const byPhone = digits.length >= 3 && digits.length === t.replace(/[\s()+-]/g, '').length;
+  const k = t.toLocaleLowerCase('tr');
+  return (APP.allowances || []).filter(a => a.is_active && (byPhone ? String(a.phone || '').replace(/\D/g, '').includes(digits) : String(a.name || '').toLocaleLowerCase('tr').includes(k))).slice(0, 6);
+}
+/* Müşteri aramasından limitli kişi/kullanıcı seçildi: limit bağlanır, ad (ve telefon) müşteri alanına yazılır. */
+function pickAllowanceFromCust(aid, prefix){
+  const a = allowanceById(aid); if(!a) return;
+  const bg = document.getElementById('tableModalBg'); const pid = bg ? bg.dataset.tableId : null; if(!pid) return;
+  APP.orderAllowance = APP.orderAllowance || {};
+  if(APP.orderAllowance[pid] !== aid) pickOrderAllowance(pid, aid);
+  const n = document.getElementById(prefix + 'Name'), p = document.getElementById(prefix + 'Phone');
+  if(n) n.value = a.name || '';
+  if(p && a.phone && !p.value) p.value = a.phone;
+  const box = document.getElementById(prefix + 'Suggest'); if(box) box.innerHTML = '';
+  if(prefix === 'tableCust' && typeof saveTableCustomer === 'function') saveTableCustomer(pid, true);
+  showToast((a.kind === 'user' ? '👔 ' : '🎓 ') + a.name + ' · limit bağlandı');
+}
 function maskPhoneAl(p){ const d = String(p || '').replace(/\D/g, ''); return d.length > 4 ? '••• ' + d.slice(-4) : d; }
 function alSearch(pseudoId, q){
   const box = document.getElementById('alRes_' + pseudoId); if(!box) return;

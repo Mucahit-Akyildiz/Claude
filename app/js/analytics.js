@@ -392,6 +392,9 @@ function printZReport(){ document.body.classList.add('print-z'); window.print();
 async function renderWaiterCardsContent(session){
   const el = document.getElementById('reportContent'); if(!el) return;
   let d; try { d = await anBundle(session); } catch(e){ return anErr(el, e); }
+  // Personel limitleri: kartta "limitinden aldığı" (personel yemeği) özeti.
+  const { data: alw } = await sb.rpc('staff_allowance_summary', { p_token: session.session_token, p_date: APP.reportDate, p_date_to: APP.reportDateTo });
+  const al = alw || {};
   const st = (d.staff || []).slice().sort((a, b) => anN(b.rev) - anN(a.rev));
   if(!st.length){ el.innerHTML = '<div class="empty-state"><div style="font-size:42px;">🏅</div><p class="muted">Bu aralıkta personel satışı yok.</p></div>'; return; }
   const maxR = Math.max(1, ...st.map(x => anN(x.rev)));
@@ -404,8 +407,9 @@ async function renderWaiterCardsContent(session){
       <div class="an-w-rev"><b>${money(x.rev)}</b><div class="an-w-bar"><i style="width:${anN(x.rev) / maxR * 100}%"></i></div></div>
       <div class="an-w-grid"><div><b>${x.n}</b><small>hesap</small></div><div><b>${money(x.n ? x.rev / x.n : 0)}</b><small>ort. hesap</small></div>
         <div><b>${money(x.tips)}</b><small>bahşiş</small></div><div><b>${x.items}</b><small>ürün girdi</small></div>
-        <div class="${cr > 10 ? 'bad' : ''}"><b>${x.cancels}</b><small>iptal${cr ? ' · %' + cr.toFixed(0) : ''}</small></div><div><b title="${escapeAttr(x.top_product || '')}">${escapeHtml(x.top_product || '—')}</b><small>en çok sattığı</small></div>
+        <div class="${cr > 10 ? 'bad' : ''}"><b>${x.cancels}</b><small>iptal${cr ? ' · %' + cr.toFixed(0) : ''}</small></div><div class="wide"><b title="${escapeAttr(x.top_product || '')}">${escapeHtml(x.top_product || '—')}</b><small>en çok sattığı</small></div>
         <div><b>${x.shifts || 0}</b><small>vardiya</small></div></div>
+      ${al[x.id] ? `<div class="an-w-al"><span>🍱</span><div><b>${money(al[x.id].used)}</b><small>limitinden aldı · ${al[x.id].n} hesap</small></div><div class="r"><b>${money(al[x.id].remaining)}</b><small>${al[x.id].period === 'monthly' ? 'aylık' : 'günlük'} kalan</small></div></div>` : ''}
       <div class="an-w-more">Detaylı kart için dokunun ›</div>
     </div>`; }).join('')}</div>`;
 }
@@ -479,8 +483,18 @@ async function openStaffDetail(id){
       <div class="fs-panel pa-sec" style="--t:#06b6d4;"><h3><i>💳</i>Ödeme Dağılımı</h3>${anN(sl.cash) + anN(sl.card) ? svgDonut([{ label: 'Nakit', value: anN(sl.cash), color: '#22c55e' }, { label: 'Kart', value: anN(sl.card), color: '#3b82f6' }], { center: shortMoney(anN(sl.cash) + anN(sl.card)), sub: '₺', money: true }) : '<p class="muted">Ödeme yok.</p>'}</div>
       <div class="fs-panel pa-sec" style="--t:#22c55e;"><h3><i>🪑</i>En Çok Kazandırdığı Masalar</h3>${(d.tables || []).length ? raceHtml(d.tables.map(x => ({ label: x.table_name, value: anN(x.rev), display: money(x.rev), side: x.n + ' hesap' }))) : '<p class="muted">Masa yok.</p>'}
         ${sl.avg_min ? `<p class="fs-note">⏱ Masalarında ortalama oturma: <b>${sl.avg_min} dk</b> · İndirim verdiği: <b>${money(sl.discount)}</b></p>` : ''}</div>
+      <div class="fs-panel pa-sec" id="anStaffAl" style="--t:#14b8a6;display:none;"></div>
       <div class="fs-panel pa-sec" style="--t:#ef4444;"><h3><i>❌</i>Son İptaller</h3>${(d.cancels || []).length ? `<div class="cx-list">${d.cancels.map(x => `<div class="cx-row"><span class="cx-q">${x.qty}×</span><div class="cx-n"><b>${escapeHtml(x.name)}</b><small>${new Date(x.created_at).toLocaleString('tr-TR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</small></div></div>`).join('')}</div>` : '<p class="muted">İptal yok 👍</p>'}</div>
     </div>`, 'var(--c1)');
+  // Personelin kendi limitinden aldıkları (varsa).
+  sb.rpc('staff_allowance_items', { p_token: session.session_token, p_user: id, p_date: APP.reportDate, p_date_to: APP.reportDateTo }).then(({ data: a }) => {
+    const box = document.getElementById('anStaffAl'); if(!box || !a || (a.remaining === null && !anN(a.used))) return;
+    box.style.display = '';
+    box.innerHTML = `<h3><i>🍱</i>Limitinden Aldıkları</h3>
+      <div class="fa-kpis"><div><b>${money(a.used)}</b><small>harcadığı</small></div><div><b>${a.n}</b><small>hesap</small></div><div><b>${a.remaining === null ? '—' : money(a.remaining)}</b><small>kalan limit</small></div></div>
+      ${(a.items || []).length ? raceHtml(a.items.map(x => ({ label: x.name, value: anN(x.qty), display: x.qty + ' adet', side: money(x.total) }))) : '<p class="muted">Bu dönemde limitinden bir şey almadı.</p>'}
+      ${(a.recent || []).length ? `<div class="cx-list" style="margin-top:10px;">${a.recent.map(r => `<div class="cx-row"><span class="cx-q">${money(r.amount)}</span><div class="cx-n"><b>${escapeHtml(r.items || '')}</b><small>${new Date(r.at).toLocaleString('tr-TR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</small></div></div>`).join('')}</div>` : ''}`;
+  });
 }
 async function openCustomerDetail(id){
   const session = getSession();
