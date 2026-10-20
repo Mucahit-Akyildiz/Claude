@@ -304,8 +304,10 @@ async function renderReportContent(session){
   // kârdan hariç tutulur - stok yine düşmüş olsa da bunlar gerçek satış değildir.
   // Nakit/Kart toplamları ise kasa mutabakatı için TÜM hesaplardan (etiketli dahil)
   // hesaplanmaya devam eder.
-  const untaggedHist = hist.filter(o => !o.tags || o.tags.length===0);
-  const taggedHist = hist.filter(o => o.tags && o.tags.length>0);
+  // Etiketli ama limit aşımı nedeniyle ödenmiş hesap (limitli hesap farkı) ciroya dahildir; yalnızca ödemesiz (comp) kapananlar ikramdır.
+  const isComp = (o) => o.tags && o.tags.length>0 && (!o.payment_method || o.payment_method === 'comp');
+  const untaggedHist = hist.filter(o => !isComp(o));
+  const taggedHist = hist.filter(isComp);
 
   let totalRevenue=0, totalCost=0, totalCash=0, totalCard=0, totalGiftCard=0, totalDiscount=0, discountedCount=0, taggedTotal=0, totalTip=0, totalBirthdayDiscount=0, birthdayCount=0, totalPoints=0, pointsCount=0;
   const hourStats = {};
@@ -462,6 +464,7 @@ async function renderReportContent(session){
         <p class="fs-note">Personel / ikram hesapları ciroya dahil değildir.</p>
       </div>
     </div>
+    <div class="fs-panel pa-sec" id="fsAllowance" style="--t:#14b8a6;display:none;"></div>
     <div class="ch-row">
       <div class="fs-panel pa-sec" style="--t:var(--c1);"><h3><i>📊</i>Saatlik Ciro${peakHour!==null?' <span class="muted" style="font-size:12px;font-weight:400;">en yoğun: '+(peakHour<10?'0'+peakHour:peakHour)+':00</span>':''}</h3>
         ${(() => { if(!hourKeys.length) return '<p class="muted">Bu tarihte veri yok.</p>'; const lo = Math.min(...hourKeys), hi = Math.max(...hourKeys); const hrs = []; for(let h = lo; h <= hi; h++) hrs.push(h);
@@ -515,6 +518,28 @@ async function renderReportContent(session){
     });
   }
   loadFsExtras(session, totalRevenue);
+  loadFsAllowance(session);
+}
+/* Limitli hesaplar: dönemde limitten karşılanan tutar ve limit aşımında tahsil edilen fark. Kayıt yoksa panel gizli kalır. */
+async function loadFsAllowance(session){
+  const { data: d } = await sb.rpc('allowance_report', { p_token: session.session_token, p_date: APP.reportDate, p_date_to: APP.reportDateTo });
+  const box = document.getElementById('fsAllowance'); if(!box || !d || !(d.rows || []).length) return;
+  const max = Math.max(...d.rows.map(r => Number(r.used)), 1);
+  box.style.display = '';
+  box.innerHTML = `<h3><i>💳</i>Limitli Hesaplar</h3>
+    <div class="fa-kpis">
+      <div><b>${money(d.total_used)}</b><small>Limitten karşılanan</small></div>
+      <div><b>${money(d.paid_diff)}</b><small>Limit aşımı · tahsil edilen</small></div>
+      <div><b>${d.orders}</b><small>Hesap</small></div>
+      <div><b>${d.rows.length}</b><small>Kişi / kullanıcı</small></div>
+    </div>
+    <div class="fa-list">${d.rows.map(r => `<div class="fa-row">
+      <span class="fa-ic">${r.kind === 'person' ? '🎓' : '👔'}</span>
+      <div class="fa-main"><div class="fa-top"><b>${escapeHtml(r.name || '')}</b><span>${money(r.used)}</span></div>
+        <div class="fa-bar"><i style="width:${Math.round(Number(r.used) / max * 100)}%;"></i></div>
+        <small>${r.n} hesap${Number(r.paid_diff) > 0 ? ' · fark ' + money(r.paid_diff) : ''} · ${r.kind === 'person' ? 'günlük' : r.period === 'monthly' ? 'aylık' : 'günlük'} limit${r.flag_label ? ' · 🏷️ ' + escapeHtml(r.flag_label) : ''} · şu an kalan ${money(r.remaining)}</small></div>
+    </div>`).join('')}</div>
+    <p class="fs-note">Limitten karşılanan tutar ciroya dahil değildir (Personel / ikram içinde sayılır); limit aşımında alınan fark ciroya dahildir.</p>`;
 }
 /* --- Ürün İstatistikleri sekmesi: hangi üründen ne kadar satıldığı,
    istasyona göre filtrelenebilen, çoktan aza sıralı bar grafiği --- */

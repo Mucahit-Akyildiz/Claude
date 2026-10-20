@@ -21,10 +21,10 @@ async function renderAllowancesSettings(el){
   const bar = (a) => { const cap = a.period === 'monthly' || a.kind === 'person' ? Number(a.limit_amount) : Math.max(Number(a.limit_amount), Number(a.remaining));
     const pct = cap > 0 ? Math.min(100, Math.round(Number(a.remaining) / cap * 100)) : 0;
     return `<div class="al-bar"><span style="width:${pct}%;"></span></div>`; };
-  const row = (a) => `<div class="al-row ${a.is_active ? '' : 'off'}">
+  const row = (a) => `<div class="al-row ${a.is_active ? '' : 'off'}" data-q="${escapeAttr((String(a.name || '') + ' ' + String(a.phone || '').replace(/\D/g, '')).toLocaleLowerCase('tr'))}">
       <div class="al-top"><span class="al-av">${a.kind === 'person' ? '🎓' : '👔'}</span>
         <div class="al-main"><b>${escapeHtml(a.name || '')}</b>
-          <small>${a.kind === 'person' ? 'Günlük · devretmez' : a.period === 'monthly' ? 'Aylık' : 'Günlük · devreder'} · ${money(a.limit_amount)}${a.flag_label ? ' · 🏷️ ' + escapeHtml(a.flag_label) : ''}${a.is_active ? '' : ' · pasif'}</small></div>
+          <small>${a.kind === 'person' ? 'Günlük · devretmez' : a.period === 'monthly' ? 'Aylık' : 'Günlük · devreder'} · ${money(a.limit_amount)}${a.flag_label ? ' · 🏷️ ' + escapeHtml(a.flag_label) : ''}${a.phone ? ' · 📞 ' + escapeHtml(maskPhoneAl(a.phone)) : ''}${a.is_active ? '' : ' · pasif'}</small></div>
         <div class="al-rem"><b>${money(a.remaining)}</b><small>kalan</small></div></div>
       ${bar(a)}
       <div class="al-bot"><small>Bugün harcanan: <b>${money(a.used_today)}</b></small>
@@ -38,7 +38,8 @@ async function renderAllowancesSettings(el){
   el.innerHTML = `<div class="al-wrap ix-box">
     <div class="oo-hero on"><div class="oo-hero-ic">💳</div>
       <div class="oo-hero-t"><b>Limitli hesaplar</b><small>Kişilere günlük, kullanıcılara günlük ya da aylık harcama limiti verin. Limit içindeki hesap hazır olunca 15 sn sonra kendiliğinden kapanır ve Finansal Analiz'e işlenir; limiti aşan hesapta fark Ödemeler'den alınır.</small></div></div>
-    ${typeof excelBarHtml === 'function' ? excelBarHtml('allowances') : ''}
+    <div class="al-top-bar"><input class="al-filter" type="search" placeholder="🔍 Ad veya telefonla ara…" autocomplete="off" ${actOn('input','alFilter',['$value'])}>
+      ${typeof excelBarHtml === 'function' ? excelBarHtml('allowances') : ''}</div>
     <div class="al-grid">
       <div class="al-card">
         <div class="al-h"><span>🎓</span><div><b>Kişiler</b><small>Günlük limit · ertesi güne aktarılmaz</small></div><em>${persons.length}</em></div>
@@ -46,6 +47,7 @@ async function renderAllowancesSettings(el){
         <div class="al-form" id="alPersonForm">
           <div class="ix-form">
             <div><label>Ad soyad</label><input id="al_p_name" placeholder="ör. Ahmet Yılmaz" maxlength="60"></div>
+            <div><label>Telefon</label><input id="al_p_phone" type="tel" inputmode="tel" placeholder="05xx xxx xx xx" maxlength="20"></div>
             <div><label>Günlük limit (₺)</label><input id="al_p_limit" type="number" min="0" step="1" inputmode="decimal" placeholder="250"></div>
             <div><label>Sipariş etiketi</label>${flagSel('al_p_flag', (flags.find(f => /talebe|öğrenci/i.test(f.label)) || flags[0] || {}).label)}</div>
           </div>
@@ -86,7 +88,7 @@ async function saveAllowanceForm(kind, id){
     return;
   }
   const p = kind === 'person'
-    ? { id: id || null, kind, name: v('al_p_name'), limit_amount: v('al_p_limit'), flag_label: v('al_p_flag') }
+    ? { id: id || null, kind, name: v('al_p_name'), phone: v('al_p_phone'), limit_amount: v('al_p_limit'), flag_label: v('al_p_flag') }
     : { id: id || null, kind, user_id: v('al_u_user'), period: v('al_u_period'), limit_amount: v('al_u_limit'), flag_label: v('al_u_flag') };
   const { error } = await withLoadingOverlay(sb.rpc('save_allowance', { p_token: getSession().session_token, p_data: p }));
   if(error){ alert(error.message); return; }
@@ -100,7 +102,9 @@ async function editAllowance(id){
   const flags = ((APP.config && APP.config.order_flags) || []).map(f => f.label);
   let flag = a.flag_label || '';
   if(flags.length){ const f = prompt('Sipariş etiketi (boş bırakılabilir):\n' + flags.join(', '), flag); if(f === null) return; flag = f.trim(); }
-  const { error } = await sb.rpc('save_allowance', { p_token: getSession().session_token, p_data: { id, kind: a.kind, name: a.name, user_id: a.user_id, period: a.period, limit_amount: lim, flag_label: flag } });
+  let phone = a.phone || '';
+  if(a.kind === 'person'){ const ph = prompt('Telefon (boş bırakılabilir):', phone); if(ph === null) return; phone = ph.trim(); }
+  const { error } = await sb.rpc('save_allowance', { p_token: getSession().session_token, p_data: { id, kind: a.kind, name: a.name, phone, user_id: a.user_id, period: a.period, limit_amount: lim, flag_label: flag } });
   if(error){ alert(error.message); return; }
   showToast('Limit güncellendi ✓');
   renderAllowancesSettings(document.getElementById('usersSubContent'));
@@ -118,6 +122,15 @@ async function deleteAllowance(id){
   renderAllowancesSettings(document.getElementById('usersSubContent'));
 }
 
+function alFilter(q){
+  const t = String(q || '').trim().toLocaleLowerCase('tr'), d = t.replace(/\D/g, '');
+  const key = d.length >= 3 && d.length === t.replace(/[\s()+-]/g, '').length ? d : t;
+  document.querySelectorAll('.al-list').forEach(list => {
+    let n = 0; list.querySelectorAll('.al-row').forEach(r => { const ok = !key || r.dataset.q.includes(key); r.style.display = ok ? '' : 'none'; if(ok) n++; });
+    let e = list.querySelector('.al-nohit'); if(!e){ e = document.createElement('p'); e.className = 'muted al-empty al-nohit'; e.textContent = 'Eşleşen kayıt yok'; list.appendChild(e); }
+    e.style.display = key && !n && list.querySelector('.al-row') ? '' : 'none';
+  });
+}
 function alUserCount(){ const n = document.querySelectorAll('.al-users input:checked').length; const c = document.getElementById('alUCount'); if(c) c.textContent = n ? `(${n} seçili)` : '(birden fazla seçebilirsiniz)';
   const b = document.querySelector('.al-uall'); if(b) b.textContent = n && n === document.querySelectorAll('.al-users input').length ? 'Seçimi kaldır' : 'Tümünü seç'; }
 function alToggleAllUsers(){ const all = [...document.querySelectorAll('.al-users input')]; const on = !all.every(i => i.checked); all.forEach(i => { i.checked = on; }); alUserCount(); }
@@ -133,19 +146,34 @@ function orderAllowanceInner(pseudoId){
   if(!persons.length) return '';
   APP.orderAllowance = APP.orderAllowance || {};
   if(!(pseudoId in APP.orderAllowance)){ const ex = liveOrderForTable(pseudoId); APP.orderAllowance[pseudoId] = (ex && ex.allowance_id) || null; }
-  const cur = APP.orderAllowance[pseudoId];
+  const cur = allowanceById(APP.orderAllowance[pseudoId]);
+  const pid = escapeAttr(String(pseudoId));
   return `<div class="of-box al-pick">
-    <div class="of-head"><span>🎓 Limitli kişi</span><small>Seçince etiketi işaretlenir</small></div>
-    <div class="of-chips">${persons.map(a => `<button type="button" class="al-chip ${cur === a.id ? 'on' : ''}" data-aid="${a.id}" ${act('pickOrderAllowance', pseudoId, a.id)}>
-      <b>${escapeHtml(a.name)}</b><small>${money(a.remaining)} kaldı</small></button>`).join('')}</div>
+    <div class="of-head"><span>🎓 Limitli kişi</span><small>Ad (2 harf) veya telefonla arayın</small></div>
+    ${cur ? `<div class="al-sel"><span class="al-sel-ic">🎓</span><div><b>${escapeHtml(cur.name)}</b><small>${money(cur.remaining)} kaldı${cur.phone ? ' · ' + escapeHtml(maskPhoneAl(cur.phone)) : ''}${cur.flag_label ? ' · 🏷️ ' + escapeHtml(cur.flag_label) : ''}</small></div>
+      <button type="button" class="al-x" title="Kaldır" ${act('pickOrderAllowance', pseudoId, cur.id)}>✕</button></div>`
+    : `<input class="al-search" type="search" placeholder="🔍 Kişi ara: ad veya telefon" autocomplete="off" data-pid="${pid}" ${actOn('input','alSearch',[pseudoId, '$value'])}>
+      <div class="al-results" id="alRes_${pid}"></div>`}
   </div>`;
+}
+// Telefonun yalnızca son 4 hanesi gösterilir (KVKK).
+function maskPhoneAl(p){ const d = String(p || '').replace(/\D/g, ''); return d.length > 4 ? '••• ' + d.slice(-4) : d; }
+function alSearch(pseudoId, q){
+  const box = document.getElementById('alRes_' + pseudoId); if(!box) return;
+  const t = String(q || '').trim(), digits = t.replace(/\D/g, '');
+  const byPhone = digits.length >= 3 && digits.length === t.replace(/[\s()+-]/g, '').length;
+  if(!byPhone && t.length < 2){ box.innerHTML = ''; return; }
+  const k = t.toLocaleLowerCase('tr');
+  const hits = (APP.allowances || []).filter(a => a.kind === 'person' && a.is_active && (byPhone ? String(a.phone || '').replace(/\D/g, '').includes(digits) : String(a.name || '').toLocaleLowerCase('tr').includes(k))).slice(0, 8);
+  box.innerHTML = hits.length ? hits.map(a => `<button type="button" class="al-hit" ${act('pickOrderAllowance', pseudoId, a.id)}><b>${escapeHtml(a.name)}</b><small>${a.phone ? escapeHtml(maskPhoneAl(a.phone)) + ' · ' : ''}${money(a.remaining)} kaldı</small></button>`).join('')
+    : '<p class="muted al-empty">Eşleşen kişi yok</p>';
 }
 function pickOrderAllowance(pseudoId, id){
   APP.orderAllowance = APP.orderAllowance || {};
   const prev = allowanceById(APP.orderAllowance[pseudoId]);
   const next = APP.orderAllowance[pseudoId] === id ? null : id;
   APP.orderAllowance[pseudoId] = next;
-  document.querySelectorAll('.al-pick .al-chip').forEach(b => b.classList.toggle('on', b.dataset.aid === next));
+  document.querySelectorAll('.al-pick-wrap').forEach(w => { if(w.dataset.pid === String(pseudoId)) w.innerHTML = orderAllowanceInner(pseudoId); });
   const setFlag = (label, on) => { if(!label) return; toggleOrderFlag(pseudoId, label, on);
     document.querySelectorAll('.of-chip input[data-label]').forEach(i => { if(i.dataset.label === label) i.checked = on; }); };
   if(prev && prev.flag_label && (!next || allowanceById(next).flag_label !== prev.flag_label)) setFlag(prev.flag_label, false);

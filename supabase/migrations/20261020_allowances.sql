@@ -4,3 +4,5 @@
 -- sales_history AFTER INSERT tetikleyicisi _sales_history_allowance: comp kapanışta tüm tutar, normal ödemede limit kadar indirim kullanım olarak yazılır.
 -- get_live_orders: allowance_id/name/remaining; close_comp_order: limit yetmezse reddeder.
 -- save_allowance: etiket kontrolü order_flags yerine order_flag_defs tablosuna bakıyor
+-- allowances.phone; save_allowance/list_allowances telefon alanı.
+-- allowance_report(p_token, p_date, p_date_to): dönemde limitten karşılanan, limit aşımında tahsil edilen fark, kişi bazında kullanım.
