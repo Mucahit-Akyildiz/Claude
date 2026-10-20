@@ -340,11 +340,7 @@ CREATE FUNCTION public._client_ip() RETURNS text
     LANGUAGE sql STABLE
     SET search_path TO 'public', 'pg_temp'
     AS $$
-  select coalesce(
-    nullif(trim(split_part(coalesce(current_setting('request.headers', true)::json->>'x-forwarded-for',''), ',', 1)), ''),
-    nullif(current_setting('request.headers', true)::json->>'cf-connecting-ip',''),
-    'unknown');
-$$;
+  select nullif(split_part(coalesce(nullif(current_setting('request.headers', true),'')::json->>'x-forwarded-for', ''), ',', 1), '') $$;
 
 
 --
@@ -740,7 +736,7 @@ begin
   if op.id is null then raise exception 'Ödeme bulunamadı'; end if;
   if op.request_id is not null then return op.request_id; end if;
   if round(coalesce(p_paid,0), 2) < round(op.amount, 2) then
-    update online_payments set status = 'amount_mismatch', error = 'Ödenen ' || p_paid, finished_at = now() where id = p_id; raise exception 'Ödenen tutar eksik';
+    update online_payments set status = 'amount_mismatch', error = 'Ödenen ' || p_paid, finished_at = now() where id = p_id; return null;
   end if;
   insert into customer_order_requests (restaurant_id, table_id, customer_name, customer_phone, delivery_address, order_type, items, payment_status, paid_amount, payment_ref)
     values (op.restaurant_id, null, op.payload->>'name', op.payload->>'phone', op.payload->>'address', op.payload->>'order_type', op.payload->'items', 'paid', p_paid, p_ref)
@@ -1230,6 +1226,7 @@ end $$;
 
 CREATE FUNCTION public._order_items_set_added_by() RETURNS trigger
     LANGUAGE plpgsql
+    SET search_path TO 'public', 'pg_temp'
     AS $$
 begin
   if new.added_by is null then new.added_by := nullif(current_setting('peyk.uid', true), '')::uuid; end if;
@@ -1694,6 +1691,7 @@ declare t tenant_integrations%rowtype; v_name text;
 begin
   select * into t from tenant_integrations where restaurant_id = p_rest;
   if t.mail_provider is null or t.mail_api_key is null or t.mail_from is null then return false; end if;
+  t.mail_api_key := _dec(t.mail_api_key);
   select name into v_name from restaurants where id = p_rest;
   v_name := coalesce(t.mail_from_name, v_name, 'Peyktan');
   if t.mail_provider = 'resend' then
@@ -1817,7 +1815,7 @@ begin
   -- İşletmenin kendi SMS hesabı varsa (Ayarlar > Entegrasyonlar) onunla gönderilir; kayıt/şifre kodları Peyktan hesabından. Diğer SMSler yalnızca işletmenin kendi hesabıyla gider.
   if p_purpose <> 'otp' and p_restaurant_id is not null then
     v_provider := null; v_user := null; v_pass := null; v_header := null;
-    select t.sms_provider, t.sms_user, t.sms_pass, t.sms_header, t.sms_url
+    select t.sms_provider, t.sms_user, _dec(t.sms_pass), t.sms_header, t.sms_url
       into v_provider, v_user, v_pass, v_header, v_url
       from tenant_integrations t where t.restaurant_id = p_restaurant_id and t.sms_provider is not null and (t.sms_provider = 'other' and t.sms_url is not null or t.sms_user is not null and t.sms_pass is not null);
   end if;
@@ -2065,6 +2063,18 @@ end $$;
 
 
 --
+-- Name: _tenant_pay_creds(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public._tenant_pay_creds(p_rest uuid) RETURNS json
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+  select json_build_object('provider', pay_provider, 'mode', pay_mode, 'sandbox', pay_sandbox, 'api_key', _dec(pay_api_key), 'secret', _dec(pay_secret))
+  from tenant_integrations where restaurant_id = p_rest $$;
+
+
+--
 -- Name: _totp(text, bigint); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -2212,10 +2222,27 @@ end $$;
 
 CREATE FUNCTION public._trim_customer_name() RETURNS trigger
     LANGUAGE plpgsql
+    SET search_path TO 'public', 'pg_temp'
     AS $$
 begin
   if new.customer_name is not null then new.customer_name := left(btrim(regexp_replace(new.customer_name, '\s+', ' ', 'g')), 60); end if;
   return new;
+end $$;
+
+
+--
+-- Name: _tts_quota(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public._tts_quota(p_token uuid) RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+declare s staff_sessions%rowtype;
+begin
+  s := _session_check(p_token);
+  -- Sesli bildirim maliyet koruması: işletme başına günde 300 yeni cümle (önbellekteki tekrarlar istemciden gelmez).
+  perform _rate_limit('tts_rest', s.restaurant_id::text, 300, interval '1 day');
 end $$;
 
 
@@ -6256,8 +6283,8 @@ begin
   select * into t from tenant_integrations where restaurant_id = s.restaurant_id;
   return json_build_object(
     'sms', json_build_object('provider', t.sms_provider, 'user', t.sms_user, 'header', t.sms_header, 'has_pass', t.sms_pass is not null, 'url', t.sms_url),
-    'mail', json_build_object('provider', t.mail_provider, 'from', t.mail_from, 'from_name', t.mail_from_name, 'key_tail', right(t.mail_api_key, 4), 'other', t.mail_other),
-    'pay', json_build_object('enabled', coalesce(t.pay_enabled,false), 'mode', coalesce(t.pay_mode,'off'), 'provider', t.pay_provider, 'sandbox', coalesce(t.pay_sandbox,true), 'key_tail', right(t.pay_api_key, 4), 'has_secret', t.pay_secret is not null));
+    'mail', json_build_object('provider', t.mail_provider, 'from', t.mail_from, 'from_name', t.mail_from_name, 'key_tail', right(_dec(t.mail_api_key), 4), 'other', t.mail_other),
+    'pay', json_build_object('enabled', coalesce(t.pay_enabled,false), 'mode', coalesce(t.pay_mode,'off'), 'provider', t.pay_provider, 'sandbox', coalesce(t.pay_sandbox,true), 'key_tail', right(_dec(t.pay_api_key), 4), 'has_secret', t.pay_secret is not null));
 end $$;
 
 
@@ -8442,7 +8469,7 @@ begin
   insert into tenant_integrations(restaurant_id) values (s.restaurant_id) on conflict do nothing;
   if p_kind = 'sms' then
     update tenant_integrations set sms_provider = nullif(p_data->>'provider',''), sms_user = nullif(trim(p_data->>'user'),''),
-      sms_pass = coalesce(nullif(p_data->>'pass',''), case when nullif(p_data->>'provider','') is null then null else sms_pass end),
+      sms_pass = coalesce(_enc(nullif(p_data->>'pass','')), case when nullif(p_data->>'provider','') is null then null else sms_pass end),
       sms_header = nullif(upper(trim(p_data->>'header')),''), sms_url = nullif(trim(p_data->>'url'),''), updated_at = now() where restaurant_id = s.restaurant_id;
     if exists(select 1 from tenant_integrations where restaurant_id = s.restaurant_id and sms_provider = 'other' and (sms_url is null or sms_url !~ '^https://' or position('{phone}' in sms_url) = 0 or position('{message}' in sms_url) = 0)) then
       raise exception 'Diğer sağlayıcı için https:// ile başlayan, {phone} ve {message} içeren bir API adresi girin'; end if;
@@ -8450,12 +8477,12 @@ begin
     v := lower(trim(coalesce(p_data->>'from','')));
     if v <> '' and v !~ '^[^@\s]+@[^@\s]+\.[^@\s]+$' then raise exception 'Gönderen e-posta adresi geçersiz'; end if;
     update tenant_integrations set mail_provider = nullif(p_data->>'provider',''),
-      mail_api_key = coalesce(nullif(trim(p_data->>'key'),''), case when nullif(p_data->>'provider','') is null then null else mail_api_key end),
+      mail_api_key = coalesce(_enc(nullif(trim(p_data->>'key'),'')), case when nullif(p_data->>'provider','') is null then null else mail_api_key end),
       mail_from = nullif(v,''), mail_from_name = nullif(trim(p_data->>'from_name'),''), mail_other = nullif(trim(p_data->>'other'),''), updated_at = now() where restaurant_id = s.restaurant_id;
   elsif p_kind = 'pay' then
     update tenant_integrations set pay_mode = case when p_data->>'mode' in ('off','optional','required') then p_data->>'mode' else 'off' end,
       pay_enabled = coalesce(p_data->>'mode','off') <> 'off', pay_provider = nullif(p_data->>'provider',''),
-      pay_api_key = coalesce(nullif(trim(p_data->>'key'),''), pay_api_key), pay_secret = coalesce(nullif(trim(p_data->>'secret'),''), pay_secret),
+      pay_api_key = coalesce(_enc(nullif(trim(p_data->>'key'),'')), pay_api_key), pay_secret = coalesce(_enc(nullif(trim(p_data->>'secret'),'')), pay_secret),
       pay_sandbox = coalesce((p_data->>'sandbox')::boolean, true), updated_at = now() where restaurant_id = s.restaurant_id;
     if exists(select 1 from tenant_integrations where restaurant_id = s.restaurant_id and pay_enabled and (pay_provider is null or pay_api_key is null or pay_secret is null)) then
       raise exception 'Online ödemeyi açmak için sağlayıcı, API anahtarı ve gizli anahtar gerekli';
@@ -9728,6 +9755,8 @@ begin
   if not coalesce(r.is_active,false) or not coalesce(r.online_ordering_enabled,false) or not _restaurant_has_feature(r.id, 'online_ordering') then raise exception 'Bu işletme şu anda online sipariş almıyor'; end if;
   select (get_public_payment_option(p_restaurant_code)->>'mode') into m;
   if m not in ('optional','required') then raise exception 'Bu işletmede online ödeme kapalı'; end if;
+  perform _rate_limit('pub_pay_rest', r.id::text, 60, interval '1 hour');
+  if _client_ip() is not null then perform _rate_limit('pub_pay_ip', _client_ip(), 15, interval '1 hour'); end if;
   if p_order_type not in ('pickup','delivery') then raise exception 'Geçersiz sipariş türü'; end if;
   if coalesce(trim(p_customer_name),'') = '' then raise exception 'Adınızı girin'; end if;
   if coalesce(trim(p_customer_phone),'') = '' then raise exception 'Telefon numaranızı girin'; end if;
@@ -10135,6 +10164,8 @@ begin
   if not coalesce(v_restaurant.online_ordering_enabled, false) or not _restaurant_has_feature(v_restaurant.id, 'online_ordering') then raise exception 'Bu işletme şu anda online sipariş almıyor'; end if;
 
   if (get_public_payment_option(p_restaurant_code)->>'mode') = 'required' then raise exception 'Bu işletmede sipariş için online ödeme gerekiyor'; end if;
+  perform _rate_limit('pub_order_rest', v_restaurant.id::text, 60, interval '1 hour');
+  if _client_ip() is not null then perform _rate_limit('pub_order_ip', _client_ip(), 15, interval '1 hour'); end if;
   if p_order_type not in ('pickup', 'delivery') then raise exception 'Geçersiz sipariş türü'; end if;
   if p_customer_name is null or trim(p_customer_name) = '' then raise exception 'Adınızı girin'; end if;
   if p_customer_phone is null or trim(p_customer_phone) = '' then raise exception 'Telefon numaranızı girin'; end if;
@@ -10196,6 +10227,9 @@ begin
   if p_time > now() + interval '60 days' then raise exception 'En fazla 60 gün sonrası için rezervasyon yapılabilir'; end if;
   select count(*) into n from reservations where restaurant_id = r.id and phone = trim(p_phone) and created_at > now() - interval '10 minutes';
   if n >= 3 then raise exception 'Çok sık istek gönderildi, lütfen biraz bekleyin'; end if;
+  -- Numara değiştirerek doldurmaya karşı: işletme başına saatlik ve IP başına sınır.
+  perform _rate_limit('pub_resv_rest', r.id::text, 30, interval '1 hour');
+  if _client_ip() is not null then perform _rate_limit('pub_resv_ip', _client_ip(), 8, interval '1 hour'); end if;
   insert into reservations(restaurant_id, customer_name, phone, email, party_size, reservation_time, status, notes, source)
     values (r.id, left(trim(p_name), 80), left(trim(p_phone), 30), nullif(left(trim(coalesce(p_email,'')), 120), ''), p_party, p_time, 'pending', nullif(left(trim(coalesce(p_notes,'')), 300), ''), 'online')
     returning id into v;
@@ -10219,7 +10253,7 @@ begin
   if p_rating is null or p_rating < 1 or p_rating > 5 then raise exception 'Lütfen 1-5 arası puan verin'; end if;
   update reviews set rating = p_rating, comment = nullif(left(trim(coalesce(p_comment,'')), 1000), ''), rated_at = now(), seen = (p_rating >= 4) where id = rv.id;
   select google_review_url into g from restaurants where id = rv.restaurant_id;
-  return json_build_object('google_url', case when p_rating >= 4 then g end);
+  return json_build_object('google_url', g);
 end $$;
 
 
