@@ -3118,3 +3118,9 @@ button.oo-chip{cursor:pointer;} button.oo-chip:hover{border-color:var(--accent);
 .al-top{display:flex;align-items:center;gap:10px;} .al-main{flex:1;}
 .al-bot{display:flex;align-items:center;justify-content:space-between;gap:8px;} .al-bot small{font-size:11.5px;color:var(--muted);}
 .al-bar{margin-top:0;}
+
+.xl-bar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:12px 0 4px;}
+.xl-btn{display:inline-flex;align-items:center;gap:6px;width:auto;margin:0;padding:8px 14px;border-radius:12px;border:1px solid var(--border);background:var(--panel2);color:var(--text);font-weight:700;font-size:13px;cursor:pointer;transition:.2s;}
+.xl-btn:hover{border-color:#16a34a;color:#16a34a;transform:translateY(-1px);}
+.xl-btn span{font-size:14px;}
+.xl-link{width:auto;margin:0;padding:6px 4px;background:none;border:none;color:var(--accent);font-weight:600;font-size:12.5px;cursor:pointer;text-decoration:underline;}
