@@ -38,6 +38,7 @@ async function renderAllowancesSettings(el){
   el.innerHTML = `<div class="al-wrap ix-box">
     <div class="oo-hero on"><div class="oo-hero-ic">💳</div>
       <div class="oo-hero-t"><b>Limitli hesaplar</b><small>Kişilere günlük, kullanıcılara günlük ya da aylık harcama limiti verin. Limit içindeki hesap hazır olunca 15 sn sonra kendiliğinden kapanır ve Finansal Analiz'e işlenir; limiti aşan hesapta fark Ödemeler'den alınır.</small></div></div>
+    ${typeof excelBarHtml === 'function' ? excelBarHtml('allowances') : ''}
     <div class="al-grid">
       <div class="al-card">
         <div class="al-h"><span>🎓</span><div><b>Kişiler</b><small>Günlük limit · ertesi güne aktarılmaz</small></div><em>${persons.length}</em></div>

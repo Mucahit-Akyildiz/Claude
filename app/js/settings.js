@@ -1595,6 +1595,7 @@ function renderUsersSettings(el, session){
   el.innerHTML = statChips([['👥', us.length, 'Kullanıcı', 'var(--c1)', 'all'], ['✅', us.filter(u => u.is_active!==false).length, 'Aktif', 'var(--ok,#22c55e)', 'on'],
       ['⏸', us.filter(u => u.is_active===false).length, 'Pasif', 'var(--c3)', 'off'], ['🎫', lic.max_users ? Math.max(0, lic.max_users - us.length) : '—', 'Eklenebilir kullanıcı', 'var(--c2)']], '', 'users') + `<div class="box" style="max-width:none;">
     <div class="fsheet-bar" style="margin:0 0 12px;"><h2 style="margin:0;">Kullanıcılar</h2>${canAssign ? sheetBtnHtml('userSheet','+ Yeni Kullanıcı') : ''}</div>
+    ${canAssign && typeof excelBarHtml === 'function' ? excelBarHtml('users') : ''}
     ${canAssign ? '' : '<p class="muted" style="text-align:left;font-size:12.5px;margin:-4px 0 12px;">🔒 Kullanıcı ekleme, rol değiştirme, pasife alma ve silme için <b>Kullanıcı Yönetimi</b> izni gerekir; yetkili kişilerin hesapları da kilitlidir. Diğer personelin adını ve şifresini değiştirebilirsiniz.</p>'}
     ${canAssign ? sheetHtml('userSheet', '👤', 'Yeni Kullanıcı', `
       <div class="fsheet-grid">
