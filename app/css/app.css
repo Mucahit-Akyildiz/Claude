@@ -3240,3 +3240,8 @@ button.oo-chip{cursor:pointer;} button.oo-chip:hover{border-color:var(--accent);
 .al-req{display:flex;gap:12px;align-items:flex-start;margin:12px 0 0;padding:12px 14px;border-radius:16px;border:1px solid var(--border);background:var(--panel2);cursor:pointer;}
 .al-req>span:last-child{display:flex;flex-direction:column;gap:2px;} .al-req b{font-size:14px;} .al-req small{font-size:12px;color:var(--muted);line-height:1.4;}
 .al-req .oo-switch{flex-shrink:0;margin-top:2px !important;}
+
+.al-off{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-top:14px;}
+.al-off-c{display:flex;flex-direction:column;gap:4px;padding:16px;border-radius:18px;border:1px dashed var(--border);background:var(--panel2);animation:gxIn .5s both;animation-delay:calc(var(--i)*90ms);}
+.al-off-c span{font-size:26px;} .al-off-c b{font-size:14.5px;} .al-off-c small{font-size:12px;color:var(--muted);line-height:1.45;}
+.al-on-btn{max-width:340px;}
