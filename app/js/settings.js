@@ -1790,7 +1790,7 @@ function renderActiveUsersSettings(el){
       </div>
     </div>
     <div class="au-legend">
-      <span><i class="d on"></i>Çevrimiçi</span><span><i class="d idle"></i>Boşta · 2 dk+ işlem yok, vardiya sayacı durur</span><span><i class="d off"></i>Çıkış yaptı</span>
+      <span><i class="d on"></i>Çevrimiçi</span><span><i class="d idle"></i>Boşta · 2 dk+ işlem yok, vardiya sayacı durur</span><span><i class="d away"></i>Çevrimdışı · 30 dk+ işlem yok</span><span><i class="d off"></i>Çıkış yaptı</span>
       <span class="au-auto" title="Liste 20 saniyede bir kendiliğinden yenilenir">🔄 20 sn'de bir yenilenir</span>
     </div>
     <div id="activeUsersBody"><p class="muted">Yükleniyor...</p></div>
@@ -1814,10 +1814,12 @@ async function loadActiveUsers(quiet){
   body.innerHTML = statChips([['🟢', data.active_users, 'Aktif kullanıcı', 'var(--ok,#22c55e)', 'on'], ['🧑‍🍳', data.on_shift, 'Vardiyada', 'var(--c1)', 'shift'],
       ['📅', data.today_users, 'Bugün giren', 'var(--c2)', 'all'], ['🎫', (data.total_users ?? '—') + ' / ' + (data.max_users ?? '—'), data.max_users ? 'Lisans · ' + Math.max(0, data.max_users - data.total_users) + ' boş yer' + (data.total_users - data.enabled_users ? ' · ' + (data.total_users - data.enabled_users) + ' pasif' : '') : 'Kullanıcı / lisans', full ? 'var(--danger,#ef4444)' : 'var(--c3)']], '', 'active') + `
     ${!rows.length ? '<div class="empty-state"><div style="font-size:42px;">😴</div><p class="muted">Bu sürede aktif kullanıcı yok.</p></div>' : `<div class="au-grid" data-cf-scope="active">${rows.map((r, i) => {
-      const st = r.online===false ? 'off' : Date.now() - new Date(r.last_seen_at).getTime() < 120000 ? 'on' : 'idle';
+      // 2 dk içinde işlem: çevrimiçi; 2–30 dk: boşta; 30 dk+ işlem yok ya da çıkış: çevrimdışı.
+      const age = Date.now() - new Date(r.last_seen_at).getTime();
+      const st = r.online===false ? 'off' : age < 120000 ? 'on' : age < 1800000 ? 'idle' : 'away';
       return `<div class="au-card au-${st}" data-cf-tags="${st}${r.on_shift ? ' shift' : ''}" style="--i:${Math.min(i,12)};">
         <div class="cu-top"><span class="au-av">${avatarHtml(r.username)}<i></i></span><div class="cu-id"><b>${escapeHtml(r.username)}</b><small>${escapeHtml(r.roles||'—')}</small></div>
-          <span class="au-st">${st==='on' ? 'Çevrimiçi' : st==='idle' ? 'Boşta' : 'Çıkış yaptı'}</span></div>
+          <span class="au-st">${st==='on' ? 'Çevrimiçi' : st==='idle' ? 'Boşta' : st==='away' ? 'Çevrimdışı' : 'Çıkış yaptı'}</span></div>
         <div class="pcard-chips">
           <span class="pchip">⚡ ${fmtRelativeTime(r.last_seen_at)}</span>
           <span class="pchip">🔑 ${new Date(r.login_at).toLocaleString('tr-TR', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' })}</span>
