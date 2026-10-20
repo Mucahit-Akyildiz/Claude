@@ -1,0 +1,4 @@
+-- Gün sonu vardiya kapanışı: restaurants.day_end_hour (vars. 05:00), staff_shifts.auto_closed,
+-- _auto_close_shifts (kapanış = vardiya aralığındaki son kullanım; en geç açıldığı günün gün sonu),
+-- _cron_day_end_shifts (pg_cron day_end_shifts_10m), set_day_end_hour, save_cash_count gün sonu sayımında diğerlerini kapatır,
+-- list_staff_shifts auto_closed + day_end_hour döner. Canlıya uygulandı; tam hali supabase/schema.sql dökümünde.
