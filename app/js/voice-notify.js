@@ -339,8 +339,6 @@ function processVoiceBadges(data, visibleViews){
   VOICE_SEEN = ids;
   // Uygulama ilk açıldığında eski bildirimler okunmaz; ama 15 dk içindeki rezervasyon yine hatırlatılır.
   if(first){ if(!fresh.resvsoon) return false; Object.keys(fresh).forEach(k => { if(k !== 'resvsoon') delete fresh[k]; }); }
-  // Kişinin kendi işleminin (mutfakta "Hazır"/"Hepsi Hazır") doğurduğu "siparişi hazır" bildirimi bu cihazda okunmaz.
-  if(typeof APP !== 'undefined' && Date.now() < (APP.selfActionUntil || 0)) delete fresh.ready;
   const p = getVoicePrefs();
   if(!p.enabled) return false;
   let sound = false;
