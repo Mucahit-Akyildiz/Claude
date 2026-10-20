@@ -1,0 +1,1 @@
+-- tenant_integrations.sms_url/mail_other; _urlenc; _send_sms 'other' (HTTP GET şablonu); _send_email_r sendgrid/postmark
