@@ -177,6 +177,20 @@ function pickAllowanceFromCust(aid, prefix){
   if(prefix === 'tableCust' && typeof saveTableCustomer === 'function') saveTableCustomer(pid, true);
   showToast((a.kind === 'user' ? '👔 ' : '🎓 ') + a.name + ' · limit bağlandı');
 }
+/* Müşteri seçilince/yazılınca eşleşen limitli kişi ya da kullanıcı varsa limit bağlanır ve etiketi otomatik işaretlenir.
+   Eşleşme: telefon (son 10 hane) ya da ad; ad tam tutmazsa ilk kelimesi tek bir kayda denk geliyorsa. */
+function autoAllowanceForCustomer(name, phone){
+  const bg = document.getElementById('tableModalBg'); const pid = bg ? bg.dataset.tableId : null; if(!pid) return;
+  if(APP.orderAllowance && APP.orderAllowance[pid]) return;
+  const list = (APP.allowances || []).filter(a => a.is_active);
+  const d = String(phone || '').replace(/\D/g, '').slice(-10), n = String(name || '').trim().toLocaleLowerCase('tr');
+  let hit = d.length >= 10 ? list.find(a => String(a.phone || '').replace(/\D/g, '').slice(-10) === d) : null;
+  if(!hit && n) hit = list.find(a => String(a.name || '').trim().toLocaleLowerCase('tr') === n);
+  if(!hit && n){ const w = n.split(/\s+/)[0]; const m = list.filter(a => String(a.name || '').trim().toLocaleLowerCase('tr') === w || String(a.name || '').trim().toLocaleLowerCase('tr').split(/\s+/)[0] === w); if(m.length === 1) hit = m[0]; }
+  if(!hit) return;
+  pickOrderAllowance(pid, hit.id);
+  showToast((hit.kind === 'user' ? '👔 ' : '🎓 ') + hit.name + ' · limit bağlandı' + (hit.flag_label ? ', ' + hit.flag_label + ' etiketi seçildi' : ''));
+}
 function maskPhoneAl(p){ const d = String(p || '').replace(/\D/g, ''); return d.length > 4 ? '••• ' + d.slice(-4) : d; }
 function alSearch(pseudoId, q){
   const box = document.getElementById('alRes_' + pseudoId); if(!box) return;
