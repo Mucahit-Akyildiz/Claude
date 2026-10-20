@@ -274,31 +274,57 @@ async function renderZReportContent(session){
   anSetExport('gun-sonu', ['Kalem', 'Tutar'], rows.filter(r => r.length > 1).map(r => [r[0], String(r[1]).replace(/<[^>]+>/g, '')]));
   APP.anZRows = rows;
   const s = getSession();
-  el.innerHTML = `<div class="an-z-wrap"><div class="an-z" id="anZ">
-      <div class="an-z-h"><b>${escapeHtml(s.restaurant_name || '')}</b><span>GÜN SONU RAPORU</span><small>${escapeHtml(reportDateRangeLabel())} · ${new Date().toLocaleString('tr-TR', { dateStyle: 'short', timeStyle: 'short' })}</small></div>
-      ${rows.map(r => r.length === 1 ? '<div class="an-z-sep"></div>' : `<div class="an-z-r ${r[2] || ''}"><span>${r[0]}</span><b>${r[1]}</b></div>`).join('')}
-      <div class="an-z-f">Peyktan · ${escapeHtml(s.username || '')}</div>
-    </div>
-    <div class="an-z-acts"><button type="button" ${act('printZToReceipt')}>🧾 Fiş Yazıcısına Gönder</button><button type="button" class="ghost-btn" ${act('printZReport')}>🖨️ Yazdır / PDF</button><button type="button" class="ghost-btn" ${act('exportAnalytics')}>⬇ Excel (CSV)</button></div>
-    <div class="cc-box">
-      <div class="cc-h"><span class="cc-ic">🧮</span><div style="flex:1;"><b>Kasa Sayımı</b><small>Kasadaki nakdi sayıp girin; sistemdeki nakit satışla fark hesaplanır</small></div><button type="button" class="ghost-btn" style="width:auto;padding:6px 12px;font-size:12.5px;" ${act('setReportTab', 'dayclose')}>📅 Geçmiş kapanışlar</button></div>
-      <div class="cc-grid">
-        <div class="cc-stat"><small>Sistemde nakit</small><b id="ccExpected" data-v="${anN(k.cash)}">${money(k.cash)}</b></div>
-        <div class="field-group"><label>Sayılan nakit (TL)</label><input id="ccCounted" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0,00" ${actOn('input','updateCashDiff',[])}></div>
-        <div class="cc-stat" id="ccDiffBox"><small>Fark</small><b id="ccDiff">—</b></div>
+  const closed = lastC && !lastC.skipped, skipped = lastC && lastC.skipped;
+  const fmtT = (t) => new Date(t).toLocaleString('tr-TR', { dateStyle: 'short', timeStyle: 'short' });
+  const stat = (ic, l, v, tone) => `<div class="zc-stat" style="--sc:${tone};"><span>${ic}</span><small>${l}</small><b>${v}</b></div>`;
+  const statusHtml = closed
+    ? `<div class="zc-status ok"><span class="zc-big">✅</span><div><b>Gün kapandı</b><small>${escapeHtml(lastC.username || '')} · ${fmtT(lastC.created_at)}</small></div>
+        <div class="zc-res ${anN(lastC.diff) < 0 ? 'neg' : anN(lastC.diff) > 0 ? 'pos' : 'ok'}"><small>Kasa farkı</small><b>${anN(lastC.diff) === 0 ? 'Tam ✓' : (anN(lastC.diff) > 0 ? '+' : '') + money(lastC.diff)}</b></div></div>`
+    : skipped
+      ? `<div class="zc-status skip"><span class="zc-big">⚠️</span><div><b>Kasa sayılmadan kapatıldı</b><small>${escapeHtml(lastC.note || '')} · ${escapeHtml(lastC.username || '')} · ${fmtT(lastC.created_at)}</small></div></div>`
+      : `<div class="zc-status wait"><span class="zc-big">🕒</span><div><b>Gün henüz kapanmadı</b><small>Kasadaki nakdi sayın, tutarı girin ve günü kapatın. Yaklaşık 30 saniye sürer.</small></div></div>`;
+  el.innerHTML = `<div class="zc-wrap">
+    <div class="zc-main">
+      <div class="zc-head"><div><h3>🧾 Gün Sonu</h3><small>${escapeHtml(reportDateRangeLabel())}</small></div><button type="button" class="ghost-btn zc-hist" ${act('setReportTab', 'dayclose')}>📅 Geçmiş kapanışlar</button></div>
+      ${statusHtml}
+      <div class="zc-step"><span class="zc-n">1</span><div><b>Günün özetine bakın</b><small>Kasada olması gereken nakit, nakit ödemelerin toplamıdır.</small></div></div>
+      <div class="zc-stats">
+        ${stat('💰', 'Net ciro', money(k.revenue), 'var(--c1)')}
+        ${stat('💵', 'Nakit (kasada olmalı)', money(k.cash), 'var(--ok,#22c55e)')}
+        ${stat('💳', 'Kredi kartı', money(k.card), 'var(--c2)')}
+        ${stat('🧾', 'Hesap sayısı', k.checks || 0, 'var(--c3)')}
       </div>
-      <input id="ccNote" placeholder="Not (opsiyonel) — örn. açılış kasası 500 TL dahil">
-      <button type="button" class="cc-save" ${act('saveCashCount')}>💾 Sayımı Kaydet</button>
-      ${counts.length ? `<div class="cc-list">${counts.map(c => `<div class="cc-row"><span>${new Date(c.created_at).toLocaleString('tr-TR',{dateStyle:'short',timeStyle:'short'})} · ${escapeHtml(c.username||'')}${c.note ? ' · ' + escapeHtml(c.note) : ''}</span>${c.skipped ? '<b class="neg">⚠️ Sayılmadı</b>' : `<b class="${anN(c.diff) < 0 ? 'neg' : anN(c.diff) > 0 ? 'pos' : ''}">${money(c.counted)} · ${anN(c.diff) > 0 ? '+' : ''}${money(c.diff)}</b>`}</div>`).join('')}</div>` : ''}
+      <div class="zc-step"><span class="zc-n">2</span><div><b>Kasadaki nakdi sayın</b><small>Saydığınız toplamı yazın; fark anında hesaplanır.</small></div></div>
+      <div class="zc-count">
+        <div class="zc-exp"><small>Kasada olması gereken</small><b id="ccExpected" data-v="${anN(k.cash)}">${money(k.cash)}</b></div>
+        <span class="zc-vs">→</span>
+        <label class="zc-in"><small>Saydığınız nakit</small><span><input id="ccCounted" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0,00" ${actOn('input','updateCashDiff',[])}><em>₺</em></span></label>
+      </div>
+      <div class="zc-msg" id="ccDiffBox"><span id="ccDiff">Tutarı girince sonuç burada görünür.</span></div>
+      <input id="ccNote" class="zc-note" placeholder="Not (isteğe bağlı) — örn. açılış kasası 500 ₺ dahil">
+      <div class="zc-step"><span class="zc-n">3</span><div><b>Günü kapatın</b><small>Kaydedince açık vardiyalar da kapanır ve gün raporlarda “Kapandı” olarak görünür.</small></div></div>
+      <button type="button" class="zc-close" ${act('saveCashCount')}>🔒 ${closed ? 'Yeniden say ve kaydet' : 'Günü kapat'}</button>
+      ${counts.length > 1 ? `<details class="zc-more"><summary>Bu günün tüm sayımları (${counts.length})</summary><div class="cc-list">${counts.map(c => `<div class="cc-row"><span>${fmtT(c.created_at)} · ${escapeHtml(c.username||'')}${c.note ? ' · ' + escapeHtml(c.note) : ''}</span>${c.skipped ? '<b class="neg">⚠️ Sayılmadı</b>' : `<b class="${anN(c.diff) < 0 ? 'neg' : anN(c.diff) > 0 ? 'pos' : ''}">${money(c.counted)} · ${anN(c.diff) > 0 ? '+' : ''}${money(c.diff)}</b>`}</div>`).join('')}</div></details>` : ''}
+    </div>
+    <div class="zc-side">
+      <div class="zc-side-t">🧾 Rapor fişi</div>
+      <div class="an-z" id="anZ">
+        <div class="an-z-h"><b>${escapeHtml(s.restaurant_name || '')}</b><span>GÜN SONU RAPORU</span><small>${escapeHtml(reportDateRangeLabel())} · ${new Date().toLocaleString('tr-TR', { dateStyle: 'short', timeStyle: 'short' })}</small></div>
+        ${rows.map(r => r.length === 1 ? '<div class="an-z-sep"></div>' : `<div class="an-z-r ${r[2] || ''}"><span>${r[0]}</span><b>${r[1]}</b></div>`).join('')}
+        <div class="an-z-f">Peyktan · ${escapeHtml(s.username || '')}</div>
+      </div>
+      <div class="zc-acts"><button type="button" ${act('printZToReceipt')}>🧾 Fişe yazdır</button><button type="button" class="ghost-btn" ${act('printZReport')}>🖨️ PDF</button><button type="button" class="ghost-btn" ${act('exportAnalytics')}>⬇ Excel</button></div>
     </div></div>`;
 }
 function updateCashDiff(){
   const exp = Number(document.getElementById('ccExpected').dataset.v) || 0, v = document.getElementById('ccCounted').value;
   const el = document.getElementById('ccDiff'), box = document.getElementById('ccDiffBox');
-  if(v === ''){ el.textContent = '—'; box.className = 'cc-stat'; return; }
+  if(v === ''){ el.textContent = 'Tutarı girince sonuç burada görünür.'; box.className = 'zc-msg'; return; }
   const d = Math.round(((Number(v) || 0) - exp) * 100) / 100;
-  el.textContent = (d > 0 ? '+' : '') + money(d) + (d === 0 ? ' ✓' : d < 0 ? ' eksik' : ' fazla');
-  box.className = 'cc-stat ' + (d < 0 ? 'neg' : d > 0 ? 'pos' : 'ok');
+  el.innerHTML = d === 0 ? '✅ <b>Kasa tam.</b> Sayım sistemle birebir tutuyor.'
+    : d < 0 ? `🔻 Kasada <b>${money(-d)} eksik</b> var. Para üstü, unutulan fiş veya iade olup olmadığını kontrol edin; gerekirse not düşün.`
+    : `🔺 Kasada <b>${money(d)} fazla</b> var. Açılış kasası veya girilmemiş bir ödeme olabilir; gerekirse not düşün.`;
+  box.className = 'zc-msg ' + (d < 0 ? 'neg' : d > 0 ? 'pos' : 'ok');
 }
 async function saveCashCount(){
   const v = document.getElementById('ccCounted').value;
@@ -307,7 +333,7 @@ async function saveCashCount(){
   APP.dayClose = null;
   const { error } = await sb.rpc('save_cash_count', { p_token: session.session_token, p_date: APP.reportDateTo || APP.reportDate, p_expected: Number(document.getElementById('ccExpected').dataset.v) || 0, p_counted: Number(v), p_note: document.getElementById('ccNote').value });
   if(error){ alert(error.message); return; }
-  showToast('Kasa sayımı kaydedildi ✓');
+  showToast('Gün kapandı ✓');
   renderZReportContent(session);
 }
 /* Gün sonu raporunu kasa fişlerinin gittiği "Bu Ekranın Yazıcısı"na 80 mm fiş olarak basar. */
