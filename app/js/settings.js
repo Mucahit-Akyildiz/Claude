@@ -1676,6 +1676,7 @@ async function renderShiftsSettings(el, session){
 let SHIFTS_TIMER = null;
 function changeShiftsDate(v){ APP.shiftsDate = v; const i = document.getElementById('shiftsDateInput'); if(i) i.value = v; renderShiftsTable(getSession()); }
 function shiftDayStep(d){ const x = new Date(APP.shiftsDate+'T12:00'); x.setDate(x.getDate()+d); changeShiftsDate(x.getFullYear()+'-'+String(x.getMonth()+1).padStart(2,'0')+'-'+String(x.getDate()).padStart(2,'0')); }
+async function setDayEndHour(v){ const s = getSession(); const { error } = await sb.rpc('set_day_end_hour', { p_token: s.session_token, p_hour: parseInt(v, 10) }); if(error){ alert(error.message); return; } showToast('Gün sonu saati ' + String(v).padStart(2,'0') + ':00 ✓'); }
 async function renderShiftsTable(session, quiet){
   const wrap = document.getElementById('shiftsTableWrap'); if(!wrap) return;
   const box = wrap.closest('.box');
@@ -1696,6 +1697,11 @@ async function renderShiftsTableInner(session, wrap){
       <input type="checkbox" class="sw" ${data.shift_required?'checked':''} ${canManage(session,'shifts')?'':'disabled'} ${actOn('change','toggleShiftRequired',['$checked'])}>
       <span><b>Vardiya açmadan çalışılamasın</b><br>
       <span class="muted" style="font-size:12.5px;">Açıkken personel vardiyasını başlatmadan Sipariş Al, Paket, Mutfak, Ödemeler, Rezervasyon ve Satınalma ekranlarını kullanamaz. Vardiya talebini gönderdiği anda çalışmaya başlayabilir; onayı siz sonradan verirsiniz. Yönetici ve <b>⏱ Vardiya Açmadan Çalışma</b> izni verilen roller (ör. Tam Yetkili, en fazla 3 kişi) bu kuraldan muaftır.</span></span>
+    </label>
+    <label class="sw-card">
+      <span style="font-size:22px;">🌙</span>
+      <span style="flex:1;"><b>Gün sonu saati</b> <select style="width:auto;display:inline-block;margin:0 0 0 6px;padding:4px 8px;" ${canManage(session,'shifts')?'':'disabled'} ${actOn('change','setDayEndHour',['$value'])}>${Array.from({length:24},(_,h) => `<option value="${h}" ${Number(data.day_end_hour ?? 5)===h?'selected':''}>${String(h).padStart(2,'0')}:00</option>`).join('')}</select><br>
+      <span class="muted" style="font-size:12.5px;">Bu saatte açık kalan vardiyalar otomatik kapanır; herkes her gün vardiyasını yeniden açar. Bitiş saati olarak kişinin uygulamayı son kullandığı an yazılır. Gün Sonu kasa sayımı kaydedildiğinde de diğer personelin vardiyaları kapanır.</span></span>
     </label></div>`;
   const pendWrap = document.getElementById('shiftPendingWrap');
   const pending = data.pending || [];
@@ -1736,7 +1742,7 @@ async function renderShiftsTableInner(session, wrap){
             ${!r.clock_out && r.end_requested_at ? `<span class="pchip warn">🏁 ${formatShiftTime(r.end_requested_at)}'de bitirmek istedi</span>` : ''}
             ${r.is_paused ? '<span class="pchip warn">⏸ Duraklatıldı</span>' : ''}
             ${r.paused_minutes > 0 ? `<span class="pchip">${formatShiftDuration(r.paused_minutes)} pasif</span>` : ''}
-            ${r.clock_out ? (r.ended_by && r.ended_by!==r.username ? `<span class="pchip">${escapeHtml(r.ended_by)} bitirdi</span>` : '<span class="pchip">✓ Bitti</span>') : `<button type="button" class="pc-btn rv-del" ${act('manageShift', r.id, 'end')}>⏹ Bitir</button>`}
+            ${r.clock_out && r.auto_closed ? `<span class="pchip warn" title="Gün sonunda açık kaldığı için kapatıldı; bitiş saati kişinin son kullanım anıdır">⚠️ Otomatik kapandı</span>` : r.clock_out ? (r.ended_by && r.ended_by!==r.username ? `<span class="pchip">${escapeHtml(r.ended_by)} bitirdi</span>` : '<span class="pchip">✓ Bitti</span>') : `<button type="button" class="pc-btn rv-del" ${act('manageShift', r.id, 'end')}>⏹ Bitir</button>`}
           </div>
         </div>`; }).join('')}
     </div>`;
