@@ -2998,3 +2998,17 @@ body.fsheet-lock{overflow:hidden;}
 .ti-d{text-align:left;font-size:12.5px;margin:2px 0 4px;}
 .ti-sw{display:flex;align-items:center;gap:8px;color:var(--text) !important;font-weight:600 !important;cursor:pointer;}
 .ti-sw input{width:auto;}
+.ti-one{max-width:560px;margin-top:12px;}
+/* Entegrasyonlar: gruplu sade gezinme */
+.int-groups{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px;margin-bottom:16px;}
+.int-group{padding:12px;border-radius:18px;border:1px solid var(--border);background:var(--panel);}
+.int-gt{font-size:12px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin:2px 4px 8px;}
+.int-gl{display:flex;flex-direction:column;gap:4px;}
+.int-row{display:flex;align-items:center;gap:10px;width:100%;margin:0;padding:9px 10px;border-radius:12px;border:0;background:transparent;color:var(--text);text-align:left;box-shadow:none;cursor:pointer;transition:background .15s;}
+.int-row:hover{background:color-mix(in srgb,var(--text) 5%,transparent);}
+.int-row.active{background:color-mix(in srgb,var(--accent) 14%,transparent);box-shadow:inset 3px 0 0 var(--accent);}
+.int-row .int-ic{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;font-size:18px;background:var(--panel2);flex-shrink:0;}
+.int-row .int-txt{flex:1;min-width:0;} .int-row .int-txt b{display:block;font-size:13.5px;} .int-row .int-txt small{display:block;font-size:11.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.int-row .int-st{font-size:11px;color:var(--ok,#22c55e);} .int-row.st-lock .int-st{color:var(--muted);}
+#tiPay .ti-one{margin-top:18px;}
+@media (max-width:1000px){.int-groups{grid-template-columns:1fr;}}
