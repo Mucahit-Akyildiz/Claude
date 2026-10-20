@@ -173,8 +173,11 @@ function renderPayGrid(){
     const cov = typeof allowanceCovers === 'function' ? allowanceCovers(o) : null;
     const comp = (o.tags || []).length > 0 && cov !== false;
     const alNote = cov === false ? `<div class="pk-comp pk-al-over">💳 ${escapeHtml(o.allowance_name || 'Limit')} · limit ${money(o.allowance_remaining || 0)} düşülecek, fark ${money(Math.max(0, total - Number(o.allowance_remaining || 0)))}</div>` : '';
-    if(comp && allReady && unpaid.length){ APP.compAt = APP.compAt || {}; if(!APP.compAt[o.order_id]) APP.compAt[o.order_id] = Date.now() + 15000; }
-    const compRibbon = alNote || (comp ? `<div class="pk-comp">${o.allowance_id ? '💳 ' + escapeHtml(o.allowance_name || '') + ' · limitten' : '🎁 İkram'} · ${escapeHtml(o.tags.join(', '))}${allReady && unpaid.length ? ` <span class="pk-comp-cd" data-comp-until="${APP.compAt[o.order_id]}">15</span> sn sonra ödemesiz kapanır` : ' · hazır olunca ödemesiz kapanır'}</div>` : '');
+    // Geri sayım sunucudaki hazır olma anından hesaplanır (ekran sonradan açılsa da kaldığı yerden); kapanışı sunucu da yapar.
+    if(comp && allReady && unpaid.length){ APP.compAt = APP.compAt || {};
+      const rt = Math.max(...unpaid.map(i => new Date(i.ready_at || i.added_at || Date.now()).getTime()).filter(x => !isNaN(x)));
+      APP.compAt[o.order_id] = (isFinite(rt) ? rt : Date.now()) + 15000; }
+    const compRibbon = alNote || (comp ? `<div class="pk-comp">${o.allowance_id ? '💳 ' + escapeHtml(o.allowance_name || '') + ' · limitten' : '🎁 İkram'} · ${escapeHtml(o.tags.join(', '))}${allReady && unpaid.length ? ` <span class="pk-comp-cd" data-comp-until="${APP.compAt[o.order_id]}">${Math.max(0, Math.ceil((APP.compAt[o.order_id] - Date.now()) / 1000))}</span> sn sonra ödemesiz kapanır` : ' · hazır olunca ödemesiz kapanır'}</div>` : '');
     return `<div class="pk ${allReady ? 'pk-ready' : 'pk-busy'} ${comp ? 'pk-is-comp' : ''}" data-badge-id="${o.order_id}" ${act('openPayModal', o.order_id)}>
       ${compRibbon}
       <div class="pk-head"><b>${name}</b><span class="pk-time">⏱ ${mins} dk</span></div>

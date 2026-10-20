@@ -8,3 +8,4 @@
 -- allowance_report(p_token, p_date, p_date_to): dönemde limitten karşılanan, limit aşımında tahsil edilen fark, kişi bazında kullanım.
 -- staff_allowance_items(p_token,p_user,p_date,p_date_to), staff_allowance_summary(p_token,p_date,p_date_to): personelin limitinden aldıkları (garson kartları).
 -- get_staff_detail: vardiya süresi negatif çıkmasın (mola süresi vardiya süresinden büyükse 0).
+-- _session_check: peyk.sys_token ile sistem oturumu (yalnızca aynı işlemde). _cron_close_comp_orders + cron close_comp_orders_5s: hazır olduktan 15 sn sonra ikram/limitli hesaplar ekran açık olmasa da sunucuda kapanır.
