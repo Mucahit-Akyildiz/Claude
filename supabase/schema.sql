@@ -6248,7 +6248,7 @@ begin
   shf as (select * from staff_shifts where restaurant_id = r and user_id = p_user and clock_in < t and coalesce(clock_out, now()) >= f and status <> 'pending')
   select json_build_object(
     'user', (select json_build_object('username', username, 'created_at', created_at) from app_users where id = p_user),
-    'shifts', (select json_build_object('n', count(*), 'minutes', coalesce(round(sum(extract(epoch from (coalesce(clock_out, now()) - clock_in)) - coalesce(paused_seconds,0))/60),0),
+    'shifts', (select json_build_object('n', count(*), 'minutes', coalesce(round(sum(greatest(0, extract(epoch from (coalesce(clock_out, now()) - clock_in)) - least(coalesce(paused_seconds,0), extract(epoch from (coalesce(clock_out, now()) - clock_in)))))/60),0),
         'days', count(distinct (clock_in at time zone 'Europe/Istanbul')::date)) from shf),
     'sales', (select json_build_object('rev', coalesce(sum(total),0), 'n', count(*), 'tips', coalesce(sum(tip_amount),0), 'cash', coalesce(sum(cash_amount),0), 'card', coalesce(sum(card_amount),0),
         'discount', coalesce(sum(discount_amount),0), 'avg_min', round(avg(extract(epoch from (closed_at - ordered_at))/60) filter (where ordered_at is not null))) from sh),
