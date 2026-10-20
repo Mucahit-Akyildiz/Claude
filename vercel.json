@@ -72,5 +72,5 @@
       "claude/friendly-goodall-rksmy6": false
     }
   },
-  "ignoreCommand": "[ \"$VERCEL_GIT_COMMIT_REF\" != \"claude/restoran-app-definition-h5e5am\" ] || git diff --quiet ${VERCEL_GIT_PREVIOUS_SHA:-HEAD^} HEAD -- . ':(exclude)supabase' ':(exclude)mobile' ':(exclude)desktop' ':(exclude)docs' ':(exclude)tests' ':(exclude)scripts' ':(exclude).github' ':(exclude).claude' ':(exclude)README.md'"
+  "ignoreCommand": "bash vercel-ignore.sh"
 }
