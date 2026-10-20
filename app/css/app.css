@@ -3017,3 +3017,49 @@ body.fsheet-lock{overflow:hidden;}
 .ti-mode input{width:auto;margin:0;grid-row:span 2;}
 .ti-mode b{font-size:13.5px;} .ti-mode small{grid-column:2;font-size:12px;color:var(--muted);font-weight:500;}
 .ti-mode.on{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 8%,transparent);}
+
+/* Online Sipariş kartı */
+.oo-box{text-align:left;}
+.oo-hero{display:flex;align-items:center;gap:14px;padding:16px 18px;border-radius:20px;border:1px solid var(--border);background:linear-gradient(135deg,color-mix(in srgb,var(--accent) 10%,var(--panel)),var(--panel));margin-bottom:14px;transition:.25s;}
+.oo-hero.on{border-color:color-mix(in srgb,var(--accent) 45%,var(--border));box-shadow:0 8px 30px -14px color-mix(in srgb,var(--accent) 60%,transparent);}
+.oo-hero-ic{font-size:30px;width:56px;height:56px;border-radius:16px;display:grid;place-items:center;background:color-mix(in srgb,var(--accent) 16%,transparent);flex-shrink:0;animation:ooBob 3s ease-in-out infinite;}
+@keyframes ooBob{50%{transform:translateY(-3px) rotate(-4deg);}}
+.oo-hero-t{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px;}
+.oo-hero-t b{font-size:16px;} .oo-hero-t small{font-size:12.5px;color:var(--muted);line-height:1.45;}
+.oo-switch{display:flex;align-items:center;gap:8px;cursor:pointer;margin:0 !important;flex-shrink:0;}
+.oo-switch input{position:absolute;opacity:0;width:0;height:0;}
+.oo-track{width:50px;height:28px;border-radius:999px;background:var(--panel2);border:1px solid var(--border);position:relative;transition:.25s;}
+.oo-thumb{position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#fff;box-shadow:0 2px 6px rgba(0,0,0,.3);transition:.25s cubic-bezier(.4,1.6,.6,1);}
+.oo-switch input:checked+.oo-track{background:var(--accent);border-color:var(--accent);}
+.oo-switch input:checked+.oo-track .oo-thumb{left:25px;}
+.oo-switch em{font-style:normal;font-weight:700;font-size:13px;color:var(--muted);min-width:42px;}
+.oo-switch input:checked~em{color:var(--accent);}
+.oo-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:14px;align-items:start;}
+.oo-col{display:flex;flex-direction:column;gap:12px;min-width:0;}
+.oo-share{display:flex;gap:16px;align-items:center;padding:16px;border-radius:18px;border:1px solid var(--border);background:var(--panel);flex-wrap:wrap;}
+.oo-qr{padding:10px;border-radius:16px;background:#fff;flex-shrink:0;box-shadow:0 6px 18px -8px rgba(0,0,0,.4);transition:transform .2s;}
+.oo-qr:hover{transform:scale(1.04) rotate(-1deg);}
+.oo-qr img{width:112px;height:112px;display:block;}
+.oo-share-t{flex:1;min-width:180px;display:flex;flex-direction:column;gap:4px;}
+.oo-share-t b{font-size:15px;} .oo-share-t small{font-size:12px;color:var(--muted);line-height:1.4;}
+.oo-live{align-self:flex-start;font-size:11px;font-weight:800;color:var(--ok,#22c55e);background:color-mix(in srgb,var(--ok,#22c55e) 14%,transparent);padding:3px 9px;border-radius:999px;}
+.oo-url{font-size:12.5px;font-family:ui-monospace,monospace;padding:7px 10px;border-radius:10px;background:var(--panel2);overflow-wrap:anywhere;margin-top:4px;}
+.oo-btns{display:flex;gap:8px;margin-top:6px;flex-wrap:wrap;}
+.oo-btns button,.oo-open{width:auto;margin:0;padding:8px 14px;border-radius:12px;font-size:13px;font-weight:700;}
+.oo-open{border:1px solid var(--border);color:var(--text);text-decoration:none;display:inline-flex;align-items:center;}
+.oo-open:hover{border-color:var(--accent);color:var(--accent);}
+.oo-off{flex-direction:column;align-items:flex-start;gap:4px;border-style:dashed;}
+.oo-off span{font-size:24px;} .oo-off small{color:var(--muted);font-size:12.5px;}
+.oo-quick{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+.oo-chip{display:grid;grid-template-columns:auto 1fr;column-gap:10px;align-items:center;text-align:left;padding:12px;border-radius:16px;border:1px solid var(--border);background:var(--panel);color:var(--text);margin:0;width:auto;transition:.2s;}
+.oo-chip span{grid-row:span 2;font-size:20px;} .oo-chip b{font-size:13px;} .oo-chip small{font-size:11.5px;color:var(--muted);font-weight:500;}
+button.oo-chip{cursor:pointer;} button.oo-chip:hover{border-color:var(--accent);transform:translateY(-2px);}
+.oo-chip-info{border-style:dashed;}
+#ooPayCol #tiPay .ti-one{margin-top:0;max-width:none;}
+#ooPayCol .ti-modes{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;}
+#ooPayCol .ti-mode{grid-template-columns:1fr;text-align:center;padding:12px 8px;transition:.2s;position:relative;}
+#ooPayCol .ti-mode input{position:absolute;opacity:0;}
+#ooPayCol .ti-mode b{font-size:13px;} #ooPayCol .ti-mode small{grid-column:1;font-size:11px;line-height:1.35;margin-top:3px;}
+#ooPayCol .ti-mode:hover{transform:translateY(-2px);}
+#ooPayCol .ti-mode.on{box-shadow:0 0 0 2px var(--accent) inset;}
+@media (max-width:560px){.oo-hero{flex-wrap:wrap;} .oo-quick,#ooPayCol .ti-modes{grid-template-columns:1fr;} #ooPayCol .ti-mode{text-align:left;}}
