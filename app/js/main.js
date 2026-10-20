@@ -272,6 +272,7 @@ async function refreshNavBadges(){
   if(error || !data || seq !== APP.navBadgeSeq) return;
   APP.navBadges = data;
   applyNavBadges();
+  if(APP.view==='home'){ homeFillBadges(); if(!APP.homeSumAt || Date.now() - APP.homeSumAt > 30000){ APP.homeSumAt = Date.now(); homeLoadSummary(s); } }
   // Uygulama simgesindeki sayı (kurulu web uygulamasında / destekleyen tarayıcıda).
   const visible = NAV_ITEMS.filter(i => navItemVisible(i, s));
   const total = visible.reduce((t, i) => t + (data[i.view] || 0), 0);
@@ -586,14 +587,64 @@ function setupBackNavigation(){
 
 
 function renderHome(main, session){
-  // Yalnızca yetkili kişiye görünen hızlı yönetim kısayolları (menüyü kalabalıklaştırmadan Ayarlar sekmelerine tek dokunuş).
+  // Kişiye özel "Bugün" ekranı: yetkili olduğu bölümlerin kısayolları, anlık özet, vardiya ve (yetkiliyse) hızlı yönetim.
+  const hr = new Date().getHours();
+  const greet = hr < 6 ? 'İyi geceler' : hr < 12 ? 'Günaydın' : hr < 18 ? 'İyi günler' : 'İyi akşamlar';
+  const skip = ['home','help','notificationSettings','printerSettings','settings'];
+  const items = NAV_ITEMS.filter(i => !skip.includes(i.view) && navItemVisible(i, session));
   const quick = [
     { tab:'products', ic:'🍽️', t:'Ürünler', d:'Fiyat, reçete, stok' },
     { tab:'zones', ic:'🪑', t:'Masalar', d:'Bölge ve masa planı' },
     { tab:'stations', ic:'📋', t:'Menüler', d:'Menüler ve istasyonlar' },
   ].filter(q => typeof SETTINGS_TABS !== 'undefined' && SETTINGS_TABS.some(t => t.tab===q.tab && settingsTabVisible(t, session)));
-  main.innerHTML = `<h1>Merhaba ${escapeHtml(session.username)} 👋</h1><p class="muted" style="text-align:left;">Sol taraftaki menüden bir bölüm seçin.</p>`
-    + (quick.length ? `<h3 class="hq-title">⚡ Hızlı Yönetim</h3><div class="hq-row">${quick.map((q, i) => `<button type="button" class="hq-card" style="--sc:var(--c${i+1});" ${act('goQuickManage', q.tab)}><span class="hq-ic">${q.ic}</span><span><b>${q.t}</b><small>${q.d}</small></span></button>`).join('')}</div>` : '');
+  main.innerHTML = `<h1>${greet} ${escapeHtml(session.username)} 👋</h1>
+    <p class="muted hm-date" style="text-align:left;">${new Date().toLocaleDateString('tr-TR', { weekday:'long', day:'numeric', month:'long' })}</p>
+    <div id="homeShift" class="hm-shift"></div>
+    <div id="homeNow"></div>
+    ${items.length ? `<h3 class="hq-title">🚀 Hızlı Başla</h3><div class="hm-grid">${items.map((it, i) => `<button type="button" class="hm-tile" data-hview="${it.view}" style="--sc:var(--c${i%4+1});" ${act('goToView', it.view)}><span class="hm-ic">${it.icon}</span><b>${escapeHtml(it.label)}</b><small class="hm-sub"></small></button>`).join('')}</div>` : ''}
+    ${quick.length ? `<h3 class="hq-title">⚡ Hızlı Yönetim</h3><div class="hq-row">${quick.map((q, i) => `<button type="button" class="hq-card" style="--sc:var(--c${i+1});" ${act('goQuickManage', q.tab)}><span class="hq-ic">${q.ic}</span><span><b>${q.t}</b><small>${q.d}</small></span></button>`).join('')}</div>` : ''}`;
+  homeFillBadges(); homeFillShift(); homeLoadSummary(session);
+}
+// Kısayol kartlarına bekleyen iş sayısı (menü rozetlerinden).
+function homeFillBadges(){
+  const b = APP.navBadges || {};
+  document.querySelectorAll('.hm-tile[data-hview]').forEach(el => {
+    const n = b[el.dataset.hview] || 0, sub = el.querySelector('.hm-sub');
+    el.classList.toggle('has', n > 0); if(sub) sub.textContent = n > 0 ? n + ' bekliyor' : '';
+  });
+}
+function homeFillShift(){
+  const el = document.getElementById('homeShift'); if(!el) return;
+  if(typeof shiftWidgetHtml !== 'function' || !APP.shiftStatus){ el.innerHTML = ''; return; }
+  const st = APP.shiftStatus;
+  let dur = '';
+  if(st.clocked_in && st.clock_in){ const m = Math.max(0, Math.round((Date.now() - new Date(st.clock_in).getTime()) / 60000)); dur = `<span class="hm-dur">⏱ ${Math.floor(m/60)} sa ${m%60} dk</span>`; }
+  el.innerHTML = `<div class="hm-shift-card"><span class="hm-shift-t">👤 Vardiyam</span>${shiftWidgetHtml()}${dur}</div>`;
+}
+async function homeLoadSummary(session){
+  const el = document.getElementById('homeNow'); if(!el) return;
+  let d = null;
+  try{ const r = await sb.rpc('get_home_summary', { p_token: session.session_token }); if(!r.error) d = r.data; }catch(e){}
+  if(!d || APP.view !== 'home' || !document.getElementById('homeNow')) return;
+  const it = (APP.navBadges && APP.navBadges._items) || {};
+  const ready = (it.payments || []).filter(x => x.kind==='ready').length;
+  const calls = (it.order || []).filter(x => x.kind==='waiter_call').length + (it.payments || []).filter(x => x.kind==='waiter_call').length;
+  const cards = [];
+  const c = (ic, val, label, view, warn) => cards.push(`<button type="button" class="hm-stat ${warn?'warn':''}" ${view ? act('goToView', view) : ''}><span class="hm-sic">${ic}</span><span><b>${val}</b><small>${label}</small></span></button>`);
+  if(d.open_tables != null) c('🪑', d.open_tables + (d.total_tables ? ' / ' + d.total_tables : ''), 'Dolu masa', 'order');
+  if(d.open_tables != null && ready) c('✅', ready, 'Hazır, servis bekliyor', 'payments', true);
+  if(d.open_tables != null && calls) c('🙋', calls, 'Garson çağıran masa', 'order', true);
+  if(d.open_takeaway != null) c('📦', d.open_takeaway, 'Açık paket', 'packages');
+  if(d.kitchen_pending != null) c('🍳', d.kitchen_pending, 'Mutfakta bekleyen ürün', 'kitchen');
+  if(d.kitchen_late) c('⏰', d.kitchen_late, '20 dk+ geciken', 'kitchen', true);
+  if(d.resv_today != null) c('📅', d.resv_today, 'Bugünkü rezervasyon', 'reservations');
+  if(d.resv_next) c('⏭️', new Date(d.resv_next.time).toLocaleTimeString('tr-TR', { hour:'2-digit', minute:'2-digit' }), 'Sıradaki: ' + escapeHtml(d.resv_next.name || '') + (d.resv_next.party ? ' · ' + d.resv_next.party + ' kişi' : ''), 'reservations');
+  if(d.waitlist) c('⏳', d.waitlist, 'Bekleme listesinde', 'reservations');
+  if(d.revenue_today != null){
+    const pct = d.goal ? Math.min(100, Math.round(d.revenue_today / d.goal * 100)) : null;
+    c('💰', money(d.revenue_today), 'Bugünkü ciro · ' + d.bills_today + ' hesap' + (pct != null ? ' · hedefin %' + pct + "'i" : ''), null);
+  }
+  el.innerHTML = cards.length ? `<h3 class="hq-title">📍 Şu an</h3><div class="hm-stats">${cards.join('')}</div>` : '';
 }
 function goQuickManage(tab){ APP.settingsTab = tab; if(tab==='products') APP.productsSubTab = 'products'; goToView('settings'); }
 function notReadyYet(){ alert('Bu ekran bir sonraki adımda eklenecek.'); }

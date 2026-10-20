@@ -1,0 +1,3 @@
+-- Ana sayfa "Şu an" özeti: get_home_summary(p_token) yalnızca kişinin yetkili olduğu bölümlerin sayılarını döner
+-- (dolu masa, açık paket, mutfakta bekleyen/geciken, bugünkü rezervasyon/sıradaki, bekleme listesi, bugünkü ciro).
+-- Fonksiyon canlıya uygulandı; tam hali supabase/schema.sql dökümünde.
