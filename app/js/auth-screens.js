@@ -510,7 +510,7 @@ function renderSignupScreen(app){
         <div id="cartTotal" style="margin-top:10px;padding:10px 12px;border:1px solid var(--border);border-radius:10px;font-size:13.5px;"></div>
         <label style="display:flex;align-items:flex-start;gap:8px;margin-top:14px;font-size:12.5px;line-height:1.4;cursor:pointer;">
           <input id="suPrivacyConsent" type="checkbox" style="width:auto;margin:2px 0 0;flex-shrink:0;">
-          <span><a href="/gizlilik/" target="_blank" rel="noopener" style="color:var(--accent);">Gizlilik Politikası</a>'nı okudum, işletme ve yönetici bilgilerimin belirtilen amaçlarla işlenmesini kabul ediyorum.</span>
+          <span><a href="/sozlesme/" target="_blank" rel="noopener" style="color:var(--accent);">Kullanım Sözleşmesi</a>'ni ve <a href="/gizlilik/" target="_blank" rel="noopener" style="color:var(--accent);">Gizlilik Politikası / KVKK Aydınlatma Metni</a>'ni okudum, kabul ediyorum.</span>
         </label>
         <button style="margin-top:16px;" ${act('doStartSignup')} id="signupBtn">🛒 Satın Al ve Hesabı Oluştur</button>
         <p class="muted" style="text-align:center;font-size:11.5px;margin-top:6px;">İlk 7 gün ücretsiz; kart bilgisi istenmez. Süre sonunda sepetinizdeki paket ve eklentilerin ücretiyle devam edersiniz. Yalnızca seçtiğiniz eklentiler hesabınıza açılır.</p>
@@ -631,7 +631,7 @@ async function doStartSignup(){
   if(phone.length<10){ errBox.textContent = 'Geçerli bir telefon numarası girin'; return; }
   if(!isValidTcKimlikNo(identityNumber)){ errBox.textContent = 'Geçerli bir T.C. Kimlik Numarası girin'; return; }
   if(!APP.selectedPackage){ errBox.textContent = 'Bir paket seçin'; return; }
-  if(!document.getElementById('suPrivacyConsent').checked){ errBox.textContent = 'Devam etmek için Gizlilik Politikası\'nı kabul etmeniz gerekiyor'; return; }
+  if(!document.getElementById('suPrivacyConsent').checked){ errBox.textContent = 'Devam etmek için Kullanım Sözleşmesi\'ni ve Gizlilik Politikası\'nı kabul etmeniz gerekiyor'; return; }
   const btn = document.getElementById('signupBtn');
   btn.disabled = true; btn.textContent = 'Gönderiliyor...';
   const { data, error } = await sb.rpc('start_registration', { p_email: email, p_phone: phone });
