@@ -69,7 +69,7 @@ async function renderAllowancesSettings(el){
         </div>
       </div>
     </div>
-    <p class="ix-note">ℹ️ Kişi seçildiğinde etiketi otomatik işaretlenir. Sipariş penceresinde kişi ya da kullanıcı adıyla aranıp seçilebilir; böylece bir kullanıcı başkası adına da sipariş girebilir. Kimse seçilmezse, siparişi alan kullanıcı kendi etiketini seçtiğinde kendi limitinden düşer. ${flags.length ? '' : '<b>Önce Ayarlar → Sipariş Etiketleri\'nden bir etiket ekleyin.</b>'}</p>
+    <p class="ix-note">ℹ️ Kişi seçildiğinde etiketi otomatik işaretlenir. Sipariş penceresinde kişi ya da kullanıcı adıyla aranıp seçilir; limitli bir etiket işaretlendiğinde seçim zorunludur (siparişi alan kendisi için de kendini seçer). ${flags.length ? '' : '<b>Önce Ayarlar → Sipariş Etiketleri\'nden bir etiket ekleyin.</b>'}</p>
   </div>`;
 }
 async function saveAllowanceForm(kind, id){
@@ -215,14 +215,20 @@ function pickOrderAllowance(pseudoId, id){
 }
 /* Siparişe hangi limit uygulanır: seçilen kişi, yoksa siparişi alan kullanıcının etiketi seçiliyse kendi limiti. */
 function orderAllowanceFor(pseudoId){
+  // Limit yalnızca açıkça seçilen kişi/kullanıcıdan düşer (siparişi alan kendisi de dahil, seçilmeli).
   const picked = APP.orderAllowance && APP.orderAllowance[pseudoId];
-  if(picked) return allowanceById(picked);
+  return picked ? allowanceById(picked) : null;
+}
+/* Seçili etiketlerden biri bir limite bağlıysa kişi/kullanıcı seçimi zorunludur. */
+function allowanceRequiredMissing(pseudoId){
+  if(orderAllowanceFor(pseudoId)) return null;
   const tags = (APP.orderFlagSelections && APP.orderFlagSelections[pseudoId]) || [];
-  const me = getSession() && getSession().user_id;
-  return (APP.allowances || []).find(a => a.kind === 'user' && a.is_active && a.user_id === me && a.flag_label && tags.includes(a.flag_label)) || null;
+  return tags.find(t => (APP.allowances || []).some(a => a.is_active && a.flag_label === t)) || null;
 }
 /* Gönderimden önce: hesap limiti aşıyorsa siparişi alana uyarı (sipariş yine gönderilir). */
 function allowanceWarnBeforeSend(pseudoId, draftTotal){
+  const need = allowanceRequiredMissing(pseudoId);
+  if(need){ alert(`🏷️ "${need}" etiketi seçili.\n\nLimitinden düşülecek kişiyi ya da kullanıcıyı (kendiniz dahil) üstteki arama kutusundan seçin.`); const i = document.getElementById('tableCustName') || document.getElementById('pkgCustName'); if(i) i.focus(); return false; }
   const a = orderAllowanceFor(pseudoId); if(!a) return true;
   const ex = liveOrderForTable(pseudoId);
   const open = ex ? ex.items.filter(i => !i.paid).reduce((s, i) => s + i.price * i.qty, 0) : 0;
