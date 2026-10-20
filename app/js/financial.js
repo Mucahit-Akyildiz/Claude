@@ -213,8 +213,8 @@ function reportTabList(){
   const dsc = { summary:'Ciro, kâr, ödemeler', cockpit:'Karşılaştırma, tahmin, uyarılar', menueng:'Kârlılık haritası', tablemap:'Masa bazlı ciro', heat:'Gün × saat yoğunluğu', channels:'Masa, paket, gel-al, online', speed:'Hazırlama ve yanıt süreleri',
     stockf:'Ne zaman bitecek', zreport:'Z raporu, yazdır', waiters:'Personel performansı', journey:'Sadakat, kayıp müşteri', period:'Saatlik / günlük', vat:'Vergi dağılımı',
     products:'En çok satanlar', staff:'Personel ısı haritası', customers:'Müşteri harcamaları', tips:'Bahşiş dağılımı', waste:'Fire ve israf', cancel:'İptal masa ve ürünler',
-    resv:'Rezervasyon performansı', openacc:'Veresiye bakiyeleri', payroll:'Çalışma saati, maaş, prim', reviews:'Yıldız ve yorumlar' };
-  return [['summary','📊','Genel Özet'], ...AN_TABS, ['period','📈','Dönemsel Analiz'],['vat','🧾','KDV'],['products','📦','Ürün İstatistikleri'],['staff','👤','Personel Analizleri'],['customers','🧑‍🤝‍🧑','Müşteri Analizleri'],['payroll','💼','Puantaj & Prim'],['reviews','⭐','Müşteri Değerlendirmeleri'],['tips','💰','Bahşiş Havuzu'],['waste','🔥','İsraf'],['cancel','❌','İptaller'],['resv','📅','Rezervasyon Analizi'],['openacc','📒','Açık Hesaplar']].map(t => [...t, dsc[t[0]] || '']);
+    resv:'Rezervasyon performansı', openacc:'Veresiye bakiyeleri', payroll:'Çalışma saati, maaş, prim', dayclose:'Kapandı mı, kasa farkı', reviews:'Yıldız ve yorumlar' };
+  return [['summary','📊','Genel Özet'], ...AN_TABS, ['period','📈','Dönemsel Analiz'],['vat','🧾','KDV'],['products','📦','Ürün İstatistikleri'],['staff','👤','Personel Analizleri'],['customers','🧑‍🤝‍🧑','Müşteri Analizleri'],['payroll','💼','Puantaj & Prim'],['dayclose','🧾','Gün Sonu Kapanışları'],['reviews','⭐','Müşteri Değerlendirmeleri'],['tips','💰','Bahşiş Havuzu'],['waste','🔥','İsraf'],['cancel','❌','İptaller'],['resv','📅','Rezervasyon Analizi'],['openacc','📒','Açık Hesaplar']].map(t => [...t, dsc[t[0]] || '']);
 }
 function setReportTab(tab){
   if(tab !== APP.reportTab) pushScreen();
@@ -268,6 +268,7 @@ function renderReportTabContent(session){
   if(tab==='stockf') return renderStockForecastContent(session);
   if(tab==='zreport') return renderZReportContent(session);
   if(tab==='payroll') return renderPayrollContent(session);
+  if(tab==='dayclose') return renderDayClosesContent(session);
   if(tab==='reviews') return renderReviewsReport(session);
   if(tab==='waiters') return renderWaiterCardsContent(session);
   if(tab==='journey') return renderJourneyContent(session);
@@ -1523,4 +1524,59 @@ function raceHtml(items){
     <div class="race-main"><div class="race-label"><b>${escapeHtml(x.label)}</b>${x.sub ? `<small>${escapeHtml(x.sub)}</small>` : ''}</div>
       <div class="race-track"><div class="race-bar" style="width:${Math.max(3, Math.round(x.value/max*100))}%;"><span>${escapeHtml(x.display)}</span></div></div></div>
     <span class="race-side">${escapeHtml(x.side||'')}</span></div>`).join('')}</div>`;
+}
+
+/* ---- Gün Sonu Kapanışları: son N iş gününün kapanış durumu (takvim şeridi), kasa farkı grafiği ve liste. ---- */
+function setDayCloseRange(n){ APP.dayCloseRange = n; renderDayClosesContent(getSession()); }
+async function renderDayClosesContent(session){
+  const el = document.getElementById('reportContent'); if(!el) return;
+  const n = APP.dayCloseRange || 30;
+  el.innerHTML = '<p class="muted">Yükleniyor…</p>';
+  const { data, error } = await sb.rpc('list_day_closes', { p_token: session.session_token, p_days: n });
+  if(error){ el.innerHTML = '<p class="muted">Yüklenemedi: ' + escapeHtml(error.message) + '</p>'; return; }
+  const rows = (data || []).slice().reverse(); // eskiden yeniye
+  const st = (r) => !r.past ? (r.closed_at ? (r.skipped ? 'skip' : 'ok') : 'today') : r.closed_at ? (r.skipped ? 'skip' : 'ok') : (Number(r.bills) > 0 ? 'open' : 'none');
+  const ST = { ok:['✓','Kapandı','dc-ok'], skip:['!','Sayılmadı','dc-skip'], open:['✕','Kapanmadı','dc-open'], none:['–','Satış yok','dc-none'], today:['…','Bugün (açık)','dc-today'] };
+  const cnt = (k) => rows.filter(r => st(r)===k).length;
+  const withSales = rows.filter(r => r.past && Number(r.bills) > 0).length;
+  const counted = rows.filter(r => st(r)==='ok');
+  const totDiff = counted.reduce((t, r) => t + (Number(r.diff)||0), 0);
+  const rate = withSales ? Math.round(cnt('ok') / withSales * 100) : 0;
+  const dTxt = (d, o) => new Date(d + 'T12:00:00').toLocaleDateString('tr-TR', o || { day:'numeric', month:'short' });
+  const tile = (ic, v, l, tone) => `<div class="dcx-kpi" style="--sc:${tone};"><span>${ic}</span><b>${v}</b><small>${l}</small></div>`;
+  // Kasa farkı grafiği: tek eksen, sıfır çizgisi ortada; eksik (kırmızı) / fazla (yeşil).
+  const maxAbs = Math.max(1, ...counted.map(r => Math.abs(Number(r.diff)||0)));
+  const W = Math.max(rows.length * 22, 300), H = 160, mid = H / 2, bw = 14;
+  const bars = rows.map((r, i) => {
+    const x = i * 22 + 4, k = st(r);
+    if(k !== 'ok') return k==='open' || k==='skip' ? `<text x="${x + bw/2}" y="${mid + 4}" text-anchor="middle" class="dcx-mark ${ST[k][2]}">${ST[k][0]}</text>` : '';
+    const v = Number(r.diff)||0, h = Math.max(2, Math.abs(v) / maxAbs * (mid - 14));
+    return `<rect x="${x}" y="${v >= 0 ? mid - h : mid}" width="${bw}" height="${h}" rx="3" class="${v < 0 ? 'dcx-neg' : 'dcx-pos'}"><title>${dTxt(r.d)} · fark ${v > 0 ? '+' : ''}${money(v)}</title></rect>`;
+  }).join('');
+  const labels = rows.map((r, i) => i % Math.ceil(rows.length / 10) === 0 ? `<text x="${i * 22 + 4 + bw/2}" y="${H + 14}" text-anchor="middle" class="dcx-lbl">${dTxt(r.d)}</text>` : '').join('');
+  el.innerHTML = `<div class="report-card">
+      <div class="dcx-head"><h3 style="margin:0;">🧾 Gün Sonu Kapanışları</h3>
+        <div class="dcx-range">${[14,30,60,90].map(k => `<button type="button" class="${n===k?'on':''}" ${act('setDayCloseRange', k)}>${k} gün</button>`).join('')}</div></div>
+      <div class="dcx-kpis">
+        ${tile('✅', cnt('ok'), 'Kapandı', 'var(--ok,#22c55e)')}
+        ${tile('⛔', cnt('open'), 'Kapanmadı', 'var(--danger,#ef4444)')}
+        ${tile('⚠️', cnt('skip'), 'Kasa sayılmadı', 'var(--amber,#f59e0b)')}
+        ${tile('📈', '%' + rate, 'Kapanış oranı (satışlı günler)', 'var(--c1)')}
+        ${tile('💵', (totDiff > 0 ? '+' : '') + money(totDiff), 'Toplam kasa farkı', totDiff < 0 ? 'var(--danger,#ef4444)' : 'var(--ok,#22c55e)')}
+      </div>
+      <h4 class="dcx-t">Takvim</h4>
+      <div class="dcx-cal">${rows.map(r => { const k = st(r), t = ST[k]; return `<div class="dcx-day ${t[2]}" title="${escapeAttr(dTxt(r.d, { day:'numeric', month:'long', weekday:'long' }) + ' · ' + t[1] + (Number(r.bills) ? ' · ' + r.bills + ' hesap · ' + money(r.revenue) : ''))}"><b>${t[0]}</b><small>${dTxt(r.d, { day:'numeric' })}</small></div>`; }).join('')}</div>
+      <div class="dcx-legend">${['ok','open','skip','none','today'].map(k => `<span><i class="${ST[k][2]}">${ST[k][0]}</i>${ST[k][1]}</span>`).join('')}</div>
+      <h4 class="dcx-t">Kasa farkı (sayılan − beklenen nakit)</h4>
+      <div class="dcx-chart"><svg viewBox="0 0 ${W} ${H + 20}" preserveAspectRatio="none" style="width:100%;height:190px;">
+        <line x1="0" x2="${W}" y1="${mid}" y2="${mid}" class="dcx-zero"/>${bars}${labels}</svg></div>
+      <p class="fs-note">Çubuk yukarı: kasada fazla, aşağı: eksik. ✕ kapanmayan, ! sayılamayan gün.</p>
+      <h4 class="dcx-t">Günler</h4>
+      <div class="dcx-list">${(data || []).map(r => { const k = st(r), t = ST[k]; return `<div class="dcx-row">
+          <span class="dcx-badge ${t[2]}">${t[0]} ${t[1]}</span>
+          <span class="dcx-d"><b>${escapeHtml(dTxt(r.d, { day:'numeric', month:'long', weekday:'short' }))}</b><small>${Number(r.bills) ? r.bills + ' hesap · ' + money(r.revenue) : 'Satış yok'}</small></span>
+          <span class="dcx-n">${k==='ok' ? `Beklenen ${money(r.expected_cash)} · Sayılan <b>${money(r.counted)}</b> · <b class="${Number(r.diff) < 0 ? 'neg' : Number(r.diff) > 0 ? 'pos' : ''}">${Number(r.diff) > 0 ? '+' : ''}${money(r.diff)}</b>` : k==='skip' ? escapeHtml(r.note || '') : k==='open' ? `Beklenen nakit ${money(r.expected_cash)}` : ''}</span>
+          <span class="dcx-by">${r.closed_by ? escapeHtml(r.closed_by) + ' · ' + new Date(r.closed_at).toLocaleString('tr-TR', { dateStyle:'short', timeStyle:'short' }) : ''}</span>
+        </div>`; }).join('')}</div>
+    </div>`;
 }

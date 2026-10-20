@@ -71,6 +71,10 @@ const assert = (c, m) => { if(!c) throw new Error(m); };
       await page.keyboard.press('Escape'); await page.waitForTimeout(200);
       assert(!(await page.$('#payModalBg')), 'Esc ödeme penceresini kapatmalı');
     });
+    await check(T('Gün Sonu Kapanışları raporu'), async () => {
+      await page.evaluate(() => { APP.reportsUnlocked = true; APP.reportTab = 'dayclose'; goToView('reports'); });
+      await page.waitForSelector('.dcx-cal .dcx-day', { timeout: 8000 }); assert(await page.$('.dcx-chart rect'), 'fark grafiği yok');
+    });
     await check(T('zorunlu gün sonu kapanışı penceresi'), async () => {
       await page.evaluate(() => { APP.dayClose = { pending:true, can_close:true, date:'2026-10-19', bills:3, expected_cash:1200, at:Date.now() }; openPayModal('o1'); });
       await page.waitForSelector('#dayCloseSheet.open #dcCounted', { timeout: 3000 });
