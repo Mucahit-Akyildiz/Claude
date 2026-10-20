@@ -103,14 +103,12 @@ function getSavedFcmTokenSafe(){ try{ return typeof getSavedFcmToken === 'functi
 async function renderMessagesView(main, session){
   ensureChatOwner(session);
   chatTypingChannel();
-  main.innerHTML = `<div class="chat-shell chat-v3 ${APP.chatConv ? 'has-conv' : ''}">
-      <div class="chat-rail" id="chatRail"></div>
+  // Slack/Teams düzeni: solda gruplu kenar çubuğu (Kanallar, Direkt mesajlar), sağda düz mesaj akışı.
+  main.innerHTML = `<div class="chat-shell chat-v3 chat-slack ${APP.chatConv ? 'has-conv' : ''}">
       <div class="chat-list-wrap">
-        <div class="chat-list-head"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px;"><h1 style="margin:0;">💬 Mesajlar</h1>
-          <button type="button" class="chat-newgroup" ${act('openChatGroupEditor')} title="Yeni grup">👥＋ Grup</button></div>
-          <input id="chatSearch" placeholder="🔍 Kişi veya mesaj ara…" value="${escapeAttr(APP.chatSearch||'')}" ${actOn('input','setChatSearch',['$value'])}>
-          <div class="chat-filters" id="chatFilters">${chatFiltersHtml()}</div>
-          <div class="chat-stories" id="chatStories"></div></div>
+        <div class="chat-list-head"><div class="cs-ws"><b>${escapeHtml(session.restaurant_name || 'Peyktan')}</b><small>💬 Mesajlar</small></div>
+          <button type="button" class="cs-new" ${act('openChatGroupEditor')} title="Yeni kanal / grup">＋</button></div>
+        <div class="cs-search"><input id="chatSearch" placeholder="🔍 Ara…" value="${escapeAttr(APP.chatSearch||'')}" ${actOn('input','setChatSearch',['$value'])}></div>
         <div class="chat-list" id="chatList"><p class="muted">Yükleniyor…</p></div>
       </div>
       <div class="chat-pane" id="chatPane">${APP.chatConv ? '' : chatEmptyPaneHtml()}</div>
@@ -151,7 +149,7 @@ function drawChatRail(){
   const st = document.getElementById('chatStories');
   if(st){
     const online = all.filter(c => !c.is_all && !c.is_group && c.online);
-    st.innerHTML = online.length ? `<small>🟢 Çevrimiçi · ${online.length}</small><div>${online.map(c => `<button type="button" class="cs-item" title="${escapeAttr(c.name)}" ${act('openChatConv', c.conv)}><span class="cs-ring">${chatAvatar(c, 44)}</span><span class="cs-name">${escapeHtml(c.name)}</span></button>`).join('')}</div>` : '';
+    st.innerHTML = online.length ? `<small>🟢 Çevrimiçi · ${online.length}</small><div>${online.map(c => `<button type="button" class="cs-item" title="${escapeAttr(c.name)}" ${act('openChatConv', c.conv)}><span class="cs-ring">${chatAvatar(c, 44)}</span><span class="sk-lbl">${escapeHtml(c.name)}</span></button>`).join('')}</div>` : '';
   }
 }
 function setChatFilter(k){ APP.chatFilter = k; drawChatList(); }
@@ -169,20 +167,20 @@ function drawChatList(){
   const q = (APP.chatSearch||'').trim().toLocaleLowerCase('tr'), f = APP.chatFilter || 'all';
   const items = (APP.chatItems||[]).filter(c => (!q || (c.name||'').toLocaleLowerCase('tr').includes(q))
     && (f==='unread' ? c.unread > 0 : f==='groups' ? (c.is_group || c.is_all) : f==='people' ? (!c.is_group && !c.is_all) : true));
+  const label = (c) => c.is_all || c.is_group ? `<span class="cs-hash">${c.is_all ? '#' : '🔒'}</span>${escapeHtml(c.is_all ? 'genel' : c.name)}`
+    : `<span class="cs-dot ${c.online ? 'on' : ''}"></span>${escapeHtml(c.name)}`;
   const row = (c) => `
-    <div class="chat-item ${APP.chatConv===c.conv?'active':''} ${c.unread>0?'unread':''}" data-conv="${c.conv}" ${act('openChatConv', c.conv)}>
-      ${chatAvatar(c)}
-      <div style="flex:1;min-width:0;">
-        <div style="display:flex;justify-content:space-between;gap:6px;align-items:baseline;"><span class="chat-name">${escapeHtml(c.name)}</span>${c.last_at ? `<span class="chat-when">${chatTime(c.last_at)}</span>` : ''}</div>
-        <div style="display:flex;justify-content:space-between;gap:6px;align-items:center;">
-          <span class="chat-last" data-typing-conv="${escapeAttr(c.conv)}">${chatTypingText(c.conv) ? `<i style="color:var(--green);">${escapeHtml(chatTypingText(c.conv))}</i>` : c.last_body ? escapeHtml(c.last_body) : `<i>${escapeHtml(c.roles || (c.is_all ? 'Tüm ekip' : ''))}</i>`}</span>
-          ${c.unread > 0 ? `<span class="chat-unread">${c.unread > 99 ? '99+' : c.unread}</span>` : ''}
-        </div>
-      </div>
+    <div class="chat-item cs-row ${APP.chatConv===c.conv?'active':''} ${c.unread>0?'unread':''}" data-conv="${c.conv}" title="${escapeAttr(c.last_body || c.roles || '')}" ${act('openChatConv', c.conv)}>
+      <span class="sk-lbl">${label(c)}</span>
+      <span class="chat-last" data-typing-conv="${escapeAttr(c.conv)}">${chatTypingText(c.conv) ? `<i>yazıyor…</i>` : ''}</span>
+      ${c.unread > 0 ? `<span class="chat-unread">${c.unread > 99 ? '99+' : c.unread}</span>` : ''}
     </div>`;
-  const chans = items.filter(c => c.is_all || c.is_group), recent = items.filter(c => !c.is_all && !c.is_group && c.last_at), rest = items.filter(c => !c.is_all && !c.is_group && !c.last_at);
-  const sec = (t, list) => list.length ? `<div class="chat-sec">${t}<span>${list.length}</span></div>${list.map(row).join('')}` : '';
-  el.innerHTML = (q ? items.map(row).join('') : sec('📢 Kanallar & Gruplar', chans) + sec('💬 Son konuşmalar', recent) + sec('👥 Ekip', rest))
+  const chans = items.filter(c => c.is_all || c.is_group).sort((a, b) => (b.is_all?1:0) - (a.is_all?1:0));
+  const dms = items.filter(c => !c.is_all && !c.is_group).sort((a, b) => ((b.unread>0) - (a.unread>0)) || String(b.last_at||'').localeCompare(String(a.last_at||'')) || ((b.online?1:0) - (a.online?1:0)) || String(a.name).localeCompare(String(b.name), 'tr'));
+  const online = dms.filter(c => c.online).length;
+  const sec = (t, list, extra) => `<div class="cs-sec"><span>${t}</span>${extra || ''}</div>${list.map(row).join('') || '<p class="cs-none">—</p>'}`;
+  el.innerHTML = (q ? items.map(row).join('') : sec('Kanallar', chans, `<button type="button" class="cs-sec-add" title="Yeni grup" ${act('openChatGroupEditor')}>＋</button>`)
+      + sec('Direkt mesajlar', dms, online ? `<small class="cs-online">🟢 ${online}</small>` : ''))
     + (q.length >= 2 ? '<div id="chatMsgSearch"><p class="muted" style="padding:8px 12px;font-size:12.5px;">🔍 Mesajlarda aranıyor…</p></div>' : (items.length ? '' : '<p class="muted" style="padding:12px;">Kişi bulunamadı.</p>'));
   if(q.length >= 2) chatSearchMessagesSoon(q);
   if(!APP.chatConv){ const pane = document.getElementById('chatPane'); if(pane && pane.querySelector('.chat-welcome')) pane.innerHTML = chatEmptyPaneHtml(); }
@@ -288,7 +286,6 @@ function drawChatThread(rows){
     const first = !prev || prev.sender_id!==m.sender_id || sep;
     const last = !next || next.sender_id!==m.sender_id;
     const jumbo = !m.deleted && !m.attachment_kind && m.body && m.body.length <= 12 && CHAT_ONLY_EMOJI.test(m.body);
-    const showSender = (isAll || isGroup) && !m.mine;
     const tick = !m.mine ? '' : m.read === true || (m.read_count != null && m.member_count > 0 && m.read_count >= m.member_count)
       ? '<span class="chat-tick read" title="Okundu">✓✓</span>'
       : m.read_count > 0 ? `<span class="chat-tick" title="${m.read_count}/${m.member_count} kişi okudu">✓✓</span>`
@@ -309,9 +306,9 @@ function drawChatThread(rows){
       if(m.body) content += `<div class="chat-body">${chatBodyHtml(m.body)}</div>`;
     }
     return sep + `<div class="chat-row ${m.mine?'mine':''} ${last?'last':''}" data-mid="${m.id}">
-      ${showSender ? (last ? chatAvatar({ name: m.sender_name }, 28) : '<div style="width:28px;flex-shrink:0;"></div>') : ''}
+      ${first ? chatAvatar({ name: m.mine ? (getSession()||{}).username || m.sender_name : m.sender_name }, 36) : '<div class="cs-av-gap"></div>'}
       <div class="chat-msg ${jumbo?'jumbo':''} ${m.attachment_kind==='image' && !m.body && !m.reply ? 'media' : ''}" ${actOn('dblclick','startChatReply',[m.id])}>
-        ${showSender && first ? `<div class="chat-sender" style="color:${chatColor(m.sender_name)};">${escapeHtml(m.sender_name)}</div>` : ''}
+        ${first ? `<div class="chat-sender"><b>${escapeHtml(m.mine ? 'Siz' : (m.sender_name || ''))}</b><span>${new Date(m.created_at).toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'})}</span></div>` : ''}
         ${content}
         <div class="chat-time">${new Date(m.created_at).toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'})} ${tick}</div>
         ${(m.reactions||[]).length ? `<div class="chat-reacts">${m.reactions.map(r => `<button type="button" class="chat-react ${r.mine?'mine':''}" title="${escapeAttr(r.names||'')}" data-emoji="${escapeAttr(r.emoji)}" ${actStop('toggleChatReaction', m.id, '$data.emoji')}>${escapeHtml(r.emoji)}${r.count>1?` <b>${r.count}</b>`:''}</button>`).join('')}</div>` : ''}
