@@ -1543,14 +1543,14 @@ async function renderDayClosesContent(session){
   const totDiff = counted.reduce((t, r) => t + (Number(r.diff)||0), 0);
   const rate = withSales ? Math.round(cnt('ok') / withSales * 100) : 0;
   const dTxt = (d, o) => new Date(d + 'T12:00:00').toLocaleDateString('tr-TR', o || { day:'numeric', month:'short' });
-  const tile = (ic, v, l, tone) => `<div class="dcx-kpi" style="--sc:${tone};"><span>${ic}</span><b>${v}</b><small>${l}</small></div>`;
+  const tile = (ic, v, l, tone, num, fmt) => `<div class="dcx-kpi" style="--sc:${tone};"><span>${ic}</span><b ${num != null ? `data-count="${num}" data-fmt="${fmt||''}"` : ''}>${v}</b><small>${l}</small></div>`;
   // Günlük nakit grafiği: çubuk = beklenen nakit, renk = kapanış durumu; kapanan günlerde üstte kasa farkı.
   const maxCash = Math.max(1, ...rows.map(r => Number(r.expected_cash)||0));
   const step = Math.max(1, Math.ceil(rows.length / 10));
   const cols = rows.map((r, i) => {
     const k = st(r), cash = Number(r.expected_cash)||0, h = cash ? Math.max(4, cash / maxCash * 100) : 0, diff = Number(r.diff)||0;
     const tip = dTxt(r.d, { day:'numeric', month:'long', weekday:'short' }) + ' · ' + ST[k][1] + (Number(r.bills) ? ' · ' + r.bills + ' hesap · beklenen nakit ' + money(cash) : '') + (k==='ok' ? ' · sayılan ' + money(r.counted) + ' · fark ' + (diff > 0 ? '+' : '') + money(diff) : '');
-    return `<div class="dcx-col ${ST[k][2]}" title="${escapeAttr(tip)}">
+    return `<div class="dcx-col ${ST[k][2]}" style="--i:${i};" data-tip="${escapeAttr(tip)}">
       <span class="dcx-diffw">${k==='ok' && diff ? `<span class="dcx-diff ${diff < 0 ? 'neg' : 'pos'}">${diff > 0 ? '+' : ''}${Math.round(diff)}</span>` : ''}</span>
       <div class="dcx-colv">${h ? `<i style="height:${h}%;"></i>` : '<i class="dcx-empty"></i>'}</div>
       <span class="dcx-ic">${ST[k][0]}</span>
@@ -1560,17 +1560,17 @@ async function renderDayClosesContent(session){
       <div class="dcx-head"><h3 style="margin:0;">🧾 Gün Sonu Kapanışları</h3>
         <div class="dcx-range">${[14,30,60,90].map(k => `<button type="button" class="${n===k?'on':''}" ${act('setDayCloseRange', k)}>${k} gün</button>`).join('')}</div></div>
       <div class="dcx-kpis">
-        ${tile('✅', cnt('ok'), 'Kapandı', 'var(--ok,#22c55e)')}
-        ${tile('⛔', cnt('open'), 'Kapanmadı', 'var(--danger,#ef4444)')}
-        ${tile('⚠️', cnt('skip'), 'Kasa sayılmadı', 'var(--amber,#f59e0b)')}
-        ${tile('📈', '%' + rate, 'Kapanış oranı (satışlı günler)', 'var(--c1)')}
-        ${tile('💵', (totDiff > 0 ? '+' : '') + money(totDiff), 'Toplam kasa farkı', totDiff < 0 ? 'var(--danger,#ef4444)' : 'var(--ok,#22c55e)')}
+        ${tile('✅', cnt('ok'), 'Kapandı', 'var(--ok,#22c55e)', cnt('ok'))}
+        ${tile('⛔', cnt('open'), 'Kapanmadı', 'var(--danger,#ef4444)', cnt('open'))}
+        ${tile('⚠️', cnt('skip'), 'Kasa sayılmadı', 'var(--amber,#f59e0b)', cnt('skip'))}
+        ${tile('📈', '%' + rate, 'Kapanış oranı (satışlı günler)', 'var(--c1)', rate, 'pct')}
+        ${tile('💵', (totDiff > 0 ? '+' : '') + money(totDiff), 'Toplam kasa farkı', totDiff < 0 ? 'var(--danger,#ef4444)' : 'var(--ok,#22c55e)', totDiff, 'money')}
       </div>
       <h4 class="dcx-t">Takvim</h4>
-      <div class="dcx-cal">${rows.map(r => { const k = st(r), t = ST[k]; return `<div class="dcx-day ${t[2]}" title="${escapeAttr(dTxt(r.d, { day:'numeric', month:'long', weekday:'long' }) + ' · ' + t[1] + (Number(r.bills) ? ' · ' + r.bills + ' hesap · ' + money(r.revenue) : ''))}"><b>${t[0]}</b><small>${dTxt(r.d, { day:'numeric' })}</small></div>`; }).join('')}</div>
+      <div class="dcx-cal">${rows.map(r => { const k = st(r), t = ST[k]; return `<div class="dcx-day ${t[2]}" style="--i:${rows.indexOf(r)};" title="${escapeAttr(dTxt(r.d, { day:'numeric', month:'long', weekday:'long' }) + ' · ' + t[1] + (Number(r.bills) ? ' · ' + r.bills + ' hesap · ' + money(r.revenue) : ''))}"><b>${t[0]}</b><small>${dTxt(r.d, { day:'numeric' })}</small></div>`; }).join('')}</div>
       <div class="dcx-legend">${['ok','open','skip','none','today'].map(k => `<span><i class="${ST[k][2]}">${ST[k][0]}</i>${ST[k][1]}</span>`).join('')}</div>
       <h4 class="dcx-t">Günlük nakit ve kapanış</h4>
-      <div class="dcx-bars"><div class="dcx-y"><span>${money(maxCash)}</span><span>${money(maxCash/2)}</span><span>0</span></div><div class="dcx-plot">${cols}</div></div>
+      <div class="dcx-bars"><div class="dcx-y"><span>${money(maxCash)}</span><span>${money(maxCash/2)}</span><span>0</span></div><div class="dcx-plot" id="dcxPlot">${cols}<div class="dcx-tip" id="dcxTip"></div></div></div>
       <p class="fs-note">Çubuk yüksekliği o günün beklenen nakdi; renk kapanış durumu. Kapanan günlerde üstteki sayı kasa farkı (₺). Ayrıntı için çubuğun üzerine gelin.</p>
       <h4 class="dcx-t">Günler</h4>
       <div class="dcx-list">${(data || []).map(r => { const k = st(r), t = ST[k]; return `<div class="dcx-row">
@@ -1580,4 +1580,27 @@ async function renderDayClosesContent(session){
           <span class="dcx-by">${r.closed_by ? escapeHtml(r.closed_by) + ' · ' + new Date(r.closed_at).toLocaleString('tr-TR', { dateStyle:'short', timeStyle:'short' }) : ''}</span>
         </div>`; }).join('')}</div>
     </div>`;
+  dcxAnimate();
+}
+// Sayıların yukarı doğru sayması ve grafik ipucu (çubuğun üzerine gelince kart).
+function dcxAnimate(){
+  const reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  document.querySelectorAll('.dcx-kpi b[data-count]').forEach(b => {
+    const end = Number(b.dataset.count)||0, fmt = b.dataset.fmt, show = (v) => fmt==='money' ? (end > 0 ? '+' : '') + money(v) : fmt==='pct' ? '%' + Math.round(v) : String(Math.round(v));
+    if(reduce || !end){ b.textContent = show(end); return; }
+    const t0 = performance.now(), dur = 900;
+    const tick = (t) => { const p = Math.min(1, (t - t0) / dur), e = 1 - Math.pow(1 - p, 3); b.textContent = show(end * e); if(p < 1) requestAnimationFrame(tick); };
+    requestAnimationFrame(tick);
+  });
+  const plot = document.getElementById('dcxPlot'), tip = document.getElementById('dcxTip');
+  if(plot && tip){
+    plot.addEventListener('mousemove', (e) => {
+      const col = e.target.closest && e.target.closest('.dcx-col'); if(!col){ tip.classList.remove('on'); return; }
+      tip.innerHTML = escapeHtml(col.dataset.tip || '').split(' · ').map((x, i) => i ? `<span>${x}</span>` : `<b>${x}</b>`).join('');
+      const pr = plot.getBoundingClientRect(), cr = col.getBoundingClientRect();
+      tip.style.left = Math.min(pr.width - 200, Math.max(0, cr.left - pr.left + cr.width / 2 - 100)) + 'px';
+      tip.classList.add('on');
+    });
+    plot.addEventListener('mouseleave', () => tip.classList.remove('on'));
+  }
 }
