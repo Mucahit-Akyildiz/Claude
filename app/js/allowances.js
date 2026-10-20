@@ -5,8 +5,9 @@
    limiti aşan hesap Ödemeler'e normal düşer ve kalan limit kadar indirim uygulanır (bkz. allowance_usage). */
 async function loadAllowances(){
   const s = getSession(); if(!s) return [];
-  const { data } = await sb.rpc('list_allowances', { p_token: s.session_token });
+  const [{ data }, { data: st }] = await Promise.all([sb.rpc('list_allowances', { p_token: s.session_token }), sb.rpc('get_allowance_settings', { p_token: s.session_token })]);
   APP.allowances = data || [];
+  APP.allowanceRequirePick = !st || st.require_pick !== false;
   return APP.allowances;
 }
 function allowanceById(id){ return (APP.allowances || []).find(a => a.id === id); }
@@ -38,6 +39,8 @@ async function renderAllowancesSettings(el){
   el.innerHTML = `<div class="al-wrap ix-box">
     <div class="oo-hero on"><div class="oo-hero-ic">💳</div>
       <div class="oo-hero-t"><b>Limitli hesaplar</b><small>Kişilere günlük, kullanıcılara günlük ya da aylık harcama limiti verin. Limit içindeki hesap hazır olunca 15 sn sonra kendiliğinden kapanır ve Finansal Analiz'e işlenir; limiti aşan hesapta fark Ödemeler'den alınır.</small></div></div>
+    <label class="al-req"><span class="oo-switch"><input type="checkbox" ${APP.allowanceRequirePick !== false ? 'checked' : ''} ${actOn('change','setAllowanceRequire',['$checked'])}><span class="oo-track"><span class="oo-thumb"></span></span></span>
+      <span><b>Limitli etikette kişi seçimi zorunlu</b><small>Açıkken Personel / Talebe gibi limite bağlı bir etiket işaretlenince, limitinden düşülecek kişi ya da kullanıcı seçilmeden sipariş gönderilemez. Kapalıyken seçim isteğe bağlıdır; kimse seçilmezse hesap limitten düşmez, normal ikram gibi kapanır.</small></span></label>
     <div class="al-top-bar"><input class="al-filter" type="search" placeholder="🔍 Ad veya telefonla ara…" autocomplete="off" ${actOn('input','alFilter',['$value'])}>
       ${typeof excelBarHtml === 'function' ? excelBarHtml('allowances') : ''}</div>
     <div class="al-grid">
@@ -122,6 +125,12 @@ async function deleteAllowance(id){
   renderAllowancesSettings(document.getElementById('usersSubContent'));
 }
 
+async function setAllowanceRequire(on){
+  const { error } = await sb.rpc('set_allowance_settings', { p_token: getSession().session_token, p_require_pick: !!on });
+  if(error){ alert(error.message); return; }
+  APP.allowanceRequirePick = !!on;
+  showToast(on ? 'Kişi seçimi zorunlu ✓' : 'Kişi seçimi isteğe bağlı ✓');
+}
 function alFilter(q){
   const t = String(q || '').trim().toLocaleLowerCase('tr'), d = t.replace(/\D/g, '');
   const key = d.length >= 3 && d.length === t.replace(/[\s()+-]/g, '').length ? d : t;
@@ -221,7 +230,7 @@ function orderAllowanceFor(pseudoId){
 }
 /* Seçili etiketlerden biri bir limite bağlıysa kişi/kullanıcı seçimi zorunludur. */
 function allowanceRequiredMissing(pseudoId){
-  if(orderAllowanceFor(pseudoId)) return null;
+  if(APP.allowanceRequirePick === false || orderAllowanceFor(pseudoId)) return null;
   const tags = (APP.orderFlagSelections && APP.orderFlagSelections[pseudoId]) || [];
   return tags.find(t => (APP.allowances || []).some(a => a.is_active && a.flag_label === t)) || null;
 }
