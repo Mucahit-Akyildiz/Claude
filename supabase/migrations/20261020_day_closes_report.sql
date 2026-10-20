@@ -1,0 +1,3 @@
+-- Gün Sonu Kapanışları raporu: list_day_closes(p_token, p_days) son N iş gününün kapanış durumu.
+-- Kapanış eşleşmesi yalnızca business_date ile; save_cash_count gün sonu saatinden önceki gece sayımını önceki iş gününe yazar.
+-- get_day_close_status / _cron_day_close_reminder de yalnızca business_date'e bakar. Canlıya uygulandı.
