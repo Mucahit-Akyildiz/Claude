@@ -4958,6 +4958,50 @@ end; $$;
 
 
 --
+-- Name: get_home_summary(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.get_home_summary(p_token uuid) RETURNS json
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+declare s staff_sessions%rowtype; r uuid; u uuid; v jsonb := '{}'::jsonb; d0 timestamptz;
+begin
+  -- Ana sayfa "Şu an" özeti: yalnızca kişinin yetkisi olan bölümlerin sayıları döner.
+  s := _session_check(p_token); r := s.restaurant_id; u := s.user_id;
+  d0 := date_trunc('day', now() at time zone 'Europe/Istanbul') at time zone 'Europe/Istanbul';
+  if _user_has_perm(u, 'order') or _user_has_perm(u, 'payments') then
+    v := v || jsonb_build_object(
+      'open_tables', (select count(distinct table_id) from orders where restaurant_id = r and status = 'open' and table_id is not null),
+      'total_tables', (select count(*) from restaurant_tables where restaurant_id = r));
+  end if;
+  if _user_has_perm(u, 'packages') then
+    v := v || jsonb_build_object('open_takeaway', (select count(*) from orders where restaurant_id = r and status = 'open' and kind = 'takeaway'));
+  end if;
+  if _user_has_perm(u, 'kitchen') then
+    v := v || jsonb_build_object(
+      'kitchen_pending', (select count(*) from order_items oi join orders o on o.id = oi.order_id where o.restaurant_id = r and o.status = 'open' and oi.status = 'pending'),
+      'kitchen_late', (select count(*) from order_items oi join orders o on o.id = oi.order_id where o.restaurant_id = r and o.status = 'open' and oi.status = 'pending' and oi.added_at < now() - interval '20 minutes'));
+  end if;
+  if _user_has_perm(u, 'reservations') then
+    v := v || jsonb_build_object(
+      'resv_today', (select count(*) from reservations where restaurant_id = r and status in ('pending','confirmed','seated') and reservation_time >= d0 and reservation_time < d0 + interval '1 day'),
+      'waitlist', (select count(*) from waitlist_entries where restaurant_id = r and status = 'waiting'),
+      'resv_next', (select jsonb_build_object('name', customer_name, 'time', reservation_time, 'party', party_size) from reservations
+         where restaurant_id = r and status in ('pending','confirmed') and seated_at is null and reservation_time >= now() - interval '15 minutes' and reservation_time < d0 + interval '1 day'
+         order by reservation_time limit 1));
+  end if;
+  if _user_has_perm(u, 'reports') then
+    v := v || jsonb_build_object(
+      'revenue_today', (select coalesce(sum(total), 0) from sales_history where restaurant_id = r and closed_at >= d0),
+      'bills_today', (select count(*) from sales_history where restaurant_id = r and closed_at >= d0),
+      'goal', (select daily_revenue_goal from restaurants where id = r));
+  end if;
+  return v;
+end $$;
+
+
+--
 -- Name: get_integration_settings(uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
