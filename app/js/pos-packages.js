@@ -121,6 +121,7 @@ function effectiveStock(p){
 }
 /* Ürün seçimi: istasyonun alt menüleri solda (dar ekranda üstte kaydırılabilir) liste, ürünler sağda ızgara. */
 function renderProductPick(stationId, tableId){
+  APP.ppLast = { stationId, tableId };
   const el = document.getElementById('prodPick'); if(!el) return;
   // Tüm menülerin ürünleri tek listede (istasyondan bağımsız); menüler Ayarlar sırasıyla.
   stationId = '__all_menus';
@@ -153,7 +154,7 @@ function renderProductPick(stationId, tableId){
     else if(stock!=null && stock<=10) badge = '<div class="pp-badge" style="color:var(--accent);">Son '+stock+' porsiyon</div>';
     const inCart = ((APP.draftCart && APP.draftCart[tableId]) || []).filter(i => i.product_id === p.id).reduce((n, i) => n + i.qty, 0);
     const dIdx = ((APP.draftCart && APP.draftCart[tableId]) || []).findIndex(i => i.product_id === p.id);
-    return `<div class="prod-pick-card pp-card ${off?'off':''} ${inCart?'in':''}" style="--mc:${menuColor(p.category)};" ${off?'':act('addToDraft', tableId, p.id)}>
+    return `<div class="prod-pick-card pp-card ${off?'off':''} ${inCart?'in':''}" data-pid="${p.id}" style="--mc:${menuColor(p.category)};" ${off?'':act('addToDraft', tableId, p.id)}>
       ${inCart ? `<span class="pp-qty">${inCart}</span>` : ''}
       <div class="pp-name">${escapeHtml(p.name)}</div>
       <div class="pp-foot"><div class="pp-price">${money(p.price)}</div>${inCart && dIdx >= 0 ? `<span class="pp-step"><button type="button" title="Azalt" ${actStop('changeDraftQty', tableId, dIdx, -1)}>−</button><button type="button" title="Arttır" ${actStop('addToDraft', tableId, p.id)}>+</button></span>` : (off ? '' : '<span class="pp-plus">＋</span>')}</div>${badge}

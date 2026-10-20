@@ -1337,8 +1337,9 @@ function editProductRow(pid){
           <div><label>Stok</label>${rec ? `<input disabled value="Reçeteli: ${p.available_qty==null?'?':p.available_qty} porsiyon">` : `<input type="number" id="ed_stock" value="${p.stock==null?'':p.stock}" placeholder="Sınırsız">`}</div></div>
         <label class="pdrawer-check"><input type="checkbox" id="ed_print" ${p.print_ticket===false?'':'checked'}> 🖨️ Mutfak fişine yazdır</label>
         <div class="pdrawer-links">
-          <button type="button" class="pc-btn" ${act('openRecipeModal', p.id)}>📋 Reçete</button>
-          <button type="button" class="pc-btn" ${act('openExtrasModal', p.id)}>➕ Ekstralar</button>
+          ${APP.view!=='settings' ? `<button type="button" class="pc-btn" ${act('goEditProductInSettings', p.id)}>⚙️ Tüm ayarlar</button>` : ''}
+          ${APP.view==='settings' ? `<button type="button" class="pc-btn" ${act('openRecipeModal', p.id)}>📋 Reçete</button>` : ''}
+          ${APP.view==='settings' ? `<button type="button" class="pc-btn" ${act('openExtrasModal', p.id)}>➕ Ekstralar</button>` : ''}
           <button type="button" class="pc-btn" ${act('toggleProductAvailable', p.id)}>${p.available===false?'✓ Satışa Aç':'✕ Satışa Kapat'}</button>
         </div>
       </div>
@@ -1348,6 +1349,22 @@ function editProductRow(pid){
   prodDrawerCalc();
   requestAnimationFrame(() => d.classList.add('open'));
 }
+function goEditProductInSettings(pid){ closeProdDrawer(); if(typeof closeTableModal==='function' && document.getElementById('prodPick')) closeTableModal(); APP.settingsTab = 'products'; APP.productsSubTab = 'products'; goToView('settings'); setTimeout(() => editProductRow(pid), 600); }
+// Sipariş Al'da yönetici bir ürüne uzun basınca (ya da sağ tıklayınca) hızlı düzenleme açılır.
+(function(){
+  let timer = null, fired = false;
+  const canEdit = () => { const s = getSession(); return !!(s && canManage(s, 'settings_products')); };
+  const open = (card) => { if(!APP.config || !canEdit()) return false; const pid = card.dataset.pid; if(!(APP.config.products||[]).some(p => p.id===pid)) return false; fired = true; try{ navigator.vibrate && navigator.vibrate(30); }catch(e){} editProductRow(pid); return true; };
+  document.addEventListener('pointerdown', (e) => {
+    const card = e.target.closest && e.target.closest('.prod-pick-card[data-pid]'); fired = false; clearTimeout(timer);
+    if(!card || e.target.closest('button')) return;
+    timer = setTimeout(() => open(card), 600);
+  });
+  ['pointerup','pointercancel','pointermove'].forEach(ev => document.addEventListener(ev, (e) => { if(ev !== 'pointermove' || (e.movementX*e.movementX + e.movementY*e.movementY) > 25) clearTimeout(timer); }));
+  document.addEventListener('contextmenu', (e) => { const card = e.target.closest && e.target.closest('.prod-pick-card[data-pid]'); if(card && open(card)) e.preventDefault(); });
+  // Uzun basmanın ardından gelen tıklama ürünü sepete eklemesin.
+  document.addEventListener('click', (e) => { if(fired && e.target.closest && e.target.closest('.prod-pick-card')){ e.stopPropagation(); e.preventDefault(); fired = false; } }, true);
+})();
 function closeProdDrawer(){ const d = document.getElementById('prodDrawer'); if(d) d.remove(); }
 function prodDrawerCalc(){
   const pr = parseFloat((document.getElementById('ed_price')||{}).value)||0, co = parseFloat((document.getElementById('ed_cost')||{}).value)||0;
@@ -1414,7 +1431,9 @@ async function runProductBatch(list, fn){
   await withLoadingOverlay((async () => {
     for(const item of list){ const { error } = await fn(session, item); if(error) errors.push((item.name || '') + ': ' + (item.friendly ? friendlyDeleteError(error.message) : error.message)); }
   })());
-  renderSettingsView(document.getElementById('main'), session);
+  // Sipariş Al'daki uzun basma ile açılan düzenlemede ekran Ayarlar'a geçmez; yalnızca veriler tazelenir.
+  if(APP.view==='settings') renderSettingsView(document.getElementById('main'), session);
+  else { try{ const { data } = await sb.rpc('get_restaurant_config', { p_token: session.session_token }); if(data) APP.config = data; }catch(e){} if(document.getElementById('prodPick') && APP.ppLast) renderProductPick(APP.ppLast.stationId, APP.ppLast.tableId); else if(typeof softRerender==='function') softRerender(session, true); }
   return errors;
 }
 async function saveAllProducts(){

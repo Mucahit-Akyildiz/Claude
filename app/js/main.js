@@ -586,8 +586,16 @@ function setupBackNavigation(){
 
 
 function renderHome(main, session){
-  main.innerHTML = `<h1>Merhaba ${escapeHtml(session.username)} 👋</h1><p class="muted" style="text-align:left;">Sol taraftaki menüden bir bölüm seçin.</p>`;
+  // Yalnızca yetkili kişiye görünen hızlı yönetim kısayolları (menüyü kalabalıklaştırmadan Ayarlar sekmelerine tek dokunuş).
+  const quick = [
+    { tab:'products', ic:'🍽️', t:'Ürünler', d:'Fiyat, reçete, stok' },
+    { tab:'zones', ic:'🪑', t:'Masalar', d:'Bölge ve masa planı' },
+    { tab:'stations', ic:'📋', t:'Menüler', d:'Menüler ve istasyonlar' },
+  ].filter(q => typeof SETTINGS_TABS !== 'undefined' && SETTINGS_TABS.some(t => t.tab===q.tab && settingsTabVisible(t, session)));
+  main.innerHTML = `<h1>Merhaba ${escapeHtml(session.username)} 👋</h1><p class="muted" style="text-align:left;">Sol taraftaki menüden bir bölüm seçin.</p>`
+    + (quick.length ? `<h3 class="hq-title">⚡ Hızlı Yönetim</h3><div class="hq-row">${quick.map((q, i) => `<button type="button" class="hq-card" style="--sc:var(--c${i+1});" ${act('goQuickManage', q.tab)}><span class="hq-ic">${q.ic}</span><span><b>${q.t}</b><small>${q.d}</small></span></button>`).join('')}</div>` : '');
 }
+function goQuickManage(tab){ APP.settingsTab = tab; if(tab==='products') APP.productsSubTab = 'products'; goToView('settings'); }
 function notReadyYet(){ alert('Bu ekran bir sonraki adımda eklenecek.'); }
 
 
