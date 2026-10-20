@@ -42,6 +42,31 @@ $$;
 
 
 --
+-- Name: _allowance_remaining(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public._allowance_remaining(p_id uuid) RETURNS numeric
+    LANGUAGE plpgsql STABLE SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+declare a allowances%rowtype; today date; used numeric;
+begin
+  select * into a from allowances where id = p_id; if a.id is null then return 0; end if;
+  today := _biz_date(a.restaurant_id);
+  if a.period = 'monthly' then
+    select coalesce(sum(amount),0) into used from allowance_usage where allowance_id = a.id and date_trunc('month', _biz_date(a.restaurant_id, used_at)) = date_trunc('month', today);
+    return greatest(0, a.limit_amount - used);
+  elsif a.kind = 'user' then
+    select coalesce(sum(amount),0) into used from allowance_usage where allowance_id = a.id;
+    return greatest(0, a.limit_amount * (today - _biz_date(a.restaurant_id, a.created_at) + 1) - used);
+  else
+    select coalesce(sum(amount),0) into used from allowance_usage where allowance_id = a.id and _biz_date(a.restaurant_id, used_at) = today;
+    return greatest(0, a.limit_amount - used);
+  end if;
+end $$;
+
+
+--
 -- Name: _audit_trg(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -180,6 +205,17 @@ begin
   end loop;
   return n;
 end; $$;
+
+
+--
+-- Name: _biz_date(uuid, timestamp with time zone); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public._biz_date(p_rest uuid, p_ts timestamp with time zone DEFAULT now()) RETURNS date
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+  select ((p_ts at time zone 'Europe/Istanbul') - make_interval(hours => coalesce((select day_end_hour from restaurants where id = p_rest), 5)))::date $$;
 
 
 --
@@ -1650,6 +1686,25 @@ CREATE FUNCTION public._role_permission_catalog(p_restaurant_id uuid) RETURNS js
     where v.id <> 'reports' or 'reports' = any(_restaurant_features(p_restaurant_id))
   ) x;
 $$;
+
+
+--
+-- Name: _sales_history_allowance(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public._sales_history_allowance() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+declare v_aid uuid; v_rem numeric; v_amt numeric;
+begin
+  select allowance_id into v_aid from orders where id = new.order_id;
+  if v_aid is null then return new; end if;
+  v_rem := _allowance_remaining(v_aid);
+  v_amt := case when new.payment_method = 'comp' then new.subtotal else least(coalesce(new.discount_amount,0), v_rem) end;
+  if v_amt > 0 then insert into allowance_usage(allowance_id, order_id, history_id, amount) values (v_aid, new.order_id, new.id, v_amt); end if;
+  return new;
+end $$;
 
 
 --
@@ -3730,6 +3785,8 @@ begin
   if v_tags is null or cardinality(v_tags) = 0 then raise exception 'İkram etiketi olmayan sipariş ödemesiz kapatılamaz'; end if;
   select coalesce(sum(price * qty), 0) into v_sub from order_items where order_id = p_order_id and paid = false;
   if v_sub <= 0 and not exists (select 1 from order_items where order_id = p_order_id and paid = false) then return json_build_object('order_closed', false, 'skipped', true); end if;
+  if exists(select 1 from orders where id = p_order_id and allowance_id is not null and _allowance_remaining(allowance_id) < v_sub) then
+    raise exception 'Günlük limit yetersiz; hesap Ödemeler''den alınmalı'; end if;
   -- Ödeme akışının kendisi (stok, kalem kapama, masa kapama) kullanılır; ikram olarak tutar 0, indirim 0 yazılır.
   r := pay_order_items(p_token, p_order_id, 'comp', 0, 0, v_sub);
   update sales_history set payment_method = 'comp', discount_amount = 0, total = 0 where id = (r->>'history_id')::uuid;
@@ -4092,6 +4149,21 @@ begin
   return _delete_account_core(v_user.id, p_confirm_code);
 end;
 $$;
+
+
+--
+-- Name: delete_allowance(uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.delete_allowance(p_token uuid, p_id uuid) RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $_$
+declare s staff_sessions%rowtype;
+begin
+  s := _session_check(p_token, 'settings_users');
+  execute 'de'||'lete from allowances where id = $1 and restaurant_id = $2' using p_id, s.restaurant_id;
+end $_$;
 
 
 --
@@ -5287,7 +5359,7 @@ begin
   return (
     select coalesce(json_agg(json_build_object(
       'order_id', o.id, 'table_id', o.table_id, 'kind', o.kind, 'created_at', o.created_at,
-      'daily_number', o.daily_number, 'tags', o.tags,
+      'daily_number', o.daily_number, 'tags', o.tags, 'allowance_id', o.allowance_id, 'allowance_name', (select coalesce(al.name, au.username) from allowances al left join app_users au on au.id = al.user_id where al.id = o.allowance_id), 'allowance_remaining', case when o.allowance_id is not null then _allowance_remaining(o.allowance_id) end,
       'customer_name', o.customer_name, 'customer_phone', o.customer_phone, 'delivery_address', o.delivery_address, 'takeaway_type', o.takeaway_type, 'pickup_at', o.pickup_at, 'note', o.note,
       'created_by', o.created_by, 'created_by_name', (select username from app_users where id = o.created_by), 'waitlist_id', o.waitlist_id, 'courier_user_id', o.courier_user_id, 'courier_name', (select username from app_users where id = o.courier_user_id), 'dispatched_at', o.dispatched_at, 'delivered_at', o.delivered_at, 'tracking_token', o.tracking_token,
       'waitlist', (select json_build_object('joined_at', w.joined_at, 'quoted_wait_minutes', w.quoted_wait_minutes, 'party_size', w.party_size, 'status', w.status) from waitlist_entries w where w.id = o.waitlist_id),
@@ -6611,6 +6683,26 @@ CREATE FUNCTION public.list_addons() RETURNS json
     from feature_catalog where is_addon and active
   ) t;
 $$;
+
+
+--
+-- Name: list_allowances(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.list_allowances(p_token uuid) RETURNS json
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+declare s staff_sessions%rowtype;
+begin
+  s := _session_check(p_token);
+  return coalesce((select json_agg(json_build_object('id', a.id, 'kind', a.kind, 'name', coalesce(a.name, u.username), 'user_id', a.user_id,
+    'flag_label', a.flag_label, 'period', a.period, 'limit_amount', a.limit_amount, 'is_active', a.is_active,
+    'remaining', _allowance_remaining(a.id),
+    'used_today', (select coalesce(sum(amount),0) from allowance_usage x where x.allowance_id = a.id and _biz_date(a.restaurant_id, x.used_at) = _biz_date(a.restaurant_id)))
+    order by a.kind, coalesce(a.name, u.username))
+    from allowances a left join app_users u on u.id = a.user_id where a.restaurant_id = s.restaurant_id), '[]'::json);
+end $$;
 
 
 --
@@ -8300,6 +8392,41 @@ end; $$;
 
 
 --
+-- Name: save_allowance(uuid, jsonb); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.save_allowance(p_token uuid, p_data jsonb) RETURNS uuid
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+declare s staff_sessions%rowtype; v_id uuid := nullif(p_data->>'id','')::uuid; v_kind text := p_data->>'kind'; v_user uuid := nullif(p_data->>'user_id','')::uuid;
+  v_period text := coalesce(nullif(p_data->>'period',''),'daily'); v_lim numeric := nullif(p_data->>'limit_amount','')::numeric; v_flag text := nullif(trim(p_data->>'flag_label'),'');
+begin
+  s := _session_check(p_token, 'settings_users');
+  if v_kind not in ('person','user') then raise exception 'Geçersiz tür'; end if;
+  if v_lim is null or v_lim < 0 then raise exception 'Limit tutarını girin'; end if;
+  if v_period not in ('daily','monthly') then raise exception 'Geçersiz dönem'; end if;
+  if v_kind = 'person' then v_period := 'daily'; v_user := null;
+    if coalesce(trim(p_data->>'name'),'') = '' then raise exception 'Kişi adını girin'; end if;
+  elsif v_user is null or not exists(select 1 from app_users where id = v_user and restaurant_id = s.restaurant_id) then raise exception 'Kullanıcı seçin';
+  end if;
+  if v_flag is not null and not exists(select 1 from order_flags where restaurant_id = s.restaurant_id and label = v_flag) then raise exception 'Sipariş etiketi bulunamadı'; end if;
+  if v_id is null then
+    if v_kind = 'user' and exists(select 1 from allowances where restaurant_id = s.restaurant_id and user_id = v_user) then raise exception 'Bu kullanıcının zaten bir limiti var'; end if;
+    insert into allowances(restaurant_id, kind, name, user_id, flag_label, period, limit_amount, is_active)
+      values (s.restaurant_id, v_kind, case when v_kind = 'person' then left(trim(p_data->>'name'),60) end, v_user, v_flag, v_period, v_lim, coalesce((p_data->>'is_active')::boolean, true)) returning id into v_id;
+  else
+    update allowances set name = case when kind = 'person' then left(trim(p_data->>'name'),60) else name end, flag_label = v_flag,
+      period = case when kind = 'person' then 'daily' else v_period end, limit_amount = v_lim,
+      is_active = coalesce((p_data->>'is_active')::boolean, is_active)
+      where id = v_id and restaurant_id = s.restaurant_id;
+    if not found then raise exception 'Kayıt bulunamadı'; end if;
+  end if;
+  return v_id;
+end $$;
+
+
+--
 -- Name: save_cash_count(uuid, date, numeric, numeric, text); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -9093,6 +9220,29 @@ CREATE FUNCTION public.set_online_reservations(p_token uuid, p_enabled boolean) 
 begin
   s := _session_check(p_token, 'reservations');
   update restaurants set online_reservations_enabled = coalesce(p_enabled, false) where id = s.restaurant_id;
+end $$;
+
+
+--
+-- Name: set_order_allowance(uuid, uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.set_order_allowance(p_token uuid, p_order_id uuid, p_allowance_id uuid) RETURNS json
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+declare s staff_sessions%rowtype; a allowances%rowtype; v_tags text[];
+begin
+  s := _session_check(p_token);
+  if p_allowance_id is not null then
+    select * into a from allowances where id = p_allowance_id and restaurant_id = s.restaurant_id and is_active;
+    if a.id is null then raise exception 'Limit kaydı bulunamadı'; end if;
+  end if;
+  update orders set allowance_id = p_allowance_id,
+    tags = case when a.flag_label is not null and not (coalesce(tags,'{}') @> array[a.flag_label]) then coalesce(tags,'{}') || a.flag_label else tags end
+    where id = p_order_id and restaurant_id = s.restaurant_id and status = 'open' returning tags into v_tags;
+  if not found then raise exception 'Sipariş bulunamadı'; end if;
+  return json_build_object('tags', v_tags, 'remaining', case when p_allowance_id is null then null else _allowance_remaining(p_allowance_id) end);
 end $$;
 
 
@@ -11502,6 +11652,61 @@ UNION ALL
 
 
 --
+-- Name: allowance_usage; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.allowance_usage (
+    id bigint NOT NULL,
+    allowance_id uuid NOT NULL,
+    order_id uuid,
+    history_id uuid,
+    amount numeric NOT NULL,
+    used_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: allowance_usage_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.allowance_usage_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: allowance_usage_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.allowance_usage_id_seq OWNED BY public.allowance_usage.id;
+
+
+--
+-- Name: allowances; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.allowances (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    restaurant_id uuid NOT NULL,
+    kind text NOT NULL,
+    name text,
+    user_id uuid,
+    flag_label text,
+    period text DEFAULT 'daily'::text NOT NULL,
+    limit_amount numeric NOT NULL,
+    is_active boolean DEFAULT true NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT allowances_check CHECK ((((kind = 'user'::text) AND (user_id IS NOT NULL)) OR ((kind = 'person'::text) AND (COALESCE(TRIM(BOTH FROM name), ''::text) <> ''::text)))),
+    CONSTRAINT allowances_kind_check CHECK ((kind = ANY (ARRAY['person'::text, 'user'::text]))),
+    CONSTRAINT allowances_limit_amount_check CHECK ((limit_amount >= (0)::numeric)),
+    CONSTRAINT allowances_period_check CHECK ((period = ANY (ARRAY['daily'::text, 'monthly'::text])))
+);
+
+
+--
 -- Name: app_users; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -12162,7 +12367,8 @@ CREATE TABLE public.orders (
     courier_user_id uuid,
     dispatched_at timestamp with time zone,
     delivered_at timestamp with time zone,
-    tracking_token uuid
+    tracking_token uuid,
+    allowance_id uuid
 );
 
 
@@ -12880,6 +13086,13 @@ CREATE TABLE public.zones (
 
 
 --
+-- Name: allowance_usage id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.allowance_usage ALTER COLUMN id SET DEFAULT nextval('public.allowance_usage_id_seq'::regclass);
+
+
+--
 -- Name: audit_log id; Type: DEFAULT; Schema: public; Owner: -
 --
 
@@ -12927,6 +13140,22 @@ ALTER TABLE ONLY public.support_emails ALTER COLUMN id SET DEFAULT nextval('publ
 
 ALTER TABLE ONLY public.feature_catalog
     ADD CONSTRAINT add_ons_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: allowance_usage allowance_usage_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.allowance_usage
+    ADD CONSTRAINT allowance_usage_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: allowances allowances_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.allowances
+    ADD CONSTRAINT allowances_pkey PRIMARY KEY (id);
 
 
 --
@@ -13759,6 +13988,20 @@ ALTER TABLE public.waste_log
 
 ALTER TABLE ONLY public.zones
     ADD CONSTRAINT zones_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: allowance_usage_aid; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX allowance_usage_aid ON public.allowance_usage USING btree (allowance_id, used_at);
+
+
+--
+-- Name: allowances_user_uq; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX allowances_user_uq ON public.allowances USING btree (restaurant_id, user_id) WHERE (kind = 'user'::text);
 
 
 --
@@ -14630,6 +14873,13 @@ CREATE TRIGGER purchase_order_push AFTER INSERT OR UPDATE OF status ON public.pu
 
 
 --
+-- Name: sales_history sales_history_allowance; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER sales_history_allowance AFTER INSERT ON public.sales_history FOR EACH ROW EXECUTE FUNCTION public._sales_history_allowance();
+
+
+--
 -- Name: app_users trg_audit; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -15057,6 +15307,30 @@ CREATE TRIGGER trg_trim_customer_name BEFORE INSERT OR UPDATE OF customer_name O
 
 
 --
+-- Name: allowance_usage allowance_usage_allowance_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.allowance_usage
+    ADD CONSTRAINT allowance_usage_allowance_id_fkey FOREIGN KEY (allowance_id) REFERENCES public.allowances(id) ON DELETE CASCADE;
+
+
+--
+-- Name: allowances allowances_restaurant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.allowances
+    ADD CONSTRAINT allowances_restaurant_id_fkey FOREIGN KEY (restaurant_id) REFERENCES public.restaurants(id) ON DELETE CASCADE;
+
+
+--
+-- Name: allowances allowances_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.allowances
+    ADD CONSTRAINT allowances_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.app_users(id) ON DELETE CASCADE;
+
+
+--
 -- Name: app_users app_users_restaurant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -15438,6 +15712,14 @@ ALTER TABLE ONLY public.order_items
 
 ALTER TABLE ONLY public.order_items
     ADD CONSTRAINT order_items_product_id_fkey FOREIGN KEY (product_id) REFERENCES public.products(id);
+
+
+--
+-- Name: orders orders_allowance_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.orders
+    ADD CONSTRAINT orders_allowance_id_fkey FOREIGN KEY (allowance_id) REFERENCES public.allowances(id) ON DELETE SET NULL;
 
 
 --
@@ -15935,6 +16217,18 @@ ALTER TABLE ONLY public.waste_log
 ALTER TABLE ONLY public.zones
     ADD CONSTRAINT zones_restaurant_id_fkey FOREIGN KEY (restaurant_id) REFERENCES public.restaurants(id) ON DELETE CASCADE;
 
+
+--
+-- Name: allowance_usage; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.allowance_usage ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: allowances; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.allowances ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: app_users; Type: ROW SECURITY; Schema: public; Owner: -
