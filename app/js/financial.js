@@ -214,7 +214,7 @@ function reportTabList(){
     stockf:'Ne zaman bitecek', zreport:'Z raporu, yazdır', waiters:'Personel performansı', journey:'Sadakat, kayıp müşteri', period:'Saatlik / günlük', vat:'Vergi dağılımı',
     products:'En çok satanlar', staff:'Personel ısı haritası', customers:'Müşteri harcamaları', tips:'Bahşiş dağılımı', waste:'Fire ve israf', cancel:'İptal masa ve ürünler',
     resv:'Rezervasyon performansı', openacc:'Veresiye bakiyeleri', payroll:'Çalışma saati, maaş, prim', dayclose:'Kapandı mı, kasa farkı', reviews:'Yıldız ve yorumlar' };
-  return [['summary','📊','Genel Özet'], ...AN_TABS, ['period','📈','Dönemsel Analiz'],['vat','🧾','KDV'],['products','📦','Ürün İstatistikleri'],['staff','👤','Personel Analizleri'],['customers','🧑‍🤝‍🧑','Müşteri Analizleri'],['payroll','💼','Puantaj & Prim'],['dayclose','🧾','Gün Sonu Kapanışları'],['reviews','⭐','Müşteri Değerlendirmeleri'],['tips','💰','Bahşiş Havuzu'],['waste','🔥','İsraf'],['cancel','❌','İptaller'],['resv','📅','Rezervasyon Analizi'],['openacc','📒','Açık Hesaplar']].map(t => [...t, dsc[t[0]] || '']);
+  return [['summary','📊','Genel Özet'], ...AN_TABS, ['period','📈','Dönemsel Analiz'],['vat','🧾','KDV'],['products','📦','Ürün İstatistikleri'],['staff','👤','Personel Analizleri'],['customers','🧑‍🤝‍🧑','Müşteri Analizleri'],['payroll','💼','Puantaj & Prim'],['reviews','⭐','Müşteri Değerlendirmeleri'],['tips','💰','Bahşiş Havuzu'],['waste','🔥','İsraf'],['cancel','❌','İptaller'],['resv','📅','Rezervasyon Analizi'],['openacc','📒','Açık Hesaplar']].map(t => [...t, dsc[t[0]] || '']);
 }
 function setReportTab(tab){
   if(tab !== APP.reportTab) pushScreen();
