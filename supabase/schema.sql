@@ -6654,7 +6654,7 @@ begin
     select coalesce(json_agg(row_to_json(q) order by q.created_at), '[]'::json)
     from (
       select cr.id, cr.table_id, rt.name as table_name, cr.customer_name, cr.customer_phone,
-        cr.delivery_address, cr.order_type, cr.created_at,
+        cr.delivery_address, cr.order_type, cr.created_at, cr.payment_status, cr.paid_amount,
         (
           select coalesce(json_agg(json_build_object(
             'product_id', it->>'product_id',
