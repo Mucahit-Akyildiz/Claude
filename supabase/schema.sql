@@ -1550,7 +1550,7 @@ begin
     v_title := r.rname || ' - Rezervasyon hatırlatması'; v_head := 'Rezervasyonunuzu hatırlatırız';
     v_intro := 'rezervasyonunuz yaklaşıyor:';
   end if;
-  perform _send_email(r.email, v_title, _mail_layout(v_head,
+  perform _send_email_r(r.restaurant_id, r.email, v_title, _mail_layout(v_head,
     '<p>Merhaba ' || replace(replace(r.customer_name,'<','&lt;'),'>','&gt;') || ',</p>'
     || '<p><b>' || replace(replace(r.rname,'<','&lt;'),'>','&gt;') || '</b> için ' || v_intro || '</p>'
     || '<table style="border-collapse:collapse;margin:12px 0;font-size:15px;">'
@@ -1658,6 +1658,33 @@ end $$;
 
 
 --
+-- Name: _send_email_r(uuid, text, text, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public._send_email_r(p_rest uuid, p_to text, p_subject text, p_html text) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'extensions', 'pg_temp'
+    AS $$
+declare t tenant_integrations%rowtype; v_name text;
+begin
+  select * into t from tenant_integrations where restaurant_id = p_rest;
+  if t.mail_provider is null or t.mail_api_key is null or t.mail_from is null then return _send_email(p_to, p_subject, p_html); end if;
+  select name into v_name from restaurants where id = p_rest;
+  v_name := coalesce(t.mail_from_name, v_name, 'Peyktan');
+  if t.mail_provider = 'resend' then
+    perform net.http_post(url := 'https://api.resend.com/emails',
+      headers := jsonb_build_object('Authorization','Bearer '||t.mail_api_key,'Content-Type','application/json'),
+      body := jsonb_build_object('from', v_name || ' <' || t.mail_from || '>', 'to', jsonb_build_array(p_to), 'subject', p_subject, 'html', p_html));
+  elsif t.mail_provider = 'brevo' then
+    perform net.http_post(url := 'https://api.brevo.com/v3/smtp/email',
+      headers := jsonb_build_object('api-key', t.mail_api_key, 'Content-Type','application/json', 'accept','application/json'),
+      body := jsonb_build_object('sender', jsonb_build_object('name', v_name, 'email', t.mail_from), 'to', jsonb_build_array(jsonb_build_object('email', p_to)), 'subject', p_subject, 'htmlContent', p_html));
+  else return _send_email(p_to, p_subject, p_html); end if;
+  return true;
+end $$;
+
+
+--
 -- Name: _send_expiry_reminders(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -1753,6 +1780,12 @@ begin
   select value into v_user from _psv where key = 'sms_username';
   select value into v_pass from _psv where key = 'sms_password';
   select value into v_header from _psv where key = 'sms_header';
+  -- İşletmenin kendi SMS hesabı varsa (Ayarlar > Entegrasyonlar) onunla gönderilir; kayıt/şifre kodları Peyktan hesabından.
+  if p_purpose <> 'otp' and p_restaurant_id is not null then
+    select coalesce(t.sms_provider, v_provider), coalesce(t.sms_user, v_user), coalesce(t.sms_pass, v_pass), coalesce(t.sms_header, v_header)
+      into v_provider, v_user, v_pass, v_header
+      from tenant_integrations t where t.restaurant_id = p_restaurant_id and t.sms_provider is not null and t.sms_user is not null and t.sms_pass is not null;
+  end if;
   insert into sms_outbox (restaurant_id, phone, message, purpose, status, provider)
     values (p_restaurant_id, v_phone, left(p_message, 480), p_purpose, 'queued', v_provider) returning id into v_id;
   if v_provider = 'netgsm' and v_user is not null and v_pass is not null then
@@ -2205,7 +2238,7 @@ begin
       || coalesce(' (<b>' || v_due || '</b>)', '') || '. Lütfen restorana yakın olun.</p>';
   end if;
   v_body := v_body || coalesce('<p style="color:#666;font-size:13px;">Bilgi için: ' || w.rphone || '</p>', '');
-  perform _send_email(w.email, v_title, _mail_layout(case p_kind when 'joined' then 'Bekleme listesindesiniz' when 'updated' then 'Bekleme süreniz güncellendi' else 'Sıranız yaklaşıyor' end, v_body));
+  perform _send_email_r(w.restaurant_id, w.email, v_title, _mail_layout(case p_kind when 'joined' then 'Bekleme listesindesiniz' when 'updated' then 'Bekleme süreniz güncellendi' else 'Sıranız yaklaşıyor' end, v_body));
 end $$;
 
 
@@ -4363,7 +4396,7 @@ begin
     nullif(trim(p_buyer_tax_office),''), nullif(trim(p_buyer_address),''), h.subtotal, coalesce(h.discount_amount,0), h.total, v_items, v_status, s.user_id)
   returning id into v_id;
 
-  if not _send_email(v_email, coalesce(nullif(r.invoice_title,''), r.name) || ' - Hesap / Fatura ' || v_num, v_html) then
+  if not _send_email_r(s.restaurant_id, v_email, coalesce(nullif(r.invoice_title,''), r.name) || ' - Hesap / Fatura ' || v_num, v_html) then
     raise exception 'E-posta altyapısı yapılandırılmamış';
   end if;
   return json_build_object('id', v_id, 'number', v_num, 'status', v_status);
@@ -4412,7 +4445,7 @@ begin
     || case when v_ftr <> '' then '<div style="border-top:1px dashed #000;margin:10px 0;"></div><div style="text-align:center;">' || v_ftr || '</div>' else '' end
     || '<div style="text-align:center;font-size:11px;font-weight:400;color:#666;margin-top:12px;">Bu belge bilgi amaçlıdır; mali değeri yoktur.</div>'
     || '</div></div>';
-  if not _send_email(v_email, r.name || ' - Fiş', v_html) then raise exception 'E-posta altyapısı yapılandırılmamış'; end if;
+  if not _send_email_r(s.restaurant_id, v_email, r.name || ' - Fiş', v_html) then raise exception 'E-posta altyapısı yapılandırılmamış'; end if;
   return json_build_object('ok', true);
 end; $_$;
 
@@ -6120,6 +6153,26 @@ begin
     insert into reviews(restaurant_id, table_id, table_name) values (v_t.restaurant_id, v_t.id, v_t.name) returning token into v_tok;
   end if;
   return json_build_object('token', v_tok);
+end $$;
+
+
+--
+-- Name: get_tenant_integrations(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.get_tenant_integrations(p_token uuid) RETURNS json
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+declare s staff_sessions%rowtype; t tenant_integrations%rowtype;
+  m text := ''; 
+begin
+  s := _session_check(p_token, 'settings_integrations');
+  select * into t from tenant_integrations where restaurant_id = s.restaurant_id;
+  return json_build_object(
+    'sms', json_build_object('provider', t.sms_provider, 'user', t.sms_user, 'header', t.sms_header, 'has_pass', t.sms_pass is not null),
+    'mail', json_build_object('provider', t.mail_provider, 'from', t.mail_from, 'from_name', t.mail_from_name, 'key_tail', right(t.mail_api_key, 4)),
+    'pay', json_build_object('enabled', coalesce(t.pay_enabled,false), 'provider', t.pay_provider, 'sandbox', coalesce(t.pay_sandbox,true), 'key_tail', right(t.pay_api_key, 4), 'has_secret', t.pay_secret is not null));
 end $$;
 
 
@@ -8287,6 +8340,39 @@ begin
     end;
   end if;
   return v_id;
+end $_$;
+
+
+--
+-- Name: save_tenant_integration(uuid, text, jsonb); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.save_tenant_integration(p_token uuid, p_kind text, p_data jsonb) RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $_$
+declare s staff_sessions%rowtype; v text;
+begin
+  s := _session_check(p_token, 'settings_integrations');
+  insert into tenant_integrations(restaurant_id) values (s.restaurant_id) on conflict do nothing;
+  if p_kind = 'sms' then
+    update tenant_integrations set sms_provider = nullif(p_data->>'provider',''), sms_user = nullif(trim(p_data->>'user'),''),
+      sms_pass = coalesce(nullif(p_data->>'pass',''), case when nullif(p_data->>'provider','') is null then null else sms_pass end),
+      sms_header = nullif(upper(trim(p_data->>'header')),''), updated_at = now() where restaurant_id = s.restaurant_id;
+  elsif p_kind = 'mail' then
+    v := lower(trim(coalesce(p_data->>'from','')));
+    if v <> '' and v !~ '^[^@\s]+@[^@\s]+\.[^@\s]+$' then raise exception 'Gönderen e-posta adresi geçersiz'; end if;
+    update tenant_integrations set mail_provider = nullif(p_data->>'provider',''),
+      mail_api_key = coalesce(nullif(trim(p_data->>'key'),''), case when nullif(p_data->>'provider','') is null then null else mail_api_key end),
+      mail_from = nullif(v,''), mail_from_name = nullif(trim(p_data->>'from_name'),''), updated_at = now() where restaurant_id = s.restaurant_id;
+  elsif p_kind = 'pay' then
+    update tenant_integrations set pay_enabled = coalesce((p_data->>'enabled')::boolean, false), pay_provider = nullif(p_data->>'provider',''),
+      pay_api_key = coalesce(nullif(trim(p_data->>'key'),''), pay_api_key), pay_secret = coalesce(nullif(trim(p_data->>'secret'),''), pay_secret),
+      pay_sandbox = coalesce((p_data->>'sandbox')::boolean, true), updated_at = now() where restaurant_id = s.restaurant_id;
+    if exists(select 1 from tenant_integrations where restaurant_id = s.restaurant_id and pay_enabled and (pay_provider is null or pay_api_key is null or pay_secret is null)) then
+      raise exception 'Online ödemeyi açmak için sağlayıcı, API anahtarı ve gizli anahtar gerekli';
+    end if;
+  else raise exception 'Geçersiz tür'; end if;
 end $_$;
 
 
@@ -12306,6 +12392,7 @@ CREATE TABLE public.restaurants (
     loyalty_tiers jsonb DEFAULT '[{"key": "silver", "min": 50, "disc": 0, "icon": "🥈", "mult": 1, "name": "Gümüş"}, {"key": "gold", "min": 200, "disc": 0, "icon": "🥇", "mult": 1, "name": "Altın"}, {"key": "diamond", "min": 500, "disc": 0, "icon": "💎", "mult": 1, "name": "Elmas"}]'::jsonb NOT NULL,
     day_end_hour smallint DEFAULT 5 NOT NULL,
     day_close_reminded_on date,
+    terms_accepted_at timestamp with time zone DEFAULT now(),
     CONSTRAINT restaurants_day_end_hour_check CHECK (((day_end_hour >= 0) AND (day_end_hour <= 23))),
     CONSTRAINT restaurants_default_vat_rate_check CHECK (((default_vat_rate >= (0)::numeric) AND (default_vat_rate <= (100)::numeric)))
 );
@@ -12512,6 +12599,29 @@ CREATE SEQUENCE public.support_emails_id_seq
 --
 
 ALTER SEQUENCE public.support_emails_id_seq OWNED BY public.support_emails.id;
+
+
+--
+-- Name: tenant_integrations; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.tenant_integrations (
+    restaurant_id uuid NOT NULL,
+    sms_provider text,
+    sms_user text,
+    sms_pass text,
+    sms_header text,
+    mail_provider text,
+    mail_api_key text,
+    mail_from text,
+    mail_from_name text,
+    pay_enabled boolean DEFAULT false NOT NULL,
+    pay_provider text,
+    pay_api_key text,
+    pay_secret text,
+    pay_sandbox boolean DEFAULT true NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
 
 
 --
@@ -13399,6 +13509,14 @@ ALTER TABLE ONLY public.support_access_log
 
 ALTER TABLE ONLY public.support_emails
     ADD CONSTRAINT support_emails_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: tenant_integrations tenant_integrations_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.tenant_integrations
+    ADD CONSTRAINT tenant_integrations_pkey PRIMARY KEY (restaurant_id);
 
 
 --
@@ -15537,6 +15655,14 @@ ALTER TABLE ONLY public.support_access_log
 
 
 --
+-- Name: tenant_integrations tenant_integrations_restaurant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.tenant_integrations
+    ADD CONSTRAINT tenant_integrations_restaurant_id_fkey FOREIGN KEY (restaurant_id) REFERENCES restaurants(id) ON DELETE CASCADE;
+
+
+--
 -- Name: waiter_calls waiter_calls_restaurant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -16034,6 +16160,12 @@ ALTER TABLE public.support_access_log ENABLE ROW LEVEL SECURITY;
 --
 
 ALTER TABLE public.support_emails ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: tenant_integrations; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.tenant_integrations ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: waiter_calls; Type: ROW SECURITY; Schema: public; Owner: -
