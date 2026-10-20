@@ -4,7 +4,7 @@ const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 const TOKEN = new URLSearchParams(window.location.search).get('t');
 const STATE = { info: null, rating: 0 };
 /* Müşteri değerlendirmesi: ödeme sonrası verilen linkle 1-5 yıldız ve yorum.
-   4-5 yıldız verenlere işletmenin Google yorum linki önerilir. */
+   Puan ne olursa olsun müşteriye işletmenin Google yorum linki önerilir (Google, yalnızca memnunlara yorum istemeyi yasaklar). */
 const LABELS = ['', 'Çok kötü 😞', 'Kötü 😕', 'Fena değil 😐', 'İyi 🙂', 'Mükemmel 🤩'];
 function escapeHtml(s){ return String(s==null?'':s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]); }
 function setApp(h){ document.getElementById('app').innerHTML = `<main>${h}</main>`; }
@@ -41,6 +41,6 @@ async function sendReview(){
   const { data, error } = await sb.rpc('submit_public_review', { p_review_token: TOKEN, p_rating: STATE.rating, p_comment: document.getElementById('rvComment').value });
   if(error){ err.textContent = error.message; btn.disabled = false; btn.textContent = 'Gönder'; return; }
   setApp(STATE.rating >= 4 ? stateHtml('🤩', 'Çok teşekkürler!', 'Bizi tercih ettiğiniz için mutluyuz. Deneyiminizi Google\'da da paylaşırsanız çok seviniriz.', googleBtn(data && data.google_url))
-    : stateHtml('🙏', 'Teşekkürler', 'Geri bildiriminiz işletme yönetimine iletildi. Bir dahaki ziyaretinizde daha iyisini yapacağız.'));
+    : stateHtml('🙏', 'Teşekkürler', 'Geri bildiriminiz işletme yönetimine iletildi. Bir dahaki ziyaretinizde daha iyisini yapacağız. Dilerseniz görüşünüzü Google\'da da paylaşabilirsiniz.', googleBtn(data && data.google_url).replace('⭐ Google\'da da paylaşır mısınız?', 'Google\'da değerlendir')));
 }
 init();

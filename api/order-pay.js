@@ -22,6 +22,12 @@ async function iyzicoCall(t, uriPath, body) {
   const r = await fetch(base + uriPath, { method: 'POST', headers: iyzicoHeaders(t.pay_api_key, t.pay_secret, uriPath, body), body: JSON.stringify(body) });
   return r.json();
 }
+// Anahtarlar veritabanında şifreli; yalnızca service_role'ün çağırabildiği _tenant_pay_creds çözer.
+async function payCreds(supabase, restaurantId) {
+  const { data } = await supabase.rpc('_tenant_pay_creds', { p_rest: restaurantId });
+  if (!data || !data.api_key || !data.secret) return null;
+  return { pay_provider: data.provider, pay_mode: data.mode, pay_sandbox: data.sandbox, pay_api_key: data.api_key, pay_secret: data.secret };
+}
 const price = (n) => (Math.round(Number(n) * 100) / 100).toFixed(2);
 
 module.exports = async function handler(req, res) {
@@ -36,15 +42,15 @@ module.exports = async function handler(req, res) {
     const back = (ok) => { res.writeHead(302, { Location: `${SITE}/siparis/?r=${encodeURIComponent((rest && rest.code) || '')}&${ok ? 'paid=1' : 'payfail=1'}` }); res.end(); };
     try {
       if (!op || !token) return back(false);
-      const { data: t } = await supabase.from('tenant_integrations').select('*').eq('restaurant_id', op.restaurant_id).maybeSingle();
-      if (!t || !t.pay_api_key || !t.pay_secret) return back(false);
+      const t = await payCreds(supabase, op.restaurant_id);
+      if (!t) return back(false);
       const result = await iyzicoCall(t, '/payment/iyzipos/checkoutform/auth/ecom/detail', { locale: 'tr', conversationId: op.id, token });
       if (result.status !== 'success' || result.paymentStatus !== 'SUCCESS' || result.basketId !== op.id) {
         await supabase.from('online_payments').update({ status: 'failed', error: String(result.errorMessage || result.paymentStatus || 'hata').slice(0, 300), finished_at: new Date().toISOString() }).eq('id', op.id);
         return back(false);
       }
-      const { error } = await supabase.rpc('_finalize_online_payment', { p_id: op.id, p_ref: String(result.paymentId || ''), p_paid: Number(result.paidPrice || result.price || 0) });
-      return back(!error);
+      const { data: reqId, error } = await supabase.rpc('_finalize_online_payment', { p_id: op.id, p_ref: String(result.paymentId || ''), p_paid: Number(result.paidPrice || result.price || 0) });
+      return back(!error && !!reqId);
     } catch (e) {
       console.error('order-pay callback', e);
       return back(false);
@@ -57,8 +63,8 @@ module.exports = async function handler(req, res) {
     const { data: op } = await supabase.from('online_payments').select('*').eq('id', pid).maybeSingle();
     if (!op || op.status !== 'pending') { res.status(400).json({ error: 'Ödeme kaydı bulunamadı' }); return; }
     if (Date.now() - new Date(op.created_at).getTime() > 30 * 60 * 1000) { res.status(400).json({ error: 'Ödeme süresi doldu, lütfen tekrar deneyin' }); return; }
-    const { data: t } = await supabase.from('tenant_integrations').select('*').eq('restaurant_id', op.restaurant_id).maybeSingle();
-    if (!t || t.pay_provider !== 'iyzico' || !t.pay_api_key || !t.pay_secret || !['optional', 'required'].includes(t.pay_mode)) { res.status(400).json({ error: 'Bu işletmede online ödeme kapalı' }); return; }
+    const t = await payCreds(supabase, op.restaurant_id);
+    if (!t || t.pay_provider !== 'iyzico' || !['optional', 'required'].includes(t.pay_mode)) { res.status(400).json({ error: 'Bu işletmede online ödeme kapalı' }); return; }
     const { data: rest } = await supabase.from('restaurants').select('name, billing_city').eq('id', op.restaurant_id).maybeSingle();
     const p = op.payload || {};
     const parts = String(p.name || 'Müşteri').trim().split(/\s+/);

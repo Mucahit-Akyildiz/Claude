@@ -2106,35 +2106,35 @@ async function renderIntegrationsSettings(el, session){
   const save = (fn) => `<button class="ix-save" ${act(fn)}>${ICON_SAVE}<span>Kaydet</span></button>`;
   el.innerHTML = `<div class="box ix-box" style="max-width:none;">
     <h2>🧾 ÖKC / e-Fatura <span class="role-badge" style="font-weight:600;">Eklenti</span></h2>
-    ${hero('🧾', 'Yazarkasa ve e-Fatura / e-Arşiv', 'Ödeme alınan her hesap, seçtiğiniz entegratör üzerinden otomatik e-Arşiv / e-Fatura olarak kesilir.', 'int_efatura_enabled', data.efatura_enabled)}
+    ${hero('🧾', 'Yazarkasa ve e-Fatura / e-Arşiv (yakında)', 'Entegratörünüzü ve API anahtarınızı şimdiden kaydedin. Otomatik e-Arşiv / e-Fatura kesimi henüz aktif değil; hazır olduğunda bu bilgilerle açılacak.', 'int_efatura_enabled', data.efatura_enabled)}
     <div class="ix-sec"><div class="ix-st">1 · Entegratörünüzü seçin</div>
     ${tiles('int_efatura_provider', data.efatura_provider, [['foriba','🟦','Foriba','Sovos e-Fatura'],['izibiz','🟩','İzibiz','e-Fatura / e-Arşiv'],['logo','🟥','Logo','Logo e-Dönüşüm'],['nesbilgi','🟪','Nesbilgi','NES e-Fatura'],['other','➕','Diğer','Başka entegratör']])}</div>
     <div class="ix-sec"><div class="ix-st">2 · Bağlantı bilgisi</div>${keyRow('int_efatura_key', data.efatura_configured, 'Entegratör panelinden alınan API anahtarı')}</div>
-    ${note('Anahtarınız şifreli saklanır. Gerçek fatura kesimi, entegratörünüzle sözleşmeniz tamamlandığında devreye alınır.')}
+    ${note('Anahtarınız şifreli saklanır. Şu an fatura entegratöre gönderilmez; yalnızca bilgiler kaydedilir.')}
     ${save('saveEfaturaSettings')}
   </div>
   <div class="box ix-box" style="max-width:none;">
     <h2>🛍️ Pazaryeri <span class="role-badge" style="font-weight:600;">Eklenti</span></h2>
-    ${hero('🛍️', 'Tüm platform siparişleri tek ekranda', 'Yemeksepeti, Trendyol Yemek ve Getir siparişleri Paket Servis ekranına düşer; menünüz platformlara eşitlenir.', 'int_marketplace_enabled', data.marketplace_enabled)}
+    ${hero('🛍️', 'Tüm platform siparişleri tek ekranda (yakında)', 'Platform API anahtarlarınızı şimdiden kaydedin. Sipariş çekme ve menü eşitleme henüz aktif değil; hazır olduğunda bu anahtarlarla açılacak.', 'int_marketplace_enabled', data.marketplace_enabled)}
     <div class="ix-mk">${[['int_ys_key','🍽️','Yemeksepeti','#fa0050',data.marketplace_yemeksepeti_configured],['int_ty_key','🧡','Trendyol Yemek','#f27a1a',data.marketplace_trendyol_configured],['int_gt_key','🛵','Getir Yemek','#5d3ebc',data.marketplace_getir_configured]].map(([id, ic, n, c, ok]) =>
       `<div class="ix-mk-c ${ok?'ok':''}" style="--mk:${c};"><div class="ix-mk-h"><span class="ix-mk-ic">${ic}</span><b>${n}</b><span class="ti-st ${ok?'ok':''}">${ok?'● Bağlı':'○ Bağlı değil'}</span></div>
         <input id="${id}" type="password" autocomplete="new-password" placeholder="${ok?'•••••••• kayıtlı':'API anahtarı'}"></div>`).join('')}</div>
-    ${note('Platformdan onaylı işletme / API erişimi almanız gerekir. Anahtarlar şifreli saklanır.')}
+    ${note('Şu an platformlardan sipariş çekilmez; anahtarlar yalnızca şifreli saklanır. Platformdan onaylı işletme / API erişimi gerekir.')}
     ${save('saveMarketplaceSettings')}
   </div>
   <div class="box ix-box" style="max-width:none;">
     <h2>📊 Muhasebe <span class="role-badge" style="font-weight:600;">Eklenti</span></h2>
-    ${hero('📊', 'Satışlar muhasebe programınıza', 'Günlük satış, tahsilat ve KDV kırılımları muhasebe yazılımınıza otomatik aktarılır; elle giriş biter.', 'int_accounting_enabled', data.accounting_enabled)}
+    ${hero('📊', 'Satışlar muhasebe programınıza (yakında)', 'Programınızı ve API anahtarınızı şimdiden kaydedin. Satış ve KDV aktarımı henüz aktif değil; hazır olduğunda bu bilgilerle açılacak.', 'int_accounting_enabled', data.accounting_enabled)}
     <div class="ix-sec"><div class="ix-st">1 · Programınızı seçin</div>
     ${tiles('int_accounting_provider', data.accounting_provider, [['logo','🟥','Logo','Tiger / Go / İşbaşı'],['mikro','🟦','Mikro','Mikro Fly / Jump'],['netsis','🟨','Netsis','Logo Netsis'],['other','➕','Diğer','Başka program']])}</div>
     <div class="ix-sec"><div class="ix-st">2 · Bağlantı bilgisi</div>${keyRow('int_accounting_key', data.accounting_configured, 'Muhasebe programınızın API anahtarı')}</div>
-    ${note('Veri aktarımı, yazılım firmasıyla entegrasyon onayı alındıktan sonra açılır. Bu özellik ayrı bir eklentidir.')}
+    ${note('Şu an muhasebeye veri aktarılmaz; bilgiler yalnızca saklanır. Aktarım, yazılım firmasıyla entegrasyon onayından sonra açılır.')}
     ${save('saveAccountingSettings')}
   </div>
   <div class="box ix-box" style="max-width:none;">
     <h2>⭐ Google Yorumları</h2>
     <div class="oo-hero ${APP.config.google_review_url?'on':''}"><div class="oo-hero-ic">⭐</div>
-      <div class="oo-hero-t"><b>Mutlu müşteriden 5 yıldız</b><small>Hesap tamamen ödenince personel bir QR gösterir; müşteri telefonuyla okutup Google'da yorum bırakır.</small></div>
+      <div class="oo-hero-t"><b>Müşteri yorumları Google'a</b><small>Hesap tamamen ödenince personel bir QR gösterir; müşteri telefonuyla okutup Google'da yorum bırakır.</small></div>
       <span class="ti-st ${APP.config.google_review_url?'ok':''}">${APP.config.google_review_url?'● Bağlı':'○ Link girilmedi'}</span></div>
     <div class="ix-sec"><div class="ix-st">Google yorum linkiniz</div>
       <div class="ix-form"><div><label>🔗 "Yorum yaz" linki</label><input id="int_google_review_url" placeholder="https://g.page/r/..." value="${escapeAttr(APP.config.google_review_url||'')}"></div></div></div>
