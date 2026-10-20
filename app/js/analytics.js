@@ -5,7 +5,7 @@
 const AN_TABS = [
   ['cockpit','🧭','Kokpit'], ['menueng','⭐','Menü Mühendisliği'], ['tablemap','🗺️','Masa Haritası'], ['heat','🔥','Yoğunluk'],
   ['channels','🛵','Satış Kanalları'], ['speed','⚡','Hizmet Hızı'],
-  ['stockf','📦','Stok Tahmini'], ['zreport','🧾','Gün Sonu'], ['waiters','🏅','Garson Kartları'], ['journey','🔁','Müşteri Yolculuğu']
+  ['stockf','📦','Stok Tahmini'], ['zreport','🧾','Gün Sonu'], ['dayclose','📅','Gün Sonu Kapanışları'], ['waiters','🏅','Garson Kartları'], ['journey','🔁','Müşteri Yolculuğu']
 ];
 async function anBundle(session){
   const key = APP.reportDate + '|' + APP.reportDateTo;
@@ -281,7 +281,7 @@ async function renderZReportContent(session){
     </div>
     <div class="an-z-acts"><button type="button" ${act('printZToReceipt')}>🧾 Fiş Yazıcısına Gönder</button><button type="button" class="ghost-btn" ${act('printZReport')}>🖨️ Yazdır / PDF</button><button type="button" class="ghost-btn" ${act('exportAnalytics')}>⬇ Excel (CSV)</button></div>
     <div class="cc-box">
-      <div class="cc-h"><span class="cc-ic">🧮</span><div><b>Kasa Sayımı</b><small>Kasadaki nakdi sayıp girin; sistemdeki nakit satışla fark hesaplanır</small></div></div>
+      <div class="cc-h"><span class="cc-ic">🧮</span><div style="flex:1;"><b>Kasa Sayımı</b><small>Kasadaki nakdi sayıp girin; sistemdeki nakit satışla fark hesaplanır</small></div><button type="button" class="ghost-btn" style="width:auto;padding:6px 12px;font-size:12.5px;" ${act('setReportTab', 'dayclose')}>📅 Geçmiş kapanışlar</button></div>
       <div class="cc-grid">
         <div class="cc-stat"><small>Sistemde nakit</small><b id="ccExpected" data-v="${anN(k.cash)}">${money(k.cash)}</b></div>
         <div class="field-group"><label>Sayılan nakit (TL)</label><input id="ccCounted" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0,00" ${actOn('input','updateCashDiff',[])}></div>
