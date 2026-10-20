@@ -3086,3 +3086,9 @@ button.oo-chip{cursor:pointer;} button.oo-chip:hover{border-color:var(--accent);
 .ix-mk-ic{width:36px;height:36px;border-radius:12px;display:grid;place-items:center;font-size:18px;background:color-mix(in srgb,var(--mk) 20%,transparent);}
 .ix-mk-c input{margin:0;}
 .ix-mk-h .ti-st{white-space:nowrap;}
+
+.ix-st .ti-st{margin-left:8px;text-transform:none;letter-spacing:0;}
+.ix-form{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px 12px;}
+.ix-form label{display:block;font-size:12.5px;font-weight:700;color:var(--muted);margin-bottom:4px;}
+.ix-form input{margin:0;}
+.ix-box .oo-hero>.ti-st{flex-shrink:0;}
