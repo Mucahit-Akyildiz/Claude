@@ -2094,7 +2094,7 @@ async function deleteRole(id){
 async function renderIntegrationsSettings(el, session){
   const { data, error } = await sb.rpc('get_integration_settings', { p_token: session.session_token });
   if(error){ el.innerHTML = '<p class="muted">Yüklenemedi: '+error.message+'</p>'; return; }
-  el.innerHTML = `<div id="tenantIntBox"></div><div class="box" style="max-width:none;">
+  el.innerHTML = `<div class="box" style="max-width:none;">
     <h2>ÖKC / e-Fatura Entegrasyonu <span class="role-badge" style="font-weight:600;">Eklenti</span></h2>
     <p class="muted" style="margin-top:-6px;">Bu bölüm şu an sadece kimlik bilgilerinizi güvenli şekilde saklar. Gerçek bağlantı, bir e-fatura entegratörüyle (Foriba, İzibiz, Logo, Nesbilgi vb.) sözleşme yapıldıktan sonra aktif hale getirilir.</p>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;max-width:500px;">
@@ -2203,7 +2203,7 @@ async function renderIntegrationsSettings(el, session){
     <p class="muted" style="margin-top:-6px;">Açıkken müşterilere otomatik SMS gider: rezervasyon onayı ve 2 saat kala hatırlatma, paket siparişi hazır olunca bildirim, bekleme listesinde "Masa Hazır" butonu.</p>
     <label style="display:flex;align-items:center;gap:8px;font-weight:600;margin:10px 0;">
       <input type="checkbox" id="int_sms_enabled" ${data.sms_enabled?'checked':''} style="width:auto;margin:0;" ${actOn('change','saveSmsSettings',['$checked'])}> Aktif
-    </label>`;
+    </label><div id="tiSms"></div>`;
   el.insertBefore(sms, inv);
   const today = new Date(), from = new Date(Date.now()-29*864e5);
   const iso = d => d.toLocaleDateString('sv-SE');
@@ -2218,21 +2218,31 @@ async function renderIntegrationsSettings(el, session){
   const INT_TABS = [
     { id:'online', ic:'🛵', label:'Online Sipariş' }, { id:'google', ic:'⭐', label:'Google Yorumları' },
     { id:'sms', ic:'📱', label:'SMS' }, { id:'invoice', ic:'🧾', label:'Fatura Bilgileri' },
+    { id:'mail', ic:'✉️', label:'E-posta' },
     { id:'efatura', ic:'🧾', label:'ÖKC / e-Fatura' }, { id:'marketplace', ic:'🛍️', label:'Pazaryeri' }, { id:'accounting', ic:'📊', label:'Muhasebe' },
   ];
   const order = ['efatura','marketplace','accounting','google','online','sms','invoice'];
   const boxes = [...el.querySelectorAll(':scope > .box')];
   boxes.forEach((b, i) => { b.dataset.int = order[i]; b.classList.add('int-pane'); });
+  // İşletmenin kendi e-posta ve online ödeme hesapları (bkz. renderTenantIntegrations).
+  [['mail','✉️ E-posta Gönderimi','tiMail']].forEach(([k, t, id]) => {
+    const b = document.createElement('div'); b.className = 'box int-pane'; b.style.maxWidth = 'none'; b.dataset.int = k;
+    b.innerHTML = `<h2>${t}</h2><div id="${id}"><p class="muted">Yükleniyor…</p></div>`; el.appendChild(b); boxes.push(b);
+  });
+  // Online kartla ödeme, Online Sipariş sekmesinin içinde.
+  const onl = boxes.find(x => x.dataset.int === 'online');
+  if(onl){ const d = document.createElement('div'); d.id = 'tiPay'; onl.appendChild(d); }
   if(!INT_TABS.some(t => t.id === APP.integrationsSubTab)) APP.integrationsSubTab = 'online';
-  const INT_DESC = { online:'Getir, Yemeksepeti, Trendyol siparişleri', google:'İşletme yorumlarını takip edin', sms:'Müşterilere SMS bildirimi', invoice:'Faturada görünecek bilgiler',
+  const INT_DESC = { online:'Kendi sipariş sayfanız ve kartla ödeme', google:'İşletme yorumlarını takip edin', sms:'Müşterilere SMS bildirimi', mail:'Kendi alan adınızdan e-posta', pay:'iyzico / PayTR ile kartla ödeme', invoice:'Faturada görünecek bilgiler',
     efatura:'Yazarkasa ve e-Fatura/e-Arşiv', marketplace:'Pazaryeri menü eşitleme', accounting:'Muhasebe yazılımına aktarım' };
   const stOf = (id) => { const b = boxes.find(x => x.dataset.int === id); const t = b ? b.textContent : '';
     return /paketinizde yok|eklenti/i.test(t) && /paketinizde yok/i.test(t) ? ['lock','🔒 Eklenti'] : ['ok','● Kullanılabilir']; };
   const bar = document.createElement('div');
-  bar.className = 'int-tiles';
-  bar.innerHTML = INT_TABS.map((t, i) => { const [k, l] = stOf(t.id);
-    return `<button type="button" class="int-tile ${APP.integrationsSubTab===t.id?'active':''} st-${k}" style="--sc:var(--c${i%4+1});" data-int-tab="${t.id}" ${act('setIntegrationsSubTab', t.id)}>
-      <span class="int-ic">${t.ic}</span><span class="int-txt"><b>${t.label}</b><small>${INT_DESC[t.id]||''}</small></span><span class="int-st">${l}</span></button>`; }).join('');
+  bar.className = 'int-groups';
+  const GROUPS = [['🛒 Satış kanalları', ['online','marketplace','google']], ['💬 Müşteri iletişimi', ['sms','mail']], ['🧾 Fatura & muhasebe', ['invoice','efatura','accounting']]];
+  bar.innerHTML = GROUPS.map(([g, ids]) => `<div class="int-group"><div class="int-gt">${g}</div><div class="int-gl">${ids.map(id => { const t = INT_TABS.find(x => x.id === id); if(!t) return ''; const [k, l] = stOf(id);
+    return `<button type="button" class="int-row ${APP.integrationsSubTab===id?'active':''} st-${k}" data-int-tab="${id}" ${act('setIntegrationsSubTab', id)}>
+      <span class="int-ic">${t.ic}</span><span class="int-txt"><b>${t.label}</b><small>${INT_DESC[id]||''}</small></span><span class="int-st">${k==='lock' ? '🔒' : '●'}</span></button>`; }).join('')}</div></div>`).join('');
   el.insertBefore(bar, el.firstChild);
   showIntegrationPane();
   renderTenantIntegrations(session);
@@ -3034,23 +3044,22 @@ function auditTableHtml(rows){
 /* ---- İşletmenin kendi hesapları: SMS, e-posta, online ödeme. Gizli anahtarlar sunucuda saklanır,
    buraya yalnızca son 4 hanesi gelir; boş bırakılan gizli alan mevcut değeri korur. ---- */
 async function renderTenantIntegrations(session){
-  const box = document.getElementById('tenantIntBox'); if(!box) return;
+  const bs = document.getElementById('tiSms'), bm = document.getElementById('tiMail'), bp = document.getElementById('tiPay'); if(!bs && !bm && !bp) return;
   const { data, error } = await sb.rpc('get_tenant_integrations', { p_token: session.session_token });
-  if(error){ box.innerHTML = ''; return; }
+  if(error){ [bs, bm, bp].forEach(x => { if(x) x.innerHTML = ''; }); return; }
   const sm = data.sms || {}, ml = data.mail || {}, py = data.pay || {};
   const opt = (v, cur, l) => `<option value="${v}" ${cur===v?'selected':''}>${l}</option>`;
   const st = (ok, txt) => `<span class="ti-st ${ok?'ok':''}">${ok ? '● Bağlı' : '○ ' + txt}</span>`;
-  box.innerHTML = `<div class="ti-grid">
-    <div class="ti-card">
+  const cards = [`<div class="ti-card">
       <div class="ti-h"><span>📱</span><b>SMS</b>${st(sm.provider && sm.user && sm.has_pass, 'Peyktan hesabı kullanılıyor')}</div>
       <p class="muted ti-d">Müşteri SMS'leri (rezervasyon, masa hazır, sipariş) <b>sizin</b> SMS hesabınızdan, kendi başlığınızla gider. Bağlamazsanız geçici olarak Peyktan hesabından gönderilir.</p>
       <label>Sağlayıcı</label><select id="ti_sms_provider">${opt('', sm.provider || '', 'Bağlı değil')}${opt('netgsm', sm.provider, 'NetGSM')}</select>
-      <label>Kullanıcı kodu</label><input id="ti_sms_user" value="${escapeAttr(sm.user || '')}" placeholder="850xxxxxxx">
-      <label>Şifre</label><input id="ti_sms_pass" type="password" placeholder="${sm.has_pass ? '•••••• (kayıtlı — değiştirmek için yazın)' : 'API şifresi'}" autocomplete="new-password">
+      <label>API kullanıcı adı (NetGSM kullanıcı kodu)</label><input id="ti_sms_user" value="${escapeAttr(sm.user || '')}" placeholder="850xxxxxxx">
+      <label>API şifresi / anahtarı</label><input id="ti_sms_pass" type="password" placeholder="${sm.has_pass ? '•••••• (kayıtlı — değiştirmek için yazın)' : 'NetGSM API alt kullanıcı şifresi'}" autocomplete="new-password">
+      <small class="muted" style="text-align:left;">NetGSM panelinde <b>Abonelik İşlemleri → API İşlemleri</b>'nden bir API alt kullanıcısı oluşturup bilgilerini buraya girin.</small>
       <label>Gönderen başlığı</label><input id="ti_sms_header" value="${escapeAttr(sm.header || '')}" placeholder="ÖRN. LEZZETSOFR" maxlength="11">
       <button type="button" ${act('saveTenantInt', 'sms')}>💾 Kaydet</button>
-    </div>
-    <div class="ti-card">
+    </div>`, `<div class="ti-card">
       <div class="ti-h"><span>✉️</span><b>E-posta</b>${st(ml.provider && ml.key_tail && ml.from, 'Peyktan hesabı kullanılıyor')}</div>
       <p class="muted ti-d">Fiş, fatura, rezervasyon ve bekleme listesi e-postaları kendi alan adınızdan (ör. info@restoraniniz.com) gider. Resend veya Brevo hesabınızdaki API anahtarını girin; alan adınızı orada doğrulamanız gerekir.</p>
       <label>Sağlayıcı</label><select id="ti_mail_provider">${opt('', ml.provider || '', 'Bağlı değil')}${opt('resend', ml.provider, 'Resend')}${opt('brevo', ml.provider, 'Brevo (Sendinblue)')}</select>
@@ -3058,28 +3067,35 @@ async function renderTenantIntegrations(session){
       <label>Gönderen e-posta</label><input id="ti_mail_from" type="email" value="${escapeAttr(ml.from || '')}" placeholder="info@restoraniniz.com">
       <label>Gönderen adı</label><input id="ti_mail_from_name" value="${escapeAttr(ml.from_name || '')}" placeholder="Restoran adınız">
       <button type="button" ${act('saveTenantInt', 'mail')}>💾 Kaydet</button>
-    </div>
-    <div class="ti-card">
-      <div class="ti-h"><span>💳</span><b>Online ödeme</b>${st(py.enabled, 'Kapalı')}</div>
+    </div>`, `<div class="ti-card">
+      <div class="ti-h"><span>💳</span><b>Online ödeme</b>${st((py.mode||'off')!=='off', 'Kapıda ödeme')}</div>
       <p class="muted ti-d">Açarsanız online sipariş sayfasında müşteri kartla ödeyebilir; para doğrudan <b>sizin</b> sanal POS hesabınıza geçer. Kapalıyken müşteri kapıda öder.</p>
-      <label class="ti-sw"><input type="checkbox" id="ti_pay_enabled" ${py.enabled?'checked':''} ${actOn('change','tiPayToggle',['$checked'])}> <b>Online kartla ödemeyi aç</b></label>
-      <div id="tiPayFields" style="${py.enabled?'':'display:none;'}">
-        <label>Sağlayıcı</label><select id="ti_pay_provider">${opt('iyzico', py.provider || 'iyzico', 'iyzico')}${opt('paytr', py.provider, 'PayTR')}</select>
+      <label>Sipariş sayfasında ödeme</label>
+      <div class="ti-modes">
+        ${[['off','💵 Kapıda ödeme','Kart istenmez; müşteri teslimde öder. Sipariş hemen düşer.'],['optional','🔀 Müşteri seçsin','Kapıda veya online kartla. Online seçerse sipariş ödeme sonrası düşer.'],['required','💳 Önce online ödeme','Her sipariş önce kartla ödenir; ödeme başarılı olunca size düşer.']].map(([k, l, d]) => `<label class="ti-mode ${(py.mode||'off')===k?'on':''}"><input type="radio" name="ti_pay_mode" value="${k}" ${(py.mode||'off')===k?'checked':''} ${actOn('change','tiPayToggle',[k])}><b>${l}</b><small>${d}</small></label>`).join('')}
+      </div>
+      <div id="tiPayFields" style="${(py.mode||'off')!=='off'?'':'display:none;'}">
+        <label>Sağlayıcı</label><select id="ti_pay_provider">${opt('iyzico', py.provider || 'iyzico', 'iyzico')}<option value="paytr" disabled>PayTR (yakında)</option></select>
         <label>API anahtarı (Merchant key / API key)</label><input id="ti_pay_key" type="password" placeholder="${py.key_tail ? '••••' + escapeAttr(py.key_tail) + ' (kayıtlı)' : 'API anahtarı'}" autocomplete="new-password">
         <label>Gizli anahtar (Secret / Merchant salt)</label><input id="ti_pay_secret" type="password" placeholder="${py.has_secret ? '•••••• (kayıtlı)' : 'Gizli anahtar'}" autocomplete="new-password">
         <label class="ti-sw"><input type="checkbox" id="ti_pay_sandbox" ${py.sandbox!==false?'checked':''}> Test modu (gerçek para çekilmez)</label>
       </div>
       <button type="button" ${act('saveTenantInt', 'pay')}>💾 Kaydet</button>
-    </div>
-  </div>`;
+    </div>`];
+  if(bs) bs.innerHTML = `<div class="ti-one">${cards[0]}</div>`;
+  if(bm) bm.innerHTML = `<div class="ti-one">${cards[1]}</div>`;
+  if(bp) bp.innerHTML = `<div class="ti-one">${cards[2]}</div>`;
 }
-function tiPayToggle(on){ const f = document.getElementById('tiPayFields'); if(f) f.style.display = on ? '' : 'none'; }
+function tiPayToggle(mode){
+  const f = document.getElementById('tiPayFields'); if(f) f.style.display = mode !== 'off' ? '' : 'none';
+  document.querySelectorAll('.ti-mode').forEach(l => l.classList.toggle('on', l.querySelector('input').value === mode));
+}
 async function saveTenantInt(kind){
   const v = (id) => ((document.getElementById(id) || {}).value || '').trim();
   const c = (id) => !!(document.getElementById(id) || {}).checked;
   const data = kind==='sms' ? { provider: v('ti_sms_provider'), user: v('ti_sms_user'), pass: v('ti_sms_pass'), header: v('ti_sms_header') }
     : kind==='mail' ? { provider: v('ti_mail_provider'), key: v('ti_mail_key'), from: v('ti_mail_from'), from_name: v('ti_mail_from_name') }
-    : { enabled: c('ti_pay_enabled'), provider: v('ti_pay_provider'), key: v('ti_pay_key'), secret: v('ti_pay_secret'), sandbox: c('ti_pay_sandbox') };
+    : { mode: (document.querySelector('input[name=ti_pay_mode]:checked') || {}).value || 'off', provider: v('ti_pay_provider'), key: v('ti_pay_key'), secret: v('ti_pay_secret'), sandbox: c('ti_pay_sandbox') };
   const s = getSession();
   const { error } = await withLoadingOverlay(sb.rpc('save_tenant_integration', { p_token: s.session_token, p_kind: kind, p_data: data }));
   if(error){ alert(error.message); return; }

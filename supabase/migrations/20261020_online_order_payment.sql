@@ -1,0 +1,6 @@
+-- Online sipariş kartla ödeme: tenant_integrations.pay_mode (off | optional | required),
+-- customer_order_requests.payment_status/paid_amount/payment_ref, online_payments (RLS, yalnızca service role),
+-- get_public_payment_option, start_public_order_payment (tutar sunucuda), _finalize_online_payment (service_role),
+-- submit_public_order 'required' modda ödemesiz siparişi reddeder, list_customer_order_requests payment_status döner.
+-- Akış: siparis/ -> start_public_order_payment -> /api/order-pay (iyzico checkout form, işletmenin kendi anahtarı)
+-- -> iyzico -> /api/order-pay?cb=1 -> doğrulama -> _finalize_online_payment -> sipariş "Online ödendi" olarak düşer. Canlıya uygulandı.
