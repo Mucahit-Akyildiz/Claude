@@ -3068,11 +3068,14 @@ async function renderTenantIntegrations(session){
       <label>Gönderen adı</label><input id="ti_mail_from_name" value="${escapeAttr(ml.from_name || '')}" placeholder="Restoran adınız">
       <button type="button" ${act('saveTenantInt', 'mail')}>💾 Kaydet</button>
     </div>`, `<div class="ti-card">
-      <div class="ti-h"><span>💳</span><b>Online ödeme</b>${st(py.enabled, 'Kapalı')}</div>
+      <div class="ti-h"><span>💳</span><b>Online ödeme</b>${st((py.mode||'off')!=='off', 'Kapıda ödeme')}</div>
       <p class="muted ti-d">Açarsanız online sipariş sayfasında müşteri kartla ödeyebilir; para doğrudan <b>sizin</b> sanal POS hesabınıza geçer. Kapalıyken müşteri kapıda öder.</p>
-      <label class="ti-sw"><input type="checkbox" id="ti_pay_enabled" ${py.enabled?'checked':''} ${actOn('change','tiPayToggle',['$checked'])}> <b>Online kartla ödemeyi aç</b></label>
-      <div id="tiPayFields" style="${py.enabled?'':'display:none;'}">
-        <label>Sağlayıcı</label><select id="ti_pay_provider">${opt('iyzico', py.provider || 'iyzico', 'iyzico')}${opt('paytr', py.provider, 'PayTR')}</select>
+      <label>Sipariş sayfasında ödeme</label>
+      <div class="ti-modes">
+        ${[['off','💵 Kapıda ödeme','Kart istenmez; müşteri teslimde öder. Sipariş hemen düşer.'],['optional','🔀 Müşteri seçsin','Kapıda veya online kartla. Online seçerse sipariş ödeme sonrası düşer.'],['required','💳 Önce online ödeme','Her sipariş önce kartla ödenir; ödeme başarılı olunca size düşer.']].map(([k, l, d]) => `<label class="ti-mode ${(py.mode||'off')===k?'on':''}"><input type="radio" name="ti_pay_mode" value="${k}" ${(py.mode||'off')===k?'checked':''} ${actOn('change','tiPayToggle',[k])}><b>${l}</b><small>${d}</small></label>`).join('')}
+      </div>
+      <div id="tiPayFields" style="${(py.mode||'off')!=='off'?'':'display:none;'}">
+        <label>Sağlayıcı</label><select id="ti_pay_provider">${opt('iyzico', py.provider || 'iyzico', 'iyzico')}<option value="paytr" disabled>PayTR (yakında)</option></select>
         <label>API anahtarı (Merchant key / API key)</label><input id="ti_pay_key" type="password" placeholder="${py.key_tail ? '••••' + escapeAttr(py.key_tail) + ' (kayıtlı)' : 'API anahtarı'}" autocomplete="new-password">
         <label>Gizli anahtar (Secret / Merchant salt)</label><input id="ti_pay_secret" type="password" placeholder="${py.has_secret ? '•••••• (kayıtlı)' : 'Gizli anahtar'}" autocomplete="new-password">
         <label class="ti-sw"><input type="checkbox" id="ti_pay_sandbox" ${py.sandbox!==false?'checked':''}> Test modu (gerçek para çekilmez)</label>
@@ -3083,13 +3086,16 @@ async function renderTenantIntegrations(session){
   if(bm) bm.innerHTML = `<div class="ti-one">${cards[1]}</div>`;
   if(bp) bp.innerHTML = `<div class="ti-one">${cards[2]}</div>`;
 }
-function tiPayToggle(on){ const f = document.getElementById('tiPayFields'); if(f) f.style.display = on ? '' : 'none'; }
+function tiPayToggle(mode){
+  const f = document.getElementById('tiPayFields'); if(f) f.style.display = mode !== 'off' ? '' : 'none';
+  document.querySelectorAll('.ti-mode').forEach(l => l.classList.toggle('on', l.querySelector('input').value === mode));
+}
 async function saveTenantInt(kind){
   const v = (id) => ((document.getElementById(id) || {}).value || '').trim();
   const c = (id) => !!(document.getElementById(id) || {}).checked;
   const data = kind==='sms' ? { provider: v('ti_sms_provider'), user: v('ti_sms_user'), pass: v('ti_sms_pass'), header: v('ti_sms_header') }
     : kind==='mail' ? { provider: v('ti_mail_provider'), key: v('ti_mail_key'), from: v('ti_mail_from'), from_name: v('ti_mail_from_name') }
-    : { enabled: c('ti_pay_enabled'), provider: v('ti_pay_provider'), key: v('ti_pay_key'), secret: v('ti_pay_secret'), sandbox: c('ti_pay_sandbox') };
+    : { mode: (document.querySelector('input[name=ti_pay_mode]:checked') || {}).value || 'off', provider: v('ti_pay_provider'), key: v('ti_pay_key'), secret: v('ti_pay_secret'), sandbox: c('ti_pay_sandbox') };
   const s = getSession();
   const { error } = await withLoadingOverlay(sb.rpc('save_tenant_integration', { p_token: s.session_token, p_kind: kind, p_data: data }));
   if(error){ alert(error.message); return; }
