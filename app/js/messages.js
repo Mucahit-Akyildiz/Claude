@@ -167,20 +167,25 @@ function drawChatList(){
   const q = (APP.chatSearch||'').trim().toLocaleLowerCase('tr'), f = APP.chatFilter || 'all';
   const items = (APP.chatItems||[]).filter(c => (!q || (c.name||'').toLocaleLowerCase('tr').includes(q))
     && (f==='unread' ? c.unread > 0 : f==='groups' ? (c.is_group || c.is_all) : f==='people' ? (!c.is_group && !c.is_all) : true));
-  const label = (c) => c.is_all || c.is_group ? `<span class="cs-hash">${c.is_all ? '#' : '🔒'}</span>${escapeHtml(c.is_all ? 'genel' : c.name)}`
-    : `<span class="cs-dot ${c.online ? 'on' : ''}"></span>${escapeHtml(c.name)}`;
-  const row = (c) => `
-    <div class="chat-item cs-row ${APP.chatConv===c.conv?'active':''} ${c.unread>0?'unread':''}" data-conv="${c.conv}" title="${escapeAttr(c.last_body || c.roles || '')}" ${act('openChatConv', c.conv)}>
-      <span class="sk-lbl">${label(c)}</span>
-      <span class="chat-last" data-typing-conv="${escapeAttr(c.conv)}">${chatTypingText(c.conv) ? `<i>yazıyor…</i>` : ''}</span>
-      ${c.unread > 0 ? `<span class="chat-unread">${c.unread > 99 ? '99+' : c.unread}</span>` : ''}
+  // Avatarlı kart satırı: avatar + ad + saat, altında son mesaj önizlemesi ve okunmamış sayısı.
+  const row = (c) => {
+    const typing = chatTypingText(c.conv);
+    const prev = typing ? `<i class="sk-typing">yazıyor…</i>` : c.last_body ? escapeHtml(c.last_body) : `<i>${escapeHtml(c.roles || (c.is_all ? 'Tüm ekip' : c.is_group ? 'Grup' : 'Henüz mesaj yok'))}</i>`;
+    return `
+    <div class="chat-item sk-card ${APP.chatConv===c.conv?'active':''} ${c.unread>0?'unread':''}" data-conv="${c.conv}" ${act('openChatConv', c.conv)}>
+      ${chatAvatar(c, 42)}
+      <div class="sk-main">
+        <div class="sk-top"><span class="sk-name">${escapeHtml(c.is_all ? 'Genel' : c.name)}</span>${c.last_at ? `<span class="sk-when">${chatTime(c.last_at)}</span>` : ''}</div>
+        <div class="sk-bot"><span class="chat-last sk-prev" data-typing-conv="${escapeAttr(c.conv)}">${prev}</span>${c.unread > 0 ? `<span class="chat-unread sk-pill">${c.unread > 99 ? '99+' : c.unread}</span>` : ''}</div>
+      </div>
     </div>`;
+  };
   const chans = items.filter(c => c.is_all || c.is_group).sort((a, b) => (b.is_all?1:0) - (a.is_all?1:0));
   const dms = items.filter(c => !c.is_all && !c.is_group).sort((a, b) => ((b.unread>0) - (a.unread>0)) || String(b.last_at||'').localeCompare(String(a.last_at||'')) || ((b.online?1:0) - (a.online?1:0)) || String(a.name).localeCompare(String(b.name), 'tr'));
   const online = dms.filter(c => c.online).length;
   const sec = (t, list, extra) => `<div class="cs-sec"><span>${t}</span>${extra || ''}</div>${list.map(row).join('') || '<p class="cs-none">—</p>'}`;
   el.innerHTML = (q ? items.map(row).join('') : sec('Kanallar', chans, `<button type="button" class="cs-sec-add" title="Yeni grup" ${act('openChatGroupEditor')}>＋</button>`)
-      + sec('Direkt mesajlar', dms, online ? `<small class="cs-online">🟢 ${online}</small>` : ''))
+      + sec('Kişiler', dms, online ? `<small class="cs-online">🟢 ${online}</small>` : ''))
     + (q.length >= 2 ? '<div id="chatMsgSearch"><p class="muted" style="padding:8px 12px;font-size:12.5px;">🔍 Mesajlarda aranıyor…</p></div>' : (items.length ? '' : '<p class="muted" style="padding:12px;">Kişi bulunamadı.</p>'));
   if(q.length >= 2) chatSearchMessagesSoon(q);
   if(!APP.chatConv){ const pane = document.getElementById('chatPane'); if(pane && pane.querySelector('.chat-welcome')) pane.innerHTML = chatEmptyPaneHtml(); }
