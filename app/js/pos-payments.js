@@ -1691,6 +1691,7 @@ function pickTableCustomer(i, prefix){
   const emailEl = document.getElementById(prefix + 'Email');
   if(emailEl && c.email && !emailEl.value) emailEl.value = c.email;
   document.getElementById(prefix + 'Suggest').innerHTML = '';
+  if(typeof autoAllowanceForCustomer === 'function') autoAllowanceForCustomer(c.name, c.phone);
   if(prefix !== 'tableCust') return;
   const t = document.getElementById('tableCustName').dataset.table;
   if(t) saveTableCustomer(t, true);
@@ -1704,6 +1705,7 @@ async function saveTableCustomer(tableId, quiet){
   let phone = document.getElementById('tableCustPhone').value.trim();
   // Tek arama kutusuna telefon yazıldıysa telefon olarak kaydedilir.
   if(!phone && /^[\d\s+()-]{7,}$/.test(name)){ phone = name; name = ''; }
+  if(typeof autoAllowanceForCustomer === 'function') autoAllowanceForCustomer(name, phone);
   const o = liveOrderForTable(tableId);
   if(quiet && (o ? (o.customer_name||'') === name && (o.customer_phone||'') === phone : !name && !phone)) return;
   const session = getSession();
