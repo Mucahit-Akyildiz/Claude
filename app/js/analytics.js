@@ -7,10 +7,11 @@ const AN_TABS = [
   ['channels','🛵','Satış Kanalları'], ['speed','⚡','Hizmet Hızı'],
   ['stockf','📦','Stok Tahmini'], ['zreport','🧾','Gün Sonu'], ['dayclose','📅','Gün Sonu Kapanışları'], ['waiters','🏅','Garson Kartları'], ['journey','🔁','Müşteri Yolculuğu']
 ];
-async function anBundle(session){
+async function anBundle(session, fresh, quiet){
   const key = APP.reportDate + '|' + APP.reportDateTo;
-  if(APP.anCache && APP.anCache.key === key && Date.now() - APP.anCache.at < 60000) return APP.anCache.data;
-  const { data, error } = await withLoadingOverlay(sb.rpc('get_analytics_bundle', { p_token: session.session_token, p_date: APP.reportDate, p_date_to: APP.reportDateTo }));
+  if(!fresh && APP.anCache && APP.anCache.key === key && Date.now() - APP.anCache.at < 60000) return APP.anCache.data;
+  const req = sb.rpc('get_analytics_bundle', { p_token: session.session_token, p_date: APP.reportDate, p_date_to: APP.reportDateTo });
+  const { data, error } = await (quiet ? req : withLoadingOverlay(req));
   if(error) throw error;
   APP.anCache = { key, at: Date.now(), data };
   return data;
@@ -253,9 +254,22 @@ async function renderStockForecastContent(session){
 }
 
 /* ---------- 🧾 GÜN SONU (Z raporu) ---------- */
-async function renderZReportContent(session){
+// Gün Sonu her açılışta ve açıkken 30 sn'de bir güncel veriyle çizilir (önbellek yüzünden yeni ödemeler geç görünmesin).
+let Z_REFRESH_T = null;
+function zAutoRefresh(){
+  clearInterval(Z_REFRESH_T);
+  Z_REFRESH_T = setInterval(() => {
+    const inp = document.getElementById('ccCounted');
+    if(APP.view !== 'reports' || APP.reportTab !== 'zreport' || !inp){ clearInterval(Z_REFRESH_T); return; }
+    if(document.hidden || inp.value !== '' || document.activeElement === inp || document.activeElement === document.getElementById('ccNote')) return;
+    const s = getSession(); if(s) renderZReportContent(s, true);
+  }, 30000);
+}
+async function renderZReportContent(session, quiet){
   const el = document.getElementById('reportContent'); if(!el) return;
-  let d; try { d = await anBundle(session); } catch(e){ return anErr(el, e); }
+  let d; try { d = await anBundle(session, true, quiet); } catch(e){ return quiet ? null : anErr(el, e); }
+  if(APP.reportTab !== 'zreport' || !document.getElementById('reportContent')) return;
+  zAutoRefresh();
   const k = d.kpi || {}, c = d.cancel || {};
   const gross = anN(k.revenue) + anN(k.discount);
   const rows = [
