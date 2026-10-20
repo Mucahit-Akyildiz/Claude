@@ -3457,6 +3457,36 @@ $_$;
 
 
 --
+-- Name: allowance_report(uuid, date, date); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.allowance_report(p_token uuid, p_date date, p_date_to date) RETURNS json
+    LANGUAGE plpgsql STABLE SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+declare s staff_sessions%rowtype;
+begin
+  s := _session_check(p_token, 'reports');
+  return (with u as (
+      select x.allowance_id, x.amount, x.order_id, sh.payment_method, coalesce(sh.total,0) paid
+      from allowance_usage x join allowances a on a.id = x.allowance_id
+      left join sales_history sh on sh.id = x.history_id
+      where a.restaurant_id = s.restaurant_id and _biz_date(a.restaurant_id, x.used_at) between p_date and coalesce(p_date_to, p_date))
+    select json_build_object(
+      'total_used', coalesce((select sum(amount) from u),0),
+      'paid_diff', coalesce((select sum(paid) from u where payment_method <> 'comp'),0),
+      'orders', (select count(distinct order_id) from u),
+      'over_n', (select count(*) from u where payment_method <> 'comp'),
+      'rows', coalesce((select json_agg(r order by r.used desc) from (
+        select a.id, coalesce(a.name, au.username) as name, a.kind, a.period, a.flag_label,
+          sum(u.amount) used, count(distinct u.order_id) n, sum(case when u.payment_method <> 'comp' then u.paid else 0 end) paid_diff,
+          _allowance_remaining(a.id) remaining
+        from u join allowances a on a.id = u.allowance_id left join app_users au on au.id = a.user_id
+        group by a.id, a.name, au.username, a.kind, a.period, a.flag_label) r), '[]'::json)));
+end $$;
+
+
+--
 -- Name: approve_customer_order_request(uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -6696,7 +6726,7 @@ CREATE FUNCTION public.list_allowances(p_token uuid) RETURNS json
 declare s staff_sessions%rowtype;
 begin
   s := _session_check(p_token);
-  return coalesce((select json_agg(json_build_object('id', a.id, 'kind', a.kind, 'name', coalesce(a.name, u.username), 'user_id', a.user_id,
+  return coalesce((select json_agg(json_build_object('id', a.id, 'kind', a.kind, 'name', coalesce(a.name, u.username), 'user_id', a.user_id, 'phone', a.phone,
     'flag_label', a.flag_label, 'period', a.period, 'limit_amount', a.limit_amount, 'is_active', a.is_active,
     'remaining', _allowance_remaining(a.id),
     'used_today', (select coalesce(sum(amount),0) from allowance_usage x where x.allowance_id = a.id and _biz_date(a.restaurant_id, x.used_at) = _biz_date(a.restaurant_id)))
@@ -8413,12 +8443,13 @@ begin
   if v_flag is not null and not exists(select 1 from order_flag_defs where restaurant_id = s.restaurant_id and label = v_flag) then raise exception 'Sipariş etiketi bulunamadı'; end if;
   if v_id is null then
     if v_kind = 'user' and exists(select 1 from allowances where restaurant_id = s.restaurant_id and user_id = v_user) then raise exception 'Bu kullanıcının zaten bir limiti var'; end if;
-    insert into allowances(restaurant_id, kind, name, user_id, flag_label, period, limit_amount, is_active)
-      values (s.restaurant_id, v_kind, case when v_kind = 'person' then left(trim(p_data->>'name'),60) end, v_user, v_flag, v_period, v_lim, coalesce((p_data->>'is_active')::boolean, true)) returning id into v_id;
+    insert into allowances(restaurant_id, kind, name, user_id, flag_label, period, limit_amount, is_active, phone)
+      values (s.restaurant_id, v_kind, case when v_kind = 'person' then left(trim(p_data->>'name'),60) end, v_user, v_flag, v_period, v_lim, coalesce((p_data->>'is_active')::boolean, true), nullif(left(regexp_replace(coalesce(p_data->>'phone',''), '[^0-9+]', '', 'g'), 20), '')) returning id into v_id;
   else
     update allowances set name = case when kind = 'person' then left(trim(p_data->>'name'),60) else name end, flag_label = v_flag,
       period = case when kind = 'person' then 'daily' else v_period end, limit_amount = v_lim,
-      is_active = coalesce((p_data->>'is_active')::boolean, is_active)
+      is_active = coalesce((p_data->>'is_active')::boolean, is_active),
+      phone = case when p_data ? 'phone' then nullif(left(regexp_replace(coalesce(p_data->>'phone',''), '[^0-9+]', '', 'g'), 20), '') else phone end
       where id = v_id and restaurant_id = s.restaurant_id;
     if not found then raise exception 'Kayıt bulunamadı'; end if;
   end if;
@@ -11699,6 +11730,7 @@ CREATE TABLE public.allowances (
     limit_amount numeric NOT NULL,
     is_active boolean DEFAULT true NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
+    phone text,
     CONSTRAINT allowances_check CHECK ((((kind = 'user'::text) AND (user_id IS NOT NULL)) OR ((kind = 'person'::text) AND (COALESCE(TRIM(BOTH FROM name), ''::text) <> ''::text)))),
     CONSTRAINT allowances_kind_check CHECK ((kind = ANY (ARRAY['person'::text, 'user'::text]))),
     CONSTRAINT allowances_limit_amount_check CHECK ((limit_amount >= (0)::numeric)),
