@@ -1,0 +1,1 @@
+-- _send_sms: İleti Merkezi, Verimor, VatanSMS sağlayıcıları eklendi

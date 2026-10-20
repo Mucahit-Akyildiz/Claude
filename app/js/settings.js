@@ -2094,66 +2094,42 @@ async function deleteRole(id){
 async function renderIntegrationsSettings(el, session){
   const { data, error } = await sb.rpc('get_integration_settings', { p_token: session.session_token });
   if(error){ el.innerHTML = '<p class="muted">Yüklenemedi: '+error.message+'</p>'; return; }
-  el.innerHTML = `<div class="box" style="max-width:none;">
-    <h2>ÖKC / e-Fatura Entegrasyonu <span class="role-badge" style="font-weight:600;">Eklenti</span></h2>
-    <p class="muted" style="margin-top:-6px;">Bu bölüm şu an sadece kimlik bilgilerinizi güvenli şekilde saklar. Gerçek bağlantı, bir e-fatura entegratörüyle (Foriba, İzibiz, Logo, Nesbilgi vb.) sözleşme yapıldıktan sonra aktif hale getirilir.</p>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;max-width:500px;">
-      <div class="field-group"><label>Entegratör</label>
-        <select id="int_efatura_provider">
-          <option value="">Seçilmedi</option>
-          <option value="foriba" ${data.efatura_provider==='foriba'?'selected':''}>Foriba</option>
-          <option value="izibiz" ${data.efatura_provider==='izibiz'?'selected':''}>İzibiz</option>
-          <option value="logo" ${data.efatura_provider==='logo'?'selected':''}>Logo</option>
-          <option value="nesbilgi" ${data.efatura_provider==='nesbilgi'?'selected':''}>Nesbilgi</option>
-          <option value="other" ${data.efatura_provider==='other'?'selected':''}>Diğer</option>
-        </select>
-      </div>
-      <div class="field-group"><label>API Anahtarı</label><input id="int_efatura_key" type="password" placeholder="${data.efatura_configured?'(değiştirmek için yaz)':'API anahtarı'}"></div>
-    </div>
-    <label style="display:flex;align-items:center;gap:8px;font-weight:600;margin-top:10px;">
-      <input type="checkbox" id="int_efatura_enabled" ${data.efatura_enabled?'checked':''} style="width:auto;margin:0;"> Aktif
-    </label>
-    <p class="muted" style="font-size:12px;margin-top:6px;">${data.efatura_configured ? '✓ API anahtarı kayıtlı' : 'Henüz API anahtarı girilmedi'}</p>
-    <button style="margin-top:12px;max-width:220px;" ${act('saveEfaturaSettings')}>${ICON_SAVE}<span>Kaydet</span></button>
+  // Ortak görünüm: üst kart (ikon + açıklama + aç/kapa), sağlayıcı kutucukları, anahtar alanı.
+  const hero = (ic, t, d, id, on, extra) => `<div class="oo-hero ${on?'on':''}"><div class="oo-hero-ic">${ic}</div>
+      <div class="oo-hero-t"><b>${t}</b><small>${d}</small>${extra||''}</div>
+      <label class="oo-switch"><input type="checkbox" id="${id}" ${on?'checked':''} ${actOn('change','ixSw',['$checked'])}><span class="oo-track"><span class="oo-thumb"></span></span><em>${on?'Açık':'Kapalı'}</em></label></div>`;
+  const tiles = (sel, cur, list) => `<input type="hidden" id="${sel}" value="${escapeAttr(cur||'')}"><div class="ix-tiles">${list.map(([v, ic, n, d]) =>
+      `<button type="button" class="ix-tile ${cur===v?'on':''}" ${act('ixPick', sel, v)} data-v="${v}"><span>${ic}</span><b>${n}</b><small>${d}</small></button>`).join('')}</div>`;
+  const keyRow = (id, ok, ph) => `<div class="ix-key"><label>🔑 API anahtarı</label><div class="ix-key-in"><input id="${id}" type="password" autocomplete="new-password" placeholder="${ok ? '•••••••• kayıtlı — değiştirmek için yazın' : ph}">
+      <span class="ti-st ${ok?'ok':''}">${ok?'● Kayıtlı':'○ Girilmedi'}</span></div></div>`;
+  const note = (t) => `<p class="ix-note">ℹ️ ${t}</p>`;
+  const save = (fn) => `<button class="ix-save" ${act(fn)}>${ICON_SAVE}<span>Kaydet</span></button>`;
+  el.innerHTML = `<div class="box ix-box" style="max-width:none;">
+    <h2>🧾 ÖKC / e-Fatura <span class="role-badge" style="font-weight:600;">Eklenti</span></h2>
+    ${hero('🧾', 'Yazarkasa ve e-Fatura / e-Arşiv', 'Ödeme alınan her hesap, seçtiğiniz entegratör üzerinden otomatik e-Arşiv / e-Fatura olarak kesilir.', 'int_efatura_enabled', data.efatura_enabled)}
+    <div class="ix-sec"><div class="ix-st">1 · Entegratörünüzü seçin</div>
+    ${tiles('int_efatura_provider', data.efatura_provider, [['foriba','🟦','Foriba','Sovos e-Fatura'],['izibiz','🟩','İzibiz','e-Fatura / e-Arşiv'],['logo','🟥','Logo','Logo e-Dönüşüm'],['nesbilgi','🟪','Nesbilgi','NES e-Fatura'],['other','➕','Diğer','Başka entegratör']])}</div>
+    <div class="ix-sec"><div class="ix-st">2 · Bağlantı bilgisi</div>${keyRow('int_efatura_key', data.efatura_configured, 'Entegratör panelinden alınan API anahtarı')}</div>
+    ${note('Anahtarınız şifreli saklanır. Gerçek fatura kesimi, entegratörünüzle sözleşmeniz tamamlandığında devreye alınır.')}
+    ${save('saveEfaturaSettings')}
   </div>
-  <div class="box" style="max-width:none;">
-    <h2>Pazaryeri Entegrasyonu <span class="role-badge" style="font-weight:600;">Eklenti</span></h2>
-    <p class="muted" style="margin-top:-6px;">Yemeksepeti, Trendyol Yemek ve Getir Yemek siparişlerini tek ekrandan almak için gereken altyapı. Gerçek bağlantı için ilgili platformdan onaylı işletme/API erişimi gerekir.</p>
-    <div style="display:grid;grid-template-columns:1fr;gap:10px;max-width:500px;">
-      <div class="field-group"><label>Yemeksepeti API Anahtarı</label><input id="int_ys_key" type="password" placeholder="${data.marketplace_yemeksepeti_configured?'(değiştirmek için yaz)':'API anahtarı'}"></div>
-      <div class="field-group"><label>Trendyol Yemek API Anahtarı</label><input id="int_ty_key" type="password" placeholder="${data.marketplace_trendyol_configured?'(değiştirmek için yaz)':'API anahtarı'}"></div>
-      <div class="field-group"><label>Getir Yemek API Anahtarı</label><input id="int_gt_key" type="password" placeholder="${data.marketplace_getir_configured?'(değiştirmek için yaz)':'API anahtarı'}"></div>
-    </div>
-    <label style="display:flex;align-items:center;gap:8px;font-weight:600;margin-top:10px;">
-      <input type="checkbox" id="int_marketplace_enabled" ${data.marketplace_enabled?'checked':''} style="width:auto;margin:0;"> Aktif
-    </label>
-    <p class="muted" style="font-size:12px;margin-top:6px;">
-      ${data.marketplace_yemeksepeti_configured?'✓ Yemeksepeti':'✗ Yemeksepeti'} ·
-      ${data.marketplace_trendyol_configured?'✓ Trendyol Yemek':'✗ Trendyol Yemek'} ·
-      ${data.marketplace_getir_configured?'✓ Getir Yemek':'✗ Getir Yemek'}
-    </p>
-    <button style="margin-top:12px;max-width:220px;" ${act('saveMarketplaceSettings')}>${ICON_SAVE}<span>Kaydet</span></button>
+  <div class="box ix-box" style="max-width:none;">
+    <h2>🛍️ Pazaryeri <span class="role-badge" style="font-weight:600;">Eklenti</span></h2>
+    ${hero('🛍️', 'Tüm platform siparişleri tek ekranda', 'Yemeksepeti, Trendyol Yemek ve Getir siparişleri Paket Servis ekranına düşer; menünüz platformlara eşitlenir.', 'int_marketplace_enabled', data.marketplace_enabled)}
+    <div class="ix-mk">${[['int_ys_key','🍽️','Yemeksepeti','#fa0050',data.marketplace_yemeksepeti_configured],['int_ty_key','🧡','Trendyol Yemek','#f27a1a',data.marketplace_trendyol_configured],['int_gt_key','🛵','Getir Yemek','#5d3ebc',data.marketplace_getir_configured]].map(([id, ic, n, c, ok]) =>
+      `<div class="ix-mk-c ${ok?'ok':''}" style="--mk:${c};"><div class="ix-mk-h"><span class="ix-mk-ic">${ic}</span><b>${n}</b><span class="ti-st ${ok?'ok':''}">${ok?'● Bağlı':'○ Bağlı değil'}</span></div>
+        <input id="${id}" type="password" autocomplete="new-password" placeholder="${ok?'•••••••• kayıtlı':'API anahtarı'}"></div>`).join('')}</div>
+    ${note('Platformdan onaylı işletme / API erişimi almanız gerekir. Anahtarlar şifreli saklanır.')}
+    ${save('saveMarketplaceSettings')}
   </div>
-  <div class="box" style="max-width:none;">
-    <h2>📊 Muhasebe Entegrasyonu <span class="role-badge" style="font-weight:600;">Eklenti</span></h2>
-    <p class="muted" style="margin-top:-6px;">Satış verilerinizi muhasebe programınıza (Logo, Mikro, Netsis vb.) otomatik aktarmak için gereken altyapı. Bu bölüm şu an sadece kimlik bilgilerinizi güvenli şekilde saklar - gerçek veri aktarımı, ilgili yazılımla sözleşme/entegrasyon onayı alındıktan sonra aktif hale getirilir. Bu özellik hiçbir pakete dahil değildir, ayrı bir eklenti olarak satın alınması gerekir.</p>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;max-width:500px;">
-      <div class="field-group"><label>Muhasebe Yazılımı</label>
-        <select id="int_accounting_provider">
-          <option value="">Seçilmedi</option>
-          <option value="logo" ${data.accounting_provider==='logo'?'selected':''}>Logo</option>
-          <option value="mikro" ${data.accounting_provider==='mikro'?'selected':''}>Mikro</option>
-          <option value="netsis" ${data.accounting_provider==='netsis'?'selected':''}>Netsis</option>
-          <option value="other" ${data.accounting_provider==='other'?'selected':''}>Diğer</option>
-        </select>
-      </div>
-      <div class="field-group"><label>API Anahtarı</label><input id="int_accounting_key" type="password" placeholder="${data.accounting_configured?'(değiştirmek için yaz)':'API anahtarı'}"></div>
-    </div>
-    <label style="display:flex;align-items:center;gap:8px;font-weight:600;margin-top:10px;">
-      <input type="checkbox" id="int_accounting_enabled" ${data.accounting_enabled?'checked':''} style="width:auto;margin:0;"> Aktif
-    </label>
-    <p class="muted" style="font-size:12px;margin-top:6px;">${data.accounting_configured ? '✓ API anahtarı kayıtlı' : 'Henüz API anahtarı girilmedi'}</p>
-    <button style="margin-top:12px;max-width:220px;" ${act('saveAccountingSettings')}>${ICON_SAVE}<span>Kaydet</span></button>
+  <div class="box ix-box" style="max-width:none;">
+    <h2>📊 Muhasebe <span class="role-badge" style="font-weight:600;">Eklenti</span></h2>
+    ${hero('📊', 'Satışlar muhasebe programınıza', 'Günlük satış, tahsilat ve KDV kırılımları muhasebe yazılımınıza otomatik aktarılır; elle giriş biter.', 'int_accounting_enabled', data.accounting_enabled)}
+    <div class="ix-sec"><div class="ix-st">1 · Programınızı seçin</div>
+    ${tiles('int_accounting_provider', data.accounting_provider, [['logo','🟥','Logo','Tiger / Go / İşbaşı'],['mikro','🟦','Mikro','Mikro Fly / Jump'],['netsis','🟨','Netsis','Logo Netsis'],['other','➕','Diğer','Başka program']])}</div>
+    <div class="ix-sec"><div class="ix-st">2 · Bağlantı bilgisi</div>${keyRow('int_accounting_key', data.accounting_configured, 'Muhasebe programınızın API anahtarı')}</div>
+    ${note('Veri aktarımı, yazılım firmasıyla entegrasyon onayı alındıktan sonra açılır. Bu özellik ayrı bir eklentidir.')}
+    ${save('saveAccountingSettings')}
   </div>
   <div class="box" style="max-width:none;">
     <h2>⭐ Google Yorumları</h2>
@@ -2522,6 +2498,10 @@ async function removeProductImage(productId){
 function lockedFeatureHtml(){
   return `<p class="muted" style="margin:0;">🔒 Bu özellik paketinizde yok. Eklenti olarak eklemek ya da paketinizi yükseltmek için bizimle iletişime geçin.</p>`;
 }
+function ixPick(sel, v){ const h = document.getElementById(sel); if(!h) return; h.value = v;
+  h.nextElementSibling.querySelectorAll('.ix-tile').forEach(b => b.classList.toggle('on', b.dataset.v === v)); }
+function ixSw(on){ const e = event && event.target; const em = e && e.closest('.oo-switch') && e.closest('.oo-switch').querySelector('em'); if(em) em.textContent = on ? 'Açık' : 'Kapalı';
+  const h = e && e.closest('.oo-hero'); if(h) h.classList.toggle('on', !!on); }
 function onlineOrderingLinkHtml(){
   const url = window.location.origin + '/siparis/?r=' + encodeURIComponent(APP.config.online_ordering.code);
   const qrImgUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=240x240&margin=0&data=' + encodeURIComponent(url);
@@ -3058,6 +3038,15 @@ function auditTableHtml(rows){
 
 /* ---- İşletmenin kendi hesapları: SMS, e-posta, online ödeme. Gizli anahtarlar sunucuda saklanır,
    buraya yalnızca son 4 hanesi gelir; boş bırakılan gizli alan mevcut değeri korur. ---- */
+// Desteklenen SMS sağlayıcıları: alan adları ve nereden alınacağı.
+const TI_SMS = {
+  netgsm: { n:'NetGSM', u:'Kullanıcı kodu (850xxxxxxx)', p:'API alt kullanıcı şifresi', h:'NetGSM panelinde <b>Abonelik İşlemleri → API İşlemleri</b>\'nden API alt kullanıcısı oluşturun.' },
+  iletimerkezi: { n:'İleti Merkezi', u:'Public key (API anahtarı)', p:'Secret key (gizli anahtar)', h:'İleti Merkezi panelinde <b>Ayarlar → Güvenlik → API Anahtarları</b>\'ndan alın.' },
+  verimor: { n:'Verimor', u:'Kullanıcı adı (908501234567)', p:'API şifresi', h:'Verimor OİM panelinde <b>SMS → API Ayarları</b>\'ndan API şifresi belirleyin.' },
+  vatansms: { n:'VatanSMS', u:'API ID', p:'API Key', h:'VatanSMS panelinde <b>Hesabım → API Bilgileri</b> sayfasında bulunur.' },
+};
+function tiSmsProv(v){ const c = TI_SMS[v] || TI_SMS.netgsm; const set = (id, h) => { const e = document.getElementById(id); if(e) e.innerHTML = h; };
+  set('ti_sms_ul', c.u); set('ti_sms_pl', c.p); set('ti_sms_h', c.h); }
 async function renderTenantIntegrations(session){
   const bs = document.getElementById('tiSms'), bm = document.getElementById('tiMail'), bp = document.getElementById('tiPay'); if(!bs && !bm && !bp) return;
   const { data, error } = await sb.rpc('get_tenant_integrations', { p_token: session.session_token });
@@ -3068,10 +3057,10 @@ async function renderTenantIntegrations(session){
   const cards = [`<div class="ti-card">
       <div class="ti-h"><span>📱</span><b>SMS</b>${st(sm.provider && sm.user && sm.has_pass, 'Bağlı değil — gönderilmez')}</div>
       <p class="muted ti-d">Müşteri SMS'leri (rezervasyon, masa hazır, sipariş) <b>sizin</b> SMS hesabınızdan, kendi başlığınızla gider. Bağlamazsanız müşterilere SMS gönderilmez.</p>
-      <label>Sağlayıcı</label><select id="ti_sms_provider">${opt('', sm.provider || '', 'Bağlı değil')}${opt('netgsm', sm.provider, 'NetGSM')}</select>
-      <label>API kullanıcı adı (NetGSM kullanıcı kodu)</label><input id="ti_sms_user" value="${escapeAttr(sm.user || '')}" placeholder="850xxxxxxx">
-      <label>API şifresi / anahtarı</label><input id="ti_sms_pass" type="password" placeholder="${sm.has_pass ? '•••••• (kayıtlı — değiştirmek için yazın)' : 'NetGSM API alt kullanıcı şifresi'}" autocomplete="new-password">
-      <small class="muted" style="text-align:left;">NetGSM panelinde <b>Abonelik İşlemleri → API İşlemleri</b>'nden bir API alt kullanıcısı oluşturup bilgilerini buraya girin.</small>
+      <label>Sağlayıcı</label><select id="ti_sms_provider" ${actOn('change','tiSmsProv',['$value'])}>${opt('', sm.provider || '', 'Bağlı değil')}${Object.keys(TI_SMS).map(k => opt(k, sm.provider, TI_SMS[k].n)).join('')}</select>
+      <label id="ti_sms_ul">${(TI_SMS[sm.provider] || TI_SMS.netgsm).u}</label><input id="ti_sms_user" value="${escapeAttr(sm.user || '')}">
+      <label id="ti_sms_pl">${(TI_SMS[sm.provider] || TI_SMS.netgsm).p}</label><input id="ti_sms_pass" type="password" placeholder="${sm.has_pass ? '•••••• (kayıtlı — değiştirmek için yazın)' : ''}" autocomplete="new-password">
+      <small class="muted" id="ti_sms_h" style="text-align:left;">${(TI_SMS[sm.provider] || TI_SMS.netgsm).h}</small>
       <label>Gönderen başlığı</label><input id="ti_sms_header" value="${escapeAttr(sm.header || '')}" placeholder="ÖRN. LEZZETSOFR" maxlength="11">
       <button type="button" ${act('saveTenantInt', 'sms')}>💾 Kaydet</button>
     </div>`, `<div class="ti-card">
