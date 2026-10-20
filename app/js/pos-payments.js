@@ -1629,7 +1629,7 @@ function tableCustomerInnerHtml(tableId, editing){
   if(editing){
     return `<div style="background:var(--panel2);border:1px solid var(--border);border-radius:12px;padding:10px 12px;margin-bottom:12px;">
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
-        <input id="tableCustName" data-table="${tableId}" placeholder="Müşteri adı veya kayıtlı müşteri ara" autocomplete="off" value="${escapeAttr(name)}" style="margin:0;" ${actOn('input','tableCustSearch',['$value'])} ${actOn('change','saveTableCustomer',[tableId, true])}>
+        <input id="tableCustName" data-table="${tableId}" placeholder="Ad: müşteri, limitli kişi veya kullanıcı ara" autocomplete="off" value="${escapeAttr(name)}" style="margin:0;" ${actOn('input','tableCustSearch',['$value'])} ${actOn('change','saveTableCustomer',[tableId, true])}>
         <input id="tableCustPhone" placeholder="Telefon (opsiyonel)" inputmode="tel" autocomplete="off" value="${escapeAttr(phone)}" style="margin:0;" ${actOn('input','tableCustSearch',['$value'])} ${actOn('change','saveTableCustomer',[tableId, true])}>
       </div>
       <div id="tableCustSuggest"></div>
@@ -1637,7 +1637,7 @@ function tableCustomerInnerHtml(tableId, editing){
     </div>`;
   }
   if(!o || !(name || phone || o.note)){
-    return `<button type="button" class="om-cust-btn" ${act('editTableCustomer', tableId, true)}><span class="om-cust-ic">👤</span><span><b>Müşteri ekle</b><small>Ad, telefon veya kayıtlı müşteri</small></span><span class="om-cust-plus">＋</span></button>`;
+    return `<button type="button" class="om-cust-btn" ${act('editTableCustomer', tableId, true)}><span class="om-cust-ic">👤</span><span><b>Müşteri / limitli kişi ekle</b><small>Ad veya telefonla ara · kayıtlı müşteri, limitli kişi ya da kullanıcı</small></span><span class="om-cust-plus">＋</span></button>`;
   }
   return `<div style="background:var(--panel2);border:1px solid var(--border);border-radius:12px;padding:10px 12px;margin-bottom:12px;font-size:13.5px;display:flex;gap:10px;align-items:flex-start;">
     <div style="flex:1;min-width:0;">
@@ -1656,13 +1656,18 @@ function tableCustSearch(q, prefix){
   if(!box) return;
   q = (q||'').trim();
   if(q.length < 2){ box.innerHTML = ''; return; }
+  // Sipariş penceresinde tek arama: limitli kişi/kullanıcılar da (yerel listeden) aynı öneride çıkar.
+  const withAl = (prefix === 'tableCust' || prefix === 'pkgCust') && typeof allowanceSearchHits === 'function';
   _tableCustTimer = setTimeout(async () => {
     const seq = ++_tableCustSeq;
     const { data } = await sb.rpc('search_customers_quick', { p_token: getSession().session_token, p_search: q });
     if(seq !== _tableCustSeq || !document.getElementById(prefix + 'Suggest')) return;
     APP.tableCustHits = data || [];
-    box.innerHTML = APP.tableCustHits.length ? `<div style="margin-top:8px;border:1px solid var(--border);border-radius:10px;overflow:hidden;background:var(--panel);">
-      ${APP.tableCustHits.map((c,i) => `<div ${act('pickTableCustomer', i, prefix)} style="padding:8px 12px;cursor:pointer;border-top:${i?'1px solid var(--border)':'0'};display:flex;justify-content:space-between;gap:8px;">
+    const alHits = withAl ? allowanceSearchHits(q) : [];
+    box.innerHTML = APP.tableCustHits.length || alHits.length ? `<div style="margin-top:8px;border:1px solid var(--border);border-radius:10px;overflow:hidden;background:var(--panel);">
+      ${alHits.map((a, i) => `<div class="al-hit2" ${act('pickAllowanceFromCust', a.id, prefix)} style="border-top:${i?'1px solid var(--border)':'0'};">
+        <b>${a.kind === 'user' ? '👔' : '🎓'} ${escapeHtml(a.name || '')}</b><span class="muted">💳 ${money(a.remaining)} limit${a.phone ? ' · ' + escapeHtml(maskPhoneAl(a.phone)) : ''}</span></div>`).join('')}
+      ${APP.tableCustHits.map((c,i) => `<div ${act('pickTableCustomer', i, prefix)} style="padding:8px 12px;cursor:pointer;border-top:${i||alHits.length?'1px solid var(--border)':'0'};display:flex;justify-content:space-between;gap:8px;">
         <b>👤 ${escapeHtml(c.name||'')}</b><span class="muted">${escapeHtml(c.phone||'')}${c.email && prefix!=='tableCust' && prefix!=='pkgCust' ? ' · ' + escapeHtml(c.email) : ''}</span></div>`).join('')}
     </div>` : '';
   }, 250);

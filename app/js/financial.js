@@ -449,18 +449,16 @@ async function renderReportContent(session){
     </div>
     <div class="fs-panels">
       <div class="fs-panel" style="--t:var(--accent);"><h3><i>💳</i>Ödeme Dağılımı</h3>
-        ${totalRevenue ? `<div class="fs-split">${[[totalCash,'var(--green)'],[totalCard,'var(--accent)'],[totalGiftCard,'var(--gift)']].map(([v,c]) => v>0 ? `<span style="flex:${v};background:${c};"></span>` : '').join('')}</div>` : ''}
-        ${fsRow('<i class="fs-dot" style="background:var(--green);"></i>Nakit', money(totalCash), totalRevenue ? '%'+Math.round(totalCash/totalRevenue*100) : '')}
-        ${fsRow('<i class="fs-dot" style="background:var(--accent);"></i>Kredi Kartı', money(totalCard), totalRevenue ? '%'+Math.round(totalCard/totalRevenue*100) : '')}
-        ${fsRow('<i class="fs-dot" style="background:var(--gift);"></i>Hediye Kartı', money(totalGiftCard), totalRevenue ? '%'+Math.round(totalGiftCard/totalRevenue*100) : '')}
-        ${fsRow('Bahşiş', money(totalTip), '')}
+        <div class="gx-rings">${[['💵','Nakit',totalCash,'#22c55e'],['💳','Kart',totalCard,'var(--accent)'],['🎁','Hediye',totalGiftCard,'var(--gift,#a855f7)']].map(([ic, l, v, c], i) => { const pc = totalRevenue ? Math.round(v / totalRevenue * 100) : 0;
+          return `<div class="gx-ring" style="--p:${pc};--c:${c};--i:${i};"><div class="gx-ring-c"><span>${ic}</span><b>%${pc}</b></div><small>${l}</small><em>${money(v)}</em></div>`; }).join('')}</div>
+        <div class="gx-foot"><span>💸 Bahşiş</span><b>${money(totalTip)}</b></div>
       </div>
       <div class="fs-panel" style="--t:#a78bfa;"><h3><i>🍽️</i>Servis</h3><div id="serviceMetrics"><p class="muted" style="font-size:13px;">Yükleniyor…</p></div></div>
       <div class="fs-panel" style="--t:#f59e0b;"><h3><i>🏷️</i>İndirim, Puan ve İkram</h3>
-        ${fsRow('İndirim', money(totalDiscount), discountedCount+' hesap')}
-        ${fsRow('⭐ Puanla ödeme', money(totalPoints), pointsCount+' hesap')}
-        ${fsRow('Doğum günü indirimi', money(totalBirthdayDiscount), birthdayCount+' hesap')}
-        ${fsRow('Personel / ikram', money(taggedTotal), taggedHist.length+' hesap')}
+        ${(() => { const it = [['🏷️','İndirim',totalDiscount,discountedCount,'#f59e0b'],['⭐','Puanla ödeme',totalPoints,pointsCount,'#eab308'],['🎂','Doğum günü',totalBirthdayDiscount,birthdayCount,'#ec4899'],['🍱','Personel / ikram',taggedTotal,taggedHist.length,'#14b8a6']];
+          const mx = Math.max(1, ...it.map(x => x[2]));
+          return `<div class="gx-hbars">${it.map(([ic, l, v, n, c], i) => `<div class="gx-hb" style="--i:${i};--c:${c};"><div class="gx-hb-l"><span>${ic} ${l}</span><b>${money(v)}</b></div>
+            <div class="gx-hb-t"><i style="width:${v ? Math.max(4, v / mx * 100) : 0}%;"></i></div><small>${n} hesap</small></div>`).join('')}</div>`; })()}
         <p class="fs-note">Personel / ikram hesapları ciroya dahil değildir.</p>
       </div>
     </div>
@@ -509,12 +507,9 @@ async function renderReportContent(session){
     sb.rpc('get_service_metrics', { p_token: session.session_token, p_date: APP.reportDate, p_date_to: APP.reportDateTo }).then(({ data: m }) => {
       if(!document.getElementById('serviceMetrics')) return;
       if(!m){ box.innerHTML = '<p class="muted">Servis metrikleri yüklenemedi.</p>'; return; }
-      box.innerHTML =
-        fsRow('Ortalama hesap', money(m.avg_check), m.checks+' hesap') +
-        fsRow('Ort. masa hesabı', money(m.avg_check_dine_in), m.dine_in_checks+' hesap') +
-        fsRow('Ort. paket hesabı', money(m.avg_check_takeaway), '') +
-        fsRow('Masa devir hızı', m.table_count ? String(m.table_turnover).replace('.',',')+'×' : '—', m.table_count+' masa') +
-        fsRow('Ort. oturma süresi', m.avg_seat_minutes ? m.avg_seat_minutes+' dk' : '—', '');
+      box.innerHTML = `<div class="gx-tiles">${[['🧾','Ortalama hesap',money(m.avg_check),m.checks+' hesap'],['🪑','Ort. masa hesabı',money(m.avg_check_dine_in),m.dine_in_checks+' hesap'],
+        ['📦','Ort. paket hesabı',money(m.avg_check_takeaway),''],['🔄','Masa devir hızı',m.table_count ? String(m.table_turnover).replace('.',',')+'×' : '—',m.table_count+' masa'],
+        ['⏱','Ort. oturma',m.avg_seat_minutes ? m.avg_seat_minutes+' dk' : '—','']].map(([ic, l, v, sub], i) => `<div class="gx-tile" style="--i:${i};"><span>${ic}</span><b>${v}</b><small>${l}${sub ? ' · ' + sub : ''}</small></div>`).join('')}</div>`;
     });
   }
   loadFsExtras(session, totalRevenue);
@@ -533,12 +528,12 @@ async function loadFsAllowance(session){
       <div><b>${d.orders}</b><small>Hesap</small></div>
       <div><b>${d.rows.length}</b><small>Kişi / kullanıcı</small></div>
     </div>
-    <div class="fa-list">${d.rows.map(r => `<div class="fa-row">
-      <span class="fa-ic">${r.kind === 'person' ? '🎓' : '👔'}</span>
-      <div class="fa-main"><div class="fa-top"><b>${escapeHtml(r.name || '')}</b><span>${money(r.used)}</span></div>
-        <div class="fa-bar"><i style="width:${Math.round(Number(r.used) / max * 100)}%;"></i></div>
-        <small>${r.n} hesap${Number(r.paid_diff) > 0 ? ' · fark ' + money(r.paid_diff) : ''} · ${r.kind === 'person' ? 'günlük' : r.period === 'monthly' ? 'aylık' : 'günlük'} limit${r.flag_label ? ' · 🏷️ ' + escapeHtml(r.flag_label) : ''} · şu an kalan ${money(r.remaining)}</small></div>
-    </div>`).join('')}</div>
+    <div class="gx-tbl-wrap"><table class="gx-tbl"><thead><tr><th>Kişi / kullanıcı</th><th>Limit</th><th>Hesap</th><th>Limitten</th><th>Fark</th><th>Kalan</th></tr></thead><tbody>
+      ${d.rows.map(r => `<tr><td><span class="gx-tn">${r.kind === 'person' ? '🎓' : '👔'} <b>${escapeHtml(r.name || '')}</b></span>${r.flag_label ? `<small>🏷️ ${escapeHtml(r.flag_label)}</small>` : ''}</td>
+        <td>${r.kind === 'person' ? 'Günlük' : r.period === 'monthly' ? 'Aylık' : 'Günlük ↻'}</td><td>${r.n}</td>
+        <td><div class="gx-cell-bar"><i style="width:${Math.round(Number(r.used) / max * 100)}%;"></i><b>${money(r.used)}</b></div></td>
+        <td>${Number(r.paid_diff) > 0 ? money(r.paid_diff) : '—'}</td><td>${money(r.remaining)}</td></tr>`).join('')}
+    </tbody></table></div>
     <p class="fs-note">Limitten karşılanan tutar ciroya dahil değildir (Personel / ikram içinde sayılır); limit aşımında alınan fark ciroya dahildir.</p>`;
 }
 /* --- Ürün İstatistikleri sekmesi: hangi üründen ne kadar satıldığı,
