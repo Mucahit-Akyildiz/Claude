@@ -45,19 +45,19 @@ function xlReport(title, ok, errs){
 }
 
 /* Limitler */
-const AL_HEAD = ['Tür', 'Ad', 'Dönem', 'Limit', 'Sipariş Etiketi', 'Aktif', 'Kalan', 'Bugün Harcanan'];
+const AL_HEAD = ['Tür', 'Ad', 'Telefon', 'Dönem', 'Limit', 'Sipariş Etiketi', 'Aktif', 'Kalan', 'Bugün Harcanan'];
 async function exportAllowancesExcel(){
   const list = await loadAllowances();
   await xlDownload('limitler-' + todayLocalDateStr() + '.xlsx', 'Limitler', AL_HEAD, list.map(a => [
-    a.kind === 'person' ? 'Kişi' : 'Kullanıcı', a.name || '', a.kind === 'person' ? 'Günlük' : a.period === 'monthly' ? 'Aylık' : 'Günlük',
-    Number(a.limit_amount), a.flag_label || '', a.is_active ? 'Evet' : 'Hayır', Number(a.remaining), Number(a.used_today)]), [11, 26, 10, 10, 18, 8, 10, 15]);
+    a.kind === 'person' ? 'Kişi' : 'Kullanıcı', a.name || '', a.phone || '', a.kind === 'person' ? 'Günlük' : a.period === 'monthly' ? 'Aylık' : 'Günlük',
+    Number(a.limit_amount), a.flag_label || '', a.is_active ? 'Evet' : 'Hayır', Number(a.remaining), Number(a.used_today)]), [11, 26, 15, 10, 10, 18, 8, 10, 15]);
 }
 async function downloadAllowanceTemplate(){
   const flags = ((APP.config && APP.config.order_flags) || []).map(f => f.label);
   const u = ((APP.config && APP.config.users) || [])[0];
-  await xlDownload('limit-sablonu.xlsx', 'Limitler', AL_HEAD.slice(0, 6), [
-    ['Kişi', 'Ahmet Yılmaz', 'Günlük', 250, flags.find(f => /talebe|öğrenci/i.test(f)) || flags[0] || '', 'Evet'],
-    ['Kullanıcı', u ? u.username : 'kullanici_adi', 'Aylık', 3000, flags.find(f => /personel/i.test(f)) || flags[0] || '', 'Evet']], [11, 26, 10, 10, 18, 8]);
+  await xlDownload('limit-sablonu.xlsx', 'Limitler', AL_HEAD.slice(0, 7), [
+    ['Kişi', 'Ahmet Yılmaz', '05321234567', 'Günlük', 250, flags.find(f => /talebe|öğrenci/i.test(f)) || flags[0] || '', 'Evet'],
+    ['Kullanıcı', u ? u.username : 'kullanici_adi', '', 'Aylık', 3000, flags.find(f => /personel/i.test(f)) || flags[0] || '', 'Evet']], [11, 26, 15, 10, 10, 18, 8]);
 }
 async function importAllowancesExcel(){
   const rows = await xlPickRows(); if(!rows) return;
@@ -83,7 +83,7 @@ async function importAllowancesExcel(){
         if(!u){ errs.push(line + `: "${name}" adlı kullanıcı yok`); continue; }
         p.user_id = u.id; const ex = list.find(a => a.kind === 'user' && a.user_id === u.id); if(ex) p.id = ex.id;
       } else {
-        p.name = name; const ex = list.find(a => a.kind === 'person' && xlKey(a.name) === xlKey(name)); if(ex) p.id = ex.id;
+        p.name = name; p.phone = xlPick(r, 'Telefon', 'Tel', 'GSM'); const ex = list.find(a => a.kind === 'person' && xlKey(a.name) === xlKey(name)); if(ex) p.id = ex.id;
       }
       const { error } = await sb.rpc('save_allowance', { p_token: getSession().session_token, p_data: p });
       if(error) errs.push(line + ` (${name}): ${error.message}`); else ok++;
