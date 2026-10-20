@@ -490,10 +490,16 @@ async function openStaffDetail(id){
   sb.rpc('staff_allowance_items', { p_token: session.session_token, p_user: id, p_date: APP.reportDate, p_date_to: APP.reportDateTo }).then(({ data: a }) => {
     const box = document.getElementById('anStaffAl'); if(!box || !a || (a.remaining === null && !anN(a.used))) return;
     box.style.display = '';
+    const cap = anN(a.used) + anN(a.remaining), pct = cap ? Math.round(anN(a.used) / cap * 100) : 0;
+    const EM = (n) => /çay|kahve|espresso/i.test(n) ? '☕' : /ayran|su|kola|şerbet|içecek/i.test(n) ? '🥤' : /baklava|tatlı|künefe|sütlaç/i.test(n) ? '🍰' : /döner|dürüm/i.test(n) ? '🌯' : /köfte|adana|şiş|kebap|kebab/i.test(n) ? '🍢' : '🍽️';
     box.innerHTML = `<h3><i>🍱</i>Limitinden Aldıkları</h3>
-      <div class="fa-kpis"><div><b>${money(a.used)}</b><small>harcadığı</small></div><div><b>${a.n}</b><small>hesap</small></div><div><b>${a.remaining === null ? '—' : money(a.remaining)}</b><small>kalan limit</small></div></div>
-      ${(a.items || []).length ? raceHtml(a.items.map(x => ({ label: x.name, value: anN(x.qty), display: x.qty + ' adet', side: money(x.total) }))) : '<p class="muted">Bu dönemde limitinden bir şey almadı.</p>'}
-      ${(a.recent || []).length ? `<div class="cx-list" style="margin-top:10px;">${a.recent.map(r => `<div class="cx-row"><span class="cx-q">${money(r.amount)}</span><div class="cx-n"><b>${escapeHtml(r.items || '')}</b><small>${new Date(r.at).toLocaleString('tr-TR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</small></div></div>`).join('')}</div>` : ''}`;
+      <div class="lx-sd">
+        <div class="lx-gauge">${svgGauge(pct, '#14b8a6', money(a.used), 'harcadı · %' + pct)}
+          <div class="lx-g-leg"><span><i style="background:#14b8a6"></i>${a.n} hesap</span><span><i style="background:color-mix(in srgb,var(--muted) 35%,transparent)"></i>${a.remaining === null ? 'limit yok' : money(a.remaining) + ' kaldı'}</span></div></div>
+        <div class="lx-items">${(a.items || []).length ? a.items.map((x, i) => `<div class="lx-item" style="--i:${Math.min(i, 10)};"><span class="lx-ie">${EM(x.name)}</span><div><b>${escapeHtml(x.name)}</b><small>${money(x.total)}</small></div><em>${x.qty}×</em></div>`).join('')
+          : '<div class="lx-none"><span>🍽️</span>Bu dönemde limitinden bir şey almadı.</div>'}</div>
+      </div>
+      ${(a.recent || []).length ? `<div class="lx-tl">${a.recent.map((r, i) => `<div class="lx-tl-r" style="--i:${i};"><i></i><div><b>${escapeHtml(r.items || '')}</b><small>${new Date(r.at).toLocaleString('tr-TR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</small></div><span>${money(r.amount)}</span></div>`).join('')}</div>` : ''}`;
   });
 }
 async function openCustomerDetail(id){

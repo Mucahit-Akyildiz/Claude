@@ -7,3 +7,4 @@
 -- allowances.phone; save_allowance/list_allowances telefon alanı.
 -- allowance_report(p_token, p_date, p_date_to): dönemde limitten karşılanan, limit aşımında tahsil edilen fark, kişi bazında kullanım.
 -- staff_allowance_items(p_token,p_user,p_date,p_date_to), staff_allowance_summary(p_token,p_date,p_date_to): personelin limitinden aldıkları (garson kartları).
+-- get_staff_detail: vardiya süresi negatif çıkmasın (mola süresi vardiya süresinden büyükse 0).

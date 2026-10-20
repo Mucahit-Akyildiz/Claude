@@ -519,22 +519,36 @@ async function renderReportContent(session){
 async function loadFsAllowance(session){
   const { data: d } = await sb.rpc('allowance_report', { p_token: session.session_token, p_date: APP.reportDate, p_date_to: APP.reportDateTo });
   const box = document.getElementById('fsAllowance'); if(!box || !d || !(d.rows || []).length) return;
-  const max = Math.max(...d.rows.map(r => Number(r.used)), 1);
+  const COL = ['#14b8a6', '#6366f1', '#f59e0b', '#ec4899', '#22c55e', '#0ea5e9', '#a855f7', '#ef4444'];
+  const used = Number(d.total_used), rem = d.rows.reduce((x, r) => x + Number(r.remaining || 0), 0);
+  const pct = used + rem ? Math.round(used / (used + rem) * 100) : 0;
   box.style.display = '';
-  box.innerHTML = `<h3><i>💳</i>Limitli Hesaplar</h3>
-    <div class="fa-kpis">
-      <div><b>${money(d.total_used)}</b><small>Limitten karşılanan</small></div>
-      <div><b>${money(d.paid_diff)}</b><small>Limit aşımı · tahsil edilen</small></div>
-      <div><b>${d.orders}</b><small>Hesap</small></div>
-      <div><b>${d.rows.length}</b><small>Kişi / kullanıcı</small></div>
+  box.innerHTML = `<h3><i>💳</i>Limitli Hesaplar <small class="muted" style="font-weight:500;font-size:12px;">· ${escapeHtml(reportDateRangeLabel())}</small></h3>
+    <div class="lx-top">
+      <div class="lx-gauge">${svgGauge(pct, '#14b8a6', '%' + pct, 'limit kullanımı')}
+        <div class="lx-g-leg"><span><i style="background:#14b8a6"></i>Harcanan ${money(used)}</span><span><i style="background:color-mix(in srgb,var(--muted) 35%,transparent)"></i>Kalan ${money(rem)}</span></div></div>
+      <div class="lx-kpis">
+        ${[['🍱', 'Limitten karşılanan', money(used), '#14b8a6'], ['💵', 'Limit aşımı · tahsil', money(d.paid_diff), '#f59e0b'], ['🧾', 'Hesap', d.orders, '#6366f1'], ['👥', 'Kişi / kullanıcı', d.rows.length, '#ec4899']]
+          .map(([ic, l, v, c], i) => `<div class="lx-k" style="--c:${c};--i:${i};"><span>${ic}</span><b>${v}</b><small>${l}</small></div>`).join('')}
+      </div>
+      <div class="lx-donut">${svgDonut(d.rows.slice(0, 8).map((r, i) => ({ label: r.name, value: Number(r.used), color: COL[i % COL.length] })), { center: shortMoney(used), sub: '₺ limitten', money: true })}</div>
     </div>
-    <div class="gx-tbl-wrap"><table class="gx-tbl"><thead><tr><th>Kişi / kullanıcı</th><th>Limit</th><th>Hesap</th><th>Limitten</th><th>Fark</th><th>Kalan</th></tr></thead><tbody>
-      ${d.rows.map(r => `<tr><td><span class="gx-tn">${r.kind === 'person' ? '🎓' : '👔'} <b>${escapeHtml(r.name || '')}</b></span>${r.flag_label ? `<small>🏷️ ${escapeHtml(r.flag_label)}</small>` : ''}</td>
-        <td>${r.kind === 'person' ? 'Günlük' : r.period === 'monthly' ? 'Aylık' : 'Günlük ↻'}</td><td>${r.n}</td>
-        <td><div class="gx-cell-bar"><i style="width:${Math.round(Number(r.used) / max * 100)}%;"></i><b>${money(r.used)}</b></div></td>
-        <td>${Number(r.paid_diff) > 0 ? money(r.paid_diff) : '—'}</td><td>${money(r.remaining)}</td></tr>`).join('')}
-    </tbody></table></div>
+    <div class="lx-cards">${d.rows.map((r, i) => { const cap = Number(r.used) + Number(r.remaining || 0); const p = cap ? Math.round(Number(r.used) / cap * 100) : 0;
+      return `<div class="lx-card" style="--c:${COL[i % COL.length]};--p:${p};--i:${Math.min(i, 10)};">
+        <div class="lx-ring"><span>${r.kind === 'person' ? '🎓' : '👔'}</span></div>
+        <div class="lx-c-main"><b>${escapeHtml(r.name || '')}</b><small>${r.kind === 'person' ? 'Günlük' : r.period === 'monthly' ? 'Aylık' : 'Günlük ↻'}${r.flag_label ? ' · 🏷️ ' + escapeHtml(r.flag_label) : ''} · ${r.n} hesap</small>
+          <div class="lx-c-bar"><i style="width:${p}%;"></i></div>
+          <div class="lx-c-nums"><span><b>${money(r.used)}</b> harcadı</span><span>${money(r.remaining)} kaldı</span></div>
+          ${Number(r.paid_diff) > 0 ? `<em class="lx-diff">+${money(r.paid_diff)} fark tahsil edildi</em>` : ''}</div></div>`; }).join('')}</div>
     <p class="fs-note">Limitten karşılanan tutar ciroya dahil değildir (Personel / ikram içinde sayılır); limit aşımında alınan fark ciroya dahildir.</p>`;
+}
+/* Yarım daire gösterge: pct 0-100. */
+function svgGauge(pct, color, center, sub){
+  const r = 70, c = Math.PI * r, v = Math.max(0, Math.min(100, pct)) / 100 * c;
+  return `<svg class="lx-svg" viewBox="0 0 180 110" role="img" aria-label="${escapeAttr(sub + ' ' + center)}">
+    <path d="M20 95 A70 70 0 0 1 160 95" fill="none" stroke="color-mix(in srgb,var(--muted) 22%,transparent)" stroke-width="16" stroke-linecap="round"/>
+    <path d="M20 95 A70 70 0 0 1 160 95" fill="none" stroke="${color}" stroke-width="16" stroke-linecap="round" stroke-dasharray="${v} ${c}" class="lx-arc" style="--len:${c};"/>
+    <text x="90" y="82" text-anchor="middle" class="lx-gt">${escapeHtml(center)}</text><text x="90" y="102" text-anchor="middle" class="lx-gs">${escapeHtml(sub)}</text></svg>`;
 }
 /* --- Ürün İstatistikleri sekmesi: hangi üründen ne kadar satıldığı,
    istasyona göre filtrelenebilen, çoktan aza sıralı bar grafiği --- */
