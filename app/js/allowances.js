@@ -6,9 +6,12 @@
 async function loadAllowances(){
   const s = getSession(); if(!s) return [];
   const [{ data }, { data: st }] = await Promise.all([sb.rpc('list_allowances', { p_token: s.session_token }), sb.rpc('get_allowance_settings', { p_token: s.session_token })]);
-  APP.allowances = data || [];
+  APP.allowancesEnabled = !!(st && st.enabled);
+  APP.allowancesAll = data || [];
+  // Özellik kapalıyken sipariş ve ödeme tarafında limit hiç kullanılmaz.
+  APP.allowances = APP.allowancesEnabled ? APP.allowancesAll : [];
   APP.allowanceRequirePick = !st || st.require_pick !== false;
-  return APP.allowances;
+  return APP.allowancesAll;
 }
 function allowanceById(id){ return (APP.allowances || []).find(a => a.id === id); }
 
@@ -36,9 +39,25 @@ async function renderAllowancesSettings(el){
         </div></div></div>`;
   const persons = list.filter(a => a.kind === 'person'), ulist = list.filter(a => a.kind === 'user');
   const free = users.filter(u => !ulist.some(a => a.user_id === u.id));
+  const on = !!APP.allowancesEnabled;
+  const hero = `<div class="oo-hero ${on ? 'on' : ''}"><div class="oo-hero-ic">💳</div>
+      <div class="oo-hero-t"><b>Limitli hesaplar</b><small>Kişilere günlük, kullanıcılara günlük ya da aylık harcama limiti verin. Limit içindeki hesap hazır olunca 15 sn sonra kendiliğinden kapanır ve Finansal Analiz'e işlenir; limiti aşan hesapta fark Ödemeler'den alınır.</small></div>
+      <label class="oo-switch" title="Limitli hesapları aç/kapat"><input type="checkbox" ${on ? 'checked' : ''} ${actOn('change','setAllowancesEnabled',['$checked'])}><span class="oo-track"><span class="oo-thumb"></span></span><em>${on ? 'Açık' : 'Kapalı'}</em></label></div>`;
+  if(!on){
+    el.innerHTML = `<div class="al-wrap ix-box">${hero}
+      <div class="al-off">
+        ${[['🎓','Kişilere günlük limit','Talebe, öğrenci, abone… her gün belirlediğiniz tutar kadar alışveriş; ertesi güne aktarılmaz.'],
+           ['👔','Personele limit','Günlük (kullanılmayan devreder) ya da aylık personel yemeği limiti.'],
+           ['⚡','Otomatik kapanış','Limit içindeki hesap hazır olunca 15 sn sonra kendiliğinden kapanır, Finansal Analiz\'e işlenir.'],
+           ['📊','Raporlar','Kim ne aldı, ne kadar harcadı; Finansal Analiz ve garson kartlarında.']].map(([ic, t, d], i) => `<div class="al-off-c" style="--i:${i};"><span>${ic}</span><b>${t}</b><small>${d}</small></div>`).join('')}
+      </div>
+      ${list.length ? `<p class="ix-note">ℹ️ Kayıtlı ${list.length} limit var; açtığınızda kaldığı yerden devam eder.</p>` : ''}
+      <button type="button" class="ix-save al-on-btn" ${act('setAllowancesEnabled', true)}>💳 Limitli hesapları kullanmaya başla</button>
+    </div>`;
+    return;
+  }
   el.innerHTML = `<div class="al-wrap ix-box">
-    <div class="oo-hero on"><div class="oo-hero-ic">💳</div>
-      <div class="oo-hero-t"><b>Limitli hesaplar</b><small>Kişilere günlük, kullanıcılara günlük ya da aylık harcama limiti verin. Limit içindeki hesap hazır olunca 15 sn sonra kendiliğinden kapanır ve Finansal Analiz'e işlenir; limiti aşan hesapta fark Ödemeler'den alınır.</small></div></div>
+    ${hero}
     <label class="al-req"><span class="oo-switch"><input type="checkbox" ${APP.allowanceRequirePick !== false ? 'checked' : ''} ${actOn('change','setAllowanceRequire',['$checked'])}><span class="oo-track"><span class="oo-thumb"></span></span></span>
       <span><b>Limitli etikette kişi seçimi zorunlu</b><small>Açıkken Personel / Talebe gibi limite bağlı bir etiket işaretlenince, limitinden düşülecek kişi ya da kullanıcı seçilmeden sipariş gönderilemez. Kapalıyken seçim isteğe bağlıdır; kimse seçilmezse hesap limitten düşmez, normal ikram gibi kapanır.</small></span></label>
     <div class="al-top-bar"><input class="al-filter" type="search" placeholder="🔍 Ad veya telefonla ara…" autocomplete="off" ${actOn('input','alFilter',['$value'])}>
@@ -125,6 +144,12 @@ async function deleteAllowance(id){
   renderAllowancesSettings(document.getElementById('usersSubContent'));
 }
 
+async function setAllowancesEnabled(on){
+  const { error } = await withLoadingOverlay(sb.rpc('set_allowances_enabled', { p_token: getSession().session_token, p_enabled: !!on }));
+  if(error){ alert(error.message); return; }
+  showToast(on ? '💳 Limitli hesaplar açıldı' : 'Limitli hesaplar kapatıldı');
+  renderAllowancesSettings(document.getElementById('usersSubContent'));
+}
 async function setAllowanceRequire(on){
   const { error } = await sb.rpc('set_allowance_settings', { p_token: getSession().session_token, p_require_pick: !!on });
   if(error){ alert(error.message); return; }
