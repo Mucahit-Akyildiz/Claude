@@ -3046,7 +3046,7 @@ function auditTableHtml(rows){
 async function renderTenantIntegrations(session){
   const bs = document.getElementById('tiSms'), bm = document.getElementById('tiMail'), bp = document.getElementById('tiPay'); if(!bs && !bm && !bp) return;
   const { data, error } = await sb.rpc('get_tenant_integrations', { p_token: session.session_token });
-  if(error){ [bs, bm, bp].forEach(x => { if(x) x.innerHTML = ''; }); return; }
+  if(error){ [bs, bm, bp].forEach(x => { if(x) x.innerHTML = `<p class="muted">Entegrasyon ayarları yüklenemedi: ${escapeHtml(error.message)}</p>`; }); return; }
   const sm = data.sms || {}, ml = data.mail || {}, py = data.pay || {};
   const opt = (v, cur, l) => `<option value="${v}" ${cur===v?'selected':''}>${l}</option>`;
   const st = (ok, txt) => `<span class="ti-st ${ok?'ok':''}">${ok ? '● Bağlı' : '○ ' + txt}</span>`;
