@@ -81,6 +81,30 @@ end $$;
 
 
 --
+-- Name: _auto_close_shifts(uuid, timestamp with time zone, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public._auto_close_shifts(p_rest uuid, p_before timestamp with time zone, p_except uuid DEFAULT NULL::uuid) RETURNS integer
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+declare n int := 0; r record; v_last timestamptz; v_out timestamptz;
+begin
+  for r in select * from staff_shifts where restaurant_id = p_rest and clock_out is null and status in ('approved','pending') and clock_in < p_before and user_id is distinct from p_except loop
+    if r.status = 'pending' then
+      update staff_shifts set status = 'rejected', clock_out = now(), auto_closed = true where id = r.id;
+    else
+      select max(last_seen_at) into v_last from staff_sessions where user_id = r.user_id;
+      v_out := greatest(r.clock_in, least(p_before, coalesce(v_last, r.clock_in), now()));
+      update staff_shifts set clock_out = v_out, auto_closed = true, end_requested_at = null where id = r.id;
+    end if;
+    n := n + 1;
+  end loop;
+  return n;
+end $$;
+
+
+--
 -- Name: _auto_customer(uuid, text, text, text); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -374,6 +398,23 @@ begin
     perform _auto_customer(new.restaurant_id, j->>'customer_name', v_phone, j->>'email');
   end if;
   return null;
+end $$;
+
+
+--
+-- Name: _cron_day_end_shifts(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public._cron_day_end_shifts() RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+declare r record; b timestamptz;
+begin
+  for r in select distinct ss.restaurant_id, rs.day_end_hour from staff_shifts ss join restaurants rs on rs.id = ss.restaurant_id where ss.clock_out is null and ss.status in ('approved','pending') loop
+    b := (date_trunc('day', (now() at time zone 'Europe/Istanbul') - make_interval(hours => r.day_end_hour)) + make_interval(hours => r.day_end_hour)) at time zone 'Europe/Istanbul';
+    perform _auto_close_shifts(r.restaurant_id, b);
+  end loop;
 end $$;
 
 
@@ -1845,7 +1886,8 @@ CREATE TABLE public.staff_shifts (
     ended_by uuid,
     end_requested_at timestamp with time zone,
     paused_seconds integer DEFAULT 0 NOT NULL,
-    paused_since timestamp with time zone
+    paused_since timestamp with time zone,
+    auto_closed boolean DEFAULT false NOT NULL
 );
 
 
@@ -6832,6 +6874,7 @@ begin
   return json_build_object(
     'approval_required', (select shift_approval_required from restaurants where id = s.restaurant_id),
     'shift_required', (select shift_required from restaurants where id = s.restaurant_id),
+    'day_end_hour', (select day_end_hour from restaurants where id = s.restaurant_id),
     'pending', (select coalesce(json_agg(json_build_object('id', ss.id, 'username', au.username, 'requested_at', ss.clock_in) order by ss.clock_in), '[]'::json)
       from staff_shifts ss join app_users au on au.id = ss.user_id
       where ss.restaurant_id = s.restaurant_id and ss.status = 'pending' and ss.clock_out is null),
@@ -6839,7 +6882,7 @@ begin
       from staff_shifts ss join app_users au on au.id = ss.user_id
       where ss.restaurant_id = s.restaurant_id and ss.status = 'approved' and ss.clock_out is null and ss.end_requested_at is not null),
     'rows', (select coalesce(json_agg(row_to_json(t) order by t.clock_in), '[]'::json) from (
-      select ss.id, ss.user_id, au.username, ss.clock_in, ss.clock_out, ss.end_requested_at, ab.username approved_by, eb.username ended_by,
+      select ss.id, ss.user_id, au.username, ss.clock_in, ss.clock_out, ss.auto_closed, ss.end_requested_at, ab.username approved_by, eb.username ended_by,
         round(_shift_worked_seconds(ss)/60) as duration_minutes, round((coalesce(ss.paused_seconds,0) + case when ss.paused_since is not null then extract(epoch from (coalesce(ss.clock_out, now()) - ss.paused_since)) else 0 end)/60) as paused_minutes, (ss.paused_since is not null and ss.clock_out is null) as is_paused
       from staff_shifts ss join app_users au on au.id = ss.user_id
       left join app_users ab on ab.id = ss.approved_by left join app_users eb on eb.id = ss.ended_by
@@ -8003,13 +8046,15 @@ end; $$;
 CREATE FUNCTION public.save_cash_count(p_token uuid, p_date date, p_expected numeric, p_counted numeric, p_note text) RETURNS uuid
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public', 'extensions', 'pg_temp'
-    AS $$ declare s staff_sessions%rowtype; v uuid;
+    AS $$ declare s staff_sessions%rowtype; v uuid; v_today date := (now() at time zone 'Europe/Istanbul')::date;
 begin
   s := _session_check(p_token, 'reports');
   if p_counted is null or p_counted < 0 then raise exception 'Sayılan nakit geçersiz'; end if;
   insert into cash_counts(restaurant_id, business_date, expected, counted, note, user_id)
-    values (s.restaurant_id, coalesce(p_date, (now() at time zone 'Europe/Istanbul')::date), coalesce(p_expected,0), p_counted, nullif(trim(p_note),''), s.user_id)
+    values (s.restaurant_id, coalesce(p_date, v_today), coalesce(p_expected,0), p_counted, nullif(trim(p_note),''), s.user_id)
     returning id into v;
+  -- Gün sonu kasa sayımı alınınca (bugün için) diğer personelin açık vardiyaları kapanır; sayımı yapanınki gün sonu saatinde kapanır.
+  if coalesce(p_date, v_today) >= v_today - 1 then perform _auto_close_shifts(s.restaurant_id, now(), s.user_id); end if;
   return v;
 end $$;
 
@@ -8629,6 +8674,22 @@ declare s staff_sessions%rowtype;
 begin s := _session_check(p_token, 'reports');
   if p_goal is not null and (p_goal < 0 or p_goal > 100000000) then raise exception 'Geçersiz hedef'; end if;
   update restaurants set daily_revenue_goal = nullif(p_goal, 0) where id = s.restaurant_id; end; $$;
+
+
+--
+-- Name: set_day_end_hour(uuid, integer); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.set_day_end_hour(p_token uuid, p_hour integer) RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+declare s staff_sessions%rowtype;
+begin
+  s := _session_check(p_token, 'shifts');
+  if p_hour is null or p_hour < 0 or p_hour > 23 then raise exception 'Geçersiz saat'; end if;
+  update restaurants set day_end_hour = p_hour where id = s.restaurant_id;
+end $$;
 
 
 --
@@ -12124,6 +12185,8 @@ CREATE TABLE public.restaurants (
     notification_roles jsonb,
     online_reservations_enabled boolean DEFAULT false NOT NULL,
     loyalty_tiers jsonb DEFAULT '[{"key": "silver", "min": 50, "disc": 0, "icon": "🥈", "mult": 1, "name": "Gümüş"}, {"key": "gold", "min": 200, "disc": 0, "icon": "🥇", "mult": 1, "name": "Altın"}, {"key": "diamond", "min": 500, "disc": 0, "icon": "💎", "mult": 1, "name": "Elmas"}]'::jsonb NOT NULL,
+    day_end_hour smallint DEFAULT 5 NOT NULL,
+    CONSTRAINT restaurants_day_end_hour_check CHECK (((day_end_hour >= 0) AND (day_end_hour <= 23))),
     CONSTRAINT restaurants_default_vat_rate_check CHECK (((default_vat_rate >= (0)::numeric) AND (default_vat_rate <= (100)::numeric)))
 );
 
