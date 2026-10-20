@@ -1544,16 +1544,18 @@ async function renderDayClosesContent(session){
   const rate = withSales ? Math.round(cnt('ok') / withSales * 100) : 0;
   const dTxt = (d, o) => new Date(d + 'T12:00:00').toLocaleDateString('tr-TR', o || { day:'numeric', month:'short' });
   const tile = (ic, v, l, tone) => `<div class="dcx-kpi" style="--sc:${tone};"><span>${ic}</span><b>${v}</b><small>${l}</small></div>`;
-  // Kasa farkı grafiği: tek eksen, sıfır çizgisi ortada; eksik (kırmızı) / fazla (yeşil).
-  const maxAbs = Math.max(1, ...counted.map(r => Math.abs(Number(r.diff)||0)));
-  const W = Math.max(rows.length * 22, 300), H = 160, mid = H / 2, bw = 14;
-  const bars = rows.map((r, i) => {
-    const x = i * 22 + 4, k = st(r);
-    if(k !== 'ok') return k==='open' || k==='skip' ? `<text x="${x + bw/2}" y="${mid + 4}" text-anchor="middle" class="dcx-mark ${ST[k][2]}">${ST[k][0]}</text>` : '';
-    const v = Number(r.diff)||0, h = Math.max(2, Math.abs(v) / maxAbs * (mid - 14));
-    return `<rect x="${x}" y="${v >= 0 ? mid - h : mid}" width="${bw}" height="${h}" rx="3" class="${v < 0 ? 'dcx-neg' : 'dcx-pos'}"><title>${dTxt(r.d)} · fark ${v > 0 ? '+' : ''}${money(v)}</title></rect>`;
+  // Günlük nakit grafiği: çubuk = beklenen nakit, renk = kapanış durumu; kapanan günlerde üstte kasa farkı.
+  const maxCash = Math.max(1, ...rows.map(r => Number(r.expected_cash)||0));
+  const step = Math.max(1, Math.ceil(rows.length / 10));
+  const cols = rows.map((r, i) => {
+    const k = st(r), cash = Number(r.expected_cash)||0, h = cash ? Math.max(4, cash / maxCash * 100) : 0, diff = Number(r.diff)||0;
+    const tip = dTxt(r.d, { day:'numeric', month:'long', weekday:'short' }) + ' · ' + ST[k][1] + (Number(r.bills) ? ' · ' + r.bills + ' hesap · beklenen nakit ' + money(cash) : '') + (k==='ok' ? ' · sayılan ' + money(r.counted) + ' · fark ' + (diff > 0 ? '+' : '') + money(diff) : '');
+    return `<div class="dcx-col ${ST[k][2]}" title="${escapeAttr(tip)}">
+      <span class="dcx-diffw">${k==='ok' && diff ? `<span class="dcx-diff ${diff < 0 ? 'neg' : 'pos'}">${diff > 0 ? '+' : ''}${Math.round(diff)}</span>` : ''}</span>
+      <div class="dcx-colv">${h ? `<i style="height:${h}%;"></i>` : '<i class="dcx-empty"></i>'}</div>
+      <span class="dcx-ic">${ST[k][0]}</span>
+      <small class="dcx-dl">${i % step === 0 || i === rows.length - 1 ? dTxt(r.d) : ''}</small></div>`;
   }).join('');
-  const labels = rows.map((r, i) => i % Math.ceil(rows.length / 10) === 0 ? `<text x="${i * 22 + 4 + bw/2}" y="${H + 14}" text-anchor="middle" class="dcx-lbl">${dTxt(r.d)}</text>` : '').join('');
   el.innerHTML = `<div class="report-card">
       <div class="dcx-head"><h3 style="margin:0;">🧾 Gün Sonu Kapanışları</h3>
         <div class="dcx-range">${[14,30,60,90].map(k => `<button type="button" class="${n===k?'on':''}" ${act('setDayCloseRange', k)}>${k} gün</button>`).join('')}</div></div>
@@ -1567,10 +1569,9 @@ async function renderDayClosesContent(session){
       <h4 class="dcx-t">Takvim</h4>
       <div class="dcx-cal">${rows.map(r => { const k = st(r), t = ST[k]; return `<div class="dcx-day ${t[2]}" title="${escapeAttr(dTxt(r.d, { day:'numeric', month:'long', weekday:'long' }) + ' · ' + t[1] + (Number(r.bills) ? ' · ' + r.bills + ' hesap · ' + money(r.revenue) : ''))}"><b>${t[0]}</b><small>${dTxt(r.d, { day:'numeric' })}</small></div>`; }).join('')}</div>
       <div class="dcx-legend">${['ok','open','skip','none','today'].map(k => `<span><i class="${ST[k][2]}">${ST[k][0]}</i>${ST[k][1]}</span>`).join('')}</div>
-      <h4 class="dcx-t">Kasa farkı (sayılan − beklenen nakit)</h4>
-      <div class="dcx-chart"><svg viewBox="0 0 ${W} ${H + 20}" preserveAspectRatio="none" style="width:100%;height:190px;">
-        <line x1="0" x2="${W}" y1="${mid}" y2="${mid}" class="dcx-zero"/>${bars}${labels}</svg></div>
-      <p class="fs-note">Çubuk yukarı: kasada fazla, aşağı: eksik. ✕ kapanmayan, ! sayılamayan gün.</p>
+      <h4 class="dcx-t">Günlük nakit ve kapanış</h4>
+      <div class="dcx-bars"><div class="dcx-y"><span>${money(maxCash)}</span><span>${money(maxCash/2)}</span><span>0</span></div><div class="dcx-plot">${cols}</div></div>
+      <p class="fs-note">Çubuk yüksekliği o günün beklenen nakdi; renk kapanış durumu. Kapanan günlerde üstteki sayı kasa farkı (₺). Ayrıntı için çubuğun üzerine gelin.</p>
       <h4 class="dcx-t">Günler</h4>
       <div class="dcx-list">${(data || []).map(r => { const k = st(r), t = ST[k]; return `<div class="dcx-row">
           <span class="dcx-badge ${t[2]}">${t[0]} ${t[1]}</span>

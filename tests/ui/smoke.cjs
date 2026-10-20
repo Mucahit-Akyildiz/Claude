@@ -73,7 +73,7 @@ const assert = (c, m) => { if(!c) throw new Error(m); };
     });
     await check(T('Gün Sonu Kapanışları raporu'), async () => {
       await page.evaluate(() => { APP.reportsUnlocked = true; APP.reportTab = 'dayclose'; goToView('reports'); });
-      await page.waitForSelector('.dcx-cal .dcx-day', { timeout: 8000 }); assert(await page.$('.dcx-chart rect'), 'fark grafiği yok');
+      await page.waitForSelector('.dcx-cal .dcx-day', { timeout: 8000 }); assert(await page.$('.dcx-plot .dcx-col'), 'nakit grafiği yok');
     });
     await check(T('zorunlu gün sonu kapanışı penceresi'), async () => {
       await page.evaluate(() => { APP.dayClose = { pending:true, can_close:true, date:'2026-10-19', bills:3, expected_cash:1200, at:Date.now() }; openPayModal('o1'); });
