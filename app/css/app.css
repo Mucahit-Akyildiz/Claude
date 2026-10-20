@@ -3124,3 +3124,11 @@ button.oo-chip{cursor:pointer;} button.oo-chip:hover{border-color:var(--accent);
 .xl-btn:hover{border-color:#16a34a;color:#16a34a;transform:translateY(-1px);}
 .xl-btn span{font-size:14px;}
 .xl-link{width:auto;margin:0;padding:6px 4px;background:none;border:none;color:var(--accent);font-weight:600;font-size:12.5px;cursor:pointer;text-decoration:underline;}
+
+.al-users{display:flex;flex-wrap:wrap;gap:6px;max-height:190px;overflow:auto;padding:8px;border:1px solid var(--border);border-radius:12px;background:var(--panel2);}
+.al-u{display:inline-flex;align-items:center;margin:0 !important;cursor:pointer;}
+.al-u input{position:absolute;opacity:0;width:0;height:0;}
+.al-u span{padding:6px 11px;border-radius:999px;border:1px solid var(--border);background:var(--panel);font-size:12.5px;font-weight:600;color:var(--text);transition:.15s;}
+.al-u input:checked+span{background:var(--accent);border-color:var(--accent);color:#fff;}
+.al-u input:checked+span::before{content:'✓ ';}
+.al-uall{width:auto;margin:0;padding:6px 11px;border-radius:999px;border:1px dashed var(--accent);background:none;color:var(--accent);font-size:12.5px;font-weight:700;cursor:pointer;}

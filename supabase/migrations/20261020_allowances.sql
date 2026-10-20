@@ -3,3 +3,4 @@
 -- _biz_date, _allowance_remaining, list_allowances, save_allowance, delete_allowance, set_order_allowance.
 -- sales_history AFTER INSERT tetikleyicisi _sales_history_allowance: comp kapanışta tüm tutar, normal ödemede limit kadar indirim kullanım olarak yazılır.
 -- get_live_orders: allowance_id/name/remaining; close_comp_order: limit yetmezse reddeder.
+-- save_allowance: etiket kontrolü order_flags yerine order_flag_defs tablosuna bakıyor

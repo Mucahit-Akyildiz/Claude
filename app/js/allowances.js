@@ -57,12 +57,13 @@ async function renderAllowancesSettings(el){
         <div class="al-list">${ulist.map(row).join('') || '<p class="muted al-empty">Henüz kullanıcı limiti yok</p>'}</div>
         <div class="al-form" id="alUserForm">
           <div class="ix-form">
-            <div><label>Kullanıcı</label><select id="al_u_user">${free.map(u => `<option value="${u.id}">${escapeHtml(u.username)}</option>`).join('') || '<option value="">Tüm kullanıcıların limiti var</option>'}</select></div>
+            <div style="grid-column:1/-1;"><label>Kullanıcılar <small class="muted" id="alUCount">(birden fazla seçebilirsiniz)</small></label>
+              ${free.length ? `<div class="al-users"><button type="button" class="al-uall" ${act('alToggleAllUsers')}>Tümünü seç</button>${free.map(u => `<label class="al-u"><input type="checkbox" value="${u.id}" ${actOn('change','alUserCount',[])}><span>${escapeHtml(u.username)}</span></label>`).join('')}</div>` : '<p class="muted al-empty">Tüm kullanıcıların limiti var</p>'}</div>
             <div><label>Dönem</label><select id="al_u_period"><option value="daily">Günlük · devreder</option><option value="monthly">Aylık</option></select></div>
             <div><label>Limit (₺)</label><input id="al_u_limit" type="number" min="0" step="1" inputmode="decimal" placeholder="150"></div>
             <div><label>Sipariş etiketi</label>${flagSel('al_u_flag', (flags.find(f => /personel/i.test(f.label)) || flags[0] || {}).label)}</div>
           </div>
-          <button type="button" class="ix-save" ${act('saveAllowanceForm', 'user')}>＋ Limit ekle</button>
+          <button type="button" class="ix-save" ${act('saveAllowanceForm', 'user')}>＋ Seçilenlere limit ekle</button>
         </div>
       </div>
     </div>
@@ -71,6 +72,19 @@ async function renderAllowancesSettings(el){
 }
 async function saveAllowanceForm(kind, id){
   const v = (x) => ((document.getElementById(x) || {}).value || '').trim();
+  if(kind === 'user' && !id){
+    const ids = [...document.querySelectorAll('.al-users input:checked')].map(i => i.value);
+    if(!ids.length){ alert('En az bir kullanıcı seçin'); return; }
+    const errs = [];
+    await withLoadingOverlay((async () => { for(const uid of ids){
+      const { error } = await sb.rpc('save_allowance', { p_token: getSession().session_token, p_data: { kind, user_id: uid, period: v('al_u_period'), limit_amount: v('al_u_limit'), flag_label: v('al_u_flag') } });
+      if(error){ const u = ((APP.config && APP.config.users) || []).find(x => x.id === uid); errs.push((u ? u.username : uid) + ': ' + error.message); }
+    } })());
+    if(errs.length) alert('Bazı kullanıcılar eklenemedi:\n\n' + errs.join('\n'));
+    if(errs.length < ids.length) showToast(`${ids.length - errs.length} kullanıcıya limit eklendi ✓`);
+    renderAllowancesSettings(document.getElementById('usersSubContent'));
+    return;
+  }
   const p = kind === 'person'
     ? { id: id || null, kind, name: v('al_p_name'), limit_amount: v('al_p_limit'), flag_label: v('al_p_flag') }
     : { id: id || null, kind, user_id: v('al_u_user'), period: v('al_u_period'), limit_amount: v('al_u_limit'), flag_label: v('al_u_flag') };
@@ -103,6 +117,10 @@ async function deleteAllowance(id){
   if(error){ alert(error.message); return; }
   renderAllowancesSettings(document.getElementById('usersSubContent'));
 }
+
+function alUserCount(){ const n = document.querySelectorAll('.al-users input:checked').length; const c = document.getElementById('alUCount'); if(c) c.textContent = n ? `(${n} seçili)` : '(birden fazla seçebilirsiniz)';
+  const b = document.querySelector('.al-uall'); if(b) b.textContent = n && n === document.querySelectorAll('.al-users input').length ? 'Seçimi kaldır' : 'Tümünü seç'; }
+function alToggleAllUsers(){ const all = [...document.querySelectorAll('.al-users input')]; const on = !all.every(i => i.checked); all.forEach(i => { i.checked = on; }); alUserCount(); }
 
 /* ---- Sipariş penceresi: limitli kişi seçimi ---- */
 function orderAllowanceHtml(pseudoId){ return `<div class="al-pick-wrap" data-pid="${escapeAttr(String(pseudoId))}">${orderAllowanceInner(pseudoId)}</div>`; }
