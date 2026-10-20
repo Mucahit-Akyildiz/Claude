@@ -3063,3 +3063,26 @@ button.oo-chip{cursor:pointer;} button.oo-chip:hover{border-color:var(--accent);
 #ooPayCol .ti-mode:hover{transform:translateY(-2px);}
 #ooPayCol .ti-mode.on{box-shadow:0 0 0 2px var(--accent) inset;}
 @media (max-width:560px){.oo-hero{flex-wrap:wrap;} .oo-quick,#ooPayCol .ti-modes{grid-template-columns:1fr;} #ooPayCol .ti-mode{text-align:left;}}
+
+/* e-Fatura / Pazaryeri / Muhasebe kartları */
+.ix-box{text-align:left;}
+.ix-sec{margin:14px 0 0;}
+.ix-st{font-size:12px;font-weight:800;letter-spacing:.3px;color:var(--muted);text-transform:uppercase;margin-bottom:8px;}
+.ix-tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px;}
+.ix-tile{display:flex;flex-direction:column;align-items:flex-start;gap:2px;padding:12px;border-radius:16px;border:1px solid var(--border);background:var(--panel);color:var(--text);margin:0;width:auto;text-align:left;cursor:pointer;transition:.2s;}
+.ix-tile span{font-size:20px;margin-bottom:4px;} .ix-tile b{font-size:14px;} .ix-tile small{font-size:11.5px;color:var(--muted);font-weight:500;}
+.ix-tile:hover{transform:translateY(-2px);border-color:color-mix(in srgb,var(--accent) 50%,var(--border));}
+.ix-tile.on{box-shadow:0 0 0 2px var(--accent) inset;background:color-mix(in srgb,var(--accent) 8%,var(--panel));}
+.ix-key label{display:none;}
+.ix-key-in{display:flex;align-items:center;gap:10px;max-width:560px;}
+.ix-key-in input{margin:0;flex:1;}
+.ix-note{font-size:12px;color:var(--muted);margin:14px 0 0;padding:10px 12px;border-radius:12px;background:var(--panel2);}
+.ix-save{max-width:220px;margin-top:14px;}
+.ix-mk{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;}
+.ix-mk-c{padding:14px;border-radius:18px;border:1px solid var(--border);background:linear-gradient(160deg,color-mix(in srgb,var(--mk) 12%,var(--panel)),var(--panel) 60%);display:flex;flex-direction:column;gap:10px;transition:.2s;}
+.ix-mk-c:hover{transform:translateY(-2px);border-color:color-mix(in srgb,var(--mk) 50%,var(--border));}
+.ix-mk-c.ok{border-color:color-mix(in srgb,var(--mk) 55%,var(--border));}
+.ix-mk-h{display:flex;align-items:center;gap:8px;} .ix-mk-h b{flex:1;font-size:14px;}
+.ix-mk-ic{width:36px;height:36px;border-radius:12px;display:grid;place-items:center;font-size:18px;background:color-mix(in srgb,var(--mk) 20%,transparent);}
+.ix-mk-c input{margin:0;}
+.ix-mk-h .ti-st{white-space:nowrap;}
