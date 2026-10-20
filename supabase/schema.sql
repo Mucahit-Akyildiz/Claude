@@ -9857,6 +9857,50 @@ end $$;
 
 
 --
+-- Name: staff_allowance_items(uuid, uuid, date, date); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.staff_allowance_items(p_token uuid, p_user uuid, p_date date, p_date_to date) RETURNS json
+    LANGUAGE plpgsql STABLE SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+declare s staff_sessions%rowtype;
+begin
+  s := _session_check(p_token, 'reports');
+  return (with o as (
+      select distinct x.order_id, x.amount, x.used_at from allowance_usage x join allowances a on a.id = x.allowance_id
+      where a.restaurant_id = s.restaurant_id and a.kind = 'user' and a.user_id = p_user
+        and _biz_date(a.restaurant_id, x.used_at) between p_date and coalesce(p_date_to, p_date))
+    select json_build_object(
+      'used', coalesce((select sum(amount) from o), 0),
+      'n', (select count(distinct order_id) from o),
+      'remaining', (select _allowance_remaining(a.id) from allowances a where a.restaurant_id = s.restaurant_id and a.kind = 'user' and a.user_id = p_user),
+      'items', coalesce((select json_agg(r order by r.qty desc) from (
+        select oi.name, sum(oi.qty) qty, sum(oi.qty * oi.price) total from order_items oi where oi.order_id in (select order_id from o) group by oi.name) r), '[]'::json),
+      'recent', coalesce((select json_agg(r order by r.at desc) from (
+        select o.used_at at, o.amount, (select string_agg(oi.qty || '× ' || oi.name, ', ') from order_items oi where oi.order_id = o.order_id) items from o order by o.used_at desc limit 10) r), '[]'::json)));
+end $$;
+
+
+--
+-- Name: staff_allowance_summary(uuid, date, date); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.staff_allowance_summary(p_token uuid, p_date date, p_date_to date) RETURNS json
+    LANGUAGE plpgsql STABLE SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+declare s staff_sessions%rowtype;
+begin
+  s := _session_check(p_token, 'reports');
+  return coalesce((select json_object_agg(a.user_id, json_build_object('used', t.used, 'n', t.n, 'remaining', _allowance_remaining(a.id), 'period', a.period))
+    from allowances a join lateral (select coalesce(sum(x.amount),0) used, count(distinct x.order_id) n from allowance_usage x
+      where x.allowance_id = a.id and _biz_date(a.restaurant_id, x.used_at) between p_date and coalesce(p_date_to, p_date)) t on true
+    where a.restaurant_id = s.restaurant_id and a.kind = 'user'), '{}'::json);
+end $$;
+
+
+--
 -- Name: start_password_reset(text, text); Type: FUNCTION; Schema: public; Owner: -
 --
 
