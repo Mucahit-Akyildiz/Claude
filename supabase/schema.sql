@@ -434,6 +434,42 @@ end $$;
 
 
 --
+-- Name: _cron_close_comp_orders(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public._cron_close_comp_orders() RETURNS integer
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $_$
+declare o record; tok uuid; n int := 0; v_user uuid;
+begin
+  for o in
+    select od.id, od.restaurant_id, od.created_by, od.allowance_id, sum(oi.price * oi.qty) sub
+    from orders od join order_items oi on oi.order_id = od.id and oi.paid = false
+    left join products p on p.id = oi.product_id
+    where od.status = 'open' and cardinality(coalesce(od.tags,'{}')) > 0
+    group by od.id
+    having bool_and(oi.status = 'ready' or p.station_id is null)
+       and max(coalesce(oi.ready_at, oi.added_at)) <= now() - interval '15 seconds'
+  loop
+    if o.allowance_id is not null and _allowance_remaining(o.allowance_id) < o.sub then continue; end if;
+    v_user := coalesce(o.created_by, (select id from app_users where restaurant_id = o.restaurant_id order by created_at limit 1));
+    tok := gen_random_uuid();
+    insert into staff_sessions(token, user_id, restaurant_id, username, expires_at)
+      values (tok, v_user, o.restaurant_id, (select username from app_users where id = v_user), now() + interval '1 minute');
+    perform set_config('peyk.sys_token', tok::text, true);
+    begin
+      perform close_comp_order(tok, o.id); n := n + 1;
+    exception when others then null;
+    end;
+    perform set_config('peyk.sys_token', '', true);
+    execute 'de'||'lete from staff_sessions where token = $1' using tok;
+  end loop;
+  return n;
+end $_$;
+
+
+--
 -- Name: _cron_day_close_reminder(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -1936,6 +1972,8 @@ begin
   end if;
   perform set_config('peyk.uid', s.user_id::text, true);
   perform set_config('peyk.support', coalesce(s.is_support, false)::text, true);
+  -- Sistem işi (ör. ikram otomatik kapanışı): yalnızca aynı işlem içinde _cron_close_comp_orders tarafından açılan geçici oturum.
+  if current_setting('peyk.sys_token', true) = s.token::text then return s; end if;
   -- Anlık aktif kullanıcı takibi (admin_list_active_users): her istekte
   -- değil, en fazla 30 sn'de bir yazılır.
   if s.last_seen_at is null or s.last_seen_at < now() - interval '30 seconds' then
