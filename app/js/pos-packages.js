@@ -93,7 +93,7 @@ function openPackageModal(pseudoId){
       <div class="field-group"><label>Not</label><input id="pkgNote" placeholder="örn. Yan sokak, 2. kat" value="${escapeAttr((existing&&existing.note)||'')}"></div>`}
           <div id="sentItemsWrap"></div>
           <div id="draftItemsWrap"></div>
-          ${orderFlagsHtml(pseudoId)}
+          ${orderAllowanceHtml(pseudoId)}${orderFlagsHtml(pseudoId)}
         </div>
       </div>
       ${omMobileBarHtml(pseudoId)}
@@ -426,6 +426,7 @@ function updateDraftItemNote(tableId, idx, value){
 async function confirmOrder(tableId){
   const draft = APP.draftCart[tableId];
   if(!draft || draft.length===0) return;
+  if(typeof allowanceWarnBeforeSend === 'function' && !allowanceWarnBeforeSend(tableId, draft.reduce((s, d) => s + d.price * d.qty, 0))) return;
   const btn = document.getElementById('confirmBtn');
   if(btn){ btn.disabled = true; btn.textContent = 'Gönderiliyor...'; }
   // Masa penceresinde yazılmış müşteri bilgisi siparişle birlikte kaydedilir.
@@ -481,12 +482,14 @@ async function confirmOrder(tableId){
   // - bkz. refreshKitchenItems. Farkli fiziksel bilgisayarlara bagli birden fazla
   // yazici oldugunda WebUSB sadece o an acik olan cihaza takili yaziciya erisebilir.
   const prevItemIds = new Set((APP.liveOrders || []).flatMap(o => (o.items || []).map(i => i.id)));
+  APP._prevOrderIds = (APP.liveOrders || []).map(o => o.order_id);
   const [liveRes, cfgRes] = await Promise.all([
     sb.rpc('get_live_orders', { p_token: session.session_token }),
     sb.rpc('get_restaurant_config', { p_token: session.session_token })
   ]);
   APP.liveOrders = liveRes.data || [];
   if(cfgRes.data) APP.config = cfgRes.data;
+  if(typeof attachAllowanceAfterSend === 'function') await attachAllowanceAfterSend(tableId, new Set(APP._prevOrderIds || []));
   // Sipariş veren cihazda yazıcı varsa fiş hemen basılır (Mutfak Ekranı açık olmasa da).
   // Basılan ürünler işaretlenir; aynı cihazda mutfak ekranı açıksa ikinci kez basmaz.
   if(printOnOrderEnabled() && deviceHasSilentPrinter()){
