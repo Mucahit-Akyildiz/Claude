@@ -1198,6 +1198,7 @@ async function refreshShiftWidget(session){
   if(typeof shiftGateActive==='function' && wasGated !== shiftGateActive() && document.getElementById('main')) render();
   const el = document.getElementById('shiftWidget');
   if(el) el.innerHTML = shiftWidgetHtml();
+  if(APP.view==='home' && typeof homeFillShift==='function') homeFillShift();
 }
 async function doClockToggle(){
   const session = getSession(); if(!session) return;

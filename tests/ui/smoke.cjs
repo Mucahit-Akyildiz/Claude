@@ -59,7 +59,7 @@ const assert = (c, m) => { if(!c) throw new Error(m); };
       await page.keyboard.press('Escape'); await page.waitForTimeout(300);
     });
     await check(T('ana sayfa hızlı yönetim + ürün uzun basma düzenleme'), async () => {
-      await view('home', '.hq-card');
+      await view('home', '.hq-card'); await page.waitForSelector('.hm-stat', { timeout: 5000 }); assert(await page.$('.hm-tile'), 'kısayol kartları yok');
       await page.evaluate(() => openTableModal('t3')); await page.waitForSelector('.pp-card[data-pid]', { timeout: 8000 });
       await page.click('.pp-card[data-pid] >> nth=0', { button: 'right' }); await page.waitForSelector('#prodDrawer .pdrawer', { timeout: 3000 });
       await page.evaluate(() => closeProdDrawer()); await page.keyboard.press('Escape'); await page.waitForTimeout(300);

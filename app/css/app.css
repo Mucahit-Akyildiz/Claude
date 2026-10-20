@@ -2785,3 +2785,24 @@ body.fsheet-lock{overflow:hidden;}
 .hq-ic{font-size:24px;}
 .hq-card b{display:block;font-size:14.5px;}
 .hq-card small{display:block;color:var(--muted);font-size:12px;font-weight:500;}
+/* Ana sayfa "Bugün" */
+.hm-date{text-align:left;margin:-4px 0 12px;text-transform:capitalize;}
+.hm-shift-card{display:flex;flex-wrap:wrap;align-items:center;gap:10px;padding:10px 14px;border-radius:14px;border:1px solid var(--border);background:var(--panel);max-width:760px;}
+.hm-shift-card .shift-status{margin:0;}
+.hm-shift-card .sb-shift-btn{width:auto;margin:0;padding:8px 14px;}
+.hm-shift-t{font-weight:800;font-size:13.5px;}
+.hm-dur{margin-left:auto;font-weight:700;color:var(--muted);font-size:13px;}
+.hm-stats{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:10px;max-width:1100px;}
+.hm-stat{display:flex;align-items:center;gap:12px;text-align:left;padding:12px 14px;border-radius:14px;border:1px solid var(--border);background:var(--panel);color:var(--text);cursor:pointer;box-shadow:none;width:auto;}
+.hm-stat.warn{border-color:var(--amber,#f59e0b);background:color-mix(in srgb,var(--amber,#f59e0b) 10%,var(--panel));}
+.hm-stat b{display:block;font-size:19px;line-height:1.15;}
+.hm-stat small{display:block;color:var(--muted);font-size:12px;font-weight:600;}
+.hm-sic{font-size:24px;}
+.hm-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px;max-width:1100px;}
+.hm-tile{position:relative;display:flex;flex-direction:column;align-items:flex-start;gap:6px;min-height:104px;padding:14px;border-radius:18px;border:1px solid var(--border);border-top:4px solid var(--sc);background:var(--panel);color:var(--text);text-align:left;cursor:pointer;box-shadow:none;width:auto;}
+.hm-tile:hover{transform:translateY(-2px);border-color:var(--sc);}
+.hm-ic{font-size:30px;}
+.hm-tile b{font-size:14px;line-height:1.25;}
+.hm-sub{font-size:12px;font-weight:800;color:var(--danger,#ef4444);}
+.hm-tile.has{box-shadow:0 0 0 2px color-mix(in srgb,var(--danger,#ef4444) 35%,transparent);}
+@media (max-width:600px){.hm-grid{grid-template-columns:repeat(2,1fr);}.hm-stats{grid-template-columns:1fr 1fr;}}
