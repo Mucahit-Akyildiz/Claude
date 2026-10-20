@@ -3236,3 +3236,7 @@ button.oo-chip{cursor:pointer;} button.oo-chip:hover{border-color:var(--accent);
 .lx-tl-r{position:relative;display:flex;gap:10px;align-items:center;animation:gxIn .5s both;animation-delay:calc(var(--i)*60ms);}
 .lx-tl-r>i{position:absolute;left:-21px;width:12px;height:12px;border-radius:50%;background:#14b8a6;box-shadow:0 0 0 3px var(--panel);}
 .lx-tl-r div{flex:1;display:flex;flex-direction:column;} .lx-tl-r b{font-size:13px;} .lx-tl-r small{font-size:11px;color:var(--muted);} .lx-tl-r span{font-weight:800;font-size:13px;}
+
+.al-req{display:flex;gap:12px;align-items:flex-start;margin:12px 0 0;padding:12px 14px;border-radius:16px;border:1px solid var(--border);background:var(--panel2);cursor:pointer;}
+.al-req>span:last-child{display:flex;flex-direction:column;gap:2px;} .al-req b{font-size:14px;} .al-req small{font-size:12px;color:var(--muted);line-height:1.4;}
+.al-req .oo-switch{flex-shrink:0;margin-top:2px !important;}
