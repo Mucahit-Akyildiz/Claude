@@ -1693,7 +1693,7 @@ CREATE FUNCTION public._send_email_r(p_rest uuid, p_to text, p_subject text, p_h
 declare t tenant_integrations%rowtype; v_name text;
 begin
   select * into t from tenant_integrations where restaurant_id = p_rest;
-  if t.mail_provider is null or t.mail_api_key is null or t.mail_from is null then return _send_email(p_to, p_subject, p_html); end if;
+  if t.mail_provider is null or t.mail_api_key is null or t.mail_from is null then return false; end if;
   select name into v_name from restaurants where id = p_rest;
   v_name := coalesce(t.mail_from_name, v_name, 'Peyktan');
   if t.mail_provider = 'resend' then
@@ -1805,9 +1805,10 @@ begin
   select value into v_user from _psv where key = 'sms_username';
   select value into v_pass from _psv where key = 'sms_password';
   select value into v_header from _psv where key = 'sms_header';
-  -- İşletmenin kendi SMS hesabı varsa (Ayarlar > Entegrasyonlar) onunla gönderilir; kayıt/şifre kodları Peyktan hesabından.
+  -- İşletmenin kendi SMS hesabı varsa (Ayarlar > Entegrasyonlar) onunla gönderilir; kayıt/şifre kodları Peyktan hesabından. Diğer SMSler yalnızca işletmenin kendi hesabıyla gider.
   if p_purpose <> 'otp' and p_restaurant_id is not null then
-    select coalesce(t.sms_provider, v_provider), coalesce(t.sms_user, v_user), coalesce(t.sms_pass, v_pass), coalesce(t.sms_header, v_header)
+    v_provider := null; v_user := null; v_pass := null; v_header := null;
+    select t.sms_provider, t.sms_user, t.sms_pass, t.sms_header
       into v_provider, v_user, v_pass, v_header
       from tenant_integrations t where t.restaurant_id = p_restaurant_id and t.sms_provider is not null and t.sms_user is not null and t.sms_pass is not null;
   end if;
