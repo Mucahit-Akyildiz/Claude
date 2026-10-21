@@ -18,6 +18,7 @@ async function renderReservationsView(main, session){
       <div id="resvContent" class="set-content"></div>
     </div>`;
   await renderResvTabContent(session);
+  setTimeout(() => prefetchOtherResvTab(session), 300);
 }
 function setResvTab(tab){
   if(tab !== APP.resvTab) pushScreen();
@@ -35,7 +36,32 @@ function setResvTab(tab){
   const session = getSession();
   const cached = tab==='waitlist' ? APP.waitlistCache : APP.reservationsCache;
   if(cached) renderResvTabContent(session, false).then(() => { if(APP.resvTab===tab) renderResvTabContent(session, true, true); });
-  else renderResvTabContent(session, true);
+  else {
+    // Veri yokken eski sekme ekranda kalmasın: yeni sekmenin iskeleti hemen gösterilir.
+    const el = document.getElementById('resvContent'); if(el) el.innerHTML = resvSkeletonHtml(tab);
+    renderResvTabContent(session, true, true);
+  }
+}
+function resvSkeletonHtml(tab){
+  const chip = '<div class="sk-chip"></div>';
+  return `<div class="sk-wrap"><div class="sk-row">${chip.repeat(tab === 'waitlist' ? 5 : 4)}</div>
+    <div class="sk-row"><div class="sk-panel"></div><div class="sk-panel"></div><div class="sk-panel"></div></div>
+    <div class="sk-panel tall"></div><p class="muted" style="text-align:center;margin:10px 0 0;">${tab === 'waitlist' ? '⏳ Bekleme listesi yükleniyor…' : '📅 Rezervasyonlar yükleniyor…'}</p></div>`;
+}
+/* Diğer sekmenin verisi arka planda önceden çekilir; sekme değişince anında açılır. */
+async function prefetchOtherResvTab(session){
+  const other = (APP.resvTab || 'reservations') === 'waitlist' ? 'reservations' : 'waitlist';
+  try{
+    if(other === 'waitlist' && !APP.waitlistCache){
+      const [w, l, e, t] = await Promise.all([sb.rpc('list_waitlist', { p_token: session.session_token }), sb.rpc('get_live_orders', { p_token: session.session_token }),
+        sb.rpc('get_waitlist_estimate', { p_token: session.session_token }).catch(() => ({})), fetchWlToday()]);
+      if(!w.error && !APP.waitlistCache){ APP.waitlistCache = w.data || []; APP.wlTodayCache = t; if(e && e.data) APP.wlEstimate = e.data; if(l && !l.error) APP.liveOrders = l.data || [];
+        APP.wlSig = JSON.stringify([w.data, e && e.data, t]); }
+    } else if(other === 'reservations' && !APP.reservationsCache){
+      const [r, rc] = await Promise.all([sb.rpc('list_reservations', { p_token: session.session_token, p_date: null }), fetchResvRecent()]);
+      if(!r.error && !APP.reservationsCache){ APP.reservationsCache = r.data || []; APP.rvRecentCache = rc; APP.resvSig = JSON.stringify([r.data, rc]); }
+    }
+  }catch(e){}
 }
 function renderResvTabContent(session, forceRefresh, quiet){
   return (APP.resvTab||'reservations')==='waitlist' ? renderWaitlistContent(session, forceRefresh, quiet) : renderReservationsContent(session, forceRefresh, quiet);
@@ -50,7 +76,7 @@ async function renderReservationsContent(session, forceRefresh, quiet){
     const [{ data, error }, recent] = await (quiet ? req : withLoadingOverlay(req));
     // Yanıt gelene kadar başka sekmeye geçildiyse o sekmenin içeriği ezilmez.
     if((APP.resvTab||'reservations')!=='reservations' || APP.view!=='reservations') return;
-    if(error){ if(!quiet) el.innerHTML = '<p class="muted">Yüklenemedi: '+escapeHtml(error.message)+'</p>'; return; }
+    if(error){ if(!quiet || el.querySelector('.sk-wrap')) el.innerHTML = '<p class="muted">Yüklenemedi: '+escapeHtml(error.message)+'</p>'; return; }
     const sig = JSON.stringify([data, recent]);
     // Arka plan yenilemesinde veri değişmediyse ekran yeniden çizilmez (göz kırpma/animasyon tekrarı olmaz).
     if(quiet && sig === APP.resvSig && el.querySelector('.rvz-grid, .rv-day, .rv-empty')) return;
@@ -211,7 +237,7 @@ async function renderWaitlistContent(session, forceRefresh, quiet){
     ]);
     const [{ data, error }, live, estR, today] = await (quiet ? req : withLoadingOverlay(req));
     if(APP.resvTab!=='waitlist' || APP.view!=='reservations') return;
-    if(error){ if(!quiet) el.innerHTML = '<p class="muted">Yüklenemedi: '+escapeHtml(error.message)+'</p>'; return; }
+    if(error){ if(!quiet || el.querySelector('.sk-wrap')) el.innerHTML = '<p class="muted">Yüklenemedi: '+escapeHtml(error.message)+'</p>'; return; }
     const sig = JSON.stringify([data, estR && estR.data, today]);
     if(quiet && sig === APP.wlSig && el.querySelector('.wl-stats, .wl-note, .rv-empty, .rv-list')) return;
     APP.wlSig = sig; APP.waitlistCache = data || []; APP.wlTodayCache = today;
