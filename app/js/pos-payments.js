@@ -1650,7 +1650,7 @@ function tableCustomerInnerHtml(tableId, editing){
       <input id="tableCustPhone" type="hidden" value=""></div>
       <div id="tableCustSuggest" class="om-cs-sug"></div>`;
   }
-  return `<div style="background:var(--panel2);border:1px solid var(--border);border-radius:12px;padding:10px 12px;margin-bottom:12px;font-size:13.5px;display:flex;gap:10px;align-items:flex-start;">
+  return (typeof birthdayBadgeHtml === 'function' ? birthdayBadgeHtml(name, phone) : '') + `<div style="background:var(--panel2);border:1px solid var(--border);border-radius:12px;padding:10px 12px;margin-bottom:12px;font-size:13.5px;display:flex;gap:10px;align-items:flex-start;">
     <div style="flex:1;min-width:0;">
       ${name ? `<div><b>👤 ${escapeHtml(name)}</b>${phone ? ` · ${phoneHtml(phone)}` : ''}</div>` : (phone ? `<div>${phoneHtml(phone)}</div>` : '')}
       ${o.note ? `<div class="muted" style="margin-top:3px;overflow-wrap:anywhere;">${escapeHtml(o.note)}</div>` : ''}
@@ -1699,6 +1699,7 @@ function pickTableCustomer(i, prefix){
   if(emailEl && c.email && !emailEl.value) emailEl.value = c.email;
   document.getElementById(prefix + 'Suggest').innerHTML = '';
   if(typeof autoAllowanceForCustomer === 'function') autoAllowanceForCustomer(c.name, c.phone);
+  if(typeof birthdayFor === 'function' && birthdayFor(c.name, c.phone)) showToast('🎂 Bugün ' + c.name + '\'ın doğum günü!');
   if(prefix !== 'tableCust') return;
   const t = document.getElementById('tableCustName').dataset.table;
   if(t) saveTableCustomer(t, true);

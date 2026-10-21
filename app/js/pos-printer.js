@@ -795,6 +795,7 @@ async function renderNotificationSettingsView(main, session){
     </div>
 
     ${voiceSettingsHtml()}
+    ${typeof birthdaySettingsHtml === 'function' ? birthdaySettingsHtml() : ''}
     <div class="box" style="max-width:none;">
       <h2>🔔 Bildirim Sesi (Yeni Sipariş Zili)</h2>
       <p class="muted" style="text-align:left;">Mutfağa yeni bir sipariş düştüğünde bu ekranda çalacak sesi özelleştirebilirsiniz. Bir istasyon seçip kendi ses dosyanızı yükleyerek o istasyona özel bir zil sesi de tanımlayabilirsiniz (örn. Izgara için ayrı, Çayhane için ayrı).</p>
