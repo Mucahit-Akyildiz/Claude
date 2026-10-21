@@ -56,8 +56,16 @@ async function renderAllowancesSettings(el){
     </div>`;
     return;
   }
+  const act_ = list.filter(a => a.is_active), usedT = act_.reduce((x, a) => x + Number(a.used_today || 0), 0), remT = act_.reduce((x, a) => x + Number(a.remaining || 0), 0);
+  const pT = usedT + remT ? Math.round(usedT / (usedT + remT) * 100) : 0;
+  const top5 = act_.slice().sort((a, b) => Number(b.used_today) - Number(a.used_today)).filter(a => Number(a.used_today) > 0).slice(0, 5), mx5 = Math.max(1, ...top5.map(a => Number(a.used_today)));
+  const overview = act_.length ? `<div class="al-ov">
+      <div class="fs-panel pa-sec" style="--t:#14b8a6;"><h3><i>⏱</i>Bugün</h3><div class="lx-gauge">${typeof svgGauge === 'function' ? svgGauge(pT, '#14b8a6', money(usedT), 'bugün harcanan · %' + pT) : ''}<div class="lx-g-leg"><span><i style="background:#14b8a6"></i>Harcanan</span><span><i style="background:color-mix(in srgb,var(--muted) 35%,transparent)"></i>Kalan ${money(remT)}</span></div></div></div>
+      <div class="fs-panel pa-sec" style="--t:#6366f1;"><h3><i>🍩</i>Dağılım</h3>${svgDonut([{ label: '🎓 Kişi', value: act_.filter(a => a.kind === 'person').length, color: '#14b8a6' }, { label: '👔 Kullanıcı', value: act_.filter(a => a.kind === 'user').length, color: '#6366f1' }, { label: '⏸ Pasif', value: list.length - act_.length, color: '#94a3b8' }].filter(x => x.value), { center: String(list.length), sub: 'limit' })}</div>
+      <div class="fs-panel pa-sec" style="--t:#f59e0b;"><h3><i>🔥</i>Bugün En Çok Harcayan</h3>${top5.length ? `<div class="gx-hbars">${top5.map((a, i) => `<div class="gx-hb" style="--i:${i};--c:${a.kind === 'person' ? '#14b8a6' : '#6366f1'};"><div class="gx-hb-l"><span>${a.kind === 'person' ? '🎓' : '👔'} ${escapeHtml(a.name || '')}</span><b>${money(a.used_today)}</b></div><div class="gx-hb-t"><i style="width:${Math.max(4, Number(a.used_today) / mx5 * 100)}%;"></i></div></div>`).join('')}</div>` : '<p class="muted">Bugün henüz limitten harcama yok.</p>'}</div>
+    </div>` : '';
   el.innerHTML = `<div class="al-wrap ix-box">
-    ${hero}
+    ${hero}${overview}
     <label class="al-req"><span class="oo-switch"><input type="checkbox" ${APP.allowanceRequirePick !== false ? 'checked' : ''} ${actOn('change','setAllowanceRequire',['$checked'])}><span class="oo-track"><span class="oo-thumb"></span></span></span>
       <span><b>Limitli etikette kişi seçimi zorunlu</b><small>Açıkken Personel / Talebe gibi limite bağlı bir etiket işaretlenince, limitinden düşülecek kişi ya da kullanıcı seçilmeden sipariş gönderilemez. Kapalıyken seçim isteğe bağlıdır; kimse seçilmezse hesap limitten düşmez, normal ikram gibi kapanır.</small></span></label>
     <div class="al-top-bar"><input class="al-filter" type="search" placeholder="🔍 Ad veya telefonla ara…" autocomplete="off" ${actOn('input','alFilter',['$value'])}>

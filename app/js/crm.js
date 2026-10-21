@@ -10,6 +10,7 @@ async function renderCrmView(main, session){
   main.innerHTML = `<h1>Müşteriler</h1>
     ${statChips([['👥', rows.length, APP.crmSearch ? 'Aramada bulunan' : 'Kayıtlı müşteri', 'var(--c1)', 'all'], ['⭐', rows.reduce((x, c) => x + (Number(c.points_balance)||0), 0), 'Toplam puan', 'var(--c3)', 'pts'],
       ['🎂', bdays, '30 gün içinde doğum günü', 'var(--c2)', 'bday'], ['💎', rows.filter(c => crmTier(c).rank >= 2).length, (crmTiers()[1] ? crmTiers()[1].name : 'Altın') + ' ve üstü müşteri', 'var(--c4)', 'gold']], '', 'crm')}
+    ${crmVisualsHtml(rows)}
     <div class="box" style="max-width:none;">
       <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
         <h2 style="margin:0;">Müşteri Listesi</h2>
@@ -17,8 +18,9 @@ async function renderCrmView(main, session){
           <button type="button" class="fsheet-open" style="flex:0 0 auto;" ${act('newCustomer')}>+ Yeni Müşteri</button>
           <input id="crmSearchInput" placeholder="İsim veya telefon ara..." style="flex:0 1 260px;min-width:120px;width:auto;margin:0;" value="${escapeAttr(APP.crmSearch||'')}" ${actOn('input', 'debouncedCrmSearch', ['$value'])}>
           ${canManage(session, 'crm') ? `<button type="button" class="ghost-btn" style="width:auto;flex:0 0 auto;white-space:nowrap;margin:0;" ${act('openSheet','crmLoySheet')} title="Puan ve doğum günü indirimi ayarları">⭐ Sadakat${loyalty.enabled ? '' : ' (kapalı)'}</button>` : ''}
-          <button type="button" class="ghost-btn" style="width:auto;flex:0 0 auto;white-space:nowrap;margin:0;" ${act('exportCustomersCsv')} title="Tüm müşterileri Excel'de açılabilen CSV olarak indir">⬇️ Dışa aktar</button>
-          ${canManage(session, 'crm') ? `<button type="button" class="ghost-btn" style="width:auto;flex:0 0 auto;white-space:nowrap;margin:0;" ${act('openCustomerImport')} title="CSV dosyasından müşteri yükle">⬆️ İçe aktar</button>` : ''}
+          <button type="button" class="ghost-btn" style="width:auto;flex:0 0 auto;white-space:nowrap;margin:0;" ${act('exportCustomersCsv')} title="Tüm müşterileri Excel (.xlsx) olarak indir">⬇️ Dışa aktar</button>
+          ${canManage(session, 'crm') ? `<button type="button" class="ghost-btn" style="width:auto;flex:0 0 auto;white-space:nowrap;margin:0;" ${act('openCustomerImport')} title="Excel (.xlsx) veya CSV dosyasından müşteri yükle">⬆️ İçe aktar</button>
+          <button type="button" class="xl-link" style="flex:0 0 auto;" ${act('downloadCustomerTemplate')}>📄 Şablon indir</button>` : ''}
         </div>
       </div>
       <p class="muted" style="font-size:12px;margin:6px 0 10px;text-align:left;">Harcama/ziyaret/doğum günü gibi detaylı analizler için <b>Finansal Analiz &gt; Müşteri Analizleri</b> sekmesine bakın.</p>
@@ -74,6 +76,22 @@ async function renderCrmView(main, session){
 /* Sadakat seviyesi: yaşam boyu kazanılan puana göre (puan harcanınca seviye düşmez).
    Seviyeler Müşteriler > ⭐ Sadakat'tan düzenlenir; puan çarpanı sunucuda uygulanır. */
 const TIER_COLORS = ['var(--c1)', 'var(--c3)', 'var(--c2)', 'var(--c4)', '#a855f7', '#ef4444'];
+/* Müşteri seviyeleri halka grafiği + en çok puanı olanlar (göz atınca okunur özet). */
+function crmVisualsHtml(rows){
+  if(!rows.length || APP.crmSearch) return '';
+  const groups = {}; rows.forEach(c => { const t = crmTier(c); const g = groups[t.name] || (groups[t.name] = { label: t.icon + ' ' + t.name, value: 0, color: t.color, rank: t.rank }); g.value++; });
+  const segs = Object.values(groups).sort((a, b) => a.rank - b.rank);
+  const top = rows.slice().sort((a, b) => (Number(b.points_balance) || 0) - (Number(a.points_balance) || 0)).filter(c => Number(c.points_balance) > 0).slice(0, 6);
+  const mx = Math.max(1, ...top.map(c => Number(c.points_balance)));
+  const withPhone = rows.filter(c => c.phone).length, withMail = rows.filter(c => c.email).length, withBd = rows.filter(c => c.birthday).length;
+  const ring = (v, l, c, i) => { const p = rows.length ? Math.round(v / rows.length * 100) : 0; return `<div class="gx-ring" style="--p:${p};--c:${c};--i:${i};"><div class="gx-ring-c"><b>%${p}</b></div><small>${l}</small><em>${v} kişi</em></div>`; };
+  return `<div class="ch-row crm-vis">
+    <div class="fs-panel pa-sec" style="--t:var(--c4);"><h3><i>🏅</i>Müşteri Seviyeleri</h3>${svgDonut(segs, { center: String(rows.length), sub: 'müşteri' })}</div>
+    <div class="fs-panel pa-sec" style="--t:var(--c3);"><h3><i>⭐</i>En Çok Puanı Olanlar</h3>${top.length ? `<div class="gx-hbars">${top.map((c, i) => `<div class="gx-hb" style="--i:${i};--c:${crmTier(c).color};"><div class="gx-hb-l"><span>${crmTier(c).icon} ${escapeHtml(c.name || '')}</span><b>${Number(c.points_balance).toLocaleString('tr-TR')} puan</b></div><div class="gx-hb-t"><i style="width:${Math.max(4, Number(c.points_balance) / mx * 100)}%;"></i></div></div>`).join('')}</div>` : '<p class="muted">Henüz puanı olan müşteri yok.</p>'}</div>
+    <div class="fs-panel pa-sec" style="--t:var(--c2);"><h3><i>📇</i>Kayıt Doluluğu</h3><div class="gx-rings">${ring(withPhone, 'Telefon', '#22c55e', 0)}${ring(withMail, 'E-posta', 'var(--accent)', 1)}${ring(withBd, 'Doğum günü', '#ec4899', 2)}</div>
+      <p class="fs-note">Doğum günü girilen müşterilere otomatik indirim ve kampanya yapılabilir.</p></div>
+  </div>`;
+}
 function crmTiers(){
   const t = (APP.config && APP.config.loyalty && APP.config.loyalty.tiers) || [{ name:'Gümüş', icon:'🥈', min:50, mult:1, disc:0 }, { name:'Altın', icon:'🥇', min:200, mult:1, disc:0 }, { name:'Elmas', icon:'💎', min:500, mult:1, disc:0 }];
   return t.slice().sort((a, b) => Number(a.min) - Number(b.min));
@@ -230,11 +248,14 @@ async function exportCustomersCsv(){
   const rows = [['Ad Soyad','Telefon','E-posta','Doğum Günü','Not','Puan','Ziyaret','Toplam Harcama','Son Ziyaret','Kayıt Tarihi']];
   (data||[]).forEach(c => rows.push([c.name, c.phone, c.email, c.birthday, c.notes, c.points_balance, c.total_visits,
     c.total_spent, c.last_visit_at ? String(c.last_visit_at).slice(0,10) : '', c.created_at ? String(c.created_at).slice(0,10) : '']));
-  downloadCsv('musteriler-' + todayLocalDateStr() + '.csv', rows);
+  if(typeof xlDownload === 'function') await xlDownload('musteriler-' + todayLocalDateStr() + '.xlsx', 'Müşteriler', rows[0], rows.slice(1), [24, 16, 26, 12, 24, 8, 8, 14, 12, 12]);
+  else downloadCsv('musteriler-' + todayLocalDateStr() + '.csv', rows);
   showToast((data||[]).length + ' müşteri dışa aktarıldı ✓');
 }
 function downloadCustomerTemplate(){
-  downloadCsv('musteri-sablonu.csv', [CRM_CSV_COLS.map(c => c[1]), ['Ahmet Yılmaz','0532 123 45 67','ahmet@ornek.com','15.04.1990','Cam kenarı sever','0']]);
+  const head = CRM_CSV_COLS.map(c => c[1]), ex = [['Ahmet Yılmaz','0532 123 45 67','ahmet@ornek.com','15.04.1990','Cam kenarı sever','0'], ['Ayşe Demir','0555 987 65 43','','02.11.1988','','150']];
+  if(typeof xlDownload === 'function') xlDownload('musteri-sablonu.xlsx', 'Müşteriler', head, ex, [24, 16, 26, 12, 24, 8]);
+  else downloadCsv('musteri-sablonu.csv', [head, ...ex]);
 }
 function parseCsv(text){
   text = text.replace(/^﻿/, '');
@@ -269,8 +290,8 @@ function openCustomerImport(){
   ov.onclick = (e) => { if(e.target===ov) ov.remove(); };
   ov.innerHTML = `<div style="background:var(--panel);border:1px solid var(--border);border-radius:18px;padding:18px;max-width:560px;width:100%;max-height:88vh;overflow:auto;text-align:left;">
     <h3 style="margin:0 0 8px;">⬆️ Müşteri içe aktar</h3>
-    <p class="muted" style="font-size:12.5px;margin:0 0 10px;">Excel'de listenizi <b>Farklı Kaydet → CSV (UTF-8)</b> olarak kaydedip seçin. Sütunlar: <b>Ad Soyad</b> (zorunlu), Telefon, E-posta, Doğum Günü (GG.AA.YYYY), Not, Puan. <button type="button" ${act('downloadCustomerTemplate')} style="background:none;border:none;padding:0;margin:0;width:auto;color:var(--accent);text-decoration:underline;cursor:pointer;font:inherit;">Örnek şablonu indir</button></p>
-    <input type="file" id="crmImportFile" accept=".csv,text/csv,text/plain" ${actOn('change', 'previewCustomerImport', ['$file'])} style="margin:0 0 10px;">
+    <p class="muted" style="font-size:12.5px;margin:0 0 10px;">Excel dosyanızı (<b>.xlsx</b>) ya da CSV'yi doğrudan seçin. Sütunlar: <b>Ad Soyad</b> (zorunlu), Telefon, E-posta, Doğum Günü (GG.AA.YYYY), Not, Puan. <button type="button" ${act('downloadCustomerTemplate')} style="background:none;border:none;padding:0;margin:0;width:auto;color:var(--accent);text-decoration:underline;cursor:pointer;font:inherit;">Örnek şablonu indir</button></p>
+    <input type="file" id="crmImportFile" accept=".xlsx,.xls,.csv,text/csv,text/plain" ${actOn('change', 'previewCustomerImport', ['$file'])} style="margin:0 0 10px;">
     <label style="display:flex;gap:8px;align-items:center;font-size:13px;margin:0 0 10px;"><input type="checkbox" id="crmImportUpdate" checked style="width:auto;margin:0;"> Telefonu eşleşen mevcut müşterileri güncelle</label>
     <div id="crmImportPreview" class="muted" style="font-size:12.5px;"></div>
     <div style="display:flex;gap:10px;margin-top:12px;">
@@ -283,8 +304,12 @@ async function previewCustomerImport(file){
   const box = document.getElementById('crmImportPreview'), btn = document.getElementById('crmImportBtn');
   APP.crmImportRows = null; btn.disabled = true;
   if(!file) return;
-  if(/\.xlsx?$/i.test(file.name)){ box.innerHTML = '<span style="color:var(--red);">Excel dosyasını önce <b>CSV (UTF-8)</b> olarak kaydedin.</span>'; return; }
-  const rows = parseCsv(await file.text());
+  let rows;
+  if(/\.xlsx?$/i.test(file.name)){
+    try{ const X = await loadXlsx(); const wb = X.read(await file.arrayBuffer(), { type: 'array' });
+      rows = X.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, defval: '', raw: false }).filter(r => r.some(c => String(c).trim() !== '')); }
+    catch(e){ box.innerHTML = '<span style="color:var(--red);">Excel dosyası okunamadı: ' + escapeHtml(e.message) + '</span>'; return; }
+  } else rows = parseCsv(await file.text());
   if(rows.length < 2){ box.innerHTML = '<span style="color:var(--red);">Dosyada başlık satırı ve en az bir müşteri olmalı.</span>'; return; }
   const head = rows[0].map(h => String(h).trim().toLocaleLowerCase('tr'));
   const map = {};
