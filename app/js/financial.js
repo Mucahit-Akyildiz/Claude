@@ -1172,7 +1172,11 @@ function openResvOrderDetail(ids){
   });
   document.body.appendChild(ov);
 }
-function drawResvAnalytics(){ drawResvAnalyticsBase(); if((APP.resvAnSub || 'resv') === 'resv') loadResvViz(); }
+function drawResvAnalytics(){ drawResvAnalyticsBase(); if((APP.resvAnSub || 'resv') === 'resv') loadResvViz(); else loadWlViz(); }
+async function loadWlViz(){
+  const { data } = await sb.rpc('waitlist_report', { p_token: getSession().session_token, p_date: APP.reportDate, p_date_to: APP.reportDateTo });
+  const b = document.getElementById('wlViz'); if(b) b.innerHTML = wlStatsHtml(data, { title: reportDateRangeLabel(), analytics: true });
+}
 function drawResvAnalyticsBase(){
   const el = document.getElementById('reportContent'); const data = APP.resvAn; if(!el || !data) return;
   const sub = APP.resvAnSub || 'resv';
@@ -1206,7 +1210,7 @@ function drawResvAnalyticsBase(){
       : f.key.startsWith('table:') ? (r.table_name||'—')===f.key.slice(6)
       : true;
     const rows = all.filter(match);
-    el.innerHTML = head + tabs + `
+    el.innerHTML = head + tabs + `<div id="wlViz"></div>
       <div class="home-grid" style="margin-top:0;margin-bottom:18px;">
         ${resvAnCard('Listeye Alınan', wl.total||0, null, 'all')}
         ${resvAnCard('Oturan', (wl.seated||0) + small('(' + pct(wl.seated||0, wl.total||0) + ')'), 'var(--green)', 'seated')}
