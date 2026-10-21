@@ -1063,6 +1063,8 @@ async function openOrderView(){
   render();
 }
 async function renderOrderView(main, session){
+  // Doğum günü rozeti için liste tazelenir; değiştiyse masa ızgarası yeniden çizilir.
+  if(typeof ensureBirthdays === 'function'){ const before = APP.birthdaysAt; ensureBirthdays().then(() => { if(APP.birthdaysAt !== before && APP.view === 'order' && typeof renderTableGrid === 'function') renderTableGrid(); }); }
   main.innerHTML = `<h1>Sipariş Al</h1><div class="muted" id="orderStatus"></div><div class="order-summary" id="orderSummary"></div><div id="customerReqBanner"></div>
     <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
       <div class="tabs" id="zoneTabs" style="margin:16px 0 0;"></div>
@@ -1565,7 +1567,7 @@ function tableCardHtml(t){
   return `<div class="tc tc-${c.state}" ${c.order && !c.order.items?.length ? `data-badge-id="${c.order.order_id}"` : ""} ${act('openTableModal', t.id)}>
     <div class="tc-top"><span class="tc-name">${escapeHtml(t.name)}</span>${c.order ? `<span class="tc-time">⏱ ${timeTxt}</span>` : ''}</div>
     ${c.state === 'empty' ? `<div class="tc-cta">＋ Sipariş al</div>` : `
-      ${c.order && c.order.customer_name ? `<div class="tc-cust">👤 ${escapeHtml(c.order.customer_name)}</div>` : ''}
+      ${c.order && c.order.customer_name ? (typeof birthdayFor === 'function' && birthdayFor(c.order.customer_name, c.order.customer_phone) ? `<div class="tc-cust tc-bday">🎂 ${escapeHtml(c.order.customer_name)} <b>Doğum günü!</b></div>` : `<div class="tc-cust">👤 ${escapeHtml(c.order.customer_name)}</div>`) : ''}
       <div class="tc-total">${c.total ? c.unpaid.length + ' kalem' : (c.draft.length ? c.draft.length + ' ürün sepette' : '—')}</div>
       ${c.unpaid.length ? `<div class="tc-prog"><i style="width:${pct}%"></i></div><div class="tc-meta"><span>${c.ready}/${c.unpaid.length} hazır</span>${initials}</div>` : `<div class="tc-meta"><span>${label}</span>${initials}</div>`}`}
     <span class="tc-state">${label}</span>
