@@ -3245,3 +3245,8 @@ button.oo-chip{cursor:pointer;} button.oo-chip:hover{border-color:var(--accent);
 .al-off-c{display:flex;flex-direction:column;gap:4px;padding:16px;border-radius:18px;border:1px dashed var(--border);background:var(--panel2);animation:gxIn .5s both;animation-delay:calc(var(--i)*90ms);}
 .al-off-c span{font-size:26px;} .al-off-c b{font-size:14.5px;} .al-off-c small{font-size:12px;color:var(--muted);line-height:1.45;}
 .al-on-btn{max-width:340px;}
+
+.crm-vis,.al-ov{margin:12px 0;}
+.al-ov{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px;}
+.crm-vis .gx-ring-c b{margin-top:0;}
+.ch-row.crm-vis{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px;} .crm-vis>.fs-panel{margin:0;}
