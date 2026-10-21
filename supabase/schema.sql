@@ -4186,6 +4186,27 @@ end; $$;
 
 
 --
+-- Name: customer_birthdays(uuid, integer); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.customer_birthdays(p_token uuid, p_days integer DEFAULT 7) RETURNS json
+    LANGUAGE plpgsql STABLE SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+declare s staff_sessions%rowtype; today date := (now() at time zone 'Europe/Istanbul')::date;
+begin
+  s := _session_check(p_token);
+  return coalesce((select json_agg(x order by x.days, x.name) from (
+    select c.id, c.name, c.phone, coalesce(c.lifetime_points, c.points_balance, 0) lifetime_points, coalesce(c.points_balance,0) points_balance, coalesce(c.total_visits,0) visits,
+      ((make_date(extract(year from today)::int + case when to_char(c.birthday,'MMDD') < to_char(today,'MMDD') then 1 else 0 end,
+        extract(month from c.birthday)::int, least(extract(day from c.birthday)::int, case when extract(month from c.birthday) = 2 then 28 else 31 end))) - today) days,
+      extract(year from today)::int - extract(year from c.birthday)::int age
+    from customers c where c.restaurant_id = s.restaurant_id and c.birthday is not null) x
+    where x.days between 0 and least(greatest(coalesce(p_days,7),0),31)), '[]'::json);
+end $$;
+
+
+--
 -- Name: delete_account_with_credentials(text, text, text, text); Type: FUNCTION; Schema: public; Owner: -
 --
 
