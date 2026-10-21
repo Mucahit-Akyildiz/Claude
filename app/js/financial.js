@@ -298,6 +298,12 @@ async function renderReportContent(session){
   ]));
   if(error){ el.innerHTML = '<p class="muted">Yüklenemedi: '+error.message+'</p>'; return; }
   const hist = data || [];
+  // Kapatılan Hesaplar için ayrı tarih: girilmişse liste oradan, değilse üstteki aralıktan beslenir.
+  let billHist = hist;
+  if(APP.billDate){
+    const { data: bd } = await sb.rpc('get_sales_history', { p_token: session.session_token, p_date: APP.billDate, p_date_to: APP.billDateTo || APP.billDate });
+    billHist = bd || [];
+  }
   const wasteCost = (wasteRes.data && wasteRes.data.total_cost) || 0;
 
   // Sipariş Etiketleri (Personel Yemeği, İkram vb.) işaretlenmiş hesaplar ciro/net
@@ -370,17 +376,17 @@ async function renderReportContent(session){
   if(APP.reportBillsFilter.source==null) APP.reportBillsFilter.source = '';
   const bf = APP.reportBillsFilter;
   const billLabel = (o) => (o.kind==='takeaway' ? '📦 Paket' : (o.table_name||'-'));
-  const billTableOptions = [...new Set(hist.map(billLabel))].sort();
-  const billHourOptions = [...new Set(hist.map(o => new Date(o.closed_at).getHours()))].sort((a,b)=>a-b);
+  const billTableOptions = [...new Set(billHist.map(billLabel))].sort();
+  const billHourOptions = [...new Set(billHist.map(o => new Date(o.closed_at).getHours()))].sort((a,b)=>a-b);
   const METHOD_LABELS = { cash:'💵 Nakit', card:'💳 Kredi Kartı', gift_card:'🎁 Hediye Kartı', split:'➗ Bölünmüş', open_account:'📒 Açık Hesap', comp:'🎁 İkram', points:'⭐ Puan' };
-  const billMethodOptions = [...new Set(hist.map(o => o.payment_method))].filter(Boolean).sort();
+  const billMethodOptions = [...new Set(billHist.map(o => o.payment_method))].filter(Boolean).sort();
 
   // Hesabın kaynağı: rezervasyondan / bekleme listesinden oturtulan masa,
   // doğrudan gelen (rezervasyonsuz) masa ya da paket.
   const billSource = (o) => o.from_reservation ? 'resv' : o.from_waitlist ? 'waitlist' : o.kind==='takeaway' ? 'takeaway' : 'walkin';
   const SOURCE_LABELS = { resv:'📅 Rezervasyonlu', waitlist:'⏳ Bekleme Listesi', walkin:'🚶 Rezervasyonsuz Masa', takeaway:'📦 Paket' };
-  const billSourceCounts = {}; hist.forEach(o => { const k = billSource(o); billSourceCounts[k] = (billSourceCounts[k]||0) + 1; });
-  const filteredBills = hist.filter(o => {
+  const billSourceCounts = {}; billHist.forEach(o => { const k = billSource(o); billSourceCounts[k] = (billSourceCounts[k]||0) + 1; });
+  const filteredBills = billHist.filter(o => {
     if(bf.hour!=='' && new Date(o.closed_at).getHours()!==Number(bf.hour)) return false;
     if(bf.table && billLabel(o)!==bf.table) return false;
     if(bf.method && o.payment_method!==bf.method) return false;
@@ -422,7 +428,7 @@ async function renderReportContent(session){
       <td style="font-size:13px;">${methodLabel}</td>
       <td><button type="button" class="sbtn" style="width:auto;margin:0;padding:6px 10px;" title="Detay" ${act('openSaleDetailModal', o.id)}>🔍</button></td></tr>`;
   };
-  const billsHtml = hist.length===0 ? '<p class="muted">Bu tarihte kapatılmış hesap yok.</p>'
+  const billsHtml = billHist.length===0 ? '<p class="muted">Bu tarihte kapatılmış hesap yok.</p>'
     : filteredBills.length===0 ? '<p class="muted">Bu filtrede kapatılmış hesap yok.</p>'
     : `<div class="settings-table-wrap"><table class="settings-table"><thead><tr><th>Sipariş</th><th>Hazır</th><th>Ödeme</th><th>Masa</th><th>Garson / Müşteri</th><th>Tutar</th><th>Yöntem</th><th></th></tr></thead><tbody>` +
       filteredBills.map(billRowHtml).join('') + '</tbody></table></div>';
@@ -476,7 +482,14 @@ async function renderReportContent(session){
     <div class="fs-panel pa-sec" style="--t:var(--green);">
       <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:6px;">
         <h3 style="margin:0;"><i>🧾</i>Kapatılan Hesaplar</h3>
-        <span class="muted" style="font-size:12px;">${billsFilterActive ? (filteredBills.length+' / '+hist.length+' hesap') : (hist.length+' hesap')}</span>
+        <span class="muted" style="font-size:12px;">${billsFilterActive ? (filteredBills.length+' / '+billHist.length+' hesap') : (billHist.length+' hesap')}</span>
+      </div>
+      <div class="bill-dates">
+        <span>📅 Liste tarihi</span>
+        <input type="date" value="${escapeAttr(APP.billDate || '')}" ${actOn('change','setBillDate',['from','$value'])}>
+        <span>–</span>
+        <input type="date" value="${escapeAttr(APP.billDateTo || '')}" ${actOn('change','setBillDate',['to','$value'])}>
+        ${APP.billDate ? `<button type="button" class="sbtn" style="width:auto;margin:0;" ${act('setBillDate','clear','')}>✕ Üstteki tarihe dön</button><small class="muted">Bu liste kendi tarihinden besleniyor</small>` : `<small class="muted">Boşsa üstteki tarih aralığı kullanılır</small>`}
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;">
         <select id="billHourFilter" style="width:auto;margin:0;padding:8px 12px;" ${actOn('change','setReportBillsFilter',['hour','$value'])}>
@@ -1461,6 +1474,13 @@ function exportVatReportCsv(){
 }
 
 function setReportsGateScreen(s){ APP.reportsGateScreen = s; renderReportsGate(document.getElementById('main'), getSession()); }
+function setBillDate(which, v){
+  if(which === 'clear'){ APP.billDate = null; APP.billDateTo = null; }
+  else if(which === 'from'){ APP.billDate = v || null; if(APP.billDateTo && v && APP.billDateTo < v) APP.billDateTo = v; }
+  else { APP.billDateTo = v || null; if(v && !APP.billDate) APP.billDate = v; }
+  APP.reportBillsFilter = { hour:'', table:'', method:'', source:'' };
+  renderReportTabContent(getSession());
+}
 function setReportBillsFilter(k, v){ APP.reportBillsFilter[k] = v; renderReportTabContent(getSession()); }
 function resetReportBillsFilter(){ APP.reportBillsFilter = { hour:'', table:'', method:'', source:'' }; renderReportTabContent(getSession()); }
 function setProductStatsOpt(k, v){ APP[k] = v; renderProductStatsContent(getSession()); }
