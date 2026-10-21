@@ -14,6 +14,49 @@ async function loadBirthdays(){
   APP.birthdaysAt = Date.now();
   return APP.birthdays;
 }
+/* Liste en fazla 3 dk bayat tutulur; müşteri kaydı değişince sıfırlanır. */
+async function ensureBirthdays(maxAge){
+  if(!APP.birthdays || !APP.birthdaysAt || Date.now() - APP.birthdaysAt > (maxAge || 180000)) await loadBirthdays();
+  return APP.birthdays || [];
+}
+/* Siparişte doğum günü olan müşteri seçilince: kutlama penceresi (bir müşteri için günde bir kez). */
+function showCustomerBirthday(c){
+  if(!c || bdayPref('badge', '1') !== '1') return;
+  const key = 'peyk_bday_shown_' + new Date().toLocaleDateString('sv-SE');
+  let shown = []; try{ shown = JSON.parse(sessionStorage.getItem(key) || '[]'); }catch(e){}
+  if(shown.includes(c.id)) return;
+  shown.push(c.id); try{ sessionStorage.setItem(key, JSON.stringify(shown)); }catch(e){}
+  const pct = bdayDiscountPct();
+  const old = document.getElementById('bdayOne'); if(old) old.remove();
+  const ov = document.createElement('div'); ov.id = 'bdayOne'; ov.className = 'bd-bg';
+  ov.innerHTML = `<div class="bd-card bd-one">
+    <div class="bd-confetti">${Array.from({ length: 22 }, (_, i) => `<i style="--i:${i};--x:${(i * 47) % 100}%;--c:${['#f59e0b', '#ec4899', '#22c55e', '#6366f1', '#14b8a6', '#ef4444'][i % 6]};"></i>`).join('')}</div>
+    <div class="bd-one-c"><span class="bd-cake big">🎂</span><h2>Bugün ${escapeHtml(c.name)}'ın doğum günü!</h2>
+      <div class="bd-badges" style="justify-content:center;">${bdayBadges(c)}</div>
+      <p>${pct ? `Ödemede <b>%${pct} doğum günü indirimi</b> otomatik uygulanır.` : 'Küçük bir ikram ya da tatlı ile kutlamayı unutmayın.'}</p></div>
+    <div class="bd-foot"><button type="button" ${act('removeEl', 'bdayOne')}>Tamam 🎉</button></div></div>`;
+  ov.addEventListener('click', e => { if(e.target === ov) ov.remove(); });
+  document.body.appendChild(ov);
+}
+/* Siparişte müşteri seçildi/yazıldı: listeyi tazele, doğum günüyse pencere + rozet. */
+async function checkCustomerBirthday(name, phone, tableId){
+  if(bdayPref('badge', '1') !== '1') return;
+  await ensureBirthdays();
+  const c = birthdayFor(name, phone); if(!c) return;
+  showCustomerBirthday(c);
+  const w = document.getElementById('tableCustWrap');
+  if(w && tableId && typeof tableCustomerInnerHtml === 'function' && !w.querySelector('#tableCustName')) w.innerHTML = tableCustomerInnerHtml(tableId);
+}
+/* Müşteriler sayfası: bugün doğum günü olanlar şeridi. */
+function crmBirthdayStripHtml(rows){
+  if(bdayPref('badge', '1') !== '1' && bdayPref('popup', '1') !== '1') return '';
+  const t = new Date(), td = t.getMonth() * 100 + t.getDate();
+  const list = (rows || []).filter(c => { if(!c.birthday) return false; const d = new Date(c.birthday + 'T12:00'); return d.getMonth() * 100 + d.getDate() === td; });
+  if(!list.length) return '';
+  return `<div class="bd-strip"><span class="bd-cake-s">🎂</span><div class="bd-strip-t"><b>Bugün ${list.length} müşterinin doğum günü</b>
+    <div class="bd-badges">${list.map(c => `<button type="button" class="bd-b today" ${act('editCustomer', c.id)}>🎉 ${escapeHtml(c.name)}</button>`).join('')}</div></div>
+    <button type="button" class="ghost-btn" style="width:auto;margin:0;" ${act('maybeShowBirthdayCard', true)}>Kutlama kartı</button></div>`;
+}
 function bdayDiscountPct(){ const l = (APP.config && APP.config.loyalty) || {}; return l.enabled ? Number(l.birthday_discount_percent || 0) : 0; }
 function bdayBadges(c){
   const t = typeof crmTier === 'function' ? crmTier(c) : null, pct = bdayDiscountPct();
@@ -27,10 +70,12 @@ function bdayBadges(c){
 async function maybeShowBirthdayCard(force){
   if(!force && bdayPref('popup', '1') !== '1') return;
   const today = new Date().toLocaleDateString('sv-SE');
-  if(!force && bdayPref('seen', '') === today) return;
   const list = await loadBirthdays();
   if(!list.length){ if(force) showToast('Önümüzdeki günlerde doğum günü olan müşteri yok'); return; }
-  setBdayPref('seen', today);
+  // Günde bir kez; ama gün içinde yeni bir doğum günü eklenirse (ör. müşteri kaydı güncellendi) tekrar gösterilir.
+  const ids = list.filter(c => c.days === 0).map(c => c.id).sort().join(',');
+  if(!force && bdayPref('seen', '') === today + '|' + ids) return;
+  setBdayPref('seen', today + '|' + ids);
   const todays = list.filter(c => c.days === 0), soon = list.filter(c => c.days > 0);
   const old = document.getElementById('bdayCard'); if(old) old.remove();
   const ov = document.createElement('div'); ov.id = 'bdayCard'; ov.className = 'bd-bg';
