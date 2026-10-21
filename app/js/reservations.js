@@ -97,6 +97,7 @@ async function renderReservationsContent(session, forceRefresh, quiet){
     </div>
     <div id="rvHistWrap" style="margin-top:12px;"><p class="muted">Yükleniyor…</p></div>
   </div>`;
+  loadResvRecent();
   if(!APP.silentLoad) refreshNavBadges();
   await renderReservationHistory();
 }
@@ -511,7 +512,7 @@ function resvTodayVisual(todays, rows){
   const days = []; for(let i = 0; i < 7; i++){ const d = new Date(now); d.setDate(d.getDate() + i); days.push(d); }
   const key = (d) => d.toLocaleDateString('sv-SE');
   const per = days.map(d => { const rs = rows.filter(r => act_(r) && key(new Date(r.reservation_time)) === key(d)); return { d, n: rs.length, p: rs.reduce((x, r) => x + (Number(r.party_size) || 0), 0) }; });
-  if(!per.some(x => x.n) && !todays.length) return '';
+  if(!per.some(x => x.n) && !todays.length) return `<div class="rvz-grid"><div id="rvRecent"></div></div>`;
   const mxP = Math.max(1, ...per.map(x => x.p));
   const week = `<div class="fs-panel pa-sec" style="--t:var(--c2);"><h3><i>🗓️</i>Önümüzdeki 7 Gün</h3>
     <div class="rvx-bars">${per.map((x, i) => `<div class="rvx-b ${i === 0 ? 'now' : ''}" style="--i:${i};" title="${x.n} rezervasyon · ${x.p} kişi"><span>${x.p || ''}</span><i style="height:${x.p ? Math.max(8, x.p / mxP * 100) : 2}%;"></i><small>${i === 0 ? 'Bugün' : x.d.toLocaleDateString('tr-TR', { weekday: 'short' })}</small></div>`).join('')}</div>
@@ -533,7 +534,19 @@ function resvTodayVisual(todays, rows){
       ${nxt.length ? `<div class="rvz-next">${nxt.map((r, i) => { const t = new Date(r.reservation_time); return `<div class="rvz-n" style="--i:${i};"><div class="rvz-t"><b>${t.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}</b><small>${t.toLocaleDateString('tr-TR', { weekday: 'short', day: 'numeric', month: 'short' })}</small></div><div><b>${escapeHtml(r.customer_name || '')}</b><small>👥 ${r.party_size || 1} kişi${r.status === 'pending' ? ' · ⏳ onay bekliyor' : ''}</small></div></div>`; }).join('')}</div>` : '<p class="muted">Yaklaşan rezervasyon yok.</p>'}
       <p class="fs-note">Bugün rezervasyon yok.</p></div>`;
   }
-  return `<div class="rvz-grid">${today}${week}</div>`;
+  return `<div class="rvz-grid">${today}${week}<div id="rvRecent"></div></div>`;
+}
+/* Son 7 günün sonuçları (oturdu / gelmedi / iptal) — gelmeme eğilimini personel de görsün. Yetki yoksa gizli kalır. */
+async function loadResvRecent(){
+  const box = document.getElementById('rvRecent'); if(!box) return;
+  const to = new Date().toLocaleDateString('sv-SE'), from = new Date(Date.now() - 6 * 864e5).toLocaleDateString('sv-SE');
+  const { data: d, error } = await sb.rpc('reservation_report', { p_token: getSession().session_token, p_date: from, p_date_to: to });
+  const b = document.getElementById('rvRecent'); if(!b || error || !d || !d.total) { if(b) b.remove(); return; }
+  const st = d.by_status || {}, se = Number(st.seated || 0), ns = Number(st.no_show || 0), cx = Number(st.cancelled || 0), cl = se + ns + cx;
+  const ring = (v, l, c, i) => { const p = cl ? Math.round(v / cl * 100) : 0; return `<div class="gx-ring" style="--p:${p};--c:${c};--i:${i};"><div class="gx-ring-c"><b style="margin:0;">%${p}</b></div><small>${l}</small><em>${v}</em></div>`; };
+  b.outerHTML = `<div class="fs-panel pa-sec" style="--t:#22c55e;"><h3><i>📈</i>Son 7 Gün Sonuçları</h3>
+    <div class="gx-rings">${ring(se, 'Geldi', '#22c55e', 0)}${ring(ns, 'Gelmedi', '#ef4444', 1)}${ring(cx, 'İptal', '#94a3b8', 2)}</div>
+    <p class="fs-note">${d.total} rezervasyon · ${d.people} kişi${ns ? ' · gelmeyenler için 2 saat kala hatırlatma SMS\'i açık olsun' : ''}</p></div>`;
 }
 /* Bekleme listesi (operasyon): kim ne kadar süredir bekliyor, tahmini süreye göre renkli. */
 function wlVisual(rows, est){
@@ -570,8 +583,16 @@ function wlStatsHtml(d, opt){
 }
 async function loadWlToday(){
   const box = document.getElementById('wlToday'); if(!box) return;
-  const today = new Date().toLocaleDateString('sv-SE');
-  const { data } = await sb.rpc('waitlist_report', { p_token: getSession().session_token, p_date: today, p_date_to: today });
+  const tok = getSession().session_token, today = new Date().toLocaleDateString('sv-SE');
+  let { data } = await sb.rpc('waitlist_report', { p_token: tok, p_date: today, p_date_to: today });
+  let title = 'bugün', note = '';
+  // Bugün kayıt yoksa ekran boş kalmasın: son 7 günün özeti gösterilir.
+  for(const n of [7, 30]){
+    if(data && data.total) break;
+    const from = new Date(Date.now() - (n - 1) * 864e5).toLocaleDateString('sv-SE');
+    ({ data } = await sb.rpc('waitlist_report', { p_token: tok, p_date: from, p_date_to: today }));
+    title = 'son ' + n + ' gün'; note = `<p class="wl-note">📋 Bugün henüz bekleme listesine kimse eklenmedi — son ${n} günün özeti gösteriliyor.</p>`;
+  }
   const b = document.getElementById('wlToday'); if(!b) return;
-  b.innerHTML = wlStatsHtml(data, { title: 'bugün', empty: 'Bugün henüz bekleme listesine kimse eklenmedi. Sıraya eklenenler, oturtulanlar ve bekleme süreleri burada görünecek.' });
+  b.innerHTML = note + wlStatsHtml(data, { title, empty: 'Son 30 günde bekleme listesi kaydı yok. Sıraya eklenenler, oturtulanlar ve bekleme süreleri burada görünecek.' });
 }
