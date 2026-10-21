@@ -505,17 +505,34 @@ async function toggleOnlineResv(on){
 
 /* Rezervasyon ekranı (operasyon): bugün hangi saatte kaç kişi gelecek, durumlar. Geçmiş analiz Finansal Analiz'de. */
 function resvTodayVisual(todays, rows){
-  if(!todays.length && !rows.some(r => r.status === 'pending')) return '';
-  const hrs = {}; todays.forEach(r => { const h = new Date(r.reservation_time).getHours(); hrs[h] = (hrs[h] || 0) + (Number(r.party_size) || 0); });
-  const ks = Object.keys(hrs).map(Number); const lo = ks.length ? Math.min(...ks) : 12, hi = ks.length ? Math.max(...ks) : 22; const nowH = new Date().getHours();
-  const list = []; for(let h = lo; h <= hi; h++) list.push({ h, v: hrs[h] || 0 }); const mx = Math.max(1, ...list.map(x => x.v));
-  const st = (k) => todays.filter(r => r.status === k).length;
-  const segs = [{ label: '✓ Onaylı', value: st('confirmed'), color: '#22c55e' }, { label: '⏳ Bekliyor', value: st('pending'), color: '#f59e0b' }, { label: '🪑 Oturdu', value: st('seated'), color: '#6366f1' }, { label: '✕ Gelmedi/İptal', value: st('no_show') + st('cancelled'), color: '#ef4444' }].filter(x => x.value);
-  return `<div class="ch-row crm-vis">
-    <div class="fs-panel pa-sec" style="--t:var(--c1);flex:2;"><h3><i>🕒</i>Bugün Saat Saat Gelecek Kişi</h3>
-      ${todays.length ? `<div class="rvx-bars">${list.map((x, i) => `<div class="rvx-b ${x.h === nowH ? 'now' : ''} ${x.h < nowH ? 'past' : ''}" style="--i:${i};"><span>${x.v || ''}</span><i style="height:${x.v ? Math.max(8, x.v / mx * 100) : 2}%;"></i><small>${String(x.h).padStart(2, '0')}</small></div>`).join('')}</div>` : '<p class="muted">Bugün rezervasyon yok.</p>'}</div>
-    <div class="fs-panel pa-sec" style="--t:var(--c2);"><h3><i>🍩</i>Bugünün Durumu</h3>${segs.length ? svgDonut(segs, { center: String(todays.length), sub: 'rezervasyon' }) : '<p class="muted">Bugün rezervasyon yok.</p>'}</div>
-  </div>`;
+  const now = new Date(), act_ = (r) => !['cancelled', 'no_show'].includes(r.status);
+  // Önümüzdeki 7 gün: günlük kişi sayısı (iptal/gelmedi hariç)
+  const days = []; for(let i = 0; i < 7; i++){ const d = new Date(now); d.setDate(d.getDate() + i); days.push(d); }
+  const key = (d) => d.toLocaleDateString('sv-SE');
+  const per = days.map(d => { const rs = rows.filter(r => act_(r) && key(new Date(r.reservation_time)) === key(d)); return { d, n: rs.length, p: rs.reduce((x, r) => x + (Number(r.party_size) || 0), 0) }; });
+  if(!per.some(x => x.n) && !todays.length) return '';
+  const mxP = Math.max(1, ...per.map(x => x.p));
+  const week = `<div class="fs-panel pa-sec" style="--t:var(--c2);"><h3><i>🗓️</i>Önümüzdeki 7 Gün</h3>
+    <div class="rvx-bars">${per.map((x, i) => `<div class="rvx-b ${i === 0 ? 'now' : ''}" style="--i:${i};" title="${x.n} rezervasyon · ${x.p} kişi"><span>${x.p || ''}</span><i style="height:${x.p ? Math.max(8, x.p / mxP * 100) : 2}%;"></i><small>${i === 0 ? 'Bugün' : x.d.toLocaleDateString('tr-TR', { weekday: 'short' })}</small></div>`).join('')}</div>
+    <p class="fs-note">Çubuklar beklenen kişi sayısı · toplam ${per.reduce((x, y) => x + y.n, 0)} rezervasyon, ${per.reduce((x, y) => x + y.p, 0)} kişi</p></div>`;
+  let today = '';
+  if(todays.length){
+    const hrs = {}; todays.filter(act_).forEach(r => { const h = new Date(r.reservation_time).getHours(); hrs[h] = (hrs[h] || 0) + (Number(r.party_size) || 0); });
+    const ks = Object.keys(hrs).map(Number); const nowH = now.getHours();
+    const lo = ks.length ? Math.min(...ks) : nowH, hi = ks.length ? Math.max(...ks) : nowH;
+    const list = []; for(let h = lo; h <= hi; h++) list.push({ h, v: hrs[h] || 0 }); const mx = Math.max(1, ...list.map(x => x.v));
+    const st = (k) => todays.filter(r => r.status === k).length;
+    const segs = [{ label: '✓ Onaylı', value: st('confirmed'), color: '#22c55e' }, { label: '⏳ Bekliyor', value: st('pending'), color: '#f59e0b' }, { label: '🪑 Oturdu', value: st('seated'), color: '#6366f1' }, { label: '✕ Gelmedi/İptal', value: st('no_show') + st('cancelled'), color: '#ef4444' }].filter(x => x.value);
+    today = `<div class="fs-panel pa-sec" style="--t:var(--c1);"><h3><i>🕒</i>Bugün Saat Saat Gelecek Kişi</h3>
+        <div class="rvx-bars">${list.map((x, i) => `<div class="rvx-b ${x.h === nowH ? 'now' : ''} ${x.h < nowH ? 'past' : ''}" style="--i:${i};"><span>${x.v || ''}</span><i style="height:${x.v ? Math.max(8, x.v / mx * 100) : 2}%;"></i><small>${String(x.h).padStart(2, '0')}</small></div>`).join('')}</div></div>
+      <div class="fs-panel pa-sec" style="--t:var(--c4);"><h3><i>🍩</i>Bugünün Durumu</h3>${segs.length ? svgDonut(segs, { center: String(todays.length), sub: 'rezervasyon' }) : '<p class="muted">—</p>'}</div>`;
+  } else {
+    const nxt = rows.filter(r => act_(r) && new Date(r.reservation_time) >= now).sort((a, b) => new Date(a.reservation_time) - new Date(b.reservation_time)).slice(0, 4);
+    today = `<div class="fs-panel pa-sec" style="--t:var(--c1);"><h3><i>⏭️</i>Sıradaki Rezervasyonlar</h3>
+      ${nxt.length ? `<div class="rvz-next">${nxt.map((r, i) => { const t = new Date(r.reservation_time); return `<div class="rvz-n" style="--i:${i};"><div class="rvz-t"><b>${t.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}</b><small>${t.toLocaleDateString('tr-TR', { weekday: 'short', day: 'numeric', month: 'short' })}</small></div><div><b>${escapeHtml(r.customer_name || '')}</b><small>👥 ${r.party_size || 1} kişi${r.status === 'pending' ? ' · ⏳ onay bekliyor' : ''}</small></div></div>`; }).join('')}</div>` : '<p class="muted">Yaklaşan rezervasyon yok.</p>'}
+      <p class="fs-note">Bugün rezervasyon yok.</p></div>`;
+  }
+  return `<div class="rvz-grid">${today}${week}</div>`;
 }
 /* Bekleme listesi (operasyon): kim ne kadar süredir bekliyor, tahmini süreye göre renkli. */
 function wlVisual(rows, est){

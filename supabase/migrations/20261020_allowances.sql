@@ -11,3 +11,4 @@
 -- _session_check: peyk.sys_token ile sistem oturumu (yalnızca aynı işlemde). _cron_close_comp_orders + cron close_comp_orders_5s: hazır olduktan 15 sn sonra ikram/limitli hesaplar ekran açık olmasa da sunucuda kapanır.
 -- restaurants.allowance_require_pick (varsayılan true); get_allowance_settings / set_allowance_settings.
 -- restaurants.allowances_enabled (varsayılan false; limiti olan işletmelerde true yapıldı); set_allowances_enabled; set_order_allowance kapalıyken reddeder.
+-- reservation_report(p_token,p_date,p_date_to): durum, kaynak, gün/saat dağılımı, en çok gelmeyenler (Finansal Analiz > Rezervasyon Analizi).
