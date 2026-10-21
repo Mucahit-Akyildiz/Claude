@@ -223,7 +223,7 @@ async function renderWaitlistContent(session, forceRefresh, quiet){
       ['⏱', avgWait + ' dk', 'Ortalama bekleme', 'var(--c3)'],
       ['🍽️', rows.filter(hasOrder).length, 'Beklerken sipariş veren', 'var(--c4)', 'ordered'],
       ...(est ? [['🎯', est.next <= 0 ? 'Hemen' : '≈ ' + est.next + ' dk', 'Yeni gelen için tahmini', 'var(--c1)']] : [])
-    ], '', 'wl') + wlVisual(rows, est) + `<div class="box" style="max-width:none;">
+    ], '', 'wl') + wlVisual(rows, est) + '<div id="wlToday"></div>' + `<div class="box" style="max-width:none;">
     <div class="fsheet-bar" style="margin:0 0 12px;"><h2 style="margin:0;">Bekleme Listesi</h2>${sheetBtnHtml('wlSheet','+ Sıraya Ekle')}</div>
     ${sheetHtml('wlSheet', '🧍', 'Bekleme Listesine Ekle', `
       <div class="rvf-sec">
@@ -263,6 +263,7 @@ async function renderWaitlistContent(session, forceRefresh, quiet){
       </div>`).join('')}</div>`
       : `<div class="empty-state rv-empty"><div class="om-empty-ic">🧍</div><b>Sırada bekleyen yok</b><p class="muted">Masa boşalmasını bekleyen müşteriyi eklemek için <b>+ Sıraya Ekle</b>.</p></div>`}
   </div>`;
+  loadWlToday();
   el.insertAdjacentHTML('beforeend', `<div class="box" style="max-width:none;margin-top:18px;">
     <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;">
       <h2 style="margin:0;">Geçmiş</h2>
@@ -543,4 +544,34 @@ function wlVisual(rows, est){
     <div class="gx-hbars">${list.map((x, i) => { const c = x.m >= 30 ? '#ef4444' : x.m >= 15 ? '#f59e0b' : '#22c55e';
       return `<div class="gx-hb" style="--i:${i};--c:${c};"><div class="gx-hb-l"><span>${i + 1}. ${escapeHtml(x.w.customer_name || '')} · 👥 ${x.w.party_size || 1}</span><b>${x.m} dk${x.e != null ? ` <small class="muted">· kalan ≈ ${Math.max(0, x.e)} dk</small>` : ''}</b></div><div class="gx-hb-t"><i style="width:${Math.max(4, x.m / mx * 100)}%;"></i></div></div>`; }).join('')}</div>
     <p class="fs-note">🟢 15 dk altı · 🟠 15–30 dk · 🔴 30 dk üstü</p></div>`;
+}
+
+/* Bekleme listesi istatistikleri (ekranda bugün, Finansal Analiz'de seçili dönem). */
+function wlStatsHtml(d, opt){
+  opt = opt || {};
+  if(!d || !d.total) return opt.empty ? `<div class="fs-panel pa-sec" style="--t:var(--c3);margin:12px 0;"><h3><i>📋</i>${opt.title || 'Bugün'}</h3><p class="muted">${opt.empty}</p></div>` : '';
+  const done = Number(d.seated) + Number(d.left), leftP = done ? Math.round(Number(d.left) / done * 100) : 0;
+  const aw = Number(d.avg_wait || 0), aq = Number(d.avg_quoted || 0);
+  const awCol = aw >= 30 ? '#ef4444' : aw >= 15 ? '#f59e0b' : '#22c55e';
+  const fitP = Number(d.with_quote) ? Math.round(Number(d.on_time) / Number(d.with_quote) * 100) : null;
+  const hrs = d.by_hour || [], mx = Math.max(1, ...hrs.map(x => Number(x.n)));
+  const PG = { 1: '1–2 kişi', 2: '3–4 kişi', 3: '5–6 kişi', 4: '7+ kişi' }, bp = d.by_party || [], mxP = Math.max(1, ...bp.map(x => Number(x.aw || 0)));
+  return `<div class="rvz-grid wl-stats">
+    <div class="fs-panel pa-sec" style="--t:${awCol};"><h3><i>⏱</i>Ortalama Bekleme <small class="muted">· ${opt.title || 'bugün'}</small></h3>
+      <div class="lx-gauge">${svgGauge(Math.min(100, Math.round(aw / 60 * 100)), awCol, aw + ' dk', 'en uzun ' + (d.max_wait || 0) + ' dk')}</div>
+      <p class="fs-note">${aq ? `Söylenen ortalama ${aq} dk${fitP != null ? ` · tahmine uyum <b>%${fitP}</b>` : ''}` : 'Tahmini süre girilmemiş.'}</p></div>
+    <div class="fs-panel pa-sec" style="--t:var(--c2);"><h3><i>🍩</i>Sonuçlar</h3>${svgDonut([{ label: '🪑 Oturtuldu', value: Number(d.seated), color: '#22c55e' }, { label: '🚶 Ayrıldı', value: Number(d.left), color: '#ef4444' }, { label: '⏳ Bekliyor', value: Number(d.waiting), color: '#f59e0b' }].filter(x => x.value), { center: String(d.total), sub: 'grup · ' + d.people + ' kişi' })}
+      <p class="fs-note">Beklemeden ayrılma oranı: <b style="color:${leftP >= 20 ? '#ef4444' : 'inherit'}">%${leftP}</b></p></div>
+    <div class="fs-panel pa-sec" style="--t:var(--c1);"><h3><i>🕒</i>Saatlere Göre Gelen</h3>
+      ${hrs.length ? `<div class="rvx-bars">${hrs.map((x, i) => `<div class="rvx-b" style="--i:${i};" title="${x.n} grup · ${x.p} kişi${x.aw != null ? ' · ort. ' + x.aw + ' dk bekleme' : ''}"><span>${x.n}</span><i style="height:${Math.max(8, Number(x.n) / mx * 100)}%;"></i><small>${String(x.h).padStart(2, '0')}</small></div>`).join('')}</div>` : '<p class="muted">Veri yok.</p>'}</div>
+    ${opt.analytics && bp.length ? `<div class="fs-panel pa-sec" style="--t:#a78bfa;"><h3><i>👥</i>Grup Büyüklüğüne Göre Bekleme</h3><div class="gx-hbars">${bp.map((x, i) => `<div class="gx-hb" style="--i:${i};--c:#a78bfa;"><div class="gx-hb-l"><span>${PG[x.g]} · ${x.n} grup</span><b>${x.aw != null ? x.aw + ' dk' : '—'}</b></div><div class="gx-hb-t"><i style="width:${x.aw ? Math.max(4, Number(x.aw) / mxP * 100) : 0}%;"></i></div></div>`).join('')}</div>
+      <p class="fs-note">Kalabalık gruplar daha uzun bekliyorsa büyük masaları ayırmayı düşünün.</p></div>` : ''}
+  </div>`;
+}
+async function loadWlToday(){
+  const box = document.getElementById('wlToday'); if(!box) return;
+  const today = new Date().toLocaleDateString('sv-SE');
+  const { data } = await sb.rpc('waitlist_report', { p_token: getSession().session_token, p_date: today, p_date_to: today });
+  const b = document.getElementById('wlToday'); if(!b) return;
+  b.innerHTML = wlStatsHtml(data, { title: 'bugün', empty: 'Bugün henüz bekleme listesine kimse eklenmedi. Sıraya eklenenler, oturtulanlar ve bekleme süreleri burada görünecek.' });
 }
