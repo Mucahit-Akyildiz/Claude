@@ -3303,3 +3303,9 @@ button.oo-chip{cursor:pointer;} button.oo-chip:hover{border-color:var(--accent);
 .bd-inline{display:flex;gap:10px;align-items:center;padding:10px 12px;margin-bottom:8px;border-radius:14px;background:linear-gradient(120deg,color-mix(in srgb,#ec4899 18%,var(--panel2)),var(--panel2));border:1px solid color-mix(in srgb,#ec4899 45%,var(--border));animation:gxIn .4s both;}
 .bd-inline div{display:flex;flex-direction:column;} .bd-inline b{font-size:13.5px;} .bd-inline small{font-size:11.5px;color:var(--muted);}
 .bd-cake-s{font-size:26px;animation:ooBob 2s ease-in-out infinite;}
+
+.sk-wrap{display:flex;flex-direction:column;gap:12px;}
+.sk-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;}
+.sk-chip,.sk-panel{border-radius:18px;background:linear-gradient(90deg,var(--panel2) 0%,color-mix(in srgb,var(--panel2) 60%,var(--panel)) 50%,var(--panel2) 100%);background-size:200% 100%;animation:skShine 1.2s linear infinite;border:1px solid var(--border);}
+.sk-chip{height:72px;} .sk-panel{height:180px;} .sk-panel.tall{height:220px;}
+@keyframes skShine{from{background-position:200% 0;}to{background-position:-200% 0;}}
