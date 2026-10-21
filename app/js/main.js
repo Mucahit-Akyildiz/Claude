@@ -420,6 +420,8 @@ function autoRefreshCurrentView(session){
   if(APP.view==='kitchen'){ if(APP.kitchenStation) refreshKitchenItems(session); return; }
   if(APP.view==='order' || APP.view==='packages'){ refreshOrderLiveStatus(session); return; }
   if(APP.view==='messages'){ refreshMessagesView(); return; }
+  // Rezervasyon/bekleme: ekran baştan çizilmez; veri sessizce çekilir, yalnız değiştiyse güncellenir.
+  if(APP.view==='reservations'){ if(!uiBusyForAutoRefresh() && typeof renderResvTabContent === 'function') renderResvTabContent(session, true, true); return; }
   if(AUTO_REFRESH_SKIP.includes(APP.view) || uiBusyForAutoRefresh()) return;
   softRerender(session);
 }
