@@ -11800,6 +11800,36 @@ $$;
 
 
 --
+-- Name: waitlist_report(uuid, date, date); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.waitlist_report(p_token uuid, p_date date, p_date_to date) RETURNS json
+    LANGUAGE plpgsql STABLE SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+declare s staff_sessions%rowtype;
+begin
+  s := _session_check(p_token);
+  return (with w as (select id, status, joined_at, seated_at, least(greatest(coalesce(party_size,1),1),50) party_size,
+        case when quoted_wait_minutes between 0 and 240 then quoted_wait_minutes end quoted_wait_minutes
+      from waitlist_entries where restaurant_id = s.restaurant_id and _biz_date(restaurant_id, joined_at) between p_date and coalesce(p_date_to, p_date))
+    select json_build_object(
+      'total', (select count(*) from w), 'people', (select coalesce(sum(party_size),0) from w),
+      'seated', (select count(*) from w where status = 'seated'), 'left', (select count(*) from w where status in ('cancelled','left','no_show')),
+      'waiting', (select count(*) from w where status = 'waiting'),
+      'avg_wait', (select round(avg(extract(epoch from (seated_at - joined_at))/60)) from w where seated_at is not null),
+      'max_wait', (select round(max(extract(epoch from (seated_at - joined_at))/60)) from w where seated_at is not null),
+      'avg_quoted', (select round(avg(quoted_wait_minutes)) from w where quoted_wait_minutes is not null and seated_at is not null),
+      'on_time', (select count(*) from w where seated_at is not null and quoted_wait_minutes is not null and extract(epoch from (seated_at - joined_at))/60 <= quoted_wait_minutes + 5),
+      'with_quote', (select count(*) from w where seated_at is not null and quoted_wait_minutes is not null),
+      'by_hour', coalesce((select json_agg(x order by x.h) from (select extract(hour from joined_at at time zone 'Europe/Istanbul')::int h, count(*) n, sum(party_size) p,
+          round(avg(extract(epoch from (seated_at - joined_at))/60) filter (where seated_at is not null)) aw from w group by 1) x), '[]'::json),
+      'by_party', coalesce((select json_agg(x order by x.g) from (select case when party_size <= 2 then 1 when party_size <= 4 then 2 when party_size <= 6 then 3 else 4 end g, count(*) n,
+          round(avg(extract(epoch from (seated_at - joined_at))/60) filter (where seated_at is not null)) aw from w group by 1) x), '[]'::json)));
+end $$;
+
+
+--
 -- Name: platform_settings; Type: TABLE; Schema: public; Owner: -
 --
 
