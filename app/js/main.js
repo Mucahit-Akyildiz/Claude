@@ -105,6 +105,8 @@ function render(){
     startWaiterCallPolling();
     maybeShowPushPrompt(session);
     refreshShiftWidget(session);
+    // Müşteri doğum günleri: rozetler için yüklenir, açıksa günde bir kez kutlama kartı.
+    if(typeof maybeShowBirthdayCard === 'function') setTimeout(() => { maybeShowBirthdayCard(); if(!APP.birthdays) loadBirthdays(); }, 2500);
   }
   const theme = getTheme();
   const collapsed = getSidebarCollapsed();

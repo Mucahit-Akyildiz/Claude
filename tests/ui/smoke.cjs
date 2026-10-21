@@ -44,6 +44,7 @@ const assert = (c, m) => { if(!c) throw new Error(m); };
     const errors = [];
     page.on('pageerror', e => errors.push(e.message));
     await page.addInitScript(() => {
+      try{ localStorage.setItem('peyk_bday_popup', '0'); }catch(e){}
       sessionStorage.setItem('staff_session', JSON.stringify({ session_token: '0', user_id: 'u1', restaurant_id: 'r1', isManager: true, restaurant_name: 'TEST', username: 'test',
         permissions: ['order','packages','payments','kitchen','reservations','crm','reports','purchasing','purchasing_reports','settings_users','settings_ingredients','printer_settings','settings_billing'] }));
     });
