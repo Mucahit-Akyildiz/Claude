@@ -82,7 +82,7 @@ async function renderReservationsContent(session, forceRefresh, quiet){
       ['👥', todays.reduce((x, r) => x + (Number(r.party_size)||0), 0), 'Bugün beklenen kişi', 'var(--c2)', 'today'],
       ['⏳', rows.filter(r => r.status==='pending').length, 'Onay bekleyen', 'var(--c3)', 'pending'],
       ['⏭️', next ? new Date(next.reservation_time).toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'}) : '—', next ? 'Sıradaki: '+escapeHtml(next.customer_name) : 'Sıradaki yok', 'var(--c4)', next ? 'next' : '']
-    ], '', 'resv') + `${sheetHtml('rvSheet', '📅', 'Yeni Rezervasyon', rvFormHtml(), 'var(--c1)')}
+    ], '', 'resv') + resvTodayVisual(todays, rows) + `${sheetHtml('rvSheet', '📅', 'Yeni Rezervasyon', rvFormHtml(), 'var(--c1)')}
   <div class="box" style="max-width:none;">
     <div class="fsheet-bar" style="margin:0 0 12px;"><h2 style="margin:0;">Yaklaşan Rezervasyonlar</h2><div style="display:flex;gap:8px;flex-wrap:wrap;"><button type="button" class="ghost-btn" style="width:auto;margin:0;" ${act('openOnlineResvSheet')} title="Müşterilerin kendisi rezervasyon yapabileceği sayfa">🌐 Online Rezervasyon</button>${sheetBtnHtml('rvSheet','+ Yeni Rezervasyon')}</div></div>
     ${sheetHtml('onlineResvSheet', '🌐', 'Online Rezervasyon', '<div id="onlineResvBody"><p class="muted">Yükleniyor…</p></div>', 'var(--c2)')}<div data-cf-scope="resv">
@@ -223,7 +223,7 @@ async function renderWaitlistContent(session, forceRefresh, quiet){
       ['⏱', avgWait + ' dk', 'Ortalama bekleme', 'var(--c3)'],
       ['🍽️', rows.filter(hasOrder).length, 'Beklerken sipariş veren', 'var(--c4)', 'ordered'],
       ...(est ? [['🎯', est.next <= 0 ? 'Hemen' : '≈ ' + est.next + ' dk', 'Yeni gelen için tahmini', 'var(--c1)']] : [])
-    ], '', 'wl') + `<div class="box" style="max-width:none;">
+    ], '', 'wl') + wlVisual(rows, est) + `<div class="box" style="max-width:none;">
     <div class="fsheet-bar" style="margin:0 0 12px;"><h2 style="margin:0;">Bekleme Listesi</h2>${sheetBtnHtml('wlSheet','+ Sıraya Ekle')}</div>
     ${sheetHtml('wlSheet', '🧍', 'Bekleme Listesine Ekle', `
       <div class="rvf-sec">
@@ -501,4 +501,29 @@ async function toggleOnlineResv(on){
   if(error){ alert(error.message); }
   else showToast(on ? 'Online rezervasyon açıldı ✓' : 'Online rezervasyon kapatıldı');
   renderOnlineResvBody();
+}
+
+/* Rezervasyon ekranı (operasyon): bugün hangi saatte kaç kişi gelecek, durumlar. Geçmiş analiz Finansal Analiz'de. */
+function resvTodayVisual(todays, rows){
+  if(!todays.length && !rows.some(r => r.status === 'pending')) return '';
+  const hrs = {}; todays.forEach(r => { const h = new Date(r.reservation_time).getHours(); hrs[h] = (hrs[h] || 0) + (Number(r.party_size) || 0); });
+  const ks = Object.keys(hrs).map(Number); const lo = ks.length ? Math.min(...ks) : 12, hi = ks.length ? Math.max(...ks) : 22; const nowH = new Date().getHours();
+  const list = []; for(let h = lo; h <= hi; h++) list.push({ h, v: hrs[h] || 0 }); const mx = Math.max(1, ...list.map(x => x.v));
+  const st = (k) => todays.filter(r => r.status === k).length;
+  const segs = [{ label: '✓ Onaylı', value: st('confirmed'), color: '#22c55e' }, { label: '⏳ Bekliyor', value: st('pending'), color: '#f59e0b' }, { label: '🪑 Oturdu', value: st('seated'), color: '#6366f1' }, { label: '✕ Gelmedi/İptal', value: st('no_show') + st('cancelled'), color: '#ef4444' }].filter(x => x.value);
+  return `<div class="ch-row crm-vis">
+    <div class="fs-panel pa-sec" style="--t:var(--c1);flex:2;"><h3><i>🕒</i>Bugün Saat Saat Gelecek Kişi</h3>
+      ${todays.length ? `<div class="rvx-bars">${list.map((x, i) => `<div class="rvx-b ${x.h === nowH ? 'now' : ''} ${x.h < nowH ? 'past' : ''}" style="--i:${i};"><span>${x.v || ''}</span><i style="height:${x.v ? Math.max(8, x.v / mx * 100) : 2}%;"></i><small>${String(x.h).padStart(2, '0')}</small></div>`).join('')}</div>` : '<p class="muted">Bugün rezervasyon yok.</p>'}</div>
+    <div class="fs-panel pa-sec" style="--t:var(--c2);"><h3><i>🍩</i>Bugünün Durumu</h3>${segs.length ? svgDonut(segs, { center: String(todays.length), sub: 'rezervasyon' }) : '<p class="muted">Bugün rezervasyon yok.</p>'}</div>
+  </div>`;
+}
+/* Bekleme listesi (operasyon): kim ne kadar süredir bekliyor, tahmini süreye göre renkli. */
+function wlVisual(rows, est){
+  if(!rows.length) return '';
+  const now = Date.now(), list = rows.map((w, i) => ({ w, m: Math.round((now - new Date(w.joined_at).getTime()) / 60000), e: est && est.per_position ? est.per_position[i] : null }));
+  const mx = Math.max(15, ...list.map(x => x.m));
+  return `<div class="fs-panel pa-sec" style="--t:var(--c3);margin:12px 0;"><h3><i>⏱</i>Bekleme Süreleri</h3>
+    <div class="gx-hbars">${list.map((x, i) => { const c = x.m >= 30 ? '#ef4444' : x.m >= 15 ? '#f59e0b' : '#22c55e';
+      return `<div class="gx-hb" style="--i:${i};--c:${c};"><div class="gx-hb-l"><span>${i + 1}. ${escapeHtml(x.w.customer_name || '')} · 👥 ${x.w.party_size || 1}</span><b>${x.m} dk${x.e != null ? ` <small class="muted">· kalan ≈ ${Math.max(0, x.e)} dk</small>` : ''}</b></div><div class="gx-hb-t"><i style="width:${Math.max(4, x.m / mx * 100)}%;"></i></div></div>`; }).join('')}</div>
+    <p class="fs-note">🟢 15 dk altı · 🟠 15–30 dk · 🔴 30 dk üstü</p></div>`;
 }

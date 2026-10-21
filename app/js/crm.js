@@ -77,19 +77,21 @@ async function renderCrmView(main, session){
    Seviyeler Müşteriler > ⭐ Sadakat'tan düzenlenir; puan çarpanı sunucuda uygulanır. */
 const TIER_COLORS = ['var(--c1)', 'var(--c3)', 'var(--c2)', 'var(--c4)', '#a855f7', '#ef4444'];
 /* Müşteri seviyeleri halka grafiği + en çok puanı olanlar (göz atınca okunur özet). */
+/* Müşteri ekranı kayıt odaklı: bilgileri eksik müşteriler ve kayıt doluluğu. Seviye/puan analizi Finansal Analiz > Müşteri Yolculuğu'nda. */
 function crmVisualsHtml(rows){
   if(!rows.length || APP.crmSearch) return '';
-  const groups = {}; rows.forEach(c => { const t = crmTier(c); const g = groups[t.name] || (groups[t.name] = { label: t.icon + ' ' + t.name, value: 0, color: t.color, rank: t.rank }); g.value++; });
-  const segs = Object.values(groups).sort((a, b) => a.rank - b.rank);
-  const top = rows.slice().sort((a, b) => (Number(b.points_balance) || 0) - (Number(a.points_balance) || 0)).filter(c => Number(c.points_balance) > 0).slice(0, 6);
-  const mx = Math.max(1, ...top.map(c => Number(c.points_balance)));
   const withPhone = rows.filter(c => c.phone).length, withMail = rows.filter(c => c.email).length, withBd = rows.filter(c => c.birthday).length;
-  const ring = (v, l, c, i) => { const p = rows.length ? Math.round(v / rows.length * 100) : 0; return `<div class="gx-ring" style="--p:${p};--c:${c};--i:${i};"><div class="gx-ring-c"><b>%${p}</b></div><small>${l}</small><em>${v} kişi</em></div>`; };
+  const ring = (v, l, c, i) => { const p = rows.length ? Math.round(v / rows.length * 100) : 0; return `<div class="gx-ring" style="--p:${p};--c:${c};--i:${i};"><div class="gx-ring-c"><b>%${p}</b></div><small>${l}</small><em>${v} / ${rows.length}</em></div>`; };
+  const miss = rows.map(c => ({ c, m: [!c.phone && '📞 telefon', !c.birthday && '🎂 doğum günü', !c.email && '✉️ e-posta'].filter(Boolean) })).filter(x => x.m.length).sort((a, b) => b.m.length - a.m.length);
+  const recent = rows.slice().sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0)).slice(0, 5);
   return `<div class="ch-row crm-vis">
-    <div class="fs-panel pa-sec" style="--t:var(--c4);"><h3><i>🏅</i>Müşteri Seviyeleri</h3>${svgDonut(segs, { center: String(rows.length), sub: 'müşteri' })}</div>
-    <div class="fs-panel pa-sec" style="--t:var(--c3);"><h3><i>⭐</i>En Çok Puanı Olanlar</h3>${top.length ? `<div class="gx-hbars">${top.map((c, i) => `<div class="gx-hb" style="--i:${i};--c:${crmTier(c).color};"><div class="gx-hb-l"><span>${crmTier(c).icon} ${escapeHtml(c.name || '')}</span><b>${Number(c.points_balance).toLocaleString('tr-TR')} puan</b></div><div class="gx-hb-t"><i style="width:${Math.max(4, Number(c.points_balance) / mx * 100)}%;"></i></div></div>`).join('')}</div>` : '<p class="muted">Henüz puanı olan müşteri yok.</p>'}</div>
     <div class="fs-panel pa-sec" style="--t:var(--c2);"><h3><i>📇</i>Kayıt Doluluğu</h3><div class="gx-rings">${ring(withPhone, 'Telefon', '#22c55e', 0)}${ring(withMail, 'E-posta', 'var(--accent)', 1)}${ring(withBd, 'Doğum günü', '#ec4899', 2)}</div>
-      <p class="fs-note">Doğum günü girilen müşterilere otomatik indirim ve kampanya yapılabilir.</p></div>
+      <p class="fs-note">Doğum günü ve telefonu girilen müşterilere otomatik indirim ve SMS gönderilebilir.</p></div>
+    <div class="fs-panel pa-sec" style="--t:#f59e0b;"><h3><i>✍️</i>Bilgisi Eksik Müşteriler <small class="muted">· ${miss.length}</small></h3>
+      ${miss.length ? `<div class="crm-miss">${miss.slice(0, 6).map(x => `<button type="button" class="crm-miss-r" ${act('editCustomer', x.c.id)}><b>${escapeHtml(x.c.name || '')}</b><span>${x.m.map(t => `<em>${t}</em>`).join('')}</span><i>✏️</i></button>`).join('')}</div>` : '<p class="muted">Tüm müşterilerin bilgileri tam 👍</p>'}</div>
+    <div class="fs-panel pa-sec" style="--t:var(--c1);"><h3><i>🆕</i>Son Eklenenler</h3>
+      <div class="crm-miss">${recent.map(c => `<button type="button" class="crm-miss-r" ${act('editCustomer', c.id)}><b>${escapeHtml(c.name || '')}</b><span><em>${c.created_at ? new Date(c.created_at).toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' }) : ''}</em></span><i>✏️</i></button>`).join('')}</div>
+      <p class="fs-note">Seviye ve puan analizleri: Finansal Analiz › Müşteri Yolculuğu.</p></div>
   </div>`;
 }
 function crmTiers(){

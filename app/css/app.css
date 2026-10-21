@@ -3250,3 +3250,20 @@ button.oo-chip{cursor:pointer;} button.oo-chip:hover{border-color:var(--accent);
 .al-ov{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px;}
 .crm-vis .gx-ring-c b{margin-top:0;}
 .ch-row.crm-vis{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px;} .crm-vis>.fs-panel{margin:0;}
+
+.crm-miss{display:flex;flex-direction:column;gap:6px;}
+.crm-miss-r{display:flex;align-items:center;gap:8px;width:100%;margin:0;padding:8px 10px;border-radius:12px;border:1px solid var(--border);background:var(--panel2);color:var(--text);cursor:pointer;text-align:left;}
+.crm-miss-r:hover{border-color:var(--accent);} .crm-miss-r b{font-size:13px;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.crm-miss-r span{display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end;} .crm-miss-r em{font-style:normal;font-size:10.5px;padding:2px 7px;border-radius:999px;background:color-mix(in srgb,#f59e0b 16%,transparent);color:var(--muted);}
+.rvx-bars{display:flex;align-items:flex-end;gap:6px;height:150px;padding-top:16px;}
+.rvx-b{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;gap:3px;animation:gxIn .5s both;animation-delay:calc(var(--i)*50ms);}
+.rvx-b i{width:100%;max-width:38px;border-radius:8px 8px 3px 3px;background:linear-gradient(180deg,var(--c1),color-mix(in srgb,var(--c1) 35%,transparent));transform-origin:bottom;animation:rvxUp .7s ease-out both;}
+.rvx-b.past i{opacity:.4;} .rvx-b.now i{background:linear-gradient(180deg,#f59e0b,#f59e0b55);box-shadow:0 0 0 2px #f59e0b55;}
+.rvx-b span{font-size:11px;font-weight:800;} .rvx-b small{font-size:10.5px;color:var(--muted);}
+@keyframes rvxUp{from{transform:scaleY(0);}}
+
+.os-viz .gx-ring-c{flex-shrink:0;} .os-old-l{display:flex;flex-direction:column;gap:1px;min-width:0;}
+.os-old-l span{font-size:11.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;} .os-old-l span.warn{color:#f59e0b;} .os-old-l span.bad{color:#ef4444;}
+.os-old-l span b{font-size:12px !important;font-weight:700;display:inline !important;}
+.os-old-l span{display:flex;justify-content:space-between;gap:8px;font-size:11.5px;line-height:1.35;}
+.os-chip.os-viz{min-height:0;}
