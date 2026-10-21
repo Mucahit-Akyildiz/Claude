@@ -436,6 +436,7 @@ async function renderJourneyContent(session){
           <span>${x.total_visits} ziyaret</span><span>${money(x.total_spent)}</span><em>${Math.round((Date.now() - new Date(x.last_visit_at).getTime()) / 86400000)} gün önce</em></div>`).join('')}</div>
           <p class="fs-note">💡 Bu müşterilere özel bir indirim veya kampanya ile geri dönmelerini sağlayabilirsiniz.</p>` : '<p class="muted">Harika — kaybedilmek üzere olan sadık müşteri yok.</p>'}</div>
     </div>
+    <div id="anTierBox"></div>
     <div class="fs-panel pa-sec rp-panel" style="--t:#f59e0b;"><h3><i>👑</i>Bu Dönemin En Değerli Müşterileri <small class="muted">· detay için karta dokunun</small></h3>
       ${top.length ? `<div class="an-waiters">${top.map((x, i) => { const t = tier(x.points_balance);
         return `<div class="an-w an-click ${i === 0 ? 'mvp' : ''}" style="--i:${Math.min(i, 12)};" ${act('openCustomerDetail', x.id)}>
@@ -446,8 +447,22 @@ async function renderJourneyContent(session){
             <div style="grid-column:span 2;"><b title="${escapeAttr(x.top_product || '')}">❤️ ${escapeHtml(x.top_product || '—')}</b><small>en sevdiği ürün</small></div><div><b>${money(x.total_spent)}</b><small>ömür boyu</small></div></div>
           <div class="an-w-more">Detaylı kart için dokunun ›</div></div>`; }).join('')}</div>` : '<p class="muted">Bu dönemde kayıtlı müşteriye satış yok. Ödemede müşteri seçildiğinde burada görünür.</p>'}
     </div>`;
+  loadJourneyTiers(session);
 }
 
+/* Müşteri seviyeleri ve puan liderleri (tüm kayıtlı müşteriler). */
+async function loadJourneyTiers(session){
+  const { data } = await sb.rpc('list_customers', { p_token: session.session_token, p_search: null });
+  const box = document.getElementById('anTierBox'); if(!box || !(data || []).length || typeof crmTier !== 'function') return;
+  const rows = data, groups = {};
+  rows.forEach(c => { const t = crmTier(c); const g = groups[t.name] || (groups[t.name] = { label: t.icon + ' ' + t.name, value: 0, color: t.color, rank: t.rank }); g.value++; });
+  const top = rows.slice().sort((a, b) => (Number(b.points_balance) || 0) - (Number(a.points_balance) || 0)).filter(c => Number(c.points_balance) > 0).slice(0, 8), mx = Math.max(1, ...top.map(c => Number(c.points_balance)));
+  const pts = rows.reduce((x, c) => x + (Number(c.points_balance) || 0), 0);
+  box.innerHTML = `<div class="ch-row crm-vis">
+    <div class="fs-panel pa-sec" style="--t:var(--c4);"><h3><i>🏅</i>Müşteri Seviyeleri</h3>${svgDonut(Object.values(groups).sort((a, b) => a.rank - b.rank), { center: String(rows.length), sub: 'müşteri' })}</div>
+    <div class="fs-panel pa-sec" style="--t:var(--c3);flex:2;"><h3><i>⭐</i>En Çok Puanı Olanlar <small class="muted">· toplam ${pts.toLocaleString('tr-TR')} puan</small></h3>${top.length ? `<div class="gx-hbars">${top.map((c, i) => `<div class="gx-hb" style="--i:${i};--c:${crmTier(c).color};"><div class="gx-hb-l"><span>${crmTier(c).icon} ${escapeHtml(c.name || '')}</span><b>${Number(c.points_balance).toLocaleString('tr-TR')} puan</b></div><div class="gx-hb-t"><i style="width:${Math.max(4, Number(c.points_balance) / mx * 100)}%;"></i></div></div>`).join('')}</div>` : '<p class="muted">Henüz puanı olan müşteri yok.</p>'}</div>
+  </div>`;
+}
 /* ---------- Büyük detay kartları (personel / müşteri) ---------- */
 function anModal(html, accent){
   const old = document.getElementById('anModal'); if(old) old.remove();

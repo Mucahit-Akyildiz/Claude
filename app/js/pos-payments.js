@@ -195,7 +195,11 @@ function renderPayGrid(){
   const sum = orders.reduce((x, r) => x + due(r.o), 0);
   const readyN = orders.filter(r => r.o.items.filter(i => !i.paid).every(i => i.status === 'ready')).length;
   const strip = document.getElementById('paySummary');
-  if(strip) strip.innerHTML = `<div class="os-chip os-busy"><span class="os-ic">🧾</span><div><b>${orders.length}</b><small>Açık hesap</small></div></div><div class="os-chip os-ready"><span class="os-ic">✅</span><div><b>${readyN}</b><small>Hazır · ödeme bekliyor</small></div></div><div class="os-chip os-money"><span class="os-ic">💰</span><div><b>${money(sum)}</b><small>Tahsil edilecek toplam</small></div></div>`;
+  if(strip) strip.innerHTML = `<div class="os-chip os-busy"><span class="os-ic">🧾</span><div><b>${orders.length}</b><small>Açık hesap</small></div></div><div class="os-chip os-ready"><span class="os-ic">✅</span><div><b>${readyN}</b><small>Hazır · ödeme bekliyor</small></div></div><div class="os-chip os-money"><span class="os-ic">💰</span><div><b>${money(sum)}</b><small>Tahsil edilecek toplam</small></div></div>`
+    + (orders.length ? (() => { const p = Math.round(readyN / orders.length * 100);
+      const old = orders.map(r => ({ n: r.name, m: r.o.created_at ? Math.floor((Date.now() - new Date(r.o.created_at).getTime()) / 60000) : 0 })).sort((a, b) => b.m - a.m).slice(0, 3);
+      return `<div class="os-chip os-viz"><div class="gx-ring-c" style="--p:${p};--c:#22c55e;width:46px;max-width:46px;"><b style="margin:0;font-size:12px;">%${p}</b></div><div><b>${readyN}/${orders.length}</b><small>hazır oranı</small></div></div>
+        <div class="os-chip os-viz os-old"><span class="os-ic">⏳</span><div class="os-old-l">${old.map(x => `<span class="${x.m >= 60 ? 'bad' : x.m >= 30 ? 'warn' : ''}"><b>${x.n}</b> ${x.m} dk</span>`).join('')}<small>en uzun açık kalan hesaplar</small></div></div>`; })() : '');
   orders.sort((x, y) => new Date(x.o.created_at || 0) - new Date(y.o.created_at || 0));
   grid.className = 'pk-grid';
   grid.innerHTML = orders.length ? orders.map(r => card(r.o, r.name)).join('') : '<div class="kb-none">🎉 Açık hesap yok</div>';
