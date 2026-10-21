@@ -1101,6 +1101,32 @@ async function sendSaleReceipt(historyId){
    bekleme listesi — kaç kişi geldi, hangi masalar, rezervasyon saatine göre
    geliş, sipariş tutarları (bkz. get_reservation_analytics; ciro, rezervasyon
    ya da bekleme listesinden açılan masaların kapanan hesaplarından). --- */
+/* Rezervasyon görselleri: gelmeme oranı göstergesi, durum halkası, gün ve saat dağılımı, en çok gelmeyenler. */
+async function loadResvViz(){
+  const box = document.getElementById('resvViz'); if(!box) return;
+  const { data: d } = await sb.rpc('reservation_report', { p_token: getSession().session_token, p_date: APP.reportDate, p_date_to: APP.reportDateTo });
+  if(!d || !d.total || !document.getElementById('resvViz')) return;
+  const st = d.by_status || {}, ns = Number(st.no_show || 0), cx = Number(st.cancelled || 0), se = Number(st.seated || 0);
+  const closed = ns + cx + se, nsP = closed ? Math.round(ns / closed * 100) : 0;
+  const nsCol = nsP >= 20 ? '#ef4444' : nsP >= 10 ? '#f59e0b' : '#22c55e';
+  const DOW = ['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz'];
+  const dow = DOW.map((n, i) => { const x = (d.by_dow || []).find(r => r.dow === i + 1) || { n: 0, ns: 0 }; return { n, v: Number(x.n), ns: Number(x.ns) }; });
+  const mxD = Math.max(1, ...dow.map(x => x.v));
+  const hrs = d.by_hour || [], mxH = Math.max(1, ...hrs.map(x => Number(x.p)));
+  box.innerHTML = `<div class="rvz-grid">
+    <div class="fs-panel pa-sec" style="--t:${nsCol};"><h3><i>🚫</i>Gelmeme Oranı</h3>
+      <div class="lx-gauge">${svgGauge(nsP, nsCol, '%' + nsP, ns + '/' + closed + ' gelmedi')}</div>
+      <p class="fs-note">${nsP >= 20 ? '⚠️ Yüksek: hatırlatma SMS\'i ve onay araması önerilir.' : nsP >= 10 ? 'Orta seviye: 2 saat kala hatırlatma SMS\'i açık olsun.' : '👍 Gelmeme oranı düşük.'}</p></div>
+    <div class="fs-panel pa-sec" style="--t:var(--c2);"><h3><i>🍩</i>Sonuçlar</h3>${svgDonut([{ label: '🪑 Oturdu', value: se, color: '#22c55e' }, { label: '🚫 Gelmedi', value: ns, color: '#ef4444' }, { label: '✕ İptal', value: cx, color: '#94a3b8' }, { label: '⏳ Bekleyen/Onaylı', value: Number(st.pending || 0) + Number(st.confirmed || 0), color: '#f59e0b' }].filter(x => x.value), { center: String(d.total), sub: 'rezervasyon · ' + d.people + ' kişi' })}
+      <div class="rvz-src">${Object.entries(d.by_source || {}).map(([k, v]) => `<span>${k === 'online' ? '🌐 Online' : '✍️ Personel'} <b>${v}</b></span>`).join('')}</div></div>
+    <div class="fs-panel pa-sec" style="--t:var(--c1);"><h3><i>📆</i>Günlere Göre <small class="muted">· kırmızı: gelmeyen</small></h3>
+      <div class="rvx-bars">${dow.map((x, i) => `<div class="rvx-b" style="--i:${i};"><span>${x.v || ''}</span><i class="rvz-stack" style="height:${x.v ? Math.max(8, x.v / mxD * 100) : 2}%;--ns:${x.v ? Math.round(x.ns / x.v * 100) : 0}%;"></i><small>${x.n}</small></div>`).join('')}</div></div>
+    <div class="fs-panel pa-sec" style="--t:#a78bfa;"><h3><i>🕒</i>Saatlere Göre Kişi</h3>
+      ${hrs.length ? `<div class="rvx-bars">${hrs.map((x, i) => `<div class="rvx-b" style="--i:${i};"><span>${x.p}</span><i style="height:${Math.max(8, Number(x.p) / mxH * 100)}%;background:linear-gradient(180deg,#a78bfa,#a78bfa44);"></i><small>${String(x.h).padStart(2, '0')}</small></div>`).join('')}</div>` : '<p class="muted">Veri yok.</p>'}</div>
+    ${(d.no_show_people || []).length ? `<div class="fs-panel pa-sec" style="--t:#ef4444;"><h3><i>🙅</i>En Çok Gelmeyenler</h3><div class="crm-miss">${d.no_show_people.map(x => `<div class="crm-miss-r" style="cursor:default;"><b>${escapeHtml(x.name || '')}</b><span>${x.ph4 ? `<em>📞 ••• ${escapeHtml(x.ph4)}</em>` : ''}<em style="background:color-mix(in srgb,#ef4444 18%,transparent);">${x.n} kez</em></span></div>`).join('')}</div>
+      <p class="fs-note">Sık gelmeyenlerden rezervasyonda kapora ya da onay araması istenebilir.</p></div>` : ''}
+  </div>`;
+}
 async function renderReservationAnalyticsContent(session){
   const el = document.getElementById('reportContent'); if(!el) return;
   const { data, error } = await withLoadingOverlay(sb.rpc('get_reservation_analytics', { p_token: session.session_token, p_from: APP.reportDate, p_to: APP.reportDateTo }));
@@ -1109,6 +1135,7 @@ async function renderReservationAnalyticsContent(session){
   APP.resvAnFilter = null;
   drawResvAnalytics();
 }
+
 function setResvAnSub(sub){ APP.resvAnSub = sub; APP.resvAnFilter = null; drawResvAnalytics(); }
 function setResvAnFilter(key, label){
   APP.resvAnFilter = APP.resvAnFilter && APP.resvAnFilter.key===key ? null : { key, label };
@@ -1145,7 +1172,8 @@ function openResvOrderDetail(ids){
   });
   document.body.appendChild(ov);
 }
-function drawResvAnalytics(){
+function drawResvAnalytics(){ drawResvAnalyticsBase(); if((APP.resvAnSub || 'resv') === 'resv') loadResvViz(); }
+function drawResvAnalyticsBase(){
   const el = document.getElementById('reportContent'); const data = APP.resvAn; if(!el || !data) return;
   const sub = APP.resvAnSub || 'resv';
   const f = APP.resvAnFilter;
@@ -1226,7 +1254,7 @@ function drawResvAnalytics(){
   const maxH = Math.max(1, ...byHour.map(h => h.guests || 0));
   const statusTxt = { pending:'Bekliyor', confirmed:'Onaylı', seated:'✅ Geldi', cancelled:'✕ İptal', no_show:'🚫 Gelmedi' };
   const isF = (k) => f && f.key===k;
-  el.innerHTML = head + tabs + `
+  el.innerHTML = head + tabs + `<div id="resvViz"></div>
     <div class="home-grid" style="margin-top:0;margin-bottom:16px;">
       ${resvAnCard('Toplam Rezervasyon', sm.total||0, null, 'all')}
       ${resvAnCard('Gelen', (sm.seated||0) + small('(' + pct(sm.seated||0, sm.total||0) + ')'), 'var(--green)', 'seated')}
