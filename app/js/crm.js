@@ -10,6 +10,7 @@ async function renderCrmView(main, session){
   main.innerHTML = `<h1>Müşteriler</h1>
     ${statChips([['👥', rows.length, APP.crmSearch ? 'Aramada bulunan' : 'Kayıtlı müşteri', 'var(--c1)', 'all'], ['⭐', rows.reduce((x, c) => x + (Number(c.points_balance)||0), 0), 'Toplam puan', 'var(--c3)', 'pts'],
       ['🎂', bdays, '30 gün içinde doğum günü', 'var(--c2)', 'bday'], ['💎', rows.filter(c => crmTier(c).rank >= 2).length, (crmTiers()[1] ? crmTiers()[1].name : 'Altın') + ' ve üstü müşteri', 'var(--c4)', 'gold']], '', 'crm')}
+    ${typeof crmBirthdayStripHtml === 'function' ? crmBirthdayStripHtml(rows) : ''}
     ${crmVisualsHtml(rows)}
     <div class="box" style="max-width:none;">
       <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
@@ -31,7 +32,7 @@ async function renderCrmView(main, session){
           <div class="cu-pts"><b>${pts}</b><span>puan</span>${loyalty.enabled && loyalty.point_value ? `<small>≈ ${money(pts * Number(c.point_value ?? loyalty.point_value))} indirim</small>` : ''}</div>
           <div class="pcard-chips">
             ${c.email ? `<span class="pchip">${emailHtml(c.email)}</span>` : ''}
-            ${bd ? `<span class="pchip ${bd.soon?'warn':''}">🎂 ${bd.text}</span>` : ''}
+            ${bd ? (bd.days === 0 ? `<span class="pchip bd-today-chip">🎂 Bugün doğum günü! 🎉</span>` : `<span class="pchip ${bd.soon?'warn':''}">🎂 ${bd.text}</span>`) : ''}
             ${custom ? `<span class="pchip" title="${escapeAttr(customerLoyaltySummary(c))}">⭐ Özel sadakat</span>` : ''}
           </div>
           ${c.notes ? `<div class="rv-note">📝 ${escapeHtml(c.notes)}</div>` : ''}
@@ -186,6 +187,7 @@ async function saveCrmCustomer(){
   const spp = num('crm_spp'), pv = num('crm_pv'), bdp = num('crm_bdp');
   const { data: savedId, error } = await sb.rpc('upsert_customer', { p_token: session.session_token, p_id: id, p_name: name, p_phone: phone||null, p_email: email||null, p_notes: notes||null, p_birthday: birthday });
   if(error){ alert(error.message); return; }
+  APP.birthdays = null; // doğum günü listesi yeniden yüklensin
   const custId = id || savedId;
   if(custId){
     const { error: e2 } = await sb.rpc('set_customer_loyalty', { p_token: session.session_token, p_id: custId, p_spend_per_point: spp, p_point_value: pv, p_birthday_discount_percent: bdp });

@@ -1699,7 +1699,7 @@ function pickTableCustomer(i, prefix){
   if(emailEl && c.email && !emailEl.value) emailEl.value = c.email;
   document.getElementById(prefix + 'Suggest').innerHTML = '';
   if(typeof autoAllowanceForCustomer === 'function') autoAllowanceForCustomer(c.name, c.phone);
-  if(typeof birthdayFor === 'function' && birthdayFor(c.name, c.phone)) showToast('🎂 Bugün ' + c.name + '\'ın doğum günü!');
+  if(typeof checkCustomerBirthday === 'function'){ const bg = document.getElementById('tableModalBg'); checkCustomerBirthday(c.name, c.phone, bg ? bg.dataset.tableId : null); }
   if(prefix !== 'tableCust') return;
   const t = document.getElementById('tableCustName').dataset.table;
   if(t) saveTableCustomer(t, true);
@@ -1714,6 +1714,7 @@ async function saveTableCustomer(tableId, quiet){
   // Tek arama kutusuna telefon yazıldıysa telefon olarak kaydedilir.
   if(!phone && /^[\d\s+()-]{7,}$/.test(name)){ phone = name; name = ''; }
   if(typeof autoAllowanceForCustomer === 'function') autoAllowanceForCustomer(name, phone);
+  if(typeof checkCustomerBirthday === 'function' && (name || phone)) checkCustomerBirthday(name, phone, tableId);
   const o = liveOrderForTable(tableId);
   if(quiet && (o ? (o.customer_name||'') === name && (o.customer_phone||'') === phone : !name && !phone)) return;
   const session = getSession();
@@ -1736,6 +1737,8 @@ async function saveTableCustomer(tableId, quiet){
 }
 /* ---- Masa penceresi: ürün ekle, sepete at, mutfağa gönder ---- */
 function openTableModal(tableId){
+  // Masada kayıtlı müşteri varsa doğum günü kontrolü (liste tazelenir).
+  if(typeof checkCustomerBirthday === 'function') setTimeout(() => { const o = liveOrderForTable(tableId); if(o && (o.customer_name || o.customer_phone)) checkCustomerBirthday(o.customer_name, o.customer_phone, tableId); else ensureBirthdays(); }, 0);
   if(typeof refreshOrderAllowancePick === 'function') setTimeout(refreshOrderAllowancePick, 0);
   APP.prodSearch = '';
   const tableName = tableNameForId(tableId);
