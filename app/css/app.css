@@ -3317,3 +3317,6 @@ button.oo-chip{cursor:pointer;} button.oo-chip:hover{border-color:var(--accent);
 .bd-strip .bd-b{cursor:pointer;margin:0;width:auto;}
 .pchip.bd-today-chip{background:linear-gradient(90deg,#ec4899,#f59e0b) !important;color:#fff !important;border:none !important;font-weight:800;animation:bdPulse 1.6s ease-in-out infinite;}
 @keyframes bdPulse{50%{box-shadow:0 0 0 6px color-mix(in srgb,#ec4899 25%,transparent);}}
+
+.tc-cust.tc-bday{display:inline-flex;gap:4px;align-items:center;padding:2px 8px;border-radius:999px;background:linear-gradient(90deg,#ec4899,#f59e0b);color:#fff !important;font-weight:700;animation:bdPulse 1.6s ease-in-out infinite;}
+.tc-cust.tc-bday b{font-size:10.5px;}

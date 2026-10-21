@@ -114,7 +114,7 @@ function birthdaySettingsHtml(){
   return `<div class="box ix-box" style="max-width:none;">
     <h2>🎂 Müşteri Doğum Günü Uyarıları</h2>
     ${sw('popup', '1', 'Günlük kutlama kartı', 'Uygulama açılınca günde bir kez, o gün doğum günü olan müşterileri rozetleriyle (yaş, seviye, indirim) gösterir.')}
-    ${sw('badge', '1', 'Sipariş penceresinde rozet', 'Seçilen müşterinin bugün doğum günüyse sipariş penceresinde 🎂 rozeti ve indirim hatırlatması çıkar.')}
+    ${sw('badge', '1', 'Masa ve sipariş rozetleri', 'Doğum günü olan müşterinin masasında 🎂 rozeti; siparişte seçilince kutlama penceresi ve indirim hatırlatması.')}
     <div class="ix-sec"><div class="ix-st">Yaklaşan doğum günlerini de göster</div>
       <div class="ix-tiles">${[['0', '🎂', 'Sadece bugün', ''], ['3', '📅', '3 gün', 'önceden'], ['7', '🗓️', '7 gün', 'önceden']].map(([v, ic, n, d]) => `<button type="button" class="ix-tile ${String(bdayAheadDays()) === v ? 'on' : ''}" ${act('setBdayAhead', v)} data-v="${v}"><span>${ic}</span><b>${n}</b><small>${d}</small></button>`).join('')}</div></div>
     <button type="button" class="sbtn" style="width:auto;margin-top:12px;" ${act('maybeShowBirthdayCard', true)}>🎉 Şimdi göster</button>
