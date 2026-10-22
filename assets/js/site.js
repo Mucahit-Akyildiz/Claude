@@ -116,17 +116,21 @@
         ${a.description ? `<p>${escapeHtml(a.description)}</p>` : ''}
         <button type="button" class="u-addbtn btn ${inCart?'btn-primary':'btn-outline'} add-btn" ${act('toggleCartAddon', a.id)}>${inCart?'✓ Sepette':'+ Sepete Ekle'}</button>
       </div>`;
-    }).join('') + COMING_SOON_ADDONS.map(a => `<div class="u-dim addon-card">
-        <div class="top"><h4>${escapeHtml(a.label)}</h4><span class="price"><small class="u-soon-tag">Yakında</small></span></div>
+    }).join('') + OWN_ACCOUNT_ADDONS.map(a => `<div class="addon-card own-acc">
+        <div class="top"><h4>${a.ic} ${escapeHtml(a.label)}</h4><span class="price"><small class="u-own-tag">${a.ready ? 'Ücretsiz' : 'Kendi hesabınızla'}</small></span></div>
         <p>${escapeHtml(a.description)}</p>
-        <button type="button" class="u-addbtn btn btn-outline add-btn" disabled>🕒 Yakında</button>
+        <div class="u-own-note">${a.ready ? '🔑 Kendi API anahtarınızla bağlanır · tüm paketlerde' : '🔑 Kendi entegratör / platform hesabınızla bağlanır · ' + escapeHtml(a.note)}</div>
       </div>`).join('');
   }
-  // Geliştirme aşamasındaki entegrasyonlar: satın alınamaz, sadece "Yakında" olarak gösterilir.
-  const COMING_SOON_ADDONS = [
-    { label: 'e-Fatura / e-Arşiv Entegrasyonu', description: 'Ödeme alındığında resmi e-Arşiv / e-Fatura belgesinin otomatik kesilip müşteriye gönderilmesi.' },
-    { label: 'Pazaryeri Entegrasyonu', description: 'Yemeksepeti, Trendyol Yemek ve Getir Yemek siparişlerini tek ekrandan almak.' },
-    { label: 'Muhasebe Entegrasyonu', description: 'Logo, Mikro, Netsis gibi muhasebe yazılımlarına satışların otomatik aktarılması.' },
+  // Kendi hesabınızla bağlanan entegrasyonlar: işletme kendi firma hesabının API bilgilerini girer.
+  // ready=false olanlarda bağlantı bilgileri kaydedilir, otomatik aktarım ayrıca devreye alınır.
+  const OWN_ACCOUNT_ADDONS = [
+    { ic: '📱', ready: true, label: 'SMS (kendi hesabınız)', description: 'NetGSM, İleti Merkezi, Verimor, VatanSMS veya HTTP API sunan herhangi bir firma; müşteri SMS\'leri kendi başlığınızla gider.' },
+    { ic: '✉️', ready: true, label: 'E-posta (kendi alan adınız)', description: 'Resend, Brevo, SendGrid veya Postmark hesabınızla fiş, fatura ve rezervasyon e-postaları kendi adresinizden gider.' },
+    { ic: '💳', ready: true, label: 'Online Ödeme (iyzico)', description: 'Online siparişte kartla ödeme; para doğrudan kendi iyzico hesabınıza geçer.' },
+    { ic: '🧾', ready: false, note: 'otomatik kesim için bizimle iletişime geçin', label: 'e-Fatura / e-Arşiv', description: 'Foriba, İzibiz, Logo veya Nesbilgi gibi entegratörünüzün bilgilerini girin; ödeme sonrası belge kesimi.' },
+    { ic: '🛍️', ready: false, note: 'platform onayı sonrası etkinleştirilir', label: 'Pazaryeri', description: 'Yemeksepeti, Trendyol Yemek ve Getir Yemek hesaplarınızı bağlayın, siparişleri tek ekrandan yönetin.' },
+    { ic: '📊', ready: false, note: 'yazılım firması onayı sonrası etkinleştirilir', label: 'Muhasebe', description: 'Logo, Mikro veya Netsis hesabınızı bağlayın; satış ve KDV kırılımları aktarılsın.' },
   ];
   function renderPricingGrid(){
     const grid = document.getElementById('pricingGrid');
