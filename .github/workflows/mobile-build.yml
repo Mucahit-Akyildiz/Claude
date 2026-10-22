@@ -104,3 +104,27 @@ jobs:
         with:
           name: peyktan-android-aab
           path: mobile/android/app/build/outputs/bundle/release/app-release.aab
+
+  # Ana dala birleşmede imzalı AAB sabit adla "android" sürümüne yüklenir;
+  # Play Console'a yüklemek için doğrudan indirme bağlantısı: releases/download/android/Peyktan.aab
+  publish-aab:
+    if: github.event_name != 'pull_request'
+    needs: [build-android-apk]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: peyktan-android-aab
+          path: dl
+      - name: Android sürümünü güncelle (android etiketi)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          cp dl/app-release.aab Peyktan.aab
+          if ! gh release view android >/dev/null 2>&1; then
+            gh release create android --title "Peyktan Android (Play Store paketi)" --notes "Play Console'a yüklenecek imzalı AAB. Her birleşmede güncellenir." --latest=false
+          fi
+          gh release upload android Peyktan.aab --clobber
