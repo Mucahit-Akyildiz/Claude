@@ -6066,7 +6066,7 @@ begin
   v_end := ((coalesce(p_to, p_from) + 1)::timestamp at time zone 'Europe/Istanbul');
   return (
     with rv as (
-      select r.*, t.name table_name,
+      select r.*, t.name table_name, (select username from app_users where id = r.created_by) created_by_name,
         case when r.seated_at is not null then round(extract(epoch from (r.seated_at - r.reservation_time))/60) end arrival_diff,
         (select coalesce(sum(sh.total),0) from sales_history sh join orders o on o.id = sh.order_id where o.reservation_id = r.id) revenue,
         (select count(*) from sales_history sh join orders o on o.id = sh.order_id where o.reservation_id = r.id) bills,
@@ -6074,7 +6074,7 @@ begin
       from reservations r left join restaurant_tables t on t.id = r.table_id
       where r.restaurant_id = s.restaurant_id and r.reservation_time >= v_start and r.reservation_time < v_end
     ), wl as (
-      select w.*, t.name table_name,
+      select w.*, t.name table_name, (select username from app_users where id = w.created_by) created_by_name,
         round(extract(epoch from (coalesce(w.seated_at, w.left_at) - w.joined_at))/60) waited,
         (select coalesce(sum(sh.total),0) from sales_history sh join orders o on o.id = sh.order_id where o.waitlist_id = w.id) revenue,
         (select coalesce(json_agg(json_build_object('id', sh.id, 'total', sh.total, 'closed_at', sh.closed_at) order by sh.closed_at), '[]'::json) from sales_history sh join orders o on o.id = sh.order_id where o.waitlist_id = w.id) history_ids
@@ -6105,10 +6105,10 @@ begin
         select coalesce(table_name, '—') table_name, count(*) c, sum(party_size) g, sum(revenue) rev from rv where status = 'seated' group by 1) x),
       'rows', (select coalesce(json_agg(json_build_object('id', id, 'customer_name', customer_name, 'phone', phone, 'party_size', party_size,
           'reservation_time', reservation_time, 'seated_at', seated_at, 'status', status, 'table_name', table_name, 'arrival_diff', arrival_diff,
-          'revenue', revenue, 'bills', bills, 'history_ids', history_ids, 'notes', notes) order by reservation_time), '[]'::json) from rv),
+          'revenue', revenue, 'bills', bills, 'history_ids', history_ids, 'notes', notes, 'source', source, 'created_by_name', created_by_name) order by reservation_time), '[]'::json) from rv),
       'waitlist_rows', (select coalesce(json_agg(json_build_object('id', id, 'customer_name', customer_name, 'phone', phone, 'party_size', party_size,
           'joined_at', joined_at, 'seated_at', seated_at, 'left_at', left_at, 'status', status, 'table_name', table_name,
-          'quoted', quoted_wait_minutes, 'waited', waited, 'revenue', revenue, 'history_ids', history_ids) order by joined_at), '[]'::json) from wl),
+          'quoted', quoted_wait_minutes, 'waited', waited, 'revenue', revenue, 'history_ids', history_ids, 'created_by_name', created_by_name) order by joined_at), '[]'::json) from wl),
       'waitlist', (select json_build_object(
         'total', count(*), 'seated', count(*) filter (where status = 'seated'), 'left', count(*) filter (where status = 'cancelled'),
         'waiting', count(*) filter (where status = 'waiting'),
@@ -12933,7 +12933,8 @@ CREATE TABLE public.reservations (
     closed_at timestamp with time zone,
     email text,
     staff_reminder_sent_at timestamp with time zone,
-    source text
+    source text,
+    created_by uuid DEFAULT (NULLIF(current_setting('peyk.uid'::text, true), ''::text))::uuid
 );
 
 
@@ -13278,7 +13279,8 @@ CREATE TABLE public.waitlist_entries (
     table_id uuid,
     left_at timestamp with time zone,
     email text,
-    reminder_stage integer DEFAULT 0 NOT NULL
+    reminder_stage integer DEFAULT 0 NOT NULL,
+    created_by uuid DEFAULT (NULLIF(current_setting('peyk.uid'::text, true), ''::text))::uuid
 );
 
 
