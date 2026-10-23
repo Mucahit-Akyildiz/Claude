@@ -220,7 +220,7 @@ function radioBusyBy(){
   const me = getSession();
   return RADIO.floor && me && RADIO.floor.u !== me.user_id ? RADIO.floor : null;
 }
-const RADIO_BUILD = 'r12';
+const RADIO_BUILD = 'r13';
 function radioLog(msg){ try{ if(typeof reportClientError === 'function') reportClientError('radio', msg + ' | ' + RADIO_BUILD, 'radio.js'); }catch(e){} }
 async function radioStartTalk(){
   if(RADIO.talking) return;
@@ -267,6 +267,17 @@ async function radioStartTalk(){
     }, 900);
   }, 700);
 }
+/* Mikrofon açık ama tamamen sessizse (Windows'ta ses işleme/özel mod kaynaklı) işlemesiz ham ayarla yeniden aç. */
+async function radioRawRetry(){
+  RADIO.diag.raw = true;
+  radioLog('bas: sessiz, işlemesiz yeniden açılıyor ' + radioTrackInfo());
+  const c = { echoCancellation:false, noiseSuppression:false, autoGainControl:false };
+  let id = ''; try{ id = localStorage.getItem(RADIO_MIC_KEY) || ''; }catch(e){}
+  if(id) c.deviceId = { exact: id };
+  radioDetachCapture(); RADIO.src = null; releaseSharedMic(); RADIO.mic = null;
+  try{ RADIO.mic = await getSharedMic(c); }catch(e){ try{ RADIO.mic = await radioOpenMic(); }catch(e2){ radioStopTalk(true); return; } }
+  if(RADIO.talking){ const d = RADIO.diag; await radioAttachCapture(RADIO.capCtx, true); if(RADIO.diag) RADIO.diag.raw = true; }
+}
 function radioTrackInfo(){ const t = RADIO.mic && RADIO.mic.getAudioTracks()[0]; return t ? `[${t.readyState}${t.muted ? ' muted' : ''}${t.enabled ? '' : ' disabled'} ${String(t.label || '').slice(0, 40)}]` : '[iz yok]'; }
 function radioDetachCapture(){
   if(RADIO.proc){ try{ RADIO.src.disconnect(RADIO.proc); RADIO.proc.disconnect(); }catch(e){} RADIO.proc = null; }
@@ -296,7 +307,7 @@ async function radioAttachCapture(ctx, retry){
       RADIO.buf.push(muLawEncode(v));
     }
     pos -= inp.length;
-    if(RADIO.buf.length >= 1600){ RADIO.diag.lvl = RADIO.diag.cur || 0; RADIO.diag.cur = 0; radioFlush(); drawRadioDock(); } // ~200 ms'lik parça (saniyede ~5 mesaj)
+    if(RADIO.buf.length >= 1600){ RADIO.diag.lvl = RADIO.diag.cur || 0; RADIO.diag.cur = 0; radioFlush(); drawRadioDock(); if(RADIO.diag.chunks === 6 && RADIO.diag.peak < 0.003 && !RADIO.diag.raw) radioRawRetry(); } // ~200 ms'lik parça (saniyede ~5 mesaj)
   };
   RADIO.src.connect(proc); proc.connect(ctx.destination); // bazı tarayıcılar çıkışa bağlanmadan işlemiyor (çıkış sessiz)
   RADIO.proc = proc;
@@ -395,7 +406,7 @@ function radioReportSend(lost){
   const lvl = d.peak < 0.01 ? 'sessiz' : d.peak < 0.05 ? 'düşük' : 'iyi';
   if(st === 'ok' && d.peak >= 0.01) return; // yalnızca sorunlu (ya da tamamen sessiz) gönderimler kaydedilir
   if(st === 'ok' && d.chunks >= 3) radioFlash('🔇 Mikrofondan ses gelmedi — kulaklığın mikrofonu kapalı (mute) olabilir');
-  reportClientError('radio', RADIO_BUILD + ' gönder: ' + st + (d.frames ? ' ses=' + lvl : '') + (d.retried ? ' yeniden-kuruldu' : '') + (d.reopened ? ' mik-yeniden' : '') + ' ' + radioTrackInfo() + ' | ctx=' + (RADIO.capCtx ? RADIO.capCtx.state + '/' + RADIO.capCtx.sampleRate : '-') + ' rt=' + (RADIO.status || 'bağlı'), 'radio.js');
+  reportClientError('radio', RADIO_BUILD + ' gönder: ' + st + (d.frames ? ' ses=' + lvl : '') + (d.retried ? ' yeniden-kuruldu' : '') + (d.reopened ? ' mik-yeniden' : '') + (d.raw ? ' ham' : '') + ' ' + radioTrackInfo() + ' | ctx=' + (RADIO.capCtx ? RADIO.capCtx.state + '/' + RADIO.capCtx.sampleRate : '-') + ' rt=' + (RADIO.status || 'bağlı'), 'radio.js');
 }
 function radioReportRecv(){
   const r = RADIO.rx; RADIO.rx = null;
