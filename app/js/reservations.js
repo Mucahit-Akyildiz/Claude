@@ -96,7 +96,7 @@ async function renderReservationsContent(session, forceRefresh, quiet){
       <div class="rv-time"><b>${t.toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'})}</b><span class="rv-pill">${RESV_STATUS_LABELS[r.status]||r.status}</span></div>
       <div class="rv-main">
         <div class="rv-who">${avatarHtml(r.customer_name)}<div><b>${escapeHtml(r.customer_name)}</b><small>${r.phone ? phoneHtml(r.phone) : 'telefon yok'}</small></div></div>
-        <div class="rv-meta"><span class="pchip">👥 ${r.party_size} kişi</span><span class="pchip">🪑 ${escapeHtml(r.table_name||'Masa seçilmedi')}</span>${r.source==='online' ? '<span class="pchip rv-online" title="Müşteri online rezervasyon sayfasından gönderdi">🌐 Online</span>' : ''}${late ? '<span class="pchip warn">⏰ saati geçti</span>' : ''}${soon ? `<span class="pchip rv-soon">⏳ ${mins} dk kaldı</span>` : ''}</div>
+        <div class="rv-meta"><span class="pchip">👥 ${r.party_size} kişi</span><span class="pchip">🪑 ${escapeHtml(r.table_name||'Masa seçilmedi')}</span>${r.source==='online' ? '<span class="pchip rv-online" title="Müşteri online rezervasyon sayfasından gönderdi">🌐 Online</span>' : ''}${r.created_by_name ? `<span class="pchip by-chip" title="Kaydı oluşturan">✍️ ${escapeHtml(r.created_by_name)}</span>` : (r.source==='online' ? '' : '')}${late ? '<span class="pchip warn">⏰ saati geçti</span>' : ''}${soon ? `<span class="pchip rv-soon">⏳ ${mins} dk kaldı</span>` : ''}</div>
         ${r.notes ? `<div class="rv-note">📝 ${escapeHtml(r.notes)}</div>` : ''}
       </div>
       <div class="rv-acts">
@@ -150,7 +150,7 @@ async function renderReservationHistory(){
         const result = r.status==='seated' ? `✅ Oturdu${r.seated_at ? ' · ' + hm(r.seated_at) : ''}` : r.status==='cancelled' ? `✕ İptal${r.closed_at ? ' · ' + hm(r.closed_at) : ''}` : '🚫 Gelmedi';
         return `<div class="rh-card rh-${st}" style="--i:${Math.min(i,12)};">
           <div class="rh-top">${avatarHtml(r.customer_name)}<div class="rh-who"><b>${escapeHtml(r.customer_name)}</b><small>${r.phone ? phoneHtml(r.phone) : 'telefon yok'}</small></div><span class="rh-res">${result}</span></div>
-          <div class="rv-meta"><span class="pchip">🕒 ${hm(r.reservation_time)}</span><span class="pchip">👥 ${r.party_size} kişi</span><span class="pchip">🪑 ${r.table_name ? escapeHtml(r.table_name) : '—'}</span>${diffTxt}</div>
+          <div class="rv-meta"><span class="pchip">🕒 ${hm(r.reservation_time)}</span><span class="pchip">👥 ${r.party_size} kişi</span><span class="pchip">🪑 ${r.table_name ? escapeHtml(r.table_name) : '—'}</span>${r.created_by_name ? `<span class="pchip by-chip" title="Kaydı oluşturan">✍️ ${escapeHtml(r.created_by_name)}</span>` : (r.source==='online' ? '' : '')}${diffTxt}</div>
           ${r.email ? `<div class="rh-note">${emailHtml(r.email)}</div>` : ''}${r.notes ? `<div class="rh-note">📝 ${escapeHtml(r.notes)}</div>` : ''}
           <button type="button" class="pc-btn rh-undo" title="Yaklaşan rezervasyonlara geri al" ${act('changeReservationStatus', r.id, 'confirmed')}>↩ Geri Al</button>
         </div>`;
@@ -280,7 +280,7 @@ async function renderWaitlistContent(session, forceRefresh, quiet){
         <div class="wl-no">${i+1}</div>
         <div class="rv-who">${avatarHtml(w.customer_name)}<div><b>${escapeHtml(w.customer_name)}</b><small>${w.phone ? phoneHtml(w.phone) : ''}${w.email ? ' ' + emailHtml(w.email) : ''}</small></div></div>
         <div class="wl-info">
-          <span class="pchip">👥 ${w.party_size} kişi</span>
+          <span class="pchip">👥 ${w.party_size} kişi</span>${w.created_by_name ? `<span class="pchip by-chip" title="Kaydı oluşturan">✍️ ${escapeHtml(w.created_by_name)}</span>` : (w.source==='online' ? '' : '')}
           <span class="pchip">🕐 ${new Date(w.joined_at).toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'})} katıldı</span>
           ${w.quoted_wait_minutes!=null ? `<span class="pchip">🎯 ${new Date(new Date(w.joined_at).getTime() + w.quoted_wait_minutes*60000).toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'})} tahmini</span>` : ''}
           ${estFor(i) != null ? `<span class="pchip" title="Boş masalar ve masaların ortalama kalış süresine göre">🤖 ${estTxt(estFor(i))}</span>` : ''}
@@ -330,7 +330,7 @@ async function renderWaitlistHistory(){
         const ok = r.status==='seated';
         return `<div class="rh-card rh-${ok?'ok':'bad'}" style="--i:${Math.min(i,12)};">
           <div class="rh-top">${avatarHtml(r.customer_name)}<div class="rh-who"><b>${escapeHtml(r.customer_name)}</b><small>${r.phone ? phoneHtml(r.phone) : 'telefon yok'}</small></div><span class="rh-res">${ok ? '✅ Oturdu · ' + hm(r.seated_at) : '✕ Ayrıldı · ' + hm(r.left_at)}</span></div>
-          <div class="rv-meta"><span class="pchip">🕒 ${hm(r.joined_at)} katıldı</span><span class="pchip">👥 ${r.party_size} kişi</span><span class="pchip">🪑 ${r.table_name ? escapeHtml(r.table_name) : '—'}</span><span class="pchip">⏳ ${waited} dk${q!=null ? ' (tahmin ' + q + ')' : ''}</span>${diffTxt}</div>
+          <div class="rv-meta"><span class="pchip">🕒 ${hm(r.joined_at)} katıldı</span><span class="pchip">👥 ${r.party_size} kişi</span><span class="pchip">🪑 ${r.table_name ? escapeHtml(r.table_name) : '—'}</span><span class="pchip">⏳ ${waited} dk${q!=null ? ' (tahmin ' + q + ')' : ''}</span>${r.created_by_name ? `<span class="pchip by-chip" title="Kaydı oluşturan">✍️ ${escapeHtml(r.created_by_name)}</span>` : (r.source==='online' ? '' : '')}${diffTxt}</div>
         </div>`;
       }).join('')}</div>`;
 }

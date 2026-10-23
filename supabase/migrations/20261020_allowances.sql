@@ -14,3 +14,4 @@
 -- reservation_report(p_token,p_date,p_date_to): durum, kaynak, gün/saat dağılımı, en çok gelmeyenler (Finansal Analiz > Rezervasyon Analizi).
 -- waitlist_report(p_token,p_date,p_date_to): bekleme süresi, sonuçlar, saat ve grup büyüklüğü dağılımı.
 -- customer_birthdays(p_token, p_days): bugün ve önümüzdeki N gün doğum günü olan müşteriler (yaş, puan, ziyaret).
+-- reservations/waitlist_entries.created_by (varsayılan peyk.uid); list_* ve get_reservation_analytics created_by_name döndürür.
