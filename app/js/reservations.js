@@ -588,7 +588,7 @@ function wlVisual(rows, est){
   const mx = Math.max(15, ...list.map(x => x.m));
   return `<div class="fs-panel pa-sec" style="--t:var(--c3);margin:12px 0;"><h3><i>⏱</i>Bekleme Süreleri</h3>
     <div class="gx-hbars">${list.map((x, i) => { const c = x.m >= 30 ? '#ef4444' : x.m >= 15 ? '#f59e0b' : '#22c55e';
-      return `<div class="gx-hb" style="--i:${i};--c:${c};"><div class="gx-hb-l"><span>${i + 1}. ${escapeHtml(x.w.customer_name || '')} · 👥 ${x.w.party_size || 1}</span><b>${x.m} dk${x.e != null ? ` <small class="muted">· kalan ≈ ${Math.max(0, x.e)} dk</small>` : ''}</b></div><div class="gx-hb-t"><i style="width:${Math.max(4, x.m / mx * 100)}%;"></i></div></div>`; }).join('')}</div>
+      return `<div class="gx-hb" style="--i:${i};--c:${c};"><div class="gx-hb-l"><span>${i + 1}. ${escapeHtml(x.w.customer_name || '')} · 👥 ${x.w.party_size || 1}</span><b>⏳ ${x.m} dk bekliyor${x.e != null ? ` <small class="muted">· 🪑 masa ${x.e <= 0 ? 'hazır' : '≈ ' + x.e + ' dk sonra'}</small>` : ''}</b></div><div class="gx-hb-t"><i style="width:${Math.max(4, x.m / mx * 100)}%;"></i></div></div>`; }).join('')}</div>
     <p class="fs-note">🟢 15 dk altı · 🟠 15–30 dk · 🔴 30 dk üstü</p></div>`;
 }
 
