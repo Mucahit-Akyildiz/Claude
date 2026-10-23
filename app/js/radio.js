@@ -220,7 +220,7 @@ function radioBusyBy(){
   const me = getSession();
   return RADIO.floor && me && RADIO.floor.u !== me.user_id ? RADIO.floor : null;
 }
-const RADIO_BUILD = 'r10';
+const RADIO_BUILD = 'r11';
 function radioLog(msg){ try{ if(typeof reportClientError === 'function') reportClientError('radio', msg + ' | ' + RADIO_BUILD, 'radio.js'); }catch(e){} }
 async function radioStartTalk(){
   if(RADIO.talking) return;
@@ -257,8 +257,17 @@ async function radioStartTalk(){
     try{ RADIO.capCtx.close(); }catch(e){}
     RADIO.capCtx = new (window.AudioContext || window.webkitAudioContext)();
     if(RADIO.talking) await radioAttachCapture(RADIO.capCtx, true);
+    // Hâlâ kare yoksa mikrofon akışı bayat/sessiz olabilir (Windows'ta cihaz değişince): sıfırdan aç.
+    setTimeout(async () => {
+      if(!RADIO.talking || !RADIO.diag || RADIO.diag.frames) return;
+      radioLog('bas: hâlâ kare yok, mikrofon yeniden açılıyor ' + radioTrackInfo());
+      radioDetachCapture(); RADIO.src = null; releaseSharedMic(); RADIO.mic = null;
+      try{ RADIO.mic = await radioOpenMic(); }catch(e){ radioStopTalk(true); alert(chatMediaErrorText(e, 'Mikrofon')); return; }
+      if(RADIO.talking){ RADIO.diag.reopened = true; await radioAttachCapture(RADIO.capCtx, true); }
+    }, 900);
   }, 700);
 }
+function radioTrackInfo(){ const t = RADIO.mic && RADIO.mic.getAudioTracks()[0]; return t ? `[${t.readyState}${t.muted ? ' muted' : ''}${t.enabled ? '' : ' disabled'} ${String(t.label || '').slice(0, 40)}]` : '[iz yok]'; }
 function radioDetachCapture(){
   if(RADIO.proc){ try{ RADIO.src.disconnect(RADIO.proc); RADIO.proc.disconnect(); }catch(e){} RADIO.proc = null; }
 }
@@ -303,7 +312,7 @@ function radioFlush(){
 }
 function radioStopTalk(lost){
   if(!RADIO.talking) return;
-  RADIO.talking = false;
+  RADIO.talking = false; RADIO.latched = false;
   if(RADIO.proc && !lost) radioFlush();
   radioDetachCapture();
   RADIO.buf = [];
@@ -385,7 +394,7 @@ function radioReportSend(lost){
   const st = !d.frames ? 'FAIL mikrofon karesi yok' : !d.chunks ? 'FAIL parça gönderilmedi' : d.errs ? 'FAIL gönderim hatası ' + d.lastErr : 'ok';
   const lvl = d.peak < 0.01 ? 'sessiz' : d.peak < 0.05 ? 'düşük' : 'iyi';
   if(st === 'ok') return; // yalnızca sorunlu gönderimler kaydedilir
-  reportClientError('radio', RADIO_BUILD + ' gönder: ' + st + (d.frames ? ' ses=' + lvl : '') + (d.retried ? ' yeniden-kuruldu' : '') + ' | ctx=' + (RADIO.capCtx ? RADIO.capCtx.state + '/' + RADIO.capCtx.sampleRate : '-') + ' rt=' + (RADIO.status || 'bağlı'), 'radio.js');
+  reportClientError('radio', RADIO_BUILD + ' gönder: ' + st + (d.frames ? ' ses=' + lvl : '') + (d.retried ? ' yeniden-kuruldu' : '') + (d.reopened ? ' mik-yeniden' : '') + ' ' + radioTrackInfo() + ' | ctx=' + (RADIO.capCtx ? RADIO.capCtx.state + '/' + RADIO.capCtx.sampleRate : '-') + ' rt=' + (RADIO.status || 'bağlı'), 'radio.js');
 }
 function radioReportRecv(){
   const r = RADIO.rx; RADIO.rx = null;
@@ -453,9 +462,15 @@ function drawRadioDock(){
     dock.querySelector('#radioMicBtn').onclick = () => openRadioMicPicker();
     dock.querySelector('#radioReplayBtn').onclick = () => radioReplayLast();
     const b = dock.querySelector('#radioPtt');
-    let held = false;
-    const down = (e) => { e.preventDefault(); if(held) return; held = true; try{ b.setPointerCapture(e.pointerId); }catch(_){} radioStartTalk(); };
-    const up = (e) => { if(!held) return; e.preventDefault(); held = false; radioStopTalk(); };
+    // Basılı tut = konuş, bırak = bitir. Kısa tıklama (bilgisayarda alışkanlık) konuşmayı açık bırakır;
+    // tekrar tıklayınca biter.
+    let held = false, downAt = 0;
+    const down = (e) => { e.preventDefault(); if(held) return;
+      if(RADIO.latched){ RADIO.latched = false; radioStopTalk(); return; }
+      held = true; downAt = Date.now(); try{ b.setPointerCapture(e.pointerId); }catch(_){} radioStartTalk(); };
+    const up = (e) => { if(!held) return; e.preventDefault(); held = false;
+      if(e.type === 'pointerup' && Date.now() - downAt < 400 && RADIO.talking){ RADIO.latched = true; drawRadioDock(); radioFlash('🎙️ Konuşuyor — bitirmek için tekrar tıklayın'); return; }
+      radioStopTalk(); };
     b.addEventListener('pointerdown', down);
     b.addEventListener('pointerup', up); b.addEventListener('pointercancel', up); b.addEventListener('lostpointercapture', up);
     b.addEventListener('contextmenu', e => e.preventDefault());
@@ -475,7 +490,7 @@ function drawRadioDock(){
     const lv = RADIO.diag.lvl || 0, bars = lv < 0.01 ? 0 : lv < 0.03 ? 1 : lv < 0.08 ? 2 : lv < 0.2 ? 3 : 4;
     ln.textContent = '📤 ' + RADIO.diag.chunks + ' parça · mikrofon ' + (bars ? '▮'.repeat(bars) + '▯'.repeat(4 - bars) : '🔇 ses yok') + (RADIO.diag.frames ? '' : ' (bekleniyor)');
   }
-  b.textContent = RADIO.talking ? '🎙️ Konuşuyor…' : busy ? '🔒 Meşgul' : '🎙️ Bas-Konuş';
+  b.textContent = RADIO.talking ? (RADIO.latched ? '⏹ Bitir' : '🎙️ Konuşuyor…') : busy ? '🔒 Meşgul' : '🎙️ Bas-Konuş';
   b.style.background = RADIO.talking ? '#dc2626' : busy ? 'var(--border)' : '';
   b.style.borderColor = RADIO.talking ? '#dc2626' : busy ? 'var(--border)' : '';
   b.style.color = RADIO.talking ? '#fff' : busy ? 'var(--muted)' : '';
@@ -492,7 +507,7 @@ function radioIsTyping(e){ const t = e.target; return t && (t.isContentEditable 
 let RADIO_KEY_HELD = false;
 document.addEventListener('keydown', e => { if(e.code==='Space' && RADIO.channel && !radioIsTyping(e)){ e.preventDefault(); if(e.repeat || RADIO_KEY_HELD) return; RADIO_KEY_HELD = true; radioStartTalk(); } });
 document.addEventListener('keyup', e => { if(e.code==='Space' && RADIO_KEY_HELD){ e.preventDefault(); RADIO_KEY_HELD = false; radioStopTalk(); } });
-window.addEventListener('blur', () => { RADIO_KEY_HELD = false; radioStopTalk(); });
+window.addEventListener('blur', () => { if(!RADIO_KEY_HELD) return; RADIO_KEY_HELD = false; radioStopTalk(); });
 // Tarayıcı ses iznini ilk dokunuşta/tuşta açar (yenileme sonrası otomatik bağlantı için).
 ['pointerdown','keydown','touchstart'].forEach(ev => document.addEventListener(ev, () => {
   if(RADIO.channel && (!RADIO.ctx || RADIO.ctx.state !== 'running')){ const c = radioAudioCtx(); c.resume().then(() => { RADIO.missed = false; drawRadioDock(); }).catch(()=>{}); }
