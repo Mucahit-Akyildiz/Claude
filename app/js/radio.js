@@ -220,7 +220,7 @@ function radioBusyBy(){
   const me = getSession();
   return RADIO.floor && me && RADIO.floor.u !== me.user_id ? RADIO.floor : null;
 }
-const RADIO_BUILD = 'r11';
+const RADIO_BUILD = 'r12';
 function radioLog(msg){ try{ if(typeof reportClientError === 'function') reportClientError('radio', msg + ' | ' + RADIO_BUILD, 'radio.js'); }catch(e){} }
 async function radioStartTalk(){
   if(RADIO.talking) return;
@@ -393,7 +393,8 @@ function radioReportSend(lost){
   const ctx = RADIO.ctx;
   const st = !d.frames ? 'FAIL mikrofon karesi yok' : !d.chunks ? 'FAIL parça gönderilmedi' : d.errs ? 'FAIL gönderim hatası ' + d.lastErr : 'ok';
   const lvl = d.peak < 0.01 ? 'sessiz' : d.peak < 0.05 ? 'düşük' : 'iyi';
-  if(st === 'ok') return; // yalnızca sorunlu gönderimler kaydedilir
+  if(st === 'ok' && d.peak >= 0.01) return; // yalnızca sorunlu (ya da tamamen sessiz) gönderimler kaydedilir
+  if(st === 'ok' && d.chunks >= 3) radioFlash('🔇 Mikrofondan ses gelmedi — kulaklığın mikrofonu kapalı (mute) olabilir');
   reportClientError('radio', RADIO_BUILD + ' gönder: ' + st + (d.frames ? ' ses=' + lvl : '') + (d.retried ? ' yeniden-kuruldu' : '') + (d.reopened ? ' mik-yeniden' : '') + ' ' + radioTrackInfo() + ' | ctx=' + (RADIO.capCtx ? RADIO.capCtx.state + '/' + RADIO.capCtx.sampleRate : '-') + ' rt=' + (RADIO.status || 'bağlı'), 'radio.js');
 }
 function radioReportRecv(){
