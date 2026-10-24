@@ -192,7 +192,12 @@ function renderIngredientsSettings(el, session){
   const maxStock = Math.max(1, ...ings.map(i => Number(i.stock)||0));
   const f = APP.ingFilter || 'all';
   const isLow = (i) => Number(i.min_stock) > 0 && Number(i.stock) <= Number(i.min_stock);
-  const shownIngs = f==='low' ? ings.filter(isLow) : f==='out' ? ings.filter(i => Number(i.stock)<=0) : f==='idle' ? ings.filter(i => !useCount(i.id)) : f==='waste' ? ings.filter(i => Number(i.waste_pct)>0) : ings;
+  const ingSort = APP.ingSort || 'name';
+  const shownIngs0 = f==='low' ? ings.filter(isLow) : f==='out' ? ings.filter(i => Number(i.stock)<=0) : f==='idle' ? ings.filter(i => !useCount(i.id)) : f==='waste' ? ings.filter(i => Number(i.waste_pct)>0) : ings;
+  const stRank = (i) => Number(i.stock)<=0 ? 0 : isLow(i) ? 1 : useCount(i.id) ? 2 : 3;
+  const shownIngs = shownIngs0.slice().sort((a, b) => { const c = String(a.name).localeCompare(String(b.name), 'tr', { numeric: true });
+    return ingSort==='za' ? -c : ingSort==='stock' ? (Number(a.stock)-Number(b.stock)) || c : ingSort==='stockd' ? (Number(b.stock)-Number(a.stock)) || c
+      : ingSort==='uses' ? (useCount(b.id)-useCount(a.id)) || c : ingSort==='status' ? (stRank(a)-stRank(b)) || c : ingSort==='unit' ? String(a.unit).localeCompare(String(b.unit)) || c : c; });
   const chip = (k, ic, v, l, c) => `<div class="os-chip os-click ${f===k?'on':''}" role="button" title="Listeyi filtrele" style="--oc:${c};" ${act('setIngFilter', k)}><span class="os-ic">${ic}</span><div><b>${v}</b><small>${l}</small></div></div>`;
   el.innerHTML = `<div class="order-summary stat-chips" style="--n:5;">${chip('all','🥕', ings.length, 'Hammadde', 'var(--c1)')}${chip('low','📉', ings.filter(isLow).length, 'Kritik stok', 'var(--c3)')}${chip('out','⛔', ings.filter(i => Number(i.stock)<=0).length, 'Stoğu biten', 'var(--danger,#ef4444)')}${chip('idle','💤', ings.filter(i => !useCount(i.id)).length, 'Reçetede kullanılmayan', 'var(--c3)')}${chip('waste','✂️', ings.filter(i => Number(i.waste_pct)>0).length, 'Fire tanımlı', 'var(--c2)')}</div>
   <div class="box" style="max-width:none;">
@@ -201,6 +206,7 @@ function renderIngredientsSettings(el, session){
     <div class="add-row-panel">
       <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:0 0 10px;">
         ${listSearchHtml('ingredients', 'Hammadde ara…').replace('margin:0 0 12px;','margin:0;')}
+        <select class="ig-sort" title="Sırala" ${actOn('change','setIngSort',['$value'])}>${[['name','A → Z'],['za','Z → A'],['status','Duruma göre (biten önce)'],['stock','Stok: azdan çoğa'],['stockd','Stok: çoktan aza'],['uses','En çok üründe kullanılan'],['unit','Birime göre']].map(([k,l]) => `<option value="${k}" ${ingSort===k?'selected':''}>↕ ${l}</option>`).join('')}</select>
         <span style="flex:1;"></span>
         <div class="act-row">
           <button type="button" class="act-btn act-save" id="ingSaveAllBtn" ${act('saveAllIngredients')} disabled>${ICON_SAVE}<span>Kaydet</span></button>
@@ -245,6 +251,7 @@ function markIngDirty(e){
   tr.dataset.dirty = '1'; tr.classList.add('is-dirty');
   updateIngSelection();
 }
+function setIngSort(v){ APP.ingSort = v; renderSettingsContent(getSession()); }
 function setIngFilter(k){ APP.ingFilter = APP.ingFilter===k ? 'all' : k; renderSettingsContent(getSession()); }
 function selectedIngredientIds(){ return [...document.querySelectorAll('.ing-sel:checked')].map(b => b.value); }
 function selectAllIngredients(on){
@@ -1244,6 +1251,7 @@ function renderProductsSettings(el, session){
         <span class="pchip ${low?'warn':''}">${rec ? '📋 '+(q==null?'?':q)+' porsiyon' : (q==null ? '∞ Stok sınırsız' : '📦 '+q+' stok')}</span>
         ${p.category ? `<span class="pchip">${escapeHtml(p.category)}</span>` : ''}
         ${p.print_ticket===false ? '<span class="pchip">🖨️ fiş yok</span>' : ''}
+        ${!(Number(p.cost) > 0) ? `<span class="pchip warn" title="Maliyet girilmedi">⚠️ Maliyet yok</span>` : ''}
         ${p.vat_rate!=null ? `<span class="pchip">KDV %${p.vat_rate}</span>` : ''}
       </div>
       <div class="pcard-acts">
@@ -1279,7 +1287,7 @@ function renderProductsSettings(el, session){
   const isLow = (p) => { const q = p.recipe && p.recipe.length ? p.available_qty : p.stock; return q!=null && q<=5; };
   const lowMN = products.filter(p => Number(p.price)>0 && mOf(p) < .35).length;
   const shown = pf==='on' ? products.filter(p => p.available!==false) : pf==='off' ? products.filter(p => p.available===false)
-    : pf==='low' ? products.filter(isLow) : pf==='lowmargin' ? products.filter(p => Number(p.price)>0 && mOf(p) < .35) : products;
+    : pf==='nocost' ? products.filter(p => !(Number(p.cost) > 0)) : pf==='low' ? products.filter(isLow) : pf==='lowmargin' ? products.filter(p => Number(p.price)>0 && mOf(p) < .35) : products;
   const lowN = products.filter(p => { const q = p.recipe && p.recipe.length ? p.available_qty : p.stock; return q!=null && q<=5; }).length;
   el.innerHTML = `<div class="box" style="max-width:none;">
     <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;"><h2 style="margin:0;">Ürünler</h2><span style="flex:1;"></span>
@@ -1290,8 +1298,10 @@ function renderProductsSettings(el, session){
       <div class="os-chip os-click ${pf==='off'?'on':''}" role="button" title="Listeyi filtrele" ${act('setProdFilter', 'off')} style="--oc:var(--danger,#ef4444);"><span class="os-ic">⛔</span><div><b>${products.length-sale}</b><small>Kapalı</small></div></div>
       <div class="os-chip os-click ${pf==='lowmargin'?'on':''}" role="button" title="Listeyi filtrele" ${act('setProdFilter', 'lowmargin')} style="--oc:var(--c2);"><span class="os-ic">📈</span><div><b>${lowMN}</b><small>Düşük marj (ort. %${avgM})</small></div></div>
       <div class="os-chip os-click ${pf==='low'?'on':''}" role="button" title="Listeyi filtrele" ${act('setProdFilter', 'low')} style="--oc:var(--c3);"><span class="os-ic">⚠️</span><div><b>${lowN}</b><small>Stok azalan</small></div></div>
+      <div class="os-chip os-click ${pf==='nocost'?'on':''}" role="button" title="Listeyi filtrele" ${act('setProdFilter', 'nocost')} style="--oc:#ef4444;"><span class="os-ic">💸</span><div><b>${products.filter(p => !(Number(p.cost) > 0)).length}</b><small>Maliyet girilmemiş</small></div></div>
     </div>
-    ${pf!=='all' ? `<div class="pf-note">🔎 <b>${{on:'Satıştaki',off:'Kapalı',low:'Stoğu azalan',lowmargin:'Düşük marjlı'}[pf]} ürünler</b> gösteriliyor (${shown.length})<button type="button" class="pc-btn" ${act('setProdFilter', 'all')}>✕ Tümünü göster</button></div>` : ''}
+    <label class="nc-toggle"><input type="checkbox" ${APP.config.close_no_cost !== false ? 'checked' : ''} ${actOn('change','toggleCloseNoCost',['$checked'])}> 💸 Maliyeti girilmemiş ürünler satışa <b>kapalı</b> gelsin <small class="muted">(istediğiniz ürünü yine "Satışa Aç" ile açabilirsiniz)</small></label>
+    ${pf!=='all' ? `<div class="pf-note">🔎 <b>${{on:'Satıştaki',off:'Kapalı',low:'Stoğu azalan',lowmargin:'Düşük marjlı',nocost:'Maliyeti girilmemiş'}[pf]} ürünler</b> gösteriliyor (${shown.length})<button type="button" class="pc-btn" ${act('setProdFilter', 'all')}>✕ Tümünü göster</button></div>` : ''}
     ${pf!=='all' && !shown.length ? '<div class="empty-state"><div style="font-size:38px;">🎉</div><p class="muted">Bu filtrede ürün yok.</p></div>' : ''}
     <details class="prod-info"><summary>ℹ️ Nasıl çalışır · Varsayılan KDV: %${APP.config.default_vat_rate ?? 10}</summary>
     <p class="muted" style="text-align:left;margin:-6px 0 12px;font-size:13px;"><b>Menü</b>: ürünün menüsü (menüleri ve hangi istasyona gideceklerini <b>Menüler & İstasyonlar</b> sekmesinde ayarlayın); ürünün istasyonu menüden gelir. <b>🖨️ Fiş</b> işareti kaldırılan ürünler mutfak fişine yazdırılmaz (ekranda yine görünür).</p>
@@ -1445,6 +1455,7 @@ async function saveProdDrawer(){
   });
   if(errors.length){ alert('Kaydedilemedi:\n\n' + errors.join('\n')); return; }
   closeProdDrawer(); showToast(name + ' kaydedildi ✓');
+  if(!(parseFloat(v('cost') ? v('cost').value : 0) > 0)) setTimeout(() => noCostWarn(name, 0), 900);
 }
 function selectedProductIds(){ return [...document.querySelectorAll('.prod-sel:checked')].map(b => b.value); }
 function selectProdGroup(box){
@@ -1569,6 +1580,17 @@ async function addProduct(){
   NEW_PRODUCT_RECIPE_DRAFT = [];
   closeSheet('prodSheet');
   renderSettingsView(document.getElementById('main'), session);
+  noCostWarn(name, cost);
+}
+/* Maliyeti girilmemiş ürün: ayar açıksa sunucu ürünü satışa kapatır; kullanıcı uyarılır (elle açılabilir). */
+function noCostWarn(name, cost){
+  if(Number(cost) > 0) return;
+  showToast(APP.config.close_no_cost !== false ? `⚠️ ${name}: maliyet girilmedi — ürün satışa kapalı geldi. Maliyeti girin ya da "Satışa Aç" ile açın.` : `⚠️ ${name}: maliyet girilmedi — kâr analizleri yanıltıcı olur.`, 7000);
+}
+async function toggleCloseNoCost(on){
+  const { error } = await sb.rpc('set_close_no_cost', { p_token: getSession().session_token, p_on: on });
+  if(error){ alert(error.message); return; }
+  APP.config.close_no_cost = on; showToast(on ? 'Maliyeti girilmemiş yeni ürünler satışa kapalı gelecek' : 'Maliyet kontrolü kapatıldı');
 }
 
 /* --- Kullanıcılar --- */
