@@ -1647,9 +1647,11 @@ function toggleOrderFlag(pseudoId, label, checked){
   if(!APP.orderFlagSelections) APP.orderFlagSelections = {};
   if(!APP.orderFlagSelections[pseudoId]) APP.orderFlagSelections[pseudoId] = [];
   const sel = APP.orderFlagSelections[pseudoId];
-  const idx = sel.indexOf(label);
-  if(checked && idx===-1) sel.push(label);
-  else if(!checked && idx!==-1) sel.splice(idx,1);
+  // Tek etiket: yenisi seçilince diğerleri kaldırılır.
+  if(checked){
+    sel.splice(0, sel.length, label);
+    document.querySelectorAll('.of-chip input[type=checkbox]').forEach(cb => { if(cb.dataset.label !== label) cb.checked = false; });
+  } else { const idx = sel.indexOf(label); if(idx!==-1) sel.splice(idx,1); }
 }
 
 /* Masadaki müşteri bilgisi: rezervasyondan gelir ya da elle girilir
