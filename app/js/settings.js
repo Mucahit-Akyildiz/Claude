@@ -2591,6 +2591,16 @@ async function saveMarketplaceSettings(){
 
 /* ---- Abonelik / Aylık Ödeme (Ayarlar > Kullanıcılar üstünde) ---- */
 function renderSubscriptionPanel(lic){
+  if(!lic.expires_at){
+    // Süresiz lisans (platform yöneticisi bitiş tarihi koymamış): ödeme istenmez.
+    const used = APP.config.users.length, max = lic.max_users || 1, up = Math.min(100, Math.round(used/max*100));
+    return `<div class="sub-hero" style="--hc:var(--green);">
+      <div class="sub-ring"><svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="42" class="trk"/><circle cx="50" cy="50" r="42" class="val" style="stroke-dasharray:264;stroke-dashoffset:0;"/></svg><div><b>∞</b><small>süresiz</small></div></div>
+      <div class="sub-info"><small class="muted">Mevcut paket</small><h3>${escapeHtml(lic.package_id)}</h3>
+        <div class="sub-status">✅ Süresiz lisans — ödeme gerekmez.</div>
+        <div class="sub-users"><div class="pcard-mbar"><i style="width:${up}%;background:${up>=90?'var(--c3)':'var(--c1)'};"></i></div><small>👥 ${used} / ${max} kullanıcı</small></div></div>
+    </div>`;
+  }
   const expires = new Date(lic.expires_at);
   const daysLeft = Math.ceil((expires - new Date()) / (24*60*60*1000));
   const expired = daysLeft <= 0;
@@ -2671,7 +2681,7 @@ function renderBillingSettings(el, session){
   if(isNativeApp()){
     el.innerHTML = `<div class="box" style="max-width:none;">
       <h2>💳 Abonelik</h2>
-      ${lic ? `<p>Paket: <b>${escapeHtml(lic.package_id)}</b> · Bitiş: <b>${new Date(lic.expires_at).toLocaleDateString('tr-TR')}</b></p>` : ''}
+      ${lic ? `<p>Paket: <b>${escapeHtml(lic.package_id)}</b> · Bitiş: <b>${lic.expires_at ? new Date(lic.expires_at).toLocaleDateString('tr-TR') : 'Süresiz'}</b></p>` : ''}
       <p class="muted">Abonelik işlemleri bu uygulama üzerinden yapılamaz; lütfen bir bilgisayar veya tarayıcıdan hesabınıza giriş yapın.</p>
     </div>`;
     return;
@@ -2998,6 +3008,7 @@ function auditVal(k, v){
   if(k === 'status') return AUDIT_STATUS[v] || String(v);
   if(k === 'price' || k === 'cost') return money(Number(v));
   if(k === 'vat_rate' || k === 'default_vat_rate' || k === 'birthday_discount_percent') return '%' + v;
+  if(k === 'expires_at' && !v) return 'Süresiz';
   if(k === 'support_access_until' || k === 'expires_at') return new Date(v).toLocaleString('tr-TR', { dateStyle:'short', timeStyle:'short' });
   if(k === 'role_ids' && Array.isArray(v)) return v.map(id => ((APP.config && APP.config.roles || []).find(r => r.id === id) || {}).name || 'silinmiş rol').join(', ') || '—';
   if(Array.isArray(v)) return v.length + ' öğe';

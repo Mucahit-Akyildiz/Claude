@@ -74,6 +74,7 @@ async function renderCockpitContent(session){
     <div class="an-kpis">
       ${anKpi('💰', 'Ciro', money(k.revenue), `${k.checks} hesap`, anDelta(k.revenue, p.revenue), 'period', 'var(--c1)')}
       ${anKpi('🧾', 'Ortalama hesap', money(avg), `ort. ${k.avg_min || 0} dk oturma`, anDelta(avg, pavg), 'tablemap', 'var(--c2)')}
+      ${anKpi('🧾', 'Kapatılan hesap', k.checks || 0, anN(k.guests) ? `👥 ${k.guests} kişi · kişi başı ${money(anN(k.guest_rev) / anN(k.guests))}` : 'kişi sayısı henüz girilmedi', anDelta(k.checks, p.checks), 'tablemap', 'var(--c3)')}
       ${anKpi('📈', 'Brüt kâr', money(profit), k.revenue ? 'marj %' + Math.round(profit / k.revenue * 100) : '', '', 'menueng', '#22c55e')}
       ${anKpi('💸', 'Bahşiş', money(k.tips), '', anDelta(k.tips, p.tips), 'tips', '#f59e0b')}
       ${anKpi('🏷️', 'İndirim', money(k.discount), '', anDelta(k.discount, p.discount, true), 'zreport', '#a855f7')}
@@ -199,14 +200,24 @@ async function renderTableMapContent(session){
   const zones = (APP.config.zones || []);
   const best = rows.slice().sort((a, b) => anN(b.rev) - anN(a.rev))[0];
   const slow = rows.filter(r => anN(r.mins)).sort((a, b) => anN(b.mins) - anN(a.mins))[0];
-  anSetExport('masa-haritasi', ['Masa', 'Ciro', 'Hesap', 'Ort. oturma (dk)'], rows.map(r => [r.table_name, r.rev, r.n, r.mins || '']));
+  anSetExport('masa-haritasi', ['Masa', 'Ciro', 'Hesap', 'Kişi', 'Kişi başı', 'Ort. oturma (dk)'], rows.map(r => [r.table_name, r.rev, r.n, anN(r.g) || '', anN(r.g) ? (anN(r.grev) / anN(r.g)).toFixed(2) : '', r.mins || '']));
+  const k = d.kpi || {}, totChecks = anN(k.checks), totG = anN(k.guests), perG = totG ? anN(k.guest_rev) / totG : 0;
+  const dineChecks = rows.reduce((t, r) => t + anN(r.n), 0), gChecks = rows.reduce((t, r) => t + (anN(r.g) ? anN(r.n) : 0), 0), dineG = rows.reduce((t, r) => t + anN(r.g), 0);
+  const daily = d.daily || [];
+  const dl = (x) => new Date(x.d + 'T12:00:00').toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' });
+  const totalsHtml = `<div class="fs-panel pa-sec rp-panel" style="--t:var(--c3);"><h3><i>🧾</i>Genel Toplamlar</h3>
+      <div class="gt-tiles">${[['🧾', 'Kapatılan hesap', totChecks, 'tüm kanallar'], ['🪑', 'Masa hesabı', dineChecks, rows.length + ' masa'], ['👥', 'Toplam kişi', totG || '—', totG ? 'kişi girilen hesaplar' : 'Sipariş Al ekranından girilir'],
+        ['💳', 'Kişi başı harcama', totG ? money(perG) : '—', dineG && gChecks ? 'masada ort. ' + (dineG / gChecks).toFixed(1) + ' kişi' : '']]
+        .map(([i, l, v, sub], n) => `<div class="gt-tile" style="--i:${n};"><span>${i}</span><b>${v}</b><small>${l}${sub ? ' · ' + sub : ''}</small></div>`).join('')}</div>
+      ${daily.length > 1 ? `<div class="gt-two"><div><h4>Günlük kapatılan hesap</h4>${svgBarChart(daily.map(x => ({ label: dl(x), value: anN(x.n), display: anN(x.n) + ' hesap' })), { title: 'Günlük hesap', height: 170 })}</div>
+        <div><h4>Günlük kişi sayısı</h4>${daily.some(x => anN(x.g)) ? svgBarChart(daily.map(x => ({ label: dl(x), value: anN(x.g), display: anN(x.g) + ' kişi' })), { title: 'Günlük kişi', height: 170 }) : '<p class="muted">Kişi sayısı girildikçe burada görünecek.</p>'}</div></div>` : ''}</div>`;
   el.innerHTML = statChips([['🪑', rows.length, 'Kullanılan masa', 'var(--c1)'], ['🏆', best ? escapeHtml(best.table_name) : '—', best ? 'En kazançlı · ' + money(best.rev) : 'En kazançlı', '#22c55e'],
       ['⏱', (d.kpi && d.kpi.avg_min || 0) + ' dk', 'Ortalama oturma', 'var(--c2)'], ['🐢', slow ? escapeHtml(slow.table_name) : '—', slow ? 'En uzun oturma · ' + slow.mins + ' dk' : 'En uzun oturma', '#f59e0b']]) +
-    `<div class="an-heatleg"><span>Az</span><i></i><span>Çok ciro</span></div>` +
+    totalsHtml + `<div class="an-heatleg"><span>Az</span><i></i><span>Çok ciro</span></div>` +
     zones.map(z => `<div class="fs-panel pa-sec rp-panel" style="--t:var(--c2);"><h3><i>📍</i>${escapeHtml(z.name)}</h3><div class="an-tmap">${z.tables.slice().sort((a, b) => String(a.name).localeCompare(String(b.name), 'tr', { numeric: true })).map(t => {
       const r = find(t.name), v = r ? anN(r.rev) / maxR : 0;
-      return `<div class="an-tile ${r ? '' : 'idle'}" style="--h:${v.toFixed(3)};" title="${escapeAttr(t.name)}${r ? ' · ' + money(r.rev) + ' · ' + r.n + ' hesap' : ' · satış yok'}">
-        <b>${escapeHtml(t.name)}</b>${r ? `<span>${shortMoney(r.rev)} ₺</span><small>${r.n} hesap${r.mins ? ' · ' + r.mins + ' dk' : ''}</small>` : '<small>satış yok</small>'}</div>`; }).join('')}</div></div>`).join('');
+      return `<div class="an-tile ${r ? '' : 'idle'}" style="--h:${v.toFixed(3)};" title="${escapeAttr(t.name)}${r ? ' · ' + money(r.rev) + ' · ' + r.n + ' hesap' + (anN(r.g) ? ' · ' + r.g + ' kişi · kişi başı ' + money(anN(r.grev) / anN(r.g)) : '') : ' · satış yok'}">
+        <b>${escapeHtml(t.name)}</b>${r ? `<span>${shortMoney(r.rev)} ₺</span><small>${r.n} hesap${anN(r.g) ? ' · 👥 ' + r.g : ''}${r.mins ? ' · ' + r.mins + ' dk' : ''}</small>` : '<small>satış yok</small>'}</div>`; }).join('')}</div></div>`).join('');
 }
 
 /* ---------- 🔥 YOĞUNLUK (Gün × Saat) ---------- */

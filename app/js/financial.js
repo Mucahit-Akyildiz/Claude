@@ -314,6 +314,7 @@ async function renderReportContent(session){
   const isComp = (o) => o.tags && o.tags.length>0 && (!o.payment_method || o.payment_method === 'comp');
   const untaggedHist = hist.filter(o => !isComp(o));
   const taggedHist = hist.filter(isComp);
+  APP.fsHist = hist;
 
   let totalRevenue=0, totalCost=0, totalCash=0, totalCard=0, totalGiftCard=0, totalDiscount=0, discountedCount=0, taggedTotal=0, totalTip=0, totalBirthdayDiscount=0, birthdayCount=0, totalPoints=0, pointsCount=0;
   const hourStats = {};
@@ -461,10 +462,10 @@ async function renderReportContent(session){
       </div>
       <div class="fs-panel" style="--t:#a78bfa;"><h3><i>🍽️</i>Servis</h3><div id="serviceMetrics"><p class="muted" style="font-size:13px;">Yükleniyor…</p></div></div>
       <div class="fs-panel" style="--t:#f59e0b;"><h3><i>🏷️</i>İndirim, Puan ve İkram</h3>
-        ${(() => { const it = [['🏷️','İndirim',totalDiscount,discountedCount,'#f59e0b'],['⭐','Puanla ödeme',totalPoints,pointsCount,'#eab308'],['🎂','Doğum günü',totalBirthdayDiscount,birthdayCount,'#ec4899'],['🍱','Personel / ikram',taggedTotal,taggedHist.length,'#14b8a6']];
+        ${(() => { const it = [['🏷️','İndirim',totalDiscount,discountedCount,'#f59e0b','discount'],['⭐','Puanla ödeme',totalPoints,pointsCount,'#eab308','points'],['🎂','Doğum günü',totalBirthdayDiscount,birthdayCount,'#ec4899','birthday'],['🍱','Personel / ikram',taggedTotal,taggedHist.length,'#14b8a6','comp']];
           const mx = Math.max(1, ...it.map(x => x[2]));
-          return `<div class="gx-hbars">${it.map(([ic, l, v, n, c], i) => `<div class="gx-hb" style="--i:${i};--c:${c};"><div class="gx-hb-l"><span>${ic} ${l}</span><b>${money(v)}</b></div>
-            <div class="gx-hb-t"><i style="width:${v ? Math.max(4, v / mx * 100) : 0}%;"></i></div><small>${n} hesap</small></div>`).join('')}</div>`; })()}
+          return `<div class="gx-hbars">${it.map(([ic, l, v, n, c, k], i) => `<div class="gx-hb" style="--i:${i};--c:${c};"><div class="gx-hb-l"><span>${ic} ${l}</span><b>${money(v)}</b></div>
+            <div class="gx-hb-t"><i style="width:${v ? Math.max(4, v / mx * 100) : 0}%;"></i></div>${n ? `<button type="button" class="fs-billlink" ${act('openFsBillList', k)}>${n} hesap · gör ›</button>` : '<small>0 hesap</small>'}</div>`).join('')}</div>`; })()}
         <p class="fs-note">Personel / ikram hesapları ciroya dahil değildir.</p>
       </div>
     </div>
@@ -1689,4 +1690,26 @@ function dcxAnimate(){
     });
     plot.addEventListener('mouseleave', () => tip.classList.remove('on'));
   }
+}
+
+/* Genel Özet › İndirim, Puan ve İkram: "N hesap"a tıklayınca o hesapların masa listesi. */
+function openFsBillList(kind){
+  const T = { discount: ['🏷️ İndirimli hesaplar', o => !isComp(o) && Number(o.discount_amount) > 0, o => o.discount_amount],
+    points: ['⭐ Puanla ödenen hesaplar', o => !isComp(o) && Number(o.points_amount) > 0, o => o.points_amount],
+    birthday: ['🎂 Doğum günü indirimli hesaplar', o => !isComp(o) && Number(o.birthday_discount_amount) > 0, o => o.birthday_discount_amount],
+    comp: ['🍱 Personel / ikram hesapları', isComp, o => o.subtotal] }[kind];
+  if(!T) return;
+  const rows = (APP.fsHist || []).filter(T[1]).sort((a, b) => new Date(b.closed_at) - new Date(a.closed_at));
+  const bg = document.createElement('div'); bg.id = 'fsBillBg'; bg.className = 'modal-bg';
+  bg.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:flex-start;justify-content:center;z-index:120;padding:7vh 16px 16px;overflow-y:auto;';
+  bg.onclick = (e) => { if(e.target === bg) bg.remove(); };
+  const byTable = {}; rows.forEach(o => { const k = o.kind === 'takeaway' ? '📦 Paket' : (o.table_name || '-'); byTable[k] = (byTable[k] || 0) + 1; });
+  bg.innerHTML = `<div class="order-modal" style="max-width:640px;width:100%;">
+    <div style="display:flex;justify-content:space-between;align-items:center;"><h2 style="margin:0;">${T[0]}</h2><span style="cursor:pointer;color:var(--muted);font-size:20px;" ${act('removeEl', 'fsBillBg')}>✕</span></div>
+    <p class="muted" style="margin:6px 0 10px;">${rows.length} hesap · ${escapeHtml(typeof reportDateRangeLabel === 'function' ? reportDateRangeLabel() : '')}</p>
+    <div class="fs-billchips">${Object.entries(byTable).sort((a, b) => b[1] - a[1]).map(([t, n]) => `<span class="pchip">🪑 ${escapeHtml(t)} · ${n}</span>`).join('')}</div>
+    <div class="settings-table-wrap"><table class="settings-table"><thead><tr><th>Saat</th><th>Masa</th><th>Personel</th><th>Etiket</th><th>Tutar</th><th>${kind === 'comp' ? 'Değer' : 'Kullanılan'}</th></tr></thead><tbody>
+    ${rows.map(o => `<tr><td>${new Date(o.closed_at).toLocaleString('tr-TR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</td><td class="col-name">${escapeHtml(o.kind === 'takeaway' ? '📦 Paket' : (o.table_name || '-'))}</td><td>${escapeHtml(o.staff_username || o.staff_name || '—')}</td><td>${escapeHtml((o.tags || []).join(', ') || '—')}</td><td>${money(o.total)}</td><td><b>${money(T[2](o) || 0)}</b></td></tr>`).join('')}
+    </tbody></table></div></div>`;
+  document.body.appendChild(bg);
 }
