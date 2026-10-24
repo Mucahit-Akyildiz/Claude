@@ -1567,6 +1567,7 @@ function tableCardHtml(t){
   return `<div class="tc tc-${c.state}" ${c.order && !c.order.items?.length ? `data-badge-id="${c.order.order_id}"` : ""} ${act('openTableModal', t.id)}>
     <div class="tc-top"><span class="tc-name">${escapeHtml(t.name)}</span>${c.order ? `<span class="tc-time">⏱ ${timeTxt}</span>` : ''}</div>
     ${c.state === 'empty' ? `<div class="tc-cta">＋ Sipariş al</div>` : `
+      ${c.order && c.order.guest_count ? `<div class="tc-cust">👥 ${c.order.guest_count} kişi</div>` : ''}
       ${c.order && c.order.customer_name ? (typeof birthdayFor === 'function' && birthdayFor(c.order.customer_name, c.order.customer_phone) ? `<div class="tc-cust tc-bday">🎂 ${escapeHtml(c.order.customer_name)} <b>Doğum günü!</b></div>` : `<div class="tc-cust">👤 ${escapeHtml(c.order.customer_name)}</div>`) : ''}
       <div class="tc-total">${c.total ? c.unpaid.length + ' kalem' : (c.draft.length ? c.draft.length + ' ürün sepette' : '—')}</div>
       ${c.unpaid.length ? `<div class="tc-prog"><i style="width:${pct}%"></i></div><div class="tc-meta"><span>${c.ready}/${c.unpaid.length} hazır</span>${initials}</div>` : `<div class="tc-meta"><span>${label}</span>${initials}</div>`}`}
@@ -1597,6 +1598,31 @@ function renderTableFloorPlan(zone, el){
 }
 
 /* ---- Sipariş Etiketleri (Personel Yemeği, İkram vb.) - masa/paket penceresinde checkbox'lar ---- */
+/* Masaya oturan kişi sayısı: sipariş varsa hemen kaydedilir, yoksa ilk gönderimde. */
+function guestPickHtml(tableId){
+  if(String(tableId).indexOf('pkg_') === 0 || String(tableId).indexOf('wl_') === 0) return '';
+  if(!APP.guestSel) APP.guestSel = {};
+  const o = liveOrderForTable(tableId);
+  if(APP.guestSel[tableId] == null && o && o.guest_count) APP.guestSel[tableId] = o.guest_count;
+  const n = APP.guestSel[tableId] || 0;
+  return `<div class="gp-box" id="guestPick"><span>👥 Kişi sayısı</span>
+    <div class="gp-step"><button type="button" ${act('stepGuests', tableId, -1)} ${n ? '' : 'disabled'}>−</button><b>${n || '—'}</b><button type="button" ${act('stepGuests', tableId, 1)}>+</button></div></div>`;
+}
+let GUEST_SAVE_T = null;
+function stepGuests(tableId, d){
+  if(!APP.guestSel) APP.guestSel = {};
+  const n = Math.max(0, Math.min(99, (APP.guestSel[tableId] || 0) + Number(d)));
+  APP.guestSel[tableId] = n;
+  const el = document.getElementById('guestPick'); if(el) el.outerHTML = guestPickHtml(tableId);
+  const o = liveOrderForTable(tableId);
+  if(o){ clearTimeout(GUEST_SAVE_T); GUEST_SAVE_T = setTimeout(() => saveOrderGuests(o.order_id, n), 600); }
+}
+async function saveOrderGuests(orderId, n){
+  const { error } = await sb.rpc('set_order_guests', { p_token: getSession().session_token, p_order_id: orderId, p_count: n || null });
+  if(error){ showToast('Kişi sayısı kaydedilemedi: ' + error.message); return; }
+  const o = (APP.liveOrders || []).find(x => x.order_id === orderId); if(o) o.guest_count = n || null;
+  if(typeof renderTableGrid === 'function') renderTableGrid();
+}
 function orderFlagsHtml(pseudoId){
   const flags = APP.config.order_flags || [];
   if(flags.length===0) return '';
@@ -1763,7 +1789,7 @@ function openTableModal(tableId){
         </div>
         <div class="order-modal-cart">
           <div class="om-cart-head">🧾 Sipariş<span class="om-cart-total"></span></div>
-          ${tableCustomerInfoHtml(tableId)}
+          ${guestPickHtml(tableId)}${tableCustomerInfoHtml(tableId)}
           <div id="sentItemsWrap"></div>
           <div id="draftItemsWrap"></div>
           ${orderAllowanceHtml(tableId)}${orderFlagsHtml(tableId)}
@@ -1791,7 +1817,7 @@ async function closeTableModal(){
     await releaseDraftStock(tableId);
     // Pencere kapatılınca işaretli Sipariş Etiketleri de sıfırlanır - bir
     // sonraki açılışta (yeni sipariş için) baştan seçilmesi gerekir.
-    delete APP.orderFlagSelections?.[tableId];
+    delete APP.orderFlagSelections?.[tableId]; delete APP.guestSel?.[tableId];
     delete APP.orderAllowance?.[tableId];
   }
   renderTableGrid();

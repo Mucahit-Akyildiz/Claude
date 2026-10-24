@@ -490,6 +490,10 @@ async function confirmOrder(tableId){
   APP.liveOrders = liveRes.data || [];
   if(cfgRes.data) APP.config = cfgRes.data;
   if(typeof attachAllowanceAfterSend === 'function') await attachAllowanceAfterSend(tableId, new Set(APP._prevOrderIds || []));
+  if(kind === 'table' && APP.guestSel && APP.guestSel[tableId]){
+    const o = liveOrderForTable(tableId);
+    if(o && o.guest_count !== APP.guestSel[tableId]) await saveOrderGuests(o.order_id, APP.guestSel[tableId]);
+  }
   // Sipariş veren cihazda yazıcı varsa fiş hemen basılır (Mutfak Ekranı açık olmasa da).
   // Basılan ürünler işaretlenir; aynı cihazda mutfak ekranı açıksa ikinci kez basmaz.
   if(printOnOrderEnabled() && deviceHasSilentPrinter()){
