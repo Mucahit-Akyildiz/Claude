@@ -611,7 +611,36 @@ async function renderProductStatsContent(session){
       </div>
       ${barsHtml}
     </div>
+    <div id="psIngWrap"><p class="muted">Hammadde analizi yükleniyor…</p></div>
   `;
+  loadIngredientUsage(session);
+}
+/* Ürün İstatistikleri › hammadde bazlı tüketim (net + fire), reçetesiz ve maliyetsiz ürünler. */
+async function loadIngredientUsage(session){
+  const box = document.getElementById('psIngWrap'); if(!box) return;
+  let { data, error } = await sb.rpc('get_ingredient_usage_report', { p_token: session.session_token, p_date: APP.reportDate, p_date_to: APP.reportDateTo });
+  if(error){ box.innerHTML = '<p class="muted">Hammadde analizi yüklenemedi: ' + escapeHtml(error.message) + '</p>'; return; }
+  data = data || {}; APP.ingUsage = data;
+  const ings = data.ingredients || [], noRec = data.no_recipe || [], noCost = data.no_cost || [];
+  const fmt = (v, u) => Number(v).toLocaleString('tr-TR', { maximumFractionDigits: 3 }) + ' ' + escapeHtml(u || '');
+  const mx = Math.max(1, ...ings.map(i => Number(i.gross)));
+  const totFire = ings.filter(i => Number(i.waste_pct) > 0).length;
+  box.innerHTML = `<div class="fs-panel pa-sec rp-panel" style="--t:var(--c2);margin-top:14px;"><h3><i>🥕</i>Hammadde Tüketimi <span class="muted" style="font-size:12px;font-weight:400;">satılan ürünlerin reçetesine göre · stoktan düşen = net + fire</span></h3>
+      ${ings.length ? `<div class="iu-rep">${ings.map((i, n) => { const net = Number(i.net), gross = Number(i.gross), fire = gross - net;
+        return `<details class="iu-r" style="--i:${Math.min(n, 12)};"><summary>
+          <div class="iu-r-top"><b>${escapeHtml(i.name)}</b><span>${fmt(gross, i.unit)}</span></div>
+          <div class="iu-r-bar"><i class="net" style="width:${net / mx * 100}%;"></i><i class="fire" style="width:${fire / mx * 100}%;"></i></div>
+          <small>Net ${fmt(net, i.unit)}${fire > 0 ? ` · 🔥 fire ${fmt(fire, i.unit)} (%${Number(i.waste_pct)})` : ''} · ${i.products} üründe · kalan stok ${fmt(i.stock, i.unit)}</small></summary>
+          <table class="settings-table iu-r-t"><thead><tr><th>Ürün</th><th>Satış</th><th>Net tüketim</th></tr></thead><tbody>${(i.by_product || []).map(b => `<tr><td>${escapeHtml(b.name)}</td><td>${b.qty} adet</td><td>${fmt(b.net, i.unit)}</td></tr>`).join('')}</tbody></table></details>`; }).join('')}</div>
+        <div class="an-heatleg" style="margin-top:8px;"><span><i class="iu-lg net"></i> Net tüketim</span><span><i class="iu-lg fire"></i> Fire</span></div>`
+      : '<p class="muted">Bu aralıkta reçeteli ürün satışı yok. Ürünlere reçete girildikçe burada kg / adet bazında tüketim ve fire görünür.</p>'}
+    </div>
+    <div class="ps-miss">
+      <div class="fs-panel pa-sec" style="--t:#f59e0b;"><h3><i>📋</i>Reçetesi olmayan ürünler <em class="ps-n">${noRec.length}</em></h3>
+        ${noRec.length ? `<div class="ps-chips">${noRec.map(p => `<button type="button" class="pchip" ${act('openRecipeModal', p.id)} title="Reçete gir">${escapeHtml(p.name)} ›</button>`).join('')}</div><p class="fs-note">Reçetesiz ürünlerde hammadde stoğu düşmez ve tüketim hesaplanmaz.</p>` : '<p class="muted">Tüm ürünlerin reçetesi var ✓</p>'}</div>
+      <div class="fs-panel pa-sec" style="--t:#ef4444;"><h3><i>💸</i>Maliyeti girilmemiş ürünler <em class="ps-n">${noCost.length}</em></h3>
+        ${noCost.length ? `<div class="ps-chips">${noCost.map(p => `<button type="button" class="pchip ${p.available === false ? 'off' : ''}" ${act('editProductRow', p.id)} title="Maliyet gir">${escapeHtml(p.name)}${p.available === false ? ' · kapalı' : ''} ›</button>`).join('')}</div><p class="fs-note">Maliyeti olmayan ürünlerde kâr %100 görünür; kâr analizleri yanıltıcı olur.</p>` : '<p class="muted">Tüm ürünlerin maliyeti girilmiş ✓</p>'}</div>
+    </div>`;
 }
 
 /* --- Personel Analizleri sekmesi: hangi personel hangi saatte kaç sipariş
@@ -1705,12 +1734,12 @@ function openFsBillList(kind){
   bg.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:flex-start;justify-content:center;z-index:120;padding:7vh 16px 16px;overflow-y:auto;';
   bg.onclick = (e) => { if(e.target === bg) bg.remove(); };
   const byTable = {}; rows.forEach(o => { const k = o.kind === 'takeaway' ? '📦 Paket' : (o.table_name || '-'); byTable[k] = (byTable[k] || 0) + 1; });
-  bg.innerHTML = `<div class="order-modal" style="max-width:640px;width:100%;">
+  bg.innerHTML = `<div class="order-modal fs-billmodal">
     <div style="display:flex;justify-content:space-between;align-items:center;"><h2 style="margin:0;">${T[0]}</h2><span style="cursor:pointer;color:var(--muted);font-size:20px;" ${act('removeEl', 'fsBillBg')}>✕</span></div>
     <p class="muted" style="margin:6px 0 10px;">${rows.length} hesap · ${escapeHtml(typeof reportDateRangeLabel === 'function' ? reportDateRangeLabel() : '')}</p>
     <div class="fs-billchips">${Object.entries(byTable).sort((a, b) => b[1] - a[1]).map(([t, n]) => `<span class="pchip">🪑 ${escapeHtml(t)} · ${n}</span>`).join('')}</div>
-    <div class="settings-table-wrap"><table class="settings-table"><thead><tr><th>Saat</th><th>Masa</th><th>Personel</th><th>Etiket</th><th>Tutar</th><th>${kind === 'comp' ? 'Değer' : 'Kullanılan'}</th></tr></thead><tbody>
-    ${rows.map(o => `<tr><td>${new Date(o.closed_at).toLocaleString('tr-TR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</td><td class="col-name">${escapeHtml(o.kind === 'takeaway' ? '📦 Paket' : (o.table_name || '-'))}</td><td>${escapeHtml(o.staff_username || o.staff_name || '—')}</td><td>${escapeHtml((o.tags || []).join(', ') || '—')}</td><td>${money(o.total)}</td><td><b>${money(T[2](o) || 0)}</b></td></tr>`).join('')}
+    <div class="settings-table-wrap"><table class="settings-table"><thead><tr><th>Saat</th><th>Masa</th><th>Personel</th><th>Etiket</th><th>Tutar</th><th>${kind === 'comp' ? 'Değer' : 'Kullanılan'}</th><th></th></tr></thead><tbody>
+    ${rows.map(o => `<tr><td>${new Date(o.closed_at).toLocaleString('tr-TR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</td><td class="col-name">${escapeHtml(o.kind === 'takeaway' ? '📦 Paket' : (o.table_name || '-'))}</td><td>${escapeHtml(o.staff_username || o.staff_name || '—')}</td><td>${escapeHtml((o.tags || []).join(', ') || '—')}</td><td>${money(o.total)}</td><td><b>${money(T[2](o) || 0)}</b></td><td>${o.id ? `<button type="button" class="pc-btn" ${act('openSaleDetailModal', o.id)}>🔍 Detay</button>` : ''}</td></tr>`).join('')}
     </tbody></table></div></div>`;
   document.body.appendChild(bg);
 }
