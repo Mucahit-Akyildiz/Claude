@@ -232,6 +232,7 @@ function renderIngredientsSettings(el, session){
           <label class="ig-waste" title="Temizleme/kesim kaybı">Fire % <input type="number" step="0.1" min="0" max="99" value="${Number(i.waste_pct)||0}" id="ing_waste_${i.id}"></label>
           <label class="ig-waste" title="Stok bu seviyeye inince uyarı verilir (boş = uyarı yok)">Min <input type="number" step="0.01" min="0" value="${Number(i.min_stock)||''}" placeholder="—" id="ing_min_${i.id}"></label>
           <button type="button" class="pc-btn" ${act('openIngredientUsageModal', i.id)}>🍽️ ${uses} ürün</button>
+          <button type="button" class="pc-btn" title="Hammaddeyi ve kullanıldığı ürünleri düzenle" ${act('openIngredientUsageModal', i.id, true)}>✏️ Düzenle</button>
         </div>
       </div>`; }).join('') || '<div class="empty-state" style="grid-column:1/-1;"><div style="font-size:38px;">🥕</div><p class="muted">Bu filtrede hammadde yok.</p></div>'}
     </div>
@@ -304,7 +305,7 @@ async function addIngredient(){
 /* --- Bir hammaddeyi hangi urunlerin kullandigini duzenleme penceresi
    (hammadde tarafindan bakis - ekledigimiz/duzenledigimiz hammaddeyi
    birden fazla urune tek seferde atayabilmek icin) --- */
-function openIngredientUsageModal(ingredientId){
+function openIngredientUsageModal(ingredientId, edit){
   const ingredient = (APP.config.ingredients||[]).find(x => x.id===ingredientId);
   const ingredientName = ingredient ? ingredient.name : '';
   const unit = ingredient && ingredient.unit ? ingredient.unit : '';
@@ -314,7 +315,14 @@ function openIngredientUsageModal(ingredientId){
   bg.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:100;padding:16px;';
   bg.onclick = (e) => { if(e.target===bg) bg.remove(); };
   bg.innerHTML = `<div style="background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:20px;max-width:480px;width:100%;max-height:88vh;overflow:auto;">
-    <div style="display:flex;justify-content:space-between;"><h2 style="margin:0;">${escapeHtml(ingredientName)} - Kullanıldığı Ürünler</h2><span style="cursor:pointer;color:var(--muted);" ${act('removeEl','ingUsageModalBg')}>✕</span></div>
+    <div style="display:flex;justify-content:space-between;"><h2 style="margin:0;">${edit ? '✏️ Hammadde Düzenle' : escapeHtml(ingredientName) + ' - Kullanıldığı Ürünler'}</h2><span style="cursor:pointer;color:var(--muted);" ${act('removeEl','ingUsageModalBg')}>✕</span></div>
+    ${edit && ingredient ? `<div class="fsheet-grid iu-edit">
+      <div class="field-group wide"><label>Hammadde Adı</label><input id="iue_name" value="${escapeAttr(ingredient.name||'')}"></div>
+      <div class="field-group"><label>Birim</label><select id="iue_unit">${['adet','gram','kg','ml','lt'].map(u => `<option value="${u}" ${u===ingredient.unit?'selected':''}>${u}</option>`).join('')}</select></div>
+      <div class="field-group"><label>Stok</label><input type="number" step="0.01" id="iue_stock" value="${Number(ingredient.stock)||0}"></div>
+      <div class="field-group"><label>Fire %</label><input type="number" step="0.1" min="0" max="99" id="iue_waste" value="${Number(ingredient.waste_pct)||0}"></div>
+      <div class="field-group"><label>Min stok</label><input type="number" step="0.01" min="0" id="iue_min" value="${Number(ingredient.min_stock)||''}" placeholder="—"></div>
+    </div><h3 style="margin:14px 0 0;font-size:15px;">🍽️ Kullanıldığı ürünler</h3>` : ''}
     <p class="muted" style="text-align:left;">Bu hammaddeyi hangi ürünler kullanıyor, 1 porsiyonda net ne kadar tüketiliyor${unit?' ('+escapeHtml(unit)+')':''}?${ingredient && Number(ingredient.waste_pct)>0 ? ' Stoktan %'+Number(ingredient.waste_pct)+' fire eklenerek düşülür.' : ''} Seçmediğiniz ürünlerden bu hammadde kaldırılır (o ürünlerin diğer hammaddeleri etkilenmez).</p>
     ${products.length ? `<div class="iu-tools">
       <input id="iuSearch" placeholder="🔍 Ürün ara…" autocomplete="off" ${actOn('input','filterIngUsage',[])}>
@@ -388,6 +396,15 @@ async function saveIngredientUsage(ingredientId){
     const first = products.find(p => missing.includes(p.name));
     if(first) document.getElementById('ingu_qty_'+first.id).focus();
     return;
+  }
+  const nm = document.getElementById('iue_name');
+  if(nm){
+    const name = nm.value.trim(); if(!name){ alert('Hammadde adı boş olamaz'); nm.focus(); return; }
+    const { error: e1 } = await sb.rpc('upsert_ingredient', { p_token: session.session_token, p_id: ingredientId, p_name: name, p_unit: document.getElementById('iue_unit').value,
+      p_stock: parseFloat(document.getElementById('iue_stock').value)||0, p_waste_pct: parseFloat(document.getElementById('iue_waste').value)||0 });
+    if(e1){ alert(e1.message); return; }
+    const { error: e2 } = await sb.rpc('set_ingredient_min', { p_token: session.session_token, p_id: ingredientId, p_min: parseFloat(document.getElementById('iue_min').value)||0 });
+    if(e2){ alert(e2.message); return; }
   }
   const { error } = await sb.rpc('set_ingredient_usage', { p_token: session.session_token, p_ingredient_id: ingredientId, p_usages: usages });
   if(error){ alert(error.message); return; }

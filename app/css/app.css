@@ -1434,7 +1434,7 @@ body.anim-done .tc.tc-ready{animation:tcPulse 2.2s ease-in-out infinite !importa
 .ig-qty{flex:1;min-width:0;margin:0;font-size:24px;font-weight:800;padding:4px 8px;background:transparent;border-color:transparent;letter-spacing:-.02em;}
 .ig-qty:hover,.ig-qty:focus{background:var(--panel2);border-color:var(--border);}
 .ig-unit{width:84px;margin:0;padding:5px 8px;height:34px;font-size:13px;}
-.ig-foot{display:flex;align-items:center;gap:8px;justify-content:space-between;}
+.ig-foot{display:flex;align-items:center;gap:8px;justify-content:space-between;flex-wrap:wrap;}
 .ig-waste{display:flex;align-items:center;gap:6px;margin:0;font-size:12px;font-weight:700;color:var(--muted);} .ig-waste input{width:64px;margin:0;padding:4px 6px;height:30px;font-size:13px;}
 
 /* ===== Fotoğraf & açıklama kartları ===== */
@@ -3340,3 +3340,4 @@ button.oo-chip{cursor:pointer;} button.oo-chip:hover{border-color:var(--accent);
 .iu-row{display:flex;gap:8px;align-items:center;justify-content:space-between;} .iu-row select{margin:0;flex:1;}
 .iu-only{display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;} .iu-only input{width:auto;margin:0;}
 .iu-menu{display:block;font-size:11px;}
+.iu-edit{margin-top:12px;}
