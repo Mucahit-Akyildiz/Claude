@@ -1694,6 +1694,7 @@ function dcxAnimate(){
 
 /* Genel Özet › İndirim, Puan ve İkram: "N hesap"a tıklayınca o hesapların masa listesi. */
 function openFsBillList(kind){
+  const isComp = (o) => o.tags && o.tags.length>0 && (!o.payment_method || o.payment_method === 'comp');
   const T = { discount: ['🏷️ İndirimli hesaplar', o => !isComp(o) && Number(o.discount_amount) > 0, o => o.discount_amount],
     points: ['⭐ Puanla ödenen hesaplar', o => !isComp(o) && Number(o.points_amount) > 0, o => o.points_amount],
     birthday: ['🎂 Doğum günü indirimli hesaplar', o => !isComp(o) && Number(o.birthday_discount_amount) > 0, o => o.birthday_discount_amount],

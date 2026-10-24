@@ -3341,3 +3341,7 @@ button.oo-chip{cursor:pointer;} button.oo-chip:hover{border-color:var(--accent);
 .iu-only{display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;} .iu-only input{width:auto;margin:0;}
 .iu-menu{display:block;font-size:11px;}
 .iu-edit{margin-top:12px;}
+.gt-viz{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:14px;}
+.gt-vc{padding:12px;border-radius:14px;background:var(--panel2);} .gt-vc h4{margin:0 0 8px;font-size:13px;color:var(--muted);font-weight:600;}
+.gt-vc .lx-svg{max-width:220px;display:block;margin:0 auto;}
+@media (max-width:900px){.gt-viz{grid-template-columns:1fr;}}
