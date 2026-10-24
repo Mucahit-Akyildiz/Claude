@@ -633,11 +633,13 @@ function renderStationsSettings(el, session){
       <div class="st-col-head">
         ${stationIconPickerHtml('st_icon_'+s.id, s.icon||'🍳', '')}
         <input class="st-col-name" value="${escapeAttr(s.name)}" id="st_name_${s.id}" placeholder="İstasyon adı" ${actOn('keydown','onEnterCall',['$event','saveStation', s.id])}>
-        <input type="color" class="st-col-color" value="${s.color}" id="st_color_${s.id}" title="Renk">
+      </div>
+      <div class="st-col-tools">
+        <span class="st-col-sub">${list.length} menü · ${(APP.config.products||[]).filter(p => p.station_id===s.id).length} ürün</span>
+        <input type="color" class="st-col-color" value="${s.color}" id="st_color_${s.id}" title="İstasyon rengi">
         <button type="button" class="ico-btn" title="Kaydet" ${act('saveStation', s.id)}>💾</button>
         <button type="button" class="ico-btn danger" title="İstasyonu sil" ${act('removeStation', s.id)}>🗑</button>
       </div>
-      <div class="st-col-sub">${list.length} menü · ${(APP.config.products||[]).filter(p => p.station_id===s.id).length} ürün</div>
       <div class="st-col-body">${list.map(menuCard).join('') || '<div class="st-empty">Bu istasyona menü bağlı değil.<br>Bir menünün altındaki seçimden buraya taşıyın.</div>'}</div>
       ${stationKitchenProductsHtml(s)}
     </div>`; };

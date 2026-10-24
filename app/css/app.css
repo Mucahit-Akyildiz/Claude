@@ -3350,3 +3350,9 @@ button.oo-chip{cursor:pointer;} button.oo-chip:hover{border-color:var(--accent);
 .st-new .st-add input[type=color].st-col-color{width:44px;flex:0 0 44px;height:40px;}
 .st-new .st-add button{margin:0;white-space:nowrap;}
 .st-new .st-add input#newStName{margin:0;width:100%;}
+/* İstasyon başlığı: ad tam genişlik, araçlar altta tek satır */
+.st-col-head .st-col-name{font-size:16px;text-overflow:ellipsis;}
+.st-col-tools{display:flex;align-items:center;gap:6px;padding:0 2px 8px;border-bottom:1px dashed var(--border);}
+.st-col-tools .st-col-sub{flex:1;margin:0;padding:0;}
+.st-col-tools .st-col-color{width:32px;height:32px;flex:0 0 32px;}
+.st-col-tools .ico-btn{margin:0;}
