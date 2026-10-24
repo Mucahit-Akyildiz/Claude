@@ -1373,7 +1373,7 @@ function markProdDirty(e){
 }
 function setProdFilter(k){ APP.prodFilter = (APP.prodFilter===k ? 'all' : k); renderSettingsContent(getSession()); }
 function setProdView(v){ APP.prodView = v; renderSettingsContent(getSession()); }
-// Kart görünümünde "Düzenle": sağdan açılan düzenleme paneli.
+// Kart görünümünde "Düzenle": ortada açılan düzenleme penceresi.
 function editProductRow(pid){
   const p = (APP.config.products||[]).find(x => x.id===pid); if(!p) return;
   closeProdDrawer();
