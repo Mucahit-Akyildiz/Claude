@@ -316,6 +316,14 @@ function openIngredientUsageModal(ingredientId){
   bg.innerHTML = `<div style="background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:20px;max-width:480px;width:100%;max-height:88vh;overflow:auto;">
     <div style="display:flex;justify-content:space-between;"><h2 style="margin:0;">${escapeHtml(ingredientName)} - Kullanıldığı Ürünler</h2><span style="cursor:pointer;color:var(--muted);" ${act('removeEl','ingUsageModalBg')}>✕</span></div>
     <p class="muted" style="text-align:left;">Bu hammaddeyi hangi ürünler kullanıyor, 1 porsiyonda net ne kadar tüketiliyor${unit?' ('+escapeHtml(unit)+')':''}?${ingredient && Number(ingredient.waste_pct)>0 ? ' Stoktan %'+Number(ingredient.waste_pct)+' fire eklenerek düşülür.' : ''} Seçmediğiniz ürünlerden bu hammadde kaldırılır (o ürünlerin diğer hammaddeleri etkilenmez).</p>
+    ${products.length ? `<div class="iu-tools">
+      <input id="iuSearch" placeholder="🔍 Ürün ara…" autocomplete="off" ${actOn('input','filterIngUsage',[])}>
+      <div class="iu-row">
+        <select id="iuMenu" ${actOn('change','filterIngUsage',[])}><option value="">Tüm menüler</option>${(APP.config.menus||[]).map(m => `<option value="${escapeAttr(m.id)}">${escapeHtml(m.name)}</option>`).join('')}</select>
+        <select id="iuSort" ${actOn('change','filterIngUsage',[])}><option value="sel">Seçililer önce</option><option value="az">A → Z</option><option value="za">Z → A</option><option value="menu">Menüye göre</option></select>
+      </div>
+      <div class="iu-row"><label class="iu-only"><input type="checkbox" id="iuOnly" ${actOn('change','filterIngUsage',[])}> Sadece seçililer</label><small class="muted" id="iuCount"></small></div>
+    </div>` : ''}
     <div id="ingUsageItemsBox"></div>
     <button style="margin-top:14px;" ${act('saveIngredientUsage', ingredientId)}>${ICON_SAVE}<span>Kaydet</span></button>
   </div>`;
@@ -324,13 +332,40 @@ function openIngredientUsageModal(ingredientId){
   box.innerHTML = products.length===0 ? '<p class="muted">Henüz ürün eklenmemiş.</p>' : products.map(p => {
     const existing = (p.recipe||[]).find(r => r.ingredient_id===ingredientId);
     return `
-    <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);">
+    <div class="iu-item" data-name="${escapeAttr(p.name)}" data-menu="${escapeAttr(p.menu_id||'')}" style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);">
       <input type="checkbox" id="ingu_chk_${p.id}" ${existing?'checked':''} ${actOn('change','toggleIngUsageQty',[p.id,'$checked'])} style="width:auto;margin:0;">
-      <span style="flex:1;">${escapeHtml(p.name)}</span>
+      <span style="flex:1;">${escapeHtml(p.name)}${(APP.config.menus||[]).length > 1 && p.menu_id ? `<small class="muted iu-menu">${escapeHtml(((APP.config.menus||[]).find(m => m.id === p.menu_id)||{}).name||'')}</small>` : ''}</span>
       <input type="number" step="0.01" min="0" id="ingu_qty_${p.id}" value="${existing?existing.qty_per_unit:''}" placeholder="Miktar/porsiyon" ${existing?'':'disabled'} style="width:110px;margin:0;">
       <span class="muted" style="min-width:36px;">${escapeHtml(unit)}</span>
     </div>`;
   }).join('');
+  filterIngUsage();
+  const sr = document.getElementById('iuSearch'); if(sr) setTimeout(() => sr.focus(), 50);
+}
+/* Kullanıldığı Ürünler: arama, menü filtresi, sıralama (satırlar DOM'da kalır; kayıt hepsini okur). */
+function filterIngUsage(){
+  const box = document.getElementById('ingUsageItemsBox'); if(!box) return;
+  const q = ((document.getElementById('iuSearch')||{}).value || '').toLocaleLowerCase('tr').trim();
+  const menu = (document.getElementById('iuMenu')||{}).value || '';
+  const only = !!(document.getElementById('iuOnly')||{}).checked;
+  const sort = (document.getElementById('iuSort')||{}).value || 'sel';
+  const menuName = (id) => ((APP.config.menus||[]).find(m => m.id === id)||{}).name || '';
+  const items = [...box.querySelectorAll('.iu-item')];
+  const chk = (el) => el.querySelector('input[type=checkbox]').checked;
+  items.sort((a, b) => {
+    const an = a.dataset.name, bn = b.dataset.name, c = an.localeCompare(bn, 'tr', { numeric: true });
+    if(sort === 'za') return -c;
+    if(sort === 'menu') return menuName(a.dataset.menu).localeCompare(menuName(b.dataset.menu), 'tr') || c;
+    if(sort === 'sel') return (chk(b) - chk(a)) || c;
+    return c;
+  }).forEach(el => box.appendChild(el));
+  let shown = 0, sel = 0;
+  items.forEach(el => {
+    const on = chk(el); if(on) sel++;
+    const ok = (!q || el.dataset.name.toLocaleLowerCase('tr').includes(q)) && (!menu || el.dataset.menu === menu) && (!only || on);
+    el.style.display = ok ? 'flex' : 'none'; if(ok) shown++;
+  });
+  const cnt = document.getElementById('iuCount'); if(cnt) cnt.textContent = `${sel} seçili · ${shown}/${items.length} ürün gösteriliyor`;
 }
 async function saveIngredientUsage(ingredientId){
   const session = getSession();
@@ -2927,7 +2962,9 @@ async function bulkDeleteUsers(){
 }
 
 function setListSearch(key, v){ APP.listSearch[key] = v; filterListRows(key); }
-function toggleIngUsageQty(pid, on){ const q = document.getElementById('ingu_qty_' + pid); if(!q) return; q.disabled = !on; if(on) q.focus(); else q.style.borderColor = ''; }
+function toggleIngUsageQty(pid, on){ const q = document.getElementById('ingu_qty_' + pid); if(!q) return; q.disabled = !on; if(on) q.focus(); else q.style.borderColor = '';
+  const cnt = document.getElementById('iuCount'), box = document.getElementById('ingUsageItemsBox');
+  if(cnt && box) cnt.textContent = cnt.textContent.replace(/^\d+/, box.querySelectorAll('.iu-item input[type=checkbox]:checked').length); }
 function filterIconPicker(targetId, current, q){ document.getElementById('iconPickerBody').innerHTML = iconPickerGridHtml(targetId, current, q); }
 function setUserSearch(v){ APP.userSearch = v; filterUserRows(); }
 function setActiveUsersMinutes(v){ APP.activeUsersMinutes = Number(v); loadActiveUsers(); }

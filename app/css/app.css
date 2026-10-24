@@ -3334,3 +3334,9 @@ button.oo-chip{cursor:pointer;} button.oo-chip:hover{border-color:var(--accent);
 @media (max-width:760px){.gt-tiles{grid-template-columns:repeat(2,1fr);} .gt-two{grid-template-columns:1fr;}}
 .fs-billlink{background:none;border:0;padding:2px 0;margin:0;width:auto;color:var(--c1);font-size:12px;font-weight:700;cursor:pointer;text-decoration:underline dotted;}
 .fs-billchips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;}
+/* Hammadde › Kullanıldığı Ürünler: arama/filtre */
+.iu-tools{position:sticky;top:-20px;z-index:2;background:var(--panel);padding:8px 0 10px;margin-bottom:4px;border-bottom:1px solid var(--border);display:flex;flex-direction:column;gap:8px;}
+.iu-tools input#iuSearch{margin:0;}
+.iu-row{display:flex;gap:8px;align-items:center;justify-content:space-between;} .iu-row select{margin:0;flex:1;}
+.iu-only{display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;} .iu-only input{width:auto;margin:0;}
+.iu-menu{display:block;font-size:11px;}
