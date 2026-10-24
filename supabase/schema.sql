@@ -1744,6 +1744,22 @@ end $$;
 
 
 --
+-- Name: _sales_history_guests(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public._sales_history_guests() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+begin
+  if new.order_id is not null and new.guest_count is null and not exists(select 1 from sales_history where order_id = new.order_id) then
+    select guest_count into new.guest_count from orders where id = new.order_id;
+  end if;
+  return new;
+end $$;
+
+
+--
 -- Name: _send_email(text, text, text); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -4805,12 +4821,12 @@ begin
   oi as (select oi.*, o.created_by from order_items oi join orders o on o.id = oi.order_id
          where o.restaurant_id = r and oi.paid and oi.paid_at >= f and oi.paid_at < t),
   kpi as (select json_build_object(
-      'revenue', coalesce(sum(total),0), 'checks', count(*), 'discount', coalesce(sum(discount_amount),0)+coalesce(sum(birthday_discount_amount),0),
+      'revenue', coalesce(sum(total),0), 'checks', count(*), 'guests', coalesce(sum(guest_count),0), 'guest_rev', coalesce(sum(total) filter (where order_id in (select order_id from cur c2 where c2.guest_count is not null)),0), 'discount', coalesce(sum(discount_amount),0)+coalesce(sum(birthday_discount_amount),0),
       'tips', coalesce(sum(tip_amount),0), 'cost', coalesce(sum(cost),0), 'cash', coalesce(sum(cash_amount),0), 'card', coalesce(sum(card_amount),0),
       'gift', coalesce(sum(gift_card_amount),0), 'points', coalesce(sum(points_amount),0), 'comp', coalesce(sum(subtotal) filter (where tags is not null and cardinality(tags) > 0),0),
       'comp_n', count(*) filter (where tags is not null and cardinality(tags) > 0), 'birthday', coalesce(sum(birthday_discount_amount),0),
       'avg_min', coalesce(round(avg(extract(epoch from (closed_at - ordered_at))/60) filter (where ordered_at is not null and kind = 'dine_in')),0)) j from cur),
-  pkpi as (select json_build_object('revenue', coalesce(sum(total),0), 'checks', count(*), 'discount', coalesce(sum(discount_amount),0), 'tips', coalesce(sum(tip_amount),0), 'cost', coalesce(sum(cost),0)) j from prv)
+  pkpi as (select json_build_object('revenue', coalesce(sum(total),0), 'checks', count(*), 'guests', coalesce(sum(guest_count),0), 'discount', coalesce(sum(discount_amount),0), 'tips', coalesce(sum(tip_amount),0), 'cost', coalesce(sum(cost),0)) j from prv)
   select json_build_object(
     'days', n,
     'kpi', (select j from kpi), 'prev', (select j from pkpi),
@@ -4819,14 +4835,14 @@ begin
        'orders', (select count(*) from orders where restaurant_id = r and status = 'cancelled' and coalesce(cancelled_at, created_at) >= f and coalesce(cancelled_at, created_at) < t),
        'prev_orders', (select count(*) from orders where restaurant_id = r and status = 'cancelled' and coalesce(cancelled_at, created_at) >= pf and coalesce(cancelled_at, created_at) < pt)),
     'waste', (select coalesce(sum(total_cost),0) from waste_log where restaurant_id = r and created_at >= f and created_at < t),
-    'daily', coalesce((select json_agg(x order by x.d) from (select (closed_at at time zone 'Europe/Istanbul')::date d, sum(total) rev, count(*) n from cur group by 1) x), '[]'),
+    'daily', coalesce((select json_agg(x order by x.d) from (select (closed_at at time zone 'Europe/Istanbul')::date d, sum(total) rev, count(*) n, coalesce(sum(guest_count),0) g from cur group by 1) x), '[]'),
     'month', coalesce((select json_agg(x order by x.d) from (select (closed_at at time zone 'Europe/Istanbul')::date d, sum(total) rev from sales_history
         where restaurant_id = r and closed_at >= date_trunc('month', now() at time zone 'Europe/Istanbul') at time zone 'Europe/Istanbul' group by 1) x), '[]'),
     'heat', coalesce((select json_agg(x) from (select extract(isodow from closed_at at time zone 'Europe/Istanbul')::int dow, extract(hour from closed_at at time zone 'Europe/Istanbul')::int h,
         sum(total) rev, count(*) n from cur group by 1,2) x), '[]'),
     'products', coalesce((select json_agg(x) from (select coalesce(oi.product_id::text, oi.name) k, max(oi.name) name, sum(oi.qty) qty, sum(oi.price*oi.qty) rev, sum(coalesce(oi.cost, p.cost, 0)*oi.qty) cost
         from oi left join products p on p.id = oi.product_id group by 1) x), '[]'),
-    'tables', coalesce((select json_agg(x) from (select table_name, sum(total) rev, count(*) n, round(avg(extract(epoch from (closed_at - ordered_at))/60) filter (where ordered_at is not null)) mins
+    'tables', coalesce((select json_agg(x) from (select table_name, sum(total) rev, count(*) n, coalesce(sum(guest_count),0) g, coalesce(sum(total) filter (where order_id in (select order_id from cur c3 where c3.guest_count is not null)),0) grev, round(avg(extract(epoch from (closed_at - ordered_at))/60) filter (where ordered_at is not null)) mins
         from cur where kind = 'dine_in' and table_name is not null group by 1) x), '[]'),
     'staff', coalesce((select json_agg(x) from (select u.id, u.username, coalesce(sum(c.total),0) rev, count(c.id) n, coalesce(sum(c.tip_amount),0) tips,
         (select count(*) from kitchen_cancellations k where k.restaurant_id = r and k.kind='item' and k.cancelled_by = u.username and k.created_at >= f and k.created_at < t)
@@ -5460,7 +5476,7 @@ begin
   return (
     select coalesce(json_agg(json_build_object(
       'order_id', o.id, 'table_id', o.table_id, 'kind', o.kind, 'created_at', o.created_at,
-      'daily_number', o.daily_number, 'tags', o.tags, 'allowance_id', o.allowance_id, 'allowance_name', (select coalesce(al.name, au.username) from allowances al left join app_users au on au.id = al.user_id where al.id = o.allowance_id), 'allowance_remaining', case when o.allowance_id is not null then _allowance_remaining(o.allowance_id) end,
+      'daily_number', o.daily_number, 'tags', o.tags, 'guest_count', o.guest_count, 'allowance_id', o.allowance_id, 'allowance_name', (select coalesce(al.name, au.username) from allowances al left join app_users au on au.id = al.user_id where al.id = o.allowance_id), 'allowance_remaining', case when o.allowance_id is not null then _allowance_remaining(o.allowance_id) end,
       'customer_name', o.customer_name, 'customer_phone', o.customer_phone, 'delivery_address', o.delivery_address, 'takeaway_type', o.takeaway_type, 'pickup_at', o.pickup_at, 'note', o.note,
       'created_by', o.created_by, 'created_by_name', (select username from app_users where id = o.created_by), 'waitlist_id', o.waitlist_id, 'courier_user_id', o.courier_user_id, 'courier_name', (select username from app_users where id = o.courier_user_id), 'dispatched_at', o.dispatched_at, 'delivered_at', o.delivered_at, 'tracking_token', o.tracking_token,
       'waitlist', (select json_build_object('joined_at', w.joined_at, 'quoted_wait_minutes', w.quoted_wait_minutes, 'party_size', w.party_size, 'status', w.status) from waitlist_entries w where w.id = o.waitlist_id),
@@ -9398,6 +9414,22 @@ end $$;
 
 
 --
+-- Name: set_order_guests(uuid, uuid, integer); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.set_order_guests(p_token uuid, p_order_id uuid, p_count integer) RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+declare s staff_sessions%rowtype;
+begin
+  s := _session_check(p_token, 'order');
+  if p_count is not null and (p_count < 1 or p_count > 99) then raise exception 'Kişi sayısı 1-99 arası olmalı'; end if;
+  update orders set guest_count = p_count where id = p_order_id and restaurant_id = s.restaurant_id;
+end $$;
+
+
+--
 -- Name: set_product_description(uuid, uuid, text); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -12594,7 +12626,9 @@ CREATE TABLE public.orders (
     dispatched_at timestamp with time zone,
     delivered_at timestamp with time zone,
     tracking_token uuid,
-    allowance_id uuid
+    allowance_id uuid,
+    guest_count integer,
+    CONSTRAINT orders_guest_count_check CHECK (((guest_count >= 1) AND (guest_count <= 99)))
 );
 
 
@@ -13083,7 +13117,8 @@ CREATE TABLE public.sales_history (
     gift_card_amount numeric DEFAULT 0 NOT NULL,
     ordered_at timestamp with time zone,
     ready_at timestamp with time zone,
-    points_amount numeric DEFAULT 0 NOT NULL
+    points_amount numeric DEFAULT 0 NOT NULL,
+    guest_count integer
 );
 
 
@@ -15485,6 +15520,13 @@ CREATE TRIGGER trg_reset_expiry_reminder BEFORE UPDATE OF expires_at ON public.r
 --
 
 CREATE TRIGGER trg_role_shift_exempt_sync BEFORE INSERT OR UPDATE OF permissions, is_system ON public.roles FOR EACH ROW EXECUTE FUNCTION public._trg_role_shift_exempt_sync();
+
+
+--
+-- Name: sales_history trg_sales_history_guests; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_sales_history_guests BEFORE INSERT ON public.sales_history FOR EACH ROW EXECUTE FUNCTION public._sales_history_guests();
 
 
 --
