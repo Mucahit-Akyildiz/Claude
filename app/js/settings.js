@@ -2331,6 +2331,13 @@ function showIntegrationPane(){
   document.querySelectorAll('#settingsContent [data-int-tab]').forEach(t => t.classList.toggle('active', t.dataset.intTab === APP.integrationsSubTab));
 }
 function setIntegrationsSubTab(t){ APP.integrationsSubTab = t; showIntegrationPane(); }
+async function sendTestSms(){
+  const ph = (document.getElementById('ti_sms_testphone') || {}).value || '', res = document.getElementById('ti_sms_testres');
+  const { data, error } = await sb.rpc('send_test_sms', { p_token: getSession().session_token, p_phone: ph });
+  if(error){ if(res) res.textContent = '⚠️ ' + error.message; return; }
+  const st = { dispatched: '✅ SMS firmasına iletildi — telefonunuza birkaç saniye içinde gelmeli. Gelmezse firmanın panelindeki Raporlar\'a bakın (başlık onayı / bakiye).', no_provider: '⚠️ SMS firması bilgileri eksik (anahtar/şifre). Kaydet\'e basıp tekrar deneyin.', skipped: '⚠️ Gönderim sınırına takıldı (aynı numaraya saatte en fazla 10 SMS).' };
+  if(res) res.textContent = st[data && data.status] || ('Durum: ' + (data && data.status || '?'));
+}
 async function saveSmsOnPayment(on){
   const { error } = await sb.rpc('set_sms_on_payment', { p_token: getSession().session_token, p_on: on });
   if(error){ alert(error.message); return; }
@@ -3184,7 +3191,8 @@ async function renderTenantIntegrations(session){
         <div id="ti_sms_urlw" style="grid-column:1/-1;${sm.provider==='other'?'':'display:none;'}"><label>🌐 API adresi</label><input id="ti_sms_url" value="${escapeAttr(sm.url || '')}" placeholder="https://api.firma.com/send?to={phone}&text={message}"></div>
       </div></div>
     <p class="ix-note" id="ti_sms_h">ℹ️ ${sc.h}</p>
-    <button class="ix-save" type="button" ${act('saveTenantInt', 'sms')}>${ICON_SAVE}<span>Kaydet</span></button>`,
+    <button class="ix-save" type="button" ${act('saveTenantInt', 'sms')}>${ICON_SAVE}<span>Kaydet</span></button>
+    ${sm.provider ? `<div class="ix-sec ti-test"><div class="ix-st">3 · Test et</div><div class="ti-test-row"><input id="ti_sms_testphone" inputmode="tel" placeholder="05XX XXX XX XX"><button type="button" class="ghost-btn" ${act('sendTestSms')}>📨 Test SMS gönder</button></div><small class="muted" id="ti_sms_testres"></small></div>` : ''}`,
   `<div class="oo-hero ${mailOk?'on':''}"><div class="oo-hero-ic">✉️</div>
       <div class="oo-hero-t"><b>Kendi alan adınızdan e-posta</b><small>Fiş, fatura, rezervasyon ve bekleme listesi e-postaları ör. info@restoraniniz.com adresinden gider. Bağlamazsanız müşterilere e-posta gönderilmez.</small></div>
       <span class="ti-st ${mailOk&&!mailWait?'ok':''}">${mailWait?'⏳ Ekleniyor':mailOk?'● Bağlı':'○ Bağlı değil'}</span></div>
