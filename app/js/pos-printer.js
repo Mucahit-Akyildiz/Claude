@@ -875,7 +875,7 @@ function drawNotifRoles(){
   const roles = APP.config.roles || [], tab = APP.notifRolesTab || 'push';
   const allV = (APP.voicePolicy && APP.voicePolicy.all) || {};
   const head = `<tr><th class="nm-type">Bildirim</th>${roles.map(r => `<th>${escapeHtml(r.name)}</th>`).join('')}<th></th></tr>`;
-  const cell = (on, fn, k, rid) => `<td><button type="button" class="nm-cell ${on?'on':''}" title="${on?'Gönderiliyor — kapatmak için tıklayın':'Gönderilmiyor — açmak için tıklayın'}" ${act(fn, k, rid)}>${on?'✓':''}</button></td>`;
+  const cell = (on, fn, k, rid) => `<td><button type="button" role="switch" aria-checked="${on}" class="nm-sw ${on?'on':''}" title="${on?'Açık — kapatmak için dokunun':'Kapalı — açmak için dokunun'}" ${act(fn, k, rid)}><i></i></button></td>`;
   const rowsPush = NOTIF_TYPES.map(t => { const sel = notifRolesFor(t), custom = Array.isArray((APP.notifRoles||{})[t.k]);
     return `<tr><td class="nm-type"><span class="nm-ic">${t.ic}</span><div><b>${t.t}</b><small>${t.d}</small></div></td>${roles.map(r => cell(sel.includes(r.id), 'toggleNotifRole', t.k, r.id)).join('')}
       <td class="nm-act">${custom ? `<button type="button" class="nm-reset" title="İzne göre varsayılana dön" ${act('resetNotifRoles', t.k)}>↺</button>` : ''}${sel.length ? '' : '<span class="nm-warn" title="Kimseye gitmez">⚠️</span>'}</td></tr>`; }).join('');
