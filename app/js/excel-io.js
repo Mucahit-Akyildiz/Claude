@@ -66,9 +66,9 @@ async function importAllowancesExcel(){
   const list = await loadAllowances();
   const users = (APP.config && APP.config.users) || [];
   const flags = ((APP.config && APP.config.order_flags) || []).map(f => f.label);
-  const errs = []; let ok = 0;
+  const errs = [], plan = []; let ok = 0;
   await withLoadingOverlay((async () => {
-    await runPool(rows, async (r, i) => {
+    rows.forEach((r, i) => {
       const line = 'Satır ' + (i + 2);
       const kind = /kullan/i.test(xlPick(r, 'Tür', 'Tur', 'Tip')) ? 'user' : 'person';
       const name = xlPick(r, 'Ad', 'Ad Soyad', 'İsim', 'Kullanıcı', 'Kullanıcı Adı');
@@ -86,9 +86,9 @@ async function importAllowancesExcel(){
       } else {
         p.name = name; p.phone = xlPick(r, 'Telefon', 'Tel', 'GSM'); const ex = list.find(a => a.kind === 'person' && xlKey(a.name) === xlKey(name)); if(ex) p.id = ex.id;
       }
-      const { error } = await sb.rpc('save_allowance', { p_token: getSession().session_token, p_data: p });
-      if(error) errs.push(line + ` (${name}): ${error.message}`); else ok++;
+      plan.push({ line, name, p });
     });
+    (await bulkRpc('save_allowance', plan.map(x => ({ p_data: x.p })))).forEach((r, k) => { if(r.error) errs.push(plan[k].line + ` (${plan[k].name}): ${r.error.message}`); else ok++; });
   })());
   xlReport('Limit içe aktarma tamamlandı', ok, errs);
   renderAllowancesSettings(document.getElementById('usersSubContent'));
@@ -110,10 +110,10 @@ async function importUsersExcel(){
   const rows = await xlPickRows(); if(!rows) return;
   if(!rows.length){ alert('Dosyada satır bulunamadı'); return; }
   const roles = (APP.config && APP.config.roles) || [];
-  const errs = []; let ok = 0;
+  const errs = [], upd = [], add = []; let ok = 0;
   const session = getSession();
   await withLoadingOverlay((async () => {
-    await runPool(rows, async (r, i) => {
+    rows.forEach((r, i) => {
       const line = 'Satır ' + (i + 2);
       const username = xlPick(r, 'Kullanıcı Adı', 'Kullanıcı', 'Ad');
       if(!username){ errs.push(line + ': kullanıcı adı boş'); return; }
@@ -123,18 +123,20 @@ async function importUsersExcel(){
       const roleIds = roleNames.map(n => roles.find(ro => xlKey(ro.name) === xlKey(n)).id);
       const password = xlPick(r, 'Şifre', 'Sifre', 'Parola');
       const ex = ((APP.config && APP.config.users) || []).find(u => xlKey(u.username) === xlKey(username));
-      let error;
       if(ex){
-        ({ error } = await sb.rpc('update_staff_user', { p_token: session.session_token, p_user_id: ex.id, p_username: ex.username, p_password: password || null, p_role_ids: roleIds.length ? roleIds : (ex.role_ids || []) }));
         const want = xlBool(xlPick(r, 'Aktif', 'Durum'), ex.is_active !== false);
-        if(!error && want !== (ex.is_active !== false)) ({ error } = await sb.rpc('set_staff_user_active', { p_token: session.session_token, p_user_id: ex.id, p_active: want }));
+        upd.push({ line, username, active: want !== (ex.is_active !== false) ? want : null, a: { p_user_id: ex.id, p_username: ex.username, p_password: password || null, p_role_ids: roleIds.length ? roleIds : (ex.role_ids || []) } });
       } else {
         if(!password){ errs.push(line + ` (${username}): yeni kullanıcı için şifre gerekli`); return; }
         if(!roleIds.length){ errs.push(line + ` (${username}): en az 1 rol gerekli`); return; }
-        ({ error } = await sb.rpc('create_staff_user', { p_token: session.session_token, p_username: username, p_password: password, p_role_ids: roleIds }));
+        add.push({ line, username, a: { p_username: username, p_password: password, p_role_ids: roleIds } });
       }
-      if(error) errs.push(line + ` (${username}): ${error.message}`); else ok++;
     });
+    const fail = (x, e) => errs.push(x.line + ` (${x.username}): ${e.message}`);
+    const [ru, ra] = await Promise.all([bulkRpc('update_staff_user', upd.map(x => x.a)), bulkRpc('create_staff_user', add.map(x => x.a))]);
+    ra.forEach((r, k) => r.error ? fail(add[k], r.error) : ok++);
+    const toAct = upd.filter((x, k) => { if(ru[k].error){ fail(x, ru[k].error); return false; } if(x.active === null){ ok++; return false; } return true; });
+    (await bulkRpc('set_staff_user_active', toAct.map(x => ({ p_user_id: x.a.p_user_id, p_active: x.active })))).forEach((r, k) => r.error ? fail(toAct[k], r.error) : ok++);
   })());
   xlReport('Kullanıcı içe aktarma tamamlandı', ok, errs);
   const { data } = await sb.rpc('get_restaurant_config', { p_token: session.session_token });
@@ -155,10 +157,10 @@ async function downloadProductTemplate(){
 async function importProductsExcel(){
   const rows = await xlPickRows(); if(!rows) return;
   if(!rows.length){ alert('Dosyada satır bulunamadı'); return; }
-  const c = APP.config || {}, session = getSession(), errs = []; let ok = 0, nocost = 0;
+  const c = APP.config || {}, session = getSession(), errs = [], plan = []; let ok = 0, nocost = 0;
   const find = (list, v) => (list || []).find(x => xlKey(x.name) === xlKey(v));
   await withLoadingOverlay((async () => {
-    await runPool(rows, async (r, i) => {
+    rows.forEach((r, i) => {
       const line = 'Satır ' + (i + 2), name = xlPick(r, 'Ürün Adı', 'Ürün', 'Ad');
       if(!name){ errs.push(line + ': ürün adı boş'); return; }
       const price = xlNum(xlPick(r, 'Fiyat', 'Satış Fiyatı')); if(!isFinite(price) || price < 0){ errs.push(line + ` (${name}): fiyat geçersiz`); return; }
@@ -169,14 +171,19 @@ async function importProductsExcel(){
       const stockRaw = xlPick(r, 'Stok'), stock = stockRaw === '' ? null : parseInt(xlNum(stockRaw), 10);
       const vatRaw = xlPick(r, 'KDV %', 'KDV');
       const ex = (c.products || []).find(p => !p.parent_id && xlKey(p.name) === xlKey(name));
-      const { data: id, error } = await sb.rpc('upsert_product', { p_token: session.session_token, p_id: ex ? ex.id : null, p_name: name, p_price: price, p_cost: cost,
-        p_station_id: stn ? stn.id : (menu && menu.station_id) || (ex && ex.station_id) || null, p_stock: stock, p_available: xlBool(xlPick(r, 'Satışta', 'Aktif'), ex ? ex.available !== false : true) });
-      if(error){ errs.push(line + ` (${name}): ${error.message}`); return; }
-      const pid = (ex && ex.id) || id;
-      if(pid && menu && (!ex || ex.menu_id !== menu.id)){ const { error: e } = await sb.rpc('set_product_menu', { p_token: session.session_token, p_product_id: pid, p_menu_id: menu.id }); if(e) errs.push(line + ` (${name}): menü — ${e.message}`); }
-      if(pid && vatRaw !== ''){ const { error: e } = await sb.rpc('set_product_vat', { p_token: session.session_token, p_product_id: pid, p_rate: xlNum(vatRaw) }); if(e) errs.push(line + ` (${name}): KDV — ${e.message}`); }
-      ok++; if(!(cost > 0)) nocost++;
+      plan.push({ line, name, ex, menu, vatRaw, cost, a: { p_id: ex ? ex.id : null, p_name: name, p_price: price, p_cost: cost,
+        p_station_id: stn ? stn.id : (menu && menu.station_id) || (ex && ex.station_id) || null, p_stock: stock, p_available: xlBool(xlPick(r, 'Satışta', 'Aktif'), ex ? ex.available !== false : true) } });
     });
+    const res = await bulkRpc('upsert_product', plan.map(x => x.a)), menus = [], vats = [];
+    plan.forEach((x, k) => {
+      if(res[k].error){ errs.push(x.line + ` (${x.name}): ${res[k].error.message}`); return; }
+      const pid = (x.ex && x.ex.id) || res[k].data; ok++; if(!(x.cost > 0)) nocost++;
+      if(pid && x.menu && (!x.ex || x.ex.menu_id !== x.menu.id)) menus.push({ x, a: { p_product_id: pid, p_menu_id: x.menu.id } });
+      if(pid && x.vatRaw !== '') vats.push({ x, a: { p_product_id: pid, p_rate: xlNum(x.vatRaw) } });
+    });
+    const [rm, rv] = await Promise.all([bulkRpc('set_product_menu', menus.map(m => m.a)), bulkRpc('set_product_vat', vats.map(v => v.a))]);
+    rm.forEach((r, k) => { if(r.error) errs.push(menus[k].x.line + ` (${menus[k].x.name}): menü — ${r.error.message}`); });
+    rv.forEach((r, k) => { if(r.error) errs.push(vats[k].x.line + ` (${vats[k].x.name}): KDV — ${r.error.message}`); });
   })());
   xlReport('Ürün içe aktarma tamamlandı', ok, errs.concat(nocost ? [`ℹ️ ${nocost} ürünün maliyeti boş — ayar açıksa satışa kapalı geldi`] : []));
   renderSettingsView(document.getElementById('main'), session);
@@ -195,9 +202,9 @@ async function downloadIngredientTemplate(){
 async function importIngredientsExcel(){
   const rows = await xlPickRows(); if(!rows) return;
   if(!rows.length){ alert('Dosyada satır bulunamadı'); return; }
-  const session = getSession(), list = (APP.config || {}).ingredients || [], errs = []; let ok = 0;
+  const session = getSession(), list = (APP.config || {}).ingredients || [], errs = [], plan = []; let ok = 0;
   await withLoadingOverlay((async () => {
-    await runPool(rows, async (r, i) => {
+    rows.forEach((r, i) => {
       const line = 'Satır ' + (i + 2), name = xlPick(r, 'Hammadde Adı', 'Hammadde', 'Ad');
       if(!name){ errs.push(line + ': hammadde adı boş'); return; }
       const ex = list.find(x => xlKey(x.name) === xlKey(name));
@@ -207,12 +214,11 @@ async function importIngredientsExcel(){
       const num = (k, d) => { const v = xlPick(r, ...k); return v === '' ? d : xlNum(v); };
       const stock = num(['Stok'], ex ? Number(ex.stock) || 0 : 0), waste = num(['Fire %', 'Fire'], ex ? Number(ex.waste_pct) || 0 : 0), min = num(['Min Stok', 'Min'], ex ? Number(ex.min_stock) || 0 : 0);
       if(![stock, waste, min].every(isFinite) || waste < 0 || waste >= 100){ errs.push(line + ` (${name}): sayı geçersiz`); return; }
-      const { data: id, error } = await sb.rpc('upsert_ingredient', { p_token: session.session_token, p_id: ex ? ex.id : null, p_name: name, p_unit: unit, p_stock: stock, p_waste_pct: waste });
-      if(error){ errs.push(line + ` (${name}): ${error.message}`); return; }
-      const iid = (ex && ex.id) || id;
-      if(iid){ const { error: e } = await sb.rpc('set_ingredient_min', { p_token: session.session_token, p_id: iid, p_min: min || 0 }); if(e) errs.push(line + ` (${name}): min — ${e.message}`); }
-      ok++;
+      plan.push({ line, name, ex, min, a: { p_id: ex ? ex.id : null, p_name: name, p_unit: unit, p_stock: stock, p_waste_pct: waste } });
     });
+    const res = await bulkRpc('upsert_ingredient', plan.map(x => x.a)), mins = [];
+    plan.forEach((x, k) => { if(res[k].error){ errs.push(x.line + ` (${x.name}): ${res[k].error.message}`); return; } ok++; const iid = (x.ex && x.ex.id) || res[k].data; if(iid) mins.push({ x, a: { p_id: iid, p_min: x.min || 0 } }); });
+    (await bulkRpc('set_ingredient_min', mins.map(m => m.a))).forEach((r, k) => { if(r.error) errs.push(mins[k].x.line + ` (${mins[k].x.name}): min — ${r.error.message}`); });
   })());
   xlReport('Hammadde içe aktarma tamamlandı', ok, errs);
   renderSettingsView(document.getElementById('main'), session);
