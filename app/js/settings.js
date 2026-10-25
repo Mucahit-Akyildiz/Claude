@@ -1695,6 +1695,7 @@ function renderUsersSettings(el, session){
         <button type="button" class="act-btn act-delete" data-needs-sel ${act('bulkDeleteUsers')} disabled>${ICON_TRASH}<span>Sil</span></button>
       </div>
     </div>
+    ${canAssign ? `<div class="us-selbar"><button type="button" class="pc-btn" ${act('selectAllUsers', true)}>☑ Hepsini seç</button><button type="button" class="pc-btn" ${act('selectAllUsers', false)}>☐ Seçimi kaldır</button></div>` : ''}
     <p class="muted" id="userSelInfo" style="text-align:left;font-size:12.5px;margin:0 0 8px;">Satırdaki bilgileri değiştirip <b>Kaydet</b>'e basın${canAssign ? '; pasife almak / silmek için satırları seçin' : ''}.</p>
     <div class="settings-table-wrap user-cards">
     <table class="settings-table">
@@ -2348,8 +2349,9 @@ const SMS_TPL = [
   { k:'delivery_dispatched', ic:'🛵', t:'Sipariş yola çıktı', w:'Sipariş kuryeye verilince', v:['isletme','ad','kurye','kurye_tel','takip'], d:'{isletme}: Siparisiniz yola cikti! Kurye: {kurye} Tel: {kurye_tel} Takip: {takip}' },
   { k:'payment', ic:'💳', t:'Ödeme alındı', w:'Hesaba müşteri girildiyse ödeme alınınca', v:['isletme','ad','tutar'], d:'{isletme}: {ad}, odemeniz alindi. Tutar: {tutar} TL. Bizi tercih ettiginiz icin tesekkur ederiz!' },
   { k:'review_request', ic:'⭐', t:'Değerlendirme isteği', w:'Hesaptan değerlendirme linki gönderilince', v:['isletme','link'], d:'{isletme}: Bizi degerlendirir misiniz? {link}' },
+  { k:'staff_login', ic:'👤', t:'Personel giriş bilgileri', w:'Kullanıcılar › SMS Gönder ile', v:['isletme','kod','kullanici','sifre','android','web'], d:'{isletme} - Peyktan giris bilgileriniz: Isletme kodu: {kod} Kullanici: {kullanici} Sifre: {sifre} Android: {android} iPhone/Web: {web}' },
 ];
-const SMS_VAR_LBL = { kurye:'Kurye adı', kurye_tel:'Kurye telefonu', isletme:'İşletme adı', ad:'Müşteri adı', tarih:'Tarih', saat:'Saat', kisi:'Kişi sayısı', no:'Sipariş no', tutar:'Tutar', takip:'Takip linki', link:'Değerlendirme linki' };
+const SMS_VAR_LBL = { kod:'İşletme kodu', kullanici:'Kullanıcı adı', sifre:'Geçici şifre', android:'Android linki', web:'iPhone/Web linki', kurye:'Kurye adı', kurye_tel:'Kurye telefonu', isletme:'İşletme adı', ad:'Müşteri adı', tarih:'Tarih', saat:'Saat', kisi:'Kişi sayısı', no:'Sipariş no', tutar:'Tutar', takip:'Takip linki', link:'Değerlendirme linki' };
 async function loadSmsTemplates(){
   const box = document.getElementById('smsTplBox'); if(!box) return;
   const { data } = await sb.rpc('get_sms_templates', { p_token: getSession().session_token });
@@ -2358,19 +2360,24 @@ async function loadSmsTemplates(){
 function smsLen(t){ const uni = /[çğıöşüÇĞİÖŞÜ€]/.test(t); const per = uni ? 70 : 160, n = t.length; return { n, sms: n <= per ? 1 : Math.ceil(n / (uni ? 67 : 153)), uni }; }
 function drawSmsTemplates(){
   const box = document.getElementById('smsTplBox'); if(!box) return;
-  box.innerHTML = `<div class="ix-sec"><div class="ix-st">4 · Mesajlar</div>
-    <p class="muted st-help">Hangi mesajların gideceğini seçin ve metinlerini düzenleyin. <b>{süslü parantez}</b> içindeki alanlar gönderilirken gerçek bilgiyle dolar (ör. {ad} → Ahmet). Türkçe karakter (ç, ğ, ş…) kullanırsanız SMS daha kısa sayılır ve maliyet artabilir.</p>
-    <div class="st-list">${SMS_TPL.map(t => { const c = APP.smsTpl[t.k] || {}, on = c.enabled !== false, txt = c.text || t.d, L = smsLen(txt);
-      return `<div class="st-row ${on?'':'off'}" data-tpl="${t.k}">
-        <div class="st-head"><span class="st-ic">${t.ic}</span><div class="st-t"><b>${t.t}</b><small>${t.w}</small></div>
-          <label class="oo-switch"><input type="checkbox" ${on?'checked':''} ${actOn('change','toggleSmsTpl',[t.k,'$checked'])}><span class="oo-track"><span class="oo-thumb"></span></span><em>${on?'Gönderilir':'Kapalı'}</em></label></div>
-        <textarea id="tpl_${t.k}" rows="2" maxlength="480" ${on?'':'disabled'} ${actOn('input','smsTplInput',[t.k])}>${escapeHtml(txt)}</textarea>
-        <div class="st-foot"><span class="st-vars">${t.v.map(v => `<button type="button" class="pchip" title="${SMS_VAR_LBL[v]}" ${act('insertSmsVar', t.k, v)}>{${v}}</button>`).join('')}</span>
-          <small class="muted" id="tplLen_${t.k}">${L.n} karakter · ${L.sms} SMS${L.uni ? ' · Türkçe karakter' : ''}</small>
-          <button type="button" class="pc-btn" ${act('resetSmsTpl', t.k)} title="Varsayılan metne dön">↺</button>
-          <button type="button" class="st-save" id="tplSave_${t.k}" disabled ${act('saveSmsTpl', t.k)}>${ICON_SAVE}<span>Kaydet</span></button></div>
+  const fill = (t, txt) => txt.replace(/\{(\w+)\}/g, (m, v) => `<i class="st-var">${escapeHtml(SMS_VAR_LBL[v] || v)}</i>`);
+  const onN = SMS_TPL.filter(t => (APP.smsTpl[t.k] || {}).enabled !== false).length;
+  box.innerHTML = `<div class="ix-sec"><div class="ix-st">4 · Mesajlar <span class="pchip">${onN}/${SMS_TPL.length} açık</span></div>
+    <p class="muted st-help">Anahtarla mesajı açıp kapatın; metni değiştirmek için satıra dokunun.</p>
+    <div class="st-list">${SMS_TPL.map(t => { const c = APP.smsTpl[t.k] || {}, on = c.enabled !== false, txt = c.text || t.d, L = smsLen(txt), open = APP.smsTplOpen === t.k;
+      return `<div class="st-row ${on?'':'off'} ${open?'open':''}" data-tpl="${t.k}">
+        <div class="st-head">
+          <button type="button" class="st-hit" ${act('toggleSmsTplOpen', t.k)}><span class="st-ic">${t.ic}</span><span class="st-t"><b>${t.t}${c.text ? ' <em class="st-custom">özel</em>' : ''}</b><small>${t.w}</small><span class="st-prev">${fill(t, escapeHtml(txt))}</span></span><span class="st-chev">${open?'▴':'▾'}</span></button>
+          <button type="button" role="switch" aria-checked="${on}" class="nm-sw ${on?'on':''}" title="${on?'Gönderiliyor':'Kapalı'}" ${act('toggleSmsTpl', t.k, !on)}><i></i></button>
+        </div>
+        ${open ? `<div class="st-edit"><textarea id="tpl_${t.k}" rows="3" maxlength="480" ${actOn('input','smsTplInput',[t.k])}>${escapeHtml(txt)}</textarea>
+        <div class="st-foot"><span class="st-vars">${t.v.map(v => `<button type="button" class="pchip" ${act('insertSmsVar', t.k, v)}>+ ${SMS_VAR_LBL[v]}</button>`).join('')}</span></div>
+        <div class="st-foot"><small class="muted" id="tplLen_${t.k}">${L.n} karakter · ${L.sms} SMS${L.uni ? ' · Türkçe karakter' : ''}</small><span style="flex:1"></span>
+          <button type="button" class="ghost-btn st-btn" ${act('resetSmsTpl', t.k)}>↺ Varsayılan</button>
+          <button type="button" class="st-save" id="tplSave_${t.k}" disabled ${act('saveSmsTpl', t.k)}>${ICON_SAVE}<span>Kaydet</span></button></div></div>` : ''}
       </div>`; }).join('')}</div></div>`;
 }
+function toggleSmsTplOpen(k){ APP.smsTplOpen = APP.smsTplOpen === k ? null : k; drawSmsTemplates(); const ta = document.getElementById('tpl_' + k); if(ta) ta.focus(); }
 function smsTplInput(k){ const ta = document.getElementById('tpl_' + k), L = smsLen(ta.value); document.getElementById('tplLen_' + k).textContent = `${L.n} karakter · ${L.sms} SMS${L.uni ? ' · Türkçe karakter' : ''}`; document.getElementById('tplSave_' + k).disabled = false; }
 function insertSmsVar(k, v){ const ta = document.getElementById('tpl_' + k); if(!ta || ta.disabled) return; const p = ta.selectionStart ?? ta.value.length; ta.value = ta.value.slice(0, p) + '{' + v + '}' + ta.value.slice(ta.selectionEnd ?? p); ta.focus(); smsTplInput(k); }
 async function saveSmsTpl(k, enabledOverride){
