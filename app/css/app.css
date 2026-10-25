@@ -1809,6 +1809,7 @@ input.sw:checked{background:var(--c1);} input.sw:checked::after{transform:transl
 .dr-backup input{width:100%;box-sizing:border-box;}
 .dr-bk-btn{width:100%;padding:12px;border:0;border-radius:12px;font-weight:800;cursor:pointer;color:#fff;background:var(--accent,#3b82f6);}
 .dr-bk-btn:hover{filter:brightness(1.08);}
+.dr-bk-up{margin-top:8px;background:transparent;color:var(--accent,#3b82f6);border:1.5px solid var(--accent,#3b82f6);}
 .dr-danger .dr-step span{background:var(--danger,#ef4444);color:#fff;}
 .dr-btn{width:100%;margin:0;background:var(--danger,#ef4444) !important;color:#fff !important;font-weight:800;}
 @media (max-width:900px){.dr-layout{grid-template-columns:1fr;} .dr-side{position:static;}}
