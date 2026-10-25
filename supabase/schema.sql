@@ -9253,6 +9253,26 @@ $$;
 
 
 --
+-- Name: send_test_sms(uuid, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.send_test_sms(p_token uuid, p_phone text) RETURNS json
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+declare s staff_sessions%rowtype; v_name text; v_id bigint; v_st text;
+begin
+  s := _session_check(p_token, 'settings_integrations');
+  if _normalize_tr_phone(p_phone) is null then raise exception 'Geçerli bir telefon numarası girin'; end if;
+  if not coalesce((select sms_enabled from restaurants where id = s.restaurant_id), false) then raise exception 'Önce "Müşterilere otomatik SMS" anahtarını açın'; end if;
+  select name into v_name from restaurants where id = s.restaurant_id;
+  perform _send_sms(s.restaurant_id, p_phone, v_name || ': Peyktan test mesajidir. SMS bildirimleriniz calisiyor.', 'test');
+  select id, status into v_id, v_st from sms_outbox where restaurant_id = s.restaurant_id and purpose = 'test' order by id desc limit 1;
+  return json_build_object('id', v_id, 'status', v_st);
+end $$;
+
+
+--
 -- Name: send_waitlist_order(uuid, uuid, json, text[]); Type: FUNCTION; Schema: public; Owner: -
 --
 
