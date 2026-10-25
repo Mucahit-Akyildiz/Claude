@@ -1960,6 +1960,12 @@ function renderDataResetSettings(el){
         </div>
       </div>
       <div class="dr-side">
+        <div class="dr-backup">
+          <div class="dr-step"><span>💾</span>Yedek indir</div>
+          <p class="muted" style="font-size:12.5px;margin:0 0 10px;">Silmeden önce tüm işletme verilerinizin (ürünler, satışlar, müşteriler, kullanıcılar…) bir kopyasını bilgisayarınıza indirin. Şifreler ve API anahtarları yedeğe eklenmez.</p>
+          <input type="password" id="backupPassword" autocomplete="current-password" placeholder="Giriş şifreniz" style="margin:0 0 10px;">
+          <button type="button" class="dr-bk-btn" ${act('downloadBackup')}>⬇️ Yedeği İndir (.json)</button>
+        </div>
         <details class="dr-kept"><summary>🔒 Silinmeyecek veriler <small>(${RESET_KEPT.length})</small></summary>
           <ul>${RESET_KEPT.map(k => `<li>✓ ${k}</li>`).join('')}</ul></details>
         <div class="dr-danger">
@@ -1973,6 +1979,18 @@ function renderDataResetSettings(el){
     </div>
   </div>`;
   updateResetCount();
+}
+async function downloadBackup(){
+  const el = document.getElementById('backupPassword'), pw = el ? el.value : '';
+  if(!pw){ showToast('Yedek için şifrenizi girin'); return; }
+  const { data, error } = await withLoadingOverlay(sb.rpc('export_restaurant_backup', { p_token: getSession().session_token, p_password: pw }));
+  if(error){ showToast(error.message); return; }
+  el.value = '';
+  const blob = new Blob([JSON.stringify(data, null, 1)], { type: 'application/json' });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+  a.download = 'peyktan-yedek-' + ((data && data.restaurant_code) || '') + '-' + todayLocalDateStr() + '.json';
+  document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+  showToast('Yedek indirildi ✓');
 }
 function setResetRange(k){
   const sel = document.getElementById('resetRange'); if(!sel) return;
