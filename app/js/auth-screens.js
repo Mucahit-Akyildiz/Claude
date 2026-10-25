@@ -38,9 +38,9 @@ function renderLoginScreen(app){
       <p class="muted" style="text-align:center;margin-top:14px;font-size:13px;">
         <a href="#" style="color:var(--accent);" ${act('openForgotPassword')}>Şifremi Unuttum</a>
       </p>
-      <p class="muted" style="text-align:center;margin-top:2px;font-size:13px;">Yeni işletme misiniz?
+      ${isNativeApp() ? '' : `<p class="muted" style="text-align:center;margin-top:2px;font-size:13px;">Yeni işletme misiniz?
         <a href="#" style="color:var(--accent);" ${act('setAuthScreen','signup')}>Kayıt Ol / Paket Seç</a>
-      </p>
+      </p>`}
       <p class="muted" style="text-align:center;margin-top:2px;font-size:13px;">Şubeleri olan bir firma mısınız?
         <a href="#" style="color:var(--accent);" ${act('setAuthScreen','companyLogin')}>🏢 Şirket Girişi</a>
       </p>
@@ -489,6 +489,8 @@ async function doVerifyPasswordReset(){
 }
 
 function renderSignupScreen(app){
+  // Google Play: uygulama içinde Play Billing dışı ücretli abonelik satılmaz; kayıt/paket seçimi yalnızca web'de.
+  if(isNativeApp()){ APP.authScreen = 'login'; renderLoginScreen(app); return; }
   app.innerHTML = `
     <div class="center-wrap">
     <div>
