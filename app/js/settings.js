@@ -1928,11 +1928,13 @@ const RESET_CATEGORIES = [
   { id:'messages', label:'Mesajlar', hint:'Ekip içi mesajlar, fotoğraf ve sesli mesajlar', off:true },
   { id:'waiter_calls', label:'Garson çağrıları', hint:'QR menüden gelen tamamlanmış çağrılar', off:true },
   { id:'audit', label:'Değişiklik kaydı', hint:'Ayarlar → Güvenlik → Değişiklik Kaydı', off:true },
+  { id:'users', label:'Kullanıcılar', hint:'Bu dönemde eklenen personel hesapları (siz ve Yönetici rolündekiler silinmez; işlem geçmişi olanlar pasife alınır)', off:true, warn:true },
+  { id:'roles', label:'Roller', hint:'Bu dönemde eklenen roller (Yönetici rolü ve hâlâ bir kullanıcıya atanmış roller silinmez)', off:true, warn:true },
   { id:'customers', label:'Müşteriler', hint:'Bu dönemde eklenen müşteri kayıtları, sadakat puanlarıyla birlikte (satış geçmişi silinmez)', off:true, warn:true },
 ];
 // Hiçbir seçenekle silinmeyen kalıcı veriler (kullanıcıya bilgi olarak gösterilir).
-const RESET_KEPT = ['Ürünler, ekstralar ve reçeteler','Menüler ve istasyonlar','Hammaddeler ve stok miktarları','Bölgeler ve masalar','Kullanıcılar ve roller','Tedarikçiler','Hediye kartları ve bakiyeleri','Açık hesaplar ve borç kayıtları','Açık (ödenmemiş) siparişler ve devam eden vardiyalar','E-faturası kesilmiş satışlar (yasal kayıt)','Ayarlar, fiş tasarımı ve entegrasyonlar'];
-const RESET_ICONS = { sales:'🧾', waste:'🔥', shifts:'🕐', reservations:'📅', purchases:'🚚', messages:'💬', waiter_calls:'🛎️', audit:'📜', customers:'👥' };
+const RESET_KEPT = ['Ürünler, ekstralar ve reçeteler','Menüler ve istasyonlar','Hammaddeler ve stok miktarları','Bölgeler ve masalar','Yönetici rolü ve sizin hesabınız','Tedarikçiler','Hediye kartları ve bakiyeleri','Açık hesaplar ve borç kayıtları','Açık (ödenmemiş) siparişler ve devam eden vardiyalar','E-faturası kesilmiş satışlar (yasal kayıt)','Ayarlar, fiş tasarımı ve entegrasyonlar'];
+const RESET_ICONS = { sales:'🧾', waste:'🔥', shifts:'🕐', reservations:'📅', purchases:'🚚', messages:'💬', waiter_calls:'🛎️', audit:'📜', customers:'👥', users:'👤', roles:'🔑' };
 function renderDataResetSettings(el){
   const R = [['1m','1 ay'],['3m','3 ay'],['6m','6 ay'],['1y','1 yıl'],['all','Tümü'],['custom','Tarih seç']];
   el.innerHTML = `<div class="box" style="max-width:none;text-align:left;">
@@ -2006,7 +2008,7 @@ async function doDataReset(){
   if(!data || !data.ok){ showToast((data && data.error) || 'Silinemedi'); return; }
   document.getElementById('resetPassword').value = '';
   const n = data.removed || {};
-  showToast('Veriler silindi ✓ ' + Object.keys(n).map(k => (RESET_CATEGORIES.find(c => c.id===k)||{label:k}).label + ': ' + n[k]).join(', '));
+  showToast('Veriler silindi ✓ ' + Object.keys(n).map(k => (RESET_CATEGORIES.find(c => c.id===k)||{label:k==='users_deactivated'?'Pasife alınan kullanıcı':k}).label + ': ' + n[k]).join(', '));
 }
 
 /* --- Roller: yönetici rolleri kendisi ekleyip/çıkarabilir, hangi role
@@ -3137,11 +3139,10 @@ async function saveAllUsers(){
   rows.sort((a, b) => Number(a.exempt) - Number(b.exempt));
   const errors = [];
   await withLoadingOverlay((async () => {
-    for(const r of rows){
-      const { error } = await sb.rpc('update_staff_user', { p_token: session.session_token, p_user_id: r.id, p_username: r.username, p_password: r.password || null, p_role_ids: r.roleIds });
-      if(error){ errors.push((r.username || r.id) + ': ' + error.message); continue; }
-      if(r.phone !== undefined){ const { error: pe } = await sb.rpc('set_staff_phone', { p_token: session.session_token, p_user_id: r.id, p_phone: r.phone }); if(pe) errors.push((r.username || r.id) + ': ' + pe.message); }
-    }
+    // bulk_call kayıtları gönderilen sırayla işler, yukarıdaki sıralama korunur.
+    const res = await bulkRpc('update_staff_user', rows.map(r => ({ p_user_id: r.id, p_username: r.username, p_password: r.password || null, p_role_ids: r.roleIds })));
+    const ph = rows.filter((r, k) => { if(res[k].error){ errors.push((r.username || r.id) + ': ' + res[k].error.message); return false; } return r.phone !== undefined; });
+    (await bulkRpc('set_staff_phone', ph.map(r => ({ p_user_id: r.id, p_phone: r.phone })))).forEach((e, k) => { if(e.error) errors.push((ph[k].username || ph[k].id) + ': ' + e.error.message); });
   })());
   renderSettingsView(document.getElementById('main'), session);
   if(errors.length) alert('Bazı kullanıcılar kaydedilemedi:\n\n' + errors.join('\n'));
