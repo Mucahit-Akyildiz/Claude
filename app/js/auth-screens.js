@@ -28,7 +28,7 @@ function renderLoginScreen(app){
       <form id="loginForm" ${actOn('submit','doLogin',[])} autocomplete="on">
       <input id="codeInput" name="organization" autocomplete="organization" placeholder="İşletme kodu (örn. test123)" autocapitalize="none" value="${escapeAttr(lastLoginInfo().code)}">
       <input id="userInput" name="username" autocomplete="username" placeholder="Kullanıcı adı" autocapitalize="none" value="${escapeAttr(lastLoginInfo().username)}">
-      <input id="passInput" name="password" type="password" autocomplete="current-password" placeholder="Şifre">
+      <div class="pw-field-wrap"><input id="passInput" name="password" type="password" autocomplete="current-password" placeholder="Şifre"><button type="button" class="pw-eye-btn" title="Şifreyi göster/gizle" ${act('togglePassVisible', 'passInput', '$this')}>👁️</button></div>
       <label style="display:flex;align-items:center;gap:8px;margin:2px 0 10px;font-size:13.5px;cursor:pointer;">
         <input type="checkbox" id="rememberInput" style="width:auto;margin:0;" checked> Beni hatırla
       </label>
@@ -60,7 +60,7 @@ function renderCompanyLoginScreen(app){
       <h1>🏢 Şirket Girişi</h1>
       <p class="muted">Birden fazla şubesi olan firmalar için - şirket kodu ve şifrenizle giriş yapın, ardından şubeler arasında geçiş yapabilirsiniz.</p>
       <input id="companyCodeInput" placeholder="Şirket kodu" autocapitalize="none">
-      <input id="companyPassInput" type="password" placeholder="Şifre">
+      <div class="pw-field-wrap"><input id="companyPassInput" type="password" placeholder="Şifre"><button type="button" class="pw-eye-btn" title="Şifreyi göster/gizle" ${act('togglePassVisible', 'companyPassInput', '$this')}>👁️</button></div>
       <button id="companyLoginBtn" ${act('doCompanyLogin')}>Giriş Yap</button>
       <div class="error" id="companyErrBox"></div>
       <p class="muted" style="text-align:center;margin-top:16px;font-size:13px;">
@@ -350,7 +350,7 @@ function renderExpiredScreen(app){
       <p class="muted">Devam etmek için işletme bilgilerinizle ödemenizi tamamlayın - onaylanır onaylanmaz tekrar giriş yapabilirsiniz.</p>
       <input id="exCode" placeholder="İşletme kodu" autocapitalize="none" value="${escapeAttr(prefill.code||'')}">
       <input id="exUser" placeholder="Yönetici kullanıcı adı" autocapitalize="none" value="${escapeAttr(prefill.username||'')}">
-      <input id="exPass" type="password" placeholder="Yönetici şifresi">
+      <div class="pw-field-wrap"><input id="exPass" type="password" placeholder="Yönetici şifresi"><button type="button" class="pw-eye-btn" title="Şifreyi göster/gizle" ${act('togglePassVisible', 'exPass', '$this')}>👁️</button></div>
       <button id="exPayBtn" ${act('startRenewalPayment')}>💳 Ödemeye Geç</button>
       <div class="error" id="exErr"></div>
       <p class="muted" style="text-align:center;margin-top:16px;font-size:13px;">
@@ -415,11 +415,11 @@ function renderForgotPasswordScreen(app){
         <p class="muted" id="fpOtpInfo" style="text-align:center;"></p>
         <input id="fpOtp" placeholder="6 haneli kod" maxlength="6" style="text-align:center;font-size:20px;letter-spacing:4px;">
         <div class="pw-field-wrap">
-          <input type="password" id="fpNewPass" placeholder="Yeni şifre">
+          <div class="pw-field-wrap"><input type="password" id="fpNewPass" placeholder="Yeni şifre"><button type="button" class="pw-eye-btn" title="Şifreyi göster/gizle" ${act('togglePassVisible', 'fpNewPass', '$this')}>👁️</button></div>
           <button type="button" class="pw-eye-btn" ${act('toggleForgotPassVisibility')} title="Şifreyi göster/gizle">👁️</button>
         </div>
         <div class="pw-field-wrap">
-          <input type="password" id="fpNewPass2" placeholder="Yeni şifre (tekrar)">
+          <div class="pw-field-wrap"><input type="password" id="fpNewPass2" placeholder="Yeni şifre (tekrar)"><button type="button" class="pw-eye-btn" title="Şifreyi göster/gizle" ${act('togglePassVisible', 'fpNewPass2', '$this')}>👁️</button></div>
           <button type="button" class="pw-eye-btn" ${act('toggleForgotPassVisibility')} title="Şifreyi göster/gizle">👁️</button>
         </div>
         <button id="fpVerifyBtn" ${act('doVerifyPasswordReset')}>Şifreyi Güncelle</button>
@@ -502,7 +502,7 @@ function renderSignupScreen(app){
         <input id="suEmail" type="email" placeholder="E-posta adresi" autocapitalize="none">
         <input id="suPhone" type="tel" placeholder="Telefon (örn. 5551234567)">
         <input id="suAdminUser" placeholder="Yönetici kullanıcı adı (büyük/küçük harf önemli)" autocapitalize="none">
-        <input id="suAdminPass" type="password" placeholder="Yönetici şifresi">
+        <div class="pw-field-wrap"><input id="suAdminPass" type="password" placeholder="Yönetici şifresi"><button type="button" class="pw-eye-btn" title="Şifreyi göster/gizle" ${act('togglePassVisible', 'suAdminPass', '$this')}>👁️</button></div>
         <input id="suIdentityNumber" placeholder="T.C. Kimlik Numarası (fatura için)" inputmode="numeric" maxlength="11">
         <input id="suPromo" placeholder="İndirim kodu (varsa)" autocapitalize="none" style="text-transform:uppercase;">
         <div id="pkgCards" class="pkg-grid"></div>
