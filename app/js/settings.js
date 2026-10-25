@@ -278,8 +278,9 @@ async function saveAllIngredients(){
   if(rows.some(r => !r.name)){ alert('Hammadde adı boş olamaz'); return; }
   const session = getSession(); const errors = [];
   await withLoadingOverlay((async () => {
-    await runPool(rows, async r => { const { error } = await sb.rpc('upsert_ingredient', { p_token: session.session_token, p_id: r.id, p_name: r.name, p_unit: r.unit, p_stock: r.stock, p_waste_pct: r.waste }); if(error){ errors.push(r.name + ': ' + error.message); return; }
-      const { error: e2 } = await sb.rpc('set_ingredient_min', { p_token: session.session_token, p_id: r.id, p_min: r.min }); if(e2) errors.push(r.name + ': ' + e2.message); });
+    const res = await bulkRpc('upsert_ingredient', rows.map(r => ({ p_id: r.id, p_name: r.name, p_unit: r.unit, p_stock: r.stock, p_waste_pct: r.waste })));
+    const okRows = rows.filter((r, k) => { if(res[k].error){ errors.push(r.name + ': ' + res[k].error.message); return false; } return true; });
+    (await bulkRpc('set_ingredient_min', okRows.map(r => ({ p_id: r.id, p_min: r.min })))).forEach((e, k) => { if(e.error) errors.push(okRows[k].name + ': ' + e.error.message); });
   })());
   renderSettingsView(document.getElementById('main'), session);
   if(errors.length) alert('Bazı hammaddeler kaydedilemedi:\n\n' + errors.join('\n')); else showToast(rows.length + ' hammadde kaydedildi ✓');
@@ -290,7 +291,7 @@ async function bulkDeleteIngredients(){
   if(!await uiConfirm(list.length + ' hammadde silinsin mi? Bunlara bağlı reçeteler de silinir.\n\n' + list.map(i => i.name).join(', '))) return;
   const session = getSession(); const errors = [];
   await withLoadingOverlay((async () => {
-    await runPool(list, async i => { const { error } = await sb.rpc('delete_ingredient', { p_token: session.session_token, p_id: i.id }); if(error) errors.push(i.name + ': ' + friendlyDeleteError(error.message)); });
+    (await bulkRpc('delete_ingredient', list.map(i => ({ p_id: i.id })))).forEach((r, k) => { if(r.error) errors.push(list[k].name + ': ' + friendlyDeleteError(r.error.message)); });
   })());
   renderSettingsView(document.getElementById('main'), session);
   if(errors.length) alert('Bazı hammaddeler silinemedi:\n\n' + errors.join('\n')); else showToast(list.length + ' hammadde silindi');
@@ -998,10 +999,7 @@ async function addTableInner(session, zoneId, name){
   if(!todo.length){ alert('Bu adlarda masalar bu bölgede zaten var.'); return; }
   await withLoadingOverlay((async () => {
     const errs = [];
-    await runPool(todo, async n => {
-      const { error } = await sb.rpc('upsert_table', { p_token: session.session_token, p_id: null, p_zone_id: zoneId, p_name: n });
-      if(error) errs.push(n + ': ' + error.message);
-    });
+    (await bulkRpc('upsert_table', todo.map(n => ({ p_id: null, p_zone_id: zoneId, p_name: n })))).forEach((r, k) => { if(r.error) errs.push(todo[k] + ': ' + r.error.message); });
     if(errs.length) alert(errs.join('\n'));
   })());
   if(skipped) showToast(skipped + ' masa zaten vardı, atlandı.');
@@ -1488,17 +1486,22 @@ async function setMenuAvailable(menuId, open){
   const list = (APP.config.products || []).filter(p => p.menu_id === menuId && (p.available !== false) !== open);
   if(!list.length) return;
   if(!open && !await uiConfirm((menu ? menu.name : 'Bu menü') + ' menüsündeki ' + list.length + ' ürün satışa kapatılsın mı?')) return;
-  const errors = await runProductBatch(list, (s, p) => sb.rpc('upsert_product', Object.assign({ p_token: s.session_token }, productPayload(p, { p_available: open }))));
+  const errors = await runProductBulk(list, 'upsert_product', p => productPayload(p, { p_available: open }));
   if(errors.length) alert('Bazı ürünler güncellenemedi:\n\n' + errors.join('\n'));
   else showToast((menu ? menu.name : 'Menü') + ': ' + list.length + ' ürün ' + (open ? 'satışa açıldı ✓' : 'satışa kapatıldı'));
 }
 function productPayload(p, over){
   return Object.assign({ p_id: p.id, p_station_id: p.station_id, p_name: p.name, p_price: p.price, p_cost: p.cost, p_stock: p.stock, p_available: p.available!==false }, over || {});
 }
-async function runProductBatch(list, fn){
+async function runProductBulk(list, rpc, argsOf){
+  return runProductBatch(list, null, () => bulkRpc(rpc, list.map(argsOf)));
+}
+async function runProductBatch(list, fn, bulk){
   const session = getSession(); const errors = [];
+  const err = (item, error) => errors.push((item.name || '') + ': ' + (item.friendly ? friendlyDeleteError(error.message) : error.message));
   await withLoadingOverlay((async () => {
-    await runPool(list, async item => { const { error } = await fn(session, item); if(error) errors.push((item.name || '') + ': ' + (item.friendly ? friendlyDeleteError(error.message) : error.message)); });
+    if(bulk){ (await bulk()).forEach((r, k) => { if(r.error) err(list[k], r.error); }); return; }
+    await runPool(list, async item => { const { error } = await fn(session, item); if(error) err(item, error); });
   })());
   // Sipariş Al'daki uzun basma ile açılan düzenlemede ekran Ayarlar'a geçmez; yalnızca veriler tazelenir.
   if(APP.view==='settings') renderSettingsView(document.getElementById('main'), session);
@@ -1546,14 +1549,14 @@ async function bulkProductAvailable(open){
   const ids = selectedProductIds(); if(!ids.length) return;
   const list = ids.map(id => APP.config.products.find(p => p.id===id)).filter(p => p && (p.available!==false) !== open);
   if(!list.length){ showToast(open ? 'Seçilenler zaten satışta' : 'Seçilenler zaten kapalı'); return; }
-  const errors = await runProductBatch(list, (s, p) => sb.rpc('upsert_product', Object.assign({ p_token: s.session_token }, productPayload(p, { p_available: open }))));
+  const errors = await runProductBulk(list, 'upsert_product', p => productPayload(p, { p_available: open }));
   if(errors.length) alert('Bazı ürünler güncellenemedi:\n\n' + errors.join('\n')); else showToast(list.length + (open ? ' ürün satışa açıldı ✓' : ' ürün satışa kapatıldı'));
 }
 async function bulkDeleteProducts(){
   const ids = selectedProductIds(); if(!ids.length) return;
   const list = ids.map(id => APP.config.products.find(p => p.id===id)).filter(Boolean).map(p => ({ id: p.id, name: p.name, friendly: true }));
   if(!await uiConfirm(list.length + ' ürün silinsin mi?\n\n' + list.map(p => p.name).join(', '))) return;
-  const errors = await runProductBatch(list, (s, p) => sb.rpc('delete_product', { p_token: s.session_token, p_id: p.id }));
+  const errors = await runProductBulk(list, 'delete_product', p => ({ p_id: p.id }));
   if(errors.length) alert('Bazı ürünler silinemedi:\n\n' + errors.join('\n')); else showToast(list.length + ' ürün silindi');
 }
 async function addProduct(){
@@ -3150,10 +3153,7 @@ async function bulkUserActive(activate){
   if(!activate && !await uiConfirm(names.length + ' kullanıcı pasife alınsın mı?\n\n' + names.join(', ') + '\n\nGiriş yapamazlar ve açık oturumları hemen kapanır. Kayıtları silinmez, istediğinizde tekrar aktifleştirebilirsiniz.')) return;
   const session = getSession(); const errors = [];
   await withLoadingOverlay((async () => {
-    await runPool(ids, async id => {
-      const { error } = await sb.rpc('set_staff_user_active', { p_token: session.session_token, p_user_id: id, p_active: !!activate });
-      if(error) errors.push(error.message);
-    });
+    (await bulkRpc('set_staff_user_active', ids.map(id => ({ p_user_id: id, p_active: !!activate })))).forEach(r => { if(r.error) errors.push(r.error.message); });
   })());
   renderSettingsView(document.getElementById('main'), session);
   if(errors.length) alert('Bazı işlemler yapılamadı:\n\n' + errors.join('\n'));
@@ -3165,10 +3165,7 @@ async function bulkDeleteUsers(){
   if(!await uiConfirm(names.length + ' kullanıcı kalıcı olarak silinsin mi?\n\n' + names.join(', '))) return;
   const session = getSession(); const errors = [];
   await withLoadingOverlay((async () => {
-    await runPool(ids, async id => {
-      const { error } = await sb.rpc('delete_staff_user', { p_token: session.session_token, p_user_id: id });
-      if(error) errors.push(error.message);
-    });
+    (await bulkRpc('delete_staff_user', ids.map(id => ({ p_user_id: id })))).forEach(r => { if(r.error) errors.push(r.error.message); });
   })());
   renderSettingsView(document.getElementById('main'), session);
   if(errors.length) alert('Bazı kullanıcılar silinemedi:\n\n' + errors.join('\n'));

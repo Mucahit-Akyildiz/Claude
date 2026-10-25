@@ -60,6 +60,17 @@ async function runPool(items, fn, limit){
   const list = Array.from(items), n = Math.min(limit || 6, list.length); let i = 0;
   await Promise.all(Array.from({ length: n }, async () => { while(i < list.length){ const k = i++; await fn(list[k], k); } }));
 }
+/* Aynı RPC'yi birçok kayıt için TEK istekte çalıştırır (sunucuda bulk_call).
+   Her kayıt için { data } ya da { error: { message } } döner, sıra korunur. */
+async function bulkRpc(fn, argsList){
+  const tok = getSession().session_token, out = [];
+  for(let i = 0; i < argsList.length; i += 200){
+    const part = argsList.slice(i, i + 200).map(a => { const o = Object.assign({}, a); delete o.p_token; return o; });
+    const { data, error } = await sb.rpc('bulk_call', { p_token: tok, p_fn: fn, p_items: part });
+    part.forEach((_, k) => { const r = error ? { error } : (data && data[k]) || {}; out.push(r.error ? { error: { message: r.error.message || r.error } } : { data: r.data, error: null }); });
+  }
+  return out;
+}
 async function withLoadingOverlay(promise, delayMs){
   // Otomatik (arka plan) yenilemede yükleniyor perdesi gösterilmez.
   if(APP.silentLoad) return await promise;
