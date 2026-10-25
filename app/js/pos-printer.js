@@ -892,16 +892,16 @@ async function setNotifRoleColumn(roleId, on){
   const tok = getSession().session_token, tab = APP.notifRolesTab || 'push', errs = [];
   await withLoadingOverlay((async () => {
     if(tab === 'push'){
-      for(const t of NOTIF_TYPES){ const cur = notifRolesFor(t), has = cur.includes(roleId); if(has === on) continue;
+      await runPool(NOTIF_TYPES.filter(t => notifRolesFor(t).includes(roleId) !== on), async t => { const cur = notifRolesFor(t);
         const next = on ? cur.concat(roleId) : cur.filter(x => x !== roleId);
         const { error } = await sb.rpc('set_notification_roles', { p_token: tok, p_type: t.k, p_role_ids: next });
-        if(error) errs.push(t.t + ': ' + error.message); else APP.notifRoles = Object.assign({}, APP.notifRoles, { [t.k]: next }); }
+        if(error) errs.push(t.t + ': ' + error.message); else APP.notifRoles = Object.assign({}, APP.notifRoles, { [t.k]: next }); });
     } else {
       const allV = (APP.voicePolicy && APP.voicePolicy.all) || {};
-      for(const t of VOICE_TYPES){ const pol = allV[t.id], cur = pol ? (pol.roles || []) : [], has = cur.includes(roleId); if(has === on) continue;
+      await runPool(VOICE_TYPES, async t => { const pol = allV[t.id], cur = pol ? (pol.roles || []) : [], has = cur.includes(roleId); if(has === on) return;
         const next = on ? cur.concat(roleId) : cur.filter(x => x !== roleId);
         const { error } = await sb.rpc('set_voice_policy', { p_token: tok, p_type: t.id, p_role_ids: next, p_mode: pol ? pol.mode : 'voice' });
-        if(error) errs.push(t.label + ': ' + error.message); }
+        if(error) errs.push(t.label + ': ' + error.message); });
       await loadVoicePolicy();
     }
   })());

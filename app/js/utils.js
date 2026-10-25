@@ -54,6 +54,12 @@ function endLoadingWatch(){
     if(el) el.classList.remove('show');
   }
 }
+/* Toplu işlemler: kayıtları tek tek sırayla değil, aynı anda en fazla
+   `limit` istekle gönderir (her istek ayrı bir ağ gidiş-dönüşü). */
+async function runPool(items, fn, limit){
+  const list = Array.from(items), n = Math.min(limit || 6, list.length); let i = 0;
+  await Promise.all(Array.from({ length: n }, async () => { while(i < list.length){ const k = i++; await fn(list[k], k); } }));
+}
 async function withLoadingOverlay(promise, delayMs){
   // Otomatik (arka plan) yenilemede yükleniyor perdesi gösterilmez.
   if(APP.silentLoad) return await promise;

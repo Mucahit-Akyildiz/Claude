@@ -278,8 +278,8 @@ async function saveAllIngredients(){
   if(rows.some(r => !r.name)){ alert('Hammadde adı boş olamaz'); return; }
   const session = getSession(); const errors = [];
   await withLoadingOverlay((async () => {
-    for(const r of rows){ const { error } = await sb.rpc('upsert_ingredient', { p_token: session.session_token, p_id: r.id, p_name: r.name, p_unit: r.unit, p_stock: r.stock, p_waste_pct: r.waste }); if(error){ errors.push(r.name + ': ' + error.message); continue; }
-      const { error: e2 } = await sb.rpc('set_ingredient_min', { p_token: session.session_token, p_id: r.id, p_min: r.min }); if(e2) errors.push(r.name + ': ' + e2.message); }
+    await runPool(rows, async r => { const { error } = await sb.rpc('upsert_ingredient', { p_token: session.session_token, p_id: r.id, p_name: r.name, p_unit: r.unit, p_stock: r.stock, p_waste_pct: r.waste }); if(error){ errors.push(r.name + ': ' + error.message); return; }
+      const { error: e2 } = await sb.rpc('set_ingredient_min', { p_token: session.session_token, p_id: r.id, p_min: r.min }); if(e2) errors.push(r.name + ': ' + e2.message); });
   })());
   renderSettingsView(document.getElementById('main'), session);
   if(errors.length) alert('Bazı hammaddeler kaydedilemedi:\n\n' + errors.join('\n')); else showToast(rows.length + ' hammadde kaydedildi ✓');
@@ -290,7 +290,7 @@ async function bulkDeleteIngredients(){
   if(!await uiConfirm(list.length + ' hammadde silinsin mi? Bunlara bağlı reçeteler de silinir.\n\n' + list.map(i => i.name).join(', '))) return;
   const session = getSession(); const errors = [];
   await withLoadingOverlay((async () => {
-    for(const i of list){ const { error } = await sb.rpc('delete_ingredient', { p_token: session.session_token, p_id: i.id }); if(error) errors.push(i.name + ': ' + friendlyDeleteError(error.message)); }
+    await runPool(list, async i => { const { error } = await sb.rpc('delete_ingredient', { p_token: session.session_token, p_id: i.id }); if(error) errors.push(i.name + ': ' + friendlyDeleteError(error.message)); });
   })());
   renderSettingsView(document.getElementById('main'), session);
   if(errors.length) alert('Bazı hammaddeler silinemedi:\n\n' + errors.join('\n')); else showToast(list.length + ' hammadde silindi');
@@ -997,10 +997,12 @@ async function addTableInner(session, zoneId, name){
   const skipped = names.length - todo.length;
   if(!todo.length){ alert('Bu adlarda masalar bu bölgede zaten var.'); return; }
   await withLoadingOverlay((async () => {
-    for(const n of todo){
+    const errs = [];
+    await runPool(todo, async n => {
       const { error } = await sb.rpc('upsert_table', { p_token: session.session_token, p_id: null, p_zone_id: zoneId, p_name: n });
-      if(error){ alert(n + ': ' + error.message); break; }
-    }
+      if(error) errs.push(n + ': ' + error.message);
+    });
+    if(errs.length) alert(errs.join('\n'));
   })());
   if(skipped) showToast(skipped + ' masa zaten vardı, atlandı.');
   renderSettingsView(document.getElementById('main'), session);
@@ -1496,7 +1498,7 @@ function productPayload(p, over){
 async function runProductBatch(list, fn){
   const session = getSession(); const errors = [];
   await withLoadingOverlay((async () => {
-    for(const item of list){ const { error } = await fn(session, item); if(error) errors.push((item.name || '') + ': ' + (item.friendly ? friendlyDeleteError(error.message) : error.message)); }
+    await runPool(list, async item => { const { error } = await fn(session, item); if(error) errors.push((item.name || '') + ': ' + (item.friendly ? friendlyDeleteError(error.message) : error.message)); });
   })());
   // Sipariş Al'daki uzun basma ile açılan düzenlemede ekran Ayarlar'a geçmez; yalnızca veriler tazelenir.
   if(APP.view==='settings') renderSettingsView(document.getElementById('main'), session);
@@ -3148,10 +3150,10 @@ async function bulkUserActive(activate){
   if(!activate && !await uiConfirm(names.length + ' kullanıcı pasife alınsın mı?\n\n' + names.join(', ') + '\n\nGiriş yapamazlar ve açık oturumları hemen kapanır. Kayıtları silinmez, istediğinizde tekrar aktifleştirebilirsiniz.')) return;
   const session = getSession(); const errors = [];
   await withLoadingOverlay((async () => {
-    for(const id of ids){
+    await runPool(ids, async id => {
       const { error } = await sb.rpc('set_staff_user_active', { p_token: session.session_token, p_user_id: id, p_active: !!activate });
       if(error) errors.push(error.message);
-    }
+    });
   })());
   renderSettingsView(document.getElementById('main'), session);
   if(errors.length) alert('Bazı işlemler yapılamadı:\n\n' + errors.join('\n'));
@@ -3163,10 +3165,10 @@ async function bulkDeleteUsers(){
   if(!await uiConfirm(names.length + ' kullanıcı kalıcı olarak silinsin mi?\n\n' + names.join(', '))) return;
   const session = getSession(); const errors = [];
   await withLoadingOverlay((async () => {
-    for(const id of ids){
+    await runPool(ids, async id => {
       const { error } = await sb.rpc('delete_staff_user', { p_token: session.session_token, p_user_id: id });
       if(error) errors.push(error.message);
-    }
+    });
   })());
   renderSettingsView(document.getElementById('main'), session);
   if(errors.length) alert('Bazı kullanıcılar silinemedi:\n\n' + errors.join('\n'));
