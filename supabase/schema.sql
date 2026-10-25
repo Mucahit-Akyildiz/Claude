@@ -665,6 +665,18 @@ end $$;
 
 
 --
+-- Name: _cust_email_by_phone(uuid, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public._cust_email_by_phone(p_rid uuid, p_phone text) RETURNS text
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+  select nullif(trim(email),'') from customers where restaurant_id = p_rid and p_phone is not null
+    and (phone = p_phone or (length(_phone_key(p_phone)) = 10 and _phone_key(phone) = _phone_key(p_phone))) and coalesce(trim(email),'') <> '' order by last_visit_at desc nulls last limit 1 $$;
+
+
+--
 -- Name: _customer_tier(uuid, numeric); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -1675,6 +1687,7 @@ CREATE FUNCTION public._reservation_send_mail(p_id uuid, p_kind text) RETURNS vo
     AS $$
 declare r record; v_when text; v_title text; v_head text; v_intro text; v_html text; m jsonb;
 begin
+  perform _reservation_send_sms(p_id, p_kind); -- SMS karşılığı (e-postası olmasa da)
   select rv.*, rs.name rname, rs.phone rphone into r from reservations rv join restaurants rs on rs.id = rv.restaurant_id where rv.id = p_id;
   if r.id is null or r.email is null then return; end if;
   v_when := to_char(r.reservation_time at time zone 'Europe/Istanbul', 'DD.MM.YYYY HH24:MI');
@@ -1706,6 +1719,34 @@ begin
     jsonb_build_object('isletme', r.rname, 'ad', r.customer_name, 'tarih_saat', v_when, 'kisi', r.party_size, 'telefon', coalesce(r.rphone,'')), v_title, v_head, v_html);
   if m is null then return; end if;
   perform _send_email_r(r.restaurant_id, r.email, m->>'subject', m->>'html');
+end $$;
+
+
+--
+-- Name: _reservation_send_sms(uuid, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public._reservation_send_sms(p_id uuid, p_kind text) RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+declare r record; v_when text; v_def text; v_key text;
+begin
+  if p_kind not in ('created','updated','pending','cancelled','no_show') then return; end if;
+  select rv.*, rs.name rname, rs.phone rphone into r from reservations rv join restaurants rs on rs.id = rv.restaurant_id where rv.id = p_id;
+  if r.id is null or r.phone is null then return; end if;
+  v_when := to_char(r.reservation_time at time zone 'Europe/Istanbul', 'DD.MM.YYYY HH24:MI');
+  v_key := 'reservation_' || p_kind;
+  v_def := r.rname || ': ' || case p_kind
+    when 'created' then v_when || ' tarihli ' || r.party_size || ' kisilik rezervasyonunuz alindi.'
+    when 'updated' then 'Rezervasyonunuz guncellendi: ' || v_when || ', ' || r.party_size || ' kisi.'
+    when 'pending' then v_when || ' tarihli rezervasyonunuz onay bekliyor, onaylaninca haber verecegiz.'
+    when 'cancelled' then v_when || ' tarihli rezervasyonunuz iptal edildi.' || coalesce(' Bilgi: ' || r.rphone, '')
+    else v_when || ' tarihli rezervasyonunuza gelmediginiz kaydedildi.' end;
+  perform _send_sms(r.restaurant_id, r.phone, _sms_text(r.restaurant_id, v_key, v_def,
+    jsonb_build_object('isletme', r.rname, 'ad', r.customer_name, 'tarih_saat', v_when, 'tarih', to_char(r.reservation_time at time zone 'Europe/Istanbul', 'DD.MM.YYYY'),
+      'saat', to_char(r.reservation_time at time zone 'Europe/Istanbul', 'HH24:MI'), 'kisi', r.party_size, 'telefon', coalesce(r.rphone,''))), v_key);
+exception when others then null;
 end $$;
 
 
@@ -1908,6 +1949,24 @@ begin
       || '<p><a href="https://www.peyktan.com/app/" style="display:inline-block;background:#0e8fa3;color:#fff;padding:10px 18px;border-radius:8px;text-decoration:none;">Uygulamaya Git</a></p>'
       || '<p style="color:#666;font-size:13px;">Sorularınız için: destek@peyktan.com</p>'));
   end loop;
+end $$;
+
+
+--
+-- Name: _send_mail_event(uuid, text, text, jsonb, text, text, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public._send_mail_event(p_rid uuid, p_to text, p_key text, p_vars jsonb, p_subject text, p_head text, p_html text) RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+declare m jsonb;
+begin
+  if nullif(trim(coalesce(p_to,'')),'') is null then return; end if;
+  m := _mail_custom(p_rid, p_key, p_vars, p_subject, p_head, p_html);
+  if m is null then return; end if;
+  perform _send_email_r(p_rid, p_to, m->>'subject', m->>'html');
+exception when others then null; -- e-posta hatası asıl işlemi engellemez
 end $$;
 
 
@@ -2315,16 +2374,27 @@ CREATE FUNCTION public._trg_payment_sms() RETURNS trigger
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public', 'pg_temp'
     AS $$
-declare v_phone text; v_name text; v_on boolean; v_cust text;
+declare v_phone text; v_name text; v_on boolean; v_cust text; v_tok uuid; v_link text := '';
 begin
   if coalesce(new.payment_method,'') = 'comp' or coalesce(new.total,0) <= 0 then return new; end if;
   select name, sms_on_payment and sms_enabled into v_name, v_on from restaurants where id = new.restaurant_id;
-  if not coalesce(v_on,false) then return new; end if;
   if new.customer_id is not null then select phone, name into v_phone, v_cust from customers where id = new.customer_id; end if;
   if v_phone is null and new.order_id is not null then select customer_phone, coalesce(v_cust, customer_name) into v_phone, v_cust from orders where id = new.order_id; end if;
   if v_phone is null then return new; end if;
+  -- Değerlendirme linki: hesap için değerlendirme kaydı açılır (varsa mevcut kullanılır).
+  begin
+    perform _link_order_review(new.id);
+    insert into reviews(restaurant_id, sales_history_id, customer_id, table_name, staff_user_id)
+      values (new.restaurant_id, new.id, new.customer_id, new.table_name, new.staff_user_id) on conflict (sales_history_id) do nothing;
+    select token into v_tok from reviews where sales_history_id = new.id;
+    if v_tok is not null then v_link := 'https://www.peyktan.com/degerlendirme/?t=' || v_tok; end if;
+  exception when others then v_link := ''; end;
   perform _send_sms(new.restaurant_id, v_phone, _sms_text(new.restaurant_id, 'payment',
-    v_name || ': ' || coalesce(split_part(v_cust,' ',1) || ', ', '') || 'odemeniz alindi. Tutar: ' || replace(to_char(new.total, 'FM999999990.00'), '.', ',') || ' TL. Bizi tercih ettiginiz icin tesekkur ederiz!', jsonb_build_object('isletme', v_name, 'ad', coalesce(split_part(v_cust,' ',1),''), 'tutar', replace(to_char(new.total, 'FM999999990.00'), '.', ','))), 'payment');
+    v_name || ': ' || coalesce(split_part(v_cust,' ',1) || ', ', '') || 'odemeniz alindi. Tutar: ' || replace(to_char(new.total, 'FM999999990.00'), '.', ',') || ' TL. Tesekkur ederiz!' || case when v_link <> '' then ' Bizi degerlendirin: ' || v_link else '' end, jsonb_build_object('isletme', v_name, 'ad', coalesce(split_part(v_cust,' ',1),''), 'tutar', replace(to_char(new.total, 'FM999999990.00'), '.', ','), 'link', v_link)), 'payment');
+  perform _send_mail_event(new.restaurant_id, coalesce((select nullif(trim(email),'') from customers where id = new.customer_id), _cust_email_by_phone(new.restaurant_id, v_phone)), 'payment',
+    jsonb_build_object('isletme', v_name, 'ad', coalesce(split_part(v_cust,' ',1),''), 'tutar', replace(to_char(new.total, 'FM999999990.00'), '.', ','), 'link', v_link),
+    v_name || ' - Ödemeniz alındı', 'Ödemeniz alındı', '<p>Merhaba ' || replace(replace(coalesce(split_part(v_cust,' ',1),''),'<','&lt;'),'>','&gt;') || ',</p><p><b>' || replace(to_char(new.total, 'FM999999990.00'), '.', ',') || ' TL</b> tutarındaki ödemeniz alındı. Teşekkür ederiz!</p>'
+      || case when v_link <> '' then '<p><a href="' || v_link || '">Bizi değerlendirin</a></p>' else '' end);
   return new;
 exception when others then return new; -- SMS hatası ödemeyi asla engellemez
 end $$;
@@ -2433,6 +2503,8 @@ begin
       update orders set ready_sms_sent_at = now() where id = o.id;
       perform _send_sms(o.restaurant_id, o.customer_phone, _sms_text(o.restaurant_id, 'takeaway_ready',
         v_name || ': Siparisiniz hazir' || case when o.daily_number is not null then ' (No: ' || o.daily_number || ')' else '' end || '. Afiyet olsun!', jsonb_build_object('isletme', v_name, 'ad', o.customer_name, 'no', coalesce(o.daily_number::text,''))), 'takeaway_ready');
+      perform _send_mail_event(o.restaurant_id, _cust_email_by_phone(o.restaurant_id, o.customer_phone), 'takeaway_ready', jsonb_build_object('isletme', v_name, 'ad', o.customer_name, 'no', coalesce(o.daily_number::text,'')),
+        v_name || ' - Siparişiniz hazır', 'Siparişiniz hazır', '<p>Merhaba ' || replace(replace(coalesce(o.customer_name,''),'<','&lt;'),'>','&gt;') || ',</p><p>Siparişiniz hazır' || coalesce(' (No: <b>' || o.daily_number || '</b>)', '') || '. Afiyet olsun!</p>');
     end if;
   end if;
   return new;
@@ -2538,6 +2610,7 @@ CREATE FUNCTION public._waitlist_send_mail(p_id uuid, p_kind text) RETURNS void
     AS $$
 declare w record; v_left int; v_title text; v_body text; v_name text; v_rest text; v_due text; m jsonb;
 begin
+  perform _waitlist_send_sms(p_id, p_kind); -- SMS karşılığı (e-postası olmasa da)
   select wl.*, r.name rname, r.phone rphone into w from waitlist_entries wl join restaurants r on r.id = wl.restaurant_id where wl.id = p_id;
   if w.id is null or w.email is null then return; end if;
   v_left := case when w.quoted_wait_minutes is null then null
@@ -2565,6 +2638,31 @@ begin
     v_title, case p_kind when 'joined' then 'Bekleme listesindesiniz' when 'updated' then 'Bekleme süreniz güncellendi' else 'Sıranız yaklaşıyor' end, v_body);
   if m is null then return; end if;
   perform _send_email_r(w.restaurant_id, w.email, m->>'subject', m->>'html');
+end $$;
+
+
+--
+-- Name: _waitlist_send_sms(uuid, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public._waitlist_send_sms(p_id uuid, p_kind text) RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+declare w record; v_left int; v_due text; v_key text; v_def text;
+begin
+  select wl.*, r.name rname, r.phone rphone into w from waitlist_entries wl join restaurants r on r.id = wl.restaurant_id where wl.id = p_id;
+  if w.id is null or w.phone is null then return; end if;
+  v_left := case when w.quoted_wait_minutes is null then null else greatest(0, ceil(extract(epoch from (w.joined_at + make_interval(mins => w.quoted_wait_minutes) - now())) / 60))::int end;
+  v_due := case when w.quoted_wait_minutes is null then null else to_char((w.joined_at + make_interval(mins => w.quoted_wait_minutes)) at time zone 'Europe/Istanbul', 'HH24:MI') end;
+  v_key := case p_kind when 'joined' then 'waitlist_joined' when 'updated' then 'waitlist_updated' else 'waitlist_soon' end;
+  v_def := w.rname || ': ' || case p_kind
+    when 'joined' then 'Bekleme listesine ' || w.party_size || ' kisi olarak alindiniz.' || coalesce(' Tahmini bekleme: ' || v_left || ' dk.', '')
+    when 'updated' then 'Bekleme sureniz guncellendi.' || coalesce(' Yeni tahmin: ' || v_left || ' dk.', '')
+    else 'Masaniza yaklasik ' || coalesce(v_left, 0) || ' dakika kaldi, lutfen yakin olun.' end;
+  perform _send_sms(w.restaurant_id, w.phone, _sms_text(w.restaurant_id, v_key, v_def,
+    jsonb_build_object('isletme', w.rname, 'ad', w.customer_name, 'kisi', w.party_size, 'dakika', coalesce(v_left::text,''), 'saat', coalesce(v_due,''), 'telefon', coalesce(w.rphone,''))), v_key);
+exception when others then null;
 end $$;
 
 
@@ -4283,6 +4381,8 @@ begin
     if not coalesce((select sms_enabled from restaurants where id = s.restaurant_id), false) then raise exception 'SMS bildirimleri kapalı (Ayarlar > Entegrasyonlar)'; end if;
     select name into v_name from restaurants where id = s.restaurant_id;
     perform _send_sms(s.restaurant_id, v_phone, _sms_text(s.restaurant_id, 'review_request', v_name || ': Bizi degerlendirir misiniz? https://www.peyktan.com/degerlendirme/?t=' || v_tok, jsonb_build_object('isletme', v_name, 'link', 'https://www.peyktan.com/degerlendirme/?t=' || v_tok)), 'review_request');
+    perform _send_mail_event(s.restaurant_id, (select nullif(trim(email),'') from customers where id = h.customer_id), 'review_request', jsonb_build_object('isletme', v_name, 'link', 'https://www.peyktan.com/degerlendirme/?t=' || v_tok),
+      v_name || ' - Bizi değerlendirir misiniz?', 'Görüşünüz bizim için önemli', '<p>Ziyaretiniz için teşekkür ederiz.</p><p><a href="https://www.peyktan.com/degerlendirme/?t=' || v_tok || '">Bizi değerlendirin</a></p>');
     v_sent := true;
   end if;
   return json_build_object('token', v_tok, 'sms_sent', v_sent);
@@ -4710,6 +4810,10 @@ begin
     if not coalesce((select sms_enabled from restaurants where id = s.restaurant_id), false) then raise exception 'SMS bildirimleri kapalı (Ayarlar > Entegrasyonlar)'; end if;
     select name into v_name from restaurants where id = s.restaurant_id;
     perform _send_sms(s.restaurant_id, o.customer_phone, _sms_text(s.restaurant_id, 'delivery_dispatched', v_name || ': Siparisiniz yola cikti!' || coalesce(' Kurye: ' || v_courier, '') || coalesce(' Tel: ' || v_cphone, '') || ' Takip: https://www.peyktan.com/takip/?t=' || o.tracking_token, jsonb_build_object('isletme', v_name, 'ad', o.customer_name, 'kurye', coalesce(v_courier,''), 'kurye_tel', coalesce(v_cphone,''), 'takip', 'https://www.peyktan.com/takip/?t=' || o.tracking_token)), 'delivery_dispatched');
+    perform _send_mail_event(s.restaurant_id, _cust_email_by_phone(s.restaurant_id, o.customer_phone), 'delivery_dispatched',
+      jsonb_build_object('isletme', v_name, 'ad', o.customer_name, 'kurye', coalesce(v_courier,''), 'kurye_tel', coalesce(v_cphone,''), 'takip', 'https://www.peyktan.com/takip/?t=' || o.tracking_token),
+      v_name || ' - Siparişiniz yola çıktı', 'Siparişiniz yola çıktı', '<p>Siparişiniz yola çıktı!</p>' || coalesce('<p>Kurye: <b>' || v_courier || '</b>' || coalesce(' · ' || v_cphone, '') || '</p>', '')
+        || '<p><a href="https://www.peyktan.com/takip/?t=' || o.tracking_token || '">Siparişi takip et</a></p>');
     v_sent := true;
   end if;
   return json_build_object('tracking_token', o.tracking_token, 'sms_sent', v_sent);
@@ -8069,6 +8173,8 @@ begin
   end if;
   select name into v_name from restaurants where id = s.restaurant_id;
   perform _send_sms(s.restaurant_id, w.phone, _sms_text(s.restaurant_id, 'waitlist_ready', v_name || ': Masaniz hazir! Lutfen girise gelin.', jsonb_build_object('isletme', v_name, 'ad', w.customer_name, 'kisi', w.party_size)), 'waitlist_ready');
+  perform _send_mail_event(s.restaurant_id, coalesce(w.email, _cust_email_by_phone(s.restaurant_id, w.phone)), 'wl_ready', jsonb_build_object('isletme', v_name, 'ad', w.customer_name, 'kisi', w.party_size),
+    v_name || ' - Masanız hazır', 'Masanız hazır', '<p>Merhaba ' || replace(replace(coalesce(w.customer_name,''),'<','&lt;'),'>','&gt;') || ',</p><p>Masanız hazır! Lütfen girişe gelin.</p>');
 end $$;
 
 
@@ -9628,7 +9734,7 @@ declare s staff_sessions%rowtype;
 begin
   s := _session_check(p_token, null);
   if not exists(select 1 from app_users au join roles rl on rl.id = any(au.role_ids) where au.id = s.user_id and (rl.is_system or 'settings_integrations' = any(rl.permissions))) then raise exception 'Bu işlem için yetkiniz yok'; end if;
-  if p_key not in ('resv_created','resv_updated','resv_confirmed','resv_pending','resv_cancelled','resv_no_show','resv_reminder','wl_joined','wl_updated','wl_soon') then raise exception 'Geçersiz e-posta türü'; end if;
+  if p_key not in ('resv_created','resv_updated','resv_confirmed','resv_pending','resv_cancelled','resv_no_show','resv_reminder','wl_joined','wl_updated','wl_soon','wl_ready','takeaway_ready','delivery_dispatched','payment','review_request') then raise exception 'Geçersiz e-posta türü'; end if;
   if length(coalesce(p_body,'')) > 4000 or length(coalesce(p_subject,'')) > 200 then raise exception 'Metin çok uzun'; end if;
   update restaurants set mail_templates = mail_templates || jsonb_build_object(p_key, jsonb_build_object('enabled', coalesce(p_enabled,true),
     'subject', nullif(trim(coalesce(p_subject,'')),''), 'body', nullif(trim(coalesce(p_body,'')),''))) where id = s.restaurant_id;
@@ -10164,7 +10270,7 @@ declare s staff_sessions%rowtype;
 begin
   s := _session_check(p_token, null);
   if not exists(select 1 from app_users au join roles rl on rl.id = any(au.role_ids) where au.id = s.user_id and (rl.is_system or 'settings_integrations' = any(rl.permissions))) then raise exception 'Bu işlem için yetkiniz yok'; end if;
-  if p_purpose not in ('reservation_confirm','reservation_reminder','waitlist_ready','takeaway_ready','payment','delivery_dispatched','review_request','staff_login') then raise exception 'Geçersiz mesaj türü'; end if;
+  if p_purpose not in ('reservation_confirm','reservation_reminder','waitlist_ready','takeaway_ready','payment','delivery_dispatched','review_request','staff_login','reservation_created','reservation_updated','reservation_pending','reservation_cancelled','reservation_no_show','waitlist_joined','waitlist_updated','waitlist_soon') then raise exception 'Geçersiz mesaj türü'; end if;
   if length(coalesce(p_text,'')) > 480 then raise exception 'Mesaj en fazla 480 karakter olabilir'; end if;
   update restaurants set sms_templates = sms_templates || jsonb_build_object(p_purpose, jsonb_build_object('enabled', coalesce(p_enabled,true), 'text', nullif(trim(coalesce(p_text,'')),'')))
     where id = s.restaurant_id;
