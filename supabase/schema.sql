@@ -3833,7 +3833,7 @@ declare
   v_item jsonb; v_res jsonb; i int; k text; t oid;
 begin
   if p_fn not in ('cancel_order_item','delete_ingredient','upsert_ingredient','set_ingredient_min','delete_staff_user',
-    'set_staff_user_active','upsert_table','set_notification_roles','set_voice_policy','upsert_product','delete_product','set_product_options','mark_item_ready')
+    'set_staff_user_active','upsert_table','set_notification_roles','set_voice_policy','upsert_product','delete_product','set_product_options','mark_item_ready','save_allowance','update_staff_user','create_staff_user','set_product_menu','set_product_vat','set_staff_phone')
   then raise exception 'Bu işlem toplu yapılamaz'; end if;
   if jsonb_typeof(p_items) <> 'array' or jsonb_array_length(p_items) > 500 then raise exception 'Geçersiz liste'; end if;
   select p.oid, p.proargnames, p.proargtypes::oid[] into v_oid, v_names, v_types
@@ -8853,6 +8853,29 @@ begin
   if 'customers' = any(p_categories) then
     delete from customers where restaurant_id = s.restaurant_id and created_at >= v_start and created_at < v_end;
     get diagnostics v_n = row_count; v_res := v_res || jsonb_build_object('customers', v_n);
+  end if;
+
+  if 'users' = any(p_categories) then
+    declare u record; v_del int := 0; v_off int := 0; begin
+      for u in select au.id from app_users au where au.restaurant_id = s.restaurant_id and au.id <> s.user_id
+          and au.created_at >= v_start and au.created_at < v_end
+          and not exists(select 1 from roles rl where rl.id = any(au.role_ids) and rl.is_system) loop
+        delete from staff_sessions where user_id = u.id;
+        begin
+          delete from app_users where id = u.id; v_del := v_del + 1;
+        exception when foreign_key_violation then
+          update app_users set is_active = false where id = u.id; v_off := v_off + 1;
+        end;
+      end loop;
+      v_res := v_res || jsonb_build_object('users', v_del);
+      if v_off > 0 then v_res := v_res || jsonb_build_object('users_deactivated', v_off); end if;
+    end;
+  end if;
+  if 'roles' = any(p_categories) then
+    delete from roles rl where rl.restaurant_id = s.restaurant_id and not rl.is_system
+      and rl.created_at >= v_start and rl.created_at < v_end
+      and not exists(select 1 from app_users au where au.restaurant_id = s.restaurant_id and rl.id = any(au.role_ids));
+    get diagnostics v_n = row_count; v_res := v_res || jsonb_build_object('roles', v_n);
   end if;
   return json_build_object('ok', true, 'removed', v_res);
 end; $$;
