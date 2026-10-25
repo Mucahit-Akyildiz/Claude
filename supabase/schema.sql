@@ -6117,7 +6117,7 @@ begin
     select coalesce(json_agg(row_to_json(po) order by po.order_date desc, po.created_at desc), '[]'::json)
     from (
       select p.id, p.status, p.order_date, p.expected_date, p.received_date, p.notes, p.created_at,
-        sp.name as supplier_name, (select username from app_users where id = p.created_by) as created_by_name,
+        p.supplier_id, sp.name as supplier_name, (select username from app_users where id = p.created_by) as created_by_name,
         (select coalesce(sum(i.quantity*i.unit_cost),0) from purchase_order_items i where i.purchase_order_id = p.id) as total_amount,
         (select coalesce(sum(least(i.received_quantity, i.quantity)*i.unit_cost),0) from purchase_order_items i where i.purchase_order_id = p.id) as received_amount,
         (select coalesce(json_agg(json_build_object('id', i.id, 'name', ig.name, 'unit', ig.unit, 'quantity', i.quantity, 'received', i.received_quantity, 'unit_cost', i.unit_cost) order by ig.name), '[]'::json)
@@ -9789,6 +9789,22 @@ begin
   return json_build_object('email_sent', v_email_sent);
 end;
 $$;
+
+
+--
+-- Name: set_purchase_order_supplier(uuid, uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.set_purchase_order_supplier(p_token uuid, p_po_id uuid, p_supplier_id uuid) RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+declare s staff_sessions%rowtype;
+begin
+  s := _session_check(p_token, 'purchasing_reports');
+  if p_supplier_id is not null and not exists(select 1 from suppliers where id = p_supplier_id and restaurant_id = s.restaurant_id) then raise exception 'Tedarikçi bulunamadı'; end if;
+  update purchase_orders set supplier_id = p_supplier_id where id = p_po_id and restaurant_id = s.restaurant_id;
+end $$;
 
 
 --
