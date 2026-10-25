@@ -154,6 +154,14 @@ async function printKitchenTicketGrouped(tableName, items, silent, dailyNumber, 
   for(const key of Object.keys(groups)){
     const printer = resolvePrinterForStation(key || null);
     const extra = {}; if(pkg) extra.pkg = pkg; if(tags && tags.length) extra.tags = tags;
+    if(typeof printEachItemEnabled === 'function' && printEachItemEnabled()){
+      // Ürünleri tek tek yazdır: her adet ayrı fiş (1/3, 2/3 … sırasıyla).
+      const units = []; groups[key].forEach(it => { const n = Math.max(1, Math.round(Number(it.qty) || 1)); for(let i = 0; i < n; i++) units.push(Object.assign({}, it, { qty: 1 })); });
+      for(let i = 0; i < units.length; i++){
+        await printKitchenTicket(tableName, [Object.assign(units[i], units.length > 1 ? { note: [units[i].note, (i + 1) + '/' + units.length].filter(Boolean).join(' · ') } : {})], printer, silent, dailyNumber, Object.keys(extra).length ? extra : undefined);
+      }
+      continue;
+    }
     await printKitchenTicket(tableName, groups[key], printer, silent, dailyNumber, Object.keys(extra).length ? extra : undefined);
   }
 }

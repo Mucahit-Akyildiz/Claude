@@ -140,9 +140,49 @@ async function importUsersExcel(){
   if(data) APP.config = data;
   renderSettingsView(document.getElementById('main'), session);
 }
+/* Ürünler */
+const PR_HEAD = ['Ürün Adı', 'Fiyat', 'Maliyet', 'Menü', 'İstasyon', 'KDV %', 'Stok', 'Satışta'];
+async function exportProductsExcel(){
+  const c = APP.config || {}, mn = (id) => ((c.menus || []).find(m => m.id === id) || {}).name || '', st = (id) => ((c.stations || []).find(x => x.id === id) || {}).name || '';
+  await xlDownload('urunler-' + todayLocalDateStr() + '.xlsx', 'Ürünler', PR_HEAD, (c.products || []).filter(p => !p.parent_id).map(p => [p.name, Number(p.price) || 0, Number(p.cost) || 0, mn(p.menu_id), st(p.station_id),
+    p.vat_rate == null ? '' : Number(p.vat_rate), p.stock == null ? '' : p.stock, p.available === false ? 'Hayır' : 'Evet']), [30, 10, 10, 18, 16, 8, 8, 8]);
+}
+async function downloadProductTemplate(){
+  const c = APP.config || {}, m = (c.menus || [])[0], s = (c.stations || [])[0];
+  await xlDownload('urun-sablonu.xlsx', 'Ürünler', PR_HEAD, [['Mercimek Çorbası', 90, 25, m ? m.name : 'Çorbalar', s ? s.name : '', 10, '', 'Evet'], ['Ayran', 30, 8, m ? m.name : 'İçecekler', s ? s.name : '', '', 100, 'Evet']], [30, 10, 10, 18, 16, 8, 8, 8]);
+}
+async function importProductsExcel(){
+  const rows = await xlPickRows(); if(!rows) return;
+  if(!rows.length){ alert('Dosyada satır bulunamadı'); return; }
+  const c = APP.config || {}, session = getSession(), errs = []; let ok = 0, nocost = 0;
+  const find = (list, v) => (list || []).find(x => xlKey(x.name) === xlKey(v));
+  await withLoadingOverlay((async () => {
+    for(const [i, r] of rows.entries()){
+      const line = 'Satır ' + (i + 2), name = xlPick(r, 'Ürün Adı', 'Ürün', 'Ad');
+      if(!name){ errs.push(line + ': ürün adı boş'); continue; }
+      const price = xlNum(xlPick(r, 'Fiyat', 'Satış Fiyatı')); if(!isFinite(price) || price < 0){ errs.push(line + ` (${name}): fiyat geçersiz`); continue; }
+      const costRaw = xlPick(r, 'Maliyet'), cost = costRaw === '' ? 0 : xlNum(costRaw); if(!isFinite(cost) || cost < 0){ errs.push(line + ` (${name}): maliyet geçersiz`); continue; }
+      const menuN = xlPick(r, 'Menü', 'Kategori'), stN = xlPick(r, 'İstasyon', 'Istasyon');
+      const menu = menuN ? find(c.menus, menuN) : null; if(menuN && !menu){ errs.push(line + ` (${name}): "${menuN}" menüsü yok`); continue; }
+      const stn = stN ? find(c.stations, stN) : null; if(stN && !stn){ errs.push(line + ` (${name}): "${stN}" istasyonu yok`); continue; }
+      const stockRaw = xlPick(r, 'Stok'), stock = stockRaw === '' ? null : parseInt(xlNum(stockRaw), 10);
+      const vatRaw = xlPick(r, 'KDV %', 'KDV');
+      const ex = (c.products || []).find(p => !p.parent_id && xlKey(p.name) === xlKey(name));
+      const { data: id, error } = await sb.rpc('upsert_product', { p_token: session.session_token, p_id: ex ? ex.id : null, p_name: name, p_price: price, p_cost: cost,
+        p_station_id: stn ? stn.id : (menu && menu.station_id) || (ex && ex.station_id) || null, p_stock: stock, p_available: xlBool(xlPick(r, 'Satışta', 'Aktif'), ex ? ex.available !== false : true) });
+      if(error){ errs.push(line + ` (${name}): ${error.message}`); continue; }
+      const pid = (ex && ex.id) || id;
+      if(pid && menu && (!ex || ex.menu_id !== menu.id)){ const { error: e } = await sb.rpc('set_product_menu', { p_token: session.session_token, p_product_id: pid, p_menu_id: menu.id }); if(e) errs.push(line + ` (${name}): menü — ${e.message}`); }
+      if(pid && vatRaw !== ''){ const { error: e } = await sb.rpc('set_product_vat', { p_token: session.session_token, p_product_id: pid, p_rate: xlNum(vatRaw) }); if(e) errs.push(line + ` (${name}): KDV — ${e.message}`); }
+      ok++; if(!(cost > 0)) nocost++;
+    }
+  })());
+  xlReport('Ürün içe aktarma tamamlandı', ok, errs.concat(nocost ? [`ℹ️ ${nocost} ürünün maliyeti boş — ayar açıksa satışa kapalı geldi`] : []));
+  renderSettingsView(document.getElementById('main'), session);
+}
 /* Ortak araç çubuğu: Dışa aktar · İçe aktar · Şablon */
 function excelBarHtml(kind){
-  const fn = kind === 'users' ? ['exportUsersExcel', 'importUsersExcel', 'downloadUserTemplate'] : ['exportAllowancesExcel', 'importAllowancesExcel', 'downloadAllowanceTemplate'];
+  const fn = kind === 'users' ? ['exportUsersExcel', 'importUsersExcel', 'downloadUserTemplate'] : kind === 'products' ? ['exportProductsExcel', 'importProductsExcel', 'downloadProductTemplate'] : ['exportAllowancesExcel', 'importAllowancesExcel', 'downloadAllowanceTemplate'];
   return `<div class="xl-bar">
     <button type="button" class="xl-btn" ${act(fn[0])}><span>⬇️</span>Dışa aktar</button>
     <button type="button" class="xl-btn" ${act(fn[1])}><span>⬆️</span>İçe aktar</button>
