@@ -872,25 +872,21 @@ function notifRolesFor(type){
 }
 function drawNotifRoles(){
   const box = document.getElementById('notifRolesBody'); if(!box) return;
-  const roles = APP.config.roles || [];
-  box.innerHTML = `<p class="muted" style="text-align:left;margin:0 0 14px;font-size:13px;">Her bildirimin hangi rollerdeki kişilere (telefon / masaüstü bildirimi olarak) gideceğini seçin. Değişiklik hemen kaydedilir. Ekrandaki kırmızı rozetler ise yetkisi olan herkese görünmeye devam eder.</p>
-    <div class="nr-list">${NOTIF_TYPES.map((t, i) => { const sel = notifRolesFor(t), custom = Array.isArray((APP.notifRoles||{})[t.k]);
-      return `<div class="nr-row" style="--sc:var(--c${i%4+1});">
-        <div class="nr-head"><span class="nr-ic">${t.ic}</span><div class="cu-id"><b>${t.t}</b><small>${t.d}</small></div>
-          ${custom ? `<button type="button" class="pc-btn" title="İzne göre varsayılana dön" ${act('resetNotifRoles', t.k)}>↺ Varsayılan</button>` : '<span class="pchip">varsayılan</span>'}</div>
-        <div class="nr-roles">${roles.map(r => `<button type="button" class="nr-chip ${sel.includes(r.id)?'on':''}" ${act('toggleNotifRole', t.k, r.id)}>${sel.includes(r.id) ? '✓ ' : ''}${escapeHtml(r.name)}</button>`).join('')}
-          ${sel.length ? '' : '<span class="muted" style="font-size:12px;">⚠️ Bu bildirim kimseye gitmez</span>'}</div>
-      </div>`; }).join('')}</div>
-    <h3 style="margin:22px 0 6px;">🔊 Sesli ve zilli bildirimler (uygulama açıkken)</h3>
-    <p class="muted" style="text-align:left;margin:0 0 12px;font-size:13px;">Her türün hangi rollerde <b>sesli okunacağını</b> ya da <b>sadece zil</b> çalacağını seçin. Seçilmeyen rollerde bu bildirim sessizdir. Kural koyduğunuz türü personel kendi cihazında değiştiremez; "varsayılan" türlerde her cihaz kendi ayarını kullanır.</p>
-    <div class="nr-list">${VOICE_TYPES.map((t, i) => { const pol = ((APP.voicePolicy && APP.voicePolicy.all) || {})[t.id], sel = pol ? (pol.roles || []) : [], mode = pol ? pol.mode : 'voice';
-      return `<div class="nr-row" style="--sc:var(--c${i%4+1});">
-        <div class="nr-head"><span class="nr-ic">${t.ic}</span><div class="cu-id"><b>${escapeHtml(t.label)}</b><small>“${escapeHtml(t.sample)}”</small></div>
-          ${pol ? `<div class="seg vp-seg">${[['voice','🗣️ Sesli oku'],['sound','🔔 Sadece zil']].map(([k, l]) => `<button type="button" class="${mode===k?'on':''}" ${act('setVoicePolicyMode', t.id, k)}>${l}</button>`).join('')}</div><button type="button" class="pc-btn" title="Her cihaz kendi ayarını kullansın" ${act('resetVoicePolicy', t.id)}>↺ Varsayılan</button>` : '<span class="pchip">varsayılan · cihaz ayarı</span>'}</div>
-        <div class="nr-roles">${roles.map(r => `<button type="button" class="nr-chip ${sel.includes(r.id)?'on':''}" ${act('toggleVoicePolicyRole', t.id, r.id)}>${sel.includes(r.id) ? '✓ ' : ''}${escapeHtml(r.name)}</button>`).join('')}
-          ${pol && !sel.length ? '<span class="muted" style="font-size:12px;">⚠️ Kimsede çalmaz</span>' : ''}</div>
-      </div>`; }).join('')}</div>`;
+  const roles = APP.config.roles || [], tab = APP.notifRolesTab || 'push';
+  const allV = (APP.voicePolicy && APP.voicePolicy.all) || {};
+  const head = `<tr><th class="nm-type">Bildirim</th>${roles.map(r => `<th>${escapeHtml(r.name)}</th>`).join('')}<th></th></tr>`;
+  const cell = (on, fn, k, rid) => `<td><button type="button" class="nm-cell ${on?'on':''}" title="${on?'Gönderiliyor — kapatmak için tıklayın':'Gönderilmiyor — açmak için tıklayın'}" ${act(fn, k, rid)}>${on?'✓':''}</button></td>`;
+  const rowsPush = NOTIF_TYPES.map(t => { const sel = notifRolesFor(t), custom = Array.isArray((APP.notifRoles||{})[t.k]);
+    return `<tr><td class="nm-type"><span class="nm-ic">${t.ic}</span><div><b>${t.t}</b><small>${t.d}</small></div></td>${roles.map(r => cell(sel.includes(r.id), 'toggleNotifRole', t.k, r.id)).join('')}
+      <td class="nm-act">${custom ? `<button type="button" class="nm-reset" title="İzne göre varsayılana dön" ${act('resetNotifRoles', t.k)}>↺</button>` : ''}${sel.length ? '' : '<span class="nm-warn" title="Kimseye gitmez">⚠️</span>'}</td></tr>`; }).join('');
+  const rowsVoice = VOICE_TYPES.map(t => { const pol = allV[t.id], sel = pol ? (pol.roles || []) : [];
+    return `<tr class="${pol?'':'nm-def'}"><td class="nm-type"><span class="nm-ic">${t.ic}</span><div><b>${escapeHtml(t.label)}</b><small>${pol ? '' : 'Varsayılan · her cihaz kendi ayarı'}</small></div></td>${roles.map(r => cell(sel.includes(r.id), 'toggleVoicePolicyRole', t.id, r.id)).join('')}
+      <td class="nm-act">${pol ? `<select class="nm-mode" ${actOn('change','setVoicePolicyMode',[t.id,'$value'])}><option value="voice" ${pol.mode!=='sound'?'selected':''}>🗣️ Sesli oku</option><option value="sound" ${pol.mode==='sound'?'selected':''}>🔔 Sadece zil</option></select><button type="button" class="nm-reset" title="Varsayılana dön" ${act('resetVoicePolicy', t.id)}>↺</button>` : ''}</td></tr>`; }).join('');
+  box.innerHTML = `<div class="seg nm-tabs">${[['push','📱 Push bildirimleri'],['voice','🔊 Sesli ve zilli']].map(([k, l]) => `<button type="button" class="${tab===k?'on':''}" ${act('setNotifRolesTab', k)}>${l}</button>`).join('')}</div>
+    <p class="muted nm-help">${tab==='push' ? 'Telefona / masaüstüne gidecek bildirimler. Kutucuğa tıklayarak o role açıp kapatın; değişiklik hemen kaydedilir. Ekrandaki kırmızı rozetler yetkisi olan herkese görünmeye devam eder.' : 'Uygulama açıkken çalan zil ve sesli okuma. Bir role işaret koyduğunuzda kural başlar: işaretli rollerde seçtiğiniz şekilde (sesli / zil) çalar, diğerlerinde sessizdir ve personel bunu değiştiremez. ↺ ile varsayılana (cihaz ayarı) dönülür.'}</p>
+    <div class="nm-wrap"><table class="nm-table">${head}${tab==='push' ? rowsPush : rowsVoice}</table></div>`;
 }
+function setNotifRolesTab(t){ APP.notifRolesTab = t; drawNotifRoles(); }
 async function saveVoicePolicy(type, roles, mode){
   const { error } = await sb.rpc('set_voice_policy', { p_token: getSession().session_token, p_type: type, p_role_ids: roles, p_mode: mode });
   if(error){ alert(error.message); return; }

@@ -3384,3 +3384,20 @@ button.oo-chip{cursor:pointer;} button.oo-chip:hover{border-color:var(--accent);
 .vp-seg{margin-left:auto;} .vp-seg button{padding:5px 10px;font-size:12px;}
 .pc2-sup{margin:0 0 2px;padding:4px 8px;width:auto;max-width:100%;font-weight:800;font-size:14px;background:transparent;border-color:transparent;}
 .pc2-sup:hover,.pc2-sup:focus{background:var(--panel2);border-color:var(--border);} .pc2-sup.missing{color:#f59e0b;border-color:#f59e0b;border-style:dashed;}
+/* Bildirimler › Kime Gitsin: rol matrisi */
+.nm-tabs{margin:0 0 10px;} p.nm-help{text-align:left;font-size:13px;margin:0 0 12px;}
+.nm-wrap{overflow-x:auto;border:1px solid var(--border);border-radius:16px;}
+.nm-table{width:100%;border-collapse:collapse;font-size:13px;}
+.nm-table th{position:sticky;top:0;background:var(--panel2);padding:10px 8px;font-size:12px;font-weight:700;color:var(--muted);text-align:center;white-space:nowrap;}
+.nm-table td{padding:8px;border-top:1px solid var(--border);text-align:center;}
+.nm-table tr:hover td{background:color-mix(in srgb,var(--c1) 5%,transparent);}
+.nm-table .nm-type{text-align:left;display:flex;align-items:center;gap:10px;min-width:240px;} .nm-table th.nm-type{display:table-cell;}
+.nm-type b{display:block;font-size:13.5px;} .nm-type small{color:var(--muted);font-size:11.5px;}
+.nm-ic{width:32px;height:32px;flex:0 0 32px;border-radius:10px;display:grid;place-items:center;background:var(--panel2);font-size:16px;}
+.nm-cell{width:30px;height:30px;margin:0;padding:0;border-radius:9px;border:1.5px solid var(--border);background:transparent;color:#fff;font-weight:800;box-shadow:none;}
+.nm-cell.on{background:var(--accent);border-color:var(--accent);}
+.nm-cell:hover{border-color:var(--accent);filter:none;}
+.nm-def .nm-type b{opacity:.75;}
+.nm-act{white-space:nowrap;text-align:right !important;} .nm-mode{width:auto;margin:0 6px 0 0;padding:5px 8px;font-size:12px;}
+.nm-reset{width:28px;height:28px;margin:0;padding:0;border-radius:8px;background:var(--panel2);color:var(--text);border:1px solid var(--border);box-shadow:none;}
+.nm-warn{margin-left:4px;}
