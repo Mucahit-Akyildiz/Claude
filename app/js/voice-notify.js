@@ -11,6 +11,7 @@ const VOICE_TYPES = [
   { id:'bill',         ic:'💳', label:'Hesap isteme', sample:'12 numaralı masa hesap istiyor' },
   { id:'ready',        ic:'✅', label:'Sipariş hazır', sample:'12 numaralı masanın siparişi hazır' },
   { id:'idle',         ic:'🪑', label:'Sipariş bekleyen masa', sample:'12 numaralı masanın siparişi bekleniyor, misafir masada oturuyor' },
+  { id:'guests',       ic:'👥', label:'Kişi sayısı girilmemiş masa', sample:'12 numaralı masanın kişi sayısı girilmedi' },
   { id:'seated',       ic:'🪑', label:'Misafir masaya oturdu', sample:'Bekleme listesindeki Ahmet Bey 12 numaralı masaya oturdu' },
   { id:'resvsoon',     ic:'⏳', label:'Rezervasyon hatırlatma (15 dk)', sample:'Ahmet Bey adına 4 kişilik rezervasyon 15 dakika sonra, 12 numaralı masa' },
   { id:'pickup',       ic:'🥡', label:'Gel-al alış saati geldi', sample:'Hakan Bey adına gel-al siparişinin alış saati geldi' },
@@ -230,7 +231,7 @@ function testVoice(type){ const t = VOICE_TYPES.find(x => x.id===type); VOICE_LA
 function voiceTypeOf(view, x){
   const k = x && x.kind;
   if(view==='kitchen') return 'kitchen';
-  if(view==='order') return k==='customer_request' ? (x.table ? 'qr' : 'online') : k==='waiter_call' ? 'waiter' : k==='idle_table' ? 'idle' : 'other';
+  if(view==='order') return k==='customer_request' ? (x.table ? 'qr' : 'online') : k==='waiter_call' ? 'waiter' : k==='idle_table' ? 'idle' : k==='no_guests' ? 'guests' : 'other';
   if(view==='payments') return k==='waiter_call' ? 'bill' : k==='ready' ? 'ready' : 'other';
   if(view==='reservations' || view==='messages') return view;
   return 'other';
@@ -260,6 +261,7 @@ function voiceTextFor(type, items){
     case 'ready': return T.map(t => voiceMasa(t, 'gen') + ' siparişi hazır').join('. ');
     case 'seated': return items.map(x => (x.kind==='waitlist' ? 'Bekleme listesindeki ' : 'Rezervasyonlu ') + (x.name || 'misafir') + ' ' + voiceMasa(x.table, 'dat') + ' oturdu').join('. ');
     case 'pickup': return items.map(x => (x.name ? x.name + ' adına' : (x.no ? x.no + ' numaralı' : 'Bir')) + ' gel-al siparişinin alış saati geldi' + (x.ready ? '' : ', sipariş henüz hazır değil')).join('. ');
+    case 'guests': return T.map(t => voiceMasa(t, 'gen') + ' kişi sayısı girilmedi').join('. ');
     case 'idle': return items.map(x => { const t = String(x.label || '').replace(/^🪑\s*/, '').split(' · ')[0]; return voiceMasa(t, 'gen') + ' siparişi bekleniyor, misafir masada oturuyor'; }).join('. ');
     case 'reservations': return items.map(x => {
       const name = x.name || String(x.label || '').replace(/^\W+/u, '').split(/ · | \(/)[0].trim();

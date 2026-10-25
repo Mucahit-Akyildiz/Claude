@@ -206,6 +206,7 @@ function renderIngredientsSettings(el, session){
     <div class="add-row-panel">
       <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:0 0 10px;">
         ${listSearchHtml('ingredients', 'Hammadde ara…').replace('margin:0 0 12px;','margin:0;')}
+        ${typeof excelBarHtml === 'function' ? excelBarHtml('ingredients') : ''}
         <select class="ig-sort" title="Sırala" ${actOn('change','setIngSort',['$value'])}>${[['name','A → Z'],['za','Z → A'],['status','Duruma göre (biten önce)'],['stock','Stok: azdan çoğa'],['stockd','Stok: çoktan aza'],['uses','En çok üründe kullanılan'],['unit','Birime göre']].map(([k,l]) => `<option value="${k}" ${ingSort===k?'selected':''}>↕ ${l}</option>`).join('')}</select>
         <span style="flex:1;"></span>
         <div class="act-row">
