@@ -775,7 +775,7 @@ async function renderNotificationSettingsView(main, session){
   main.innerHTML = `
     <h1>Bildirimler</h1>
     <div id="notifSettingsPart">
-    <p class="muted" style="text-align:left;">Bu ayarlar sadece <b>bu ekrana/tarayıcıya</b> özeldir — her cihazda ayrı ayrı yapılandırılır, veritabanına kaydedilmez.</p>
+    <p class="muted" style="text-align:left;">${session.isManager ? '<b>Kime Gitsin</b> bölümünden push ve sesli bildirimlerin hangi rollere gideceğini siz belirlersiniz; bu kural tüm personelin cihazına uygulanır. Diğer bölümler (ses seçimi, zil sesi) yalnızca bu cihaza özeldir.' : 'Hangi bildirimlerin size gideceğini yöneticiniz belirler (🔒 işaretli olanlar). Ses seçimi ve zil sesi gibi ayarlar yalnızca bu cihaza özeldir.'}</p>
 
     ${!hasFeature('push_notifications') ? `<div class="box" style="max-width:none;"><h2>📱 Push Bildirimleri (Uygulama Kapalıyken de)</h2>${lockedFeatureHtml()}</div>` : ''}
     ${isDesktopApp() && hasFeature('push_notifications') ? `<div class="box" style="max-width:none;">
@@ -863,6 +863,7 @@ async function loadNotifRoles(){
   const { data, error } = await sb.rpc('get_notification_roles', { p_token: getSession().session_token });
   if(error){ box.innerHTML = '<p class="muted">Yüklenemedi: ' + escapeHtml(error.message) + '</p>'; return; }
   APP.notifRoles = data || {};
+  await loadVoicePolicy();
   drawNotifRoles();
 }
 function notifRolesFor(type){
@@ -879,8 +880,29 @@ function drawNotifRoles(){
           ${custom ? `<button type="button" class="pc-btn" title="İzne göre varsayılana dön" ${act('resetNotifRoles', t.k)}>↺ Varsayılan</button>` : '<span class="pchip">varsayılan</span>'}</div>
         <div class="nr-roles">${roles.map(r => `<button type="button" class="nr-chip ${sel.includes(r.id)?'on':''}" ${act('toggleNotifRole', t.k, r.id)}>${sel.includes(r.id) ? '✓ ' : ''}${escapeHtml(r.name)}</button>`).join('')}
           ${sel.length ? '' : '<span class="muted" style="font-size:12px;">⚠️ Bu bildirim kimseye gitmez</span>'}</div>
+      </div>`; }).join('')}</div>
+    <h3 style="margin:22px 0 6px;">🔊 Sesli ve zilli bildirimler (uygulama açıkken)</h3>
+    <p class="muted" style="text-align:left;margin:0 0 12px;font-size:13px;">Her türün hangi rollerde <b>sesli okunacağını</b> ya da <b>sadece zil</b> çalacağını seçin. Seçilmeyen rollerde bu bildirim sessizdir. Kural koyduğunuz türü personel kendi cihazında değiştiremez; "varsayılan" türlerde her cihaz kendi ayarını kullanır.</p>
+    <div class="nr-list">${VOICE_TYPES.map((t, i) => { const pol = ((APP.voicePolicy && APP.voicePolicy.all) || {})[t.id], sel = pol ? (pol.roles || []) : [], mode = pol ? pol.mode : 'voice';
+      return `<div class="nr-row" style="--sc:var(--c${i%4+1});">
+        <div class="nr-head"><span class="nr-ic">${t.ic}</span><div class="cu-id"><b>${escapeHtml(t.label)}</b><small>“${escapeHtml(t.sample)}”</small></div>
+          ${pol ? `<div class="seg vp-seg">${[['voice','🗣️ Sesli oku'],['sound','🔔 Sadece zil']].map(([k, l]) => `<button type="button" class="${mode===k?'on':''}" ${act('setVoicePolicyMode', t.id, k)}>${l}</button>`).join('')}</div><button type="button" class="pc-btn" title="Her cihaz kendi ayarını kullansın" ${act('resetVoicePolicy', t.id)}>↺ Varsayılan</button>` : '<span class="pchip">varsayılan · cihaz ayarı</span>'}</div>
+        <div class="nr-roles">${roles.map(r => `<button type="button" class="nr-chip ${sel.includes(r.id)?'on':''}" ${act('toggleVoicePolicyRole', t.id, r.id)}>${sel.includes(r.id) ? '✓ ' : ''}${escapeHtml(r.name)}</button>`).join('')}
+          ${pol && !sel.length ? '<span class="muted" style="font-size:12px;">⚠️ Kimsede çalmaz</span>' : ''}</div>
       </div>`; }).join('')}</div>`;
 }
+async function saveVoicePolicy(type, roles, mode){
+  const { error } = await sb.rpc('set_voice_policy', { p_token: getSession().session_token, p_type: type, p_role_ids: roles, p_mode: mode });
+  if(error){ alert(error.message); return; }
+  await loadVoicePolicy(); drawNotifRoles(); showToast(roles ? 'Kaydedildi ✓' : 'Varsayılana döndü');
+}
+function toggleVoicePolicyRole(type, roleId){
+  const pol = ((APP.voicePolicy && APP.voicePolicy.all) || {})[type];
+  const cur = pol ? (pol.roles || []) : [], next = cur.includes(roleId) ? cur.filter(x => x !== roleId) : cur.concat(roleId);
+  saveVoicePolicy(type, next, pol ? pol.mode : 'voice');
+}
+function setVoicePolicyMode(type, mode){ const pol = ((APP.voicePolicy && APP.voicePolicy.all) || {})[type]; saveVoicePolicy(type, pol ? pol.roles || [] : [], mode); }
+function resetVoicePolicy(type){ saveVoicePolicy(type, null, null); }
 async function toggleNotifRole(type, roleId){
   const t = NOTIF_TYPES.find(x => x.k === type); if(!t) return;
   const cur = notifRolesFor(t), next = cur.includes(roleId) ? cur.filter(x => x !== roleId) : cur.concat(roleId);
