@@ -59,8 +59,8 @@ function renderCompanyLoginScreen(app){
     <div class="box">
       <h1>🏢 Şirket Girişi</h1>
       <p class="muted">Birden fazla şubesi olan firmalar için - şirket kodu ve şifrenizle giriş yapın, ardından şubeler arasında geçiş yapabilirsiniz.</p>
-      <input id="companyCodeInput" placeholder="Şirket kodu" autocapitalize="none">
-      <div class="pw-field-wrap"><input id="companyPassInput" type="password" placeholder="Şifre"><button type="button" class="pw-eye-btn" title="Şifreyi göster/gizle" ${act('togglePassVisible', 'companyPassInput', '$this')}>👁️</button></div>
+      <input id="companyCodeInput" placeholder="Şirket kodu" autocapitalize="none" ${actOn('keydown','onEnterCall',['$event','doCompanyLogin'])}>
+      <div class="pw-field-wrap"><input id="companyPassInput" type="password" placeholder="Şifre" ${actOn('keydown','onEnterCall',['$event','doCompanyLogin'])}><button type="button" class="pw-eye-btn" title="Şifreyi göster/gizle" ${act('togglePassVisible', 'companyPassInput', '$this')}>👁️</button></div>
       <button id="companyLoginBtn" ${act('doCompanyLogin')}>Giriş Yap</button>
       <div class="error" id="companyErrBox"></div>
       <p class="muted" style="text-align:center;margin-top:16px;font-size:13px;">
