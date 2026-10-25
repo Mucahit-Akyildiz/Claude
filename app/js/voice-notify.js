@@ -11,7 +11,7 @@ const VOICE_TYPES = [
   { id:'bill',         ic:'💳', label:'Hesap isteme', sample:'12 numaralı masa hesap istiyor' },
   { id:'ready',        ic:'✅', label:'Sipariş hazır', sample:'12 numaralı masanın siparişi hazır' },
   { id:'idle',         ic:'🪑', label:'Sipariş bekleyen masa', sample:'12 numaralı masanın siparişi bekleniyor, misafir masada oturuyor' },
-  { id:'guests',       ic:'👥', label:'Kişi sayısı girilmemiş masa', sample:'12 numaralı masanın kişi sayısı girilmedi' },
+  { id:'guests',       ic:'👥', label:'Kişi sayısı girilmemiş masa (girilene kadar 2 dk’da bir)', sample:'12 numaralı masanın kişi sayısı girilmedi' },
   { id:'seated',       ic:'🪑', label:'Misafir masaya oturdu', sample:'Bekleme listesindeki Ahmet Bey 12 numaralı masaya oturdu' },
   { id:'resvsoon',     ic:'⏳', label:'Rezervasyon hatırlatma (15 dk)', sample:'Ahmet Bey adına 4 kişilik rezervasyon 15 dakika sonra, 12 numaralı masa' },
   { id:'pickup',       ic:'🥡', label:'Gel-al alış saati geldi', sample:'Hakan Bey adına gel-al siparişinin alış saati geldi' },
@@ -290,7 +290,8 @@ function voiceIsSelf(x){
   const now = Date.now(), name = String(x.table || '').toLocaleLowerCase('tr').trim();
   return VOICE_SELF.some(s => now - s.at <= 90000 && (!s.label || !name || s.label.trim() === name || s.label.includes(name) || name.includes(s.label)));
 }
-let VOICE_SEEN = null, VOICE_LATE_SEEN = new Map(), VOICE_RESV_SEEN = new Set();
+let VOICE_SEEN = null, VOICE_LATE_SEEN = new Map(), VOICE_RESV_SEEN = new Set(), VOICE_GUEST_LAST = new Map();
+const VOICE_GUEST_REPEAT_MS = 2 * 60 * 1000;
 function processVoiceBadges(data, visibleViews){
   const items = (data && data._items) || {};
   const ids = new Set();
@@ -316,6 +317,15 @@ function processVoiceBadges(data, visibleViews){
     const key = 'seat:' + x.id; ids.add(key);
     if(VOICE_SEEN && !VOICE_SEEN.has(key)) (fresh.seated = fresh.seated || []).push(x);
   });
+  // Kişi sayısı girilmemiş masalar: girilene kadar her 2 dakikada bir tekrar hatırlatılır.
+  const now = Date.now(), gl = [];
+  (items.order || []).filter(x => x.kind === 'no_guests').forEach(x => {
+    const last = VOICE_GUEST_LAST.get(x.id);
+    if(last == null){ VOICE_GUEST_LAST.set(x.id, now); return; } // ilk görülüşü yukarıdaki yeni-öğe akışı okur
+    if(now - last >= VOICE_GUEST_REPEAT_MS){ VOICE_GUEST_LAST.set(x.id, now); gl.push(x); }
+  });
+  [...VOICE_GUEST_LAST.keys()].forEach(id => { if(!(items.order || []).some(x => x.id === id && x.kind === 'no_guests')) VOICE_GUEST_LAST.delete(id); });
+  if(gl.length && visibleViews.includes('order')) fresh.guests = (fresh.guests || []).concat(gl.filter(x => !(fresh.guests || []).some(y => y.id === x.id)));
   const late = [];
   (items.kitchen || []).forEach(x => {
     if(!x.at) return;
@@ -352,6 +362,8 @@ function processVoiceBadges(data, visibleViews){
     // Uygulama arka plandaysa (başka pencere/sekme açık) bilgisayarda da bildirim kutusu çıksın.
     voiceDesktopNotify(type, list);
   });
+  // Tekrar hatırlatmada rozet sayısı artmadığı için zil burada çalınır (sesli okuma kapalıysa).
+  const tg = p.types.guests; if(gl.length && tg && tg.sound && !tg.voice && typeof playPeyktanSound === 'function') playPeyktanSound();
   return sound;
 }
 function voiceDesktopNotify(type, list){
