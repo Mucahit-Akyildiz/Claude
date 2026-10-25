@@ -13,10 +13,12 @@
         <item name="windowActionBar">false</item>
         <item name="windowNoTitle">true</item>
         <item name="android:background">@null</item>
+        <!-- Web sayfası yüklenirken siyah ekran yerine açılışla aynı renk. -->
+        <item name="android:windowBackground">@color/splash_bg</item>
     </style>
 
 
-    <!-- Açılış: logo ortada, oranı korunarak (eski splash.png ekrana göre geriliyordu). -->
+    <!-- Açılış: düz arka plan (logo uygulamanın kendi açılış ekranında). -->
     <style name="AppTheme.NoActionBarLaunch" parent="Theme.SplashScreen">
         <item name="android:background">@drawable/splash_screen</item>
         <item name="android:windowBackground">@drawable/splash_screen</item>

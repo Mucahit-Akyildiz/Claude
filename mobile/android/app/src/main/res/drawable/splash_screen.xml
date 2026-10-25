@@ -1,8 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Açılış ekranı: düz arka plan + ortada oranı korunan logo (ekrana göre gerilmez). -->
+<!-- Sistem açılışı yalnızca düz arka plan: logo ve marka ekranı uygulamanın kendi açılışında (web) gösterilir,
+     böylece iki ayrı logo ekranı art arda görünmez. -->
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
     <item android:drawable="@color/splash_bg"/>
-    <item>
-        <bitmap android:src="@drawable/splash_logo" android:gravity="center"/>
-    </item>
 </layer-list>
