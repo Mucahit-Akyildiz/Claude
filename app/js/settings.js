@@ -2341,6 +2341,14 @@ async function sendTestSms(){
 /* SMS şablonları: her mesaj türü açılıp kapatılır ve metni düzenlenir; sunucu gönderirken bu metni kullanır. */
 const SMS_TPL = [
   { k:'reservation_confirm', ic:'📅', t:'Rezervasyon onayı', w:'Rezervasyon onaylanınca', v:['isletme','ad','tarih','saat','kisi'], d:'{isletme}: {tarih} {saat} tarihli {kisi} kisilik rezervasyonunuz onaylandi.' },
+  { k:'reservation_created', ic:'📝', t:'Rezervasyon alındı', w:'Rezervasyon oluşturulunca', v:['isletme','ad','tarih','saat','kisi','telefon'], d:'{isletme}: {tarih} {saat} icin {kisi} kisilik rezervasyonunuz alindi. Tel: {telefon}' },
+  { k:'reservation_pending', ic:'⏳', t:'Rezervasyon onay bekliyor', w:'Online rezervasyon gelince', v:['isletme','ad','tarih','saat','kisi','telefon'], d:'{isletme}: {tarih} {saat} rezervasyonunuz onay bekliyor, onaylaninca bilgi verecegiz.' },
+  { k:'reservation_updated', ic:'✏️', t:'Rezervasyon güncellendi', w:'Saat / kişi değişince', v:['isletme','ad','tarih','saat','kisi','telefon'], d:'{isletme}: Rezervasyonunuz guncellendi: {tarih} {saat}, {kisi} kisi.' },
+  { k:'reservation_cancelled', ic:'❌', t:'Rezervasyon iptal', w:'Rezervasyon iptal edilince', v:['isletme','ad','tarih','saat','kisi','telefon'], d:'{isletme}: {tarih} {saat} rezervasyonunuz iptal edildi. Tel: {telefon}' },
+  { k:'reservation_no_show', ic:'🚫', t:'Rezervasyona gelinmedi', w:'Gelmedi işaretlenince', v:['isletme','ad','tarih','saat','kisi','telefon'], d:'{isletme}: {tarih} {saat} rezervasyonunuza gelmediginiz kaydedildi.' },
+  { k:'waitlist_joined', ic:'🧾', t:'Bekleme listesine alındı', w:'Bekleme listesine eklenince', v:['isletme','ad','kisi','dakika','saat'], d:'{isletme}: {kisi} kisi olarak bekleme listesine alindiniz. Tahmini: {dakika} dk ({saat}).' },
+  { k:'waitlist_updated', ic:'🔄', t:'Bekleme süresi güncellendi', w:'Tahmini süre değişince', v:['isletme','ad','dakika','saat'], d:'{isletme}: Yeni tahmini bekleme sureniz {dakika} dk ({saat}).' },
+  { k:'waitlist_soon', ic:'🔔', t:'Sıranız yaklaşıyor', w:'Masaya az kalınca', v:['isletme','ad','dakika','saat'], d:'{isletme}: Masaniza yaklasik {dakika} dk kaldi ({saat}). Lutfen yakin olun.' },
   { k:'reservation_reminder', ic:'⏰', t:'Rezervasyon hatırlatma', w:'Rezervasyona 2–4 saat kala', v:['isletme','ad','saat','kisi'], d:'{isletme}: Hatirlatma - bugun saat {saat} icin rezervasyonunuz var. Sizi bekliyoruz!' },
   { k:'waitlist_ready', ic:'⏳', t:'Masanız hazır', w:'Bekleme listesinde “Masa Hazır” basılınca', v:['isletme','ad','kisi'], d:'{isletme}: Masaniz hazir! Lutfen girise gelin.' },
   { k:'takeaway_ready', ic:'📦', t:'Siparişiniz hazır', w:'Paket / gel-al siparişi hazır olunca', v:['isletme','ad','no'], d:'{isletme}: Siparisiniz hazir (No: {no}). Afiyet olsun!' },
@@ -2349,7 +2357,7 @@ const SMS_TPL = [
   { k:'review_request', ic:'⭐', t:'Değerlendirme isteği', w:'Hesaptan değerlendirme linki gönderilince', v:['isletme','link'], d:'{isletme}: Bizi degerlendirir misiniz? {link}' },
   { k:'staff_login', ic:'👤', t:'Personel giriş bilgileri', w:'Kullanıcılar › SMS Gönder ile', v:['isletme','kod','kullanici','sifre','android','web'], d:'{isletme} - Peyktan giris bilgileriniz: Isletme kodu: {kod} Kullanici: {kullanici} Sifre: {sifre} Android: {android} iPhone/Web: {web}' },
 ];
-const SMS_VAR_LBL = { kod:'İşletme kodu', kullanici:'Kullanıcı adı', sifre:'Geçici şifre', android:'Android linki', web:'iPhone/Web linki', kurye:'Kurye adı', kurye_tel:'Kurye telefonu', isletme:'İşletme adı', ad:'Müşteri adı', tarih:'Tarih', saat:'Saat', kisi:'Kişi sayısı', no:'Sipariş no', tutar:'Tutar', takip:'Takip linki', link:'Değerlendirme linki' };
+const SMS_VAR_LBL = { kod:'İşletme kodu', kullanici:'Kullanıcı adı', sifre:'Geçici şifre', android:'Android linki', web:'iPhone/Web linki', kurye:'Kurye adı', kurye_tel:'Kurye telefonu', isletme:'İşletme adı', ad:'Müşteri adı', telefon:'İşletme telefonu', dakika:'Kalan dakika', tarih:'Tarih', saat:'Saat', kisi:'Kişi sayısı', no:'Sipariş no', tutar:'Tutar', takip:'Takip linki', link:'Değerlendirme linki' };
 async function loadSmsTemplates(){
   const box = document.getElementById('smsTplBox'); if(!box) return;
   const { data } = await sb.rpc('get_sms_templates', { p_token: getSession().session_token });
@@ -2387,8 +2395,13 @@ const MAIL_TPL = [
   { k:'wl_joined', ic:'🧾', t:'Bekleme listesine alındı', w:'Bekleme listesine eklenince', s:'{isletme} - Bekleme listesine alındınız', d:'Merhaba {ad},\n\n{isletme} bekleme listesine {kisi} kişi olarak alındınız. Tahmini bekleme: {dakika} dakika (yaklaşık {saat}).' },
   { k:'wl_updated', ic:'🔄', t:'Bekleme süresi güncellendi', w:'Tahmini süre değişince', s:'{isletme} - Bekleme süreniz güncellendi', d:'Merhaba {ad},\n\nYeni tahmini bekleme süreniz: {dakika} dakika (yaklaşık {saat}).' },
   { k:'wl_soon', ic:'🔔', t:'Sıranız yaklaşıyor', w:'Masaya az kalınca', s:'{isletme} - Masanıza {dakika} dakika kaldı', d:'Merhaba {ad},\n\nMasanızın hazır olmasına yaklaşık {dakika} dakika kaldı ({saat}). Lütfen restorana yakın olun.' },
+  { k:'wl_ready', ic:'🍽️', t:'Masanız hazır', w:'Bekleme listesinde “Masa Hazır” basılınca', v:['isletme','ad','kisi'], s:'{isletme} - Masanız hazır', d:'Merhaba {ad},\n\nMasanız hazır! Lütfen girişe gelin.' },
+  { k:'takeaway_ready', ic:'📦', t:'Siparişiniz hazır', w:'Paket / gel-al siparişi hazır olunca', v:['isletme','ad','no'], s:'{isletme} - Siparişiniz hazır', d:'Merhaba {ad},\n\n{no} numaralı siparişiniz hazır. Afiyet olsun!' },
+  { k:'delivery_dispatched', ic:'🛵', t:'Sipariş yola çıktı', w:'Sipariş kuryeye verilince', v:['isletme','ad','kurye','kurye_tel','takip'], s:'{isletme} - Siparişiniz yola çıktı', d:'Merhaba {ad},\n\nSiparişiniz yola çıktı!\nKurye: {kurye}\nTelefon: {kurye_tel}\nTakip: {takip}' },
+  { k:'payment', ic:'💳', t:'Ödeme alındı', w:'Hesaba müşteri girildiyse ödeme alınınca', v:['isletme','ad','tutar','link'], s:'{isletme} - Ödemeniz alındı', d:'Merhaba {ad},\n\n{tutar} TL tutarındaki ödemeniz alındı. Teşekkür ederiz!\n\nBizi değerlendirin: {link}' },
+  { k:'review_request', ic:'⭐', t:'Değerlendirme isteği', w:'Hesaptan değerlendirme linki gönderilince', v:['isletme','link'], s:'{isletme} - Bizi değerlendirir misiniz?', d:'Merhaba,\n\nDeneyiminizi değerlendirir misiniz?\n{link}' },
 ];
-const MAIL_VAR_LBL = { isletme:'İşletme adı', ad:'Müşteri adı', tarih_saat:'Tarih / saat', kisi:'Kişi sayısı', telefon:'İşletme telefonu', dakika:'Kalan dakika', saat:'Tahmini saat' };
+const MAIL_VAR_LBL = { isletme:'İşletme adı', ad:'Müşteri adı', tarih_saat:'Tarih / saat', kisi:'Kişi sayısı', telefon:'İşletme telefonu', dakika:'Kalan dakika', saat:'Tahmini saat', no:'Sipariş no', kurye:'Kurye adı', kurye_tel:'Kurye telefonu', takip:'Takip linki', tutar:'Tutar', link:'Değerlendirme linki' };
 const MAIL_VARS = { resv:['isletme','ad','tarih_saat','kisi','telefon'], wl:['isletme','ad','kisi','dakika','saat','telefon'] };
 async function loadMailTemplates(){
   const box = document.getElementById('mailTplBox'); if(!box) return;
@@ -2401,7 +2414,7 @@ function drawMailTemplates(){
   const onN = MAIL_TPL.filter(t => (APP.mailTpl[t.k] || {}).enabled !== false).length;
   box.innerHTML = `<div class="ix-sec" style="margin-top:16px;"><div class="ix-st">3 · E-postalar <span class="pchip">${onN}/${MAIL_TPL.length} açık</span></div>
     <p class="muted st-help">Anahtarla e-postayı açıp kapatın; konu ve metni değiştirmek için satıra dokunun. Fiş ve fatura e-postaları belge içeriği olduğu için burada değil.</p>
-    <div class="st-list">${MAIL_TPL.map(t => { const c = APP.mailTpl[t.k] || {}, on = c.enabled !== false, subj = c.subject || t.s, body = c.body || t.d, open = APP.mailTplOpen === t.k, vars = MAIL_VARS[t.k.split('_')[0]];
+    <div class="st-list">${MAIL_TPL.map(t => { const c = APP.mailTpl[t.k] || {}, on = c.enabled !== false, subj = c.subject || t.s, body = c.body || t.d, open = APP.mailTplOpen === t.k, vars = t.v || MAIL_VARS[t.k.split('_')[0]];
       return `<div class="st-row ${on?'':'off'} ${open?'open':''}">
         <div class="st-head">
           <button type="button" class="st-hit" ${act('toggleMailTplOpen', t.k)}><span class="st-ic">${t.ic}</span><span class="st-t"><b>${t.t}${(c.subject || c.body) ? ' <em class="st-custom">özel</em>' : ''}</b><small>${t.w}</small><span class="st-prev">✉️ ${fill(subj)}</span></span><span class="st-chev">${open?'▴':'▾'}</span></button>
