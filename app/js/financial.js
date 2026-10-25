@@ -903,7 +903,8 @@ async function renderPurchaseReportContent(session){
       <div id="purchRepContent" class="set-content"></div></div>`;
   if(sub==='suppliers'){ APP.supplierTarget = 'purchRepContent'; return renderSuppliersContent(session); }
   const el = document.getElementById('purchRepContent');
-  const { data, error } = await withLoadingOverlay(sb.rpc('get_purchase_report', { p_token: session.session_token, p_date: APP.procFrom, p_date_to: APP.procTo }));
+  const [{ data, error }, supRes] = await withLoadingOverlay(Promise.all([sb.rpc('get_purchase_report', { p_token: session.session_token, p_date: APP.procFrom, p_date_to: APP.procTo }), sb.rpc('list_suppliers', { p_token: session.session_token })]));
+  APP.procSuppliers = (supRes && supRes.data) || [];
   if(error){ el.innerHTML = '<p class="muted">Yüklenemedi: '+escapeHtml(error.message)+'</p>'; return; }
   const rows = data || [];
   const live = rows.filter(p => p.status!=='draft' && p.status!=='cancelled');
@@ -925,7 +926,7 @@ async function renderPurchaseReportContent(session){
     return `<div class="pc-card pc2" style="--pc:${tone};--i:${Math.min(idx||0,12)};">
       <div class="pc2-head">
         ${avatarHtml(p.supplier_name || 'T')}
-        <div class="pc2-title"><b>${escapeHtml(p.supplier_name || 'Tedarikçisiz')}</b>
+        <div class="pc2-title"><select class="pc2-sup ${p.supplier_id ? '' : 'missing'}" title="Tedarikçi seç" ${actOn('change','setPoSupplier',[p.id,'$value'])}><option value="">⚠️ Tedarikçi seçin</option>${(APP.procSuppliers||[]).map(sp => `<option value="${sp.id}" ${sp.id===p.supplier_id?'selected':''}>${escapeHtml(sp.name)}</option>`).join('')}</select>
           <small>📅 ${new Date(p.order_date).toLocaleDateString('tr-TR')}${p.expected_date ? ' · 🎯 ' + new Date(p.expected_date).toLocaleDateString('tr-TR') : ''} · 👤 ${escapeHtml(p.created_by_name || '—')}</small></div>
         <div class="pc2-right"><span class="pc2-total">${money(p.total_amount)}</span>${statusOf(p)}</div>
       </div>
@@ -1742,4 +1743,12 @@ function openFsBillList(kind){
     ${rows.map(o => `<tr><td>${new Date(o.closed_at).toLocaleString('tr-TR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</td><td class="col-name">${escapeHtml(o.kind === 'takeaway' ? '📦 Paket' : (o.table_name || '-'))}</td><td>${escapeHtml(o.staff_username || o.staff_name || '—')}</td><td>${escapeHtml((o.tags || []).join(', ') || '—')}</td><td>${money(o.total)}</td><td><b>${money(T[2](o) || 0)}</b></td><td>${o.id ? `<button type="button" class="pc-btn" ${act('openSaleDetailModal', o.id)}>🔍 Detay</button>` : ''}</td></tr>`).join('')}
     </tbody></table></div></div>`;
   document.body.appendChild(bg);
+}
+
+/* Satınalma: siparişin tedarikçisini satınalma sorumlusu seçer. */
+async function setPoSupplier(poId, supplierId){
+  const { error } = await sb.rpc('set_purchase_order_supplier', { p_token: getSession().session_token, p_po_id: poId, p_supplier_id: supplierId || null });
+  if(error){ alert(error.message); return; }
+  showToast(supplierId ? 'Tedarikçi kaydedildi ✓' : 'Tedarikçi kaldırıldı');
+  renderPurchaseReportContent(getSession());
 }
