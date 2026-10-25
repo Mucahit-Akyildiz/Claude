@@ -34,6 +34,8 @@ public class MainActivity extends BridgeActivity {
         super.onCreate(savedInstanceState);
         // Sesli bildirimler (doğal ses / cihaz sesi) dokunuş beklemeden çalabilsin.
         try { getBridge().getWebView().getSettings().setMediaPlaybackRequiresUserGesture(false); } catch (Exception e) { }
+        // Sayfa yüklenene kadar siyah ekran görünmesin: WebView açılışla aynı renkte başlar.
+        try { getBridge().getWebView().setBackgroundColor(0xFFF7F7F5); } catch (Exception e) { }
         PeykCallNotifier.handleIntent(this, getIntent());
         updateLauncher = registerForActivityResult(new ActivityResultContracts.StartIntentSenderForResult(), result -> {});
         checkForUpdate();
