@@ -6644,6 +6644,26 @@ end $$;
 
 
 --
+-- Name: get_voice_policy(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.get_voice_policy(p_token uuid) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+declare s staff_sessions%rowtype; v jsonb; mine jsonb := '{}'::jsonb; k text; e jsonb; my uuid[];
+begin
+  s := _session_check(p_token, null);
+  select voice_policy into v from restaurants where id = s.restaurant_id;
+  select role_ids into my from app_users where id = s.user_id;
+  for k, e in select * from jsonb_each(coalesce(v,'{}'::jsonb)) loop
+    mine := mine || jsonb_build_object(k, case when exists(select 1 from jsonb_array_elements_text(coalesce(e->'roles','[]')) x where x::uuid = any(coalesce(my,'{}'))) then coalesce(e->>'mode','voice') else 'off' end);
+  end loop;
+  return jsonb_build_object('all', coalesce(v,'{}'::jsonb), 'mine', mine);
+end $$;
+
+
+--
 -- Name: get_waitlist_estimate(uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -9482,7 +9502,7 @@ CREATE FUNCTION public.set_notification_roles(p_token uuid, p_type text, p_role_
 declare s staff_sessions%rowtype;
 begin s := _session_check(p_token, null);
   if not exists(select 1 from app_users au join roles rl on rl.id = any(au.role_ids) where au.id = s.user_id and rl.is_system) then raise exception 'Bu ayarı yalnızca Yönetici değiştirebilir'; end if;
-  if p_type not in ('customer_request','kitchen_late','shift','purchase_order','idle_table','waiter_order','waiter_payment') then raise exception 'Geçersiz bildirim türü'; end if;
+  if p_type not in ('customer_request','kitchen_late','shift','purchase_order','idle_table','waiter_order','waiter_payment','reservation_reminder') then raise exception 'Geçersiz bildirim türü'; end if;
   update restaurants set notification_roles = case when p_role_ids is null then coalesce(notification_roles,'{}'::jsonb) - p_type
     else coalesce(notification_roles,'{}'::jsonb) || jsonb_build_object(p_type, to_jsonb(p_role_ids)) end where id = s.restaurant_id;
 end; $$;
@@ -10089,6 +10109,25 @@ begin
   end if;
   return json_build_object('order_id', v_order);
 end; $$;
+
+
+--
+-- Name: set_voice_policy(uuid, text, uuid[], text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.set_voice_policy(p_token uuid, p_type text, p_role_ids uuid[], p_mode text) RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $_$
+declare s staff_sessions%rowtype;
+begin
+  s := _session_check(p_token, null);
+  if not exists(select 1 from app_users au join roles rl on rl.id = any(au.role_ids) where au.id = s.user_id and rl.is_system) then raise exception 'Bu ayarı yalnızca Yönetici değiştirebilir'; end if;
+  if p_type !~ '^[a-z]{2,20}$' then raise exception 'Geçersiz bildirim türü'; end if;
+  if p_mode is not null and p_mode not in ('voice','sound') then raise exception 'Geçersiz mod'; end if;
+  update restaurants set voice_policy = case when p_role_ids is null then voice_policy - p_type
+    else voice_policy || jsonb_build_object(p_type, jsonb_build_object('roles', to_jsonb(p_role_ids), 'mode', coalesce(p_mode,'voice'))) end where id = s.restaurant_id;
+end $_$;
 
 
 --
@@ -13172,6 +13211,7 @@ CREATE TABLE public.restaurants (
     allowances_enabled boolean DEFAULT false NOT NULL,
     close_no_cost boolean DEFAULT true NOT NULL,
     sms_on_payment boolean DEFAULT true NOT NULL,
+    voice_policy jsonb DEFAULT '{}'::jsonb NOT NULL,
     CONSTRAINT restaurants_day_end_hour_check CHECK (((day_end_hour >= 0) AND (day_end_hour <= 23))),
     CONSTRAINT restaurants_default_vat_rate_check CHECK (((default_vat_rate >= (0)::numeric) AND (default_vat_rate <= (100)::numeric)))
 );
