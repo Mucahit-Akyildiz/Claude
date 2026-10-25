@@ -2262,6 +2262,24 @@ end $_$;
 
 
 --
+-- Name: _trg_order_address_to_customer(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public._trg_order_address_to_customer() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+begin
+  if new.kind = 'takeaway' and nullif(trim(coalesce(new.delivery_address,'')),'') is not null and nullif(trim(coalesce(new.customer_phone,'')),'') is not null
+     and (tg_op = 'INSERT' or new.delivery_address is distinct from old.delivery_address or new.customer_phone is distinct from old.customer_phone) then
+    update customers set address = trim(new.delivery_address)
+      where restaurant_id = new.restaurant_id and (phone = new.customer_phone or (length(_phone_key(new.customer_phone)) = 10 and _phone_key(phone) = _phone_key(new.customer_phone)));
+  end if;
+  return new;
+end $$;
+
+
+--
 -- Name: _trg_payment_sms(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -4642,14 +4660,15 @@ $$;
 CREATE FUNCTION public.dispatch_order(p_token uuid, p_order_id uuid, p_courier uuid, p_send_sms boolean DEFAULT false) RETURNS json
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public', 'extensions', 'pg_temp'
-    AS $$ declare s staff_sessions%rowtype; o orders%rowtype; v_name text; v_courier text; v_sent boolean := false;
+    AS $$ declare s staff_sessions%rowtype; o orders%rowtype; v_name text; v_courier text; v_cphone text; v_sent boolean := false;
 begin
   s := _session_check(p_token, 'packages');
   select * into o from orders where id = p_order_id and restaurant_id = s.restaurant_id for update;
   if o.id is null then raise exception 'Sipariş bulunamadı'; end if;
   if o.kind <> 'takeaway' then raise exception 'Sadece paket siparişler kuryeye verilebilir'; end if;
+  if p_courier is not null and exists(select 1 from order_items where order_id = o.id and status = 'pending') then raise exception 'Sipariş henüz hazır değil — mutfak "Hazır" demeden kuryeye verilemez'; end if;
   if p_courier is not null then
-    select username into v_courier from app_users where id = p_courier and restaurant_id = s.restaurant_id;
+    select username, phone into v_courier, v_cphone from app_users where id = p_courier and restaurant_id = s.restaurant_id;
     if v_courier is null then raise exception 'Kurye bulunamadı'; end if;
   end if;
   update orders set courier_user_id = p_courier, dispatched_at = coalesce(dispatched_at, now()), delivered_at = null,
@@ -4658,7 +4677,7 @@ begin
     if coalesce(o.customer_phone,'') = '' then raise exception 'Siparişte müşteri telefonu yok'; end if;
     if not coalesce((select sms_enabled from restaurants where id = s.restaurant_id), false) then raise exception 'SMS bildirimleri kapalı (Ayarlar > Entegrasyonlar)'; end if;
     select name into v_name from restaurants where id = s.restaurant_id;
-    perform _send_sms(s.restaurant_id, o.customer_phone, _sms_text(s.restaurant_id, 'delivery_dispatched', v_name || ': Siparisiniz yola cikti! Takip: https://www.peyktan.com/takip/?t=' || o.tracking_token, jsonb_build_object('isletme', v_name, 'ad', o.customer_name, 'takip', 'https://www.peyktan.com/takip/?t=' || o.tracking_token)), 'delivery_dispatched');
+    perform _send_sms(s.restaurant_id, o.customer_phone, _sms_text(s.restaurant_id, 'delivery_dispatched', v_name || ': Siparisiniz yola cikti!' || coalesce(' Kurye: ' || v_courier, '') || coalesce(' Tel: ' || v_cphone, '') || ' Takip: https://www.peyktan.com/takip/?t=' || o.tracking_token, jsonb_build_object('isletme', v_name, 'ad', o.customer_name, 'kurye', coalesce(v_courier,''), 'kurye_tel', coalesce(v_cphone,''), 'takip', 'https://www.peyktan.com/takip/?t=' || o.tracking_token)), 'delivery_dispatched');
     v_sent := true;
   end if;
   return json_build_object('tracking_token', o.tracking_token, 'sms_sent', v_sent);
@@ -6286,7 +6305,7 @@ begin
       'ingredients', (select coalesce(json_agg(json_build_object('id', id, 'name', name, 'unit', unit, 'stock', stock, 'waste_pct', waste_pct, 'min_stock', min_stock)), '[]'::json) from ingredients where restaurant_id = s.restaurant_id),
       'users', (
         select coalesce(json_agg(json_build_object(
-          'id', au.id, 'username', au.username, 'role_ids', au.role_ids, 'is_active', au.is_active,
+          'id', au.id, 'username', au.username, 'role_ids', au.role_ids, 'is_active', au.is_active, 'phone', au.phone,
           'role_names', (select coalesce(array_agg(rl.name), '{}') from roles rl where rl.id = any(au.role_ids))
         )), '[]'::json)
         from app_users au where au.restaurant_id = s.restaurant_id and not au.is_company_owner
@@ -8939,7 +8958,7 @@ begin
   end if;
   if length(coalesce(trim(p_search),'')) < 2 then return '[]'::json; end if;
   return (select coalesce(json_agg(row_to_json(c)), '[]'::json) from (
-    select cu.id, cu.name, cu.phone, cu.email from customers cu
+    select cu.id, cu.name, cu.phone, cu.email, cu.address from customers cu
     where cu.restaurant_id = s.restaurant_id and (cu.name ilike '%'||trim(p_search)||'%' or cu.phone ilike '%'||trim(p_search)||'%')
     order by cu.last_visit_at desc nulls last, cu.name limit 8) c);
 end; $$;
@@ -9161,6 +9180,37 @@ begin
   return query select v_order_id, v_daily_number;
 end;
 $$;
+
+
+--
+-- Name: send_staff_login_sms(uuid, uuid[], boolean); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.send_staff_login_sms(p_token uuid, p_user_ids uuid[], p_reset_password boolean) RETURNS json
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'extensions', 'pg_temp'
+    AS $$
+declare s staff_sessions%rowtype; r restaurants%rowtype; u record; pw text; msg text; n_sent int := 0; skipped text[] := '{}';
+begin
+  s := _session_check(p_token, 'settings_users');
+  if p_reset_password and not exists(select 1 from app_users au join roles rl on rl.id = any(au.role_ids) where au.id = s.user_id and (rl.is_system or 'users_assign_roles' = any(rl.permissions))) then
+    raise exception 'Şifre sıfırlamak için Kullanıcı Yönetimi izni gerekir'; end if;
+  select * into r from restaurants where id = s.restaurant_id;
+  if not coalesce(r.sms_enabled,false) then raise exception 'Önce Ayarlar > Entegrasyonlar > SMS''ten "Müşterilere otomatik SMS"i açın'; end if;
+  for u in select * from app_users where restaurant_id = s.restaurant_id and id = any(p_user_ids) and not coalesce(is_company_owner,false) loop
+    if _normalize_tr_phone(u.phone) is null then skipped := skipped || u.username; continue; end if;
+    pw := null;
+    if p_reset_password then
+      pw := upper(substr(md5(gen_random_uuid()::text), 1, 3)) || floor(100 + random()*900)::text;
+      update app_users set password = crypt(pw, gen_salt('bf')) where id = u.id;
+    end if;
+    msg := r.name || ' - Peyktan giris bilgileriniz: Isletme kodu: ' || r.code || ' Kullanici: ' || u.username ||
+      coalesce(' Sifre: ' || pw, '') || ' Android: https://play.google.com/store/apps/details?id=com.peyktan.app iPhone/Web: https://www.peyktan.com/app/';
+    perform _send_sms(s.restaurant_id, u.phone, msg, 'staff_login');
+    n_sent := n_sent + 1;
+  end loop;
+  return json_build_object('sent', n_sent, 'skipped', skipped);
+end $$;
 
 
 --
@@ -10057,6 +10107,22 @@ begin
   if coalesce(p_hourly_wage,0) < 0 or coalesce(p_commission_pct,0) < 0 or coalesce(p_commission_pct,0) > 50 then raise exception 'Geçersiz değer (prim %%0-50)'; end if;
   update app_users set hourly_wage = nullif(p_hourly_wage,0), commission_pct = nullif(p_commission_pct,0) where id = p_user_id and restaurant_id = s.restaurant_id;
   if not found then raise exception 'Kullanıcı bulunamadı'; end if;
+end $$;
+
+
+--
+-- Name: set_staff_phone(uuid, uuid, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.set_staff_phone(p_token uuid, p_user_id uuid, p_phone text) RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+declare s staff_sessions%rowtype; v text := nullif(trim(coalesce(p_phone,'')),'');
+begin
+  s := _session_check(p_token, 'settings_users');
+  if v is not null and _normalize_tr_phone(v) is null then raise exception 'Geçersiz telefon numarası: %', v; end if;
+  update app_users set phone = v where id = p_user_id and restaurant_id = s.restaurant_id;
 end $$;
 
 
@@ -12212,6 +12278,7 @@ CREATE TABLE public.app_users (
     is_active boolean DEFAULT true NOT NULL,
     hourly_wage numeric,
     commission_pct numeric,
+    phone text,
     CONSTRAINT role_ids_len CHECK (((array_length(role_ids, 1) >= 1) AND (array_length(role_ids, 1) <= 2)))
 );
 
@@ -12468,7 +12535,8 @@ CREATE TABLE public.customers (
     spend_per_point numeric,
     point_value numeric,
     birthday_discount_percent numeric,
-    lifetime_points numeric DEFAULT 0 NOT NULL
+    lifetime_points numeric DEFAULT 0 NOT NULL,
+    address text
 );
 
 
@@ -15701,6 +15769,13 @@ CREATE TRIGGER trg_menus_cleanup AFTER DELETE ON public.restaurants FOR EACH ROW
 --
 
 CREATE TRIGGER trg_menus_cleanup AFTER DELETE ON public.stations FOR EACH ROW EXECUTE FUNCTION public._menus_cleanup_trg();
+
+
+--
+-- Name: orders trg_order_address_to_customer; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_order_address_to_customer AFTER INSERT OR UPDATE OF delivery_address, customer_phone ON public.orders FOR EACH ROW EXECUTE FUNCTION public._trg_order_address_to_customer();
 
 
 --
