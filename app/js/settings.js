@@ -1315,7 +1315,7 @@ function renderProductsSettings(el, session){
     <div class="add-row-panel">
     <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:0 0 10px;">
         ${listSearchHtml('products', 'Ürün ara…').replace('margin:0 0 12px;','margin:0;')}
-        ${sheetBtnHtml('prodSheet','+ Yeni Ürün')}
+        ${sheetBtnHtml('prodSheet','+ Yeni Ürün')}${typeof excelBarHtml === 'function' ? excelBarHtml('products') : ''}
         <span style="flex:1;"></span>
         <div class="act-row">
           <button type="button" class="act-btn act-save" id="prodSaveAllBtn" ${act('saveAllProducts')} disabled>${ICON_SAVE}<span>Kaydet</span></button>
