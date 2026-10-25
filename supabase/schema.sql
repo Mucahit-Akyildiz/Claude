@@ -2243,6 +2243,29 @@ end $_$;
 
 
 --
+-- Name: _trg_payment_sms(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public._trg_payment_sms() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+declare v_phone text; v_name text; v_on boolean; v_cust text;
+begin
+  if coalesce(new.payment_method,'') = 'comp' or coalesce(new.total,0) <= 0 then return new; end if;
+  select name, sms_on_payment and sms_enabled into v_name, v_on from restaurants where id = new.restaurant_id;
+  if not coalesce(v_on,false) then return new; end if;
+  if new.customer_id is not null then select phone, name into v_phone, v_cust from customers where id = new.customer_id; end if;
+  if v_phone is null and new.order_id is not null then select customer_phone, coalesce(v_cust, customer_name) into v_phone, v_cust from orders where id = new.order_id; end if;
+  if v_phone is null then return new; end if;
+  perform _send_sms(new.restaurant_id, v_phone,
+    v_name || ': ' || coalesce(split_part(v_cust,' ',1) || ', ', '') || 'odemeniz alindi. Tutar: ' || replace(to_char(new.total, 'FM999999990.00'), '.', ',') || ' TL. Bizi tercih ettiginiz icin tesekkur ederiz!', 'payment');
+  return new;
+exception when others then return new; -- SMS hatası ödemeyi asla engellemez
+end $$;
+
+
+--
 -- Name: _trg_reservation_sms(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -5512,7 +5535,7 @@ begin
     'accounting_enabled', r.accounting_enabled,
     'accounting_provider', r.accounting_provider,
     'accounting_configured', r.accounting_api_key is not null,
-    'sms_enabled', r.sms_enabled, 'invoice_title', r.invoice_title, 'tax_number', r.tax_number, 'tax_office', r.tax_office, 'invoice_address', r.invoice_address
+    'sms_enabled', r.sms_enabled, 'sms_on_payment', r.sms_on_payment, 'invoice_title', r.invoice_title, 'tax_number', r.tax_number, 'tax_office', r.tax_office, 'invoice_address', r.invoice_address
   );
 end;
 $$;
@@ -9901,6 +9924,18 @@ end; $$;
 
 
 --
+-- Name: set_sms_on_payment(uuid, boolean); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.set_sms_on_payment(p_token uuid, p_on boolean) RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+declare s staff_sessions%rowtype;
+begin s := _session_check(p_token, 'settings_integrations'); update restaurants set sms_on_payment = p_on where id = s.restaurant_id; end $$;
+
+
+--
 -- Name: set_staff_pay(uuid, uuid, numeric, numeric); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -13116,6 +13151,7 @@ CREATE TABLE public.restaurants (
     allowance_require_pick boolean DEFAULT true NOT NULL,
     allowances_enabled boolean DEFAULT false NOT NULL,
     close_no_cost boolean DEFAULT true NOT NULL,
+    sms_on_payment boolean DEFAULT true NOT NULL,
     CONSTRAINT restaurants_day_end_hour_check CHECK (((day_end_hour >= 0) AND (day_end_hour <= 23))),
     CONSTRAINT restaurants_default_vat_rate_check CHECK (((default_vat_rate >= (0)::numeric) AND (default_vat_rate <= (100)::numeric)))
 );
@@ -15563,6 +15599,13 @@ CREATE TRIGGER trg_order_items_added_by BEFORE INSERT ON public.order_items FOR 
 --
 
 CREATE TRIGGER trg_orders_auto_customer AFTER INSERT OR UPDATE OF customer_name, customer_phone ON public.orders FOR EACH ROW EXECUTE FUNCTION public._orders_auto_customer_trg();
+
+
+--
+-- Name: sales_history trg_payment_sms; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_payment_sms AFTER INSERT ON public.sales_history FOR EACH ROW EXECUTE FUNCTION public._trg_payment_sms();
 
 
 --
