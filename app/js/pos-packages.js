@@ -46,7 +46,8 @@ function renderPackageGrid(){
       const mins = (t) => Math.max(0, Math.round((Date.now() - new Date(t)) / 60000));
       courier = o.delivered_at ? `<div class="cr-row"><span class="pk-badge cr-done">✅ Teslim edildi · ödeme bekliyor</span><button type="button" class="cr-btn ghost" title="Teslim edildi işaretini geri al" ${actStop('markDelivered', o.order_id, true)}>↩</button></div>`
         : o.dispatched_at ? `<div class="cr-row"><span class="pk-badge cr-way">🛵 Yolda${o.courier_name ? ' · ' + escapeHtml(o.courier_name) : ''} · ${mins(o.dispatched_at)} dk</span><button type="button" class="cr-btn" ${actStop('markDelivered', o.order_id, false)}>✅ Teslim</button></div>`
-        : `<div class="cr-row"><button type="button" class="cr-btn ${allReady ? 'hot' : ''}" ${actStop('openCourierSheet', o.order_id)}>🛵 Kuryeye Ver</button></div>`;
+        : allReady ? `<div class="cr-row"><button type="button" class="cr-btn hot" ${actStop('openCourierSheet', o.order_id)}>🛵 Kuryeye Ver</button></div>`
+        : `<div class="cr-row"><button type="button" class="cr-btn" disabled title="Mutfak tüm ürünleri hazırlayınca kuryeye verilebilir">⏳ Hazırlanıyor — kurye bekliyor</button></div>`;
     }
     return `<div class="table-cell pk-cell ${o.delivered_at ? 'pk-delivered' : o.dispatched_at ? 'pk-way' : ''}" style="cursor:pointer;background:rgba(244,63,94,.14);border-color:var(--red);color:var(--red);overflow-wrap:anywhere;word-break:break-word;" ${act('openPackageModal', 'pkg_'+o.order_id)}>
       ${pickup ? '🥡' : '🛵'} ${escapeHtml(label)}<div style="font-size:11px;margin-top:4px;font-weight:400;">${pickup ? 'Gel-Al' : 'Paket'} · ${o.items.length} ürün - ${allReady?'Hazır':'hazırlanıyor'} · ${money(total)}</div>${eta}${courier}</div>`;
@@ -85,9 +86,9 @@ function openPackageModal(pseudoId){
         <div class="order-modal-cart">
           <div class="om-cart-head">🧾 Sipariş<span class="om-cart-total"></span></div>
       ${isWl ? '<p class="muted" style="text-align:left;margin:0 0 6px;font-size:12.5px;">Siparişler hemen mutfağa düşer; müşteri oturtulunca masaya taşınır.</p>' : `<div class="field-group"><label>Müşteri Adı</label><input id="pkgCustName" maxlength="60" placeholder="örn. Ahmet Bey veya kayıtlı müşteri ara" autocomplete="off" ${actOn('input','tableCustSearch',['$value','pkgCust'])} value="${escapeAttr((existing&&existing.customer_name)||'')}"></div>
-      <div class="field-group"><label>Telefon</label><input id="pkgCustPhone" placeholder="örn. 5551234567" autocomplete="off" inputmode="tel" ${actOn('input','tableCustSearch',['$value','pkgCust'])} value="${escapeAttr((existing&&existing.customer_phone)||'')}"></div>
+      <div class="field-group"><label>Telefon <span style="color:var(--red);">*</span></label><input id="pkgCustPhone" placeholder="örn. 5551234567" autocomplete="off" inputmode="tel" ${actOn('input','tableCustSearch',['$value','pkgCust'])} value="${escapeAttr((existing&&existing.customer_phone)||'')}"></div>
       <div id="pkgCustSuggest" style="margin:-6px 0 10px;"></div>
-      <small class="muted" style="display:block;margin:-6px 0 10px;font-size:11.5px;">Telefonu girilen müşteri kayıtlı değilse Müşteriler'e otomatik eklenir.</small>
+      <small class="muted" style="display:block;margin:-6px 0 10px;font-size:11.5px;">Telefon zorunludur. Kayıtlı müşteri seçince adresi otomatik dolar; yeni müşteri Müşteriler'e adresiyle birlikte eklenir.</small>
       ${pkgTypeHtml(existing)}
       <div class="field-group" id="pkgAddrWrap" style="${pkgTypeOf(existing)==='pickup'?'display:none;':''}"><label>Teslimat Adresi</label><textarea id="pkgAddress" rows="2" placeholder="örn. Atatürk Cad. No:12 D:4" style="resize:vertical;min-height:44px;">${escapeHtml((existing&&existing.delivery_address)||'')}</textarea></div>
       <div class="field-group"><label>Not</label><input id="pkgNote" placeholder="örn. Yan sokak, 2. kat" value="${escapeAttr((existing&&existing.note)||'')}"></div>`}
@@ -444,6 +445,15 @@ async function confirmOrder(tableId){
     const existingOrderId = tableId==='pkg_new' ? null : tableId.slice(4);
     const nameEl = document.getElementById('pkgCustName');
     const phoneEl = document.getElementById('pkgCustPhone');
+    if(!phoneEl || (phoneEl.value || '').replace(/\D/g, '').length < 10){
+      alert('Paket siparişte müşteri telefonu zorunludur.'); if(phoneEl){ phoneEl.focus(); phoneEl.style.borderColor = 'var(--red)'; }
+      if(btn){ btn.disabled = false; btn.innerHTML = '✅ Onayla ve Gönder'; } return;
+    }
+    const addrEl = document.getElementById('pkgAddress');
+    if(APP.pkgType !== 'pickup' && addrEl && !addrEl.value.trim()){
+      alert('Paket (adrese teslim) siparişte teslimat adresi zorunludur.'); addrEl.focus(); addrEl.style.borderColor = 'var(--red)';
+      if(btn){ btn.disabled = false; btn.innerHTML = '✅ Onayla ve Gönder'; } return;
+    }
     const noteEl = document.getElementById('pkgNote');
     kind = 'takeaway'; label = 'Paket sipariş' + (nameEl && nameEl.value.trim() ? ' · ' + nameEl.value.trim() : '');
     args = {
@@ -660,7 +670,7 @@ function openCourierSheet(orderId){
     <div class="cr-sum"><b>${escapeHtml(o.customer_name || ('Paket #' + (o.daily_number||'')))}</b>${o.delivery_address ? `<small>📍 ${escapeHtml(o.delivery_address)}</small>` : ''}</div>
     <div class="rvf-t" style="margin-top:12px;">🧑 Kurye</div>
     <div class="rvf-chips" id="crChips">${users.map(u => `<button type="button" class="rvf-chip ${APP.courierPick.courier===u.id?'on':''}" data-uid="${u.id}" ${act('pickCourier', u.id)}>${escapeHtml(u.username)}</button>`).join('') || '<p class="muted">Kullanıcı yok</p>'}</div>
-    ${o.customer_phone ? `<label class="cr-sms"><input type="checkbox" id="crSms" checked> 📱 Müşteriye SMS ile takip linki gönder</label>` : '<p class="muted" style="font-size:12px;text-align:left;">Siparişte telefon olmadığı için SMS gönderilemez; takip linkini kopyalayıp iletebilirsiniz.</p>'}
+    ${o.customer_phone ? `<label class="cr-sms"><input type="checkbox" id="crSms" checked> 📱 Müşteriye SMS gönder: “Siparişiniz yola çıktı” + kurye adı, telefonu ve takip linki</label>` : '<p class="muted" style="font-size:12px;text-align:left;">Siparişte telefon olmadığı için SMS gönderilemez; takip linkini kopyalayıp iletebilirsiniz.</p>'}
     <div class="fsheet-foot"><button type="button" class="ghost-btn" ${act('closeSheet','courierSheet')}>Vazgeç</button><button ${act('confirmDispatch')}>🛵 Yola Çıkar</button></div>`;
   openSheet('courierSheet');
 }
