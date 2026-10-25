@@ -1567,7 +1567,7 @@ function tableCardHtml(t){
   return `<div class="tc tc-${c.state}" ${c.order && !c.order.items?.length ? `data-badge-id="${c.order.order_id}"` : ""} ${act('openTableModal', t.id)}>
     <div class="tc-top"><span class="tc-name">${escapeHtml(t.name)}</span>${c.order ? `<span class="tc-time">⏱ ${timeTxt}</span>` : ''}</div>
     ${c.state === 'empty' ? `<div class="tc-cta">＋ Sipariş al</div>` : `
-      ${c.order && c.order.guest_count ? `<div class="tc-cust">👥 ${c.order.guest_count} kişi</div>` : ''}
+      ${c.order && c.order.guest_count ? `<div class="tc-cust">👥 ${c.order.guest_count} kişi</div>` : (c.order && (c.order.items || []).length && !String(c.order.table_id || '').startsWith('pkg') && c.order.kind !== 'takeaway' && c.order.kind !== 'waitlist' ? `<div class="tc-cust tc-noguest" title="Masayı açıp Kişi sayısı −/+ ile girin">👥 Kişi sayısı girilmedi</div>` : '')}
       ${c.order && c.order.customer_name ? (typeof birthdayFor === 'function' && birthdayFor(c.order.customer_name, c.order.customer_phone) ? `<div class="tc-cust tc-bday">🎂 ${escapeHtml(c.order.customer_name)} <b>Doğum günü!</b></div>` : `<div class="tc-cust">👤 ${escapeHtml(c.order.customer_name)}</div>`) : ''}
       <div class="tc-total">${c.total ? c.unpaid.length + ' kalem' : (c.draft.length ? c.draft.length + ' ürün sepette' : '—')}</div>
       ${c.unpaid.length ? `<div class="tc-prog"><i style="width:${pct}%"></i></div><div class="tc-meta"><span>${c.ready}/${c.unpaid.length} hazır</span>${initials}</div>` : `<div class="tc-meta"><span>${label}</span>${initials}</div>`}`}
