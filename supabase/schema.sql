@@ -1157,6 +1157,14 @@ begin
     v := v || jsonb_build_object('order', coalesce((v->>'order')::int,0) + jsonb_array_length(arr));
     it := it || jsonb_build_object('order', coalesce(it->'order','[]'::jsonb) || arr);
   end if;
+  -- Siparişi girilmiş ama kişi sayısı girilmemiş masalar: siparişi alan garsona ve yöneticiye (rapor yetkisi olan).
+  select coalesce(jsonb_agg(jsonb_build_object('id', o.id, 'label', '👥 ' || coalesce(t.name,'Masa') || ' · kişi sayısı girilmedi' || coalesce(' (' || au.username || ')', ''), 'kind', 'no_guests', 'table', t.name)), '[]') into arr
+    from orders o join restaurant_tables t on t.id = o.table_id left join app_users au on au.id = o.created_by
+    where o.restaurant_id = r and o.status = 'open' and o.guest_count is null and o.created_at < now() - interval '3 minutes'
+      and exists(select 1 from order_items oi where oi.order_id = o.id)
+      and (o.created_by = u or _user_has_perm(u, 'reports'));
+  v := v || jsonb_build_object('order', coalesce((v->>'order')::int,0) + jsonb_array_length(arr));
+  it := it || jsonb_build_object('order', coalesce(it->'order','[]'::jsonb) || arr);
   -- Masadan garson çağrıları: sipariş çağrısı Sipariş Al'a, ödeme çağrısı Ödemeler'e eklenir.
   if _user_has_perm(u, 'order') then
     select coalesce(jsonb_agg(jsonb_build_object('id', w.id, 'label', '🙋 ' || coalesce(t.name,'Masa') || ' · sipariş için garson çağırıyor', 'kind', 'waiter_call', 'table', t.name)), '[]') into arr
