@@ -719,6 +719,7 @@ async function refreshApp(){
    sunucudan tazelenir (bkz. get_my_permissions). */
 async function syncMyPermissions(){
   const s = getSession(); if(!s) return;
+  if(typeof loadVoicePolicy === 'function') loadVoicePolicy();
   const { data, error } = await sb.rpc('get_my_permissions', { p_token: s.session_token });
   if(error || !data) return;
   const cur = getSession(); if(!cur || cur.session_token !== s.session_token) return;
@@ -865,6 +866,7 @@ render();
 drawSupportBanner();
 syncMyPermissions();
 startNavBadges();
+if(getSession() && typeof loadVoicePolicy === 'function') loadVoicePolicy();
 // Hatırlanan oturumun sunucudaki süresini her açılışta tazele (girişte
 // yazılamamış olsa bile kendini onarır).
 { const s0 = getSession(); if(s0 && s0.remember) sb.rpc('set_session_remember', { p_token: s0.session_token }); }

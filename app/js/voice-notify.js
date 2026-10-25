@@ -26,6 +26,9 @@ function getVoicePrefs(){
   try{ p = JSON.parse(localStorage.getItem(VOICE_KEY) || '{}') || {}; }catch(e){}
   const out = { enabled: p.enabled !== false, rate: p.rate || 1, voiceName: p.voiceName || '', types: {} };
   VOICE_TYPES.forEach(t => { const v = (p.types || {})[t.id] || {}; out.types[t.id] = { sound: v.sound !== false, voice: v.voice != null ? !!v.voice : !['messages','other'].includes(t.id) }; });
+  // Yöneticinin belirlediği kural (rol bazlı) cihaz ayarının önüne geçer.
+  const mine = (APP.voicePolicy && APP.voicePolicy.mine) || {};
+  Object.keys(mine).forEach(k => { if(!out.types[k]) return; const m = mine[k]; out.types[k] = { sound: m !== 'off', voice: m === 'voice', locked: m }; });
   return out;
 }
 function setVoicePrefs(p){ try{ localStorage.setItem(VOICE_KEY, JSON.stringify(p)); }catch(e){} }
@@ -394,8 +397,8 @@ function voiceSettingsHtml(){
       <div class="vn-row vn-head"><span>Bildirim</span><span>Zil</span><span>Sesli Oku</span><span></span></div>
       ${VOICE_TYPES.map(t => `<div class="vn-row">
         <span>${t.ic} ${escapeHtml(t.label)}<small class="muted">“${escapeHtml(t.sample)}”</small></span>
-        <span>${t.id==='kitchen' ? '<small class="muted">Mutfak zili</small>' : sw(t.id,'sound',p.types[t.id].sound)}</span>
-        <span>${sw(t.id,'voice',p.types[t.id].voice)}</span>
+        ${p.types[t.id].locked ? `<span style="grid-column:span 2;"><small class="pchip" title="Yönetici belirledi">🔒 ${{ voice:'Sesli okunur', sound:'Sadece zil', off:'Size gönderilmiyor' }[p.types[t.id].locked]}</small></span>` : `<span>${t.id==='kitchen' ? '<small class="muted">Mutfak zili</small>' : sw(t.id,'sound',p.types[t.id].sound)}</span>
+        <span>${sw(t.id,'voice',p.types[t.id].voice)}</span>`}
         <span><button type="button" class="sbtn" style="width:auto;padding:6px 12px;" ${act('testVoice', t.id)}>▶ Dinle</button></span>
       </div>`).join('')}
     </div>
@@ -403,4 +406,11 @@ function voiceSettingsHtml(){
     <p id="voiceListErr" class="muted" style="font-size:12.5px;text-align:left;color:var(--danger);">${VOICE_LIST_ERR ? 'Hesaptaki sesler alınamadı: ' + escapeHtml(VOICE_LIST_ERR) : ''}</p>
     <p class="muted" style="font-size:12.5px;text-align:left;margin-top:10px;">⭐⭐ doğal bulut sesleridir (her cihazda aynı). Diğer sesler cihazın kendi Türkçe okuma motorundan gelir. ⭐ işaretli “doğal” sesler en iyisidir: Windows'ta Microsoft Edge ya da Ayarlar › Zaman ve Dil › Konuşma'dan <b>Emel / Ahmet (Natural)</b>, Android'de “Google Konuşma Hizmetleri” Türkçe paketi önerilir.</p>
   </div>`;
+}
+
+/* Yöneticinin sesli bildirim kuralı: kim, hangi türü sesli/zil olarak alır (sunucudan, rol bazlı). */
+async function loadVoicePolicy(){
+  const s = getSession(); if(!s) return;
+  const { data, error } = await sb.rpc('get_voice_policy', { p_token: s.session_token });
+  if(!error && data) APP.voicePolicy = data;
 }
