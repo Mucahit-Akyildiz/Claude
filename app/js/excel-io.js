@@ -180,9 +180,45 @@ async function importProductsExcel(){
   xlReport('Ürün içe aktarma tamamlandı', ok, errs.concat(nocost ? [`ℹ️ ${nocost} ürünün maliyeti boş — ayar açıksa satışa kapalı geldi`] : []));
   renderSettingsView(document.getElementById('main'), session);
 }
+/* Hammaddeler */
+const IG_HEAD = ['Hammadde Adı', 'Birim', 'Stok', 'Fire %', 'Min Stok'];
+const IG_UNITS = ['adet', 'gram', 'kg', 'ml', 'lt'];
+async function exportIngredientsExcel(){
+  await xlDownload('hammaddeler-' + todayLocalDateStr() + '.xlsx', 'Hammaddeler', IG_HEAD.concat(['Kullanıldığı ürün']),
+    ((APP.config || {}).ingredients || []).map(i => [i.name, i.unit, Number(i.stock) || 0, Number(i.waste_pct) || 0, Number(i.min_stock) || '',
+      ((APP.config.products || []).filter(p => (p.recipe || []).some(r => r.ingredient_id === i.id)).length)]), [28, 8, 10, 8, 10, 16]);
+}
+async function downloadIngredientTemplate(){
+  await xlDownload('hammadde-sablonu.xlsx', 'Hammaddeler', IG_HEAD, [['Döner Eti', 'kg', 20, 10, 5], ['Lavaş', 'adet', 200, 0, 50]], [28, 8, 10, 8, 10]);
+}
+async function importIngredientsExcel(){
+  const rows = await xlPickRows(); if(!rows) return;
+  if(!rows.length){ alert('Dosyada satır bulunamadı'); return; }
+  const session = getSession(), list = (APP.config || {}).ingredients || [], errs = []; let ok = 0;
+  await withLoadingOverlay((async () => {
+    for(const [i, r] of rows.entries()){
+      const line = 'Satır ' + (i + 2), name = xlPick(r, 'Hammadde Adı', 'Hammadde', 'Ad');
+      if(!name){ errs.push(line + ': hammadde adı boş'); continue; }
+      const ex = list.find(x => xlKey(x.name) === xlKey(name));
+      let unit = xlPick(r, 'Birim').toLocaleLowerCase('tr').trim(); if(unit === 'litre') unit = 'lt'; if(unit === 'gr' || unit === 'g') unit = 'gram';
+      if(!unit) unit = ex ? ex.unit : 'adet';
+      if(!IG_UNITS.includes(unit)){ errs.push(line + ` (${name}): birim "${unit}" geçersiz (adet, gram, kg, ml, lt)`); continue; }
+      const num = (k, d) => { const v = xlPick(r, ...k); return v === '' ? d : xlNum(v); };
+      const stock = num(['Stok'], ex ? Number(ex.stock) || 0 : 0), waste = num(['Fire %', 'Fire'], ex ? Number(ex.waste_pct) || 0 : 0), min = num(['Min Stok', 'Min'], ex ? Number(ex.min_stock) || 0 : 0);
+      if(![stock, waste, min].every(isFinite) || waste < 0 || waste >= 100){ errs.push(line + ` (${name}): sayı geçersiz`); continue; }
+      const { data: id, error } = await sb.rpc('upsert_ingredient', { p_token: session.session_token, p_id: ex ? ex.id : null, p_name: name, p_unit: unit, p_stock: stock, p_waste_pct: waste });
+      if(error){ errs.push(line + ` (${name}): ${error.message}`); continue; }
+      const iid = (ex && ex.id) || id;
+      if(iid){ const { error: e } = await sb.rpc('set_ingredient_min', { p_token: session.session_token, p_id: iid, p_min: min || 0 }); if(e) errs.push(line + ` (${name}): min — ${e.message}`); }
+      ok++;
+    }
+  })());
+  xlReport('Hammadde içe aktarma tamamlandı', ok, errs);
+  renderSettingsView(document.getElementById('main'), session);
+}
 /* Ortak araç çubuğu: Dışa aktar · İçe aktar · Şablon */
 function excelBarHtml(kind){
-  const fn = kind === 'users' ? ['exportUsersExcel', 'importUsersExcel', 'downloadUserTemplate'] : kind === 'products' ? ['exportProductsExcel', 'importProductsExcel', 'downloadProductTemplate'] : ['exportAllowancesExcel', 'importAllowancesExcel', 'downloadAllowanceTemplate'];
+  const fn = kind === 'users' ? ['exportUsersExcel', 'importUsersExcel', 'downloadUserTemplate'] : kind === 'products' ? ['exportProductsExcel', 'importProductsExcel', 'downloadProductTemplate'] : kind === 'ingredients' ? ['exportIngredientsExcel', 'importIngredientsExcel', 'downloadIngredientTemplate'] : ['exportAllowancesExcel', 'importAllowancesExcel', 'downloadAllowanceTemplate'];
   return `<div class="xl-bar">
     <button type="button" class="xl-btn" ${act(fn[0])}><span>⬇️</span>Dışa aktar</button>
     <button type="button" class="xl-btn" ${act(fn[1])}><span>⬆️</span>İçe aktar</button>
