@@ -7123,7 +7123,7 @@ begin
   return (
     select coalesce(json_agg(row_to_json(c) order by c.name), '[]'::json)
     from (
-      select cu.id, cu.name, cu.phone, cu.email, cu.notes, cu.points_balance, cu.total_visits, cu.total_spent, cu.created_at, cu.last_visit_at, cu.birthday, cu.spend_per_point, cu.point_value, cu.birthday_discount_percent, cu.lifetime_points
+      select cu.id, cu.name, cu.phone, cu.email, cu.address, cu.notes, cu.points_balance, cu.total_visits, cu.total_spent, cu.created_at, cu.last_visit_at, cu.birthday, cu.spend_per_point, cu.point_value, cu.birthday_discount_percent, cu.lifetime_points
       from customers cu
       where cu.restaurant_id = s.restaurant_id
         and (p_search is null or p_search = '' or cu.name ilike '%'||p_search||'%' or cu.phone ilike '%'||p_search||'%')
@@ -9449,6 +9449,19 @@ CREATE FUNCTION public.set_close_no_cost(p_token uuid, p_on boolean) RETURNS voi
     AS $$
 declare s staff_sessions%rowtype;
 begin s := _session_check(p_token, 'settings_products'); update restaurants set close_no_cost = p_on where id = s.restaurant_id; end $$;
+
+
+--
+-- Name: set_customer_address(uuid, uuid, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.set_customer_address(p_token uuid, p_id uuid, p_address text) RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+declare s staff_sessions%rowtype;
+begin s := _session_check(p_token, 'crm');
+  update customers set address = nullif(trim(coalesce(p_address,'')),'') where id = p_id and restaurant_id = s.restaurant_id; end $$;
 
 
 --
