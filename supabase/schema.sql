@@ -1022,6 +1022,30 @@ end $$;
 
 
 --
+-- Name: _mail_custom(uuid, text, jsonb, text, text, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public._mail_custom(p_rid uuid, p_key text, p_vars jsonb, p_subject text, p_head text, p_html text) RETURNS jsonb
+    LANGUAGE plpgsql STABLE SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+declare t jsonb; subj text; body text; k text; v text;
+begin
+  select mail_templates->p_key into t from restaurants where id = p_rid;
+  if t is not null and (t->>'enabled') = 'false' then return null; end if;
+  subj := nullif(trim(coalesce(t->>'subject','')),''); body := nullif(trim(coalesce(t->>'body','')),'');
+  if subj is null and body is null then return jsonb_build_object('subject', p_subject, 'html', _mail_layout(p_head, p_html)); end if;
+  for k, v in select * from jsonb_each_text(coalesce(p_vars,'{}'::jsonb)) loop
+    subj := replace(coalesce(subj, p_subject), '{' || k || '}', coalesce(v,''));
+    if body is not null then body := replace(body, '{' || k || '}', replace(replace(coalesce(v,''),'<','&lt;'),'>','&gt;')); end if;
+  end loop;
+  subj := coalesce(subj, p_subject);
+  return jsonb_build_object('subject', subj, 'html', _mail_layout(coalesce(subj, p_head),
+    case when body is null then p_html else '<p>' || replace(replace(replace(replace(body,'<','&lt;'),'>','&gt;'), E'\n\n', '</p><p>'), E'\n', '<br>') || '</p>' end));
+end $$;
+
+
+--
 -- Name: _mail_layout(text, text); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -1649,7 +1673,7 @@ CREATE FUNCTION public._reservation_send_mail(p_id uuid, p_kind text) RETURNS vo
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public', 'pg_temp'
     AS $$
-declare r record; v_when text; v_title text; v_head text; v_intro text;
+declare r record; v_when text; v_title text; v_head text; v_intro text; v_html text; m jsonb;
 begin
   select rv.*, rs.name rname, rs.phone rphone into r from reservations rv join restaurants rs on rs.id = rv.restaurant_id where rv.id = p_id;
   if r.id is null or r.email is null then return; end if;
@@ -1670,14 +1694,18 @@ begin
     v_title := r.rname || ' - Rezervasyon hatırlatması'; v_head := 'Rezervasyonunuzu hatırlatırız';
     v_intro := 'rezervasyonunuz yaklaşıyor:';
   end if;
-  perform _send_email_r(r.restaurant_id, r.email, v_title, _mail_layout(v_head,
+  v_html := (
     '<p>Merhaba ' || replace(replace(r.customer_name,'<','&lt;'),'>','&gt;') || ',</p>'
     || '<p><b>' || replace(replace(r.rname,'<','&lt;'),'>','&gt;') || '</b> için ' || v_intro || '</p>'
     || '<table style="border-collapse:collapse;margin:12px 0;font-size:15px;">'
     || '<tr><td style="padding:4px 14px 4px 0;color:#666;">Tarih / Saat</td><td><b>' || v_when || '</b></td></tr>'
     || '<tr><td style="padding:4px 14px 4px 0;color:#666;">Kişi</td><td><b>' || r.party_size || '</b></td></tr></table>'
     || coalesce('<p>Değişiklik için bizi arayabilirsiniz: <b>' || r.rphone || '</b></p>', '')
-    || case when p_kind in ('cancelled','no_show') then '' else '<p>Sizi bekliyoruz!</p>' end));
+    || case when p_kind in ('cancelled','no_show') then '' else '<p>Sizi bekliyoruz!</p>' end);
+  m := _mail_custom(r.restaurant_id, 'resv_' || case when p_kind in ('created','updated','confirmed','pending','cancelled','no_show') then p_kind else 'reminder' end,
+    jsonb_build_object('isletme', r.rname, 'ad', r.customer_name, 'tarih_saat', v_when, 'kisi', r.party_size, 'telefon', coalesce(r.rphone,'')), v_title, v_head, v_html);
+  if m is null then return; end if;
+  perform _send_email_r(r.restaurant_id, r.email, m->>'subject', m->>'html');
 end $$;
 
 
@@ -2508,7 +2536,7 @@ CREATE FUNCTION public._waitlist_send_mail(p_id uuid, p_kind text) RETURNS void
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public', 'pg_temp'
     AS $$
-declare w record; v_left int; v_title text; v_body text; v_name text; v_rest text; v_due text;
+declare w record; v_left int; v_title text; v_body text; v_name text; v_rest text; v_due text; m jsonb;
 begin
   select wl.*, r.name rname, r.phone rphone into w from waitlist_entries wl join restaurants r on r.id = wl.restaurant_id where wl.id = p_id;
   if w.id is null or w.email is null then return; end if;
@@ -2532,7 +2560,11 @@ begin
       || coalesce(' (<b>' || v_due || '</b>)', '') || '. Lütfen restorana yakın olun.</p>';
   end if;
   v_body := v_body || coalesce('<p style="color:#666;font-size:13px;">Bilgi için: ' || w.rphone || '</p>', '');
-  perform _send_email_r(w.restaurant_id, w.email, v_title, _mail_layout(case p_kind when 'joined' then 'Bekleme listesindesiniz' when 'updated' then 'Bekleme süreniz güncellendi' else 'Sıranız yaklaşıyor' end, v_body));
+  m := _mail_custom(w.restaurant_id, case p_kind when 'joined' then 'wl_joined' when 'updated' then 'wl_updated' else 'wl_soon' end,
+    jsonb_build_object('isletme', w.rname, 'ad', w.customer_name, 'kisi', w.party_size, 'dakika', coalesce(v_left::text,''), 'saat', coalesce(v_due,''), 'telefon', coalesce(w.rphone,'')),
+    v_title, case p_kind when 'joined' then 'Bekleme listesindesiniz' when 'updated' then 'Bekleme süreniz güncellendi' else 'Sıranız yaklaşıyor' end, v_body);
+  if m is null then return; end if;
+  perform _send_email_r(w.restaurant_id, w.email, m->>'subject', m->>'html');
 end $$;
 
 
@@ -5613,6 +5645,17 @@ begin
   );
 end;
 $$;
+
+
+--
+-- Name: get_mail_templates(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.get_mail_templates(p_token uuid) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+declare s staff_sessions%rowtype; v jsonb; begin s := _session_check(p_token, null); select mail_templates into v from restaurants where id = s.restaurant_id; return coalesce(v,'{}'::jsonb); end $$;
 
 
 --
@@ -9574,6 +9617,25 @@ $$;
 
 
 --
+-- Name: set_mail_template(uuid, text, boolean, text, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.set_mail_template(p_token uuid, p_key text, p_enabled boolean, p_subject text, p_body text) RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+declare s staff_sessions%rowtype;
+begin
+  s := _session_check(p_token, null);
+  if not exists(select 1 from app_users au join roles rl on rl.id = any(au.role_ids) where au.id = s.user_id and (rl.is_system or 'settings_integrations' = any(rl.permissions))) then raise exception 'Bu işlem için yetkiniz yok'; end if;
+  if p_key not in ('resv_created','resv_updated','resv_confirmed','resv_pending','resv_cancelled','resv_no_show','resv_reminder','wl_joined','wl_updated','wl_soon') then raise exception 'Geçersiz e-posta türü'; end if;
+  if length(coalesce(p_body,'')) > 4000 or length(coalesce(p_subject,'')) > 200 then raise exception 'Metin çok uzun'; end if;
+  update restaurants set mail_templates = mail_templates || jsonb_build_object(p_key, jsonb_build_object('enabled', coalesce(p_enabled,true),
+    'subject', nullif(trim(coalesce(p_subject,'')),''), 'body', nullif(trim(coalesce(p_body,'')),''))) where id = s.restaurant_id;
+end $$;
+
+
+--
 -- Name: set_menu_order(uuid, uuid[]); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -13366,6 +13428,7 @@ CREATE TABLE public.restaurants (
     sms_on_payment boolean DEFAULT true NOT NULL,
     voice_policy jsonb DEFAULT '{}'::jsonb NOT NULL,
     sms_templates jsonb DEFAULT '{}'::jsonb NOT NULL,
+    mail_templates jsonb DEFAULT '{}'::jsonb NOT NULL,
     CONSTRAINT restaurants_day_end_hour_check CHECK (((day_end_hour >= 0) AND (day_end_hour <= 23))),
     CONSTRAINT restaurants_default_vat_rate_check CHECK (((default_vat_rate >= (0)::numeric) AND (default_vat_rate <= (100)::numeric)))
 );
