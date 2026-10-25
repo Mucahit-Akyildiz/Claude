@@ -9204,8 +9204,11 @@ begin
       pw := upper(substr(md5(gen_random_uuid()::text), 1, 3)) || floor(100 + random()*900)::text;
       update app_users set password = crypt(pw, gen_salt('bf')) where id = u.id;
     end if;
-    msg := r.name || ' - Peyktan giris bilgileriniz: Isletme kodu: ' || r.code || ' Kullanici: ' || u.username ||
-      coalesce(' Sifre: ' || pw, '') || ' Android: https://play.google.com/store/apps/details?id=com.peyktan.app iPhone/Web: https://www.peyktan.com/app/';
+    msg := _sms_text(s.restaurant_id, 'staff_login', r.name || ' - Peyktan giris bilgileriniz: Isletme kodu: ' || r.code || ' Kullanici: ' || u.username ||
+      coalesce(' Sifre: ' || pw, '') || ' Android: https://play.google.com/store/apps/details?id=com.peyktan.app iPhone/Web: https://www.peyktan.com/app/',
+      jsonb_build_object('isletme', r.name, 'kod', r.code, 'kullanici', u.username, 'sifre', coalesce(pw, '(yoneticinizden alin)'),
+        'android', 'https://play.google.com/store/apps/details?id=com.peyktan.app', 'web', 'https://www.peyktan.com/app/'));
+    if msg is null then raise exception 'Personel giriş SMS''i kapalı (Entegrasyonlar > SMS > Mesajlar)'; end if;
     perform _send_sms(s.restaurant_id, u.phone, msg, 'staff_login');
     n_sent := n_sent + 1;
   end loop;
@@ -10099,7 +10102,7 @@ declare s staff_sessions%rowtype;
 begin
   s := _session_check(p_token, null);
   if not exists(select 1 from app_users au join roles rl on rl.id = any(au.role_ids) where au.id = s.user_id and (rl.is_system or 'settings_integrations' = any(rl.permissions))) then raise exception 'Bu işlem için yetkiniz yok'; end if;
-  if p_purpose not in ('reservation_confirm','reservation_reminder','waitlist_ready','takeaway_ready','payment','delivery_dispatched','review_request') then raise exception 'Geçersiz mesaj türü'; end if;
+  if p_purpose not in ('reservation_confirm','reservation_reminder','waitlist_ready','takeaway_ready','payment','delivery_dispatched','review_request','staff_login') then raise exception 'Geçersiz mesaj türü'; end if;
   if length(coalesce(p_text,'')) > 480 then raise exception 'Mesaj en fazla 480 karakter olabilir'; end if;
   update restaurants set sms_templates = sms_templates || jsonb_build_object(p_purpose, jsonb_build_object('enabled', coalesce(p_enabled,true), 'text', nullif(trim(coalesce(p_text,'')),'')))
     where id = s.restaurant_id;
