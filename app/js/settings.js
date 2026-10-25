@@ -2278,12 +2278,10 @@ async function renderIntegrationsSettings(el, session){
     <div class="oo-hero ${data.sms_enabled?'on':''}"><div class="oo-hero-ic">📱</div>
       <div class="oo-hero-t"><b>Müşterilere otomatik SMS</b><small>Rezervasyon onayı ve 2 saat kala hatırlatma, paket siparişi hazır bildirimi, bekleme listesinde "Masa Hazır" mesajı, ödeme alındı bilgisi.</small></div>
       <label class="oo-switch"><input type="checkbox" id="int_sms_enabled" ${data.sms_enabled?'checked':''} ${actOn('change','saveSmsSettings',['$checked'])}><span class="oo-track"><span class="oo-thumb"></span></span><em>${data.sms_enabled?'Açık':'Kapalı'}</em></label></div>
-    <label class="sw-card" style="margin:12px 0 !important;">
-      <input type="checkbox" class="sw" ${data.sms_on_payment!==false?'checked':''} ${actOn('change','saveSmsOnPayment',['$checked'])}>
-      <span><b>💳 Ödeme alınınca müşteriye SMS</b><br><span class="muted" style="font-size:12.5px;">Hesaba müşteri (telefonuyla) girildiyse ödeme alındığında "Ödemeniz alındı · Tutar" mesajı gönderilir. İkram hesaplarına gönderilmez. Üstteki SMS bildirimleri açık olmalıdır.</span></span>
-    </label>
-    <div id="tiSms"></div>`;
+    <div id="tiSms"></div>
+    <div id="smsTplBox"></div>`;
   el.insertBefore(sms, inv);
+  loadSmsTemplates();
   const today = new Date(), from = new Date(Date.now()-29*864e5);
   const iso = d => d.toLocaleDateString('sv-SE');
   sb.rpc('list_invoices', { p_token: session.session_token, p_date: iso(from), p_date_to: iso(today) }).then(({ data: rows, error: e }) => {
@@ -2338,6 +2336,51 @@ async function sendTestSms(){
   const st = { dispatched: '✅ SMS firmasına iletildi — telefonunuza birkaç saniye içinde gelmeli. Gelmezse firmanın panelindeki Raporlar\'a bakın (başlık onayı / bakiye).', no_provider: '⚠️ SMS firması bilgileri eksik (anahtar/şifre). Kaydet\'e basıp tekrar deneyin.', skipped: '⚠️ Gönderim sınırına takıldı (aynı numaraya saatte en fazla 10 SMS).' };
   if(res) res.textContent = st[data && data.status] || ('Durum: ' + (data && data.status || '?'));
 }
+/* SMS şablonları: her mesaj türü açılıp kapatılır ve metni düzenlenir; sunucu gönderirken bu metni kullanır. */
+const SMS_TPL = [
+  { k:'reservation_confirm', ic:'📅', t:'Rezervasyon onayı', w:'Rezervasyon onaylanınca', v:['isletme','ad','tarih','saat','kisi'], d:'{isletme}: {tarih} {saat} tarihli {kisi} kisilik rezervasyonunuz onaylandi.' },
+  { k:'reservation_reminder', ic:'⏰', t:'Rezervasyon hatırlatma', w:'Rezervasyona 2–4 saat kala', v:['isletme','ad','saat','kisi'], d:'{isletme}: Hatirlatma - bugun saat {saat} icin rezervasyonunuz var. Sizi bekliyoruz!' },
+  { k:'waitlist_ready', ic:'⏳', t:'Masanız hazır', w:'Bekleme listesinde “Masa Hazır” basılınca', v:['isletme','ad','kisi'], d:'{isletme}: Masaniz hazir! Lutfen girise gelin.' },
+  { k:'takeaway_ready', ic:'📦', t:'Siparişiniz hazır', w:'Paket / gel-al siparişi hazır olunca', v:['isletme','ad','no'], d:'{isletme}: Siparisiniz hazir (No: {no}). Afiyet olsun!' },
+  { k:'delivery_dispatched', ic:'🛵', t:'Sipariş yola çıktı', w:'Kurye siparişi alınca', v:['isletme','ad','takip'], d:'{isletme}: Siparisiniz yola cikti! Takip: {takip}' },
+  { k:'payment', ic:'💳', t:'Ödeme alındı', w:'Hesaba müşteri girildiyse ödeme alınınca', v:['isletme','ad','tutar'], d:'{isletme}: {ad}, odemeniz alindi. Tutar: {tutar} TL. Bizi tercih ettiginiz icin tesekkur ederiz!' },
+  { k:'review_request', ic:'⭐', t:'Değerlendirme isteği', w:'Hesaptan değerlendirme linki gönderilince', v:['isletme','link'], d:'{isletme}: Bizi degerlendirir misiniz? {link}' },
+];
+const SMS_VAR_LBL = { isletme:'İşletme adı', ad:'Müşteri adı', tarih:'Tarih', saat:'Saat', kisi:'Kişi sayısı', no:'Sipariş no', tutar:'Tutar', takip:'Takip linki', link:'Değerlendirme linki' };
+async function loadSmsTemplates(){
+  const box = document.getElementById('smsTplBox'); if(!box) return;
+  const { data } = await sb.rpc('get_sms_templates', { p_token: getSession().session_token });
+  APP.smsTpl = data || {}; drawSmsTemplates();
+}
+function smsLen(t){ const uni = /[çğıöşüÇĞİÖŞÜ€]/.test(t); const per = uni ? 70 : 160, n = t.length; return { n, sms: n <= per ? 1 : Math.ceil(n / (uni ? 67 : 153)), uni }; }
+function drawSmsTemplates(){
+  const box = document.getElementById('smsTplBox'); if(!box) return;
+  box.innerHTML = `<div class="ix-sec"><div class="ix-st">4 · Mesajlar</div>
+    <p class="muted st-help">Hangi mesajların gideceğini seçin ve metinlerini düzenleyin. <b>{süslü parantez}</b> içindeki alanlar gönderilirken gerçek bilgiyle dolar (ör. {ad} → Ahmet). Türkçe karakter (ç, ğ, ş…) kullanırsanız SMS daha kısa sayılır ve maliyet artabilir.</p>
+    <div class="st-list">${SMS_TPL.map(t => { const c = APP.smsTpl[t.k] || {}, on = c.enabled !== false, txt = c.text || t.d, L = smsLen(txt);
+      return `<div class="st-row ${on?'':'off'}" data-tpl="${t.k}">
+        <div class="st-head"><span class="st-ic">${t.ic}</span><div class="st-t"><b>${t.t}</b><small>${t.w}</small></div>
+          <label class="oo-switch"><input type="checkbox" ${on?'checked':''} ${actOn('change','toggleSmsTpl',[t.k,'$checked'])}><span class="oo-track"><span class="oo-thumb"></span></span><em>${on?'Gönderilir':'Kapalı'}</em></label></div>
+        <textarea id="tpl_${t.k}" rows="2" maxlength="480" ${on?'':'disabled'} ${actOn('input','smsTplInput',[t.k])}>${escapeHtml(txt)}</textarea>
+        <div class="st-foot"><span class="st-vars">${t.v.map(v => `<button type="button" class="pchip" title="${SMS_VAR_LBL[v]}" ${act('insertSmsVar', t.k, v)}>{${v}}</button>`).join('')}</span>
+          <small class="muted" id="tplLen_${t.k}">${L.n} karakter · ${L.sms} SMS${L.uni ? ' · Türkçe karakter' : ''}</small>
+          <button type="button" class="pc-btn" ${act('resetSmsTpl', t.k)} title="Varsayılan metne dön">↺</button>
+          <button type="button" class="st-save" id="tplSave_${t.k}" disabled ${act('saveSmsTpl', t.k)}>${ICON_SAVE}<span>Kaydet</span></button></div>
+      </div>`; }).join('')}</div></div>`;
+}
+function smsTplInput(k){ const ta = document.getElementById('tpl_' + k), L = smsLen(ta.value); document.getElementById('tplLen_' + k).textContent = `${L.n} karakter · ${L.sms} SMS${L.uni ? ' · Türkçe karakter' : ''}`; document.getElementById('tplSave_' + k).disabled = false; }
+function insertSmsVar(k, v){ const ta = document.getElementById('tpl_' + k); if(!ta || ta.disabled) return; const p = ta.selectionStart ?? ta.value.length; ta.value = ta.value.slice(0, p) + '{' + v + '}' + ta.value.slice(ta.selectionEnd ?? p); ta.focus(); smsTplInput(k); }
+async function saveSmsTpl(k, enabledOverride){
+  const t = SMS_TPL.find(x => x.k === k), ta = document.getElementById('tpl_' + k), cur = APP.smsTpl[k] || {};
+  const enabled = enabledOverride != null ? enabledOverride : cur.enabled !== false;
+  let text = ta ? ta.value.trim() : (cur.text || '');
+  if(text === t.d) text = '';
+  const { error } = await sb.rpc('set_sms_template', { p_token: getSession().session_token, p_purpose: k, p_enabled: enabled, p_text: text || null });
+  if(error){ alert(error.message); return; }
+  APP.smsTpl[k] = { enabled, text: text || null }; drawSmsTemplates(); showToast(enabledOverride != null ? (enabled ? t.t + ' açıldı ✓' : t.t + ' kapatıldı') : 'Mesaj kaydedildi ✓');
+}
+function toggleSmsTpl(k, on){ saveSmsTpl(k, !!on); }
+function resetSmsTpl(k){ const t = SMS_TPL.find(x => x.k === k), ta = document.getElementById('tpl_' + k); if(ta){ ta.value = t.d; smsTplInput(k); } }
 async function saveSmsOnPayment(on){
   const { error } = await sb.rpc('set_sms_on_payment', { p_token: getSession().session_token, p_on: on });
   if(error){ alert(error.message); return; }
