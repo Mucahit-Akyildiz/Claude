@@ -366,12 +366,16 @@ function processVoiceBadges(data, visibleViews){
   const tg = p.types.guests; if(gl.length && tg && tg.sound && !tg.voice && typeof playPeyktanSound === 'function') playPeyktanSound();
   return sound;
 }
+const VOICE_TYPE_VIEW = { kitchen:'kitchen', late:'kitchen', qr:'order', online:'order', waiter:'order', idle:'order', guests:'order', bill:'payments', ready:'payments',
+  seated:'reservations', resvsoon:'reservations', reservations:'reservations', pickup:'packages', messages:'messages' };
 function voiceDesktopNotify(type, list){
   try{
     if(!document.hidden && document.hasFocus()) return;
     if(!('Notification' in window) || Notification.permission !== 'granted') return;
     const t = VOICE_TYPES.find(x => x.id===type) || {};
-    new Notification('Peyktan · ' + (t.label || 'Bildirim'), { body: voiceTextFor(type, list), icon: '/assets/images/logo.webp', tag: 'peyk-' + type, renotify: true });
+    const n = new Notification('Peyktan · ' + (t.label || 'Bildirim'), { body: voiceTextFor(type, list), icon: '/assets/images/logo.webp', tag: 'peyk-' + type, renotify: true });
+    const view = VOICE_TYPE_VIEW[type];
+    n.onclick = () => { try{ window.focus(); if(window.electronAPI && window.electronAPI.focusWindow) window.electronAPI.focusWindow(); }catch(e){} n.close(); if(view) openViewFromNotification(view); };
   }catch(e){}
 }
 function voiceSettingsHtml(){

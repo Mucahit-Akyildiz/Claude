@@ -665,9 +665,21 @@ function notReadyYet(){ alert('Bu ekran bir sonraki adımda eklenecek.'); }
    NAV_ITEMS görünümüyse ve oturum varsa uygulanır, aksi halde sessizce
    yok sayılır. Hem sayfa ilk açılışında (uygulama zaten oturumluyken
    bir push linkiyle açılmışsa) hem başarılı girişten sonra kullanılır. */
+/* Bildirime tıklanınca ilgili ekran: oturum varsa hemen geçilir, yoksa girişten sonra açılmak üzere saklanır. */
+function openViewFromNotification(view, tag){
+  if(!view) return;
+  const session = getSession();
+  if(!session){ try{ sessionStorage.setItem('peyk_pending_view', view); }catch(e){} return; }
+  const item = NAV_ITEMS.find(i => i.view===view);
+  if(!item || !navItemVisible(item, session)) return;
+  if(view==='settings' && String(tag||'').startsWith('shift')) APP.settingsTab = 'shifts';
+  try{ window.focus(); }catch(e){}
+  goToView(view);
+}
 function applyDeepLinkView(){
   const session = getSession(); if(!session) return;
-  const view = new URLSearchParams(window.location.search).get('view');
+  let view = new URLSearchParams(window.location.search).get('view');
+  if(!view){ try{ view = sessionStorage.getItem('peyk_pending_view'); sessionStorage.removeItem('peyk_pending_view'); }catch(e){} }
   if(!view) return;
   const item = NAV_ITEMS.find(i => i.view===view);
   if(item && navItemVisible(item, session)) APP.view = view;
@@ -862,7 +874,7 @@ document.addEventListener('visibilitychange', () => { if(document.visibilityStat
    geçmek için service worker'dan gelen mesaj burada dinlenir. */
 if('serviceWorker' in navigator){
   navigator.serviceWorker.addEventListener('message', (event) => {
-    if(event.data && event.data.type==='peyktan-navigate' && event.data.view) goToView(event.data.view);
+    if(event.data && event.data.type==='peyktan-navigate' && event.data.view) openViewFromNotification(event.data.view, event.data.tag);
     if(event.data && event.data.type==='peyktan-sound'){
       // Sesli bildirim açıksa zil ayrıca çalınmaz: rozet yenilenince bildirim tek seferde (sesli) okunur.
       if(!(typeof getVoicePrefs === 'function' && getVoicePrefs().enabled)) playPeyktanSound();
