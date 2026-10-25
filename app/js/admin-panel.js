@@ -158,10 +158,10 @@ function renderAdminLogin(app){
   app.innerHTML = `<div class="center-wrap"><div class="box">
     <h1>Platform Yönetimi</h1>
     <p class="muted">Bu alan sadece size özeldir.</p>
-    <input id="adminUser" placeholder="Kullanıcı adı" autocapitalize="none">
-    <div class="pw-field-wrap"><input id="adminPass" type="password" placeholder="Şifre" autocomplete="current-password">
+    <input id="adminUser" placeholder="Kullanıcı adı" autocapitalize="none" ${actOn('keydown','onEnterCall',['$event','doAdminLogin'])}>
+    <div class="pw-field-wrap"><input id="adminPass" type="password" placeholder="Şifre" autocomplete="current-password" ${actOn('keydown','onEnterCall',['$event','doAdminLogin'])}>
       <button type="button" class="pw-eye-btn" title="Şifreyi göster/gizle" ${act('togglePassVisible', 'adminPass', '$this')}>👁️</button></div>
-    <input id="adminOtp" inputmode="numeric" maxlength="6" autocomplete="one-time-code" placeholder="Doğrulama kodu (6 hane)" style="display:none;">
+    <input id="adminOtp" inputmode="numeric" maxlength="6" autocomplete="one-time-code" placeholder="Doğrulama kodu (6 hane)" style="display:none;" ${actOn('keydown','onEnterCall',['$event','doAdminLogin'])}>
     <button ${act('doAdminLogin')} id="adminLoginBtn">Giriş Yap</button>
     <div class="error" id="adminErr"></div>
   </div></div>`;
