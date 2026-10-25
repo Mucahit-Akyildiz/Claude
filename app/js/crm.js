@@ -47,6 +47,7 @@ async function renderCrmView(main, session){
           <div class="field-group"><label>E-posta</label><input id="crm_email" placeholder="opsiyonel" autocapitalize="none"></div>
           <div class="field-group"><label>🎂 Doğum Günü</label><input id="crm_birthday" type="date"></div>
           <div class="field-group"><label>Not</label><input id="crm_notes" placeholder="opsiyonel"></div>
+          <div class="field-group wide"><label>📍 Adres</label><textarea id="crm_address" rows="2" placeholder="örn. Atatürk Cad. No:12 D:4 — paket siparişte otomatik dolar" style="resize:vertical;min-height:44px;"></textarea></div>
         </div>
         <details id="crmLoyaltyBox" style="margin-top:10px;border:1px solid var(--border);border-radius:12px;padding:10px 12px;background:var(--panel);">
           <summary style="cursor:pointer;font-weight:700;font-size:13.5px;">⭐ Bu müşteriye özel sadakat ayarı <span class="muted" style="font-weight:400;">(boş bırakılan alan genel ayarı kullanır)</span></summary>
@@ -154,7 +155,7 @@ function debouncedCrmSearch(v){
   }, 350);
 }
 function newCustomer(){
-  ['crm_edit_id','crm_name','crm_phone','crm_email','crm_notes','crm_birthday','crm_spp','crm_pv','crm_bdp'].forEach(k => { const e = document.getElementById(k); if(e) e.value = ''; });
+  ['crm_edit_id','crm_name','crm_phone','crm_email','crm_notes','crm_birthday','crm_address','crm_spp','crm_pv','crm_bdp'].forEach(k => { const e = document.getElementById(k); if(e) e.value = ''; });
   const b = document.getElementById('crmLoyaltyBox'); if(b) b.open = false;
   document.getElementById('crmSheetTitle').textContent = 'Yeni Müşteri';
   openSheet('crmSheet');
@@ -167,6 +168,7 @@ function editCustomer(id){
   document.getElementById('crm_email').value = c.email||'';
   document.getElementById('crm_notes').value = c.notes||'';
   document.getElementById('crm_birthday').value = c.birthday||'';
+  document.getElementById('crm_address').value = c.address||'';
   document.getElementById('crm_spp').value = c.spend_per_point ?? '';
   document.getElementById('crm_pv').value = c.point_value ?? '';
   document.getElementById('crm_bdp').value = c.birthday_discount_percent ?? '';
@@ -190,6 +192,9 @@ async function saveCrmCustomer(){
   APP.birthdays = null; // doğum günü listesi yeniden yüklensin
   const custId = id || savedId;
   if(custId){
+    const addr = (document.getElementById('crm_address') || {}).value || '';
+    const c0 = (APP.crmRows||[]).find(x => x.id===custId);
+    if(addr.trim() !== ((c0 && c0.address) || '')){ const { error: ea } = await sb.rpc('set_customer_address', { p_token: session.session_token, p_id: custId, p_address: addr }); if(ea) alert('Müşteri kaydedildi ama adres kaydedilemedi: ' + ea.message); }
     const { error: e2 } = await sb.rpc('set_customer_loyalty', { p_token: session.session_token, p_id: custId, p_spend_per_point: spp, p_point_value: pv, p_birthday_discount_percent: bdp });
     if(e2){ alert('Müşteri kaydedildi ama özel sadakat ayarı kaydedilemedi: ' + e2.message); }
   }
