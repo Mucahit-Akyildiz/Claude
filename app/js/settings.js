@@ -2276,8 +2276,12 @@ async function renderIntegrationsSettings(el, session){
   sms.classList.add('ix-box');
   sms.innerHTML = `<h2>📱 SMS Bildirimleri</h2>
     <div class="oo-hero ${data.sms_enabled?'on':''}"><div class="oo-hero-ic">📱</div>
-      <div class="oo-hero-t"><b>Müşterilere otomatik SMS</b><small>Rezervasyon onayı ve 2 saat kala hatırlatma, paket siparişi hazır bildirimi, bekleme listesinde "Masa Hazır" mesajı.</small></div>
+      <div class="oo-hero-t"><b>Müşterilere otomatik SMS</b><small>Rezervasyon onayı ve 2 saat kala hatırlatma, paket siparişi hazır bildirimi, bekleme listesinde "Masa Hazır" mesajı, ödeme alındı bilgisi.</small></div>
       <label class="oo-switch"><input type="checkbox" id="int_sms_enabled" ${data.sms_enabled?'checked':''} ${actOn('change','saveSmsSettings',['$checked'])}><span class="oo-track"><span class="oo-thumb"></span></span><em>${data.sms_enabled?'Açık':'Kapalı'}</em></label></div>
+    <label class="sw-card" style="margin:12px 0 !important;">
+      <input type="checkbox" class="sw" ${data.sms_on_payment!==false?'checked':''} ${actOn('change','saveSmsOnPayment',['$checked'])}>
+      <span><b>💳 Ödeme alınınca müşteriye SMS</b><br><span class="muted" style="font-size:12.5px;">Hesaba müşteri (telefonuyla) girildiyse ödeme alındığında "Ödemeniz alındı · Tutar" mesajı gönderilir. İkram hesaplarına gönderilmez. Üstteki SMS bildirimleri açık olmalıdır.</span></span>
+    </label>
     <div id="tiSms"></div>`;
   el.insertBefore(sms, inv);
   const today = new Date(), from = new Date(Date.now()-29*864e5);
@@ -2327,6 +2331,11 @@ function showIntegrationPane(){
   document.querySelectorAll('#settingsContent [data-int-tab]').forEach(t => t.classList.toggle('active', t.dataset.intTab === APP.integrationsSubTab));
 }
 function setIntegrationsSubTab(t){ APP.integrationsSubTab = t; showIntegrationPane(); }
+async function saveSmsOnPayment(on){
+  const { error } = await sb.rpc('set_sms_on_payment', { p_token: getSession().session_token, p_on: on });
+  if(error){ alert(error.message); return; }
+  showToast(on ? 'Ödeme alınınca müşteriye SMS gönderilecek ✓' : 'Ödeme SMS\'i kapatıldı');
+}
 async function saveSmsSettings(enabled){
   const session = getSession();
   const { error } = await sb.rpc('update_sms_settings', { p_token: session.session_token, p_enabled: enabled });
