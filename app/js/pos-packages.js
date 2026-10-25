@@ -336,10 +336,7 @@ async function cancelSelectedSent(tableId){
   const session = getSession();
   let closed = false, failed = 0;
   await withLoadingOverlay((async () => {
-    for(const it of list){
-      const { data, error } = await sb.rpc('cancel_order_item', { p_token: session.session_token, p_item_id: it.id });
-      if(error) failed++; else if(data && data.order_closed) closed = true;
-    }
+    (await bulkRpc('cancel_order_item', list.map(it => ({ p_item_id: it.id })))).forEach(r => { if(r.error) failed++; else if(r.data && r.data.order_closed) closed = true; });
   })());
   s.clear();
   const { data: live } = await sb.rpc('get_live_orders', { p_token: session.session_token });

@@ -696,7 +696,7 @@ async function setStationPrintAll(stationId, on){
   if(!list.length) return;
   APP.prOpenSt = stationId;
   const s = getSession();
-  await withLoadingOverlay(Promise.all(list.map(p => sb.rpc('set_product_options', { p_token: s.session_token, p_product_id: p.id, p_category: p.category || null, p_print_ticket: on }).then(r => { if(!r.error) p.print_ticket = on; }))));
+  await withLoadingOverlay(bulkRpc('set_product_options', list.map(p => ({ p_product_id: p.id, p_category: p.category || null, p_print_ticket: on }))).then(res => res.forEach((r, k) => { if(!r.error) list[k].print_ticket = on; })));
   renderPrinterSettingsView(document.getElementById('main'), s);
 }
 const CASH_SAMPLE = [{ qty:2, name:'Izgara Köfte', price:320 }, { qty:1, name:'Ayran', price:40 }, { qty:1, name:'Künefe', price:150 }];
@@ -892,16 +892,15 @@ async function setNotifRoleColumn(roleId, on){
   const tok = getSession().session_token, tab = APP.notifRolesTab || 'push', errs = [];
   await withLoadingOverlay((async () => {
     if(tab === 'push'){
-      await runPool(NOTIF_TYPES.filter(t => notifRolesFor(t).includes(roleId) !== on), async t => { const cur = notifRolesFor(t);
-        const next = on ? cur.concat(roleId) : cur.filter(x => x !== roleId);
-        const { error } = await sb.rpc('set_notification_roles', { p_token: tok, p_type: t.k, p_role_ids: next });
-        if(error) errs.push(t.t + ': ' + error.message); else APP.notifRoles = Object.assign({}, APP.notifRoles, { [t.k]: next }); });
+      const todo = NOTIF_TYPES.filter(t => notifRolesFor(t).includes(roleId) !== on).map(t => { const cur = notifRolesFor(t); return { t, next: on ? cur.concat(roleId) : cur.filter(x => x !== roleId) }; });
+      (await bulkRpc('set_notification_roles', todo.map(x => ({ p_type: x.t.k, p_role_ids: x.next })))).forEach((r, k) => { const x = todo[k];
+        if(r.error) errs.push(x.t.t + ': ' + r.error.message); else APP.notifRoles = Object.assign({}, APP.notifRoles, { [x.t.k]: x.next }); });
     } else {
       const allV = (APP.voicePolicy && APP.voicePolicy.all) || {};
-      await runPool(VOICE_TYPES, async t => { const pol = allV[t.id], cur = pol ? (pol.roles || []) : [], has = cur.includes(roleId); if(has === on) return;
-        const next = on ? cur.concat(roleId) : cur.filter(x => x !== roleId);
-        const { error } = await sb.rpc('set_voice_policy', { p_token: tok, p_type: t.id, p_role_ids: next, p_mode: pol ? pol.mode : 'voice' });
-        if(error) errs.push(t.label + ': ' + error.message); });
+      const todo = VOICE_TYPES.filter(t => { const pol = allV[t.id]; return (pol ? (pol.roles || []) : []).includes(roleId) !== on; });
+      (await bulkRpc('set_voice_policy', todo.map(t => { const pol = allV[t.id], cur = pol ? (pol.roles || []) : [];
+        return { p_type: t.id, p_role_ids: on ? cur.concat(roleId) : cur.filter(x => x !== roleId), p_mode: pol ? pol.mode : 'voice' }; })))
+        .forEach((r, k) => { if(r.error) errs.push(todo[k].label + ': ' + r.error.message); });
       await loadVoicePolicy();
     }
   })());

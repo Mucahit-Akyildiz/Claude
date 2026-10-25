@@ -479,7 +479,7 @@ async function markReadyGroup(ids){
   if(list.length === 1) return markReady(list[0]);
   const session = getSession();
   APP.selfActionUntil = Date.now() + 10000;
-  const res = await Promise.all(list.map(id => sb.rpc('mark_item_ready', { p_token: session.session_token, p_order_item_id: id })));
+  const res = await bulkRpc('mark_item_ready', list.map(id => ({ p_order_item_id: id })));
   if(res.some(r => r.error)) alert('Bazı ürünler hazır işaretlenemedi.');
   await refreshKitchenItems(session);
 }
@@ -495,9 +495,7 @@ async function markAllReady(tableId){
   if(!entry || entry.items.length===0) return;
   APP.selfActionUntil = Date.now() + 10000;
   const session = getSession();
-  const results = await Promise.all(entry.items.map(it =>
-    sb.rpc('mark_item_ready', { p_token: session.session_token, p_order_item_id: it.id })
-  ));
+  const results = await bulkRpc('mark_item_ready', entry.items.map(it => ({ p_order_item_id: it.id })));
   const failed = results.some(r => r.error);
   if(failed) alert('Bazı ürünler hazır işaretlenemedi.');
   await refreshKitchenItems(session);
