@@ -444,7 +444,7 @@ async function renderReportContent(session){
       <div class="fs-hero-main">
         <div class="fs-cap">💰 Toplam Ciro</div>
         <div class="fs-big">${money(totalRevenue)}</div>
-        <div class="fs-line">${hist.length} kapatılan hesap${hist.length ? ' · ortalama '+money(totalRevenue/Math.max(1,untaggedHist.length)) : ''}</div>
+        <div class="fs-line">${hist.length} kapatılan hesap${hist.length ? ' · ortalama '+money(totalRevenue/Math.max(1,untaggedHist.length)) : ''}${(() => { const gh = untaggedHist.filter(o => Number(o.guest_count) > 0), g = gh.reduce((t, o) => t + Number(o.guest_count), 0); return g ? ` · 👥 ${g} kişi · kişi başı ${money(gh.reduce((t, o) => t + Number(o.total || 0), 0) / g)}` : ''; })()}</div>
         <div id="fsTrend" class="fs-trend"></div>
       </div>
       <div id="fsGoal" class="fs-goal"></div>

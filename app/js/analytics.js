@@ -294,7 +294,7 @@ async function renderZReportContent(session, quiet){
     ['Brüt satış (indirim öncesi)', money(gross)], ['İndirimler', '−' + money(anN(k.discount) - anN(k.birthday))], ['Doğum günü indirimi', '−' + money(k.birthday)],
     ['NET CİRO', money(k.revenue), 'big'], ['—'],
     ['💵 Nakit', money(k.cash)], ['💳 Kredi kartı', money(k.card)], ['🎁 Hediye kartı', money(k.gift)], ...(anN(k.points) ? [['⭐ Puanla ödeme', money(k.points)]] : []), ['—'],
-    ['Hesap sayısı', k.checks || 0], ['Ortalama hesap', money(k.checks ? k.revenue / k.checks : 0)], ['Bahşiş', money(k.tips)], ['—'],
+    ['Hesap sayısı', k.checks || 0], ['Kişi sayısı', anN(k.guests) || 0], ['Kişi başı', money(anN(k.guests) ? anN(k.guest_rev) / anN(k.guests) : 0)], ['Ortalama hesap', money(k.checks ? k.revenue / k.checks : 0)], ['Bahşiş', money(k.tips)], ['—'],
     ['🎁 İkram / personel (' + (k.comp_n || 0) + ' hesap)', money(k.comp)], ['❌ İptal edilen masa', c.orders || 0], ['❌ İptal edilen ürün tutarı', money(c.cur && c.cur.amount)], ['🔥 İsraf maliyeti', money(d.waste)], ['—'],
     ['Ürün maliyeti', money(k.cost)], ['BRÜT KÂR', money(anN(k.revenue) - anN(k.cost) - anN(d.waste)), 'big']];
   // Kasa sayımı: seçilen günün son sayımı rapora (fiş/PDF/Excel) eklenir.
@@ -325,6 +325,7 @@ async function renderZReportContent(session, quiet){
         ${stat('💵', 'Nakit (kasada olmalı)', money(k.cash), 'var(--ok,#22c55e)')}
         ${stat('💳', 'Kredi kartı', money(k.card), 'var(--c2)')}
         ${stat('🧾', 'Hesap sayısı', k.checks || 0, 'var(--c3)')}
+        ${stat('👥', 'Kişi sayısı', anN(k.guests) ? k.guests + ' · kişi başı ' + money(anN(k.guest_rev) / anN(k.guests)) : '—', 'var(--c4)')}
       </div>
       <div class="zc-step"><span class="zc-n">2</span><div><b>Kasadaki nakdi sayın</b><small>Saydığınız toplamı yazın; fark anında hesaplanır.</small></div></div>
       <div class="zc-count">
