@@ -3153,7 +3153,7 @@ function auditTableHtml(rows){
 // Desteklenen SMS sağlayıcıları: alan adları ve nereden alınacağı.
 const TI_SMS = {
   netgsm: { ic:'🟧', d:'En yaygın', n:'NetGSM', u:'Kullanıcı kodu (850xxxxxxx)', p:'API alt kullanıcı şifresi', h:'NetGSM panelinde <b>Abonelik İşlemleri → API İşlemleri</b>\'nden API alt kullanıcısı oluşturun.' },
-  iletimerkezi: { ic:'🟦', d:'Kurumsal SMS', n:'İleti Merkezi', u:'Public key (API anahtarı)', p:'Secret key (gizli anahtar)', h:'İleti Merkezi panelinde <b>Ayarlar → Güvenlik → API Anahtarları</b>\'ndan alın.' },
+  iletimerkezi: { ic:'🟦', d:'Kurumsal SMS', n:'İleti Merkezi', u:'Public key (API anahtarı)', p:'Secret key (gizli anahtar)', h:'İleti Merkezi panelinde <b>Ayarlar → API → API Anahtarları</b>\'ndan oluşturun. Gönderen başlığı onaylanana kadar <b>APITEST</b> yazın.' },
   verimor: { ic:'🟩', d:'Bulut santral + SMS', n:'Verimor', u:'Kullanıcı adı (908501234567)', p:'API şifresi', h:'Verimor OİM panelinde <b>SMS → API Ayarları</b>\'ndan API şifresi belirleyin.' },
   other: { ic:'➕', d:'Başka firma (HTTP API)', n:'Diğer', u:'Kullanıcı adı (isteğe bağlı)', p:'Şifre / API anahtarı (isteğe bağlı)', h:'Firmanızın "HTTP GET ile SMS gönder" adresini yazın; <b>{phone}</b>, <b>{message}</b> zorunlu, <b>{user}</b> <b>{pass}</b> <b>{header}</b> isteğe bağlı. Ör: https://api.firma.com/send?user={user}&pass={pass}&to={phone}&text={message}&from={header}' },
   vatansms: { ic:'🟥', d:'Uygun fiyatlı', n:'VatanSMS', u:'API ID', p:'API Key', h:'VatanSMS panelinde <b>Hesabım → API Bilgileri</b> sayfasında bulunur.' },
