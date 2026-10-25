@@ -898,7 +898,8 @@ if('serviceWorker' in navigator) registerServiceWorker();
    sadece ani bir sıçrama olmasın diye kısa bir soluşla kaldırıyoruz. */
 if(isNativeApp()){
   const sp = document.getElementById('splashScreen');
-  if(sp){ sp.classList.add('splash-fade'); setTimeout(() => sp.remove(), 500); }
+  // Android'in kendi açılışı artık düz renk; marka ekranı (logo) burada kısa süre gösterilip solar.
+  if(sp) setTimeout(() => { sp.classList.add('splash-fade'); setTimeout(() => sp.remove(), 500); }, 900);
 } else {
   setTimeout(() => {
     const sp = document.getElementById('splashScreen');
