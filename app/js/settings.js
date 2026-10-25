@@ -1671,8 +1671,7 @@ function renderUsersSettings(el, session){
   const us = APP.config.users || [], lic = APP.config.license || {};
   el.innerHTML = statChips([['👥', us.length, 'Kullanıcı', 'var(--c1)', 'all'], ['✅', us.filter(u => u.is_active!==false).length, 'Aktif', 'var(--ok,#22c55e)', 'on'],
       ['⏸', us.filter(u => u.is_active===false).length, 'Pasif', 'var(--c3)', 'off'], ['🎫', lic.max_users ? Math.max(0, lic.max_users - us.length) : '—', 'Eklenebilir kullanıcı', 'var(--c2)']], '', 'users') + `<div class="box" style="max-width:none;">
-    <div class="fsheet-bar" style="margin:0 0 12px;"><h2 style="margin:0;">Kullanıcılar</h2>${canAssign ? sheetBtnHtml('userSheet','+ Yeni Kullanıcı') : ''}</div>
-    ${canAssign && typeof excelBarHtml === 'function' ? excelBarHtml('users') : ''}
+    <div class="us-top"><h2 style="margin:0;">Kullanıcılar</h2><span style="flex:1"></span>${canAssign && typeof excelBarHtml === 'function' ? excelBarHtml('users') : ''}${canAssign ? sheetBtnHtml('userSheet','+ Yeni Kullanıcı') : ''}</div>
     ${canAssign ? '' : '<p class="muted" style="text-align:left;font-size:12.5px;margin:-4px 0 12px;">🔒 Kullanıcı ekleme, rol değiştirme, pasife alma ve silme için <b>Kullanıcı Yönetimi</b> izni gerekir; yetkili kişilerin hesapları da kilitlidir. Diğer personelin adını ve şifresini değiştirebilirsiniz.</p>'}
     ${canAssign ? sheetHtml('userSheet', '👤', 'Yeni Kullanıcı', `
       <div class="fsheet-grid">
@@ -1682,21 +1681,19 @@ function renderUsersSettings(el, session){
         <div class="field-group wide"><label>Roller (en fazla 2)</label>${roleCheckboxes('nu', [])}</div>
       </div>
       <div class="fsheet-foot"><button type="button" class="ghost-btn" ${act('closeSheet','userSheet')}>Vazgeç</button><button ${act('addUser')}>+ Kullanıcı Ekle</button></div>`, 'var(--c1)') : ''}
-    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:0 0 10px;">
-      <input id="userSearch" placeholder="🔍 Kullanıcı ara…" value="${escapeAttr(APP.userSearch||'')}" ${actOn('input','setUserSearch',['$value'])} style="max-width:320px;margin:0;">
-      <span class="spacer" style="flex:1;"></span>
+    <div class="us-bar">
+      <input id="userSearch" placeholder="🔍 Kullanıcı ara…" value="${escapeAttr(APP.userSearch||'')}" ${actOn('input','setUserSearch',['$value'])}>
+      ${canAssign ? `<div class="us-sel"><button type="button" class="pc-btn" ${act('selectAllUsers', true)}>☑ Hepsini seç</button><button type="button" class="pc-btn" ${act('selectAllUsers', false)}>☐ Seçimi kaldır</button></div>` : ''}
+      <small class="muted us-info" id="userSelInfo">${canAssign ? 'Kart seçerek toplu işlem yapın' : ''}</small>
+      <span style="flex:1"></span>
       <div class="act-row" id="userBulkBar">
         <button type="button" class="act-btn act-save" id="userSaveAllBtn" ${act('saveAllUsers')} disabled>${ICON_SAVE}<span>Kaydet</span></button>
-        <button type="button" class="act-btn act-open" title="Giriş bilgilerini (işletme kodu, kullanıcı adı, uygulama linkleri) SMS ile gönder" ${act('openStaffSmsModal')}><b>📱</b><span>SMS Gönder</span></button>
-      </div>
-      <div class="act-row" style="${canAssign?'':'display:none;'}">
-        <button type="button" class="act-btn act-close" data-needs-sel ${act('bulkUserActive', false)} disabled title="Seçilenler giriş yapamaz, açık oturumları kapanır"><b>⏸</b><span>Pasife Al</span></button>
+        <button type="button" class="act-btn act-open" title="Giriş bilgilerini SMS ile gönder" ${act('openStaffSmsModal')}><b>📱</b><span>SMS Gönder</span></button>
+        ${canAssign ? `<button type="button" class="act-btn act-close" data-needs-sel ${act('bulkUserActive', false)} disabled title="Seçilenler giriş yapamaz, açık oturumları kapanır"><b>⏸</b><span>Pasife Al</span></button>
         <button type="button" class="act-btn act-open" data-needs-sel ${act('bulkUserActive', true)} disabled><b>✓</b><span>Aktifleştir</span></button>
-        <button type="button" class="act-btn act-delete" data-needs-sel ${act('bulkDeleteUsers')} disabled>${ICON_TRASH}<span>Sil</span></button>
+        <button type="button" class="act-btn act-delete" data-needs-sel ${act('bulkDeleteUsers')} disabled>${ICON_TRASH}<span>Sil</span></button>` : ''}
       </div>
     </div>
-    ${canAssign ? `<div class="us-selbar"><button type="button" class="pc-btn" ${act('selectAllUsers', true)}>☑ Hepsini seç</button><button type="button" class="pc-btn" ${act('selectAllUsers', false)}>☐ Seçimi kaldır</button></div>` : ''}
-    <p class="muted" id="userSelInfo" style="text-align:left;font-size:12.5px;margin:0 0 8px;">Satırdaki bilgileri değiştirip <b>Kaydet</b>'e basın${canAssign ? '; pasife almak / silmek için satırları seçin' : ''}.</p>
     <div class="settings-table-wrap user-cards">
     <table class="settings-table">
       <thead><tr><th style="width:36px;">${canAssign ? `<input type="checkbox" id="userSelAll" style="width:auto;margin:0;" title="Tümünü seç" ${actOn('change','selectAllUsers',['$checked'])}>` : ''}</th><th>Kullanıcı Adı</th><th>Telefon</th><th>Yeni Şifre</th><th>Roller (en fazla 2)</th></tr></thead>
@@ -2347,7 +2344,7 @@ const SMS_TPL = [
   { k:'waitlist_ready', ic:'⏳', t:'Masanız hazır', w:'Bekleme listesinde “Masa Hazır” basılınca', v:['isletme','ad','kisi'], d:'{isletme}: Masaniz hazir! Lutfen girise gelin.' },
   { k:'takeaway_ready', ic:'📦', t:'Siparişiniz hazır', w:'Paket / gel-al siparişi hazır olunca', v:['isletme','ad','no'], d:'{isletme}: Siparisiniz hazir (No: {no}). Afiyet olsun!' },
   { k:'delivery_dispatched', ic:'🛵', t:'Sipariş yola çıktı', w:'Sipariş kuryeye verilince', v:['isletme','ad','kurye','kurye_tel','takip'], d:'{isletme}: Siparisiniz yola cikti! Kurye: {kurye} Tel: {kurye_tel} Takip: {takip}' },
-  { k:'payment', ic:'💳', t:'Ödeme alındı', w:'Hesaba müşteri girildiyse ödeme alınınca', v:['isletme','ad','tutar'], d:'{isletme}: {ad}, odemeniz alindi. Tutar: {tutar} TL. Bizi tercih ettiginiz icin tesekkur ederiz!' },
+  { k:'payment', ic:'💳', t:'Ödeme alındı', w:'Hesaba müşteri girildiyse ödeme alınınca', v:['isletme','ad','tutar','link'], d:'{isletme}: {ad}, odemeniz alindi. Tutar: {tutar} TL. Tesekkur ederiz! Bizi degerlendirin: {link}' },
   { k:'review_request', ic:'⭐', t:'Değerlendirme isteği', w:'Hesaptan değerlendirme linki gönderilince', v:['isletme','link'], d:'{isletme}: Bizi degerlendirir misiniz? {link}' },
   { k:'staff_login', ic:'👤', t:'Personel giriş bilgileri', w:'Kullanıcılar › SMS Gönder ile', v:['isletme','kod','kullanici','sifre','android','web'], d:'{isletme} - Peyktan giris bilgileriniz: Isletme kodu: {kod} Kullanici: {kullanici} Sifre: {sifre} Android: {android} iPhone/Web: {web}' },
 ];
