@@ -131,9 +131,8 @@ async function renderPurchaseOrdersContent(session){
   el.innerHTML = `
   ${lowStockBannerHtml()}
   <div class="fsheet-bar" style="margin:0 0 14px;"><p class="muted" style="margin:0;font-size:13px;text-align:left;">Hammadde ihtiyacınızı tedarikçiye sipariş olarak iletin.</p>${sheetBtnHtml('poSheet','🛒 Yeni Sipariş')}</div>
-  ${sheetHtml('poSheet', '🛒', 'Yeni Sipariş', `<p class="muted" style="text-align:left;margin:0 0 12px;font-size:13px;">İhtiyaç duyduğunuz hammaddeleri ve miktarları girip <b>Sipariş Ver</b>'e basın. Birim fiyat ve teslim alma <b>Satınalma</b> menüsünden yapılır.</p>
+  ${sheetHtml('poSheet', '🛒', 'Yeni Sipariş', `<p class="muted" style="text-align:left;margin:0 0 12px;font-size:13px;">İhtiyaç duyduğunuz hammaddeleri ve miktarları girip <b>Sipariş Ver</b>'e basın. Tedarikçi seçimi, birim fiyat ve teslim alma <b>Satınalma</b> menüsünden yapılır.</p>
       <div class="fsheet-grid">
-        <div class="field-group"><label>Tedarikçi</label><select id="po_supplier"><option value="">-</option>${suppliers.map(s => `<option value="${s.id}">${escapeHtml(s.name)}</option>`).join('')}</select></div>
         <div class="field-group"><label>Beklenen Tarih</label><input id="po_expected" type="date"></div>
         <div class="field-group wide"><label>Not</label><input id="po_notes" placeholder="opsiyonel"></div>
       </div>
@@ -147,7 +146,7 @@ async function renderPurchaseOrdersContent(session){
     ${shown.length ? `<div class="po-grid">${shown.map((p, i) => { const items = p.items || [], ord = Number(p.ordered_total)||items.reduce((x, it) => x + (Number(it.quantity)||0), 0), rec = Number(p.received_total)||items.reduce((x, it) => x + Math.min(Number(it.received)||0, Number(it.quantity)||0), 0);
       const pct = p.status==='received' ? 100 : ord ? Math.round(rec/ord*100) : 0;
       return `<div class="po-card" style="--st:${isLate(p) ? 'var(--danger,#ef4444)' : PO_TONE[p.status]||'var(--muted)'};--i:${Math.min(i,12)};">
-        <div class="po-top">${avatarHtml(p.supplier_name||'?')}<div class="cu-id"><b>${escapeHtml(p.supplier_name||'Tedarikçi seçilmedi')}</b><small>${p.created_by_name ? 'Oluşturan: '+escapeHtml(p.created_by_name) : ''}</small></div>${poStatusBadge(p)}</div>
+        <div class="po-top">${avatarHtml(p.supplier_name||'?')}<div class="cu-id"><b>${escapeHtml(p.supplier_name||'Tedarikçi bekleniyor')}</b><small>${p.created_by_name ? 'Oluşturan: '+escapeHtml(p.created_by_name) : ''}</small></div>${poStatusBadge(p)}</div>
         <div class="po-dates"><span class="pchip">📅 ${fmtDateTr(p.order_date)}</span>${p.expected_date ? `<span class="pchip ${isLate(p)?'warn':''}">${isLate(p) ? '⏰ gecikti · ' : '🎯 '}${fmtDateTr(p.expected_date)}</span>` : ''}<span class="pchip">📦 ${items.length} kalem</span></div>
         ${p.status!=='draft' && p.status!=='cancelled' ? `<div class="po-prog"><div class="pcard-mbar"><i style="width:${pct}%;background:var(--st);"></i></div><small>%${pct} teslim alındı</small></div>` : ''}
         ${items.length ? `<div class="po-items">${items.slice(0, 6).map(it => { const q = Number(it.quantity)||0, r = Number(it.received)||0, done = r >= q && q > 0;
@@ -202,7 +201,7 @@ function removePoDraftItemRow(idx){
 }
 async function createPurchaseOrder(){
   const session = getSession();
-  const supplierId = document.getElementById('po_supplier').value || null;
+  const supplierId = null; // tedarikçiyi Satınalma sorumlusu seçer
   const expected = document.getElementById('po_expected').value || null;
   const notes = document.getElementById('po_notes').value.trim() || null;
   const items = (APP.poDraftItems||[]).filter(it => it.ingredient_id && parseFloat(it.quantity) > 0)

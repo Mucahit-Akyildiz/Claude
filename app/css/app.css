@@ -3382,3 +3382,5 @@ button.oo-chip{cursor:pointer;} button.oo-chip:hover{border-color:var(--accent);
 @keyframes tcPulse{0%,100%{box-shadow:0 0 0 0 rgba(239,68,68,.5);}50%{box-shadow:0 0 0 6px rgba(239,68,68,0);}}
 .ti-test{margin-top:14px;} .ti-test-row{display:flex;gap:8px;flex-wrap:wrap;} .ti-test-row input{flex:1;min-width:180px;margin:0;} .ti-test-row button{width:auto;margin:0;}
 .vp-seg{margin-left:auto;} .vp-seg button{padding:5px 10px;font-size:12px;}
+.pc2-sup{margin:0 0 2px;padding:4px 8px;width:auto;max-width:100%;font-weight:800;font-size:14px;background:transparent;border-color:transparent;}
+.pc2-sup:hover,.pc2-sup:focus{background:var(--panel2);border-color:var(--border);} .pc2-sup.missing{color:#f59e0b;border-color:#f59e0b;border-style:dashed;}
