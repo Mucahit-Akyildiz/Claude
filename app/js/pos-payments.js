@@ -1725,6 +1725,8 @@ function pickTableCustomer(i, prefix){
   }
   document.getElementById(prefix + 'Name').value = c.name || '';
   document.getElementById(prefix + 'Phone').value = c.phone || '';
+  // Paket siparişte kayıtlı adres otomatik doldurulur (boşsa).
+  if(prefix === 'pkgCust' && c.address){ const ad = document.getElementById('pkgAddress'); if(ad && !ad.value.trim()){ ad.value = c.address; showToast('📍 Kayıtlı adres dolduruldu'); } }
   const emailEl = document.getElementById(prefix + 'Email');
   if(emailEl && c.email && !emailEl.value) emailEl.value = c.email;
   document.getElementById(prefix + 'Suggest').innerHTML = '';

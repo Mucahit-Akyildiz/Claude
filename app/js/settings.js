@@ -1678,6 +1678,7 @@ function renderUsersSettings(el, session){
       <div class="fsheet-grid">
         <div class="field-group"><label>Kullanıcı Adı</label><input id="nu_name" placeholder="örn. ahmet" autocapitalize="none"></div>
         <div class="field-group"><label>Şifre</label>${passField('nu_pass', false, false)}</div>
+        <div class="field-group"><label>Telefon (giriş bilgileri SMS'i için)</label><input id="nu_phone" inputmode="tel" placeholder="05XX XXX XX XX"></div>
         <div class="field-group wide"><label>Roller (en fazla 2)</label>${roleCheckboxes('nu', [])}</div>
       </div>
       <div class="fsheet-foot"><button type="button" class="ghost-btn" ${act('closeSheet','userSheet')}>Vazgeç</button><button ${act('addUser')}>+ Kullanıcı Ekle</button></div>`, 'var(--c1)') : ''}
@@ -1686,6 +1687,7 @@ function renderUsersSettings(el, session){
       <span class="spacer" style="flex:1;"></span>
       <div class="act-row" id="userBulkBar">
         <button type="button" class="act-btn act-save" id="userSaveAllBtn" ${act('saveAllUsers')} disabled>${ICON_SAVE}<span>Kaydet</span></button>
+        <button type="button" class="act-btn act-open" title="Giriş bilgilerini (işletme kodu, kullanıcı adı, uygulama linkleri) SMS ile gönder" ${act('openStaffSmsModal')}><b>📱</b><span>SMS Gönder</span></button>
       </div>
       <div class="act-row" style="${canAssign?'':'display:none;'}">
         <button type="button" class="act-btn act-close" data-needs-sel ${act('bulkUserActive', false)} disabled title="Seçilenler giriş yapamaz, açık oturumları kapanır"><b>⏸</b><span>Pasife Al</span></button>
@@ -1696,13 +1698,14 @@ function renderUsersSettings(el, session){
     <p class="muted" id="userSelInfo" style="text-align:left;font-size:12.5px;margin:0 0 8px;">Satırdaki bilgileri değiştirip <b>Kaydet</b>'e basın${canAssign ? '; pasife almak / silmek için satırları seçin' : ''}.</p>
     <div class="settings-table-wrap user-cards">
     <table class="settings-table">
-      <thead><tr><th style="width:36px;">${canAssign ? `<input type="checkbox" id="userSelAll" style="width:auto;margin:0;" title="Tümünü seç" ${actOn('change','selectAllUsers',['$checked'])}>` : ''}</th><th>Kullanıcı Adı</th><th>Yeni Şifre</th><th>Roller (en fazla 2)</th></tr></thead>
+      <thead><tr><th style="width:36px;">${canAssign ? `<input type="checkbox" id="userSelAll" style="width:auto;margin:0;" title="Tümünü seç" ${actOn('change','selectAllUsers',['$checked'])}>` : ''}</th><th>Kullanıcı Adı</th><th>Telefon</th><th>Yeni Şifre</th><th>Roller (en fazla 2)</th></tr></thead>
       <tbody data-cf-scope="users" ${actOn('input','markUserDirty',['$event'])} ${actOn('change','markUserDirty',['$event'])}>
       ${APP.config.users.slice().sort((x, y) => String(x.username).localeCompare(String(y.username), 'tr', { sensitivity: 'base' }))
         .map(u => { const locked = !canAssign && userIsPrivileged(u); return (isOwnerUser(u) ? ownerUserRow(u, session) : `
         <tr data-uid="${u.id}" data-cf-tags="${u.is_active===false ? 'off' : 'on'}" style="${u.is_active===false?'opacity:.55;':''}">
           <td>${locked ? '<span title="Yetkili kullanıcı - düzenleme izniniz yok">🔒</span>' : !canAssign ? '' : `<input type="checkbox" class="user-sel" value="${u.id}" style="width:auto;margin:0;" ${actOn('change','updateUserSelection',[])}>`}</td>
           <td class="col-name uc-name">${avatarHtml(u.username)}<input value="${escapeAttr(u.username)}" id="us_name_${u.id}" ${locked?'disabled':''}>${u.is_active===false?'<span class="role-badge" style="color:var(--red);border-color:var(--red);margin-top:6px;display:inline-block;">Pasif</span>':''}</td>
+          <td class="col-name"><input id="us_phone_${u.id}" inputmode="tel" placeholder="05XX…" value="${escapeAttr(u.phone||'')}" data-orig="${escapeAttr(u.phone||'')}" ${locked?'disabled':''} style="min-width:130px;"></td>
           <td class="col-name">${passField('us_pass_'+u.id, locked, true)}</td>
           <td class="col-name">${roleCheckboxes('us_'+u.id, u.role_ids||[], !canAssign)}</td>
         </tr>`).replace('<tr', `<tr data-uname="${escapeAttr(String(u.username).toLocaleLowerCase('tr'))}"`); }).join('')}
@@ -2342,11 +2345,11 @@ const SMS_TPL = [
   { k:'reservation_reminder', ic:'⏰', t:'Rezervasyon hatırlatma', w:'Rezervasyona 2–4 saat kala', v:['isletme','ad','saat','kisi'], d:'{isletme}: Hatirlatma - bugun saat {saat} icin rezervasyonunuz var. Sizi bekliyoruz!' },
   { k:'waitlist_ready', ic:'⏳', t:'Masanız hazır', w:'Bekleme listesinde “Masa Hazır” basılınca', v:['isletme','ad','kisi'], d:'{isletme}: Masaniz hazir! Lutfen girise gelin.' },
   { k:'takeaway_ready', ic:'📦', t:'Siparişiniz hazır', w:'Paket / gel-al siparişi hazır olunca', v:['isletme','ad','no'], d:'{isletme}: Siparisiniz hazir (No: {no}). Afiyet olsun!' },
-  { k:'delivery_dispatched', ic:'🛵', t:'Sipariş yola çıktı', w:'Kurye siparişi alınca', v:['isletme','ad','takip'], d:'{isletme}: Siparisiniz yola cikti! Takip: {takip}' },
+  { k:'delivery_dispatched', ic:'🛵', t:'Sipariş yola çıktı', w:'Sipariş kuryeye verilince', v:['isletme','ad','kurye','kurye_tel','takip'], d:'{isletme}: Siparisiniz yola cikti! Kurye: {kurye} Tel: {kurye_tel} Takip: {takip}' },
   { k:'payment', ic:'💳', t:'Ödeme alındı', w:'Hesaba müşteri girildiyse ödeme alınınca', v:['isletme','ad','tutar'], d:'{isletme}: {ad}, odemeniz alindi. Tutar: {tutar} TL. Bizi tercih ettiginiz icin tesekkur ederiz!' },
   { k:'review_request', ic:'⭐', t:'Değerlendirme isteği', w:'Hesaptan değerlendirme linki gönderilince', v:['isletme','link'], d:'{isletme}: Bizi degerlendirir misiniz? {link}' },
 ];
-const SMS_VAR_LBL = { isletme:'İşletme adı', ad:'Müşteri adı', tarih:'Tarih', saat:'Saat', kisi:'Kişi sayısı', no:'Sipariş no', tutar:'Tutar', takip:'Takip linki', link:'Değerlendirme linki' };
+const SMS_VAR_LBL = { kurye:'Kurye adı', kurye_tel:'Kurye telefonu', isletme:'İşletme adı', ad:'Müşteri adı', tarih:'Tarih', saat:'Saat', kisi:'Kişi sayısı', no:'Sipariş no', tutar:'Tutar', takip:'Takip linki', link:'Değerlendirme linki' };
 async function loadSmsTemplates(){
   const box = document.getElementById('smsTplBox'); if(!box) return;
   const { data } = await sb.rpc('get_sms_templates', { p_token: getSession().session_token });
@@ -2971,6 +2974,35 @@ async function submitBankTransferNotice(){
   loadBankTransferStatus(session);
 }
 
+/* Kullanıcılara giriş bilgilerini SMS ile gönder (tek kişi ya da herkes). Şifreler şifreli saklandığı için
+   istenirse yeni geçici şifre oluşturulup mesaja eklenir (eski şifre geçersiz olur). */
+function openStaffSmsModal(){
+  const us = (APP.config.users || []).filter(u => !isOwnerUser(u) && u.is_active !== false).sort((a, b) => String(a.username).localeCompare(String(b.username), 'tr'));
+  const canReset = canManage(getSession(), 'users_assign_roles');
+  const bg = document.createElement('div'); bg.id = 'staffSmsBg';
+  bg.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:flex-start;justify-content:center;z-index:150;padding:7vh 16px 16px;overflow-y:auto;';
+  bg.onclick = (e) => { if(e.target === bg) bg.remove(); };
+  bg.innerHTML = `<div class="order-modal" style="max-width:560px;width:100%;">
+    <div style="display:flex;justify-content:space-between;align-items:center;"><h2 style="margin:0;">📱 Giriş bilgilerini SMS ile gönder</h2><span style="cursor:pointer;color:var(--muted);font-size:20px;" ${act('removeEl','staffSmsBg')}>✕</span></div>
+    <p class="muted" style="text-align:left;font-size:13px;">Mesajda işletme kodu, kullanıcı adı ve uygulama linkleri (Android, iPhone/Web) yer alır. Telefonu girilmemiş kullanıcılara gönderilmez.</p>
+    <label class="sm-all"><input type="checkbox" id="ssAll" ${actOn('change','staffSmsAll',['$checked'])}> <b>Herkesi seç</b></label>
+    <div class="sm-list">${us.map(u => `<label class="sm-row ${u.phone ? '' : 'nophone'}"><input type="checkbox" class="ss-u" value="${u.id}" ${u.phone ? '' : 'disabled'}> ${avatarHtml(u.username)}<span><b>${escapeHtml(u.username)}</b><small>${u.phone ? escapeHtml(u.phone) : 'telefon yok'} · ${escapeHtml((u.role_names||[]).join(', '))}</small></span></label>`).join('') || '<p class="muted">Kullanıcı yok.</p>'}</div>
+    ${canReset ? `<label class="sw-card" style="margin:12px 0 !important;"><input type="checkbox" class="sw" id="ssReset"><span><b>Yeni geçici şifre oluştur ve mesaja ekle</b><br><span class="muted" style="font-size:12.5px;">Şifreler güvenlik için şifreli saklanır, mevcut şifre gönderilemez. Açarsanız her kişiye yeni bir şifre üretilir; <b>eski şifresi geçersiz olur</b>.</span></span></label>` : ''}
+    <div class="modal-sticky-actions" style="margin-top:12px;"><button type="button" class="ghost-btn" style="flex:1;margin:0;" ${act('removeEl','staffSmsBg')}>Vazgeç</button><button type="button" style="flex:1;margin:0;" ${act('sendStaffSms')}>📨 Gönder</button></div>
+  </div>`;
+  document.body.appendChild(bg);
+}
+function staffSmsAll(on){ document.querySelectorAll('#staffSmsBg .ss-u:not(:disabled)').forEach(c => { c.checked = on; }); }
+async function sendStaffSms(){
+  const ids = [...document.querySelectorAll('#staffSmsBg .ss-u:checked')].map(c => c.value);
+  if(!ids.length){ alert('En az bir kişi seçin'); return; }
+  const reset = !!(document.getElementById('ssReset') || {}).checked;
+  if(reset && !await uiConfirm(ids.length + ' kişinin şifresi yenilenecek ve yeni şifre SMS ile gönderilecek. Eski şifreleri çalışmaz. Devam edilsin mi?')) return;
+  const { data, error } = await withLoadingOverlay(sb.rpc('send_staff_login_sms', { p_token: getSession().session_token, p_user_ids: ids, p_reset_password: reset }));
+  if(error){ alert(error.message); return; }
+  removeEl('staffSmsBg');
+  showToast('📨 ' + data.sent + ' kişiye SMS gönderildi' + ((data.skipped || []).length ? ' · telefonu olmayan: ' + data.skipped.join(', ') : ''), 7000);
+}
 async function addUser(){
   const session = getSession();
   const username = document.getElementById('nu_name').value.trim();
@@ -2978,8 +3010,10 @@ async function addUser(){
   const roleIds = selectedRoleIds('nu');
   if(!username || !password) return;
   if(roleIds.length===0){ alert('En az 1 rol seçmelisiniz'); return; }
-  const { error } = await sb.rpc('create_staff_user', { p_token: session.session_token, p_username: username, p_password: password, p_role_ids: roleIds });
+  const { data: newId, error } = await sb.rpc('create_staff_user', { p_token: session.session_token, p_username: username, p_password: password, p_role_ids: roleIds });
   if(error){ alert(error.message); return; }
+  const ph = (document.getElementById('nu_phone') || {}).value || '';
+  if(newId && ph.trim()){ const { error: pe } = await sb.rpc('set_staff_phone', { p_token: session.session_token, p_user_id: newId, p_phone: ph }); if(pe) alert('Kullanıcı eklendi ama telefon kaydedilemedi: ' + pe.message); }
   closeSheet('userSheet');
   renderSettingsView(document.getElementById('main'), session);
 }
@@ -3012,7 +3046,8 @@ async function saveAllUsers(){
     const id = tr.dataset.uid, isOwner = !!tr.dataset.owner;
     const nameEl = document.getElementById('us_name_'+id), passEl = document.getElementById('us_pass_'+id);
     const roleIds = isOwner ? null : selectedRoleIds('us_'+id);
-    return { id, isOwner, username: nameEl ? nameEl.value.trim() : '', password: passEl ? passEl.value : '', roleIds,
+    const phEl = document.getElementById('us_phone_'+id);
+    return { id, isOwner, username: nameEl ? nameEl.value.trim() : '', password: passEl ? passEl.value : '', roleIds, phone: phEl && phEl.value.trim() !== (phEl.dataset.orig || '') ? phEl.value.trim() : undefined,
       exempt: !!(roleIds && roleIds.some(r => exemptIds.includes(r))) };
   });
   if(!rows.length) return;
@@ -3024,7 +3059,8 @@ async function saveAllUsers(){
   await withLoadingOverlay((async () => {
     for(const r of rows){
       const { error } = await sb.rpc('update_staff_user', { p_token: session.session_token, p_user_id: r.id, p_username: r.username, p_password: r.password || null, p_role_ids: r.roleIds });
-      if(error) errors.push((r.username || r.id) + ': ' + error.message);
+      if(error){ errors.push((r.username || r.id) + ': ' + error.message); continue; }
+      if(r.phone !== undefined){ const { error: pe } = await sb.rpc('set_staff_phone', { p_token: session.session_token, p_user_id: r.id, p_phone: r.phone }); if(pe) errors.push((r.username || r.id) + ': ' + pe.message); }
     }
   })());
   renderSettingsView(document.getElementById('main'), session);
