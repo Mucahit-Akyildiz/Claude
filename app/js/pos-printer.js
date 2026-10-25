@@ -312,10 +312,7 @@ function setupNativeFcmListeners(){
     const title = (n && n.title) || 'Peyktan';
     const body = (n && n.body) || '';
     const data = (n && n.data) || {};
-    showToast(title + (body ? ' — ' + body : ''), 6000, null, data.view ? () => {
-      const session = getSession(); const item = NAV_ITEMS.find(i => i.view===data.view);
-      if(session && item && navItemVisible(item, session)){ APP.view = data.view; if(data.view==='settings') APP.settingsTab = 'shifts'; render(); }
-    } : null);
+    showToast(title + (body ? ' — ' + body : ''), 6000, null, data.view ? () => openViewFromNotification(data.view, data.tag) : null);
     playPeyktanSound();
     refreshNavBadges();
     const session = getSession();
@@ -328,11 +325,8 @@ function setupNativeFcmListeners(){
   // git - web tarafındaki service worker'ın notificationclick mesajıyla aynı iş.
   PN.addListener('pushNotificationActionPerformed', (action) => {
     const data = action && action.notification && action.notification.data;
-    const session = getSession();
-    if(data && data.view && session){
-      const item = NAV_ITEMS.find(i => i.view===data.view);
-      if(item && navItemVisible(item, session)){ APP.view = data.view; if(String(data.tag||'').startsWith('shift-request')) APP.settingsTab = 'shifts'; render(); }
-    }
+    // Uygulama bildirimle soğuk açıldıysa ilk çizim bitsin diye kısa gecikmeyle geçilir.
+    if(data && data.view) setTimeout(() => openViewFromNotification(data.view, data.tag), 400);
   });
 }
 function requestNativeFcmToken(){
