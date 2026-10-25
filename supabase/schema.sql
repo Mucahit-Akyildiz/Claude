@@ -3821,6 +3821,47 @@ $$;
 
 
 --
+-- Name: bulk_call(uuid, text, jsonb); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.bulk_call(p_token uuid, p_fn text, p_items jsonb) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $_$
+declare
+  v_oid oid; v_names text[]; v_types oid[]; v_sql text; v_parts text[]; v_out jsonb := '[]'::jsonb;
+  v_item jsonb; v_res jsonb; i int; k text; t oid;
+begin
+  if p_fn not in ('cancel_order_item','delete_ingredient','upsert_ingredient','set_ingredient_min','delete_staff_user',
+    'set_staff_user_active','upsert_table','set_notification_roles','set_voice_policy','upsert_product','delete_product','set_product_options','mark_item_ready')
+  then raise exception 'Bu işlem toplu yapılamaz'; end if;
+  if jsonb_typeof(p_items) <> 'array' or jsonb_array_length(p_items) > 500 then raise exception 'Geçersiz liste'; end if;
+  select p.oid, p.proargnames, p.proargtypes::oid[] into v_oid, v_names, v_types
+    from pg_proc p where p.proname = p_fn and p.pronamespace = 'public'::regnamespace limit 1;
+  for v_item in select * from jsonb_array_elements(p_items) loop
+    v_parts := array['p_token => $1'];
+    for i in 1..coalesce(array_length(v_names,1),0) loop
+      k := v_names[i]; t := v_types[i-1];
+      continue when k = 'p_token' or not (v_item ? k);
+      if (select typcategory from pg_type where oid = t) = 'A' then
+        v_parts := v_parts || format('%I => (select coalesce(array_agg(x), ''{}'') from jsonb_array_elements_text($2->%L) x)::%s', k, k, format_type(t, null));
+      else
+        v_parts := v_parts || format('%I => ($2->>%L)::%s', k, k, format_type(t, null));
+      end if;
+    end loop;
+    v_sql := format('select to_jsonb(public.%I(%s))', p_fn, array_to_string(v_parts, ', '));
+    begin
+      execute v_sql into v_res using p_token, v_item;
+      v_out := v_out || jsonb_build_array(jsonb_build_object('data', v_res));
+    exception when others then
+      v_out := v_out || jsonb_build_array(jsonb_build_object('error', sqlerrm));
+    end;
+  end loop;
+  return v_out;
+end $_$;
+
+
+--
 -- Name: call_waiter(uuid, text); Type: FUNCTION; Schema: public; Owner: -
 --
 
