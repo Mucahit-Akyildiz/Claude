@@ -2305,8 +2305,9 @@ async function renderIntegrationsSettings(el, session){
   // İşletmenin kendi e-posta ve online ödeme hesapları (bkz. renderTenantIntegrations).
   [['mail','✉️ E-posta Gönderimi','tiMail']].forEach(([k, t, id]) => {
     const b = document.createElement('div'); b.className = 'box int-pane ix-box'; b.style.maxWidth = 'none'; b.dataset.int = k;
-    b.innerHTML = `<h2>${t}</h2><div id="${id}"><p class="muted">Yükleniyor…</p></div>`; el.appendChild(b); boxes.push(b);
+    b.innerHTML = `<h2>${t}</h2><div id="${id}"><p class="muted">Yükleniyor…</p></div>` + (k === 'mail' ? '<div id="mailTplBox"></div>' : ''); el.appendChild(b); boxes.push(b);
   });
+  loadMailTemplates();
   // Online kartla ödeme, Online Sipariş sekmesinin içinde.
   const onl = boxes.find(x => x.dataset.int === 'online');
   if(onl){ const d = document.createElement('div'); d.id = 'tiPay'; (onl.querySelector('#ooPayCol') || onl).appendChild(d); }
@@ -2373,6 +2374,63 @@ function drawSmsTemplates(){
           <button type="button" class="ghost-btn st-btn" ${act('resetSmsTpl', t.k)}>↺ Varsayılan</button>
           <button type="button" class="st-save" id="tplSave_${t.k}" disabled ${act('saveSmsTpl', t.k)}>${ICON_SAVE}<span>Kaydet</span></button></div></div>` : ''}
       </div>`; }).join('')}</div></div>`;
+}
+/* E-posta şablonları: SMS'teki gibi her e-posta açılıp kapatılır, konu ve metni değiştirilebilir (boş = varsayılan). */
+const MAIL_TPL = [
+  { k:'resv_created', ic:'📅', t:'Rezervasyon alındı', w:'Rezervasyon oluşturulunca', s:'{isletme} - Rezervasyonunuz alındı', d:'Merhaba {ad},\n\n{isletme} için {tarih_saat} tarihli {kisi} kişilik rezervasyonunuz oluşturuldu.\n\nDeğişiklik için bizi arayabilirsiniz: {telefon}\nSizi bekliyoruz!' },
+  { k:'resv_confirmed', ic:'✅', t:'Rezervasyon onaylandı', w:'Rezervasyon onaylanınca', s:'{isletme} - Rezervasyonunuz onaylandı', d:'Merhaba {ad},\n\n{tarih_saat} tarihli {kisi} kişilik rezervasyonunuz onaylandı.\n\nSizi bekliyoruz!' },
+  { k:'resv_pending', ic:'⏳', t:'Rezervasyon onay bekliyor', w:'Online rezervasyon gelince', s:'{isletme} - Rezervasyonunuz onay bekliyor', d:'Merhaba {ad},\n\n{tarih_saat} tarihli rezervasyonunuz onay bekliyor; onaylanınca size haber vereceğiz.' },
+  { k:'resv_updated', ic:'✏️', t:'Rezervasyon güncellendi', w:'Saat / kişi değişince', s:'{isletme} - Rezervasyonunuz güncellendi', d:'Merhaba {ad},\n\nRezervasyon bilgileriniz güncellendi: {tarih_saat}, {kisi} kişi.' },
+  { k:'resv_reminder', ic:'⏰', t:'Rezervasyon hatırlatma', w:'Rezervasyona birkaç saat kala', s:'{isletme} - Rezervasyon hatırlatması', d:'Merhaba {ad},\n\nBugün {tarih_saat} için {kisi} kişilik rezervasyonunuz var. Sizi bekliyoruz!' },
+  { k:'resv_cancelled', ic:'❌', t:'Rezervasyon iptal', w:'Rezervasyon iptal edilince', s:'{isletme} - Rezervasyonunuz iptal edildi', d:'Merhaba {ad},\n\n{tarih_saat} tarihli rezervasyonunuz iptal edildi. Yeni rezervasyon için bizi arayabilirsiniz: {telefon}' },
+  { k:'resv_no_show', ic:'🚫', t:'Rezervasyona gelinmedi', w:'Gelmedi işaretlenince', s:'{isletme} - Rezervasyonunuza gelinmedi', d:'Merhaba {ad},\n\n{tarih_saat} tarihli rezervasyonunuza gelmediğiniz kaydedildi.' },
+  { k:'wl_joined', ic:'🧾', t:'Bekleme listesine alındı', w:'Bekleme listesine eklenince', s:'{isletme} - Bekleme listesine alındınız', d:'Merhaba {ad},\n\n{isletme} bekleme listesine {kisi} kişi olarak alındınız. Tahmini bekleme: {dakika} dakika (yaklaşık {saat}).' },
+  { k:'wl_updated', ic:'🔄', t:'Bekleme süresi güncellendi', w:'Tahmini süre değişince', s:'{isletme} - Bekleme süreniz güncellendi', d:'Merhaba {ad},\n\nYeni tahmini bekleme süreniz: {dakika} dakika (yaklaşık {saat}).' },
+  { k:'wl_soon', ic:'🔔', t:'Sıranız yaklaşıyor', w:'Masaya az kalınca', s:'{isletme} - Masanıza {dakika} dakika kaldı', d:'Merhaba {ad},\n\nMasanızın hazır olmasına yaklaşık {dakika} dakika kaldı ({saat}). Lütfen restorana yakın olun.' },
+];
+const MAIL_VAR_LBL = { isletme:'İşletme adı', ad:'Müşteri adı', tarih_saat:'Tarih / saat', kisi:'Kişi sayısı', telefon:'İşletme telefonu', dakika:'Kalan dakika', saat:'Tahmini saat' };
+const MAIL_VARS = { resv:['isletme','ad','tarih_saat','kisi','telefon'], wl:['isletme','ad','kisi','dakika','saat','telefon'] };
+async function loadMailTemplates(){
+  const box = document.getElementById('mailTplBox'); if(!box) return;
+  const { data } = await sb.rpc('get_mail_templates', { p_token: getSession().session_token });
+  APP.mailTpl = data || {}; drawMailTemplates();
+}
+function drawMailTemplates(){
+  const box = document.getElementById('mailTplBox'); if(!box) return;
+  const fill = (txt) => escapeHtml(txt).replace(/\{(\w+)\}/g, (m, v) => `<i class="st-var">${escapeHtml(MAIL_VAR_LBL[v] || v)}</i>`);
+  const onN = MAIL_TPL.filter(t => (APP.mailTpl[t.k] || {}).enabled !== false).length;
+  box.innerHTML = `<div class="ix-sec" style="margin-top:16px;"><div class="ix-st">3 · E-postalar <span class="pchip">${onN}/${MAIL_TPL.length} açık</span></div>
+    <p class="muted st-help">Anahtarla e-postayı açıp kapatın; konu ve metni değiştirmek için satıra dokunun. Fiş ve fatura e-postaları belge içeriği olduğu için burada değil.</p>
+    <div class="st-list">${MAIL_TPL.map(t => { const c = APP.mailTpl[t.k] || {}, on = c.enabled !== false, subj = c.subject || t.s, body = c.body || t.d, open = APP.mailTplOpen === t.k, vars = MAIL_VARS[t.k.split('_')[0]];
+      return `<div class="st-row ${on?'':'off'} ${open?'open':''}">
+        <div class="st-head">
+          <button type="button" class="st-hit" ${act('toggleMailTplOpen', t.k)}><span class="st-ic">${t.ic}</span><span class="st-t"><b>${t.t}${(c.subject || c.body) ? ' <em class="st-custom">özel</em>' : ''}</b><small>${t.w}</small><span class="st-prev">✉️ ${fill(subj)}</span></span><span class="st-chev">${open?'▴':'▾'}</span></button>
+          <button type="button" role="switch" aria-checked="${on}" class="nm-sw ${on?'on':''}" ${act('saveMailTpl', t.k, !on)}><i></i></button>
+        </div>
+        ${open ? `<div class="st-edit">
+          <label class="mt-lbl">Konu</label><input id="mts_${t.k}" maxlength="200" value="${escapeAttr(subj)}" ${actOn('input','mailTplDirty',[t.k])}>
+          <label class="mt-lbl">Metin</label><textarea id="mtb_${t.k}" rows="6" maxlength="4000" ${actOn('input','mailTplDirty',[t.k])} ${actOn('focus','setMailFocus',[t.k,'b'])}>${escapeHtml(body)}</textarea>
+          <div class="st-foot"><span class="st-vars">${vars.map(v => `<button type="button" class="pchip" ${act('insertMailVar', t.k, v)}>+ ${MAIL_VAR_LBL[v]}</button>`).join('')}</span></div>
+          <div class="st-foot"><small class="muted">E-posta, işletme logonuz ve renklerinizle hazır şablon içinde gönderilir.</small><span style="flex:1"></span>
+            <button type="button" class="ghost-btn st-btn" ${act('resetMailTpl', t.k)}>↺ Varsayılan</button>
+            <button type="button" class="st-save" id="mtSave_${t.k}" disabled ${act('saveMailTpl', t.k)}>${ICON_SAVE}<span>Kaydet</span></button></div></div>` : ''}
+      </div>`; }).join('')}</div></div>`;
+}
+function toggleMailTplOpen(k){ APP.mailTplOpen = APP.mailTplOpen === k ? null : k; drawMailTemplates(); }
+function mailTplDirty(k){ const b = document.getElementById('mtSave_' + k); if(b) b.disabled = false; }
+function insertMailVar(k, v){ const ta = document.getElementById('mtb_' + k); if(!ta) return; const p = ta.selectionStart ?? ta.value.length; ta.value = ta.value.slice(0, p) + '{' + v + '}' + ta.value.slice(ta.selectionEnd ?? p); ta.focus(); mailTplDirty(k); }
+function setMailFocus(){}
+function resetMailTpl(k){ const t = MAIL_TPL.find(x => x.k === k); const a = document.getElementById('mts_' + k), b = document.getElementById('mtb_' + k); if(a) a.value = t.s; if(b) b.value = t.d; mailTplDirty(k); }
+async function saveMailTpl(k, enabledOverride){
+  const t = MAIL_TPL.find(x => x.k === k), cur = APP.mailTpl[k] || {};
+  const enabled = enabledOverride != null ? enabledOverride : cur.enabled !== false;
+  const a = document.getElementById('mts_' + k), b = document.getElementById('mtb_' + k);
+  let subj = a ? a.value.trim() : (cur.subject || ''), body = b ? b.value.trim() : (cur.body || '');
+  if(subj === t.s) subj = ''; if(body === t.d) body = '';
+  const { error } = await sb.rpc('set_mail_template', { p_token: getSession().session_token, p_key: k, p_enabled: enabled, p_subject: subj || null, p_body: body || null });
+  if(error){ alert(error.message); return; }
+  APP.mailTpl[k] = { enabled, subject: subj || null, body: body || null }; drawMailTemplates();
+  showToast(enabledOverride != null ? (enabled ? t.t + ' açıldı ✓' : t.t + ' kapatıldı') : 'E-posta kaydedildi ✓');
 }
 function toggleSmsTplOpen(k){ APP.smsTplOpen = APP.smsTplOpen === k ? null : k; drawSmsTemplates(); const ta = document.getElementById('tpl_' + k); if(ta) ta.focus(); }
 function smsTplInput(k){ const ta = document.getElementById('tpl_' + k), L = smsLen(ta.value); document.getElementById('tplLen_' + k).textContent = `${L.n} karakter · ${L.sms} SMS${L.uni ? ' · Türkçe karakter' : ''}`; document.getElementById('tplSave_' + k).disabled = false; }

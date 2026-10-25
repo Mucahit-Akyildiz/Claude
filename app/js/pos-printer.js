@@ -874,7 +874,8 @@ function drawNotifRoles(){
   const box = document.getElementById('notifRolesBody'); if(!box) return;
   const roles = APP.config.roles || [], tab = APP.notifRolesTab || 'push';
   const allV = (APP.voicePolicy && APP.voicePolicy.all) || {};
-  const head = `<tr><th class="nm-type">Bildirim</th>${roles.map(r => `<th>${escapeHtml(r.name)}</th>`).join('')}<th></th></tr>`;
+  const colOn = (rid) => tab === 'push' ? NOTIF_TYPES.every(t => notifRolesFor(t).includes(rid)) : VOICE_TYPES.every(t => ((allV[t.id] || {}).roles || []).includes(rid));
+  const head = `<tr><th class="nm-type">Bildirim</th>${roles.map(r => { const on = colOn(r.id); return `<th><div class="nm-colh"><span>${escapeHtml(r.name)}</span><button type="button" role="switch" aria-checked="${on}" class="nm-sw nm-sw-sm ${on?'on':''}" title="${on?'Bu rolde tümünü kapat':'Bu rolde tümünü aç'}" ${act('setNotifRoleColumn', r.id, !on)}><i></i></button></div></th>`; }).join('')}<th></th></tr>`;
   const cell = (on, fn, k, rid) => `<td><button type="button" role="switch" aria-checked="${on}" class="nm-sw ${on?'on':''}" title="${on?'Açık — kapatmak için dokunun':'Kapalı — açmak için dokunun'}" ${act(fn, k, rid)}><i></i></button></td>`;
   const rowsPush = NOTIF_TYPES.map(t => { const sel = notifRolesFor(t), custom = Array.isArray((APP.notifRoles||{})[t.k]);
     return `<tr><td class="nm-type"><span class="nm-ic">${t.ic}</span><div><b>${t.t}</b><small>${t.d}</small></div></td>${roles.map(r => cell(sel.includes(r.id), 'toggleNotifRole', t.k, r.id)).join('')}
@@ -885,6 +886,27 @@ function drawNotifRoles(){
   box.innerHTML = `<div class="seg nm-tabs">${[['push','📱 Push bildirimleri'],['voice','🔊 Sesli ve zilli']].map(([k, l]) => `<button type="button" class="${tab===k?'on':''}" ${act('setNotifRolesTab', k)}>${l}</button>`).join('')}</div>
     <p class="muted nm-help">${tab==='push' ? 'Telefona / masaüstüne gidecek bildirimler. Kutucuğa tıklayarak o role açıp kapatın; değişiklik hemen kaydedilir. Ekrandaki kırmızı rozetler yetkisi olan herkese görünmeye devam eder.' : 'Uygulama açıkken çalan zil ve sesli okuma. Bir role işaret koyduğunuzda kural başlar: işaretli rollerde seçtiğiniz şekilde (sesli / zil) çalar, diğerlerinde sessizdir ve personel bunu değiştiremez. ↺ ile varsayılana (cihaz ayarı) dönülür.'}</p>
     <div class="nm-wrap"><table class="nm-table">${head}${tab==='push' ? rowsPush : rowsVoice}</table></div>`;
+}
+/* Sütun anahtarı: o rol için tüm bildirimleri birden açar / kapatır. */
+async function setNotifRoleColumn(roleId, on){
+  const tok = getSession().session_token, tab = APP.notifRolesTab || 'push', errs = [];
+  await withLoadingOverlay((async () => {
+    if(tab === 'push'){
+      for(const t of NOTIF_TYPES){ const cur = notifRolesFor(t), has = cur.includes(roleId); if(has === on) continue;
+        const next = on ? cur.concat(roleId) : cur.filter(x => x !== roleId);
+        const { error } = await sb.rpc('set_notification_roles', { p_token: tok, p_type: t.k, p_role_ids: next });
+        if(error) errs.push(t.t + ': ' + error.message); else APP.notifRoles = Object.assign({}, APP.notifRoles, { [t.k]: next }); }
+    } else {
+      const allV = (APP.voicePolicy && APP.voicePolicy.all) || {};
+      for(const t of VOICE_TYPES){ const pol = allV[t.id], cur = pol ? (pol.roles || []) : [], has = cur.includes(roleId); if(has === on) continue;
+        const next = on ? cur.concat(roleId) : cur.filter(x => x !== roleId);
+        const { error } = await sb.rpc('set_voice_policy', { p_token: tok, p_type: t.id, p_role_ids: next, p_mode: pol ? pol.mode : 'voice' });
+        if(error) errs.push(t.label + ': ' + error.message); }
+      await loadVoicePolicy();
+    }
+  })());
+  drawNotifRoles();
+  if(errs.length) alert('Bazıları kaydedilemedi:\n\n' + errs.join('\n')); else showToast(on ? 'Bu rolde tümü açıldı ✓' : 'Bu rolde tümü kapatıldı');
 }
 function setNotifRolesTab(t){ APP.notifRolesTab = t; drawNotifRoles(); }
 async function saveVoicePolicy(type, roles, mode){
