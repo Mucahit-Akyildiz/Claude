@@ -346,6 +346,8 @@ function requestNativeFcmToken(){
 function getSavedFcmToken(){ try{ return localStorage.getItem('rys_fcm_token')||''; }catch(e){ return ''; } }
 function setSavedFcmToken(t){ try{ if(t) localStorage.setItem('rys_fcm_token', t); else localStorage.removeItem('rys_fcm_token'); }catch(e){} }
 /* Sipariş veren cihazda anında fiş (varsayılan açık); yazıcısı olmayan cihazda etkisiz. */
+function printEachItemEnabled(){ try{ return localStorage.getItem('rys_print_each_item') === '1'; }catch(e){ return false; } }
+function setPrintEachItem(on){ try{ localStorage.setItem('rys_print_each_item', on ? '1' : '0'); }catch(e){} showToast(on ? 'Mutfak fişlerinde her ürün ayrı fişe basılacak' : 'Mutfak fişleri tek fişte toplu basılacak'); }
 function printOnOrderEnabled(){ try{ return localStorage.getItem('rys_print_on_order') !== '0'; }catch(e){ return true; } }
 function setPrintOnOrder(on){ try{ localStorage.setItem('rys_print_on_order', on ? '1' : '0'); }catch(e){} showToast(on ? 'Sipariş verilince fiş bu cihazda yazdırılacak' : 'Sipariş fişi bu cihazda otomatik yazdırılmayacak'); }
 // Bu cihazda gerçekten sessiz yazdırabilen bir yazıcı tanımlı mı (masaüstü / USB / kiosk)?
@@ -544,6 +546,10 @@ async function renderPrinterSettingsView(main, session){
       <label class="sw-card" style="margin-top:14px !important;">
         <input type="checkbox" class="sw" ${printOnOrderEnabled()?'checked':''} ${actOn('change','setPrintOnOrder',['$checked'])}>
         <span><b>Sipariş verilince fişi hemen bu cihazdan yazdır</b><br><span class="muted" style="font-size:12.5px;">Sipariş Al / Paket Servis'te sipariş gönderilince fiş bu cihazın yazıcısına basılır. Fişi başka cihazdaki mutfak ekranı basıyorsa kapatın (çift fiş çıkmasın).</span></span>
+      </label>
+      <label class="sw-card" style="margin-top:10px !important;">
+        <input type="checkbox" class="sw" ${printEachItemEnabled()?'checked':''} ${actOn('change','setPrintEachItem',['$checked'])}>
+        <span><b>Ürünleri tek tek yazdır</b><br><span class="muted" style="font-size:12.5px;">Mutfak fişinde her ürün ayrı fişe basılır (örn. 3 Döner → 3 ayrı fiş). Paketleme ve etiketleme için kullanışlıdır. Bu cihazdaki tüm sipariş fişleri için geçerlidir.</span></span>
       </label>
     </div>
 
