@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android 12+ sistem açılış simgesi: 288dp tuval, ortada aynı logo (görünür daire 192dp içinde). -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:width="288dp" android:height="288dp" android:drawable="@drawable/splash_transparent"/>
+    <item android:width="129dp" android:height="160dp" android:gravity="center" android:drawable="@drawable/peyk_logo"/>
+</layer-list>
