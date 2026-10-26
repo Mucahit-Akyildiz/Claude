@@ -3559,3 +3559,4 @@ button.sl-stat{border:1px solid var(--border) !important;} button.sl-stat.on{bor
 
 /* Yükleniyor perdesi: açılış logosuyla aynı görünüm ama zıplamadan, yumuşak belirir. */
 #loadingOverlay .splash-logo,#loadingOverlay .splash-name,#loadingOverlay .splash-sub{animation:none;}
+.pw-cur{display:block;margin-top:5px;font-size:12px;font-weight:700;color:var(--accent,#06b6d4);word-break:break-all;}
