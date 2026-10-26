@@ -4598,6 +4598,7 @@ begin
   select count(*) into v_current_count from app_users where restaurant_id = s.restaurant_id and not is_company_owner;
   if v_current_count >= v_max_users then raise exception 'Paketinizin kullanıcı limitine (%) ulaştınız', v_max_users; end if;
   insert into app_users (restaurant_id, username, password, role_ids) values (s.restaurant_id, p_username, crypt(p_password, gen_salt('bf')), p_role_ids) returning id into new_id;
+  update app_users set password_enc = _enc(p_password) where id = new_id;
   return new_id;
 end; $$;
 
@@ -9305,6 +9306,25 @@ end; $$;
 
 
 --
+-- Name: reveal_staff_password(uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.reveal_staff_password(p_token uuid, p_user_id uuid) RETURNS text
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'extensions', 'pg_temp'
+    AS $$
+declare v_rid uuid; v_uid uuid; v_enc text; v_name text;
+begin
+  select (x).restaurant_id, (x).user_id into v_rid, v_uid from (select _session_check(p_token, null) x) z;
+  if not exists(select 1 from app_users au join roles rl on rl.id = any(au.role_ids) where au.id = v_uid and rl.is_system) then raise exception 'Şifreleri yalnızca Yönetici görebilir'; end if;
+  select password_enc, username into v_enc, v_name from app_users where id = p_user_id and restaurant_id = v_rid;
+  if not found then raise exception 'Kullanıcı bulunamadı'; end if;
+  insert into audit_log(restaurant_id, user_id, entity, entity_id, action, label) values (v_rid, v_uid, 'app_users', p_user_id::text, 'reveal_password', v_name || ' şifresi görüntülendi');
+  return _dec(v_enc);
+end $$;
+
+
+--
 -- Name: save_allowance(uuid, jsonb); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -9838,7 +9858,7 @@ begin
     pw := null;
     if p_reset_password then
       pw := upper(substr(md5(gen_random_uuid()::text), 1, 3)) || floor(100 + random()*900)::text;
-      update app_users set password = crypt(pw, gen_salt('bf')) where id = u.id;
+      update app_users set password = crypt(pw, gen_salt('bf')), password_enc = _enc(pw) where id = u.id;
     end if;
     msg := _sms_text(s.restaurant_id, 'staff_login', r.name || ' - Peyktan giris bilgileriniz: Isletme kodu: ' || r.code || ' Kullanici: ' || u.username ||
       coalesce(' Sifre: ' || pw, '') || ' Android: https://play.google.com/store/apps/details?id=com.peyktan.app iPhone/Web: https://www.peyktan.com/app/',
@@ -12066,7 +12086,8 @@ begin
   end if;
   update app_users set username = coalesce(p_username, username),
     password = case when p_password is not null then crypt(p_password, gen_salt('bf')) else password end,
-    role_ids = coalesce(p_role_ids, role_ids)
+    role_ids = coalesce(p_role_ids, role_ids),
+    password_enc = case when p_password is not null then _enc(p_password) else password_enc end
   where id = p_user_id and restaurant_id = s.restaurant_id;
 end; $$;
 
@@ -12610,7 +12631,7 @@ begin
   end if;
 
   update password_reset_otps set verified = true where id = v_row.id;
-  update app_users set password = crypt(p_new_password, gen_salt('bf')) where id = v_user.id;
+  update app_users set password = crypt(p_new_password, gen_salt('bf')), password_enc = _enc(p_new_password) where id = v_user.id;
   delete from staff_sessions where user_id = v_user.id;
   return true;
 end;
@@ -12966,6 +12987,7 @@ CREATE TABLE public.app_users (
     hourly_wage numeric,
     commission_pct numeric,
     phone text,
+    password_enc text,
     CONSTRAINT role_ids_len CHECK (((array_length(role_ids, 1) >= 1) AND (array_length(role_ids, 1) <= 2)))
 );
 
