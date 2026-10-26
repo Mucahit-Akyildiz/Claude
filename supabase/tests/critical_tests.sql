@@ -192,6 +192,66 @@ begin
   exception when others then insert into _results values ('acik_hesap', false, sqlerrm); end;
 end $tests$;
 
+-- ---- 14-19) Toplu işlem, yedek/geri yükleme, kullanıcı limiti, raporlar, veri sıfırlama ----
+do $more$
+declare r uuid; z uuid; mgr uuid; role_mgr uuid; role_w uuid; p1 uuid; tok uuid := gen_random_uuid(); b jsonb; res jsonb; err text; n int; pw text;
+  code text := 'U' || substr(md5(random()::text), 1, 8);
+begin
+  insert into restaurants (name, code, package_id, is_active, expires_at) values ('CI Test 2', code, 'paket_kurumsal', true, now() + interval '30 days') returning id into r;
+  insert into roles (restaurant_id, name, is_system, permissions) values (r, 'Yönetici', true, '{}') returning id into role_mgr;
+  insert into roles (restaurant_id, name, is_system, permissions) values (r, 'Garson', false, array['order']) returning id into role_w;
+  insert into app_users (restaurant_id, username, password, role_ids) values (r, 'mgr', crypt('Test1234', gen_salt('bf')), array[role_mgr]) returning id into mgr;
+  insert into staff_sessions (token, user_id, restaurant_id, username, expires_at) values (tok, mgr, r, 'mgr', now() + interval '1 hour');
+  insert into zones (restaurant_id, name) values (r, 'Salon') returning id into z;
+  insert into products (restaurant_id, name, price, cost, available) values (r, 'Çay', 20, 5, true) returning id into p1;
+
+  -- 14) bulk_call: tek istekte birden çok kayıt, sıra korunur; listede olmayan fonksiyon reddedilir
+  begin
+    res := bulk_call(tok, 'upsert_table', jsonb_build_array(jsonb_build_object('p_id', null, 'p_zone_id', z, 'p_name', 'B1'), jsonb_build_object('p_id', null, 'p_zone_id', z, 'p_name', 'B2')));
+    select count(*) into n from restaurant_tables where restaurant_id = r and name in ('B1','B2');
+    insert into _results values ('toplu_islem', n = 2 and jsonb_array_length(res) = 2, 'masa: ' || n);
+    begin perform bulk_call(tok, 'admin_set_user_limit', '[]'::jsonb); insert into _results values ('toplu_islem_beyaz_liste', false, 'izinsiz fonksiyon çalıştı');
+    exception when others then insert into _results values ('toplu_islem_beyaz_liste', true, sqlerrm); end;
+  exception when others then insert into _results values ('toplu_islem', false, sqlerrm); end;
+
+  -- 15) Yedek indir → değiştir → geri yükle: veri döner, şifre korunur, başka işletmenin yedeği reddedilir
+  begin
+    select password into pw from app_users where id = mgr;
+    b := export_restaurant_backup(tok, 'Test1234');
+    update products set name = 'BOZULDU' where id = p1;
+    perform import_restaurant_backup(tok, 'Test1234', b);
+    insert into _results values ('yedek_geri_yukleme', (select name from products where id = p1) = 'Çay' and (select password from app_users where id = mgr) = pw
+      and b::text !~* '"password"', 'ürün: ' || (select name from products where id = p1));
+    begin perform import_restaurant_backup(tok, 'Test1234', jsonb_set(b, '{restaurant,id}', to_jsonb(gen_random_uuid()::text)));
+      insert into _results values ('yedek_baska_isletme', false, 'yabancı yedek yüklendi');
+    exception when others then insert into _results values ('yedek_baska_isletme', sqlerrm ilike '%başka bir işletme%', sqlerrm); end;
+  exception when others then insert into _results values ('yedek_geri_yukleme', false, sqlerrm); end;
+
+  -- 16) İşletmeye özel kullanıcı limiti paket limitinin yerine geçer
+  begin
+    update restaurants set user_limit_override = 1 where id = r;
+    begin perform create_staff_user(tok, 'g1', 'Test1234', array[role_w]); err := 'eklendi'; exception when others then err := sqlerrm; end;
+    update restaurants set user_limit_override = 50 where id = r;
+    perform create_staff_user(tok, 'g2', 'Test1234', array[role_w]);
+    insert into _results values ('kullanici_limiti', err ilike '%limit%' and exists(select 1 from app_users where restaurant_id = r and username = 'g2'), err);
+  exception when others then insert into _results values ('kullanici_limiti', false, sqlerrm); end;
+
+  -- 17) Raporlar hatasız çalışır (SMS/e-posta geçmişi, iptal & ikram, yönetici özeti)
+  begin
+    perform get_sms_log(tok, null, null, null, '__failed', null, 10, 0);
+    perform get_mail_log(tok, null, null, null, null, null, 10, 0);
+    res := get_loss_report(tok, null, null);
+    insert into _results values ('raporlar', res ? 'totals' and length(_owner_report_html(r, now() - interval '1 day', now(), 'T')) > 100, 'ok');
+  exception when others then insert into _results values ('raporlar', false, sqlerrm); end;
+
+  -- 18) Veri sıfırlama: kullanıcılar/roller seçilince çağıran Yönetici ve rolü korunur
+  begin
+    perform reset_restaurant_data_ts(tok, 'Test1234', null, null, array['users','roles']);
+    insert into _results values ('sifirlama_kullanici_rol', exists(select 1 from app_users where id = mgr) and exists(select 1 from roles where id = role_mgr)
+      and not exists(select 1 from app_users where restaurant_id = r and username = 'g2'), 'ok');
+  exception when others then insert into _results values ('sifirlama_kullanici_rol', false, sqlerrm); end;
+end $more$;
+
 -- ---- 13) Herkese açık anahtar (anon) iç fonksiyonları ve abonelik uzatmayı çağıramaz ----
 do $sec$
 declare v_open text;
@@ -211,7 +271,7 @@ declare f text;
 begin
   select string_agg(name || ' (' || coalesce(detail,'') || ')', '; ') into f from _results where not ok;
   if f is not null then raise exception 'BAŞARISIZ TESTLER: %', f; end if;
-  if (select count(*) from _results) < 16 then raise exception 'Beklenenden az test çalıştı: %', (select count(*) from _results); end if;
+  if (select count(*) from _results) < 23 then raise exception 'Beklenenden az test çalıştı: %', (select count(*) from _results); end if;
 end $check$;
 
 rollback;

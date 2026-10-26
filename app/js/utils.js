@@ -316,8 +316,12 @@ function chipFilter(scope, key){
 function applyChipFilters(){
   let st = document.getElementById('cfStyle');
   if(!st){ st = document.createElement('style'); st.id = 'cfStyle'; document.head.appendChild(st); }
-  st.textContent = Object.entries(APP.cf || {}).filter(([, k]) => k).map(([sc, k]) =>
-    `[data-cf-scope="${sc}"] [data-cf-tags]:not([data-cf-tags~="${String(k).replace(/[^\w-]/g, '')}"]){display:none !important}`).join('\n');
+  // CSP (style-src-elem) satır içi <style> metnine izin vermez; kurallar CSSOM ile eklenir.
+  const sh = st.sheet; if(!sh) return;
+  while(sh.cssRules.length) sh.deleteRule(0);
+  Object.entries(APP.cf || {}).filter(([, k]) => k).forEach(([sc, k]) => {
+    try{ sh.insertRule(`[data-cf-scope="${String(sc).replace(/[^\w-]/g, '')}"] [data-cf-tags]:not([data-cf-tags~="${String(k).replace(/[^\w-]/g, '')}"]){display:none !important}`, sh.cssRules.length); }catch(e){}
+  });
 }
 /* İsimden baş harf + sabit renkli avatar */
 function avatarHtml(name, cls){

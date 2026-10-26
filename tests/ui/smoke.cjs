@@ -10,6 +10,12 @@ const FAKE = fs.readFileSync(path.join(__dirname, 'fake-supabase.js'), 'utf8');
 const PUBLIC_FAKE = 'window.supabase={createClient:function(){return {rpc:async function(n){var d=window.__PUBLIC_RPC||{};return {data:d[n]||null,error:null};}};}};';
 const TYPES = { '.html':'text/html', '.js':'application/javascript', '.css':'text/css', '.json':'application/json', '.webmanifest':'application/manifest+json', '.png':'image/png', '.webp':'image/webp', '.svg':'image/svg+xml', '.mp3':'audio/mpeg', '.jpg':'image/jpeg' };
 
+// Canlıdaki Content-Security-Policy başlıkları (vercel.json) testte de uygulanır; ihlaller hata sayılır.
+const VERCEL_HEADERS = JSON.parse(fs.readFileSync(path.join(ROOT, 'vercel.json'), 'utf8')).headers || [];
+function cspFor(p){
+  for(const h of VERCEL_HEADERS){ if(new RegExp('^' + h.source + '$').test(p)){ const c = (h.headers || []).find(x => x.key === 'Content-Security-Policy'); if(c) return c.value; } }
+  return null;
+}
 function serve(){
   return new Promise(res => {
     const srv = http.createServer((req, out) => {
@@ -20,7 +26,10 @@ function serve(){
       let body = fs.readFileSync(f);
       // CDN betiklerinin bütünlük (integrity) kontrolü taklit betikle çakışmasın.
       if(f.endsWith('.html')) body = Buffer.from(body.toString().replace(/ integrity="[^"]*"/g, ''));
-      out.writeHead(200, { 'Content-Type': TYPES[path.extname(f)] || 'application/octet-stream' }); out.end(body);
+      const hdr = { 'Content-Type': TYPES[path.extname(f)] || 'application/octet-stream' };
+      const csp = f.endsWith('.html') && cspFor(decodeURIComponent(req.url.split('?')[0]));
+      if(csp) hdr['Content-Security-Policy'] = csp.replace(/https:\/\/dveybagnrgofxkqangvo\.supabase\.co/g, '$& http://127.0.0.1:*');
+      out.writeHead(200, hdr); out.end(body);
     }).listen(0, () => res(srv));
   });
 }
@@ -43,6 +52,7 @@ const assert = (c, m) => { if(!c) throw new Error(m); };
     const page = await ctx.newPage();
     const errors = [];
     page.on('pageerror', e => errors.push(e.message));
+    page.on('console', m => { if(/Content Security Policy/i.test(m.text())) errors.push('CSP: ' + m.text().slice(0, 160)); });
     await page.addInitScript(() => {
       try{ localStorage.setItem('peyk_bday_popup', '0'); }catch(e){}
       sessionStorage.setItem('staff_session', JSON.stringify({ session_token: '0', user_id: 'u1', restaurant_id: 'r1', isManager: true, restaurant_name: 'TEST', username: 'test',
@@ -139,7 +149,7 @@ const assert = (c, m) => { if(!c) throw new Error(m); };
       await ctx.addInitScript(data => { window.__PUBLIC_RPC = data; }, rpc);
       await ctx.route(/^https?:\/\/(?!127\.0\.0\.1)/, r => r.abort());
       await ctx.route(/\/assets\/vendor\/supabase\.js$/, r => r.fulfill({ contentType: 'application/javascript', body: PUBLIC_FAKE }));
-      const page = await ctx.newPage(); const errs = []; page.on('pageerror', e => errs.push(e.message));
+      const page = await ctx.newPage(); const errs = []; page.on('pageerror', e => errs.push(e.message)); page.on('console', m => { if(/Content Security Policy/i.test(m.text())) errs.push('CSP: ' + m.text().slice(0, 160)); });
       await page.goto(base + pg); await page.waitForSelector(sel, { timeout: 8000 });
       assert(!errs.length, errs.join(' | ')); await ctx.close();
     });
