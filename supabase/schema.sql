@@ -8920,6 +8920,9 @@ begin
     delete from orders where restaurant_id = s.restaurant_id and status in ('closed','cancelled') and created_at >= v_start and created_at < v_end;
     delete from customer_order_requests where restaurant_id = s.restaurant_id and status <> 'pending' and created_at >= v_start and created_at < v_end;
     delete from sms_outbox where restaurant_id = s.restaurant_id and created_at >= v_start and created_at < v_end;
+    delete from kitchen_cancellations where restaurant_id = s.restaurant_id and created_at >= v_start and created_at < v_end;
+    delete from promotion_uses where restaurant_id = s.restaurant_id and created_at >= v_start and created_at < v_end;
+    delete from online_payments where restaurant_id = s.restaurant_id and coalesce(status,'') <> 'pending' and created_at >= v_start and created_at < v_end;
   end if;
   if 'waste' = any(p_categories) then
     delete from waste_log where restaurant_id = s.restaurant_id and created_at >= v_start and created_at < v_end;
@@ -8976,6 +8979,20 @@ begin
       and rl.created_at >= v_start and rl.created_at < v_end
       and not exists(select 1 from app_users au where au.restaurant_id = s.restaurant_id and rl.id = any(au.role_ids));
     get diagnostics v_n = row_count; v_res := v_res || jsonb_build_object('roles', v_n);
+  end if;
+
+  if 'cash_counts' = any(p_categories) then
+    delete from cash_counts where restaurant_id = s.restaurant_id and created_at >= v_start and created_at < v_end;
+    get diagnostics v_n = row_count; v_res := v_res || jsonb_build_object('cash_counts', v_n);
+  end if;
+  if 'reviews' = any(p_categories) then
+    delete from reviews where restaurant_id = s.restaurant_id and created_at >= v_start and created_at < v_end;
+    get diagnostics v_n = row_count; v_res := v_res || jsonb_build_object('reviews', v_n);
+  end if;
+  if 'notifications' = any(p_categories) then
+    delete from notification_log where restaurant_id = s.restaurant_id and created_at >= v_start and created_at < v_end;
+    get diagnostics v_n = row_count; v_res := v_res || jsonb_build_object('notifications', v_n);
+    delete from client_errors where restaurant_id = s.restaurant_id and last_at >= v_start and last_at < v_end;
   end if;
   return json_build_object('ok', true, 'removed', v_res);
 end; $$;
