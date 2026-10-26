@@ -212,9 +212,9 @@ async function renderReportsView(main, session){
 function reportTabList(){
   const dsc = { summary:'Ciro, kâr, ödemeler', cockpit:'Karşılaştırma, tahmin, uyarılar', menueng:'Kârlılık haritası', tablemap:'Masa bazlı ciro', heat:'Gün × saat yoğunluğu', channels:'Masa, paket, gel-al, online', speed:'Hazırlama ve yanıt süreleri',
     stockf:'Ne zaman bitecek', zreport:'Z raporu, yazdır', waiters:'Personel performansı', journey:'Sadakat, kayıp müşteri', period:'Saatlik / günlük', vat:'Vergi dağılımı',
-    products:'En çok satanlar', staff:'Personel ısı haritası', customers:'Müşteri harcamaları', tips:'Bahşiş dağılımı', waste:'Fire ve israf', cancel:'İptal masa ve ürünler',
+    products:'En çok satanlar', staff:'Personel ısı haritası', customers:'Müşteri harcamaları', tips:'Bahşiş dağılımı', waste:'Fire ve israf', cancel:'İptal masa ve ürünler', loss:'Personel bazlı kayıp kontrolü',
     resv:'Rezervasyon performansı', openacc:'Veresiye bakiyeleri', payroll:'Çalışma saati, maaş, prim', dayclose:'Kapandı mı, kasa farkı', reviews:'Yıldız ve yorumlar' };
-  return [['summary','📊','Genel Özet'], ...AN_TABS, ['period','📈','Dönemsel Analiz'],['vat','🧾','KDV'],['products','📦','Ürün İstatistikleri'],['staff','👤','Personel Analizleri'],['customers','🧑‍🤝‍🧑','Müşteri Analizleri'],['payroll','💼','Puantaj & Prim'],['reviews','⭐','Müşteri Değerlendirmeleri'],['tips','💰','Bahşiş Havuzu'],['waste','🔥','İsraf'],['cancel','❌','İptaller'],['resv','📅','Rezervasyon Analizi'],['openacc','📒','Açık Hesaplar']].map(t => [...t, dsc[t[0]] || '']);
+  return [['summary','📊','Genel Özet'], ...AN_TABS, ['period','📈','Dönemsel Analiz'],['vat','🧾','KDV'],['products','📦','Ürün İstatistikleri'],['staff','👤','Personel Analizleri'],['customers','🧑‍🤝‍🧑','Müşteri Analizleri'],['payroll','💼','Puantaj & Prim'],['reviews','⭐','Müşteri Değerlendirmeleri'],['tips','💰','Bahşiş Havuzu'],['waste','🔥','İsraf'],['cancel','❌','İptaller'],['loss','🕵️','İptal & İkram Kontrolü'],['resv','📅','Rezervasyon Analizi'],['openacc','📒','Açık Hesaplar']].map(t => [...t, dsc[t[0]] || '']);
 }
 function setReportTab(tab){
   if(tab !== APP.reportTab) pushScreen();
@@ -259,6 +259,7 @@ function renderReportTabContent(session){
   if(tab==='tips') return renderTipPoolContent(session);
   if(tab==='waste') return renderWasteContent(session);
   if(tab==='cancel') return renderCancelReportContent(session);
+  if(tab==='loss') return renderLossReportContent(session);
   if(tab==='cockpit') return renderCockpitContent(session);
   if(tab==='channels') return renderChannelsContent(session);
   if(tab==='speed') return renderSpeedContent(session);
@@ -1044,6 +1045,65 @@ async function renderCancelReportContent(session){
         <b class="cx-amt">${money(r.total)}</b></div>`).join('')}</div>` : '<p class="muted">Bu tarih aralığında iptal edilen ürün yok.</p>'}
     </div>`;
 }
+/* İptal & İkram Kontrolü: kim ne kadar iptal / ikram / indirim yaptı (get_loss_report). Kartlar, personel satırları ve
+   günlük grafik tıklanınca alttaki hareket listesi süzülür. */
+async function renderLossReportContent(session){
+  const el = document.getElementById('reportContent'); if(!el) return;
+  const { data, error } = await withLoadingOverlay(sb.rpc('get_loss_report', { p_token: session.session_token, p_from: APP.reportDate, p_to: APP.reportDateTo || APP.reportDate }));
+  if(error){ el.innerHTML = '<p class="muted">Yüklenemedi: ' + escapeHtml(error.message) + '</p>'; return; }
+  APP.loss = { data: data || {}, typ: '', who: '', day: '' };
+  drawLossReport();
+}
+const LOSS_T = { cancel:['❌','İptal','var(--danger,#ef4444)'], comp:['🍱','İkram','var(--c3,#14b8a6)'], disc:['🏷️','İndirim','#f59e0b'] };
+function drawLossReport(){
+  const el = document.getElementById('reportContent'); if(!el || !APP.loss) return;
+  const L = APP.loss, d = L.data, T = d.totals || {}, rev = Number(d.revenue) || 0, staff = d.by_staff || [];
+  const pctOf = v => rev > 0 ? ' · cironun %' + (Number(v) / rev * 100).toFixed(1) : '';
+  const card = (k, n, amt, sub) => `<button type="button" class="lr-card ${L.typ===k?'on':''}" style="--t:${LOSS_T[k][2]}" ${act('setLoss','typ',L.typ===k?'':k)}>
+      <span class="lr-ic">${LOSS_T[k][0]}</span><small>${LOSS_T[k][1]}</small><b>${money(amt || 0)}</b><em>${n || 0} işlem${pctOf(amt)}</em>${sub || ''}</button>`;
+  const days = d.by_day || [], max = Math.max(1, ...days.map(x => Number(x.c) + Number(x.p) + Number(x.x)));
+  const smax = Math.max(1, ...staff.map(s => Number(s.ca) + Number(s.pa) + Number(s.da)));
+  let rows = d.recent || [];
+  if(L.typ) rows = rows.filter(r => r.typ === L.typ);
+  if(L.who) rows = rows.filter(r => r.who === L.who);
+  if(L.day) rows = rows.filter(r => new Date(r.at).toLocaleDateString('sv-SE') === L.day);
+  const hours = d.by_hour || {}, hmax = Math.max(1, ...Object.values(hours));
+  el.innerHTML = `<div class="lr-cards">
+      ${card('cancel', T.cancel_n, T.cancel_amt, T.cancel_after_n ? `<i class="lr-warn">⚠️ ${T.cancel_after_n} tanesi hazırlandıktan sonra (${money(T.cancel_after_amt)})</i>` : '')}
+      ${card('comp', T.comp_n, T.comp_amt)}
+      ${card('disc', T.disc_n, T.disc_amt)}
+    </div>
+    <div class="sl-viz">
+      <div class="sl-panel"><div class="sl-pt">Personele göre <span>tıklayınca hareketleri süzer</span></div>
+        ${staff.length ? `<div class="lr-staff">${staff.map(s => { const tot = Number(s.ca) + Number(s.pa) + Number(s.da);
+          return `<button type="button" class="lr-srow ${L.who===s.who?'on':''}" ${act('setLoss','who',L.who===s.who?'':s.who)}>
+            <span class="lr-sn">👤 ${escapeHtml(s.who)}</span>
+            <span class="lr-sbar" style="width:${tot / smax * 100}%">${Number(s.ca) ? `<i style="flex:${s.ca};background:${LOSS_T.cancel[2]}"></i>` : ''}${Number(s.pa) ? `<i style="flex:${s.pa};background:${LOSS_T.comp[2]}"></i>` : ''}${Number(s.da) ? `<i style="flex:${s.da};background:${LOSS_T.disc[2]}"></i>` : ''}</span>
+            <span class="lr-sv"><b>${money(tot)}</b><small>${s.cn}❌ ${s.pn}🍱 ${s.dn}🏷️</small></span></button>`; }).join('')}</div>` : '<p class="muted">Bu dönemde kayıt yok.</p>'}
+      </div>
+      <div class="sl-panel"><div class="sl-pt">İptal edilen ürünler</div>
+        ${(d.top_items || []).length ? `<div class="sl-hbars">${d.top_items.map(i => `<div class="sl-hbar"><span class="sl-hl">${escapeHtml(i.name)}</span><span class="sl-ht"><i style="width:${i.n / d.top_items[0].n * 100}%;background:${LOSS_T.cancel[2]}"></i></span><b>${i.n}</b></div>`).join('')}</div>` : '<p class="muted">İptal edilen ürün yok.</p>'}
+        <div class="sl-pt" style="margin-top:12px;">İptallerin saatlere dağılımı</div>
+        <div class="lr-hours">${Array.from({ length: 24 }, (_, h) => `<span title="${String(h).padStart(2,'0')}:00 — ${hours[h] || 0} iptal" style="opacity:${hours[h] ? .25 + .75 * hours[h] / hmax : .08}"></span>`).join('')}</div>
+        <div class="lr-hlbl"><small>00</small><small>06</small><small>12</small><small>18</small><small>23</small></div>
+      </div>
+    </div>
+    ${days.length > 1 ? `<div class="sl-panel" style="margin-bottom:12px;"><div class="sl-pt">Günlük kayıp <span><i class="dot" style="background:${LOSS_T.cancel[2]}"></i>İptal <i class="dot" style="background:${LOSS_T.comp[2]};margin-left:6px"></i>İkram <i class="dot" style="background:${LOSS_T.disc[2]};margin-left:6px"></i>İndirim</span></div>
+      <div class="sl-chart"><span class="sl-ymax">${money(max)}</span>${days.map((x, i) => { const tot = Number(x.c) + Number(x.p) + Number(x.x);
+        return `<button type="button" class="sl-col ${L.day===x.d?'on':''}" title="${new Date(x.d).toLocaleDateString('tr-TR')}: iptal ${money(x.c)}, ikram ${money(x.p)}, indirim ${money(x.x)}" ${act('setLoss','day',L.day===x.d?'':x.d)}>
+          <span class="sl-stack" style="height:${tot / max * 100}%">${Number(x.x) ? `<i style="flex:${x.x};background:${LOSS_T.disc[2]}"></i>` : ''}${Number(x.p) ? `<i style="flex:${x.p};background:${LOSS_T.comp[2]}"></i>` : ''}${Number(x.c) ? `<i style="flex:${x.c};background:${LOSS_T.cancel[2]}"></i>` : ''}</span>
+          <small>${(i % Math.max(1, Math.ceil(days.length / 8)) === 0 || i === days.length - 1) ? new Date(x.d).toLocaleDateString('tr-TR', { day:'2-digit', month:'2-digit' }) : ''}</small></button>`; }).join('')}</div></div>` : ''}
+    <div class="fs-panel pa-sec rp-panel" style="--t:var(--danger,#ef4444);">
+      <h2>Hareketler ${[L.typ && LOSS_T[L.typ][1], L.who && '👤 ' + escapeHtml(L.who), L.day && new Date(L.day).toLocaleDateString('tr-TR')].filter(Boolean).map(x => `<span class="sl-chip">${x}</span>`).join('')}
+        ${L.typ || L.who || L.day ? `<button type="button" class="ghost-btn" style="width:auto;margin:0 0 0 8px;padding:4px 10px;font-size:12px;" ${act('setLoss','reset','')}>Filtreleri temizle</button>` : ''}</h2>
+      ${rows.length ? `<div class="cx-list">${rows.map(r => `<div class="cx-row">
+        <span class="cx-q" style="color:${LOSS_T[r.typ][2]}">${LOSS_T[r.typ][0]}</span>
+        <div class="cx-n"><b>${escapeHtml(r.what || '')}</b><small>${escapeHtml(r.table_name || '')} · ${new Date(r.at).toLocaleString('tr-TR', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' })} · 👤 ${escapeHtml(r.who)}${r.note ? ' · 📝 ' + escapeHtml(r.note) : ''}</small></div>
+        ${r.info ? `<span class="pchip ${r.typ==='cancel' && r.info.startsWith('Hazırlandıktan') ? 'warn' : ''}">${escapeHtml(r.info)}</span>` : ''}
+        <b class="cx-amt">${money(r.amt)}</b></div>`).join('')}</div>` : '<p class="muted">Bu filtrelerle hareket yok.</p>'}
+    </div>`;
+}
+function setLoss(k, v){ if(!APP.loss) return; if(k === 'reset'){ APP.loss.typ = APP.loss.who = APP.loss.day = ''; } else APP.loss[k] = v; drawLossReport(); }
 async function renderWasteContent(session){
   const el = document.getElementById('reportContent'); if(!el) return;
   const { data, error } = await withLoadingOverlay(sb.rpc('list_waste', { p_token: session.session_token, p_date: APP.reportDate, p_date_to: APP.reportDateTo }));
