@@ -521,7 +521,7 @@ async function refreshRestaurantsList(admin){
           <tr>
             <td><b style="cursor:pointer;color:var(--accent);" ${act('showRestaurantDetail', r.id)} title="Günlük ciro grafiğini göster">${escapeHtml(r.name)}</b><div class="muted" style="font-size:12px;">${escapeHtml(r.code||'—')}</div></td>
             <td style="font-size:12.5px;word-break:break-all;">${r.email?`<a href="mailto:${escapeHtml(r.email)}">${escapeHtml(r.email)}</a>`:'—'}${r.phone?`<div class="muted">${escapeHtml(r.phone)}</div>`:''}</td>
-            <td style="font-size:13px;">${pkg?escapeHtml(pkg.name):escapeHtml(r.package_id)}<div class="muted" style="font-size:12px;">${r.user_count}/${r.max_users} kullanıcı</div><div style="font-size:12px;${expired?'color:var(--red);':''}">Bitiş: ${r.expires_at ? new Date(r.expires_at).toLocaleDateString('tr-TR') : 'Süresiz'}</div></td>
+            <td style="font-size:13px;">${pkg?escapeHtml(pkg.name):escapeHtml(r.package_id)}<div class="muted" style="font-size:12px;">${r.user_count}/${r.max_users} kullanıcı${r.user_limit_override != null ? ' <span title="Özel limit">✱</span>' : ''}</div><div style="font-size:12px;${expired?'color:var(--red);':''}">Bitiş: ${r.expires_at ? new Date(r.expires_at).toLocaleDateString('tr-TR') : 'Süresiz'}</div></td>
             <td>${statusBadge}</td>
             <td style="font-size:12.5px;white-space:nowrap;">Kayıt: ${new Date(r.created_at).toLocaleDateString('tr-TR')}<div class="muted">Son: ${fmtRelativeTime(r.last_activity)}</div></td>
             <td style="font-size:12.5px;white-space:nowrap;">Bugün: <b>${money(r.revenue_today)}</b><div class="muted">7 gün: ${money(r.revenue_7d)}</div><div class="muted">Toplam: ${money(r.revenue_lifetime)}</div></td>
@@ -532,6 +532,7 @@ async function refreshRestaurantsList(admin){
                 <button class="sbtn" style="margin:0;" ${act('showRestaurantUsers', r.id)}>👥 Kullanıcılar</button>
                 <button class="sbtn" style="margin:0;" ${act('showRestaurantAudit', r.id)}>📜 Değişiklikler</button>
                 <button class="sbtn" style="margin:0;" data-name="${escapeAttr(r.name)}" data-exp="${r.expires_at||''}" ${act('openExtendSubscription', r.id, r.name, r.expires_at||'')}>⏳ Süre Uzat</button>
+                <button class="sbtn" style="margin:0;" data-name="${escapeAttr(r.name)}" ${act('openUserLimit', r.id, r.name, r.max_users, r.user_count, r.user_limit_override == null ? '' : r.user_limit_override)}>👤 Kullanıcı Limiti</button>
                 ${(APP.adminSupportAllowed||{})[r.id] ? `<button class="sbtn" style="margin:0;background:var(--green);color:#fff;" title="İşletme destek erişimine izin verdi" ${act('startSupportSession', r.id, r.name)}>🛟 Destek olarak gir</button>` : ''}
                 <button type="button" class="act-btn act-delete" ${act('deleteRestaurantAdmin', r.id)}>${ICON_TRASH}<span>Sil</span></button>
               </div>
@@ -639,6 +640,17 @@ async function deleteRestaurantAdmin(id){
   if(error){ alert(error.message); return; }
   showToast('İşletme kalıcı olarak silindi ✓');
   refreshRestaurantsList(admin);
+}
+/* İşletmeye özel kullanıcı limiti: boş bırakılırsa paketin limiti geçerli olur. */
+async function openUserLimit(id, name, max, count, override){
+  const v = await uiPrompt('"' + name + '" için kullanıcı limiti\n\nŞu an: ' + count + ' / ' + max + ' kullanıcı' + (override !== '' ? ' (özel limit)' : ' (paket limiti)') + '\n\nYeni limiti yazın. Paket limitine dönmek için boş bırakın.', override === '' ? String(max) : String(override));
+  if(v === null) return;
+  const t = String(v).trim(), n = t === '' ? null : parseInt(t, 10);
+  if(n !== null && !(n >= 1)){ alert('Geçerli bir sayı girin'); return; }
+  const { error } = await sb.rpc('admin_set_user_limit', { p_token: getAdminSession().session_token, p_restaurant_id: id, p_limit: n });
+  if(error){ alert(error.message); return; }
+  showToast(n === null ? 'Paket limitine dönüldü ✓' : 'Kullanıcı limiti ' + n + ' yapıldı ✓');
+  refreshRestaurantsList(getAdminSession());
 }
 async function toggleRestaurantActive(id, makeActive){
   const msg = makeActive
