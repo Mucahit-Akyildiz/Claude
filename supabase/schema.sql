@@ -6314,7 +6314,7 @@ CREATE FUNCTION public.get_owner_report(p_token uuid) RETURNS jsonb
     SET search_path TO 'public', 'pg_temp'
     AS $$
 declare v_rid uuid; begin
-  select (x).restaurant_id into v_rid from (select _session_check(p_token, 'settings') x) z;
+  select (x).restaurant_id into v_rid from (select _session_check(p_token, null) x) z;
   return (select owner_report - 'last_daily' - 'last_weekly' || jsonb_build_object('day_end_hour', coalesce(day_end_hour, 4), 'default_email', email) from restaurants where id = v_rid);
 end $$;
 
@@ -9812,7 +9812,7 @@ CREATE FUNCTION public.send_owner_report_now(p_token uuid, p_kind text) RETURNS 
     SET search_path TO 'public', 'pg_temp'
     AS $$
 declare v_rid uuid; v_uid uuid; begin
-  select (x).restaurant_id, (x).user_id into v_rid, v_uid from (select _session_check(p_token, 'settings') x) z;
+  select (x).restaurant_id, (x).user_id into v_rid, v_uid from (select _session_check(p_token, null) x) z;
   if not exists(select 1 from app_users au join roles rl on rl.id = any(au.role_ids) where au.id = v_uid and rl.is_system) then raise exception 'Bu işlem için yetkiniz yok'; end if;
   return _owner_report_send(v_rid, case when p_kind = 'weekly' then 'weekly' else 'daily' end);
 end $$;
@@ -10324,7 +10324,7 @@ CREATE FUNCTION public.set_owner_report(p_token uuid, p_cfg jsonb) RETURNS void
     SET search_path TO 'public', 'pg_temp'
     AS $$
 declare v_rid uuid; v_uid uuid; begin
-  select (x).restaurant_id, (x).user_id into v_rid, v_uid from (select _session_check(p_token, 'settings') x) z;
+  select (x).restaurant_id, (x).user_id into v_rid, v_uid from (select _session_check(p_token, null) x) z;
   if not exists(select 1 from app_users au join roles rl on rl.id = any(au.role_ids) where au.id = v_uid and rl.is_system) then raise exception 'Bu ayarı yalnızca Yönetici değiştirebilir'; end if;
   update restaurants set owner_report = owner_report || jsonb_build_object('enabled', coalesce((p_cfg->>'enabled')::boolean,false), 'daily', coalesce((p_cfg->>'daily')::boolean,true),
     'weekly', coalesce((p_cfg->>'weekly')::boolean,true), 'emails', left(coalesce(p_cfg->>'emails',''), 500)) where id = v_rid;
