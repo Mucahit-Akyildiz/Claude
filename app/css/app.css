@@ -3554,3 +3554,5 @@ button.sl-stat{border:1px solid var(--border) !important;} button.sl-stat.on{bor
 .or-opt{display:flex;gap:10px;align-items:flex-start;padding:12px 14px;border-radius:14px;border:1px solid var(--border);background:var(--panel2,var(--panel));cursor:pointer;}
 .or-opt input{width:auto;margin:3px 0 0;} .or-opt b{display:block;font-size:14px;} .or-opt small{color:var(--muted);font-size:12px;}
 .or-actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:12px;} .or-actions > *{width:auto !important;margin:0 !important;}
+
+@keyframes callPulse{0%{box-shadow:0 0 0 0 rgba(255,255,255,.35)}70%{box-shadow:0 0 0 26px rgba(255,255,255,0)}100%{box-shadow:0 0 0 0 rgba(255,255,255,0)}}

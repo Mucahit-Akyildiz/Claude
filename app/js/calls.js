@@ -219,7 +219,7 @@ function callDrawUi(){
         : `${CALL.state === 'active' || CALL.state === 'connecting' ? `<div>${btn(CALL.muted ? '#f59e0b' : 'rgba(255,255,255,.18)', CALL.muted ? 'Sesi aç' : 'Sessiz', 'toggleCallMute', CALL.muted ? '🔇' : '🎙️')}</div><div>${btn(CALL_AUDIO.route === 'speaker' ? '#0891b2' : 'rgba(255,255,255,.18)', callRouteLabel(), 'openCallAudioPicker', callRouteIcon())}</div>` : ''}
            <div>${btn('#dc2626', 'Kapat', 'hangupVoiceCall', '✕')}</div>`}
     </div>
-    <style>@keyframes callPulse{0%{box-shadow:0 0 0 0 rgba(255,255,255,.35)}70%{box-shadow:0 0 0 26px rgba(255,255,255,0)}100%{box-shadow:0 0 0 0 rgba(255,255,255,0)}}</style>`;
+    `;
 }
 // Sayfa kapanırken açık görüşmeyi düzgün bitir.
 window.addEventListener('pagehide', () => { if(CALL.state !== 'idle') hangupVoiceCall(); });
