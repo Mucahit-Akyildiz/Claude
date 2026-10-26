@@ -1669,10 +1669,13 @@ function isOwnerUser(u){
 /* Şifre alanı: mevcut şifreler geri çevrilemez biçimde (bcrypt) saklandığı için
    gösterilemez; alan •••••• ile "ayarlı" görünür. 👁 yazılanı gösterir, 🎲 rastgele
    şifre üretip görünür halde alana yazar (personele iletmek için). */
+/* KVKK: telefon numarası varsayılan olarak maskeli (0538 *** ** 30); tıklanınca görünür ve düzenlenebilir olur. */
+function maskPhone(p){ const d = String(p || '').replace(/\D/g, ''); if(!d) return ''; return d.length >= 7 ? d.slice(0, 4) + ' *** ** ' + d.slice(-2) : '*** ' + d.slice(-2); }
+function revealPhone(el){ if(!el || el.dataset.masked !== '1') return; el.dataset.masked = ''; el.value = el.dataset.orig || ''; el.readOnly = false; el.style.cursor = ''; el.focus(); }
 function passField(id, disabled, existing){
   const btn = 'flex:0 0 auto;width:auto;margin:0;padding:6px 9px;font-size:15px;line-height:1;';
   return `<div style="display:flex;gap:6px;align-items:center;">
-    <input type="password" id="${id}" placeholder="${existing ? '••••••  (değiştirmek için yaz)' : 'Şifre'}" autocomplete="new-password" style="flex:1;min-width:0;margin:0;" ${disabled?'disabled':''}>
+    <input type="password" id="${id}" placeholder="${existing ? 'Kayıtlı (gizli) — yeni şifre yazın' : 'Şifre'}" autocomplete="new-password" style="flex:1;min-width:0;margin:0;" ${disabled?'disabled':''}>
     ${disabled ? '' : `<button type="button" class="ghost-btn" style="${btn}" title="Göster / gizle" ${act('togglePassVisible', id, '$this')}>👁</button>
     <button type="button" class="ghost-btn" style="${btn}" title="Rastgele şifre üret" ${act('fillRandomPass', id)}>🎲</button>`}
   </div>`;
@@ -1745,7 +1748,7 @@ function renderUsersSettings(el, session){
         <tr data-uid="${u.id}" data-cf-tags="${u.is_active===false ? 'off' : 'on'}" style="${u.is_active===false?'opacity:.55;':''}">
           <td>${locked ? '<span title="Yetkili kullanıcı - düzenleme izniniz yok">🔒</span>' : !canAssign ? '' : `<input type="checkbox" class="user-sel" value="${u.id}" style="width:auto;margin:0;" ${actOn('change','updateUserSelection',[])}>`}</td>
           <td class="col-name uc-name">${avatarHtml(u.username)}<input value="${escapeAttr(u.username)}" id="us_name_${u.id}" ${locked?'disabled':''}>${u.is_active===false?'<span class="role-badge" style="color:var(--red);border-color:var(--red);margin-top:6px;display:inline-block;">Pasif</span>':''}</td>
-          <td class="col-name"><input id="us_phone_${u.id}" inputmode="tel" placeholder="05XX…" value="${escapeAttr(u.phone||'')}" data-orig="${escapeAttr(u.phone||'')}" ${locked?'disabled':''} style="min-width:130px;"></td>
+          <td class="col-name"><input id="us_phone_${u.id}" inputmode="tel" placeholder="05XX…" value="${escapeAttr(maskPhone(u.phone))}" data-orig="${escapeAttr(u.phone||'')}" data-masked="${u.phone ? '1' : ''}" ${u.phone ? 'readonly title="Görmek / değiştirmek için tıklayın (KVKK)"' : ''} ${actOn('click','revealPhone',['$this'])} ${locked?'disabled':''} style="min-width:130px;${u.phone ? 'cursor:pointer;' : ''}"></td>
           <td class="col-name">${passField('us_pass_'+u.id, locked, true)}</td>
           <td class="col-name">${roleCheckboxes('us_'+u.id, u.role_ids||[], !canAssign)}</td>
         </tr>`).replace('<tr', `<tr data-uname="${escapeAttr(String(u.username).toLocaleLowerCase('tr'))}"`); }).join('')}
@@ -3080,7 +3083,7 @@ async function saveAllUsers(){
     const nameEl = document.getElementById('us_name_'+id), passEl = document.getElementById('us_pass_'+id);
     const roleIds = isOwner ? null : selectedRoleIds('us_'+id);
     const phEl = document.getElementById('us_phone_'+id);
-    return { id, isOwner, username: nameEl ? nameEl.value.trim() : '', password: passEl ? passEl.value : '', roleIds, phone: phEl && phEl.value.trim() !== (phEl.dataset.orig || '') ? phEl.value.trim() : undefined,
+    return { id, isOwner, username: nameEl ? nameEl.value.trim() : '', password: passEl ? passEl.value : '', roleIds, phone: phEl && phEl.dataset.masked !== '1' && phEl.value.trim() !== (phEl.dataset.orig || '') ? phEl.value.trim() : undefined,
       exempt: !!(roleIds && roleIds.some(r => exemptIds.includes(r))) };
   });
   if(!rows.length) return;
