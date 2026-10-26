@@ -2328,9 +2328,12 @@ async function renderIntegrationsSettings(el, session){
       <div class="oo-hero-t"><b>Müşterilere otomatik SMS</b><small>Rezervasyon onayı ve 2 saat kala hatırlatma, paket siparişi hazır bildirimi, bekleme listesinde "Masa Hazır" mesajı, ödeme alındı bilgisi.</small></div>
       <label class="oo-switch"><input type="checkbox" id="int_sms_enabled" ${data.sms_enabled?'checked':''} ${actOn('change','saveSmsSettings',['$checked'])}><span class="oo-track"><span class="oo-thumb"></span></span><em>${data.sms_enabled?'Açık':'Kapalı'}</em></label></div>
     <div id="tiSms"></div>
-    <div id="smsTplBox"></div>`;
+    <div id="smsTplBox"></div>
+    <div id="smsLogBox"></div>`;
   el.insertBefore(sms, inv);
   loadSmsTemplates();
+  APP.smsLog = { days: 30, purpose: '', status: '', q: '', rows: [], open: null };
+  loadSmsLog();
   const today = new Date(), from = new Date(Date.now()-29*864e5);
   const iso = d => d.toLocaleDateString('sv-SE');
   sb.rpc('list_invoices', { p_token: session.session_token, p_date: iso(from), p_date_to: iso(today) }).then(({ data: rows, error: e }) => {
@@ -2406,6 +2409,52 @@ const SMS_TPL = [
   { k:'staff_login', ic:'👤', t:'Personel giriş bilgileri', w:'Kullanıcılar › SMS Gönder ile', v:['isletme','kod','kullanici','sifre','android','web'], d:'{isletme} - Peyktan giris bilgileriniz: Isletme kodu: {kod} Kullanici: {kullanici} Sifre: {sifre} Android: {android} iPhone/Web: {web}' },
 ];
 const SMS_VAR_LBL = { kod:'İşletme kodu', kullanici:'Kullanıcı adı', sifre:'Geçici şifre', android:'Android linki', web:'iPhone/Web linki', kurye:'Kurye adı', kurye_tel:'Kurye telefonu', isletme:'İşletme adı', ad:'Müşteri adı', telefon:'İşletme telefonu', dakika:'Kalan dakika', tarih:'Tarih', saat:'Saat', kisi:'Kişi sayısı', no:'Sipariş no', tutar:'Tutar', takip:'Takip linki', link:'Değerlendirme linki' };
+/* --- Gönderilen SMS'ler: işletmenin kendi gönderim geçmişi (get_sms_log) --- */
+const SMS_ST = { dispatched:['Gönderildi','ok'], no_provider:['Sağlayıcı bağlı değil','warn'], failed:['Hata','bad'], error:['Hata','bad'], pending:['Bekliyor','wait'], disabled:['Kapalı','warn'] };
+const SMS_EXTRA_LBL = { test:'Test mesajı', otp:'Doğrulama kodu', reservation_confirm:'Rezervasyon onayı' };
+function smsPhone(p){ const d = String(p || '').replace(/\D/g, ''), m = d.match(/^90(\d{3})(\d{3})(\d{2})(\d{2})$/); return m ? '0' + m[1] + ' ' + m[2] + ' ' + m[3] + ' ' + m[4] : (p || '—'); }
+function smsPurposeLbl(k){ const t = SMS_TPL.find(x => x.k === k); return t ? t.ic + ' ' + t.t : (SMS_EXTRA_LBL[k] || k || '—'); }
+async function loadSmsLog(more){
+  const box = document.getElementById('smsLogBox'); if(!box) return;
+  const L = APP.smsLog, from = new Date(Date.now() - (L.days - 1) * 864e5).toLocaleDateString('sv-SE');
+  const { data, error } = await sb.rpc('get_sms_log', { p_token: getSession().session_token, p_from: from, p_to: null,
+    p_purpose: L.purpose || null, p_status: L.status || null, p_q: L.q || null, p_limit: 50, p_offset: more ? L.rows.length : 0 });
+  if(error){ box.innerHTML = `<p class="muted">SMS geçmişi yüklenemedi: ${escapeHtml(error.message)}</p>`; return; }
+  L.data = data; L.rows = more ? L.rows.concat(data.rows || []) : (data.rows || []);
+  drawSmsLog();
+}
+function drawSmsLog(){
+  const box = document.getElementById('smsLogBox'); if(!box) return;
+  const L = APP.smsLog, d = L.data || {}, st = d.stats || {}, bp = d.by_purpose || {}, days = d.by_day || [];
+  const max = Math.max(1, ...days.map(x => x.n));
+  const opt = (v, cur, l) => `<option value="${v}" ${cur===v?'selected':''}>${escapeHtml(l)}</option>`;
+  box.innerHTML = `<div class="sl-wrap">
+    <div class="sl-head"><h3>📨 Gönderilen SMS'ler</h3>
+      <div class="seg sl-seg">${[7,30,90].map(n => `<button type="button" class="${L.days===n?'on':''}" ${act('setSmsLog','days',n)}>Son ${n} gün</button>`).join('')}</div></div>
+    <div class="sl-stats">
+      <div class="sl-stat"><small>Toplam</small><b>${st.all||0}</b></div>
+      <div class="sl-stat ok"><small>Gönderildi</small><b>${st.sent||0}</b></div>
+      <div class="sl-stat bad"><small>Gönderilemedi</small><b>${st.failed||0}</b></div>
+      <div class="sl-stat"><small>Harcanan SMS kredisi</small><b>${st.segments||0}</b><em>uzun mesajlar birden fazla kredi sayılır</em></div>
+    </div>
+    ${days.length ? `<div class="sl-chart" title="Günlük gönderim">${days.map(x => `<span style="height:${Math.round(x.n / max * 100)}%" title="${new Date(x.d).toLocaleDateString('tr-TR')}: ${x.n} SMS"></span>`).join('')}</div>` : ''}
+    <div class="sl-filters">
+      <select ${actOn('change','setSmsLog',['purpose','$value'])}>${opt('', L.purpose, 'Tüm türler')}${Object.keys(bp).map(k => opt(k, L.purpose, smsPurposeLbl(k).replace(/^\S+ /, '') + ' (' + bp[k] + ')')).join('')}</select>
+      <select ${actOn('change','setSmsLog',['status','$value'])}>${opt('', L.status, 'Tüm durumlar')}${Object.keys(SMS_ST).filter(k => k !== 'error').map(k => opt(k, L.status, SMS_ST[k][0])).join('')}</select>
+      <input type="search" placeholder="🔍 Telefon veya mesajda ara" value="${escapeAttr(L.q)}" ${actOn('change','setSmsLog',['q','$value'])}>
+    </div>
+    ${!L.rows.length ? '<p class="muted sl-empty">Bu filtrelerle gönderilmiş SMS yok.</p>' : `<div class="sl-list">${L.rows.map(r => { const sx = SMS_ST[r.status] || [r.status || '—', 'wait'], open = L.open === r.id, len = smsLen(r.message || '');
+      return `<div class="sl-row ${open?'open':''}" ${act('toggleSmsLogRow', r.id)}>
+        <div class="sl-when">${new Date(r.created_at).toLocaleDateString('tr-TR')}<small>${new Date(r.created_at).toLocaleTimeString('tr-TR', { hour:'2-digit', minute:'2-digit' })}</small></div>
+        <div class="sl-main"><div class="sl-top"><b>${escapeHtml(smsPhone(r.phone))}</b><span class="sl-type">${escapeHtml(smsPurposeLbl(r.purpose))}</span></div>
+          <div class="sl-msg">${escapeHtml(r.message || '')}</div>
+          ${open ? `<div class="sl-meta">${len.n} karakter · ${len.sms} SMS kredisi${len.uni ? ' · Türkçe karakter içeriyor' : ''}${r.provider ? ' · Sağlayıcı: ' + escapeHtml(r.provider) : ''}${r.dispatched_at ? ' · Gönderim: ' + new Date(r.dispatched_at).toLocaleString('tr-TR') : ''}</div>` : ''}</div>
+        <span class="sl-st ${sx[1]}">${sx[0]}</span></div>`; }).join('')}</div>
+      ${L.rows.length < (d.total || 0) ? `<button type="button" class="ghost-btn sl-more" ${act('loadSmsLog', true)}>Daha fazla göster (${L.rows.length} / ${d.total})</button>` : `<p class="muted sl-count">${d.total || 0} SMS gösteriliyor</p>`}`}
+  </div>`;
+}
+function setSmsLog(k, v){ APP.smsLog[k] = k === 'days' ? Number(v) : v; APP.smsLog.open = null; loadSmsLog(); }
+function toggleSmsLogRow(id){ APP.smsLog.open = APP.smsLog.open === id ? null : id; drawSmsLog(); }
 async function loadSmsTemplates(){
   const box = document.getElementById('smsTplBox'); if(!box) return;
   const { data } = await sb.rpc('get_sms_templates', { p_token: getSession().session_token });
