@@ -98,7 +98,7 @@ function drawSmsLog(){
     ${!L.rows.length ? '<p class="muted sl-empty">Bu filtrelerle gönderilmiş SMS yok.</p>' : `<div class="sl-list">${L.rows.map(r => { const sx = SMS_ST[r.status] || [r.status || '—', 'wait'], open = L.open === r.id, len = smsLen(r.message || '');
       return `<div class="sl-row ${open?'open':''}" ${act('toggleSmsLogRow', r.id)}>
         <div class="sl-when">${new Date(r.created_at).toLocaleDateString('tr-TR')}<small>${new Date(r.created_at).toLocaleTimeString('tr-TR', { hour:'2-digit', minute:'2-digit' })}</small></div>
-        <div class="sl-main"><div class="sl-top"><b>${escapeHtml(smsPhone(r.phone))}</b><span class="sl-type">${escapeHtml(smsPurposeLbl(r.purpose))}</span></div>
+        <div class="sl-main"><div class="sl-top"><b title="Tam numara için satıra tıklayın">${escapeHtml(open ? smsPhone(r.phone) : maskPhone(r.phone))}</b><span class="sl-type">${escapeHtml(smsPurposeLbl(r.purpose))}</span></div>
           <div class="sl-msg">${escapeHtml(r.message || '')}</div>
           ${open ? `<div class="sl-meta">${len.n} karakter · ${len.sms} SMS kredisi${len.uni ? ' · Türkçe karakter içeriyor' : ''}${r.provider ? ' · Sağlayıcı: ' + escapeHtml(r.provider) : ''}${r.dispatched_at ? ' · Gönderim: ' + new Date(r.dispatched_at).toLocaleString('tr-TR') : ''}${r.status === 'no_provider' ? '<br>⚠️ Bu SMS gönderilmedi çünkü o sırada SMS firması bağlı değildi. Bağlantı sekmesinden firmanızı seçip kaydedin.' : ''}</div>` : ''}</div>
         <span class="sl-st ${sx[1]}">${sx[0]}</span></div>`; }).join('')}</div>
