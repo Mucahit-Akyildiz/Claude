@@ -3475,3 +3475,21 @@ p.st-help{text-align:left;font-size:12.5px;margin:0 0 10px;}
 .sl-st.wait{background:rgba(127,127,127,.15);color:var(--muted);}
 .sl-more{width:100%;margin-top:10px;} .sl-count,.sl-empty{text-align:center;font-size:12.5px;}
 @media (max-width:700px){.sl-stats{grid-template-columns:1fr 1fr;} .sl-filters{grid-template-columns:1fr 1fr;} .sl-filters input{grid-column:1/-1;} .sl-row{grid-template-columns:1fr auto;} .sl-when{grid-column:1/-1;display:flex;gap:6px;}}
+
+/* ===== İletişim kutuları: sekmeler + kategorili iki sütunlu mesaj kartları ===== */
+.ct-tabs{display:flex;gap:6px;margin:16px 0 14px;padding:5px;border-radius:14px;background:var(--panel2,rgba(127,127,127,.1));border:1px solid var(--border);width:max-content;max-width:100%;overflow-x:auto;}
+.ct-tabs button{width:auto !important;margin:0;padding:9px 16px;border:0;border-radius:10px;background:transparent;color:var(--muted);font-weight:800;font-size:13.5px;cursor:pointer;white-space:nowrap;}
+.ct-tabs button.on{background:var(--accent,#06b6d4);color:#fff;box-shadow:0 2px 10px color-mix(in srgb,var(--accent,#06b6d4) 35%,transparent);}
+[data-ctgrp] > .ct-pane{display:none;}
+[data-ctgrp][data-ct="conn"] > .ct-pane[data-pane="conn"],
+[data-ctgrp][data-ct="tpl"] > .ct-pane[data-pane="tpl"],
+[data-ctgrp][data-ct="log"] > .ct-pane[data-pane="log"]{display:block;}
+.ct-pane .sl-wrap{margin-top:0;padding-top:0;border-top:0;}
+.ct-cats{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 12px;}
+.ct-cats button{width:auto !important;margin:0;padding:6px 12px;border-radius:999px;border:1px solid var(--border);background:var(--panel);color:var(--text);font-size:12.5px;font-weight:700;cursor:pointer;}
+.ct-cats button small{color:var(--muted);font-weight:600;margin-left:2px;}
+.ct-cats button.on{border-color:var(--accent,#06b6d4);background:color-mix(in srgb,var(--accent,#06b6d4) 16%,var(--panel));}
+.st-list.st-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:10px;align-items:start;}
+.st-list.st-grid > .st-row{margin:0;}
+.st-list.st-grid > .st-row.open{grid-column:1/-1;}
+@media (max-width:520px){.st-list.st-grid{grid-template-columns:1fr;}}
