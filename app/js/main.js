@@ -1,3 +1,14 @@
+/* Kendi kendini onarma: tarayıcı önbelleğinden eski/yarım bir dosya gelip temel
+   modüller (state.js / utils.js) yüklenemediyse önbelleği temizleyip bir kez yenile. */
+if(typeof APP === 'undefined' || typeof escapeAttr === 'undefined'){
+  try{
+    if(!sessionStorage.getItem('pk_selfheal')){
+      sessionStorage.setItem('pk_selfheal', '1');
+      const done = () => location.reload();
+      (window.caches ? caches.keys().then(ks => Promise.all(ks.map(k => caches.delete(k)))) : Promise.resolve()).then(done, done);
+    }
+  }catch(e){}
+}
 /* Ana router (render/goToView/goHome), ana ekran (renderHome), deep-link
    ve uygulama baslangic (bootstrap) kodu - app/index.html'den cikarildi.
    Diger TUM modullerden SONRA yuklenmeli (her bolumun render*View
@@ -281,7 +292,7 @@ async function refreshNavBadges(){
   try{ if(navigator.setAppBadge){ total > 0 ? navigator.setAppBadge(total) : navigator.clearAppBadge(); } }catch(e){}
   // Yeni bir bekleyen iş geldiyse Peyktan bildirim sesi (mutfak kendi zilini çalar).
   const soundTotal = visible.filter(i => i.view!=='kitchen').reduce((t, i) => t + (data[i.view] || 0), 0);
-  const voiceSound = processVoiceBadges(data, visible.map(i => i.view));
+  const voiceSound = typeof processVoiceBadges === 'function' ? processVoiceBadges(data, visible.map(i => i.view)) : false;
   if(APP.lastSoundTotal != null && soundTotal > APP.lastSoundTotal && (voiceSound || !getVoicePrefs().enabled)) playPeyktanSound();
   APP.lastSoundTotal = soundTotal;
 }

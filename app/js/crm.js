@@ -5,7 +5,7 @@ async function renderCrmView(main, session){
   const { data, error } = await withLoadingOverlay(sb.rpc('list_customers', { p_token: session.session_token, p_search: APP.crmSearch||null }));
   const rows = error ? [] : (data||[]);
   APP.crmRows = rows;
-  const loyalty = APP.config.loyalty || { enabled:false, spend_per_point:10, point_value:1, birthday_discount_percent:0 };
+  const loyalty = (APP.config && APP.config.loyalty) || { enabled:false, spend_per_point:10, point_value:1, birthday_discount_percent:0 };
   const bdays = rows.filter(c => { const b = crmBirthdayInfo(c.birthday); return b && b.days <= 30; }).length;
   main.innerHTML = `<h1>Müşteriler</h1>
     ${statChips([['👥', rows.length, APP.crmSearch ? 'Aramada bulunan' : 'Kayıtlı müşteri', 'var(--c1)', 'all'], ['⭐', rows.reduce((x, c) => x + (Number(c.points_balance)||0), 0), 'Toplam puan', 'var(--c3)', 'pts'],
