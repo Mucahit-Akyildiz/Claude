@@ -2358,10 +2358,12 @@ async function renderIntegrationsSettings(el, session){
   // İşletmenin kendi e-posta ve online ödeme hesapları (bkz. renderTenantIntegrations).
   [['mail','✉️ E-posta Gönderimi','tiMail']].forEach(([k, t, id]) => {
     const b = document.createElement('div'); b.className = 'box int-pane ix-box'; b.style.maxWidth = 'none'; b.dataset.int = k;
-    b.innerHTML = `<h2>${t}</h2>${ctTabsHtml('mail', [['conn','🔌 Bağlantı'],['tpl','✉️ E-postalar']])}<div class="ct-pane" data-pane="conn"><div id="${id}"><p class="muted">Yükleniyor…</p></div></div><div class="ct-pane" data-pane="tpl"><div id="mailTplBox"></div></div>`;
+    b.innerHTML = `<h2>${t}</h2>${ctTabsHtml('mail', [['conn','🔌 Bağlantı'],['tpl','✉️ E-postalar'],['log','📨 Gönderilenler']])}<div class="ct-pane" data-pane="conn"><div id="${id}"><p class="muted">Yükleniyor…</p></div></div><div class="ct-pane" data-pane="tpl"><div id="mailTplBox"></div></div><div class="ct-pane" data-pane="log"><div id="mailLogBox"></div></div>`;
     b.dataset.ctgrp = 'mail'; b.dataset.ct = (APP.ctTab || {}).mail || 'conn'; el.appendChild(b); boxes.push(b);
   });
   loadMailTemplates();
+  APP.mailLog = { days: 30, day: '', purpose: '', status: '', q: '', rows: [], open: null };
+  loadMailLog();
   // Online kartla ödeme, Online Sipariş sekmesinin içinde.
   const onl = boxes.find(x => x.dataset.int === 'online');
   if(onl){ const d = document.createElement('div'); d.id = 'tiPay'; (onl.querySelector('#ooPayCol') || onl).appendChild(d); }
@@ -2369,13 +2371,18 @@ async function renderIntegrationsSettings(el, session){
   const INT_DESC = { online:'Kendi sipariş sayfanız ve kartla ödeme', google:'İşletme yorumlarını takip edin', sms:'Müşterilere SMS bildirimi', mail:'Kendi alan adınızdan e-posta', pay:'iyzico / PayTR ile kartla ödeme', invoice:'Faturada görünecek bilgiler',
     efatura:'Yazarkasa ve e-Fatura/e-Arşiv', marketplace:'Pazaryeri menü eşitleme', accounting:'Muhasebe yazılımına aktarım' };
   const stOf = (id) => { const b = boxes.find(x => x.dataset.int === id); const t = b ? b.textContent : '';
-    return /paketinizde yok|eklenti/i.test(t) && /paketinizde yok/i.test(t) ? ['lock','🔒 Eklenti'] : ['ok','● Kullanılabilir']; };
+    if(/paketinizde yok/i.test(t)) return ['lock','🔒 Eklenti'];
+    const c = APP.config || {}, on = { online: !!(c.online_ordering && c.online_ordering.enabled), google: !!c.google_review_url,
+      marketplace: !!(data.marketplace_enabled && (data.marketplace_getir_configured || data.marketplace_trendyol_configured || data.marketplace_yemeksepeti_configured)),
+      invoice: !!(data.invoice_title && data.tax_number), efatura: !!(data.efatura_enabled && data.efatura_configured), accounting: !!(data.accounting_enabled && data.accounting_configured),
+      sms: !!data.sms_enabled && (APP.intLive || {}).sms !== false, mail: !!(APP.intLive || {}).mail }[id];
+    return on ? ['ok','Aktif'] : ['off','Kapalı']; };
   const bar = document.createElement('div');
   bar.className = 'int-groups';
   const GROUPS = [['🛒 Satış kanalları', ['online','marketplace','google']], ['💬 Müşteri iletişimi', ['sms','mail']], ['🧾 Fatura & muhasebe', ['invoice','efatura','accounting']]];
   bar.innerHTML = GROUPS.map(([g, ids]) => `<div class="int-group"><div class="int-gt">${g}</div><div class="int-gl">${ids.map(id => { const t = INT_TABS.find(x => x.id === id); if(!t) return ''; const [k, l] = stOf(id);
     return `<button type="button" class="int-row ${APP.integrationsSubTab===id?'active':''} st-${k}" data-int-tab="${id}" ${act('setIntegrationsSubTab', id)}>
-      <span class="int-ic">${t.ic}</span><span class="int-txt"><b>${t.label}</b><small>${INT_DESC[id]||''}</small></span><span class="int-st">${k==='lock' ? '🔒' : '●'}</span></button>`; }).join('')}</div></div>`).join('');
+      <span class="int-ic">${t.ic}</span><span class="int-txt"><b>${t.label}</b><small>${INT_DESC[id]||''}</small></span><span class="int-st" title="${l}">${k==='lock' ? '🔒' : k==='ok' ? '● Aktif' : '○ Kapalı'}</span></button>`; }).join('')}</div></div>`).join('');
   el.insertBefore(bar, el.firstChild);
   showIntegrationPane();
   renderTenantIntegrations(session);
@@ -2491,6 +2498,63 @@ function drawSmsLog(){
 }
 function setSmsLog(k, v){ const L = APP.smsLog; if(k === 'status' && L.status === v) v = ''; L[k] = k === 'days' ? Number(v) : v; if(k === 'days') L.day = ''; L.open = null; loadSmsLog(); }
 function toggleSmsLogRow(id){ APP.smsLog.open = APP.smsLog.open === id ? null : id; drawSmsLog(); }
+/* --- Gönderilen e-postalar (get_mail_log) — SMS geçmişiyle aynı düzen --- */
+const MAIL_ST = { sent:['Gönderildi','ok'], queued:['Gönderiliyor','wait'], failed:['Hata','bad'], no_provider:['Servis bağlı değil','warn'] };
+const MAIL_EXTRA_LBL = { receipt:'🧾 Fiş', invoice:'📄 Fatura', other:'✉️ Diğer' };
+function mailPurposeLbl(k){ const t = MAIL_TPL.find(x => x.k === k); return t ? t.ic + ' ' + t.t : (MAIL_EXTRA_LBL[k] || k || '—'); }
+async function loadMailLog(more){
+  const box = document.getElementById('mailLogBox'); if(!box) return;
+  const L = APP.mailLog, from = L.day || new Date(Date.now() - (L.days - 1) * 864e5).toLocaleDateString('sv-SE');
+  const { data, error } = await sb.rpc('get_mail_log', { p_token: getSession().session_token, p_from: from, p_to: L.day || null,
+    p_purpose: L.purpose || null, p_status: L.status || null, p_q: L.q || null, p_limit: 50, p_offset: more ? L.rows.length : 0 });
+  if(error){ box.innerHTML = `<p class="muted">E-posta geçmişi yüklenemedi: ${escapeHtml(error.message)}</p>`; return; }
+  L.data = data; L.rows = more ? L.rows.concat(data.rows || []) : (data.rows || []);
+  drawMailLog();
+}
+function drawMailLog(){
+  const box = document.getElementById('mailLogBox'); if(!box) return;
+  const L = APP.mailLog, d = L.data || {}, st = d.stats || {}, bp = d.by_purpose || {};
+  const opt = (v, cur, l) => `<option value="${v}" ${cur===v?'selected':''}>${escapeHtml(l)}</option>`;
+  const byD = {}; (d.by_day || []).forEach(x => { byD[x.d] = x; });
+  const days = L.day ? [] : Array.from({ length: L.days }, (_, i) => { const k = new Date(Date.now() - (L.days - 1 - i) * 864e5).toLocaleDateString('sv-SE'), x = byD[k] || {}; return { d: k, n: x.n || 0, s: x.s || 0, f: x.f || 0 }; });
+  const max = Math.max(1, ...days.map(x => x.n)), every = L.days <= 7 ? 1 : L.days <= 30 ? 5 : 15;
+  const purp = Object.entries(bp).sort((a, b) => b[1] - a[1]), pmax = Math.max(1, ...purp.map(x => x[1]));
+  const card = (k, cls, label, val, extra) => `<button type="button" class="sl-stat ${cls} ${L.status===k?'on':''}" ${act('setMailLog','status',k)}><small>${label}</small><b>${val}</b>${extra||''}</button>`;
+  const pct = st.all ? Math.round((st.sent || 0) / st.all * 100) : 0;
+  box.innerHTML = `<div class="sl-wrap">
+    <div class="sl-head"><h3>Gönderilen e-postalar${L.day ? ` <span class="sl-chip">${new Date(L.day).toLocaleDateString('tr-TR')} <button type="button" ${act('setMailLog','day','')}>✕</button></span>` : ''}</h3>
+      <div class="seg sl-seg">${[7,30,90].map(n => `<button type="button" class="${L.days===n&&!L.day?'on':''}" ${act('setMailLog','days',n)}>Son ${n} gün</button>`).join('')}</div></div>
+    <div class="sl-stats">
+      ${card('', '', 'Toplam', st.all||0)}
+      ${card('sent', 'ok', 'Gönderildi', st.sent||0, `<i class="sl-bar"><span style="width:${pct}%"></span></i><em>%${pct} başarı</em>`)}
+      ${card('__failed', 'bad', 'Gönderilemedi', st.failed||0, st.failed ? '<em>Nedenini görmek için tıklayın</em>' : '')}
+      ${card('queued', '', 'Yolda', st.queued||0, '<em>Servis yanıtı bekleniyor</em>')}
+    </div>
+    <div class="sl-viz">
+      ${days.length ? `<div class="sl-panel"><div class="sl-pt">Günlük gönderim <span><i class="dot ok"></i>Gönderildi <i class="dot bad"></i>Gönderilemedi</span></div>
+        <div class="sl-chart"><span class="sl-ymax">${max}</span>${days.map((x, i) => `<button type="button" class="sl-col" title="${new Date(x.d).toLocaleDateString('tr-TR')}: ${x.s} gönderildi${x.f ? ', ' + x.f + ' gönderilemedi' : ''}" ${x.n ? act('setMailLog','day',x.d) : 'disabled'}>
+          <span class="sl-stack" style="height:${x.n / max * 100}%">${x.f ? `<i class="bad" style="flex:${x.f}"></i>` : ''}${x.s ? `<i class="ok" style="flex:${x.s}"></i>` : ''}</span>
+          <small>${(i % every === 0 || i === days.length - 1) ? new Date(x.d).toLocaleDateString('tr-TR', { day:'2-digit', month:'2-digit' }) : ''}</small></button>`).join('')}</div></div>` : ''}
+      ${purp.length ? `<div class="sl-panel"><div class="sl-pt">Türlere göre</div><div class="sl-hbars">${purp.map(([k, n]) => `<button type="button" class="sl-hbar ${L.purpose===k?'on':''}" ${act('setMailLog','purpose',L.purpose===k?'':k)}>
+          <span class="sl-hl">${escapeHtml(mailPurposeLbl(k))}</span><span class="sl-ht"><i style="width:${n / pmax * 100}%"></i></span><b>${n}</b></button>`).join('')}</div></div>` : ''}
+    </div>
+    <div class="sl-filters">
+      <select ${actOn('change','setMailLog',['purpose','$value'])}>${opt('', L.purpose, 'Tüm türler')}${Object.keys(bp).map(k => opt(k, L.purpose, mailPurposeLbl(k).replace(/^\S+ /, '') + ' (' + bp[k] + ')')).join('')}</select>
+      <select ${actOn('change','setMailLog',['status','$value'])}>${opt('', L.status, 'Tüm durumlar')}${opt('__failed', L.status, 'Gönderilemeyenler (tümü)')}${Object.keys(MAIL_ST).map(k => opt(k, L.status, MAIL_ST[k][0])).join('')}</select>
+      <input type="search" placeholder="🔍 E-posta adresi veya konuda ara" value="${escapeAttr(L.q)}" ${actOn('change','setMailLog',['q','$value'])}>
+    </div>
+    ${!L.rows.length ? '<p class="muted sl-empty">Bu filtrelerle gönderilmiş e-posta yok. (Kayıt bu güncellemeden itibaren tutuluyor.)</p>' : `<div class="sl-list">${L.rows.map(r => { const sx = MAIL_ST[r.status] || [r.status || '—', 'wait'], open = L.open === r.id;
+      return `<div class="sl-row ${open?'open':''}" ${act('toggleMailLogRow', r.id)}>
+        <div class="sl-when">${new Date(r.created_at).toLocaleDateString('tr-TR')}<small>${new Date(r.created_at).toLocaleTimeString('tr-TR', { hour:'2-digit', minute:'2-digit' })}</small></div>
+        <div class="sl-main"><div class="sl-top"><b>${escapeHtml(r.to_email)}</b><span class="sl-type">${escapeHtml(mailPurposeLbl(r.purpose))}</span></div>
+          <div class="sl-msg">${escapeHtml(r.subject || '')}</div>
+          ${open ? `<div class="sl-meta">${r.provider ? 'Servis: ' + escapeHtml(r.provider) : ''}${r.finished_at ? ' · Sonuç: ' + new Date(r.finished_at).toLocaleString('tr-TR') : ''}${r.error ? '<br>⚠️ Hata: ' + escapeHtml(r.error) : ''}${r.status === 'no_provider' ? '<br>⚠️ Bu e-posta gönderilmedi çünkü o sırada e-posta servisi bağlı değildi. Bağlantı sekmesinden servisinizi kaydedin.' : ''}</div>` : ''}</div>
+        <span class="sl-st ${sx[1]}">${sx[0]}</span></div>`; }).join('')}</div>
+      ${L.rows.length < (d.total || 0) ? `<button type="button" class="ghost-btn sl-more" ${act('loadMailLog', true)}>Daha fazla göster (${L.rows.length} / ${d.total})</button>` : `<p class="muted sl-count">${d.total || 0} e-posta gösteriliyor</p>`}`}
+  </div>`;
+}
+function setMailLog(k, v){ const L = APP.mailLog; if(k === 'status' && L.status === v) v = ''; L[k] = k === 'days' ? Number(v) : v; if(k === 'days') L.day = ''; L.open = null; loadMailLog(); }
+function toggleMailLogRow(id){ APP.mailLog.open = APP.mailLog.open === id ? null : id; drawMailLog(); }
 async function loadSmsTemplates(){
   const box = document.getElementById('smsTplBox'); if(!box) return;
   const { data } = await sb.rpc('get_sms_templates', { p_token: getSession().session_token });
@@ -3464,6 +3528,10 @@ async function renderTenantIntegrations(session){
       `<button type="button" class="ix-tile ${cur===v?'on':''}" ${act(fn, id, v)} data-v="${v}"><span>${ic}</span><b>${n}</b><small>${d}</small></button>`).join('')}</div>`;
   const mailWait = ml.provider === 'other';
   const smsOk = !!(sm.provider === 'other' ? sm.url : (sm.provider && sm.user && sm.has_pass)), mailOk = !!(ml.provider && ml.key_tail && ml.from);
+  APP.intLive = { sms: smsOk, mail: mailOk && !mailWait };
+  [['sms', smsOk && !!(document.getElementById('int_sms_enabled') || {}).checked], ['mail', mailOk && !mailWait]].forEach(([id, ok]) => {
+    const r = document.querySelector('.int-row[data-int-tab="' + id + '"]'); if(!r || r.classList.contains('st-lock')) return;
+    r.classList.toggle('st-ok', ok); r.classList.toggle('st-off', !ok); const e = r.querySelector('.int-st'); if(e) e.textContent = ok ? '● Aktif' : '○ Kapalı'; });
   const sc = TI_SMS[sm.provider] || TI_SMS.netgsm;
   const cards = [`<div class="ix-sec"><div class="ix-st">1 · SMS firmanızı seçin <span class="ti-st ${smsOk?'ok':''}">${smsOk?'● Bağlı':'○ Bağlı değil — gönderilmez'}</span></div>
       ${tiles('ti_sms_provider', sm.provider, [['', '🚫', 'Bağlı değil', 'SMS gönderilmez'], ...Object.keys(TI_SMS).sort((a, b) => (a==='other') - (b==='other')).map(k => [k, TI_SMS[k].ic, TI_SMS[k].n, TI_SMS[k].d])], 'tiSmsPick')}</div>

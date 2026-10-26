@@ -3524,3 +3524,7 @@ button.sl-stat:hover{border-color:var(--accent,#06b6d4);transform:translateY(-1p
 .sl-col,.sl-hbar,button.sl-stat,.sl-chip button{box-shadow:none !important;}
 .sl-col{border:0 !important;} .sl-hbar{border:1px solid transparent !important;} .sl-hbar.on{border-color:var(--accent,#06b6d4) !important;}
 button.sl-stat{border:1px solid var(--border) !important;} button.sl-stat.on{border-color:var(--accent,#06b6d4) !important;}
+/* Entegrasyon listesi: yalnızca gerçekten bağlı/açık olanlar yeşil */
+.int-row .int-st{white-space:nowrap;}
+.int-row.st-off .int-st{background:rgba(127,127,127,.14);color:var(--muted);}
+.int-row.st-ok .int-st{background:color-mix(in srgb,var(--ok,#22c55e) 18%,transparent);color:var(--ok,#22c55e);}
