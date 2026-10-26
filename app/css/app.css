@@ -3560,3 +3560,10 @@ button.sl-stat{border:1px solid var(--border) !important;} button.sl-stat.on{bor
 /* Yükleniyor perdesi: açılış logosuyla aynı görünüm ama zıplamadan, yumuşak belirir. */
 #loadingOverlay .splash-logo,#loadingOverlay .splash-name,#loadingOverlay .splash-sub{animation:none;}
 .pw-cur{display:block;margin-top:5px;font-size:12px;font-weight:700;color:var(--accent,#06b6d4);word-break:break-all;}
+
+/* Mobil uygulama açılışı: logo, Android açılış ekranındakiyle (129×160dp, tam ortada, açık zemin)
+   birebir aynı yerde durur; geçiş fark edilmez. Yazılar logonun altında belirir. */
+.native-app #splashScreen{background:#F7F7F5;}
+.native-app #splashScreen .splash-logo{position:absolute;left:50%;top:50%;width:129px;height:160px;margin:-80px 0 0 -64.5px;animation:none;filter:none;object-fit:contain;}
+.native-app #splashScreen .splash-name{position:absolute;left:0;right:0;top:calc(50% + 100px);margin:0;text-align:center;color:#25282b;}
+.native-app #splashScreen .splash-sub{position:absolute;left:0;right:0;top:calc(50% + 140px);margin:0;text-align:center;color:#6b7280;}

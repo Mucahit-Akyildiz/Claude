@@ -34,8 +34,9 @@ public class MainActivity extends BridgeActivity {
         super.onCreate(savedInstanceState);
         // Sesli bildirimler (doğal ses / cihaz sesi) dokunuş beklemeden çalabilsin.
         try { getBridge().getWebView().getSettings().setMediaPlaybackRequiresUserGesture(false); } catch (Exception e) { }
-        // Sayfa yüklenene kadar siyah ekran görünmesin: WebView açılışla aynı renkte başlar.
-        try { getBridge().getWebView().setBackgroundColor(0xFFF7F7F5); } catch (Exception e) { }
+        // WebView şeffaf: sayfa çizilene kadar arkadaki pencere arka planı (açılış rengi + logo) görünür,
+        // web açılış ekranı logoyu aynı yerde gösterdiği için boş/beyaz ara ekran olmaz.
+        try { getBridge().getWebView().setBackgroundColor(0x00000000); } catch (Exception e) { }
         // Android 15+ kenardan kenara çizim: içerik durum/gezinme çubuğunun ve klavyenin altında kalmasın.
         try {
             final android.view.View wv = getBridge().getWebView();
