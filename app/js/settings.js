@@ -2327,9 +2327,11 @@ async function renderIntegrationsSettings(el, session){
     <div class="oo-hero ${data.sms_enabled?'on':''}"><div class="oo-hero-ic">📱</div>
       <div class="oo-hero-t"><b>Müşterilere otomatik SMS</b><small>Rezervasyon onayı ve 2 saat kala hatırlatma, paket siparişi hazır bildirimi, bekleme listesinde "Masa Hazır" mesajı, ödeme alındı bilgisi.</small></div>
       <label class="oo-switch"><input type="checkbox" id="int_sms_enabled" ${data.sms_enabled?'checked':''} ${actOn('change','saveSmsSettings',['$checked'])}><span class="oo-track"><span class="oo-thumb"></span></span><em>${data.sms_enabled?'Açık':'Kapalı'}</em></label></div>
-    <div id="tiSms"></div>
-    <div id="smsTplBox"></div>
-    <div id="smsLogBox"></div>`;
+    ${ctTabsHtml('sms', [['conn','🔌 Bağlantı'],['tpl','💬 Mesajlar'],['log','📨 Gönderilenler']])}
+    <div class="ct-pane" data-pane="conn"><div id="tiSms"></div></div>
+    <div class="ct-pane" data-pane="tpl"><div id="smsTplBox"></div></div>
+    <div class="ct-pane" data-pane="log"><div id="smsLogBox"></div></div>`;
+  sms.dataset.ctgrp = 'sms'; sms.dataset.ct = (APP.ctTab || {}).sms || 'conn';
   el.insertBefore(sms, inv);
   loadSmsTemplates();
   APP.smsLog = { days: 30, purpose: '', status: '', q: '', rows: [], open: null };
@@ -2356,7 +2358,8 @@ async function renderIntegrationsSettings(el, session){
   // İşletmenin kendi e-posta ve online ödeme hesapları (bkz. renderTenantIntegrations).
   [['mail','✉️ E-posta Gönderimi','tiMail']].forEach(([k, t, id]) => {
     const b = document.createElement('div'); b.className = 'box int-pane ix-box'; b.style.maxWidth = 'none'; b.dataset.int = k;
-    b.innerHTML = `<h2>${t}</h2><div id="${id}"><p class="muted">Yükleniyor…</p></div>` + (k === 'mail' ? '<div id="mailTplBox"></div>' : ''); el.appendChild(b); boxes.push(b);
+    b.innerHTML = `<h2>${t}</h2>${ctTabsHtml('mail', [['conn','🔌 Bağlantı'],['tpl','✉️ E-postalar']])}<div class="ct-pane" data-pane="conn"><div id="${id}"><p class="muted">Yükleniyor…</p></div></div><div class="ct-pane" data-pane="tpl"><div id="mailTplBox"></div></div>`;
+    b.dataset.ctgrp = 'mail'; b.dataset.ct = (APP.ctTab || {}).mail || 'conn'; el.appendChild(b); boxes.push(b);
   });
   loadMailTemplates();
   // Online kartla ödeme, Online Sipariş sekmesinin içinde.
@@ -2409,6 +2412,26 @@ const SMS_TPL = [
   { k:'staff_login', ic:'👤', t:'Personel giriş bilgileri', w:'Kullanıcılar › SMS Gönder ile', v:['isletme','kod','kullanici','sifre','android','web'], d:'{isletme} - Peyktan giris bilgileriniz: Isletme kodu: {kod} Kullanici: {kullanici} Sifre: {sifre} Android: {android} iPhone/Web: {web}' },
 ];
 const SMS_VAR_LBL = { kod:'İşletme kodu', kullanici:'Kullanıcı adı', sifre:'Geçici şifre', android:'Android linki', web:'iPhone/Web linki', kurye:'Kurye adı', kurye_tel:'Kurye telefonu', isletme:'İşletme adı', ad:'Müşteri adı', telefon:'İşletme telefonu', dakika:'Kalan dakika', tarih:'Tarih', saat:'Saat', kisi:'Kişi sayısı', no:'Sipariş no', tutar:'Tutar', takip:'Takip linki', link:'Değerlendirme linki' };
+/* İletişim kutularında (SMS / E-posta) üst sekmeler: Bağlantı · Mesajlar · Gönderilenler. */
+function ctTabsHtml(grp, tabs){
+  const cur = (APP.ctTab || {})[grp] || 'conn';
+  return `<div class="ct-tabs" role="tablist">${tabs.map(([k, l]) => `<button type="button" role="tab" data-ct="${k}" class="${cur===k?'on':''}" ${act('setCtTab', grp, k)}>${l}</button>`).join('')}</div>`;
+}
+function setCtTab(grp, k){
+  APP.ctTab = Object.assign({}, APP.ctTab, { [grp]: k });
+  const box = document.querySelector('[data-ctgrp="' + grp + '"]'); if(!box) return;
+  box.dataset.ct = k; box.querySelectorAll('.ct-tabs [data-ct]').forEach(b => b.classList.toggle('on', b.dataset.ct === k));
+}
+const TPL_CATS = [['', 'Tümü'], ['resv', '📅 Rezervasyon'], ['wl', '⏳ Bekleme listesi'], ['order', '📦 Sipariş'], ['pay', '💳 Ödeme & yorum'], ['staff', '👤 Personel']];
+const TPL_ORD = ['resv','wl','order','pay','staff'];
+function tplSort(list){ return list.slice().sort((a, b) => TPL_ORD.indexOf(tplCat(a.k)) - TPL_ORD.indexOf(tplCat(b.k))); }
+function tplCat(k){ return /^(reservation|resv)/.test(k) ? 'resv' : /^(waitlist|wl)/.test(k) ? 'wl' : /^(takeaway|delivery)/.test(k) ? 'order' : /^(payment|review)/.test(k) ? 'pay' : 'staff'; }
+function tplCatChips(grp, list, isOn){
+  const cur = (APP.tplCat || {})[grp] || '';
+  return `<div class="ct-cats">${TPL_CATS.filter(([c]) => !c || list.some(t => tplCat(t.k) === c)).map(([c, l]) => { const items = list.filter(t => !c || tplCat(t.k) === c), on = items.filter(isOn).length;
+    return `<button type="button" class="${cur===c?'on':''}" ${act('setTplCat', grp, c)}>${l} <small>${on}/${items.length}</small></button>`; }).join('')}</div>`;
+}
+function setTplCat(grp, c){ APP.tplCat = Object.assign({}, APP.tplCat, { [grp]: c }); grp === 'sms' ? drawSmsTemplates() : drawMailTemplates(); }
 /* --- Gönderilen SMS'ler: işletmenin kendi gönderim geçmişi (get_sms_log) --- */
 const SMS_ST = { dispatched:['Gönderildi','ok'], no_provider:['Sağlayıcı bağlı değil','warn'], failed:['Hata','bad'], error:['Hata','bad'], pending:['Bekliyor','wait'], disabled:['Kapalı','warn'] };
 const SMS_EXTRA_LBL = { test:'Test mesajı', otp:'Doğrulama kodu', reservation_confirm:'Rezervasyon onayı' };
@@ -2429,7 +2452,7 @@ function drawSmsLog(){
   const max = Math.max(1, ...days.map(x => x.n));
   const opt = (v, cur, l) => `<option value="${v}" ${cur===v?'selected':''}>${escapeHtml(l)}</option>`;
   box.innerHTML = `<div class="sl-wrap">
-    <div class="sl-head"><h3>📨 Gönderilen SMS'ler</h3>
+    <div class="sl-head"><h3>Gönderilen SMS'ler</h3>
       <div class="seg sl-seg">${[7,30,90].map(n => `<button type="button" class="${L.days===n?'on':''}" ${act('setSmsLog','days',n)}>Son ${n} gün</button>`).join('')}</div></div>
     <div class="sl-stats">
       <div class="sl-stat"><small>Toplam</small><b>${st.all||0}</b></div>
@@ -2465,9 +2488,11 @@ function drawSmsTemplates(){
   const box = document.getElementById('smsTplBox'); if(!box) return;
   const fill = (t, txt) => txt.replace(/\{(\w+)\}/g, (m, v) => `<i class="st-var">${escapeHtml(SMS_VAR_LBL[v] || v)}</i>`);
   const onN = SMS_TPL.filter(t => (APP.smsTpl[t.k] || {}).enabled !== false).length;
-  box.innerHTML = `<div class="ix-sec"><div class="ix-st">4 · Mesajlar <span class="pchip">${onN}/${SMS_TPL.length} açık</span></div>
-    <p class="muted st-help">Anahtarla mesajı açıp kapatın; metni değiştirmek için satıra dokunun.</p>
-    <div class="st-list">${SMS_TPL.map(t => { const c = APP.smsTpl[t.k] || {}, on = c.enabled !== false, txt = c.text || t.d, L = smsLen(txt), open = APP.smsTplOpen === t.k;
+  const cat = (APP.tplCat || {}).sms || '';
+  box.innerHTML = `<div class="ix-sec"><div class="ix-st">Mesajlar <span class="pchip">${onN}/${SMS_TPL.length} açık</span></div>
+    <p class="muted st-help">Anahtarla mesajı açıp kapatın; metni değiştirmek için karta dokunun.</p>
+    ${tplCatChips('sms', SMS_TPL, t => (APP.smsTpl[t.k] || {}).enabled !== false)}
+    <div class="st-list st-grid">${tplSort(SMS_TPL).filter(t => !cat || tplCat(t.k) === cat).map(t => { const c = APP.smsTpl[t.k] || {}, on = c.enabled !== false, txt = c.text || t.d, L = smsLen(txt), open = APP.smsTplOpen === t.k;
       return `<div class="st-row ${on?'':'off'} ${open?'open':''}" data-tpl="${t.k}">
         <div class="st-head">
           <button type="button" class="st-hit" ${act('toggleSmsTplOpen', t.k)}><span class="st-ic">${t.ic}</span><span class="st-t"><b>${t.t}${c.text ? ' <em class="st-custom">özel</em>' : ''}</b><small>${t.w}</small><span class="st-prev">${fill(t, escapeHtml(txt))}</span></span><span class="st-chev">${open?'▴':'▾'}</span></button>
@@ -2509,9 +2534,11 @@ function drawMailTemplates(){
   const box = document.getElementById('mailTplBox'); if(!box) return;
   const fill = (txt) => escapeHtml(txt).replace(/\{(\w+)\}/g, (m, v) => `<i class="st-var">${escapeHtml(MAIL_VAR_LBL[v] || v)}</i>`);
   const onN = MAIL_TPL.filter(t => (APP.mailTpl[t.k] || {}).enabled !== false).length;
-  box.innerHTML = `<div class="ix-sec" style="margin-top:16px;"><div class="ix-st">3 · E-postalar <span class="pchip">${onN}/${MAIL_TPL.length} açık</span></div>
-    <p class="muted st-help">Anahtarla e-postayı açıp kapatın; konu ve metni değiştirmek için satıra dokunun. Fiş ve fatura e-postaları belge içeriği olduğu için burada değil.</p>
-    <div class="st-list">${MAIL_TPL.map(t => { const c = APP.mailTpl[t.k] || {}, on = c.enabled !== false, subj = c.subject || t.s, body = c.body || t.d, open = APP.mailTplOpen === t.k, vars = t.v || MAIL_VARS[t.k.split('_')[0]];
+  const cat = (APP.tplCat || {}).mail || '';
+  box.innerHTML = `<div class="ix-sec"><div class="ix-st">E-postalar <span class="pchip">${onN}/${MAIL_TPL.length} açık</span></div>
+    <p class="muted st-help">Anahtarla e-postayı açıp kapatın; konu ve metni değiştirmek için karta dokunun. Fiş ve fatura e-postaları belge içeriği olduğu için burada değil.</p>
+    ${tplCatChips('mail', MAIL_TPL, t => (APP.mailTpl[t.k] || {}).enabled !== false)}
+    <div class="st-list st-grid">${tplSort(MAIL_TPL).filter(t => !cat || tplCat(t.k) === cat).map(t => { const c = APP.mailTpl[t.k] || {}, on = c.enabled !== false, subj = c.subject || t.s, body = c.body || t.d, open = APP.mailTplOpen === t.k, vars = t.v || MAIL_VARS[t.k.split('_')[0]];
       return `<div class="st-row ${on?'':'off'} ${open?'open':''}">
         <div class="st-head">
           <button type="button" class="st-hit" ${act('toggleMailTplOpen', t.k)}><span class="st-ic">${t.ic}</span><span class="st-t"><b>${t.t}${(c.subject || c.body) ? ' <em class="st-custom">özel</em>' : ''}</b><small>${t.w}</small><span class="st-prev">✉️ ${fill(subj)}</span></span><span class="st-chev">${open?'▴':'▾'}</span></button>
