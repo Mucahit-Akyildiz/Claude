@@ -39,6 +39,7 @@ function beginLoadingWatch(delayMs){
   LOADING_WATCH_TIMER = setTimeout(() => {
     LOADING_WATCH_TIMER = null;
     if(LOADING_WATCH_DEPTH<=0) return;
+    if(document.getElementById('splashScreen')) return; // açılış logosu zaten ekranda; ikinci logo gösterilmez
     LOADING_WATCH_SHOWN = true;
     const el = document.getElementById('loadingOverlay');
     if(el) el.classList.add('show');
