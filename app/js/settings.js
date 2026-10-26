@@ -1676,12 +1676,25 @@ function passField(id, disabled, existing){
   const btn = 'flex:0 0 auto;width:auto;margin:0;padding:6px 9px;font-size:15px;line-height:1;';
   return `<div style="display:flex;gap:6px;align-items:center;">
     <input type="password" id="${id}" placeholder="${existing ? 'Kayıtlı (gizli) — yeni şifre yazın' : 'Şifre'}" autocomplete="new-password" style="flex:1;min-width:0;margin:0;" ${disabled?'disabled':''}>
-    ${disabled ? '' : `<button type="button" class="ghost-btn" style="${btn}" title="Göster / gizle" ${act('togglePassVisible', id, '$this')}>👁</button>
+    ${disabled ? '' : `<button type="button" class="ghost-btn" style="${btn}" title="${existing ? 'Mevcut şifreyi göster / yazılanı göster' : 'Göster / gizle'}" ${act('togglePassVisible', id, '$this')}>👁</button>
     <button type="button" class="ghost-btn" style="${btn}" title="Rastgele şifre üret" ${act('fillRandomPass', id)}>🎲</button>`}
   </div>`;
 }
-function togglePassVisible(id, b){
+async function togglePassVisible(id, b){
   const el = document.getElementById(id); if(!el) return;
+  // Kutu boşsa ve kayıtlı kullanıcıysa: mevcut şifre (yalnızca Yönetici, görüntüleme kayda geçer) kutunun altında gösterilir.
+  const uid = id.startsWith('us_pass_') ? id.slice(8) : '';
+  if(uid && !el.value){
+    let tip = document.getElementById(id + '_cur');
+    if(tip){ tip.remove(); if(b) b.style.opacity = ''; return; }
+    const { data, error } = await sb.rpc('reveal_staff_password', { p_token: getSession().session_token, p_user_id: uid });
+    if(error){ showToast(error.message); return; }
+    tip = document.createElement('small'); tip.id = id + '_cur'; tip.className = 'pw-cur';
+    tip.textContent = data ? '🔓 Mevcut şifre: ' + data : 'Bu şifre bu özellikten önce belirlendiği için gösterilemiyor — 🎲 ile yeni şifre üretip kaydedin.';
+    el.parentElement.insertAdjacentElement('afterend', tip);
+    if(b) b.style.opacity = '1';
+    return;
+  }
   el.type = el.type==='password' ? 'text' : 'password';
   if(b) b.style.opacity = el.type==='text' ? '1' : '';
 }
