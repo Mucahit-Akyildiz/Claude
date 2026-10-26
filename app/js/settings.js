@@ -1920,7 +1920,7 @@ async function loadActiveUsers(quiet){
    masalar, kullanıcılar ve açık siparişler etkilenmez (müşteriler yalnızca seçilirse);
    e-faturası kesilmiş satışlar yasal kayıt olduğu için korunur. */
 const RESET_CATEGORIES = [
-  { id:'sales', label:'Satışlar ve kapanmış siparişler', hint:'Satış geçmişi, iptal/kapalı siparişler, faturalar (e-fatura hariç), online sipariş talepleri ve ödemeleri, mutfak iptalleri, kampanya kullanımları, SMS kayıtları' },
+  { id:'sales', label:'Satışlar ve kapanmış siparişler', hint:'Satış geçmişi, iptal/kapalı siparişler, faturalar (e-fatura hariç), online sipariş talepleri, SMS kayıtları' },
   { id:'waste', label:'Zayi / fire kayıtları' },
   { id:'shifts', label:'Vardiya kayıtları', hint:'Devam eden vardiyalar silinmez' },
   { id:'reservations', label:'Rezervasyonlar ve bekleme listesi' },
@@ -1928,9 +1928,6 @@ const RESET_CATEGORIES = [
   { id:'messages', label:'Mesajlar', hint:'Ekip içi mesajlar, fotoğraf ve sesli mesajlar', off:true },
   { id:'waiter_calls', label:'Garson çağrıları', hint:'QR menüden gelen tamamlanmış çağrılar', off:true },
   { id:'audit', label:'Değişiklik kaydı', hint:'Ayarlar → Güvenlik → Değişiklik Kaydı', off:true },
-  { id:'cash_counts', label:'Kasa sayımları', off:true },
-  { id:'reviews', label:'Müşteri değerlendirmeleri', hint:'Yıldız puanları ve yorumlar', off:true },
-  { id:'notifications', label:'Bildirim geçmişi', hint:'Uygulama içi bildirim kayıtları ve hata kayıtları', off:true },
   { id:'users', label:'Kullanıcılar', hint:'Bu dönemde eklenen personel hesapları (siz ve Yönetici rolündekiler silinmez; işlem geçmişi olanlar pasife alınır)', off:true, warn:true },
   { id:'roles', label:'Roller', hint:'Bu dönemde eklenen roller (Yönetici rolü ve hâlâ bir kullanıcıya atanmış roller silinmez)', off:true, warn:true },
   { id:'customers', label:'Müşteriler', hint:'Bu dönemde eklenen müşteri kayıtları, sadakat puanlarıyla birlikte (satış geçmişi silinmez)', off:true, warn:true },
