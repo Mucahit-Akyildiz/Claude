@@ -26,7 +26,6 @@ function renderAdminArea(){
         <div class="tab ${APP.adminView==='allfeatures'?'active':''}" data-tab="allfeatures" ${act('setAdminView', 'allfeatures')}>🗂️ Tüm Özellikler</div>
         <div class="tab ${APP.adminView==='addons'?'active':''}" data-tab="addons" ${act('setAdminView', 'addons')}>🧩 Eklentiler</div>
         <div class="tab ${APP.adminView==='deleted'?'active':''}" data-tab="deleted" ${act('setAdminView', 'deleted')}>🗑️ Silinen Hesaplar</div>
-        <div class="tab ${APP.adminView==='sms'?'active':''}" data-tab="sms" ${act('setAdminView', 'sms')}>📱 SMS</div>
         <div class="tab ${APP.adminView==='errors'?'active':''}" data-tab="errors" ${act('setAdminView', 'errors')}>⚠️ Hatalar</div>
         <div class="tab ${APP.adminView==='support'?'active':''}" data-tab="support" ${act('setAdminView', 'support')}>✉️ Destek <span id="supportBadge"></span></div>
         <div class="tab ${APP.adminView==='gif'?'active':''}" data-tab="gif" ${act('setAdminView', 'gif')}>🎞️ GIF</div>
@@ -50,7 +49,7 @@ function renderAdminTabContent(admin){
   else if(APP.adminView==='allfeatures') renderFeatureCatalogAdmin(main, admin);
   else if(APP.adminView==='addons') renderAddonsAdmin(main, admin);
   else if(APP.adminView==='deleted') renderDeletedAccountsAdmin(main, admin);
-  else if(APP.adminView==='sms') renderSmsAdmin(main, admin);
+  else if(APP.adminView==='sms'){ APP.adminView = 'restaurants'; renderRestaurantsAdmin(main, admin); }
   else if(APP.adminView==='errors') renderClientErrorsAdmin(main, admin);
   else if(APP.adminView==='support') renderSupportAdmin(main, admin);
   else if(APP.adminView==='gif') renderGifAdmin(main, admin);
