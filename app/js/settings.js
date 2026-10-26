@@ -1934,7 +1934,7 @@ const RESET_CATEGORIES = [
 ];
 // Hiçbir seçenekle silinmeyen kalıcı veriler (kullanıcıya bilgi olarak gösterilir).
 const RESET_KEPT = ['Ürünler, ekstralar ve reçeteler','Menüler ve istasyonlar','Hammaddeler ve stok miktarları','Bölgeler ve masalar','Yönetici rolü ve sizin hesabınız','Tedarikçiler','Hediye kartları ve bakiyeleri','Açık hesaplar ve borç kayıtları','Açık (ödenmemiş) siparişler ve devam eden vardiyalar','E-faturası kesilmiş satışlar (yasal kayıt)','Ayarlar, fiş tasarımı ve entegrasyonlar'];
-const RESET_ICONS = { sales:'🧾', waste:'🔥', shifts:'🕐', reservations:'📅', purchases:'🚚', messages:'💬', waiter_calls:'🛎️', audit:'📜', customers:'👥', users:'👤', roles:'🔑' };
+const RESET_ICONS = { sales:'🧾', waste:'🔥', shifts:'🕐', reservations:'📅', purchases:'🚚', messages:'💬', waiter_calls:'🛎️', audit:'📜', customers:'👥', users:'👤', roles:'🔑', cash_counts:'💵', reviews:'⭐', notifications:'🔔' };
 function renderDataResetSettings(el){
   const R = [['1m','1 ay'],['3m','3 ay'],['6m','6 ay'],['1y','1 yıl'],['all','Tümü'],['custom','Tarih seç']];
   el.innerHTML = `<div class="box" style="max-width:none;text-align:left;">
@@ -1961,10 +1961,12 @@ function renderDataResetSettings(el){
       </div>
       <div class="dr-side">
         <div class="dr-backup">
-          <div class="dr-step"><span>💾</span>Yedek indir</div>
-          <p class="muted" style="font-size:12.5px;margin:0 0 10px;">Silmeden önce tüm işletme verilerinizin (ürünler, satışlar, müşteriler, kullanıcılar…) bir kopyasını bilgisayarınıza indirin. Şifreler ve API anahtarları yedeğe eklenmez.</p>
+          <div class="dr-step"><span>💾</span>Yedekle / Geri yükle</div>
+          <p class="muted" style="font-size:12.5px;margin:0 0 10px;">Silmeden önce tüm işletme verilerinizin bir kopyasını indirin; gerektiğinde aynı dosyayla geri yükleyin. Şifreler ve API anahtarları yedeğe eklenmez.</p>
           <input type="password" id="backupPassword" autocomplete="current-password" placeholder="Giriş şifreniz" style="margin:0 0 10px;">
           <button type="button" class="dr-bk-btn" ${act('downloadBackup')}>⬇️ Yedeği İndir (.json)</button>
+          <button type="button" class="dr-bk-btn dr-bk-up" ${act('restoreBackup')}>⬆️ Yedekten Geri Yükle</button>
+          <input type="file" id="backupFile" accept=".json,application/json" style="display:none;" ${actOn('change','restoreBackupFile',['$file'])}>
         </div>
         <details class="dr-kept"><summary>🔒 Silinmeyecek veriler <small>(${RESET_KEPT.length})</small></summary>
           <ul>${RESET_KEPT.map(k => `<li>✓ ${k}</li>`).join('')}</ul></details>
@@ -1991,6 +1993,24 @@ async function downloadBackup(){
   a.download = 'peyktan-yedek-' + ((data && data.restaurant_code) || '') + '-' + todayLocalDateStr() + '.json';
   document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
   showToast('Yedek indirildi ✓');
+}
+function restoreBackup(){
+  if(!(document.getElementById('backupPassword') || {}).value){ showToast('Geri yükleme için şifrenizi girin'); return; }
+  const f = document.getElementById('backupFile'); f.value = ''; f.click();
+}
+async function restoreBackupFile(file){
+  if(!file) return;
+  let data; try{ data = JSON.parse(await file.text()); }catch(e){ alert('Dosya okunamadı: geçerli bir yedek (.json) değil.'); return; }
+  if(!data || data.format !== 'peyktan-backup'){ alert('Bu dosya bir Peyktan yedeği değil.'); return; }
+  const when = data.created_at ? new Date(data.created_at).toLocaleString('tr-TR') : '?';
+  if(!await uiConfirm(when + ' tarihli yedek geri yüklenecek.\n\nYedekteki kayıtlar geri yazılır: silinenler geri gelir, mevcut kayıtlar yedekteki haline döner. Yedekten sonra eklenen kayıtlar silinmez. Geri gelen silinmiş kullanıcıların şifresini yeniden belirlemeniz gerekir.', { title:'Yedek geri yüklensin mi?', okText:'Evet, Geri Yükle', danger:true })) return;
+  const pwEl = document.getElementById('backupPassword');
+  const { data: r, error } = await withLoadingOverlay(sb.rpc('import_restaurant_backup', { p_token: getSession().session_token, p_password: pwEl.value, p_backup: data }));
+  if(error){ alert('Geri yüklenemedi: ' + error.message); return; }
+  pwEl.value = '';
+  const n = Object.values((r && r.restored) || {}).reduce((a, b) => a + b, 0);
+  showToast('Yedek geri yüklendi ✓ (' + n + ' kayıt)');
+  const { data: cfg } = await sb.rpc('get_restaurant_config', { p_token: getSession().session_token }); if(cfg) APP.config = cfg;
 }
 function setResetRange(k){
   const sel = document.getElementById('resetRange'); if(!sel) return;
