@@ -3528,3 +3528,4 @@ button.sl-stat{border:1px solid var(--border) !important;} button.sl-stat.on{bor
 .int-row .int-st{white-space:nowrap;}
 .int-row.st-off .int-st{background:rgba(127,127,127,.14);color:var(--muted);}
 .int-row.st-ok .int-st{background:color-mix(in srgb,var(--ok,#22c55e) 18%,transparent);color:var(--ok,#22c55e);}
+.ti-missing{border-color:var(--red,#ef4444) !important;box-shadow:0 0 0 2px color-mix(in srgb,var(--red,#ef4444) 25%,transparent);}
