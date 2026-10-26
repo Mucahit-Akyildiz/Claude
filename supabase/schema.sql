@@ -3152,7 +3152,7 @@ begin
   return (select coalesce(json_agg(row_to_json(t)), '[]'::json) from (
     select
       r.id, r.name, r.code, r.email, r.phone, r.package_id, r.is_active, r.expires_at,
-      r.created_at, r.max_users,
+      r.created_at, coalesce(r.user_limit_override, (select p.max_users from packages p where p.id = coalesce((select c.package_id from companies c where c.id = r.company_id), r.package_id)), r.max_users) as max_users, r.user_limit_override,
       (select count(*) from app_users u where u.restaurant_id = r.id) as user_count,
       (select greatest(
          coalesce((select max(created_at) from orders where restaurant_id = r.id), 'epoch'::timestamptz),
@@ -3485,6 +3485,24 @@ begin
       perform vault.update_secret((select id from vault.secrets where name = 'ps_sms_password'), p_password);
     else perform vault.create_secret(p_password, 'ps_sms_password', 'Peyktan platform_settings: sms_password'); end if;
   end if;
+end $$;
+
+
+--
+-- Name: admin_set_user_limit(uuid, uuid, integer); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.admin_set_user_limit(p_token uuid, p_restaurant_id uuid, p_limit integer) RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'extensions', 'pg_temp'
+    AS $$
+begin
+  perform _platform_admin_check(p_token);
+  if p_limit is not null and (p_limit < 1 or p_limit > 10000) then raise exception 'Geçersiz kullanıcı sayısı'; end if;
+  update restaurants r set user_limit_override = p_limit,
+    max_users = coalesce(p_limit, (select p.max_users from packages p where p.id = coalesce((select c.package_id from companies c where c.id = r.company_id), r.package_id)), r.max_users)
+   where r.id = p_restaurant_id;
+  if not found then raise exception 'İşletme bulunamadı'; end if;
 end $$;
 
 
@@ -4453,6 +4471,7 @@ begin
   select r.max_users, r.company_id, r.package_id into v_max_users, v_company_id, v_package_id from restaurants r where r.id = s.restaurant_id;
   if v_company_id is not null then select c.package_id into v_package_id from companies c where c.id = v_company_id; end if;
   select max_users into v_max_users from packages where id = v_package_id;
+  select coalesce(r.user_limit_override, v_max_users) into v_max_users from restaurants r where r.id = s.restaurant_id;
   select count(*) into v_current_count from app_users where restaurant_id = s.restaurant_id and not is_company_owner;
   if v_current_count >= v_max_users then raise exception 'Paketinizin kullanıcı limitine (%) ulaştınız', v_max_users; end if;
   insert into app_users (restaurant_id, username, password, role_ids) values (s.restaurant_id, p_username, crypt(p_password, gen_salt('bf')), p_role_ids) returning id into new_id;
@@ -13721,6 +13740,7 @@ CREATE TABLE public.restaurants (
     voice_policy jsonb DEFAULT '{}'::jsonb NOT NULL,
     sms_templates jsonb DEFAULT '{}'::jsonb NOT NULL,
     mail_templates jsonb DEFAULT '{}'::jsonb NOT NULL,
+    user_limit_override integer,
     CONSTRAINT restaurants_day_end_hour_check CHECK (((day_end_hour >= 0) AND (day_end_hour <= 23))),
     CONSTRAINT restaurants_default_vat_rate_check CHECK (((default_vat_rate >= (0)::numeric) AND (default_vat_rate <= (100)::numeric)))
 );
