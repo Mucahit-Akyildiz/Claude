@@ -1889,31 +1889,41 @@ CREATE FUNCTION public._send_email_r(p_rest uuid, p_to text, p_subject text, p_h
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public', 'extensions', 'pg_temp'
     AS $$
-declare t tenant_integrations%rowtype; v_name text;
+declare t tenant_integrations%rowtype; v_name text; v_req bigint; v_purpose text;
 begin
+  v_purpose := coalesce(nullif(current_setting('peyktan.mail_purpose', true), ''),
+    case when p_subject ilike '%fatura%' then 'invoice' when p_subject ilike '%fiş%' or p_subject ilike '%fis%' or p_subject ilike '%adisyon%' then 'receipt' else 'other' end);
+  perform set_config('peyktan.mail_purpose', '', true);
   select * into t from tenant_integrations where restaurant_id = p_rest;
-  if t.mail_provider is null or t.mail_api_key is null or t.mail_from is null then return false; end if;
+  if t.mail_provider is null or t.mail_api_key is null or t.mail_from is null then
+    insert into mail_outbox(restaurant_id, to_email, subject, purpose, status, provider) values (p_rest, p_to, p_subject, v_purpose, 'no_provider', t.mail_provider);
+    return false;
+  end if;
   t.mail_api_key := _dec(t.mail_api_key);
   select name into v_name from restaurants where id = p_rest;
   v_name := coalesce(t.mail_from_name, v_name, 'Peyktan');
   if t.mail_provider = 'resend' then
-    perform net.http_post(url := 'https://api.resend.com/emails',
+    v_req := net.http_post(url := 'https://api.resend.com/emails',
       headers := jsonb_build_object('Authorization','Bearer '||t.mail_api_key,'Content-Type','application/json'),
       body := jsonb_build_object('from', v_name || ' <' || t.mail_from || '>', 'to', jsonb_build_array(p_to), 'subject', p_subject, 'html', p_html));
   elsif t.mail_provider = 'brevo' then
-    perform net.http_post(url := 'https://api.brevo.com/v3/smtp/email',
+    v_req := net.http_post(url := 'https://api.brevo.com/v3/smtp/email',
       headers := jsonb_build_object('api-key', t.mail_api_key, 'Content-Type','application/json', 'accept','application/json'),
       body := jsonb_build_object('sender', jsonb_build_object('name', v_name, 'email', t.mail_from), 'to', jsonb_build_array(jsonb_build_object('email', p_to)), 'subject', p_subject, 'htmlContent', p_html));
   elsif t.mail_provider = 'sendgrid' then
-    perform net.http_post(url := 'https://api.sendgrid.com/v3/mail/send',
+    v_req := net.http_post(url := 'https://api.sendgrid.com/v3/mail/send',
       headers := jsonb_build_object('Authorization','Bearer '||t.mail_api_key,'Content-Type','application/json'),
       body := jsonb_build_object('personalizations', jsonb_build_array(jsonb_build_object('to', jsonb_build_array(jsonb_build_object('email', p_to)))),
         'from', jsonb_build_object('email', t.mail_from, 'name', v_name), 'subject', p_subject, 'content', jsonb_build_array(jsonb_build_object('type','text/html','value', p_html))));
   elsif t.mail_provider = 'postmark' then
-    perform net.http_post(url := 'https://api.postmarkapp.com/email',
+    v_req := net.http_post(url := 'https://api.postmarkapp.com/email',
       headers := jsonb_build_object('X-Postmark-Server-Token', t.mail_api_key, 'Content-Type','application/json', 'Accept','application/json'),
       body := jsonb_build_object('From', v_name || ' <' || t.mail_from || '>', 'To', p_to, 'Subject', p_subject, 'HtmlBody', p_html, 'MessageStream', 'outbound'));
-  else return false; end if;
+  else
+    insert into mail_outbox(restaurant_id, to_email, subject, purpose, status, provider) values (p_rest, p_to, p_subject, v_purpose, 'no_provider', t.mail_provider);
+    return false;
+  end if;
+  insert into mail_outbox(restaurant_id, to_email, subject, purpose, status, provider, request_id) values (p_rest, p_to, p_subject, v_purpose, 'queued', t.mail_provider, v_req);
   return true;
 end $$;
 
@@ -1965,6 +1975,7 @@ begin
   if nullif(trim(coalesce(p_to,'')),'') is null then return; end if;
   m := _mail_custom(p_rid, p_key, p_vars, p_subject, p_head, p_html);
   if m is null then return; end if;
+  perform set_config('peyktan.mail_purpose', p_key, true);
   perform _send_email_r(p_rid, p_to, m->>'subject', m->>'html');
 exception when others then null; -- e-posta hatası asıl işlemi engellemez
 end $$;
@@ -5849,6 +5860,48 @@ $$;
 
 
 --
+-- Name: get_mail_log(uuid, date, date, text, text, text, integer, integer); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.get_mail_log(p_token uuid, p_from date, p_to date, p_purpose text, p_status text, p_q text, p_limit integer, p_offset integer) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'extensions', 'pg_temp'
+    AS $$
+declare v_rid uuid; v_uid uuid; v_start timestamptz; v_end timestamptz; v_q text;
+begin
+  select (x).restaurant_id, (x).user_id into v_rid, v_uid from (select _session_check(p_token, null) x) z;
+  if not exists(select 1 from app_users au join roles rl on rl.id = any(au.role_ids) where au.id = v_uid and (rl.is_system or 'settings_integrations' = any(rl.permissions))) then
+    raise exception 'Bu işlem için yetkiniz yok'; end if;
+  -- sağlayıcı yanıtı gelen kayıtların durumunu güncelle (2xx = gönderildi)
+  update mail_outbox m set status = case when r.status_code between 200 and 299 then 'sent' else 'failed' end,
+         error = case when r.status_code between 200 and 299 then null else left(coalesce(r.error_msg, r.content::text, 'HTTP ' || r.status_code), 300) end,
+         finished_at = now()
+    from net._http_response r where m.restaurant_id = v_rid and m.status = 'queued' and r.id = m.request_id;
+  update mail_outbox set status = 'sent', finished_at = now() where restaurant_id = v_rid and status = 'queued' and created_at < now() - interval '1 day';
+  v_start := coalesce((p_from::timestamp at time zone 'Europe/Istanbul'), now() - interval '30 days');
+  v_end := coalesce(((p_to + 1)::timestamp at time zone 'Europe/Istanbul'), now() + interval '1 minute');
+  v_q := nullif(trim(coalesce(p_q, '')), '');
+  return (with base as (
+      select * from mail_outbox o where o.restaurant_id = v_rid and o.created_at >= v_start and o.created_at < v_end
+    ), f as (
+      select * from base b where (p_purpose is null or b.purpose = p_purpose)
+        and (p_status is null or (p_status = '__failed' and b.status not in ('sent','queued')) or b.status = p_status)
+        and (v_q is null or b.to_email ilike '%' || v_q || '%' or b.subject ilike '%' || v_q || '%')
+    )
+    select jsonb_build_object(
+      'total', (select count(*) from f),
+      'stats', jsonb_build_object('all', (select count(*) from base), 'sent', (select count(*) from base where status in ('sent','queued')),
+        'failed', (select count(*) from base where status not in ('sent','queued')), 'queued', (select count(*) from base where status = 'queued')),
+      'by_purpose', (select coalesce(jsonb_object_agg(purpose, n), '{}'::jsonb) from (select coalesce(purpose, 'other') purpose, count(*) n from base group by 1) x),
+      'by_day', (select coalesce(jsonb_agg(jsonb_build_object('d', d, 'n', n, 's', ok, 'f', n - ok) order by d), '[]'::jsonb) from (select (created_at at time zone 'Europe/Istanbul')::date d, count(*) n, count(*) filter (where status in ('sent','queued')) ok from base group by 1) y),
+      'rows', (select coalesce(jsonb_agg(to_jsonb(r) order by r.created_at desc), '[]'::jsonb) from (
+        select id, to_email, subject, purpose, status, provider, error, created_at, finished_at from f order by created_at desc
+        limit least(greatest(coalesce(p_limit, 50), 1), 200) offset greatest(coalesce(p_offset, 0), 0)) r)
+    ) from (select 1) z);
+end $$;
+
+
+--
 -- Name: get_mail_templates(uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -6710,7 +6763,7 @@ begin
         'failed', (select count(*) from base where status <> 'dispatched'),
         'segments', (select coalesce(sum(case when message ~ '[çğıöşüÇĞİÖŞÜ€]' then ceil(greatest(length(message),1) / case when length(message) <= 70 then 70.0 else 67.0 end) else ceil(greatest(length(message),1) / case when length(message) <= 160 then 160.0 else 153.0 end) end), 0) from base where status = 'dispatched')),
       'by_purpose', (select coalesce(jsonb_object_agg(purpose, n), '{}'::jsonb) from (select coalesce(purpose, '-') purpose, count(*) n from base group by 1) x),
-      'by_day', (select coalesce(jsonb_agg(jsonb_build_object('d', d, 'n', n, 's', s, 'f', n - s) order by d), '[]'::jsonb) from (select (created_at at time zone 'Europe/Istanbul')::date d, count(*) n, count(*) filter (where status = 'dispatched') s from base group by 1) y),
+      'by_day', (select coalesce(jsonb_agg(jsonb_build_object('d', d, 'n', n, 's', ok, 'f', n - ok) order by d), '[]'::jsonb) from (select (created_at at time zone 'Europe/Istanbul')::date d, count(*) n, count(*) filter (where status = 'dispatched') ok from base group by 1) y),
       'rows', (select coalesce(jsonb_agg(to_jsonb(r) order by r.created_at desc), '[]'::jsonb) from (
         select id, phone, message, purpose, status, provider, created_at, dispatched_at from f order by created_at desc
         limit least(greatest(coalesce(p_limit, 50), 1), 200) offset greatest(coalesce(p_offset, 0), 0)) r)
@@ -13145,6 +13198,44 @@ ALTER SEQUENCE public.login_failures_id_seq OWNED BY public.login_failures.id;
 
 
 --
+-- Name: mail_outbox; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.mail_outbox (
+    id bigint NOT NULL,
+    restaurant_id uuid NOT NULL,
+    to_email text NOT NULL,
+    subject text,
+    purpose text,
+    status text DEFAULT 'queued'::text NOT NULL,
+    provider text,
+    request_id bigint,
+    error text,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    finished_at timestamp with time zone
+);
+
+
+--
+-- Name: mail_outbox_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.mail_outbox_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: mail_outbox_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.mail_outbox_id_seq OWNED BY public.mail_outbox.id;
+
+
+--
 -- Name: menus; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -14113,6 +14204,13 @@ ALTER TABLE ONLY public.login_failures ALTER COLUMN id SET DEFAULT nextval('publ
 
 
 --
+-- Name: mail_outbox id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.mail_outbox ALTER COLUMN id SET DEFAULT nextval('public.mail_outbox_id_seq'::regclass);
+
+
+--
 -- Name: rate_limit_events id; Type: DEFAULT; Schema: public; Owner: -
 --
 
@@ -14403,6 +14501,14 @@ ALTER TABLE ONLY public.kitchen_cancellations
 
 ALTER TABLE ONLY public.login_failures
     ADD CONSTRAINT login_failures_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: mail_outbox mail_outbox_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.mail_outbox
+    ADD CONSTRAINT mail_outbox_pkey PRIMARY KEY (id);
 
 
 --
@@ -15550,6 +15656,13 @@ CREATE INDEX login_failures_lookup_idx ON public.login_failures USING btree (res
 
 
 --
+-- Name: mail_outbox_rest_created; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX mail_outbox_rest_created ON public.mail_outbox USING btree (restaurant_id, created_at DESC);
+
+
+--
 -- Name: menus_rest; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -16638,6 +16751,14 @@ ALTER TABLE ONLY public.kitchen_cancellations
 
 
 --
+-- Name: mail_outbox mail_outbox_restaurant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.mail_outbox
+    ADD CONSTRAINT mail_outbox_restaurant_id_fkey FOREIGN KEY (restaurant_id) REFERENCES public.restaurants(id) ON DELETE CASCADE;
+
+
+--
 -- Name: notification_log notification_log_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -17406,6 +17527,12 @@ ALTER TABLE public.kitchen_cancellations ENABLE ROW LEVEL SECURITY;
 --
 
 ALTER TABLE public.login_failures ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: mail_outbox; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.mail_outbox ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: menus; Type: ROW SECURITY; Schema: public; Owner: -
