@@ -220,7 +220,7 @@ function radioBusyBy(){
   const me = getSession();
   return RADIO.floor && me && RADIO.floor.u !== me.user_id ? RADIO.floor : null;
 }
-const RADIO_BUILD = 'r14';
+const RADIO_BUILD = 'r15';
 function radioLog(msg){ try{ if(typeof reportClientError === 'function') reportClientError('radio', msg + ' | ' + RADIO_BUILD, 'radio.js'); }catch(e){} }
 async function radioStartTalk(){
   if(RADIO.talking) return;
@@ -276,7 +276,14 @@ async function radioRawRetry(){
   if(id) c.deviceId = { exact: id };
   radioDetachCapture(); RADIO.src = null; releaseSharedMic(); RADIO.mic = null;
   try{ RADIO.mic = await getSharedMic(c); }catch(e){ try{ RADIO.mic = await radioOpenMic(); }catch(e2){ radioStopTalk(true); return; } }
-  if(RADIO.talking){ const d = RADIO.diag; await radioAttachCapture(RADIO.capCtx, true); if(RADIO.diag) RADIO.diag.raw = true; }
+  // Bazı USB/kablosuz kulaklıklarda (Windows) ses bağlamının örnekleme hızı mikrofonunkinden farklıysa
+  // Chrome sıfır (sessiz) kare veriyor: bağlam mikrofonun kendi hızıyla yeniden kurulur.
+  const AC = window.AudioContext || window.webkitAudioContext, tr = RADIO.mic && RADIO.mic.getAudioTracks()[0];
+  const sr = tr && tr.getSettings ? (tr.getSettings().sampleRate || 0) : 0;
+  try{ RADIO.capCtx.close(); }catch(e){}
+  try{ RADIO.capCtx = sr ? new AC({ sampleRate: sr }) : new AC(); }catch(e){ RADIO.capCtx = new AC(); }
+  radioLog('bas: ses bağlamı mikrofon hızıyla kuruldu ' + (sr || '?') + ' Hz');
+  if(RADIO.talking){ await radioAttachCapture(RADIO.capCtx, true); if(RADIO.diag){ RADIO.diag.raw = true; RADIO.diag.mode = (RADIO.diag.mode || '') + ' sr' + (sr || '?'); } }
 }
 function radioTrackInfo(){ const t = RADIO.mic && RADIO.mic.getAudioTracks()[0]; return t ? `[${t.readyState}${t.muted ? ' muted' : ''}${t.enabled ? '' : ' disabled'} ${String(t.label || '').slice(0, 40)}]` : '[iz yok]'; }
 function radioDetachCapture(){

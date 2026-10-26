@@ -36,6 +36,8 @@ const _sbRpcRaw = sb.rpc.bind(sb);
    (yükleme ekranı) olmaz. Herhangi bir yazma RPC'si (listede olmayan her çağrı)
    önbelleği tamamen temizler, yani kendi değişikliğiniz hemen görünür; başka
    cihazdaki değişiklik veri sürümünü artırdığı için önbellek kendiliğinden geçersizleşir. */
+// Eski Android WebView'lerde (Chrome < 98) structuredClone yok; RPC sonuçları zaten JSON.
+const rpcClone = typeof structuredClone === 'function' ? (v) => structuredClone(v) : (v) => (v == null ? v : JSON.parse(JSON.stringify(v)));
 const RPC_CACHEABLE = new Set(['get_restaurant_config','get_live_orders','list_suppliers','list_purchase_orders','list_reservations',
   'list_waitlist','list_customers','list_staff_shifts','list_gift_cards','list_invoices','get_integration_settings','get_online_menu_admin',
   'list_waste','get_sales_history','list_active_staff','get_bank_transfer_status','get_addon_purchase_info']);
@@ -51,13 +53,13 @@ function _sbRpc(fn, args){
     const hit = RPC_CACHE.get(key);
     if(hit && hit.ver === ver && Date.now() - hit.at < 60000){
       // Çağıran sonucu değiştirebilir; her seferinde kopya verilir.
-      return hit.promise.then(res => res && !res.error ? { ...res, data: structuredClone(res.data) } : res);
+      return hit.promise.then(res => res && !res.error ? { ...res, data: rpcClone(res.data) } : res);
     }
     // Supabase sorgu nesnesi her .then() çağrısında isteği yeniden atar; tek seferlik Promise'e çevrilir.
     const promise = Promise.resolve(_sbRpcRaw(fn, args));
     RPC_CACHE.set(key, { ver, at: Date.now(), promise });
     promise.then(res => { if(!res || res.error) RPC_CACHE.delete(key); }, () => RPC_CACHE.delete(key));
-    return promise.then(res => res && !res.error ? { ...res, data: structuredClone(res.data) } : res);
+    return promise.then(res => res && !res.error ? { ...res, data: rpcClone(res.data) } : res);
   }
   if(!RPC_NO_INVALIDATE.has(fn)) RPC_CACHE.clear();
   return _sbRpcRaw(fn, args);

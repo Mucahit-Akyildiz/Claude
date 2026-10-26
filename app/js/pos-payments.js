@@ -187,7 +187,7 @@ function renderPayGrid(){
     </div>`;
   };
   const orders = [];
-  APP.config.zones.flatMap(z => z.tables).forEach(t => { const o = liveOrderForTable(t.id); if(o && o.items.some(i => !i.paid)) orders.push({ o, name: escapeHtml(tableNameForId(t.id)) }); });
+  ((APP.config && APP.config.zones) || []).flatMap(z => z.tables || []).forEach(t => { const o = liveOrderForTable(t.id); if(o && o.items.some(i => !i.paid)) orders.push({ o, name: escapeHtml(tableNameForId(t.id)) }); });
   (APP.liveOrders || []).filter(o => o.kind === 'takeaway' && o.items.some(i => !i.paid)).forEach(o => orders.push({ o, name: '📦 ' + escapeHtml(o.customer_name || ('Paket #' + (o.daily_number || ''))) }));
   const due = (o) => { const t = o.items.filter(i => !i.paid).reduce((y, i) => y + i.price * i.qty, 0);
     if(o.allowance_id) return Math.max(0, t - Number(o.allowance_remaining || 0));
@@ -1318,6 +1318,7 @@ async function rejectCustomerRequest(id){
 function renderZoneTabs(){
   const el = document.getElementById('zoneTabs'); if(!el) return;
   // Bölge sekmesi: gri "dolu/toplam" bilgisi + yalnızca ilgilenilmesi gereken masa varsa (sipariş bekleyen) kırmızı rozet.
+  if(!APP.config || !APP.config.zones){ el.innerHTML = ''; return; }
   el.innerHTML = APP.config.zones.map(z => {
     const ts = z.tables || [], open = ts.filter(t => liveOrderForTable(t.id)).length;
     const need = ts.filter(t => { const o = liveOrderForTable(t.id); return o && !(o.items || []).length; }).length;
