@@ -36,6 +36,18 @@ public class MainActivity extends BridgeActivity {
         try { getBridge().getWebView().getSettings().setMediaPlaybackRequiresUserGesture(false); } catch (Exception e) { }
         // Sayfa yüklenene kadar siyah ekran görünmesin: WebView açılışla aynı renkte başlar.
         try { getBridge().getWebView().setBackgroundColor(0xFFF7F7F5); } catch (Exception e) { }
+        // Android 15+ kenardan kenara çizim: içerik durum/gezinme çubuğunun ve klavyenin altında kalmasın.
+        try {
+            final android.view.View wv = getBridge().getWebView();
+            androidx.core.view.ViewCompat.setOnApplyWindowInsetsListener(wv, (v, insets) -> {
+                androidx.core.graphics.Insets b = insets.getInsets(androidx.core.view.WindowInsetsCompat.Type.systemBars()
+                    | androidx.core.view.WindowInsetsCompat.Type.displayCutout() | androidx.core.view.WindowInsetsCompat.Type.ime());
+                android.view.ViewGroup.MarginLayoutParams lp = (android.view.ViewGroup.MarginLayoutParams) v.getLayoutParams();
+                lp.setMargins(b.left, b.top, b.right, b.bottom);
+                v.setLayoutParams(lp);
+                return androidx.core.view.WindowInsetsCompat.CONSUMED;
+            });
+        } catch (Exception e) { }
         PeykCallNotifier.handleIntent(this, getIntent());
         updateLauncher = registerForActivityResult(new ActivityResultContracts.StartIntentSenderForResult(), result -> {});
         checkForUpdate();

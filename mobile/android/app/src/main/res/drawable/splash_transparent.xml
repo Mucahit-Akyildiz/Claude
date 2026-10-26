@@ -1,2 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
-<shape xmlns:android="http://schemas.android.com/apk/res/android"><solid android:color="@android:color/transparent"/></shape>
+<!-- Boyutu olmayan bir şekil verilirse Android 12+ sistem açılışı uygulama simgesine (düşük çözünürlüklü logo)
+     geri düşüyor; bu yüzden şeffaf ama boyutlu. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <solid android:color="@android:color/transparent"/>
+    <size android:width="288dp" android:height="288dp"/>
+</shape>

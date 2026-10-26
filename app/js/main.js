@@ -907,18 +907,19 @@ if('serviceWorker' in navigator) registerServiceWorker();
    yapmak "aynı ekranı art arda iki kez görmüş" hissi veriyordu. Native'de
    render() zaten yukarıda tamamlandığı için içerik hazır - splash'i hemen,
    sadece ani bir sıçrama olmasın diye kısa bir soluşla kaldırıyoruz. */
-if(isNativeApp()){
-  const sp = document.getElementById('splashScreen');
-  // Android'in kendi açılışı artık düz renk; marka ekranı (logo) burada kısa süre gösterilip solar.
-  if(sp) setTimeout(() => { sp.classList.add('splash-fade'); setTimeout(() => sp.remove(), 500); }, 900);
-} else {
-  setTimeout(() => {
-    const sp = document.getElementById('splashScreen');
-    if(!sp) return;
-    sp.classList.add('splash-fade');
-    setTimeout(() => sp.remove(), 550);
-  }, 700);
-}
+// Açılış logosu tek ve kesintisiz: ilk veriler yüklenene kadar ekranda kalır (en az 700ms, en çok 8sn),
+// arada ikinci bir "yükleniyor" logosu çıkmaz (bkz. startLoadingWatch).
+(function(){
+  const t0 = Date.now(), MIN = 700, MAX = 8000;
+  const tick = () => {
+    const sp = document.getElementById('splashScreen'); if(!sp) return;
+    const busy = (typeof LOADING_WATCH_DEPTH !== 'undefined' && LOADING_WATCH_DEPTH > 0);
+    const age = Date.now() - t0;
+    if(age < MIN || (busy && age < MAX)) return setTimeout(tick, 100);
+    sp.classList.add('splash-fade'); setTimeout(() => sp.remove(), 550);
+  };
+  setTimeout(tick, 100);
+})();
 /* "Yeni ... Ekle" panelleri (Ürünler, İstasyonlar, Hammaddeler vb.) listenin altında değil
    üstünde dursun: ekrana bir liste + ekleme paneli çizildiğinde panel, başlığın hemen altına
    taşınır. Her ekranı tek tek değiştirmek yerine tek yerden uygulanır. */
