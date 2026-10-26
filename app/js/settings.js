@@ -3533,12 +3533,12 @@ async function renderTenantIntegrations(session){
     const r = document.querySelector('.int-row[data-int-tab="' + id + '"]'); if(!r || r.classList.contains('st-lock')) return;
     r.classList.toggle('st-ok', ok); r.classList.toggle('st-off', !ok); const e = r.querySelector('.int-st'); if(e) e.textContent = ok ? '● Aktif' : '○ Kapalı'; });
   const sc = TI_SMS[sm.provider] || TI_SMS.netgsm;
-  const cards = [`<div class="ix-sec"><div class="ix-st">1 · SMS firmanızı seçin <span class="ti-st ${smsOk?'ok':''}">${smsOk?'● Bağlı':'○ Bağlı değil — gönderilmez'}</span></div>
+  const cards = [`<div class="ix-sec"><div class="ix-st">1 · SMS firmanızı seçin <span class="ti-st ${smsOk?'ok':''}">${smsOk?'● Bağlı':sm.provider && sm.provider!=='other' ? '⚠️ ' + (sc.p || 'Şifre') + ' eksik — gönderilmez' : '○ Bağlı değil — gönderilmez'}</span></div>
       ${tiles('ti_sms_provider', sm.provider, [['', '🚫', 'Bağlı değil', 'SMS gönderilmez'], ...Object.keys(TI_SMS).sort((a, b) => (a==='other') - (b==='other')).map(k => [k, TI_SMS[k].ic, TI_SMS[k].n, TI_SMS[k].d])], 'tiSmsPick')}</div>
     <div class="ix-sec"><div class="ix-st">2 · Hesap bilgileri</div>
       <div class="ix-form">
         <div><label id="ti_sms_ul">${sc.u}</label><input id="ti_sms_user" value="${escapeAttr(sm.user || '')}" autocomplete="off"></div>
-        <div><label id="ti_sms_pl">${sc.p}</label><input id="ti_sms_pass" type="password" placeholder="${sm.has_pass ? '•••••••• kayıtlı — değiştirmek için yazın' : ''}" autocomplete="new-password"></div>
+        <div><label id="ti_sms_pl">${sc.p}</label><input id="ti_sms_pass" type="password" class="${sm.provider && sm.provider!=='other' && !sm.has_pass ? 'ti-missing' : ''}" placeholder="${sm.has_pass ? '•••••••• kayıtlı — değiştirmek için yazın' : sm.provider ? 'Girilmedi — SMS gönderilemez' : ''}" autocomplete="new-password"></div>
         <div><label>Gönderen başlığı</label><input id="ti_sms_header" value="${escapeAttr(sm.header || '')}" placeholder="ÖRN. LEZZETSOFR" maxlength="11"></div>
         <div id="ti_sms_urlw" style="grid-column:1/-1;${sm.provider==='other'?'':'display:none;'}"><label>🌐 API adresi</label><input id="ti_sms_url" value="${escapeAttr(sm.url || '')}" placeholder="https://api.firma.com/send?to={phone}&text={message}"></div>
       </div></div>
