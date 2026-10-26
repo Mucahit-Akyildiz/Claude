@@ -17,6 +17,9 @@
         "badge",
         "alert"
       ]
+    },
+    "SystemBars": {
+      "insetsHandling": "disable"
     }
   }
 }
