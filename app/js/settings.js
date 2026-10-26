@@ -12,10 +12,12 @@ const SETTINGS_TABS = [
   { tab:'roles', perm:'settings_roles', label:'Roller', ico:'🔑', desc:'Yetkiler' },
   { tab:'integrations', perm:'settings_integrations', label:'Entegrasyonlar', ico:'🔌', desc:'Platformlar, yazıcılar' },
   { tab:'billing', label:'Abonelik, Hediye Kartı & Kampanya', ico:'💳', desc:'Plan, fatura, kartlar, kuponlar' }, // alt sekmeler
+  { tab:'reports', label:'Özet E-postaları', ico:'📬', desc:'Gün sonu ve haftalık özet' },
   { tab:'security', label:'Güvenlik', ico:'🛡️', desc:'Destek, kayıt, sıfırlama' }, // alt sekmeler: Destek Erişimi, Değişiklik Kaydı, Veri Sıfırlama
 ];
 function settingsTabVisible(t, session){
   if(t.feature && !hasFeature(t.feature)) return false;
+  if(t.tab==='reports') return !!session.isManager;
   if(t.tab==='users') return canManage(session, 'settings_users') || canManage(session, 'shifts');
   if(t.tab==='products') return canManage(session, 'settings_products') || canManage(session, 'settings_ingredients');
   if(t.tab==='security') return canManage(session, 'settings_support') || canManage(session, 'settings_audit') || canManage(session, 'settings_datareset');
@@ -84,6 +86,7 @@ function renderSettingsContent(session){
   else if(APP.settingsTab==='integrations') renderIntegrationsSettings(el, session);
   else if(APP.settingsTab==='billing') renderBillingTabWithSubtabs(el, session);
   else if(APP.settingsTab==='security') renderSecuritySettings(el, session);
+  else if(APP.settingsTab==='reports') renderOwnerReportSettings(el, session);
   else renderUsersTabWithSubtabs(el, session);
 }
 /* Kullanıcılar sekmesi alt sekmeli: Kullanıcılar | Aktif Kullanıcılar | Vardiyalar (yetkiye göre). */
@@ -107,6 +110,40 @@ function renderUsersTabWithSubtabs(el, session){
   draw(document.getElementById('usersSubContent'));
 }
 /* Güvenlik sekmesi iki alt sekmeli: Destek Erişimi | Değişiklik Kaydı (yetkiye göre). */
+/* Yönetici özet e-postaları: gün sonu (her gün, gün sonu saatinde) ve haftalık (pazartesi) özet Peyktan'dan gönderilir. */
+async function renderOwnerReportSettings(el, session){
+  el.innerHTML = '<div class="box ix-box" style="max-width:none;"><p class="muted">Yükleniyor…</p></div>';
+  const { data, error } = await sb.rpc('get_owner_report', { p_token: session.session_token });
+  const box = el.firstElementChild;
+  if(error){ box.innerHTML = `<p class="muted">Yüklenemedi: ${escapeHtml(error.message)}</p>`; return; }
+  const c = data || {}, on = !!c.enabled, h = String(c.day_end_hour ?? 4).padStart(2, '0');
+  const sw = (id, val, lbl, sub) => `<label class="or-opt"><input type="checkbox" id="${id}" ${val ? 'checked' : ''}><span><b>${lbl}</b><small>${sub}</small></span></label>`;
+  box.innerHTML = `<h2>📬 Özet E-postaları</h2>
+    <div class="oo-hero ${on?'on':''}"><div class="oo-hero-ic">📊</div>
+      <div class="oo-hero-t"><b>İşletmenin özeti e-postanıza gelsin</b><small>Ciro (önceki döneme göre değişimiyle), hesap ve kişi sayısı, ödeme dağılımı, en çok satanlar, iptal / ikram / indirim ve kritik stok — her gün sonunda otomatik.</small></div>
+      <label class="oo-switch"><input type="checkbox" id="or_enabled" ${on?'checked':''}><span class="oo-track"><span class="oo-thumb"></span></span><em>${on?'Açık':'Kapalı'}</em></label></div>
+    <div class="ix-sec"><div class="ix-st">Ne zaman gönderilsin?</div>
+      <div class="or-opts">${sw('or_daily', c.daily !== false, '🌙 Gün sonu özeti', `Her gün saat ${h}:00'da, biten iş gününün özeti`)}${sw('or_weekly', c.weekly !== false, '📅 Haftalık özet', `Her pazartesi ${h}:00'da, son 7 günün özeti`)}</div>
+      <p class="ix-note">ℹ️ Gönderim saati, Ayarlar'daki gün sonu saatinizdir (${h}:00).</p></div>
+    <div class="ix-sec"><div class="ix-st">Kimlere gitsin?</div>
+      <div class="ix-form"><div style="grid-column:1/-1;"><label>E-posta adresleri (virgülle ayırın)</label><input id="or_emails" value="${escapeAttr(c.emails || c.default_email || '')}" placeholder="ornek@isletme.com, ortak@isletme.com"></div></div></div>
+    <div class="or-actions"><button class="ix-save" type="button" ${act('saveOwnerReport')}>${ICON_SAVE}<span>Kaydet</span></button>
+      <button type="button" class="ghost-btn" ${act('sendOwnerReportNow','daily')}>📨 Dünkü özeti şimdi gönder</button>
+      <button type="button" class="ghost-btn" ${act('sendOwnerReportNow','weekly')}>📨 Haftalık özeti şimdi gönder</button></div>`;
+}
+async function saveOwnerReport(){
+  const v = id => document.getElementById(id);
+  const { error } = await withLoadingOverlay(sb.rpc('set_owner_report', { p_token: getSession().session_token, p_cfg: { enabled: v('or_enabled').checked, daily: v('or_daily').checked, weekly: v('or_weekly').checked, emails: v('or_emails').value } }));
+  if(error){ alert(error.message); return; }
+  showToast('Özet e-postası ayarları kaydedildi ✓');
+  renderOwnerReportSettings(document.getElementById('settingsContent'), getSession());
+}
+async function sendOwnerReportNow(kind){
+  await saveOwnerReport();
+  const { data, error } = await withLoadingOverlay(sb.rpc('send_owner_report_now', { p_token: getSession().session_token, p_kind: kind }));
+  if(error){ alert(error.message); return; }
+  showToast(data ? data + ' adrese gönderildi ✓' : 'Geçerli bir e-posta adresi girin');
+}
 function renderSecuritySettings(el, session){
   const tabs = [
     canManage(session, 'settings_support') ? { id:'support', ic:'🛟', label:'Destek Erişimi' } : null,
