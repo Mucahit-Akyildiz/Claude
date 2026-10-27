@@ -203,6 +203,8 @@ async function renderCompanyPanelContent(companySession){
         <button type="button" class="range-preset-btn" ${act('setCompanyDashboardRangeDays', 9)}>Son 10 Gün</button>
         <button type="button" class="range-preset-btn" ${act('setCompanyDashboardRangeDays', 29)}>Son 30 Gün</button>
       </div>
+      ${!isSingleBranch && (dash.branches||[]).length > 1 ? branchCompareHtml(dash.branches) : ''}
+      ${isSingleBranch && (dash.daily||[]).length > 1 ? branchDailyChartHtml(dash.daily) : ''}
       <div class="settings-table-wrap">
         <table class="settings-table">
           <thead><tr><th>${isSingleBranch?'Tarih':'Şube'}</th><th>Sipariş Sayısı</th><th>Ciro</th><th>Kâr</th></tr></thead>
@@ -746,3 +748,25 @@ function setAuthScreen(s){ APP.authScreen = s; render(); }
 function openForgotPassword(){ APP.authScreen = 'forgot'; APP.forgotStep = 1; render(); }
 function setSignupCycle(c){ APP.signupCycle = c; renderPkgCards(); }
 function selectSignupPackage(id){ APP.selectedPackage = id; renderPkgCards(); }
+
+/* Şube karşılaştırma: seçilen ölçüte göre şubeler yan yana (yatay çubuk); şubeye tıklayınca o şubenin günlük görünümü. */
+const BC_METRICS = [['total','💰 Ciro'],['profit','📈 Kâr'],['orders','🧾 Hesap'],['avg','🍽️ Ort. hesap'],['margin','% Kâr marjı']];
+function branchCompareHtml(list){
+  const m = APP.bcMetric || 'total';
+  const val = b => { const t = Number(b.total)||0, c = Number(b.cost)||0, n = Number(b.order_count)||0;
+    return { total: t, profit: t - c, orders: n, avg: n ? t / n : 0, margin: t ? (t - c) / t * 100 : 0 }[m]; };
+  const fmt = v => m === 'orders' ? String(Math.round(v)) : m === 'margin' ? '%' + v.toFixed(1) : money(v);
+  const rows = list.map(b => ({ b, v: val(b) })).sort((x, y) => y.v - x.v), max = Math.max(1, ...rows.map(r => Math.abs(r.v)));
+  const avgAll = rows.reduce((a, r) => a + r.v, 0) / rows.length;
+  return `<div class="bc-box"><div class="bc-head"><b>Şube karşılaştırma</b><div class="seg">${BC_METRICS.map(([k, l]) => `<button type="button" class="${m===k?'on':''}" ${act('setBcMetric', k)}>${l}</button>`).join('')}</div></div>
+    <div class="bc-list">${rows.map((r, i) => `<button type="button" class="bc-row" title="Bu şubenin günlük görünümü" ${act('changeCompanyDashboardBranch', r.b.id)}>
+      <span class="bc-rank">${i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : i + 1}</span><span class="bc-n">${escapeHtml(r.b.name)}</span>
+      <span class="bc-t"><i style="width:${Math.max(2, Math.abs(r.v) / max * 100)}%;${r.v < 0 ? 'background:var(--red,#ef4444)' : ''}"></i><s style="left:${Math.abs(avgAll) / max * 100}%" title="Ortalama"></s></span>
+      <b class="bc-v">${fmt(r.v)}</b><small class="${r.v >= avgAll ? 'up' : 'down'}">${r.v >= avgAll ? '▲' : '▼'} ort.</small></button>`).join('')}</div></div>`;
+}
+function setBcMetric(k){ APP.bcMetric = k; renderCompanyPanelContent(getCompanySession()); }
+function branchDailyChartHtml(daily){
+  const max = Math.max(1, ...daily.map(d => Number(d.total) || 0));
+  return `<div class="bc-box"><div class="bc-head"><b>Günlük ciro</b></div><div class="sl-chart">${daily.map((d, i) => `<span class="sl-col" title="${new Date(d.day).toLocaleDateString('tr-TR')}: ${money(d.total)} · ${d.order_count} hesap">
+    <span class="sl-stack" style="height:${(Number(d.total) || 0) / max * 100}%"><i class="ok" style="flex:1"></i></span><small>${(i % Math.max(1, Math.ceil(daily.length / 8)) === 0 || i === daily.length - 1) ? new Date(d.day).toLocaleDateString('tr-TR', { day:'2-digit', month:'2-digit' }) : ''}</small></span>`).join('')}</div></div>`;
+}
