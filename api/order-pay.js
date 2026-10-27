@@ -39,7 +39,10 @@ module.exports = async function handler(req, res) {
     const token = (req.body && req.body.token) || q.token;
     const { data: op } = await supabase.from('online_payments').select('*').eq('id', pid).maybeSingle();
     const { data: rest } = op ? await supabase.from('restaurants').select('code').eq('id', op.restaurant_id).maybeSingle() : { data: null };
-    const back = (ok) => { res.writeHead(302, { Location: `${SITE}/siparis/?r=${encodeURIComponent((rest && rest.code) || '')}&${ok ? 'paid=1' : 'payfail=1'}` }); res.end(); };
+    const isTable = op && op.payload && op.payload.kind === 'table';
+    const back = (ok) => { res.writeHead(302, { Location: isTable
+      ? `${SITE}/menu/?t=${encodeURIComponent(op.payload.qr || '')}&${ok ? 'paid=1' : 'payfail=1'}`
+      : `${SITE}/siparis/?r=${encodeURIComponent((rest && rest.code) || '')}&${ok ? 'paid=1' : 'payfail=1'}` }); res.end(); };
     try {
       if (!op || !token) return back(false);
       const t = await payCreds(supabase, op.restaurant_id);
@@ -49,7 +52,10 @@ module.exports = async function handler(req, res) {
         await supabase.from('online_payments').update({ status: 'failed', error: String(result.errorMessage || result.paymentStatus || 'hata').slice(0, 300), finished_at: new Date().toISOString() }).eq('id', op.id);
         return back(false);
       }
-      const { data: reqId, error } = await supabase.rpc('_finalize_online_payment', { p_id: op.id, p_ref: String(result.paymentId || ''), p_paid: Number(result.paidPrice || result.price || 0) });
+      const paidArgs = { p_id: op.id, p_ref: String(result.paymentId || ''), p_paid: Number(result.paidPrice || result.price || 0) };
+      // Masadan (QR menü) hesap ödemesi: masadaki kalemler kartla ödendi olarak kapatılır.
+      if (isTable) { const { data: okT, error: eT } = await supabase.rpc('_finalize_table_payment', paidArgs); return back(!eT && !!okT); }
+      const { data: reqId, error } = await supabase.rpc('_finalize_online_payment', paidArgs);
       return back(!error && !!reqId);
     } catch (e) {
       console.error('order-pay callback', e);
@@ -71,7 +77,7 @@ module.exports = async function handler(req, res) {
     const surname = parts.length > 1 ? parts.pop() : '-';
     const ip = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim() || '85.34.78.112';
     const city = (rest && rest.billing_city) || 'Istanbul';
-    const addr = String(p.address || (rest && rest.name) || 'Gel-al').slice(0, 250);
+    const addr = String(p.address || (rest && rest.name) || (p.kind === 'table' ? 'Masada' : 'Gel-al')).slice(0, 250);
     const phone = String(p.phone || '').replace(/\D/g, '');
     const body = {
       locale: 'tr', conversationId: op.id, price: price(op.amount), paidPrice: price(op.amount), currency: 'TRY', basketId: op.id,
@@ -80,7 +86,7 @@ module.exports = async function handler(req, res) {
         email: `siparis+${op.id.slice(0, 8)}@peyktan.com`, identityNumber: '11111111111', registrationAddress: addr, ip, city, country: 'Turkey' },
       shippingAddress: { contactName: p.name || 'Müşteri', city, country: 'Turkey', address: addr },
       billingAddress: { contactName: p.name || 'Müşteri', city, country: 'Turkey', address: addr },
-      basketItems: [{ id: 'order', name: `${(rest && rest.name) || 'Restoran'} online sipariş`, category1: 'Yemek', itemType: 'PHYSICAL', price: price(op.amount) }],
+      basketItems: [{ id: 'order', name: `${(rest && rest.name) || 'Restoran'} ${p.kind === 'table' ? 'masa hesabı' : 'online sipariş'}`, category1: 'Yemek', itemType: 'PHYSICAL', price: price(op.amount) }],
     };
     const r = await iyzicoCall(t, '/payment/iyzipos/checkoutform/initialize/auth/ecom', body);
     if (r.status !== 'success' || !r.paymentPageUrl) {
