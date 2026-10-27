@@ -183,7 +183,42 @@ function wt(key){ return (WAITER_I18N[STATE.lang||'tr']||WAITER_I18N.tr)[key] ||
 function waiterHtml(){
   return `<div class="waiter-bar"><span>${escapeHtml(wt('title'))}</span>
     <div class="waiter-btns"><button type="button" ${act('callWaiter', 'order', '$this')}>${escapeHtml(wt('order'))}</button>
-    <button type="button" ${act('callWaiter', 'payment', '$this')}>${escapeHtml(wt('payment'))}</button></div></div>`;
+    <button type="button" ${act('callWaiter', 'payment', '$this')}>${escapeHtml(wt('payment'))}</button>
+    <button type="button" class="bill-btn" ${act('openBill')}>${escapeHtml(bt('bill'))}</button></div></div>`;
+}
+/* Hesabım: masanın açık hesabını görme ve (işletme online ödemeyi açtıysa) kartla ödeme. */
+const BILL_I18N = {
+  tr: { bill:'🧾 Hesabım', title:'Masa hesabı', empty:'Bu masada açık hesap yok.', total:'Toplam', payable:'Ödenebilir', pay:'💳 Kartla öde', pending:'{n} ürün henüz hazırlanıyor; hazır olunca ödenebilir.', nopay:'Ödeme için garsonu çağırabilirsiniz.', paid:'Ödemeniz alındı, teşekkür ederiz! 🙏', fail:'Ödeme tamamlanamadı. Tekrar deneyebilir ya da garsonu çağırabilirsiniz.', close:'Kapat' },
+  en: { bill:'🧾 My bill', title:'Table bill', empty:'No open bill at this table.', total:'Total', payable:'Payable', pay:'💳 Pay by card', pending:'{n} item(s) still being prepared; you can pay once ready.', nopay:'Please call your waiter to pay.', paid:'Payment received, thank you! 🙏', fail:'Payment could not be completed. Please try again or call your waiter.', close:'Close' },
+};
+function bt(k){ return (BILL_I18N[STATE.lang||'tr'] || BILL_I18N.en)[k] || BILL_I18N.tr[k]; }
+const tl = n => Number(n || 0).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' ₺';
+async function openBill(){
+  const { data, error } = await sb.rpc('get_table_bill', { p_qr_token: QR_TOKEN });
+  if(error){ alert(error.message); return; }
+  const d = data || {}, items = d.items || [];
+  const bg = document.createElement('div'); bg.className = 'modal-bg'; bg.id = 'billBg';
+  bg.innerHTML = `<div class="modal"><h2>${escapeHtml(bt('title'))} · ${escapeHtml(d.table || '')}</h2>
+    ${items.length ? items.map(i => `<div class="item-row"><span>${i.qty}× ${escapeHtml(i.name)}${i.ready ? '' : ' ⏳'}</span><b>${tl(i.qty * i.price)}</b></div>`).join('') : `<p>${escapeHtml(bt('empty'))}</p>`}
+    ${items.length ? `<div class="item-row bill-total"><span>${escapeHtml(bt('total'))}</span><b>${tl(d.total)}</b></div>` : ''}
+    ${d.pending ? `<p class="bill-note">${escapeHtml(bt('pending').replace('{n}', d.pending))}</p>` : ''}
+    ${items.length && d.pay && d.pay.enabled && d.payable > 0 ? `<button type="button" class="bill-pay" ${act('payBill', '$this')}>${escapeHtml(bt('pay'))} · ${tl(d.payable)}</button>` : items.length ? `<p class="bill-note">${escapeHtml(bt('nopay'))}</p>` : ''}
+    <button type="button" class="bill-close" ${act('closeBill')}>${escapeHtml(bt('close'))}</button></div>`;
+  bg.onclick = (e) => { if(e.target === bg) bg.remove(); };
+  document.body.appendChild(bg);
+}
+function closeBill(){ const b = document.getElementById('billBg'); if(b) b.remove(); }
+async function payBill(btn){
+  if(btn) btn.disabled = true;
+  const { data: pid, error } = await sb.rpc('start_table_payment', { p_qr_token: QR_TOKEN });
+  if(error){ alert(error.message); if(btn) btn.disabled = false; return; }
+  try{
+    const r = await fetch('/api/order-pay', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ payment_id: pid }) });
+    const j = await r.json();
+    if(j.url){ location.href = j.url; return; }
+    alert(j.error || bt('fail'));
+  }catch(e){ alert(bt('fail')); }
+  if(btn) btn.disabled = false;
 }
 async function callWaiter(kind, btn){
   if(btn) btn.disabled = true;
@@ -283,6 +318,10 @@ async function sendCustomerOrder(){
   renderState(stateBoxHtml('✅', t('successTitle'), t('successMsg')));
 }
 init();
+// iyzico dönüşü: ödeme sonucu bildirilir ve adres temizlenir.
+(function(){ const q = new URLSearchParams(location.search); if(q.get('paid') === '1' || q.get('payfail') === '1'){
+  setTimeout(() => alert(q.get('paid') === '1' ? bt('paid') : bt('fail')), 400);
+  q.delete('paid'); q.delete('payfail'); history.replaceState(null, '', location.pathname + '?' + q.toString()); } })();
 
 // Ürün fotoğrafına dokununca büyük gösterilir; dokununca kapanır.
 function zoomProductImage(src){
