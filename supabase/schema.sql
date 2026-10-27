@@ -6776,7 +6776,7 @@ begin
         )), '[]'::json)
         from products p where p.restaurant_id = s.restaurant_id
       ),
-      'ingredients', (select coalesce(json_agg(json_build_object('id', id, 'name', name, 'unit', unit, 'stock', stock, 'waste_pct', waste_pct, 'min_stock', min_stock)), '[]'::json) from ingredients where restaurant_id = s.restaurant_id),
+      'ingredients', (select coalesce(json_agg(json_build_object('id', id, 'name', name, 'unit', unit, 'stock', stock, 'waste_pct', waste_pct, 'min_stock', min_stock, 'unit_cost', unit_cost)), '[]'::json) from ingredients where restaurant_id = s.restaurant_id),
       'users', (
         select coalesce(json_agg(json_build_object(
           'id', au.id, 'username', au.username, 'role_ids', au.role_ids, 'is_active', au.is_active, 'phone', au.phone,
@@ -8873,6 +8873,36 @@ end $_$;
 
 
 --
+-- Name: recalc_recipe_costs(uuid, boolean); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.recalc_recipe_costs(p_token uuid, p_apply boolean) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+declare v_rid uuid; v_res jsonb;
+begin
+  select (x).restaurant_id into v_rid from (select _session_check(p_token, 'settings_products') x) z;
+  with ic as (
+    select i.id, i.name, coalesce(i.unit_cost, (select poi.unit_cost from purchase_order_items poi join purchase_orders po on po.id = poi.purchase_order_id
+             where poi.ingredient_id = i.id and coalesce(poi.unit_cost,0) > 0 order by po.created_at desc limit 1)) uc, coalesce(i.waste_pct,0) w
+      from ingredients i where i.restaurant_id = v_rid),
+  pc as (
+    select p.id, p.name, p.cost old_cost, count(*) n, count(ic.uc) priced,
+           round(sum(pi.qty_per_unit * ic.uc / greatest(0.01, 1 - ic.w/100.0))::numeric, 2) new_cost,
+           array_agg(ic.name) filter (where ic.uc is null) missing
+      from products p join product_ingredients pi on pi.product_id = p.id join ic on ic.id = pi.ingredient_id
+     where p.restaurant_id = v_rid group by p.id, p.name, p.cost)
+  select jsonb_agg(jsonb_build_object('id', id, 'name', name, 'old', old_cost, 'new', case when n = priced then new_cost end, 'missing', missing) order by name) into v_res from pc;
+  if p_apply then
+    update products p set cost = (r->>'new')::numeric from jsonb_array_elements(coalesce(v_res,'[]')) r
+     where p.id = (r->>'id')::uuid and r->>'new' is not null and p.restaurant_id = v_rid;
+  end if;
+  return coalesce(v_res, '[]'::jsonb);
+end $$;
+
+
+--
 -- Name: receive_purchase_order_items(uuid, uuid, jsonb); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -10169,6 +10199,21 @@ begin
   s := _session_check(p_token, 'shifts');
   if p_hour is null or p_hour < 0 or p_hour > 23 then raise exception 'Geçersiz saat'; end if;
   update restaurants set day_end_hour = p_hour where id = s.restaurant_id;
+end $$;
+
+
+--
+-- Name: set_ingredient_cost(uuid, uuid, numeric); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.set_ingredient_cost(p_token uuid, p_id uuid, p_cost numeric) RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+declare v_rid uuid; begin
+  select (x).restaurant_id into v_rid from (select _session_check(p_token, 'settings_ingredients') x) z;
+  if p_cost is not null and p_cost < 0 then raise exception 'Geçersiz birim maliyet'; end if;
+  update ingredients set unit_cost = p_cost where id = p_id and restaurant_id = v_rid;
 end $$;
 
 
@@ -13340,6 +13385,7 @@ CREATE TABLE public.ingredients (
     stock numeric DEFAULT 0 NOT NULL,
     waste_pct numeric DEFAULT 0 NOT NULL,
     min_stock numeric,
+    unit_cost numeric,
     CONSTRAINT ingredients_stock_nonneg CHECK (((stock IS NULL) OR (stock >= (0)::numeric))),
     CONSTRAINT ingredients_waste_pct_chk CHECK (((waste_pct >= (0)::numeric) AND (waste_pct < (100)::numeric)))
 );
@@ -15333,6 +15379,13 @@ CREATE INDEX allowance_usage_aid ON public.allowance_usage USING btree (allowanc
 
 
 --
+-- Name: allowances_user_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX allowances_user_id_idx ON public.allowances USING btree (user_id);
+
+
+--
 -- Name: allowances_user_uq; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -15893,6 +15946,13 @@ CREATE INDEX mail_outbox_rest_created ON public.mail_outbox USING btree (restaur
 
 
 --
+-- Name: mail_outbox_rest_created_idx2; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX mail_outbox_rest_created_idx2 ON public.mail_outbox USING btree (restaurant_id, created_at DESC);
+
+
+--
 -- Name: menus_rest; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -15949,6 +16009,13 @@ CREATE INDEX online_menu_sections_restaurant_id_idx ON public.online_menu_sectio
 
 
 --
+-- Name: online_payments_restaurant_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX online_payments_restaurant_id_idx ON public.online_payments USING btree (restaurant_id);
+
+
+--
 -- Name: open_account_entries_created_by_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -15974,6 +16041,13 @@ CREATE INDEX open_accounts_restaurant_id_idx ON public.open_accounts USING btree
 --
 
 CREATE INDEX order_items_pending_order ON public.order_items USING btree (order_id) WHERE (status = 'pending'::text);
+
+
+--
+-- Name: orders_allowance_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX orders_allowance_id_idx ON public.orders USING btree (allowance_id);
 
 
 --
@@ -16135,6 +16209,13 @@ CREATE UNIQUE INDEX reviews_order_id_key ON public.reviews USING btree (order_id
 --
 
 CREATE INDEX reviews_rest ON public.reviews USING btree (restaurant_id, rated_at DESC);
+
+
+--
+-- Name: reviews_table_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX reviews_table_id_idx ON public.reviews USING btree (table_id);
 
 
 --
