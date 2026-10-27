@@ -3624,3 +3624,28 @@ button.sl-stat{border:1px solid var(--border) !important;} button.sl-stat.on{bor
 .bc-t i{display:block;height:100%;border-radius:7px;background:var(--accent,#06b6d4);}
 .bc-t s{position:absolute;top:-3px;bottom:-3px;width:2px;background:var(--text);opacity:.45;}
 .bc-v{white-space:nowrap;} .bc-row small{font-size:11px;font-weight:700;} .bc-row small.up{color:var(--green,#22c55e);} .bc-row small.down{color:var(--red,#ef4444);}
+
+/* Vardiya planı */
+.sp-wk{min-width:170px;text-align:center}
+.sp-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin:12px 0}
+.sp-card{background:var(--card2,rgba(127,127,127,.08));border-radius:12px;padding:10px 12px;font-size:12.5px;color:var(--muted)}
+.sp-card span{display:block;font-size:20px;font-weight:700;color:var(--text)}
+.sp-wrap{overflow-x:auto}
+.sp-grid{width:100%;border-collapse:separate;border-spacing:3px;min-width:720px}
+.sp-grid th{font-size:12.5px;font-weight:600;padding:6px 4px}
+.sp-grid th small{display:block;font-weight:400;color:var(--muted);font-size:11px}
+.sp-name{font-weight:600;white-space:nowrap}
+.sp-cell{text-align:center;border-radius:8px;background:rgba(127,127,127,.06);padding:6px 4px;cursor:pointer;min-width:84px}
+.sp-cell small{display:block;font-size:10.5px;color:var(--muted)}
+.sp-today{background:rgba(34,197,94,.10)}
+.sp-chip{display:inline-block;background:var(--c1,#3b82f6);color:#fff;border-radius:6px;padding:2px 6px;font-size:12px;font-weight:600}
+.sp-add{color:var(--muted);font-size:18px}
+.sp-bar{display:inline-block;width:60px;height:6px;border-radius:3px;background:rgba(127,127,127,.15);margin-right:6px;vertical-align:middle}
+.sp-bar i{display:block;height:100%;border-radius:3px;background:var(--c1,#3b82f6)}
+.sp-presets{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
+.sp-modal{max-width:360px;width:calc(100% - 32px)}
+.sp-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:12px}
+.sp-actions button{width:auto;margin:0}
+.sp-mine{display:flex;gap:8px;overflow-x:auto;margin-bottom:8px}
+.sp-mine-d{flex:0 0 auto;border-radius:10px;background:rgba(127,127,127,.06);padding:8px 10px;text-align:center;font-size:12.5px;display:flex;flex-direction:column;gap:4px}
+.sp-mine-d small{color:var(--muted)}

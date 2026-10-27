@@ -616,10 +616,22 @@ function renderHome(main, session){
     <p class="muted hm-date" style="text-align:left;">${new Date().toLocaleDateString('tr-TR', { weekday:'long', day:'numeric', month:'long' })}</p>
     ${setupWizardHtml(session)}
     <div id="homeShift" class="hm-shift"></div>
+    <div id="homeMyPlan"></div>
     <div id="homeNow"></div>
     ${items.length ? `<h3 class="hq-title">🚀 Hızlı Başla</h3><div class="hm-grid">${items.map((it, i) => `<button type="button" class="hm-tile" data-hview="${it.view}" style="--sc:var(--c${i%4+1});" ${act('goToView', it.view)}><span class="hm-ic">${it.icon}</span><b>${escapeHtml(it.label)}</b><small class="hm-sub"></small></button>`).join('')}</div>` : ''}
     ${quick.length ? `<h3 class="hq-title">⚡ Hızlı Yönetim</h3><div class="hq-row">${quick.map((q, i) => `<button type="button" class="hq-card" style="--sc:var(--c${i+1});" ${act('goQuickManage', q.tab)}><span class="hq-ic">${q.ic}</span><span><b>${q.t}</b><small>${q.d}</small></span></button>`).join('')}</div>` : ''}`;
-  homeFillBadges(); homeFillShift(); homeLoadSummary(session);
+  homeFillBadges(); homeFillShift(); homeLoadSummary(session); homeMyPlan(session);
+}
+/* Bu haftaki planlı vardiyalarım (Vardiya Planı'ndan); plan yoksa hiçbir şey göstermez. */
+async function homeMyPlan(session){
+  if(typeof spWeekStart !== 'function') return;
+  const wk = spWeekStart(todayLocalDateStr());
+  const { data } = await sb.rpc('get_shift_plan', { p_token: session.session_token, p_week_start: wk });
+  const el = document.getElementById('homeMyPlan'); if(!el || !data) return;
+  const mine = (data.plan || []).filter(p => p.user_id === session.user_id).sort((a, b) => a.day < b.day ? -1 : 1);
+  if(!mine.length){ el.innerHTML = ''; return; }
+  const today = todayLocalDateStr(), names = ['Paz', 'Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt'];
+  el.innerHTML = `<h3 class="hq-title">📅 Bu haftaki vardiyalarım</h3><div class="sp-mine">${mine.map(p => `<div class="sp-mine-d ${p.day === today ? 'sp-today' : ''}"><b>${names[new Date(p.day + 'T12:00:00').getDay()]} ${p.day.slice(8)}</b><span class="sp-chip">${p.start}–${p.end}</span>${p.note ? `<small>${escapeHtml(p.note)}</small>` : ''}</div>`).join('')}</div>`;
 }
 /* Kurulum rehberi (yöneticiye, işletme hazır olana kadar ana ekranda): adımlar mevcut verilerden hesaplanır. */
 function setupSteps(){
