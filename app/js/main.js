@@ -614,12 +614,40 @@ function renderHome(main, session){
   ].filter(q => typeof SETTINGS_TABS !== 'undefined' && SETTINGS_TABS.some(t => t.tab===q.tab && settingsTabVisible(t, session)));
   main.innerHTML = `<h1>${greet} ${escapeHtml(session.username)} 👋</h1>
     <p class="muted hm-date" style="text-align:left;">${new Date().toLocaleDateString('tr-TR', { weekday:'long', day:'numeric', month:'long' })}</p>
+    ${setupWizardHtml(session)}
     <div id="homeShift" class="hm-shift"></div>
     <div id="homeNow"></div>
     ${items.length ? `<h3 class="hq-title">🚀 Hızlı Başla</h3><div class="hm-grid">${items.map((it, i) => `<button type="button" class="hm-tile" data-hview="${it.view}" style="--sc:var(--c${i%4+1});" ${act('goToView', it.view)}><span class="hm-ic">${it.icon}</span><b>${escapeHtml(it.label)}</b><small class="hm-sub"></small></button>`).join('')}</div>` : ''}
     ${quick.length ? `<h3 class="hq-title">⚡ Hızlı Yönetim</h3><div class="hq-row">${quick.map((q, i) => `<button type="button" class="hq-card" style="--sc:var(--c${i+1});" ${act('goQuickManage', q.tab)}><span class="hq-ic">${q.ic}</span><span><b>${q.t}</b><small>${q.d}</small></span></button>`).join('')}</div>` : ''}`;
   homeFillBadges(); homeFillShift(); homeLoadSummary(session);
 }
+/* Kurulum rehberi (yöneticiye, işletme hazır olana kadar ana ekranda): adımlar mevcut verilerden hesaplanır. */
+function setupSteps(){
+  const c = APP.config || {}, prods = c.products || [], tables = (c.zones || []).reduce((n, z) => n + (z.tables || []).length, 0);
+  let printers = []; try{ printers = typeof getPrinters === 'function' ? getPrinters() : JSON.parse(localStorage.getItem('rys_printers') || '[]'); }catch(e){}
+  return [
+    { k:'menu', ic:'📋', t:'Menü ve istasyon', d:'Ürün gruplarınızı ve mutfak istasyonlarını oluşturun', ok: (c.menus || []).length > 0 && (c.stations || []).length > 0, go:['quick','stations'] },
+    { k:'prod', ic:'🍔', t:'Ürünler', d:'En az 3 ürün ekleyin', ok: prods.length >= 3, go:['quick','products'] },
+    { k:'cost', ic:'💸', t:'Maliyetler', d:'Kâr raporları için ürün maliyetlerini girin', ok: prods.length > 0 && prods.every(p => Number(p.cost) > 0), go:['quick','products'] },
+    { k:'table', ic:'🪑', t:'Masalar', d:'Bölge ve masaları ekleyin', ok: tables > 0, go:['quick','zones'] },
+    { k:'staff', ic:'👥', t:'Personel', d:'Garson / mutfak kullanıcılarını ekleyin', ok: (c.users || []).length > 1, go:['quick','users'] },
+    { k:'print', ic:'🖨️', t:'Yazıcı', d:'Fiş ve mutfak yazıcısını bağlayın (isteğe bağlı)', ok: printers.length > 0, go:['view','printerSettings'] },
+  ];
+}
+function setupWizardHtml(session){
+  if(!session.isManager) return '';
+  let hidden = false; try{ hidden = localStorage.getItem('pk_setup_hidden') === '1'; }catch(e){}
+  const st = setupSteps(), done = st.filter(x => x.ok).length;
+  if(hidden || done === st.length) return '';
+  const next = st.find(x => !x.ok);
+  return `<div class="sk-card"><div class="sk-head"><div><b>🚀 İşletmenizi kuralım</b><small>${done}/${st.length} adım tamam</small></div>
+      <button type="button" class="sk-x" title="Gizle" ${act('hideSetupWizard')}>✕</button></div>
+    <div class="sk-bar"><i style="width:${Math.round(done / st.length * 100)}%"></i></div>
+    <div class="sk-steps">${st.map(x => `<button type="button" class="sk-step ${x.ok ? 'ok' : ''} ${next === x ? 'next' : ''}" ${act('setupGo', x.go[0], x.go[1])}>
+      <span class="sk-ic">${x.ok ? '✓' : x.ic}</span><span><b>${x.t}</b><small>${x.d}</small></span>${next === x ? '<em>Sıradaki →</em>' : ''}</button>`).join('')}</div></div>`;
+}
+function setupGo(kind, target){ if(kind === 'view') goToView(target); else goQuickManage(target); }
+function hideSetupWizard(){ try{ localStorage.setItem('pk_setup_hidden', '1'); }catch(e){} const el = document.querySelector('.sk-card'); if(el) el.remove(); showToast('Kurulum rehberi gizlendi'); }
 // Kısayol kartlarına bekleyen iş sayısı (menü rozetlerinden).
 function homeFillBadges(){
   const b = APP.navBadges || {};

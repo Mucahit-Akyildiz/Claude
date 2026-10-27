@@ -3581,3 +3581,17 @@ button.sl-stat{border:1px solid var(--border) !important;} button.sl-stat.on{bor
 .mic-meter{position:relative;height:8px;border-radius:6px;background:rgba(127,127,127,.18);overflow:visible;margin:-2px 0 4px;}
 .mic-meter i{display:block;height:100%;width:0;border-radius:6px;transition:width .08s;}
 .mic-meter[data-res]::after{content:attr(data-res);position:absolute;right:0;top:10px;font-size:11px;font-weight:700;color:var(--muted);}
+
+/* Kurulum rehberi (ana ekran) */
+.sk-card{margin:10px 0 16px;padding:16px;border-radius:18px;border:1px solid color-mix(in srgb,var(--accent,#06b6d4) 40%,var(--border));background:linear-gradient(150deg,color-mix(in srgb,var(--accent,#06b6d4) 12%,var(--panel)),var(--panel));text-align:left;}
+.sk-head{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;}
+.sk-head b{display:block;font-size:16px;} .sk-head small{color:var(--muted);font-size:12.5px;}
+.sk-x{width:auto !important;margin:0 !important;padding:4px 9px !important;background:transparent !important;border:0 !important;box-shadow:none !important;color:var(--muted) !important;font-size:16px;cursor:pointer;}
+.sk-bar{height:7px;border-radius:9px;background:rgba(127,127,127,.18);overflow:hidden;margin:10px 0 12px;} .sk-bar i{display:block;height:100%;background:var(--accent,#06b6d4);border-radius:9px;transition:width .4s;}
+.sk-steps{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:8px;}
+.sk-step{display:flex !important;align-items:center;gap:10px;width:100% !important;margin:0 !important;padding:10px 12px !important;border-radius:12px;border:1px solid var(--border) !important;background:var(--panel) !important;color:var(--text) !important;text-align:left;font-weight:400 !important;cursor:pointer;box-shadow:none !important;position:relative;}
+.sk-step b{display:block;font-size:13.5px;} .sk-step small{display:block;font-size:11.5px;color:var(--muted);}
+.sk-ic{flex:0 0 34px;height:34px;border-radius:10px;display:grid;place-items:center;background:rgba(127,127,127,.12);font-size:17px;}
+.sk-step.ok{opacity:.65;} .sk-step.ok .sk-ic{background:color-mix(in srgb,var(--green,#22c55e) 22%,transparent);color:var(--green,#22c55e);font-weight:800;}
+.sk-step.next{border-color:var(--accent,#06b6d4) !important;box-shadow:0 0 0 2px color-mix(in srgb,var(--accent,#06b6d4) 30%,transparent) !important;}
+.sk-step em{position:absolute;right:10px;top:8px;font-style:normal;font-size:11px;font-weight:800;color:var(--accent,#06b6d4);}
