@@ -252,6 +252,48 @@ begin
   exception when others then insert into _results values ('sifirlama_kullanici_rol', false, sqlerrm); end;
 end $more$;
 
+-- ---- 19-20) Uçtan uca sipariş → mutfak → QR hesap → kartla ödeme; vardiya planı ----
+do $e2e$
+declare r uuid; z uuid; t uuid; st uuid; mgr uuid; role_mgr uuid; p1 uuid; tok uuid := gen_random_uuid(); o uuid; it uuid; qr uuid; b json; pid uuid; okp boolean; n int; err text;
+  code text := 'E' || substr(md5(random()::text), 1, 8);
+begin
+  insert into restaurants (name, code, package_id, is_active, expires_at) values ('CI E2E', code, 'paket_kurumsal', true, now() + interval '30 days') returning id into r;
+  insert into roles (restaurant_id, name, is_system, permissions) values (r, 'Yönetici', true, '{}') returning id into role_mgr;
+  insert into app_users (restaurant_id, username, password, role_ids) values (r, 'mgr', crypt('Test1234', gen_salt('bf')), array[role_mgr]) returning id into mgr;
+  insert into staff_sessions (token, user_id, restaurant_id, username, expires_at) values (tok, mgr, r, 'mgr', now() + interval '1 hour');
+  insert into zones (restaurant_id, name) values (r, 'Salon') returning id into z;
+  insert into restaurant_tables (restaurant_id, zone_id, name) values (r, z, 'E1') returning id into t;
+  select qr_token into qr from restaurant_tables where id = t;
+  insert into stations (restaurant_id, name) values (r, 'Mutfak') returning id into st;
+  insert into products (restaurant_id, name, price, cost, available, station_id) values (r, 'Lahmacun', 80, 20, true, st) returning id into p1;
+
+  -- 19) Uçtan uca: sipariş → mutfak (hazır değilken ödeme reddi, mutfak "hazır") → QR'dan hesap → kartla online ödeme kapanışı
+  begin
+    perform send_order(tok, t, json_build_array(json_build_object('product_id', p1, 'name', 'Lahmacun', 'qty', 2)));
+    select id into o from orders where table_id = t and status = 'open';
+    select id into it from order_items where order_id = o;
+    begin perform pay_order_items(tok, o, 'cash', 160, 0); err := 'kabul'; exception when others then err := sqlerrm; end;
+    perform mark_item_ready(tok, it);
+    b := get_table_bill(qr);
+    insert into online_payments (restaurant_id, amount, status, payload) values (r, 160, 'pending', jsonb_build_object('kind', 'table', 'qr', qr::text, 'order_id', o)) returning id into pid;
+    okp := _finalize_table_payment(pid, 'TEST', 160);
+    okp := okp and (select status from online_payments where id = pid) = 'paid';
+    select count(*) into n from sales_history where order_id = o;
+    insert into _results values ('uctan_uca_siparis_mutfak_odeme', err <> 'kabul' and (select status from order_items where id = it) is not null
+      and b::text like '%160%' and okp and n >= 1 and (select status from orders where id = o) = 'closed',
+      'hazirsiz: ' || left(err, 40) || ' | satis: ' || n || ' | bill: ' || left(b::text, 60));
+  exception when others then insert into _results values ('uctan_uca_siparis_mutfak_odeme', false, sqlerrm); end;
+
+  -- 20) Vardiya planı: kaydet, geçen haftayı kopyala, boş saatle sil
+  begin
+    perform set_shift_plan(tok, mgr, date '2026-01-05', '09:00', '17:00');
+    n := copy_shift_plan_week(tok, date '2026-01-12');
+    perform set_shift_plan(tok, mgr, date '2026-01-05', '', '');
+    insert into _results values ('vardiya_plani', n = 1 and json_array_length(get_shift_plan(tok, date '2026-01-12')->'plan') = 1
+      and json_array_length(get_shift_plan(tok, date '2026-01-05')->'plan') = 0, 'kopya: ' || n);
+  exception when others then insert into _results values ('vardiya_plani', false, sqlerrm); end;
+end $e2e$;
+
 -- ---- 13) Herkese açık anahtar (anon) iç fonksiyonları ve abonelik uzatmayı çağıramaz ----
 do $sec$
 declare v_open text;
@@ -271,7 +313,7 @@ declare f text;
 begin
   select string_agg(name || ' (' || coalesce(detail,'') || ')', '; ') into f from _results where not ok;
   if f is not null then raise exception 'BAŞARISIZ TESTLER: %', f; end if;
-  if (select count(*) from _results) < 23 then raise exception 'Beklenenden az test çalıştı: %', (select count(*) from _results); end if;
+  if (select count(*) from _results) < 25 then raise exception 'Beklenenden az test çalıştı: %', (select count(*) from _results); end if;
 end $check$;
 
 rollback;

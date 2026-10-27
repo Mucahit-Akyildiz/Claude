@@ -617,6 +617,7 @@ function renderHome(main, session){
     ${setupWizardHtml(session)}
     <div id="homeShift" class="hm-shift"></div>
     <div id="homeMyPlan"></div>
+    ${discoverHtml(session)}
     <div id="homeNow"></div>
     ${items.length ? `<h3 class="hq-title">🚀 Hızlı Başla</h3><div class="hm-grid">${items.map((it, i) => `<button type="button" class="hm-tile" data-hview="${it.view}" style="--sc:var(--c${i%4+1});" ${act('goToView', it.view)}><span class="hm-ic">${it.icon}</span><b>${escapeHtml(it.label)}</b><small class="hm-sub"></small></button>`).join('')}</div>` : ''}
     ${quick.length ? `<h3 class="hq-title">⚡ Hızlı Yönetim</h3><div class="hq-row">${quick.map((q, i) => `<button type="button" class="hq-card" style="--sc:var(--c${i+1});" ${act('goQuickManage', q.tab)}><span class="hq-ic">${q.ic}</span><span><b>${q.t}</b><small>${q.d}</small></span></button>`).join('')}</div>` : ''}`;
@@ -659,6 +660,29 @@ function setupWizardHtml(session){
       <span class="sk-ic">${x.ok ? '✓' : x.ic}</span><span><b>${x.t}</b><small>${x.d}</small></span>${next === x ? '<em>Sıradaki →</em>' : ''}</button>`).join('')}</div></div>`;
 }
 function setupGo(kind, target){ if(kind === 'view') goToView(target); else goQuickManage(target); }
+/* Özellik keşfi: kullanıcının erişebildiği ama gözden kaçabilecek özellikler; kapatılan kart bir daha gösterilmez, en fazla 3 kart. */
+const DISCOVER_TIPS = [
+  { k:'plan', ic:'📅', t:'Vardiya Planı', d:'Haftalık vardiyaları planlayın, geçen haftayı tek tıkla kopyalayın.', ok: s => canManage(s, 'shifts'), go:['users','plan'] },
+  { k:'qrpay', ic:'📱', t:'QR ile hesap ödeme', d:'Müşteri masadaki QR\'dan hesabını görüp kartla ödeyebilir.', ok: s => canManage(s, 'settings_integrations'), go:['integrations'] },
+  { k:'winback', ic:'💛', t:'Müşteri geri kazanım', d:'Uzun süredir gelmeyen müşterilere tek tıkla SMS/e-posta.', ok: s => hasPerm(s, 'crm'), view:'crm' },
+  { k:'res', ic:'🪑', t:'Rezervasyon & bekleme listesi', d:'"Masanız hazır" SMS\'i ve tahmini bekleme süresi.', ok: s => hasPerm(s, 'reservations'), view:'reservations' },
+  { k:'radio', ic:'📻', t:'Peyk Bas-Konuş', d:'Mutfak ve salon arasında telsiz gibi anlık sesli iletişim.', ok: () => true, view:'radio' },
+  { k:'stock', ic:'📦', t:'Kritik stok uyarısı', d:'Azalan hammaddeler için tek tıkla satınalma taslağı.', ok: s => canManage(s, 'settings_products'), go:['products','ingredients'] },
+];
+function discoverHtml(session){
+  let seen = []; try{ seen = JSON.parse(localStorage.getItem('pk_discover_off') || '[]'); }catch(e){}
+  const list = DISCOVER_TIPS.filter(t => !seen.includes(t.k) && (() => { try{ return t.ok(session); }catch(e){ return false; } })()).slice(0, 3);
+  if(!list.length) return '';
+  return `<h3 class="hq-title">✨ Bunları denediniz mi?</h3><div class="dc-row">${list.map(t => `<div class="dc-card" data-dc="${t.k}" ${act('discoverGo', t.k)}><span class="dc-ic">${t.ic}</span><span><b>${t.t}</b><small>${t.d}</small></span><span class="dc-x" title="Bir daha gösterme" ${actOn('click', 'discoverOff', [t.k, '$event'])}>✕</span></div>`).join('')}</div>`;
+}
+function discoverOff(k, ev){ if(ev) ev.stopPropagation(); let seen = []; try{ seen = JSON.parse(localStorage.getItem('pk_discover_off') || '[]'); seen.push(k); localStorage.setItem('pk_discover_off', JSON.stringify(seen)); }catch(e){} const el = document.querySelector(`.dc-card[data-dc="${k}"]`); if(el) el.remove(); }
+function discoverGo(k){
+  const t = DISCOVER_TIPS.find(x => x.k === k); if(!t) return;
+  discoverOff(k);
+  if(t.view) return goToView(t.view);
+  APP.settingsTab = t.go[0]; if(t.go[0] === 'users') APP.usersSubTab = t.go[1]; if(t.go[0] === 'products') APP.productsSubTab = t.go[1];
+  goToView('settings');
+}
 function hideSetupWizard(){ try{ localStorage.setItem('pk_setup_hidden', '1'); }catch(e){} const el = document.querySelector('.sk-card'); if(el) el.remove(); showToast('Kurulum rehberi gizlendi'); }
 // Kısayol kartlarına bekleyen iş sayısı (menü rozetlerinden).
 function homeFillBadges(){
