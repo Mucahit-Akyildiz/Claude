@@ -17,6 +17,7 @@ async function renderCrmView(main, session){
         <h2 style="margin:0;">Müşteri Listesi</h2>
         <div class="crm-hbtns" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;flex:1 1 auto;justify-content:flex-end;min-width:0;">
           <button type="button" class="fsheet-open" style="flex:0 0 auto;" ${act('newCustomer')}>+ Yeni Müşteri</button>
+          ${canManage(session, 'crm') ? `<button type="button" class="ghost-btn" style="width:auto;flex:0 0 auto;white-space:nowrap;margin:0;" ${act('openWinback')} title="Uzun süredir gelmeyen müşterilere SMS / e-posta">💛 Geri kazan</button>` : ''}
           <input id="crmSearchInput" placeholder="İsim veya telefon ara..." style="flex:0 1 260px;min-width:120px;width:auto;margin:0;" value="${escapeAttr(APP.crmSearch||'')}" ${actOn('input', 'debouncedCrmSearch', ['$value'])}>
           ${canManage(session, 'crm') ? `<button type="button" class="ghost-btn" style="width:auto;flex:0 0 auto;white-space:nowrap;margin:0;" ${act('openSheet','crmLoySheet')} title="Puan ve doğum günü indirimi ayarları">⭐ Sadakat${loyalty.enabled ? '' : ' (kapalı)'}</button>` : ''}
           <button type="button" class="ghost-btn" style="width:auto;flex:0 0 auto;white-space:nowrap;margin:0;" ${act('exportCustomersCsv')} title="Tüm müşterileri Excel (.xlsx) olarak indir">⬇️ Dışa aktar</button>
@@ -471,3 +472,48 @@ async function renderReviewsBody(){
   if(rows.some(r => !r.seen)){ await sb.rpc('mark_reviews_seen', { p_token: session.session_token }); refreshNavBadges(); }
 }
 function setReviewFilter(k){ APP.reviewFilter = k; renderReviewsBody(); }
+
+/* ---- Müşteri geri kazanım: X gündür gelmeyen müşterilere SMS / e-posta (get_winback / send_winback) ---- */
+const WINBACK_DEFAULT = '{isletme}: {ad}, sizi özledik! Bu hafta gelişinizde %10 indirim sizi bekliyor. Kasada bu mesajı göstermeniz yeterli.';
+async function openWinback(days){
+  APP.wb = Object.assign({ days: 30, sel: {}, channel: 'sms' }, APP.wb || {}, days ? { days, sel: {} } : {});
+  const { data, error } = await withLoadingOverlay(sb.rpc('get_winback', { p_token: getSession().session_token, p_days: APP.wb.days }));
+  if(error){ alert(error.message); return; }
+  APP.wb.data = data || {}; drawWinback();
+}
+function drawWinback(){
+  let bg = document.getElementById('wbBg');
+  if(!bg){ bg = document.createElement('div'); bg.id = 'wbBg'; bg.className = 'modal-bg'; document.body.appendChild(bg); }
+  const W = APP.wb, d = W.data, b = d.buckets || {}, rows = d.rows || [], selN = rows.filter(r => W.sel[r.id]).length;
+  const prevText = (document.getElementById('wbText') || {}).value;
+  const total = (b.active || 0) + (b.d30 || 0) + (b.d60 || 0) + (b.d90 || 0) || 1;
+  const card = (k, days, label, n, col) => `<button type="button" class="wb-card ${W.days === days ? 'on' : ''}" style="--t:${col}" ${days ? act('openWinback', days) : 'disabled'}><small>${label}</small><b>${n || 0}</b><i style="width:${Math.round((n || 0) / total * 100)}%"></i></button>`;
+  const ago = t => t ? Math.round((Date.now() - new Date(t)) / 864e5) + ' gün önce' : '—';
+  bg.innerHTML = `<div class="box wb-modal"><div style="display:flex;justify-content:space-between;align-items:center;"><h2 style="margin:0;">💛 Müşteri geri kazanım</h2><span style="cursor:pointer;color:var(--muted);font-size:20px;" ${act('removeEl','wbBg')}>✕</span></div>
+    <p class="muted" style="font-size:13px;text-align:left;">Bir süredir gelmeyen müşterilerinize kişisel bir mesaj gönderin. Aynı müşteriye 14 gün içinde ikinci kampanya gönderilmez.</p>
+    <div class="wb-cards">${card('a', 0, 'Son 30 günde geldi', b.active, 'var(--green,#22c55e)')}${card('3', 30, '30–60 gündür yok', b.d30, '#f59e0b')}${card('6', 60, '60–90 gündür yok', b.d60, '#f97316')}${card('9', 90, '90+ gündür yok', b.d90, 'var(--red,#ef4444)')}</div>
+    <p class="wb-stat">📨 Son 90 günde <b>${d.contacted || 0}</b> müşteriye ulaşıldı, bunlardan <b>${d.returned || 0}</b> tanesi geri geldi${d.contacted ? ' (%' + Math.round((d.returned || 0) / d.contacted * 100) + ')' : ''}.</p>
+    ${W.days ? `<div class="wb-listhead"><b>${W.days}+ gündür gelmeyen ${rows.length} müşteri</b><span><button type="button" class="ghost-btn" ${act('wbSelAll', true)}>Hepsini seç</button><button type="button" class="ghost-btn" ${act('wbSelAll', false)}>Seçimi kaldır</button></span></div>
+    <div class="wb-list">${rows.map(r => `<label class="wb-row"><input type="checkbox" ${W.sel[r.id] ? 'checked' : ''} ${actOn('change','wbToggle',[r.id,'$checked'])}>
+      <span class="wb-n"><b>${escapeHtml(r.name || '—')}</b><small>${r.phone ? escapeHtml(maskPhone(r.phone)) : ''}${r.has_email ? ' · ✉️' : ''}</small></span>
+      <span class="wb-m"><small>Son geliş</small>${ago(r.last_visit_at)}</span><span class="wb-m"><small>${r.total_visits} ziyaret</small>${money(r.total_spent || 0)}</span>
+      ${r.last_contact ? `<span class="pchip" title="Son kampanya">📨 ${ago(r.last_contact)}</span>` : ''}</label>`).join('') || '<p class="muted">Bu aralıkta müşteri yok.</p>'}</div>
+    <div class="wb-compose"><label>Mesaj <small class="muted">({ad} = müşterinin adı, {isletme} = işletme adı)</small></label>
+      <textarea id="wbText" rows="3" maxlength="320">${escapeHtml(prevText != null ? prevText : WINBACK_DEFAULT)}</textarea>
+      <div class="wb-send"><div class="seg">${[['sms','📱 SMS'],['mail','✉️ E-posta'],['both','İkisi de']].map(([k, l]) => `<button type="button" class="${W.channel === k ? 'on' : ''}" ${act('wbChannel', k)}>${l}</button>`).join('')}</div>
+        <button type="button" ${selN ? '' : 'disabled'} ${act('sendWinback')}>${selN} müşteriye gönder</button></div></div>`
+    : '<p class="muted">Yukarıdan bir aralık seçin.</p>'}</div>`;
+  bg.onclick = (e) => { if(e.target === bg) bg.remove(); };
+}
+function wbToggle(id, on){ APP.wb.sel[id] = !!on; const t = document.getElementById('wbText'); const v = t && t.value; drawWinback(); if(v != null) document.getElementById('wbText').value = v; }
+function wbSelAll(on){ (APP.wb.data.rows || []).forEach(r => { APP.wb.sel[r.id] = !!on; }); drawWinback(); }
+function wbChannel(k){ APP.wb.channel = k; drawWinback(); }
+async function sendWinback(){
+  const ids = (APP.wb.data.rows || []).filter(r => APP.wb.sel[r.id]).map(r => r.id), text = (document.getElementById('wbText') || {}).value || '';
+  if(!ids.length) return;
+  if(!await uiConfirm(ids.length + ' müşteriye ' + ({ sms:'SMS', mail:'e-posta', both:'SMS ve e-posta' }[APP.wb.channel]) + ' gönderilecek. Devam edilsin mi?')) return;
+  const { data, error } = await withLoadingOverlay(sb.rpc('send_winback', { p_token: getSession().session_token, p_ids: ids, p_text: text, p_channel: APP.wb.channel }));
+  if(error){ alert(error.message); return; }
+  showToast(`Gönderildi ✓ ${data.sms} SMS, ${data.mail} e-posta${data.skipped ? ' · ' + data.skipped + ' müşteri son 14 günde zaten mesaj aldığı için atlandı' : ''}`);
+  APP.wb.sel = {}; openWinback();
+}
