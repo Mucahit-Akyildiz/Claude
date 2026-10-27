@@ -7261,6 +7261,35 @@ end $$;
 
 
 --
+-- Name: get_winback(uuid, integer); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.get_winback(p_token uuid, p_days integer) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+declare v_rid uuid; d int := greatest(coalesce(p_days, 30), 7);
+begin
+  select (x).restaurant_id into v_rid from (select _session_check(p_token, 'crm') x) z;
+  return jsonb_build_object(
+    'buckets', (select jsonb_build_object(
+        'd30', count(*) filter (where last_visit_at < now() - interval '30 days' and last_visit_at >= now() - interval '60 days'),
+        'd60', count(*) filter (where last_visit_at < now() - interval '60 days' and last_visit_at >= now() - interval '90 days'),
+        'd90', count(*) filter (where last_visit_at < now() - interval '90 days'),
+        'active', count(*) filter (where last_visit_at >= now() - interval '30 days'))
+      from customers where restaurant_id = v_rid and coalesce(total_visits,0) > 0),
+    'returned', (select count(distinct w.customer_id) from winback_log w join customers c on c.id = w.customer_id
+                  where w.restaurant_id = v_rid and w.sent_at > now() - interval '90 days' and c.last_visit_at > w.sent_at),
+    'contacted', (select count(distinct customer_id) from winback_log where restaurant_id = v_rid and sent_at > now() - interval '90 days'),
+    'rows', (select coalesce(jsonb_agg(to_jsonb(r) order by r.total_spent desc nulls last), '[]'::jsonb) from (
+        select c.id, c.name, c.phone, c.email is not null and c.email <> '' has_email, c.total_visits, c.total_spent, c.last_visit_at,
+               (select max(sent_at) from winback_log w where w.customer_id = c.id) last_contact
+          from customers c where c.restaurant_id = v_rid and coalesce(c.total_visits,0) > 0 and c.last_visit_at < now() - make_interval(days => d)
+          limit 500) r));
+end $$;
+
+
+--
 -- Name: import_customers(uuid, jsonb, boolean); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -10102,6 +10131,37 @@ begin
   end loop;
   return json_build_object('order_id', v_order);
 end; $$;
+
+
+--
+-- Name: send_winback(uuid, uuid[], text, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.send_winback(p_token uuid, p_ids uuid[], p_text text, p_channel text) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+declare v_rid uuid; v_uid uuid; v_name text; c record; v_msg text; n_sms int := 0; n_mail int := 0; n_skip int := 0;
+begin
+  select (x).restaurant_id, (x).user_id into v_rid, v_uid from (select _session_check(p_token, 'crm') x) z;
+  if coalesce(array_length(p_ids,1),0) = 0 then raise exception 'Müşteri seçin'; end if;
+  if array_length(p_ids,1) > 500 then raise exception 'Tek seferde en fazla 500 müşteri'; end if;
+  if length(trim(coalesce(p_text,''))) < 5 then raise exception 'Mesaj metni girin'; end if;
+  select name into v_name from restaurants where id = v_rid;
+  for c in select * from customers where restaurant_id = v_rid and id = any(p_ids) loop
+    -- Aynı müşteriye 14 gün içinde ikinci kampanya gönderilmez (rahatsız etmemek için).
+    if exists(select 1 from winback_log where customer_id = c.id and sent_at > now() - interval '14 days') then n_skip := n_skip + 1; continue; end if;
+    v_msg := replace(replace(p_text, '{ad}', coalesce(split_part(c.name, ' ', 1), '')), '{isletme}', coalesce(v_name, ''));
+    if p_channel in ('sms','both') and nullif(c.phone,'') is not null then perform _send_sms(v_rid, c.phone, v_msg, 'winback'); n_sms := n_sms + 1; end if;
+    if p_channel in ('mail','both') and nullif(c.email,'') is not null then
+      perform set_config('peyktan.mail_purpose', 'winback', true);
+      perform _send_email_r(v_rid, c.email, v_name || ' - Sizi özledik', _mail_layout('Sizi özledik 💛', '<p style="font-size:15px;line-height:1.6;">' || replace(replace(replace(v_msg,'&','&amp;'),'<','&lt;'), E'\n', '<br>') || '</p>'));
+      n_mail := n_mail + 1;
+    end if;
+    insert into winback_log(restaurant_id, customer_id, channel, sent_by) values (v_rid, c.id, p_channel, v_uid);
+  end loop;
+  return jsonb_build_object('sms', n_sms, 'mail', n_mail, 'skipped', n_skip);
+end $$;
 
 
 --
@@ -14441,6 +14501,39 @@ CREATE TABLE public.waste_log (
 
 
 --
+-- Name: winback_log; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.winback_log (
+    id bigint NOT NULL,
+    restaurant_id uuid NOT NULL,
+    customer_id uuid NOT NULL,
+    channel text,
+    sent_at timestamp with time zone DEFAULT now() NOT NULL,
+    sent_by uuid
+);
+
+
+--
+-- Name: winback_log_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.winback_log_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: winback_log_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.winback_log_id_seq OWNED BY public.winback_log.id;
+
+
+--
 -- Name: zones; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -14505,6 +14598,13 @@ ALTER TABLE ONLY public.sms_outbox ALTER COLUMN id SET DEFAULT nextval('public.s
 --
 
 ALTER TABLE ONLY public.support_emails ALTER COLUMN id SET DEFAULT nextval('public.support_emails_id_seq'::regclass);
+
+
+--
+-- Name: winback_log id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.winback_log ALTER COLUMN id SET DEFAULT nextval('public.winback_log_id_seq'::regclass);
 
 
 --
@@ -15361,6 +15461,14 @@ ALTER TABLE ONLY public.waste_log
 
 ALTER TABLE public.waste_log
     ADD CONSTRAINT waste_nonneg_chk CHECK (((qty > (0)::numeric) AND (unit_cost >= (0)::numeric) AND (total_cost >= (0)::numeric))) NOT VALID;
+
+
+--
+-- Name: winback_log winback_log_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.winback_log
+    ADD CONSTRAINT winback_log_pkey PRIMARY KEY (id);
 
 
 --
@@ -16279,6 +16387,20 @@ CREATE INDEX waiter_calls_pending ON public.waiter_calls USING btree (restaurant
 --
 
 CREATE INDEX waiter_calls_table_id_idx ON public.waiter_calls USING btree (table_id);
+
+
+--
+-- Name: winback_log_cust; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX winback_log_cust ON public.winback_log USING btree (customer_id, sent_at DESC);
+
+
+--
+-- Name: winback_log_rest; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX winback_log_rest ON public.winback_log USING btree (restaurant_id, sent_at DESC);
 
 
 --
@@ -17670,6 +17792,22 @@ ALTER TABLE ONLY public.waste_log
 
 
 --
+-- Name: winback_log winback_log_customer_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.winback_log
+    ADD CONSTRAINT winback_log_customer_id_fkey FOREIGN KEY (customer_id) REFERENCES public.customers(id) ON DELETE CASCADE;
+
+
+--
+-- Name: winback_log winback_log_restaurant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.winback_log
+    ADD CONSTRAINT winback_log_restaurant_id_fkey FOREIGN KEY (restaurant_id) REFERENCES public.restaurants(id) ON DELETE CASCADE;
+
+
+--
 -- Name: zones zones_restaurant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -18151,6 +18289,12 @@ ALTER TABLE public.waitlist_entries ENABLE ROW LEVEL SECURITY;
 --
 
 ALTER TABLE public.waste_log ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: winback_log; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.winback_log ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: zones; Type: ROW SECURITY; Schema: public; Owner: -
