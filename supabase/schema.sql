@@ -858,6 +858,38 @@ end $_$;
 
 
 --
+-- Name: _finalize_table_payment(uuid, text, numeric); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public._finalize_table_payment(p_id uuid, p_ref text, p_paid numeric) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+declare op online_payments%rowtype; v_mgr uuid; v_uname text; v_tok uuid := gen_random_uuid(); v_rest uuid;
+begin
+  select * into op from online_payments where id = p_id for update;
+  if op.id is null then return false; end if;
+  if op.status = 'paid' then return true; end if;
+  if round(coalesce(p_paid,0), 2) < round(op.amount, 2) then
+    update online_payments set status = 'amount_mismatch', error = 'Ödenen ' || p_paid, finished_at = now() where id = p_id; return false;
+  end if;
+  v_rest := op.restaurant_id;
+  select au.id, au.username into v_mgr, v_uname from app_users au join roles rl on rl.id = any(au.role_ids) and rl.is_system where au.restaurant_id = v_rest order by au.created_at limit 1;
+  insert into staff_sessions (token, user_id, restaurant_id, username, expires_at) values (v_tok, v_mgr, v_rest, v_uname, now() + interval '2 minutes');
+  begin
+    perform pay_order_items(v_tok, (op.payload->>'order_id')::uuid, 'card', 0, op.amount, 0, op.payload->'items', 0, null, 0, null, 0);
+  exception when others then
+    update staff_sessions set expires_at = now() where token = v_tok;
+    update online_payments set status = 'paid_unapplied', provider_payment_id = p_ref, error = left(sqlerrm, 300), finished_at = now() where id = p_id;
+    return true; -- para alındı; personel hesabı elle kapatır (uyarı Online ödemeler listesinde)
+  end;
+  update staff_sessions set expires_at = now() where token = v_tok;
+  update online_payments set status = 'paid', provider_payment_id = p_ref, finished_at = now() where id = p_id;
+  return true;
+end $$;
+
+
+--
 -- Name: _guard_owner_target(uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -4385,6 +4417,25 @@ end $$;
 
 
 --
+-- Name: copy_shift_plan_week(uuid, date); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.copy_shift_plan_week(p_token uuid, p_week_start date) RETURNS integer
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'extensions', 'pg_temp'
+    AS $$
+declare s staff_sessions%rowtype; n int;
+begin
+  s := _session_check(p_token, 'shifts');
+  insert into shift_plan(restaurant_id, user_id, day, start_time, end_time, note)
+    select restaurant_id, user_id, day + 7, start_time, end_time, note from shift_plan
+    where restaurant_id = s.restaurant_id and day >= p_week_start - 7 and day < p_week_start
+  on conflict (user_id, day) do nothing;
+  get diagnostics n = row_count; return n;
+end $$;
+
+
+--
 -- Name: create_branch(uuid, text, text); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -6911,6 +6962,26 @@ end $$;
 
 
 --
+-- Name: get_shift_plan(uuid, date); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.get_shift_plan(p_token uuid, p_week_start date) RETURNS json
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'extensions', 'pg_temp'
+    AS $$
+declare s staff_sessions%rowtype; mgr boolean;
+begin
+  s := _session_check(p_token);
+  mgr := (select bool_or(r.is_system or 'shifts' = any(r.permissions)) from app_users au join roles r on r.id = any(au.role_ids) where au.id = s.user_id);
+  return json_build_object('manage', coalesce(mgr,false),
+    'users', (select coalesce(json_agg(json_build_object('id', au.id, 'username', au.username) order by au.username), '[]') from app_users au
+      where au.restaurant_id = s.restaurant_id and au.is_active is not false and (mgr or au.id = s.user_id)),
+    'plan', (select coalesce(json_agg(json_build_object('user_id', p.user_id, 'day', p.day, 'start', to_char(p.start_time,'HH24:MI'), 'end', to_char(p.end_time,'HH24:MI'), 'note', p.note)), '[]') from shift_plan p
+      where p.restaurant_id = s.restaurant_id and p.day >= p_week_start and p.day < p_week_start + 7 and (mgr or p.user_id = s.user_id)));
+end $$;
+
+
+--
 -- Name: get_sms_log(uuid, date, date, text, text, text, integer, integer); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -7054,6 +7125,30 @@ begin
     'until', (select case when support_access_until > now() then support_access_until end from restaurants where id = s.restaurant_id),
     'log', coalesce((select json_agg(json_build_object('admin', admin_name, 'at', started_at, 'until', expires_at) order by started_at desc)
                      from (select * from support_access_log where restaurant_id = s.restaurant_id order by started_at desc limit 20) l), '[]'::json));
+end $$;
+
+
+--
+-- Name: get_table_bill(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.get_table_bill(p_qr_token uuid) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+declare t restaurant_tables%rowtype; o orders%rowtype; v_pay jsonb;
+begin
+  select * into t from restaurant_tables where qr_token = p_qr_token;
+  if t.id is null then raise exception 'Masa bulunamadı'; end if;
+  select * into o from orders where table_id = t.id and status = 'open' order by created_at desc limit 1;
+  select jsonb_build_object('enabled', ti.pay_provider = 'iyzico' and ti.pay_mode in ('optional','required') and ti.pay_api_key is not null)
+    into v_pay from tenant_integrations ti where ti.restaurant_id = t.restaurant_id;
+  if o.id is null then return jsonb_build_object('table', t.name, 'items', '[]'::jsonb, 'total', 0, 'payable', 0, 'pay', coalesce(v_pay, '{"enabled":false}')); end if;
+  return (select jsonb_build_object('table', t.name, 'pay', coalesce(v_pay, '{"enabled":false}'),
+      'items', coalesce(jsonb_agg(jsonb_build_object('name', name, 'qty', qty, 'price', price, 'ready', status = 'ready') order by added_at), '[]'::jsonb),
+      'total', coalesce(sum(price * qty), 0), 'payable', coalesce(sum(price * qty) filter (where status = 'ready'), 0),
+      'pending', count(*) filter (where status <> 'ready'))
+    from order_items where order_id = o.id and not paid and coalesce(status,'') <> 'cancelled');
 end $$;
 
 
@@ -10854,6 +10949,28 @@ end; $$;
 
 
 --
+-- Name: set_shift_plan(uuid, uuid, date, text, text, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.set_shift_plan(p_token uuid, p_user_id uuid, p_day date, p_start text, p_end text, p_note text DEFAULT NULL::text) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'extensions', 'pg_temp'
+    AS $$
+declare s staff_sessions%rowtype;
+begin
+  s := _session_check(p_token, 'shifts');
+  if not exists(select 1 from app_users where id = p_user_id and restaurant_id = s.restaurant_id) then raise exception 'Kullanıcı bulunamadı'; end if;
+  if nullif(p_start,'') is null or nullif(p_end,'') is null then
+    delete from shift_plan where user_id = p_user_id and day = p_day;
+  else
+    insert into shift_plan(restaurant_id, user_id, day, start_time, end_time, note) values (s.restaurant_id, p_user_id, p_day, p_start::time, p_end::time, nullif(p_note,''))
+    on conflict (user_id, day) do update set start_time = excluded.start_time, end_time = excluded.end_time, note = excluded.note;
+  end if;
+  return true;
+end $$;
+
+
+--
 -- Name: set_shift_required(uuid, boolean); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -11384,6 +11501,35 @@ begin
   end if;
 end;
 $$;
+
+
+--
+-- Name: start_table_payment(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.start_table_payment(p_qr_token uuid) RETURNS uuid
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+declare t restaurant_tables%rowtype; o orders%rowtype; v_items jsonb; v_amt numeric; v_id uuid;
+begin
+  select * into t from restaurant_tables where qr_token = p_qr_token;
+  if t.id is null then raise exception 'Masa bulunamadı'; end if;
+  if not exists(select 1 from tenant_integrations ti where ti.restaurant_id = t.restaurant_id and ti.pay_provider = 'iyzico' and ti.pay_mode in ('optional','required') and ti.pay_api_key is not null) then
+    raise exception 'Bu işletmede online ödeme kapalı'; end if;
+  select * into o from orders where table_id = t.id and status = 'open' order by created_at desc limit 1;
+  if o.id is null then raise exception 'Açık hesap yok'; end if;
+  select jsonb_agg(jsonb_build_object('item_id', id, 'qty', qty)), sum(price * qty) into v_items, v_amt
+    from order_items where order_id = o.id and not paid and status = 'ready';
+  if coalesce(v_amt, 0) <= 0 then raise exception 'Ödenecek hazır ürün yok'; end if;
+  -- Aynı masada 2 dk içinde bekleyen ödeme varsa onu kullan (çift dokunma).
+  select id into v_id from online_payments where restaurant_id = t.restaurant_id and status = 'pending' and payload->>'order_id' = o.id::text and created_at > now() - interval '2 minutes' and amount = v_amt limit 1;
+  if v_id is not null then return v_id; end if;
+  insert into online_payments (restaurant_id, payload, amount, status, provider)
+    values (t.restaurant_id, jsonb_build_object('kind', 'table', 'order_id', o.id, 'table_id', t.id, 'qr', p_qr_token, 'items', v_items, 'name', 'Masa ' || t.name), v_amt, 'pending', 'iyzico')
+    returning id into v_id;
+  return v_id;
+end $$;
 
 
 --
@@ -14284,6 +14430,22 @@ CREATE TABLE public.sales_history (
 
 
 --
+-- Name: shift_plan; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.shift_plan (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    restaurant_id uuid NOT NULL,
+    user_id uuid NOT NULL,
+    day date NOT NULL,
+    start_time time without time zone NOT NULL,
+    end_time time without time zone NOT NULL,
+    note text,
+    created_at timestamp with time zone DEFAULT now()
+);
+
+
+--
 -- Name: signup_otps; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -15352,6 +15514,22 @@ ALTER TABLE ONLY public.sales_history
 
 
 --
+-- Name: shift_plan shift_plan_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.shift_plan
+    ADD CONSTRAINT shift_plan_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: shift_plan shift_plan_user_id_day_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.shift_plan
+    ADD CONSTRAINT shift_plan_user_id_day_key UNIQUE (user_id, day);
+
+
+--
 -- Name: signup_otps signup_otps_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -16331,6 +16509,13 @@ CREATE INDEX reviews_table_id_idx ON public.reviews USING btree (table_id);
 --
 
 CREATE INDEX sales_history_rest_closed ON public.sales_history USING btree (restaurant_id, closed_at DESC);
+
+
+--
+-- Name: shift_plan_rest_day; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX shift_plan_rest_day ON public.shift_plan USING btree (restaurant_id, day);
 
 
 --
@@ -17656,6 +17841,22 @@ ALTER TABLE ONLY public.sales_history
 
 
 --
+-- Name: shift_plan shift_plan_restaurant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.shift_plan
+    ADD CONSTRAINT shift_plan_restaurant_id_fkey FOREIGN KEY (restaurant_id) REFERENCES public.restaurants(id) ON DELETE CASCADE;
+
+
+--
+-- Name: shift_plan shift_plan_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.shift_plan
+    ADD CONSTRAINT shift_plan_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.app_users(id) ON DELETE CASCADE;
+
+
+--
 -- Name: sms_outbox sms_outbox_restaurant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -18217,6 +18418,12 @@ ALTER TABLE public.roles ENABLE ROW LEVEL SECURITY;
 --
 
 ALTER TABLE public.sales_history ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: shift_plan; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.shift_plan ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: signup_otps; Type: ROW SECURITY; Schema: public; Owner: -
