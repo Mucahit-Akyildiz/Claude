@@ -76,7 +76,7 @@ function openPackageModal(pseudoId){
     <div class="order-modal">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
         <h2 style="margin:0;overflow-wrap:anywhere;word-break:break-word;">${title}</h2>
-        <span style="cursor:pointer;color:var(--muted);font-size:20px;" ${act('closeTableModal')}>✕</span>
+        <span class="u-xclose" ${act('closeTableModal')}>✕</span>
       </div>
       <div class="order-modal-grid">
         <div class="order-modal-menu">
@@ -86,7 +86,7 @@ function openPackageModal(pseudoId){
         <div class="order-modal-cart">
           <div class="om-cart-head">🧾 Sipariş<span class="om-cart-total"></span></div>
       ${isWl ? '<p class="muted" style="text-align:left;margin:0 0 6px;font-size:12.5px;">Siparişler hemen mutfağa düşer; müşteri oturtulunca masaya taşınır.</p>' : `<div class="field-group"><label>Müşteri Adı</label><input id="pkgCustName" maxlength="60" placeholder="örn. Ahmet Bey veya kayıtlı müşteri ara" autocomplete="off" ${actOn('input','tableCustSearch',['$value','pkgCust'])} value="${escapeAttr((existing&&existing.customer_name)||'')}"></div>
-      <div class="field-group"><label>Telefon <span style="color:var(--red);">*</span></label><input id="pkgCustPhone" placeholder="örn. 5551234567" autocomplete="off" inputmode="tel" ${actOn('input','tableCustSearch',['$value','pkgCust'])} value="${escapeAttr((existing&&existing.customer_phone)||'')}"></div>
+      <div class="field-group"><label>Telefon <span class="u-red">*</span></label><input id="pkgCustPhone" placeholder="örn. 5551234567" autocomplete="off" inputmode="tel" ${actOn('input','tableCustSearch',['$value','pkgCust'])} value="${escapeAttr((existing&&existing.customer_phone)||'')}"></div>
       <div id="pkgCustSuggest" style="margin:-6px 0 10px;"></div>
       <small class="muted" style="display:block;margin:-6px 0 10px;font-size:11.5px;">Telefon zorunludur. Kayıtlı müşteri seçince adresi otomatik dolar; yeni müşteri Müşteriler'e adresiyle birlikte eklenir.</small>
       ${pkgTypeHtml(existing)}
@@ -145,14 +145,14 @@ function renderProductPick(stationId, tableId){
     const stock = effectiveStock(p);
     const off = p.available===false || (stock!=null && stock<=0);
     let badge = '';
-    if(p.available===false) badge = '<div class="pp-badge" style="color:var(--red);">Satışta Değil</div>';
+    if(p.available===false) badge = '<div class="u-red pp-badge">Satışta Değil</div>';
     else if(stock!=null && stock<=0){
       // Reçeteli üründe hangi hammaddenin bittiği de yazılır (örn. "Stok Yok · Lavaş").
       const ings = APP.config.ingredients || [];
       const miss = (p.recipe || []).filter(r => { const i = ings.find(x => x.id === r.ingredient_id); return i && r.qty_per_unit > 0 && i.stock < r.qty_per_unit; }).map(r => r.ingredient_name);
-      badge = '<div class="pp-badge" style="color:var(--red);">Stok Yok' + (miss.length ? ' · ' + escapeHtml(miss.join(', ')) : '') + '</div>';
+      badge = '<div class="u-red pp-badge">Stok Yok' + (miss.length ? ' · ' + escapeHtml(miss.join(', ')) : '') + '</div>';
     }
-    else if(stock!=null && stock<=10) badge = '<div class="pp-badge" style="color:var(--accent);">Son '+stock+' porsiyon</div>';
+    else if(stock!=null && stock<=10) badge = '<div class="u-accent pp-badge">Son '+stock+' porsiyon</div>';
     const inCart = ((APP.draftCart && APP.draftCart[tableId]) || []).filter(i => i.product_id === p.id).reduce((n, i) => n + i.qty, 0);
     const dIdx = ((APP.draftCart && APP.draftCart[tableId]) || []).findIndex(i => i.product_id === p.id);
     return `<div class="prod-pick-card pp-card ${off?'off':''} ${inCart?'in':''}" data-pid="${p.id}" style="--mc:${menuColor(p.category)};" ${off?'':act('addToDraft', tableId, p.id)}>
@@ -543,7 +543,7 @@ function pkgTypeHtml(existing){
         <button type="button" class="pk-type-btn ${APP.pkgType!=='pickup'?'on':''}" data-pt="delivery" ${act('setPkgType','delivery')}>🛵 Paket<small>Adrese teslim</small></button>
         <button type="button" class="pk-type-btn ${APP.pkgType==='pickup'?'on':''}" data-pt="pickup" ${act('setPkgType','pickup')}>🥡 Gel-Al<small>Müşteri gelip alır</small></button>
       </div></div>
-    <div class="field-group" id="pkgPickupWrap" style="${APP.pkgType==='pickup'?'':'display:none;'}"><label>Yaklaşık Teslim Alma Süresi${leftMin!=null ? ` <span class="muted" style="font-weight:400;">(şu an: ${existing.pickup_at ? new Date(existing.pickup_at).toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'}) : ''}, ${leftMin} dk kaldı)</span>` : ''}</label>
+    <div class="field-group" id="pkgPickupWrap" style="${APP.pkgType==='pickup'?'':'display:none;'}"><label>Yaklaşık Teslim Alma Süresi${leftMin!=null ? ` <span class="u-fw4 muted">(şu an: ${existing.pickup_at ? new Date(existing.pickup_at).toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'}) : ''}, ${leftMin} dk kaldı)</span>` : ''}</label>
       <div class="pk-chips">${PKG_PICKUP_MINS.map(chip).join('')}
         <input type="number" min="1" max="600" inputmode="numeric" class="pk-chip-in" placeholder="Diğer" value="${APP.pkgPickupMin && !PKG_PICKUP_MINS.includes(APP.pkgPickupMin) ? APP.pkgPickupMin : ''}" ${actOn('input','setPkgPickupMin',['$value'])}>
       </div>
@@ -665,7 +665,7 @@ function openCourierSheet(orderId){
   APP.courierPick = { orderId, courier: (APP.lastCourier && users.some(u => u.id === APP.lastCourier)) ? APP.lastCourier : null };
   document.getElementById('courierBody').innerHTML = `
     <div class="cr-sum"><b>${escapeHtml(o.customer_name || ('Paket #' + (o.daily_number||'')))}</b>${o.delivery_address ? `<small>📍 ${escapeHtml(o.delivery_address)}</small>` : ''}</div>
-    <div class="rvf-t" style="margin-top:12px;">🧑 Kurye</div>
+    <div class="u-mt12 rvf-t">🧑 Kurye</div>
     <div class="rvf-chips" id="crChips">${users.map(u => `<button type="button" class="rvf-chip ${APP.courierPick.courier===u.id?'on':''}" data-uid="${u.id}" ${act('pickCourier', u.id)}>${escapeHtml(u.username)}</button>`).join('') || '<p class="muted">Kullanıcı yok</p>'}</div>
     ${o.customer_phone ? `<label class="cr-sms"><input type="checkbox" id="crSms" checked> 📱 Müşteriye SMS gönder: “Siparişiniz yola çıktı” + kurye adı, telefonu ve takip linki</label>` : '<p class="muted" style="font-size:12px;text-align:left;">Siparişte telefon olmadığı için SMS gönderilemez; takip linkini kopyalayıp iletebilirsiniz.</p>'}
     <div class="fsheet-foot"><button type="button" class="ghost-btn" ${act('closeSheet','courierSheet')}>Vazgeç</button><button ${act('confirmDispatch')}>🛵 Yola Çıkar</button></div>`;

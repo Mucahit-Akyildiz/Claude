@@ -113,11 +113,11 @@ function openOutboxModal(){
   const ov = document.createElement('div'); ov.id = 'outboxBg';
   ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:200;display:flex;align-items:center;justify-content:center;padding:16px;';
   ov.innerHTML = `<div class="box" style="max-width:480px;width:100%;margin:0;max-height:85vh;overflow-y:auto;">
-    <div style="display:flex;justify-content:space-between;align-items:center;"><h2 style="margin:0;">⏳ Bekleyen Siparişler</h2><span style="cursor:pointer;color:var(--muted);font-size:20px;" ${act('removeEl','outboxBg')}>✕</span></div>
+    <div class="u-row-sb"><h2 class="u-m0">⏳ Bekleyen Siparişler</h2><span class="u-xclose" ${act('removeEl','outboxBg')}>✕</span></div>
     <p class="muted" style="text-align:left;font-size:12.5px;">Bu siparişler bu cihazda bekliyor; bağlantı gelince otomatik gönderilir. Mutfak ekranları siparişi ancak gönderildikten sonra görür.</p>
     ${list.length ? list.map(e => `<div style="border:1px solid var(--border);border-radius:10px;padding:8px 10px;margin-bottom:8px;text-align:left;">
-      <div style="display:flex;justify-content:space-between;gap:8px;"><b>${escapeHtml(e.label || 'Sipariş')}</b><span class="muted" style="font-size:12px;">${new Date(e.at).toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'})}</span></div>
-      <div style="font-size:12.5px;">${(e.args.p_items || []).map(it => escapeHtml((it.qty || 1) + '× ' + it.name)).join(', ')}</div>
+      <div style="display:flex;justify-content:space-between;gap:8px;"><b>${escapeHtml(e.label || 'Sipariş')}</b><span class="u-fs12 muted">${new Date(e.at).toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'})}</span></div>
+      <div class="u-fs125">${(e.args.p_items || []).map(it => escapeHtml((it.qty || 1) + '× ' + it.name)).join(', ')}</div>
       ${e.error ? `<div style="color:var(--red);font-size:12.5px;margin-top:4px;">Gönderilemedi: ${escapeHtml(e.error)}</div>
         <div style="display:flex;gap:8px;margin-top:6px;"><button type="button" class="sbtn" style="margin:0;width:auto;" ${act('retryOutboxEntry', e.id)}>Tekrar dene</button><button type="button" class="ghost-btn" style="margin:0;width:auto;color:var(--red);border-color:var(--red);" ${act('discardOutboxEntry', e.id)}>Sil</button></div>` : ''}
     </div>`).join('') : '<p class="muted">Bekleyen sipariş yok.</p>'}

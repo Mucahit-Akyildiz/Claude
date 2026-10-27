@@ -69,7 +69,7 @@ function renderHelpView(main, session){
     ['support', '💬', 'Destek', 'Bize ulaşın']];
   main.innerHTML = `
     <h1>❓ Yardım</h1>
-    <div class="fsheet-bar" style="margin:-4px 0 14px;"><p class="muted" style="text-align:left;margin:0;">Peyktan'ı kullanırken aklınıza takılanlar. Aradığınızı bulamazsanız "Destek"ten bize ulaşın.</p><button type="button" class="ghost-btn" style="width:auto;margin:0;" ${act('showShortcutHelp')}>⌨️ Klavye Kısayolları (F1)</button></div>
+    <div class="fsheet-bar" style="margin:-4px 0 14px;"><p class="muted" style="text-align:left;margin:0;">Peyktan'ı kullanırken aklınıza takılanlar. Aradığınızı bulamazsanız "Destek"ten bize ulaşın.</p><button type="button" class="u-wa-m0 ghost-btn" ${act('showShortcutHelp')}>⌨️ Klavye Kısayolları (F1)</button></div>
     <div class="set-layout">
       <nav class="tabs settings-tabs set-nav" id="helpNav">
         ${nav.map(([k, ic, l, d], i) => `<div class="tab set-item ${String(APP.helpCat)===k?'active on':''}" data-help="${k}" style="--i:${i};--sc:${RACE_COLORS[i % RACE_COLORS.length]};" ${act('setHelpCat', k)}><span class="set-ico">${ic}</span><span class="set-txt"><b>${escapeHtml(l)}</b><small>${escapeHtml(d)}</small></span></div>`).join('')}
@@ -93,13 +93,13 @@ function drawHelpTopics(){
   const strip = (h) => h.replace(/<[^>]+>/g, ' ');
   const session = getSession();
   if(!q && APP.helpCat === 'video'){
-    box.innerHTML = `<div class="box" style="max-width:none;"><h2>🎬 Eğitim videosu · Peyktan nasıl kullanılır?</h2>
+    box.innerHTML = `<div class="u-mwn box"><h2>🎬 Eğitim videosu · Peyktan nasıl kullanılır?</h2>
       <video controls preload="none" playsinline poster="/assets/video/peyktan-egitim-poster.jpg" style="width:100%;max-width:880px;display:block;border-radius:14px;background:#0f1416;aspect-ratio:16/9;">
         <source src="https://cdn.jsdelivr.net/gh/Mucahit-Akyildiz/Claude@6020e24bb3eeeaba20c1fa64ad20c09cb314d240/assets/video/peyktan-egitim.mp4" type="video/mp4"></video></div>`;
     return;
   }
   if(!q && APP.helpCat === 'support'){
-    box.innerHTML = `<div class="box" style="max-width:none;"><h2>💬 Destek</h2>
+    box.innerHTML = `<div class="u-mwn box"><h2>💬 Destek</h2>
       <p class="muted" style="text-align:left;margin:0 0 10px;">Sorununuzu ekran görüntüsüyle birlikte yazarsanız en hızlı şekilde yardımcı oluruz.</p>
       <a href="mailto:destek@peyktan.com?subject=${encodeURIComponent('Peyktan destek - ' + ((session && session.restaurant_name)||''))}" style="display:inline-block;"><button type="button" style="width:auto;padding:10px 18px;">✉️ destek@peyktan.com</button></a></div>`;
     return;

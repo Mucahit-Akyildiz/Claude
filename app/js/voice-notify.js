@@ -384,12 +384,12 @@ function voiceDesktopNotify(type, list){
 function voiceSettingsHtml(){
   const p = getVoicePrefs();
   const sw = (type, key, on) => `<input type="checkbox" class="sw" ${on?'checked':''} ${actOn('change','setVoiceOpt',[type, key, '$checked'])}>`;
-  return `<div class="box" style="max-width:none;">
+  return `<div class="u-mwn box">
     <h2>🗣️ Sesli ve Sesli Okunan Bildirimler</h2>
-    <p class="muted" style="text-align:left;">Her bildirim türü için bu cihazda <b>zil sesi</b> çalınsın mı ve bildirim <b>sesli okunsun</b> mu (ör. “12 numaralı masadan yeni sipariş geldi”) seçin. Mutfakta ${VOICE_LATE_MIN} dakikayı geçen ürünler “… dakikadır bekliyor” diye okunur ve hazır olana kadar 5 dakikada bir tekrarlanır.</p>
+    <p class="u-tl muted">Her bildirim türü için bu cihazda <b>zil sesi</b> çalınsın mı ve bildirim <b>sesli okunsun</b> mu (ör. “12 numaralı masadan yeni sipariş geldi”) seçin. Mutfakta ${VOICE_LATE_MIN} dakikayı geçen ürünler “… dakikadır bekliyor” diye okunur ve hazır olana kadar 5 dakikada bir tekrarlanır.</p>
     <div style="display:flex;align-items:center;gap:10px;margin:10px 0 14px;flex-wrap:wrap;">${sw('*','enabled',p.enabled)}<b>Sesli bildirimler açık</b>
       <span class="muted" style="margin-left:auto;font-size:12.5px;">Ses</span>${voiceSelectHtml()}
-      <span class="muted" style="font-size:12.5px;">Hız</span>
+      <span class="u-fs125 muted">Hız</span>
       <select style="width:auto;" ${actOn('change','setVoiceOpt',['*','rate','$value'])}>
         ${[[0.8,'Yavaş'],[1,'Normal'],[1.2,'Hızlı']].map(([v,l]) => `<option value="${v}" ${p.rate==v?'selected':''}>${l}</option>`).join('')}
       </select></div>

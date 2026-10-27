@@ -12,9 +12,9 @@ async function renderCrmView(main, session){
       ['🎂', bdays, '30 gün içinde doğum günü', 'var(--c2)', 'bday'], ['💎', rows.filter(c => crmTier(c).rank >= 2).length, (crmTiers()[1] ? crmTiers()[1].name : 'Altın') + ' ve üstü müşteri', 'var(--c4)', 'gold']], '', 'crm')}
     ${typeof crmBirthdayStripHtml === 'function' ? crmBirthdayStripHtml(rows) : ''}
     ${crmVisualsHtml(rows)}
-    <div class="box" style="max-width:none;">
+    <div class="u-mwn box">
       <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
-        <h2 style="margin:0;">Müşteri Listesi</h2>
+        <h2 class="u-m0">Müşteri Listesi</h2>
         <div class="crm-hbtns" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;flex:1 1 auto;justify-content:flex-end;min-width:0;">
           <button type="button" class="fsheet-open" style="flex:0 0 auto;" ${act('newCustomer')}>+ Yeni Müşteri</button>
           ${canManage(session, 'crm') ? `<button type="button" class="ghost-btn" style="width:auto;flex:0 0 auto;white-space:nowrap;margin:0;" ${act('openWinback')} title="Uzun süredir gelmeyen müşterilere SMS / e-posta">💛 Geri kazan</button>` : ''}
@@ -51,7 +51,7 @@ async function renderCrmView(main, session){
           <div class="field-group wide"><label>📍 Adres</label><textarea id="crm_address" rows="2" placeholder="örn. Atatürk Cad. No:12 D:4 — paket siparişte otomatik dolar" style="resize:vertical;min-height:44px;"></textarea></div>
         </div>
         <details id="crmLoyaltyBox" style="margin-top:10px;border:1px solid var(--border);border-radius:12px;padding:10px 12px;background:var(--panel);">
-          <summary style="cursor:pointer;font-weight:700;font-size:13.5px;">⭐ Bu müşteriye özel sadakat ayarı <span class="muted" style="font-weight:400;">(boş bırakılan alan genel ayarı kullanır)</span></summary>
+          <summary style="cursor:pointer;font-weight:700;font-size:13.5px;">⭐ Bu müşteriye özel sadakat ayarı <span class="u-fw4 muted">(boş bırakılan alan genel ayarı kullanır)</span></summary>
           <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin-top:10px;">
             <div class="field-group"><label>Kaç TL harcamada 1 puan</label><input id="crm_spp" type="number" min="0.01" step="0.01" placeholder="Genel: ${escapeAttr(String(loyalty.spend_per_point ?? ''))}"></div>
             <div class="field-group"><label>1 puan kaç TL indirim</label><input id="crm_pv" type="number" min="0" step="0.01" placeholder="Genel: ${escapeAttr(String(loyalty.point_value ?? ''))}"></div>
@@ -60,7 +60,7 @@ async function renderCrmView(main, session){
         </details>
         <div class="fsheet-foot"><button type="button" class="ghost-btn" ${act('closeSheet','crmSheet')}>Vazgeç</button><button ${act('saveCrmCustomer')}>${ICON_SAVE}<span>Kaydet</span></button></div>`, 'var(--c1)')}
     ${canManage(session, 'crm') ? sheetHtml('crmLoySheet', '⭐', 'Sadakat Programı', `<label style="display:flex;align-items:center;gap:8px;font-weight:600;margin:0 0 14px;">
-          <input type="checkbox" id="loy_enabled" ${loyalty.enabled?'checked':''} style="width:auto;margin:0;"> Sadakat puanları aktif
+          <input type="checkbox" id="loy_enabled" ${loyalty.enabled?'checked':''} class="u-wa-m0"> Sadakat puanları aktif
         </label>
         <div class="fsheet-grid">
           <div class="field-group"><label>Kaç TL harcamada 1 puan</label><input id="loy_spend" type="number" min="1" step="0.01" value="${loyalty.spend_per_point}"></div>
@@ -299,14 +299,14 @@ function openCustomerImport(){
   ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:110;padding:16px;';
   ov.onclick = (e) => { if(e.target===ov) ov.remove(); };
   ov.innerHTML = `<div style="background:var(--panel);border:1px solid var(--border);border-radius:18px;padding:18px;max-width:560px;width:100%;max-height:88vh;overflow:auto;text-align:left;">
-    <h3 style="margin:0 0 8px;">⬆️ Müşteri içe aktar</h3>
+    <h3 class="u-mb8">⬆️ Müşteri içe aktar</h3>
     <p class="muted" style="font-size:12.5px;margin:0 0 10px;">Excel dosyanızı (<b>.xlsx</b>) ya da CSV'yi doğrudan seçin. Sütunlar: <b>Ad Soyad</b> (zorunlu), Telefon, E-posta, Doğum Günü (GG.AA.YYYY), Not, Puan. <button type="button" ${act('downloadCustomerTemplate')} style="background:none;border:none;padding:0;margin:0;width:auto;color:var(--accent);text-decoration:underline;cursor:pointer;font:inherit;">Örnek şablonu indir</button></p>
-    <input type="file" id="crmImportFile" accept=".xlsx,.xls,.csv,text/csv,text/plain" ${actOn('change', 'previewCustomerImport', ['$file'])} style="margin:0 0 10px;">
-    <label style="display:flex;gap:8px;align-items:center;font-size:13px;margin:0 0 10px;"><input type="checkbox" id="crmImportUpdate" checked style="width:auto;margin:0;"> Telefonu eşleşen mevcut müşterileri güncelle</label>
-    <div id="crmImportPreview" class="muted" style="font-size:12.5px;"></div>
+    <input type="file" id="crmImportFile" accept=".xlsx,.xls,.csv,text/csv,text/plain" ${actOn('change', 'previewCustomerImport', ['$file'])} class="u-mb10">
+    <label style="display:flex;gap:8px;align-items:center;font-size:13px;margin:0 0 10px;"><input type="checkbox" id="crmImportUpdate" checked class="u-wa-m0"> Telefonu eşleşen mevcut müşterileri güncelle</label>
+    <div id="crmImportPreview" class="u-fs125 muted"></div>
     <div style="display:flex;gap:10px;margin-top:12px;">
-      <button type="button" class="ghost-btn" style="flex:1;margin:0;" ${act('removeEl', 'crmImportBg')}>Kapat</button>
-      <button type="button" id="crmImportBtn" style="flex:1;margin:0;" disabled ${act('runCustomerImport')}>İçe aktar</button>
+      <button type="button" class="u-f1-m0 ghost-btn" ${act('removeEl', 'crmImportBg')}>Kapat</button>
+      <button type="button" id="crmImportBtn" class="u-f1-m0" disabled ${act('runCustomerImport')}>İçe aktar</button>
     </div></div>`;
   document.body.appendChild(ov);
 }
@@ -318,20 +318,20 @@ async function previewCustomerImport(file){
   if(/\.xlsx?$/i.test(file.name)){
     try{ const X = await loadXlsx(); const wb = X.read(await file.arrayBuffer(), { type: 'array' });
       rows = X.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, defval: '', raw: false }).filter(r => r.some(c => String(c).trim() !== '')); }
-    catch(e){ box.innerHTML = '<span style="color:var(--red);">Excel dosyası okunamadı: ' + escapeHtml(e.message) + '</span>'; return; }
+    catch(e){ box.innerHTML = '<span class="u-red">Excel dosyası okunamadı: ' + escapeHtml(e.message) + '</span>'; return; }
   } else rows = parseCsv(await file.text());
-  if(rows.length < 2){ box.innerHTML = '<span style="color:var(--red);">Dosyada başlık satırı ve en az bir müşteri olmalı.</span>'; return; }
+  if(rows.length < 2){ box.innerHTML = '<span class="u-red">Dosyada başlık satırı ve en az bir müşteri olmalı.</span>'; return; }
   const head = rows[0].map(h => String(h).trim().toLocaleLowerCase('tr'));
   const map = {};
   CRM_CSV_COLS.forEach(([key, , aliases]) => { const i = head.findIndex(h => aliases.includes(h)); if(i >= 0) map[key] = i; });
-  if(map.name == null){ box.innerHTML = '<span style="color:var(--red);">"Ad Soyad" sütunu bulunamadı. Başlık satırını şablondaki gibi yapın.</span>'; return; }
+  if(map.name == null){ box.innerHTML = '<span class="u-red">"Ad Soyad" sütunu bulunamadı. Başlık satırını şablondaki gibi yapın.</span>'; return; }
   const data = rows.slice(1).map(r => {
     const o = {}; Object.keys(map).forEach(k => o[k] = String(r[map[k]] ?? '').trim());
     if(o.birthday) o.birthday = normalizeDateCell(o.birthday);
     if(o.points_balance) o.points_balance = o.points_balance.replace(',', '.');
     return o;
   });
-  if(data.length > 5000){ box.innerHTML = '<span style="color:var(--red);">Tek seferde en fazla 5000 satır yüklenebilir (' + data.length + ').</span>'; return; }
+  if(data.length > 5000){ box.innerHTML = '<span class="u-red">Tek seferde en fazla 5000 satır yüklenebilir (' + data.length + ').</span>'; return; }
   APP.crmImportRows = data; btn.disabled = false;
   const cols = CRM_CSV_COLS.filter(c => map[c[0]] != null);
   box.innerHTML = `<b>${data.length}</b> satır bulundu · tanınan sütunlar: ${cols.map(c => c[1]).join(', ')}
@@ -373,7 +373,7 @@ async function renderPromoBody(){
     p.days && p.days.length ? p.days.map(d => PROMO_DAYS[d-1]).join(',') : '', p.hour_from && p.hour_to ? t5(p.hour_from) + '–' + t5(p.hour_to) : '',
     p.ends_on ? '→ ' + fmtDateTr(p.ends_on) : '', p.max_uses ? p.used_count + '/' + p.max_uses + ' kullanım' : p.used_count + ' kullanım'].filter(Boolean).join(' · ');
   body.innerHTML = `
-    <div class="fsheet-bar" style="margin:0 0 12px;"><span class="muted" style="font-size:13px;">${APP.promos.length} kampanya</span><button type="button" class="fsheet-open" ${act('newPromo')}>+ Yeni Kampanya</button></div>
+    <div class="fsheet-bar" style="margin:0 0 12px;"><span class="u-fs13 muted">${APP.promos.length} kampanya</span><button type="button" class="fsheet-open" ${act('newPromo')}>+ Yeni Kampanya</button></div>
     ${APP.promos.length ? `<div class="pr-list">${APP.promos.map(p => `<div class="pr-card ${p.valid_now ? 'live' : ''} ${p.active ? '' : 'off'}">
         <div class="pr-top"><span class="pr-kind">${p.kind==='coupon' ? '🎟️' : '🎉'}</span><div class="pr-id"><b>${escapeHtml(p.name)}</b>${p.code ? `<code>${escapeHtml(p.code)}</code>` : '<small>Otomatik kampanya</small>'}</div>
           <span class="pr-st">${!p.active ? '⏸ Pasif' : p.valid_now ? '● Şu an geçerli' : '○ Zamanı değil'}</span></div>
@@ -392,7 +392,7 @@ async function renderPromoBody(){
       <div class="fsheet-grid" style="margin-top:10px;">
         <div class="field-group"><label>Kampanya adı</label><input id="pr_name" value="${val('name')}" placeholder="${e.kind==='coupon' ? 'örn. Hoş geldin indirimi' : 'örn. Happy Hour'}"></div>
         ${e.kind==='coupon' ? `<div class="field-group"><label>Kupon kodu</label><input id="pr_code" value="${val('code')}" placeholder="örn. HOSGELDIN10" style="text-transform:uppercase;"></div>` : '<div></div>'}
-        <div class="field-group"><label>İndirim</label><div style="display:flex;gap:6px;"><input id="pr_value" type="number" min="0" step="0.01" value="${val('disc_value')}" style="flex:1;"><select id="pr_type" style="width:70px;"><option value="percent" ${e.disc_type==='percent'?'selected':''}>%</option><option value="amount" ${e.disc_type==='amount'?'selected':''}>₺</option></select></div></div>
+        <div class="field-group"><label>İndirim</label><div style="display:flex;gap:6px;"><input id="pr_value" type="number" min="0" step="0.01" value="${val('disc_value')}" class="u-f1"><select id="pr_type" style="width:70px;"><option value="percent" ${e.disc_type==='percent'?'selected':''}>%</option><option value="amount" ${e.disc_type==='amount'?'selected':''}>₺</option></select></div></div>
         <div class="field-group"><label>En az harcama (₺)</label><input id="pr_min" type="number" min="0" step="0.01" value="${Number(e.min_total)||''}" placeholder="yok"></div>
         <div class="field-group"><label>Başlangıç</label><input id="pr_start" type="date" value="${val('starts_on')}"></div>
         <div class="field-group"><label>Bitiş</label><input id="pr_end" type="date" value="${val('ends_on')}"></div>
@@ -445,7 +445,7 @@ async function removePromo(id){
 async function renderReviewsReport(session){
   const el = document.getElementById('reportContent'); if(!el) return;
   APP.reviewDays = APP.reviewDays || 30;
-  el.innerHTML = '<div class="box" style="max-width:none;"><h2>⭐ Müşteri Değerlendirmeleri</h2><div id="reviewsBody"><p class="muted">Yükleniyor…</p></div></div>';
+  el.innerHTML = '<div class="u-mwn box"><h2>⭐ Müşteri Değerlendirmeleri</h2><div id="reviewsBody"><p class="muted">Yükleniyor…</p></div></div>';
   await renderReviewsBody();
 }
 function openReviewsSheet(){ APP.reportTab = 'reviews'; goToView('reports'); }
@@ -489,7 +489,7 @@ function drawWinback(){
   const total = (b.active || 0) + (b.d30 || 0) + (b.d60 || 0) + (b.d90 || 0) || 1;
   const card = (k, days, label, n, col) => `<button type="button" class="wb-card ${W.days === days ? 'on' : ''}" style="--t:${col}" ${days ? act('openWinback', days) : 'disabled'}><small>${label}</small><b>${n || 0}</b><i style="width:${Math.round((n || 0) / total * 100)}%"></i></button>`;
   const ago = t => t ? Math.round((Date.now() - new Date(t)) / 864e5) + ' gün önce' : '—';
-  bg.innerHTML = `<div class="box wb-modal"><div style="display:flex;justify-content:space-between;align-items:center;"><h2 style="margin:0;">💛 Müşteri geri kazanım</h2><span style="cursor:pointer;color:var(--muted);font-size:20px;" ${act('removeEl','wbBg')}>✕</span></div>
+  bg.innerHTML = `<div class="box wb-modal"><div class="u-row-sb"><h2 class="u-m0">💛 Müşteri geri kazanım</h2><span class="u-xclose" ${act('removeEl','wbBg')}>✕</span></div>
     <p class="muted" style="font-size:13px;text-align:left;">Bir süredir gelmeyen müşterilerinize kişisel bir mesaj gönderin. Aynı müşteriye 14 gün içinde ikinci kampanya gönderilmez.</p>
     <div class="wb-cards">${card('a', 0, 'Son 30 günde geldi', b.active, 'var(--green,#22c55e)')}${card('3', 30, '30–60 gündür yok', b.d30, '#f59e0b')}${card('6', 60, '60–90 gündür yok', b.d60, '#f97316')}${card('9', 90, '90+ gündür yok', b.d90, 'var(--red,#ef4444)')}</div>
     <p class="wb-stat">📨 Son 90 günde <b>${d.contacted || 0}</b> müşteriye ulaşıldı, bunlardan <b>${d.returned || 0}</b> tanesi geri geldi${d.contacted ? ' (%' + Math.round((d.returned || 0) / d.contacted * 100) + ')' : ''}.</p>

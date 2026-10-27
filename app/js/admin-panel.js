@@ -61,7 +61,7 @@ function renderAdminTabContent(admin){
 async function renderClientErrorsAdmin(main, admin){
   const showAll = !!APP.adminErrorsAll;
   main.innerHTML = `<h1>⚠️ Hatalar</h1>
-    <label style="display:flex;gap:8px;align-items:center;margin:0 0 12px;"><input type="checkbox" style="width:auto;margin:0;" ${showAll?'checked':''} ${actOn('change','setAdminErrorsAll',['$checked'])}> Çözülenleri de göster</label>
+    <label style="display:flex;gap:8px;align-items:center;margin:0 0 12px;"><input type="checkbox" class="u-wa-m0" ${showAll?'checked':''} ${actOn('change','setAdminErrorsAll',['$checked'])}> Çözülenleri de göster</label>
     <div id="errList"><p class="muted">Yükleniyor…</p></div>`;
   const { data, error } = await sb.rpc('admin_list_client_errors', { p_token: admin.session_token, p_show_resolved: showAll });
   const el = document.getElementById('errList'); if(!el) return;
@@ -75,7 +75,7 @@ async function renderClientErrorsAdmin(main, admin){
       <td class="col-name" style="max-width:420px;"><b style="overflow-wrap:anywhere;">${escapeHtml(r.message)}</b>
         <div class="muted" style="font-size:11.5px;overflow-wrap:anywhere;">${escapeHtml(r.kind)} · ${escapeHtml(r.source||'-')}</div></td>
       <td><b style="color:${r.count>=5?'var(--red)':'inherit'};">${r.count}</b></td>
-      <td>${escapeHtml(r.restaurant_name||'-')}${r.restaurant_code?` <span class="muted" style="font-size:11px;">${escapeHtml(r.restaurant_code)}</span>`:''}</td>
+      <td>${escapeHtml(r.restaurant_name||'-')}${r.restaurant_code?` <span class="u-fs11 muted">${escapeHtml(r.restaurant_code)}</span>`:''}</td>
       <td>${escapeHtml(r.view||'-')}</td>
       <td title="${escapeAttr(r.user_agent||'')}">${ua(r.user_agent)}</td>
       <td style="font-size:12px;white-space:nowrap;">${new Date(r.last_at).toLocaleString('tr-TR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}</td>
@@ -115,7 +115,7 @@ async function renderSmsAdmin(main, admin){
     </div>
     <h3 style="margin-top:20px;">Son 50 SMS</h3>
     ${!(data.recent||[]).length ? '<p class="muted">Henüz SMS yok.</p>' : `<table class="settings-table"><thead><tr><th>Tarih</th><th>İşletme</th><th>Telefon</th><th>Tür</th><th>Mesaj</th><th>Durum</th></tr></thead><tbody>${
-      data.recent.map(r => `<tr><td style="font-size:12px;">${new Date(r.created_at).toLocaleString('tr-TR')}</td><td>${escapeHtml(r.restaurant||'Platform')}</td><td>${escapeHtml(r.phone)}</td><td>${escapeHtml(r.purpose)}</td><td style="font-size:12px;white-space:normal;">${escapeHtml(r.purpose==='otp' ? '(doğrulama kodu gizli)' : r.message)}</td><td>${st[r.status]||escapeHtml(r.status)}</td></tr>`).join('')}</tbody></table>`}`;
+      data.recent.map(r => `<tr><td class="u-fs12">${new Date(r.created_at).toLocaleString('tr-TR')}</td><td>${escapeHtml(r.restaurant||'Platform')}</td><td>${escapeHtml(r.phone)}</td><td>${escapeHtml(r.purpose)}</td><td style="font-size:12px;white-space:normal;">${escapeHtml(r.purpose==='otp' ? '(doğrulama kodu gizli)' : r.message)}</td><td>${st[r.status]||escapeHtml(r.status)}</td></tr>`).join('')}</tbody></table>`}`;
 }
 async function saveSmsAdmin(){
   const admin = getAdminSession();
@@ -131,16 +131,16 @@ async function renderDeletedAccountsAdmin(main, admin){
   if(error){ main.innerHTML = '<p class="error">'+escapeHtml(error.message)+'</p>'; return; }
   const rows = data || [];
   const fmt = d => d ? new Date(d).toLocaleString('tr-TR') : '—';
-  main.innerHTML = `<p class="muted" style="font-size:13px;">Silinen işletmelerin e-posta ve telefonuyla yeniden hesap açılamaz. Tekrar kayda izin vermek için "Engeli Kaldır"a basın.</p>
+  main.innerHTML = `<p class="u-fs13 muted">Silinen işletmelerin e-posta ve telefonuyla yeniden hesap açılamaz. Tekrar kayda izin vermek için "Engeli Kaldır"a basın.</p>
     ${rows.length===0 ? '<p class="muted">Silinen hesap yok.</p>' : `
     <table class="settings-table">
       <thead><tr><th>İşletme</th><th>E-posta / Telefon</th><th>Paket</th><th>Açılış</th><th>Silinme</th><th></th></tr></thead>
       <tbody>${rows.map(r => `<tr>
         <td><b>${escapeHtml(r.name||'—')}</b><div class="muted" style="font-size:11.5px;">${escapeHtml(r.code||'')}</div></td>
-        <td style="font-size:12.5px;">${escapeHtml(r.email||'—')}<div class="muted">${escapeHtml(r.phone||'—')}</div></td>
+        <td class="u-fs125">${escapeHtml(r.email||'—')}<div class="muted">${escapeHtml(r.phone||'—')}</div></td>
         <td>${escapeHtml(r.package_id||'—')}</td>
-        <td style="font-size:12px;">${fmt(r.created_at)}</td>
-        <td style="font-size:12px;">${fmt(r.deleted_at)}</td>
+        <td class="u-fs12">${fmt(r.created_at)}</td>
+        <td class="u-fs12">${fmt(r.deleted_at)}</td>
         <td><button class="sbtn" ${act('releaseDeletedAccount', r.id)}>Engeli Kaldır</button></td>
       </tr>`).join('')}</tbody>
     </table>`}`;
@@ -234,10 +234,10 @@ async function refreshPackagesAdmin(admin){
             <td class="col-num" style="width:90px;"><input type="number" min="1" step="1" value="${p.max_branches||1}" id="pkg_branches_${p.id}" title="Bu paketi seçen bir şirket en fazla kaç şube açabilir"></td>
             <td class="col-num" style="width:110px;"><input type="number" min="0" step="0.01" value="${p.price}" id="pkg_price_${p.id}"></td>
             <td class="col-num" style="width:110px;"><input type="number" min="0" step="0.01" value="${p.price_yearly!=null?p.price_yearly:''}" id="pkg_price_yearly_${p.id}" placeholder="${(p.price*12).toFixed(2)}"></td>
-            <td style="text-align:center;"><input type="checkbox" id="pkg_popular_${p.id}" ${p.is_popular?'checked':''} style="width:18px;height:18px;"></td>
-            <td style="text-align:center;"><input type="checkbox" id="pkg_active_${p.id}" ${p.active?'checked':''} style="width:18px;height:18px;"></td>
+            <td class="u-tc"><input type="checkbox" id="pkg_popular_${p.id}" ${p.is_popular?'checked':''} style="width:18px;height:18px;"></td>
+            <td class="u-tc"><input type="checkbox" id="pkg_active_${p.id}" ${p.active?'checked':''} style="width:18px;height:18px;"></td>
             <td class="col-name">${p.restaurant_count} işletme</td>
-            <td style="white-space:nowrap;">
+            <td class="u-nw">
               <button type="button" class="act-btn act-save" ${act('savePackageRow', p.id)}>${ICON_SAVE}<span>Kaydet</span></button>
               <button class="sbtn" style="background:var(--red);color:var(--btn-ink);" ${act('deletePackageRow', p.id, p.restaurant_count)} title="${p.restaurant_count>0?'Bu paketi kullanan işletmeler var':''}">Sil</button>
             </td>
@@ -245,8 +245,8 @@ async function refreshPackagesAdmin(admin){
           <tr>
             <td colspan="11" style="padding:6px 8px 16px;border-top:none;white-space:normal;">
               <div style="display:flex;align-items:center;gap:8px;cursor:pointer;user-select:none;" ${act('togglePackageFeaturePanel', p.id)}>
-                <span id="pkgFeatToggle_${p.id}" class="muted" style="font-size:11px;">▸</span>
-                <span class="muted" style="font-size:12px;font-weight:700;">Bu pakette hangi özellikler olacak <span style="font-weight:400;">(${(p.features||[]).length}/${(APP.featureCatalog||[]).length} seçili)</span></span>
+                <span id="pkgFeatToggle_${p.id}" class="u-fs11 muted">▸</span>
+                <span class="muted" style="font-size:12px;font-weight:700;">Bu pakette hangi özellikler olacak <span class="u-fw4">(${(p.features||[]).length}/${(APP.featureCatalog||[]).length} seçili)</span></span>
               </div>
               <div id="pkgFeatPanel_${p.id}" style="display:none;margin-top:10px;">
                 ${featureCheckboxesHtml('pkg_feat_'+p.id, p.features||[])}
@@ -272,7 +272,7 @@ async function refreshPackagesAdmin(admin){
       ${featureCheckboxesHtml('npkg_feat', (APP.featureCatalog||[]).filter(f=>f.is_core).map(f=>f.id))}
       ${includedAddonsHtml('npkg_inc', [])}
       <button style="margin-top:12px;max-width:220px;" ${act('createPackage')}>+ Paket Oluştur</button>
-      <div class="error" id="pkgCreateErr" style="text-align:left;"></div>
+      <div class="u-tl error" id="pkgCreateErr"></div>
     </div>`;
 }
 /* Paket düzenleme/oluşturma satırlarında ortak kullanılan özellik seçim
@@ -288,7 +288,7 @@ function includedAddonsHtml(idPrefix, selected){
   const addons = (APP.featureCatalog||[]).filter(f => f.is_addon);
   if(!addons.length) return '';
   return `<div style="margin-top:12px;background:var(--panel2);border:1px dashed var(--accent);border-radius:10px;padding:10px 12px;">
-    <div style="font-size:12px;font-weight:800;margin-bottom:6px;">🧩 Pakete dahil eklentiler <span class="muted" style="font-weight:400;">(işaretlenen eklenti bu pakette ücretsiz gelir)</span></div>
+    <div style="font-size:12px;font-weight:800;margin-bottom:6px;">🧩 Pakete dahil eklentiler <span class="u-fw4 muted">(işaretlenen eklenti bu pakette ücretsiz gelir)</span></div>
     <div style="display:flex;flex-wrap:wrap;gap:6px 16px;">
       ${addons.map(a => `<label style="display:flex;align-items:center;gap:6px;font-size:12.5px;font-weight:400;">
         <input type="checkbox" id="${idPrefix}_${a.id}" ${sel.has(a.id)?'checked':''} style="width:15px;height:15px;"> ${escapeHtml(a.label)}</label>`).join('')}
@@ -319,7 +319,7 @@ function featureCheckboxesHtml(idPrefix, selectedFeatures){
       return `
       <div style="background:var(--panel2);border:1px solid var(--border);border-radius:10px;padding:10px 12px;">
         <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px;">
-          <div style="font-size:12px;font-weight:800;">${escapeHtml(cat)} <span class="muted" style="font-weight:400;">(${catSelCount}/${byCat[cat].length})</span></div>
+          <div style="font-size:12px;font-weight:800;">${escapeHtml(cat)} <span class="u-fw4 muted">(${catSelCount}/${byCat[cat].length})</span></div>
           <div style="display:flex;gap:8px;flex-shrink:0;">
             <span style="font-size:11px;color:var(--accent);cursor:pointer;" ${act('toggleFeatureCategory', catId, true)}>tümü</span>
             <span style="font-size:11px;color:var(--accent);cursor:pointer;" ${act('toggleFeatureCategory', catId, false)}>temizle</span>
@@ -518,20 +518,20 @@ async function refreshRestaurantsList(admin){
           else statusBadge = '<span class="role-badge" style="color:var(--green);border-color:var(--green);">Aktif</span>';
           return `
           <tr>
-            <td><b style="cursor:pointer;color:var(--accent);" ${act('showRestaurantDetail', r.id)} title="Günlük ciro grafiğini göster">${escapeHtml(r.name)}</b><div class="muted" style="font-size:12px;">${escapeHtml(r.code||'—')}</div></td>
+            <td><b style="cursor:pointer;color:var(--accent);" ${act('showRestaurantDetail', r.id)} title="Günlük ciro grafiğini göster">${escapeHtml(r.name)}</b><div class="u-fs12 muted">${escapeHtml(r.code||'—')}</div></td>
             <td style="font-size:12.5px;word-break:break-all;">${r.email?`<a href="mailto:${escapeHtml(r.email)}">${escapeHtml(r.email)}</a>`:'—'}${r.phone?`<div class="muted">${escapeHtml(r.phone)}</div>`:''}</td>
-            <td style="font-size:13px;">${pkg?escapeHtml(pkg.name):escapeHtml(r.package_id)}<div class="muted" style="font-size:12px;">${r.user_count}/${r.max_users} kullanıcı${r.user_limit_override != null ? ' <span title="Özel limit">✱</span>' : ''}</div><div style="font-size:12px;${expired?'color:var(--red);':''}">Bitiş: ${r.expires_at ? new Date(r.expires_at).toLocaleDateString('tr-TR') : 'Süresiz'}</div></td>
+            <td class="u-fs13">${pkg?escapeHtml(pkg.name):escapeHtml(r.package_id)}<div class="u-fs12 muted">${r.user_count}/${r.max_users} kullanıcı${r.user_limit_override != null ? ' <span title="Özel limit">✱</span>' : ''}</div><div style="font-size:12px;${expired?'color:var(--red);':''}">Bitiş: ${r.expires_at ? new Date(r.expires_at).toLocaleDateString('tr-TR') : 'Süresiz'}</div></td>
             <td>${statusBadge}</td>
             <td style="font-size:12.5px;white-space:nowrap;">Kayıt: ${new Date(r.created_at).toLocaleDateString('tr-TR')}<div class="muted">Son: ${fmtRelativeTime(r.last_activity)}</div></td>
             <td style="font-size:12.5px;white-space:nowrap;">Bugün: <b>${money(r.revenue_today)}</b><div class="muted">7 gün: ${money(r.revenue_7d)}</div><div class="muted">Toplam: ${money(r.revenue_lifetime)}</div></td>
-            <td style="white-space:nowrap;">
+            <td class="u-nw">
               <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
                 <button class="sbtn" style="margin:0;${r.is_active?'background:var(--red);color:var(--btn-ink);':''}" ${act('toggleRestaurantActive', r.id, !r.is_active)}>${r.is_active?'Pasif Et':'Aktif Et'}</button>
-                <button class="sbtn" style="margin:0;" data-name="${escapeAttr(r.name)}" ${act('openEntitlementsModal','restaurant', r.id, r.name)}>🧩 Eklentiler</button>
-                <button class="sbtn" style="margin:0;" ${act('showRestaurantUsers', r.id)}>👥 Kullanıcılar</button>
-                <button class="sbtn" style="margin:0;" ${act('showRestaurantAudit', r.id)}>📜 Değişiklikler</button>
-                <button class="sbtn" style="margin:0;" data-name="${escapeAttr(r.name)}" data-exp="${r.expires_at||''}" ${act('openExtendSubscription', r.id, r.name, r.expires_at||'')}>⏳ Süre Uzat</button>
-                <button class="sbtn" style="margin:0;" data-name="${escapeAttr(r.name)}" ${act('openUserLimit', r.id, r.name, r.max_users, r.user_count, r.user_limit_override == null ? '' : r.user_limit_override)}>👤 Kullanıcı Limiti</button>
+                <button class="u-m0 sbtn" data-name="${escapeAttr(r.name)}" ${act('openEntitlementsModal','restaurant', r.id, r.name)}>🧩 Eklentiler</button>
+                <button class="u-m0 sbtn" ${act('showRestaurantUsers', r.id)}>👥 Kullanıcılar</button>
+                <button class="u-m0 sbtn" ${act('showRestaurantAudit', r.id)}>📜 Değişiklikler</button>
+                <button class="u-m0 sbtn" data-name="${escapeAttr(r.name)}" data-exp="${r.expires_at||''}" ${act('openExtendSubscription', r.id, r.name, r.expires_at||'')}>⏳ Süre Uzat</button>
+                <button class="u-m0 sbtn" data-name="${escapeAttr(r.name)}" ${act('openUserLimit', r.id, r.name, r.max_users, r.user_count, r.user_limit_override == null ? '' : r.user_limit_override)}>👤 Kullanıcı Limiti</button>
                 ${(APP.adminSupportAllowed||{})[r.id] ? `<button class="sbtn" style="margin:0;background:var(--green);color:#fff;" title="İşletme destek erişimine izin verdi" ${act('startSupportSession', r.id, r.name)}>🛟 Destek olarak gir</button>` : ''}
                 <button type="button" class="act-btn act-delete" ${act('deleteRestaurantAdmin', r.id)}>${ICON_TRASH}<span>Sil</span></button>
               </div>
@@ -568,7 +568,7 @@ async function showRestaurantDetail(id){
     <div style="padding:18px;">
       <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:10px;flex-wrap:wrap;gap:8px;">
         <h3 style="margin:0;font-size:15px;">Son 30 Gün${restaurant?' - '+escapeHtml(restaurant.name):''}</h3>
-        <span class="muted" style="font-size:13px;">${totalOrders} sipariş · ${money(totalRevenue)} toplam</span>
+        <span class="u-fs13 muted">${totalOrders} sipariş · ${money(totalRevenue)} toplam</span>
       </div>
       ${renderDailyRevenueChart(days)}
     </div>`;
@@ -712,7 +712,7 @@ async function refreshCompaniesList(admin){
             <td class="col-name">${c.branch_count}${pkg&&pkg.max_branches?'/'+pkg.max_branches:''}</td>
             <td>${statusBadge}</td>
             <td class="col-name">${new Date(c.created_at).toLocaleDateString('tr-TR')}</td>
-            <td style="white-space:nowrap;">
+            <td class="u-nw">
               <button class="sbtn" style="${c.is_active?'background:var(--red);color:var(--btn-ink);':''}" ${act('toggleCompanyActive', c.id, !c.is_active)}>${c.is_active?'Pasif Et':'Aktif Et'}</button>
               <button class="sbtn" data-name="${escapeAttr(c.name)}" ${act('openEntitlementsModal','company', c.id, c.name)}>🧩 Eklentiler</button>
               <button type="button" class="act-btn act-delete" data-name="${escapeAttr(c.name)}" ${act('deleteCompany', c.id, c.name)}>${ICON_TRASH}<span>Sil</span></button>
@@ -795,8 +795,8 @@ async function refreshAddonsList(admin){
             <td class="col-name"><input value="${escapeAttr(a.label)}" id="addon_name_${a.id}"></td>
             <td class="col-name"><input value="${escapeAttr(a.description||'')}" id="addon_desc_${a.id}"></td>
             <td class="col-num" style="width:110px;"><input type="number" min="0" step="0.01" value="${a.price}" id="addon_price_${a.id}"></td>
-            <td style="text-align:center;"><input type="checkbox" id="addon_active_${a.id}" ${a.active?'checked':''} style="width:18px;height:18px;"></td>
-            <td style="white-space:nowrap;">
+            <td class="u-tc"><input type="checkbox" id="addon_active_${a.id}" ${a.active?'checked':''} style="width:18px;height:18px;"></td>
+            <td class="u-nw">
               <button type="button" class="act-btn act-save" ${act('saveAddonRow', a.id)}>${ICON_SAVE}<span>Kaydet</span></button>
             </td>
           </tr>`).join('')}
@@ -889,9 +889,9 @@ async function refreshFeatureCatalogList(admin){
                 <td class="col-name"><input value="${escapeAttr(f.description||'')}" id="feat_desc_${f.id}"></td>
                 <td class="col-name"><input value="${escapeAttr(f.category||'')}" id="feat_cat_${f.id}"></td>
                 <td class="col-num" style="width:110px;"><input type="number" min="0" step="0.01" value="${f.price}" id="feat_price_${f.id}"></td>
-                <td style="text-align:center;"><input type="checkbox" id="feat_active_${f.id}" ${f.active?'checked':''} style="width:18px;height:18px;"></td>
-                <td style="text-align:center;"><input type="checkbox" id="feat_isaddon_${f.id}" ${f.is_addon?'checked':''} style="width:18px;height:18px;"></td>
-                <td style="white-space:nowrap;">
+                <td class="u-tc"><input type="checkbox" id="feat_active_${f.id}" ${f.active?'checked':''} style="width:18px;height:18px;"></td>
+                <td class="u-tc"><input type="checkbox" id="feat_isaddon_${f.id}" ${f.is_addon?'checked':''} style="width:18px;height:18px;"></td>
+                <td class="u-nw">
                   <button type="button" class="act-btn act-save" ${act('saveFeatureRow', f.id)}>${ICON_SAVE}<span>Kaydet</span></button>
                   ${f.is_core ? '' : `<button type="button" class="act-btn act-delete" ${act('deleteFeatureRow', f.id)}>${ICON_TRASH}<span>Sil</span></button>`}
                 </td>
@@ -903,7 +903,7 @@ async function refreshFeatureCatalogList(admin){
     <div class="add-row-panel">
       <p>Kataloğa Özellik Ekle</p>
       <p class="muted" style="margin-top:-6px;font-size:12.5px;">Aşağıdaki listeden işaretleyip "Seçilenleri Ekle"ye basın - kendi seçtiğiniz zaman, kendi seçtiğiniz özellikler eklenir. Zaten ekli olanlar işaretli/pasif görünür.</p>
-      <input id="featPickerSearch" placeholder="🔍 Özellik ara (ad, kategori)..." ${actOn('input','renderFeaturePickerList',[])} style="margin-bottom:10px;">
+      <input id="featPickerSearch" placeholder="🔍 Özellik ara (ad, kategori)..." ${actOn('input','renderFeaturePickerList',[])} class="u-mbb10">
       <div id="featPickerList" style="display:flex;flex-direction:column;gap:2px;max-height:300px;overflow:auto;background:var(--panel2);border:1px solid var(--border);border-radius:10px;padding:8px 10px;"></div>
       <button style="margin-top:12px;max-width:220px;" ${act('addPickedFeatures')}>+ Seçilenleri Ekle</button>
       <details style="margin-top:18px;">
@@ -934,7 +934,7 @@ function renderFeaturePickerList(){
     return `<label style="display:flex;align-items:center;gap:10px;padding:6px 4px;border-radius:6px;${already?'opacity:.55;':''}cursor:${already?'default':'pointer'};">
       <input type="checkbox" data-feat-pick="${f.id}" ${already?'checked disabled':''} style="width:16px;height:16px;flex-shrink:0;">
       <div style="flex:1;min-width:0;">
-        <div style="font-size:13px;font-weight:600;">${escapeHtml(f.label)} <span class="muted" style="font-weight:400;">· ${escapeHtml(f.category)}</span>${already?' <span class="muted" style="font-weight:400;">(zaten ekli)</span>':''}</div>
+        <div style="font-size:13px;font-weight:600;">${escapeHtml(f.label)} <span class="u-fw4 muted">· ${escapeHtml(f.category)}</span>${already?' <span class="u-fw4 muted">(zaten ekli)</span>':''}</div>
         ${f.description ? `<div class="muted" style="font-size:11.5px;">${escapeHtml(f.description)}</div>` : ''}
       </div>
     </label>`;
@@ -1013,15 +1013,15 @@ async function openEntitlementsModal(targetType, targetId, targetName){
   bg.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:100;padding:16px;';
   bg.onclick = (e) => { if(e.target===bg) bg.remove(); };
   bg.innerHTML = `<div style="background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:20px;max-width:420px;width:100%;max-height:85vh;overflow:auto;">
-    <div style="display:flex;justify-content:space-between;align-items:center;"><h2 style="margin:0;">🧩 Eklentiler</h2><span style="cursor:pointer;color:var(--muted);font-size:20px;" ${act('removeEl','entitlementsBg')}>✕</span></div>
+    <div class="u-row-sb"><h2 class="u-m0">🧩 Eklentiler</h2><span class="u-xclose" ${act('removeEl','entitlementsBg')}>✕</span></div>
     <p class="muted" style="margin-top:6px;">${escapeHtml(targetName)}</p>
     <div style="display:flex;flex-direction:column;gap:8px;margin-top:10px;">
       ${addons.length===0 ? '<p class="muted">Henüz hiç eklenti tanımlanmamış.</p>' : addons.map(a => `
         <label style="display:flex;align-items:center;gap:10px;background:var(--panel2);border:1px solid var(--border);border-radius:10px;padding:10px 12px;cursor:pointer;">
-          <input type="checkbox" style="width:auto;margin:0;" ${ownedSet.has(a.id)?'checked':''} ${actOn('change','setEntitlement',[targetType, targetId, a.id, '$checked', '$this'])}>
-          <div style="flex:1;">
+          <input type="checkbox" class="u-wa-m0" ${ownedSet.has(a.id)?'checked':''} ${actOn('change','setEntitlement',[targetType, targetId, a.id, '$checked', '$this'])}>
+          <div class="u-f1">
             <div style="font-weight:700;">${escapeHtml(a.label)}</div>
-            <div class="muted" style="font-size:12px;">${escapeHtml(a.description||'')} ${a.price>0?'· '+money(a.price)+'/ay':''}</div>
+            <div class="u-fs12 muted">${escapeHtml(a.description||'')} ${a.price>0?'· '+money(a.price)+'/ay':''}</div>
           </div>
         </label>`).join('')}
     </div>
@@ -1061,7 +1061,7 @@ async function renderBankTransfersAdmin(main, admin){
 }
 function bankInfoFieldHtml(id, label, hint, value, placeholder, editMode){
   const v = escapeHtml(value || '');
-  const hintHtml = hint ? ` <span class="muted" style="font-weight:400;">(${hint})</span>` : '';
+  const hintHtml = hint ? ` <span class="u-fw4 muted">(${hint})</span>` : '';
   if(editMode){
     return `<div class="field-group"><label>${label}${hintHtml}</label><input id="${id}" placeholder="${placeholder||''}" value="${v}"${id==='bankIban'?` ${actOn('input','formatIbanInput',['$this'])} maxlength="32"`:''}></div>`;
   }
@@ -1072,9 +1072,9 @@ function renderBankInfoPanel(editMode){
   const info = APP.bankInfo || {};
   el.innerHTML = `
     <div class="add-row-panel" style="margin-bottom:22px;">
-      <div style="display:flex;justify-content:space-between;align-items:center;">
-        <p style="margin:0;">Banka Bilgileri <span class="muted" style="font-weight:400;">(işletmelere gösterilir)</span></p>
-        ${editMode ? '' : `<button type="button" class="sbtn" style="width:auto;margin:0;" ${act('renderBankInfoPanel', true)}>✏️ Düzenle</button>`}
+      <div class="u-row-sb">
+        <p class="u-m0">Banka Bilgileri <span class="u-fw4 muted">(işletmelere gösterilir)</span></p>
+        ${editMode ? '' : `<button type="button" class="u-wa-m0 sbtn" ${act('renderBankInfoPanel', true)}>✏️ Düzenle</button>`}
       </div>
       <div style="display:grid;grid-template-columns:1.4fr 1fr 1fr;gap:10px;align-items:end;margin-top:10px;">
         ${bankInfoFieldHtml('bankIban', 'IBAN', null, info.iban, 'TR00 0000 0000 0000 0000 0000 00', editMode)}
@@ -1089,7 +1089,7 @@ function renderBankInfoPanel(editMode){
         <div class="error" id="bankInfoErr"></div>
         <div style="display:flex;gap:8px;margin-top:12px;">
           <button style="width:auto;max-width:220px;margin:0;" ${act('saveBankTransferInfo')}>${ICON_SAVE}<span>Kaydet</span></button>
-          ${info.iban || info.account_name || info.bank_name || info.whatsapp_number || info.notify_email ? `<button type="button" class="sbtn" style="width:auto;margin:0;" ${act('renderBankInfoPanel', false)}>Vazgeç</button>` : ''}
+          ${info.iban || info.account_name || info.bank_name || info.whatsapp_number || info.notify_email ? `<button type="button" class="u-wa-m0 sbtn" ${act('renderBankInfoPanel', false)}>Vazgeç</button>` : ''}
         </div>
       ` : ''}
     </div>`;
@@ -1141,14 +1141,14 @@ async function refreshBankTransferList(admin){
         <tbody>
         ${notices.map(n => `
           <tr>
-            <td class="col-name"><b>${escapeHtml(n.target_name)}</b> <span class="muted" style="font-size:11px;">(${n.target_type==='company'?'şirket':'işletme'})</span></td>
+            <td class="col-name"><b>${escapeHtml(n.target_name)}</b> <span class="u-fs11 muted">(${n.target_type==='company'?'şirket':'işletme'})</span></td>
             <td class="col-name">${escapeHtml(n.target_code||'-')}</td>
             <td class="col-name">${n.addon_id ? '🧩 Eklenti: <b>' + escapeHtml(n.addon_label || n.addon_id) + '</b>' : escapeHtml(n.target_package_id)}</td>
             <td class="col-name">${money(n.amount)}</td>
             <td class="col-name">${n.note?escapeHtml(n.note):'-'}</td>
             <td class="col-name">${new Date(n.created_at).toLocaleString('tr-TR')}</td>
             ${status==='pending' ? `
-            <td style="white-space:nowrap;">
+            <td class="u-nw">
               <button class="sbtn" ${act('reviewBankTransferNotice', n.id, true)}>✅ Onayla</button>
               <button class="sbtn" style="background:var(--red);color:var(--btn-ink);" ${act('reviewBankTransferNotice', n.id, false)}>✕ Reddet</button>
             </td>` : `<td class="col-name">${n.admin_note?escapeHtml(n.admin_note):'-'}</td>`}
@@ -1193,7 +1193,7 @@ async function refreshPromoList(admin){
           <td class="col-name">${c.used_count} / ${c.max_uses==null?'∞':c.max_uses}</td>
           <td class="col-name">${c.expires_at ? new Date(c.expires_at).toLocaleDateString('tr-TR') : 'Süresiz'}</td>
           <td>${c.active ? '<span class="role-badge" style="color:var(--green);border-color:var(--green);">Aktif</span>' : '<span class="role-badge" style="color:var(--red);border-color:var(--red);">Pasif</span>'}</td>
-          <td style="white-space:nowrap;">
+          <td class="u-nw">
             <button class="sbtn" ${act('togglePromo', c.id)}>${c.active?'Kapat':'Aç'}</button>
             <button type="button" class="act-btn act-delete" ${act('deletePromo', c.id)}>${ICON_TRASH}<span>Sil</span></button>
           </td>
@@ -1215,7 +1215,7 @@ async function refreshPromoList(admin){
     <div class="add-row-panel" style="margin-top:20px;">
       <p>Kullanıcı Adınızı Değiştirin</p>
       <div style="display:flex;gap:10px;max-width:420px;">
-        <input id="newAdminUsername" placeholder="Yeni kullanıcı adı" autocapitalize="none" value="${escapeAttr(admin.username||'')}" style="flex:1;margin:0;">
+        <input id="newAdminUsername" placeholder="Yeni kullanıcı adı" autocapitalize="none" value="${escapeAttr(admin.username||'')}" class="u-f1-m0">
         <button style="width:auto;padding:10px 16px;margin:0;" ${act('changeAdminUsername')}>Güncelle</button>
       </div>
       <div class="error" id="adminUsernameErr" style="text-align:left;margin:6px 0 0;min-height:0;"></div>
@@ -1224,11 +1224,11 @@ async function refreshPromoList(admin){
       <p>Şifrenizi Değiştirin</p>
       <div style="display:flex;flex-direction:column;gap:10px;max-width:420px;">
         <div class="pw-field-wrap">
-          <input type="password" id="newAdminPass" placeholder="Yeni şifre" style="margin:0;">
+          <input type="password" id="newAdminPass" placeholder="Yeni şifre" class="u-m0">
           <button type="button" class="pw-eye-btn" ${act('toggleAdminPassVisibility')} title="Şifreyi göster/gizle">👁️</button>
         </div>
         <div class="pw-field-wrap">
-          <input type="password" id="newAdminPass2" placeholder="Yeni şifre (tekrar)" style="margin:0;">
+          <input type="password" id="newAdminPass2" placeholder="Yeni şifre (tekrar)" class="u-m0">
           <button type="button" class="pw-eye-btn" ${act('toggleAdminPassVisibility')} title="Şifreyi göster/gizle">👁️</button>
         </div>
         <div class="error" id="adminPassErr" style="text-align:left;margin:0;min-height:0;"></div>
@@ -1250,12 +1250,12 @@ async function loadAdminTotpBox(){
     <p class="muted" style="text-align:left;font-size:13px;">Girişte şifreden sonra telefonunuzdaki doğrulama uygulamasının ürettiği 6 haneli kod isteniyor.</p>
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
       <input id="totpOffCode" inputmode="numeric" maxlength="6" placeholder="6 haneli kod" style="width:150px;margin:0;">
-      <button type="button" class="ghost-btn" style="width:auto;margin:0;" ${act('disableAdminTotp')}>Kapat</button>
+      <button type="button" class="u-wa-m0 ghost-btn" ${act('disableAdminTotp')}>Kapat</button>
     </div>
-    <div class="error" id="totpErr" style="text-align:left;"></div>` : `
+    <div class="u-tl error" id="totpErr"></div>` : `
     <h2 style="margin:0 0 6px;">🔐 2 Adımlı Doğrulama <span class="role-badge" style="color:var(--red);border-color:var(--red);">Kapalı</span></h2>
     <p class="muted" style="text-align:left;font-size:13px;">Şifreniz ele geçirilse bile admin paneline girilemesin: girişte telefonunuzdaki <b>Google Authenticator</b>, <b>Microsoft Authenticator</b> gibi bir uygulamanın ürettiği kod da istensin.</p>
-    <button type="button" style="width:auto;margin:0;" ${act('startAdminTotp')}>Kurulumu Başlat</button>
+    <button type="button" class="u-wa-m0" ${act('startAdminTotp')}>Kurulumu Başlat</button>
     <div id="totpSetup"></div>`;
 }
 let QRCODE_LOADING = null;
@@ -1288,9 +1288,9 @@ async function startAdminTotp(){
     <div class="muted" style="font-size:12px;margin:8px 0;">QR okutamıyorsanız anahtarı elle girin: <code style="user-select:all;">${escapeHtml(data.secret.replace(/(.{4})/g, '$1 ').trim())}</code></div>
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
       <input id="totpOnCode" inputmode="numeric" maxlength="6" placeholder="6 haneli kod" style="width:150px;margin:0;">
-      <button type="button" style="width:auto;margin:0;" ${act('enableAdminTotp')}>Etkinleştir</button>
+      <button type="button" class="u-wa-m0" ${act('enableAdminTotp')}>Etkinleştir</button>
     </div>
-    <div class="error" id="totpErr" style="text-align:left;"></div>`;
+    <div class="u-tl error" id="totpErr"></div>`;
 }
 async function enableAdminTotp(){
   const admin = getAdminSession();
@@ -1499,7 +1499,7 @@ async function renderGifAdmin(main, admin){
   if(error){ main.innerHTML = '<p class="error">'+escapeHtml(error.message)+'</p>'; return; }
   main.innerHTML = `<h1>🎞️ GIF ve Sticker</h1>
     <div class="box" style="max-width:640px;">
-      <p style="text-align:left;margin-top:0;">Durum: ${isSet ? '<b style="color:var(--green);">✓ Anahtar kayıtlı — mesajlarda GIF / sticker açık</b>' : '<b style="color:var(--red);">Anahtar yok — mesajlarda GIF / sticker kapalı</b>'}</p>
+      <p style="text-align:left;margin-top:0;">Durum: ${isSet ? '<b style="color:var(--green);">✓ Anahtar kayıtlı — mesajlarda GIF / sticker açık</b>' : '<b class="u-red">Anahtar yok — mesajlarda GIF / sticker kapalı</b>'}</p>
       <ol style="text-align:left;line-height:1.7;font-size:14px;padding-left:18px;">
         <li><a href="https://developers.giphy.com/dashboard/" target="_blank" rel="noopener">developers.giphy.com</a> adresinde ücretsiz hesap açın.</li>
         <li><b>Create an App</b> → <b>API</b> seçin → uygulama adı (örn. Peyktan) → oluşturun.</li>
@@ -1531,19 +1531,19 @@ function openExtendSubscription(id, name, exp){
   const btn = 'flex:1 1 70px;margin:0;';
   ov.innerHTML = `<div style="background:var(--panel);border:1px solid var(--border);border-radius:18px;padding:18px;max-width:420px;width:100%;text-align:left;">
     <h3 style="margin:0 0 4px;">⏳ Abonelik süresi</h3>
-    <div class="muted" style="font-size:13px;margin-bottom:12px;"><b>${escapeHtml(name)}</b> · şu anki bitiş: <b>${cur ? cur.toLocaleDateString('tr-TR') : 'Süresiz'}</b>${cur && cur <= new Date() ? ' <span style="color:var(--red);">(dolmuş)</span>' : ''}</div>
-    <div style="font-size:12.5px;font-weight:700;margin-bottom:6px;">Süre ekle <span class="muted" style="font-weight:400;">(bitişe, dolmuşsa bugüne eklenir)</span></div>
+    <div class="muted" style="font-size:13px;margin-bottom:12px;"><b>${escapeHtml(name)}</b> · şu anki bitiş: <b>${cur ? cur.toLocaleDateString('tr-TR') : 'Süresiz'}</b>${cur && cur <= new Date() ? ' <span class="u-red">(dolmuş)</span>' : ''}</div>
+    <div style="font-size:12.5px;font-weight:700;margin-bottom:6px;">Süre ekle <span class="u-fw4 muted">(bitişe, dolmuşsa bugüne eklenir)</span></div>
     <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;">
       ${[7,30,90,180,365].map(d => `<button type="button" class="sbtn" style="${btn}" ${act('doExtendSubscription', id, {p_days:d})}>+${d === 365 ? '1 yıl' : d + ' gün'}</button>`).join('')}
     </div>
     <div style="font-size:12.5px;font-weight:700;margin-bottom:6px;">Veya bitiş tarihini belirle</div>
     <div style="display:flex;gap:6px;margin-bottom:12px;">
       <input type="date" id="extendUntil" style="margin:0;flex:1;" value="${cur ? cur.toISOString().slice(0,10) : ''}">
-      <button type="button" class="sbtn" style="margin:0;" ${act('extendSubscriptionUntil', id)}>Ayarla</button>
+      <button type="button" class="u-m0 sbtn" ${act('extendSubscriptionUntil', id)}>Ayarla</button>
     </div>
     <div style="display:flex;gap:8px;">
-      <button type="button" class="ghost-btn" style="flex:1;margin:0;" ${act('extendSubscriptionUnlimited', id)}>♾️ Süresiz yap</button>
-      <button type="button" class="ghost-btn" style="flex:1;margin:0;" ${act('removeEl','extendSubBg')}>Kapat</button>
+      <button type="button" class="u-f1-m0 ghost-btn" ${act('extendSubscriptionUnlimited', id)}>♾️ Süresiz yap</button>
+      <button type="button" class="u-f1-m0 ghost-btn" ${act('removeEl','extendSubBg')}>Kapat</button>
     </div></div>`;
   document.body.appendChild(ov);
 }

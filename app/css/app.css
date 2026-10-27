@@ -3655,3 +3655,26 @@ button.sl-stat{border:1px solid var(--border) !important;} button.sl-stat.on{bor
 .dc-ic{font-size:22px}
 .dc-card small{display:block;color:var(--muted);font-size:12px;margin-top:2px}
 .dc-x{position:absolute;top:6px;right:8px;color:var(--muted);font-size:12px;padding:2px 4px}
+
+/* Yardımcı sınıflar (eski satır içi stillerin karşılığı; satır içi öncelik korunsun diye !important) */
+.u-m0{margin:0 !important;}
+.u-wa-m0{width:auto !important;margin:0 !important;}
+.u-mwn{max-width:none !important;}
+.u-f1{flex:1 !important;}
+.u-fs12{font-size:12px !important;}
+.u-f1-m0{flex:1 !important;margin:0 !important;}
+.u-tl{text-align:left !important;}
+.u-nw{white-space:nowrap !important;}
+.u-tc{text-align:center !important;}
+.u-fs125{font-size:12.5px !important;}
+.u-fs11{font-size:11px !important;}
+.u-mb8{margin:0 0 8px !important;}
+.u-fw4{font-weight:400 !important;}
+.u-fs13{font-size:13px !important;}
+.u-mb10{margin:0 0 10px !important;}
+.u-mt12{margin-top:12px !important;}
+.u-xclose{cursor:pointer !important;color:var(--muted) !important;font-size:20px !important;}
+.u-red{color:var(--red) !important;}
+.u-mbb10{margin-bottom:10px !important;}
+.u-row-sb{display:flex !important;justify-content:space-between !important;align-items:center !important;}
+.u-accent{color:var(--accent) !important;}

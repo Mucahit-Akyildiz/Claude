@@ -29,8 +29,8 @@ async function renderSuppliersContent(session){
   const { data, error } = await withLoadingOverlay(sb.rpc('list_suppliers', { p_token: session.session_token }));
   const rows = error ? [] : (data||[]);
   APP.supplierRows = rows;
-  el.innerHTML = `<div class="box" style="max-width:none;">
-    <div class="fsheet-bar" style="margin:0 0 12px;"><h2 style="margin:0;">Tedarikçiler</h2><button type="button" class="fsheet-open" ${act('newSupplier')}>+ Yeni Tedarikçi</button></div>
+  el.innerHTML = `<div class="u-mwn box">
+    <div class="fsheet-bar" style="margin:0 0 12px;"><h2 class="u-m0">Tedarikçiler</h2><button type="button" class="fsheet-open" ${act('newSupplier')}>+ Yeni Tedarikçi</button></div>
     ${rows.length ? `<div class="cu-grid">${rows.map((x, i) => `<div class="cu-card" style="--i:${Math.min(i,12)};--tc:var(--c${i%4+1});">
       <div class="cu-top">${avatarHtml(x.name)}<div class="cu-id"><b>${escapeHtml(x.name)}</b><small>Tedarikçi</small></div></div>
       <div class="sup-lines">
@@ -136,7 +136,7 @@ async function renderPurchaseOrdersContent(session){
         <div class="field-group"><label>Beklenen Tarih</label><input id="po_expected" type="date"></div>
         <div class="field-group wide"><label>Not</label><input id="po_notes" placeholder="opsiyonel"></div>
       </div>
-      <div style="display:flex;justify-content:space-between;align-items:center;margin:16px 0 8px;"><b style="font-size:14px;">📦 Hammaddeler</b><button type="button" class="ghost-btn" style="width:auto;margin:0;" ${act('addPoDraftItemRow')}>+ Hammadde Ekle</button></div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin:16px 0 8px;"><b style="font-size:14px;">📦 Hammaddeler</b><button type="button" class="u-wa-m0 ghost-btn" ${act('addPoDraftItemRow')}>+ Hammadde Ekle</button></div>
       <div id="poItemsWrap">${renderPoDraftItemsHtml()}</div>
       <div class="fsheet-foot"><button type="button" class="ghost-btn" ${act('closeSheet','poSheet')}>Vazgeç</button><button ${act('createPurchaseOrder')}>🛒 Sipariş Ver</button></div>`, 'var(--accent)')}
   ${statChipsClick([['all','📋', rows.length, 'Tüm siparişler', 'var(--c1)'], ['ordered','🚚', cnt('ordered'), 'Teslim bekliyor', '#f59e0b'],
@@ -150,7 +150,7 @@ async function renderPurchaseOrdersContent(session){
         <div class="po-dates"><span class="pchip">📅 ${fmtDateTr(p.order_date)}</span>${p.expected_date ? `<span class="pchip ${isLate(p)?'warn':''}">${isLate(p) ? '⏰ gecikti · ' : '🎯 '}${fmtDateTr(p.expected_date)}</span>` : ''}<span class="pchip">📦 ${items.length} kalem</span></div>
         ${p.status!=='draft' && p.status!=='cancelled' ? `<div class="po-prog"><div class="pcard-mbar"><i style="width:${pct}%;background:var(--st);"></i></div><small>%${pct} teslim alındı</small></div>` : ''}
         ${items.length ? `<div class="po-items">${items.slice(0, 6).map(it => { const q = Number(it.quantity)||0, r = Number(it.received)||0, done = r >= q && q > 0;
-          return `<div class="po-it ${done?'done':r>0?'part':''}"><span>${done?'✓':r>0?'◐':'○'} ${escapeHtml(it.name)}</span><b>${p.status==='draft' ? fmtQty(q) : fmtQty(r)+' / '+fmtQty(q)} ${escapeHtml(it.unit||'')}</b></div>`; }).join('')}${items.length > 6 ? `<div class="muted" style="font-size:12px;">+${items.length-6} kalem daha</div>` : ''}</div>` : ''}
+          return `<div class="po-it ${done?'done':r>0?'part':''}"><span>${done?'✓':r>0?'◐':'○'} ${escapeHtml(it.name)}</span><b>${p.status==='draft' ? fmtQty(q) : fmtQty(r)+' / '+fmtQty(q)} ${escapeHtml(it.unit||'')}</b></div>`; }).join('')}${items.length > 6 ? `<div class="u-fs12 muted">+${items.length-6} kalem daha</div>` : ''}</div>` : ''}
         ${p.notes ? `<div class="rv-note">📝 ${escapeHtml(p.notes)}</div>` : ''}
         ${ownDraft(p) ? `<div class="pcard-acts"><button type="button" class="pc-btn pc-edit" style="margin-left:0;" ${act('markPOOrdered', p.id)}>🚚 Sipariş Ver</button><button type="button" class="pc-btn rv-del" style="margin-left:auto;" ${act('removePO', p.id)}>🗑 Sil</button></div>` : ''}
       </div>`; }).join('')}</div>`
@@ -179,7 +179,7 @@ function draftLowStockOrder(){
 }
 function renderPoDraftItemsHtml(){
   const ingredients = (APP.config && APP.config.ingredients) || [];
-  if(APP.poDraftItems.length===0) return '<p class="muted" style="font-size:13px;">Henüz hammadde eklenmedi.</p>';
+  if(APP.poDraftItems.length===0) return '<p class="u-fs13 muted">Henüz hammadde eklenmedi.</p>';
   return APP.poDraftItems.map((it, idx) => `
     <div style="display:grid;grid-template-columns:1fr 120px 32px;gap:8px;align-items:center;margin-bottom:6px;">
       <select ${actOn('change','setPoDraftField',[idx,'ingredient_id','$value'])}>
@@ -239,7 +239,7 @@ async function openReceivePOModal(id){
   bg.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:100;padding:16px;';
   bg.onclick = (e) => { if(e.target===bg) bg.remove(); };
   bg.innerHTML = `<div style="background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:20px;max-width:420px;width:100%;max-height:88vh;overflow:auto;">
-    <div style="display:flex;justify-content:space-between;"><h2 style="margin:0;">Teslim Al</h2><span style="cursor:pointer;color:var(--muted);" ${act('removeEl','receivePOModalBg')}>✕</span></div>
+    <div style="display:flex;justify-content:space-between;"><h2 class="u-m0">Teslim Al</h2><span style="cursor:pointer;color:var(--muted);" ${act('removeEl','receivePOModalBg')}>✕</span></div>
     <div id="receivePOItemsWrap" style="margin-top:10px;">
     ${items.map(it => `
       <div style="padding:8px 0;border-bottom:1px solid var(--border);">
@@ -247,7 +247,7 @@ async function openReceivePOModal(id){
         <input type="number" min="0" step="0.01" max="${it.quantity - it.received_quantity}" placeholder="Teslim alınan miktar" data-item-id="${it.id}" class="recv-qty-input" style="margin-top:4px;">
       </div>`).join('')}
     </div>
-    <button style="margin-top:12px;" ${act('confirmReceivePO')}>Teslim Alındı Olarak Kaydet</button>
+    <button class="u-mt12" ${act('confirmReceivePO')}>Teslim Alındı Olarak Kaydet</button>
   </div>`;
   document.body.appendChild(bg);
 }

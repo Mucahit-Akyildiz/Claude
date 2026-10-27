@@ -55,7 +55,7 @@ function crmBirthdayStripHtml(rows){
   if(!list.length) return '';
   return `<div class="bd-strip"><span class="bd-cake-s">🎂</span><div class="bd-strip-t"><b>Bugün ${list.length} müşterinin doğum günü</b>
     <div class="bd-badges">${list.map(c => `<button type="button" class="bd-b today" ${act('editCustomer', c.id)}>🎉 ${escapeHtml(c.name)}</button>`).join('')}</div></div>
-    <button type="button" class="ghost-btn" style="width:auto;margin:0;" ${act('maybeShowBirthdayCard', true)}>Kutlama kartı</button></div>`;
+    <button type="button" class="u-wa-m0 ghost-btn" ${act('maybeShowBirthdayCard', true)}>Kutlama kartı</button></div>`;
 }
 function bdayDiscountPct(){ const l = (APP.config && APP.config.loyalty) || {}; return l.enabled ? Number(l.birthday_discount_percent || 0) : 0; }
 function bdayBadges(c){
@@ -111,7 +111,7 @@ function birthdayBadgeHtml(name, phone){
 /* Bildirimler ekranı ayar kutusu */
 function birthdaySettingsHtml(){
   const sw = (k, def, title, desc) => `<label class="al-req"><span class="oo-switch"><input type="checkbox" ${bdayPref(k, def) === '1' ? 'checked' : ''} ${actOn('change', 'setBdaySwitch', [k, '$checked'])}><span class="oo-track"><span class="oo-thumb"></span></span></span><span><b>${title}</b><small>${desc}</small></span></label>`;
-  return `<div class="box ix-box" style="max-width:none;">
+  return `<div class="u-mwn box ix-box">
     <h2>🎂 Müşteri Doğum Günü Uyarıları</h2>
     ${sw('popup', '1', 'Günlük kutlama kartı', 'Uygulama açılınca günde bir kez, o gün doğum günü olan müşterileri rozetleriyle (yaş, seviye, indirim) gösterir.')}
     ${sw('badge', '1', 'Masa ve sipariş rozetleri', 'Doğum günü olan müşterinin masasında 🎂 rozeti; siparişte seçilince kutlama penceresi ve indirim hatırlatması.')}

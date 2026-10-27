@@ -30,19 +30,19 @@ function renderLoginScreen(app){
       <input id="userInput" name="username" autocomplete="username" placeholder="Kullanıcı adı" autocapitalize="none" value="${escapeAttr(lastLoginInfo().username)}">
       <div class="pw-field-wrap"><input id="passInput" name="password" type="password" autocomplete="current-password" placeholder="Şifre"><button type="button" class="pw-eye-btn" title="Şifreyi göster/gizle" ${act('togglePassVisible', 'passInput', '$this')}>👁️</button></div>
       <label style="display:flex;align-items:center;gap:8px;margin:2px 0 10px;font-size:13.5px;cursor:pointer;">
-        <input type="checkbox" id="rememberInput" style="width:auto;margin:0;" checked> Beni hatırla
+        <input type="checkbox" id="rememberInput" class="u-wa-m0" checked> Beni hatırla
       </label>
       <button id="loginBtn" type="submit">Giriş Yap</button>
       </form>
       <div class="error" id="errBox"></div>
       <p class="muted" style="text-align:center;margin-top:14px;font-size:13px;">
-        <a href="#" style="color:var(--accent);" ${act('openForgotPassword')}>Şifremi Unuttum</a>
+        <a href="#" class="u-accent" ${act('openForgotPassword')}>Şifremi Unuttum</a>
       </p>
       ${isNativeApp() ? '' : `<p class="muted" style="text-align:center;margin-top:2px;font-size:13px;">Yeni işletme misiniz?
-        <a href="#" style="color:var(--accent);" ${act('setAuthScreen','signup')}>Kayıt Ol / Paket Seç</a>
+        <a href="#" class="u-accent" ${act('setAuthScreen','signup')}>Kayıt Ol / Paket Seç</a>
       </p>`}
       <p class="muted" style="text-align:center;margin-top:2px;font-size:13px;">Şubeleri olan bir firma mısınız?
-        <a href="#" style="color:var(--accent);" ${act('setAuthScreen','companyLogin')}>🏢 Şirket Girişi</a>
+        <a href="#" class="u-accent" ${act('setAuthScreen','companyLogin')}>🏢 Şirket Girişi</a>
       </p>
     </div>
     </div>
@@ -64,7 +64,7 @@ function renderCompanyLoginScreen(app){
       <button id="companyLoginBtn" ${act('doCompanyLogin')}>Giriş Yap</button>
       <div class="error" id="companyErrBox"></div>
       <p class="muted" style="text-align:center;margin-top:16px;font-size:13px;">
-        <a href="#" style="color:var(--accent);" ${act('setAuthScreen','login')}>← Normal Girişe Dön</a>
+        <a href="#" class="u-accent" ${act('setAuthScreen','login')}>← Normal Girişe Dön</a>
       </p>
     </div>
     </div>
@@ -160,8 +160,8 @@ async function renderCompanyPanelContent(companySession){
   const emptyText = isSingleBranch ? 'Bu tarih aralığında satış yok.' : 'Bu tarih aralığında satış yok.';
 
   el.innerHTML = `
-    <div class="box" style="max-width:none;">
-      <div class="fsheet-bar" style="margin:0 0 12px;"><h2 style="margin:0;">Şubeler (${branches.length})</h2>${branches.length > 1 ? `<button type="button" class="ghost-btn" style="width:auto;margin:0;" ${act('openCopyMenuSheet')}>📋 Menüyü Başka Şubeye Kopyala</button>` : ''}</div>
+    <div class="u-mwn box">
+      <div class="fsheet-bar" style="margin:0 0 12px;"><h2 class="u-m0">Şubeler (${branches.length})</h2>${branches.length > 1 ? `<button type="button" class="u-wa-m0 ghost-btn" ${act('openCopyMenuSheet')}>📋 Menüyü Başka Şubeye Kopyala</button>` : ''}</div>
       ${branches.length > 1 ? sheetHtml('copyMenuSheet', '📋', 'Menüyü Kopyala', `
         <p class="muted" style="text-align:left;font-size:13px;margin:0 0 12px;">Kaynak şubenin istasyonları, menüleri, ürünleri (fiyat, KDV, açıklama, varyantlar), hammaddeleri ve reçeteleri hedef şubeye kopyalanır. Stoklar kopyalanmaz. Yalnızca <b>henüz ürünü olmayan</b> şubeye kopyalanabilir.</p>
         <div class="fsheet-grid">
@@ -181,9 +181,9 @@ async function renderCompanyPanelContent(companySession){
           : `<div class="table-cell" style="display:flex;flex-direction:column;align-items:center;justify-content:center;opacity:.65;cursor:default;text-align:center;padding:10px;" title="Birden fazla şube açma bir eklentidir">🔒<div style="font-size:11px;margin-top:4px;font-weight:400;">Şube Eklentisi Gerekli</div></div>`}
       </div>
     </div>
-    <div class="box" style="max-width:none;">
+    <div class="u-mwn box">
       <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:10px;">
-        <h2 style="margin:0;">Konsolide Satış Raporu</h2>
+        <h2 class="u-m0">Konsolide Satış Raporu</h2>
         <select id="companyDashboardBranchSel" ${actOn('change','changeCompanyDashboardBranch',['$value'])} style="max-width:220px;">
           <option value="" ${!branchFilter?'selected':''}>Tüm Şubeler</option>
           ${branches.map(b => `<option value="${b.id}" ${branchFilter===b.id?'selected':''}>${escapeHtml(b.name)}</option>`).join('')}
@@ -210,7 +210,7 @@ async function renderCompanyPanelContent(companySession){
           <thead><tr><th>${isSingleBranch?'Tarih':'Şube'}</th><th>Sipariş Sayısı</th><th>Ciro</th><th>Kâr</th></tr></thead>
           <tbody>
           ${rowsHtml}
-          ${rowsHtml===''?'<tr><td colspan="4" class="muted" style="text-align:center;">'+emptyText+'</td></tr>':''}
+          ${rowsHtml===''?'<tr><td colspan="4" class="u-tc muted">'+emptyText+'</td></tr>':''}
           </tbody>
         </table>
       </div>
@@ -337,7 +337,7 @@ function renderExpiredScreen(app){
         <h1>⏰ Aboneliğiniz Sona Erdi</h1>
         <p class="muted">Abonelik işlemleri bu uygulama üzerinden yapılamaz. Lütfen bir bilgisayar veya tarayıcıdan hesabınıza giriş yapın; işlem tamamlandığında buradan tekrar giriş yapabilirsiniz.</p>
         <p class="muted" style="text-align:center;margin-top:16px;font-size:13px;">
-          <a href="#" style="color:var(--accent);" ${act('setAuthScreen','login')}>← Girişe Dön</a>
+          <a href="#" class="u-accent" ${act('setAuthScreen','login')}>← Girişe Dön</a>
         </p>
       </div></div></div>`;
     APP.expiredPrefill = null;
@@ -356,7 +356,7 @@ function renderExpiredScreen(app){
       <button id="exPayBtn" ${act('startRenewalPayment')}>💳 Ödemeye Geç</button>
       <div class="error" id="exErr"></div>
       <p class="muted" style="text-align:center;margin-top:16px;font-size:13px;">
-        <a href="#" style="color:var(--accent);" ${act('setAuthScreen','login')}>← Girişe Dön</a>
+        <a href="#" class="u-accent" ${act('setAuthScreen','login')}>← Girişe Dön</a>
       </p>
     </div>
     </div>
@@ -414,7 +414,7 @@ function renderForgotPasswordScreen(app){
         <button id="fpSendBtn" ${act('doStartPasswordReset')}>Kod Gönder</button>
       </div>
       <div id="forgotStep2" style="display:${step===2?'block':'none'};">
-        <p class="muted" id="fpOtpInfo" style="text-align:center;"></p>
+        <p class="u-tc muted" id="fpOtpInfo"></p>
         <input id="fpOtp" placeholder="6 haneli kod" maxlength="6" style="text-align:center;font-size:20px;letter-spacing:4px;">
         <div class="pw-field-wrap">
           <div class="pw-field-wrap"><input type="password" id="fpNewPass" placeholder="Yeni şifre"><button type="button" class="pw-eye-btn" title="Şifreyi göster/gizle" ${act('togglePassVisible', 'fpNewPass', '$this')}>👁️</button></div>
@@ -429,7 +429,7 @@ function renderForgotPasswordScreen(app){
       </div>
       <div class="error" id="fpErr"></div>
       <p class="muted" style="text-align:center;margin-top:14px;font-size:13px;">
-        <a href="#" style="color:var(--accent);" ${act('setAuthScreen','login')}>← Girişe Dön</a>
+        <a href="#" class="u-accent" ${act('setAuthScreen','login')}>← Girişe Dön</a>
       </p>
     </div>
     </div>
@@ -514,20 +514,20 @@ function renderSignupScreen(app){
         <div id="cartTotal" style="margin-top:10px;padding:10px 12px;border:1px solid var(--border);border-radius:10px;font-size:13.5px;"></div>
         <label style="display:flex;align-items:flex-start;gap:8px;margin-top:14px;font-size:12.5px;line-height:1.4;cursor:pointer;">
           <input id="suPrivacyConsent" type="checkbox" style="width:auto;margin:2px 0 0;flex-shrink:0;">
-          <span><a href="/sozlesme/" target="_blank" rel="noopener" style="color:var(--accent);">Kullanım Sözleşmesi</a>'ni ve <a href="/gizlilik/" target="_blank" rel="noopener" style="color:var(--accent);">Gizlilik Politikası / KVKK Aydınlatma Metni</a>'ni okudum, kabul ediyorum.</span>
+          <span><a href="/sozlesme/" target="_blank" rel="noopener" class="u-accent">Kullanım Sözleşmesi</a>'ni ve <a href="/gizlilik/" target="_blank" rel="noopener" class="u-accent">Gizlilik Politikası / KVKK Aydınlatma Metni</a>'ni okudum, kabul ediyorum.</span>
         </label>
         <button style="margin-top:16px;" ${act('doStartSignup')} id="signupBtn">🛒 Satın Al ve Hesabı Oluştur</button>
         <p class="muted" style="text-align:center;font-size:11.5px;margin-top:6px;">İlk 7 gün ücretsiz; kart bilgisi istenmez. Süre sonunda sepetinizdeki paket ve eklentilerin ücretiyle devam edersiniz. Yalnızca seçtiğiniz eklentiler hesabınıza açılır.</p>
       </div>
       <div id="signupStep2" style="display:none;">
-        <p class="muted" id="otpInfo" style="text-align:center;"></p>
+        <p class="u-tc muted" id="otpInfo"></p>
         <input id="suOtp" placeholder="6 haneli kod" maxlength="6" style="text-align:center;font-size:20px;letter-spacing:4px;">
         <button style="margin-top:10px;" ${act('doVerifySignup')} id="verifyBtn">Doğrula ve Kaydı Tamamla</button>
         <button class="ghost-btn" style="width:100%;margin-top:10px;" ${act('backToSignupForm')}>← Bilgileri Düzenle</button>
       </div>
       <div class="error" id="suErr"></div>
       <p class="muted" style="text-align:center;margin-top:14px;font-size:13px;">
-        Zaten hesabınız var mı? <a href="#" style="color:var(--accent);" ${act('setAuthScreen','login')}>Giriş Yap</a>
+        Zaten hesabınız var mı? <a href="#" class="u-accent" ${act('setAuthScreen','login')}>Giriş Yap</a>
       </p>
     </div>
     </div>
@@ -570,10 +570,10 @@ function renderSignupAddons(){
   inc.forEach(id => APP.selectedAddons.delete(id));
   const list = (APP.signupAddons || []).filter(a => !inc.has(a.id));
   if(!list.length){ el.innerHTML=''; return; }
-  el.innerHTML = `<div style="font-weight:700;font-size:13.5px;margin-bottom:6px;">🧩 Eklentiler <span class="muted" style="font-weight:400;">(isteğe bağlı — seçmezseniz yalnızca paket özellikleri açılır)</span></div>` +
+  el.innerHTML = `<div style="font-weight:700;font-size:13.5px;margin-bottom:6px;">🧩 Eklentiler <span class="u-fw4 muted">(isteğe bağlı — seçmezseniz yalnızca paket özellikleri açılır)</span></div>` +
     list.map(a => `<label style="display:flex;align-items:center;gap:8px;padding:6px 0;font-size:13px;cursor:pointer;">
-      <input type="checkbox" style="width:auto;margin:0;" ${APP.selectedAddons.has(a.id)?'checked':''} ${actOn('change','toggleSignupAddon',[a.id])}>
-      <span style="flex:1;">${escapeHtml(a.label||a.id)}</span><b>+${money(Number(a.price)||0)}/ay</b></label>`).join('');
+      <input type="checkbox" class="u-wa-m0" ${APP.selectedAddons.has(a.id)?'checked':''} ${actOn('change','toggleSignupAddon',[a.id])}>
+      <span class="u-f1">${escapeHtml(a.label||a.id)}</span><b>+${money(Number(a.price)||0)}/ay</b></label>`).join('');
 }
 function renderCartTotal(){
   const el = document.getElementById('cartTotal'); if(!el) return;
@@ -696,12 +696,12 @@ function openDeleteAccountModal(){
     <p class="muted" style="margin:0 0 10px;font-size:13px;">Bu işlem geri alınamaz.</p>
     ${session.isManager ? `
       <p style="font-size:13px;margin:0 0 10px;">İşletmenizin <b>tek yöneticisi</b> sizseniz, <b>işletmenin tamamı</b> (menü, siparişler, satış geçmişi, müşteriler, personel hesapları dahil tüm veriler) kalıcı olarak silinir. Başka bir yönetici varsa yalnızca sizin kullanıcınız silinir.</p>
-      <input id="delAccConfirmCode" placeholder="Onay için işletme kodunuzu yazın" autocapitalize="none" style="margin-bottom:10px;">
+      <input id="delAccConfirmCode" placeholder="Onay için işletme kodunuzu yazın" autocapitalize="none" class="u-mbb10">
     ` : `
       <p style="font-size:13px;margin:0 0 10px;">Yalnızca sizin kullanıcı hesabınız silinir. İşletmenin kayıtları (siparişler, satışlar) işletmede kalır, ancak artık sizinle ilişkilendirilmez.</p>
     `}
-    <input id="delAccPassword" type="password" placeholder="Şifreniz" style="margin-bottom:10px;">
-    <div class="error" id="delAccErr" style="text-align:left;"></div>
+    <input id="delAccPassword" type="password" placeholder="Şifreniz" class="u-mbb10">
+    <div class="u-tl error" id="delAccErr"></div>
     <div class="field-row" style="gap:8px;margin-top:6px;">
       <button type="button" style="flex:1;margin:0;background:var(--panel2);color:var(--text);" ${act('closeDeleteAccountModal')}>Vazgeç</button>
       <button type="button" id="delAccBtn" style="flex:1;margin:0;background:var(--red);color:var(--btn-ink);" ${act('submitDeleteAccount')}>Kalıcı Olarak Sil</button>
