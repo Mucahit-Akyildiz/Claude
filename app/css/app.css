@@ -3649,3 +3649,9 @@ button.sl-stat{border:1px solid var(--border) !important;} button.sl-stat.on{bor
 .sp-mine{display:flex;gap:8px;overflow-x:auto;margin-bottom:8px}
 .sp-mine-d{flex:0 0 auto;border-radius:10px;background:rgba(127,127,127,.06);padding:8px 10px;text-align:center;font-size:12.5px;display:flex;flex-direction:column;gap:4px}
 .sp-mine-d small{color:var(--muted)}
+.dc-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:10px;margin-bottom:8px}
+.dc-card{position:relative;display:flex;gap:10px;align-items:flex-start;padding:12px 30px 12px 12px;border-radius:12px;background:rgba(127,127,127,.06);border:1px solid rgba(127,127,127,.15);cursor:pointer;text-align:left}
+.dc-card:hover{border-color:var(--c1,#3b82f6)}
+.dc-ic{font-size:22px}
+.dc-card small{display:block;color:var(--muted);font-size:12px;margin-top:2px}
+.dc-x{position:absolute;top:6px;right:8px;color:var(--muted);font-size:12px;padding:2px 4px}
