@@ -394,8 +394,8 @@ async function printZToReceipt(){
   }
   const el = document.getElementById('printArea'); if(!el) return;
   applyTicketDesignStyle(el, getTicketDesign());
-  el.innerHTML = `<div style="text-align:center;"><b style="font-size:1.15em;">${escapeHtml(head[0])}</b><br><b>GÜN SONU RAPORU</b><br><small>${escapeHtml(head[2])}<br>${escapeHtml(head[3])}</small></div><hr>`
-    + rows.map(r => r.length === 1 ? '<hr style="border-style:dashed;">' : `<div style="display:flex;justify-content:space-between;gap:6px;${r[2]==='big'?'font-weight:800;font-size:1.1em;':''}"><span>${r[0]}</span><span style="white-space:nowrap;">${r[1]}</span></div>`).join('')
+  el.innerHTML = `<div class="u-tc"><b style="font-size:1.15em;">${escapeHtml(head[0])}</b><br><b>GÜN SONU RAPORU</b><br><small>${escapeHtml(head[2])}<br>${escapeHtml(head[3])}</small></div><hr>`
+    + rows.map(r => r.length === 1 ? '<hr style="border-style:dashed;">' : `<div style="display:flex;justify-content:space-between;gap:6px;${r[2]==='big'?'font-weight:800;font-size:1.1em;':''}"><span>${r[0]}</span><span class="u-nw">${r[1]}</span></div>`).join('')
     + `<div style="text-align:center;margin-top:8px;"><small>Peyktan · ${escapeHtml(s.username || '')}</small></div>`;
   await new Promise(r => setTimeout(r, 80));
   if(printer.type==='electron' && isDesktopApp()){

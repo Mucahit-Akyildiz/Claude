@@ -613,7 +613,7 @@ function renderHome(main, session){
     { tab:'stations', ic:'📋', t:'Menüler', d:'Menüler ve istasyonlar' },
   ].filter(q => typeof SETTINGS_TABS !== 'undefined' && SETTINGS_TABS.some(t => t.tab===q.tab && settingsTabVisible(t, session)));
   main.innerHTML = `<h1>${greet} ${escapeHtml(session.username)} 👋</h1>
-    <p class="muted hm-date" style="text-align:left;">${new Date().toLocaleDateString('tr-TR', { weekday:'long', day:'numeric', month:'long' })}</p>
+    <p class="u-tl muted hm-date">${new Date().toLocaleDateString('tr-TR', { weekday:'long', day:'numeric', month:'long' })}</p>
     ${setupWizardHtml(session)}
     <div id="homeShift" class="hm-shift"></div>
     <div id="homeMyPlan"></div>
@@ -1088,7 +1088,7 @@ function showAppUpdateBar(v){
   if(document.getElementById('appUpdateBar')) return;
   const bar = document.createElement('div'); bar.id = 'appUpdateBar';
   bar.style.cssText = 'position:fixed;left:12px;right:12px;bottom:12px;z-index:97;background:var(--accent);color:#fff;border-radius:14px;padding:10px 12px;display:flex;align-items:center;gap:10px;box-shadow:0 8px 24px rgba(0,0,0,.3);font-size:13.5px;';
-  bar.innerHTML = `<span style="flex:1;">🔄 Peyktan'ın yeni sürümü (${escapeHtml(v.name || '')}) hazır.</span>
+  bar.innerHTML = `<span class="u-f1">🔄 Peyktan'ın yeni sürümü (${escapeHtml(v.name || '')}) hazır.</span>
     <button type="button" style="margin:0;width:auto;padding:7px 14px;background:#fff;color:var(--accent);border:0;font-weight:800;" ${act('openPlayStoreUpdate')}>Güncelle</button>
     <button type="button" style="margin:0;width:auto;padding:7px 10px;background:transparent;color:#fff;border:1px solid rgba(255,255,255,.5);box-shadow:none;" ${act('dismissAppUpdate', v.latest)}>Sonra</button>`;
   document.body.appendChild(bar);

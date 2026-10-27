@@ -307,7 +307,7 @@ function buildTicketHtml(restaurantName, tableName, items, design, dailyNumber){
     ${pkgTicketLines(design).length ? `<div class="ticket-line"></div><div class="ticket-pkg" style="${ticketPartStyle(design,'Text')}text-align:left;">${pkgTicketLines(design).map(([k, v]) => `<div><b>${k}:</b> ${escapeHtml(v)}</div>`).join('')}</div>` : ''}
     <div class="ticket-line"></div>
     ${items.map(it => `
-      <div class="ticket-item" style="${ticketPartStyle(design,'Text')}"><span><span class="qty">${it.qty}x</span>${escapeHtml(it.name)}</span>${design.priced ? `<span style="white-space:nowrap;">${money((Number(it.price)||0)*it.qty)}</span>` : (showItemTime?`<span class="ticket-time" style="${ticketPartStyle(design,'Time')}font-weight:${timeWeight} !important;">${formatItemTime(it, design)}</span>`:'')}</div>
+      <div class="ticket-item" style="${ticketPartStyle(design,'Text')}"><span><span class="qty">${it.qty}x</span>${escapeHtml(it.name)}</span>${design.priced ? `<span class="u-nw">${money((Number(it.price)||0)*it.qty)}</span>` : (showItemTime?`<span class="ticket-time" style="${ticketPartStyle(design,'Time')}font-weight:${timeWeight} !important;">${formatItemTime(it, design)}</span>`:'')}</div>
       ${it.note ? `<div class="ticket-note" style="${ticketPartStyle(design,'Note')}">Not: ${escapeHtml(it.note)}</div>` : ''}
     `).join('')}
     <div class="ticket-line"></div>
@@ -366,7 +366,7 @@ function openMoveTableModal(fromTableId){
     <select id="moveTarget" style="margin-bottom:14px;">${opts}</select>
     <div class="field-row" style="gap:8px;">
       <button type="button" style="flex:1;margin:0;background:var(--panel2);color:var(--text);" ${act('removeEl', 'moveTableBg')}>Vazgeç</button>
-      <button type="button" id="moveBtn" style="flex:1;margin:0;" ${act('confirmMoveTable', fromTableId)}>Taşı</button>
+      <button type="button" id="moveBtn" class="u-f1-m0" ${act('confirmMoveTable', fromTableId)}>Taşı</button>
     </div>
   </div>`;
   document.body.appendChild(bg);

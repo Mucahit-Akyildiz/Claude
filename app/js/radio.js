@@ -38,15 +38,15 @@ function radioNotifyNewMemberships(session, list){
 
 /* ---- Ekran: kanal listesi / yönetimi ---- */
 async function renderRadioView(main, session){
-  main.innerHTML = '<h1>📻 Peyk Bas-Konuş</h1><div class="box" style="max-width:none;"><p class="muted">Yükleniyor…</p></div>';
+  main.innerHTML = '<h1>📻 Peyk Bas-Konuş</h1><div class="u-mwn box"><p class="muted">Yükleniyor…</p></div>';
   let list;
   try{ list = await fetchRadioChannels(session); }
   catch(e){ main.querySelector('.box').innerHTML = '<p class="muted">Yüklenemedi: ' + escapeHtml(e.message) + '</p>'; return; }
   const cur = RADIO.channel && RADIO.channel.id;
   main.innerHTML = `<h1>📻 Peyk Bas-Konuş</h1>
-    <div class="box" style="max-width:none;">
+    <div class="u-mwn box">
       <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;">
-        <h2 style="margin:0;">Kanallar</h2>
+        <h2 class="u-m0">Kanallar</h2>
         <button type="button" style="margin:0;width:auto;" ${act('openRadioChannelEditor', null)}>＋ Yeni kanal</button>
       </div>
       <p class="muted" style="font-size:12.5px;text-align:left;margin:6px 0 12px;">Bir kanala bağlanın; alttaki telsiz paneli siz kapatana ya da çıkış yapana kadar tüm ekranlarda açık kalır. Konuşmak için <b>Bas-Konuş</b> düğmesini basılı tutun (bilgisayarda boşluk tuşu da çalışır).</p>
@@ -73,17 +73,17 @@ async function openRadioChannelEditor(id){
   ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:110;padding:16px;';
   ov.onclick = (e) => { if(e.target===ov) ov.remove(); };
   ov.innerHTML = `<div style="background:var(--panel);border:1px solid var(--border);border-radius:18px;padding:18px;max-width:420px;width:100%;max-height:85vh;display:flex;flex-direction:column;">
-    <h3 style="margin:0 0 10px;">${c ? 'Kanalı düzenle' : '📻 Yeni telsiz kanalı'}</h3>
-    <input id="radioChName" placeholder="Kanal adı (örn. Salon)" value="${escapeAttr(c ? c.name : '')}" style="margin:0 0 10px;">
+    <h3 class="u-mb10">${c ? 'Kanalı düzenle' : '📻 Yeni telsiz kanalı'}</h3>
+    <input id="radioChName" placeholder="Kanal adı (örn. Salon)" value="${escapeAttr(c ? c.name : '')}" class="u-mb10">
     <div class="muted" style="font-size:12.5px;margin-bottom:6px;text-align:left;">Üyeler (siz otomatik eklenirsiniz)</div>
     <div style="overflow:auto;flex:1;border:1px solid var(--border);border-radius:12px;padding:4px 8px;">
       ${people.map(p => `<label style="display:flex;gap:10px;align-items:center;padding:7px 2px;cursor:pointer;">
-        <input type="checkbox" class="radioChMember" value="${p.conv}" style="width:auto;margin:0;" ${memberIds.includes(p.conv)?'checked':''}>
-        <span style="flex:1;">${escapeHtml(p.name)} <span class="muted" style="font-size:11.5px;">${escapeHtml(p.roles||'')}</span></span></label>`).join('')}
+        <input type="checkbox" class="u-wa-m0 radioChMember" value="${p.conv}" ${memberIds.includes(p.conv)?'checked':''}>
+        <span class="u-f1">${escapeHtml(p.name)} <span class="muted" style="font-size:11.5px;">${escapeHtml(p.roles||'')}</span></span></label>`).join('')}
     </div>
     <div style="display:flex;gap:10px;margin-top:12px;">
-      <button type="button" class="ghost-btn" style="flex:1;margin:0;" ${act('removeEl', 'radioEditBg')}>Vazgeç</button>
-      <button type="button" style="flex:1;margin:0;" ${act('saveRadioChannel', c ? c.id : null)}>${c ? 'Kaydet' : 'Oluştur'}</button>
+      <button type="button" class="u-f1-m0 ghost-btn" ${act('removeEl', 'radioEditBg')}>Vazgeç</button>
+      <button type="button" class="u-f1-m0" ${act('saveRadioChannel', c ? c.id : null)}>${c ? 'Kaydet' : 'Oluştur'}</button>
     </div></div>`;
   document.body.appendChild(ov);
 }
@@ -594,7 +594,7 @@ async function openRadioMicPicker(){
   const ov = document.createElement('div'); ov.id = 'radioMicBg'; ov.className = 'modal-bg';
   ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:200;display:flex;align-items:center;justify-content:center;padding:16px;';
   ov.innerHTML = `<div class="box" style="max-width:420px;width:100%;margin:0;">
-    <div style="display:flex;justify-content:space-between;align-items:center;"><h2 style="margin:0;">🎤 Mikrofon</h2><span style="cursor:pointer;color:var(--muted);font-size:20px;" ${act('removeEl','radioMicBg')}>✕</span></div>
+    <div class="u-row-sb"><h2 class="u-m0">🎤 Mikrofon</h2><span class="u-xclose" ${act('removeEl','radioMicBg')}>✕</span></div>
     <p class="muted" style="text-align:left;font-size:12.5px;">Konuşurken panelde seviye çubuğu görünmüyorsa başka bir mikrofon seçin.</p>
     <div style="display:flex;flex-direction:column;gap:8px;">
       <button type="button" class="${cur ? 'ghost-btn' : ''}" style="margin:0;text-align:left;" ${act('setRadioMic', '')}>Varsayılan (sistem)</button>
@@ -646,7 +646,7 @@ function radioMembersHtml(c, connected){
   const on = new Set(RADIO.online);
   return members.map(n => on.has(n)
     ? `<span style="white-space:nowrap;font-weight:700;">🟢 ${escapeHtml(n)}</span>`
-    : `<span class="muted" style="white-space:nowrap;">⚪ ${escapeHtml(n)}</span>`).join(', ');
+    : `<span class="u-nw muted">⚪ ${escapeHtml(n)}</span>`).join(', ');
 }
 function radioRefreshOnlineMarks(){
   const td = document.querySelector('[data-radio-members]');
@@ -665,7 +665,7 @@ function openRadioOnlineList(){
   const ov = document.createElement('div'); ov.id = 'radioOnlineBg';
   ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:200;display:flex;align-items:flex-end;justify-content:center;padding:16px;';
   ov.innerHTML = `<div class="box" style="max-width:420px;width:100%;margin:0 0 80px;max-height:70vh;overflow-y:auto;text-align:left;">
-    <div style="display:flex;justify-content:space-between;align-items:center;"><h2 style="margin:0;">📻 ${escapeHtml(RADIO.channel.name)}</h2><span style="cursor:pointer;color:var(--muted);font-size:20px;" ${act('removeEl','radioOnlineBg')}>✕</span></div>
+    <div class="u-row-sb"><h2 class="u-m0">📻 ${escapeHtml(RADIO.channel.name)}</h2><span class="u-xclose" ${act('removeEl','radioOnlineBg')}>✕</span></div>
     <p style="font-weight:700;margin:12px 0 6px;">🟢 Çevrim içi (${online.length})</p>
     ${online.length ? online.map(n => `<div style="padding:6px 0;border-bottom:1px solid var(--border);">🟢 ${escapeHtml(n)}</div>`).join('') : '<p class="muted">Şu an kimse bağlı değil.</p>'}
     ${offline.length ? `<p style="font-weight:700;margin:14px 0 6px;" class="muted">⚪ Bağlı değil (${offline.length})</p>

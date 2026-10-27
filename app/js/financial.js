@@ -112,7 +112,7 @@ function renderReportsForgotGate(main, session){
         <button id="rpFgSendBtn" class="rg-btn" ${act('doStartReportsPasswordReset')}>✉️ Kod Gönder</button>
       </div>
       <div id="rpFgStep2" style="display:${step===2?'block':'none'};">
-        <p class="muted" id="rpFgOtpInfo" style="text-align:center;"></p>
+        <p class="u-tc muted" id="rpFgOtpInfo"></p>
         <input id="rpFgOtp" class="rg-otp" placeholder="••••••" maxlength="6" inputmode="numeric" autocomplete="one-time-code">
         ${rgPassFields('rpFgNewPass', 'rpFgNewPass2', 'rpFgVerifyBtn', '🔑 Şifreyi Güncelle', 'doVerifyReportsPasswordReset')}
       </div>
@@ -184,18 +184,18 @@ async function renderReportsView(main, session){
   if(!APP.reportDate) APP.reportDate = todayLocalDateStr();
   if(!APP.reportDateTo) APP.reportDateTo = APP.reportDate;
   main.innerHTML = `<h1>Finansal Analiz</h1>
-    <div class="box" style="max-width:none;">
+    <div class="u-mwn box">
       <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-        <span class="muted" style="white-space:nowrap;">Tarih Aralığı</span>
-        <input type="date" id="reportDateInput" value="${APP.reportDate}" ${actOn('change','changeReportDate',['$value'])} style="width:auto;margin:0;">
+        <span class="u-nw muted">Tarih Aralığı</span>
+        <input type="date" id="reportDateInput" value="${APP.reportDate}" ${actOn('change','changeReportDate',['$value'])} class="u-wa-m0">
         <span class="muted">–</span>
-        <input type="date" id="reportDateToInput" value="${APP.reportDateTo}" ${actOn('change','changeReportDateTo',['$value'])} style="width:auto;margin:0;">
+        <input type="date" id="reportDateToInput" value="${APP.reportDateTo}" ${actOn('change','changeReportDateTo',['$value'])} class="u-wa-m0">
         <span style="width:1px;height:22px;background:var(--border);margin:0 2px;"></span>
         <button type="button" class="range-preset-btn" ${act('setReportDateRangeDays', 0)}>Bugün</button>
         <button type="button" class="range-preset-btn" ${act('setReportDateRangeDays', 6)}>Son 7 Gün</button>
         <button type="button" class="range-preset-btn" ${act('setReportDateRangeDays', 9)}>Son 10 Gün</button>
         <button type="button" class="range-preset-btn" ${act('setReportDateRangeDays', 29)}>Son 30 Gün</button>
-        <span style="flex:1;"></span>
+        <span class="u-f1"></span>
         <button type="button" class="range-preset-btn" ${act('exportAnalytics')} title="Bu sekmeyi Excel'de açılabilir dosya olarak indir">⬇ Excel</button>
         <button type="button" class="range-preset-btn" ${act('printAnalytics')} title="Yazdır veya PDF olarak kaydet">🖨️ PDF</button>
       </div>
@@ -421,13 +421,13 @@ async function renderReportContent(session){
     const oD = o.ordered_at ? new Date(o.ordered_at).toLocaleDateString('tr-TR', { ...dOpt, year:'numeric' }) : '—';
     // Tarih ve saat tek hücrede (tablo yatay kaymasın); aynı gün ise tarih yalnızca ödeme hücresinde.
     const sameDay = oD === dS;
-    return `<tr><td style="white-space:nowrap;">${hmS(o.ordered_at)}${sameDay ? '' : `<div class="muted" style="font-size:11px;">${oD}</div>`}</td>
-      <td style="white-space:nowrap;">${hmS(o.ready_at)}${prep!=null ? `<div class="muted" style="font-size:11px;">${prep} dk</div>` : ''}</td>
-      <td style="white-space:nowrap;">${t}${stay!=null ? ` <span class="muted" style="font-size:11px;">(${stay} dk)</span>` : ''}<div class="muted" style="font-size:11px;">${dS}</div></td>
+    return `<tr><td class="u-nw">${hmS(o.ordered_at)}${sameDay ? '' : `<div class="u-fs11 muted">${oD}</div>`}</td>
+      <td class="u-nw">${hmS(o.ready_at)}${prep!=null ? `<div class="u-fs11 muted">${prep} dk</div>` : ''}</td>
+      <td class="u-nw">${t}${stay!=null ? ` <span class="u-fs11 muted">(${stay} dk)</span>` : ''}<div class="u-fs11 muted">${dS}</div></td>
       <td class="col-name">${escapeHtml(billLabel(o))}${srcBadge}${tagBadge}</td>
-      <td>${(o.waiters || o.order_taken_by_name) ? escapeHtml(o.waiters || o.order_taken_by_name) : '<span class="muted">—</span>'}${o.customer_name ? `<div style="font-size:12px;">${o.customer_id ? '⭐ ' : '👤 '}${escapeHtml(o.customer_name)}</div>${o.customer_phone ? `<div class="muted" style="font-size:11px;">${escapeHtml(o.customer_phone)}</div>` : ''}` : ''}</td>
-      <td style="white-space:nowrap;"><b>${money(o.total)}</b>${o.discount_amount>0 ? `<div style="font-size:11px;color:var(--red);">${discTxt}</div>` : ''}${Number(o.points_amount) > 0 ? `<div style="font-size:11px;color:#f59e0b;">⭐ ${money(o.points_amount)} puan</div>` : ''}</td>
-      <td style="font-size:13px;">${methodLabel}</td>
+      <td>${(o.waiters || o.order_taken_by_name) ? escapeHtml(o.waiters || o.order_taken_by_name) : '<span class="muted">—</span>'}${o.customer_name ? `<div class="u-fs12">${o.customer_id ? '⭐ ' : '👤 '}${escapeHtml(o.customer_name)}</div>${o.customer_phone ? `<div class="u-fs11 muted">${escapeHtml(o.customer_phone)}</div>` : ''}` : ''}</td>
+      <td class="u-nw"><b>${money(o.total)}</b>${o.discount_amount>0 ? `<div style="font-size:11px;color:var(--red);">${discTxt}</div>` : ''}${Number(o.points_amount) > 0 ? `<div style="font-size:11px;color:#f59e0b;">⭐ ${money(o.points_amount)} puan</div>` : ''}</td>
+      <td class="u-fs13">${methodLabel}</td>
       <td><button type="button" class="sbtn" style="width:auto;margin:0;padding:6px 10px;" title="Detay" ${act('openSaleDetailModal', o.id)}>🔍</button></td></tr>`;
   };
   const billsHtml = billHist.length===0 ? '<p class="muted">Bu tarihte kapatılmış hesap yok.</p>'
@@ -461,7 +461,7 @@ async function renderReportContent(session){
           return `<div class="gx-ring" style="--p:${pc};--c:${c};--i:${i};"><div class="gx-ring-c"><span>${ic}</span><b>%${pc}</b></div><small>${l}</small><em>${money(v)}</em></div>`; }).join('')}</div>
         <div class="gx-foot"><span>💸 Bahşiş</span><b>${money(totalTip)}</b></div>
       </div>
-      <div class="fs-panel" style="--t:#a78bfa;"><h3><i>🍽️</i>Servis</h3><div id="serviceMetrics"><p class="muted" style="font-size:13px;">Yükleniyor…</p></div></div>
+      <div class="fs-panel" style="--t:#a78bfa;"><h3><i>🍽️</i>Servis</h3><div id="serviceMetrics"><p class="u-fs13 muted">Yükleniyor…</p></div></div>
       <div class="fs-panel" style="--t:#f59e0b;"><h3><i>🏷️</i>İndirim, Puan ve İkram</h3>
         ${(() => { const it = [['🏷️','İndirim',totalDiscount,discountedCount,'#f59e0b','discount'],['⭐','Puanla ödeme',totalPoints,pointsCount,'#eab308','points'],['🎂','Doğum günü',totalBirthdayDiscount,birthdayCount,'#ec4899','birthday'],['🍱','Personel / ikram',taggedTotal,taggedHist.length,'#14b8a6','comp']];
           const mx = Math.max(1, ...it.map(x => x[2]));
@@ -483,15 +483,15 @@ async function renderReportContent(session){
     <div class="fs-panel pa-sec" style="--t:#a78bfa;"><h3><i>👤</i>Personel Performansı</h3>${staffRowsHtml}</div>
     <div class="fs-panel pa-sec" style="--t:var(--green);">
       <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:6px;">
-        <h3 style="margin:0;"><i>🧾</i>Kapatılan Hesaplar</h3>
-        <span class="muted" style="font-size:12px;">${billsFilterActive ? (filteredBills.length+' / '+billHist.length+' hesap') : (billHist.length+' hesap')}</span>
+        <h3 class="u-m0"><i>🧾</i>Kapatılan Hesaplar</h3>
+        <span class="u-fs12 muted">${billsFilterActive ? (filteredBills.length+' / '+billHist.length+' hesap') : (billHist.length+' hesap')}</span>
       </div>
       <div class="bill-dates">
         <span>📅 Liste tarihi</span>
         <input type="date" value="${escapeAttr(APP.billDate || '')}" ${actOn('change','setBillDate',['from','$value'])}>
         <span>–</span>
         <input type="date" value="${escapeAttr(APP.billDateTo || '')}" ${actOn('change','setBillDate',['to','$value'])}>
-        ${APP.billDate ? `<button type="button" class="sbtn" style="width:auto;margin:0;" ${act('setBillDate','clear','')}>✕ Üstteki tarihe dön</button><small class="muted">Bu liste kendi tarihinden besleniyor</small>` : `<small class="muted">Boşsa üstteki tarih aralığı kullanılır</small>`}
+        ${APP.billDate ? `<button type="button" class="u-wa-m0 sbtn" ${act('setBillDate','clear','')}>✕ Üstteki tarihe dön</button><small class="muted">Bu liste kendi tarihinden besleniyor</small>` : `<small class="muted">Boşsa üstteki tarih aralığı kullanılır</small>`}
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;">
         <select id="billHourFilter" style="width:auto;margin:0;padding:8px 12px;" ${actOn('change','setReportBillsFilter',['hour','$value'])}>
@@ -510,7 +510,7 @@ async function renderReportContent(session){
           <option value="">Tüm Kaynaklar</option>
           ${Object.keys(SOURCE_LABELS).map(k => `<option value="${k}" ${bf.source===k?'selected':''}>${SOURCE_LABELS[k]} (${billSourceCounts[k]||0})</option>`).join('')}
         </select>
-        ${billsFilterActive ? `<button type="button" class="sbtn" style="width:auto;margin:0;" ${act('resetReportBillsFilter')}>✕ Filtreleri Temizle</button>` : ''}
+        ${billsFilterActive ? `<button type="button" class="u-wa-m0 sbtn" ${act('resetReportBillsFilter')}>✕ Filtreleri Temizle</button>` : ''}
       </div>
       ${timingHtml}${billsHtml}
     </div>
@@ -596,9 +596,9 @@ async function renderProductStatsContent(session){
 
   el.innerHTML = `
     ${statChips([['🍽️', filtered.length, 'Satılan ürün çeşidi', 'var(--c1)'], ['📦', totalQty, 'Toplam adet', 'var(--c2)'], ['💰', money(totalRev), 'Toplam ciro', 'var(--c3)'], ['🏆', top ? escapeHtml(top.name) : '-', 'En çok satan', 'var(--c4)']])}
-    <div class="box" style="max-width:none;">
+    <div class="u-mwn box">
       <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:14px;">
-        <h2 style="margin:0;">Ürün Satışları</h2>
+        <h2 class="u-m0">Ürün Satışları</h2>
         <div style="display:flex;gap:8px;flex-wrap:wrap;">
           <select id="psStationFilter" style="width:auto;margin:0;padding:8px 12px;" ${actOn('change','setProductStatsOpt',['productStatsStation','$value'])}>
             <option value="">Tüm İstasyonlar</option>
@@ -702,7 +702,7 @@ async function renderCustomerAnalyticsContent(session){
     ${rows.length ? `<div class="fs-panel pa-sec" style="--t:var(--c3);"><h3><i>🏆</i>En Değerli Müşteriler</h3>${raceHtml(rows.slice().sort((a,b) => Number(b.total_spent||0) - Number(a.total_spent||0)).slice(0,8).map(c => ({ label:c.name, value:Number(c.total_spent||0), display:money(c.total_spent||0), side:(c.total_visits||0) + ' ziyaret', sub:c.phone ? maskPhone(c.phone) : '' })))}</div>` : ''}
     <div class="fs-panel pa-sec rp-panel" style="--t:var(--c2);">
       <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:10px;">
-        <h2 style="margin:0;">Müşteri Analizleri</h2>
+        <h2 class="u-m0">Müşteri Analizleri</h2>
         <input id="custAnalyticsSearchInput" placeholder="İsim veya telefon ara..." style="max-width:260px;" value="${escapeAttr(APP.customerAnalyticsSearch||'')}" ${actOn('input','debouncedCustomerAnalyticsSearch',['$value'])}>
       </div>
       ${rows.length ? `<div class="an-waiters">${rows.map((c, i) => { const pts = Number(c.points_balance)||0;
@@ -770,7 +770,7 @@ async function renderTipPoolContent(session){
             <td>${formatShiftDuration(s.minutes)}</td>
             <td>${money(s.share_amount)}</td>
           </tr>`).join('')}
-        ${shares.length===0?'<tr><td colspan="3" class="muted" style="text-align:center;">Bu tarihte vardiya kaydı yok.</td></tr>':''}
+        ${shares.length===0?'<tr><td colspan="3" class="u-tc muted">Bu tarihte vardiya kaydı yok.</td></tr>':''}
         </tbody>
       </table>
       </div>
@@ -785,13 +785,13 @@ async function renderProcurementView(main, session){
   if(!APP.procFrom){ const d = new Date(); d.setDate(d.getDate()-29); APP.procFrom = d.toISOString().slice(0,10); }
   if(!APP.procTo) APP.procTo = todayLocalDateStr();
   main.innerHTML = `<h1>Satınalma</h1>
-    <div class="box" style="max-width:none;">
+    <div class="u-mwn box">
       <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-        <span class="muted" style="white-space:nowrap;">Tarih Aralığı</span>
-        <input type="date" value="${APP.procFrom}" ${actOn('change','setProcDate',['from','$value'])} style="width:auto;margin:0;">
+        <span class="u-nw muted">Tarih Aralığı</span>
+        <input type="date" value="${APP.procFrom}" ${actOn('change','setProcDate',['from','$value'])} class="u-wa-m0">
         <span class="muted">–</span>
-        <input type="date" value="${APP.procTo}" ${actOn('change','setProcDate',['to','$value'])} style="width:auto;margin:0;">
-        <span style="flex:1;"></span>
+        <input type="date" value="${APP.procTo}" ${actOn('change','setProcDate',['to','$value'])} class="u-wa-m0">
+        <span class="u-f1"></span>
         ${[[7,'Son 7 gün'],[30,'Son 30 gün'],[90,'Son 3 ay'],[365,'Son 1 yıl']].map(([d,l]) => `<button type="button" class="pc-btn" ${act('setProcRange', d)}>${l}</button>`).join('')}
       </div>
     </div>
@@ -955,12 +955,12 @@ async function renderPurchaseReportContent(session){
     <div class="pc-layout">
       <div>
         <div class="pc-chips">${chip('all','Tümü')}${chip('price','Fiyat bekleyen')}${chip('recv','Teslim bekleyen')}${chip('done','Tamamlanan')}</div>
-        ${shown.length ? `<div class="pc2-grid">${shown.map((p, i) => card(p, i)).join('')}</div>` : '<div class="fs-panel"><p class="muted" style="margin:0;">Bu filtrede sipariş yok.</p></div>'}
+        ${shown.length ? `<div class="pc2-grid">${shown.map((p, i) => card(p, i)).join('')}</div>` : '<div class="fs-panel"><p class="u-m0 muted">Bu filtrede sipariş yok.</p></div>'}
       </div>
       <div class="fs-panel pc-side" style="--t:#a78bfa;"><h3><i>🚚</i>Tedarikçiye Göre</h3>
         ${total ? (() => { const e = Object.entries(bySup).sort((a,b)=>b[1]-a[1]); const top = e.slice(0,3), rest = e.slice(3).reduce((t,x)=>t+x[1],0);
           return svgDonut(top.map(([k,v], i) => ({ label:k, value:v, color:`var(--c${i+1})` })).concat(rest ? [{ label:'Diğer', value:rest, color:'var(--c4)' }] : []), { center: shortMoney(total), sub:'₺ toplam', title:'Tedarikçi payları', money:true }); })() : ''}
-        ${Object.keys(bySup).length ? Object.entries(bySup).sort((a,b)=>b[1]-a[1]).map(([k,v]) => fsRow(escapeHtml(k), money(v), total ? '%'+Math.round(v/total*100) : '')).join('') : '<p class="muted" style="font-size:13px;">Veri yok.</p>'}
+        ${Object.keys(bySup).length ? Object.entries(bySup).sort((a,b)=>b[1]-a[1]).map(([k,v]) => fsRow(escapeHtml(k), money(v), total ? '%'+Math.round(v/total*100) : '')).join('') : '<p class="u-fs13 muted">Veri yok.</p>'}
         <p class="fs-note">Fiyatı girilmemiş kalemler tutara katılmaz. Fiyatları yazdıktan sonra siparişin <b>Kaydet</b> düğmesine basın.</p>
       </div>
     </div>`;
@@ -1083,7 +1083,7 @@ function drawLossReport(){
       </div>
       <div class="sl-panel"><div class="sl-pt">İptal edilen ürünler</div>
         ${(d.top_items || []).length ? `<div class="sl-hbars">${d.top_items.map(i => `<div class="sl-hbar"><span class="sl-hl">${escapeHtml(i.name)}</span><span class="sl-ht"><i style="width:${i.n / d.top_items[0].n * 100}%;background:${LOSS_T.cancel[2]}"></i></span><b>${i.n}</b></div>`).join('')}</div>` : '<p class="muted">İptal edilen ürün yok.</p>'}
-        <div class="sl-pt" style="margin-top:12px;">İptallerin saatlere dağılımı</div>
+        <div class="u-mt12 sl-pt">İptallerin saatlere dağılımı</div>
         <div class="lr-hours">${Array.from({ length: 24 }, (_, h) => `<span title="${String(h).padStart(2,'0')}:00 — ${hours[h] || 0} iptal" style="opacity:${hours[h] ? .25 + .75 * hours[h] / hmax : .08}"></span>`).join('')}</div>
         <div class="lr-hlbl"><small>00</small><small>06</small><small>12</small><small>18</small><small>23</small></div>
       </div>
@@ -1131,7 +1131,7 @@ async function renderWasteContent(session){
             <td>${escapeHtml(r.staff_name||'-')}</td>
             <td>${new Date(r.created_at).toLocaleString('tr-TR',{dateStyle:'short',timeStyle:'short'})}</td>
           </tr>`).join('')}
-        ${rows.length===0?'<tr><td colspan="7" class="muted" style="text-align:center;">Bu tarih aralığında israf kaydı yok.</td></tr>':''}
+        ${rows.length===0?'<tr><td colspan="7" class="u-tc muted">Bu tarih aralığında israf kaydı yok.</td></tr>':''}
         </tbody>
       </table>
       </div>
@@ -1161,9 +1161,9 @@ async function openSaleDetailModal(historyId){
   bg.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:300;padding:16px;';
   bg.onclick = (e) => { if(e.target===bg) bg.remove(); };
   bg.innerHTML = `<div style="background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:20px;max-width:420px;width:100%;max-height:88vh;overflow:auto;">
-    <div style="display:flex;justify-content:space-between;align-items:center;">
-      <h2 style="margin:0;">${escapeHtml(label)}${d.order_no ? ' <span class="muted" style="font-size:13px;font-weight:600;">#'+d.order_no+'</span>' : ''}</h2>
-      <span style="cursor:pointer;color:var(--muted);font-size:20px;" ${act('removeEl','saleDetailModalBg')}>✕</span>
+    <div class="u-row-sb">
+      <h2 class="u-m0">${escapeHtml(label)}${d.order_no ? ' <span class="muted" style="font-size:13px;font-weight:600;">#'+d.order_no+'</span>' : ''}</h2>
+      <span class="u-xclose" ${act('removeEl','saleDetailModalBg')}>✕</span>
     </div>
     <p class="muted" style="text-align:left;margin:4px 0 4px;font-size:12.5px;">🕒 Sipariş: ${d.ordered_at ? new Date(d.ordered_at).toLocaleString('tr-TR') : '—'} · ✓ Hazır: ${d.ready_at ? new Date(d.ready_at).toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'}) : '—'} · 💳 Ödendi: ${new Date(d.closed_at).toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'})}</p>
     <p class="muted" style="text-align:left;margin:0 0 12px;font-size:12.5px;">${new Date(d.closed_at).toLocaleString('tr-TR')}${d.staff ? ' · 💳 Kasiyer: ' + escapeHtml(d.staff) : ''}${d.waiters ? ' · 👤 Garson: ' + escapeHtml(d.waiters) : ''}${d.customer ? ' · 👤 ' + escapeHtml(d.customer) : ''}</p>
@@ -1181,8 +1181,8 @@ async function openSaleDetailModal(historyId){
     <div style="margin-top:14px;border-top:1px solid var(--border);padding-top:12px;">
       <label style="font-size:12.5px;font-weight:700;color:var(--muted);">Fişi e-postayla gönder</label>
       <div style="display:flex;gap:8px;margin-top:6px;">
-        <input id="saleReceiptEmail" type="email" placeholder="musteri@ornek.com" autocapitalize="none" style="flex:1;margin:0;">
-        <button type="button" id="saleReceiptBtn" style="width:auto;margin:0;" ${act('sendSaleReceipt', historyId)}>📧 Gönder</button>
+        <input id="saleReceiptEmail" type="email" placeholder="musteri@ornek.com" autocapitalize="none" class="u-f1-m0">
+        <button type="button" id="saleReceiptBtn" class="u-wa-m0" ${act('sendSaleReceipt', historyId)}>📧 Gönder</button>
       </div>
     </div>
   </div>`;
@@ -1267,8 +1267,8 @@ function openResvOrderDetail(ids){
   ov.innerHTML = `<div style="background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:20px;max-width:420px;width:100%;max-height:88vh;overflow:auto;"><h2 style="margin-top:0;">Hesaplar</h2>
     ${ids.map(h => `<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);">
       <span>${new Date(h.closed_at).toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'})} · <b>${money(h.total)}</b></span>
-      <button type="button" class="sbtn" style="width:auto;margin:0;" data-id="${escapeAttr(h.id)}">🔍 Detay</button></div>`).join('')}
-    <button class="secondary" style="margin-top:12px;" data-close>Kapat</button></div>`;
+      <button type="button" class="u-wa-m0 sbtn" data-id="${escapeAttr(h.id)}">🔍 Detay</button></div>`).join('')}
+    <button class="u-mt12 secondary" data-close>Kapat</button></div>`;
   ov.addEventListener('click', (e) => {
     const b = e.target.closest('[data-id]');
     if(b){ ov.remove(); openSaleDetailModal(b.dataset.id); }
@@ -1325,18 +1325,18 @@ function drawResvAnalyticsBase(){
         ${resvAnCard('Tahminden Geç Oturtulan', wl.late||0, (wl.late||0) > 0 ? 'var(--red)' : null, 'late')}
         ${resvAnCard('Bekleme Listesi Cirosu', money(wl.revenue||0), 'var(--accent)', 'revenue')}
       </div>
-      <h3 id="resvAnList" style="margin:0 0 10px;">📋 Bekleme Listesi Kayıtları</h3>
+      <h3 id="resvAnList" class="u-mb10">📋 Bekleme Listesi Kayıtları</h3>
       ${filterBar(rows.length)}
       ${rows.length ? `<div class="settings-table-wrap"><table class="settings-table"><thead><tr><th>Müşteri</th><th>Kişi</th><th>Katılım</th><th>Sonuç</th><th>Masa</th><th>Bekleme</th><th>Tahmine göre</th><th>Sipariş</th><th></th></tr></thead><tbody>
         ${rows.map(r => {
           const d = (r.status==='seated' && r.quoted!=null) ? Number(r.waited) - Number(r.quoted) : null;
           return `<tr>
-          <td class="col-name">${escapeHtml(r.customer_name)}${r.phone ? `<div class="muted" style="font-size:11.5px;">${phoneHtml(r.phone)}</div>` : ''}${r.created_by_name ? `<div class="muted" style="font-size:11px;">✍️ ${escapeHtml(r.created_by_name)}</div>` : (r.source==='online' ? '<div class="muted" style="font-size:11px;">🌐 Online</div>' : '')}</td>
+          <td class="col-name">${escapeHtml(r.customer_name)}${r.phone ? `<div class="muted" style="font-size:11.5px;">${phoneHtml(r.phone)}</div>` : ''}${r.created_by_name ? `<div class="u-fs11 muted">✍️ ${escapeHtml(r.created_by_name)}</div>` : (r.source==='online' ? '<div class="u-fs11 muted">🌐 Online</div>' : '')}</td>
           <td>${r.party_size}</td>
           <td>${dt(r.joined_at)} ${hm(r.joined_at)}</td>
-          <td>${r.status==='seated' ? '✅ Oturdu ' + hm(r.seated_at) : r.status==='cancelled' ? `<span style="color:var(--red);">✕ Ayrıldı ${hm(r.left_at)}</span>` : '<span class="muted">Bekliyor</span>'}</td>
+          <td>${r.status==='seated' ? '✅ Oturdu ' + hm(r.seated_at) : r.status==='cancelled' ? `<span class="u-red">✕ Ayrıldı ${hm(r.left_at)}</span>` : '<span class="muted">Bekliyor</span>'}</td>
           <td>${r.table_name ? `<b>${escapeHtml(r.table_name)}</b>` : '<span class="muted">—</span>'}</td>
-          <td>${r.waited!=null ? r.waited + ' dk' : '-'}${r.quoted!=null ? `<div class="muted" style="font-size:11px;">tahmin ${r.quoted}</div>` : ''}</td>
+          <td>${r.waited!=null ? r.waited + ' dk' : '-'}${r.quoted!=null ? `<div class="u-fs11 muted">tahmin ${r.quoted}</div>` : ''}</td>
           <td>${d==null ? '<span class="muted">-</span>' : d > 0 ? `<span style="color:var(--red);font-weight:700;">${d} dk geç</span>` : d < 0 ? `<span style="color:var(--green);font-weight:700;">${-d} dk erken</span>` : '<span style="color:var(--green);font-weight:700;">Tam zamanında</span>'}</td>
           <td>${Number(r.revenue) > 0 ? money(r.revenue) : '<span class="muted">-</span>'}</td>
           <td>${resvDetailBtn(r)}</td>
@@ -1376,8 +1376,8 @@ function drawResvAnalyticsBase(){
     </div>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px;margin-bottom:18px;">
       <div class="fs-panel pa-sec" style="--t:var(--c2);margin:0;">
-        <h3 style="margin:0 0 10px;">⏰ Rezervasyon Saatine Göre Geliş</h3>
-        <p style="margin:0 0 8px;">Ortalama: ${sm.avg_arrival_diff==null ? '<span class="muted">veri yok</span>' : diffTxt(sm.avg_arrival_diff)}</p>
+        <h3 class="u-mb10">⏰ Rezervasyon Saatine Göre Geliş</h3>
+        <p class="u-mb8">Ortalama: ${sm.avg_arrival_diff==null ? '<span class="muted">veri yok</span>' : diffTxt(sm.avg_arrival_diff)}</p>
         <div style="display:flex;gap:8px;flex-wrap:wrap;font-size:13px;">
           <span class="role-badge resv-an-chip ${isF('on_time')?'active':''}" style="color:var(--green);border-color:var(--green);" ${act('setResvAnFilter', 'on_time', 'Zamanında gelenler')}>Zamanında (±5 dk): ${sm.on_time||0}</span>
           <span class="role-badge resv-an-chip ${isF('early')?'active':''}" style="color:var(--green);border-color:var(--green);" ${act('setResvAnFilter', 'early', 'Erken gelenler')}>Erken: ${sm.early||0}</span>
@@ -1386,7 +1386,7 @@ function drawResvAnalyticsBase(){
         <p class="muted" style="font-size:11.5px;text-align:left;margin:8px 0 0;">Geliş saati, rezervasyon "Oturdu" yapıldığında kaydedilir.</p>
       </div>
       <div class="fs-panel pa-sec" style="--t:var(--c2);margin:0;">
-        <h3 style="margin:0 0 10px;">🕐 Saatlere Göre Yoğunluk</h3>
+        <h3 class="u-mb10">🕐 Saatlere Göre Yoğunluk</h3>
         ${byHour.length ? `<div class="race">${byHour.map((h, i) => `<div class="race-row resv-an-row ${isF('hour:'+h.hour)?'active':''}" style="--i:${Math.min(i,15)};--sc:${RACE_COLORS[i%RACE_COLORS.length]};cursor:pointer;" ${act('setResvAnFilter', 'hour:'+h.hour, String(h.hour).padStart(2,'0')+':00 rezervasyonları')}>
           <span class="race-rank">🕐</span>
           <div class="race-main"><div class="race-label"><b>${String(h.hour).padStart(2,'0')}:00</b><small>${h.count} rezervasyon</small></div>
@@ -1394,7 +1394,7 @@ function drawResvAnalyticsBase(){
           <span class="race-side">${h.count} rez<small>${h.guests} kişi</small></span></div>`).join('')}</div>` : '<p class="muted">Veri yok.</p>'}
       </div>
     </div>
-    <h3 style="margin:0 0 10px;">🪑 Masalara Göre</h3>
+    <h3 class="u-mb10">🪑 Masalara Göre</h3>
     ${(data.by_table||[]).length ? `<div class="settings-table-wrap"><table class="settings-table"><thead><tr><th>Masa</th><th>Rezervasyon</th><th>Misafir</th><th>Ciro</th></tr></thead><tbody>
       ${data.by_table.map(t => `<tr class="resv-an-row ${isF('table:'+t.table)?'active':''}" ${act('setResvAnFilter', 'table:'+t.table, t.table + ' rezervasyonları')}><td class="col-name"><b>${escapeHtml(t.table)}</b> <span class="muted" style="font-size:11.5px;">Listele ›</span></td><td>${t.count}</td><td>${t.guests}</td><td>${money(t.revenue||0)}</td></tr>`).join('')}
     </tbody></table></div>` : '<p class="muted">Bu aralıkta gelen rezervasyon yok.</p>'}
@@ -1402,14 +1402,14 @@ function drawResvAnalyticsBase(){
     ${filterBar(rows.length)}
     ${rows.length ? `<div class="settings-table-wrap"><table class="settings-table"><thead><tr><th>Müşteri</th><th>Kişi</th><th>Rezervasyon</th><th>Geliş</th><th>Saate göre</th><th>Masa</th><th>Durum</th><th>Sipariş</th><th></th></tr></thead><tbody>
       ${rows.map(r => `<tr>
-        <td class="col-name">${escapeHtml(r.customer_name)}${r.phone ? `<div class="muted" style="font-size:11.5px;">${phoneHtml(r.phone)}</div>` : ''}${r.notes ? `<div class="muted" style="font-size:11px;overflow-wrap:anywhere;">${escapeHtml(r.notes)}</div>` : ''}${r.created_by_name ? `<div class="muted" style="font-size:11px;">✍️ ${escapeHtml(r.created_by_name)}</div>` : (r.source==='online' ? '<div class="muted" style="font-size:11px;">🌐 Online</div>' : '')}</td>
+        <td class="col-name">${escapeHtml(r.customer_name)}${r.phone ? `<div class="muted" style="font-size:11.5px;">${phoneHtml(r.phone)}</div>` : ''}${r.notes ? `<div class="muted" style="font-size:11px;overflow-wrap:anywhere;">${escapeHtml(r.notes)}</div>` : ''}${r.created_by_name ? `<div class="u-fs11 muted">✍️ ${escapeHtml(r.created_by_name)}</div>` : (r.source==='online' ? '<div class="u-fs11 muted">🌐 Online</div>' : '')}</td>
         <td>${r.party_size}</td>
         <td>${dt(r.reservation_time)} ${hm(r.reservation_time)}</td>
         <td>${r.seated_at ? hm(r.seated_at) : '<span class="muted">-</span>'}</td>
         <td>${diffTxt(r.arrival_diff)}</td>
         <td>${r.table_name ? `<b>${escapeHtml(r.table_name)}</b>` : '<span class="muted">—</span>'}</td>
         <td>${statusTxt[r.status] || escapeHtml(r.status)}</td>
-        <td>${Number(r.revenue) > 0 ? money(r.revenue) + (r.party_size ? `<div class="muted" style="font-size:11px;">kişi başı ${money(r.revenue / r.party_size)}</div>` : '') : '<span class="muted">-</span>'}</td>
+        <td>${Number(r.revenue) > 0 ? money(r.revenue) + (r.party_size ? `<div class="u-fs11 muted">kişi başı ${money(r.revenue / r.party_size)}</div>` : '') : '<span class="muted">-</span>'}</td>
         <td>${resvDetailBtn(r)}</td>
       </tr>`).join('')}
     </tbody></table></div>` : '<p class="muted">Kayıt yok.</p>'}`;
@@ -1424,14 +1424,14 @@ async function renderOpenAccountsContent(session){
   APP.openAccReport = data;
   const accs = data.accounts || [];
   const open = accs.filter(a => a.balance > 0.009);
-  const card = (label, val, color) => `<div class="box" style="flex:1;min-width:180px;margin:0;"><div class="muted" style="font-size:12.5px;">${label}</div><div style="font-size:24px;font-weight:800;${color ? 'color:'+color+';' : ''}">${val}</div></div>`;
+  const card = (label, val, color) => `<div class="box" style="flex:1;min-width:180px;margin:0;"><div class="u-fs125 muted">${label}</div><div style="font-size:24px;font-weight:800;${color ? 'color:'+color+';' : ''}">${val}</div></div>`;
   const methodTxt = m => m === 'cash' ? 'Nakit' : m === 'card' ? 'Kart' : m === 'open_account' ? 'Açık hesaba yazıldı' : (m || '');
   const maxBal = Math.max(1, ...accs.map(a => Number(a.balance)||0));
   el.innerHTML = statChips([['📒', money(data.total_balance), 'Toplam açık bakiye', data.total_balance > 0 ? 'var(--danger,#ef4444)' : 'var(--c1)'],
       ['✍️', money(data.period_charges), 'Bu dönemde yazılan', 'var(--c3)'], ['✅', money(data.period_payments), 'Bu dönemde tahsil', 'var(--ok,#22c55e)'],
       ['👥', open.length + ' / ' + accs.length, 'Borcu olan hesap', 'var(--c2)']]) + `
     <div class="fs-panel pa-sec" style="--t:var(--c1);">
-      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px;"><h3 style="margin:0;"><i>📒</i>Hesaplar</h3><span style="flex:1;"></span>
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px;"><h3 class="u-m0"><i>📒</i>Hesaplar</h3><span class="u-f1"></span>
         <input class="list-search" placeholder="🔍 Hesap ara…" ${actOn('input','filterOpenAccRows',['$value'])} style="max-width:280px;margin:0;"></div>
       ${accs.length ? `<div class="oa-grid" id="openAccTable">${accs.slice().sort((x, y) => (y.balance||0) - (x.balance||0)).map((a, i) => { const debt = a.balance > 0.009;
         return `<div class="oa-card ${debt?'debt':'clear'}" data-oa="${escapeAttr(a.name.toLocaleLowerCase('tr') + ' ' + (a.phone||''))}" style="--i:${Math.min(i,12)};">
@@ -1483,7 +1483,7 @@ async function showOpenAccEntries(id){
       <div class="pdrawer-body">
         <div class="oad-bal ${debt?'debt':''}"><small>Güncel bakiye</small><b>${money(a.balance)}</b><span>${debt ? '● Borçlu' : '✓ Hesap kapalı'}</span></div>
         <div class="oad-sum"><div><small>Toplam yazılan</small><b class="r">+${money(charged)}</b></div><div><small>Toplam tahsil</small><b class="g">−${money(paid)}</b></div><div><small>Hareket</small><b>${rows.length}</b></div></div>
-        ${a.note ? `<div class="kc-note" style="margin:0 0 8px;">📝 ${escapeHtml(a.note)}</div>` : ''}
+        ${a.note ? `<div class="u-mb8 kc-note">📝 ${escapeHtml(a.note)}</div>` : ''}
         <div class="rv-day-h" style="margin:8px 0 10px;">Hareketler<span class="muted">${rows.length}</span></div>
         ${rows.length ? `<div class="sp-log">${rows.map((e, i) => { const ch = e.kind === 'charge';
           return `<div class="sp-li oa-li ${ch?'ch':'pay'}" style="--i:${Math.min(i,12)};flex-wrap:wrap;"><span class="sp-dot"></span>
@@ -1504,9 +1504,9 @@ async function toggleOaSale(historyId, boxId){
   const box = document.getElementById(boxId); if(!box) return;
   if(!box.hidden){ box.hidden = true; return; }
   if(!box.dataset.loaded){
-    box.innerHTML = '<p class="muted" style="margin:0;">Yükleniyor…</p>'; box.hidden = false;
+    box.innerHTML = '<p class="u-m0 muted">Yükleniyor…</p>'; box.hidden = false;
     const { data: d, error } = await sb.rpc('get_sale_detail', { p_token: getSession().session_token, p_history_id: historyId });
-    if(error){ box.innerHTML = '<p class="muted" style="margin:0;">Yüklenemedi: ' + escapeHtml(error.message) + '</p>'; return; }
+    if(error){ box.innerHTML = '<p class="u-m0 muted">Yüklenemedi: ' + escapeHtml(error.message) + '</p>'; return; }
     box.dataset.loaded = '1';
     box.innerHTML = (d.items||[]).map(it => `<div><span>${it.qty}× ${escapeHtml(it.name)}</span><b>${money(it.total)}</b></div>`).join('')
       + (Number(d.discount) > 0 ? `<div class="muted"><span>İndirim</span><b>−${money(d.discount)}</b></div>` : '')
@@ -1545,13 +1545,13 @@ async function renderVatReportContent(session){
       <div class="fs-panel pa-sec" style="--t:var(--c2);"><h3><i>🍩</i>Satış Dağılımı</h3>${svgDonut(rates.map((r, i) => ({ label:'%' + r.rate, value:Number(r.gross), color:`var(--c${i%4+1})` })), { center: shortMoney(gross), sub:'₺ KDV dahil', money:true })}</div></div>` : ''}
     <div class="fs-panel pa-sec rp-panel" style="--t:var(--c2);">
       <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;">
-        <h2 style="margin:0;">KDV Oranlarına Göre · ${escapeHtml(reportDateRangeLabel())}</h2>
-        <button type="button" class="ghost-btn" style="width:auto;margin:0;" ${act('exportVatReportCsv')}>⬇️ Dışa aktar</button>
+        <h2 class="u-m0">KDV Oranlarına Göre · ${escapeHtml(reportDateRangeLabel())}</h2>
+        <button type="button" class="u-wa-m0 ghost-btn" ${act('exportVatReportCsv')}>⬇️ Dışa aktar</button>
       </div>
       <div class="settings-table-wrap" style="margin-top:10px;"><table class="settings-table">
         <thead><tr><th>KDV Oranı</th><th>KDV Dahil Tutar</th><th>Matrah</th><th>KDV</th></tr></thead>
         <tbody>${rates.map(r => `<tr><td><b>%${r.rate}</b></td><td>${money(r.gross)}</td><td>${money(r.base)}</td><td>${money(r.vat)}</td></tr>`).join('')}
-        ${rates.length ? `<tr style="font-weight:800;"><td>Toplam</td><td>${money(gross)}</td><td>${money(data.base_total)}</td><td>${money(data.vat_total)}</td></tr>` : '<tr><td colspan="4" class="muted" style="text-align:center;">Bu tarihlerde satış yok.</td></tr>'}
+        ${rates.length ? `<tr style="font-weight:800;"><td>Toplam</td><td>${money(gross)}</td><td>${money(data.base_total)}</td><td>${money(data.vat_total)}</td></tr>` : '<tr><td colspan="4" class="u-tc muted">Bu tarihlerde satış yok.</td></tr>'}
         </tbody></table></div>
       <p class="muted" style="font-size:12px;text-align:left;margin:10px 0 0;">Fiyatlar KDV dahildir; indirimler ürünlere orantılı dağıtılır, bahşiş dahil edilmez. Ürün oranları <b>Ayarlar › Ürünler</b>'den belirlenir. Bu özet muhasebe içindir, resmi belge (ÖKC/e-Arşiv) yerine geçmez.</p>
     </div>`;
@@ -1734,7 +1734,7 @@ async function renderDayClosesContent(session){
       <small class="dcx-dl">${i % step === 0 || i === rows.length - 1 ? dTxt(r.d) : ''}</small></div>`;
   }).join('');
   el.innerHTML = `<div class="report-card">
-      <div class="dcx-head"><h3 style="margin:0;">🧾 Gün Sonu Kapanışları</h3>
+      <div class="dcx-head"><h3 class="u-m0">🧾 Gün Sonu Kapanışları</h3>
         <div class="dcx-range">${[14,30,60,90].map(k => `<button type="button" class="${n===k?'on':''}" ${act('setDayCloseRange', k)}>${k} gün</button>`).join('')}</div></div>
       <div class="dcx-kpis">
         ${tile('✅', cnt('ok'), 'Kapandı', 'var(--ok,#22c55e)', cnt('ok'))}
@@ -1796,7 +1796,7 @@ function openFsBillList(kind){
   bg.onclick = (e) => { if(e.target === bg) bg.remove(); };
   const byTable = {}; rows.forEach(o => { const k = o.kind === 'takeaway' ? '📦 Paket' : (o.table_name || '-'); byTable[k] = (byTable[k] || 0) + 1; });
   bg.innerHTML = `<div class="order-modal fs-billmodal">
-    <div style="display:flex;justify-content:space-between;align-items:center;"><h2 style="margin:0;">${T[0]}</h2><span style="cursor:pointer;color:var(--muted);font-size:20px;" ${act('removeEl', 'fsBillBg')}>✕</span></div>
+    <div class="u-row-sb"><h2 class="u-m0">${T[0]}</h2><span class="u-xclose" ${act('removeEl', 'fsBillBg')}>✕</span></div>
     <p class="muted" style="margin:6px 0 10px;">${rows.length} hesap · ${escapeHtml(typeof reportDateRangeLabel === 'function' ? reportDateRangeLabel() : '')}</p>
     <div class="fs-billchips">${Object.entries(byTable).sort((a, b) => b[1] - a[1]).map(([t, n]) => `<span class="pchip">🪑 ${escapeHtml(t)} · ${n}</span>`).join('')}</div>
     <div class="settings-table-wrap"><table class="settings-table"><thead><tr><th>Saat</th><th>Masa</th><th>Personel</th><th>Etiket</th><th>Tutar</th><th>${kind === 'comp' ? 'Değer' : 'Kullanılan'}</th><th></th></tr></thead><tbody>

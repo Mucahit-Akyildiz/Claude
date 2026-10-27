@@ -54,13 +54,13 @@ async function maybeAskChatPermissions(){
   bg.id = 'chatPermModal';
   bg.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;z-index:200;padding:16px;';
   bg.innerHTML = `<div style="background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:20px;max-width:380px;width:100%;">
-    <h2 style="margin:0 0 8px;">🔐 Mesajlaşma izinleri</h2>
+    <h2 class="u-mb8">🔐 Mesajlaşma izinleri</h2>
     <p class="muted" style="margin:0 0 12px;font-size:14px;">Sesli mesaj, sesli arama, fotoğraf ve yeni mesaj bildirimleri için şu izinler gerekiyor:</p>
     <div style="font-size:14px;line-height:1.9;margin-bottom:14px;">🎤 Mikrofon<br>📷 Kamera<br>🔔 Bildirimler${ex.bluetooth ? '' : '<br>🎧 Bluetooth kulaklık (aramalar)'}${ex.fullScreen ? '' : '<br>📞 Kilit ekranında gelen arama'}</div>
     <p class="muted" style="margin:0 0 12px;font-size:12px;">Galeriden fotoğraf, ses ve dosya seçmek için ayrı izin gerekmez.</p>
     <div style="display:flex;gap:8px;">
-      <button type="button" class="ghost-btn" style="flex:1;margin:0;" ${act('closeChatPermModal')}>Sonra</button>
-      <button type="button" style="flex:1;margin:0;" ${act('requestChatPermissions')}>İzin Ver</button>
+      <button type="button" class="u-f1-m0 ghost-btn" ${act('closeChatPermModal')}>Sonra</button>
+      <button type="button" class="u-f1-m0" ${act('requestChatPermissions')}>İzin Ver</button>
     </div></div>`;
   document.body.appendChild(bg);
 }
@@ -363,7 +363,7 @@ function toggleChatTray(kind){
   if(kind==='gif'){
     APP.chatGifType = APP.chatGifType || 'gifs';
     tray.innerHTML = `<div class="chat-gif-head">
-        <div class="chat-emoji-tabs" style="margin:0;">
+        <div class="u-m0 chat-emoji-tabs">
           <button type="button" class="${APP.chatGifType==='gifs'?'active':''}" ${act('setChatGifType','gifs')}>GIF</button>
           <button type="button" class="${APP.chatGifType==='stickers'?'active':''}" ${act('setChatGifType','stickers')}>Sticker</button>
         </div>
@@ -555,9 +555,9 @@ function openChatImagePreview(file, caption){
       <textarea id="cipCaption" rows="1" maxlength="4000" placeholder="Açıklama ekleyin (opsiyonel)">${escapeHtml(caption || '')}</textarea>
       <div class="cip-actions">
         ${isGif ? '<span></span>' : `<button type="button" class="cip-once" id="cipOnce" aria-pressed="false" title="Alıcı yalnızca bir kez açabilir"><span>1️⃣</span> Tek görüntülemelik</button>`}
-        <span style="flex:1;"></span>
-        <button type="button" class="ghost-btn" data-act="close" style="width:auto;margin:0;">İptal</button>
-        <button type="button" id="cipSend" style="width:auto;margin:0;">➤ Gönder</button>
+        <span class="u-f1"></span>
+        <button type="button" class="u-wa-m0 ghost-btn" data-act="close">İptal</button>
+        <button type="button" id="cipSend" class="u-wa-m0">➤ Gönder</button>
       </div>
     </div>`;
   const close = () => { URL.revokeObjectURL(url); ov.remove(); };
@@ -695,8 +695,8 @@ async function fetchChatAttachment(id){
    hatası ya da çalınamayan biçim sessizce "0:00" kalmaz, nedeni gösterilir. */
 async function loadChatAudio(id, btn){
   const box = btn.closest('.chat-audio'); if(!box) return;
-  box.innerHTML = '<span class="muted" style="font-size:12px;">⏳ Yükleniyor…</span>';
-  const fail = (msg) => { box.innerHTML = `<span style="font-size:12px;">⚠️ ${escapeHtml(msg)}</span> <button type="button" class="chat-audio-play" title="İndir" ${actStop('downloadChatFile', id)}>⬇</button>`; };
+  box.innerHTML = '<span class="u-fs12 muted">⏳ Yükleniyor…</span>';
+  const fail = (msg) => { box.innerHTML = `<span class="u-fs12">⚠️ ${escapeHtml(msg)}</span> <button type="button" class="chat-audio-play" title="İndir" ${actStop('downloadChatFile', id)}>⬇</button>`; };
   let blob;
   try{
     const r = await chatFetch(id);
@@ -811,7 +811,7 @@ async function startChatVoice(){
   const bar = document.getElementById('chatRecBar');
   if(bar){
     bar.classList.add('open');
-    bar.innerHTML = `<span class="chat-rec-dot"></span><span id="chatRecTime">0:00</span><span class="muted" style="flex:1;">Kaydediliyor…</span>
+    bar.innerHTML = `<span class="chat-rec-dot"></span><span id="chatRecTime">0:00</span><span class="u-f1 muted">Kaydediliyor…</span>
       <button type="button" class="chat-ic" title="İptal" ${act('stopChatVoice', false)}>🗑️</button>
       <button type="button" class="chat-send" title="Gönder" ${act('stopChatVoice', true)}>➤</button>`;
   }
@@ -876,17 +876,17 @@ function openChatGroupEditor(conv){
   ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:110;padding:16px;';
   ov.onclick = (e) => { if(e.target===ov) ov.remove(); };
   ov.innerHTML = `<div style="background:var(--panel);border:1px solid var(--border);border-radius:18px;padding:18px;max-width:420px;width:100%;max-height:85vh;display:flex;flex-direction:column;">
-    <h3 style="margin:0 0 10px;">${c ? 'Grubu düzenle' : '👥 Yeni grup'}</h3>
-    <input id="chatGroupName" placeholder="Grup adı (örn. Mutfak Ekibi)" value="${escapeAttr(c ? c.name : '')}" style="margin:0 0 10px;">
+    <h3 class="u-mb10">${c ? 'Grubu düzenle' : '👥 Yeni grup'}</h3>
+    <input id="chatGroupName" placeholder="Grup adı (örn. Mutfak Ekibi)" value="${escapeAttr(c ? c.name : '')}" class="u-mb10">
     <div class="muted" style="font-size:12.5px;margin-bottom:6px;text-align:left;">Üyeler</div>
     <div style="overflow:auto;flex:1;border:1px solid var(--border);border-radius:12px;padding:4px 8px;">
       ${people.map(p => `<label style="display:flex;gap:10px;align-items:center;padding:7px 2px;cursor:pointer;">
-        <input type="checkbox" class="chatGroupMember" value="${p.conv}" style="width:auto;margin:0;" ${memberNames.includes(p.name)?'checked':''}>
-        ${chatAvatar(p, 30)}<span style="flex:1;">${escapeHtml(p.name)} <span class="muted" style="font-size:11.5px;">${escapeHtml(p.roles||'')}</span></span></label>`).join('')}
+        <input type="checkbox" class="u-wa-m0 chatGroupMember" value="${p.conv}" ${memberNames.includes(p.name)?'checked':''}>
+        ${chatAvatar(p, 30)}<span class="u-f1">${escapeHtml(p.name)} <span class="muted" style="font-size:11.5px;">${escapeHtml(p.roles||'')}</span></span></label>`).join('')}
     </div>
     <div style="display:flex;gap:10px;margin-top:12px;">
-      <button type="button" class="ghost-btn" style="flex:1;margin:0;" ${act('removeEl','chatGroupBg')}>Vazgeç</button>
-      <button type="button" style="flex:1;margin:0;" ${act('saveChatGroup', c ? c.conv : null)}>${c ? 'Kaydet' : 'Oluştur'}</button>
+      <button type="button" class="u-f1-m0 ghost-btn" ${act('removeEl','chatGroupBg')}>Vazgeç</button>
+      <button type="button" class="u-f1-m0" ${act('saveChatGroup', c ? c.conv : null)}>${c ? 'Kaydet' : 'Oluştur'}</button>
     </div></div>`;
   document.body.appendChild(ov);
 }
@@ -1063,7 +1063,7 @@ async function showMessageReaders(messageId){
   ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:120;padding:16px;';
   ov.onclick = (e) => { if(e.target===ov) ov.remove(); };
   ov.innerHTML = `<div style="background:var(--panel);border:1px solid var(--border);border-radius:18px;padding:18px;max-width:380px;width:100%;max-height:80vh;overflow:auto;text-align:left;">
-    <h3 style="margin:0 0 10px;">👁️ Mesaj bilgisi</h3>
+    <h3 class="u-mb10">👁️ Mesaj bilgisi</h3>
     <div style="font-weight:700;font-size:13px;margin-bottom:6px;color:var(--accent);">✓✓ Görenler (${read.length})</div>
     ${read.length ? read.map(r => `<div style="display:flex;justify-content:space-between;gap:10px;padding:6px 0;border-bottom:1px solid var(--border);font-size:13.5px;"><span>${escapeHtml(r.name)}</span><span class="muted">${fmt(r.at)}</span></div>`).join('') : '<div class="muted" style="font-size:13px;padding:4px 0;">Henüz kimse görmedi.</div>'}
     <div style="font-weight:700;font-size:13px;margin:14px 0 6px;">✓ Henüz görmeyenler (${unread.length})</div>
@@ -1185,7 +1185,7 @@ async function chatSearchMessages(q){
   box.innerHTML = `<div style="padding:10px 12px 4px;font-size:12px;font-weight:700;color:var(--muted);">MESAJLAR (${rows.length})</div>` +
     (rows.length ? rows.map(r => `<div class="chat-item" ${act('openChatSearchResult', r.conv, r.id)}>
       <div style="flex:1;min-width:0;">
-        <div style="display:flex;justify-content:space-between;gap:6px;"><span class="chat-name" style="font-size:13px;">${esc(names[r.conv] || 'Sohbet')}</span><span class="chat-when">${chatTime(r.created_at)}</span></div>
+        <div style="display:flex;justify-content:space-between;gap:6px;"><span class="u-fs13 chat-name">${esc(names[r.conv] || 'Sohbet')}</span><span class="chat-when">${chatTime(r.created_at)}</span></div>
         <div class="chat-last" style="white-space:normal;"><b>${esc(r.sender_name)}:</b> ${hl(r.body)}</div>
       </div></div>`).join('') : '<p class="muted" style="padding:6px 12px;">Eşleşen mesaj yok.</p>');
 }

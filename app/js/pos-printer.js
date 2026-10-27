@@ -107,13 +107,13 @@ function ticketTypographyRowHtml(design, key, label, isLast){
   const t = design['transform'+key] || 'none';
   return `
     <div style="display:grid;grid-template-columns:1fr 70px 1fr;gap:8px;align-items:end;padding:10px 0;${isLast?'':'border-bottom:1px solid var(--border);'}">
-      <div class="field-group" style="margin:0;"><label>${label}</label>
+      <div class="u-m0 field-group"><label>${label}</label>
         <input type="color" id="td_color${key}" value="${design['color'+key]}" ${actOn('input','updateTicketPreview',[])} style="height:40px;padding:4px;">
       </div>
-      <div class="field-group" style="margin:0;"><label>Boyut</label>
+      <div class="u-m0 field-group"><label>Boyut</label>
         <input type="number" id="td_size${key}" min="6" max="40" value="${design['size'+key]}" ${actOn('input','updateTicketPreview',[])} style="padding:9px 6px;text-align:center;">
       </div>
-      <div class="field-group" style="margin:0;"><label>Harf Stili</label>
+      <div class="u-m0 field-group"><label>Harf Stili</label>
         <select id="td_transform${key}" ${actOn('input','updateTicketPreview',[])}>
           <option value="none" ${t==='none'?'selected':''}>Normal</option>
           <option value="uppercase" ${t==='uppercase'?'selected':''}>BÜYÜK HARF</option>
@@ -412,7 +412,7 @@ async function renderPrinterSettingsView(main, session){
       <p class="muted" style="margin:8px 0 0;text-align:left;font-size:12px;">⚠️ <b>Yazıcılar</b> ve <b>İstasyon → Yazıcı Eşleştirme</b> ise hâlâ <u>şu an bu ekranı açtığınız cihaza</u> özeldir (bir yazıcı fiziksel olarak hangi bilgisayara bağlıysa fiş oradan basılır, bu merkezi bir ayarla belirlenemez). Yeni bir kasa/mutfak bilgisayarı kurduğunuzda, o bilgisayarda da Yönetici olarak giriş yapıp yazıcı seçimini orada tekrar yapmanız gerekir.</p>
     </details>
 
-    <div class="box" style="max-width:none;">
+    <div class="u-mwn box">
       <h2>Fiş Tasarımı</h2>
       <div class="td-layout">
         <div class="td-form">
@@ -502,7 +502,7 @@ async function renderPrinterSettingsView(main, session){
 
           <div class="settings-section">
             <p class="settings-section-title">📐 Yazıcı Kenar Boşlukları</p>
-            <div class="chip-row" style="margin-bottom:10px;">
+            <div class="u-mbb10 chip-row">
               <button type="button" class="chip-btn" ${act('applyMarginPreset', 2)}>Dar (2mm)</button>
               <button type="button" class="chip-btn" ${act('applyMarginPreset', 4)}>Normal (4mm)</button>
               <button type="button" class="chip-btn" ${act('applyMarginPreset', 8)}>Geniş (8mm)</button>
@@ -529,7 +529,7 @@ async function renderPrinterSettingsView(main, session){
       </div>
     </div>
 
-    <div class="box" style="max-width:none;">
+    <div class="u-mwn box">
       <h2>Bu Ekranın Yazıcısı</h2>
       <p class="muted" style="text-align:left;margin:0 0 14px;">Seçili yazıcıya fiş <b>doğrudan</b> (pencere açmadan) gönderilir; uygun yazıcı yoksa tarayıcının yazdırma penceresi açılır.</p>
       <div class="pp-grid">
@@ -539,17 +539,17 @@ async function renderPrinterSettingsView(main, session){
       </div>
       <label class="sw-card" style="margin-top:14px !important;">
         <input type="checkbox" class="sw" ${printOnOrderEnabled()?'checked':''} ${actOn('change','setPrintOnOrder',['$checked'])}>
-        <span><b>Sipariş verilince fişi hemen bu cihazdan yazdır</b><br><span class="muted" style="font-size:12.5px;">Sipariş Al / Paket Servis'te sipariş gönderilince fiş bu cihazın yazıcısına basılır. Fişi başka cihazdaki mutfak ekranı basıyorsa kapatın (çift fiş çıkmasın).</span></span>
+        <span><b>Sipariş verilince fişi hemen bu cihazdan yazdır</b><br><span class="u-fs125 muted">Sipariş Al / Paket Servis'te sipariş gönderilince fiş bu cihazın yazıcısına basılır. Fişi başka cihazdaki mutfak ekranı basıyorsa kapatın (çift fiş çıkmasın).</span></span>
       </label>
       <label class="sw-card" style="margin-top:10px !important;">
         <input type="checkbox" class="sw" ${printEachItemEnabled()?'checked':''} ${actOn('change','setPrintEachItem',['$checked'])}>
-        <span><b>Ürünleri tek tek yazdır</b><br><span class="muted" style="font-size:12.5px;">Mutfak fişinde her ürün ayrı fişe basılır (örn. 3 Döner → 3 ayrı fiş). Paketleme ve etiketleme için kullanışlıdır. Bu cihazdaki tüm sipariş fişleri için geçerlidir.</span></span>
+        <span><b>Ürünleri tek tek yazdır</b><br><span class="u-fs125 muted">Mutfak fişinde her ürün ayrı fişe basılır (örn. 3 Döner → 3 ayrı fiş). Paketleme ve etiketleme için kullanışlıdır. Bu cihazdaki tüm sipariş fişleri için geçerlidir.</span></span>
       </label>
     </div>
 
-    <div class="box" style="max-width:none;">
-      <div class="fsheet-bar" style="margin:0 0 12px;"><h2 style="margin:0;">Yazıcılar</h2>${sheetBtnHtml('printerSheet','+ Yeni Yazıcı')}</div>
-      ${!usbSupported ? '<p class="muted" style="text-align:left;">⚠️ Bu tarayıcı USB yazıcı bağlantısını (WebUSB) desteklemiyor — Chrome veya Edge kullanmanız gerekiyor. Yine de "Tarayıcı Yazdırma Penceresi" tipinde yazıcı ekleyebilirsiniz.</p>' : ''}
+    <div class="u-mwn box">
+      <div class="fsheet-bar" style="margin:0 0 12px;"><h2 class="u-m0">Yazıcılar</h2>${sheetBtnHtml('printerSheet','+ Yeni Yazıcı')}</div>
+      ${!usbSupported ? '<p class="u-tl muted">⚠️ Bu tarayıcı USB yazıcı bağlantısını (WebUSB) desteklemiyor — Chrome veya Edge kullanmanız gerekiyor. Yine de "Tarayıcı Yazdırma Penceresi" tipinde yazıcı ekleyebilirsiniz.</p>' : ''}
       ${printers.length ? `<div class="pp-grid">${printers.map((p, i) => { const [ic, tl] = PR_TYPE(p.type);
         return `<div class="pp-card pp-static" style="--sc:var(--c${i%4+1});">
           <span class="pp-ic">${ic}</span><span class="pp-txt"><b>${escapeHtml(p.name)}</b><small>${tl}${p.type==='electron' && p.osPrinterName ? ' · '+escapeHtml(p.osPrinterName) : ''}</small></span>
@@ -584,9 +584,9 @@ async function renderPrinterSettingsView(main, session){
       </p></details>
     </div>
 
-    <div class="box" style="max-width:none;">
+    <div class="u-mwn box">
       <h2>İstasyon → Yazıcı Eşleştirme</h2>
-      <p class="muted" style="text-align:left;">Her istasyonun ürünleri hangi yazıcıya basılsın? Örneğin Çayhane'nin ürünleri (çay, su, tiramisu gibi) bir yazıcıya, Izgara'nın ürünleri (döner, köfte gibi) başka bir yazıcıya gidebilir. Bir istasyona yazıcı seçmezseniz o istasyonun fişi "Bu Ekranın Yazıcısı" seçimini kullanır. Sipariş onaylandığında her istasyon için ayrı bir fiş kendi yazıcısına gönderilir.</p>
+      <p class="u-tl muted">Her istasyonun ürünleri hangi yazıcıya basılsın? Örneğin Çayhane'nin ürünleri (çay, su, tiramisu gibi) bir yazıcıya, Izgara'nın ürünleri (döner, köfte gibi) başka bir yazıcıya gidebilir. Bir istasyona yazıcı seçmezseniz o istasyonun fişi "Bu Ekranın Yazıcısı" seçimini kullanır. Sipariş onaylandığında her istasyon için ayrı bir fiş kendi yazıcısına gönderilir.</p>
       <div class="sp-flow">${APP.config.stations.map((st, i) => `<div class="spf-card" style="--sc:${st.color||'var(--c'+(i%4+1)+')'};">
         <div class="spf-row"><span class="spf-st"><span class="spf-ic">${escapeHtml(st.icon||'🍳')}</span><b>${escapeHtml(st.name)}</b></span>
           <span class="spf-arrow">➜</span>
@@ -597,9 +597,9 @@ async function renderPrinterSettingsView(main, session){
         ${stationPrintProductsHtml(st)}
       </div>`).join('')}</div>
     </div>
-    <div class="box" style="max-width:none;">
+    <div class="u-mwn box">
       <h2>🧾 Kasa Fişi</h2>
-      <p class="muted" style="text-align:left;">Ödemeler ekranındaki <b>Kasa Fişi Yazdır</b> düğmesiyle basılan, ürün fiyatları ve toplam tutarı içeren hesap fişidir. Fiş Tasarımı'ndaki kağıt genişliği, yazı tipi, başlık ve alt notu kullanır; <b>Bu Ekranın Yazıcısı</b>na basılır.</p>
+      <p class="u-tl muted">Ödemeler ekranındaki <b>Kasa Fişi Yazdır</b> düğmesiyle basılan, ürün fiyatları ve toplam tutarı içeren hesap fişidir. Fiş Tasarımı'ndaki kağıt genişliği, yazı tipi, başlık ve alt notu kullanır; <b>Bu Ekranın Yazıcısı</b>na basılır.</p>
       <div style="display:flex;gap:24px;flex-wrap:wrap;align-items:flex-start;">
         <div class="cash-prev"><div id="cashReceiptPreview"></div></div>
         <div class="cash-info">
@@ -641,7 +641,7 @@ async function renderPrinterSettingsView(main, session){
 const PKG_SAMPLE = { name:'Ahmet Yılmaz', phone:'0555 123 45 67', address:'Atatürk Cad. No:12 D:4, Merkez', note:'Kapıda kartla ödeme' };
 function pkgTicketSettingsHtml(){
   const d = getTicketDesign();
-  const row = (k, ic, l, sub) => `<label class="sw-card pk-opt"><input type="checkbox" class="sw" ${d[k] ? 'checked' : ''} ${actOn('change','setPkgTicketOpt',[k, '$checked'])}><span><b>${ic} ${l}</b><br><span class="muted" style="font-size:12.5px;">${sub}</span></span></label>`;
+  const row = (k, ic, l, sub) => `<label class="sw-card pk-opt"><input type="checkbox" class="sw" ${d[k] ? 'checked' : ''} ${actOn('change','setPkgTicketOpt',[k, '$checked'])}><span><b>${ic} ${l}</b><br><span class="u-fs125 muted">${sub}</span></span></label>`;
   return `<h2>📦 Paket Servis Sipariş Fişi</h2>
     <p class="muted" style="text-align:left;margin:0 0 14px;font-size:13px;">Paket Servis'ten sipariş geldiğinde istasyon fişinin üstünde aşağıda seçtiğiniz bilgiler basılır. Masa siparişlerinde bu bölüm çıkmaz.</p>
     <div class="pk-wrap"><div class="pk-opts">
@@ -675,13 +675,13 @@ function stationPrintProductsHtml(st){
   const order = [...menus.map(m => m.id).filter(id => groups[id]), ...Object.keys(groups).filter(k => k && !menus.some(m => m.id===k)), ...(groups[''] ? [''] : [])];
   const menuName = (k) => k ? ((menus.find(m => m.id===k) || {}).name || 'Menü') : 'Menüsüz';
   return `<details ${APP.prOpenSt===st.id?'open':''} style="background:var(--panel2);border:1px solid var(--border);border-radius:10px;padding:8px 12px;">
-    <summary style="cursor:pointer;font-size:13px;font-weight:700;">🧾 Fişe çıkacak ürünler · ${prods.length - off}/${prods.length}${off ? ` <span class="muted" style="font-weight:400;">(${off} ürün fişe çıkmaz)</span>` : ''}</summary>
+    <summary style="cursor:pointer;font-size:13px;font-weight:700;">🧾 Fişe çıkacak ürünler · ${prods.length - off}/${prods.length}${off ? ` <span class="u-fw4 muted">(${off} ürün fişe çıkmaz)</span>` : ''}</summary>
     <div style="display:flex;gap:8px;margin:10px 0 6px;flex-wrap:wrap;">
       <button type="button" class="ghost-btn" style="width:auto;margin:0;padding:5px 12px;font-size:12.5px;" ${act('setStationPrintAll', st.id, true)}>Tümü fişe çıksın</button>
       <button type="button" class="ghost-btn" style="width:auto;margin:0;padding:5px 12px;font-size:12.5px;" ${act('setStationPrintAll', st.id, false)}>Hiçbiri çıkmasın</button>
     </div>
     ${order.map(k => `<div style="margin-top:10px;background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:8px 10px;"><div style="font-size:12px;font-weight:800;text-transform:uppercase;margin-bottom:6px;display:flex;justify-content:space-between;"><span>📋 ${escapeHtml(menuName(k))}</span><span class="muted" style="font-weight:600;">${groups[k].filter(p => p.print_ticket !== false).length}/${groups[k].length}</span></div>
-      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:4px 14px;">${groups[k].map(p => `<label style="display:flex;align-items:center;gap:8px;font-size:13.5px;cursor:pointer;margin:0;"><input type="checkbox" style="width:auto;margin:0;" ${p.print_ticket === false ? '' : 'checked'} ${actOn('change','setProductPrint',[p.id, '$checked'])}>${escapeHtml(p.name)}</label>`).join('')}</div></div>`).join('')}
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:4px 14px;">${groups[k].map(p => `<label style="display:flex;align-items:center;gap:8px;font-size:13.5px;cursor:pointer;margin:0;"><input type="checkbox" class="u-wa-m0" ${p.print_ticket === false ? '' : 'checked'} ${actOn('change','setProductPrint',[p.id, '$checked'])}>${escapeHtml(p.name)}</label>`).join('')}</div></div>`).join('')}
   </details>`;
 }
 async function setProductPrint(pid, on){
@@ -775,17 +775,17 @@ async function renderNotificationSettingsView(main, session){
   main.innerHTML = `
     <h1>Bildirimler</h1>
     <div id="notifSettingsPart">
-    <p class="muted" style="text-align:left;">${session.isManager ? '<b>Kime Gitsin</b> bölümünden push ve sesli bildirimlerin hangi rollere gideceğini siz belirlersiniz; bu kural tüm personelin cihazına uygulanır. Diğer bölümler (ses seçimi, zil sesi) yalnızca bu cihaza özeldir.' : 'Hangi bildirimlerin size gideceğini yöneticiniz belirler (🔒 işaretli olanlar). Ses seçimi ve zil sesi gibi ayarlar yalnızca bu cihaza özeldir.'}</p>
+    <p class="u-tl muted">${session.isManager ? '<b>Kime Gitsin</b> bölümünden push ve sesli bildirimlerin hangi rollere gideceğini siz belirlersiniz; bu kural tüm personelin cihazına uygulanır. Diğer bölümler (ses seçimi, zil sesi) yalnızca bu cihaza özeldir.' : 'Hangi bildirimlerin size gideceğini yöneticiniz belirler (🔒 işaretli olanlar). Ses seçimi ve zil sesi gibi ayarlar yalnızca bu cihaza özeldir.'}</p>
 
-    ${!hasFeature('push_notifications') ? `<div class="box" style="max-width:none;"><h2>📱 Push Bildirimleri (Uygulama Kapalıyken de)</h2>${lockedFeatureHtml()}</div>` : ''}
-    ${isDesktopApp() && hasFeature('push_notifications') ? `<div class="box" style="max-width:none;">
+    ${!hasFeature('push_notifications') ? `<div class="u-mwn box"><h2>📱 Push Bildirimleri (Uygulama Kapalıyken de)</h2>${lockedFeatureHtml()}</div>` : ''}
+    ${isDesktopApp() && hasFeature('push_notifications') ? `<div class="u-mwn box">
       <h2>🖥️ Windows Bildirimleri</h2>
-      <p class="muted" style="text-align:left;">Masaüstü uygulamasında bildirimler, uygulama açıkken (simge durumuna küçültülmüş ya da arka planda olsa bile) <b>Windows bildirimi</b> olarak gelir; ayrıca açmanız gerekmez. Windows'un kendi tarayıcı push altyapısı masaüstü uygulamasında çalışmadığı için uygulama tamamen kapalıyken bildirim gelmez — bunun için telefondaki Peyktan uygulamasında bildirimleri açın.</p>
+      <p class="u-tl muted">Masaüstü uygulamasında bildirimler, uygulama açıkken (simge durumuna küçültülmüş ya da arka planda olsa bile) <b>Windows bildirimi</b> olarak gelir; ayrıca açmanız gerekmez. Windows'un kendi tarayıcı push altyapısı masaüstü uygulamasında çalışmadığı için uygulama tamamen kapalıyken bildirim gelmez — bunun için telefondaki Peyktan uygulamasında bildirimleri açın.</p>
       <button type="button" class="sbtn" style="width:auto;max-width:260px;" ${act('testDesktopNotification')}>🔔 Test Bildirimi Göster</button>
     </div>` : ''}
     <div class="box" style="max-width:none;${hasFeature('push_notifications') && !isDesktopApp()?'':'display:none;'}">
       <h2>📱 Push Bildirimleri (Uygulama Kapalıyken de)</h2>
-      <p class="muted" style="text-align:left;">Açarsanız, hazır bekleyen siparişiniz olduğunda bu cihaza — tarayıcı/uygulama kapalı olsa bile — bildirim göndeririz.</p>
+      <p class="u-tl muted">Açarsanız, hazır bekleyen siparişiniz olduğunda bu cihaza — tarayıcı/uygulama kapalı olsa bile — bildirim göndeririz.</p>
       <p id="pushStatusText" class="muted" style="font-size:13px;margin:10px 0;"></p>
       <div style="display:flex;gap:10px;flex-wrap:wrap;">
         <button id="pushToggleBtn" style="max-width:260px;" ${act('togglePushNotifications')}>Kontrol ediliyor...</button>
@@ -796,9 +796,9 @@ async function renderNotificationSettingsView(main, session){
 
     ${voiceSettingsHtml()}
     ${typeof birthdaySettingsHtml === 'function' ? birthdaySettingsHtml() : ''}
-    <div class="box" style="max-width:none;">
+    <div class="u-mwn box">
       <h2>🔔 Bildirim Sesi (Yeni Sipariş Zili)</h2>
-      <p class="muted" style="text-align:left;">Mutfağa yeni bir sipariş düştüğünde bu ekranda çalacak sesi özelleştirebilirsiniz. Bir istasyon seçip kendi ses dosyanızı yükleyerek o istasyona özel bir zil sesi de tanımlayabilirsiniz (örn. Izgara için ayrı, Çayhane için ayrı).</p>
+      <p class="u-tl muted">Mutfağa yeni bir sipariş düştüğünde bu ekranda çalacak sesi özelleştirebilirsiniz. Bir istasyon seçip kendi ses dosyanızı yükleyerek o istasyona özel bir zil sesi de tanımlayabilirsiniz (örn. Izgara için ayrı, Çayhane için ayrı).</p>
       <div class="field-group" style="max-width:320px;"><label>Kapsam</label>
         <select id="bellScopeSelect" ${actOn('change','updateBellScopeStatus',[])}>
           <option value="">Varsayılan (istasyona özel ses yoksa kullanılır)</option>
@@ -815,7 +815,7 @@ async function renderNotificationSettingsView(main, session){
         <b id="bellVolumeLabel" style="min-width:52px;text-align:right;">${getBellVolume()===0?'Sessiz':'%'+getBellVolume()}</b>
       </div>
       <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px;flex-wrap:wrap;">
-        <span style="font-size:12.5px;font-weight:700;color:var(--muted);">Yüklediğiniz Sesler <span style="font-weight:400;">(en fazla ${BELL_LIBRARY_MAX})</span></span>
+        <span style="font-size:12.5px;font-weight:700;color:var(--muted);">Yüklediğiniz Sesler <span class="u-fw4">(en fazla ${BELL_LIBRARY_MAX})</span></span>
         <label style="width:auto;cursor:pointer;display:inline-flex;align-items:center;margin:0;padding:9px 16px;border-radius:10px;background:var(--accent);color:var(--btn-ink);font-weight:700;font-size:13px;">
           ＋ Ses Dosyası Yükle
           <input id="bellFileInput" type="file" accept="audio/*" style="display:none;" ${act('clearValue','$this')} ${actOn('change','uploadBellSound',[])}>

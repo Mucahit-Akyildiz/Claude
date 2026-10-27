@@ -383,14 +383,14 @@ async function onNewPrinterTypeChange(forceRefresh){
   if(!wrap) return;
   if(type!=='electron'){ wrap.innerHTML=''; return; }
   if(!isDesktopApp()){
-    wrap.innerHTML = '<p class="muted" style="font-size:12px;">Bu seçenek sadece Masaüstü Uygulaması içinde çalışır. Şu an tarayıcıdasınız — yine de ekleyebilirsiniz, uygulamayı kurup o bilgisayarda giriş yaptığınızda devreye girer.</p><label>İşletim Sistemi Yazıcısı Adı (opsiyonel)</label><input id="np_osprinter" placeholder="örn. POS-80C">';
+    wrap.innerHTML = '<p class="u-fs12 muted">Bu seçenek sadece Masaüstü Uygulaması içinde çalışır. Şu an tarayıcıdasınız — yine de ekleyebilirsiniz, uygulamayı kurup o bilgisayarda giriş yaptığınızda devreye girer.</p><label>İşletim Sistemi Yazıcısı Adı (opsiyonel)</label><input id="np_osprinter" placeholder="örn. POS-80C">';
     return;
   }
   // Yazici listesi (Electron IPC ile isletim sistemine sorulur) bir kez
   // cache'lenir - menu her acildiginda yeniden sormak gecikme hissi
   // yaratiyordu. "Yenile" ile elle tazelenebilir.
   const cached = ELECTRON_PRINTERS_CACHE;
-  wrap.innerHTML = '<label>İşletim Sistemi Yazıcısı</label><div style="display:flex;gap:8px;"><select id="np_osprinter" style="flex:1;">'+(cached?'':'<option value="">Yükleniyor...</option>')+'</select><button type="button" class="sbtn" style="width:auto;" '+act('onNewPrinterTypeChange', true)+'>🔄 Yenile</button></div>';
+  wrap.innerHTML = '<label>İşletim Sistemi Yazıcısı</label><div style="display:flex;gap:8px;"><select id="np_osprinter" class="u-f1">'+(cached?'':'<option value="">Yükleniyor...</option>')+'</select><button type="button" class="sbtn" style="width:auto;" '+act('onNewPrinterTypeChange', true)+'>🔄 Yenile</button></div>';
   if(cached){
     const sel = document.getElementById('np_osprinter');
     sel.innerHTML = cached.length ? cached.map(p => `<option value="${escapeAttr(p.name)}" ${p.isDefault?'selected':''}>${escapeHtml(p.displayName||p.name)}${p.isDefault?' (varsayılan)':''}</option>`).join('') : '<option value="">Yazıcı bulunamadı</option>';

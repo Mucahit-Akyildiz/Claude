@@ -19,7 +19,7 @@ async function renderKitchenView(main, session){
   const station = APP.config.stations.find(s => s.id===APP.kitchenStation);
   main.innerHTML = `<div style="display:flex;justify-content:space-between;"><h1>${escapeHtml(station.icon||"🍳")} ${escapeHtml(station.name)}</h1>
     <div style="display:flex;gap:8px;align-items:flex-start;">
-      <button class="ghost-btn" style="color:var(--red);" ${act('openManualWasteModal')} title="Siparişe bağlı olmayan israf (yanan, düşen, bozulan ürün)">🔥 İsraf Gir</button>
+      <button class="u-red ghost-btn" ${act('openManualWasteModal')} title="Siparişe bağlı olmayan israf (yanan, düşen, bozulan ürün)">🔥 İsraf Gir</button>
       <button class="ghost-btn" ${act('clearKitchenStation')}>İstasyon Değiştir</button>
     </div></div>
     <div id="kitchenWrap"></div>`;
@@ -528,9 +528,9 @@ function openWasteModal(itemId){
     <h2 style="margin-top:0;">🔥 İsraf Bildir</h2>
     <p class="muted" style="margin:0 0 12px;">${escapeHtml(name)}</p>
     <label style="display:block;font-size:12.5px;font-weight:700;color:var(--muted);">Miktar</label>
-    <input id="wasteQty" type="number" min="1" max="${qty}" step="1" value="${qty}" style="margin-bottom:10px;">
+    <input id="wasteQty" type="number" min="1" max="${qty}" step="1" value="${qty}" class="u-mbb10">
     <label style="display:block;font-size:12.5px;font-weight:700;color:var(--muted);">Sebep</label>
-    <select id="wasteReason" style="margin-bottom:10px;">
+    <select id="wasteReason" class="u-mbb10">
       ${WASTE_REASONS.map(r => `<option value="${r}">${r}</option>`).join('')}
     </select>
     <input id="wasteNote" placeholder="Ek not (opsiyonel)" style="margin-bottom:14px;">
@@ -558,13 +558,13 @@ function openManualWasteModal(){
     <h2 style="margin-top:0;">🔥 Manuel İsraf Gir</h2>
     <p class="muted" style="margin:0 0 12px;font-size:12.5px;">Siparişe bağlı olmayan israf; stoktan düşülür (stok yetmiyorsa kaydedilmez) ve Finansal Analiz &gt; İsraf'ta görünür.</p>
     <label style="display:block;font-size:12.5px;font-weight:700;color:var(--muted);">Ürün</label>
-    <select id="wasteProduct" style="margin-bottom:10px;">
+    <select id="wasteProduct" class="u-mbb10">
       ${sorted.map(p => `<option value="${p.id}">${escapeHtml(p.name)}</option>`).join('')}
     </select>
     <label style="display:block;font-size:12.5px;font-weight:700;color:var(--muted);">Miktar</label>
-    <input id="wasteQty" type="number" min="0.01" step="any" value="1" style="margin-bottom:10px;">
+    <input id="wasteQty" type="number" min="0.01" step="any" value="1" class="u-mbb10">
     <label style="display:block;font-size:12.5px;font-weight:700;color:var(--muted);">Sebep</label>
-    <select id="wasteReason" style="margin-bottom:10px;">
+    <select id="wasteReason" class="u-mbb10">
       ${WASTE_REASONS.map(r => `<option value="${r}">${r}</option>`).join('')}
     </select>
     <input id="wasteNote" placeholder="Ek not (opsiyonel)" style="margin-bottom:14px;">
@@ -616,11 +616,11 @@ function showWasteStockPopup(maxQty, wanted, productId, remake){
       : `<p style="margin:0 0 10px;font-size:14px;">${escapeHtml(prod ? prod.name : 'Bu ürün')} için ${wanted} adet israf girmek istediniz, ancak ${hasRecipe ? 'hammadde stoğunuz' : 'stoğunuz'} <b>en fazla ${maxQty} adet</b> için yeterli.</p>
          <p class="muted" style="margin:0 0 14px;font-size:12.5px;text-align:left;">Miktarı düzeltin, stoğu güncelleyin ya da farklı bir ürün seçin.</p>`}
     <div style="display:flex;flex-direction:column;gap:8px;">
-      ${maxQty > 0 ? `<button type="button" style="margin:0;" ${act('wasteUseMaxQty', maxQty)}>Miktarı ${maxQty} yap</button>` : ''}
-      ${canEditStock ? `<button type="button" class="ghost-btn" style="margin:0;" ${act('wasteGoStockSettings', hasRecipe ? 'ingredients' : 'products')}>📦 Stoğu Güncelle</button>` : ''}
+      ${maxQty > 0 ? `<button type="button" class="u-m0" ${act('wasteUseMaxQty', maxQty)}>Miktarı ${maxQty} yap</button>` : ''}
+      ${canEditStock ? `<button type="button" class="u-m0 ghost-btn" ${act('wasteGoStockSettings', hasRecipe ? 'ingredients' : 'products')}>📦 Stoğu Güncelle</button>` : ''}
       ${remake
-        ? `<button type="button" class="ghost-btn" style="margin:0;" ${act('removeEl','wasteStockModalBg')}>Kapat</button>`
-        : `<button type="button" class="ghost-btn" style="margin:0;" ${act('wastePickOtherProduct')}>Farklı Ürün Seç</button>`}
+        ? `<button type="button" class="u-m0 ghost-btn" ${act('removeEl','wasteStockModalBg')}>Kapat</button>`
+        : `<button type="button" class="u-m0 ghost-btn" ${act('wastePickOtherProduct')}>Farklı Ürün Seç</button>`}
     </div>
   </div>`;
   document.body.appendChild(bg);

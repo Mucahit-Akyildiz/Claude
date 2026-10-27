@@ -208,7 +208,7 @@ function callDrawUi(){
   const btn = (bg, label, fn, ic) => `<button type="button" style="width:72px;height:72px;border-radius:50%;margin:0;padding:0;border:0;background:${bg};color:#fff;font-size:28px;box-shadow:0 8px 24px rgba(0,0,0,.35);" title="${label}" ${act(fn)}>${ic}</button>
     <div style="font-size:12px;margin-top:8px;opacity:.8;text-align:center;">${label}</div>`;
   const initial = escapeHtml((CALL.peerName || '?').trim().charAt(0).toLocaleUpperCase('tr'));
-  ui.innerHTML = `${CALL.state !== 'ringing' ? callMinBtn() : ''}<div style="text-align:center;">
+  ui.innerHTML = `${CALL.state !== 'ringing' ? callMinBtn() : ''}<div class="u-tc">
       <div style="width:110px;height:110px;border-radius:50%;margin:0 auto 18px;background:rgba(255,255,255,.12);display:flex;align-items:center;justify-content:center;font-size:46px;font-weight:800;${CALL.state === 'ringing' || CALL.state === 'calling' ? 'animation:callPulse 1.6s infinite;' : ''}">${initial}</div>
       <div style="font-size:26px;font-weight:800;">${escapeHtml(CALL.peerName)}</div>
       <div style="font-size:15px;opacity:.8;margin-top:6px;">${status}</div>
@@ -451,7 +451,7 @@ async function openCallAudioPicker(){
   const ov = document.createElement('div'); ov.id = 'callAudioBg';
   ov.style.cssText = 'position:fixed;inset:0;z-index:450;background:rgba(0,0,0,.5);display:flex;align-items:flex-end;justify-content:center;padding:16px;';
   ov.innerHTML = `<div class="box" style="max-width:380px;width:100%;margin:0 0 30px;text-align:left;">
-    <h3 style="margin:0 0 10px;">Ses çıkışı</h3>
+    <h3 class="u-mb10">Ses çıkışı</h3>
     ${items.map(it => `<button type="button" class="${it.on ? '' : 'ghost-btn'}" style="width:100%;margin:0 0 8px;text-align:left;" ${act('setCallAudioRoute', it.id)}>${escapeHtml(it.label)}${it.on ? ' ✓' : ''}</button>`).join('')}
   </div>`;
   ov.onclick = (e) => { if(e.target === ov) ov.remove(); };
