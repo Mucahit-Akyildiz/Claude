@@ -220,7 +220,7 @@ function radioBusyBy(){
   const me = getSession();
   return RADIO.floor && me && RADIO.floor.u !== me.user_id ? RADIO.floor : null;
 }
-const RADIO_BUILD = 'r15';
+const RADIO_BUILD = 'r16';
 function radioLog(msg){ try{ if(typeof reportClientError === 'function') reportClientError('radio', msg + ' | ' + RADIO_BUILD, 'radio.js'); }catch(e){} }
 async function radioStartTalk(){
   if(RADIO.talking) return;
@@ -427,7 +427,12 @@ function radioReportSend(lost){
   const st = !d.frames ? 'FAIL mikrofon karesi yok' : !d.chunks ? 'FAIL parça gönderilmedi' : d.errs ? 'FAIL gönderim hatası ' + d.lastErr : 'ok';
   const lvl = d.peak < 0.01 ? 'sessiz' : d.peak < 0.05 ? 'düşük' : 'iyi';
   if(st === 'ok' && d.peak >= 0.01) return; // yalnızca sorunlu (ya da tamamen sessiz) gönderimler kaydedilir
-  if(st === 'ok' && d.chunks >= 3) radioFlash('🔇 Mikrofondan ses gelmedi — kulaklığın mikrofonu kapalı (mute) olabilir');
+  if(st === 'ok' && d.chunks >= 3){
+    RADIO.silentCount = (RADIO.silentCount || 0) + 1;
+    radioFlash('🔇 Mikrofondan ses gelmedi — kulaklığın mikrofonu kapalı (mute) olabilir ya da yanlış mikrofon seçili');
+    // Art arda ikinci sessiz gönderimde mikrofon seçici açılır: canlı seviye çubuğuyla çalışan mikrofon seçilir.
+    if(RADIO.silentCount >= 2 && typeof openRadioMicPicker === 'function'){ RADIO.silentCount = 0; setTimeout(openRadioMicPicker, 600); }
+  } else if(d.peak >= 0.01) RADIO.silentCount = 0;
   reportClientError('radio', RADIO_BUILD + ' gönder: ' + st + (d.frames ? ' ses=' + lvl : '') + (d.retried ? ' yeniden-kuruldu' : '') + (d.reopened ? ' mik-yeniden' : '') + (d.raw ? ' ham' : '') + ' ' + (d.mode || '') + ' ' + radioTrackInfo() + ' | ctx=' + (RADIO.capCtx ? RADIO.capCtx.state + '/' + RADIO.capCtx.sampleRate : '-') + ' rt=' + (RADIO.status || 'bağlı'), 'radio.js');
 }
 function radioReportRecv(){
@@ -593,12 +598,38 @@ async function openRadioMicPicker(){
     <p class="muted" style="text-align:left;font-size:12.5px;">Konuşurken panelde seviye çubuğu görünmüyorsa başka bir mikrofon seçin.</p>
     <div style="display:flex;flex-direction:column;gap:8px;">
       <button type="button" class="${cur ? 'ghost-btn' : ''}" style="margin:0;text-align:left;" ${act('setRadioMic', '')}>Varsayılan (sistem)</button>
-      ${devs.map((d, i) => `<button type="button" class="${cur === d.deviceId ? '' : 'ghost-btn'}" style="margin:0;text-align:left;" ${act('setRadioMic', d.deviceId)}>${escapeHtml(d.label || ('Mikrofon ' + (i + 1)))}${!cur && inUse === d.deviceId ? ' <span class="muted">(kullanımda)</span>' : ''}</button>`).join('')}
-    </div></div>`;
-  ov.onclick = (e) => { if(e.target === ov) ov.remove(); };
+      ${devs.map((d, i) => `<div class="mic-row"><button type="button" class="${cur === d.deviceId ? '' : 'ghost-btn'}" style="margin:0;text-align:left;flex:1;" ${act('setRadioMic', d.deviceId)}>${escapeHtml(d.label || ('Mikrofon ' + (i + 1)))}${!cur && inUse === d.deviceId ? ' <span class="muted">(kullanımda)</span>' : ''}</button>
+        <button type="button" class="ghost-btn mic-test" title="Konuşun: çubuk hareket ediyorsa bu mikrofon çalışıyor" ${act('testRadioMic', d.deviceId, i)}>🎙️ Test</button></div>
+        <div class="mic-meter" id="micMeter_${i}"><i></i></div>`).join('')}
+    </div>
+    <p class="muted" style="text-align:left;font-size:12px;margin:10px 0 0;">🎙️ Test'e basıp konuşun: çubuk hareket eden mikrofonu seçin. Hiçbiri hareket etmiyorsa kulaklığın mikrofon (mute) tuşunu kontrol edin.</p></div>`;
+  ov.onclick = (e) => { if(e.target === ov){ stopRadioMicTest(); ov.remove(); } };
   document.body.appendChild(ov);
 }
+/* Mikrofon testi: seçilen cihazı 6 sn açıp canlı ses seviyesini çubukta gösterir. */
+let RADIO_MIC_TEST = null;
+function stopRadioMicTest(){
+  if(!RADIO_MIC_TEST) return;
+  try{ cancelAnimationFrame(RADIO_MIC_TEST.raf); clearTimeout(RADIO_MIC_TEST.t); RADIO_MIC_TEST.stream.getTracks().forEach(t => t.stop()); RADIO_MIC_TEST.ctx.close(); }catch(e){}
+  RADIO_MIC_TEST = null;
+}
+async function testRadioMic(deviceId, i){
+  stopRadioMicTest();
+  const bar = document.querySelector('#micMeter_' + i + ' i'); if(!bar) return;
+  try{
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: { deviceId: { exact: deviceId }, echoCancellation:false, noiseSuppression:false, autoGainControl:false } });
+    const ctx = new (window.AudioContext || window.webkitAudioContext)(), src = ctx.createMediaStreamSource(stream), an = ctx.createAnalyser();
+    an.fftSize = 1024; src.connect(an); const buf = new Float32Array(an.fftSize); let peak = 0;
+    const T = RADIO_MIC_TEST = { stream, ctx, raf: 0, t: 0 };
+    const tick = () => { an.getFloatTimeDomainData(buf); let m = 0; for(const v of buf) m = Math.max(m, Math.abs(v)); peak = Math.max(peak, m);
+      bar.style.width = Math.min(100, m * 250) + '%'; bar.style.background = m > 0.02 ? 'var(--green,#22c55e)' : 'var(--muted)'; T.raf = requestAnimationFrame(tick); };
+    tick();
+    T.t = setTimeout(() => { stopRadioMicTest(); bar.style.width = '100%'; bar.style.background = peak > 0.02 ? 'var(--green,#22c55e)' : 'var(--red,#ef4444)';
+      bar.parentElement.dataset.res = peak > 0.02 ? '✓ Ses geliyor' : '✕ Ses yok'; }, 6000);
+  }catch(e){ bar.parentElement.dataset.res = '✕ Açılamadı'; }
+}
 function setRadioMic(id){
+  stopRadioMicTest();
   try{ if(id) localStorage.setItem(RADIO_MIC_KEY, id); else localStorage.removeItem(RADIO_MIC_KEY); }catch(e){}
   // Bir sonraki bas-konuşta yeni cihaz açılsın.
   if(!RADIO.talking){ releaseSharedMic(); RADIO.mic = null; }
@@ -671,6 +702,9 @@ function radioScheduleReconnect(reason, delay){
     // Kendiliğinden düzelen kopmalar (arka plandan dönüş, internet geri gelmesi) hata değildir;
     // yalnızca art arda 3 denemede bağlanamazsa Hatalar'a kaydedilir.
     if(RADIO_RECONNECT_FAILS >= 3) radioLog('bağlantı kurulamıyor (' + RADIO_RECONNECT_FAILS + '. deneme): ' + reason);
+    // Kanal art arda hata veriyorsa altta yatan gerçek zamanlı bağlantı (soket) bayatlamış olabilir: soketi
+    // yeniden kur (diğer kanallar kendiliğinden yeniden katılır), ardından telsiz kanalına yeniden bağlan.
+    if(RADIO_RECONNECT_FAILS >= 2){ try{ sb.realtime.disconnect(); sb.realtime.connect(); }catch(e){} }
     radioConnect(RADIO.channel.id, true);
   }, wait);
 }

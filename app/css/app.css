@@ -3577,3 +3577,7 @@ button.sl-stat{border:1px solid var(--border) !important;} button.sl-stat.on{bor
 .rc-row{display:grid;grid-template-columns:1fr auto auto auto 90px;gap:8px;align-items:center;padding:6px 8px;border-radius:8px;background:var(--panel2,var(--panel));font-size:13px;}
 .rc-row small{text-align:right;font-weight:700;} .rc-row small.up{color:var(--red,#ef4444);} .rc-row small.down{color:var(--green,#22c55e);}
 .rc-miss{font-size:13px;margin-top:8px;} .rc-miss div{margin:3px 0;}
+.mic-row{display:flex;gap:6px;align-items:stretch;} .mic-row .mic-test{width:auto;margin:0;white-space:nowrap;}
+.mic-meter{position:relative;height:8px;border-radius:6px;background:rgba(127,127,127,.18);overflow:visible;margin:-2px 0 4px;}
+.mic-meter i{display:block;height:100%;width:0;border-radius:6px;transition:width .08s;}
+.mic-meter[data-res]::after{content:attr(data-res);position:absolute;right:0;top:10px;font-size:11px;font-weight:700;color:var(--muted);}
