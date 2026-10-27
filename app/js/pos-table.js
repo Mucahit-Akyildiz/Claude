@@ -93,7 +93,7 @@ function handleScannedTableQr(text){
     if(t) token = t;
   }catch(e){ /* URL değil - düz token olarak kabul edilir */ }
   let found = null, foundZone = null;
-  (APP.config.zones||[]).forEach(z => {
+  ((APP.config && APP.config.zones) || []).forEach(z => {
     z.tables.forEach(t => { if(t.qr_token===token){ found = t; foundZone = z; } });
   });
   if(!found){
@@ -184,6 +184,7 @@ function toggleOrderTableViewMode(){
 }
 function renderTableGrid(){
   renderZoneTabs();
+  if(!APP.config || !APP.config.zones) return;
   const gridEl = document.getElementById('tableGrid');
   const fpEl = document.getElementById('tableFloorPlan');
   const zone = APP.config.zones.find(z => z.id===APP.selectedZone);
