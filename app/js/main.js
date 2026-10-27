@@ -1,6 +1,6 @@
 /* Kendi kendini onarma: tarayıcı önbelleğinden eski/yarım bir dosya gelip temel
    modüller (state.js / utils.js) yüklenemediyse önbelleği temizleyip bir kez yenile. */
-if(typeof APP === 'undefined' || typeof escapeAttr === 'undefined'){
+if(typeof APP === 'undefined' || typeof escapeAttr === 'undefined' || typeof sb === 'undefined' || typeof renderSettingsView === 'undefined' || typeof renderReportsView === 'undefined' || typeof radioSync === 'undefined' || typeof renderTenantIntegrations === 'undefined'){
   try{
     if(!sessionStorage.getItem('pk_selfheal')){
       sessionStorage.setItem('pk_selfheal', '1');

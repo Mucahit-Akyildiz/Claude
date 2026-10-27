@@ -275,6 +275,7 @@ function renderIngredientsSettings(el, session){
         <div class="ig-foot">
           <label class="ig-waste" title="Temizleme/kesim kaybı">Fire % <input type="number" step="0.1" min="0" max="99" value="${Number(i.waste_pct)||0}" id="ing_waste_${i.id}"></label>
           <label class="ig-waste" title="Stok bu seviyeye inince uyarı verilir (boş = uyarı yok)">Min <input type="number" step="0.01" min="0" value="${Number(i.min_stock)||''}" placeholder="—" id="ing_min_${i.id}"></label>
+          <label class="ig-waste" title="Birim (${escapeAttr(i.unit||'')}) başına alış fiyatı — reçeteli ürünlerin maliyeti bundan hesaplanır">₺/${escapeHtml(i.unit||'birim')} <input type="number" step="0.01" min="0" value="${Number(i.unit_cost)||''}" placeholder="—" id="ing_uc_${i.id}"></label>
           <button type="button" class="pc-btn" ${act('openIngredientUsageModal', i.id)}>🍽️ ${uses} ürün</button>
           <button type="button" class="pc-btn" title="Hammaddeyi ve kullanıldığı ürünleri düzenle" ${act('openIngredientUsageModal', i.id, true)}>✏️ Düzenle</button>
         </div>
@@ -309,7 +310,7 @@ async function saveAllIngredients(){
     const id = tr.dataset.iid;
     return { id, name: document.getElementById('ing_name_'+id).value.trim(), unit: document.getElementById('ing_unit_'+id).value,
       stock: parseFloat(document.getElementById('ing_stock_'+id).value)||0, waste: parseFloat(document.getElementById('ing_waste_'+id).value)||0,
-      min: parseFloat(document.getElementById('ing_min_'+id).value)||0 };
+      min: parseFloat(document.getElementById('ing_min_'+id).value)||0, uc: (() => { const e = document.getElementById('ing_uc_'+id); return e && e.value !== '' ? parseFloat(e.value) : null; })() };
   });
   if(!rows.length) return;
   if(rows.some(r => !r.name)){ alert('Hammadde adı boş olamaz'); return; }
@@ -318,6 +319,7 @@ async function saveAllIngredients(){
     const res = await bulkRpc('upsert_ingredient', rows.map(r => ({ p_id: r.id, p_name: r.name, p_unit: r.unit, p_stock: r.stock, p_waste_pct: r.waste })));
     const okRows = rows.filter((r, k) => { if(res[k].error){ errors.push(r.name + ': ' + res[k].error.message); return false; } return true; });
     (await bulkRpc('set_ingredient_min', okRows.map(r => ({ p_id: r.id, p_min: r.min })))).forEach((e, k) => { if(e.error) errors.push(okRows[k].name + ': ' + e.error.message); });
+    (await bulkRpc('set_ingredient_cost', okRows.map(r => ({ p_id: r.id, p_cost: r.uc })))).forEach((e, k) => { if(e.error) errors.push(okRows[k].name + ': ' + e.error.message); });
   })());
   renderSettingsView(document.getElementById('main'), session);
   if(errors.length) alert('Bazı hammaddeler kaydedilemedi:\n\n' + errors.join('\n')); else showToast(rows.length + ' hammadde kaydedildi ✓');
@@ -1338,6 +1340,7 @@ function renderProductsSettings(el, session){
       <div class="os-chip os-click ${pf==='low'?'on':''}" role="button" title="Listeyi filtrele" ${act('setProdFilter', 'low')} style="--oc:var(--c3);"><span class="os-ic">⚠️</span><div><b>${lowN}</b><small>Stok azalan</small></div></div>
       <div class="os-chip os-click ${pf==='nocost'?'on':''}" role="button" title="Listeyi filtrele" ${act('setProdFilter', 'nocost')} style="--oc:#ef4444;"><span class="os-ic">💸</span><div><b>${products.filter(p => !(Number(p.cost) > 0)).length}</b><small>Maliyet girilmemiş</small></div></div>
     </div>
+    ${products.some(p => p.recipe && p.recipe.length) ? `<div class="rc-bar"><span>🧮 Reçeteli ürünlerin maliyetini hammadde fiyatlarından otomatik hesaplayın.</span><button type="button" class="pc-btn" ${act('openRecipeCostCalc')}>Reçeteden maliyet hesapla</button></div>` : ''}
     <label class="nc-toggle"><input type="checkbox" ${APP.config.close_no_cost !== false ? 'checked' : ''} ${actOn('change','toggleCloseNoCost',['$checked'])}> 💸 Maliyeti girilmemiş ürünler satışa <b>kapalı</b> gelsin <small class="muted">(istediğiniz ürünü yine "Satışa Aç" ile açabilirsiniz)</small></label>
     ${pf!=='all' ? `<div class="pf-note">🔎 <b>${{on:'Satıştaki',off:'Kapalı',low:'Stoğu azalan',lowmargin:'Düşük marjlı',nocost:'Maliyeti girilmemiş'}[pf]} ürünler</b> gösteriliyor (${shown.length})<button type="button" class="pc-btn" ${act('setProdFilter', 'all')}>✕ Tümünü göster</button></div>` : ''}
     ${pf!=='all' && !shown.length ? '<div class="empty-state"><div style="font-size:38px;">🎉</div><p class="muted">Bu filtrede ürün yok.</p></div>' : ''}
@@ -1418,6 +1421,28 @@ function markProdDirty(e){
   const tr = e.target.closest('tr[data-pid]'); if(!tr) return;
   tr.dataset.dirty = '1'; tr.classList.add('is-dirty');
   updateProdSelection();
+}
+/* Reçeteden maliyet: önizleme (eski → yeni), onaylanınca ürün maliyetleri güncellenir. */
+async function openRecipeCostCalc(){
+  const { data, error } = await withLoadingOverlay(sb.rpc('recalc_recipe_costs', { p_token: getSession().session_token, p_apply: false }));
+  if(error){ alert(error.message); return; }
+  const rows = data || [], ok = rows.filter(r => r.new != null), miss = rows.filter(r => r.new == null);
+  const bg = document.createElement('div'); bg.id = 'rcBg'; bg.className = 'modal-bg';
+  bg.innerHTML = `<div class="box rc-modal"><div style="display:flex;justify-content:space-between;align-items:center;"><h2 style="margin:0;">🧮 Reçeteden maliyet</h2><span style="cursor:pointer;color:var(--muted);" ${act('removeEl','rcBg')}>✕</span></div>
+    <p class="muted" style="font-size:13px;">Hammadde birim fiyatı × reçete miktarı (fire payı dahil). Birim fiyatı girilmemiş hammaddede son satınalma fiyatı kullanılır.</p>
+    ${ok.length ? `<div class="rc-list">${ok.map(r => { const d = Number(r.new) - Number(r.old || 0); return `<div class="rc-row"><b>${escapeHtml(r.name)}</b><span class="muted">${r.old ? money(r.old) : 'yok'}</span><span>→</span><b>${money(r.new)}</b><small class="${d > 0 ? 'up' : d < 0 ? 'down' : ''}">${d ? (d > 0 ? '▲ ' : '▼ ') + money(Math.abs(d)) : '='}</small></div>`; }).join('')}</div>` : '<p class="muted">Hesaplanabilen ürün yok.</p>'}
+    ${miss.length ? `<details class="rc-miss"><summary>⚠️ ${miss.length} ürün hesaplanamadı (fiyatı eksik hammadde)</summary>${miss.map(r => `<div>• <b>${escapeHtml(r.name)}</b>: ${escapeHtml((r.missing || []).join(', '))}</div>`).join('')}<p class="muted">Hammaddeler sekmesinde ₺/birim alanını doldurun.</p></details>` : ''}
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px;"><button type="button" class="ghost-btn" style="width:auto;margin:0;" ${act('removeEl','rcBg')}>Vazgeç</button>
+      ${ok.length ? `<button type="button" style="width:auto;margin:0;" ${act('applyRecipeCosts')}>${ok.length} ürünün maliyetini güncelle</button>` : ''}</div></div>`;
+  document.body.appendChild(bg);
+}
+async function applyRecipeCosts(){
+  const { data, error } = await withLoadingOverlay(sb.rpc('recalc_recipe_costs', { p_token: getSession().session_token, p_apply: true }));
+  if(error){ alert(error.message); return; }
+  const el = document.getElementById('rcBg'); if(el) el.remove();
+  showToast((data || []).filter(r => r.new != null).length + ' ürünün maliyeti güncellendi ✓');
+  const { data: cfg } = await sb.rpc('get_restaurant_config', { p_token: getSession().session_token }); if(cfg) APP.config = cfg;
+  renderSettingsContent(getSession());
 }
 function setProdFilter(k){ APP.prodFilter = (APP.prodFilter===k ? 'all' : k); renderSettingsContent(getSession()); }
 function setProdView(v){ APP.prodView = v; renderSettingsContent(getSession()); }
