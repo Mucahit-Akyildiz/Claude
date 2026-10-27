@@ -50,7 +50,7 @@ function tplCatChips(grp, list, isOn){
 function setTplCat(grp, c){ APP.tplCat = Object.assign({}, APP.tplCat, { [grp]: c }); grp === 'sms' ? drawSmsTemplates() : drawMailTemplates(); }
 /* --- Gönderilen SMS'ler: işletmenin kendi gönderim geçmişi (get_sms_log) --- */
 const SMS_ST = { dispatched:['Gönderildi','ok'], no_provider:['Sağlayıcı bağlı değil','warn'], failed:['Hata','bad'], error:['Hata','bad'], pending:['Bekliyor','wait'], disabled:['Kapalı','warn'] };
-const SMS_EXTRA_LBL = { test:'Test mesajı', otp:'Doğrulama kodu', reservation_confirm:'Rezervasyon onayı' };
+const SMS_EXTRA_LBL = { winback:'💛 Geri kazanım', test:'Test mesajı', otp:'Doğrulama kodu', reservation_confirm:'Rezervasyon onayı' };
 function smsPhone(p){ const d = String(p || '').replace(/\D/g, ''), m = d.match(/^90(\d{3})(\d{3})(\d{2})(\d{2})$/); return m ? '0' + m[1] + ' ' + m[2] + ' ' + m[3] + ' ' + m[4] : (p || '—'); }
 function smsPurposeLbl(k){ const t = SMS_TPL.find(x => x.k === k); return t ? t.ic + ' ' + t.t : (SMS_EXTRA_LBL[k] || k || '—'); }
 async function loadSmsLog(more){
@@ -109,7 +109,7 @@ function setSmsLog(k, v){ const L = APP.smsLog; if(k === 'status' && L.status ==
 function toggleSmsLogRow(id){ APP.smsLog.open = APP.smsLog.open === id ? null : id; drawSmsLog(); }
 /* --- Gönderilen e-postalar (get_mail_log) — SMS geçmişiyle aynı düzen --- */
 const MAIL_ST = { sent:['Gönderildi','ok'], queued:['Gönderiliyor','wait'], failed:['Hata','bad'], no_provider:['Servis bağlı değil','warn'] };
-const MAIL_EXTRA_LBL = { receipt:'🧾 Fiş', invoice:'📄 Fatura', other:'✉️ Diğer' };
+const MAIL_EXTRA_LBL = { winback:'💛 Geri kazanım', receipt:'🧾 Fiş', invoice:'📄 Fatura', other:'✉️ Diğer' };
 function mailPurposeLbl(k){ const t = MAIL_TPL.find(x => x.k === k); return t ? t.ic + ' ' + t.t : (MAIL_EXTRA_LBL[k] || k || '—'); }
 async function loadMailLog(more){
   const box = document.getElementById('mailLogBox'); if(!box) return;

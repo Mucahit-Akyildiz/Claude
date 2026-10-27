@@ -1695,7 +1695,6 @@ function isOwnerUser(u){
    gösterilemez; alan •••••• ile "ayarlı" görünür. 👁 yazılanı gösterir, 🎲 rastgele
    şifre üretip görünür halde alana yazar (personele iletmek için). */
 /* KVKK: telefon numarası varsayılan olarak maskeli (0538 *** ** 30); tıklanınca görünür ve düzenlenebilir olur. */
-function maskPhone(p){ const d = String(p || '').replace(/\D/g, ''); if(!d) return ''; return d.length >= 7 ? d.slice(0, 4) + ' *** ** ' + d.slice(-2) : '*** ' + d.slice(-2); }
 function revealPhone(el){ if(!el || el.dataset.masked !== '1') return; el.dataset.masked = ''; el.value = el.dataset.orig || ''; el.readOnly = false; el.style.cursor = ''; el.focus(); }
 function passField(id, disabled, existing){
   const btn = 'flex:0 0 auto;width:auto;margin:0;padding:6px 9px;font-size:15px;line-height:1;';
