@@ -95,12 +95,13 @@ function renderUsersTabWithSubtabs(el, session){
     canManage(session, 'settings_users') ? { id:'list', ic:'👥', label:'Kullanıcılar' } : null,
     canManage(session, 'settings_users') ? { id:'active', ic:'🟢', label:'Aktif Kullanıcılar' } : null,
     hasPerm(session, 'shifts') || canManage(session, 'shifts') ? { id:'shifts', ic:'⏱️', label:'Vardiyalar' } : null,
+    hasPerm(session, 'shifts') || canManage(session, 'shifts') ? { id:'plan', ic:'📅', label:'Vardiya Planı' } : null,
     canManage(session, 'settings_users') ? { id:'limits', ic:'💳', label:'Limitler' } : null,
   ].filter(Boolean);
   if(!tabs.length){ el.innerHTML = ''; return; }
   if(!tabs.some(t => t.id === APP.usersSubTab)) APP.usersSubTab = tabs[0].id;
   const sub = APP.usersSubTab;
-  const draw = (box) => sub==='limits' ? renderAllowancesSettings(box) : sub==='active' ? renderActiveUsersSettings(box) : sub==='shifts' ? renderShiftsSettings(box, session) : renderUsersSettings(box, session);
+  const draw = (box) => sub==='limits' ? renderAllowancesSettings(box) : sub==='active' ? renderActiveUsersSettings(box) : sub==='shifts' ? renderShiftsSettings(box, session) : sub==='plan' ? renderShiftPlan(box) : renderUsersSettings(box, session);
   if(tabs.length === 1){ el.innerHTML = '<div id="usersSubContent"></div>'; draw(document.getElementById('usersSubContent')); return; }
   // Alt sekmeler kartın içinde, üst menüden ayrışan altı çizili stilde.
   el.innerHTML = `<div class="box sub-tabs-box" style="max-width:none;">
@@ -3298,4 +3299,75 @@ function auditTableHtml(rows){
       <td>${r.entity==='orders' && r.action==='update' ? 'İptal edildi' : (AUDIT_ACTIONS[r.action] || r.action)}</td>
       <td style="font-size:12.5px;">${changes(r.changes)}</td></tr>`).join('') || '<tr><td colspan="5" class="muted" style="text-align:center;">Henüz kayıt yok.</td></tr>'}
     </tbody></table></div>`;
+}
+
+// ---- Haftalık vardiya planı: yönetici kullanıcı × gün ızgarasını doldurur, personel kendi haftasını görür ----
+function spWeekStart(d){ const x = new Date(d + 'T12:00:00'); x.setDate(x.getDate() - ((x.getDay() + 6) % 7)); return x.toISOString().slice(0, 10); }
+function spAddDays(d, n){ const x = new Date(d + 'T12:00:00'); x.setDate(x.getDate() + n); return x.toISOString().slice(0, 10); }
+function spHours(a, b){ const m = (t) => { const [h, mi] = String(t).split(':').map(Number); return h * 60 + mi; }; let d = m(b) - m(a); if(d <= 0) d += 1440; return d / 60; }
+async function renderShiftPlan(el){
+  el = el || document.getElementById('usersSubContent'); if(!el) return;
+  const session = getSession();
+  if(!APP.spWeek) APP.spWeek = spWeekStart(todayLocalDateStr());
+  const wk = APP.spWeek;
+  const { data, error } = await sb.rpc('get_shift_plan', { p_token: session.session_token, p_week_start: wk });
+  if(error){ el.innerHTML = `<div class="box"><p class="muted">${escapeHtml(error.message)}</p></div>`; return; }
+  APP.spData = data;
+  const days = Array.from({ length: 7 }, (_, i) => spAddDays(wk, i));
+  const names = ['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz'];
+  const plan = {}; (data.plan || []).forEach(p => { plan[p.user_id + '|' + p.day] = p; });
+  const today = todayLocalDateStr();
+  const hrs = (data.users || []).map(u => ({ u, h: days.reduce((a, d) => { const p = plan[u.id + '|' + d]; return a + (p ? spHours(p.start, p.end) : 0); }, 0) }));
+  const total = hrs.reduce((a, x) => a + x.h, 0), maxH = Math.max(1, ...hrs.map(x => x.h));
+  const perDay = days.map(d => (data.users || []).filter(u => plan[u.id + '|' + d]).length);
+  el.innerHTML = `<div class="box" style="max-width:none;">
+    <h2>📅 Vardiya Planı</h2>
+    <div class="sh-date">
+      <button type="button" class="ico-btn" title="Önceki hafta" ${act('spStep', -7)}>‹</button>
+      <b class="sp-wk">${days[0].split('-').reverse().join('.')} – ${days[6].split('-').reverse().join('.')}</b>
+      <button type="button" class="ico-btn" title="Sonraki hafta" ${act('spStep', 7)}>›</button>
+      <button type="button" class="pc-btn" ${act('spStep', 0)}>Bu hafta</button>
+      ${data.manage ? `<button type="button" class="pc-btn" ${act('spCopyPrev')}>⧉ Geçen haftayı kopyala</button>` : ''}
+    </div>
+    <div class="sp-cards">
+      <div class="sp-card"><span>${(data.plan || []).length}</span>Planlı vardiya</div>
+      <div class="sp-card"><span>${total.toFixed(1)}</span>Toplam saat</div>
+      <div class="sp-card"><span>${hrs.filter(x => x.h > 0).length}/${hrs.length}</span>Planlanan personel</div>
+    </div>
+    <div class="sp-wrap"><table class="sp-grid"><thead><tr><th>Personel</th>${days.map((d, i) => `<th class="${d === today ? 'sp-today' : ''}">${names[i]}<small>${d.slice(8)}.${d.slice(5, 7)} · ${perDay[i]} kişi</small></th>`).join('')}<th>Saat</th></tr></thead>
+      <tbody>${hrs.map(({ u, h }) => `<tr><td class="sp-name">${escapeHtml(u.username)}</td>${days.map(d => { const p = plan[u.id + '|' + d];
+        const inner = p ? `<span class="sp-chip">${p.start}–${p.end}</span>${p.note ? `<small>${escapeHtml(p.note)}</small>` : ''}` : (data.manage ? '<span class="sp-add">+</span>' : '<span class="muted">—</span>');
+        return `<td class="sp-cell ${d === today ? 'sp-today' : ''}" ${data.manage ? act('spEdit', u.id, d) : ''}>${inner}</td>`; }).join('')}
+        <td><div class="sp-bar"><i style="width:${(h / maxH * 100).toFixed(0)}%"></i></div><b>${h.toFixed(1)}</b></td></tr>`).join('') || `<tr><td colspan="9" class="muted">Personel yok</td></tr>`}</tbody></table></div>
+    ${data.manage ? '<p class="muted" style="font-size:12.5px;">Bir hücreye tıklayıp saat girin; boş bırakıp kaydederseniz o günün planı silinir.</p>' : ''}
+  </div>`;
+}
+function spStep(n){ APP.spWeek = n ? spAddDays(APP.spWeek, n) : spWeekStart(todayLocalDateStr()); renderShiftPlan(); }
+async function spCopyPrev(){
+  const { data, error } = await sb.rpc('copy_shift_plan_week', { p_token: getSession().session_token, p_week_start: APP.spWeek });
+  if(error) return showToast(error.message, 'error');
+  showToast(data ? data + ' vardiya kopyalandı' : 'Kopyalanacak vardiya yok (ya da zaten dolu)'); renderShiftPlan();
+}
+function spEdit(uid, day){
+  const p = (APP.spData.plan || []).find(x => x.user_id === uid && x.day === day) || {};
+  const u = (APP.spData.users || []).find(x => x.id === uid) || {};
+  const bg = document.createElement('div'); bg.className = 'modal-bg'; bg.id = 'spModal';
+  const presets = [['08:00', '16:00'], ['09:00', '17:00'], ['12:00', '20:00'], ['16:00', '00:00']];
+  bg.innerHTML = `<div class="box sp-modal"><h3>${escapeHtml(u.username || '')} · ${day.split('-').reverse().join('.')}</h3>
+    <div class="sp-presets">${presets.map(([a, b]) => `<button type="button" class="pc-btn" ${act('spPreset', a, b)}>${a}–${b}</button>`).join('')}</div>
+    <label>Başlangıç<input type="time" id="spStart" value="${p.start || ''}"></label>
+    <label>Bitiş<input type="time" id="spEnd" value="${p.end || ''}"></label>
+    <label>Not<input type="text" id="spNote" maxlength="60" value="${escapeAttr(p.note || '')}"></label>
+    <div class="sp-actions"><button type="button" class="ghost-btn" ${act('spClose')}>Vazgeç</button>
+      ${p.start ? `<button type="button" class="ghost-btn" ${act('spSave', uid, day, true)}>Sil</button>` : ''}
+      <button type="button" class="sp-save" ${act('spSave', uid, day, false)}>Kaydet</button></div></div>`;
+  document.body.appendChild(bg);
+}
+function spPreset(a, b){ document.getElementById('spStart').value = a; document.getElementById('spEnd').value = b; }
+function spClose(){ const m = document.getElementById('spModal'); if(m) m.remove(); }
+async function spSave(uid, day, del){
+  const st = del ? '' : document.getElementById('spStart').value, en = del ? '' : document.getElementById('spEnd').value;
+  const { error } = await sb.rpc('set_shift_plan', { p_token: getSession().session_token, p_user_id: uid, p_day: day, p_start: st, p_end: en, p_note: del ? '' : document.getElementById('spNote').value });
+  if(error) return showToast(error.message, 'error');
+  spClose(); renderShiftPlan();
 }
