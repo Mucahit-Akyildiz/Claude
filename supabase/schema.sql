@@ -356,6 +356,31 @@ end; $$;
 
 
 --
+-- Name: _claim_integration_jobs(integer); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public._claim_integration_jobs(p_limit integer DEFAULT 20) RETURNS json
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+declare v json; v_ids uuid[];
+begin
+  update integration_jobs set status = 'pending' where status = 'processing' and next_at < now() - interval '5 minutes';
+  with picked as (
+    select j.id from integration_jobs j where j.status = 'pending' and j.next_at <= now() order by j.next_at limit p_limit for update skip locked),
+  upd as (update integration_jobs j set status = 'processing', attempts = j.attempts + 1, next_at = now() from picked where j.id = picked.id returning j.id)
+  select array_agg(id) into v_ids from upd;
+  update integration_jobs set payload = payload || jsonb_build_object('items', _sale_receipt_items(ref_id))
+    where id = any(coalesce(v_ids, '{}')) and event = 'sale' and ref_id is not null and jsonb_array_length(coalesce(payload->'items','[]')) = 0;
+  select coalesce(json_agg(json_build_object('id', j.id, 'event', j.event, 'payload', j.payload, 'attempts', j.attempts, 'restaurant_id', j.restaurant_id,
+      'connector', json_build_object('id', c.id, 'kind', c.kind, 'provider', c.provider, 'mode', c.mode, 'config', c.config,
+        'secrets', coalesce(nullif(_dec(c.secret_enc),'')::json, '{}'::json)))), '[]') into v
+    from integration_jobs j join tenant_connectors c on c.id = j.connector_id where j.id = any(coalesce(v_ids, '{}'));
+  return v;
+end $$;
+
+
+--
 -- Name: _cleanup_sessions(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -412,6 +437,18 @@ begin
   return cs;
 end;
 $$;
+
+
+--
+-- Name: _connector_by_inbound(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public._connector_by_inbound(p_key uuid) RETURNS json
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+  select json_build_object('id', id, 'kind', kind, 'provider', provider, 'mode', mode, 'enabled', enabled, 'config', config,
+    'secrets', coalesce(nullif(_dec(secret_enc),'')::json, '{}'::json)) from tenant_connectors where inbound_key = p_key $$;
 
 
 --
@@ -612,6 +649,24 @@ begin
     headers := jsonb_build_object('Content-Type','application/json','x-push-secret', coalesce(v_secret,'')),
     body := jsonb_build_object('mode', 'idle_tables', 'order_ids', to_jsonb(v_ids)), timeout_milliseconds := 25000);
 end $$;
+
+
+--
+-- Name: _cron_integration_worker(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public._cron_integration_worker() RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'extensions', 'pg_temp'
+    AS $_$
+declare v_url text; v_secret text;
+begin
+  if not exists(select 1 from integration_jobs where status = 'pending' and next_at <= now()) then return; end if;
+  select regexp_replace(value, '/api/.*$', '/api/integration-worker') into v_url from _psv where key = 'push_dispatch_url';
+  select value into v_secret from _psv where key = 'push_dispatch_secret';
+  if coalesce(v_url,'') = '' then return; end if;
+  perform net.http_post(url := v_url, headers := jsonb_build_object('Content-Type','application/json','x-push-secret', coalesce(v_secret,'')), body := '{}'::jsonb);
+end $_$;
 
 
 --
@@ -890,6 +945,29 @@ end $$;
 
 
 --
+-- Name: _finish_integration_job(uuid, boolean, jsonb, text, boolean); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public._finish_integration_job(p_id uuid, p_ok boolean, p_result jsonb, p_error text, p_retry boolean DEFAULT true) RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+declare j integration_jobs%rowtype;
+begin
+  select * into j from integration_jobs where id = p_id;
+  if j.id is null then return; end if;
+  if p_ok then
+    update integration_jobs set status = 'done', result = p_result, error = null, done_at = now() where id = p_id;
+    update tenant_connectors set last_ok_at = now(), last_error = null where id = j.connector_id;
+  else
+    update integration_jobs set status = case when p_retry and j.attempts < 5 then 'pending' else 'failed' end,
+      next_at = now() + make_interval(mins => power(2, least(j.attempts, 6))::int), error = left(p_error, 500), result = p_result where id = p_id;
+    update tenant_connectors set last_error = left(p_error, 300) where id = j.connector_id;
+  end if;
+end $$;
+
+
+--
 -- Name: _guard_owner_target(uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -953,6 +1031,30 @@ CREATE FUNCTION public._html_escape(p_text text) RETURNS text
     AS $$
   select replace(replace(replace(coalesce(p_text,''), '&', '&amp;'), '<', '&lt;'), '>', '&gt;');
 $$;
+
+
+--
+-- Name: _ingest_marketplace_order(uuid, jsonb); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public._ingest_marketplace_order(p_connector uuid, p_order jsonb) RETURNS uuid
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+declare c tenant_connectors%rowtype; v uuid;
+begin
+  select * into c from tenant_connectors where id = p_connector and kind = 'marketplace' and enabled;
+  if c.id is null then raise exception 'Bağlantı kapalı'; end if;
+  insert into customer_order_requests(restaurant_id, customer_name, customer_phone, delivery_address, items, status, order_type, source, external_id, payment_status, paid_amount)
+  values (c.restaurant_id, left(coalesce(p_order->>'customer_name','Pazaryeri müşterisi'), 120), left(p_order->>'customer_phone', 30), left(p_order->>'address', 400),
+    coalesce(p_order->'items','[]'), 'pending', coalesce(nullif(p_order->>'order_type',''), 'delivery'), c.provider, left(p_order->>'external_id', 120),
+    case when coalesce((p_order->>'paid')::boolean, false) then 'paid' else 'unpaid' end,
+    case when coalesce((p_order->>'paid')::boolean, false) then nullif(p_order->>'total','')::numeric end)
+  on conflict (restaurant_id, source, external_id) where external_id is not null do nothing
+  returning id into v;
+  update tenant_connectors set last_ok_at = now() where id = c.id;
+  return v;
+end $$;
 
 
 --
@@ -1953,6 +2055,19 @@ $$;
 
 
 --
+-- Name: _sale_receipt_items(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public._sale_receipt_items(p_sale uuid) RETURNS jsonb
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+  select coalesce(jsonb_agg(jsonb_build_object('name', i.name, 'qty', i.qty, 'price', i.price, 'vat', coalesce(i.vat_rate, 10))), '[]')
+  from sales_history h join order_items i on i.order_id = h.order_id
+  where h.id = p_sale and i.paid and i.paid_at between h.closed_at - interval '5 seconds' and h.closed_at + interval '5 seconds' $$;
+
+
+--
 -- Name: _sales_history_allowance(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -2501,6 +2616,30 @@ begin
   for d in -1..1 loop if _totp(p_secret, c + d) = p_code then return c + d; end if; end loop;
   return null;
 end $_$;
+
+
+--
+-- Name: _trg_enqueue_okc_sale(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public._trg_enqueue_okc_sale() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+declare c record; v_items jsonb;
+begin
+  if coalesce(new.total,0) <= 0 then return new; end if;
+  for c in select id from tenant_connectors where restaurant_id = new.restaurant_id and kind = 'okc' and enabled loop
+    if v_items is null then
+      select coalesce(jsonb_agg(jsonb_build_object('name', i.name, 'qty', i.qty, 'price', i.price, 'vat', coalesce(i.vat_rate, 10))), '[]') into v_items
+        from order_items i where i.order_id = new.order_id and i.paid and i.paid_at between new.closed_at - interval '5 seconds' and new.closed_at + interval '5 seconds';
+    end if;
+    insert into integration_jobs(restaurant_id, connector_id, event, ref_id, payload) values (new.restaurant_id, c.id, 'sale', new.id,
+      jsonb_build_object('sale_id', new.id, 'table', new.table_name, 'total', new.total, 'subtotal', new.subtotal, 'discount', coalesce(new.discount_amount,0),
+        'cash', coalesce(new.cash_amount,0), 'card', coalesce(new.card_amount,0), 'method', new.payment_method, 'closed_at', new.closed_at, 'items', v_items));
+  end loop;
+  return new;
+end $$;
 
 
 --
@@ -7773,6 +7912,26 @@ $$;
 
 
 --
+-- Name: list_connectors(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.list_connectors(p_token uuid) RETURNS json
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+declare s staff_sessions%rowtype;
+begin
+  s := _session_check(p_token, 'settings_flags');
+  return coalesce((select json_agg(json_build_object('id', c.id, 'kind', c.kind, 'provider', c.provider, 'enabled', c.enabled, 'mode', c.mode, 'config', c.config,
+      'has_secret', c.secret_enc is not null, 'inbound_key', c.inbound_key, 'last_ok_at', c.last_ok_at, 'last_error', c.last_error,
+      'pending', (select count(*) from integration_jobs j where j.connector_id = c.id and j.status in ('pending','processing')),
+      'failed', (select count(*) from integration_jobs j where j.connector_id = c.id and j.status = 'failed'),
+      'done_7d', (select count(*) from integration_jobs j where j.connector_id = c.id and j.status = 'done' and j.created_at > now() - interval '7 days'))
+    order by c.kind, c.provider) from tenant_connectors c where c.restaurant_id = s.restaurant_id), '[]');
+end $$;
+
+
+--
 -- Name: list_customer_order_requests(uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -7906,6 +8065,25 @@ begin
   );
 end;
 $$;
+
+
+--
+-- Name: list_integration_jobs(uuid, uuid, text, integer); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.list_integration_jobs(p_token uuid, p_connector uuid DEFAULT NULL::uuid, p_status text DEFAULT NULL::text, p_limit integer DEFAULT 50) RETURNS json
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+declare s staff_sessions%rowtype;
+begin
+  s := _session_check(p_token, 'settings_flags');
+  return coalesce((select json_agg(x) from (select j.id, j.event, j.status, j.attempts, j.error, j.result, j.created_at, j.done_at, c.kind, c.provider,
+      (j.payload->>'total')::numeric as total
+    from integration_jobs j join tenant_connectors c on c.id = j.connector_id
+    where j.restaurant_id = s.restaurant_id and (p_connector is null or j.connector_id = p_connector) and (p_status is null or j.status = p_status)
+    order by j.created_at desc limit least(greatest(coalesce(p_limit,50),1),200)) x), '[]');
+end $$;
 
 
 --
@@ -9099,6 +9277,22 @@ $$;
 
 
 --
+-- Name: remove_connector(uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.remove_connector(p_token uuid, p_id uuid) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+declare s staff_sessions%rowtype;
+begin
+  s := _session_check(p_token, 'settings_flags');
+  update tenant_connectors set enabled = false, secret_enc = null, config = '{}', last_error = null, updated_at = now() where id = p_id and restaurant_id = s.restaurant_id;
+  return found;
+end $$;
+
+
+--
 -- Name: remove_online_menu_section(uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -9460,6 +9654,22 @@ end; $$;
 
 
 --
+-- Name: retry_integration_job(uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.retry_integration_job(p_token uuid, p_id uuid) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+declare s staff_sessions%rowtype;
+begin
+  s := _session_check(p_token, 'settings_flags');
+  update integration_jobs set status = 'pending', next_at = now(), error = null where id = p_id and restaurant_id = s.restaurant_id and status = 'failed';
+  return found;
+end $$;
+
+
+--
 -- Name: reveal_staff_password(uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -9536,6 +9746,29 @@ begin
   if v_d >= v_today - 1 then perform _auto_close_shifts(s.restaurant_id, now(), s.user_id); end if;
   return v;
 end $$;
+
+
+--
+-- Name: save_connector(uuid, text, text, boolean, text, jsonb, jsonb); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.save_connector(p_token uuid, p_kind text, p_provider text, p_enabled boolean, p_mode text, p_config jsonb, p_secrets jsonb DEFAULT NULL::jsonb) RETURNS uuid
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $_$
+declare s staff_sessions%rowtype; v_id uuid; v_old jsonb; v_new jsonb;
+begin
+  s := _session_check(p_token, 'settings_flags');
+  if p_kind not in ('okc','marketplace') or coalesce(p_provider,'') !~ '^[a-z0-9_]{2,30}$' then raise exception 'Geçersiz bağlantı'; end if;
+  insert into tenant_connectors(restaurant_id, kind, provider) values (s.restaurant_id, p_kind, p_provider)
+    on conflict (restaurant_id, kind, provider) do nothing;
+  select id, coalesce(nullif(_dec(secret_enc),'')::jsonb, '{}') into v_id, v_old from tenant_connectors where restaurant_id = s.restaurant_id and kind = p_kind and provider = p_provider;
+  select coalesce(jsonb_object_agg(k, v), '{}') into v_new from jsonb_each(coalesce(p_secrets,'{}')) e(k, v) where coalesce(v #>> '{}','') <> '';
+  update tenant_connectors set enabled = coalesce(p_enabled,false), mode = case when p_mode = 'live' then 'live' else 'test' end,
+    config = coalesce(p_config,'{}'), secret_enc = case when (v_old || v_new) = '{}'::jsonb then null else _enc((v_old || v_new)::text) end, updated_at = now()
+    where id = v_id;
+  return v_id;
+end $_$;
 
 
 --
@@ -11941,6 +12174,23 @@ $$;
 
 
 --
+-- Name: test_connector(uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.test_connector(p_token uuid, p_id uuid) RETURNS uuid
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+declare s staff_sessions%rowtype; v uuid;
+begin
+  s := _session_check(p_token, 'settings_flags');
+  if not exists(select 1 from tenant_connectors where id = p_id and restaurant_id = s.restaurant_id) then raise exception 'Bağlantı bulunamadı'; end if;
+  insert into integration_jobs(restaurant_id, connector_id, event, payload) values (s.restaurant_id, p_id, 'test', '{}') returning id into v;
+  return v;
+end $$;
+
+
+--
 -- Name: toggle_chat_reaction(uuid, uuid, text); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -13471,7 +13721,9 @@ CREATE TABLE public.customer_order_requests (
     delivery_address text,
     payment_status text DEFAULT 'unpaid'::text NOT NULL,
     paid_amount numeric,
-    payment_ref text
+    payment_ref text,
+    source text,
+    external_id text
 );
 
 
@@ -13594,6 +13846,28 @@ CREATE TABLE public.ingredients (
     unit_cost numeric,
     CONSTRAINT ingredients_stock_nonneg CHECK (((stock IS NULL) OR (stock >= (0)::numeric))),
     CONSTRAINT ingredients_waste_pct_chk CHECK (((waste_pct >= (0)::numeric) AND (waste_pct < (100)::numeric)))
+);
+
+
+--
+-- Name: integration_jobs; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.integration_jobs (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    restaurant_id uuid NOT NULL,
+    connector_id uuid NOT NULL,
+    event text NOT NULL,
+    ref_id uuid,
+    payload jsonb DEFAULT '{}'::jsonb NOT NULL,
+    status text DEFAULT 'pending'::text NOT NULL,
+    attempts integer DEFAULT 0 NOT NULL,
+    next_at timestamp with time zone DEFAULT now() NOT NULL,
+    result jsonb,
+    error text,
+    created_at timestamp with time zone DEFAULT now(),
+    done_at timestamp with time zone,
+    CONSTRAINT integration_jobs_status_check CHECK ((status = ANY (ARRAY['pending'::text, 'processing'::text, 'done'::text, 'failed'::text])))
 );
 
 
@@ -14578,6 +14852,28 @@ ALTER SEQUENCE public.support_emails_id_seq OWNED BY public.support_emails.id;
 
 
 --
+-- Name: tenant_connectors; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.tenant_connectors (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    restaurant_id uuid NOT NULL,
+    kind text NOT NULL,
+    provider text NOT NULL,
+    enabled boolean DEFAULT false NOT NULL,
+    mode text DEFAULT 'test'::text NOT NULL,
+    config jsonb DEFAULT '{}'::jsonb NOT NULL,
+    secret_enc text,
+    inbound_key uuid DEFAULT gen_random_uuid() NOT NULL,
+    last_ok_at timestamp with time zone,
+    last_error text,
+    updated_at timestamp with time zone DEFAULT now(),
+    CONSTRAINT tenant_connectors_kind_check CHECK ((kind = ANY (ARRAY['okc'::text, 'marketplace'::text]))),
+    CONSTRAINT tenant_connectors_mode_check CHECK ((mode = ANY (ARRAY['test'::text, 'live'::text])))
+);
+
+
+--
 -- Name: tenant_integrations; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -15007,6 +15303,14 @@ ALTER TABLE ONLY public.gift_cards
 
 ALTER TABLE ONLY public.ingredients
     ADD CONSTRAINT ingredients_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: integration_jobs integration_jobs_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.integration_jobs
+    ADD CONSTRAINT integration_jobs_pkey PRIMARY KEY (id);
 
 
 --
@@ -15594,6 +15898,22 @@ ALTER TABLE ONLY public.support_emails
 
 
 --
+-- Name: tenant_connectors tenant_connectors_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.tenant_connectors
+    ADD CONSTRAINT tenant_connectors_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: tenant_connectors tenant_connectors_restaurant_id_kind_provider_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.tenant_connectors
+    ADD CONSTRAINT tenant_connectors_restaurant_id_kind_provider_key UNIQUE (restaurant_id, kind, provider);
+
+
+--
 -- Name: tenant_integrations tenant_integrations_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -15795,6 +16115,13 @@ CREATE UNIQUE INDEX companies_code_ci_key ON public.companies USING btree (lower
 --
 
 CREATE INDEX company_sessions_company_idx ON public.company_sessions USING btree (company_id);
+
+
+--
+-- Name: cor_external_uq; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX cor_external_uq ON public.customer_order_requests USING btree (restaurant_id, source, external_id) WHERE (external_id IS NOT NULL);
 
 
 --
@@ -16194,6 +16521,27 @@ CREATE INDEX idx_waste_log_staff_user_id ON public.waste_log USING btree (staff_
 --
 
 CREATE INDEX idx_zones_restaurant_id ON public.zones USING btree (restaurant_id);
+
+
+--
+-- Name: integration_jobs_conn; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX integration_jobs_conn ON public.integration_jobs USING btree (connector_id);
+
+
+--
+-- Name: integration_jobs_queue; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX integration_jobs_queue ON public.integration_jobs USING btree (status, next_at);
+
+
+--
+-- Name: integration_jobs_rest; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX integration_jobs_rest ON public.integration_jobs USING btree (restaurant_id, created_at DESC);
 
 
 --
@@ -16897,6 +17245,13 @@ CREATE TRIGGER trg_contact_auto_customer AFTER INSERT OR UPDATE ON public.waitli
 
 
 --
+-- Name: sales_history trg_enqueue_okc_sale; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_enqueue_okc_sale AFTER INSERT ON public.sales_history FOR EACH ROW EXECUTE FUNCTION public._trg_enqueue_okc_sale();
+
+
+--
 -- Name: invoices trg_invoices_customer_email; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -17342,6 +17697,22 @@ ALTER TABLE ONLY public.gift_cards
 
 ALTER TABLE ONLY public.ingredients
     ADD CONSTRAINT ingredients_restaurant_id_fkey FOREIGN KEY (restaurant_id) REFERENCES public.restaurants(id) ON DELETE CASCADE;
+
+
+--
+-- Name: integration_jobs integration_jobs_connector_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.integration_jobs
+    ADD CONSTRAINT integration_jobs_connector_id_fkey FOREIGN KEY (connector_id) REFERENCES public.tenant_connectors(id) ON DELETE CASCADE;
+
+
+--
+-- Name: integration_jobs integration_jobs_restaurant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.integration_jobs
+    ADD CONSTRAINT integration_jobs_restaurant_id_fkey FOREIGN KEY (restaurant_id) REFERENCES public.restaurants(id) ON DELETE CASCADE;
 
 
 --
@@ -17921,6 +18292,14 @@ ALTER TABLE ONLY public.support_access_log
 
 
 --
+-- Name: tenant_connectors tenant_connectors_restaurant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.tenant_connectors
+    ADD CONSTRAINT tenant_connectors_restaurant_id_fkey FOREIGN KEY (restaurant_id) REFERENCES public.restaurants(id) ON DELETE CASCADE;
+
+
+--
 -- Name: tenant_integrations tenant_integrations_restaurant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -18159,6 +18538,12 @@ ALTER TABLE public.gift_cards ENABLE ROW LEVEL SECURITY;
 --
 
 ALTER TABLE public.ingredients ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: integration_jobs; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.integration_jobs ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: invoices; Type: ROW SECURITY; Schema: public; Owner: -
@@ -18472,6 +18857,12 @@ ALTER TABLE public.support_access_log ENABLE ROW LEVEL SECURITY;
 --
 
 ALTER TABLE public.support_emails ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: tenant_connectors; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.tenant_connectors ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: tenant_integrations; Type: ROW SECURITY; Schema: public; Owner: -
