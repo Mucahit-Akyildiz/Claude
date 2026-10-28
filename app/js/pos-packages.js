@@ -126,10 +126,8 @@ function renderProductPick(stationId, tableId){
   const el = document.getElementById('prodPick'); if(!el) return;
   // Tüm menülerin ürünleri tek listede (istasyondan bağımsız); menüler Ayarlar sırasıyla.
   stationId = '__all_menus';
-  // Satışa kapalı ürünler "Kapalıları göster" kutusuna göre listelenir/gizlenir (cihaz tercihi).
-  const closedN = APP.config.products.filter(p => p.available===false).length;
-  const showClosed = ppShowClosed();
-  const all = showClosed ? APP.config.products.slice() : APP.config.products.filter(p => p.available!==false);
+  // Satışa kapalı ürünler Ayarlar > Ürünler'deki "Kapalı ürünler Sipariş Al'da görünsün" ayarına göre gizlenir.
+  const all = APP.config.order_show_closed === false ? APP.config.products.filter(p => p.available!==false) : APP.config.products.slice();
   const used = new Set(all.map(p => p.category).filter(Boolean));
   const menuOrder = (APP.config.menus || []).map(m => m.name);
   const cats = [...menuOrder.filter(c => used.has(c)), ...[...used].filter(c => !menuOrder.includes(c))];
@@ -174,14 +172,12 @@ function renderProductPick(stationId, tableId){
       ${productExtras(par.id).filter(e => e.available !== false).map(e => { const n = (cart.find(i => i.product_id === e.id) || {}).qty || 0;
         return `<button type="button" class="pp-extra ${n?'on':''}" ${act('addToDraft', tableId, e.id)}>${escapeHtml(e.name)}<small>${Number(e.price) ? '+'+money(e.price) : 'ücretsiz'}</small>${n ? `<b>${n}</b>` : ''}</button>`; }).join('')}</div>`).join('')}
   </div>` : '';
-  const searchHtml = `<div class="pp-search"><input id="ppSearch" placeholder="🔍 Ürün ara…" autocomplete="off" value="${escapeAttr(APP.prodSearch || '')}" ${actOn('input','setProdSearch',['$value', tableId])}>${q ? `<span class="pp-search-n">${prods.length} sonuç</span><button type="button" class="pp-search-x" title="Temizle" ${act('setProdSearch', '', tableId)}>✕</button>` : ''}</div>${closedN ? `<label class="pp-closed-tg" title="Satışa kapattığınız ürünler bu ekranda görünsün mü?"><input type="checkbox" ${showClosed?'checked':''} ${actOn('change','setPpShowClosed',['$checked', tableId])}><span>Kapalıları göster <small>(${closedN})</small></span></label>` : ''}`;
+  const searchHtml = `<div class="pp-search"><input id="ppSearch" placeholder="🔍 Ürün ara…" autocomplete="off" value="${escapeAttr(APP.prodSearch || '')}" ${actOn('input','setProdSearch',['$value', tableId])}>${q ? `<span class="pp-search-n">${prods.length} sonuç</span><button type="button" class="pp-search-x" title="Temizle" ${act('setProdSearch', '', tableId)}>✕</button>` : ''}</div>`;
   const focused = document.activeElement && document.activeElement.id === 'ppSearch';
   el.innerHTML = side + `<div class="pp-main">${searchHtml}${q ? '' : quickTopHtml(tableId)}<div class="pp-grid">${cards}</div>${extrasHtml}</div>`;
   loadOrderQuickPicks(tableId);
   if(focused){ const i = document.getElementById('ppSearch'); if(i){ i.focus(); i.setSelectionRange(i.value.length, i.value.length); } }
 }
-function ppShowClosed(){ try{ return localStorage.getItem('rys_pp_show_closed') !== '0'; }catch(e){ return true; } }
-function setPpShowClosed(on, tableId){ try{ localStorage.setItem('rys_pp_show_closed', on ? '1' : '0'); }catch(e){} renderProductPick(null, tableId); }
 function setProdSearch(v, tableId){ APP.prodSearch = v; renderProductPick(null, tableId); }
 function setProdPickCat(stationId, cat, tableId){ APP.prodSearch = '';
   APP.prodPickCat = APP.prodPickCat || {}; APP.prodPickCat[stationId] = cat;
