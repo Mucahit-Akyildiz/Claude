@@ -932,6 +932,7 @@ async function finishPayment(orderId, method, total, cash, card, discountAmount,
   // güncellensin diye grid'i her durumda (kısmi/tam) yeniden çiziyoruz.
   if(APP.view==='payments') renderPayGrid();
   APP.lastPaidHistoryId = data && data.history_id;
+  if(typeof maybeAskStoreReview === 'function') maybeAskStoreReview();
   if(data && data.order_closed===false){
     // Kısmi ödeme: hesaptaki geri kalan ürünler için ödeme ekranı hemen tekrar açılır.
     showToast('Ödeme alındı ✓ (kalan ürünler için hesap açık kaldı)');

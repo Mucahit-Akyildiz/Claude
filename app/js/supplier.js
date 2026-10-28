@@ -5,7 +5,7 @@ async function renderPurchasingView(main, session){
   // Finansal Analiz > Satınalma'dadır (izin: purchasing_reports / reports).
   const canOrders = hasPurchPerm(session, 'orders') || hasPurchPerm(session, 'manage');
   APP.purchTab = 'orders';
-  main.innerHTML = `<h1>Satınalma Siparişleri</h1>
+  main.innerHTML = `<h1>Malzeme Siparişi Ver</h1><p class="muted page-sub">İhtiyacınız olan hammaddeleri ve miktarları sipariş verin. Mal geldiğinde teslim alma, tedarikçi seçimi ve birim fiyat <b>Mal Kabul</b> menüsünden yapılır.</p>
     <div id="purchContent">${canOrders ? '' : '<div class="box"><p class="muted">Tedarikçiler artık <b>Satınalma → Tedarikçiler</b> altında.</p></div>'}</div>`;
   if(!canOrders) return;
   // Kritik stok uyarısı güncel stokla hesaplansın.
@@ -131,7 +131,7 @@ async function renderPurchaseOrdersContent(session){
   el.innerHTML = `
   ${lowStockBannerHtml()}
   <div class="fsheet-bar" style="margin:0 0 14px;"><p class="muted" style="margin:0;font-size:13px;text-align:left;">Hammadde ihtiyacınızı tedarikçiye sipariş olarak iletin.</p>${sheetBtnHtml('poSheet','🛒 Yeni Sipariş')}</div>
-  ${sheetHtml('poSheet', '🛒', 'Yeni Sipariş', `<p class="muted" style="text-align:left;margin:0 0 12px;font-size:13px;">İhtiyaç duyduğunuz hammaddeleri ve miktarları girip <b>Sipariş Ver</b>'e basın. Tedarikçi seçimi, birim fiyat ve teslim alma <b>Satınalma</b> menüsünden yapılır.</p>
+  ${sheetHtml('poSheet', '🛒', 'Yeni Sipariş', `<p class="muted" style="text-align:left;margin:0 0 12px;font-size:13px;">İhtiyaç duyduğunuz hammaddeleri ve miktarları girip <b>Sipariş Ver</b>'e basın. Teslim alma, tedarikçi seçimi ve birim fiyat <b>Mal Kabul</b> menüsünden yapılır.</p>
       <div class="fsheet-grid">
         <div class="field-group"><label>Beklenen Tarih</label><input id="po_expected" type="date"></div>
         <div class="field-group wide"><label>Not</label><input id="po_notes" placeholder="opsiyonel"></div>

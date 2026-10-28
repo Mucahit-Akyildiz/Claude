@@ -456,20 +456,42 @@ async function renderReviewsBody(){
   const { data, error } = await sb.rpc('list_reviews', { p_token: session.session_token, p_days: APP.reviewDays });
   if(error){ body.innerHTML = '<p class="muted">Yüklenemedi: ' + escapeHtml(error.message) + '</p>'; return; }
   const st = data.stats || {}, rows = data.rows || [], dist = st.dist || [0,0,0,0,0], max = Math.max(1, ...dist);
-  const f = APP.reviewFilter || 'all', shown = f==='low' ? rows.filter(r => r.rating <= 3) : f==='high' ? rows.filter(r => r.rating >= 4) : rows;
+  const f = APP.reviewFilter || 'all', shown = f==='low' ? rows.filter(r => r.rating <= 3) : f==='high' ? rows.filter(r => r.rating >= 4) : f==='photo' ? rows.filter(r => r.photos > 0) : f==='cb' ? rows.filter(r => r.callback) : rows;
   const stars = (n) => '<span class="rvw-st">' + '★'.repeat(n) + '<i>' + '★'.repeat(5-n) + '</i></span>';
   body.innerHTML = `<div class="rvf-chips" style="margin-bottom:12px;">${[[7,'7 gün'],[30,'30 gün'],[90,'90 gün']].map(([d, l]) => `<button type="button" class="rvf-chip ${APP.reviewDays===d?'on':''}" ${act('setReviewDays', d)}>${l}</button>`).join('')}</div>
     <div class="rvw-sum">
       <div class="rvw-avg"><b>${st.n ? Number(st.avg).toLocaleString('tr-TR') : '—'}</b>${stars(Math.round(Number(st.avg)||0))}<small>${st.n||0} değerlendirme · ${st.sent||0} link</small></div>
       <div class="rvw-dist">${[5,4,3,2,1].map(n => `<div class="rvw-row"><span>${n}★</span><div class="rvw-bar"><i style="width:${dist[n-1]/max*100}%;"></i></div><b>${dist[n-1]}</b></div>`).join('')}</div>
     </div>
-    <div class="rvf-chips" style="margin:12px 0;">${[['all','Tümü'],['low','😞 1-3 yıldız'],['high','🤩 4-5 yıldız']].map(([k, l]) => `<button type="button" class="rvf-chip ${f===k?'on':''}" ${act('setReviewFilter', k)}>${l}</button>`).join('')}</div>
+    <div class="rvf-chips" style="margin:12px 0;">${[['all','Tümü'],['low','😞 1-3 yıldız'],['high','🤩 4-5 yıldız'],['photo','📷 Fotoğraflı (' + (st.with_photo||0) + ')'],['cb','📞 Dönüş bekleyen (' + (st.callback||0) + ')']].map(([k, l]) => `<button type="button" class="rvf-chip ${f===k?'on':''}" ${act('setReviewFilter', k)}>${l}</button>`).join('')}</div>
     ${shown.length ? `<div class="rvw-list">${shown.map(r => `<div class="rvw-card ${r.rating <= 3 ? 'low' : ''} ${r.seen ? '' : 'new'}">
         <div class="rvw-top">${stars(r.rating)}<small>${new Date(r.rated_at).toLocaleString('tr-TR',{dateStyle:'short',timeStyle:'short'})}</small></div>
         ${r.comment ? `<p>“${escapeHtml(r.comment)}”</p>` : '<p class="muted">Yorum yazılmadı</p>'}
-        <div class="pcard-chips">${r.customer_name ? `<span class="pchip">👤 ${escapeHtml(r.customer_name)}</span>` : ''}${r.customer_phone ? `<span class="pchip">${phoneHtml(r.customer_phone)}</span>` : ''}${r.table_name ? `<span class="pchip">🪑 ${escapeHtml(r.table_name)}</span>` : ''}${r.staff ? `<span class="pchip">🧑‍🍳 ${escapeHtml(r.staff)}</span>` : ''}</div>
+        ${r.photos ? `<div class="rvw-photos">${Array.from({ length: r.photos }, (_, i) => `<button type="button" class="rvw-ph" data-rv="${r.id}" data-i="${i}" ${act('openReviewPhoto', r.id, i)}></button>`).join('')}</div>` : ''}
+        <div class="pcard-chips">${r.callback ? '<span class="pchip rvw-cb">📞 Geri dönüş istiyor</span>' : ''}${r.customer_name ? `<span class="pchip">👤 ${escapeHtml(r.customer_name)}</span>` : ''}${r.customer_phone ? `<span class="pchip">${phoneHtml(r.customer_phone)}</span>` : ''}${r.table_name ? `<span class="pchip">🪑 ${escapeHtml(r.table_name)}</span>` : ''}${r.staff ? `<span class="pchip">🧑‍🍳 ${escapeHtml(r.staff)}</span>` : ''}</div>
       </div>`).join('')}</div>` : `<div class="empty-state rv-empty"><div class="om-empty-ic">⭐</div><b>Henüz değerlendirme yok</b><p class="muted">Ödeme alındıktan sonra çıkan <b>⭐ Değerlendirme QR</b> ya da <b>📱 SMS ile iste</b> ile müşteriden puan isteyin.</p></div>`}`;
+  loadReviewPhotos();
   if(rows.some(r => !r.seen)){ await sb.rpc('mark_reviews_seen', { p_token: session.session_token }); refreshNavBadges(); }
+}
+// Yorum fotoğrafları özel depoda: oturum anahtarı başlıkta gönderilerek alınır, küçük resim olarak gösterilir.
+APP.reviewPhotoCache = APP.reviewPhotoCache || {};
+async function reviewPhotoUrl(id, i){
+  const key = id + ':' + i; if(APP.reviewPhotoCache[key]) return APP.reviewPhotoCache[key];
+  const r = await fetch('/api/review-photo?id=' + encodeURIComponent(id) + '&i=' + i, { headers: { 'x-session-token': getSession().session_token } });
+  if(!r.ok) return null;
+  return (APP.reviewPhotoCache[key] = URL.createObjectURL(await r.blob()));
+}
+async function loadReviewPhotos(){
+  for(const el of document.querySelectorAll('.rvw-ph[data-rv]')){
+    const u = await reviewPhotoUrl(el.dataset.rv, Number(el.dataset.i));
+    if(u && el.isConnected) el.style.backgroundImage = `url("${u}")`; else if(!u) el.classList.add('err');
+  }
+}
+async function openReviewPhoto(id, i){
+  const u = await reviewPhotoUrl(id, i); if(!u) return showToast('Fotoğraf açılamadı', 'error');
+  const bg = document.createElement('div'); bg.className = 'modal-bg'; bg.id = 'rvPhotoBg';
+  bg.innerHTML = `<div class="rvw-big"><img src="${u}" alt="Müşteri fotoğrafı"><button type="button" class="ap-x" ${act('removeEl', 'rvPhotoBg')}>✕</button></div>`;
+  document.body.appendChild(bg);
 }
 function setReviewFilter(k){ APP.reviewFilter = k; renderReviewsBody(); }
 
@@ -497,7 +519,8 @@ function drawWinback(){
     <div class="wb-list">${rows.map(r => `<label class="wb-row"><input type="checkbox" ${W.sel[r.id] ? 'checked' : ''} ${actOn('change','wbToggle',[r.id,'$checked'])}>
       <span class="wb-n"><b>${escapeHtml(r.name || '—')}</b><small>${r.phone ? escapeHtml(maskPhone(r.phone)) : ''}${r.has_email ? ' · ✉️' : ''}</small></span>
       <span class="wb-m"><small>Son geliş</small>${ago(r.last_visit_at)}</span><span class="wb-m"><small>${r.total_visits} ziyaret</small>${money(r.total_spent || 0)}</span>
-      ${r.last_contact ? `<span class="pchip" title="Son kampanya">📨 ${ago(r.last_contact)}</span>` : ''}</label>`).join('') || '<p class="muted">Bu aralıkta müşteri yok.</p>'}</div>
+      ${r.marketing_consent ? '<span class="pchip" title="Kampanya SMS onayı verdi">✅ Onaylı</span>' : ''}${r.last_contact ? `<span class="pchip" title="Son kampanya">📨 ${ago(r.last_contact)}</span>` : ''}</label>`).join('') || '<p class="muted">Bu aralıkta müşteri yok.</p>'}</div>
+    <p class="muted u-fs12">Kampanya iznini reddeden müşteriler bu listede gösterilmez ve onlara mesaj gönderilmez. Kendi eklediğiniz müşteriler için kampanya onayını almak işletmenin sorumluluğundadır.</p>
     <div class="wb-compose"><label>Mesaj <small class="muted">({ad} = müşterinin adı, {isletme} = işletme adı)</small></label>
       <textarea id="wbText" rows="3" maxlength="320">${escapeHtml(prevText != null ? prevText : WINBACK_DEFAULT)}</textarea>
       <div class="wb-send"><div class="seg">${[['sms','📱 SMS'],['mail','✉️ E-posta'],['both','İkisi de']].map(([k, l]) => `<button type="button" class="${W.channel === k ? 'on' : ''}" ${act('wbChannel', k)}>${l}</button>`).join('')}</div>

@@ -3,7 +3,7 @@
    ve dışa aktarma. Veriler tek RPC'den (get_analytics_bundle) gelir ve tarih aralığı
    değişene kadar sekmeler arasında önbellekte tutulur. Klasik <script src>. */
 const AN_TABS = [
-  ['cockpit','🧭','Kokpit'], ['menueng','⭐','Menü Mühendisliği'], ['tablemap','🗺️','Masa Haritası'], ['heat','🔥','Yoğunluk'],
+  ['cockpit','🧭','Kokpit'], ['menueng','🎯','Menü Mühendisliği'], ['tablemap','🗺️','Masa Haritası'], ['heat','🔥','Yoğunluk'],
   ['channels','🛵','Satış Kanalları'], ['speed','⚡','Hizmet Hızı'],
   ['stockf','📦','Stok Tahmini'], ['zreport','🧾','Gün Sonu'], ['dayclose','📅','Gün Sonu Kapanışları'], ['waiters','🏅','Garson Kartları'], ['journey','🔁','Müşteri Yolculuğu']
 ];
