@@ -1167,7 +1167,7 @@ function renderProductsSettings(el, session){
       <div class="os-chip os-click ${pf==='nocost'?'on':''}" role="button" title="Listeyi filtrele" ${act('setProdFilter', 'nocost')} style="--oc:#ef4444;"><span class="os-ic">💸</span><div><b>${products.filter(p => !(Number(p.cost) > 0)).length}</b><small>Maliyet girilmemiş</small></div></div>
     </div>
     ${products.some(p => p.recipe && p.recipe.length) ? `<div class="rc-bar"><span>🧮 Reçeteli ürünlerin maliyetini hammadde fiyatlarından otomatik hesaplayın.</span><button type="button" class="pc-btn" ${act('openRecipeCostCalc')}>Reçeteden maliyet hesapla</button></div>` : ''}
-    <label class="nc-toggle"><input type="checkbox" ${APP.config.close_no_cost !== false ? 'checked' : ''} ${actOn('change','toggleCloseNoCost',['$checked'])}> 💸 Maliyeti girilmemiş ürünler satışa <b>kapalı</b> gelsin <small class="muted">(istediğiniz ürünü yine "Satışa Aç" ile açabilirsiniz)</small></label>
+    <label class="sc-toggle"><span class="oo-switch"><input type="checkbox" ${APP.config.close_no_cost !== false ? 'checked' : ''} ${actOn('change','toggleCloseNoCost',['$checked', '$this'])}><span class="oo-track"><span class="oo-thumb"></span></span><em>${APP.config.close_no_cost !== false ? 'Açık' : 'Kapalı'}</em></span><span>💸 Maliyeti girilmemiş ürünler satışa <b>kapalı</b> gelsin <small class="muted">(istediğiniz ürünü yine "Satışa Aç" ile açabilirsiniz)</small></span></label>
     <label class="sc-toggle" title="Kapalıyken satışa kapattığınız ürünler Sipariş Al ve Paket Servis ürün listesinde hiç görünmez"><span class="oo-switch"><input type="checkbox" ${APP.config.order_show_closed !== false ? 'checked' : ''} ${actOn('change','toggleOrderShowClosed',['$checked', '$this'])}><span class="oo-track"><span class="oo-thumb"></span></span><em>${APP.config.order_show_closed !== false ? 'Açık' : 'Kapalı'}</em></span><span>⛔ Satışa kapalı ürünler <b>Sipariş Al</b> ekranında görünsün <small class="muted">(kapalıyken listeden tamamen gizlenir)</small></span></label>
     ${pf!=='all' ? `<div class="pf-note">🔎 <b>${{on:'Satıştaki',off:'Kapalı',low:'Stoğu azalan',lowmargin:'Düşük marjlı',nocost:'Maliyeti girilmemiş'}[pf]} ürünler</b> gösteriliyor (${shown.length})<button type="button" class="pc-btn" ${act('setProdFilter', 'all')}>✕ Tümünü göster</button></div>` : ''}
     ${pf!=='all' && !shown.length ? '<div class="empty-state"><div style="font-size:38px;">🎉</div><p class="muted">Bu filtrede ürün yok.</p></div>' : ''}
@@ -1482,15 +1482,16 @@ function noCostWarn(name, cost){
   if(Number(cost) > 0) return;
   showToast(APP.config.close_no_cost !== false ? `⚠️ ${name}: maliyet girilmedi — ürün satışa kapalı geldi. Maliyeti girin ya da "Satışa Aç" ile açın.` : `⚠️ ${name}: maliyet girilmedi — kâr analizleri yanıltıcı olur.`, 7000);
 }
+/* Açma/kapama düğmesinin yanındaki "Açık/Kapalı" yazısını günceller. */
+function switchLabel(el, on){ const em = el && el.closest('.oo-switch') && el.closest('.oo-switch').querySelector('em'); if(em) em.textContent = on ? 'Açık' : 'Kapalı'; }
 async function toggleOrderShowClosed(on, el){
   const { error } = await sb.rpc('set_order_show_closed', { p_token: getSession().session_token, p_on: on });
   if(error){ if(el) el.checked = !on; alert(error.message); return; }
-  APP.config.order_show_closed = on;
-  const em = el && el.closest('.oo-switch') && el.closest('.oo-switch').querySelector('em'); if(em) em.textContent = on ? 'Açık' : 'Kapalı';
+  APP.config.order_show_closed = on; switchLabel(el, on);
   showToast(on ? 'Satışa kapalı ürünler Sipariş Al ekranında görünecek' : 'Satışa kapalı ürünler Sipariş Al ekranında gizlenecek');
 }
-async function toggleCloseNoCost(on){
+async function toggleCloseNoCost(on, el){
   const { error } = await sb.rpc('set_close_no_cost', { p_token: getSession().session_token, p_on: on });
-  if(error){ alert(error.message); return; }
-  APP.config.close_no_cost = on; showToast(on ? 'Maliyeti girilmemiş yeni ürünler satışa kapalı gelecek' : 'Maliyet kontrolü kapatıldı');
+  if(error){ if(el) el.checked = !on; alert(error.message); return; }
+  APP.config.close_no_cost = on; switchLabel(el, on); showToast(on ? 'Maliyeti girilmemiş yeni ürünler satışa kapalı gelecek' : 'Maliyet kontrolü kapatıldı');
 }
