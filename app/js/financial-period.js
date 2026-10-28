@@ -110,13 +110,15 @@ async function renderPurchaseReportContent(session){
   const recv = live.reduce((t, p) => t + (Number(p.received_amount)||0), 0);
   const needPrice = (p) => p.status!=='draft' && p.status!=='cancelled' && (p.items||[]).some(i => !(Number(i.unit_cost)>0));
   const needRecv = (p) => p.status==='ordered';
-  const cnt = { all: rows.length, price: rows.filter(needPrice).length, recv: rows.filter(needRecv).length, done: rows.filter(p => p.status==='received' && !needPrice(p)).length };
+  const needSup = (p) => p.status!=='draft' && p.status!=='cancelled' && !p.supplier_id;
+  const isDone = (p) => p.status==='received' && !needPrice(p) && !needSup(p);
+  const cnt = { all: rows.length, sup: rows.filter(needSup).length, price: rows.filter(needPrice).length, recv: rows.filter(needRecv).length, done: rows.filter(isDone).length };
   const flt = APP.procFilter || 'all';
-  const shown = rows.filter(p => flt==='price' ? needPrice(p) : flt==='recv' ? needRecv(p) : flt==='done' ? (p.status==='received' && !needPrice(p)) : true);
+  const shown = rows.filter(p => flt==='sup' ? needSup(p) : flt==='price' ? needPrice(p) : flt==='recv' ? needRecv(p) : flt==='done' ? isDone(p) : true);
   const bySup = {};
   live.forEach(p => { const k = p.supplier_name || 'Tedarikçisiz'; bySup[k] = (bySup[k]||0) + (Number(p.total_amount)||0); });
   const statusOf = (p) => typeof poStatusBadge==='function' ? poStatusBadge(Object.assign({}, p, { ordered_total: (p.items||[]).reduce((t,i)=>t+Number(i.quantity||0),0), received_total: (p.items||[]).reduce((t,i)=>t+Math.min(Number(i.received||0),Number(i.quantity||0)),0) })) : escapeHtml(p.status);
-  const CHIP_C = { all:'var(--accent)', price:'var(--red)', recv:'#f59e0b', done:'var(--green)' };
+  const CHIP_C = { all:'var(--accent)', sup:'#fb923c', price:'var(--red)', recv:'#f59e0b', done:'var(--green)' };
   const chip = (k, l) => `<button type="button" class="pc-chip${flt===k?' active':''}" style="--cc:${CHIP_C[k]};" ${act('setProcFilter', k)}>${l}<span>${cnt[k]}</span></button>`;
   const card = (p, idx) => {
     const tone = needPrice(p) ? 'var(--danger,#ef4444)' : needRecv(p) ? '#f59e0b' : p.status==='received' ? 'var(--ok,#22c55e)' : 'var(--muted)';
@@ -151,7 +153,7 @@ async function renderPurchaseReportContent(session){
     </div>
     <div class="pc-layout">
       <div>
-        <div class="pc-chips">${chip('all','Tümü')}${chip('price','Fiyat bekleyen')}${chip('recv','Teslim bekleyen')}${chip('done','Tamamlanan')}</div>
+        <div class="pc-chips">${chip('all','Tümü')}${chip('sup','Tedarikçi bekleyen')}${chip('price','Fiyat bekleyen')}${chip('recv','Teslim bekleyen')}${chip('done','Tamamlanan')}</div>
         ${shown.length ? `<div class="pc2-grid">${shown.map((p, i) => card(p, i)).join('')}</div>` : '<div class="fs-panel"><p class="u-m0 muted">Bu filtrede sipariş yok.</p></div>'}
       </div>
       <div class="fs-panel pc-side" style="--t:#a78bfa;"><h3><i>🚚</i>Tedarikçiye Göre</h3>
