@@ -349,6 +349,9 @@ async function renderIntegrationsSettings(el, session){
     return `<button type="button" class="int-row ${APP.integrationsSubTab===id?'active':''} st-${k}" data-int-tab="${id}" ${act('setIntegrationsSubTab', id)}>
       <span class="int-ic">${t.ic}</span><span class="int-txt"><b>${t.label}</b><small>${INT_DESC[id]||''}</small></span><span class="int-st" title="${l}">${k==='lock' ? '🔒' : k==='ok' ? '● Aktif' : '○ Kapalı'}</span></button>`; }).join('')}</div></div>`).join('');
   el.insertBefore(bar, el.firstChild);
+  // Ortak bağlantı altyapısı (bkz. integration-hub.js): ÖKC / e-Fatura ve Pazaryeri sekmelerinin başında.
+  [['efatura','cxOkc','okc'],['marketplace','cxMp','marketplace']].forEach(([pane, id, kind]) => { const b = boxes.find(x => x.dataset.int === pane); if(!b || typeof renderConnectors !== 'function') return;
+    const d = document.createElement('div'); d.id = id; d.className = 'cx-box'; const h = b.querySelector('h2'); h ? h.after(d) : b.prepend(d); renderConnectors(kind); });
   showIntegrationPane();
   renderTenantIntegrations(session);
 }

@@ -3678,3 +3678,19 @@ button.sl-stat{border:1px solid var(--border) !important;} button.sl-stat.on{bor
 .u-mbb10{margin-bottom:10px !important;}
 .u-row-sb{display:flex !important;justify-content:space-between !important;align-items:center !important;}
 .u-accent{color:var(--accent) !important;}
+/* Ortak entegrasyon bağlantıları */
+.cx-box{margin-bottom:14px;padding-bottom:12px;border-bottom:1px solid rgba(127,127,127,.18)}
+.cx-tile.cx-soon{opacity:.6}
+.cx-on{color:#16a34a;font-weight:600}
+.cx-sw{display:flex;gap:8px;align-items:center;margin-bottom:10px}
+.cx-url{margin:10px 0}.cx-url div{display:flex;gap:6px}.cx-url input{flex:1;margin:0;font-size:12px}.cx-url button{width:auto;margin:0}
+.cx-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}.cx-actions button{width:auto;margin:0}
+.cx-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;margin:12px 0}
+.cx-stat{display:block;text-align:left;margin:0;width:auto;padding:10px 12px;border-radius:12px;background:rgba(127,127,127,.07);border:1px solid rgba(127,127,127,.15);color:var(--text);cursor:pointer}
+.cx-stat b{display:block;font-size:19px}.cx-stat small{color:var(--muted);font-size:12px}
+.cx-stat.cx-bad{border-color:rgba(220,38,38,.5)}.cx-stat.cx-bad b{color:var(--red)}
+.cx-last{cursor:default}.cx-last b{font-size:14px}
+.cx-err{color:var(--red);font-size:12.5px}
+.cx-jobs{margin-top:6px}.cx-jh{display:flex;gap:8px;align-items:center;margin-bottom:6px}.cx-jh button{width:auto;margin:0 0 0 auto;padding:4px 10px}
+.cx-job{display:flex;gap:10px;align-items:center;padding:8px 0;border-top:1px solid rgba(127,127,127,.12);font-size:13px}
+.cx-job>span:nth-child(2){flex:1}.cx-job small{display:block;color:var(--muted);font-size:11.5px}.cx-job button{width:auto;margin:0;padding:4px 10px}
