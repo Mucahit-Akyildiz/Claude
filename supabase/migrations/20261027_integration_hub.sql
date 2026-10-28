@@ -68,7 +68,8 @@ returns boolean language plpgsql security definer set search_path to 'public','p
 declare s staff_sessions%rowtype;
 begin
   s := _session_check(p_token, 'settings_flags');
-  delete from tenant_connectors where id = p_id and restaurant_id = s.restaurant_id;
+  -- Kaldırma: bağlantı kapatılır, sırları ve ayarları temizlenir (iş geçmişi denetim için kalır).
+  update tenant_connectors set enabled = false, secret_enc = null, config = '{}', last_error = null, updated_at = now() where id = p_id and restaurant_id = s.restaurant_id;
   return found;
 end $f$;
 
@@ -119,8 +120,7 @@ begin
   end loop;
   return new;
 end $f$;
-drop trigger if exists trg_enqueue_okc_sale on sales_history;
-create trigger trg_enqueue_okc_sale after insert on sales_history for each row execute function _trg_enqueue_okc_sale();
+create or replace trigger trg_enqueue_okc_sale after insert on sales_history for each row execute function _trg_enqueue_okc_sale();
 
 -- İşçi (service_role): bekleyen işleri kilitleyip sırlarıyla birlikte alır.
 create or replace function _claim_integration_jobs(p_limit int default 20)
@@ -195,3 +195,46 @@ revoke all on function _trg_enqueue_okc_sale(), _claim_integration_jobs(int), _f
   _connector_by_inbound(uuid), _cron_integration_worker() from public, anon, authenticated;
 grant execute on function _claim_integration_jobs(int), _finish_integration_job(uuid,boolean,jsonb,text,boolean), _ingest_marketplace_order(uuid,jsonb), _connector_by_inbound(uuid) to service_role;
 select cron.schedule('integration-worker', '* * * * *', 'select _cron_integration_worker()');
+
+-- ---- Düzeltmeler ----
+-- Satış satırı kalemler "ödendi" işaretlenmeden önce yazılabildiği için fiş kalemleri iş alınırken (işçi anında) tamamlanır.
+create or replace function _sale_receipt_items(p_sale uuid) returns jsonb language sql stable security definer set search_path to 'public','pg_temp' as $f$
+  select coalesce(jsonb_agg(jsonb_build_object('name', i.name, 'qty', i.qty, 'price', i.price, 'vat', coalesce(i.vat_rate, 10))), '[]')
+  from sales_history h join order_items i on i.order_id = h.order_id
+  where h.id = p_sale and i.paid and i.paid_at between h.closed_at - interval '5 seconds' and h.closed_at + interval '5 seconds' $f$;
+revoke all on function _sale_receipt_items(uuid) from public, anon, authenticated;
+create or replace function _claim_integration_jobs(p_limit int default 20)
+returns json language plpgsql security definer set search_path to 'public','pg_temp' as $f$
+declare v json; v_ids uuid[];
+begin
+  update integration_jobs set status = 'pending' where status = 'processing' and next_at < now() - interval '5 minutes';
+  with picked as (
+    select j.id from integration_jobs j where j.status = 'pending' and j.next_at <= now() order by j.next_at limit p_limit for update skip locked),
+  upd as (update integration_jobs j set status = 'processing', attempts = j.attempts + 1, next_at = now() from picked where j.id = picked.id returning j.id)
+  select array_agg(id) into v_ids from upd;
+  update integration_jobs set payload = payload || jsonb_build_object('items', _sale_receipt_items(ref_id))
+    where id = any(coalesce(v_ids, '{}')) and event = 'sale' and ref_id is not null and jsonb_array_length(coalesce(payload->'items','[]')) = 0;
+  select coalesce(json_agg(json_build_object('id', j.id, 'event', j.event, 'payload', j.payload, 'attempts', j.attempts, 'restaurant_id', j.restaurant_id,
+      'connector', json_build_object('id', c.id, 'kind', c.kind, 'provider', c.provider, 'mode', c.mode, 'config', c.config,
+        'secrets', coalesce(nullif(_dec(c.secret_enc),'')::json, '{}'::json)))), '[]') into v
+    from integration_jobs j join tenant_connectors c on c.id = j.connector_id where j.id = any(coalesce(v_ids, '{}'));
+  return v;
+end $f$;
+
+-- Ödenmemiş siparişte payment_status 'unpaid' (sütun NOT NULL), paid_amount yalnızca ödenmişte.
+create or replace function _ingest_marketplace_order(p_connector uuid, p_order jsonb)
+returns uuid language plpgsql security definer set search_path to 'public','pg_temp' as $f$
+declare c tenant_connectors%rowtype; v uuid;
+begin
+  select * into c from tenant_connectors where id = p_connector and kind = 'marketplace' and enabled;
+  if c.id is null then raise exception 'Bağlantı kapalı'; end if;
+  insert into customer_order_requests(restaurant_id, customer_name, customer_phone, delivery_address, items, status, order_type, source, external_id, payment_status, paid_amount)
+  values (c.restaurant_id, left(coalesce(p_order->>'customer_name','Pazaryeri müşterisi'), 120), left(p_order->>'customer_phone', 30), left(p_order->>'address', 400),
+    coalesce(p_order->'items','[]'), 'pending', coalesce(nullif(p_order->>'order_type',''), 'delivery'), c.provider, left(p_order->>'external_id', 120),
+    case when coalesce((p_order->>'paid')::boolean, false) then 'paid' else 'unpaid' end,
+    case when coalesce((p_order->>'paid')::boolean, false) then nullif(p_order->>'total','')::numeric end)
+  on conflict (restaurant_id, source, external_id) where external_id is not null do nothing
+  returning id into v;
+  update tenant_connectors set last_ok_at = now() where id = c.id;
+  return v;
+end $f$;

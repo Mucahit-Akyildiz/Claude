@@ -294,6 +294,44 @@ begin
   exception when others then insert into _results values ('vardiya_plani', false, sqlerrm); end;
 end $e2e$;
 
+-- ---- 21-22) Entegrasyon altyapısı: ÖKC fiş kuyruğu (satış → iş → işçi → sonuç) ve pazaryeri siparişi (tekrar düşmez) ----
+do $hub$
+declare r uuid; z uuid; t uuid; mgr uuid; role_mgr uuid; p1 uuid; tok uuid := gen_random_uuid(); o uuid; cid uuid; mid uuid; jobs json; jid uuid; n int; a uuid; b uuid;
+  code text := 'H' || substr(md5(random()::text), 1, 8);
+begin
+  insert into restaurants (name, code, package_id, is_active, expires_at) values ('CI Hub', code, 'paket_kurumsal', true, now() + interval '30 days') returning id into r;
+  insert into roles (restaurant_id, name, is_system, permissions) values (r, 'Yönetici', true, '{}') returning id into role_mgr;
+  insert into app_users (restaurant_id, username, password, role_ids) values (r, 'mgr', crypt('Test1234', gen_salt('bf')), array[role_mgr]) returning id into mgr;
+  insert into staff_sessions (token, user_id, restaurant_id, username, expires_at) values (tok, mgr, r, 'mgr', now() + interval '1 hour');
+  insert into zones (restaurant_id, name) values (r, 'Salon') returning id into z;
+  insert into restaurant_tables (restaurant_id, zone_id, name) values (r, z, 'H1') returning id into t;
+  insert into products (restaurant_id, name, price, cost, available) values (r, 'Ayran', 30, 5, true) returning id into p1;
+  begin
+    cid := save_connector(tok, 'okc', 'test', true, 'test', '{}'::jsonb, '{"api_key":"gizli1"}'::jsonb);
+    perform save_connector(tok, 'okc', 'test', true, 'test', '{}'::jsonb, '{"api_key":""}'::jsonb);  -- boş sır eskisini korur
+    perform send_order(tok, t, json_build_array(json_build_object('product_id', p1, 'name', 'Ayran', 'qty', 2)));
+    select id into o from orders where table_id = t and status = 'open';
+    perform pay_order_items(tok, o, 'cash', 60, 0);
+    update integration_jobs set next_at = now() - interval '1 second' where connector_id = cid;
+    jobs := _claim_integration_jobs(200);
+    select json_agg(x) into jobs from json_array_elements(jobs) x where x->'connector'->>'id' = cid::text;  -- canlıda başka işler de olabilir
+    jid := (jobs->0->>'id')::uuid;
+    perform _finish_integration_job(jid, true, '{"ref":"SIM-1"}'::jsonb, null, true);
+    insert into _results values ('entegrasyon_okc_kuyrugu', json_array_length(jobs) = 1 and jobs->0->>'event' = 'sale' and (jobs->0->'payload'->>'total')::numeric = 60
+      and jobs->0->'connector'->'secrets'->>'api_key' = 'gizli1' and json_array_length(jobs->0->'payload'->'items') = 1
+      and (select status from integration_jobs where id = jid) = 'done', left(jobs::text, 160));
+  exception when others then insert into _results values ('entegrasyon_okc_kuyrugu', false, sqlerrm); end;
+  begin
+    mid := save_connector(tok, 'marketplace', 'test', true, 'test', '{}'::jsonb, null);
+    a := _ingest_marketplace_order(mid, '{"external_id":"X1","customer_name":"Test","total":90,"items":[{"name":"Ayran","qty":3,"price":30}]}'::jsonb);
+    b := _ingest_marketplace_order(mid, '{"external_id":"X1","customer_name":"Test","total":90,"items":[{"name":"Ayran","qty":3,"price":30}]}'::jsonb);
+    select count(*) into n from customer_order_requests where restaurant_id = r and source = 'test';
+    perform remove_connector(tok, mid);
+    insert into _results values ('entegrasyon_pazaryeri', a is not null and b is null and n = 1
+      and not (select enabled from tenant_connectors where id = mid) and json_array_length(list_connectors(tok)) = 2, 'kayit: ' || n);
+  exception when others then insert into _results values ('entegrasyon_pazaryeri', false, sqlerrm); end;
+end $hub$;
+
 -- ---- 13) Herkese açık anahtar (anon) iç fonksiyonları ve abonelik uzatmayı çağıramaz ----
 do $sec$
 declare v_open text;
@@ -313,7 +351,7 @@ declare f text;
 begin
   select string_agg(name || ' (' || coalesce(detail,'') || ')', '; ') into f from _results where not ok;
   if f is not null then raise exception 'BAŞARISIZ TESTLER: %', f; end if;
-  if (select count(*) from _results) < 25 then raise exception 'Beklenenden az test çalıştı: %', (select count(*) from _results); end if;
+  if (select count(*) from _results) < 27 then raise exception 'Beklenenden az test çalıştı: %', (select count(*) from _results); end if;
 end $check$;
 
 rollback;
