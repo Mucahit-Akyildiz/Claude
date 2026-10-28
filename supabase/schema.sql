@@ -7558,9 +7558,9 @@ begin
                   where w.restaurant_id = v_rid and w.sent_at > now() - interval '90 days' and c.last_visit_at > w.sent_at),
     'contacted', (select count(distinct customer_id) from winback_log where restaurant_id = v_rid and sent_at > now() - interval '90 days'),
     'rows', (select coalesce(jsonb_agg(to_jsonb(r) order by r.total_spent desc nulls last), '[]'::jsonb) from (
-        select c.id, c.name, c.phone, c.email is not null and c.email <> '' has_email, c.total_visits, c.total_spent, c.last_visit_at,
+        select c.id, c.name, c.phone, c.email is not null and c.email <> '' has_email, c.total_visits, c.total_spent, c.last_visit_at, c.marketing_consent,
                (select max(sent_at) from winback_log w where w.customer_id = c.id) last_contact
-          from customers c where c.restaurant_id = v_rid and coalesce(c.total_visits,0) > 0 and c.last_visit_at < now() - make_interval(days => d)
+          from customers c where c.restaurant_id = v_rid and coalesce(c.total_visits,0) > 0 and c.marketing_consent is not false and c.last_visit_at < now() - make_interval(days => d)
           limit 500) r));
 end $$;
 
@@ -9950,6 +9950,40 @@ end $_$;
 
 
 --
+-- Name: save_review_contact(uuid, text, text, boolean); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.save_review_contact(p_review_token uuid, p_name text, p_phone text, p_consent boolean DEFAULT false) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+declare rv reviews%rowtype; v_phone text := right(regexp_replace(coalesce(p_phone,''), '\D', '', 'g'), 10); v_name text := nullif(left(trim(coalesce(p_name,'')), 80), ''); v_cid uuid;
+begin
+  if v_phone <> '' and (length(v_phone) <> 10 or left(v_phone, 1) <> '5') then raise exception 'Telefon numarası geçersiz (5xx xxx xx xx)'; end if;
+  select * into rv from reviews where token = p_review_token and rating is not null and rated_at > now() - interval '30 minutes' for update;
+  if rv.id is null then return false; end if;
+  if v_phone <> '' then
+    select id into v_cid from customers where restaurant_id = rv.restaurant_id and right(regexp_replace(coalesce(phone,''), '\D', '', 'g'), 10) = v_phone order by created_at limit 1;
+    if v_cid is null then
+      insert into customers(restaurant_id, name, phone, notes, marketing_consent, consent_at, consent_source)
+        values (rv.restaurant_id, coalesce(v_name, 'Müşteri'), '0' || v_phone, 'Değerlendirme formundan eklendi', coalesce(p_consent, false),
+                case when p_consent then now() end, case when p_consent then 'review' end)
+        returning id into v_cid;
+    else
+      update customers set name = case when coalesce(name,'') = '' or name = 'Müşteri' then coalesce(v_name, name) else name end,
+        marketing_consent = case when p_consent then true else marketing_consent end,
+        consent_at = case when p_consent then now() else consent_at end, consent_source = case when p_consent then 'review' else consent_source end
+       where id = v_cid;
+    end if;
+  end if;
+  update reviews set contact_name = v_name, contact_phone = nullif(v_phone, ''), callback = (v_phone <> ''),
+    customer_id = coalesce(rv.customer_id, v_cid), seen = case when v_phone <> '' then false else seen end
+   where id = rv.id;
+  return true;
+end $$;
+
+
+--
 -- Name: save_tenant_integration(uuid, text, jsonb); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -10522,7 +10556,7 @@ begin
   if array_length(p_ids,1) > 500 then raise exception 'Tek seferde en fazla 500 müşteri'; end if;
   if length(trim(coalesce(p_text,''))) < 5 then raise exception 'Mesaj metni girin'; end if;
   select name into v_name from restaurants where id = v_rid;
-  for c in select * from customers where restaurant_id = v_rid and id = any(p_ids) loop
+  for c in select * from customers where restaurant_id = v_rid and id = any(p_ids) and marketing_consent is not false loop
     -- Aynı müşteriye 14 gün içinde ikinci kampanya gönderilmez (rahatsız etmemek için).
     if exists(select 1 from winback_log where customer_id = c.id and sent_at > now() - interval '14 days') then n_skip := n_skip + 1; continue; end if;
     v_msg := replace(replace(p_text, '{ad}', coalesce(split_part(c.name, ' ', 1), '')), '{isletme}', coalesce(v_name, ''));
@@ -13812,7 +13846,10 @@ CREATE TABLE public.customers (
     point_value numeric,
     birthday_discount_percent numeric,
     lifetime_points numeric DEFAULT 0 NOT NULL,
-    address text
+    address text,
+    marketing_consent boolean,
+    consent_at timestamp with time zone,
+    consent_source text
 );
 
 
