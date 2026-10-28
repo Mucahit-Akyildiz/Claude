@@ -25,11 +25,13 @@ function render(){
       <div class="stars">${[1,2,3,4,5].map(n => `<button type="button" class="star ${n <= STATE.rating ? 'on' : ''}" aria-label="${n} yıldız" ${act('pickStar', n)}>★</button>`).join('')}</div>
       <p class="label" id="rvLabel">${LABELS[STATE.rating] || 'Yıldızlara dokunun'}</p>
       <textarea id="rvComment" placeholder="${STATE.rating && STATE.rating <= 3 ? 'Neyi daha iyi yapabilirdik? (opsiyonel)' : 'Yorumunuz (opsiyonel)'}" maxlength="1000"></textarea>
-      <div class="ct-box">
-        <p class="ct-h">${STATE.rating && STATE.rating <= 3 ? '📞 Size dönüş yapalım mı?' : '📞 İletişim (isteğe bağlı)'}</p>
+      <div class="ct-box ${STATE.rating && STATE.rating <= 3 ? 'ct-low' : ''}">
+        <p class="ct-h">${STATE.rating && STATE.rating <= 3 ? '📞 Üzgünüz! Size dönüş yapalım mı?' : '📞 İletişim (isteğe bağlı)'}</p>
+        ${STATE.rating && STATE.rating <= 3 ? '<p class="ct-sub">Numaranızı bırakırsanız işletme yetkilisi sizi arayıp yaşadığınız sorunu dinlemek ister.</p>' : ''}
         <input id="rvName" maxlength="80" placeholder="Adınız" autocomplete="name">
         <input id="rvPhone" type="tel" inputmode="tel" maxlength="16" placeholder="Telefon (05xx xxx xx xx)" autocomplete="tel">
-        <small>Numaranızı yalnızca işletme, görüşünüzle ilgili size geri dönmek için kullanır.</small>
+        <label class="ct-ok"><input type="checkbox" id="rvConsent"> <span>Kampanya ve fırsatlardan SMS ile haberdar olmak istiyorum.</span></label>
+        <small>Numaranız görüşünüzle ilgili size dönüş yapmak için kullanılır; kampanya mesajı yalnızca yukarıdaki kutuyu işaretlerseniz gönderilir.</small>
       </div>
       <div class="ph-row" id="rvPhotos">${photosHtml()}</div>
       <p class="err" id="rvErr"></p>
@@ -67,17 +69,25 @@ async function uploadPhotos(){
 }
 function pickStar(n){
   const keep = {}; ['rvComment','rvName','rvPhone'].forEach(id => { const e = document.getElementById(id); if(e) keep[id] = e.value; });
+  const ok = (document.getElementById('rvConsent') || {}).checked;
   STATE.rating = n; render();
   Object.keys(keep).forEach(id => { const e = document.getElementById(id); if(e) e.value = keep[id]; });
+  if(ok) document.getElementById('rvConsent').checked = true;
+  if(n <= 3){ const b = document.querySelector('.ct-box'); if(b) b.scrollIntoView({ behavior:'smooth', block:'center' }); }
 }
 async function sendReview(){
   const btn = document.getElementById('rvSend'), err = document.getElementById('rvErr');
   if(!STATE.rating) return;
+  const phv = ((document.getElementById('rvPhone') || {}).value || '').replace(/\D/g, '').slice(-10);
+  if(phv && !/^5\d{9}$/.test(phv)){ err.textContent = 'Telefon numarasını 05xx xxx xx xx biçiminde girin.'; return; }
   btn.disabled = true; btn.textContent = 'Gönderiliyor...';
   const { data, error } = await sb.rpc('submit_public_review', { p_review_token: TOKEN, p_rating: STATE.rating, p_comment: document.getElementById('rvComment').value });
   if(error){ err.textContent = error.message; btn.disabled = false; btn.textContent = 'Gönder'; return; }
   const nm = (document.getElementById('rvName') || {}).value || '', ph = (document.getElementById('rvPhone') || {}).value || '';
-  if(nm.trim() || ph.trim()) await sb.rpc('set_review_contact', { p_review_token: TOKEN, p_name: nm, p_phone: ph });
+  if(nm.trim() || ph.trim()){
+    const { error: cErr } = await sb.rpc('save_review_contact', { p_review_token: TOKEN, p_name: nm, p_phone: ph, p_consent: !!(document.getElementById('rvConsent') || {}).checked });
+    if(cErr) alert(cErr.message + ' — değerlendirmeniz alındı, iletişim bilgisi kaydedilemedi.');
+  }
   if(STATE.photos.length){ btn.textContent = 'Fotoğraflar yükleniyor...'; const f = await uploadPhotos(); if(f) alert(f + ' fotoğraf yüklenemedi; değerlendirmeniz yine de alındı.'); }
   setApp(STATE.rating >= 4 ? stateHtml('🤩', 'Çok teşekkürler!', 'Bizi tercih ettiğiniz için mutluyuz. Deneyiminizi Google\'da da paylaşırsanız çok seviniriz.', googleBtn(data && data.google_url))
     : stateHtml('🙏', 'Teşekkürler', 'Geri bildiriminiz işletme yönetimine iletildi. Bir dahaki ziyaretinizde daha iyisini yapacağız. Dilerseniz görüşünüzü Google\'da da paylaşabilirsiniz.', googleBtn(data && data.google_url).replace('⭐ Google\'da da paylaşır mısınız?', 'Google\'da değerlendir')));

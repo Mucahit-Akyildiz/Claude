@@ -519,7 +519,8 @@ function drawWinback(){
     <div class="wb-list">${rows.map(r => `<label class="wb-row"><input type="checkbox" ${W.sel[r.id] ? 'checked' : ''} ${actOn('change','wbToggle',[r.id,'$checked'])}>
       <span class="wb-n"><b>${escapeHtml(r.name || '—')}</b><small>${r.phone ? escapeHtml(maskPhone(r.phone)) : ''}${r.has_email ? ' · ✉️' : ''}</small></span>
       <span class="wb-m"><small>Son geliş</small>${ago(r.last_visit_at)}</span><span class="wb-m"><small>${r.total_visits} ziyaret</small>${money(r.total_spent || 0)}</span>
-      ${r.last_contact ? `<span class="pchip" title="Son kampanya">📨 ${ago(r.last_contact)}</span>` : ''}</label>`).join('') || '<p class="muted">Bu aralıkta müşteri yok.</p>'}</div>
+      ${r.marketing_consent ? '<span class="pchip" title="Kampanya SMS onayı verdi">✅ Onaylı</span>' : ''}${r.last_contact ? `<span class="pchip" title="Son kampanya">📨 ${ago(r.last_contact)}</span>` : ''}</label>`).join('') || '<p class="muted">Bu aralıkta müşteri yok.</p>'}</div>
+    <p class="muted u-fs12">Kampanya iznini reddeden müşteriler bu listede gösterilmez ve onlara mesaj gönderilmez. Kendi eklediğiniz müşteriler için kampanya onayını almak işletmenin sorumluluğundadır.</p>
     <div class="wb-compose"><label>Mesaj <small class="muted">({ad} = müşterinin adı, {isletme} = işletme adı)</small></label>
       <textarea id="wbText" rows="3" maxlength="320">${escapeHtml(prevText != null ? prevText : WINBACK_DEFAULT)}</textarea>
       <div class="wb-send"><div class="seg">${[['sms','📱 SMS'],['mail','✉️ E-posta'],['both','İkisi de']].map(([k, l]) => `<button type="button" class="${W.channel === k ? 'on' : ''}" ${act('wbChannel', k)}>${l}</button>`).join('')}</div>

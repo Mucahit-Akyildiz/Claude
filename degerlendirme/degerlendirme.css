@@ -28,3 +28,7 @@ textarea:focus{outline:none;border-color:var(--accent);}
 .ct-box input{width:100%;font-family:inherit;font-size:15px;padding:11px 14px;border-radius:12px;border:1.5px solid var(--border);background:var(--panel);color:var(--text);margin:0 0 8px;}
 .ct-box input:focus{outline:none;border-color:var(--accent);}
 .ct-box small{display:block;color:var(--muted);font-size:12px;line-height:1.4;}
+.ct-low{background:color-mix(in srgb,#f59e0b 12%,var(--panel));border:1.5px solid color-mix(in srgb,#f59e0b 55%,transparent);border-radius:16px;padding:14px;}
+.ct-sub{margin:-4px 0 10px;color:var(--muted);font-size:13px;line-height:1.45;}
+.ct-ok{display:flex;gap:8px;align-items:flex-start;font-size:13px;margin:2px 0 8px;cursor:pointer;}
+.ct-ok input{width:auto;margin:2px 0 0;accent-color:var(--accent);}
