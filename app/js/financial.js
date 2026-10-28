@@ -784,7 +784,7 @@ async function renderTipPoolContent(session){
 async function renderProcurementView(main, session){
   if(!APP.procFrom){ const d = new Date(); d.setDate(d.getDate()-29); APP.procFrom = d.toISOString().slice(0,10); }
   if(!APP.procTo) APP.procTo = todayLocalDateStr();
-  main.innerHTML = `<h1>Gelen Malzeme &amp; Fiyat</h1><p class="muted page-sub">Tedarikçiden sipariş ettiğiniz malzemeler burada. Malzeme restorana gelince <b>📦 Teslim Al</b> deyin, gelen miktar stoğa eklenir. Tedarikçiyi seçin ve birim fiyatı girin. Yeni malzeme siparişi için <b>Malzeme Siparişi Ver</b> menüsü.</p>
+  main.innerHTML = `<h1>Mal Kabul</h1><p class="muted page-sub">Tedarikçiden sipariş ettiğiniz malzemeler burada. Malzeme restorana gelince <b>📦 Teslim Al</b> deyin, gelen miktar stoğa eklenir. Tedarikçiyi seçin ve birim fiyatı girin. Yeni malzeme siparişi için <b>Malzeme Siparişi Ver</b> menüsü.</p>
     <div class="u-mwn box">
       <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
         <span class="u-nw muted">Tarih Aralığı</span>

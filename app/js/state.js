@@ -120,7 +120,7 @@ const NAV_ITEMS = [
   { view:'printerSettings', icon:'🖨️', label:'Yazıcı Ayarları' },
   { view:'notificationSettings', icon:'🔔', label:'Bildirimler' },
   { view:'payments', icon:'💳', label:'Ödemeler', perm:'payments' },
-  { view:'procurement', icon:'🧾', label:'Gelen Malzeme & Fiyat' },
+  { view:'procurement', icon:'📦', label:'Mal Kabul' },
   { view:'reports', icon:'📊', label:'Finansal Analiz' },
   { view:'messages', icon:'💬', label:'Mesajlar' },
   { view:'radio', icon:'📻', label:'Peyk Bas-Konuş' },

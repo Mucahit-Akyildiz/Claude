@@ -38,7 +38,7 @@ const HELP_TOPICS = [
   ]},
   { cat: 'Stok ve Tedarik', icon: '🚚', items: [
     { q: 'Stok ve reçete', view: 'settings', a: `Ürünün <b>Stok</b> alanı boşsa stok takibi yapılmaz. Reçete tanımlarsanız (Ayarlar → Ürünler → Reçete) satışta hammaddeler (Ayarlar → Hammaddeler) düşer; hammadde bitince ürün "Stok Yok" olur.` },
-    { q: 'Satın alma ve tedarikçiler', view: 'purchasing', a: `<b>Malzeme Siparişi Ver</b> menüsünde hammadde ve miktarı girip satınalma talebi oluşturun. Mal gelince <b>Gelen Malzeme &amp; Fiyat</b> menüsünden teslim alın; teslim alınan miktar hammadde stoğuna eklenir (kısmi teslim desteklenir). Birim fiyat ve tedarikçi de bu menüden girilir; tedarikçisi ya da fiyatı girilmemiş siparişler orada sayaçla görünür.` },
+    { q: 'Satın alma ve tedarikçiler', view: 'purchasing', a: `<b>Malzeme Siparişi Ver</b> menüsünde hammadde ve miktarı girip satınalma talebi oluşturun. Mal gelince <b>Mal Kabul</b> menüsünden teslim alın; teslim alınan miktar hammadde stoğuna eklenir (kısmi teslim desteklenir). Birim fiyat ve tedarikçi de bu menüden girilir; tedarikçisi ya da fiyatı girilmemiş siparişler orada sayaçla görünür.` },
   ]},
   { cat: 'Personel, Roller ve Mesajlar', icon: '🔐', items: [
     { q: 'Rol ve yetki nasıl verilir?', view: 'settings', a: `<b>Ayarlar → Roller</b>'de rol oluşturup hangi ekranlara erişeceğini seçin (Yönetim grubu: Roller, Abonelik, Finansal Analiz, Veri Sıfırlama, Destek Erişimi vb.; Veri Sıfırlama, Destek Erişimi ve Değişiklik Kaydı Ayarlar → Güvenlik altındadır). <b>Ayarlar → Kullanıcılar</b>'da kullanıcıya en fazla 2 rol verin. Yönetici rolü yalnızca işletme sahibindedir ve sahibin hesabını kimse değiştiremez.` },
