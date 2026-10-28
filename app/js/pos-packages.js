@@ -126,7 +126,8 @@ function renderProductPick(stationId, tableId){
   const el = document.getElementById('prodPick'); if(!el) return;
   // Tüm menülerin ürünleri tek listede (istasyondan bağımsız); menüler Ayarlar sırasıyla.
   stationId = '__all_menus';
-  const all = APP.config.products.slice();
+  // Satışa kapalı ürünler Ayarlar > Ürünler'deki "Kapalı ürünler Sipariş Al'da görünsün" ayarına göre gizlenir.
+  const all = APP.config.order_show_closed === false ? APP.config.products.filter(p => p.available!==false) : APP.config.products.slice();
   const used = new Set(all.map(p => p.category).filter(Boolean));
   const menuOrder = (APP.config.menus || []).map(m => m.name);
   const cats = [...menuOrder.filter(c => used.has(c)), ...[...used].filter(c => !menuOrder.includes(c))];
