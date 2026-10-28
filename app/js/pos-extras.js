@@ -376,3 +376,18 @@ function renderZoneTabs(){
   }).join('');
 }
 function selectZone(id){ APP.selectedZone = id; APP.orderStateFilter = null; renderZoneTabs(); renderTableGrid(); }
+
+/* ---- Uygulama içi mağaza değerlendirmesi (Android, Google Play In-App Review) ----
+   Bu cihazda 10 ödeme alındıktan sonra bir kez, sonra en erken 60 günde bir istenir. Pencereyi Google gösterir
+   (kotası doluysa hiç göstermeyebilir); kullanıcı mağazaya gitmeden puan verir. Web/masaüstünde çalışmaz. */
+function maybeAskStoreReview(){
+  try{
+    const RV = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.InAppReview;
+    if(!RV || !isNativeApp()) return;
+    const n = Number(localStorage.getItem('pk_rv_pays') || 0) + 1; localStorage.setItem('pk_rv_pays', String(n));
+    const last = Number(localStorage.getItem('pk_rv_asked') || 0);
+    if(n < 10 || Date.now() - last < 60 * 864e5) return;
+    localStorage.setItem('pk_rv_asked', String(Date.now()));
+    setTimeout(() => { RV.requestReview().catch(() => {}); }, 1500);
+  }catch(e){}
+}
