@@ -23,3 +23,8 @@ textarea:focus{outline:none;border-color:var(--accent);}
 .ph-x{position:absolute;top:3px;right:3px;width:22px;height:22px;border-radius:50%;border:0;background:rgba(0,0,0,.6);color:#fff;font-size:11px;cursor:pointer;padding:0;}
 .ph-add{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;cursor:pointer;border-style:dashed;font-size:22px;color:var(--muted);}
 .ph-add small{font-size:10.5px;font-weight:700;}
+.ct-box{text-align:left;margin:0 0 12px;}
+.ct-h{font-weight:800;font-size:14px;margin:0 0 8px;}
+.ct-box input{width:100%;font-family:inherit;font-size:15px;padding:11px 14px;border-radius:12px;border:1.5px solid var(--border);background:var(--panel);color:var(--text);margin:0 0 8px;}
+.ct-box input:focus{outline:none;border-color:var(--accent);}
+.ct-box small{display:block;color:var(--muted);font-size:12px;line-height:1.4;}
