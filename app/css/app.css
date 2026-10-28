@@ -3701,3 +3701,4 @@ button.sl-stat{border:1px solid var(--border) !important;} button.sl-stat.on{bor
 .rvw-big{position:relative;max-width:min(92vw,720px)}
 .rvw-big img{max-width:100%;max-height:84vh;border-radius:14px;display:block}
 .rvw-big .ap-x{position:absolute;top:8px;right:8px}
+.page-sub{text-align:left;margin:-6px 0 14px;font-size:13px;max-width:900px}

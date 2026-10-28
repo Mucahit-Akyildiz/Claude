@@ -784,7 +784,7 @@ async function renderTipPoolContent(session){
 async function renderProcurementView(main, session){
   if(!APP.procFrom){ const d = new Date(); d.setDate(d.getDate()-29); APP.procFrom = d.toISOString().slice(0,10); }
   if(!APP.procTo) APP.procTo = todayLocalDateStr();
-  main.innerHTML = `<h1>Satınalma</h1>
+  main.innerHTML = `<h1>Satınalma Fiyat &amp; Tedarikçi</h1><p class="muted page-sub">Verilen siparişlerin tedarikçisini seçin ve birim fiyatını girin; maliyet ve stok değeri buradan hesaplanır. Sipariş vermek ve teslim almak için <b>Sipariş Ver &amp; Teslim Al</b> menüsü.</p>
     <div class="u-mwn box">
       <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
         <span class="u-nw muted">Tarih Aralığı</span>

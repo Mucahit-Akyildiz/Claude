@@ -95,7 +95,7 @@ async function renderPurchaseReportContent(session){
   // Diğer ekranlar gibi soldaki kartlı menü (mobilde üstte şerit).
   host.innerHTML = `<div class="set-layout">
       <nav class="tabs settings-tabs set-nav" id="purchRepTabs">
-        <div class="tab set-item ${sub==='orders'?'active on':''}" style="--i:0;--sc:var(--c1);" data-tab="purchRepOrders" ${act('setPurchRepSub','orders')}><span class="set-ico">🧾</span><span class="set-txt"><b>Satınalma Siparişleri</b><small>Tutar, teslim, fiyat bekleyen</small></span></div>
+        <div class="tab set-item ${sub==='orders'?'active on':''}" style="--i:0;--sc:var(--c1);" data-tab="purchRepOrders" ${act('setPurchRepSub','orders')}><span class="set-ico">🧾</span><span class="set-txt"><b>Siparişler &amp; Fiyatlar</b><small>Tedarikçi, fiyat, teslim bekleyen</small></span></div>
         <div class="tab set-item ${sub==='suppliers'?'active on':''}" style="--i:1;--sc:var(--c2);" data-tab="purchRepSuppliers" ${act('setPurchRepSub','suppliers')}><span class="set-ico">🏭</span><span class="set-txt"><b>Tedarikçiler</b><small>Firma ve iletişim</small></span></div>
       </nav>
       <div id="purchRepContent" class="set-content"></div></div>`;
