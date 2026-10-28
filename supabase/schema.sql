@@ -1339,8 +1339,8 @@ begin
   end if;
   -- Görülmemiş düşük puanlı müşteri değerlendirmeleri (Müşteriler menüsü).
   if _user_has_perm(u, 'reports') then
-    select coalesce(jsonb_agg(jsonb_build_object('id', rv.id, 'label', repeat('★', rv.rating) || ' ' || coalesce(rv.table_name, 'Hesap') || coalesce(' · ' || left(rv.comment, 60), ''), 'kind', 'review')), '[]') into arr
-      from reviews rv where rv.restaurant_id = r and rv.rating is not null and rv.rating <= 3 and not rv.seen;
+    select coalesce(jsonb_agg(jsonb_build_object('id', rv.id, 'label', case when rv.callback then '📞 ' else '' end || repeat('★', rv.rating) || ' ' || coalesce(rv.table_name, 'Hesap') || coalesce(' · ' || left(rv.comment, 60), ''), 'kind', 'review')), '[]') into arr
+      from reviews rv where rv.restaurant_id = r and rv.rating is not null and not rv.seen;
     v := v || jsonb_build_object('reports', jsonb_array_length(arr)); it := it || jsonb_build_object('reports', arr);
   end if;
   -- Masaya oturtulmuş ama henüz siparişi girilmemiş masalar (rezervasyon/bekleme listesinden oturan).
@@ -8390,10 +8390,12 @@ begin
     'stats', (select json_build_object('n', count(*), 'avg', round(avg(rating)::numeric, 2),
         'dist', json_build_array(count(*) filter (where rating=1), count(*) filter (where rating=2), count(*) filter (where rating=3), count(*) filter (where rating=4), count(*) filter (where rating=5)),
         'sent', (select count(*) from reviews x where x.restaurant_id = s.restaurant_id and x.created_at > now() - make_interval(days => p_days)),
-        'with_photo', count(*) filter (where coalesce(array_length(photos,1),0) > 0))
+        'with_photo', count(*) filter (where coalesce(array_length(photos,1),0) > 0),
+        'callback', count(*) filter (where callback))
       from reviews where restaurant_id = s.restaurant_id and rating is not null and rated_at > now() - make_interval(days => p_days)),
     'rows', coalesce((select json_agg(x order by x.rated_at desc) from (
-      select rv.id, rv.rating, rv.comment, rv.rated_at, rv.table_name, rv.seen, c.name as customer_name, c.phone as customer_phone, au.username as staff,
+      select rv.id, rv.rating, rv.comment, rv.rated_at, rv.table_name, rv.seen, coalesce(rv.contact_name, c.name) as customer_name,
+             coalesce(rv.contact_phone, c.phone) as customer_phone, rv.callback, au.username as staff,
              coalesce(array_length(rv.photos, 1), 0) as photos
         from reviews rv left join customers c on c.id = rv.customer_id left join app_users au on au.id = rv.staff_user_id
        where rv.restaurant_id = s.restaurant_id and rv.rating is not null and rv.rated_at > now() - make_interval(days => p_days)
@@ -11193,6 +11195,24 @@ end; $$;
 
 
 --
+-- Name: set_review_contact(uuid, text, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.set_review_contact(p_review_token uuid, p_name text, p_phone text) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+declare v_phone text := regexp_replace(coalesce(p_phone,''), '\D', '', 'g');
+begin
+  if v_phone <> '' and length(v_phone) not between 10 and 13 then raise exception 'Telefon numarası geçersiz'; end if;
+  update reviews set contact_name = nullif(left(trim(coalesce(p_name,'')), 80), ''), contact_phone = nullif(right(v_phone, 10), ''),
+    callback = (v_phone <> ''), seen = case when v_phone <> '' then false else seen end
+   where token = p_review_token and rating is not null and rated_at > now() - interval '30 minutes';
+  return found;
+end $$;
+
+
+--
 -- Name: set_session_remember(uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -12162,7 +12182,7 @@ begin
   if rv.rating is not null then raise exception 'Bu hesap için zaten değerlendirme yapılmış'; end if;
   if rv.created_at < now() - interval '14 days' then raise exception 'Bu değerlendirme linkinin süresi dolmuş'; end if;
   if p_rating is null or p_rating < 1 or p_rating > 5 then raise exception 'Lütfen 1-5 arası puan verin'; end if;
-  update reviews set rating = p_rating, comment = nullif(left(trim(coalesce(p_comment,'')), 1000), ''), rated_at = now(), seen = (p_rating >= 4) where id = rv.id;
+  update reviews set rating = p_rating, comment = nullif(left(trim(coalesce(p_comment,'')), 1000), ''), rated_at = now(), seen = false where id = rv.id;
   select google_review_url into g from restaurants where id = rv.restaurant_id;
   return json_build_object('google_url', g);
 end $$;
@@ -14695,6 +14715,9 @@ CREATE TABLE public.reviews (
     order_id uuid,
     table_id uuid,
     photos text[] DEFAULT '{}'::text[] NOT NULL,
+    contact_name text,
+    contact_phone text,
+    callback boolean DEFAULT false NOT NULL,
     CONSTRAINT reviews_rating_check CHECK (((rating >= 1) AND (rating <= 5)))
 );
 
