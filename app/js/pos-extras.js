@@ -172,8 +172,14 @@ async function refreshOrderLiveStatus(session){
   APP.liveOrders = data || [];
   if(APP.view==='order') renderTableGrid();
   if(APP.view==='packages') renderPackageGrid();
+  // Açık sipariş penceresi yalnızca o masanın/paketin siparişi gerçekten değiştiyse yeniden çizilir
+  // (her yoklamada çizmek sepeti ve kaydırmayı sürekli yeniliyordu).
   const bg = document.getElementById('tableModalBg');
-  if(bg && bg.dataset.tableId) renderTableItems(bg.dataset.tableId);
+  if(bg && bg.dataset.tableId){
+    const o = liveOrderForTable(bg.dataset.tableId);
+    const sig = o ? JSON.stringify([o.order_id, (o.items || []).map(i => [i.id, i.status, i.qty, i.paid, i.note]), o.tags, o.guest_count, o.allowance_id]) : '';
+    if(sig !== bg.dataset.liveSig){ bg.dataset.liveSig = sig; renderTableItems(bg.dataset.tableId); }
+  }
   if(APP.view==='order') refreshCustomerOrderRequests(session);
 }
 /* Müşterinin /menu/ sayfasından gönderdiği sipariş istekleri (bkz.
