@@ -471,6 +471,20 @@ end $$;
 
 
 --
+-- Name: _cron_cleanup_history(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public._cron_cleanup_history() RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'extensions', 'pg_temp'
+    AS $$
+begin
+  delete from cron.job_run_details where end_time < now() - interval '3 days';
+  delete from net._http_response where created < now() - interval '3 days';
+end $$;
+
+
+--
 -- Name: _cron_close_comp_orders(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -726,6 +740,45 @@ end $$;
 
 
 --
+-- Name: _cron_pkg_alerts(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public._cron_pkg_alerts() RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'extensions', 'pg_temp'
+    AS $$
+declare v_url text; v_secret text; v_dl uuid[]; v_cr uuid[];
+begin
+  -- Teslim saatine <20, <10 dk ve süre geçti (hâlâ hazırlanan ürün varken): her aşamada bir kez.
+  with due as (
+    select o.id, case when o.pickup_at < now() then 3 when o.pickup_at < now() + interval '10 minutes' then 2 else 1 end st
+    from orders o where o.kind = 'takeaway' and o.status = 'open' and o.pickup_at is not null
+      and o.pickup_at < now() + interval '20 minutes' and o.pickup_at > now() - interval '2 hours'
+      and exists (select 1 from order_items i where i.order_id = o.id and i.status = 'pending' and not i.paid)
+  ), upd as (update orders o set pkg_push_stage = d.st from due d where o.id = d.id and o.pkg_push_stage < d.st returning o.id)
+  select array_agg(id) into v_dl from upd;
+  -- Hazır ama kuryeye verilmemiş adrese teslim paket: hazır olduktan 2 ve 10 dk sonra.
+  with rdy as (
+    select o.id, (select max(i.ready_at) from order_items i where i.order_id = o.id and not i.paid) ra
+    from orders o where o.kind = 'takeaway' and o.status = 'open' and o.dispatched_at is null
+      and coalesce(o.takeaway_type, case when o.delivery_address is not null then 'delivery' else 'pickup' end) = 'delivery'
+      and o.created_at > now() - interval '6 hours'
+      and exists (select 1 from order_items i where i.order_id = o.id and not i.paid)
+      and not exists (select 1 from order_items i where i.order_id = o.id and i.status = 'pending' and not i.paid)
+  ), due as (
+    select id, case when coalesce(ra, now()) < now() - interval '10 minutes' then 2 else 1 end st from rdy where coalesce(ra, now() - interval '3 minutes') < now() - interval '2 minutes'
+  ), upd as (update orders o set courier_push_stage = d.st from due d where o.id = d.id and o.courier_push_stage < d.st returning o.id)
+  select array_agg(id) into v_cr from upd;
+  if v_dl is null and v_cr is null then return; end if;
+  select value into v_url from _psv where key = 'push_dispatch_url';
+  select value into v_secret from _psv where key = 'push_dispatch_secret';
+  if coalesce(v_url,'') = '' then return; end if;
+  perform net.http_post(url := v_url, headers := jsonb_build_object('Content-Type','application/json','x-push-secret', coalesce(v_secret,'')),
+    body := jsonb_build_object('mode', 'pkg_alerts', 'deadline_ids', to_jsonb(coalesce(v_dl, '{}')), 'courier_ids', to_jsonb(coalesce(v_cr, '{}'))), timeout_milliseconds := 25000);
+end $$;
+
+
+--
 -- Name: _cron_update_shift_pauses(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -933,8 +986,8 @@ begin
   if round(coalesce(p_paid,0), 2) < round(op.amount, 2) then
     update online_payments set status = 'amount_mismatch', error = 'Ödenen ' || p_paid, finished_at = now() where id = p_id; return null;
   end if;
-  insert into customer_order_requests (restaurant_id, table_id, customer_name, customer_phone, delivery_address, order_type, items, payment_status, paid_amount, payment_ref)
-    values (op.restaurant_id, null, op.payload->>'name', op.payload->>'phone', op.payload->>'address', op.payload->>'order_type', op.payload->'items', 'paid', p_paid, p_ref)
+  insert into customer_order_requests (restaurant_id, table_id, customer_name, customer_phone, delivery_address, order_type, items, payment_status, paid_amount, payment_ref, wanted_at)
+    values (op.restaurant_id, null, op.payload->>'name', op.payload->>'phone', op.payload->>'address', op.payload->>'order_type', op.payload->'items', 'paid', p_paid, p_ref, nullif(op.payload->>'wanted_at','')::timestamptz)
     returning id into v_id;
   update online_payments set status = 'paid', provider_payment_id = p_ref, request_id = v_id, finished_at = now() where id = p_id;
   if op.payload->>'client_id' is not null then execute 'de'||'lete from public_cart_holds where client_id = $1' using op.payload->>'client_id'; end if;
@@ -1142,12 +1195,16 @@ CREATE FUNCTION public._items_ready_push_trg() RETURNS trigger
     AS $$
 declare v_url text; v_secret text; r record;
 begin
+  if pg_trigger_depth() > 1 then return null; end if;
   select value into v_url from _psv where key = 'push_dispatch_url';
   select value into v_secret from _psv where key = 'push_dispatch_secret';
   if coalesce(v_url,'') = '' then return null; end if;
-  -- "Hazır" işaretlenen ürünler sipariş bazında tek istekte bildirilir (Hepsi Hazır = tek bildirim).
-  for r in select n.order_id, array_agg(n.id) ids from nt n join ot o on o.id = n.id
-           where n.status = 'ready' and o.status is distinct from 'ready' and not n.paid group by n.order_id loop
+  -- Masa başına tek bildirim: siparişin bekleyen ürünü kalmayınca, henüz bildirilmemiş hazır ürünlerle bir kez (önceki turlar tekrar yazılmaz).
+  for r in select x.order_id, (select array_agg(i.id) from order_items i where i.order_id = x.order_id and i.status = 'ready' and not i.paid and i.ready_notified_at is null) ids
+           from (select distinct n.order_id from nt n join ot o on o.id = n.id where n.status = 'ready' and o.status is distinct from 'ready' and not n.paid) x
+           where not exists (select 1 from order_items p where p.order_id = x.order_id and p.status = 'pending' and not p.paid) loop
+    if r.ids is null then continue; end if;
+    update order_items set ready_notified_at = now() where id = any(r.ids);
     begin
       perform net.http_post(url := v_url, headers := jsonb_build_object('Content-Type','application/json','x-push-secret', coalesce(v_secret,'')),
         body := jsonb_build_object('mode','items_ready','order_id', r.order_id, 'item_ids', to_jsonb(r.ids)));
@@ -1390,7 +1447,7 @@ begin
     from orders o join restaurant_tables t on t.id = o.table_id left join app_users au on au.id = o.created_by
     where o.restaurant_id = r and o.status = 'open' and o.guest_count is null and o.created_at < now() - interval '1 minute'
       and exists(select 1 from order_items oi where oi.order_id = o.id)
-      and (o.created_by = u or _user_has_perm(u, 'reports'));
+      and (o.created_by = u or _user_has_perm(u, 'payments'));
   v := v || jsonb_build_object('order', coalesce((v->>'order')::int,0) + jsonb_array_length(arr));
   it := it || jsonb_build_object('order', coalesce(it->'order','[]'::jsonb) || arr);
   -- Masadan garson çağrıları: sipariş çağrısı Sipariş Al'a, ödeme çağrısı Ödemeler'e eklenir.
@@ -1405,6 +1462,26 @@ begin
       from waiter_calls w left join restaurant_tables t on t.id = w.table_id where w.restaurant_id = r and w.status = 'pending' and w.kind = 'payment' and w.created_at > now() - interval '3 hours';
     v := v || jsonb_build_object('payments', coalesce((v->>'payments')::int,0) + jsonb_array_length(arr));
     it := it || jsonb_build_object('payments', coalesce(it->'payments','[]'::jsonb) || arr);
+  end if;
+  -- Paket Servis: hazır olup kuryeye verilmemiş adrese teslim paketler ve teslim saatine 20 dk'dan az kalıp hâlâ hazırlananlar.
+  if _user_has_perm(u, 'packages') then
+    select coalesce(jsonb_agg(x.j), '[]') into arr from (
+      select jsonb_build_object('id', o.id, 'kind', 'not_dispatched', 'name', coalesce(o.customer_name, 'Paket #' || o.daily_number),
+             'label', '🛵 ' || coalesce(o.customer_name, 'Paket #' || o.daily_number) || ' · hazır, kuryeye verilmedi') j
+        from orders o where o.restaurant_id = r and o.kind = 'takeaway' and o.status = 'open' and o.dispatched_at is null
+          and coalesce(o.takeaway_type, case when o.delivery_address is not null then 'delivery' else 'pickup' end) = 'delivery'
+          and o.created_at > now() - interval '6 hours'
+          and exists (select 1 from order_items i where i.order_id = o.id and not i.paid)
+          and not exists (select 1 from order_items i where i.order_id = o.id and i.status = 'pending' and not i.paid)
+      union all
+      select jsonb_build_object('id', o.id, 'kind', 'pkg_deadline', 'name', coalesce(o.customer_name, 'Paket #' || o.daily_number),
+             'left', floor(extract(epoch from (o.pickup_at - now())) / 60),
+             'delivery', coalesce(o.takeaway_type, case when o.delivery_address is not null then 'delivery' else 'pickup' end) = 'delivery',
+             'label', '⏱️ ' || coalesce(o.customer_name, 'Paket #' || o.daily_number) || ' · teslim ' || to_char(o.pickup_at at time zone 'Europe/Istanbul', 'HH24:MI') || ', hâlâ hazırlanıyor')
+        from orders o where o.restaurant_id = r and o.kind = 'takeaway' and o.status = 'open' and o.pickup_at is not null
+          and o.pickup_at < now() + interval '20 minutes' and o.pickup_at > now() - interval '2 hours'
+          and exists (select 1 from order_items i where i.order_id = o.id and i.status = 'pending' and not i.paid)) x;
+    v := v || jsonb_build_object('packages', jsonb_array_length(arr)); it := it || jsonb_build_object('packages', arr);
   end if;
   -- Okunmamış mesajlar (Mesajlar menüsü), yalnızca Mesajlaşma izni olanlara.
   if _user_has_perm(u, 'messages') then
@@ -4187,7 +4264,7 @@ begin
     select coalesce(max(o.daily_number), 0) + 1 into v_daily_number
       from orders o where o.restaurant_id = s.restaurant_id
         and (o.created_at at time zone 'Europe/Istanbul')::date = (now() at time zone 'Europe/Istanbul')::date;
-    insert into orders (restaurant_id, table_id, kind, status, daily_number, created_by, customer_name, customer_phone, note, takeaway_type, delivery_address) values (s.restaurant_id, null, 'takeaway', 'open', v_daily_number, s.user_id, v_req.customer_name, v_req.customer_phone, v_note, case when v_req.order_type = 'delivery' then 'delivery' else 'pickup' end, v_req.delivery_address)
+    insert into orders (restaurant_id, table_id, kind, status, daily_number, created_by, customer_name, customer_phone, note, takeaway_type, delivery_address, pickup_at) values (s.restaurant_id, null, 'takeaway', 'open', v_daily_number, s.user_id, v_req.customer_name, v_req.customer_phone, v_note, case when v_req.order_type = 'delivery' then 'delivery' else 'pickup' end, v_req.delivery_address, case when v_req.wanted_at > now() then v_req.wanted_at else now() + case when v_req.order_type = 'delivery' then interval '30 minutes' else interval '15 minutes' end end)
     returning id into v_order_id;
   end if;
 
@@ -6217,7 +6294,7 @@ begin
       'order_id', o.id, 'table_id', o.table_id, 'kind', o.kind, 'created_at', o.created_at,
       'daily_number', o.daily_number, 'tags', o.tags, 'guest_count', o.guest_count, 'allowance_id', o.allowance_id, 'allowance_name', (select coalesce(al.name, au.username) from allowances al left join app_users au on au.id = al.user_id where al.id = o.allowance_id), 'allowance_remaining', case when o.allowance_id is not null then _allowance_remaining(o.allowance_id) end,
       'customer_name', o.customer_name, 'customer_phone', o.customer_phone, 'delivery_address', o.delivery_address, 'takeaway_type', o.takeaway_type, 'pickup_at', o.pickup_at, 'note', o.note,
-      'created_by', o.created_by, 'created_by_name', (select username from app_users where id = o.created_by), 'waitlist_id', o.waitlist_id, 'courier_user_id', o.courier_user_id, 'courier_name', (select username from app_users where id = o.courier_user_id), 'dispatched_at', o.dispatched_at, 'delivered_at', o.delivered_at, 'tracking_token', o.tracking_token,
+      'created_by', o.created_by, 'created_by_name', (select username from app_users where id = o.created_by), 'waitlist_id', o.waitlist_id, 'reservation_id', o.reservation_id, 'reservation', (select json_build_object('time', rr.reservation_time, 'party_size', rr.party_size, 'status', rr.status) from reservations rr where rr.id = o.reservation_id), 'courier_user_id', o.courier_user_id, 'courier_name', (select username from app_users where id = o.courier_user_id), 'dispatched_at', o.dispatched_at, 'delivered_at', o.delivered_at, 'tracking_token', o.tracking_token,
       'waitlist', (select json_build_object('joined_at', w.joined_at, 'quoted_wait_minutes', w.quoted_wait_minutes, 'party_size', w.party_size, 'status', w.status) from waitlist_entries w where w.id = o.waitlist_id),
       'items', (
         select coalesce(json_agg(json_build_object(
@@ -7430,6 +7507,21 @@ end $$;
 
 
 --
+-- Name: get_test_mail_status(uuid, bigint); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.get_test_mail_status(p_token uuid, p_id bigint) RETURNS json
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+declare s staff_sessions%rowtype;
+begin
+  s := _session_check(p_token, 'settings_flags');
+  return (select json_build_object('status', status, 'error', left(coalesce(error,''), 300)) from mail_outbox where id = p_id and restaurant_id = s.restaurant_id);
+end $$;
+
+
+--
 -- Name: get_tip_pool_report(uuid, date, date); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -8021,7 +8113,7 @@ begin
     select coalesce(json_agg(row_to_json(q) order by q.created_at), '[]'::json)
     from (
       select cr.id, cr.table_id, rt.name as table_name, cr.customer_name, cr.customer_phone,
-        cr.delivery_address, cr.order_type, cr.created_at, cr.payment_status, cr.paid_amount,
+        cr.delivery_address, cr.order_type, cr.created_at, cr.wanted_at, cr.payment_status, cr.paid_amount,
         (
           select coalesce(json_agg(json_build_object(
             'product_id', it->>'product_id',
@@ -10115,7 +10207,7 @@ CREATE FUNCTION public.seat_reservation(p_token uuid, p_id uuid, p_table_id uuid
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public', 'extensions', 'pg_temp'
     AS $$
-declare s staff_sessions%rowtype; v_r reservations%rowtype; v_table uuid; v_order uuid; v_daily int; v_note text;
+declare s staff_sessions%rowtype; v_r reservations%rowtype; v_table uuid; v_order uuid; v_pre uuid; v_daily int; v_note text;
 begin
   s := _session_check(p_token, 'reservations');
   perform 1 from restaurants where id = s.restaurant_id for update;
@@ -10130,6 +10222,15 @@ begin
   update reservations set status = 'seated', table_id = v_table, seated_at = now(), closed_at = null where id = p_id;
   v_note := '📅 Rezervasyon · ' || v_r.party_size || ' kişi' || coalesce(' · ' || nullif(trim(v_r.notes),''), '');
   select id into v_order from orders where restaurant_id = s.restaurant_id and table_id = v_table and status = 'open' limit 1;
+  -- Rezervasyon için alınmış ön sipariş masaya taşınır.
+  select id into v_pre from orders where restaurant_id = s.restaurant_id and reservation_id = v_r.id and kind = 'waitlist' and status = 'open' limit 1 for update;
+  if v_pre is not null and v_order is null then
+    update orders set table_id = v_table, kind = 'dine_in', note = v_note where id = v_pre;
+    v_order := v_pre;
+  elsif v_pre is not null then
+    update order_items set order_id = v_order where order_id = v_pre;
+    update orders set status = 'cancelled' where id = v_pre;
+  end if;
   if v_order is null then
     select coalesce(max(o.daily_number), 0) + 1 into v_daily from orders o
       where o.restaurant_id = s.restaurant_id and (o.created_at at time zone 'Europe/Istanbul')::date = (now() at time zone 'Europe/Istanbul')::date;
@@ -10140,6 +10241,7 @@ begin
     update orders set customer_name = coalesce(customer_name, v_r.customer_name), customer_phone = coalesce(customer_phone, v_r.phone),
       note = case when note is null or note = '' then v_note else note end, reservation_id = coalesce(reservation_id, v_r.id) where id = v_order;
   end if;
+  update orders set guest_count = coalesce(guest_count, v_r.party_size) where id = v_order and v_r.party_size > 0;
   return json_build_object('order_id', v_order, 'table_id', v_table);
 end; $$;
 
@@ -10186,6 +10288,7 @@ begin
     update orders set customer_name = coalesce(customer_name, w.customer_name), customer_phone = coalesce(customer_phone, w.phone),
       note = case when note is null or note = '' then v_note else note end, waitlist_id = coalesce(waitlist_id, w.id) where id = v_order;
   end if;
+  update orders set guest_count = coalesce(guest_count, w.party_size) where id = v_order and w.party_size > 0;
   return json_build_object('order_id', v_order, 'waited_minutes', v_min);
 end; $$;
 
@@ -10341,6 +10444,48 @@ end $$;
 
 
 --
+-- Name: send_reservation_order(uuid, uuid, json, text[]); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.send_reservation_order(p_token uuid, p_reservation_id uuid, p_items json, p_tags text[] DEFAULT '{}'::text[]) RETURNS json
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'extensions', 'pg_temp'
+    AS $$
+declare s staff_sessions%rowtype; rv reservations%rowtype; v_order uuid; v_daily int; item json; v_qty int; v_pid uuid; v_price numeric; v_cost numeric; v_n int;
+begin
+  s := _session_check(p_token);
+  perform _require_shift(s);
+  select * into rv from reservations where id = p_reservation_id and restaurant_id = s.restaurant_id for update;
+  if rv.id is null then raise exception 'Rezervasyon bulunamadı'; end if;
+  if rv.status not in ('pending','confirmed') then raise exception 'Bu rezervasyon için ön sipariş alınamaz (oturtulmuş ya da kapanmış)'; end if;
+  v_n := json_array_length(p_items);
+  if v_n is null or v_n = 0 then raise exception 'Sepet boş'; end if;
+  if v_n > 100 then raise exception 'Çok fazla ürün'; end if;
+  select id into v_order from orders where restaurant_id = s.restaurant_id and reservation_id = rv.id and kind = 'waitlist' and status = 'open' limit 1;
+  if v_order is null then
+    perform 1 from restaurants where id = s.restaurant_id for update;
+    select coalesce(max(o.daily_number), 0) + 1 into v_daily from orders o
+      where o.restaurant_id = s.restaurant_id and (o.created_at at time zone 'Europe/Istanbul')::date = (now() at time zone 'Europe/Istanbul')::date;
+    insert into orders (restaurant_id, table_id, kind, status, daily_number, tags, customer_name, customer_phone, note, created_by, reservation_id, guest_count)
+      values (s.restaurant_id, null, 'waitlist', 'open', v_daily, coalesce(p_tags,'{}'), rv.customer_name, rv.phone,
+              '📅 Rezervasyon ön siparişi · ' || to_char(rv.reservation_time at time zone 'Europe/Istanbul', 'HH24:MI') || ' · ' || rv.party_size || ' kişi', s.user_id, rv.id, rv.party_size)
+      returning id into v_order;
+  else
+    update orders set tags = coalesce(p_tags,'{}') where id = v_order;
+  end if;
+  for item in select * from json_array_elements(p_items) loop
+    v_pid := (item->>'product_id')::uuid; v_qty := (item->>'qty')::int;
+    if v_qty is null or v_qty <= 0 then raise exception 'Geçersiz adet'; end if;
+    select price, cost into v_price, v_cost from products where id = v_pid and restaurant_id = s.restaurant_id;
+    if not found then raise exception 'Ürün bulunamadı'; end if;
+    insert into order_items (order_id, product_id, name, price, cost, qty, status, note)
+      values (v_order, v_pid, item->>'name', v_price, v_cost, v_qty, 'pending', item->>'note');
+  end loop;
+  return json_build_object('order_id', v_order);
+end $$;
+
+
+--
 -- Name: send_staff_login_sms(uuid, uuid[], boolean); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -10454,6 +10599,29 @@ begin
   return query select v_order_id, v_daily_number;
 end;
 $$;
+
+
+--
+-- Name: send_test_mail(uuid, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.send_test_mail(p_token uuid, p_email text) RETURNS json
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $_$
+declare s staff_sessions%rowtype; v_to text := lower(trim(coalesce(p_email,''))); v_name text; v_id bigint;
+begin
+  s := _session_check(p_token, 'settings_flags');
+  if v_to !~ '^[^@\s]+@[^@\s]+\.[^@\s]+$' then raise exception 'Geçerli bir e-posta adresi girin'; end if;
+  if (select count(*) from mail_outbox where restaurant_id = s.restaurant_id and purpose = 'test' and created_at > now() - interval '1 hour') >= 10 then
+    raise exception 'Saatte en fazla 10 test e-postası gönderilebilir'; end if;
+  select name into v_name from restaurants where id = s.restaurant_id;
+  perform set_config('peyktan.mail_purpose', 'test', true);
+  perform _send_email_r(s.restaurant_id, v_to, v_name || ' - Test e-postası',
+    _mail_layout('Test e-postası', '<p>Merhaba,</p><p>Bu e-posta <b>' || replace(replace(coalesce(v_name,''),'<','&lt;'),'>','&gt;') || '</b> işletmesinin Peyktan e-posta ayarlarını denemek için gönderildi. Bu mesajı görüyorsanız fiş, fatura ve rezervasyon e-postaları müşterilerinize bu adresten gidecek.</p>'));
+  select id into v_id from mail_outbox where restaurant_id = s.restaurant_id and purpose = 'test' order by created_at desc limit 1;
+  return json_build_object('id', v_id);
+end $_$;
 
 
 --
@@ -10912,6 +11080,22 @@ end $$;
 
 
 --
+-- Name: set_payment_wanted(uuid, integer); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.set_payment_wanted(p_payment_id uuid, p_minutes integer) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+begin
+  if p_minutes is null or p_minutes < 10 or p_minutes > 600 then raise exception 'Geçersiz saat (en az 10 dakika, en fazla 10 saat sonrası)'; end if;
+  update online_payments set payload = payload || jsonb_build_object('wanted_at', now() + make_interval(mins => p_minutes))
+   where id = p_payment_id and status = 'pending' and created_at > now() - interval '10 minutes' and not (payload ? 'wanted_at');
+  return found;
+end $$;
+
+
+--
 -- Name: set_product_description(uuid, uuid, text); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -11030,6 +11214,22 @@ begin
   if v_rid is null then raise exception 'Bu işletme şu anda online sipariş almıyor'; end if;
   return _set_cart_hold(v_rid, p_client, p_product_id, p_qty);
 end; $$;
+
+
+--
+-- Name: set_public_order_wanted(uuid, integer); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.set_public_order_wanted(p_request_id uuid, p_minutes integer) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+begin
+  if p_minutes is null or p_minutes < 10 or p_minutes > 600 then raise exception 'Geçersiz saat (en az 10 dakika, en fazla 10 saat sonrası)'; end if;
+  update customer_order_requests set wanted_at = now() + make_interval(mins => p_minutes)
+   where id = p_request_id and status = 'pending' and wanted_at is null and created_at > now() - interval '2 minutes';
+  return found;
+end $$;
 
 
 --
@@ -12138,14 +12338,16 @@ begin
     if coalesce(p_args->>'p_address','') <> '' or nullif(p_args->>'p_order_id','') is not null or coalesce(p_args->>'p_takeaway_type','') <> '' then
       update orders set delivery_address = nullif(p_args->>'p_address',''),
         takeaway_type = coalesce(nullif(p_args->>'p_takeaway_type',''), takeaway_type),
-        pickup_at = case when p_args->>'p_takeaway_type' = 'pickup' and coalesce(p_args->>'p_pickup_min','') ~ '^\d{1,3}$'
+        pickup_at = case when coalesce(p_args->>'p_pickup_min','') ~ '^\d{1,3}$'
                          then now() + make_interval(mins => least((p_args->>'p_pickup_min')::int, 600))
-                         when p_args->>'p_takeaway_type' = 'delivery' then null else pickup_at end
+                         else pickup_at end
       where id = coalesce(nullif(p_args->>'p_order_id','')::uuid,
         (select o.id from orders o join staff_sessions ss on ss.token = p_token
           where o.restaurant_id = ss.restaurant_id and o.kind = 'takeaway' and o.created_by = ss.user_id and o.created_at > now() - interval '1 minute'
           order by o.created_at desc limit 1));
     end if;
+  elsif p_kind = 'reservation' then
+    perform send_reservation_order(p_token, (p_args->>'p_reservation_id')::uuid, (p_args->'p_items')::json, v_tags);
   elsif p_kind = 'waitlist' then
     perform send_waitlist_order(p_token, (p_args->>'p_waitlist_id')::uuid, (p_args->'p_items')::json, v_tags);
   else
@@ -13868,7 +14070,8 @@ CREATE TABLE public.customer_order_requests (
     paid_amount numeric,
     payment_ref text,
     source text,
-    external_id text
+    external_id text,
+    wanted_at timestamp with time zone
 );
 
 
@@ -14313,7 +14516,8 @@ CREATE TABLE public.order_items (
     late_push_milestone integer DEFAULT '-1'::integer NOT NULL,
     ready_at timestamp with time zone,
     vat_rate numeric,
-    added_by uuid
+    added_by uuid,
+    ready_notified_at timestamp with time zone
 );
 
 
@@ -14351,6 +14555,8 @@ CREATE TABLE public.orders (
     allowance_id uuid,
     guest_count integer,
     guest_push_stage smallint DEFAULT 0 NOT NULL,
+    pkg_push_stage smallint DEFAULT 0 NOT NULL,
+    courier_push_stage smallint DEFAULT 0 NOT NULL,
     CONSTRAINT orders_guest_count_check CHECK (((guest_count >= 1) AND (guest_count <= 99)))
 );
 
