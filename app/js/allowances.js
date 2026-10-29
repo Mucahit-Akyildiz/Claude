@@ -254,6 +254,7 @@ function pickOrderAllowance(pseudoId, id){
     document.querySelectorAll('.of-chip input[data-label]').forEach(i => { if(i.dataset.label === label) i.checked = on; }); };
   if(prev && prev.flag_label && (!next || allowanceById(next).flag_label !== prev.flag_label)) setFlag(prev.flag_label, false);
   if(next) setFlag(allowanceById(next).flag_label, true);
+  if(typeof refreshOrderFlagsBox === 'function') refreshOrderFlagsBox(pseudoId);
 }
 /* Siparişe hangi limit uygulanır: seçilen kişi, yoksa siparişi alan kullanıcının etiketi seçiliyse kendi limiti. */
 function orderAllowanceFor(pseudoId){

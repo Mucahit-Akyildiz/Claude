@@ -308,16 +308,21 @@ function orderFlagsHtml(pseudoId){
     APP.orderFlagSelections[pseudoId] = (existing && existing.tags) ? existing.tags.slice() : [];
   }
   const sel = APP.orderFlagSelections[pseudoId];
+  // Limitli kişi seçiliyse etiket o kişinin limitinden gelir ve değiştirilemez (kişi kaldırılınca açılır).
+  const lockAl = typeof orderAllowanceFor === 'function' ? orderAllowanceFor(pseudoId) : null, lock = lockAl && lockAl.flag_label ? lockAl.flag_label : '';
   // Etiketler dokunmalı çipler: seçili etiket mor yanar; ikram etiketi hesabı ödemesiz kapatır.
-  return `<div class="of-box">
-    <div class="of-head"><span>🏷️ Sipariş Etiketleri</span><small>İkram: ödemesiz kapanır</small></div>
+  return `<div class="of-box ${lock ? 'of-locked' : ''}" data-of-pid="${escapeAttr(String(pseudoId))}">
+    <div class="of-head"><span>🏷️ Sipariş Etiketleri</span><small>${lock ? '🔒 ' + escapeHtml(lockAl.name || 'Limitli kişi') + ' seçili: etiket değiştirilemez' : 'İkram: ödemesiz kapanır'}</small></div>
     <div class="of-chips">
       ${flags.map(f => `<label class="of-chip">
-        <input type="checkbox" data-label="${escapeAttr(f.label)}" ${sel.includes(f.label)?'checked':''} ${actOn('change','toggleOrderFlag',[pseudoId, f.label, '$checked'])}>
+        <input type="checkbox" data-label="${escapeAttr(f.label)}" ${sel.includes(f.label)?'checked':''} ${lock ? 'disabled' : ''} ${actOn('change','toggleOrderFlag',[pseudoId, f.label, '$checked'])}>
         <span>${/personel/i.test(f.label) ? '👔' : /talebe|öğrenci|ogrenci/i.test(f.label) ? '🎓' : '🎁'} ${escapeHtml(f.label)}</span>
       </label>`).join('')}
     </div>
   </div>`;
+}
+function refreshOrderFlagsBox(pseudoId){
+  document.querySelectorAll('.of-box[data-of-pid]').forEach(b => { if(b.dataset.ofPid === String(pseudoId)) b.outerHTML = orderFlagsHtml(pseudoId); });
 }
 function toggleOrderFlag(pseudoId, label, checked){
   if(!APP.orderFlagSelections) APP.orderFlagSelections = {};
