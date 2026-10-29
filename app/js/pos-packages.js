@@ -425,7 +425,7 @@ function updateDraftItemNote(tableId, idx, value){
 async function confirmOrder(tableId){
   const draft = APP.draftCart[tableId];
   if(!draft || draft.length===0) return;
-  if(typeof allowanceWarnBeforeSend === 'function' && !allowanceWarnBeforeSend(tableId, draft.reduce((s, d) => s + d.price * d.qty, 0))) return;
+  if(typeof allowanceWarnBeforeSend === 'function' && !(await allowanceWarnBeforeSend(tableId, draft.reduce((s, d) => s + d.price * d.qty, 0)))) return;
   const btn = document.getElementById('confirmBtn');
   if(btn){ btn.disabled = true; btn.textContent = 'Gönderiliyor...'; }
   // Masa penceresinde yazılmış müşteri bilgisi siparişle birlikte kaydedilir.

@@ -73,7 +73,7 @@ async function cxTest(kind){
   setTimeout(() => renderConnectors(kind), 1500);
 }
 async function cxRemove(kind){
-  const c = cxCurrent(kind); if(!c || !confirm('Bağlantı kapatılsın ve kayıtlı anahtarları silinsin mi?')) return;
+  const c = cxCurrent(kind); if(!c || !(await uiConfirm('Bağlantı kapatılır ve kayıtlı anahtarları silinir.', { title: 'Bağlantı kaldırılsın mı?' }))) return;
   const { error } = await sb.rpc('remove_connector', { p_token: getSession().session_token, p_id: c.id });
   if(error) return showToast(error.message, 'error');
   renderConnectors(kind);

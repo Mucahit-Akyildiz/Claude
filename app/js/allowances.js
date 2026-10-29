@@ -146,7 +146,7 @@ async function toggleAllowance(id){
   renderAllowancesSettings(document.getElementById('usersSubContent'));
 }
 async function deleteAllowance(id){
-  const a = allowanceById(id); if(!a || !confirm(`${a.name} limiti silinsin mi? Kullanım geçmişi de silinir.`)) return;
+  const a = allowanceById(id); if(!a || !(await uiConfirm('Kullanım geçmişi de silinir.', { title: `${a.name} limiti silinsin mi?` }))) return;
   const { error } = await sb.rpc('delete_allowance', { p_token: getSession().session_token, p_id: id });
   if(error){ alert(error.message); return; }
   renderAllowancesSettings(document.getElementById('usersSubContent'));
@@ -269,7 +269,7 @@ function allowanceRequiredMissing(pseudoId){
   return tags.find(t => (APP.allowances || []).some(a => a.is_active && a.flag_label === t)) || null;
 }
 /* Gönderimden önce: hesap limiti aşıyorsa siparişi alana uyarı (sipariş yine gönderilir). */
-function allowanceWarnBeforeSend(pseudoId, draftTotal){
+async function allowanceWarnBeforeSend(pseudoId, draftTotal){
   const need = allowanceRequiredMissing(pseudoId);
   if(need){ alert(`🏷️ "${need}" etiketi seçili.\n\nLimitinden düşülecek kişiyi ya da kullanıcıyı (kendiniz dahil) üstteki arama kutusundan seçin.`); const i = document.getElementById('tableCustName') || document.getElementById('pkgCustName'); if(i) i.focus(); return false; }
   const a = orderAllowanceFor(pseudoId); if(!a) return true;
@@ -277,7 +277,8 @@ function allowanceWarnBeforeSend(pseudoId, draftTotal){
   const open = ex ? ex.items.filter(i => !i.paid).reduce((s, i) => s + i.price * i.qty, 0) : 0;
   const total = open + draftTotal;
   if(total <= Number(a.remaining)) return true;
-  return confirm(`⚠️ ${a.name} limiti aşılıyor\n\nHesap: ${money(total)}\nKalan limit: ${money(a.remaining)}\nFark: ${money(total - Number(a.remaining))}\n\nSipariş gönderilecek; fark Ödemeler'den tahsil edilmeli. Devam edilsin mi?`);
+  return uiConfirm(`Hesap: ${money(total)}\nKalan limit: ${money(a.remaining)}\nFark: ${money(total - Number(a.remaining))}\n\nSipariş gönderilecek; fark Ödemeler'den tahsil edilmeli.`,
+    { title: `${a.name} limiti aşılıyor`, icon: '⚠️', okText: 'Devam et, gönder', cancelText: 'Vazgeç', danger: false });
 }
 async function attachAllowanceAfterSend(pseudoId, prevOrderIds){
   const a = orderAllowanceFor(pseudoId);
