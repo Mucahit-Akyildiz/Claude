@@ -17,8 +17,8 @@ const LANGS = [
   { code:'ru', label:'RU' },
 ];
 const I18N = {
-  tr: { invalidTitle:'Geçersiz Bağlantı', invalidMsg:'Bu sayfaya işletmenin paylaştığı online sipariş linkiyle ulaşmalısınız.', errorTitle:'Menü Yüklenemedi', errorMsg:'Bir hata oluştu, lütfen daha sonra tekrar deneyin.', emptyMenu:'Şu anda menüde satışa açık ürün yok.', other:'Diğer', all:'Tümü', subtitle:'Online Sipariş — Gel-Al / Teslimat', sendCart:'Sepeti Gönder →', items:'ürün', checkoutTitle:'Siparişi Onayla', pickupTab:'🥡 Gel-Al', deliveryTab:'🛵 Teslimat', total:'Toplam', namePlaceholder:'Adınız Soyadınız', phonePlaceholder:'Telefon Numaranız', addressPlaceholder:'Teslimat Adresi', sendOrder:'Siparişi Gönder', sending:'Gönderiliyor...', back:'Geri Dön', successTitle:'Siparişiniz Alındı', successMsg:'Siparişiniz işletmeye iletildi, onaylandığında hazırlanmaya başlanacak. Afiyet olsun!', errName:'Adınızı girin', errPhone:'Telefon numaranızı girin', errAddress:'Teslimat adresini girin', payTitle:'Ödeme', payDoor:'💵 Kapıda / teslimde öde', payOnline:'💳 Online kartla öde', payNow:'Ödemeye Geç', payRedirect:'Ödeme sayfasına yönlendiriliyorsunuz...', paidTitle:'Ödemeniz Alındı', paidMsg:'Ödemeniz başarıyla alındı ve siparişiniz işletmeye iletildi. Afiyet olsun!', payFailTitle:'Ödeme Tamamlanamadı', payFailMsg:'Ödeme alınamadı, kartınızdan çekim yapılmadı. Lütfen tekrar deneyin.', payRequired:'Bu işletmede sipariş online ödeme ile verilir.' },
-  en: { invalidTitle:'Invalid Link', invalidMsg:'Please use the online ordering link shared by the business to reach this page.', errorTitle:'Menu Could Not Load', errorMsg:'Something went wrong, please try again later.', emptyMenu:'There are no items available right now.', other:'Other', all:'All', subtitle:'Online Order — Pickup / Delivery', sendCart:'Send Cart →', items:'items', checkoutTitle:'Confirm Order', pickupTab:'🥡 Pickup', deliveryTab:'🛵 Delivery', total:'Total', namePlaceholder:'Your Full Name', phonePlaceholder:'Your Phone Number', addressPlaceholder:'Delivery Address', sendOrder:'Send Order', sending:'Sending...', back:'Go Back', successTitle:'Order Received', successMsg:'Your order has been sent to the business and will be prepared once approved. Enjoy your meal!', errName:'Please enter your name', errPhone:'Please enter your phone number', errAddress:'Please enter the delivery address', payTitle:'Payment', payDoor:'💵 Pay on delivery / pickup', payOnline:'💳 Pay online by card', payNow:'Proceed to Payment', payRedirect:'Redirecting to payment page...', paidTitle:'Payment Received', paidMsg:'Your payment was successful and your order has been sent to the business. Enjoy your meal!', payFailTitle:'Payment Failed', payFailMsg:'The payment could not be completed and your card was not charged. Please try again.', payRequired:'Orders here are paid online.' },
+  tr: { invalidTitle:'Geçersiz Bağlantı', invalidMsg:'Bu sayfaya işletmenin paylaştığı online sipariş linkiyle ulaşmalısınız.', errorTitle:'Menü Yüklenemedi', errorMsg:'Bir hata oluştu, lütfen daha sonra tekrar deneyin.', emptyMenu:'Şu anda menüde satışa açık ürün yok.', other:'Diğer', all:'Tümü', subtitle:'Online Sipariş — Gel-Al / Teslimat', sendCart:'Sepeti Gönder →', items:'ürün', checkoutTitle:'Siparişi Onayla', pickupTab:'🥡 Gel-Al', deliveryTab:'🛵 Teslimat', total:'Toplam', namePlaceholder:'Adınız Soyadınız', phonePlaceholder:'Telefon Numaranız', addressPlaceholder:'Teslimat Adresi', sendOrder:'Siparişi Gönder', sending:'Gönderiliyor...', back:'Geri Dön', successTitle:'Siparişiniz Alındı', successMsg:'Siparişiniz işletmeye iletildi, onaylandığında hazırlanmaya başlanacak. Afiyet olsun!', errName:'Adınızı girin', errPhone:'Telefon numaranızı girin', errAddress:'Teslimat adresini girin', payTitle:'Ödeme', payDoor:'💵 Kapıda / teslimde öde', payOnline:'💳 Online kartla öde', payNow:'Ödemeye Geç', payRedirect:'Ödeme sayfasına yönlendiriliyorsunuz...', paidTitle:'Ödemeniz Alındı', paidMsg:'Ödemeniz başarıyla alındı ve siparişiniz işletmeye iletildi. Afiyet olsun!', payFailTitle:'Ödeme Tamamlanamadı', payFailMsg:'Ödeme alınamadı, kartınızdan çekim yapılmadı. Lütfen tekrar deneyin.', payRequired:'Bu işletmede sipariş online ödeme ile verilir.', whenPickup:'Ne zaman almak istersiniz?', whenDelivery:'Ne zaman teslim edilsin?', whenAsap:'En kısa sürede', whenLater:'İleri bir saat', errWhen:'En az 10 dakika sonrası için bir saat seçin (en fazla 10 saat).' },
+  en: { invalidTitle:'Invalid Link', invalidMsg:'Please use the online ordering link shared by the business to reach this page.', errorTitle:'Menu Could Not Load', errorMsg:'Something went wrong, please try again later.', emptyMenu:'There are no items available right now.', other:'Other', all:'All', subtitle:'Online Order — Pickup / Delivery', sendCart:'Send Cart →', items:'items', checkoutTitle:'Confirm Order', pickupTab:'🥡 Pickup', deliveryTab:'🛵 Delivery', total:'Total', namePlaceholder:'Your Full Name', phonePlaceholder:'Your Phone Number', addressPlaceholder:'Delivery Address', sendOrder:'Send Order', sending:'Sending...', back:'Go Back', successTitle:'Order Received', successMsg:'Your order has been sent to the business and will be prepared once approved. Enjoy your meal!', errName:'Please enter your name', errPhone:'Please enter your phone number', errAddress:'Please enter the delivery address', payTitle:'Payment', payDoor:'💵 Pay on delivery / pickup', payOnline:'💳 Pay online by card', payNow:'Proceed to Payment', payRedirect:'Redirecting to payment page...', paidTitle:'Payment Received', paidMsg:'Your payment was successful and your order has been sent to the business. Enjoy your meal!', payFailTitle:'Payment Failed', payFailMsg:'The payment could not be completed and your card was not charged. Please try again.', payRequired:'Orders here are paid online.' , whenPickup:'When would you like to pick up?', whenDelivery:'When should it be delivered?', whenAsap:'As soon as possible', whenLater:'Later time', errWhen:'Pick a time at least 10 minutes from now (max 10 hours).' },
   ar: { invalidTitle:'رابط غير صالح', invalidMsg:'يرجى استخدام رابط الطلب عبر الإنترنت الذي شاركته المنشأة للوصول إلى هذه الصفحة.', errorTitle:'تعذر تحميل القائمة', errorMsg:'حدث خطأ ما، يرجى المحاولة مرة أخرى لاحقًا.', emptyMenu:'لا توجد عناصر متاحة حاليًا.', other:'أخرى', all:'الكل', subtitle:'طلب عبر الإنترنت — استلام / توصيل', sendCart:'إرسال السلة ←', items:'عناصر', checkoutTitle:'تأكيد الطلب', pickupTab:'🥡 استلام', deliveryTab:'🛵 توصيل', total:'المجموع', namePlaceholder:'الاسم الكامل', phonePlaceholder:'رقم هاتفك', addressPlaceholder:'عنوان التوصيل', sendOrder:'إرسال الطلب', sending:'جارٍ الإرسال...', back:'رجوع', successTitle:'تم استلام طلبك', successMsg:'تم إرسال طلبك إلى المنشأة وسيتم تحضيره بعد الموافقة. بالهناء والشفاء!', errName:'يرجى إدخال اسمك', errPhone:'يرجى إدخال رقم هاتفك', errAddress:'يرجى إدخال عنوان التوصيل' },
   de: { invalidTitle:'Ungültiger Link', invalidMsg:'Bitte verwenden Sie den vom Betrieb geteilten Online-Bestelllink, um diese Seite zu erreichen.', errorTitle:'Menü konnte nicht geladen werden', errorMsg:'Etwas ist schiefgelaufen, bitte versuchen Sie es später erneut.', emptyMenu:'Derzeit sind keine Artikel verfügbar.', other:'Sonstiges', all:'Alle', subtitle:'Online-Bestellung — Abholung / Lieferung', sendCart:'Warenkorb senden →', items:'Artikel', checkoutTitle:'Bestellung bestätigen', pickupTab:'🥡 Abholung', deliveryTab:'🛵 Lieferung', total:'Gesamt', namePlaceholder:'Ihr vollständiger Name', phonePlaceholder:'Ihre Telefonnummer', addressPlaceholder:'Lieferadresse', sendOrder:'Bestellung senden', sending:'Wird gesendet...', back:'Zurück', successTitle:'Bestellung erhalten', successMsg:'Ihre Bestellung wurde an den Betrieb gesendet und wird nach Bestätigung zubereitet. Guten Appetit!', errName:'Bitte geben Sie Ihren Namen ein', errPhone:'Bitte geben Sie Ihre Telefonnummer ein', errAddress:'Bitte geben Sie die Lieferadresse ein' },
   ru: { invalidTitle:'Недействительная ссылка', invalidMsg:'Пожалуйста, используйте ссылку для онлайн-заказа, предоставленную заведением, чтобы попасть на эту страницу.', errorTitle:'Не удалось загрузить меню', errorMsg:'Что-то пошло не так, попробуйте позже.', emptyMenu:'Сейчас нет доступных позиций.', other:'Другое', all:'Все', subtitle:'Онлайн-заказ — Самовывоз / Доставка', sendCart:'Отправить заказ →', items:'позиций', checkoutTitle:'Подтвердить заказ', pickupTab:'🥡 Самовывоз', deliveryTab:'🛵 Доставка', total:'Итого', namePlaceholder:'Ваше полное имя', phonePlaceholder:'Ваш номер телефона', addressPlaceholder:'Адрес доставки', sendOrder:'Отправить заказ', sending:'Отправка...', back:'Назад', successTitle:'Заказ получен', successMsg:'Ваш заказ отправлен заведению и будет готовиться после подтверждения. Приятного аппетита!', errName:'Пожалуйста, введите ваше имя', errPhone:'Пожалуйста, введите ваш номер телефона', errAddress:'Пожалуйста, введите адрес доставки' },
@@ -299,6 +299,10 @@ function openCheckout(){
     <input class="u-mt14" id="ckName" placeholder="${escapeHtml(t('namePlaceholder'))}">
     <input id="ckPhone" type="tel" placeholder="${escapeHtml(t('phonePlaceholder'))}">
     <input id="ckAddress" placeholder="${escapeHtml(t('addressPlaceholder'))}" ${STATE.orderType==='delivery'?'':'hidden'}>
+    <div class="when-box"><b id="ckWhenT">${escapeHtml(t(STATE.orderType==='delivery' ? 'whenDelivery' : 'whenPickup'))}</b>
+      <div class="when-opts"><label class="pay-opt"><input type="radio" name="ckWhen" value="asap" checked ${actOn('change','setWhen',['asap'])}> ${escapeHtml(t('whenAsap'))}</label>
+        <label class="pay-opt"><input type="radio" name="ckWhen" value="later" ${actOn('change','setWhen',['later'])}> ${escapeHtml(t('whenLater'))}</label>
+        <input type="time" id="ckWhenTime" hidden></div></div>
     ${STATE.payMode !== 'off' ? `<div class="pay-box"><b>${escapeHtml(t('payTitle'))}</b>
       ${STATE.payMode === 'optional' ? `<label class="pay-opt"><input type="radio" name="ckPay" value="door" ${STATE.payMethod==='door'?'checked':''} ${actOn('change','setPayMethod',['door'])}> ${escapeHtml(t('payDoor'))}</label>` : `<small>${escapeHtml(t('payRequired'))}</small>`}
       <label class="pay-opt"><input type="radio" name="ckPay" value="online" ${STATE.payMethod==='online'?'checked':''} ${actOn('change','setPayMethod',['online'])}> ${escapeHtml(t('payOnline'))}</label></div>` : ''}
@@ -307,6 +311,16 @@ function openCheckout(){
     <button class="ghost" ${act('removeEl','checkoutBg')}>${escapeHtml(t('back'))}</button>
   </div>`;
   document.body.appendChild(bg);
+}
+function setWhen(v){ const i = document.getElementById('ckWhenTime'); if(i){ i.hidden = v !== 'later'; if(v === 'later' && !i.value){ const d = new Date(Date.now() + 45 * 60000); i.value = String(d.getHours()).padStart(2,'0') + ':' + String(Math.floor(d.getMinutes() / 5) * 5).padStart(2,'0'); } } }
+// Seçilen saat dakikaya çevrilir (null = en kısa sürede); geçersizse false.
+function wantedMinutes(){
+  const later = (document.querySelector('input[name=ckWhen]:checked') || {}).value === 'later';
+  if(!later) return null;
+  const m = /^(\d{1,2}):(\d{2})$/.exec((document.getElementById('ckWhenTime') || {}).value || ''); if(!m) return false;
+  const d = new Date(); d.setHours(+m[1], +m[2], 0, 0);
+  const mins = Math.round((d - Date.now()) / 60000);
+  return mins >= 10 && mins <= 600 ? mins : false;
 }
 function setPayMethod(m){ STATE.payMethod = m; const b = document.getElementById('ckSendBtn'); if(b) b.textContent = t(m==='online' ? 'payNow' : 'sendOrder'); }
 function setOrderType(type){
@@ -317,6 +331,7 @@ function setOrderType(type){
   if(deliveryTab) deliveryTab.classList.toggle('active', type==='delivery');
   const addrInput = document.getElementById('ckAddress');
   if(addrInput) addrInput.hidden = type!=='delivery';
+  const wt = document.getElementById('ckWhenT'); if(wt) wt.textContent = t(type==='delivery' ? 'whenDelivery' : 'whenPickup');
 }
 async function sendPublicOrder(){
   const ids = Object.keys(STATE.cart);
@@ -330,6 +345,8 @@ async function sendPublicOrder(){
   if(!name){ errEl.textContent = t('errName'); return; }
   if(!phone){ errEl.textContent = t('errPhone'); return; }
   if(STATE.orderType==='delivery' && !address){ errEl.textContent = t('errAddress'); return; }
+  const wanted = wantedMinutes();
+  if(wanted === false){ errEl.textContent = t('errWhen'); return; }
   btn.disabled = true; btn.textContent = t('sending');
   if(STATE.payMethod === 'online' && STATE.payMode !== 'off'){
     // Önce ödeme: sipariş, ödeme başarılı olunca işletmeye düşer.
@@ -346,12 +363,13 @@ async function sendPublicOrder(){
     }catch(e){ btn.disabled = false; btn.textContent = t('payNow'); errEl.textContent = e.message; }
     return;
   }
-  const { error } = await sb.rpc('submit_public_order', {
+  const { data: reqId, error } = await sb.rpc('submit_public_order', {
     p_restaurant_code: RESTAURANT_CODE, p_order_type: STATE.orderType, p_customer_name: name,
     p_customer_phone: phone, p_delivery_address: STATE.orderType==='delivery' ? address : null, p_items: items, p_client_id: CLIENT_ID
   });
   btn.disabled = false; btn.textContent = t('sendOrder');
   if(error){ errEl.textContent = error.message; refreshMenuStock(); return; }
+  if(wanted && reqId) await sb.rpc('set_public_order_wanted', { p_request_id: reqId, p_minutes: wanted });
   STATE.cart = {};
   const bg = document.getElementById('checkoutBg'); if(bg) bg.remove();
   renderState(stateBoxHtml('✅', t('successTitle'), t('successMsg')));

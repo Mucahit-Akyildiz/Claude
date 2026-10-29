@@ -1,0 +1,4 @@
+-- (DB'ye uygulandı) Online siparişte müşterinin istediği saat:
+-- * customer_order_requests.wanted_at; set_public_order_wanted(p_request_id, p_minutes) (10–600 dk, gönderimden sonraki 2 dk içinde, bir kez)
+-- * approve_customer_order_request: paket siparişin pickup_at = wanted_at (gelecekteyse) → mutfakta geri sayım
+-- * list_customer_order_requests: wanted_at
