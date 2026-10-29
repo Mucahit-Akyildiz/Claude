@@ -209,6 +209,7 @@ async function refreshCustomerOrderRequests(session){
         </div>
         ${r.payment_status==='paid' ? `<div style="margin-top:4px;"><span class="pchip" style="background:color-mix(in srgb,var(--ok,#22c55e) 18%,transparent);color:var(--ok,#16a34a);font-weight:800;">💳 Online ödendi${r.paid_amount ? ' · ' + money(r.paid_amount) : ''}</span></div>` : ''}
         ${(r.customer_phone||r.delivery_address) ? `<div class="muted" style="font-size:12px;margin-top:2px;overflow-wrap:anywhere;word-break:break-word;">${r.customer_phone?'📞 '+escapeHtml(r.customer_phone):''}${r.customer_phone&&r.delivery_address?' · ':''}${r.delivery_address?'📍 '+escapeHtml(r.delivery_address):''}</div>` : ''}
+        ${r.wanted_at ? `<div class="cor-when">🕒 ${r.order_type==='delivery' ? 'Teslim' : 'Alış'} saati: <b>${new Date(r.wanted_at).toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'})}</b></div>` : ''}
         <div style="font-size:13px;margin-top:4px;">
           ${r.items.map(it => `${it.qty}x ${escapeHtml(it.name||'?')}${it.note?' <span class="muted">('+escapeHtml(it.note)+')</span>':''}`).join(', ')}
         </div>

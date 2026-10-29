@@ -115,3 +115,4 @@
 .pay-box small{opacity:.75;font-size:12.5px;}
 .pay-opt{display:flex;align-items:center;gap:8px;font-weight:600;cursor:pointer;}
 .pay-opt input{width:auto;margin:0;}
+.when-box{margin:10px 0 4px;text-align:left}.when-box b{display:block;font-size:14px;margin-bottom:6px}.when-opts{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center}.when-opts input[type=time]{width:auto;margin:0}
