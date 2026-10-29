@@ -319,6 +319,7 @@ function wantedMinutes(){
   if(!later) return null;
   const m = /^(\d{1,2}):(\d{2})$/.exec((document.getElementById('ckWhenTime') || {}).value || ''); if(!m) return false;
   const d = new Date(); d.setHours(+m[1], +m[2], 0, 0);
+  if(d - Date.now() < -60000) d.setDate(d.getDate() + 1); // gece yarısını geçen saat (ör. 23:53'te 00:20) ertesi güne aittir
   const mins = Math.round((d - Date.now()) / 60000);
   return mins >= 10 && mins <= 600 ? mins : false;
 }

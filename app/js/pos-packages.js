@@ -591,6 +591,7 @@ function setPkgType(t){
 function setPkgPickupTime(v){
   const m = /^(\d{1,2}):(\d{2})$/.exec(v || ''); if(!m) return;
   const t = new Date(); t.setHours(+m[1], +m[2], 0, 0);
+  if(t - Date.now() < -60000 && t.getHours() < 6) t.setDate(t.getDate() + 1); // gece yarısını geçen saat ertesi güne aittir
   const mins = Math.round((t - Date.now()) / 60000);
   if(mins < 1){ alert('Geçmiş bir saat seçtiniz. Müşterinin geleceği ileri bir saati girin.'); return; }
   if(mins > 600){ alert('En fazla 10 saat sonrası seçilebilir.'); return; }
