@@ -21,7 +21,6 @@ async function renderPackagesView(main, session){
   }
   if(!APP.config) APP.config = cfgRes.data;
   APP.liveOrders = liveRes.data || [];
-  if(typeof warnPackageDeadlines === 'function') warnPackageDeadlines();
   if(!statusEl || !statusEl.isConnected) return; // yanıt gelmeden başka ekrana geçildi
   statusEl.textContent = '';
   renderPackageGrid();

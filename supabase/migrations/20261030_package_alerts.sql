@@ -1,0 +1,4 @@
+-- (DB'ye uygulandı) Paket uyarıları:
+-- * orders.pkg_push_stage, orders.courier_push_stage
+-- * _nav_badges: 'packages' rozeti — not_dispatched (hazır, kuryeye verilmedi) ve pkg_deadline (teslime <20 dk, hâlâ hazırlanıyor)
+-- * _cron_pkg_alerts (her dakika): teslime <20 / <10 dk / süre geçti ve hazır-kuryesiz (2. ve 10. dk) için mode 'pkg_alerts' push

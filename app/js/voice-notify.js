@@ -15,6 +15,7 @@ const VOICE_TYPES = [
   { id:'seated',       ic:'🪑', label:'Misafir masaya oturdu', sample:'Bekleme listesindeki Ahmet Bey 12 numaralı masaya oturdu' },
   { id:'resvsoon',     ic:'⏳', label:'Rezervasyon hatırlatma (15 dk)', sample:'Ahmet Bey adına 4 kişilik rezervasyon 15 dakika sonra, 12 numaralı masa' },
   { id:'pickup',       ic:'🥡', label:'Gel-al alış saati geldi', sample:'Hakan Bey adına gel-al siparişinin alış saati geldi' },
+  { id:'courier',      ic:'🛵', label:'Adrese teslim paket hazır, kuryeye verilmedi', sample:'Hakan Bey paketi hazır, kuryeye verilmedi' },
   { id:'pkgsoon',      ic:'⏱️', label:'Paket teslim saatine 20 dk’dan az kaldı (hâlâ hazırlanıyor)', sample:'Hakan Bey paketinin adreste olmasına 15 dakika kaldı, sipariş hâlâ hazırlanıyor' },
   { id:'reservations', ic:'📅', label:'Yeni rezervasyon / bekleme listesi', sample:'Yeni rezervasyon talebi var' },
   { id:'messages',     ic:'💬', label:'Mesajlar', sample:'Yeni mesajınız var' },
@@ -237,6 +238,7 @@ function voiceTypeOf(view, x){
   if(view==='kitchen') return 'kitchen';
   if(view==='order') return k==='customer_request' ? (x.table ? 'qr' : 'online') : k==='waiter_call' ? 'waiter' : k==='idle_table' ? 'idle' : k==='no_guests' ? 'guests' : 'other';
   if(view==='payments') return k==='waiter_call' ? 'bill' : k==='ready' ? 'ready' : 'other';
+  if(view==='packages') return k==='not_dispatched' ? 'courier' : k==='pkg_deadline' ? 'pkgsoon' : 'other';
   if(view==='reservations' || view==='messages') return view;
   return 'other';
 }
@@ -266,6 +268,8 @@ function voiceTextFor(type, items){
     case 'seated': return items.map(x => (x.kind==='waitlist' ? 'Bekleme listesindeki ' : 'Rezervasyonlu ') + (x.name || 'misafir') + ' ' + voiceMasa(x.table, 'dat') + ' oturdu').join('. ');
     case 'pickup': return items.map(x => (x.name ? x.name + ' adına' : (x.no ? x.no + ' numaralı' : 'Bir')) + ' gel-al siparişinin alış saati geldi' + (x.ready ? '' : ', sipariş henüz hazır değil')).join('. ');
     case 'guests': return T.map(t => voiceMasa(t, 'gen') + ' kişi sayısı girilmedi').join('. ');
+    case 'courier': return items.map(x => (x.name || 'Bir') + ' paketi hazır, kuryeye verilmedi').join('. ');
+    case 'pkgsoon': return items.map(x => (x.name || 'Bir') + ' paketinin ' + (x.left < 0 ? 'teslim saati geçti' : (x.delivery ? 'adreste olmasına ' : 'teslim alınmasına ') + x.left + ' dakika kaldı') + ', sipariş hâlâ hazırlanıyor').join('. ');
     case 'idle': return items.map(x => { const t = String(x.label || '').replace(/^🪑\s*/, '').split(' · ')[0]; return voiceMasa(t, 'gen') + ' siparişi bekleniyor, misafir masada oturuyor'; }).join('. ');
     case 'reservations': return items.map(x => {
       const name = x.name || String(x.label || '').replace(/^\W+/u, '').split(/ · | \(/)[0].trim();
@@ -371,7 +375,7 @@ function processVoiceBadges(data, visibleViews){
   return sound;
 }
 const VOICE_TYPE_VIEW = { kitchen:'kitchen', late:'kitchen', qr:'order', online:'order', waiter:'order', idle:'order', guests:'order', bill:'payments', ready:'payments',
-  seated:'reservations', resvsoon:'reservations', reservations:'reservations', pickup:'packages', pkgsoon:'kitchen', messages:'messages' };
+  seated:'reservations', resvsoon:'reservations', reservations:'reservations', pickup:'packages', pkgsoon:'packages', courier:'packages', messages:'messages' };
 function voiceDesktopNotify(type, list){
   try{
     if(!document.hidden && document.hasFocus()) return;

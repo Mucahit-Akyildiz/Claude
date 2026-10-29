@@ -465,6 +465,47 @@ async function paymentUserIds(supabase, restaurantId) {
   PAY_USERS_CACHE.set(restaurantId, ids);
   return ids;
 }
+// Paket Servis yetkilileri + Yönetici (sistem rolü).
+async function packageUserIds(supabase, restaurantId) {
+  const [{ data: appUsers }, { data: roles }] = await Promise.all([
+    supabase.from('app_users').select('id, role_ids, is_active').eq('restaurant_id', restaurantId),
+    supabase.from('roles').select('id, is_system, permissions').eq('restaurant_id', restaurantId),
+  ]);
+  const ok = new Set((roles || []).filter((r) => r.is_system || (r.permissions || []).includes('packages')).map((r) => r.id));
+  return (appUsers || []).filter((u) => u.is_active !== false && (u.role_ids || []).some((rid) => ok.has(rid))).map((u) => u.id);
+}
+// Paket uyarıları (pg_cron _cron_pkg_alerts): teslim saati yaklaşıp hâlâ hazırlanan paketler ve hazır olup kuryeye verilmemiş adrese teslim paketler.
+// Alıcı: siparişi alan + Paket Servis yetkilileri + Yönetici.
+async function dispatchPackageAlerts(supabase, deadlineIds, courierIds) {
+  const ids = [...new Set([...deadlineIds, ...courierIds])];
+  if (!ids.length) return { sent: 0 };
+  const { data: orders } = await supabase.from('orders')
+    .select('id, restaurant_id, status, customer_name, daily_number, created_by, pickup_at, takeaway_type, delivery_address, dispatched_at')
+    .in('id', ids);
+  let sent = 0;
+  for (const o of orders || []) {
+    if (o.status !== 'open') continue;
+    const who = o.customer_name || ('Paket #' + (o.daily_number || ''));
+    const to = [...new Set([o.created_by, ...(await packageUserIds(supabase, o.restaurant_id))].filter(Boolean))];
+    if (deadlineIds.includes(o.id) && o.pickup_at) {
+      const left = Math.round((new Date(o.pickup_at).getTime() - Date.now()) / 60000);
+      const del = (o.takeaway_type || (o.delivery_address ? 'delivery' : 'pickup')) !== 'pickup';
+      const r = await sendToUsers(supabase, to, {
+        title: (left < 10 ? '🔴 ' : '⏱️ ') + who + ': ' + (left < 0 ? 'teslim saati geçti' : (del ? 'adreste olmasına ' : 'alınmasına ') + left + ' dk kaldı'),
+        body: 'Sipariş hâlâ hazırlanıyor. Mutfak ekranından takip edin.', url: '/app/', view: 'kitchen', tag: 'pkg-deadline-' + o.id,
+      });
+      sent += (r && r.sent) || 0;
+    }
+    if (courierIds.includes(o.id) && !o.dispatched_at) {
+      const r = await sendToUsers(supabase, to, {
+        title: '🛵 ' + who + ': hazır, kuryeye verilmedi',
+        body: 'Adrese teslim paket hazır. Paket Servis ekranından kuryeye verin.', url: '/app/', view: 'packages', tag: 'pkg-courier-' + o.id,
+      });
+      sent += (r && r.sent) || 0;
+    }
+  }
+  return { sent };
+}
 // Kişi sayısı girilmemiş masa (pg_cron _cron_no_guests): siparişi alan + ödeme yetkilileri + Yönetici.
 async function dispatchNoGuests(supabase, orderIds) {
   if (!orderIds.length) return { sent: 0 };
@@ -667,6 +708,12 @@ module.exports = async function handler(req, res) {
       return;
     }
 
+    if (mode === 'pkg_alerts') {
+      const dl = Array.isArray(req.body && req.body.deadline_ids) ? req.body.deadline_ids.slice(0, 200) : [];
+      const cr = Array.isArray(req.body && req.body.courier_ids) ? req.body.courier_ids.slice(0, 200) : [];
+      res.status(200).json(await dispatchPackageAlerts(supabase, dl, cr));
+      return;
+    }
     if (mode === 'no_guests') {
       const ids = Array.isArray(req.body && req.body.order_ids) ? req.body.order_ids.slice(0, 200) : [];
       res.status(200).json(await dispatchNoGuests(supabase, ids));
