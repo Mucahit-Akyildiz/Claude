@@ -452,19 +452,33 @@ async function dispatchChatMessage(supabase, messageId) {
 
 // Masaya oturtulmus ama hic siparis girilmemis masalar (bkz. _cron_idle_tables): siparis
 // alma ('order') izni olan personele (Yonetici dahil) bildirim. Siparis bu arada girildiyse atlanir.
-// Kişi sayısı girilmemiş masa (pg_cron _cron_no_guests): yalnızca siparişi alan personele.
+// Ödeme alma yetkisi olan aktif personel + Yönetici (sistem rolü) — masa bildirimlerinin ortak alıcıları.
+const PAY_USERS_CACHE = new Map();
+async function paymentUserIds(supabase, restaurantId) {
+  if (PAY_USERS_CACHE.has(restaurantId)) return PAY_USERS_CACHE.get(restaurantId);
+  const [{ data: appUsers }, { data: roles }] = await Promise.all([
+    supabase.from('app_users').select('id, role_ids, is_active').eq('restaurant_id', restaurantId),
+    supabase.from('roles').select('id, is_system, permissions').eq('restaurant_id', restaurantId),
+  ]);
+  const ok = new Set((roles || []).filter((r) => r.is_system || (r.permissions || []).includes('payments')).map((r) => r.id));
+  const ids = (appUsers || []).filter((u) => u.is_active !== false && (u.role_ids || []).some((rid) => ok.has(rid))).map((u) => u.id);
+  PAY_USERS_CACHE.set(restaurantId, ids);
+  return ids;
+}
+// Kişi sayısı girilmemiş masa (pg_cron _cron_no_guests): siparişi alan + ödeme yetkilileri + Yönetici.
 async function dispatchNoGuests(supabase, orderIds) {
   if (!orderIds.length) return { sent: 0 };
   const { data: orders } = await supabase.from('orders')
-    .select('id, status, guest_count, created_by, restaurant_tables(name)')
+    .select('id, restaurant_id, status, guest_count, created_by, restaurant_tables(name)')
     .in('id', orderIds);
   let sent = 0;
   for (const o of orders || []) {
     if (o.status !== 'open' || o.guest_count != null || !o.created_by) continue;
     const table = (o.restaurant_tables && o.restaurant_tables.name) || 'Bir masa';
-    const r = await sendToUsers(supabase, [o.created_by], {
+    const to = [...new Set([o.created_by, ...(await paymentUserIds(supabase, o.restaurant_id))])];
+    const r = await sendToUsers(supabase, to, {
       title: '👥 ' + table + ': kişi sayısı girilmedi',
-      body: 'Siparişini aldığınız masanın kişi sayısını girin. Masaya dokunup üstteki 👥 Kişi sayısı alanından seçebilirsiniz.',
+      body: 'Masanın kişi sayısını girin: masaya dokunup üstteki 👥 Kişi sayısı alanından seçebilirsiniz.',
       url: '/app/', view: 'order', tag: 'no-guests-' + o.id,
     });
     sent += (r && r.sent) || 0;
@@ -581,7 +595,7 @@ async function cleanupDeletedChatMedia(supabase) {
 async function dispatchItemsReady(supabase, itemIds) {
   const { data: rows, error } = await supabase
     .from('order_items')
-    .select('id, name, qty, added_by, orders!inner(id, kind, customer_name, daily_number, created_by, table_id, restaurant_tables(name))')
+    .select('id, name, qty, added_by, orders!inner(id, restaurant_id, kind, customer_name, daily_number, created_by, table_id, restaurant_tables(name))')
     .in('id', itemIds);
   if (error) return { error: error.message };
   const byUser = new Map();
@@ -593,6 +607,15 @@ async function dispatchItemsReady(supabase, itemIds) {
       : ((o.restaurant_tables && o.restaurant_tables.name) || 'Masa');
     if (!byUser.has(uid)) byUser.set(uid, { label, items: [] });
     byUser.get(uid).items.push(r.qty + 'x ' + r.name);
+  }
+  // Siparişi alanın yanında ödeme alma yetkilileri ve Yönetici de aynı bildirimi alır (hesabı onlar kapatır).
+  const first = (rows || [])[0];
+  if (first && first.orders) {
+    const o = first.orders;
+    const label = o.kind === 'takeaway' ? ('📦 Paket' + (o.customer_name ? ' - ' + o.customer_name : (o.daily_number ? ' #' + o.daily_number : '')))
+      : ((o.restaurant_tables && o.restaurant_tables.name) || 'Masa');
+    const all = (rows || []).map((r) => r.qty + 'x ' + r.name);
+    for (const uid of await paymentUserIds(supabase, o.restaurant_id)) if (!byUser.has(uid)) byUser.set(uid, { label, items: all });
   }
   let sent = 0;
   for (const [uid, v] of byUser) {
@@ -621,6 +644,7 @@ module.exports = async function handler(req, res) {
 
     const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
     SUPA_CLIENT = supabase; BADGE_CACHE = new Map();
+    PAY_USERS_CACHE.clear(); // önbellek yalnız bu istek içinde (rol değişiklikleri hemen yansısın)
     const mode = (req.body && req.body.mode) || 'both';
 
     if (mode === 'shift_event') {
