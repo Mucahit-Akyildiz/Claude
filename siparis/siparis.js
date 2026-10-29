@@ -354,6 +354,7 @@ async function sendPublicOrder(){
       p_restaurant_code: RESTAURANT_CODE, p_order_type: STATE.orderType, p_customer_name: name,
       p_customer_phone: phone, p_delivery_address: STATE.orderType==='delivery' ? address : null, p_items: items, p_client_id: CLIENT_ID });
     if(pe || !pd){ btn.disabled = false; btn.textContent = t('payNow'); errEl.textContent = (pe && pe.message) || t('errorMsg'); return; }
+    if(wanted) await sb.rpc('set_payment_wanted', { p_payment_id: pd.payment_id, p_minutes: wanted });
     try{
       const r = await fetch('/api/order-pay', { method:'POST', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify({ payment_id: pd.payment_id }) });
       const j = await r.json();
