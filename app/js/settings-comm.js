@@ -8,6 +8,21 @@ async function sendTestSms(){
   const st = { dispatched: '✅ SMS firmasına iletildi — telefonunuza birkaç saniye içinde gelmeli. Gelmezse firmanın panelindeki Raporlar\'a bakın (başlık onayı / bakiye).', no_provider: '⚠️ SMS firması bilgileri eksik (anahtar/şifre). Kaydet\'e basıp tekrar deneyin.', skipped: '⚠️ Gönderim sınırına takıldı (aynı numaraya saatte en fazla 10 SMS).' };
   if(res) res.textContent = st[data && data.status] || ('Durum: ' + (data && data.status || '?'));
 }
+async function sendTestMail(){
+  const to = (document.getElementById('ti_mail_testto') || {}).value || '', res = document.getElementById('ti_mail_testres');
+  if(res) res.textContent = '⏳ Gönderiliyor…';
+  const { data, error } = await sb.rpc('send_test_mail', { p_token: getSession().session_token, p_email: to });
+  if(error){ if(res) res.textContent = '⚠️ ' + error.message; return; }
+  // Sonuç e-posta servisinden birkaç saniyede döner: 6 sn boyunca durumu sorgula.
+  for(let i = 0; i < 6; i++){
+    await new Promise(r => setTimeout(r, 1000));
+    const { data: st } = await sb.rpc('get_test_mail_status', { p_token: getSession().session_token, p_id: data && data.id });
+    if(!st || st.status === 'queued') continue;
+    if(res) res.textContent = st.status === 'sent' ? '✅ Gönderildi — gelen kutunuzu (ve spam klasörünü) kontrol edin.' : '⚠️ Gönderilemedi: ' + (st.error || st.status);
+    return;
+  }
+  if(res) res.textContent = '⏳ Gönderim sürüyor; birkaç dakika içinde gelmezse Gönderilenler sekmesine bakın.';
+}
 /* SMS şablonları: her mesaj türü açılıp kapatılır ve metni düzenlenir; sunucu gönderirken bu metni kullanır. */
 const SMS_TPL = [
   { k:'reservation_confirm', ic:'📅', t:'Rezervasyon onayı', w:'Rezervasyon onaylanınca', v:['isletme','ad','tarih','saat','kisi'], d:'{isletme}: {tarih} {saat} tarihli {kisi} kisilik rezervasyonunuz onaylandi.' },
@@ -340,7 +355,8 @@ async function renderTenantIntegrations(session){
         <div><label>Gönderen adı</label><input id="ti_mail_from_name" value="${escapeAttr(ml.from_name || '')}" placeholder="Restoran adınız"></div>
       </div></div>
     <p class="ix-note">ℹ️ Alan adınızı seçtiğiniz serviste doğrulamanız gerekir (DNS kayıtları). Resend: <b>Domains</b>, Brevo: <b>Senders & Domains</b>, SendGrid: <b>Sender Authentication</b>, Postmark: <b>Sender Signatures</b>.</p>
-    <button class="ix-save" type="button" ${act('saveTenantInt', 'mail')}>${ICON_SAVE}<span>Kaydet</span></button>`, `<div class="ti-card">
+    <button class="ix-save" type="button" ${act('saveTenantInt', 'mail')}>${ICON_SAVE}<span>Kaydet</span></button>
+    ${ml.provider && ml.provider !== 'other' ? `<div class="ix-sec ti-test"><div class="ix-st">3 · Test et</div><div class="ti-test-row"><input id="ti_mail_testto" type="email" placeholder="ornek@eposta.com"><button type="button" class="ghost-btn" ${act('sendTestMail')}>✉️ Test e-postası gönder</button></div><small class="muted" id="ti_mail_testres">Önce ayarları kaydedin, sonra kendi adresinize test gönderin.</small></div>` : ''}`, `<div class="ti-card">
       <div class="ti-h"><span>💳</span><b>Online ödeme</b>${st((py.mode||'off')!=='off', 'Kapıda ödeme')}</div>
       <p class="muted ti-d">Açarsanız online sipariş sayfasında müşteri kartla ödeyebilir; para doğrudan <b>sizin</b> sanal POS hesabınıza geçer. Kapalıyken müşteri kapıda öder.</p>
       <label>Sipariş sayfasında ödeme</label>
