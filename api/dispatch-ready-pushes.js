@@ -452,6 +452,25 @@ async function dispatchChatMessage(supabase, messageId) {
 
 // Masaya oturtulmus ama hic siparis girilmemis masalar (bkz. _cron_idle_tables): siparis
 // alma ('order') izni olan personele (Yonetici dahil) bildirim. Siparis bu arada girildiyse atlanir.
+// Kişi sayısı girilmemiş masa (pg_cron _cron_no_guests): yalnızca siparişi alan personele.
+async function dispatchNoGuests(supabase, orderIds) {
+  if (!orderIds.length) return { sent: 0 };
+  const { data: orders } = await supabase.from('orders')
+    .select('id, status, guest_count, created_by, restaurant_tables(name)')
+    .in('id', orderIds);
+  let sent = 0;
+  for (const o of orders || []) {
+    if (o.status !== 'open' || o.guest_count != null || !o.created_by) continue;
+    const table = (o.restaurant_tables && o.restaurant_tables.name) || 'Bir masa';
+    const r = await sendToUsers(supabase, [o.created_by], {
+      title: '👥 ' + table + ': kişi sayısı girilmedi',
+      body: 'Siparişini aldığınız masanın kişi sayısını girin. Masaya dokunup üstteki 👥 Kişi sayısı alanından seçebilirsiniz.',
+      url: '/app/', view: 'order', tag: 'no-guests-' + o.id,
+    });
+    sent += (r && r.sent) || 0;
+  }
+  return { sent };
+}
 async function dispatchIdleTables(supabase, orderIds) {
   if (!orderIds.length) return { sent: 0 };
   const { data: orders } = await supabase.from('orders')
@@ -624,6 +643,11 @@ module.exports = async function handler(req, res) {
       return;
     }
 
+    if (mode === 'no_guests') {
+      const ids = Array.isArray(req.body && req.body.order_ids) ? req.body.order_ids.slice(0, 200) : [];
+      res.status(200).json(await dispatchNoGuests(supabase, ids));
+      return;
+    }
     if (mode === 'idle_tables') {
       const ids = Array.isArray(req.body && req.body.order_ids) ? req.body.order_ids.slice(0, 200) : [];
       res.status(200).json(await dispatchIdleTables(supabase, ids));
