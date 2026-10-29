@@ -15,6 +15,7 @@ const VOICE_TYPES = [
   { id:'seated',       ic:'🪑', label:'Misafir masaya oturdu', sample:'Bekleme listesindeki Ahmet Bey 12 numaralı masaya oturdu' },
   { id:'resvsoon',     ic:'⏳', label:'Rezervasyon hatırlatma (15 dk)', sample:'Ahmet Bey adına 4 kişilik rezervasyon 15 dakika sonra, 12 numaralı masa' },
   { id:'pickup',       ic:'🥡', label:'Gel-al alış saati geldi', sample:'Hakan Bey adına gel-al siparişinin alış saati geldi' },
+  { id:'pkgsoon',      ic:'⏱️', label:'Paket teslim saatine 20 dk’dan az kaldı (hâlâ hazırlanıyor)', sample:'Hakan Bey paketinin adreste olmasına 15 dakika kaldı, sipariş hâlâ hazırlanıyor' },
   { id:'reservations', ic:'📅', label:'Yeni rezervasyon / bekleme listesi', sample:'Yeni rezervasyon talebi var' },
   { id:'messages',     ic:'💬', label:'Mesajlar', sample:'Yeni mesajınız var' },
   { id:'other',        ic:'🔔', label:'Diğer bildirimler', sample:'Yeni bildiriminiz var' },
@@ -370,7 +371,7 @@ function processVoiceBadges(data, visibleViews){
   return sound;
 }
 const VOICE_TYPE_VIEW = { kitchen:'kitchen', late:'kitchen', qr:'order', online:'order', waiter:'order', idle:'order', guests:'order', bill:'payments', ready:'payments',
-  seated:'reservations', resvsoon:'reservations', reservations:'reservations', pickup:'packages', messages:'messages' };
+  seated:'reservations', resvsoon:'reservations', reservations:'reservations', pickup:'packages', pkgsoon:'kitchen', messages:'messages' };
 function voiceDesktopNotify(type, list){
   try{
     if(!document.hidden && document.hasFocus()) return;

@@ -675,7 +675,10 @@ function warnPackageDeadlines(){
     const del = (o.takeaway_type || (o.delivery_address ? 'delivery' : 'pickup')) !== 'pickup';
     const who = o.customer_name || ('Paket #' + (o.daily_number || ''));
     showToast('⚠️ ' + who + ': ' + (left < 0 ? 'teslim saati geçti' : (del ? 'adreste olmasına ' : 'teslim almasına ') + left + ' dk kaldı') + ', sipariş hâlâ hazırlanıyor', 8000);
-    if(typeof playPeyktanSound === 'function') playPeyktanSound();
+    // Bildirimler ekranındaki "Paket teslim saatine 20 dk'dan az kaldı" ayarına göre ses / sesli okuma.
+    const vp = typeof getVoicePrefs === 'function' ? getVoicePrefs() : null, ty = vp && vp.types.pkgsoon;
+    if(vp && vp.enabled && ty && ty.voice && typeof voiceSpeak === 'function') voiceSpeak(who + ' paketinin ' + (left < 0 ? 'teslim saati geçti' : (del ? 'adreste olmasına ' : 'teslim alınmasına ') + left + ' dakika kaldı') + ', sipariş hâlâ hazırlanıyor');
+    else if((!vp || (vp.enabled && (!ty || ty.sound))) && typeof playPeyktanSound === 'function') playPeyktanSound();
   });
 }
 /* Mutfak kartı: paket türü ve gel-al siparişinde müşterinin yaklaşık alış saati. */
