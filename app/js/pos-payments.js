@@ -389,7 +389,8 @@ function openPayModal(orderId){
     bg.dataset.promoName = '💳 Limit · ' + (order.allowance_name || '');
     recomputePaySelection();
   }
-  autoSelectPayCustomer(order);
+  // Ödeme düğmesine arama bitmeden basılırsa müşteri kaybolmasın: ödeme bu aramayı bekler (bkz. finishPaymentFull).
+  window._payCustP = autoSelectPayCustomer(order).catch(() => {});
   loadActivePromos();
   updatePayReadiness();
 }
@@ -410,7 +411,7 @@ async function autoSelectPayCustomer(order){
   }
   if(!phone || !document.getElementById('payModalBg') || input.value) return;
   input.value = phone;
-  lookupPayCustomer();
+  return lookupPayCustomer();
 }
 function applyTipPercent(pct){
   const bg = document.getElementById('payModalBg');
@@ -583,6 +584,8 @@ async function finishGiftCardPartial(method){
   if(!code){ alert('Önce bir hediye kartı sorgulayın'); return; }
   const itemQtys = buildPayItemQtys();
   if(itemQtys.length===0){ alert('Ödeme almak için en az bir ürün/adet seçin'); return; }
+  if(window._payCustP){ await Promise.race([window._payCustP, new Promise(r => setTimeout(r, 4000))]); window._payCustP = null; }
+  if(!document.getElementById('payModalBg')) return;
   const total = Math.round(payFinalTotal()*100)/100;
   const tip = parseFloat(bg.dataset.tipAmount||0);
   const amountWithTip = Math.round((total+tip)*100)/100;
