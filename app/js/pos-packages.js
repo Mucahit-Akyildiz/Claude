@@ -15,13 +15,13 @@ async function renderPackagesView(main, session){
   ]));
   const statusEl = document.getElementById('pkgStatus');
   if(cfgRes.error || liveRes.error){
-    statusEl.textContent = 'Veri yüklenemedi: ' + ((cfgRes.error||liveRes.error).message);
-    statusEl.style.color = 'var(--red)';
+    if(statusEl) statusEl.textContent = 'Veri yüklenemedi: ' + ((cfgRes.error||liveRes.error).message);
+    if(statusEl) statusEl.style.color = 'var(--red)';
     return;
   }
   if(!APP.config) APP.config = cfgRes.data;
   APP.liveOrders = liveRes.data || [];
-  if(!statusEl.isConnected) return; // yanıt gelmeden başka ekrana geçildi
+  if(!statusEl || !statusEl.isConnected) return; // yanıt gelmeden başka ekrana geçildi
   statusEl.textContent = '';
   renderPackageGrid();
   startOrderPolling(session);
