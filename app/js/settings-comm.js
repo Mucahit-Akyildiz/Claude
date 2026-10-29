@@ -306,7 +306,7 @@ async function renderTenantIntegrations(session){
   const tiles = (id, cur, list, fn) => `<input type="hidden" id="${id}" value="${escapeAttr(cur||'')}"><div class="ix-tiles">${list.map(([v, ic, n, d]) =>
       `<button type="button" class="ix-tile ${cur===v?'on':''}" ${act(fn, id, v)} data-v="${v}"><span>${ic}</span><b>${n}</b><small>${d}</small></button>`).join('')}</div>`;
   const mailWait = ml.provider === 'other';
-  const smsOk = !!(sm.provider === 'other' ? sm.url : (sm.provider && sm.user && sm.has_pass)), mailOk = !!(ml.provider && ml.key_tail && ml.from);
+  const smsOk = !!(sm.provider === 'other' ? sm.url : (sm.provider && sm.user && sm.has_pass)), mailFree = /@(gmail|googlemail|hotmail|outlook|live|msn|yahoo|ymail|icloud|me|yandex|mail|aol|protonmail|proton)\./i.test(ml.from || ''), mailOk = !!(ml.provider && ml.key_tail && ml.from) && !mailFree;
   APP.intLive = { sms: smsOk, mail: mailOk && !mailWait };
   [['sms', smsOk && !!(document.getElementById('int_sms_enabled') || {}).checked], ['mail', mailOk && !mailWait]].forEach(([id, ok]) => {
     const r = document.querySelector('.int-row[data-int-tab="' + id + '"]'); if(!r || r.classList.contains('st-lock')) return;
@@ -326,7 +326,8 @@ async function renderTenantIntegrations(session){
     ${sm.provider ? `<div class="ix-sec ti-test"><div class="ix-st">3 · Test et</div><div class="ti-test-row"><input id="ti_sms_testphone" inputmode="tel" placeholder="05XX XXX XX XX"><button type="button" class="ghost-btn" ${act('sendTestSms')}>📨 Test SMS gönder</button></div><small class="muted" id="ti_sms_testres"></small></div>` : ''}`,
   `<div class="oo-hero ${mailOk?'on':''}"><div class="oo-hero-ic">✉️</div>
       <div class="oo-hero-t"><b>Kendi alan adınızdan e-posta</b><small>Fiş, fatura, rezervasyon ve bekleme listesi e-postaları ör. info@restoraniniz.com adresinden gider. Bağlamazsanız müşterilere e-posta gönderilmez.</small></div>
-      <span class="ti-st ${mailOk&&!mailWait?'ok':''}">${mailWait?'⏳ Ekleniyor':mailOk?'● Bağlı':'○ Bağlı değil'}</span></div>
+      <span class="ti-st ${mailOk&&!mailWait?'ok':''}">${mailWait?'⏳ Ekleniyor':mailOk?'● Bağlı':mailFree?'⚠️ Gönderilemiyor':'○ Bağlı değil'}</span></div>
+    ${mailFree ? `<p class="ix-note ti-warn">⚠️ Gönderen adresi <b>${escapeHtml(ml.from)}</b> ücretsiz bir e-posta adresi; e-posta servisleri bu adresten gönderim yapmaz ve müşterilerinize e-posta gitmiyor. Kendi alan adınızdan bir adres (örn. bilgi@restoraniniz.com) girip alan adını e-posta firmanızda doğrulayın.</p>` : ''}
     <div class="ix-sec"><div class="ix-st">1 · E-posta servisinizi seçin</div>
       ${tiles('ti_mail_provider', ml.provider, [['', '🚫', 'Bağlı değil', 'E-posta gönderilmez'], ['resend', '⚡', 'Resend', 'Geliştirici dostu, hızlı'], ['brevo', '💙', 'Brevo', 'Sendinblue, ücretsiz kota'], ['sendgrid', '🔷', 'SendGrid', 'Twilio SendGrid'], ['postmark', '📮', 'Postmark', 'Yüksek teslim oranı'], ['other', '➕', 'Diğer', 'Başka firma']], 'tiMailPick')}</div>
     <div class="ix-sec" id="ti_mail_otherw" style="${ml.provider==='other'?'':'display:none;'}"><div class="ix-st">2 · Hangi firmayı kullanıyorsunuz?</div>
