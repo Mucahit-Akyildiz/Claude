@@ -3704,3 +3704,12 @@ button.sl-stat{border:1px solid var(--border) !important;} button.sl-stat.on{bor
 .page-sub{text-align:left;margin:-6px 0 14px;font-size:13px;max-width:900px}
 .rvw-cb{background:rgba(245,158,11,.18)!important;color:#f59e0b!important;font-weight:700}
 .ti-warn{border-color:rgba(245,158,11,.5)!important;background:rgba(245,158,11,.1)!important}
+/* Mutfak kartı başlığı dar pencerede (masaüstü uygulaması) harf harf kırılmasın: bölge etiketi üst satıra, masa adı kelime kelime sarar. */
+.kc-title{flex-wrap:wrap;row-gap:4px;align-items:center}
+.kc-title .kc-zone{flex:0 0 100%;width:max-content;max-width:100%;margin-right:0;overflow:hidden;text-overflow:ellipsis}
+.kb-grid .kc-title b,.kc-title b{word-break:normal!important;overflow-wrap:normal;min-width:0;line-height:1.15}
+.kc-head .kc-pill,.kc-head .kc-print{flex:0 0 auto}
+/* Sohbet başlığı (bulanık arka plan kendi katmanını açar) mesajların üstünde kalsın: ⋮ menüsü balonların arkasına düşmesin. */
+.chat-head{z-index:20}
+.chat-group-menu{z-index:30;max-height:min(70vh,420px);overflow:auto}
+.chat-group-menu>.muted:first-child{display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden}
