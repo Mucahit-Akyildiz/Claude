@@ -3721,3 +3721,4 @@ button.sl-stat{border:1px solid var(--border) !important;} button.sl-stat.on{bor
   .om-guest-m .gp-box{margin:0}
   .order-modal-cart .gp-box[data-gp]{display:none}
 }
+.pk-cust{font-size:12.5px;font-weight:700;color:var(--accent);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
