@@ -193,6 +193,7 @@ function orderAllowanceInner(pseudoId){
   const pid = escapeAttr(String(pseudoId));
   return `<div class="of-box al-pick">
     <div class="of-head"><span>💳 Limit</span><small>${cur ? 'Bu hesap limitten düşer' : 'Ad (2 harf) veya telefonla arayın'}</small></div>
+    ${cur && Number(cur.remaining) <= 0 ? `<div class="al-empty">⛔ <b>${escapeHtml(cur.name)}</b> kişisinin limiti bitmiş. Bu hesap limitten düşmez; tutarın tamamı Ödemeler'den tahsil edilmeli.</div>` : ''}
     ${cur ? `<div class="al-sel"><span class="al-sel-ic">${cur.kind === 'user' ? '👔' : '🎓'}</span><div><b>${escapeHtml(cur.name)}</b><small>${money(cur.remaining)} kaldı${cur.phone ? ' · ' + escapeHtml(maskPhoneAl(cur.phone)) : ''}${cur.flag_label ? ' · 🏷️ ' + escapeHtml(cur.flag_label) : ''}</small></div>
       <button type="button" class="al-x" title="Kaldır" ${act('pickOrderAllowance', pseudoId, cur.id)}>✕</button></div>`
     : !/^(wl|rs)_/.test(String(pseudoId)) ? '' : `<input class="al-search" type="search" placeholder="🔍 Kişi veya kullanıcı ara: ad / telefon" autocomplete="off" data-pid="${pid}" ${actOn('input','alSearch',[pseudoId, '$value'])}>
@@ -254,6 +255,7 @@ function pickOrderAllowance(pseudoId, id){
     document.querySelectorAll('.of-chip input[data-label]').forEach(i => { if(i.dataset.label === label) i.checked = on; }); };
   if(prev && prev.flag_label && (!next || allowanceById(next).flag_label !== prev.flag_label)) setFlag(prev.flag_label, false);
   if(next) setFlag(allowanceById(next).flag_label, true);
+  if(next && Number(allowanceById(next).remaining) <= 0) showToast('⛔ ' + allowanceById(next).name + ' kişisinin limiti bitmiş: hesap limitten düşmeyecek');
   if(typeof refreshOrderFlagsBox === 'function') refreshOrderFlagsBox(pseudoId);
 }
 /* Siparişe hangi limit uygulanır: seçilen kişi, yoksa siparişi alan kullanıcının etiketi seçiliyse kendi limiti. */
