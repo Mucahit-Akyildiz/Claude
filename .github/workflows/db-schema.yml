@@ -4,10 +4,9 @@ name: Veritabanı Şemasını Kaydet
 # yetkiler; VERİ DEĞİL) supabase/schema.sql dosyasına döker ve değiştiyse
 # commit eder. Böylece veritabanındaki her değişiklik git geçmişinde görünür
 # ve gerekirse geri alınabilir. Gerekli secret: SUPABASE_DB_URL.
+# Her birleştirmede değil, 6 saatte bir ve elle (canlı veritabanında pg_dump çalıştırır).
 on:
   workflow_dispatch: {}
-  push:
-    branches: [claude/restoran-app-definition-h5e5am]
   schedule:
     - cron: '41 */6 * * *'
 

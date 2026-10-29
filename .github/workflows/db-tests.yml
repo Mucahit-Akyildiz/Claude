@@ -5,12 +5,12 @@ name: Veritabanı Kritik Testleri
 # hiçbir veri kalıcı değişmez (bkz. supabase/tests/critical_tests.sql).
 # Gerekli secret: SUPABASE_DB_URL (Supabase > Project Settings > Database >
 # Connection string, "Session pooler" URI, şifre dahil).
+# Canlı veritabanını meşgul ettiği için yalnızca veritabanı dosyaları değişince (PR'da), gece ve elle çalışır.
 on:
   workflow_dispatch: {}
   pull_request:
     branches: [claude/restoran-app-definition-h5e5am]
-  push:
-    branches: [claude/restoran-app-definition-h5e5am]
+    paths: ['supabase/**', '.github/workflows/db-tests.yml']
   schedule:
     - cron: '17 3 * * *'
 
