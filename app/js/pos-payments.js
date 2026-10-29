@@ -182,6 +182,7 @@ function renderPayGrid(){
       ${compRibbon}
       <div class="pk-head"><b>${name}</b><span class="pk-time">⏱ ${mins} dk</span></div>
       <div class="pk-status">${allReady ? '✅ Hepsi hazır' : '🔥 ' + ready + '/' + unpaid.length + ' hazır'}${waitersLine(o) ? ' · ' + waitersLine(o) : ''}</div>
+      ${o.customer_name && o.kind !== 'takeaway' ? `<div class="pk-cust">🧑 ${escapeHtml(o.customer_name)}</div>` : ''}
       <div class="pk-lines">${lines}${unpaid.length > 3 ? `<div class="pk-more">+${unpaid.length - 3} ürün daha</div>` : ''}</div>
       <div class="pk-foot"><span class="pk-total">${comp ? '<s class="muted" style="font-size:.7em;">' + money(total) + '</s> 0,00 TL' : money(total)}</span><span class="pk-btn">${comp ? '🎁 İkram' : '💳 Hesabı Al'}</span></div>
     </div>`;
