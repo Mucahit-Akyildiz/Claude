@@ -3714,3 +3714,10 @@ button.sl-stat{border:1px solid var(--border) !important;} button.sl-stat.on{bor
 .chat-group-menu{z-index:30;max-height:min(70vh,420px);overflow:auto}
 .chat-group-menu>.muted:first-child{display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden}
 .of-locked .of-chip{cursor:not-allowed}.of-locked .of-chip input:not(:checked)+span{opacity:.45}
+/* Kişi sayısı: masaüstünde sepette, mobilde (sepet gizliyken de) Onayla ve Gönder'in üstünde. */
+.om-guest-m{display:none}
+@media (max-width:900px){
+  .om-guest-m{display:block;margin:10px 0 0}
+  .om-guest-m .gp-box{margin:0}
+  .order-modal-cart .gp-box[data-gp]{display:none}
+}

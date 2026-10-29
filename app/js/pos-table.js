@@ -281,7 +281,7 @@ function guestPickHtml(tableId){
   const o = liveOrderForTable(tableId);
   if(APP.guestSel[tableId] == null && o && o.guest_count) APP.guestSel[tableId] = o.guest_count;
   const n = APP.guestSel[tableId] || 0;
-  return `<div class="gp-box" id="guestPick"><span>👥 Kişi sayısı</span>
+  return `<div class="gp-box" data-gp="1"><span>👥 Kişi sayısı</span>
     <div class="gp-step"><button type="button" ${act('stepGuests', tableId, -1)} ${n ? '' : 'disabled'}>−</button><b>${n || '—'}</b><button type="button" ${act('stepGuests', tableId, 1)}>+</button></div></div>`;
 }
 let GUEST_SAVE_T = null;
@@ -289,7 +289,8 @@ function stepGuests(tableId, d){
   if(!APP.guestSel) APP.guestSel = {};
   const n = Math.max(0, Math.min(99, (APP.guestSel[tableId] || 0) + Number(d)));
   APP.guestSel[tableId] = n;
-  const el = document.getElementById('guestPick'); if(el) el.outerHTML = guestPickHtml(tableId);
+  // Kişi sayısı hem sepette (masaüstü) hem mobilde Onayla düğmesinin üstünde; ikisi de güncellenir.
+  document.querySelectorAll('.gp-box[data-gp]').forEach(el => { el.outerHTML = guestPickHtml(tableId); });
   const o = liveOrderForTable(tableId);
   if(o){ clearTimeout(GUEST_SAVE_T); GUEST_SAVE_T = setTimeout(() => saveOrderGuests(o.order_id, n), 600); }
 }
@@ -481,6 +482,7 @@ function openTableModal(tableId){
           ${(String(tableId).indexOf('pkg_')!==0 && String(tableId).indexOf('wl_')!==0 && liveOrderForTable(tableId)) ? `<button class="ghost-btn" style="width:100%;margin-top:12px;" ${act('openMoveTableModal', tableId)}>🔀 Masayı Taşı / Birleştir</button>` : ''}
         </div>
       </div>
+      ${guestPickHtml(tableId) ? `<div class="om-guest-m">${guestPickHtml(tableId)}</div>` : ''}
       ${omMobileBarHtml(tableId)}
       <div class="modal-sticky-actions">
         <button class="ghost-btn" style="flex:1;margin-top:0;color:var(--red);border-color:var(--red);" ${act('cancelTableOrder', tableId)}>🗑️ İptal Et</button>
