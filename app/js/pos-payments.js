@@ -584,8 +584,7 @@ async function finishGiftCardPartial(method){
   if(!code){ alert('Önce bir hediye kartı sorgulayın'); return; }
   const itemQtys = buildPayItemQtys();
   if(itemQtys.length===0){ alert('Ödeme almak için en az bir ürün/adet seçin'); return; }
-  if(window._payCustP){ await Promise.race([window._payCustP, new Promise(r => setTimeout(r, 4000))]); window._payCustP = null; }
-  if(!document.getElementById('payModalBg')) return;
+  if(!(await waitPayCustomer())) return;
   const total = Math.round(payFinalTotal()*100)/100;
   const tip = parseFloat(bg.dataset.tipAmount||0);
   const amountWithTip = Math.round((total+tip)*100)/100;
@@ -749,11 +748,14 @@ function payFinalTotal(){
   const birthdayPct = bg.dataset.isBirthdayToday==='1' ? (bg.dataset.birthdayPct ? Number(bg.dataset.birthdayPct) : ((APP.config && APP.config.loyalty && APP.config.loyalty.birthday_discount_percent) || 0)) : 0;
   return Math.max(0, afterDiscounts - afterDiscounts*birthdayPct/100);
 }
+// Ödeme ekranında masadaki müşterinin otomatik aranması bitmeden ödeme kaydedilmesin (müşteri ve e-postası kaybolmasın).
+async function waitPayCustomer(){ if(window._payCustP){ await Promise.race([window._payCustP, new Promise(r => setTimeout(r, 4000))]); window._payCustP = null; } return !!document.getElementById('payModalBg'); }
 async function finishPaymentFull(method){
   const bg = document.getElementById('payModalBg');
   const orderId = bg.dataset.orderId;
   const itemQtys = buildPayItemQtys();
   if(itemQtys.length===0){ alert('Ödeme almak için en az bir ürün/adet seçin'); return; }
+  if(!(await waitPayCustomer())) return;
   const total = Math.round(payFinalTotal()*100)/100;
   const tip = parseFloat(bg.dataset.tipAmount||0);
   const amountWithTip = Math.round((total+tip)*100)/100;
@@ -769,10 +771,11 @@ async function finishPaymentFull(method){
   }
   await finishPayment(orderId, method, total, method==='cash'?amountWithTip:0, method==='card'?amountWithTip:0, parseFloat(bg.dataset.discountAmount||0), itemQtys, tip, customerId, redeemPoints);
 }
-function openSplitPay(){
+async function openSplitPay(){
   const bg = document.getElementById('payModalBg');
   const orderId = bg.dataset.orderId;
   if(buildPayItemQtys().length===0){ alert('Ödeme almak için en az bir ürün/adet seçin'); return; }
+  if(!(await waitPayCustomer())) return;
   const itemTotal = Math.round(payFinalTotal()*100)/100;
   const tip = parseFloat(bg.dataset.tipAmount||0);
   const total = Math.round((itemTotal+tip)*100)/100;
@@ -896,6 +899,8 @@ function updateCcSum(needed){
   info.textContent = 'Çekimler toplamı: '+money(sum)+(needed!=null?' / gerekli: '+money(needed):'');
 }
 async function confirmSplitPay(orderId, total, discountAmount, tipAmount, customerId, redeemPoints){
+  // Bölme penceresi açıkken müşteri sonradan seçildiyse güncel müşteri kullanılır.
+  const pbg = document.getElementById('payModalBg'); if(pbg && pbg.dataset.customerId) customerId = pbg.dataset.customerId;
   let cash = parseFloat(document.getElementById('splitCash').value)||0;
   if(cash<0) cash=0; if(cash>total) cash=total;
   const card = Math.round((total-cash)*100)/100;
