@@ -8,6 +8,26 @@ async function sendTestSms(){
   const st = { dispatched: '✅ SMS firmasına iletildi — telefonunuza birkaç saniye içinde gelmeli. Gelmezse firmanın panelindeki Raporlar\'a bakın (başlık onayı / bakiye).', no_provider: '⚠️ SMS firması bilgileri eksik (anahtar/şifre). Kaydet\'e basıp tekrar deneyin.', skipped: '⚠️ Gönderim sınırına takıldı (aynı numaraya saatte en fazla 10 SMS).' };
   if(res) res.textContent = st[data && data.status] || ('Durum: ' + (data && data.status || '?'));
 }
+/* E-posta/SMS servislerinden dönen (çoğu İngilizce, JSON) hata metnini Türkçe ve yapılacak işi söyleyen açıklamaya çevirir. */
+function friendlySendError(raw){
+  let msg = String(raw || ''), code = '';
+  try{ const j = JSON.parse(msg); msg = j.message || j.error || (j.errors && j.errors[0] && (j.errors[0].message || j.errors[0])) || msg; code = String(j.statusCode || j.code || j.name || ''); }catch(e){}
+  const m = String(msg), dom = (m.match(/The ([^\s]+) domain is not verified/i) || [])[1];
+  const R = [
+    [/gmail\.com|hotmail|outlook\.com|yahoo/i, () => 'Gmail, Hotmail gibi ücretsiz adreslerden gönderim yapılamaz. Kendi alan adınızdan bir gönderen adresi girin.'],
+    [/domain is not verified|domain.*not.*verif|sender.*not.*verif|unverified sender|sender identity/i, () => `Gönderen alan adı${dom ? ' (' + dom + ')' : ''} e-posta servisinizde doğrulanmamış. Servisin panelinde alan adını ekleyip verdiği DNS kayıtlarını (SPF/DKIM) alan adınıza girin, doğrulandıktan sonra tekrar deneyin.`],
+    [/api key is invalid|invalid api key|unauthorized|authentication|forbidden.*key|401/i, () => 'API anahtarı geçersiz ya da yetkisiz. Servisin panelinden yeni bir anahtar oluşturup Bağlantı sekmesine yazın.'],
+    [/rate limit|too many requests|429/i, () => 'Servisin gönderim hızı sınırına takıldı. Birkaç dakika sonra tekrar deneyin.'],
+    [/quota|daily.*limit|monthly.*limit|credits|insufficient/i, () => 'Servisteki gönderim kotanız ya da krediniz bitmiş. Servisin panelinden planınızı kontrol edin.'],
+    [/invalid.*(to|recipient|email address)|not a valid email|recipient.*invalid/i, () => 'Alıcı e-posta adresi geçersiz. Müşterinin e-posta adresini kontrol edin.'],
+    [/testing emails to your own|only send testing emails/i, () => 'Servis şu an deneme modunda: yalnızca kendi hesabınızın adresine gönderim yapabilir. Alan adınızı doğrulayınca herkese gönderilir.'],
+    [/timeout|timed out|ECONN|network/i, () => 'E-posta servisine bağlanılamadı (zaman aşımı). Kısa süre sonra tekrar denenebilir.'],
+    [/bakiye|balance/i, () => 'SMS bakiyeniz yetersiz. SMS firmanızın panelinden bakiye yükleyin.'],
+    [/başlık|header|originator|sender name/i, () => 'SMS başlığı onaylı değil. SMS firmanızın panelinden başlık onayını kontrol edin.'],
+  ];
+  for(const [re, fn] of R) if(re.test(m) || re.test(code)) return fn();
+  return m || 'Bilinmeyen hata';
+}
 async function sendTestMail(){
   const to = (document.getElementById('ti_mail_testto') || {}).value || '', res = document.getElementById('ti_mail_testres');
   if(res) res.textContent = '⏳ Gönderiliyor…';
@@ -18,7 +38,7 @@ async function sendTestMail(){
     await new Promise(r => setTimeout(r, 1000));
     const { data: st } = await sb.rpc('get_test_mail_status', { p_token: getSession().session_token, p_id: data && data.id });
     if(!st || st.status === 'queued') continue;
-    if(res) res.textContent = st.status === 'sent' ? '✅ Gönderildi — gelen kutunuzu (ve spam klasörünü) kontrol edin.' : '⚠️ Gönderilemedi: ' + (st.error || st.status);
+    if(res) res.textContent = st.status === 'sent' ? '✅ Gönderildi — gelen kutunuzu (ve spam klasörünü) kontrol edin.' : '⚠️ Gönderilemedi: ' + (st.error ? friendlySendError(st.error) : st.status);
     return;
   }
   if(res) res.textContent = '⏳ Gönderim sürüyor; birkaç dakika içinde gelmezse Gönderilenler sekmesine bakın.';
@@ -172,7 +192,7 @@ function drawMailLog(){
         <div class="sl-when">${new Date(r.created_at).toLocaleDateString('tr-TR')}<small>${new Date(r.created_at).toLocaleTimeString('tr-TR', { hour:'2-digit', minute:'2-digit' })}</small></div>
         <div class="sl-main"><div class="sl-top"><b>${escapeHtml(r.to_email)}</b><span class="sl-type">${escapeHtml(mailPurposeLbl(r.purpose))}</span></div>
           <div class="sl-msg">${escapeHtml(r.subject || '')}</div>
-          ${open ? `<div class="sl-meta">${r.provider ? 'Servis: ' + escapeHtml(r.provider) : ''}${r.finished_at ? ' · Sonuç: ' + new Date(r.finished_at).toLocaleString('tr-TR') : ''}${r.error ? '<br>⚠️ Hata: ' + escapeHtml(r.error) : ''}${r.status === 'no_provider' ? '<br>⚠️ Bu e-posta gönderilmedi çünkü o sırada e-posta servisi bağlı değildi. Bağlantı sekmesinden servisinizi kaydedin.' : ''}</div>` : ''}</div>
+          ${open ? `<div class="sl-meta">${r.provider ? 'Servis: ' + escapeHtml(r.provider) : ''}${r.finished_at ? ' · Sonuç: ' + new Date(r.finished_at).toLocaleString('tr-TR') : ''}${r.error ? '<br>⚠️ ' + escapeHtml(friendlySendError(r.error)) + `<details class="sl-raw"><summary>Servisin orijinal mesajı</summary>${escapeHtml(r.error)}</details>` : ''}${r.status === 'no_provider' ? '<br>⚠️ Bu e-posta gönderilmedi çünkü o sırada e-posta servisi bağlı değildi. Bağlantı sekmesinden servisinizi kaydedin.' : ''}</div>` : ''}</div>
         <span class="sl-st ${sx[1]}">${sx[0]}</span></div>`; }).join('')}</div>
       ${L.rows.length < (d.total || 0) ? `<button type="button" class="ghost-btn sl-more" ${act('loadMailLog', true)}>Daha fazla göster (${L.rows.length} / ${d.total})</button>` : `<p class="muted sl-count">${d.total || 0} e-posta gösteriliyor</p>`}`}
   </div>`;
