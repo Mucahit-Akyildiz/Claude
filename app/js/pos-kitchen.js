@@ -667,9 +667,9 @@ function wastePickOtherProduct(){ removeEl('wasteStockModalBg'); const el = docu
 function kitchenPickupHtml(o){
   if(!o || o.kind !== 'takeaway') return '';
   const t = typeof pkgTypeOf === 'function' ? pkgTypeOf(o) : (o.takeaway_type || 'delivery');
-  if(t !== 'pickup') return '<div class="kc-pickup">🛵 Paket · adrese teslim</div>';
-  if(!o.pickup_at) return '<div class="kc-pickup">🥡 Gel-Al</div>';
+  if(!o.pickup_at) return t !== 'pickup' ? '<div class="kc-pickup">🛵 Paket · adrese teslim</div>' : '<div class="kc-pickup">🥡 Gel-Al</div>';
   const left = Math.round((new Date(o.pickup_at) - Date.now()) / 60000);
   const hm = new Date(o.pickup_at).toLocaleTimeString('tr-TR', { hour:'2-digit', minute:'2-digit' });
-  return `<div class="kc-pickup ${left < 0 ? 'late' : left <= 5 ? 'soon' : ''}">🥡 Gel-Al · müşteri <b>${hm}</b>'de alacak <span>(${left < 0 ? Math.abs(left) + ' dk geçti' : left + ' dk kaldı'})</span></div>`;
+  const what = t !== 'pickup' ? `🛵 Paket · <b>${hm}</b>'de adreste olmalı` : `🥡 Gel-Al · müşteri <b>${hm}</b>'de alacak`;
+  return `<div class="kc-pickup ${left < 0 ? 'late' : left <= 5 ? 'soon' : ''}">${what} <span>(${left < 0 ? Math.abs(left) + ' dk geçti' : left + ' dk kaldı'})</span></div>`;
 }
