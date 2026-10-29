@@ -64,9 +64,12 @@ function openPackageModal(pseudoId){
   if(!APP.draftCart[pseudoId]) APP.draftCart[pseudoId] = [];
   const existing = pseudoId==='pkg_new' ? null : liveOrderForTable(pseudoId);
   if(pseudoId==='pkg_new'){ APP.pkgType = 'delivery'; APP.pkgPickupMin = null; }
-  const isWl = pseudoId.indexOf('wl_')===0;
-  const wlEntry = isWl ? (APP.waitlistCache||[]).find(w => w.id===pseudoId.slice(3)) : null;
-  const title = isWl ? '⏳ ' + escapeHtml((wlEntry && wlEntry.customer_name) || (existing && existing.customer_name) || 'Bekleme Listesi') + ' <span class="muted" style="font-size:13px;font-weight:600;">bekleme listesi</span>'
+  const isRs = pseudoId.indexOf('rs_')===0;
+  const isWl = pseudoId.indexOf('wl_')===0 || isRs;
+  const rsEntry = isRs ? (APP.reservationsCache||[]).find(r => r.id===pseudoId.slice(3)) : null;
+  const wlEntry = isRs ? null : isWl ? (APP.waitlistCache||[]).find(w => w.id===pseudoId.slice(3)) : null;
+  const title = isRs ? '📅 ' + escapeHtml((rsEntry && rsEntry.customer_name) || (existing && existing.customer_name) || 'Rezervasyon') + ' <span class="muted" style="font-size:13px;font-weight:600;">rezervasyon ön siparişi' + (rsEntry ? ' · ' + new Date(rsEntry.reservation_time).toLocaleTimeString('tr-TR', { hour:'2-digit', minute:'2-digit' }) + ' · ' + rsEntry.party_size + ' kişi' : '') + '</span>'
+    : isWl ? '⏳ ' + escapeHtml((wlEntry && wlEntry.customer_name) || (existing && existing.customer_name) || 'Bekleme Listesi') + ' <span class="muted" style="font-size:13px;font-weight:600;">bekleme listesi</span>'
     : '📦 ' + (existing ? escapeHtml(existing.customer_name || ('Paket #'+(existing.daily_number||''))) : 'Yeni Paket Sipariş');
   const bg = document.createElement('div');
   bg.id = 'tableModalBg';
@@ -434,9 +437,13 @@ async function confirmOrder(tableId){
   const items = draft.map(d => ({ product_id:d.product_id, name:d.name, price:d.price, cost:d.cost, station_id:d.station_id, qty:d.qty, note:d.note||'', reserve: Math.min(d.unreserved||0, d.qty) }));
   const tags = (APP.orderFlagSelections && APP.orderFlagSelections[tableId]) || [];
   const isPkg = typeof tableId==='string' && tableId.indexOf('pkg_')===0;
+  const isRs = typeof tableId==='string' && tableId.indexOf('rs_')===0;
   const isWl = typeof tableId==='string' && tableId.indexOf('wl_')===0;
   let kind, args, label;
-  if(isWl){
+  if(isRs){
+    kind = 'reservation'; label = 'Rezervasyon ön siparişi';
+    args = { p_reservation_id: tableId.slice(3), p_items: items, p_tags: tags };
+  } else if(isWl){
     kind = 'waitlist'; label = 'Bekleme listesi siparişi';
     args = { p_waitlist_id: tableId.slice(3), p_items: items, p_tags: tags };
   } else if(isPkg){
@@ -517,6 +524,18 @@ async function confirmOrder(tableId){
   await closeTableModal();
   if(isPkg && APP.view==='packages') renderPackagesView(document.getElementById('main'), session);
   if(isWl && APP.view==='reservations') renderWaitlistContent(session, true);
+  if(isRs && APP.view==='reservations' && typeof renderReservationsContent === 'function') renderReservationsContent(session, true);
+}
+async function openReservationOrderModal(rsId){
+  const session = getSession();
+  const [liveRes, cfgRes] = await withLoadingOverlay(Promise.all([
+    sb.rpc('get_live_orders', { p_token: session.session_token }),
+    APP.config ? Promise.resolve({ data: null }) : sb.rpc('get_restaurant_config', { p_token: session.session_token })
+  ]));
+  if(liveRes.error){ alert(liveRes.error.message); return; }
+  APP.liveOrders = liveRes.data || [];
+  if(cfgRes.data) APP.config = cfgRes.data;
+  openPackageModal('rs_' + rsId);
 }
 async function openWaitlistOrderModal(wlId){
   const session = getSession();
@@ -547,6 +566,7 @@ function pkgTypeHtml(existing){
     <div class="field-group" id="pkgPickupWrap" style="${APP.pkgType==='pickup'?'':'display:none;'}"><label>Yaklaşık Teslim Alma Süresi${leftMin!=null ? ` <span class="u-fw4 muted">(şu an: ${existing.pickup_at ? new Date(existing.pickup_at).toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'}) : ''}, ${leftMin} dk kaldı)</span>` : ''}</label>
       <div class="pk-chips">${PKG_PICKUP_MINS.map(chip).join('')}
         <input type="number" min="1" max="600" inputmode="numeric" class="pk-chip-in" placeholder="Diğer" value="${APP.pkgPickupMin && !PKG_PICKUP_MINS.includes(APP.pkgPickupMin) ? APP.pkgPickupMin : ''}" ${actOn('input','setPkgPickupMin',['$value'])}>
+        <label class="pk-time-in" title="Müşterinin geleceği saat">🕒 Saat <input type="time" id="pkgPickupTime" ${actOn('change','setPkgPickupTime',['$value'])}></label>
       </div>
       <small class="muted" id="pkgPickupHint">${pkgPickupHint()}</small></div>`;
 }
@@ -561,6 +581,16 @@ function setPkgType(t){
   if(a) a.style.display = t === 'pickup' ? 'none' : '';
   if(p) p.style.display = t === 'pickup' ? '' : 'none';
   if(t === 'pickup' && !APP.pkgPickupMin) setPkgPickupMin(15);
+}
+// Müşterinin söylediği saat (ör. 19:30) dakikaya çevrilir; geçmiş bir saat girilirse uyarılır.
+function setPkgPickupTime(v){
+  const m = /^(\d{1,2}):(\d{2})$/.exec(v || ''); if(!m) return;
+  const t = new Date(); t.setHours(+m[1], +m[2], 0, 0);
+  const mins = Math.round((t - Date.now()) / 60000);
+  if(mins < 1){ alert('Geçmiş bir saat seçtiniz. Müşterinin geleceği ileri bir saati girin.'); return; }
+  if(mins > 600){ alert('En fazla 10 saat sonrası seçilebilir.'); return; }
+  setPkgPickupMin(mins);
+  const other = document.querySelector('.pk-chip-in'); if(other && !PKG_PICKUP_MINS.includes(mins)) other.value = mins;
 }
 function setPkgPickupMin(m){
   const n = parseInt(m, 10); APP.pkgPickupMin = n > 0 ? Math.min(n, 600) : null;
