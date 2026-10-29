@@ -1,0 +1,2 @@
+-- Entegrasyonlar > E-posta: send_test_mail(p_token, p_email) ve get_test_mail_status(p_token, p_id) (DB'ye uygulandı).
+-- Saatte en fazla 10 test; purpose='test' ile mail_outbox'a yazılır, sonucu istemci 6 sn boyunca sorgular.
