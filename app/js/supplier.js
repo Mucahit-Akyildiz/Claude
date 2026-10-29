@@ -126,8 +126,10 @@ async function renderPurchaseOrdersContent(session){
   const cnt = (st) => rows.filter(p => p.status===st).length;
   const today = new Date(); today.setHours(0,0,0,0);
   const isLate = (p) => p.status==='ordered' && p.expected_date && new Date(p.expected_date) < today;
-  const pf = APP.poFilter || 'all';
-  const shown = pf==='all' ? rows : pf==='late' ? rows.filter(isLate) : rows.filter(p => p.status===pf);
+  // Açılışta teslim bekleyenler gösterilir (yoksa tümü); "Tüm siparişler"de de bekleyenler en üstte.
+  const pf = APP.poFilter || (cnt('ordered') ? 'ordered' : 'all');
+  const rank = (p) => p.status==='ordered' ? (isLate(p) ? 0 : 1) : p.status==='draft' ? 2 : 3;
+  const shown = (pf==='all' ? rows : pf==='late' ? rows.filter(isLate) : rows.filter(p => p.status===pf)).map((p, i) => [p, i]).sort((a, b) => rank(a[0]) - rank(b[0]) || a[1] - b[1]).map(x => x[0]);
   el.innerHTML = `
   ${lowStockBannerHtml()}
   <div class="fsheet-bar" style="margin:0 0 14px;"><p class="muted" style="margin:0;font-size:13px;text-align:left;">Hammadde ihtiyacınızı tedarikçiye sipariş olarak iletin.</p>${sheetBtnHtml('poSheet','🛒 Yeni Sipariş')}</div>
@@ -269,4 +271,4 @@ async function confirmReceivePO(){
 
 function setPoDraftField(idx, field, v){ if(APP.poDraftItems[idx]) APP.poDraftItems[idx][field] = v; }
 
-function setPoFilter(k){ APP.poFilter = APP.poFilter===k ? 'all' : k; renderPurchaseOrdersContent(getSession()); }
+function setPoFilter(k){ APP.poFilter = k; renderPurchaseOrdersContent(getSession()); }
