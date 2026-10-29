@@ -275,6 +275,7 @@ function updateKitchenTimers(){
   }
   // Kartin arka plani, icindeki en gec kalmis urunun rengine gore hafifce tonlanir.
   document.querySelectorAll('.kitchen-card').forEach(card => {
+    if(card.querySelector('.kc-age i[data-deadline]')) return; // teslim saatli paket: rengi teslime kalan süre belirler
     const timers = card.querySelectorAll('.kitchen-timer');
     let worst = 'ok';
     timers.forEach(t => {
