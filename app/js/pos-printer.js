@@ -313,7 +313,10 @@ function setupNativeFcmListeners(){
     const body = (n && n.body) || '';
     const data = (n && n.data) || {};
     showToast(title + (body ? ' — ' + body : ''), 6000, null, data.view ? () => openViewFromNotification(data.view, data.tag) : null);
-    playPeyktanSound();
+    // Uygulama açıkken "sipariş hazır" zaten uygulamanın sesli uyarısıyla (rozetten) duyuruluyor: ikinci kez ses çalınmaz.
+    const vp = typeof getVoicePrefs === 'function' ? getVoicePrefs() : null;
+    const voiceCovers = String(data.tag || '').startsWith('ready-') && vp && vp.enabled && vp.types.ready && (vp.types.ready.sound || vp.types.ready.voice);
+    if(!voiceCovers) playPeyktanSound();
     refreshNavBadges();
     const session = getSession();
     if(session && String(data.tag||'').startsWith('shift')){
