@@ -133,6 +133,11 @@ function liveOrderForTable(tableId){
     const wlId = tableId.slice(3);
     return (APP.liveOrders||[]).find(o => o.kind==='waitlist' && o.waitlist_id===wlId);
   }
+  // Rezervasyonun ön siparişi: 'rs_<reservation_id>'.
+  if(typeof tableId==='string' && tableId.indexOf('rs_')===0){
+    const rsId = tableId.slice(3);
+    return (APP.liveOrders||[]).find(o => o.kind==='waitlist' && o.reservation_id===rsId);
+  }
   return (APP.liveOrders||[]).find(o => o.table_id===tableId);
 }
 // Siparişle ilgilenen garsonlar (ürünü ekleyenler; eski kayıtlarda siparişi açan).
@@ -276,7 +281,7 @@ function renderTableFloorPlan(zone, el){
 /* ---- Sipariş Etiketleri (Personel Yemeği, İkram vb.) - masa/paket penceresinde checkbox'lar ---- */
 /* Masaya oturan kişi sayısı: sipariş varsa hemen kaydedilir, yoksa ilk gönderimde. */
 function guestPickHtml(tableId){
-  if(String(tableId).indexOf('pkg_') === 0 || String(tableId).indexOf('wl_') === 0) return '';
+  if(/^(pkg|wl|rs)_/.test(String(tableId))) return '';
   if(!APP.guestSel) APP.guestSel = {};
   const o = liveOrderForTable(tableId);
   if(APP.guestSel[tableId] == null && o && o.guest_count) APP.guestSel[tableId] = o.guest_count;
@@ -339,7 +344,7 @@ function toggleOrderFlag(pseudoId, label, checked){
 /* Masadaki müşteri bilgisi: rezervasyondan gelir ya da elle girilir
    (bkz. set_table_customer - masa boşsa isimle açılır). */
 function tableCustomerInfoHtml(tableId){
-  if(String(tableId).indexOf('pkg_')===0 || String(tableId).indexOf('wl_')===0) return '';
+  if(/^(pkg|wl|rs)_/.test(String(tableId))) return '';
   return `<div id="tableCustWrap">${tableCustomerInnerHtml(tableId)}</div>`;
 }
 function tableCustomerInnerHtml(tableId, editing){

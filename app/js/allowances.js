@@ -189,13 +189,13 @@ function orderAllowanceInner(pseudoId){
   if(!(pseudoId in APP.orderAllowance)){ const ex = liveOrderForTable(pseudoId); APP.orderAllowance[pseudoId] = (ex && ex.allowance_id) || null; }
   const cur = allowanceById(APP.orderAllowance[pseudoId]);
   // Masa ve pakette arama müşteri kutusunda birleşik; burada yalnızca seçilen limit gösterilir.
-  if(!cur && String(pseudoId).indexOf('wl_') !== 0) return '';
+  if(!cur && !/^(wl|rs)_/.test(String(pseudoId))) return '';
   const pid = escapeAttr(String(pseudoId));
   return `<div class="of-box al-pick">
     <div class="of-head"><span>💳 Limit</span><small>${cur ? 'Bu hesap limitten düşer' : 'Ad (2 harf) veya telefonla arayın'}</small></div>
     ${cur ? `<div class="al-sel"><span class="al-sel-ic">${cur.kind === 'user' ? '👔' : '🎓'}</span><div><b>${escapeHtml(cur.name)}</b><small>${money(cur.remaining)} kaldı${cur.phone ? ' · ' + escapeHtml(maskPhoneAl(cur.phone)) : ''}${cur.flag_label ? ' · 🏷️ ' + escapeHtml(cur.flag_label) : ''}</small></div>
       <button type="button" class="al-x" title="Kaldır" ${act('pickOrderAllowance', pseudoId, cur.id)}>✕</button></div>`
-    : String(pseudoId).indexOf('wl_') !== 0 ? '' : `<input class="al-search" type="search" placeholder="🔍 Kişi veya kullanıcı ara: ad / telefon" autocomplete="off" data-pid="${pid}" ${actOn('input','alSearch',[pseudoId, '$value'])}>
+    : !/^(wl|rs)_/.test(String(pseudoId)) ? '' : `<input class="al-search" type="search" placeholder="🔍 Kişi veya kullanıcı ara: ad / telefon" autocomplete="off" data-pid="${pid}" ${actOn('input','alSearch',[pseudoId, '$value'])}>
       <div class="al-results" id="alRes_${pid}"></div>`}
   </div>`;
 }

@@ -1,0 +1,6 @@
+-- (DB'ye uygulandı) Rezervasyon ön siparişi ve kişi sayısının masaya geçmesi:
+-- * send_reservation_order(p_token, p_reservation_id, p_items, p_tags): kind='waitlist' + reservation_id, guest_count = party_size
+-- * submit_offline_order: p_kind='reservation'
+-- * seat_reservation: ön sipariş masaya taşınır (yoksa masadaki siparişe eklenir); guest_count = coalesce(guest_count, party_size)
+-- * seat_waitlist_entry: guest_count = coalesce(guest_count, party_size)
+-- * get_live_orders: 'reservation_id' ve 'reservation' {time, party_size, status} (mutfakta geri sayım)

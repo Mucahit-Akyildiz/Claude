@@ -101,6 +101,7 @@ async function renderReservationsContent(session, forceRefresh, quiet){
       </div>
       <div class="rv-acts">
         ${r.status==='pending' ? `<button type="button" class="pc-btn rv-ok" ${act('changeReservationStatus', r.id, 'confirmed')}>✓ Onayla</button>` : ''}
+        <button type="button" class="pc-btn" title="Gelmeden önce sipariş al (oturunca masaya taşınır)" ${act('openReservationOrderModal', r.id)}>🍽️ Sipariş${(APP.liveOrders||[]).some(o => o.kind==='waitlist' && o.reservation_id===r.id) ? ' ✓' : ''}</button>
         <button type="button" class="pc-btn rv-seat" ${act('changeReservationStatus', r.id, 'seated')}>🪑 Oturdu</button>
         <button type="button" class="pc-btn" ${act('changeReservationStatus', r.id, 'no_show')}>Gelmedi</button>
         <button type="button" class="pc-btn" ${act('changeReservationStatus', r.id, 'cancelled')}>İptal</button>

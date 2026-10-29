@@ -179,6 +179,13 @@ function tableNameForId(tableId){
 }
 /* Bekleme listesinden gelen sipariş: etiket + kişi sayısı + (süre verildiyse) tahmini oturma saati. */
 function waitlistInfoHtml(o){
+  // Rezervasyon ön siparişi: rezervasyon saatine geri sayım.
+  if(o.kind === 'waitlist' && o.reservation_id){
+    const rv = o.reservation || {};
+    if(!rv.time) return '<div class="kc-wl">📅 Rezervasyon ön siparişi</div>';
+    const t = new Date(rv.time), left = Math.round((t - Date.now()) / 60000);
+    return `<div class="kc-wl">📅 Rezervasyon${rv.party_size ? ' · ' + rv.party_size + ' kişi' : ''} · 🕒 ${t.toLocaleTimeString('tr-TR', { hour:'2-digit', minute:'2-digit' })} ${left > 0 ? '(' + left + ' dk sonra gelecek)' : '(saati geldi)'}</div>`;
+  }
   if(!o.waitlist_id) return '';
   const w = o.waitlist || {};
   let eta = '';
@@ -191,7 +198,7 @@ function waitlistInfoHtml(o){
 }
 function orderDisplayName(o){
   if(o.kind==='takeaway') return '📦 Paket' + (o.customer_name ? ' - '+o.customer_name : '');
-  if(o.kind==='waitlist') return '⏳ ' + (o.customer_name || 'Bekleme Listesi');
+  if(o.kind==='waitlist') return (o.reservation_id ? '📅 ' : '⏳ ') + (o.customer_name || (o.reservation_id ? 'Rezervasyon' : 'Bekleme Listesi'));
   return tableNameForId(o.table_id);
 }
 async function pickKitchenStation(id){ primeKitchenAudio(); APP.kitchenStation=id; render(); }
