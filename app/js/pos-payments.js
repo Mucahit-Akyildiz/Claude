@@ -749,7 +749,17 @@ function payFinalTotal(){
   return Math.max(0, afterDiscounts - afterDiscounts*birthdayPct/100);
 }
 // Ödeme ekranında masadaki müşterinin otomatik aranması bitmeden ödeme kaydedilmesin (müşteri ve e-postası kaybolmasın).
-async function waitPayCustomer(){ if(window._payCustP){ await Promise.race([window._payCustP, new Promise(r => setTimeout(r, 4000))]); window._payCustP = null; } return !!document.getElementById('payModalBg'); }
+async function waitPayCustomer(){
+  if(window._payCustP){ await Promise.race([window._payCustP, new Promise(r => setTimeout(r, 4000))]); window._payCustP = null; }
+  // Müşteri adı/telefonu yazılıp "Bul"a basılmadıysa ödemeden önce aranır (yoksa satış müşterisiz kalır, fiş e-postası gitmez).
+  const bg = document.getElementById('payModalBg'), inp = document.getElementById('payCustomerPhone');
+  if(bg && inp && inp.value.trim() && !bg.dataset.customerId){
+    try{ await Promise.race([lookupPayCustomer(), new Promise(r => setTimeout(r, 4000))]); }catch(e){}
+    if(document.getElementById('payModalBg') && !bg.dataset.customerId
+      && !(await uiConfirm('Yazdığınız müşteri bulunamadı ya da birden fazla eşleşme var. Müşteri bağlanmazsa puan işlenmez ve fiş e-postası gitmez.', { title: 'Müşteri seçilmedi', icon: '👤', okText: 'Müşterisiz devam et', cancelText: 'Müşteriyi seç', danger: false }))) return false;
+  }
+  return !!document.getElementById('payModalBg');
+}
 async function finishPaymentFull(method){
   const bg = document.getElementById('payModalBg');
   const orderId = bg.dataset.orderId;
