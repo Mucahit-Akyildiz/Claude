@@ -43,6 +43,7 @@ async function refreshKitchenItems(session){
   const wrap = document.getElementById('kitchenWrap'); if(!wrap) return;
   if(error){ wrap.innerHTML = '<p class="muted">Yüklenemedi: '+error.message+'</p>'; return; }
   APP.liveOrders = data || [];
+  warnPackageDeadlines();
   const cards = [];
   APP.kitchenPendingByTable = {};
   const currentIds = new Set();
@@ -663,6 +664,20 @@ function wasteUseMaxQty(q){ document.getElementById('wasteQty').value = q; remov
 function wasteGoStockSettings(tab){ removeEl('wasteStockModalBg'); closeWasteModal(); APP.settingsTab = 'products'; APP.productsSubTab = tab; goToView('settings'); }
 function wastePickOtherProduct(){ removeEl('wasteStockModalBg'); const el = document.getElementById('wasteProduct'); if(el) el.focus(); }
 
+const PKG_WARN_MIN = 20;
+/* Teslim/alış saatine 20 dakikadan az kalmış, hâlâ hazırlanan paketler için bir kez sesli ve görsel uyarı. */
+function warnPackageDeadlines(){
+  APP.pkgWarned = APP.pkgWarned || new Set();
+  (APP.liveOrders || []).filter(o => o.kind === 'takeaway' && o.pickup_at && (o.items || []).some(i => i.status === 'pending' && !i.paid)).forEach(o => {
+    const left = Math.round((new Date(o.pickup_at) - Date.now()) / 60000);
+    if(left >= PKG_WARN_MIN || APP.pkgWarned.has(o.order_id)) return;
+    APP.pkgWarned.add(o.order_id);
+    const del = (o.takeaway_type || (o.delivery_address ? 'delivery' : 'pickup')) !== 'pickup';
+    const who = o.customer_name || ('Paket #' + (o.daily_number || ''));
+    showToast('⚠️ ' + who + ': ' + (left < 0 ? 'teslim saati geçti' : (del ? 'adreste olmasına ' : 'teslim almasına ') + left + ' dk kaldı') + ', sipariş hâlâ hazırlanıyor', 8000);
+    if(typeof playPeyktanSound === 'function') playPeyktanSound();
+  });
+}
 /* Mutfak kartı: paket türü ve gel-al siparişinde müşterinin yaklaşık alış saati. */
 function kitchenPickupHtml(o){
   if(!o || o.kind !== 'takeaway') return '';
@@ -671,5 +686,7 @@ function kitchenPickupHtml(o){
   const left = Math.round((new Date(o.pickup_at) - Date.now()) / 60000);
   const hm = new Date(o.pickup_at).toLocaleTimeString('tr-TR', { hour:'2-digit', minute:'2-digit' });
   const what = t !== 'pickup' ? `🛵 Paket · <b>${hm}</b>'de adreste olmalı` : `🥡 Gel-Al · müşteri <b>${hm}</b>'de alacak`;
-  return `<div class="kc-pickup ${left < 0 ? 'late' : left <= 5 ? 'soon' : ''}">${what} <span>(${left < 0 ? Math.abs(left) + ' dk geçti' : left + ' dk kaldı'})</span></div>`;
+  // 20 dakikadan az kaldıysa uyarı (hazırlık süresi yetmeyebilir); süre geçtiyse kırmızı.
+  const pending = (o.items || []).some(i => i.status === 'pending' && !i.paid);
+  return `<div class="kc-pickup ${left < 0 ? 'late' : left < PKG_WARN_MIN ? 'soon' : ''}">${left >= 0 && left < PKG_WARN_MIN && pending ? '⚠️ ' : ''}${what} <span>(${left < 0 ? Math.abs(left) + ' dk geçti' : left + ' dk kaldı'})</span></div>`;
 }

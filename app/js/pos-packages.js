@@ -21,6 +21,7 @@ async function renderPackagesView(main, session){
   }
   if(!APP.config) APP.config = cfgRes.data;
   APP.liveOrders = liveRes.data || [];
+  if(typeof warnPackageDeadlines === 'function') warnPackageDeadlines();
   if(!statusEl || !statusEl.isConnected) return; // yanıt gelmeden başka ekrana geçildi
   statusEl.textContent = '';
   renderPackageGrid();
@@ -35,10 +36,11 @@ function renderPackageGrid(){
     const label = o.customer_name || ('Paket #'+(o.daily_number||''));
     const pickup = pkgTypeOf(o) === 'pickup';
     let eta = '';
-    if(pickup && o.pickup_at){
+    if(o.pickup_at){
       const left = Math.round((new Date(o.pickup_at) - Date.now()) / 60000);
       const hm = new Date(o.pickup_at).toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'});
-      eta = `<div style="margin-top:5px;"><span class="pk-badge ${left < 0 ? 'late' : ''}">🕒 ${hm} · ${left < 0 ? Math.abs(left) + ' dk geçti' : left + ' dk kaldı'}</span></div>`;
+      const warn = left >= 0 && left < 20 && !allReady;
+      eta = `<div style="margin-top:5px;"><span class="pk-badge ${left < 0 ? 'late' : warn ? 'warn' : ''}">${warn ? '⚠️' : '🕒'} ${pickup ? '' : 'Teslim '}${hm} · ${left < 0 ? Math.abs(left) + ' dk geçti' : left + ' dk kaldı'}</span></div>`;
     }
     // Kurye durumu (yalnızca teslimat): kuryeye ver → yolda → teslim edildi (ödeme bekliyor).
     let courier = '';

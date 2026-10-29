@@ -3725,3 +3725,4 @@ button.sl-stat{border:1px solid var(--border) !important;} button.sl-stat.on{bor
 .sl-raw{margin-top:4px;font-size:11.5px;color:var(--muted)}.sl-raw summary{cursor:pointer}
 .pk-time-in{display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:700;margin:0;padding:0 4px}.pk-time-in input{width:auto;margin:0;padding:6px 8px}
 .al-empty{margin:6px 0;padding:8px 10px;border-radius:10px;background:rgba(239,68,68,.12);border:1px solid rgba(239,68,68,.45);color:#ef4444;font-size:12.5px;font-weight:600;line-height:1.4}
+.pk-badge.warn{background:rgba(234,179,8,.18);color:#d97706;border-color:rgba(234,179,8,.5)}
