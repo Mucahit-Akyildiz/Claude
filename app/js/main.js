@@ -617,10 +617,10 @@ function renderHome(main, session){
     ${setupWizardHtml(session)}
     <div id="homeShift" class="hm-shift"></div>
     <div id="homeMyPlan"></div>
-    ${discoverHtml(session)}
     <div id="homeNow"></div>
     ${items.length ? `<h3 class="hq-title">🚀 Hızlı Başla</h3><div class="hm-grid">${items.map((it, i) => `<button type="button" class="hm-tile" data-hview="${it.view}" style="--sc:var(--c${i%4+1});" ${act('goToView', it.view)}><span class="hm-ic">${it.icon}</span><b>${escapeHtml(it.label)}</b><small class="hm-sub"></small></button>`).join('')}</div>` : ''}
-    ${quick.length ? `<h3 class="hq-title">⚡ Hızlı Yönetim</h3><div class="hq-row">${quick.map((q, i) => `<button type="button" class="hq-card" style="--sc:var(--c${i+1});" ${act('goQuickManage', q.tab)}><span class="hq-ic">${q.ic}</span><span><b>${q.t}</b><small>${q.d}</small></span></button>`).join('')}</div>` : ''}`;
+    ${quick.length ? `<h3 class="hq-title">⚡ Hızlı Yönetim</h3><div class="hq-row">${quick.map((q, i) => `<button type="button" class="hq-card" style="--sc:var(--c${i+1});" ${act('goQuickManage', q.tab)}><span class="hq-ic">${q.ic}</span><span><b>${q.t}</b><small>${q.d}</small></span></button>`).join('')}</div>` : ''}
+    ${discoverHtml(session)}`;
   homeFillBadges(); homeFillShift(); homeLoadSummary(session); homeMyPlan(session);
 }
 /* Bu haftaki planlı vardiyalarım (Vardiya Planı'ndan); plan yoksa hiçbir şey göstermez. */
