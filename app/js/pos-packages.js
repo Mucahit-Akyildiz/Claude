@@ -39,8 +39,8 @@ function renderPackageGrid(){
     if(o.pickup_at){
       const left = Math.round((new Date(o.pickup_at) - Date.now()) / 60000);
       const hm = new Date(o.pickup_at).toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'});
-      const warn = left >= 0 && left < 20 && !allReady;
-      eta = `<div style="margin-top:5px;"><span class="pk-badge ${left < 0 ? 'late' : warn ? 'warn' : ''}">${warn ? '⚠️' : '🕒'} ${pickup ? '' : 'Teslim '}${hm} · ${left < 0 ? Math.abs(left) + ' dk geçti' : left + ' dk kaldı'}</span></div>`;
+      const warn = left >= 10 && left < 20 && !allReady, red = left < 10 && !allReady;
+      eta = `<div style="margin-top:5px;"><span class="pk-badge ${left < 0 || red ? 'late' : warn ? 'warn' : 'ok'}">${warn || red ? '⚠️' : '🕒'} ${pickup ? '' : 'Teslim '}${hm} · ${left < 0 ? Math.abs(left) + ' dk geçti' : left + ' dk kaldı'}</span></div>`;
     }
     // Kurye durumu (yalnızca teslimat): kuryeye ver → yolda → teslim edildi (ödeme bekliyor).
     let courier = '';

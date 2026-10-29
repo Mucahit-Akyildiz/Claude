@@ -71,8 +71,10 @@ async function refreshKitchenItems(session){
     }
     // En uzun bekleyen sipariş önce: kart, içindeki en eski bekleyen ürünün zamanına göre sıralanır.
     const oldest = Math.min(...pending.map(it => it.added_at ? new Date(it.added_at).getTime() : Infinity));
-    cards.push({ at: isFinite(oldest) ? oldest : Infinity, html: `<div class="kitchen-card" data-order-id="${o.order_id}">
-      <div class="kc-age"><i data-age-from="${isFinite(oldest) ? new Date(oldest).toISOString() : ''}"></i></div>
+    // Teslim/alış saati olan paket: renk geçen süreye değil teslime kalan süreye göre (20+ yeşil, 10–20 sarı, 10 altı kırmızı).
+    const dl = o.kind === 'takeaway' && o.pickup_at ? new Date(o.pickup_at).getTime() : null;
+    cards.push({ at: isFinite(oldest) ? oldest : Infinity, dl, html: `<div class="kitchen-card" data-order-id="${o.order_id}">
+      <div class="kc-age"><i data-age-from="${isFinite(oldest) ? new Date(oldest).toISOString() : ''}"${dl ? ` data-deadline="${new Date(dl).toISOString()}"` : ''}></i></div>
       <div class="kc-head">
         <div class="kc-title">${(() => { const zn = o.table_id ? zoneNameForTable(o.table_id) : ''; return zn && !tableName.startsWith(zn + ' · ') ? `<span class="kc-zone">${escapeHtml(zn)}</span>` : ''; })()}<b>${escapeHtml(tableName)}</b>${o.daily_number ? `<span class="kc-no">#${o.daily_number}</span>` : ''}${(o.tags || []).map(t => `<span class="kc-tag">🏷️ ${escapeHtml(t)}</span>`).join('')}</div>
         <span class="kc-pill"></span>
@@ -100,7 +102,8 @@ async function refreshKitchenItems(session){
   // align-items:start: her kart kendi içeriği kadar uzar (sıradaki en uzun karta göre esneyip boş alan bırakmaz).
   // Kanban: kartlar en eski bekleyen ürünün süresine göre Yeni / Bekliyor / Gecikti sütunlarında.
   const nowMs = Date.now();
-  const age = (c) => isFinite(c.at) ? (nowMs - c.at) / 60000 : 0;
+  // Teslim saatli paketler sütuna kalan süreye göre yerleşir (kalan < 10 → "Gecikti", 10–20 → "Bekliyor").
+  const age = (c) => c.dl ? (() => { const left = (c.dl - nowMs) / 60000; return left < 10 ? 20 : left < 20 ? 10 : 0; })() : isFinite(c.at) ? (nowMs - c.at) / 60000 : 0;
   const cols = [
     { k:'new', t:'🟢 Yeni', sub:'0–10 dk', list: cards.filter(c => age(c) < 10) },
     { k:'warn', t:'🟡 Bekliyor', sub:'10–20 dk', list: cards.filter(c => age(c) >= 10 && age(c) < 20) },
@@ -234,9 +237,10 @@ function updateKitchenTimers(){
     const mins = (Date.now() - new Date(f).getTime()) / 60000;
     el.style.width = Math.min(100, mins / 20 * 100) + '%';
     const card = el.closest('.kitchen-card'); if(!card) return;
-    const st = mins >= 20 ? 'late' : mins >= 10 ? 'warn' : 'new';
+    const dl = el.dataset.deadline ? (new Date(el.dataset.deadline).getTime() - Date.now()) / 60000 : null;
+    const st = dl != null ? (dl < 10 ? 'late' : dl < 20 ? 'warn' : 'new') : mins >= 20 ? 'late' : mins >= 10 ? 'warn' : 'new';
     card.classList.toggle('kc-new', st==='new'); card.classList.toggle('kc-warn', st==='warn'); card.classList.toggle('kc-late', st==='late');
-    const pill = card.querySelector('.kc-pill'); if(pill) pill.textContent = st==='late' ? '🔴 Gecikti' : st==='warn' ? '🟡 Bekliyor' : '🟢 Yeni';
+    const pill = card.querySelector('.kc-pill'); if(pill) pill.textContent = dl != null ? (dl < 0 ? '🔴 Süre geçti' : st==='late' ? '🔴 Acele' : st==='warn' ? '🟡 Yaklaşıyor' : '🟢 Zamanında') : st==='late' ? '🔴 Gecikti' : st==='warn' ? '🟡 Bekliyor' : '🟢 Yeni';
     const since = card.querySelector('.kc-since'); if(since) since.textContent = Math.floor(mins) + ' dk önce · ' + new Date(f).toLocaleTimeString('tr-TR', { hour:'2-digit', minute:'2-digit' });
   });
   document.querySelectorAll('.kitchen-timer[data-added]').forEach(el => {
@@ -691,5 +695,5 @@ function kitchenPickupHtml(o){
   const what = t !== 'pickup' ? `🛵 Paket · <b>${hm}</b>'de adreste olmalı` : `🥡 Gel-Al · müşteri <b>${hm}</b>'de alacak`;
   // 20 dakikadan az kaldıysa uyarı (hazırlık süresi yetmeyebilir); süre geçtiyse kırmızı.
   const pending = (o.items || []).some(i => i.status === 'pending' && !i.paid);
-  return `<div class="kc-pickup ${left < 0 ? 'late' : left < PKG_WARN_MIN ? 'soon' : ''}">${left >= 0 && left < PKG_WARN_MIN && pending ? '⚠️ ' : ''}${what} <span>(${left < 0 ? Math.abs(left) + ' dk geçti' : left + ' dk kaldı'})</span></div>`;
+  return `<div class="kc-pickup ${left < 10 ? 'late' : left < PKG_WARN_MIN ? 'soon' : 'ok'}">${left >= 0 && left < PKG_WARN_MIN && pending ? '⚠️ ' : ''}${what} <span>(${left < 0 ? Math.abs(left) + ' dk geçti' : left + ' dk kaldı'})</span></div>`;
 }

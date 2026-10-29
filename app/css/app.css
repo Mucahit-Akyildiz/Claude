@@ -3727,3 +3727,5 @@ button.sl-stat{border:1px solid var(--border) !important;} button.sl-stat.on{bor
 .al-empty{margin:6px 0;padding:8px 10px;border-radius:10px;background:rgba(239,68,68,.12);border:1px solid rgba(239,68,68,.45);color:#ef4444;font-size:12.5px;font-weight:600;line-height:1.4}
 .pk-badge.warn{background:rgba(234,179,8,.18);color:#d97706;border-color:rgba(234,179,8,.5)}
 .cor-when{margin-top:4px;font-size:12.5px;font-weight:700;color:var(--accent)}
+.kc-pickup.ok{background:rgba(34,197,94,.13);border-color:rgba(34,197,94,.45)}
+.pk-badge.ok{background:rgba(34,197,94,.14);color:#16a34a;border-color:rgba(34,197,94,.45)}
