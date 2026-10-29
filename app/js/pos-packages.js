@@ -468,7 +468,7 @@ async function confirmOrder(tableId){
       p_note: noteEl ? (noteEl.value.trim()||null) : null,
       p_address: APP.pkgType !== 'pickup' && (document.getElementById('pkgAddress') || {}).value ? document.getElementById('pkgAddress').value.trim() : null,
       p_takeaway_type: APP.pkgType || 'delivery',
-      p_pickup_min: APP.pkgType === 'pickup' && APP.pkgPickupMin ? String(APP.pkgPickupMin) : null,
+      p_pickup_min: APP.pkgPickupMin ? String(APP.pkgPickupMin) : null,
       p_tags: tags
     };
   } else {
@@ -556,14 +556,15 @@ function pkgTypeOf(o){ return (o && o.takeaway_type) || (o && o.order_id ? (o.de
 function pkgTypeHtml(existing){
   APP.pkgType = pkgTypeOf(existing);
   const leftMin = existing && existing.pickup_at ? Math.max(0, Math.round((new Date(existing.pickup_at) - Date.now()) / 60000)) : null;
-  APP.pkgPickupMin = existing ? null : (APP.pkgPickupMin || 15);
+  APP.pkgHasExisting = !!existing;
+  APP.pkgPickupMin = existing ? null : (APP.pkgPickupMin || (APP.pkgType === 'pickup' ? 15 : 30));
   const chip = (m) => `<button type="button" class="pk-chip ${APP.pkgPickupMin===m?'on':''}" data-min="${m}" ${act('setPkgPickupMin', m)}>${m} dk</button>`;
   return `<div class="field-group"><label>Sipariş Türü</label>
       <div class="pk-type">
         <button type="button" class="pk-type-btn ${APP.pkgType!=='pickup'?'on':''}" data-pt="delivery" ${act('setPkgType','delivery')}>🛵 Paket<small>Adrese teslim</small></button>
         <button type="button" class="pk-type-btn ${APP.pkgType==='pickup'?'on':''}" data-pt="pickup" ${act('setPkgType','pickup')}>🥡 Gel-Al<small>Müşteri gelip alır</small></button>
       </div></div>
-    <div class="field-group" id="pkgPickupWrap" style="${APP.pkgType==='pickup'?'':'display:none;'}"><label>Yaklaşık Teslim Alma Süresi${leftMin!=null ? ` <span class="u-fw4 muted">(şu an: ${existing.pickup_at ? new Date(existing.pickup_at).toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'}) : ''}, ${leftMin} dk kaldı)</span>` : ''}</label>
+    <div class="field-group" id="pkgPickupWrap"><label id="pkgPickupLbl">${APP.pkgType==='pickup' ? 'Yaklaşık Teslim Alma Süresi' : 'Yaklaşık Teslim Süresi'}${leftMin!=null ? ` <span class="u-fw4 muted">(şu an: ${existing.pickup_at ? new Date(existing.pickup_at).toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'}) : ''}, ${leftMin} dk kaldı)</span>` : ''}</label>
       <div class="pk-chips">${PKG_PICKUP_MINS.map(chip).join('')}
         <input type="number" min="1" max="600" inputmode="numeric" class="pk-chip-in" placeholder="Diğer" value="${APP.pkgPickupMin && !PKG_PICKUP_MINS.includes(APP.pkgPickupMin) ? APP.pkgPickupMin : ''}" ${actOn('input','setPkgPickupMin',['$value'])}>
         <label class="pk-time-in" title="Müşterinin geleceği saat">🕒 Saat <input type="time" id="pkgPickupTime" ${actOn('change','setPkgPickupTime',['$value'])}></label>
@@ -572,15 +573,17 @@ function pkgTypeHtml(existing){
 }
 function pkgPickupHint(){
   if(!APP.pkgPickupMin) return 'Süre seçmezseniz mevcut süre korunur.';
-  return 'Müşteri yaklaşık ' + new Date(Date.now() + APP.pkgPickupMin * 60000).toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'}) + ' civarı gelip alacak.';
+  const hm = new Date(Date.now() + APP.pkgPickupMin * 60000).toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'});
+  return APP.pkgType === 'pickup' ? 'Müşteri yaklaşık ' + hm + ' civarı gelip alacak.' : 'Sipariş yaklaşık ' + hm + ' civarı adrese teslim edilecek.';
 }
 function setPkgType(t){
   APP.pkgType = t;
   document.querySelectorAll('.pk-type-btn').forEach(b => b.classList.toggle('on', b.dataset.pt === t));
   const a = document.getElementById('pkgAddrWrap'), p = document.getElementById('pkgPickupWrap');
   if(a) a.style.display = t === 'pickup' ? 'none' : '';
-  if(p) p.style.display = t === 'pickup' ? '' : 'none';
-  if(t === 'pickup' && !APP.pkgPickupMin) setPkgPickupMin(15);
+  const l = document.getElementById('pkgPickupLbl'); if(l) l.firstChild.textContent = t === 'pickup' ? 'Yaklaşık Teslim Alma Süresi' : 'Yaklaşık Teslim Süresi';
+  const h = document.getElementById('pkgPickupHint'); if(h) h.textContent = pkgPickupHint();
+  if(!APP.pkgPickupMin && !APP.pkgHasExisting) setPkgPickupMin(t === 'pickup' ? 15 : 30);
 }
 // Müşterinin söylediği saat (ör. 19:30) dakikaya çevrilir; geçmiş bir saat girilirse uyarılır.
 function setPkgPickupTime(v){
