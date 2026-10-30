@@ -207,14 +207,27 @@ async function savePcInputs(changed, btn){
     const v = parseFloat(String(inp.value).replace(',', '.'));
     if(isNaN(v) || v < 0){ showToast('Geçerli bir birim fiyat girin'); inp.focus(); return; }
   }
-  if(btn) btn.disabled = true;
+  if(btn){ btn.disabled = true; btn.querySelector('span').textContent = 'Kaydediliyor…'; }
   const tok = getSession().session_token;
-  const res = await withLoadingOverlay(Promise.all(changed.map(inp => sb.rpc('set_purchase_item_cost', { p_token: tok, p_item_id: inp.dataset.itemId, p_unit_cost: parseFloat(String(inp.value).replace(',', '.')) }))));
-  const errs = [];
-  res.forEach((r, k) => { if(r.error) errs.push(r.error.message); else if(APP.pcDrafts) delete APP.pcDrafts[changed[k].dataset.itemId]; });
+  const res = await Promise.all(changed.map(inp => sb.rpc('set_purchase_item_cost', { p_token: tok, p_item_id: inp.dataset.itemId, p_unit_cost: parseFloat(String(inp.value).replace(',', '.')) })));
+  const errs = [], cards = new Set();
+  // Sayfa yeniden yüklenmez: kaydedilen kalemler yerinde güncellenir (satır tutarı, sipariş toplamı).
+  res.forEach((r, k) => {
+    const inp = changed[k];
+    if(r.error){ errs.push(r.error.message); return; }
+    const v = parseFloat(String(inp.value).replace(',', '.'));
+    if(APP.pcDrafts) delete APP.pcDrafts[inp.dataset.itemId];
+    inp.dataset.orig = String(v); inp.value = String(v); inp.classList.remove('missing');
+    const row = inp.closest('.pc2-it'); if(row){ row.classList.remove('nop'); const q = parseFloat(row.querySelector('.pc2-nm small').textContent) || 0; const line = row.querySelector('.pc2-line'); if(line) line.textContent = money(q * v); }
+    cards.add(inp.closest('.pc-card'));
+  });
+  cards.forEach(card => {
+    let t = 0; card.querySelectorAll('.pc2-it').forEach(row => { const q = parseFloat(row.querySelector('.pc2-nm small').textContent) || 0; const c = parseFloat(row.querySelector('.pc-cost').dataset.orig) || 0; t += q * c; });
+    const tot = card.querySelector('.pc2-total'); if(tot) tot.textContent = money(t);
+    const sb2 = card.querySelector('.pc-save'); if(sb2) markPcDirty(sb2.id.slice(7));
+  });
+  if(btn && btn.id === 'pcSaveAll') updatePcSaveAll();
   if(errs.length) await uiAlert('Bazı fiyatlar kaydedilemedi:\n\n' + errs.join('\n')); else showToast(changed.length + ' birim fiyat kaydedildi ✓');
-  await renderPurchaseReportContent(getSession());
-  restorePcDrafts();
   if(typeof refreshNavBadges === 'function') refreshNavBadges();
 }
 async function savePurchaseItemCost(itemId, value){
