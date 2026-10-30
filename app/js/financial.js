@@ -385,8 +385,8 @@ async function renderReportContent(session){
 
   // Hesabın kaynağı: rezervasyondan / bekleme listesinden oturtulan masa,
   // doğrudan gelen (rezervasyonsuz) masa ya da paket.
-  const billSource = (o) => o.from_reservation ? 'resv' : o.from_waitlist ? 'waitlist' : o.kind==='takeaway' ? 'takeaway' : 'walkin';
-  const SOURCE_LABELS = { resv:'📅 Rezervasyonlu', waitlist:'⏳ Bekleme Listesi', walkin:'🚶 Rezervasyonsuz Masa', takeaway:'📦 Paket' };
+  const billSource = (o) => o.source && o.source !== 'qr' ? 'online' : o.from_reservation ? 'resv' : o.from_waitlist ? 'waitlist' : o.kind==='takeaway' ? 'takeaway' : 'walkin';
+  const SOURCE_LABELS = { online:'🌐 Online Sipariş', resv:'📅 Rezervasyonlu', waitlist:'⏳ Bekleme Listesi', walkin:'🚶 Rezervasyonsuz Masa', takeaway:'📦 Paket' };
   const billSourceCounts = {}; billHist.forEach(o => { const k = billSource(o); billSourceCounts[k] = (billSourceCounts[k]||0) + 1; });
   const filteredBills = billHist.filter(o => {
     if(bf.hour!=='' && new Date(o.closed_at).getHours()!==Number(bf.hour)) return false;
@@ -407,7 +407,9 @@ async function renderReportContent(session){
     const tagBadge = (o.tags && o.tags.length>0)
       ? ` <span style="background:rgba(234,179,8,.15);color:#eab308;border-radius:6px;padding:2px 6px;font-size:11px;font-weight:700;">${o.tags.map(x=>escapeHtml(x)).join(', ')}</span>`
       : '';
-    const srcBadge = o.from_reservation
+    const srcBadge = (o.source && o.source !== 'qr')
+      ? ` <span style="background:rgba(16,185,129,.15);color:#10b981;border-radius:6px;padding:2px 6px;font-size:11px;font-weight:700;">🌐 ${o.source === 'online' ? 'Online Sipariş' : escapeHtml(o.source)}</span>`
+      : o.from_reservation
       ? ' <span style="background:rgba(59,130,246,.15);color:#3b82f6;border-radius:6px;padding:2px 6px;font-size:11px;font-weight:700;">📅 Rezervasyonlu</span>'
       : o.from_waitlist
       ? ' <span style="background:rgba(168,85,247,.15);color:#a855f7;border-radius:6px;padding:2px 6px;font-size:11px;font-weight:700;">⏳ Bekleme Listesi</span>'

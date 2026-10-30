@@ -30,3 +30,7 @@ create or replace function public._pkg_deadline(o orders) returns timestamptz la
 -- _sales_history_transfer siparişteki bankayı kopyalar; bundle kpi.transfer_banks.
 -- Müşteri kampanyası (canlıya uygulandı): get_winback p_days 0 = tüm müşteriler, -1 = son 30 günde gelenler, buckets.all;
 -- send_campaign(p_token, p_ids, p_text, p_channel, p_subject): 24 saat çift gönderim koruması, SMS/e-posta purpose 'campaign'.
+-- Online sipariş kaynağı (canlıya uygulandı): orders.source ('online'); approve_customer_order_request doldurur; get_sales_history source döner.
+-- Geçmiş: onaylanmış online taleplerle (ad+telefon+3 saat) eşleşen paket siparişleri 'online' işaretlendi.
+-- Garson detayı: get_staff_detail products.tagged_qty, tagged (etiket bazında hesap/tutar).
+alter table orders add column if not exists source text;
