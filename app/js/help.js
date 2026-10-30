@@ -106,7 +106,7 @@ function drawHelpTopics(){
   if(!q && APP.helpCat === 'video'){
     box.innerHTML = `<div class="u-mwn box"><h2>🎬 Eğitim videosu · Peyktan nasıl kullanılır?</h2>
       <video controls preload="none" playsinline poster="/assets/video/peyktan-egitim-poster.jpg" style="width:100%;max-width:880px;display:block;border-radius:14px;background:#0f1416;aspect-ratio:16/9;">
-        <source src="https://cdn.jsdelivr.net/gh/Mucahit-Akyildiz/Claude@33bd18556617e1735f93d75a40fb11a7efaded1f/assets/video/peyktan-egitim.mp4" type="video/mp4"></video></div>`;
+        <source src="https://cdn.jsdelivr.net/gh/Mucahit-Akyildiz/Claude@71cc72d2ec1b1f83b01b7b66304b847dff675369/assets/video/peyktan-egitim.mp4" type="video/mp4"></video></div>`;
     return;
   }
   if(!q && APP.helpCat === 'support'){
