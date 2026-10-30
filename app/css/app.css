@@ -3816,3 +3816,30 @@ button.sl-stat{border:1px solid var(--border) !important;} button.sl-stat.on{bor
 #settingsContent .pr-layout.pr-embed > nav.set-nav .set-item{width:auto!important;flex:0 0 auto!important;padding:7px 12px!important;margin:0!important}
 #settingsContent .pr-layout.pr-embed > nav.set-nav .set-item small{display:none!important}
 .vn-off{margin:6px 0 12px;padding:12px 14px;border-radius:12px;background:rgba(244,63,94,.12);border:1px solid rgba(244,63,94,.45);color:var(--text);font-size:13.5px;text-align:left}
+/* Banka hesapları */
+.bk-add{width:auto;margin:0;padding:8px 14px;font-size:13px;border-radius:10px}
+.bk-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px;margin-top:10px}
+.bk-card{border:1px solid var(--border);border-radius:16px;padding:14px;background:var(--panel2);display:flex;flex-direction:column;gap:10px}
+.bk-card.def{border-color:color-mix(in srgb,var(--accent) 60%,transparent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 14%,transparent)}
+.bk-top{display:flex;align-items:center;gap:10px}
+.bk-ic{width:40px;height:40px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:20px;background:linear-gradient(135deg,#6366f1,#4338ca)}
+.bk-nm{flex:1;min-width:0;display:flex;flex-direction:column}
+.bk-nm small{color:var(--muted)}
+.bk-def{font-size:11px;font-weight:800;color:var(--accent);background:color-mix(in srgb,var(--accent) 14%,transparent);padding:3px 8px;border-radius:999px}
+.bk-iban{font-family:monospace;font-size:14.5px;letter-spacing:.02em;padding:8px 10px;border-radius:10px;background:var(--panel);border:1px dashed var(--border)}
+.bk-acts{display:flex;gap:6px;flex-wrap:wrap}
+.bk-acts .ghost-btn{width:auto;margin:0;padding:6px 10px;font-size:12px}
+.bk-acts .bk-del{color:var(--red)}
+.bk-empty{padding:18px;border:1px dashed var(--border);border-radius:14px;color:var(--muted);text-align:center;margin-top:10px}
+.dg-card.bk-ed{text-align:left;max-width:440px}
+.dg-card.bk-ed .dg-ic{margin:0 auto}
+.dg-card.bk-ed h3{text-align:center}
+.dg-card.bk-ed label{display:block;font-size:12.5px;font-weight:700;color:var(--muted);margin:8px 0 4px}
+.dg-card.bk-ed input{margin:0}
+.dg-card.bk-ed .bk-chk{display:flex;align-items:center;gap:8px;color:var(--text);margin-top:12px}
+.dg-card.bk-ed .bk-chk input{width:auto}
+.bk-ed-acts{display:flex;gap:8px;margin-top:16px}
+.bk-ed-acts button{flex:1;margin:0;display:inline-flex;align-items:center;justify-content:center;gap:6px}
+.tr-bks{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 10px}
+.tr-bk{width:auto;margin:0;padding:7px 12px;font-size:13px;border-radius:999px;background:var(--panel2);color:var(--text);border:1px solid var(--border);box-shadow:none}
+.tr-bk.on{background:linear-gradient(135deg,#6366f1,#4338ca);color:#fff;border-color:transparent}

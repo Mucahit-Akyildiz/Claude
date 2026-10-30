@@ -973,8 +973,22 @@ async function finishPayment(orderId, method, total, cash, card, discountAmount,
 }
 
 /* Havale / EFT: işletmenin IBAN'ı gösterilir, müşteriye SMS / e-postayla gönderilir; para gelince ödeme kapatılır. */
+function trBanks(){ return (APP.config && APP.config.banks) || []; }
+function trBank(){ const l = trBanks(); return l.find(b => b.id === APP.trBankId) || l[0] || {}; }
+function selectTrBank(id){
+  APP.trBankId = id; const bk = trBank();
+  document.querySelectorAll('.tr-bk').forEach(c => c.classList.toggle('on', c.dataset.id === id));
+  const set = (sel, v) => { const e = document.querySelector(sel); if(e) e.textContent = v; };
+  set('#trBkName', bk.bank_name || '—'); set('#trBkHolder', bk.bank_holder || '—'); set('#trBkIban', fmtIban(bk.bank_iban || ''));
+  renderTrQr();
+}
+async function renderTrQr(){
+  const bk = trBank(), el = document.getElementById('trQr'); if(!el || !bk.bank_iban || typeof loadQrLib !== 'function') return;
+  try{ await loadQrLib(); const q = qrcode(0, 'M'); q.addData(bk.bank_iban); q.make(); el.innerHTML = q.createSvgTag({ cellSize: 4, margin: 2 }); }catch(e){}
+}
 async function openTransferPay(){
-  const bk = (APP.config && APP.config.bank) || {};
+  if(!trBanks().some(b => b.id === APP.trBankId)) APP.trBankId = (trBanks()[0] || {}).id;
+  const bk = trBank();
   const bg = document.getElementById('payModalBg') || { dataset:{} };
   const amt = Math.round((payFinalTotal() + parseFloat(bg.dataset.tipAmount || 0)) * 100) / 100;
   // Siparişte / ödemede müşteri varsa telefon, e-posta ve ad otomatik dolar.
@@ -990,10 +1004,11 @@ async function openTransferPay(){
   const matched = !!bg.dataset.customerId;
   ov.innerHTML = `<div class="dg-card tr-modal">
     <h2>🏦 Havale / EFT</h2>
-    ${bk.bank_iban ? `<div class="tr-top"><div class="tr-card">
-        <div class="tr-row"><span>Banka</span><b>${escapeHtml(bk.bank_name || '—')}</b></div>
-        <div class="tr-row"><span>Hesap sahibi</span><b>${escapeHtml(bk.bank_holder || '—')}</b></div>
-        <div class="tr-row"><span>IBAN</span><b class="tr-iban">${escapeHtml(iban)}</b></div>
+    ${bk.bank_iban ? `${trBanks().length > 1 ? `<div class="tr-bks">${trBanks().map(b => `<button type="button" class="tr-bk ${b.id === bk.id ? 'on' : ''}" data-id="${b.id}" ${act('selectTrBank', b.id)}>🏦 ${escapeHtml(b.bank_name || 'Banka')}</button>`).join('')}</div>` : ''}
+      <div class="tr-top"><div class="tr-card">
+        <div class="tr-row"><span>Banka</span><b id="trBkName">${escapeHtml(bk.bank_name || '—')}</b></div>
+        <div class="tr-row"><span>Hesap sahibi</span><b id="trBkHolder">${escapeHtml(bk.bank_holder || '—')}</b></div>
+        <div class="tr-row"><span>IBAN</span><b class="tr-iban" id="trBkIban">${escapeHtml(iban)}</b></div>
         <div class="tr-row"><span>Tutar</span><b class="tr-amt">${money(amt)}</b><button type="button" class="ghost-btn tr-copy" ${act('copyIban')}>📋 IBAN'ı kopyala</button></div></div>
         <div class="tr-qr"><div id="trQr"></div><small>Telefon kamerasıyla okutun, IBAN'ı kopyalayıp banka uygulamasına yapıştırın</small></div></div>
       <div class="ix-st" style="margin:14px 0 6px;">Müşteriye gönder ${matched ? '<span class="tr-match">✓ siparişteki müşteri</span>' : ''}</div>
@@ -1006,12 +1021,10 @@ async function openTransferPay(){
     <button type="button" class="ghost-btn" style="width:100%;margin-top:8px;" ${act('closeTransferPay')}>Vazgeç</button></div>`;
   ov.addEventListener('click', e => { if(e.target === ov) ov.remove(); });
   document.body.appendChild(ov);
-  if(bk.bank_iban && typeof loadQrLib === 'function'){
-    try{ await loadQrLib(); const q = qrcode(0, 'M'); q.addData(bk.bank_iban); q.make(); const el = document.getElementById('trQr'); if(el) el.innerHTML = q.createSvgTag({ cellSize: 4, margin: 2 }); }catch(e){}
-  }
+  renderTrQr();
 }
 function closeTransferPay(){ const o = document.getElementById('transferBg'); if(o) o.remove(); }
-function copyIban(){ const bk = (APP.config && APP.config.bank) || {}; try{ navigator.clipboard.writeText(bk.bank_iban || ''); showToast('IBAN kopyalandı ✓'); }catch(e){ showToast('Kopyalanamadı'); } }
+function copyIban(){ const bk = trBank(); try{ navigator.clipboard.writeText(bk.bank_iban || ''); showToast('IBAN kopyalandı ✓'); }catch(e){ showToast('Kopyalanamadı'); } }
 async function sendIban(kind){
   const phone = kind === 'sms' ? ((document.getElementById('trPhone') || {}).value || '').trim() : '';
   const email = kind === 'email' ? ((document.getElementById('trEmail') || {}).value || '').trim() : '';
@@ -1020,7 +1033,7 @@ async function sendIban(kind){
   const amt = Math.round((payFinalTotal() + parseFloat((document.getElementById('payModalBg') || {dataset:{}}).dataset.tipAmount || 0)) * 100) / 100;
   const bg = document.getElementById('payModalBg') || { dataset:{} };
   const name = ((document.getElementById('trName') || {}).value || '').trim();
-  const { data, error } = await sb.rpc('send_iban_to', { p_token: getSession().session_token, p_phone: phone || null, p_email: email || null, p_amount: amt, p_name: name || null, p_customer_id: bg.dataset.customerId || null });
+  const { data, error } = await sb.rpc('send_iban_to_bank', { p_token: getSession().session_token, p_phone: phone || null, p_email: email || null, p_amount: amt, p_name: name || null, p_customer_id: bg.dataset.customerId || null, p_bank_id: trBank().id || null });
   if(error){ showToast(typeof friendlySendError === 'function' ? friendlySendError(error.message) : error.message); return; }
   // Müşteri eşleşti / yeni kaydedildi: ödeme bu müşteriye bağlanır.
   if(data && data.customer_id && bg.dataset && !bg.dataset.customerId) bg.dataset.customerId = data.customer_id;

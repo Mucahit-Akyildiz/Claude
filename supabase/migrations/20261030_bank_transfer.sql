@@ -15,3 +15,6 @@ create trigger trg_sales_history_transfer before insert on sales_history for eac
 -- Sesli bildirim işletme geneli aç/kapat (canlıya uygulandı): restaurants.voice_enabled, set_voice_enabled(p_token, p_on) yönetici,
 -- get_restaurant_config 'voice_enabled'.
 alter table restaurants add column if not exists voice_enabled boolean not null default true;
+-- Birden fazla banka hesabı (canlıya uygulandı): bank_accounts (soft delete: active), _banks_json, save_bank_account,
+-- archive_bank_account, send_iban_bank(.., p_bank_id), send_iban_to_bank(.., p_bank_id); get_restaurant_config 'banks'.
+-- restaurants.bank_* değerleri bank_accounts'a taşındı (varsayılan).
