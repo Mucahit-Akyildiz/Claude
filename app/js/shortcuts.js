@@ -35,6 +35,11 @@ function showShortcutHelp(){
 function scCloseTop(){
   // En üstteki pencereyi kapat: açılır form → ödeme alt pencereleri → ödeme / sipariş penceresi.
   if(document.querySelector('.fsheet.open')){ closeSheet(); return true; }
+  // Üstte açılan popup'lar (Havale, banka ekle vb.) arkadaki pencereden önce kapanır; en son açılan önce.
+  // Onay / uyarı popup'ları Esc'yi kendileri işler; açıksa arkadakine dokunulmaz.
+  if(['uiConfirm', 'uiAlert', 'uiPrompt'].some(id => document.getElementById(id))) return true;
+  const tops = [...document.querySelectorAll('body > .dg-bg')];
+  if(tops.length){ tops[tops.length - 1].remove(); return true; }
   for(const id of ['reviewQrBg', 'googleReviewQrBg', 'invoiceEmailBg', 'splitPayBg', 'openAccModalBg', 'qrScanModalBg', 'payModalBg', 'tableModalBg']){
     const el = document.getElementById(id);
     if(el){ if(id === 'tableModalBg' && typeof closeTableModal === 'function') closeTableModal(); else el.remove(); return true; }
