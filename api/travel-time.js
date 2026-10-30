@@ -1,5 +1,5 @@
 // Vercel serverless function: travel-time
-// Adrese teslim paketlerde restorandan adrese sürüş süresini Google Maps ile hesaplar.
+// Adrese teslim paketlerde restorandan adrese sürüş süresini Google Maps ile hesaplar (Geocoding API + Routes API).
 //  POST (sunucu, x-push-secret): { order_id } — orders tetikleyicisi (_trg_order_travel) adres girilince çağırır;
 //       süre + işletmenin hazırlık payı orders.travel_min'e yazılır.
 //  POST (uygulama, x-session-token): { address } — Ayarlar'da işletme adresini koordinata çevirir (yalnızca yönetici).
@@ -19,13 +19,20 @@ async function geocode(address, near) {
   return { lat: hit.geometry.location.lat, lng: hit.geometry.location.lng, formatted: hit.formatted_address, partial: !!hit.partial_match };
 }
 
+// Sürüş süresi: Google Routes API (computeRoutes), trafik dahil. (Eski Distance Matrix yeni projelerde açılamıyor.)
 async function driveMinutes(from, to) {
-  const q = new URLSearchParams({ origins: `${from.lat},${from.lng}`, destinations: `${to.lat},${to.lng}`, mode: 'driving', departure_time: 'now', language: 'tr', key: KEY() });
-  const r = await fetch('https://maps.googleapis.com/maps/api/distancematrix/json?' + q);
+  const r = await fetch('https://routes.googleapis.com/directions/v2:computeRoutes', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Goog-Api-Key': KEY(), 'X-Goog-FieldMask': 'routes.duration' },
+    body: JSON.stringify({
+      origin: { location: { latLng: { latitude: from.lat, longitude: from.lng } } },
+      destination: { location: { latLng: { latitude: to.lat, longitude: to.lng } } },
+      travelMode: 'DRIVE', routingPreference: 'TRAFFIC_AWARE', languageCode: 'tr', regionCode: 'TR',
+    }),
+  });
   const j = await r.json();
-  const el = j && j.rows && j.rows[0] && j.rows[0].elements && j.rows[0].elements[0];
-  if (!el || el.status !== 'OK') return null;
-  const sec = (el.duration_in_traffic || el.duration || {}).value;
+  const d = j && j.routes && j.routes[0] && j.routes[0].duration; // "754s"
+  const sec = d ? parseInt(String(d), 10) : 0;
   return sec ? Math.ceil(sec / 60) : null;
 }
 
