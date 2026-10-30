@@ -75,7 +75,7 @@ function renderHelpView(main, session){
   APP.helpOpen = APP.helpOpen || {};
   if(APP.helpCat == null) APP.helpCat = 'video';
   // Diğer ayar/rapor ekranları gibi: solda bölümler (video, konu başlıkları, destek), sağda içerik.
-  const nav = [['video', '🎬', 'Eğitim Videosu', 'Peyktan nasıl kullanılır? (9 dk)'],
+  const nav = [['video', '🎬', 'Eğitim Videosu', 'Peyktan nasıl kullanılır? (9,5 dk)'],
     ...HELP_TOPICS.map((c, ci) => [String(ci), c.icon, c.cat, c.items.length + ' soru']),
     ['support', '💬', 'Destek', 'Bize ulaşın']];
   main.innerHTML = `
@@ -106,7 +106,7 @@ function drawHelpTopics(){
   if(!q && APP.helpCat === 'video'){
     box.innerHTML = `<div class="u-mwn box"><h2>🎬 Eğitim videosu · Peyktan nasıl kullanılır?</h2>
       <video controls preload="none" playsinline poster="/assets/video/peyktan-egitim-poster.jpg" style="width:100%;max-width:880px;display:block;border-radius:14px;background:#0f1416;aspect-ratio:16/9;">
-        <source src="https://cdn.jsdelivr.net/gh/Mucahit-Akyildiz/Claude@6182cdd27413089a327ce961fcadd1bdd180f689/assets/video/peyktan-egitim.mp4" type="video/mp4"></video></div>`;
+        <source src="https://cdn.jsdelivr.net/gh/Mucahit-Akyildiz/Claude@64b36690cf6d2df58e88995e598095a55c2dd5d2/assets/video/peyktan-egitim.mp4" type="video/mp4"></video></div>`;
     return;
   }
   if(!q && APP.helpCat === 'support'){
