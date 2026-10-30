@@ -200,3 +200,36 @@
     const grid = document.getElementById('pricingGrid');
     if(grid) grid.innerHTML = '<p class="u-grid-msg">Fiyatlar şu anda yüklenemedi.</p>';
   });
+
+/* Özellik kartları sekmelere bölünür; mobilde her sekmede ilk 4 kart, "Tümünü gör" ile hepsi. */
+(function featTabs(){
+  const grid = document.querySelector('#ozellikler .feat-grid'); if(!grid) return;
+  const CATS = [
+    ['🍽️ Sipariş & Mutfak', /Sipariş Al|Mutfak|Paket|QR Menü|Garson Çağır|Kat Planı|Online|Ön Sipariş|Birleştirme|Kurye|Bildirim/],
+    ['💳 Ödeme & Kasa', /Ödeme|Bahşiş|Hediye|Gün Sonu|Kampanya|Açık Hesap|Limitli|Fiş|Yazar Kasa|Kartla/],
+    ['👥 Müşteri & Pazarlama', /Müşteri|Rezervasyon|Yorum|Doğum|Geri Kazanım|Çok Dilli/],
+    ['📦 Stok & Tedarik', /Stok|Reçete|Tedarik|Maliyet|Excel/],
+    ['📊 Raporlar', /Finansal|Mühendisliği|Yoğunluk|Kartları|İptal|Analizi|Özet E-posta|Şirket Paneli/],
+    ['🛡️ Ekip & Yönetim', /./]
+  ];
+  const cards = [...grid.querySelectorAll('.feat-card')];
+  const groups = CATS.map(() => []);
+  cards.forEach(c => { const t = (c.querySelector('h3') || {}).textContent || ''; groups[CATS.findIndex(x => x[1].test(t))].push(c); });
+  const bar = document.createElement('div'); bar.className = 'feat-tabs'; bar.setAttribute('role', 'tablist');
+  const more = document.createElement('button'); more.type = 'button'; more.className = 'btn btn-outline feat-more';
+  let cur = 0, open = false;
+  function show(i){
+    cur = i; open = false;
+    [...bar.children].forEach((b, j) => { b.classList.toggle('active', j === i); b.setAttribute('aria-selected', j === i); });
+    cards.forEach(c => { c.hidden = true; c.classList.remove('feat-extra'); });
+    groups[i].forEach((c, k) => { c.hidden = false; if(k >= 4) c.classList.add('feat-extra'); });
+    grid.classList.remove('feat-open');
+    more.hidden = groups[i].length <= 4; more.textContent = 'Tümünü gör (' + groups[i].length + ')';
+  }
+  CATS.forEach((c, i) => { if(!groups[i].length) return; const b = document.createElement('button'); b.type = 'button'; b.className = 'feat-tab'; b.setAttribute('role', 'tab');
+    b.textContent = c[0] + ' · ' + groups[i].length; b.addEventListener('click', () => show(i)); bar.appendChild(b); });
+  more.addEventListener('click', () => { open = !open; grid.classList.toggle('feat-open', open); more.textContent = open ? 'Daha az göster' : 'Tümünü gör (' + groups[cur].length + ')'; });
+  grid.parentNode.insertBefore(bar, grid);
+  grid.insertAdjacentElement('afterend', more);
+  show(0);
+})();
