@@ -80,4 +80,12 @@
     <!-- Gelen sesli aramayı kilit ekranında tam ekran göstermek için -->
     <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
     <uses-feature android:name="android.hardware.camera" android:required="false" />
+    <!-- İzinler Play Store'da bu donanımları dolaylı olarak "zorunlu" yapar; kamerası otomatik odaklamasız, mikrofonsuz ya da
+         Bluetooth'suz cihazlarda (bazı tabletler / kasa cihazları) uygulama "uyumsuz" görünüp Yükle düğmesi çıkmıyordu. -->
+    <uses-feature android:name="android.hardware.camera.autofocus" android:required="false" />
+    <uses-feature android:name="android.hardware.camera.any" android:required="false" />
+    <uses-feature android:name="android.hardware.microphone" android:required="false" />
+    <uses-feature android:name="android.hardware.bluetooth" android:required="false" />
+    <uses-feature android:name="android.hardware.telephony" android:required="false" />
+    <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
 </manifest>
