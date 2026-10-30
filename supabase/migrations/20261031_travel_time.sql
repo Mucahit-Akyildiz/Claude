@@ -6,3 +6,4 @@ alter table orders add column if not exists travel_min int, add column if not ex
 -- _trg_order_travel: adres girilince/değişince api/travel-time'a (x-push-secret) order_id gönderir (pg_net).
 -- _order_travel_target, _set_order_travel (yalnızca servis), save_geo_settings (yönetici),
 -- get_restaurant_config 'geo', get_live_orders travel_min/travel_src.
+-- Sürüş süresi Google Routes API (computeRoutes) ile; anahtar Vercel ortamında GOOGLE_MAPS_API_KEY.
