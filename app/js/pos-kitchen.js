@@ -697,7 +697,8 @@ function kitchenPickupHtml(o){
   const left = Math.round((dlMs - Date.now()) / 60000);
   const hm = new Date(o.pickup_at).toLocaleTimeString('tr-TR', { hour:'2-digit', minute:'2-digit' });
   const out = new Date(dlMs).toLocaleTimeString('tr-TR', { hour:'2-digit', minute:'2-digit' });
-  const what = t !== 'pickup' ? `🛵 Paket · <b>${hm}</b>'de adreste · <b>${out}</b>'de yola çıkmalı` : `🥡 Gel-Al · müşteri <b>${hm}</b>'de alacak`;
+  const tr = typeof pkgTravelMin === 'function' ? pkgTravelMin(o) : 10;
+  const what = t !== 'pickup' ? `🛵 Paket · <b>${hm}</b>'de adreste · <b>${out}</b>'de yola çıkmalı <small title="${o.travel_src === 'google' ? 'Haritadan hesaplanan sürüş süresi + hazırlık payı' : 'İşletmenin varsayılan yol süresi'}">(${o.travel_src === 'google' ? '🗺️' : '⏱️'} ${tr} dk yol)</small>` : `🥡 Gel-Al · müşteri <b>${hm}</b>'de alacak`;
   // 20 dakikadan az kaldıysa uyarı (hazırlık süresi yetmeyebilir); süre geçtiyse kırmızı.
   const pending = (o.items || []).some(i => i.status === 'pending' && !i.paid);
   return `<div class="kc-pickup ${left < 10 ? 'late' : left < PKG_WARN_MIN ? 'soon' : 'ok'}">${left >= 0 && left < PKG_WARN_MIN && pending ? '⚠️ ' : ''}${what} <span>(${left < 0 ? Math.abs(left) + ' dk geçti' : left + ' dk kaldı'})</span></div>`;

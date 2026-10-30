@@ -483,7 +483,7 @@ async function dispatchPackageAlerts(supabase, deadlineIds, courierIds) {
   const ids = [...new Set([...deadlineIds, ...courierIds])];
   if (!ids.length) return { sent: 0 };
   const { data: orders } = await supabase.from('orders')
-    .select('id, restaurant_id, status, customer_name, daily_number, created_by, pickup_at, takeaway_type, delivery_address, dispatched_at')
+    .select('id, restaurant_id, status, customer_name, daily_number, created_by, pickup_at, takeaway_type, delivery_address, dispatched_at, travel_min, restaurants(travel_default_min)')
     .in('id', ids);
   let sent = 0;
   for (const o of orders || []) {
@@ -492,8 +492,9 @@ async function dispatchPackageAlerts(supabase, deadlineIds, courierIds) {
     if (deadlineIds.includes(o.id) && o.pickup_at) {
       const to = [...new Set([o.created_by, ...(await packageUserIds(supabase, o.restaurant_id, 'pkg_deadline'))].filter(Boolean))];
       const del = (o.takeaway_type || (o.delivery_address ? 'delivery' : 'pickup')) !== 'pickup';
-      // Adrese teslimde yol için 10 dk ayrılır: süre yola çıkış saatine (teslim − 10 dk) göre.
-      const left = Math.round((new Date(o.pickup_at).getTime() - (del ? 10 * 60000 : 0) - Date.now()) / 60000);
+      // Adrese teslimde yol süresi (haritadan hesaplanan, yoksa işletmenin varsayılanı) düşülür: süre yola çıkışa göre.
+      const travel = del ? (o.travel_min || (o.restaurants && o.restaurants.travel_default_min) || 10) : 0;
+      const left = Math.round((new Date(o.pickup_at).getTime() - travel * 60000 - Date.now()) / 60000);
       const what = del ? 'yola çıkış' : 'teslim';
       // Aşamalar: son 30 dk → son 20 dk → 10 dk altı geç kalıyor → süre doldu geç kaldı.
       const title = left < 0 ? '🔴 ' + who + ': sipariş geç kaldı'
@@ -501,7 +502,7 @@ async function dispatchPackageAlerts(supabase, deadlineIds, courierIds) {
         : left < 20 ? '🟡 ' + who + ': ' + what + ' için son 20 dakika'
         : '⏱️ ' + who + ': ' + what + ' için son 30 dakika';
       const r = await sendToUsers(supabase, to, {
-        title, body: (left < 0 ? (del ? 'Yola çıkış saati ' : 'Teslim saati ') + Math.abs(left) + ' dk geçti, sipariş hâlâ hazırlanıyor.' : 'Sipariş hâlâ hazırlanıyor' + (del ? ' (adrese gitmek için 10 dk ayrıldı)' : '') + '. Mutfak ekranından takip edin.'),
+        title, body: (left < 0 ? (del ? 'Yola çıkış saati ' : 'Teslim saati ') + Math.abs(left) + ' dk geçti, sipariş hâlâ hazırlanıyor.' : 'Sipariş hâlâ hazırlanıyor' + (del ? ' (adrese yol ' + travel + ' dk)' : '') + '. Mutfak ekranından takip edin.'),
         url: '/app/', view: 'kitchen', tag: 'pkg-deadline-' + o.id,
       });
       sent += (r && r.sent) || 0;

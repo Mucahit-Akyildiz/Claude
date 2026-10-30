@@ -318,7 +318,7 @@ async function renderIntegrationsSettings(el, session){
   });
   // Her entegrasyon ayrı alt sekmede (tek uzun sayfa yerine).
   const INT_TABS = [
-    { id:'online', ic:'🛵', label:'Online Sipariş' }, { id:'google', ic:'⭐', label:'Google Yorumları' },
+    { id:'online', ic:'🛵', label:'Online Sipariş' }, { id:'geo', ic:'📍', label:'Konum & Teslimat' }, { id:'google', ic:'⭐', label:'Google Yorumları' },
     { id:'sms', ic:'📱', label:'SMS' }, { id:'invoice', ic:'🧾', label:'Fatura Bilgileri' },
     { id:'mail', ic:'✉️', label:'E-posta' }, { id:'bank', ic:'🏦', label:'Banka / IBAN' },
     { id:'efatura', ic:'🧾', label:'ÖKC / e-Fatura' }, { id:'marketplace', ic:'🛍️', label:'Pazaryeri' }, { id:'accounting', ic:'📊', label:'Muhasebe' },
@@ -333,6 +333,8 @@ async function renderIntegrationsSettings(el, session){
     b.dataset.ctgrp = 'mail'; b.dataset.ct = (APP.ctTab || {}).mail || 'conn'; el.appendChild(b); boxes.push(b);
   });
   // Banka / IBAN: birden fazla hesap; Havale/EFT ödemesinde seçilip müşteriye SMS / e-postayla gönderilir.
+  { const g = document.createElement('div'); g.className = 'box int-pane ix-box'; g.style.maxWidth = 'none'; g.dataset.int = 'geo'; g.id = 'geoPane';
+    g.innerHTML = geoPaneHtml(session); el.appendChild(g); boxes.push(g); }
   { const b = document.createElement('div'); b.className = 'box int-pane ix-box'; b.style.maxWidth = 'none'; b.dataset.int = 'bank'; b.id = 'bankPane';
     b.innerHTML = bankPaneHtml(session); el.appendChild(b); boxes.push(b); }
   loadMailTemplates();
@@ -343,17 +345,17 @@ async function renderIntegrationsSettings(el, session){
   if(onl){ const d = document.createElement('div'); d.id = 'tiPay'; (onl.querySelector('#ooPayCol') || onl).appendChild(d); }
   if(!INT_TABS.some(t => t.id === APP.integrationsSubTab)) APP.integrationsSubTab = 'online';
   const INT_DESC = { online:'Kendi sipariş sayfanız ve kartla ödeme', google:'İşletme yorumlarını takip edin', sms:'Müşterilere SMS bildirimi', mail:'Kendi alan adınızdan e-posta', pay:'iyzico / PayTR ile kartla ödeme', invoice:'Faturada görünecek bilgiler',
-    efatura:'Yazarkasa ve e-Fatura/e-Arşiv', marketplace:'Pazaryeri menü eşitleme', accounting:'Muhasebe yazılımına aktarım', bank:'Havale/EFT için IBAN' };
+    efatura:'Yazarkasa ve e-Fatura/e-Arşiv', marketplace:'Pazaryeri menü eşitleme', accounting:'Muhasebe yazılımına aktarım', bank:'Havale/EFT için IBAN', geo:'Adrese teslim yol süresi' };
   const stOf = (id) => { const b = boxes.find(x => x.dataset.int === id); const t = b ? b.textContent : '';
     if(/paketinizde yok/i.test(t)) return ['lock','🔒 Eklenti'];
     const c = APP.config || {}, on = { online: !!(c.online_ordering && c.online_ordering.enabled), google: !!c.google_review_url,
       marketplace: !!(data.marketplace_enabled && (data.marketplace_getir_configured || data.marketplace_trendyol_configured || data.marketplace_yemeksepeti_configured)),
-      invoice: !!(data.invoice_title && data.tax_number), bank: !!(c.banks && c.banks.length), efatura: !!(data.efatura_enabled && data.efatura_configured), accounting: !!(data.accounting_enabled && data.accounting_configured),
+      invoice: !!(data.invoice_title && data.tax_number), bank: !!(c.banks && c.banks.length), geo: !!(c.geo && c.geo.geo_lat != null), efatura: !!(data.efatura_enabled && data.efatura_configured), accounting: !!(data.accounting_enabled && data.accounting_configured),
       sms: !!data.sms_enabled && (APP.intLive || {}).sms !== false, mail: !!(APP.intLive || {}).mail }[id];
     return on ? ['ok','Aktif'] : ['off','Kapalı']; };
   const bar = document.createElement('div');
   bar.className = 'int-groups';
-  const GROUPS = [['🛒 Satış kanalları', ['online','marketplace','google']], ['💬 Müşteri iletişimi', ['sms','mail','bank']], ['🧾 Fatura & muhasebe', ['invoice','efatura','accounting']]];
+  const GROUPS = [['🛒 Satış kanalları', ['online','geo','marketplace','google']], ['💬 Müşteri iletişimi', ['sms','mail','bank']], ['🧾 Fatura & muhasebe', ['invoice','efatura','accounting']]];
   bar.innerHTML = GROUPS.map(([g, ids]) => `<div class="int-group"><div class="int-gt">${g}</div><div class="int-gl">${ids.map(id => { const t = INT_TABS.find(x => x.id === id); if(!t) return ''; const [k, l] = stOf(id);
     return `<button type="button" class="int-row ${APP.integrationsSubTab===id?'active':''} st-${k}" data-int-tab="${id}" ${act('setIntegrationsSubTab', id)}>
       <span class="int-ic">${t.ic}</span><span class="int-txt"><b>${t.label}</b><small>${INT_DESC[id]||''}</small></span><span class="int-st" title="${l}">${k==='lock' ? '🔒' : k==='ok' ? '● Aktif' : '○ Kapalı'}</span></button>`; }).join('')}</div></div>`).join('');
@@ -475,4 +477,42 @@ async function removeBank(id){
   const { data, error } = await sb.rpc('archive_bank_account', { p_token: getSession().session_token, p_id: id });
   if(error){ showToast(error.message); return; }
   if(APP.config) APP.config.banks = data || []; redrawBankPane(); showToast('Banka hesabı kaldırıldı');
+}
+
+/* Konum & Teslimat: işletme konumu (haritadan sürüş süresi için) + varsayılan yol süresi ve hazırlık payı. */
+function geoPaneHtml(session){
+  const g = (APP.config && APP.config.geo) || {}, mgr = !!(session || getSession()).isManager, ok = g.geo_lat != null;
+  return `<h2>📍 Konum & Teslimat</h2>
+    <div class="oo-hero ${ok?'on':''}"><div class="oo-hero-ic">🗺️</div>
+      <div class="oo-hero-t"><b>Adrese teslim yol süresi</b><small>Paket siparişe adres girilince restorandan o adrese sürüş süresi haritadan (trafik dahil) hesaplanır; mutfak geri sayımı ve bildirimler <b>yola çıkış</b> saatine göre çalışır. Konum yoksa ya da adres bulunamazsa varsayılan süre kullanılır.</small></div>
+      <span class="ti-st ${ok?'ok':''}">${ok ? '● Konum tamam' : '○ Konum yok'}</span></div>
+    <div class="ix-sec"><div class="ix-st">İşletme konumu</div><div class="ix-form">
+      <div style="grid-column:1/-1;"><label>İşletme adresi</label><div style="display:flex;gap:8px;"><input id="geo_addr" value="${escapeAttr(g.geo_address || '')}" placeholder="Mahalle, sokak, no, ilçe, il" style="flex:1;margin:0;" ${mgr?'':'disabled'}>${mgr ? `<button type="button" class="ghost-btn" style="width:auto;margin:0;white-space:nowrap;" ${act('geoLookup')}>🔍 Konumu bul</button>` : ''}</div>
+        <small id="geoFound" class="muted">${ok ? '📍 ' + Number(g.geo_lat).toFixed(5) + ', ' + Number(g.geo_lng).toFixed(5) : 'Konum henüz bulunmadı.'}</small></div>
+      <div><label>Varsayılan yol süresi (dk)</label><input id="geo_def" type="number" min="1" max="120" value="${g.travel_default_min || 10}" ${mgr?'':'disabled'}></div>
+      <div><label>Hazırlık / teslim payı (dk)</label><input id="geo_buf" type="number" min="0" max="60" value="${g.travel_buffer_min != null ? g.travel_buffer_min : 3}" ${mgr?'':'disabled'}></div>
+    </div><p class="u-fs12 muted" style="margin:6px 0 0;">Haritadan gelen sürüş süresine <b>hazırlık payı</b> eklenir (paketleme, kuryenin binişi, park). Örn. 11 dk sürüş + 3 dk pay = 14 dk önce yola çıkılır.</p></div>
+    ${mgr ? `<button class="ix-save" ${act('saveGeoSettings')}>${ICON_SAVE}<span>Kaydet</span></button>` : '<p class="u-fs13 muted">Bu ayarı yalnızca yönetici değiştirebilir.</p>'}`;
+}
+async function geoLookup(){
+  const addr = ((document.getElementById('geo_addr') || {}).value || '').trim();
+  if(addr.length < 8){ showToast('Adresi ayrıntılı yazın (mahalle, ilçe, il)'); return; }
+  const out = document.getElementById('geoFound'); if(out) out.textContent = 'Aranıyor…';
+  try{
+    const r = await fetch('/api/travel-time', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-session-token': getSession().session_token }, body: JSON.stringify({ address: addr }) });
+    const j = await r.json();
+    if(j.lat == null){ if(out) out.textContent = '⚠️ ' + (j.error || 'Konum bulunamadı'); return; }
+    APP.geoPick = { lat: j.lat, lng: j.lng };
+    if(out) out.innerHTML = '📍 ' + escapeHtml(j.formatted || '') + ' <span class="muted">(' + j.lat.toFixed(5) + ', ' + j.lng.toFixed(5) + ')</span>' + (j.partial ? ' · <b>tam eşleşmedi, kontrol edin</b>' : '') + ' — Kaydet\'e basın';
+  }catch(e){ if(out) out.textContent = '⚠️ Harita servisine ulaşılamadı'; }
+}
+async function saveGeoSettings(){
+  const g = (APP.config && APP.config.geo) || {}, pick = APP.geoPick || {};
+  const v = id => (document.getElementById(id) || {}).value;
+  const { data, error } = await sb.rpc('save_geo_settings', { p_token: getSession().session_token, p_address: v('geo_addr') || '',
+    p_lat: pick.lat != null ? pick.lat : g.geo_lat, p_lng: pick.lng != null ? pick.lng : g.geo_lng, p_default: parseInt(v('geo_def'), 10) || 10, p_buffer: parseInt(v('geo_buf'), 10) || 0 });
+  if(error){ showToast(error.message); return; }
+  if(APP.config) APP.config.geo = data; APP.geoPick = null;
+  const p = document.getElementById('geoPane'); if(p) p.innerHTML = geoPaneHtml();
+  showToast('Konum ve teslimat süresi kaydedildi ✓');
 }
