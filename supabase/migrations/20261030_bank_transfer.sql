@@ -12,3 +12,6 @@ create trigger trg_sales_history_transfer before insert on sales_history for eac
 -- get_restaurant_config: 'bank' {bank_name, bank_holder, bank_iban} eklendi.
 -- send_iban_to(p_token, p_phone, p_email, p_amount, p_name, p_customer_id): müşteriyi seçili/telefon/e-posta ile eşleştirir,
 -- kayıtlı değilse customers'a ekler, ardından send_iban çağırır; {customer_id, customer_new} döner. (Canlıya uygulandı.)
+-- Sesli bildirim işletme geneli aç/kapat (canlıya uygulandı): restaurants.voice_enabled, set_voice_enabled(p_token, p_on) yönetici,
+-- get_restaurant_config 'voice_enabled'.
+alter table restaurants add column if not exists voice_enabled boolean not null default true;

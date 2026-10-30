@@ -781,7 +781,7 @@ async function renderNotificationSettingsView(main, session){
   main.innerHTML = `
     <h1>Bildirimler</h1>
     <div id="notifSettingsPart">
-    <p class="u-tl muted">${session.isManager ? 'Bu sayfadaki ayarlar (push, zil sesi) yalnızca bu cihaza özeldir. Bildirimlerin hangi rollere gideceği, sesli bildirimler ve kişi sayısı hatırlatması <b>Ayarlar → Bildirim Ayarları</b>\'nda.' : 'Push ve zil sesi ayarları yalnızca bu cihaza özeldir. Sesli bildirimler ve ses seçimi <b>Ayarlar → Bildirim Ayarları</b>\'nda.'}</p>
+    <p class="u-tl muted">${session.isManager ? 'Bu sayfadaki ayarlar (push, sesli okuma, zil sesi) yalnızca bu cihaza özeldir. Bildirimlerin hangi rollere gideceği, sesli bildirimleri açma/kapama ve kişi sayısı hatırlatması <b>Ayarlar → Bildirim Ayarları</b>\'nda.' : 'Hangi bildirimlerin size gideceğini yöneticiniz belirler (🔒 işaretli olanlar). Ses seçimi, sesli okuma ve zil sesi ayarları yalnızca bu cihaza özeldir.'}</p>
 
     ${!hasFeature('push_notifications') ? `<div class="u-mwn box"><h2>📱 Push Bildirimleri (Uygulama Kapalıyken de)</h2>${lockedFeatureHtml()}</div>` : ''}
     ${isDesktopApp() && hasFeature('push_notifications') ? `<div class="u-mwn box">
@@ -800,6 +800,7 @@ async function renderNotificationSettingsView(main, session){
       <p id="testPushResult" class="muted" style="font-size:12px;margin-top:8px;"></p>
     </div>
 
+    ${voiceSettingsHtml()}
     <div class="u-mwn box">
       <h2>🔔 Bildirim Sesi (Yeni Sipariş Zili)</h2>
       <p class="u-tl muted">Mutfağa yeni bir sipariş düştüğünde bu ekranda çalacak sesi özelleştirebilirsiniz. Bir istasyon seçip kendi ses dosyanızı yükleyerek o istasyona özel bir zil sesi de tanımlayabilirsiniz (örn. Izgara için ayrı, Çayhane için ayrı).</p>
@@ -850,7 +851,7 @@ function renderNotifAdminSettings(el, session){
   const tabs = [
     session.isManager ? { id:'roles', ic:'👥', label:'Kime Gitsin' } : null,
     session.isManager ? { id:'guests', ic:'🔔', label:'Kişi Sayısı Hatırlatması' } : null,
-    typeof voiceSettingsHtml === 'function' ? { id:'voice', ic:'🗣️', label:'Sesli Bildirimler' } : null,
+    session.isManager && typeof voiceMasterSettingHtml === 'function' ? { id:'voice', ic:'🗣️', label:'Sesli Bildirimler' } : null,
     typeof birthdaySettingsHtml === 'function' ? { id:'bday', ic:'🎂', label:'Doğum Günü Uyarıları' } : null,
   ].filter(Boolean);
   if(!tabs.some(t => t.id === APP.notifAdminSub)) APP.notifAdminSub = tabs[0].id;
@@ -859,7 +860,7 @@ function renderNotifAdminSettings(el, session){
       <div class="sub-tabs">${tabs.map(t => `<div role="tab" tabindex="0" class="sub-tab ${sub===t.id?'active':''}" ${act('setNotifAdminSub', t.id)}><span class="sub-tab-ic">${t.ic}</span>${t.label}</div>`).join('')}</div>
       <div class="sub-tabs-content" id="notifAdminContent">${
         sub === 'roles' ? '<div id="notifRolesBox" class="box" style="max-width:none;"><h2>👥 Kime Gitsin</h2><div id="notifRolesBody"><p class="muted">Yükleniyor…</p></div></div>'
-        : sub === 'guests' ? guestReminderSettingHtml() : sub === 'voice' ? voiceSettingsHtml() : birthdaySettingsHtml()}</div>
+        : sub === 'guests' ? guestReminderSettingHtml() : sub === 'voice' ? voiceMasterSettingHtml() : birthdaySettingsHtml()}</div>
     </div>`;
   if(sub === 'roles') loadNotifRoles();
 }

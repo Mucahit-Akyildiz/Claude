@@ -3815,3 +3815,4 @@ button.sl-stat{border:1px solid var(--border) !important;} button.sl-stat.on{bor
 #settingsContent .pr-layout.pr-embed > nav.set-nav{display:flex!important;flex-direction:row!important;flex-wrap:wrap!important;gap:6px!important;width:auto!important;position:static!important;padding:6px!important;margin:0 0 14px!important}
 #settingsContent .pr-layout.pr-embed > nav.set-nav .set-item{width:auto!important;flex:0 0 auto!important;padding:7px 12px!important;margin:0!important}
 #settingsContent .pr-layout.pr-embed > nav.set-nav .set-item small{display:none!important}
+.vn-off{margin:6px 0 12px;padding:12px 14px;border-radius:12px;background:rgba(244,63,94,.12);border:1px solid rgba(244,63,94,.45);color:var(--text);font-size:13.5px;text-align:left}

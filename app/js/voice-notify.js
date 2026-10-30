@@ -26,7 +26,8 @@ const VOICE_KEY = 'peyk_voice_prefs';
 function getVoicePrefs(){
   let p = {};
   try{ p = JSON.parse(localStorage.getItem(VOICE_KEY) || '{}') || {}; }catch(e){}
-  const out = { enabled: p.enabled !== false, rate: p.rate || 1, voiceName: p.voiceName || '', types: {} };
+  // Açık/kapalı işletme genelinde yöneticinin elinde (Ayarlar → Bildirim Ayarları); cihazda ses, hız ve türler ayarlanır.
+  const out = { enabled: !(APP.config && APP.config.voice_enabled === false), rate: p.rate || 1, voiceName: p.voiceName || '', types: {} };
   VOICE_TYPES.forEach(t => { const v = (p.types || {})[t.id] || {}; out.types[t.id] = { sound: v.sound !== false, voice: v.voice != null ? !!v.voice : !['messages','other'].includes(t.id) }; });
   // Yöneticinin belirlediği kural (rol bazlı) cihaz ayarının önüne geçer.
   const mine = (APP.voicePolicy && APP.voicePolicy.mine) || {};
@@ -392,13 +393,14 @@ function voiceSettingsHtml(){
   return `<div class="u-mwn box">
     <h2>🗣️ Sesli Bildirimler</h2>
     <p class="u-tl muted">Her bildirim türü için bu cihazda <b>zil sesi</b> çalınsın mı ve bildirim <b>sesli okunsun</b> mu (ör. “12 numaralı masadan yeni sipariş geldi”) seçin. Mutfakta ${VOICE_LATE_MIN} dakikayı geçen ürünler “… dakikadır bekliyor” diye okunur ve hazır olana kadar 5 dakikada bir tekrarlanır.</p>
-    <div style="display:flex;align-items:center;gap:10px;margin:10px 0 14px;flex-wrap:wrap;">${sw('*','enabled',p.enabled)}<b>Sesli bildirimler açık</b>
+    ${p.enabled ? '' : `<div class="vn-off">🔇 Sesli bildirimler yönetici tarafından kapatıldı. ${getSession() && getSession().isManager ? 'Açmak için <b>Ayarlar → Bildirim Ayarları → Sesli Bildirimler</b>.' : 'Açılması için yöneticinize başvurun.'}</div>`}
+    <div style="display:flex;align-items:center;gap:10px;margin:10px 0 14px;flex-wrap:wrap;${p.enabled ? '' : 'opacity:.5;pointer-events:none;'}"><b>${p.enabled ? '✅ Sesli bildirimler açık' : 'Sesli bildirimler kapalı'}</b>
       <span class="muted" style="margin-left:auto;font-size:12.5px;">Ses</span>${voiceSelectHtml()}
       <span class="u-fs125 muted">Hız</span>
       <select style="width:auto;" ${actOn('change','setVoiceOpt',['*','rate','$value'])}>
         ${[[0.8,'Yavaş'],[1,'Normal'],[1.2,'Hızlı']].map(([v,l]) => `<option value="${v}" ${p.rate==v?'selected':''}>${l}</option>`).join('')}
       </select></div>
-    <div class="vn-list">
+    <div class="vn-list" style="${p.enabled ? '' : 'opacity:.5;pointer-events:none;'}">
       <div class="vn-row vn-head"><span>Bildirim</span><span>Zil</span><span>Sesli Oku</span><span></span></div>
       ${VOICE_TYPES.map(t => `<div class="vn-row">
         <span>${t.ic} ${escapeHtml(t.label)}<small class="muted">“${escapeHtml(t.sample)}”</small></span>
@@ -418,4 +420,20 @@ async function loadVoicePolicy(){
   const s = getSession(); if(!s) return;
   const { data, error } = await sb.rpc('get_voice_policy', { p_token: s.session_token });
   if(!error && data) APP.voicePolicy = data;
+}
+
+/* Ayarlar → Bildirim Ayarları → Sesli Bildirimler: işletme geneli aç/kapat (yalnızca yönetici). */
+function voiceMasterSettingHtml(){
+  const on = !(APP.config && APP.config.voice_enabled === false);
+  return `<div class="box" style="max-width:none;" id="voiceMasterBox"><h2>🗣️ Sesli Bildirimler</h2>
+    <p class="u-tl muted">Açıkken cihazlar yeni sipariş, garson çağrısı, hazır sipariş gibi bildirimleri zil ve sesli okuma ile duyurur. Ses, hız ve hangi bildirimin okunacağını her kullanıcı kendi cihazında <b>Bildirimler</b> sayfasından ayarlar. Tüm işletme için geçerlidir; yalnızca yönetici değiştirebilir.</p>
+    <div style="display:flex;align-items:center;gap:12px;font-weight:700;"><label class="toggle-switch" title="Aç / kapat"><input type="checkbox" ${on ? 'checked' : ''} ${actOn('change', 'toggleVoiceMaster')}><span class="slider"></span></label><span style="color:${on ? 'var(--accent)' : 'var(--muted)'};">${on ? 'Açık' : 'Kapalı'}</span></div></div>`;
+}
+async function toggleVoiceMaster(){
+  const on = APP.config && APP.config.voice_enabled === false;
+  const { error } = await sb.rpc('set_voice_enabled', { p_token: getSession().session_token, p_on: on });
+  if(error){ showToast(error.message); return; }
+  if(APP.config) APP.config.voice_enabled = on;
+  const box = document.getElementById('voiceMasterBox'); if(box) box.outerHTML = voiceMasterSettingHtml();
+  showToast(on ? 'Sesli bildirimler açıldı' : 'Sesli bildirimler kapatıldı');
 }
