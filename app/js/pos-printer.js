@@ -780,6 +780,7 @@ async function renderNotificationSettingsView(main, session){
     <div id="notifSettingsPart">
     <p class="u-tl muted">${session.isManager ? '<b>Kime Gitsin</b> bölümünden push ve sesli bildirimlerin hangi rollere gideceğini siz belirlersiniz; bu kural tüm personelin cihazına uygulanır. Diğer bölümler (ses seçimi, zil sesi) yalnızca bu cihaza özeldir.' : 'Hangi bildirimlerin size gideceğini yöneticiniz belirler (🔒 işaretli olanlar). Ses seçimi ve zil sesi gibi ayarlar yalnızca bu cihaza özeldir.'}</p>
 
+    ${session.isManager ? guestReminderSettingHtml() : ''}
     ${!hasFeature('push_notifications') ? `<div class="u-mwn box"><h2>📱 Push Bildirimleri (Uygulama Kapalıyken de)</h2>${lockedFeatureHtml()}</div>` : ''}
     ${isDesktopApp() && hasFeature('push_notifications') ? `<div class="u-mwn box">
       <h2>🖥️ Windows Bildirimleri</h2>

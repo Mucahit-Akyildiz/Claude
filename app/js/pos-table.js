@@ -286,20 +286,23 @@ function guestPickHtml(tableId){
   const o = liveOrderForTable(tableId);
   if(APP.guestSel[tableId] == null && o && o.guest_count) APP.guestSel[tableId] = o.guest_count;
   const n = APP.guestSel[tableId] || 0;
-  const rem = guestReminderOn();
-  const mgr = !!(getSession() || {}).isManager;
-  const tg = mgr ? `<button type="button" class="gp-rem ${rem ? 'on' : ''}" title="Kişi sayısı girilmezse bildirim gönder (tüm işletme için)" ${act('toggleGuestReminder', tableId)}>🔔 Hatırlat <i>${rem ? 'Açık' : 'Kapalı'}</i></button>` : '';
-  return `<div class="gp-box" data-gp="1"><span>👥 Kişi sayısı${tg}</span>
+  return `<div class="gp-box" data-gp="1"><span>👥 Kişi sayısı</span>
     <div class="gp-step"><button type="button" ${act('stepGuests', tableId, -1)} ${n ? '' : 'disabled'}>−</button><b>${n || '—'}</b><button type="button" ${act('stepGuests', tableId, 1)}>+</button></div></div>`;
 }
 function guestReminderOn(){ return !APP.config || APP.config.guest_reminder !== false; }
-async function toggleGuestReminder(tableId){
+// Yalnızca yönetici: Bildirimler ekranındaki işletme geneli ayar.
+function guestReminderSettingHtml(){
+  const on = guestReminderOn();
+  return `<div class="box" style="max-width:none;" id="guestRemBox"><h2>👥 Kişi Sayısı Hatırlatması</h2>
+    <p class="u-tl muted">Masaya sipariş girilip kişi sayısı girilmediğinde siparişi alana, ödeme yetkisi olanlara ve yöneticiye bildirim, rozet ve masada uyarı gösterilir. Tüm işletme için geçerlidir; yalnızca yönetici değiştirebilir.</p>
+    <label class="switch-row" style="display:flex;align-items:center;gap:10px;cursor:pointer;font-weight:700;"><input type="checkbox" ${on ? 'checked' : ''} style="width:auto;margin:0;" ${actOn('change', 'toggleGuestReminder')}> ${on ? 'Açık' : 'Kapalı'}</label></div>`;
+}
+async function toggleGuestReminder(){
   const on = !guestReminderOn();
   const { error } = await sb.rpc('set_guest_reminder', { p_token: getSession().session_token, p_on: on });
   if(error){ showToast(error.message); return; }
   if(APP.config) APP.config.guest_reminder = on;
-  document.querySelectorAll('.gp-box[data-gp]').forEach(el => { el.outerHTML = guestPickHtml(tableId); });
-  if(typeof renderTableGrid === 'function') renderTableGrid();
+  const box = document.getElementById('guestRemBox'); if(box) box.outerHTML = guestReminderSettingHtml();
   showToast(on ? 'Kişi sayısı hatırlatması açıldı' : 'Kişi sayısı hatırlatması kapatıldı');
 }
 let GUEST_SAVE_T = null;
