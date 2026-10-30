@@ -325,6 +325,8 @@ async function renderZReportContent(session, quiet){
         ${stat('💰', 'Net ciro', money(k.revenue), 'var(--c1)')}
         ${stat('💵', 'Nakit (kasada olmalı)', money(k.cash), 'var(--ok,#22c55e)')}
         ${stat('💳', 'Kredi kartı', money(k.card), 'var(--c2)')}
+        ${stat('📒', 'Açık hesap (' + (k.open_acc_n || 0) + ')', money(k.open_acc), '#f59e0b')}
+        ${anN(k.transfer) ? stat('🏦', 'Havale / EFT', money(k.transfer), '#6366f1') : ''}
         ${stat('🧾', 'Hesap sayısı', k.checks || 0, 'var(--c3)')}
         ${stat('👥', 'Kişi sayısı', anN(k.guests) ? k.guests + ' · kişi başı ' + money(anN(k.guest_rev) / anN(k.guests)) : '—', 'var(--c4)')}
       </div>
