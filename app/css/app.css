@@ -3755,3 +3755,4 @@ button.sl-stat{border:1px solid var(--border) !important;} button.sl-stat.on{bor
 .gp-rem{width:auto;margin:0;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600;background:transparent;border:1px solid var(--border);color:var(--muted);box-shadow:none;align-self:flex-start}
 .gp-rem i{font-style:normal;font-weight:800;margin-left:2px}
 .gp-rem.on{border-color:rgba(16,185,129,.5);color:#10b981;background:rgba(16,185,129,.1)}
+.pc-save-all{margin-left:auto !important;background:var(--accent);color:var(--btn-ink,#fff)}

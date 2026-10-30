@@ -134,7 +134,7 @@ async function renderPurchaseReportContent(session){
         ${items.map(i => { const q = Number(i.quantity)||0, c = Number(i.unit_cost)||0; return `<div class="pc2-it ${c>0?'':'nop'}">
           <span class="pc2-ic">🥕</span>
           <div class="pc2-nm"><b>${escapeHtml(i.name)}</b><small>${q} ${escapeHtml(i.unit||'')}${Number(i.received)>0 && Number(i.received)<q ? ` · teslim ${Number(i.received)}` : ''}</small></div>
-          <label class="pc2-price"><input type="number" min="0" step="0.01" placeholder="Fiyat" value="${c>0 ? c : ''}" data-item-id="${i.id}" data-orig="${c>0 ? c : ''}" class="pc-cost ${c>0 ? '' : 'missing'}" ${actOn('input','markPcDirty',[p.id])}><span>₺/${escapeHtml(i.unit||'')}</span></label>
+          <label class="pc2-price"><input type="number" min="0" step="0.01" placeholder="Fiyat" value="${(APP.pcDrafts||{})[i.id] ?? (c>0 ? c : '')}" data-item-id="${i.id}" data-orig="${c>0 ? c : ''}" class="pc-cost ${c>0 ? '' : 'missing'}" ${actOn('input','markPcDirty',[p.id])}><span>₺/${escapeHtml(i.unit||'')}</span></label>
           <b class="pc2-line">${c>0 ? money(q*c) : '<span class="pchip warn">fiyat yok</span>'}</b></div>`; }).join('') || '<p class="muted">Kalem yok.</p>'}
       </div>
       <div class="pc2-foot">${p.notes ? `<div class="pc-note">📝 ${escapeHtml(p.notes)}</div>` : '<span></span>'}
@@ -153,16 +153,34 @@ async function renderPurchaseReportContent(session){
     </div>
     <div class="pc-layout">
       <div>
-        <div class="pc-chips">${chip('all','Tümü')}${chip('sup','Tedarikçi bekleyen')}${chip('price','Fiyat bekleyen')}${chip('recv','Teslim bekleyen')}${chip('done','Tamamlanan')}</div>
+        <div class="pc-chips">${chip('all','Tümü')}${chip('sup','Tedarikçi bekleyen')}${chip('price','Fiyat bekleyen')}${chip('recv','Teslim bekleyen')}${chip('done','Tamamlanan')}
+          <button type="button" class="pc-save pc-save-all" id="pcSaveAll" hidden ${act('saveAllPoPrices')}>${ICON_SAVE}<span>Tümünü Kaydet</span></button></div>
         ${shown.length ? `<div class="pc2-grid">${shown.map((p, i) => card(p, i)).join('')}</div>` : '<div class="fs-panel"><p class="u-m0 muted">Bu filtrede sipariş yok.</p></div>'}
       </div>
       <div class="fs-panel pc-side" style="--t:#a78bfa;"><h3><i>🚚</i>Tedarikçiye Göre</h3>
         ${total ? (() => { const e = Object.entries(bySup).sort((a,b)=>b[1]-a[1]); const top = e.slice(0,3), rest = e.slice(3).reduce((t,x)=>t+x[1],0);
           return svgDonut(top.map(([k,v], i) => ({ label:k, value:v, color:`var(--c${i+1})` })).concat(rest ? [{ label:'Diğer', value:rest, color:'var(--c4)' }] : []), { center: shortMoney(total), sub:'₺ toplam', title:'Tedarikçi payları', money:true }); })() : ''}
         ${Object.keys(bySup).length ? Object.entries(bySup).sort((a,b)=>b[1]-a[1]).map(([k,v]) => fsRow(escapeHtml(k), money(v), total ? '%'+Math.round(v/total*100) : '')).join('') : '<p class="u-fs13 muted">Veri yok.</p>'}
-        <p class="fs-note">Fiyatı girilmemiş kalemler tutara katılmaz. Fiyatları yazdıktan sonra siparişin <b>Kaydet</b> düğmesine basın.</p>
+        <p class="fs-note">Fiyatı girilmemiş kalemler tutara katılmaz. Fiyatları yazın; siparişin <b>Kaydet</b> düğmesiyle ya da üstteki <b>Tümünü Kaydet</b> ile hepsini birden kaydedin.</p>
       </div>
     </div>`;
+  restorePcDrafts();
+}
+// Kaydedilmemiş fiyatlar (taslak) yeniden çizimde korunur; kartlar tekrar "kirli" işaretlenir.
+function restorePcDrafts(){
+  const ids = new Set();
+  document.querySelectorAll('.pc-card .pc-cost').forEach(i => { if(i.value !== i.dataset.orig){ const b = i.closest('.pc-card').querySelector('.pc-save'); if(b) ids.add(b.id.slice(7)); } });
+  ids.forEach(id => markPcDirty(id));
+  updatePcSaveAll();
+}
+function updatePcSaveAll(){
+  const b = document.getElementById('pcSaveAll'); if(!b) return;
+  const n = [...document.querySelectorAll('.pc-card .pc-cost')].filter(i => i.value !== i.dataset.orig).length;
+  b.hidden = !n; b.querySelector('span').textContent = `Tümünü Kaydet (${n})`;
+}
+async function saveAllPoPrices(){
+  const inputs = [...document.querySelectorAll('.pc-card .pc-cost')].filter(i => i.value !== i.dataset.orig);
+  await savePcInputs(inputs, document.getElementById('pcSaveAll'));
 }
 function setProcFilter(k){ APP.procFilter = k; renderPurchaseReportContent(getSession()); }
 function setPurchRepSub(sub){ APP.purchRepSub = sub; renderPurchaseReportContent(getSession()); }
@@ -174,24 +192,29 @@ function markPcDirty(poId){
   card.disabled = !dirty;
   card.querySelector('span').textContent = dirty ? `Kaydet (${dirty})` : 'Kaydet';
   card.closest('.pc-card').classList.toggle('dirty', !!dirty);
+  if(!APP.pcDrafts) APP.pcDrafts = {};
+  inputs.forEach(i => { if(i.value !== i.dataset.orig) APP.pcDrafts[i.dataset.itemId] = i.value; else delete APP.pcDrafts[i.dataset.itemId]; });
+  updatePcSaveAll();
 }
 async function savePoPrices(poId){
   const btn = document.getElementById('pcSave_'+poId); if(!btn) return;
-  const changed = [...btn.closest('.pc-card').querySelectorAll('.pc-cost')].filter(i => i.value !== i.dataset.orig);
+  await savePcInputs([...btn.closest('.pc-card').querySelectorAll('.pc-cost')].filter(i => i.value !== i.dataset.orig), btn);
+}
+// Fiyatlar paralel kaydedilir; yalnızca kaydedilenlerin taslağı silinir, diğer kartlardaki yazılanlar korunur.
+async function savePcInputs(changed, btn){
+  if(!changed.length) return;
   for(const inp of changed){
     const v = parseFloat(String(inp.value).replace(',', '.'));
     if(isNaN(v) || v < 0){ showToast('Geçerli bir birim fiyat girin'); inp.focus(); return; }
   }
-  btn.disabled = true;
-  const tok = getSession().session_token; const errs = [];
-  await withLoadingOverlay((async () => {
-    for(const inp of changed){
-      const { error } = await sb.rpc('set_purchase_item_cost', { p_token: tok, p_item_id: inp.dataset.itemId, p_unit_cost: parseFloat(String(inp.value).replace(',', '.')) });
-      if(error) errs.push(error.message);
-    }
-  })());
-  if(errs.length) alert('Bazı fiyatlar kaydedilemedi:\n\n' + errs.join('\n')); else showToast(changed.length + ' birim fiyat kaydedildi ✓');
-  renderPurchaseReportContent(getSession());
+  if(btn) btn.disabled = true;
+  const tok = getSession().session_token;
+  const res = await withLoadingOverlay(Promise.all(changed.map(inp => sb.rpc('set_purchase_item_cost', { p_token: tok, p_item_id: inp.dataset.itemId, p_unit_cost: parseFloat(String(inp.value).replace(',', '.')) }))));
+  const errs = [];
+  res.forEach((r, k) => { if(r.error) errs.push(r.error.message); else if(APP.pcDrafts) delete APP.pcDrafts[changed[k].dataset.itemId]; });
+  if(errs.length) await uiAlert('Bazı fiyatlar kaydedilemedi:\n\n' + errs.join('\n')); else showToast(changed.length + ' birim fiyat kaydedildi ✓');
+  await renderPurchaseReportContent(getSession());
+  restorePcDrafts();
   if(typeof refreshNavBadges === 'function') refreshNavBadges();
 }
 async function savePurchaseItemCost(itemId, value){
