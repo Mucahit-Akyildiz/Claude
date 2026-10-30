@@ -124,6 +124,7 @@ const NAV_ITEMS = [
   { view:'messages', icon:'💬', label:'Mesajlar' },
   { view:'radio', icon:'📻', label:'Peyk Bas-Konuş' },
   { view:'settings', icon:'⚙️', label:'Ayarlar' },
+  { view:'devicePrinters', icon:'🖨️', label:'Cihaz Yazıcısı' },
   { view:'help', icon:'❓', label:'Yardım' },
 ];
 /* notificationSettings her personel için her zaman görünür (izin
