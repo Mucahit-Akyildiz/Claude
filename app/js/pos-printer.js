@@ -778,9 +778,8 @@ async function renderNotificationSettingsView(main, session){
   main.innerHTML = `
     <h1>Bildirimler</h1>
     <div id="notifSettingsPart">
-    <p class="u-tl muted">${session.isManager ? '<b>Kime Gitsin</b> bölümünden push ve sesli bildirimlerin hangi rollere gideceğini siz belirlersiniz; bu kural tüm personelin cihazına uygulanır. Diğer bölümler (ses seçimi, zil sesi) yalnızca bu cihaza özeldir.' : 'Hangi bildirimlerin size gideceğini yöneticiniz belirler (🔒 işaretli olanlar). Ses seçimi ve zil sesi gibi ayarlar yalnızca bu cihaza özeldir.'}</p>
+    <p class="u-tl muted">${session.isManager ? 'Bu sayfadaki ayarlar (push, ses seçimi, zil sesi) yalnızca bu cihaza özeldir. Bildirimlerin hangi rollere gideceği ve kişi sayısı hatırlatması <b>Ayarlar → Bildirim Ayarları</b>\'nda.' : 'Hangi bildirimlerin size gideceğini yöneticiniz belirler (🔒 işaretli olanlar). Ses seçimi ve zil sesi gibi ayarlar yalnızca bu cihaza özeldir.'}</p>
 
-    ${session.isManager ? guestReminderSettingHtml() : ''}
     ${!hasFeature('push_notifications') ? `<div class="u-mwn box"><h2>📱 Push Bildirimleri (Uygulama Kapalıyken de)</h2>${lockedFeatureHtml()}</div>` : ''}
     ${isDesktopApp() && hasFeature('push_notifications') ? `<div class="u-mwn box">
       <h2>🖥️ Windows Bildirimleri</h2>
@@ -799,7 +798,6 @@ async function renderNotificationSettingsView(main, session){
     </div>
 
     ${voiceSettingsHtml()}
-    ${typeof birthdaySettingsHtml === 'function' ? birthdaySettingsHtml() : ''}
     <div class="u-mwn box">
       <h2>🔔 Bildirim Sesi (Yeni Sipariş Zili)</h2>
       <p class="u-tl muted">Mutfağa yeni bir sipariş düştüğünde bu ekranda çalacak sesi özelleştirebilirsiniz. Bir istasyon seçip kendi ses dosyanızı yükleyerek o istasyona özel bir zil sesi de tanımlayabilirsiniz (örn. Izgara için ayrı, Çayhane için ayrı).</p>
@@ -840,16 +838,29 @@ async function renderNotificationSettingsView(main, session){
     </div>
     </div>
   `;
-  if(session.isManager){
-    const part = document.getElementById('notifSettingsPart');
-    if(part){ part.querySelectorAll('#notifRolesBox').forEach(x => x.remove());
-      const b = document.createElement('div'); b.id = 'notifRolesBox'; b.className = 'box'; b.style.maxWidth = 'none'; b.innerHTML = '<h2>👥 Kime Gitsin</h2><div id="notifRolesBody"><p class="muted">Yükleniyor…</p></div>';
-      const first = part.querySelector(':scope > .box'); part.insertBefore(b, first); loadNotifRoles(); }
-  }
   notifSideNav(document.getElementById('notifSettingsPart'));
   updateBellScopeStatus();
   initPushUI();
 }
+
+/* Ayarlar > Bildirim Ayarları: işletme geneli bildirim kuralları (Kime Gitsin, kişi sayısı hatırlatması) ve doğum günü uyarıları. */
+function renderNotifAdminSettings(el, session){
+  const tabs = [
+    session.isManager ? { id:'roles', ic:'👥', label:'Kime Gitsin' } : null,
+    session.isManager ? { id:'guests', ic:'🔔', label:'Kişi Sayısı Hatırlatması' } : null,
+    typeof birthdaySettingsHtml === 'function' ? { id:'bday', ic:'🎂', label:'Doğum Günü Uyarıları' } : null,
+  ].filter(Boolean);
+  if(!tabs.some(t => t.id === APP.notifAdminSub)) APP.notifAdminSub = tabs[0].id;
+  const sub = APP.notifAdminSub;
+  el.innerHTML = `<div class="u-mwn box sub-tabs-box">
+      <div class="sub-tabs">${tabs.map(t => `<div role="tab" tabindex="0" class="sub-tab ${sub===t.id?'active':''}" ${act('setNotifAdminSub', t.id)}><span class="sub-tab-ic">${t.ic}</span>${t.label}</div>`).join('')}</div>
+      <div class="sub-tabs-content" id="notifAdminContent">${
+        sub === 'roles' ? '<div id="notifRolesBox" class="box" style="max-width:none;"><h2>👥 Kime Gitsin</h2><div id="notifRolesBody"><p class="muted">Yükleniyor…</p></div></div>'
+        : sub === 'guests' ? guestReminderSettingHtml() : birthdaySettingsHtml()}</div>
+    </div>`;
+  if(sub === 'roles') loadNotifRoles();
+}
+function setNotifAdminSub(id){ APP.notifAdminSub = id; const el = document.getElementById('settingsContent'); if(el) renderNotifAdminSettings(el, getSession()); }
 
 /* Bildirimler > Kime Gitsin: her bildirim türünün hangi rollere (push) gideceği. Ayar yoksa izne göre varsayılan. */
 const NOTIF_TYPES = [
