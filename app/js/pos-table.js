@@ -295,7 +295,7 @@ function guestReminderSettingHtml(){
   const on = guestReminderOn();
   return `<div class="box" style="max-width:none;" id="guestRemBox"><h2>👥 Kişi Sayısı Hatırlatması</h2>
     <p class="u-tl muted">Masaya sipariş girilip kişi sayısı girilmediğinde siparişi alana, ödeme yetkisi olanlara ve yöneticiye bildirim, rozet ve masada uyarı gösterilir. Tüm işletme için geçerlidir; yalnızca yönetici değiştirebilir.</p>
-    <label class="switch-row" style="display:flex;align-items:center;gap:10px;cursor:pointer;font-weight:700;"><input type="checkbox" ${on ? 'checked' : ''} style="width:auto;margin:0;" ${actOn('change', 'toggleGuestReminder')}> ${on ? 'Açık' : 'Kapalı'}</label></div>`;
+    <div style="display:flex;align-items:center;gap:12px;font-weight:700;"><label class="toggle-switch" title="Aç / kapat"><input type="checkbox" ${on ? 'checked' : ''} ${actOn('change', 'toggleGuestReminder')}><span class="slider"></span></label><span style="color:${on ? 'var(--accent)' : 'var(--muted)'};">${on ? 'Açık' : 'Kapalı'}</span></div></div>`;
 }
 async function toggleGuestReminder(){
   const on = !guestReminderOn();
