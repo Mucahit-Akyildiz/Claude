@@ -36,7 +36,8 @@ function renderPackageGrid(){
     const pickup = pkgTypeOf(o) === 'pickup';
     let eta = '';
     if(o.pickup_at){
-      const left = Math.round((new Date(o.pickup_at) - Date.now()) / 60000);
+      // Adrese teslimde süre, yola çıkış saatine (teslim − 10 dk) göre sayılır.
+      const left = Math.round((pkgKitchenDeadline(o) - Date.now()) / 60000);
       const hm = new Date(o.pickup_at).toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'});
       const warn = left >= 10 && left < 20 && !allReady, red = left < 10 && !allReady;
       eta = `<div style="margin-top:5px;"><span class="pk-badge ${left < 0 || red ? 'late' : warn ? 'warn' : 'ok'}">${warn || red ? '⚠️' : '🕒'} ${pickup ? '' : 'Teslim '}${hm} · ${left < 0 ? Math.abs(left) + ' dk geçti' : left + ' dk kaldı'}</span></div>`;
@@ -553,6 +554,12 @@ async function openWaitlistOrderModal(wlId){
 /* Paket servis türü: 🛵 Paket (teslimat, adres) veya 🥡 Gel-Al (müşteri gelip alır,
    yaklaşık hazır olma / teslim alma süresi). */
 const PKG_PICKUP_MINS = [10, 15, 20, 30, 45, 60];
+/* Adrese teslimde yol için ayrılan süre: mutfağın hedefi teslim saatinden bu kadar dakika önce (sunucu bildirimleriyle aynı). */
+const PKG_TRAVEL_MIN = 10;
+function pkgKitchenDeadline(o){
+  if(!o || !o.pickup_at) return null;
+  return new Date(o.pickup_at).getTime() - (pkgTypeOf(o) !== 'pickup' ? PKG_TRAVEL_MIN * 60000 : 0);
+}
 function pkgTypeOf(o){ return (o && o.takeaway_type) || (o && o.order_id ? (o.delivery_address ? 'delivery' : (o.pickup_at ? 'pickup' : 'delivery')) : (APP.pkgType || 'delivery')); }
 function pkgTypeHtml(existing){
   APP.pkgType = pkgTypeOf(existing);

@@ -20,3 +20,7 @@ alter table restaurants add column if not exists voice_enabled boolean not null 
 -- restaurants.bank_* değerleri bank_accounts'a taşındı (varsayılan).
 -- Paket teslim saati bildirimleri (canlıya uygulandı): _cron_pkg_alerts aşamaları 1:<30, 2:<20, 3:<10, 4:geçti;
 -- _nav_badges pkg_deadline penceresi 30 dk, mutfak kalemlerinde 'dl' (teslim saatli paket) bayrağı.
+-- Adrese teslim paketlerde 10 dk yol süresi (canlıya uygulandı): _pkg_deadline(orders) = pickup_at − 10 dk (delivery);
+-- _cron_pkg_alerts ve _nav_badges pkg_deadline bu saate göre.
+create or replace function public._pkg_deadline(o orders) returns timestamptz language sql immutable as $f$
+  select o.pickup_at - case when coalesce(o.takeaway_type, case when o.delivery_address is not null then 'delivery' else 'pickup' end) = 'delivery' then interval '10 minutes' else interval '0' end $f$;

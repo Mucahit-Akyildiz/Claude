@@ -72,7 +72,7 @@ async function refreshKitchenItems(session){
     // En uzun bekleyen sipariş önce: kart, içindeki en eski bekleyen ürünün zamanına göre sıralanır.
     const oldest = Math.min(...pending.map(it => it.added_at ? new Date(it.added_at).getTime() : Infinity));
     // Teslim/alış saati olan paket: renk geçen süreye değil teslime kalan süreye göre (20+ yeşil, 10–20 sarı, 10 altı kırmızı).
-    const dl = o.kind === 'takeaway' && o.pickup_at ? new Date(o.pickup_at).getTime() : null;
+    const dl = o.kind === 'takeaway' && o.pickup_at ? (typeof pkgKitchenDeadline === 'function' ? pkgKitchenDeadline(o) : new Date(o.pickup_at).getTime()) : null;
     cards.push({ at: isFinite(oldest) ? oldest : Infinity, dl, html: `<div class="kitchen-card" data-order-id="${o.order_id}">
       <div class="kc-age"><i data-age-from="${isFinite(oldest) ? new Date(oldest).toISOString() : ''}"${dl ? ` data-deadline="${new Date(dl).toISOString()}"` : ''}></i></div>
       <div class="kc-head">
@@ -674,7 +674,7 @@ const PKG_WARN_MIN = 20; // mutfak kartı renkleri: 20+ yeşil, 10–20 sarı, <
 function warnPackageDeadlines(){
   if(!(APP.pkgWarned instanceof Map)) APP.pkgWarned = new Map();
   (APP.liveOrders || []).filter(o => o.kind === 'takeaway' && o.pickup_at && (o.items || []).some(i => i.status === 'pending' && !i.paid)).forEach(o => {
-    const left = Math.round((new Date(o.pickup_at) - Date.now()) / 60000);
+    const left = Math.round(((typeof pkgKitchenDeadline === 'function' ? pkgKitchenDeadline(o) : new Date(o.pickup_at).getTime()) - Date.now()) / 60000);
     const st = typeof pkgDeadlineStage === 'function' ? pkgDeadlineStage(left) : (left < 20 ? 2 : 0);
     if(!st || (APP.pkgWarned.get(o.order_id) || 0) >= st) return;
     APP.pkgWarned.set(o.order_id, st);
@@ -692,9 +692,12 @@ function kitchenPickupHtml(o){
   if(!o || o.kind !== 'takeaway') return '';
   const t = typeof pkgTypeOf === 'function' ? pkgTypeOf(o) : (o.takeaway_type || 'delivery');
   if(!o.pickup_at) return t !== 'pickup' ? '<div class="kc-pickup">🛵 Paket · adrese teslim</div>' : '<div class="kc-pickup">🥡 Gel-Al</div>';
-  const left = Math.round((new Date(o.pickup_at) - Date.now()) / 60000);
+  // Adrese teslimde yol için 10 dk ayrılır: geri sayım yola çıkış saatine göre.
+  const dlMs = typeof pkgKitchenDeadline === 'function' ? pkgKitchenDeadline(o) : new Date(o.pickup_at).getTime();
+  const left = Math.round((dlMs - Date.now()) / 60000);
   const hm = new Date(o.pickup_at).toLocaleTimeString('tr-TR', { hour:'2-digit', minute:'2-digit' });
-  const what = t !== 'pickup' ? `🛵 Paket · <b>${hm}</b>'de adreste olmalı` : `🥡 Gel-Al · müşteri <b>${hm}</b>'de alacak`;
+  const out = new Date(dlMs).toLocaleTimeString('tr-TR', { hour:'2-digit', minute:'2-digit' });
+  const what = t !== 'pickup' ? `🛵 Paket · <b>${hm}</b>'de adreste · <b>${out}</b>'de yola çıkmalı` : `🥡 Gel-Al · müşteri <b>${hm}</b>'de alacak`;
   // 20 dakikadan az kaldıysa uyarı (hazırlık süresi yetmeyebilir); süre geçtiyse kırmızı.
   const pending = (o.items || []).some(i => i.status === 'pending' && !i.paid);
   return `<div class="kc-pickup ${left < 10 ? 'late' : left < PKG_WARN_MIN ? 'soon' : 'ok'}">${left >= 0 && left < PKG_WARN_MIN && pending ? '⚠️ ' : ''}${what} <span>(${left < 0 ? Math.abs(left) + ' dk geçti' : left + ' dk kaldı'})</span></div>`;

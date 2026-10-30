@@ -16,7 +16,7 @@ const VOICE_TYPES = [
   { id:'resvsoon',     ic:'⏳', label:'Rezervasyon hatırlatma (15 dk)', sample:'Ahmet Bey adına 4 kişilik rezervasyon 15 dakika sonra, 12 numaralı masa' },
   { id:'pickup',       ic:'🥡', label:'Gel-al alış saati geldi', sample:'Hakan Bey adına gel-al siparişinin alış saati geldi' },
   { id:'courier',      ic:'🛵', label:'Adrese teslim paket hazır, kuryeye verilmedi', sample:'Hakan Bey paketi hazır, kuryeye verilmedi' },
-  { id:'pkgsoon',      ic:'⏱️', label:'Paket teslim saati (son 30 / 20 dk, geç kalıyor, geç kaldı)', sample:'Hakan Bey paketinin teslimatı için son 20 dakika, sipariş hâlâ hazırlanıyor' },
+  { id:'pkgsoon',      ic:'⏱️', label:'Paket teslim saati (son 30 / 20 dk, geç kalıyor, geç kaldı)', sample:'Hakan Bey paketinin yola çıkışı için son 20 dakika, sipariş hâlâ hazırlanıyor' },
   { id:'reservations', ic:'📅', label:'Yeni rezervasyon / bekleme listesi', sample:'Yeni rezervasyon talebi var' },
   { id:'messages',     ic:'💬', label:'Mesajlar', sample:'Yeni mesajınız var' },
   { id:'other',        ic:'🔔', label:'Diğer bildirimler', sample:'Yeni bildiriminiz var' },
@@ -441,8 +441,8 @@ async function toggleVoiceMaster(){
 /* Paket teslim saati aşamaları (telefon bildirimiyle aynı): son 30 dk → son 20 dk → geç kalıyor (<10) → geç kaldı. */
 function pkgDeadlineStage(left){ return left < 0 ? 4 : left < 10 ? 3 : left < 20 ? 2 : left < 30 ? 1 : 0; }
 function pkgDeadlineText(name, left, delivery){
-  const what = delivery ? 'teslimatı' : 'teslimi';
-  return left < 0 ? name + ' paketi geç kaldı, teslim saati ' + Math.abs(left) + ' dakika geçti'
+  const what = delivery ? 'yola çıkışı' : 'teslimi';
+  return left < 0 ? name + ' paketi geç kaldı, ' + (delivery ? 'yola çıkış' : 'teslim') + ' saati ' + Math.abs(left) + ' dakika geçti'
     : left < 10 ? name + ' paketi geç kalıyor, ' + left + ' dakika kaldı'
     : left < 20 ? name + ' paketinin ' + what + ' için son 20 dakika, sipariş hâlâ hazırlanıyor'
     : name + ' paketinin ' + what + ' için son 30 dakika, sipariş hâlâ hazırlanıyor';

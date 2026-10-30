@@ -491,16 +491,17 @@ async function dispatchPackageAlerts(supabase, deadlineIds, courierIds) {
     const who = o.customer_name || ('Paket #' + (o.daily_number || ''));
     if (deadlineIds.includes(o.id) && o.pickup_at) {
       const to = [...new Set([o.created_by, ...(await packageUserIds(supabase, o.restaurant_id, 'pkg_deadline'))].filter(Boolean))];
-      const left = Math.round((new Date(o.pickup_at).getTime() - Date.now()) / 60000);
       const del = (o.takeaway_type || (o.delivery_address ? 'delivery' : 'pickup')) !== 'pickup';
-      const what = del ? 'teslimat' : 'teslim';
+      // Adrese teslimde yol için 10 dk ayrılır: süre yola çıkış saatine (teslim − 10 dk) göre.
+      const left = Math.round((new Date(o.pickup_at).getTime() - (del ? 10 * 60000 : 0) - Date.now()) / 60000);
+      const what = del ? 'yola çıkış' : 'teslim';
       // Aşamalar: son 30 dk → son 20 dk → 10 dk altı geç kalıyor → süre doldu geç kaldı.
       const title = left < 0 ? '🔴 ' + who + ': sipariş geç kaldı'
         : left < 10 ? '🔴 ' + who + ': sipariş geç kalıyor (' + left + ' dk)'
         : left < 20 ? '🟡 ' + who + ': ' + what + ' için son 20 dakika'
         : '⏱️ ' + who + ': ' + what + ' için son 30 dakika';
       const r = await sendToUsers(supabase, to, {
-        title, body: (left < 0 ? 'Teslim saati ' + Math.abs(left) + ' dk geçti, sipariş hâlâ hazırlanıyor.' : 'Sipariş hâlâ hazırlanıyor. Mutfak ekranından takip edin.'),
+        title, body: (left < 0 ? (del ? 'Yola çıkış saati ' : 'Teslim saati ') + Math.abs(left) + ' dk geçti, sipariş hâlâ hazırlanıyor.' : 'Sipariş hâlâ hazırlanıyor' + (del ? ' (adrese gitmek için 10 dk ayrıldı)' : '') + '. Mutfak ekranından takip edin.'),
         url: '/app/', view: 'kitchen', tag: 'pkg-deadline-' + o.id,
       });
       sent += (r && r.sent) || 0;
