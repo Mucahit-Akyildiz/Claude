@@ -380,7 +380,7 @@ async function renderReportContent(session){
   const billLabel = (o) => (o.kind==='takeaway' ? '📦 Paket' : (o.table_name||'-'));
   const billTableOptions = [...new Set(billHist.map(billLabel))].sort();
   const billHourOptions = [...new Set(billHist.map(o => new Date(o.closed_at).getHours()))].sort((a,b)=>a-b);
-  const METHOD_LABELS = { cash:'💵 Nakit', card:'💳 Kredi Kartı', gift_card:'🎁 Hediye Kartı', split:'➗ Bölünmüş', open_account:'📒 Açık Hesap', comp:'🎁 İkram', points:'⭐ Puan' };
+  const METHOD_LABELS = { cash:'💵 Nakit', card:'💳 Kredi Kartı', gift_card:'🎁 Hediye Kartı', split:'➗ Bölünmüş', transfer:'🏦 Havale/EFT', open_account:'📒 Açık Hesap', comp:'🎁 İkram', points:'⭐ Puan' };
   const billMethodOptions = [...new Set(billHist.map(o => o.payment_method))].filter(Boolean).sort();
 
   // Hesabın kaynağı: rezervasyondan / bekleme listesinden oturtulan masa,

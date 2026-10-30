@@ -317,7 +317,7 @@ async function renderIntegrationsSettings(el, session){
   const INT_TABS = [
     { id:'online', ic:'🛵', label:'Online Sipariş' }, { id:'google', ic:'⭐', label:'Google Yorumları' },
     { id:'sms', ic:'📱', label:'SMS' }, { id:'invoice', ic:'🧾', label:'Fatura Bilgileri' },
-    { id:'mail', ic:'✉️', label:'E-posta' },
+    { id:'mail', ic:'✉️', label:'E-posta' }, { id:'bank', ic:'🏦', label:'Banka / IBAN' },
     { id:'efatura', ic:'🧾', label:'ÖKC / e-Fatura' }, { id:'marketplace', ic:'🛍️', label:'Pazaryeri' }, { id:'accounting', ic:'📊', label:'Muhasebe' },
   ];
   const order = ['efatura','marketplace','accounting','google','online','sms','invoice'];
@@ -329,6 +329,20 @@ async function renderIntegrationsSettings(el, session){
     b.innerHTML = `<h2>${t}</h2>${ctTabsHtml('mail', [['conn','🔌 Bağlantı'],['tpl','✉️ E-postalar'],['log','📨 Gönderilenler']])}<div class="ct-pane" data-pane="conn"><div id="${id}"><p class="muted">Yükleniyor…</p></div></div><div class="ct-pane" data-pane="tpl"><div id="mailTplBox"></div></div><div class="ct-pane" data-pane="log"><div id="mailLogBox"></div></div>`;
     b.dataset.ctgrp = 'mail'; b.dataset.ct = (APP.ctTab || {}).mail || 'conn'; el.appendChild(b); boxes.push(b);
   });
+  // Banka / IBAN: Havale/EFT ödemesinde müşteriye SMS / e-postayla gönderilir.
+  { const bk = (APP.config && APP.config.bank) || {}, b = document.createElement('div'); b.className = 'box int-pane ix-box'; b.style.maxWidth = 'none'; b.dataset.int = 'bank';
+    const ok = !!bk.bank_iban, mgr = !!session.isManager;
+    b.innerHTML = `<h2>🏦 Banka / IBAN</h2>
+      <div class="oo-hero ${ok?'on':''}"><div class="oo-hero-ic">🏦</div>
+        <div class="oo-hero-t"><b>Havale / EFT ile ödeme</b><small>Ödeme ekranındaki <b>Havale / EFT</b> seçeneğinde bu hesap gösterilir; IBAN müşteriye tek tıkla SMS ya da e-postayla gönderilir.</small></div>
+        <span class="ti-st ${ok?'ok':''}">${ok?'● Tamam':'○ Eksik'}</span></div>
+      <div class="ix-sec"><div class="ix-st">Hesap bilgileri</div><div class="ix-form">
+        <div><label>Banka adı</label><input id="bank_name" value="${escapeAttr(bk.bank_name||'')}" placeholder="örn. Ziraat Bankası" ${mgr?'':'disabled'}></div>
+        <div><label>Hesap sahibi</label><input id="bank_holder" value="${escapeAttr(bk.bank_holder||'')}" placeholder="Ad Soyad / Ünvan" ${mgr?'':'disabled'}></div>
+        <div style="grid-column:1/-1;"><label>IBAN</label><input id="bank_iban" value="${escapeAttr(fmtIban(bk.bank_iban||''))}" placeholder="TR00 0000 0000 0000 0000 0000 00" maxlength="32" style="font-family:monospace;letter-spacing:.04em;" ${mgr?'':'disabled'} ${actOn('input','formatIbanInput',['$this'])}></div>
+      </div></div>
+      ${mgr ? `<button class="ix-save" ${act('saveBankInfo')}>${ICON_SAVE}<span>Kaydet</span></button>` : '<p class="u-fs13 muted">Banka bilgisini yalnızca yönetici değiştirebilir.</p>'}`;
+    el.appendChild(b); boxes.push(b); }
   loadMailTemplates();
   APP.mailLog = { days: 30, day: '', purpose: '', status: '', q: '', rows: [], open: null };
   loadMailLog();
@@ -337,12 +351,12 @@ async function renderIntegrationsSettings(el, session){
   if(onl){ const d = document.createElement('div'); d.id = 'tiPay'; (onl.querySelector('#ooPayCol') || onl).appendChild(d); }
   if(!INT_TABS.some(t => t.id === APP.integrationsSubTab)) APP.integrationsSubTab = 'online';
   const INT_DESC = { online:'Kendi sipariş sayfanız ve kartla ödeme', google:'İşletme yorumlarını takip edin', sms:'Müşterilere SMS bildirimi', mail:'Kendi alan adınızdan e-posta', pay:'iyzico / PayTR ile kartla ödeme', invoice:'Faturada görünecek bilgiler',
-    efatura:'Yazarkasa ve e-Fatura/e-Arşiv', marketplace:'Pazaryeri menü eşitleme', accounting:'Muhasebe yazılımına aktarım' };
+    efatura:'Yazarkasa ve e-Fatura/e-Arşiv', marketplace:'Pazaryeri menü eşitleme', accounting:'Muhasebe yazılımına aktarım', bank:'Havale/EFT için IBAN' };
   const stOf = (id) => { const b = boxes.find(x => x.dataset.int === id); const t = b ? b.textContent : '';
     if(/paketinizde yok/i.test(t)) return ['lock','🔒 Eklenti'];
     const c = APP.config || {}, on = { online: !!(c.online_ordering && c.online_ordering.enabled), google: !!c.google_review_url,
       marketplace: !!(data.marketplace_enabled && (data.marketplace_getir_configured || data.marketplace_trendyol_configured || data.marketplace_yemeksepeti_configured)),
-      invoice: !!(data.invoice_title && data.tax_number), efatura: !!(data.efatura_enabled && data.efatura_configured), accounting: !!(data.accounting_enabled && data.accounting_configured),
+      invoice: !!(data.invoice_title && data.tax_number), bank: !!(c.bank && c.bank.bank_iban), efatura: !!(data.efatura_enabled && data.efatura_configured), accounting: !!(data.accounting_enabled && data.accounting_configured),
       sms: !!data.sms_enabled && (APP.intLive || {}).sms !== false, mail: !!(APP.intLive || {}).mail }[id];
     return on ? ['ok','Aktif'] : ['off','Kapalı']; };
   const bar = document.createElement('div');
@@ -414,4 +428,16 @@ async function submitAddonTransfer(btn, addonId){
   if(error){ btn.disabled = false; alert(error.message); return; }
   showToast('Ödeme bildiriminiz alındı ✓ Onaylanınca eklenti açılacak.');
   loadAddonPurchaseBox(wrap, addonId);
+}
+
+function fmtIban(v){ return String(v || '').replace(/\s/g, '').toUpperCase().replace(/(.{4})/g, '$1 ').trim(); }
+function formatIbanInput(el){ const pos = el.value.length; el.value = fmtIban(el.value); if(document.activeElement === el && pos >= el.value.length - 1) el.setSelectionRange(el.value.length, el.value.length); }
+async function saveBankInfo(){
+  const v = id => (document.getElementById(id) || {}).value || '';
+  const iban = v('bank_iban').replace(/\s/g, '').toUpperCase();
+  if(iban && !/^TR\d{24}$/.test(iban)){ showToast('IBAN TR ile başlamalı ve 26 karakter olmalı'); return; }
+  const { data, error } = await sb.rpc('save_bank_info', { p_token: getSession().session_token, p_bank: v('bank_name'), p_holder: v('bank_holder'), p_iban: iban });
+  if(error){ showToast(error.message); return; }
+  if(APP.config) APP.config.bank = data;
+  showToast('Banka bilgisi kaydedildi ✓');
 }

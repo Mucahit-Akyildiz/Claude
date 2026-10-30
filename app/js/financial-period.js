@@ -388,7 +388,7 @@ async function openSaleDetailModal(historyId){
   const session = getSession();
   const { data: d, error } = await withLoadingOverlay(sb.rpc('get_sale_detail', { p_token: session.session_token, p_history_id: historyId }));
   if(error){ alert(error.message); return; }
-  const methods = { cash:'💵 Nakit', card:'💳 Kart', gift_card:'🎁 Hediye Kartı', split:'➗ Bölünmüş', open_account:'📒 Açık Hesap', comp:'🎁 İkram', points:'⭐ Puan' };
+  const methods = { cash:'💵 Nakit', card:'💳 Kart', gift_card:'🎁 Hediye Kartı', split:'➗ Bölünmüş', transfer:'🏦 Havale/EFT', open_account:'📒 Açık Hesap', comp:'🎁 İkram', points:'⭐ Puan' };
   const label = d.kind==='takeaway' ? '📦 Paket' : (d.table_name || '-');
   const row = (k, v, strong) => `<div style="display:flex;justify-content:space-between;${strong?'font-weight:800;font-size:15px;margin-top:4px;':''}"><span>${k}</span><span>${v}</span></div>`;
   const bg = document.createElement('div');
