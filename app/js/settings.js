@@ -12,12 +12,14 @@ const SETTINGS_TABS = [
   { tab:'roles', perm:'settings_roles', label:'Roller', ico:'🔑', desc:'Yetkiler' },
   { tab:'integrations', perm:'settings_integrations', label:'Entegrasyonlar', ico:'🔌', desc:'Platformlar, yazıcılar' },
   { tab:'billing', label:'Abonelik, Hediye Kartı & Kampanya', ico:'💳', desc:'Plan, fatura, kartlar, kuponlar' }, // alt sekmeler
+  { tab:'notifs', label:'Bildirim Ayarları', ico:'🔔', desc:'Kime gitsin, hatırlatmalar' },
   { tab:'reports', label:'Özet E-postaları', ico:'📬', desc:'Gün sonu ve haftalık özet' },
   { tab:'security', label:'Güvenlik', ico:'🛡️', desc:'Destek, kayıt, sıfırlama' }, // alt sekmeler: Destek Erişimi, Değişiklik Kaydı, Veri Sıfırlama
 ];
 function settingsTabVisible(t, session){
   if(t.feature && !hasFeature(t.feature)) return false;
   if(t.tab==='reports') return !!session.isManager;
+  if(t.tab==='notifs') return true; // Kime Gitsin / hatırlatma yalnızca yöneticiye; doğum günü uyarıları cihaz ayarı, herkese
   if(t.tab==='users') return canManage(session, 'settings_users') || canManage(session, 'shifts');
   if(t.tab==='products') return canManage(session, 'settings_products') || canManage(session, 'settings_ingredients');
   if(t.tab==='security') return canManage(session, 'settings_support') || canManage(session, 'settings_audit') || canManage(session, 'settings_datareset');
@@ -87,6 +89,7 @@ function renderSettingsContent(session){
   else if(APP.settingsTab==='billing') renderBillingTabWithSubtabs(el, session);
   else if(APP.settingsTab==='security') renderSecuritySettings(el, session);
   else if(APP.settingsTab==='reports') renderOwnerReportSettings(el, session);
+  else if(APP.settingsTab==='notifs') renderNotifAdminSettings(el, session);
   else renderUsersTabWithSubtabs(el, session);
 }
 /* Kullanıcılar sekmesi alt sekmeli: Kullanıcılar | Aktif Kullanıcılar | Vardiyalar (yetkiye göre). */
