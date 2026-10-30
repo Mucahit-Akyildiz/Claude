@@ -18,3 +18,5 @@ alter table restaurants add column if not exists voice_enabled boolean not null 
 -- Birden fazla banka hesabı (canlıya uygulandı): bank_accounts (soft delete: active), _banks_json, save_bank_account,
 -- archive_bank_account, send_iban_bank(.., p_bank_id), send_iban_to_bank(.., p_bank_id); get_restaurant_config 'banks'.
 -- restaurants.bank_* değerleri bank_accounts'a taşındı (varsayılan).
+-- Paket teslim saati bildirimleri (canlıya uygulandı): _cron_pkg_alerts aşamaları 1:<30, 2:<20, 3:<10, 4:geçti;
+-- _nav_badges pkg_deadline penceresi 30 dk, mutfak kalemlerinde 'dl' (teslim saatli paket) bayrağı.

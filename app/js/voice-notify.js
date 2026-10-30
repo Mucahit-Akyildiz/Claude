@@ -16,7 +16,7 @@ const VOICE_TYPES = [
   { id:'resvsoon',     ic:'⏳', label:'Rezervasyon hatırlatma (15 dk)', sample:'Ahmet Bey adına 4 kişilik rezervasyon 15 dakika sonra, 12 numaralı masa' },
   { id:'pickup',       ic:'🥡', label:'Gel-al alış saati geldi', sample:'Hakan Bey adına gel-al siparişinin alış saati geldi' },
   { id:'courier',      ic:'🛵', label:'Adrese teslim paket hazır, kuryeye verilmedi', sample:'Hakan Bey paketi hazır, kuryeye verilmedi' },
-  { id:'pkgsoon',      ic:'⏱️', label:'Paket teslim saatine 20 dk’dan az kaldı (hâlâ hazırlanıyor)', sample:'Hakan Bey paketinin adreste olmasına 15 dakika kaldı, sipariş hâlâ hazırlanıyor' },
+  { id:'pkgsoon',      ic:'⏱️', label:'Paket teslim saati (son 30 / 20 dk, geç kalıyor, geç kaldı)', sample:'Hakan Bey paketinin teslimatı için son 20 dakika, sipariş hâlâ hazırlanıyor' },
   { id:'reservations', ic:'📅', label:'Yeni rezervasyon / bekleme listesi', sample:'Yeni rezervasyon talebi var' },
   { id:'messages',     ic:'💬', label:'Mesajlar', sample:'Yeni mesajınız var' },
   { id:'other',        ic:'🔔', label:'Diğer bildirimler', sample:'Yeni bildiriminiz var' },
@@ -270,7 +270,7 @@ function voiceTextFor(type, items){
     case 'pickup': return items.map(x => (x.name ? x.name + ' adına' : (x.no ? x.no + ' numaralı' : 'Bir')) + ' gel-al siparişinin alış saati geldi' + (x.ready ? '' : ', sipariş henüz hazır değil')).join('. ');
     case 'guests': return T.map(t => voiceMasa(t, 'gen') + ' kişi sayısı girilmedi').join('. ');
     case 'courier': return items.map(x => (x.name || 'Bir') + ' paketi hazır, kuryeye verilmedi').join('. ');
-    case 'pkgsoon': return items.map(x => (x.name || 'Bir') + ' paketinin ' + (x.left < 0 ? 'teslim saati geçti' : (x.delivery ? 'adreste olmasına ' : 'teslim alınmasına ') + x.left + ' dakika kaldı') + ', sipariş hâlâ hazırlanıyor').join('. ');
+    case 'pkgsoon': return items.map(x => pkgDeadlineText(x.name || 'Bir', x.left, x.delivery)).join('. ');
     case 'idle': return items.map(x => { const t = String(x.label || '').replace(/^🪑\s*/, '').split(' · ')[0]; return voiceMasa(t, 'gen') + ' siparişi bekleniyor, misafir masada oturuyor'; }).join('. ');
     case 'reservations': return items.map(x => {
       const name = x.name || String(x.label || '').replace(/^\W+/u, '').split(/ · | \(/)[0].trim();
@@ -337,7 +337,7 @@ function processVoiceBadges(data, visibleViews){
   if(gl.length && visibleViews.includes('order')) fresh.guests = (fresh.guests || []).concat(gl.filter(x => !(fresh.guests || []).some(y => y.id === x.id)));
   const late = [];
   (items.kitchen || []).forEach(x => {
-    if(!x.at) return;
+    if(!x.at || x.dl) return; // teslim saatli paketler 20 dk kuralına girmez
     // 20. dakikada, sonra her 5 dakikada bir (25, 30, ...) yeniden okunur (telefon bildirimiyle aynı kademeler).
     const mins = (Date.now() - new Date(x.at).getTime()) / 60000;
     if(mins < VOICE_LATE_MIN) return;
@@ -436,4 +436,14 @@ async function toggleVoiceMaster(){
   if(APP.config) APP.config.voice_enabled = on;
   const box = document.getElementById('voiceMasterBox'); if(box) box.outerHTML = voiceMasterSettingHtml();
   showToast(on ? 'Sesli bildirimler açıldı' : 'Sesli bildirimler kapatıldı');
+}
+
+/* Paket teslim saati aşamaları (telefon bildirimiyle aynı): son 30 dk → son 20 dk → geç kalıyor (<10) → geç kaldı. */
+function pkgDeadlineStage(left){ return left < 0 ? 4 : left < 10 ? 3 : left < 20 ? 2 : left < 30 ? 1 : 0; }
+function pkgDeadlineText(name, left, delivery){
+  const what = delivery ? 'teslimatı' : 'teslimi';
+  return left < 0 ? name + ' paketi geç kaldı, teslim saati ' + Math.abs(left) + ' dakika geçti'
+    : left < 10 ? name + ' paketi geç kalıyor, ' + left + ' dakika kaldı'
+    : left < 20 ? name + ' paketinin ' + what + ' için son 20 dakika, sipariş hâlâ hazırlanıyor'
+    : name + ' paketinin ' + what + ' için son 30 dakika, sipariş hâlâ hazırlanıyor';
 }

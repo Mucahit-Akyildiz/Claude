@@ -876,7 +876,9 @@ const NOTIF_TYPES = [
   { k:'idle_table', ic:'🪑', t:'Sipariş bekleyen masa', d:'Masaya oturan müşterinin siparişi girilmeyince', perm:'order' },
   { k:'waiter_order', ic:'🙋', t:'Garson çağrısı (sipariş)', d:'Masadan sipariş için garson çağrılınca', perm:'order' },
   { k:'waiter_payment', ic:'💳', t:'Garson çağrısı (hesap)', d:'Masadan hesap istenince', perm:'payments' },
-  { k:'kitchen_late', ic:'⏰', t:'Geciken mutfak siparişi', d:'Ürün 15 dakikayı geçince', perm:'kitchen' },
+  { k:'kitchen_late', ic:'⏰', t:'Geciken mutfak siparişi', d:'Ürün 20 dakikayı geçince (teslim saatli paketler hariç)', perm:'kitchen' },
+  { k:'pkg_deadline', ic:'⏱️', t:'Paket teslim saati', d:'Son 30 / 20 dk, geç kalıyor, geç kaldı', perm:'packages' },
+  { k:'pkg_courier', ic:'🛵', t:'Kuryeye verilmedi', d:'Adrese teslim paket hazır, kuryede değil', perm:'packages' },
   { k:'shift', ic:'🕐', t:'Vardiya talepleri', d:'Personel vardiya başlatmak/bitirmek isteyince', perm:'shifts' },
   { k:'purchase_order', ic:'🚚', t:'Satınalma siparişi', d:'Yeni satınalma siparişi verilince', perm:'purchasing_reports' },
 ];
