@@ -3805,3 +3805,13 @@ button.sl-stat{border:1px solid var(--border) !important;} button.sl-stat.on{bor
 .dg-card.tr-modal{text-align:left;width:100%}
 .dg-card.tr-modal h2{margin:0 0 14px;font-size:22px}
 .dg-card .tr-iban{font-size:13.5px;letter-spacing:0;white-space:nowrap}
+/* Ayarlar içinde Yazıcılar & Fiş: iç menü yatay alt sekme */
+.pr-layout.pr-embed{display:block}
+.pr-layout.pr-embed > .set-nav{display:flex;flex-wrap:wrap;gap:6px;position:static;max-height:none;padding:6px;margin:0 0 14px;border-radius:14px;background:var(--panel2);border:1px solid var(--border)}
+.pr-layout.pr-embed > .set-nav .set-item{flex:0 0 auto;padding:8px 12px;margin:0;border-radius:10px}
+.pr-layout.pr-embed > .set-nav .set-item small{display:none}
+.pr-layout.pr-embed > .set-nav .set-ico{width:26px;height:26px;font-size:14px}
+#settingsContent .pr-layout.pr-embed{display:block!important;grid-template-columns:none!important}
+#settingsContent .pr-layout.pr-embed > nav.set-nav{display:flex!important;flex-direction:row!important;flex-wrap:wrap!important;gap:6px!important;width:auto!important;position:static!important;padding:6px!important;margin:0 0 14px!important}
+#settingsContent .pr-layout.pr-embed > nav.set-nav .set-item{width:auto!important;flex:0 0 auto!important;padding:7px 12px!important;margin:0!important}
+#settingsContent .pr-layout.pr-embed > nav.set-nav .set-item small{display:none!important}

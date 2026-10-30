@@ -373,7 +373,7 @@ async function saveCashCount(){
 async function printZToReceipt(){
   const rows = APP.anZRows || []; if(!rows.length) return;
   const s = getSession(), printer = getPrinters().find(p => p.id===getActivePrinterId());
-  if(!printer){ showToast('⚠️ Bu ekran için yazıcı seçili değil — Yazıcı Ayarları\'ndan seçin'); return; }
+  if(!printer){ showToast('⚠️ Bu ekran için yazıcı seçili değil — Ayarlar → Yazıcılar & Fiş\'ten seçin'); return; }
   const plain = (v) => String(v).replace(/<[^>]+>/g, '').replace(/[^\x20-\x7EçğıöşüÇĞİÖŞÜ₺−]/g, '').trim();
   const head = [s.restaurant_name || '', 'GUN SONU RAPORU', reportDateRangeLabel(), new Date().toLocaleString('tr-TR', { dateStyle: 'short', timeStyle: 'short' })];
   if(printer.type==='usb'){

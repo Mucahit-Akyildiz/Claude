@@ -32,6 +32,7 @@ const HELP_TOPICS = [
     { q: 'Hesabı müşteriye e-postayla göndermek', view: 'payments', a: `Ödeme penceresinde <b>Hesabı e-postayla gönder</b>'i açın; ödemeden sonra e-posta adresi sorulur. Fatura bilgileri <b>Ayarlar → Abonelik</b> altındaki Fatura Bilgileri'nden düzenlenir.` },
     { q: 'Hediye kartı', view: 'settings', a: `<b>Ayarlar → Hediye Kartları</b>'ndan kart oluşturun. Ödemede kart kodunu <b>Sorgula</b> ile girip bakiyeden düşebilirsiniz.` },
     { q: 'Gün sonu kapanışı', view: 'payments', a: `<b>Ödemeler → Gün Sonu</b> ile adım adım kasa sayımı girin; kasa farkı hesaplanır ve Z raporu basılır. Açık vardiyalar kendiliğinden kapanır, kapanış unutulursa ertesi gün hatırlatma gelir.` },
+    { q: 'Yazıcı ve fiş ayarları nerede?', view: 'settings', a: `<b>Ayarlar → Yazıcılar & Fiş</b>. Fiş tasarımı tüm işletmede ortaktır; <b>Bu Ekranın Yazıcısı</b>, <b>Yazıcılar</b> ve <b>İstasyon → Yazıcı</b> eşleştirmesi ise her cihazda ayrı yapılır (yazıcıyı bağlayacağınız cihazdan açın).` },
     { q: 'Havale / EFT ile ödeme', view: 'payments', a: `<b>Ayarlar → Entegrasyonlar → Banka / IBAN</b>'dan banka adı, hesap sahibi ve IBAN'ı girin. Ödeme penceresinde <b>🏦 Havale / EFT</b>'ye basınca hesap ve tutar görünür; IBAN'ı müşteriye tek tıkla SMS ya da e-postayla gönderin. Para hesaba geçince <b>Havale alındı</b> ile ödemeyi kapatın; raporlarda ayrı görünür.` },
   ]},
   { cat: 'Müşteriler ve Rezervasyon', icon: '👥', items: [

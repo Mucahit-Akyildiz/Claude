@@ -245,7 +245,7 @@ async function printKitchenTicketRaw(tableName, items, printerOverride, silent, 
     showToast('⚠️ Fiş yazdırılamadı: bu ekran/istasyon için yazıcı seçili değil');
   } else if(printer && printer.type==='browser' && silent){
     PRINT_RESULT = { ok: false, err: 'Tarayıcı yazıcısı otomatik basamaz' };
-    showToast('⚠️ "'+printer.name+'" sessiz/otomatik yazdırma için ayarlanmamış (bu tür her seferinde yazdırma penceresi açar) — Yazıcı Ayarları\'ndan "Masaüstü Uygulaması", "Sessiz Tarayıcı Yazdırma (kiosk-printing)" veya USB tipini kullanın');
+    showToast('⚠️ "'+printer.name+'" sessiz/otomatik yazdırma için ayarlanmamış (bu tür her seferinde yazdırma penceresi açar) — Ayarlar → Yazıcılar & Fiş\'ten "Masaüstü Uygulaması", "Sessiz Tarayıcı Yazdırma (kiosk-printing)" veya USB tipini kullanın');
   }
 
   // silent=true (siparis onaylaninca otomatik cagri): yazici yoksa/basarisizsa

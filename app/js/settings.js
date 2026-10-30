@@ -12,6 +12,7 @@ const SETTINGS_TABS = [
   { tab:'roles', perm:'settings_roles', label:'Roller', ico:'🔑', desc:'Yetkiler' },
   { tab:'integrations', perm:'settings_integrations', label:'Entegrasyonlar', ico:'🔌', desc:'Platformlar, yazıcılar' },
   { tab:'billing', label:'Abonelik, Hediye Kartı & Kampanya', ico:'💳', desc:'Plan, fatura, kartlar, kuponlar' }, // alt sekmeler
+  { tab:'printers', label:'Yazıcılar & Fiş', ico:'🖨️', desc:'Fiş tasarımı, cihaz yazıcısı' },
   { tab:'notifs', label:'Bildirim Ayarları', ico:'🔔', desc:'Kime gitsin, hatırlatmalar' },
   { tab:'reports', label:'Özet E-postaları', ico:'📬', desc:'Gün sonu ve haftalık özet' },
   { tab:'security', label:'Güvenlik', ico:'🛡️', desc:'Destek, kayıt, sıfırlama' }, // alt sekmeler: Destek Erişimi, Değişiklik Kaydı, Veri Sıfırlama
@@ -19,6 +20,7 @@ const SETTINGS_TABS = [
 function settingsTabVisible(t, session){
   if(t.feature && !hasFeature(t.feature)) return false;
   if(t.tab==='reports') return !!session.isManager;
+  if(t.tab==='printers') return canManage(session, 'printer_settings');
   if(t.tab==='notifs') return true; // Kime Gitsin / hatırlatma yalnızca yöneticiye; doğum günü uyarıları cihaz ayarı, herkese
   if(t.tab==='users') return canManage(session, 'settings_users') || canManage(session, 'shifts');
   if(t.tab==='products') return canManage(session, 'settings_products') || canManage(session, 'settings_ingredients');
@@ -90,6 +92,7 @@ function renderSettingsContent(session){
   else if(APP.settingsTab==='security') renderSecuritySettings(el, session);
   else if(APP.settingsTab==='reports') renderOwnerReportSettings(el, session);
   else if(APP.settingsTab==='notifs') renderNotifAdminSettings(el, session);
+  else if(APP.settingsTab==='printers') renderPrinterSettingsView(el, session);
   else renderUsersTabWithSubtabs(el, session);
 }
 /* Kullanıcılar sekmesi alt sekmeli: Kullanıcılar | Aktif Kullanıcılar | Vardiyalar (yetkiye göre). */

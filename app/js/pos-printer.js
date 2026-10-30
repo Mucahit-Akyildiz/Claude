@@ -394,6 +394,9 @@ function resolveBellSetting(stationId){
 const PR_TYPE = (t) => t==='usb' ? ['🔌','USB (doğrudan)'] : t==='silent-browser' ? ['🤫','Sessiz tarayıcı'] : t==='electron' ? ['💻','Masaüstü uygulaması'] : ['🖨️','Tarayıcı penceresi'];
 function pickActivePrinter(id){ setActivePrinterId(id); document.querySelectorAll('.pp-card[data-pid], .pp-grid .pp-card:not(.pp-static)').forEach(c => c.classList.remove('on')); renderPrinterSettingsView(document.getElementById('main'), getSession()); showToast('Bu ekranın yazıcısı güncellendi ✓'); }
 async function renderPrinterSettingsView(main, session){
+  // Ayarlar → Yazıcılar & Fiş sekmesinde gösterilir; eski çağrılar (#main) sekmenin içine yönlendirilir.
+  const embedded = APP.view === 'settings';
+  if(embedded && main && main.id === 'main'){ const sc = document.getElementById('settingsContent'); if(!sc) return; main = sc; }
   // Mutfak rolündeki kullanıcıların menüsünde "Sipariş Al"/"Ayarlar" yok -
   // bu yüzden APP.config hiç yüklenmemiş olabilir (istasyon listesi burada
   // kullanılıyor). Eksikse burada da yüklenir; önceden bu eksiklik sayfanın
@@ -409,7 +412,7 @@ async function renderPrinterSettingsView(main, session){
   const stationPrinterMap = getStationPrinterMap();
   const usbSupported = !!(navigator.usb);
   main.innerHTML = `
-    <h1>Yazıcı Ayarları <span class="role-badge" style="margin-left:6px;vertical-align:middle;">Sadece Yönetici</span></h1>
+    ${embedded ? '' : '<h1>Yazıcı Ayarları <span class="role-badge" style="margin-left:6px;vertical-align:middle;">Sadece Yönetici</span></h1>'}
     <details class="pr-note">
       <summary style="cursor:pointer;font-weight:700;font-size:13px;">ℹ️ Fiş tasarımı tüm işletmede ortaktır; yazıcı seçimleri ise bu cihaza özeldir. <span class="muted" style="font-weight:500;">(ayrıntı)</span></summary>
       <p class="muted" style="margin:8px 0 0;text-align:left;font-size:12px;">⚠️ <b>Yazıcılar</b> ve <b>İstasyon → Yazıcı Eşleştirme</b> ise hâlâ <u>şu an bu ekranı açtığınız cihaza</u> özeldir (bir yazıcı fiziksel olarak hangi bilgisayara bağlıysa fiş oradan basılır, bu merkezi bir ayarla belirlenemez). Yeni bir kasa/mutfak bilgisayarı kurduğunuzda, o bilgisayarda da Yönetici olarak giriş yapıp yazıcı seçimini orada tekrar yapmanız gerekir.</p>
@@ -630,7 +633,7 @@ async function renderPrinterSettingsView(main, session){
   renderCashReceiptPreview();
   if(!PR_TABS.some(t => t.id === APP.printerTab)) APP.printerTab = 'design';
   const PR_DESC = { design:'Mutfak fişinin görünümü', cash:'Müşteri / kasa fişi', device:'Bu cihazda kullanılacak yazıcı', printers:'Tanımlı yazıcılar', stations:'Hangi istasyon hangi yazıcıya', pkg:'Müşteri, telefon, adres', status:'Yazıcı durumu, son basılan fişler' };
-  const layout = document.createElement('div'); layout.className = 'set-layout pr-layout';
+  const layout = document.createElement('div'); layout.className = 'set-layout pr-layout' + (embedded ? ' pr-embed' : '');
   layout.innerHTML = `<nav class="tabs settings-tabs set-nav">${PR_TABS.map((t, i) => `<div class="tab set-item" data-pr-tab="${t.id}" style="--i:${i};--sc:var(--c${i%4+1});" ${act('setPrinterTab', t.id)}><span class="set-ico">${t.ic}</span><span class="set-txt"><b>${t.label}</b><small>${PR_DESC[t.id]||''}</small></span></div>`).join('')}</nav><div class="set-content pr-content"></div>`;
   if(boxes[0]) main.insertBefore(layout, boxes[0]);
   const content = layout.querySelector('.pr-content'); boxes.forEach(b => content.appendChild(b));
