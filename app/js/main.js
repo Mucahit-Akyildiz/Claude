@@ -73,7 +73,7 @@ function renderMainView(main, session){
   else if(APP.view==='payments') p = renderPaymentsView(main, session);
   else if(APP.view==='settings') p = renderSettingsView(main, session);
   else if(APP.view==='reports') p = renderReportsView(main, session);
-  else if(APP.view==='printerSettings'){ APP.view = 'settings'; APP.settingsTab = 'printers'; p = renderSettingsView(main, session); }
+  else if(APP.view==='printerSettings' || APP.view==='devicePrinters'){ APP.view = 'devicePrinters'; p = renderPrinterSettingsView(main, session); }
   else if(APP.view==='notificationSettings') p = renderNotificationSettingsView(main, session);
   else if(APP.view==='reservations') p = renderReservationsView(main, session);
   else if(APP.view==='crm') p = renderCrmView(main, session);
@@ -163,7 +163,7 @@ function render(){
           </div>
         </div>
       </aside>
-      <div class="content-area"><div class="content-inner ${(['settings','reports','kitchen','reservations','crm','purchasing','procurement','radio','messages','printerSettings','notificationSettings'].includes(APP.view))?'content-inner-wide':''}">${pushReminderBannerHtml()}${APP.view && APP.view!=='home' ? `<button type="button" class="back-link" ${act('goBack')}>← Geri</button>` : ''}<main id="main"></main></div></div>
+      <div class="content-area"><div class="content-inner ${(['settings','reports','kitchen','reservations','crm','purchasing','procurement','radio','messages','printerSettings','devicePrinters','notificationSettings'].includes(APP.view))?'content-inner-wide':''}">${pushReminderBannerHtml()}${APP.view && APP.view!=='home' ? `<button type="button" class="back-link" ${act('goBack')}>← Geri</button>` : ''}<main id="main"></main></div></div>
     </div>`;
   const main = document.getElementById('main');
   renderMainView(main, session);
@@ -428,7 +428,7 @@ function uiBusyForAutoRefresh(){
   }
   return false;
 }
-const AUTO_REFRESH_SKIP = ['home','reports','settings','printerSettings','notificationSettings','help'];
+const AUTO_REFRESH_SKIP = ['home','reports','settings','printerSettings','devicePrinters','notificationSettings','help'];
 function autoRefreshCurrentView(session){
   if(APP.view==='kitchen'){ if(APP.kitchenStation) refreshKitchenItems(session); return; }
   if(APP.view==='order' || APP.view==='packages'){ refreshOrderLiveStatus(session); return; }
@@ -605,7 +605,7 @@ function renderHome(main, session){
   // Kişiye özel "Bugün" ekranı: yetkili olduğu bölümlerin kısayolları, anlık özet, vardiya ve (yetkiliyse) hızlı yönetim.
   const hr = new Date().getHours();
   const greet = hr < 6 ? 'İyi geceler' : hr < 12 ? 'Günaydın' : hr < 18 ? 'İyi günler' : 'İyi akşamlar';
-  const skip = ['home','help','notificationSettings','printerSettings','settings'];
+  const skip = ['home','help','notificationSettings','printerSettings','devicePrinters','settings'];
   const items = NAV_ITEMS.filter(i => !skip.includes(i.view) && navItemVisible(i, session));
   const quick = [
     { tab:'products', ic:'🍽️', t:'Ürünler', d:'Fiyat, reçete, stok' },
@@ -644,7 +644,7 @@ function setupSteps(){
     { k:'cost', ic:'💸', t:'Maliyetler', d:'Kâr raporları için ürün maliyetlerini girin', ok: prods.length > 0 && prods.every(p => Number(p.cost) > 0), go:['quick','products'] },
     { k:'table', ic:'🪑', t:'Masalar', d:'Bölge ve masaları ekleyin', ok: tables > 0, go:['quick','zones'] },
     { k:'staff', ic:'👥', t:'Personel', d:'Garson / mutfak kullanıcılarını ekleyin', ok: (c.users || []).length > 1, go:['quick','users'] },
-    { k:'print', ic:'🖨️', t:'Yazıcı', d:'Fiş ve mutfak yazıcısını bağlayın (isteğe bağlı)', ok: printers.length > 0, go:['tab','printers'] },
+    { k:'print', ic:'🖨️', t:'Yazıcı', d:'Fiş ve mutfak yazıcısını bağlayın (isteğe bağlı)', ok: printers.length > 0, go:['view','devicePrinters'] },
   ];
 }
 function setupWizardHtml(session){
