@@ -1041,6 +1041,9 @@ async function sendIban(kind){
 }
 async function confirmTransferPay(){
   if(!(await uiConfirm('Havalenin hesabınıza geçtiğini kontrol ettiniz mi? Ödeme "Havale/EFT" olarak kapatılacak.'))) return;
+  // Hangi bankaya geldiği Z raporunda banka banka görünsün diye siparişe yazılır.
+  const bg = document.getElementById('payModalBg'), bk = trBank();
+  if(bg && bk.id) await sb.rpc('set_order_transfer_bank', { p_token: getSession().session_token, p_order_id: bg.dataset.orderId, p_bank_id: bk.id });
   closeTransferPay();
   await finishPaymentFull('transfer');
 }

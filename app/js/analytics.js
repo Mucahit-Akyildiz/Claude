@@ -293,7 +293,7 @@ async function renderZReportContent(session, quiet){
   const rows = [
     ['Brüt satış (indirim öncesi)', money(gross)], ['İndirimler', '−' + money(anN(k.discount) - anN(k.birthday))], ['Doğum günü indirimi', '−' + money(k.birthday)],
     ['NET CİRO', money(k.revenue), 'big'], ['—'],
-    ['💵 Nakit', money(k.cash)], ['💳 Kredi kartı', money(k.card)], ['🎁 Hediye kartı', money(k.gift)], ...(anN(k.transfer) ? [['🏦 Havale / EFT', money(k.transfer)]] : []), ...(anN(k.points) ? [['⭐ Puanla ödeme', money(k.points)]] : []),
+    ['💵 Nakit', money(k.cash)], ['💳 Kredi kartı', money(k.card)], ['🎁 Hediye kartı', money(k.gift)], ...(anN(k.transfer) ? [['🏦 Havale / EFT', money(k.transfer)], ...((k.transfer_banks || []).map(b => ['   · ' + b.bank, money(b.amount)]))] : []), ...(anN(k.points) ? [['⭐ Puanla ödeme', money(k.points)]] : []),
     ['📒 Açık hesaba yazılan (' + (k.open_acc_n || 0) + ' hesap)', money(k.open_acc)], ['📒 Açık hesap tahsilatı', money(k.open_acc_paid)], ['—'],
     ['Hesap sayısı', k.checks || 0], ['Kişi sayısı', anN(k.guests) || 0], ['Kişi başı', money(anN(k.guests) ? anN(k.guest_rev) / anN(k.guests) : 0)], ['Ortalama hesap', money(k.checks ? k.revenue / k.checks : 0)], ['Bahşiş', money(k.tips)], ['—'],
     ['🎁 İkram / personel (' + (k.comp_n || 0) + ' hesap)', money(k.comp)], ['❌ İptal edilen masa', c.orders || 0], ['❌ İptal edilen ürün tutarı', money(c.cur && c.cur.amount)], ['🔥 İsraf maliyeti', money(d.waste)], ['—'],
@@ -326,7 +326,7 @@ async function renderZReportContent(session, quiet){
         ${stat('💵', 'Nakit (kasada olmalı)', money(k.cash), 'var(--ok,#22c55e)')}
         ${stat('💳', 'Kredi kartı', money(k.card), 'var(--c2)')}
         ${stat('📒', 'Açık hesap (' + (k.open_acc_n || 0) + ')', money(k.open_acc), '#f59e0b')}
-        ${anN(k.transfer) ? stat('🏦', 'Havale / EFT', money(k.transfer), '#6366f1') : ''}
+        ${anN(k.transfer) ? ((k.transfer_banks || []).length > 1 ? (k.transfer_banks || []).map(b => stat('🏦', 'Havale · ' + escapeHtml(b.bank), money(b.amount), '#6366f1')).join('') : stat('🏦', 'Havale / EFT' + ((k.transfer_banks || [])[0] ? ' · ' + escapeHtml(k.transfer_banks[0].bank) : ''), money(k.transfer), '#6366f1')) : ''}
         ${stat('🧾', 'Hesap sayısı', k.checks || 0, 'var(--c3)')}
         ${stat('👥', 'Kişi sayısı', anN(k.guests) ? k.guests + ' · kişi başı ' + money(anN(k.guest_rev) / anN(k.guests)) : '—', 'var(--c4)')}
       </div>
