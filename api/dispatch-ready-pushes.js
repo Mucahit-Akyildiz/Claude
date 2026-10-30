@@ -204,7 +204,7 @@ async function dispatchLateKitchenItems(supabase) {
   const lateCutoff = new Date(Date.now() - 20 * 60 * 1000).toISOString();
   const { data: lateItems, error } = await selectAll(() => supabase
     .from('order_items')
-    .select('id, name, added_at, late_push_notified_at, late_push_milestone, orders!inner(id, restaurant_id, status)')
+    .select('id, name, added_at, late_push_notified_at, late_push_milestone, orders!inner(id, restaurant_id, status, kind, pickup_at)')
     .eq('status', 'pending')
     .eq('orders.status', 'open')
     .lte('added_at', lateCutoff).order('id'));
@@ -214,7 +214,9 @@ async function dispatchLateKitchenItems(supabase) {
   // "kademesi" = (geçen dk - 20) / 5. Bu iş her dakika çalışır; kademe ilerlediyse bildirilir.
   const now = Date.now();
   const milestoneOf = (it) => Math.floor(((now - new Date(it.added_at).getTime()) / 60000 - 20) / 5);
-  const items = (lateItems || []).filter((it) => milestoneOf(it) > (it.late_push_milestone == null ? -1 : it.late_push_milestone));
+  // Teslim saati girilmiş paketler 20 dk kuralına girmez: onlar teslim saatine göre (pkg_alerts) hatırlatılır.
+  const items = (lateItems || []).filter((it) => !(it.orders.kind === 'takeaway' && it.orders.pickup_at))
+    .filter((it) => milestoneOf(it) > (it.late_push_milestone == null ? -1 : it.late_push_milestone));
   if (items.length === 0) return { sent: 0, items: 0 };
 
   const byRestaurant = new Map();
@@ -466,12 +468,13 @@ async function paymentUserIds(supabase, restaurantId) {
   return ids;
 }
 // Paket Servis yetkilileri + Yönetici (sistem rolü).
-async function packageUserIds(supabase, restaurantId) {
+async function packageUserIds(supabase, restaurantId, type) {
   const [{ data: appUsers }, { data: roles }] = await Promise.all([
     supabase.from('app_users').select('id, role_ids, is_active').eq('restaurant_id', restaurantId),
     supabase.from('roles').select('id, is_system, permissions').eq('restaurant_id', restaurantId),
   ]);
-  const ok = new Set((roles || []).filter((r) => r.is_system || (r.permissions || []).includes('packages')).map((r) => r.id));
+  const ok = type ? await notifyRoleIds(supabase, restaurantId, type, roles, 'packages')
+    : new Set((roles || []).filter((r) => r.is_system || (r.permissions || []).includes('packages')).map((r) => r.id));
   return (appUsers || []).filter((u) => u.is_active !== false && (u.role_ids || []).some((rid) => ok.has(rid))).map((u) => u.id);
 }
 // Paket uyarıları (pg_cron _cron_pkg_alerts): teslim saati yaklaşıp hâlâ hazırlanan paketler ve hazır olup kuryeye verilmemiş adrese teslim paketler.
@@ -486,17 +489,24 @@ async function dispatchPackageAlerts(supabase, deadlineIds, courierIds) {
   for (const o of orders || []) {
     if (o.status !== 'open') continue;
     const who = o.customer_name || ('Paket #' + (o.daily_number || ''));
-    const to = [...new Set([o.created_by, ...(await packageUserIds(supabase, o.restaurant_id))].filter(Boolean))];
     if (deadlineIds.includes(o.id) && o.pickup_at) {
+      const to = [...new Set([o.created_by, ...(await packageUserIds(supabase, o.restaurant_id, 'pkg_deadline'))].filter(Boolean))];
       const left = Math.round((new Date(o.pickup_at).getTime() - Date.now()) / 60000);
       const del = (o.takeaway_type || (o.delivery_address ? 'delivery' : 'pickup')) !== 'pickup';
+      const what = del ? 'teslimat' : 'teslim';
+      // Aşamalar: son 30 dk → son 20 dk → 10 dk altı geç kalıyor → süre doldu geç kaldı.
+      const title = left < 0 ? '🔴 ' + who + ': sipariş geç kaldı'
+        : left < 10 ? '🔴 ' + who + ': sipariş geç kalıyor (' + left + ' dk)'
+        : left < 20 ? '🟡 ' + who + ': ' + what + ' için son 20 dakika'
+        : '⏱️ ' + who + ': ' + what + ' için son 30 dakika';
       const r = await sendToUsers(supabase, to, {
-        title: (left < 10 ? '🔴 ' : '⏱️ ') + who + ': ' + (left < 0 ? 'teslim saati geçti' : (del ? 'adreste olmasına ' : 'alınmasına ') + left + ' dk kaldı'),
-        body: 'Sipariş hâlâ hazırlanıyor. Mutfak ekranından takip edin.', url: '/app/', view: 'kitchen', tag: 'pkg-deadline-' + o.id,
+        title, body: (left < 0 ? 'Teslim saati ' + Math.abs(left) + ' dk geçti, sipariş hâlâ hazırlanıyor.' : 'Sipariş hâlâ hazırlanıyor. Mutfak ekranından takip edin.'),
+        url: '/app/', view: 'kitchen', tag: 'pkg-deadline-' + o.id,
       });
       sent += (r && r.sent) || 0;
     }
     if (courierIds.includes(o.id) && !o.dispatched_at) {
+      const to = [...new Set([o.created_by, ...(await packageUserIds(supabase, o.restaurant_id, 'pkg_courier'))].filter(Boolean))];
       const r = await sendToUsers(supabase, to, {
         title: '🛵 ' + who + ': hazır, kuryeye verilmedi',
         body: 'Adrese teslim paket hazır. Paket Servis ekranından kuryeye verin.', url: '/app/', view: 'packages', tag: 'pkg-courier-' + o.id,

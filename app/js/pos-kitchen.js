@@ -669,20 +669,21 @@ function wasteUseMaxQty(q){ document.getElementById('wasteQty').value = q; remov
 function wasteGoStockSettings(tab){ removeEl('wasteStockModalBg'); closeWasteModal(); APP.settingsTab = 'products'; APP.productsSubTab = tab; goToView('settings'); }
 function wastePickOtherProduct(){ removeEl('wasteStockModalBg'); const el = document.getElementById('wasteProduct'); if(el) el.focus(); }
 
-const PKG_WARN_MIN = 20;
-/* Teslim/alış saatine 20 dakikadan az kalmış, hâlâ hazırlanan paketler için bir kez sesli ve görsel uyarı. */
+const PKG_WARN_MIN = 20; // mutfak kartı renkleri: 20+ yeşil, 10–20 sarı, <10 kırmızı
+/* Teslim saatli, hâlâ hazırlanan paketler: son 30 dk, son 20 dk, geç kalıyor (<10), geç kaldı — her aşamada bir kez sesli ve görsel uyarı. */
 function warnPackageDeadlines(){
-  APP.pkgWarned = APP.pkgWarned || new Set();
+  if(!(APP.pkgWarned instanceof Map)) APP.pkgWarned = new Map();
   (APP.liveOrders || []).filter(o => o.kind === 'takeaway' && o.pickup_at && (o.items || []).some(i => i.status === 'pending' && !i.paid)).forEach(o => {
     const left = Math.round((new Date(o.pickup_at) - Date.now()) / 60000);
-    if(left >= PKG_WARN_MIN || APP.pkgWarned.has(o.order_id)) return;
-    APP.pkgWarned.add(o.order_id);
+    const st = typeof pkgDeadlineStage === 'function' ? pkgDeadlineStage(left) : (left < 20 ? 2 : 0);
+    if(!st || (APP.pkgWarned.get(o.order_id) || 0) >= st) return;
+    APP.pkgWarned.set(o.order_id, st);
     const del = (o.takeaway_type || (o.delivery_address ? 'delivery' : 'pickup')) !== 'pickup';
     const who = o.customer_name || ('Paket #' + (o.daily_number || ''));
-    showToast('⚠️ ' + who + ': ' + (left < 0 ? 'teslim saati geçti' : (del ? 'adreste olmasına ' : 'teslim almasına ') + left + ' dk kaldı') + ', sipariş hâlâ hazırlanıyor', 8000);
-    // Bildirimler ekranındaki "Paket teslim saatine 20 dk'dan az kaldı" ayarına göre ses / sesli okuma.
+    const txt = typeof pkgDeadlineText === 'function' ? pkgDeadlineText(who, left, del) : who + ': ' + left + ' dk kaldı';
+    showToast((st >= 3 ? '🔴 ' : '⏱️ ') + txt, 8000);
     const vp = typeof getVoicePrefs === 'function' ? getVoicePrefs() : null, ty = vp && vp.types.pkgsoon;
-    if(vp && vp.enabled && ty && ty.voice && typeof voiceSpeak === 'function') voiceSpeak(who + ' paketinin ' + (left < 0 ? 'teslim saati geçti' : (del ? 'adreste olmasına ' : 'teslim alınmasına ') + left + ' dakika kaldı') + ', sipariş hâlâ hazırlanıyor');
+    if(vp && vp.enabled && ty && ty.voice && typeof voiceSpeak === 'function') voiceSpeak(txt);
     else if((!vp || (vp.enabled && (!ty || ty.sound))) && typeof playPeyktanSound === 'function') playPeyktanSound();
   });
 }
