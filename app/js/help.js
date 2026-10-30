@@ -13,11 +13,15 @@ const HELP_TOPICS = [
       </ol>` },
     { q: 'Personelim uygulamaya nasıl girer?', view: 'settings', a: `İşletme kodu + kullanıcı adı + şifre ile girer. Kullanıcıları <b>Ayarlar → Kullanıcılar</b>'dan siz oluşturursunuz; giriş ekranındaki işletme kodunu personelle paylaşın. Telefonda "Beni hatırla" seçilirse oturum açık kalır.` },
     { q: 'Vardiya nedir, zorunlu mu?', view: 'settings', a: `Personel çalışmaya başlarken sol menüdeki <b>Vardiyaya Başla</b> düğmesine basar. <b>Ayarlar → Vardiyalar</b>'da vardiyayı zorunlu yapabilir ve onaya bağlayabilirsiniz; zorunluyken vardiyası olmayan personel sipariş/ödeme alamaz. İşletme sahibi bundan muaftır.` },
+    { q: 'Vardiya planı nasıl hazırlanır?', view: 'settings', a: `<b>Ayarlar → Kullanıcılar & Vardiyalar → Vardiya Planı</b>'nda haftalık tabloyu doldurun: hücreye dokunup saati seçin, <b>Geçen haftayı kopyala</b> ile tekrarlayın. Her personel kendi haftasını ana ekranında görür.` },
+    { q: 'Ana ekran ve kurulum rehberi', view: 'home', a: `Girişte kişisel ana ekran açılır: yetkili olduğunuz bölümlerin kısayolları, günün özeti ve vardiyanız. <b>İşletmenizi kuralım</b> kartı kurulum adımlarını sırayla gösterir; altta henüz denemediğiniz özellikler için öneri kartları çıkar.` },
   ]},
   { cat: 'Sipariş ve Mutfak', icon: '🍽️', items: [
     { q: 'Masaya nasıl sipariş girerim?', view: 'order', a: `<b>Sipariş Al</b> → masaya dokunun → ürünlere dokunarak sepete ekleyin (not ekleyebilirsiniz) → <b>Onayla ve Gönder</b>. Ürünler ilgili istasyonun mutfak ekranına düşer. Masaya müşteri adı/telefonu yazarsanız (kayıtlı müşteriler listelenir) ödeme ekranında müşteri otomatik seçilir.` },
     { q: 'Masayı taşıma veya birleştirme', view: 'order', a: `Masa penceresinde <b>Masayı Taşı / Birleştir</b>'e basın ve hedef masayı seçin. Boş masaya taşınır; dolu masaya birleştirilir.` },
     { q: 'Paket (gel-al / teslimat) siparişi', view: 'packages', a: `<b>Paket Servis</b> → Yeni Paket Sipariş → müşteri adı/telefon (kayıtlı müşteriler önerilir), not, ürünler → Onayla ve Gönder.` },
+    { q: 'Paket teslim / teslim alma saati', view: 'packages', a: `Paket siparişte <b>Adrese teslim</b> ya da <b>Gel-al</b> için saat seçin (hazır süreler veya saat girişi). Mutfak ekranında geri sayım görünür: 20 dk üstü yeşil, 10–20 dk sarı, 10 dk altı kırmızı. Süre yaklaşınca ve adrese teslim sipariş kuryeye verilmediyse bildirim gelir.` },
+    { q: 'Rezervasyona ön sipariş', view: 'reservations', a: `Rezervasyon kartında <b>Sipariş Al</b> ile müşteri gelmeden siparişi girin. Müşteri oturtulunca sipariş ve kişi sayısı masaya geçer.` },
     { q: 'Mutfak ekranı nasıl çalışır?', view: 'kitchen', a: `<b>Mutfak Ekranı</b>'nda istasyonu seçin. Yeni sipariş gelince zil çalar. Ürün hazır olunca <b>Hazır</b> (ya da kartın tamamı için <b>Hepsi Hazır</b>). 15 dakikayı geçen ürün kırmızı yanıp söner; siparişi alan kişiye ve mutfak yetkisi olanlara 15., 20., 25.… dakikalarda bildirim gider.` },
     { q: 'İsraf (zayi) kaydı', view: 'kitchen', a: `Mutfak ekranında <b>🔥 İsraf Gir</b> ile bozulan/atılan ürünü ve sebebini girin. Stoktan düşer ve <b>Finansal Analiz → İsraf</b>'ta maliyetiyle raporlanır.` },
   ]},
@@ -27,14 +31,19 @@ const HELP_TOPICS = [
     { q: 'Açık hesap (veresiye) nasıl kullanılır?', view: 'payments', a: `Ödeme penceresinde <b>📒 Açık Hesaba At</b> → mevcut hesabı seçin ya da ad/telefonla yeni hesap oluşturun → onaylayın. Masa kapanır, tutar hesaba borç yazılır. Bakiyeler ve tahsilat: <b>Finansal Analiz → 📒 Açık Hesaplar</b>.` },
     { q: 'Hesabı müşteriye e-postayla göndermek', view: 'payments', a: `Ödeme penceresinde <b>Hesabı e-postayla gönder</b>'i açın; ödemeden sonra e-posta adresi sorulur. Fatura bilgileri <b>Ayarlar → Abonelik</b> altındaki Fatura Bilgileri'nden düzenlenir.` },
     { q: 'Hediye kartı', view: 'settings', a: `<b>Ayarlar → Hediye Kartları</b>'ndan kart oluşturun. Ödemede kart kodunu <b>Sorgula</b> ile girip bakiyeden düşebilirsiniz.` },
+    { q: 'Gün sonu kapanışı', view: 'payments', a: `<b>Ödemeler → Gün Sonu</b> ile adım adım kasa sayımı girin; kasa farkı hesaplanır ve Z raporu basılır. Açık vardiyalar kendiliğinden kapanır, kapanış unutulursa ertesi gün hatırlatma gelir.` },
   ]},
   { cat: 'Müşteriler ve Rezervasyon', icon: '👥', items: [
     { q: 'Sadakat puanı ve doğum günü indirimi', view: 'crm', a: `<b>Müşteriler</b> ekranının üstünden sadakat programını açın: kaç TL'de 1 puan, 1 puanın değeri ve doğum günü indirimi (%). Ödemede müşteri seçilince puan kazanılır/kullanılır; doğum gününde indirim otomatik uygulanır.` },
     { q: 'Rezervasyon ve bekleme listesi', view: 'reservations', a: `<b>Rezervasyonlar</b>'dan rezervasyon ekleyin; müşteri gelince "Oturdu" ile masaya alın (müşteri bilgisi masaya geçer). Bekleme listesinde sıradaki müşteriler için ön sipariş bile alınabilir.` },
+    { q: 'Müşteri değerlendirmeleri', view: 'reports', a: `Ödemeden sonra değerlendirme QR'ını gösterin veya SMS/e-postayla link gönderin. Müşteri yıldız, yorum ve fotoğraf ekler; düşük puanlarda ad/telefon alınır ve size bildirilir. Hepsini <b>Finansal Analiz → Değerlendirmeler</b>'de görürsünüz; yeni yorumlar rozetle işaretlenir.` },
+    { q: 'Geri kazanım kampanyası', view: 'crm', a: `<b>Müşteriler → Geri kazan</b> uzun süredir gelmeyen müşterileri listeler; tek tıkla SMS veya e-postayla kampanya gönderin (yalnızca pazarlama izni verenlere).` },
   ]},
   { cat: 'QR Menü ve Online Sipariş', icon: '📱', items: [
     { q: 'QR menü nasıl kurulur?', view: 'settings', a: `<b>Ayarlar → Bölgeler & Masalar</b>'da masanın yanındaki ▦ simgesi o masanın QR kodunu açar; yazdırıp masaya koyun. Müşteri menüyü görür, paketinize göre sipariş isteği gönderebilir ve garson çağırabilir. İstekler <b>Sipariş Al</b>'da onaya düşer.` },
     { q: 'Online sipariş (gel-al / teslimat)', view: 'settings', a: `<b>Ayarlar → Entegrasyonlar</b>'dan online siparişi açın ve bağlantıyı paylaşın. Menü başlıklarını ve ürün fotoğraflarını oradan düzenleyebilirsiniz. Stok anlıktır: sepete eklenen ürün diğer müşterilerin ekranında hemen düşer.` },
+    { q: 'Yazar kasa (ÖKC) ve pazaryeri bağlantısı', view: 'settings', a: `<b>Ayarlar → Entegrasyonlar</b>'da yazar kasa ve pazaryeri hesaplarınızı kendi API bilgilerinizle bağlayın. Pazaryeri siparişleri paket servis ekranına düşer; ödemeler yazar kasaya gönderilir.` },
+    { q: 'Kendi SMS / e-posta / iyzico hesabım', view: 'settings', a: `<b>Ayarlar → Entegrasyonlar</b>'dan kendi hesaplarınızı bağlayın; mesajlar kendi adınızla gider. <b>Test maili</b> ile ayarı deneyin, gönderim geçmişini aynı ekrandan izleyin.` },
   ]},
   { cat: 'Stok ve Tedarik', icon: '🚚', items: [
     { q: 'Stok ve reçete', view: 'settings', a: `Ürünün <b>Stok</b> alanı boşsa stok takibi yapılmaz. Reçete tanımlarsanız (Ayarlar → Ürünler → Reçete) satışta hammaddeler (Ayarlar → Hammaddeler) düşer; hammadde bitince ürün "Stok Yok" olur.` },
@@ -47,6 +56,8 @@ const HELP_TOPICS = [
   ]},
   { cat: 'Raporlar', icon: '📊', items: [
     { q: 'Finansal Analiz neleri gösterir?', view: 'reports', a: `Ciro, kâr, ödeme türleri, saatlik yoğunluk, kapatılan hesaplar (sipariş/hazır/ödeme saatleriyle), ürün ve personel istatistikleri, müşteri analizleri, bahşiş havuzu, israf, rezervasyon analizi ve açık hesaplar. Üstten tarih aralığı seçin. Bu bölüm ayrıca bir şifreyle korunur.` },
+    { q: 'Çok şubeli işletme', view: 'reports', a: `Şirket panelinde tüm şubelerin ciro, kâr ve sipariş sayısını tek ekranda görün, şubeleri karşılaştırın ve menüyü bir şubeden diğerine kopyalayın. Yöneticiye düzenli özet e-postaları gönderilebilir.` },
+    { q: 'Yedekleme ve destek erişimi', view: 'settings', a: `<b>Ayarlar → Güvenlik</b>'te <b>Yedek indir</b> ile tüm verinizi tek dosyada saklayın. <b>Destek erişimi</b> ile Peyktan ekibine şifre paylaşmadan süreli izin verin; <b>Değişiklik kaydı</b> kim neyi ne zaman değiştirdi gösterir.` },
   ]},
   { cat: 'Sorun Giderme', icon: '🛠️', items: [
     { q: 'Bildirim gelmiyor', view: 'notificationSettings', a: `<ol>
@@ -64,7 +75,7 @@ function renderHelpView(main, session){
   APP.helpOpen = APP.helpOpen || {};
   if(APP.helpCat == null) APP.helpCat = 'video';
   // Diğer ayar/rapor ekranları gibi: solda bölümler (video, konu başlıkları, destek), sağda içerik.
-  const nav = [['video', '🎬', 'Eğitim Videosu', 'Peyktan nasıl kullanılır? (6 dk)'],
+  const nav = [['video', '🎬', 'Eğitim Videosu', 'Peyktan nasıl kullanılır? (9 dk)'],
     ...HELP_TOPICS.map((c, ci) => [String(ci), c.icon, c.cat, c.items.length + ' soru']),
     ['support', '💬', 'Destek', 'Bize ulaşın']];
   main.innerHTML = `
