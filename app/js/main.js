@@ -73,7 +73,7 @@ function renderMainView(main, session){
   else if(APP.view==='payments') p = renderPaymentsView(main, session);
   else if(APP.view==='settings') p = renderSettingsView(main, session);
   else if(APP.view==='reports') p = renderReportsView(main, session);
-  else if(APP.view==='printerSettings') p = renderPrinterSettingsView(main, session);
+  else if(APP.view==='printerSettings'){ APP.view = 'settings'; APP.settingsTab = 'printers'; p = renderSettingsView(main, session); }
   else if(APP.view==='notificationSettings') p = renderNotificationSettingsView(main, session);
   else if(APP.view==='reservations') p = renderReservationsView(main, session);
   else if(APP.view==='crm') p = renderCrmView(main, session);
@@ -644,7 +644,7 @@ function setupSteps(){
     { k:'cost', ic:'💸', t:'Maliyetler', d:'Kâr raporları için ürün maliyetlerini girin', ok: prods.length > 0 && prods.every(p => Number(p.cost) > 0), go:['quick','products'] },
     { k:'table', ic:'🪑', t:'Masalar', d:'Bölge ve masaları ekleyin', ok: tables > 0, go:['quick','zones'] },
     { k:'staff', ic:'👥', t:'Personel', d:'Garson / mutfak kullanıcılarını ekleyin', ok: (c.users || []).length > 1, go:['quick','users'] },
-    { k:'print', ic:'🖨️', t:'Yazıcı', d:'Fiş ve mutfak yazıcısını bağlayın (isteğe bağlı)', ok: printers.length > 0, go:['view','printerSettings'] },
+    { k:'print', ic:'🖨️', t:'Yazıcı', d:'Fiş ve mutfak yazıcısını bağlayın (isteğe bağlı)', ok: printers.length > 0, go:['tab','printers'] },
   ];
 }
 function setupWizardHtml(session){
@@ -659,7 +659,7 @@ function setupWizardHtml(session){
     <div class="sk-steps">${st.map(x => `<button type="button" class="sk-step ${x.ok ? 'ok' : ''} ${next === x ? 'next' : ''}" ${act('setupGo', x.go[0], x.go[1])}>
       <span class="sk-ic">${x.ok ? '✓' : x.ic}</span><span><b>${x.t}</b><small>${x.d}</small></span>${next === x ? '<em>Sıradaki →</em>' : ''}</button>`).join('')}</div></div>`;
 }
-function setupGo(kind, target){ if(kind === 'view') goToView(target); else goQuickManage(target); }
+function setupGo(kind, target){ if(kind === 'view') goToView(target); else if(kind === 'tab'){ APP.settingsTab = target; goToView('settings'); } else goQuickManage(target); }
 /* Özellik keşfi: kullanıcının erişebildiği ama gözden kaçabilecek özellikler; kapatılan kart bir daha gösterilmez, en fazla 3 kart. */
 const DISCOVER_TIPS = [
   { k:'plan', ic:'📅', t:'Vardiya Planı', d:'Haftalık vardiyaları planlayın, geçen haftayı tek tıkla kopyalayın.', ok: s => canManage(s, 'shifts'), go:['users','plan'] },

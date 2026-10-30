@@ -117,7 +117,6 @@ const NAV_ITEMS = [
   { view:'reservations', icon:'📅', label:'Rezervasyonlar ve Bekleme Listesi', perm:'reservations' },
   { view:'crm', icon:'👥', label:'Müşteriler', perm:'crm' },
   { view:'purchasing', icon:'🛒', label:'Malzeme Siparişi Ver', perm:'purchasing' },
-  { view:'printerSettings', icon:'🖨️', label:'Yazıcı Ayarları' },
   { view:'notificationSettings', icon:'🔔', label:'Bildirimler' },
   { view:'payments', icon:'💳', label:'Ödemeler', perm:'payments' },
   { view:'procurement', icon:'📦', label:'Mal Kabul' },
@@ -151,7 +150,7 @@ function navItemVisible(item, session){
   if(item.view==='messages') return !!session.isManager || hasPerm(session, 'messages');
   // Peyk Bas-Konuş (telsiz) ayrı rol izni (Ayarlar > Roller).
   if(item.view==='radio') return !!session.isManager || hasPerm(session, 'radio');
-  if(item.view==='settings') return session.isManager || (session.permissions||[]).some(p => p.startsWith('settings_'));
+  if(item.view==='settings') return session.isManager || (session.permissions||[]).some(p => p.startsWith('settings_')) || canManage(session, 'printer_settings');
   if(item.view==='purchasing') return ['orders','manage'].some(x => hasPurchPerm(session, x));
   if(!item.perm) return true;
   return hasPerm(session, item.perm);
