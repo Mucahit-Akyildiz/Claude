@@ -209,6 +209,18 @@ end; $$;
 
 
 --
+-- Name: _banks_json(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public._banks_json(p_rid uuid) RETURNS json
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+  select coalesce(json_agg(json_build_object('id', id, 'bank_name', bank_name, 'bank_holder', holder, 'bank_iban', iban, 'is_default', is_default) order by is_default desc, created_at), '[]'::json)
+    from bank_accounts where restaurant_id = p_rid and active $$;
+
+
+--
 -- Name: _biz_date(uuid, timestamp with time zone); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -753,11 +765,11 @@ CREATE FUNCTION public._cron_pkg_alerts() RETURNS void
     AS $$
 declare v_url text; v_secret text; v_dl uuid[]; v_cr uuid[];
 begin
-  -- Teslim saatine <20, <10 dk ve süre geçti (hâlâ hazırlanan ürün varken): her aşamada bir kez.
+  -- Teslim saatine <30, <20, <10 dk ve süre geçti (hâlâ hazırlanan ürün varken): her aşamada bir kez.
   with due as (
-    select o.id, case when o.pickup_at < now() then 3 when o.pickup_at < now() + interval '10 minutes' then 2 else 1 end st
+    select o.id, case when _pkg_deadline(o) < now() then 4 when _pkg_deadline(o) < now() + interval '10 minutes' then 3 when _pkg_deadline(o) < now() + interval '20 minutes' then 2 else 1 end st
     from orders o where o.kind = 'takeaway' and o.status = 'open' and o.pickup_at is not null
-      and o.pickup_at < now() + interval '20 minutes' and o.pickup_at > now() - interval '2 hours'
+      and _pkg_deadline(o) < now() + interval '30 minutes' and o.pickup_at > now() - interval '2 hours'
       and exists (select 1 from order_items i where i.order_id = o.id and i.status = 'pending' and not i.paid)
   ), upd as (update orders o set pkg_push_stage = d.st from due d where o.id = d.id and o.pkg_push_stage < d.st returning o.id)
   select array_agg(id) into v_dl from upd;
@@ -780,6 +792,31 @@ begin
   perform net.http_post(url := v_url, headers := jsonb_build_object('Content-Type','application/json','x-push-secret', coalesce(v_secret,'')),
     body := jsonb_build_object('mode', 'pkg_alerts', 'deadline_ids', to_jsonb(coalesce(v_dl, '{}')), 'courier_ids', to_jsonb(coalesce(v_cr, '{}'))), timeout_milliseconds := 25000);
 end $$;
+
+
+--
+-- Name: _cron_travel_recheck(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public._cron_travel_recheck() RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'extensions', 'pg_temp'
+    AS $_$
+declare v_url text; v_secret text; v_ids uuid[];
+begin
+  with due as (
+    select o.id, case when _pkg_deadline(o) < now() + interval '15 minutes' then 2 else 1 end st
+      from orders o where o.kind = 'takeaway' and o.status = 'open' and o.dispatched_at is null and o.dest_lat is not null and o.travel_src = 'google'
+        and o.pickup_at is not null and _pkg_deadline(o) < now() + interval '30 minutes' and _pkg_deadline(o) > now() - interval '5 minutes'
+  ), upd as (update orders o set travel_stage = d.st from due d where o.id = d.id and o.travel_stage < d.st returning o.id)
+  select array_agg(id) into v_ids from upd;
+  if v_ids is null then return; end if;
+  select regexp_replace(value, '^(https?://[^/]+).*$', '\1') || '/api/travel-time' into v_url from _psv where key = 'push_dispatch_url';
+  select value into v_secret from _psv where key = 'push_dispatch_secret';
+  if coalesce(v_url,'') = '' then return; end if;
+  perform net.http_post(url := v_url, headers := jsonb_build_object('Content-Type','application/json','x-push-secret', coalesce(v_secret,'')),
+    body := jsonb_build_object('recheck_ids', to_jsonb(v_ids)), timeout_milliseconds := 25000);
+end $_$;
 
 
 --
@@ -1327,6 +1364,29 @@ $$;
 
 
 --
+-- Name: _maps_key(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public._maps_key(p_rid uuid) RETURNS text
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'public', 'extensions', 'pg_temp'
+    AS $$
+  select _dec(maps_api_key) from tenant_integrations where restaurant_id = p_rid and maps_api_key is not null $$;
+
+
+--
+-- Name: _maps_session(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public._maps_session(p_token uuid) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'extensions', 'pg_temp'
+    AS $$
+declare s staff_sessions%rowtype; begin s := _session_check(p_token);
+  return jsonb_build_object('rid', s.restaurant_id, 'key', _maps_key(s.restaurant_id)); end $$;
+
+
+--
 -- Name: _menus_cleanup_trg(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -1386,7 +1446,7 @@ begin
     v := v || jsonb_build_object('order', jsonb_array_length(arr)); it := it || jsonb_build_object('order', arr);
   end if;
   if _user_has_perm(u, 'kitchen') then
-    select coalesce(jsonb_agg(jsonb_build_object('id', oi.id, 'label', oi.qty || 'x ' || oi.name || ' · ' || coalesce(t.name, case when o.kind = 'waitlist' then '⏳ ' || coalesce(o.customer_name, 'Bekleme') else 'Paket' end), 'station', pr.station_id, 'at', oi.added_at, 'name', oi.name, 'qty', oi.qty, 'table', coalesce(t.name, case when o.kind = 'waitlist' then coalesce(o.customer_name, 'Bekleme listesi') else 'Paket ' || coalesce(o.customer_name, '') end))), '[]') into arr
+    select coalesce(jsonb_agg(jsonb_build_object('id', oi.id, 'label', oi.qty || 'x ' || oi.name || ' · ' || coalesce(t.name, case when o.kind = 'waitlist' then '⏳ ' || coalesce(o.customer_name, 'Bekleme') else 'Paket' end), 'station', pr.station_id, 'at', oi.added_at, 'dl', (o.kind = 'takeaway' and o.pickup_at is not null), 'name', oi.name, 'qty', oi.qty, 'table', coalesce(t.name, case when o.kind = 'waitlist' then coalesce(o.customer_name, 'Bekleme listesi') else 'Paket ' || coalesce(o.customer_name, '') end))), '[]') into arr
       from order_items oi join orders o on o.id = oi.order_id left join restaurant_tables t on t.id = o.table_id left join products pr on pr.id = oi.product_id
       where o.restaurant_id = r and o.status = 'open' and oi.status = 'pending';
     v := v || jsonb_build_object('kitchen', jsonb_array_length(arr)); it := it || jsonb_build_object('kitchen', arr);
@@ -1483,11 +1543,11 @@ begin
           and not exists (select 1 from order_items i where i.order_id = o.id and i.status = 'pending' and not i.paid)
       union all
       select jsonb_build_object('id', o.id, 'kind', 'pkg_deadline', 'name', coalesce(o.customer_name, 'Paket #' || o.daily_number),
-             'left', floor(extract(epoch from (o.pickup_at - now())) / 60),
+             'left', floor(extract(epoch from (_pkg_deadline(o) - now())) / 60),
              'delivery', coalesce(o.takeaway_type, case when o.delivery_address is not null then 'delivery' else 'pickup' end) = 'delivery',
              'label', '⏱️ ' || coalesce(o.customer_name, 'Paket #' || o.daily_number) || ' · teslim ' || to_char(o.pickup_at at time zone 'Europe/Istanbul', 'HH24:MI') || ', hâlâ hazırlanıyor')
         from orders o where o.restaurant_id = r and o.kind = 'takeaway' and o.status = 'open' and o.pickup_at is not null
-          and o.pickup_at < now() + interval '20 minutes' and o.pickup_at > now() - interval '2 hours'
+          and _pkg_deadline(o) < now() + interval '30 minutes' and o.pickup_at > now() - interval '2 hours'
           and exists (select 1 from order_items i where i.order_id = o.id and i.status = 'pending' and not i.paid)) x;
     v := v || jsonb_build_object('packages', jsonb_array_length(arr)); it := it || jsonb_build_object('packages', arr);
   end if;
@@ -1628,6 +1688,20 @@ end $$;
 
 
 --
+-- Name: _order_travel_target(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public._order_travel_target(p_order uuid) RETURNS jsonb
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'public', 'extensions', 'pg_temp'
+    AS $$
+  select jsonb_build_object('address', o.delivery_address, 'lat', r.geo_lat, 'lng', r.geo_lng, 'buffer', r.travel_buffer_min, 'default', r.travel_default_min, 'recheck', r.travel_recheck_min,
+      'pickup_at', o.pickup_at, 'dest_lat', o.dest_lat, 'dest_lng', o.dest_lng, 'travel_min', o.travel_min, 'dispatched', o.dispatched_at is not null, 'status', o.status,
+      'key', _maps_key(o.restaurant_id), 'rid', o.restaurant_id, 'name', coalesce(o.customer_name, 'Paket #' || o.daily_number))
+    from orders o join restaurants r on r.id = o.restaurant_id where o.id = p_order and o.kind = 'takeaway' and coalesce(trim(o.delivery_address),'') <> '' $$;
+
+
+--
 -- Name: _orders_auto_customer_trg(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -1729,6 +1803,66 @@ CREATE FUNCTION public._phone_key(p text) RETURNS text
     AS $$
   select nullif(right(regexp_replace(coalesce(p,''), '\D', '', 'g'), 10), '')
 $$;
+
+
+--
+-- Name: orders; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.orders (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    restaurant_id uuid NOT NULL,
+    table_id uuid,
+    kind text DEFAULT 'dine_in'::text NOT NULL,
+    label text,
+    status text DEFAULT 'open'::text NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    daily_number integer,
+    tags text[] DEFAULT '{}'::text[] NOT NULL,
+    customer_name text,
+    customer_phone text,
+    note text,
+    created_by uuid,
+    ready_sms_sent_at timestamp with time zone,
+    reservation_id uuid,
+    waitlist_id uuid,
+    idle_stage smallint DEFAULT 0 NOT NULL,
+    cancelled_at timestamp with time zone,
+    cancelled_by uuid,
+    delivery_address text,
+    takeaway_type text,
+    pickup_at timestamp with time zone,
+    courier_user_id uuid,
+    dispatched_at timestamp with time zone,
+    delivered_at timestamp with time zone,
+    tracking_token uuid,
+    allowance_id uuid,
+    guest_count integer,
+    guest_push_stage smallint DEFAULT 0 NOT NULL,
+    pkg_push_stage smallint DEFAULT 0 NOT NULL,
+    courier_push_stage smallint DEFAULT 0 NOT NULL,
+    transfer_bank_id uuid,
+    source text,
+    travel_min integer,
+    travel_src text,
+    dest_lat double precision,
+    dest_lng double precision,
+    travel_stage integer DEFAULT 0 NOT NULL,
+    travel_checked_at timestamp with time zone,
+    CONSTRAINT orders_guest_count_check CHECK (((guest_count >= 1) AND (guest_count <= 99)))
+);
+
+
+--
+-- Name: _pkg_deadline(public.orders); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public._pkg_deadline(o public.orders) RETURNS timestamp with time zone
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+  select o.pickup_at - case when coalesce(o.takeaway_type, case when o.delivery_address is not null then 'delivery' else 'pickup' end) = 'delivery'
+    then make_interval(mins => coalesce(o.travel_min, (select travel_default_min from restaurants where id = o.restaurant_id), 10)) else interval '0' end $$;
 
 
 --
@@ -2286,6 +2420,22 @@ end $$;
 
 
 --
+-- Name: _sales_history_transfer(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public._sales_history_transfer() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+begin
+  if new.payment_method = 'transfer' then
+    new.transfer_amount := coalesce(new.card_amount,0); new.card_amount := 0;
+    select o.transfer_bank_id into new.transfer_bank_id from orders o where o.id = new.order_id;
+  end if;
+  return new;
+end $$;
+
+
+--
 -- Name: _send_email(text, text, text); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -2647,6 +2797,28 @@ end; $_$;
 
 
 --
+-- Name: _set_order_travel(uuid, integer, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public._set_order_travel(p_order uuid, p_min integer, p_src text) RETURNS void
+    LANGUAGE sql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+  update orders set travel_min = greatest(1, least(p_min, 180)), travel_src = p_src where id = p_order $$;
+
+
+--
+-- Name: _set_order_travel2(uuid, integer, text, double precision, double precision); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public._set_order_travel2(p_order uuid, p_min integer, p_src text, p_lat double precision, p_lng double precision) RETURNS void
+    LANGUAGE sql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+  update orders set travel_min = greatest(1, least(p_min, 180)), travel_src = p_src, dest_lat = coalesce(p_lat, dest_lat), dest_lng = coalesce(p_lng, dest_lng), travel_checked_at = now() where id = p_order $$;
+
+
+--
 -- Name: _shift_exempt(uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -2843,6 +3015,28 @@ begin
   end if;
   return new;
 end $$;
+
+
+--
+-- Name: _trg_order_travel(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public._trg_order_travel() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'extensions', 'pg_temp'
+    AS $_$
+declare v_url text; v_secret text;
+begin
+  if new.kind <> 'takeaway' or coalesce(trim(new.delivery_address),'') = '' then return new; end if;
+  if tg_op = 'UPDATE' and new.delivery_address is not distinct from old.delivery_address then return new; end if;
+  if not exists(select 1 from restaurants r where r.id = new.restaurant_id and r.geo_lat is not null) then return new; end if;
+  select regexp_replace(value, '^(https?://[^/]+).*$', '\1') || '/api/travel-time' into v_url from _psv where key = 'push_dispatch_url';
+  select value into v_secret from _psv where key = 'push_dispatch_secret';
+  if coalesce(v_url,'') = '' then return new; end if;
+  perform net.http_post(url := v_url, headers := jsonb_build_object('Content-Type','application/json','x-push-secret', coalesce(v_secret,'')),
+    body := jsonb_build_object('order_id', new.id), timeout_milliseconds := 15000);
+  return new;
+end $_$;
 
 
 --
@@ -4304,7 +4498,7 @@ begin
     select coalesce(max(o.daily_number), 0) + 1 into v_daily_number
       from orders o where o.restaurant_id = s.restaurant_id
         and (o.created_at at time zone 'Europe/Istanbul')::date = (now() at time zone 'Europe/Istanbul')::date;
-    insert into orders (restaurant_id, table_id, kind, status, daily_number, created_by, customer_name, customer_phone, note, takeaway_type, delivery_address, pickup_at) values (s.restaurant_id, null, 'takeaway', 'open', v_daily_number, s.user_id, v_req.customer_name, v_req.customer_phone, v_note, case when v_req.order_type = 'delivery' then 'delivery' else 'pickup' end, v_req.delivery_address, case when v_req.wanted_at > now() then v_req.wanted_at else now() + case when v_req.order_type = 'delivery' then interval '30 minutes' else interval '15 minutes' end end)
+    insert into orders (restaurant_id, table_id, kind, status, daily_number, created_by, source, customer_name, customer_phone, note, takeaway_type, delivery_address, pickup_at) values (s.restaurant_id, null, 'takeaway', 'open', v_daily_number, s.user_id, coalesce(v_req.source, 'online'), v_req.customer_name, v_req.customer_phone, v_note, case when v_req.order_type = 'delivery' then 'delivery' else 'pickup' end, v_req.delivery_address, case when v_req.wanted_at > now() then v_req.wanted_at else now() + case when v_req.order_type = 'delivery' then interval '30 minutes' else interval '15 minutes' end end)
     returning id into v_order_id;
   end if;
 
@@ -4321,6 +4515,27 @@ begin
   return json_build_object('order_id', v_order_id, 'daily_number', v_daily_number);
 end;
 $$;
+
+
+--
+-- Name: archive_bank_account(uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.archive_bank_account(p_token uuid, p_id uuid) RETURNS json
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'extensions', 'pg_temp'
+    AS $$
+declare s staff_sessions%rowtype;
+begin
+  s := _session_check(p_token);
+  if not exists(select 1 from app_users au join roles rl on rl.id = any(au.role_ids) where au.id = s.user_id and rl.is_system) then
+    raise exception 'Banka bilgisini yalnızca yönetici değiştirebilir'; end if;
+  update bank_accounts set active = false, is_default = false where id = p_id and restaurant_id = s.restaurant_id;
+  if not exists(select 1 from bank_accounts where restaurant_id = s.restaurant_id and active and is_default) then
+    update bank_accounts set is_default = true where id = (select id from bank_accounts where restaurant_id = s.restaurant_id and active order by created_at limit 1); end if;
+  insert into audit_log(restaurant_id, user_id, entity, action, label) values (s.restaurant_id, s.user_id, 'settings', 'update', 'Banka hesabı kaldırıldı');
+  return _banks_json(s.restaurant_id);
+end $$;
 
 
 --
@@ -5647,7 +5862,14 @@ begin
   kpi as (select json_build_object(
       'revenue', coalesce(sum(total),0), 'checks', count(*), 'guests', coalesce(sum(guest_count),0), 'guest_rev', coalesce(sum(total) filter (where order_id in (select order_id from cur c2 where c2.guest_count is not null)),0), 'discount', coalesce(sum(discount_amount),0)+coalesce(sum(birthday_discount_amount),0),
       'tips', coalesce(sum(tip_amount),0), 'cost', coalesce(sum(cost),0), 'cash', coalesce(sum(cash_amount),0), 'card', coalesce(sum(card_amount),0),
-      'gift', coalesce(sum(gift_card_amount),0), 'points', coalesce(sum(points_amount),0), 'comp', coalesce(sum(subtotal) filter (where tags is not null and cardinality(tags) > 0),0),
+      'gift', coalesce(sum(gift_card_amount),0), 'points', coalesce(sum(points_amount),0),
+      'open_acc', coalesce(sum(total) filter (where payment_method = 'open_account'),0), 'open_acc_n', count(*) filter (where payment_method = 'open_account'),
+      'transfer', coalesce(sum(transfer_amount),0),
+      'transfer_banks', (select coalesce(json_agg(json_build_object('bank', b, 'amount', a) order by a desc), '[]') from (select coalesce(ba.bank_name, 'Banka belirtilmemiş') b, sum(c5.transfer_amount) a from cur c5 left join bank_accounts ba on ba.id = c5.transfer_bank_id where c5.transfer_amount > 0 group by 1) tb),
+      'open_acc_paid', (select coalesce(sum(e.amount),0) from open_account_entries e where e.restaurant_id = r and e.kind = 'payment' and e.created_at >= f and e.created_at < t),
+      'open_acc_paid_cash', (select coalesce(sum(e.amount),0) from open_account_entries e where e.restaurant_id = r and e.kind = 'payment' and e.method = 'cash' and e.created_at >= f and e.created_at < t),
+      'open_acc_paid_card', (select coalesce(sum(e.amount),0) from open_account_entries e where e.restaurant_id = r and e.kind = 'payment' and e.method = 'card' and e.created_at >= f and e.created_at < t),
+      'open_acc_balance', (select coalesce(sum(case when e.kind = 'charge' then e.amount else -e.amount end),0) from open_account_entries e where e.restaurant_id = r and e.created_at < t), 'comp', coalesce(sum(subtotal) filter (where tags is not null and cardinality(tags) > 0),0),
       'comp_n', count(*) filter (where tags is not null and cardinality(tags) > 0), 'birthday', coalesce(sum(birthday_discount_amount),0),
       'avg_min', coalesce(round(avg(extract(epoch from (closed_at - ordered_at))/60) filter (where ordered_at is not null and kind = 'dine_in')),0)) j from cur),
   pkpi as (select json_build_object('revenue', coalesce(sum(total),0), 'checks', count(*), 'guests', coalesce(sum(guest_count),0), 'discount', coalesce(sum(discount_amount),0), 'tips', coalesce(sum(tip_amount),0), 'cost', coalesce(sum(cost),0)) j from prv)
@@ -5665,7 +5887,9 @@ begin
     'heat', coalesce((select json_agg(x) from (select extract(isodow from closed_at at time zone 'Europe/Istanbul')::int dow, extract(hour from closed_at at time zone 'Europe/Istanbul')::int h,
         sum(total) rev, count(*) n from cur group by 1,2) x), '[]'),
     'products', coalesce((select json_agg(x) from (select coalesce(oi.product_id::text, oi.name) k, max(oi.name) name, sum(oi.qty) qty, sum(oi.price*oi.qty) rev, sum(coalesce(oi.cost, p.cost, 0)*oi.qty) cost
-        from oi left join products p on p.id = oi.product_id group by 1) x), '[]'),
+        from oi left join products p on p.id = oi.product_id
+        -- Etiketli (ikram / personel / limitli) siparişler ciro getirmez: kâr analizine katılmaz (Ürün Satışları ile aynı).
+        where not exists(select 1 from orders o2 where o2.id = oi.order_id and array_length(o2.tags,1) > 0) group by 1) x), '[]'),
     'tables', coalesce((select json_agg(x) from (select table_name, sum(total) rev, count(*) n, coalesce(sum(guest_count),0) g, coalesce(sum(total) filter (where order_id in (select order_id from cur c3 where c3.guest_count is not null)),0) grev, round(avg(extract(epoch from (closed_at - ordered_at))/60) filter (where ordered_at is not null)) mins
         from cur where kind = 'dine_in' and table_name is not null group by 1) x), '[]'),
     'staff', coalesce((select json_agg(x) from (select u.id, u.username, coalesce(sum(c.total),0) rev, count(c.id) n, coalesce(sum(c.tip_amount),0) tips,
@@ -5673,7 +5897,7 @@ begin
           + (select count(*) from orders o2 where o2.restaurant_id = r and o2.status='cancelled' and o2.cancelled_by = u.id and o2.cancelled_at >= f and o2.cancelled_at < t) cancels,
         (select oi2.name from oi oi2 where oi2.added_by = u.id group by oi2.name order by sum(oi2.qty) desc limit 1) top_product,
         (select coalesce(sum(oi3.qty),0) from oi oi3 where oi3.added_by = u.id) items, (select count(*) from staff_shifts ss2 where ss2.restaurant_id = r and ss2.user_id = u.id and ss2.clock_in >= f and ss2.clock_in < t and ss2.status <> 'pending') shifts
-        from app_users u left join cur c on c.staff_user_id = u.id where u.restaurant_id = r group by u.id, u.username having count(c.id) > 0 or exists(select 1 from oi oi4 where oi4.added_by = u.id)) x), '[]'),
+        from app_users u left join cur c on coalesce((select o9.created_by from orders o9 where o9.id = c.order_id), c.staff_user_id) = u.id where u.restaurant_id = r group by u.id, u.username having count(c.id) > 0 or exists(select 1 from oi oi4 where oi4.added_by = u.id)) x), '[]'),
     'customers', json_build_object(
        'new', (select count(*) from customers where restaurant_id = r and created_at >= f and created_at < t),
        'visits', (select count(distinct customer_id) from cur where customer_id is not null),
@@ -6332,7 +6556,7 @@ begin
     select coalesce(json_agg(json_build_object(
       'order_id', o.id, 'table_id', o.table_id, 'kind', o.kind, 'created_at', o.created_at,
       'daily_number', o.daily_number, 'tags', o.tags, 'guest_count', o.guest_count, 'allowance_id', o.allowance_id, 'allowance_name', (select coalesce(al.name, au.username) from allowances al left join app_users au on au.id = al.user_id where al.id = o.allowance_id), 'allowance_remaining', case when o.allowance_id is not null then _allowance_remaining(o.allowance_id) end,
-      'customer_name', o.customer_name, 'customer_phone', o.customer_phone, 'delivery_address', o.delivery_address, 'takeaway_type', o.takeaway_type, 'pickup_at', o.pickup_at, 'note', o.note,
+      'customer_name', o.customer_name, 'customer_phone', o.customer_phone, 'delivery_address', o.delivery_address, 'takeaway_type', o.takeaway_type, 'pickup_at', o.pickup_at, 'travel_min', o.travel_min, 'travel_src', o.travel_src, 'travel_checked_at', o.travel_checked_at, 'note', o.note,
       'created_by', o.created_by, 'created_by_name', (select username from app_users where id = o.created_by), 'waitlist_id', o.waitlist_id, 'reservation_id', o.reservation_id, 'reservation', (select json_build_object('time', rr.reservation_time, 'party_size', rr.party_size, 'status', rr.status) from reservations rr where rr.id = o.reservation_id), 'courier_user_id', o.courier_user_id, 'courier_name', (select username from app_users where id = o.courier_user_id), 'dispatched_at', o.dispatched_at, 'delivered_at', o.delivered_at, 'tracking_token', o.tracking_token,
       'waitlist', (select json_build_object('joined_at', w.joined_at, 'quoted_wait_minutes', w.quoted_wait_minutes, 'party_size', w.party_size, 'status', w.status) from waitlist_entries w where w.id = o.waitlist_id),
       'items', (
@@ -6786,9 +7010,10 @@ begin
         oi.name,
         p.station_id,
         st.name as station_name,
-        sum(oi.qty)::int as qty,
-        sum(oi.price*oi.qty) as revenue,
-        sum(oi.cost*oi.qty) as cost
+        coalesce(sum(oi.qty) filter (where o.tags is null or array_length(o.tags,1) is null), 0)::int as qty,
+        coalesce(sum(oi.price*oi.qty) filter (where o.tags is null or array_length(o.tags,1) is null), 0) as revenue,
+        coalesce(sum(oi.cost*oi.qty) filter (where o.tags is null or array_length(o.tags,1) is null), 0) as cost,
+        coalesce(sum(oi.qty) filter (where array_length(o.tags,1) > 0), 0)::int as tagged_qty
       from order_items oi
       join orders o on o.id = oi.order_id
       left join products p on p.id = oi.product_id
@@ -6797,9 +7022,8 @@ begin
         and oi.paid = true
         and oi.paid_at >= (p_date::timestamp at time zone 'Europe/Istanbul')
         and oi.paid_at < ((coalesce(p_date_to, p_date) + 1)::timestamp at time zone 'Europe/Istanbul')
-        and (o.tags is null or array_length(o.tags,1) is null)
       group by oi.product_id, oi.name, p.station_id, st.name
-    ) r
+    ) r where coalesce(r.qty,0) > 0 or r.tagged_qty > 0
   );
 end;
 $$;
@@ -7178,6 +7402,10 @@ begin
       'online_ordering', (select json_build_object('enabled', online_ordering_enabled, 'code', code) from restaurants where id = s.restaurant_id),
       'ticket_design', (select ticket_design from restaurants where id = s.restaurant_id),
       'guest_reminder', (select guest_reminder from restaurants where id = s.restaurant_id),
+      'voice_enabled', (select voice_enabled from restaurants where id = s.restaurant_id),
+      'geo', (select json_build_object('geo_address', geo_address, 'geo_lat', geo_lat, 'geo_lng', geo_lng, 'travel_default_min', travel_default_min, 'travel_buffer_min', travel_buffer_min, 'travel_recheck_min', travel_recheck_min,
+        'maps_key_set', exists(select 1 from tenant_integrations ti where ti.restaurant_id = s.restaurant_id and ti.maps_api_key is not null)) from restaurants where id = s.restaurant_id),
+      'banks', _banks_json(s.restaurant_id),
       'company', (
         select case when r.company_id is null then null
           else json_build_object('id', c.id, 'name', c.name) end
@@ -7239,7 +7467,7 @@ begin
         sh.closed_at, sh.ordered_at, sh.ready_at, sh.tags, sh.kind, sh.tip_amount, sh.customer_id, sh.points_earned, sh.points_redeemed, sh.points_amount, sh.birthday_discount_amount,
         sh.staff_user_id, au1.username as staff_name,
         o.created_by as order_taken_by, (select string_agg(distinct au3.username, ', ') from order_items oi3 join app_users au3 on au3.id = oi3.added_by where oi3.order_id = sh.order_id and oi3.paid and oi3.paid_at = sh.closed_at) as waiters, au2.username as order_taken_by_name,
-        sh.gift_card_amount, (o.reservation_id is not null) as from_reservation, (o.waitlist_id is not null) as from_waitlist, coalesce(cu.name, o.customer_name) as customer_name, coalesce(cu.phone, o.customer_phone) as customer_phone
+        sh.gift_card_amount, (o.reservation_id is not null) as from_reservation, (o.waitlist_id is not null) as from_waitlist, coalesce(cu.name, o.customer_name) as customer_name, coalesce(cu.phone, o.customer_phone) as customer_phone, o.source as source, sh.transfer_amount, (select ba.bank_name from bank_accounts ba where ba.id = sh.transfer_bank_id) as transfer_bank
       from sales_history sh
       left join app_users au1 on au1.id = sh.staff_user_id
       left join orders o on o.id = sh.order_id
@@ -7375,20 +7603,24 @@ begin
   s := _session_check(p_token, 'reports'); r := s.restaurant_id;
   f := p_date::timestamp at time zone 'Europe/Istanbul'; t := (coalesce(p_date_to, p_date) + 1)::timestamp at time zone 'Europe/Istanbul';
   if not exists(select 1 from app_users where id = p_user and restaurant_id = r) then raise exception 'Personel bulunamadı'; end if;
-  with sh as (select * from sales_history where restaurant_id = r and staff_user_id = p_user and closed_at >= f and closed_at < t),
-  oi as (select oi.* from order_items oi join orders o on o.id = oi.order_id where o.restaurant_id = r and oi.added_by = p_user and oi.added_at >= f and oi.added_at < t),
+  -- Hesap, masayla ilgilenen garsona (siparişi açan) yazılır; ödemeyi kimin aldığı önemli değil.
+  with sh as (select sh0.* from sales_history sh0 left join orders o9 on o9.id = sh0.order_id
+              where sh0.restaurant_id = r and coalesce(o9.created_by, sh0.staff_user_id) = p_user and sh0.closed_at >= f and sh0.closed_at < t),
+  oi as (select oi.*, (array_length(o.tags,1) > 0) tagged, o.tags otags from order_items oi join orders o on o.id = oi.order_id where o.restaurant_id = r and oi.added_by = p_user and oi.added_at >= f and oi.added_at < t),
   shf as (select * from staff_shifts where restaurant_id = r and user_id = p_user and clock_in < t and coalesce(clock_out, now()) >= f and status <> 'pending')
   select json_build_object(
     'user', (select json_build_object('username', username, 'created_at', created_at) from app_users where id = p_user),
     'shifts', (select json_build_object('n', count(*), 'minutes', coalesce(round(sum(greatest(0, extract(epoch from (coalesce(clock_out, now()) - clock_in)) - least(coalesce(paused_seconds,0), extract(epoch from (coalesce(clock_out, now()) - clock_in)))))/60),0),
         'days', count(distinct (clock_in at time zone 'Europe/Istanbul')::date)) from shf),
     'sales', (select json_build_object('rev', coalesce(sum(total),0), 'n', count(*), 'tips', coalesce(sum(tip_amount),0), 'cash', coalesce(sum(cash_amount),0), 'card', coalesce(sum(card_amount),0),
+        'transfer', coalesce(sum(transfer_amount),0), 'gift', coalesce(sum(gift_card_amount),0), 'open_acc', coalesce(sum(total) filter (where payment_method = 'open_account'),0),
         'discount', coalesce(sum(discount_amount),0), 'avg_min', round(avg(extract(epoch from (closed_at - ordered_at))/60) filter (where ordered_at is not null))) from sh),
-    'products', coalesce((select json_agg(x) from (select name, sum(qty) qty, sum(price*qty) rev from oi group by name order by sum(qty) desc limit 10) x), '[]'),
+    'products', coalesce((select json_agg(x) from (select name, sum(qty) qty, coalesce(sum(price*qty) filter (where not coalesce(tagged,false)),0) rev, coalesce(sum(qty) filter (where tagged),0) tagged_qty from oi group by name order by sum(qty) desc limit 10) x), '[]'),
     'hours', coalesce((select json_agg(x order by x.h) from (select extract(hour from added_at at time zone 'Europe/Istanbul')::int h, sum(qty) qty from oi group by 1) x), '[]'),
     'daily', coalesce((select json_agg(x order by x.d) from (select (closed_at at time zone 'Europe/Istanbul')::date d, sum(total) rev from sh group by 1) x), '[]'),
     'cancels', coalesce((select json_agg(x) from (select k.item_name name, k.qty, k.created_at from kitchen_cancellations k join app_users u on u.username = k.cancelled_by
         where k.restaurant_id = r and u.id = p_user and k.kind = 'item' and k.created_at >= f and k.created_at < t order by k.created_at desc limit 8) x), '[]'),
+    'tagged', coalesce((select json_agg(x) from (select tg tag, count(distinct sh.id) n, coalesce(sum(sh.subtotal),0) amount from sh, unnest(sh.tags) tg where array_length(sh.tags,1) > 0 group by tg order by 2 desc) x), '[]'),
     'tables', coalesce((select json_agg(x) from (select table_name, count(*) n, sum(total) rev from sh where table_name is not null group by 1 order by sum(total) desc limit 5) x), '[]')
   ) into res;
   return res;
@@ -7722,7 +7954,7 @@ CREATE FUNCTION public.get_winback(p_token uuid, p_days integer) RETURNS jsonb
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public', 'pg_temp'
     AS $$
-declare v_rid uuid; d int := greatest(coalesce(p_days, 30), 7);
+declare v_rid uuid; d int := coalesce(p_days, 30); -- 0: tüm müşteriler, -1: son 30 günde gelenler, >0: X gündür gelmeyenler
 begin
   select (x).restaurant_id into v_rid from (select _session_check(p_token, 'crm') x) z;
   return jsonb_build_object(
@@ -7730,16 +7962,21 @@ begin
         'd30', count(*) filter (where last_visit_at < now() - interval '30 days' and last_visit_at >= now() - interval '60 days'),
         'd60', count(*) filter (where last_visit_at < now() - interval '60 days' and last_visit_at >= now() - interval '90 days'),
         'd90', count(*) filter (where last_visit_at < now() - interval '90 days'),
-        'active', count(*) filter (where last_visit_at >= now() - interval '30 days'))
-      from customers where restaurant_id = v_rid and coalesce(total_visits,0) > 0),
+        'active', count(*) filter (where last_visit_at >= now() - interval '30 days' and coalesce(total_visits,0) > 0),
+        'all', count(*) filter (where marketing_consent is not false and (nullif(phone,'') is not null or nullif(email,'') is not null)))
+      from customers where restaurant_id = v_rid),
     'returned', (select count(distinct w.customer_id) from winback_log w join customers c on c.id = w.customer_id
                   where w.restaurant_id = v_rid and w.sent_at > now() - interval '90 days' and c.last_visit_at > w.sent_at),
     'contacted', (select count(distinct customer_id) from winback_log where restaurant_id = v_rid and sent_at > now() - interval '90 days'),
     'rows', (select coalesce(jsonb_agg(to_jsonb(r) order by r.total_spent desc nulls last), '[]'::jsonb) from (
         select c.id, c.name, c.phone, c.email is not null and c.email <> '' has_email, c.total_visits, c.total_spent, c.last_visit_at, c.marketing_consent,
                (select max(sent_at) from winback_log w where w.customer_id = c.id) last_contact
-          from customers c where c.restaurant_id = v_rid and coalesce(c.total_visits,0) > 0 and c.marketing_consent is not false and c.last_visit_at < now() - make_interval(days => d)
-          limit 500) r));
+          from customers c where c.restaurant_id = v_rid and c.marketing_consent is not false
+            and (nullif(c.phone,'') is not null or nullif(c.email,'') is not null)
+            and case when d = 0 then true
+                     when d < 0 then c.last_visit_at >= now() - interval '30 days' and coalesce(c.total_visits,0) > 0
+                     else coalesce(c.total_visits,0) > 0 and c.last_visit_at < now() - make_interval(days => greatest(d, 7)) end
+          limit 2000) r));
 end $$;
 
 
@@ -9946,6 +10183,55 @@ end $$;
 
 
 --
+-- Name: save_bank_account(uuid, uuid, text, text, text, boolean); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.save_bank_account(p_token uuid, p_id uuid, p_bank text, p_holder text, p_iban text, p_default boolean) RETURNS json
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'extensions', 'pg_temp'
+    AS $_$
+declare s staff_sessions%rowtype; v_iban text; v_id uuid := p_id;
+begin
+  s := _session_check(p_token);
+  if not exists(select 1 from app_users au join roles rl on rl.id = any(au.role_ids) where au.id = s.user_id and rl.is_system) then
+    raise exception 'Banka bilgisini yalnızca yönetici değiştirebilir'; end if;
+  v_iban := upper(regexp_replace(coalesce(p_iban,''), '\s', '', 'g'));
+  if v_iban !~ '^TR\d{24}$' then raise exception 'IBAN TR ile başlamalı ve 26 karakter olmalı'; end if;
+  if v_id is null then
+    insert into bank_accounts(restaurant_id, bank_name, holder, iban) values (s.restaurant_id, nullif(trim(p_bank),''), nullif(trim(p_holder),''), v_iban) returning id into v_id;
+  else
+    update bank_accounts set bank_name = nullif(trim(p_bank),''), holder = nullif(trim(p_holder),''), iban = v_iban where id = v_id and restaurant_id = s.restaurant_id and active;
+    if not found then raise exception 'Banka bulunamadı'; end if;
+  end if;
+  if coalesce(p_default,false) or not exists(select 1 from bank_accounts where restaurant_id = s.restaurant_id and active and is_default) then
+    update bank_accounts set is_default = (id = v_id) where restaurant_id = s.restaurant_id and active; end if;
+  insert into audit_log(restaurant_id, user_id, entity, action, label) values (s.restaurant_id, s.user_id, 'settings', 'update', 'Banka hesabı kaydedildi');
+  return _banks_json(s.restaurant_id);
+end $_$;
+
+
+--
+-- Name: save_bank_info(uuid, text, text, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.save_bank_info(p_token uuid, p_bank text, p_holder text, p_iban text) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'extensions', 'pg_temp'
+    AS $_$
+declare s staff_sessions%rowtype; v_iban text;
+begin
+  s := _session_check(p_token);
+  if not exists(select 1 from app_users au join roles rl on rl.id = any(au.role_ids) where au.id = s.user_id and rl.is_system) then
+    raise exception 'Banka bilgisini yalnızca yönetici değiştirebilir'; end if;
+  v_iban := upper(regexp_replace(coalesce(p_iban,''), '\s', '', 'g'));
+  if v_iban <> '' and v_iban !~ '^TR\d{24}$' then raise exception 'IBAN TR ile başlamalı ve 26 karakter olmalı'; end if;
+  update restaurants set bank_name = nullif(trim(p_bank),''), bank_holder = nullif(trim(p_holder),''), bank_iban = nullif(v_iban,'') where id = s.restaurant_id;
+  insert into audit_log(restaurant_id, user_id, entity, action, label) values (s.restaurant_id, s.user_id, 'settings', 'update', 'Banka / IBAN bilgisi güncellendi');
+  return jsonb_build_object('bank_name', nullif(trim(p_bank),''), 'bank_holder', nullif(trim(p_holder),''), 'bank_iban', nullif(v_iban,''));
+end $_$;
+
+
+--
 -- Name: save_cash_count(uuid, date, numeric, numeric, text); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -10016,6 +10302,43 @@ begin
   on conflict (endpoint) do update set
     user_id = excluded.user_id, restaurant_id = excluded.restaurant_id, platform = 'android-fcm', android_channel = excluded.android_channel;
 end; $$;
+
+
+--
+-- Name: save_geo_settings(uuid, text, double precision, double precision, integer, integer); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.save_geo_settings(p_token uuid, p_address text, p_lat double precision, p_lng double precision, p_default integer, p_buffer integer) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'extensions', 'pg_temp'
+    AS $$
+declare s staff_sessions%rowtype; begin
+  s := _session_check(p_token);
+  if not exists(select 1 from app_users au join roles rl on rl.id = any(au.role_ids) where au.id = s.user_id and rl.is_system) then raise exception 'Bu ayarı yalnızca yönetici değiştirebilir'; end if;
+  update restaurants set geo_address = nullif(trim(p_address),''), geo_lat = p_lat, geo_lng = p_lng,
+    travel_default_min = greatest(1, least(coalesce(p_default, 10), 120)), travel_buffer_min = greatest(0, least(coalesce(p_buffer, 3), 60)) where id = s.restaurant_id;
+  insert into audit_log(restaurant_id, user_id, entity, action, label) values (s.restaurant_id, s.user_id, 'settings', 'update', 'Konum / teslimat süresi ayarlandı');
+  return (select jsonb_build_object('geo_address', geo_address, 'geo_lat', geo_lat, 'geo_lng', geo_lng, 'travel_default_min', travel_default_min, 'travel_buffer_min', travel_buffer_min, 'travel_recheck_min', travel_recheck_min,
+    'maps_key_set', exists(select 1 from tenant_integrations ti where ti.restaurant_id = s.restaurant_id and ti.maps_api_key is not null)) from restaurants where id = s.restaurant_id);
+end $$;
+
+
+--
+-- Name: save_maps_key(uuid, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.save_maps_key(p_token uuid, p_key text) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'extensions', 'pg_temp'
+    AS $$
+declare s staff_sessions%rowtype; begin
+  s := _session_check(p_token);
+  if not exists(select 1 from app_users au join roles rl on rl.id = any(au.role_ids) where au.id = s.user_id and rl.is_system) then raise exception 'Bu ayarı yalnızca yönetici değiştirebilir'; end if;
+  insert into tenant_integrations(restaurant_id) values (s.restaurant_id) on conflict (restaurant_id) do nothing;
+  update tenant_integrations set maps_api_key = case when coalesce(trim(p_key),'') = '' then null else _enc(trim(p_key)) end, updated_at = now() where restaurant_id = s.restaurant_id;
+  insert into audit_log(restaurant_id, user_id, entity, action, label) values (s.restaurant_id, s.user_id, 'settings', 'update', 'Google Maps API anahtarı ' || case when coalesce(trim(p_key),'') = '' then 'kaldırıldı' else 'güncellendi' end);
+  return coalesce(trim(p_key),'') <> '';
+end $$;
 
 
 --
@@ -10197,6 +10520,22 @@ end $_$;
 
 
 --
+-- Name: save_travel_recheck(uuid, integer); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.save_travel_recheck(p_token uuid, p_min integer) RETURNS integer
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'extensions', 'pg_temp'
+    AS $$
+declare s staff_sessions%rowtype; begin
+  s := _session_check(p_token);
+  if not exists(select 1 from app_users au join roles rl on rl.id = any(au.role_ids) where au.id = s.user_id and rl.is_system) then raise exception 'Bu ayarı yalnızca yönetici değiştirebilir'; end if;
+  update restaurants set travel_recheck_min = greatest(1, least(coalesce(p_min, 3), 30)) where id = s.restaurant_id;
+  return (select travel_recheck_min from restaurants where id = s.restaurant_id);
+end $$;
+
+
+--
 -- Name: search_chat_messages(uuid, text); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -10344,6 +10683,38 @@ end; $$;
 
 
 --
+-- Name: send_campaign(uuid, uuid[], text, text, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.send_campaign(p_token uuid, p_ids uuid[], p_text text, p_channel text, p_subject text) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+declare v_rid uuid; v_uid uuid; v_name text; c record; v_msg text; n_sms int := 0; n_mail int := 0; n_skip int := 0;
+begin
+  select (x).restaurant_id, (x).user_id into v_rid, v_uid from (select _session_check(p_token, 'crm') x) z;
+  if coalesce(array_length(p_ids,1),0) = 0 then raise exception 'Müşteri seçin'; end if;
+  if array_length(p_ids,1) > 2000 then raise exception 'Tek seferde en fazla 2000 müşteri'; end if;
+  if length(trim(coalesce(p_text,''))) < 5 then raise exception 'Mesaj metni girin'; end if;
+  select name into v_name from restaurants where id = v_rid;
+  for c in select * from customers where restaurant_id = v_rid and id = any(p_ids) and marketing_consent is not false loop
+    -- Aynı müşteriye 14 gün içinde ikinci kampanya gönderilmez (rahatsız etmemek için).
+    -- Kampanya: aynı müşteriye 24 saat içinde ikinci mesaj gönderilmez (yanlışlıkla çift gönderim).
+    if exists(select 1 from winback_log where customer_id = c.id and sent_at > now() - interval '24 hours') then n_skip := n_skip + 1; continue; end if;
+    v_msg := replace(replace(p_text, '{ad}', coalesce(split_part(c.name, ' ', 1), '')), '{isletme}', coalesce(v_name, ''));
+    if p_channel in ('sms','both') and nullif(c.phone,'') is not null then perform _send_sms(v_rid, c.phone, v_msg, 'campaign'); n_sms := n_sms + 1; end if;
+    if p_channel in ('mail','both') and nullif(c.email,'') is not null then
+      perform set_config('peyktan.mail_purpose', 'campaign', true);
+      perform _send_email_r(v_rid, c.email, coalesce(nullif(trim(p_subject),''), v_name || ' - Size özel'), _mail_layout(coalesce(nullif(trim(p_subject),''), 'Size özel 🎉'), '<p style="font-size:15px;line-height:1.6;">' || replace(replace(replace(v_msg,'&','&amp;'),'<','&lt;'), E'\n', '<br>') || '</p>'));
+      n_mail := n_mail + 1;
+    end if;
+    insert into winback_log(restaurant_id, customer_id, channel, sent_by) values (v_rid, c.id, p_channel, v_uid);
+  end loop;
+  return jsonb_build_object('sms', n_sms, 'mail', n_mail, 'skipped', n_skip);
+end $$;
+
+
+--
 -- Name: send_chat_message(uuid, text, text, text, text, text, uuid, boolean, integer); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -10395,6 +10766,118 @@ begin
   end;
   return v_id;
 end; $_$;
+
+
+--
+-- Name: send_iban(uuid, text, text, numeric); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.send_iban(p_token uuid, p_phone text, p_email text, p_amount numeric DEFAULT NULL::numeric) RETURNS jsonb
+    LANGUAGE sql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$ select send_iban_bank(p_token, p_phone, p_email, p_amount, null) $$;
+
+
+--
+-- Name: send_iban_bank(uuid, text, text, numeric, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.send_iban_bank(p_token uuid, p_phone text, p_email text, p_amount numeric, p_bank_id uuid) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'extensions', 'pg_temp'
+    AS $_$
+declare s staff_sessions%rowtype; r restaurants%rowtype; v_iban text; v_amt text; v_msg text; v_ok boolean := false; v_sms boolean := false;
+begin
+  s := _session_check(p_token);
+  if not _user_has_perm(s.user_id, 'payments') and not exists(select 1 from app_users au join roles rl on rl.id = any(au.role_ids) where au.id = s.user_id and rl.is_system) then
+    raise exception 'Bu işlem için ödeme yetkisi gerekir'; end if;
+  select * into r from restaurants where id = s.restaurant_id;
+  select b.bank_name, b.holder, b.iban into r.bank_name, r.bank_holder, r.bank_iban from bank_accounts b
+   where b.restaurant_id = s.restaurant_id and b.active and (b.id = p_bank_id or p_bank_id is null) order by (b.id = p_bank_id) desc nulls last, b.is_default desc, b.created_at limit 1;
+  if r.bank_iban is null then raise exception 'Önce Ayarlar → Entegrasyonlar → Banka / IBAN bölümünden IBAN girin'; end if;
+  v_iban := regexp_replace(r.bank_iban, '(.{4})', '\1 ', 'g');
+  v_amt := case when p_amount > 0 then to_char(p_amount, 'FM999G999G990D00') || ' TL' else null end;
+  v_msg := r.name || ' havale bilgisi: ' || coalesce(r.bank_name || ' - ', '') || coalesce(r.bank_holder || ' - ', '') || 'IBAN: ' || trim(v_iban) || coalesce(' - Tutar: ' || v_amt, '');
+  if coalesce(trim(p_phone),'') <> '' then
+    perform _send_sms(s.restaurant_id, p_phone, v_msg, 'iban'); v_sms := true; end if;
+  if coalesce(trim(p_email),'') <> '' then
+    if p_email !~ '^[^@\s]+@[^@\s]+\.[^@\s]+$' then raise exception 'Geçerli bir e-posta adresi girin'; end if;
+    v_ok := _send_email_r(s.restaurant_id, trim(p_email), r.name || ' · Havale / EFT bilgisi',
+      _mail_layout('Havale / EFT bilgisi',
+        '<p>Ödemenizi aşağıdaki hesaba havale/EFT ile yapabilirsiniz.</p><table style="width:100%;border-collapse:collapse;font-size:15px">'
+        || coalesce('<tr><td style="padding:6px 0;color:#64748b">Banka</td><td style="padding:6px 0"><b>' || replace(replace(r.bank_name,'<','&lt;'),'>','&gt;') || '</b></td></tr>', '')
+        || coalesce('<tr><td style="padding:6px 0;color:#64748b">Hesap sahibi</td><td style="padding:6px 0"><b>' || replace(replace(r.bank_holder,'<','&lt;'),'>','&gt;') || '</b></td></tr>', '')
+        || '<tr><td style="padding:6px 0;color:#64748b">IBAN</td><td style="padding:6px 0;font-family:monospace;font-size:16px"><b>' || trim(v_iban) || '</b></td></tr>'
+        || coalesce('<tr><td style="padding:6px 0;color:#64748b">Tutar</td><td style="padding:6px 0"><b>' || v_amt || '</b></td></tr>', '')
+        || '</table><p style="color:#64748b;font-size:13px">Açıklama kısmına adınızı yazmanız ödemenizin eşleşmesini kolaylaştırır.</p>'));
+  end if;
+  if not v_sms and coalesce(trim(p_email),'') = '' then raise exception 'Telefon ya da e-posta girin'; end if;
+  return jsonb_build_object('sms', v_sms, 'email', v_ok);
+end $_$;
+
+
+--
+-- Name: send_iban_to(uuid, text, text, numeric, text, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.send_iban_to(p_token uuid, p_phone text, p_email text, p_amount numeric, p_name text, p_customer_id uuid) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'extensions', 'pg_temp'
+    AS $$
+declare s staff_sessions%rowtype; v_cid uuid := p_customer_id; v_ph text := nullif(right(regexp_replace(coalesce(p_phone,''), '\D', '', 'g'), 10), ''); v_em text := nullif(lower(trim(coalesce(p_email,''))), ''); v_new boolean := false; r jsonb;
+begin
+  s := _session_check(p_token);
+  -- Müşteri eşleştir: seçili müşteri → telefon → e-posta; yoksa kaydet.
+  if v_cid is not null and not exists(select 1 from customers where id = v_cid and restaurant_id = s.restaurant_id) then v_cid := null; end if;
+  if v_cid is null and v_ph is not null and length(v_ph) = 10 then
+    select id into v_cid from customers where restaurant_id = s.restaurant_id and right(regexp_replace(coalesce(phone,''), '\D', '', 'g'), 10) = v_ph order by created_at limit 1; end if;
+  if v_cid is null and v_em is not null then
+    select id into v_cid from customers where restaurant_id = s.restaurant_id and lower(email) = v_em order by created_at limit 1; end if;
+  if v_cid is null and (length(coalesce(v_ph,'')) = 10 or v_em is not null) then
+    insert into customers(restaurant_id, name, phone, email, notes)
+      values (s.restaurant_id, coalesce(nullif(trim(p_name),''), 'Havale müşterisi'), case when length(coalesce(v_ph,''))=10 then '0' || v_ph end, v_em, 'Havale/EFT bilgisi gönderilirken eklendi')
+      returning id into v_cid;
+    v_new := true;
+  elsif v_cid is not null then
+    update customers set email = coalesce(email, v_em), phone = coalesce(phone, case when length(coalesce(v_ph,''))=10 then '0' || v_ph end),
+      name = case when coalesce(nullif(trim(p_name),''),'') <> '' and name = 'Havale müşterisi' then trim(p_name) else name end
+     where id = v_cid;
+  end if;
+  r := send_iban(p_token, p_phone, p_email, p_amount);
+  return r || jsonb_build_object('customer_id', v_cid, 'customer_new', v_new);
+end $$;
+
+
+--
+-- Name: send_iban_to_bank(uuid, text, text, numeric, text, uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.send_iban_to_bank(p_token uuid, p_phone text, p_email text, p_amount numeric, p_name text, p_customer_id uuid, p_bank_id uuid) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'extensions', 'pg_temp'
+    AS $$
+declare s staff_sessions%rowtype; v_cid uuid := p_customer_id; v_ph text := nullif(right(regexp_replace(coalesce(p_phone,''), '\D', '', 'g'), 10), ''); v_em text := nullif(lower(trim(coalesce(p_email,''))), ''); v_new boolean := false; r jsonb;
+begin
+  s := _session_check(p_token);
+  -- Müşteri eşleştir: seçili müşteri → telefon → e-posta; yoksa kaydet.
+  if v_cid is not null and not exists(select 1 from customers where id = v_cid and restaurant_id = s.restaurant_id) then v_cid := null; end if;
+  if v_cid is null and v_ph is not null and length(v_ph) = 10 then
+    select id into v_cid from customers where restaurant_id = s.restaurant_id and right(regexp_replace(coalesce(phone,''), '\D', '', 'g'), 10) = v_ph order by created_at limit 1; end if;
+  if v_cid is null and v_em is not null then
+    select id into v_cid from customers where restaurant_id = s.restaurant_id and lower(email) = v_em order by created_at limit 1; end if;
+  if v_cid is null and (length(coalesce(v_ph,'')) = 10 or v_em is not null) then
+    insert into customers(restaurant_id, name, phone, email, notes)
+      values (s.restaurant_id, coalesce(nullif(trim(p_name),''), 'Havale müşterisi'), case when length(coalesce(v_ph,''))=10 then '0' || v_ph end, v_em, 'Havale/EFT bilgisi gönderilirken eklendi')
+      returning id into v_cid;
+    v_new := true;
+  elsif v_cid is not null then
+    update customers set email = coalesce(email, v_em), phone = coalesce(phone, case when length(coalesce(v_ph,''))=10 then '0' || v_ph end),
+      name = case when coalesce(nullif(trim(p_name),''),'') <> '' and name = 'Havale müşterisi' then trim(p_name) else name end
+     where id = v_cid;
+  end if;
+  r := send_iban_bank(p_token, p_phone, p_email, p_amount, p_bank_id);
+  return r || jsonb_build_object('customer_id', v_cid, 'customer_new', v_new);
+end $$;
 
 
 --
@@ -11132,6 +11615,21 @@ begin s := _session_check(p_token, 'settings_products'); update restaurants set 
 
 
 --
+-- Name: set_order_transfer_bank(uuid, uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.set_order_transfer_bank(p_token uuid, p_order_id uuid, p_bank_id uuid) RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+declare s staff_sessions%rowtype; begin
+  s := _session_check(p_token);
+  update orders set transfer_bank_id = (select id from bank_accounts where id = p_bank_id and restaurant_id = s.restaurant_id)
+   where id = p_order_id and restaurant_id = s.restaurant_id;
+end $$;
+
+
+--
 -- Name: set_owner_report(uuid, jsonb); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -11819,6 +12317,24 @@ begin
   end if;
   return json_build_object('order_id', v_order);
 end; $$;
+
+
+--
+-- Name: set_voice_enabled(uuid, boolean); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.set_voice_enabled(p_token uuid, p_on boolean) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'extensions', 'pg_temp'
+    AS $$
+declare s staff_sessions%rowtype; begin
+  s := _session_check(p_token);
+  if not exists(select 1 from app_users au join roles rl on rl.id = any(au.role_ids) where au.id = s.user_id and rl.is_system) then
+    raise exception 'Bu ayarı yalnızca yönetici değiştirebilir'; end if;
+  update restaurants set voice_enabled = coalesce(p_on, true) where id = s.restaurant_id;
+  insert into audit_log(restaurant_id, user_id, entity, action, label) values (s.restaurant_id, s.user_id, 'settings', 'update', 'Sesli bildirimler ' || case when p_on then 'açıldı' else 'kapatıldı' end);
+  return coalesce(p_on, true);
+end $$;
 
 
 --
@@ -13958,6 +14474,22 @@ ALTER SEQUENCE public.audit_log_id_seq OWNED BY public.audit_log.id;
 
 
 --
+-- Name: bank_accounts; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.bank_accounts (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    restaurant_id uuid NOT NULL,
+    bank_name text,
+    holder text,
+    iban text NOT NULL,
+    is_default boolean DEFAULT false NOT NULL,
+    active boolean DEFAULT true NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
 -- Name: bank_transfer_notices; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -14602,46 +15134,6 @@ CREATE TABLE public.order_items (
 
 
 --
--- Name: orders; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.orders (
-    id uuid DEFAULT gen_random_uuid() NOT NULL,
-    restaurant_id uuid NOT NULL,
-    table_id uuid,
-    kind text DEFAULT 'dine_in'::text NOT NULL,
-    label text,
-    status text DEFAULT 'open'::text NOT NULL,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    daily_number integer,
-    tags text[] DEFAULT '{}'::text[] NOT NULL,
-    customer_name text,
-    customer_phone text,
-    note text,
-    created_by uuid,
-    ready_sms_sent_at timestamp with time zone,
-    reservation_id uuid,
-    waitlist_id uuid,
-    idle_stage smallint DEFAULT 0 NOT NULL,
-    cancelled_at timestamp with time zone,
-    cancelled_by uuid,
-    delivery_address text,
-    takeaway_type text,
-    pickup_at timestamp with time zone,
-    courier_user_id uuid,
-    dispatched_at timestamp with time zone,
-    delivered_at timestamp with time zone,
-    tracking_token uuid,
-    allowance_id uuid,
-    guest_count integer,
-    guest_push_stage smallint DEFAULT 0 NOT NULL,
-    pkg_push_stage smallint DEFAULT 0 NOT NULL,
-    courier_push_stage smallint DEFAULT 0 NOT NULL,
-    CONSTRAINT orders_guest_count_check CHECK (((guest_count >= 1) AND (guest_count <= 99)))
-);
-
-
---
 -- Name: packages; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -15075,6 +15567,16 @@ CREATE TABLE public.restaurants (
     owner_report jsonb DEFAULT '{}'::jsonb NOT NULL,
     order_show_closed boolean DEFAULT true NOT NULL,
     guest_reminder boolean DEFAULT true NOT NULL,
+    bank_name text,
+    bank_iban text,
+    bank_holder text,
+    voice_enabled boolean DEFAULT true NOT NULL,
+    geo_address text,
+    geo_lat double precision,
+    geo_lng double precision,
+    travel_default_min integer DEFAULT 10 NOT NULL,
+    travel_buffer_min integer DEFAULT 3 NOT NULL,
+    travel_recheck_min integer DEFAULT 3 NOT NULL,
     CONSTRAINT restaurants_day_end_hour_check CHECK (((day_end_hour >= 0) AND (day_end_hour <= 23))),
     CONSTRAINT restaurants_default_vat_rate_check CHECK (((default_vat_rate >= (0)::numeric) AND (default_vat_rate <= (100)::numeric)))
 );
@@ -15152,7 +15654,9 @@ CREATE TABLE public.sales_history (
     ordered_at timestamp with time zone,
     ready_at timestamp with time zone,
     points_amount numeric DEFAULT 0 NOT NULL,
-    guest_count integer
+    guest_count integer,
+    transfer_amount numeric DEFAULT 0 NOT NULL,
+    transfer_bank_id uuid
 );
 
 
@@ -15348,7 +15852,8 @@ CREATE TABLE public.tenant_integrations (
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     pay_mode text DEFAULT 'off'::text NOT NULL,
     sms_url text,
-    mail_other text
+    mail_other text,
+    maps_api_key text
 );
 
 
@@ -15564,6 +16069,14 @@ ALTER TABLE ONLY public.app_users
 
 ALTER TABLE ONLY public.audit_log
     ADD CONSTRAINT audit_log_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: bank_accounts bank_accounts_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.bank_accounts
+    ADD CONSTRAINT bank_accounts_pkey PRIMARY KEY (id);
 
 
 --
@@ -16471,6 +16984,13 @@ CREATE UNIQUE INDEX app_users_restaurant_username_ci_key ON public.app_users USI
 --
 
 CREATE INDEX audit_log_rest_time ON public.audit_log USING btree (restaurant_id, created_at DESC);
+
+
+--
+-- Name: bank_accounts_rest_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX bank_accounts_rest_idx ON public.bank_accounts USING btree (restaurant_id) WHERE active;
 
 
 --
@@ -17783,6 +18303,13 @@ CREATE TRIGGER trg_order_items_added_by BEFORE INSERT ON public.order_items FOR 
 
 
 --
+-- Name: orders trg_order_travel; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_order_travel AFTER INSERT OR UPDATE OF delivery_address ON public.orders FOR EACH ROW EXECUTE FUNCTION public._trg_order_travel();
+
+
+--
 -- Name: orders trg_orders_auto_customer; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -17836,6 +18363,13 @@ CREATE TRIGGER trg_role_shift_exempt_sync BEFORE INSERT OR UPDATE OF permissions
 --
 
 CREATE TRIGGER trg_sales_history_guests BEFORE INSERT ON public.sales_history FOR EACH ROW EXECUTE FUNCTION public._sales_history_guests();
+
+
+--
+-- Name: sales_history trg_sales_history_transfer; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_sales_history_transfer BEFORE INSERT ON public.sales_history FOR EACH ROW EXECUTE FUNCTION public._sales_history_transfer();
 
 
 --
@@ -17917,6 +18451,14 @@ ALTER TABLE ONLY public.allowances
 
 ALTER TABLE ONLY public.app_users
     ADD CONSTRAINT app_users_restaurant_id_fkey FOREIGN KEY (restaurant_id) REFERENCES public.restaurants(id) ON DELETE CASCADE;
+
+
+--
+-- Name: bank_accounts bank_accounts_restaurant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.bank_accounts
+    ADD CONSTRAINT bank_accounts_restaurant_id_fkey FOREIGN KEY (restaurant_id) REFERENCES public.restaurants(id);
 
 
 --
@@ -18886,6 +19428,12 @@ ALTER TABLE public.app_users ENABLE ROW LEVEL SECURITY;
 --
 
 ALTER TABLE public.audit_log ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: bank_accounts; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.bank_accounts ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: bank_transfer_notices; Type: ROW SECURITY; Schema: public; Owner: -
