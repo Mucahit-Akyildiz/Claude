@@ -10,3 +10,5 @@ create trigger trg_sales_history_transfer before insert on sales_history for eac
 -- save_bank_info(p_token, p_bank, p_holder, p_iban): yalnızca yönetici, TR + 24 hane doğrulaması, audit_log.
 -- send_iban(p_token, p_phone, p_email, p_amount): ödeme yetkisi; _send_sms(...,'iban') / _send_email_r(_mail_layout(...)).
 -- get_restaurant_config: 'bank' {bank_name, bank_holder, bank_iban} eklendi.
+-- send_iban_to(p_token, p_phone, p_email, p_amount, p_name, p_customer_id): müşteriyi seçili/telefon/e-posta ile eşleştirir,
+-- kayıtlı değilse customers'a ekler, ardından send_iban çağırır; {customer_id, customer_new} döner. (Canlıya uygulandı.)

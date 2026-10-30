@@ -361,7 +361,7 @@ async function renderIntegrationsSettings(el, session){
     return on ? ['ok','Aktif'] : ['off','Kapalı']; };
   const bar = document.createElement('div');
   bar.className = 'int-groups';
-  const GROUPS = [['🛒 Satış kanalları', ['online','marketplace','google']], ['💬 Müşteri iletişimi', ['sms','mail']], ['🧾 Fatura & muhasebe', ['invoice','efatura','accounting']]];
+  const GROUPS = [['🛒 Satış kanalları', ['online','marketplace','google']], ['💬 Müşteri iletişimi', ['sms','mail','bank']], ['🧾 Fatura & muhasebe', ['invoice','efatura','accounting']]];
   bar.innerHTML = GROUPS.map(([g, ids]) => `<div class="int-group"><div class="int-gt">${g}</div><div class="int-gl">${ids.map(id => { const t = INT_TABS.find(x => x.id === id); if(!t) return ''; const [k, l] = stOf(id);
     return `<button type="button" class="int-row ${APP.integrationsSubTab===id?'active':''} st-${k}" data-int-tab="${id}" ${act('setIntegrationsSubTab', id)}>
       <span class="int-ic">${t.ic}</span><span class="int-txt"><b>${t.label}</b><small>${INT_DESC[id]||''}</small></span><span class="int-st" title="${l}">${k==='lock' ? '🔒' : k==='ok' ? '● Aktif' : '○ Kapalı'}</span></button>`; }).join('')}</div></div>`).join('');

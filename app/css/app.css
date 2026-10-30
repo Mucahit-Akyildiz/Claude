@@ -3770,3 +3770,38 @@ button.sl-stat{border:1px solid var(--border) !important;} button.sl-stat.on{bor
 .tr-send input{flex:1;margin:0}
 .tr-send button{width:auto;margin:0;padding:0 16px;white-space:nowrap}
 .tr-done{width:100%;margin-top:12px;background:linear-gradient(135deg,#10b981,#059669);color:#fff;font-weight:800}
+/* Ödeme yöntemleri: 3 ana kutucuk + 3 ikincil */
+#payModalBg .pay-method-grid.pm3{grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:10px}
+#payModalBg .pm3 .pay-method-btn{position:relative;flex-direction:column;gap:4px;min-height:118px;padding:16px 10px 14px;border-radius:18px;color:#fff;box-shadow:0 10px 24px -12px rgba(0,0,0,.6),inset 0 1px 0 rgba(255,255,255,.18);overflow:hidden}
+#payModalBg .pm3 .pay-method-btn::after{content:'';position:absolute;right:-22px;top:-22px;width:80px;height:80px;border-radius:50%;background:rgba(255,255,255,.12)}
+#payModalBg .pm3 .pay-method-btn .pm-ic{font-size:30px;line-height:1;filter:drop-shadow(0 4px 8px rgba(0,0,0,.25))}
+#payModalBg .pm3 .pay-method-btn b{font-size:16px;font-weight:800}
+#payModalBg .pm3 .pay-method-btn small{font-size:11.5px;font-weight:600;opacity:.85}
+#payModalBg .pm3 .pay-method-btn.cash{background:linear-gradient(145deg,#22c55e,#15803d)}
+#payModalBg .pm3 .pay-method-btn.card{background:linear-gradient(145deg,#f59e0b,#ea580c)}
+#payModalBg .pm3 .pay-method-btn.transfer{background:linear-gradient(145deg,#6366f1,#4338ca)}
+#payModalBg .pm3 .pay-method-btn:hover{transform:translateY(-2px);filter:brightness(1.07)}
+#payModalBg .pm3 .sc-k{position:absolute;left:10px;top:10px}
+#payModalBg .pay-alt-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:0 0 12px}
+#payModalBg .pay-alt{position:relative;display:flex;flex-direction:column;align-items:center;gap:2px;margin:0;padding:12px 8px 10px;border-radius:14px;background:var(--panel2);border:1px solid var(--border);color:var(--text);box-shadow:none;cursor:pointer;transition:border-color .15s,transform .1s,background .15s}
+#payModalBg .pay-alt span{font-size:20px;line-height:1.1}
+#payModalBg .pay-alt b{font-size:13px;font-weight:800}
+#payModalBg .pay-alt small{font-size:11px;color:var(--muted);font-weight:600}
+#payModalBg .pay-alt .sc-k{position:absolute;left:8px;top:8px;font-size:9.5px}
+#payModalBg .pay-alt:hover:not(:disabled){transform:translateY(-1px);border-color:color-mix(in srgb,var(--accent) 60%,transparent)}
+#payModalBg .pay-alt.gift:not(:disabled){border-color:rgba(236,72,153,.55);background:rgba(236,72,153,.1)}
+#payModalBg .pay-alt.split:hover:not(:disabled){border-color:rgba(139,92,246,.7)}
+#payModalBg .pay-alt.open:hover:not(:disabled){border-color:rgba(245,158,11,.7)}
+#payModalBg .pay-alt:disabled{opacity:.45;cursor:not-allowed}
+@media (max-width:560px){#payModalBg .pay-method-grid.pm3{grid-template-columns:repeat(3,1fr);gap:8px}#payModalBg .pm3 .pay-method-btn{min-height:96px;padding:12px 6px}#payModalBg .pm3 .pay-method-btn b{font-size:13.5px}#payModalBg .pm3 .pay-method-btn .pm-ic{font-size:24px}}
+.tr-modal{max-width:620px!important}
+.tr-top{display:flex;gap:14px;align-items:stretch}
+.tr-top .tr-card{flex:1;min-width:0}
+.tr-qr{width:150px;flex:0 0 150px;display:flex;flex-direction:column;align-items:center;gap:6px;padding:10px;border-radius:14px;background:#fff;color:#334155;text-align:center}
+.tr-qr svg{width:120px;height:120px}
+.tr-qr small{font-size:10.5px;line-height:1.3}
+.tr-match{font-size:11px;color:var(--green);font-weight:700;margin-left:6px;text-transform:none;letter-spacing:0}
+@media (max-width:560px){.tr-top{flex-direction:column}.tr-qr{width:auto;flex:none}}
+.dg-card.tr-modal{text-align:left;width:100%}
+.dg-card.tr-modal h2{margin:0 0 14px;font-size:22px}
+.dg-card .tr-iban{font-size:13.5px;letter-spacing:0;white-space:nowrap}
