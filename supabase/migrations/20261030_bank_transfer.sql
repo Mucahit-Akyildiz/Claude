@@ -34,3 +34,4 @@ create or replace function public._pkg_deadline(o orders) returns timestamptz la
 -- Geçmiş: onaylanmış online taleplerle (ad+telefon+3 saat) eşleşen paket siparişleri 'online' işaretlendi.
 -- Garson detayı: get_staff_detail products.tagged_qty, tagged (etiket bazında hesap/tutar).
 alter table orders add column if not exists source text;
+-- get_sales_history: transfer_bank; get_staff_detail.sales: transfer, gift, open_acc. (Canlıya uygulandı.)
