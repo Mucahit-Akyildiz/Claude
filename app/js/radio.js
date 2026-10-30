@@ -177,7 +177,7 @@ function radioShutdown(){
 // değiştiyse (anahtar yenilendi, kanal silindi) bağlantıyı güncelle.
 async function radioSync(){
   const session = getSession();
-  if(!radioAllowed(session)){ if(RADIO.channel) radioShutdown(); return; }
+  if(!radioAllowed(session) || (typeof isAdminMode === 'function' && isAdminMode())){ if(RADIO.channel) radioShutdown(); return; }
   const want = radioSaved(session);
   let list; try{ list = await fetchRadioChannels(session); }catch(e){ return; }
   if(!want){ if(RADIO.channel) radioDisconnect(false); return; }

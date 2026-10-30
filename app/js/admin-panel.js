@@ -2,6 +2,8 @@
 /* ================= GİZLİ PLATFORM YÖNETİMİ (?admin=1) ================= */
 function renderAdminArea(){
   const app = document.getElementById('app');
+  // Admin alanı restoran oturumundan bağımsızdır: açık telsiz bağlantısı/paneli kapatılır.
+  if(typeof radioShutdown === 'function' && typeof RADIO !== 'undefined' && RADIO.channel){ radioShutdown(); }
   const admin = getAdminSession();
   if(!admin){ renderAdminLogin(app); return; }
   const theme = getTheme();
