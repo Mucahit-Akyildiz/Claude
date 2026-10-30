@@ -333,6 +333,11 @@ async function renderReportContent(session){
   // İkram hesapları ödemesiz kapandığında tutarı 0 yazılır; ikram değeri ürünlerin toplamıdır (subtotal).
   taggedHist.forEach(o => { taggedTotal += Number(o.subtotal != null && Number(o.subtotal) > 0 ? o.subtotal : o.total) || 0; });
   hist.forEach(o => { totalCash += Number(o.cash_amount||0); totalCard += Number(o.card_amount||0); totalGiftCard += Number(o.gift_card_amount||0); totalTip += Number(o.tip_amount||0); });
+  // Havale/EFT (banka banka) ve açık hesaba yazılan.
+  let totalTransfer = 0, totalOpenAcc = 0, openAccCount = 0; const byBank = {};
+  ((APP.config && APP.config.banks) || []).forEach(b => { byBank[b.bank_name || 'Banka'] = 0; });
+  hist.forEach(o => { const tr = Number(o.transfer_amount||0); if(tr > 0){ totalTransfer += tr; const k = o.transfer_bank || 'Banka belirtilmemiş'; byBank[k] = (byBank[k] || 0) + tr; }
+    if(o.payment_method === 'open_account'){ totalOpenAcc += Number(o.total||0); openAccCount++; } });
   const profit = totalRevenue - totalCost;
 
   // Personel bazlı: siparişi kim aldı (aynı siparişin kısmi ödemelerinde
@@ -377,7 +382,7 @@ async function renderReportContent(session){
   if(!APP.reportBillsFilter) APP.reportBillsFilter = { hour:'', table:'', method:'', source:'' };
   if(APP.reportBillsFilter.source==null) APP.reportBillsFilter.source = '';
   const bf = APP.reportBillsFilter;
-  const billLabel = (o) => (o.kind==='takeaway' ? '📦 Paket' : (o.table_name||'-'));
+  const billLabel = (o) => (o.source && o.source !== 'qr' ? '🌐 Online' : o.kind==='takeaway' ? '📦 Paket' : (o.table_name||'-'));
   const billTableOptions = [...new Set(billHist.map(billLabel))].sort();
   const billHourOptions = [...new Set(billHist.map(o => new Date(o.closed_at).getHours()))].sort((a,b)=>a-b);
   const METHOD_LABELS = { cash:'💵 Nakit', card:'💳 Kredi Kartı', gift_card:'🎁 Hediye Kartı', split:'➗ Bölünmüş', transfer:'🏦 Havale/EFT', open_account:'📒 Açık Hesap', comp:'🎁 İkram', points:'⭐ Puan' };
@@ -402,7 +407,7 @@ async function renderReportContent(session){
     const giftTxt = (o.payment_method!=='gift_card' && Number(o.gift_card_amount||0)>0) ? (' + 🎁 '+money(o.gift_card_amount)) : '';
     const methodLabel = o.payment_method==='split'
       ? ('Bölünmüş (💵 '+money(o.cash_amount||0)+' + 💳 '+money(o.card_amount||0)+giftTxt+')')
-      : ((METHOD_LABELS[o.payment_method] || o.payment_method) + giftTxt);
+      : ((METHOD_LABELS[o.payment_method] || o.payment_method) + (o.payment_method === 'transfer' && o.transfer_bank ? ' · ' + escapeHtml(o.transfer_bank) : '') + giftTxt);
     const discTxt = o.discount_amount>0 ? ('-'+money(o.discount_amount)) : '-';
     const tagBadge = (o.tags && o.tags.length>0)
       ? ` <span style="background:rgba(234,179,8,.15);color:#eab308;border-radius:6px;padding:2px 6px;font-size:11px;font-weight:700;">${o.tags.map(x=>escapeHtml(x)).join(', ')}</span>`
@@ -459,8 +464,10 @@ async function renderReportContent(session){
     </div>
     <div class="fs-panels">
       <div class="fs-panel" style="--t:var(--accent);"><h3><i>💳</i>Ödeme Dağılımı</h3>
-        <div class="gx-rings">${[['💵','Nakit',totalCash,'#22c55e'],['💳','Kart',totalCard,'var(--accent)'],['🎁','Hediye',totalGiftCard,'var(--gift,#a855f7)']].map(([ic, l, v, c], i) => { const pc = totalRevenue ? Math.round(v / totalRevenue * 100) : 0;
+        <div class="gx-rings">${[['💵','Nakit',totalCash,'#22c55e'],['💳','Kart',totalCard,'var(--accent)'],['🏦','Havale',totalTransfer,'#6366f1'],['📒','Açık hesap',totalOpenAcc,'#f59e0b'],['🎁','Hediye',totalGiftCard,'var(--gift,#a855f7)']].map(([ic, l, v, c], i) => { const pc = totalRevenue ? Math.round(v / totalRevenue * 100) : 0;
           return `<div class="gx-ring" style="--p:${pc};--c:${c};--i:${i};"><div class="gx-ring-c"><span>${ic}</span><b>%${pc}</b></div><small>${l}</small><em>${money(v)}</em></div>`; }).join('')}</div>
+        ${Object.keys(byBank).length ? `<div class="gx-banks">${Object.entries(byBank).map(([k, v]) => `<div><span>🏦 ${escapeHtml(k)}</span><b>${money(v)}</b></div>`).join('')}</div>` : ''}
+        ${openAccCount ? `<div class="gx-foot"><span>📒 Açık hesaba yazılan</span><b>${openAccCount} hesap · ${money(totalOpenAcc)}</b></div>` : ''}
         <div class="gx-foot"><span>💸 Bahşiş</span><b>${money(totalTip)}</b></div>
       </div>
       <div class="fs-panel" style="--t:#a78bfa;"><h3><i>🍽️</i>Servis</h3><div id="serviceMetrics"><p class="u-fs13 muted">Yükleniyor…</p></div></div>
@@ -478,7 +485,7 @@ async function renderReportContent(session){
         ${(() => { if(!hourKeys.length) return '<p class="muted">Bu tarihte veri yok.</p>'; const lo = Math.min(...hourKeys), hi = Math.max(...hourKeys); const hrs = []; for(let h = lo; h <= hi; h++) hrs.push(h);
           return svgBarChart(hrs.map(h => { const st = hourStats[h] || { revenue:0, count:0 }; return { label: (h<10?'0'+h:h)+':00', value: st.revenue, display: money(st.revenue) + ' · ' + st.count + ' sipariş' }; }), { title:'Saatlik ciro' }); })()}</div>
       <div class="fs-panel pa-sec" style="--t:var(--c2);"><h3><i>🍩</i>Ödeme Türleri</h3>
-        ${svgDonut([{ label:'Nakit', value: totalCash, color:'var(--c1)' }, { label:'Kart', value: totalCard, color:'var(--c2)' }, { label:'Hediye Kartı', value: totalGiftCard, color:'var(--c3)' }], { center: shortMoney(totalCash+totalCard+totalGiftCard), sub:'₺ toplam', title:'Ödeme türleri', money:true })}</div>
+        ${svgDonut([{ label:'Nakit', value: totalCash, color:'var(--c1)' }, { label:'Kart', value: totalCard, color:'var(--c2)' }, { label:'Havale / EFT', value: totalTransfer, color:'#6366f1' }, { label:'Açık hesap', value: totalOpenAcc, color:'#f59e0b' }, { label:'Hediye Kartı', value: totalGiftCard, color:'var(--c3)' }].filter(x => x.value > 0 || ['Nakit','Kart'].includes(x.label)), { center: shortMoney(totalCash+totalCard+totalTransfer+totalOpenAcc+totalGiftCard), sub:'₺ toplam', title:'Ödeme türleri', money:true })}</div>
     </div>
     ${heatmapHtml(untaggedHist)}
     <details class="fs-panel pa-sec" style="--t:#f97316;"><summary style="cursor:pointer;"><h3 style="display:inline-flex;margin:0;"><i>⏰</i>Saatlik Yoğunluk Tablosu</h3></summary>${hourlyHtml}</details>

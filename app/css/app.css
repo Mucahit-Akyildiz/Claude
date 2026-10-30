@@ -3844,3 +3844,6 @@ button.sl-stat{border:1px solid var(--border) !important;} button.sl-stat.on{bor
 .tr-bk{width:auto;margin:0;padding:7px 12px;font-size:13px;border-radius:999px;background:var(--panel2);color:var(--text);border:1px solid var(--border);box-shadow:none}
 .tr-bk.on{background:linear-gradient(135deg,#6366f1,#4338ca);color:#fff;border-color:transparent}
 .ps-tag{display:block;color:#a855f7!important;font-weight:700}
+.gx-rings{flex-wrap:wrap}
+.gx-banks{display:grid;gap:4px;margin:10px 0 2px;padding:8px 10px;border-radius:12px;background:color-mix(in srgb,#6366f1 8%,transparent);border:1px dashed color-mix(in srgb,#6366f1 40%,transparent)}
+.gx-banks div{display:flex;justify-content:space-between;font-size:13px}
