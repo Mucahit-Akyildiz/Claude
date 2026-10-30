@@ -154,15 +154,18 @@ async function releaseDeletedAccount(id){
   renderAdminTabContent(admin);
 }
 function renderAdminLogin(app){
-  app.innerHTML = `<div class="center-wrap"><div class="box">
+  app.innerHTML = `<div class="adm-login-bg"><div class="adm-login-card">
+    <div class="adm-login-logo">🛡️</div>
+    <span class="adm-login-badge">PEYKTAN · ADMIN</span>
     <h1>Platform Yönetimi</h1>
-    <p class="muted">Bu alan sadece size özeldir.</p>
-    <input id="adminUser" placeholder="Kullanıcı adı" autocapitalize="none" ${actOn('keydown','onEnterCall',['$event','doAdminLogin'])}>
-    <div class="pw-field-wrap"><input id="adminPass" type="password" placeholder="Şifre" autocomplete="current-password" ${actOn('keydown','onEnterCall',['$event','doAdminLogin'])}>
-      <button type="button" class="pw-eye-btn" title="Şifreyi göster/gizle" ${act('togglePassVisible', 'adminPass', '$this')}>👁️</button></div>
-    <input id="adminOtp" inputmode="numeric" maxlength="6" autocomplete="one-time-code" placeholder="Doğrulama kodu (6 hane)" style="display:none;" ${actOn('keydown','onEnterCall',['$event','doAdminLogin'])}>
-    <button ${act('doAdminLogin')} id="adminLoginBtn">Giriş Yap</button>
+    <p class="adm-login-sub">Bu alan yalnızca platform yöneticilerine özeldir.</p>
+    <label class="adm-field"><span class="adm-ico">👤</span><input id="adminUser" placeholder="Kullanıcı adı" autocapitalize="none" autocomplete="username" ${actOn('keydown','onEnterCall',['$event','doAdminLogin'])}></label>
+    <label class="adm-field pw-field-wrap"><span class="adm-ico">🔒</span><input id="adminPass" type="password" placeholder="Şifre" autocomplete="current-password" ${actOn('keydown','onEnterCall',['$event','doAdminLogin'])}>
+      <button type="button" class="pw-eye-btn" title="Şifreyi göster/gizle" ${act('togglePassVisible', 'adminPass', '$this')}>👁️</button></label>
+    <input id="adminOtp" class="adm-otp" inputmode="numeric" maxlength="6" autocomplete="one-time-code" placeholder="••••••" style="display:none;" ${actOn('keydown','onEnterCall',['$event','doAdminLogin'])}>
+    <button class="adm-login-btn" ${act('doAdminLogin')} id="adminLoginBtn">Giriş Yap</button>
     <div class="error" id="adminErr"></div>
+    <div class="adm-login-foot">🔐 Uçtan uca şifreli bağlantı · İki adımlı doğrulama destekli</div>
   </div></div>`;
 }
 async function doAdminLogin(){
