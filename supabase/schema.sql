@@ -81,6 +81,7 @@ declare
   ch jsonb := '{}'::jsonb; k text; skip text[] := array['stock','last_seen_at','expiry_reminder_stage','created_at','late_push_notified_at','late_push_milestone','ready_sms_sent_at','idle_stage'];
   rid uuid;
 begin
+  if current_setting('peyktan.restoring', true) = '1' then return coalesce(new, old); end if;
   if tg_table_name in ('orders','order_items') and coalesce(current_setting('peyk.uid', true), '') = '' then return null; end if;
   if tg_table_name = 'orders' and tg_op = 'UPDATE' and not ((n->>'status') = 'cancelled' and (o->>'status') is distinct from 'cancelled') then return null; end if;
   if tg_table_name = 'restaurants' then rid := (r->>'id')::uuid; else rid := (r->>'restaurant_id')::uuid; end if;
@@ -228,6 +229,7 @@ CREATE FUNCTION public._bump_data_version() RETURNS trigger
     AS $$
 declare j jsonb; r uuid;
 begin
+  if current_setting('peyktan.restoring', true) = '1' then return coalesce(new, old); end if;
   j := to_jsonb(coalesce(NEW, OLD));
   if j ? 'restaurant_id' then r := (j->>'restaurant_id')::uuid;
   elsif TG_TABLE_NAME = 'order_items' then select restaurant_id into r from orders where id = (j->>'order_id')::uuid;
@@ -462,6 +464,7 @@ CREATE FUNCTION public._contact_auto_customer_trg() RETURNS trigger
 declare j jsonb := to_jsonb(new); o jsonb := case when tg_op = 'UPDATE' then to_jsonb(old) else '{}'::jsonb end;
   v_phone text := coalesce(j->>'phone', j->>'customer_phone');
 begin
+  if current_setting('peyktan.restoring', true) = '1' then return coalesce(new, old); end if;
   -- Rezervasyon, bekleme listesi, QR/online sipariş: telefonu olan kişi müşterilerde yoksa kaydedilir.
   if v_phone is not null and (tg_op = 'INSERT' or v_phone is distinct from coalesce(o->>'phone', o->>'customer_phone') or (j->>'customer_name') is distinct from (o->>'customer_name')) then
     perform _auto_customer(new.restaurant_id, j->>'customer_name', v_phone, j->>'email');
@@ -697,6 +700,7 @@ begin
     select o.id, case when o.created_at < now() - interval '20 minutes' then 3 when o.created_at < now() - interval '10 minutes' then 2 else 1 end stage
     from orders o
     where o.status = 'open' and o.kind = 'dine_in' and o.table_id is not null and o.guest_count is null and o.created_by is not null
+      and exists (select 1 from restaurants r where r.id = o.restaurant_id and r.guest_reminder)
       and o.created_at < now() - interval '2 minutes' and o.created_at > now() - interval '3 hours'
       and exists (select 1 from order_items oi where oi.order_id = o.id)
   ), upd as (
@@ -1015,13 +1019,14 @@ begin
   select au.id, au.username into v_mgr, v_uname from app_users au join roles rl on rl.id = any(au.role_ids) and rl.is_system where au.restaurant_id = v_rest order by au.created_at limit 1;
   insert into staff_sessions (token, user_id, restaurant_id, username, expires_at) values (v_tok, v_mgr, v_rest, v_uname, now() + interval '2 minutes');
   begin
+    perform set_config('peyktan.finalizing', '1', true);
     perform pay_order_items(v_tok, (op.payload->>'order_id')::uuid, 'card', 0, op.amount, 0, op.payload->'items', 0, null, 0, null, 0);
   exception when others then
-    update staff_sessions set expires_at = now() where token = v_tok;
+    update staff_sessions set expires_at = now(), logged_out_at = now() where token = v_tok;
     update online_payments set status = 'paid_unapplied', provider_payment_id = p_ref, error = left(sqlerrm, 300), finished_at = now() where id = p_id;
     return true; -- para alındı; personel hesabı elle kapatır (uyarı Online ödemeler listesinde)
   end;
-  update staff_sessions set expires_at = now() where token = v_tok;
+  update staff_sessions set expires_at = now(), logged_out_at = now() where token = v_tok;
   update online_payments set status = 'paid', provider_payment_id = p_ref, finished_at = now() where id = p_id;
   return true;
 end $$;
@@ -1150,6 +1155,7 @@ CREATE FUNCTION public._invoices_customer_email_trg() RETURNS trigger
     AS $$
 declare v_cust uuid; v_phone text; v_name text; v_mail text := nullif(lower(trim(coalesce(new.email,''))),'');
 begin
+  if current_setting('peyktan.restoring', true) = '1' then return coalesce(new, old); end if;
   if v_mail is null or new.history_id is null then return null; end if;
   select sh.customer_id, o.customer_phone, coalesce(o.customer_name, new.buyer_name) into v_cust, v_phone, v_name
     from sales_history sh left join orders o on o.id = sh.order_id where sh.id = new.history_id;
@@ -1329,6 +1335,7 @@ CREATE FUNCTION public._menus_cleanup_trg() RETURNS trigger
     SET search_path TO 'public', 'pg_temp'
     AS $$
 begin
+  if current_setting('peyktan.restoring', true) = '1' then return coalesce(new, old); end if;
   if tg_table_name = 'stations' then update menus set station_id = null where station_id = old.id;
   elsif tg_table_name = 'restaurants' then delete from menus where restaurant_id = old.id;
   elsif tg_table_name = 'menus' then update products set menu_id = null where menu_id = old.id;
@@ -1446,6 +1453,7 @@ begin
   select coalesce(jsonb_agg(jsonb_build_object('id', o.id, 'label', '👥 ' || coalesce(t.name,'Masa') || ' · kişi sayısı girilmedi' || coalesce(' (' || au.username || ')', ''), 'kind', 'no_guests', 'table', t.name)), '[]') into arr
     from orders o join restaurant_tables t on t.id = o.table_id left join app_users au on au.id = o.created_by
     where o.restaurant_id = r and o.status = 'open' and o.guest_count is null and o.created_at < now() - interval '1 minute'
+      and (select guest_reminder from restaurants where id = r)
       and exists(select 1 from order_items oi where oi.order_id = o.id)
       and (o.created_by = u or _user_has_perm(u, 'payments'));
   v := v || jsonb_build_object('order', coalesce((v->>'order')::int,0) + jsonb_array_length(arr));
@@ -1628,6 +1636,7 @@ CREATE FUNCTION public._orders_auto_customer_trg() RETURNS trigger
     SET search_path TO 'public', 'pg_temp'
     AS $$
 begin
+  if current_setting('peyktan.restoring', true) = '1' then return coalesce(new, old); end if;
   if new.customer_phone is not null and (tg_op = 'INSERT' or new.customer_phone is distinct from old.customer_phone or new.customer_name is distinct from old.customer_name) then
     perform _auto_customer(new.restaurant_id, new.customer_name, new.customer_phone, null);
   end if;
@@ -1795,6 +1804,7 @@ CREATE FUNCTION public._product_no_cost_close() RETURNS trigger
     SET search_path TO 'public', 'pg_temp'
     AS $$
 begin
+  if current_setting('peyktan.restoring', true) = '1' then return coalesce(new, old); end if;
   if coalesce(new.cost,0) <= 0 and new.parent_id is null
      and (tg_op = 'INSERT' or coalesce(old.cost,0) > 0)
      and exists(select 1 from restaurants r where r.id = new.restaurant_id and r.close_no_cost) then
@@ -1902,6 +1912,7 @@ CREATE FUNCTION public._purchase_order_push() RETURNS trigger
 -- Satın alma siparişi verildiğinde (status -> ordered) Satın Alma yetkililerine push.
 declare v_url text; v_secret text;
 begin
+  if current_setting('peyktan.restoring', true) = '1' then return coalesce(new, old); end if;
   if new.status = 'ordered' and (tg_op = 'INSERT' or old.status is distinct from 'ordered') then
     begin
       select value into v_url from _psv where key = 'push_dispatch_url';
@@ -1933,6 +1944,25 @@ begin
   delete from restaurants where id = p_restaurant_id;
 end;
 $$;
+
+
+--
+-- Name: _qr_bill_allowed(text, uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public._qr_bill_allowed(p_device text, p_table uuid, p_order uuid) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+begin
+  if coalesce(length(p_device),0) < 16 then return false; end if;
+  if exists(select 1 from qr_bill_devices where device = p_device and order_id = p_order) then return true; end if;
+  if exists(select 1 from qr_bill_devices d join orders o on o.id = d.order_id
+            where d.device = p_device and d.table_id = p_table and d.order_id <> p_order and o.status <> 'open'
+              and d.created_at > now() - interval '12 hours') then return false; end if;
+  insert into qr_bill_devices(device, table_id, order_id) values (p_device, p_table, p_order) on conflict do nothing;
+  return true;
+end $$;
 
 
 --
@@ -2228,6 +2258,7 @@ CREATE FUNCTION public._sales_history_allowance() RETURNS trigger
     AS $$
 declare v_aid uuid; v_rem numeric; v_amt numeric;
 begin
+  if current_setting('peyktan.restoring', true) = '1' then return coalesce(new, old); end if;
   select allowance_id into v_aid from orders where id = new.order_id;
   if v_aid is null then return new; end if;
   v_rem := _allowance_remaining(v_aid);
@@ -2246,6 +2277,7 @@ CREATE FUNCTION public._sales_history_guests() RETURNS trigger
     SET search_path TO 'public', 'pg_temp'
     AS $$
 begin
+  if current_setting('peyktan.restoring', true) = '1' then return coalesce(new, old); end if;
   if new.order_id is not null and new.guest_count is null and not exists(select 1 from sales_history where order_id = new.order_id) then
     select guest_count into new.guest_count from orders where id = new.order_id;
   end if;
@@ -2779,6 +2811,7 @@ CREATE FUNCTION public._trg_enqueue_okc_sale() RETURNS trigger
     AS $$
 declare c record; v_items jsonb;
 begin
+  if current_setting('peyktan.restoring', true) = '1' then return coalesce(new, old); end if;
   if coalesce(new.total,0) <= 0 then return new; end if;
   for c in select id from tenant_connectors where restaurant_id = new.restaurant_id and kind = 'okc' and enabled loop
     if v_items is null then
@@ -2802,6 +2835,7 @@ CREATE FUNCTION public._trg_order_address_to_customer() RETURNS trigger
     SET search_path TO 'public', 'pg_temp'
     AS $$
 begin
+  if current_setting('peyktan.restoring', true) = '1' then return coalesce(new, old); end if;
   if new.kind = 'takeaway' and nullif(trim(coalesce(new.delivery_address,'')),'') is not null and nullif(trim(coalesce(new.customer_phone,'')),'') is not null
      and (tg_op = 'INSERT' or new.delivery_address is distinct from old.delivery_address or new.customer_phone is distinct from old.customer_phone) then
     update customers set address = trim(new.delivery_address)
@@ -2821,6 +2855,7 @@ CREATE FUNCTION public._trg_payment_sms() RETURNS trigger
     AS $$
 declare v_phone text; v_name text; v_on boolean; v_cust text; v_tok uuid; v_link text := '';
 begin
+  if current_setting('peyktan.restoring', true) = '1' then return coalesce(new, old); end if;
   if coalesce(new.payment_method,'') = 'comp' or coalesce(new.total,0) <= 0 then return new; end if;
   select name, sms_on_payment and sms_enabled into v_name, v_on from restaurants where id = new.restaurant_id;
   if new.customer_id is not null then select phone, name into v_phone, v_cust from customers where id = new.customer_id; end if;
@@ -2855,6 +2890,7 @@ CREATE FUNCTION public._trg_reservation_sms() RETURNS trigger
     AS $$
 declare v_name text;
 begin
+  if current_setting('peyktan.restoring', true) = '1' then return coalesce(new, old); end if;
   if new.status = 'confirmed' and old.status is distinct from 'confirmed' then
     select name into v_name from restaurants where id = new.restaurant_id;
     perform _send_sms(new.restaurant_id, new.phone, _sms_text(new.restaurant_id, 'reservation_confirm', v_name || ': ' || to_char(new.reservation_time at time zone 'Europe/Istanbul', 'DD.MM.YYYY HH24:MI') ||
@@ -2889,6 +2925,7 @@ CREATE FUNCTION public._trg_role_shift_exempt_sync() RETURNS trigger
     SET search_path TO 'public', 'pg_temp'
     AS $$
 begin
+  if current_setting('peyktan.restoring', true) = '1' then return coalesce(new, old); end if;
   new.shift_exempt := not new.is_system and 'shift_exempt' = any(coalesce(new.permissions,'{}'));
   return new;
 end $$;
@@ -2903,6 +2940,7 @@ CREATE FUNCTION public._trg_shift_close_pause() RETURNS trigger
     SET search_path TO 'public', 'pg_temp'
     AS $$
 begin
+  if current_setting('peyktan.restoring', true) = '1' then return coalesce(new, old); end if;
   if new.clock_out is not null and old.clock_out is null and new.paused_since is not null then
     new.paused_seconds := coalesce(new.paused_seconds,0) + greatest(0, extract(epoch from (new.clock_out - new.paused_since)))::int;
     new.paused_since := null;
@@ -2921,6 +2959,7 @@ CREATE FUNCTION public._trg_shift_exempt_limit() RETURNS trigger
     AS $$
 declare v_new boolean; v_old boolean := false;
 begin
+  if current_setting('peyktan.restoring', true) = '1' then return coalesce(new, old); end if;
   select exists(select 1 from roles where id = any(new.role_ids) and shift_exempt and not is_system) into v_new;
   if tg_op = 'UPDATE' then select exists(select 1 from roles where id = any(old.role_ids) and shift_exempt and not is_system) into v_old; end if;
   if v_new and not v_old and _shift_exempt_user_count(new.restaurant_id) > 3 then
@@ -2965,6 +3004,7 @@ CREATE FUNCTION public._trim_customer_name() RETURNS trigger
     SET search_path TO 'public', 'pg_temp'
     AS $$
 begin
+  if current_setting('peyktan.restoring', true) = '1' then return coalesce(new, old); end if;
   if new.customer_name is not null then new.customer_name := left(btrim(regexp_replace(new.customer_name, '\s+', ' ', 'g')), 60); end if;
   return new;
 end $$;
@@ -4939,7 +4979,6 @@ begin
   select count(*) into v_current_count from app_users where restaurant_id = s.restaurant_id and not is_company_owner;
   if v_current_count >= v_max_users then raise exception 'Paketinizin kullanıcı limitine (%) ulaştınız', v_max_users; end if;
   insert into app_users (restaurant_id, username, password, role_ids) values (s.restaurant_id, p_username, crypt(p_password, gen_salt('bf')), p_role_ids) returning id into new_id;
-  update app_users set password_enc = _enc(p_password) where id = new_id;
   return new_id;
 end; $$;
 
@@ -7138,6 +7177,7 @@ begin
       'google_review_url', (select case when 'google_reviews' = any(_restaurant_features(s.restaurant_id)) then google_review_url end from restaurants where id = s.restaurant_id),
       'online_ordering', (select json_build_object('enabled', online_ordering_enabled, 'code', code) from restaurants where id = s.restaurant_id),
       'ticket_design', (select ticket_design from restaurants where id = s.restaurant_id),
+      'guest_reminder', (select guest_reminder from restaurants where id = s.restaurant_id),
       'company', (
         select case when r.company_id is null then null
           else json_build_object('id', c.id, 'name', c.name) end
@@ -7424,6 +7464,17 @@ end $$;
 --
 
 CREATE FUNCTION public.get_table_bill(p_qr_token uuid) RETURNS jsonb
+    LANGUAGE sql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+  select jsonb_build_object('table', (select name from restaurant_tables where qr_token = p_qr_token), 'items', '[]'::jsonb, 'total', 0, 'payable', 0, 'outdated', true, 'pay', jsonb_build_object('enabled', false)) $$;
+
+
+--
+-- Name: get_table_bill_v2(uuid, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.get_table_bill_v2(p_qr_token uuid, p_device text) RETURNS jsonb
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public', 'pg_temp'
     AS $$
@@ -7434,6 +7485,8 @@ begin
   select * into o from orders where table_id = t.id and status = 'open' order by created_at desc limit 1;
   select jsonb_build_object('enabled', ti.pay_provider = 'iyzico' and ti.pay_mode in ('optional','required') and ti.pay_api_key is not null)
     into v_pay from tenant_integrations ti where ti.restaurant_id = t.restaurant_id;
+  if o.id is not null and not _qr_bill_allowed(p_device, t.id, o.id) then
+    return jsonb_build_object('table', t.name, 'items', '[]'::jsonb, 'total', 0, 'payable', 0, 'closed', true, 'pay', jsonb_build_object('enabled', false)); end if;
   if o.id is null then return jsonb_build_object('table', t.name, 'items', '[]'::jsonb, 'total', 0, 'payable', 0, 'pay', coalesce(v_pay, '{"enabled":false}')); end if;
   return (select jsonb_build_object('table', t.name, 'pay', coalesce(v_pay, '{"enabled":false}'),
       'items', coalesce(jsonb_agg(jsonb_build_object('name', name, 'qty', qty, 'price', price, 'ready', status = 'ready') order by added_at), '[]'::jsonb),
@@ -7761,8 +7814,9 @@ declare s staff_sessions%rowtype; v_user app_users%rowtype; v_code text; v_fail 
     'allowances','reviews','online_menu_sections','online_menu_items','customer_order_requests','waiter_calls','audit_log'];
 begin
   s := _session_check(p_token);
-  if not exists(select 1 from app_users au join roles rl on rl.id = any(au.role_ids) where au.id = s.user_id and (rl.is_system or 'settings_datareset' = any(rl.permissions))) then
-    raise exception 'Yedeği yalnızca Yönetici yükleyebilir'; end if;
+  if not exists(select 1 from app_users au join roles rl on rl.id = any(au.role_ids) where au.id = s.user_id and rl.is_system) then
+    raise exception 'Yedeği yalnızca işletme sahibi (Yönetici) yükleyebilir'; end if;
+  perform set_config('peyktan.restoring', '1', true);
   select * into v_user from app_users where id = s.user_id;
   select code into v_code from restaurants where id = s.restaurant_id;
   select count(*) into v_fail from login_failures where restaurant_code = v_code and username = v_user.username and created_at > now() - interval '15 minutes';
@@ -7782,27 +7836,27 @@ begin
     continue when v_pk is null;
     select string_agg(quote_ident(x), ',') into v_pkl from unnest(v_pk) x;
     select string_agg(quote_ident(c.column_name), ',' order by c.ordinal_position),
-           string_agg(format('%1$I = excluded.%1$I', c.column_name), ',' order by c.ordinal_position) filter (where c.column_name <> 'restaurant_id' and not (c.column_name = any(v_pk)))
+           string_agg(format('%1$I = excluded.%1$I', c.column_name), ',' order by c.ordinal_position) filter (where c.column_name <> 'restaurant_id' and not (c.column_name = any(v_pk))
+         and not (t = 'app_users' and c.column_name in ('role_ids','password','password_enc','is_active'))
+         and not (t = 'roles' and c.column_name in ('is_system','permissions')))
       into v_cols, v_upd
       from information_schema.columns c
      where c.table_schema = 'public' and c.table_name = t and c.is_generated = 'NEVER'
        and exists(select 1 from jsonb_object_keys(v_rows->0) k where k = c.column_name);
     continue when v_cols is null;
-    -- tetikleyiciler (SMS, stok vb.) geri yükleme sırasında çalışmasın
-    execute format('alter table %I disable trigger user', t);
     if t = 'app_users' then
       execute format($q$insert into app_users (%1$s, password)
         select %1$s, crypt(gen_random_uuid()::text, gen_salt('bf')) from jsonb_populate_recordset(null::app_users, $1) x where x.restaurant_id = $2
-        on conflict (%3$s) do update set %2$s$q$, v_cols, v_upd, v_pkl)
+        on conflict (%3$s) do update set %2$s where app_users.restaurant_id = excluded.restaurant_id$q$, v_cols, v_upd, v_pkl)
         using v_rows, s.restaurant_id;
     else
       execute format($q$insert into %1$I (%2$s) select %2$s from jsonb_populate_recordset(null::%1$I, $1) x where x.restaurant_id = $2
-        on conflict (%4$s) do %3$s$q$, t, v_cols, case when v_upd is null then 'nothing' else 'update set ' || v_upd end, v_pkl)
+        on conflict (%4$s) do %3$s$q$, t, v_cols, case when v_upd is null then 'nothing' else 'update set ' || v_upd || format(' where %1$I.restaurant_id = excluded.restaurant_id', t) end, v_pkl)
         using v_rows, s.restaurant_id;
     end if;
     get diagnostics v_n = row_count; v_res := v_res || jsonb_build_object(t, v_n);
-    execute format('alter table %I enable trigger user', t);
   end loop;
+  perform set_config('peyktan.restoring', '', true);
   insert into audit_log(restaurant_id, user_id, entity, action, label) values (s.restaurant_id, s.user_id, 'backup', 'restore', 'Yedek geri yüklendi');
   return jsonb_build_object('ok', true, 'restored', v_res);
 end $_$;
@@ -9147,6 +9201,10 @@ declare
   v_gift_card gift_cards%rowtype;
   v_paid_total numeric;
 begin
+  -- Müşteri QR'dan kartla öderken garson aynı hesabı tahsil etmesin (çift çekim).
+  if coalesce(current_setting('peyktan.finalizing', true), '') <> '1' and exists(select 1 from online_payments op where op.status = 'pending' and op.payload->>'kind' = 'table' and op.payload->>'order_id' = p_order_id::text and op.created_at > now() - interval '5 minutes') then
+    raise exception 'Müşteri bu hesabı şu anda QR ile kartla ödüyor. Birkaç dakika bekleyin; ödeme tamamlanmazsa 5 dakika sonra tekrar deneyin.';
+  end if;
   s := _session_check(p_token, 'payments');
 
   perform 1 from orders where id = p_order_id and restaurant_id = s.restaurant_id for update;
@@ -9848,15 +9906,7 @@ CREATE FUNCTION public.reveal_staff_password(p_token uuid, p_user_id uuid) RETUR
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public', 'extensions', 'pg_temp'
     AS $$
-declare v_rid uuid; v_uid uuid; v_enc text; v_name text;
-begin
-  select (x).restaurant_id, (x).user_id into v_rid, v_uid from (select _session_check(p_token, null) x) z;
-  if not exists(select 1 from app_users au join roles rl on rl.id = any(au.role_ids) where au.id = v_uid and rl.is_system) then raise exception 'Şifreleri yalnızca Yönetici görebilir'; end if;
-  select password_enc, username into v_enc, v_name from app_users where id = p_user_id and restaurant_id = v_rid;
-  if not found then raise exception 'Kullanıcı bulunamadı'; end if;
-  insert into audit_log(restaurant_id, user_id, entity, entity_id, action, label) values (v_rid, v_uid, 'app_users', p_user_id::text, 'reveal_password', v_name || ' şifresi görüntülendi');
-  return _dec(v_enc);
-end $$;
+begin raise exception 'Kayıtlı şifreler artık görüntülenemez. Yeni şifre üretip kaydederek sıfırlayın.'; end $$;
 
 
 --
@@ -10505,7 +10555,7 @@ begin
     pw := null;
     if p_reset_password then
       pw := upper(substr(md5(gen_random_uuid()::text), 1, 3)) || floor(100 + random()*900)::text;
-      update app_users set password = crypt(pw, gen_salt('bf')), password_enc = _enc(pw) where id = u.id;
+      update app_users set password = crypt(pw, gen_salt('bf')) where id = u.id;
     end if;
     msg := _sms_text(s.restaurant_id, 'staff_login', r.name || ' - Peyktan giris bilgileriniz: Isletme kodu: ' || r.code || ' Kullanici: ' || u.username ||
       coalesce(' Sifre: ' || pw, '') || ' Android: https://play.google.com/store/apps/details?id=com.peyktan.app iPhone/Web: https://www.peyktan.com/app/',
@@ -10870,6 +10920,24 @@ begin
   s := _session_check(p_token, 'shifts');
   if p_hour is null or p_hour < 0 or p_hour > 23 then raise exception 'Geçersiz saat'; end if;
   update restaurants set day_end_hour = p_hour where id = s.restaurant_id;
+end $$;
+
+
+--
+-- Name: set_guest_reminder(uuid, boolean); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.set_guest_reminder(p_token uuid, p_on boolean) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'extensions', 'pg_temp'
+    AS $$
+declare s staff_sessions%rowtype; begin
+  s := _session_check(p_token);
+  if not exists(select 1 from app_users au join roles rl on rl.id = any(au.role_ids) where au.id = s.user_id and rl.is_system) then
+    raise exception 'Bu ayarı yalnızca yönetici değiştirebilir'; end if;
+  update restaurants set guest_reminder = coalesce(p_on, true) where id = s.restaurant_id;
+  insert into audit_log(restaurant_id, user_id, entity, action, label) values (s.restaurant_id, s.user_id, 'settings', 'update', 'Kişi sayısı hatırlatması ' || case when p_on then 'açıldı' else 'kapatıldı' end);
+  return coalesce(p_on, true);
 end $$;
 
 
@@ -12089,6 +12157,17 @@ CREATE FUNCTION public.start_table_payment(p_qr_token uuid) RETURNS uuid
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public', 'pg_temp'
     AS $$
+begin raise exception 'Lütfen sayfayı yenileyin.'; end $$;
+
+
+--
+-- Name: start_table_payment_v2(uuid, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.start_table_payment_v2(p_qr_token uuid, p_device text) RETURNS uuid
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
 declare t restaurant_tables%rowtype; o orders%rowtype; v_items jsonb; v_amt numeric; v_id uuid;
 begin
   select * into t from restaurant_tables where qr_token = p_qr_token;
@@ -12097,6 +12176,7 @@ begin
     raise exception 'Bu işletmede online ödeme kapalı'; end if;
   select * into o from orders where table_id = t.id and status = 'open' order by created_at desc limit 1;
   if o.id is null then raise exception 'Açık hesap yok'; end if;
+  if not _qr_bill_allowed(p_device, t.id, o.id) then raise exception 'Bu hesap size ait görünmüyor. Ödeme için garsonu çağırın.'; end if;
   select jsonb_agg(jsonb_build_object('item_id', id, 'qty', qty)), sum(price * qty) into v_items, v_amt
     from order_items where order_id = o.id and not paid and status = 'ready';
   if coalesce(v_amt, 0) <= 0 then raise exception 'Ödenecek hazır ürün yok'; end if;
@@ -12935,7 +13015,7 @@ begin
   update app_users set username = coalesce(p_username, username),
     password = case when p_password is not null then crypt(p_password, gen_salt('bf')) else password end,
     role_ids = coalesce(p_role_ids, role_ids),
-    password_enc = case when p_password is not null then _enc(p_password) else password_enc end
+    password_enc = null
   where id = p_user_id and restaurant_id = s.restaurant_id;
 end; $$;
 
@@ -13479,7 +13559,7 @@ begin
   end if;
 
   update password_reset_otps set verified = true where id = v_row.id;
-  update app_users set password = crypt(p_new_password, gen_salt('bf')), password_enc = _enc(p_new_password) where id = v_user.id;
+  update app_users set password = crypt(p_new_password, gen_salt('bf')) where id = v_user.id;
   delete from staff_sessions where user_id = v_user.id;
   return true;
 end;
@@ -14806,6 +14886,18 @@ CREATE TABLE public.push_subscriptions (
 
 
 --
+-- Name: qr_bill_devices; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.qr_bill_devices (
+    device text NOT NULL,
+    table_id uuid NOT NULL,
+    order_id uuid NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
 -- Name: radio_channel_members; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -14982,6 +15074,7 @@ CREATE TABLE public.restaurants (
     user_limit_override integer,
     owner_report jsonb DEFAULT '{}'::jsonb NOT NULL,
     order_show_closed boolean DEFAULT true NOT NULL,
+    guest_reminder boolean DEFAULT true NOT NULL,
     CONSTRAINT restaurants_day_end_hour_check CHECK (((day_end_hour >= 0) AND (day_end_hour <= 23))),
     CONSTRAINT restaurants_default_vat_rate_check CHECK (((default_vat_rate >= (0)::numeric) AND (default_vat_rate <= (100)::numeric)))
 );
@@ -16058,6 +16151,14 @@ ALTER TABLE ONLY public.push_subscriptions
 
 
 --
+-- Name: qr_bill_devices qr_bill_devices_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.qr_bill_devices
+    ADD CONSTRAINT qr_bill_devices_pkey PRIMARY KEY (device, order_id);
+
+
+--
 -- Name: radio_channel_members radio_channel_members_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -17119,6 +17220,13 @@ CREATE UNIQUE INDEX promotions_code_uq ON public.promotions USING btree (restaur
 --
 
 CREATE INDEX public_cart_holds_product ON public.public_cart_holds USING btree (product_id, expires_at);
+
+
+--
+-- Name: qr_bill_devices_tbl_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX qr_bill_devices_tbl_idx ON public.qr_bill_devices USING btree (device, table_id, created_at);
 
 
 --
@@ -19096,6 +19204,12 @@ ALTER TABLE public.purchase_orders ENABLE ROW LEVEL SECURITY;
 --
 
 ALTER TABLE public.push_subscriptions ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: qr_bill_devices; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.qr_bill_devices ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: radio_channel_members; Type: ROW SECURITY; Schema: public; Owner: -
