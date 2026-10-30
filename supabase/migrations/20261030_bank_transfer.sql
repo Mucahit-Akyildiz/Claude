@@ -24,3 +24,5 @@ alter table restaurants add column if not exists voice_enabled boolean not null 
 -- _cron_pkg_alerts ve _nav_badges pkg_deadline bu saate göre.
 create or replace function public._pkg_deadline(o orders) returns timestamptz language sql immutable as $f$
   select o.pickup_at - case when coalesce(o.takeaway_type, case when o.delivery_address is not null then 'delivery' else 'pickup' end) = 'delivery' then interval '10 minutes' else interval '0' end $f$;
+-- Z raporu: get_analytics_bundle kpi'ye open_acc, open_acc_n, open_acc_paid, transfer eklendi.
+-- Garson kartları: hesap, siparişi açan garsona (orders.created_by) yazılır; get_analytics_bundle.staff ve get_staff_detail. (Canlıya uygulandı.)

@@ -293,7 +293,8 @@ async function renderZReportContent(session, quiet){
   const rows = [
     ['Brüt satış (indirim öncesi)', money(gross)], ['İndirimler', '−' + money(anN(k.discount) - anN(k.birthday))], ['Doğum günü indirimi', '−' + money(k.birthday)],
     ['NET CİRO', money(k.revenue), 'big'], ['—'],
-    ['💵 Nakit', money(k.cash)], ['💳 Kredi kartı', money(k.card)], ['🎁 Hediye kartı', money(k.gift)], ...(anN(k.points) ? [['⭐ Puanla ödeme', money(k.points)]] : []), ['—'],
+    ['💵 Nakit', money(k.cash)], ['💳 Kredi kartı', money(k.card)], ['🎁 Hediye kartı', money(k.gift)], ...(anN(k.transfer) ? [['🏦 Havale / EFT', money(k.transfer)]] : []), ...(anN(k.points) ? [['⭐ Puanla ödeme', money(k.points)]] : []),
+    ['📒 Açık hesaba yazılan (' + (k.open_acc_n || 0) + ' hesap)', money(k.open_acc)], ['📒 Açık hesap tahsilatı', money(k.open_acc_paid)], ['—'],
     ['Hesap sayısı', k.checks || 0], ['Kişi sayısı', anN(k.guests) || 0], ['Kişi başı', money(anN(k.guests) ? anN(k.guest_rev) / anN(k.guests) : 0)], ['Ortalama hesap', money(k.checks ? k.revenue / k.checks : 0)], ['Bahşiş', money(k.tips)], ['—'],
     ['🎁 İkram / personel (' + (k.comp_n || 0) + ' hesap)', money(k.comp)], ['❌ İptal edilen masa', c.orders || 0], ['❌ İptal edilen ürün tutarı', money(c.cur && c.cur.amount)], ['🔥 İsraf maliyeti', money(d.waste)], ['—'],
     ['Ürün maliyeti', money(k.cost)], ['BRÜT KÂR', money(anN(k.revenue) - anN(k.cost) - anN(d.waste)), 'big']];
