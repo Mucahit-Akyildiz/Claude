@@ -150,7 +150,8 @@ function navItemVisible(item, session){
   if(item.view==='messages') return !!session.isManager || hasPerm(session, 'messages');
   // Peyk Bas-Konuş (telsiz) ayrı rol izni (Ayarlar > Roller).
   if(item.view==='radio') return !!session.isManager || hasPerm(session, 'radio');
-  if(item.view==='settings') return session.isManager || (session.permissions||[]).some(p => p.startsWith('settings_')) || canManage(session, 'printer_settings');
+  // Ayarlar herkese açık: yetkisi olmayan personel yalnızca Bildirim Ayarları'nı (sesli bildirim, doğum günü — cihaza özel) görür.
+  if(item.view==='settings') return true;
   if(item.view==='purchasing') return ['orders','manage'].some(x => hasPurchPerm(session, x));
   if(!item.perm) return true;
   return hasPerm(session, item.perm);
