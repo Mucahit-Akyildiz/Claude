@@ -8,7 +8,7 @@ const { getAdapter } = require('./_integrations');
 module.exports = async function handler(req, res) {
   if (req.method !== 'POST') { res.status(405).json({ error: 'Method not allowed' }); return; }
   const secret = process.env.PUSH_DISPATCH_SECRET;
-  if (!secret || req.headers['x-push-secret'] !== secret) { res.status(401).json({ error: 'unauthorized' }); return; }
+  if (!secret || !safeEqual(req.headers['x-push-secret'], secret)) { res.status(401).json({ error: 'unauthorized' }); return; }
   const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
   const { data: jobs, error } = await supabase.rpc('_claim_integration_jobs', { p_limit: 20 });
   if (error) { console.error('claim', error); res.status(500).json({ error: 'claim failed' }); return; }
@@ -32,3 +32,11 @@ module.exports = async function handler(req, res) {
   }
   res.status(200).json({ processed: out.length });
 };
+
+// Gizli anahtar karşılaştırması sabit sürede yapılır (zamanlama saldırısı).
+function safeEqual(a, b) {
+  const crypto = require('crypto');
+  const ha = crypto.createHash('sha256').update(String(a || '')).digest();
+  const hb = crypto.createHash('sha256').update(String(b || '')).digest();
+  return crypto.timingSafeEqual(ha, hb);
+}

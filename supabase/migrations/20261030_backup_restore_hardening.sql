@@ -25,3 +25,8 @@ declare s staff_sessions%rowtype; begin
   insert into audit_log(restaurant_id, user_id, entity, action, label) values (s.restaurant_id, s.user_id, 'settings', 'update', 'Kişi sayısı hatırlatması ' || case when p_on then 'açıldı' else 'kapatıldı' end);
   return coalesce(p_on, true);
 end $f$;
+
+-- Güvenlik (canlıya DO bloklarıyla uygulandı):
+--  * password_enc artık yazılmıyor ve temizlendi; reveal_staff_password hata döner (şifre görüntüleme yerine yeni şifre üret/kaydet)
+--  * _finalize_table_payment geçici oturumu bitince logged_out_at işaretlenir
+--  * pay_order_items: masada 5 dk içinde bekleyen QR kart ödemesi varsa (peyktan.finalizing bayrağı yoksa) tahsilatı reddeder
