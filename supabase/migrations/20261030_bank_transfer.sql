@@ -28,3 +28,5 @@ create or replace function public._pkg_deadline(o orders) returns timestamptz la
 -- Garson kartları: hesap, siparişi açan garsona (orders.created_by) yazılır; get_analytics_bundle.staff ve get_staff_detail. (Canlıya uygulandı.)
 -- Havale banka bazında (canlıya uygulandı): orders/sales_history.transfer_bank_id, set_order_transfer_bank,
 -- _sales_history_transfer siparişteki bankayı kopyalar; bundle kpi.transfer_banks.
+-- Müşteri kampanyası (canlıya uygulandı): get_winback p_days 0 = tüm müşteriler, -1 = son 30 günde gelenler, buckets.all;
+-- send_campaign(p_token, p_ids, p_text, p_channel, p_subject): 24 saat çift gönderim koruması, SMS/e-posta purpose 'campaign'.
