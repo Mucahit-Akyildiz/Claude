@@ -362,16 +362,16 @@ function openPayModal(orderId){
       <span class="label">Ödenecek</span>
       <span class="amt" id="payFinalTotal">${money(subtotal)}</span>
     </div>
-    <div class="pay-method-grid">
+    <div class="pay-method-grid pm3">
       <button class="pay-method-btn cash" id="payCashBtn" ${act('finishPaymentFull', 'cash')}><kbd class="sc-k">F2</kbd><span class="pm-ic">💵</span><b>Nakit</b><small>Tam ödeme</small></button>
       <button class="pay-method-btn card" id="payCardBtn" ${act('finishPaymentFull', 'card')}><kbd class="sc-k">F3</kbd><span class="pm-ic">💳</span><b>Kredi Kartı</b><small>POS cihazı</small></button>
+      <button class="pay-method-btn transfer" id="payTransferBtn" ${act('openTransferPay')}><span class="pm-ic">🏦</span><b>Havale / EFT</b><small>IBAN gönder</small></button>
     </div>
-    <div class="pay-method-grid secondary">
-      <button class="pay-method-btn gift" id="payGiftCardPayBtn" disabled ${act('finishPaymentFull', 'gift_card')}>🎁 Hediye Kartı ile Öde</button>
-      <button class="pay-method-btn split" id="paySplitBtn" ${act('openSplitPay')}><kbd class="sc-k">F4</kbd>➗ Bölünmüş Ödeme</button>
+    <div class="pay-alt-grid">
+      <button type="button" class="pay-alt gift" id="payGiftCardPayBtn" disabled ${act('finishPaymentFull', 'gift_card')}><span>🎁</span><b>Hediye Kartı</b><small>ile öde</small></button>
+      <button type="button" class="pay-alt split" id="paySplitBtn" ${act('openSplitPay')}><kbd class="sc-k">F4</kbd><span>➗</span><b>Bölünmüş</b><small>ödeme</small></button>
+      <button type="button" class="pay-alt open" id="payOpenAccBtn" ${act('openOpenAccountTransfer')}><kbd class="sc-k">F8</kbd><span>📒</span><b>Açık Hesap</b><small>veresiye</small></button>
     </div>
-    <button type="button" class="pay-method-btn split" id="payTransferBtn" style="width:100%;margin-top:10px;" ${act('openTransferPay')}>🏦 Havale / EFT</button>
-    <button type="button" class="pay-method-btn split" id="payOpenAccBtn" style="width:100%;margin-top:10px;" ${act('openOpenAccountTransfer')}><kbd class="sc-k">F8</kbd>📒 Açık Hesaba At</button>
     <div class="pay-extra-row">
     <button type="button" class="ghost-btn" ${act('printPayReceipt')}>🧾 Kasa Fişi Yazdır (fiyatlı)</button>
     <label class="pay-email-toggle ${APP.payWantsEmail?'on':''}">
@@ -668,7 +668,7 @@ function updatePayReadiness(){
   }
   warn.style.display = notReady.length ? '' : 'none';
   warn.innerHTML = notReady.length ? '⏳ Mutfakta hazır olmayan ürün var, ödeme alınamaz: ' + notReady.map(i => escapeHtml(i.name)).join(', ') : '';
-  bg.querySelectorAll('.pay-method-btn').forEach(b => {
+  bg.querySelectorAll('.pay-method-btn, .pay-alt').forEach(b => {
     if(b.id === 'payGiftCardPayBtn' && !bg.dataset.giftCardCode) return;
     b.disabled = notReady.length > 0; b.style.opacity = notReady.length ? '.5' : '';
   });
@@ -973,27 +973,42 @@ async function finishPayment(orderId, method, total, cash, card, discountAmount,
 }
 
 /* Havale / EFT: işletmenin IBAN'ı gösterilir, müşteriye SMS / e-postayla gönderilir; para gelince ödeme kapatılır. */
-function openTransferPay(){
+async function openTransferPay(){
   const bk = (APP.config && APP.config.bank) || {};
-  const amt = Math.round((payFinalTotal() + parseFloat((document.getElementById('payModalBg') || {dataset:{}}).dataset.tipAmount || 0)) * 100) / 100;
-  const ov = document.createElement('div'); ov.className = 'modal-bg'; ov.id = 'transferBg'; ov.style.zIndex = '130';
+  const bg = document.getElementById('payModalBg') || { dataset:{} };
+  const amt = Math.round((payFinalTotal() + parseFloat(bg.dataset.tipAmount || 0)) * 100) / 100;
+  // Siparişte / ödemede müşteri varsa telefon, e-posta ve ad otomatik dolar.
+  let cust = { name:'', phone:'', email:'' };
+  const order = (APP.liveOrders || []).find(o => o.order_id === bg.dataset.orderId);
+  if(order){ cust.name = order.customer_name || ''; cust.phone = order.customer_phone || ''; }
+  if(bg.dataset.customerId){
+    const { data } = await sb.rpc('get_customer_by_id', { p_token: getSession().session_token, p_id: bg.dataset.customerId });
+    if(data){ cust = { name: data.name || cust.name, phone: data.phone || cust.phone, email: data.email || '' }; }
+  }
+  const ov = document.createElement('div'); ov.className = 'dg-bg'; ov.id = 'transferBg'; ov.style.zIndex = '2900';
   const iban = typeof fmtIban === 'function' ? fmtIban(bk.bank_iban || '') : (bk.bank_iban || '');
-  ov.innerHTML = `<div class="modal tr-modal">
+  const matched = !!bg.dataset.customerId;
+  ov.innerHTML = `<div class="dg-card tr-modal">
     <h2>🏦 Havale / EFT</h2>
-    ${bk.bank_iban ? `<div class="tr-card">
+    ${bk.bank_iban ? `<div class="tr-top"><div class="tr-card">
         <div class="tr-row"><span>Banka</span><b>${escapeHtml(bk.bank_name || '—')}</b></div>
         <div class="tr-row"><span>Hesap sahibi</span><b>${escapeHtml(bk.bank_holder || '—')}</b></div>
-        <div class="tr-row"><span>IBAN</span><b class="tr-iban">${escapeHtml(iban)}</b><button type="button" class="ghost-btn tr-copy" ${act('copyIban')}>📋 Kopyala</button></div>
-        <div class="tr-row"><span>Tutar</span><b class="tr-amt">${money(amt)}</b></div></div>
-      <div class="ix-st" style="margin:14px 0 6px;">Müşteriye gönder</div>
-      <div class="tr-send"><input id="trPhone" type="tel" inputmode="tel" placeholder="Telefon (05xx…)"><button type="button" ${act('sendIban', 'sms')}>📱 SMS</button></div>
-      <div class="tr-send"><input id="trEmail" type="email" placeholder="E-posta adresi"><button type="button" ${act('sendIban', 'email')}>✉️ E-posta</button></div>
+        <div class="tr-row"><span>IBAN</span><b class="tr-iban">${escapeHtml(iban)}</b></div>
+        <div class="tr-row"><span>Tutar</span><b class="tr-amt">${money(amt)}</b><button type="button" class="ghost-btn tr-copy" ${act('copyIban')}>📋 IBAN'ı kopyala</button></div></div>
+        <div class="tr-qr"><div id="trQr"></div><small>Telefon kamerasıyla okutun, IBAN'ı kopyalayıp banka uygulamasına yapıştırın</small></div></div>
+      <div class="ix-st" style="margin:14px 0 6px;">Müşteriye gönder ${matched ? '<span class="tr-match">✓ siparişteki müşteri</span>' : ''}</div>
+      <input id="trName" placeholder="Müşteri adı (kayıtlı değilse müşterilere eklenir)" value="${escapeAttr(cust.name)}" style="margin:0 0 8px;">
+      <div class="tr-send"><input id="trPhone" type="tel" inputmode="tel" placeholder="Telefon (05xx…)" value="${escapeAttr(cust.phone)}"><button type="button" ${act('sendIban', 'sms')}>📱 SMS</button></div>
+      <div class="tr-send"><input id="trEmail" type="email" placeholder="E-posta adresi" value="${escapeAttr(cust.email)}"><button type="button" ${act('sendIban', 'email')}>✉️ E-posta</button></div>
       <button type="button" class="tr-done" ${act('confirmTransferPay')}>✅ Havale alındı · Ödemeyi kapat</button>`
     : `<p class="muted">Henüz IBAN girilmemiş. ${getSession().isManager ? '<b>Ayarlar → Entegrasyonlar → Banka / IBAN</b> bölümünden ekleyin.' : 'Yöneticinizden <b>Ayarlar → Entegrasyonlar → Banka / IBAN</b> bölümünü doldurmasını isteyin.'}</p>
        <button type="button" class="tr-done" ${act('confirmTransferPay')}>✅ Havale alındı · Ödemeyi kapat</button>`}
     <button type="button" class="ghost-btn" style="width:100%;margin-top:8px;" ${act('closeTransferPay')}>Vazgeç</button></div>`;
   ov.addEventListener('click', e => { if(e.target === ov) ov.remove(); });
   document.body.appendChild(ov);
+  if(bk.bank_iban && typeof loadQrLib === 'function'){
+    try{ await loadQrLib(); const q = qrcode(0, 'M'); q.addData(bk.bank_iban); q.make(); const el = document.getElementById('trQr'); if(el) el.innerHTML = q.createSvgTag({ cellSize: 4, margin: 2 }); }catch(e){}
+  }
 }
 function closeTransferPay(){ const o = document.getElementById('transferBg'); if(o) o.remove(); }
 function copyIban(){ const bk = (APP.config && APP.config.bank) || {}; try{ navigator.clipboard.writeText(bk.bank_iban || ''); showToast('IBAN kopyalandı ✓'); }catch(e){ showToast('Kopyalanamadı'); } }
@@ -1003,9 +1018,13 @@ async function sendIban(kind){
   if(kind === 'sms' && phone.replace(/\D/g, '').length < 10){ showToast('Geçerli bir telefon girin'); return; }
   if(kind === 'email' && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)){ showToast('Geçerli bir e-posta girin'); return; }
   const amt = Math.round((payFinalTotal() + parseFloat((document.getElementById('payModalBg') || {dataset:{}}).dataset.tipAmount || 0)) * 100) / 100;
-  const { error } = await sb.rpc('send_iban', { p_token: getSession().session_token, p_phone: phone || null, p_email: email || null, p_amount: amt });
+  const bg = document.getElementById('payModalBg') || { dataset:{} };
+  const name = ((document.getElementById('trName') || {}).value || '').trim();
+  const { data, error } = await sb.rpc('send_iban_to', { p_token: getSession().session_token, p_phone: phone || null, p_email: email || null, p_amount: amt, p_name: name || null, p_customer_id: bg.dataset.customerId || null });
   if(error){ showToast(typeof friendlySendError === 'function' ? friendlySendError(error.message) : error.message); return; }
-  showToast(kind === 'sms' ? 'IBAN SMS ile gönderildi ✓' : 'IBAN e-postayla gönderildi ✓');
+  // Müşteri eşleşti / yeni kaydedildi: ödeme bu müşteriye bağlanır.
+  if(data && data.customer_id && bg.dataset && !bg.dataset.customerId) bg.dataset.customerId = data.customer_id;
+  showToast((kind === 'sms' ? 'IBAN SMS ile gönderildi ✓' : 'IBAN e-postayla gönderildi ✓') + (data && data.customer_new ? ' · Müşteri kaydedildi' : ''));
 }
 async function confirmTransferPay(){
   if(!(await uiConfirm('Havalenin hesabınıza geçtiğini kontrol ettiniz mi? Ödeme "Havale/EFT" olarak kapatılacak.'))) return;
