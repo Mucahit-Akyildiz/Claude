@@ -46,6 +46,7 @@ module.exports = async function handler(req, res) {
     const body = await readRaw(req);
     if (!body.length) { res.status(400).json({ error: 'Dosya boş' }); return; }
     if (body.length > MAX) { res.status(413).json({ error: 'Fotoğraf çok büyük' }); return; }
+    if (sniffImage(body) !== mime) { res.status(400).json({ error: 'Dosya geçerli bir JPEG/PNG/WEBP görseli değil' }); return; }
     const path = `${restaurantId}/${new Date().toISOString().slice(0, 7)}/${crypto.randomUUID()}.${mime.split('/')[1]}`;
     const { error: upErr } = await supabase.storage.from('review-media').upload(path, body, { contentType: mime, upsert: false });
     if (upErr) { res.status(500).json({ error: 'Yüklenemedi' }); return; }
@@ -56,3 +57,11 @@ module.exports = async function handler(req, res) {
     res.status(e && e.message === 'too large' ? 413 : 500).json({ error: e && e.message === 'too large' ? 'Fotoğraf çok büyük' : 'Sunucu hatası' });
   }
 };
+
+// Dosyanın gerçekten görsel olduğunu ilk baytlarından (imza) doğrular; x-mime başlığına güvenilmez.
+function sniffImage(b) {
+  if (b.length >= 3 && b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff) return 'image/jpeg';
+  if (b.length >= 8 && b.slice(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))) return 'image/png';
+  if (b.length >= 12 && b.toString('ascii', 0, 4) === 'RIFF' && b.toString('ascii', 8, 12) === 'WEBP') return 'image/webp';
+  return null;
+}
