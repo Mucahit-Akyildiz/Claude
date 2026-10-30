@@ -591,7 +591,7 @@ async function renderProductStatsContent(session){
       <span class="race-rank ${idx<3?'top':''}">${medal}</span>
       <div class="race-main"><div class="race-label"><b>${escapeHtml(r.name)}</b>${r.station_name ? `<small>${escapeHtml(r.station_name)}</small>` : ''}</div>
         <div class="race-track"><div class="race-bar" style="width:${pct}%;"><span>${APP.productStatsSort==='qty' ? r.qty+' adet' : money(r.revenue)}</span></div></div></div>
-      <span class="race-side">${APP.productStatsSort==='qty' ? money(r.revenue) : r.qty+' adet'}<small>${totalRev ? '%'+Math.round(Number(r.revenue)/totalRev*100)+' ciro' : ''}</small></span>
+      <span class="race-side">${APP.productStatsSort==='qty' ? money(r.revenue) : r.qty+' adet'}<small>${totalRev ? '%'+Math.round(Number(r.revenue)/totalRev*100)+' ciro' : ''}</small>${r.tagged_qty ? `<small class="ps-tag" title="Personel / ikram / limitli hesap etiketli siparişler: ciroya ve kâr analizine katılmaz">+${r.tagged_qty} personel/ikram</small>` : ''}</span>
     </div>`; }).join('')}</div>${sorted.length > 10 ? `<button type="button" class="pc-btn" style="margin-top:10px;" ${act('setProductStatsOpt', 'productStatsAll', !APP.productStatsAll)}>${APP.productStatsAll ? 'İlk 10\'u göster' : 'Tümünü göster ('+sorted.length+')'}</button>` : ''}`;
 
   el.innerHTML = `
