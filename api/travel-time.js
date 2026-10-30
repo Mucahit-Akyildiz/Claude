@@ -68,7 +68,11 @@ module.exports = async function handler(req, res) {
   if (!KEY()) { res.status(200).json({ fallback: true, error: 'Harita servisi henüz bağlı değil (GOOGLE_MAPS_API_KEY). Varsayılan süre kullanılacak.' }); return; }
   try {
     const g = await geocode(String(body.address).slice(0, 300));
-    if (g.error) { res.status(200).json({ error: 'Adres bulunamadı, daha ayrıntılı yazın (mahalle, ilçe, il).' }); return; }
+    if (g.error) {
+      const why = { REQUEST_DENIED: 'Google isteği reddetti: Geocoding API etkin değil, anahtar kısıtlaması yanlış ya da faturalandırma (ön ödeme) tamamlanmamış.',
+        OVER_QUERY_LIMIT: 'Google kota sınırı aşıldı.', ZERO_RESULTS: 'Adres bulunamadı, daha ayrıntılı yazın (mahalle, sokak, ilçe, il).' }[g.error];
+      res.status(200).json({ error: why || ('Adres bulunamadı (' + g.error + ').'), status: g.error }); return;
+    }
     res.status(200).json(g);
   } catch (e) { res.status(200).json({ error: 'Harita servisine ulaşılamadı' }); }
 };
