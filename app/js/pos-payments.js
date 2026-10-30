@@ -370,6 +370,7 @@ function openPayModal(orderId){
       <button class="pay-method-btn gift" id="payGiftCardPayBtn" disabled ${act('finishPaymentFull', 'gift_card')}>🎁 Hediye Kartı ile Öde</button>
       <button class="pay-method-btn split" id="paySplitBtn" ${act('openSplitPay')}><kbd class="sc-k">F4</kbd>➗ Bölünmüş Ödeme</button>
     </div>
+    <button type="button" class="pay-method-btn split" id="payTransferBtn" style="width:100%;margin-top:10px;" ${act('openTransferPay')}>🏦 Havale / EFT</button>
     <button type="button" class="pay-method-btn split" id="payOpenAccBtn" style="width:100%;margin-top:10px;" ${act('openOpenAccountTransfer')}><kbd class="sc-k">F8</kbd>📒 Açık Hesaba At</button>
     <div class="pay-extra-row">
     <button type="button" class="ghost-btn" ${act('printPayReceipt')}>🧾 Kasa Fişi Yazdır (fiyatlı)</button>
@@ -780,7 +781,7 @@ async function finishPaymentFull(method){
     await finishPayment(orderId, method, total, 0, 0, parseFloat(bg.dataset.discountAmount||0), itemQtys, tip, customerId, redeemPoints, code, amountWithTip);
     return;
   }
-  await finishPayment(orderId, method, total, method==='cash'?amountWithTip:0, method==='card'?amountWithTip:0, parseFloat(bg.dataset.discountAmount||0), itemQtys, tip, customerId, redeemPoints);
+  await finishPayment(orderId, method, total, method==='cash'?amountWithTip:0, (method==='card'||method==='transfer')?amountWithTip:0, parseFloat(bg.dataset.discountAmount||0), itemQtys, tip, customerId, redeemPoints);
 }
 async function openSplitPay(){
   const bg = document.getElementById('payModalBg');
@@ -969,4 +970,45 @@ async function finishPayment(orderId, method, total, cash, card, discountAmount,
     else showAfterPayCard(hid, customerId);
     if(APP.view!=='payments') renderPaymentsView(document.getElementById('main'), session);
   }
+}
+
+/* Havale / EFT: işletmenin IBAN'ı gösterilir, müşteriye SMS / e-postayla gönderilir; para gelince ödeme kapatılır. */
+function openTransferPay(){
+  const bk = (APP.config && APP.config.bank) || {};
+  const amt = Math.round((payFinalTotal() + parseFloat((document.getElementById('payModalBg') || {dataset:{}}).dataset.tipAmount || 0)) * 100) / 100;
+  const ov = document.createElement('div'); ov.className = 'modal-bg'; ov.id = 'transferBg'; ov.style.zIndex = '130';
+  const iban = typeof fmtIban === 'function' ? fmtIban(bk.bank_iban || '') : (bk.bank_iban || '');
+  ov.innerHTML = `<div class="modal tr-modal">
+    <h2>🏦 Havale / EFT</h2>
+    ${bk.bank_iban ? `<div class="tr-card">
+        <div class="tr-row"><span>Banka</span><b>${escapeHtml(bk.bank_name || '—')}</b></div>
+        <div class="tr-row"><span>Hesap sahibi</span><b>${escapeHtml(bk.bank_holder || '—')}</b></div>
+        <div class="tr-row"><span>IBAN</span><b class="tr-iban">${escapeHtml(iban)}</b><button type="button" class="ghost-btn tr-copy" ${act('copyIban')}>📋 Kopyala</button></div>
+        <div class="tr-row"><span>Tutar</span><b class="tr-amt">${money(amt)}</b></div></div>
+      <div class="ix-st" style="margin:14px 0 6px;">Müşteriye gönder</div>
+      <div class="tr-send"><input id="trPhone" type="tel" inputmode="tel" placeholder="Telefon (05xx…)"><button type="button" ${act('sendIban', 'sms')}>📱 SMS</button></div>
+      <div class="tr-send"><input id="trEmail" type="email" placeholder="E-posta adresi"><button type="button" ${act('sendIban', 'email')}>✉️ E-posta</button></div>
+      <button type="button" class="tr-done" ${act('confirmTransferPay')}>✅ Havale alındı · Ödemeyi kapat</button>`
+    : `<p class="muted">Henüz IBAN girilmemiş. ${getSession().isManager ? '<b>Ayarlar → Entegrasyonlar → Banka / IBAN</b> bölümünden ekleyin.' : 'Yöneticinizden <b>Ayarlar → Entegrasyonlar → Banka / IBAN</b> bölümünü doldurmasını isteyin.'}</p>
+       <button type="button" class="tr-done" ${act('confirmTransferPay')}>✅ Havale alındı · Ödemeyi kapat</button>`}
+    <button type="button" class="ghost-btn" style="width:100%;margin-top:8px;" ${act('closeTransferPay')}>Vazgeç</button></div>`;
+  ov.addEventListener('click', e => { if(e.target === ov) ov.remove(); });
+  document.body.appendChild(ov);
+}
+function closeTransferPay(){ const o = document.getElementById('transferBg'); if(o) o.remove(); }
+function copyIban(){ const bk = (APP.config && APP.config.bank) || {}; try{ navigator.clipboard.writeText(bk.bank_iban || ''); showToast('IBAN kopyalandı ✓'); }catch(e){ showToast('Kopyalanamadı'); } }
+async function sendIban(kind){
+  const phone = kind === 'sms' ? ((document.getElementById('trPhone') || {}).value || '').trim() : '';
+  const email = kind === 'email' ? ((document.getElementById('trEmail') || {}).value || '').trim() : '';
+  if(kind === 'sms' && phone.replace(/\D/g, '').length < 10){ showToast('Geçerli bir telefon girin'); return; }
+  if(kind === 'email' && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)){ showToast('Geçerli bir e-posta girin'); return; }
+  const amt = Math.round((payFinalTotal() + parseFloat((document.getElementById('payModalBg') || {dataset:{}}).dataset.tipAmount || 0)) * 100) / 100;
+  const { error } = await sb.rpc('send_iban', { p_token: getSession().session_token, p_phone: phone || null, p_email: email || null, p_amount: amt });
+  if(error){ showToast(typeof friendlySendError === 'function' ? friendlySendError(error.message) : error.message); return; }
+  showToast(kind === 'sms' ? 'IBAN SMS ile gönderildi ✓' : 'IBAN e-postayla gönderildi ✓');
+}
+async function confirmTransferPay(){
+  if(!(await uiConfirm('Havalenin hesabınıza geçtiğini kontrol ettiniz mi? Ödeme "Havale/EFT" olarak kapatılacak.'))) return;
+  closeTransferPay();
+  await finishPaymentFull('transfer');
 }

@@ -3756,3 +3756,17 @@ button.sl-stat{border:1px solid var(--border) !important;} button.sl-stat.on{bor
 .gp-rem i{font-style:normal;font-weight:800;margin-left:2px}
 .gp-rem.on{border-color:rgba(16,185,129,.5);color:#10b981;background:rgba(16,185,129,.1)}
 .pc-save-all{margin-left:auto !important;background:var(--accent);color:var(--btn-ink,#fff)}
+/* Havale / EFT */
+.tr-modal{max-width:460px;width:100%}
+.tr-card{border:1px solid var(--border);border-radius:14px;padding:6px 14px;background:var(--panel2)}
+.tr-row{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px dashed var(--border)}
+.tr-row:last-child{border-bottom:0}
+.tr-row span{color:var(--muted);font-size:13px;min-width:96px}
+.tr-row b{flex:1}
+.tr-iban{font-family:monospace;font-size:15px;letter-spacing:.03em;word-break:break-all}
+.tr-amt{font-size:18px;color:var(--accent)}
+.tr-copy{width:auto!important;margin:0!important;padding:5px 10px!important;font-size:12px}
+.tr-send{display:flex;gap:8px;margin-bottom:8px}
+.tr-send input{flex:1;margin:0}
+.tr-send button{width:auto;margin:0;padding:0 16px;white-space:nowrap}
+.tr-done{width:100%;margin-top:12px;background:linear-gradient(135deg,#10b981,#059669);color:#fff;font-weight:800}
