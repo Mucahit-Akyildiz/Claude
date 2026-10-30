@@ -11,3 +11,17 @@ foreach f in array array['_audit_trg','_bump_data_version','_contact_auto_custom
   n := regexp_replace(d, E'(\\n\\s*begin\\s*\\n)', E'\\1  if current_setting(''peyktan.restoring'', true) = ''1'' then return coalesce(new, old); end if;\n', 'i');
   execute n;
 end loop; end $$;
+
+-- Kişi sayısı hatırlatması aç/kapat (işletme geneli). _cron_no_guests ve _nav_badges guest_reminder'a bakar;
+-- get_restaurant_config 'guest_reminder' döner. (Canlıya uygulandı.)
+alter table restaurants add column if not exists guest_reminder boolean not null default true;
+create or replace function public.set_guest_reminder(p_token uuid, p_on boolean) returns boolean
+language plpgsql security definer set search_path to 'public','extensions','pg_temp' as $f$
+declare s staff_sessions%rowtype; begin
+  s := _session_check(p_token);
+  if not exists(select 1 from app_users au join roles rl on rl.id = any(au.role_ids) where au.id = s.user_id and rl.is_system) then
+    raise exception 'Bu ayarı yalnızca yönetici değiştirebilir'; end if;
+  update restaurants set guest_reminder = coalesce(p_on, true) where id = s.restaurant_id;
+  insert into audit_log(restaurant_id, user_id, entity, action, label) values (s.restaurant_id, s.user_id, 'settings', 'update', 'Kişi sayısı hatırlatması ' || case when p_on then 'açıldı' else 'kapatıldı' end);
+  return coalesce(p_on, true);
+end $f$;
