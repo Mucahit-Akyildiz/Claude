@@ -720,6 +720,16 @@ module.exports = async function handler(req, res) {
       return;
     }
 
+    // Trafik yoğunlaştı, yola çıkış öne alındı (api/travel-time): siparişi alan + paket bildirimi alacak roller.
+    if (mode === 'travel_alert') {
+      const b = req.body || {};
+      const { data: o } = await supabase.from('orders').select('id, restaurant_id, created_by, status').eq('id', b.order_id).maybeSingle();
+      if (!o || o.status !== 'open') { res.status(200).json({ sent: 0 }); return; }
+      const to = [...new Set([o.created_by, ...(await packageUserIds(supabase, o.restaurant_id, 'pkg_deadline'))].filter(Boolean))];
+      const r = await sendToUsers(supabase, to, { title: String(b.title || '').slice(0, 120), body: String(b.body || '').slice(0, 300), url: '/app/', view: 'kitchen', tag: 'pkg-traffic-' + o.id });
+      res.status(200).json({ sent: (r && r.sent) || 0 });
+      return;
+    }
     if (mode === 'pkg_alerts') {
       const dl = Array.isArray(req.body && req.body.deadline_ids) ? req.body.deadline_ids.slice(0, 200) : [];
       const cr = Array.isArray(req.body && req.body.courier_ids) ? req.body.courier_ids.slice(0, 200) : [];

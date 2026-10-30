@@ -489,9 +489,13 @@ function geoPaneHtml(session){
     <div class="ix-sec"><div class="ix-st">İşletme konumu</div><div class="ix-form">
       <div style="grid-column:1/-1;"><label>İşletme adresi</label><div style="display:flex;gap:8px;"><input id="geo_addr" value="${escapeAttr(g.geo_address || '')}" placeholder="Mahalle, sokak, no, ilçe, il" style="flex:1;margin:0;" ${mgr?'':'disabled'}>${mgr ? `<button type="button" class="ghost-btn" style="width:auto;margin:0;white-space:nowrap;" ${act('geoLookup')}>🔍 Konumu bul</button>` : ''}</div>
         <small id="geoFound" class="muted">${ok ? '📍 ' + Number(g.geo_lat).toFixed(5) + ', ' + Number(g.geo_lng).toFixed(5) : 'Konum henüz bulunmadı.'}</small></div>
+      <div style="grid-column:1/-1;"><label>Google Maps API anahtarı <small class="muted">(işletmenize özel · Geocoding API + Routes API)</small></label>
+        <div style="display:flex;gap:8px;"><input id="geo_key" type="password" autocomplete="off" placeholder="${g.maps_key_set ? '●●●●●●●● kayıtlı — değiştirmek için yenisini yazın' : 'AIza… ile başlayan anahtar'}" style="flex:1;margin:0;font-family:monospace;" ${mgr?'':'disabled'}>${mgr ? `<button type="button" class="ghost-btn" style="width:auto;margin:0;white-space:nowrap;" ${act('saveMapsKey')}>🔑 Anahtarı kaydet</button>${g.maps_key_set ? `<button type="button" class="ghost-btn" style="width:auto;margin:0;color:var(--red);" ${act('removeMapsKey')}>Kaldır</button>` : ''}` : ''}</div>
+        <small class="muted">${g.maps_key_set ? '🔑 İşletmenizin anahtarı kayıtlı; kullanım ve ücret sizin Google hesabınıza yazılır.' : 'Anahtar girilmedikçe haritadan süre hesaplanmaz, varsayılan süre kullanılır.'} Anahtar şifreli saklanır ve tarayıcıya geri gönderilmez.</small></div>
       <div><label>Varsayılan yol süresi (dk)</label><input id="geo_def" type="number" min="1" max="120" value="${g.travel_default_min || 10}" ${mgr?'':'disabled'}></div>
       <div><label>Hazırlık / teslim payı (dk)</label><input id="geo_buf" type="number" min="0" max="60" value="${g.travel_buffer_min != null ? g.travel_buffer_min : 3}" ${mgr?'':'disabled'}></div>
-    </div><p class="u-fs12 muted" style="margin:6px 0 0;">Haritadan gelen sürüş süresine <b>hazırlık payı</b> eklenir (paketleme, kuryenin binişi, park). Örn. 11 dk sürüş + 3 dk pay = 14 dk önce yola çıkılır.</p></div>
+      <div><label>Trafik güncelleme eşiği (dk)</label><input id="geo_rc" type="number" min="1" max="30" value="${g.travel_recheck_min || 3}" ${mgr?'':'disabled'}></div>
+    </div><p class="u-fs12 muted" style="margin:6px 0 0;">Haritadan gelen sürüş süresine <b>hazırlık payı</b> eklenir (paketleme, kuryenin binişi, park). Örn. 11 dk sürüş + 3 dk pay = 14 dk önce yola çıkılır. Süre önce <b>planlanan yola çıkış saatinin</b> trafiğiyle hesaplanır, yola çıkışa <b>30 ve 15 dk</b> kala anlık trafikle yeniden kontrol edilir; eşikten fazla değişirse güncellenir, uzadıysa bildirim gelir.</p></div>
     ${mgr ? `<button class="ix-save" ${act('saveGeoSettings')}>${ICON_SAVE}<span>Kaydet</span></button>` : '<p class="u-fs13 muted">Bu ayarı yalnızca yönetici değiştirebilir.</p>'}`;
 }
 async function geoLookup(){
@@ -512,6 +516,8 @@ async function saveGeoSettings(){
   const { data, error } = await sb.rpc('save_geo_settings', { p_token: getSession().session_token, p_address: v('geo_addr') || '',
     p_lat: pick.lat != null ? pick.lat : g.geo_lat, p_lng: pick.lng != null ? pick.lng : g.geo_lng, p_default: parseInt(v('geo_def'), 10) || 10, p_buffer: parseInt(v('geo_buf'), 10) || 0 });
   if(error){ showToast(error.message); return; }
+  const rc = await sb.rpc('save_travel_recheck', { p_token: getSession().session_token, p_min: parseInt(v('geo_rc'), 10) || 3 });
+  if(!rc.error && data) data.travel_recheck_min = rc.data;
   if(APP.config) APP.config.geo = data; APP.geoPick = null;
   const p = document.getElementById('geoPane'); if(p) p.innerHTML = geoPaneHtml();
   setIntTileStatus('geo', !!(data && data.geo_lat != null));
@@ -523,4 +529,21 @@ function setIntTileStatus(id, on){
   const b = document.querySelector('[data-int-tab="' + id + '"]'); if(!b) return;
   b.classList.toggle('st-ok', on); b.classList.toggle('st-off', !on);
   const st = b.querySelector('.int-st'); if(st) st.textContent = on ? '● Aktif' : '○ Kapalı';
+}
+
+async function saveMapsKey(){
+  const k = ((document.getElementById('geo_key') || {}).value || '').trim();
+  if(!/^AIza[\w-]{30,}$/.test(k)){ showToast('Geçerli bir Google API anahtarı yazın (AIza… ile başlar)'); return; }
+  const { error } = await sb.rpc('save_maps_key', { p_token: getSession().session_token, p_key: k });
+  if(error){ showToast(error.message); return; }
+  if(APP.config){ APP.config.geo = Object.assign({}, APP.config.geo, { maps_key_set: true }); }
+  const p = document.getElementById('geoPane'); if(p) p.innerHTML = geoPaneHtml();
+  showToast('Anahtar kaydedildi ✓ Şimdi 🔍 Konumu bul ile deneyin');
+}
+async function removeMapsKey(){
+  if(!(await uiConfirm('Google Maps anahtarı kaldırılsın mı? Yol süresi varsayılan süreyle hesaplanır.', { danger: true }))) return;
+  const { error } = await sb.rpc('save_maps_key', { p_token: getSession().session_token, p_key: '' });
+  if(error){ showToast(error.message); return; }
+  if(APP.config){ APP.config.geo = Object.assign({}, APP.config.geo, { maps_key_set: false }); }
+  const p = document.getElementById('geoPane'); if(p) p.innerHTML = geoPaneHtml();
 }
