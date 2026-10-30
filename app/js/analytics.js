@@ -169,7 +169,7 @@ async function renderMenuEngContent(session){
   const W = 560, H = 340, maxQ = Math.max(...ps.map(x => x.qty)) * 1.08, minM = Math.min(0, ...ps.map(x => x.m)), maxM = Math.max(...ps.map(x => x.m), 1) * 1.1;
   const X = (q) => 40 + q / maxQ * (W - 60), Y = (m) => H - 30 - (m - minM) / (maxM - minM) * (H - 50);
   anSetExport('menu-muhendisligi', ['Ürün', 'Grup', 'Adet', 'Ciro', 'Maliyet', 'Birim kâr'], ps.map(x => [x.name, Q[x.c][1], x.qty, x.rev.toFixed(2), x.cost.toFixed(2), x.m.toFixed(2)]));
-  el.innerHTML = `${ps.some(x => !x.cost) ? '<div class="an-alert warn" style="margin-bottom:12px;"><span>⚠️</span><div>Maliyeti girilmemiş ürünler %100 kârlı görünür. Doğru sonuç için Ayarlar → Ürünler\'den maliyet girin.</div></div>' : ''}
+  el.innerHTML = `${ps.some(x => !x.cost) ? '<div class="an-alert warn" style="margin-bottom:12px;"><span>⚠️</span><div>Maliyeti girilmemiş ürünler %100 kârlı görünür. Doğru sonuç için Ayarlar → Ürünler\'den maliyet girin.</div></div>' : ''}<p class="fs-note" style="margin:0 0 10px;">Personel, ikram ve limitli hesap etiketli siparişler ciro getirmediği için bu analize katılmaz (Ürün İstatistikleri ile aynı).</p>
     <div class="ch-row">
       <div class="fs-panel pa-sec" style="--t:var(--c1);flex:3;">
         <h3><i>🗺️</i>Kârlılık Haritası <small class="muted">· yatay: satış adedi, dikey: birim kâr</small></h3>
