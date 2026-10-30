@@ -442,7 +442,7 @@ function bankPaneHtml(session){
         : `<div class="bk-empty">Henüz banka hesabı yok.${mgr ? ' <b>＋ Banka Ekle</b> ile ilk hesabınızı ekleyin.' : ' Yöneticiniz ekleyebilir.'}</div>`}
     </div>`;
 }
-function redrawBankPane(){ const b = document.getElementById('bankPane'); if(b) b.innerHTML = bankPaneHtml(); }
+function redrawBankPane(){ const b = document.getElementById('bankPane'); if(b) b.innerHTML = bankPaneHtml(); setIntTileStatus('bank', !!((APP.config && APP.config.banks) || []).length); }
 function openBankEditor(id){
   const k = ((APP.config && APP.config.banks) || []).find(x => x.id === id) || {};
   const ov = document.createElement('div'); ov.className = 'dg-bg'; ov.id = 'bankEdBg'; ov.style.zIndex = '2900';
@@ -514,5 +514,13 @@ async function saveGeoSettings(){
   if(error){ showToast(error.message); return; }
   if(APP.config) APP.config.geo = data; APP.geoPick = null;
   const p = document.getElementById('geoPane'); if(p) p.innerHTML = geoPaneHtml();
+  setIntTileStatus('geo', !!(data && data.geo_lat != null));
   showToast('Konum ve teslimat süresi kaydedildi ✓');
+}
+
+/* Entegrasyon ızgarasındaki durum rozetini (● Aktif / ○ Kapalı) sayfa yenilemeden güncelle. */
+function setIntTileStatus(id, on){
+  const b = document.querySelector('[data-int-tab="' + id + '"]'); if(!b) return;
+  b.classList.toggle('st-ok', on); b.classList.toggle('st-off', !on);
+  const st = b.querySelector('.int-st'); if(st) st.textContent = on ? '● Aktif' : '○ Kapalı';
 }
