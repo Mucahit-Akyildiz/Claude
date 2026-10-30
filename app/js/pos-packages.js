@@ -554,11 +554,12 @@ async function openWaitlistOrderModal(wlId){
 /* Paket servis türü: 🛵 Paket (teslimat, adres) veya 🥡 Gel-Al (müşteri gelip alır,
    yaklaşık hazır olma / teslim alma süresi). */
 const PKG_PICKUP_MINS = [10, 15, 20, 30, 45, 60];
-/* Adrese teslimde yol için ayrılan süre: mutfağın hedefi teslim saatinden bu kadar dakika önce (sunucu bildirimleriyle aynı). */
-const PKG_TRAVEL_MIN = 10;
+/* Adrese teslimde yol süresi: haritadan hesaplanan (orders.travel_min), yoksa işletmenin varsayılanı (Ayarlar → Konum & Teslimat).
+   Mutfağın hedefi teslim saatinden bu kadar önce = yola çıkış (sunucu bildirimleriyle aynı). */
+function pkgTravelMin(o){ return Number(o && o.travel_min) || Number(APP.config && APP.config.geo && APP.config.geo.travel_default_min) || 10; }
 function pkgKitchenDeadline(o){
   if(!o || !o.pickup_at) return null;
-  return new Date(o.pickup_at).getTime() - (pkgTypeOf(o) !== 'pickup' ? PKG_TRAVEL_MIN * 60000 : 0);
+  return new Date(o.pickup_at).getTime() - (pkgTypeOf(o) !== 'pickup' ? pkgTravelMin(o) * 60000 : 0);
 }
 function pkgTypeOf(o){ return (o && o.takeaway_type) || (o && o.order_id ? (o.delivery_address ? 'delivery' : (o.pickup_at ? 'pickup' : 'delivery')) : (APP.pkgType || 'delivery')); }
 function pkgTypeHtml(existing){
