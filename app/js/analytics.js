@@ -293,8 +293,10 @@ async function renderZReportContent(session, quiet){
   const rows = [
     ['Brüt satış (indirim öncesi)', money(gross)], ['İndirimler', '−' + money(anN(k.discount) - anN(k.birthday))], ['Doğum günü indirimi', '−' + money(k.birthday)],
     ['NET CİRO', money(k.revenue), 'big'], ['—'],
-    ['💵 Nakit', money(k.cash)], ['💳 Kredi kartı', money(k.card)], ['🎁 Hediye kartı', money(k.gift)], ...(anN(k.transfer) ? [['🏦 Havale / EFT', money(k.transfer)], ...((k.transfer_banks || []).map(b => ['   · ' + b.bank, money(b.amount)]))] : []), ...(anN(k.points) ? [['⭐ Puanla ödeme', money(k.points)]] : []),
-    ['📒 Açık hesaba yazılan (' + (k.open_acc_n || 0) + ' hesap)', money(k.open_acc)], ['📒 Açık hesap tahsilatı', money(k.open_acc_paid)], ['—'],
+    ['💵 Nakit', money(k.cash)], ['💳 Kredi kartı', money(k.card)], ...zTransferRows(k), ['🎁 Hediye kartı', money(k.gift)], ...(anN(k.points) ? [['⭐ Puanla ödeme', money(k.points)]] : []),
+    ['📒 Açık hesaba yazılan (' + (k.open_acc_n || 0) + ' hesap)', money(k.open_acc)], ['—'],
+    // Açık hesap: geçmiş borçlardan bugün tahsil edilen ciroya girmez; nakit tahsilat kasaya eklenir.
+    ['📒 AÇIK HESAP', '', 'big'], ['Bugün tahsil edilen', money(k.open_acc_paid)], ['   · nakit (kasaya eklenir)', money(k.open_acc_paid_cash)], ['   · kart', money(k.open_acc_paid_card)], ['Toplam açık bakiye', money(k.open_acc_balance)], ['—'],
     ['Hesap sayısı', k.checks || 0], ['Kişi sayısı', anN(k.guests) || 0], ['Kişi başı', money(anN(k.guests) ? anN(k.guest_rev) / anN(k.guests) : 0)], ['Ortalama hesap', money(k.checks ? k.revenue / k.checks : 0)], ['Bahşiş', money(k.tips)], ['—'],
     ['🎁 İkram / personel (' + (k.comp_n || 0) + ' hesap)', money(k.comp)], ['❌ İptal edilen masa', c.orders || 0], ['❌ İptal edilen ürün tutarı', money(c.cur && c.cur.amount)], ['🔥 İsraf maliyeti', money(d.waste)], ['—'],
     ['Ürün maliyeti', money(k.cost)], ['BRÜT KÂR', money(anN(k.revenue) - anN(k.cost) - anN(d.waste)), 'big']];
@@ -323,16 +325,16 @@ async function renderZReportContent(session, quiet){
       <div class="zc-step"><span class="zc-n">1</span><div><b>Günün özetine bakın</b><small>Kasada olması gereken nakit, nakit ödemelerin toplamıdır.</small></div></div>
       <div class="zc-stats">
         ${stat('💰', 'Net ciro', money(k.revenue), 'var(--c1)')}
-        ${stat('💵', 'Nakit (kasada olmalı)', money(k.cash), 'var(--ok,#22c55e)')}
+        ${stat('💵', 'Nakit (kasada olmalı)', money(anN(k.cash) + anN(k.open_acc_paid_cash)), 'var(--ok,#22c55e)')}
         ${stat('💳', 'Kredi kartı', money(k.card), 'var(--c2)')}
         ${stat('📒', 'Açık hesap (' + (k.open_acc_n || 0) + ')', money(k.open_acc), '#f59e0b')}
-        ${anN(k.transfer) ? ((k.transfer_banks || []).length > 1 ? (k.transfer_banks || []).map(b => stat('🏦', 'Havale · ' + escapeHtml(b.bank), money(b.amount), '#6366f1')).join('') : stat('🏦', 'Havale / EFT' + ((k.transfer_banks || [])[0] ? ' · ' + escapeHtml(k.transfer_banks[0].bank) : ''), money(k.transfer), '#6366f1')) : ''}
+        ${zBankList(k).length || anN(k.transfer) ? stat('🏦', 'Havale / EFT', money(k.transfer), '#6366f1') : ''}
         ${stat('🧾', 'Hesap sayısı', k.checks || 0, 'var(--c3)')}
         ${stat('👥', 'Kişi sayısı', anN(k.guests) ? k.guests + ' · kişi başı ' + money(anN(k.guest_rev) / anN(k.guests)) : '—', 'var(--c4)')}
       </div>
       <div class="zc-step"><span class="zc-n">2</span><div><b>Kasadaki nakdi sayın</b><small>Saydığınız toplamı yazın; fark anında hesaplanır.</small></div></div>
       <div class="zc-count">
-        <div class="zc-exp"><small>Kasada olması gereken</small><b id="ccExpected" data-v="${anN(k.cash)}">${money(k.cash)}</b></div>
+        <div class="zc-exp"><small>Kasada olması gereken</small><b id="ccExpected" data-v="${anN(k.cash) + anN(k.open_acc_paid_cash)}">${money(anN(k.cash) + anN(k.open_acc_paid_cash))}</b>${anN(k.open_acc_paid_cash) ? `<small class="muted">nakit satış ${money(k.cash)} + açık hesap tahsilatı ${money(k.open_acc_paid_cash)}</small>` : ''}</div>
         <span class="zc-vs">→</span>
         <label class="zc-in"><small>Saydığınız nakit</small><span><input id="ccCounted" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0,00" ${actOn('input','updateCashDiff',[])}><em>₺</em></span></label>
       </div>
@@ -718,4 +720,16 @@ async function saveStaffPay(userId, btn){
   if(error){ alert(error.message); return; }
   showToast('Ücret ve prim kaydedildi ✓');
   renderPayrollContent(getSession());
+}
+
+/* Z raporu: Havale/EFT banka banka — tanımlı her banka (0 TL olsa da) + raporda geçen başka bankalar. */
+function zBankList(k){
+  const got = (k.transfer_banks || []).slice(), out = [];
+  ((APP.config && APP.config.banks) || []).forEach(b => { const i = got.findIndex(x => x.bank === (b.bank_name || 'Banka')); out.push({ bank: b.bank_name || 'Banka', amount: i >= 0 ? got.splice(i, 1)[0].amount : 0 }); });
+  return out.concat(got);
+}
+function zTransferRows(k){
+  const banks = zBankList(k);
+  if(!banks.length && !anN(k.transfer)) return [];
+  return [['🏦 Havale / EFT', money(k.transfer)], ...banks.map(b => ['   · ' + b.bank, money(b.amount)])];
 }
