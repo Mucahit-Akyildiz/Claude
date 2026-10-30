@@ -332,20 +332,9 @@ async function renderIntegrationsSettings(el, session){
     b.innerHTML = `<h2>${t}</h2>${ctTabsHtml('mail', [['conn','🔌 Bağlantı'],['tpl','✉️ E-postalar'],['log','📨 Gönderilenler']])}<div class="ct-pane" data-pane="conn"><div id="${id}"><p class="muted">Yükleniyor…</p></div></div><div class="ct-pane" data-pane="tpl"><div id="mailTplBox"></div></div><div class="ct-pane" data-pane="log"><div id="mailLogBox"></div></div>`;
     b.dataset.ctgrp = 'mail'; b.dataset.ct = (APP.ctTab || {}).mail || 'conn'; el.appendChild(b); boxes.push(b);
   });
-  // Banka / IBAN: Havale/EFT ödemesinde müşteriye SMS / e-postayla gönderilir.
-  { const bk = (APP.config && APP.config.bank) || {}, b = document.createElement('div'); b.className = 'box int-pane ix-box'; b.style.maxWidth = 'none'; b.dataset.int = 'bank';
-    const ok = !!bk.bank_iban, mgr = !!session.isManager;
-    b.innerHTML = `<h2>🏦 Banka / IBAN</h2>
-      <div class="oo-hero ${ok?'on':''}"><div class="oo-hero-ic">🏦</div>
-        <div class="oo-hero-t"><b>Havale / EFT ile ödeme</b><small>Ödeme ekranındaki <b>Havale / EFT</b> seçeneğinde bu hesap gösterilir; IBAN müşteriye tek tıkla SMS ya da e-postayla gönderilir.</small></div>
-        <span class="ti-st ${ok?'ok':''}">${ok?'● Tamam':'○ Eksik'}</span></div>
-      <div class="ix-sec"><div class="ix-st">Hesap bilgileri</div><div class="ix-form">
-        <div><label>Banka adı</label><input id="bank_name" value="${escapeAttr(bk.bank_name||'')}" placeholder="örn. Ziraat Bankası" ${mgr?'':'disabled'}></div>
-        <div><label>Hesap sahibi</label><input id="bank_holder" value="${escapeAttr(bk.bank_holder||'')}" placeholder="Ad Soyad / Ünvan" ${mgr?'':'disabled'}></div>
-        <div style="grid-column:1/-1;"><label>IBAN</label><input id="bank_iban" value="${escapeAttr(fmtIban(bk.bank_iban||''))}" placeholder="TR00 0000 0000 0000 0000 0000 00" maxlength="32" style="font-family:monospace;letter-spacing:.04em;" ${mgr?'':'disabled'} ${actOn('input','formatIbanInput',['$this'])}></div>
-      </div></div>
-      ${mgr ? `<button class="ix-save" ${act('saveBankInfo')}>${ICON_SAVE}<span>Kaydet</span></button>` : '<p class="u-fs13 muted">Banka bilgisini yalnızca yönetici değiştirebilir.</p>'}`;
-    el.appendChild(b); boxes.push(b); }
+  // Banka / IBAN: birden fazla hesap; Havale/EFT ödemesinde seçilip müşteriye SMS / e-postayla gönderilir.
+  { const b = document.createElement('div'); b.className = 'box int-pane ix-box'; b.style.maxWidth = 'none'; b.dataset.int = 'bank'; b.id = 'bankPane';
+    b.innerHTML = bankPaneHtml(session); el.appendChild(b); boxes.push(b); }
   loadMailTemplates();
   APP.mailLog = { days: 30, day: '', purpose: '', status: '', q: '', rows: [], open: null };
   loadMailLog();
@@ -359,7 +348,7 @@ async function renderIntegrationsSettings(el, session){
     if(/paketinizde yok/i.test(t)) return ['lock','🔒 Eklenti'];
     const c = APP.config || {}, on = { online: !!(c.online_ordering && c.online_ordering.enabled), google: !!c.google_review_url,
       marketplace: !!(data.marketplace_enabled && (data.marketplace_getir_configured || data.marketplace_trendyol_configured || data.marketplace_yemeksepeti_configured)),
-      invoice: !!(data.invoice_title && data.tax_number), bank: !!(c.bank && c.bank.bank_iban), efatura: !!(data.efatura_enabled && data.efatura_configured), accounting: !!(data.accounting_enabled && data.accounting_configured),
+      invoice: !!(data.invoice_title && data.tax_number), bank: !!(c.banks && c.banks.length), efatura: !!(data.efatura_enabled && data.efatura_configured), accounting: !!(data.accounting_enabled && data.accounting_configured),
       sms: !!data.sms_enabled && (APP.intLive || {}).sms !== false, mail: !!(APP.intLive || {}).mail }[id];
     return on ? ['ok','Aktif'] : ['off','Kapalı']; };
   const bar = document.createElement('div');
@@ -435,12 +424,55 @@ async function submitAddonTransfer(btn, addonId){
 
 function fmtIban(v){ return String(v || '').replace(/\s/g, '').toUpperCase().replace(/(.{4})/g, '$1 ').trim(); }
 function formatIbanInput(el){ const pos = el.value.length; el.value = fmtIban(el.value); if(document.activeElement === el && pos >= el.value.length - 1) el.setSelectionRange(el.value.length, el.value.length); }
-async function saveBankInfo(){
-  const v = id => (document.getElementById(id) || {}).value || '';
-  const iban = v('bank_iban').replace(/\s/g, '').toUpperCase();
-  if(iban && !/^TR\d{24}$/.test(iban)){ showToast('IBAN TR ile başlamalı ve 26 karakter olmalı'); return; }
-  const { data, error } = await sb.rpc('save_bank_info', { p_token: getSession().session_token, p_bank: v('bank_name'), p_holder: v('bank_holder'), p_iban: iban });
+function bankPaneHtml(session){
+  const banks = (APP.config && APP.config.banks) || [], mgr = !!(session || getSession()).isManager;
+  return `<h2>🏦 Banka / IBAN</h2>
+    <div class="oo-hero ${banks.length?'on':''}"><div class="oo-hero-ic">🏦</div>
+      <div class="oo-hero-t"><b>Havale / EFT ile ödeme</b><small>Ödeme ekranındaki <b>Havale / EFT</b> seçeneğinde bu hesaplar gösterilir; seçilen hesabın IBAN'ı müşteriye tek tıkla SMS ya da e-postayla gönderilir.</small></div>
+      <span class="ti-st ${banks.length?'ok':''}">${banks.length ? '● ' + banks.length + ' hesap' : '○ Eksik'}</span></div>
+    <div class="ix-sec"><div class="ix-st" style="display:flex;align-items:center;justify-content:space-between;gap:10px;">Banka hesapları
+      ${mgr ? `<button type="button" class="bk-add" ${act('openBankEditor', '')}>＋ Banka Ekle</button>` : ''}</div>
+      ${banks.length ? `<div class="bk-grid">${banks.map(k => `<div class="bk-card ${k.is_default ? 'def' : ''}">
+          <div class="bk-top"><span class="bk-ic">🏦</span><div class="bk-nm"><b>${escapeHtml(k.bank_name || 'Banka')}</b><small>${escapeHtml(k.bank_holder || '—')}</small></div>${k.is_default ? '<span class="bk-def">★ Varsayılan</span>' : ''}</div>
+          <div class="bk-iban">${escapeHtml(fmtIban(k.bank_iban))}</div>
+          ${mgr ? `<div class="bk-acts"><button type="button" class="ghost-btn" ${act('openBankEditor', k.id)}>✏️ Düzenle</button>${k.is_default ? '' : `<button type="button" class="ghost-btn" ${act('setDefaultBank', k.id)}>★ Varsayılan yap</button>`}<button type="button" class="ghost-btn bk-del" ${act('removeBank', k.id)}>🗑️ Kaldır</button></div>` : ''}
+        </div>`).join('')}</div>`
+        : `<div class="bk-empty">Henüz banka hesabı yok.${mgr ? ' <b>＋ Banka Ekle</b> ile ilk hesabınızı ekleyin.' : ' Yöneticiniz ekleyebilir.'}</div>`}
+    </div>`;
+}
+function redrawBankPane(){ const b = document.getElementById('bankPane'); if(b) b.innerHTML = bankPaneHtml(); }
+function openBankEditor(id){
+  const k = ((APP.config && APP.config.banks) || []).find(x => x.id === id) || {};
+  const ov = document.createElement('div'); ov.className = 'dg-bg'; ov.id = 'bankEdBg'; ov.style.zIndex = '2900';
+  ov.innerHTML = `<div class="dg-card bk-ed"><div class="dg-ic">🏦</div><h3 style="margin:4px 0 14px;">${id ? 'Banka hesabını düzenle' : 'Banka ekle'}</h3>
+    <label>Banka adı</label><input id="bk_name" value="${escapeAttr(k.bank_name || '')}" placeholder="örn. Ziraat Bankası">
+    <label>Hesap sahibi</label><input id="bk_holder" value="${escapeAttr(k.bank_holder || '')}" placeholder="Ad Soyad / Ünvan">
+    <label>IBAN</label><input id="bk_iban" value="${escapeAttr(fmtIban(k.bank_iban || ''))}" placeholder="TR00 0000 0000 0000 0000 0000 00" maxlength="32" style="font-family:monospace;" ${actOn('input','formatIbanInput',['$this'])}>
+    <label class="bk-chk"><input type="checkbox" id="bk_def" ${k.is_default || !((APP.config && APP.config.banks) || []).length ? 'checked' : ''}> Varsayılan hesap yap</label>
+    <div class="bk-ed-acts"><button type="button" class="ghost-btn" ${act('closeBankEditor')}>Vazgeç</button><button type="button" ${act('saveBankAccount', id || '')}>${ICON_SAVE}<span>Kaydet</span></button></div></div>`;
+  ov.addEventListener('click', e => { if(e.target === ov) ov.remove(); });
+  document.body.appendChild(ov);
+  setTimeout(() => { const f = document.getElementById(id ? 'bk_iban' : 'bk_name'); if(f) f.focus(); }, 50);
+}
+function closeBankEditor(){ const o = document.getElementById('bankEdBg'); if(o) o.remove(); }
+async function saveBankAccount(id){
+  const v = x => (document.getElementById(x) || {}).value || '';
+  const iban = v('bk_iban').replace(/\s/g, '').toUpperCase();
+  if(!/^TR\d{24}$/.test(iban)){ showToast('IBAN TR ile başlamalı ve 26 karakter olmalı'); return; }
+  const { data, error } = await sb.rpc('save_bank_account', { p_token: getSession().session_token, p_id: id || null, p_bank: v('bk_name'), p_holder: v('bk_holder'), p_iban: iban, p_default: !!(document.getElementById('bk_def') || {}).checked });
   if(error){ showToast(error.message); return; }
-  if(APP.config) APP.config.bank = data;
-  showToast('Banka bilgisi kaydedildi ✓');
+  if(APP.config) APP.config.banks = data || [];
+  closeBankEditor(); redrawBankPane(); showToast('Banka hesabı kaydedildi ✓');
+}
+async function setDefaultBank(id){
+  const k = ((APP.config && APP.config.banks) || []).find(x => x.id === id); if(!k) return;
+  const { data, error } = await sb.rpc('save_bank_account', { p_token: getSession().session_token, p_id: id, p_bank: k.bank_name, p_holder: k.bank_holder, p_iban: k.bank_iban, p_default: true });
+  if(error){ showToast(error.message); return; }
+  if(APP.config) APP.config.banks = data || []; redrawBankPane();
+}
+async function removeBank(id){
+  if(!(await uiConfirm('Bu banka hesabı kaldırılsın mı? Havale ekranında artık görünmez.', { danger: true }))) return;
+  const { data, error } = await sb.rpc('archive_bank_account', { p_token: getSession().session_token, p_id: id });
+  if(error){ showToast(error.message); return; }
+  if(APP.config) APP.config.banks = data || []; redrawBankPane(); showToast('Banka hesabı kaldırıldı');
 }
