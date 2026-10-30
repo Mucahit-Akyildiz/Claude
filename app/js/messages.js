@@ -943,7 +943,16 @@ function chatConvPeople(){
   if(c.is_group) return String(c.roles || '').split(',').map(x => x.trim()).filter(Boolean);
   return c.name ? [c.name] : [];
 }
-function chatBodyHtml(body){
+// Mesajdaki linkler tıklanabilir, yeni sekmede açılır (metin önceden kaçışlıdır; yalnızca http/https/www).
+function chatLinkify(html){
+  return html.replace(/(^|[\s(>])((?:https?:\/\/|www\.)[^\s<]+)/gi, (all, pre, url) => {
+    const trail = (url.match(/[.,!?;:)]+$/) || [''])[0]; const u = trail ? url.slice(0, -trail.length) : url;
+    const href = /^www\./i.test(u) ? 'https://' + u : u;
+    return pre + `<a class="chat-link" href="${href}" target="_blank" rel="noopener noreferrer">${u}</a>` + trail;
+  });
+}
+function chatBodyHtml(body){ return chatLinkify(chatBodyHtml0(body)); }
+function chatBodyHtml0(body){
   const html = escapeHtml(body);
   const names = chatConvPeople().slice(); const me = ((getSession() || {}).username || '').toLocaleLowerCase('tr');
   if(me && !names.includes((getSession() || {}).username)) names.push(getSession().username);

@@ -3847,3 +3847,4 @@ button.sl-stat{border:1px solid var(--border) !important;} button.sl-stat.on{bor
 .gx-rings{flex-wrap:wrap}
 .gx-banks{display:grid;gap:4px;margin:10px 0 2px;padding:8px 10px;border-radius:12px;background:color-mix(in srgb,#6366f1 8%,transparent);border:1px dashed color-mix(in srgb,#6366f1 40%,transparent)}
 .gx-banks div{display:flex;justify-content:space-between;font-size:13px}
+.chat-link{color:inherit;text-decoration:underline;word-break:break-all;font-weight:600}.chat-bubble.mine .chat-link,.chat-msg.me .chat-link{color:#fff}
