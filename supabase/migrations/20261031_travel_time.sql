@@ -15,3 +15,4 @@ alter table orders add column if not exists travel_min int, add column if not ex
 -- submit_offline_order: p_pickup_min = 'now' → pickup_at null ("Hemen" paket).
 -- _cron_travel_recheck: teslim saati olmayan paketler 3 dk'da bir yeniden hesaplanır (en fazla 2 saat, yola çıkana kadar).
 -- restaurants.travel_refresh_min (varsayılan 3): Hemen paketlerde yeniden hesap aralığı; save_travel_recheck(p_token,p_min,p_refresh); config.geo.travel_refresh_min.
+-- _cron_pkg_alerts: kurye hatırlatması hazır olduktan 2, 7, 12 dk sonra (courier_push_stage 1..3).
