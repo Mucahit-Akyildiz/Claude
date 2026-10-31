@@ -102,9 +102,10 @@ async function delivered(){
   if(error){ alert(error.message); return; }
   stopShare(true); await load();
 }
-document.addEventListener('visibilitychange', async () => { if(document.visibilityState === 'visible' && SHARING && !WAKE){ try{ WAKE = await navigator.wakeLock.request('screen'); }catch(e){} } });
+document.addEventListener('visibilitychange', async () => { if(document.visibilityState === 'visible') load(); if(document.visibilityState === 'visible' && SHARING && !WAKE){ try{ WAKE = await navigator.wakeLock.request('screen'); }catch(e){} } });
 load().then(() => {
   let was = false; try{ was = localStorage.getItem('kr_share_' + TOKEN) === '1'; }catch(e){}
   if(was && JOB && !JOB.delivered_at) startShare();
-  TIMER = setInterval(load, 30000);
+  // Restoran "Teslim edildi" deyince kurye ekranı hemen kapansın: yoldayken 8 sn'de bir, teslimden sonra yoklanmaz.
+  TIMER = setInterval(() => { if(!JOB || !JOB.delivered_at) load(); }, 8000);
 });
