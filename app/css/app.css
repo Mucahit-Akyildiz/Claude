@@ -3881,3 +3881,5 @@ button.sl-stat{border:1px solid var(--border) !important;} button.sl-stat.on{bor
 .oh-form{border:1px dashed var(--accent);border-radius:12px;padding:10px;margin-top:10px;}
 .oh-adv{margin-top:14px;text-align:left;} .oh-adv summary{cursor:pointer;font-weight:700;}
 @media (max-width:560px){ .oh-sum{grid-template-columns:1fr 1fr;} }
+.cost-tip{margin:8px 0;padding:10px 12px;border-radius:12px;font-size:12.5px;line-height:1.5;background:color-mix(in srgb,var(--c3,#f59e0b) 12%,transparent);border:1px solid color-mix(in srgb,var(--c3,#f59e0b) 35%,var(--border));}
+.cost-tip .pc-btn{margin-top:6px;}
