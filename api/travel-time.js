@@ -26,16 +26,16 @@ async function driveMinutes(key, from, to, departAt) {
   const body = {
     origin: { location: { latLng: { latitude: from.lat, longitude: from.lng } } },
     destination: { location: { latLng: { latitude: to.lat, longitude: to.lng } } },
-    travelMode: 'DRIVE', routingPreference: 'TRAFFIC_AWARE', languageCode: 'tr', regionCode: 'TR',
+    travelMode: 'DRIVE', routingPreference: 'TRAFFIC_AWARE', computeAlternativeRoutes: true, languageCode: 'tr', regionCode: 'TR',
   };
   if (departAt && departAt.getTime() > Date.now() + 2 * 60000) body.departureTime = departAt.toISOString();
   const r = await fetch('https://routes.googleapis.com/directions/v2:computeRoutes', {
     method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Goog-Api-Key': key, 'X-Goog-FieldMask': 'routes.duration' }, body: JSON.stringify(body),
   });
   const j = await r.json();
-  const d = j && j.routes && j.routes[0] && j.routes[0].duration; // "754s"
-  const sec = d ? parseInt(String(d), 10) : 0;
-  return sec ? Math.ceil(sec / 60) : null;
+  // Google Haritalar gibi: alternatifler arasından en hızlısı, dakikaya yuvarlanmış ("754s" → 13 dk).
+  const secs = ((j && j.routes) || []).map(r => parseInt(String(r.duration || ''), 10)).filter(n => n > 0);
+  return secs.length ? Math.max(1, Math.round(Math.min(...secs) / 60)) : null;
 }
 
 const hm = (d) => new Date(d).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Istanbul' });
