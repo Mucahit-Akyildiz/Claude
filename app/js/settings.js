@@ -492,11 +492,25 @@ function geoPaneHtml(session){
       <div style="grid-column:1/-1;"><label>Google Maps API anahtarı <small class="muted">(işletmenize özel · Geocoding API + Routes API)</small></label>
         <div style="display:flex;gap:8px;"><input id="geo_key" type="password" autocomplete="off" placeholder="${g.maps_key_set ? '●●●●●●●● kayıtlı — değiştirmek için yenisini yazın' : 'AIza… ile başlayan anahtar'}" style="flex:1;margin:0;font-family:monospace;" ${mgr?'':'disabled'}>${mgr ? `<button type="button" class="ghost-btn" style="width:auto;margin:0;white-space:nowrap;" ${act('saveMapsKey')}>🔑 Anahtarı kaydet</button>${g.maps_key_set ? `<button type="button" class="ghost-btn" style="width:auto;margin:0;color:var(--red);" ${act('removeMapsKey')}>Kaldır</button>` : ''}` : ''}</div>
         <small class="muted">${g.maps_key_set ? '🔑 İşletmenizin anahtarı kayıtlı; kullanım ve ücret sizin Google hesabınıza yazılır.' : 'Anahtar girilmedikçe haritadan süre hesaplanmaz, varsayılan süre kullanılır.'} Anahtar şifreli saklanır ve tarayıcıya geri gönderilmez.</small></div>
-      <div><label>Varsayılan yol süresi (dk)</label><input id="geo_def" type="number" min="1" max="120" value="${g.travel_default_min || 10}" ${mgr?'':'disabled'}></div>
-      <div><label>Hazırlık / teslim payı (dk)</label><input id="geo_buf" type="number" min="0" max="60" value="${g.travel_buffer_min != null ? g.travel_buffer_min : 3}" ${mgr?'':'disabled'}></div>
-      <div><label>Hemen paketlerde güncelleme sıklığı (dk)</label><input id="geo_rf" type="number" min="1" max="30" value="${g.travel_refresh_min || 3}" ${mgr?'':'disabled'}><small class="muted">Teslim saati girilmeyen paketlerde yol süresi bu aralıkla anlık trafikle yeniden hesaplanır.</small></div>
-      <div><label>Bildirim/güncelleme için en az değişim (dk)</label><input id="geo_rc" type="number" min="1" max="30" value="${g.travel_recheck_min || 3}" ${mgr?'':'disabled'}><small class="muted">Teslim saatli paketlerde süre bu kadar değişirse yola çıkış saati kayar; uzadıysa bildirim gelir.</small></div>
-    </div><p class="u-fs12 muted" style="margin:6px 0 0;">Haritadan gelen sürüş süresine <b>hazırlık payı</b> eklenir (paketleme, kuryenin binişi, park). Örn. 11 dk sürüş + 3 dk pay = 14 dk önce yola çıkılır. <b>Teslim saatli</b> paketlerde süre önce planlanan yola çıkış saatinin trafiğiyle hesaplanır, yola çıkışa <b>30 ve 15 dk</b> kala yeniden kontrol edilir. <b>Hemen</b> paketlerde süre yola çıkana kadar yukarıdaki sıklıkla güncellenir (her kontrol bir Google isteğidir).</p></div>
+    </div></div>
+    <div class="ix-sec"><div class="ix-st">Teslimat süreleri</div>
+      <div class="geo-cards">
+        <label class="geo-c"><span class="geo-c-ic">⏱️</span><span class="geo-c-t">Varsayılan yol süresi</span>
+          <span class="geo-c-in"><input id="geo_def" type="number" min="1" max="120" inputmode="numeric" value="${g.travel_default_min || 10}" ${mgr?'':'disabled'}><em>dk</em></span>
+          <small>Harita kullanılamazsa (konum ya da adres bulunamazsa) bu süre esas alınır.</small></label>
+        <label class="geo-c"><span class="geo-c-ic">📦</span><span class="geo-c-t">Hazırlık / teslim payı</span>
+          <span class="geo-c-in"><input id="geo_buf" type="number" min="0" max="60" inputmode="numeric" value="${g.travel_buffer_min != null ? g.travel_buffer_min : 3}" ${mgr?'':'disabled'}><em>dk</em></span>
+          <small>Sürüşe eklenir: paketleme, kuryenin binişi, park. 11 dk yol + 3 dk pay = 14 dk önce çıkış.</small></label>
+      </div>
+      <div class="ix-st" style="margin-top:14px;">🚦 Trafik takibi</div>
+      <div class="geo-cards">
+        <label class="geo-c"><span class="geo-c-ic">⚡</span><span class="geo-c-t">Hemen paketlerde güncelleme sıklığı</span>
+          <span class="geo-c-in"><input id="geo_rf" type="number" min="1" max="30" inputmode="numeric" value="${g.travel_refresh_min || 3}" ${mgr?'':'disabled'}><em>dk</em></span>
+          <small>Teslim saati girilmeyen paketlerde süre, yola çıkana kadar bu aralıkla anlık trafikle yeniden hesaplanır. Her kontrol bir Google isteğidir.</small></label>
+        <label class="geo-c"><span class="geo-c-ic">🔔</span><span class="geo-c-t">Bildirim için en az değişim</span>
+          <span class="geo-c-in"><input id="geo_rc" type="number" min="1" max="30" inputmode="numeric" value="${g.travel_recheck_min || 3}" ${mgr?'':'disabled'}><em>dk</em></span>
+          <small>Teslim saatli paketler yola çıkışa 30 ve 15 dk kala kontrol edilir; süre bu kadar değişirse çıkış saati kayar, uzadıysa bildirim gelir.</small></label>
+      </div></div>
     ${mgr ? `<button class="ix-save" ${act('saveGeoSettings')}>${ICON_SAVE}<span>Kaydet</span></button>` : '<p class="u-fs13 muted">Bu ayarı yalnızca yönetici değiştirebilir.</p>'}`;
 }
 async function geoLookup(){
