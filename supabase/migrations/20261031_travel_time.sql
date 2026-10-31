@@ -13,4 +13,4 @@ alter table orders add column if not exists travel_min int, add column if not ex
 -- yola çıkışa 30 ve 15 dk kala api/travel-time { recheck_ids }; değişim eşiği aşarsa güncellenir, uzarsa travel_alert bildirimi.
 
 -- submit_offline_order: p_pickup_min = 'now' → pickup_at null ("Hemen" paket).
--- _cron_travel_recheck: teslim saati olmayan paketler 5 dk'da bir yeniden hesaplanır (en fazla 2 saat, yola çıkana kadar).
+-- _cron_travel_recheck: teslim saati olmayan paketler 3 dk'da bir yeniden hesaplanır (en fazla 2 saat, yola çıkana kadar).
