@@ -646,7 +646,7 @@ async function bulkDeleteUsers(){
 function setListSearch(key, v){ APP.listSearch[key] = v; filterListRows(key); }
 function toggleIngUsageQty(pid, on){ const q = document.getElementById('ingu_qty_' + pid); if(!q) return; q.disabled = !on; if(on) q.focus(); else q.style.borderColor = '';
   const cnt = document.getElementById('iuCount'), box = document.getElementById('ingUsageItemsBox');
-  if(cnt && box) cnt.textContent = cnt.textContent.replace(/^\d+/, box.querySelectorAll('.iu-item input[type=checkbox]:checked').length); }
+  if(cnt && box) cnt.textContent = cnt.textContent.replace(/^\d+/, box.querySelectorAll('.iu-item input[type=checkbox]:checked').length); if(typeof iuRecalc === 'function') iuRecalc(); }
 function filterIconPicker(targetId, current, q){ document.getElementById('iconPickerBody').innerHTML = iconPickerGridHtml(targetId, current, q); }
 function setUserSearch(v){ APP.userSearch = v; filterUserRows(); }
 function setActiveUsersMinutes(v){ APP.activeUsersMinutes = Number(v); loadActiveUsers(); }
