@@ -419,6 +419,8 @@ async function renderWaiterCardsContent(session){
   // Personel limitleri: kartta "limitinden aldığı" (personel yemeği) özeti.
   const { data: alw } = await sb.rpc('staff_allowance_summary', { p_token: session.session_token, p_date: APP.reportDate, p_date_to: APP.reportDateTo });
   const al = alw || {};
+  // Puantaj özeti (dönem içi çalışma saati × saatlik ücret + prim); yetki yoksa gösterilmez.
+  const pr = {}; try{ const { data: pd } = await sb.rpc('get_payroll', { p_token: session.session_token, p_date: APP.reportDate, p_date_to: APP.reportDateTo }); (pd || []).forEach(r => { pr[r.id] = r; }); }catch(e){}
   const st = (d.staff || []).slice().sort((a, b) => anN(b.rev) - anN(a.rev));
   if(!st.length){ el.innerHTML = '<div class="empty-state"><div style="font-size:42px;">🏅</div><p class="muted">Bu aralıkta personel satışı yok.</p></div>'; return; }
   const maxR = Math.max(1, ...st.map(x => anN(x.rev)));
@@ -434,7 +436,9 @@ async function renderWaiterCardsContent(session){
         <div class="${cr > 10 ? 'bad' : ''}"><b>${x.cancels}</b><small>iptal${cr ? ' · %' + cr.toFixed(0) : ''}</small></div><div class="wide"><b title="${escapeAttr(x.top_product || '')}">${escapeHtml(x.top_product || '—')}</b><small>en çok sattığı</small></div>
         <div><b>${x.shifts || 0}</b><small>vardiya</small></div></div>
       ${al[x.id] ? `<div class="an-w-al"><span>🍱</span><div><b>${money(al[x.id].used)}</b><small>limitinden aldı · ${al[x.id].n} hesap</small></div><div class="r"><b>${money(al[x.id].remaining)}</b><small>${al[x.id].period === 'monthly' ? 'aylık' : 'günlük'} kalan</small></div></div>` : ''}
-      <div class="an-w-more">Detaylı kart için dokunun ›</div>
+      ${pr[x.id] && (anN(pr[x.id].hours) || anN(pr[x.id].hourly_wage)) ? (() => { const p = pr[x.id], pay = anN(p.hours) * anN(p.hourly_wage) + anN(p.sales) * anN(p.commission_pct) / 100;
+        return `<div class="an-w-pay" role="button" title="Puantaj & Prim sekmesini aç" ${actStop('setReportTab', 'payroll')}><span>💼</span><div><b>~${anN(p.hours).toFixed(1)} saat</b><small>bu dönem çalıştı</small></div><div class="r"><b>${anN(p.hourly_wage) ? money(pay) : '—'}</b><small>${anN(p.hourly_wage) ? 'hakediş' + (anN(p.commission_pct) ? ' (prim dahil)' : '') : 'saatlik ücret girilmemiş'}</small></div></div>`; })() : ''}
+      <div class="an-w-acts"><button type="button" class="pc-btn" ${actStop('highlightStaffHours', x.username)}>⏰ Saatlerini göster</button><span class="an-w-more">Detaylı kart ›</span></div>
     </div>`; }).join('')}</div>`;
 }
 
@@ -733,4 +737,17 @@ function zTransferRows(k){
   const banks = zBankList(k);
   if(!banks.length && !anN(k.transfer)) return [];
   return [['🏦 Havale / EFT', money(k.transfer)], ...banks.map(b => ['   · ' + b.bank, money(b.amount)])];
+}
+
+/* Personel Performansı: garson kartından "Saatlerini göster" → altındaki ısı haritalarında o kişi vurgulanır. */
+function highlightStaffHours(name){
+  const maps = document.querySelectorAll('.st-hm'); if(!maps.length) return;
+  const same = APP.staffHl === name; APP.staffHl = same ? null : name;
+  maps.forEach(m => {
+    m.classList.toggle('hl', !same);
+    m.querySelectorAll('[data-staff]').forEach(c => c.classList.toggle('on', !same && c.dataset.staff === name));
+  });
+  document.querySelectorAll('.an-w').forEach(c => c.classList.toggle('hl-on', !same && (c.querySelector('.an-w-top b') || {}).textContent === name));
+  if(!same) maps[0].scrollIntoView({ behavior: 'smooth', block: 'center' });
+  showToast(same ? 'Vurgu kaldırıldı' : '⏰ ' + name + ' vurgulandı · tekrar basınca kalkar');
 }
