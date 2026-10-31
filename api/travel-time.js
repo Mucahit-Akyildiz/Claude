@@ -92,6 +92,31 @@ module.exports = async function handler(req, res) {
     return;
   }
 
+  // Sunucudan: yoldaki kuryenin anlık konumundan adrese kalan süre (_cron_courier_eta, ~2 dk'da bir)
+  if (Array.isArray(body.eta_ids)) {
+    if (!fromServer()) { res.status(401).json({ error: 'unauthorized' }); return; }
+    const out = [];
+    for (const id of body.eta_ids.slice(0, 50)) {
+      try {
+        const { data: t } = await supabase.rpc('_courier_eta_target', { p_order: id });
+        const key = (t && t.key) || PLATFORM_KEY();
+        if (!t || t.delivered || t.lat == null || !key) continue;
+        let dest = t.dest_lat != null ? { lat: t.dest_lat, lng: t.dest_lng } : null;
+        if (!dest && t.address) {
+          const g = await geocode(key, t.address, t.rest_lat != null ? { lat: t.rest_lat, lng: t.rest_lng } : null);
+          if (!g.error) { dest = g; await supabase.rpc('_set_order_dest', { p_order: id, p_lat: g.lat, p_lng: g.lng }); }
+        }
+        if (!dest) continue;
+        const mins = await driveMinutes(key, { lat: t.lat, lng: t.lng }, dest, null);
+        if (mins == null) continue;
+        await supabase.rpc('_set_courier_eta', { p_order: id, p_min: mins });
+        out.push({ id, mins });
+      } catch (e) { /* tek siparişin hatası diğerlerini durdurmasın */ }
+    }
+    res.status(200).json({ ok: true, eta: out });
+    return;
+  }
+
   // Uygulamadan: işletme adresini koordinata çevir
   const token = String(req.headers['x-session-token'] || '');
   if (!/^[0-9a-f-]{36}$/i.test(token) || !body.address) { res.status(400).json({ error: 'Geçersiz istek' }); return; }

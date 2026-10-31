@@ -31,6 +31,7 @@ public class MainActivity extends BridgeActivity {
     @Override
     public void onCreate(Bundle savedInstanceState) {
         registerPlugin(PeykRadioPlugin.class);
+        registerPlugin(PeykLocationPlugin.class);
         super.onCreate(savedInstanceState);
         // Sesli bildirimler (doğal ses / cihaz sesi) dokunuş beklemeden çalabilsin.
         try { getBridge().getWebView().getSettings().setMediaPlaybackRequiresUserGesture(false); } catch (Exception e) { }
@@ -50,6 +51,7 @@ public class MainActivity extends BridgeActivity {
             });
         } catch (Exception e) { }
         PeykCallNotifier.handleIntent(this, getIntent());
+        openCourierPage(getIntent());
         updateLauncher = registerForActivityResult(new ActivityResultContracts.StartIntentSenderForResult(), result -> {});
         checkForUpdate();
     }
@@ -86,6 +88,15 @@ public class MainActivity extends BridgeActivity {
     protected void onNewIntent(android.content.Intent intent) {
         super.onNewIntent(intent);
         PeykCallNotifier.handleIntent(this, intent);
+        openCourierPage(intent);
+    }
+
+    // Kurye konum bildirimine dokunulunca kurye sayfası uygulama içinde açılır (konum eklentisi orada çalışır).
+    private void openCourierPage(android.content.Intent intent) {
+        String u = intent != null ? intent.getStringExtra("kurye_url") : null;
+        if (u == null || !u.startsWith("https://www.peyktan.com/kurye/")) return;
+        intent.removeExtra("kurye_url");
+        try { getBridge().getWebView().post(() -> getBridge().getWebView().loadUrl(u)); } catch (Exception e) { }
     }
 
     @Override

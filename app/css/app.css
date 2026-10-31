@@ -3859,3 +3859,10 @@ button.sl-stat{border:1px solid var(--border) !important;} button.sl-stat.on{bor
 .geo-c-in input{width:72px;margin:0;text-align:center;font-weight:800;font-size:17px;padding:8px 6px;}
 .geo-c-in em{font-style:normal;font-size:12px;color:var(--muted);font-weight:700;}
 .geo-c small{grid-area:h;font-size:12px;line-height:1.45;color:var(--muted);}
+
+/* Canlı kurye haritası */
+.cr-map{height:min(55vh,420px);border-radius:14px;overflow:hidden;border:1px solid var(--border);}
+.cr-map-list{display:grid;gap:8px;margin-top:10px;text-align:left;}
+.cr-ml-row{display:flex;gap:10px;justify-content:space-between;align-items:center;border:1px solid var(--border);border-radius:12px;padding:10px 12px;flex-wrap:wrap;}
+.cr-ml-row small{display:block;color:var(--muted);font-size:12px;}
+.cr-ml-r{display:flex;gap:6px;align-items:center;flex-wrap:wrap;justify-content:flex-end;}
