@@ -10,6 +10,11 @@ function escapeHtml(s){ return String(s==null?'':s).replace(/[&<>"']/g, c => ({'
 const hm = (t) => t ? new Date(t).toLocaleTimeString('tr-TR', { hour:'2-digit', minute:'2-digit' }) : '';
 const money = (n) => Number(n || 0).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' TL';
 const NATIVE = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.PeykLocation;
+// Uygulama içinden açıldıysa (Android uygulaması ya da /app/ sekmesinden) geri dönüş düğmesi gösterilir; konum servisi arka planda sürer.
+const IN_APP = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+const FROM_APP = /\/app(\/|$|\?)/.test(document.referrer || '');
+function backToApp(){ window.location.href = '/app/'; }
+if(IN_APP){ try{ const A = window.Capacitor.Plugins.App; if(A) A.addListener('backButton', backToApp); }catch(e){} }
 let JOB = null, WATCH = null, LAST = null, LAST_SENT = 0, SHARING = false, WAKE = null, MAP = null, ERR = '', TIMER = null;
 
 function render(){
@@ -24,7 +29,8 @@ function render(){
     : SHARING ? `<div class="kr-share on"><span class="kr-live"></span><div><b>Konumunuz paylaşılıyor</b><small>${LAST_SENT ? 'Son gönderim ' + new Date(LAST_SENT).toLocaleTimeString('tr-TR') : 'Konum bekleniyor…'}${NATIVE ? ' · ekran kilitliyken de devam eder' : ' · bu sayfayı açık tutun'}</small></div><button class="kr-ghost" ${act('stopShare')}>Durdur</button></div>`
     : OLD_APP ? `<button class="kr-big" ${act('openInChrome')}>📍 Konumu Chrome'da paylaş</button><p class="kr-hint">Uygulamanın bu sürümü konum paylaşamıyor; sayfa Chrome'da açılır. Uygulamayı Play Store'dan güncelleyince ekran kilitliyken de paylaşılır.</p>`
     : `<button class="kr-big" ${act('startShare')}>📍 Konumumu paylaş</button><p class="kr-hint">Müşteri ve restoran, adrese kalan süreyi ve yerinizi görür. Yalnızca bu teslimat sırasında paylaşılır.</p>`;
-  const html = `<div class="kr-head"><small>${escapeHtml(j.restaurant)} · #${escapeHtml(j.no || '')}</small><h1>🛵 ${escapeHtml(j.customer || 'Paket')}</h1></div>
+  const back = (IN_APP || FROM_APP) ? `<button class="kr-back" ${act('backToApp')}>← Uygulamaya dön</button>` : '';
+  const html = `${back}<div class="kr-head"><small>${escapeHtml(j.restaurant)} · #${escapeHtml(j.no || '')}</small><h1>🛵 ${escapeHtml(j.customer || 'Paket')}</h1></div>
     ${ERR ? `<div class="kr-err">⚠️ ${escapeHtml(ERR)}</div>` : ''}
     ${share}${eta}
     <div class="tk-map" ${done ? 'hidden' : ''}><div id="tkMap"></div></div>
@@ -33,7 +39,7 @@ function render(){
       <div class="kr-row"><span>💰</span><div><b>${money(j.total)}</b><small>Sipariş tutarı</small></div></div>
       <div class="kr-btns"><a class="kr-btn" href="${nav}" target="_blank" rel="noopener">🧭 Yol tarifi</a>${j.phone ? `<a class="kr-btn" href="tel:${escapeHtml(String(j.phone).replace(/[^0-9+]/g, ''))}">📞 Müşteriyi ara</a>` : ''}</div>
     </div>
-    ${done ? '' : `<button class="kr-big kr-ok" ${act('delivered')}>✅ Teslim ettim</button>`}`;
+    ${done ? (back ? `<button class="kr-big" ${act('backToApp')}>← Uygulamaya dön</button>` : '') : `<button class="kr-big kr-ok" ${act('delivered')}>✅ Teslim ettim</button>`}`;
   let main = app.querySelector('main');
   // Haritayı koru: yalnızca harita dışındaki içerik yenilenir.
   const mapEl = MAP && document.getElementById('tkMap');
@@ -48,7 +54,7 @@ async function load(){
   if(!TOKEN || !/^[0-9a-f-]{36}$/i.test(TOKEN)){ document.getElementById('app').innerHTML = '<main><div class="big">⚠️</div><div class="center"><h1>Geçersiz bağlantı</h1></div></main>'; return; }
   const { data, error } = await sb.rpc('get_courier_job', { p_courier: TOKEN });
   if(error && !JOB){ document.getElementById('app').innerHTML = '<main><div class="big">⚠️</div><div class="center"><h1>Yüklenemedi</h1><p>Biraz sonra tekrar deneyin.</p></div></main>'; return; }
-  if(!data){ document.getElementById('app').innerHTML = '<main><div class="big">🔍</div><div class="center"><h1>Teslimat bulunamadı</h1><p>Linkin süresi dolmuş olabilir.</p></div></main>'; stopShare(); return; }
+  if(!data){ document.getElementById('app').innerHTML = '<main><div class="big">🔍</div><div class="center"><h1>Teslimat bulunamadı</h1><p>Linkin süresi dolmuş olabilir.</p></div>' + ((IN_APP || FROM_APP) ? '<button class="kr-big" data-click="backToApp">← Uygulamaya dön</button>' : '') + '</main>'; stopShare(); return; }
   JOB = data;
   if(JOB.delivered_at) stopShare(true);
   render();
