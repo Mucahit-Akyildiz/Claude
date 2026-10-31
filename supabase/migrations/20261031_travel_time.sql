@@ -11,3 +11,5 @@ alter table orders add column if not exists travel_min int, add column if not ex
 -- tenant_integrations.maps_api_key (_enc), save_maps_key, _maps_key, _maps_session; orders.dest_lat/dest_lng/travel_stage/travel_checked_at;
 -- restaurants.travel_recheck_min, save_travel_recheck; _set_order_travel2; _cron_travel_recheck (cron 'travel_recheck', her dakika):
 -- yola çıkışa 30 ve 15 dk kala api/travel-time { recheck_ids }; değişim eşiği aşarsa güncellenir, uzarsa travel_alert bildirimi.
+
+-- submit_offline_order: p_pickup_min = 'now' → pickup_at null ("Hemen" paket).

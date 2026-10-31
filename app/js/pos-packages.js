@@ -574,14 +574,15 @@ function pkgTypeHtml(existing){
         <button type="button" class="pk-type-btn ${APP.pkgType==='pickup'?'on':''}" data-pt="pickup" ${act('setPkgType','pickup')}>🥡 Gel-Al<small>Müşteri gelip alır</small></button>
       </div></div>
     <div class="field-group" id="pkgPickupWrap"><label id="pkgPickupLbl">${APP.pkgType==='pickup' ? 'Yaklaşık Teslim Alma Süresi' : 'Yaklaşık Teslim Süresi'}${leftMin!=null ? ` <span class="u-fw4 muted">(şu an: ${existing.pickup_at ? new Date(existing.pickup_at).toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'}) : ''}, ${leftMin} dk kaldı)</span>` : ''}</label>
-      <div class="pk-chips">${PKG_PICKUP_MINS.map(chip).join('')}
-        <input type="number" min="1" max="600" inputmode="numeric" class="pk-chip-in" placeholder="Diğer" value="${APP.pkgPickupMin && !PKG_PICKUP_MINS.includes(APP.pkgPickupMin) ? APP.pkgPickupMin : ''}" ${actOn('input','setPkgPickupMin',['$value'])}>
+      <div class="pk-chips"><button type="button" class="pk-chip ${APP.pkgPickupMin==='now'?'on':''}" data-min="now" ${act('setPkgPickupMin', 'now')}>⚡ Hemen</button>${PKG_PICKUP_MINS.map(chip).join('')}
+        <input type="number" min="1" max="600" inputmode="numeric" class="pk-chip-in" placeholder="Diğer" value="${APP.pkgPickupMin && APP.pkgPickupMin !== 'now' && !PKG_PICKUP_MINS.includes(APP.pkgPickupMin) ? APP.pkgPickupMin : ''}" ${actOn('input','setPkgPickupMin',['$value'])}>
         <label class="pk-time-in" title="Müşterinin geleceği saat">🕒 Saat <input type="time" id="pkgPickupTime" ${actOn('change','setPkgPickupTime',['$value'])}></label>
       </div>
       <small class="muted" id="pkgPickupHint">${pkgPickupHint()}</small></div>`;
 }
 function pkgPickupHint(){
   if(!APP.pkgPickupMin) return 'Süre seçmezseniz mevcut süre korunur.';
+  if(APP.pkgPickupMin === 'now') return APP.pkgType === 'pickup' ? 'Hazırlanır hazırlanmaz teslim edilecek.' : 'Hazırlanır hazırlanmaz yola çıkacak' + '.';
   const hm = new Date(Date.now() + APP.pkgPickupMin * 60000).toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'});
   return APP.pkgType === 'pickup' ? 'Müşteri yaklaşık ' + hm + ' civarı gelip alacak.' : 'Sipariş yaklaşık ' + hm + ' civarı adrese teslim edilecek.';
 }
@@ -606,8 +607,9 @@ function setPkgPickupTime(v){
   const other = document.querySelector('.pk-chip-in'); if(other && !PKG_PICKUP_MINS.includes(mins)) other.value = mins;
 }
 function setPkgPickupMin(m){
-  const n = parseInt(m, 10); APP.pkgPickupMin = n > 0 ? Math.min(n, 600) : null;
-  document.querySelectorAll('.pk-chip[data-min]').forEach(b => b.classList.toggle('on', Number(b.dataset.min) === APP.pkgPickupMin));
+  const n = parseInt(m, 10); APP.pkgPickupMin = m === 'now' ? 'now' : (n > 0 ? Math.min(n, 600) : null);
+  document.querySelectorAll('.pk-chip[data-min]').forEach(b => b.classList.toggle('on', b.dataset.min === String(APP.pkgPickupMin)));
+  if(m === 'now'){ const o = document.querySelector('.pk-chip-in'); if(o) o.value = ''; }
   const h = document.getElementById('pkgPickupHint'); if(h) h.textContent = pkgPickupHint();
 }
 
