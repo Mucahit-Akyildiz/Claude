@@ -691,7 +691,7 @@ function warnPackageDeadlines(){
 function kitchenPickupHtml(o){
   if(!o || o.kind !== 'takeaway') return '';
   const t = typeof pkgTypeOf === 'function' ? pkgTypeOf(o) : (o.takeaway_type || 'delivery');
-  if(!o.pickup_at) return t !== 'pickup' ? '<div class="kc-pickup">🛵 Paket · adrese teslim</div>' : '<div class="kc-pickup">🥡 Gel-Al</div>';
+  if(!o.pickup_at) return t !== 'pickup' ? '<div class="kc-pickup">🛵 Paket · adrese teslim' + (o.travel_src === 'google' && o.travel_min ? ' <small title="Haritadan hesaplanan sürüş süresi + hazırlık payı">(🗺️ ' + Number(o.travel_min) + ' dk yol)</small>' : '') + '</div>' : '<div class="kc-pickup">🥡 Gel-Al</div>';
   // Adrese teslimde yol için 10 dk ayrılır: geri sayım yola çıkış saatine göre.
   const dlMs = typeof pkgKitchenDeadline === 'function' ? pkgKitchenDeadline(o) : new Date(o.pickup_at).getTime();
   const left = Math.round((dlMs - Date.now()) / 60000);

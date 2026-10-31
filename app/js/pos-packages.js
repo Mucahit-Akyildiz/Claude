@@ -708,7 +708,7 @@ function openCourierSheet(orderId){
   const users = ((APP.config && APP.config.users) || []).filter(u => u.is_active !== false).sort((a, b) => String(a.username).localeCompare(String(b.username), 'tr'));
   APP.courierPick = { orderId, courier: (APP.lastCourier && users.some(u => u.id === APP.lastCourier)) ? APP.lastCourier : null };
   document.getElementById('courierBody').innerHTML = `
-    <div class="cr-sum"><b>${escapeHtml(o.customer_name || ('Paket #' + (o.daily_number||'')))}</b>${o.delivery_address ? `<small>📍 ${escapeHtml(o.delivery_address)}</small>` : ''}</div>
+    <div class="cr-sum"><b>${escapeHtml(o.customer_name || ('Paket #' + (o.daily_number||'')))}</b>${o.delivery_address ? `<small>📍 ${escapeHtml(o.delivery_address)}${o.travel_src === 'google' && o.travel_min ? ` · 🗺️ ${Number(o.travel_min)} dk yol` : ''}</small>` : ''}</div>
     <div class="u-mt12 rvf-t">🧑 Kurye</div>
     <div class="rvf-chips" id="crChips">${users.map(u => `<button type="button" class="rvf-chip ${APP.courierPick.courier===u.id?'on':''}" data-uid="${u.id}" ${act('pickCourier', u.id)}>${escapeHtml(u.username)}</button>`).join('') || '<p class="muted">Kullanıcı yok</p>'}</div>
     ${o.customer_phone ? `<label class="cr-sms"><input type="checkbox" id="crSms" checked> 📱 Müşteriye SMS gönder: “Siparişiniz yola çıktı” + kurye adı, telefonu ve takip linki</label>` : '<p class="muted" style="font-size:12px;text-align:left;">Siparişte telefon olmadığı için SMS gönderilemez; takip linkini kopyalayıp iletebilirsiniz.</p>'}
