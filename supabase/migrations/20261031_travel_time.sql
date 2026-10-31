@@ -34,3 +34,4 @@ alter table orders add column if not exists travel_min int, add column if not ex
 -- overhead_items + restaurants.overhead_revenue_base / overhead_auto_labor; _overhead_summary, get_overheads, upsert/remove_overhead_item, set_overhead_settings.
 -- get_restaurant_config: overhead_pct, products[].cost_source. get_ingredient_cost_log.
 -- resend_courier_notify(session, order): kuryeye courier_assigned bildirimini tekrar gönderir.
+-- dispatch_order: müşteriye bildir → SMS (açıksa) ve e-posta (kayıtlıysa) bağımsız; mail_sent döner.

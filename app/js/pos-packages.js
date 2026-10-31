@@ -720,7 +720,7 @@ function openCourierSheet(orderId){
     <div class="cr-sum"><b>${escapeHtml(o.customer_name || ('Paket #' + (o.daily_number||'')))}</b>${o.delivery_address ? `<small>📍 ${escapeHtml(o.delivery_address)}${pkgTravelLabel(o) ? ' · ' + pkgTravelLabel(o) : ''}</small>` : ''}</div>
     <div class="u-mt12 rvf-t">🧑 Kurye</div>
     <div class="rvf-chips" id="crChips">${users.map(u => `<button type="button" class="rvf-chip ${APP.courierPick.courier===u.id?'on':''}" data-uid="${u.id}" ${act('pickCourier', u.id)}>${escapeHtml(u.username)}</button>`).join('') || '<p class="muted">Kullanıcı yok</p>'}</div>
-    ${o.customer_phone ? `<label class="cr-sms"><input type="checkbox" id="crSms" checked> 📱 Müşteriye SMS gönder: “Siparişiniz yola çıktı” + kurye adı, telefonu ve takip linki</label>` : '<p class="muted" style="font-size:12px;text-align:left;">Siparişte telefon olmadığı için SMS gönderilemez; takip linkini kopyalayıp iletebilirsiniz.</p>'}
+    ${o.customer_phone ? `<label class="cr-sms"><input type="checkbox" id="crSms" checked> 📨 Müşteriye bildir: “Siparişiniz yola çıktı” + kurye, varış süresi ve takip linki — SMS (açıksa) ve e-posta (müşterinin kayıtlı e-postası varsa)</label>` : '<p class="muted" style="font-size:12px;text-align:left;">Siparişte telefon olmadığı için SMS gönderilemez; takip linkini kopyalayıp iletebilirsiniz.</p>'}
     <div class="fsheet-foot"><button type="button" class="ghost-btn" ${act('closeSheet','courierSheet')}>Vazgeç</button><button ${act('confirmDispatch')}>🛵 Yola Çıkar</button></div>`;
   openSheet('courierSheet');
 }
@@ -743,8 +743,9 @@ async function confirmDispatch(){
   const url = window.location.origin + '/takip/?t=' + data.tracking_token;
   // Kurye bu cihazı kullanan kişiyse konum paylaşımı için kurye sayfası açılır.
   if(data.courier_token && pk.courier === session.user_id && confirm('Konumunuzu paylaşmak için kurye sayfası açılsın mı? Müşteri varış süresini ve yerinizi görür.')){ window.location.href = '/kurye/?t=' + data.courier_token; return; }
-  if(data.sms_sent) showToast('🛵 Yola çıktı · müşteriye takip SMS\'i gönderildi ✓');
-  else { copyText(url, '🛵 Yola çıktı · takip linki kopyalandı'); }
+  const via = [data.sms_sent && 'SMS', data.mail_sent && 'e-posta'].filter(Boolean).join(' ve ');
+  if(via) showToast('🛵 Yola çıktı · müşteriye ' + via + ' ile takip linki gönderildi ✓');
+  else { copyText(url, sms ? '🛵 Yola çıktı · müşteriye SMS/e-posta gönderilemedi (SMS kapalı, e-posta kayıtlı değil) — takip linki kopyalandı' : '🛵 Yola çıktı · takip linki kopyalandı'); }
   await refreshPackagesLive();
 }
 async function markDelivered(orderId, undo){
