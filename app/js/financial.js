@@ -211,8 +211,8 @@ async function renderReportsView(main, session){
 }
 function reportTabList(){
   const dsc = { summary:'Ciro, kâr, ödemeler', cockpit:'Karşılaştırma, tahmin, uyarılar', menueng:'Kârlılık haritası', tablemap:'Masa bazlı ciro', heat:'Gün × saat yoğunluğu', channels:'Masa, paket, gel-al, online', speed:'Hazırlama ve yanıt süreleri',
-    stockf:'Ne zaman bitecek', zreport:'Z raporu, yazdır', waiters:'Kartlar, ciro, saatlik çalışma', journey:'Sadakat, kayıp müşteri', period:'Saatlik / günlük', vat:'Vergi dağılımı',
-    products:'En çok satanlar', profit:'Maliyet, kâr, net getiri', staff:'Personel ısı haritası', customers:'Müşteri harcamaları', tips:'Bahşiş dağılımı', waste:'Fire ve israf', cancel:'İptaller, personel bazlı kayıp', loss:'Personel bazlı kayıp kontrolü',
+    stockf:'Ne zaman bitecek', zreport:'Z raporu, kasa, kapanışlar', waiters:'Kartlar, ciro, saatlik çalışma', journey:'Sadakat, kayıp müşteri', period:'Saatlik / günlük', vat:'Vergi dağılımı',
+    products:'En çok satanlar', profit:'Maliyet, kâr, net getiri', staff:'Personel ısı haritası', customers:'Harcama, sadakat, kayıp müşteri', tips:'Bahşiş dağılımı', waste:'Fire ve israf', cancel:'İptaller, personel bazlı kayıp', loss:'Personel bazlı kayıp kontrolü',
     resv:'Rezervasyon performansı', openacc:'Veresiye bakiyeleri', payroll:'Çalışma saati, maaş, prim', dayclose:'Kapandı mı, kasa farkı', reviews:'Yıldız ve yorumlar' };
   return [['summary','📊','Genel Özet'], ...AN_TABS, ['period','📈','Dönemsel Analiz'],['vat','🧾','KDV'],['products','📦','Ürün İstatistikleri'],['profit','💹','Ürün Kârlılığı'],['customers','🧑‍🤝‍🧑','Müşteri Analizleri'],['payroll','💼','Puantaj & Prim'],['reviews','⭐','Müşteri Değerlendirmeleri'],['tips','💰','Bahşiş Havuzu'],['waste','🔥','İsraf'],['cancel','❌','İptal & İkram Kontrolü'],['resv','📅','Rezervasyon Analizi'],['openacc','📒','Açık Hesaplar']].map(t => [...t, dsc[t[0]] || '']);
 }
@@ -255,7 +255,7 @@ function renderReportTabContent(session){
   if(tab==='vat') return renderVatReportContent(session);
   if(tab==='products') return renderProductStatsContent(session);
   if(tab==='profit') return renderProfitContent(session);
-  if(tab==='customers') return renderCustomerAnalyticsContent(session);
+  if(tab==='customers' || tab==='journey') return renderMergedReport(session, [['🧑‍🤝‍🧑', 'Müşteri Harcamaları', renderCustomerAnalyticsContent], ['🔁', 'Müşteri Yolculuğu (sadakat, geri dönüş, kayıp)', renderJourneyContent]]);
   if(tab==='tips') return renderTipPoolContent(session);
   if(tab==='waste') return renderWasteContent(session);
   if(tab==='cancel' || tab==='loss') return renderMergedReport(session, [['❌', 'İptaller', renderCancelReportContent], ['🕵️', 'İptal & İkram Kontrolü (personel bazlı)', renderLossReportContent]]);
@@ -266,12 +266,10 @@ function renderReportTabContent(session){
   if(tab==='tablemap') return renderTableMapContent(session);
   if(tab==='heat') return renderHeatContent(session);
   if(tab==='stockf') return renderStockForecastContent(session);
-  if(tab==='zreport') return renderZReportContent(session);
+  if(tab==='zreport' || tab==='dayclose'){ APP.reportTab = 'zreport'; return renderMergedReport(session, [['🧾', 'Gün Sonu (Z Raporu)', renderZReportContent], ['📅', 'Gün Sonu Kapanışları', renderDayClosesContent]]); }
   if(tab==='payroll') return renderPayrollContent(session);
-  if(tab==='dayclose') return renderDayClosesContent(session);
   if(tab==='reviews') return renderReviewsReport(session);
   if(tab==='waiters' || tab==='staff') return renderMergedReport(session, [['🏅', 'Garson Kartları', renderWaiterCardsContent], ['⏰', 'Saatlik Çalışma', renderStaffAnalyticsContent]]);
-  if(tab==='journey') return renderJourneyContent(session);
   if(tab==='resv') return renderReservationAnalyticsContent(session);
   if(tab==='openacc') return renderOpenAccountsContent(session);
   return renderReportContent(session);
@@ -732,7 +730,7 @@ function debouncedCustomerAnalyticsSearch(v){
   APP.customerAnalyticsSearch = v;
   clearTimeout(CUST_ANALYTICS_SEARCH_TIMER);
   CUST_ANALYTICS_SEARCH_TIMER = setTimeout(async () => {
-    await renderCustomerAnalyticsContent(getSession());
+    await redrawReportPart(renderCustomerAnalyticsContent, getSession());
     const inp = document.getElementById('custAnalyticsSearchInput');
     if(inp){ inp.focus(); inp.setSelectionRange(inp.value.length, inp.value.length); }
   }, 350);
@@ -895,6 +893,7 @@ function openOverheadsFromReport(){ if(typeof openOverheads === 'function') open
 async function renderMergedReport(session, parts){
   const host = document.getElementById('reportContent'); if(!host) return;
   const tok = (APP.mergeTok = (APP.mergeTok || 0) + 1);
+  APP.mergeSlots = new Map(parts.map((p, i) => [p[2], 'mrg_' + i]));
   host.innerHTML = parts.map(([ic, t], i) => `<section class="mrg-sec"><h2 class="mrg-h"><span>${ic}</span>${escapeHtml(t)}</h2><div id="mrg_${i}"><p class="muted">Yükleniyor…</p></div></section>`).join('');
   for(let i = 0; i < parts.length; i++){
     if(tok !== APP.mergeTok || !host.isConnected) return;
@@ -904,3 +903,12 @@ async function renderMergedReport(session, parts){
     finally{ slot.id = 'mrg_' + i; host.id = 'reportContent'; }
   }
 }
+
+/* Birleşik sekmedeki bir bölüm kendini yeniden çizerken (filtre, otomatik yenileme) yalnızca kendi bölümüne çizilsin. */
+async function redrawReportPart(fn, ...args){
+  const slotId = APP.mergeSlots && APP.mergeSlots.get(fn), slot = slotId && document.getElementById(slotId), host = document.getElementById('reportContent');
+  if(!slot || !host) return fn(...args);
+  host.id = 'reportContentHost'; slot.id = 'reportContent';
+  try{ return await fn(...args); } finally{ slot.id = slotId; host.id = 'reportContent'; }
+}
+function scrollToReportPart(id){ const el = document.getElementById(id); if(el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
