@@ -82,11 +82,13 @@ function renderIngredientsSettings(el, session){
     ${sheetHtml('ingSheet', '🥕', 'Yeni Hammadde', `
       <div class="fsheet-grid">
         <div class="field-group wide"><label>Hammadde Adı</label><input id="ni_name" placeholder="örn. Döner Eti"></div>
-        <div class="field-group"><label>Birim</label><select id="ni_unit"><option value="adet">adet</option><option value="gram">gram</option><option value="kg">kg</option><option value="ml">ml</option><option value="lt">lt</option></select></div>
-        <div class="field-group"><label>Başlangıç Stoku</label><input type="number" step="0.01" id="ni_stock" placeholder="0"></div>
+        <div class="field-group"><label>Birim</label><select id="ni_unit" ${actOn('change','niCalc',[])}><option value="adet">adet</option><option value="gram">gram</option><option value="kg">kg</option><option value="ml">ml</option><option value="lt">lt</option></select></div>
+        <div class="field-group"><label>Başlangıç Stoku</label><input type="number" step="0.01" id="ni_stock" placeholder="0" ${actOn('input','niCalc',[])}></div>
         <div class="field-group"><label>Fire %</label><input type="number" step="0.1" min="0" max="99" id="ni_waste" placeholder="0"></div>
+        <div class="field-group"><label>Birim maliyet (₺) <small class="muted">— 1 birimin alış fiyatı</small></label><input type="number" step="0.01" min="0" id="ni_uc" placeholder="örn. 250" ${actOn('input','niCalc',[])}></div>
       </div>
-      <p class="muted" style="font-size:12px;text-align:left;margin:10px 0 0;">Ekledikten sonra hangi ürünlerin bu hammaddeyi kullandığını soracağız.</p>
+      <div class="ni-sum" id="niSum">💰 Stok değeri: —</div>
+      <p class="muted" style="font-size:12px;text-align:left;margin:10px 0 0;">Maliyet sonra Mal Kabul'de fiyatlı teslim aldıkça ortalanarak güncellenir. Ekledikten sonra hangi ürünlerin bu hammaddeyi kullandığını soracağız; ürün maliyetleri otomatik hesaplanır.</p>
       <div class="fsheet-foot"><button type="button" class="ghost-btn" ${act('closeSheet','ingSheet')}>Vazgeç</button><button ${act('addIngredient')}>+ Hammadde Ekle</button></div>`, 'var(--c3)')}
     <div style="display:flex;align-items:center;gap:8px;margin:4px 0 10px;"><label style="display:flex;align-items:center;gap:6px;margin:0;font-size:13px;font-weight:600;"><input type="checkbox" class="u-wa-m0" ${actOn('change','selectAllIngredients',['$checked'])}> Tümünü seç</label></div>
     <div class="ig-grid" ${actOn('input','markIngDirty',['$event'])} ${actOn('change','markIngDirty',['$event'])}>
@@ -170,6 +172,8 @@ async function addIngredient(){
   if(!name){ alert('Hammadde adı gerekli'); return; }
   const { data, error } = await sb.rpc('upsert_ingredient', { p_token: session.session_token, p_id: null, p_name: name, p_unit: unit, p_stock: stock, p_waste_pct: waste });
   if(error){ alert(error.message); return; }
+  const ucv = parseFloat((document.getElementById('ni_uc') || {}).value);
+  if(data && ucv > 0){ const { error: e2 } = await sb.rpc('set_ingredient_cost', { p_token: session.session_token, p_id: data, p_cost: ucv }); if(e2) alert(e2.message); }
   closeSheet('ingSheet');
   await renderSettingsView(document.getElementById('main'), session);
   // Hammadde eklenir eklenmez, hangi urunlerin kullandigini sormaya devam et.
@@ -180,49 +184,85 @@ async function addIngredient(){
    (hammadde tarafindan bakis - ekledigimiz/duzenledigimiz hammaddeyi
    birden fazla urune tek seferde atayabilmek icin) --- */
 function openIngredientUsageModal(ingredientId, edit){
-  const ingredient = (APP.config.ingredients||[]).find(x => x.id===ingredientId);
-  const ingredientName = ingredient ? ingredient.name : '';
-  const unit = ingredient && ingredient.unit ? ingredient.unit : '';
+  const ing = (APP.config.ingredients||[]).find(x => x.id===ingredientId) || {};
+  const unit = ing.unit || '';
   const products = APP.config.products || [];
+  const menus = APP.config.menus || [];
+  const uc = Number(ing.unit_cost) || 0, w = Number(ing.waste_pct) || 0;
+  document.getElementById('ingUsageModalBg')?.remove();
   const bg = document.createElement('div');
-  bg.id = 'ingUsageModalBg';
-  bg.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:100;padding:16px;';
+  bg.id = 'ingUsageModalBg'; bg.className = 'iu-bg dg-bg'; bg.dataset.iid = ingredientId;
   bg.onclick = (e) => { if(e.target===bg) bg.remove(); };
-  bg.innerHTML = `<div style="background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:20px;max-width:480px;width:100%;max-height:88vh;overflow:auto;">
-    <div style="display:flex;justify-content:space-between;"><h2 class="u-m0">${edit ? '✏️ Hammadde Düzenle' : escapeHtml(ingredientName) + ' - Kullanıldığı Ürünler'}</h2><span style="cursor:pointer;color:var(--muted);" ${act('removeEl','ingUsageModalBg')}>✕</span></div>
-    ${edit && ingredient ? `<div class="fsheet-grid iu-edit">
-      <div class="field-group wide"><label>Hammadde Adı</label><input id="iue_name" value="${escapeAttr(ingredient.name||'')}"></div>
-      <div class="field-group"><label>Birim</label><select id="iue_unit">${['adet','gram','kg','ml','lt'].map(u => `<option value="${u}" ${u===ingredient.unit?'selected':''}>${u}</option>`).join('')}</select></div>
-      <div class="field-group"><label>Stok</label><input type="number" step="0.01" id="iue_stock" value="${Number(ingredient.stock)||0}"></div>
-      <div class="field-group"><label>Fire %</label><input type="number" step="0.1" min="0" max="99" id="iue_waste" value="${Number(ingredient.waste_pct)||0}"></div>
-      <div class="field-group"><label>Min stok</label><input type="number" step="0.01" min="0" id="iue_min" value="${Number(ingredient.min_stock)||''}" placeholder="—"></div>
-    </div><h3 style="margin:14px 0 0;font-size:15px;">🍽️ Kullanıldığı ürünler</h3>` : ''}
-    <p class="u-tl muted">Bu hammaddeyi hangi ürünler kullanıyor, 1 porsiyonda net ne kadar tüketiliyor${unit?' ('+escapeHtml(unit)+')':''}?${ingredient && Number(ingredient.waste_pct)>0 ? ' Stoktan %'+Number(ingredient.waste_pct)+' fire eklenerek düşülür.' : ''} Seçmediğiniz ürünlerden bu hammadde kaldırılır (o ürünlerin diğer hammaddeleri etkilenmez).</p>
-    ${products.length ? `<div class="iu-tools">
-      <input id="iuSearch" placeholder="🔍 Ürün ara…" autocomplete="off" ${actOn('input','filterIngUsage',[])}>
-      <div class="iu-row">
-        <select id="iuMenu" ${actOn('change','filterIngUsage',[])}><option value="">Tüm menüler</option>${(APP.config.menus||[]).map(m => `<option value="${escapeAttr(m.id)}">${escapeHtml(m.name)}</option>`).join('')}</select>
-        <select id="iuSort" ${actOn('change','filterIngUsage',[])}><option value="sel">Seçililer önce</option><option value="az">A → Z</option><option value="za">Z → A</option><option value="menu">Menüye göre</option></select>
-      </div>
-      <div class="iu-row"><label class="iu-only"><input type="checkbox" id="iuOnly" ${actOn('change','filterIngUsage',[])}> Sadece seçililer</label><small class="muted" id="iuCount"></small></div>
-    </div>` : ''}
-    <div id="ingUsageItemsBox"></div>
-    <button style="margin-top:14px;" ${act('saveIngredientUsage', ingredientId)}>${ICON_SAVE}<span>Kaydet</span></button>
+  const unitSel = (id, v) => `<select id="${id}" ${actOn('change','iuRecalc',[])}>${['adet','gram','kg','ml','lt'].map(u => `<option value="${u}" ${u===v?'selected':''}>${u}</option>`).join('')}</select>`;
+  bg.innerHTML = `<div class="iu-modal" role="dialog" aria-modal="true">
+    <div class="iu-head"><div><small class="muted">${edit ? 'Hammadde düzenle' : 'Kullanıldığı ürünler'}</small><h2>🥕 ${escapeHtml(ing.name || '')}</h2></div><button type="button" class="pdrawer-x" ${act('removeEl','ingUsageModalBg')}>✕</button></div>
+    <div class="iu-body">
+      ${edit ? `<section class="iu-card">
+        <div class="iu-grid">
+          <div class="iu-f iu-wide"><label>Hammadde adı</label><input id="iue_name" value="${escapeAttr(ing.name||'')}"></div>
+          <div class="iu-f"><label>Birim</label>${unitSel('iue_unit', ing.unit)}</div>
+          <div class="iu-f"><label>Stok</label><input type="number" step="0.01" id="iue_stock" value="${Number(ing.stock)||0}" ${actOn('input','iuRecalc',[])}></div>
+          <div class="iu-f"><label>Fire %</label><input type="number" step="0.1" min="0" max="99" id="iue_waste" value="${w}" ${actOn('input','iuRecalc',[])}></div>
+          <div class="iu-f"><label>Min stok</label><input type="number" step="0.01" min="0" id="iue_min" value="${Number(ing.min_stock)||''}" placeholder="Uyarı yok"></div>
+        </div>
+      </section>` : ''}
+      <section class="iu-cost">
+        <div class="iu-k"><small>Ortalama maliyet</small>${edit ? `<div class="iu-uc"><input type="number" step="0.01" min="0" id="iue_uc" value="${uc ? Math.round(uc*100)/100 : ''}" placeholder="—" ${actOn('input','iuRecalc',[])}><em>₺/<span class="iu-u">${escapeHtml(unit)}</span></em></div>` : `<b>${uc ? money(uc) + ' / ' + escapeHtml(unit) : '—'}</b>`}</div>
+        <div class="iu-k"><small>Stok değeri</small><b id="iuStockVal">—</b></div>
+        <div class="iu-k"><small>Kullanan ürün</small><b id="iuUseN">—</b></div>
+        <button type="button" class="pc-btn iu-hist" ${act('openIngCostLog', ingredientId)}>📈 Maliyet geçmişi</button>
+        <p class="muted iu-cnote">Mal Kabul'de fiyatlı teslim aldıkça eldeki stokla <b>ağırlıklı ortalanarak</b> otomatik güncellenir.${w ? ' Ürün maliyetine %' + w + ' fire eklenir.' : ''}</p>
+      </section>
+      <section>
+        <div class="iu-sh"><h3>🍽️ Kullanıldığı ürünler</h3><small class="muted" id="iuCount"></small></div>
+        <p class="muted iu-hint">İşaretleyip 1 porsiyonda kullanılan <b>net</b> miktarı girin; hammaddenin o üründeki maliyet payı yanında görünür.</p>
+        ${products.length ? `<div class="iu-tools">
+          <input id="iuSearch" placeholder="🔍 Ürün ara…" autocomplete="off" ${actOn('input','filterIngUsage',[])}>
+          <select id="iuMenu" ${actOn('change','filterIngUsage',[])}><option value="">Tüm menüler</option>${menus.map(m => `<option value="${escapeAttr(m.id)}">${escapeHtml(m.name)}</option>`).join('')}</select>
+          <select id="iuSort" ${actOn('change','filterIngUsage',[])}><option value="sel">Seçililer önce</option><option value="az">A → Z</option><option value="za">Z → A</option><option value="menu">Menüye göre</option></select>
+          <label class="iu-only"><input type="checkbox" id="iuOnly" ${actOn('change','filterIngUsage',[])}> Sadece seçililer</label>
+        </div>` : ''}
+        <div id="ingUsageItemsBox" class="iu-list"></div>
+      </section>
+    </div>
+    <div class="iu-foot"><button type="button" class="ghost-btn" ${act('removeEl','ingUsageModalBg')}>Vazgeç</button><button ${act('saveIngredientUsage', ingredientId)}>${ICON_SAVE}<span>Kaydet</span></button></div>
   </div>`;
   document.body.appendChild(bg);
   const box = document.getElementById('ingUsageItemsBox');
   box.innerHTML = products.length===0 ? '<p class="muted">Henüz ürün eklenmemiş.</p>' : products.map(p => {
-    const existing = (p.recipe||[]).find(r => r.ingredient_id===ingredientId);
-    return `
-    <div class="iu-item" data-name="${escapeAttr(p.name)}" data-menu="${escapeAttr(p.menu_id||'')}" style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);">
-      <input type="checkbox" id="ingu_chk_${p.id}" ${existing?'checked':''} ${actOn('change','toggleIngUsageQty',[p.id,'$checked'])} class="u-wa-m0">
-      <span class="u-f1">${escapeHtml(p.name)}${(APP.config.menus||[]).length > 1 && p.menu_id ? `<small class="muted iu-menu">${escapeHtml(((APP.config.menus||[]).find(m => m.id === p.menu_id)||{}).name||'')}</small>` : ''}</span>
-      <input type="number" step="0.01" min="0" id="ingu_qty_${p.id}" value="${existing?existing.qty_per_unit:''}" placeholder="Miktar/porsiyon" ${existing?'':'disabled'} style="width:110px;margin:0;">
-      <span class="muted" style="min-width:36px;">${escapeHtml(unit)}</span>
-    </div>`;
+    const ex = (p.recipe||[]).find(r => r.ingredient_id===ingredientId);
+    const mn = menus.length > 1 && p.menu_id ? ((menus.find(m => m.id === p.menu_id)||{}).name||'') : (p.category || '');
+    return `<label class="iu-item ${ex?'on':''}" data-pid="${p.id}" data-name="${escapeAttr(p.name)}" data-menu="${escapeAttr(p.menu_id||'')}" data-price="${Number(p.price)||0}" data-cost="${Number(p.cost)||0}">
+      <input type="checkbox" id="ingu_chk_${p.id}" ${ex?'checked':''} ${actOn('change','toggleIngUsageQty',[p.id,'$checked'])}>
+      <span class="iu-pn"><b>${escapeHtml(p.name)}</b><small class="muted">${escapeHtml(mn)}${mn ? ' · ' : ''}${money(p.price)} · ürün maliyeti ${money(p.cost)}</small></span>
+      <span class="iu-q"><input type="number" step="0.01" min="0" id="ingu_qty_${p.id}" value="${ex?ex.qty_per_unit:''}" placeholder="Miktar" ${ex?'':'disabled'} ${actOn('input','iuRecalc',[])}><em class="iu-u">${escapeHtml(unit)}</em></span>
+      <span class="iu-c" id="ingu_c_${p.id}">—</span>
+    </label>`;
   }).join('');
-  filterIngUsage();
-  const sr = document.getElementById('iuSearch'); if(sr) setTimeout(() => sr.focus(), 50);
+  filterIngUsage(); iuRecalc();
+  const sr = document.getElementById('iuSearch'); if(sr && !edit) setTimeout(() => sr.focus(), 50);
+}
+// Canlı hesap: stok değeri, kullanan ürün sayısı ve her ürün için bu hammaddenin maliyet payı (fire dahil).
+function iuRecalc(){
+  const v = id => (document.getElementById(id) || {}).value;
+  const ucEl = document.getElementById('iue_uc');
+  const bgEl = document.getElementById('ingUsageModalBg'); if(!bgEl) return;
+  const ingr = (APP.config.ingredients||[]).find(x => x.id === bgEl.dataset.iid) || {};
+  const uc = ucEl ? (parseFloat(ucEl.value) || 0) : (Number(ingr.unit_cost) || 0);
+  const w = document.getElementById('iue_waste') ? (parseFloat(v('iue_waste')) || 0) : (Number(ingr.waste_pct) || 0);
+  const stock = document.getElementById('iue_stock') ? (parseFloat(v('iue_stock')) || 0) : (Number(ingr.stock) || 0);
+  const unit = document.getElementById('iue_unit') ? v('iue_unit') : (ingr.unit || '');
+  bgEl.querySelectorAll('.iu-u').forEach(e => { e.textContent = unit; });
+  const sv = document.getElementById('iuStockVal'); if(sv) sv.textContent = uc ? money(stock * uc) : '—';
+  let n = 0;
+  bgEl.querySelectorAll('.iu-item').forEach(row => {
+    const on = row.querySelector('input[type=checkbox]').checked, q = parseFloat(row.querySelector('.iu-q input').value) || 0;
+    row.classList.toggle('on', on); if(on) n++;
+    const c = row.querySelector('.iu-c'), price = Number(row.dataset.price) || 0;
+    if(on && q && uc){ const share = q * uc / Math.max(0.01, 1 - w / 100); c.innerHTML = `<b>${money(share)}</b><small>${price ? '%' + Math.round(share / price * 100) + ' fiyatın' : ''}</small>`; }
+    else c.innerHTML = on ? '<small class="muted">miktar girin</small>' : '';
+  });
+  const un = document.getElementById('iuUseN'); if(un) un.textContent = n;
 }
 /* Kullanıldığı Ürünler: arama, menü filtresi, sıralama (satırlar DOM'da kalır; kayıt hepsini okur). */
 function filterIngUsage(){
@@ -245,7 +285,7 @@ function filterIngUsage(){
   items.forEach(el => {
     const on = chk(el); if(on) sel++;
     const ok = (!q || el.dataset.name.toLocaleLowerCase('tr').includes(q)) && (!menu || el.dataset.menu === menu) && (!only || on);
-    el.style.display = ok ? 'flex' : 'none'; if(ok) shown++;
+    el.style.display = ok ? '' : 'none'; if(ok) shown++;
   });
   const cnt = document.getElementById('iuCount'); if(cnt) cnt.textContent = `${sel} seçili · ${shown}/${items.length} ürün gösteriliyor`;
 }
@@ -279,6 +319,12 @@ async function saveIngredientUsage(ingredientId){
     if(e1){ alert(e1.message); return; }
     const { error: e2 } = await sb.rpc('set_ingredient_min', { p_token: session.session_token, p_id: ingredientId, p_min: parseFloat(document.getElementById('iue_min').value)||0 });
     if(e2){ alert(e2.message); return; }
+    const ucIn = document.getElementById('iue_uc'), ing0 = (APP.config.ingredients||[]).find(x => x.id === ingredientId) || {};
+    const ucv = ucIn && ucIn.value !== '' ? parseFloat(ucIn.value) : null;
+    if(ucIn && (ucv || null) !== (Number(ing0.unit_cost) ? Math.round(Number(ing0.unit_cost)*100)/100 : null)){
+      const { error: e3 } = await sb.rpc('set_ingredient_cost', { p_token: session.session_token, p_id: ingredientId, p_cost: ucv });
+      if(e3){ alert(e3.message); return; }
+    }
   }
   const { error } = await sb.rpc('set_ingredient_usage', { p_token: session.session_token, p_ingredient_id: ingredientId, p_usages: usages });
   if(error){ alert(error.message); return; }
@@ -1592,4 +1638,9 @@ async function openIngCostLog(id){
       <small>${new Date(r.at).toLocaleString('tr-TR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}${r.stock_before != null && r.source === 'purchase' ? ' · eldeki ' + Number(r.stock_before) + ' ' + u + (r.old != null ? ' × ' + money(r.old) : '') : ''}</small></div>
       <b>${r.old != null ? money(r.old) + ' → ' : ''}${money(r.new)}</b></div>`).join('')}</div>` : '<p class="muted">Henüz kayıt yok. Mal Kabul\'de fiyatlı teslim aldıkça burada görünür.</p>'}`;
   openSheet('icSheet');
+}
+
+function niCalc(){
+  const st = parseFloat((document.getElementById('ni_stock')||{}).value) || 0, uc = parseFloat((document.getElementById('ni_uc')||{}).value) || 0, u = (document.getElementById('ni_unit')||{}).value || '';
+  const el = document.getElementById('niSum'); if(el) el.innerHTML = uc ? `💰 ${st} ${escapeHtml(u)} × ${money(uc)} = stok değeri <b>${money(st * uc)}</b>` : '💰 Stok değeri: —';
 }
