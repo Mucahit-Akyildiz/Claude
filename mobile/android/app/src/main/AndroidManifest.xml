@@ -29,6 +29,12 @@
             android:exported="false"
             android:foregroundServiceType="mediaPlayback|microphone" />
 
+        <!-- Kurye konum paylaşımı: teslimat sırasında ekran kilitliyken de konum gönderir (bkz. PeykLocationService). -->
+        <service
+            android:name=".PeykLocationService"
+            android:exported="false"
+            android:foregroundServiceType="location" />
+
         <!-- Bildirim servisi: Capacitor'ünkü yerine onu genişleten ve sesli aramaları
              telefon araması gibi gösteren servis (bkz. PeykMessagingService). -->
         <service android:name="com.capacitorjs.plugins.pushnotifications.MessagingService" tools:node="remove" />
@@ -77,6 +83,12 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <!-- Kurye konum paylaşımı (yalnızca kurye "Konumumu paylaş" deyince, teslimat süresince) -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
+    <uses-feature android:name="android.hardware.location.gps" android:required="false" />
+    <uses-feature android:name="android.hardware.location" android:required="false" />
     <!-- Gelen sesli aramayı kilit ekranında tam ekran göstermek için -->
     <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
     <uses-feature android:name="android.hardware.camera" android:required="false" />

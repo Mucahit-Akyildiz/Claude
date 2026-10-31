@@ -329,6 +329,7 @@ function setupNativeFcmListeners(){
   PN.addListener('pushNotificationActionPerformed', (action) => {
     const data = action && action.notification && action.notification.data;
     // Uygulama bildirimle soğuk açıldıysa ilk çizim bitsin diye kısa gecikmeyle geçilir.
+    if(data && data.url && String(data.url).indexOf('/kurye/') === 0){ window.location.href = data.url; return; }
     if(data && data.view) setTimeout(() => openViewFromNotification(data.view, data.tag), 400);
   });
 }

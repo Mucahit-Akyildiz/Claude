@@ -47,7 +47,7 @@ function renderPackageGrid(){
     if(!pickup){
       const mins = (t) => Math.max(0, Math.round((Date.now() - new Date(t)) / 60000));
       courier = o.delivered_at ? `<div class="cr-row"><span class="pk-badge cr-done">✅ Teslim edildi · ödeme bekliyor</span><button type="button" class="cr-btn ghost" title="Teslim edildi işaretini geri al" ${actStop('markDelivered', o.order_id, true)}>↩</button></div>`
-        : o.dispatched_at ? `<div class="cr-row"><span class="pk-badge cr-way">🛵 Yolda${o.courier_name ? ' · ' + escapeHtml(o.courier_name) : ''} · ${mins(o.dispatched_at)} dk</span><button type="button" class="cr-btn" ${actStop('markDelivered', o.order_id, false)}>✅ Teslim</button></div>`
+        : o.dispatched_at ? `<div class="cr-row"><span class="pk-badge cr-way">🛵 Yolda${o.courier_name ? ' · ' + escapeHtml(o.courier_name) : ''} · ${mins(o.dispatched_at)} dk</span>${courierLiveBadge(o)}<button type="button" class="cr-btn ghost" title="${o.courier_user_id === (getSession()||{}).user_id ? 'Konumumu paylaş' : 'Kurye linki · konum paylaşımı'}" ${actStop('openCourierLink', o.order_id)}>📍</button><button type="button" class="cr-btn" ${actStop('markDelivered', o.order_id, false)}>✅ Teslim</button></div>`
         : allReady ? `<div class="cr-row"><button type="button" class="cr-btn hot" ${actStop('openCourierSheet', o.order_id)}>🛵 Kuryeye Ver</button></div>`
         : `<div class="cr-row"><button type="button" class="cr-btn" disabled title="Mutfak tüm ürünleri hazırlayınca kuryeye verilebilir">⏳ Hazırlanıyor — kurye bekliyor</button></div>`;
     }
@@ -56,7 +56,7 @@ function renderPackageGrid(){
   });
   const del = pkgOrders.filter(o => pkgTypeOf(o) !== 'pickup');
   const sum = document.getElementById('pkgStatus');
-  if(sum && del.length) sum.innerHTML = statChips([['👨‍🍳', del.filter(o => !o.dispatched_at).length, 'Hazırlanıyor / kurye bekliyor', 'var(--c3)'], ['🛵', del.filter(o => o.dispatched_at && !o.delivered_at).length, 'Yolda', 'var(--c1)'], ['✅', del.filter(o => o.delivered_at).length, 'Teslim edildi, ödeme bekliyor', 'var(--ok,#22c55e)']], '', 'pkg');
+  if(sum && del.length) sum.innerHTML = (del.some(o => o.dispatched_at && !o.delivered_at) ? `<button type="button" class="cr-btn hot" style="float:right;margin:0 0 8px 8px;" ${act('openCourierMap')}>🗺️ Kuryeler</button>` : '') + statChips([['👨‍🍳', del.filter(o => !o.dispatched_at).length, 'Hazırlanıyor / kurye bekliyor', 'var(--c3)'], ['🛵', del.filter(o => o.dispatched_at && !o.delivered_at).length, 'Yolda', 'var(--c1)'], ['✅', del.filter(o => o.delivered_at).length, 'Teslim edildi, ödeme bekliyor', 'var(--ok,#22c55e)']], '', 'pkg');
   if(!document.getElementById('courierSheet')) document.body.insertAdjacentHTML('beforeend', sheetHtml('courierSheet', '🛵', 'Kuryeye Ver', '<div id="courierBody"></div>', 'var(--c1)'));
   cards.push(`<div class="table-cell" style="cursor:pointer;" ${act('openPackageModal','pkg_new')}>➕<div style="font-size:11px;margin-top:4px;font-weight:400;">Yeni Paket Sipariş</div></div>`);
   el.innerHTML = cards.join('');
@@ -741,6 +741,8 @@ async function confirmDispatch(){
   APP.lastCourier = pk.courier;
   closeSheet('courierSheet');
   const url = window.location.origin + '/takip/?t=' + data.tracking_token;
+  // Kurye bu cihazı kullanan kişiyse konum paylaşımı için kurye sayfası açılır.
+  if(data.courier_token && pk.courier === session.user_id && confirm('Konumunuzu paylaşmak için kurye sayfası açılsın mı? Müşteri varış süresini ve yerinizi görür.')){ window.location.href = '/kurye/?t=' + data.courier_token; return; }
   if(data.sms_sent) showToast('🛵 Yola çıktı · müşteriye takip SMS\'i gönderildi ✓');
   else { copyText(url, '🛵 Yola çıktı · takip linki kopyalandı'); }
   await refreshPackagesLive();
@@ -755,4 +757,63 @@ async function refreshPackagesLive(){
   const { data } = await sb.rpc('get_live_orders', { p_token: getSession().session_token });
   if(data) APP.liveOrders = data;
   renderPackageGrid();
+}
+
+/* ---- Canlı kurye takibi ----
+   Kurye /kurye/?t=… sayfasında konumunu paylaşır (uygulamada ekran kilitliyken de); müşteri takip linkinde
+   kalan süreyi ve kuryeyi haritada görür. Restoran "🗺️ Kuryeler" panelinden yoldaki tüm kuryeleri izler. */
+function courierLiveBadge(o){
+  if(!o.courier_at) return '';
+  const age = (Date.now() - new Date(o.courier_at)) / 60000;
+  if(age > 3) return `<span class="pk-badge late" title="Kuryenin konumu ${Math.round(age)} dk önce alındı">📵 konum yok</span>`;
+  if(o.courier_eta_min != null && o.courier_eta_at){
+    const left = Math.max(1, Math.round((new Date(o.courier_eta_at).getTime() + o.courier_eta_min * 60000 - Date.now()) / 60000));
+    return `<span class="pk-badge ok" title="Kuryenin anlık konumundan, trafik dahil">📍 ${left} dk kaldı</span>`;
+  }
+  return '<span class="pk-badge ok">📍 canlı</span>';
+}
+async function openCourierLink(orderId){
+  const o = (APP.liveOrders||[]).find(x => x.order_id === orderId); if(!o) return;
+  const session = getSession();
+  const { data, error } = await sb.rpc('get_courier_link', { p_token: session.session_token, p_order_id: orderId });
+  if(error){ alert(error.message); return; }
+  const url = window.location.origin + '/kurye/?t=' + data;
+  if(o.courier_user_id === session.user_id){ window.location.href = url; return; }
+  if(!document.getElementById('crLinkSheet')) document.body.insertAdjacentHTML('beforeend', sheetHtml('crLinkSheet', '📍', 'Kurye konum linki', '<div id="crLinkBody"></div>', 'var(--c1)'));
+  APP.crLink = url;
+  document.getElementById('crLinkBody').innerHTML = `<p class="muted" style="text-align:left;margin:0 0 10px;">Kurye bu linki telefonunda açıp <b>📍 Konumumu paylaş</b> der. Müşteri takip sayfasında varış süresini ve kuryeyi haritada görür; siz de 🗺️ Kuryeler panelinden izlersiniz.${o.courier_name ? ' Kurye: <b>' + escapeHtml(o.courier_name) + '</b>' : ''}</p>
+    <input readonly value="${escapeAttr(url)}" style="width:100%;font-family:monospace;font-size:12px;">
+    <div class="fsheet-foot"><button type="button" class="ghost-btn" ${act('copyCourierLink')}>📋 Kopyala</button><button ${act('shareCourierLink')}>📤 Paylaş</button></div>`;
+  openSheet('crLinkSheet');
+}
+function copyCourierLink(){ copyText(APP.crLink, 'Kurye linki kopyalandı'); }
+async function shareCourierLink(){
+  if(navigator.share){ try{ await navigator.share({ title: 'Teslimat', text: 'Teslimat konum linki', url: APP.crLink }); return; }catch(e){ if(e && e.name === 'AbortError') return; } }
+  window.open('https://wa.me/?text=' + encodeURIComponent('Teslimat linki: ' + APP.crLink), '_blank', 'noopener');
+}
+async function openCourierMap(){
+  if(!document.getElementById('crMapSheet')) document.body.insertAdjacentHTML('beforeend', sheetHtml('crMapSheet', '🗺️', 'Yoldaki kuryeler', '<div id="crMap" class="cr-map"></div><div id="crMapList" class="cr-map-list"></div>', 'var(--c1)'));
+  openSheet('crMapSheet');
+  if(!APP.crMap && window.LiveMap) APP.crMap = LiveMap.create(document.getElementById('crMap'));
+  await refreshCourierMap();
+  clearInterval(APP.crMapTimer);
+  APP.crMapTimer = setInterval(() => { const sh = document.getElementById('crMapSheet'); if(!sh || !sh.classList.contains('open')){ clearInterval(APP.crMapTimer); return; } refreshCourierMap(); }, 15000);
+}
+async function refreshCourierMap(){
+  const { data, error } = await sb.rpc('get_courier_positions', { p_token: getSession().session_token });
+  const list = document.getElementById('crMapList'); if(!list) return;
+  if(error){ list.innerHTML = `<p class="muted">${escapeHtml(error.message)}</p>`; return; }
+  const rows = (data && data.list) || [], rest = (data && data.rest) || {};
+  const fresh = (r) => r.at && Date.now() - new Date(r.at) < 180000;
+  const pts = [{ kind: 'rest', id: 'r', lat: rest.lat, lng: rest.lng }];
+  rows.forEach(r => {
+    if(fresh(r)) pts.push({ kind: 'courier', id: r.id, lat: r.lat, lng: r.lng, label: (r.courier || 'Kurye') + (r.eta_min != null ? ' · ' + r.eta_min + ' dk' : '') });
+    pts.push({ kind: 'dest', id: r.id, lat: r.dest_lat, lng: r.dest_lng, label: r.customer });
+  });
+  if(APP.crMap){ APP.crMap.set(pts); setTimeout(() => APP.crMap && APP.crMap.map.invalidateSize(), 80); }
+  list.innerHTML = rows.length ? rows.map(r => {
+    const left = r.eta_min != null && r.eta_at ? Math.max(1, Math.round((new Date(r.eta_at).getTime() + r.eta_min * 60000 - Date.now()) / 60000)) : null;
+    const st = !r.at ? '<span class="pk-badge">📍 paylaşım başlamadı</span>' : fresh(r) ? `<span class="pk-badge ok">📍 ${left != null ? left + ' dk kaldı · varış ' + new Date(Date.now() + left * 60000).toLocaleTimeString('tr-TR', { hour:'2-digit', minute:'2-digit' }) : 'canlı'}</span>` : `<span class="pk-badge late">📵 ${Math.round((Date.now() - new Date(r.at)) / 60000)} dk önce</span>`;
+    return `<div class="cr-ml-row"><div><b>🛵 ${escapeHtml(r.courier || 'Kurye')} → ${escapeHtml(r.customer)}</b><small>${escapeHtml(r.address || '')}</small></div><div class="cr-ml-r">${st}${r.at ? `<small>son konum ${new Date(r.at).toLocaleTimeString('tr-TR', { hour:'2-digit', minute:'2-digit' })}</small>` : ''}<button type="button" class="cr-btn ghost" ${act('openCourierLink', r.id)}>🔗 Link</button></div></div>`;
+  }).join('') : '<p class="muted">Yolda kurye yok.</p>';
 }

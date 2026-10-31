@@ -730,6 +730,16 @@ module.exports = async function handler(req, res) {
       res.status(200).json({ sent: (r && r.sent) || 0 });
       return;
     }
+    // Sipariş kuryeye verildi (dispatch_order): kuryeye konum paylaşım linkiyle bildirim.
+    if (mode === 'courier_assigned') {
+      const b = req.body || {};
+      const { data: o } = await supabase.from('orders').select('id, courier_user_id, courier_token, customer_name, daily_number, delivery_address, delivered_at').eq('id', b.order_id).maybeSingle();
+      if (!o || !o.courier_user_id || !o.courier_token || o.delivered_at) { res.status(200).json({ sent: 0 }); return; }
+      const who = o.customer_name || ('Paket #' + (o.daily_number || ''));
+      const r = await sendToUsers(supabase, [o.courier_user_id], { title: '🛵 Teslimat: ' + who, body: (o.delivery_address ? o.delivery_address.slice(0, 120) + ' · ' : '') + 'Dokunun, konumunuzu paylaşın; müşteri varış süresini görsün.', url: '/kurye/?t=' + o.courier_token, tag: 'courier-' + o.id });
+      res.status(200).json({ sent: (r && r.sent) || 0 });
+      return;
+    }
     if (mode === 'pkg_alerts') {
       const dl = Array.isArray(req.body && req.body.deadline_ids) ? req.body.deadline_ids.slice(0, 200) : [];
       const cr = Array.isArray(req.body && req.body.courier_ids) ? req.body.courier_ids.slice(0, 200) : [];

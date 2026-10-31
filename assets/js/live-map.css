@@ -1,0 +1,6 @@
+.lm-wrap{background:none;border:0;}
+.lm-pin{position:relative;width:36px;height:36px;border-radius:50%;display:grid;place-items:center;font-size:19px;background:#fff;border:2px solid #008fa8;box-shadow:0 3px 10px rgba(0,0,0,.28);}
+.lm-pin.lm-dest{border-color:#0d7a4f;} .lm-pin.lm-rest{border-color:#c9a45c;}
+.lm-pin.lm-courier{border-color:#00b6d4;animation:lmPulse 1.8s ease-in-out infinite;}
+.lm-pin b{position:absolute;top:38px;left:50%;transform:translateX(-50%);white-space:nowrap;background:rgba(20,24,27,.86);color:#fff;font:700 11px/1.2 'Plus Jakarta Sans',sans-serif;padding:3px 7px;border-radius:8px;}
+@keyframes lmPulse{0%,100%{box-shadow:0 0 0 0 rgba(0,182,212,.55),0 3px 10px rgba(0,0,0,.28);}50%{box-shadow:0 0 0 10px rgba(0,182,212,0),0 3px 10px rgba(0,0,0,.28);}}

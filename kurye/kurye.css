@@ -1,0 +1,15 @@
+.kr-head{margin-bottom:14px;} .kr-head small{color:var(--muted);font-weight:700;} .kr-head h1{margin:2px 0 0;font-size:24px;}
+.kr-big{display:block;width:100%;border:0;border-radius:18px;padding:18px;font:800 18px 'Plus Jakarta Sans',sans-serif;background:var(--accent);color:#fff;cursor:pointer;margin:0 0 8px;}
+.kr-big.kr-ok{background:var(--ok);margin-top:14px;}
+.kr-hint{color:var(--muted);font-size:12.5px;text-align:center;margin:0 0 14px;}
+.kr-share{display:flex;gap:12px;align-items:center;border:1px solid var(--border);border-radius:18px;padding:14px 16px;margin-bottom:12px;background:var(--panel);}
+.kr-share.on{border-color:color-mix(in srgb,var(--ok) 50%,var(--border));background:color-mix(in srgb,var(--ok) 10%,var(--panel));}
+.kr-share div{flex:1;} .kr-share b{display:block;} .kr-share small{color:var(--muted);font-size:12px;}
+.kr-live{width:14px;height:14px;border-radius:50%;background:var(--ok);flex-shrink:0;animation:pulse 1.6s infinite;box-shadow:0 0 0 0 color-mix(in srgb,var(--ok) 45%,transparent);}
+.kr-ghost{border:1px solid var(--border);background:transparent;color:var(--text);border-radius:12px;padding:8px 12px;font:700 13px 'Plus Jakarta Sans',sans-serif;cursor:pointer;}
+.kr-card{display:grid;gap:12px;}
+.kr-row{display:flex;gap:12px;align-items:flex-start;} .kr-row span{font-size:20px;} .kr-row b{display:block;overflow-wrap:anywhere;} .kr-row small{color:var(--muted);display:block;margin-top:2px;}
+.kr-btns{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+.kr-btn{display:block;text-align:center;text-decoration:none;border:1px solid var(--border);border-radius:14px;padding:12px;font-weight:800;color:var(--text);background:var(--panel2);}
+.kr-err{background:color-mix(in srgb,#e5484d 14%,var(--panel));border:1px solid color-mix(in srgb,#e5484d 45%,var(--border));border-radius:14px;padding:10px 14px;margin-bottom:12px;font-size:13.5px;}
+.kr-done{text-align:center;font-weight:800;font-size:18px;padding:18px;border-radius:18px;background:color-mix(in srgb,var(--ok) 14%,var(--panel));margin-bottom:12px;} .kr-done small{display:block;color:var(--muted);font-weight:500;font-size:12.5px;margin-top:4px;}

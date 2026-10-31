@@ -16,3 +16,13 @@ alter table orders add column if not exists travel_min int, add column if not ex
 -- _cron_travel_recheck: teslim saati olmayan paketler 3 dk'da bir yeniden hesaplanır (en fazla 2 saat, yola çıkana kadar).
 -- restaurants.travel_refresh_min (varsayılan 3): Hemen paketlerde yeniden hesap aralığı; save_travel_recheck(p_token,p_min,p_refresh); config.geo.travel_refresh_min.
 -- _cron_pkg_alerts: kurye hatırlatması hazır olduktan 2, 7, 12 dk sonra (courier_push_stage 1..3).
+
+-- ===== Canlı kurye takibi =====
+-- orders: courier_token (kurye sayfası anahtarı), courier_lat/lng/acc/at (son konum), courier_eta_min/eta_at (kalan süre).
+-- RPC: get_courier_job(token), courier_ping(token,lat,lng,acc), courier_delivered(token)  [anon, kurye sayfası]
+--      get_courier_link(session, order), get_courier_positions(session)                   [personel]
+--      _courier_eta_target, _set_courier_eta, _set_order_dest                            [service_role, api/travel-time eta_ids]
+-- dispatch_order: courier_token üretir/döndürür, kuryeye courier_assigned bildirimi gönderir.
+-- get_public_tracking: eta_min/eta_at, live, courier_lat/lng (yalnızca yoldayken ve son 3 dk), dest/rest koordinatları.
+-- get_live_orders: courier_at, courier_eta_min, courier_eta_at.
+-- pg_cron courier_eta (her dakika): konumu taze kuryelerde ~2 dk'da bir kalan süre (_cron_courier_eta).
