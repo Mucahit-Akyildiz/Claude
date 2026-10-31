@@ -494,8 +494,9 @@ function geoPaneHtml(session){
         <small class="muted">${g.maps_key_set ? '🔑 İşletmenizin anahtarı kayıtlı; kullanım ve ücret sizin Google hesabınıza yazılır.' : 'Anahtar girilmedikçe haritadan süre hesaplanmaz, varsayılan süre kullanılır.'} Anahtar şifreli saklanır ve tarayıcıya geri gönderilmez.</small></div>
       <div><label>Varsayılan yol süresi (dk)</label><input id="geo_def" type="number" min="1" max="120" value="${g.travel_default_min || 10}" ${mgr?'':'disabled'}></div>
       <div><label>Hazırlık / teslim payı (dk)</label><input id="geo_buf" type="number" min="0" max="60" value="${g.travel_buffer_min != null ? g.travel_buffer_min : 3}" ${mgr?'':'disabled'}></div>
-      <div><label>Trafik güncelleme eşiği (dk)</label><input id="geo_rc" type="number" min="1" max="30" value="${g.travel_recheck_min || 3}" ${mgr?'':'disabled'}></div>
-    </div><p class="u-fs12 muted" style="margin:6px 0 0;">Haritadan gelen sürüş süresine <b>hazırlık payı</b> eklenir (paketleme, kuryenin binişi, park). Örn. 11 dk sürüş + 3 dk pay = 14 dk önce yola çıkılır. Süre önce <b>planlanan yola çıkış saatinin</b> trafiğiyle hesaplanır, yola çıkışa <b>30 ve 15 dk</b> kala anlık trafikle yeniden kontrol edilir; eşikten fazla değişirse güncellenir, uzadıysa bildirim gelir.</p></div>
+      <div><label>Hemen paketlerde güncelleme sıklığı (dk)</label><input id="geo_rf" type="number" min="1" max="30" value="${g.travel_refresh_min || 3}" ${mgr?'':'disabled'}><small class="muted">Teslim saati girilmeyen paketlerde yol süresi bu aralıkla anlık trafikle yeniden hesaplanır.</small></div>
+      <div><label>Bildirim/güncelleme için en az değişim (dk)</label><input id="geo_rc" type="number" min="1" max="30" value="${g.travel_recheck_min || 3}" ${mgr?'':'disabled'}><small class="muted">Teslim saatli paketlerde süre bu kadar değişirse yola çıkış saati kayar; uzadıysa bildirim gelir.</small></div>
+    </div><p class="u-fs12 muted" style="margin:6px 0 0;">Haritadan gelen sürüş süresine <b>hazırlık payı</b> eklenir (paketleme, kuryenin binişi, park). Örn. 11 dk sürüş + 3 dk pay = 14 dk önce yola çıkılır. <b>Teslim saatli</b> paketlerde süre önce planlanan yola çıkış saatinin trafiğiyle hesaplanır, yola çıkışa <b>30 ve 15 dk</b> kala yeniden kontrol edilir. <b>Hemen</b> paketlerde süre yola çıkana kadar yukarıdaki sıklıkla güncellenir (her kontrol bir Google isteğidir).</p></div>
     ${mgr ? `<button class="ix-save" ${act('saveGeoSettings')}>${ICON_SAVE}<span>Kaydet</span></button>` : '<p class="u-fs13 muted">Bu ayarı yalnızca yönetici değiştirebilir.</p>'}`;
 }
 async function geoLookup(){
@@ -516,8 +517,8 @@ async function saveGeoSettings(){
   const { data, error } = await sb.rpc('save_geo_settings', { p_token: getSession().session_token, p_address: v('geo_addr') || '',
     p_lat: pick.lat != null ? pick.lat : g.geo_lat, p_lng: pick.lng != null ? pick.lng : g.geo_lng, p_default: parseInt(v('geo_def'), 10) || 10, p_buffer: parseInt(v('geo_buf'), 10) || 0 });
   if(error){ showToast(error.message); return; }
-  const rc = await sb.rpc('save_travel_recheck', { p_token: getSession().session_token, p_min: parseInt(v('geo_rc'), 10) || 3 });
-  if(!rc.error && data) data.travel_recheck_min = rc.data;
+  const rc = await sb.rpc('save_travel_recheck', { p_token: getSession().session_token, p_min: parseInt(v('geo_rc'), 10) || 3, p_refresh: parseInt(v('geo_rf'), 10) || 3 });
+  if(!rc.error && data){ data.travel_recheck_min = rc.data; data.travel_refresh_min = parseInt(v('geo_rf'), 10) || 3; }
   if(APP.config) APP.config.geo = data; APP.geoPick = null;
   const p = document.getElementById('geoPane'); if(p) p.innerHTML = geoPaneHtml();
   setIntTileStatus('geo', !!(data && data.geo_lat != null));
