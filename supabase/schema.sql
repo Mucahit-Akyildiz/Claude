@@ -773,7 +773,7 @@ begin
       and exists (select 1 from order_items i where i.order_id = o.id and i.status = 'pending' and not i.paid)
   ), upd as (update orders o set pkg_push_stage = d.st from due d where o.id = d.id and o.pkg_push_stage < d.st returning o.id)
   select array_agg(id) into v_dl from upd;
-  -- Hazır ama kuryeye verilmemiş adrese teslim paket: hazır olduktan 2 ve 10 dk sonra.
+  -- Hazır ama kuryeye verilmemiş adrese teslim paket: hazır olduktan 2, 7 ve 12 dk sonra (5 dk arayla).
   with rdy as (
     select o.id, (select max(i.ready_at) from order_items i where i.order_id = o.id and not i.paid) ra
     from orders o where o.kind = 'takeaway' and o.status = 'open' and o.dispatched_at is null
@@ -782,7 +782,7 @@ begin
       and exists (select 1 from order_items i where i.order_id = o.id and not i.paid)
       and not exists (select 1 from order_items i where i.order_id = o.id and i.status = 'pending' and not i.paid)
   ), due as (
-    select id, case when coalesce(ra, now()) < now() - interval '10 minutes' then 2 else 1 end st from rdy where coalesce(ra, now() - interval '3 minutes') < now() - interval '2 minutes'
+    select id, case when coalesce(ra, now()) < now() - interval '12 minutes' then 3 when coalesce(ra, now()) < now() - interval '7 minutes' then 2 else 1 end st from rdy where coalesce(ra, now() - interval '3 minutes') < now() - interval '2 minutes'
   ), upd as (update orders o set courier_push_stage = d.st from due d where o.id = d.id and o.courier_push_stage < d.st returning o.id)
   select array_agg(id) into v_cr from upd;
   if v_dl is null and v_cr is null then return; end if;
@@ -808,8 +808,13 @@ begin
     select o.id, case when _pkg_deadline(o) < now() + interval '15 minutes' then 2 else 1 end st
       from orders o where o.kind = 'takeaway' and o.status = 'open' and o.dispatched_at is null and o.dest_lat is not null and o.travel_src = 'google'
         and o.pickup_at is not null and _pkg_deadline(o) < now() + interval '30 minutes' and _pkg_deadline(o) > now() - interval '5 minutes'
-  ), upd as (update orders o set travel_stage = d.st from due d where o.id = d.id and o.travel_stage < d.st returning o.id)
-  select array_agg(id) into v_ids from upd;
+  ), upd as (update orders o set travel_stage = d.st from due d where o.id = d.id and o.travel_stage < d.st returning o.id),
+  -- Teslim saati olmayan ("Hemen") paketler: yola çıkana kadar 3 dakikada bir anlık trafikle yeniden hesap (en fazla 2 saat).
+  asap as (update orders o set travel_checked_at = now()
+      where o.kind = 'takeaway' and o.status = 'open' and o.dispatched_at is null and o.dest_lat is not null and o.travel_src = 'google'
+        and o.pickup_at is null and o.created_at > now() - interval '2 hours'
+        and coalesce(o.travel_checked_at, o.created_at) < now() - make_interval(mins => (select r.travel_refresh_min from restaurants r where r.id = o.restaurant_id)) + interval '10 seconds' returning o.id)
+  select array_agg(id) into v_ids from (select id from upd union select id from asap) x;
   if v_ids is null then return; end if;
   select regexp_replace(value, '^(https?://[^/]+).*$', '\1') || '/api/travel-time' into v_url from _psv where key = 'push_dispatch_url';
   select value into v_secret from _psv where key = 'push_dispatch_secret';
@@ -7403,7 +7408,7 @@ begin
       'ticket_design', (select ticket_design from restaurants where id = s.restaurant_id),
       'guest_reminder', (select guest_reminder from restaurants where id = s.restaurant_id),
       'voice_enabled', (select voice_enabled from restaurants where id = s.restaurant_id),
-      'geo', (select json_build_object('geo_address', geo_address, 'geo_lat', geo_lat, 'geo_lng', geo_lng, 'travel_default_min', travel_default_min, 'travel_buffer_min', travel_buffer_min, 'travel_recheck_min', travel_recheck_min,
+      'geo', (select json_build_object('geo_address', geo_address, 'geo_lat', geo_lat, 'geo_lng', geo_lng, 'travel_default_min', travel_default_min, 'travel_buffer_min', travel_buffer_min, 'travel_recheck_min', travel_recheck_min, 'travel_refresh_min', travel_refresh_min,
         'maps_key_set', exists(select 1 from tenant_integrations ti where ti.restaurant_id = s.restaurant_id and ti.maps_api_key is not null)) from restaurants where id = s.restaurant_id),
       'banks', _banks_json(s.restaurant_id),
       'company', (
@@ -10520,17 +10525,18 @@ end $_$;
 
 
 --
--- Name: save_travel_recheck(uuid, integer); Type: FUNCTION; Schema: public; Owner: -
+-- Name: save_travel_recheck(uuid, integer, integer); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.save_travel_recheck(p_token uuid, p_min integer) RETURNS integer
+CREATE FUNCTION public.save_travel_recheck(p_token uuid, p_min integer, p_refresh integer DEFAULT NULL::integer) RETURNS integer
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public', 'extensions', 'pg_temp'
     AS $$
 declare s staff_sessions%rowtype; begin
   s := _session_check(p_token);
   if not exists(select 1 from app_users au join roles rl on rl.id = any(au.role_ids) where au.id = s.user_id and rl.is_system) then raise exception 'Bu ayarı yalnızca yönetici değiştirebilir'; end if;
-  update restaurants set travel_recheck_min = greatest(1, least(coalesce(p_min, 3), 30)) where id = s.restaurant_id;
+  update restaurants set travel_recheck_min = greatest(1, least(coalesce(p_min, 3), 30)),
+    travel_refresh_min = case when p_refresh is null then travel_refresh_min else greatest(1, least(p_refresh, 30)) end where id = s.restaurant_id;
   return (select travel_recheck_min from restaurants where id = s.restaurant_id);
 end $$;
 
@@ -12936,6 +12942,7 @@ begin
         takeaway_type = coalesce(nullif(p_args->>'p_takeaway_type',''), takeaway_type),
         pickup_at = case when coalesce(p_args->>'p_pickup_min','') ~ '^\d{1,3}$'
                          then now() + make_interval(mins => least((p_args->>'p_pickup_min')::int, 600))
+                         when p_args->>'p_pickup_min' = 'now' then null
                          else pickup_at end
       where id = coalesce(nullif(p_args->>'p_order_id','')::uuid,
         (select o.id from orders o join staff_sessions ss on ss.token = p_token
@@ -15577,6 +15584,7 @@ CREATE TABLE public.restaurants (
     travel_default_min integer DEFAULT 10 NOT NULL,
     travel_buffer_min integer DEFAULT 3 NOT NULL,
     travel_recheck_min integer DEFAULT 3 NOT NULL,
+    travel_refresh_min integer DEFAULT 3 NOT NULL,
     CONSTRAINT restaurants_day_end_hour_check CHECK (((day_end_hour >= 0) AND (day_end_hour <= 23))),
     CONSTRAINT restaurants_default_vat_rate_check CHECK (((default_vat_rate >= (0)::numeric) AND (default_vat_rate <= (100)::numeric)))
 );
