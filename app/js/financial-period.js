@@ -287,11 +287,12 @@ async function renderLossReportContent(session){
   const { data, error } = await withLoadingOverlay(sb.rpc('get_loss_report', { p_token: session.session_token, p_from: APP.reportDate, p_to: APP.reportDateTo || APP.reportDate }));
   if(error){ el.innerHTML = '<p class="muted">Yüklenemedi: ' + escapeHtml(error.message) + '</p>'; return; }
   APP.loss = { data: data || {}, typ: '', who: '', day: '' };
+  el.innerHTML = '<div id="lossBox"></div>'; // filtreler yalnızca bu kutuyu yeniden çizer (birleşik sekmede diğer bölüm silinmesin)
   drawLossReport();
 }
 const LOSS_T = { cancel:['❌','İptal','var(--danger,#ef4444)'], comp:['🍱','İkram','var(--c3,#14b8a6)'], disc:['🏷️','İndirim','#f59e0b'] };
 function drawLossReport(){
-  const el = document.getElementById('reportContent'); if(!el || !APP.loss) return;
+  const el = document.getElementById('lossBox') || document.getElementById('reportContent'); if(!el || !APP.loss) return;
   const L = APP.loss, d = L.data, T = d.totals || {}, rev = Number(d.revenue) || 0, staff = d.by_staff || [];
   const pctOf = v => rev > 0 ? ' · cironun %' + (Number(v) / rev * 100).toFixed(1) : '';
   const card = (k, n, amt, sub) => `<button type="button" class="lr-card ${L.typ===k?'on':''}" style="--t:${LOSS_T[k][2]}" ${act('setLoss','typ',L.typ===k?'':k)}>

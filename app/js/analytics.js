@@ -5,7 +5,7 @@
 const AN_TABS = [
   ['cockpit','🧭','Kokpit'], ['menueng','🎯','Menü Mühendisliği'], ['tablemap','🗺️','Masa Haritası'], ['heat','🔥','Yoğunluk'],
   ['channels','🛵','Satış Kanalları'], ['speed','⚡','Hizmet Hızı'],
-  ['stockf','📦','Stok Tahmini'], ['zreport','🧾','Gün Sonu'], ['dayclose','📅','Gün Sonu Kapanışları'], ['waiters','🏅','Garson Kartları'], ['journey','🔁','Müşteri Yolculuğu']
+  ['stockf','📦','Stok Tahmini'], ['zreport','🧾','Gün Sonu'], ['dayclose','📅','Gün Sonu Kapanışları'], ['waiters','👥','Personel Performansı'], ['journey','🔁','Müşteri Yolculuğu']
 ];
 async function anBundle(session, fresh, quiet){
   const key = APP.reportDate + '|' + APP.reportDateTo;
@@ -158,7 +158,7 @@ function anRing(frac, label, sub, color){
 async function renderMenuEngContent(session){
   const el = document.getElementById('reportContent'); if(!el) return;
   let d; try { d = await anBundle(session); } catch(e){ return anErr(el, e); }
-  const ps = (d.products || []).filter(x => anN(x.qty) > 0).map(x => ({ name: x.name, qty: anN(x.qty), rev: anN(x.rev), cost: anN(x.cost), m: (anN(x.rev) - anN(x.cost)) / anN(x.qty) }));
+  const ps = (d.products || []).filter(x => anN(x.qty) > 0).map(x => ({ name: x.name, qty: anN(x.qty), rev: anN(x.rev), cost: anN(x.cost), tq: anN(x.t_qty), m: (anN(x.rev) - anN(x.cost)) / anN(x.qty) }));
   if(!ps.length){ el.innerHTML = '<div class="empty-state"><div style="font-size:42px;">⭐</div><p class="muted">Bu aralıkta satış yok.</p></div>'; return; }
   const avgQ = ps.reduce((t, x) => t + x.qty, 0) / ps.length;
   const avgM = ps.reduce((t, x) => t + x.m * x.qty, 0) / ps.reduce((t, x) => t + x.qty, 0);
@@ -169,7 +169,7 @@ async function renderMenuEngContent(session){
   const W = 560, H = 340, maxQ = Math.max(...ps.map(x => x.qty)) * 1.08, minM = Math.min(0, ...ps.map(x => x.m)), maxM = Math.max(...ps.map(x => x.m), 1) * 1.1;
   const X = (q) => 40 + q / maxQ * (W - 60), Y = (m) => H - 30 - (m - minM) / (maxM - minM) * (H - 50);
   anSetExport('menu-muhendisligi', ['Ürün', 'Grup', 'Adet', 'Ciro', 'Maliyet', 'Birim kâr'], ps.map(x => [x.name, Q[x.c][1], x.qty, x.rev.toFixed(2), x.cost.toFixed(2), x.m.toFixed(2)]));
-  el.innerHTML = `${ps.some(x => !x.cost) ? '<div class="an-alert warn" style="margin-bottom:12px;"><span>⚠️</span><div>Maliyeti girilmemiş ürünler %100 kârlı görünür. Doğru sonuç için Ayarlar → Ürünler\'den maliyet girin.</div></div>' : ''}<p class="fs-note" style="margin:0 0 10px;">Personel, ikram ve limitli hesap etiketli siparişler ciro getirmediği için bu analize katılmaz (Ürün İstatistikleri ile aynı).</p>
+  el.innerHTML = `${ps.some(x => !x.cost) ? '<div class="an-alert warn" style="margin-bottom:12px;"><span>⚠️</span><div>Maliyeti girilmemiş ürünler %100 kârlı görünür. Doğru sonuç için Ayarlar → Ürünler\'den maliyet girin.</div></div>' : ''}${tagCompareHtml((d.products || []).map(x => ({ qty: x.qty, rev: x.rev, cost: x.cost, t_qty: x.t_qty, t_rev: x.t_rev, t_cost: x.t_cost })))}
     <div class="ch-row">
       <div class="fs-panel pa-sec" style="--t:var(--c1);flex:3;">
         <h3><i>🗺️</i>Kârlılık Haritası <small class="muted">· yatay: satış adedi, dikey: birim kâr</small></h3>
@@ -187,7 +187,7 @@ async function renderMenuEngContent(session){
     </div>
     <div class="an-quads">${Object.entries(Q).map(([key, [ic, t, sub, col]]) => { const list = ps.filter(x => x.c === key).sort((a, b) => b.rev - a.rev);
       return `<div class="an-quad" style="--q:${col};"><div class="an-quad-h"><span>${ic}</span><div><b>${t}</b><small>${sub}</small></div><em>${list.length}</em></div>
-        ${list.length ? list.slice(0, 8).map(x => `<div class="an-quad-row"><span>${escapeHtml(x.name)}</span><small>${x.qty} adet · ${money(x.m)} kâr/adet</small></div>`).join('') : '<p class="muted" style="margin:6px 0;">—</p>'}</div>`; }).join('')}</div>`;
+        ${list.length ? list.slice(0, 8).map(x => `<div class="an-quad-row"><span>${escapeHtml(x.name)}</span><small>${x.qty} adet · ${money(x.m)} kâr/adet${x.tq ? ' · 🏷️ +' + x.tq + ' etiketli' : ''}</small></div>`).join('') : '<p class="muted" style="margin:6px 0;">—</p>'}</div>`; }).join('')}</div>`;
 }
 
 /* ---------- 🗺️ MASA HARİTASI ---------- */
@@ -576,9 +576,9 @@ async function anSearch(q){
   if(q.length < 2){ box.innerHTML = ''; box.hidden = true; return; }
   let d = null; try { d = await anBundle(getSession()); } catch(e){}
   const hit = (s) => String(s || '').toLocaleLowerCase('tr').includes(q);
-  const tabs = [...AN_TABS, ['summary','📊','Genel Özet'], ['period','📈','Dönemsel Analiz'], ['vat','🧾','KDV'], ['products','📦','Ürün İstatistikleri'], ['staff','👤','Personel Analizleri'],
+  const tabs = [...AN_TABS, ['summary','📊','Genel Özet'], ['period','📈','Dönemsel Analiz'], ['vat','🧾','KDV'], ['products','📦','Ürün İstatistikleri'], ['profit','💹','Ürün Kârlılığı'],
     ['customers','🧑‍🤝‍🧑','Müşteri Analizleri'], ['tips','💰','Bahşiş Havuzu'], ['waste','🔥','İsraf'], ['cancel','❌','İptaller'], ['resv','📅','Rezervasyon Analizi'], ['openacc','📒','Açık Hesaplar']];
-  const kw = { nakit: 'zreport', kart: 'zreport', 'gün sonu': 'zreport', z: 'zreport', kâr: 'menueng', kar: 'menueng', stok: 'stockf', saat: 'heat', iptal: 'cancel', israf: 'waste', bahşiş: 'tips', hedef: 'cockpit', tahmin: 'cockpit', garson: 'waiters', masa: 'tablemap', kdv: 'vat' };
+  const kw = { nakit: 'zreport', kart: 'zreport', 'gün sonu': 'zreport', z: 'zreport', kâr: 'menueng', kar: 'menueng', stok: 'stockf', saat: 'heat', iptal: 'cancel', israf: 'waste', bahşiş: 'tips', hedef: 'cockpit', tahmin: 'cockpit', garson: 'waiters', personel: 'waiters', ikram: 'cancel', masa: 'tablemap', kdv: 'vat' };
   const res = [];
   tabs.filter(t => hit(t[2])).forEach(t => res.push([t[1], t[2], 'Sekme', t[0]]));
   Object.entries(kw).filter(([w]) => w.startsWith(q) || q.startsWith(w)).forEach(([w, t]) => { const tb = tabs.find(x => x[0] === t); if(tb && !res.some(r => r[3] === t)) res.push([tb[1], tb[2], '“' + w + '” ile ilgili', t]); });

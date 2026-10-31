@@ -521,3 +521,25 @@ function closeSheet(id){
   const el = id ? document.getElementById(id) : document.querySelector('.fsheet.open'); if(el) el.classList.remove('open');
   if(!document.querySelector('.fsheet.open')) document.body.classList.remove('fsheet-lock');
 }
+
+/* Etiketli (personel / ikram / limitli hesap) siparişler ciro getirmediği için kâr analizlerine katılmaz.
+   Bu kutu hariç ve dahil hallerini yan yana gösterir: rows = [{ qty, rev, cost, t_qty, t_rev, t_cost }]. */
+function tagCompareHtml(rows, opts){
+  const n = (v) => Number(v) || 0, o = opts || {};
+  const A = rows.reduce((a, r) => ({ q: a.q + n(r.qty), r: a.r + n(r.rev), c: a.c + n(r.cost), tq: a.tq + n(r.t_qty), tr: a.tr + n(r.t_rev), tc: a.tc + n(r.t_cost) }), { q: 0, r: 0, c: 0, tq: 0, tr: 0, tc: 0 });
+  if(!A.tq) return `<p class="fs-note tgc-none">🏷️ Bu dönemde personel / ikram / limitli hesap etiketli sipariş yok; tüm satışlar analize dahil.</p>`;
+  const f = (v) => o.qtyOnly ? v : money(v), q = (v) => Math.round(v * 100) / 100;
+  return `<details class="tgc" ${o.open ? 'open' : ''}><summary>🏷️ <b>Etiketli siparişler bu analize katılmıyor</b> <span class="muted">— ${q(A.tq)} adet · menü değeri ${money(A.tr)} · maliyeti ${money(A.tc)}</span><em>Kıyasla ▾</em></summary>
+    <p class="muted tgc-n">Personel yemeği, ikram ve limitli hesap siparişleri ciro getirmez; bu yüzden kâr analizlerinde <b>hariç</b> tutulur. Ama maliyetleri gerçek giderdir — aşağıda dahil halini görün.</p>
+    <div class="tgc-t"><div class="tgc-h"><span></span><span>Hariç (analiz)</span><span>🏷️ Etiketliler</span><span>Dahil</span></div>
+      <div><span>Adet</span><b>${q(A.q)}</b><b>${q(A.tq)}</b><b>${q(A.q + A.tq)}</b></div>
+      <div><span>Ciro <small>(etiketli: menü değeri)</small></span><b>${money(A.r)}</b><b class="muted">${money(A.tr)} <small>(tahsil edilmedi)</small></b><b>${money(A.r)} <small>tahsil</small></b></div>
+      <div><span>Malzeme maliyeti</span><b>${money(A.c)}</b><b>${money(A.tc)}</b><b>${money(A.c + A.tc)}</b></div>
+      <div class="tgc-k"><span>Brüt kâr</span><b>${money(A.r - A.c)}</b><b class="neg">−${money(A.tc)}</b><b>${money(A.r - A.c - A.tc)}</b></div>
+      <div><span>Brüt marj</span><b>%${A.r ? Math.round((A.r - A.c) / A.r * 100) : 0}</b><b></b><b>%${A.r ? Math.round((A.r - A.c - A.tc) / A.r * 100) : 0}</b></div>
+    </div></details>`;
+}
+function tagRowNote(r){
+  const n = (v) => Number(v) || 0;
+  return n(r.t_qty) ? `<small class="ps-tag" title="Personel / ikram / limitli hesap etiketli: analize katılmaz">🏷️ +${Math.round(n(r.t_qty) * 100) / 100} etiketli · maliyet ${money(n(r.t_cost))} (hariç)</small>` : '';
+}

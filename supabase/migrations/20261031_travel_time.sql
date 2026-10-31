@@ -37,3 +37,4 @@ alter table orders add column if not exists travel_min int, add column if not ex
 -- dispatch_order: müşteriye bildir → SMS (açıksa) ve e-posta (kayıtlıysa) bağımsız; mail_sent döner.
 -- dispatch_order: courier_eta_min/eta_at ilk tahmin (haritadan sürüş, yoksa varsayılan); yola çıktı e-postasında tahmini varış. get_public_tracking: kurye konumu yokken de tahmini süre.
 -- orders.review_sent_at; _trg_order_delivered_review: paket teslim edilince 'delivered' SMS/e-posta (değerlendirme linkiyle); _trg_payment_sms bu siparişte link eklemez.
+-- Etiketli sipariş kıyası: get_analytics_bundle.products t_qty/t_rev/t_cost; get_product_sales tagged_revenue/tagged_cost; get_product_profit t_qty/t_rev/t_cost (etiketliler ayrı).
