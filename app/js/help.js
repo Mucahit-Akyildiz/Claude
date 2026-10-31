@@ -49,6 +49,7 @@ const HELP_TOPICS = [
   ]},
   { cat: 'Stok ve Tedarik', icon: '🚚', items: [
     { q: 'Stok ve reçete', view: 'settings', a: `Ürünün <b>Stok</b> alanı boşsa stok takibi yapılmaz. Reçete tanımlarsanız (Ayarlar → Ürünler → Reçete) satışta hammaddeler (Ayarlar → Hammaddeler) düşer; hammadde bitince ürün "Stok Yok" olur.` },
+    { q: 'Maliyet nasıl hesaplanıyor?', view: 'settings', a: `Reçetesi olan ürünün maliyeti <b>otomatik</b>: reçetedeki hammaddelerin ortalama alış maliyeti × miktar (fire dahil). Mal Kabul'de fiyatlı teslim aldığınızda yeni alış eldeki stokla <b>ağırlıklı ortalanır</b> (örn. elde 5 adet × 10 TL + 100 adet × 0,50 TL → 0,95 TL) ve ürün maliyetleri kendiliğinden güncellenir. Ayarlar → Ürünler → <b>📊 Maliyet & Giderler</b>'den kira, elektrik, personel gibi giderleri ekleyin; aylık toplam ciroya oranlanır ve her ürünün <b>net kârı</b> görünür.` },
     { q: 'Satın alma ve tedarikçiler', view: 'purchasing', a: `<b>Malzeme Siparişi Ver</b> menüsünde hammadde ve miktarı girip satınalma talebi oluşturun. Mal gelince <b>Mal Kabul</b> menüsünden teslim alın; teslim alınan miktar hammadde stoğuna eklenir (kısmi teslim desteklenir). Birim fiyat ve tedarikçi de bu menüden girilir; tedarikçisi ya da fiyatı girilmemiş siparişler orada sayaçla görünür.` },
   ]},
   { cat: 'Personel, Roller ve Mesajlar', icon: '🔐', items: [

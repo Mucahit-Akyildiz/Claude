@@ -3866,3 +3866,18 @@ button.sl-stat{border:1px solid var(--border) !important;} button.sl-stat.on{bor
 .cr-ml-row{display:flex;gap:10px;justify-content:space-between;align-items:center;border:1px solid var(--border);border-radius:12px;padding:10px 12px;flex-wrap:wrap;}
 .cr-ml-row small{display:block;color:var(--muted);font-size:12px;}
 .cr-ml-r{display:flex;gap:6px;align-items:center;flex-wrap:wrap;justify-content:flex-end;}
+
+/* Maliyet & Giderler */
+.oh-sum{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;}
+.oh-k{border:1px solid var(--border);border-radius:12px;padding:10px 12px;text-align:left;} .oh-k small{display:block;color:var(--muted);font-size:11.5px;} .oh-k b{font-size:17px;}
+.oh-k.hi{background:color-mix(in srgb,var(--accent) 12%,transparent);border-color:color-mix(in srgb,var(--accent) 40%,var(--border));}
+.oh-note{font-size:12.5px;text-align:left;margin:10px 0;}
+.oh-list{display:grid;gap:6px;text-align:left;}
+.oh-row{display:grid;grid-template-columns:32px 1fr auto auto;gap:10px;align-items:center;border:1px solid var(--border);border-radius:12px;padding:8px 10px;margin:0;}
+.oh-row.off{opacity:.55;} .oh-row small{display:block;color:var(--muted);font-size:12px;} .oh-ic{font-size:20px;text-align:center;}
+.oh-acts{display:flex;gap:4px;}
+.oh-add-h{font-weight:800;text-align:left;margin:14px 0 6px;}
+.oh-presets{display:flex;flex-wrap:wrap;gap:6px;}
+.oh-form{border:1px dashed var(--accent);border-radius:12px;padding:10px;margin-top:10px;}
+.oh-adv{margin-top:14px;text-align:left;} .oh-adv summary{cursor:pointer;font-weight:700;}
+@media (max-width:560px){ .oh-sum{grid-template-columns:1fr 1fr;} }
