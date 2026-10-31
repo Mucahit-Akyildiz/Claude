@@ -22,6 +22,7 @@ function render(){
   if(!done && j.eta_min != null && j.eta_at){ const arr = new Date(new Date(j.eta_at).getTime() + j.eta_min * 60000); eta = `<div class="tk-eta"><span>🕒</span><div><b>${Math.max(1, Math.round((arr - Date.now()) / 60000))} dk kaldı</b><small>Tahmini varış ${hm(arr)} · trafik dahil</small></div></div>`; }
   const share = done ? `<div class="kr-done">✅ Teslim edildi · ${hm(j.delivered_at)}<small>Konum paylaşımı kapandı. Bu sayfayı kapatabilirsiniz.</small></div>`
     : SHARING ? `<div class="kr-share on"><span class="kr-live"></span><div><b>Konumunuz paylaşılıyor</b><small>${LAST_SENT ? 'Son gönderim ' + new Date(LAST_SENT).toLocaleTimeString('tr-TR') : 'Konum bekleniyor…'}${NATIVE ? ' · ekran kilitliyken de devam eder' : ' · bu sayfayı açık tutun'}</small></div><button class="kr-ghost" ${act('stopShare')}>Durdur</button></div>`
+    : OLD_APP ? `<button class="kr-big" ${act('openInChrome')}>📍 Konumu Chrome'da paylaş</button><p class="kr-hint">Uygulamanın bu sürümü konum paylaşamıyor; sayfa Chrome'da açılır. Uygulamayı Play Store'dan güncelleyince ekran kilitliyken de paylaşılır.</p>`
     : `<button class="kr-big" ${act('startShare')}>📍 Konumumu paylaş</button><p class="kr-hint">Müşteri ve restoran, adrese kalan süreyi ve yerinizi görür. Yalnızca bu teslimat sırasında paylaşılır.</p>`;
   const html = `<div class="kr-head"><small>${escapeHtml(j.restaurant)} · #${escapeHtml(j.no || '')}</small><h1>🛵 ${escapeHtml(j.customer || 'Paket')}</h1></div>
     ${ERR ? `<div class="kr-err">⚠️ ${escapeHtml(ERR)}</div>` : ''}
@@ -61,8 +62,12 @@ async function send(pos){
   if(data){ if(data.stop){ stopShare(true); await load(); return; } JOB.eta_min = data.eta_min; JOB.eta_at = data.eta_at; }
   render();
 }
+// Eski uygulama sürümü (konum servisi yok, WebView konum izni yok): sayfa Chrome'da açılır.
+const OLD_APP = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()) && !NATIVE;
+function openInChrome(){ window.location.href = 'intent://www.peyktan.com/kurye/?t=' + TOKEN + '#Intent;scheme=https;package=com.android.chrome;S.browser_fallback_url=' + encodeURIComponent(location.href) + ';end'; }
 async function startShare(){
   ERR = '';
+  if(OLD_APP){ openInChrome(); return; }
   if(NATIVE){
     try{
       await NATIVE.start({ url: SUPABASE_URL, key: SUPABASE_KEY, token: TOKEN, title: (JOB && JOB.customer) || 'Teslimat' });
