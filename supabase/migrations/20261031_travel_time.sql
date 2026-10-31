@@ -33,3 +33,4 @@ alter table orders add column if not exists travel_min int, add column if not ex
 -- Tetikleyiciler: products (reçete maliyeti zorlanır), product_ingredients ve ingredients.unit_cost/waste_pct değişince ürün maliyeti yeniden hesaplanır.
 -- overhead_items + restaurants.overhead_revenue_base / overhead_auto_labor; _overhead_summary, get_overheads, upsert/remove_overhead_item, set_overhead_settings.
 -- get_restaurant_config: overhead_pct, products[].cost_source. get_ingredient_cost_log.
+-- resend_courier_notify(session, order): kuryeye courier_assigned bildirimini tekrar gönderir.
