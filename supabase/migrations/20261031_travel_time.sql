@@ -26,3 +26,10 @@ alter table orders add column if not exists travel_min int, add column if not ex
 -- get_public_tracking: eta_min/eta_at, live, courier_lat/lng (yalnızca yoldayken ve son 3 dk), dest/rest koordinatları.
 -- get_live_orders: courier_at, courier_eta_min, courier_eta_at.
 -- pg_cron courier_eta (her dakika): konumu taze kuryelerde ~2 dk'da bir kalan süre (_cron_courier_eta).
+
+-- ===== Dinamik maliyet =====
+-- purchase_order_items.cost_applied_qty; products.cost_source ('manual'|'recipe'|'recipe_missing'); ingredient_cost_log.
+-- _apply_po_item_cost: ağırlıklı ortalama (eldeki × eski + gelen × fiyat) / toplam; receive_purchase_order_items ve set_purchase_item_cost çağırır.
+-- Tetikleyiciler: products (reçete maliyeti zorlanır), product_ingredients ve ingredients.unit_cost/waste_pct değişince ürün maliyeti yeniden hesaplanır.
+-- overhead_items + restaurants.overhead_revenue_base / overhead_auto_labor; _overhead_summary, get_overheads, upsert/remove_overhead_item, set_overhead_settings.
+-- get_restaurant_config: overhead_pct, products[].cost_source. get_ingredient_cost_log.

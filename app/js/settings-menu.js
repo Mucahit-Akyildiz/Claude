@@ -101,7 +101,7 @@ function renderIngredientsSettings(el, session){
         <div class="ig-foot">
           <label class="ig-waste" title="Temizleme/kesim kaybı">Fire % <input type="number" step="0.1" min="0" max="99" value="${Number(i.waste_pct)||0}" id="ing_waste_${i.id}"></label>
           <label class="ig-waste" title="Stok bu seviyeye inince uyarı verilir (boş = uyarı yok)">Min <input type="number" step="0.01" min="0" value="${Number(i.min_stock)||''}" placeholder="—" id="ing_min_${i.id}"></label>
-          <label class="ig-waste" title="Birim (${escapeAttr(i.unit||'')}) başına alış fiyatı — reçeteli ürünlerin maliyeti bundan hesaplanır">₺/${escapeHtml(i.unit||'birim')} <input type="number" step="0.01" min="0" value="${Number(i.unit_cost)||''}" placeholder="—" id="ing_uc_${i.id}"></label>
+          <label class="ig-waste" title="Birim (${escapeAttr(i.unit||'')}) başına ağırlıklı ortalama alış maliyeti. Mal Kabul'de fiyatlı teslim alınca eldeki stokla ortalanarak otomatik güncellenir; reçeteli ürünlerin maliyeti bundan hesaplanır.">Ort. ₺/${escapeHtml(i.unit||'birim')} <input type="number" step="0.01" min="0" value="${Number(i.unit_cost) ? Math.round(Number(i.unit_cost) * 100) / 100 : ''}" placeholder="—" id="ing_uc_${i.id}"></label><button type="button" class="pc-btn" title="Maliyet geçmişi" ${act('openIngCostLog', i.id)}>📈</button>
           <button type="button" class="pc-btn" ${act('openIngredientUsageModal', i.id)}>🍽️ ${uses} ürün</button>
           <button type="button" class="pc-btn" title="Hammaddeyi ve kullanıldığı ürünleri düzenle" ${act('openIngredientUsageModal', i.id, true)}>✏️ Düzenle</button>
         </div>
@@ -1077,7 +1077,7 @@ function renderProductsSettings(el, session){
             ${stations.map(s => `<option value="${s.id}" ${s.id===p.station_id?'selected':''}>${escapeHtml(s.name)}</option>`).join('')}
           </select></td>
           <td class="col-num"><input type="number" value="${p.price}" id="pr_price_${p.id}"></td>
-          <td class="col-num"><input type="number" value="${p.cost}" id="pr_cost_${p.id}"></td>
+          <td class="col-num"><input type="number" value="${p.cost}" id="pr_cost_${p.id}" ${p.cost_source==='recipe' ? 'readonly title="Reçeteden otomatik hesaplanır"' : ''}>${costSourceTag(p)}</td>
           <td class="col-name" style="min-width:150px;"><select id="pr_menu_${p.id}">${prodMenuOptions(p.menu_id)}</select></td>
           <td class="col-num" style="min-width:110px;">${vatSelectHtml('pr_vat_'+p.id, p.vat_rate, true)}</td>
           <td class="col-num">
@@ -1112,7 +1112,7 @@ function renderProductsSettings(el, session){
         <b class="pcard-name">${escapeHtml(p.name)}</b>
         <button type="button" class="prod-avail ${p.available===false?'off':'on'}" title="Tıklayınca ${p.available===false?'satışa açılır':'satışa kapanır'}" ${act('toggleProductAvailable', p.id)}><i></i>${p.available===false?'Kapalı':'Satışta'}</button></div>
       <div class="pcard-price">${money(price)}</div>
-      <div class="pcard-margin" title="Kâr marjı"><div class="pcard-mbar"><i style="width:${Math.max(0,Math.min(100,m))}%;background:${m>=60?'var(--ok,#22c55e)':m>=35?'var(--c3)':'var(--danger,#ef4444)'};"></i></div><span>Maliyet ${money(cost)} · <b>%${m}</b> marj</span></div>
+      <div class="pcard-margin" title="Kâr marjı"><div class="pcard-mbar"><i style="width:${Math.max(0,Math.min(100,m))}%;background:${m>=60?'var(--ok,#22c55e)':m>=35?'var(--c3)':'var(--danger,#ef4444)'};"></i></div><span>Maliyet ${money(cost)} ${costSourceTag(p)} · <b>%${m}</b> marj${overheadPct() ? ` · net <b>%${Math.round((price - fullCost(p)) / (price || 1) * 100)}</b>` : ''}</span></div>
       <div class="pcard-chips">
         <span class="pchip ${low?'warn':''}">${rec ? '📋 '+(q==null?'?':q)+' porsiyon' : (q==null ? '∞ Stok sınırsız' : '📦 '+q+' stok')}</span>
         ${p.category ? `<span class="pchip">${escapeHtml(p.category)}</span>` : ''}
@@ -1166,7 +1166,7 @@ function renderProductsSettings(el, session){
       <div class="os-chip os-click ${pf==='low'?'on':''}" role="button" title="Listeyi filtrele" ${act('setProdFilter', 'low')} style="--oc:var(--c3);"><span class="os-ic">⚠️</span><div><b>${lowN}</b><small>Stok azalan</small></div></div>
       <div class="os-chip os-click ${pf==='nocost'?'on':''}" role="button" title="Listeyi filtrele" ${act('setProdFilter', 'nocost')} style="--oc:#ef4444;"><span class="os-ic">💸</span><div><b>${products.filter(p => !(Number(p.cost) > 0)).length}</b><small>Maliyet girilmemiş</small></div></div>
     </div>
-    ${products.some(p => p.recipe && p.recipe.length) ? `<div class="rc-bar"><span>🧮 Reçeteli ürünlerin maliyetini hammadde fiyatlarından otomatik hesaplayın.</span><button type="button" class="pc-btn" ${act('openRecipeCostCalc')}>Reçeteden maliyet hesapla</button></div>` : ''}
+    <div class="rc-bar"><span>🧾 Reçeteli ürünlerin maliyeti hammaddelerin <b>ortalama alış maliyetinden</b> otomatik hesaplanır.${overheadPct() ? ` Genel giderler cironun <b>%${overheadPct()}</b>'i.` : ' Kira, personel, elektrik gibi giderleri ekleyerek net kârı görün.'}</span><button type="button" class="pc-btn" ${act('openOverheads')}>📊 Maliyet & Giderler</button></div>
     <label class="sc-toggle"><span class="oo-switch"><input type="checkbox" ${APP.config.close_no_cost !== false ? 'checked' : ''} ${actOn('change','toggleCloseNoCost',['$checked', '$this'])}><span class="oo-track"><span class="oo-thumb"></span></span><em>${APP.config.close_no_cost !== false ? 'Açık' : 'Kapalı'}</em></span><span>💸 Maliyeti girilmemiş ürünler satışa <b>kapalı</b> gelsin <small class="muted">(istediğiniz ürünü yine "Satışa Aç" ile açabilirsiniz)</small></span></label>
     <label class="sc-toggle" title="Kapalıyken satışa kapattığınız ürünler Sipariş Al ve Paket Servis ürün listesinde hiç görünmez"><span class="oo-switch"><input type="checkbox" ${APP.config.order_show_closed !== false ? 'checked' : ''} ${actOn('change','toggleOrderShowClosed',['$checked', '$this'])}><span class="oo-track"><span class="oo-thumb"></span></span><em>${APP.config.order_show_closed !== false ? 'Açık' : 'Kapalı'}</em></span><span>⛔ Satışa kapalı ürünler <b>Sipariş Al</b> ekranında görünsün <small class="muted">(kapalıyken listeden tamamen gizlenir)</small></span></label>
     ${pf!=='all' ? `<div class="pf-note">🔎 <b>${{on:'Satıştaki',off:'Kapalı',low:'Stoğu azalan',lowmargin:'Düşük marjlı',nocost:'Maliyeti girilmemiş'}[pf]} ürünler</b> gösteriliyor (${shown.length})<button type="button" class="pc-btn" ${act('setProdFilter', 'all')}>✕ Tümünü göster</button></div>` : ''}
@@ -1284,7 +1284,7 @@ function editProductRow(pid){
       <div class="pdrawer-head"><div><small class="muted">Ürün düzenle</small><h3>${escapeHtml(p.name)}</h3></div><button type="button" class="pdrawer-x" ${act('closeProdDrawer')}>✕</button></div>
       <div class="pdrawer-body" ${actOn('input','prodDrawerCalc',[])} ${actOn('change','prodDrawerCalc',[])}>
         <label>Ürün Adı</label><input id="ed_name" value="${escapeAttr(p.name)}">
-        <div class="pdrawer-2"><div><label>Fiyat (₺)</label><input type="number" id="ed_price" value="${p.price}"></div><div><label>Maliyet (₺)</label><input type="number" id="ed_cost" value="${p.cost}"></div></div>
+        <div class="pdrawer-2"><div><label>Fiyat (₺)</label><input type="number" id="ed_price" value="${p.price}"></div><div><label>Maliyet (₺)</label><input type="number" id="ed_cost" value="${p.cost}" ${p.cost_source==='recipe' ? 'readonly' : ''}>${p.cost_source==='recipe' ? '<small class="muted">🧾 Reçeteden otomatik (hammadde ortalama maliyetleri)</small>' : p.cost_source==='recipe_missing' ? '<small style="color:var(--c3)">⚠️ Reçetedeki bazı hammaddelerin maliyeti yok; elle girilen değer kullanılıyor</small>' : '<small class="muted">Reçete eklerseniz otomatik hesaplanır</small>'}</div></div>
         <div class="pdrawer-margin"><div class="pcard-mbar"><i id="ed_mbar"></i></div><span id="ed_mtxt"></span></div>
         <label>Menü</label><select id="ed_menu">${prodMenuOptions(p.menu_id)}</select>
         <label>İstasyon</label><select id="ed_st">${!p.station_id ? '<option value="" selected>— İstasyon yok —</option>' : ''}${stations.map(x => `<option value="${x.id}" ${x.id===p.station_id?'selected':''}>${escapeHtml(x.name)}</option>`).join('')}</select>
@@ -1325,7 +1325,8 @@ function prodDrawerCalc(){
   const pr = parseFloat((document.getElementById('ed_price')||{}).value)||0, co = parseFloat((document.getElementById('ed_cost')||{}).value)||0;
   const m = pr>0 ? Math.round((pr-co)/pr*100) : 0, bar = document.getElementById('ed_mbar'), t = document.getElementById('ed_mtxt'); if(!bar) return;
   bar.style.width = Math.max(0,Math.min(100,m))+'%'; bar.style.background = m>=60?'var(--ok,#22c55e)':m>=35?'var(--c3)':'var(--danger,#ef4444)';
-  t.innerHTML = `Kâr: <b>${money(pr-co)}</b> · <b>%${m}</b> marj`;
+  const oh = overheadPct(), full = co + pr * oh / 100;
+  t.innerHTML = `Brüt kâr: <b>${money(pr-co)}</b> · <b>%${m}</b>` + (oh ? `<br>Genel gider payı %${oh}: ${money(pr * oh / 100)} → tam maliyet <b>${money(full)}</b> · net kâr <b>${money(pr-full)}</b> (%${pr>0 ? Math.round((pr-full)/pr*100) : 0})` : '');
 }
 async function saveProdDrawer(){
   const box = document.querySelector('#prodDrawer .pdrawer'); if(!box) return;
@@ -1494,4 +1495,96 @@ async function toggleCloseNoCost(on, el){
   const { error } = await sb.rpc('set_close_no_cost', { p_token: getSession().session_token, p_on: on });
   if(error){ if(el) el.checked = !on; alert(error.message); return; }
   APP.config.close_no_cost = on; switchLabel(el, on); showToast(on ? 'Maliyeti girilmemiş yeni ürünler satışa kapalı gelecek' : 'Maliyet kontrolü kapatıldı');
+}
+
+/* ---- Dinamik maliyet ----
+   Reçeteli ürün: maliyet = reçetedeki hammaddelerin ağırlıklı ortalama alış maliyeti (fire dahil), sunucuda otomatik.
+   Genel giderler (kira, personel, elektrik…) aylık toplamı ciroya oranlanır; ürünün tam maliyeti = malzeme + fiyat × oran. */
+function overheadPct(){ return Number(APP.config && APP.config.overhead_pct) || 0; }
+function fullCost(p){ return (Number(p.cost) || 0) + (Number(p.price) || 0) * overheadPct() / 100; }
+function costSourceTag(p){
+  return p.cost_source === 'recipe' ? '<span class="pchip" title="Reçeteden otomatik">🧾</span>' : p.cost_source === 'recipe_missing' ? '<span class="pchip warn" title="Reçetedeki bazı hammaddelerin maliyeti yok">⚠️</span>' : '';
+}
+const OH_PRESETS = [['🏠','Kira'],['⚡','Elektrik'],['💧','Su'],['🔥','Doğalgaz'],['🌐','İnternet & telefon'],['👥','Personel maaşları'],['🧾','Muhasebe'],['🧼','Temizlik'],['📣','Reklam'],['🛵','Kurye / yakıt'],['🔧','Bakım & onarım'],['💳','POS / banka komisyonu']];
+const OH_PERIOD = { daily: 'Günlük', weekly: 'Haftalık', monthly: 'Aylık', yearly: 'Yıllık' };
+async function openOverheads(){
+  const { data, error } = await withLoadingOverlay(sb.rpc('get_overheads', { p_token: getSession().session_token }));
+  if(error){ alert(error.message); return; }
+  APP.overheads = data;
+  if(!document.getElementById('ohSheet')) document.body.insertAdjacentHTML('beforeend', sheetHtml('ohSheet', '📊', 'Maliyet & Giderler', '<div id="ohBody"></div>', 'var(--c2)'));
+  renderOverheads(); openSheet('ohSheet');
+}
+function renderOverheads(){
+  const d = APP.overheads || {}, el = document.getElementById('ohBody'); if(!el) return;
+  const base = d.revenue_base || d.revenue_30d || 0;
+  el.innerHTML = `<div class="oh-sum">
+      <div class="oh-k"><small>Aylık genel gider</small><b>${money(d.monthly_total || 0)}</b></div>
+      <div class="oh-k"><small>${d.revenue_base ? 'Aylık ciro (girilen)' : 'Son 30 gün ciro'}</small><b>${money(base)}</b></div>
+      <div class="oh-k hi"><small>Ürünlere eklenen pay</small><b>${d.pct != null ? '%' + d.pct : '—'}</b></div></div>
+    <p class="muted oh-note">Her ürünün tam maliyeti = <b>reçete/malzeme maliyeti</b> + <b>satış fiyatı × %${d.pct != null ? d.pct : '?'}</b>. Örn. 100 TL'lik üründe ${money((d.pct || 0))} genel gider payı.</p>
+    <div class="oh-list">
+      <label class="oh-row oh-auto"><span class="oh-ic">👥</span><div><b>Personel (vardiya kayıtlarından)</b><small>Son 30 gün çalışılan saat × saatlik ücret${d.labor_staff ? ' · ' + d.labor_staff + ' kişi' : ' · saatlik ücret girilmiş personel yok'}</small></div>
+        <b>${money(d.labor_30d || 0)}</b><span class="oo-switch"><input type="checkbox" ${d.auto_labor ? 'checked' : ''} ${actOn('change','toggleOhLabor',['$checked'])}><span class="oo-track"><span class="oo-thumb"></span></span></span></label>
+      ${(d.items || []).map(i => `<div class="oh-row ${i.active ? '' : 'off'}"><span class="oh-ic">${escapeHtml(i.icon || '💸')}</span><div><b>${escapeHtml(i.name)}</b><small>${money(i.amount)} · ${OH_PERIOD[i.period] || i.period}${i.period !== 'monthly' ? ' → aylık ' + money(i.monthly) : ''}${i.active ? '' : ' · hesaba katılmıyor'}</small></div>
+        <b>${money(i.monthly)}</b><span class="oh-acts"><button type="button" class="pc-btn" ${act('editOverhead', i.id)}>✏️</button><button type="button" class="pc-btn" ${act('removeOverhead', i.id)}>🗑️</button></span></div>`).join('')}
+    </div>
+    <div class="oh-add-h">➕ Gider ekle</div>
+    <div class="oh-presets">${OH_PRESETS.filter(([, n]) => !(d.items || []).some(i => i.name === n)).map(([ic, n]) => `<button type="button" class="rvf-chip" ${act('editOverhead', null, ic, n)}>${ic} ${n}</button>`).join('')}<button type="button" class="rvf-chip" ${act('editOverhead', null, '💸', '')}>✍️ Diğer</button></div>
+    <div id="ohForm"></div>
+    <details class="oh-adv"><summary>⚙️ Ciro tabanı</summary>
+      <p class="muted">Gider oranı varsayılan olarak <b>son 30 günün cirosuna</b> göre hesaplanır. Yeni açıldıysanız ya da mevsimsel dalgalanma varsa beklenen aylık ciroyu girin.</p>
+      <div style="display:flex;gap:8px;"><input type="number" id="ohBase" min="1" placeholder="Son 30 gün: ${money(d.revenue_30d || 0)}" value="${d.revenue_base || ''}" style="flex:1;margin:0;"><button type="button" class="u-wa-m0" ${act('saveOhBase')}>Kaydet</button></div></details>`;
+}
+function editOverhead(id, icon, name){
+  const it = id ? ((APP.overheads && APP.overheads.items) || []).find(x => x.id === id) : { icon, name, amount: '', period: 'monthly', active: true };
+  if(!it) return;
+  document.getElementById('ohForm').innerHTML = `<div class="oh-form" data-id="${id || ''}">
+    <div style="display:flex;gap:8px;"><input id="ohIc" value="${escapeAttr(it.icon || '💸')}" maxlength="4" style="width:56px;text-align:center;margin:0;"><input id="ohName" value="${escapeAttr(it.name || '')}" placeholder="Gider adı (örn. Kira)" style="flex:1;margin:0;"></div>
+    <div style="display:flex;gap:8px;margin-top:8px;"><input id="ohAmt" type="number" min="0" inputmode="decimal" value="${it.amount}" placeholder="Tutar ₺" style="flex:1;margin:0;">
+      <select id="ohPer" style="width:auto;margin:0;">${Object.entries(OH_PERIOD).map(([k, l]) => `<option value="${k}" ${it.period === k ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
+    <label class="pdrawer-check" style="margin-top:8px;"><input type="checkbox" id="ohAct" ${it.active !== false ? 'checked' : ''}> Maliyete dahil et</label>
+    <div class="fsheet-foot"><button type="button" class="ghost-btn" ${act('cancelOhForm')}>Vazgeç</button><button ${act('saveOverhead')}>Kaydet</button></div></div>`;
+  const f = document.getElementById(it.name ? 'ohAmt' : 'ohName'); if(f) f.focus();
+}
+function cancelOhForm(){ const f = document.getElementById('ohForm'); if(f) f.innerHTML = ''; }
+async function ohApply(res){
+  if(res.error){ alert(res.error.message); return false; }
+  APP.overheads = res.data; if(APP.config) APP.config.overhead_pct = res.data.pct;
+  renderOverheads();
+  if(APP.view === 'settings') renderSettingsContent(getSession());
+  return true;
+}
+async function saveOverhead(){
+  const f = document.querySelector('.oh-form'); if(!f) return;
+  const v = id => (document.getElementById(id) || {}).value;
+  const ok = await ohApply(await sb.rpc('upsert_overhead_item', { p_token: getSession().session_token, p_id: f.dataset.id || null, p_name: v('ohName'), p_icon: v('ohIc'),
+    p_amount: parseFloat(v('ohAmt')), p_period: v('ohPer'), p_active: document.getElementById('ohAct').checked }));
+  if(ok) showToast('Gider kaydedildi ✓');
+}
+async function removeOverhead(id){
+  if(!confirm('Bu gider kalemi silinsin mi?')) return;
+  await ohApply(await sb.rpc('remove_overhead_item', { p_token: getSession().session_token, p_id: id }));
+}
+async function toggleOhLabor(on){
+  const d = APP.overheads || {};
+  await ohApply(await sb.rpc('set_overhead_settings', { p_token: getSession().session_token, p_revenue_base: d.revenue_base || null, p_auto_labor: on }));
+}
+async function saveOhBase(){
+  const v = parseFloat((document.getElementById('ohBase') || {}).value);
+  const ok = await ohApply(await sb.rpc('set_overhead_settings', { p_token: getSession().session_token, p_revenue_base: v > 0 ? v : null, p_auto_labor: (APP.overheads || {}).auto_labor !== false }));
+  if(ok) showToast(v > 0 ? 'Aylık ciro tabanı kaydedildi ✓' : 'Son 30 gün cirosu kullanılacak');
+}
+
+async function openIngCostLog(id){
+  const ing = ((APP.config && APP.config.ingredients) || []).find(x => x.id === id) || {};
+  const { data, error } = await sb.rpc('get_ingredient_cost_log', { p_token: getSession().session_token, p_ingredient: id });
+  if(error){ alert(error.message); return; }
+  if(!document.getElementById('icSheet')) document.body.insertAdjacentHTML('beforeend', sheetHtml('icSheet', '📈', 'Maliyet geçmişi', '<div id="icBody"></div>', 'var(--c2)'));
+  const u = escapeHtml(ing.unit || 'birim'), src = { purchase: '📦 Alış', manual: '✍️ Elle', price_fix: '🔧 Fiyat düzeltme' };
+  document.getElementById('icSheetTitle').textContent = '📈 ' + (ing.name || 'Hammadde') + ' · maliyet geçmişi';
+  document.getElementById('icBody').innerHTML = `<p class="muted" style="text-align:left;font-size:12.5px;margin:0 0 10px;">Yeni alış, eldeki stokla <b>ağırlıklı ortalanır</b>: (eldeki × eski maliyet + gelen × alış fiyatı) ÷ toplam.</p>
+    ${(data || []).length ? `<div class="oh-list">${data.map(r => `<div class="oh-row" style="grid-template-columns:1fr auto;"><div><b>${src[r.source] || r.source}${r.qty != null ? ' · ' + Number(r.qty) + ' ' + u + (r.unit_price != null ? ' × ' + money(r.unit_price) : '') : ''}</b>
+      <small>${new Date(r.at).toLocaleString('tr-TR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}${r.stock_before != null && r.source === 'purchase' ? ' · eldeki ' + Number(r.stock_before) + ' ' + u + (r.old != null ? ' × ' + money(r.old) : '') : ''}</small></div>
+      <b>${r.old != null ? money(r.old) + ' → ' : ''}${money(r.new)}</b></div>`).join('')}</div>` : '<p class="muted">Henüz kayıt yok. Mal Kabul\'de fiyatlı teslim aldıkça burada görünür.</p>'}`;
+  openSheet('icSheet');
 }
