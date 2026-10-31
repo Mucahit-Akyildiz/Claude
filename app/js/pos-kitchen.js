@@ -691,14 +691,14 @@ function warnPackageDeadlines(){
 function kitchenPickupHtml(o){
   if(!o || o.kind !== 'takeaway') return '';
   const t = typeof pkgTypeOf === 'function' ? pkgTypeOf(o) : (o.takeaway_type || 'delivery');
-  if(!o.pickup_at) return t !== 'pickup' ? '<div class="kc-pickup">🛵 Paket · adrese teslim' + (o.travel_src === 'google' && o.travel_min ? ' <small title="Haritadan hesaplanan sürüş süresi + hazırlık payı">(🗺️ ' + Number(o.travel_min) + ' dk yol)</small>' : '') + '</div>' : '<div class="kc-pickup">🥡 Gel-Al</div>';
+  if(!o.pickup_at) return t !== 'pickup' ? '<div class="kc-pickup">🛵 Paket · adrese teslim' + (typeof pkgTravelLabel === 'function' && pkgTravelLabel(o) ? ' <small title="Google Maps sürüş süresi + işletmenin hazırlık/teslim payı · son hesap saati">(' + pkgTravelLabel(o) + ')</small>' : '') + '</div>' : '<div class="kc-pickup">🥡 Gel-Al</div>';
   // Adrese teslimde yol için 10 dk ayrılır: geri sayım yola çıkış saatine göre.
   const dlMs = typeof pkgKitchenDeadline === 'function' ? pkgKitchenDeadline(o) : new Date(o.pickup_at).getTime();
   const left = Math.round((dlMs - Date.now()) / 60000);
   const hm = new Date(o.pickup_at).toLocaleTimeString('tr-TR', { hour:'2-digit', minute:'2-digit' });
   const out = new Date(dlMs).toLocaleTimeString('tr-TR', { hour:'2-digit', minute:'2-digit' });
   const tr = typeof pkgTravelMin === 'function' ? pkgTravelMin(o) : 10;
-  const what = t !== 'pickup' ? `🛵 Paket · <b>${hm}</b>'de adreste · <b>${out}</b>'de yola çıkmalı <small title="${o.travel_src === 'google' ? 'Haritadan hesaplanan sürüş süresi + hazırlık payı' : 'İşletmenin varsayılan yol süresi'}">(${o.travel_src === 'google' ? '🗺️' : '⏱️'} ${tr} dk yol${o.travel_checked_at && o.travel_src === 'google' ? ' · 🚦 ' + new Date(o.travel_checked_at).toLocaleTimeString('tr-TR', { hour:'2-digit', minute:'2-digit' }) : ''})</small>` : `🥡 Gel-Al · müşteri <b>${hm}</b>'de alacak`;
+  const what = t !== 'pickup' ? `🛵 Paket · <b>${hm}</b>'de adreste · <b>${out}</b>'de yola çıkmalı <small title="${o.travel_src === 'google' ? 'Haritadan hesaplanan sürüş süresi + hazırlık payı' : 'İşletmenin varsayılan yol süresi'}">(${o.travel_src === 'google' && typeof pkgTravelLabel === 'function' ? pkgTravelLabel(o) : '⏱️ ' + tr + ' dk yol'})</small>` : `🥡 Gel-Al · müşteri <b>${hm}</b>'de alacak`;
   // 20 dakikadan az kaldıysa uyarı (hazırlık süresi yetmeyebilir); süre geçtiyse kırmızı.
   const pending = (o.items || []).some(i => i.status === 'pending' && !i.paid);
   return `<div class="kc-pickup ${left < 10 ? 'late' : left < PKG_WARN_MIN ? 'soon' : 'ok'}">${left >= 0 && left < PKG_WARN_MIN && pending ? '⚠️ ' : ''}${what} <span>(${left < 0 ? Math.abs(left) + ' dk geçti' : left + ' dk kaldı'})</span></div>`;
