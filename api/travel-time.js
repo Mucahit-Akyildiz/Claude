@@ -79,7 +79,7 @@ module.exports = async function handler(req, res) {
         const mins = await driveMinutes(key, t, { lat: t.dest_lat, lng: t.dest_lng }, null);
         if (!mins) continue;
         const total = mins + (Number(t.buffer) || 0), prev = Number(t.travel_min) || total, diff = total - prev;
-        if (Math.abs(diff) < (Number(t.recheck) || 3)) { await supabase.rpc('_set_order_travel2', { p_order: id, p_min: prev, p_src: 'google', p_lat: null, p_lng: null }); continue; }
+        if (diff === 0 || (t.pickup_at && Math.abs(diff) < (Number(t.recheck) || 3))) { await supabase.rpc('_set_order_travel2', { p_order: id, p_min: prev, p_src: 'google', p_lat: null, p_lng: null }); continue; }
         await supabase.rpc('_set_order_travel2', { p_order: id, p_min: total, p_src: 'google', p_lat: null, p_lng: null });
         out.push({ id, prev, total });
         if (diff > 0 && t.pickup_at) {
