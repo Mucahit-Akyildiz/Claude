@@ -26,9 +26,10 @@ function render(){
   let eta = '';
   if(!done && j.eta_min != null && j.eta_at){ const arr = new Date(new Date(j.eta_at).getTime() + j.eta_min * 60000); eta = `<div class="tk-eta"><span>🕒</span><div><b>${Math.max(1, Math.round((arr - Date.now()) / 60000))} dk kaldı</b><small>Tahmini varış ${hm(arr)} · trafik dahil</small></div></div>`; }
   const share = done ? `<div class="kr-done">✅ Teslim edildi · ${hm(j.delivered_at)}<small>Konum paylaşımı kapandı. Bu sayfayı kapatabilirsiniz.</small></div>`
-    : SHARING ? `<div class="kr-share on"><span class="kr-live"></span><div><b>Konumunuz paylaşılıyor</b><small>${LAST_SENT ? 'Son gönderim ' + new Date(LAST_SENT).toLocaleTimeString('tr-TR') : 'Konum bekleniyor…'}${NATIVE ? ' · ekran kilitliyken de devam eder' : ' · bu sayfayı açık tutun'}</small></div><button class="kr-ghost" ${act('stopShare')}>Durdur</button></div>`
+    : SHARING ? `<div class="kr-share on"><span class="kr-live"></span><div><b>Konumunuz paylaşılıyor</b><small>${LAST_SENT ? 'Son gönderim ' + new Date(LAST_SENT).toLocaleTimeString('tr-TR') : 'Konum bekleniyor…'}${NATIVE ? ' · ekran kilitliyken de devam eder' : ' · bu sayfayı açık tutun'}</small></div><button class="kr-ghost" ${act('stopShareClick')}>Durdur</button></div>`
+    : !j.accepted_at ? `<button class="kr-big kr-ok" ${act('acceptHere')}>✅ Siparişi aldım</button><p class="kr-hint">Onaylayınca canlı konum paylaşımı otomatik başlar; müşteri varış süresini ve yerinizi görür.</p>`
     : OLD_APP ? `<button class="kr-big" ${act('openInChrome')}>📍 Konumu Chrome'da paylaş</button><p class="kr-hint">Uygulamanın bu sürümü konum paylaşamıyor; sayfa Chrome'da açılır. Uygulamayı Play Store'dan güncelleyince ekran kilitliyken de paylaşılır.</p>`
-    : `<button class="kr-big" ${act('startShare')}>📍 Konumumu paylaş</button><p class="kr-hint">Müşteri ve restoran, adrese kalan süreyi ve yerinizi görür. Yalnızca bu teslimat sırasında paylaşılır.</p>`;
+    : `<button class="kr-big" ${act('startShare')}>📍 Konum paylaşımını başlat</button><p class="kr-hint">Konum paylaşımı durdu. Müşteri ve restoran varış süresini görebilsin diye yeniden başlatın.</p>`;
   const back = (IN_APP || FROM_APP) ? `<button class="kr-back" ${act('backToApp')}>← Uygulamaya dön</button>` : '';
   const html = `${back}<div class="kr-head"><small>${escapeHtml(j.restaurant)} · #${escapeHtml(j.no || '')}</small><h1>🛵 ${escapeHtml(j.customer || 'Paket')}</h1></div>
     ${ERR ? `<div class="kr-err">⚠️ ${escapeHtml(ERR)}</div>` : ''}
@@ -72,7 +73,7 @@ async function send(pos){
 const OLD_APP = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()) && !NATIVE;
 function openInChrome(){ window.location.href = 'intent://www.peyktan.com/kurye/?t=' + TOKEN + '#Intent;scheme=https;package=com.android.chrome;S.browser_fallback_url=' + encodeURIComponent(location.href) + ';end'; }
 async function startShare(){
-  ERR = '';
+  ERR = ''; try{ localStorage.removeItem('kr_stop_' + TOKEN); }catch(e){}
   if(OLD_APP){ openInChrome(); return; }
   if(NATIVE){
     try{
@@ -89,6 +90,7 @@ async function startShare(){
   try{ if('wakeLock' in navigator) WAKE = await navigator.wakeLock.request('screen'); }catch(e){}
   render();
 }
+function stopShareClick(){ try{ localStorage.setItem('kr_stop_' + TOKEN, '1'); }catch(e){} stopShare(); }
 function stopShare(silent){
   if(WATCH != null){ navigator.geolocation.clearWatch(WATCH); WATCH = null; }
   if(NATIVE){ try{ NATIVE.stop(); }catch(e){} }
@@ -103,9 +105,17 @@ async function delivered(){
   stopShare(true); await load();
 }
 document.addEventListener('visibilitychange', async () => { if(document.visibilityState === 'visible') load(); if(document.visibilityState === 'visible' && SHARING && !WAKE){ try{ WAKE = await navigator.wakeLock.request('screen'); }catch(e){} } });
+async function acceptHere(){
+  const { error } = await sb.rpc('courier_accept', { p_courier: TOKEN });
+  if(error){ alert(error.message); return; }
+  JOB.accepted_at = new Date().toISOString(); render();
+  if(OLD_APP) openInChrome(); else startShare();
+}
 load().then(() => {
-  let was = false; try{ was = localStorage.getItem('kr_share_' + TOKEN) === '1'; }catch(e){}
-  if(was && JOB && !JOB.delivered_at) startShare();
+  // Onaylanmış teslimatta canlı konum kendiliğinden başlar (elle "aç" gerekmez); kurye "Durdur" dediyse başlatılmaz.
+  let stopped = false; try{ stopped = localStorage.getItem('kr_stop_' + TOKEN) === '1'; }catch(e){}
+  const auto = new URLSearchParams(location.search).get('auto') === '1';
+  if(JOB && !JOB.delivered_at && JOB.accepted_at && (auto || !stopped)){ if(OLD_APP) { if(auto) openInChrome(); } else startShare(); }
   // Restoran "Teslim edildi" deyince kurye ekranı hemen kapansın: yoldayken 8 sn'de bir, teslimden sonra yoklanmaz.
   TIMER = setInterval(() => { if(!JOB || !JOB.delivered_at) load(); }, 8000);
 });

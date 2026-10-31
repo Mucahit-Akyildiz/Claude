@@ -47,7 +47,7 @@ function renderPackageGrid(){
     if(!pickup){
       const mins = (t) => Math.max(0, Math.round((Date.now() - new Date(t)) / 60000));
       courier = o.delivered_at ? `<div class="cr-row"><span class="pk-badge cr-done">✅ Teslim edildi · ödeme bekliyor</span><button type="button" class="cr-btn ghost" title="Teslim edildi işaretini geri al" ${actStop('markDelivered', o.order_id, true)}>↩</button></div>`
-        : o.dispatched_at ? `<div class="cr-row"><span class="pk-badge cr-way">🛵 Yolda${o.courier_name ? ' · ' + escapeHtml(o.courier_name) : ''} · ${mins(o.dispatched_at)} dk</span>${courierLiveBadge(o)}<button type="button" class="cr-btn ghost" title="${o.courier_user_id === (getSession()||{}).user_id ? 'Konumumu paylaş' : 'Kurye linki · konum paylaşımı'}" ${actStop('openCourierLink', o.order_id)}>📍</button><button type="button" class="cr-btn" ${actStop('markDelivered', o.order_id, false)}>✅ Teslim</button></div>`
+        : o.dispatched_at ? `<div class="cr-row"><span class="pk-badge cr-way">🛵 Yolda${o.courier_name ? ' · ' + escapeHtml(o.courier_name) : ''} · ${mins(o.dispatched_at)} dk</span>${courierAcceptBadge(o)}${courierLiveBadge(o)}<button type="button" class="cr-btn ghost" title="${o.courier_user_id === (getSession()||{}).user_id ? 'Konumumu paylaş' : 'Kurye linki · konum paylaşımı'}" ${actStop('openCourierLink', o.order_id)}>📍</button><button type="button" class="cr-btn" ${actStop('markDelivered', o.order_id, false)}>✅ Teslim</button></div>`
         : allReady ? `<div class="cr-row"><button type="button" class="cr-btn hot" ${actStop('openCourierSheet', o.order_id)}>🛵 Kuryeye Ver</button></div>`
         : `<div class="cr-row"><button type="button" class="cr-btn" disabled title="Mutfak tüm ürünleri hazırlayınca kuryeye verilebilir">⏳ Hazırlanıyor — kurye bekliyor</button></div>`;
     }
@@ -784,7 +784,7 @@ async function openCourierLink(orderId){
   APP.crLink = url;
   document.getElementById('crLinkBody').innerHTML = `<p class="muted" style="text-align:left;margin:0 0 10px;">Kurye bu linki telefonunda açıp <b>📍 Konumumu paylaş</b> der. Müşteri takip sayfasında varış süresini ve kuryeyi haritada görür; siz de 🗺️ Kuryeler panelinden izlersiniz.${o.courier_name ? ' Kurye: <b>' + escapeHtml(o.courier_name) + '</b>' : ''}</p>
     <input readonly value="${escapeAttr(url)}" style="width:100%;font-family:monospace;font-size:12px;">
-    <button type="button" class="ghost-btn" style="width:100%;margin-top:10px;" ${act('resendCourierNotify', orderId)}>🔔 Kuryeye bildirimi tekrar gönder</button>
+    <button type="button" class="ghost-btn" style="width:100%;margin-top:10px;" ${act('resendCourierNotify', orderId)}>🔁 Kuryeye onayı tekrar gönder</button>
     <div class="fsheet-foot"><button type="button" class="ghost-btn" ${act('copyCourierLink')}>📋 Kopyala</button><button ${act('shareCourierLink')}>📤 Paylaş</button></div>`;
   openSheet('crLinkSheet');
 }
@@ -823,5 +823,14 @@ async function refreshCourierMap(){
 async function resendCourierNotify(orderId){
   const { error } = await sb.rpc('resend_courier_notify', { p_token: getSession().session_token, p_order_id: orderId });
   if(error){ alert(error.message); return; }
-  showToast('🔔 Kuryeye bildirim tekrar gönderildi');
+  showToast('🔁 Onay kuryenin ekranına tekrar gönderildi');
+  await refreshPackagesLive();
+}
+
+// Kurye onayı: "Siparişi aldım" dendi mi? Denmediyse onayı tekrar gönderme düğmesi.
+function courierAcceptBadge(o){
+  if(!o.courier_user_id || o.delivered_at) return '';
+  if(o.courier_accepted_at) return `<span class="pk-badge ok" title="Kurye siparişi aldığını onayladı">✅ aldı ${new Date(o.courier_accepted_at).toLocaleTimeString('tr-TR', { hour:'2-digit', minute:'2-digit' })}</span>`;
+  const m = Math.max(0, Math.round((Date.now() - new Date(o.courier_offer_at || o.dispatched_at)) / 60000));
+  return `<span class="pk-badge ${m >= 3 ? 'late' : 'warn'}" title="Kuryenin ekranına onay gönderildi, henüz 'Siparişi aldım' denmedi">⏳ onay bekleniyor${m ? ' · ' + m + ' dk' : ''}</span><button type="button" class="cr-btn ghost" title="Onayı kuryenin ekranına tekrar gönder" ${actStop('resendCourierNotify', o.order_id)}>🔁</button>`;
 }
