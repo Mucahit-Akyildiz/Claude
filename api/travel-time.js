@@ -26,7 +26,7 @@ async function driveMinutes(key, from, to, departAt) {
   const body = {
     origin: { location: { latLng: { latitude: from.lat, longitude: from.lng } } },
     destination: { location: { latLng: { latitude: to.lat, longitude: to.lng } } },
-    travelMode: 'DRIVE', routingPreference: 'TRAFFIC_AWARE', computeAlternativeRoutes: true, languageCode: 'tr', regionCode: 'TR',
+    travelMode: 'DRIVE', routingPreference: 'TRAFFIC_AWARE_OPTIMAL', computeAlternativeRoutes: true, languageCode: 'tr', regionCode: 'TR',
   };
   if (departAt && departAt.getTime() > Date.now() + 2 * 60000) body.departureTime = departAt.toISOString();
   const r = await fetch('https://routes.googleapis.com/directions/v2:computeRoutes', {
