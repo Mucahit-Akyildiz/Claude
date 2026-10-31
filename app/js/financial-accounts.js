@@ -289,7 +289,7 @@ function raceHtml(items){
 }
 
 /* ---- Gün Sonu Kapanışları: son N iş gününün kapanış durumu (takvim şeridi), kasa farkı grafiği ve liste. ---- */
-function setDayCloseRange(n){ APP.dayCloseRange = n; renderDayClosesContent(getSession()); }
+function setDayCloseRange(n){ APP.dayCloseRange = n; redrawReportPart(renderDayClosesContent, getSession()); }
 async function renderDayClosesContent(session){
   const el = document.getElementById('reportContent'); if(!el) return;
   const n = APP.dayCloseRange || 30;

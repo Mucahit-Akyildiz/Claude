@@ -5,7 +5,7 @@
 const AN_TABS = [
   ['cockpit','🧭','Kokpit'], ['menueng','🎯','Menü Mühendisliği'], ['tablemap','🗺️','Masa Haritası'], ['heat','🔥','Yoğunluk'],
   ['channels','🛵','Satış Kanalları'], ['speed','⚡','Hizmet Hızı'],
-  ['stockf','📦','Stok Tahmini'], ['zreport','🧾','Gün Sonu'], ['dayclose','📅','Gün Sonu Kapanışları'], ['waiters','👥','Personel Performansı'], ['journey','🔁','Müşteri Yolculuğu']
+  ['stockf','📦','Stok Tahmini'], ['zreport','🧾','Gün Sonu & Kapanışlar'], ['waiters','👥','Personel Performansı']
 ];
 async function anBundle(session, fresh, quiet){
   const key = APP.reportDate + '|' + APP.reportDateTo;
@@ -280,7 +280,7 @@ function zAutoRefresh(){
     const inp = document.getElementById('ccCounted');
     if(APP.view !== 'reports' || APP.reportTab !== 'zreport' || !inp){ clearInterval(Z_REFRESH_T); return; }
     if(document.hidden || inp.value !== '' || document.activeElement === inp || document.activeElement === document.getElementById('ccNote')) return;
-    const s = getSession(); if(s) renderZReportContent(s, true);
+    const s = getSession(); if(s) redrawReportPart(renderZReportContent, s, true);
   }, 30000);
 }
 async function renderZReportContent(session, quiet){
@@ -320,7 +320,7 @@ async function renderZReportContent(session, quiet){
       : `<div class="zc-status wait"><span class="zc-big">🕒</span><div><b>Gün henüz kapanmadı</b><small>Kasadaki nakdi sayın, tutarı girin ve günü kapatın. Yaklaşık 30 saniye sürer.</small></div></div>`;
   el.innerHTML = `<div class="zc-wrap">
     <div class="zc-main">
-      <div class="zc-head"><div><h3>🧾 Gün Sonu</h3><small>${escapeHtml(reportDateRangeLabel())}</small></div><button type="button" class="ghost-btn zc-hist" ${act('setReportTab', 'dayclose')}>📅 Geçmiş kapanışlar</button></div>
+      <div class="zc-head"><div><h3>🧾 Gün Sonu</h3><small>${escapeHtml(reportDateRangeLabel())}</small></div><button type="button" class="ghost-btn zc-hist" ${act('scrollToReportPart', 'mrg_1')}>📅 Geçmiş kapanışlar</button></div>
       ${statusHtml}
       <div class="zc-step"><span class="zc-n">1</span><div><b>Günün özetine bakın</b><small>Kasada olması gereken nakit, nakit ödemelerin toplamıdır.</small></div></div>
       <div class="zc-stats">
@@ -372,7 +372,7 @@ async function saveCashCount(){
   const { error } = await sb.rpc('save_cash_count', { p_token: session.session_token, p_date: APP.reportDateTo || APP.reportDate, p_expected: Number(document.getElementById('ccExpected').dataset.v) || 0, p_counted: Number(v), p_note: document.getElementById('ccNote').value });
   if(error){ alert(error.message); return; }
   showToast('Gün kapandı ✓');
-  renderZReportContent(session);
+  redrawReportPart(renderZReportContent, session);
 }
 /* Gün sonu raporunu kasa fişlerinin gittiği "Bu Ekranın Yazıcısı"na 80 mm fiş olarak basar. */
 async function printZToReceipt(){
@@ -591,7 +591,7 @@ async function anSearch(q){
     (d.tables || []).filter(x => hit(x.table_name)).slice(0, 5).forEach(x => res.push(['🪑', x.table_name, money(x.rev) + ' · ' + x.n + ' hesap', 'tablemap']));
     (d.staff || []).filter(x => hit(x.username)).slice(0, 5).forEach(x => res.push(['👤', x.username, money(x.rev) + ' · ' + x.n + ' hesap', 'waiters']));
     (d.stock || []).filter(x => hit(x.name)).slice(0, 4).forEach(x => res.push(['📦', x.name, x.days_left == null ? 'kullanılmadı' : x.days_left + ' gün yeter', 'stockf']));
-    ((d.customers && d.customers.at_risk) || []).filter(x => hit(x.name)).slice(0, 4).forEach(x => res.push(['💔', x.name, 'kaybedilmek üzere', 'journey']));
+    ((d.customers && d.customers.at_risk) || []).filter(x => hit(x.name)).slice(0, 4).forEach(x => res.push(['💔', x.name, 'kaybedilmek üzere', 'customers']));
   }
   box.hidden = false;
   box.innerHTML = res.length ? res.slice(0, 14).map(([ic, t, s, tab]) => `<div class="an-sr" ${act('anGo', tab)}><span>${ic}</span><div><b>${escapeHtml(t)}</b><small>${escapeHtml(s)}</small></div></div>`).join('')
