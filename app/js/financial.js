@@ -672,9 +672,9 @@ function buildHourlyPivotTable(rows){
   const lo = Math.min(...hours), hi = Math.max(...hours), hrs = []; for(let h = lo; h <= hi; h++) hrs.push(h);
   return `<div class="hm st-hm" style="--cols:${hrs.length};grid-template-columns:150px repeat(var(--cols),minmax(26px,1fr)) 70px;">
       <span></span>${hrs.map(h => `<span class="hm-h">${String(h).padStart(2,'0')}</span>`).join('')}<span class="hm-h">Toplam</span>
-      ${staffNames.slice().sort((x, y) => totalsByStaff[y] - totalsByStaff[x]).map((name, ri) => `<span class="st-who">${avatarHtml(name)}<b>${escapeHtml(name)}</b></span>${hrs.map((h, ci) => { const v = lookup[name+'_'+h]||0;
-        return `<span class="hm-c st-c ${ri===0?'hm-top':''}" tabindex="0" style="--v:${(v/max).toFixed(3)};--i:${ri*hrs.length+ci};">${v ? `<i>${v}</i><em>${escapeHtml(name)} · ${hourLabel(h)}<br><b>${v}</b></em>` : ''}</span>`; }).join('')}
-        <span class="st-tot"><b>${totalsByStaff[name]}</b><span class="st-tbar"><i style="width:${Math.round(totalsByStaff[name]/maxTot*100)}%;"></i></span></span>`).join('')}
+      ${staffNames.slice().sort((x, y) => totalsByStaff[y] - totalsByStaff[x]).map((name, ri) => `<span class="st-who" data-staff="${escapeAttr(name)}">${avatarHtml(name)}<b>${escapeHtml(name)}</b></span>${hrs.map((h, ci) => { const v = lookup[name+'_'+h]||0;
+        return `<span class="hm-c st-c ${ri===0?'hm-top':''}" data-staff="${escapeAttr(name)}" tabindex="0" style="--v:${(v/max).toFixed(3)};--i:${ri*hrs.length+ci};">${v ? `<i>${v}</i><em>${escapeHtml(name)} · ${hourLabel(h)}<br><b>${v}</b></em>` : ''}</span>`; }).join('')}
+        <span class="st-tot" data-staff="${escapeAttr(name)}"><b>${totalsByStaff[name]}</b><span class="st-tbar"><i style="width:${Math.round(totalsByStaff[name]/maxTot*100)}%;"></i></span></span>`).join('')}
       <span class="st-who"><b>Toplam</b></span>${hrs.map(h => `<span class="st-sum">${totalsByHour[h]||'·'}</span>`).join('')}<span class="st-tot"><b>${grandTotal}</b></span>
     </div>`;
 }
