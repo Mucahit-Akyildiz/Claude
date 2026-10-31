@@ -3848,3 +3848,14 @@ button.sl-stat{border:1px solid var(--border) !important;} button.sl-stat.on{bor
 .gx-banks{display:grid;gap:4px;margin:10px 0 2px;padding:8px 10px;border-radius:12px;background:color-mix(in srgb,#6366f1 8%,transparent);border:1px dashed color-mix(in srgb,#6366f1 40%,transparent)}
 .gx-banks div{display:flex;justify-content:space-between;font-size:13px}
 .chat-link{color:inherit;text-decoration:underline;word-break:break-all;font-weight:600}.chat-bubble.mine .chat-link,.chat-msg.me .chat-link{color:#fff}
+
+/* Konum & Teslimat: süre kartları */
+.geo-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;}
+.geo-c{display:grid;grid-template-columns:40px 1fr auto;grid-template-areas:"ic t in" "ic h h";gap:4px 12px;align-items:center;padding:14px 16px;border:1px solid var(--border);border-radius:14px;background:color-mix(in srgb,var(--accent) 4%,transparent);cursor:text;transition:border-color .15s;margin:0;}
+.geo-c:focus-within{border-color:var(--accent);}
+.geo-c-ic{grid-area:ic;align-self:start;width:40px;height:40px;border-radius:12px;display:grid;place-items:center;font-size:20px;background:color-mix(in srgb,var(--accent) 14%,transparent);}
+.geo-c-t{grid-area:t;font-weight:800;font-size:14px;line-height:1.25;}
+.geo-c-in{grid-area:in;display:flex;align-items:center;gap:6px;}
+.geo-c-in input{width:72px;margin:0;text-align:center;font-weight:800;font-size:17px;padding:8px 6px;}
+.geo-c-in em{font-style:normal;font-size:12px;color:var(--muted);font-weight:700;}
+.geo-c small{grid-area:h;font-size:12px;line-height:1.45;color:var(--muted);}
