@@ -783,6 +783,7 @@ async function openCourierLink(orderId){
   APP.crLink = url;
   document.getElementById('crLinkBody').innerHTML = `<p class="muted" style="text-align:left;margin:0 0 10px;">Kurye bu linki telefonunda açıp <b>📍 Konumumu paylaş</b> der. Müşteri takip sayfasında varış süresini ve kuryeyi haritada görür; siz de 🗺️ Kuryeler panelinden izlersiniz.${o.courier_name ? ' Kurye: <b>' + escapeHtml(o.courier_name) + '</b>' : ''}</p>
     <input readonly value="${escapeAttr(url)}" style="width:100%;font-family:monospace;font-size:12px;">
+    <button type="button" class="ghost-btn" style="width:100%;margin-top:10px;" ${act('resendCourierNotify', orderId)}>🔔 Kuryeye bildirimi tekrar gönder</button>
     <div class="fsheet-foot"><button type="button" class="ghost-btn" ${act('copyCourierLink')}>📋 Kopyala</button><button ${act('shareCourierLink')}>📤 Paylaş</button></div>`;
   openSheet('crLinkSheet');
 }
@@ -816,4 +817,10 @@ async function refreshCourierMap(){
     const st = !r.at ? '<span class="pk-badge">📍 paylaşım başlamadı</span>' : fresh(r) ? `<span class="pk-badge ok">📍 ${left != null ? left + ' dk kaldı · varış ' + new Date(Date.now() + left * 60000).toLocaleTimeString('tr-TR', { hour:'2-digit', minute:'2-digit' }) : 'canlı'}</span>` : `<span class="pk-badge late">📵 ${Math.round((Date.now() - new Date(r.at)) / 60000)} dk önce</span>`;
     return `<div class="cr-ml-row"><div><b>🛵 ${escapeHtml(r.courier || 'Kurye')} → ${escapeHtml(r.customer)}</b><small>${escapeHtml(r.address || '')}</small></div><div class="cr-ml-r">${st}${r.at ? `<small>son konum ${new Date(r.at).toLocaleTimeString('tr-TR', { hour:'2-digit', minute:'2-digit' })}</small>` : ''}<button type="button" class="cr-btn ghost" ${act('openCourierLink', r.id)}>🔗 Link</button></div></div>`;
   }).join('') : '<p class="muted">Yolda kurye yok.</p>';
+}
+
+async function resendCourierNotify(orderId){
+  const { error } = await sb.rpc('resend_courier_notify', { p_token: getSession().session_token, p_order_id: orderId });
+  if(error){ alert(error.message); return; }
+  showToast('🔔 Kuryeye bildirim tekrar gönderildi');
 }
