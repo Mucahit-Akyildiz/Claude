@@ -18,7 +18,7 @@ async function renderCrmView(main, session){
         <div class="crm-hbtns" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;flex:1 1 auto;justify-content:flex-end;min-width:0;">
           <button type="button" class="fsheet-open" style="flex:0 0 auto;" ${act('newCustomer')}>+ Yeni Müşteri</button>
           ${canManage(session, 'crm') ? `<button type="button" class="ghost-btn" style="width:auto;flex:0 0 auto;white-space:nowrap;margin:0;" ${act('openWinback', 0)} title="Tüm müşterilere, son gelenlere ya da bir süredir gelmeyenlere SMS / e-posta">📣 Kampanya & Geri Kazanım</button>` : ''}
-          <input id="crmSearchInput" placeholder="İsim veya telefon ara..." style="flex:0 1 260px;min-width:120px;width:auto;margin:0;" value="${escapeAttr(APP.crmSearch||'')}" ${actOn('input', 'debouncedCrmSearch', ['$value'])}>
+          <input id="crmSearchInput" type="search" name="crm-list-search" autocomplete="off" data-lpignore="true" placeholder="İsim veya telefon ara..." style="flex:0 1 260px;min-width:120px;width:auto;margin:0;" value="${escapeAttr(APP.crmSearch||'')}" ${actOn('input', 'debouncedCrmSearch', ['$value'])}>
           ${canManage(session, 'crm') ? `<button type="button" class="ghost-btn" style="width:auto;flex:0 0 auto;white-space:nowrap;margin:0;" ${act('openSheet','crmLoySheet')} title="Puan ve doğum günü indirimi ayarları">⭐ Sadakat${loyalty.enabled ? '' : ' (kapalı)'}</button>` : ''}
           <button type="button" class="ghost-btn" style="width:auto;flex:0 0 auto;white-space:nowrap;margin:0;" ${act('exportCustomersCsv')} title="Tüm müşterileri Excel (.xlsx) olarak indir">⬇️ Dışa aktar</button>
           ${canManage(session, 'crm') ? `<button type="button" class="ghost-btn" style="width:auto;flex:0 0 auto;white-space:nowrap;margin:0;" ${act('openCustomerImport')} title="Excel (.xlsx) veya CSV dosyasından müşteri yükle">⬆️ İçe aktar</button>
@@ -43,12 +43,12 @@ async function renderCrmView(main, session){
     </div>
     ${sheetHtml('crmSheet', '👤', 'Yeni Müşteri', `<input type="hidden" id="crm_edit_id">
         <div class="fsheet-grid">
-          <div class="field-group wide"><label>Ad Soyad</label><input id="crm_name" placeholder="örn. Ahmet Yılmaz"></div>
-          <div class="field-group"><label>Telefon</label><input id="crm_phone" placeholder="05xx..." inputmode="tel"></div>
-          <div class="field-group"><label>E-posta</label><input id="crm_email" placeholder="opsiyonel" autocapitalize="none"></div>
+          <div class="field-group wide"><label>Ad Soyad</label><input id="crm_name" name="name" autocomplete="name" placeholder="örn. Ahmet Yılmaz"></div>
+          <div class="field-group"><label>Telefon</label><input id="crm_phone" name="tel" type="tel" autocomplete="tel" placeholder="05xx..." inputmode="tel"></div>
+          <div class="field-group"><label>E-posta</label><input id="crm_email" name="email" type="email" autocomplete="email" placeholder="opsiyonel" autocapitalize="none"></div>
           <div class="field-group"><label>🎂 Doğum Günü</label><input id="crm_birthday" type="date"></div>
           <div class="field-group"><label>Not</label><input id="crm_notes" placeholder="opsiyonel"></div>
-          <div class="field-group wide"><label>📍 Adres</label><textarea id="crm_address" rows="2" placeholder="örn. Atatürk Cad. No:12 D:4 — paket siparişte otomatik dolar" style="resize:vertical;min-height:44px;"></textarea></div>
+          <div class="field-group wide"><label>📍 Adres</label><textarea id="crm_address" name="street-address" autocomplete="street-address" rows="2" placeholder="örn. Atatürk Cad. No:12 D:4 — paket siparişte otomatik dolar" style="resize:vertical;min-height:44px;"></textarea></div>
         </div>
         <details id="crmLoyaltyBox" style="margin-top:10px;border:1px solid var(--border);border-radius:12px;padding:10px 12px;background:var(--panel);">
           <summary style="cursor:pointer;font-weight:700;font-size:13.5px;">⭐ Bu müşteriye özel sadakat ayarı <span class="u-fw4 muted">(boş bırakılan alan genel ayarı kullanır)</span></summary>
@@ -147,10 +147,15 @@ function customerLoyaltySummary(c){
 }
 let CRM_SEARCH_TIMER = null;
 function debouncedCrmSearch(v){
+  // Tarayıcının otomatik doldurması müşteri formu açıkken arama kutusunu da doldurabiliyor: form açıkken arama yapılmaz
+  // (yoksa liste yeniden çizilip açık form kapanıyor, ekran kilitli kalıyordu).
+  const sh = document.getElementById('crmSheet');
+  if(sh && sh.classList.contains('open')){ const inp = document.getElementById('crmSearchInput'); if(inp) inp.value = APP.crmSearch || ''; return; }
   APP.crmSearch = v;
   clearTimeout(CRM_SEARCH_TIMER);
   CRM_SEARCH_TIMER = setTimeout(async () => {
     await renderCrmView(document.getElementById('main'), getSession());
+    if(!document.querySelector('.fsheet.open')) document.body.classList.remove('fsheet-lock');
     const inp = document.getElementById('crmSearchInput');
     if(inp){ inp.focus(); inp.setSelectionRange(inp.value.length, inp.value.length); }
   }, 350);
