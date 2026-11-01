@@ -102,3 +102,6 @@ alter table orders add column if not exists treat_off boolean not null default f
 alter table restaurants add column if not exists guest_required boolean not null default false;
 
 -- Mal kabul iptali: _reverse_po_item (teslim alınan stok düşülür, ağırlıklı ortalama maliyet geri alınır, ingredient_cost_log purchase_cancel); set_purchase_order_status iptalde çağırır; receive sipariş miktarını aşan kısmı stoğa eklemez.
+
+-- Müşteri kaydını yapan / son değiştiren: customers.created_by, updated_by, info_updated_at + customers_audit tetikleyicisi (peyk.uid); list_customers isimleri döner.
+alter table customers add column if not exists created_by uuid, add column if not exists updated_by uuid, add column if not exists info_updated_at timestamptz;
