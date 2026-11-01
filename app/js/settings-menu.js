@@ -865,26 +865,41 @@ function setZonesSubTab(t){
 function tableTreatBoxHtml(){
   const tr = (APP.config && APP.config.treat) || {}, prods = ((APP.config && APP.config.products) || []).filter(p => !p.parent_id).sort((a, b) => String(a.name).localeCompare(String(b.name), 'tr'));
   const zones = (APP.config && APP.config.zones) || [], zsel = tr.zone_ids || [];
-  const cur = prods.find(p => p.id === tr.product_id);
-  return `<div class="u-mwn box tt-box">
-    <div class="u-row-sb"><h2 class="u-m0">🥗 Masa ikramı</h2>${cur ? '<span class="pchip" style="background:color-mix(in srgb,var(--ok,#22c55e) 18%,transparent);">Açık</span>' : '<span class="pchip">Kapalı</span>'}</div>
-    <p class="muted" style="text-align:left;font-size:13px;margin:6px 0 10px;">Masaya oturan müşterilere verilen soğuk meze, ekmek gibi ikramlar. Kişi sayısı girilince seçtiğiniz ürün <b>kişi sayısı kadar, 0 TL</b> olarak siparişe eklenir; reçetesi stoktan düşer ve maliyeti masanın kârlılığına yazılır. Mutfağa fiş gitmez. Önce ürünü reçetesiyle (kişi başı miktarlar) oluşturun.</p>
-    <div class="ix-form" style="grid-template-columns:1fr 1fr;">
-      <div><label>İkram ürünü</label><select id="ttProd"><option value="">— Kapalı —</option>${prods.map(p => `<option value="${p.id}" ${p.id === tr.product_id ? 'selected' : ''}>${escapeHtml(p.name)}${p.recipe && p.recipe.length ? '' : ' (reçete yok)'}</option>`).join('')}</select></div>
-      <div><label>Bölgeler <small class="muted">(hiçbiri seçilmezse tümü)</small></label><div class="tt-zones">${zones.map(z => `<label class="al-u"><input type="checkbox" class="tt-z" value="${z.id}" ${zsel.includes(z.id) ? 'checked' : ''}><span>${escapeHtml(z.name)}</span></label>`).join('') || '<small class="muted">Bölge yok</small>'}</div></div>
-    </div>
-    ${cur && Number(cur.cost) ? `<p class="muted u-fs12" style="text-align:left;margin:8px 0 0;">Kişi başı ikram maliyeti: <b>${money(cur.cost)}</b></p>` : cur ? '<p class="u-fs12 u-red" style="text-align:left;margin:8px 0 0;">⚠️ Bu ürünün maliyeti yok; reçete girin ki ikram maliyeti hesaplansın.</p>' : ''}
-    <p class="muted u-fs12" style="text-align:left;margin:8px 0 0;">${APP.config && APP.config.guest_required ? '🔒 Kişi sayısı zorunlu: açık' : '💡 Kişi sayısı girilmeyen masaya ikram eklenmez. <b>Bildirim Ayarları › Kişi Sayısı</b> bölümünden "Kişi sayısı zorunlu"yu açabilirsiniz.'}</p>
-    <button type="button" style="margin-top:10px;width:auto;" ${act('saveTableTreat')}>💾 Kaydet</button>
+  const cur = prods.find(p => p.id === tr.product_id), on = !!cur || !!APP.ttOn;
+  return `<div class="tt-box ${on ? 'on' : ''}">
+    <div class="oo-hero ${on ? 'on' : ''}" style="margin:0;"><div class="oo-hero-ic">🥗</div>
+      <div class="oo-hero-t"><b>Masa ikramı</b><small>Soğuk meze, ekmek gibi ikramlar kişi sayısı kadar 0 TL eklenir; reçetesi stoktan düşer, maliyeti masanın kârlılığına yazılır. Mutfağa fiş gitmez.</small></div>
+      <label class="oo-switch" title="Aç / kapat"><input type="checkbox" ${on ? 'checked' : ''} ${actOn('change','setTreatOn',['$checked'])}><span class="oo-track"><span class="oo-thumb"></span></span><em>${on ? 'Açık' : 'Kapalı'}</em></label></div>
+    ${on ? `<div class="tt-body">
+      <div class="ix-form" style="grid-template-columns:minmax(0,1fr) minmax(0,1fr);">
+        <div><label>İkram ürünü <small class="muted">(reçetesine kişi başı miktarları girin)</small></label><select id="ttProd" ${actOn('change','saveTableTreat',[])}><option value="">— Ürün seçin —</option>${prods.map(p => `<option value="${p.id}" ${p.id === tr.product_id ? 'selected' : ''}>${escapeHtml(p.name)}${p.recipe && p.recipe.length ? '' : ' (reçete yok)'}</option>`).join('')}</select></div>
+        <div><label>Bölgeler <small class="muted">(hiçbiri seçilmezse tümü)</small></label><div class="tt-zones">${zones.map(z => `<label class="al-u"><input type="checkbox" class="tt-z" value="${z.id}" ${zsel.includes(z.id) ? 'checked' : ''} ${actOn('change','saveTableTreat',[])}><span>${escapeHtml(z.name)}</span></label>`).join('') || '<small class="muted">Bölge yok</small>'}</div></div>
+      </div>
+      <div class="tt-info">
+        ${cur ? (Number(cur.cost) ? `<span class="pchip">💰 Kişi başı maliyet: <b>${money(cur.cost)}</b></span>` : '<span class="pchip u-red">⚠️ Ürünün maliyeti yok — reçete girin</span>') : '<span class="pchip">Ürün seçince kaydedilir</span>'}
+        <span class="pchip">${APP.config && APP.config.guest_required ? '🔒 Kişi sayısı zorunlu' : '💡 Kişi sayısı zorunlu değil — Bildirim Ayarları › Kişi Sayısı'}</span>
+        <small class="muted">Değişiklikler otomatik kaydedilir.</small>
+      </div></div>` : ''}
   </div>`;
+}
+async function setTreatOn(on){
+  APP.ttOn = !!on;
+  if(!on && APP.config && APP.config.treat && APP.config.treat.product_id){
+    const s = getSession(); const { error } = await sb.rpc('set_table_treat', { p_token: s.session_token, p_product_id: null, p_zone_ids: [] });
+    if(error){ alert(error.message); return; }
+    APP.config.treat = { product_id: null, zone_ids: null }; showToast('Masa ikramı kapatıldı');
+  }
+  renderSettingsContent(getSession());
 }
 async function saveTableTreat(){
   const pid = document.getElementById('ttProd').value || null, zones = [...document.querySelectorAll('.tt-z:checked')].map(c => c.value);
+  if(!pid) return;
   const s = getSession();
   const { error } = await sb.rpc('set_table_treat', { p_token: s.session_token, p_product_id: pid, p_zone_ids: zones });
   if(error){ alert(error.message); return; }
-  const { data } = await sb.rpc('get_restaurant_config', { p_token: s.session_token }); if(data) APP.config = data;
-  showToast(pid ? '🥗 Masa ikramı kaydedildi' : 'Masa ikramı kapatıldı'); renderSettingsContent(s);
+  APP.config.treat = { product_id: pid, zone_ids: zones.length ? zones : null };
+  const p = (APP.config.products || []).find(x => x.id === pid); if(p){ p.kitchen_skip = true; p.print_ticket = false; }
+  showToast('🥗 Masa ikramı kaydedildi'); renderSettingsContent(s);
 }
 function renderZonesSettings(el, session){
   const natural = (a, b) => String(a.name).localeCompare(String(b.name), 'tr', { numeric:true, sensitivity:'base' });

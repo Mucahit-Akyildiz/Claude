@@ -4172,5 +4172,8 @@ html.lang-rtl input[type=number],html.lang-rtl input[type=tel],html.lang-rtl .mo
 .al-bulk .ghost-btn{width:auto;margin:0;padding:6px 12px;font-size:13px}
 .al-bulk-all{display:inline-flex;align-items:center;gap:6px;margin:0;font-weight:700;font-size:13px;cursor:pointer}.al-bulk-all input{width:auto;margin:0}
 .tt-zones{display:flex;flex-wrap:wrap;gap:6px}
-.tt-box{margin-bottom:14px}
+.tt-box{margin:0 0 26px;border:1px solid var(--border);border-radius:18px;background:var(--panel);overflow:hidden}
+.tt-box .oo-hero{border:0;border-radius:0}
+.tt-body{padding:14px 16px 16px;border-top:1px solid var(--border)}
+.tt-info{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:12px}
 .gp-box.gp-need{outline:2px solid var(--red);outline-offset:2px;border-radius:12px;animation:gpPulse 1s 3}@keyframes gpPulse{50%{outline-color:transparent}}
