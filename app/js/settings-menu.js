@@ -877,10 +877,15 @@ function tableTreatBoxHtml(){
       </div>
       <div class="tt-info">
         ${cur ? (Number(cur.cost) ? `<span class="pchip">💰 Kişi başı maliyet: <b>${money(cur.cost)}</b></span>` : '<span class="pchip u-red">⚠️ Ürünün maliyeti yok — reçete girin</span>') : '<span class="pchip">Ürün seçince kaydedilir</span>'}
-        <span class="pchip">${APP.config && APP.config.guest_required ? '🔒 Kişi sayısı zorunlu' : '💡 Kişi sayısı zorunlu değil — Bildirim Ayarları › Kişi Sayısı'}</span>
         <small class="muted">Değişiklikler otomatik kaydedilir.</small>
       </div></div>` : ''}
   </div>`;
+}
+function guestRequiredBoxHtml(){
+  const on = !!(APP.config && APP.config.guest_required);
+  return `<div class="tt-box ${on ? 'on' : ''}"><div class="oo-hero ${on ? 'on' : ''}" style="margin:0;"><div class="oo-hero-ic">🔒</div>
+    <div class="oo-hero-t"><b>Kişi sayısı zorunlu</b><small>Açıkken masaya kişi sayısı girilmeden sipariş gönderilemez; masa ikramı da doğru adette eklenir. Açılınca kişi sayısı hatırlatma bildirimi kapanır (Bildirim Ayarları'ndan tekrar açılabilir). Paket, gel-al ve bekleme listesini etkilemez.</small></div>
+    <label class="oo-switch" title="Aç / kapat"><input type="checkbox" ${on ? 'checked' : ''} ${actOn('change','toggleGuestRequired',[])}><span class="oo-track"><span class="oo-thumb"></span></span><em>${on ? 'Açık' : 'Kapalı'}</em></label></div></div>`;
 }
 async function setTreatOn(on){
   APP.ttOn = !!on;
@@ -909,7 +914,7 @@ function renderZonesSettings(el, session){
   const total = zones.reduce((x, q) => x + q.tables.length, 0);
   el.innerHTML = statChips([['📍', zones.length, 'Bölge', 'var(--c1)'], ['🪑', total, 'Toplam masa', 'var(--c2)', 'all'],
       ['▦', zones.reduce((x, q) => x + q.tables.filter(t => t.qr_token).length, 0), 'QR kodlu masa', 'var(--c3)', 'qr'], ['⬜', zones.reduce((x, q) => x + q.tables.filter(t => !t.qr_token).length, 0), 'QR kodsuz masa', 'var(--c4)', 'noqr']], '', 'zones') +
-    tableTreatBoxHtml() + `<div class="u-mwn box">
+    tableTreatBoxHtml() + guestRequiredBoxHtml() + `<div class="u-mwn box">
     <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:14px;">
       <h2 class="u-m0">Bölgeler & Masalar</h2><span class="u-f1"></span>
       <button type="button" class="pc-btn" ${act('showAllTableQrs')}>▦ Tüm QR'ları Yazdır</button>

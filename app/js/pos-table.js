@@ -305,10 +305,7 @@ function guestReminderSettingHtml(){
   return `<div class="box" style="max-width:none;" id="guestRemBox"><h2>👥 Kişi Sayısı Hatırlatması</h2>
     <p class="u-tl muted">Masaya sipariş girilip kişi sayısı girilmediğinde siparişi alana, ödeme yetkisi olanlara ve yöneticiye bildirim, rozet ve masada uyarı gösterilir. Tüm işletme için geçerlidir; yalnızca yönetici değiştirebilir.</p>
     <div style="display:flex;align-items:center;gap:12px;font-weight:700;"><label class="toggle-switch" title="Aç / kapat"><input type="checkbox" ${on ? 'checked' : ''} ${actOn('change', 'toggleGuestReminder')}><span class="slider"></span></label><span style="color:${on ? 'var(--accent)' : 'var(--muted)'};">${on ? 'Açık' : 'Kapalı'}</span></div>
-    <hr style="border:0;border-top:1px dashed var(--border);margin:14px 0;">
-    <h3 style="margin:0 0 4px;">🔒 Kişi sayısı zorunlu</h3>
-    <p class="u-tl muted" style="margin:0 0 8px;">Açıkken masaya kişi sayısı girilmeden sipariş gönderilemez. Masa ikramı (meze) kişi sayısına göre eklendiği için ikram kullanıyorsanız açmanız önerilir. Paket, gel-al ve bekleme listesi siparişlerini etkilemez.</p>
-    <div style="display:flex;align-items:center;gap:12px;font-weight:700;"><label class="toggle-switch" title="Aç / kapat"><input type="checkbox" ${guestRequiredOn() ? 'checked' : ''} ${actOn('change', 'toggleGuestRequired')}><span class="slider"></span></label><span style="color:${guestRequiredOn() ? 'var(--accent)' : 'var(--muted)'};">${guestRequiredOn() ? 'Açık' : 'Kapalı'}</span></div></div>`;
+    ${guestRequiredOn() ? '<p class="u-tl muted u-fs12" style="margin:10px 0 0;">🔒 Kişi sayısı zorunlu açık (Bölgeler & Masalar); hatırlatmaya genelde gerek kalmaz.</p>' : ''}</div></div>`;
 }
 function guestRequiredOn(){ return !!(APP.config && APP.config.guest_required); }
 async function toggleGuestRequired(){
@@ -316,8 +313,10 @@ async function toggleGuestRequired(){
   const { error } = await sb.rpc('set_guest_required', { p_token: getSession().session_token, p_on: on });
   if(error){ showToast(error.message); return; }
   if(APP.config) APP.config.guest_required = on;
-  const box = document.getElementById('guestRemBox'); if(box) box.outerHTML = guestReminderSettingHtml();
-  showToast(on ? 'Kişi sayısı artık zorunlu' : 'Kişi sayısı zorunluluğu kapatıldı');
+  // Zorunluyken kişi sayısı hep girileceği için hatırlatma bildirimi kapatılır (istenirse Bildirim Ayarları'ndan tekrar açılır).
+  if(on && guestReminderOn()){ const r = await sb.rpc('set_guest_reminder', { p_token: getSession().session_token, p_on: false }); if(!r.error && APP.config) APP.config.guest_reminder = false; }
+  showToast(on ? 'Kişi sayısı artık zorunlu · hatırlatma bildirimi kapatıldı' : 'Kişi sayısı zorunluluğu kapatıldı');
+  if(APP.view === 'settings') renderSettingsContent(getSession());
 }
 // Masa siparişinde kişi sayısı zorunluysa ve girilmemişse true (paket/gel-al/bekleme listesi hariç).
 function guestCountMissing(tableId){
