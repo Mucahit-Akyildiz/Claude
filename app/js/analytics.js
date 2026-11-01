@@ -158,7 +158,7 @@ function anRing(frac, label, sub, color){
 async function renderMenuEngContent(session){
   const el = document.getElementById('reportContent'); if(!el) return;
   let d; try { d = await anBundle(session); } catch(e){ return anErr(el, e); }
-  const ps = (d.products || []).filter(x => anN(x.qty) > 0).map(x => ({ name: x.name, qty: anN(x.qty), rev: anN(x.rev), cost: anN(x.cost), tq: anN(x.t_qty), m: (anN(x.rev) - anN(x.cost)) / anN(x.qty) }));
+  const ps = (d.products || []).filter(x => anN(x.qty) > 0).map(x => ({ name: x.name, qty: anN(x.qty), rev: anN(x.rev), cost: anN(x.cost), tq: anN(x.t_qty), m: ((x.nrev != null ? anN(x.nrev) : anN(x.rev)) - anN(x.cost)) / anN(x.qty) })); // birim kâr KDV hariç
   if(!ps.length){ el.innerHTML = '<div class="empty-state"><div style="font-size:42px;">⭐</div><p class="muted">Bu aralıkta satış yok.</p></div>'; return; }
   const avgQ = ps.reduce((t, x) => t + x.qty, 0) / ps.length;
   const avgM = ps.reduce((t, x) => t + x.m * x.qty, 0) / ps.reduce((t, x) => t + x.qty, 0);
@@ -172,7 +172,7 @@ async function renderMenuEngContent(session){
   el.innerHTML = `${ps.some(x => !x.cost) ? '<div class="an-alert warn" style="margin-bottom:12px;"><span>⚠️</span><div>Maliyeti girilmemiş ürünler %100 kârlı görünür. Doğru sonuç için Ayarlar → Ürünler\'den maliyet girin.</div></div>' : ''}${tagCompareHtml((d.products || []).map(x => ({ qty: x.qty, rev: x.rev, cost: x.cost, t_qty: x.t_qty, t_rev: x.t_rev, t_cost: x.t_cost })))}
     <div class="ch-row">
       <div class="fs-panel pa-sec" style="--t:var(--c1);flex:3;">
-        <h3><i>🗺️</i>Kârlılık Haritası <small class="muted">· yatay: satış adedi, dikey: birim kâr</small></h3>
+        <h3><i>🗺️</i>Kârlılık Haritası <small class="muted">· yatay: satış adedi, dikey: birim kâr (KDV hariç)</small></h3>
         <svg class="an-scatter" viewBox="0 0 ${W} ${H}">
           <rect x="${X(avgQ)}" y="10" width="${W - 20 - X(avgQ)}" height="${Y(avgM) - 10}" fill="#22c55e" opacity=".08"/>
           <rect x="40" y="10" width="${X(avgQ) - 40}" height="${Y(avgM) - 10}" fill="#f59e0b" opacity=".08"/>
