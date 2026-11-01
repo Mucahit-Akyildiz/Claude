@@ -180,7 +180,7 @@ async function refreshOrderLiveStatus(session){
     const sig = o ? JSON.stringify([o.order_id, (o.items || []).map(i => [i.id, i.status, i.qty, i.paid, i.note]), o.tags, o.guest_count, o.allowance_id]) : '';
     if(sig !== bg.dataset.liveSig){ bg.dataset.liveSig = sig; renderTableItems(bg.dataset.tableId); }
   }
-  if(APP.view==='order') refreshCustomerOrderRequests(session);
+  if(APP.view==='order' || APP.view==='packages') refreshCustomerOrderRequests(session);
 }
 /* Müşterinin /menu/ sayfasından gönderdiği sipariş istekleri (bkz.
    submit_customer_order_request) Sipariş Al ekranının üstünde bir
@@ -205,6 +205,10 @@ async function refreshCustomerOrderRequests(session){
   APP.customerRequests = rows;
   const banner = document.getElementById('customerReqBanner');
   if(banner){
+    // Masa (QR) istekleri Sipariş Al'da, online teslimat/gel-al istekleri Paket Servis ekranında gösterilir.
+    const isPkgB = banner.dataset.kind === 'pkg';
+    const allRows = APP.customerRequests || [];
+    { const rows = allRows.filter(r => isPkgB ? !r.table_name : !!r.table_name);
     banner.innerHTML = rows.length===0 ? '' : `<div class="box" style="max-width:none;border-color:var(--accent);background:rgba(0,143,168,.08);">
     <h2 class="u-mb8">📱 Müşteri Sipariş İstekleri (${rows.length})</h2>
     ${rows.map(r => `
@@ -224,7 +228,7 @@ async function refreshCustomerOrderRequests(session){
           <button class="sbtn" style="background:var(--red);color:var(--btn-ink);" ${act('rejectCustomerRequest', r.id)}>✕ Reddet</button>
         </div>
       </div>`).join('')}
-  </div>`;
+  </div>`; }
   }
   // Sipariş Al ekranındaki şerit görünür olsa bile bildirim AYRICA gösterilir
   // (ekran arka planda/simge durumunda/başka monitörde olabilir - şerit
@@ -232,7 +236,7 @@ async function refreshCustomerOrderRequests(session){
   if(rows.length>0){
     const labels = rows.map(r => (r.table_name || (r.order_type==='delivery'?'Teslimat':r.order_type==='pickup'?'Gel-Al':'Masa')) + (r.customer_name?' · '+r.customer_name:''));
     const shown = labels.slice(0,3).join(', ') + (labels.length>3 ? ' ve ' + (labels.length-3) + ' tane daha' : '');
-    showToast('📱 Onay bekleyen müşteri sipariş isteği: ' + shown, 20000, null, () => goToView('order'), true);
+    showToast('📱 Onay bekleyen müşteri sipariş isteği: ' + shown, 20000, null, () => goToView(rows.some(r => r.table_name) ? 'order' : 'packages'), true);
   }
 }
 /* Sipariş Al ekranına girilmese bile QR sipariş isteklerinin fark

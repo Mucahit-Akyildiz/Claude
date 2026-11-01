@@ -8,7 +8,8 @@
    changeDraftQty, cancelTableOrder, clearDraftCart bu kimliklerle zaten
    generic çalışıyor - bkz. liveOrderForTable. */
 async function renderPackagesView(main, session){
-  main.innerHTML = `<h1>📦 Paket Servis</h1><div class="muted" id="pkgStatus"></div><div class="table-grid" id="packageGrid"></div>`;
+  main.innerHTML = `<h1>📦 Paket Servis</h1><div class="muted" id="pkgStatus"></div><div id="customerReqBanner" data-kind="pkg"></div><div class="table-grid" id="packageGrid"></div>`;
+  if(typeof refreshCustomerOrderRequests === 'function') refreshCustomerOrderRequests(session);
   const [cfgRes, liveRes] = await withLoadingOverlay(Promise.all([
     APP.config ? Promise.resolve({data:APP.config}) : sb.rpc('get_restaurant_config', { p_token: session.session_token }),
     sb.rpc('get_live_orders', { p_token: session.session_token })
