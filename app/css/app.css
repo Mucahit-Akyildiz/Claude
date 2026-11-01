@@ -459,6 +459,8 @@
 .act-row{display:flex;flex-wrap:nowrap;gap:4px;align-items:center;}
 .act-row .act-btn{margin:0;}
 .act-btn > b{font-size:16px;line-height:18px;font-weight:800;}
+.act-reset{color:var(--c3,#f59e0b);}
+.act-reset:hover{border-color:var(--c3,#f59e0b);}
 .act-close{color:var(--red);}
 .act-close:hover{border-color:var(--red);}
 .act-open{color:var(--green);border-color:var(--green);}
