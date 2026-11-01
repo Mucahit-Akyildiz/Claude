@@ -4109,10 +4109,15 @@ button.sl-stat{border:1px solid var(--border) !important;} button.sl-stat.on{bor
 .om-pkg .pk-chip-in{width:62px !important;padding:4px 8px !important;font-size:12px;}
 .om-pkg .pk-time-in{font-size:12px;}
 .om-pkg #pkgPickupHint{font-size:11.5px;}
-@media (max-width:1200px){.order-modal.om-pkg .order-modal-grid{grid-template-columns:minmax(0,1fr) 300px 320px;}}
+@media (min-width:901px) and (max-width:1280px){
+  .order-modal.om-pkg .order-modal-grid{grid-template-columns:minmax(0,1fr) 340px;grid-template-rows:minmax(0,auto) minmax(0,1fr);}
+  .order-modal.om-pkg .order-modal-menu{grid-row:1 / 3;}
+  .order-modal.om-pkg .order-modal-info{max-height:46vh;}
+  .order-modal.om-pkg .order-modal-cart{min-height:160px;}
+}
 @media (max-width:900px){
   .order-modal.om-pkg .order-modal-grid{grid-template-columns:minmax(0,1fr);}
   .order-modal.om-pkg{height:auto;}
   .order-modal .order-modal-info{display:none;}
-  .order-modal.om-show-cart .order-modal-info{display:block;}
+  .order-modal.om-show-cart .order-modal-info{display:block;overflow:visible;margin-bottom:12px;}
 }
