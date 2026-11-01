@@ -265,7 +265,7 @@ function renderReportTabContent(session){
   if(tab==='tablemap') return renderTableMapContent(session);
   if(tab==='heat') return renderHeatContent(session);
   if(tab==='stockf') return renderStockForecastContent(session);
-  if(tab==='zreport' || tab==='dayclose'){ APP.reportTab = 'zreport'; return renderMergedReport(session, [['🧾', 'Gün Sonu (Z Raporu)', renderZReportContent], ['📅', 'Gün Sonu Kapanışları', renderDayClosesContent]]); }
+  if(tab==='zreport' || tab==='dayclose'){ APP.reportTab = 'zreport'; return renderMergedReport(session, [['🧾', 'Gün Sonu (Z Raporu)', renderZReportContent], ['📅', 'Gün Sonu Kapanışları', renderDayClosesContent], ['📤', 'Muhasebe Aktarımı', renderAccountingExport]]); }
   if(tab==='reviews') return renderReviewsReport(session);
   if(tab==='waiters' || tab==='staff' || tab==='payroll') return renderStaffPerformance(session, tab === 'payroll' ? 'payroll' : null);
   if(tab==='resv') return renderReservationAnalyticsContent(session);
@@ -999,3 +999,52 @@ async function renderDaycloseAlloc(session){
 }
 
 function setAllocOpen(on){ APP.allocOpen = !!on; redrawReportPart(renderDaycloseAlloc, getSession()); }
+
+/* ---- Muhasebe aktarımı: seçilen dönemin KDV oranına göre satışları (indirim düşülmüş), tahsilat yöntemleri ve
+   mal alımları; Genel Excel veya Logo / Mikro / Paraşüt içe aktarma şablonuna uygun sütunlarla indirilir. ---- */
+function renderAccountingExport(){
+  const el = document.getElementById('reportContent'); if(!el) return;
+  const t = new Date(), f = new Date(t.getFullYear(), t.getMonth(), 1), iso = (d) => d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+  el.innerHTML = `<div class="box" style="max-width:none;">
+    <p class="muted" style="text-align:left;margin:0 0 10px;font-size:13px;">Dönemin günlük satışları KDV oranına göre (matrah, KDV, toplam), tahsilatlar (nakit, kart, havale, hediye kartı) ve teslim alınan mal alımları dışa aktarılır. Muhasebe programınızın "Excel'den aktar" ekranında sütunları eşleyin.</p>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;">
+      <label class="field-group" style="margin:0;"><span class="muted u-fs12">Başlangıç</span><input type="date" id="acFrom" value="${iso(f)}" style="margin:0;"></label>
+      <label class="field-group" style="margin:0;"><span class="muted u-fs12">Bitiş</span><input type="date" id="acTo" value="${iso(t)}" style="margin:0;"></label>
+      <label class="field-group" style="margin:0;"><span class="muted u-fs12">Biçim</span><select id="acFmt" style="margin:0;">
+        <option value="genel">Genel Excel (3 sayfa)</option><option value="logo">Logo (Tiger / Go) şablonu</option><option value="mikro">Mikro şablonu</option><option value="parasut">Paraşüt şablonu</option></select></label>
+      <button type="button" style="width:auto;margin:0;" ${act('downloadAccountingExport')}>📤 İndir</button>
+    </div>
+    <p class="muted u-fs12" style="text-align:left;margin:10px 0 0;">Şablonlar programların genel içe aktarma sütunlarına göre hazırlanır; hesap kodları (satış, KDV, kasa, banka) muhasebecinizin hesap planına göre aktarım ekranında seçilir.</p>
+  </div>`;
+}
+async function downloadAccountingExport(){
+  const from = document.getElementById('acFrom').value, to = document.getElementById('acTo').value, fmt = document.getElementById('acFmt').value;
+  if(!from || !to || to < from){ showToast('Geçerli bir tarih aralığı seçin'); return; }
+  const { data, error } = await withLoadingOverlay(sb.rpc('get_accounting_export', { p_token: getSession().session_token, p_from: from, p_to: to }));
+  if(error){ alert(error.message); return; }
+  const S = data.sales || [], P = data.payments || [], U = data.purchases || [];
+  if(!S.length && !P.length && !U.length){ showToast('Bu dönemde aktarılacak kayıt yok'); return; }
+  const X = await loadXlsx(), wb = X.utils.book_new();
+  const add = (name, header, rows, w) => { const ws = X.utils.aoa_to_sheet([header, ...rows.map(r => r.map(xlSafe))]); ws['!cols'] = header.map((_, i) => ({ wch: (w && w[i]) || 16 })); X.utils.book_append_sheet(wb, ws, name); };
+  const trd = (d) => d.split('-').reverse().join('.'), fis = (d, i) => 'Z' + d.replace(/-/g, '') + (i != null ? '-' + i : '');
+  const desc = (d, vat) => 'Günlük perakende satış ' + trd(d) + ' KDV %' + vat;
+  const pays = (r) => [['Nakit', r.cash], ['Kredi Kartı', r.card], ['Havale/EFT', r.transfer], ['Hediye Kartı', r.gift]].filter(x => Number(x[1]));
+  if(fmt === 'logo'){
+    add('Satış', ['Tarih','Fiş No','Açıklama','KDV Oranı','Matrah','KDV Tutarı','Toplam'], S.map((r, i) => [trd(r.d), fis(r.d, i+1), desc(r.d, r.vat), r.vat, r.net, r.tax, r.gross]), [12,18,40,10,14,14,14]);
+    add('Tahsilat', ['Tarih','Fiş No','Açıklama','Tahsilat Türü','Tutar'], P.flatMap(r => pays(r).map(x => [trd(r.d), fis(r.d), 'Günlük tahsilat ' + trd(r.d), x[0], x[1]])), [12,18,32,16,14]);
+    add('Alış', ['Tarih','Cari Unvan','Açıklama','Tutar'], U.map(r => [trd(r.d), r.supplier, 'Mal alımı (' + r.items + ' kalem)', r.total]), [12,28,28,14]);
+  } else if(fmt === 'mikro'){
+    add('Satış', ['Evrak Tarihi','Evrak Seri','Evrak Sıra','Cari Kodu','Açıklama','KDV %','Tutar','KDV Tutarı','Genel Toplam'], S.map((r, i) => [trd(r.d), 'PRK', r.d.replace(/-/g, '') + String(i+1).padStart(2,'0'), 'PERAKENDE', desc(r.d, r.vat), r.vat, r.net, r.tax, r.gross]), [12,10,14,12,40,8,14,14,14]);
+    add('Tahsilat', ['Evrak Tarihi','Açıklama','Ödeme Şekli','Tutar'], P.flatMap(r => pays(r).map(x => [trd(r.d), 'Günlük tahsilat ' + trd(r.d), x[0], x[1]])), [12,32,16,14]);
+    add('Alış', ['Evrak Tarihi','Cari Unvanı','Açıklama','Tutar'], U.map(r => [trd(r.d), r.supplier, 'Mal alımı (' + r.items + ' kalem)', r.total]), [12,28,28,14]);
+  } else if(fmt === 'parasut'){
+    add('Satışlar', ['Fatura Tarihi','Müşteri','Açıklama','Ürün/Hizmet','Miktar','Birim Fiyat (KDV Hariç)','KDV Oranı','Toplam (KDV Dahil)'], S.map(r => [trd(r.d), 'Perakende Müşteri', desc(r.d, r.vat), 'Yiyecek-İçecek Satışı', 1, r.net, r.vat, r.gross]), [12,20,40,24,8,20,10,18]);
+    add('Giderler', ['Tarih','Tedarikçi','Açıklama','Tutar'], U.map(r => [trd(r.d), r.supplier, 'Mal alımı (' + r.items + ' kalem)', r.total]), [12,28,28,14]);
+  } else {
+    add('Satışlar (KDV)', ['Tarih','KDV %','Matrah (KDV hariç)','KDV','Toplam (KDV dahil)'], S.map(r => [trd(r.d), r.vat, r.net, r.tax, r.gross]), [12,8,18,14,18]);
+    add('Tahsilatlar', ['Tarih','Hesap sayısı','Toplam','Nakit','Kart','Havale/EFT','Hediye kartı','İndirim','Bahşiş'], P.map(r => [trd(r.d), r.bills, r.total, r.cash, r.card, r.transfer, r.gift, r.discount, r.tip]), [12,12,14,14,14,14,14,12,12]);
+    add('Mal alımları', ['Tarih','Tedarikçi','Kalem','Tutar'], U.map(r => [trd(r.d), r.supplier, r.items, r.total]), [12,28,8,14]);
+  }
+  X.writeFile(wb, 'muhasebe-' + fmt + '-' + from + '_' + to + '.xlsx');
+  showToast('📤 Muhasebe dosyası indirildi');
+}
