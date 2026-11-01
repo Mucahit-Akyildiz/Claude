@@ -823,8 +823,9 @@ function setProfitOpt(k, v){ APP[k] = v; renderProfitView(); }
 function profitRows(){
   const d = APP.profitData || {}, oh = Number(d.overhead_pct) || 0;
   return (d.rows || []).map(r => {
-    const rev = Number(r.revenue) || 0, cost = Number(r.cost) || 0, qty = Number(r.qty) || 0, ohv = rev * oh / 100;
-    return Object.assign({}, r, { rev, cost, qty, oh: ohv, gross: rev - cost, net: rev - cost - ohv, gm: rev ? (rev - cost) / rev * 100 : 0, nm: rev ? (rev - cost - ohv) / rev * 100 : 0,
+    // Kâr ve marj KDV hariç ciro (net_revenue) üzerinden; "Ciro" kartı KDV dahil tahsilatı da gösterir.
+    const grossRev = Number(r.revenue) || 0, rev = r.net_revenue != null ? Number(r.net_revenue) : grossRev, cost = Number(r.cost) || 0, qty = Number(r.qty) || 0, ohv = rev * oh / 100;
+    return Object.assign({}, r, { grossRev, rev, cost, qty, oh: ohv, gross: rev - cost, net: rev - cost - ohv, gm: rev ? (rev - cost) / rev * 100 : 0, nm: rev ? (rev - cost - ohv) / rev * 100 : 0,
       unitPrice: qty ? rev / qty : 0, unitCost: qty ? cost / qty : 0, est: Number(r.est_qty) || 0, noc: Number(r.nocost_qty) || 0 });
   });
 }
@@ -832,7 +833,7 @@ function renderProfitView(){
   const el = document.getElementById('reportContent'); if(!el) return;
   const d = APP.profitData || {}, oh = Number(d.overhead_pct) || 0, all = profitRows().filter(r => r.qty > 0);
   const sort = APP.profitSort || 'net', flt = APP.profitFilter || 'all';
-  const T = all.reduce((a, r) => ({ rev: a.rev + r.rev, cost: a.cost + r.cost, oh: a.oh + r.oh, net: a.net + r.net, qty: a.qty + r.qty }), { rev: 0, cost: 0, oh: 0, net: 0, qty: 0 });
+  const T = all.reduce((a, r) => ({ rev: a.rev + r.rev, grossRev: a.grossRev + r.grossRev, cost: a.cost + r.cost, oh: a.oh + r.oh, net: a.net + r.net, qty: a.qty + r.qty }), { rev: 0, grossRev: 0, cost: 0, oh: 0, net: 0, qty: 0 });
   const pct = (v, b) => b ? Math.round(v / b * 100) : 0;
   const loss = all.filter(r => r.net < 0), low = all.filter(r => r.net >= 0 && r.nm < 20), miss = all.filter(r => r.noc > 0 || r.est > 0);
   let rows = flt === 'loss' ? loss : flt === 'low' ? low : flt === 'miss' ? miss : all;
@@ -845,7 +846,7 @@ function renderProfitView(){
   el.innerHTML = `
     ${be && d.overhead && typeof breakevenHtml === 'function' ? breakevenHtml(d.overhead) : ''}
     <div class="pf-kpis">
-      <div class="pf-k"><small>Ciro</small><b>${money(T.rev)}</b><em>${Math.round(T.qty)} adet · ${all.length} ürün</em></div>
+      <div class="pf-k"><small>Ciro <span title="KDV hariç; kâr ve marj bundan hesaplanır">(KDV hariç)</span></small><b>${money(T.rev)}</b><em>KDV dahil ${money(T.grossRev)} · ${Math.round(T.qty)} adet</em></div>
       <div class="pf-k"><small>Malzeme maliyeti</small><b>${money(T.cost)}</b><em>cironun %${pct(T.cost, T.rev)}'i</em></div>
       <div class="pf-k"><small>Brüt kâr</small><b>${money(T.rev - T.cost)}</b><em>%${pct(T.rev - T.cost, T.rev)} marj</em></div>
       ${be ? `<div class="pf-k"><small>Sabit giderler</small><b>${money((d.overhead || {}).monthly_total || 0)}</b><em>aylık · <a href="#" ${act('openOverheadsFromReport')}>düzenle</a></em></div>` : `<div class="pf-k"><small>Genel gider payı</small><b>${money(T.oh)}</b><em>cironun %${oh}'i</em></div>`}
@@ -864,14 +865,14 @@ function renderProfitView(){
       <div class="pf-toolbar"><h2 class="u-m0">💹 Ürün Kârlılığı</h2>
         <select style="width:auto;margin:0;" ${actOn('change','setProfitOpt',['profitSort','$value'])}>${[['net', (be ? 'Katkı payına' : 'Net kâra') + ' göre'],['rev','Ciroya göre'],['nm','Marja göre (yüksek)'],['nm_asc','Marja göre (düşük)'],['qty','Adete göre'],['cost','Maliyete göre']].map(([k, l]) => `<option value="${k}" ${sort === k ? 'selected' : ''}>↕ ${l}</option>`).join('')}</select>
         ${flt !== 'all' ? `<button type="button" class="pc-btn" ${act('setProfitOpt', 'profitFilter', 'all')}>✕ Filtreyi kaldır</button>` : ''}</div>
-      <div class="pf-head"><span>Ürün</span><span>Adet</span><span>Ciro</span><span>Maliyet</span><span>${NL}</span><span>${be ? 'Katkı %' : 'Net marj'}</span></div>
+      <div class="pf-head"><span>Ürün</span><span>Adet</span><span title="KDV hariç">Ciro (KDV hariç)</span><span>Maliyet</span><span>${NL}</span><span>${be ? 'Katkı %' : 'Net marj'}</span></div>
       ${rows.length ? rows.map(r => `<details class="pf-row ${r.net < 0 ? 'neg' : ''}"><summary>
           <span class="pf-n"><b>${escapeHtml(r.name)}</b><small>${escapeHtml(r.category || r.station_name || '')}${r.cost_source === 'recipe' ? ' · 🧾 reçete' : ''}${r.noc ? ' · ⚠️ maliyetsiz' : r.est ? ' · ≈ tahmini maliyet' : ''}</small>${tagRowNote(r)}
             <span class="pf-mini" style="width:${Math.max(6, r.rev / maxRev * 100)}%"><i style="width:${pct(r.cost, r.rev)}%;background:var(--c3)"></i><i style="width:${pct(r.oh, r.rev)}%;background:var(--c2)"></i><i style="width:${Math.max(0, pct(r.net, r.rev))}%;background:var(--ok,#22c55e)"></i></span></span>
           <span data-l="Adet">${Math.round(r.qty * 100) / 100}</span><span data-l="Ciro">${money(r.rev)}</span><span data-l="Maliyet">${money(r.cost)}</span>
           <span data-l="${NL}" class="${r.net < 0 ? 'neg' : 'pos'}"><b>${money(r.net)}</b></span><span data-l="Net marj">${r.noc >= r.qty ? '<b class="pf-pill low" title="Maliyet girilmediği için kâr hesaplanamıyor">maliyet yok</b>' : `<b class="pf-pill ${r.nm < 0 ? 'neg' : r.nm < 20 ? 'low' : 'ok'}">%${Math.round(r.nm)}</b>`}</span>
         </summary>${profitDetailHtml(r, oh)}</details>`).join('') : '<p class="muted">Bu dönemde / filtrede satış yok.</p>'}
-      <div class="muted pf-note">Maliyet, ürünün <b>satıldığı andaki</b> maliyetidir; o an maliyet yoksa güncel maliyet kullanılır (≈ tahmini). Personel / ikram / limitli hesap etiketli siparişler hariçtir (üstteki kutudan dahil halini kıyaslayın). ${be ? 'Başa baş yönteminde genel gider ürünlere dağıtılmaz; her ürünün katkı payı (fiyat − malzeme) sabit giderleri karşılar.' : 'Genel gider payı = ciro × %' + oh + '.'} Maliyeti girilmemiş ürünlerin kârı gerçekte daha düşüktür.</div>
+      <div class="muted pf-note">Kâr ve marj <b>KDV hariç</b> ciro üzerinden hesaplanır. Maliyet, ürünün <b>satıldığı andaki</b> maliyetidir; o an maliyet yoksa güncel maliyet kullanılır (≈ tahmini). Personel / ikram / limitli hesap etiketli siparişler hariçtir (üstteki kutudan dahil halini kıyaslayın). ${be ? 'Başa baş yönteminde genel gider ürünlere dağıtılmaz; her ürünün katkı payı (fiyat − malzeme) sabit giderleri karşılar.' : 'Genel gider payı = ciro × %' + oh + '.'} Maliyeti girilmemiş ürünlerin kârı gerçekte daha düşüktür.</div>
     </div>`;
 }
 function profitDetailHtml(r, oh){
@@ -879,13 +880,13 @@ function profitDetailHtml(r, oh){
   const rec = r.recipe || [];
   return `<div class="pf-det">
     <div class="pf-unit">
-      <div><small>Birim satış</small><b>${money(up)}</b></div><div><small>Birim malzeme</small><b>${money(uc)}</b><em>%${up ? Math.round(uc / up * 100) : 0}</em></div>
+      <div><small>Birim satış (KDV hariç)</small><b>${money(up)}</b></div><div><small>Birim malzeme</small><b>${money(uc)}</b><em>%${up ? Math.round(uc / up * 100) : 0}</em></div>
       <div><small>Birim genel gider</small><b>${money(uo)}</b><em>%${oh}</em></div><div class="${un < 0 ? 'neg' : ''}"><small>Birim net kâr</small><b>${money(un)}</b><em>%${up ? Math.round(un / up * 100) : 0}</em></div>
     </div>
     ${rec.length ? `<div class="pf-rec"><b>🧾 Reçete maliyeti (güncel)</b>${rec.map(x => `<div><span>${escapeHtml(x.name)} <small class="muted">${Number(x.qty)} ${escapeHtml(x.unit || '')}${Number(x.waste) ? ' · %' + Number(x.waste) + ' fire' : ''} × ${x.unit_cost ? money(x.unit_cost) : '<b style="color:var(--c3)">maliyet yok</b>'}</small></span><b>${money(x.line)}</b></div>`).join('')}
       <div class="pf-rec-t"><span>Toplam</span><b>${money(rec.reduce((a, x) => a + Number(x.line || 0), 0))}</b></div></div>` : `<p class="muted" style="margin:8px 0 0;">Reçete yok; maliyet elle girilmiş${!Number(r.cur_cost) ? ' (girilmemiş)' : ''}. Reçete eklerseniz hammadde maliyetlerinden otomatik hesaplanır.</p>`}
     ${Number(r.cur_price) && Number(r.cur_price) !== Math.round(up * 100) / 100 ? `<p class="muted" style="margin:6px 0 0;font-size:12px;">Güncel fiyat ${money(r.cur_price)} · güncel maliyet ${money(r.cur_cost)} → güncel net marj %${Math.round((Number(r.cur_price) - Number(r.cur_cost) - Number(r.cur_price) * oh / 100) / Number(r.cur_price) * 100)}</p>` : ''}
-    ${r.net < 0 ? `<p class="pf-warn">🔻 Bu ürün her satışta <b>${money(-un)}</b> zarar ettiriyor. Fiyatı en az <b>${money((uc) / Math.max(0.01, 1 - oh / 100 - 0.2))}</b> yaparsanız %20 net marja ulaşırsınız.</p>` : r.nm < 20 ? `<p class="pf-warn low">📉 Net marj düşük. %20 net marj için önerilen fiyat: <b>${money(uc / Math.max(0.01, 1 - oh / 100 - 0.2))}</b>.</p>` : ''}
+    ${r.net < 0 ? `<p class="pf-warn">🔻 Bu ürün her satışta <b>${money(-un)}</b> zarar ettiriyor. Fiyatı en az <b>${money(uc / Math.max(0.01, 1 - oh / 100 - 0.2) * (r.grossRev && r.rev ? r.grossRev / r.rev : 1.1))}</b> (KDV dahil) yaparsanız %20 marja ulaşırsınız.</p>` : r.nm < 20 ? `<p class="pf-warn low">📉 Net marj düşük. %20 marj için önerilen fiyat: <b>${money(uc / Math.max(0.01, 1 - oh / 100 - 0.2) * (r.grossRev && r.rev ? r.grossRev / r.rev : 1.1))}</b> (KDV dahil).</p>` : ''}
   </div>`;
 }
 function openOverheadsFromReport(){ if(typeof openOverheads === 'function') openOverheads(); }

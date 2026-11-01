@@ -1150,7 +1150,7 @@ function renderProductsSettings(el, session){
     return order.map(c => { const l = list.filter(p => p.category === c); return sub(c, l.length) + rowsFor(l); }).join('') + (none.length ? sub('Alt menüsüz', none.length) + rowsFor(none) : '');
   };
   const cardsFor = (list) => list.map(p => {
-    const price = Number(p.price)||0, cost = Number(p.cost)||0, m = price>0 ? Math.round((price-cost)/price*100) : 0;
+    const price = Number(p.price)||0, cost = Number(p.cost)||0, np = netPrice(p), m = np>0 ? Math.round((np-cost)/np*100) : 0;
     const rec = p.recipe && p.recipe.length>0, q = rec ? p.available_qty : p.stock, low = q!=null && q<=5;
     const nx = productExtras(p.id).length;
     return `<div class="pcard ${p.available===false?'off':''}" data-name="${escapeAttr(String(p.name||'').toLocaleLowerCase('tr'))}">
@@ -1158,7 +1158,7 @@ function renderProductsSettings(el, session){
         <b class="pcard-name">${escapeHtml(p.name)}</b>
         <button type="button" class="prod-avail ${p.available===false?'off':'on'}" title="Tıklayınca ${p.available===false?'satışa açılır':'satışa kapanır'}" ${act('toggleProductAvailable', p.id)}><i></i>${p.available===false?'Kapalı':'Satışta'}</button></div>
       <div class="pcard-price">${money(price)}</div>
-      <div class="pcard-margin" title="Kâr marjı"><div class="pcard-mbar"><i style="width:${Math.max(0,Math.min(100,m))}%;background:${m>=60?'var(--ok,#22c55e)':m>=35?'var(--c3)':'var(--danger,#ef4444)'};"></i></div><span>Maliyet ${money(cost)} ${costSourceTag(p)} · <b>%${m}</b> marj${overheadPct() ? ` · net <b>%${Math.round((price - fullCost(p)) / (price || 1) * 100)}</b>` : ''}</span></div>
+      <div class="pcard-margin" title="Kâr marjı"><div class="pcard-mbar"><i style="width:${Math.max(0,Math.min(100,m))}%;background:${m>=60?'var(--ok,#22c55e)':m>=35?'var(--c3)':'var(--danger,#ef4444)'};"></i></div><span title="Marj KDV hariç fiyat (${money(np)}) üzerinden">Maliyet ${money(cost)} ${costSourceTag(p)} · <b>%${m}</b> marj${overheadPct() ? ` · net <b>%${Math.round((np - fullCost(p)) / (np || 1) * 100)}</b>` : ''}</span></div>
       <div class="pcard-chips">
         <span class="pchip ${low?'warn':''}">${rec ? '📋 '+(q==null?'?':q)+' porsiyon' : (q==null ? '∞ Stok sınırsız' : '📦 '+q+' stok')}</span>
         ${p.category ? `<span class="pchip">${escapeHtml(p.category)}</span>` : ''}
@@ -1193,9 +1193,9 @@ function renderProductsSettings(el, session){
 
   const sale = products.filter(p => p.available!==false).length;
   const priced = products.filter(p => Number(p.price)>0);
-  const avgM = priced.length ? Math.round(priced.reduce((a,p) => a + (p.price-(p.cost||0))/p.price, 0)/priced.length*100) : 0;
+  const avgM = priced.length ? Math.round(priced.reduce((a,p) => a + (netPrice(p)-(p.cost||0))/netPrice(p), 0)/priced.length*100) : 0;
   const pf = APP.prodFilter || 'all';
-  const mOf = (p) => Number(p.price)>0 ? (p.price-(p.cost||0))/p.price : 1;
+  const mOf = (p) => Number(p.price)>0 ? (netPrice(p)-(p.cost||0))/netPrice(p) : 1;
   const isLow = (p) => { const q = p.recipe && p.recipe.length ? p.available_qty : p.stock; return q!=null && q<=5; };
   const lowMN = products.filter(p => Number(p.price)>0 && mOf(p) < .35).length;
   const shown = pf==='on' ? products.filter(p => p.available!==false) : pf==='off' ? products.filter(p => p.available===false)
@@ -1340,7 +1340,7 @@ function editProductRow(pid){
       <div class="pdrawer-body" ${actOn('input','prodDrawerCalc',[])} ${actOn('change','prodDrawerCalc',[])}>
         <label>Ürün Adı</label><input id="ed_name" value="${escapeAttr(p.name)}">
         <div class="pdrawer-3"><div><label>Fiyat (₺)</label><input type="number" id="ed_price" value="${p.price}"></div><div><label>Maliyet (₺)</label><input type="number" id="ed_cost" value="${p.cost}" ${p.cost_source==='recipe' ? 'readonly' : ''}>${p.cost_source==='recipe' ? '<small class="muted">🧾 Reçeteden otomatik (hammadde ortalama maliyetleri)</small>' : p.cost_source==='recipe_missing' ? '<small style="color:var(--c3)">⚠️ Reçetedeki bazı hammaddelerin maliyeti yok; elle girilen değer kullanılıyor</small>' : '<small class="muted">Reçete eklerseniz otomatik hesaplanır.</small>'}</div>
-          <div><label id="ed_full_l" title="${overheadPct() ? 'Malzeme maliyeti + fiyat × genel gider oranı' : 'Fiyat − malzeme: her satışın sabit giderlere katkısı'}">${overheadPct() ? 'Tam maliyet (₺)' : 'Katkı payı (₺)'}</label><input id="ed_full" readonly tabindex="-1"><small class="muted" id="ed_full_n"></small></div></div>
+          <div><label id="ed_full_l" title="${overheadPct() ? 'Malzeme maliyeti + KDV hariç fiyat × genel gider oranı' : 'Aylık sabit gider ÷ bu ürünün katkı payı (KDV hariç fiyat − malzeme)'}">${overheadPct() ? 'Tam maliyet (₺)' : 'Başa baş (adet/ay)'}</label><input id="ed_full" readonly tabindex="-1"><small class="muted" id="ed_full_n"></small></div></div>
         <div class="pdrawer-margin"><div class="pcard-mbar"><i id="ed_mbar"></i></div><span id="ed_mtxt"></span></div>
         ${!rec ? `<div class="cost-tip">💡 <b>Hazır alıp olduğu gibi satıyorsanız</b> (ayran, kola, su…): Hammaddeler'de bu ürün adıyla bir hammadde açın ve ürüne <b>1 adet</b> reçete ekleyin. Böylece Mal Kabul'deki alış fiyatı ortalanarak maliyete otomatik yansır, stok da düşer.${APP.view==='settings' ? ` <button type="button" class="pc-btn" ${act('openRecipeModal', p.id)}>📋 Reçete ekle</button>` : ''}</div>` : ''}
         <div class="pdrawer-2"><div><label>Menü</label><select id="ed_menu">${prodMenuOptions(p.menu_id)}</select></div>
@@ -1379,14 +1379,21 @@ function goEditProductInSettings(pid){ closeProdDrawer(); if(typeof closeTableMo
 })();
 function closeProdDrawer(){ const d = document.getElementById('prodDrawer'); if(d) d.remove(); }
 function prodDrawerCalc(){
+  const box = document.querySelector('#prodDrawer .pdrawer'), p = box ? (APP.config.products||[]).find(x => x.id === box.dataset.pid) : null;
   const pr = parseFloat((document.getElementById('ed_price')||{}).value)||0, co = parseFloat((document.getElementById('ed_cost')||{}).value)||0;
-  const m = pr>0 ? Math.round((pr-co)/pr*100) : 0, bar = document.getElementById('ed_mbar'), t = document.getElementById('ed_mtxt'); if(!bar) return;
+  const vat = vatOf(p, (document.getElementById('ed_vat')||{}).value), np = pr / (1 + vat / 100), kp = np - co;
+  const m = np>0 ? Math.round(kp/np*100) : 0, bar = document.getElementById('ed_mbar'), t = document.getElementById('ed_mtxt'); if(!bar) return;
   bar.style.width = Math.max(0,Math.min(100,m))+'%'; bar.style.background = m>=60?'var(--ok,#22c55e)':m>=35?'var(--c3)':'var(--danger,#ef4444)';
-  const oh = overheadPct(), full = co + pr * oh / 100;
+  const oh = overheadPct(), full = co + np * oh / 100;
   const fe = document.getElementById('ed_full'), fn = document.getElementById('ed_full_n');
-  if(fe) fe.value = (Math.round((oh ? full : pr - co) * 100) / 100).toFixed(2);
-  if(fn) fn.textContent = oh ? '+ genel gider %' + oh + ' (' + money(pr * oh / 100) + ')' : 'her satışta giderlere katkı';
-  t.innerHTML = `Brüt kâr <b>${money(pr-co)}</b> · <b>%${m}</b>` + (oh ? ` <span class="muted">|</span> Net kâr <b>${money(pr-full)}</b> · <b>%${pr>0 ? Math.round((pr-full)/pr*100) : 0}</b>` : '');
+  if(oh){ if(fe) fe.value = (Math.round(full * 100) / 100).toFixed(2); if(fn) fn.textContent = '+ genel gider %' + oh + ' (' + money(np * oh / 100) + ')'; }
+  else {
+    const tot = Number((APP.overheads || {}).monthly_total) || 0;
+    if(fe) fe.value = !tot ? '—' : kp > 0 ? '~' + Math.ceil(tot / kp).toLocaleString('tr-TR') + ' adet' : 'zararda';
+    if(fn) fn.textContent = !tot ? 'Maliyet & Giderler\'e gider ekleyin' : kp > 0 ? 'Aylık ' + money(tot) + ' gideri tek başına karşılamak için' : 'Katkı payı negatif';
+    if(!APP.overheads && !APP.ohLoading){ APP.ohLoading = true; sb.rpc('get_overheads', { p_token: getSession().session_token }).then(({ data }) => { APP.ohLoading = false; if(data){ APP.overheads = data; prodDrawerCalc(); } }); }
+  }
+  t.innerHTML = `KDV hariç fiyat <b>${money(np)}</b> <span class="muted">(%${vat} KDV: ${money(pr - np)})</span> · Katkı payı <b>${money(kp)}</b> · <b>%${m}</b> marj` + (oh ? ` <span class="muted">|</span> Net kâr <b>${money(np-full)}</b> · <b>%${np>0 ? Math.round((np-full)/np*100) : 0}</b>` : '');
 }
 async function saveProdDrawer(){
   const box = document.querySelector('#prodDrawer .pdrawer'); if(!box) return;
@@ -1561,7 +1568,14 @@ async function toggleCloseNoCost(on, el){
    Reçeteli ürün: maliyet = reçetedeki hammaddelerin ağırlıklı ortalama alış maliyeti (fire dahil), sunucuda otomatik.
    Genel giderler (kira, personel, elektrik…) aylık toplamı ciroya oranlanır; ürünün tam maliyeti = malzeme + fiyat × oran. */
 function overheadPct(){ return Number(APP.config && APP.config.overhead_pct) || 0; }
-function fullCost(p){ return (Number(p.cost) || 0) + (Number(p.price) || 0) * overheadPct() / 100; }
+function fullCost(p){ return (Number(p.cost) || 0) + netPrice(p) * overheadPct() / 100; }
+// Kâr ve marj KDV hariç fiyattan hesaplanır (fiyatın içindeki KDV devlete gider). Oran: ürünün KDV'si, yoksa işletmenin varsayılanı.
+function vatOf(p, override){
+  const def = Number(APP.config && APP.config.default_vat_rate != null ? APP.config.default_vat_rate : 10);
+  const v = override === '' ? def : override !== undefined && override !== null ? Number(override) : (p && p.vat_rate != null ? Number(p.vat_rate) : def);
+  return isFinite(v) ? v : 10;
+}
+function netPrice(p, price, vat){ const pr = price != null ? Number(price) : Number(p && p.price) || 0; return pr / (1 + vatOf(p, vat) / 100); }
 function costSourceTag(p){
   return p.cost_source === 'recipe' ? '<span class="pchip" title="Reçeteden otomatik">🧾</span>' : p.cost_source === 'recipe_missing' ? '<span class="pchip warn" title="Reçetedeki bazı hammaddelerin maliyeti yok">⚠️</span>' : '';
 }
