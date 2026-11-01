@@ -484,7 +484,7 @@ function openTableModal(tableId){
   bg.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:flex-start;justify-content:center;z-index:100;padding:7vh 16px 16px;overflow-y:auto;';
   bg.onclick = (e) => { if(e.target===bg) closeTableModal(); };
   bg.innerHTML = `
-    <div class="order-modal om-table">
+    <div class="order-modal om-table om-pkg">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
         <h2 class="u-m0">${escapeHtml(tableName)}</h2>
         <span class="u-xclose" ${act('closeTableModal')}>✕</span>
@@ -494,13 +494,16 @@ function openTableModal(tableId){
           <div class="tabs" id="prodStationTabs" style="margin-top:0;"></div>
           <div id="prodPick"></div>
         </div>
-        <div class="order-modal-cart">
-          <div class="om-cart-head">🧾 Sipariş<span class="om-cart-total"></span></div>
+        <div class="order-modal-info">
+          <div class="om-info-head">🪑 Masa & Müşteri</div>
           ${guestPickHtml(tableId)}${tableCustomerInfoHtml(tableId)}
-          <div id="sentItemsWrap"></div>
-          <div id="draftItemsWrap"></div>
           ${orderAllowanceHtml(tableId)}${orderFlagsHtml(tableId)}
           ${(String(tableId).indexOf('pkg_')!==0 && String(tableId).indexOf('wl_')!==0 && liveOrderForTable(tableId)) ? `<button class="ghost-btn" style="width:100%;margin-top:12px;" ${act('openMoveTableModal', tableId)}>🔀 Masayı Taşı / Birleştir</button>` : ''}
+        </div>
+        <div class="order-modal-cart">
+          <div class="om-cart-head">🧾 Sipariş<span class="om-cart-total"></span></div>
+          <div id="sentItemsWrap"></div>
+          <div id="draftItemsWrap"></div>
         </div>
       </div>
       ${guestPickHtml(tableId) ? `<div class="om-guest-m">${guestPickHtml(tableId)}</div>` : ''}
