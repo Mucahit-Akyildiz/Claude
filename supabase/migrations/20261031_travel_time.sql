@@ -54,3 +54,4 @@ alter table orders add column if not exists travel_min int, add column if not ex
 -- send_po_to_supplier(session, po, 'email'|'sms', to); cash_counts.overhead_daily (kapanışta sabit gider payı) + get_dayclose_alloc; reset_ingredient_stock.
 -- collect_open_account(..., p_bank): havale/EFT + banka; open_account_entries.bank_id; bundle open_acc_paid_transfer/banks.
 -- assign_po_items_supplier(session, item_ids[], supplier): kalem bazında tedarikçi; kısmi seçimde sipariş bölünür.
+-- purchase_orders.share_token + get_public_po (/tedarik/?t=); send_po_to_supplier numaralı liste + PDF linki.
