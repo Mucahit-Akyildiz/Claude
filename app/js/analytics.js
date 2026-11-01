@@ -437,7 +437,7 @@ async function renderWaiterCardsContent(session){
         <div><b>${x.shifts || 0}</b><small>vardiya</small></div></div>
       ${al[x.id] ? `<div class="an-w-al"><span>🍱</span><div><b>${money(al[x.id].used)}</b><small>limitinden aldı · ${al[x.id].n} hesap</small></div><div class="r"><b>${money(al[x.id].remaining)}</b><small>${al[x.id].period === 'monthly' ? 'aylık' : 'günlük'} kalan</small></div></div>` : ''}
       ${pr[x.id] && (anN(pr[x.id].hours) || anN(pr[x.id].hourly_wage)) ? (() => { const p = pr[x.id], pay = anN(p.hours) * anN(p.hourly_wage) + anN(p.sales) * anN(p.commission_pct) / 100;
-        return `<div class="an-w-pay" role="button" title="Puantaj & Prim sekmesini aç" ${actStop('setReportTab', 'payroll')}><span>💼</span><div><b>~${anN(p.hours).toFixed(1)} saat</b><small>bu dönem çalıştı</small></div><div class="r"><b>${anN(p.hourly_wage) ? money(pay) : '—'}</b><small>${anN(p.hourly_wage) ? 'hakediş' + (anN(p.commission_pct) ? ' (prim dahil)' : '') : 'saatlik ücret girilmemiş'}</small></div></div>`; })() : ''}
+        return `<div class="an-w-pay" role="button" title="Puantaj & Prim sekmesini aç" ${actStop('setStaffSub', 'payroll')}><span>💼</span><div><b>~${anN(p.hours).toFixed(1)} saat</b><small>bu dönem çalıştı</small></div><div class="r"><b>${anN(p.hourly_wage) ? money(pay) : '—'}</b><small>${anN(p.hourly_wage) ? 'hakediş' + (anN(p.commission_pct) ? ' (prim dahil)' : '') : 'saatlik ücret girilmemiş'}</small></div></div>`; })() : ''}
       <div class="an-w-acts"><button type="button" class="pc-btn" ${actStop('highlightStaffHours', x.username)}>⏰ Saatlerini göster</button><span class="an-w-more">Detaylı kart ›</span></div>
     </div>`; }).join('')}</div>`;
 }
@@ -724,7 +724,7 @@ async function saveStaffPay(userId, btn){
   const { error } = await sb.rpc('set_staff_pay', { p_token: getSession().session_token, p_user_id: userId, p_hourly_wage: wage, p_commission_pct: pct });
   if(error){ alert(error.message); return; }
   showToast('Ücret ve prim kaydedildi ✓');
-  renderPayrollContent(getSession());
+  redrawReportPart(renderPayrollContent, getSession());
 }
 
 /* Z raporu: Havale/EFT banka banka — tanımlı her banka (0 TL olsa da) + raporda geçen başka bankalar. */
