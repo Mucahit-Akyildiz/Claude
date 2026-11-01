@@ -37,11 +37,66 @@ function isOwnerUser(u){
 function revealPhone(el){ if(!el || el.dataset.masked !== '1') return; el.dataset.masked = ''; el.value = el.dataset.orig || ''; el.readOnly = false; el.style.cursor = ''; el.focus(); }
 function passField(id, disabled, existing){
   const btn = 'flex:0 0 auto;width:auto;margin:0;padding:6px 9px;font-size:15px;line-height:1;';
+  // Mevcut kullanıcı: şifre gösterilmez; "Şifreyi sıfırla" ile tek kullanımlık şifre verilir, kullanıcı ilk girişte kendi şifresini belirler.
+  if(existing && id.startsWith('us_pass_')){
+    const uid = id.slice(8);
+    return disabled ? '<span class="muted">—</span>' : `<button type="button" class="ghost-btn" style="width:auto;margin:0;padding:7px 12px;font-size:13px;" ${act('openPassReset', uid)}>🔑 Şifreyi sıfırla</button>`;
+  }
   return `<div style="display:flex;gap:6px;align-items:center;">
-    <input type="password" id="${id}" placeholder="${existing ? 'Kayıtlı (gizli) — yeni şifre yazın' : 'Şifre'}" autocomplete="new-password" style="flex:1;min-width:0;margin:0;" ${disabled?'disabled':''}>
+    <input type="password" id="${id}" placeholder="Şifre" autocomplete="new-password" style="flex:1;min-width:0;margin:0;" ${disabled?'disabled':''}>
     ${disabled ? '' : `<button type="button" class="ghost-btn" style="${btn}" title="Yazılan şifreyi göster / gizle" ${act('togglePassVisible', id, '$this')}>👁</button>
-    <button type="button" class="ghost-btn" style="${btn}" title="${existing ? 'Şifreyi sıfırla: yeni rastgele şifre üret' : 'Rastgele şifre üret'}" ${act('fillRandomPass', id)}>🎲</button>`}
+    <button type="button" class="ghost-btn" style="${btn}" title="Rastgele şifre üret" ${act('fillRandomPass', id)}>🎲</button>`}
   </div>`;
+}
+function openPassReset(uid){
+  const u = ((APP.config && APP.config.users) || []).find(x => x.id === uid) || {};
+  const self = uid === (getSession() || {}).user_id;
+  const bg = document.createElement('div'); bg.className = 'dg-bg'; bg.style.zIndex = 3000;
+  bg.innerHTML = `<div class="dg-card uc-card" style="max-width:420px;"><div class="dg-ic">🔑</div>
+    <div class="uc-msg"><p><b>${escapeHtml(u.username || 'Kullanıcı')} — şifreyi sıfırla</b></p>
+    <p class="muted" style="font-size:12.5px;">${self ? 'Kendi şifrenizi değiştiriyorsunuz.' : 'Tek kullanımlık şifre girin ve kullanıcıya iletin. Kullanıcı bu şifreyle girince kendi şifresini belirlemesi istenir; açık oturumları kapatılır.'}</p></div>
+    <div style="display:flex;gap:6px;"><input class="uc-in" id="prTemp" type="text" autocomplete="off" placeholder="En az 6 karakter" style="flex:1;margin:0;"><button type="button" class="ghost-btn pr-rand" style="width:auto;margin:0;padding:6px 10px;" title="Rastgele üret">🎲</button></div>
+    <div class="uc-acts"><button type="button" class="pc-btn uc-no">Vazgeç</button><button type="button" class="uc-yes">Sıfırla</button></div></div>`;
+  const inp = bg.querySelector('#prTemp');
+  const close = () => bg.remove();
+  bg.addEventListener('click', e => { if(e.target === bg) close(); });
+  bg.querySelector('.uc-no').addEventListener('click', close);
+  bg.querySelector('.pr-rand').addEventListener('click', () => {
+    const chars = 'abcdefghjkmnpqrstuvwxyz23456789', r = new Uint32Array(8); crypto.getRandomValues(r);
+    inp.value = Array.from(r, x => chars[x % chars.length]).join(''); inp.focus(); inp.select();
+  });
+  bg.querySelector('.uc-yes').addEventListener('click', async () => {
+    const v = inp.value.trim();
+    if(v.length < 6){ showToast('Şifre en az 6 karakter olmalı'); return; }
+    const { error } = await sb.rpc('reset_staff_password_temp', { p_token: getSession().session_token, p_user_id: uid, p_password: v });
+    if(error){ alert(error.message); return; }
+    close();
+    showToast(self ? 'Şifreniz değişti ✓' : '🔑 Tek kullanımlık şifre ayarlandı — kullanıcı girişte kendi şifresini belirleyecek');
+  });
+  document.body.appendChild(bg);
+  setTimeout(() => inp.focus(), 30);
+}
+/* Girişte: yönetici şifreyi sıfırladıysa kullanıcı kendi şifresini belirlemeden devam edemez. */
+function forceOwnPasswordChange(){
+  return new Promise(resolve => {
+    const bg = document.createElement('div'); bg.className = 'dg-bg'; bg.style.zIndex = 4000;
+    bg.innerHTML = `<div class="dg-card uc-card" style="max-width:400px;"><div class="dg-ic">🔐</div>
+      <div class="uc-msg"><p><b>Yeni şifrenizi belirleyin</b></p><p class="muted" style="font-size:12.5px;">Tek kullanımlık şifreyle giriş yaptınız. Devam etmek için kendi şifrenizi oluşturun.</p></div>
+      <input class="uc-in" id="ownP1" type="password" autocomplete="new-password" placeholder="Yeni şifre (en az 6 karakter)">
+      <input class="uc-in" id="ownP2" type="password" autocomplete="new-password" placeholder="Yeni şifre (tekrar)" style="margin-top:8px;">
+      <div class="uc-acts"><button type="button" class="pc-btn uc-no">Çıkış</button><button type="button" class="uc-yes">Kaydet</button></div></div>`;
+    bg.querySelector('.uc-no').addEventListener('click', () => { bg.remove(); resolve(false); });
+    bg.querySelector('.uc-yes').addEventListener('click', async () => {
+      const a = bg.querySelector('#ownP1').value, b = bg.querySelector('#ownP2').value;
+      if(a.length < 6){ showToast('Şifre en az 6 karakter olmalı'); return; }
+      if(a !== b){ showToast('Şifreler aynı değil'); return; }
+      const { error } = await sb.rpc('set_own_password', { p_token: getSession().session_token, p_new_password: a });
+      if(error){ alert(error.message); return; }
+      bg.remove(); showToast('Şifreniz kaydedildi ✓'); resolve(true);
+    });
+    document.body.appendChild(bg);
+    setTimeout(() => bg.querySelector('#ownP1').focus(), 30);
+  });
 }
 async function togglePassVisible(id, b){
   const el = document.getElementById(id); if(!el) return;
