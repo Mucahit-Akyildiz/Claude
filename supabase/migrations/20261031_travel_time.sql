@@ -60,3 +60,8 @@ alter table orders add column if not exists travel_min int, add column if not ex
 -- Kullanıcı e-postası (Mal Kabul gönderim alıcısı vb.)
 alter table app_users add column if not exists email text;
 -- set_staff_email(p_token, p_user_id, p_email): settings_users yetkisi, format kontrolü; bulk_call beyaz listesine eklendi; get_restaurant_config users[].email döner.
+
+-- Şifre sıfırlama: tek kullanımlık şifre + ilk girişte kendi şifresini belirleme
+alter table app_users add column if not exists must_change_password boolean not null default false;
+-- reset_staff_password_temp(p_token,p_user_id,p_password): update_staff_user ile şifreyi ayarlar, must_change_password=true, açık oturumları kapatır.
+-- get_must_change_password(p_token) / set_own_password(p_token,p_new_password): girişte zorunlu şifre belirleme.

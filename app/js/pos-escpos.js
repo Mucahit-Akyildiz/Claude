@@ -481,6 +481,11 @@ async function doLogin(){
     });
     try{ localStorage.setItem('rys_last_login', JSON.stringify({ code, username })); }catch(e){}
     if(remember) await sb.rpc('set_session_remember', { p_token: row.session_token });
+    const { data: mustCh } = await sb.rpc('get_must_change_password', { p_token: row.session_token });
+    if(mustCh && typeof forceOwnPasswordChange === 'function' && !(await forceOwnPasswordChange())){
+      try{ await sb.rpc('logout_staff', { p_token: row.session_token }); }catch(e){}
+      clearSession(); errBox.textContent = 'Devam etmek için yeni şifre belirlemelisiniz'; return;
+    }
     APP.reportsUnlocked = false;
     APP.reportsGateScreen = null;
     APP.config = null;
