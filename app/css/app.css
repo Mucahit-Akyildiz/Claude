@@ -4084,3 +4084,4 @@ button.sl-stat{border:1px solid var(--border) !important;} button.sl-stat.on{bor
 .iu-foot-n{margin-right:auto;font-size:12.5px;align-self:center;}
 @media (max-width:600px){ .ing-st small{display:none;} }
 .pc2-share{display:inline-flex;gap:4px;margin-right:auto;} .pc2-share .pc-btn{padding:6px 9px;}
+.cm-box h2{margin:0 0 2px;font-size:20px;} .cm-opts{display:grid;gap:8px;margin:12px 0;} .cm-opt{width:100%;margin:0;padding:14px;font-size:16px;font-weight:800;border-radius:14px;}
