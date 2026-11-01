@@ -1240,3 +1240,9 @@ async function checkAppVersion(){
 setInterval(checkAppVersion, 5 * 60000);
 document.addEventListener('visibilitychange', () => { if(!document.hidden) checkAppVersion(); });
 setTimeout(checkAppVersion, 20000);
+
+/* Android/iOS uygulaması: WebView'e özel stil düzeltmeleri (bkz. html.is-native) ve klavyede odaklı alanı görünür tut. */
+try{ if(typeof isNativeApp === 'function' && isNativeApp()){
+  document.documentElement.classList.add('is-native');
+  document.addEventListener('focusin', (e) => { const t = e.target; if(t && /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName)) setTimeout(() => { try{ t.scrollIntoView({ block: 'center' }); }catch(_){} }, 300); });
+} }catch(e){}
