@@ -68,8 +68,9 @@ async function setAppLang(code, noSave){
   try{ localStorage.setItem('peyk_lang', code); }catch(e){}
   if(!noSave){ try{ const s = typeof getSession === 'function' && getSession(); if(s) sb.rpc('set_my_lang', { p_token: s.session_token, p_lang: code }).then(() => {}, () => {}); }catch(e){} }
   // Türkçeye dönüşte çevrilmiş düğümleri geri almak yerine ekranı baştan çiz.
+  if(typeof render !== 'function'){ location.reload(); return; } // ana sayfa / müşteri sayfaları
   i18nStart();
-  if(typeof render === 'function') render();
+  render();
 }
 function langPickerOpen(){
   const bg = document.createElement('div'); bg.className = 'dg-bg'; bg.style.zIndex = 3600;
