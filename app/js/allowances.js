@@ -16,17 +16,20 @@ async function loadAllowances(){
 function allowanceById(id){ return (APP.allowances || []).find(a => a.id === id); }
 
 /* Ayarlar > Kullanıcılar & Vardiyalar > Limitler */
-async function renderAllowancesSettings(el){
-  el.innerHTML = '<p class="muted">Yükleniyor…</p>';
-  const list = await loadAllowances();
+async function renderAllowancesSettings(el, cached){
+  if(!el) return;
+  // cached: sunucuya gitmeden eldeki listeyle yeniden çiz (silme/pasife alma sonrası hızlı güncelleme).
+  if(!cached || !APP.allowancesAll) el.innerHTML = '<p class="muted">Yükleniyor…</p>';
+  const list = cached && APP.allowancesAll ? APP.allowancesAll : await loadAllowances();
+  APP.alSel = new Set([...(APP.alSel || [])].filter(id => list.some(a => a.id === id)));
   const flags = (APP.config && APP.config.order_flags) || [];
   const users = ((APP.config && APP.config.users) || []).filter(u => u.is_active !== false);
   const flagSel = (id, cur) => `<select id="${id}"><option value="">— Etiket yok —</option>${flags.map(f => `<option value="${escapeAttr(f.label)}" ${cur===f.label?'selected':''}>${escapeHtml(f.label)}</option>`).join('')}</select>`;
   const bar = (a) => { const cap = a.period === 'monthly' || !a.carry_over ? Number(a.limit_amount) : Math.max(Number(a.limit_amount), Number(a.remaining));
     const pct = cap > 0 ? Math.min(100, Math.round(Number(a.remaining) / cap * 100)) : 0;
     return `<div class="al-bar"><span style="width:${pct}%;"></span></div>`; };
-  const row = (a) => `<div class="al-row ${a.is_active ? '' : 'off'}" data-q="${escapeAttr((String(a.name || '') + ' ' + String(a.phone || '').replace(/\D/g, '')).toLocaleLowerCase('tr'))}">
-      <div class="al-top"><span class="al-av">${a.kind === 'person' ? '🎓' : '👔'}</span>
+  const row = (a) => `<div class="al-row ${a.is_active ? '' : 'off'}" data-aid="${a.id}" data-q="${escapeAttr((String(a.name || '') + ' ' + String(a.phone || '').replace(/\D/g, '')).toLocaleLowerCase('tr'))}">
+      <div class="al-top"><input type="checkbox" class="al-cb" ${APP.alSel && APP.alSel.has(a.id) ? 'checked' : ''} ${actOn('change','alSelToggle',[a.id, '$checked'])} title="Seç"><span class="al-av">${a.kind === 'person' ? '🎓' : '👔'}</span>
         <div class="al-main"><b>${escapeHtml(a.name || '')}</b>
           <small>${alPeriodLabel(a)} · ${money(a.limit_amount)}${a.flag_label ? ' · 🏷️ ' + escapeHtml(a.flag_label) : ''}${a.phone ? ' · 📞 ' + escapeHtml(maskPhoneAl(a.phone)) : ''}${a.is_active ? '' : ' · pasif'}</small></div>
         <div class="al-rem"><b>${money(a.remaining)}</b><small>kalan</small></div></div>
@@ -72,6 +75,8 @@ async function renderAllowancesSettings(el){
       ${typeof excelBarHtml === 'function' ? excelBarHtml('allowances') : ''}</div>
     <div class="al-card al-one">
       <div class="al-h"><span>💳</span><div><b>Limitli hesaplar</b><small>Kişiler 🎓 ve kullanıcılar 👔 tek listede</small></div><em>${list.length}</em></div>
+      <div class="al-bulk ${APP.alSel && APP.alSel.size ? 'on' : ''}" id="alBulk"><label class="al-bulk-all"><input type="checkbox" ${actOn('change','alSelAll',['$checked'])}> Tümü</label><b id="alBulkN">${APP.alSel && APP.alSel.size ? APP.alSel.size + ' seçili' : 'Seçerek toplu işlem yapın'}</b><span class="u-f1"></span>
+        <button type="button" class="ghost-btn" ${act('alBulkActive', false)}>⏸ Pasife al</button><button type="button" class="ghost-btn" ${act('alBulkActive', true)}>▶️ Aktifleştir</button><button type="button" class="ghost-btn" style="color:var(--red);" ${act('alBulkDelete')}>🗑️ Sil</button></div>
       <div class="al-list al-list-grid">${list.slice().sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''), 'tr')).map(row).join('') || '<p class="muted al-empty">Henüz limit yok</p>'}</div>
       <div class="al-form" id="alForm">
         ${(() => { const sel = (APP.alSelUsers || []).filter(id => free.some(u => u.id === id)), names = sel.map(id => (free.find(u => u.id === id) || {}).username);
@@ -93,7 +98,7 @@ async function renderAllowancesSettings(el){
 }
 function alPeriodLabel(a){ return a.period === 'monthly' ? 'Aylık' : a.carry_over ? 'Günlük · devreder' : 'Günlük · devretmez'; }
 function alPeriodChange(v){ const c = document.getElementById('al_carry'); if(c){ c.disabled = v === 'monthly'; if(v === 'monthly') c.value = '0'; } }
-function clearAlUsers(){ APP.alSelUsers = []; renderAllowancesSettings(document.getElementById('usersSubContent')); }
+function clearAlUsers(){ APP.alSelUsers = []; renderAllowancesSettings(document.getElementById('usersSubContent'), true); }
 /* Kullanıcı seç: limiti olmayan personelden çoklu seçim (ara, tümünü seç / kaldır). Seçim yapılırsa limit kullanıcılara, yapılmazsa adı girilen kişiye eklenir. */
 function openAlUserPicker(){
   const lim = (APP.allowances || []).filter(a => a.kind === 'user').map(a => a.user_id);
@@ -113,7 +118,7 @@ function openAlUserPicker(){
   bg.querySelector('.alp-list').addEventListener('change', cnt);
   bg.addEventListener('click', e => { if(e.target === bg) bg.remove(); });
   bg.querySelector('.uc-no').addEventListener('click', () => bg.remove());
-  bg.querySelector('.uc-yes').addEventListener('click', () => { APP.alSelUsers = [...bg.querySelectorAll('.alp-row input:checked')].map(b => b.value); bg.remove(); renderAllowancesSettings(document.getElementById('usersSubContent')); });
+  bg.querySelector('.uc-yes').addEventListener('click', () => { APP.alSelUsers = [...bg.querySelectorAll('.alp-row input:checked')].map(b => b.value); bg.remove(); renderAllowancesSettings(document.getElementById('usersSubContent'), true); });
   document.body.appendChild(bg); cnt();
 }
 async function saveAllowanceForm(){
@@ -138,35 +143,67 @@ async function saveAllowanceForm(){
   }
   renderAllowancesSettings(document.getElementById('usersSubContent'));
 }
-async function editAllowance(id){
-  const a = allowanceById(id); if(!a) return;
-  const cur = a.period === 'monthly' ? '3' : a.carry_over ? '2' : '1';
-  const pc = prompt(`${a.name} — dönem:\n1 = Günlük · devretmez\n2 = Günlük · devreder\n3 = Aylık`, cur);
-  if(pc === null) return;
-  const period = pc.trim() === '3' ? 'monthly' : 'daily', carry_over = pc.trim() === '2';
-  const lim = prompt(`${a.name} için ${period === 'monthly' ? 'aylık' : 'günlük'} limit (₺):`, a.limit_amount);
-  if(lim === null) return;
+function editAllowance(id){
+  const a = (APP.allowancesAll || []).find(x => x.id === id); if(!a) return;
   const flags = ((APP.config && APP.config.order_flags) || []).map(f => f.label);
-  let flag = a.flag_label || '';
-  if(flags.length){ const f = prompt('Sipariş etiketi (boş bırakılabilir):\n' + flags.join(', '), flag); if(f === null) return; flag = f.trim(); }
-  let phone = a.phone || '';
-  if(a.kind === 'person'){ const ph = prompt('Telefon (boş bırakılabilir):', phone); if(ph === null) return; phone = ph.trim(); }
-  const { error } = await sb.rpc('save_allowance', { p_token: getSession().session_token, p_data: { id, kind: a.kind, name: a.name, phone, user_id: a.user_id, period, carry_over, limit_amount: lim, flag_label: flag } });
-  if(error){ alert(error.message); return; }
-  showToast('Limit güncellendi ✓');
-  renderAllowancesSettings(document.getElementById('usersSubContent'));
+  const isP = a.kind === 'person';
+  const bg = document.createElement('div'); bg.className = 'dg-bg'; bg.style.zIndex = 3000;
+  bg.innerHTML = `<div class="dg-card uc-card" style="max-width:440px;text-align:left;"><div class="uc-msg"><p><b>${isP ? '🎓' : '👔'} ${escapeHtml(a.name || '')} — limiti düzenle</b></p></div>
+    <div class="ix-form" style="grid-template-columns:1fr 1fr;">
+      ${isP ? `<div><label>Ad soyad</label><input id="ae_name" value="${escapeAttr(a.name || '')}" maxlength="60"></div><div><label>Telefon</label><input id="ae_phone" type="tel" value="${escapeAttr(a.phone || '')}" maxlength="20"></div>` : ''}
+      <div><label>Dönem</label><select id="ae_period"><option value="daily" ${a.period !== 'monthly' ? 'selected' : ''}>Günlük</option><option value="monthly" ${a.period === 'monthly' ? 'selected' : ''}>Aylık</option></select></div>
+      <div><label>Kalan tutar</label><select id="ae_carry" ${a.period === 'monthly' ? 'disabled' : ''}><option value="0" ${a.carry_over ? '' : 'selected'}>Devretmez</option><option value="1" ${a.carry_over ? 'selected' : ''}>Devreder</option></select></div>
+      <div><label>Limit (₺)</label><input id="ae_limit" type="number" min="0" step="1" inputmode="decimal" value="${Number(a.limit_amount) || ''}"></div>
+      <div><label>Sipariş etiketi</label><select id="ae_flag"><option value="">— Etiket yok —</option>${flags.map(f => `<option ${a.flag_label === f ? 'selected' : ''}>${escapeHtml(f)}</option>`).join('')}</select></div>
+    </div>
+    <div class="uc-acts"><button type="button" class="pc-btn uc-no">Vazgeç</button><button type="button" class="uc-yes">Kaydet</button></div></div>`;
+  const $ = (q) => bg.querySelector(q);
+  $('#ae_period').addEventListener('change', e => { $('#ae_carry').disabled = e.target.value === 'monthly'; if(e.target.value === 'monthly') $('#ae_carry').value = '0'; });
+  bg.addEventListener('click', e => { if(e.target === bg) bg.remove(); });
+  $('.uc-no').addEventListener('click', () => bg.remove());
+  $('.uc-yes').addEventListener('click', async () => {
+    const period = $('#ae_period').value, carry_over = period === 'daily' && $('#ae_carry').value === '1';
+    const data = { id, kind: a.kind, name: isP ? $('#ae_name').value.trim() : a.name, phone: isP ? $('#ae_phone').value.trim() : (a.phone || ''), user_id: a.user_id, period, carry_over, limit_amount: $('#ae_limit').value, flag_label: $('#ae_flag').value };
+    const { error } = await sb.rpc('save_allowance', { p_token: getSession().session_token, p_data: data });
+    if(error){ alert(error.message); return; }
+    bg.remove(); showToast('Limit güncellendi ✓');
+    renderAllowancesSettings(alEl());
+  });
+  document.body.appendChild(bg);
 }
+const alEl = () => document.getElementById('usersSubContent');
+function alRerender(){ renderAllowancesSettings(alEl(), true); }
+function alSelToggle(id, on){ APP.alSel = APP.alSel || new Set(); if(on) APP.alSel.add(id); else APP.alSel.delete(id); alBulkSync(); }
+function alSelAll(on){ APP.alSel = new Set(); document.querySelectorAll('.al-row').forEach(r => { const cb = r.querySelector('.al-cb'); if(!cb) return; const vis = r.style.display !== 'none'; cb.checked = on && vis; if(on && vis) APP.alSel.add(r.dataset.aid); }); alBulkSync(); }
+function allowanceRowId(r){ return r.dataset.aid; }
+function alBulkSync(){ const b = document.getElementById('alBulk'), n = APP.alSel ? APP.alSel.size : 0; if(b){ b.classList.toggle('on', !!n); b.querySelectorAll('button').forEach(x => { x.disabled = !n; }); } const t = document.getElementById('alBulkN'); if(t) t.textContent = n ? n + ' seçili' : 'Seçerek toplu işlem yapın'; }
+async function alSetActive(a, on){ return sb.rpc('save_allowance', { p_token: getSession().session_token, p_data: { id: a.id, kind: a.kind, name: a.name, user_id: a.user_id, period: a.period, limit_amount: a.limit_amount, flag_label: a.flag_label, is_active: on } }); }
 async function toggleAllowance(id){
-  const a = allowanceById(id); if(!a) return;
-  const { error } = await sb.rpc('save_allowance', { p_token: getSession().session_token, p_data: { id, kind: a.kind, name: a.name, user_id: a.user_id, period: a.period, limit_amount: a.limit_amount, flag_label: a.flag_label, is_active: !a.is_active } });
+  const a = (APP.allowancesAll || []).find(x => x.id === id); if(!a) return;
+  const { error } = await alSetActive(a, !a.is_active);
   if(error){ alert(error.message); return; }
-  renderAllowancesSettings(document.getElementById('usersSubContent'));
+  a.is_active = !a.is_active; alRerender();
 }
 async function deleteAllowance(id){
-  const a = allowanceById(id); if(!a || !(await uiConfirm('Kullanım geçmişi de silinir.', { title: `${a.name} limiti silinsin mi?` }))) return;
+  const a = (APP.allowancesAll || []).find(x => x.id === id); if(!a || !(await uiConfirm('Kullanım geçmişi de silinir.', { title: `${a.name} limiti silinsin mi?` }))) return;
   const { error } = await sb.rpc('delete_allowance', { p_token: getSession().session_token, p_id: id });
   if(error){ alert(error.message); return; }
-  renderAllowancesSettings(document.getElementById('usersSubContent'));
+  APP.allowancesAll = APP.allowancesAll.filter(x => x.id !== id); if(APP.allowances) APP.allowances = APP.allowances.filter(x => x.id !== id);
+  showToast('Limit silindi'); alRerender();
+}
+async function alBulkDelete(){
+  const ids = [...(APP.alSel || [])]; if(!ids.length) return;
+  if(!(await uiConfirm('Seçilen limitlerin kullanım geçmişi de silinir.', { title: ids.length + ' limit silinsin mi?' }))) return;
+  const res = await withLoadingOverlay(Promise.all(ids.map(id => sb.rpc('delete_allowance', { p_token: getSession().session_token, p_id: id }))));
+  const ok = ids.filter((_, k) => !res[k].error), bad = res.filter(r => r.error).length;
+  APP.allowancesAll = APP.allowancesAll.filter(x => !ok.includes(x.id)); if(APP.allowances) APP.allowances = APP.allowances.filter(x => !ok.includes(x.id));
+  APP.alSel = new Set(); showToast(ok.length + ' limit silindi' + (bad ? ' · ' + bad + ' silinemedi' : '')); alRerender();
+}
+async function alBulkActive(on){
+  const list = (APP.allowancesAll || []).filter(a => APP.alSel && APP.alSel.has(a.id) && a.is_active !== on); if(!list.length){ showToast('Değişecek limit yok'); return; }
+  const res = await withLoadingOverlay(Promise.all(list.map(a => alSetActive(a, on))));
+  list.forEach((a, k) => { if(!res[k].error) a.is_active = on; });
+  APP.alSel = new Set(); showToast(list.length + ' limit ' + (on ? 'aktifleştirildi' : 'pasife alındı')); alRerender();
 }
 
 async function setAllowancesEnabled(on){
