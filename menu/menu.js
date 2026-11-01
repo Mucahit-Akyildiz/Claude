@@ -29,7 +29,9 @@ function getLang(){
     const saved = localStorage.getItem('rys_menu_lang');
     if(saved && I18N[saved]) return saved;
   } catch(e){}
-  return 'tr';
+  // Seçim yoksa telefonun diline göre (turist menüyü kendi dilinde görür).
+  const n = String((navigator.languages && navigator.languages[0]) || navigator.language || 'tr').slice(0, 2).toLowerCase();
+  return I18N[n] ? n : 'tr';
 }
 function setLang(code){
   if(!I18N[code]) return;

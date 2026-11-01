@@ -87,3 +87,6 @@ alter table products add column if not exists option_groups jsonb not null defau
 alter table app_users add column if not exists pin_hash text;
 
 -- send_staff_temp_password(p_token,p_user_id,p_password,p_channel 'sms'|'email'): geçici şifre + gönderim. send_staff_login_sms sıfırlamada 8 karakter ve must_change_password.
+
+-- Çok dil: app_users.lang; set_my_lang / get_my_lang (tr,en,ar,ru,de).
+alter table app_users add column if not exists lang text;

@@ -20,6 +20,7 @@ function renderLoginScreen(app){
     <div class="center-wrap">
     <div>
     <div class="auth-brand"><img src="/assets/images/logo.webp" alt="Peyktan" class="auth-brand-logo"><span class="name">Peyktan</span></div>
+    <div style="display:flex;justify-content:flex-end;margin:-6px 0 8px;">${langBtnHtml('ghost-btn auth-lang')}</div>
     <div class="box">
       <h1>Giriş Yapın</h1>
       <p class="muted">İşletme kodu, kullanıcı adı ve şifrenizle giriş yapın</p>

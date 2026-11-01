@@ -4137,3 +4137,11 @@ html.is-native body{background:var(--bg);}
 .pin-pad{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:8px 0}
 .pin-pad button{margin:0;height:56px;font-size:22px;font-weight:800;border-radius:14px;background:var(--panel2);color:var(--text);border:1px solid var(--border);box-shadow:none}
 .pin-pad button:active{transform:scale(.96)}
+
+/* Dil seçici ve Arapça (sağdan sola) */
+.sb-lang{font-size:11.5px !important;font-weight:800;white-space:nowrap}
+.auth-lang{width:auto !important;margin:0 !important;padding:6px 12px !important;font-size:13px !important}
+.lang-opt.on{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 12%,var(--panel2))}
+html.lang-rtl body{direction:rtl}
+html.lang-rtl .sidebar{border-left:1px solid var(--border);border-right:0}
+html.lang-rtl input[type=number],html.lang-rtl input[type=tel],html.lang-rtl .money,html.lang-rtl kbd{direction:ltr}
