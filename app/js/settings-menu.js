@@ -352,6 +352,18 @@ async function saveIngredientUsage(ingredientId){
   renderSettingsView(document.getElementById('main'), session);
 }
 
+/* Reçeteli üründe "kaç porsiyon" hesabı: her hammaddeden eldeki stok / porsiyon başı brüt miktar; en az çıkan belirleyicidir. */
+function recipeStockBreakdownHtml(p){
+  const ings = (APP.config && APP.config.ingredients) || [];
+  const rows = (p.recipe || []).map(r => { const ing = ings.find(i => i.id === r.ingredient_id) || {}, per = Number(r.gross_qty != null ? r.gross_qty : r.qty_per_unit) || 0, st = Number(ing.stock) || 0;
+    return { name: r.ingredient_name || ing.name || '?', unit: r.ingredient_unit || ing.unit || '', per, st, n: per > 0 ? Math.max(0, Math.floor(st / per)) : null }; })
+    .filter(x => x.per > 0).sort((a, b) => a.n - b.n);
+  if(!rows.length) return '';
+  const min = rows[0].n;
+  return `<div class="rsb"><div class="rsb-h">🧮 Neden ${min} porsiyon? <small>Her hammaddeden çıkabilecek porsiyon · en azı belirler</small></div>
+    ${rows.map(x => `<div class="rsb-r ${x.n === min ? 'lim' : ''}"><span>${x.n === min ? '🔻 ' : ''}${escapeHtml(x.name)}</span><small>${fmtQty(x.st)} ${escapeHtml(x.unit)} stok ÷ ${fmtQty(x.per)} ${escapeHtml(x.unit)}/porsiyon</small><b>${x.n} porsiyon</b></div>`).join('')}
+  </div>`;
+}
 /* --- Bir ürünün reçetesini düzenleme penceresi --- */
 let RECIPE_DRAFT = [];
 /* Ürün ekstraları: ana ürüne bağlı, siparişte ayrı kalem olarak eklenen seçenekler
@@ -1454,6 +1466,7 @@ function editProductRow(pid){
         <div><label>İstasyon</label><select id="ed_st">${!p.station_id ? '<option value="" selected>— İstasyon yok —</option>' : ''}${stations.map(x => `<option value="${x.id}" ${x.id===p.station_id?'selected':''}>${escapeHtml(x.name)}</option>`).join('')}</select></div></div>
         <div class="pdrawer-2"><div><label>KDV</label>${vatSelectHtml('ed_vat', p.vat_rate, true)}</div>
           <div><label>Stok</label>${rec ? `<input disabled value="Reçeteli: ${p.available_qty==null?'?':p.available_qty} porsiyon">` : `<input type="number" id="ed_stock" value="${p.stock==null?'':p.stock}" placeholder="Sınırsız">`}</div></div>
+          ${rec ? recipeStockBreakdownHtml(p) : ''}
         <label class="pdrawer-check"><input type="checkbox" id="ed_print" ${p.print_ticket===false?'':'checked'}> 🖨️ Mutfak fişine yazdır</label>
         <div class="pdrawer-links">
           ${APP.view!=='settings' ? `<button type="button" class="pc-btn" ${act('goEditProductInSettings', p.id)}>⚙️ Tüm ayarlar</button>` : ''}

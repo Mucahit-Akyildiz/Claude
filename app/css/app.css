@@ -4180,3 +4180,9 @@ html.lang-rtl input[type=number],html.lang-rtl input[type=tel],html.lang-rtl .mo
 .po-click{cursor:pointer}
 .po-click:hover{border-color:var(--st);transform:translateY(-1px)}
 .po-more{margin-top:8px;font-size:12px;font-weight:700;color:var(--accent);text-align:right}
+.rsb{margin:10px 0 4px;border:1px solid var(--border);border-radius:12px;padding:10px 12px;background:var(--panel2)}
+.rsb-h{font-weight:800;font-size:13px;margin-bottom:6px}.rsb-h small{font-weight:500;color:var(--muted);margin-left:6px}
+.rsb-r{display:grid;grid-template-columns:1fr auto auto;gap:10px;align-items:center;padding:5px 0;border-top:1px dashed var(--border);font-size:13px}
+.rsb-r small{color:var(--muted);font-size:11.5px}.rsb-r b{min-width:80px;text-align:right}
+.rsb-r.lim{color:var(--red)}.rsb-r.lim b{color:var(--red)}
+@media (max-width:600px){.rsb-r{grid-template-columns:1fr auto}.rsb-r small{grid-column:1/-1;order:3}}
