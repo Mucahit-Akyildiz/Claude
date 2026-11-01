@@ -407,6 +407,7 @@ Tedarikçi bekleyen|Awaiting supplier|بانتظار المورد|Ждёт по�
 Fiyat bekleyen|Awaiting price|بانتظار السعر|Ждёт цену|Wartet auf Preis
 Teslim bekleyen|Awaiting delivery|بانتظار التسليم|Ждёт поставки|Wartet auf Lieferung
 Tamamlanan|Completed|مكتمل|Завершено|Abgeschlossen
+İptal edilen|Cancelled|ملغى|Отменённые|Storniert
 Teslim Alındı|Received|تم الاستلام|Получено|Erhalten
 Tedarikçi seçin|Choose supplier|اختر المورد|Выберите поставщика|Lieferant wählen
 Sipariş Tutarı|Order Amount|مبلغ الطلب|Сумма заказа|Bestellbetrag
