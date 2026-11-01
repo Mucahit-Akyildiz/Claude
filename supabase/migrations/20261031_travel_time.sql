@@ -93,3 +93,7 @@ alter table app_users add column if not exists lang text;
 
 -- Limitli hesaplar birleşik: allowances.carry_over (günlük devreder); kişi ve kullanıcı için tüm dönemler.
 alter table allowances add column if not exists carry_over boolean default false;
+
+-- Masa ikramı: restaurants.treat_product_id/treat_zone_ids, orders.treat_off, _sync_table_treat + orders_treat_sync tetikleyicisi, set_table_treat, set_order_treat_off.
+alter table restaurants add column if not exists treat_product_id uuid, add column if not exists treat_zone_ids uuid[];
+alter table orders add column if not exists treat_off boolean not null default false;

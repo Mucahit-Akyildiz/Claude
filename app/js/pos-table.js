@@ -286,8 +286,17 @@ function guestPickHtml(tableId){
   const o = liveOrderForTable(tableId);
   if(APP.guestSel[tableId] == null && o && o.guest_count) APP.guestSel[tableId] = o.guest_count;
   const n = APP.guestSel[tableId] || 0;
-  return `<div class="gp-box" data-gp="1"><span>👥 Kişi sayısı</span>
+  const tr = APP.config && APP.config.treat, treatOn = tr && tr.product_id && o && n;
+  return `<div class="gp-box" data-gp="1"><span>👥 Kişi sayısı${treatOn ? `<button type="button" class="gp-rem ${o.treat_off ? '' : 'on'}" title="Masa ikramı (meze) — dokunarak verilmedi olarak işaretleyin" ${act('toggleTreatOff', o.order_id, !o.treat_off)}>🥗 ${o.treat_off ? 'İkram verilmedi' : 'İkram ×' + n}</button>` : ''}</span>
     <div class="gp-step"><button type="button" ${act('stepGuests', tableId, -1)} ${n ? '' : 'disabled'}>−</button><b>${n || '—'}</b><button type="button" ${act('stepGuests', tableId, 1)}>+</button></div></div>`;
+}
+async function toggleTreatOff(orderId, off){
+  const { error } = await sb.rpc('set_order_treat_off', { p_token: getSession().session_token, p_order_id: orderId, p_off: off });
+  if(error){ alert(error.message); return; }
+  const o = (APP.liveOrders || []).find(x => x.order_id === orderId); if(o) o.treat_off = off;
+  showToast(off ? 'Bu masaya ikram verilmedi' : '🥗 İkram eklendi');
+  const bg = document.getElementById('tableModalBg'); if(bg) document.querySelectorAll('.gp-box[data-gp]').forEach(e => { e.outerHTML = guestPickHtml(bg.dataset.tableId); });
+  if(typeof refreshOrderLiveStatus === 'function') refreshOrderLiveStatus(getSession());
 }
 function guestReminderOn(){ return !APP.config || APP.config.guest_reminder !== false; }
 // Yalnızca yönetici: Bildirimler ekranındaki işletme geneli ayar.
