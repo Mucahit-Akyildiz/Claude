@@ -55,3 +55,4 @@ alter table orders add column if not exists travel_min int, add column if not ex
 -- collect_open_account(..., p_bank): havale/EFT + banka; open_account_entries.bank_id; bundle open_acc_paid_transfer/banks.
 -- assign_po_items_supplier(session, item_ids[], supplier): kalem bazında tedarikçi; kısmi seçimde sipariş bölünür.
 -- purchase_orders.share_token + get_public_po (/tedarik/?t=); send_po_to_supplier numaralı liste + PDF linki.
+-- get_dayclose_alloc(..., p_include_open): kapanmamış günler bugünkü günlük giderle; open_days/open_qty.

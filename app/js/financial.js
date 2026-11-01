@@ -967,20 +967,23 @@ function profitChannelHtml(all, d){
    o günün KDV hariç cirosuna oranlanır; her ürüne cirosu kadar pay düşer. Ürün başına: ciro − malzeme − gider payı = net. */
 async function renderDaycloseAlloc(session){
   const el = document.getElementById('reportContent'); if(!el) return;
-  const { data, error } = await withLoadingOverlay(sb.rpc('get_dayclose_alloc', { p_token: session.session_token, p_date: APP.reportDate, p_date_to: APP.reportDateTo }));
+  const { data, error } = await withLoadingOverlay(sb.rpc('get_dayclose_alloc', { p_token: session.session_token, p_date: APP.reportDate, p_date_to: APP.reportDateTo, p_include_open: !!APP.allocOpen }));
   if(error){ el.innerHTML = '<p class="muted">Yüklenemedi: ' + escapeHtml(error.message) + '</p>'; return; }
   const days = (data && data.days) || [], prods = (data && data.products) || [];
-  if(!days.length){ el.innerHTML = `<div class="empty-state"><div style="font-size:42px;">📅</div><p class="muted">Bu aralıkta gün sonu kapanışı yapılmış gün yok.<br>Gün sonu kapanışı yapıldığında o günün sabit giderleri, cirosuna göre ürünlere dağıtılır.</p></div>`; return; }
+  const od = Number(data && data.open_days) || 0, oq = Number(data && data.open_qty) || 0;
+  const openBar = (od || APP.allocOpen) ? `<label class="alloc-open"><span class="oo-switch"><input type="checkbox" ${APP.allocOpen ? 'checked' : ''} ${actOn('change','setAllocOpen',['$checked'])}><span class="oo-track"><span class="oo-thumb"></span></span></span>
+      <span>${APP.allocOpen ? `<b>Kapanışı yapılmamış ${od} gün de dahil</b> (bugünkü günlük gider payıyla, tahmini).` : `⚠️ Bu aralıkta <b>${od} günün kapanışı yapılmamış</b> (${Math.round(oq)} adet satış) — bu yüzden adetler Satışlar sekmesinden az. Dahil etmek için açın.`}</span></label>` : '';
+  if(!days.length){ el.innerHTML = openBar + `<div class="empty-state"><div style="font-size:42px;">📅</div><p class="muted">Bu aralıkta gün sonu kapanışı yapılmış gün yok.<br>Gün sonu kapanışı yapıldığında o günün sabit giderleri, cirosuna göre ürünlere dağıtılır.</p></div>`; return; }
   const n = (v) => Number(v) || 0, T = prods.reduce((a, p) => ({ rev: a.rev + n(p.rev), cost: a.cost + n(p.cost), oh: a.oh + n(p.oh), net: a.net + n(p.net) }), { rev: 0, cost: 0, oh: 0, net: 0 });
   const ohDays = days.reduce((a, d) => a + n(d.oh), 0), pct = (a, b) => b ? Math.round(a / b * 100) : 0;
-  el.innerHTML = `<div class="pf-kpis">
-      <div class="pf-k"><small>Kapanışı yapılan gün</small><b>${days.length}</b><em>sabit gider payı ${money(ohDays)}</em></div>
+  el.innerHTML = openBar + `<div class="pf-kpis">
+      <div class="pf-k"><small>${APP.allocOpen ? 'Dahil edilen gün' : 'Kapanışı yapılan gün'}</small><b>${days.length}</b><em>sabit gider payı ${money(ohDays)}</em></div>
       <div class="pf-k"><small>Ciro (KDV hariç)</small><b>${money(T.rev)}</b><em>kapanış günlerinde</em></div>
       <div class="pf-k"><small>Malzeme maliyeti</small><b>${money(T.cost)}</b><em>%${pct(T.cost, T.rev)}</em></div>
       <div class="pf-k"><small>Dağıtılan sabit gider</small><b>${money(T.oh)}</b><em>cironun %${pct(T.oh, T.rev)}'i</em></div>
       <div class="pf-k hi ${T.net < 0 ? 'neg' : ''}"><small>Net kâr</small><b>${money(T.net)}</b><em>%${pct(T.net, T.rev)} net marj</em></div>
     </div>
-    <p class="fs-note" style="margin:10px 0;">Her kapanış gününün sabit gider payı (aylık sabit gider ÷ ayın gün sayısı) <b>kapanış anında</b> kaydedilir ve o günün KDV hariç cirosuna oranlanır. Ürünlere, o gün yaptıkları ciro kadar pay düşer. Kapanışı yapılmamış günler hesaba katılmaz.</p>
+    <p class="fs-note" style="margin:10px 0;">Her kapanış gününün sabit gider payı (aylık sabit gider ÷ ayın gün sayısı) <b>kapanış anında</b> kaydedilir ve o günün KDV hariç cirosuna oranlanır. Ürünlere, o gün yaptıkları ciro kadar pay düşer. Kapanışı yapılmamış günler varsayılan olarak hesaba katılmaz; gün iş günüdür (gün sonu saatinden gün sonu saatine).</p>
     <div class="u-mwn box"><h2 class="u-m0" style="margin-bottom:10px;">📦 Ürün bazında</h2>
       <div class="pf-head"><span>Ürün</span><span>Adet</span><span>Ciro</span><span>Malzeme</span><span>Gider payı</span><span>Net kâr</span></div>
       ${prods.map(p => `<div class="pf-row ${n(p.net) < 0 ? 'neg' : ''}"><summary style="cursor:default;">
@@ -990,7 +993,9 @@ async function renderDaycloseAlloc(session){
     </div>
     <div class="u-mwn box" style="margin-top:14px;"><h2 class="u-m0" style="margin-bottom:10px;">📅 Gün bazında</h2>
       <div class="pf-head"><span>Gün</span><span></span><span>Ciro</span><span>Malzeme</span><span>Sabit gider</span><span>Gider oranı</span></div>
-      ${days.map(d => `<div class="pf-row"><summary style="cursor:default;"><span class="pf-n"><b>${new Date(d.d + 'T12:00:00').toLocaleDateString('tr-TR', { weekday: 'short', day: '2-digit', month: '2-digit' })}</b></span><span></span>
+      ${days.map(d => `<div class="pf-row"><summary style="cursor:default;"><span class="pf-n"><b>${new Date(d.d + 'T12:00:00').toLocaleDateString('tr-TR', { weekday: 'short', day: '2-digit', month: '2-digit' })}</b><small>${d.closed ? '✓ kapanış yapıldı' : '⏳ kapanmadı · tahmini gider'}</small></span><span></span>
         <span data-l="Ciro">${money(d.rev)}</span><span data-l="Malzeme">${money(d.cost)}</span><span data-l="Sabit gider">${money(d.oh)}</span><span data-l="Gider oranı"><b class="pf-pill ${d.pct == null ? 'low' : d.pct > 30 ? 'neg' : d.pct > 15 ? 'low' : 'ok'}">${d.pct == null ? 'satış yok' : '%' + d.pct}</b></span></summary></div>`).join('')}
     </div>`;
 }
+
+function setAllocOpen(on){ APP.allocOpen = !!on; redrawReportPart(renderDaycloseAlloc, getSession()); }
