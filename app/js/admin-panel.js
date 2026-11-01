@@ -61,15 +61,17 @@ function renderAdminTabContent(admin){
    hataları (bkz. log_client_error) - aynı hata tek satırda, tekrar sayısıyla.
    Çözüldü işaretlenen hata tekrar olursa yeni satır olarak döner. */
 async function renderClientErrorsAdmin(main, admin){
-  const showAll = !!APP.adminErrorsAll;
+  const showAll = !!APP.adminErrorsAll, diag = !!APP.adminErrorsDiag;
   main.innerHTML = `<h1>⚠️ Hatalar</h1>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin:0 0 10px;"><button type="button" class="sbtn ${diag?'ghost-btn':''}" style="width:auto;" ${act('setAdminErrorsDiag', false)}>⚠️ Hatalar</button><button type="button" class="sbtn ${diag?'':'ghost-btn'}" style="width:auto;" ${act('setAdminErrorsDiag', true)}>📻 Tanı kayıtları (Bas-Konuş)</button></div>
     <label style="display:flex;gap:8px;align-items:center;margin:0 0 12px;"><input type="checkbox" class="u-wa-m0" ${showAll?'checked':''} ${actOn('change','setAdminErrorsAll',['$checked'])}> Çözülenleri de göster</label>
     <div id="errList"><p class="muted">Yükleniyor…</p></div>`;
   const { data, error } = await sb.rpc('admin_list_client_errors', { p_token: admin.session_token, p_show_resolved: showAll });
   const el = document.getElementById('errList'); if(!el) return;
   if(error){ el.innerHTML = '<p class="muted">Yüklenemedi: '+escapeHtml(error.message)+'</p>'; return; }
-  const rows = data || [];
-  if(!rows.length){ el.innerHTML = '<p class="muted">Kayıtlı hata yok 🎉</p>'; return; }
+  // Bas-Konuş tanı kayıtları (kind: radio) gerçek hata değildir; ayrı sekmede gösterilir.
+  const rows = (data || []).filter(r => diag ? r.kind === 'radio' : r.kind !== 'radio');
+  if(!rows.length){ el.innerHTML = '<p class="muted">' + (diag ? 'Tanı kaydı yok' : 'Kayıtlı hata yok 🎉') + '</p>'; return; }
   const ua = (u) => !u ? '-' : /Android/i.test(u) ? 'Android' : /iPhone|iPad/i.test(u) ? 'iOS' : /Windows/i.test(u) ? 'Windows' : /Mac/i.test(u) ? 'Mac' : 'Diğer';
   el.innerHTML = `<div class="settings-table-wrap"><table class="settings-table">
     <thead><tr><th>Hata</th><th>Tekrar</th><th>İşletme</th><th>Ekran</th><th>Cihaz</th><th>Son</th><th></th></tr></thead>
@@ -84,6 +86,7 @@ async function renderClientErrorsAdmin(main, admin){
       <td>${r.resolved ? '<span class="muted">Çözüldü</span>' : `<button class="sbtn" style="width:auto;" ${act('resolveClientError', r.id)}>✓ Çözüldü</button>`}</td>
     </tr>`).join('')}</tbody></table></div>`;
 }
+function setAdminErrorsDiag(on){ APP.adminErrorsDiag = !!on; renderClientErrorsAdmin(document.getElementById('main'), getAdminSession()); }
 async function resolveClientError(id){
   const admin = getAdminSession();
   const { error } = await sb.rpc('admin_resolve_client_error', { p_token: admin.session_token, p_id: id });

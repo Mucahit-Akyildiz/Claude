@@ -70,3 +70,10 @@ alter table app_users add column if not exists must_change_password boolean not 
 -- Giriş: login_failures.ip + _req_ip() (x-forwarded-for); aynı IP'den 15 dk'da 30 hatalı denemede giriş kilitlenir.
 alter table login_failures add column if not exists ip text;
 create index if not exists login_failures_ip_idx on login_failures(ip, created_at);
+
+-- Google Maps: platform anahtarı kullanan işletmeye günlük çağrı kotası (varsayılan 300; restaurants.maps_daily_quota ile değişir).
+create table if not exists maps_usage(restaurant_id uuid not null, day date not null, n int not null default 0, primary key(restaurant_id, day));
+alter table restaurants add column if not exists maps_daily_quota int;
+-- _maps_quota_take(p_order, p_rid, p_n) -> bool (yalnız service_role).
+-- QR / online sipariş isteği: IP bazlı sınır (ip_hits + _ip_rate_check('order_req', 12, 10)) submit_customer_order_request ve submit_public_order başında.
+create table if not exists ip_hits(id bigserial primary key, bucket text not null, ip text not null, created_at timestamptz not null default now());

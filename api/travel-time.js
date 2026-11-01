@@ -38,6 +38,12 @@ async function driveMinutes(key, from, to, departAt) {
   return secs.length ? Math.max(1, Math.round(Math.min(...secs) / 60)) : null;
 }
 
+// Platform anahtarı kullanılıyorsa işletme başına günlük kota (maps_usage, restaurants.maps_daily_quota, varsayılan 300 çağrı).
+async function quotaOk(supabase, ownKey, orderId, rid, n) {
+  if (ownKey) return true;
+  try { const { data, error } = await supabase.rpc('_maps_quota_take', { p_order: orderId || null, p_rid: rid || null, p_n: n }); return !error && data === true; } catch (e) { return false; }
+}
+
 const hm = (d) => new Date(d).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Istanbul' });
 
 module.exports = async function handler(req, res) {
@@ -53,6 +59,7 @@ module.exports = async function handler(req, res) {
     const { data: t } = await supabase.rpc('_order_travel_target', { p_order: body.order_id });
     const key = (t && t.key) || PLATFORM_KEY();
     if (!t || t.lat == null || !t.address || !key) { res.status(200).json({ fallback: true }); return; }
+    if (!(await quotaOk(supabase, t.key, body.order_id, null, 2))) { res.status(200).json({ fallback: true, reason: 'QUOTA' }); return; }
     try {
       const to = await geocode(key, t.address, t);
       if (to.error) { res.status(200).json({ fallback: true, reason: to.error }); return; }
@@ -76,6 +83,7 @@ module.exports = async function handler(req, res) {
         const { data: t } = await supabase.rpc('_order_travel_target', { p_order: id });
         const key = (t && t.key) || PLATFORM_KEY();
         if (!t || t.dest_lat == null || t.dispatched || t.status !== 'open' || !key) continue;
+        if (!(await quotaOk(supabase, t.key, id, null, 1))) continue;
         const mins = await driveMinutes(key, t, { lat: t.dest_lat, lng: t.dest_lng }, null);
         if (!mins) continue;
         const total = mins + (Number(t.buffer) || 0), prev = Number(t.travel_min) || total, diff = total - prev;
@@ -101,6 +109,7 @@ module.exports = async function handler(req, res) {
         const { data: t } = await supabase.rpc('_courier_eta_target', { p_order: id });
         const key = (t && t.key) || PLATFORM_KEY();
         if (!t || t.delivered || t.lat == null || !key) continue;
+        if (!(await quotaOk(supabase, t.key, id, null, t.dest_lat != null ? 1 : 2))) continue;
         let dest = t.dest_lat != null ? { lat: t.dest_lat, lng: t.dest_lng } : null;
         if (!dest && t.address) {
           const g = await geocode(key, t.address, t.rest_lat != null ? { lat: t.rest_lat, lng: t.rest_lng } : null);
@@ -123,6 +132,7 @@ module.exports = async function handler(req, res) {
   const { data: ses, error } = await supabase.rpc('_maps_session', { p_token: token });
   if (error || !ses) { res.status(401).json({ error: 'Oturum geçersiz' }); return; }
   const key = ses.key || PLATFORM_KEY();
+  if (key && !(await quotaOk(supabase, ses.key, null, ses.rid, 1))) { res.status(200).json({ fallback: true, error: 'Günlük ortak harita kotası doldu. Sınırsız kullanım için kendi Google Maps API anahtarınızı bu ekrana girin.' }); return; }
   if (!key) { res.status(200).json({ fallback: true, error: 'Google Maps API anahtarı girilmemiş. Anahtarı bu ekrana girip kaydedin; o zamana kadar varsayılan süre kullanılır.' }); return; }
   try {
     const g = await geocode(key, String(body.address).slice(0, 300));
