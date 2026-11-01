@@ -49,3 +49,4 @@ alter table orders add column if not exists travel_min int, add column if not ex
 -- Paket malzemesi kullanım şekli: ingredients.pack_mode (null | per_product | per_order); set_ingredient_pack_mode; set_ingredient_usage2 moda göre yazar.
 -- orders.packaging/pack_cost + set_order_packaging (siparişte girilen poşet adedi, fark kadar stok); iptalde iade; başa baş brüt kârından düşülür.
 -- set_item_packed: ödenmiş kalemlerde de son 48 saat; get_order_pack_items(session, history) kapanmış hesaptan paket yap.
+-- get_product_profit: p_qty/p_rev/p_cost/p_packcost (paket kanalı) ve order_pack_cost (poşet).

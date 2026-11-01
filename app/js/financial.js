@@ -852,6 +852,7 @@ function renderProfitView(){
     </div>
     <div class="pf-bar" title="Ciro dağılımı"><i style="width:${pct(T.cost, T.rev)}%;background:var(--c3)"></i><i style="width:${pct(T.oh, T.rev)}%;background:var(--c2)"></i><i style="width:${Math.max(0, pct(T.net, T.rev))}%;background:var(--ok,#22c55e)"></i></div>
     <div class="pf-leg"><span><i style="background:var(--c3)"></i>Malzeme</span>${be ? '' : '<span><i style="background:var(--c2)"></i>Genel gider</span>'}<span><i style="background:var(--ok,#22c55e)"></i>${NL}</span></div>
+    ${profitChannelHtml(all, d)}
     ${tagCompareHtml((d.rows || []).map(r => ({ qty: r.qty, rev: r.revenue, cost: r.cost, t_qty: r.t_qty, t_rev: r.t_rev, t_cost: r.t_cost })))}
     <div class="pf-insights">
       ${best ? card('all', '🏆', 'En çok kazandıran', escapeHtml(best.name), money(best.net) + ' ' + NL.toLocaleLowerCase('tr'), 'var(--ok,#22c55e)') : ''}
@@ -875,8 +876,11 @@ function renderProfitView(){
 }
 function profitDetailHtml(r, oh){
   const up = r.unitPrice, uc = r.unitCost, uo = up * oh / 100, un = up - uc - uo;
+  const pq = Number(r.p_qty) || 0, dq = r.qty - pq, pr = Number(r.p_rev) || 0, pc = Number(r.p_cost) || 0, dr = r.rev - pr, dc = r.cost - pc, ppk = Number(r.p_packcost) || 0;
+  const chHtml = pq ? `<div class="pf-ch"><div><small>🍽️ Masada</small><b>${Math.round(dq * 100) / 100} adet</b><em>birim maliyet ${money(dq ? dc / dq : 0)} · katkı ${money(dq ? (dr - dc) / dq : 0)}</em></div>
+      <div><small>🛍️ Pakette</small><b>${Math.round(pq * 100) / 100} adet</b><em>birim maliyet ${money(pc / pq)}${ppk ? ' (paket malz. ' + money(ppk / pq) + ')' : ''} · katkı ${money((pr - pc) / pq)}</em></div></div>` : '';
   const rec = r.recipe || [];
-  return `<div class="pf-det">
+  return `<div class="pf-det">${chHtml}
     <div class="pf-unit">
       <div><small>Birim satış (KDV hariç)</small><b>${money(up)}</b></div><div><small>Birim malzeme</small><b>${money(uc)}</b><em>%${up ? Math.round(uc / up * 100) : 0}</em></div>
       <div><small>Birim genel gider</small><b>${money(uo)}</b><em>%${oh}</em></div><div class="${un < 0 ? 'neg' : ''}"><small>Birim net kâr</small><b>${money(un)}</b><em>%${up ? Math.round(un / up * 100) : 0}</em></div>
@@ -944,3 +948,17 @@ async function renderStaffPerformance(session, sub){
   finally{ slot.id = 'spSlot'; host.id = 'reportContent'; }
 }
 function setStaffSub(k){ APP.staffSub = k; renderStaffPerformance(getSession()); }
+
+/* Masa / paket ayrımı: paket = paket sipariş ya da masada "paket yap" denen ürünler. Paket malzemesi (kap vb.) ürün maliyetine,
+   poşet gibi siparişte adet girilenler ayrıca gösterilir. */
+function profitChannelHtml(all, d){
+  const P = all.reduce((a, r) => { const pq = Number(r.p_qty) || 0, pr = Number(r.p_rev) || 0, pc = Number(r.p_cost) || 0;
+    a.pq += pq; a.pr += pr; a.pc += pc; a.pk += Number(r.p_packcost) || 0; a.dq += r.qty - pq; a.dr += r.rev - pr; a.dc += r.cost - pc; return a; }, { pq: 0, pr: 0, pc: 0, pk: 0, dq: 0, dr: 0, dc: 0 });
+  const bag = Number(d.order_pack_cost) || 0;
+  if(!P.pq && !bag) return '';
+  const pct = (a, b) => b ? Math.round(a / b * 100) : 0, q = (v) => Math.round(v * 100) / 100;
+  return `<div class="pf-chan">
+    <div class="pf-cc"><span>🍽️</span><div><small>Masa servisi</small><b>${money(P.dr - P.dc)}</b><em>${q(P.dq)} adet · ciro ${money(P.dr)} · maliyet ${money(P.dc)} · %${pct(P.dr - P.dc, P.dr)} katkı</em></div></div>
+    <div class="pf-cc pk"><span>🛍️</span><div><small>Paket</small><b>${money(P.pr - P.pc - bag)}</b><em>${q(P.pq)} adet · ciro ${money(P.pr)} · maliyet ${money(P.pc)}${P.pk ? ' (paket malzemesi ' + money(P.pk) + ')' : ''}${bag ? ' · poşet ' + money(bag) : ''} · %${pct(P.pr - P.pc - bag, P.pr)} katkı</em></div></div>
+  </div>`;
+}
