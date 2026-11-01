@@ -74,7 +74,7 @@ function renderIngredientsSettings(el, session){
         <span class="u-f1"></span>
         <div class="act-row">
           <button type="button" class="act-btn act-save" id="ingSaveAllBtn" ${act('saveAllIngredients')} disabled>${ICON_SAVE}<span>Kaydet</span></button>
-          <button type="button" class="act-btn act-reset" title="Seçili hammaddelerin (seçim yoksa hepsinin) stoğunu sıfırla" ${act('resetIngredientStock')}><b>↺</b><span>Stokları sıfırla</span></button>
+          <button type="button" class="act-btn act-reset" title="Seçili hammaddelerin stoğunu sıfırla (önce hammadde seçin)" data-ing-sel ${act('resetIngredientStock')} disabled><b>↺</b><span>Stokları sıfırla</span></button>
           <button type="button" class="act-btn act-delete" data-ing-sel ${act('bulkDeleteIngredients')} disabled>${ICON_TRASH}<span>Sil</span></button>
         </div>
       </div>
@@ -1778,8 +1778,9 @@ function iuWizardNext(ingredientId){ if(iuMode() === 'per_order') return saveIng
 
 // Stokları sıfırla: seçim varsa seçilenler, yoksa tüm hammaddeler (sayım öncesi / yeni başlangıç). Ortalama maliyet korunur.
 async function resetIngredientStock(){
-  const ids = selectedIngredientIds(), all = !ids.length;
-  const n = all ? ((APP.config && APP.config.ingredients) || []).length : ids.length;
+  const ids = selectedIngredientIds(), all = false;
+  if(!ids.length){ showToast('Önce stoğu sıfırlanacak hammaddeleri seçin'); return; }
+  const n = ids.length;
   const ok = await (typeof uiConfirm === 'function' ? uiConfirm(`${all ? 'TÜM hammaddelerin' : n + ' seçili hammaddenin'} stoğu 0 yapılacak. Ortalama maliyetler korunur. Emin misiniz?`) : Promise.resolve(confirm('Stoklar sıfırlansın mı?')));
   if(!ok) return;
   const { data, error } = await sb.rpc('reset_ingredient_stock', { p_token: getSession().session_token, p_ids: all ? null : ids });
