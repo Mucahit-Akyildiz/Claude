@@ -159,7 +159,7 @@ function setBillDate(which, v){
 }
 function setReportBillsFilter(k, v){ APP.reportBillsFilter[k] = v; renderReportTabContent(getSession()); }
 function resetReportBillsFilter(){ APP.reportBillsFilter = { hour:'', table:'', method:'', source:'' }; renderReportTabContent(getSession()); }
-function setProductStatsOpt(k, v){ APP[k] = v; renderProductStatsContent(getSession()); }
+function setProductStatsOpt(k, v){ APP[k] = v; redrawReportPart(renderProductStatsContent, getSession()); }
 
 /* Gün × saat yoğunluk ısı haritası (kapatılan hesapların kapanış saatine göre). */
 function heatmapHtml(hist){

@@ -212,9 +212,9 @@ async function renderReportsView(main, session){
 function reportTabList(){
   const dsc = { summary:'Ciro, kâr, ödemeler', cockpit:'Karşılaştırma, tahmin, uyarılar', menueng:'Kârlılık haritası', tablemap:'Masa bazlı ciro', heat:'Gün × saat yoğunluğu', channels:'Masa, paket, gel-al, online', speed:'Hazırlama ve yanıt süreleri',
     stockf:'Ne zaman bitecek', zreport:'Z raporu, kasa, kapanışlar', waiters:'Kartlar, ciro, saatlik çalışma', journey:'Sadakat, kayıp müşteri', period:'Saatlik / günlük', vat:'Vergi dağılımı',
-    products:'En çok satanlar', profit:'Maliyet, kâr, net getiri', staff:'Personel ısı haritası', customers:'Harcama, sadakat, kayıp müşteri', tips:'Bahşiş dağılımı', waste:'Fire ve israf', cancel:'İptaller, personel bazlı kayıp', loss:'Personel bazlı kayıp kontrolü',
+    products:'Satışlar, maliyet, kârlılık', staff:'Personel ısı haritası', customers:'Harcama, sadakat, kayıp müşteri', tips:'Bahşiş dağılımı', waste:'Fire ve israf', cancel:'İptaller, personel bazlı kayıp', loss:'Personel bazlı kayıp kontrolü',
     resv:'Rezervasyon performansı', openacc:'Veresiye bakiyeleri', payroll:'Çalışma saati, maaş, prim', dayclose:'Kapandı mı, kasa farkı', reviews:'Yıldız ve yorumlar' };
-  return [['summary','📊','Genel Özet'], ...AN_TABS, ['period','📈','Dönemsel Analiz'],['vat','🧾','KDV'],['products','📦','Ürün İstatistikleri'],['profit','💹','Ürün Kârlılığı'],['customers','🧑‍🤝‍🧑','Müşteri Analizleri'],['payroll','💼','Puantaj & Prim'],['reviews','⭐','Müşteri Değerlendirmeleri'],['tips','💰','Bahşiş Havuzu'],['waste','🔥','İsraf'],['cancel','❌','İptal & İkram Kontrolü'],['resv','📅','Rezervasyon Analizi'],['openacc','📒','Açık Hesaplar']].map(t => [...t, dsc[t[0]] || '']);
+  return [['summary','📊','Genel Özet'], ...AN_TABS, ['period','📈','Dönemsel Analiz'],['vat','🧾','KDV'],['products','📦','Ürün Analizi'],['customers','🧑‍🤝‍🧑','Müşteri Analizleri'],['payroll','💼','Puantaj & Prim'],['reviews','⭐','Müşteri Değerlendirmeleri'],['tips','💰','Bahşiş Havuzu'],['waste','🔥','İsraf'],['cancel','❌','İptal & İkram Kontrolü'],['resv','📅','Rezervasyon Analizi'],['openacc','📒','Açık Hesaplar']].map(t => [...t, dsc[t[0]] || '']);
 }
 function setReportTab(tab){
   if(tab !== APP.reportTab) pushScreen();
@@ -253,8 +253,7 @@ function renderReportTabContent(session){
   const tab = APP.reportTab||'summary';
   if(tab==='period') return renderPeriodAnalyticsContent(session);
   if(tab==='vat') return renderVatReportContent(session);
-  if(tab==='products') return renderProductStatsContent(session);
-  if(tab==='profit') return renderProfitContent(session);
+  if(tab==='products' || tab==='profit') return renderProductAnalysis(session, tab === 'profit' ? 'profit' : null);
   if(tab==='customers' || tab==='journey') return renderMergedReport(session, [['🧑‍🤝‍🧑', 'Müşteri Harcamaları', renderCustomerAnalyticsContent], ['🔁', 'Müşteri Yolculuğu (sadakat, geri dönüş, kayıp)', renderJourneyContent]]);
   if(tab==='tips') return renderTipPoolContent(session);
   if(tab==='waste') return renderWasteContent(session);
@@ -819,7 +818,7 @@ async function renderProfitContent(session){
   if(error){ el.innerHTML = '<p class="muted">Yüklenemedi: ' + escapeHtml(error.message) + '</p>'; return; }
   APP.profitData = data || {}; renderProfitView();
 }
-function setProfitOpt(k, v){ APP[k] = v; renderProfitView(); }
+function setProfitOpt(k, v){ APP[k] = v; redrawReportPart(renderProfitView); }
 function profitRows(){
   const d = APP.profitData || {}, oh = Number(d.overhead_pct) || 0;
   return (d.rows || []).map(r => {
@@ -915,3 +914,15 @@ async function redrawReportPart(fn, ...args){
   try{ return await fn(...args); } finally{ slot.id = slotId; host.id = 'reportContent'; }
 }
 function scrollToReportPart(id){ const el = document.getElementById(id); if(el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+
+/* Ürün Analizi: Satışlar (en çok satanlar, hammadde tüketimi) ve Kârlılık (maliyet, katkı, net) tek sekmede, iki alt sekme. */
+async function renderProductAnalysis(session, sub){
+  if(sub) APP.prodSub = sub;
+  const host = document.getElementById('reportContent'); if(!host) return;
+  const cur = APP.prodSub || 'sales';
+  host.innerHTML = `<div class="seg pa-seg">${[['sales','📦 Satışlar'],['profit','💹 Kârlılık']].map(([k, l]) => `<button type="button" class="${cur === k ? 'on' : ''}" ${act('setProdSub', k)}>${l}</button>`).join('')}</div><div id="paSlot"></div>`;
+  const fn = cur === 'profit' ? renderProfitContent : renderProductStatsContent;
+  APP.mergeSlots = new Map([[fn, 'paSlot'], [renderProfitView, 'paSlot'], [renderProductStatsContent, 'paSlot']]);
+  await redrawReportPart(fn, session);
+}
+function setProdSub(k){ APP.prodSub = k; renderProductAnalysis(getSession()); }

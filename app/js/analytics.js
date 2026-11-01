@@ -580,9 +580,9 @@ async function anSearch(q){
   if(q.length < 2){ box.innerHTML = ''; box.hidden = true; return; }
   let d = null; try { d = await anBundle(getSession()); } catch(e){}
   const hit = (s) => String(s || '').toLocaleLowerCase('tr').includes(q);
-  const tabs = [...AN_TABS, ['summary','📊','Genel Özet'], ['period','📈','Dönemsel Analiz'], ['vat','🧾','KDV'], ['products','📦','Ürün İstatistikleri'], ['profit','💹','Ürün Kârlılığı'],
+  const tabs = [...AN_TABS, ['summary','📊','Genel Özet'], ['period','📈','Dönemsel Analiz'], ['vat','🧾','KDV'], ['products','📦','Ürün Analizi'],
     ['customers','🧑‍🤝‍🧑','Müşteri Analizleri'], ['tips','💰','Bahşiş Havuzu'], ['waste','🔥','İsraf'], ['cancel','❌','İptaller'], ['resv','📅','Rezervasyon Analizi'], ['openacc','📒','Açık Hesaplar']];
-  const kw = { nakit: 'zreport', kart: 'zreport', 'gün sonu': 'zreport', z: 'zreport', kâr: 'menueng', kar: 'menueng', stok: 'stockf', saat: 'heat', iptal: 'cancel', israf: 'waste', bahşiş: 'tips', hedef: 'cockpit', tahmin: 'cockpit', garson: 'waiters', personel: 'waiters', ikram: 'cancel', masa: 'tablemap', kdv: 'vat' };
+  const kw = { nakit: 'zreport', kart: 'zreport', 'gün sonu': 'zreport', z: 'zreport', kâr: 'menueng', kar: 'menueng', kârlılık: 'products', maliyet: 'products', stok: 'stockf', saat: 'heat', iptal: 'cancel', israf: 'waste', bahşiş: 'tips', hedef: 'cockpit', tahmin: 'cockpit', garson: 'waiters', personel: 'waiters', ikram: 'cancel', masa: 'tablemap', kdv: 'vat' };
   const res = [];
   tabs.filter(t => hit(t[2])).forEach(t => res.push([t[1], t[2], 'Sekme', t[0]]));
   Object.entries(kw).filter(([w]) => w.startsWith(q) || q.startsWith(w)).forEach(([w, t]) => { const tb = tabs.find(x => x[0] === t); if(tb && !res.some(r => r[3] === t)) res.push([tb[1], tb[2], '“' + w + '” ile ilgili', t]); });
