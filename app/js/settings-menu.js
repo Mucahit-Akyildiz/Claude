@@ -874,6 +874,7 @@ function tableTreatBoxHtml(){
       <div><label>Bölgeler <small class="muted">(hiçbiri seçilmezse tümü)</small></label><div class="tt-zones">${zones.map(z => `<label class="al-u"><input type="checkbox" class="tt-z" value="${z.id}" ${zsel.includes(z.id) ? 'checked' : ''}><span>${escapeHtml(z.name)}</span></label>`).join('') || '<small class="muted">Bölge yok</small>'}</div></div>
     </div>
     ${cur && Number(cur.cost) ? `<p class="muted u-fs12" style="text-align:left;margin:8px 0 0;">Kişi başı ikram maliyeti: <b>${money(cur.cost)}</b></p>` : cur ? '<p class="u-fs12 u-red" style="text-align:left;margin:8px 0 0;">⚠️ Bu ürünün maliyeti yok; reçete girin ki ikram maliyeti hesaplansın.</p>' : ''}
+    <p class="muted u-fs12" style="text-align:left;margin:8px 0 0;">${APP.config && APP.config.guest_required ? '🔒 Kişi sayısı zorunlu: açık' : '💡 Kişi sayısı girilmeyen masaya ikram eklenmez. <b>Bildirim Ayarları › Kişi Sayısı</b> bölümünden "Kişi sayısı zorunlu"yu açabilirsiniz.'}</p>
     <button type="button" style="margin-top:10px;width:auto;" ${act('saveTableTreat')}>💾 Kaydet</button>
   </div>`;
 }
