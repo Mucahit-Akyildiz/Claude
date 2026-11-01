@@ -1417,7 +1417,9 @@ function prodDrawerCalc(){
   if(vat === 0 && pr > 0) warn.push('⚠️ <b>KDV %0</b> — fiyattan KDV düşülmüyor, kâr olduğundan yüksek görünür. Ürünün KDV\'sini seçin ya da varsayılan KDV\'yi düzeltin (Ürünler › Nasıl çalışır).');
   const mw = document.getElementById('ed_mwarn'); if(mw){ mw.innerHTML = warn.map(x => `<div>${x}</div>`).join(''); mw.hidden = !warn.length; }
   bar.parentElement.parentElement.classList.toggle('bad', !(co > 0) && pr > 0);
-  t.innerHTML = `KDV hariç fiyat <b>${money(np)}</b> <span class="muted">(%${vat} KDV: ${money(pr - np)})</span> · Katkı payı <b>${money(kp)}</b> · <b>%${m}</b> marj` + (oh ? ` <span class="muted">|</span> Net kâr <b>${money(np-full)}</b> · <b>%${np>0 ? Math.round((np-full)/np*100) : 0}</b>` : '');
+  const pkc = ((p && p.packaging) || []).reduce((a, x) => a + Number(x.qty || 0) * Number(x.unit_cost || 0), 0);
+  const pkLine = p && (p.packaging || []).length ? `<div class="ed-ch"><span>🍽️ Masada: maliyet <b>${money(co)}</b> · katkı <b>${money(kp)}</b></span><span>🛍️ Pakette: maliyet <b>${money(co + pkc)}</b> <small class="muted">(+${money(pkc)} ${escapeHtml(p.packaging.map(x => x.ingredient_name).join(', '))})</small> · katkı <b>${money(kp - pkc)}</b></span></div>` : '';
+  t.innerHTML = pkLine + `KDV hariç fiyat <b>${money(np)}</b> <span class="muted">(%${vat} KDV: ${money(pr - np)})</span> · Katkı payı <b>${money(kp)}</b> · <b>%${m}</b> marj` + (oh ? ` <span class="muted">|</span> Net kâr <b>${money(np-full)}</b> · <b>%${np>0 ? Math.round((np-full)/np*100) : 0}</b>` : '');
 }
 async function saveProdDrawer(){
   const box = document.querySelector('#prodDrawer .pdrawer'); if(!box) return;

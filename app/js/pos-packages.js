@@ -857,7 +857,9 @@ async function toggleItemPacked(tableId, itemId, on){
 function packOrderIngs(){ return ((APP.config && APP.config.ingredients) || []).filter(i => i.pack_mode === 'per_order'); }
 function pkgPackHtml(existing){
   const ings = packOrderIngs(); if(!ings.length) return '';
-  APP.pkgPack = Object.assign({}, (existing && existing.packaging) || {}); APP.pkgPackDirty = false;
+  // Yeni paket siparişte poşet 1 ile başlar (çoğu siparişte tek poşet); gerekirse artırılır ya da 0'a indirilir.
+  if(existing){ APP.pkgPack = Object.assign({}, existing.packaging || {}); APP.pkgPackDirty = false; }
+  else { APP.pkgPack = {}; ings.forEach(i => { APP.pkgPack[i.id] = 1; }); APP.pkgPackDirty = true; }
   return `<div class="field-group pk-pack"><label>🛍️ Poşet / paket</label><div class="pk-pack-row">${ings.map(i => packCounterHtml(i, APP.pkgPack[i.id] || 0, 'pkgPackStep')).join('')}</div>
     <small class="muted">Kaç adet verildiyse girin; o kadar stoktan düşer.</small></div>`;
 }
