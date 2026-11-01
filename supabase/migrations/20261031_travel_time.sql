@@ -42,3 +42,4 @@ alter table orders add column if not exists travel_min int, add column if not ex
 -- resend_courier_notify courier_offer_at'i yeniler; dispatch_order kurye değişince onayı sıfırlar; get_live_orders/get_courier_job alanları.
 -- Başa baş: restaurants.overhead_method ('breakeven' varsayılan | 'revenue'); _overhead_summary mtd_gross/days/has_rent/revenue_pct; _overhead_pct yalnız 'revenue'de; set_overhead_settings(p_method).
 -- KDV hariç kâr: get_product_profit.net_revenue; get_analytics_bundle.products.nrev; _overhead_summary.mtd_gross KDV hariç.
+-- get_ingredient_daily_usage(session, days): sipariş önerisi için hammadde başına son N gün tüketimi (fire dahil) + span.

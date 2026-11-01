@@ -4038,3 +4038,5 @@ button.sl-stat{border:1px solid var(--border) !important;} button.sl-stat.on{bor
 .ed-mwarn{display:grid;gap:4px;margin:6px 0;padding:8px 12px;border-radius:12px;font-size:12.5px;line-height:1.45;background:color-mix(in srgb,var(--danger,#ef4444) 12%,transparent);border:1px solid color-mix(in srgb,var(--danger,#ef4444) 40%,var(--border));}
 .pdrawer-margin.bad{border-color:color-mix(in srgb,var(--danger,#ef4444) 45%,var(--border));}
 .vat0-warn{margin:0 0 8px;padding:10px 14px;border-radius:12px;font-size:13px;text-align:left;background:color-mix(in srgb,var(--danger,#ef4444) 12%,transparent);border:1px solid color-mix(in srgb,var(--danger,#ef4444) 40%,var(--border));}
+.po-line{margin-bottom:8px;}
+.po-sg{display:flex;gap:8px;align-items:center;justify-content:space-between;margin:4px 2px 0;font-size:12.5px;text-align:left;} .po-sg .pc-btn{margin:0;width:auto;padding:4px 10px;}
