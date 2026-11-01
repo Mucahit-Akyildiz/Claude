@@ -79,7 +79,7 @@ function renderIngredientsSettings(el, session){
       </div>
       <p class="muted" id="ingSelInfo" style="text-align:left;font-size:12.5px;margin:-4px 0 8px;text-transform:none;letter-spacing:0;font-weight:400;"></p>
     </div>
-    ${sheetHtml('ingSheet', '🥕', 'Yeni Hammadde', `
+    ${sheetHtml('ingSheet', '🥕', 'Yeni Hammadde', `${ingStepsHtml(1)}
       <div class="fsheet-grid">
         <div class="field-group wide"><label>Hammadde Adı</label><input id="ni_name" placeholder="örn. Döner Eti"></div>
         <div class="field-group"><label>Birim</label><select id="ni_unit" ${actOn('change','niCalc',[])}><option value="adet">adet</option><option value="gram">gram</option><option value="kg">kg</option><option value="ml">ml</option><option value="lt">lt</option></select></div>
@@ -89,7 +89,7 @@ function renderIngredientsSettings(el, session){
       </div>
       <div class="ni-sum" id="niSum">💰 Stok değeri: —</div>
       <p class="muted" style="font-size:12px;text-align:left;margin:10px 0 0;">Maliyet sonra Mal Kabul'de fiyatlı teslim aldıkça ortalanarak güncellenir. Ekledikten sonra hangi ürünlerin bu hammaddeyi kullandığını soracağız; ürün maliyetleri otomatik hesaplanır.</p>
-      <div class="fsheet-foot"><button type="button" class="ghost-btn" ${act('closeSheet','ingSheet')}>Vazgeç</button><button ${act('addIngredient')}>+ Hammadde Ekle</button></div>`, 'var(--c3)')}
+      <div class="fsheet-foot"><button type="button" class="ghost-btn" ${act('closeSheet','ingSheet')}>Vazgeç</button><button ${act('addIngredient')}>Devam › Kullanım şekli</button></div>`, 'var(--c3)')}
     <div style="display:flex;align-items:center;gap:8px;margin:4px 0 10px;"><label style="display:flex;align-items:center;gap:6px;margin:0;font-size:13px;font-weight:600;"><input type="checkbox" class="u-wa-m0" ${actOn('change','selectAllIngredients',['$checked'])}> Tümünü seç</label></div>
     <div class="ig-grid" ${actOn('input','markIngDirty',['$event'])} ${actOn('change','markIngDirty',['$event'])}>
       ${shownIngs.map((i, k) => { const st = Number(i.stock)||0, out = st <= 0, uses = useCount(i.id), pct = Math.max(4, Math.min(100, st / maxStock * 100));
@@ -197,6 +197,7 @@ function openIngredientUsageModal(ingredientId, edit){
   bg.innerHTML = `<div class="iu-modal" role="dialog" aria-modal="true">
     <div class="iu-head"><div><small class="muted">${edit ? 'Hammadde düzenle' : 'Kullanıldığı ürünler'}</small><h2>🥕 ${escapeHtml(ing.name || '')}</h2></div><button type="button" class="pdrawer-x" ${act('removeEl','ingUsageModalBg')}>✕</button></div>
     <div class="iu-body">
+      ${!edit ? ingStepsHtml(2) : ''}
       ${edit ? `<section class="iu-card">
         <div class="iu-grid">
           <div class="iu-f iu-wide"><label>Hammadde adı</label><input id="iue_name" value="${escapeAttr(ing.name||'')}"></div>
@@ -220,6 +221,7 @@ function openIngredientUsageModal(ingredientId, edit){
       <button type="button" class="iu-prodbtn" id="iuProdBtn" ${ing.pack_mode === 'per_order' ? 'hidden' : ''} ${act('openIuProdPop')}><span>🍽️</span><div><b>Kullanıldığı ürünler</b><small id="iuProdSum">—</small></div><em>Ürünleri seç ›</em></button>
       <div class="iu-pop" id="iuProdPop" hidden><div class="iu-pop-in">
       <section id="iuProdSec">
+        ${!edit ? ingStepsHtml(3) : ''}
         <div class="iu-sh"><h3>🍽️ Kullanıldığı ürünler · ${escapeHtml(ing.name || '')}</h3><small class="muted" id="iuCount"></small></div>
         <p class="muted iu-hint" id="iuHint">${ing.pack_mode === 'per_product' ? 'Paket olarak satıldığında hangi ürünlerde, 1 porsiyon için kaç adet kullanılıyor?' : 'İşaretleyip 1 porsiyonda kullanılan <b>net</b> miktarı girin; maliyet payı yanında görünür.'}</p>
         ${products.length ? `<div class="iu-tools">
@@ -231,11 +233,11 @@ function openIngredientUsageModal(ingredientId, edit){
         </div>` : ''}
         <div id="ingUsageItemsBox" class="iu-list"></div>
       </section>
-      <div class="iu-pop-foot"><span class="muted">Değişiklikler ana pencerede <b>Kaydet</b> ile kaydedilir.</span><button type="button" ${act('closeIuProdPop')}>✓ Tamam</button></div>
+      <div class="iu-pop-foot"><span class="muted">${!edit ? 'Adım 3/3 · ürünleri seçip <b>Tamam</b>, sonra <b>Bitir ve kaydet</b>.' : 'Değişiklikler ana pencerede <b>Kaydet</b> ile kaydedilir.'}</span><button type="button" ${act('closeIuProdPop')}>✓ Tamam</button></div>
       </div></div>
       <p class="muted iu-ordernote" id="iuOrderNote" ${ing.pack_mode === 'per_order' ? '' : 'hidden'}>🛍️ Ürünlere bağlanmaz. Paket sipariş ekranında (ve masada paket yapılan siparişte) <b>kaç adet</b> verildiği girilir; o kadar stoktan düşer ve maliyete eklenir.</p>
     </div>
-    <div class="iu-foot"><button type="button" class="ghost-btn" ${act('removeEl','ingUsageModalBg')}>Vazgeç</button><button ${act('saveIngredientUsage', ingredientId)}>${ICON_SAVE}<span>Kaydet</span></button></div>
+    <div class="iu-foot">${!edit ? '<span class="muted iu-foot-n">Hammadde eklendi · kullanım şeklini ve ürünleri seçip kaydedin</span>' : ''}<button type="button" class="ghost-btn" ${act('removeEl','ingUsageModalBg')}>${edit ? 'Vazgeç' : 'Sonra'}</button><button ${act('saveIngredientUsage', ingredientId)}>${ICON_SAVE}<span>${edit ? 'Kaydet' : 'Bitir ve kaydet'}</span></button></div>
   </div>`;
   document.body.appendChild(bg);
   const box = document.getElementById('ingUsageItemsBox');
@@ -1761,4 +1763,10 @@ function iuSelectAll(){
   rows.forEach(r => { const c = r.querySelector('input[type=checkbox]'), q = r.querySelector('.iu-q input'); c.checked = !all; q.disabled = all; });
   const b = document.getElementById('iuAllBtn'); if(b) b.textContent = all ? '☑️ Tümünü seç' : '✖️ Seçimi kaldır';
   filterIngUsage(); iuRecalc();
+}
+
+// Yeni hammadde akışında adım göstergesi: 1 Bilgiler → 2 Kullanım şekli → 3 Ürünler.
+function ingStepsHtml(cur){
+  const st = [['Bilgiler', 'ad, birim, stok, maliyet'], ['Kullanım şekli', 'reçete / paket'], ['Ürünler', 'hangi üründe, ne kadar']];
+  return `<div class="ing-steps"><span class="ing-steps-n">Adım ${cur}/${st.length}</span>${st.map(([t, d], i) => `<div class="ing-st ${i + 1 < cur ? 'done' : i + 1 === cur ? 'on' : ''}"><i>${i + 1 < cur ? '✓' : i + 1}</i><div><b>${t}</b><small>${d}</small></div></div>`).join('<span class="ing-st-line"></span>')}</div>`;
 }
