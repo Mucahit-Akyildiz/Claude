@@ -700,14 +700,46 @@ function poExport(poId, mode){
 }
 async function poSend(poId, channel){
   const p = (APP.procRows || []).find(x => x.id === poId); if(!p) return;
-  const sup = (APP.procSuppliers || []).find(x => x.id === p.supplier_id) || {};
-  const def = channel === 'email' ? (sup.email || '') : (sup.phone || '');
-  if(!p.supplier_id && !def){ /* tedarikçi seçilmemiş: alıcı sorulur */ }
-  const to = await (typeof uiPrompt === 'function' ? uiPrompt(channel === 'email' ? 'Siparişi hangi e-postaya gönderelim?' : 'Siparişi hangi numaraya SMS gönderelim?', def) : Promise.resolve(prompt(channel === 'email' ? 'E-posta adresi' : 'Telefon numarası', def)));
-  if(to == null || !String(to).trim()) return;
-  const { data, error } = await sb.rpc('send_po_to_supplier', { p_token: getSession().session_token, p_po_id: poId, p_channel: channel, p_to: String(to).trim() });
-  if(error){ alert(error.message); return; }
-  showToast(channel === 'email' ? (data && data.sent ? '📧 Sipariş e-postayla gönderildi: ' + data.to : '📧 E-posta sıraya alındı (e-posta servisi tanımlı değilse gönderilmez — Ayarlar › Entegrasyonlar)') : '💬 Sipariş SMS ile gönderildi: ' + data.to);
+  const tos = await poPickRecipients(p, channel);
+  if(!tos || !tos.length) return;
+  const ok = [], bad = [];
+  for(const to of tos){
+    const { data, error } = await sb.rpc('send_po_to_supplier', { p_token: getSession().session_token, p_po_id: poId, p_channel: channel, p_to: to });
+    if(error) bad.push(to + ': ' + error.message); else ok.push((data && data.to) || to);
+  }
+  if(bad.length) alert('Gönderilemedi:\n' + bad.join('\n'));
+  if(ok.length) showToast((channel === 'email' ? '📧 E-posta gönderildi: ' : '💬 SMS gönderildi: ') + ok.length + ' alıcı');
+}
+/* Alıcı seçimi: tedarikçiler ve kullanıcılar listeden işaretlenir, ayrıca elle (virgülle) adres/numara girilebilir. */
+function poPickRecipients(p, channel){
+  const isMail = channel === 'email';
+  const opts = [];
+  (APP.procSuppliers || []).forEach(x => { const v = isMail ? x.email : x.phone; if(v) opts.push({ v, l: '🏭 ' + (x.name || 'Tedarikçi'), def: x.id === p.supplier_id }); });
+  if(!isMail) ((APP.config && APP.config.users) || []).filter(u => u.is_active !== false && u.phone).forEach(u => opts.push({ v: u.phone, l: '👤 ' + u.username }));
+  const seen = new Set(), list = opts.filter(o => !seen.has(o.v) && seen.add(o.v));
+  const show = (v) => isMail ? v : (typeof maskPhone === 'function' ? maskPhone(v) : v);
+  return new Promise(resolve => {
+    const bg = document.createElement('div'); bg.className = 'dg-bg'; bg.style.zIndex = 3000;
+    bg.innerHTML = `<div class="dg-card uc-card" style="max-width:440px;text-align:left;"><div class="dg-ic">${isMail ? '📧' : '💬'}</div>
+      <div class="uc-msg"><p><b>${isMail ? 'Siparişi e-postayla gönder' : 'Siparişi SMS ile gönder'}</b></p></div>
+      ${list.length ? `<div style="max-height:240px;overflow:auto;display:flex;flex-direction:column;gap:6px;margin:6px 0 10px;">${list.map((o, i) => `<label style="display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--border);border-radius:10px;cursor:pointer;"><input type="checkbox" class="po-rc" value="${i}" ${o.def ? 'checked' : ''} style="width:auto;margin:0;"><span style="flex:1;font-weight:700;">${escapeHtml(o.l)}</span><small class="muted">${escapeHtml(show(o.v))}</small></label>`).join('')}</div>` : `<p class="muted" style="font-size:12.5px;">${isMail ? 'E-postası kayıtlı tedarikçi yok.' : 'Telefonu kayıtlı tedarikçi/kullanıcı yok.'}</p>`}
+      <label class="muted" style="font-size:12px;">${isMail ? 'Başka e-posta (virgülle birden fazla)' : 'Başka numara (virgülle birden fazla)'}</label>
+      <input class="uc-in po-rc-manual" type="${isMail ? 'text' : 'tel'}" placeholder="${isMail ? 'ornek@firma.com' : '05XX XXX XX XX'}">
+      <div class="uc-acts"><button type="button" class="pc-btn uc-no">Vazgeç</button><button type="button" class="uc-yes">Gönder</button></div></div>`;
+    const done = (v) => { bg.remove(); resolve(v); };
+    bg.addEventListener('click', e => { if(e.target === bg) done(null); });
+    bg.querySelector('.uc-no').addEventListener('click', () => done(null));
+    bg.querySelector('.uc-yes').addEventListener('click', () => {
+      const picked = [...bg.querySelectorAll('.po-rc:checked')].map(c => list[+c.value].v);
+      const manual = bg.querySelector('.po-rc-manual').value.split(/[,;\n]/).map(x => x.trim()).filter(Boolean);
+      const bad = manual.filter(x => isMail ? !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(x) : x.replace(/\D/g, '').length < 10);
+      if(bad.length){ showToast('Geçersiz: ' + bad.join(', ')); return; }
+      const all = [...new Set([...picked, ...manual])];
+      if(!all.length){ showToast('En az bir alıcı seçin veya girin'); return; }
+      done(all);
+    });
+    document.body.appendChild(bg);
+  });
 }
 
 // Mal Kabul: teslim alınmamış siparişi iptal et (teslim alınmış kalem varsa iptal edilemez; stok zaten eklendi).
