@@ -76,7 +76,7 @@ function openPassReset(uid){
   const bg = document.createElement('div'); bg.className = 'dg-bg'; bg.style.zIndex = 3000;
   bg.innerHTML = `<div class="dg-card uc-card" style="max-width:420px;"><div class="dg-ic">🔑</div>
     <div class="uc-msg"><p><b>${escapeHtml(u.username || 'Kullanıcı')} — şifreyi sıfırla</b></p>
-    <p class="muted" style="font-size:12.5px;">${self ? 'Kendi şifrenizi değiştiriyorsunuz.' : 'Tek kullanımlık şifre girin; SMS veya e-postayla kullanıcıya gönderebilirsiniz. Kullanıcı bu şifreyle girince kendi şifresini ve hızlı geçiş PIN'ini belirler; açık oturumları kapatılır.'}</p></div>
+    <p class="muted" style="font-size:12.5px;">${self ? 'Kendi şifrenizi değiştiriyorsunuz.' : 'Tek kullanımlık şifre girin; SMS veya e-postayla kullanıcıya gönderebilirsiniz. Kullanıcı bu şifreyle girince kendi şifresini ve hızlı geçiş PIN’ini belirler; açık oturumları kapatılır.'}</p></div>
     <div style="display:flex;gap:6px;"><input class="uc-in" id="prTemp" type="text" autocomplete="off" placeholder="En az 8 karakter" style="flex:1;margin:0;"><button type="button" class="ghost-btn pr-rand" style="width:auto;margin:0;padding:6px 10px;" title="Rastgele üret">🎲</button></div>
     <div class="uc-acts" style="flex-wrap:wrap;"><button type="button" class="pc-btn uc-no">Vazgeç</button>${self ? '' : `<button type="button" class="pc-btn pr-send" data-ch="sms" ${u.phone ? '' : 'disabled title="Telefon kayıtlı değil"'}>💬 SMS ile gönder</button><button type="button" class="pc-btn pr-send" data-ch="email" ${u.email ? '' : 'disabled title="E-posta kayıtlı değil"'}>📧 E-posta ile gönder</button>`}<button type="button" class="uc-yes">${self ? 'Değiştir' : 'Sadece sıfırla'}</button></div></div>`;
   const inp = bg.querySelector('#prTemp');
