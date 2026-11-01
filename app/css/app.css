@@ -4057,3 +4057,5 @@ button.sl-stat{border:1px solid var(--border) !important;} button.sl-stat.on{bor
 .pk-pc{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border);border-radius:10px;padding:4px 6px 4px 10px;}
 .pk-pc b{font-size:12.5px;} .pk-pc em{font-style:normal;font-weight:800;min-width:18px;text-align:center;}
 .pk-pc button{width:28px;height:28px;margin:0;padding:0;border-radius:8px;font-weight:800;}
+.pk-list{display:grid;gap:6px;text-align:left;} .pk-li{display:flex;gap:10px;align-items:center;border:1px solid var(--border);border-radius:12px;padding:8px 12px;margin:0;cursor:pointer;}
+.pk-li input{width:18px;height:18px;margin:0;} .pk-li b{display:block;} .pk-li small{font-size:11.5px;}
