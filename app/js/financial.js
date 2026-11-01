@@ -841,35 +841,37 @@ function renderProfitView(){
   const best = all.slice().sort((a, b) => b.net - a.net)[0], worst = all.slice().sort((a, b) => a.nm - b.nm)[0];
   const maxRev = Math.max(1, ...rows.map(r => r.rev));
   const card = (k, ic, t, v, sub, tone) => `<div class="pf-ins ${flt === k ? 'on' : ''}" style="--t:${tone};" role="button" ${act('setProfitOpt', 'profitFilter', flt === k ? 'all' : k)}><span>${ic}</span><div><small>${t}</small><b>${v}</b><em>${sub}</em></div></div>`;
+  const be = !oh && (!d.overhead || d.overhead.method !== 'revenue'), NL = be ? 'Katkı payı' : 'Net kâr';
   el.innerHTML = `
+    ${be && d.overhead && typeof breakevenHtml === 'function' ? breakevenHtml(d.overhead) : ''}
     <div class="pf-kpis">
       <div class="pf-k"><small>Ciro</small><b>${money(T.rev)}</b><em>${Math.round(T.qty)} adet · ${all.length} ürün</em></div>
       <div class="pf-k"><small>Malzeme maliyeti</small><b>${money(T.cost)}</b><em>cironun %${pct(T.cost, T.rev)}'i</em></div>
       <div class="pf-k"><small>Brüt kâr</small><b>${money(T.rev - T.cost)}</b><em>%${pct(T.rev - T.cost, T.rev)} marj</em></div>
-      <div class="pf-k"><small>Genel gider payı</small><b>${money(T.oh)}</b><em>${oh ? 'cironun %' + oh + "'i" : '<a href="#" ' + act('openOverheadsFromReport') + '>gider ekle</a>'}</em></div>
-      <div class="pf-k hi ${T.net < 0 ? 'neg' : ''}"><small>Net kâr</small><b>${money(T.net)}</b><em>%${pct(T.net, T.rev)} net marj</em></div>
+      ${be ? `<div class="pf-k"><small>Sabit giderler</small><b>${money((d.overhead || {}).monthly_total || 0)}</b><em>aylık · <a href="#" ${act('openOverheadsFromReport')}>düzenle</a></em></div>` : `<div class="pf-k"><small>Genel gider payı</small><b>${money(T.oh)}</b><em>cironun %${oh}'i</em></div>`}
+      <div class="pf-k hi ${T.net < 0 ? 'neg' : ''}"><small>${NL}</small><b>${money(T.net)}</b><em>%${pct(T.net, T.rev)} ${be ? 'katkı oranı' : 'net marj'}</em></div>
     </div>
     <div class="pf-bar" title="Ciro dağılımı"><i style="width:${pct(T.cost, T.rev)}%;background:var(--c3)"></i><i style="width:${pct(T.oh, T.rev)}%;background:var(--c2)"></i><i style="width:${Math.max(0, pct(T.net, T.rev))}%;background:var(--ok,#22c55e)"></i></div>
-    <div class="pf-leg"><span><i style="background:var(--c3)"></i>Malzeme</span><span><i style="background:var(--c2)"></i>Genel gider</span><span><i style="background:var(--ok,#22c55e)"></i>Net kâr</span></div>
+    <div class="pf-leg"><span><i style="background:var(--c3)"></i>Malzeme</span>${be ? '' : '<span><i style="background:var(--c2)"></i>Genel gider</span>'}<span><i style="background:var(--ok,#22c55e)"></i>${NL}</span></div>
     ${tagCompareHtml((d.rows || []).map(r => ({ qty: r.qty, rev: r.revenue, cost: r.cost, t_qty: r.t_qty, t_rev: r.t_rev, t_cost: r.t_cost })))}
     <div class="pf-insights">
-      ${best ? card('all', '🏆', 'En çok kazandıran', escapeHtml(best.name), money(best.net) + ' net kâr', 'var(--ok,#22c55e)') : ''}
-      ${worst ? card('low', '📉', 'En düşük marj', escapeHtml(worst.name), '%' + Math.round(worst.nm) + ' net marj', 'var(--c3)') : ''}
+      ${best ? card('all', '🏆', 'En çok kazandıran', escapeHtml(best.name), money(best.net) + ' ' + NL.toLocaleLowerCase('tr'), 'var(--ok,#22c55e)') : ''}
+      ${worst ? card('low', '📉', 'En düşük marj', escapeHtml(worst.name), '%' + Math.round(worst.nm) + (be ? ' katkı oranı' : ' net marj'), 'var(--c3)') : ''}
       ${card('loss', '🔻', 'Zarar ettiren', loss.length + ' ürün', loss.length ? money(loss.reduce((a, r) => a + r.net, 0)) : 'yok 👍', 'var(--danger,#ef4444)')}
       ${card('miss', '⚠️', 'Maliyeti eksik / tahmini', miss.length + ' ürün', miss.length ? 'reçete veya maliyet girin' : 'hepsi tamam 👍', 'var(--c4,#a855f7)')}
     </div>
     <div class="u-mwn box">
       <div class="pf-toolbar"><h2 class="u-m0">💹 Ürün Kârlılığı</h2>
-        <select style="width:auto;margin:0;" ${actOn('change','setProfitOpt',['profitSort','$value'])}>${[['net','Net kâra göre'],['rev','Ciroya göre'],['nm','Marja göre (yüksek)'],['nm_asc','Marja göre (düşük)'],['qty','Adete göre'],['cost','Maliyete göre']].map(([k, l]) => `<option value="${k}" ${sort === k ? 'selected' : ''}>↕ ${l}</option>`).join('')}</select>
+        <select style="width:auto;margin:0;" ${actOn('change','setProfitOpt',['profitSort','$value'])}>${[['net', (be ? 'Katkı payına' : 'Net kâra') + ' göre'],['rev','Ciroya göre'],['nm','Marja göre (yüksek)'],['nm_asc','Marja göre (düşük)'],['qty','Adete göre'],['cost','Maliyete göre']].map(([k, l]) => `<option value="${k}" ${sort === k ? 'selected' : ''}>↕ ${l}</option>`).join('')}</select>
         ${flt !== 'all' ? `<button type="button" class="pc-btn" ${act('setProfitOpt', 'profitFilter', 'all')}>✕ Filtreyi kaldır</button>` : ''}</div>
-      <div class="pf-head"><span>Ürün</span><span>Adet</span><span>Ciro</span><span>Maliyet</span><span>Net kâr</span><span>Net marj</span></div>
+      <div class="pf-head"><span>Ürün</span><span>Adet</span><span>Ciro</span><span>Maliyet</span><span>${NL}</span><span>${be ? 'Katkı %' : 'Net marj'}</span></div>
       ${rows.length ? rows.map(r => `<details class="pf-row ${r.net < 0 ? 'neg' : ''}"><summary>
           <span class="pf-n"><b>${escapeHtml(r.name)}</b><small>${escapeHtml(r.category || r.station_name || '')}${r.cost_source === 'recipe' ? ' · 🧾 reçete' : ''}${r.noc ? ' · ⚠️ maliyetsiz' : r.est ? ' · ≈ tahmini maliyet' : ''}</small>${tagRowNote(r)}
             <span class="pf-mini" style="width:${Math.max(6, r.rev / maxRev * 100)}%"><i style="width:${pct(r.cost, r.rev)}%;background:var(--c3)"></i><i style="width:${pct(r.oh, r.rev)}%;background:var(--c2)"></i><i style="width:${Math.max(0, pct(r.net, r.rev))}%;background:var(--ok,#22c55e)"></i></span></span>
           <span data-l="Adet">${Math.round(r.qty * 100) / 100}</span><span data-l="Ciro">${money(r.rev)}</span><span data-l="Maliyet">${money(r.cost)}</span>
-          <span data-l="Net kâr" class="${r.net < 0 ? 'neg' : 'pos'}"><b>${money(r.net)}</b></span><span data-l="Net marj">${r.noc >= r.qty ? '<b class="pf-pill low" title="Maliyet girilmediği için kâr hesaplanamıyor">maliyet yok</b>' : `<b class="pf-pill ${r.nm < 0 ? 'neg' : r.nm < 20 ? 'low' : 'ok'}">%${Math.round(r.nm)}</b>`}</span>
+          <span data-l="${NL}" class="${r.net < 0 ? 'neg' : 'pos'}"><b>${money(r.net)}</b></span><span data-l="Net marj">${r.noc >= r.qty ? '<b class="pf-pill low" title="Maliyet girilmediği için kâr hesaplanamıyor">maliyet yok</b>' : `<b class="pf-pill ${r.nm < 0 ? 'neg' : r.nm < 20 ? 'low' : 'ok'}">%${Math.round(r.nm)}</b>`}</span>
         </summary>${profitDetailHtml(r, oh)}</details>`).join('') : '<p class="muted">Bu dönemde / filtrede satış yok.</p>'}
-      <div class="muted pf-note">Maliyet, ürünün <b>satıldığı andaki</b> maliyetidir; o an maliyet yoksa güncel maliyet kullanılır (≈ tahmini). Personel / ikram / limitli hesap etiketli siparişler hariçtir (üstteki kutudan dahil halini kıyaslayın). Genel gider payı = ciro × %${oh || 0}. Maliyeti girilmemiş ürünlerin kârı gerçekte daha düşüktür.</div>
+      <div class="muted pf-note">Maliyet, ürünün <b>satıldığı andaki</b> maliyetidir; o an maliyet yoksa güncel maliyet kullanılır (≈ tahmini). Personel / ikram / limitli hesap etiketli siparişler hariçtir (üstteki kutudan dahil halini kıyaslayın). ${be ? 'Başa baş yönteminde genel gider ürünlere dağıtılmaz; her ürünün katkı payı (fiyat − malzeme) sabit giderleri karşılar.' : 'Genel gider payı = ciro × %' + oh + '.'} Maliyeti girilmemiş ürünlerin kârı gerçekte daha düşüktür.</div>
     </div>`;
 }
 function profitDetailHtml(r, oh){

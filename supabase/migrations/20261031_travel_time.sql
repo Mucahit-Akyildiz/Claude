@@ -40,3 +40,4 @@ alter table orders add column if not exists travel_min int, add column if not ex
 -- Etiketli sipariş kıyası: get_analytics_bundle.products t_qty/t_rev/t_cost; get_product_sales tagged_revenue/tagged_cost; get_product_profit t_qty/t_rev/t_cost (etiketliler ayrı).
 -- Kurye onayı: orders.courier_accepted_at / courier_offer_at; get_nav_badges.delivery_offer; accept_delivery(session, order) → courier_token; courier_accept(token);
 -- resend_courier_notify courier_offer_at'i yeniler; dispatch_order kurye değişince onayı sıfırlar; get_live_orders/get_courier_job alanları.
+-- Başa baş: restaurants.overhead_method ('breakeven' varsayılan | 'revenue'); _overhead_summary mtd_gross/days/has_rent/revenue_pct; _overhead_pct yalnız 'revenue'de; set_overhead_settings(p_method).
