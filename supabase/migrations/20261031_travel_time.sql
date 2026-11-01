@@ -80,3 +80,5 @@ create table if not exists ip_hits(id bigserial primary key, bucket text not nul
 
 -- Seçenek grupları: products.option_groups (ana üründe [{name,min,max}]), products.opt_group (ekstranın grubu); set_product_option_groups RPC; config'de döner.
 alter table products add column if not exists option_groups jsonb not null default '[]'::jsonb, add column if not exists opt_group text;
+
+-- Muhasebe aktarımı: get_accounting_export(p_token, p_from, p_to) -> {sales[d,vat,gross,net,tax], payments[...], purchases[...]} ('reports' izni).
