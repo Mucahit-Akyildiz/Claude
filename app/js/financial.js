@@ -923,9 +923,9 @@ async function renderProductAnalysis(session, sub){
   if(sub) APP.prodSub = sub;
   const host = document.getElementById('reportContent'); if(!host) return;
   const cur = APP.prodSub || 'sales';
-  host.innerHTML = `<div class="seg pa-seg">${[['sales','📦 Satışlar'],['profit','💹 Kârlılık']].map(([k, l]) => `<button type="button" class="${cur === k ? 'on' : ''}" ${act('setProdSub', k)}>${l}</button>`).join('')}</div><div id="paSlot"></div>`;
-  const fn = cur === 'profit' ? renderProfitContent : renderProductStatsContent;
-  APP.mergeSlots = new Map([[fn, 'paSlot'], [renderProfitView, 'paSlot'], [renderProductStatsContent, 'paSlot']]);
+  host.innerHTML = `<div class="seg pa-seg">${[['sales','📦 Satışlar'],['profit','💹 Kârlılık'],['alloc','📅 Gün sonu gider dağılımı']].map(([k, l]) => `<button type="button" class="${cur === k ? 'on' : ''}" ${act('setProdSub', k)}>${l}</button>`).join('')}</div><div id="paSlot"></div>`;
+  const fn = cur === 'profit' ? renderProfitContent : cur === 'alloc' ? renderDaycloseAlloc : renderProductStatsContent;
+  APP.mergeSlots = new Map([[fn, 'paSlot'], [renderProfitView, 'paSlot'], [renderProductStatsContent, 'paSlot'], [renderDaycloseAlloc, 'paSlot']]);
   await redrawReportPart(fn, session);
 }
 function setProdSub(k){ APP.prodSub = k; renderProductAnalysis(getSession()); }
@@ -961,4 +961,36 @@ function profitChannelHtml(all, d){
     <div class="pf-cc"><span>🍽️</span><div><small>Masa servisi</small><b>${money(P.dr - P.dc)}</b><em>${q(P.dq)} adet · ciro ${money(P.dr)} · maliyet ${money(P.dc)} · %${pct(P.dr - P.dc, P.dr)} katkı</em></div></div>
     <div class="pf-cc pk"><span>🛍️</span><div><small>Paket</small><b>${money(P.pr - P.pc - bag)}</b><em>${q(P.pq)} adet · ciro ${money(P.pr)} · maliyet ${money(P.pc)}${P.pk ? ' (paket malzemesi ' + money(P.pk) + ')' : ''}${bag ? ' · poşet ' + money(bag) : ''} · %${pct(P.pr - P.pc - bag, P.pr)} katkı</em></div></div>
   </div>`;
+}
+
+/* Gün sonu gider dağılımı: kapanışı yapılmış her gün, o günün sabit gider payı (aylık gider ÷ ayın gün sayısı, kapanış anında saklanır)
+   o günün KDV hariç cirosuna oranlanır; her ürüne cirosu kadar pay düşer. Ürün başına: ciro − malzeme − gider payı = net. */
+async function renderDaycloseAlloc(session){
+  const el = document.getElementById('reportContent'); if(!el) return;
+  const { data, error } = await withLoadingOverlay(sb.rpc('get_dayclose_alloc', { p_token: session.session_token, p_date: APP.reportDate, p_date_to: APP.reportDateTo }));
+  if(error){ el.innerHTML = '<p class="muted">Yüklenemedi: ' + escapeHtml(error.message) + '</p>'; return; }
+  const days = (data && data.days) || [], prods = (data && data.products) || [];
+  if(!days.length){ el.innerHTML = `<div class="empty-state"><div style="font-size:42px;">📅</div><p class="muted">Bu aralıkta gün sonu kapanışı yapılmış gün yok.<br>Gün sonu kapanışı yapıldığında o günün sabit giderleri, cirosuna göre ürünlere dağıtılır.</p></div>`; return; }
+  const n = (v) => Number(v) || 0, T = prods.reduce((a, p) => ({ rev: a.rev + n(p.rev), cost: a.cost + n(p.cost), oh: a.oh + n(p.oh), net: a.net + n(p.net) }), { rev: 0, cost: 0, oh: 0, net: 0 });
+  const ohDays = days.reduce((a, d) => a + n(d.oh), 0), pct = (a, b) => b ? Math.round(a / b * 100) : 0;
+  el.innerHTML = `<div class="pf-kpis">
+      <div class="pf-k"><small>Kapanışı yapılan gün</small><b>${days.length}</b><em>sabit gider payı ${money(ohDays)}</em></div>
+      <div class="pf-k"><small>Ciro (KDV hariç)</small><b>${money(T.rev)}</b><em>kapanış günlerinde</em></div>
+      <div class="pf-k"><small>Malzeme maliyeti</small><b>${money(T.cost)}</b><em>%${pct(T.cost, T.rev)}</em></div>
+      <div class="pf-k"><small>Dağıtılan sabit gider</small><b>${money(T.oh)}</b><em>cironun %${pct(T.oh, T.rev)}'i</em></div>
+      <div class="pf-k hi ${T.net < 0 ? 'neg' : ''}"><small>Net kâr</small><b>${money(T.net)}</b><em>%${pct(T.net, T.rev)} net marj</em></div>
+    </div>
+    <p class="fs-note" style="margin:10px 0;">Her kapanış gününün sabit gider payı (aylık sabit gider ÷ ayın gün sayısı) <b>kapanış anında</b> kaydedilir ve o günün KDV hariç cirosuna oranlanır. Ürünlere, o gün yaptıkları ciro kadar pay düşer. Kapanışı yapılmamış günler hesaba katılmaz.</p>
+    <div class="u-mwn box"><h2 class="u-m0" style="margin-bottom:10px;">📦 Ürün bazında</h2>
+      <div class="pf-head"><span>Ürün</span><span>Adet</span><span>Ciro</span><span>Malzeme</span><span>Gider payı</span><span>Net kâr</span></div>
+      ${prods.map(p => `<div class="pf-row ${n(p.net) < 0 ? 'neg' : ''}"><summary style="cursor:default;">
+        <span class="pf-n"><b>${escapeHtml(p.name)}</b><small>net marj %${pct(n(p.net), n(p.rev))}</small></span>
+        <span data-l="Adet">${Math.round(n(p.qty) * 100) / 100}</span><span data-l="Ciro">${money(p.rev)}</span><span data-l="Malzeme">${money(p.cost)}</span>
+        <span data-l="Gider payı">${money(p.oh)}</span><span data-l="Net kâr" class="${n(p.net) < 0 ? 'neg' : 'pos'}"><b>${money(p.net)}</b></span></summary></div>`).join('')}
+    </div>
+    <div class="u-mwn box" style="margin-top:14px;"><h2 class="u-m0" style="margin-bottom:10px;">📅 Gün bazında</h2>
+      <div class="pf-head"><span>Gün</span><span></span><span>Ciro</span><span>Malzeme</span><span>Sabit gider</span><span>Gider oranı</span></div>
+      ${days.map(d => `<div class="pf-row"><summary style="cursor:default;"><span class="pf-n"><b>${new Date(d.d + 'T12:00:00').toLocaleDateString('tr-TR', { weekday: 'short', day: '2-digit', month: '2-digit' })}</b></span><span></span>
+        <span data-l="Ciro">${money(d.rev)}</span><span data-l="Malzeme">${money(d.cost)}</span><span data-l="Sabit gider">${money(d.oh)}</span><span data-l="Gider oranı"><b class="pf-pill ${d.pct == null ? 'low' : d.pct > 30 ? 'neg' : d.pct > 15 ? 'low' : 'ok'}">${d.pct == null ? 'satış yok' : '%' + d.pct}</b></span></summary></div>`).join('')}
+    </div>`;
 }
