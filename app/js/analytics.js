@@ -296,7 +296,7 @@ async function renderZReportContent(session, quiet){
     ['💵 Nakit', money(k.cash)], ['💳 Kredi kartı', money(k.card)], ...zTransferRows(k), ['🎁 Hediye kartı', money(k.gift)], ...(anN(k.points) ? [['⭐ Puanla ödeme', money(k.points)]] : []),
     ['📒 Açık hesaba yazılan (' + (k.open_acc_n || 0) + ' hesap)', money(k.open_acc)], ['—'],
     // Açık hesap: geçmiş borçlardan bugün tahsil edilen ciroya girmez; nakit tahsilat kasaya eklenir.
-    ['📒 AÇIK HESAP', '', 'big'], ['Bugün tahsil edilen', money(k.open_acc_paid)], ['   · nakit (kasaya eklenir)', money(k.open_acc_paid_cash)], ['   · kart', money(k.open_acc_paid_card)], ['Toplam açık bakiye', money(k.open_acc_balance)], ['—'],
+    ['📒 AÇIK HESAP', '', 'big'], ['Bugün tahsil edilen', money(k.open_acc_paid)], ['   · nakit (kasaya eklenir)', money(k.open_acc_paid_cash)], ['   · kart', money(k.open_acc_paid_card)], ...((k.open_acc_paid_banks || []).length ? (k.open_acc_paid_banks || []).map(x => ['   · havale · ' + x.bank, money(x.amount)]) : (anN(k.open_acc_paid_transfer) ? [['   · havale', money(k.open_acc_paid_transfer)]] : [])), ['Toplam açık bakiye', money(k.open_acc_balance)], ['—'],
     ['Hesap sayısı', k.checks || 0], ['Kişi sayısı', anN(k.guests) || 0], ['Kişi başı', money(anN(k.guests) ? anN(k.guest_rev) / anN(k.guests) : 0)], ['Ortalama hesap', money(k.checks ? k.revenue / k.checks : 0)], ['Bahşiş', money(k.tips)], ['—'],
     ['🎁 İkram / personel (' + (k.comp_n || 0) + ' hesap)', money(k.comp)], ['❌ İptal edilen masa', c.orders || 0], ['❌ İptal edilen ürün tutarı', money(c.cur && c.cur.amount)], ['🔥 İsraf maliyeti', money(d.waste)], ['—'],
     ['Ürün maliyeti', money(k.cost)], ['BRÜT KÂR', money(anN(k.revenue) - anN(k.cost) - anN(d.waste)), 'big']];

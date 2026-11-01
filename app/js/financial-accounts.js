@@ -107,10 +107,10 @@ async function collectOpenAccount(id){
   if(v === null) return;
   const amount = parseFloat(String(v).replace(',', '.'));
   if(!(amount > 0)){ alert('Geçerli bir tutar girin'); return; }
-  const method = await uiConfirm('Tahsilat nasıl alındı?', { title:'Ödeme yöntemi', icon:'💳', okText:'💳 Kart', cancelText:'💵 Nakit' }) ? 'card' : 'cash';
-  const { error } = await withLoadingOverlay(sb.rpc('collect_open_account', { p_token: getSession().session_token, p_account_id: id, p_amount: amount, p_method: method }));
+  const pick = await pickCollectMethod(amount); if(!pick) return;
+  const { error } = await withLoadingOverlay(sb.rpc('collect_open_account', { p_token: getSession().session_token, p_account_id: id, p_amount: amount, p_method: pick.method, p_bank: pick.bank || null }));
   if(error){ alert(error.message); return; }
-  showToast('✅ ' + money(amount) + ' tahsil edildi');
+  showToast('✅ ' + money(amount) + ' tahsil edildi · ' + pick.label);
   renderOpenAccountsContent(getSession());
 }
 
@@ -397,3 +397,20 @@ async function setPoSupplier(poId, supplierId){
   showToast(supplierId ? 'Tedarikçi kaydedildi ✓' : 'Tedarikçi kaldırıldı');
   renderPurchaseReportContent(getSession());
 }
+
+/* Açık hesap tahsilat yöntemi: Nakit, Kart ya da Havale/EFT (tanımlı her banka ayrı). */
+function pickCollectMethod(amount){
+  return new Promise(resolve => {
+    const banks = (APP.config && APP.config.banks) || [];
+    const opts = [{ method: 'cash', label: '💵 Nakit' }, { method: 'card', label: '💳 Kart' }]
+      .concat(banks.length ? banks.map(b => ({ method: 'transfer', bank: b.id, label: '🏦 ' + (b.bank_name || 'Banka') + ' (havale)' })) : [{ method: 'transfer', label: '🏦 Havale / EFT' }]);
+    document.getElementById('cmBg')?.remove();
+    const bg = document.createElement('div'); bg.id = 'cmBg'; bg.className = 'dof-bg dg-bg';
+    APP._cmResolve = (i) => { bg.remove(); resolve(i == null ? null : opts[i]); };
+    bg.innerHTML = `<div class="dof cm-box" role="dialog" aria-modal="true"><h2>Tahsilat nasıl alındı?</h2><p class="muted">${money(amount)}</p>
+      <div class="cm-opts">${opts.map((o, i) => `<button type="button" class="cm-opt" ${act('cmPick', i)}>${escapeHtml(o.label)}</button>`).join('')}</div>
+      <button type="button" class="ghost-btn dof-later" ${act('cmPick', null)}>Vazgeç</button></div>`;
+    document.body.appendChild(bg);
+  });
+}
+function cmPick(i){ if(APP._cmResolve) APP._cmResolve(i); }

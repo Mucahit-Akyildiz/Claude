@@ -52,3 +52,4 @@ alter table orders add column if not exists travel_min int, add column if not ex
 -- get_product_profit: p_qty/p_rev/p_cost/p_packcost (paket kanalı) ve order_pack_cost (poşet).
 -- Bedelsiz: purchase_order_items.price_set (0 TL bilinçli girilmiş); get_purchase_report items.free; _nav_badges/_apply_po_item_cost/set_purchase_item_cost uyarlandı.
 -- send_po_to_supplier(session, po, 'email'|'sms', to); cash_counts.overhead_daily (kapanışta sabit gider payı) + get_dayclose_alloc; reset_ingredient_stock.
+-- collect_open_account(..., p_bank): havale/EFT + banka; open_account_entries.bank_id; bundle open_acc_paid_transfer/banks.
