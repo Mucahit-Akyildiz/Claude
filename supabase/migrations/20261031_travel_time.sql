@@ -77,3 +77,6 @@ alter table restaurants add column if not exists maps_daily_quota int;
 -- _maps_quota_take(p_order, p_rid, p_n) -> bool (yalnız service_role).
 -- QR / online sipariş isteği: IP bazlı sınır (ip_hits + _ip_rate_check('order_req', 12, 10)) submit_customer_order_request ve submit_public_order başında.
 create table if not exists ip_hits(id bigserial primary key, bucket text not null, ip text not null, created_at timestamptz not null default now());
+
+-- Seçenek grupları: products.option_groups (ana üründe [{name,min,max}]), products.opt_group (ekstranın grubu); set_product_option_groups RPC; config'de döner.
+alter table products add column if not exists option_groups jsonb not null default '[]'::jsonb, add column if not exists opt_group text;
