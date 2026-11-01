@@ -285,6 +285,7 @@ async function refreshNavBadges(){
   if(error || !data || seq !== APP.navBadgeSeq) return;
   APP.navBadges = data;
   applyNavBadges();
+  handleDeliveryOffer(data.delivery_offer);
   if(APP.view==='home'){ homeFillBadges(); if(!APP.homeSumAt || Date.now() - APP.homeSumAt > 30000){ APP.homeSumAt = Date.now(); homeLoadSummary(s); } }
   // Uygulama simgesindeki sayı (kurulu web uygulamasında / destekleyen tarayıcıda).
   const visible = NAV_ITEMS.filter(i => navItemVisible(i, s));
@@ -1174,3 +1175,43 @@ document.addEventListener('visibilitychange', clearShownPushNotifications);
 window.addEventListener('focus', clearShownPushNotifications);
 setInterval(clearShownPushNotifications, 60000);
 clearShownPushNotifications();
+
+/* ---- Kurye onayı: "Kuryeye Ver" ile seçilen kuryenin ekranına onay penceresi düşer (bildirim değil).
+   "Siparişi aldım" deyince kurye sayfası açılır ve canlı konum kendiliğinden başlar. "Sonra" denirse pencere,
+   restoran "Onayı tekrar gönder" diyene kadar (teklif zamanı değişene kadar) tekrar açılmaz. ---- */
+function handleDeliveryOffer(o){
+  const cur = document.getElementById('dofBg');
+  if(!o){ if(cur) cur.remove(); return; }
+  let dismissed = null; try{ dismissed = localStorage.getItem('dof_' + o.order_id); }catch(e){}
+  if(dismissed === String(o.offer_at)){ if(cur) cur.remove(); return; }
+  if(cur && cur.dataset.key === o.order_id + '|' + o.offer_at) return;
+  if(cur) cur.remove();
+  APP.deliveryOffer = o;
+  const bg = document.createElement('div'); bg.id = 'dofBg'; bg.className = 'dof-bg dg-bg'; bg.dataset.key = o.order_id + '|' + o.offer_at;
+  bg.innerHTML = `<div class="dof" role="dialog" aria-modal="true">
+    <div class="dof-ic">🛵</div><h2>Yeni teslimat</h2><p class="muted">${o.by ? escapeHtml(o.by) + ' bu siparişi size verdi' : 'Bu sipariş size verildi'}</p>
+    <div class="dof-card">
+      <div class="dof-row"><span>👤</span><b>${escapeHtml(o.customer || '')}${o.no ? ' · #' + escapeHtml(String(o.no)) : ''}</b></div>
+      ${o.address ? `<div class="dof-row"><span>📍</span><div>${escapeHtml(o.address)}</div></div>` : ''}
+      ${o.note ? `<div class="dof-row"><span>📝</span><div>${escapeHtml(o.note)}</div></div>` : ''}
+      <div class="dof-row"><span>💰</span><b>${money(o.total)}</b>${o.eta_min ? `<small class="muted" style="margin-left:auto;">🗺️ ~${o.eta_min} dk yol</small>` : ''}</div>
+    </div>
+    <button class="dof-ok" ${act('acceptDeliveryOffer')}>✅ Siparişi aldım</button>
+    <p class="muted dof-n">Onaylayınca canlı konum paylaşımı otomatik başlar; müşteri varış süresini görür. Teslim edince kapanır.</p>
+    <button type="button" class="ghost-btn dof-later" ${act('dismissDeliveryOffer')}>Sonra</button>
+  </div>`;
+  document.body.appendChild(bg);
+  try{ playPeyktanSound(); }catch(e){}
+  try{ if(navigator.vibrate) navigator.vibrate([200, 100, 200]); }catch(e){}
+}
+function dismissDeliveryOffer(){
+  const o = APP.deliveryOffer; if(o){ try{ localStorage.setItem('dof_' + o.order_id, String(o.offer_at)); }catch(e){} }
+  const el = document.getElementById('dofBg'); if(el) el.remove();
+}
+async function acceptDeliveryOffer(){
+  const o = APP.deliveryOffer; if(!o) return;
+  const btn = document.querySelector('.dof-ok'); if(btn){ btn.disabled = true; btn.textContent = 'Açılıyor…'; }
+  const { data, error } = await sb.rpc('accept_delivery', { p_token: getSession().session_token, p_order_id: o.order_id });
+  if(error){ alert(error.message); if(btn){ btn.disabled = false; btn.textContent = '✅ Siparişi aldım'; } return; }
+  window.location.href = '/kurye/?t=' + data + '&auto=1';
+}
