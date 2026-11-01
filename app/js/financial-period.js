@@ -126,7 +126,7 @@ async function renderPurchaseReportContent(session){
     return `<div class="pc-card pc2" style="--pc:${tone};--i:${Math.min(idx||0,12)};">
       <div class="pc2-head">
         ${avatarHtml(p.supplier_name || 'T')}
-        <div class="pc2-title"><select class="pc2-sup ${p.supplier_id ? '' : 'missing'}" title="Tedarikçi seç" ${actOn('change','setPoSupplier',[p.id,'$value'])}><option value="">⚠️ Tedarikçi seçin</option>${(APP.procSuppliers||[]).map(sp => `<option value="${sp.id}" ${sp.id===p.supplier_id?'selected':''}>${escapeHtml(sp.name)}</option>`).join('')}</select>
+        <div class="pc2-title"><select class="pc2-sup ${p.supplier_id ? '' : 'missing'}" title="Tedarikçi seç" data-po="${p.id}" data-orig="${p.supplier_id || ''}" ${actOn('change','markPcDirty',[p.id])}><option value="">⚠️ Tedarikçi seçin</option>${(APP.procSuppliers||[]).map(sp => `<option value="${sp.id}" ${sp.id===p.supplier_id?'selected':''}>${escapeHtml(sp.name)}</option>`).join('')}</select>
           <small>📅 ${new Date(p.order_date).toLocaleDateString('tr-TR')}${p.expected_date ? ' · 🎯 ' + new Date(p.expected_date).toLocaleDateString('tr-TR') : ''} · 👤 ${escapeHtml(p.created_by_name || '—')}</small></div>
         <div class="pc2-right"><span class="pc2-total">${money(p.total_amount)}</span>${statusOf(p)}</div>
       </div>
@@ -169,18 +169,21 @@ async function renderPurchaseReportContent(session){
 // Kaydedilmemiş fiyatlar (taslak) yeniden çizimde korunur; kartlar tekrar "kirli" işaretlenir.
 function restorePcDrafts(){
   const ids = new Set();
+  // Kaydedilmemiş tedarikçi seçimleri de korunur.
+  document.querySelectorAll('.pc-card .pc2-sup').forEach(sel => { const d = (APP.pcSupDrafts || {})[sel.dataset.po]; if(d !== undefined && d !== sel.dataset.orig){ sel.value = d; ids.add(sel.dataset.po); } });
   document.querySelectorAll('.pc-card .pc-cost').forEach(i => { if(i.value !== i.dataset.orig){ const b = i.closest('.pc-card').querySelector('.pc-save'); if(b) ids.add(b.id.slice(7)); } });
   ids.forEach(id => markPcDirty(id));
   updatePcSaveAll();
 }
 function updatePcSaveAll(){
   const b = document.getElementById('pcSaveAll'); if(!b) return;
-  const n = [...document.querySelectorAll('.pc-card .pc-cost')].filter(i => i.value !== i.dataset.orig).length;
+  const n = [...document.querySelectorAll('.pc-card .pc-cost, .pc-card .pc2-sup')].filter(i => i.value !== i.dataset.orig).length;
   b.hidden = !n; b.querySelector('span').textContent = `Tümünü Kaydet (${n})`;
 }
 async function saveAllPoPrices(){
   const inputs = [...document.querySelectorAll('.pc-card .pc-cost')].filter(i => i.value !== i.dataset.orig);
-  await savePcInputs(inputs, document.getElementById('pcSaveAll'));
+  const sups = [...document.querySelectorAll('.pc-card .pc2-sup')].filter(i => i.value !== i.dataset.orig);
+  await savePcInputs(inputs, document.getElementById('pcSaveAll'), sups);
 }
 function setProcFilter(k){ APP.procFilter = k; renderPurchaseReportContent(getSession()); }
 function setPurchRepSub(sub){ APP.purchRepSub = sub; renderPurchaseReportContent(getSession()); }
@@ -188,7 +191,10 @@ function setPurchRepSub(sub){ APP.purchRepSub = sub; renderPurchaseReportContent
 function markPcDirty(poId){
   const card = document.getElementById('pcSave_'+poId); if(!card) return;
   const inputs = card.closest('.pc-card').querySelectorAll('.pc-cost');
-  const dirty = [...inputs].filter(i => i.value !== i.dataset.orig).length;
+  const sel = card.closest('.pc-card').querySelector('.pc2-sup');
+  if(!APP.pcSupDrafts) APP.pcSupDrafts = {};
+  if(sel){ if(sel.value !== sel.dataset.orig) APP.pcSupDrafts[poId] = sel.value; else delete APP.pcSupDrafts[poId]; sel.classList.toggle('missing', !sel.value); }
+  const dirty = [...inputs].filter(i => i.value !== i.dataset.orig).length + (sel && sel.value !== sel.dataset.orig ? 1 : 0);
   card.disabled = !dirty;
   card.querySelector('span').textContent = dirty ? `Kaydet (${dirty})` : 'Kaydet';
   card.closest('.pc-card').classList.toggle('dirty', !!dirty);
@@ -198,19 +204,32 @@ function markPcDirty(poId){
 }
 async function savePoPrices(poId){
   const btn = document.getElementById('pcSave_'+poId); if(!btn) return;
-  await savePcInputs([...btn.closest('.pc-card').querySelectorAll('.pc-cost')].filter(i => i.value !== i.dataset.orig), btn);
+  const card = btn.closest('.pc-card');
+  await savePcInputs([...card.querySelectorAll('.pc-cost')].filter(i => i.value !== i.dataset.orig), btn, [...card.querySelectorAll('.pc2-sup')].filter(i => i.value !== i.dataset.orig));
 }
 // Fiyatlar paralel kaydedilir; yalnızca kaydedilenlerin taslağı silinir, diğer kartlardaki yazılanlar korunur.
-async function savePcInputs(changed, btn){
-  if(!changed.length) return;
+async function savePcInputs(changed, btn, sups){
+  sups = sups || [];
+  if(!changed.length && !sups.length) return;
   for(const inp of changed){
     const v = parseFloat(String(inp.value).replace(',', '.'));
     if(isNaN(v) || v < 0){ showToast('Geçerli bir birim fiyat girin'); inp.focus(); return; }
   }
   if(btn){ btn.disabled = true; btn.querySelector('span').textContent = 'Kaydediliyor…'; }
   const tok = getSession().session_token;
-  const res = await Promise.all(changed.map(inp => sb.rpc('set_purchase_item_cost', { p_token: tok, p_item_id: inp.dataset.itemId, p_unit_cost: parseFloat(String(inp.value).replace(',', '.')) })));
+  // Tedarikçi seçimleri fiyatlarla birlikte, sayfa yeniden çizilmeden kaydedilir.
+  const [res, supRes] = await Promise.all([
+    Promise.all(changed.map(inp => sb.rpc('set_purchase_item_cost', { p_token: tok, p_item_id: inp.dataset.itemId, p_unit_cost: parseFloat(String(inp.value).replace(',', '.')) }))),
+    Promise.all(sups.map(sel => sb.rpc('set_purchase_order_supplier', { p_token: tok, p_po_id: sel.dataset.po, p_supplier_id: sel.value || null })))]);
   const errs = [], cards = new Set();
+  supRes.forEach((r, k) => {
+    const sel = sups[k];
+    if(r.error){ errs.push(r.error.message); return; }
+    sel.dataset.orig = sel.value; if(APP.pcSupDrafts) delete APP.pcSupDrafts[sel.dataset.po];
+    const card = sel.closest('.pc-card'); cards.add(card);
+    const av = card && card.querySelector('.pc2-av'); const nm = sel.options[sel.selectedIndex] && sel.value ? sel.options[sel.selectedIndex].textContent : '';
+    if(av && nm) av.textContent = nm.trim().charAt(0).toLocaleUpperCase('tr');
+  });
   // Sayfa yeniden yüklenmez: kaydedilen kalemler yerinde güncellenir (satır tutarı, sipariş toplamı).
   res.forEach((r, k) => {
     const inp = changed[k];
@@ -227,7 +246,7 @@ async function savePcInputs(changed, btn){
     const sb2 = card.querySelector('.pc-save'); if(sb2) markPcDirty(sb2.id.slice(7));
   });
   if(btn && btn.id === 'pcSaveAll') updatePcSaveAll();
-  if(errs.length) await uiAlert('Bazı fiyatlar kaydedilemedi:\n\n' + errs.join('\n')); else showToast(changed.length + ' birim fiyat kaydedildi ✓');
+  if(errs.length) await uiAlert('Bazı değişiklikler kaydedilemedi:\n\n' + errs.join('\n')); else showToast([changed.length ? changed.length + ' birim fiyat' : '', sups.length ? sups.length + ' tedarikçi' : ''].filter(Boolean).join(' ve ') + ' kaydedildi ✓');
   if(typeof refreshNavBadges === 'function') refreshNavBadges();
 }
 async function savePurchaseItemCost(itemId, value){
