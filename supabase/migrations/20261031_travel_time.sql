@@ -46,3 +46,5 @@ alter table orders add column if not exists travel_min int, add column if not ex
 -- Paket malzemesi: product_packaging; order_items.packed/pack_applied/pack_cost; _trg_item_packaging (paket sipariş / packed → stoktan düş, maliyete ekle; geri alınca iade);
 -- set_item_packed, set_ingredient_usage2; config products[].packaging; get_live_orders items packed/has_pack.
 -- Fire düzeltmesi: qty_per_unit brüt saklanır → _recipe_cost, get_product_profit, get_ingredient_daily_usage fireyi ikinci kez eklemez.
+-- Paket malzemesi kullanım şekli: ingredients.pack_mode (null | per_product | per_order); set_ingredient_pack_mode; set_ingredient_usage2 moda göre yazar.
+-- orders.packaging/pack_cost + set_order_packaging (siparişte girilen poşet adedi, fark kadar stok); iptalde iade; başa baş brüt kârından düşülür.
