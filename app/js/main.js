@@ -129,6 +129,7 @@ function render(){
         <button class="mobile-menu-btn" id="mobileMenuBtn" ${act('toggleMobileNav')} aria-label="Menü" style="position:relative;">☰</button>
         <img src="/assets/images/logo.webp" alt="Peyktan" class="mobile-topbar-logo">
         <div class="mobile-topbar-title">${escapeHtml(session.restaurant_name)}</div>
+        ${(APP.config && (APP.config.users || []).some(u => u.has_pin)) ? `<button class="mobile-menu-btn" ${act('openPinSwitch')} aria-label="Personel değiştir" title="Personel değiştir (PIN)">👥</button>` : ''}
         <button class="mobile-menu-btn" ${act('refreshApp')} aria-label="Yenile" title="Yenile">↻</button>
       </div>
       <div class="sidebar-backdrop ${APP.mobileNavOpen?'show':''}" ${act('closeMobileNav')}></div>
@@ -159,6 +160,7 @@ function render(){
               <button class="${theme==='light'?'active':''}" ${act('setTheme', 'light')} type="button" title="Açık tema">☀️</button>
             </div>
             <button type="button" class="sb-ib" ${act('refreshApp')} title="Yenile (son değişiklikleri getir)">🔄</button>
+            ${(APP.config && (APP.config.users || []).some(u => u.has_pin)) ? `<button type="button" class="sb-ib" ${act('openPinSwitch')} title="Personel değiştir (PIN)">👥</button>` : ''}
             <button type="button" class="sb-ib danger" ${act('doLogout')} title="Çıkış Yap">🚪</button>
           </div>
         </div>
@@ -1246,3 +1248,38 @@ try{ if(typeof isNativeApp === 'function' && isNativeApp()){
   document.documentElement.classList.add('is-native');
   document.addEventListener('focusin', (e) => { const t = e.target; if(t && /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName)) setTimeout(() => { try{ t.scrollIntoView({ block: 'center' }); }catch(_){} }, 300); });
 } }catch(e){}
+
+/* ---- PIN ile hızlı personel geçişi: ortak cihazda (kasa/tablet) çıkış yapmadan PIN girerek başka kullanıcıya geçilir. ---- */
+function openPinSwitch(){
+  let pin = '';
+  const cur = (getSession() || {}).username || '';
+  const bg = document.createElement('div'); bg.className = 'dg-bg'; bg.style.zIndex = 3500;
+  bg.innerHTML = `<div class="dg-card uc-card pin-card"><div class="dg-ic">👥</div>
+    <div class="uc-msg"><p><b>Personel değiştir</b></p><p class="muted u-fs12">Şu an: ${escapeHtml(cur)} — kendi PIN'inizi girin</p></div>
+    <div class="pin-dots"></div><div class="pin-err u-red u-fs12"></div>
+    <div class="pin-pad">${[1,2,3,4,5,6,7,8,9,'⌫',0,'✓'].map(k => `<button type="button" data-k="${k}">${k}</button>`).join('')}</div>
+    <div class="uc-acts"><button type="button" class="pc-btn uc-no">Vazgeç</button></div></div>`;
+  const dots = bg.querySelector('.pin-dots'), err = bg.querySelector('.pin-err');
+  const draw = () => { dots.innerHTML = Array.from({ length: Math.max(4, pin.length) }, (_, i) => `<i class="${i < pin.length ? 'on' : ''}"></i>`).join(''); };
+  const close = () => { document.removeEventListener('keydown', onKey); bg.remove(); };
+  const submit = async () => {
+    if(pin.length < 4){ err.textContent = 'En az 4 hane'; return; }
+    const { data, error } = await sb.rpc('login_by_pin', { p_token: getSession().session_token, p_pin: pin });
+    if(error || !data || !data[0]){ err.textContent = error ? error.message : 'PIN hatalı'; pin = ''; draw(); return; }
+    const row = data[0], prev = getSession() || {};
+    close();
+    setSession({ session_token: row.session_token, user_id: row.user_id, restaurant_id: row.restaurant_id, role_names: row.role_names || [], permissions: row.permissions || [],
+      isManager: !!row.is_manager, restaurant_name: row.restaurant_name, username: row.username, remember: !!prev.remember });
+    if(prev.remember) try{ await sb.rpc('set_session_remember', { p_token: row.session_token }); }catch(e){}
+    APP.config = null; APP.reportsUnlocked = false; APP.draftCart = {}; APP.view = 'home';
+    showToast('👤 ' + row.username + ' olarak devam ediliyor');
+    render();
+  };
+  const press = (k) => { err.textContent = ''; if(k === '⌫') pin = pin.slice(0, -1); else if(k === '✓') return submit(); else if(pin.length < 6) pin += k; draw(); if(pin.length === 6) submit(); };
+  const onKey = (e) => { if(/^[0-9]$/.test(e.key)) press(e.key); else if(e.key === 'Backspace') press('⌫'); else if(e.key === 'Enter') press('✓'); else if(e.key === 'Escape') close(); };
+  bg.querySelector('.pin-pad').addEventListener('click', e => { const b = e.target.closest('button[data-k]'); if(b) press(b.dataset.k); });
+  bg.querySelector('.uc-no').addEventListener('click', close);
+  bg.addEventListener('click', e => { if(e.target === bg) close(); });
+  document.addEventListener('keydown', onKey);
+  document.body.appendChild(bg); draw();
+}

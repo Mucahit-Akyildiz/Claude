@@ -82,3 +82,6 @@ create table if not exists ip_hits(id bigserial primary key, bucket text not nul
 alter table products add column if not exists option_groups jsonb not null default '[]'::jsonb, add column if not exists opt_group text;
 
 -- Muhasebe aktarımı: get_accounting_export(p_token, p_from, p_to) -> {sales[d,vat,gross,net,tax], payments[...], purchases[...]} ('reports' izni).
+
+-- PIN ile hızlı personel geçişi: app_users.pin_hash; set_staff_pin(p_token,p_user_id,p_pin); login_by_pin(p_token,p_pin) (5 dk'da 8 hatalı denemede kilit); config users[].has_pin.
+alter table app_users add column if not exists pin_hash text;
