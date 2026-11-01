@@ -90,3 +90,6 @@ alter table app_users add column if not exists pin_hash text;
 
 -- Çok dil: app_users.lang; set_my_lang / get_my_lang (tr,en,ar,ru,de).
 alter table app_users add column if not exists lang text;
+
+-- Limitli hesaplar birleşik: allowances.carry_over (günlük devreder); kişi ve kullanıcı için tüm dönemler.
+alter table allowances add column if not exists carry_over boolean default false;
