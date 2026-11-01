@@ -371,6 +371,7 @@ function openExtrasModal(productId){
       <input id="xt_price_${e.id}" type="number" min="0" step="0.01" value="${e.price}" style="width:110px;margin:0;" title="Ek fiyat (₺)">
       ${actBtn('save', 'saveProductExtra', productId, e.id)}${actBtn('delete', 'removeProductExtra', productId, e.id)}
     </div>`).join('') || '<p class="u-fs13 muted">Henüz ekstra yok.</p>'}
+    ${optGroupsEditorHtml(prod, list)}
     <div style="display:flex;gap:8px;align-items:center;border-top:1px dashed var(--border);padding-top:12px;margin-top:6px;">
       <input id="xt_name_new" placeholder="örn. Ek Döner" class="u-f1-m0">
       <input id="xt_price_new" type="number" min="0" step="0.01" placeholder="Fiyat ₺" style="width:110px;margin:0;">
@@ -378,6 +379,45 @@ function openExtrasModal(productId){
     </div>
   </div>`;
   document.body.appendChild(bg);
+}
+/* Seçenek grupları: ekstralar gruplara ayrılır (örn. "Pişirme" zorunlu tek seçim, "Çıkarılacaklar" ücretsiz, en çok 3).
+   Grup ana üründe saklanır [{name,min,max}]; her ekstra bir gruba atanır (grupsuz = serbest ekstra). */
+function optGroupsEditorHtml(prod, list){
+  if(!APP.optDraft || APP.optDraft.pid !== prod.id) APP.optDraft = { pid: prod.id, groups: JSON.parse(JSON.stringify(prod.option_groups || [])) };
+  const gs = APP.optDraft.groups;
+  return `<div style="border-top:1px dashed var(--border);padding-top:12px;margin-top:10px;">
+    <div class="u-row-sb"><b>🧩 Seçenek grupları</b><button type="button" class="ghost-btn" style="width:auto;margin:0;padding:5px 10px;font-size:12.5px;" ${act('optGroupAdd', prod.id)}>+ Grup</button></div>
+    <p class="muted" style="text-align:left;font-size:12px;margin:4px 0 8px;">Örn. "Pişirme" en az 1 / en çok 1 (zorunlu tek seçim), "Çıkarılacaklar" en az 0 / en çok 3 (ücretsiz: fiyatı 0 girin). En çok boş = sınırsız.</p>
+    ${gs.map((g, i) => `<div style="display:flex;gap:6px;align-items:center;margin-bottom:6px;">
+      <input id="og_name_${i}" value="${escapeAttr(g.name||'')}" placeholder="Grup adı" class="u-f1-m0">
+      <label class="muted" style="font-size:11.5px;">En az<input id="og_min_${i}" type="number" min="0" value="${Number(g.min)||0}" style="width:58px;margin:0 0 0 4px;"></label>
+      <label class="muted" style="font-size:11.5px;">En çok<input id="og_max_${i}" type="number" min="1" value="${g.max==null?'':g.max}" placeholder="∞" style="width:58px;margin:0 0 0 4px;"></label>
+      <button type="button" class="ghost-btn" style="width:auto;margin:0;padding:5px 8px;color:var(--red);" title="Grubu kaldır" ${act('optGroupDel', prod.id, i)}>✕</button></div>`).join('') || '<p class="u-fs13 muted">Grup yok — tüm ekstralar serbest seçilir.</p>'}
+    ${gs.length && list.length ? `<div style="margin-top:8px;"><small class="muted">Ekstraların grubu</small>${list.map(e => `<div style="display:flex;gap:8px;align-items:center;margin-top:4px;"><span style="flex:1;">${escapeHtml(e.name)}</span><select id="og_as_${e.id}" style="width:auto;margin:0;"><option value="">— grupsuz —</option>${gs.map(g => `<option ${e.opt_group===g.name?'selected':''}>${escapeHtml(g.name)}</option>`).join('')}</select></div>`).join('')}</div>` : ''}
+    <button type="button" style="margin-top:10px;" ${act('saveOptGroups', prod.id)}>💾 Grupları kaydet</button>
+  </div>`;
+}
+function optGroupsRead(){
+  return APP.optDraft.groups.map((g, i) => {
+    const n = document.getElementById('og_name_'+i); if(!n) return g;
+    const mx = document.getElementById('og_max_'+i).value.trim();
+    return { name: n.value.trim(), min: Math.max(0, parseInt(document.getElementById('og_min_'+i).value, 10) || 0), max: mx === '' ? null : Math.max(1, parseInt(mx, 10) || 1) };
+  });
+}
+function optGroupAdd(pid){ APP.optDraft.groups = optGroupsRead(); APP.optDraft.groups.push({ name: '', min: 0, max: null }); openExtrasModal(pid); }
+function optGroupDel(pid, i){ APP.optDraft.groups = optGroupsRead(); APP.optDraft.groups.splice(i, 1); openExtrasModal(pid); }
+async function saveOptGroups(pid){
+  const groups = optGroupsRead();
+  if(groups.some(g => !g.name)){ showToast('Grup adı boş olamaz'); return; }
+  if(new Set(groups.map(g => g.name)).size !== groups.length){ showToast('Grup adları farklı olmalı'); return; }
+  if(groups.some(g => g.max != null && g.max < Math.max(1, g.min))){ showToast('En çok, en azdan küçük olamaz'); return; }
+  const assign = {};
+  productExtras(pid).forEach(e => { const el = document.getElementById('og_as_'+e.id); assign[e.id] = el ? el.value : (groups.some(g => g.name === e.opt_group) ? e.opt_group : ''); });
+  const session = getSession();
+  const { error } = await sb.rpc('set_product_option_groups', { p_token: session.session_token, p_product_id: pid, p_groups: groups, p_assign: assign });
+  if(error){ alert(error.message); return; }
+  const { data } = await sb.rpc('get_restaurant_config', { p_token: session.session_token }); if(data) APP.config = data;
+  APP.optDraft = null; showToast('Seçenek grupları kaydedildi ✓'); openExtrasModal(pid);
 }
 async function saveProductExtra(productId, extraId){
   const k = extraId || 'new';

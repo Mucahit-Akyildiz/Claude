@@ -176,15 +176,48 @@ function renderProductPick(stationId, tableId){
   const cart = (APP.draftCart && APP.draftCart[tableId]) || [];
   const parents = [...new Set(cart.map(i => i.product_id))].map(id => (APP.config.products || []).find(p => p.id === id)).filter(p => p && productExtras(p.id).some(e => e.available !== false));
   const extrasHtml = parents.length ? `<div class="pp-extras"><div class="pp-extras-h">➕ Ekstralar</div>
-    ${parents.map(par => `<div class="pp-extras-row"><span class="pp-extras-for">${escapeHtml(par.name)}</span>
-      ${productExtras(par.id).filter(e => e.available !== false).map(e => { const n = (cart.find(i => i.product_id === e.id) || {}).qty || 0;
-        return `<button type="button" class="pp-extra ${n?'on':''}" ${act('addToDraft', tableId, e.id)}>${escapeHtml(e.name)}<small>${Number(e.price) ? '+'+money(e.price) : 'ücretsiz'}</small>${n ? `<b>${n}</b>` : ''}</button>`; }).join('')}</div>`).join('')}
+    ${parents.map(par => { const ex = productExtras(par.id).filter(e => e.available !== false), gs = par.option_groups || [];
+      const btn = (e, g) => { const n = (cart.find(i => i.product_id === e.id) || {}).qty || 0;
+        return `<button type="button" class="pp-extra ${n?'on':''}" ${g && g.max === 1 ? act('pickGroupExtra', tableId, e.id) : act('addToDraft', tableId, e.id)}>${escapeHtml(e.name)}<small>${Number(e.price) ? '+'+money(e.price) : 'ücretsiz'}</small>${n ? `<b>${n}</b>` : ''}</button>`; };
+      const rows = gs.map(g => { const items = ex.filter(e => e.opt_group === g.name); if(!items.length) return '';
+        const sel = items.reduce((a, e) => a + ((cart.find(i => i.product_id === e.id) || {}).qty || 0), 0), need = (Number(g.min) || 0) * optParentQty(cart, par.id);
+        const rule = g.min > 0 && g.max === 1 ? 'zorunlu · 1 seçin' : (g.min > 0 ? 'en az ' + g.min : 'isteğe bağlı') + (g.max ? ' · en çok ' + g.max : '');
+        return `<div class="pp-extras-row"><span class="pp-extras-for">${escapeHtml(par.name)} · <b>${escapeHtml(g.name)}</b> <small class="${sel < need ? 'u-red' : 'muted'}">(${rule})</small></span>${items.map(e => btn(e, g)).join('')}</div>`; }).join('');
+      const free = ex.filter(e => !gs.some(g => g.name === e.opt_group));
+      return rows + (free.length ? `<div class="pp-extras-row"><span class="pp-extras-for">${escapeHtml(par.name)}</span>${free.map(e => btn(e, null)).join('')}</div>` : ''); }).join('')}
   </div>` : '';
   const searchHtml = `<div class="pp-search"><input id="ppSearch" placeholder="🔍 Ürün ara…" autocomplete="off" value="${escapeAttr(APP.prodSearch || '')}" ${actOn('input','setProdSearch',['$value', tableId])}>${q ? `<span class="pp-search-n">${prods.length} sonuç</span><button type="button" class="pp-search-x" title="Temizle" ${act('setProdSearch', '', tableId)}>✕</button>` : ''}</div>`;
   const focused = document.activeElement && document.activeElement.id === 'ppSearch';
   el.innerHTML = side + `<div class="pp-main">${searchHtml}${q ? '' : quickTopHtml(tableId)}<div class="pp-grid">${cards}</div>${extrasHtml}</div>`;
   loadOrderQuickPicks(tableId);
   if(focused){ const i = document.getElementById('ppSearch'); if(i){ i.focus(); i.setSelectionRange(i.value.length, i.value.length); } }
+}
+/* Seçenek grupları (bkz. optGroupsEditorHtml): sepette ana ürün adedi başına en az/en çok kuralı. */
+function optParentQty(cart, pid){ return cart.filter(i => i.product_id === pid).reduce((a, i) => a + (Number(i.qty) || 0), 0); }
+function optGroupViolation(cart){
+  const prods = (APP.config && APP.config.products) || [];
+  for(const pid of new Set(cart.map(i => i.product_id))){
+    const par = prods.find(p => p.id === pid); if(!par || !(par.option_groups || []).length) continue;
+    const pq = optParentQty(cart, pid), ex = productExtras(pid);
+    for(const g of par.option_groups){
+      const ids = ex.filter(e => e.opt_group === g.name && e.available !== false).map(e => e.id); if(!ids.length) continue;
+      const n = cart.filter(i => ids.includes(i.product_id)).reduce((a, i) => a + (Number(i.qty) || 0), 0);
+      if(n < (Number(g.min) || 0) * pq) return par.name + ' için "' + g.name + '" seçimi eksik (' + (g.min * pq) + ' gerekli, ' + n + ' seçili).';
+      if(g.max != null && n > g.max * pq) return par.name + ' için "' + g.name + '" en çok ' + (g.max * pq) + ' seçilebilir (' + n + ' seçili).';
+    }
+  }
+  return null;
+}
+// Tek seçimli grup (en çok 1): yeni seçim, gruptaki önceki seçimin yerine geçer (ana ürün tek adetken).
+function pickGroupExtra(tableId, extraId){
+  const ex = findProductAny(extraId); if(!ex) return;
+  const par = (APP.config.products || []).find(p => p.id === ex.parent_id), cart = APP.draftCart[tableId] || [];
+  if(par && optParentQty(cart, par.id) <= 1){
+    const sib = productExtras(par.id).filter(e => e.opt_group === ex.opt_group && e.id !== extraId).map(e => e.id);
+    for(let k = cart.length - 1; k >= 0; k--){ if(sib.includes(cart[k].product_id))changeDraftQty(tableId, k, -cart[k].qty); }
+    if(cart.some(i => i.product_id === extraId)) return;
+  }
+  addToDraft(tableId, extraId);
 }
 function setProdSearch(v, tableId){ APP.prodSearch = v; renderProductPick(null, tableId); }
 function setProdPickCat(stationId, cat, tableId){ APP.prodSearch = '';
@@ -433,6 +466,8 @@ function updateDraftItemNote(tableId, idx, value){
 async function confirmOrder(tableId){
   const draft = APP.draftCart[tableId];
   if(!draft || draft.length===0) return;
+  const optErr = optGroupViolation(draft);
+  if(optErr){ alert(optErr); return; }
   if(typeof allowanceWarnBeforeSend === 'function' && !(await allowanceWarnBeforeSend(tableId, draft.reduce((s, d) => s + d.price * d.qty, 0)))) return;
   const btn = document.getElementById('confirmBtn');
   if(btn){ btn.disabled = true; btn.textContent = 'Gönderiliyor...'; }
