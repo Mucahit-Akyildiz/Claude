@@ -4127,3 +4127,13 @@ button.sl-stat{border:1px solid var(--border) !important;} button.sl-stat.on{bor
 html.is-native *,html.is-native *::before,html.is-native *::after{backdrop-filter:none !important;-webkit-backdrop-filter:none !important;}
 html.is-native .center-wrap{min-height:100%;min-height:100dvh;align-items:flex-start;padding-top:max(20px, 6vh);}
 html.is-native body{background:var(--bg);}
+
+/* PIN ile personel geçişi */
+.pin-card{max-width:320px}
+.pin-dots{display:flex;justify-content:center;gap:10px;margin:6px 0 4px}
+.pin-dots i{width:14px;height:14px;border-radius:50%;border:2px solid var(--border);display:block}
+.pin-dots i.on{background:var(--accent);border-color:var(--accent)}
+.pin-err{min-height:16px;text-align:center}
+.pin-pad{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:8px 0}
+.pin-pad button{margin:0;height:56px;font-size:22px;font-weight:800;border-radius:14px;background:var(--panel2);color:var(--text);border:1px solid var(--border);box-shadow:none}
+.pin-pad button:active{transform:scale(.96)}

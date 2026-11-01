@@ -40,13 +40,35 @@ function passField(id, disabled, existing){
   // Mevcut kullanıcı: şifre gösterilmez; "Şifreyi sıfırla" ile tek kullanımlık şifre verilir, kullanıcı ilk girişte kendi şifresini belirler.
   if(existing && id.startsWith('us_pass_')){
     const uid = id.slice(8);
-    return disabled ? '<span class="muted">—</span>' : `<button type="button" class="ghost-btn" style="width:auto;margin:0;padding:7px 12px;font-size:13px;" ${act('openPassReset', uid)}>🔑 Şifreyi sıfırla</button>`;
+    const hasPin = (((APP.config && APP.config.users) || []).find(x => x.id === uid) || {}).has_pin;
+    return disabled ? '<span class="muted">—</span>' : `<div style="display:flex;gap:6px;flex-wrap:wrap;"><button type="button" class="ghost-btn" style="width:auto;margin:0;padding:7px 12px;font-size:13px;" ${act('openPassReset', uid)}>🔑 Şifreyi sıfırla</button><button type="button" class="ghost-btn" style="width:auto;margin:0;padding:7px 12px;font-size:13px;" title="Ortak cihazda hızlı geçiş için PIN" ${act('openPinSet', uid)}>🔢 PIN${hasPin ? ' ✓' : ''}</button></div>`;
   }
   return `<div style="display:flex;gap:6px;align-items:center;">
     <input type="password" id="${id}" placeholder="Şifre" autocomplete="new-password" style="flex:1;min-width:0;margin:0;" ${disabled?'disabled':''}>
     ${disabled ? '' : `<button type="button" class="ghost-btn" style="${btn}" title="Yazılan şifreyi göster / gizle" ${act('togglePassVisible', id, '$this')}>👁</button>
     <button type="button" class="ghost-btn" style="${btn}" title="Rastgele şifre üret" ${act('fillRandomPass', id)}>🎲</button>`}
   </div>`;
+}
+function openPinSet(uid){
+  const u = ((APP.config && APP.config.users) || []).find(x => x.id === uid) || {};
+  const bg = document.createElement('div'); bg.className = 'dg-bg'; bg.style.zIndex = 3000;
+  bg.innerHTML = `<div class="dg-card uc-card" style="max-width:400px;"><div class="dg-ic">🔢</div>
+    <div class="uc-msg"><p><b>${escapeHtml(u.username || '')} — hızlı geçiş PIN'i</b></p><p class="muted" style="font-size:12.5px;">Ortak cihazda (kasa, tablet) çıkış yapmadan 👥 düğmesiyle bu PIN'i girerek kullanıcıya geçilir. 4-6 haneli rakam, işletmede benzersiz.</p></div>
+    <input class="uc-in" id="pinNew" type="password" inputmode="numeric" maxlength="6" autocomplete="off" placeholder="Yeni PIN">
+    <div class="uc-acts">${u.has_pin ? '<button type="button" class="pc-btn pin-del" style="color:var(--red);">PIN\'i kaldır</button>' : ''}<button type="button" class="pc-btn uc-no">Vazgeç</button><button type="button" class="uc-yes">Kaydet</button></div></div>`;
+  const close = () => bg.remove();
+  const save = async (v) => {
+    const { error } = await sb.rpc('set_staff_pin', { p_token: getSession().session_token, p_user_id: uid, p_pin: v });
+    if(error){ alert(error.message); return; }
+    close(); u.has_pin = !!v; showToast(v ? '🔢 PIN kaydedildi' : 'PIN kaldırıldı');
+    const { data } = await sb.rpc('get_restaurant_config', { p_token: getSession().session_token }); if(data) APP.config = data;
+    renderSettingsContent(getSession());
+  };
+  bg.addEventListener('click', e => { if(e.target === bg) close(); });
+  bg.querySelector('.uc-no').addEventListener('click', close);
+  const d = bg.querySelector('.pin-del'); if(d) d.addEventListener('click', () => save(null));
+  bg.querySelector('.uc-yes').addEventListener('click', () => { const v = bg.querySelector('#pinNew').value.trim(); if(!/^[0-9]{4,6}$/.test(v)){ showToast('PIN 4-6 haneli rakam olmalı'); return; } save(v); });
+  document.body.appendChild(bg); setTimeout(() => bg.querySelector('#pinNew').focus(), 30);
 }
 function openPassReset(uid){
   const u = ((APP.config && APP.config.users) || []).find(x => x.id === uid) || {};
