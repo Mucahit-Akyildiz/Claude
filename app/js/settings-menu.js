@@ -233,11 +233,11 @@ function openIngredientUsageModal(ingredientId, edit){
         </div>` : ''}
         <div id="ingUsageItemsBox" class="iu-list"></div>
       </section>
-      <div class="iu-pop-foot"><span class="muted">${!edit ? 'Adım 3/3 · ürünleri seçip <b>Tamam</b>, sonra <b>Bitir ve kaydet</b>.' : 'Değişiklikler ana pencerede <b>Kaydet</b> ile kaydedilir.'}</span><button type="button" ${act('closeIuProdPop')}>✓ Tamam</button></div>
+      <div class="iu-pop-foot"><span class="muted">${!edit ? 'Adım 3/3 · ürünleri seçip miktarları girin, <b>Tamamla</b> ile kaydedin.' : 'Değişiklikler ana pencerede <b>Kaydet</b> ile kaydedilir.'}</span>${!edit ? `<span style="display:flex;gap:8px;"><button type="button" class="ghost-btn" ${act('closeIuProdPop')}>‹ Geri</button><button type="button" ${act('saveIngredientUsage', ingredientId)}>✓ Tamamla</button></span>` : `<button type="button" ${act('closeIuProdPop')}>✓ Tamam</button>`}</div>
       </div></div>
       <p class="muted iu-ordernote" id="iuOrderNote" ${ing.pack_mode === 'per_order' ? '' : 'hidden'}>🛍️ Ürünlere bağlanmaz. Paket sipariş ekranında (ve masada paket yapılan siparişte) <b>kaç adet</b> verildiği girilir; o kadar stoktan düşer ve maliyete eklenir.</p>
     </div>
-    <div class="iu-foot">${!edit ? '<span class="muted iu-foot-n">Hammadde eklendi · kullanım şeklini ve ürünleri seçip kaydedin</span>' : ''}<button type="button" class="ghost-btn" ${act('removeEl','ingUsageModalBg')}>${edit ? 'Vazgeç' : 'Sonra'}</button><button ${act('saveIngredientUsage', ingredientId)}>${ICON_SAVE}<span>${edit ? 'Kaydet' : 'Bitir ve kaydet'}</span></button></div>
+    <div class="iu-foot">${!edit ? '<span class="muted iu-foot-n">Adım 2/3 · kullanım şeklini seçin</span>' : ''}<button type="button" class="ghost-btn" ${act('removeEl','ingUsageModalBg')}>${edit ? 'Vazgeç' : 'Sonra'}</button>${edit ? `<button ${act('saveIngredientUsage', ingredientId)}>${ICON_SAVE}<span>Kaydet</span></button>` : `<button id="iuNextBtn" ${act('iuWizardNext', ingredientId)}>${ing.pack_mode === 'per_order' ? '✓ Tamamla' : 'İleri › Ürünler'}</button>`}</div>
   </div>`;
   document.body.appendChild(bg);
   const box = document.getElementById('ingUsageItemsBox');
@@ -253,7 +253,7 @@ function openIngredientUsageModal(ingredientId, edit){
     </label>`;
   }).join('');
   filterIngUsage(); iuRecalc();
-  if(!edit && ing.pack_mode !== 'per_order') openIuProdPop();
+
 }
 // Canlı hesap: stok değeri, kullanan ürün sayısı ve her ürün için bu hammaddenin maliyet payı (fire dahil).
 function iuRecalc(){
@@ -1750,6 +1750,7 @@ function iuModeChange(){
   document.querySelectorAll('#ingUsageModalBg .iu-mopt').forEach(l => l.classList.toggle('on', l.querySelector('input').checked));
   const sec = document.getElementById('iuProdBtn'), on = document.getElementById('iuOrderNote'), h = document.getElementById('iuHint');
   if(sec) sec.hidden = m === 'per_order'; if(on) on.hidden = m !== 'per_order';
+  const nb = document.getElementById('iuNextBtn'); if(nb) nb.textContent = m === 'per_order' ? '✓ Tamamla' : 'İleri › Ürünler';
   if(h) h.innerHTML = m === 'per_product' ? 'Paket olarak satıldığında hangi ürünlerde, 1 porsiyon için kaç adet kullanılıyor?' : 'İşaretleyip 1 porsiyonda kullanılan <b>net</b> miktarı girin; maliyet payı yanında görünür.';
   iuRecalc();
 }
@@ -1770,3 +1771,6 @@ function ingStepsHtml(cur){
   const st = [['Bilgiler', 'ad, birim, stok, maliyet'], ['Kullanım şekli', 'reçete / paket'], ['Ürünler', 'hangi üründe, ne kadar']];
   return `<div class="ing-steps"><span class="ing-steps-n">Adım ${cur}/${st.length}</span>${st.map(([t, d], i) => `<div class="ing-st ${i + 1 < cur ? 'done' : i + 1 === cur ? 'on' : ''}"><i>${i + 1 < cur ? '✓' : i + 1}</i><div><b>${t}</b><small>${d}</small></div></div>`).join('<span class="ing-st-line"></span>')}</div>`;
 }
+
+// Yeni hammadde sihirbazı: Adım 2'de "İleri" ürün seçimini açar; "Siparişte adet girilir" seçiliyse ürün adımı yok, doğrudan tamamlanır.
+function iuWizardNext(ingredientId){ if(iuMode() === 'per_order') return saveIngredientUsage(ingredientId); openIuProdPop(); }
