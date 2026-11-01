@@ -105,3 +105,5 @@ alter table restaurants add column if not exists guest_required boolean not null
 
 -- Müşteri kaydını yapan / son değiştiren: customers.created_by, updated_by, info_updated_at + customers_audit tetikleyicisi (peyk.uid); list_customers isimleri döner.
 alter table customers add column if not exists created_by uuid, add column if not exists updated_by uuid, add column if not exists info_updated_at timestamptz;
+
+-- customers_audit: not ve müşteriye özel sadakat ayarları da "son değiştiren"e dahil.
