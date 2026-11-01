@@ -51,7 +51,7 @@ async function removeOrderFlag(id){
 /* --- Hammaddeler (reçete tabanlı stok) --- */
 function renderIngredientsSettings(el, session){
   const ings = APP.config.ingredients || [];
-  const useCount = (id) => (APP.config.products||[]).filter(p => (p.recipe||[]).some(r => r.ingredient_id === id)).length;
+  const useCount = (id) => (APP.config.products||[]).filter(p => (p.recipe||[]).some(r => r.ingredient_id === id) || (p.packaging||[]).some(r => r.ingredient_id === id)).length;
   const maxStock = Math.max(1, ...ings.map(i => Number(i.stock)||0));
   const f = APP.ingFilter || 'all';
   const isLow = (i) => Number(i.min_stock) > 0 && Number(i.stock) <= Number(i.min_stock);
@@ -74,7 +74,7 @@ function renderIngredientsSettings(el, session){
         <span class="u-f1"></span>
         <div class="act-row">
           <button type="button" class="act-btn act-save" id="ingSaveAllBtn" ${act('saveAllIngredients')} disabled>${ICON_SAVE}<span>Kaydet</span></button>
-          <button type="button" class="act-btn" title="Seçili hammaddelerin (seçim yoksa hepsinin) stoğunu sıfırla" ${act('resetIngredientStock')}>↺<span>Stokları sıfırla</span></button>
+          <button type="button" class="act-btn act-reset" title="Seçili hammaddelerin (seçim yoksa hepsinin) stoğunu sıfırla" ${act('resetIngredientStock')}><b>↺</b><span>Stokları sıfırla</span></button>
           <button type="button" class="act-btn act-delete" data-ing-sel ${act('bulkDeleteIngredients')} disabled>${ICON_TRASH}<span>Sil</span></button>
         </div>
       </div>
