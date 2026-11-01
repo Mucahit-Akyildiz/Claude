@@ -4121,3 +4121,9 @@ button.sl-stat{border:1px solid var(--border) !important;} button.sl-stat.on{bor
   .order-modal .order-modal-info{display:none;}
   .order-modal.om-show-cart .order-modal-info{display:block;overflow:visible;margin-bottom:12px;}
 }
+
+/* Android uygulaması (WebView): klavye açılıp ekran yeniden boyutlanırken backdrop-filter/blur ve 100vh
+   katmanları siyah boyanabiliyor (giriş ekranında yalnız odaklı kutu görünüyordu). Uygulamada kapatılır. */
+html.is-native *,html.is-native *::before,html.is-native *::after{backdrop-filter:none !important;-webkit-backdrop-filter:none !important;}
+html.is-native .center-wrap{min-height:100%;min-height:100dvh;align-items:flex-start;padding-top:max(20px, 6vh);}
+html.is-native body{background:var(--bg);}
