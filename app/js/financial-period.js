@@ -432,6 +432,7 @@ async function openSaleDetailModal(historyId){
       ${row('Toplam', money(d.total), true)}
       ${row('Ödeme', d.payment_method==='split' ? ('💵 ' + money(d.cash_amount||0) + ' + 💳 ' + money(d.card_amount||0)) : (methods[d.payment_method] || escapeHtml(d.payment_method||'')))}
     </div>
+    ${Date.now() - new Date(d.closed_at) < 48 * 3600000 ? `<button type="button" class="ghost-btn" style="width:100%;margin-top:10px;" ${act('openPackForSale', historyId)}>🛍️ Paket yap (kalanlar / sonradan paket)</button>` : ''}
     ${(d.emails||[]).length ? `<p class="muted" style="text-align:left;font-size:12px;margin-top:10px;">Daha önce gönderildi: ${d.emails.map(e => escapeHtml(e.email)).join(', ')}</p>` : ''}
     <div style="margin-top:14px;border-top:1px solid var(--border);padding-top:12px;">
       <label style="font-size:12.5px;font-weight:700;color:var(--muted);">Fişi e-postayla gönder</label>
