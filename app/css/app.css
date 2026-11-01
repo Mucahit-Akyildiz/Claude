@@ -4154,3 +4154,7 @@ html.lang-rtl input[type=number],html.lang-rtl input[type=tel],html.lang-rtl .mo
 .al-who-b small{font-weight:500;font-size:11.5px;color:var(--muted)}
 .al-who-b.on{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 14%,var(--panel2))}
 @media (max-width:600px){.al-list-grid{grid-template-columns:1fr}}
+.al-sel{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.al-chip{display:inline-flex;align-items:center;padding:5px 10px;border-radius:999px;background:color-mix(in srgb,var(--accent) 14%,var(--panel2));border:1px solid var(--accent);font-weight:700;font-size:12.5px}
+.al-sel-b{width:auto !important;margin:0 !important;padding:5px 10px !important;font-size:12.5px !important}
+.al-pick-users{width:100%;margin:0;padding:10px;border-style:dashed}

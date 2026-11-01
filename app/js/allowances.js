@@ -71,40 +71,57 @@ async function renderAllowancesSettings(el){
     <div class="al-top-bar"><input class="al-filter" type="search" placeholder="🔍 Ad veya telefonla ara…" autocomplete="off" ${actOn('input','alFilter',['$value'])}>
       ${typeof excelBarHtml === 'function' ? excelBarHtml('allowances') : ''}</div>
     <div class="al-card al-one">
-      <div class="al-h"><span>💳</span><div><b>Limitli hesaplar</b><small>Kişiler 🎓 ve kullanıcılar 👔 tek listede · günlük (devreder / devretmez) veya aylık</small></div><em>${list.length}</em></div>
+      <div class="al-h"><span>💳</span><div><b>Limitli hesaplar</b><small>Kişiler 🎓 ve kullanıcılar 👔 tek listede</small></div><em>${list.length}</em></div>
       <div class="al-list al-list-grid">${list.slice().sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''), 'tr')).map(row).join('') || '<p class="muted al-empty">Henüz limit yok</p>'}</div>
       <div class="al-form" id="alForm">
-        <div class="al-who">
-          <button type="button" class="al-who-b ${APP.alWho !== 'user' ? 'on' : ''}" ${act('setAlWho', 'person')}>🎓 Kişi <small>giriş yapmayan (talebe, abone…)</small></button>
-          <button type="button" class="al-who-b ${APP.alWho === 'user' ? 'on' : ''}" ${act('setAlWho', 'user')}>👔 Kullanıcı <small>personel hesabı</small></button>
-        </div>
-        <div class="ix-form">
-          ${APP.alWho === 'user'
-            ? `<div style="grid-column:1/-1;"><label>Kullanıcılar <small class="muted" id="alUCount">(birden fazla seçebilirsiniz)</small></label>
-              ${free.length ? `<div class="al-users"><button type="button" class="al-uall" ${act('alToggleAllUsers')}>Tümünü seç</button>${free.map(u => `<label class="al-u"><input type="checkbox" value="${u.id}" ${actOn('change','alUserCount',[])}><span>${escapeHtml(u.username)}</span></label>`).join('')}</div>` : '<p class="muted al-empty">Tüm kullanıcıların limiti var</p>'}</div>`
+        ${(() => { const sel = (APP.alSelUsers || []).filter(id => free.some(u => u.id === id)), names = sel.map(id => (free.find(u => u.id === id) || {}).username);
+          return `<div class="ix-form">
+          ${sel.length ? `<div style="grid-column:1/-1;"><label>Seçilen kullanıcılar</label><div class="al-sel">${names.map(n => `<span class="al-chip">👔 ${escapeHtml(n)}</span>`).join('')}<button type="button" class="ghost-btn al-sel-b" ${act('openAlUserPicker')}>✏️ Değiştir</button><button type="button" class="ghost-btn al-sel-b" ${act('clearAlUsers')}>✕ Temizle</button></div></div>`
             : `<div><label>Ad soyad</label><input id="al_p_name" placeholder="ör. Ahmet Yılmaz" maxlength="60"></div>
-               <div><label>Telefon</label><input id="al_p_phone" type="tel" inputmode="tel" placeholder="05xx xxx xx xx" maxlength="20"></div>`}
-          <div><label>Dönem</label><select id="al_period">
-            <option value="daily" ${APP.alWho !== 'user' ? 'selected' : ''}>Günlük · devretmez (kalan ertesi güne geçmez)</option>
-            <option value="carry" ${APP.alWho === 'user' ? 'selected' : ''}>Günlük · devreder (kullanılmayan birikir)</option>
-            <option value="monthly">Aylık</option></select></div>
+               <div><label>Telefon</label><input id="al_p_phone" type="tel" inputmode="tel" placeholder="05xx xxx xx xx" maxlength="20"></div>
+               <div style="grid-column:1/-1;"><button type="button" class="ghost-btn al-pick-users" ${act('openAlUserPicker')} ${free.length ? '' : 'disabled'}>👥 Kullanıcı seç <small class="muted">— personele limit vermek için</small></button></div>`}
+          <div><label>Dönem</label><select id="al_period" ${actOn('change','alPeriodChange',['$value'])}><option value="daily">Günlük</option><option value="monthly">Aylık</option></select></div>
+          <div><label>Kalan tutar</label><select id="al_carry"><option value="0" ${sel.length ? '' : 'selected'}>Devretmez</option><option value="1" ${sel.length ? 'selected' : ''}>Devreder</option></select></div>
           <div><label>Limit (₺)</label><input id="al_limit" type="number" min="0" step="1" inputmode="decimal" placeholder="250"></div>
-          <div><label>Sipariş etiketi</label>${flagSel('al_flag', (flags.find(f => APP.alWho === 'user' ? /personel/i.test(f.label) : /talebe|öğrenci/i.test(f.label)) || flags[0] || {}).label)}</div>
+          <div><label>Sipariş etiketi</label>${flagSel('al_flag', (flags.find(f => sel.length ? /personel/i.test(f.label) : /talebe|öğrenci/i.test(f.label)) || flags[0] || {}).label)}</div>
         </div>
-        <button type="button" class="ix-save" ${act('saveAllowanceForm')}>＋ ${APP.alWho === 'user' ? 'Seçilenlere limit ekle' : 'Kişi ekle'}</button>
+        <button type="button" class="ix-save" ${act('saveAllowanceForm')}>＋ ${sel.length ? sel.length + ' kullanıcıya limit ekle' : 'Kişi ekle'}</button>`; })()}
       </div>
     </div>
     <p class="ix-note">ℹ️ Kişi seçildiğinde etiketi otomatik işaretlenir. Sipariş penceresinde kişi ya da kullanıcı adıyla aranıp seçilir; limitli bir etiket işaretlendiğinde seçim zorunludur (siparişi alan kendisi için de kendini seçer). ${flags.length ? '' : '<b>Önce Ayarlar → Sipariş Etiketleri\'nden bir etiket ekleyin.</b>'}</p>
   </div>`;
 }
 function alPeriodLabel(a){ return a.period === 'monthly' ? 'Aylık' : a.carry_over ? 'Günlük · devreder' : 'Günlük · devretmez'; }
-function setAlWho(w){ APP.alWho = w; renderAllowancesSettings(document.getElementById('usersSubContent')); }
+function alPeriodChange(v){ const c = document.getElementById('al_carry'); if(c){ c.disabled = v === 'monthly'; if(v === 'monthly') c.value = '0'; } }
+function clearAlUsers(){ APP.alSelUsers = []; renderAllowancesSettings(document.getElementById('usersSubContent')); }
+/* Kullanıcı seç: limiti olmayan personelden çoklu seçim (ara, tümünü seç / kaldır). Seçim yapılırsa limit kullanıcılara, yapılmazsa adı girilen kişiye eklenir. */
+function openAlUserPicker(){
+  const lim = (APP.allowances || []).filter(a => a.kind === 'user').map(a => a.user_id);
+  const free = ((APP.config && APP.config.users) || []).filter(u => u.is_active !== false && !lim.includes(u.id)).sort((a, b) => String(a.username).localeCompare(String(b.username), 'tr'));
+  const sel = new Set(APP.alSelUsers || []);
+  const bg = document.createElement('div'); bg.className = 'dg-bg'; bg.style.zIndex = 3000;
+  bg.innerHTML = `<div class="dg-card uc-card" style="max-width:440px;text-align:left;"><div class="uc-msg"><p><b>👥 Kullanıcı seç</b></p><p class="muted u-fs12">Limiti olmayan personel listeleniyor.</p></div>
+    <input class="uc-in alp-q" type="search" placeholder="🔍 Ara…" autocomplete="off">
+    <div style="display:flex;gap:6px;margin:8px 0;"><button type="button" class="pc-btn alp-all">☑ Tümünü seç</button><button type="button" class="pc-btn alp-none">☐ Seçimi kaldır</button><span class="u-f1"></span><small class="muted alp-n"></small></div>
+    <div class="alp-list" style="max-height:300px;overflow:auto;display:flex;flex-direction:column;gap:4px;">${free.map(u => `<label class="alp-row" data-q="${escapeAttr(String(u.username).toLocaleLowerCase('tr'))}" style="display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid var(--border);border-radius:10px;cursor:pointer;"><input type="checkbox" value="${u.id}" ${sel.has(u.id) ? 'checked' : ''} style="width:auto;margin:0;"><span style="flex:1;font-weight:700;">${escapeHtml(u.username)}</span><small class="muted">${escapeHtml((u.role_names || []).join(', '))}</small></label>`).join('') || '<p class="muted">Tüm kullanıcıların limiti var</p>'}</div>
+    <div class="uc-acts"><button type="button" class="pc-btn uc-no">Vazgeç</button><button type="button" class="uc-yes">Seç</button></div></div>`;
+  const boxes = () => [...bg.querySelectorAll('.alp-row')].filter(r => r.style.display !== 'none').map(r => r.querySelector('input'));
+  const cnt = () => { bg.querySelector('.alp-n').textContent = bg.querySelectorAll('.alp-row input:checked').length + ' seçili'; };
+  bg.querySelector('.alp-q').addEventListener('input', e => { const q = e.target.value.toLocaleLowerCase('tr'); bg.querySelectorAll('.alp-row').forEach(r => { r.style.display = r.dataset.q.includes(q) ? '' : 'none'; }); });
+  bg.querySelector('.alp-all').addEventListener('click', () => { boxes().forEach(b => { b.checked = true; }); cnt(); });
+  bg.querySelector('.alp-none').addEventListener('click', () => { bg.querySelectorAll('.alp-row input').forEach(b => { b.checked = false; }); cnt(); });
+  bg.querySelector('.alp-list').addEventListener('change', cnt);
+  bg.addEventListener('click', e => { if(e.target === bg) bg.remove(); });
+  bg.querySelector('.uc-no').addEventListener('click', () => bg.remove());
+  bg.querySelector('.uc-yes').addEventListener('click', () => { APP.alSelUsers = [...bg.querySelectorAll('.alp-row input:checked')].map(b => b.value); bg.remove(); renderAllowancesSettings(document.getElementById('usersSubContent')); });
+  document.body.appendChild(bg); cnt();
+}
 async function saveAllowanceForm(){
   const v = (x) => ((document.getElementById(x) || {}).value || '').trim();
-  const pv = v('al_period'), period = pv === 'monthly' ? 'monthly' : 'daily', carry = pv === 'carry';
+  const period = v('al_period') === 'monthly' ? 'monthly' : 'daily', carry = period === 'daily' && v('al_carry') === '1';
   const base = { period, carry_over: carry, limit_amount: v('al_limit'), flag_label: v('al_flag') };
-  if(APP.alWho === 'user'){
-    const ids = [...document.querySelectorAll('.al-users input:checked')].map(i => i.value);
+  const ids = APP.alSelUsers || [];
+  if(ids.length){
     if(!ids.length){ alert('En az bir kullanıcı seçin'); return; }
     const errs = [];
     await withLoadingOverlay((async () => { for(const uid of ids){
@@ -113,6 +130,7 @@ async function saveAllowanceForm(){
     } })());
     if(errs.length) alert('Bazı kullanıcılar eklenemedi:\n\n' + errs.join('\n'));
     if(errs.length < ids.length) showToast(`${ids.length - errs.length} kullanıcıya limit eklendi ✓`);
+    APP.alSelUsers = [];
   } else {
     const { error } = await withLoadingOverlay(sb.rpc('save_allowance', { p_token: getSession().session_token, p_data: Object.assign({ kind: 'person', name: v('al_p_name'), phone: v('al_p_phone') }, base) }));
     if(error){ alert(error.message); return; }
