@@ -972,13 +972,13 @@ async function renderDaycloseAlloc(session){
   const days = (data && data.days) || [], prods = (data && data.products) || [];
   const od = Number(data && data.open_days) || 0, oq = Number(data && data.open_qty) || 0;
   const openBar = (od || APP.allocOpen) ? `<label class="alloc-open"><span class="oo-switch"><input type="checkbox" ${APP.allocOpen ? 'checked' : ''} ${actOn('change','setAllocOpen',['$checked'])}><span class="oo-track"><span class="oo-thumb"></span></span></span>
-      <span>${APP.allocOpen ? `<b>Kapanışı yapılmamış ${od} gün de dahil</b> (bugünkü günlük gider payıyla, tahmini).` : `⚠️ Bu aralıkta <b>${od} günün kapanışı yapılmamış</b> (${Math.round(oq)} adet satış) — bu yüzden adetler Satışlar sekmesinden az. Dahil etmek için açın.`}</span></label>` : '';
+      <span>${APP.allocOpen ? `<b>Kapanışı yapılmamış ${od} gün de dahil</b> — o ana kadarki satışlarıyla, kapanmış gibi hesaplanır. Gider: geçmiş günlerde tam günlük pay, <b>bugün</b> için günün geçen kısmı kadar (tahmini).` : `⚠️ Bu aralıkta <b>${od} günün kapanışı yapılmamış</b> (${Math.round(oq)} adet satış) — bu yüzden adetler Satışlar sekmesinden az. Dahil etmek için açın.`}</span></label>` : '';
   if(!days.length){ el.innerHTML = openBar + `<div class="empty-state"><div style="font-size:42px;">📅</div><p class="muted">Bu aralıkta gün sonu kapanışı yapılmış gün yok.<br>Gün sonu kapanışı yapıldığında o günün sabit giderleri, cirosuna göre ürünlere dağıtılır.</p></div>`; return; }
   const n = (v) => Number(v) || 0, T = prods.reduce((a, p) => ({ rev: a.rev + n(p.rev), cost: a.cost + n(p.cost), oh: a.oh + n(p.oh), net: a.net + n(p.net) }), { rev: 0, cost: 0, oh: 0, net: 0 });
   const ohDays = days.reduce((a, d) => a + n(d.oh), 0), pct = (a, b) => b ? Math.round(a / b * 100) : 0;
   el.innerHTML = openBar + `<div class="pf-kpis">
       <div class="pf-k"><small>${APP.allocOpen ? 'Dahil edilen gün' : 'Kapanışı yapılan gün'}</small><b>${days.length}</b><em>sabit gider payı ${money(ohDays)}</em></div>
-      <div class="pf-k"><small>Ciro (KDV hariç)</small><b>${money(T.rev)}</b><em>kapanış günlerinde</em></div>
+      <div class="pf-k"><small>Ciro (KDV hariç)</small><b>${money(T.rev)}</b><em>${APP.allocOpen ? 'dahil edilen günlerde' : 'kapanış günlerinde'}</em></div>
       <div class="pf-k"><small>Malzeme maliyeti</small><b>${money(T.cost)}</b><em>%${pct(T.cost, T.rev)}</em></div>
       <div class="pf-k"><small>Dağıtılan sabit gider</small><b>${money(T.oh)}</b><em>cironun %${pct(T.oh, T.rev)}'i</em></div>
       <div class="pf-k hi ${T.net < 0 ? 'neg' : ''}"><small>Net kâr</small><b>${money(T.net)}</b><em>%${pct(T.net, T.rev)} net marj</em></div>
@@ -993,7 +993,7 @@ async function renderDaycloseAlloc(session){
     </div>
     <div class="u-mwn box" style="margin-top:14px;"><h2 class="u-m0" style="margin-bottom:10px;">📅 Gün bazında</h2>
       <div class="pf-head"><span>Gün</span><span></span><span>Ciro</span><span>Malzeme</span><span>Sabit gider</span><span>Gider oranı</span></div>
-      ${days.map(d => `<div class="pf-row"><summary style="cursor:default;"><span class="pf-n"><b>${new Date(d.d + 'T12:00:00').toLocaleDateString('tr-TR', { weekday: 'short', day: '2-digit', month: '2-digit' })}</b><small>${d.closed ? '✓ kapanış yapıldı' : '⏳ kapanmadı · tahmini gider'}</small></span><span></span>
+      ${days.map(d => `<div class="pf-row"><summary style="cursor:default;"><span class="pf-n"><b>${new Date(d.d + 'T12:00:00').toLocaleDateString('tr-TR', { weekday: 'short', day: '2-digit', month: '2-digit' })}</b><small>${d.closed ? '✓ kapanış yapıldı' : d.today ? '⏳ bugün · gün sürüyor · gider ' + money(d.oh) + ' / ' + money(d.oh_full) : '⏳ kapanmadı · tahmini gider'}</small></span><span></span>
         <span data-l="Ciro">${money(d.rev)}</span><span data-l="Malzeme">${money(d.cost)}</span><span data-l="Sabit gider">${money(d.oh)}</span><span data-l="Gider oranı"><b class="pf-pill ${d.pct == null ? 'low' : d.pct > 30 ? 'neg' : d.pct > 15 ? 'low' : 'ok'}">${d.pct == null ? 'satış yok' : '%' + d.pct}</b></span></summary></div>`).join('')}
     </div>`;
 }
