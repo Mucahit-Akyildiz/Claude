@@ -566,6 +566,8 @@ async function addUser(){
   if(error){ alert(error.message); return; }
   const ph = (document.getElementById('nu_phone') || {}).value || '';
   if(newId && ph.trim()){ const { error: pe } = await sb.rpc('set_staff_phone', { p_token: session.session_token, p_user_id: newId, p_phone: ph }); if(pe) alert('Kullanıcı eklendi ama telefon kaydedilemedi: ' + pe.message); }
+  const em = (document.getElementById('nu_email') || {}).value || '';
+  if(newId && em.trim()){ const { error: ee } = await sb.rpc('set_staff_email', { p_token: session.session_token, p_user_id: newId, p_email: em }); if(ee) alert('Kullanıcı eklendi ama e-posta kaydedilemedi: ' + ee.message); }
   closeSheet('userSheet');
   renderSettingsView(document.getElementById('main'), session);
 }
@@ -598,8 +600,9 @@ async function saveAllUsers(){
     const id = tr.dataset.uid, isOwner = !!tr.dataset.owner;
     const nameEl = document.getElementById('us_name_'+id), passEl = document.getElementById('us_pass_'+id);
     const roleIds = isOwner ? null : selectedRoleIds('us_'+id);
-    const phEl = document.getElementById('us_phone_'+id);
+    const phEl = document.getElementById('us_phone_'+id), emEl = document.getElementById('us_email_'+id);
     return { id, isOwner, username: nameEl ? nameEl.value.trim() : '', password: passEl ? passEl.value : '', roleIds, phone: phEl && phEl.dataset.masked !== '1' && phEl.value.trim() !== (phEl.dataset.orig || '') ? phEl.value.trim() : undefined,
+      email: emEl && emEl.value.trim() !== (emEl.dataset.orig || '') ? emEl.value.trim() : undefined,
       exempt: !!(roleIds && roleIds.some(r => exemptIds.includes(r))) };
   });
   if(!rows.length) return;
@@ -613,6 +616,8 @@ async function saveAllUsers(){
     const res = await bulkRpc('update_staff_user', rows.map(r => ({ p_user_id: r.id, p_username: r.username, p_password: r.password || null, p_role_ids: r.roleIds })));
     const ph = rows.filter((r, k) => { if(res[k].error){ errors.push((r.username || r.id) + ': ' + res[k].error.message); return false; } return r.phone !== undefined; });
     (await bulkRpc('set_staff_phone', ph.map(r => ({ p_user_id: r.id, p_phone: r.phone })))).forEach((e, k) => { if(e.error) errors.push((ph[k].username || ph[k].id) + ': ' + e.error.message); });
+    const em = rows.filter(r => r.email !== undefined && !errors.some(x => x.startsWith((r.username || r.id) + ':')));
+    if(em.length) (await bulkRpc('set_staff_email', em.map(r => ({ p_user_id: r.id, p_email: r.email })))).forEach((e, k) => { if(e.error) errors.push((em[k].username || em[k].id) + ': ' + e.error.message); });
   })());
   renderSettingsView(document.getElementById('main'), session);
   if(errors.length) alert('Bazı kullanıcılar kaydedilemedi:\n\n' + errors.join('\n'));
