@@ -860,6 +860,31 @@ function setZonesSubTab(t){
   const el = document.getElementById('settingsContent');
   if(el) renderZonesTabWithSubtabs(el, getSession());
 }
+/* Masa ikramı (soğuk meze vb.): seçilen ürün kişi sayısı kadar 0 TL ile siparişe eklenir, reçetesi stoktan düşer,
+   maliyeti masanın kârlılığına yazılır; mutfağa fiş gitmez. İsteğe bağlı olarak yalnızca seçili bölgelerde. */
+function tableTreatBoxHtml(){
+  const tr = (APP.config && APP.config.treat) || {}, prods = ((APP.config && APP.config.products) || []).filter(p => !p.parent_id).sort((a, b) => String(a.name).localeCompare(String(b.name), 'tr'));
+  const zones = (APP.config && APP.config.zones) || [], zsel = tr.zone_ids || [];
+  const cur = prods.find(p => p.id === tr.product_id);
+  return `<div class="u-mwn box tt-box">
+    <div class="u-row-sb"><h2 class="u-m0">🥗 Masa ikramı</h2>${cur ? '<span class="pchip" style="background:color-mix(in srgb,var(--ok,#22c55e) 18%,transparent);">Açık</span>' : '<span class="pchip">Kapalı</span>'}</div>
+    <p class="muted" style="text-align:left;font-size:13px;margin:6px 0 10px;">Masaya oturan müşterilere verilen soğuk meze, ekmek gibi ikramlar. Kişi sayısı girilince seçtiğiniz ürün <b>kişi sayısı kadar, 0 TL</b> olarak siparişe eklenir; reçetesi stoktan düşer ve maliyeti masanın kârlılığına yazılır. Mutfağa fiş gitmez. Önce ürünü reçetesiyle (kişi başı miktarlar) oluşturun.</p>
+    <div class="ix-form" style="grid-template-columns:1fr 1fr;">
+      <div><label>İkram ürünü</label><select id="ttProd"><option value="">— Kapalı —</option>${prods.map(p => `<option value="${p.id}" ${p.id === tr.product_id ? 'selected' : ''}>${escapeHtml(p.name)}${p.recipe && p.recipe.length ? '' : ' (reçete yok)'}</option>`).join('')}</select></div>
+      <div><label>Bölgeler <small class="muted">(hiçbiri seçilmezse tümü)</small></label><div class="tt-zones">${zones.map(z => `<label class="al-u"><input type="checkbox" class="tt-z" value="${z.id}" ${zsel.includes(z.id) ? 'checked' : ''}><span>${escapeHtml(z.name)}</span></label>`).join('') || '<small class="muted">Bölge yok</small>'}</div></div>
+    </div>
+    ${cur && Number(cur.cost) ? `<p class="muted u-fs12" style="text-align:left;margin:8px 0 0;">Kişi başı ikram maliyeti: <b>${money(cur.cost)}</b></p>` : cur ? '<p class="u-fs12 u-red" style="text-align:left;margin:8px 0 0;">⚠️ Bu ürünün maliyeti yok; reçete girin ki ikram maliyeti hesaplansın.</p>' : ''}
+    <button type="button" style="margin-top:10px;width:auto;" ${act('saveTableTreat')}>💾 Kaydet</button>
+  </div>`;
+}
+async function saveTableTreat(){
+  const pid = document.getElementById('ttProd').value || null, zones = [...document.querySelectorAll('.tt-z:checked')].map(c => c.value);
+  const s = getSession();
+  const { error } = await sb.rpc('set_table_treat', { p_token: s.session_token, p_product_id: pid, p_zone_ids: zones });
+  if(error){ alert(error.message); return; }
+  const { data } = await sb.rpc('get_restaurant_config', { p_token: s.session_token }); if(data) APP.config = data;
+  showToast(pid ? '🥗 Masa ikramı kaydedildi' : 'Masa ikramı kapatıldı'); renderSettingsContent(s);
+}
 function renderZonesSettings(el, session){
   const natural = (a, b) => String(a.name).localeCompare(String(b.name), 'tr', { numeric:true, sensitivity:'base' });
   const zones = APP.config.zones || [];
@@ -868,7 +893,7 @@ function renderZonesSettings(el, session){
   const total = zones.reduce((x, q) => x + q.tables.length, 0);
   el.innerHTML = statChips([['📍', zones.length, 'Bölge', 'var(--c1)'], ['🪑', total, 'Toplam masa', 'var(--c2)', 'all'],
       ['▦', zones.reduce((x, q) => x + q.tables.filter(t => t.qr_token).length, 0), 'QR kodlu masa', 'var(--c3)', 'qr'], ['⬜', zones.reduce((x, q) => x + q.tables.filter(t => !t.qr_token).length, 0), 'QR kodsuz masa', 'var(--c4)', 'noqr']], '', 'zones') +
-    `<div class="u-mwn box">
+    tableTreatBoxHtml() + `<div class="u-mwn box">
     <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:14px;">
       <h2 class="u-m0">Bölgeler & Masalar</h2><span class="u-f1"></span>
       <button type="button" class="pc-btn" ${act('showAllTableQrs')}>▦ Tüm QR'ları Yazdır</button>
