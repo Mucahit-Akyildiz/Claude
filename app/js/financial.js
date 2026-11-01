@@ -93,7 +93,7 @@ async function doSetReportsPassword(){
   errBox.textContent = '';
   const p1 = document.getElementById('rpSetPass').value;
   const p2 = document.getElementById('rpSetPass2').value;
-  if(!p1 || p1.length<4){ errBox.textContent = 'En az 4 karakter bir şifre girin'; return; }
+  if(!p1 || p1.length<8){ errBox.textContent = 'En az 8 karakter bir şifre girin'; return; }
   if(p1 !== p2){ errBox.textContent = 'Girdiğiniz şifreler eşleşmiyor'; return; }
   const btn = document.getElementById('rpSetBtn');
   btn.disabled = true; btn.textContent = 'Kaydediliyor...';
@@ -156,7 +156,7 @@ async function doVerifyReportsPasswordReset(){
   const newPass = document.getElementById('rpFgNewPass').value;
   const newPass2 = document.getElementById('rpFgNewPass2').value;
   if(!otp){ errBox.textContent = 'Kodu girin'; return; }
-  if(!newPass || newPass.length<4){ errBox.textContent = 'En az 4 karakter bir şifre girin'; return; }
+  if(!newPass || newPass.length<8){ errBox.textContent = 'En az 8 karakter bir şifre girin'; return; }
   if(newPass !== newPass2){ errBox.textContent = 'Girdiğiniz şifreler eşleşmiyor'; return; }
   const btn = document.getElementById('rpFgVerifyBtn');
   btn.disabled = true; btn.textContent = 'Güncelleniyor...';

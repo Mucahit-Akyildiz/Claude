@@ -474,7 +474,7 @@ async function doVerifyPasswordReset(){
   const newPass = document.getElementById('fpNewPass').value;
   const newPass2 = document.getElementById('fpNewPass2').value;
   if(!otp){ errBox.textContent = 'Kodu girin'; return; }
-  if(!newPass || newPass.length<4){ errBox.textContent = 'En az 4 karakter bir şifre girin'; return; }
+  if(!newPass || newPass.length<8){ errBox.textContent = 'En az 8 karakter bir şifre girin'; return; }
   if(newPass !== newPass2){ errBox.textContent = 'Girdiğiniz şifreler eşleşmiyor'; return; }
   const btn = document.getElementById('fpVerifyBtn');
   btn.disabled = true; btn.textContent = 'Güncelleniyor...';

@@ -1221,3 +1221,22 @@ async function acceptDeliveryOffer(){
   if(error){ alert(error.message); if(btn){ btn.disabled = false; btn.textContent = '✅ Siparişi aldım'; } return; }
   window.location.href = '/kurye/?t=' + data + '&auto=1';
 }
+
+/* ---- Yeni sürüm algılama: yayın sonrası açık kalan ekranlar eski dosyalarla çalışmasın.
+   Yüklü sürüm script etiketlerindeki ?vNNN'den okunur; /app/version.json daha yeniyse
+   uygulama tüm dosyaları birlikte yenilemek için sayfayı yeniden yükler (açık sipariş penceresi yoksa). ---- */
+const APP_BUILD = (() => { const s = document.querySelector('script[src*="?v"]'); const m = s && s.getAttribute('src').match(/\?v(\d+)/); return m ? +m[1] : 0; })();
+async function checkAppVersion(){
+  if(!APP_BUILD || !navigator.onLine) return;
+  try{
+    const r = await fetch('/app/version.json?t=' + Date.now(), { cache: 'no-store' }); if(!r.ok) return;
+    const v = +((await r.json()) || {}).v || 0;
+    if(v <= APP_BUILD) return;
+    const busy = document.getElementById('tableModalBg') || document.querySelector('.fsheet.open, .dg-bg');
+    if(!busy || document.hidden){ location.reload(); return; }
+    if(!APP._verToast){ APP._verToast = true; showToast('🔄 Yeni sürüm hazır — dokunarak yenileyin', 60000, null, () => location.reload(), false); }
+  }catch(e){}
+}
+setInterval(checkAppVersion, 5 * 60000);
+document.addEventListener('visibilitychange', () => { if(!document.hidden) checkAppVersion(); });
+setTimeout(checkAppVersion, 20000);

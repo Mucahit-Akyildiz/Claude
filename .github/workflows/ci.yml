@@ -24,6 +24,9 @@ jobs:
       - name: Satır içi JavaScript kontrolü (güvenlik politikası)
         run: node scripts/check-inline-handlers.js
 
+      - name: Sürüm senkron kontrolü (index ?v, sw önbelleği, version.json)
+        run: node scripts/check-version-sync.js
+
       - name: Ödeme API testleri (iyzico/Supabase taklit edilir)
         run: node --test tests/api/*.test.js
 
