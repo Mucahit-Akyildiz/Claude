@@ -4177,3 +4177,6 @@ html.lang-rtl input[type=number],html.lang-rtl input[type=tel],html.lang-rtl .mo
 .tt-body{padding:14px 16px 16px;border-top:1px solid var(--border)}
 .tt-info{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:12px}
 .gp-box.gp-need{outline:2px solid var(--red);outline-offset:2px;border-radius:12px;animation:gpPulse 1s 3}@keyframes gpPulse{50%{outline-color:transparent}}
+.po-click{cursor:pointer}
+.po-click:hover{border-color:var(--st);transform:translateY(-1px)}
+.po-more{margin-top:8px;font-size:12px;font-weight:700;color:var(--accent);text-align:right}

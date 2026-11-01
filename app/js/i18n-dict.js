@@ -408,6 +408,14 @@ Fiyat bekleyen|Awaiting price|بانتظار السعر|Ждёт цену|Wartet
 Teslim bekleyen|Awaiting delivery|بانتظار التسليم|Ждёт поставки|Wartet auf Lieferung
 Tamamlanan|Completed|مكتمل|Завершено|Abgeschlossen
 İptal edilen|Cancelled|ملغى|Отменённые|Storniert
+Bekleyenler|Pending|قيد الانتظار|Ожидающие|Ausstehend
+Detay için tıklayın ›|Click for details ›|اضغط للتفاصيل ›|Нажмите для подробностей ›|Für Details klicken ›
+Teslim bekliyor|Awaiting delivery|بانتظار التسليم|Ждёт поставки|Wartet auf Lieferung
+Taslak|Draft|مسودة|Черновик|Entwurf
+Gecikmiş|Late|متأخر|Просрочено|Verspätet
+Teslim alındı|Received|تم الاستلام|Получено|Erhalten
+Tüm siparişler|All orders|كل الطلبات|Все заказы|Alle Bestellungen
+Verilen Siparişler|Placed Orders|الطلبات المرسلة|Оформленные заказы|Aufgegebene Bestellungen
 Teslim Alındı|Received|تم الاستلام|Получено|Erhalten
 Tedarikçi seçin|Choose supplier|اختر المورد|Выберите поставщика|Lieferant wählen
 Sipariş Tutarı|Order Amount|مبلغ الطلب|Сумма заказа|Bestellbetrag
