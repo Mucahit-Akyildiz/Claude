@@ -412,6 +412,9 @@ Bekleyenler|Pending|قيد الانتظار|Ожидающие|Ausstehend
 Detay için tıklayın ›|Click for details ›|اضغط للتفاصيل ›|Нажмите для подробностей ›|Für Details klicken ›
 Teslim bekliyor|Awaiting delivery|بانتظار التسليم|Ждёт поставки|Wartet auf Lieferung
 Taslak|Draft|مسودة|Черновик|Entwurf
+Sipariş Taslağı Oluştur|Create Order Draft|إنشاء مسودة طلب|Создать черновик заказа|Bestellentwurf erstellen
+Yeni Sipariş Taslağı|New Order Draft|مسودة طلب جديدة|Новый черновик заказа|Neuer Bestellentwurf
+Taslağı Oluştur|Create Draft|إنشاء المسودة|Создать черновик|Entwurf erstellen
 Gecikmiş|Late|متأخر|Просрочено|Verspätet
 Teslim alındı|Received|تم الاستلام|Получено|Erhalten
 Tüm siparişler|All orders|كل الطلبات|Все заказы|Alle Bestellungen

@@ -134,15 +134,15 @@ async function renderPurchaseOrdersContent(session){
   const shown = (pf==='all' ? rows.filter(p => p.status !== 'cancelled') : pf==='late' ? rows.filter(isLate) : rows.filter(p => p.status===pf)).map((p, i) => [p, i]).sort((a, b) => rank(a[0]) - rank(b[0]) || a[1] - b[1]).map(x => x[0]);
   el.innerHTML = `
   ${lowStockBannerHtml()}
-  <div class="fsheet-bar" style="margin:0 0 14px;"><p class="muted" style="margin:0;font-size:13px;text-align:left;">Hammadde ihtiyacınızı tedarikçiye sipariş olarak iletin.</p><button type="button" class="fsheet-open" ${act('openNewPoSheet')}>🛒 Yeni Sipariş</button></div>
-  ${sheetHtml('poSheet', '🛒', 'Yeni Sipariş', `<p class="muted" style="text-align:left;margin:0 0 12px;font-size:13px;">İhtiyaç duyduğunuz hammaddeleri ve miktarları girip <b>Sipariş Ver</b>'e basın. Teslim alma, tedarikçi seçimi ve birim fiyat <b>Mal Kabul</b> menüsünden yapılır.</p>
+  <div class="fsheet-bar" style="margin:0 0 14px;"><p class="muted" style="margin:0;font-size:13px;text-align:left;">Hammadde ihtiyacınızı tedarikçiye sipariş olarak iletin.</p><button type="button" class="fsheet-open" ${act('openNewPoSheet')}>📝 Sipariş Taslağı Oluştur</button></div>
+  ${sheetHtml('poSheet', '📝', 'Yeni Sipariş Taslağı', `<p class="muted" style="text-align:left;margin:0 0 12px;font-size:13px;">İhtiyaç duyduğunuz hammaddeleri ve miktarları girip <b>Taslağı Oluştur</b>'a basın. Taslak, kartındaki <b>🚚 Sipariş Ver</b> ile tedarikçiye iletilir; teslim alma, tedarikçi seçimi ve birim fiyat <b>Mal Kabul</b> menüsünden yapılır.</p>
       <div class="fsheet-grid">
         <div class="field-group"><label>Beklenen Tarih</label><input id="po_expected" type="date" ${actOn('change','refreshPoSuggest',[])}></div>
         <div class="field-group wide"><label>Not</label><input id="po_notes" placeholder="opsiyonel"></div>
       </div>
       <div style="display:flex;justify-content:space-between;align-items:center;margin:16px 0 8px;"><b style="font-size:14px;">📦 Hammaddeler</b><button type="button" class="u-wa-m0 ghost-btn" ${act('addPoDraftItemRow')}>+ Hammadde Ekle</button></div>
       <div id="poItemsWrap">${renderPoDraftItemsHtml()}</div>
-      <div class="fsheet-foot"><button type="button" class="ghost-btn" ${act('closeSheet','poSheet')}>Vazgeç</button><button ${act('createPurchaseOrder')}>🛒 Sipariş Ver</button></div>`, 'var(--accent)')}
+      <div class="fsheet-foot"><button type="button" class="ghost-btn" ${act('closeSheet','poSheet')}>Vazgeç</button><button ${act('createPurchaseOrder')}>📝 Taslağı Oluştur</button></div>`, 'var(--accent)')}
   ${statChipsClick([['ordered','🚚', cnt('ordered'), 'Teslim bekliyor', '#f59e0b'], ['draft','📝', cnt('draft'), 'Taslak', '#a78bfa'],
       ['late','⏰', rows.filter(isLate).length, 'Gecikmiş', 'var(--danger,#ef4444)'], ['received','✅', cnt('received'), 'Teslim alındı', 'var(--ok,#22c55e)'],
       ['cancelled','✕', cnt('cancelled'), 'İptal edilen', '#94a3b8'], ['all','📋', rows.length - cnt('cancelled'), 'Tüm siparişler', 'var(--c1)']], pf, 'setPoFilter')}
@@ -255,7 +255,7 @@ async function createPurchaseOrder(){
   APP.poDraftItems = [];
   closeSheet('poSheet');
   renderPurchaseOrdersContent(session);
-  showToast('Sipariş verildi ✓');
+  showToast('📝 Sipariş taslağı oluşturuldu — kartından Sipariş Ver ile iletebilirsiniz');
 }
 async function markPOOrdered(id){
   const session = getSession();
