@@ -4019,3 +4019,19 @@ button.sl-stat{border:1px solid var(--border) !important;} button.sl-stat.on{bor
 .be-empty p{margin:6px 0 0;}
 .oh-warn{display:grid;gap:4px;margin:0 0 10px;padding:8px 12px;border-radius:12px;font-size:12.5px;text-align:left;background:color-mix(in srgb,var(--c3,#f59e0b) 12%,transparent);border:1px solid color-mix(in srgb,var(--c3,#f59e0b) 35%,var(--border));}
 @media (max-width:640px){ .be-grid{grid-template-columns:1fr 1fr;} }
+
+/* Ürünler › Maliyet & Giderler kartı */
+.cost-hub{display:flex;gap:14px;align-items:center;margin:0 0 8px;padding:14px 16px;border-radius:16px;cursor:pointer;text-align:left;
+  background:linear-gradient(135deg,color-mix(in srgb,var(--accent,#06b6d4) 16%,var(--panel)),color-mix(in srgb,var(--ok,#22c55e) 10%,var(--panel)));
+  border:1px solid color-mix(in srgb,var(--accent,#06b6d4) 45%,var(--border));transition:transform .15s,border-color .15s;}
+.cost-hub:hover{transform:translateY(-1px);border-color:var(--accent,#06b6d4);}
+.ch-ic{width:52px;height:52px;flex-shrink:0;border-radius:14px;display:grid;place-items:center;font-size:26px;background:color-mix(in srgb,var(--accent,#06b6d4) 22%,transparent);}
+.ch-main{flex:1;min-width:0;} .ch-main>b{font-size:16px;}
+.ch-main ul{margin:4px 0 0;padding:0;list-style:none;display:grid;gap:2px;font-size:13px;}
+.ch-be{margin-top:8px;max-width:520px;} .ch-be small{font-size:12px;}
+.ch-bar{position:relative;height:8px;border-radius:5px;background:var(--panel2,rgba(127,127,127,.2));margin-bottom:4px;}
+.ch-bar i{display:block;height:100%;border-radius:5px;background:linear-gradient(90deg,var(--c3,#f59e0b),var(--ok,#22c55e));}
+.ch-bar span{position:absolute;top:-3px;bottom:-3px;width:2px;background:var(--text);opacity:.55;}
+.ch-go{flex-shrink:0;font-weight:800;color:#fff;background:var(--accent,#06b6d4);padding:10px 16px;border-radius:12px;}
+.ch-tip{margin:0 0 12px;}
+@media (max-width:600px){ .cost-hub{flex-wrap:wrap;} .ch-go{width:100%;text-align:center;} }
