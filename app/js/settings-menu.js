@@ -213,9 +213,13 @@ function openIngredientUsageModal(ingredientId, edit){
         <button type="button" class="pc-btn iu-hist" ${act('openIngCostLog', ingredientId)}>📈 Maliyet geçmişi</button>
         <p class="muted iu-cnote">Mal Kabul'de fiyatlı teslim aldıkça eldeki stokla <b>ağırlıklı ortalanarak</b> otomatik güncellenir.${w ? ' Ürün maliyetine %' + w + ' fire eklenir.' : ''}</p>
       </section>
-      <section>
+      <section class="iu-mode">
+        <b>Bu hammadde nasıl kullanılıyor?</b>
+        <div class="iu-modes">${[['', '🍽️ Reçete malzemesi', 'Seçili ürünlerde her satışta stoktan düşer'], ['per_product', '🛍️ Yalnızca pakette', 'Kapaklı kap, sızdırmaz kap… Seçili ürünlerde yalnızca paket sipariş ya da masada "paket yap" denince düşer'], ['per_order', '🛍️ Siparişte adet girilir', 'Poşet, kese kağıdı… Paket siparişte kaç tane girildiyse o kadar düşer']].map(([k, t, d]) => `<label class="iu-mopt ${(ing.pack_mode || '') === k ? 'on' : ''}"><input type="radio" name="iuMode" value="${k}" ${(ing.pack_mode || '') === k ? 'checked' : ''} ${actOn('change','iuModeChange',[])}><b>${t}</b><small>${d}</small></label>`).join('')}</div>
+      </section>
+      <section id="iuProdSec" ${ing.pack_mode === 'per_order' ? 'hidden' : ''}>
         <div class="iu-sh"><h3>🍽️ Kullanıldığı ürünler</h3><small class="muted" id="iuCount"></small></div>
-        <p class="muted iu-hint">İşaretleyip 1 porsiyonda kullanılan <b>net</b> miktarı girin; maliyet payı yanında görünür. Poşet, kapaklı kap, kese kağıdı gibi yalnızca paket servisinde kullanılanlar için <b>🛍️ Yalnızca pakette</b>'yi işaretleyin: paket siparişte ve masada "paket yap" denince stoktan düşer, maliyete eklenir.</p>
+        <p class="muted iu-hint" id="iuHint">${ing.pack_mode === 'per_product' ? 'Paket olarak satıldığında hangi ürünlerde, 1 porsiyon için kaç adet kullanılıyor?' : 'İşaretleyip 1 porsiyonda kullanılan <b>net</b> miktarı girin; maliyet payı yanında görünür.'}</p>
         ${products.length ? `<div class="iu-tools">
           <input id="iuSearch" placeholder="🔍 Ürün ara…" autocomplete="off" ${actOn('input','filterIngUsage',[])}>
           <select id="iuMenu" ${actOn('change','filterIngUsage',[])}><option value="">Tüm menüler</option>${menus.map(m => `<option value="${escapeAttr(m.id)}">${escapeHtml(m.name)}</option>`).join('')}</select>
@@ -224,6 +228,7 @@ function openIngredientUsageModal(ingredientId, edit){
         </div>` : ''}
         <div id="ingUsageItemsBox" class="iu-list"></div>
       </section>
+      <p class="muted iu-ordernote" id="iuOrderNote" ${ing.pack_mode === 'per_order' ? '' : 'hidden'}>🛍️ Ürünlere bağlanmaz. Paket sipariş ekranında (ve masada paket yapılan siparişte) <b>kaç adet</b> verildiği girilir; o kadar stoktan düşer ve maliyete eklenir.</p>
     </div>
     <div class="iu-foot"><button type="button" class="ghost-btn" ${act('removeEl','ingUsageModalBg')}>Vazgeç</button><button ${act('saveIngredientUsage', ingredientId)}>${ICON_SAVE}<span>Kaydet</span></button></div>
   </div>`;
@@ -231,13 +236,12 @@ function openIngredientUsageModal(ingredientId, edit){
   const box = document.getElementById('ingUsageItemsBox');
   box.innerHTML = products.length===0 ? '<p class="muted">Henüz ürün eklenmemiş.</p>' : products.map(p => {
     const exR = (p.recipe||[]).find(r => r.ingredient_id===ingredientId), exP = (p.packaging||[]).find(r => r.ingredient_id===ingredientId);
-    const ex = exR || (exP ? { qty_per_unit: exP.qty } : null);
+    const ex = ing.pack_mode === 'per_product' ? (exP ? { qty_per_unit: exP.qty } : null) : exR;
     const mn = menus.length > 1 && p.menu_id ? ((menus.find(m => m.id === p.menu_id)||{}).name||'') : (p.category || '');
     return `<label class="iu-item ${ex?'on':''}" data-pid="${p.id}" data-name="${escapeAttr(p.name)}" data-menu="${escapeAttr(p.menu_id||'')}" data-price="${Number(p.price)||0}" data-cost="${Number(p.cost)||0}">
       <input type="checkbox" id="ingu_chk_${p.id}" ${ex?'checked':''} ${actOn('change','toggleIngUsageQty',[p.id,'$checked'])}>
       <span class="iu-pn"><b>${escapeHtml(p.name)}</b><small class="muted">${escapeHtml(mn)}${mn ? ' · ' : ''}${money(p.price)} · ürün maliyeti ${money(p.cost)}</small></span>
-      <span class="iu-q"><input type="number" step="0.01" min="0" id="ingu_qty_${p.id}" value="${ex?ex.qty_per_unit:''}" placeholder="Miktar" ${ex?'':'disabled'} ${actOn('input','iuRecalc',[])}><em class="iu-u">${escapeHtml(unit)}</em>
-        <label class="iu-pack" title="Yalnızca paket siparişte (ve masada 'paket yap' denince) stoktan düşer ve maliyete eklenir: poşet, kapaklı kap, kese kağıdı…"><input type="checkbox" id="ingu_pack_${p.id}" ${exP?'checked':''} ${actOn('change','iuRecalc',[])}> 🛍️ Yalnızca pakette</label></span>
+      <span class="iu-q"><input type="number" step="0.01" min="0" id="ingu_qty_${p.id}" value="${ex?ex.qty_per_unit:''}" placeholder="Miktar" ${ex?'':'disabled'} ${actOn('input','iuRecalc',[])}><em class="iu-u">${escapeHtml(unit)}</em></span>
       <span class="iu-c" id="ingu_c_${p.id}">—</span>
     </label>`;
   }).join('');
@@ -261,8 +265,7 @@ function iuRecalc(){
     const on = row.querySelector('input[type=checkbox]').checked, q = parseFloat(row.querySelector('.iu-q input').value) || 0;
     row.classList.toggle('on', on); if(on) n++;
     const c = row.querySelector('.iu-c'), price = Number(row.dataset.price) || 0;
-    const pk = row.querySelector('.iu-pack input'), isPack = pk && pk.checked; row.classList.toggle('pack', on && isPack);
-    if(pk) pk.closest('.iu-pack').hidden = !on;
+    const isPack = iuMode() === 'per_product'; row.classList.toggle('pack', on && isPack);
     if(on && q && uc){ const share = isPack ? q * uc : q * uc / Math.max(0.01, 1 - w / 100); c.innerHTML = `<b>${money(share)}</b><small>${isPack ? '🛍️ yalnızca pakette' : price ? '%' + Math.round(share / price * 100) + ' fiyatın' : ''}</small>`; }
     else c.innerHTML = on ? '<small class="muted">miktar girin</small>' : '';
   });
@@ -298,14 +301,13 @@ async function saveIngredientUsage(ingredientId){
   const products = APP.config.products || [];
   const usages = [], packaging = [];
   const missing = [];
-  products.forEach(p => {
+  (iuMode() === 'per_order' ? [] : products).forEach(p => {
     const chk = document.getElementById('ingu_chk_'+p.id);
     if(chk && chk.checked){
       const inp = document.getElementById('ingu_qty_'+p.id);
       const qty = parseFloat(inp.value);
       inp.style.borderColor = '';
-      const pk = document.getElementById('ingu_pack_'+p.id);
-      if(qty && qty>0){ if(pk && pk.checked) packaging.push({ product_id: p.id, qty }); else usages.push({ product_id: p.id, qty_per_unit: qty }); }
+      if(qty && qty>0) usages.push({ product_id: p.id, qty_per_unit: qty });
       else { missing.push(p.name); inp.style.borderColor = 'var(--red)'; }
     }
   });
@@ -331,7 +333,9 @@ async function saveIngredientUsage(ingredientId){
       if(e3){ alert(e3.message); return; }
     }
   }
-  const { error } = await sb.rpc('set_ingredient_usage2', { p_token: session.session_token, p_ingredient_id: ingredientId, p_usages: usages, p_packaging: packaging });
+  const mode = iuMode(), ing0 = (APP.config.ingredients||[]).find(x => x.id === ingredientId) || {};
+  if((ing0.pack_mode || '') !== mode){ const { error: em } = await sb.rpc('set_ingredient_pack_mode', { p_token: session.session_token, p_id: ingredientId, p_mode: mode || null }); if(em){ alert(em.message); return; } }
+  const { error } = await sb.rpc('set_ingredient_usage2', { p_token: session.session_token, p_ingredient_id: ingredientId, p_usages: mode === 'per_order' ? [] : usages, p_packaging: [] });
   if(error){ alert(error.message); return; }
   document.getElementById('ingUsageModalBg').remove();
   showToast('Kaydedildi ✓');
@@ -1727,4 +1731,14 @@ async function loadCostHub(){
     el.innerHTML = `<div class="ch-bar"><i style="width:${Math.min(100, pct)}%"></i><span style="left:${Math.min(100, dp / dm * 100)}%"></span></div>
       <small>Bu ay giderlerin <b>%${pct}</b>'i karşılandı · ${money(gp)} / ${money(tot)}</small>`;
   }catch(e){}
+}
+
+function iuMode(){ const r = document.querySelector('#ingUsageModalBg input[name=iuMode]:checked'); return r ? r.value : ''; }
+function iuModeChange(){
+  const m = iuMode();
+  document.querySelectorAll('#ingUsageModalBg .iu-mopt').forEach(l => l.classList.toggle('on', l.querySelector('input').checked));
+  const sec = document.getElementById('iuProdSec'), on = document.getElementById('iuOrderNote'), h = document.getElementById('iuHint');
+  if(sec) sec.hidden = m === 'per_order'; if(on) on.hidden = m !== 'per_order';
+  if(h) h.innerHTML = m === 'per_product' ? 'Paket olarak satıldığında hangi ürünlerde, 1 porsiyon için kaç adet kullanılıyor?' : 'İşaretleyip 1 porsiyonda kullanılan <b>net</b> miktarı girin; maliyet payı yanında görünür.';
+  iuRecalc();
 }
