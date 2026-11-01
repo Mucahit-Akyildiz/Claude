@@ -41,7 +41,7 @@ async function renderCrmView(main, session){
         </div>`; }).join('')}</div>`
         : '<div class="empty-state"><div style="font-size:42px;">👥</div><p class="muted">Müşteri yok.</p></div>'}
     </div>
-    ${sheetHtml('crmSheet', '👤', 'Yeni Müşteri', `<input type="hidden" id="crm_edit_id">
+    ${sheetHtml('crmSheet', '👤', 'Yeni Müşteri', `<input type="hidden" id="crm_edit_id"><div id="crm_audit" class="crm-audit" hidden></div>
         <div class="fsheet-grid">
           <div class="field-group wide"><label>Ad Soyad</label><input id="crm_name" name="name" autocomplete="name" placeholder="örn. Ahmet Yılmaz"></div>
           <div class="field-group"><label>Telefon</label><input id="crm_phone" name="tel" type="tel" autocomplete="tel" placeholder="05xx..." inputmode="tel"></div>
@@ -164,6 +164,7 @@ function newCustomer(){
   ['crm_edit_id','crm_name','crm_phone','crm_email','crm_notes','crm_birthday','crm_address','crm_spp','crm_pv','crm_bdp'].forEach(k => { const e = document.getElementById(k); if(e) e.value = ''; });
   const b = document.getElementById('crmLoyaltyBox'); if(b) b.open = false;
   document.getElementById('crmSheetTitle').textContent = 'Yeni Müşteri';
+  { const a = document.getElementById('crm_audit'); if(a) a.hidden = true; }
   openSheet('crmSheet');
 }
 function editCustomer(id){
@@ -180,6 +181,9 @@ function editCustomer(id){
   document.getElementById('crm_bdp').value = c.birthday_discount_percent ?? '';
   document.getElementById('crmLoyaltyBox').open = (c.spend_per_point!=null || c.point_value!=null || c.birthday_discount_percent!=null);
   document.getElementById('crmSheetTitle').textContent = 'Müşteriyi Düzenle';
+  // Kaydeden ve son değiştiren personel
+  const au = document.getElementById('crm_audit'), d = (x) => x ? new Date(x).toLocaleString('tr-TR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
+  if(au){ au.innerHTML = `<span>🆕 Kaydeden: <b>${escapeHtml(c.created_by_name || 'bilinmiyor')}</b>${c.created_at ? ' · ' + d(c.created_at) : ''}</span>${c.info_updated_at ? `<span>✏️ Son değiştiren: <b>${escapeHtml(c.updated_by_name || 'bilinmiyor')}</b> · ${d(c.info_updated_at)}</span>` : ''}`; au.hidden = false; }
   openSheet('crmSheet');
 }
 async function saveCrmCustomer(){
