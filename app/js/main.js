@@ -450,13 +450,19 @@ function softRerender(session, force){
   const ca = document.querySelector('.content-area'); const caTop = ca ? ca.scrollTop : 0;
   const snap = main.cloneNode(true);
   snap.removeAttribute('id'); snap.querySelectorAll('[id]').forEach(e => e.removeAttribute('id'));
-  snap.style.pointerEvents = 'none'; snap.dataset.snap = '1';
-  main.parentNode.insertBefore(snap, main);
-  main.dataset.refreshing = '1'; main.style.display = 'none';
+  // Kopya, asıl içeriğin TAM ÜSTÜNE konur (akışta altına değil): ikisi bir an aynı anda görünse bile
+  // ekranda üst üste iki kez (yukarıda kopya, aşağıda yeni içerik) görünmez.
+  document.querySelectorAll('[data-snap]').forEach(e => e.remove());
+  const par = main.parentNode;
+  if(getComputedStyle(par).position === 'static') par.style.position = 'relative';
+  snap.style.cssText += `;pointer-events:none;position:absolute;top:${main.offsetTop}px;left:${main.offsetLeft}px;width:${main.offsetWidth}px;margin:0;z-index:5;`;
+  snap.dataset.snap = '1';
+  par.insertBefore(snap, main);
+  main.dataset.refreshing = '1'; main.style.visibility = 'hidden';
   APP.silentLoad = true;
   const finish = () => {
     APP.silentLoad = false;
-    snap.remove(); main.style.display = ''; delete main.dataset.refreshing;
+    snap.remove(); main.style.visibility = ''; delete main.dataset.refreshing;
     if(document.scrollingElement) document.scrollingElement.scrollTop = sc;
     const ca2 = document.querySelector('.content-area'); if(ca2) ca2.scrollTop = caTop;
     applyNavBadges();
