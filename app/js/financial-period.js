@@ -105,10 +105,11 @@ async function renderPurchaseReportContent(session){
   APP.procSuppliers = (supRes && supRes.data) || [];
   if(error){ el.innerHTML = '<p class="muted">Yüklenemedi: '+escapeHtml(error.message)+'</p>'; return; }
   const rows = data || [];
+  APP.procRows = rows;
   const live = rows.filter(p => p.status!=='draft' && p.status!=='cancelled');
   const total = live.reduce((t, p) => t + (Number(p.total_amount)||0), 0);
   const recv = live.reduce((t, p) => t + (Number(p.received_amount)||0), 0);
-  const needPrice = (p) => p.status!=='draft' && p.status!=='cancelled' && (p.items||[]).some(i => !(Number(i.unit_cost)>0));
+  const needPrice = (p) => p.status!=='draft' && p.status!=='cancelled' && (p.items||[]).some(i => !(Number(i.unit_cost)>0) && !i.free);
   const needRecv = (p) => p.status==='ordered';
   const needSup = (p) => p.status!=='draft' && p.status!=='cancelled' && !p.supplier_id;
   const isDone = (p) => p.status==='received' && !needPrice(p) && !needSup(p);
@@ -131,14 +132,14 @@ async function renderPurchaseReportContent(session){
         <div class="pc2-right"><span class="pc2-total">${money(p.total_amount)}</span>${statusOf(p)}</div>
       </div>
       <div class="pc2-items">
-        ${items.map(i => { const q = Number(i.quantity)||0, c = Number(i.unit_cost)||0; return `<div class="pc2-it ${c>0?'':'nop'}">
+        ${items.map(i => { const q = Number(i.quantity)||0, c = Number(i.unit_cost)||0, ok = c>0 || i.free; return `<div class="pc2-it ${ok?'':'nop'}">
           <span class="pc2-ic">🥕</span>
           <div class="pc2-nm"><b>${escapeHtml(i.name)}</b><small>${q} ${escapeHtml(i.unit||'')}${Number(i.received)>0 && Number(i.received)<q ? ` · teslim ${Number(i.received)}` : ''}</small></div>
-          <label class="pc2-price"><input type="number" min="0" step="0.01" placeholder="Fiyat" value="${(APP.pcDrafts||{})[i.id] ?? (c>0 ? c : '')}" data-item-id="${i.id}" data-orig="${c>0 ? c : ''}" class="pc-cost ${c>0 ? '' : 'missing'}" ${actOn('input','markPcDirty',[p.id])}><span>₺/${escapeHtml(i.unit||'')}</span></label>
-          <b class="pc2-line">${c>0 ? money(q*c) : '<span class="pchip warn">fiyat yok</span>'}</b></div>`; }).join('') || '<p class="muted">Kalem yok.</p>'}
+          <label class="pc2-price"><input type="number" min="0" step="0.01" placeholder="Fiyat" value="${(APP.pcDrafts||{})[i.id] ?? (ok ? c : '')}" data-item-id="${i.id}" data-orig="${ok ? c : ''}" title="Bedelsiz (ücretsiz) gelen için 0 yazın" class="pc-cost ${ok ? '' : 'missing'}" ${actOn('input','markPcDirty',[p.id])}><span>₺/${escapeHtml(i.unit||'')}</span></label>
+          <b class="pc2-line">${c>0 ? money(q*c) : i.free ? '<span class="pchip ok" title="Ücretsiz geldi; maliyete 0 TL olarak girer">🎁 Bedelsiz</span>' : '<span class="pchip warn">fiyat yok</span>'}</b></div>`; }).join('') || '<p class="muted">Kalem yok.</p>'}
       </div>
       <div class="pc2-foot">${p.notes ? `<div class="pc-note">📝 ${escapeHtml(p.notes)}</div>` : '<span></span>'}
-        <div class="pc2-acts">${p.status==='ordered' ? `<button type="button" class="pc-btn" ${act('openReceivePOModal', p.id)}>📦 Malzemeyi Teslim Al</button>` : ''}
+        <div class="pc2-acts"><span class="pc2-share"><button type="button" class="pc-btn" title="PDF olarak indir" ${act('poExport', p.id, 'pdf')}>📄 PDF</button><button type="button" class="pc-btn" title="Yazdır" ${act('poExport', p.id, 'print')}>🖨️</button><button type="button" class="pc-btn" title="Tedarikçiye e-posta gönder" ${act('poSend', p.id, 'email')}>📧</button><button type="button" class="pc-btn" title="Tedarikçiye SMS gönder" ${act('poSend', p.id, 'sms')}>💬</button></span>${p.status==='ordered' ? `<button type="button" class="pc-btn" ${act('openReceivePOModal', p.id)}>📦 Malzemeyi Teslim Al</button>` : ''}
           <button type="button" class="pc-save" id="pcSave_${p.id}" disabled ${act('savePoPrices', p.id)}>${ICON_SAVE}<span>Kaydet</span></button></div></div>
     </div>`;
   };
@@ -161,7 +162,7 @@ async function renderPurchaseReportContent(session){
         ${total ? (() => { const e = Object.entries(bySup).sort((a,b)=>b[1]-a[1]); const top = e.slice(0,3), rest = e.slice(3).reduce((t,x)=>t+x[1],0);
           return svgDonut(top.map(([k,v], i) => ({ label:k, value:v, color:`var(--c${i+1})` })).concat(rest ? [{ label:'Diğer', value:rest, color:'var(--c4)' }] : []), { center: shortMoney(total), sub:'₺ toplam', title:'Tedarikçi payları', money:true }); })() : ''}
         ${Object.keys(bySup).length ? Object.entries(bySup).sort((a,b)=>b[1]-a[1]).map(([k,v]) => fsRow(escapeHtml(k), money(v), total ? '%'+Math.round(v/total*100) : '')).join('') : '<p class="u-fs13 muted">Veri yok.</p>'}
-        <p class="fs-note">Fiyatı girilmemiş kalemler tutara katılmaz. Fiyatları yazın; siparişin <b>Kaydet</b> düğmesiyle ya da üstteki <b>Tümünü Kaydet</b> ile hepsini birden kaydedin.</p>
+        <p class="fs-note">Ücretsiz (bedelsiz) gelen kalem için fiyata <b>0</b> yazın; 🎁 Bedelsiz olarak işaretlenir ve maliyete 0 TL girer. Fiyatı girilmemiş kalemler tutara katılmaz. Fiyatları yazın; siparişin <b>Kaydet</b> düğmesiyle ya da üstteki <b>Tümünü Kaydet</b> ile hepsini birden kaydedin.</p>
       </div>
     </div>`;
   restorePcDrafts();
@@ -237,7 +238,7 @@ async function savePcInputs(changed, btn, sups){
     const v = parseFloat(String(inp.value).replace(',', '.'));
     if(APP.pcDrafts) delete APP.pcDrafts[inp.dataset.itemId];
     inp.dataset.orig = String(v); inp.value = String(v); inp.classList.remove('missing');
-    const row = inp.closest('.pc2-it'); if(row){ row.classList.remove('nop'); const q = parseFloat(row.querySelector('.pc2-nm small').textContent) || 0; const line = row.querySelector('.pc2-line'); if(line) line.textContent = money(q * v); }
+    const row = inp.closest('.pc2-it'); if(row){ row.classList.remove('nop'); const q = parseFloat(row.querySelector('.pc2-nm small').textContent) || 0; const line = row.querySelector('.pc2-line'); if(line){ if(v > 0) line.textContent = money(q * v); else line.innerHTML = '<span class="pchip ok" title="Ücretsiz geldi; maliyete 0 TL olarak girer">🎁 Bedelsiz</span>'; } }
     cards.add(inp.closest('.pc-card'));
   });
   cards.forEach(card => {
@@ -669,4 +670,37 @@ function drawResvAnalyticsBase(){
         <td>${resvDetailBtn(r)}</td>
       </tr>`).join('')}
     </tbody></table></div>` : '<p class="muted">Kayıt yok.</p>'}`;
+}
+
+/* Malzeme siparişi belgesi: ürün + adet. PDF = yazdırma penceresinde "PDF olarak kaydet"; yazdır = doğrudan yazıcı. */
+function poDocHtml(p){
+  const rest = (APP.config && (APP.config.restaurant_name || APP.config.name)) || 'Peyktan';
+  const sup = (APP.procSuppliers || []).find(x => x.id === p.supplier_id) || {};
+  const fq = (n) => Number(n || 0).toLocaleString('tr-TR', { maximumFractionDigits: 3 });
+  return `<!doctype html><html lang="tr"><head><meta charset="utf-8"><title>Malzeme Siparişi - ${escapeHtml(sup.name || '')} - ${new Date(p.order_date).toLocaleDateString('tr-TR')}</title>
+    <style>body{font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;color:#111;margin:32px;} h1{font-size:22px;margin:0 0 4px;} .m{color:#555;font-size:13px;margin:0 0 18px;} table{width:100%;border-collapse:collapse;font-size:14px;} th,td{padding:8px 10px;border-bottom:1px solid #ddd;text-align:left;} th{background:#f4f4f4;} td.r,th.r{text-align:right;} .f{margin-top:24px;font-size:12px;color:#666;} @media print{body{margin:14mm;}}</style></head><body>
+    <h1>Malzeme Siparişi</h1>
+    <p class="m"><b>${escapeHtml(rest)}</b>${sup.name ? ' → <b>' + escapeHtml(sup.name) + '</b>' : ''}<br>Sipariş tarihi: ${new Date(p.order_date).toLocaleDateString('tr-TR')}${p.expected_date ? ' · Teslim: ' + new Date(p.expected_date).toLocaleDateString('tr-TR') : ''}${p.created_by_name ? ' · Hazırlayan: ' + escapeHtml(p.created_by_name) : ''}</p>
+    <table><thead><tr><th>#</th><th>Ürün</th><th class="r">Adet / Miktar</th></tr></thead><tbody>
+    ${(p.items || []).map((i, k) => `<tr><td>${k + 1}</td><td>${escapeHtml(i.name)}</td><td class="r"><b>${fq(i.quantity)}</b> ${escapeHtml(i.unit || '')}</td></tr>`).join('')}
+    </tbody></table>${p.notes ? `<p><b>Not:</b> ${escapeHtml(p.notes)}</p>` : ''}
+    <p class="f">Peyktan ile oluşturuldu · ${new Date().toLocaleString('tr-TR')}</p></body></html>`;
+}
+function poExport(poId, mode){
+  const p = (APP.procRows || []).find(x => x.id === poId); if(!p) return;
+  const w = window.open('', '_blank', 'width=820,height=900'); if(!w){ alert('Açılır pencere engellendi. Tarayıcıda bu site için açılır pencerelere izin verin.'); return; }
+  w.document.open(); w.document.write(poDocHtml(p)); w.document.close();
+  if(mode === 'pdf') showToast('📄 Açılan pencerede hedef olarak "PDF olarak kaydet"i seçin', 6000);
+  setTimeout(() => { try{ w.focus(); w.print(); }catch(e){} }, 350);
+}
+async function poSend(poId, channel){
+  const p = (APP.procRows || []).find(x => x.id === poId); if(!p) return;
+  const sup = (APP.procSuppliers || []).find(x => x.id === p.supplier_id) || {};
+  const def = channel === 'email' ? (sup.email || '') : (sup.phone || '');
+  if(!p.supplier_id && !def){ /* tedarikçi seçilmemiş: alıcı sorulur */ }
+  const to = await (typeof uiPrompt === 'function' ? uiPrompt(channel === 'email' ? 'Siparişi hangi e-postaya gönderelim?' : 'Siparişi hangi numaraya SMS gönderelim?', def) : Promise.resolve(prompt(channel === 'email' ? 'E-posta adresi' : 'Telefon numarası', def)));
+  if(to == null || !String(to).trim()) return;
+  const { data, error } = await sb.rpc('send_po_to_supplier', { p_token: getSession().session_token, p_po_id: poId, p_channel: channel, p_to: String(to).trim() });
+  if(error){ alert(error.message); return; }
+  showToast(channel === 'email' ? (data && data.sent ? '📧 Sipariş e-postayla gönderildi: ' + data.to : '📧 E-posta sıraya alındı (e-posta servisi tanımlı değilse gönderilmez — Ayarlar › Entegrasyonlar)') : '💬 Sipariş SMS ile gönderildi: ' + data.to);
 }

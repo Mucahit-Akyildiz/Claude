@@ -74,6 +74,7 @@ function renderIngredientsSettings(el, session){
         <span class="u-f1"></span>
         <div class="act-row">
           <button type="button" class="act-btn act-save" id="ingSaveAllBtn" ${act('saveAllIngredients')} disabled>${ICON_SAVE}<span>Kaydet</span></button>
+          <button type="button" class="act-btn" title="Seçili hammaddelerin (seçim yoksa hepsinin) stoğunu sıfırla" ${act('resetIngredientStock')}>↺<span>Stokları sıfırla</span></button>
           <button type="button" class="act-btn act-delete" data-ing-sel ${act('bulkDeleteIngredients')} disabled>${ICON_TRASH}<span>Sil</span></button>
         </div>
       </div>
@@ -1774,3 +1775,16 @@ function ingStepsHtml(cur){
 
 // Yeni hammadde sihirbazı: Adım 2'de "İleri" ürün seçimini açar; "Siparişte adet girilir" seçiliyse ürün adımı yok, doğrudan tamamlanır.
 function iuWizardNext(ingredientId){ if(iuMode() === 'per_order') return saveIngredientUsage(ingredientId); openIuProdPop(); }
+
+// Stokları sıfırla: seçim varsa seçilenler, yoksa tüm hammaddeler (sayım öncesi / yeni başlangıç). Ortalama maliyet korunur.
+async function resetIngredientStock(){
+  const ids = selectedIngredientIds(), all = !ids.length;
+  const n = all ? ((APP.config && APP.config.ingredients) || []).length : ids.length;
+  const ok = await (typeof uiConfirm === 'function' ? uiConfirm(`${all ? 'TÜM hammaddelerin' : n + ' seçili hammaddenin'} stoğu 0 yapılacak. Ortalama maliyetler korunur. Emin misiniz?`) : Promise.resolve(confirm('Stoklar sıfırlansın mı?')));
+  if(!ok) return;
+  const { data, error } = await sb.rpc('reset_ingredient_stock', { p_token: getSession().session_token, p_ids: all ? null : ids });
+  if(error){ alert(error.message); return; }
+  showToast('↺ ' + (data || 0) + ' hammaddenin stoğu sıfırlandı');
+  const { data: cfg } = await sb.rpc('get_restaurant_config', { p_token: getSession().session_token }); if(cfg) APP.config = cfg;
+  renderSettingsContent(getSession());
+}
