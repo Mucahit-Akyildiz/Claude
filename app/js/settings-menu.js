@@ -1212,7 +1212,7 @@ function renderProductsSettings(el, session){
       <div class="os-chip os-click ${pf==='low'?'on':''}" role="button" title="Listeyi filtrele" ${act('setProdFilter', 'low')} style="--oc:var(--c3);"><span class="os-ic">⚠️</span><div><b>${lowN}</b><small>Stok azalan</small></div></div>
       <div class="os-chip os-click ${pf==='nocost'?'on':''}" role="button" title="Listeyi filtrele" ${act('setProdFilter', 'nocost')} style="--oc:#ef4444;"><span class="os-ic">💸</span><div><b>${products.filter(p => !(Number(p.cost) > 0)).length}</b><small>Maliyet girilmemiş</small></div></div>
     </div>
-    <div class="rc-bar"><span>🧾 Reçeteli ürünlerin maliyeti hammaddelerin <b>ortalama alış maliyetinden</b> otomatik hesaplanır.${overheadPct() ? ` Genel giderler cironun <b>%${overheadPct()}</b>'i.` : ' Kira, personel, elektrik gibi giderleri ekleyerek net kârı görün.'}<br><small class="muted">💡 Hazır alıp sattığınız ürünler (ayran, kola…) için ürün adıyla bir hammadde açıp ürüne 1 adet reçete ekleyin; alış maliyeti de otomatik yansır.</small></span><button type="button" class="pc-btn" ${act('openOverheads')}>📊 Maliyet & Giderler</button></div>
+    <div class="rc-bar"><span>🧾 Reçeteli ürünlerin maliyeti hammaddelerin <b>ortalama alış maliyetinden</b> otomatik hesaplanır.${overheadPct() ? ` Genel giderler cironun <b>%${overheadPct()}</b>'i olarak ürünlere ekleniyor.` : ' Kira, personel, elektrik gibi giderleri ekleyin; bu ay başa baş noktasına ne kadar kaldığını görün.'}<br><small class="muted">💡 Hazır alıp sattığınız ürünler (ayran, kola…) için ürün adıyla bir hammadde açıp ürüne 1 adet reçete ekleyin; alış maliyeti de otomatik yansır.</small></span><button type="button" class="pc-btn" ${act('openOverheads')}>📊 Maliyet & Giderler</button></div>
     <label class="sc-toggle"><span class="oo-switch"><input type="checkbox" ${APP.config.close_no_cost !== false ? 'checked' : ''} ${actOn('change','toggleCloseNoCost',['$checked', '$this'])}><span class="oo-track"><span class="oo-thumb"></span></span><em>${APP.config.close_no_cost !== false ? 'Açık' : 'Kapalı'}</em></span><span>💸 Maliyeti girilmemiş ürünler satışa <b>kapalı</b> gelsin <small class="muted">(istediğiniz ürünü yine "Satışa Aç" ile açabilirsiniz)</small></span></label>
     <label class="sc-toggle" title="Kapalıyken satışa kapattığınız ürünler Sipariş Al ve Paket Servis ürün listesinde hiç görünmez"><span class="oo-switch"><input type="checkbox" ${APP.config.order_show_closed !== false ? 'checked' : ''} ${actOn('change','toggleOrderShowClosed',['$checked', '$this'])}><span class="oo-track"><span class="oo-thumb"></span></span><em>${APP.config.order_show_closed !== false ? 'Açık' : 'Kapalı'}</em></span><span>⛔ Satışa kapalı ürünler <b>Sipariş Al</b> ekranında görünsün <small class="muted">(kapalıyken listeden tamamen gizlenir)</small></span></label>
     ${pf!=='all' ? `<div class="pf-note">🔎 <b>${{on:'Satıştaki',off:'Kapalı',low:'Stoğu azalan',lowmargin:'Düşük marjlı',nocost:'Maliyeti girilmemiş'}[pf]} ürünler</b> gösteriliyor (${shown.length})<button type="button" class="pc-btn" ${act('setProdFilter', 'all')}>✕ Tümünü göster</button></div>` : ''}
@@ -1331,7 +1331,7 @@ function editProductRow(pid){
       <div class="pdrawer-body" ${actOn('input','prodDrawerCalc',[])} ${actOn('change','prodDrawerCalc',[])}>
         <label>Ürün Adı</label><input id="ed_name" value="${escapeAttr(p.name)}">
         <div class="pdrawer-3"><div><label>Fiyat (₺)</label><input type="number" id="ed_price" value="${p.price}"></div><div><label>Maliyet (₺)</label><input type="number" id="ed_cost" value="${p.cost}" ${p.cost_source==='recipe' ? 'readonly' : ''}>${p.cost_source==='recipe' ? '<small class="muted">🧾 Reçeteden otomatik (hammadde ortalama maliyetleri)</small>' : p.cost_source==='recipe_missing' ? '<small style="color:var(--c3)">⚠️ Reçetedeki bazı hammaddelerin maliyeti yok; elle girilen değer kullanılıyor</small>' : '<small class="muted">Reçete eklerseniz otomatik hesaplanır.</small>'}</div>
-          <div><label title="Malzeme maliyeti + fiyat × genel gider oranı">Tam maliyet (₺)</label><input id="ed_full" readonly tabindex="-1"><small class="muted" id="ed_full_n"></small></div></div>
+          <div><label id="ed_full_l" title="${overheadPct() ? 'Malzeme maliyeti + fiyat × genel gider oranı' : 'Fiyat − malzeme: her satışın sabit giderlere katkısı'}">${overheadPct() ? 'Tam maliyet (₺)' : 'Katkı payı (₺)'}</label><input id="ed_full" readonly tabindex="-1"><small class="muted" id="ed_full_n"></small></div></div>
         <div class="pdrawer-margin"><div class="pcard-mbar"><i id="ed_mbar"></i></div><span id="ed_mtxt"></span></div>
         ${!rec ? `<div class="cost-tip">💡 <b>Hazır alıp olduğu gibi satıyorsanız</b> (ayran, kola, su…): Hammaddeler'de bu ürün adıyla bir hammadde açın ve ürüne <b>1 adet</b> reçete ekleyin. Böylece Mal Kabul'deki alış fiyatı ortalanarak maliyete otomatik yansır, stok da düşer.${APP.view==='settings' ? ` <button type="button" class="pc-btn" ${act('openRecipeModal', p.id)}>📋 Reçete ekle</button>` : ''}</div>` : ''}
         <div class="pdrawer-2"><div><label>Menü</label><select id="ed_menu">${prodMenuOptions(p.menu_id)}</select></div>
@@ -1375,8 +1375,8 @@ function prodDrawerCalc(){
   bar.style.width = Math.max(0,Math.min(100,m))+'%'; bar.style.background = m>=60?'var(--ok,#22c55e)':m>=35?'var(--c3)':'var(--danger,#ef4444)';
   const oh = overheadPct(), full = co + pr * oh / 100;
   const fe = document.getElementById('ed_full'), fn = document.getElementById('ed_full_n');
-  if(fe) fe.value = (Math.round(full * 100) / 100).toFixed(2);
-  if(fn) fn.textContent = oh ? '+ genel gider %' + oh + ' (' + money(pr * oh / 100) + ')' : 'Genel gider eklenmedi';
+  if(fe) fe.value = (Math.round((oh ? full : pr - co) * 100) / 100).toFixed(2);
+  if(fn) fn.textContent = oh ? '+ genel gider %' + oh + ' (' + money(pr * oh / 100) + ')' : 'her satışta giderlere katkı';
   t.innerHTML = `Brüt kâr <b>${money(pr-co)}</b> · <b>%${m}</b>` + (oh ? ` <span class="muted">|</span> Net kâr <b>${money(pr-full)}</b> · <b>%${pr>0 ? Math.round((pr-full)/pr*100) : 0}</b>` : '');
 }
 async function saveProdDrawer(){
@@ -1568,11 +1568,14 @@ async function openOverheads(){
 function renderOverheads(){
   const d = APP.overheads || {}, el = document.getElementById('ohBody'); if(!el) return;
   const base = d.revenue_base || d.revenue_30d || 0;
-  el.innerHTML = `<div class="oh-sum">
+  const be = d.method !== 'revenue';
+  el.innerHTML = `<div class="seg oh-seg">${[['breakeven','⚖️ Başa baş (önerilen)'],['revenue','📊 Ciroya göre pay']].map(([k, l]) => `<button type="button" class="${(be ? 'breakeven' : 'revenue') === k ? 'on' : ''}" ${act('setOhMethod', k)}>${l}</button>`).join('')}</div>
+    ${be ? breakevenHtml(d) : `<div class="oh-sum">
       <div class="oh-k"><small>Aylık genel gider</small><b>${money(d.monthly_total || 0)}</b></div>
       <div class="oh-k"><small>${d.revenue_base ? 'Aylık ciro (girilen)' : 'Son 30 gün ciro'}</small><b>${money(base)}</b></div>
-      <div class="oh-k hi"><small>Ürünlere eklenen pay</small><b>${d.pct != null ? '%' + d.pct : '—'}</b></div></div>
-    <p class="muted oh-note">Her ürünün tam maliyeti = <b>reçete/malzeme maliyeti</b> + <b>satış fiyatı × %${d.pct != null ? d.pct : '?'}</b>. Örn. 100 TL'lik üründe ${money((d.pct || 0))} genel gider payı.</p>
+      <div class="oh-k hi"><small>Ürünlere eklenen pay</small><b>${d.revenue_pct != null ? '%' + d.revenue_pct : '—'}</b></div></div>
+    <p class="muted oh-note">Her ürünün tam maliyeti = <b>reçete/malzeme maliyeti</b> + <b>satış fiyatı × %${d.revenue_pct != null ? d.revenue_pct : '?'}</b>. Ciro tabanı yanlışsa (test siparişleri, yeni açılış) oran yanıltır; aşağıdan beklenen aylık ciroyu girebilirsiniz.</p>`}
+    ${ohWarningsHtml(d)}
     <div class="oh-list">
       <label class="oh-row oh-auto"><span class="oh-ic">👥</span><div><b>Personel (vardiya kayıtlarından)</b><small>Son 30 gün çalışılan saat × saatlik ücret${d.labor_staff ? ' · ' + d.labor_staff + ' kişi' : ' · saatlik ücret girilmiş personel yok'}</small></div>
         <b>${money(d.labor_30d || 0)}</b><span class="oo-switch"><input type="checkbox" ${d.auto_labor ? 'checked' : ''} ${actOn('change','toggleOhLabor',['$checked'])}><span class="oo-track"><span class="oo-thumb"></span></span></span></label>
@@ -1582,7 +1585,7 @@ function renderOverheads(){
     <div class="oh-add-h">➕ Gider ekle</div>
     <div class="oh-presets">${OH_PRESETS.filter(([, n]) => !(d.items || []).some(i => i.name === n)).map(([ic, n]) => `<button type="button" class="rvf-chip" ${act('editOverhead', null, ic, n)}>${ic} ${n}</button>`).join('')}<button type="button" class="rvf-chip" ${act('editOverhead', null, '💸', '')}>✍️ Diğer</button></div>
     <div id="ohForm"></div>
-    <details class="oh-adv"><summary>⚙️ Ciro tabanı</summary>
+    <details class="oh-adv" ${be ? 'hidden' : ''}><summary>⚙️ Ciro tabanı</summary>
       <p class="muted">Gider oranı varsayılan olarak <b>son 30 günün cirosuna</b> göre hesaplanır. Yeni açıldıysanız ya da mevsimsel dalgalanma varsa beklenen aylık ciroyu girin.</p>
       <div style="display:flex;gap:8px;"><input type="number" id="ohBase" min="1" placeholder="Son 30 gün: ${money(d.revenue_30d || 0)}" value="${d.revenue_base || ''}" style="flex:1;margin:0;"><button type="button" class="u-wa-m0" ${act('saveOhBase')}>Kaydet</button></div></details>`;
 }
@@ -1600,7 +1603,7 @@ function editOverhead(id, icon, name){
 function cancelOhForm(){ const f = document.getElementById('ohForm'); if(f) f.innerHTML = ''; }
 async function ohApply(res){
   if(res.error){ alert(res.error.message); return false; }
-  APP.overheads = res.data; if(APP.config) APP.config.overhead_pct = res.data.pct;
+  APP.overheads = res.data; if(APP.config) APP.config.overhead_pct = res.data.method === 'revenue' ? res.data.revenue_pct : null;
   renderOverheads();
   if(APP.view === 'settings') renderSettingsContent(getSession());
   return true;
@@ -1618,11 +1621,42 @@ async function removeOverhead(id){
 }
 async function toggleOhLabor(on){
   const d = APP.overheads || {};
-  await ohApply(await sb.rpc('set_overhead_settings', { p_token: getSession().session_token, p_revenue_base: d.revenue_base || null, p_auto_labor: on }));
+  await ohApply(await sb.rpc('set_overhead_settings', { p_token: getSession().session_token, p_revenue_base: d.revenue_base || null, p_auto_labor: on, p_method: null }));
+}
+async function setOhMethod(m){
+  const d = APP.overheads || {};
+  await ohApply(await sb.rpc('set_overhead_settings', { p_token: getSession().session_token, p_revenue_base: d.revenue_base || null, p_auto_labor: d.auto_labor !== false, p_method: m }));
+}
+/* Başa baş: bu ayın brüt kârı (katkı payı = ciro − malzeme) aylık sabit giderlerin ne kadarını karşıladı, kalan ve tahmini gün. */
+function breakevenHtml(d){
+  const tot = Number(d.monthly_total) || 0, gp = Number(d.mtd_gross) || 0, dp = Math.max(1, Number(d.days_passed) || 1), dm = Number(d.days_in_month) || 30;
+  if(!tot) return `<div class="be be-empty"><b>⚖️ Başa baş</b><p class="muted">Aylık sabit giderlerinizi (kira, personel, faturalar…) ekleyin; bu ay giderleri karşılayıp karşılamadığınızı burada görün.</p></div>`;
+  const pct = Math.round(gp / tot * 100), rem = Math.max(0, tot - gp), daily = gp / dp, proj = daily * dm;
+  const days = daily > 0 ? Math.ceil(rem / daily) : null, done = gp >= tot;
+  const beDay = daily > 0 ? Math.ceil(tot / daily) : null;
+  return `<div class="be ${done ? 'ok' : pct < Math.round(dp / dm * 100) ? 'behind' : ''}">
+    <div class="be-top"><div><small>Bu ay giderlerin</small><b>%${pct}</b><small>karşılandı</small></div>
+      <div class="be-gauge"><i style="width:${Math.min(100, pct)}%"></i><span class="be-today" style="left:${Math.min(100, dp / dm * 100)}%" title="Ayın ${dp}. günü"></span></div></div>
+    <div class="be-grid">
+      <div><small>Aylık sabit gider</small><b>${money(tot)}</b></div>
+      <div><small>Bu ay brüt kâr <em>(ciro − malzeme)</em></small><b>${money(gp)}</b></div>
+      <div><small>${done ? 'Giderler karşılandı, kâr' : 'Başa baş için kalan'}</small><b class="${done ? 'pos' : ''}">${money(done ? gp - tot : rem)}</b></div>
+      <div><small>Günlük ortalama brüt kâr</small><b>${money(daily)}</b></div>
+    </div>
+    <p class="be-msg">${done ? `🎉 Bu ayın sabit giderleri çıktı; bundan sonraki brüt kâr net kârdır. Bu hızla ay sonu net kâr ~<b>${money(proj - tot)}</b>.`
+      : days != null ? `Bu hızla <b>${days} gün</b> sonra (ayın ~${beDay}. günü) başa baş noktasına ulaşırsınız.${beDay > dm ? ' ⚠️ Bu hızla ay sonuna kadar giderler karşılanmıyor — ay sonu tahmini açık: <b>' + money(tot - proj) + '</b>.' : ' Ay sonu tahmini net kâr: <b>' + money(proj - tot) + '</b>.'}`
+      : 'Bu ay henüz satış yok.'}</p>
+  </div>`;
+}
+function ohWarningsHtml(d){
+  const w = [];
+  if(!(Number(d.labor_30d) > 0) && !(d.items || []).some(i => i.active && /personel|maaş|maas/i.test(i.name))) w.push('👥 Personel gideri yok: personele saatlik ücret girin (Raporlar › Puantaj & Prim) ya da "Personel maaşları" ekleyin.');
+  if(!d.has_rent) w.push('🏠 Kira girilmemiş (kiracı değilseniz önemsemeyin).');
+  return w.length ? `<div class="oh-warn">${w.map(x => `<div>${x}</div>`).join('')}</div>` : '';
 }
 async function saveOhBase(){
   const v = parseFloat((document.getElementById('ohBase') || {}).value);
-  const ok = await ohApply(await sb.rpc('set_overhead_settings', { p_token: getSession().session_token, p_revenue_base: v > 0 ? v : null, p_auto_labor: (APP.overheads || {}).auto_labor !== false }));
+  const ok = await ohApply(await sb.rpc('set_overhead_settings', { p_token: getSession().session_token, p_revenue_base: v > 0 ? v : null, p_auto_labor: (APP.overheads || {}).auto_labor !== false, p_method: null }));
   if(ok) showToast(v > 0 ? 'Aylık ciro tabanı kaydedildi ✓' : 'Son 30 gün cirosu kullanılacak');
 }
 
