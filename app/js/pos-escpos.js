@@ -481,6 +481,8 @@ async function doLogin(){
     });
     try{ localStorage.setItem('rys_last_login', JSON.stringify({ code, username })); }catch(e){}
     if(remember) await sb.rpc('set_session_remember', { p_token: row.session_token });
+    // Kullanıcının hesabına kayıtlı dil (başka cihazda seçtiği) uygulanır; yoksa bu cihazdaki seçim hesaba yazılır.
+    try{ const { data: ml } = await sb.rpc('get_my_lang', { p_token: row.session_token }); if(ml && ml !== APP_LANG) setAppLang(ml, true); else if(!ml && APP_LANG !== 'tr') sb.rpc('set_my_lang', { p_token: row.session_token, p_lang: APP_LANG }); }catch(e){}
     const { data: mustCh } = await sb.rpc('get_must_change_password', { p_token: row.session_token });
     if(mustCh && typeof forceOwnPasswordChange === 'function' && !(await forceOwnPasswordChange())){
       try{ await sb.rpc('logout_staff', { p_token: row.session_token }); }catch(e){}
