@@ -1201,6 +1201,7 @@ function renderProductsSettings(el, session){
   const shown = pf==='on' ? products.filter(p => p.available!==false) : pf==='off' ? products.filter(p => p.available===false)
     : pf==='nocost' ? products.filter(p => !(Number(p.cost) > 0)) : pf==='low' ? products.filter(isLow) : pf==='lowmargin' ? products.filter(p => Number(p.price)>0 && mOf(p) < .35) : products;
   const lowN = products.filter(p => { const q = p.recipe && p.recipe.length ? p.available_qty : p.stock; return q!=null && q<=5; }).length;
+  setTimeout(loadCostHub, 0);
   el.innerHTML = `<div class="u-mwn box">
     <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;"><h2 class="u-m0">Ürünler</h2><span class="u-f1"></span>
       <div class="seg">${[['cards','▦ Kart'],['table','☰ Tablo']].map(([k,l]) => `<button type="button" class="${(cardMode?'cards':'table')===k?'on':''}" ${act('setProdView', k)}>${l}</button>`).join('')}</div></div>
@@ -1212,7 +1213,15 @@ function renderProductsSettings(el, session){
       <div class="os-chip os-click ${pf==='low'?'on':''}" role="button" title="Listeyi filtrele" ${act('setProdFilter', 'low')} style="--oc:var(--c3);"><span class="os-ic">⚠️</span><div><b>${lowN}</b><small>Stok azalan</small></div></div>
       <div class="os-chip os-click ${pf==='nocost'?'on':''}" role="button" title="Listeyi filtrele" ${act('setProdFilter', 'nocost')} style="--oc:#ef4444;"><span class="os-ic">💸</span><div><b>${products.filter(p => !(Number(p.cost) > 0)).length}</b><small>Maliyet girilmemiş</small></div></div>
     </div>
-    <div class="rc-bar"><span>🧾 Reçeteli ürünlerin maliyeti hammaddelerin <b>ortalama alış maliyetinden</b> otomatik hesaplanır.${overheadPct() ? ` Genel giderler cironun <b>%${overheadPct()}</b>'i olarak ürünlere ekleniyor.` : ' Kira, personel, elektrik gibi giderleri ekleyin; bu ay başa baş noktasına ne kadar kaldığını görün.'}<br><small class="muted">💡 Hazır alıp sattığınız ürünler (ayran, kola…) için ürün adıyla bir hammadde açıp ürüne 1 adet reçete ekleyin; alış maliyeti de otomatik yansır.</small></span><button type="button" class="pc-btn" ${act('openOverheads')}>📊 Maliyet & Giderler</button></div>
+    <div class="cost-hub" role="button" ${act('openOverheads')}>
+      <div class="ch-ic">📊</div>
+      <div class="ch-main"><b>Maliyet & Giderler</b>
+        <ul><li>🧾 Reçeteli ürünlerin maliyeti hammaddelerin <b>ortalama alış maliyetinden</b> otomatik hesaplanır.</li>
+          <li>${overheadPct() ? `📊 Genel giderler cironun <b>%${overheadPct()}</b>'i olarak ürünlere ekleniyor.` : '⚖️ Kira, personel, fatura gibi giderleri ekleyin; bu ay <b>başa baş</b> noktasına ne kadar kaldığını görün.'}</li></ul>
+        <div class="ch-be" id="costHubBe"></div></div>
+      <span class="ch-go">Aç ›</span>
+    </div>
+    <div class="cost-tip ch-tip">💡 <b>Hazır alıp sattığınız ürünler</b> (ayran, kola, su…): ürün adıyla bir hammadde açıp ürüne <b>1 adet</b> reçete ekleyin; Mal Kabul'deki alış maliyeti otomatik yansır.</div>
     <label class="sc-toggle"><span class="oo-switch"><input type="checkbox" ${APP.config.close_no_cost !== false ? 'checked' : ''} ${actOn('change','toggleCloseNoCost',['$checked', '$this'])}><span class="oo-track"><span class="oo-thumb"></span></span><em>${APP.config.close_no_cost !== false ? 'Açık' : 'Kapalı'}</em></span><span>💸 Maliyeti girilmemiş ürünler satışa <b>kapalı</b> gelsin <small class="muted">(istediğiniz ürünü yine "Satışa Aç" ile açabilirsiniz)</small></span></label>
     <label class="sc-toggle" title="Kapalıyken satışa kapattığınız ürünler Sipariş Al ve Paket Servis ürün listesinde hiç görünmez"><span class="oo-switch"><input type="checkbox" ${APP.config.order_show_closed !== false ? 'checked' : ''} ${actOn('change','toggleOrderShowClosed',['$checked', '$this'])}><span class="oo-track"><span class="oo-thumb"></span></span><em>${APP.config.order_show_closed !== false ? 'Açık' : 'Kapalı'}</em></span><span>⛔ Satışa kapalı ürünler <b>Sipariş Al</b> ekranında görünsün <small class="muted">(kapalıyken listeden tamamen gizlenir)</small></span></label>
     ${pf!=='all' ? `<div class="pf-note">🔎 <b>${{on:'Satıştaki',off:'Kapalı',low:'Stoğu azalan',lowmargin:'Düşük marjlı',nocost:'Maliyeti girilmemiş'}[pf]} ürünler</b> gösteriliyor (${shown.length})<button type="button" class="pc-btn" ${act('setProdFilter', 'all')}>✕ Tümünü göster</button></div>` : ''}
@@ -1677,4 +1686,18 @@ async function openIngCostLog(id){
 function niCalc(){
   const st = parseFloat((document.getElementById('ni_stock')||{}).value) || 0, uc = parseFloat((document.getElementById('ni_uc')||{}).value) || 0, u = (document.getElementById('ni_unit')||{}).value || '';
   const el = document.getElementById('niSum'); if(el) el.innerHTML = uc ? `💰 ${st} ${escapeHtml(u)} × ${money(uc)} = stok değeri <b>${money(st * uc)}</b>` : '💰 Stok değeri: —';
+}
+
+// Ürünler sayfasındaki Maliyet & Giderler kartında bu ayın başa baş durumu (arka planda yüklenir).
+async function loadCostHub(){
+  const el = document.getElementById('costHubBe'); if(!el) return;
+  try{
+    const { data } = await sb.rpc('get_overheads', { p_token: getSession().session_token }); if(!data || !el.isConnected) return;
+    APP.overheads = data;
+    const tot = Number(data.monthly_total) || 0, gp = Number(data.mtd_gross) || 0;
+    if(!tot){ el.innerHTML = '<small class="muted">Henüz gider eklenmedi.</small>'; return; }
+    const pct = Math.round(gp / tot * 100), dp = Number(data.days_passed) || 1, dm = Number(data.days_in_month) || 30;
+    el.innerHTML = `<div class="ch-bar"><i style="width:${Math.min(100, pct)}%"></i><span style="left:${Math.min(100, dp / dm * 100)}%"></span></div>
+      <small>Bu ay giderlerin <b>%${pct}</b>'i karşılandı · ${money(gp)} / ${money(tot)}</small>`;
+  }catch(e){}
 }
