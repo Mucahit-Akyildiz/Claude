@@ -40,6 +40,9 @@ public class MainActivity extends BridgeActivity {
         try { getBridge().getWebView().setBackgroundColor(0x00000000); } catch (Exception e) { }
         // Android 15+ kenardan kenara çizim: içerik durum/gezinme çubuğunun ve klavyenin altında kalmasın.
         try {
+            // Klavye yüksekliği yalnız bir kez düşülsün: pencere klavyede kendini küçültmez (adjustNothing, manifest),
+            // boşluğu aşağıdaki kenar boşluğu verir. İkisi birden olunca klavyenin üstünde siyah alan kalıyordu.
+            androidx.core.view.WindowCompat.setDecorFitsSystemWindows(getWindow(), false);
             final android.view.View wv = getBridge().getWebView();
             androidx.core.view.ViewCompat.setOnApplyWindowInsetsListener(wv, (v, insets) -> {
                 androidx.core.graphics.Insets b = insets.getInsets(androidx.core.view.WindowInsetsCompat.Type.systemBars()
