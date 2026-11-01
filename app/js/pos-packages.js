@@ -466,6 +466,11 @@ function updateDraftItemNote(tableId, idx, value){
 async function confirmOrder(tableId){
   const draft = APP.draftCart[tableId];
   if(!draft || draft.length===0) return;
+  if(typeof guestCountMissing === 'function' && guestCountMissing(tableId)){
+    alert('Kişi sayısını girin: bu işletmede masa siparişlerinde kişi sayısı zorunlu.');
+    document.querySelectorAll('.gp-box[data-gp]').forEach(e => { e.classList.add('gp-need'); e.scrollIntoView({ block: 'center', behavior: 'smooth' }); });
+    return;
+  }
   const optErr = optGroupViolation(draft);
   if(optErr){ alert(optErr); return; }
   if(typeof allowanceWarnBeforeSend === 'function' && !(await allowanceWarnBeforeSend(tableId, draft.reduce((s, d) => s + d.price * d.qty, 0)))) return;

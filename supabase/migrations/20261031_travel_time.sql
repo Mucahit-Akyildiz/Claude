@@ -97,3 +97,6 @@ alter table allowances add column if not exists carry_over boolean default false
 -- Masa ikramı: restaurants.treat_product_id/treat_zone_ids, orders.treat_off, _sync_table_treat + orders_treat_sync tetikleyicisi, set_table_treat, set_order_treat_off.
 alter table restaurants add column if not exists treat_product_id uuid, add column if not exists treat_zone_ids uuid[];
 alter table orders add column if not exists treat_off boolean not null default false;
+
+-- restaurants.guest_required + set_guest_required: masa siparişinde kişi sayısı zorunlu.
+alter table restaurants add column if not exists guest_required boolean not null default false;

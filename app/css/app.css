@@ -4173,3 +4173,4 @@ html.lang-rtl input[type=number],html.lang-rtl input[type=tel],html.lang-rtl .mo
 .al-bulk-all{display:inline-flex;align-items:center;gap:6px;margin:0;font-weight:700;font-size:13px;cursor:pointer}.al-bulk-all input{width:auto;margin:0}
 .tt-zones{display:flex;flex-wrap:wrap;gap:6px}
 .tt-box{margin-bottom:14px}
+.gp-box.gp-need{outline:2px solid var(--red);outline-offset:2px;border-radius:12px;animation:gpPulse 1s 3}@keyframes gpPulse{50%{outline-color:transparent}}
