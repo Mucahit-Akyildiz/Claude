@@ -76,9 +76,9 @@ function openPassReset(uid){
   const bg = document.createElement('div'); bg.className = 'dg-bg'; bg.style.zIndex = 3000;
   bg.innerHTML = `<div class="dg-card uc-card" style="max-width:420px;"><div class="dg-ic">🔑</div>
     <div class="uc-msg"><p><b>${escapeHtml(u.username || 'Kullanıcı')} — şifreyi sıfırla</b></p>
-    <p class="muted" style="font-size:12.5px;">${self ? 'Kendi şifrenizi değiştiriyorsunuz.' : 'Tek kullanımlık şifre girin ve kullanıcıya iletin. Kullanıcı bu şifreyle girince kendi şifresini belirlemesi istenir; açık oturumları kapatılır.'}</p></div>
+    <p class="muted" style="font-size:12.5px;">${self ? 'Kendi şifrenizi değiştiriyorsunuz.' : 'Tek kullanımlık şifre girin; SMS veya e-postayla kullanıcıya gönderebilirsiniz. Kullanıcı bu şifreyle girince kendi şifresini ve hızlı geçiş PIN’ini belirler; açık oturumları kapatılır.'}</p></div>
     <div style="display:flex;gap:6px;"><input class="uc-in" id="prTemp" type="text" autocomplete="off" placeholder="En az 8 karakter" style="flex:1;margin:0;"><button type="button" class="ghost-btn pr-rand" style="width:auto;margin:0;padding:6px 10px;" title="Rastgele üret">🎲</button></div>
-    <div class="uc-acts"><button type="button" class="pc-btn uc-no">Vazgeç</button><button type="button" class="uc-yes">Sıfırla</button></div></div>`;
+    <div class="uc-acts" style="flex-wrap:wrap;"><button type="button" class="pc-btn uc-no">Vazgeç</button>${self ? '' : `<button type="button" class="pc-btn pr-send" data-ch="sms" ${u.phone ? '' : 'disabled title="Telefon kayıtlı değil"'}>💬 SMS ile gönder</button><button type="button" class="pc-btn pr-send" data-ch="email" ${u.email ? '' : 'disabled title="E-posta kayıtlı değil"'}>📧 E-posta ile gönder</button>`}<button type="button" class="uc-yes">${self ? 'Değiştir' : 'Sadece sıfırla'}</button></div></div>`;
   const inp = bg.querySelector('#prTemp');
   const close = () => bg.remove();
   bg.addEventListener('click', e => { if(e.target === bg) close(); });
@@ -87,16 +87,41 @@ function openPassReset(uid){
     const chars = 'abcdefghjkmnpqrstuvwxyz23456789', r = new Uint32Array(8); crypto.getRandomValues(r);
     inp.value = Array.from(r, x => chars[x % chars.length]).join(''); inp.focus(); inp.select();
   });
-  bg.querySelector('.uc-yes').addEventListener('click', async () => {
+  const doReset = async (ch) => {
     const v = inp.value.trim();
     if(v.length < 8){ showToast('Şifre en az 8 karakter olmalı'); return; }
-    const { error } = await sb.rpc('reset_staff_password_temp', { p_token: getSession().session_token, p_user_id: uid, p_password: v });
+    const { error } = ch ? await sb.rpc('send_staff_temp_password', { p_token: getSession().session_token, p_user_id: uid, p_password: v, p_channel: ch })
+      : await sb.rpc('reset_staff_password_temp', { p_token: getSession().session_token, p_user_id: uid, p_password: v });
     if(error){ alert(error.message); return; }
     close();
-    showToast(self ? 'Şifreniz değişti ✓' : '🔑 Tek kullanımlık şifre ayarlandı — kullanıcı girişte kendi şifresini belirleyecek');
-  });
+    showToast(self ? 'Şifreniz değişti ✓' : ch === 'sms' ? '💬 Geçici şifre SMS ile gönderildi' : ch === 'email' ? '📧 Geçici şifre e-postayla gönderildi' : '🔑 Tek kullanımlık şifre ayarlandı — kullanıcı girişte kendi şifresini belirleyecek');
+  };
+  bg.querySelector('.uc-yes').addEventListener('click', () => doReset(null));
+  bg.querySelectorAll('.pr-send').forEach(b => b.addEventListener('click', () => doReset(b.dataset.ch)));
   document.body.appendChild(bg);
   setTimeout(() => inp.focus(), 30);
+}
+/* Şifre belirledikten sonra: kullanıcı kendi hızlı geçiş PIN'ini belirler (isteğe bağlı, sonra da yapılabilir). */
+function askOwnPin(){
+  return new Promise(resolve => {
+    const bg = document.createElement('div'); bg.className = 'dg-bg'; bg.style.zIndex = 4000;
+    bg.innerHTML = `<div class="dg-card uc-card" style="max-width:380px;"><div class="dg-ic">🔢</div>
+      <div class="uc-msg"><p><b>Hızlı geçiş PIN'inizi belirleyin</b></p><p class="muted" style="font-size:12.5px;">Kasa veya tablet gibi ortak cihazlarda 👥 düğmesiyle bu PIN'i girerek hesabınıza geçersiniz. 4-6 haneli rakam; kimseyle paylaşmayın.</p></div>
+      <input class="uc-in" id="ownPin1" type="password" inputmode="numeric" maxlength="6" autocomplete="off" placeholder="PIN">
+      <input class="uc-in" id="ownPin2" type="password" inputmode="numeric" maxlength="6" autocomplete="off" placeholder="PIN (tekrar)" style="margin-top:8px;">
+      <div class="uc-acts"><button type="button" class="pc-btn uc-no">Şimdi değil</button><button type="button" class="uc-yes">Kaydet</button></div></div>`;
+    bg.querySelector('.uc-no').addEventListener('click', () => { bg.remove(); resolve(false); });
+    bg.querySelector('.uc-yes').addEventListener('click', async () => {
+      const a = bg.querySelector('#ownPin1').value.trim(), b = bg.querySelector('#ownPin2').value.trim();
+      if(!/^[0-9]{4,6}$/.test(a)){ showToast('PIN 4-6 haneli rakam olmalı'); return; }
+      if(a !== b){ showToast('PIN\'ler aynı değil'); return; }
+      const ses = getSession();
+      const { error } = await sb.rpc('set_staff_pin', { p_token: ses.session_token, p_user_id: ses.user_id, p_pin: a });
+      if(error){ alert(error.message); return; }
+      bg.remove(); showToast('🔢 PIN kaydedildi'); resolve(true);
+    });
+    document.body.appendChild(bg); setTimeout(() => bg.querySelector('#ownPin1').focus(), 30);
+  });
 }
 /* Girişte: yönetici şifreyi sıfırladıysa kullanıcı kendi şifresini belirlemeden devam edemez. */
 function forceOwnPasswordChange(){
@@ -114,7 +139,8 @@ function forceOwnPasswordChange(){
       if(a !== b){ showToast('Şifreler aynı değil'); return; }
       const { error } = await sb.rpc('set_own_password', { p_token: getSession().session_token, p_new_password: a });
       if(error){ alert(error.message); return; }
-      bg.remove(); showToast('Şifreniz kaydedildi ✓'); resolve(true);
+      bg.remove(); showToast('Şifreniz kaydedildi ✓');
+      await askOwnPin(); resolve(true);
     });
     document.body.appendChild(bg);
     setTimeout(() => bg.querySelector('#ownP1').focus(), 30);

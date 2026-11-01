@@ -161,6 +161,7 @@ function render(){
             </div>
             <button type="button" class="sb-ib" ${act('refreshApp')} title="Yenile (son değişiklikleri getir)">🔄</button>
             ${(APP.config && (APP.config.users || []).some(u => u.has_pin)) ? `<button type="button" class="sb-ib" ${act('openPinSwitch')} title="Personel değiştir (PIN)">👥</button>` : ''}
+            <button type="button" class="sb-ib" ${act('askOwnPin')} title="Hızlı geçiş PIN'imi belirle / değiştir">🔢</button>
             <button type="button" class="sb-ib danger" ${act('doLogout')} title="Çıkış Yap">🚪</button>
           </div>
         </div>
