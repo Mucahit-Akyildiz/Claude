@@ -65,3 +65,8 @@ alter table app_users add column if not exists email text;
 alter table app_users add column if not exists must_change_password boolean not null default false;
 -- reset_staff_password_temp(p_token,p_user_id,p_password): update_staff_user ile şifreyi ayarlar, must_change_password=true, açık oturumları kapatır.
 -- get_must_change_password(p_token) / set_own_password(p_token,p_new_password): girişte zorunlu şifre belirleme.
+
+-- Güvenlik: tüm şifre kuralları en az 8 karakter (personel, sıfırlama, raporlar şifresi, şirket).
+-- Giriş: login_failures.ip + _req_ip() (x-forwarded-for); aynı IP'den 15 dk'da 30 hatalı denemede giriş kilitlenir.
+alter table login_failures add column if not exists ip text;
+create index if not exists login_failures_ip_idx on login_failures(ip, created_at);

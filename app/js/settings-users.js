@@ -55,7 +55,7 @@ function openPassReset(uid){
   bg.innerHTML = `<div class="dg-card uc-card" style="max-width:420px;"><div class="dg-ic">🔑</div>
     <div class="uc-msg"><p><b>${escapeHtml(u.username || 'Kullanıcı')} — şifreyi sıfırla</b></p>
     <p class="muted" style="font-size:12.5px;">${self ? 'Kendi şifrenizi değiştiriyorsunuz.' : 'Tek kullanımlık şifre girin ve kullanıcıya iletin. Kullanıcı bu şifreyle girince kendi şifresini belirlemesi istenir; açık oturumları kapatılır.'}</p></div>
-    <div style="display:flex;gap:6px;"><input class="uc-in" id="prTemp" type="text" autocomplete="off" placeholder="En az 6 karakter" style="flex:1;margin:0;"><button type="button" class="ghost-btn pr-rand" style="width:auto;margin:0;padding:6px 10px;" title="Rastgele üret">🎲</button></div>
+    <div style="display:flex;gap:6px;"><input class="uc-in" id="prTemp" type="text" autocomplete="off" placeholder="En az 8 karakter" style="flex:1;margin:0;"><button type="button" class="ghost-btn pr-rand" style="width:auto;margin:0;padding:6px 10px;" title="Rastgele üret">🎲</button></div>
     <div class="uc-acts"><button type="button" class="pc-btn uc-no">Vazgeç</button><button type="button" class="uc-yes">Sıfırla</button></div></div>`;
   const inp = bg.querySelector('#prTemp');
   const close = () => bg.remove();
@@ -67,7 +67,7 @@ function openPassReset(uid){
   });
   bg.querySelector('.uc-yes').addEventListener('click', async () => {
     const v = inp.value.trim();
-    if(v.length < 6){ showToast('Şifre en az 6 karakter olmalı'); return; }
+    if(v.length < 8){ showToast('Şifre en az 8 karakter olmalı'); return; }
     const { error } = await sb.rpc('reset_staff_password_temp', { p_token: getSession().session_token, p_user_id: uid, p_password: v });
     if(error){ alert(error.message); return; }
     close();
@@ -82,13 +82,13 @@ function forceOwnPasswordChange(){
     const bg = document.createElement('div'); bg.className = 'dg-bg'; bg.style.zIndex = 4000;
     bg.innerHTML = `<div class="dg-card uc-card" style="max-width:400px;"><div class="dg-ic">🔐</div>
       <div class="uc-msg"><p><b>Yeni şifrenizi belirleyin</b></p><p class="muted" style="font-size:12.5px;">Tek kullanımlık şifreyle giriş yaptınız. Devam etmek için kendi şifrenizi oluşturun.</p></div>
-      <input class="uc-in" id="ownP1" type="password" autocomplete="new-password" placeholder="Yeni şifre (en az 6 karakter)">
+      <input class="uc-in" id="ownP1" type="password" autocomplete="new-password" placeholder="Yeni şifre (en az 8 karakter)">
       <input class="uc-in" id="ownP2" type="password" autocomplete="new-password" placeholder="Yeni şifre (tekrar)" style="margin-top:8px;">
       <div class="uc-acts"><button type="button" class="pc-btn uc-no">Çıkış</button><button type="button" class="uc-yes">Kaydet</button></div></div>`;
     bg.querySelector('.uc-no').addEventListener('click', () => { bg.remove(); resolve(false); });
     bg.querySelector('.uc-yes').addEventListener('click', async () => {
       const a = bg.querySelector('#ownP1').value, b = bg.querySelector('#ownP2').value;
-      if(a.length < 6){ showToast('Şifre en az 6 karakter olmalı'); return; }
+      if(a.length < 8){ showToast('Şifre en az 8 karakter olmalı'); return; }
       if(a !== b){ showToast('Şifreler aynı değil'); return; }
       const { error } = await sb.rpc('set_own_password', { p_token: getSession().session_token, p_new_password: a });
       if(error){ alert(error.message); return; }

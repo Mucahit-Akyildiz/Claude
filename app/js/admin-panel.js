@@ -1108,10 +1108,7 @@ function setBtStatusFilter(status){
    sokar - harfler büyütülür, rakam/harf olmayanlar atılır, 4'lü gruplara
    boşluk konur. İmleç her tuşta sona atlıyor (basit alan için kabul
    edilebilir bir ödün). */
-function formatIbanInput(el){
-  const raw = el.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 26);
-  el.value = raw.replace(/(.{4})/g, '$1 ').trim();
-}
+// formatIbanInput: settings.js'teki tek tanım kullanılır (sonra yüklenen o idi).
 async function saveBankTransferInfo(){
   const admin = getAdminSession();
   const iban = document.getElementById('bankIban').value.trim();
@@ -1364,7 +1361,7 @@ async function changeAdminPassword(){
   errBox.textContent = '';
   const newPass = document.getElementById('newAdminPass').value;
   const newPass2 = document.getElementById('newAdminPass2').value;
-  if(!newPass || newPass.length<4){ errBox.textContent = 'En az 4 karakter bir şifre girin'; return; }
+  if(!newPass || newPass.length<8){ errBox.textContent = 'En az 8 karakter bir şifre girin'; return; }
   if(newPass !== newPass2){ errBox.textContent = 'Girdiğiniz şifreler eşleşmiyor'; return; }
   const { error } = await sb.rpc('change_platform_admin_password', { p_token: admin.session_token, p_new_password: newPass });
   if(error){ errBox.textContent = error.message; return; }
