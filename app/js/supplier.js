@@ -118,6 +118,7 @@ async function renderPurchaseOrdersContent(session){
     sb.rpc('list_suppliers', { p_token: session.session_token })
   ]));
   const rows = poRes.error ? [] : (poRes.data||[]);
+  APP.poRows = rows;
   const suppliers = supRes.data || [];
   const canManage = hasPurchPerm(session, 'manage');
   const ownDraft = (p) => p.status==='draft' && (canManage || p.created_by===session.user_id);
@@ -127,9 +128,10 @@ async function renderPurchaseOrdersContent(session){
   const today = new Date(); today.setHours(0,0,0,0);
   const isLate = (p) => p.status==='ordered' && p.expected_date && new Date(p.expected_date) < today;
   // Açılışta teslim bekleyenler gösterilir (yoksa tümü); "Tüm siparişler"de de bekleyenler en üstte.
-  const pf = APP.poFilter || (cnt('ordered') ? 'ordered' : 'all');
+  // Açılışta onay/teslim bekleyenler (teslim bekleyen yoksa taslaklar) gösterilir.
+  const pf = APP.poFilter || (cnt('ordered') || !cnt('draft') ? 'ordered' : 'draft');
   const rank = (p) => p.status==='ordered' ? (isLate(p) ? 0 : 1) : p.status==='draft' ? 2 : 3;
-  const shown = (pf==='all' ? rows : pf==='late' ? rows.filter(isLate) : rows.filter(p => p.status===pf)).map((p, i) => [p, i]).sort((a, b) => rank(a[0]) - rank(b[0]) || a[1] - b[1]).map(x => x[0]);
+  const shown = (pf==='all' ? rows.filter(p => p.status !== 'cancelled') : pf==='late' ? rows.filter(isLate) : rows.filter(p => p.status===pf)).map((p, i) => [p, i]).sort((a, b) => rank(a[0]) - rank(b[0]) || a[1] - b[1]).map(x => x[0]);
   el.innerHTML = `
   ${lowStockBannerHtml()}
   <div class="fsheet-bar" style="margin:0 0 14px;"><p class="muted" style="margin:0;font-size:13px;text-align:left;">Hammadde ihtiyacınızı tedarikçiye sipariş olarak iletin.</p><button type="button" class="fsheet-open" ${act('openNewPoSheet')}>🛒 Yeni Sipariş</button></div>
@@ -141,23 +143,50 @@ async function renderPurchaseOrdersContent(session){
       <div style="display:flex;justify-content:space-between;align-items:center;margin:16px 0 8px;"><b style="font-size:14px;">📦 Hammaddeler</b><button type="button" class="u-wa-m0 ghost-btn" ${act('addPoDraftItemRow')}>+ Hammadde Ekle</button></div>
       <div id="poItemsWrap">${renderPoDraftItemsHtml()}</div>
       <div class="fsheet-foot"><button type="button" class="ghost-btn" ${act('closeSheet','poSheet')}>Vazgeç</button><button ${act('createPurchaseOrder')}>🛒 Sipariş Ver</button></div>`, 'var(--accent)')}
-  ${statChipsClick([['all','📋', rows.length, 'Tüm siparişler', 'var(--c1)'], ['ordered','🚚', cnt('ordered'), 'Teslim bekliyor', '#f59e0b'],
-      ['late','⏰', rows.filter(isLate).length, 'Gecikmiş', 'var(--danger,#ef4444)'], ['received','✅', cnt('received'), 'Teslim alındı', 'var(--ok,#22c55e)']], pf, 'setPoFilter')}
+  ${statChipsClick([['ordered','🚚', cnt('ordered'), 'Teslim bekliyor', '#f59e0b'], ['draft','📝', cnt('draft'), 'Taslak', '#a78bfa'],
+      ['late','⏰', rows.filter(isLate).length, 'Gecikmiş', 'var(--danger,#ef4444)'], ['received','✅', cnt('received'), 'Teslim alındı', 'var(--ok,#22c55e)'],
+      ['cancelled','✕', cnt('cancelled'), 'İptal edilen', '#94a3b8'], ['all','📋', rows.length - cnt('cancelled'), 'Tüm siparişler', 'var(--c1)']], pf, 'setPoFilter')}
   <div class="fs-panel pa-sec" style="--t:#f59e0b;">
     <h3><i>📋</i>Verilen Siparişler${cnt('draft') ? ` <span class="pa-legend"><span><b style="background:#a78bfa;"></b>Taslak ${cnt('draft')}</span></span>` : ''}</h3>
     ${shown.length ? `<div class="po-grid">${shown.map((p, i) => { const items = p.items || [], ord = Number(p.ordered_total)||items.reduce((x, it) => x + (Number(it.quantity)||0), 0), rec = Number(p.received_total)||items.reduce((x, it) => x + Math.min(Number(it.received)||0, Number(it.quantity)||0), 0);
       const pct = p.status==='received' ? 100 : ord ? Math.round(rec/ord*100) : 0;
-      return `<div class="po-card" style="--st:${isLate(p) ? 'var(--danger,#ef4444)' : PO_TONE[p.status]||'var(--muted)'};--i:${Math.min(i,12)};">
+      return `<div class="po-card po-click" ${act('openPoDetail', p.id)} title="Detay için tıklayın" style="--st:${isLate(p) ? 'var(--danger,#ef4444)' : PO_TONE[p.status]||'var(--muted)'};--i:${Math.min(i,12)};">
         <div class="po-top">${avatarHtml(p.supplier_name||'?')}<div class="cu-id"><b>${escapeHtml(p.supplier_name||'Tedarikçi bekleniyor')}</b><small>${p.created_by_name ? 'Oluşturan: '+escapeHtml(p.created_by_name) : ''}</small></div>${poStatusBadge(p)}</div>
         <div class="po-dates"><span class="pchip">📅 ${fmtDateTr(p.order_date)}</span>${p.expected_date ? `<span class="pchip ${isLate(p)?'warn':''}">${isLate(p) ? '⏰ gecikti · ' : '🎯 '}${fmtDateTr(p.expected_date)}</span>` : ''}<span class="pchip">📦 ${items.length} kalem</span></div>
         ${p.status!=='draft' && p.status!=='cancelled' ? `<div class="po-prog"><div class="pcard-mbar"><i style="width:${pct}%;background:var(--st);"></i></div><small>%${pct} teslim alındı</small></div>` : ''}
         ${items.length ? `<div class="po-items">${items.slice(0, 6).map(it => { const q = Number(it.quantity)||0, r = Number(it.received)||0, done = r >= q && q > 0;
           return `<div class="po-it ${done?'done':r>0?'part':''}"><span>${done?'✓':r>0?'◐':'○'} ${escapeHtml(it.name)}</span><b>${p.status==='draft' ? fmtQty(q) : fmtQty(r)+' / '+fmtQty(q)} ${escapeHtml(it.unit||'')}</b></div>`; }).join('')}${items.length > 6 ? `<div class="u-fs12 muted">+${items.length-6} kalem daha</div>` : ''}</div>` : ''}
         ${p.notes ? `<div class="rv-note">📝 ${escapeHtml(p.notes)}</div>` : ''}
+        <div class="po-more">Detay için tıklayın ›</div>
         ${ownDraft(p) ? `<div class="pcard-acts"><button type="button" class="pc-btn pc-edit" style="margin-left:0;" ${act('markPOOrdered', p.id)}>🚚 Sipariş Ver</button><button type="button" class="pc-btn rv-del" style="margin-left:auto;" ${act('removePO', p.id)}>🗑 Sil</button></div>` : ''}
       </div>`; }).join('')}</div>`
       : '<div class="empty-state"><div style="font-size:42px;">📋</div><p class="muted">Bu filtrede sipariş yok.</p></div>'}
   </div>`;
+}
+/* Sipariş detayı: tüm kalemler, not, tarih; yetkiliyse iptal (teslim alınmışsa stok ve maliyet geri alınır). */
+function openPoDetail(id){
+  const p = (APP.poRows || []).find(x => x.id === id); if(!p) return;
+  const s = getSession(), items = p.items || [], canCancel = p.status !== 'cancelled' && (hasPurchPerm(s, 'manage') || (p.status === 'draft' && p.created_by === s.user_id));
+  const rec = items.some(i => Number(i.received) > 0);
+  const bg = document.createElement('div'); bg.className = 'dg-bg'; bg.style.zIndex = 3000;
+  bg.innerHTML = `<div class="dg-card uc-card" style="max-width:520px;text-align:left;">
+    <div class="u-row-sb"><b style="font-size:17px;">🛒 ${escapeHtml(p.supplier_name || 'Tedarikçi bekleniyor')}</b>${poStatusBadge(p)}</div>
+    <p class="muted u-fs12" style="margin:4px 0 10px;">📅 ${fmtDateTr(p.order_date)}${p.expected_date ? ' · 🎯 ' + fmtDateTr(p.expected_date) : ''}${p.created_by_name ? ' · 👤 ' + escapeHtml(p.created_by_name) : ''} · 📦 ${items.length} kalem</p>
+    <div class="po-items" style="max-height:52vh;overflow:auto;">${items.map(it => { const q = Number(it.quantity)||0, r = Number(it.received)||0, done = r >= q && q > 0;
+      return `<div class="po-it ${done?'done':r>0?'part':''}"><span>${done?'✓':r>0?'◐':'○'} ${escapeHtml(it.name)}</span><b>${p.status==='draft' ? fmtQty(q) : fmtQty(r)+' / '+fmtQty(q)} ${escapeHtml(it.unit||'')}</b></div>`; }).join('')}</div>
+    ${p.notes ? `<div class="rv-note" style="margin-top:8px;">📝 ${escapeHtml(p.notes)}</div>` : ''}
+    <div class="uc-acts">${canCancel ? '<button type="button" class="pc-btn pd-cx" style="color:var(--red);margin-right:auto;">✕ Siparişi iptal et</button>' : ''}<button type="button" class="uc-yes pd-close">Kapat</button></div></div>`;
+  bg.addEventListener('click', e => { if(e.target === bg) bg.remove(); });
+  bg.querySelector('.pd-close').addEventListener('click', () => bg.remove());
+  const cx = bg.querySelector('.pd-cx');
+  if(cx) cx.addEventListener('click', async () => {
+    if(!(await uiConfirm(rec ? 'Teslim alınan miktarlar stoktan düşülür ve bu alışın ortalama maliyete etkisi geri alınır.' : 'Bu malzeme siparişi iptal edilsin mi?', { title: 'Siparişi iptal et', icon: '✕', okText: 'İptal et', cancelText: 'Vazgeç', danger: rec }))) return;
+    const { error } = await sb.rpc('set_purchase_order_status', { p_token: s.session_token, p_id: id, p_status: 'cancelled' });
+    if(error){ alert(error.message); return; }
+    bg.remove(); showToast(rec ? 'Sipariş iptal edildi · stok ve maliyet geri alındı' : 'Sipariş iptal edildi');
+    renderPurchaseOrdersContent(s);
+  });
+  document.body.appendChild(bg);
 }
 /* Kritik stok: minimum seviyenin altındaki hammaddeler için uyarı ve tek tıkla sipariş taslağı. */
 function lowStockList(){

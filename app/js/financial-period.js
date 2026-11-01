@@ -114,13 +114,14 @@ async function renderPurchaseReportContent(session){
   const needSup = (p) => p.status!=='draft' && p.status!=='cancelled' && !p.supplier_id;
   const isDone = (p) => p.status==='received' && !needPrice(p) && !needSup(p);
   const isCx = (p) => p.status === 'cancelled';
-  const cnt = { cx: rows.filter(isCx).length, all: rows.filter(p => !isCx(p)).length, sup: rows.filter(needSup).length, price: rows.filter(needPrice).length, recv: rows.filter(needRecv).length, done: rows.filter(isDone).length };
-  const flt = APP.procFilter || 'all';
-  const shown = rows.filter(p => flt==='sup' ? needSup(p) : flt==='price' ? needPrice(p) : flt==='recv' ? needRecv(p) : flt==='done' ? isDone(p) : flt==='cx' ? isCx(p) : !isCx(p));
+  const isWait = (p) => needSup(p) || needPrice(p) || needRecv(p);
+  const cnt = { wait: rows.filter(isWait).length, cx: rows.filter(isCx).length, all: rows.filter(p => !isCx(p)).length, sup: rows.filter(needSup).length, price: rows.filter(needPrice).length, recv: rows.filter(needRecv).length, done: rows.filter(isDone).length };
+  const flt = APP.procFilter || 'wait'; // açılışta işlem bekleyenler
+  const shown = rows.filter(p => flt==='sup' ? needSup(p) : flt==='price' ? needPrice(p) : flt==='recv' ? needRecv(p) : flt==='done' ? isDone(p) : flt==='cx' ? isCx(p) : flt==='wait' ? isWait(p) : !isCx(p));
   const bySup = {};
   live.forEach(p => { const k = p.supplier_name || 'Tedarikçisiz'; bySup[k] = (bySup[k]||0) + (Number(p.total_amount)||0); });
   const statusOf = (p) => typeof poStatusBadge==='function' ? poStatusBadge(Object.assign({}, p, { ordered_total: (p.items||[]).reduce((t,i)=>t+Number(i.quantity||0),0), received_total: (p.items||[]).reduce((t,i)=>t+Math.min(Number(i.received||0),Number(i.quantity||0)),0) })) : escapeHtml(p.status);
-  const CHIP_C = { cx:'#94a3b8', all:'var(--accent)', sup:'#fb923c', price:'var(--red)', recv:'#f59e0b', done:'var(--green)' };
+  const CHIP_C = { wait:'#f59e0b', cx:'#94a3b8', all:'var(--accent)', sup:'#fb923c', price:'var(--red)', recv:'#f59e0b', done:'var(--green)' };
   const chip = (k, l) => `<button type="button" class="pc-chip${flt===k?' active':''}" style="--cc:${CHIP_C[k]};" ${act('setProcFilter', k)}>${l}<span>${cnt[k]}</span></button>`;
   const card = (p, idx) => {
     const tone = isCx(p) ? '#94a3b8' : needPrice(p) ? 'var(--danger,#ef4444)' : needRecv(p) ? '#f59e0b' : p.status==='received' ? 'var(--ok,#22c55e)' : 'var(--muted)';
@@ -157,7 +158,7 @@ async function renderPurchaseReportContent(session){
     </div>
     <div class="pc-layout">
       <div>
-        <div class="pc-chips">${chip('all','Tümü')}${chip('sup','Tedarikçi bekleyen')}${chip('price','Fiyat bekleyen')}${chip('recv','Teslim bekleyen')}${chip('done','Tamamlanan')}${chip('cx','İptal edilen')}
+        <div class="pc-chips">${chip('wait','Bekleyenler')}${chip('all','Tümü')}${chip('sup','Tedarikçi bekleyen')}${chip('price','Fiyat bekleyen')}${chip('recv','Teslim bekleyen')}${chip('done','Tamamlanan')}${chip('cx','İptal edilen')}
           <button type="button" class="pc-save pc-save-all" id="pcSaveAll" hidden ${act('saveAllPoPrices')}>${ICON_SAVE}<span>Tümünü Kaydet</span></button></div>
         <div class="po-bulk" id="poBulk" ${poSel().size ? '' : 'hidden'}><b id="poBulkN">${poSel().size} kalem seçili</b>
           <select id="poBulkSup"><option value="">Tedarikçi seçin…</option>${(APP.procSuppliers||[]).map(sp => `<option value="${sp.id}">${escapeHtml(sp.name)}</option>`).join('')}</select>
