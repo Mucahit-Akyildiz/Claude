@@ -4041,3 +4041,7 @@ button.sl-stat{border:1px solid var(--border) !important;} button.sl-stat.on{bor
 .po-line{margin-bottom:8px;}
 .po-sg{display:flex;gap:8px;align-items:center;justify-content:space-between;margin:4px 2px 0;font-size:12.5px;text-align:left;} .po-sg .pc-btn{margin:0;width:auto;padding:4px 10px;}
 .pa-seg{display:flex;margin:0 0 14px;max-width:420px;} .pa-seg button{flex:1;}
+.iu-q{flex-wrap:wrap;} .iu-pack{display:flex;gap:5px;align-items:center;font-size:11.5px;margin:2px 0 0;width:100%;cursor:pointer;color:var(--muted);} .iu-pack input{width:14px!important;height:14px;margin:0;}
+.iu-item.pack{border-color:color-mix(in srgb,var(--c2,#a855f7) 55%,var(--border));background:color-mix(in srgb,var(--c2,#a855f7) 7%,transparent);} .iu-item.pack .iu-pack{color:var(--text);font-weight:700;}
+.sent-pack{border:1px solid var(--border);background:transparent;color:var(--text);border-radius:8px;padding:2px 8px;font-size:11.5px;font-weight:700;cursor:pointer;margin-right:4px;width:auto;}
+.sent-pack.on{background:color-mix(in srgb,var(--c2,#a855f7) 20%,transparent);border-color:color-mix(in srgb,var(--c2,#a855f7) 55%,var(--border));}

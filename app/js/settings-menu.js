@@ -215,7 +215,7 @@ function openIngredientUsageModal(ingredientId, edit){
       </section>
       <section>
         <div class="iu-sh"><h3>🍽️ Kullanıldığı ürünler</h3><small class="muted" id="iuCount"></small></div>
-        <p class="muted iu-hint">İşaretleyip 1 porsiyonda kullanılan <b>net</b> miktarı girin; hammaddenin o üründeki maliyet payı yanında görünür.</p>
+        <p class="muted iu-hint">İşaretleyip 1 porsiyonda kullanılan <b>net</b> miktarı girin; maliyet payı yanında görünür. Poşet, kapaklı kap, kese kağıdı gibi yalnızca paket servisinde kullanılanlar için <b>🛍️ Yalnızca pakette</b>'yi işaretleyin: paket siparişte ve masada "paket yap" denince stoktan düşer, maliyete eklenir.</p>
         ${products.length ? `<div class="iu-tools">
           <input id="iuSearch" placeholder="🔍 Ürün ara…" autocomplete="off" ${actOn('input','filterIngUsage',[])}>
           <select id="iuMenu" ${actOn('change','filterIngUsage',[])}><option value="">Tüm menüler</option>${menus.map(m => `<option value="${escapeAttr(m.id)}">${escapeHtml(m.name)}</option>`).join('')}</select>
@@ -230,12 +230,14 @@ function openIngredientUsageModal(ingredientId, edit){
   document.body.appendChild(bg);
   const box = document.getElementById('ingUsageItemsBox');
   box.innerHTML = products.length===0 ? '<p class="muted">Henüz ürün eklenmemiş.</p>' : products.map(p => {
-    const ex = (p.recipe||[]).find(r => r.ingredient_id===ingredientId);
+    const exR = (p.recipe||[]).find(r => r.ingredient_id===ingredientId), exP = (p.packaging||[]).find(r => r.ingredient_id===ingredientId);
+    const ex = exR || (exP ? { qty_per_unit: exP.qty } : null);
     const mn = menus.length > 1 && p.menu_id ? ((menus.find(m => m.id === p.menu_id)||{}).name||'') : (p.category || '');
     return `<label class="iu-item ${ex?'on':''}" data-pid="${p.id}" data-name="${escapeAttr(p.name)}" data-menu="${escapeAttr(p.menu_id||'')}" data-price="${Number(p.price)||0}" data-cost="${Number(p.cost)||0}">
       <input type="checkbox" id="ingu_chk_${p.id}" ${ex?'checked':''} ${actOn('change','toggleIngUsageQty',[p.id,'$checked'])}>
       <span class="iu-pn"><b>${escapeHtml(p.name)}</b><small class="muted">${escapeHtml(mn)}${mn ? ' · ' : ''}${money(p.price)} · ürün maliyeti ${money(p.cost)}</small></span>
-      <span class="iu-q"><input type="number" step="0.01" min="0" id="ingu_qty_${p.id}" value="${ex?ex.qty_per_unit:''}" placeholder="Miktar" ${ex?'':'disabled'} ${actOn('input','iuRecalc',[])}><em class="iu-u">${escapeHtml(unit)}</em></span>
+      <span class="iu-q"><input type="number" step="0.01" min="0" id="ingu_qty_${p.id}" value="${ex?ex.qty_per_unit:''}" placeholder="Miktar" ${ex?'':'disabled'} ${actOn('input','iuRecalc',[])}><em class="iu-u">${escapeHtml(unit)}</em>
+        <label class="iu-pack" title="Yalnızca paket siparişte (ve masada 'paket yap' denince) stoktan düşer ve maliyete eklenir: poşet, kapaklı kap, kese kağıdı…"><input type="checkbox" id="ingu_pack_${p.id}" ${exP?'checked':''} ${actOn('change','iuRecalc',[])}> 🛍️ Yalnızca pakette</label></span>
       <span class="iu-c" id="ingu_c_${p.id}">—</span>
     </label>`;
   }).join('');
@@ -259,7 +261,9 @@ function iuRecalc(){
     const on = row.querySelector('input[type=checkbox]').checked, q = parseFloat(row.querySelector('.iu-q input').value) || 0;
     row.classList.toggle('on', on); if(on) n++;
     const c = row.querySelector('.iu-c'), price = Number(row.dataset.price) || 0;
-    if(on && q && uc){ const share = q * uc / Math.max(0.01, 1 - w / 100); c.innerHTML = `<b>${money(share)}</b><small>${price ? '%' + Math.round(share / price * 100) + ' fiyatın' : ''}</small>`; }
+    const pk = row.querySelector('.iu-pack input'), isPack = pk && pk.checked; row.classList.toggle('pack', on && isPack);
+    if(pk) pk.closest('.iu-pack').hidden = !on;
+    if(on && q && uc){ const share = isPack ? q * uc : q * uc / Math.max(0.01, 1 - w / 100); c.innerHTML = `<b>${money(share)}</b><small>${isPack ? '🛍️ yalnızca pakette' : price ? '%' + Math.round(share / price * 100) + ' fiyatın' : ''}</small>`; }
     else c.innerHTML = on ? '<small class="muted">miktar girin</small>' : '';
   });
   const un = document.getElementById('iuUseN'); if(un) un.textContent = n;
@@ -292,7 +296,7 @@ function filterIngUsage(){
 async function saveIngredientUsage(ingredientId){
   const session = getSession();
   const products = APP.config.products || [];
-  const usages = [];
+  const usages = [], packaging = [];
   const missing = [];
   products.forEach(p => {
     const chk = document.getElementById('ingu_chk_'+p.id);
@@ -300,7 +304,8 @@ async function saveIngredientUsage(ingredientId){
       const inp = document.getElementById('ingu_qty_'+p.id);
       const qty = parseFloat(inp.value);
       inp.style.borderColor = '';
-      if(qty && qty>0) usages.push({ product_id: p.id, qty_per_unit: qty });
+      const pk = document.getElementById('ingu_pack_'+p.id);
+      if(qty && qty>0){ if(pk && pk.checked) packaging.push({ product_id: p.id, qty }); else usages.push({ product_id: p.id, qty_per_unit: qty }); }
       else { missing.push(p.name); inp.style.borderColor = 'var(--red)'; }
     }
   });
@@ -326,7 +331,7 @@ async function saveIngredientUsage(ingredientId){
       if(e3){ alert(e3.message); return; }
     }
   }
-  const { error } = await sb.rpc('set_ingredient_usage', { p_token: session.session_token, p_ingredient_id: ingredientId, p_usages: usages });
+  const { error } = await sb.rpc('set_ingredient_usage2', { p_token: session.session_token, p_ingredient_id: ingredientId, p_usages: usages, p_packaging: packaging });
   if(error){ alert(error.message); return; }
   document.getElementById('ingUsageModalBg').remove();
   showToast('Kaydedildi ✓');

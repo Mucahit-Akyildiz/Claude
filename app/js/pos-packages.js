@@ -363,7 +363,7 @@ function renderTableItems(tableId){
     sentWrap.innerHTML = `<p style="font-weight:700;margin-bottom:2px;display:flex;justify-content:space-between;align-items:center;gap:8px;">Mutfağa Gönderilen<button type="button" class="ghost-btn repeat-btn" title="Son gönderilen ürünleri sepete tekrar ekle" ${act('repeatLastRound', tableId)}>🔁 Aynısından</button></p>${opened ? `<p class="muted" style="margin:0 0 6px;font-size:12px;">🕒 Sipariş açıldı: ${opened}${order.created_by_name ? ' · 👤 ' + escapeHtml(order.created_by_name) : ''}</p>` : ''}${orderWaiters(order).length > 1 ? `<p class="muted" style="margin:0 0 6px;font-size:12px;">İlgilenen garsonlar: ${escapeHtml(orderWaiters(order).join(', '))}</p>` : ''}` + order.items.map(it => `
       <div class="sent-row">
         <span class="sent-name">${escapeHtml(it.name)} x${it.qty} ${it.status==='ready'?'<span style="color:var(--green);">✓ Hazır</span>':'<span class="muted">Hazırlanıyor</span>'}</span>
-        <span class="muted sent-meta">${it.added_by_name ? '👤 ' + escapeHtml(it.added_by_name) + ' · ' : ''}🕒 ${hm(it.added_at)}${it.ready_at ? ' · ✓ ' + hm(it.ready_at) : ''}${it.paid ? '' : `<button type="button" class="sent-cancel" title="Bu ürünü iptal et" ${act('cancelSentItem', tableId, it.id)}>✕ İptal</button><input type="checkbox" class="sent-sel" title="Toplu iptal için seç" ${sentSel(tableId).has(it.id)?'checked':''} ${actOn('change','toggleSentSel',[tableId, it.id, '$this'])}>`}</span>
+        <span class="muted sent-meta">${it.added_by_name ? '👤 ' + escapeHtml(it.added_by_name) + ' · ' : ''}🕒 ${hm(it.added_at)}${it.ready_at ? ' · ✓ ' + hm(it.ready_at) : ''}${it.paid ? (it.packed ? ' · 🛍️ paket' : '') : `${order.kind !== 'takeaway' ? `<button type="button" class="sent-pack ${it.packed ? 'on' : ''}" title="${it.packed ? 'Paket yapıldı (tıklayınca geri al)' : 'Müşteri paket istedi: paket malzemesi stoktan düşer, maliyete eklenir'}" ${act('toggleItemPacked', tableId, it.id, !it.packed)}>🛍️ ${it.packed ? 'Paket' : 'Paket yap'}</button>` : ''}<button type="button" class="sent-cancel" title="Bu ürünü iptal et" ${act('cancelSentItem', tableId, it.id)}>✕ İptal</button><input type="checkbox" class="sent-sel" title="Toplu iptal için seç" ${sentSel(tableId).has(it.id)?'checked':''} ${actOn('change','toggleSentSel',[tableId, it.id, '$this'])}>`}</span>
       </div>`).join('') + (order.items.some(i => !i.paid) ? `<div class="sent-bulk">
         <button type="button" class="ghost-btn" ${act('selectAllSent', tableId)}>☑️ ${order.items.filter(i => !i.paid).every(i => sentSel(tableId).has(i.id)) ? 'Seçimi Kaldır' : 'Tümünü Seç'}</button>
         <button type="button" class="sent-bulk-go" ${sentSel(tableId).size ? '' : 'disabled'} ${act('cancelSelectedSent', tableId)}>✕ Seçilenleri İptal Et${sentSel(tableId).size ? ' (' + sentSel(tableId).size + ')' : ''}</button>
@@ -833,4 +833,15 @@ function courierAcceptBadge(o){
   if(o.courier_accepted_at) return `<span class="pk-badge ok" title="Kurye siparişi aldığını onayladı">✅ aldı ${new Date(o.courier_accepted_at).toLocaleTimeString('tr-TR', { hour:'2-digit', minute:'2-digit' })}</span>`;
   const m = Math.max(0, Math.round((Date.now() - new Date(o.courier_offer_at || o.dispatched_at)) / 60000));
   return `<span class="pk-badge ${m >= 3 ? 'late' : 'warn'}" title="Kuryenin ekranına onay gönderildi, henüz 'Siparişi aldım' denmedi">⏳ onay bekleniyor${m ? ' · ' + m + ' dk' : ''}</span><button type="button" class="cr-btn ghost" title="Onayı kuryenin ekranına tekrar gönder" ${actStop('resendCourierNotify', o.order_id)}>🔁</button>`;
+}
+
+/* Masada "bunu paket yapar mısınız": kalem paket olarak işaretlenir; ürünün paket malzemesi (Hammaddeler › 🛍️ Yalnızca pakette)
+   stoktan düşer ve maliyete eklenir. Geri alınınca iade edilir. */
+async function toggleItemPacked(tableId, itemId, on){
+  const { data, error } = await sb.rpc('set_item_packed', { p_token: getSession().session_token, p_item_id: itemId, p_on: !!on });
+  if(error){ alert(error.message); return; }
+  const o = (APP.liveOrders || []).find(x => (x.items || []).some(i => i.id === itemId)), it = o && o.items.find(i => i.id === itemId);
+  if(it) it.packed = !!on;
+  showToast(on ? (data && data.applied ? '🛍️ Paket yapıldı · paket malzemesi stoktan düştü (' + money(data.pack_cost) + ')' : '🛍️ Paket olarak işaretlendi · bu ürüne paket malzemesi tanımlı değil (Hammaddeler › 🛍️ Yalnızca pakette)') : 'Paket geri alındı · malzeme stoğa iade edildi');
+  renderTableItems(tableId);
 }
