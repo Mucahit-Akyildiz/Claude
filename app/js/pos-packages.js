@@ -79,7 +79,7 @@ function openPackageModal(pseudoId){
   bg.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:flex-start;justify-content:center;z-index:100;padding:7vh 16px 16px;overflow-y:auto;';
   bg.onclick = (e) => { if(e.target===bg) closeTableModal(); };
   bg.innerHTML = `
-    <div class="order-modal">
+    <div class="order-modal ${isWl ? '' : 'om-pkg'}">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
         <h2 style="margin:0;overflow-wrap:anywhere;word-break:break-word;">${title}</h2>
         <span class="u-xclose" ${act('closeTableModal')}>✕</span>
@@ -89,16 +89,17 @@ function openPackageModal(pseudoId){
           <div class="tabs" id="prodStationTabs" style="margin-top:0;"></div>
           <div id="prodPick"></div>
         </div>
-        <div class="order-modal-cart">
-          <div class="om-cart-head">🧾 Sipariş<span class="om-cart-total"></span></div>
-      ${isWl ? '<p class="muted" style="text-align:left;margin:0 0 6px;font-size:12.5px;">Siparişler hemen mutfağa düşer; müşteri oturtulunca masaya taşınır.</p>' : `<div class="field-group"><label>Müşteri Adı</label><input id="pkgCustName" maxlength="60" placeholder="örn. Ahmet Bey veya kayıtlı müşteri ara" autocomplete="off" ${actOn('input','tableCustSearch',['$value','pkgCust'])} value="${escapeAttr((existing&&existing.customer_name)||'')}"></div>
-      <div class="field-group"><label>Telefon <span class="u-red">*</span></label><input id="pkgCustPhone" placeholder="örn. 5551234567" autocomplete="off" inputmode="tel" ${actOn('input','tableCustSearch',['$value','pkgCust'])} value="${escapeAttr((existing&&existing.customer_phone)||'')}"></div>
+        ${isWl ? '' : `<div class="order-modal-info"><div class="om-info-head">👤 Müşteri & Teslimat</div>`}
+      ${isWl ? '' : `<div class="field-group"><label>Müşteri Adı</label><input id="pkgCustName" maxlength="60" placeholder="örn. Ahmet Bey veya kayıtlı müşteri ara" autocomplete="off" ${actOn('input','tableCustSearch',['$value','pkgCust'])} value="${escapeAttr((existing&&existing.customer_name)||'')}"></div>
+      <div class="field-group"><label>Telefon <span class="u-red">*</span></label><input id="pkgCustPhone" title="Kayıtlı müşteri seçince adresi otomatik dolar; yeni müşteri adresiyle birlikte kaydedilir." placeholder="örn. 5551234567 (zorunlu)" autocomplete="off" inputmode="tel" ${actOn('input','tableCustSearch',['$value','pkgCust'])} value="${escapeAttr((existing&&existing.customer_phone)||'')}"></div>
       <div id="pkgCustSuggest" style="margin:-6px 0 10px;"></div>
-      <small class="muted" style="display:block;margin:-6px 0 10px;font-size:11.5px;">Telefon zorunludur. Kayıtlı müşteri seçince adresi otomatik dolar; yeni müşteri Müşteriler'e adresiyle birlikte eklenir.</small>
       ${pkgTypeHtml(existing)}
       <div class="field-group" id="pkgAddrWrap" style="${pkgTypeOf(existing)==='pickup'?'display:none;':''}"><label>Teslimat Adresi</label><textarea id="pkgAddress" rows="2" placeholder="örn. Atatürk Cad. No:12 D:4" style="resize:vertical;min-height:44px;">${escapeHtml((existing&&existing.delivery_address)||'')}</textarea></div>
       <div class="field-group"><label>Not</label><input id="pkgNote" placeholder="örn. Yan sokak, 2. kat" value="${escapeAttr((existing&&existing.note)||'')}"></div>
-      ${pkgPackHtml(existing)}`}
+      ${pkgPackHtml(existing)}</div>`}
+        <div class="order-modal-cart">
+          <div class="om-cart-head">🧾 Sipariş<span class="om-cart-total"></span></div>
+          ${isWl ? '<p class="muted" style="text-align:left;margin:0 0 6px;font-size:12.5px;">Siparişler hemen mutfağa düşer; müşteri oturtulunca masaya taşınır.</p>' : ''}
           <div id="sentItemsWrap"></div>
           <div id="draftItemsWrap"></div>
           ${orderAllowanceHtml(pseudoId)}${orderFlagsHtml(pseudoId)}
