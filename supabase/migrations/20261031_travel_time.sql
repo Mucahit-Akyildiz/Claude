@@ -85,3 +85,5 @@ alter table products add column if not exists option_groups jsonb not null defau
 
 -- PIN ile hızlı personel geçişi: app_users.pin_hash; set_staff_pin(p_token,p_user_id,p_pin); login_by_pin(p_token,p_pin) (5 dk'da 8 hatalı denemede kilit); config users[].has_pin.
 alter table app_users add column if not exists pin_hash text;
+
+-- send_staff_temp_password(p_token,p_user_id,p_password,p_channel 'sms'|'email'): geçici şifre + gönderim. send_staff_login_sms sıfırlamada 8 karakter ve must_change_password.
