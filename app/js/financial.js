@@ -211,10 +211,10 @@ async function renderReportsView(main, session){
 }
 function reportTabList(){
   const dsc = { summary:'Ciro, kâr, ödemeler', cockpit:'Karşılaştırma, tahmin, uyarılar', menueng:'Kârlılık haritası', tablemap:'Masa bazlı ciro', heat:'Gün × saat yoğunluğu', channels:'Masa, paket, gel-al, online', speed:'Hazırlama ve yanıt süreleri',
-    stockf:'Ne zaman bitecek', zreport:'Z raporu, kasa, kapanışlar', waiters:'Kartlar, ciro, saatlik çalışma', journey:'Sadakat, kayıp müşteri', period:'Saatlik / günlük', vat:'Vergi dağılımı',
+    stockf:'Ne zaman bitecek', zreport:'Z raporu, kasa, kapanışlar', waiters:'Kartlar, saatler, puantaj & prim', journey:'Sadakat, kayıp müşteri', period:'Saatlik / günlük', vat:'Vergi dağılımı',
     products:'Satışlar, maliyet, kârlılık', staff:'Personel ısı haritası', customers:'Harcama, sadakat, kayıp müşteri', tips:'Bahşiş dağılımı', waste:'Fire ve israf', cancel:'İptaller, personel bazlı kayıp', loss:'Personel bazlı kayıp kontrolü',
     resv:'Rezervasyon performansı', openacc:'Veresiye bakiyeleri', payroll:'Çalışma saati, maaş, prim', dayclose:'Kapandı mı, kasa farkı', reviews:'Yıldız ve yorumlar' };
-  return [['summary','📊','Genel Özet'], ...AN_TABS, ['period','📈','Dönemsel Analiz'],['vat','🧾','KDV'],['products','📦','Ürün Analizi'],['customers','🧑‍🤝‍🧑','Müşteri Analizleri'],['payroll','💼','Puantaj & Prim'],['reviews','⭐','Müşteri Değerlendirmeleri'],['tips','💰','Bahşiş Havuzu'],['waste','🔥','İsraf'],['cancel','❌','İptal & İkram Kontrolü'],['resv','📅','Rezervasyon Analizi'],['openacc','📒','Açık Hesaplar']].map(t => [...t, dsc[t[0]] || '']);
+  return [['summary','📊','Genel Özet'], ...AN_TABS, ['period','📈','Dönemsel Analiz'],['vat','🧾','KDV'],['products','📦','Ürün Analizi'],['customers','🧑‍🤝‍🧑','Müşteri Analizleri'],['reviews','⭐','Müşteri Değerlendirmeleri'],['tips','💰','Bahşiş Havuzu'],['waste','🔥','İsraf'],['cancel','❌','İptal & İkram Kontrolü'],['resv','📅','Rezervasyon Analizi'],['openacc','📒','Açık Hesaplar']].map(t => [...t, dsc[t[0]] || '']);
 }
 function setReportTab(tab){
   if(tab !== APP.reportTab) pushScreen();
@@ -266,9 +266,8 @@ function renderReportTabContent(session){
   if(tab==='heat') return renderHeatContent(session);
   if(tab==='stockf') return renderStockForecastContent(session);
   if(tab==='zreport' || tab==='dayclose'){ APP.reportTab = 'zreport'; return renderMergedReport(session, [['🧾', 'Gün Sonu (Z Raporu)', renderZReportContent], ['📅', 'Gün Sonu Kapanışları', renderDayClosesContent]]); }
-  if(tab==='payroll') return renderPayrollContent(session);
   if(tab==='reviews') return renderReviewsReport(session);
-  if(tab==='waiters' || tab==='staff') return renderMergedReport(session, [['🏅', 'Garson Kartları', renderWaiterCardsContent], ['⏰', 'Saatlik Çalışma', renderStaffAnalyticsContent]]);
+  if(tab==='waiters' || tab==='staff' || tab==='payroll') return renderStaffPerformance(session, tab === 'payroll' ? 'payroll' : null);
   if(tab==='resv') return renderReservationAnalyticsContent(session);
   if(tab==='openacc') return renderOpenAccountsContent(session);
   return renderReportContent(session);
@@ -926,3 +925,22 @@ async function renderProductAnalysis(session, sub){
   await redrawReportPart(fn, session);
 }
 function setProdSub(k){ APP.prodSub = k; renderProductAnalysis(getSession()); }
+
+/* Personel Performansı: Performans (garson kartları + saatlik çalışma) ve Puantaj & Prim, iki alt sekme. */
+async function renderStaffPerformance(session, sub){
+  if(sub) APP.staffSub = sub;
+  if(APP.reportTab !== 'waiters'){ APP.reportTab = 'waiters'; document.querySelectorAll('#reportTabs .tab').forEach(t => { t.classList.toggle('active', t.dataset.tab === 'waiters'); t.classList.toggle('on', t.dataset.tab === 'waiters'); }); }
+  const host = document.getElementById('reportContent'); if(!host) return;
+  const cur = APP.staffSub || 'perf';
+  host.innerHTML = `<div class="seg pa-seg">${[['perf','🏅 Performans'],['payroll','💼 Puantaj & Prim']].map(([k, l]) => `<button type="button" class="${cur === k ? 'on' : ''}" ${act('setStaffSub', k)}>${l}</button>`).join('')}</div><div id="spSlot"></div>`;
+  const slot = document.getElementById('spSlot');
+  if(cur === 'payroll'){
+    APP.mergeSlots = new Map([[renderPayrollContent, 'spSlot']]);
+    return redrawReportPart(renderPayrollContent, session);
+  }
+  // Performans: iki bölüm alt alta (kartlar + ısı haritaları)
+  host.id = 'reportContentOuter'; slot.id = 'reportContent';
+  try{ await renderMergedReport(session, [['🏅', 'Garson Kartları', renderWaiterCardsContent], ['⏰', 'Saatlik Çalışma', renderStaffAnalyticsContent]]); }
+  finally{ slot.id = 'spSlot'; host.id = 'reportContent'; }
+}
+function setStaffSub(k){ APP.staffSub = k; renderStaffPerformance(getSession()); }
