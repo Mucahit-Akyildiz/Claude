@@ -141,7 +141,7 @@ async function renderPurchaseReportContent(session){
           <b class="pc2-line">${c>0 ? money(q*c) : i.free ? '<span class="pchip ok" title="Ücretsiz geldi; maliyete 0 TL olarak girer">🎁 Bedelsiz</span>' : '<span class="pchip warn">fiyat yok</span>'}</b></div>`; }).join('') || '<p class="muted">Kalem yok.</p>'}
       </div>
       <div class="pc2-foot">${p.notes ? `<div class="pc-note">📝 ${escapeHtml(p.notes)}</div>` : '<span></span>'}
-        <div class="pc2-acts"><span class="pc2-share"><button type="button" class="pc-btn" title="PDF olarak indir" ${act('poExport', p.id, 'pdf')}>📄 PDF</button><button type="button" class="pc-btn" title="Yazdır" ${act('poExport', p.id, 'print')}>🖨️</button><button type="button" class="pc-btn" title="Tedarikçiye e-posta gönder" ${act('poSend', p.id, 'email')}>📧</button><button type="button" class="pc-btn" title="Tedarikçiye SMS gönder" ${act('poSend', p.id, 'sms')}>💬</button></span>${p.status==='ordered' ? `<button type="button" class="pc-btn" ${act('openReceivePOModal', p.id)}>📦 Malzemeyi Teslim Al</button>` : ''}${(p.status==='ordered' || p.status==='draft') && !(p.items || []).some(i => Number(i.received) > 0) ? `<button type="button" class="pc-btn rv-del" title="Siparişi iptal et" ${act('cancelPurchaseOrder', p.id)}>✕ İptal</button>` : ''}
+        <div class="pc2-acts"><span class="pc2-share"><button type="button" class="pc-btn" title="PDF olarak indir" ${act('poExport', p.id, 'pdf')}>📄 PDF</button><button type="button" class="pc-btn" title="Yazdır" ${act('poExport', p.id, 'print')}>🖨️</button><button type="button" class="pc-btn" title="Tedarikçiye e-posta gönder" ${act('poSend', p.id, 'email')}>📧</button><button type="button" class="pc-btn" title="Tedarikçiye SMS gönder" ${act('poSend', p.id, 'sms')}>💬</button></span>${p.status==='ordered' ? `<button type="button" class="pc-btn" ${act('openReceivePOModal', p.id)}>📦 Malzemeyi Teslim Al</button>` : ''}${p.status !== 'cancelled' ? `<button type="button" class="pc-btn rv-del" title="Siparişi iptal et" ${act('cancelPurchaseOrder', p.id)}>✕ İptal</button>` : ''}
           <button type="button" class="pc-save" id="pcSave_${p.id}" disabled ${act('savePoPrices', p.id)}>${ICON_SAVE}<span>Kaydet</span></button></div></div>
     </div>`;
   };
@@ -744,10 +744,11 @@ function poPickRecipients(p, channel){
 
 // Mal Kabul: teslim alınmamış siparişi iptal et (teslim alınmış kalem varsa iptal edilemez; stok zaten eklendi).
 async function cancelPurchaseOrder(poId){
-  if(!(await uiConfirm('Bu malzeme siparişi iptal edilsin mi?', { title: 'Siparişi iptal et', icon: '✕', okText: 'İptal et', cancelText: 'Vazgeç' }))) return;
+  const po = (APP.procRows || []).find(x => x.id === poId), rec = po && (po.items || []).some(i => Number(i.received) > 0);
+  if(!(await uiConfirm(rec ? 'Bu siparişte teslim alınmış malzemeler var.\nİptal edilince teslim alınan miktarlar stoktan düşülür ve bu alışın ortalama maliyete etkisi geri alınır.' : 'Bu malzeme siparişi iptal edilsin mi?', { title: 'Siparişi iptal et', icon: '✕', okText: 'İptal et', cancelText: 'Vazgeç', danger: rec }))) return;
   const { error } = await sb.rpc('set_purchase_order_status', { p_token: getSession().session_token, p_id: poId, p_status: 'cancelled' });
   if(error){ alert(error.message); return; }
-  showToast('Sipariş iptal edildi');
+  showToast(rec ? 'Sipariş iptal edildi · stok ve maliyet geri alındı' : 'Sipariş iptal edildi');
   renderPurchaseReportContent(getSession());
   if(typeof refreshNavBadges === 'function') refreshNavBadges();
 }

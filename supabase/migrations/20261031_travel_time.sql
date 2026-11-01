@@ -100,3 +100,5 @@ alter table orders add column if not exists treat_off boolean not null default f
 
 -- restaurants.guest_required + set_guest_required: masa siparişinde kişi sayısı zorunlu.
 alter table restaurants add column if not exists guest_required boolean not null default false;
+
+-- Mal kabul iptali: _reverse_po_item (teslim alınan stok düşülür, ağırlıklı ortalama maliyet geri alınır, ingredient_cost_log purchase_cancel); set_purchase_order_status iptalde çağırır; receive sipariş miktarını aşan kısmı stoğa eklemez.
