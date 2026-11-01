@@ -4145,3 +4145,12 @@ html.is-native body{background:var(--bg);}
 html.lang-rtl body{direction:rtl}
 html.lang-rtl .sidebar{border-left:1px solid var(--border);border-right:0}
 html.lang-rtl input[type=number],html.lang-rtl input[type=tel],html.lang-rtl .money,html.lang-rtl kbd{direction:ltr}
+
+/* Limitli hesaplar: tek liste + "Kime" seçimi */
+.al-one{margin-top:14px}
+.al-list-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:10px}
+.al-who{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:4px 0 12px}
+.al-who-b{margin:0;display:flex;flex-direction:column;align-items:center;gap:2px;padding:10px;border-radius:12px;background:var(--panel2);color:var(--text);border:2px solid var(--border);font-weight:800;box-shadow:none}
+.al-who-b small{font-weight:500;font-size:11.5px;color:var(--muted)}
+.al-who-b.on{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 14%,var(--panel2))}
+@media (max-width:600px){.al-list-grid{grid-template-columns:1fr}}

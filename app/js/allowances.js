@@ -22,13 +22,13 @@ async function renderAllowancesSettings(el){
   const flags = (APP.config && APP.config.order_flags) || [];
   const users = ((APP.config && APP.config.users) || []).filter(u => u.is_active !== false);
   const flagSel = (id, cur) => `<select id="${id}"><option value="">— Etiket yok —</option>${flags.map(f => `<option value="${escapeAttr(f.label)}" ${cur===f.label?'selected':''}>${escapeHtml(f.label)}</option>`).join('')}</select>`;
-  const bar = (a) => { const cap = a.period === 'monthly' || a.kind === 'person' ? Number(a.limit_amount) : Math.max(Number(a.limit_amount), Number(a.remaining));
+  const bar = (a) => { const cap = a.period === 'monthly' || !a.carry_over ? Number(a.limit_amount) : Math.max(Number(a.limit_amount), Number(a.remaining));
     const pct = cap > 0 ? Math.min(100, Math.round(Number(a.remaining) / cap * 100)) : 0;
     return `<div class="al-bar"><span style="width:${pct}%;"></span></div>`; };
   const row = (a) => `<div class="al-row ${a.is_active ? '' : 'off'}" data-q="${escapeAttr((String(a.name || '') + ' ' + String(a.phone || '').replace(/\D/g, '')).toLocaleLowerCase('tr'))}">
       <div class="al-top"><span class="al-av">${a.kind === 'person' ? '🎓' : '👔'}</span>
         <div class="al-main"><b>${escapeHtml(a.name || '')}</b>
-          <small>${a.kind === 'person' ? 'Günlük · devretmez' : a.period === 'monthly' ? 'Aylık' : 'Günlük · devreder'} · ${money(a.limit_amount)}${a.flag_label ? ' · 🏷️ ' + escapeHtml(a.flag_label) : ''}${a.phone ? ' · 📞 ' + escapeHtml(maskPhoneAl(a.phone)) : ''}${a.is_active ? '' : ' · pasif'}</small></div>
+          <small>${alPeriodLabel(a)} · ${money(a.limit_amount)}${a.flag_label ? ' · 🏷️ ' + escapeHtml(a.flag_label) : ''}${a.phone ? ' · 📞 ' + escapeHtml(maskPhoneAl(a.phone)) : ''}${a.is_active ? '' : ' · pasif'}</small></div>
         <div class="al-rem"><b>${money(a.remaining)}</b><small>kalan</small></div></div>
       ${bar(a)}
       <div class="al-bot"><small>Bugün harcanan: <b>${money(a.used_today)}</b></small>
@@ -70,71 +70,70 @@ async function renderAllowancesSettings(el){
       <span><b>Limitli etikette kişi seçimi zorunlu</b><small>Açıkken Personel / Talebe gibi limite bağlı bir etiket işaretlenince, limitinden düşülecek kişi ya da kullanıcı seçilmeden sipariş gönderilemez. Kapalıyken seçim isteğe bağlıdır; kimse seçilmezse hesap limitten düşmez, normal ikram gibi kapanır.</small></span></label>
     <div class="al-top-bar"><input class="al-filter" type="search" placeholder="🔍 Ad veya telefonla ara…" autocomplete="off" ${actOn('input','alFilter',['$value'])}>
       ${typeof excelBarHtml === 'function' ? excelBarHtml('allowances') : ''}</div>
-    <div class="al-grid">
-      <div class="al-card">
-        <div class="al-h"><span>🎓</span><div><b>Kişiler</b><small>Günlük limit · ertesi güne aktarılmaz</small></div><em>${persons.length}</em></div>
-        <div class="al-list">${persons.map(row).join('') || '<p class="muted al-empty">Henüz kişi yok</p>'}</div>
-        <div class="al-form" id="alPersonForm">
-          <div class="ix-form">
-            <div><label>Ad soyad</label><input id="al_p_name" placeholder="ör. Ahmet Yılmaz" maxlength="60"></div>
-            <div><label>Telefon</label><input id="al_p_phone" type="tel" inputmode="tel" placeholder="05xx xxx xx xx" maxlength="20"></div>
-            <div><label>Günlük limit (₺)</label><input id="al_p_limit" type="number" min="0" step="1" inputmode="decimal" placeholder="250"></div>
-            <div><label>Sipariş etiketi</label>${flagSel('al_p_flag', (flags.find(f => /talebe|öğrenci/i.test(f.label)) || flags[0] || {}).label)}</div>
-          </div>
-          <button type="button" class="ix-save" ${act('saveAllowanceForm', 'person')}>＋ Kişi ekle</button>
+    <div class="al-card al-one">
+      <div class="al-h"><span>💳</span><div><b>Limitli hesaplar</b><small>Kişiler 🎓 ve kullanıcılar 👔 tek listede · günlük (devreder / devretmez) veya aylık</small></div><em>${list.length}</em></div>
+      <div class="al-list al-list-grid">${list.slice().sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''), 'tr')).map(row).join('') || '<p class="muted al-empty">Henüz limit yok</p>'}</div>
+      <div class="al-form" id="alForm">
+        <div class="al-who">
+          <button type="button" class="al-who-b ${APP.alWho !== 'user' ? 'on' : ''}" ${act('setAlWho', 'person')}>🎓 Kişi <small>giriş yapmayan (talebe, abone…)</small></button>
+          <button type="button" class="al-who-b ${APP.alWho === 'user' ? 'on' : ''}" ${act('setAlWho', 'user')}>👔 Kullanıcı <small>personel hesabı</small></button>
         </div>
-      </div>
-      <div class="al-card">
-        <div class="al-h"><span>👔</span><div><b>Kullanıcılar</b><small>Günlük (devreder) veya aylık limit</small></div><em>${ulist.length}</em></div>
-        <div class="al-list">${ulist.map(row).join('') || '<p class="muted al-empty">Henüz kullanıcı limiti yok</p>'}</div>
-        <div class="al-form" id="alUserForm">
-          <div class="ix-form">
-            <div style="grid-column:1/-1;"><label>Kullanıcılar <small class="muted" id="alUCount">(birden fazla seçebilirsiniz)</small></label>
-              ${free.length ? `<div class="al-users"><button type="button" class="al-uall" ${act('alToggleAllUsers')}>Tümünü seç</button>${free.map(u => `<label class="al-u"><input type="checkbox" value="${u.id}" ${actOn('change','alUserCount',[])}><span>${escapeHtml(u.username)}</span></label>`).join('')}</div>` : '<p class="muted al-empty">Tüm kullanıcıların limiti var</p>'}</div>
-            <div><label>Dönem</label><select id="al_u_period"><option value="daily">Günlük · devreder</option><option value="monthly">Aylık</option></select></div>
-            <div><label>Limit (₺)</label><input id="al_u_limit" type="number" min="0" step="1" inputmode="decimal" placeholder="150"></div>
-            <div><label>Sipariş etiketi</label>${flagSel('al_u_flag', (flags.find(f => /personel/i.test(f.label)) || flags[0] || {}).label)}</div>
-          </div>
-          <button type="button" class="ix-save" ${act('saveAllowanceForm', 'user')}>＋ Seçilenlere limit ekle</button>
+        <div class="ix-form">
+          ${APP.alWho === 'user'
+            ? `<div style="grid-column:1/-1;"><label>Kullanıcılar <small class="muted" id="alUCount">(birden fazla seçebilirsiniz)</small></label>
+              ${free.length ? `<div class="al-users"><button type="button" class="al-uall" ${act('alToggleAllUsers')}>Tümünü seç</button>${free.map(u => `<label class="al-u"><input type="checkbox" value="${u.id}" ${actOn('change','alUserCount',[])}><span>${escapeHtml(u.username)}</span></label>`).join('')}</div>` : '<p class="muted al-empty">Tüm kullanıcıların limiti var</p>'}</div>`
+            : `<div><label>Ad soyad</label><input id="al_p_name" placeholder="ör. Ahmet Yılmaz" maxlength="60"></div>
+               <div><label>Telefon</label><input id="al_p_phone" type="tel" inputmode="tel" placeholder="05xx xxx xx xx" maxlength="20"></div>`}
+          <div><label>Dönem</label><select id="al_period">
+            <option value="daily" ${APP.alWho !== 'user' ? 'selected' : ''}>Günlük · devretmez (kalan ertesi güne geçmez)</option>
+            <option value="carry" ${APP.alWho === 'user' ? 'selected' : ''}>Günlük · devreder (kullanılmayan birikir)</option>
+            <option value="monthly">Aylık</option></select></div>
+          <div><label>Limit (₺)</label><input id="al_limit" type="number" min="0" step="1" inputmode="decimal" placeholder="250"></div>
+          <div><label>Sipariş etiketi</label>${flagSel('al_flag', (flags.find(f => APP.alWho === 'user' ? /personel/i.test(f.label) : /talebe|öğrenci/i.test(f.label)) || flags[0] || {}).label)}</div>
         </div>
+        <button type="button" class="ix-save" ${act('saveAllowanceForm')}>＋ ${APP.alWho === 'user' ? 'Seçilenlere limit ekle' : 'Kişi ekle'}</button>
       </div>
     </div>
     <p class="ix-note">ℹ️ Kişi seçildiğinde etiketi otomatik işaretlenir. Sipariş penceresinde kişi ya da kullanıcı adıyla aranıp seçilir; limitli bir etiket işaretlendiğinde seçim zorunludur (siparişi alan kendisi için de kendini seçer). ${flags.length ? '' : '<b>Önce Ayarlar → Sipariş Etiketleri\'nden bir etiket ekleyin.</b>'}</p>
   </div>`;
 }
-async function saveAllowanceForm(kind, id){
+function alPeriodLabel(a){ return a.period === 'monthly' ? 'Aylık' : a.carry_over ? 'Günlük · devreder' : 'Günlük · devretmez'; }
+function setAlWho(w){ APP.alWho = w; renderAllowancesSettings(document.getElementById('usersSubContent')); }
+async function saveAllowanceForm(){
   const v = (x) => ((document.getElementById(x) || {}).value || '').trim();
-  if(kind === 'user' && !id){
+  const pv = v('al_period'), period = pv === 'monthly' ? 'monthly' : 'daily', carry = pv === 'carry';
+  const base = { period, carry_over: carry, limit_amount: v('al_limit'), flag_label: v('al_flag') };
+  if(APP.alWho === 'user'){
     const ids = [...document.querySelectorAll('.al-users input:checked')].map(i => i.value);
     if(!ids.length){ alert('En az bir kullanıcı seçin'); return; }
     const errs = [];
     await withLoadingOverlay((async () => { for(const uid of ids){
-      const { error } = await sb.rpc('save_allowance', { p_token: getSession().session_token, p_data: { kind, user_id: uid, period: v('al_u_period'), limit_amount: v('al_u_limit'), flag_label: v('al_u_flag') } });
+      const { error } = await sb.rpc('save_allowance', { p_token: getSession().session_token, p_data: Object.assign({ kind: 'user', user_id: uid }, base) });
       if(error){ const u = ((APP.config && APP.config.users) || []).find(x => x.id === uid); errs.push((u ? u.username : uid) + ': ' + error.message); }
     } })());
     if(errs.length) alert('Bazı kullanıcılar eklenemedi:\n\n' + errs.join('\n'));
     if(errs.length < ids.length) showToast(`${ids.length - errs.length} kullanıcıya limit eklendi ✓`);
-    renderAllowancesSettings(document.getElementById('usersSubContent'));
-    return;
+  } else {
+    const { error } = await withLoadingOverlay(sb.rpc('save_allowance', { p_token: getSession().session_token, p_data: Object.assign({ kind: 'person', name: v('al_p_name'), phone: v('al_p_phone') }, base) }));
+    if(error){ alert(error.message); return; }
+    showToast('Limit eklendi ✓');
   }
-  const p = kind === 'person'
-    ? { id: id || null, kind, name: v('al_p_name'), phone: v('al_p_phone'), limit_amount: v('al_p_limit'), flag_label: v('al_p_flag') }
-    : { id: id || null, kind, user_id: v('al_u_user'), period: v('al_u_period'), limit_amount: v('al_u_limit'), flag_label: v('al_u_flag') };
-  const { error } = await withLoadingOverlay(sb.rpc('save_allowance', { p_token: getSession().session_token, p_data: p }));
-  if(error){ alert(error.message); return; }
-  showToast(id ? 'Limit güncellendi ✓' : 'Limit eklendi ✓');
   renderAllowancesSettings(document.getElementById('usersSubContent'));
 }
 async function editAllowance(id){
   const a = allowanceById(id); if(!a) return;
-  const lim = prompt(`${a.name} için ${a.kind === 'user' && a.period === 'monthly' ? 'aylık' : 'günlük'} limit (₺):`, a.limit_amount);
+  const cur = a.period === 'monthly' ? '3' : a.carry_over ? '2' : '1';
+  const pc = prompt(`${a.name} — dönem:\n1 = Günlük · devretmez\n2 = Günlük · devreder\n3 = Aylık`, cur);
+  if(pc === null) return;
+  const period = pc.trim() === '3' ? 'monthly' : 'daily', carry_over = pc.trim() === '2';
+  const lim = prompt(`${a.name} için ${period === 'monthly' ? 'aylık' : 'günlük'} limit (₺):`, a.limit_amount);
   if(lim === null) return;
   const flags = ((APP.config && APP.config.order_flags) || []).map(f => f.label);
   let flag = a.flag_label || '';
   if(flags.length){ const f = prompt('Sipariş etiketi (boş bırakılabilir):\n' + flags.join(', '), flag); if(f === null) return; flag = f.trim(); }
   let phone = a.phone || '';
   if(a.kind === 'person'){ const ph = prompt('Telefon (boş bırakılabilir):', phone); if(ph === null) return; phone = ph.trim(); }
-  const { error } = await sb.rpc('save_allowance', { p_token: getSession().session_token, p_data: { id, kind: a.kind, name: a.name, phone, user_id: a.user_id, period: a.period, limit_amount: lim, flag_label: flag } });
+  const { error } = await sb.rpc('save_allowance', { p_token: getSession().session_token, p_data: { id, kind: a.kind, name: a.name, phone, user_id: a.user_id, period, carry_over, limit_amount: lim, flag_label: flag } });
   if(error){ alert(error.message); return; }
   showToast('Limit güncellendi ✓');
   renderAllowancesSettings(document.getElementById('usersSubContent'));
