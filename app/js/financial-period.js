@@ -132,7 +132,9 @@ async function renderPurchaseReportContent(session){
         <div class="pc2-right"><span class="pc2-total">${money(p.total_amount)}</span>${statusOf(p)}</div>
       </div>
       <div class="pc2-items">
-        ${items.map(i => { const q = Number(i.quantity)||0, c = Number(i.unit_cost)||0, ok = c>0 || i.free; return `<div class="pc2-it ${ok?'':'nop'}">
+        ${items.length > 1 && p.status !== 'cancelled' ? `<label class="pc2-selall"><input type="checkbox" ${items.every(i => poSel().has(i.id)) ? 'checked' : ''} ${actOn('change','poSelCard',[p.id,'$checked'])}> Bu siparişin tüm kalemlerini seç</label>` : ''}
+        ${items.map(i => { const q = Number(i.quantity)||0, c = Number(i.unit_cost)||0, ok = c>0 || i.free; return `<div class="pc2-it ${ok?'':'nop'} ${poSel().has(i.id) ? 'sel' : ''}">
+          ${p.status !== 'cancelled' ? `<input type="checkbox" class="pc2-chk" title="Tedarikçi atamak için seç" data-po="${p.id}" data-item="${i.id}" ${poSel().has(i.id) ? 'checked' : ''} ${actOn('change','poSelItem',[i.id,'$checked'])}>` : ''}
           <span class="pc2-ic">🥕</span>
           <div class="pc2-nm"><b>${escapeHtml(i.name)}</b><small>${q} ${escapeHtml(i.unit||'')}${Number(i.received)>0 && Number(i.received)<q ? ` · teslim ${Number(i.received)}` : ''}</small></div>
           <label class="pc2-price"><input type="number" min="0" step="0.01" placeholder="Fiyat" value="${(APP.pcDrafts||{})[i.id] ?? (ok ? c : '')}" data-item-id="${i.id}" data-orig="${ok ? c : ''}" title="Bedelsiz (ücretsiz) gelen için 0 yazın" class="pc-cost ${ok ? '' : 'missing'}" ${actOn('input','markPcDirty',[p.id])}><span>₺/${escapeHtml(i.unit||'')}</span></label>
@@ -156,6 +158,9 @@ async function renderPurchaseReportContent(session){
       <div>
         <div class="pc-chips">${chip('all','Tümü')}${chip('sup','Tedarikçi bekleyen')}${chip('price','Fiyat bekleyen')}${chip('recv','Teslim bekleyen')}${chip('done','Tamamlanan')}
           <button type="button" class="pc-save pc-save-all" id="pcSaveAll" hidden ${act('saveAllPoPrices')}>${ICON_SAVE}<span>Tümünü Kaydet</span></button></div>
+        <div class="po-bulk" id="poBulk" ${poSel().size ? '' : 'hidden'}><b id="poBulkN">${poSel().size} kalem seçili</b>
+          <select id="poBulkSup"><option value="">Tedarikçi seçin…</option>${(APP.procSuppliers||[]).map(sp => `<option value="${sp.id}">${escapeHtml(sp.name)}</option>`).join('')}</select>
+          <button type="button" ${act('poBulkAssign')}>🚚 Tedarikçiyi ata</button><button type="button" class="ghost-btn" ${act('poSelClear')}>Seçimi kaldır</button></div>
         ${shown.length ? `<div class="pc2-grid">${shown.map((p, i) => card(p, i)).join('')}</div>` : '<div class="fs-panel"><p class="u-m0 muted">Bu filtrede sipariş yok.</p></div>'}
       </div>
       <div class="fs-panel pc-side" style="--t:#a78bfa;"><h3><i>🚚</i>Tedarikçiye Göre</h3>
@@ -711,6 +716,35 @@ async function cancelPurchaseOrder(poId){
   const { error } = await sb.rpc('set_purchase_order_status', { p_token: getSession().session_token, p_id: poId, p_status: 'cancelled' });
   if(error){ alert(error.message); return; }
   showToast('Sipariş iptal edildi');
+  renderPurchaseReportContent(getSession());
+  if(typeof refreshNavBadges === 'function') refreshNavBadges();
+}
+
+/* Mal Kabul: kalemleri satır satır seçip tedarikçiyi toplu ata. Bir siparişin bir kısmı seçilirse o kalemler
+   seçilen tedarikçinin yeni siparişine taşınır (sipariş tedarikçi başına bölünür). */
+function poSel(){ return APP.poItemSel || (APP.poItemSel = new Set()); }
+function poBulkUpdate(){
+  const n = poSel().size, b = document.getElementById('poBulk'); if(!b) return;
+  b.hidden = !n; const t = document.getElementById('poBulkN'); if(t) t.textContent = n + ' kalem seçili';
+}
+function poSelItem(id, on){
+  if(on) poSel().add(id); else poSel().delete(id);
+  const cb = document.querySelector(`.pc2-chk[data-item="${id}"]`); if(cb) cb.closest('.pc2-it').classList.toggle('sel', on);
+  poBulkUpdate();
+}
+function poSelCard(poId, on){
+  document.querySelectorAll(`.pc2-chk[data-po="${poId}"]`).forEach(cb => { cb.checked = on; poSelItem(cb.dataset.item, on); });
+}
+function poSelClear(){ poSel().clear(); document.querySelectorAll('.pc2-chk, .pc2-selall input').forEach(cb => { cb.checked = false; const r = cb.closest('.pc2-it'); if(r) r.classList.remove('sel'); }); poBulkUpdate(); }
+async function poBulkAssign(){
+  const sup = (document.getElementById('poBulkSup') || {}).value;
+  if(!sup){ showToast('Önce tedarikçi seçin'); return; }
+  const ids = [...poSel()]; if(!ids.length) return;
+  const { data, error } = await withLoadingOverlay(sb.rpc('assign_po_items_supplier', { p_token: getSession().session_token, p_item_ids: ids, p_supplier_id: sup }));
+  if(error){ alert(error.message); return; }
+  const name = ((APP.procSuppliers || []).find(x => x.id === sup) || {}).name || '';
+  poSel().clear();
+  showToast(`🚚 ${ids.length} kalem ${name} tedarikçisine atandı${data && data.split ? ' · ' + data.split + ' sipariş bölündü' : ''}`);
   renderPurchaseReportContent(getSession());
   if(typeof refreshNavBadges === 'function') refreshNavBadges();
 }

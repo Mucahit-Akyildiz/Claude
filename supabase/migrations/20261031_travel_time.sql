@@ -53,3 +53,4 @@ alter table orders add column if not exists travel_min int, add column if not ex
 -- Bedelsiz: purchase_order_items.price_set (0 TL bilinçli girilmiş); get_purchase_report items.free; _nav_badges/_apply_po_item_cost/set_purchase_item_cost uyarlandı.
 -- send_po_to_supplier(session, po, 'email'|'sms', to); cash_counts.overhead_daily (kapanışta sabit gider payı) + get_dayclose_alloc; reset_ingredient_stock.
 -- collect_open_account(..., p_bank): havale/EFT + banka; open_account_entries.bank_id; bundle open_acc_paid_transfer/banks.
+-- assign_po_items_supplier(session, item_ids[], supplier): kalem bazında tedarikçi; kısmi seçimde sipariş bölünür.
