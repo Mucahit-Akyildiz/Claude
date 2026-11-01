@@ -1221,6 +1221,7 @@ function renderProductsSettings(el, session){
         <div class="ch-be" id="costHubBe"></div></div>
       <span class="ch-go">Aç ›</span>
     </div>
+    ${Number(APP.config.default_vat_rate ?? 10) === 0 ? `<div class="vat0-warn">⚠️ <b>Varsayılan KDV %0</b> görünüyor. Restoran yemeklerinde KDV genelde %10'dur; %0 iken kâr hesaplarından KDV düşülmez, fiş ve KDV raporu da yanlış görünebilir. Aşağıdaki <b>Nasıl çalışır · Varsayılan KDV</b> bölümünden düzeltin.</div>` : ''}
     <div class="cost-tip ch-tip">💡 <b>Hazır alıp sattığınız ürünler</b> (ayran, kola, su…): ürün adıyla bir hammadde açıp ürüne <b>1 adet</b> reçete ekleyin; Mal Kabul'deki alış maliyeti otomatik yansır.</div>
     <label class="sc-toggle"><span class="oo-switch"><input type="checkbox" ${APP.config.close_no_cost !== false ? 'checked' : ''} ${actOn('change','toggleCloseNoCost',['$checked', '$this'])}><span class="oo-track"><span class="oo-thumb"></span></span><em>${APP.config.close_no_cost !== false ? 'Açık' : 'Kapalı'}</em></span><span>💸 Maliyeti girilmemiş ürünler satışa <b>kapalı</b> gelsin <small class="muted">(istediğiniz ürünü yine "Satışa Aç" ile açabilirsiniz)</small></span></label>
     <label class="sc-toggle" title="Kapalıyken satışa kapattığınız ürünler Sipariş Al ve Paket Servis ürün listesinde hiç görünmez"><span class="oo-switch"><input type="checkbox" ${APP.config.order_show_closed !== false ? 'checked' : ''} ${actOn('change','toggleOrderShowClosed',['$checked', '$this'])}><span class="oo-track"><span class="oo-thumb"></span></span><em>${APP.config.order_show_closed !== false ? 'Açık' : 'Kapalı'}</em></span><span>⛔ Satışa kapalı ürünler <b>Sipariş Al</b> ekranında görünsün <small class="muted">(kapalıyken listeden tamamen gizlenir)</small></span></label>
@@ -1342,6 +1343,7 @@ function editProductRow(pid){
         <div class="pdrawer-3"><div><label>Fiyat (₺)</label><input type="number" id="ed_price" value="${p.price}"></div><div><label>Maliyet (₺)</label><input type="number" id="ed_cost" value="${p.cost}" ${p.cost_source==='recipe' ? 'readonly' : ''}>${p.cost_source==='recipe' ? '<small class="muted">🧾 Reçeteden otomatik (hammadde ortalama maliyetleri)</small>' : p.cost_source==='recipe_missing' ? '<small style="color:var(--c3)">⚠️ Reçetedeki bazı hammaddelerin maliyeti yok; elle girilen değer kullanılıyor</small>' : '<small class="muted">Reçete eklerseniz otomatik hesaplanır.</small>'}</div>
           <div><label id="ed_full_l" title="${overheadPct() ? 'Malzeme maliyeti + KDV hariç fiyat × genel gider oranı' : 'Aylık sabit gider ÷ bu ürünün katkı payı (KDV hariç fiyat − malzeme)'}">${overheadPct() ? 'Tam maliyet (₺)' : 'Başa baş (adet/ay)'}</label><input id="ed_full" readonly tabindex="-1"><small class="muted" id="ed_full_n"></small></div></div>
         <div class="pdrawer-margin"><div class="pcard-mbar"><i id="ed_mbar"></i></div><span id="ed_mtxt"></span></div>
+        <div class="ed-mwarn" id="ed_mwarn" hidden></div>
         ${!rec ? `<div class="cost-tip">💡 <b>Hazır alıp olduğu gibi satıyorsanız</b> (ayran, kola, su…): Hammaddeler'de bu ürün adıyla bir hammadde açın ve ürüne <b>1 adet</b> reçete ekleyin. Böylece Mal Kabul'deki alış fiyatı ortalanarak maliyete otomatik yansır, stok da düşer.${APP.view==='settings' ? ` <button type="button" class="pc-btn" ${act('openRecipeModal', p.id)}>📋 Reçete ekle</button>` : ''}</div>` : ''}
         <div class="pdrawer-2"><div><label>Menü</label><select id="ed_menu">${prodMenuOptions(p.menu_id)}</select></div>
         <div><label>İstasyon</label><select id="ed_st">${!p.station_id ? '<option value="" selected>— İstasyon yok —</option>' : ''}${stations.map(x => `<option value="${x.id}" ${x.id===p.station_id?'selected':''}>${escapeHtml(x.name)}</option>`).join('')}</select></div></div>
@@ -1387,12 +1389,18 @@ function prodDrawerCalc(){
   const oh = overheadPct(), full = co + np * oh / 100;
   const fe = document.getElementById('ed_full'), fn = document.getElementById('ed_full_n');
   if(oh){ if(fe) fe.value = (Math.round(full * 100) / 100).toFixed(2); if(fn) fn.textContent = '+ genel gider %' + oh + ' (' + money(np * oh / 100) + ')'; }
+  else if(!(co > 0)){ if(fe) fe.value = '—'; if(fn) fn.textContent = 'Önce maliyet girin'; }
   else {
     const tot = Number((APP.overheads || {}).monthly_total) || 0;
     if(fe) fe.value = !tot ? '—' : kp > 0 ? '~' + Math.ceil(tot / kp).toLocaleString('tr-TR') + ' adet' : 'zararda';
     if(fn) fn.textContent = !tot ? 'Maliyet & Giderler\'e gider ekleyin' : kp > 0 ? 'Aylık ' + money(tot) + ' gideri tek başına karşılamak için' : 'Katkı payı negatif';
     if(!APP.overheads && !APP.ohLoading){ APP.ohLoading = true; sb.rpc('get_overheads', { p_token: getSession().session_token }).then(({ data }) => { APP.ohLoading = false; if(data){ APP.overheads = data; prodDrawerCalc(); } }); }
   }
+  const warn = [];
+  if(!(co > 0) && pr > 0) warn.push('⚠️ <b>Maliyet girilmedi</b> — marj %100 görünür ama gerçek değil. Maliyet girin ya da reçete ekleyin.');
+  if(vat === 0 && pr > 0) warn.push('⚠️ <b>KDV %0</b> — fiyattan KDV düşülmüyor, kâr olduğundan yüksek görünür. Ürünün KDV\'sini seçin ya da varsayılan KDV\'yi düzeltin (Ürünler › Nasıl çalışır).');
+  const mw = document.getElementById('ed_mwarn'); if(mw){ mw.innerHTML = warn.map(x => `<div>${x}</div>`).join(''); mw.hidden = !warn.length; }
+  bar.parentElement.parentElement.classList.toggle('bad', !(co > 0) && pr > 0);
   t.innerHTML = `KDV hariç fiyat <b>${money(np)}</b> <span class="muted">(%${vat} KDV: ${money(pr - np)})</span> · Katkı payı <b>${money(kp)}</b> · <b>%${m}</b> marj` + (oh ? ` <span class="muted">|</span> Net kâr <b>${money(np-full)}</b> · <b>%${np>0 ? Math.round((np-full)/np*100) : 0}</b>` : '');
 }
 async function saveProdDrawer(){
