@@ -217,17 +217,22 @@ function openIngredientUsageModal(ingredientId, edit){
         <b>Bu hammadde nasıl kullanılıyor?</b>
         <div class="iu-modes">${[['', '🍽️ Reçete malzemesi', 'Seçili ürünlerde her satışta stoktan düşer'], ['per_product', '🛍️ Yalnızca pakette', 'Kapaklı kap, sızdırmaz kap… Seçili ürünlerde yalnızca paket sipariş ya da masada "paket yap" denince düşer'], ['per_order', '🛍️ Siparişte adet girilir', 'Poşet, kese kağıdı… Paket siparişte kaç tane girildiyse o kadar düşer']].map(([k, t, d]) => `<label class="iu-mopt ${(ing.pack_mode || '') === k ? 'on' : ''}"><input type="radio" name="iuMode" value="${k}" ${(ing.pack_mode || '') === k ? 'checked' : ''} ${actOn('change','iuModeChange',[])}><b>${t}</b><small>${d}</small></label>`).join('')}</div>
       </section>
-      <section id="iuProdSec" ${ing.pack_mode === 'per_order' ? 'hidden' : ''}>
-        <div class="iu-sh"><h3>🍽️ Kullanıldığı ürünler</h3><small class="muted" id="iuCount"></small></div>
+      <button type="button" class="iu-prodbtn" id="iuProdBtn" ${ing.pack_mode === 'per_order' ? 'hidden' : ''} ${act('openIuProdPop')}><span>🍽️</span><div><b>Kullanıldığı ürünler</b><small id="iuProdSum">—</small></div><em>Ürünleri seç ›</em></button>
+      <div class="iu-pop" id="iuProdPop" hidden><div class="iu-pop-in">
+      <section id="iuProdSec">
+        <div class="iu-sh"><h3>🍽️ Kullanıldığı ürünler · ${escapeHtml(ing.name || '')}</h3><small class="muted" id="iuCount"></small></div>
         <p class="muted iu-hint" id="iuHint">${ing.pack_mode === 'per_product' ? 'Paket olarak satıldığında hangi ürünlerde, 1 porsiyon için kaç adet kullanılıyor?' : 'İşaretleyip 1 porsiyonda kullanılan <b>net</b> miktarı girin; maliyet payı yanında görünür.'}</p>
         ${products.length ? `<div class="iu-tools">
           <input id="iuSearch" placeholder="🔍 Ürün ara…" autocomplete="off" ${actOn('input','filterIngUsage',[])}>
           <select id="iuMenu" ${actOn('change','filterIngUsage',[])}><option value="">Tüm menüler</option>${menus.map(m => `<option value="${escapeAttr(m.id)}">${escapeHtml(m.name)}</option>`).join('')}</select>
           <select id="iuSort" ${actOn('change','filterIngUsage',[])}><option value="sel">Seçililer önce</option><option value="az">A → Z</option><option value="za">Z → A</option><option value="menu">Menüye göre</option></select>
           <label class="iu-only"><input type="checkbox" id="iuOnly" ${actOn('change','filterIngUsage',[])}> Sadece seçililer</label>
+          <button type="button" class="pc-btn" id="iuAllBtn" ${act('iuSelectAll')}>☑️ Tümünü seç</button>
         </div>` : ''}
         <div id="ingUsageItemsBox" class="iu-list"></div>
       </section>
+      <div class="iu-pop-foot"><span class="muted">Değişiklikler ana pencerede <b>Kaydet</b> ile kaydedilir.</span><button type="button" ${act('closeIuProdPop')}>✓ Tamam</button></div>
+      </div></div>
       <p class="muted iu-ordernote" id="iuOrderNote" ${ing.pack_mode === 'per_order' ? '' : 'hidden'}>🛍️ Ürünlere bağlanmaz. Paket sipariş ekranında (ve masada paket yapılan siparişte) <b>kaç adet</b> verildiği girilir; o kadar stoktan düşer ve maliyete eklenir.</p>
     </div>
     <div class="iu-foot"><button type="button" class="ghost-btn" ${act('removeEl','ingUsageModalBg')}>Vazgeç</button><button ${act('saveIngredientUsage', ingredientId)}>${ICON_SAVE}<span>Kaydet</span></button></div>
@@ -246,7 +251,7 @@ function openIngredientUsageModal(ingredientId, edit){
     </label>`;
   }).join('');
   filterIngUsage(); iuRecalc();
-  const sr = document.getElementById('iuSearch'); if(sr && !edit) setTimeout(() => sr.focus(), 50);
+  if(!edit && ing.pack_mode !== 'per_order') openIuProdPop();
 }
 // Canlı hesap: stok değeri, kullanan ürün sayısı ve her ürün için bu hammaddenin maliyet payı (fire dahil).
 function iuRecalc(){
@@ -270,6 +275,8 @@ function iuRecalc(){
     else c.innerHTML = on ? '<small class="muted">miktar girin</small>' : '';
   });
   const un = document.getElementById('iuUseN'); if(un) un.textContent = n;
+  const sm = document.getElementById('iuProdSum');
+  if(sm){ const names = [...bgEl.querySelectorAll('.iu-item.on .iu-pn b')].map(e => e.textContent); sm.textContent = names.length ? n + ' ürün · ' + names.slice(0, 3).join(', ') + (names.length > 3 ? ' +' + (names.length - 3) : '') : 'Henüz ürün seçilmedi'; }
 }
 /* Kullanıldığı Ürünler: arama, menü filtresi, sıralama (satırlar DOM'da kalır; kayıt hepsini okur). */
 function filterIngUsage(){
@@ -1737,8 +1744,19 @@ function iuMode(){ const r = document.querySelector('#ingUsageModalBg input[name
 function iuModeChange(){
   const m = iuMode();
   document.querySelectorAll('#ingUsageModalBg .iu-mopt').forEach(l => l.classList.toggle('on', l.querySelector('input').checked));
-  const sec = document.getElementById('iuProdSec'), on = document.getElementById('iuOrderNote'), h = document.getElementById('iuHint');
+  const sec = document.getElementById('iuProdBtn'), on = document.getElementById('iuOrderNote'), h = document.getElementById('iuHint');
   if(sec) sec.hidden = m === 'per_order'; if(on) on.hidden = m !== 'per_order';
   if(h) h.innerHTML = m === 'per_product' ? 'Paket olarak satıldığında hangi ürünlerde, 1 porsiyon için kaç adet kullanılıyor?' : 'İşaretleyip 1 porsiyonda kullanılan <b>net</b> miktarı girin; maliyet payı yanında görünür.';
   iuRecalc();
+}
+
+function openIuProdPop(){ const p = document.getElementById('iuProdPop'); if(p){ p.hidden = false; filterIngUsage(); const sr = document.getElementById('iuSearch'); if(sr) setTimeout(() => sr.focus(), 50); } }
+function closeIuProdPop(){ const p = document.getElementById('iuProdPop'); if(p) p.hidden = true; iuRecalc(); }
+// Görünen (filtreye uyan) ürünlerin tümünü seç / kaldır.
+function iuSelectAll(){
+  const rows = [...document.querySelectorAll('#ingUsageItemsBox .iu-item')].filter(r => r.style.display !== 'none');
+  const all = rows.length && rows.every(r => r.querySelector('input[type=checkbox]').checked);
+  rows.forEach(r => { const c = r.querySelector('input[type=checkbox]'), q = r.querySelector('.iu-q input'); c.checked = !all; q.disabled = all; });
+  const b = document.getElementById('iuAllBtn'); if(b) b.textContent = all ? '☑️ Tümünü seç' : '✖️ Seçimi kaldır';
+  filterIngUsage(); iuRecalc();
 }

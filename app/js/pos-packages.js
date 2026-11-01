@@ -884,13 +884,23 @@ async function tablePackStep(id, d, orderId){
    verilen poşet sayısını gir. Seçilen ürünlerin paket malzemesi (kap vb.) ve poşetler stoktan düşer, maliyete eklenir. */
 function openPackLeftovers(tableId){
   const o = liveOrderForTable(tableId); if(!o) return;
-  const items = (o.items || []).filter(i => !i.paid && i.status !== 'cancelled');
-  APP.packSel = { tableId, orderId: o.order_id, ids: new Set(items.filter(i => i.packed).map(i => i.id)), bags: Object.assign({}, o.packaging || {}) };
+  openPackSheet({ tableId, orderId: o.order_id, items: (o.items || []).filter(i => !i.paid && i.status !== 'cancelled'), bags: o.packaging || {} });
+}
+// Kapanmış hesap (Hesaplar › detay): ödeme alındıktan sonra da son 48 saatte paket yapılabilir.
+async function openPackForSale(historyId){
+  const { data, error } = await sb.rpc('get_order_pack_items', { p_token: getSession().session_token, p_history_id: historyId });
+  if(error){ alert(error.message); return; }
+  const sd = document.getElementById('saleDetailModalBg'); if(sd) sd.remove();
+  openPackSheet({ orderId: data.order_id, items: data.items || [], bags: data.packaging || {}, closed: true });
+}
+function openPackSheet(P){
+  const items = P.items;
+  APP.packSel = Object.assign({}, P, { ids: new Set(items.filter(i => i.packed).map(i => i.id)), bags: Object.assign({}, P.bags || {}) });
   if(!APP.packSel.ids.size) items.forEach(i => APP.packSel.ids.add(i.id));
   if(!document.getElementById('packSheet')) document.body.insertAdjacentHTML('beforeend', sheetHtml('packSheet', '🛍️', 'Paket yap', '<div id="packBody"></div>', 'var(--c2)'));
   const bagIngs = packOrderIngs();
-  document.getElementById('packBody').innerHTML = `<p class="muted" style="text-align:left;margin:0 0 10px;font-size:13px;">Paket yapılacak ürünleri seçin (servis edilmiş ya da kalan olabilir). Ürünlerin paket malzemesi ve verilen poşetler stoktan düşer, maliyete eklenir.</p>
-    <div class="pk-list">${items.map(i => `<label class="pk-li"><input type="checkbox" ${APP.packSel.ids.has(i.id) ? 'checked' : ''} ${actOn('change','togglePackSel',[i.id,'$checked'])}><span><b>${escapeHtml(i.name)} x${i.qty}</b><small class="muted">${i.status === 'ready' ? '✓ servis edildi' : 'hazırlanıyor'}${i.has_pack ? '' : ' · paket malzemesi tanımlı değil'}</small></span></label>`).join('')}</div>
+  document.getElementById('packBody').innerHTML = `<p class="muted" style="text-align:left;margin:0 0 10px;font-size:13px;">${P.closed ? 'Hesap kapanmış olsa da paket yapılabilir. ' : ''}Paket yapılacak ürünleri seçin (servis edilmiş ya da kalan olabilir). Ürünlerin paket malzemesi ve verilen poşetler stoktan düşer, maliyete eklenir.</p>
+    <div class="pk-list">${items.map(i => `<label class="pk-li"><input type="checkbox" ${APP.packSel.ids.has(i.id) ? 'checked' : ''} ${actOn('change','togglePackSel',[i.id,'$checked'])}><span><b>${escapeHtml(i.name)} x${i.qty}</b><small class="muted">${i.status === 'ready' ? '✓ servis edildi' : 'hazırlanıyor'}${i.has_pack ? '' : ' · paket malzemesi tanımlı değil'}</small></span></label>`).join('') || '<p class="muted">Ürün yok.</p>'}</div>
     ${bagIngs.length ? `<div class="pk-pack" style="margin-top:12px;"><b style="display:block;text-align:left;margin-bottom:6px;">🛍️ Verilen poşet / paket</b><div class="pk-pack-row">${bagIngs.map(i => packCounterHtml(i, APP.packSel.bags[i.id] || 0, 'packSheetStep')).join('')}</div></div>` : ''}
     <div class="fsheet-foot"><button type="button" class="ghost-btn" ${act('closeSheet','packSheet')}>Vazgeç</button><button ${act('applyPackLeftovers')}>🛍️ Paket yap</button></div>`;
   openSheet('packSheet');
@@ -902,18 +912,19 @@ function packSheetStep(id, d){
 }
 async function applyPackLeftovers(){
   const P = APP.packSel; if(!P) return;
-  const o = (APP.liveOrders || []).find(x => x.order_id === P.orderId); if(!o) return;
   const tok = getSession().session_token;
-  const changes = (o.items || []).filter(i => !i.paid && i.status !== 'cancelled' && !!i.packed !== P.ids.has(i.id));
+  const changes = P.items.filter(i => !!i.packed !== P.ids.has(i.id));
   const res = await Promise.all([
     ...changes.map(i => sb.rpc('set_item_packed', { p_token: tok, p_item_id: i.id, p_on: P.ids.has(i.id) })),
     sb.rpc('set_order_packaging', { p_token: tok, p_order_id: P.orderId, p_items: P.bags })]);
   const err = res.find(r => r.error);
   if(err){ alert(err.error.message); return; }
   changes.forEach(i => { i.packed = P.ids.has(i.id); });
-  o.packaging = (res[res.length - 1].data || {}).packaging || P.bags;
+  const pk = (res[res.length - 1].data || {}).packaging || P.bags;
+  const o = (APP.liveOrders || []).find(x => x.order_id === P.orderId);
+  if(o){ o.packaging = pk; (o.items || []).forEach(i => { if(P.ids.has(i.id)) i.packed = true; else if(changes.some(c => c.id === i.id)) i.packed = false; }); }
   closeSheet('packSheet');
-  const bags = Object.values(o.packaging || {}).reduce((a, n) => a + Number(n), 0);
+  const bags = Object.values(pk || {}).reduce((a, n) => a + Number(n), 0);
   showToast(`🛍️ ${P.ids.size} ürün paket yapıldı${bags ? ' · ' + bags + ' poşet' : ''} · stok ve maliyet güncellendi`);
-  renderTableItems(P.tableId);
+  if(P.tableId) renderTableItems(P.tableId);
 }
