@@ -132,7 +132,7 @@ async function renderPurchaseOrdersContent(session){
   const shown = (pf==='all' ? rows : pf==='late' ? rows.filter(isLate) : rows.filter(p => p.status===pf)).map((p, i) => [p, i]).sort((a, b) => rank(a[0]) - rank(b[0]) || a[1] - b[1]).map(x => x[0]);
   el.innerHTML = `
   ${lowStockBannerHtml()}
-  <div class="fsheet-bar" style="margin:0 0 14px;"><p class="muted" style="margin:0;font-size:13px;text-align:left;">Hammadde ihtiyacınızı tedarikçiye sipariş olarak iletin.</p>${sheetBtnHtml('poSheet','🛒 Yeni Sipariş')}</div>
+  <div class="fsheet-bar" style="margin:0 0 14px;"><p class="muted" style="margin:0;font-size:13px;text-align:left;">Hammadde ihtiyacınızı tedarikçiye sipariş olarak iletin.</p><button type="button" class="fsheet-open" ${act('openNewPoSheet')}>🛒 Yeni Sipariş</button></div>
   ${sheetHtml('poSheet', '🛒', 'Yeni Sipariş', `<p class="muted" style="text-align:left;margin:0 0 12px;font-size:13px;">İhtiyaç duyduğunuz hammaddeleri ve miktarları girip <b>Sipariş Ver</b>'e basın. Teslim alma, tedarikçi seçimi ve birim fiyat <b>Mal Kabul</b> menüsünden yapılır.</p>
       <div class="fsheet-grid">
         <div class="field-group"><label>Beklenen Tarih</label><input id="po_expected" type="date" ${actOn('change','refreshPoSuggest',[])}></div>
@@ -171,10 +171,18 @@ function lowStockBannerHtml(){
     <div class="ls-chips">${low.map(i => `<span class="pchip ${Number(i.stock) <= 0 ? 'warn' : ''}">${escapeHtml(i.name)} · <b>${fmtQty(Number(i.stock)||0)}</b> / ${fmtQty(Number(i.min_stock))} ${escapeHtml(i.unit||'')}</span>`).join('')}</div>
   </div>`;
 }
+// Yeni Sipariş her zaman boş başlar (önceki taslak / kritik stok önerisi taşınmaz).
+function openNewPoSheet(){
+  APP.poDraftItems = [];
+  const w = document.getElementById('poItemsWrap'); if(w) w.innerHTML = renderPoDraftItemsHtml();
+  ['po_expected', 'po_notes'].forEach(id => { const e = document.getElementById(id); if(e) e.value = ''; });
+  openSheet('poSheet');
+}
 async function draftLowStockOrder(){
   const low = lowStockList(); if(!low.length) return;
   await loadIngUsage();
-  const have = new Set((APP.poDraftItems||[]).map(x => x.ingredient_id));
+  APP.poDraftItems = []; // taslak her seferinde kritik stoktan yeniden hazırlanır
+  const have = new Set();
   low.forEach(i => { if(!have.has(i.id)) APP.poDraftItems.push({ ingredient_id: i.id, quantity: String(poSuggest(i).qty), unit_cost: '' }); });
   document.getElementById('poItemsWrap').innerHTML = renderPoDraftItemsHtml();
   openSheet('poSheet');
