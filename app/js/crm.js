@@ -183,7 +183,7 @@ function editCustomer(id){
   document.getElementById('crmSheetTitle').textContent = 'Müşteriyi Düzenle';
   // Kaydeden ve son değiştiren personel
   const au = document.getElementById('crm_audit'), d = (x) => x ? new Date(x).toLocaleString('tr-TR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
-  if(au){ au.innerHTML = `<span>🆕 Kaydeden: <b>${escapeHtml(c.created_by_name || 'bilinmiyor')}</b>${c.created_at ? ' · ' + d(c.created_at) : ''}</span>${c.info_updated_at ? `<span>✏️ Son değiştiren: <b>${escapeHtml(c.updated_by_name || 'bilinmiyor')}</b> · ${d(c.info_updated_at)}</span>` : ''}`; au.hidden = false; }
+  if(au){ au.innerHTML = `<span>🆕 Kaydeden: <b>${escapeHtml(c.created_by_name || 'bilinmiyor')}</b>${c.created_at ? ' · ' + d(c.created_at) : ''}</span><span>✏️ Son değiştiren: ${c.info_updated_at ? `<b>${escapeHtml(c.updated_by_name || 'bilinmiyor')}</b> · ${d(c.info_updated_at)}` : '<i>henüz değişiklik yok</i>'}</span>`; au.hidden = false; }
   openSheet('crmSheet');
 }
 async function saveCrmCustomer(){
