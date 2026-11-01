@@ -715,14 +715,14 @@ function poPickRecipients(p, channel){
   const isMail = channel === 'email';
   const opts = [];
   (APP.procSuppliers || []).forEach(x => { const v = isMail ? x.email : x.phone; if(v) opts.push({ v, l: '🏭 ' + (x.name || 'Tedarikçi'), def: x.id === p.supplier_id }); });
-  if(!isMail) ((APP.config && APP.config.users) || []).filter(u => u.is_active !== false && u.phone).forEach(u => opts.push({ v: u.phone, l: '👤 ' + u.username }));
+  ((APP.config && APP.config.users) || []).filter(u => u.is_active !== false && (isMail ? u.email : u.phone)).forEach(u => opts.push({ v: isMail ? u.email : u.phone, l: '👤 ' + u.username }));
   const seen = new Set(), list = opts.filter(o => !seen.has(o.v) && seen.add(o.v));
   const show = (v) => isMail ? v : (typeof maskPhone === 'function' ? maskPhone(v) : v);
   return new Promise(resolve => {
     const bg = document.createElement('div'); bg.className = 'dg-bg'; bg.style.zIndex = 3000;
     bg.innerHTML = `<div class="dg-card uc-card" style="max-width:440px;text-align:left;"><div class="dg-ic">${isMail ? '📧' : '💬'}</div>
       <div class="uc-msg"><p><b>${isMail ? 'Siparişi e-postayla gönder' : 'Siparişi SMS ile gönder'}</b></p></div>
-      ${list.length ? `<div style="max-height:240px;overflow:auto;display:flex;flex-direction:column;gap:6px;margin:6px 0 10px;">${list.map((o, i) => `<label style="display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--border);border-radius:10px;cursor:pointer;"><input type="checkbox" class="po-rc" value="${i}" ${o.def ? 'checked' : ''} style="width:auto;margin:0;"><span style="flex:1;font-weight:700;">${escapeHtml(o.l)}</span><small class="muted">${escapeHtml(show(o.v))}</small></label>`).join('')}</div>` : `<p class="muted" style="font-size:12.5px;">${isMail ? 'E-postası kayıtlı tedarikçi yok.' : 'Telefonu kayıtlı tedarikçi/kullanıcı yok.'}</p>`}
+      ${list.length ? `<div style="max-height:240px;overflow:auto;display:flex;flex-direction:column;gap:6px;margin:6px 0 10px;">${list.map((o, i) => `<label style="display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--border);border-radius:10px;cursor:pointer;"><input type="checkbox" class="po-rc" value="${i}" ${o.def ? 'checked' : ''} style="width:auto;margin:0;"><span style="flex:1;font-weight:700;">${escapeHtml(o.l)}</span><small class="muted">${escapeHtml(show(o.v))}</small></label>`).join('')}</div>` : `<p class="muted" style="font-size:12.5px;">${isMail ? 'E-postası kayıtlı tedarikçi/kullanıcı yok.' : 'Telefonu kayıtlı tedarikçi/kullanıcı yok.'}</p>`}
       <label class="muted" style="font-size:12px;">${isMail ? 'Başka e-posta (virgülle birden fazla)' : 'Başka numara (virgülle birden fazla)'}</label>
       <input class="uc-in po-rc-manual" type="${isMail ? 'text' : 'tel'}" placeholder="${isMail ? 'ornek@firma.com' : '05XX XXX XX XX'}">
       <div class="uc-acts"><button type="button" class="pc-btn uc-no">Vazgeç</button><button type="button" class="uc-yes">Gönder</button></div></div>`;

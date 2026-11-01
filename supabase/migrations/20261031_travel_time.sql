@@ -56,3 +56,7 @@ alter table orders add column if not exists travel_min int, add column if not ex
 -- assign_po_items_supplier(session, item_ids[], supplier): kalem bazında tedarikçi; kısmi seçimde sipariş bölünür.
 -- purchase_orders.share_token + get_public_po (/tedarik/?t=); send_po_to_supplier numaralı liste + PDF linki.
 -- get_dayclose_alloc(..., p_include_open): kapanmamış günler bugünkü günlük giderle; open_days/open_qty.
+
+-- Kullanıcı e-postası (Mal Kabul gönderim alıcısı vb.)
+alter table app_users add column if not exists email text;
+-- set_staff_email(p_token, p_user_id, p_email): settings_users yetkisi, format kontrolü; bulk_call beyaz listesine eklendi; get_restaurant_config users[].email döner.

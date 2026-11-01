@@ -88,6 +88,7 @@ function renderUsersSettings(el, session){
         <div class="field-group"><label>Kullanıcı Adı</label><input id="nu_name" placeholder="örn. ahmet" autocapitalize="none"></div>
         <div class="field-group"><label>Şifre</label>${passField('nu_pass', false, false)}</div>
         <div class="field-group"><label>Telefon (giriş bilgileri SMS'i için)</label><input id="nu_phone" inputmode="tel" placeholder="05XX XXX XX XX"></div>
+        <div class="field-group"><label>E-posta (isteğe bağlı)</label><input id="nu_email" type="email" placeholder="ad@firma.com"></div>
         <div class="field-group wide"><label>Roller (en fazla 2)</label>${roleCheckboxes('nu', [])}</div>
       </div>
       <div class="fsheet-foot"><button type="button" class="ghost-btn" ${act('closeSheet','userSheet')}>Vazgeç</button><button ${act('addUser')}>+ Kullanıcı Ekle</button></div>`, 'var(--c1)') : ''}
@@ -106,7 +107,7 @@ function renderUsersSettings(el, session){
     </div>
     <div class="settings-table-wrap user-cards">
     <table class="settings-table">
-      <thead><tr><th style="width:36px;">${canAssign ? `<input type="checkbox" id="userSelAll" class="u-wa-m0" title="Tümünü seç" ${actOn('change','selectAllUsers',['$checked'])}>` : ''}</th><th>Kullanıcı Adı</th><th>Telefon</th><th>Yeni Şifre</th><th>Roller (en fazla 2)</th></tr></thead>
+      <thead><tr><th style="width:36px;">${canAssign ? `<input type="checkbox" id="userSelAll" class="u-wa-m0" title="Tümünü seç" ${actOn('change','selectAllUsers',['$checked'])}>` : ''}</th><th>Kullanıcı Adı</th><th>Telefon</th><th>E-posta</th><th>Yeni Şifre</th><th>Roller (en fazla 2)</th></tr></thead>
       <tbody data-cf-scope="users" ${actOn('input','markUserDirty',['$event'])} ${actOn('change','markUserDirty',['$event'])}>
       ${APP.config.users.slice().sort((x, y) => String(x.username).localeCompare(String(y.username), 'tr', { sensitivity: 'base' }))
         .map(u => { const locked = !canAssign && userIsPrivileged(u); return (isOwnerUser(u) ? ownerUserRow(u, session) : `
@@ -114,6 +115,7 @@ function renderUsersSettings(el, session){
           <td>${locked ? '<span title="Yetkili kullanıcı - düzenleme izniniz yok">🔒</span>' : !canAssign ? '' : `<input type="checkbox" class="u-wa-m0 user-sel" value="${u.id}" ${actOn('change','updateUserSelection',[])}>`}</td>
           <td class="col-name uc-name">${avatarHtml(u.username)}<input value="${escapeAttr(u.username)}" id="us_name_${u.id}" ${locked?'disabled':''}>${u.is_active===false?'<span class="role-badge" style="color:var(--red);border-color:var(--red);margin-top:6px;display:inline-block;">Pasif</span>':''}</td>
           <td class="col-name"><input id="us_phone_${u.id}" inputmode="tel" placeholder="05XX…" value="${escapeAttr(maskPhone(u.phone))}" data-orig="${escapeAttr(u.phone||'')}" data-masked="${u.phone ? '1' : ''}" ${u.phone ? 'readonly title="Görmek / değiştirmek için tıklayın (KVKK)"' : ''} ${actOn('click','revealPhone',['$this'])} ${locked?'disabled':''} style="min-width:130px;${u.phone ? 'cursor:pointer;' : ''}"></td>
+          <td class="col-name"><input id="us_email_${u.id}" type="email" placeholder="ad@firma.com" value="${escapeAttr(u.email||'')}" data-orig="${escapeAttr(u.email||'')}" ${locked?'disabled':''} style="min-width:150px;"></td>
           <td class="col-name">${passField('us_pass_'+u.id, locked, true)}</td>
           <td class="col-name">${roleCheckboxes('us_'+u.id, u.role_ids||[], !canAssign)}</td>
         </tr>`).replace('<tr', `<tr data-uname="${escapeAttr(String(u.username).toLocaleLowerCase('tr'))}"`); }).join('')}
