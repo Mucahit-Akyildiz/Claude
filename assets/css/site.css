@@ -197,3 +197,14 @@
   .hero .hero-text p{font-size:15.5px}
 }
 .hero-note{margin-top:12px !important}
+
+/* Neden Peyktan */
+#neden{padding:60px 0}
+.why-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
+.why-card{background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:22px;position:relative;overflow:hidden}
+.why-card::before{content:'';position:absolute;left:0;top:0;bottom:0;width:4px;background:linear-gradient(180deg,var(--accent),var(--accent2))}
+.why-card .ic{font-size:28px;margin-bottom:8px}
+.why-card h3{margin:0 0 6px;font-size:17px}
+.why-card p{margin:0;color:var(--muted);font-size:14.5px;line-height:1.55}
+@media (max-width:900px){.why-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:600px){#neden{padding:40px 16px}.why-grid{grid-template-columns:1fr}}
