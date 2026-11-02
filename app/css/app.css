@@ -4189,3 +4189,20 @@ html.lang-rtl input[type=number],html.lang-rtl input[type=tel],html.lang-rtl .mo
 .crm-audit{display:flex;flex-wrap:wrap;gap:6px 14px;margin:0 0 12px;padding:8px 12px;border-radius:10px;background:var(--panel2);border:1px solid var(--border);font-size:12.5px;color:var(--muted)}
 .crm-audit b{color:var(--text)}
 .crm-audit[hidden]{display:none}
+
+/* Hammaddeler: gruplu bölümler + liste görünümü */
+.ig-group{grid-column:1/-1;display:flex;align-items:center;gap:8px;margin:10px 0 2px;padding:6px 4px;border-bottom:2px solid color-mix(in srgb,var(--gc) 55%,transparent);font-size:14px}
+.ig-group b{color:var(--gc)}.ig-group em{font-style:normal;font-size:12px;font-weight:800;padding:1px 8px;border-radius:999px;background:color-mix(in srgb,var(--gc) 18%,transparent);color:var(--gc)}
+.ig-group:first-child{margin-top:0}
+.ig-view{display:inline-flex;border:1px solid var(--border);border-radius:10px;overflow:hidden}
+.ig-view button{width:auto;margin:0;padding:7px 12px;border:0;border-radius:0;background:var(--panel2);color:var(--muted);font-size:13px;font-weight:700;box-shadow:none}
+.ig-view button.on{background:var(--accent);color:var(--btn-ink)}
+.ig-grid.ig-list{grid-template-columns:1fr !important;gap:6px}
+.ig-list .ig-card{display:grid;grid-template-columns:minmax(200px,1.4fr) minmax(150px,.8fr) 2.6fr;align-items:center;gap:12px;padding:8px 12px}
+.ig-list .ig-card .pcard-top{margin:0}
+.ig-list .ig-card .pcard-mbar{display:none}
+.ig-list .ig-card .ig-stock{margin:0}
+.ig-list .ig-card .ig-stock .ig-qty{font-size:16px}
+.ig-list .ig-card .ig-foot{margin:0;flex-wrap:nowrap;justify-content:flex-end}
+@media (max-width:1100px){.ig-list .ig-card{grid-template-columns:1fr 1fr}.ig-list .ig-card .ig-foot{grid-column:1/-1;flex-wrap:wrap;justify-content:flex-start}}
+@media (max-width:600px){.ig-list .ig-card{grid-template-columns:1fr}}

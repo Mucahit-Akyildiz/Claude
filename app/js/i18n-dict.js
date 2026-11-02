@@ -427,6 +427,11 @@ Hammadde ara…|Search ingredients…|ابحث عن مادة…|Поиск ин�
 Yeni Hammadde|New Ingredient|مادة جديدة|Новый ингредиент|Neue Zutat
 Stokları sıfırla|Reset stock|تصفير المخزون|Обнулить остатки|Bestand zurücksetzen
 Kullanımda|In use|قيد الاستخدام|Используется|In Verwendung
+Stoğu biten|Out of stock|نفد المخزون|Нет в наличии|Ausverkauft
+Kritik seviyede|Low stock|مخزون منخفض|Мало на складе|Niedriger Bestand
+Reçetede kullanılmayan|Not used in recipes|غير مستخدم في الوصفات|Не используется в рецептах|Nicht in Rezepten verwendet
+Kart|Cards|بطاقات|Карточки|Karten
+Liste|List|قائمة|Список|Liste
 Kullanılmıyor|Unused|غير مستخدم|Не используется|Nicht verwendet
 Bitti|Out|نفد|Закончилось|Leer
 Kritik|Low|منخفض|Мало|Niedrig

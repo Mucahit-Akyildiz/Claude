@@ -55,7 +55,7 @@ function renderIngredientsSettings(el, session){
   const maxStock = Math.max(1, ...ings.map(i => Number(i.stock)||0));
   const f = APP.ingFilter || 'all';
   const isLow = (i) => Number(i.min_stock) > 0 && Number(i.stock) <= Number(i.min_stock);
-  const ingSort = APP.ingSort || 'name';
+  const ingSort = APP.ingSort || 'status', ingView = APP.ingView || (() => { try{ return localStorage.getItem('peyk_ing_view'); }catch(e){ return null; } })() || 'grid';
   const shownIngs0 = f==='low' ? ings.filter(isLow) : f==='out' ? ings.filter(i => Number(i.stock)<=0) : f==='idle' ? ings.filter(i => !useCount(i.id)) : f==='waste' ? ings.filter(i => Number(i.waste_pct)>0) : ings;
   const stRank = (i) => Number(i.stock)<=0 ? 0 : isLow(i) ? 1 : useCount(i.id) ? 2 : 3;
   const shownIngs = shownIngs0.slice().sort((a, b) => { const c = String(a.name).localeCompare(String(b.name), 'tr', { numeric: true });
@@ -70,7 +70,8 @@ function renderIngredientsSettings(el, session){
       <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:0 0 10px;">
         ${listSearchHtml('ingredients', 'Hammadde ara…').replace('margin:0 0 12px;','margin:0;')}
         ${typeof excelBarHtml === 'function' ? excelBarHtml('ingredients') : ''}
-        <select class="ig-sort" title="Sırala" ${actOn('change','setIngSort',['$value'])}>${[['name','A → Z'],['za','Z → A'],['status','Duruma göre (biten önce)'],['stock','Stok: azdan çoğa'],['stockd','Stok: çoktan aza'],['uses','En çok üründe kullanılan'],['unit','Birime göre']].map(([k,l]) => `<option value="${k}" ${ingSort===k?'selected':''}>↕ ${l}</option>`).join('')}</select>
+        <div class="ig-view" title="Görünüm"><button type="button" class="${ingView !== 'list' ? 'on' : ''}" ${act('setIngView', 'grid')} title="Kart görünümü">▦ Kart</button><button type="button" class="${ingView === 'list' ? 'on' : ''}" ${act('setIngView', 'list')} title="Liste görünümü">☰ Liste</button></div>
+        <select class="ig-sort" title="Sırala" ${actOn('change','setIngSort',['$value'])}>${[['status','Duruma göre (gruplu)'],['name','A → Z'],['za','Z → A'],['stock','Stok: azdan çoğa'],['stockd','Stok: çoktan aza'],['uses','En çok üründe kullanılan'],['unit','Birime göre (gruplu)']].map(([k,l]) => `<option value="${k}" ${ingSort===k?'selected':''}>↕ ${l}</option>`).join('')}</select>
         <span class="u-f1"></span>
         <div class="act-row">
           <button type="button" class="act-btn act-save" id="ingSaveAllBtn" ${act('saveAllIngredients')} disabled>${ICON_SAVE}<span>Kaydet</span></button>
@@ -92,8 +93,16 @@ function renderIngredientsSettings(el, session){
       <p class="muted" style="font-size:12px;text-align:left;margin:10px 0 0;">Maliyet sonra Mal Kabul'de fiyatlı teslim aldıkça ortalanarak güncellenir. Ekledikten sonra hangi ürünlerin bu hammaddeyi kullandığını soracağız; ürün maliyetleri otomatik hesaplanır.</p>
       <div class="fsheet-foot"><button type="button" class="ghost-btn" ${act('closeSheet','ingSheet')}>Vazgeç</button><button ${act('addIngredient')}>Devam › Kullanım şekli</button></div>`, 'var(--c3)')}
     <div style="display:flex;align-items:center;gap:8px;margin:4px 0 10px;"><label style="display:flex;align-items:center;gap:6px;margin:0;font-size:13px;font-weight:600;"><input type="checkbox" class="u-wa-m0" ${actOn('change','selectAllIngredients',['$checked'])}> Tümünü seç</label></div>
-    <div class="ig-grid" ${actOn('input','markIngDirty',['$event'])} ${actOn('change','markIngDirty',['$event'])}>
-      ${shownIngs.map((i, k) => { const st = Number(i.stock)||0, out = st <= 0, uses = useCount(i.id), pct = Math.max(4, Math.min(100, st / maxStock * 100));
+    <div class="ig-grid ${ingView === 'list' ? 'ig-list' : ''}" ${actOn('input','markIngDirty',['$event'])} ${actOn('change','markIngDirty',['$event'])}>
+      ${(() => { const GL = { 0: ['⛔', 'Stoğu biten', 'var(--danger,#ef4444)'], 1: ['📉', 'Kritik seviyede', 'var(--c3)'], 2: ['✅', 'Kullanımda', 'var(--ok,#22c55e)'], 3: ['○', 'Reçetede kullanılmayan', 'var(--muted)'] };
+        const gk = (i) => ingSort === 'status' ? stRank(i) : ingSort === 'unit' ? (i.unit || '—') : null;
+        let last; return shownIngs.map((i, k) => { const g = gk(i); let head = '';
+          if(g !== null && g !== last){ last = g; const n = shownIngs.filter(x => gk(x) === g).length, L = ingSort === 'status' ? GL[g] : ['📏', 'Birim: ' + g, 'var(--accent)'];
+            head = `<div class="ig-group" style="--gc:${L[2]};"><span>${L[0]}</span><b>${L[1]}</b><em>${n}</em></div>`; }
+          return head + ingCardHtml(i, k); }).join(''); })() || '<div class="empty-state" style="grid-column:1/-1;"><div style="font-size:38px;">🥕</div><p class="muted">Bu filtrede hammadde yok.</p></div>'}
+    </div>
+  </div>`;
+  function ingCardHtml(i, k){ const st = Number(i.stock)||0, out = st <= 0, uses = useCount(i.id), pct = Math.max(4, Math.min(100, st / maxStock * 100));
         return `<div class="pcard ig-card ${out?'ig-out':''}" data-iid="${i.id}" data-name="${escapeAttr(String(i.name||'').toLocaleLowerCase('tr'))}" style="--i:${Math.min(k,12)};">
         <div class="pcard-top"><input type="checkbox" class="ing-sel" value="${i.id}" ${actOn('change','updateIngSelection',[])}>
           <input class="ig-name" value="${escapeAttr(i.name)}" id="ing_name_${i.id}">
@@ -108,9 +117,7 @@ function renderIngredientsSettings(el, session){
           <button type="button" class="pc-btn" ${act('openIngredientUsageModal', i.id)}>🍽️ ${uses} ürün</button>
           <button type="button" class="pc-btn" title="Hammaddeyi ve kullanıldığı ürünleri düzenle" ${act('openIngredientUsageModal', i.id, true)}>✏️ Düzenle</button>
         </div>
-      </div>`; }).join('') || '<div class="empty-state" style="grid-column:1/-1;"><div style="font-size:38px;">🥕</div><p class="muted">Bu filtrede hammadde yok.</p></div>'}
-    </div>
-  </div>`;
+      </div>`; }
 }
 /* Hammaddeler: değişen satırlar tek düğmeyle kaydedilir; silme seçilen satırlara toplu uygulanır. */
 function markIngDirty(e){
@@ -119,6 +126,7 @@ function markIngDirty(e){
   tr.dataset.dirty = '1'; tr.classList.add('is-dirty');
   updateIngSelection();
 }
+function setIngView(v){ APP.ingView = v; try{ localStorage.setItem('peyk_ing_view', v); }catch(e){} renderSettingsContent(getSession()); }
 function setIngSort(v){ APP.ingSort = v; renderSettingsContent(getSession()); }
 function setIngFilter(k){ APP.ingFilter = APP.ingFilter===k ? 'all' : k; renderSettingsContent(getSession()); }
 function selectedIngredientIds(){ return [...document.querySelectorAll('.ing-sel:checked')].map(b => b.value); }
