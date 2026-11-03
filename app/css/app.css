@@ -4237,3 +4237,6 @@ html.lang-rtl input[type=number],html.lang-rtl input[type=tel],html.lang-rtl .mo
 .u-hide{display:none !important;}
 .settings-table tr.adm-company > td{background:color-mix(in srgb,var(--c1) 10%,var(--panel2));border-top:2px solid color-mix(in srgb,var(--c1) 45%,transparent);}
 .settings-table tr.adm-branch > td:first-child{padding-left:28px;}
+/* Mal Kabul kartı alt butonları: yazılar alt satıra kırılmasın, sığmazsa butonlar alt satıra geçsin */
+.pc2-acts{flex-wrap:wrap;}
+.pc2-acts .pc-btn{white-space:nowrap;width:auto;}
