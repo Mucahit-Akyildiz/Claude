@@ -141,3 +141,4 @@ alter table customers add column if not exists created_by uuid, add column if no
 -- 2026-11-03: 'Ayarlar · Entegrasyonlar (hepsi)' rol kataloğundan kaldırıldı; bu izne sahip roller 10 int_* iznine açıldı (sunucu settings_integrations'ı geriye uyum için hâlâ kabul eder).
 -- 2026-11-03: settings_allowances izni (Limitli Hesaplar); save/delete_allowance, set_allowance_settings, set_allowances_enabled bu izne bağlandı;
 --   settings_users'a sahip roller bu izni de aldı. edit_purchase_order: taslak/sipariş verilmiş malzeme siparişinde tarih, not, kalem, miktar düzenleme.
+-- 2026-11-03: _merge_open_pos: aynı tedarikçinin teslim alınmamış açık (taslak/sipariş verildi) siparişleri birleşir; assign_po_items_supplier ve set_purchase_order_supplier sonunda çağrılır. Mevcut Anadolu Toros siparişleri birleştirildi.
