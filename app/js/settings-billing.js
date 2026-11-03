@@ -282,42 +282,35 @@ async function saveMarketplaceSettings(){
 
 /* ---- Abonelik / Aylık Ödeme (Ayarlar > Kullanıcılar üstünde) ---- */
 function renderSubscriptionPanel(lic){
-  if(!lic.expires_at){
-    // Süresiz lisans (platform yöneticisi bitiş tarihi koymamış): ödeme istenmez.
-    const used = APP.config.users.length, max = lic.max_users || 1, up = Math.min(100, Math.round(used/max*100));
-    return `<div class="sub-hero" style="--hc:var(--green);">
-      <div class="sub-ring"><svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="42" class="trk"/><circle cx="50" cy="50" r="42" class="val" style="stroke-dasharray:264;stroke-dashoffset:0;"/></svg><div><b>∞</b><small>süresiz</small></div></div>
-      <div class="sub-info"><small class="muted">Mevcut paket</small><h3>${escapeHtml(lic.package_id)}</h3>
-        <div class="sub-status">✅ Süresiz lisans — ödeme gerekmez.</div>
-        <button type="button" class="ghost-btn pkg-change-btn" ${act('openPackagePicker')}>📦 Paketi değiştir / yükselt</button>
-        <div class="sub-users"><div class="pcard-mbar"><i style="width:${up}%;background:${up>=90?'var(--c3)':'var(--c1)'};"></i></div><small>👥 ${used} / ${max} kullanıcı</small></div></div>
-    </div>`;
+  // Süresiz ve süreli lisans aynı düzende gösterilir; yalnızca halka, durum metni ve ödeme butonu değişir.
+  const perpetual = !lic.expires_at;
+  const used = APP.config.users.length, max = lic.max_users || 1, up = Math.min(100, Math.round(used/max*100)), C = 2*Math.PI*42;
+  let color, ringVal, ringBig, ringSmall, statusText, icon, expired = false;
+  if(perpetual){
+    color = 'var(--green)'; ringVal = 1; ringBig = '∞'; ringSmall = 'süresiz'; icon = '✅ '; statusText = 'Süresiz lisans — ödeme gerekmez.';
+  } else {
+    const expires = new Date(lic.expires_at), daysLeft = Math.ceil((expires - new Date()) / (24*60*60*1000));
+    expired = daysLeft <= 0; const soon = !expired && daysLeft <= 3;
+    color = expired ? 'var(--red)' : (soon ? 'var(--accent)' : 'var(--green)');
+    ringVal = Math.max(0, Math.min(1, daysLeft / 30)); ringBig = expired ? '0' : daysLeft; ringSmall = 'gün';
+    icon = expired ? '⛔ ' : soon ? '⚠️ ' : '✅ ';
+    statusText = expired ? 'Süreniz doldu — devam etmek için ödeme yapın.' : (daysLeft + ' gün kaldı (bitiş: ' + expires.toLocaleDateString('tr-TR') + ')');
   }
-  const expires = new Date(lic.expires_at);
-  const daysLeft = Math.ceil((expires - new Date()) / (24*60*60*1000));
-  const expired = daysLeft <= 0;
-  const soon = !expired && daysLeft <= 3;
-  const color = expired ? 'var(--red)' : (soon ? 'var(--accent)' : 'var(--green)');
-  const statusText = expired
-    ? 'Süreniz doldu — devam etmek için ödeme yapın.'
-    : (daysLeft + ' gün kaldı (bitiş: ' + expires.toLocaleDateString('tr-TR') + ')');
-  const totalDays = 30, ring = Math.max(0, Math.min(1, daysLeft / totalDays)), C = 2*Math.PI*42;
-  const used = APP.config.users.length, max = lic.max_users || 1, up = Math.min(100, Math.round(used/max*100));
   return `
     <div class="sub-hero" style="--hc:${color};">
-      <div class="sub-ring"><svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="42" class="trk"/><circle cx="50" cy="50" r="42" class="val" style="stroke-dasharray:${C};stroke-dashoffset:${C*(1-ring)};"/></svg>
-        <div><b>${expired ? '0' : daysLeft}</b><small>gün</small></div></div>
+      <div class="sub-ring"><svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="42" class="trk"/><circle cx="50" cy="50" r="42" class="val" style="stroke-dasharray:${C};stroke-dashoffset:${C*(1-ringVal)};"/></svg>
+        <div><b>${ringBig}</b><small>${ringSmall}</small></div></div>
       <div class="sub-info">
         <small class="muted">Mevcut paket</small>
         <h3>${escapeHtml(lic.package_id)}</h3>
-        <div class="sub-status">${expired ? '⛔ ' : soon ? '⚠️ ' : '✅ '}${statusText}</div>
+        <div class="sub-status">${icon}${statusText}</div>
         <div class="sub-users"><div class="pcard-mbar"><i style="width:${up}%;background:${up>=90?'var(--c3)':'var(--c1)'};"></i></div><small>👥 ${used} / ${max} kullanıcı</small></div>
       </div>
       <div class="sub-cta">
         <button type="button" class="ghost-btn pkg-change-btn" ${act('openPackagePicker')}>📦 Paketi değiştir / yükselt</button>
         ${billingCycleSelectorHtml()}
-        <button id="renewBtn" disabled title="Kartla ödeme yakında açılacak">💳 Kredi Kartı ile Öde</button>
-        <span class="sub-soon">🔜 Kart ile ödeme yakında</span>
+        ${perpetual ? '<span class="sub-soon">♾️ Yenileme gerekmez</span>' : `<button id="renewBtn" disabled title="Kartla ödeme yakında açılacak">💳 Kredi Kartı ile Öde</button>
+        <span class="sub-soon">🔜 Kart ile ödeme yakında</span>`}
       </div>
       <div class="error" id="renewErr" style="grid-column:1/-1;text-align:left;"></div>
     </div>`;
