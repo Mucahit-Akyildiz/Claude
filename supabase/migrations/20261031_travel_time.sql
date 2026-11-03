@@ -138,3 +138,4 @@ alter table customers add column if not exists created_by uuid, add column if no
 --   İlgili fonksiyonlar int_* iznine bağlandı; rol kataloğunda "Entegrasyonlar" kategorisi (pakette olmayanlar "(paketinizde yok)").
 --   Rollerdeki eski online_ordering/efatura/marketplace/accounting izinleri int_* olarak taşındı.
 -- 2026-11-03: paket_kurumsal.features += online_ordering, efatura, marketplace, accounting, multi_branch (tüm eklentiler).
+-- 2026-11-03: 'Ayarlar · Entegrasyonlar (hepsi)' rol kataloğundan kaldırıldı; bu izne sahip roller 10 int_* iznine açıldı (sunucu settings_integrations'ı geriye uyum için hâlâ kabul eder).
