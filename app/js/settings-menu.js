@@ -322,7 +322,7 @@ async function saveIngredientUsage(ingredientId){
   (iuMode() === 'per_order' ? [] : products).forEach(p => {
     const chk = document.getElementById('ingu_chk_'+p.id);
     if(chk && chk.checked){
-      const inp = document.getElementById('ingu_qty_'+p.id);
+      const inp = document.getElementById('ingu_qty_'+p.id); if(!inp) return;
       const qty = parseFloat(inp.value);
       inp.style.borderColor = '';
       if(qty && qty>0) usages.push({ product_id: p.id, qty_per_unit: qty });
@@ -339,10 +339,13 @@ async function saveIngredientUsage(ingredientId){
   const nm = document.getElementById('iue_name');
   if(nm){
     const name = nm.value.trim(); if(!name){ alert('Hammadde adı boş olamaz'); nm.focus(); return; }
-    const { error: e1 } = await sb.rpc('upsert_ingredient', { p_token: session.session_token, p_id: ingredientId, p_name: name, p_unit: document.getElementById('iue_unit').value,
-      p_stock: parseFloat(document.getElementById('iue_stock').value)||0, p_waste_pct: parseFloat(document.getElementById('iue_waste').value)||0 });
+    // Formda olmayan alan (ör. kısa düzenleme görünümü) mevcut değeriyle gönderilir.
+    const curIng = (APP.config.ingredients || []).find(x => x.id === ingredientId) || {};
+    const fv = (id, def) => { const e = document.getElementById(id); return e ? e.value : def; };
+    const { error: e1 } = await sb.rpc('upsert_ingredient', { p_token: session.session_token, p_id: ingredientId, p_name: name, p_unit: fv('iue_unit', curIng.unit),
+      p_stock: parseFloat(fv('iue_stock', curIng.stock))||0, p_waste_pct: parseFloat(fv('iue_waste', curIng.waste_pct))||0 });
     if(e1){ alert(e1.message); return; }
-    const { error: e2 } = await sb.rpc('set_ingredient_min', { p_token: session.session_token, p_id: ingredientId, p_min: parseFloat(document.getElementById('iue_min').value)||0 });
+    const { error: e2 } = await sb.rpc('set_ingredient_min', { p_token: session.session_token, p_id: ingredientId, p_min: parseFloat(fv('iue_min', curIng.min_stock))||0 });
     if(e2){ alert(e2.message); return; }
     const ucIn = document.getElementById('iue_uc'), ing0 = (APP.config.ingredients||[]).find(x => x.id === ingredientId) || {};
     const ucv = ucIn && ucIn.value !== '' ? parseFloat(ucIn.value) : null;
