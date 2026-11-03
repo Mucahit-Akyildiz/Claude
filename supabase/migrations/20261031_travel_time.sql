@@ -130,3 +130,4 @@ alter table customers add column if not exists created_by uuid, add column if no
 --   banka/konum/harita ayarları settings_integrations iznine açıldı. _role_permission_catalog etiketleri güncellendi.
 --   _guard_manager_target: yönetici hesabının şifre/PIN/e-posta/ad/rol/silme işlemleri yalnızca yöneticiye açık
 --   (update_staff_user, delete_staff_user, reset_staff_password_temp, send_staff_temp_password, set_staff_email, set_staff_pin, send_staff_login_sms).
+-- 2026-11-03: set_notification_roles izinli türlere pkg_deadline, pkg_courier eklendi (Kime Gitsin kaydı 'Geçersiz bildirim türü' veriyordu).
