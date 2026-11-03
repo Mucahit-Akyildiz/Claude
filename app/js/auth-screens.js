@@ -288,7 +288,16 @@ async function createBranchSubmit(){
 async function enterBranch(restaurantId){
   const companySession = getCompanySession(); if(!companySession) return;
   const { data, error } = await withLoadingOverlay(sb.rpc('switch_to_branch', { p_company_token: companySession.session_token, p_restaurant_id: restaurantId }));
-  if(error){ alert(error.message); return; }
+  if(error){
+    // Kendi kullanıcısıyla geçen yöneticinin bu şubede hesabı yok: uyar, isterse kendini (aynı ad/şifre, yönetici) ekle.
+    if(/adlı kullanıcınız yok/.test(error.message || '') && await uiConfirm(error.message + '\n\nKullanıcınızı bu şubeye yönetici olarak (aynı kullanıcı adı ve şifreyle) ekleyip girmek ister misiniz?', { danger: false })){
+      const add = await withLoadingOverlay(sb.rpc('company_add_me_to_branch', { p_company_token: companySession.session_token, p_restaurant_id: restaurantId }));
+      if(add.error){ alert(add.error.message); return; }
+      return enterBranch(restaurantId);
+    }
+    if(!/adlı kullanıcınız yok/.test(error.message || '')) alert(error.message);
+    return;
+  }
   if(!data || data.length===0){ alert('Şubeye giriş yapılamadı'); return; }
   const row = data[0];
   setSession({
@@ -299,7 +308,8 @@ async function enterBranch(restaurantId){
     permissions: row.permissions || [],
     isManager: !!row.is_manager,
     restaurant_name: row.restaurant_name,
-    username: '🏢 ' + companySession.company_name
+    username: companySession.origin_username || ('🏢 ' + companySession.company_name),
+    remember: !!companySession.origin_remember
   });
   APP.reportsUnlocked = false;
   APP.reportsGateScreen = null;
@@ -314,7 +324,7 @@ async function openCompanyPanel(){
   const { data, error } = await withLoadingOverlay(sb.rpc('open_company_panel', { p_token: session.session_token }));
   if(error){ alert(error.message); return; }
   const row = Array.isArray(data) ? data[0] : data; if(!row) return;
-  setCompanySession({ session_token: row.session_token, company_id: row.company_id, company_name: row.company_name, package_id: row.package_id });
+  setCompanySession({ session_token: row.session_token, company_id: row.company_id, company_name: row.company_name, package_id: row.package_id, origin_username: session.username, origin_remember: !!session.remember });
   returnToCompanyPanel();
 }
 async function returnToCompanyPanel(){
