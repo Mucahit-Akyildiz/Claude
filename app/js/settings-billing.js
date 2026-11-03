@@ -289,6 +289,7 @@ function renderSubscriptionPanel(lic){
       <div class="sub-ring"><svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="42" class="trk"/><circle cx="50" cy="50" r="42" class="val" style="stroke-dasharray:264;stroke-dashoffset:0;"/></svg><div><b>∞</b><small>süresiz</small></div></div>
       <div class="sub-info"><small class="muted">Mevcut paket</small><h3>${escapeHtml(lic.package_id)}</h3>
         <div class="sub-status">✅ Süresiz lisans — ödeme gerekmez.</div>
+        <button type="button" class="ghost-btn pkg-change-btn" ${act('openPackagePicker')}>📦 Paketi değiştir / yükselt</button>
         <div class="sub-users"><div class="pcard-mbar"><i style="width:${up}%;background:${up>=90?'var(--c3)':'var(--c1)'};"></i></div><small>👥 ${used} / ${max} kullanıcı</small></div></div>
     </div>`;
   }
@@ -313,6 +314,7 @@ function renderSubscriptionPanel(lic){
         <div class="sub-users"><div class="pcard-mbar"><i style="width:${up}%;background:${up>=90?'var(--c3)':'var(--c1)'};"></i></div><small>👥 ${used} / ${max} kullanıcı</small></div>
       </div>
       <div class="sub-cta">
+        <button type="button" class="ghost-btn pkg-change-btn" ${act('openPackagePicker')}>📦 Paketi değiştir / yükselt</button>
         ${billingCycleSelectorHtml()}
         <button id="renewBtn" disabled title="Kartla ödeme yakında açılacak">💳 Kredi Kartı ile Öde</button>
         <span class="sub-soon">🔜 Kart ile ödeme yakında</span>
@@ -325,6 +327,24 @@ function renderSubscriptionPanel(lic){
    bir yerden seçiliyor (APP.billingCycle). Yıllık fiyat platform admin
    panelinden paket başına ayrıca girilebilir; girilmemişse aylık fiyatın
    12 katı (indirimsiz) sunucuda otomatik hesaplanır. */
+/* Paket değiştirme / yükseltme: paket seçilir, havale tutarı yeni pakete göre hesaplanır; yönetici onaylayınca paket değişir. */
+function pkgName(id){ const p = (APP.packageList || []).find(x => x.id === id); return p ? p.name : (id || '—'); }
+async function openPackagePicker(){
+  if(!APP.packageList){ const { data } = await sb.rpc('list_packages'); APP.packageList = data || []; }
+  const lic = APP.config.license || {}, cur = lic.package_id, used = (APP.config.users || []).length, cyc = APP.billingCycle || 'monthly';
+  const bg = document.createElement('div'); bg.className = 'dg-bg'; bg.style.zIndex = 3000;
+  bg.innerHTML = `<div class="dg-card uc-card" style="max-width:760px;text-align:left;"><div class="uc-msg"><p><b>📦 Paket seçin</b></p><p class="muted u-fs12">Seçtiğiniz pakete göre ödeme tutarı hesaplanır; ödeme onaylanınca paketiniz değişir.</p></div>
+    <div class="pkg-pick">${APP.packageList.map(p => { const isCur = p.id === cur, price = cyc === 'yearly' ? (p.price_yearly || p.price * 12) : p.price, tight = p.max_users && used > p.max_users;
+      return `<button type="button" class="pkg-card ${isCur ? 'cur' : ''} ${p.is_popular ? 'pop' : ''}" data-id="${escapeAttr(p.id)}" ${isCur || tight ? 'disabled' : ''}>
+        ${p.is_popular ? '<em>Popüler</em>' : ''}<b>${escapeHtml(p.name)}</b><small>${escapeHtml(p.description || '')}</small>
+        <span class="pkg-price">${money(price)}<i>/${cyc === 'yearly' ? 'yıl' : 'ay'}</i></span>
+        <span class="pkg-meta">👥 ${p.max_users ? p.max_users + ' kullanıcı' : 'Sınırsız'}${p.max_branches > 1 ? ' · 🏢 ' + p.max_branches + ' şube' : ''}</span>
+        ${isCur ? '<span class="pkg-tag">Mevcut paket</span>' : tight ? `<span class="pkg-tag warn">${used} kullanıcınız var</span>` : '<span class="pkg-tag go">Seç ›</span>'}</button>`; }).join('')}</div>
+    <div class="uc-acts"><button type="button" class="pc-btn uc-no">Vazgeç</button></div></div>`;
+  bg.addEventListener('click', e => { const b = e.target.closest('.pkg-card:not([disabled])'); if(b){ APP.targetPackage = b.dataset.id; bg.remove(); renderBillingSettings(billingBox(), getSession()); setTimeout(() => { const t = document.getElementById('bankTransferBox'); if(t) t.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 400); } else if(e.target === bg || e.target.closest('.uc-no')) bg.remove(); });
+  document.body.appendChild(bg);
+}
+function clearTargetPackage(){ APP.targetPackage = null; renderBillingSettings(billingBox(), getSession()); }
 function billingCycleSelectorHtml(){
   const cycle = APP.billingCycle || 'monthly';
   return `<div class="seg sub-seg">${[['monthly','Aylık'],['yearly','Yıllık']].map(([k,l]) => `<button type="button" class="${cycle===k?'on':''}" ${act('setBillingCycle', k)}>${l}</button>`).join('')}</div>`;
@@ -453,7 +473,7 @@ async function saveBillingIdentity(){
 async function loadBankTransferStatus(session){
   const el = document.getElementById('bankTransferBox'); if(!el) return;
   const cycle = APP.billingCycle || 'monthly';
-  const { data, error } = await sb.rpc('get_bank_transfer_status', { p_token: session.session_token, p_billing_cycle: cycle });
+  const { data, error } = await sb.rpc('get_bank_transfer_status2', { p_token: session.session_token, p_billing_cycle: cycle, p_package_id: APP.targetPackage || null });
   if(error){ el.innerHTML = '<p class="muted">Havale bilgisi yüklenemedi: '+error.message+'</p>'; return; }
   APP.bankTransferStatus = data;
   if(data.pending_notice){
@@ -481,8 +501,9 @@ async function loadBankTransferStatus(session){
     : '';
   el.innerHTML = `
     <div class="add-row-panel" style="margin-top:16px;">
+      ${APP.targetPackage ? `<div class="pkg-target">📦 Paket değişikliği: <b>${escapeHtml(pkgName(APP.config.license && APP.config.license.package_id))}</b> → <b>${escapeHtml(pkgName(APP.targetPackage))}</b><button type="button" class="ghost-btn" ${act('clearTargetPackage')}>✕ Vazgeç</button></div>` : ''}
       <h3 class="u-mb8">🏦 Havale ile Öde (${cycleLabel})</h3>
-      <p class="muted">Kartla ödeme çalışmıyorsa aşağıdaki hesaba havale/EFT gönderip "Ödemeyi Yaptım" ile bildirin - platform yöneticisi onayladığında aboneliğiniz otomatik ${cycle==='yearly'?'365':'30'} gün uzar.</p>
+      <p class="muted">Kartla ödeme çalışmıyorsa aşağıdaki hesaba havale/EFT gönderip "Ödemeyi Yaptım" ile bildirin - platform yöneticisi onayladığında ${APP.targetPackage ? 'paketiniz <b>' + escapeHtml(pkgName(APP.targetPackage)) + '</b> olur ve ' : ''}aboneliğiniz otomatik ${cycle==='yearly'?'365':'30'} gün uzar.</p>
       <div style="background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin:10px 0;font-size:14px;line-height:1.8;">
         <div><b>IBAN:</b> ${escapeHtml(data.iban)}</div>
         <div><b>Hesap Adı:</b> ${escapeHtml(data.account_name||'-')}</div>
@@ -507,7 +528,8 @@ async function submitBankTransferNotice(){
   // aynı anda (await'ten ÖNCE) senkron olarak açılır; adresi RPC
   // sonuçlandıktan sonra doldurulur.
   const waWin = window.open('', '_blank');
-  const { error } = await sb.rpc('submit_bank_transfer_notice', { p_token: session.session_token, p_note: note||null, p_billing_cycle: APP.billingCycle||'monthly' });
+  const { error } = await sb.rpc('submit_bank_transfer_notice2', { p_token: session.session_token, p_note: note||null, p_billing_cycle: APP.billingCycle||'monthly', p_package_id: APP.targetPackage || null });
+  if(!error) APP.targetPackage = null;
   if(error){
     errBox.textContent = error.message; btn.disabled = false; btn.textContent = '✅ Ödemeyi Yaptım, Bildir';
     if(waWin) waWin.close();
