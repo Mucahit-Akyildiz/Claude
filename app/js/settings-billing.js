@@ -484,7 +484,9 @@ async function loadBankTransferStatus(session){
     el.innerHTML = `
       <div class="add-row-panel" style="margin-top:16px;">
         <h3 class="u-mb8">🏦 Havale ile Öde</h3>
-        <p class="muted">Banka bilgileri henüz tanımlanmamış. Lütfen platform yöneticisiyle iletişime geçin.</p>
+        ${APP.targetPackage ? `<div class="pkg-target">📦 Paket değişikliği: <b>${escapeHtml(pkgName(APP.config.license && APP.config.license.package_id))}</b> → <b>${escapeHtml(pkgName(APP.targetPackage))}</b><button type="button" class="ghost-btn" ${act('clearTargetPackage')}>✕ Vazgeç</button></div>
+        <p><b>Tutar (${cycle==='yearly' ? 'Yıllık' : 'Aylık'}):</b> ${money(data.amount)}</p>
+        <p class="error">⚠️ Paket değişikliği havale onayıyla yapılıyor, ancak banka bilgileri henüz tanımlanmadığı için bildirim gönderilemiyor. Lütfen platform yöneticisiyle iletişime geçin.</p>` : '<p class="muted">Banka bilgileri henüz tanımlanmamış. Lütfen platform yöneticisiyle iletişime geçin.</p>'}
       </div>`;
     return;
   }
