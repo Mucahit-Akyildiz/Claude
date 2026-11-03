@@ -137,3 +137,4 @@ alter table customers add column if not exists created_by uuid, add column if no
 --   _session_check: int_* (settings_integrations hepsini kapsar), int_any; online_ordering/efatura/marketplace/accounting izinleri int_* ile de geçer.
 --   İlgili fonksiyonlar int_* iznine bağlandı; rol kataloğunda "Entegrasyonlar" kategorisi (pakette olmayanlar "(paketinizde yok)").
 --   Rollerdeki eski online_ordering/efatura/marketplace/accounting izinleri int_* olarak taşındı.
+-- 2026-11-03: paket_kurumsal.features += online_ordering, efatura, marketplace, accounting, multi_branch (tüm eklentiler).
