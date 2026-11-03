@@ -141,8 +141,8 @@ async function renderCompanyPanelContent(companySession){
 
   const summaryRowsHtml = (dash.branches||[]).map(b => {
     const profit = Number(b.total||0) - Number(b.cost||0);
-    return `<tr>
-      <td class="col-name">${escapeHtml(b.name)}</td>
+    return `<tr style="cursor:pointer;" title="Şubeye gir" ${(() => { const m = branches.find(x => x.id === b.id || x.name === b.name); return m ? act('enterBranch', m.id) : ''; })()}>
+      <td class="col-name">${escapeHtml(b.name)} <small class="muted">›</small></td>
       <td>${b.order_count}</td>
       <td>${money(b.total)}</td>
       <td style="color:${profit>=0?'var(--green)':'var(--red)'};font-weight:700;">${money(profit)}</td>
@@ -176,6 +176,7 @@ async function renderCompanyPanelContent(companySession){
             <div style="font-weight:800;font-size:14px;overflow-wrap:anywhere;word-break:break-word;">${escapeHtml(b.name)}</div>
             <div class="muted" style="font-size:11px;margin-top:2px;">${escapeHtml(b.code)} · ${b.staff_count} personel</div>
             <div style="font-size:12px;margin-top:6px;color:var(--accent);font-weight:700;">${money(b.revenue_today)} (bugün)</div>
+            <div style="font-size:11px;margin-top:6px;font-weight:800;color:var(--c1);">Şubeye gir ›</div>
           </div>`).join('')}
         ${hasMultiBranch
           ? `<div class="table-cell" style="cursor:pointer;display:flex;align-items:center;justify-content:center;" ${act('openCreateBranchModal')}>➕<div style="font-size:11px;margin-top:4px;font-weight:400;">Yeni Şube Ekle</div></div>`
