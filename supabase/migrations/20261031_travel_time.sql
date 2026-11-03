@@ -126,3 +126,7 @@ alter table customers add column if not exists created_by uuid, add column if no
 -- 2026-11-03: company_sessions.origin_user_id; open_company_panel bunu kaydeder. switch_to_branch: origin varsa
 --   şubeye kendi kullanıcısıyla (aynı hesap / aynı kullanıcı adı) girer, yoksa uyarı verir (ortak hesap kullanılmaz).
 --   company_add_me_to_branch: yöneticiyi aynı ad/şifreyle şubeye yönetici olarak ekler.
+-- 2026-11-03: Roller: yeni izinler settings_notifs (Bildirim Ayarları), settings_reports (Özet E-postaları);
+--   banka/konum/harita ayarları settings_integrations iznine açıldı. _role_permission_catalog etiketleri güncellendi.
+--   _guard_manager_target: yönetici hesabının şifre/PIN/e-posta/ad/rol/silme işlemleri yalnızca yöneticiye açık
+--   (update_staff_user, delete_staff_user, reset_staff_password_temp, send_staff_temp_password, set_staff_email, set_staff_pin, send_staff_login_sms).

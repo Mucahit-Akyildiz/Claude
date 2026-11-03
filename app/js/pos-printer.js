@@ -853,9 +853,9 @@ async function renderNotificationSettingsView(main, session){
 /* Ayarlar > Bildirim Ayarları: işletme geneli bildirim kuralları (Kime Gitsin, kişi sayısı hatırlatması) ve doğum günü uyarıları. */
 function renderNotifAdminSettings(el, session){
   const tabs = [
-    session.isManager ? { id:'roles', ic:'👥', label:'Kime Gitsin' } : null,
-    session.isManager ? { id:'guests', ic:'🔔', label:'Kişi Sayısı Hatırlatması' } : null,
-    session.isManager && typeof voiceMasterSettingHtml === 'function' ? { id:'voice', ic:'🗣️', label:'Sesli Bildirimler' } : null,
+    canManage(session, 'settings_notifs') ? { id:'roles', ic:'👥', label:'Kime Gitsin' } : null,
+    canManage(session, 'settings_notifs') ? { id:'guests', ic:'🔔', label:'Kişi Sayısı Hatırlatması' } : null,
+    canManage(session, 'settings_notifs') && typeof voiceMasterSettingHtml === 'function' ? { id:'voice', ic:'🗣️', label:'Sesli Bildirimler' } : null,
     typeof birthdaySettingsHtml === 'function' ? { id:'bday', ic:'🎂', label:'Doğum Günü Uyarıları' } : null,
   ].filter(Boolean);
   if(!tabs.some(t => t.id === APP.notifAdminSub)) APP.notifAdminSub = tabs[0].id;

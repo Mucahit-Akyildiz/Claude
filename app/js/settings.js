@@ -19,7 +19,7 @@ const SETTINGS_TABS = [
 ];
 function settingsTabVisible(t, session){
   if(t.feature && !hasFeature(t.feature)) return false;
-  if(t.tab==='reports') return !!session.isManager;
+  if(t.tab==='reports') return canManage(session, 'settings_reports');
   if(t.tab==='printers') return canManage(session, 'printer_settings');
   if(t.tab==='notifs') return true; // Kime Gitsin / hatırlatma yalnızca yöneticiye; doğum günü uyarıları cihaz ayarı, herkese
   if(t.tab==='users') return canManage(session, 'settings_users') || canManage(session, 'shifts');
@@ -427,7 +427,7 @@ async function submitAddonTransfer(btn, addonId){
 function fmtIban(v){ return String(v || '').replace(/\s/g, '').toUpperCase().replace(/(.{4})/g, '$1 ').trim(); }
 function formatIbanInput(el){ const pos = el.value.length; el.value = fmtIban(el.value); if(document.activeElement === el && pos >= el.value.length - 1) el.setSelectionRange(el.value.length, el.value.length); }
 function bankPaneHtml(session){
-  const banks = (APP.config && APP.config.banks) || [], mgr = !!(session || getSession()).isManager;
+  const banks = (APP.config && APP.config.banks) || [], mgr = canManage(session || getSession(), 'settings_integrations');
   return `<h2>🏦 Banka / IBAN</h2>
     <div class="oo-hero ${banks.length?'on':''}"><div class="oo-hero-ic">🏦</div>
       <div class="oo-hero-t"><b>Havale / EFT ile ödeme</b><small>Ödeme ekranındaki <b>Havale / EFT</b> seçeneğinde bu hesaplar gösterilir; seçilen hesabın IBAN'ı müşteriye tek tıkla SMS ya da e-postayla gönderilir.</small></div>
@@ -481,7 +481,7 @@ async function removeBank(id){
 
 /* Konum & Teslimat: işletme konumu (haritadan sürüş süresi için) + varsayılan yol süresi ve hazırlık payı. */
 function geoPaneHtml(session){
-  const g = (APP.config && APP.config.geo) || {}, mgr = !!(session || getSession()).isManager, ok = g.geo_lat != null;
+  const g = (APP.config && APP.config.geo) || {}, mgr = canManage(session || getSession(), 'settings_integrations'), ok = g.geo_lat != null;
   return `<h2>📍 Konum & Teslimat</h2>
     <div class="oo-hero ${ok?'on':''}"><div class="oo-hero-ic">🗺️</div>
       <div class="oo-hero-t"><b>Adrese teslim yol süresi</b><small>Paket siparişe adres girilince restorandan o adrese sürüş süresi haritadan (trafik dahil) hesaplanır; mutfak geri sayımı ve bildirimler <b>yola çıkış</b> saatine göre çalışır. Konum yoksa ya da adres bulunamazsa varsayılan süre kullanılır.</small></div>
