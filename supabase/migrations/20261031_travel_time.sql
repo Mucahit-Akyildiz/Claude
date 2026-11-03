@@ -111,3 +111,11 @@ alter table customers add column if not exists created_by uuid, add column if no
 -- Paket yükseltme: get_bank_transfer_status2 / submit_bank_transfer_notice2 (p_package_id ile hedef paket; onayda paket değişir). _cron_close_comp_orders hızlı çıkış + orders_open_tagged / order_items_unpaid_order indeksleri; _cron_cleanup_history 20klık parçalar, saatlik.
 
 -- Frankfurt: dakikalık 9 cron işi tek sıralı _cron_minutely() işinde birleştirildi (minutely_jobs, * * * * *); aynı anda başlayıp küçük sunucuda zaman aşımına yol açıyordu.
+
+-- 2026-11-03: Çok şubeli paket otomasyonu
+-- * paket_kurumsal.features += 'multi_branch'
+-- * restaurants_auto_company tetikleyicisi: max_branches>1 pakete geçen ve şirketi olmayan işletmeye şirket hesabı açar, bağlar;
+--   şirketi olan işletmede paket/bitiş tarihini şirkete yansıtır.
+-- * open_company_panel(p_token): yönetici rolündeki personel şirket paneline şifresiz geçer.
+-- * get_restaurant_config.license.has_company eklendi.
+-- * Peyktan ve TEST3 için şirket hesapları (sirket-<kod>) açıldı.

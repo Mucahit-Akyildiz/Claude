@@ -307,6 +307,15 @@ async function enterBranch(restaurantId){
   APP.customerReqPollStarted = false;
   render();
 }
+// Çok şubeli pakette restoran yöneticisi şirket paneline (şube listesi, yeni şube) şifresiz geçer.
+async function openCompanyPanel(){
+  const session = getSession(); if(!session) return;
+  const { data, error } = await withLoadingOverlay(sb.rpc('open_company_panel', { p_token: session.session_token }));
+  if(error){ alert(error.message); return; }
+  const row = Array.isArray(data) ? data[0] : data; if(!row) return;
+  setCompanySession({ session_token: row.session_token, company_id: row.company_id, company_name: row.company_name, package_id: row.package_id });
+  returnToCompanyPanel();
+}
 async function returnToCompanyPanel(){
   const session = getSession();
   stopKitchenPolling();

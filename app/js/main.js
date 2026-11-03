@@ -153,7 +153,7 @@ function render(){
         </nav>
         <div class="sb-bottom">
           <div id="shiftWidget" class="shift-widget">${shiftWidgetHtml()}</div>
-          ${getCompanySession() ? `<button class="sb-logout" ${act('returnToCompanyPanel')} title="Şirket paneline dön">🏢<span class="label"> Şirkete Dön</span></button>` : ''}
+          ${getCompanySession() ? `<button class="sb-logout" ${act('returnToCompanyPanel')} title="Şirket paneline dön">🏢<span class="label"> Şirkete Dön</span></button>` : (session.isManager && APP.config && APP.config.license && APP.config.license.has_company ? `<button class="sb-logout" ${act('openCompanyPanel')} title="Şubeleri yönet">🏢<span class="label"> Şubeler</span></button>` : '')}
           <div class="sb-actrow">
             <div class="theme-toggle">
               <button class="${theme==='dark'?'active':''}" ${act('setTheme', 'dark')} type="button" title="Koyu tema">🌙</button>
