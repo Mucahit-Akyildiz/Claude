@@ -210,7 +210,7 @@ function onlineOrderingLinkHtml(){
   const url = window.location.origin + '/siparis/?r=' + encodeURIComponent(APP.config.online_ordering.code);
   const qrImgUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=240x240&margin=0&data=' + encodeURIComponent(url);
   return `<div class="oo-share">
-    <div class="oo-qr"><img src="${qrImgUrl}" alt="QR"></div>
+    <div class="oo-qr">${qrImgTag(url, 240)}</div>
     <div class="oo-share-t">
       <span class="oo-live">● Yayında</span>
       <b>Paylaşmaya hazır</b>

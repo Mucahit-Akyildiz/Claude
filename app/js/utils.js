@@ -543,3 +543,21 @@ function tagRowNote(r){
   const n = (v) => Number(v) || 0;
   return n(r.t_qty) ? `<small class="ps-tag" title="Personel / ikram / limitli hesap etiketli: analize katılmaz">🏷️ +${Math.round(n(r.t_qty) * 100) / 100} etiketli · maliyet ${money(n(r.t_cost))} (hariç)</small>` : '';
 }
+/* QR kodları cihazda üretilir (assets/vendor/qrcode.js). Dış QR servisi (api.qrserver.com) bazı ağlarda
+   açılmadığı için QR kutusu boş kalıyordu. <img data-qr="metin"> eklenen her resim otomatik doldurulur. */
+let _QR_LIB = null;
+function _qrLib(){
+  if(window.qrcode) return Promise.resolve();
+  if(!_QR_LIB) _QR_LIB = new Promise((res, rej) => { const sc = document.createElement('script'); sc.src = '/assets/vendor/qrcode.js'; sc.onload = res; sc.onerror = () => { _QR_LIB = null; rej(); }; document.head.appendChild(sc); });
+  return _QR_LIB;
+}
+function qrImgTag(text, size, attrs){ return `<img data-qr="${escapeAttr(text)}" width="${size}" height="${size}" alt="QR" ${attrs || ''}>`; }
+function hydrateQrImages(root){
+  const imgs = (root || document).querySelectorAll('img[data-qr]:not([data-qr-done])'); if(!imgs.length) return;
+  _qrLib().then(() => imgs.forEach(img => {
+    try{ const q = window.qrcode(0, 'M'); q.addData(img.dataset.qr); q.make();
+      const n = q.getModuleCount(), px = Number(img.getAttribute('width')) || 240, cell = Math.max(2, Math.floor(px / (n + 4)));
+      img.src = q.createDataURL(cell, cell * 2); img.dataset.qrDone = '1'; }catch(e){}
+  })).catch(() => {});
+}
+new MutationObserver(muts => { if(muts.some(m => m.addedNodes.length)) hydrateQrImages(); }).observe(document.documentElement, { childList: true, subtree: true });

@@ -1139,7 +1139,7 @@ function showTableQr(tableId, qrToken){
   bg.onclick = (e) => { if(e.target===bg) bg.remove(); };
   bg.innerHTML = `<div style="background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:20px;max-width:320px;width:100%;text-align:center;">
     <div style="display:flex;justify-content:space-between;"><h2 class="u-m0">${escapeHtml(tableName)}</h2><span style="cursor:pointer;color:var(--muted);" ${act('removeEl','tableQrModalBg')}>✕</span></div>
-    <img src="${qrImgUrl}" alt="QR" style="width:100%;max-width:260px;margin:14px 0;border-radius:8px;background:#fff;padding:8px;">
+    <img data-qr="${escapeAttr(url)}" width="260" height="260" alt="QR" style="width:100%;max-width:260px;margin:14px 0;border-radius:8px;background:#fff;padding:8px;">
     <p class="muted" style="font-size:12px;overflow-wrap:anywhere;word-break:break-word;">${escapeHtml(url)}</p>
     <button style="margin-top:8px;" ${act('copyText', url, 'Link kopyalandı ✓')}>🔗 Linki Kopyala</button>
   </div>`;
@@ -1151,8 +1151,13 @@ function allTablesForQr(){
   const natural = (a, b) => String(a.name).localeCompare(String(b.name), 'tr', { numeric:true, sensitivity:'base' });
   return (APP.config.zones || []).flatMap(z => (z.tables || []).slice().sort(natural).map(t => ({ zone: z.name, name: t.name, url: window.location.origin + '/menu/?t=' + t.qr_token })));
 }
-const qrImg = (url, size) => 'https://api.qrserver.com/v1/create-qr-code/?size=' + size + 'x' + size + '&margin=8&data=' + encodeURIComponent(url);
-function showAllTableQrs(){
+// QR cihazda üretilir (dış servis bazı ağlarda açılmıyor); kütüphane yüklenene kadar dış servis yedek.
+const qrImg = (url, size) => {
+  if(window.qrcode){ try{ const q = window.qrcode(0, 'M'); q.addData(url); q.make(); const cell = Math.max(2, Math.floor(size / (q.getModuleCount() + 4))); return q.createDataURL(cell, cell * 2); }catch(e){} }
+  return 'https://api.qrserver.com/v1/create-qr-code/?size=' + size + 'x' + size + '&margin=8&data=' + encodeURIComponent(url);
+};
+async function showAllTableQrs(){
+  try{ await _qrLib(); }catch(e){}
   const list = allTablesForQr(); if(!list.length){ showToast('Henüz masa yok'); return; }
   removeEl('qrSheetBg');
   const bg = document.createElement('div'); bg.id = 'qrSheetBg';
@@ -1182,6 +1187,7 @@ function printAllTableQrs(){
 async function downloadAllTableQrs(){
   const list = allTablesForQr(); if(!list.length){ showToast('Henüz masa yok'); return; }
   if(!await uiConfirm(list.length + ' QR kodu PNG olarak indirilecek. Tarayıcı "birden fazla dosya indirme" izni sorarsa İzin Ver deyin.')) return;
+  try{ await _qrLib(); }catch(e){}
   const load = (src) => new Promise((res, rej) => { const im = new Image(); im.crossOrigin = 'anonymous'; im.onload = () => res(im); im.onerror = rej; im.src = src; });
   let ok = 0;
   await withLoadingOverlay((async () => {

@@ -407,6 +407,9 @@ async function saveTenantInt(kind){
   const data = kind==='sms' ? { provider: v('ti_sms_provider'), user: v('ti_sms_user'), pass: v('ti_sms_pass'), header: v('ti_sms_header'), url: v('ti_sms_url') }
     : kind==='mail' ? { provider: v('ti_mail_provider'), key: v('ti_mail_key'), from: v('ti_mail_from'), from_name: v('ti_mail_from_name'), other: v('ti_mail_other') }
     : { mode: (document.querySelector('input[name=ti_pay_mode]:checked') || {}).value || 'off', provider: v('ti_pay_provider'), key: v('ti_pay_key'), secret: v('ti_pay_secret'), sandbox: c('ti_pay_sandbox') };
+  // Anahtar / gönderen yazılıp servis "Bağlı değil" bırakılırsa bağlantı kapalı kalıyordu: önce servis seçtir.
+  if(kind==='mail' && !data.provider && (data.key || data.from || /kayıtlı/.test((document.getElementById('ti_mail_key') || {}).placeholder || ''))){ alert('Önce 1. adımda e-posta servisini seçin (örn. Resend). "Bağlı değil" seçiliyken e-posta gönderilmez.'); return; }
+  if(kind==='sms' && !data.provider && (data.user || data.pass || data.header)){ alert('Önce SMS servisini seçin. "Bağlı değil" seçiliyken SMS gönderilmez.'); return; }
   const s = getSession();
   const { error } = await withLoadingOverlay(sb.rpc('save_tenant_integration', { p_token: s.session_token, p_kind: kind, p_data: data }));
   if(error){ alert(error.message); return; }
