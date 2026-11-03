@@ -70,7 +70,8 @@ jobs:
           select cron.unschedule(jobid) from cron.job;
           drop schema if exists public cascade;
           SQL
-          $PSQL "$NEW_DB" -v ON_ERROR_STOP=1 -q -f dump.sql
+          # Tek işlemde yükle: her komut ayrı onaylanmaz (çok daha hızlı), hata olursa hiçbir şey yarım kalmaz.
+          $PSQL "$NEW_DB" -v ON_ERROR_STOP=1 -q --single-transaction -f dump.sql
           # Supabase'in standart şema yetkileri (dökümde yer almayabilir).
           $PSQL "$NEW_DB" -v ON_ERROR_STOP=1 -q <<'SQL'
           grant usage on schema public to postgres, anon, authenticated, service_role;
