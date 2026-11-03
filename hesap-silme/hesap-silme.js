@@ -1,4 +1,4 @@
-  const sb = window.supabase.createClient('https://dveybagnrgofxkqangvo.supabase.co', 'sb_publishable_7gHhsaPYOzOddFnpjntPKw_S3Mgg3V8');
+  const sb = window.supabase.createClient('https://chsdvwncmzosqyhwenga.supabase.co', 'sb_publishable_gZnWeWHIyJ3OL3-XJ3oYfg_MTWWjNhM');
   const btn = document.getElementById('delBtn');
   const msg = document.getElementById('msg');
   function show(text, cls){ msg.className = 'msg ' + cls; msg.textContent = text; }

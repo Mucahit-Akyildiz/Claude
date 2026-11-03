@@ -1,5 +1,5 @@
 /* Tedarikçiye SMS / e-postayla gönderilen malzeme siparişi belgesi (oturumsuz, 60 gün). Yazdır / PDF olarak kaydet. */
-const sb = window.supabase.createClient('https://dveybagnrgofxkqangvo.supabase.co', 'sb_publishable_7gHhsaPYOzOddFnpjntPKw_S3Mgg3V8');
+const sb = window.supabase.createClient('https://chsdvwncmzosqyhwenga.supabase.co', 'sb_publishable_gZnWeWHIyJ3OL3-XJ3oYfg_MTWWjNhM');
 const TOKEN = new URLSearchParams(location.search).get('t');
 const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 const d = (v) => v ? new Date(v + (String(v).length === 10 ? 'T12:00:00' : '')).toLocaleDateString('tr-TR') : '';
