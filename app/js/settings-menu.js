@@ -91,7 +91,7 @@ function renderIngredientsSettings(el, session){
       </div>
       <div class="ni-sum" id="niSum">💰 Stok değeri: —</div>
       <p class="muted" style="font-size:12px;text-align:left;margin:10px 0 0;">Maliyet sonra Mal Kabul'de fiyatlı teslim aldıkça ortalanarak güncellenir. Ekledikten sonra hangi ürünlerin bu hammaddeyi kullandığını soracağız; ürün maliyetleri otomatik hesaplanır.</p>
-      <div class="fsheet-foot"><button type="button" class="ghost-btn" ${act('closeSheet','ingSheet')}>Vazgeç</button><button ${act('addIngredient')}>Devam › Kullanım şekli</button></div>`, 'var(--c3)')}
+      <div class="fsheet-foot"><button type="button" class="ghost-btn" ${act('niCancel')}>Vazgeç</button><button ${act('addIngredient')}>Devam › Kullanım şekli</button></div>`, 'var(--c3)')}
     <div style="display:flex;align-items:center;gap:8px;margin:4px 0 10px;"><label style="display:flex;align-items:center;gap:6px;margin:0;font-size:13px;font-weight:600;"><input type="checkbox" class="u-wa-m0" ${actOn('change','selectAllIngredients',['$checked'])}> Tümünü seç</label></div>
     <div class="ig-grid ${ingView === 'list' ? 'ig-list' : ''}" ${actOn('input','markIngDirty',['$event'])} ${actOn('change','markIngDirty',['$event'])}>
       ${(() => { const GL = { 0: ['⛔', 'Stoğu biten', 'var(--danger,#ef4444)'], 1: ['📉', 'Kritik seviyede', 'var(--c3)'], 2: ['✅', 'Kullanımda', 'var(--ok,#22c55e)'], 3: ['○', 'Reçetede kullanılmayan', 'var(--muted)'] };
@@ -179,10 +179,14 @@ async function addIngredient(){
   const stock = parseFloat(document.getElementById('ni_stock').value)||0;
   const waste = parseFloat(document.getElementById('ni_waste').value)||0;
   if(!name){ alert('Hammadde adı gerekli'); return; }
-  const { data, error } = await sb.rpc('upsert_ingredient', { p_token: session.session_token, p_id: null, p_name: name, p_unit: unit, p_stock: stock, p_waste_pct: waste });
+  // Sihirbazda 2. adımdan "‹ Geri" ile dönüldüyse aynı hammadde güncellenir (yeni kayıt açılmaz).
+  const editId = document.getElementById('ni_name').dataset.editId || null;
+  const { data: newId, error } = await sb.rpc('upsert_ingredient', { p_token: session.session_token, p_id: editId, p_name: name, p_unit: unit, p_stock: stock, p_waste_pct: waste });
   if(error){ alert(error.message); return; }
+  const data = editId || newId;
   const ucv = parseFloat((document.getElementById('ni_uc') || {}).value);
   if(data && ucv > 0){ const { error: e2 } = await sb.rpc('set_ingredient_cost', { p_token: session.session_token, p_id: data, p_cost: ucv }); if(e2) alert(e2.message); }
+  delete document.getElementById('ni_name').dataset.editId;
   closeSheet('ingSheet');
   await renderSettingsView(document.getElementById('main'), session);
   // Hammadde eklenir eklenmez, hangi urunlerin kullandigini sormaya devam et.
@@ -246,7 +250,7 @@ function openIngredientUsageModal(ingredientId, edit){
       </div></div>
       <p class="muted iu-ordernote" id="iuOrderNote" ${ing.pack_mode === 'per_order' ? '' : 'hidden'}>🛍️ Ürünlere bağlanmaz. Paket sipariş ekranında (ve masada paket yapılan siparişte) <b>kaç adet</b> verildiği girilir; o kadar stoktan düşer ve maliyete eklenir.</p>
     </div>
-    <div class="iu-foot">${!edit ? '<span class="muted iu-foot-n">Adım 2/3 · kullanım şeklini seçin</span>' : ''}${!edit ? `<button type="button" class="ghost-btn" title="1. adıma (ad, birim, stok, maliyet) dön" ${act('openIngredientUsageModal', ingredientId, true)}>‹ Geri</button>` : ''}<button type="button" class="ghost-btn" ${act('removeEl','ingUsageModalBg')}>${edit ? 'Vazgeç' : 'Sonra'}</button>${edit ? `<button ${act('saveIngredientUsage', ingredientId)}>${ICON_SAVE}<span>Kaydet</span></button>` : `<button id="iuNextBtn" ${act('iuWizardNext', ingredientId)}>${ing.pack_mode === 'per_order' ? '✓ Tamamla' : 'İleri › Ürünler'}</button>`}</div>
+    <div class="iu-foot">${!edit ? '<span class="muted iu-foot-n">Adım 2/3 · kullanım şeklini seçin</span>' : ''}${!edit ? `<button type="button" class="ghost-btn" title="1. adıma (ad, birim, stok, maliyet) dön" ${act('iuBackToStep1', ingredientId)}>‹ Geri</button>` : ''}<button type="button" class="ghost-btn" ${act('removeEl','ingUsageModalBg')}>${edit ? 'Vazgeç' : 'Sonra'}</button>${edit ? `<button ${act('saveIngredientUsage', ingredientId)}>${ICON_SAVE}<span>Kaydet</span></button>` : `<button id="iuNextBtn" ${act('iuWizardNext', ingredientId)}>${ing.pack_mode === 'per_order' ? '✓ Tamamla' : 'İleri › Ürünler'}</button>`}</div>
   </div>`;
   document.body.appendChild(bg);
   const box = document.getElementById('ingUsageItemsBox');
@@ -1884,6 +1888,21 @@ function iuSelectAll(){
 }
 
 // Yeni hammadde akışında adım göstergesi: 1 Bilgiler → 2 Kullanım şekli → 3 Ürünler.
+/* Sihirbaz 2. adım "‹ Geri": 1. adım (Yeni Hammadde formu) bu hammaddenin bilgileriyle açılır; Devam ile güncellenip 2. adıma dönülür. */
+function iuBackToStep1(ingredientId){
+  const ing = (APP.config.ingredients || []).find(x => x.id === ingredientId) || {};
+  removeEl('ingUsageModalBg');
+  const set = (id, v) => { const e = document.getElementById(id); if(e) e.value = v == null ? '' : v; };
+  set('ni_name', ing.name); set('ni_unit', ing.unit || 'adet'); set('ni_stock', ing.stock); set('ni_waste', ing.waste_pct); set('ni_uc', Number(ing.unit_cost) > 0 ? ing.unit_cost : '');
+  const nm = document.getElementById('ni_name'); if(nm) nm.dataset.editId = ingredientId;
+  if(typeof niCalc === 'function') niCalc();
+  openSheet('ingSheet');
+}
+function niCancel(){
+  const nm = document.getElementById('ni_name');
+  if(nm && nm.dataset.editId){ delete nm.dataset.editId; ['ni_name','ni_stock','ni_waste','ni_uc'].forEach(id => { const e = document.getElementById(id); if(e) e.value = ''; }); }
+  closeSheet('ingSheet');
+}
 function ingStepsHtml(cur){
   const st = [['Bilgiler', 'ad, birim, stok, maliyet'], ['Kullanım şekli', 'reçete / paket'], ['Ürünler', 'hangi üründe, ne kadar']];
   return `<div class="ing-steps"><span class="ing-steps-n">Adım ${cur}/${st.length}</span>${st.map(([t, d], i) => `<div class="ing-st ${i + 1 < cur ? 'done' : i + 1 === cur ? 'on' : ''}"><i>${i + 1 < cur ? '✓' : i + 1}</i><div><b>${t}</b><small>${d}</small></div></div>`).join('<span class="ing-st-line"></span>')}</div>`;
