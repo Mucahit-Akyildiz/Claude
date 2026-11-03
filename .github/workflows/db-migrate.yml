@@ -1,0 +1,119 @@
+name: Veritabanı Taşıma (Seul → Frankfurt)
+
+# Eski Supabase projesinden (SUPABASE_DB_URL) yeni projeye (NEW_SUPABASE_DB_URL) kopyalar.
+# Gizli anahtarlar sohbete/loga düşmeden yalnızca bu çalıştırıcıda aktarılır.
+#  mode=schema : yalnızca yapı (tablolar, fonksiyonlar, tetikleyiciler, yetkiler). Canlıyı etkilemez, prova içindir.
+#  mode=full   : yapı + tüm veri + vault anahtarları + depolama dosyaları. Taşıma gecesi, bakım modunda çalıştırılır.
+# Her iki modda YENİ projedeki public şeması silinip baştan kurulur; bu yüzden onay kutusuna
+# "YENI-PROJEYI-SIFIRLA" yazılmadan çalışmaz. Zamanlanmış işler (cron) ayrıca, kontrollü açılır.
+# Gerekli secret'lar: SUPABASE_DB_URL, NEW_SUPABASE_DB_URL (Session pooler bağlantı adresi);
+# depolama kopyası için ayrıca SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, NEW_SUPABASE_URL, NEW_SUPABASE_SERVICE_ROLE_KEY.
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'schema (prova) veya full (taşıma gecesi)'
+        required: true
+        default: schema
+        type: choice
+        options: [schema, full]
+      confirm:
+        description: 'Onay: YENI-PROJEYI-SIFIRLA yazın'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: db-migrate
+  cancel-in-progress: false
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      OLD_DB: ${{ secrets.SUPABASE_DB_URL }}
+      NEW_DB: ${{ secrets.NEW_SUPABASE_DB_URL }}
+      PSQL: /usr/lib/postgresql/17/bin/psql
+      PGDUMP: /usr/lib/postgresql/17/bin/pg_dump
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - name: Onay ve secret kontrolü
+        run: |
+          if [ "${{ inputs.confirm }}" != "YENI-PROJEYI-SIFIRLA" ]; then echo "::error::Onay metni hatalı, iptal."; exit 1; fi
+          if [ -z "$OLD_DB" ] || [ -z "$NEW_DB" ]; then echo "::error::SUPABASE_DB_URL ve NEW_SUPABASE_DB_URL secret'ları gerekli."; exit 1; fi
+          if [ "$OLD_DB" = "$NEW_DB" ]; then echo "::error::Eski ve yeni adres aynı, iptal."; exit 1; fi
+
+      - name: PostgreSQL 17 istemcisi kur
+        run: |
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl -fsSL -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list
+          sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client-17
+
+      - name: Eski veritabanından döküm al
+        run: |
+          set -euo pipefail
+          EXTRA=""
+          if [ "${{ inputs.mode }}" = "schema" ]; then EXTRA="--schema-only"; fi
+          $PGDUMP "$OLD_DB" --schema=public --no-owner $EXTRA -f dump.sql
+          # Sürüm/oturum satırları yeni sunucuda sorun çıkarmasın.
+          sed -i '/^\\restrict /d;/^\\unrestrict /d;/^SET transaction_timeout/d' dump.sql
+          echo "Döküm boyutu: $(du -h dump.sql | cut -f1)"
+
+      - name: Yeni projede public şemasını sıfırla ve yükle
+        run: |
+          set -euo pipefail
+          $PSQL "$NEW_DB" -v ON_ERROR_STOP=1 -q <<'SQL'
+          select cron.unschedule(jobid) from cron.job;
+          drop schema if exists public cascade;
+          SQL
+          $PSQL "$NEW_DB" -v ON_ERROR_STOP=1 -q -f dump.sql
+          # Supabase'in standart şema yetkileri (dökümde yer almayabilir).
+          $PSQL "$NEW_DB" -v ON_ERROR_STOP=1 -q <<'SQL'
+          grant usage on schema public to postgres, anon, authenticated, service_role;
+          grant all on all tables in schema public to postgres, service_role;
+          grant all on all sequences in schema public to postgres, service_role;
+          grant all on all routines in schema public to postgres, service_role;
+          alter default privileges in schema public grant all on tables to postgres, service_role;
+          alter default privileges in schema public grant all on sequences to postgres, service_role;
+          alter default privileges in schema public grant all on routines to postgres, service_role;
+          SQL
+
+      - name: Karşılaştırma (tablo / fonksiyon / satır sayıları)
+        run: |
+          set -euo pipefail
+          Q="select (select count(*) from pg_tables where schemaname='public') tablolar, (select count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public') fonksiyonlar, (select count(*) from pg_trigger t join pg_class c on c.oid=t.tgrelid join pg_namespace n on n.oid=c.relnamespace where n.nspname='public' and not t.tgisinternal) tetikleyiciler, (select count(*) from pg_policies where schemaname='public') kurallar"
+          echo "ESKİ:"; $PSQL "$OLD_DB" -At -c "$Q"
+          echo "YENİ:"; $PSQL "$NEW_DB" -At -c "$Q"
+          if [ "${{ inputs.mode }}" = "full" ]; then
+            R="select string_agg(t || '=' || n, ' ') from (select 'restaurants' t, count(*) n from public.restaurants union all select 'orders', count(*) from public.orders union all select 'order_items', count(*) from public.order_items union all select 'products', count(*) from public.products union all select 'customers', count(*) from public.customers union all select 'app_users', count(*) from public.app_users) x"
+            echo "ESKİ satır:"; $PSQL "$OLD_DB" -At -c "$R"
+            echo "YENİ satır:"; $PSQL "$NEW_DB" -At -c "$R"
+          fi
+
+      - name: Vault anahtarlarını aktar (yalnızca full)
+        if: ${{ inputs.mode == 'full' }}
+        run: |
+          set -euo pipefail
+          # Değerler loga yazılmaz; yalnızca isimler ve sayı gösterilir.
+          $PSQL "$OLD_DB" -At -c "select format('select vault.create_secret(%L, %L, %L);', decrypted_secret, name, coalesce(description,'')) from vault.decrypted_secrets" > vault.sql
+          $PSQL "$NEW_DB" -v ON_ERROR_STOP=1 -q -c "delete from vault.secrets"
+          $PSQL "$NEW_DB" -v ON_ERROR_STOP=1 -q -f vault.sql > /dev/null
+          rm -f vault.sql
+          echo "Aktarılan vault anahtarları:"; $PSQL "$NEW_DB" -At -c "select string_agg(name, ', ') from vault.secrets"
+
+      - name: Depolama dosyalarını kopyala (yalnızca full)
+        if: ${{ inputs.mode == 'full' }}
+        env:
+          OLD_URL: ${{ secrets.SUPABASE_URL }}
+          OLD_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          NEW_URL: ${{ secrets.NEW_SUPABASE_URL }}
+          NEW_KEY: ${{ secrets.NEW_SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          if [ -z "$OLD_URL" ] || [ -z "$OLD_KEY" ] || [ -z "$NEW_URL" ] || [ -z "$NEW_KEY" ]; then echo "::warning::Depolama secret'ları eksik, dosya kopyası atlandı."; exit 0; fi
+          node .github/scripts/copy-storage.cjs
+    # Not: cron işleri bu iş akışında açılmaz; taşıma kontrolünden sonra ayrıca kurulur
+    # (eski ve yeni projenin aynı anda bildirim göndermemesi için).
