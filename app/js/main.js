@@ -155,10 +155,7 @@ function render(){
           <div id="shiftWidget" class="shift-widget">${shiftWidgetHtml()}</div>
           ${getCompanySession() ? `<button class="sb-logout" ${act('returnToCompanyPanel')} title="Şirket paneline dön">🏢<span class="label"> Şirkete Dön</span></button>` : (session.isManager && APP.config && APP.config.license && APP.config.license.has_company ? `<button class="sb-logout" ${act('openCompanyPanel')} title="Şubeleri yönet">🏢<span class="label"> Şubeler</span></button>` : '')}
           <div class="sb-actrow">
-            <div class="theme-toggle">
-              <button class="${theme==='dark'?'active':''}" ${act('setTheme', 'dark')} type="button" title="Koyu tema">🌙</button>
-              <button class="${theme==='light'?'active':''}" ${act('setTheme', 'light')} type="button" title="Açık tema">☀️</button>
-            </div>
+            <button type="button" class="sb-ib" ${act('setTheme', theme==='dark' ? 'light' : 'dark')} title="${theme==='dark' ? 'Açık temaya geç' : 'Koyu temaya geç'}">${theme==='dark' ? '☀️' : '🌙'}</button>
             <button type="button" class="sb-ib" ${act('refreshApp')} title="Yenile (son değişiklikleri getir)">🔄</button>
             ${(APP.config && (APP.config.users || []).some(u => u.has_pin)) ? `<button type="button" class="sb-ib" ${act('openPinSwitch')} title="Personel değiştir (PIN)">👥</button>` : ''}
             ${langBtnHtml('sb-ib sb-lang')}

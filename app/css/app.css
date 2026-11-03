@@ -4223,3 +4223,9 @@ html.lang-rtl input[type=number],html.lang-rtl input[type=tel],html.lang-rtl .mo
 .pkg-tag.go{background:var(--accent);color:var(--btn-ink);border-color:transparent}.pkg-tag.warn{color:var(--red)}
 .pkg-target{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:0 0 10px;padding:10px 12px;border-radius:12px;background:color-mix(in srgb,var(--accent) 12%,var(--panel));border:1px solid var(--accent);font-size:13.5px}
 .pkg-target .ghost-btn{width:auto;margin:0 0 0 auto;padding:5px 10px;font-size:12.5px}
+/* Kenar çubuğu alt alanı: tüm kısa yol butonları eşit boyutlu tek ızgarada */
+.sidebar .sb-bottom .sb-actrow{display:grid;grid-template-columns:repeat(auto-fit,minmax(34px,1fr));gap:6px;}
+.sidebar .sb-bottom .sb-actrow .sb-ib{width:100%;flex:none;height:36px;}
+.sidebar .sb-bottom .sb-actrow .sb-lang{font-size:11px !important;}
+.sidebar .sb-bottom > .sb-logout{margin:0;height:38px;border-radius:12px;font-weight:700;display:flex;align-items:center;justify-content:center;gap:6px;}
+.sidebar.collapsed .sb-bottom .sb-actrow{grid-template-columns:38px;}
