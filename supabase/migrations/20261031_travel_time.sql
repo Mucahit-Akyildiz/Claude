@@ -107,3 +107,5 @@ alter table restaurants add column if not exists guest_required boolean not null
 alter table customers add column if not exists created_by uuid, add column if not exists updated_by uuid, add column if not exists info_updated_at timestamptz;
 
 -- customers_audit: not ve müşteriye özel sadakat ayarları da "son değiştiren"e dahil.
+
+-- Paket yükseltme: get_bank_transfer_status2 / submit_bank_transfer_notice2 (p_package_id ile hedef paket; onayda paket değişir). _cron_close_comp_orders hızlı çıkış + orders_open_tagged / order_items_unpaid_order indeksleri; _cron_cleanup_history 20klık parçalar, saatlik.
