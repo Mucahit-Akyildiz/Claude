@@ -239,7 +239,7 @@ async function refreshPackagesAdmin(admin){
             <td class="col-name"><input value="${escapeAttr(p.name)}" id="pkg_name_${p.id}"></td>
             <td class="col-name"><input value="${escapeAttr(p.description)}" id="pkg_desc_${p.id}"></td>
             <td class="col-num" style="width:90px;"><input type="number" min="1" step="1" value="${p.max_users}" id="pkg_users_${p.id}"></td>
-            <td class="col-num" style="width:90px;"><input type="number" min="1" step="1" value="${p.max_branches||1}" id="pkg_branches_${p.id}" title="Bu paketi seçen bir şirket en fazla kaç şube açabilir"></td>
+            <td class="col-num" style="width:90px;"><input type="number" min="0" step="1" value="${p.max_branches ?? 1}" id="pkg_branches_${p.id}" title="Bu paketi seçen bir şirket en fazla kaç şube açabilir (0 = sınırsız)"></td>
             <td class="col-num" style="width:110px;"><input type="number" min="0" step="0.01" value="${p.price}" id="pkg_price_${p.id}"></td>
             <td class="col-num" style="width:110px;"><input type="number" min="0" step="0.01" value="${p.price_yearly!=null?p.price_yearly:''}" id="pkg_price_yearly_${p.id}" placeholder="${(p.price*12).toFixed(2)}"></td>
             <td class="u-tc"><input type="checkbox" id="pkg_popular_${p.id}" ${p.is_popular?'checked':''} style="width:18px;height:18px;"></td>
@@ -272,7 +272,7 @@ async function refreshPackagesAdmin(admin){
         <div class="field-group"><label>Ad</label><input id="npkgName" placeholder="örn. Kurumsal"></div>
         <div class="field-group"><label>Açıklama</label><input id="npkgDesc" placeholder="örn. Çok şubeli zincirler için"></div>
         <div class="field-group"><label>Kullanıcı Limiti</label><input type="number" min="1" step="1" id="npkgUsers" placeholder="20"></div>
-        <div class="field-group"><label>Şube Limiti</label><input type="number" min="1" step="1" id="npkgBranches" placeholder="1" value="1"></div>
+        <div class="field-group"><label>Şube Limiti (0 = sınırsız)</label><input type="number" min="0" step="1" id="npkgBranches" placeholder="1" value="1"></div>
         <div class="field-group"><label>Fiyat (TL/ay)</label><input type="number" min="0" step="0.01" id="npkgPrice" placeholder="1499"></div>
         <div class="field-group"><label>Fiyat (TL/yıl, opsiyonel)</label><input type="number" min="0" step="0.01" id="npkgPriceYearly" placeholder="örn. 14990"></div>
       </div>
@@ -373,7 +373,7 @@ async function savePackageRow(id){
   const active = document.getElementById('pkg_active_'+id).checked;
   if(!name){ alert('Paket adı gerekli'); return; }
   if(!(maxUsers>=1)){ alert('Kullanıcı limiti en az 1 olmalı'); return; }
-  if(!(maxBranches>=1)){ alert('Şube limiti en az 1 olmalı'); return; }
+  if(!(maxBranches>=0)){ alert('Şube limiti 0 (sınırsız) veya daha büyük olmalı'); return; }
   if(!(price>=0)){ alert('Fiyat negatif olamaz'); return; }
   if(priceYearly!==null && !(priceYearly>=0)){ alert('Yıllık fiyat negatif olamaz'); return; }
   const features = readPackageFeatures('pkg_feat_'+id);
@@ -405,14 +405,14 @@ async function createPackage(){
   const name = document.getElementById('npkgName').value.trim();
   const desc = document.getElementById('npkgDesc').value.trim();
   const maxUsers = Number(document.getElementById('npkgUsers').value);
-  const maxBranches = Number(document.getElementById('npkgBranches').value) || 1;
+  const _nb = document.getElementById('npkgBranches').value, maxBranches = _nb === '' ? 1 : Number(_nb);
   const price = Number(document.getElementById('npkgPrice').value);
   const priceYearlyRaw = document.getElementById('npkgPriceYearly').value.trim();
   const priceYearly = priceYearlyRaw==='' ? null : Number(priceYearlyRaw);
   if(!id || !/^[a-z0-9_-]+$/.test(id)){ errBox.textContent = 'Kimlik sadece küçük harf/rakam/tire içerebilir'; return; }
   if(!name){ errBox.textContent = 'Paket adı gerekli'; return; }
   if(!(maxUsers>=1)){ errBox.textContent = 'Kullanıcı limiti en az 1 olmalı'; return; }
-  if(!(maxBranches>=1)){ errBox.textContent = 'Şube limiti en az 1 olmalı'; return; }
+  if(!(maxBranches>=0)){ errBox.textContent = 'Şube limiti 0 (sınırsız) veya daha büyük olmalı'; return; }
   if(!(price>=0)){ errBox.textContent = 'Fiyat negatif olamaz'; return; }
   if(priceYearly!==null && !(priceYearly>=0)){ errBox.textContent = 'Yıllık fiyat negatif olamaz'; return; }
   const features = readPackageFeatures('npkg_feat');
@@ -693,7 +693,7 @@ async function refreshCompaniesList(admin){
         <div class="field-group"><label>Şirket Adı</label><input id="newCompanyName" placeholder="örn. Köfteci Zincir A.Ş."></div>
         <div class="field-group"><label>Şirket Kodu</label><input id="newCompanyCode" placeholder="örn. koftecizincir" autocapitalize="none"></div>
         <div class="field-group"><label>Şifre</label><input id="newCompanyPass" placeholder="En az 4 karakter"></div>
-        <div class="field-group"><label>Paket</label><select id="newCompanyPackage">${PACKAGES.map(p => `<option value="${p.id}">${escapeHtml(p.name)} (${p.max_branches||1} şube)</option>`).join('')}</select></div>
+        <div class="field-group"><label>Paket</label><select id="newCompanyPackage">${PACKAGES.map(p => `<option value="${p.id}">${escapeHtml(p.name)} (${p.max_branches === 0 ? 'sınırsız' : (p.max_branches||1)} şube)</option>`).join('')}</select></div>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px;">
         <div class="field-group"><label>E-posta (opsiyonel)</label><input id="newCompanyEmail" placeholder="ornek@firma.com"></div>
@@ -717,7 +717,7 @@ async function refreshCompaniesList(admin){
             <td class="col-name"><b>${escapeHtml(c.name)}</b></td>
             <td class="col-name">${escapeHtml(c.code)}</td>
             <td class="col-name">${pkg?escapeHtml(pkg.name):escapeHtml(c.package_id)}</td>
-            <td class="col-name">${c.branch_count}${pkg&&pkg.max_branches?'/'+pkg.max_branches:''}</td>
+            <td class="col-name">${c.branch_count}${pkg&&pkg.max_branches?'/'+pkg.max_branches:(pkg&&pkg.max_branches===0?'/∞':'')}</td>
             <td>${statusBadge}</td>
             <td class="col-name">${new Date(c.created_at).toLocaleDateString('tr-TR')}</td>
             <td class="u-nw">

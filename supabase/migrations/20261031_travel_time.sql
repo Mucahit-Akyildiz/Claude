@@ -119,3 +119,5 @@ alter table customers add column if not exists created_by uuid, add column if no
 -- * open_company_panel(p_token): yönetici rolündeki personel şirket paneline şifresiz geçer.
 -- * get_restaurant_config.license.has_company eklendi.
 -- * Peyktan ve TEST3 için şirket hesapları (sirket-<kod>) açıldı.
+-- 2026-11-03: packages.max_branches = 0 sınırsız şube demek; paket_kurumsal = 0.
+--   create_branch, admin_upsert_package (>=0) ve _auto_company_for_branches buna göre güncellendi.

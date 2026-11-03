@@ -331,7 +331,7 @@ async function openPackagePicker(){
       return `<button type="button" class="pkg-card ${isCur ? 'cur' : ''} ${p.is_popular ? 'pop' : ''}" data-id="${escapeAttr(p.id)}" ${isCur || tight ? 'disabled' : ''}>
         ${p.is_popular ? '<em>Popüler</em>' : ''}<b>${escapeHtml(p.name)}</b><small>${escapeHtml(p.description || '')}</small>
         <span class="pkg-price">${money(price)}<i>/${cyc === 'yearly' ? 'yıl' : 'ay'}</i></span>
-        <span class="pkg-meta">👥 ${p.max_users ? p.max_users + ' kullanıcı' : 'Sınırsız'}${p.max_branches > 1 ? ' · 🏢 ' + p.max_branches + ' şube' : ''}</span>
+        <span class="pkg-meta">👥 ${p.max_users ? p.max_users + ' kullanıcı' : 'Sınırsız'}${p.max_branches === 0 ? ' · 🏢 Sınırsız şube' : p.max_branches > 1 ? ' · 🏢 ' + p.max_branches + ' şube' : ''}</span>
         ${isCur ? '<span class="pkg-tag">Mevcut paket</span>' : tight ? `<span class="pkg-tag warn">${used} kullanıcınız var</span>` : '<span class="pkg-tag go">Seç ›</span>'}</button>`; }).join('')}</div>
     <div class="uc-acts"><button type="button" class="pc-btn uc-no">Vazgeç</button></div></div>`;
   bg.addEventListener('click', e => { const b = e.target.closest('.pkg-card:not([disabled])'); if(b){ APP.targetPackage = b.dataset.id; bg.remove(); renderBillingSettings(billingBox(), getSession()); setTimeout(() => { const t = document.getElementById('bankTransferBox'); if(t) t.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 400); } else if(e.target === bg || e.target.closest('.uc-no')) bg.remove(); });
