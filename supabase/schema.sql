@@ -535,9 +535,10 @@ CREATE FUNCTION public._cron_cleanup_history() RETURNS void
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public', 'extensions', 'pg_temp'
     AS $$
+-- Eski zamanlanmış iş ve HTTP yanıt kayıtları küçük parçalar halinde silinir (uzun kilit/yavaşlama olmasın); saatte bir çalışır.
 begin
-  delete from cron.job_run_details where end_time < now() - interval '3 days';
-  delete from net._http_response where created < now() - interval '3 days';
+  delete from cron.job_run_details where runid in (select runid from cron.job_run_details where end_time < now() - interval '3 days' order by runid limit 20000);
+  delete from net._http_response where id in (select id from net._http_response where created < now() - interval '3 days' order by id limit 20000);
 end $$;
 
 
@@ -551,6 +552,8 @@ CREATE FUNCTION public._cron_close_comp_orders() RETURNS integer
     AS $_$
 declare o record; tok uuid; n int := 0; v_user uuid;
 begin
+  -- Hızlı çıkış: etiketli açık sipariş yoksa (çoğu an) hiçbir şey taranmaz; 5 sn'de bir çalışır.
+  if not exists(select 1 from orders where status = 'open' and cardinality(coalesce(tags,'{}')) > 0) then return 0; end if;
   for o in
     select od.id, od.restaurant_id, od.created_by, od.allowance_id, sum(oi.price * oi.qty) sub
     from orders od join order_items oi on oi.order_id = od.id and oi.paid = false
@@ -6627,6 +6630,83 @@ begin
     v_package_id := v_restaurant.package_id;
   end if;
 
+  select price, price_yearly into v_price, v_price_yearly from packages where id = v_package_id;
+  v_amount := case when v_cycle = 'yearly' then coalesce(v_price_yearly, coalesce(v_price,0) * 12) else coalesce(v_price,0) end
+    + _addons_monthly_total(s.restaurant_id) * (case when v_cycle = 'yearly' then 12 else 1 end);
+  select value into v_iban from platform_settings where key = 'bank_transfer_iban';
+  select value into v_account_name from platform_settings where key = 'bank_transfer_account_name';
+  select value into v_bank_name from platform_settings where key = 'bank_transfer_bank_name';
+  select value into v_whatsapp from platform_settings where key = 'bank_transfer_whatsapp_number';
+
+  select row_to_json(t) into v_pending from (
+    select id, amount, note, billing_cycle, created_at from bank_transfer_notices
+    where status = 'pending'
+      and ((v_target_type = 'restaurant' and restaurant_id = v_target_id) or (v_target_type = 'company' and company_id = v_target_id))
+    order by created_at desc limit 1
+  ) t;
+
+  return json_build_object(
+    'target_type', v_target_type,
+    'target_name', v_target_name,
+    'package_id', v_package_id,
+    'billing_cycle', v_cycle,
+    'amount', v_amount,
+    'monthly_amount', coalesce(v_price,0) + _addons_monthly_total(s.restaurant_id),
+    'yearly_amount', coalesce(v_price_yearly, coalesce(v_price,0)*12) + _addons_monthly_total(s.restaurant_id) * 12,
+    'addons_monthly', _addons_monthly_total(s.restaurant_id),
+    'addons', (select coalesce(json_agg(json_build_object('id', fc.id, 'label', fc.label, 'price', fc.price) order by fc.label), '[]'::json)
+               from feature_catalog fc where fc.is_addon and fc.id = any(_restaurant_features(s.restaurant_id))),
+    'iban', v_iban,
+    'account_name', v_account_name,
+    'bank_name', v_bank_name,
+    'whatsapp_number', v_whatsapp,
+    'pending_notice', v_pending
+  );
+end;
+$$;
+
+
+--
+-- Name: get_bank_transfer_status2(uuid, text, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.get_bank_transfer_status2(p_token uuid, p_billing_cycle text, p_package_id text) RETURNS json
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'extensions', 'pg_temp'
+    AS $$
+declare
+  s staff_sessions%rowtype;
+  v_restaurant restaurants%rowtype;
+  v_target_type text;
+  v_target_id uuid;
+  v_target_name text;
+  v_package_id text;
+  v_price numeric;
+  v_price_yearly numeric;
+  v_amount numeric;
+  v_cycle text := case when p_billing_cycle = 'yearly' then 'yearly' else 'monthly' end;
+  v_iban text;
+  v_account_name text;
+  v_bank_name text;
+  v_whatsapp text;
+  v_pending json;
+begin
+  s := _session_check(p_token);
+  select * into v_restaurant from restaurants where id = s.restaurant_id;
+  if v_restaurant.company_id is not null then
+    v_target_type := 'company';
+    select id, name, package_id into v_target_id, v_target_name, v_package_id from companies where id = v_restaurant.company_id;
+  else
+    v_target_type := 'restaurant';
+    v_target_id := v_restaurant.id;
+    v_target_name := v_restaurant.name;
+    v_package_id := v_restaurant.package_id;
+  end if;
+
+  if p_package_id is not null and p_package_id <> coalesce(v_package_id,'') then
+    if not exists(select 1 from packages where id = p_package_id and coalesce(active, true)) then raise exception 'Paket bulunamadı'; end if;
+    v_package_id := p_package_id;
+  end if;
   select price, price_yearly into v_price, v_price_yearly from packages where id = v_package_id;
   v_amount := case when v_cycle = 'yearly' then coalesce(v_price_yearly, coalesce(v_price,0) * 12) else coalesce(v_price,0) end
     + _addons_monthly_total(s.restaurant_id) * (case when v_cycle = 'yearly' then 12 else 1 end);
@@ -14280,6 +14360,110 @@ $$;
 
 
 --
+-- Name: submit_bank_transfer_notice2(uuid, text, text, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.submit_bank_transfer_notice2(p_token uuid, p_note text, p_billing_cycle text, p_package_id text) RETURNS json
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'extensions', 'pg_temp'
+    AS $$
+declare
+  s staff_sessions%rowtype;
+  v_is_manager boolean;
+  v_restaurant restaurants%rowtype;
+  v_target_type text;
+  v_target_id uuid;
+  v_target_name text;
+  v_package_id text;
+  v_price numeric;
+  v_price_yearly numeric;
+  v_amount numeric;
+  v_cycle text := case when p_billing_cycle = 'yearly' then 'yearly' else 'monthly' end;
+  v_existing_id uuid;
+  v_new_id uuid;
+  v_resend_key text;
+  v_resend_from text;
+  v_notify_email text;
+  v_pending_payment boolean;
+begin
+  s := _session_check(p_token);
+  select exists(select 1 from app_users au join roles rl on rl.id = any(au.role_ids) where au.id = s.user_id and (rl.is_system or 'settings_billing' = any(rl.permissions))) into v_is_manager;
+  if not v_is_manager then raise exception 'Bu işlem için yetkiniz yok'; end if;
+
+  select * into v_restaurant from restaurants where id = s.restaurant_id;
+  if v_restaurant.company_id is not null then
+    v_target_type := 'company';
+    select id, name, package_id into v_target_id, v_target_name, v_package_id from companies where id = v_restaurant.company_id;
+  else
+    v_target_type := 'restaurant';
+    v_target_id := v_restaurant.id;
+    v_target_name := v_restaurant.name;
+    v_package_id := v_restaurant.package_id;
+  end if;
+
+  select id into v_existing_id from bank_transfer_notices
+    where status = 'pending'
+      and ((v_target_type = 'restaurant' and restaurant_id = v_target_id) or (v_target_type = 'company' and company_id = v_target_id))
+    limit 1;
+  if v_existing_id is not null then
+    raise exception 'Zaten beklemede bir havale bildiriminiz var, onaylanmasını bekleyin';
+  end if;
+
+  if v_target_type = 'restaurant' then
+    select exists(
+      select 1 from payments
+      where restaurant_id = v_target_id and status = 'pending'
+        and created_at > now() - interval '1 hour'
+    ) into v_pending_payment;
+    if v_pending_payment then
+      raise exception 'Bekleyen bir kart ödemeniz var, sonuçlanmasını bekleyin ya da o sayfayı kapatıp tekrar deneyin';
+    end if;
+  end if;
+
+  if p_package_id is not null and p_package_id <> coalesce(v_package_id,'') then
+    if not exists(select 1 from packages where id = p_package_id and coalesce(active, true)) then raise exception 'Paket bulunamadı'; end if;
+    v_package_id := p_package_id;
+  end if;
+  select price, price_yearly into v_price, v_price_yearly from packages where id = v_package_id;
+  v_amount := case when v_cycle = 'yearly' then coalesce(v_price_yearly, coalesce(v_price,0) * 12) else coalesce(v_price,0) end
+    + _addons_monthly_total(s.restaurant_id) * (case when v_cycle = 'yearly' then 12 else 1 end);
+  if v_amount is null or v_amount <= 0 then raise exception 'Geçersiz paket fiyatı'; end if;
+
+  insert into bank_transfer_notices (restaurant_id, company_id, target_package_id, amount, note, billing_cycle)
+  values (
+    case when v_target_type = 'restaurant' then v_target_id else null end,
+    case when v_target_type = 'company' then v_target_id else null end,
+    v_package_id, v_amount, nullif(trim(coalesce(p_note,'')), ''), v_cycle
+  )
+  returning id into v_new_id;
+
+  select value into v_resend_key from _psv where key = 'resend_api_key';
+  select value into v_resend_from from _psv where key = 'resend_from_email';
+  select value into v_notify_email from _psv where key = 'bank_transfer_notify_email';
+  if v_resend_key is not null and v_notify_email is not null and v_notify_email <> '' then
+    perform net.http_post(
+      url := 'https://api.resend.com/emails',
+      headers := jsonb_build_object('Authorization', 'Bearer ' || v_resend_key, 'Content-Type', 'application/json'),
+      body := jsonb_build_object(
+        'from', coalesce(v_resend_from, 'onboarding@resend.dev'),
+        'to', jsonb_build_array(v_notify_email),
+        'subject', '🏦 Yeni Havale Bildirimi: ' || v_target_name || ' - ' || v_amount || ' TL (' || v_cycle || ')',
+        'html', '<p><b>' || v_target_name || '</b> (' || v_target_type || ') havale bildirdi.</p>' ||
+                '<p><b>Dönem:</b> ' || (case when v_cycle='yearly' then 'Yıllık' else 'Aylık' end) || '<br>' ||
+                '<b>Tutar:</b> ' || v_amount || ' TL<br>' ||
+                '<b>Paket:</b> ' || v_package_id || '<br>' ||
+                '<b>Not:</b> ' || coalesce(nullif(trim(coalesce(p_note,'')), ''), '(yok)') || '</p>' ||
+                '<p>Onaylamak için Admin Paneli &gt; Havale Bildirimleri ekranına gidin.</p>'
+      )
+    );
+  end if;
+
+  return json_build_object('id', v_new_id, 'amount', v_amount, 'billing_cycle', v_cycle);
+end;
+$$;
+
+
+--
 -- Name: submit_customer_order_request(uuid, text, jsonb, text); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -19314,6 +19498,13 @@ CREATE INDEX order_items_pending_order ON public.order_items USING btree (order_
 
 
 --
+-- Name: order_items_unpaid_order; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX order_items_unpaid_order ON public.order_items USING btree (order_id) WHERE (paid = false);
+
+
+--
 -- Name: orders_allowance_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -19339,6 +19530,13 @@ CREATE UNIQUE INDEX orders_one_open_per_table ON public.orders USING btree (tabl
 --
 
 CREATE INDEX orders_open_by_rest ON public.orders USING btree (restaurant_id) WHERE (status = 'open'::text);
+
+
+--
+-- Name: orders_open_tagged; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX orders_open_tagged ON public.orders USING btree (id) WHERE ((status = 'open'::text) AND (cardinality(COALESCE(tags, '{}'::text[])) > 0));
 
 
 --
