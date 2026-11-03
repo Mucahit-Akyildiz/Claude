@@ -61,7 +61,9 @@ function _sbRpc(fn, args){
     promise.then(res => { if(!res || res.error) RPC_CACHE.delete(key); }, () => RPC_CACHE.delete(key));
     return promise.then(res => res && !res.error ? { ...res, data: rpcClone(res.data) } : res);
   }
-  if(!RPC_NO_INVALIDATE.has(fn)) RPC_CACHE.clear();
+  // Yalnızca okuma yapan çağrılar (get_/list_/check_/search_) önbelleği silmez; eskiden her ekran açılışındaki
+  // okuma çağrıları önbelleği boşalttığı için ekranlar arası geçişte veriler hep yeniden indiriliyordu.
+  if(!RPC_NO_INVALIDATE.has(fn) && !/^(get|list|check|search)_/.test(fn)) RPC_CACHE.clear();
   return _sbRpcRaw(fn, args);
 }
 sb.rpc = function(fn, args){
