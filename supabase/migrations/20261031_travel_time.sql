@@ -131,3 +131,5 @@ alter table customers add column if not exists created_by uuid, add column if no
 --   _guard_manager_target: yönetici hesabının şifre/PIN/e-posta/ad/rol/silme işlemleri yalnızca yöneticiye açık
 --   (update_staff_user, delete_staff_user, reset_staff_password_temp, send_staff_temp_password, set_staff_email, set_staff_pin, send_staff_login_sms).
 -- 2026-11-03: set_notification_roles izinli türlere pkg_deadline, pkg_courier eklendi (Kime Gitsin kaydı 'Geçersiz bildirim türü' veriyordu).
+-- 2026-11-03: api_usage_daily (işletme+gün istek sayacı, _session_check içinde işlem başına bir kez),
+--   admin_usage_report(token, from, to), admin_list_restaurants'a company_id/company_name/api_today/api_30d/open_errors.
