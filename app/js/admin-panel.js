@@ -24,6 +24,7 @@ function renderAdminArea(){
         <div class="tab ${APP.adminView==='pricing'?'active':''}" data-tab="pricing" ${act('setAdminView', 'pricing')}>💳 Paket Fiyatları</div>
         <div class="tab ${APP.adminView==='restaurants'?'active':''}" data-tab="restaurants" ${act('setAdminView', 'restaurants')}>🏬 İşletmeler</div>
         <div class="tab ${APP.adminView==='companies'?'active':''}" data-tab="companies" ${act('setAdminView', 'companies')}>🏢 Şirketler</div>
+        <div class="tab ${APP.adminView==='usage'?'active':''}" data-tab="usage" ${act('setAdminView', 'usage')}>📈 API Kullanımı</div>
         <div class="tab ${APP.adminView==='banktransfers'?'active':''}" data-tab="banktransfers" ${act('setAdminView', 'banktransfers')}>🏦 Havale Bildirimleri</div>
         <div class="tab ${APP.adminView==='allfeatures'?'active':''}" data-tab="allfeatures" ${act('setAdminView', 'allfeatures')}>🗂️ Tüm Özellikler</div>
         <div class="tab ${APP.adminView==='addons'?'active':''}" data-tab="addons" ${act('setAdminView', 'addons')}>🧩 Eklentiler</div>
@@ -48,6 +49,7 @@ function renderAdminTabContent(admin){
   else if(APP.adminView==='restaurants') renderRestaurantsAdmin(main, admin);
   else if(APP.adminView==='companies') renderCompaniesAdmin(main, admin);
   else if(APP.adminView==='banktransfers') renderBankTransfersAdmin(main, admin);
+  else if(APP.adminView==='usage') renderUsageAdmin(main, admin);
   else if(APP.adminView==='allfeatures') renderFeatureCatalogAdmin(main, admin);
   else if(APP.adminView==='addons') renderAddonsAdmin(main, admin);
   else if(APP.adminView==='deleted') renderDeletedAccountsAdmin(main, admin);
@@ -484,7 +486,8 @@ async function renderRestaurantsAdmin(main, admin){
   await withLoadingOverlay(Promise.all([loadPackages(), refreshRestaurantsList(admin)]));
 }
 async function refreshRestaurantsList(admin){
-  const el = document.getElementById('restContent'); if(!el) return;
+  const el = document.getElementById('restContent');
+  if(!el){ if(document.getElementById('companiesContent')) return refreshCompaniesList(admin); return; }
   const [{ data: summary, error: sErr }, { data: list, error: lErr }] = await Promise.all([
     sb.rpc('admin_platform_summary', { p_token: admin.session_token }),
     sb.rpc('admin_list_restaurants', { p_token: admin.session_token }),
@@ -496,8 +499,10 @@ async function refreshRestaurantsList(admin){
     el.innerHTML = '<p class="muted">Yüklenemedi: '+err.message+'</p>'; return;
   }
   const s = summary || {};
-  const restaurants = list || [];
-  APP.adminRestaurants = restaurants;
+  const all = list || [];
+  APP.adminRestaurants = all;
+  // Şirkete bağlı işletmeler Şirketler sekmesinde şube olarak gösterilir (aynı kayıt iki yerde görünmesin).
+  const restaurants = all.filter(r => !r.company_id), branchCount = all.length - restaurants.length;
   el.innerHTML = `
     <div class="home-grid" style="margin-top:0;margin-bottom:22px;">
       ${statCard('Toplam İşletme', s.total_restaurants)}
@@ -509,15 +514,23 @@ async function refreshRestaurantsList(admin){
       ${statCard('Bugünkü Ciro (tüm işletmeler)', money(s.revenue_today))}
       ${statCard('Toplam Ciro (tüm zamanlar)', money(s.revenue_lifetime))}
     </div>
-    ${restaurants.length===0 ? '<p class="muted">Henüz kayıtlı işletme yok.</p>' : `
+    ${branchCount ? `<p class="muted u-fs13">ℹ️ Şirkete bağlı ${branchCount} işletme (şube) <a href="#" ${act('setAdminView','companies')}>🏢 Şirketler</a> sekmesinde, şirketinin altında listelenir.</p>` : ''}
+    ${restaurants.length===0 ? '<p class="muted">Şirkete bağlı olmayan işletme yok.</p>' : `
     <div class="settings-table-wrap">
       <table class="settings-table">
         <thead><tr>
           <th>İşletme</th><th>E-posta / Telefon</th><th>Paket</th><th>Durum</th>
-          <th>Tarihler</th><th>Ciro</th><th></th>
+          <th>Tarihler</th><th>Ciro</th><th>API / Hata</th><th></th>
         </tr></thead>
         <tbody>
-        ${restaurants.map(r => {
+        ${restaurants.map(r => restaurantRowHtml(r)).join('')}
+        </tbody>
+      </table>
+    </div>`}
+  `;
+}
+function restaurantRowHtml(r, opt){
+  opt = opt || {};
           const pkg = PACKAGES_BY_ID[r.package_id];
           const expired = r.expires_at && new Date(r.expires_at) <= new Date();
           let statusBadge;
@@ -525,13 +538,14 @@ async function refreshRestaurantsList(admin){
           else if(expired) statusBadge = '<span class="role-badge" style="color:var(--red);border-color:var(--red);">Süresi Dolmuş</span>';
           else statusBadge = '<span class="role-badge" style="color:var(--green);border-color:var(--green);">Aktif</span>';
           return `
-          <tr>
-            <td><b style="cursor:pointer;color:var(--accent);" ${act('showRestaurantDetail', r.id)} title="Günlük ciro grafiğini göster">${escapeHtml(r.name)}</b><div class="u-fs12 muted">${escapeHtml(r.code||'—')}</div></td>
+          <tr${opt.branch ? ' class="adm-branch"' : ''}>
+            <td>${opt.branch ? '<span class="muted" title="Şube">↳ </span>' : ''}<b style="cursor:pointer;color:var(--accent);" ${act('showRestaurantDetail', r.id)} title="Günlük ciro grafiğini göster">${escapeHtml(r.name)}</b><div class="u-fs12 muted">${escapeHtml(r.code||'—')}</div></td>
             <td style="font-size:12.5px;word-break:break-all;">${r.email?`<a href="mailto:${escapeHtml(r.email)}">${escapeHtml(r.email)}</a>`:'—'}${r.phone?`<div class="muted">${escapeHtml(r.phone)}</div>`:''}</td>
             <td class="u-fs13">${pkg?escapeHtml(pkg.name):escapeHtml(r.package_id)}<div class="u-fs12 muted">${r.user_count}/${r.max_users} kullanıcı${r.user_limit_override != null ? ' <span title="Özel limit">✱</span>' : ''}</div><div style="font-size:12px;${expired?'color:var(--red);':''}">Bitiş: ${r.expires_at ? new Date(r.expires_at).toLocaleDateString('tr-TR') : 'Süresiz'}</div></td>
             <td>${statusBadge}</td>
             <td style="font-size:12.5px;white-space:nowrap;">Kayıt: ${new Date(r.created_at).toLocaleDateString('tr-TR')}<div class="muted">Son: ${fmtRelativeTime(r.last_activity)}</div></td>
             <td style="font-size:12.5px;white-space:nowrap;">Bugün: <b>${money(r.revenue_today)}</b><div class="muted">7 gün: ${money(r.revenue_7d)}</div><div class="muted">Toplam: ${money(r.revenue_lifetime)}</div></td>
+            <td style="font-size:12.5px;white-space:nowrap;">Bugün: <b>${Number(r.api_today||0).toLocaleString('tr-TR')}</b><div class="muted">30 gün: ${Number(r.api_30d||0).toLocaleString('tr-TR')}</div>${r.open_errors ? `<div style="color:var(--red);cursor:pointer;" ${act('setAdminView','errors')}>⚠️ ${r.open_errors} açık hata</div>` : '<div class="muted">Hata yok</div>'}</td>
             <td class="u-nw">
               <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
                 <button class="sbtn" style="margin:0;${r.is_active?'background:var(--red);color:var(--btn-ink);':''}" ${act('toggleRestaurantActive', r.id, !r.is_active)}>${r.is_active?'Pasif Et':'Aktif Et'}</button>
@@ -545,14 +559,9 @@ async function refreshRestaurantsList(admin){
               </div>
             </td>
           </tr>
-          <tr id="detail_${r.id}" style="display:none;"><td colspan="7" style="background:var(--panel);border-radius:12px;padding:0;white-space:normal;">
+          <tr id="detail_${r.id}" style="display:none;"><td colspan="8" style="background:var(--panel);border-radius:12px;padding:0;white-space:normal;">
             <div id="detailBody_${r.id}"></div>
           </td></tr>`;
-        }).join('')}
-        </tbody>
-      </table>
-    </div>`}
-  `;
 }
 async function showRestaurantDetail(id){
   const row = document.getElementById('detail_'+id);
@@ -680,7 +689,12 @@ async function renderCompaniesAdmin(main, admin){
 }
 async function refreshCompaniesList(admin){
   const el = document.getElementById('companiesContent'); if(!el) return;
-  const { data, error } = await sb.rpc('admin_list_companies', { p_token: admin.session_token });
+  const [{ data, error: cErr }, { data: rlist, error: rErr }] = await Promise.all([
+    sb.rpc('admin_list_companies', { p_token: admin.session_token }),
+    sb.rpc('admin_list_restaurants', { p_token: admin.session_token }),
+    sb.rpc('admin_support_allowed', { p_token: admin.session_token }).then(r => { APP.adminSupportAllowed = (r && r.data) || {}; }, () => { APP.adminSupportAllowed = {}; })
+  ]);
+  const error = cErr || rErr;
   if(error){
     if(error.message.includes('geçersiz')){ clearAdminSession(); render(); return; }
     el.innerHTML = '<p class="muted">Yüklenemedi: '+error.message+'</p>'; return;
@@ -705,27 +719,36 @@ async function refreshCompaniesList(admin){
     ${companies.length===0 ? '<p class="muted">Henüz kayıtlı şirket yok.</p>' : `
     <div class="settings-table-wrap">
       <table class="settings-table">
-        <thead><tr><th>Şirket</th><th>Kod</th><th>Paket</th><th>Şube</th><th>Durum</th><th>Kayıt Tarihi</th><th></th></tr></thead>
+        <thead><tr>
+          <th>Şirket / Şube</th><th>E-posta / Telefon</th><th>Paket</th><th>Durum</th>
+          <th>Tarihler</th><th>Ciro</th><th>API / Hata</th><th></th>
+        </tr></thead>
         <tbody>
         ${companies.map(c => {
-          const pkg = PACKAGES_BY_ID[c.package_id];
-          let statusBadge = c.is_active
-            ? '<span class="role-badge" style="color:var(--green);border-color:var(--green);">Aktif</span>'
-            : '<span class="role-badge" style="color:var(--red);border-color:var(--red);">Pasif</span>';
+          const pkg = PACKAGES_BY_ID[c.package_id], br = (rlist || []).filter(r => r.company_id === c.id);
+          const sum = k => br.reduce((t, r) => t + Number(r[k] || 0), 0);
+          const users = sum('user_count'), err = sum('open_errors');
+          const expired = c.expires_at && new Date(c.expires_at) <= new Date();
+          const badge = !c.is_active ? '<span class="role-badge" style="color:var(--red);border-color:var(--red);">Pasif</span>'
+            : expired ? '<span class="role-badge" style="color:var(--red);border-color:var(--red);">Süresi Dolmuş</span>'
+            : '<span class="role-badge" style="color:var(--green);border-color:var(--green);">Aktif</span>';
           return `
-          <tr>
-            <td class="col-name"><b>${escapeHtml(c.name)}</b></td>
-            <td class="col-name">${escapeHtml(c.code)}</td>
-            <td class="col-name">${pkg?escapeHtml(pkg.name):escapeHtml(c.package_id)}</td>
-            <td class="col-name">${c.branch_count}${pkg&&pkg.max_branches?'/'+pkg.max_branches:(pkg&&pkg.max_branches===0?'/∞':'')}</td>
-            <td>${statusBadge}</td>
-            <td class="col-name">${new Date(c.created_at).toLocaleDateString('tr-TR')}</td>
-            <td class="u-nw">
-              <button class="sbtn" style="${c.is_active?'background:var(--red);color:var(--btn-ink);':''}" ${act('toggleCompanyActive', c.id, !c.is_active)}>${c.is_active?'Pasif Et':'Aktif Et'}</button>
-              <button class="sbtn" data-name="${escapeAttr(c.name)}" ${act('openEntitlementsModal','company', c.id, c.name)}>🧩 Eklentiler</button>
-              <button type="button" class="act-btn act-delete" data-name="${escapeAttr(c.name)}" ${act('deleteCompany', c.id, c.name)}>${ICON_TRASH}<span>Sil</span></button>
-            </td>
-          </tr>`;
+          <tr class="adm-company">
+            <td><b>🏢 ${escapeHtml(c.name)}</b><div class="u-fs12 muted">${escapeHtml(c.code)} · ${br.length}${pkg && pkg.max_branches ? '/' + pkg.max_branches : (pkg && pkg.max_branches === 0 ? '/∞' : '')} şube</div></td>
+            <td style="font-size:12.5px;word-break:break-all;">${c.email ? `<a href="mailto:${escapeHtml(c.email)}">${escapeHtml(c.email)}</a>` : '—'}${c.phone ? `<div class="muted">${escapeHtml(c.phone)}</div>` : ''}</td>
+            <td class="u-fs13">${pkg ? escapeHtml(pkg.name) : escapeHtml(c.package_id)}<div class="u-fs12 muted">${users} kullanıcı (tüm şubeler)</div><div style="font-size:12px;${expired ? 'color:var(--red);' : ''}">Bitiş: ${c.expires_at ? new Date(c.expires_at).toLocaleDateString('tr-TR') : 'Süresiz'}</div></td>
+            <td>${badge}</td>
+            <td style="font-size:12.5px;white-space:nowrap;">Kayıt: ${new Date(c.created_at).toLocaleDateString('tr-TR')}</td>
+            <td style="font-size:12.5px;white-space:nowrap;">Bugün: <b>${money(sum('revenue_today'))}</b><div class="muted">7 gün: ${money(sum('revenue_7d'))}</div><div class="muted">Toplam: ${money(sum('revenue_lifetime'))}</div></td>
+            <td style="font-size:12.5px;white-space:nowrap;">Bugün: <b>${sum('api_today').toLocaleString('tr-TR')}</b><div class="muted">30 gün: ${sum('api_30d').toLocaleString('tr-TR')}</div>${err ? `<div style="color:var(--red);">⚠️ ${err} açık hata</div>` : '<div class="muted">Hata yok</div>'}</td>
+            <td class="u-nw"><div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
+              <button class="sbtn" style="margin:0;${c.is_active ? 'background:var(--red);color:var(--btn-ink);' : ''}" ${act('toggleCompanyActive', c.id, !c.is_active)}>${c.is_active ? 'Pasif Et' : 'Aktif Et'}</button>
+              <button class="u-m0 sbtn" ${act('openEntitlementsModal','company', c.id, c.name)}>🧩 Eklentiler</button>
+              <button class="u-m0 sbtn" ${act('openUsageFor', c.id)}>📈 API Kullanımı</button>
+              <button type="button" class="act-btn act-delete" ${act('deleteCompany', c.id, c.name)}>${ICON_TRASH}<span>Sil</span></button>
+            </div></td>
+          </tr>
+          ${br.length ? br.map(r => restaurantRowHtml(r, { branch: true })).join('') : '<tr><td colspan="8" class="muted u-fs13">↳ Henüz şubesi yok</td></tr>'}`;
         }).join('')}
         </tbody>
       </table>
@@ -1576,4 +1599,64 @@ async function startSupportSession(restaurantId, name){
   if(error){ alert(error.message); return; }
   try{ localStorage.setItem('rys_support_handoff', JSON.stringify({ at: Date.now(), s: data })); }catch(e){ alert('Tarayıcı depolaması kullanılamıyor.'); return; }
   window.open('/app/?support=1', '_blank', 'noopener');
+}
+
+/* ---- API Kullanımı: şirket / şube bazında istek, SMS, e-posta, harita, hata, aktif kullanıcı ----
+   İstek sayısı: oturumlu her API çağrısı (_session_check) işletme+gün bazında sayılır (api_usage_daily). */
+function usageRange(k){
+  const d = new Date(), iso = x => x.getFullYear() + '-' + String(x.getMonth()+1).padStart(2,'0') + '-' + String(x.getDate()).padStart(2,'0');
+  const today = iso(d), back = n => { const x = new Date(d); x.setDate(x.getDate() - n); return iso(x); };
+  if(k === 'today') return [today, today];
+  if(k === '7d') return [back(6), today];
+  if(k === '30d') return [back(29), today];
+  if(k === 'month') return [iso(new Date(d.getFullYear(), d.getMonth(), 1)), today];
+  if(k === 'prev') return [iso(new Date(d.getFullYear(), d.getMonth()-1, 1)), iso(new Date(d.getFullYear(), d.getMonth(), 0))];
+  return [APP.usageFrom || back(6), APP.usageTo || today];
+}
+function openUsageFor(companyId){ APP.usageFocus = companyId; setAdminView('usage'); }
+function setUsageRange(k){ APP.usageRangeKey = k; if(k !== 'custom'){ const r = usageRange(k); APP.usageFrom = r[0]; APP.usageTo = r[1]; } renderUsageAdmin(document.getElementById('main'), getAdminSession()); }
+function setUsageCustom(){ APP.usageRangeKey = 'custom'; APP.usageFrom = document.getElementById('usFrom').value; APP.usageTo = document.getElementById('usTo').value; renderUsageAdmin(document.getElementById('main'), getAdminSession()); }
+function toggleUsageGroup(id){ document.querySelectorAll('[data-ug="' + id + '"]').forEach(r => r.classList.toggle('u-hide')); }
+async function renderUsageAdmin(main, admin){
+  const k = APP.usageRangeKey || '7d';
+  if(k !== 'custom' || !APP.usageFrom){ const r = usageRange(k); APP.usageFrom = r[0]; APP.usageTo = r[1]; }
+  main.innerHTML = `<h1>📈 API Kullanımı</h1><div id="usageContent"><p class="muted">Yükleniyor…</p></div>`;
+  const { data, error } = await withLoadingOverlay(sb.rpc('admin_usage_report', { p_token: admin.session_token, p_from: APP.usageFrom, p_to: APP.usageTo }));
+  const el = document.getElementById('usageContent'); if(!el) return;
+  if(error){ if(/geçersiz/.test(error.message)){ clearAdminSession(); render(); return; } el.innerHTML = '<p class="muted">Yüklenemedi: ' + escapeHtml(error.message) + '</p>'; return; }
+  const rows = data.rows || [], daily = data.daily || [];
+  const N = v => Number(v || 0).toLocaleString('tr-TR');
+  const groups = {};
+  rows.forEach(r => { const g = r.company_id || ('r_' + r.id); (groups[g] = groups[g] || { id: g, name: r.company_id ? r.company_name : r.name, company: !!r.company_id, rows: [] }).rows.push(r); });
+  const KEYS = ['requests','sms','mail','maps','errors','open_errors','active_users','users','orders','revenue'];
+  const list = Object.values(groups).map(g => { g.t = {}; KEYS.forEach(x => g.t[x] = g.rows.reduce((a, r) => a + Number(r[x] || 0), 0)); return g; }).sort((a, b) => b.t.requests - a.t.requests);
+  const tot = {}; KEYS.forEach(x => tot[x] = list.reduce((a, g) => a + g.t[x], 0));
+  const max = Math.max(1, ...daily.map(d => Number(d.n)));
+  const cells = t => `<td><b>${N(t.requests)}</b></td><td>${N(t.sms)}</td><td>${N(t.mail)}</td><td>${N(t.maps)}</td><td style="${t.errors ? 'color:var(--red);' : ''}">${N(t.errors)}${t.open_errors ? ` <small title="Çözülmemiş">(${N(t.open_errors)} açık)</small>` : ''}</td><td>${N(t.active_users)} / ${N(t.users)}</td><td>${N(t.orders)}</td><td>${money(t.revenue)}</td>`;
+  const chip = (key, label) => `<button type="button" class="sbtn ${k === key ? '' : 'ghost-btn'}" style="margin:0;width:auto;padding:8px 14px;" ${act('setUsageRange', key)}>${label}</button>`;
+  el.innerHTML = `
+    <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:14px;">
+      ${chip('today','Bugün')}${chip('7d','Son 7 gün')}${chip('30d','Son 30 gün')}${chip('month','Bu ay')}${chip('prev','Geçen ay')}
+      <input type="date" id="usFrom" value="${APP.usageFrom}" style="width:auto;margin:0;"> – <input type="date" id="usTo" value="${APP.usageTo}" style="width:auto;margin:0;">
+      <button type="button" class="sbtn" style="margin:0;width:auto;padding:8px 14px;" ${act('setUsageCustom')}>Uygula</button>
+    </div>
+    <div class="home-grid" style="margin-top:0;margin-bottom:16px;">
+      ${statCard('API isteği', N(tot.requests))}${statCard('SMS', N(tot.sms))}${statCard('E-posta', N(tot.mail))}${statCard('Harita sorgusu', N(tot.maps))}
+      ${statCard('Hata', N(tot.errors), tot.errors ? 'var(--red)' : null)}${statCard('Aktif kullanıcı', N(tot.active_users))}${statCard('Sipariş', N(tot.orders))}${statCard('Ciro', money(tot.revenue))}
+    </div>
+    <div class="add-row-panel" style="margin-bottom:16px;"><p>Günlük API isteği (tüm işletmeler)</p>
+      <div style="display:flex;align-items:flex-end;gap:3px;height:120px;">${daily.map(d => `<div title="${new Date(d.day).toLocaleDateString('tr-TR')}: ${N(d.n)} istek" style="flex:1;min-width:3px;background:var(--c1);border-radius:4px 4px 0 0;height:${Math.max(2, Math.round(Number(d.n) / max * 110))}px;"></div>`).join('')}</div>
+      <div class="u-fs12 muted" style="display:flex;justify-content:space-between;"><span>${new Date(APP.usageFrom).toLocaleDateString('tr-TR')}</span><span>${new Date(APP.usageTo).toLocaleDateString('tr-TR')}</span></div>
+    </div>
+    <div class="settings-table-wrap"><table class="settings-table">
+      <thead><tr><th>Şirket / İşletme</th><th>API isteği</th><th>SMS</th><th>E-posta</th><th>Harita</th><th>Hata</th><th>Aktif / Kullanıcı</th><th>Sipariş</th><th>Ciro</th></tr></thead>
+      <tbody>${list.map(g => `
+        <tr class="${g.company ? 'adm-company' : ''}" ${g.company ? `style="cursor:pointer;" ${act('toggleUsageGroup', g.id)}` : ''}>
+          <td><b>${g.company ? '🏢 ' : '🏬 '}${escapeHtml(g.name || '—')}</b>${g.company ? `<div class="u-fs12 muted">${g.rows.length} şube · ayrıntı için tıklayın</div>` : ''}</td>${cells(g.t)}</tr>
+        ${g.company ? g.rows.map(r => `<tr class="adm-branch ${APP.usageFocus === g.id ? '' : 'u-hide'}" data-ug="${g.id}"><td><span class="muted">↳ </span>${escapeHtml(r.name)}${r.is_active ? '' : ' <small style="color:var(--red);">pasif</small>'}</td>${cells(r)}</tr>`).join('') : ''}`).join('')}
+      </tbody>
+      <tfoot><tr><td><b>Toplam</b></td>${cells(tot)}</tr></tfoot>
+    </table></div>
+    <p class="muted u-fs12">ℹ️ API isteği: uygulamanın sunucuya yaptığı oturumlu her çağrı (sayfa açma, kaydetme, otomatik yenileme). Sayım 03.11.2026'da başladı; öncesi 0 görünür. SMS ve e-posta: gönderim kuyruğuna giren mesajlar. Harita: sürüş süresi sorguları.</p>`;
+  APP.usageFocus = null;
 }
