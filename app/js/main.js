@@ -153,14 +153,16 @@ function render(){
         </nav>
         <div class="sb-bottom">
           <div id="shiftWidget" class="shift-widget">${shiftWidgetHtml()}</div>
-          ${getCompanySession() ? `<button class="sb-logout" ${act('returnToCompanyPanel')} title="Şirket paneline dön">🏢<span class="label"> Şirkete Dön</span></button>` : (session.isManager && APP.config && APP.config.license && APP.config.license.has_company ? `<button class="sb-logout" ${act('openCompanyPanel')} title="Şubeleri yönet">🏢<span class="label"> Şubeler</span></button>` : '')}
           <div class="sb-actrow">
             <button type="button" class="sb-ib" ${act('setTheme', theme==='dark' ? 'light' : 'dark')} title="${theme==='dark' ? 'Açık temaya geç' : 'Koyu temaya geç'}">${theme==='dark' ? '☀️' : '🌙'}</button>
             <button type="button" class="sb-ib" ${act('refreshApp')} title="Yenile (son değişiklikleri getir)">🔄</button>
             ${(APP.config && (APP.config.users || []).some(u => u.has_pin)) ? `<button type="button" class="sb-ib" ${act('openPinSwitch')} title="Personel değiştir (PIN)">👥</button>` : ''}
             ${langBtnHtml('sb-ib sb-lang')}
             <button type="button" class="sb-ib" ${act('askOwnPin')} title="Hızlı geçiş PIN'imi belirle / değiştir">🔢</button>
-            <button type="button" class="sb-ib danger" ${act('doLogout')} title="Çıkış Yap">🚪</button>
+          </div>
+          <div class="sb-exitrow">
+            ${getCompanySession() ? `<button class="sb-logout" ${act('returnToCompanyPanel')} title="Şirket paneline dön">🏢<span class="label"> Şirkete Dön</span></button>` : (session.isManager && APP.config && APP.config.license && APP.config.license.has_company ? `<button class="sb-logout" ${act('openCompanyPanel')} title="Şubeleri yönet">🏢<span class="label"> Şubeler</span></button>` : '')}
+            <button type="button" class="sb-logout sb-exit" ${act('doLogout')} title="Çıkış Yap">🚪<span class="label"> Çıkış Yap</span></button>
           </div>
         </div>
       </aside>

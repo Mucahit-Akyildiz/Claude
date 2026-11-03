@@ -4229,3 +4229,7 @@ html.lang-rtl input[type=number],html.lang-rtl input[type=tel],html.lang-rtl .mo
 .sidebar .sb-bottom .sb-actrow .sb-lang{font-size:11px !important;}
 .sidebar .sb-bottom > .sb-logout{margin:0;height:38px;border-radius:12px;font-weight:700;display:flex;align-items:center;justify-content:center;gap:6px;}
 .sidebar.collapsed .sb-bottom .sb-actrow{grid-template-columns:38px;}
+.sidebar .sb-bottom .sb-exitrow{display:flex;gap:6px;}
+.sidebar .sb-bottom .sb-exitrow .sb-logout{flex:1;min-width:0;margin:0;height:38px;border-radius:12px;font-weight:700;font-size:12.5px;display:flex;align-items:center;justify-content:center;gap:5px;padding:0 6px;}
+.sidebar .sb-bottom .sb-exitrow .sb-exit:hover{border-color:var(--danger,#ef4444);color:var(--danger,#ef4444);background:color-mix(in srgb,var(--danger,#ef4444) 12%,transparent);}
+.sidebar.collapsed .sb-bottom .sb-exitrow{flex-direction:column;}
