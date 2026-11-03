@@ -20,6 +20,7 @@ const SETTINGS_TABS = [
 function settingsTabVisible(t, session){
   if(t.feature && !hasFeature(t.feature)) return false;
   if(t.tab==='reports') return canManage(session, 'settings_reports');
+  if(t.tab==='integrations') return canManage(session, 'settings_integrations') || (session.permissions || []).some(p => /^int_/.test(p));
   if(t.tab==='printers') return canManage(session, 'printer_settings');
   if(t.tab==='notifs') return true; // Kime Gitsin / hatırlatma yalnızca yöneticiye; doğum günü uyarıları cihaz ayarı, herkese
   if(t.tab==='users') return canManage(session, 'settings_users') || canManage(session, 'shifts');
@@ -323,6 +324,9 @@ async function renderIntegrationsSettings(el, session){
     { id:'mail', ic:'✉️', label:'E-posta' }, { id:'bank', ic:'🏦', label:'Banka / IBAN' },
     { id:'efatura', ic:'🧾', label:'ÖKC / e-Fatura' }, { id:'marketplace', ic:'🛍️', label:'Pazaryeri' }, { id:'accounting', ic:'📊', label:'Muhasebe' },
   ];
+  // Her entegrasyon ayrı rol izniyle (int_*) açılır; "Ayarlar · Entegrasyonlar (hepsi)" ve Yönetici hepsini görür.
+  const intAllowed = id => canManage(session, 'settings_integrations') || hasPerm(session, 'int_' + id);
+  for(let i = INT_TABS.length - 1; i >= 0; i--) if(!intAllowed(INT_TABS[i].id)) INT_TABS.splice(i, 1);
   const order = ['efatura','marketplace','accounting','google','online','sms','invoice'];
   const boxes = [...el.querySelectorAll(':scope > .box')];
   boxes.forEach((b, i) => { b.dataset.int = order[i]; b.classList.add('int-pane'); });
@@ -343,7 +347,8 @@ async function renderIntegrationsSettings(el, session){
   // Online kartla ödeme, Online Sipariş sekmesinin içinde.
   const onl = boxes.find(x => x.dataset.int === 'online');
   if(onl){ const d = document.createElement('div'); d.id = 'tiPay'; (onl.querySelector('#ooPayCol') || onl).appendChild(d); }
-  if(!INT_TABS.some(t => t.id === APP.integrationsSubTab)) APP.integrationsSubTab = 'online';
+  boxes.forEach(b => { if(b.dataset.int && !intAllowed(b.dataset.int)) b.remove(); });
+  if(!INT_TABS.some(t => t.id === APP.integrationsSubTab)) APP.integrationsSubTab = INT_TABS.length ? INT_TABS[0].id : 'online';
   const INT_DESC = { online:'Kendi sipariş sayfanız ve kartla ödeme', google:'İşletme yorumlarını takip edin', sms:'Müşterilere SMS bildirimi', mail:'Kendi alan adınızdan e-posta', pay:'iyzico / PayTR ile kartla ödeme', invoice:'Faturada görünecek bilgiler',
     efatura:'Yazarkasa ve e-Fatura/e-Arşiv', marketplace:'Pazaryeri menü eşitleme', accounting:'Muhasebe yazılımına aktarım', bank:'Havale/EFT için IBAN', geo:'Adrese teslim yol süresi' };
   const stOf = (id) => { const b = boxes.find(x => x.dataset.int === id); const t = b ? b.textContent : '';
