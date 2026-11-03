@@ -246,7 +246,7 @@ function openIngredientUsageModal(ingredientId, edit){
       </div></div>
       <p class="muted iu-ordernote" id="iuOrderNote" ${ing.pack_mode === 'per_order' ? '' : 'hidden'}>🛍️ Ürünlere bağlanmaz. Paket sipariş ekranında (ve masada paket yapılan siparişte) <b>kaç adet</b> verildiği girilir; o kadar stoktan düşer ve maliyete eklenir.</p>
     </div>
-    <div class="iu-foot">${!edit ? '<span class="muted iu-foot-n">Adım 2/3 · kullanım şeklini seçin</span>' : ''}<button type="button" class="ghost-btn" ${act('removeEl','ingUsageModalBg')}>${edit ? 'Vazgeç' : 'Sonra'}</button>${edit ? `<button ${act('saveIngredientUsage', ingredientId)}>${ICON_SAVE}<span>Kaydet</span></button>` : `<button id="iuNextBtn" ${act('iuWizardNext', ingredientId)}>${ing.pack_mode === 'per_order' ? '✓ Tamamla' : 'İleri › Ürünler'}</button>`}</div>
+    <div class="iu-foot">${!edit ? '<span class="muted iu-foot-n">Adım 2/3 · kullanım şeklini seçin</span>' : ''}${!edit ? `<button type="button" class="ghost-btn" title="1. adıma (ad, birim, stok, maliyet) dön" ${act('openIngredientUsageModal', ingredientId, true)}>‹ Geri</button>` : ''}<button type="button" class="ghost-btn" ${act('removeEl','ingUsageModalBg')}>${edit ? 'Vazgeç' : 'Sonra'}</button>${edit ? `<button ${act('saveIngredientUsage', ingredientId)}>${ICON_SAVE}<span>Kaydet</span></button>` : `<button id="iuNextBtn" ${act('iuWizardNext', ingredientId)}>${ing.pack_mode === 'per_order' ? '✓ Tamamla' : 'İleri › Ürünler'}</button>`}</div>
   </div>`;
   document.body.appendChild(bg);
   const box = document.getElementById('ingUsageItemsBox');
