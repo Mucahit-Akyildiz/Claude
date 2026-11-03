@@ -123,3 +123,6 @@ alter table customers add column if not exists created_by uuid, add column if no
 --   create_branch, admin_upsert_package (>=0) ve _auto_company_for_branches buna göre güncellendi.
 -- 2026-11-03: restaurants_sync_max_users: paket değişince restaurants.max_users paket limitine eşitlenir
 --   (ekrandaki "eklenebilir kullanıcı" eski limiti gösteriyordu). Mevcut kayıtlar düzeltildi.
+-- 2026-11-03: company_sessions.origin_user_id; open_company_panel bunu kaydeder. switch_to_branch: origin varsa
+--   şubeye kendi kullanıcısıyla (aynı hesap / aynı kullanıcı adı) girer, yoksa uyarı verir (ortak hesap kullanılmaz).
+--   company_add_me_to_branch: yöneticiyi aynı ad/şifreyle şubeye yönetici olarak ekler.
