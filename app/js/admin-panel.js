@@ -1657,6 +1657,15 @@ async function renderUsageAdmin(main, admin){
       </tbody>
       <tfoot><tr><td><b>Toplam</b></td>${cells(tot)}</tr></tfoot>
     </table></div>
-    <p class="muted u-fs12">ℹ️ API isteği: uygulamanın sunucuya yaptığı oturumlu her çağrı (sayfa açma, kaydetme, otomatik yenileme). Sayım 03.11.2026'da başladı; öncesi 0 görünür. SMS ve e-posta: gönderim kuyruğuna giren mesajlar. Harita: sürüş süresi sorguları.</p>`;
+    <div class="add-row-panel u-fs13" style="margin-top:14px;"><p>Sütunlar ne anlama geliyor?</p>
+      <ul style="margin:6px 0 0 18px;line-height:1.7;">
+        <li><b>API isteği:</b> İşletmenin uygulamasının sunucuya yaptığı oturumlu çağrı sayısı. Ekran açma, kaydetme ve açık ekranların arka plan yenilemeleri (rozetler ~20 sn, garson çağrıları, müşteri istekleri) sayılır. Açık duran tek bir cihaz saatte yaklaşık 150–250 istek yapar; sayı cihaz sayısı ve açık kalma süresiyle artar. Sunucu yükü ve maliyetin ana göstergesidir. Sayım 03.11.2026'da başladı.</li>
+        <li><b>SMS:</b> Gönderim kuyruğuna giren SMS sayısı (sipariş/ödeme bildirimi, rezervasyon, kampanya, şifre). Ücretli kalemdir.</li>
+        <li><b>E-posta:</b> Gönderilen e-posta sayısı (fatura, özet raporu, bildirim, şifre sıfırlama).</li>
+        <li><b>Harita:</b> Adrese teslim paketlerde sürüş süresi için yapılan Google harita sorgusu. Ücretli kalemdir; günlük kotası işletme ayarlarındadır.</li>
+        <li><b>Hata:</b> Seçilen aralıkta uygulamada oluşan hataların toplam tekrar sayısı. Parantezdeki <i>açık</i>, tarihten bağımsız henüz "çözüldü" işaretlenmemiş farklı hata sayısıdır (Hatalar sekmesi).</li>
+        <li><b>Aktif / Kullanıcı:</b> Aralıkta uygulamayı kullanan farklı personel / işletmedeki toplam aktif personel.</li>
+        <li><b>Sipariş, Ciro:</b> Aralıkta açılan sipariş sayısı ve kapanan hesapların toplamı.</li>
+      </ul></div>`;
   APP.usageFocus = null;
 }
