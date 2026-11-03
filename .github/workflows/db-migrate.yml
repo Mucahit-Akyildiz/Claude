@@ -61,6 +61,8 @@ jobs:
           $PGDUMP "$OLD_DB" --schema=public --no-owner $EXTRA -f dump.sql
           # Sürüm/oturum satırları yeni sunucuda sorun çıkarmasın.
           sed -i '/^\\restrict /d;/^\\unrestrict /d;/^SET transaction_timeout/d' dump.sql
+          # Supabase'in kendi rollerine (supabase_admin vb.) ait varsayılan yetkiler yeni projede değiştirilemez; atlanır.
+          sed -i '/^ALTER DEFAULT PRIVILEGES FOR ROLE supabase_admin/d;/^ALTER DEFAULT PRIVILEGES FOR ROLE supabase_/d' dump.sql
           echo "Döküm boyutu: $(du -h dump.sql | cut -f1)"
 
       - name: Yeni projede public şemasını sıfırla ve yükle
