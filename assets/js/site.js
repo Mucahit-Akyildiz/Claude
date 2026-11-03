@@ -17,8 +17,8 @@
     });
   })();
 
-  const SUPABASE_URL = 'https://dveybagnrgofxkqangvo.supabase.co';
-  const SUPABASE_KEY = 'sb_publishable_7gHhsaPYOzOddFnpjntPKw_S3Mgg3V8';
+  const SUPABASE_URL = 'https://chsdvwncmzosqyhwenga.supabase.co';
+  const SUPABASE_KEY = 'sb_publishable_gZnWeWHIyJ3OL3-XJ3oYfg_MTWWjNhM';
   const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
   function money(n){ return (Math.round((n||0)*100)/100).toLocaleString('tr-TR',{minimumFractionDigits:0,maximumFractionDigits:2}); }
   function escapeHtml(s){ return String(s==null?'':s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]); }

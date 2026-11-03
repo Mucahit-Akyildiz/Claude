@@ -5,8 +5,8 @@
    yüklenir; ES module değildir, burada tanımlanan her şey (bugünkü tek
    dosya davranışıyla birebir aynı şekilde) global scope'ta kalır. */
 /* ====== BURAYI KENDİ SUPABASE BİLGİLERİNİZLE DOLDURUN ====== */
-const SUPABASE_URL = 'https://dveybagnrgofxkqangvo.supabase.co';
-const SUPABASE_KEY = 'sb_publishable_7gHhsaPYOzOddFnpjntPKw_S3Mgg3V8';
+const SUPABASE_URL = 'https://chsdvwncmzosqyhwenga.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_gZnWeWHIyJ3OL3-XJ3oYfg_MTWWjNhM';
 /* Aylık abonelik yenileme ödemesini başlatan uç nokta (Vercel /api).
    Kayıt sırasında artık ödeme yok (7 günlük ücretsiz deneme) - bu sadece
    Ayarlar'daki "Öde / Yenile" akışında, oturum token'ı ile kullanılıyor. */

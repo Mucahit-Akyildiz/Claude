@@ -1,5 +1,5 @@
-const SUPABASE_URL = 'https://dveybagnrgofxkqangvo.supabase.co';
-const SUPABASE_KEY = 'sb_publishable_7gHhsaPYOzOddFnpjntPKw_S3Mgg3V8';
+const SUPABASE_URL = 'https://chsdvwncmzosqyhwenga.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_gZnWeWHIyJ3OL3-XJ3oYfg_MTWWjNhM';
 const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 const TOKEN = new URLSearchParams(window.location.search).get('t');
 /* Sipariş takibi: kurye siparişi yola çıkardığında müşteriye SMS ile gelen link.
