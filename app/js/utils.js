@@ -418,7 +418,7 @@ function uiConfirm(message, o){
   if(o.danger == null) o.danger = /sil|iptal|kaldır|sıfırla|geri alınamaz|kalıcı/i.test(String(message));
   return new Promise(resolve => {
     const old = document.getElementById('uiConfirm'); if(old) old.remove();
-    const bg = document.createElement('div'); bg.id = 'uiConfirm'; bg.className = 'dg-bg'; bg.style.zIndex = 3000;
+    const bg = document.createElement('div'); bg.id = 'uiConfirm'; bg.className = 'dg-bg'; bg.style.zIndex = 4000;
     const lines = String(message).split('\n');
     bg.innerHTML = `<div class="dg-card uc-card ${o.danger ? 'danger' : ''}">
       <div class="dg-ic">${o.icon || (o.danger ? '🗑️' : '❓')}</div>
@@ -460,7 +460,7 @@ window.alert = function(m){ uiAlert(m); };
 function uiPrompt(message, def, o){
   o = o || {};
   return new Promise(resolve => {
-    const bg = document.createElement('div'); bg.className = 'dg-bg'; bg.style.zIndex = 3000;
+    const bg = document.createElement('div'); bg.className = 'dg-bg'; bg.style.zIndex = 4000;
     bg.innerHTML = `<div class="dg-card uc-card ${o.danger ? 'danger' : ''}"><div class="dg-ic">${o.icon || (o.danger ? '⚠️' : '✏️')}</div>
       <div class="uc-msg">${String(message).split('\n').map(l => l.trim() ? `<p>${escapeHtml(l)}</p>` : '').join('')}</div>
       <input class="uc-in" type="text" value="${escapeAttr(def == null ? '' : def)}">

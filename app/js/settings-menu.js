@@ -473,7 +473,8 @@ function openRecipeModal(productId){
   RECIPE_DRAFT = (prod.recipe || []).map(r => ({ ingredient_id: r.ingredient_id, qty_per_unit: r.qty_per_unit, ingredient_name: r.ingredient_name, ingredient_unit: r.ingredient_unit }));
   const bg = document.createElement('div');
   bg.id = 'recipeModalBg';
-  bg.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:100;padding:16px;';
+  // Ürün düzenleme penceresinin üstünde açılsın (eskiden arkasında kalıyordu).
+  bg.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:3500;padding:16px;';
   bg.onclick = (e) => { if(e.target===bg) bg.remove(); };
   bg.innerHTML = `<div style="background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:20px;max-width:440px;width:100%;max-height:88vh;overflow:auto;">
     <div style="display:flex;justify-content:space-between;"><h2 class="u-m0">${escapeHtml(prod.name)} - Reçete</h2><span style="cursor:pointer;color:var(--muted);" ${act('removeEl','recipeModalBg')}>✕</span></div>
@@ -488,10 +489,27 @@ function openRecipeModal(productId){
         <button style="width:auto;padding:8px 12px;margin:0;" ${act('addRecipeItem', productId)}>Ekle</button>
       </div>
     </div>
+    <div style="display:flex;gap:8px;margin-top:10px;">
+      <button type="button" class="pc-btn" style="flex:1;" title="Bu reçeteyi başka ürüne yapıştırmak için kopyala" ${act('copyRecipeDraft', productId)}>📋 Kopyala</button>
+      <button type="button" class="pc-btn" style="flex:1;" id="recipePasteBtn" title="Kopyalanan reçeteyi buraya ekle" ${act('pasteRecipeDraft')} ${APP.recipeClip ? '' : 'disabled'}>📥 Yapıştır${APP.recipeClip ? ' (' + escapeHtml(APP.recipeClip.from) + ')' : ''}</button>
+    </div>
     <button style="margin-top:14px;" ${act('saveRecipe', productId)}>Reçeteyi Kaydet</button>
   </div>`;
   document.body.appendChild(bg);
   renderRecipeItems();
+}
+/* Reçete kopyala / yapıştır: kopyalanan kalemler başka ürünün reçetesine eklenir (aynı hammadde varsa miktarı güncellenir); Kaydet ile kalıcı olur. */
+function copyRecipeDraft(productId){
+  if(!RECIPE_DRAFT.length){ showToast('Kopyalanacak reçete yok'); return; }
+  const prod = (APP.config.products || []).find(p => p.id === productId) || {};
+  APP.recipeClip = { from: prod.name || 'ürün', items: RECIPE_DRAFT.map(r => ({ ...r })) };
+  showToast('📋 Reçete kopyalandı (' + RECIPE_DRAFT.length + ' kalem) · başka ürünün Reçete penceresinde Yapıştır\'a basın');
+}
+async function pasteRecipeDraft(){
+  const c = APP.recipeClip; if(!c) return;
+  if(RECIPE_DRAFT.length && !(await uiConfirm('Bu üründe zaten ' + RECIPE_DRAFT.length + ' kalem var. "' + c.from + '" reçetesindeki ' + c.items.length + ' kalem eklensin mi? (Aynı hammadde varsa miktarı kopyadaki ile değişir.)', { danger: false }))) return;
+  c.items.forEach(it => { const ex = RECIPE_DRAFT.find(r => r.ingredient_id === it.ingredient_id); if(ex) ex.qty_per_unit = it.qty_per_unit; else RECIPE_DRAFT.push({ ...it }); });
+  renderRecipeItems(); showToast('📥 Yapıştırıldı · kaydetmeyi unutmayın');
 }
 function renderRecipeItems(){
   const el = document.getElementById('recipeItemsBox'); if(!el) return;
@@ -1337,6 +1355,7 @@ function renderProductsSettings(el, session){
   const isLow = (p) => { const q = p.recipe && p.recipe.length ? p.available_qty : p.stock; return q!=null && q<=5; };
   const lowMN = products.filter(p => Number(p.price)>0 && mOf(p) < .35).length;
   const shown = pf==='on' ? products.filter(p => p.available!==false) : pf==='off' ? products.filter(p => p.available===false)
+    : pf==='norecipe' ? products.filter(p => !(p.recipe || []).length)
     : pf==='nocost' ? products.filter(p => !(Number(p.cost) > 0)) : pf==='low' ? products.filter(isLow) : pf==='lowmargin' ? products.filter(p => Number(p.price)>0 && mOf(p) < .35) : products;
   const lowN = products.filter(p => { const q = p.recipe && p.recipe.length ? p.available_qty : p.stock; return q!=null && q<=5; }).length;
   setTimeout(loadCostHub, 0);
@@ -1350,6 +1369,7 @@ function renderProductsSettings(el, session){
       <div class="os-chip os-click ${pf==='lowmargin'?'on':''}" role="button" title="Listeyi filtrele" ${act('setProdFilter', 'lowmargin')} style="--oc:var(--c2);"><span class="os-ic">📈</span><div><b>${lowMN}</b><small>Düşük marj (ort. %${avgM})</small></div></div>
       <div class="os-chip os-click ${pf==='low'?'on':''}" role="button" title="Listeyi filtrele" ${act('setProdFilter', 'low')} style="--oc:var(--c3);"><span class="os-ic">⚠️</span><div><b>${lowN}</b><small>Stok azalan</small></div></div>
       <div class="os-chip os-click ${pf==='nocost'?'on':''}" role="button" title="Listeyi filtrele" ${act('setProdFilter', 'nocost')} style="--oc:#ef4444;"><span class="os-ic">💸</span><div><b>${products.filter(p => !(Number(p.cost) > 0)).length}</b><small>Maliyet girilmemiş</small></div></div>
+      <div class="os-chip os-click ${pf==='norecipe'?'on':''}" role="button" title="Reçetesi olmayan ürünler (stok ve maliyet otomatik düşmez)" ${act('setProdFilter', 'norecipe')} style="--oc:#f97316;"><span class="os-ic">📋</span><div><b>${products.filter(p => !(p.recipe || []).length).length}</b><small>Reçetesiz</small></div></div>
     </div>
     <div class="cost-hub" role="button" ${act('openOverheads')}>
       <div class="ch-ic">📊</div>
