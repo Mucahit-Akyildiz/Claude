@@ -139,3 +139,5 @@ alter table customers add column if not exists created_by uuid, add column if no
 --   Rollerdeki eski online_ordering/efatura/marketplace/accounting izinleri int_* olarak taşındı.
 -- 2026-11-03: paket_kurumsal.features += online_ordering, efatura, marketplace, accounting, multi_branch (tüm eklentiler).
 -- 2026-11-03: 'Ayarlar · Entegrasyonlar (hepsi)' rol kataloğundan kaldırıldı; bu izne sahip roller 10 int_* iznine açıldı (sunucu settings_integrations'ı geriye uyum için hâlâ kabul eder).
+-- 2026-11-03: settings_allowances izni (Limitli Hesaplar); save/delete_allowance, set_allowance_settings, set_allowances_enabled bu izne bağlandı;
+--   settings_users'a sahip roller bu izni de aldı. edit_purchase_order: taslak/sipariş verilmiş malzeme siparişinde tarih, not, kalem, miktar düzenleme.

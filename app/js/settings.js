@@ -103,7 +103,7 @@ function renderUsersTabWithSubtabs(el, session){
     canManage(session, 'settings_users') ? { id:'active', ic:'🟢', label:'Aktif Kullanıcılar' } : null,
     hasPerm(session, 'shifts') || canManage(session, 'shifts') ? { id:'shifts', ic:'⏱️', label:'Vardiyalar' } : null,
     hasPerm(session, 'shifts') || canManage(session, 'shifts') ? { id:'plan', ic:'📅', label:'Vardiya Planı' } : null,
-    canManage(session, 'settings_users') ? { id:'limits', ic:'💳', label:'Limitler' } : null,
+    canManage(session, 'settings_allowances') ? { id:'limits', ic:'💳', label:'Limitler' } : null,
   ].filter(Boolean);
   if(!tabs.length){ el.innerHTML = ''; return; }
   if(!tabs.some(t => t.id === APP.usersSubTab)) APP.usersSubTab = tabs[0].id;

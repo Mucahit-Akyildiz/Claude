@@ -143,7 +143,7 @@ async function renderPurchaseReportContent(session){
           <b class="pc2-line">${c>0 ? money(q*c) : i.free ? '<span class="pchip ok" title="Ücretsiz geldi; maliyete 0 TL olarak girer">🎁 Bedelsiz</span>' : '<span class="pchip warn">fiyat yok</span>'}</b></div>`; }).join('') || '<p class="muted">Kalem yok.</p>'}
       </div>
       <div class="pc2-foot">${p.notes ? `<div class="pc-note">📝 ${escapeHtml(p.notes)}</div>` : '<span></span>'}
-        <div class="pc2-acts"><span class="pc2-share"><button type="button" class="pc-btn" title="PDF olarak indir" ${act('poExport', p.id, 'pdf')}>📄 PDF</button><button type="button" class="pc-btn" title="Yazdır" ${act('poExport', p.id, 'print')}>🖨️</button><button type="button" class="pc-btn" title="Tedarikçiye e-posta gönder" ${act('poSend', p.id, 'email')}>📧</button><button type="button" class="pc-btn" title="Tedarikçiye SMS gönder" ${act('poSend', p.id, 'sms')}>💬</button></span>${p.status==='ordered' ? `<button type="button" class="pc-btn" ${act('openReceivePOModal', p.id)}>📦 Malzemeyi Teslim Al</button>` : ''}${p.status !== 'cancelled' ? `<button type="button" class="pc-btn rv-del" title="Siparişi iptal et" ${act('cancelPurchaseOrder', p.id)}>✕ İptal</button>` : ''}
+        <div class="pc2-acts"><span class="pc2-share"><button type="button" class="pc-btn" title="PDF olarak indir" ${act('poExport', p.id, 'pdf')}>📄 PDF</button><button type="button" class="pc-btn" title="Yazdır" ${act('poExport', p.id, 'print')}>🖨️</button><button type="button" class="pc-btn" title="Tedarikçiye e-posta gönder" ${act('poSend', p.id, 'email')}>📧</button><button type="button" class="pc-btn" title="Tedarikçiye SMS gönder" ${act('poSend', p.id, 'sms')}>💬</button></span>${p.status==='ordered' ? `<button type="button" class="pc-btn" ${act('openReceivePOModal', p.id)}>📦 Malzemeyi Teslim Al</button>` : ''}${['draft','ordered'].includes(p.status) ? `<button type="button" class="pc-btn" title="Teslim tarihi, not, kalem ve miktarları düzenle" ${act('openPoEdit', p.id)}>✏️ Düzenle</button>` : ''}${p.status !== 'cancelled' ? `<button type="button" class="pc-btn rv-del" title="Siparişin tamamını (tüm kalemleri) iptal et" ${act('cancelPurchaseOrder', p.id)}>✕ Siparişi iptal et</button>` : ''}
           <button type="button" class="pc-save" id="pcSave_${p.id}" disabled ${act('savePoPrices', p.id)}>${ICON_SAVE}<span>Kaydet</span></button></div></div>
     </div>`;
   };
@@ -769,7 +769,7 @@ function poPickRecipients(p, channel){
 // Mal Kabul: teslim alınmamış siparişi iptal et (teslim alınmış kalem varsa iptal edilemez; stok zaten eklendi).
 async function cancelPurchaseOrder(poId){
   const po = (APP.procRows || []).find(x => x.id === poId), rec = po && (po.items || []).some(i => Number(i.received) > 0);
-  if(!(await uiConfirm(rec ? 'Bu siparişte teslim alınmış malzemeler var.\nİptal edilince teslim alınan miktarlar stoktan düşülür ve bu alışın ortalama maliyete etkisi geri alınır.' : 'Bu malzeme siparişi iptal edilsin mi?', { title: 'Siparişi iptal et', icon: '✕', okText: 'İptal et', cancelText: 'Vazgeç', danger: rec }))) return;
+  if(!(await uiConfirm(rec ? 'Bu siparişte teslim alınmış malzemeler var.\nİptal edilince teslim alınan miktarlar stoktan düşülür ve bu alışın ortalama maliyete etkisi geri alınır.' : ('Bu siparişin TAMAMI iptal edilecek (' + ((po && po.items) || []).length + ' kalem: ' + ((po && po.items) || []).map(i => i.ingredient_name || i.name).filter(Boolean).slice(0, 6).join(', ') + ').\nYalnızca seçili kalemler değil, siparişteki tüm kalemler iptal olur. Devam edilsin mi?'), { title: 'Siparişi iptal et', icon: '✕', okText: 'İptal et', cancelText: 'Vazgeç', danger: rec }))) return;
   const { error } = await sb.rpc('set_purchase_order_status', { p_token: getSession().session_token, p_id: poId, p_status: 'cancelled' });
   if(error){ alert(error.message); return; }
   showToast(rec ? 'Sipariş iptal edildi · stok ve maliyet geri alındı' : 'Sipariş iptal edildi');
@@ -804,4 +804,55 @@ async function poBulkAssign(){
   showToast(`🚚 ${ids.length} kalem ${name} tedarikçisine atandı${data && data.split ? ' · ' + data.split + ' sipariş bölündü' : ''}`);
   renderPurchaseReportContent(getSession());
   if(typeof refreshNavBadges === 'function') refreshNavBadges();
+}
+
+/* Malzeme siparişini düzenle: teslim tarihi, not, kalemler ve miktarlar (bkz. edit_purchase_order).
+   Teslim alınmış kalem varsa yalnızca tarih ve not değiştirilebilir. */
+async function openPoEdit(poId){
+  const s = getSession();
+  const { data: po, error } = await withLoadingOverlay(sb.rpc('get_purchase_order', { p_token: s.session_token, p_id: poId }));
+  if(error || !po){ alert(error ? error.message : 'Sipariş bulunamadı'); return; }
+  const locked = (po.items || []).some(i => Number(i.received_quantity) > 0);
+  APP.poEdit = { id: poId, items: (po.items || []).map(i => ({ ingredient_id: i.ingredient_id, name: i.ingredient_name, unit: i.ingredient_unit, quantity: Number(i.quantity) || 0 })) };
+  const ings = ((APP.config && APP.config.ingredients) || []).slice().sort((a, b) => String(a.name).localeCompare(String(b.name), 'tr'));
+  removeEl('poEditBg');
+  const bg = document.createElement('div'); bg.id = 'poEditBg'; bg.className = 'dg-bg'; bg.style.zIndex = 3000;
+  bg.innerHTML = `<div class="dg-card uc-card" style="max-width:560px;text-align:left;">
+    <b style="font-size:17px;">✏️ Siparişi düzenle · ${escapeHtml(po.supplier_name || 'Tedarikçi seçilmedi')}</b>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px;">
+      <div class="field-group"><label>🎯 Teslim tarihi</label><input type="date" id="poeDate" value="${po.expected_date ? String(po.expected_date).slice(0, 10) : ''}"></div>
+      <div class="field-group"><label>📝 Not</label><input id="poeNote" value="${escapeAttr(po.notes || '')}" placeholder="İsteğe bağlı"></div>
+    </div>
+    ${locked ? '<p class="muted u-fs12">ℹ️ Bu siparişte teslim alınmış kalem olduğu için yalnızca tarih ve not değiştirilebilir.</p>' : `
+    <div id="poeItems" style="max-height:44vh;overflow:auto;margin-top:6px;"></div>
+    <div style="display:flex;gap:8px;margin-top:8px;"><select id="poeAdd" style="flex:1;margin:0;"><option value="">+ Kalem ekle…</option>${ings.map(i => `<option value="${escapeAttr(i.id)}">${escapeHtml(i.name)} (${escapeHtml(i.unit || '')})</option>`).join('')}</select><button type="button" class="pc-btn" style="width:auto;" ${act('poEditAdd')}>Ekle</button></div>`}
+    <div class="uc-acts"><button type="button" class="pc-btn uc-no" ${act('removeEl','poEditBg')}>Vazgeç</button><button type="button" class="uc-yes" ${act('savePoEdit', locked)}>💾 Kaydet</button></div>
+  </div>`;
+  bg.addEventListener('click', e => { if(e.target === bg) bg.remove(); });
+  document.body.appendChild(bg);
+  if(!locked) renderPoEditItems();
+}
+function renderPoEditItems(){
+  const el = document.getElementById('poeItems'); if(!el) return;
+  const it = APP.poEdit.items;
+  el.innerHTML = it.length ? it.map((x, i) => `<div class="po-it" style="display:flex;align-items:center;gap:8px;"><span style="flex:1;">${escapeHtml(x.name)}</span>
+    <input type="number" step="0.01" min="0" value="${x.quantity}" style="width:100px;margin:0;" ${actOn('input','poEditQty',[i,'$value'])}><small class="muted" style="width:34px;">${escapeHtml(x.unit || '')}</small>
+    <button type="button" class="pc-btn rv-del" style="width:auto;" title="Kalemi çıkar" ${act('poEditRemove', i)}>✕</button></div>`).join('') : '<p class="muted">Kalem yok — aşağıdan ekleyin.</p>';
+}
+function poEditQty(i, v){ APP.poEdit.items[i].quantity = parseFloat(v) || 0; }
+function poEditRemove(i){ APP.poEdit.items.splice(i, 1); renderPoEditItems(); }
+function poEditAdd(){
+  const sel = document.getElementById('poeAdd'); const id = sel && sel.value; if(!id) return;
+  if(APP.poEdit.items.some(x => x.ingredient_id === id)){ showToast('Bu kalem zaten siparişte'); return; }
+  const ig = ((APP.config && APP.config.ingredients) || []).find(x => x.id === id) || {};
+  APP.poEdit.items.push({ ingredient_id: id, name: ig.name || '', unit: ig.unit || '', quantity: 1 }); sel.value = ''; renderPoEditItems();
+}
+async function savePoEdit(locked){
+  const items = locked ? null : APP.poEdit.items.filter(x => x.quantity > 0).map(x => ({ ingredient_id: x.ingredient_id, quantity: x.quantity }));
+  if(items && !items.length){ alert('Siparişte en az bir kalem (miktarı 0\'dan büyük) olmalı.'); return; }
+  const { error } = await withLoadingOverlay(sb.rpc('edit_purchase_order', { p_token: getSession().session_token, p_id: APP.poEdit.id,
+    p_expected_date: document.getElementById('poeDate').value || null, p_notes: document.getElementById('poeNote').value, p_items: items }));
+  if(error){ alert(error.message); return; }
+  removeEl('poEditBg'); showToast('Sipariş güncellendi ✓');
+  renderPurchaseReportContent(getSession());
 }
