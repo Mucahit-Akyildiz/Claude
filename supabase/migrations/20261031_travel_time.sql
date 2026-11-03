@@ -133,3 +133,7 @@ alter table customers add column if not exists created_by uuid, add column if no
 -- 2026-11-03: set_notification_roles izinli türlere pkg_deadline, pkg_courier eklendi (Kime Gitsin kaydı 'Geçersiz bildirim türü' veriyordu).
 -- 2026-11-03: api_usage_daily (işletme+gün istek sayacı, _session_check içinde işlem başına bir kez),
 --   admin_usage_report(token, from, to), admin_list_restaurants'a company_id/company_name/api_today/api_30d/open_errors.
+-- 2026-11-03: Entegrasyon alt izinleri int_online/int_geo/int_marketplace/int_google/int_sms/int_mail/int_bank/int_invoice/int_efatura/int_accounting.
+--   _session_check: int_* (settings_integrations hepsini kapsar), int_any; online_ordering/efatura/marketplace/accounting izinleri int_* ile de geçer.
+--   İlgili fonksiyonlar int_* iznine bağlandı; rol kataloğunda "Entegrasyonlar" kategorisi (pakette olmayanlar "(paketinizde yok)").
+--   Rollerdeki eski online_ordering/efatura/marketplace/accounting izinleri int_* olarak taşındı.
