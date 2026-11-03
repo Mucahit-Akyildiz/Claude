@@ -393,7 +393,7 @@ function tableOptionsHtml(selectedId, busy){
 }
 /* KVKK: müşteri telefon / e-postası listelerde maskeli görünür; yalnızca Yönetici
    dokunarak tam halini görebilir (tam değer yönetici olmayanların sayfasına hiç yazılmaz). */
-function maskPhone(p){ const d = String(p||'').replace(/\D/g, ''); if(d.length < 6) return '•••'; return d.slice(0, 4) + ' *** ** ' + d.slice(-2); }
+function maskPhone(p){ const d = String(p||'').replace(/\D/g, ''); if(!d) return ''; if(d.length < 6) return '•••'; return d.slice(0, 4) + ' *** ** ' + d.slice(-2); }
 function maskEmail(e){ const [u, dom] = String(e||'').split('@'); if(!dom) return '•••'; return u.slice(0, 2) + '***@' + dom; }
 function contactHtml(val, kind){
   if(!val) return '';
