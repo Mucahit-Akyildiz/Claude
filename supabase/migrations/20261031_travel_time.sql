@@ -147,3 +147,4 @@ alter table customers add column if not exists created_by uuid, add column if no
 -- 2026-11-04: _nav_badges hızlandırıldı (izinler tek sorguda, _chat_unread tek çağrı; ~20ms→9ms). FK indeksleri: company_sessions.origin_user_id, ingredient_cost_log.restaurant_id, product_packaging.ingredient_id, restaurants.treat_product_id.
 -- 2026-11-04: get_restaurant_config sadeleştirildi: işletme satırı tek okuma, _restaurant_features tek çağrı, reçete+stok tek lateral, overhead_pct yalnızca 'revenue' yönteminde (ilk çağrı ~140ms→20ms, sonraki ~13ms→5ms; çıktı aynı).
 -- 2026-11-04: _trg_product_recipe_cost: cost_source 'recipe_partial' — reçetede maliyetsiz hammadde varken elle maliyet yoksa (boş/0) bilinen hammaddelerden otomatik kısmi maliyet; elle girilirse 'recipe_missing'.
+-- 2026-11-04: _ing_is_free (bedelsiz alınan hammadde) — _recipe_cost bunu 0 maliyetle tam sayar; config.ingredients.free; po_item_free_recalc tetikleyicisi.
