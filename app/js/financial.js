@@ -924,7 +924,7 @@ async function renderProductAnalysis(session, sub){
   if(sub) APP.prodSub = sub;
   const host = document.getElementById('reportContent'); if(!host) return;
   const cur = APP.prodSub || 'sales';
-  host.innerHTML = `<div class="seg pa-seg">${[['sales','📦 Satışlar'],['profit','💹 Kârlılık'],['alloc','📅 Gün sonu gider dağılımı'],['prices','🏷️ Alış Fiyatları']].map(([k, l]) => `<button type="button" class="${cur === k ? 'on' : ''}" ${act('setProdSub', k)}>${l}</button>`).join('')}</div><div id="paSlot"></div>`;
+  host.innerHTML = `<div class="seg pa-seg">${[['sales','📦 Satışlar'],['profit','💹 Kârlılık'],['alloc','📅 Gider Dağılımı'],['prices','🏷️ Alış Fiyatları']].map(([k, l]) => `<button type="button" class="${cur === k ? 'on' : ''}" ${act('setProdSub', k)}>${l}</button>`).join('')}</div><div id="paSlot"></div>`;
   const fn = cur === 'profit' ? renderProfitContent : cur === 'alloc' ? renderDaycloseAlloc : cur === 'prices' ? renderPurchasePricesContent : renderProductStatsContent;
   APP.mergeSlots = new Map([[fn, 'paSlot'], [renderProfitView, 'paSlot'], [renderProductStatsContent, 'paSlot'], [renderDaycloseAlloc, 'paSlot'], [renderPurchasePricesView, 'paSlot']]);
   await redrawReportPart(fn, session);
