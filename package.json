@@ -4,5 +4,8 @@
   "dependencies": {
     "@supabase/supabase-js": "^2",
     "web-push": "^3"
+  },
+  "devDependencies": {
+    "esbuild": "0.24.0"
   }
 }

@@ -2,7 +2,7 @@
 // Önbellek stratejisi "önce ağ": internet varken her zaman sunucudaki güncel dosya
 // kullanılır (POS hep canlı kalır), önbellek yalnızca bağlantı yokken devreye girer.
 // Veri (Supabase API) önbelleğe ALINMAZ; çevrimdışı veri offline.js'te yönetilir.
-const SHELL_CACHE = 'peyktan-shell-v327';
+const SHELL_CACHE = 'peyktan-shell-v328';
 const SHELL = [
   '/app/',
   '/app/manifest.webmanifest',
@@ -11,46 +11,8 @@ const SHELL = [
   '/app/js/theme-init.js',
   '/assets/vendor/supabase.js',
   '/assets/js/act.js',
-  '/app/js/i18n-dict.js',
-  '/app/js/i18n.js',
-  '/app/js/api.js',
-  '/app/js/state.js',
-  '/app/js/utils.js',
-  '/app/js/financial.js',
-  '/app/js/financial-period.js',
-  '/app/js/financial-accounts.js',
-  '/app/js/analytics.js',
-  '/app/js/reservations.js',
-  '/app/js/crm.js',
-  '/app/js/supplier.js',
-  '/app/js/admin-panel.js',
-  '/app/js/settings.js',
-  '/app/js/settings-menu.js',
-  '/app/js/settings-users.js',
-  '/app/js/settings-billing.js',
-  '/app/js/settings-comm.js',
-  '/app/js/integration-hub.js',
-  '/app/js/pos-kitchen.js',
-  '/app/js/pos-payments.js',
-  '/app/js/pos-extras.js',
-  '/app/js/pos-table.js',
-  '/app/js/allowances.js',
-  '/app/js/excel-io.js',
-  '/app/js/birthdays.js',
-  '/app/js/pos-packages.js',
-  '/app/js/pos-printer.js',
-  '/app/js/voice-notify.js',
-  '/app/js/pos-push.js',
-  '/app/js/pos-escpos.js',
-  '/app/js/messages.js',
-  '/app/js/calls.js',
-  '/app/js/radio.js',
+  '/app/dist/app.bundle.js',
   '/app/js/radio-worklet.js',
-  '/app/js/help.js',
-  '/app/js/auth-screens.js',
-  '/app/js/offline.js',
-  '/app/js/shortcuts.js',
-  '/app/js/main.js',
   '/app/js/tick-worker.js'
 ];
 self.addEventListener('install', (event) => {
