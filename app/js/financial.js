@@ -265,6 +265,7 @@ function renderReportTabContent(session){
   if(tab==='tablemap') return renderTableMapContent(session);
   if(tab==='heat') return renderHeatContent(session);
   if(tab==='stockf') return renderStockForecastContent(session);
+  if(tab==='prices'){ APP.reportTab = 'products'; return renderProductAnalysis(session, 'prices'); }
   if(tab==='zreport' || tab==='dayclose'){ APP.reportTab = 'zreport'; return renderMergedReport(session, [['🧾', 'Gün Sonu (Z Raporu)', renderZReportContent], ['📅', 'Gün Sonu Kapanışları', renderDayClosesContent], ['📤', 'Muhasebe Aktarımı', renderAccountingExport]]); }
   if(tab==='reviews') return renderReviewsReport(session);
   if(tab==='waiters' || tab==='staff' || tab==='payroll') return renderStaffPerformance(session, tab === 'payroll' ? 'payroll' : null);
@@ -923,9 +924,9 @@ async function renderProductAnalysis(session, sub){
   if(sub) APP.prodSub = sub;
   const host = document.getElementById('reportContent'); if(!host) return;
   const cur = APP.prodSub || 'sales';
-  host.innerHTML = `<div class="seg pa-seg">${[['sales','📦 Satışlar'],['profit','💹 Kârlılık'],['alloc','📅 Gün sonu gider dağılımı']].map(([k, l]) => `<button type="button" class="${cur === k ? 'on' : ''}" ${act('setProdSub', k)}>${l}</button>`).join('')}</div><div id="paSlot"></div>`;
-  const fn = cur === 'profit' ? renderProfitContent : cur === 'alloc' ? renderDaycloseAlloc : renderProductStatsContent;
-  APP.mergeSlots = new Map([[fn, 'paSlot'], [renderProfitView, 'paSlot'], [renderProductStatsContent, 'paSlot'], [renderDaycloseAlloc, 'paSlot']]);
+  host.innerHTML = `<div class="seg pa-seg">${[['sales','📦 Satışlar'],['profit','💹 Kârlılık'],['alloc','📅 Gün sonu gider dağılımı'],['prices','🏷️ Alış Fiyatları']].map(([k, l]) => `<button type="button" class="${cur === k ? 'on' : ''}" ${act('setProdSub', k)}>${l}</button>`).join('')}</div><div id="paSlot"></div>`;
+  const fn = cur === 'profit' ? renderProfitContent : cur === 'alloc' ? renderDaycloseAlloc : cur === 'prices' ? renderPurchasePricesContent : renderProductStatsContent;
+  APP.mergeSlots = new Map([[fn, 'paSlot'], [renderProfitView, 'paSlot'], [renderProductStatsContent, 'paSlot'], [renderDaycloseAlloc, 'paSlot'], [renderPurchasePricesView, 'paSlot']]);
   await redrawReportPart(fn, session);
 }
 function setProdSub(k){ APP.prodSub = k; renderProductAnalysis(getSession()); }
@@ -1050,3 +1051,54 @@ async function downloadAccountingExport(){
   X.writeFile(wb, 'muhasebe-' + fmt + '-' + from + '_' + to + '.xlsx');
   showToast('📤 Muhasebe dosyası indirildi');
 }
+
+/* --- 🏷️ Alış Fiyatları: Mal Kabul'de fiyatlı teslim alınan kalemlerden hammadde bazında fiyat özeti (bkz. get_purchase_prices).
+   Son fiyat bir önceki alışla karşılaştırılır; ortalama, en düşük / en yüksek ve güncel ağırlıklı ortalama maliyet. --- */
+async function renderPurchasePricesContent(session){
+  const el = document.getElementById('reportContent'); if(!el) return;
+  const { data, error } = await withLoadingOverlay(sb.rpc('get_purchase_prices', { p_token: session.session_token, p_date: APP.reportDate, p_date_to: APP.reportDateTo }));
+  if(error){ el.innerHTML = '<p class="muted">Yüklenemedi: ' + escapeHtml(error.message) + '</p>'; return; }
+  APP.ppRows = data || []; renderPurchasePricesView();
+}
+function setPpSort(k){ APP.ppSort = k; redrawReportPart(renderPurchasePricesView); }
+function renderPurchasePricesView(){
+  const el = document.getElementById('reportContent'); if(!el) return;
+  const n = v => Number(v) || 0, q = String(APP.ppQ || '').toLocaleLowerCase('tr');
+  const chg = r => r.prev ? (n(r.last) - n(r.prev)) / n(r.prev) * 100 : null;
+  let rows = (APP.ppRows || []).filter(r => !q || String(r.name).toLocaleLowerCase('tr').includes(q) || String(r.suppliers || '').toLocaleLowerCase('tr').includes(q));
+  const sort = APP.ppSort || 'amount';
+  rows = rows.slice().sort((a, b) => sort === 'up' ? (chg(b) ?? -1e9) - (chg(a) ?? -1e9) : sort === 'down' ? (chg(a) ?? 1e9) - (chg(b) ?? 1e9) : sort === 'name' ? String(a.name).localeCompare(String(b.name), 'tr') : n(b.amount) - n(a.amount));
+  const all = APP.ppRows || [], total = all.reduce((t, r) => t + n(r.amount), 0), ups = all.filter(r => (chg(r) || 0) > 0.5).length, downs = all.filter(r => (chg(r) || 0) < -0.5).length;
+  const d = v => v ? new Date(String(v).slice(0, 10) + 'T12:00:00').toLocaleDateString('tr-TR') : '—';
+  const pill = c => c == null ? '<span class="muted">ilk alış</span>' : Math.abs(c) < 0.5 ? '<span class="muted">değişmedi</span>' : `<b style="color:${c > 0 ? 'var(--red)' : 'var(--green)'};">${c > 0 ? '▲' : '▼'} %${Math.abs(Math.round(c * 10) / 10)}</b>`;
+  const chip = (k, l) => `<button type="button" class="range-preset-btn ${sort === k ? 'active' : ''}" ${act('setPpSort', k)}>${l}</button>`;
+  anSetExport('alis-fiyatlari', ['Hammadde','Birim','Son fiyat','Son alış','Tedarikçi','Önceki fiyat','Değişim %','Ort. alış (aralık)','En düşük','En yüksek','Alınan miktar','Tutar','Güncel ort. maliyet'],
+    rows.map(r => [r.name, r.unit, n(r.last), d(r.last_date), r.last_supplier || r.suppliers || '', r.prev ? n(r.prev) : '', chg(r) == null ? '' : Math.round(chg(r) * 10) / 10, Math.round(n(r.wavg) * 100) / 100, n(r.min), n(r.max), n(r.qty), Math.round(n(r.amount) * 100) / 100, n(r.avg_cost)]));
+  el.innerHTML = `
+    <div class="home-grid" style="margin-top:0;margin-bottom:12px;">
+      <div class="an-kpi"><div class="an-kpi-top"><span class="an-kpi-ic">🏷️</span><small>Fiyatlı alınan hammadde</small></div><b>${all.length}</b></div>
+      <div class="an-kpi"><div class="an-kpi-top"><span class="an-kpi-ic">💰</span><small>Alış tutarı (aralık)</small></div><b>${money(total)}</b></div>
+      <div class="an-kpi" style="--k:var(--red);"><div class="an-kpi-top"><span class="an-kpi-ic">▲</span><small>Fiyatı artan</small></div><b>${ups}</b></div>
+      <div class="an-kpi" style="--k:var(--green);"><div class="an-kpi-top"><span class="an-kpi-ic">▼</span><small>Fiyatı düşen</small></div><b>${downs}</b></div>
+    </div>
+    <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:10px;">
+      <input placeholder="🔍 Hammadde veya tedarikçi ara…" value="${escapeAttr(APP.ppQ || '')}" style="flex:1;min-width:200px;margin:0;" ${actOn('input','ppSearch',['$value'])}>
+      ${chip('amount','En çok harcanan')}${chip('up','En çok artan')}${chip('down','En çok düşen')}${chip('name','A → Z')}
+    </div>
+    ${!rows.length ? '<p class="muted">Bu tarih aralığında Mal Kabul\'de fiyat girilerek teslim alınmış malzeme yok.</p>' : `
+    <div class="settings-table-wrap"><table class="settings-table">
+      <thead><tr><th>Hammadde</th><th>Son fiyat</th><th>Önceki</th><th>Değişim</th><th>Ort. alış</th><th>En düşük / yüksek</th><th>Alınan</th><th>Tutar</th><th>Güncel ort. maliyet</th></tr></thead>
+      <tbody>${rows.map(r => `<tr>
+        <td><b>${escapeHtml(r.name)}</b><div class="u-fs12 muted">${escapeHtml(r.suppliers || '—')} · ${n(r.n)} alış</div></td>
+        <td><b>${money(r.last)}</b> <small class="muted">/ ${escapeHtml(r.unit || '')}</small><div class="u-fs12 muted">${d(r.last_date)}</div></td>
+        <td>${r.prev ? money(r.prev) + `<div class="u-fs12 muted">${d(r.prev_date)}</div>` : '—'}</td>
+        <td>${pill(chg(r))}</td>
+        <td>${money(r.wavg)}</td>
+        <td class="u-fs13">${money(r.min)} – ${money(r.max)}</td>
+        <td class="u-fs13">${Math.round(n(r.qty) * 100) / 100} ${escapeHtml(r.unit || '')}</td>
+        <td>${money(r.amount)}</td>
+        <td>${money(r.avg_cost)} <small class="muted">/ ${escapeHtml(r.unit || '')}</small></td></tr>`).join('')}</tbody>
+    </table></div>`}
+    <p class="fs-note" style="margin-top:10px;">Mal Kabul'de birim fiyat girilerek teslim alınan kalemler sayılır. <b>Son fiyat</b> bir önceki alışla karşılaştırılır. <b>Ort. alış</b> seçilen aralıktaki alışların miktara göre ortalamasıdır. <b>Güncel ort. maliyet</b>, eldeki stokla ağırlıklı ortalanan ve reçete maliyetinde kullanılan değerdir.</p>`;
+}
+function ppSearch(v){ APP.ppQ = v; clearTimeout(APP._ppT); APP._ppT = setTimeout(async () => { await redrawReportPart(renderPurchasePricesView); const i = document.querySelector('#paSlot input'); if(i){ i.focus(); i.setSelectionRange(i.value.length, i.value.length); } }, 250); }
