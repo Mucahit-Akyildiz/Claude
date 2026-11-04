@@ -1,5 +1,6 @@
 {
   "buildCommand": "node scripts/build-bundle.js",
+  "outputDirectory": ".",
   "headers": [
     {
       "source": "/(.*)",
