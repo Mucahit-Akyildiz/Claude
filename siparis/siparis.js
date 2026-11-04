@@ -62,7 +62,9 @@ async function init(){
     return;
   }
   STATE.menu = data;
-  try{ const po = await sb.rpc('get_public_payment_option', { p_restaurant_code: RESTAURANT_CODE }); STATE.payMode = (po.data && po.data.mode) || 'off'; }catch(e){}
+  try{ const po = await sb.rpc('get_public_payment_option', { p_restaurant_code: RESTAURANT_CODE }); STATE.payMode = (po.data && po.data.mode) || 'off'; STATE.orderModes = (po.data && po.data.order_modes) || 'both'; }catch(e){}
+  // İşletme yalnızca tek tür sipariş alıyorsa o tür seçili gelir ve sekmeler gizlenir.
+  if(STATE.orderModes === 'pickup' || STATE.orderModes === 'delivery') STATE.orderType = STATE.orderModes;
   STATE.payMethod = STATE.payMode === 'required' ? 'online' : 'door';
   // iyzico ödeme sayfasından dönüş.
   const qs = new URLSearchParams(window.location.search);
@@ -290,10 +292,10 @@ function openCheckout(){
   bg.onclick = (e) => { if(e.target===bg) bg.remove(); };
   bg.innerHTML = `<div class="modal">
     <h2>${escapeHtml(t('checkoutTitle'))}</h2>
-    <div class="order-type-tabs">
+    ${(STATE.orderModes || 'both') === 'both' ? `<div class="order-type-tabs">
       <div class="order-type-tab ${STATE.orderType==='pickup'?'active':''}" id="otPickup" ${act('setOrderType', 'pickup')}>${escapeHtml(t('pickupTab'))}</div>
       <div class="order-type-tab ${STATE.orderType==='delivery'?'active':''}" id="otDelivery" ${act('setOrderType', 'delivery')}>${escapeHtml(t('deliveryTab'))}</div>
-    </div>
+    </div>` : `<div class="order-type-tabs"><div class="order-type-tab active only">${escapeHtml(t(STATE.orderType === 'delivery' ? 'deliveryTab' : 'pickupTab'))}</div></div>`}
     ${rows.map(r => `<div class="item-row"><span>${r.qty}x ${escapeHtml(r.p.name)}</span><span>${money(r.p.price*r.qty)}</span></div>`).join('')}
     <div class="u-total item-row"><span>${escapeHtml(t('total'))}</span><span>${money(total)}</span></div>
     <input class="u-mt14" id="ckName" placeholder="${escapeHtml(t('namePlaceholder'))}">
@@ -325,6 +327,7 @@ function wantedMinutes(){
 }
 function setPayMethod(m){ STATE.payMethod = m; const b = document.getElementById('ckSendBtn'); if(b) b.textContent = t(m==='online' ? 'payNow' : 'sendOrder'); }
 function setOrderType(type){
+  if((STATE.orderModes || 'both') !== 'both' && type !== STATE.orderModes) return;
   STATE.orderType = type;
   const pickupTab = document.getElementById('otPickup');
   const deliveryTab = document.getElementById('otDelivery');
