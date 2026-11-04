@@ -239,7 +239,7 @@ function voiceTypeOf(view, x){
   if(view==='kitchen') return 'kitchen';
   if(view==='order') return k==='customer_request' ? (x.table ? 'qr' : 'online') : k==='waiter_call' ? 'waiter' : k==='idle_table' ? 'idle' : k==='no_guests' ? 'guests' : 'other';
   if(view==='payments') return k==='waiter_call' ? 'bill' : k==='ready' ? 'ready' : 'other';
-  if(view==='packages') return k==='not_dispatched' ? 'courier' : k==='pkg_deadline' ? 'pkgsoon' : 'other';
+  if(view==='packages') return k==='customer_request' ? 'online' : k==='not_dispatched' ? 'courier' : k==='pkg_deadline' ? 'pkgsoon' : 'other';
   if(view==='reservations' || view==='messages') return view;
   return 'other';
 }
