@@ -220,8 +220,22 @@ function onlineOrderingLinkHtml(){
         <button type="button" ${act('copyText', url, 'Link kopyalandı ✓')}>🔗 Kopyala</button>
         <a class="oo-open" href="${escapeAttr(url)}" target="_blank" rel="noopener">↗ Sayfayı aç</a>
       </div>
+      ${onlineOrderModesHtml()}
     </div>
   </div>`;
+}
+/* Online sipariş türü: Gel-Al ve/veya Adrese Teslim (bkz. set_online_order_modes). Tek tür açıksa sipariş sayfasında sekme gösterilmez. */
+function onlineOrderModesHtml(){
+  const cur = (APP.config.online_ordering && APP.config.online_ordering.modes) || 'both';
+  return `<div class="oo-modes"><small class="muted">Sipariş türü</small><div class="seg">${[['both','🥡🛵 İkisi de'],['pickup','🥡 Sadece Gel-Al'],['delivery','🛵 Sadece Adrese Teslim']].map(([k, l]) =>
+    `<button type="button" class="${cur === k ? 'on' : ''}" ${act('setOnlineOrderModes', k)}>${l}</button>`).join('')}</div></div>`;
+}
+async function setOnlineOrderModes(mode){
+  const { error } = await withLoadingOverlay(sb.rpc('set_online_order_modes', { p_token: getSession().session_token, p_mode: mode }));
+  if(error){ alert(error.message); return; }
+  APP.config.online_ordering = Object.assign({}, APP.config.online_ordering, { modes: mode });
+  document.querySelectorAll('.oo-modes .seg button').forEach((b, i) => b.classList.toggle('on', ['both','pickup','delivery'][i] === mode));
+  showToast(mode === 'both' ? 'Gel-Al ve Adrese Teslim açık ✓' : mode === 'pickup' ? 'Yalnızca Gel-Al ✓' : 'Yalnızca Adrese Teslim ✓');
 }
 async function saveAccountingSettings(){
   const session = getSession();
