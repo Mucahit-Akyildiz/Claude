@@ -1,4 +1,5 @@
 {
+  "buildCommand": "node scripts/build-bundle.js",
   "headers": [
     {
       "source": "/(.*)",

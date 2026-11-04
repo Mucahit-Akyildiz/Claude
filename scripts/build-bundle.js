@@ -2,7 +2,8 @@
 // Sıra app/index.html'deki <!-- bundle:start --> … <!-- bundle:end --> arasındaki listeden okunur
 // (liste HTML yorumu içinde durur; sayfa yalnızca paketi yükler). Global adlar korunur
 // Üst düzey (global) adlar korunur (data-click="fonksiyonAdı" ile adından çağrılıyorlar); yerel değişkenler kısaltılır.
-// Kullanım: node scripts/build-bundle.js   (bump-version.sh her yayında otomatik çalıştırır)
+// Kullanım: node scripts/build-bundle.js — Vercel her yayında çalıştırır (vercel.json buildCommand); paket depoya kaydedilmez (.gitignore).
+// Yerelde test için bump-version.sh de üretir.
 const fs = require('fs'), path = require('path');
 const root = path.join(__dirname, '..');
 let esbuild;
