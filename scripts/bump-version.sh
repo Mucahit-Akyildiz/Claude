@@ -8,4 +8,5 @@ next=$((cur + 1))
 sed -i "s/?v[0-9]\+/?v${next}/g" app/index.html
 sed -i "s/peyktan-shell-v[0-9]\+/peyktan-shell-v${next}/" app/sw.js
 printf '{"v":%s}\n' "$next" > app/version.json
+node scripts/build-bundle.js >&2
 echo "v${next}"
