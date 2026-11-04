@@ -1,5 +1,5 @@
 {
-  "buildCommand": "(npm install --no-save --no-audit --no-fund esbuild@0.24.0 || true) && node scripts/build-bundle.js",
+  "buildCommand": "(npm install --prefix /tmp/esb --no-save --no-audit --no-fund esbuild@0.24.0 || true) && ESBUILD_PATH=/tmp/esb/node_modules node scripts/build-bundle.js",
   "outputDirectory": ".",
   "headers": [
     {
