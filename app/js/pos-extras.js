@@ -249,7 +249,8 @@ function startCustomerRequestPolling(session){
   refreshCustomerOrderRequests(session);
   CUSTOMER_REQ_POLL_INTERVAL = setInterval(() => {
     const s = getSession();
-    if(s) refreshCustomerOrderRequests(s);
+    // Arka plandaki sekmede sorgulama yapılmaz (rozet sorgusu bildirimleri zaten taşır); sekmeye dönülünce tazelenir.
+    if(s && document.visibilityState === 'visible') refreshCustomerOrderRequests(s);
   }, 20000);
 }
 /* --- Masadan garson çağrıları (QR menü > Garson Çağır): her ekranda sağ
@@ -259,7 +260,7 @@ let WAITER_CALL_TIMER = null, WAITER_CALL_SEEN = new Set();
 function startWaiterCallPolling(){
   if(WAITER_CALL_TIMER) clearInterval(WAITER_CALL_TIMER);
   refreshWaiterCalls();
-  WAITER_CALL_TIMER = setInterval(refreshWaiterCalls, 10000);
+  WAITER_CALL_TIMER = setInterval(() => { if(document.visibilityState === 'visible') refreshWaiterCalls(); }, 10000);
 }
 async function refreshWaiterCalls(){
   const session = getSession();
