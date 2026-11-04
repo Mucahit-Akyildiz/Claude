@@ -1498,7 +1498,7 @@ function editProductRow(pid){
       <div class="pdrawer-head"><div><small class="muted">Ürün düzenle</small><h3>${escapeHtml(p.name)}</h3></div><button type="button" class="pdrawer-x" ${act('closeProdDrawer')}>✕</button></div>
       <div class="pdrawer-body" ${actOn('input','prodDrawerCalc',[])} ${actOn('change','prodDrawerCalc',[])}>
         <label>Ürün Adı</label><input id="ed_name" value="${escapeAttr(p.name)}">
-        <div class="pdrawer-3"><div><label>Fiyat (₺)</label><input type="number" id="ed_price" value="${p.price}"></div><div><label>Maliyet (₺)</label><input type="number" id="ed_cost" value="${p.cost}" ${p.cost_source==='recipe' ? 'readonly' : ''}>${p.cost_source==='recipe' ? '<small class="muted">🧾 Reçeteden otomatik (hammadde ortalama maliyetleri)</small>' : p.cost_source==='recipe_missing' ? '<small style="color:var(--c3)">⚠️ Reçetedeki bazı hammaddelerin maliyeti yok; elle girilen değer kullanılıyor</small>' : '<small class="muted">Reçete eklerseniz otomatik hesaplanır.</small>'}</div>
+        <div class="pdrawer-3"><div><label>Fiyat (₺)</label><input type="number" id="ed_price" value="${p.price}"></div><div><label>Maliyet (₺)</label><input type="number" id="ed_cost" value="${p.cost}" ${p.cost_source==='recipe' ? 'readonly' : ''}>${p.cost_source==='recipe' ? '<small class="muted">🧾 Reçeteden otomatik (hammadde ortalama maliyetleri)</small>' : p.cost_source==='recipe_missing' ? `<small style="color:var(--c3)">⚠️ ${escapeHtml(missingCostNames(p))} maliyeti yok; elle girilen değer kullanılıyor. Silerseniz bilinen hammaddelerden otomatik hesaplanır.</small>` : p.cost_source==='recipe_partial' ? `<small style="color:var(--c3)">🧾 Bilinen hammaddelerden otomatik · ⚠️ ${escapeHtml(missingCostNames(p))} maliyeti yok (eksik). Hammaddeye maliyet girin ya da buraya elle yazın.</small>` : '<small class="muted">Reçete eklerseniz otomatik hesaplanır.</small>'}</div>
           <div><label id="ed_full_l" title="${overheadPct() ? 'Malzeme maliyeti + KDV hariç fiyat × genel gider oranı' : 'Aylık sabit gider ÷ bu ürünün katkı payı (KDV hariç fiyat − malzeme)'}">${overheadPct() ? 'Tam maliyet (₺)' : 'Başa baş (adet/ay)'}</label><input id="ed_full" readonly tabindex="-1"><small class="muted" id="ed_full_n"></small></div></div>
         <div class="pdrawer-margin"><div class="pcard-mbar"><i id="ed_mbar"></i></div><span id="ed_mtxt"></span></div>
         <div class="ed-mwarn" id="ed_mwarn" hidden></div>
@@ -1746,7 +1746,13 @@ function vatOf(p, override){
 }
 function netPrice(p, price, vat){ const pr = price != null ? Number(price) : Number(p && p.price) || 0; return pr / (1 + vatOf(p, vat) / 100); }
 function costSourceTag(p){
-  return p.cost_source === 'recipe' ? '<span class="pchip" title="Reçeteden otomatik">🧾</span>' : p.cost_source === 'recipe_missing' ? '<span class="pchip warn" title="Reçetedeki bazı hammaddelerin maliyeti yok">⚠️</span>' : '';
+  return p.cost_source === 'recipe' ? '<span class="pchip" title="Reçeteden otomatik">🧾</span>' : (p.cost_source === 'recipe_missing' || p.cost_source === 'recipe_partial') ? `<span class="pchip warn" title="${escapeAttr(missingCostNames(p))} maliyeti yok">⚠️</span>` : '';
+}
+/* Reçetede maliyeti girilmemiş hammaddelerin adları (uyarı metinleri için). */
+function missingCostNames(p){
+  const ings = (APP.config && APP.config.ingredients) || [];
+  const names = (p.recipe || []).filter(r => { const i = ings.find(x => x.id === r.ingredient_id); return !i || !(Number(i.unit_cost) > 0); }).map(r => r.ingredient_name);
+  return names.length ? names.join(', ') + (names.length > 1 ? ' hammaddelerinin' : ' hammaddesinin') : 'Bazı hammaddelerin';
 }
 const OH_PRESETS = [['🏠','Kira'],['⚡','Elektrik'],['💧','Su'],['🔥','Doğalgaz'],['🌐','İnternet & telefon'],['👥','Personel maaşları'],['🧾','Muhasebe'],['🧼','Temizlik'],['📣','Reklam'],['🛵','Kurye / yakıt'],['🔧','Bakım & onarım'],['💳','POS / banka komisyonu']];
 const OH_PERIOD = { daily: 'Günlük', weekly: 'Haftalık', monthly: 'Aylık', yearly: 'Yıllık' };
