@@ -975,6 +975,8 @@ async function renderDaycloseAlloc(session){
       <span>${APP.allocOpen ? `<b>Kapanışı yapılmamış ${od} gün de dahil</b> — o ana kadarki satışlarıyla, kapanmış gibi hesaplanır. Gider: geçmiş günlerde tam günlük pay, <b>bugün</b> için günün geçen kısmı kadar (tahmini).` : `⚠️ Bu aralıkta <b>${od} günün kapanışı yapılmamış</b> (${Math.round(oq)} adet satış) — bu yüzden adetler Satışlar sekmesinden az. Dahil etmek için açın.`}</span></label>` : '';
   if(!days.length){ el.innerHTML = openBar + `<div class="empty-state"><div style="font-size:42px;">📅</div><p class="muted">Bu aralıkta gün sonu kapanışı yapılmış gün yok.<br>Gün sonu kapanışı yapıldığında o günün sabit giderleri, cirosuna göre ürünlere dağıtılır.</p></div>`; return; }
   const n = (v) => Number(v) || 0, T = prods.reduce((a, p) => ({ rev: a.rev + n(p.rev), cost: a.cost + n(p.cost), oh: a.oh + n(p.oh), net: a.net + n(p.net) }), { rev: 0, cost: 0, oh: 0, net: 0 });
+  // Adet (porsiyon) başına tutar: toplamın altında küçük satır.
+  const per = (p, v) => n(p.qty) > 0 ? `<small class="muted" style="display:block;font-size:11px;font-weight:500;">${money(n(v) / n(p.qty))} / adet</small>` : '';
   const ohDays = days.reduce((a, d) => a + n(d.oh), 0), pct = (a, b) => b ? Math.round(a / b * 100) : 0;
   el.innerHTML = openBar + `<div class="pf-kpis">
       <div class="pf-k"><small>${APP.allocOpen ? 'Dahil edilen gün' : 'Kapanışı yapılan gün'}</small><b>${days.length}</b><em>sabit gider payı ${money(ohDays)}</em></div>
@@ -984,12 +986,12 @@ async function renderDaycloseAlloc(session){
       <div class="pf-k hi ${T.net < 0 ? 'neg' : ''}"><small>Net kâr</small><b>${money(T.net)}</b><em>%${pct(T.net, T.rev)} net marj</em></div>
     </div>
     <p class="fs-note" style="margin:10px 0;">Her kapanış gününün sabit gider payı (aylık sabit gider ÷ ayın gün sayısı) <b>kapanış anında</b> kaydedilir ve o günün KDV hariç cirosuna oranlanır. Ürünlere, o gün yaptıkları ciro kadar pay düşer. Kapanışı yapılmamış günler varsayılan olarak hesaba katılmaz; gün iş günüdür (gün sonu saatinden gün sonu saatine).</p>
-    <div class="u-mwn box"><h2 class="u-m0" style="margin-bottom:10px;">📦 Ürün bazında</h2>
+    <div class="u-mwn box"><h2 class="u-m0" style="margin-bottom:10px;">📦 Ürün bazında <small class="muted" style="font-size:12px;font-weight:600;">· alt satırda adet başına</small></h2>
       <div class="pf-head"><span>Ürün</span><span>Adet</span><span>Ciro</span><span>Malzeme</span><span>Gider payı</span><span>Net kâr</span></div>
       ${prods.map(p => `<div class="pf-row ${n(p.net) < 0 ? 'neg' : ''}"><summary style="cursor:default;">
         <span class="pf-n"><b>${escapeHtml(p.name)}</b><small>net marj %${pct(n(p.net), n(p.rev))}</small></span>
-        <span data-l="Adet">${Math.round(n(p.qty) * 100) / 100}</span><span data-l="Ciro">${money(p.rev)}</span><span data-l="Malzeme">${money(p.cost)}</span>
-        <span data-l="Gider payı">${money(p.oh)}</span><span data-l="Net kâr" class="${n(p.net) < 0 ? 'neg' : 'pos'}"><b>${money(p.net)}</b></span></summary></div>`).join('')}
+        <span data-l="Adet">${Math.round(n(p.qty) * 100) / 100}</span><span data-l="Ciro">${money(p.rev)}${per(p, p.rev)}</span><span data-l="Malzeme">${money(p.cost)}${per(p, p.cost)}</span>
+        <span data-l="Gider payı">${money(p.oh)}${per(p, p.oh)}</span><span data-l="Net kâr" class="${n(p.net) < 0 ? 'neg' : 'pos'}"><b>${money(p.net)}</b>${per(p, p.net)}</span></summary></div>`).join('')}
     </div>
     <div class="u-mwn box" style="margin-top:14px;"><h2 class="u-m0" style="margin-bottom:10px;">📅 Gün bazında</h2>
       <div class="pf-head"><span>Gün</span><span></span><span>Ciro</span><span>Malzeme</span><span>Sabit gider</span><span>Gider oranı</span></div>
