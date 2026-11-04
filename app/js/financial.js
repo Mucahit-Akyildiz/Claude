@@ -211,7 +211,7 @@ async function renderReportsView(main, session){
 }
 function reportTabList(){
   const dsc = { summary:'Ciro, kâr, ödemeler', cockpit:'Karşılaştırma, tahmin, uyarılar', menueng:'Kârlılık haritası', tablemap:'Masa bazlı ciro', heat:'Gün × saat yoğunluğu', channels:'Masa, paket, gel-al, online', speed:'Hazırlama ve yanıt süreleri',
-    stockf:'Ne zaman bitecek', prices:'Mal Kabul alış fiyatları, değişim', zreport:'Z raporu, kasa, kapanışlar', waiters:'Kartlar, saatler, puantaj & prim', journey:'Sadakat, kayıp müşteri', period:'Saatlik / günlük', vat:'Vergi dağılımı',
+    stockf:'Ne zaman bitecek', zreport:'Z raporu, kasa, kapanışlar', waiters:'Kartlar, saatler, puantaj & prim', journey:'Sadakat, kayıp müşteri', period:'Saatlik / günlük', vat:'Vergi dağılımı',
     products:'Satışlar, maliyet, kârlılık', staff:'Personel ısı haritası', customers:'Harcama, sadakat, kayıp müşteri', tips:'Bahşiş dağılımı', waste:'Fire ve israf', cancel:'İptaller, personel bazlı kayıp', loss:'Personel bazlı kayıp kontrolü',
     resv:'Rezervasyon performansı', openacc:'Veresiye bakiyeleri', payroll:'Çalışma saati, maaş, prim', dayclose:'Kapandı mı, kasa farkı', reviews:'Yıldız ve yorumlar' };
   return [['summary','📊','Genel Özet'], ...AN_TABS, ['period','📈','Dönemsel Analiz'],['vat','🧾','KDV'],['products','📦','Ürün Analizi'],['customers','🧑‍🤝‍🧑','Müşteri Analizleri'],['reviews','⭐','Müşteri Değerlendirmeleri'],['tips','💰','Bahşiş Havuzu'],['waste','🔥','İsraf'],['cancel','❌','İptal & İkram Kontrolü'],['resv','📅','Rezervasyon Analizi'],['openacc','📒','Açık Hesaplar']].map(t => [...t, dsc[t[0]] || '']);
@@ -265,7 +265,7 @@ function renderReportTabContent(session){
   if(tab==='tablemap') return renderTableMapContent(session);
   if(tab==='heat') return renderHeatContent(session);
   if(tab==='stockf') return renderStockForecastContent(session);
-  if(tab==='prices') return renderPurchasePricesContent(session);
+  if(tab==='prices'){ APP.reportTab = 'products'; return renderProductAnalysis(session, 'prices'); }
   if(tab==='zreport' || tab==='dayclose'){ APP.reportTab = 'zreport'; return renderMergedReport(session, [['🧾', 'Gün Sonu (Z Raporu)', renderZReportContent], ['📅', 'Gün Sonu Kapanışları', renderDayClosesContent], ['📤', 'Muhasebe Aktarımı', renderAccountingExport]]); }
   if(tab==='reviews') return renderReviewsReport(session);
   if(tab==='waiters' || tab==='staff' || tab==='payroll') return renderStaffPerformance(session, tab === 'payroll' ? 'payroll' : null);
@@ -924,9 +924,9 @@ async function renderProductAnalysis(session, sub){
   if(sub) APP.prodSub = sub;
   const host = document.getElementById('reportContent'); if(!host) return;
   const cur = APP.prodSub || 'sales';
-  host.innerHTML = `<div class="seg pa-seg">${[['sales','📦 Satışlar'],['profit','💹 Kârlılık'],['alloc','📅 Gün sonu gider dağılımı']].map(([k, l]) => `<button type="button" class="${cur === k ? 'on' : ''}" ${act('setProdSub', k)}>${l}</button>`).join('')}</div><div id="paSlot"></div>`;
-  const fn = cur === 'profit' ? renderProfitContent : cur === 'alloc' ? renderDaycloseAlloc : renderProductStatsContent;
-  APP.mergeSlots = new Map([[fn, 'paSlot'], [renderProfitView, 'paSlot'], [renderProductStatsContent, 'paSlot'], [renderDaycloseAlloc, 'paSlot']]);
+  host.innerHTML = `<div class="seg pa-seg">${[['sales','📦 Satışlar'],['profit','💹 Kârlılık'],['alloc','📅 Gün sonu gider dağılımı'],['prices','🏷️ Alış Fiyatları']].map(([k, l]) => `<button type="button" class="${cur === k ? 'on' : ''}" ${act('setProdSub', k)}>${l}</button>`).join('')}</div><div id="paSlot"></div>`;
+  const fn = cur === 'profit' ? renderProfitContent : cur === 'alloc' ? renderDaycloseAlloc : cur === 'prices' ? renderPurchasePricesContent : renderProductStatsContent;
+  APP.mergeSlots = new Map([[fn, 'paSlot'], [renderProfitView, 'paSlot'], [renderProductStatsContent, 'paSlot'], [renderDaycloseAlloc, 'paSlot'], [renderPurchasePricesView, 'paSlot']]);
   await redrawReportPart(fn, session);
 }
 function setProdSub(k){ APP.prodSub = k; renderProductAnalysis(getSession()); }
@@ -1060,7 +1060,7 @@ async function renderPurchasePricesContent(session){
   if(error){ el.innerHTML = '<p class="muted">Yüklenemedi: ' + escapeHtml(error.message) + '</p>'; return; }
   APP.ppRows = data || []; renderPurchasePricesView();
 }
-function setPpSort(k){ APP.ppSort = k; renderPurchasePricesView(); }
+function setPpSort(k){ APP.ppSort = k; redrawReportPart(renderPurchasePricesView); }
 function renderPurchasePricesView(){
   const el = document.getElementById('reportContent'); if(!el) return;
   const n = v => Number(v) || 0, q = String(APP.ppQ || '').toLocaleLowerCase('tr');
@@ -1101,4 +1101,4 @@ function renderPurchasePricesView(){
     </table></div>`}
     <p class="fs-note" style="margin-top:10px;">Mal Kabul'de birim fiyat girilerek teslim alınan kalemler sayılır. <b>Son fiyat</b> bir önceki alışla karşılaştırılır. <b>Ort. alış</b> seçilen aralıktaki alışların miktara göre ortalamasıdır. <b>Güncel ort. maliyet</b>, eldeki stokla ağırlıklı ortalanan ve reçete maliyetinde kullanılan değerdir.</p>`;
 }
-function ppSearch(v){ APP.ppQ = v; clearTimeout(APP._ppT); APP._ppT = setTimeout(() => { renderPurchasePricesView(); const i = document.querySelector('#reportContent input'); if(i){ i.focus(); i.setSelectionRange(i.value.length, i.value.length); } }, 250); }
+function ppSearch(v){ APP.ppQ = v; clearTimeout(APP._ppT); APP._ppT = setTimeout(async () => { await redrawReportPart(renderPurchasePricesView); const i = document.querySelector('#paSlot input'); if(i){ i.focus(); i.setSelectionRange(i.value.length, i.value.length); } }, 250); }

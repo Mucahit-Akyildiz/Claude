@@ -5,7 +5,7 @@
 const AN_TABS = [
   ['cockpit','🧭','Kokpit'], ['menueng','🎯','Menü Mühendisliği'], ['tablemap','🗺️','Masa Haritası'], ['heat','🔥','Yoğunluk'],
   ['channels','🛵','Satış Kanalları'], ['speed','⚡','Hizmet Hızı'],
-  ['stockf','📦','Stok Tahmini'], ['prices','🏷️','Alış Fiyatları'], ['zreport','🧾','Gün Sonu & Kapanışlar'], ['waiters','👥','Personel Performansı']
+  ['stockf','📦','Stok Tahmini'], ['zreport','🧾','Gün Sonu & Kapanışlar'], ['waiters','👥','Personel Performansı']
 ];
 async function anBundle(session, fresh, quiet){
   const key = APP.reportDate + '|' + APP.reportDateTo;
