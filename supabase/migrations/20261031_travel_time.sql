@@ -149,3 +149,4 @@ alter table customers add column if not exists created_by uuid, add column if no
 -- 2026-11-04: _trg_product_recipe_cost: cost_source 'recipe_partial' — reçetede maliyetsiz hammadde varken elle maliyet yoksa (boş/0) bilinen hammaddelerden otomatik kısmi maliyet; elle girilirse 'recipe_missing'.
 -- 2026-11-04: _ing_is_free (bedelsiz alınan hammadde) — _recipe_cost bunu 0 maliyetle tam sayar; config.ingredients.free; po_item_free_recalc tetikleyicisi.
 -- 2026-11-04: restaurants.online_order_modes (both|pickup|delivery), set_online_order_modes, get_public_payment_option.order_modes, submit_public_order/start_public_order_payment kapalı türü reddeder.
+-- 2026-11-04: _valid_tr_mobile, _valid_person_name; submit_public_order ve start_public_order_payment geçersiz ad/telefonu reddeder.
