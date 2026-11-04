@@ -351,7 +351,9 @@ function startNavBadges(){
   // açık ekranlara da yenileme gerekmeden yansısın).
   // Rozetler (ve onlara bağlı sesli bildirimler: 20 dk gecikme, gel-al saati, rezervasyon hatırlatma)
   // 10 sn'de bir; sekme arka plandayken de devam eder ki bildirim gecikmesin.
-  const navTick = () => { if(!getSession()) return; refreshNavBadges(); if(document.visibilityState==='visible') syncMyPermissions(); };
+  // Rol izinleri ve sesli bildirim kuralı nadiren değişir: 10 sn yerine dakikada bir tazelenir.
+  let navN = 0;
+  const navTick = () => { if(!getSession()) return; refreshNavBadges(); if(document.visibilityState==='visible' && (navN++ % 6 === 0)) syncMyPermissions(); };
   // Arka plan sekmesinde de zamanında çalışsın diye worker zamanlayıcısı; yoksa normal setInterval.
   try{
     if(!window.NAV_TICK_WORKER && window.Worker){ window.NAV_TICK_WORKER = new Worker('/app/js/tick-worker.js'); }
@@ -360,7 +362,7 @@ function startNavBadges(){
   }catch(e){ NAV_BADGE_TIMER = setInterval(navTick, 10000); }
 }
 // Sekmeye geri dönülünce beklemeden güncel bildirimler alınır.
-document.addEventListener('visibilitychange', () => { if(!document.hidden && getSession()) refreshNavBadges(); });
+document.addEventListener('visibilitychange', () => { if(!document.hidden && getSession()){ refreshNavBadges(); try{ if(WAITER_CALL_TIMER) refreshWaiterCalls(); if(CUSTOMER_REQ_POLL_INTERVAL) refreshCustomerOrderRequests(getSession()); }catch(e){} } });
 /* ---- Çoklu kullanımda canlı ekran: veritabanındaki her değişiklik işletmenin
    sayaç değerini artırır (bkz. _bump_data_version). Açık ekran 3 sn'de bir bu
    değere bakar; değişmişse rozetleri tazeler ve - kullanıcı bir form
