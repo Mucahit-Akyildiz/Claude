@@ -5,7 +5,8 @@ desktop/
 docs/
 supabase/
 tests/
-scripts/
+scripts/*
+!scripts/build-bundle.js
 .github/
 .claude/
 README.md

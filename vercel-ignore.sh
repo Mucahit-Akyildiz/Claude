@@ -1,7 +1,7 @@
 #!/bin/bash
 # Vercel "Ignored Build Step": 0 ile çıkarsa derleme atlanır, 1 ile çıkarsa derlenir.
 # Yalnızca canlı dal derlenir (Dependabot vb. önizleme deployment'ları depolamayı doldurmasın)
-# ve yalnızca siteyi etkileyen dosyalar değiştiyse.
+# ve yalnızca siteyi etkileyen dosyalar değiştiyse. (scripts/build-bundle.js yayında çalışır: app/dist/app.bundle.js)
 [ "$VERCEL_GIT_COMMIT_REF" != "claude/restoran-app-definition-h5e5am" ] && exit 0
 # Elle "Redeploy" (aynı commit): ortam değişkeni eklenmiş olabilir, her zaman derle.
 [ -n "$VERCEL_GIT_PREVIOUS_SHA" ] && [ "$VERCEL_GIT_PREVIOUS_SHA" = "$VERCEL_GIT_COMMIT_SHA" ] && exit 1
