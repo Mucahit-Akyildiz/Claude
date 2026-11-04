@@ -1,5 +1,5 @@
 {
-  "buildCommand": "node scripts/build-bundle.js",
+  "buildCommand": "npm install --no-save --no-audit --no-fund esbuild@0.24.0 && node scripts/build-bundle.js",
   "outputDirectory": ".",
   "headers": [
     {
