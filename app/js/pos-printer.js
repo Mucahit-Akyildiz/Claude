@@ -992,7 +992,8 @@ function printLogHtml(){
 async function reprintFromLog(i){
   const e = getPrintLog()[i]; if(!e) return;
   const printer = e.printerId ? getPrinters().find(p => p.id === e.printerId) : null;
-  await printKitchenTicket(e.table, e.items || [], printer || null, false, e.no, e.extra || undefined);
+  // Tekrar yazdırma her zaman tek kopya: Fiş Tasarımı'ndaki "kopya sayısı" (ör. 2) burada uygulanmaz.
+  await printKitchenTicket(e.table, e.items || [], printer || null, false, e.no, Object.assign({}, e.extra || {}, { copies: 1 }));
   showToast(PRINT_RESULT.ok ? '🖨️ Fiş tekrar gönderildi' : '⚠️ Basılamadı: ' + (PRINT_RESULT.err || ''));
 }
 async function clearPrintLog(){
