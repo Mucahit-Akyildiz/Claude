@@ -38,6 +38,8 @@ function createWindow() {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
+      // Pencere küçültülse de zamanlayıcılar yavaşlamasın: paylaşılan yazıcıya gelen fişler ve sipariş bildirimleri gecikmesin.
+      backgroundThrottling: false,
     },
   });
   mainWindow.setMenuBarVisibility(false);
