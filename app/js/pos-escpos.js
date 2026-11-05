@@ -177,7 +177,7 @@ function addPrintLog(entry){
   if(document.getElementById('printerStatusCards')) renderPrinterStatusCards();
 }
 async function printKitchenTicket(tableName, items, printerOverride, silent, dailyNumber, designExtra){
-  const printers = getPrinters();
+  const printers = getAllPrinters();
   const printer = printerOverride || printers.find(p => p.id===getActivePrinterId());
   await printKitchenTicketRaw(tableName, items, printerOverride, silent, dailyNumber, designExtra);
   const kind = designExtra && designExtra.priced ? 'cash' : (designExtra && designExtra.pkg ? 'pkg' : 'kitchen');
@@ -191,8 +191,14 @@ async function printKitchenTicketRaw(tableName, items, printerOverride, silent, 
   const session = getSession();
   const restaurantName = session ? session.restaurant_name : '';
   const design = Object.assign({}, getTicketDesign(), designExtra || {});
-  const printers = getPrinters();
+  const printers = getAllPrinters();
   const printer = printerOverride || printers.find(p => p.id===getActivePrinterId());
+  // Başka cihazın paylaştığı yazıcı: fiş sunucu üzerinden o cihaza gider (bkz. remote-print.js).
+  if(printer && printer.type === 'remote'){
+    PRINT_RESULT = await sendRemotePrint(printer, { table: tableName, items: (items || []).slice(0, 80), no: dailyNumber || null, extra: designExtra || null, from: rpDeviceName() });
+    if(!silent) showToast(PRINT_RESULT.ok ? '🌐 ' + (PRINT_RESULT.note || 'Uzak yazıcıya gönderildi') : '⚠️ ' + PRINT_RESULT.err);
+    return;
+  }
 
   const copies = Math.max(1, Math.min(5, design.copies||1));
 
@@ -260,8 +266,8 @@ async function printKitchenTicketRaw(tableName, items, printerOverride, silent, 
   PRINT_RESULT = { ok: true, note: 'yazdırma penceresi' };
 }
 /* Kasa fişi: fiyatlı hesap fişi (ödeme ekranından); "Bu Ekranın Yazıcısı"na basılır. */
-async function printCashReceipt(tableName, items, total, dailyNumber){
-  await printKitchenTicket(tableName, items, null, false, dailyNumber, { priced: true, totals: { total }, copies: 1, showItemTime: false });
+async function printCashReceipt(tableName, items, total, dailyNumber, printerOverride){
+  await printKitchenTicket(tableName, items, printerOverride || null, false, dailyNumber, { priced: true, totals: { total }, copies: 1, showItemTime: false });
 }
 function formatItemTime(it, design){
   const t = it.added_at ? new Date(it.added_at) : new Date();

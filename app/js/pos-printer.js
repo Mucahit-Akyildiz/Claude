@@ -351,7 +351,7 @@ function setPrintOnOrder(on){ try{ localStorage.setItem('rys_print_on_order', on
 // Bu cihazda gerçekten sessiz yazdırabilen bir yazıcı tanımlı mı (masaüstü / USB / kiosk)?
 function deviceHasSilentPrinter(){ return getPrinters().some(p => p.type==='electron' || p.type==='usb' || p.type==='silent-browser'); }
 function resolvePrinterForStation(stationId){
-  const printers = getPrinters();
+  const printers = getAllPrinters();
   const map = getStationPrinterMap();
   if(stationId && map[stationId]){
     const p = printers.find(x => x.id===map[stationId]);
@@ -392,7 +392,7 @@ function resolveBellSetting(stationId){
   return v;
 }
 
-const PR_TYPE = (t) => t==='usb' ? ['🔌','USB (doğrudan)'] : t==='silent-browser' ? ['🤫','Sessiz tarayıcı'] : t==='electron' ? ['💻','Masaüstü uygulaması'] : ['🖨️','Tarayıcı penceresi'];
+const PR_TYPE = (t) => t==='remote' ? ['🌐','Uzak yazıcı (başka cihaz)'] : t==='usb' ? ['🔌','USB (doğrudan)'] : t==='silent-browser' ? ['🤫','Sessiz tarayıcı'] : t==='electron' ? ['💻','Masaüstü uygulaması'] : ['🖨️','Tarayıcı penceresi'];
 function pickActivePrinter(id){ setActivePrinterId(id); document.querySelectorAll('.pp-card[data-pid], .pp-grid .pp-card:not(.pp-static)').forEach(c => c.classList.remove('on')); renderPrinterSettingsView(document.getElementById('main'), getSession()); showToast('Bu ekranın yazıcısı güncellendi ✓'); }
 async function renderPrinterSettingsView(main, session){
   // Ayarlar → Fiş Tasarımı sekmesinde gösterilir; eski çağrılar (#main) sekmenin içine yönlendirilir.
@@ -540,10 +540,11 @@ async function renderPrinterSettingsView(main, session){
       <h2>Bu Ekranın Yazıcısı</h2>
       <p class="muted" style="text-align:left;margin:0 0 14px;">Seçili yazıcıya fiş <b>doğrudan</b> (pencere açmadan) gönderilir; uygun yazıcı yoksa tarayıcının yazdırma penceresi açılır.</p>
       <div class="pp-grid">
-        ${[{ id:'', name:'Tarayıcı Yazdırma Penceresi', type:'browser', def:true }].concat(printers).map((p, i) => { const [ic, tl] = PR_TYPE(p.type), on = (p.id||'') === (activeId||'');
+        ${[{ id:'', name:'Tarayıcı Yazdırma Penceresi', type:'browser', def:true }].concat(getAllPrinters()).map((p, i) => { const [ic, tl] = PR_TYPE(p.type), on = (p.id||'') === (activeId||'');
           return `<button type="button" class="pp-card ${on?'on':''}" style="--sc:var(--c${i%4+1});" ${act('pickActivePrinter', p.id||'')}>
-            <span class="pp-ic">${ic}</span><span class="pp-txt"><b>${escapeHtml(p.name)}</b><small>${p.def ? 'Varsayılan' : tl}</small></span><span class="pp-radio"></span></button>`; }).join('')}
+            <span class="pp-ic">${ic}</span><span class="pp-txt"><b>${escapeHtml(p.name)}</b><small>${p.def ? 'Varsayılan' : tl}${p.type==='remote' ? (p.online ? ' · 🟢 çevrimiçi' : ' · ⚪ çevrimdışı') : ''}</small></span><span class="pp-radio"></span></button>`; }).join('')}
       </div>
+      <p class="muted u-fs12" style="text-align:left;margin:10px 0 0;">🌐 Başka cihazların paylaştığı yazıcılar burada ve istasyon eşleştirmesinde görünür. Bu cihazın adı: <b>${escapeHtml(rpDeviceName())}</b> <a href="#" ${act('renameThisDevice')}>değiştir</a> · <a href="#" ${act('refreshRemotePrintersUi')}>listeyi yenile</a></p>
       <label class="sw-card" style="margin-top:14px !important;">
         <input type="checkbox" class="sw" ${printOnOrderEnabled()?'checked':''} ${actOn('change','setPrintOnOrder',['$checked'])}>
         <span><b>Sipariş verilince fişi hemen bu cihazdan yazdır</b><br><span class="u-fs125 muted">Sipariş Al / Paket Servis'te sipariş gönderilince fiş bu cihazın yazıcısına basılır. Fişi başka cihazdaki mutfak ekranı basıyorsa kapatın (çift fiş çıkmasın).</span></span>
@@ -561,6 +562,7 @@ async function renderPrinterSettingsView(main, session){
         return `<div class="pp-card pp-static" style="--sc:var(--c${i%4+1});">
           <span class="pp-ic">${ic}</span><span class="pp-txt"><b>${escapeHtml(p.name)}</b><small>${tl}${p.type==='electron' && p.osPrinterName ? ' · '+escapeHtml(p.osPrinterName) : ''}</small></span>
           <span class="pp-acts">${p.type==='usb' ? `<button type="button" class="pc-btn" ${act('reconnectUsbPrinter', p.id)}>Bağlan</button>` : ''}
+            <button type="button" class="pc-btn ${isPrinterShared(p.id) ? 'on' : ''}" title="Bu yazıcıyı işletmedeki diğer cihazlarla paylaş (uzaktan yazdırma)" ${act('toggleSharePrinter', p.id)}>${isPrinterShared(p.id) ? '🔗 Paylaşılıyor' : '🔗 Paylaş'}</button>
             <button type="button" class="pc-btn" ${act('testPrintPrinter', p.id)}>🖨️ Test</button>
             <button type="button" class="ico-btn danger" title="Sil" ${act('removePrinterEntry', p.id)}>🗑</button></span>
         </div>`; }).join('')}</div>` : '<div class="empty-state"><div style="font-size:38px;">🖨️</div><p class="muted">Henüz yazıcı eklenmedi. <b>+ Yeni Yazıcı</b> ile ekleyin.</p></div>'}
@@ -599,7 +601,7 @@ async function renderPrinterSettingsView(main, session){
           <span class="spf-arrow">➜</span>
           <select class="spf-sel" ${actOn('change','setStationPrinter',[st.id, '$value'])}>
             <option value="">🖥️ Bu Ekranın Yazıcısı (varsayılan)</option>
-            ${printers.map(p => `<option value="${p.id}" ${stationPrinterMap[st.id]===p.id?'selected':''}>${PR_TYPE(p.type)[0]} ${escapeHtml(p.name)}</option>`).join('')}
+            ${getAllPrinters().map(p => `<option value="${p.id}" ${stationPrinterMap[st.id]===p.id?'selected':''}>${PR_TYPE(p.type)[0]} ${escapeHtml(p.name)}</option>`).join('')}
           </select></div>
         ${stationPrintProductsHtml(st)}
       </div>`).join('')}</div>
@@ -991,7 +993,7 @@ function printLogHtml(){
 }
 async function reprintFromLog(i){
   const e = getPrintLog()[i]; if(!e) return;
-  const printer = e.printerId ? getPrinters().find(p => p.id === e.printerId) : null;
+  const printer = e.printerId ? getAllPrinters().find(p => p.id === e.printerId) : null;
   // Tekrar yazdırma her zaman tek kopya: Fiş Tasarımı'ndaki "kopya sayısı" (ör. 2) burada uygulanmaz.
   await printKitchenTicket(e.table, e.items || [], printer || null, false, e.no, Object.assign({}, e.extra || {}, { copies: 1 }));
   showToast(PRINT_RESULT.ok ? '🖨️ Fiş tekrar gönderildi' : '⚠️ Basılamadı: ' + (PRINT_RESULT.err || ''));
@@ -1002,3 +1004,5 @@ async function clearPrintLog(){
   const box = document.getElementById('printLogBox'); if(box) box.innerHTML = printLogHtml();
   renderPrinterStatusCards();
 }
+
+async function refreshRemotePrintersUi(){ await withLoadingOverlay(refreshRemotePrinters()); renderPrinterSettingsView(document.getElementById('main'), getSession()); }
