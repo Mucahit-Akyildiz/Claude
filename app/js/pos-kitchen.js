@@ -101,7 +101,7 @@ async function refreshKitchenItems(session){
   const cancelCards = kitchenCancelCards((cancRes && cancRes.data) || []);
   // align-items:start: her kart kendi içeriği kadar uzar (sıradaki en uzun karta göre esneyip boş alan bırakmaz).
   // Kanban: kartlar en eski bekleyen ürünün süresine göre Yeni / Bekliyor / Gecikti sütunlarında.
-  const nowMs = Date.now();
+  const nowMs = serverNow();
   // Teslim saatli paketler sütuna kalan süreye göre yerleşir (kalan < 10 → "Gecikti", 10–20 → "Bekliyor").
   const age = (c) => c.dl ? (() => { const left = (c.dl - nowMs) / 60000; return left < 10 ? 20 : left < 20 ? 10 : 0; })() : isFinite(c.at) ? (nowMs - c.at) / 60000 : 0;
   const cols = [
@@ -152,7 +152,7 @@ function kitchenCancelCards(rows){
         .catch(e => console.error('İptal fişi yazdırılamadı:', e));
     });
   }
-  const now = Date.now();
+  const now = serverNow();
   const visible = rows.filter(r => now - new Date(r.created_at).getTime() < KITCHEN_CANCEL_SHOW_MS);
   const groups = {};
   visible.forEach(r => { (groups[r.order_id] = groups[r.order_id] || []).push(r); });
@@ -187,7 +187,7 @@ function waitlistInfoHtml(o){
   if(o.kind === 'waitlist' && o.reservation_id){
     const rv = o.reservation || {};
     if(!rv.time) return '<div class="kc-wl">📅 Rezervasyon ön siparişi</div>';
-    const t = new Date(rv.time), left = Math.round((t - Date.now()) / 60000);
+    const t = new Date(rv.time), left = Math.round((t - serverNow()) / 60000);
     return `<div class="kc-wl">📅 Rezervasyon${rv.party_size ? ' · ' + rv.party_size + ' kişi' : ''} · 🕒 ${t.toLocaleTimeString('tr-TR', { hour:'2-digit', minute:'2-digit' })} ${left > 0 ? '(' + left + ' dk sonra gelecek)' : '(saati geldi)'}</div>`;
   }
   if(!o.waitlist_id) return '';
@@ -195,7 +195,7 @@ function waitlistInfoHtml(o){
   let eta = '';
   if(w.quoted_wait_minutes && w.joined_at){
     const t = new Date(new Date(w.joined_at).getTime() + w.quoted_wait_minutes * 60000);
-    const left = Math.round((t - Date.now()) / 60000);
+    const left = Math.round((t - serverNow()) / 60000);
     eta = ' · 🪑 tahmini oturma ' + t.toLocaleTimeString('tr-TR', { hour:'2-digit', minute:'2-digit' }) + (left > 0 ? ' (' + left + ' dk kaldı)' : ' (süre doldu)');
   }
   return `<div class="kc-wl">⏳ Bekleme listesinden${w.party_size ? ' · ' + w.party_size + ' kişi' : ''}${eta}</div>`;
@@ -234,10 +234,10 @@ function updateKitchenTimers(){
   // Kartın üstündeki süre çubuğu 20 dakikaya doğru dolar.
   document.querySelectorAll('.kc-age i[data-age-from]').forEach(el => {
     const f = el.dataset.ageFrom; if(!f) return;
-    const mins = (Date.now() - new Date(f).getTime()) / 60000;
+    const mins = (serverNow() - new Date(f).getTime()) / 60000;
     el.style.width = Math.min(100, mins / 20 * 100) + '%';
     const card = el.closest('.kitchen-card'); if(!card) return;
-    const dl = el.dataset.deadline ? (new Date(el.dataset.deadline).getTime() - Date.now()) / 60000 : null;
+    const dl = el.dataset.deadline ? (new Date(el.dataset.deadline).getTime() - serverNow()) / 60000 : null;
     const st = dl != null ? (dl < 10 ? 'late' : dl < 20 ? 'warn' : 'new') : mins >= 20 ? 'late' : mins >= 10 ? 'warn' : 'new';
     card.classList.toggle('kc-new', st==='new'); card.classList.toggle('kc-warn', st==='warn'); card.classList.toggle('kc-late', st==='late');
     const pill = card.querySelector('.kc-pill'); if(pill) pill.textContent = dl != null ? (dl < 0 ? '🔴 Süre geçti' : st==='late' ? '🔴 Acele' : st==='warn' ? '🟡 Yaklaşıyor' : '🟢 Zamanında') : st==='late' ? '🔴 Gecikti' : st==='warn' ? '🟡 Bekliyor' : '🟢 Yeni';
@@ -246,7 +246,7 @@ function updateKitchenTimers(){
   document.querySelectorAll('.kitchen-timer[data-added]').forEach(el => {
     const added = el.dataset.added;
     if(!added){ el.textContent='-'; return; }
-    const secs = Math.max(0, Math.floor((Date.now() - new Date(added).getTime())/1000));
+    const secs = Math.max(0, Math.floor((serverNow() - new Date(added).getTime())/1000));
     const mm = Math.floor(secs/60), ss = secs%60;
     el.textContent = mm + ':' + String(ss).padStart(2,'0');
     // 0-10 dk yesil (varsayilan), 10-20 dk sari, 20 dk+ kirmizi.
@@ -491,14 +491,14 @@ async function markReadyGroup(ids){
   const list = String(ids).split(',').filter(Boolean);
   if(list.length === 1) return markReady(list[0]);
   const session = getSession();
-  APP.selfActionUntil = Date.now() + 10000;
+  APP.selfActionUntil = serverNow() + 10000;
   const res = await bulkRpc('mark_item_ready', list.map(id => ({ p_order_item_id: id })));
   if(res.some(r => r.error)) alert('Bazı ürünler hazır işaretlenemedi.');
   await refreshKitchenItems(session);
 }
 async function markReady(itemId){
   const session = getSession();
-  APP.selfActionUntil = Date.now() + 10000;
+  APP.selfActionUntil = serverNow() + 10000;
   const { error } = await sb.rpc('mark_item_ready', { p_token: session.session_token, p_order_item_id: itemId });
   if(error){ alert('Hata: '+error.message); return; }
   await refreshKitchenItems(session);
@@ -506,7 +506,7 @@ async function markReady(itemId){
 async function markAllReady(tableId){
   const entry = APP.kitchenPendingByTable && APP.kitchenPendingByTable[tableId];
   if(!entry || entry.items.length===0) return;
-  APP.selfActionUntil = Date.now() + 10000;
+  APP.selfActionUntil = serverNow() + 10000;
   const session = getSession();
   const results = await bulkRpc('mark_item_ready', entry.items.map(it => ({ p_order_item_id: it.id })));
   const failed = results.some(r => r.error);
@@ -674,7 +674,7 @@ const PKG_WARN_MIN = 20; // mutfak kartı renkleri: 20+ yeşil, 10–20 sarı, <
 function warnPackageDeadlines(){
   if(!(APP.pkgWarned instanceof Map)) APP.pkgWarned = new Map();
   (APP.liveOrders || []).filter(o => o.kind === 'takeaway' && o.pickup_at && (o.items || []).some(i => i.status === 'pending' && !i.paid)).forEach(o => {
-    const left = Math.round(((typeof pkgKitchenDeadline === 'function' ? pkgKitchenDeadline(o) : new Date(o.pickup_at).getTime()) - Date.now()) / 60000);
+    const left = Math.round(((typeof pkgKitchenDeadline === 'function' ? pkgKitchenDeadline(o) : new Date(o.pickup_at).getTime()) - serverNow()) / 60000);
     const st = typeof pkgDeadlineStage === 'function' ? pkgDeadlineStage(left) : (left < 20 ? 2 : 0);
     if(!st || (APP.pkgWarned.get(o.order_id) || 0) >= st) return;
     APP.pkgWarned.set(o.order_id, st);
@@ -694,7 +694,7 @@ function kitchenPickupHtml(o){
   if(!o.pickup_at) return t !== 'pickup' ? '<div class="kc-pickup">🛵 Paket · adrese teslim' + (typeof pkgTravelLabel === 'function' && pkgTravelLabel(o) ? ' <small title="Google Maps sürüş süresi + işletmenin hazırlık/teslim payı · son hesap saati">(' + pkgTravelLabel(o) + ')</small>' : '') + '</div>' : '<div class="kc-pickup">🥡 Gel-Al</div>';
   // Adrese teslimde yol için 10 dk ayrılır: geri sayım yola çıkış saatine göre.
   const dlMs = typeof pkgKitchenDeadline === 'function' ? pkgKitchenDeadline(o) : new Date(o.pickup_at).getTime();
-  const left = Math.round((dlMs - Date.now()) / 60000);
+  const left = Math.round((dlMs - serverNow()) / 60000);
   const hm = new Date(o.pickup_at).toLocaleTimeString('tr-TR', { hour:'2-digit', minute:'2-digit' });
   const out = new Date(dlMs).toLocaleTimeString('tr-TR', { hour:'2-digit', minute:'2-digit' });
   const tr = typeof pkgTravelMin === 'function' ? pkgTravelMin(o) : 10;

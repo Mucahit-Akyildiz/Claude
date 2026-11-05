@@ -561,3 +561,16 @@ function hydrateQrImages(root){
   })).catch(() => {});
 }
 new MutationObserver(muts => { if(muts.some(m => m.addedNodes.length)) hydrateQrImages(); }).observe(document.documentElement, { childList: true, subtree: true });
+/* Sunucu saati: cihaz saati ileri/geride olsa da sipariş sayaçları doğru çalışsın (bkz. get_server_now).
+   Fark açılışta ve 10 dakikada bir ölçülür; ağ gecikmesinin yarısı düzeltilir. */
+let CLOCK_SKEW = 0;
+function serverNow(){ return Date.now() + CLOCK_SKEW; }
+async function syncServerClock(){
+  try{
+    const t0 = Date.now(); const { data, error } = await sb.rpc('get_server_now'); const t1 = Date.now();
+    if(error || !data) return;
+    const sv = new Date(data).getTime(); if(!isFinite(sv)) return;
+    CLOCK_SKEW = Math.round(sv + (t1 - t0) / 2 - t1);
+  }catch(e){}
+}
+if(typeof sb !== 'undefined'){ setTimeout(syncServerClock, 1500); setInterval(syncServerClock, 10 * 60000); }
