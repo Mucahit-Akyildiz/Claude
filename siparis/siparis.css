@@ -124,3 +124,5 @@
 .otp-err{min-height:18px;color:#ef4444;font-size:13px;margin:8px 0;}
 .otp-ok{width:100%;padding:12px;border:0;border-radius:10px;background:#06b6d4;color:#fff;font-weight:700;font-size:15px;cursor:pointer;}
 .otp-row{display:flex;justify-content:space-between;margin-top:10px;} .otp-link{background:none;border:0;color:#06b6d4;cursor:pointer;font-size:13px;padding:4px;}
+/* Emoji: Apple dışı cihazlarda Noto Color Emoji (assets/js/emoji-font.js html.emoji-noto ekler). */
+html.emoji-noto body,html.emoji-noto input,html.emoji-noto select,html.emoji-noto textarea,html.emoji-noto button{font-family:'Plus Jakarta Sans','Noto Color Emoji',-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;}
