@@ -117,3 +117,10 @@
 .pay-opt input{width:auto;margin:0;}
 .when-box{margin:10px 0 4px;text-align:left}.when-box b{display:block;font-size:14px;margin-bottom:6px}.when-opts{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center}.when-opts input[type=time]{width:auto;margin:0}
 .order-type-tab.only{cursor:default;}
+.otp-bg{position:fixed;inset:0;z-index:1000;background:rgba(0,0,0,.55);display:grid;place-items:center;padding:16px;}
+.otp-card{background:var(--panel,#fff);color:inherit;border-radius:16px;padding:20px;max-width:360px;width:100%;box-shadow:0 20px 50px rgba(0,0,0,.3);text-align:center;}
+.otp-card h3{margin:0 0 6px;} .otp-card p{margin:0 0 12px;font-size:14px;opacity:.8;}
+.otp-card input{width:100%;font-size:24px;letter-spacing:8px;text-align:center;padding:10px;border-radius:10px;border:1px solid #ccc;box-sizing:border-box;}
+.otp-err{min-height:18px;color:#ef4444;font-size:13px;margin:8px 0;}
+.otp-ok{width:100%;padding:12px;border:0;border-radius:10px;background:#06b6d4;color:#fff;font-weight:700;font-size:15px;cursor:pointer;}
+.otp-row{display:flex;justify-content:space-between;margin-top:10px;} .otp-link{background:none;border:0;color:#06b6d4;cursor:pointer;font-size:13px;padding:4px;}

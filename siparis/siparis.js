@@ -17,8 +17,8 @@ const LANGS = [
   { code:'ru', label:'RU' },
 ];
 const I18N = {
-  tr: { invalidTitle:'Geçersiz Bağlantı', invalidMsg:'Bu sayfaya işletmenin paylaştığı online sipariş linkiyle ulaşmalısınız.', errorTitle:'Menü Yüklenemedi', errorMsg:'Bir hata oluştu, lütfen daha sonra tekrar deneyin.', emptyMenu:'Şu anda menüde satışa açık ürün yok.', other:'Diğer', all:'Tümü', subtitle:'Online Sipariş — Gel-Al / Teslimat', sendCart:'Sepeti Gönder →', items:'ürün', checkoutTitle:'Siparişi Onayla', pickupTab:'🥡 Gel-Al', deliveryTab:'🛵 Teslimat', total:'Toplam', namePlaceholder:'Adınız Soyadınız', phonePlaceholder:'Telefon Numaranız', addressPlaceholder:'Teslimat Adresi', sendOrder:'Siparişi Gönder', sending:'Gönderiliyor...', back:'Geri Dön', successTitle:'Siparişiniz Alındı', successMsg:'Siparişiniz işletmeye iletildi, onaylandığında hazırlanmaya başlanacak. Afiyet olsun!', errName:'Adınızı girin', errPhone:'Telefon numaranızı girin', errAddress:'Teslimat adresini girin', errNameBad:'Lütfen adınızı ve soyadınızı doğru yazın', errPhoneBad:'Lütfen geçerli bir cep telefonu numarası yazın (05XX XXX XX XX)', payTitle:'Ödeme', payDoor:'💵 Kapıda / teslimde öde', payOnline:'💳 Online kartla öde', payNow:'Ödemeye Geç', payRedirect:'Ödeme sayfasına yönlendiriliyorsunuz...', paidTitle:'Ödemeniz Alındı', paidMsg:'Ödemeniz başarıyla alındı ve siparişiniz işletmeye iletildi. Afiyet olsun!', payFailTitle:'Ödeme Tamamlanamadı', payFailMsg:'Ödeme alınamadı, kartınızdan çekim yapılmadı. Lütfen tekrar deneyin.', payRequired:'Bu işletmede sipariş online ödeme ile verilir.', whenPickup:'Ne zaman almak istersiniz?', whenDelivery:'Ne zaman teslim edilsin?', whenAsap:'En kısa sürede', whenLater:'İleri bir saat', errWhen:'En az 10 dakika sonrası için bir saat seçin (en fazla 10 saat).' },
-  en: { invalidTitle:'Invalid Link', invalidMsg:'Please use the online ordering link shared by the business to reach this page.', errorTitle:'Menu Could Not Load', errorMsg:'Something went wrong, please try again later.', emptyMenu:'There are no items available right now.', other:'Other', all:'All', subtitle:'Online Order — Pickup / Delivery', sendCart:'Send Cart →', items:'items', checkoutTitle:'Confirm Order', pickupTab:'🥡 Pickup', deliveryTab:'🛵 Delivery', total:'Total', namePlaceholder:'Your Full Name', phonePlaceholder:'Your Phone Number', addressPlaceholder:'Delivery Address', sendOrder:'Send Order', sending:'Sending...', back:'Go Back', successTitle:'Order Received', successMsg:'Your order has been sent to the business and will be prepared once approved. Enjoy your meal!', errName:'Please enter your name', errPhone:'Please enter your phone number', errAddress:'Please enter the delivery address', errNameBad:'Please enter your real name', errPhoneBad:'Please enter a valid Turkish mobile number (05XX XXX XX XX)', payTitle:'Payment', payDoor:'💵 Pay on delivery / pickup', payOnline:'💳 Pay online by card', payNow:'Proceed to Payment', payRedirect:'Redirecting to payment page...', paidTitle:'Payment Received', paidMsg:'Your payment was successful and your order has been sent to the business. Enjoy your meal!', payFailTitle:'Payment Failed', payFailMsg:'The payment could not be completed and your card was not charged. Please try again.', payRequired:'Orders here are paid online.' , whenPickup:'When would you like to pick up?', whenDelivery:'When should it be delivered?', whenAsap:'As soon as possible', whenLater:'Later time', errWhen:'Pick a time at least 10 minutes from now (max 10 hours).' },
+  tr: { invalidTitle:'Geçersiz Bağlantı', invalidMsg:'Bu sayfaya işletmenin paylaştığı online sipariş linkiyle ulaşmalısınız.', errorTitle:'Menü Yüklenemedi', errorMsg:'Bir hata oluştu, lütfen daha sonra tekrar deneyin.', emptyMenu:'Şu anda menüde satışa açık ürün yok.', other:'Diğer', all:'Tümü', subtitle:'Online Sipariş — Gel-Al / Teslimat', sendCart:'Sepeti Gönder →', items:'ürün', checkoutTitle:'Siparişi Onayla', pickupTab:'🥡 Gel-Al', deliveryTab:'🛵 Teslimat', total:'Toplam', namePlaceholder:'Adınız Soyadınız', phonePlaceholder:'Telefon Numaranız', addressPlaceholder:'Teslimat Adresi', sendOrder:'Siparişi Gönder', sending:'Gönderiliyor...', back:'Geri Dön', successTitle:'Siparişiniz Alındı', successMsg:'Siparişiniz işletmeye iletildi, onaylandığında hazırlanmaya başlanacak. Afiyet olsun!', errName:'Adınızı girin', errPhone:'Telefon numaranızı girin', errAddress:'Teslimat adresini girin', errNameBad:'Lütfen adınızı ve soyadınızı doğru yazın', otpTitle:'Telefon doğrulama', otpMsg:'{phone} numarasına gönderilen 6 haneli kodu girin.', otpPh:'Doğrulama kodu', otpVerify:'Doğrula ve devam et', otpResend:'Kodu tekrar gönder', otpCancel:'Vazgeç', otpSent:'Kod gönderildi', otpNeeded:'Sipariş için telefonunuzu doğrulamanız gerekiyor.', errPhoneBad:'Lütfen geçerli bir cep telefonu numarası yazın (05XX XXX XX XX)', payTitle:'Ödeme', payDoor:'💵 Kapıda / teslimde öde', payOnline:'💳 Online kartla öde', payNow:'Ödemeye Geç', payRedirect:'Ödeme sayfasına yönlendiriliyorsunuz...', paidTitle:'Ödemeniz Alındı', paidMsg:'Ödemeniz başarıyla alındı ve siparişiniz işletmeye iletildi. Afiyet olsun!', payFailTitle:'Ödeme Tamamlanamadı', payFailMsg:'Ödeme alınamadı, kartınızdan çekim yapılmadı. Lütfen tekrar deneyin.', payRequired:'Bu işletmede sipariş online ödeme ile verilir.', whenPickup:'Ne zaman almak istersiniz?', whenDelivery:'Ne zaman teslim edilsin?', whenAsap:'En kısa sürede', whenLater:'İleri bir saat', errWhen:'En az 10 dakika sonrası için bir saat seçin (en fazla 10 saat).' },
+  en: { invalidTitle:'Invalid Link', invalidMsg:'Please use the online ordering link shared by the business to reach this page.', errorTitle:'Menu Could Not Load', errorMsg:'Something went wrong, please try again later.', emptyMenu:'There are no items available right now.', other:'Other', all:'All', subtitle:'Online Order — Pickup / Delivery', sendCart:'Send Cart →', items:'items', checkoutTitle:'Confirm Order', pickupTab:'🥡 Pickup', deliveryTab:'🛵 Delivery', total:'Total', namePlaceholder:'Your Full Name', phonePlaceholder:'Your Phone Number', addressPlaceholder:'Delivery Address', sendOrder:'Send Order', sending:'Sending...', back:'Go Back', successTitle:'Order Received', successMsg:'Your order has been sent to the business and will be prepared once approved. Enjoy your meal!', errName:'Please enter your name', errPhone:'Please enter your phone number', errAddress:'Please enter the delivery address', errNameBad:'Please enter your real name', otpTitle:'Phone verification', otpMsg:'Enter the 6-digit code sent to {phone}.', otpPh:'Verification code', otpVerify:'Verify and continue', otpResend:'Resend code', otpCancel:'Cancel', otpSent:'Code sent', otpNeeded:'Please verify your phone to place the order.', errPhoneBad:'Please enter a valid Turkish mobile number (05XX XXX XX XX)', payTitle:'Payment', payDoor:'💵 Pay on delivery / pickup', payOnline:'💳 Pay online by card', payNow:'Proceed to Payment', payRedirect:'Redirecting to payment page...', paidTitle:'Payment Received', paidMsg:'Your payment was successful and your order has been sent to the business. Enjoy your meal!', payFailTitle:'Payment Failed', payFailMsg:'The payment could not be completed and your card was not charged. Please try again.', payRequired:'Orders here are paid online.' , whenPickup:'When would you like to pick up?', whenDelivery:'When should it be delivered?', whenAsap:'As soon as possible', whenLater:'Later time', errWhen:'Pick a time at least 10 minutes from now (max 10 hours).' },
   ar: { invalidTitle:'رابط غير صالح', invalidMsg:'يرجى استخدام رابط الطلب عبر الإنترنت الذي شاركته المنشأة للوصول إلى هذه الصفحة.', errorTitle:'تعذر تحميل القائمة', errorMsg:'حدث خطأ ما، يرجى المحاولة مرة أخرى لاحقًا.', emptyMenu:'لا توجد عناصر متاحة حاليًا.', other:'أخرى', all:'الكل', subtitle:'طلب عبر الإنترنت — استلام / توصيل', sendCart:'إرسال السلة ←', items:'عناصر', checkoutTitle:'تأكيد الطلب', pickupTab:'🥡 استلام', deliveryTab:'🛵 توصيل', total:'المجموع', namePlaceholder:'الاسم الكامل', phonePlaceholder:'رقم هاتفك', addressPlaceholder:'عنوان التوصيل', sendOrder:'إرسال الطلب', sending:'جارٍ الإرسال...', back:'رجوع', successTitle:'تم استلام طلبك', successMsg:'تم إرسال طلبك إلى المنشأة وسيتم تحضيره بعد الموافقة. بالهناء والشفاء!', errName:'يرجى إدخال اسمك', errPhone:'يرجى إدخال رقم هاتفك', errAddress:'يرجى إدخال عنوان التوصيل' },
   de: { invalidTitle:'Ungültiger Link', invalidMsg:'Bitte verwenden Sie den vom Betrieb geteilten Online-Bestelllink, um diese Seite zu erreichen.', errorTitle:'Menü konnte nicht geladen werden', errorMsg:'Etwas ist schiefgelaufen, bitte versuchen Sie es später erneut.', emptyMenu:'Derzeit sind keine Artikel verfügbar.', other:'Sonstiges', all:'Alle', subtitle:'Online-Bestellung — Abholung / Lieferung', sendCart:'Warenkorb senden →', items:'Artikel', checkoutTitle:'Bestellung bestätigen', pickupTab:'🥡 Abholung', deliveryTab:'🛵 Lieferung', total:'Gesamt', namePlaceholder:'Ihr vollständiger Name', phonePlaceholder:'Ihre Telefonnummer', addressPlaceholder:'Lieferadresse', sendOrder:'Bestellung senden', sending:'Wird gesendet...', back:'Zurück', successTitle:'Bestellung erhalten', successMsg:'Ihre Bestellung wurde an den Betrieb gesendet und wird nach Bestätigung zubereitet. Guten Appetit!', errName:'Bitte geben Sie Ihren Namen ein', errPhone:'Bitte geben Sie Ihre Telefonnummer ein', errAddress:'Bitte geben Sie die Lieferadresse ein' },
   ru: { invalidTitle:'Недействительная ссылка', invalidMsg:'Пожалуйста, используйте ссылку для онлайн-заказа, предоставленную заведением, чтобы попасть на эту страницу.', errorTitle:'Не удалось загрузить меню', errorMsg:'Что-то пошло не так, попробуйте позже.', emptyMenu:'Сейчас нет доступных позиций.', other:'Другое', all:'Все', subtitle:'Онлайн-заказ — Самовывоз / Доставка', sendCart:'Отправить заказ →', items:'позиций', checkoutTitle:'Подтвердить заказ', pickupTab:'🥡 Самовывоз', deliveryTab:'🛵 Доставка', total:'Итого', namePlaceholder:'Ваше полное имя', phonePlaceholder:'Ваш номер телефона', addressPlaceholder:'Адрес доставки', sendOrder:'Отправить заказ', sending:'Отправка...', back:'Назад', successTitle:'Заказ получен', successMsg:'Ваш заказ отправлен заведению и будет готовиться после подтверждения. Приятного аппетита!', errName:'Пожалуйста, введите ваше имя', errPhone:'Пожалуйста, введите ваш номер телефона', errAddress:'Пожалуйста, введите адрес доставки' },
@@ -62,7 +62,7 @@ async function init(){
     return;
   }
   STATE.menu = data;
-  try{ const po = await sb.rpc('get_public_payment_option', { p_restaurant_code: RESTAURANT_CODE }); STATE.payMode = (po.data && po.data.mode) || 'off'; STATE.orderModes = (po.data && po.data.order_modes) || 'both'; }catch(e){}
+  try{ const po = await sb.rpc('get_public_payment_option', { p_restaurant_code: RESTAURANT_CODE }); STATE.payMode = (po.data && po.data.mode) || 'off'; STATE.orderModes = (po.data && po.data.order_modes) || 'both'; STATE.smsVerify = !!(po.data && po.data.sms_verify); }catch(e){}
   // İşletme yalnızca tek tür sipariş alıyorsa o tür seçili gelir ve sekmeler gizlenir.
   if(STATE.orderModes === 'pickup' || STATE.orderModes === 'delivery') STATE.orderType = STATE.orderModes;
   STATE.payMethod = STATE.payMode === 'required' ? 'online' : 'door';
@@ -340,6 +340,34 @@ function validName(n){
   return n.length >= 2 && n.length <= 60 && !/\d/.test(n) && letters.length >= 2 && !/^(.)\1+$/i.test(letters)
     && !['test','deneme','asd','asdf','qwe','abc','xxx','aaa','yok','isim','ad soyad','adsoyad'].includes(n.toLocaleLowerCase('tr'));
 }
+function orderErrText(m){ if(m === 'SMS_DOGRULAMA_GEREKLI'){ STATE.verifiedPhone = null; return t('otpNeeded'); } return m; }
+function normPhone(p){ let d = String(p || '').replace(/\D/g, ''); if(d.length === 12 && d.startsWith('90')) d = d.slice(2); if(d.length === 11 && d.startsWith('0')) d = d.slice(1); return d; }
+/* SMS doğrulama penceresi: kod gönderir, girilen kodu sunucuda doğrular. Doğrulanırsa true döner. */
+function smsVerifyFlow(phone){
+  return new Promise(async (resolve) => {
+    const send = async () => { const { error } = await sb.rpc('request_public_order_otp', { p_restaurant_code: RESTAURANT_CODE, p_phone: phone }); return error ? error.message : null; };
+    const firstErr = await send();
+    const bg = document.createElement('div'); bg.className = 'otp-bg';
+    bg.innerHTML = `<div class="otp-card"><h3>📱 ${escapeHtml(t('otpTitle'))}</h3><p>${escapeHtml(t('otpMsg').replace('{phone}', phone))}</p>
+      <input id="otpCode" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="${escapeHtml(t('otpPh'))}">
+      <div class="otp-err" id="otpErr">${firstErr ? escapeHtml(firstErr) : ''}</div>
+      <button type="button" class="otp-ok" id="otpOk">${escapeHtml(t('otpVerify'))}</button>
+      <div class="otp-row"><button type="button" class="otp-link" id="otpRe">${escapeHtml(t('otpResend'))}</button><button type="button" class="otp-link" id="otpNo">${escapeHtml(t('otpCancel'))}</button></div></div>`;
+    document.body.appendChild(bg);
+    const err = bg.querySelector('#otpErr'), inp = bg.querySelector('#otpCode');
+    const done = (v) => { bg.remove(); resolve(v); };
+    setTimeout(() => inp.focus(), 50);
+    bg.querySelector('#otpNo').addEventListener('click', () => done(false));
+    bg.querySelector('#otpRe').addEventListener('click', async () => { const e = await send(); err.textContent = e || t('otpSent'); });
+    const verify = async () => {
+      const { error } = await sb.rpc('verify_public_order_otp', { p_restaurant_code: RESTAURANT_CODE, p_phone: phone, p_code: inp.value });
+      if(error){ err.textContent = error.message; return; }
+      STATE.verifiedPhone = normPhone(phone); done(true);
+    };
+    bg.querySelector('#otpOk').addEventListener('click', verify);
+    inp.addEventListener('keydown', (e) => { if(e.key === 'Enter') verify(); });
+  });
+}
 function setOrderType(type){
   if((STATE.orderModes || 'both') !== 'both' && type !== STATE.orderModes) return;
   STATE.orderType = type;
@@ -367,13 +395,18 @@ async function sendPublicOrder(){
   if(STATE.orderType==='delivery' && !address){ errEl.textContent = t('errAddress'); return; }
   const wanted = wantedMinutes();
   if(wanted === false){ errEl.textContent = t('errWhen'); return; }
+  // İşletme SMS doğrulaması istiyorsa: numara bu oturumda doğrulanmadıysa önce kod.
+  if(STATE.smsVerify && STATE.verifiedPhone !== normPhone(phone)){
+    const ok = await smsVerifyFlow(phone);
+    if(!ok){ errEl.textContent = t('otpNeeded'); return; }
+  }
   btn.disabled = true; btn.textContent = t('sending');
   if(STATE.payMethod === 'online' && STATE.payMode !== 'off'){
     // Önce ödeme: sipariş, ödeme başarılı olunca işletmeye düşer.
     const { data: pd, error: pe } = await sb.rpc('start_public_order_payment', {
       p_restaurant_code: RESTAURANT_CODE, p_order_type: STATE.orderType, p_customer_name: name,
       p_customer_phone: phone, p_delivery_address: STATE.orderType==='delivery' ? address : null, p_items: items, p_client_id: CLIENT_ID });
-    if(pe || !pd){ btn.disabled = false; btn.textContent = t('payNow'); errEl.textContent = (pe && pe.message) || t('errorMsg'); return; }
+    if(pe || !pd){ btn.disabled = false; btn.textContent = t('payNow'); errEl.textContent = orderErrText(pe && pe.message) || t('errorMsg'); return; }
     if(wanted) await sb.rpc('set_payment_wanted', { p_payment_id: pd.payment_id, p_minutes: wanted });
     try{
       const r = await fetch('/api/order-pay', { method:'POST', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify({ payment_id: pd.payment_id }) });
@@ -389,7 +422,7 @@ async function sendPublicOrder(){
     p_customer_phone: phone, p_delivery_address: STATE.orderType==='delivery' ? address : null, p_items: items, p_client_id: CLIENT_ID
   });
   btn.disabled = false; btn.textContent = t('sendOrder');
-  if(error){ errEl.textContent = error.message; refreshMenuStock(); return; }
+  if(error){ errEl.textContent = orderErrText(error.message); refreshMenuStock(); return; }
   if(wanted && reqId) await sb.rpc('set_public_order_wanted', { p_request_id: reqId, p_minutes: wanted });
   STATE.cart = {};
   const bg = document.getElementById('checkoutBg'); if(bg) bg.remove();
