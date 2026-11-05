@@ -133,11 +133,11 @@ async function sendToUsbPrinterNow(printer, bytes){
 function reprintKitchenTicket(tableId){
   const entry = APP.kitchenPendingByTable && APP.kitchenPendingByTable[tableId];
   if(!entry){ alert('Bu masa için bekleyen ürün kalmadı.'); return; }
-  printKitchenTicketGrouped(entry.tableName, entry.items, false, entry.dailyNumber, entry.pkg, entry.tags);
+  printKitchenTicketGrouped(entry.tableName, entry.items, false, entry.dailyNumber, entry.pkg, entry.tags, true);
 }
 /* Ürünleri istasyona göre gruplar, her istasyonun fişini o istasyona atanmış
    yazıcıya (atanmamışsa "Bu Ekranın Yazıcısı"na) ayrı ayrı gönderir. */
-async function printKitchenTicketGrouped(tableName, items, silent, dailyNumber, pkg, tags){
+async function printKitchenTicketGrouped(tableName, items, silent, dailyNumber, pkg, tags, single){
   const groups = {};
   // "Fişe gönderme" işaretli ürünler (Ayarlar → Ürünler → 🖨️ Fiş) yazdırılmaz.
   const noPrint = new Set(((APP.config && APP.config.products) || []).filter(p => p.print_ticket === false).map(p => p.id));
@@ -153,7 +153,7 @@ async function printKitchenTicketGrouped(tableName, items, silent, dailyNumber, 
   });
   for(const key of Object.keys(groups)){
     const printer = resolvePrinterForStation(key || null);
-    const extra = {}; if(pkg) extra.pkg = pkg; if(tags && tags.length) extra.tags = tags;
+    const extra = {}; if(pkg) extra.pkg = pkg; if(tags && tags.length) extra.tags = tags; if(single) extra.copies = 1; // tekrar yazdırma tek kopya
     if(typeof printEachItemEnabled === 'function' && printEachItemEnabled()){
       // Ürünleri tek tek yazdır: her adet ayrı fiş (1/3, 2/3 … sırasıyla).
       const units = []; groups[key].forEach(it => { const n = Math.max(1, Math.round(Number(it.qty) || 1)); for(let i = 0; i < n; i++) units.push(Object.assign({}, it, { qty: 1 })); });
