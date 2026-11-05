@@ -154,3 +154,4 @@ alter table customers add column if not exists created_by uuid, add column if no
 -- 2026-11-04: receive_purchase_order_items: allow_over:true ile sipariş edilenden fazla teslim (kalem miktarı gelen toplama yükseltilir); onaysız fazlası kesilir.
 -- 2026-11-05: online_sms_verify ayarı; public_order_otps; request_public_order_otp / verify_public_order_otp; set_online_sms_verify; sipariş, doğrulanmış numara (30 dk) ister (SMS_DOGRULAMA_GEREKLI).
 -- 2026-11-05: get_server_now(): istemci saat farkı (mutfak/paket/ödeme sayaçları sunucu saatine göre).
+-- 2026-11-05: Uzaktan yazdırma: shared_printers, print_jobs; share_printer, list_shared_printers, claim_print_jobs, submit_print_job, finish_print_job, get_print_job_status; _cleanup_print_jobs (saatlik temizlikte).

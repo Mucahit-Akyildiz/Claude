@@ -440,6 +440,7 @@ async function removePrinterEntry(id){
   if(!await uiConfirm('Bu yazıcıyı silmek istediğinize emin misiniz?')) return;
   setPrinters(getPrinters().filter(p => p.id!==id));
   if(getActivePrinterId()===id) setActivePrinterId('');
+  if(typeof rpResyncShares === 'function' && isPrinterShared(id)) await rpResyncShares(); // paylaşımı da kaldır
   renderSettingsFromCurrentSession();
 }
 async function reconnectUsbPrinter(id){

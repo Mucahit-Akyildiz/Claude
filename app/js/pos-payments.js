@@ -642,7 +642,26 @@ function printPayReceipt(){
   const totEl = document.getElementById('payFinalTotal');
   const total = totEl ? parseFloat(String(totEl.textContent).replace(/[^\d,.-]/g,'').replace(/\./g,'').replace(',', '.')) : null;
   const name = order.kind === 'takeaway' ? ('Paket ' + (order.customer_name || '#' + (order.daily_number||''))) : tableNameForId(order.table_id);
-  printCashReceipt(name, items, isNaN(total) ? null : total, order.daily_number);
+  const go = (pr) => printCashReceipt(name, items, isNaN(total) ? null : total, order.daily_number, pr);
+  // Başka cihazların paylaştığı yazıcı varsa hangi yazıcıdan basılacağı sorulur (son seçim hatırlanır).
+  const remotes = typeof getRemotePrinters === 'function' ? getRemotePrinters() : [];
+  if(!remotes.length){ go(null); return; }
+  pickReceiptPrinter(remotes, go);
+}
+function pickReceiptPrinter(remotes, go){
+  let last = ''; try{ last = localStorage.getItem('peyk_receipt_printer') || ''; }catch(e){}
+  const local = getPrinters().find(p => p.id === getActivePrinterId());
+  const opts = [{ id: '', label: '🖥️ Bu cihaz', sub: local ? local.name : 'Tarayıcı yazdırma penceresi' }].concat(remotes.map(r => ({ id: r.id, label: '🌐 ' + r.name, sub: r.online ? '🟢 çevrimiçi' : '⚪ çevrimdışı — uygulama kapalı olabilir' })));
+  const bg = document.createElement('div'); bg.className = 'dg-bg'; bg.style.zIndex = 4000;
+  bg.innerHTML = `<div class="dg-card uc-card" style="max-width:420px;text-align:left;"><b style="font-size:16px;">🧾 Kasa fişi hangi yazıcıdan çıksın?</b>
+    <div class="rp-pick">${opts.map(o => `<button type="button" class="rp-opt ${o.id === last ? 'on' : ''}" data-id="${escapeAttr(o.id)}"><b>${escapeHtml(o.label)}</b><small>${escapeHtml(o.sub)}</small></button>`).join('')}</div>
+    <div class="uc-acts"><button type="button" class="pc-btn uc-no">Vazgeç</button></div></div>`;
+  bg.addEventListener('click', e => {
+    const b = e.target.closest('.rp-opt');
+    if(b){ const id = b.dataset.id; try{ localStorage.setItem('peyk_receipt_printer', id); }catch(_){} bg.remove(); go(id ? getRemotePrinters().find(r => r.id === id) : null); return; }
+    if(e.target === bg || e.target.closest('.uc-no')) bg.remove();
+  });
+  document.body.appendChild(bg);
 }
 function buildPayItemQtys(){
   return Object.keys(PAY_SELECTED_QTYS)
