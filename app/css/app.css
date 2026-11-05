@@ -4242,3 +4242,5 @@ html.lang-rtl input[type=number],html.lang-rtl input[type=tel],html.lang-rtl .mo
 .pc2-acts .pc-btn{white-space:nowrap;width:auto;}
 .oo-modes{margin-top:12px;display:flex;flex-direction:column;gap:6px;}
 .oo-modes .seg{display:inline-flex;flex-wrap:wrap;gap:4px;padding:4px;} .oo-modes .seg button{flex:0 0 auto;white-space:nowrap;padding:8px 12px;}
+.oo-sms{display:flex;gap:10px;align-items:flex-start;margin-top:12px;padding:10px 12px;border:1px solid var(--border);border-radius:12px;cursor:pointer;text-align:left;}
+.oo-sms input{width:auto;margin:3px 0 0;} .oo-sms span{display:flex;flex-direction:column;gap:3px;} .oo-sms small{color:var(--muted);font-size:12px;line-height:1.45;}

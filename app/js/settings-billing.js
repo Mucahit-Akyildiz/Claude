@@ -228,7 +228,21 @@ function onlineOrderingLinkHtml(){
 function onlineOrderModesHtml(){
   const cur = (APP.config.online_ordering && APP.config.online_ordering.modes) || 'both';
   return `<div class="oo-modes"><small class="muted">Sipariş türü</small><div class="seg">${[['both','🥡🛵 İkisi de'],['pickup','🥡 Sadece Gel-Al'],['delivery','🛵 Sadece Adrese Teslim']].map(([k, l]) =>
-    `<button type="button" class="${cur === k ? 'on' : ''}" ${act('setOnlineOrderModes', k)}>${l}</button>`).join('')}</div></div>`;
+    `<button type="button" class="${cur === k ? 'on' : ''}" ${act('setOnlineOrderModes', k)}>${l}</button>`).join('')}</div></div>${onlineSmsVerifyHtml()}`;
+}
+/* SMS doğrulama: açıksa müşteri sipariş vermeden önce telefonuna gelen 6 haneli kodu girer (işletmenin SMS hesabından, kredi harcar). */
+function onlineSmsVerifyHtml(){
+  const oo = APP.config.online_ordering || {}, on = !!oo.sms_verify;
+  return `<label class="oo-sms"><input type="checkbox" ${on ? 'checked' : ''} ${actOn('change','setOnlineSmsVerify',['$checked'])}>
+    <span><b>📱 Telefonu SMS ile doğrula</b><small>Müşteri siparişi göndermeden önce telefonuna gelen 6 haneli kodu girer; sahte numarayla sipariş verilemez. Doğrulanan numara 30 dk boyunca tekrar kod istemeden sipariş verebilir. Her doğrulama 1 SMS harcar.${oo.sms_ready ? '' : ' <b style="color:var(--red);">⚠️ SMS gönderimi kapalı: önce Entegrasyonlar › SMS\'i bağlayın, yoksa kod gitmez.</b>'}</small></span></label>`;
+}
+async function setOnlineSmsVerify(on){
+  const oo = APP.config.online_ordering || {};
+  if(on && !oo.sms_ready && !(await uiConfirm('SMS gönderimi kapalı veya bağlı değil. Doğrulama açılırsa müşterilere kod gitmez ve online sipariş verilemez. Yine de açılsın mı?', { danger: true }))){ renderSettingsContent(getSession()); return; }
+  const { error } = await withLoadingOverlay(sb.rpc('set_online_sms_verify', { p_token: getSession().session_token, p_on: !!on }));
+  if(error){ alert(error.message); return; }
+  APP.config.online_ordering = Object.assign({}, oo, { sms_verify: !!on });
+  showToast(on ? '📱 SMS doğrulama açık' : 'SMS doğrulama kapalı');
 }
 async function setOnlineOrderModes(mode){
   const { error } = await withLoadingOverlay(sb.rpc('set_online_order_modes', { p_token: getSession().session_token, p_mode: mode }));

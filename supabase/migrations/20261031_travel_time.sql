@@ -152,3 +152,4 @@ alter table customers add column if not exists created_by uuid, add column if no
 -- 2026-11-04: _valid_tr_mobile, _valid_person_name; submit_public_order ve start_public_order_payment geçersiz ad/telefonu reddeder.
 -- 2026-11-04: _nav_badges: online (masasız) müşteri istekleri Sipariş Al yerine Paket Servis rozetinde.
 -- 2026-11-04: receive_purchase_order_items: allow_over:true ile sipariş edilenden fazla teslim (kalem miktarı gelen toplama yükseltilir); onaysız fazlası kesilir.
+-- 2026-11-05: online_sms_verify ayarı; public_order_otps; request_public_order_otp / verify_public_order_otp; set_online_sms_verify; sipariş, doğrulanmış numara (30 dk) ister (SMS_DOGRULAMA_GEREKLI).
