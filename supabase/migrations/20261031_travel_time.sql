@@ -161,3 +161,6 @@ alter table customers add column if not exists created_by uuid, add column if no
 
 -- api_usage_skip_locked: _session_check'teki api_usage_daily sayacı "for update skip locked" ile artırılır.
 -- Eski upsert satır kilidini istek boyunca tuttuğu için aynı restoranın istekleri sıraya girip statement timeout veriyordu.
+
+-- data_version_deferred: trg_bump_dv tetikleyicileri "constraint trigger ... deferrable initially deferred" yapıldı;
+-- _bump_data_version işlem başına restoran başına bir kez (peyk.dv_<rid>) ve commit anında data_versions'ı artırır.
