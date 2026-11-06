@@ -178,3 +178,8 @@ alter table customers add column if not exists created_by uuid, add column if no
 -- status kısıtına 'delivered','failed' eklendi. _send_sms İleti Merkezi istek kimliğini saklar; _sms_poll_reports (cron
 -- sms_delivery_reports, dakikada bir) sipariş no'yu alır, get-report ile 111=delivered / 112=failed işler. get_sms_log güncellendi.
 -- _trg_order_delivered_review: sms_enabled ve sms_on_payment açıksa "teslim edildi" mesajı atılmaz (değerlendirme ödeme SMS'inde tek mesaj).
+
+-- customer_thanks_single_message: _customer_thanks(sales_history_id) tek SMS + tek e-posta (teşekkür + değerlendirme linki).
+-- _trg_payment_sms: masa/gel-al ödemede gönderir; adrese teslim pakette teslim edilmemişse bekler; orders.review_sent_at ile tekrar engellenir.
+-- _trg_order_delivered_review: paket teslim edildiğinde ödeme alınmışsa gönderir, alınmamışsa ödeme alınınca gider.
+-- _trg_takeaway_ready_sms: adrese teslim (takeaway_type='delivery') siparişte "hazır" mesajı gönderilmez (yola çıktı mesajı yeterli).

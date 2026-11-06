@@ -1056,7 +1056,7 @@ async function openTransferPay(){
   renderTrQr();
 }
 function closeTransferPay(){ const o = document.getElementById('transferBg'); if(o) o.remove(); }
-function copyIban(){ const bk = trBank(); try{ navigator.clipboard.writeText(bk.bank_iban || ''); showToast('IBAN kopyalandı ✓'); }catch(e){ showToast('Kopyalanamadı'); } }
+function copyIban(){ const bk = trBank(); copyText(bk.bank_iban || '', 'IBAN kopyalandı ✓'); }
 async function sendIban(kind){
   const phone = kind === 'sms' ? ((document.getElementById('trPhone') || {}).value || '').trim() : '';
   const email = kind === 'email' ? ((document.getElementById('trEmail') || {}).value || '').trim() : '';

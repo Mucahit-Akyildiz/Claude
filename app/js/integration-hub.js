@@ -78,7 +78,7 @@ async function cxRemove(kind){
   if(error) return showToast(error.message, 'error');
   renderConnectors(kind);
 }
-function cxCopyUrl(){ const i = document.getElementById('cx_url'); if(!i) return; try{ navigator.clipboard.writeText(i.value); showToast('Adres kopyalandı'); }catch(e){ i.select(); } }
+function cxCopyUrl(){ const i = document.getElementById('cx_url'); if(!i) return; copyText(i.value, 'Adres kopyalandı'); }
 async function cxJobs(kind, status){
   const c = cxCurrent(kind), el = document.getElementById('cxJobs_' + kind); if(!c || !el) return;
   APP.cx['jobs_' + kind] = status;
