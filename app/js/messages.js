@@ -672,7 +672,7 @@ function scrollToChatMessage(id){
 function copyChatMessage(id){
   document.querySelectorAll('.chat-react-bar').forEach(b => b.remove());
   const m = (APP.chatRows||[]).find(x => x.id===id); if(!m || !m.body) return;
-  try{ navigator.clipboard.writeText(m.body); showToast('Kopyalandı ✓', 1500); }catch(e){}
+  copyText(m.body);
 }
 async function deleteChatMessage(id){
   document.querySelectorAll('.chat-react-bar').forEach(b => b.remove());

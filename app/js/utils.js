@@ -233,7 +233,22 @@ const INLINE_BTN = 'width:auto;margin:0;white-space:nowrap;flex:0 0 auto;padding
 function onEnterKey(e, fnName){ if(e.key === 'Enter' && typeof window[fnName] === 'function') window[fnName](); }
 function clickEl(id){ const el = document.getElementById(id); if(el) el.click(); }
 function onEnterCall(e, fnName, ...args){ if(e.key === 'Enter' && typeof window[fnName] === 'function') window[fnName](...args); }
-function copyText(text, msg){ if(navigator.clipboard) navigator.clipboard.writeText(text).then(() => showToast(msg || 'Kopyalandı ✓')); }
+/* Panoya kopyala: izin verilmeyen cihazlarda (Android WebView vb.) eski yöntemle dener, hata fırlatmaz. */
+function copyText(text, msg){
+  const done = () => showToast(msg || 'Kopyalandı ✓');
+  const legacy = () => {
+    try{
+      const ta = document.createElement('textarea'); ta.value = String(text ?? ''); ta.setAttribute('readonly', '');
+      ta.style.cssText = 'position:fixed;top:-1000px;opacity:0;'; document.body.appendChild(ta); ta.select();
+      const ok = document.execCommand('copy'); ta.remove();
+      if(ok) done(); else showToast('Kopyalanamadı — metni basılı tutup kopyalayın');
+    }catch(e){ showToast('Kopyalanamadı — metni basılı tutup kopyalayın'); }
+  };
+  try{
+    if(navigator.clipboard && window.isSecureContext) navigator.clipboard.writeText(String(text ?? '')).then(done, legacy);
+    else legacy();
+  }catch(e){ legacy(); }
+}
 /* ---- Ortak mikrofon akışı ----
    iPhone/iPad (özellikle ana ekrana eklenmiş uygulama) mikrofon iznini kalıcı saklamaz:
    akış her kapatılıp yeniden istendiğinde izin penceresi tekrar çıkar. Bu yüzden telsiz ve

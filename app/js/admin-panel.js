@@ -1585,7 +1585,7 @@ async function doExtendSubscription(id, args){
 }
 
 function setAdminErrorsAll(on){ APP.adminErrorsAll = on; renderClientErrorsAdmin(document.getElementById('main'), getAdminSession()); }
-function copySupportCode(){ navigator.clipboard.writeText(document.getElementById('supCode').value).then(() => showToast('Kod kopyalandı ✓')); }
+function copySupportCode(){ copyText(document.getElementById('supCode').value, 'Kod kopyalandı ✓'); }
 function extendSubscriptionUntil(id){ const v = document.getElementById('extendUntil').value; if(!v){ alert('Tarih seçin'); return; } doExtendSubscription(id, { p_until: v }); }
 async function extendSubscriptionUnlimited(id){ if(await uiConfirm('Abonelik süresiz yapılsın mı?')) doExtendSubscription(id, { p_unlimited: true }); }
 

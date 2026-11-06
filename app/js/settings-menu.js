@@ -362,7 +362,8 @@ async function saveIngredientUsage(ingredientId){
   if((ing0.pack_mode || '') !== mode){ const { error: em } = await sb.rpc('set_ingredient_pack_mode', { p_token: session.session_token, p_id: ingredientId, p_mode: mode || null }); if(em){ alert(em.message); return; } }
   const { error } = await sb.rpc('set_ingredient_usage2', { p_token: session.session_token, p_ingredient_id: ingredientId, p_usages: mode === 'per_order' ? [] : usages, p_packaging: [] });
   if(error){ alert(error.message); return; }
-  document.getElementById('ingUsageModalBg').remove();
+  // Kayıt sürerken pencere kapatılmış olabilir (Sonra/Vazgeç ya da çift tıklama).
+  document.getElementById('ingUsageModalBg')?.remove();
   showToast('Kaydedildi ✓');
   renderSettingsView(document.getElementById('main'), session);
 }
