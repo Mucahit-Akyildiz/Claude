@@ -170,6 +170,10 @@ async function refreshOrderLiveStatus(session){
   reportPollResult('orderLiveStatus', !error);
   if(error) return;
   APP.liveOrders = data || [];
+  // Veri değişmediyse ekran baştan çizilmez (sürekli yenileniyormuş gibi görünmesin); kalan süreler için dakikada bir çizilir.
+  const key = JSON.stringify(APP.liveOrders), now = Date.now();
+  if(key === APP._liveKey && now - (APP._liveDrawnAt || 0) < 60000) return;
+  APP._liveKey = key; APP._liveDrawnAt = now;
   if(APP.view==='order') renderTableGrid();
   if(APP.view==='packages') renderPackageGrid();
   // Açık sipariş penceresi yalnızca o masanın/paketin siparişi gerçekten değiştiyse yeniden çizilir

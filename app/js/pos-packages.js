@@ -41,14 +41,14 @@ function renderPackageGrid(){
       const left = Math.round((pkgKitchenDeadline(o) - serverNow()) / 60000);
       const hm = new Date(o.pickup_at).toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'});
       const warn = left >= 10 && left < 20 && !allReady, red = left < 10 && !allReady;
-      eta = `<div style="margin-top:5px;"><span class="pk-badge ${left < 0 || red ? 'late' : warn ? 'warn' : 'ok'}">${warn || red ? '⚠️' : '🕒'} ${pickup ? '' : 'Teslim '}${hm} · ${left < 0 ? Math.abs(left) + ' dk geçti' : left + ' dk kaldı'}</span></div>`;
+      eta = `<div style="margin-top:5px;"><span class="pk-badge ${left < 0 || red ? 'late' : warn ? 'warn' : 'ok'}">${warn || red ? '⚠️' : '🕒'} ${pickup ? '' : 'Söz verilen '}${hm} · ${left < 0 ? Math.abs(left) + ' dk geçti' : left + ' dk kaldı'}</span></div>`;
     }
     // Kurye durumu (yalnızca teslimat): kuryeye ver → yolda → teslim edildi (ödeme bekliyor).
     let courier = '';
     if(!pickup){
       const mins = (t) => Math.max(0, Math.round((serverNow() - new Date(t)) / 60000));
       courier = o.delivered_at ? `<div class="cr-row"><span class="pk-badge cr-done">✅ Teslim edildi · ödeme bekliyor</span><button type="button" class="cr-btn ghost" title="Teslim edildi işaretini geri al" ${actStop('markDelivered', o.order_id, true)}>↩</button></div>`
-        : o.dispatched_at ? `<div class="cr-row"><span class="pk-badge cr-way">🛵 Yolda${o.courier_name ? ' · ' + escapeHtml(o.courier_name) : ''} · ${mins(o.dispatched_at)} dk</span>${courierAcceptBadge(o)}${courierLiveBadge(o)}<button type="button" class="cr-btn ghost" title="${o.courier_user_id === (getSession()||{}).user_id ? 'Konumumu paylaş' : 'Kurye linki · konum paylaşımı'}" ${actStop('openCourierLink', o.order_id)}>📍</button><button type="button" class="cr-btn" ${actStop('markDelivered', o.order_id, false)}>✅ Teslim</button></div>`
+        : o.dispatched_at ? `<div class="cr-row"><span class="pk-badge cr-way">🛵 ${o.courier_name ? escapeHtml(o.courier_name) + ' · ' : ''}${mins(o.dispatched_at)} dk'dır yolda</span>${courierAcceptBadge(o)}${courierLiveBadge(o)}<button type="button" class="cr-btn ghost" title="${o.courier_user_id === (getSession()||{}).user_id ? 'Konumumu paylaş' : 'Kurye linki · konum paylaşımı'}" ${actStop('openCourierLink', o.order_id)}>📍</button><button type="button" class="cr-btn" ${actStop('markDelivered', o.order_id, false)}>✅ Teslim</button></div>`
         : allReady ? `<div class="cr-row"><button type="button" class="cr-btn hot" ${actStop('openCourierSheet', o.order_id)}>🛵 Kuryeye Ver</button></div>`
         : `<div class="cr-row"><button type="button" class="cr-btn" disabled title="Mutfak tüm ürünleri hazırlayınca kuryeye verilebilir">⏳ Hazırlanıyor — kurye bekliyor</button></div>`;
     }
@@ -815,7 +815,7 @@ function courierLiveBadge(o){
   if(age > 3) return `<span class="pk-badge late" title="Kuryenin konumu ${Math.round(age)} dk önce alındı">📵 konum yok</span>`;
   if(o.courier_eta_min != null && o.courier_eta_at){
     const left = Math.max(1, Math.round((new Date(o.courier_eta_at).getTime() + o.courier_eta_min * 60000 - serverNow()) / 60000));
-    return `<span class="pk-badge ok" title="Kuryenin anlık konumundan, trafik dahil">📍 ${left} dk kaldı</span>`;
+    return `<span class="pk-badge ok" title="Kuryenin anlık konumundan, trafik dahil">📍 Varışa ~${left} dk</span>`;
   }
   return '<span class="pk-badge ok">📍 canlı</span>';
 }
