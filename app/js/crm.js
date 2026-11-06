@@ -2,9 +2,14 @@
 /* ================= CRM / SADAKAT ================= */
 async function renderCrmView(main, session){
   if(!APP.config){ const { data } = await withLoadingOverlay(sb.rpc('get_restaurant_config', { p_token: session.session_token })); if(data) APP.config = data; }
-  const { data, error } = await withLoadingOverlay(sb.rpc('list_customers', { p_token: session.session_token, p_search: APP.crmSearch||null }));
-  const rows = error ? [] : (data||[]);
-  APP.crmRows = rows;
+  const [{ data, error }, gRes] = await withLoadingOverlay(Promise.all([
+    sb.rpc('list_customers', { p_token: session.session_token, p_search: APP.crmSearch||null }),
+    sb.rpc('list_customer_groups', { p_token: session.session_token })]));
+  APP.crmGroups = (gRes && gRes.data) || [];
+  const allRows = error ? [] : (data||[]);
+  const gf = APP.crmGroupFilter || '';
+  const rows = !gf ? allRows : gf === '__nosms' ? allRows.filter(c => c.sms_opt_out) : allRows.filter(c => (c.group_ids || []).includes(gf));
+  APP.crmRows = allRows;
   const loyalty = (APP.config && APP.config.loyalty) || { enabled:false, spend_per_point:10, point_value:1, birthday_discount_percent:0 };
   const bdays = rows.filter(c => { const b = crmBirthdayInfo(c.birthday); return b && b.days <= 30; }).length;
   main.innerHTML = `<h1>Müşteriler</h1>
@@ -26,6 +31,7 @@ async function renderCrmView(main, session){
         </div>
       </div>
       <p class="muted" style="font-size:12px;margin:6px 0 10px;text-align:left;">Harcama/ziyaret/doğum günü gibi detaylı analizler için <b>Finansal Analiz &gt; Müşteri Analizleri</b> sekmesine bakın.</p>
+      ${crmGroupBarHtml(allRows)}
       ${rows.length ? `<div class="cu-grid" data-cf-scope="crm">${rows.map((c, i) => { const bd = crmBirthdayInfo(c.birthday), custom = (c.spend_per_point!=null || c.point_value!=null || c.birthday_discount_percent!=null);
         const pts = Number(c.points_balance)||0, tr = crmTier(c), tier = [tr.icon, tr.name, tr.color];
         return `<div class="cu-card" data-cf-tags="${(Number(c.points_balance)||0) > 0 ? 'pts' : ''}${bd && bd.days <= 30 ? ' bday' : ''}${crmTier(c).rank >= 2 ? ' gold' : ''}" style="--i:${Math.min(i,12)};--tc:${tier[2]};">
@@ -35,6 +41,8 @@ async function renderCrmView(main, session){
             ${c.email ? `<span class="pchip">${emailHtml(c.email)}</span>` : ''}
             ${bd ? (bd.days === 0 ? `<span class="pchip bd-today-chip">🎂 Bugün doğum günü! 🎉</span>` : `<span class="pchip ${bd.soon?'warn':''}">🎂 ${bd.text}</span>`) : ''}
             ${custom ? `<span class="pchip" title="${escapeAttr(customerLoyaltySummary(c))}">⭐ Özel sadakat</span>` : ''}
+            ${(c.group_ids || []).map(gid => { const g = (APP.crmGroups || []).find(x => x.id === gid); return g ? `<span class="cg-chip" style="--gc:${escapeAttr(g.color || 'var(--accent)')}">${escapeHtml((g.icon ? g.icon + ' ' : '') + g.name)}</span>` : ''; }).join('')}
+            ${c.sms_opt_out ? '<span class="pchip warn" title="Bu müşteriye SMS gönderilmez">📵 SMS istemiyor</span>' : ''}
           </div>
           ${c.notes ? `<div class="rv-note">📝 ${escapeHtml(c.notes)}</div>` : ''}
           <div class="pcard-acts"><button type="button" class="pc-btn pc-edit" style="margin-left:0;" ${act('editCustomer', c.id)}>✏️ Düzenle</button><button type="button" class="pc-btn rv-del" style="margin-left:auto;" ${act('removeCustomer', c.id)}>🗑 Sil</button></div>
@@ -48,6 +56,8 @@ async function renderCrmView(main, session){
           <div class="field-group"><label>E-posta</label><input id="crm_email" name="email" type="email" autocomplete="email" placeholder="opsiyonel" autocapitalize="none"></div>
           <div class="field-group"><label>🎂 Doğum Günü</label><input id="crm_birthday" type="date"></div>
           <div class="field-group"><label>Not</label><input id="crm_notes" placeholder="opsiyonel"></div>
+          <div class="field-group wide"><label>🏷️ Gruplar <button type="button" class="xl-link" ${act('openCustomerGroups')}>Grupları yönet</button></label><div id="crm_groups" class="cg-pick"></div></div>
+          <label class="field-group wide cg-optout"><span class="oo-switch"><input type="checkbox" id="crm_sms_opt_out"><span class="oo-track"><span class="oo-thumb"></span></span></span><span><b>📵 SMS istemiyor</b><small class="muted">Açıksa bu müşteriye hiçbir SMS (kampanya, sipariş, teşekkür) gönderilmez. E-posta etkilenmez.</small></span></label>
           <div class="field-group wide"><label>📍 Adres</label><textarea id="crm_address" name="street-address" autocomplete="street-address" rows="2" placeholder="örn. Atatürk Cad. No:12 D:4 — paket siparişte otomatik dolar" style="resize:vertical;min-height:44px;"></textarea></div>
         </div>
         <details id="crmLoyaltyBox" style="margin-top:10px;border:1px solid var(--border);border-radius:12px;padding:10px 12px;background:var(--panel);">
@@ -163,6 +173,7 @@ function debouncedCrmSearch(v){
 function newCustomer(){
   ['crm_edit_id','crm_name','crm_phone','crm_email','crm_notes','crm_birthday','crm_address','crm_spp','crm_pv','crm_bdp'].forEach(k => { const e = document.getElementById(k); if(e) e.value = ''; });
   const b = document.getElementById('crmLoyaltyBox'); if(b) b.open = false;
+  APP.crmSelGroups = []; crmDrawGroupPick(); { const o = document.getElementById('crm_sms_opt_out'); if(o) o.checked = false; }
   document.getElementById('crmSheetTitle').textContent = 'Yeni Müşteri';
   { const a = document.getElementById('crm_audit'); if(a) a.hidden = true; }
   openSheet('crmSheet');
@@ -180,6 +191,7 @@ function editCustomer(id){
   document.getElementById('crm_pv').value = c.point_value ?? '';
   document.getElementById('crm_bdp').value = c.birthday_discount_percent ?? '';
   document.getElementById('crmLoyaltyBox').open = (c.spend_per_point!=null || c.point_value!=null || c.birthday_discount_percent!=null);
+  APP.crmSelGroups = (c.group_ids || []).slice(); crmDrawGroupPick(); document.getElementById('crm_sms_opt_out').checked = !!c.sms_opt_out;
   document.getElementById('crmSheetTitle').textContent = 'Müşteriyi Düzenle';
   // Kaydeden ve son değiştiren personel
   const au = document.getElementById('crm_audit'), d = (x) => x ? new Date(x).toLocaleString('tr-TR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
@@ -207,6 +219,9 @@ async function saveCrmCustomer(){
     if(addr.trim() !== ((c0 && c0.address) || '')){ const { error: ea } = await sb.rpc('set_customer_address', { p_token: session.session_token, p_id: custId, p_address: addr }); if(ea) alert('Müşteri kaydedildi ama adres kaydedilemedi: ' + ea.message); }
     const { error: e2 } = await sb.rpc('set_customer_loyalty', { p_token: session.session_token, p_id: custId, p_spend_per_point: spp, p_point_value: pv, p_birthday_discount_percent: bdp });
     if(e2){ alert('Müşteri kaydedildi ama özel sadakat ayarı kaydedilemedi: ' + e2.message); }
+    const optOut = !!(document.getElementById('crm_sms_opt_out') || {}).checked;
+    const { error: e3 } = await sb.rpc('set_customer_prefs', { p_token: session.session_token, p_id: custId, p_sms_opt_out: optOut, p_group_ids: APP.crmSelGroups || [] });
+    if(e3){ alert('Müşteri kaydedildi ama grup / SMS tercihi kaydedilemedi: ' + e3.message); }
   }
   closeSheet('crmSheet');
   renderCrmView(document.getElementById('main'), session);
@@ -513,7 +528,9 @@ async function openWinback(days){
   const prevMode = APP.wb ? APP.wb.days <= 0 : null;
   APP.wb = Object.assign({ days: 30, sel: {}, channel: 'sms' }, APP.wb || {}, days != null && days !== '' ? { days: Number(days), sel: {} } : {});
   if(prevMode !== null && prevMode !== (APP.wb.days <= 0)) APP.wb.textReset = true;
-  const { data, error } = await withLoadingOverlay(sb.rpc('get_winback', { p_token: getSession().session_token, p_days: APP.wb.days }));
+  const args = { p_token: getSession().session_token, p_days: APP.wb.days }; if(APP.wb.group) args.p_group = APP.wb.group;
+  const [{ data, error }, gRes] = await withLoadingOverlay(Promise.all([sb.rpc('get_winback', args), sb.rpc('list_customer_groups', { p_token: getSession().session_token })]));
+  APP.crmGroups = (gRes && gRes.data) || APP.crmGroups || [];
   if(error){ alert(error.message); return; }
   APP.wb.data = data || {}; drawWinback();
 }
@@ -530,12 +547,13 @@ function drawWinback(){
   bg.innerHTML = `<div class="box wb-modal"><div class="u-row-sb"><h2 class="u-m0">📣 Kampanya & Geri Kazanım</h2><span class="u-xclose" ${act('removeEl','wbBg')}>✕</span></div>
     <p class="muted" style="font-size:13px;text-align:left;">Kime göndereceğinizi seçin: <b>tüm müşteriler</b> ya da <b>son gelenler</b> (kampanya, yeni menü, duyuru) veya <b>bir süredir gelmeyenler</b> (geri kazanım). ${camp ? 'Aynı müşteriye 24 saat içinde ikinci mesaj gönderilmez.' : 'Geri kazanımda aynı müşteriye 14 gün içinde ikinci mesaj gönderilmez.'}</p>
     <div class="wb-cards">${card('all', 0, '👥 Tüm müşteriler', b.all, 'var(--accent)')}${card('a', -1, 'Son 30 günde geldi', b.active, 'var(--green,#22c55e)')}${card('3', 30, '30–60 gündür yok', b.d30, '#f59e0b')}${card('6', 60, '60–90 gündür yok', b.d60, '#f97316')}${card('9', 90, '90+ gündür yok', b.d90, 'var(--red,#ef4444)')}</div>
+    ${(APP.crmGroups || []).length ? `<div class="cg-bar wb-groups"><small>🏷️ Grup:</small><button type="button" class="cg-f ${!W.group ? 'on' : ''}" ${act('wbGroup', '')}>Hepsi</button>${APP.crmGroups.map(g => `<button type="button" class="cg-f ${W.group === g.id ? 'on' : ''}" style="--gc:${escapeAttr(g.color || 'var(--accent)')}" ${act('wbGroup', g.id)}>${escapeHtml((g.icon ? g.icon + ' ' : '') + g.name)} <span>${g.count}</span></button>`).join('')}</div>` : ''}
     <p class="wb-stat">📨 Son 90 günde <b>${d.contacted || 0}</b> müşteriye ulaşıldı, bunlardan <b>${d.returned || 0}</b> tanesi geri geldi${d.contacted ? ' (%' + Math.round((d.returned || 0) / d.contacted * 100) + ')' : ''}.</p>
     ${W.days != null ? `<div class="wb-listhead"><b>${W.days === 0 ? 'Tüm müşteriler · ' + rows.length : W.days < 0 ? 'Son 30 günde gelen ' + rows.length + ' müşteri' : W.days + '+ gündür gelmeyen ' + rows.length + ' müşteri'}</b><span><button type="button" class="ghost-btn" ${act('wbSelAll', true)}>Hepsini seç</button><button type="button" class="ghost-btn" ${act('wbSelAll', false)}>Seçimi kaldır</button></span></div>
     <div class="wb-list">${rows.map(r => `<label class="wb-row"><input type="checkbox" ${W.sel[r.id] ? 'checked' : ''} ${actOn('change','wbToggle',[r.id,'$checked'])}>
       <span class="wb-n"><b>${escapeHtml(r.name || '—')}</b><small>${r.phone ? escapeHtml(maskPhone(r.phone)) : ''}${r.has_email ? ' · ✉️' : ''}</small></span>
       <span class="wb-m"><small>Son geliş</small>${ago(r.last_visit_at)}</span><span class="wb-m"><small>${r.total_visits} ziyaret</small>${money(r.total_spent || 0)}</span>
-      ${r.marketing_consent ? '<span class="pchip" title="Kampanya SMS onayı verdi">✅ Onaylı</span>' : ''}${r.last_contact ? `<span class="pchip" title="Son kampanya">📨 ${ago(r.last_contact)}</span>` : ''}</label>`).join('') || '<p class="muted">Bu aralıkta müşteri yok.</p>'}</div>
+      ${r.sms_opt_out ? '<span class="pchip warn" title="SMS gitmez; e-posta seçiliyse e-posta gider">📵 SMS istemiyor</span>' : ''}${r.marketing_consent ? '<span class="pchip" title="Kampanya SMS onayı verdi">✅ Onaylı</span>' : ''}${r.last_contact ? `<span class="pchip" title="Son kampanya">📨 ${ago(r.last_contact)}</span>` : ''}</label>`).join('') || '<p class="muted">Bu aralıkta müşteri yok.</p>'}</div>
     <p class="muted u-fs12">Kampanya iznini reddeden müşteriler bu listede gösterilmez ve onlara mesaj gönderilmez. Kendi eklediğiniz müşteriler için kampanya onayını almak işletmenin sorumluluğundadır.</p>
     <div class="wb-compose"><label>Mesaj <small class="muted">({ad} = müşterinin adı, {isletme} = işletme adı)</small></label>
       ${camp && W.channel !== 'sms' ? `<input id="wbSubject" placeholder="E-posta konusu (örn. Hafta sonuna özel %15 indirim)" maxlength="120" value="${escapeAttr(W.subject || '')}" ${actOn('input','wbSubjectSet',['$value'])} style="margin:4px 0 8px;">` : ''}
@@ -546,7 +564,66 @@ function drawWinback(){
   bg.onclick = (e) => { if(e.target === bg) bg.remove(); };
 }
 function wbToggle(id, on){ APP.wb.sel[id] = !!on; const t = document.getElementById('wbText'); const v = t && t.value; drawWinback(); if(v != null) document.getElementById('wbText').value = v; }
-function wbSelAll(on){ (APP.wb.data.rows || []).forEach(r => { APP.wb.sel[r.id] = !!on; }); drawWinback(); }
+function wbSelAll(on){ (APP.wb.data.rows || []).forEach(r => { APP.wb.sel[r.id] = !!on && !(r.sms_opt_out && APP.wb.channel === 'sms'); }); drawWinback(); }
+function wbGroup(id){ APP.wb.group = id || null; APP.wb.sel = {}; const t = document.getElementById('wbText'); APP.wb.keepText = t && t.value; openWinback().then(() => { if(APP.wb.keepText != null && document.getElementById('wbText')) document.getElementById('wbText').value = APP.wb.keepText; }); }
+
+/* ---- Müşteri grupları (VIP, Gold…) ---- */
+const CG_COLORS = ['#f59e0b', '#8b5cf6', '#ef4444', '#22c55e', '#3b82f6', '#ec4899', '#14b8a6', '#64748b'];
+function crmGroupBarHtml(rows){
+  const gs = APP.crmGroups || [], f = APP.crmGroupFilter || '', nosms = rows.filter(c => c.sms_opt_out).length;
+  if(!gs.length && !nosms) return `<div class="cg-bar"><button type="button" class="cg-f add" ${act('openCustomerGroups')}>🏷️ Müşteri grubu oluştur (VIP, Gold…)</button></div>`;
+  return `<div class="cg-bar"><button type="button" class="cg-f ${!f ? 'on' : ''}" ${act('setCrmGroupFilter', '')}>Tümü <span>${rows.length}</span></button>
+    ${gs.map(g => `<button type="button" class="cg-f ${f === g.id ? 'on' : ''}" style="--gc:${escapeAttr(g.color || 'var(--accent)')}" ${act('setCrmGroupFilter', g.id)}>${escapeHtml((g.icon ? g.icon + ' ' : '') + g.name)} <span>${g.count}</span></button>`).join('')}
+    ${nosms ? `<button type="button" class="cg-f ${f === '__nosms' ? 'on' : ''}" ${act('setCrmGroupFilter', '__nosms')}>📵 SMS istemeyen <span>${nosms}</span></button>` : ''}
+    <button type="button" class="cg-f add" ${act('openCustomerGroups')}>⚙️ Grupları yönet</button></div>`;
+}
+function setCrmGroupFilter(id){ APP.crmGroupFilter = id || ''; renderCrmView(document.getElementById('main'), getSession()); }
+function crmDrawGroupPick(){
+  const el = document.getElementById('crm_groups'); if(!el) return;
+  const gs = APP.crmGroups || [], sel = APP.crmSelGroups || [];
+  el.innerHTML = gs.length ? gs.map(g => `<button type="button" class="cg-f ${sel.includes(g.id) ? 'on' : ''}" style="--gc:${escapeAttr(g.color || 'var(--accent)')}" ${act('crmToggleGroup', g.id)}>${sel.includes(g.id) ? '✓ ' : ''}${escapeHtml((g.icon ? g.icon + ' ' : '') + g.name)}</button>`).join('')
+    : `<span class="muted u-fs12">Henüz grup yok — "Grupları yönet"ten VIP, Gold gibi gruplar oluşturun.</span>`;
+}
+function crmToggleGroup(id){ const s = APP.crmSelGroups = APP.crmSelGroups || []; const i = s.indexOf(id); if(i >= 0) s.splice(i, 1); else s.push(id); crmDrawGroupPick(); }
+async function openCustomerGroups(){
+  const { data, error } = await sb.rpc('list_customer_groups', { p_token: getSession().session_token });
+  if(error){ alert(error.message); return; }
+  APP.crmGroups = data || [];
+  let bg = document.getElementById('cgBg');
+  if(!bg){ bg = document.createElement('div'); bg.id = 'cgBg'; bg.className = 'modal-bg cg-modal-bg'; document.body.appendChild(bg); bg.onclick = (e) => { if(e.target === bg) closeCustomerGroups(); }; }
+  APP.cgColor = APP.cgColor || CG_COLORS[0];
+  bg.innerHTML = `<div class="box cg-modal"><div class="u-row-sb"><h2 class="u-m0">🏷️ Müşteri grupları</h2><span class="u-xclose" ${act('closeCustomerGroups')}>✕</span></div>
+    <p class="muted u-fs12">VIP, Gold, Kurumsal gibi gruplar oluşturun; müşteri düzenlerken gruba ekleyin. Kampanya penceresinde gruba özel mesaj gönderebilirsiniz.</p>
+    <div class="cg-list">${APP.crmGroups.map(g => `<div class="cg-item" style="--gc:${escapeAttr(g.color || 'var(--accent)')}"><i></i><b>${escapeHtml((g.icon ? g.icon + ' ' : '') + g.name)}</b><small>${g.count} müşteri</small>
+      <button type="button" class="pc-btn" ${act('renameCustomerGroup', g.id)}>✏️</button><button type="button" class="pc-btn rv-del" ${act('deleteCustomerGroup', g.id)}>🗑</button></div>`).join('') || '<p class="muted">Henüz grup yok.</p>'}</div>
+    <div class="cg-new"><input id="cgIcon" maxlength="4" placeholder="💎" class="cg-ic"><input id="cgName" maxlength="40" placeholder="Yeni grup adı (örn. VIP)">
+      <div class="cg-colors">${CG_COLORS.map(c => `<button type="button" class="cg-col ${APP.cgColor === c ? 'on' : ''}" style="--gc:${c}" ${act('cgPickColor', c)} aria-label="renk"></button>`).join('')}</div>
+      <button type="button" ${act('addCustomerGroup')}>+ Ekle</button></div></div>`;
+}
+function cgPickColor(c){ APP.cgColor = c; document.querySelectorAll('#cgBg .cg-col').forEach(b => b.classList.toggle('on', b.style.getPropertyValue('--gc') === c)); }
+async function addCustomerGroup(){
+  const name = (document.getElementById('cgName') || {}).value || '', icon = ((document.getElementById('cgIcon') || {}).value || '').trim();
+  if(!name.trim()){ alert('Grup adı girin'); return; }
+  const { error } = await sb.rpc('upsert_customer_group', { p_token: getSession().session_token, p_id: null, p_name: name, p_color: APP.cgColor, p_icon: icon || null });
+  if(error){ alert(error.message); return; }
+  showToast('Grup eklendi ✓'); openCustomerGroups();
+}
+async function renameCustomerGroup(id){
+  const g = (APP.crmGroups || []).find(x => x.id === id); if(!g) return;
+  const v = prompt('Grup adı:', g.name); if(v == null || !v.trim()) return;
+  const { error } = await sb.rpc('upsert_customer_group', { p_token: getSession().session_token, p_id: id, p_name: v, p_color: g.color, p_icon: g.icon });
+  if(error){ alert(error.message); return; } openCustomerGroups();
+}
+async function deleteCustomerGroup(id){
+  const g = (APP.crmGroups || []).find(x => x.id === id); if(!g) return;
+  if(!await uiConfirm('"' + g.name + '" grubu silinsin mi? Müşteriler silinmez, sadece bu gruptan çıkarılır.')) return;
+  const { error } = await sb.rpc('delete_customer_group', { p_token: getSession().session_token, p_id: id });
+  if(error){ alert(error.message); return; } if(APP.crmGroupFilter === id) APP.crmGroupFilter = ''; openCustomerGroups();
+}
+function closeCustomerGroups(){
+  removeEl('cgBg'); crmDrawGroupPick();
+  if(APP.view === 'crm' && !document.querySelector('.fsheet.open')) renderCrmView(document.getElementById('main'), getSession());
+}
 function wbChannel(k){ APP.wb.channel = k; const t = document.getElementById('wbText'); const v = t && t.value; drawWinback(); if(v != null) document.getElementById('wbText').value = v; }
 function wbSubjectSet(v){ APP.wb.subject = v; }
 async function sendWinback(){

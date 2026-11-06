@@ -28,7 +28,8 @@
     list_reservations: [{id:'r1',customer_name:'Ayşe Hanım',phone:'5551234567',party_size:3,reservation_time:new Date(now+3600e3).toISOString(),status:'confirmed'}],
     get_order_quickpicks: {top:['p1','p3','p5'],notes:[]},
     get_channel_speed_report: {channels:[{ch:'table',n:115,rev:717359,avg:6237},{ch:'pickup',n:21,rev:61513,avg:2929}],hours:[{h:12,ch:'table',rev:20000},{h:13,ch:'pickup',rev:5000}],stations:[{station:'Fırın',icon:'🍳',n:157,avg:16.4,p90:39.8,late:54}],slow:[{name:'Izgara Köfte',n:21,avg:20.1}],kitchen:{n:367,avg:16.9,late:125},calls:[{kind:'order',n:5,avg:1.4}],pickup:{n:1,on_time:1}},
-    list_customers: [{id:'c1',name:'Ahmet Kaya',phone:'5551112233',points_balance:40,lifetime_points:620},{id:'c2',name:'Zeynep Ak',phone:'5552223344',points_balance:210,lifetime_points:230},{id:'c3',name:'Can Öz',phone:null,points_balance:0,lifetime_points:0}], search_customers_quick: [], list_my_notifications: [], list_open_accounts: [],
+    list_customer_groups: [{id:'g1',name:'VIP',color:'#f59e0b',icon:'💎',count:1},{id:'g2',name:'Gold',color:'#8b5cf6',icon:null,count:0}],
+    list_customers: [{id:'c1',name:'Ahmet Kaya',phone:'5551112233',points_balance:40,lifetime_points:620,group_ids:['g1']},{id:'c2',name:'Zeynep Ak',phone:'5552223344',points_balance:210,lifetime_points:230,sms_opt_out:true},{id:'c3',name:'Can Öz',phone:null,points_balance:0,lifetime_points:0}], search_customers_quick: [], list_my_notifications: [], list_open_accounts: [],
   };
   window.__MOCK = MOCK;
   const q = () => { const p = Promise.resolve({data:[],error:null}); const o = new Proxy(function(){}, {get:(t,k)=> k==='then' ? p.then.bind(p) : (()=>o), apply:()=>o}); return o; };
