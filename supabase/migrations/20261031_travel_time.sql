@@ -167,3 +167,5 @@ alter table customers add column if not exists created_by uuid, add column if no
 
 -- realtime_data_versions_publication: supabase_realtime yayını yoktu; oluşturulup data_versions eklendi
 -- (istemcideki postgres_changes aboneliği artık anlık bildirim alır; mutfak/ekranlar beklemeden yenilenir).
+-- GERİ ALINDI: data_versions supabase_realtime yayınından çıkarıldı (realtime postgres_changes veritabanı işlemcisini doldurup statement timeout'a yol açtı).
+-- Yayın (boş) duruyor; data_versions tekrar eklenmemeli. Mutfak ekranı 3 sn'de bir get_data_version ile kontrol eder.
