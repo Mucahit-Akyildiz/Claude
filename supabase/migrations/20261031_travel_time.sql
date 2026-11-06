@@ -183,3 +183,5 @@ alter table customers add column if not exists created_by uuid, add column if no
 -- _trg_payment_sms: masa/gel-al ödemede gönderir; adrese teslim pakette teslim edilmemişse bekler; orders.review_sent_at ile tekrar engellenir.
 -- _trg_order_delivered_review: paket teslim edildiğinde ödeme alınmışsa gönderir, alınmamışsa ödeme alınınca gider.
 -- _trg_takeaway_ready_sms: adrese teslim (takeaway_type='delivery') siparişte "hazır" mesajı gönderilmez (yola çıktı mesajı yeterli).
+
+-- staff_login_multiline: send_staff_login_sms ve send_staff_temp_password SMS metni alt alta (işletme kodu / kullanıcı adı / şifre).
