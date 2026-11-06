@@ -169,3 +169,7 @@ alter table customers add column if not exists created_by uuid, add column if no
 -- (istemcideki postgres_changes aboneliği artık anlık bildirim alır; mutfak/ekranlar beklemeden yenilenir).
 -- GERİ ALINDI: data_versions supabase_realtime yayınından çıkarıldı (realtime postgres_changes veritabanı işlemcisini doldurup statement timeout'a yol açtı).
 -- Yayın (boş) duruyor; data_versions tekrar eklenmemeli. Mutfak ekranı 3 sn'de bir get_data_version ile kontrol eder.
+
+-- disk_io_cron_relax: Disk IO bütçesi tükendiği için cron sıklıkları azaltıldı:
+-- close_comp_orders_5s -> '30 seconds', dispatch_customer_requests_20s -> '* * * * *' (dakikada bir);
+-- _cron_cleanup_history artık 1 günden eski cron/http kayıtlarını siler (önceden 3 gün).
