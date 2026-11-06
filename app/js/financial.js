@@ -979,25 +979,51 @@ async function renderDaycloseAlloc(session){
   // Adet (porsiyon) başına tutar: toplamın altında küçük satır.
   const per = (p, v) => n(p.qty) > 0 ? `<small class="muted" style="display:block;font-size:11px;font-weight:500;">${money(n(v) / n(p.qty))} / adet</small>` : '';
   const ohDays = days.reduce((a, d) => a + n(d.oh), 0), pct = (a, b) => b ? Math.round(a / b * 100) : 0;
-  el.innerHTML = openBar + `<div class="pf-kpis">
-      <div class="pf-k"><small>${APP.allocOpen ? 'Dahil edilen gün' : 'Kapanışı yapılan gün'}</small><b>${days.length}</b><em>sabit gider payı ${money(ohDays)}</em></div>
-      <div class="pf-k"><small>Ciro (KDV hariç)</small><b>${money(T.rev)}</b><em>${APP.allocOpen ? 'dahil edilen günlerde' : 'kapanış günlerinde'}</em></div>
-      <div class="pf-k"><small>Malzeme maliyeti</small><b>${money(T.cost)}</b><em>%${pct(T.cost, T.rev)}</em></div>
-      <div class="pf-k"><small>Dağıtılan sabit gider</small><b>${money(T.oh)}</b><em>cironun %${pct(T.oh, T.rev)}'i</em></div>
-      <div class="pf-k hi ${T.net < 0 ? 'neg' : ''}"><small>Net kâr</small><b>${money(T.net)}</b><em>%${pct(T.net, T.rev)} net marj</em></div>
+  // Cironun dağılımı (malzeme / sabit gider / kâr) — 100 TL'lik satış örneğiyle.
+  const split = (rev, cost, oh) => { const r = n(rev); if(r <= 0) return { c: 0, o: 0, k: 0 }; const c = Math.min(100, n(cost) / r * 100), o = Math.min(100 - c, n(oh) / r * 100); return { c, o, k: Math.max(0, 100 - c - o) }; };
+  const bar = (rev, cost, oh, big) => { const x = split(rev, cost, oh), lossy = n(rev) - n(cost) - n(oh) < 0;
+    return `<div class="ga-bar ${big ? 'big' : ''} ${lossy ? 'loss' : ''}" title="Malzeme %${Math.round(x.c)} · Sabit gider %${Math.round(x.o)} · Kâr %${Math.round(x.k)}"><i class="c" style="width:${x.c}%"></i><i class="o" style="width:${x.o}%"></i><i class="k" style="width:${x.k}%"></i></div>`; };
+  const S = split(T.rev, T.cost, T.oh), top = prods[0];
+  const r100 = (v) => money(Math.round(v * 100) / 100);
+  const lowCost = T.rev > 0 && T.cost / T.rev < 0.12;
+  el.innerHTML = openBar + `<div class="ga-hero ${T.net < 0 ? 'neg' : ''}">
+      <div class="ga-hero-t">${APP.allocOpen ? 'Seçilen günlerde' : (days.length === 1 ? 'Bu gün' : 'Kapanışı yapılan ' + days.length + ' günde')} <b>${money(T.rev)}</b> satış yaptınız.
+        Bunun <b class="c">${money(T.cost)}</b>'si malzemeye, <b class="o">${money(T.oh)}</b>'si sabit giderlere (maaş, kira, fatura…) gitti;
+        ${T.net >= 0 ? `elinizde <b class="k">${money(T.net)}</b> kâr kaldı.` : `<b class="neg">${money(-T.net)}</b> zarar ettiniz.`}</div>
+      ${bar(T.rev, T.cost, T.oh, true)}
+      <div class="ga-legend"><span><i class="c"></i>Malzeme <b>%${Math.round(S.c)}</b></span><span><i class="o"></i>Sabit gider <b>%${Math.round(S.o)}</b></span><span><i class="k"></i>Kâr <b>%${Math.round(S.k)}</b></span></div>
+      <div class="ga-100">💡 Her <b>100 TL</b>'lik satışın <b class="c">${r100(S.c)}</b>'si malzemeye, <b class="o">${r100(S.o)}</b>'si sabit gidere gidiyor, <b class="k">${r100(S.k)}</b>'si kâr olarak kalıyor.</div>
+      ${lowCost ? `<div class="ga-warn">⚠️ Malzeme maliyeti cironun yalnızca %${pct(T.cost, T.rev)}'i görünüyor. Bazı hammaddelerin alış fiyatı girilmemiş olabilir (0 TL sayılır) — <b>Ürünler & Hammaddeler › Hammaddeler</b>'den fiyatları girin, kâr gerçeğe yaklaşsın.</div>` : ''}
     </div>
-    <p class="fs-note" style="margin:10px 0;">Her kapanış gününün sabit gider payı (aylık sabit gider ÷ ayın gün sayısı) <b>kapanış anında</b> kaydedilir ve o günün KDV hariç cirosuna oranlanır. Ürünlere, o gün yaptıkları ciro kadar pay düşer. Kapanışı yapılmamış günler varsayılan olarak hesaba katılmaz; gün iş günüdür (gün sonu saatinden gün sonu saatine).</p>
-    <div class="u-mwn box"><h2 class="u-m0" style="margin-bottom:10px;">📦 Ürün bazında <small class="muted" style="font-size:12px;font-weight:600;">· alt satırda adet başına</small></h2>
-      <div class="pf-head"><span>Ürün</span><span>Adet</span><span>Ciro</span><span>Malzeme</span><span>Gider payı</span><span>Net kâr</span></div>
+    <div class="pf-kpis">
+      <div class="pf-k"><small>Satış (KDV hariç)</small><b>${money(T.rev)}</b><em>${days.length} gün</em></div>
+      <div class="pf-k"><small>Malzeme maliyeti</small><b>${money(T.cost)}</b><em>reçetedeki hammaddeler</em></div>
+      <div class="pf-k"><small>Sabit gider</small><b>${money(T.oh)}</b><em>günlük ${money(days.length ? ohDays / days.length : 0)}</em></div>
+      <div class="pf-k hi ${T.net < 0 ? 'neg' : ''}"><small>Net kâr</small><b>${money(T.net)}</b><em>satışın %${pct(T.net, T.rev)}'i</em></div>
+    </div>
+    <details class="ga-how"><summary>❓ Bu hesap nasıl yapılıyor?</summary>
+      <ol>
+        <li><b>Sabit gider:</b> Ayarlar'daki giderlerinizin (maaş, kira, elektrik, su…) bir günlük karşılığı. Gün sonu kapanışı yapılınca o günün payı kaydedilir.</li>
+        <li><b>Ürünlere dağıtım:</b> Günün sabit gideri, ürünlere <b>sattıkları tutar oranında</b> paylaştırılır. Günün satışının %40'ını yapan ürün, giderin de %40'ını üstlenir.</li>
+        <li><b>Net kâr</b> = Satış − Malzeme − Sabit gider payı.</li>
+      </ol>
+      ${top && n(T.rev) > 0 ? `<div class="ga-ex">Örnek · <b>${escapeHtml(top.name)}</b>: ${money(top.rev)} satış (toplamın %${pct(n(top.rev), T.rev)}'i) → sabit giderden ${money(top.oh)} pay aldı. ${money(top.rev)} − ${money(top.cost)} malzeme − ${money(top.oh)} gider = <b>${money(top.net)}</b> net kâr.</div>` : ''}
+      <p class="muted">Kapanışı yapılmamış günler hesaba katılmaz (yukarıdaki anahtarla dahil edebilirsiniz). Gün, gün sonu saatinden ertesi gün sonu saatine kadardır.</p>
+    </details>
+    <div class="u-mwn box"><h2 class="u-m0" style="margin-bottom:4px;">📦 Ürün bazında</h2>
+      <p class="muted" style="margin:0 0 10px;font-size:12.5px;">Her ürünün satışının ne kadarı malzemeye, ne kadarı sabit gidere gidiyor, ne kadarı kâr kalıyor. Küçük satırlar <b>1 adet</b> içindir.</p>
+      <div class="pf-head"><span>Ürün</span><span>Adet</span><span>Satış</span><span>Malzeme</span><span>Sabit gider payı</span><span>Net kâr</span></div>
       ${prods.map(p => `<div class="pf-row ${n(p.net) < 0 ? 'neg' : ''}"><summary style="cursor:default;">
-        <span class="pf-n"><b>${escapeHtml(p.name)}</b><small>net marj %${pct(n(p.net), n(p.rev))}</small></span>
-        <span data-l="Adet">${Math.round(n(p.qty) * 100) / 100}</span><span data-l="Ciro">${money(p.rev)}${per(p, p.rev)}</span><span data-l="Malzeme">${money(p.cost)}${per(p, p.cost)}</span>
-        <span data-l="Gider payı">${money(p.oh)}${per(p, p.oh)}</span><span data-l="Net kâr" class="${n(p.net) < 0 ? 'neg' : 'pos'}"><b>${money(p.net)}</b>${per(p, p.net)}</span></summary></div>`).join('')}
+        <span class="pf-n"><b>${escapeHtml(p.name)}</b>${bar(p.rev, p.cost, p.oh)}<small>satışın %${pct(n(p.net), n(p.rev))}'i kâr</small></span>
+        <span data-l="Adet">${Math.round(n(p.qty) * 100) / 100}</span><span data-l="Satış">${money(p.rev)}${per(p, p.rev)}</span><span data-l="Malzeme">${money(p.cost)}${per(p, p.cost)}</span>
+        <span data-l="Sabit gider payı">${money(p.oh)}${per(p, p.oh)}</span><span data-l="Net kâr" class="${n(p.net) < 0 ? 'neg' : 'pos'}"><b>${money(p.net)}</b>${per(p, p.net)}</span></summary></div>`).join('')}
     </div>
-    <div class="u-mwn box" style="margin-top:14px;"><h2 class="u-m0" style="margin-bottom:10px;">📅 Gün bazında</h2>
-      <div class="pf-head"><span>Gün</span><span></span><span>Ciro</span><span>Malzeme</span><span>Sabit gider</span><span>Gider oranı</span></div>
-      ${days.map(d => `<div class="pf-row"><summary style="cursor:default;"><span class="pf-n"><b>${new Date(d.d + 'T12:00:00').toLocaleDateString('tr-TR', { weekday: 'short', day: '2-digit', month: '2-digit' })}</b><small>${d.closed ? '✓ kapanış yapıldı' : d.today ? '⏳ bugün · gün sürüyor · gider ' + money(d.oh) + ' / ' + money(d.oh_full) : '⏳ kapanmadı · tahmini gider'}</small></span><span></span>
-        <span data-l="Ciro">${money(d.rev)}</span><span data-l="Malzeme">${money(d.cost)}</span><span data-l="Sabit gider">${money(d.oh)}</span><span data-l="Gider oranı"><b class="pf-pill ${d.pct == null ? 'low' : d.pct > 30 ? 'neg' : d.pct > 15 ? 'low' : 'ok'}">${d.pct == null ? 'satış yok' : '%' + d.pct}</b></span></summary></div>`).join('')}
+    <div class="u-mwn box" style="margin-top:14px;"><h2 class="u-m0" style="margin-bottom:4px;">📅 Gün bazında</h2>
+      <p class="muted" style="margin:0 0 10px;font-size:12.5px;"><b>Gider oranı</b>: o günün sabit giderinin satışa oranı. Ne kadar düşükse o kadar iyi — %15 altı iyi, %30 üstü yüksek.</p>
+      <div class="pf-head"><span>Gün</span><span>Net kâr</span><span>Satış</span><span>Malzeme</span><span>Sabit gider</span><span>Gider oranı</span></div>
+      ${days.map(d => { const net = n(d.rev) - n(d.cost) - n(d.oh); return `<div class="pf-row ${net < 0 ? 'neg' : ''}"><summary style="cursor:default;"><span class="pf-n"><b>${new Date(d.d + 'T12:00:00').toLocaleDateString('tr-TR', { weekday: 'short', day: '2-digit', month: '2-digit' })}</b>${bar(d.rev, d.cost, d.oh)}<small>${d.closed ? '✓ kapanış yapıldı' : d.today ? '⏳ bugün · gün sürüyor · gider ' + money(d.oh) + ' / ' + money(d.oh_full) : '⏳ kapanmadı · tahmini gider'}</small></span>
+        <span data-l="Net kâr" class="${net < 0 ? 'neg' : 'pos'}"><b>${money(net)}</b></span>
+        <span data-l="Satış">${money(d.rev)}</span><span data-l="Malzeme">${money(d.cost)}</span><span data-l="Sabit gider">${money(d.oh)}</span><span data-l="Gider oranı"><b class="pf-pill ${d.pct == null ? 'low' : d.pct > 30 ? 'neg' : d.pct > 15 ? 'low' : 'ok'}">${d.pct == null ? 'satış yok' : '%' + d.pct}</b></span></summary></div>`; }).join('')}
     </div>`;
 }
 
