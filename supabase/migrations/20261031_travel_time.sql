@@ -192,3 +192,7 @@ alter table customers add column if not exists created_by uuid, add column if no
 -- dayclose_alloc_dynamic: get_dayclose_alloc bu ayın günlerinde sabit gideri güncel _overhead_summary'den, malzemeyi güncel
 -- products.cost'tan hesaplar (geçmiş aylar kapanış/sipariş anındaki değerle). trg_overhead_resync (overhead_items) bu ayın
 -- cash_counts.overhead_daily değerlerini güncel ayara çeker; tüm restoranların Kasım kapanışları bir kez yeniden hesaplandı.
+
+-- customer_sms_optout_groups: customers.sms_opt_out (tüm müşteri SMS'leri engellenir, sms_outbox status 'opted_out'),
+-- customers.group_ids + customer_groups tablosu; RPC: list_customer_groups, upsert_customer_group, delete_customer_group (soft),
+-- set_customer_prefs; list_customers ve get_winback alanları; get_winback(p_token,p_days,p_group) grup filtresi.
