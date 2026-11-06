@@ -164,3 +164,6 @@ alter table customers add column if not exists created_by uuid, add column if no
 
 -- data_version_deferred: trg_bump_dv tetikleyicileri "constraint trigger ... deferrable initially deferred" yapıldı;
 -- _bump_data_version işlem başına restoran başına bir kez (peyk.dv_<rid>) ve commit anında data_versions'ı artırır.
+
+-- realtime_data_versions_publication: supabase_realtime yayını yoktu; oluşturulup data_versions eklendi
+-- (istemcideki postgres_changes aboneliği artık anlık bildirim alır; mutfak/ekranlar beklemeden yenilenir).
