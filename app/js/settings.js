@@ -299,13 +299,15 @@ async function renderIntegrationsSettings(el, session){
     <div class="oo-hero ${data.sms_enabled?'on':''}"><div class="oo-hero-ic">📱</div>
       <div class="oo-hero-t"><b>Müşterilere otomatik SMS</b><small>Rezervasyon onayı ve 2 saat kala hatırlatma, paket siparişi hazır bildirimi, bekleme listesinde "Masa Hazır" mesajı, ödeme alındı bilgisi.</small></div>
       <label class="oo-switch"><input type="checkbox" id="int_sms_enabled" ${data.sms_enabled?'checked':''} ${actOn('change','saveSmsSettings',['$checked'])}><span class="oo-track"><span class="oo-thumb"></span></span><em>${data.sms_enabled?'Açık':'Kapalı'}</em></label></div>
-    ${ctTabsHtml('sms', [['conn','🔌 Bağlantı'],['tpl','💬 Mesajlar'],['log','📨 Gönderilenler']])}
+    ${ctTabsHtml('sms', [['conn','🔌 Bağlantı'],['tpl','💬 Mesajlar'],['optout','📵 SMS istemeyenler'],['log','📨 Gönderilenler']])}
     <div class="ct-pane" data-pane="conn"><div id="tiSms"></div></div>
     <div class="ct-pane" data-pane="tpl"><div id="smsTplBox"></div></div>
+    <div class="ct-pane" data-pane="optout"><div id="smsOptoutBox"></div></div>
     <div class="ct-pane" data-pane="log"><div id="smsLogBox"></div></div>`;
   sms.dataset.ctgrp = 'sms'; sms.dataset.ct = (APP.ctTab || {}).sms || 'conn';
   el.insertBefore(sms, inv);
   loadSmsTemplates();
+  loadSmsOptout();
   APP.smsLog = { days: 30, day: '', purpose: '', status: '', q: '', rows: [], open: null };
   loadSmsLog();
   const today = new Date(), from = new Date(Date.now()-29*864e5);

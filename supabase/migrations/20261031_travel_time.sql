@@ -196,3 +196,6 @@ alter table customers add column if not exists created_by uuid, add column if no
 -- customer_sms_optout_groups: customers.sms_opt_out (tüm müşteri SMS'leri engellenir, sms_outbox status 'opted_out'),
 -- customers.group_ids + customer_groups tablosu; RPC: list_customer_groups, upsert_customer_group, delete_customer_group (soft),
 -- set_customer_prefs; list_customers ve get_winback alanları; get_winback(p_token,p_days,p_group) grup filtresi.
+
+-- sms_optout_allow: restaurants.sms_optout_allow text[]; "SMS istemiyor" müşterilere yalnızca bu listedeki türler gider.
+-- RPC: get_sms_optout_settings, set_sms_optout_allow (int_sms). _send_sms güncellendi.

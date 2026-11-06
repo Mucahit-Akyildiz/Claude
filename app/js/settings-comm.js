@@ -416,3 +416,35 @@ async function saveTenantInt(kind){
   showToast({ sms:'SMS', mail:'E-posta', pay:'Online ödeme' }[kind] + ' ayarları kaydedildi ✓');
   renderTenantIntegrations(s);
 }
+
+/* --- SMS istemeyen müşteriler: hangi SMS türleri yine de gitsin (müşteri kartında "📵 SMS istemiyor" açık olanlar için) --- */
+const SMS_OPTOUT_EXTRA = [{ k:'campaign', ic:'📣', t:'Kampanya', w:'Kampanya & Geri Kazanım › kampanya' }, { k:'winback', ic:'💌', t:'Geri kazanım', w:'Bir süredir gelmeyenlere mesaj' }];
+async function loadSmsOptout(){
+  const box = document.getElementById('smsOptoutBox'); if(!box) return;
+  const { data, error } = await sb.rpc('get_sms_optout_settings', { p_token: getSession().session_token });
+  if(error){ box.innerHTML = '<p class="muted">' + escapeHtml(error.message) + '</p>'; return; }
+  APP.smsOptout = { allow: (data && data.allow) || [], count: (data && data.count) || 0 };
+  drawSmsOptout();
+}
+function drawSmsOptout(){
+  const box = document.getElementById('smsOptoutBox'); if(!box || !APP.smsOptout) return;
+  const allow = APP.smsOptout.allow, list = SMS_OPTOUT_EXTRA.concat(SMS_TPL.filter(t => t.k !== 'staff_login'));
+  const cats = [['Kampanya', l => l === 'campaign' || l === 'winback'], ['📅 Rezervasyon', l => tplCat(l) === 'resv'], ['⏳ Bekleme listesi', l => tplCat(l) === 'wl'], ['📦 Sipariş', l => tplCat(l) === 'order'], ['💳 Ödeme & yorum', l => tplCat(l) === 'pay']];
+  box.innerHTML = `<div class="so-wrap">
+    <div class="so-intro">📵 Müşteri kartında <b>"SMS istemiyor"</b> işaretli <b>${APP.smsOptout.count}</b> müşteri var. Bu müşterilere aşağıda <b>açık</b> olan SMS türleri yine gider, <b>kapalı</b> olanlar gitmez.
+      <small class="muted">Varsayılan: hepsi kapalı (hiç SMS gitmez). Örneğin kampanyaları kapalı tutup rezervasyon ve sipariş bilgilendirmelerini açabilirsiniz. E-posta bu ayardan etkilenmez.</small></div>
+    <div class="so-acts"><button type="button" class="ghost-btn" ${act('smsOptoutPreset', 'info')}>Sadece bilgilendirmeler gitsin</button><button type="button" class="ghost-btn" ${act('smsOptoutPreset', 'none')}>Hiçbiri gitmesin</button></div>
+    ${cats.map(([lbl, f]) => { const items = list.filter(t => f(t.k)); return items.length ? `<div class="so-cat"><h4>${lbl}</h4>${items.map(t => `<label class="so-row"><span class="so-ic">${t.ic}</span><span class="so-t"><b>${escapeHtml(t.t)}</b><small>${escapeHtml(t.w || '')}</small></span>
+      <span class="oo-switch"><input type="checkbox" ${allow.includes(t.k) ? 'checked' : ''} ${actOn('change','smsOptoutToggle',[t.k,'$checked'])}><span class="oo-track"><span class="oo-thumb"></span></span><em>${allow.includes(t.k) ? 'Gider' : 'Gitmez'}</em></span></label>`).join('')}</div>` : ''; }).join('')}
+  </div>`;
+}
+async function smsOptoutSave(){
+  const { error } = await sb.rpc('set_sms_optout_allow', { p_token: getSession().session_token, p_purposes: APP.smsOptout.allow });
+  if(error){ alert(error.message); return; }
+  showToast('Kaydedildi ✓'); drawSmsOptout();
+}
+function smsOptoutToggle(k, on){ const a = APP.smsOptout.allow.filter(x => x !== k); if(on) a.push(k); APP.smsOptout.allow = a; smsOptoutSave(); }
+function smsOptoutPreset(kind){
+  APP.smsOptout.allow = kind === 'info' ? SMS_TPL.filter(t => t.k !== 'staff_login').map(t => t.k) : [];
+  smsOptoutSave();
+}
