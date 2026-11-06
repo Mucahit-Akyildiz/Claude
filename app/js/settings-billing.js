@@ -581,10 +581,10 @@ function openStaffSmsModal(){
   bg.onclick = (e) => { if(e.target === bg) bg.remove(); };
   bg.innerHTML = `<div class="order-modal" style="max-width:560px;width:100%;">
     <div class="u-row-sb"><h2 class="u-m0">📱 Giriş bilgilerini SMS ile gönder</h2><span class="u-xclose" ${act('removeEl','staffSmsBg')}>✕</span></div>
-    <p class="muted" style="text-align:left;font-size:13px;">Mesajda işletme kodu, kullanıcı adı ve uygulama linkleri (Android, iPhone/Web) yer alır. Telefonu girilmemiş kullanıcılara gönderilmez.</p>
+    <p class="muted" style="text-align:left;font-size:13px;">Mesajda alt alta işletme kodu, kullanıcı adı, şifre ve uygulama linkleri (Android, iPhone/Web) yer alır. Telefonu girilmemiş kullanıcılara gönderilmez.</p>
     <label class="sm-all"><input type="checkbox" id="ssAll" ${actOn('change','staffSmsAll',['$checked'])}> <b>Herkesi seç</b></label>
     <div class="sm-list">${us.map(u => `<label class="sm-row ${u.phone ? '' : 'nophone'}"><input type="checkbox" class="ss-u" value="${u.id}" ${u.phone ? '' : 'disabled'}> ${avatarHtml(u.username)}<span><b>${escapeHtml(u.username)}</b><small>${u.phone ? escapeHtml(u.phone) : 'telefon yok'} · ${escapeHtml((u.role_names||[]).join(', '))}</small></span></label>`).join('') || '<p class="muted">Kullanıcı yok.</p>'}</div>
-    ${canReset ? `<label class="sw-card" style="margin:12px 0 !important;"><input type="checkbox" class="sw" id="ssReset"><span><b>Yeni geçici şifre oluştur ve mesaja ekle</b><br><span class="u-fs125 muted">Şifreler güvenlik için şifreli saklanır, mevcut şifre gönderilemez. Açarsanız her kişiye yeni bir şifre üretilir; <b>eski şifresi geçersiz olur</b>.</span></span></label>` : ''}
+    ${canReset ? `<label class="sw-card" style="margin:12px 0 !important;"><input type="checkbox" class="sw" id="ssReset" checked><span><b>Yeni geçici şifre oluştur ve mesaja ekle</b><br><span class="u-fs125 muted">Şifreler güvenlik için şifreli saklanır, mevcut şifre gönderilemez. Açarsanız her kişiye yeni bir şifre üretilir; <b>eski şifresi geçersiz olur</b>.</span></span></label>` : ''}
     <div class="u-mt12 modal-sticky-actions"><button type="button" class="u-f1-m0 ghost-btn" ${act('removeEl','staffSmsBg')}>Vazgeç</button><button type="button" class="u-f1-m0" ${act('sendStaffSms')}>📨 Gönder</button></div>
   </div>`;
   document.body.appendChild(bg);
