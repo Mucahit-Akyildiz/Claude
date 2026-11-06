@@ -4252,3 +4252,10 @@ html.emoji-noto .app-brand-row .app-brand-text,html.emoji-noto .auth-brand .name
 .rp-pick{display:flex;flex-direction:column;gap:8px;margin:12px 0 4px;}
 .rp-opt{display:flex;flex-direction:column;align-items:flex-start;gap:2px;margin:0;padding:11px 14px;border-radius:12px;background:var(--panel2);color:var(--text);border:1.5px solid var(--border);box-shadow:none;text-align:left;}
 .rp-opt small{color:var(--muted);font-weight:500;font-size:12px;} .rp-opt.on{border-color:var(--accent);}
+
+.pts-box[hidden]{display:none;}
+.pay-cust-badge{display:flex;align-items:center;gap:12px;margin:0 0 10px;padding:10px 12px;border-radius:14px;background:color-mix(in srgb,#f59e0b 10%,var(--panel));border:1px solid color-mix(in srgb,#f59e0b 40%,transparent);}
+.pay-cust-badge[hidden]{display:none;}
+.pcb-ic{font-size:20px;} .pcb-name{flex:1;min-width:0;display:flex;flex-direction:column;} .pcb-name b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;} .pcb-name small{color:var(--muted);font-size:12px;}
+.pcb-pts{display:flex;align-items:baseline;gap:4px;color:#f59e0b;} .pcb-pts b{font-size:20px;font-weight:800;} .pcb-pts small{font-size:12px;font-weight:700;}
+.pcb-btn{width:auto;margin:0;padding:7px 12px;font-size:12.5px;border-radius:10px;}
