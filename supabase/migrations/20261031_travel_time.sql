@@ -185,3 +185,6 @@ alter table customers add column if not exists created_by uuid, add column if no
 -- _trg_takeaway_ready_sms: adrese teslim (takeaway_type='delivery') siparişte "hazır" mesajı gönderilmez (yola çıktı mesajı yeterli).
 
 -- staff_login_multiline: send_staff_login_sms ve send_staff_temp_password SMS metni alt alta (işletme kodu / kullanıcı adı / şifre).
+
+-- dayclose_overhead_fix: ŞİLE LEZZET SOFRASI 1 ve 6 Kasım kapanışlarındaki cash_counts.overhead_daily 353.33 -> 10600
+-- (giderler aylıktan günlüğe çevrilmeden önce kapanış yapılmıştı).

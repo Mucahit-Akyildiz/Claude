@@ -4260,3 +4260,20 @@ html.emoji-noto .app-brand-row .app-brand-text,html.emoji-noto .auth-brand .name
 .pcb-ic{font-size:20px;} .pcb-name{flex:1;min-width:0;display:flex;flex-direction:column;} .pcb-name b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;} .pcb-name small{color:var(--muted);font-size:12px;}
 .pcb-pts{display:flex;align-items:baseline;gap:4px;color:#f59e0b;} .pcb-pts b{font-size:20px;font-weight:800;} .pcb-pts small{font-size:12px;font-weight:700;}
 .pcb-btn{width:auto;margin:0;padding:7px 12px;font-size:12.5px;border-radius:10px;}
+
+/* Gider dağılımı: anlaşılır özet */
+.ga-hero{background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:16px 18px;margin:0 0 12px;--ga-c:#f59e0b;--ga-o:#8b5cf6;--ga-k:#22c55e;}
+.ga-hero-t{font-size:15px;line-height:1.6;}
+.ga-hero b.c{color:var(--ga-c);} .ga-hero b.o{color:var(--ga-o);} .ga-hero b.k{color:var(--ga-k);} .ga-hero b.neg{color:var(--red);}
+.ga-bar{display:flex;height:8px;border-radius:999px;overflow:hidden;background:var(--panel2);margin:6px 0 4px;gap:2px;max-width:260px;--ga-c:#f59e0b;--ga-o:#8b5cf6;--ga-k:#22c55e;}
+.ga-bar.big{height:16px;max-width:none;margin:12px 0 8px;}
+.ga-bar i{display:block;height:100%;} .ga-bar i.c{background:var(--ga-c);} .ga-bar i.o{background:var(--ga-o);} .ga-bar i.k{background:var(--ga-k);}
+.ga-bar.loss{outline:1.5px solid var(--red);outline-offset:1px;}
+.ga-legend{display:flex;gap:14px;flex-wrap:wrap;font-size:12.5px;color:var(--muted);}
+.ga-legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:-1px;} .ga-legend i.c{background:var(--ga-c);} .ga-legend i.o{background:var(--ga-o);} .ga-legend i.k{background:var(--ga-k);}
+.ga-legend b{color:var(--text);}
+.ga-100{margin-top:10px;font-size:13px;padding:8px 12px;border-radius:10px;background:var(--panel2);}
+.ga-warn{margin-top:10px;font-size:12.5px;padding:8px 12px;border-radius:10px;background:color-mix(in srgb,#f59e0b 12%,transparent);border:1px solid color-mix(in srgb,#f59e0b 40%,transparent);}
+.ga-how{margin:0 0 12px;background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:10px 14px;font-size:13px;}
+.ga-how summary{cursor:pointer;font-weight:700;} .ga-how ol{margin:10px 0 6px;padding-left:20px;line-height:1.6;}
+.ga-ex{padding:8px 12px;border-radius:10px;background:var(--panel2);margin:6px 0;}
