@@ -438,17 +438,14 @@ function renderTableItems(tableId){
         const p = findProductAny(it.product_id) || {};
         const mc = ((APP.config.stations || []).find(x => x.id === (p.station_id || it.station_id)) || {}).color || 'var(--accent)';
         return `<div class="dc-item ${extra ? 'dc-extra' : ''}" style="--mc:${mc};">
-          <div class="dc-row">
-            <div class="dc-info"><b>${escapeHtml(it.name)}</b><small>${money(it.price)} × ${it.qty}</small></div>
-            <div class="dc-step"><button type="button" ${act('changeDraftQty', tableId, idx, -1)}>${it.qty > 1 ? '−' : '🗑'}</button><span>${it.qty}</span><button type="button" ${act('changeDraftQty', tableId, idx, 1)}>+</button></div>
-            <div class="dc-sum">${money(it.price * it.qty)}</div>
+          <div class="dci-row">
+            <div class="dci-info"><b>${escapeHtml(it.name)}</b><small>${money(it.price)}${extra ? '' : ` · <button type="button" class="dc-note-btn ${nOpen ? 'on' : ''}" ${act('toggleDraftNote', tableId, idx)}>${it.note ? '✏️ Not' : '+ Not'}</button>`}</small></div>
+            <div class="dci-step"><button type="button" ${act('changeDraftQty', tableId, idx, -1)}>${it.qty > 1 ? '−' : '🗑'}</button><span>${it.qty}</span><button type="button" ${act('changeDraftQty', tableId, idx, 1)}>+</button></div>
+            <div class="dci-sum">${money(it.price * it.qty)}</div>
           </div>
-          ${extra ? '' : `<div class="dc-note-row">
-            ${it.note ? `<span class="dc-note">📝 ${escapeHtml(it.note)}</span>` : ''}
-            <button type="button" class="dc-note-btn ${nOpen ? 'on' : ''}" ${act('toggleDraftNote', tableId, idx)}>${it.note ? '✏️ Düzenle' : '📝 Not ekle'}</button>
-          </div>
-          ${nOpen ? `<div class="dc-note-edit"><input type="text" placeholder="Not yazın (örn. az pişmiş, acısız…)" value="${escapeAttr(it.note||'')}" ${actOn('input','updateDraftItemNote',[tableId, idx, '$value'])}>
-            <div class="note-chips">${quickNoteList().map(n => `<button type="button" class="note-chip ${noteHas(it.note, n) ? 'on' : ''}" ${act('toggleDraftNoteChip', tableId, idx, n)}>${escapeHtml(n)}</button>`).join('')}</div></div>` : ''}`}
+          ${it.note && !extra ? `<div class="dc-note">📝 ${escapeHtml(it.note)}</div>` : ''}
+          ${!extra && nOpen ? `<div class="dc-note-edit"><input type="text" placeholder="Not yazın (örn. az pişmiş, acısız…)" value="${escapeAttr(it.note||'')}" ${actOn('input','updateDraftItemNote',[tableId, idx, '$value'])}>
+            <div class="note-chips">${quickNoteList().map(n => `<button type="button" class="note-chip ${noteHas(it.note, n) ? 'on' : ''}" ${act('toggleDraftNoteChip', tableId, idx, n)}>${escapeHtml(n)}</button>`).join('')}</div></div>` : ''}
         </div>`; }).join('')}
       <div class="dc-total"><span>Toplam</span><b>${money(total)}</b></div>
     </div>`;
