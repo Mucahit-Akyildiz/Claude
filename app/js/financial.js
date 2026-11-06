@@ -1003,7 +1003,8 @@ async function renderDaycloseAlloc(session){
     </div>
     <details class="ga-how"><summary>❓ Bu hesap nasıl yapılıyor?</summary>
       <ol>
-        <li><b>Sabit gider:</b> Ayarlar'daki giderlerinizin (maaş, kira, elektrik, su…) bir günlük karşılığı. Gün sonu kapanışı yapılınca o günün payı kaydedilir.</li>
+        <li><b>Sabit gider:</b> Ayarlar'daki giderlerinizin (maaş, kira, elektrik, su…) bir günlük karşılığı. <b>Bu ayın</b> günleri her zaman güncel ayarlarla hesaplanır; gider eklediğinizde/değiştirdiğinizde tablo kendiliğinden güncellenir. Geçmiş aylar kapanıştaki değerle kalır.</li>
+        <li><b>Malzeme:</b> Bu ayın satışlarında ürünün <b>güncel</b> reçete maliyeti kullanılır; hammadde fiyatını değiştirince yeniden hesaplanır.</li>
         <li><b>Ürünlere dağıtım:</b> Günün sabit gideri, ürünlere <b>sattıkları tutar oranında</b> paylaştırılır. Günün satışının %40'ını yapan ürün, giderin de %40'ını üstlenir.</li>
         <li><b>Net kâr</b> = Satış − Malzeme − Sabit gider payı.</li>
       </ol>

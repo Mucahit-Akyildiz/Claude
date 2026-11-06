@@ -188,3 +188,7 @@ alter table customers add column if not exists created_by uuid, add column if no
 
 -- dayclose_overhead_fix: ŞİLE LEZZET SOFRASI 1 ve 6 Kasım kapanışlarındaki cash_counts.overhead_daily 353.33 -> 10600
 -- (giderler aylıktan günlüğe çevrilmeden önce kapanış yapılmıştı).
+
+-- dayclose_alloc_dynamic: get_dayclose_alloc bu ayın günlerinde sabit gideri güncel _overhead_summary'den, malzemeyi güncel
+-- products.cost'tan hesaplar (geçmiş aylar kapanış/sipariş anındaki değerle). trg_overhead_resync (overhead_items) bu ayın
+-- cash_counts.overhead_daily değerlerini güncel ayara çeker; tüm restoranların Kasım kapanışları bir kez yeniden hesaplandı.
