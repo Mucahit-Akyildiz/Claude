@@ -386,17 +386,13 @@ function startDataVersionWatch(){
   // Realtime bağlıyken sorgulama seyrekleşir (her 3 sn yerine 15 sn'de bir).
   let tick = 0;
   clearInterval(DATA_VER_TIMER);
-  DATA_VER_TIMER = setInterval(() => { tick++; if(!live || tick % 5 === 0) checkDataVersion(); }, 3000);
+  // Mutfak ekranında yeni sipariş gecikmesin: 3 sn'de bir sürüm sorulur (hafif sorgu).
+  DATA_VER_TIMER = setInterval(() => { tick++; if(!live || tick % 5 === 0 || APP.view === 'kitchen') checkDataVersion(); }, 3000);
 }
 // Realtime bildirimi yeni sayaç değerini zaten taşır: sunucuya tekrar sormadan ekran hemen tazelenir.
 function onDataVersionPush(payload){
   const v = payload && payload.new && payload.new.v;
   const session = getSession();
-  // Mutfak ekranı yeni siparişi beklemeden (arka planda da) hemen çeker.
-  if(session && APP.view==='kitchen' && APP.kitchenStation && !APP.kitchenRefreshing){
-    APP.kitchenRefreshing = true;
-    Promise.resolve(refreshKitchenItems(session)).finally(() => { APP.kitchenRefreshing = false; });
-  }
   if(v == null || !session || document.visibilityState!=='visible'){ checkDataVersion(true); return; }
   if(DATA_VER_LAST === null){ DATA_VER_LAST = v; return; }
   if(v === DATA_VER_LAST) return;
