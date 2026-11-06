@@ -199,3 +199,5 @@ alter table customers add column if not exists created_by uuid, add column if no
 
 -- sms_optout_allow: restaurants.sms_optout_allow text[]; "SMS istemiyor" müşterilere yalnızca bu listedeki türler gider.
 -- RPC: get_sms_optout_settings, set_sms_optout_allow (int_sms). _send_sms güncellendi.
+
+-- winback_flags: get_winback satırlarına sms_blocked (SMS istemiyor ve tür izinli değil) ve recently_sent (24 saat / 14 gün kuralı) eklendi.
