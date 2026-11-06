@@ -2,7 +2,7 @@
 // Önbellek stratejisi "önce ağ": internet varken her zaman sunucudaki güncel dosya
 // kullanılır (POS hep canlı kalır), önbellek yalnızca bağlantı yokken devreye girer.
 // Veri (Supabase API) önbelleğe ALINMAZ; çevrimdışı veri offline.js'te yönetilir.
-const SHELL_CACHE = 'peyktan-shell-v343';
+const SHELL_CACHE = 'peyktan-shell-v344';
 const SHELL = [
   '/app/',
   '/app/manifest.webmanifest',
@@ -35,23 +35,33 @@ self.addEventListener('fetch', (event) => {
   if (req.method !== 'GET') return;
   const url = new URL(req.url);
   if (!_shellRequest(url) || url.pathname.startsWith('/api/')) return;
-  event.respondWith(
-    fetch(req).then((res) => {
-      if (res && res.ok && (res.type === 'basic' || res.type === 'cors')) {
-        const copy = res.clone();
-        caches.open(SHELL_CACHE).then((c) => c.put(req, copy)).catch(() => {});
-      }
-      return res;
-    }).catch(async () => {
-      // Önce birebir (aynı ?v sürümü) eşleşme: farklı sürümlü eski dosya yeni dosyalarla karışmasın.
-      const hit = await caches.match(req);
-      if (hit) return hit;
-      if (req.mode === 'navigate') { const nav = await caches.match(req, { ignoreSearch: true }); if (nav) return nav; }
-      if (req.mode === 'navigate') { const page = await caches.match('/app/'); if (page) return page; }
-      return Response.error();
-    })
-  );
+  // ?vNNN taşıyan dosyalar o sürümde hiç değişmez: önbellekte birebir varsa ağı beklemeden ver (yenileme anında açılır).
+  if (/^\?v\d+$/.test(url.search)) {
+    event.respondWith(caches.match(req).then((hit) => hit || _netFirst(req)));
+    return;
+  }
+  event.respondWith(_netFirst(req));
 });
+function _netFirst(req) {
+  // Önce ağ; zayıf internette 4 sn içinde cevap gelmezse önbellekteki kopya kullanılır.
+  const net = fetch(req).then((res) => {
+    if (res && res.ok && (res.type === 'basic' || res.type === 'cors')) {
+      const copy = res.clone();
+      caches.open(SHELL_CACHE).then((c) => c.put(req, copy)).catch(() => {});
+    }
+    return res;
+  });
+  const fromCache = async () => {
+    // Önce birebir (aynı ?v sürümü) eşleşme: farklı sürümlü eski dosya yeni dosyalarla karışmasın.
+    const hit = await caches.match(req);
+    if (hit) return hit;
+    if (req.mode === 'navigate') { const nav = await caches.match(req, { ignoreSearch: true }); if (nav) return nav; }
+    if (req.mode === 'navigate') { const page = await caches.match('/app/'); if (page) return page; }
+    return null;
+  };
+  const slow = new Promise((r) => setTimeout(r, 4000)).then(fromCache);
+  return Promise.race([net.catch(() => null), slow]).then(async (res) => res || (await net.catch(() => null)) || (await fromCache()) || Response.error());
+}
 
 self.addEventListener('push', (event) => {
   let data = {};
