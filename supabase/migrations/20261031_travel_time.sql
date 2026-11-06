@@ -158,3 +158,6 @@ alter table customers add column if not exists created_by uuid, add column if no
 
 -- campaign_phone_change_resend: customers.phone_changed_at (trigger customers_phone_changed);
 -- send_campaign 24 saat kuralı, son gönderimden sonra telefon değiştiyse SMS/ikisi için uygulanmaz.
+
+-- api_usage_skip_locked: _session_check'teki api_usage_daily sayacı "for update skip locked" ile artırılır.
+-- Eski upsert satır kilidini istek boyunca tuttuğu için aynı restoranın istekleri sıraya girip statement timeout veriyordu.
