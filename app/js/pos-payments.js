@@ -288,6 +288,7 @@ function openPayModal(orderId){
     <div class="pay-items-card" id="payItemsWrap">${itemsHtml}</div>
     <div class="pay-subtotal-row" id="paySubtotalLine"><span>Ara Toplam</span><span>${money(subtotal)}</span></div>
 
+    <div id="payCustBadge" class="pay-cust-badge" hidden></div>
     <div class="pay-opt-tabs">
       <button type="button" class="pay-opt-tab" data-opt="disc" ${act('togglePayOpt','disc')}>🏷️ İndirim</button>
       <button type="button" class="pay-opt-tab" data-opt="tip" ${act('togglePayOpt','tip')}>💸 Bahşiş</button>
@@ -485,6 +486,7 @@ async function lookupPayCustomer(picked){
     bg.dataset.isBirthdayToday = '0';
     delete bg.dataset.pointValue; delete bg.dataset.birthdayPct;
     redeemWrap.style.display = 'none';
+    setPayCustBadge(null);
     updatePayFinalTotalLine();
     return;
   }
@@ -512,7 +514,18 @@ async function lookupPayCustomer(picked){
   } else {
     redeemWrap.style.display = 'none';
   }
+  setPayCustBadge(data, tier, loyalty);
   recomputePaySelection();
+}
+/* Müşteri bağlıysa adı ve puanı sekme açılmadan da görünsün. */
+function setPayCustBadge(data, tier, loyalty){
+  const el = document.getElementById('payCustBadge'); if(!el) return;
+  if(!data){ el.hidden = true; el.innerHTML = ''; return; }
+  const pts = Number(data.points_balance) || 0, canUse = loyalty && loyalty.enabled && pts > 0;
+  el.innerHTML = `<span class="pcb-ic">🧑</span><span class="pcb-name"><b>${escapeHtml(data.name || '')}</b>${tier ? `<small>${escapeHtml((tier.icon||'⭐') + ' ' + tier.name)}</small>` : ''}</span>`
+    + `<span class="pcb-pts"><b>${pts}</b><small>puan</small></span>`
+    + `<button type="button" class="pcb-btn" ${act('togglePayOpt','cust')}>${canUse ? 'Puan kullan' : 'Detay'}</button>`;
+  el.hidden = false;
 }
 function applyRedeemPoints(v){
   const bg = document.getElementById('payModalBg');
