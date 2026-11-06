@@ -106,7 +106,7 @@ async function renderSmsAdmin(main, admin){
   main.innerHTML = '<p class="muted">Yükleniyor...</p>';
   const { data, error } = await sb.rpc('admin_get_sms', { p_token: admin.session_token });
   if(error){ main.innerHTML = '<p class="error">'+escapeHtml(error.message)+'</p>'; return; }
-  const st = { queued:'Kuyrukta', dispatched:'Gönderildi', no_provider:'Sağlayıcı yok', skipped:'Limit' };
+  const st = { queued:'Kuyrukta', dispatched:'Gönderildi', delivered:'Ulaştı', failed:'Ulaşmadı', no_provider:'Sağlayıcı yok', skipped:'Limit' };
   main.innerHTML = `<h1>📱 SMS</h1>
     <div class="box" style="max-width:640px;">
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">

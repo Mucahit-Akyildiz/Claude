@@ -58,7 +58,7 @@ const SMS_TPL = [
   { k:'waitlist_ready', ic:'⏳', t:'Masanız hazır', w:'Bekleme listesinde “Masa Hazır” basılınca', v:['isletme','ad','kisi'], d:'{isletme}: Masaniz hazir! Lutfen girise gelin.' },
   { k:'takeaway_ready', ic:'📦', t:'Siparişiniz hazır', w:'Paket / gel-al siparişi hazır olunca', v:['isletme','ad','no'], d:'{isletme}: Siparisiniz hazir (No: {no}). Afiyet olsun!' },
   { k:'delivery_dispatched', ic:'🛵', t:'Sipariş yola çıktı', w:'Sipariş kuryeye verilince', v:['isletme','ad','kurye','kurye_tel','takip'], d:'{isletme}: Siparisiniz yola cikti! Kurye: {kurye} Tel: {kurye_tel} Takip: {takip}' },
-  { k:'delivered', ic:'🎉', t:'Teslim edildi · değerlendirme', w:'Adrese teslim paket teslim edilince (bu siparişte ödeme mesajı değerlendirme linki içermez)', v:['isletme','ad','link'], d:'{isletme}: Siparisiniz teslim edildi, afiyet olsun! Bizi degerlendirin: {link}' },
+  { k:'delivered', ic:'🎉', t:'Teslim edildi · değerlendirme', w:'Adrese teslim paket teslim edilince · ödeme SMS\'i açıksa gönderilmez (teşekkür ve değerlendirme linki ödeme mesajında tek seferde gider)', v:['isletme','ad','link'], d:'{isletme}: Siparisiniz teslim edildi, afiyet olsun! Bizi degerlendirin: {link}' },
   { k:'payment', ic:'💳', t:'Ödeme alındı', w:'Hesaba müşteri girildiyse ödeme alınınca', v:['isletme','ad','tutar','link'], d:'{isletme}: {ad}, odemeniz alindi. Tutar: {tutar} TL. Tesekkur ederiz! Bizi degerlendirin: {link}' },
   { k:'review_request', ic:'⭐', t:'Değerlendirme isteği', w:'Hesaptan değerlendirme linki gönderilince', v:['isletme','link'], d:'{isletme}: Bizi degerlendirir misiniz? {link}' },
   { k:'staff_login', ic:'👤', t:'Personel giriş bilgileri', w:'Kullanıcılar › SMS Gönder ile', v:['isletme','kod','kullanici','sifre','android','web'], d:'{isletme} - Peyktan giris bilgileriniz: Isletme kodu: {kod} Kullanici: {kullanici} Sifre: {sifre} Android: {android} iPhone/Web: {web}' },
@@ -85,7 +85,7 @@ function tplCatChips(grp, list, isOn){
 }
 function setTplCat(grp, c){ APP.tplCat = Object.assign({}, APP.tplCat, { [grp]: c }); grp === 'sms' ? drawSmsTemplates() : drawMailTemplates(); }
 /* --- Gönderilen SMS'ler: işletmenin kendi gönderim geçmişi (get_sms_log) --- */
-const SMS_ST = { dispatched:['Gönderildi','ok'], no_provider:['Sağlayıcı bağlı değil','warn'], failed:['Hata','bad'], error:['Hata','bad'], pending:['Bekliyor','wait'], disabled:['Kapalı','warn'] };
+const SMS_ST = { delivered:['Ulaştı','ok'], dispatched:['Gönderildi · teslim raporu bekleniyor','wait'], failed:['Ulaşmadı','bad'], no_provider:['Sağlayıcı bağlı değil','warn'], failed:['Hata','bad'], error:['Hata','bad'], pending:['Bekliyor','wait'], disabled:['Kapalı','warn'] };
 const SMS_EXTRA_LBL = { winback:'💛 Geri kazanım', campaign:'📣 Kampanya', iban:'🏦 IBAN', test:'Test mesajı', otp:'Doğrulama kodu', reservation_confirm:'Rezervasyon onayı' };
 function smsPhone(p){ const d = String(p || '').replace(/\D/g, ''), m = d.match(/^90(\d{3})(\d{3})(\d{2})(\d{2})$/); return m ? '0' + m[1] + ' ' + m[2] + ' ' + m[3] + ' ' + m[4] : (p || '—'); }
 function smsPurposeLbl(k){ const t = SMS_TPL.find(x => x.k === k); return t ? t.ic + ' ' + t.t : (SMS_EXTRA_LBL[k] || k || '—'); }
@@ -136,7 +136,7 @@ function drawSmsLog(){
         <div class="sl-when">${new Date(r.created_at).toLocaleDateString('tr-TR')}<small>${new Date(r.created_at).toLocaleTimeString('tr-TR', { hour:'2-digit', minute:'2-digit' })}</small></div>
         <div class="sl-main"><div class="sl-top"><b title="Tam numara için satıra tıklayın">${escapeHtml(open ? smsPhone(r.phone) : maskPhone(r.phone))}</b><span class="sl-type">${escapeHtml(smsPurposeLbl(r.purpose))}</span></div>
           <div class="sl-msg">${escapeHtml(r.message || '')}</div>
-          ${open ? `<div class="sl-meta">${len.n} karakter · ${len.sms} SMS kredisi${len.uni ? ' · Türkçe karakter içeriyor' : ''}${r.provider ? ' · Sağlayıcı: ' + escapeHtml(r.provider) : ''}${r.dispatched_at ? ' · Gönderim: ' + new Date(r.dispatched_at).toLocaleString('tr-TR') : ''}${r.status === 'no_provider' ? '<br>⚠️ Bu SMS gönderilmedi çünkü o sırada SMS firması bağlı değildi. Bağlantı sekmesinden firmanızı seçip kaydedin.' : ''}</div>` : ''}</div>
+          ${open ? `<div class="sl-meta">${len.n} karakter · ${len.sms} SMS kredisi${len.uni ? ' · Türkçe karakter içeriyor' : ''}${r.provider ? ' · Sağlayıcı: ' + escapeHtml(r.provider) : ''}${r.dispatched_at ? ' · Gönderim: ' + new Date(r.dispatched_at).toLocaleString('tr-TR') : ''}${r.delivery_error ? '<br>⚠️ ' + escapeHtml(r.delivery_error) + (r.status === 'failed' ? ' — ret sebebini SMS firmanızın panelinden / destek ekibinden öğrenebilirsiniz (ticari içerikli mesajlar İYS onayı gerektirebilir).' : '') : ''}${r.status === 'no_provider' ? '<br>⚠️ Bu SMS gönderilmedi çünkü o sırada SMS firması bağlı değildi. Bağlantı sekmesinden firmanızı seçip kaydedin.' : ''}</div>` : ''}</div>
         <span class="sl-st ${sx[1]}">${sx[0]}</span></div>`; }).join('')}</div>
       ${L.rows.length < (d.total || 0) ? `<button type="button" class="ghost-btn sl-more" ${act('loadSmsLog', true)}>Daha fazla göster (${L.rows.length} / ${d.total})</button>` : `<p class="muted sl-count">${d.total || 0} SMS gösteriliyor</p>`}`}
   </div>`;
@@ -242,7 +242,7 @@ const MAIL_TPL = [
   { k:'wl_ready', ic:'🍽️', t:'Masanız hazır', w:'Bekleme listesinde “Masa Hazır” basılınca', v:['isletme','ad','kisi'], s:'{isletme} - Masanız hazır', d:'Merhaba {ad},\n\nMasanız hazır! Lütfen girişe gelin.' },
   { k:'takeaway_ready', ic:'📦', t:'Siparişiniz hazır', w:'Paket / gel-al siparişi hazır olunca', v:['isletme','ad','no'], s:'{isletme} - Siparişiniz hazır', d:'Merhaba {ad},\n\n{no} numaralı siparişiniz hazır. Afiyet olsun!' },
   { k:'delivery_dispatched', ic:'🛵', t:'Sipariş yola çıktı', w:'Sipariş kuryeye verilince', v:['isletme','ad','kurye','kurye_tel','takip'], s:'{isletme} - Siparişiniz yola çıktı', d:'Merhaba {ad},\n\nSiparişiniz yola çıktı!\nKurye: {kurye}\nTelefon: {kurye_tel}\nTakip: {takip}' },
-  { k:'delivered', ic:'🎉', t:'Teslim edildi · değerlendirme', w:'Adrese teslim paket teslim edilince (bu siparişte ödeme e-postası değerlendirme düğmesi içermez)', v:['isletme','ad','link'], s:'{isletme} - Siparişiniz teslim edildi', d:'Merhaba {ad},\n\nSiparişiniz teslim edildi. Afiyet olsun!\n\nBizi değerlendirin: {link}' },
+  { k:'delivered', ic:'🎉', t:'Teslim edildi · değerlendirme', w:'Adrese teslim paket teslim edilince · ödeme SMS\'i açıksa gönderilmez (değerlendirme ödeme mesajında gider)', v:['isletme','ad','link'], s:'{isletme} - Siparişiniz teslim edildi', d:'Merhaba {ad},\n\nSiparişiniz teslim edildi. Afiyet olsun!\n\nBizi değerlendirin: {link}' },
   { k:'payment', ic:'💳', t:'Ödeme alındı', w:'Hesaba müşteri girildiyse ödeme alınınca', v:['isletme','ad','tutar','link'], s:'{isletme} - Ödemeniz alındı', d:'Merhaba {ad},\n\n{tutar} TL tutarındaki ödemeniz alındı. Teşekkür ederiz!\n\nBizi değerlendirin: {link}' },
   { k:'review_request', ic:'⭐', t:'Değerlendirme isteği', w:'Hesaptan değerlendirme linki gönderilince', v:['isletme','link'], s:'{isletme} - Bizi değerlendirir misiniz?', d:'Merhaba,\n\nDeneyiminizi değerlendirir misiniz?\n{link}' },
 ];

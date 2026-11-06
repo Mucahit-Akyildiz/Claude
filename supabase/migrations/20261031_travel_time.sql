@@ -173,3 +173,8 @@ alter table customers add column if not exists created_by uuid, add column if no
 -- disk_io_cron_relax: Disk IO bütçesi tükendiği için cron sıklıkları azaltıldı:
 -- close_comp_orders_5s -> '30 seconds', dispatch_customer_requests_20s -> '* * * * *' (dakikada bir);
 -- _cron_cleanup_history artık 1 günden eski cron/http kayıtlarını siler (önceden 3 gün).
+
+-- sms_delivery_reports: sms_outbox'a http_req_id, provider_ref, report_req_id, report_checked_at, delivery_error eklendi;
+-- status kısıtına 'delivered','failed' eklendi. _send_sms İleti Merkezi istek kimliğini saklar; _sms_poll_reports (cron
+-- sms_delivery_reports, dakikada bir) sipariş no'yu alır, get-report ile 111=delivered / 112=failed işler. get_sms_log güncellendi.
+-- _trg_order_delivered_review: sms_enabled ve sms_on_payment açıksa "teslim edildi" mesajı atılmaz (değerlendirme ödeme SMS'inde tek mesaj).
