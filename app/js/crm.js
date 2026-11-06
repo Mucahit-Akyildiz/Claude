@@ -57,7 +57,7 @@ async function renderCrmView(main, session){
           <div class="field-group"><label>🎂 Doğum Günü</label><input id="crm_birthday" type="date"></div>
           <div class="field-group"><label>Not</label><input id="crm_notes" placeholder="opsiyonel"></div>
           <div class="field-group wide"><label>🏷️ Gruplar <button type="button" class="xl-link" ${act('openCustomerGroups')}>Grupları yönet</button></label><div id="crm_groups" class="cg-pick"></div></div>
-          <label class="field-group wide cg-optout"><span class="oo-switch"><input type="checkbox" id="crm_sms_opt_out"><span class="oo-track"><span class="oo-thumb"></span></span></span><span><b>📵 SMS istemiyor</b><small class="muted">Açıksa bu müşteriye hiçbir SMS (kampanya, sipariş, teşekkür) gönderilmez. E-posta etkilenmez.</small></span></label>
+          <label class="field-group wide cg-optout"><span class="oo-switch"><input type="checkbox" id="crm_sms_opt_out"><span class="oo-track"><span class="oo-thumb"></span></span></span><span><b>📵 SMS istemiyor</b><small class="muted">Açıksa bu müşteriye SMS gitmez. Hangi türlerin yine de gideceğini Ayarlar › Entegrasyonlar › SMS › 📵 SMS istemeyenler'den seçebilirsiniz. E-posta etkilenmez.</small></span></label>
           <div class="field-group wide"><label>📍 Adres</label><textarea id="crm_address" name="street-address" autocomplete="street-address" rows="2" placeholder="örn. Atatürk Cad. No:12 D:4 — paket siparişte otomatik dolar" style="resize:vertical;min-height:44px;"></textarea></div>
         </div>
         <details id="crmLoyaltyBox" style="margin-top:10px;border:1px solid var(--border);border-radius:12px;padding:10px 12px;background:var(--panel);">

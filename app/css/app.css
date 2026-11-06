@@ -3486,7 +3486,8 @@ p.st-help{text-align:left;font-size:12.5px;margin:0 0 10px;}
 [data-ctgrp] > .ct-pane{display:none;}
 [data-ctgrp][data-ct="conn"] > .ct-pane[data-pane="conn"],
 [data-ctgrp][data-ct="tpl"] > .ct-pane[data-pane="tpl"],
-[data-ctgrp][data-ct="log"] > .ct-pane[data-pane="log"]{display:block;}
+[data-ctgrp][data-ct="log"] > .ct-pane[data-pane="log"],
+[data-ctgrp][data-ct="optout"] > .ct-pane[data-pane="optout"]{display:block;}
 .ct-pane .sl-wrap{margin-top:0;padding-top:0;border-top:0;}
 .ct-cats{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 12px;}
 .ct-cats button{width:auto !important;margin:0;padding:6px 12px;border-radius:999px;border:1px solid var(--border);background:var(--panel);color:var(--text);font-size:12.5px;font-weight:700;cursor:pointer;}
@@ -4300,3 +4301,11 @@ html.emoji-noto .app-brand-row .app-brand-text,html.emoji-noto .auth-brand .name
 .cg-col{width:24px;height:24px;margin:0;padding:0;border-radius:50%;background:var(--gc);border:2px solid transparent;box-shadow:none;}
 .cg-col.on{border-color:var(--text);}
 .wb-groups{margin:4px 0 8px;}
+
+/* SMS istemeyenler sekmesi */
+.so-intro{padding:12px 14px;border-radius:12px;background:var(--panel2);font-size:13.5px;line-height:1.55;}
+.so-intro small{display:block;margin-top:4px;font-size:12px;}
+.so-acts{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0;} .so-acts .ghost-btn{width:auto;margin:0;}
+.so-cat{margin-top:12px;} .so-cat h4{margin:0 0 6px;font-size:13px;color:var(--muted);}
+.so-row{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:12px;background:var(--panel);border:1px solid var(--border);margin-bottom:6px;cursor:pointer;}
+.so-ic{font-size:18px;} .so-t{flex:1;min-width:0;display:flex;flex-direction:column;} .so-t small{color:var(--muted);font-size:11.5px;}
