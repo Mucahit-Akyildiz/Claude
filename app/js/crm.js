@@ -553,7 +553,7 @@ function drawWinback(){
     <div class="wb-list">${rows.map(r => `<label class="wb-row"><input type="checkbox" ${W.sel[r.id] ? 'checked' : ''} ${actOn('change','wbToggle',[r.id,'$checked'])}>
       <span class="wb-n"><b>${escapeHtml(r.name || '—')}</b><small>${r.phone ? escapeHtml(maskPhone(r.phone)) : ''}${r.has_email ? ' · ✉️' : ''}</small></span>
       <span class="wb-m"><small>Son geliş</small>${ago(r.last_visit_at)}</span><span class="wb-m"><small>${r.total_visits} ziyaret</small>${money(r.total_spent || 0)}</span>
-      ${r.sms_opt_out ? '<span class="pchip warn" title="SMS gitmez; e-posta seçiliyse e-posta gider">📵 SMS istemiyor</span>' : ''}${r.marketing_consent ? '<span class="pchip" title="Kampanya SMS onayı verdi">✅ Onaylı</span>' : ''}${r.last_contact ? `<span class="pchip" title="Son kampanya">📨 ${ago(r.last_contact)}</span>` : ''}</label>`).join('') || '<p class="muted">Bu aralıkta müşteri yok.</p>'}</div>
+      ${r.sms_blocked ? '<span class="pchip warn" title="SMS gitmez; e-posta seçiliyse e-posta gider. Ayarlar › SMS › SMS istemeyenler">📵 SMS istemiyor</span>' : r.sms_opt_out ? '<span class="pchip" title="SMS istemiyor ama bu tür SMS\'e Ayarlar › SMS › SMS istemeyenler\'den izin verilmiş">📵 izinli</span>' : ''}${r.recently_sent ? `<span class="pchip warn" title="Aynı müşteriye ${camp ? '24 saat' : '14 gün'} içinde ikinci mesaj gönderilmez">⏱ ${camp ? '24 saat' : '14 gün'} dolmadı</span>` : ''}${r.marketing_consent ? '<span class="pchip" title="Kampanya SMS onayı verdi">✅ Onaylı</span>' : ''}${r.last_contact ? `<span class="pchip" title="Son kampanya">📨 ${ago(r.last_contact)}</span>` : ''}</label>`).join('') || '<p class="muted">Bu aralıkta müşteri yok.</p>'}</div>
     <p class="muted u-fs12">Kampanya iznini reddeden müşteriler bu listede gösterilmez ve onlara mesaj gönderilmez. Kendi eklediğiniz müşteriler için kampanya onayını almak işletmenin sorumluluğundadır.</p>
     <div class="wb-compose"><label>Mesaj <small class="muted">({ad} = müşterinin adı, {isletme} = işletme adı)</small></label>
       ${camp && W.channel !== 'sms' ? `<input id="wbSubject" placeholder="E-posta konusu (örn. Hafta sonuna özel %15 indirim)" maxlength="120" value="${escapeAttr(W.subject || '')}" ${actOn('input','wbSubjectSet',['$value'])} style="margin:4px 0 8px;">` : ''}
@@ -564,7 +564,7 @@ function drawWinback(){
   bg.onclick = (e) => { if(e.target === bg) bg.remove(); };
 }
 function wbToggle(id, on){ APP.wb.sel[id] = !!on; const t = document.getElementById('wbText'); const v = t && t.value; drawWinback(); if(v != null) document.getElementById('wbText').value = v; }
-function wbSelAll(on){ (APP.wb.data.rows || []).forEach(r => { APP.wb.sel[r.id] = !!on && !(r.sms_opt_out && APP.wb.channel === 'sms'); }); drawWinback(); }
+function wbSelAll(on){ (APP.wb.data.rows || []).forEach(r => { APP.wb.sel[r.id] = !!on && !r.recently_sent && !(r.sms_blocked && APP.wb.channel === 'sms'); }); drawWinback(); }
 function wbGroup(id){ APP.wb.group = id || null; APP.wb.sel = {}; const t = document.getElementById('wbText'); APP.wb.keepText = t && t.value; openWinback().then(() => { if(APP.wb.keepText != null && document.getElementById('wbText')) document.getElementById('wbText').value = APP.wb.keepText; }); }
 
 /* ---- Müşteri grupları (VIP, Gold…) ---- */
@@ -635,6 +635,7 @@ async function sendWinback(){
     ? sb.rpc('send_campaign', { p_token: getSession().session_token, p_ids: ids, p_text: text, p_channel: APP.wb.channel, p_subject: APP.wb.subject || null })
     : sb.rpc('send_winback', { p_token: getSession().session_token, p_ids: ids, p_text: text, p_channel: APP.wb.channel }));
   if(error){ await uiAlert(error.message); return; }
-  showToast(`Gönderildi ✓ ${data.sms} SMS, ${data.mail} e-posta${data.skipped ? ' · ' + data.skipped + ' müşteri son ' + (camp ? '24 saatte' : '14 günde') + ' zaten mesaj aldığı için atlandı' : ''}`);
+  if(data.skipped && !data.sms && !data.mail) await uiAlert('Mesaj gönderilmedi: seçilen ' + data.skipped + ' müşteri son ' + (camp ? '24 saatte' : '14 günde') + ' zaten mesaj aldı. Aynı müşteriye bu süre dolmadan ikinci mesaj gönderilmez.');
+  else showToast(`Gönderildi ✓ ${data.sms} SMS, ${data.mail} e-posta${data.skipped ? ' · ' + data.skipped + ' müşteri son ' + (camp ? '24 saatte' : '14 günde') + ' zaten mesaj aldığı için atlandı' : ''}`, 6000);
   APP.wb.sel = {}; openWinback();
 }
