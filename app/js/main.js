@@ -392,6 +392,11 @@ function startDataVersionWatch(){
 function onDataVersionPush(payload){
   const v = payload && payload.new && payload.new.v;
   const session = getSession();
+  // Mutfak ekranı yeni siparişi beklemeden (arka planda da) hemen çeker.
+  if(session && APP.view==='kitchen' && APP.kitchenStation && !APP.kitchenRefreshing){
+    APP.kitchenRefreshing = true;
+    Promise.resolve(refreshKitchenItems(session)).finally(() => { APP.kitchenRefreshing = false; });
+  }
   if(v == null || !session || document.visibilityState!=='visible'){ checkDataVersion(true); return; }
   if(DATA_VER_LAST === null){ DATA_VER_LAST = v; return; }
   if(v === DATA_VER_LAST) return;

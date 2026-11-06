@@ -89,6 +89,6 @@ async function rpHostTick(){
     }
   }finally{ RP_HOST_BUSY = false; }
 }
-setInterval(rpHostTick, 3000);
+setInterval(rpHostTick, 2000);
 setInterval(() => { if(getSession() && document.visibilityState === 'visible') refreshRemotePrinters(); }, 60000);
 setTimeout(() => { if(getSession()){ refreshRemotePrinters(); if(rpSharedIds().length) rpResyncShares(); } }, 2500);

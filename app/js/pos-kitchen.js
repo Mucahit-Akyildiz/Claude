@@ -37,7 +37,8 @@ function kitchenLateWarnedSet(){
 }
 async function refreshKitchenItems(session){
   const [{ data, error }, cancRes] = await Promise.all([
-    sb.rpc('get_live_orders', { p_token: session.session_token }),
+    // Mutfak her zaman sunucudaki güncel listeyi alır (ekranlar arası önbellek yeni siparişi geciktirmesin).
+    Promise.resolve(_sbRpcRaw('get_live_orders', { p_token: session.session_token })).catch(e => ({ data: null, error: e })),
     sb.rpc('list_kitchen_cancellations', { p_token: session.session_token })
   ]);
   const wrap = document.getElementById('kitchenWrap'); if(!wrap) return;
@@ -218,8 +219,11 @@ function startKitchenPolling(session){
   // Yeni siparisleri yakalamak icin arka planda periyodik yenileme (websocket/canli
   // abonelik kurulmadigi icin en basit ve guvenilir yontem bu).
   APP.kitchenPollInterval = setInterval(() => {
-    if(document.hidden) return;
-    if(APP.view==='kitchen' && APP.kitchenStation) refreshKitchenItems(session);
+    // Arka planda da yenilenir: mutfak bilgisayarında pencere küçültülse de fiş basılmaya devam etsin.
+    if(APP.view==='kitchen' && APP.kitchenStation && !APP.kitchenRefreshing){
+      APP.kitchenRefreshing = true;
+      Promise.resolve(refreshKitchenItems(session)).finally(() => { APP.kitchenRefreshing = false; });
+    }
   }, 2000);
   APP.kitchenTimerInterval = setInterval(updateKitchenTimers, 1000);
   // 20 dakikayi gecmis, hala hazir verilmemis siparisler icin sol tarafta
