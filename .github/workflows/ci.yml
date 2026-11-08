@@ -66,5 +66,8 @@ jobs:
           node-version: 20
       - name: Playwright kur
         run: npm install --no-save --no-package-lock playwright@1.48.2 && npx playwright install --with-deps chromium
+      # app/dist/app.bundle.js depoda tutulmuyor (Vercel derliyor); testlerden önce burada da üretilir.
+      - name: Uygulama paketini derle
+        run: (npm install --no-save --no-package-lock --prefix /tmp/esb esbuild@0.24.0 || true) && ESBUILD_PATH=/tmp/esb/node_modules node scripts/build-bundle.js
       - name: Arayüz testleri
         run: node tests/ui/smoke.cjs
