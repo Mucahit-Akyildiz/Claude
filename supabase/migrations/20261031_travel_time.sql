@@ -205,3 +205,6 @@ alter table customers add column if not exists created_by uuid, add column if no
 -- anon_internal_revoke: yeni iç fonksiyonların (_trg_*, _customer_thanks, _sms_poll_reports, _valid_* …) anon/authenticated
 -- execute yetkisi kaldırıldı; "alter default privileges for role postgres revoke execute on functions from public" ile
 -- bundan sonra oluşturulan fonksiyonlar varsayılan kapalı. İstemci RPC'lerine açıkça grant gerekir.
+
+-- undo_purchase_receive(p_token, p_id): purchasing_manage; teslim alınan kalemler _reverse_po_item ile stok/maliyetten geri alınır,
+-- sipariş 'ordered' (teslim bekleyen) olur. anon/authenticated'a grant edildi.
