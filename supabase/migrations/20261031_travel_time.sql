@@ -208,3 +208,6 @@ alter table customers add column if not exists created_by uuid, add column if no
 
 -- undo_purchase_receive(p_token, p_id): purchasing_manage; teslim alınan kalemler _reverse_po_item ile stok/maliyetten geri alınır,
 -- sipariş 'ordered' (teslim bekleyen) olur. anon/authenticated'a grant edildi.
+
+-- reverse_po_item_clamp: _reverse_po_item stoğu eksiye düşürmez (greatest(0, stock - rq)); kısmen kullanılmış malzemede
+-- teslimi geri al / iptal ingredients_stock_nonneg hatası vermez.
