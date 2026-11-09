@@ -144,7 +144,7 @@ async function renderPurchaseReportContent(session){
         ${items.length > PC_MAX_ROWS ? `<button type="button" class="pc2-moreln" ${act('openPcDetail', p.id)}>⋯ +${items.length - PC_MAX_ROWS} kalem daha · <u>Detaylı görmek için tıklayınız</u></button>` : ''}
       </div>
       <div class="pc2-foot">${p.notes ? `<div class="pc-note">📝 ${escapeHtml(p.notes)}</div>` : '<span></span>'}
-        <div class="pc2-acts"><span class="pc2-share"><button type="button" class="pc-btn" title="PDF olarak indir" ${act('poExport', p.id, 'pdf')}>📄 PDF</button><button type="button" class="pc-btn" title="Yazdır" ${act('poExport', p.id, 'print')}>🖨️</button><button type="button" class="pc-btn" title="Tedarikçiye e-posta gönder" ${act('poSend', p.id, 'email')}>📧</button><button type="button" class="pc-btn" title="Tedarikçiye SMS gönder" ${act('poSend', p.id, 'sms')}>💬</button></span>${p.status==='ordered' ? `<button type="button" class="pc-btn" ${act('openReceivePOModal', p.id)}>📦 Malzemeyi Teslim Al</button>` : ''}${['draft','ordered'].includes(p.status) ? `<button type="button" class="pc-btn" title="Teslim tarihi, not, kalem ve miktarları düzenle" ${act('openPoEdit', p.id)}>✏️ Düzenle</button>` : ''}${p.status !== 'cancelled' ? `<button type="button" class="pc-btn rv-del" title="Siparişin tamamını (tüm kalemleri) iptal et" ${act('cancelPurchaseOrder', p.id)}>✕ Siparişi iptal et</button>` : ''}
+        <div class="pc2-acts"><span class="pc2-share"><button type="button" class="pc-btn" title="PDF olarak indir" ${act('poExport', p.id, 'pdf')}>📄 PDF</button><button type="button" class="pc-btn" title="Yazdır" ${act('poExport', p.id, 'print')}>🖨️</button><button type="button" class="pc-btn" title="Tedarikçiye e-posta gönder" ${act('poSend', p.id, 'email')}>📧</button><button type="button" class="pc-btn" title="Tedarikçiye SMS gönder" ${act('poSend', p.id, 'sms')}>💬</button></span>${p.status==='ordered' ? `<button type="button" class="pc-btn" ${act('openReceivePOModal', p.id)}>📦 Malzemeyi Teslim Al</button>` : ''}${['draft','ordered'].includes(p.status) ? `<button type="button" class="pc-btn" title="Teslim tarihi, not, kalem ve miktarları düzenle" ${act('openPoEdit', p.id)}>✏️ Düzenle</button>` : ''}${p.status !== 'cancelled' && (p.status === 'received' || items.some(i => Number(i.received) > 0)) && hasPurchPerm(getSession(), 'manage') ? `<button type="button" class="pc-btn" title="Yanlışlıkla teslim alındı dendiyse: stok ve maliyet geri alınır, sipariş teslim bekleyenlere döner" ${act('undoPurchaseReceive', p.id)}>↩️ Teslimi geri al</button>` : ''}${p.status !== 'cancelled' ? `<button type="button" class="pc-btn rv-del" title="Siparişin tamamını (tüm kalemleri) iptal et" ${act('cancelPurchaseOrder', p.id)}>✕ Siparişi iptal et</button>` : ''}
           <button type="button" class="pc-save" id="pcSave_${p.id}" disabled ${act('savePoPrices', p.id)}>${ICON_SAVE}<span>Kaydet</span></button></div></div>
     </div>`;
   };
@@ -907,4 +907,15 @@ async function savePodPrices(){
   const err = res.find(r => r.error); if(err){ alert(err.error.message); return; }
   removeEl('poDetailBg'); showToast(inputs.length + ' fiyat kaydedildi ✓');
   renderPurchaseReportContent(getSession());
+}
+
+/* Yanlışlıkla "teslim alındı": stok ve alış maliyeti geri alınır, sipariş "Teslim bekleyen"e döner. */
+async function undoPurchaseReceive(id){
+  const p = (APP.procRows || []).find(x => x.id === id);
+  const lines = p ? (p.items || []).filter(i => Number(i.received) > 0).map(i => '• ' + i.name + ': ' + Number(i.received) + ' ' + (i.unit || '')).join('\n') : '';
+  if(!await uiConfirm('Teslim alınan miktarlar stoktan düşülecek ve alış fiyatının ortalama maliyete etkisi geri alınacak. Sipariş tekrar "Teslim bekleyen" olur.' + (lines ? '\n\n' + lines : ''), { title: '↩️ Teslimi geri al', icon: '↩️', okText: 'Geri al', cancelText: 'Vazgeç' })) return;
+  const { error } = await withLoadingOverlay(sb.rpc('undo_purchase_receive', { p_token: getSession().session_token, p_id: id }));
+  if(error){ alert(error.message); return; }
+  showToast('Teslim geri alındı · sipariş teslim bekleyenlerde');
+  APP.procFilter = 'recv'; renderPurchaseReportContent(getSession());
 }
