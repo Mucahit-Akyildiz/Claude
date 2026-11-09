@@ -129,7 +129,7 @@ async function renderPurchaseOrdersContent(session){
   const isLate = (p) => p.status==='ordered' && p.expected_date && new Date(p.expected_date) < today;
   // Açılışta teslim bekleyenler gösterilir (yoksa tümü); "Tüm siparişler"de de bekleyenler en üstte.
   // Açılışta onay/teslim bekleyenler (teslim bekleyen yoksa taslaklar) gösterilir.
-  const pf = APP.poFilter || (cnt('ordered') || !cnt('draft') ? 'ordered' : 'draft');
+  const pf = APP.poFilter || (cnt('draft') ? 'all' : 'ordered');
   const rank = (p) => p.status==='ordered' ? (isLate(p) ? 0 : 1) : p.status==='draft' ? 2 : 3;
   const shown = (pf==='all' ? rows.filter(p => p.status !== 'cancelled') : pf==='late' ? rows.filter(isLate) : rows.filter(p => p.status===pf)).map((p, i) => [p, i]).sort((a, b) => rank(a[0]) - rank(b[0]) || a[1] - b[1]).map(x => x[0]);
   el.innerHTML = `
@@ -254,6 +254,7 @@ async function createPurchaseOrder(){
   if(error){ alert(error.message); return; }
   APP.poDraftItems = [];
   closeSheet('poSheet');
+  APP.poFilter = 'draft'; // yeni taslak hemen görünsün
   renderPurchaseOrdersContent(session);
   showToast('📝 Sipariş taslağı oluşturuldu — kartından Sipariş Ver ile iletebilirsiniz');
 }
