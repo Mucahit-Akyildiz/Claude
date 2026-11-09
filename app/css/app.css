@@ -4397,3 +4397,12 @@ html.emoji-noto .app-brand-row .app-brand-text,html.emoji-noto .auth-brand .name
 .pos-bottom{margin-top:14px;padding-top:12px;border-top:1px solid var(--border);}
 .pos-bottom textarea{width:100%;resize:vertical;}
 @media (max-width:520px){ .pos-row{grid-template-columns:minmax(0,1fr) 110px 32px;} }
+/* Mal Kabul detayı: fiyat hücresi (koli hesabı, otomatik kayıt) */
+.pod-cw{display:flex;align-items:center;gap:5px;} .pod-cw .pod-cost{flex:1;min-width:0;margin:0;}
+.pod-pkb{width:auto !important;margin:0 !important;padding:5px 7px !important;background:var(--panel2) !important;border:1px solid var(--border) !important;border-radius:8px !important;font-size:14px;line-height:1;}
+.pod-pkb.on{border-color:var(--accent) !important;}
+.pod-ok{font-style:normal;font-size:13px;min-width:14px;color:var(--muted);} .pod-ok.saved{color:var(--green);font-weight:800;}
+.pod-pack{display:flex;align-items:center;gap:4px;margin-top:5px;font-size:12px;color:var(--muted);}
+.pod-pack input{margin:0;min-width:0;padding:5px 7px;font-size:12.5px;} .pod-pack input:first-child{flex:1.4;} .pod-pack input:nth-of-type(2){flex:1;}
+.pod-auto{font-size:12.5px;align-self:center;}
+.pod-pack[hidden]{display:none !important;}

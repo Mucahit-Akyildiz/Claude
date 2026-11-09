@@ -125,7 +125,7 @@ async function renderPurchaseReportContent(session){
   const chip = (k, l) => `<button type="button" class="pc-chip${flt===k?' active':''}" style="--cc:${CHIP_C[k]};" ${act('setProcFilter', k)}>${l}<span>${cnt[k]}</span></button>`;
   const card = (p, idx) => {
     const tone = isCx(p) ? '#94a3b8' : needPrice(p) ? 'var(--danger,#ef4444)' : needRecv(p) ? '#f59e0b' : p.status==='received' ? 'var(--ok,#22c55e)' : 'var(--muted)';
-    const items = p.items || [];
+    const items = (p.items || []).slice().sort(trItemSort);
     return `<div class="pc-card pc2" style="--pc:${tone};--i:${Math.min(idx||0,12)};">
       <div class="pc2-head">
         <span class="pc2-open" title="Detayı aç" ${act('openPcDetail', p.id)}>${avatarHtml(p.supplier_name || 'T')}</span>
@@ -862,7 +862,7 @@ async function savePoEdit(locked){
 /* Mal Kabul: sipariş detay penceresi (kalemler, sipariş / teslim miktarları, fiyatlar, durum, notlar). */
 function openPcDetail(id){
   const p = (APP.procRows || []).find(x => x.id === id); if(!p) return;
-  const items = p.items || [], n = (v) => Number(v) || 0, d = (x) => x ? new Date(x).toLocaleDateString('tr-TR', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—';
+  const items = (p.items || []).slice().sort(trItemSort), n = (v) => Number(v) || 0, d = (x) => x ? new Date(x).toLocaleDateString('tr-TR', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—';
   const dt = (x) => x ? new Date(x).toLocaleString('tr-TR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
   const ST = { draft: ['📝 Taslak', '#94a3b8'], ordered: ['🚚 Sipariş verildi', '#f59e0b'], partial: ['📦 Kısmen teslim', '#f59e0b'], received: ['✅ Teslim alındı', '#22c55e'], cancelled: ['✕ İptal edildi', '#94a3b8'] };
   const st = ST[p.status] || [escapeHtml(p.status || ''), 'var(--accent)'];
@@ -873,11 +873,11 @@ function openPcDetail(id){
     ['Fiyatlar', priced === items.length && items.length > 0, priced + ' / ' + items.length + ' kalem'],
     ['Teslim', p.status === 'received', p.status === 'cancelled' ? 'iptal' : (ordQ ? Math.round(recQ / ordQ * 100) : 0) + '% teslim' + (p.received_at ? ' · ' + dt(p.received_at) : '')]];
   const bg = document.createElement('div'); bg.id = 'poDetailBg'; bg.className = 'modal-bg';
-  bg.onclick = (e) => { if(e.target === bg) bg.remove(); };
+  bg.onclick = (e) => { if(e.target === bg) closePcDetail(); };
   bg.innerHTML = `<div class="box pod-modal" style="--pc:${st[1]}">
     <div class="pod-head">${avatarHtml(p.supplier_name || 'T')}<div class="pod-t"><h2 class="u-m0">${escapeHtml(p.supplier_name || 'Tedarikçisiz sipariş')}</h2>
       <small>📅 ${d(p.order_date)}${p.expected_date ? ' · 🎯 Beklenen ' + d(p.expected_date) : ''} · 👤 ${escapeHtml(p.created_by_name || '—')}</small></div>
-      <span class="pod-st">${st[0]}</span><span class="u-xclose" ${act('removeEl','poDetailBg')}>✕</span></div>
+      <span class="pod-st">${st[0]}</span><span class="u-xclose" ${act('closePcDetail')}>✕</span></div>
     <div class="pod-kpis"><div><small>Sipariş tutarı</small><b>${money(p.total_amount)}</b></div><div><small>Teslim alınan</small><b>${money(p.received_amount || 0)}</b></div>
       <div><small>Kalem</small><b>${items.length}</b></div><div><small>Teslim oranı</small><b>${ordQ ? Math.round(recQ / ordQ * 100) : 0}%</b></div></div>
     <div class="pod-steps">${steps.map(([l, ok, sub]) => `<div class="pod-step ${ok ? 'ok' : ''}"><i>${ok ? '✓' : '•'}</i><b>${l}</b><small>${sub}</small></div>`).join('')}</div>
@@ -885,18 +885,64 @@ function openPcDetail(id){
       ${items.map(i => { const q = n(i.quantity), r = n(i.received), c = n(i.unit_cost); return `<div class="pod-row"><span data-l="Malzeme"><b>${escapeHtml(i.name)}</b></span>
         <span data-l="Sipariş">${q} ${escapeHtml(i.unit || '')}</span>
         <span data-l="Teslim" class="${r >= q && q > 0 ? 'ok' : r > 0 ? 'warn' : 'muted'}">${r} ${escapeHtml(i.unit || '')}${r > q ? ' <small>(+' + (Math.round((r - q) * 1000) / 1000) + ' fazla)</small>' : ''}</span>
-        <span data-l="Birim fiyat">${i.free ? '🎁 Bedelsiz' : c > 0 ? money(c) + ' / ' + escapeHtml(i.unit || '') : p.status === 'cancelled' ? '<span class="pchip warn">fiyat yok</span>' : `<input type="number" min="0" step="0.01" class="pod-cost" placeholder="Fiyat ₺/${escapeAttr(i.unit || '')}" data-item-id="${i.id}" title="Bedelsiz (ücretsiz) gelen için 0 yazın">`}</span>
-        <span data-l="Tutar"><b>${c > 0 ? money(q * c) : i.free ? '0,00 TL' : '—'}</b></span></div>`; }).join('') || '<p class="muted">Kalem yok.</p>'}
-      <div class="pod-row pod-tot"><span>Toplam</span><span></span><span></span><span></span><span><b>${money(p.total_amount)}</b></span></div></div>
+        <span data-l="Birim fiyat">${i.free ? '🎁 Bedelsiz' : c > 0 ? money(c) + ' / ' + escapeHtml(i.unit || '') : p.status === 'cancelled' ? '<span class="pchip warn">fiyat yok</span>' : podCostCellHtml(i, q)}</span>
+        <span data-l="Tutar"><b id="podT-${i.id}" data-q="${q}" data-c="${c > 0 ? c : ''}" class="pod-tv">${c > 0 ? money(q * c) : i.free ? '0,00 TL' : '—'}</b></span></div>`; }).join('') || '<p class="muted">Kalem yok.</p>'}
+      <div class="pod-row pod-tot"><span>Toplam</span><span></span><span></span><span></span><span><b id="podTotal">${money(p.total_amount)}</b></span></div></div>
     ${p.notes ? `<div class="pc-note">📝 ${escapeHtml(p.notes)}</div>` : ''}
     <div class="pod-acts"><button type="button" class="pc-btn" ${act('poExport', p.id, 'pdf')}>📄 PDF</button><button type="button" class="pc-btn" ${act('poExport', p.id, 'print')}>🖨️ Yazdır</button>
       <button type="button" class="pc-btn" ${act('poSend', p.id, 'email')}>📧 E-posta</button><button type="button" class="pc-btn" ${act('poSend', p.id, 'sms')}>💬 SMS</button>
-      ${items.some(i => !(Number(i.unit_cost) > 0) && !i.free) && p.status !== 'cancelled' ? `<button type="button" class="pod-save" ${act('savePodPrices')}>${ICON_SAVE}<span>Fiyatları kaydet</span></button>` : ''}
+      ${items.some(i => !(Number(i.unit_cost) > 0) && !i.free) && p.status !== 'cancelled' ? `<span class="pod-auto muted">💾 Fiyatlar girince otomatik kaydedilir</span>` : ''}
       ${p.status === 'ordered' ? `<button type="button" class="pc-btn" ${act('poDetailGo', 'receive', p.id)}>📦 Teslim Al</button>` : ''}${['draft','ordered'].includes(p.status) ? `<button type="button" class="pc-btn" ${act('poDetailGo', 'edit', p.id)}>✏️ Düzenle</button>` : ''}</div>
   </div>`;
   document.body.appendChild(bg);
 }
-function poDetailGo(kind, id){ removeEl('poDetailBg'); if(kind === 'receive') openReceivePOModal(id); else openPoEdit(id); }
+/* Malzeme adları Türkçe alfabeyle (Ç, Ğ, İ, Ö, Ş, Ü doğru yerde); veritabanı sıralaması bunları sona atıyordu. */
+function trItemSort(a, b){ return String(a.name || a.ingredient_name || '').localeCompare(String(b.name || b.ingredient_name || ''), 'tr', { sensitivity: 'base', numeric: true }); }
+/* Birim fiyat hücresi: fiyat yazılınca tutar hemen hesaplanır, kutudan çıkınca otomatik kaydedilir.
+   📦 Koli: koli fiyatı ve koli içi adet girilirse birim fiyat hesaplanır (koli içi adet malzeme adına göre hatırlanır). */
+const POD_PACK_KEY = 'peyk_pack_sizes';
+function podPackSizes(){ try{ return JSON.parse(localStorage.getItem(POD_PACK_KEY) || '{}') || {}; }catch(e){ return {}; } }
+function podCostCellHtml(i, q){
+  const un = escapeAttr(i.unit || ''), pk = podPackSizes()[String(i.name || '').toLocaleLowerCase('tr')] || '';
+  return `<div class="pod-cw"><input type="number" min="0" step="0.01" class="pod-cost" id="podC-${i.id}" placeholder="Fiyat ₺/${un}" data-item-id="${i.id}" title="Bedelsiz (ücretsiz) gelen için 0 yazın" ${actOn('input','podCostInput',[i.id])} ${actOn('change','podCostSave',[i.id])}>
+    <button type="button" class="pod-pkb ${pk ? 'on' : ''}" title="Koli / paket fiyatıyla hesapla" ${act('podPackToggle', i.id)}>📦</button><i class="pod-ok" id="podOk-${i.id}"></i></div>
+    <div class="pod-pack" id="podP-${i.id}" ${pk ? '' : 'hidden'}><input type="number" min="0" step="0.01" id="podPP-${i.id}" placeholder="Koli fiyatı ₺" ${actOn('input','podPackCalc',[i.id])} ${actOn('change','podCostSave',[i.id])}><span>÷</span><input type="number" min="1" step="1" id="podPN-${i.id}" value="${pk}" placeholder="koli içi" data-name="${escapeAttr(i.name || '')}" ${actOn('input','podPackCalc',[i.id])} ${actOn('change','podCostSave',[i.id])}><small>${un}</small></div>`;
+}
+function podPackToggle(id){ const b = document.getElementById('podP-' + id); if(!b) return; b.hidden = !b.hidden; if(!b.hidden){ const x = document.getElementById('podPP-' + id); if(x) x.focus(); } }
+function podPackCalc(id){
+  const pp = parseFloat(String((document.getElementById('podPP-' + id) || {}).value || '').replace(',', '.')), pnEl = document.getElementById('podPN-' + id), pn = parseFloat(pnEl ? pnEl.value : '');
+  if(pnEl && pn > 0){ const m = podPackSizes(); m[String(pnEl.dataset.name || '').toLocaleLowerCase('tr')] = pn; try{ localStorage.setItem(POD_PACK_KEY, JSON.stringify(m)); }catch(e){} }
+  if(pp >= 0 && pn > 0){ const c = document.getElementById('podC-' + id); if(c){ c.value = String(Math.round(pp / pn * 10000) / 10000); podCostInput(id); } }
+}
+function podCostInput(id){
+  const c = document.getElementById('podC-' + id), t = document.getElementById('podT-' + id); if(!c || !t) return;
+  const v = parseFloat(String(c.value).replace(',', '.')), q = Number(t.dataset.q) || 0;
+  t.dataset.c = isNaN(v) ? '' : v; t.textContent = isNaN(v) ? '—' : money(q * v);
+  let sum = 0; document.querySelectorAll('#poDetailBg .pod-tv').forEach(x => { const cc = parseFloat(x.dataset.c); if(!isNaN(cc)) sum += (Number(x.dataset.q) || 0) * cc; });
+  const tot = document.getElementById('podTotal'); if(tot) tot.textContent = money(sum);
+}
+const POD_SAVE_T = {};
+function podCostSave(id){ clearTimeout(POD_SAVE_T[id]); POD_SAVE_T[id] = setTimeout(() => podCostSaveNow(id), 250); }
+async function podCostSaveNow(id){
+  const c = document.getElementById('podC-' + id), ok = document.getElementById('podOk-' + id); if(!c || String(c.value).trim() === '') return;
+  const v = parseFloat(String(c.value).replace(',', '.'));
+  if(isNaN(v) || v < 0){ showToast('Geçerli bir birim fiyat girin'); return; }
+  if(ok){ ok.textContent = '…'; ok.className = 'pod-ok'; }
+  const { error } = await sb.rpc('set_purchase_item_cost', { p_token: getSession().session_token, p_item_id: id, p_unit_cost: v });
+  if(error){
+    if(ok){ ok.textContent = '⚠️'; ok.title = error.message; }
+    if(/bulunamad/i.test(error.message)){ closePcDetail(); await uiAlert('Bu kalem bu arada değişmiş (sipariş başka bir siparişle birleşmiş olabilir). Liste yenilendi, lütfen fiyatı güncel kartta girin.', { title: 'Kalem bulunamadı', icon: '⚠️' }); }
+    else showToast('⚠️ Kaydedilemedi: ' + error.message);
+    return;
+  }
+  APP.podDirty = true;
+  if(ok){ ok.textContent = '✓'; ok.className = 'pod-ok saved'; ok.title = 'Kaydedildi'; }
+}
+function closePcDetail(){
+  removeEl('poDetailBg');
+  if(APP.podDirty){ APP.podDirty = false; renderPurchaseReportContent(getSession()); }
+}
+function poDetailGo(kind, id){ closePcDetail(); if(kind === 'receive') openReceivePOModal(id); else openPoEdit(id); }
 
 async function savePodPrices(){
   const inputs = [...document.querySelectorAll('#poDetailBg .pod-cost')].filter(i => String(i.value).trim() !== '');
