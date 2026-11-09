@@ -4352,3 +4352,7 @@ html.emoji-noto .app-brand-row .app-brand-text,html.emoji-noto .auth-brand .name
 .ks-row.off{border-color:var(--red);background:color-mix(in srgb,var(--red) 10%,transparent);}
 .ks-row.off small{color:var(--red);}
 .ks-badge{display:inline-block;min-width:18px;padding:0 5px;border-radius:9px;background:var(--red);color:#fff;font-size:11px;}
+/* Yan menüler (Ayarlar, Finansal Analiz, Cihaz Yazıcısı…) sayfadan bağımsız: ekranda sabit kalır, uzunsa kendi içinde kayar. */
+@media (min-width: 901px){
+  .tabs.settings-tabs.set-nav{align-self:flex-start;max-height:calc(100vh - 24px);overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin;}
+}
