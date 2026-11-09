@@ -136,12 +136,14 @@ async function renderPurchaseOrdersContent(session){
   ${lowStockBannerHtml()}
   <div class="fsheet-bar" style="margin:0 0 14px;"><p class="muted" style="margin:0;font-size:13px;text-align:left;">Hammadde ihtiyacınızı tedarikçiye sipariş olarak iletin.</p><button type="button" class="fsheet-open" ${act('openNewPoSheet')}>📝 Sipariş Taslağı Oluştur</button></div>
   ${sheetHtml('poSheet', '📝', 'Yeni Sipariş Taslağı', `<p class="muted" style="text-align:left;margin:0 0 12px;font-size:13px;">İhtiyaç duyduğunuz hammaddeleri ve miktarları girip <b>Taslağı Oluştur</b>'a basın. Taslak, kartındaki <b>🚚 Sipariş Ver</b> ile tedarikçiye iletilir; teslim alma, tedarikçi seçimi ve birim fiyat <b>Mal Kabul</b> menüsünden yapılır.</p>
-      <div class="fsheet-grid">
-        <div class="field-group"><label>Beklenen Tarih</label><input id="po_expected" type="date" ${actOn('change','refreshPoSuggest',[])}></div>
-        <div class="field-group wide"><label>Not</label><input id="po_notes" placeholder="opsiyonel"></div>
-      </div>
-      <div style="display:flex;justify-content:space-between;align-items:center;margin:16px 0 8px;"><b style="font-size:14px;">📦 Hammaddeler</b><button type="button" class="u-wa-m0 ghost-btn" ${act('addPoDraftItemRow')}>+ Hammadde Ekle</button></div>
+      <div class="pos-search"><input id="poIngSearch" type="search" autocomplete="off" placeholder="🔍 Hammadde ara ve ekle… (ör. süt, tavuk, coala)" ${actOn('input','poIngFilter',['$value'])} ${actOn('click','poIngFilter',['$value'])}>
+        <div id="poIngResults" class="pos-res" hidden></div></div>
+      <div class="pos-quick"><button type="button" class="ghost-btn" ${act('poAddLowStock')}>📉 Kritik stokları ekle</button><span class="muted u-fs12" id="poItemCount"></span></div>
       <div id="poItemsWrap">${renderPoDraftItemsHtml()}</div>
+      <div class="fsheet-grid pos-bottom">
+        <div class="field-group"><label>Beklenen Tarih</label><input id="po_expected" type="date" ${actOn('change','refreshPoSuggest',[])}></div>
+        <div class="field-group wide"><label>Not</label><textarea id="po_notes" rows="2" placeholder="Tedarikçiye not (opsiyonel)"></textarea></div>
+      </div>
       <div class="fsheet-foot"><button type="button" class="ghost-btn" ${act('closeSheet','poSheet')}>Vazgeç</button><button id="poSaveBtn" ${act('createPurchaseOrder')}>📝 Taslağı Oluştur</button></div>`, 'var(--accent)')}
   ${statChipsClick([['ordered','🚚', cnt('ordered'), 'Teslim bekliyor', '#f59e0b'], ['draft','📝', cnt('draft'), 'Taslak', '#a78bfa'],
       ['late','⏰', rows.filter(isLate).length, 'Gecikmiş', 'var(--danger,#ef4444)'], ['received','✅', cnt('received'), 'Teslim alındı', 'var(--ok,#22c55e)'],
@@ -241,19 +243,53 @@ async function draftLowStockOrder(){
 }
 function renderPoDraftItemsHtml(){
   const ingredients = (APP.config && APP.config.ingredients) || [];
-  if(APP.poDraftItems.length===0) return '<p class="u-fs13 muted">Henüz hammadde eklenmedi.</p>';
-  return APP.poDraftItems.map((it, idx) => { const ig = ingredients.find(x => x.id === it.ingredient_id), sg = ig ? poSuggest(ig) : null; return `
-    <div class="po-line">
-    <div style="display:grid;grid-template-columns:1fr 120px 32px;gap:8px;align-items:center;">
-      <select ${actOn('change','setPoDraftField',[idx,'ingredient_id','$value'])}>
-        ${ingredients.map(ig => `<option value="${ig.id}" ${it.ingredient_id===ig.id?'selected':''}>${escapeHtml(ig.name)} (${escapeHtml(ig.unit)})</option>`).join('')}
-      </select>
-      <input type="number" min="0" step="0.01" placeholder="Miktar" value="${it.quantity||''}" ${actOn('input','setPoDraftField',[idx,'quantity','$value'])}>
-      <button type="button" class="qty-btn" ${act('removePoDraftItemRow', idx)}>✕</button>
+  const cnt = document.getElementById('poItemCount'); if(cnt) cnt.textContent = APP.poDraftItems.length ? APP.poDraftItems.length + ' kalem' : '';
+  if(APP.poDraftItems.length===0) return '<div class="pos-empty">Yukarıdan hammadde arayıp ekleyin.</div>';
+  return APP.poDraftItems.map((it, idx) => { const ig = ingredients.find(x => x.id === it.ingredient_id), sg = ig ? poSuggest(ig) : null, un = ig ? (ig.unit || '') : '';
+    const low = ig && Number(ig.min_stock) > 0 && Number(ig.stock) <= Number(ig.min_stock);
+    return `<div class="po-line pos-line">
+    <div class="pos-row">
+      <div class="pos-name"><b>${escapeHtml(ig ? ig.name : '?')}</b><small class="${low ? 'u-red' : 'muted'}">Elde ${fmtQty(Number(ig && ig.stock) || 0)} ${escapeHtml(un)}${ig && Number(ig.min_stock) > 0 ? ' · min ' + fmtQty(Number(ig.min_stock)) : ''}</small></div>
+      <div class="pos-qty"><input type="number" min="0" step="0.01" placeholder="Miktar" value="${it.quantity||''}" ${actOn('input','setPoDraftField',[idx,'quantity','$value'])}><span>${escapeHtml(un)}</span></div>
+      <button type="button" class="qty-btn" title="Çıkar" ${act('removePoDraftItemRow', idx)}>✕</button>
     </div>
-    ${sg ? `<div class="po-sg"><span>💡 Öneri <b>${fmtQty(sg.qty)} ${escapeHtml(ig.unit || '')}</b> <small class="muted">· ${sg.why}</small></span>${String(sg.qty) !== String(it.quantity) && sg.qty > 0 ? `<button type="button" class="pc-btn" ${act('applyPoSuggest', idx)}>Uygula</button>` : ''}</div>` : ''}
+    ${sg ? `<div class="po-sg"><span>💡 Öneri <b>${fmtQty(sg.qty)} ${escapeHtml(un)}</b> <small class="muted">· ${sg.why}</small></span>${String(sg.qty) !== String(it.quantity) && sg.qty > 0 ? `<button type="button" class="pc-btn" ${act('applyPoSuggest', idx)}>Uygula</button>` : ''}</div>` : ''}
     </div>`; }).join('');
 }
+/* Hammadde arama: yazdıkça süzülür; kritik stoktakiler önce. Tıklayınca kalem eklenir (zaten varsa o satıra gider). */
+function poIngFilter(v){
+  const box = document.getElementById('poIngResults'); if(!box) return;
+  const q = String(v || '').trim().toLocaleLowerCase('tr');
+  const have = new Set((APP.poDraftItems || []).map(x => x.ingredient_id));
+  const all = ((APP.config && APP.config.ingredients) || []).slice();
+  const low = i => Number(i.min_stock) > 0 && Number(i.stock) <= Number(i.min_stock);
+  const list = all.filter(i => !q || String(i.name).toLocaleLowerCase('tr').includes(q))
+    .sort((a, b) => (low(b) - low(a)) || String(a.name).localeCompare(String(b.name), 'tr')).slice(0, 40);
+  if(!q && document.activeElement !== document.getElementById('poIngSearch')){ box.hidden = true; return; }
+  box.innerHTML = list.length ? list.map(i => `<button type="button" class="pos-opt ${have.has(i.id) ? 'in' : ''}" ${act('poPickIng', i.id)}>
+      <span><b>${escapeHtml(i.name)}</b><small>${escapeHtml(i.unit || '')} · elde ${fmtQty(Number(i.stock) || 0)}</small></span>${have.has(i.id) ? '<em>✓ Ekli</em>' : low(i) ? '<em class="u-red">Kritik</em>' : '<em>+ Ekle</em>'}</button>`).join('')
+    : '<p class="muted u-fs13" style="margin:8px;">Bu adla hammadde yok. Ayarlar › Hammaddeler\'den ekleyebilirsiniz.</p>';
+  box.hidden = false;
+}
+async function poPickIng(id){
+  await loadIngUsage();
+  const ig = ((APP.config && APP.config.ingredients) || []).find(x => x.id === id); if(!ig) return;
+  let idx = APP.poDraftItems.findIndex(x => x.ingredient_id === id);
+  if(idx < 0){ APP.poDraftItems.push({ ingredient_id: id, quantity: String(poSuggest(ig).qty || ''), unit_cost: '' }); idx = APP.poDraftItems.length - 1; }
+  document.getElementById('poItemsWrap').innerHTML = renderPoDraftItemsHtml();
+  const inp = document.getElementById('poIngSearch'); if(inp){ inp.value = ''; }
+  const box = document.getElementById('poIngResults'); if(box) box.hidden = true;
+  const row = document.querySelectorAll('#poItemsWrap .pos-line')[idx];
+  if(row){ row.scrollIntoView({ block: 'nearest' }); const q = row.querySelector('input'); if(q){ q.focus(); q.select(); } }
+}
+async function poAddLowStock(){
+  await loadIngUsage();
+  const have = new Set(APP.poDraftItems.map(x => x.ingredient_id)); let n = 0;
+  lowStockList().forEach(i => { if(!have.has(i.id)){ APP.poDraftItems.push({ ingredient_id: i.id, quantity: String(poSuggest(i).qty || ''), unit_cost: '' }); n++; } });
+  document.getElementById('poItemsWrap').innerHTML = renderPoDraftItemsHtml();
+  showToast(n ? n + ' kritik hammadde eklendi' : 'Kritik stoktaki hammaddeler zaten ekli');
+}
+document.addEventListener('click', e => { const box = document.getElementById('poIngResults'); if(box && !box.hidden && !e.target.closest('.pos-search')) box.hidden = true; });
 async function addPoDraftItemRow(){
   await loadIngUsage();
   const ingredients = (APP.config && APP.config.ingredients) || [];

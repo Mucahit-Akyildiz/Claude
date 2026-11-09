@@ -4380,3 +4380,20 @@ html.emoji-noto .app-brand-row .app-brand-text,html.emoji-noto .auth-brand .name
 .hmap-tip{margin-top:9px;font-size:13px;border-left:3px solid #f59e0b;padding:4px 10px;background:color-mix(in srgb,#f59e0b 9%,transparent);border-radius:0 8px 8px 0;}
 .hmap mark{background:color-mix(in srgb,var(--accent) 30%,transparent);color:inherit;border-radius:3px;padding:0 2px;}
 @media (max-width:640px){ .hmap-cols{grid-template-columns:1fr;} }
+/* Malzeme siparişi taslağı: aranabilir hammadde seçimi */
+.pos-search{position:relative;margin:4px 0 8px;}
+.pos-search input{width:100%;margin:0;font-size:15px;padding:12px 14px;}
+.pos-res{position:absolute;left:0;right:0;top:calc(100% + 4px);z-index:20;max-height:300px;overflow:auto;background:var(--panel);border:1px solid var(--border);border-radius:12px;box-shadow:0 12px 30px rgba(0,0,0,.35);padding:4px;}
+.pos-opt{display:flex !important;align-items:center;justify-content:space-between;gap:10px;width:100% !important;margin:0 !important;padding:9px 11px !important;background:transparent !important;color:var(--text) !important;border:0 !important;border-radius:9px !important;text-align:left;font-weight:500;}
+.pos-opt:hover{background:var(--panel2) !important;} .pos-opt span{display:flex;flex-direction:column;min-width:0;}
+.pos-opt small{color:var(--muted);font-size:11.5px;} .pos-opt em{font-style:normal;font-size:12px;font-weight:700;color:var(--accent);white-space:nowrap;}
+.pos-opt.in{opacity:.65;}
+.pos-quick{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:0 0 10px;} .pos-quick .ghost-btn{width:auto;margin:0;padding:6px 12px;font-size:13px;}
+.pos-empty{padding:18px;border:1.5px dashed var(--border);border-radius:12px;text-align:center;color:var(--muted);font-size:13.5px;}
+.pos-line{background:var(--panel2);border:1px solid var(--border);border-radius:12px;padding:10px 12px;}
+.pos-row{display:grid;grid-template-columns:minmax(0,1fr) 150px 32px;gap:10px;align-items:center;}
+.pos-name{display:flex;flex-direction:column;min-width:0;text-align:left;} .pos-name b{font-size:14.5px;} .pos-name small{font-size:11.5px;}
+.pos-qty{display:flex;align-items:center;gap:6px;} .pos-qty input{margin:0;min-width:0;} .pos-qty span{font-size:12.5px;color:var(--muted);min-width:22px;}
+.pos-bottom{margin-top:14px;padding-top:12px;border-top:1px solid var(--border);}
+.pos-bottom textarea{width:100%;resize:vertical;}
+@media (max-width:520px){ .pos-row{grid-template-columns:minmax(0,1fr) 110px 32px;} }
