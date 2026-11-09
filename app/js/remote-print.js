@@ -112,16 +112,17 @@ function bgSaveSeen(m){
 }
 function bgPrintBoxHtml(){
   if(!(typeof isDesktopApp === 'function' && isDesktopApp())) return '';
-  const st = (APP.config && APP.config.stations) || [], on = bgStations();
-  return `<div class="sw-card bgp-box" style="margin-top:10px !important;display:block;">
-    <b>🖨️ Arka planda mutfak fişi bas</b><br><span class="u-fs125 muted">Seçilen istasyonların yeni sipariş fişleri, sipariş hangi cihazdan (tablet, telefon, başka bilgisayar) verilirse verilsin bu bilgisayardan basılır. Mutfak ekranını açmanız gerekmez; uygulama açık (küçültülmüş) kalsın. Fiş, <b>İstasyon → Yazıcı</b>'da o istasyona seçilen yazıcıdan çıkar. Çift fiş çıkmaması için siparişi veren cihazlarda "Sipariş verilince fişi hemen bu cihazdan yazdır"ı kapatın.</span>
-    <div class="bgp-st">${st.map(x => `<label class="bgp-chip ${on.includes(x.id) ? 'on' : ''}"><input type="checkbox" ${on.includes(x.id) ? 'checked' : ''} ${actOn('change','bgToggleStation',[x.id,'$checked'])}> ${escapeHtml(x.name)}</label>`).join('') || '<span class="muted u-fs12">İstasyon tanımlı değil.</span>'}</div></div>`;
+  return `<p class="u-tl muted u-fs125">🖨️ <b>Arka planda bas</b> anahtarı açık olan istasyonların yeni sipariş fişleri, sipariş hangi cihazdan (tablet, telefon, başka bilgisayar) verilirse verilsin bu bilgisayardan, o istasyona seçilen yazıcıdan basılır. Mutfak ekranını açmanız gerekmez; uygulama açık (küçültülmüş) kalsın. Çift fiş çıkmaması için siparişi veren cihazlarda "Sipariş verilince fişi hemen bu cihazdan yazdır"ı kapatın.</p>`;
+}
+function bgStationSwitchHtml(id){
+  if(!(typeof isDesktopApp === 'function' && isDesktopApp())) return '';
+  const on = bgStations().includes(id);
+  return `<span class="bgp-sw" title="Arka planda bas"><span class="u-fs12 muted">Arka planda bas</span><label class="toggle-switch"><input type="checkbox" ${on ? 'checked' : ''} ${actOn('change','bgToggleStation',[id,'$checked'])}><span class="slider"></span></label></span>`;
 }
 function bgToggleStation(id, on){
   const a = bgStations().filter(x => x !== id); if(on) a.push(id); bgSetStations(a);
   APP.bgPrimed = false; // açılan istasyonun mevcut siparişleri yeniden basılmasın
   showToast(on ? '🖨️ Bu istasyonun fişleri bu bilgisayardan arka planda basılacak' : 'Arka plan yazdırma kapatıldı');
-  document.querySelectorAll('.bgp-chip input').forEach(i => i.closest('.bgp-chip').classList.toggle('on', i.checked));
 }
 let BG_BUSY = false;
 async function bgPrintTick(){

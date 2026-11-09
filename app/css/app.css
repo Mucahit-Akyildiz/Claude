@@ -4344,3 +4344,4 @@ html.emoji-noto .app-brand-row .app-brand-text,html.emoji-noto .auth-brand .name
 .bgp-chip{display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:999px;border:1.5px solid var(--border);font-size:12.5px;font-weight:700;cursor:pointer;}
 .bgp-chip input{margin:0;width:auto;}
 .bgp-chip.on{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 12%,transparent);}
+.bgp-sw{display:inline-flex;align-items:center;gap:6px;margin-left:auto;white-space:nowrap;}
