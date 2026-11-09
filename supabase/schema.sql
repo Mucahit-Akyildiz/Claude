@@ -5739,6 +5739,29 @@ end $$;
 
 
 --
+-- Name: clear_purchase_item_cost(uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.clear_purchase_item_cost(p_token uuid, p_item_id uuid) RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+-- Mal Kabul: yanlış girilen birim fiyatı siler (kalem tekrar "fiyat bekliyor" olur).
+-- Fiyat teslim alınan miktarla maliyete işlenmişse silinmez; doğru fiyat yazılarak düzeltilir.
+declare s staff_sessions%rowtype; it purchase_order_items%rowtype;
+begin
+  s := _session_check_any(p_token, array['purchasing_reports']);
+  select i.* into it from purchase_order_items i join purchase_orders p on p.id = i.purchase_order_id
+    where i.id = p_item_id and p.restaurant_id = s.restaurant_id for update of i;
+  if it.id is null then raise exception 'Kalem bulunamadı'; end if;
+  if coalesce(it.cost_applied_qty, 0) > 0 then
+    raise exception 'Bu kalem teslim alındığı için fiyatı maliyete işlendi; silinemez. Doğru fiyatı yazarak düzeltin.';
+  end if;
+  update purchase_order_items set unit_cost = 0, price_set = false where id = it.id;
+end $$;
+
+
+--
 -- Name: clock_in(uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -5815,6 +5838,36 @@ begin
   r := pay_order_items(p_token, p_order_id, 'comp', 0, 0, v_sub);
   update sales_history set payment_method = 'comp', discount_amount = 0, total = 0 where id = (r->>'history_id')::uuid;
   return r;
+end $$;
+
+
+--
+-- Name: close_purchase_order_short(uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.close_purchase_order_short(p_token uuid, p_id uuid) RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+-- Kısmen teslim alınan siparişi gelen miktarla kapatır: eksik kalan miktar siparişten düşülür, hiç gelmeyen kalemler çıkarılır,
+-- sipariş "teslim alındı" olur. Stok ve maliyet değişmez (yalnız gelen miktar işlenmişti). Kapanış notu siparişe eklenir.
+declare s staff_sessions%rowtype; v_po purchase_orders%rowtype; v_note text;
+begin
+  s := _session_check_any(p_token, array['purchasing_manage']);
+  select * into v_po from purchase_orders where id = p_id and restaurant_id = s.restaurant_id for update;
+  if v_po.id is null then raise exception 'Sipariş bulunamadı'; end if;
+  if v_po.status not in ('ordered','partial') then raise exception 'Yalnız teslim bekleyen sipariş kapatılabilir'; end if;
+  if not exists (select 1 from purchase_order_items where purchase_order_id = p_id and coalesce(received_quantity,0) > 0) then
+    raise exception 'Hiç teslim alınmamış sipariş kapatılamaz; iptal edin';
+  end if;
+  select string_agg(ig.name || ' ' || trim(to_char(i.quantity - coalesce(i.received_quantity,0), 'FM999999990.###')) || ' ' || ig.unit, ', ' order by ig.name)
+    into v_note from purchase_order_items i join ingredients ig on ig.id = i.ingredient_id
+    where i.purchase_order_id = p_id and coalesce(i.received_quantity,0) < i.quantity;
+  delete from purchase_order_items where purchase_order_id = p_id and coalesce(received_quantity,0) <= 0;
+  update purchase_order_items set quantity = received_quantity where purchase_order_id = p_id and received_quantity < quantity;
+  update purchase_orders set status = 'received', received_date = coalesce(received_date, current_date),
+    notes = nullif(concat_ws(E'\n', nullif(btrim(coalesce(notes,'')), ''), case when v_note is not null then 'Eksik kapatıldı: ' || v_note end), '')
+    where id = p_id;
 end $$;
 
 
@@ -6364,17 +6417,21 @@ end $$;
 
 CREATE FUNCTION public.delete_ingredient(p_token uuid, p_id uuid) RETURNS void
     LANGUAGE plpgsql SECURITY DEFINER
-    SET search_path TO 'public', 'extensions', 'pg_temp'
+    SET search_path TO 'public', 'pg_temp'
     AS $$
+-- Satın alma geçmişinde kullanılan hammadde silinmez, arşivlenir: listelerden ve reçetelerden kalkar, geçmiş siparişlerde adıyla görünmeye devam eder.
 declare s staff_sessions%rowtype;
 begin
   s := _session_check(p_token, 'settings_ingredients');
+  if not exists (select 1 from ingredients where id = p_id and restaurant_id = s.restaurant_id) then raise exception 'Hammadde bulunamadı'; end if;
   if exists(select 1 from purchase_order_items where ingredient_id = p_id) then
-    raise exception 'Bu hammadde satın alma siparişlerinde kullanıldığı için silinemez (geçmiş kayıtlar korunur)';
+    delete from product_ingredients where ingredient_id = p_id;
+    delete from product_packaging where ingredient_id = p_id;
+    update ingredients set archived = true, min_stock = 0 where id = p_id and restaurant_id = s.restaurant_id;
+    return;
   end if;
   delete from ingredients where id = p_id and restaurant_id = s.restaurant_id;
-end;
-$$;
+end $$;
 
 
 --
@@ -7077,7 +7134,7 @@ begin
         select ing.id, ing.name, ing.unit, ing.stock,
           round(coalesce((select sum(pi.qty_per_unit * oi5.qty) from order_items oi5 join orders o5 on o5.id = oi5.order_id join product_ingredients pi on pi.product_id = oi5.product_id
              where o5.restaurant_id = r and pi.ingredient_id = ing.id and oi5.added_at >= now() - interval '14 days'), 0) / 14.0, 3) per_day
-        from ingredients ing where ing.restaurant_id = r) y cross join lateral (select y.*, case when y.per_day > 0 then round(y.stock / y.per_day, 1) end days_left) x), '[]')
+        from ingredients ing where ing.restaurant_id = r and not ing.archived) y cross join lateral (select y.*, case when y.per_day > 0 then round(y.stock / y.per_day, 1) end days_left) x), '[]')
   ) into res;
   return res;
 end $$;
@@ -8956,7 +9013,7 @@ begin
                floor(min(i.stock / pi.qty_per_unit) filter (where pi.qty_per_unit > 0)) available_qty
         from product_ingredients pi join ingredients i on i.id = pi.ingredient_id where pi.product_id = p.id) rc on true
       where p.restaurant_id = r.id),
-    'ingredients', (select coalesce(json_agg(json_build_object('id', id, 'name', name, 'unit', unit, 'stock', stock, 'waste_pct', waste_pct, 'min_stock', min_stock, 'unit_cost', unit_cost, 'pack_mode', pack_mode, 'free', _ing_is_free(id))), '[]'::json) from ingredients where restaurant_id = r.id),
+    'ingredients', (select coalesce(json_agg(json_build_object('id', id, 'name', name, 'unit', unit, 'stock', stock, 'waste_pct', waste_pct, 'min_stock', min_stock, 'unit_cost', unit_cost, 'pack_mode', pack_mode, 'purchase_units', purchase_units, 'piece_weight', piece_weight, 'free', _ing_is_free(id))), '[]'::json) from ingredients where restaurant_id = r.id and not archived),
     'users', (
       select coalesce(json_agg(json_build_object('id', au.id, 'username', au.username, 'role_ids', au.role_ids, 'is_active', au.is_active, 'phone', au.phone, 'email', au.email, 'has_pin', au.pin_hash is not null,
         'role_names', (select coalesce(array_agg(rl.name), '{}') from roles rl where rl.id = any(au.role_ids)))), '[]'::json)
@@ -9768,6 +9825,28 @@ begin
   return json_build_object('id', v_id, 'code', v_code, 'balance', p_amount);
 end;
 $$;
+
+
+--
+-- Name: kitchen_set_product_available(uuid, uuid[], boolean); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.kitchen_set_product_available(p_token uuid, p_product_ids uuid[], p_available boolean) RETURNS integer
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare s staff_sessions; n int;
+begin
+  s := _session_check(p_token, 'kitchen');
+  update products set available = coalesce(p_available, true)
+   where restaurant_id = s.restaurant_id and id = any(p_product_ids) and available is distinct from coalesce(p_available, true);
+  get diagnostics n = row_count;
+  if n > 0 then
+    insert into data_versions(restaurant_id, v, updated_at) values (s.restaurant_id, 1, now())
+      on conflict (restaurant_id) do update set v = data_versions.v + 1, updated_at = now();
+  end if;
+  return n;
+end $$;
 
 
 --
@@ -13405,6 +13484,31 @@ begin
     delete from product_packaging where ingredient_id = p_id; delete from product_ingredients where ingredient_id = p_id;
   end if;
   update ingredients set pack_mode = p_mode where id = p_id;
+end $$;
+
+
+--
+-- Name: set_ingredient_units(uuid, uuid, jsonb, numeric); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.set_ingredient_units(p_token uuid, p_id uuid, p_units jsonb, p_piece_weight numeric) RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+declare s staff_sessions%rowtype; u jsonb; clean jsonb := '[]'::jsonb; has_def boolean := false; nm text; f numeric;
+begin
+  s := _session_check(p_token, 'settings_ingredients');
+  if not exists (select 1 from ingredients where id = p_id and restaurant_id = s.restaurant_id) then raise exception 'Hammadde bulunamadı'; end if;
+  if p_units is not null and jsonb_typeof(p_units) <> 'array' then raise exception 'Geçersiz alış birimi'; end if;
+  for u in select * from jsonb_array_elements(coalesce(p_units, '[]'::jsonb)) loop
+    nm := left(trim(coalesce(u->>'n', '')), 20); f := nullif(u->>'f', '')::numeric;
+    if nm = '' or f is null or f <= 0 then continue; end if;
+    if jsonb_array_length(clean) >= 5 then exit; end if;
+    clean := clean || jsonb_build_array(jsonb_build_object('n', nm, 'f', f, 'd', (coalesce((u->>'d')::boolean, false) and not has_def)));
+    if coalesce((u->>'d')::boolean, false) then has_def := true; end if;
+  end loop;
+  if p_piece_weight is not null and p_piece_weight <= 0 then p_piece_weight := null; end if;
+  update ingredients set purchase_units = clean, piece_weight = p_piece_weight where id = p_id and restaurant_id = s.restaurant_id;
 end $$;
 
 
@@ -17386,6 +17490,9 @@ CREATE TABLE public.ingredients (
     min_stock numeric,
     unit_cost numeric,
     pack_mode text,
+    purchase_units jsonb DEFAULT '[]'::jsonb NOT NULL,
+    piece_weight numeric,
+    archived boolean DEFAULT false NOT NULL,
     CONSTRAINT ingredients_pack_mode_check CHECK ((pack_mode = ANY (ARRAY['per_product'::text, 'per_order'::text]))),
     CONSTRAINT ingredients_stock_nonneg CHECK (((stock IS NULL) OR (stock >= (0)::numeric))),
     CONSTRAINT ingredients_waste_pct_chk CHECK (((waste_pct >= (0)::numeric) AND (waste_pct < (100)::numeric)))
