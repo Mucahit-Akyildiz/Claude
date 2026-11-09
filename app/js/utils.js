@@ -600,3 +600,44 @@ function fitSideNav(){
 }
 ['scroll', 'resize'].forEach(ev => window.addEventListener(ev, () => requestAnimationFrame(fitSideNav), { passive: true, capture: true }));
 new MutationObserver(() => requestAnimationFrame(fitSideNav)).observe(document.documentElement, { childList: true, subtree: true });
+
+/* ---- Hammadde birimleri ----
+   Stok, maliyet ve reçete veritabanında hep hammaddenin TEMEL biriminde tutulur (ingredients.unit).
+   Ekranda başka birimle girilebilir: aynı ailede (gram↔kg, ml↔lt) çeviri otomatik; "1 adet ≈ …" (piece_weight)
+   tartılı ürünü adetle kullanmak için; alış birimleri (purchase_units: [{n:'koli', f:30, d:true}]) sipariş ve teslim için.
+   f = o birimden 1 tanesi kaç temel birim. */
+const UNIT_FAM = { gram: ['w', 1], kg: ['w', 1000], ml: ['v', 1], lt: ['v', 1000], adet: ['p', 1] };
+const UNIT_SHORT = { gram: 'g', kg: 'kg', ml: 'ml', lt: 'lt', adet: 'adet' };
+function unitShort(u){ return UNIT_SHORT[u] || u || ''; }
+function ingUnits(ig, opts){
+  const base = (ig && ig.unit) || 'adet', fb = UNIT_FAM[base] || ['p', 1], out = [{ n: base, f: 1, base: true }];
+  Object.keys(UNIT_FAM).forEach(u => { const fu = UNIT_FAM[u]; if(u !== base && fu[0] === fb[0] && fb[0] !== 'p') out.push({ n: u, f: fu[1] / fb[1] }); });
+  if(fb[0] !== 'p' && Number(ig && ig.piece_weight) > 0) out.push({ n: 'adet', f: Number(ig.piece_weight), approx: true });
+  if(opts && opts.purchase) ((ig && ig.purchase_units) || []).forEach(p => { if(Number(p.f) > 0) out.push({ n: p.n, f: Number(p.f), pack: true, d: !!p.d }); });
+  return out;
+}
+// Reçete için varsayılan birim: kg → gram, lt → ml (porsiyon miktarları küçük olur).
+function ingRecipeUnit(ig){ const b = (ig && ig.unit) || ''; return b === 'kg' ? 'gram' : b === 'lt' ? 'ml' : b; }
+function ingDefaultPack(ig){ const a = ((ig && ig.purchase_units) || []).filter(p => Number(p.f) > 0); return a.find(p => p.d) || a[0] || null; }
+function unitRound(x){ return Math.round((Number(x) || 0) * 1000) / 1000; }
+// Okunaklı miktar: 0,12 kg → "120 g", 1500 gram → "1,5 kg".
+function fmtIngQty(q, ig){
+  q = Number(q) || 0; const b = (ig && ig.unit) || '';
+  if(q && b === 'kg' && Math.abs(q) < 1) return fmtQty(unitRound(q * 1000)) + ' g';
+  if(q && b === 'lt' && Math.abs(q) < 1) return fmtQty(unitRound(q * 1000)) + ' ml';
+  if(b === 'gram' && Math.abs(q) >= 1000) return fmtQty(unitRound(q / 1000)) + ' kg';
+  if(b === 'ml' && Math.abs(q) >= 1000) return fmtQty(unitRound(q / 1000)) + ' lt';
+  return fmtQty(unitRound(q)) + ' ' + unitShort(b);
+}
+// Alış birimiyle: 213 adet yumurta (koli=30) → "7 koli + 3 adet".
+function fmtPackQty(q, ig){
+  const pk = ingDefaultPack(ig); q = Number(q) || 0;
+  if(!pk || q <= 0) return fmtIngQty(q, ig);
+  const n = Math.floor(q / pk.f + 1e-9), rem = unitRound(q - n * pk.f);
+  if(!n) return fmtIngQty(q, ig);
+  return fmtQty(n) + ' ' + pk.n + (rem > 0 ? ' + ' + fmtIngQty(rem, ig) : '');
+}
+// <option> listesi: value = f (temel birim çarpanı), data-n = birim adı.
+function unitOptionsHtml(ig, sel, opts){
+  return ingUnits(ig, opts).map(u => `<option value="${u.f}" data-n="${escapeAttr(u.n)}" ${u.n === sel ? 'selected' : ''}>${u.approx ? '≈ ' : ''}${escapeHtml(unitShort(u.n))}${u.pack ? ' (' + fmtQty(u.f) + ' ' + escapeHtml(unitShort(ig.unit)) + ')' : ''}</option>`).join('');
+}
