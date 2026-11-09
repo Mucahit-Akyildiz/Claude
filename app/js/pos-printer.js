@@ -553,7 +553,6 @@ async function renderPrinterSettingsView(main, session){
         <input type="checkbox" class="sw" ${printOnOrderEnabled()?'checked':''} ${actOn('change','setPrintOnOrder',['$checked'])}>
         <span><b>Sipariş verilince fişi hemen bu cihazdan yazdır</b><br><span class="u-fs125 muted">Sipariş Al / Paket Servis'te sipariş gönderilince fiş bu cihazın yazıcısına basılır. Fişi başka cihazdaki mutfak ekranı basıyorsa kapatın (çift fiş çıkmasın).</span></span>
       </label>
-      ${typeof bgPrintBoxHtml === 'function' ? bgPrintBoxHtml() : ''}
       <label class="sw-card" style="margin-top:10px !important;">
         <input type="checkbox" class="sw" ${printEachItemEnabled()?'checked':''} ${actOn('change','setPrintEachItem',['$checked'])}>
         <span><b>Ürünleri tek tek yazdır</b><br><span class="u-fs125 muted">Mutfak fişinde her ürün ayrı fişe basılır (örn. 3 Döner → 3 ayrı fiş). Paketleme ve etiketleme için kullanışlıdır. Bu cihazdaki tüm sipariş fişleri için geçerlidir.</span></span>
@@ -599,7 +598,8 @@ async function renderPrinterSettingsView(main, session){
     </div>
 
     <div class="u-mwn box">
-      <h2>İstasyon → Yazıcı Eşleştirme</h2>
+      <h2>🔀 İstasyon Fişleri</h2>
+      ${typeof bgPrintBoxHtml === 'function' ? bgPrintBoxHtml() : ''}
       <p class="u-tl muted">Her istasyonun ürünleri hangi yazıcıya basılsın? Örneğin Çayhane'nin ürünleri (çay, su, tiramisu gibi) bir yazıcıya, Izgara'nın ürünleri (döner, köfte gibi) başka bir yazıcıya gidebilir. Bir istasyona yazıcı seçmezseniz o istasyonun fişi "Bu Ekranın Yazıcısı" seçimini kullanır. Sipariş onaylandığında her istasyon için ayrı bir fiş kendi yazıcısına gönderilir.</p>
       <div class="sp-flow">${APP.config.stations.map((st, i) => `<div class="spf-card" style="--sc:${st.color||'var(--c'+(i%4+1)+')'};">
         <div class="spf-row"><span class="spf-st"><span class="spf-ic">${escapeHtml(st.icon||'🍳')}</span><b>${escapeHtml(st.name)}</b></span>
@@ -607,7 +607,7 @@ async function renderPrinterSettingsView(main, session){
           <select class="spf-sel" ${actOn('change','setStationPrinter',[st.id, '$value'])}>
             <option value="">🖥️ Bu Ekranın Yazıcısı (varsayılan)</option>
             ${getAllPrinters().map(p => `<option value="${p.id}" ${stationPrinterMap[st.id]===p.id?'selected':''}>${PR_TYPE(p.type)[0]} ${escapeHtml(p.name)}</option>`).join('')}
-          </select></div>
+          </select>${typeof bgStationSwitchHtml === 'function' ? bgStationSwitchHtml(st.id) : ''}</div>
         ${stationPrintProductsHtml(st)}
       </div>`).join('')}</div>
     </div>
@@ -628,9 +628,9 @@ async function renderPrinterSettingsView(main, session){
   // Her bölüm ayrı sekmede (tek uzun sayfa yerine).
   const PR_ALL = [{ id:'design', ic:'🧾', label:'Fiş Tasarımı' }, { id:'cash', ic:'💵', label:'Kasa Fişi' }, { id:'device', ic:'💻', label:'Bu Ekranın Yazıcısı' }, { id:'printers', ic:'🖨️', label:'Yazıcılar' }, { id:'stations', ic:'🔀', label:'İstasyon → Yazıcı' }, { id:'pkg', ic:'📦', label:'Paket Servis Fişi' }, { id:'status', ic:'📡', label:'Durum ve Geçmiş' }];
   // Ayarlar (yönetici): işletme geneli fiş tasarımları. Cihaz Yazıcısı sayfası (herkes): bu cihazın yazıcıları.
-  const PR_IDS = embedded ? ['design', 'cash', 'pkg'] : ['device', 'printers', 'stations', 'status'];
+  const PR_IDS = embedded ? ['design', 'cash', 'pkg'] : ['device', 'printers', 'status'];
   const PR_TABS = PR_ALL.filter(t => PR_IDS.includes(t.id));
-  const PR_ORDER = ['design', 'device', 'printers', 'stations', 'cash']; // kutuların sayfadaki sırası
+  const PR_ORDER = ['design', 'device', 'printers', 'device', 'cash']; // istasyon fişleri "Bu Ekranın Yazıcısı" sekmesinde // kutuların sayfadaki sırası
   const boxes = [...main.querySelectorAll(':scope > .box')];
   boxes.forEach((b, i) => { if(PR_ORDER[i]){ b.dataset.prtab = PR_ORDER[i]; b.classList.add('pr-pane'); } });
   const pkgBox = document.createElement('div'); pkgBox.className = 'box pr-pane'; pkgBox.style.maxWidth = 'none'; pkgBox.dataset.prtab = 'pkg';
