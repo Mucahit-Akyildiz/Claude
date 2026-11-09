@@ -219,6 +219,12 @@ function openIngredientUsageModal(ingredientId, edit){
           <div class="iu-f"><label>Fire %</label><input type="number" step="0.1" min="0" max="99" id="iue_waste" value="${w}" ${actOn('input','iuRecalc',[])}></div>
           <div class="iu-f"><label>Min stok</label><input type="number" step="0.01" min="0" id="iue_min" value="${Number(ing.min_stock)||''}" placeholder="Uyarı yok"></div>
         </div>
+      </section>
+      <section class="iu-card iu-pu">
+        <div class="iu-pu-h"><b>📦 Alış birimleri</b><small class="muted">Tedarikçiden koli, çuval, bidon gibi alıyorsanız tanımlayın. Sipariş ve teslim alma bu birimle yapılır; stok ve reçete <b class="iu-u">${escapeHtml(unit)}</b> kalır.</small></div>
+        <div id="iuPuRows">${(ing.purchase_units || []).map(x => iuPuRowHtml(x, unit)).join('')}</div>
+        <button type="button" class="ghost-btn iu-pu-add" ${act('iuPuAdd')}>+ Alış birimi ekle</button>
+        <div class="iu-piece" id="iuPiece" ${['adet', ''].includes(unit) ? 'hidden' : ''}><span>Reçetede adetle kullanmak için: <b>1 adet ≈</b></span><input type="number" step="0.001" min="0" id="iue_piece" value="${Number(ing.piece_weight) || ''}" placeholder="—"><em class="iu-u">${escapeHtml(unit)}</em><small class="muted">ör. 1 limon ≈ 0,12 kg</small></div>
       </section>` : ''}
       <section class="iu-cost">
         <div class="iu-k"><small>Ortalama maliyet</small>${edit ? `<div class="iu-uc"><input type="number" step="0.01" min="0" id="iue_uc" value="${uc ? Math.round(uc*100)/100 : ''}" placeholder="—" ${actOn('input','iuRecalc',[])}><em>₺/<span class="iu-u">${escapeHtml(unit)}</span></em></div>` : `<b>${uc ? money(uc) + ' / ' + escapeHtml(unit) : '—'}</b>`}</div>
@@ -236,6 +242,7 @@ function openIngredientUsageModal(ingredientId, edit){
       <section id="iuProdSec">
         ${!edit ? ingStepsHtml(3) : ''}
         <div class="iu-sh"><h3>🍽️ Kullanıldığı ürünler · ${escapeHtml(ing.name || '')}</h3><small class="muted" id="iuCount"></small></div>
+        <label class="iu-ru">Miktar birimi <select id="iuRU" data-base="${escapeAttr(unit)}" data-prev="${(ingUnits(ing).find(x => x.n === ingRecipeUnit(ing)) || { f: 1 }).f}" ${actOn('change','iuRUChange',[])}>${unitOptionsHtml(ing, ingRecipeUnit(ing))}</select></label>
         <p class="muted iu-hint" id="iuHint">${ing.pack_mode === 'per_product' ? 'Paket olarak satıldığında hangi ürünlerde, 1 porsiyon için kaç adet kullanılıyor?' : 'İşaretleyip 1 porsiyonda kullanılan <b>net</b> miktarı girin; maliyet payı yanında görünür.'}</p>
         ${products.length ? `<div class="iu-tools">
           <input id="iuSearch" placeholder="🔍 Ürün ara…" autocomplete="off" ${actOn('input','filterIngUsage',[])}>
@@ -254,6 +261,7 @@ function openIngredientUsageModal(ingredientId, edit){
   </div>`;
   document.body.appendChild(bg);
   const box = document.getElementById('ingUsageItemsBox');
+  const ruF = (ingUnits(ing).find(x => x.n === ingRecipeUnit(ing)) || { f: 1 }).f;
   box.innerHTML = products.length===0 ? '<p class="muted">Henüz ürün eklenmemiş.</p>' : products.map(p => {
     const exR = (p.recipe||[]).find(r => r.ingredient_id===ingredientId), exP = (p.packaging||[]).find(r => r.ingredient_id===ingredientId);
     const ex = ing.pack_mode === 'per_product' ? (exP ? { qty_per_unit: exP.qty } : null) : exR;
@@ -261,12 +269,34 @@ function openIngredientUsageModal(ingredientId, edit){
     return `<label class="iu-item ${ex?'on':''}" data-pid="${p.id}" data-name="${escapeAttr(p.name)}" data-menu="${escapeAttr(p.menu_id||'')}" data-price="${Number(p.price)||0}" data-cost="${Number(p.cost)||0}">
       <input type="checkbox" id="ingu_chk_${p.id}" ${ex?'checked':''} ${actOn('change','toggleIngUsageQty',[p.id,'$checked'])}>
       <span class="iu-pn"><b>${escapeHtml(p.name)}</b><small class="muted">${escapeHtml(mn)}${mn ? ' · ' : ''}${money(p.price)} · ürün maliyeti ${money(p.cost)}</small></span>
-      <span class="iu-q"><input type="number" step="0.01" min="0" id="ingu_qty_${p.id}" value="${ex?ex.qty_per_unit:''}" placeholder="Miktar" ${ex?'':'disabled'} ${actOn('input','iuRecalc',[])}><em class="iu-u">${escapeHtml(unit)}</em></span>
+      <span class="iu-q"><input type="number" step="any" min="0" id="ingu_qty_${p.id}" value="${ex ? unitRound(ex.qty_per_unit / ruF) : ''}" placeholder="Miktar" ${ex?'':'disabled'} ${actOn('input','iuRecalc',[])}><em class="iu-ru-n">${escapeHtml(unitShort(ingRecipeUnit(ing)))}</em></span>
       <span class="iu-c" id="ingu_c_${p.id}">—</span>
     </label>`;
   }).join('');
   filterIngUsage(); iuRecalc();
 
+}
+function iuPuRowHtml(x, unit){
+  x = x || {};
+  return `<div class="iu-pur"><input class="pu-n" maxlength="20" placeholder="koli, çuval, bidon…" value="${escapeAttr(x.n || '')}"><span>=</span>
+    <input class="pu-f" type="number" step="any" min="0" placeholder="30" value="${Number(x.f) || ''}"><em class="iu-u">${escapeHtml(unitShort(unit))}</em>
+    <label class="pu-dl"><input type="radio" name="puDef" class="pu-d" ${x.d ? 'checked' : ''}> varsayılan</label>
+    <button type="button" class="qty-btn" title="Kaldır" ${act('iuPuDel', '$this')}>✕</button></div>`;
+}
+function iuPuAdd(){
+  const w = document.getElementById('iuPuRows'); if(!w) return;
+  const unit = (document.getElementById('iue_unit') || {}).value || '';
+  w.insertAdjacentHTML('beforeend', iuPuRowHtml({ d: !w.querySelector('.pu-d:checked') }, unit));
+  const n = w.querySelectorAll('.pu-n'); if(n.length) n[n.length - 1].focus();
+}
+function iuPuDel(btn){ const r = btn && btn.closest('.iu-pur'); if(r) r.remove(); }
+// Reçete miktar birimi değişince yazılı miktarlar yeni birime çevrilir (120 g ↔ 0,12 kg).
+function iuRUChange(){
+  const ru = document.getElementById('iuRU'); if(!ru) return;
+  const oldF = parseFloat(ru.dataset.prev) || 1, newF = parseFloat(ru.value) || 1, name = (ru.options[ru.selectedIndex] || {}).dataset ? ru.options[ru.selectedIndex].dataset.n : '';
+  document.querySelectorAll('#ingUsageItemsBox .iu-q input').forEach(i => { if(i.value !== '') i.value = unitRound(parseFloat(i.value) * oldF / newF); });
+  document.querySelectorAll('#ingUsageItemsBox .iu-ru-n').forEach(e => { e.textContent = unitShort(name); });
+  ru.dataset.prev = String(newF); iuRecalc();
 }
 // Canlı hesap: stok değeri, kullanan ürün sayısı ve her ürün için bu hammaddenin maliyet payı (fire dahil).
 function iuRecalc(){
@@ -278,11 +308,21 @@ function iuRecalc(){
   const w = document.getElementById('iue_waste') ? (parseFloat(v('iue_waste')) || 0) : (Number(ingr.waste_pct) || 0);
   const stock = document.getElementById('iue_stock') ? (parseFloat(v('iue_stock')) || 0) : (Number(ingr.stock) || 0);
   const unit = document.getElementById('iue_unit') ? v('iue_unit') : (ingr.unit || '');
-  bgEl.querySelectorAll('.iu-u').forEach(e => { e.textContent = unit; });
+  bgEl.querySelectorAll('.iu-u').forEach(e => { e.textContent = unitShort(unit); });
+  const pc = document.getElementById('iuPiece'); if(pc) pc.hidden = !unit || unit === 'adet';
+  const ru = document.getElementById('iuRU');
+  if(ru && ru.dataset.base !== unit){ // temel birim değişti: miktarlar temel birime çevrilip liste yenilenir
+    const oldF = parseFloat(ru.value) || 1;
+    bgEl.querySelectorAll('.iu-q input').forEach(i => { if(i.value !== '') i.value = unitRound(parseFloat(i.value) * oldF); });
+    const tmp = Object.assign({}, ingr, { unit, piece_weight: parseFloat(v('iue_piece')) || ingr.piece_weight });
+    ru.innerHTML = unitOptionsHtml(tmp, unit); ru.dataset.base = unit; ru.dataset.prev = '1';
+    bgEl.querySelectorAll('.iu-ru-n').forEach(e => { e.textContent = unitShort(unit); });
+  }
+  const ruF = ru ? (parseFloat(ru.value) || 1) : 1;
   const sv = document.getElementById('iuStockVal'); if(sv) sv.textContent = uc ? money(stock * uc) : '—';
   let n = 0;
   bgEl.querySelectorAll('.iu-item').forEach(row => {
-    const on = row.querySelector('input[type=checkbox]').checked, q = parseFloat(row.querySelector('.iu-q input').value) || 0;
+    const on = row.querySelector('input[type=checkbox]').checked, q = (parseFloat(row.querySelector('.iu-q input').value) || 0) * ruF;
     row.classList.toggle('on', on); if(on) n++;
     const c = row.querySelector('.iu-c'), price = Number(row.dataset.price) || 0;
     const isPack = iuMode() === 'per_product'; row.classList.toggle('pack', on && isPack);
@@ -327,7 +367,7 @@ async function saveIngredientUsage(ingredientId){
     const chk = document.getElementById('ingu_chk_'+p.id);
     if(chk && chk.checked){
       const inp = document.getElementById('ingu_qty_'+p.id); if(!inp) return;
-      const qty = parseFloat(inp.value);
+      const ruEl = document.getElementById('iuRU'), qty = unitRound(parseFloat(inp.value) * (ruEl ? (parseFloat(ruEl.value) || 1) : 1) * 1000) / 1000;
       inp.style.borderColor = '';
       if(qty && qty>0) usages.push({ product_id: p.id, qty_per_unit: qty });
       else { missing.push(p.name); inp.style.borderColor = 'var(--red)'; }
@@ -351,6 +391,12 @@ async function saveIngredientUsage(ingredientId){
     if(e1){ alert(e1.message); return; }
     const { error: e2 } = await sb.rpc('set_ingredient_min', { p_token: session.session_token, p_id: ingredientId, p_min: parseFloat(fv('iue_min', curIng.min_stock))||0 });
     if(e2){ alert(e2.message); return; }
+    if(document.getElementById('iuPuRows')){
+      const units = [...document.querySelectorAll('#iuPuRows .iu-pur')].map(r => ({ n: r.querySelector('.pu-n').value.trim(), f: parseFloat(r.querySelector('.pu-f').value), d: r.querySelector('.pu-d').checked })).filter(x => x.n && x.f > 0);
+      const pw = parseFloat(fv('iue_piece', '')) || null;
+      const { error: e4 } = await sb.rpc('set_ingredient_units', { p_token: session.session_token, p_id: ingredientId, p_units: units, p_piece_weight: pw });
+      if(e4){ alert(e4.message); return; }
+    }
     const ucIn = document.getElementById('iue_uc'), ing0 = (APP.config.ingredients||[]).find(x => x.id === ingredientId) || {};
     const ucv = ucIn && ucIn.value !== '' ? parseFloat(ucIn.value) : null;
     if(ucIn && (ucv || null) !== (Number(ing0.unit_cost) ? Math.round(Number(ing0.unit_cost)*100)/100 : null)){
@@ -483,10 +529,11 @@ function openRecipeModal(productId){
     <div id="recipeItemsBox"></div>
     <div style="background:var(--panel2);border-radius:10px;padding:12px;margin-top:12px;">
       <div style="display:flex;gap:8px;">
-        <select id="recipeIngSelect" class="u-f1-m0">
-          ${(APP.config.ingredients||[]).map(i => `<option value="${i.id}" data-unit="${i.unit}" data-name="${escapeAttr(i.name)}">${escapeHtml(i.name)} (${i.unit})</option>`).join('')}
+        <select id="recipeIngSelect" class="u-f1-m0" ${actOn('change','recipeUnitOpts',['recipeIngSelect','recipeUnitSel'])}>
+          ${(APP.config.ingredients||[]).map(i => `<option value="${i.id}" data-unit="${i.unit}" data-name="${escapeAttr(i.name)}">${escapeHtml(i.name)} (${escapeHtml(unitShort(i.unit))})</option>`).join('')}
         </select>
-        <input type="number" step="0.01" id="recipeQtyInput" placeholder="Miktar" style="width:100px;margin:0;">
+        <input type="number" step="any" id="recipeQtyInput" placeholder="Miktar" style="width:90px;margin:0;">
+        <select id="recipeUnitSel" class="rc-unit" style="width:auto;margin:0;"></select>
         <button style="width:auto;padding:8px 12px;margin:0;" ${act('addRecipeItem', productId)}>Ekle</button>
       </div>
     </div>
@@ -497,7 +544,23 @@ function openRecipeModal(productId){
     <button style="margin-top:14px;" ${act('saveRecipe', productId)}>Reçeteyi Kaydet</button>
   </div>`;
   document.body.appendChild(bg);
+  recipeUnitOpts('recipeIngSelect', 'recipeUnitSel');
   renderRecipeItems();
+}
+// Seçilen hammaddeye göre birim listesi (varsayılan: kg → gram, lt → ml).
+function recipeUnitOpts(selId, unitId){
+  const sel = document.getElementById(selId), us = document.getElementById(unitId); if(!sel || !us) return;
+  const ig = ((APP.config && APP.config.ingredients) || []).find(x => x.id === sel.value); if(!ig){ us.innerHTML = ''; return; }
+  us.innerHTML = unitOptionsHtml(ig, ingRecipeUnit(ig));
+}
+function recipeQtyFromInputs(qtyId, unitId){
+  const q = parseFloat(String((document.getElementById(qtyId) || {}).value || '').replace(',', '.'));
+  const us = document.getElementById(unitId), f = us ? (parseFloat(us.value) || 1) : 1;
+  return q > 0 ? Math.round(q * f * 1e6) / 1e6 : 0;
+}
+function recipeQtyLabel(r){
+  const ig = ((APP.config && APP.config.ingredients) || []).find(x => x.id === r.ingredient_id) || { unit: r.ingredient_unit };
+  return fmtIngQty(r.qty_per_unit, ig);
 }
 /* Reçete kopyala / yapıştır: kopyalanan kalemler başka ürünün reçetesine eklenir (aynı hammadde varsa miktarı güncellenir); Kaydet ile kalıcı olur. */
 function copyRecipeDraft(productId){
@@ -517,14 +580,14 @@ function renderRecipeItems(){
   el.innerHTML = RECIPE_DRAFT.length===0 ? '<p class="muted">Henüz hammadde eklenmedi (bu ürün basit stok sayacı kullanır).</p>' :
     RECIPE_DRAFT.map((r,idx) => `
       <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);">
-        <span>${escapeHtml(r.ingredient_name)}: <b>${r.qty_per_unit} ${r.ingredient_unit}</b></span>
+        <span>${escapeHtml(r.ingredient_name)}: <b>${escapeHtml(recipeQtyLabel(r))}</b></span>
         <span style="cursor:pointer;color:var(--red);" ${act('removeRecipeItem', idx)}>✕</span>
       </div>`).join('');
 }
 function addRecipeItem(productId){
   const sel = document.getElementById('recipeIngSelect');
   if(!sel.value){ alert('Önce Hammaddeler sekmesinden en az bir hammadde ekleyin'); return; }
-  const qty = parseFloat(document.getElementById('recipeQtyInput').value);
+  const qty = recipeQtyFromInputs('recipeQtyInput', 'recipeUnitSel');
   if(!qty || qty<=0){ alert('Geçerli bir miktar girin'); return; }
   const opt = sel.options[sel.selectedIndex];
   const existing = RECIPE_DRAFT.find(r => r.ingredient_id===sel.value);
@@ -1419,9 +1482,9 @@ ${sheetHtml('prodSheet', '🍽️', 'Yeni Ürün', `
       </div>
       ${(APP.config.ingredients||[]).length===0 ? '' : `
       <div class="rvf-t" style="margin-top:14px;">🥕 Reçete (opsiyonel)</div>
-      <div style="display:grid;grid-template-columns:1fr 90px auto;gap:8px;align-items:end;">
-        <select id="npRecipeIngSelect" class="u-m0">${APP.config.ingredients.map(i => `<option value="${i.id}" data-unit="${i.unit}" data-name="${escapeAttr(i.name)}">${escapeHtml(i.name)} (${i.unit})</option>`).join('')}</select>
-        <input type="number" step="0.01" id="npRecipeQtyInput" placeholder="Miktar" class="u-m0">
+      <div style="display:grid;grid-template-columns:1fr 170px auto;gap:8px;align-items:end;">
+        <select id="npRecipeIngSelect" class="u-m0" ${actOn('change','recipeUnitOpts',['npRecipeIngSelect','npRecipeUnitSel'])}>${APP.config.ingredients.map(i => `<option value="${i.id}" data-unit="${i.unit}" data-name="${escapeAttr(i.name)}">${escapeHtml(i.name)} (${escapeHtml(unitShort(i.unit))})</option>`).join('')}</select>
+        <span style="display:flex;gap:4px;"><input type="number" step="any" id="npRecipeQtyInput" placeholder="Miktar" class="u-m0" style="min-width:0;"><select id="npRecipeUnitSel" class="u-m0 rc-unit" style="width:auto;"></select></span>
         <button type="button" class="u-wa-m0 ghost-btn" ${act('addNewProductRecipeItem')}>＋ Ekle</button>
       </div>`}
       <div id="npRecipeItemsBox"></div>
@@ -1434,6 +1497,7 @@ ${sheetHtml('prodSheet', '🍽️', 'Yeni Ürün', `
 
   </div>`;
   NEW_PRODUCT_RECIPE_DRAFT = [];
+  recipeUnitOpts('npRecipeIngSelect', 'npRecipeUnitSel');
   renderNewProductRecipeItems();
 }
 let NEW_PRODUCT_RECIPE_DRAFT = [];
@@ -1442,12 +1506,12 @@ function renderNewProductRecipeItems(){
   // Reçete kalemleri formun altında küçük etiketler olarak (boşsa yer kaplamaz).
   el.innerHTML = NEW_PRODUCT_RECIPE_DRAFT.length===0 ? '' : `<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;align-items:center;">
     <span class="u-fs12 muted">Reçete:</span>
-    ${NEW_PRODUCT_RECIPE_DRAFT.map((r,idx) => `<span class="role-badge" style="display:inline-flex;gap:6px;align-items:center;">${escapeHtml(r.ingredient_name)}: <b>${r.qty_per_unit} ${escapeHtml(r.ingredient_unit)}</b><span style="cursor:pointer;color:var(--red);" title="Çıkar" ${act('removeNewProductRecipeItem', idx)}>✕</span></span>`).join('')}</div>`;
+    ${NEW_PRODUCT_RECIPE_DRAFT.map((r,idx) => `<span class="role-badge" style="display:inline-flex;gap:6px;align-items:center;">${escapeHtml(r.ingredient_name)}: <b>${escapeHtml(recipeQtyLabel(r))}</b><span style="cursor:pointer;color:var(--red);" title="Çıkar" ${act('removeNewProductRecipeItem', idx)}>✕</span></span>`).join('')}</div>`;
 }
 function addNewProductRecipeItem(){
   const sel = document.getElementById('npRecipeIngSelect');
   if(!sel || !sel.value) return;
-  const qty = parseFloat(document.getElementById('npRecipeQtyInput').value);
+  const qty = recipeQtyFromInputs('npRecipeQtyInput', 'npRecipeUnitSel');
   if(!qty || qty<=0){ alert('Geçerli bir miktar girin'); return; }
   const opt = sel.options[sel.selectedIndex];
   const existing = NEW_PRODUCT_RECIPE_DRAFT.find(r => r.ingredient_id===sel.value);

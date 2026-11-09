@@ -215,3 +215,8 @@ alter table customers add column if not exists created_by uuid, add column if no
 -- 2026-11-09: kitchen_set_product_available(p_token, p_product_ids uuid[], p_available) — mutfak ekranından
 -- acil satışa kapatma/açma. 'kitchen' yetkisi ister, restaurant_id oturumdan; data_versions artırılır.
 -- grant execute ... to anon, authenticated.
+
+-- 2026-11-09: Hammadde alış birimleri. ingredients.purchase_units jsonb ([{n:'koli', f:30, d:true}], f = kaç temel birim)
+-- ve ingredients.piece_weight (1 adet ≈ kaç temel birim). Stok/maliyet/reçete temel birimde kalır.
+-- set_ingredient_units(p_token, p_id, p_units, p_piece_weight) — settings_ingredients; en fazla 5 birim, tek varsayılan.
+-- get_restaurant_config ingredients çıktısına purchase_units ve piece_weight eklendi. grant ... to anon, authenticated.
