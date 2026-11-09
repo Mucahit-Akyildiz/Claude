@@ -99,7 +99,7 @@ begin
     update restaurants set online_ordering_enabled = true where id = r;
     insert into entitlements (restaurant_id, addon_id) values (r, 'online_ordering');
     begin
-      perform submit_public_order(code, 'pickup', 'Ali', '5550000000', null, jsonb_build_array(jsonb_build_object('product_id', p_recipe, 'qty', 1)));
+      perform submit_public_order(code, 'pickup', 'Ali Veli', '05321112233', null, jsonb_build_array(jsonb_build_object('product_id', p_recipe, 'qty', 1)));
       insert into _results values ('online_stok', false, 'tukenen urun siparis edildi');
     exception when others then insert into _results values ('online_stok', sqlerrm like '%stok%', sqlerrm); end;
   exception when others then insert into _results values ('online_stok', false, sqlerrm); end;
@@ -166,10 +166,10 @@ begin
     n := set_public_cart_hold(code, 'ci-client-bbbb', p_plain, 2);       -- 0 verilir
     if n <> 0 then raise exception 'B sepeti % aldı (beklenen 0)', n; end if;
     begin
-      perform submit_public_order(code, 'pickup', 'B', '5550000002', null, jsonb_build_array(jsonb_build_object('product_id', p_plain, 'qty', 1)), 'ci-client-bbbb');
+      perform submit_public_order(code, 'pickup', 'Bora Kaya', '05321112235', null, jsonb_build_array(jsonb_build_object('product_id', p_plain, 'qty', 1)), 'ci-client-bbbb');
       insert into _results values ('sepet_ayirma', false, 'ayrılmış ürün başkasına satıldı');
     exception when others then
-      perform submit_public_order(code, 'pickup', 'A', '5550000001', null, jsonb_build_array(jsonb_build_object('product_id', p_plain, 'qty', 3)), 'ci-client-aaaa');
+      perform submit_public_order(code, 'pickup', 'Ayse Kaya', '05321112234', null, jsonb_build_array(jsonb_build_object('product_id', p_plain, 'qty', 3)), 'ci-client-aaaa');
       insert into _results values ('sepet_ayirma', true, 'ok');
     end;
   exception when others then insert into _results values ('sepet_ayirma', false, sqlerrm); end;
@@ -274,7 +274,7 @@ begin
     select id into it from order_items where order_id = o;
     begin perform pay_order_items(tok, o, 'cash', 160, 0); err := 'kabul'; exception when others then err := sqlerrm; end;
     perform mark_item_ready(tok, it);
-    b := get_table_bill(qr);
+    b := get_table_bill_v2(qr, 'ci-device-test');
     insert into online_payments (restaurant_id, amount, status, payload) values (r, 160, 'pending', jsonb_build_object('kind', 'table', 'qr', qr::text, 'order_id', o)) returning id into pid;
     okp := _finalize_table_payment(pid, 'TEST', 160);
     okp := okp and (select status from online_payments where id = pid) = 'paid';
