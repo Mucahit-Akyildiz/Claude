@@ -1117,7 +1117,7 @@ function renderPurchasePricesView(){
       <thead><tr><th>Hammadde</th><th>Son fiyat</th><th>Önceki</th><th>Değişim</th><th>Ort. alış</th><th>En düşük / yüksek</th><th>Alınan</th><th>Tutar</th><th>Güncel ort. maliyet</th></tr></thead>
       <tbody>${rows.map(r => `<tr>
         <td><b>${escapeHtml(r.name)}</b><div class="u-fs12 muted">${escapeHtml(r.suppliers || '—')} · ${n(r.n)} alış</div></td>
-        <td><b>${money(r.last)}</b> <small class="muted">/ ${escapeHtml(r.unit || '')}</small><div class="u-fs12 muted">${d(r.last_date)}</div></td>
+        <td><b>${money(r.last)}</b> <small class="muted">/ ${escapeHtml(unitShort(r.unit || ''))}</small>${(() => { const ig = ((APP.config && APP.config.ingredients) || []).find(x => x.name === r.name), pk = ig && ingDefaultPack(ig); return pk ? `<div class="u-fs12"><b>${money(n(r.last) * pk.f)}</b> <span class="muted">/ ${escapeHtml(pk.n)}</span></div>` : ''; })()}<div class="u-fs12 muted">${d(r.last_date)}</div></td>
         <td>${r.prev ? money(r.prev) + `<div class="u-fs12 muted">${d(r.prev_date)}</div>` : '—'}</td>
         <td>${pill(chg(r))}</td>
         <td>${money(r.wavg)}</td>
