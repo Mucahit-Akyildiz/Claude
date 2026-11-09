@@ -224,3 +224,6 @@ alter table customers add column if not exists created_by uuid, add column if no
 -- 2026-11-09: close_purchase_order_short(p_token, p_id) — kısmen teslim alınan siparişi gelen miktarla kapatır
 -- (purchasing_manage). Eksik miktar siparişten düşülür, hiç gelmeyen kalemler silinir, durum 'received', nota
 -- "Eksik kapatıldı: …" eklenir. Stok/maliyet değişmez. grant ... to anon, authenticated.
+
+-- 2026-11-09: clear_purchase_item_cost(p_token, p_item_id) — yanlış girilen birim fiyatı siler (unit_cost=0, price_set=false).
+-- Fiyat teslimle maliyete işlenmişse (cost_applied_qty>0) reddeder. purchasing_reports. grant ... to anon, authenticated.

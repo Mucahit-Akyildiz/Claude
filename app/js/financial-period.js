@@ -893,7 +893,7 @@ function openPcDetail(id){
     ${p.notes ? `<div class="pc-note">📝 ${escapeHtml(p.notes)}</div>` : ''}
     <div class="pod-acts"><button type="button" class="pc-btn" ${act('poExport', p.id, 'pdf')}>📄 PDF</button><button type="button" class="pc-btn" ${act('poExport', p.id, 'print')}>🖨️ Yazdır</button>
       <button type="button" class="pc-btn" ${act('poSend', p.id, 'email')}>📧 E-posta</button><button type="button" class="pc-btn" ${act('poSend', p.id, 'sms')}>💬 SMS</button>
-      ${p.status !== 'cancelled' ? `<span class="pod-auto muted">💾 Fiyatlar otomatik kaydedilir · yanlışsa üzerine yazın</span>` : ''}
+      ${p.status !== 'cancelled' ? `<span class="pod-auto muted">💾 Fiyatlar otomatik kaydedilir · yanlışsa üzerine yazın, silmek için kutuyu boşaltın</span>` : ''}
       ${['ordered', 'partial'].includes(p.status) && items.some(i => n(i.received) < n(i.quantity) - 1e-9) ? `<button type="button" class="pod-save" ${act('podReceive', p.id)}>📦 Teslim alındı olarak kaydet</button>` : ''}${['ordered', 'partial'].includes(p.status) && items.some(i => n(i.received) > 0) && items.some(i => n(i.received) < n(i.quantity) - 1e-9) ? `<button type="button" class="pc-btn" title="Kalan gelmeyecek: siparişi gelen miktarla kapat" ${act('closePoShort', p.id)}>✅ Eksiği kapat</button>` : ''}${['draft','ordered'].includes(p.status) ? `<button type="button" class="pc-btn" ${act('poDetailGo', 'edit', p.id)}>✏️ Düzenle</button>` : ''}</div>
   </div>`;
   document.body.appendChild(bg);
@@ -940,7 +940,17 @@ function podCostInput(id){
 const POD_SAVE_T = {};
 function podCostSave(id){ clearTimeout(POD_SAVE_T[id]); POD_SAVE_T[id] = setTimeout(() => podCostSaveNow(id), 250); }
 async function podCostSaveNow(id){
-  const c = document.getElementById('podC-' + id), ok = document.getElementById('podOk-' + id); if(!c || String(c.value).trim() === '') return;
+  const c = document.getElementById('podC-' + id), ok = document.getElementById('podOk-' + id); if(!c) return;
+  if(String(c.value).trim() === ''){ // kutu boşaltıldı: kayıtlı fiyat silinir (kalem tekrar "fiyat bekliyor")
+    if(c.defaultValue === '') return;
+    if(!await uiConfirm('Bu kalemin fiyatı silinsin mi? Kalem tekrar "fiyat bekliyor" olur, fiyatı sonra girebilirsiniz.', { title: 'Fiyatı sil', icon: '🗑', okText: 'Fiyatı sil', cancelText: 'Vazgeç' })){ c.value = c.defaultValue; podCostInput(id); return; }
+    const { error } = await sb.rpc('clear_purchase_item_cost', { p_token: getSession().session_token, p_item_id: id });
+    if(error){ c.value = c.defaultValue; podCostInput(id); uiAlert(error.message); return; }
+    c.defaultValue = ''; APP.podDirty = true;
+    if(ok){ ok.textContent = '✓'; ok.className = 'pod-ok saved'; ok.title = 'Fiyat silindi'; }
+    showToast('🗑 Fiyat silindi · kalem fiyat bekliyor');
+    return;
+  }
   const v = Math.round(podBaseCost(id) * 1e6) / 1e6;
   if(v === 0 && c.dataset.zeroOk !== '1'){
     if(!await uiConfirm('Fiyat 0 girildi: bu kalem bedelsiz (ücretsiz) olarak kaydedilir. Emin misiniz?', { title: 'Bedelsiz kalem', icon: '🎁', okText: 'Evet, bedelsiz', cancelText: 'Vazgeç', danger: false })){ c.value = c.defaultValue; podCostInput(id); return; }
