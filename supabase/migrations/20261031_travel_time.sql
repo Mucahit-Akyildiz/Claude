@@ -211,3 +211,7 @@ alter table customers add column if not exists created_by uuid, add column if no
 
 -- reverse_po_item_clamp: _reverse_po_item stoğu eksiye düşürmez (greatest(0, stock - rq)); kısmen kullanılmış malzemede
 -- teslimi geri al / iptal ingredients_stock_nonneg hatası vermez.
+
+-- 2026-11-09: kitchen_set_product_available(p_token, p_product_ids uuid[], p_available) — mutfak ekranından
+-- acil satışa kapatma/açma. 'kitchen' yetkisi ister, restaurant_id oturumdan; data_versions artırılır.
+-- grant execute ... to anon, authenticated.

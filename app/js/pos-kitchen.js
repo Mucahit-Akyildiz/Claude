@@ -19,6 +19,7 @@ async function renderKitchenView(main, session){
   const station = APP.config.stations.find(s => s.id===APP.kitchenStation);
   main.innerHTML = `<div style="display:flex;justify-content:space-between;"><h1>${escapeHtml(station.icon||"🍳")} ${escapeHtml(station.name)}</h1>
     <div style="display:flex;gap:8px;align-items:flex-start;">
+      <button class="ghost-btn" ${act('openSoldOutModal')} title="Stok bitti / yanlış girildi: ürünü hemen satışa kapat">⛔ Satışa Kapat${(() => { const n = ((APP.config && APP.config.products) || []).filter(p => p.station_id === APP.kitchenStation && p.available === false).length; return n ? ` <span class="ks-badge">${n}</span>` : ''; })()}</button>
       <button class="u-red ghost-btn" ${act('openManualWasteModal')} title="Siparişe bağlı olmayan israf (yanan, düşen, bozulan ürün)">🔥 İsraf Gir</button>
       <button class="ghost-btn" ${act('clearKitchenStation')}>İstasyon Değiştir</button>
     </div></div>
@@ -702,4 +703,38 @@ function kitchenPickupHtml(o){
   // 20 dakikadan az kaldıysa uyarı (hazırlık süresi yetmeyebilir); süre geçtiyse kırmızı.
   const pending = (o.items || []).some(i => i.status === 'pending' && !i.paid);
   return `<div class="kc-pickup ${left < 10 ? 'late' : left < PKG_WARN_MIN ? 'soon' : 'ok'}">${left >= 0 && left < PKG_WARN_MIN && pending ? '⚠️ ' : ''}${what} <span>(${left < 0 ? Math.abs(left) + ' dk geçti' : left + ' dk kaldı'})</span></div>`;
+}
+
+/* ---- Acil satışa kapatma (mutfak): stok bitti / yanlış girildi ----
+   Ürün tüm kanallarda (masa, paket, QR menü, online sipariş) hemen satışa kapanır. */
+function soListHtml(q){
+  const st = APP.kitchenStation, all = ((APP.config && APP.config.products) || []).filter(p => !p.is_extra);
+  const qq = String(q || '').toLocaleLowerCase('tr');
+  const list = all.filter(p => (qq ? String(p.name).toLocaleLowerCase('tr').includes(qq) : p.station_id === st))
+    .sort((a, b) => ((a.available !== false) - (b.available !== false)) || String(a.name).localeCompare(String(b.name), 'tr'));
+  if(!list.length) return '<p class="muted">Ürün bulunamadı.</p>';
+  return list.map(p => `<label class="ks-row ${p.available === false ? 'off' : ''}"><span>${escapeHtml(p.name)}<small>${p.available === false ? '⛔ Satışa kapalı' : '✓ Satışta'}</small></span>
+    <span class="toggle-switch"><input type="checkbox" ${p.available === false ? '' : 'checked'} ${actOn('change', 'setSoldOut', [p.id, '$checked'])}><span class="slider"></span></span></label>`).join('');
+}
+function openSoldOutModal(){
+  closeSoldOutModal();
+  const bg = document.createElement('div'); bg.id = 'soModalBg'; bg.className = 'modal-bg';
+  bg.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:100;padding:16px;';
+  bg.onclick = (e) => { if(e.target === bg) closeSoldOutModal(); };
+  bg.innerHTML = `<div class="box ks-box">
+    <h2 style="margin-top:0;">⛔ Acil Satışa Kapat</h2>
+    <p class="muted" style="margin:0 0 10px;font-size:12.5px;">Anahtarı kapattığınız ürün <b>hemen</b> tüm kanallarda (masa, paket, QR menü, online sipariş) satışa kapanır. Stok düzelince tekrar açın.</p>
+    <input id="soSearch" placeholder="🔍 Tüm ürünlerde ara (boşsa bu istasyonun ürünleri)" ${actOn('input', 'soFilter', ['$value'])}>
+    <div id="soList" class="ks-list">${soListHtml('')}</div>
+    <button type="button" style="margin:10px 0 0;" ${act('closeSoldOutModal')}>Kapat</button></div>`;
+  document.body.appendChild(bg);
+}
+function soFilter(v){ const el = document.getElementById('soList'); if(el) el.innerHTML = soListHtml(v); }
+function closeSoldOutModal(){ const b = document.getElementById('soModalBg'); if(b){ b.remove(); if(APP.view === 'kitchen') renderKitchenView(document.getElementById('main'), getSession()); } }
+async function setSoldOut(pid, on){
+  const p = (APP.config.products || []).find(x => x.id === pid); if(!p) return;
+  const { error } = await sb.rpc('kitchen_set_product_available', { p_token: getSession().session_token, p_product_ids: [pid], p_available: !!on });
+  if(error){ uiAlert(error.message); }
+  else { p.available = !!on; if(typeof clearRpcCache === 'function') clearRpcCache(); showToast(on ? '✓ ' + p.name + ' tekrar satışta' : '⛔ ' + p.name + ' satışa kapatıldı'); }
+  const s = document.getElementById('soSearch'); soFilter(s ? s.value : '');
 }

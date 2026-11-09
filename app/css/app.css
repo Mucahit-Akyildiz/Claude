@@ -4345,3 +4345,10 @@ html.emoji-noto .app-brand-row .app-brand-text,html.emoji-noto .auth-brand .name
 .bgp-chip input{margin:0;width:auto;}
 .bgp-chip.on{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 12%,transparent);}
 .bgp-sw{display:inline-flex;align-items:center;gap:6px;margin-left:auto;white-space:nowrap;}
+.ks-box{max-width:440px;width:100%;text-align:left;}
+.ks-list{max-height:55vh;overflow:auto;margin-top:8px;display:flex;flex-direction:column;gap:6px;}
+.ks-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 12px;border:1.5px solid var(--border);border-radius:10px;cursor:pointer;margin:0;font-weight:700;}
+.ks-row small{display:block;font-weight:600;font-size:11.5px;color:var(--muted);}
+.ks-row.off{border-color:var(--red);background:color-mix(in srgb,var(--red) 10%,transparent);}
+.ks-row.off small{color:var(--red);}
+.ks-badge{display:inline-block;min-width:18px;padding:0 5px;border-radius:9px;background:var(--red);color:#fff;font-size:11px;}
