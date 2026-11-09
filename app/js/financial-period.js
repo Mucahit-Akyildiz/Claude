@@ -128,10 +128,10 @@ async function renderPurchaseReportContent(session){
     const items = p.items || [];
     return `<div class="pc-card pc2" style="--pc:${tone};--i:${Math.min(idx||0,12)};">
       <div class="pc2-head">
-        ${avatarHtml(p.supplier_name || 'T')}
+        <span class="pc2-open" title="Detayı aç" ${act('openPcDetail', p.id)}>${avatarHtml(p.supplier_name || 'T')}</span>
         <div class="pc2-title"><select class="pc2-sup ${p.supplier_id ? '' : 'missing'}" title="Tedarikçi seç" data-po="${p.id}" data-orig="${p.supplier_id || ''}" ${actOn('change','markPcDirty',[p.id])}><option value="">⚠️ Tedarikçi seçin</option>${(APP.procSuppliers||[]).map(sp => `<option value="${sp.id}" ${sp.id===p.supplier_id?'selected':''}>${escapeHtml(sp.name)}</option>`).join('')}</select>
           <small>📅 ${new Date(p.order_date).toLocaleDateString('tr-TR')}${p.expected_date ? ' · 🎯 ' + new Date(p.expected_date).toLocaleDateString('tr-TR') : ''} · 👤 ${escapeHtml(p.created_by_name || '—')}</small></div>
-        <div class="pc2-right"><span class="pc2-total">${money(p.total_amount)}</span>${statusOf(p)}</div>
+        <div class="pc2-right pc2-open" title="Detayı aç" ${act('openPcDetail', p.id)}><span class="pc2-total">${money(p.total_amount)}</span>${statusOf(p)}</div>
       </div>
       <div class="pc2-items">
         ${items.length > 1 && p.status !== 'cancelled' ? `<label class="pc2-selall"><input type="checkbox" ${items.every(i => poSel().has(i.id)) ? 'checked' : ''} ${actOn('change','poSelCard',[p.id,'$checked'])}> Bu siparişin tüm kalemlerini seç</label>` : ''}
@@ -143,7 +143,7 @@ async function renderPurchaseReportContent(session){
           <b class="pc2-line">${c>0 ? money(q*c) : i.free ? '<span class="pchip ok" title="Ücretsiz geldi; maliyete 0 TL olarak girer">🎁 Bedelsiz</span>' : '<span class="pchip warn">fiyat yok</span>'}</b></div>`; }).join('') || '<p class="muted">Kalem yok.</p>'}
       </div>
       <div class="pc2-foot">${p.notes ? `<div class="pc-note">📝 ${escapeHtml(p.notes)}</div>` : '<span></span>'}
-        <div class="pc2-acts"><span class="pc2-share"><button type="button" class="pc-btn" title="PDF olarak indir" ${act('poExport', p.id, 'pdf')}>📄 PDF</button><button type="button" class="pc-btn" title="Yazdır" ${act('poExport', p.id, 'print')}>🖨️</button><button type="button" class="pc-btn" title="Tedarikçiye e-posta gönder" ${act('poSend', p.id, 'email')}>📧</button><button type="button" class="pc-btn" title="Tedarikçiye SMS gönder" ${act('poSend', p.id, 'sms')}>💬</button></span>${p.status==='ordered' ? `<button type="button" class="pc-btn" ${act('openReceivePOModal', p.id)}>📦 Malzemeyi Teslim Al</button>` : ''}${['draft','ordered'].includes(p.status) ? `<button type="button" class="pc-btn" title="Teslim tarihi, not, kalem ve miktarları düzenle" ${act('openPoEdit', p.id)}>✏️ Düzenle</button>` : ''}${p.status !== 'cancelled' ? `<button type="button" class="pc-btn rv-del" title="Siparişin tamamını (tüm kalemleri) iptal et" ${act('cancelPurchaseOrder', p.id)}>✕ Siparişi iptal et</button>` : ''}
+        <div class="pc2-acts"><button type="button" class="pc-btn" title="Siparişin tüm detayı" ${act('openPcDetail', p.id)}>🔍 Detay</button><span class="pc2-share"><button type="button" class="pc-btn" title="PDF olarak indir" ${act('poExport', p.id, 'pdf')}>📄 PDF</button><button type="button" class="pc-btn" title="Yazdır" ${act('poExport', p.id, 'print')}>🖨️</button><button type="button" class="pc-btn" title="Tedarikçiye e-posta gönder" ${act('poSend', p.id, 'email')}>📧</button><button type="button" class="pc-btn" title="Tedarikçiye SMS gönder" ${act('poSend', p.id, 'sms')}>💬</button></span>${p.status==='ordered' ? `<button type="button" class="pc-btn" ${act('openReceivePOModal', p.id)}>📦 Malzemeyi Teslim Al</button>` : ''}${['draft','ordered'].includes(p.status) ? `<button type="button" class="pc-btn" title="Teslim tarihi, not, kalem ve miktarları düzenle" ${act('openPoEdit', p.id)}>✏️ Düzenle</button>` : ''}${p.status !== 'cancelled' ? `<button type="button" class="pc-btn rv-del" title="Siparişin tamamını (tüm kalemleri) iptal et" ${act('cancelPurchaseOrder', p.id)}>✕ Siparişi iptal et</button>` : ''}
           <button type="button" class="pc-save" id="pcSave_${p.id}" disabled ${act('savePoPrices', p.id)}>${ICON_SAVE}<span>Kaydet</span></button></div></div>
     </div>`;
   };
@@ -856,3 +856,41 @@ async function savePoEdit(locked){
   removeEl('poEditBg'); showToast('Sipariş güncellendi ✓');
   renderPurchaseReportContent(getSession());
 }
+
+/* Mal Kabul: sipariş detay penceresi (kalemler, sipariş / teslim miktarları, fiyatlar, durum, notlar). */
+function openPcDetail(id){
+  const p = (APP.procRows || []).find(x => x.id === id); if(!p) return;
+  const items = p.items || [], n = (v) => Number(v) || 0, d = (x) => x ? new Date(x).toLocaleDateString('tr-TR', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—';
+  const dt = (x) => x ? new Date(x).toLocaleString('tr-TR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
+  const ST = { draft: ['📝 Taslak', '#94a3b8'], ordered: ['🚚 Sipariş verildi', '#f59e0b'], partial: ['📦 Kısmen teslim', '#f59e0b'], received: ['✅ Teslim alındı', '#22c55e'], cancelled: ['✕ İptal edildi', '#94a3b8'] };
+  const st = ST[p.status] || [escapeHtml(p.status || ''), 'var(--accent)'];
+  const ordQ = items.reduce((t, i) => t + n(i.quantity), 0), recQ = items.reduce((t, i) => t + Math.min(n(i.received), n(i.quantity)), 0);
+  const priced = items.filter(i => n(i.unit_cost) > 0 || i.free).length;
+  const steps = [['Sipariş oluşturuldu', true, d(p.order_date) + (p.created_by_name ? ' · ' + escapeHtml(p.created_by_name) : '')],
+    ['Tedarikçi', !!p.supplier_id, p.supplier_name ? escapeHtml(p.supplier_name) : 'seçilmedi'],
+    ['Fiyatlar', priced === items.length && items.length > 0, priced + ' / ' + items.length + ' kalem'],
+    ['Teslim', p.status === 'received', p.status === 'cancelled' ? 'iptal' : (ordQ ? Math.round(recQ / ordQ * 100) : 0) + '% teslim' + (p.received_at ? ' · ' + dt(p.received_at) : '')]];
+  const bg = document.createElement('div'); bg.id = 'poDetailBg'; bg.className = 'modal-bg';
+  bg.onclick = (e) => { if(e.target === bg) bg.remove(); };
+  bg.innerHTML = `<div class="box pod-modal" style="--pc:${st[1]}">
+    <div class="pod-head">${avatarHtml(p.supplier_name || 'T')}<div class="pod-t"><h2 class="u-m0">${escapeHtml(p.supplier_name || 'Tedarikçisiz sipariş')}</h2>
+      <small>📅 ${d(p.order_date)}${p.expected_date ? ' · 🎯 Beklenen ' + d(p.expected_date) : ''} · 👤 ${escapeHtml(p.created_by_name || '—')}</small></div>
+      <span class="pod-st">${st[0]}</span><span class="u-xclose" ${act('removeEl','poDetailBg')}>✕</span></div>
+    <div class="pod-kpis"><div><small>Sipariş tutarı</small><b>${money(p.total_amount)}</b></div><div><small>Teslim alınan</small><b>${money(p.received_amount || 0)}</b></div>
+      <div><small>Kalem</small><b>${items.length}</b></div><div><small>Teslim oranı</small><b>${ordQ ? Math.round(recQ / ordQ * 100) : 0}%</b></div></div>
+    <div class="pod-steps">${steps.map(([l, ok, sub]) => `<div class="pod-step ${ok ? 'ok' : ''}"><i>${ok ? '✓' : '•'}</i><b>${l}</b><small>${sub}</small></div>`).join('')}</div>
+    <div class="pod-table"><div class="pod-row pod-th"><span>Malzeme</span><span>Sipariş</span><span>Teslim</span><span>Birim fiyat</span><span>Tutar</span></div>
+      ${items.map(i => { const q = n(i.quantity), r = n(i.received), c = n(i.unit_cost); return `<div class="pod-row"><span data-l="Malzeme"><b>${escapeHtml(i.name)}</b></span>
+        <span data-l="Sipariş">${q} ${escapeHtml(i.unit || '')}</span>
+        <span data-l="Teslim" class="${r >= q && q > 0 ? 'ok' : r > 0 ? 'warn' : 'muted'}">${r} ${escapeHtml(i.unit || '')}${r > q ? ' <small>(+' + (Math.round((r - q) * 1000) / 1000) + ' fazla)</small>' : ''}</span>
+        <span data-l="Birim fiyat">${i.free ? '🎁 Bedelsiz' : c > 0 ? money(c) + ' / ' + escapeHtml(i.unit || '') : '<span class="pchip warn">fiyat yok</span>'}</span>
+        <span data-l="Tutar"><b>${c > 0 ? money(q * c) : i.free ? '0,00 TL' : '—'}</b></span></div>`; }).join('') || '<p class="muted">Kalem yok.</p>'}
+      <div class="pod-row pod-tot"><span>Toplam</span><span></span><span></span><span></span><span><b>${money(p.total_amount)}</b></span></div></div>
+    ${p.notes ? `<div class="pc-note">📝 ${escapeHtml(p.notes)}</div>` : ''}
+    <div class="pod-acts"><button type="button" class="pc-btn" ${act('poExport', p.id, 'pdf')}>📄 PDF</button><button type="button" class="pc-btn" ${act('poExport', p.id, 'print')}>🖨️ Yazdır</button>
+      <button type="button" class="pc-btn" ${act('poSend', p.id, 'email')}>📧 E-posta</button><button type="button" class="pc-btn" ${act('poSend', p.id, 'sms')}>💬 SMS</button>
+      ${p.status === 'ordered' ? `<button type="button" class="pc-btn" ${act('poDetailGo', 'receive', p.id)}>📦 Teslim Al</button>` : ''}${['draft','ordered'].includes(p.status) ? `<button type="button" class="pc-btn" ${act('poDetailGo', 'edit', p.id)}>✏️ Düzenle</button>` : ''}</div>
+  </div>`;
+  document.body.appendChild(bg);
+}
+function poDetailGo(kind, id){ removeEl('poDetailBg'); if(kind === 'receive') openReceivePOModal(id); else openPoEdit(id); }
