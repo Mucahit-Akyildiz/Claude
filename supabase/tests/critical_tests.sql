@@ -274,7 +274,7 @@ begin
     select id into it from order_items where order_id = o;
     begin perform pay_order_items(tok, o, 'cash', 160, 0); err := 'kabul'; exception when others then err := sqlerrm; end;
     perform mark_item_ready(tok, it);
-    b := get_table_bill_v2(qr, 'ci-device-test');
+    b := get_table_bill_v2(qr, 'ci-device-test-000001');
     insert into online_payments (restaurant_id, amount, status, payload) values (r, 160, 'pending', jsonb_build_object('kind', 'table', 'qr', qr::text, 'order_id', o)) returning id into pid;
     okp := _finalize_table_payment(pid, 'TEST', 160);
     okp := okp and (select status from online_payments where id = pid) = 'paid';
