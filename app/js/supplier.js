@@ -150,7 +150,7 @@ async function renderPurchaseOrdersContent(session){
       ['cancelled','✕', cnt('cancelled'), 'İptal edilen', '#94a3b8'], ['all','📋', rows.length - cnt('cancelled'), 'Tüm siparişler', 'var(--c1)']], pf, 'setPoFilter')}
   <div class="fs-panel pa-sec" style="--t:#f59e0b;">
     <h3><i>📋</i>Verilen Siparişler${cnt('draft') ? ` <span class="pa-legend"><span><b style="background:#a78bfa;"></b>Taslak ${cnt('draft')}</span></span>` : ''}</h3>
-    ${shown.length ? `<div class="po-grid">${shown.map((p, i) => { const items = p.items || [], ord = Number(p.ordered_total)||items.reduce((x, it) => x + (Number(it.quantity)||0), 0), rec = Number(p.received_total)||items.reduce((x, it) => x + Math.min(Number(it.received)||0, Number(it.quantity)||0), 0);
+    ${shown.length ? `<div class="po-grid">${shown.map((p, i) => { const items = (p.items || []).slice().sort(trItemSort), ord = Number(p.ordered_total)||items.reduce((x, it) => x + (Number(it.quantity)||0), 0), rec = Number(p.received_total)||items.reduce((x, it) => x + Math.min(Number(it.received)||0, Number(it.quantity)||0), 0);
       const pct = p.status==='received' ? 100 : ord ? Math.round(rec/ord*100) : 0;
       return `<div class="po-card po-click" ${act('openPoDetail', p.id)} title="Detay için tıklayın" style="--st:${isLate(p) ? 'var(--danger,#ef4444)' : PO_TONE[p.status]||'var(--muted)'};--i:${Math.min(i,12)};">
         <div class="po-top">${avatarHtml(p.supplier_name||'?')}<div class="cu-id"><b>${escapeHtml(p.supplier_name||'Tedarikçi bekleniyor')}</b><small>${p.created_by_name ? 'Oluşturan: '+escapeHtml(p.created_by_name) : ''}</small></div>${poStatusBadge(p)}</div>
@@ -168,7 +168,7 @@ async function renderPurchaseOrdersContent(session){
 /* Sipariş detayı: tüm kalemler, not, tarih; yetkiliyse iptal (teslim alınmışsa stok ve maliyet geri alınır). */
 function openPoDetail(id){
   const p = (APP.poRows || []).find(x => x.id === id); if(!p) return;
-  const s = getSession(), items = p.items || [], canCancel = p.status !== 'cancelled' && (hasPurchPerm(s, 'manage') || (p.status === 'draft' && p.created_by === s.user_id));
+  const s = getSession(), items = (p.items || []).slice().sort(trItemSort), canCancel = p.status !== 'cancelled' && (hasPurchPerm(s, 'manage') || (p.status === 'draft' && p.created_by === s.user_id));
   const rec = items.some(i => Number(i.received) > 0);
   const bg = document.createElement('div'); bg.className = 'dg-bg'; bg.style.zIndex = 3000;
   bg.innerHTML = `<div class="dg-card uc-card" style="max-width:520px;text-align:left;">
@@ -336,7 +336,7 @@ async function openReceivePOModal(id){
   const session = getSession();
   const { data, error } = await sb.rpc('get_purchase_order', { p_token: session.session_token, p_id: id });
   if(error){ alert(error.message); return; }
-  const items = data.items || [];
+  const items = (data.items || []).slice().sort(trItemSort);
   const bg = document.createElement('div');
   bg.id = 'receivePOModalBg';
   bg.dataset.poId = id;

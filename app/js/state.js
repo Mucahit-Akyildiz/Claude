@@ -99,6 +99,8 @@ const APP = { view:'home', selectedZone:null, draftCart:{}, liveOrders:[], authS
   Object.defineProperty(APP, 'config', { enumerable: true, configurable: true,
     get(){ return cfg; },
     set(v){
+      // Hammaddeler her listede Türkçe alfabe sırasıyla (Ç, İ, Ş… doğru yerde).
+      if(v && Array.isArray(v.ingredients)) v.ingredients.sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''), 'tr', { sensitivity: 'base', numeric: true }));
       if(v && Array.isArray(v.products) && !v._extrasSplit){
         v.extras = v.products.filter(p => p.parent_id);
         v.products = v.products.filter(p => !p.parent_id);
