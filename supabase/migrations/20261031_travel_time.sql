@@ -220,3 +220,7 @@ alter table customers add column if not exists created_by uuid, add column if no
 -- ve ingredients.piece_weight (1 adet ≈ kaç temel birim). Stok/maliyet/reçete temel birimde kalır.
 -- set_ingredient_units(p_token, p_id, p_units, p_piece_weight) — settings_ingredients; en fazla 5 birim, tek varsayılan.
 -- get_restaurant_config ingredients çıktısına purchase_units ve piece_weight eklendi. grant ... to anon, authenticated.
+
+-- 2026-11-09: close_purchase_order_short(p_token, p_id) — kısmen teslim alınan siparişi gelen miktarla kapatır
+-- (purchasing_manage). Eksik miktar siparişten düşülür, hiç gelmeyen kalemler silinir, durum 'received', nota
+-- "Eksik kapatıldı: …" eklenir. Stok/maliyet değişmez. grant ... to anon, authenticated.

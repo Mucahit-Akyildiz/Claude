@@ -144,7 +144,7 @@ async function renderPurchaseReportContent(session){
         <button type="button" class="pc2-moreln" ${act('openPcDetail', p.id)}>${items.length > PC_MAX_ROWS ? `⋯ +${items.length - PC_MAX_ROWS} kalem daha · ` : ''}<u>Detaylı görmek için tıklayınız</u></button>
       </div>
       <div class="pc2-foot">${p.notes ? `<div class="pc-note">📝 ${escapeHtml(p.notes)}</div>` : '<span></span>'}
-        <div class="pc2-acts"><span class="pc2-share"><button type="button" class="pc-btn" title="PDF olarak indir" ${act('poExport', p.id, 'pdf')}>📄 PDF</button><button type="button" class="pc-btn" title="Yazdır" ${act('poExport', p.id, 'print')}>🖨️</button><button type="button" class="pc-btn" title="Tedarikçiye e-posta gönder" ${act('poSend', p.id, 'email')}>📧</button><button type="button" class="pc-btn" title="Tedarikçiye SMS gönder" ${act('poSend', p.id, 'sms')}>💬</button></span>${p.status==='ordered' ? `<button type="button" class="pc-btn" ${act('openReceivePOModal', p.id)}>📦 Malzemeyi Teslim Al</button>` : ''}${['draft','ordered'].includes(p.status) ? `<button type="button" class="pc-btn" title="Teslim tarihi, not, kalem ve miktarları düzenle" ${act('openPoEdit', p.id)}>✏️ Düzenle</button>` : ''}${p.status !== 'cancelled' && (p.status === 'received' || items.some(i => Number(i.received) > 0)) && hasPurchPerm(getSession(), 'manage') ? `<button type="button" class="pc-btn" title="Yanlışlıkla teslim alındı dendiyse: stok ve maliyet geri alınır, sipariş teslim bekleyenlere döner" ${act('undoPurchaseReceive', p.id)}>↩️ Teslimi geri al</button>` : ''}${p.status !== 'cancelled' ? `<button type="button" class="pc-btn rv-del" title="Siparişin tamamını (tüm kalemleri) iptal et" ${act('cancelPurchaseOrder', p.id)}>✕ Siparişi iptal et</button>` : ''}
+        <div class="pc2-acts"><span class="pc2-share"><button type="button" class="pc-btn" title="PDF olarak indir" ${act('poExport', p.id, 'pdf')}>📄 PDF</button><button type="button" class="pc-btn" title="Yazdır" ${act('poExport', p.id, 'print')}>🖨️</button><button type="button" class="pc-btn" title="Tedarikçiye e-posta gönder" ${act('poSend', p.id, 'email')}>📧</button><button type="button" class="pc-btn" title="Tedarikçiye SMS gönder" ${act('poSend', p.id, 'sms')}>💬</button></span>${p.status==='ordered' ? `<button type="button" class="pc-btn" ${act('openReceivePOModal', p.id)}>📦 Malzemeyi Teslim Al</button>` : ''}${['draft','ordered'].includes(p.status) ? `<button type="button" class="pc-btn" title="Teslim tarihi, not, kalem ve miktarları düzenle" ${act('openPoEdit', p.id)}>✏️ Düzenle</button>` : ''}${p.status !== 'cancelled' && (p.status === 'received' || items.some(i => Number(i.received) > 0)) && hasPurchPerm(getSession(), 'manage') ? `<button type="button" class="pc-btn" title="Yanlışlıkla teslim alındı dendiyse: stok ve maliyet geri alınır, sipariş teslim bekleyenlere döner" ${act('undoPurchaseReceive', p.id)}>↩️ Teslimi geri al</button>${['ordered','partial'].includes(p.status) && (p.items || []).some(i => Number(i.received) > 0) && (p.items || []).some(i => Number(i.received) < Number(i.quantity) - 1e-9) ? `<button type="button" class="pc-btn" title="Kalan gelmeyecek: siparişi gelen miktarla kapat" ${act('closePoShort', p.id)}>✅ Eksiği kapat</button>` : ''}` : ''}${p.status !== 'cancelled' ? `<button type="button" class="pc-btn rv-del" title="Siparişin tamamını (tüm kalemleri) iptal et" ${act('cancelPurchaseOrder', p.id)}>✕ Siparişi iptal et</button>` : ''}
           <button type="button" class="pc-save" id="pcSave_${p.id}" disabled ${act('savePoPrices', p.id)}>${ICON_SAVE}<span>Kaydet</span></button></div></div>
     </div>`;
   };
@@ -894,7 +894,7 @@ function openPcDetail(id){
     <div class="pod-acts"><button type="button" class="pc-btn" ${act('poExport', p.id, 'pdf')}>📄 PDF</button><button type="button" class="pc-btn" ${act('poExport', p.id, 'print')}>🖨️ Yazdır</button>
       <button type="button" class="pc-btn" ${act('poSend', p.id, 'email')}>📧 E-posta</button><button type="button" class="pc-btn" ${act('poSend', p.id, 'sms')}>💬 SMS</button>
       ${p.status !== 'cancelled' ? `<span class="pod-auto muted">💾 Fiyatlar otomatik kaydedilir · yanlışsa üzerine yazın</span>` : ''}
-      ${['ordered', 'partial'].includes(p.status) && items.some(i => n(i.received) < n(i.quantity) - 1e-9) ? `<button type="button" class="pod-save" ${act('podReceive', p.id)}>📦 Teslim alındı olarak kaydet</button>` : ''}${['draft','ordered'].includes(p.status) ? `<button type="button" class="pc-btn" ${act('poDetailGo', 'edit', p.id)}>✏️ Düzenle</button>` : ''}</div>
+      ${['ordered', 'partial'].includes(p.status) && items.some(i => n(i.received) < n(i.quantity) - 1e-9) ? `<button type="button" class="pod-save" ${act('podReceive', p.id)}>📦 Teslim alındı olarak kaydet</button>` : ''}${['ordered', 'partial'].includes(p.status) && items.some(i => n(i.received) > 0) && items.some(i => n(i.received) < n(i.quantity) - 1e-9) ? `<button type="button" class="pc-btn" title="Kalan gelmeyecek: siparişi gelen miktarla kapat" ${act('closePoShort', p.id)}>✅ Eksiği kapat</button>` : ''}${['draft','ordered'].includes(p.status) ? `<button type="button" class="pc-btn" ${act('poDetailGo', 'edit', p.id)}>✏️ Düzenle</button>` : ''}</div>
   </div>`;
   document.body.appendChild(bg);
 }
@@ -987,6 +987,19 @@ async function savePodPrices(){
 }
 
 /* Yanlışlıkla "teslim alındı": stok ve alış maliyeti geri alınır, sipariş "Teslim bekleyen"e döner. */
+/* Kısmen teslim: kalan gelmeyecekse sipariş gelen miktarla (girilen fiyattan) kapatılır. */
+async function closePoShort(id){
+  const p = (APP.procRows || []).find(x => x.id === id); if(!p) return;
+  const ig = i => (typeof poIgOf === 'function' ? poIgOf(i) : { unit: i.unit });
+  const lines = (p.items || []).filter(i => Number(i.received) < Number(i.quantity) - 1e-9).map(i => '• ' + i.name + ': gelen ' + fmtIngQty(i.received, ig(i)) + ' / ' + fmtIngQty(i.quantity, ig(i)) + (Number(i.received) > 0 ? '' : ' (hiç gelmedi, siparişten çıkarılır)')).join('\n');
+  if(!await uiConfirm('Kalan miktar gelmeyecek olarak işaretlenir ve sipariş gelen miktarla kapatılır. Tutar gelen miktar × girilen fiyat olur; stok ve maliyet değişmez.\n\n' + lines, { title: '✅ Eksiği kapat', icon: '✅', okText: 'Siparişi kapat', cancelText: 'Vazgeç', danger: false })) return;
+  const { error } = await withLoadingOverlay(sb.rpc('close_purchase_order_short', { p_token: getSession().session_token, p_id: id }));
+  if(error){ alert(error.message); return; }
+  removeEl('poDetailBg'); APP.podDirty = false;
+  showToast('✅ Sipariş gelen miktarla kapatıldı');
+  if(typeof refreshNavBadges === 'function') refreshNavBadges();
+  renderPurchaseReportContent(getSession());
+}
 async function undoPurchaseReceive(id){
   const p = (APP.procRows || []).find(x => x.id === id);
   const lines = p ? (p.items || []).filter(i => Number(i.received) > 0).map(i => '• ' + i.name + ': ' + Number(i.received) + ' ' + (i.unit || '')).join('\n') : '';
