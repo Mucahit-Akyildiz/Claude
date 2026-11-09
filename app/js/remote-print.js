@@ -124,7 +124,7 @@ function bgToggleStation(id, on){
   APP.bgPrimed = false; // açılan istasyonun mevcut siparişleri yeniden basılmasın
   showToast(on ? '🖨️ Bu istasyonun fişleri bu bilgisayardan arka planda basılacak' : 'Arka plan yazdırma kapatıldı');
 }
-let BG_BUSY = false;
+let BG_BUSY = false, BG_VER = null, BG_FULL_AT = 0;
 async function bgPrintTick(){
   if(BG_BUSY || !(typeof isDesktopApp === 'function' && isDesktopApp())) return;
   const s = getSession();
@@ -134,6 +134,11 @@ async function bgPrintTick(){
   BG_BUSY = true;
   try{
     if(!APP.config){ const { data } = await sb.rpc('get_restaurant_config', { p_token: s.session_token }); if(data) APP.config = data; }
+    // Hafif sayaçla bak: değişiklik yoksa sipariş listesini çekme (her 20 sn'de bir yine tam kontrol).
+    const vr = await sb.rpc('get_data_version', { p_token: s.session_token });
+    const v = vr && !vr.error ? vr.data : null;
+    if(v != null && v === BG_VER && APP.bgPrimed && Date.now() - BG_FULL_AT < 20000) return;
+    BG_VER = v; BG_FULL_AT = Date.now();
     const { data, error } = await _sbRpcRaw('get_live_orders', { p_token: s.session_token });
     if(error || !Array.isArray(data)) return;
     const seen = bgSeen(), now = Date.now(), first = !APP.bgPrimed;
@@ -150,4 +155,4 @@ async function bgPrintTick(){
     bgSaveSeen(seen);
   }finally{ BG_BUSY = false; }
 }
-setInterval(bgPrintTick, 3000);
+setInterval(bgPrintTick, 1000);
