@@ -349,7 +349,11 @@ function setPrintEachItem(on){ try{ localStorage.setItem('rys_print_each_item', 
 function printOnOrderEnabled(){ try{ return localStorage.getItem('rys_print_on_order') !== '0'; }catch(e){ return true; } }
 function setPrintOnOrder(on){ try{ localStorage.setItem('rys_print_on_order', on ? '1' : '0'); }catch(e){} showToast(on ? 'Sipariş verilince fiş bu cihazda yazdırılacak' : 'Sipariş fişi bu cihazda otomatik yazdırılmayacak'); }
 // Bu cihazda gerçekten sessiz yazdırabilen bir yazıcı tanımlı mı (masaüstü / USB / kiosk)?
-function deviceHasSilentPrinter(){ return getPrinters().some(p => p.type==='electron' || p.type==='usb' || p.type==='silent-browser'); }
+function deviceHasSilentPrinter(){
+  // Başka cihazın paylaştığı yazıcı bu ekrana / bir istasyona seçildiyse o da sayılır (fiş o cihazdan basılır).
+  const remoteUsed = () => { try{ const ids = new Set(getRemotePrinters().map(r => r.id)); return ids.has(getActivePrinterId()) || Object.values(getStationPrinterMap() || {}).some(id => ids.has(id)); }catch(e){ return false; } };
+  return getPrinters().some(p => (p.type==='electron' && isDesktopApp()) || p.type==='usb' || p.type==='silent-browser') || remoteUsed();
+}
 function resolvePrinterForStation(stationId){
   const printers = getAllPrinters();
   const map = getStationPrinterMap();
