@@ -4356,3 +4356,27 @@ html.emoji-noto .app-brand-row .app-brand-text,html.emoji-noto .auth-brand .name
 @media (min-width: 901px){
   .tabs.settings-tabs.set-nav{align-self:flex-start;max-height:var(--navmax,calc(100vh - 24px));overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin;}
 }
+/* Yardım → Uygulama Haritası */
+.hmap-leg{display:flex;flex-wrap:wrap;gap:14px;font-size:12.5px;color:var(--muted);margin:0 0 6px;}
+.hmap-leg span{display:inline-flex;align-items:center;gap:6px;} .hmap-leg i{width:10px;height:10px;border-radius:3px;display:inline-block;}
+.hmap-k1{background:var(--c1);} .hmap-k2{background:var(--c3);} .hmap-k3{background:#f59e0b;}
+.hmap-st{margin:18px 0 8px;font-size:12.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);text-align:left;}
+.hmap-quick{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:8px;}
+.hmap-q{background:var(--panel2);border:1px solid var(--border);border-radius:12px;padding:9px 12px;text-align:left;min-width:0;}
+.hmap-q.go{cursor:pointer;} .hmap-q.go:hover{border-color:var(--accent);}
+.hmap-q b{display:block;font-size:13.5px;} .hmap-path{font-size:12.5px;color:var(--accent);font-weight:600;} .hmap-path i{font-style:normal;color:var(--muted);padding:0 4px;}
+.hmap-cards{display:flex;flex-direction:column;gap:10px;}
+.hmap-card{background:var(--panel2);border:1px solid var(--border);border-radius:14px;padding:13px 15px;text-align:left;min-width:0;}
+.hmap-h{display:flex;align-items:center;gap:8px;flex-wrap:wrap;} .hmap-h > span{font-size:20px;} .hmap-h b{font-size:16px;}
+.hmap-h small{font-size:11.5px;color:var(--muted);background:var(--panel);border-radius:999px;padding:2px 9px;}
+.hmap-go{margin:0 0 0 auto !important;width:auto !important;padding:5px 12px !important;font-size:12.5px !important;}
+.hmap-d{margin:6px 0 8px;font-size:13px;text-align:left;}
+.hmap-cols{display:grid;grid-template-columns:1fr 1fr;gap:12px;font-size:13.5px;} .hmap-cols ul{margin:2px 0 0;padding-left:18px;}
+.hmap-cols em{font-style:normal;font-size:11.5px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;}
+.hmap-in em{color:var(--c1);} .hmap-out em{color:var(--c3);}
+.hmap-subs{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:7px;margin-top:10px;}
+.hmap-subs > div{background:var(--panel);border-radius:10px;padding:8px 11px;min-width:0;}
+.hmap-subs b{display:block;font-size:13.5px;} .hmap-subs small{display:block;font-size:12.5px;color:var(--muted);line-height:1.45;} .hmap-subs .hmap-how{color:var(--text);margin-top:3px;}
+.hmap-tip{margin-top:9px;font-size:13px;border-left:3px solid #f59e0b;padding:4px 10px;background:color-mix(in srgb,#f59e0b 9%,transparent);border-radius:0 8px 8px 0;}
+.hmap mark{background:color-mix(in srgb,var(--accent) 30%,transparent);color:inherit;border-radius:3px;padding:0 2px;}
+@media (max-width:640px){ .hmap-cols{grid-template-columns:1fr;} }
