@@ -29,6 +29,10 @@ async function toggleSharePrinter(localId){
   const s = getSession(); if(!s) return;
   const p = getPrinters().find(x => x.id === localId); if(!p) return;
   const on = !isPrinterShared(localId);
+  // Masaüstü türü yazıcı yalnız masaüstü uygulamasından basabilir; tarayıcıdan paylaşılırsa gelen fişler basılamaz.
+  if(on && p.type === 'electron' && !(typeof isDesktopApp === 'function' && isDesktopApp())){
+    await uiAlert('Bu yazıcı "Masaüstü Uygulaması" türünde; tarayıcıdan paylaşılamaz. Paylaşımı Peyktan masaüstü uygulamasının içinden yapın.', { icon: '🔗' }); return;
+  }
   const { error } = await withLoadingOverlay(sb.rpc('share_printer', { p_token: s.session_token, p_device_id: rpDeviceId(), p_device_name: rpDeviceName(), p_printer_id: localId, p_printer_name: p.name, p_on: on }));
   if(error){ alert(error.message); return; }
   const ids = rpSharedIds().filter(x => x !== localId); if(on) ids.push(localId); rpSetSharedIds(ids);
@@ -41,9 +45,11 @@ async function rpResyncShares(){
   const local = getPrinters();
   for(const id of rpSharedIds()){
     const p = local.find(x => x.id === id);
-    await sb.rpc('share_printer', { p_token: s.session_token, p_device_id: rpDeviceId(), p_device_name: rpDeviceName(), p_printer_id: id, p_printer_name: p ? p.name : '', p_on: !!p });
+    const usable = !!p && !(p.type === 'electron' && !(typeof isDesktopApp === 'function' && isDesktopApp()));
+    await sb.rpc('share_printer', { p_token: s.session_token, p_device_id: rpDeviceId(), p_device_name: rpDeviceName(), p_printer_id: id, p_printer_name: p ? p.name : '', p_on: usable });
   }
-  rpSetSharedIds(rpSharedIds().filter(id => local.some(x => x.id === id)));
+  const isDesk = typeof isDesktopApp === 'function' && isDesktopApp();
+  rpSetSharedIds(rpSharedIds().filter(id => local.some(x => x.id === id && !(x.type === 'electron' && !isDesk))));
 }
 /* Diğer cihazların paylaştığı yazıcılar (bu cihazınkiler hariç). */
 function getRemotePrinters(){ try{ return JSON.parse(localStorage.getItem(RP_REMOTE_KEY) || '[]') || []; }catch(e){ return []; } }
