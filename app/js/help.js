@@ -78,7 +78,7 @@ function renderHelpView(main, session){
   APP.helpOpen = APP.helpOpen || {};
   if(APP.helpCat == null) APP.helpCat = 'video';
   // Diğer ayar/rapor ekranları gibi: solda bölümler (video, konu başlıkları, destek), sağda içerik.
-  const nav = [['video', '🎬', 'Eğitim Videosu', 'Peyktan nasıl kullanılır? (9,5 dk)'],
+  const nav = [['map', '🗺️', 'Uygulama Haritası', 'Ne nereden girilir, rapor nerede'], ['video', '🎬', 'Eğitim Videosu', 'Peyktan nasıl kullanılır? (9,5 dk)'],
     ...HELP_TOPICS.map((c, ci) => [String(ci), c.icon, c.cat, c.items.length + ' soru']),
     ['support', '💬', 'Destek', 'Bize ulaşın']];
   main.innerHTML = `
@@ -106,6 +106,7 @@ function drawHelpTopics(){
   const q = String(APP.helpSearch||'').trim().toLocaleLowerCase('tr');
   const strip = (h) => h.replace(/<[^>]+>/g, ' ');
   const session = getSession();
+  if(APP.helpCat === 'map'){ box.innerHTML = helpMapHtml(q); return; }
   if(!q && APP.helpCat === 'video'){
     box.innerHTML = `<div class="u-mwn box"><h2>🎬 Eğitim videosu · Peyktan nasıl kullanılır?</h2>
       <video controls preload="none" playsinline poster="/assets/video/peyktan-egitim-poster.jpg" style="width:100%;max-width:880px;display:block;border-radius:14px;background:#0f1416;aspect-ratio:16/9;">
@@ -142,3 +143,182 @@ function drawHelpTopics(){
 
 function setHelpSearch(v){ APP.helpSearch = v; drawHelpTopics(); }
 function toggleHelpTopic(key){ APP.helpOpen[key] = !APP.helpOpen[key]; drawHelpTopics(); }
+
+/* ---- 🗺️ Uygulama Haritası: hangi bilgi nereden girilir, hangi rapor nerede ve nasıl okunur.
+   Yardım'daki arama kutusu bu listeyi de süzer. Yolun ilk adımı sol menüdeki bir ekransa ve yetki varsa tıklanınca o ekran açılır.
+   Yeni ekran / rapor eklenince buraya da eklenmeli. ---- */
+const HMAP_QUICK = [
+  ['Yeni ürün eklemek, fiyat değiştirmek', ['Ayarlar','Ürünler & Hammaddeler','Ürünler']],
+  ['Ürüne reçete (hammadde) bağlamak', ['Ayarlar','Ürünler & Hammaddeler','Ürünler','ürünü aç → Reçete']],
+  ['Hammadde eklemek, stok miktarını düzeltmek', ['Ayarlar','Ürünler & Hammaddeler','Hammaddeler']],
+  ['Ürün fotoğrafı / menü açıklaması', ['Ayarlar','Ürünler & Hammaddeler','Fotoğraf & Açıklama']],
+  ['Ürünü acil satışa kapatmak (stok bitti)', ['Mutfak Ekranı','⛔ Satışa Kapat']],
+  ['Ürünü kalıcı kapatmak / açmak', ['Ayarlar','Ürünler & Hammaddeler','Ürünler','Satışta / Kapalı düğmesi']],
+  ['Hangi ürün mutfak fişine çıksın', ['Cihaz Yazıcısı','Bu Ekranın Yazıcısı','İstasyon Fişleri','Fişe çıkacak ürünler']],
+  ['Mutfak istasyonu, menü başlığı eklemek', ['Ayarlar','Menüler & İstasyonlar']],
+  ['Masa / bölge eklemek, masa QR kodu', ['Ayarlar','Bölgeler & Masalar']],
+  ['Tedarikçiden malzeme sipariş etmek', ['Malzeme Siparişi Ver']],
+  ['Gelen malı teslim almak, birim fiyat girmek', ['Mal Kabul','Siparişler & Fiyatlar']],
+  ['Yanlışlıkla teslim alınanı geri almak', ['Mal Kabul','siparişin detayı','Teslim almayı geri al']],
+  ['Aldığım malların fiyat raporu', ['Finansal Analiz','Ürün Analizi','🏷️ Alış Fiyatları']],
+  ['Teslim aldığım siparişlerin listesi', ['Mal Kabul','tarih aralığı','Tamamlanan']],
+  ['Tedarikçi bilgileri', ['Mal Kabul','Tedarikçiler']],
+  ['Günün cirosu, kârı, ödeme dağılımı', ['Finansal Analiz','Genel Özet']],
+  ['Gün sonu kasa sayımı ve Z raporu', ['Ödemeler','🧾 Gün sonunu kapat']],
+  ['Geçmiş gün sonları, kasa farkları', ['Finansal Analiz','Gün Sonu & Kapanışlar']],
+  ['Muhasebeye Excel (Logo, Mikro, Paraşüt)', ['Finansal Analiz','Gün Sonu & Kapanışlar','📤 Muhasebe Aktarımı']],
+  ['Hangi ürün ne kadar kâr bırakıyor', ['Finansal Analiz','Ürün Analizi','💹 Kârlılık']],
+  ['En çok satanlar, hammadde tüketimi', ['Finansal Analiz','Ürün Analizi','📦 Satışlar']],
+  ['Stok ne zaman bitecek', ['Finansal Analiz','Stok Tahmini']],
+  ['İsraf / fire kaydı girmek', ['Mutfak Ekranı','🔥 İsraf Gir']],
+  ['İsrafın maliyetini görmek', ['Finansal Analiz','İsraf']],
+  ['Kim ne iptal etti, ikram verdi', ['Finansal Analiz','İptal & İkram Kontrolü']],
+  ['Personel çalışma saati, puantaj, prim', ['Finansal Analiz','Personel Performansı','💼 Puantaj & Prim']],
+  ['Bahşiş kime ne kadar düştü', ['Finansal Analiz','Bahşiş Havuzu']],
+  ['Veresiye (açık hesap) bakiyeleri', ['Finansal Analiz','Açık Hesaplar']],
+  ['Personel eklemek, şifre değiştirmek', ['Ayarlar','Kullanıcılar & Vardiyalar','Kullanıcılar']],
+  ['Rol ve yetki vermek', ['Ayarlar','Roller']],
+  ['Vardiya planı hazırlamak', ['Ayarlar','Kullanıcılar & Vardiyalar','Vardiya Planı']],
+  ['Yazıcı bağlamak', ['Cihaz Yazıcısı','Yazıcılar']],
+  ['Fiş görünümü (yazı boyu, başlık, kopya)', ['Ayarlar','Fiş Tasarımı']],
+  ['Fişin başka cihazlardan gelen siparişte de basılması', ['Cihaz Yazıcısı (masaüstü uygulaması)','İstasyon Fişleri','Arka planda bas']],
+  ['Müşteri eklemek, Excel ile müşteri yüklemek', ['Müşteriler','+ Yeni Müşteri / ⬆️ İçe aktar']],
+  ['Sadakat puanı, doğum günü indirimi', ['Müşteriler','⭐ Sadakat']],
+  ['Toplu SMS / e-posta kampanyası', ['Müşteriler','📣 Kampanya & Geri Kazanım']],
+  ['Kupon, kampanya, hediye kartı', ['Ayarlar','Abonelik, Hediye Kartı & Kampanya']],
+  ['Online sipariş sayfasını açmak', ['Ayarlar','Entegrasyonlar','Online Sipariş']],
+  ['SMS / e-posta hesabı bağlamak', ['Ayarlar','Entegrasyonlar','SMS / E-posta']],
+  ['Havale için IBAN', ['Ayarlar','Entegrasyonlar','Banka / IBAN']],
+  ['Yemeksepeti, Trendyol, Getir', ['Ayarlar','Entegrasyonlar','Pazaryeri']],
+  ['Hangi bildirim kime gitsin', ['Ayarlar','Bildirim Ayarları']],
+  ['Bu cihazda bildirimleri açmak', ['Bildirimler']],
+  ['Her gün özet e-postası', ['Ayarlar','Özet E-postaları']],
+  ['Kim neyi değiştirdi', ['Ayarlar','Güvenlik','Değişiklik Kaydı']],
+  ['Müşteri yorumları ve yıldızlar', ['Finansal Analiz','Müşteri Değerlendirmeleri']],
+];
+
+const HMAP_CARDS = [
+ { ic:'🍽️', n:'Sipariş Al', who:'izin: Sipariş Al', d:'Salondaki masaların canlı durumu. Masaya dokunup sipariş girilir.',
+   enter:['Masa siparişi: masa → ürünlere dokun → not → Onayla ve Gönder','Masayı taşıma / birleştirme','Sipariş etiketi (personel yemeği, ikram…)'],
+   read:['Hangi masa dolu, ne kadar süredir açık','Masanın hesabı ve gönderilen ürünler'],
+   tip:'Onaylanan ürün kendi istasyonunun mutfak ekranına ve (açıksa) fişine düşer. Kapalı ürün "Satışta Değil" olarak görünür.' },
+ { ic:'📦', n:'Paket Servis', who:'izin: Paket Servis', d:'Gel-al ve adrese teslim siparişleri; pazaryeri ve online siparişler de buraya düşer.',
+   enter:['Yeni paket sipariş: müşteri adı/telefon, adres, teslim saati, ürünler','Kurye ataması'],
+   read:['Bekleyen / yolda / teslim edilen paketler','Teslim saatine geri sayım'] },
+ { ic:'🧑‍🍳', n:'Mutfak Ekranı', who:'izin: Mutfak Ekranı', d:'İstasyon seçilir; o istasyonun siparişleri kart kart görünür, yeni siparişte zil çalar.',
+   enter:['Ürünü / kartı Hazır yapmak','🔥 İsraf Gir: siparişe bağlı olmayan zayi (stoktan düşer)','⛔ Satışa Kapat: ürünü anında her kanalda satışa kapatır / açar'],
+   read:['Bekleyen siparişler, bekleme süresi (15 dk üstü uyarı)','Paket siparişlerde teslim saatine geri sayım'],
+   tip:'Satışa Kapat penceresinde arama yaparsanız diğer istasyonların ürünleri de çıkar. Sayaç, kapalı ürün sayısını gösterir.' },
+ { ic:'📅', n:'Rezervasyonlar ve Bekleme Listesi', who:'izin: Rezervasyon', d:'Rezervasyon ve sıra bekleyen müşteriler.',
+   enter:['Rezervasyon ekle, "Oturdu" ile masaya al','Rezervasyona ön sipariş','Bekleme listesine müşteri'],
+   read:['Günün rezervasyonları, gelmeyenler'],
+   subs:[['Raporu','Finansal Analiz → Rezervasyon Analizi']] },
+ { ic:'👥', n:'Müşteriler', who:'izin: Müşteriler', d:'Müşteri kartları (CRM), sadakat ve toplu mesaj.',
+   enter:['+ Yeni Müşteri, ⬆️ İçe aktar (Excel/CSV), 📄 Şablon indir','⭐ Sadakat: kaç TL = 1 puan, puan değeri, doğum günü indirimi','📣 Kampanya & Geri Kazanım: SMS / e-posta','Müşteri grubu, "SMS istemiyor" işareti'],
+   read:['Müşterinin geçmiş siparişleri, puanı, son gelişi','⬇️ Dışa aktar (Excel)'],
+   tip:'Telefonlar ekranda maskeli görünür (KVKK).' },
+ { ic:'🛒', n:'Malzeme Siparişi Ver', who:'izin: Satınalma', d:'Tedarikçiye gidecek malzeme talebi / siparişi buradan açılır.',
+   enter:['Hammadde ve miktar seçip sipariş taslağı','Taslağı sipariş olarak göndermek'],
+   read:['Taslaklar ve gönderilen siparişler'],
+   tip:'Aynı tedarikçiye açık iki sipariş varsa sistem bunları birleştirebilir. "Kalem bulunamadı" görürseniz listeyi yenileyin.' },
+ { ic:'🔔', n:'Bildirimler', who:'herkes · bu cihaza özel', d:'Bu cihazın bildirim izni, sesi ve geçmişi.',
+   enter:['Bildirimleri aç, Test Bildirimi Gönder'], read:['Geçmiş Bildirimler'],
+   subs:[['Kime ne gitsin?','Ayarlar → Bildirim Ayarları (işletme geneli)']] },
+ { ic:'💳', n:'Ödemeler', who:'izin: Ödemeler', d:'Açık hesapların tahsilatı ve gün sonu.',
+   enter:['Masa / paket kartı → ürün seç (kısmi ödeme) → indirim, bahşiş, puan, hediye kartı → Nakit / Kart / Havale','📒 Açık hesaba at (veresiye)','📷 Masa Tara','🧾 Gün sonunu kapat: adım adım kasa sayımı'],
+   read:['Ödeme bekleyen masalar ve paketler'],
+   tip:'Mutfakta Hazır olmamış ürün varsa ödeme düğmeleri kapalıdır; uyarıda hangi ürün olduğu yazar.',
+   subs:[['Geçmiş gün sonları','Finansal Analiz → Gün Sonu & Kapanışlar']] },
+ { ic:'📦', n:'Mal Kabul', who:'izin: Satınalma (siparişler, birim fiyat, tedarikçiler)', d:'Tedarikçiden gelen malın teslim alındığı yer. Teslim alınan miktar hammadde stoğuna eklenir.',
+   enter:['📦 Teslim Al: gelen miktar','Tedarikçi seçimi, birim fiyat','Teslim almayı geri al (yanlışlıkla teslim alınan)'],
+   read:['Üstte tarih aralığı (7 gün / 30 gün / 3 ay / 1 yıl)','Filtreler: Bekleyenler, Tümü, Tedarikçi bekleyen, Fiyat bekleyen, Teslim bekleyen, Tamamlanan, İptal'],
+   subs:[['🧾 Siparişler & Fiyatlar','Kartta en fazla 5 kalem görünür; karta tıklayınca tüm kalemler ve fiyat girişi açılır.'],['🏭 Tedarikçiler','Firma bilgileri ve iletişim.']],
+   tip:'Birim fiyatı girilmemiş teslimler "🏷️ Fiyat bekliyor" rozeti taşır ve Alış Fiyatları raporunda sayılmaz. Fiyat girmek reçeteli ürünlerin maliyetini de günceller.' },
+ { ic:'📊', n:'Finansal Analiz', who:'Yönetici · girişte ayrı şifre', d:'Bütün raporlar. Üstte tarih aralığı (Bugün, Son 7 / 10 / 30 gün) tüm sekmeler için geçerli; Excel ve PDF düğmeleri açık sekmeyi dışa aktarır; arama kutusu bütün raporlarda arar.',
+   subs:[
+    ['📊 Genel Özet','Ciro, net kâr, maliyet, israf; ödeme dağılımı (nakit, kart, havale, açık hesap, hediye); ortalama hesap; indirim / puan / ikram; saatlik ciro; kapatılan hesaplar listesi.','Önce üstteki dört kart, sonra Kapatılan Hesaplar listesiyle tek tek hesaplar.'],
+    ['🧭 Kokpit','Önceki dönemle karşılaştırma, tahmin ve uyarılar.','Yeşil / kırmızı ok önceki aynı döneme göre değişim.'],
+    ['🎯 Menü Mühendisliği','Ürünlerin kârlılık × satış adedi haritası.','Çok satan + kârlı ürünleri öne çıkarın; az satan + az kârlıları gözden geçirin.'],
+    ['🗺️ Masa Haritası','Masa bazlı ciro.',''],
+    ['🔥 Yoğunluk','Gün × saat yoğunluğu.','Koyu hücre = yoğun saat; personel planına göre okuyun.'],
+    ['🛵 Satış Kanalları','Masa, paket, gel-al, online, pazaryeri payı.',''],
+    ['⚡ Hizmet Hızı','Hazırlama ve yanıt süreleri.',''],
+    ['📦 Stok Tahmini','Hammaddenin satış hızına göre ne zaman biteceği.','Kısa süre kalanlar için Malzeme Siparişi Ver.'],
+    ['🧾 Gün Sonu & Kapanışlar','Z raporu, geçmiş gün sonu kapanışları (kasa farkı), 📤 Muhasebe Aktarımı (Genel Excel, Logo, Mikro, Paraşüt).','Kasa farkı kırmızıysa o günün kapanışını açın.'],
+    ['👥 Personel Performansı','🏅 Performans (satış, hesap, ortalama) ve 💼 Puantaj & Prim (çalışma saati, maaş, prim).',''],
+    ['📈 Dönemsel Analiz','Saatlik / günlük ciro grafiği.',''],
+    ['🧾 KDV','Satışların KDV oranına göre matrah ve KDV dağılımı.',''],
+    ['📦 Ürün Analizi','Dört alt sekme: 📦 Satışlar (en çok satanlar, hammadde tüketimi) · 💹 Kârlılık (ciro, malzeme maliyeti, gider payı, net kâr) · 📅 Gider Dağılımı · 🏷️ Alış Fiyatları.','Alış Fiyatları: Mal Kabul\'de fiyatlı teslim alınan her hammadde için son ve önceki fiyat, değişim % (▲ kırmızı artış, ▼ yeşil düşüş), ortalama, en düşük / en yüksek, alınan miktar, tutar, tedarikçiler.'],
+    ['🧑‍🤝‍🧑 Müşteri Analizleri','Müşteri harcamaları ve müşteri yolculuğu (sadakat, geri dönüş, kayıp).',''],
+    ['⭐ Müşteri Değerlendirmeleri','Yıldız ve yorumlar; 1-3 yıldız, fotoğraflı, dönüş bekleyen filtreleri.','Dönüş bekleyen düşük puanları arayın.'],
+    ['💰 Bahşiş Havuzu','Toplanan bahşişin o gün vardiyada olanlara dağılımı.',''],
+    ['🔥 İsraf','Mutfaktan girilen israfın maliyeti ve sebebi.',''],
+    ['❌ İptal & İkram Kontrolü','İptaller ve personel bazlı iptal / ikram kaybı.','Bir personelde olağandışı yüksek iptal varsa detaya inin.'],
+    ['📅 Rezervasyon Analizi','Rezervasyon performansı, gelmeyenler.',''],
+    ['📒 Açık Hesaplar','Veresiye bakiyeleri.','']
+   ],
+   tip:'Bir rapordaki "maliyet" ürünün reçetesinden, reçetedeki hammadde maliyeti de Mal Kabul\'de girilen alış fiyatlarından gelir. Fiyat girilmezse kâr olduğundan yüksek görünür.' },
+ { ic:'💬', n:'Mesajlar', who:'herkes', d:'Genel kanal, birebir ve grup sohbetleri; fotoğraf, sesli mesaj, dosya.', enter:['Mesaj, fotoğraf, sesli mesaj'], read:['Okunmamış mesajlar'] },
+ { ic:'📻', n:'Peyk Bas-Konuş', who:'herkes', d:'Telsiz gibi anlık sesli iletişim.', enter:['Bas-konuş'], read:['Kim çevrim içi'] },
+ { ic:'⚙️', n:'Ayarlar', who:'her sekme ayrı izinle', d:'İşletme genelindeki tanımlar. Buradaki değişiklikler bütün cihazlarda geçerlidir.',
+   subs:[
+    ['🍳 Menüler & İstasyonlar','Menü başlıkları ve mutfak istasyonları (Izgara, Çayhane…).'],
+    ['🪑 Bölgeler & Masalar','Salon / bahçe, masalar (toplu: "Masa 1-10"), masa QR kodu (▦).'],
+    ['🍔 Ürünler & Hammaddeler','Ürünler (fiyat, maliyet, KDV, istasyon, stok, reçete, Satışta / Kapalı) · Fotoğraf & Açıklama · Hammaddeler (birim, stok, ortalama maliyet).'],
+    ['🏷️ Sipariş Etiketleri','Personel yemeği, ikram gibi etiketler.'],
+    ['👥 Kullanıcılar & Vardiyalar','Kullanıcılar · Aktif Kullanıcılar · Vardiyalar · Vardiya Planı · Limitler.'],
+    ['🔑 Roller','Hangi rol hangi ekranı görür / değiştirir.'],
+    ['🔌 Entegrasyonlar','Online Sipariş · Konum & Teslimat · Google Yorumları · SMS · Fatura Bilgileri · E-posta · Banka / IBAN · ÖKC / e-Fatura · Pazaryeri · Muhasebe.'],
+    ['💳 Abonelik, Hediye Kartı & Kampanya','Abonelik · Hediye Kartları · Kampanya & Kuponlar.'],
+    ['🧾 Fiş Tasarımı','Mutfak, kasa ve paket fişinin görünümü, kopya sayısı.'],
+    ['🔔 Bildirim Ayarları','Hangi bildirim hangi role (push, sesli / zilli).'],
+    ['📬 Özet E-postaları','Gün sonu ve haftalık özet e-postası, alıcılar.'],
+    ['🛡️ Güvenlik','Destek Erişimi · Değişiklik Kaydı · Veri Sıfırlama.']
+   ] },
+ { ic:'🖨️', n:'Cihaz Yazıcısı', who:'bu cihaza özel', d:'Yazıcı bağlantısı her cihazda ayrı yapılır, çünkü fiş o cihaza fiziksel olarak bağlı yazıcıdan çıkar.',
+   subs:[
+    ['💻 Bu Ekranın Yazıcısı','Bu cihazın varsayılan yazıcısı; "Sipariş verilince fişi hemen bu cihazdan yazdır". Altında 🔀 İstasyon Fişleri: her istasyonun yazıcısı, fişe çıkacak ürünler ve (masaüstü uygulamasında) Arka planda bas anahtarı.'],
+    ['🖨️ Yazıcılar','Yazıcı ekle: Masaüstü uygulaması, USB, sessiz tarayıcı, tarayıcı penceresi, uzak (paylaşılan) yazıcı.'],
+    ['📡 Durum ve Geçmiş','Her yazıcının son fiş durumu; kırmızı kart = son fiş basılamadı.']
+   ],
+   tip:'"Fişe çıkacak ürünler" işletme geneli bir ayardır; yalnız Ayarlar · Ürünler yetkisi olan değiştirebilir. Yazıcı seçimi ve Arka planda bas ise cihaza özeldir. Çift fiş çıkmaması için siparişi veren cihazlarda "Sipariş verilince yazdır"ı kapalı tutun.' },
+ { ic:'❓', n:'Yardım', who:'herkes', d:'Eğitim videosu (9,5 dk), konu konu sık sorulanlar ve Destek (destek@peyktan.com).', read:['Aranabilir yardım konuları; "Ekrana git" ile ilgili ekran açılır'] },
+];
+
+
+function hmapHl(text, q){
+  const t = escapeHtml(text); if(!q) return t;
+  const i = String(text).toLocaleLowerCase('tr').indexOf(q); if(i < 0) return t;
+  return escapeHtml(text.slice(0, i)) + '<mark>' + escapeHtml(text.slice(i, i + q.length)) + '</mark>' + escapeHtml(text.slice(i + q.length));
+}
+function hmapView(label){
+  const s = getSession(), base = String(label).replace(/\s*\(.*\)$/, '');
+  const it = NAV_ITEMS.find(n => n.label === base);
+  return it && s && navItemVisible(it, s) ? it.view : null;
+}
+function helpMapHtml(q){
+  const nq = s => String(s).toLocaleLowerCase('tr');
+  const qs = HMAP_QUICK.filter(([t, p]) => !q || nq(t + ' ' + p.join(' ')).includes(q));
+  const txt = c => [c.n, c.d, c.who, c.tip || '', ...(c.enter || []), ...(c.read || []), ...(c.subs || []).flat()].join(' ');
+  const cs = HMAP_CARDS.filter(c => !q || nq(txt(c)).includes(q));
+  if(!qs.length && !cs.length) return '<p class="muted">Aramanızla eşleşen bir şey yok. Daha kısa bir kelime deneyin.</p>';
+  const path = p => p.map(x => hmapHl(x, q)).join('<i>›</i>');
+  const quick = qs.map(([t, p]) => { const v = hmapView(p[0]);
+    return `<div class="hmap-q ${v ? 'go' : ''}" ${v ? act('goToView', v) : ''}><b>${hmapHl(t, q)}</b><span class="hmap-path">${path(p)}</span></div>`; }).join('');
+  const cards = cs.map(c => { const v = hmapView(c.n);
+    const subs = q && !nq(c.n + ' ' + c.d).includes(q) ? (c.subs || []).filter(s => nq(s.join(' ')).includes(q)) : (c.subs || []);
+    return `<div class="hmap-card">
+      <div class="hmap-h"><span>${c.ic}</span><b>${hmapHl(c.n, q)}</b><small>${escapeHtml(c.who)}</small>${v ? `<button type="button" class="sbtn hmap-go" ${act('goToView', v)}>➜ Ekrana git</button>` : ''}</div>
+      <p class="muted hmap-d">${hmapHl(c.d, q)}</p>
+      ${c.enter || c.read ? `<div class="hmap-cols">${c.enter ? `<div class="hmap-in"><em>Buradan girilir</em><ul>${c.enter.map(x => `<li>${hmapHl(x, q)}</li>`).join('')}</ul></div>` : ''}${c.read ? `<div class="hmap-out"><em>Burada okunur</em><ul>${c.read.map(x => `<li>${hmapHl(x, q)}</li>`).join('')}</ul></div>` : ''}</div>` : ''}
+      ${subs.length ? `<div class="hmap-subs">${subs.map(([a, b, h]) => `<div><b>${hmapHl(a, q)}</b><small>${hmapHl(b, q)}</small>${h ? `<small class="hmap-how">👉 ${hmapHl(h, q)}</small>` : ''}</div>`).join('')}</div>` : ''}
+      ${c.tip ? `<div class="hmap-tip">${hmapHl(c.tip, q)}</div>` : ''}
+    </div>`; }).join('');
+  return `<div class="box hmap" style="max-width:none;">
+    <h2 style="margin:0 0 4px;">🗺️ Uygulama Haritası</h2>
+    <p class="muted" style="text-align:left;margin:0 0 10px;">Hangi bilgi nereden girilir, hangi rapor nerede ve nasıl okunur. Yukarıdaki kutuya yazarak arayın. Satıra tıklayınca (yetkiniz varsa) o ekran açılır.</p>
+    <div class="hmap-leg"><span><i class="hmap-k1"></i>Buradan girilir</span><span><i class="hmap-k2"></i>Burada okunur</span><span><i class="hmap-k3"></i>Bilmeniz gereken</span></div>
+    ${quick ? `<h3 class="hmap-st">Ne yapmak istiyorum? → Nereye gitmeliyim?</h3><div class="hmap-quick">${quick}</div>` : ''}
+    ${cards ? `<h3 class="hmap-st">Menü menü</h3><div class="hmap-cards">${cards}</div>` : ''}
+  </div>`;
+}
