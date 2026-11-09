@@ -227,3 +227,6 @@ alter table customers add column if not exists created_by uuid, add column if no
 
 -- 2026-11-09: clear_purchase_item_cost(p_token, p_item_id) — yanlış girilen birim fiyatı siler (unit_cost=0, price_set=false).
 -- Fiyat teslimle maliyete işlenmişse (cost_applied_qty>0) reddeder. purchasing_reports. grant ... to anon, authenticated.
+
+-- 2026-11-09: Hammadde arşivleme. ingredients.archived boolean. delete_ingredient: satın alma geçmişinde kullanılan hammadde
+-- silinmez, arşivlenir (reçete/paket bağları kaldırılır, min_stock=0). get_restaurant_config ve get_analytics_bundle arşivlileri göstermez.
