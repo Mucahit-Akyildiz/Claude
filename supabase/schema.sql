@@ -2775,7 +2775,8 @@ begin
       end if;
     end if;
     perform set_config('peyktan.cost_src', 'purchase', true);
-    update ingredients set stock = coalesce(stock,0) - rq, unit_cost = coalesce(nc, unit_cost) where id = ing.id;
+    -- Malzemenin bir kısmı kullanıldıysa stok eksiye düşmez, sıfırda kalır.
+    update ingredients set stock = greatest(0, coalesce(stock,0) - rq), unit_cost = coalesce(nc, unit_cost) where id = ing.id;
     perform set_config('peyktan.cost_src', '', true);
     if ca > 0 then
       insert into ingredient_cost_log(restaurant_id, ingredient_id, source, qty, unit_price, stock_before, old_cost, new_cost, po_item_id)
@@ -15622,6 +15623,28 @@ begin
   end if;
   return json_build_object('order_closed', r->'order_closed', 'amount', v_total, 'account', a.name);
 end; $$;
+
+
+--
+-- Name: undo_purchase_receive(uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.undo_purchase_receive(p_token uuid, p_id uuid) RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+-- Yanlışlıkla "teslim alındı": teslim alınan miktarlar stoktan, alış maliyetin ortalamadan geri alınır; sipariş teslim bekleyenlere döner.
+declare s staff_sessions%rowtype; v purchase_orders%rowtype;
+begin
+  s := _session_check(p_token, 'purchasing_manage');
+  select * into v from purchase_orders where id = p_id and restaurant_id = s.restaurant_id for update;
+  if v.id is null then raise exception 'Sipariş bulunamadı'; end if;
+  if v.status = 'cancelled' then raise exception 'İptal edilmiş sipariş geri alınamaz'; end if;
+  if not exists(select 1 from purchase_order_items where purchase_order_id = p_id and coalesce(received_quantity,0) > 0) and v.status <> 'received' then
+    raise exception 'Bu siparişte teslim alınmış kalem yok'; end if;
+  perform _reverse_po_item(poi.id) from purchase_order_items poi where poi.purchase_order_id = p_id and coalesce(poi.received_quantity,0) > 0;
+  update purchase_orders set status = 'ordered' where id = p_id;
+end $$;
 
 
 --
