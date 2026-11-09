@@ -4340,3 +4340,7 @@ html.emoji-noto .app-brand-row .app-brand-text,html.emoji-noto .auth-brand .name
 .pc2-moreln:hover{background:color-mix(in srgb,var(--accent) 8%,transparent);}
 .pod-cost{margin:0;padding:6px 8px;font-size:12.5px;width:100%;max-width:140px;}
 .pod-save{width:auto;margin:0 auto 0 0;}
+.bgp-st{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;}
+.bgp-chip{display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:999px;border:1.5px solid var(--border);font-size:12.5px;font-weight:700;cursor:pointer;}
+.bgp-chip input{margin:0;width:auto;}
+.bgp-chip.on{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 12%,transparent);}
