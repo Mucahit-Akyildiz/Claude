@@ -135,15 +135,16 @@ async function renderPurchaseReportContent(session){
       </div>
       <div class="pc2-items">
         ${items.length > 1 && p.status !== 'cancelled' ? `<label class="pc2-selall"><input type="checkbox" ${items.every(i => poSel().has(i.id)) ? 'checked' : ''} ${actOn('change','poSelCard',[p.id,'$checked'])}> Bu siparişin tüm kalemlerini seç</label>` : ''}
-        ${items.map(i => { const q = Number(i.quantity)||0, c = Number(i.unit_cost)||0, ok = c>0 || i.free; return `<div class="pc2-it ${ok?'':'nop'} ${poSel().has(i.id) ? 'sel' : ''}">
+        ${items.map((i, ix) => { const q = Number(i.quantity)||0, c = Number(i.unit_cost)||0, ok = c>0 || i.free; return `<div class="pc2-it ${ok?'':'nop'} ${poSel().has(i.id) ? 'sel' : ''} ${ix >= PC_MAX_ROWS ? 'pc2-hide' : ''}">
           ${p.status !== 'cancelled' ? `<input type="checkbox" class="pc2-chk" title="Tedarikçi atamak için seç" data-po="${p.id}" data-item="${i.id}" ${poSel().has(i.id) ? 'checked' : ''} ${actOn('change','poSelItem',[i.id,'$checked'])}>` : ''}
           <span class="pc2-ic">🥕</span>
           <div class="pc2-nm"><b>${escapeHtml(i.name)}</b><small>${q} ${escapeHtml(i.unit||'')}${Number(i.received)>0 && Number(i.received)<q ? ` · teslim ${Number(i.received)}` : ''}</small></div>
           <label class="pc2-price"><input type="number" min="0" step="0.01" placeholder="Fiyat" value="${(APP.pcDrafts||{})[i.id] ?? (ok ? c : '')}" data-item-id="${i.id}" data-orig="${ok ? c : ''}" title="Bedelsiz (ücretsiz) gelen için 0 yazın" class="pc-cost ${ok ? '' : 'missing'}" ${actOn('input','markPcDirty',[p.id])}><span>₺/${escapeHtml(i.unit||'')}</span></label>
           <b class="pc2-line">${c>0 ? money(q*c) : i.free ? '<span class="pchip ok" title="Ücretsiz geldi; maliyete 0 TL olarak girer">🎁 Bedelsiz</span>' : '<span class="pchip warn">fiyat yok</span>'}</b></div>`; }).join('') || '<p class="muted">Kalem yok.</p>'}
+        ${items.length > PC_MAX_ROWS ? `<button type="button" class="pc2-moreln" ${act('openPcDetail', p.id)}>⋯ +${items.length - PC_MAX_ROWS} kalem daha · <u>Detaylı görmek için tıklayınız</u></button>` : ''}
       </div>
       <div class="pc2-foot">${p.notes ? `<div class="pc-note">📝 ${escapeHtml(p.notes)}</div>` : '<span></span>'}
-        <div class="pc2-acts"><button type="button" class="pc-btn" title="Siparişin tüm detayı" ${act('openPcDetail', p.id)}>🔍 Detay</button><span class="pc2-share"><button type="button" class="pc-btn" title="PDF olarak indir" ${act('poExport', p.id, 'pdf')}>📄 PDF</button><button type="button" class="pc-btn" title="Yazdır" ${act('poExport', p.id, 'print')}>🖨️</button><button type="button" class="pc-btn" title="Tedarikçiye e-posta gönder" ${act('poSend', p.id, 'email')}>📧</button><button type="button" class="pc-btn" title="Tedarikçiye SMS gönder" ${act('poSend', p.id, 'sms')}>💬</button></span>${p.status==='ordered' ? `<button type="button" class="pc-btn" ${act('openReceivePOModal', p.id)}>📦 Malzemeyi Teslim Al</button>` : ''}${['draft','ordered'].includes(p.status) ? `<button type="button" class="pc-btn" title="Teslim tarihi, not, kalem ve miktarları düzenle" ${act('openPoEdit', p.id)}>✏️ Düzenle</button>` : ''}${p.status !== 'cancelled' ? `<button type="button" class="pc-btn rv-del" title="Siparişin tamamını (tüm kalemleri) iptal et" ${act('cancelPurchaseOrder', p.id)}>✕ Siparişi iptal et</button>` : ''}
+        <div class="pc2-acts"><span class="pc2-share"><button type="button" class="pc-btn" title="PDF olarak indir" ${act('poExport', p.id, 'pdf')}>📄 PDF</button><button type="button" class="pc-btn" title="Yazdır" ${act('poExport', p.id, 'print')}>🖨️</button><button type="button" class="pc-btn" title="Tedarikçiye e-posta gönder" ${act('poSend', p.id, 'email')}>📧</button><button type="button" class="pc-btn" title="Tedarikçiye SMS gönder" ${act('poSend', p.id, 'sms')}>💬</button></span>${p.status==='ordered' ? `<button type="button" class="pc-btn" ${act('openReceivePOModal', p.id)}>📦 Malzemeyi Teslim Al</button>` : ''}${['draft','ordered'].includes(p.status) ? `<button type="button" class="pc-btn" title="Teslim tarihi, not, kalem ve miktarları düzenle" ${act('openPoEdit', p.id)}>✏️ Düzenle</button>` : ''}${p.status !== 'cancelled' ? `<button type="button" class="pc-btn rv-del" title="Siparişin tamamını (tüm kalemleri) iptal et" ${act('cancelPurchaseOrder', p.id)}>✕ Siparişi iptal et</button>` : ''}
           <button type="button" class="pc-save" id="pcSave_${p.id}" disabled ${act('savePoPrices', p.id)}>${ICON_SAVE}<span>Kaydet</span></button></div></div>
     </div>`;
   };
@@ -193,6 +194,7 @@ async function saveAllPoPrices(){
   const sups = [...document.querySelectorAll('.pc-card .pc2-sup')].filter(i => i.value !== i.dataset.orig);
   await savePcInputs(inputs, document.getElementById('pcSaveAll'), sups);
 }
+const PC_MAX_ROWS = 5; // kartta en fazla bu kadar kalem; fazlası detay penceresinde
 function setProcFilter(k){ APP.procFilter = k; renderPurchaseReportContent(getSession()); }
 function setPurchRepSub(sub){ APP.purchRepSub = sub; renderPurchaseReportContent(getSession()); }
 /* Birim fiyatlar yazılınca otomatik kaydedilmez: siparişin Kaydet düğmesi açılır. */
@@ -883,14 +885,26 @@ function openPcDetail(id){
       ${items.map(i => { const q = n(i.quantity), r = n(i.received), c = n(i.unit_cost); return `<div class="pod-row"><span data-l="Malzeme"><b>${escapeHtml(i.name)}</b></span>
         <span data-l="Sipariş">${q} ${escapeHtml(i.unit || '')}</span>
         <span data-l="Teslim" class="${r >= q && q > 0 ? 'ok' : r > 0 ? 'warn' : 'muted'}">${r} ${escapeHtml(i.unit || '')}${r > q ? ' <small>(+' + (Math.round((r - q) * 1000) / 1000) + ' fazla)</small>' : ''}</span>
-        <span data-l="Birim fiyat">${i.free ? '🎁 Bedelsiz' : c > 0 ? money(c) + ' / ' + escapeHtml(i.unit || '') : '<span class="pchip warn">fiyat yok</span>'}</span>
+        <span data-l="Birim fiyat">${i.free ? '🎁 Bedelsiz' : c > 0 ? money(c) + ' / ' + escapeHtml(i.unit || '') : p.status === 'cancelled' ? '<span class="pchip warn">fiyat yok</span>' : `<input type="number" min="0" step="0.01" class="pod-cost" placeholder="Fiyat ₺/${escapeAttr(i.unit || '')}" data-item-id="${i.id}" title="Bedelsiz (ücretsiz) gelen için 0 yazın">`}</span>
         <span data-l="Tutar"><b>${c > 0 ? money(q * c) : i.free ? '0,00 TL' : '—'}</b></span></div>`; }).join('') || '<p class="muted">Kalem yok.</p>'}
       <div class="pod-row pod-tot"><span>Toplam</span><span></span><span></span><span></span><span><b>${money(p.total_amount)}</b></span></div></div>
     ${p.notes ? `<div class="pc-note">📝 ${escapeHtml(p.notes)}</div>` : ''}
     <div class="pod-acts"><button type="button" class="pc-btn" ${act('poExport', p.id, 'pdf')}>📄 PDF</button><button type="button" class="pc-btn" ${act('poExport', p.id, 'print')}>🖨️ Yazdır</button>
       <button type="button" class="pc-btn" ${act('poSend', p.id, 'email')}>📧 E-posta</button><button type="button" class="pc-btn" ${act('poSend', p.id, 'sms')}>💬 SMS</button>
+      ${items.some(i => !(Number(i.unit_cost) > 0) && !i.free) && p.status !== 'cancelled' ? `<button type="button" class="pod-save" ${act('savePodPrices')}>${ICON_SAVE}<span>Fiyatları kaydet</span></button>` : ''}
       ${p.status === 'ordered' ? `<button type="button" class="pc-btn" ${act('poDetailGo', 'receive', p.id)}>📦 Teslim Al</button>` : ''}${['draft','ordered'].includes(p.status) ? `<button type="button" class="pc-btn" ${act('poDetailGo', 'edit', p.id)}>✏️ Düzenle</button>` : ''}</div>
   </div>`;
   document.body.appendChild(bg);
 }
 function poDetailGo(kind, id){ removeEl('poDetailBg'); if(kind === 'receive') openReceivePOModal(id); else openPoEdit(id); }
+
+async function savePodPrices(){
+  const inputs = [...document.querySelectorAll('#poDetailBg .pod-cost')].filter(i => String(i.value).trim() !== '');
+  if(!inputs.length){ showToast('Önce fiyat girin'); return; }
+  for(const i of inputs){ const v = parseFloat(String(i.value).replace(',', '.')); if(isNaN(v) || v < 0){ showToast('Geçerli bir birim fiyat girin'); i.focus(); return; } }
+  const tok = getSession().session_token;
+  const res = await withLoadingOverlay(Promise.all(inputs.map(i => sb.rpc('set_purchase_item_cost', { p_token: tok, p_item_id: i.dataset.itemId, p_unit_cost: parseFloat(String(i.value).replace(',', '.')) }))));
+  const err = res.find(r => r.error); if(err){ alert(err.error.message); return; }
+  removeEl('poDetailBg'); showToast(inputs.length + ' fiyat kaydedildi ✓');
+  renderPurchaseReportContent(getSession());
+}

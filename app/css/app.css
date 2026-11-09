@@ -4312,7 +4312,7 @@ html.emoji-noto .app-brand-row .app-brand-text,html.emoji-noto .auth-brand .name
 
 /* Mal Kabul sipariş detayı */
 .pc2-open{cursor:pointer;} .pc2-open:hover .pc2-total{text-decoration:underline;}
-.pod-modal{max-width:760px;width:100%;border-top:4px solid var(--pc);}
+.pod-modal{max-width:760px;width:100%;max-height:92vh;overflow-y:auto;border-top:4px solid var(--pc);}
 .pod-head{display:flex;align-items:center;gap:12px;} .pod-t{flex:1;min-width:0;} .pod-t small{color:var(--muted);}
 .pod-st{padding:5px 12px;border-radius:999px;font-weight:700;font-size:12.5px;background:color-mix(in srgb,var(--pc) 18%,transparent);border:1px solid color-mix(in srgb,var(--pc) 50%,transparent);white-space:nowrap;}
 .pod-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;margin:14px 0;}
@@ -4330,3 +4330,9 @@ html.emoji-noto .app-brand-row .app-brand-text,html.emoji-noto .auth-brand .name
 .pod-row .ok{color:#22c55e;font-weight:700;} .pod-row .warn{color:#f59e0b;font-weight:700;}
 .pod-acts{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px;justify-content:flex-end;} .pod-acts .pc-btn{width:auto;margin:0;}
 @media (max-width:600px){ .pod-th{display:none;} .pod-row{grid-template-columns:1fr 1fr;} .pod-row span[data-l]::before{content:attr(data-l) ": ";color:var(--muted);font-size:11px;} .pod-row span:last-child{text-align:left;} }
+
+.pc2-hide{display:none !important;}
+.pc2-moreln{width:100%;margin:4px 0 0;padding:8px 10px;border-radius:10px;background:transparent;border:1px dashed var(--border);color:var(--accent);font-size:12.5px;font-weight:700;box-shadow:none;text-align:center;}
+.pc2-moreln:hover{background:color-mix(in srgb,var(--accent) 8%,transparent);}
+.pod-cost{margin:0;padding:6px 8px;font-size:12.5px;width:100%;max-width:140px;}
+.pod-save{width:auto;margin:0 auto 0 0;}
