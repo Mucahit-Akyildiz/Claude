@@ -201,3 +201,7 @@ alter table customers add column if not exists created_by uuid, add column if no
 -- RPC: get_sms_optout_settings, set_sms_optout_allow (int_sms). _send_sms güncellendi.
 
 -- winback_flags: get_winback satırlarına sms_blocked (SMS istemiyor ve tür izinli değil) ve recently_sent (24 saat / 14 gün kuralı) eklendi.
+
+-- anon_internal_revoke: yeni iç fonksiyonların (_trg_*, _customer_thanks, _sms_poll_reports, _valid_* …) anon/authenticated
+-- execute yetkisi kaldırıldı; "alter default privileges for role postgres revoke execute on functions from public" ile
+-- bundan sonra oluşturulan fonksiyonlar varsayılan kapalı. İstemci RPC'lerine açıkça grant gerekir.
