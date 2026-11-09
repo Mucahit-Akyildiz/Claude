@@ -142,7 +142,7 @@ async function renderPurchaseOrdersContent(session){
       </div>
       <div style="display:flex;justify-content:space-between;align-items:center;margin:16px 0 8px;"><b style="font-size:14px;">📦 Hammaddeler</b><button type="button" class="u-wa-m0 ghost-btn" ${act('addPoDraftItemRow')}>+ Hammadde Ekle</button></div>
       <div id="poItemsWrap">${renderPoDraftItemsHtml()}</div>
-      <div class="fsheet-foot"><button type="button" class="ghost-btn" ${act('closeSheet','poSheet')}>Vazgeç</button><button ${act('createPurchaseOrder')}>📝 Taslağı Oluştur</button></div>`, 'var(--accent)')}
+      <div class="fsheet-foot"><button type="button" class="ghost-btn" ${act('closeSheet','poSheet')}>Vazgeç</button><button id="poSaveBtn" ${act('createPurchaseOrder')}>📝 Taslağı Oluştur</button></div>`, 'var(--accent)')}
   ${statChipsClick([['ordered','🚚', cnt('ordered'), 'Teslim bekliyor', '#f59e0b'], ['draft','📝', cnt('draft'), 'Taslak', '#a78bfa'],
       ['late','⏰', rows.filter(isLate).length, 'Gecikmiş', 'var(--danger,#ef4444)'], ['received','✅', cnt('received'), 'Teslim alındı', 'var(--ok,#22c55e)'],
       ['cancelled','✕', cnt('cancelled'), 'İptal edilen', '#94a3b8'], ['all','📋', rows.length - cnt('cancelled'), 'Tüm siparişler', 'var(--c1)']], pf, 'setPoFilter')}
@@ -158,7 +158,7 @@ async function renderPurchaseOrdersContent(session){
           return `<div class="po-it ${done?'done':r>0?'part':''}"><span>${done?'✓':r>0?'◐':'○'} ${escapeHtml(it.name)}</span><b>${p.status==='draft' ? fmtQty(q) : fmtQty(r)+' / '+fmtQty(q)} ${escapeHtml(it.unit||'')}</b></div>`; }).join('')}${items.length > 6 ? `<div class="u-fs12 muted">+${items.length-6} kalem daha</div>` : ''}</div>` : ''}
         ${p.notes ? `<div class="rv-note">📝 ${escapeHtml(p.notes)}</div>` : ''}
         <div class="po-more">Detay için tıklayın ›</div>
-        ${ownDraft(p) ? `<div class="pcard-acts"><button type="button" class="pc-btn pc-edit" style="margin-left:0;" ${act('markPOOrdered', p.id)}>🚚 Sipariş Ver</button><button type="button" class="pc-btn rv-del" style="margin-left:auto;" ${act('removePO', p.id)}>🗑 Sil</button></div>` : ''}
+        ${ownDraft(p) ? `<div class="pcard-acts"><button type="button" class="pc-btn pc-edit" style="margin-left:0;" ${act('markPOOrdered', p.id)}>🚚 Sipariş Ver</button><button type="button" class="pc-btn" ${act('editPO', p.id)}>✏️ Düzenle</button><button type="button" class="pc-btn rv-del" style="margin-left:auto;" ${act('removePO', p.id)}>🗑 Sil</button></div>` : ''}
       </div>`; }).join('')}</div>`
       : '<div class="empty-state"><div style="font-size:42px;">📋</div><p class="muted">Bu filtrede sipariş yok.</p></div>'}
   </div>`;
@@ -201,7 +201,29 @@ function lowStockBannerHtml(){
   </div>`;
 }
 // Yeni Sipariş her zaman boş başlar (önceki taslak / kritik stok önerisi taşınmaz).
+function poSheetMode(edit){
+  const t = document.getElementById('poSheetTitle'); if(t) t.textContent = edit ? 'Sipariş Taslağını Düzenle' : 'Yeni Sipariş Taslağı';
+  const b = document.getElementById('poSaveBtn'); if(b) b.textContent = edit ? '💾 Değişiklikleri Kaydet' : '📝 Taslağı Oluştur';
+}
+/* Taslağı düzenle: kalemler, miktarlar, beklenen tarih ve not (yalnız taslak durumunda; sunucu da denetler). */
+async function editPO(id){
+  const p = (APP.poRows || []).find(x => x.id === id); if(!p) return;
+  await loadIngUsage();
+  const ings = (APP.config && APP.config.ingredients) || [], miss = [];
+  APP.poDraftItems = (p.items || []).map(it => {
+    const ig = ings.find(g => g.name === it.name && (g.unit || '') === (it.unit || '')) || ings.find(g => g.name === it.name);
+    if(!ig){ miss.push(it.name); return null; }
+    return { ingredient_id: ig.id, quantity: String(Number(it.quantity) || ''), unit_cost: '' };
+  }).filter(Boolean);
+  APP.poEditId = id; APP.poEditSupplier = p.supplier_id || null;
+  const w = document.getElementById('poItemsWrap'); if(w) w.innerHTML = renderPoDraftItemsHtml();
+  const e = document.getElementById('po_expected'); if(e) e.value = p.expected_date ? String(p.expected_date).slice(0, 10) : '';
+  const n = document.getElementById('po_notes'); if(n) n.value = p.notes || '';
+  poSheetMode(true); openSheet('poSheet');
+  if(miss.length) uiAlert('Şu kalemler hammadde listesinde bulunamadı, taslaktan çıkarılacak: ' + miss.join(', '));
+}
 function openNewPoSheet(){
+  APP.poEditId = null; APP.poEditSupplier = null; poSheetMode(false);
   APP.poDraftItems = [];
   const w = document.getElementById('poItemsWrap'); if(w) w.innerHTML = renderPoDraftItemsHtml();
   ['po_expected', 'po_notes'].forEach(id => { const e = document.getElementById(id); if(e) e.value = ''; });
@@ -210,6 +232,7 @@ function openNewPoSheet(){
 async function draftLowStockOrder(){
   const low = lowStockList(); if(!low.length) return;
   await loadIngUsage();
+  APP.poEditId = null; APP.poEditSupplier = null; poSheetMode(false);
   APP.poDraftItems = []; // taslak her seferinde kritik stoktan yeniden hazırlanır
   const have = new Set();
   low.forEach(i => { if(!have.has(i.id)) APP.poDraftItems.push({ ingredient_id: i.id, quantity: String(poSuggest(i).qty), unit_cost: '' }); });
@@ -244,19 +267,20 @@ function removePoDraftItemRow(idx){
 }
 async function createPurchaseOrder(){
   const session = getSession();
-  const supplierId = null; // tedarikçiyi Satınalma sorumlusu seçer
+  const editId = APP.poEditId || null;
+  const supplierId = editId ? (APP.poEditSupplier || null) : null; // tedarikçiyi Satınalma sorumlusu seçer
   const expected = document.getElementById('po_expected').value || null;
   const notes = document.getElementById('po_notes').value.trim() || null;
   const items = (APP.poDraftItems||[]).filter(it => it.ingredient_id && parseFloat(it.quantity) > 0)
     .map(it => ({ ingredient_id: it.ingredient_id, quantity: parseFloat(it.quantity), unit_cost: 0 }));
   if(items.length===0){ alert('En az bir hammadde ekleyin'); return; }
-  const { error } = await sb.rpc('upsert_purchase_order', { p_token: session.session_token, p_id: null, p_supplier_id: supplierId, p_expected_date: expected, p_notes: notes, p_items: items });
+  const { error } = await sb.rpc('upsert_purchase_order', { p_token: session.session_token, p_id: editId, p_supplier_id: supplierId, p_expected_date: expected, p_notes: notes, p_items: items });
   if(error){ alert(error.message); return; }
-  APP.poDraftItems = [];
-  closeSheet('poSheet');
+  APP.poDraftItems = []; APP.poEditId = null; APP.poEditSupplier = null;
+  closeSheet('poSheet'); poSheetMode(false);
   APP.poFilter = 'draft'; // yeni taslak hemen görünsün
   renderPurchaseOrdersContent(session);
-  showToast('📝 Sipariş taslağı oluşturuldu — kartından Sipariş Ver ile iletebilirsiniz');
+  showToast(editId ? '💾 Taslak güncellendi' : '📝 Sipariş taslağı oluşturuldu — kartından Sipariş Ver ile iletebilirsiniz');
 }
 async function markPOOrdered(id){
   const session = getSession();
