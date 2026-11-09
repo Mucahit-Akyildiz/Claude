@@ -108,7 +108,7 @@ const assert = (c, m) => { if(!c) throw new Error(m); };
     });
     await check(T('Satınalma Siparişleri + kritik stok'), async () => {
       await view('purchasing', '.ls-banner');
-      await page.evaluate(() => draftLowStockOrder()); await page.waitForSelector('#poSheet.open #poItemsWrap select', { timeout: 5000 }); await page.evaluate(() => closeSheet());
+      await page.evaluate(() => draftLowStockOrder()); await page.waitForSelector('#poSheet.open #poItemsWrap .pos-line input', { timeout: 5000 }); await page.evaluate(() => closeSheet());
     });
     await check(T('Finansal Analiz: Gün Sonu ve Puantaj'), async () => {
       await page.evaluate(() => { APP.reportsUnlocked = true; }); await view('reports', '#reportContent');
