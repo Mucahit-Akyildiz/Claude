@@ -312,7 +312,7 @@ async function openReceivePOModal(id){
     ${items.map(it => `
       <div style="padding:8px 0;border-bottom:1px solid var(--border);">
         <div style="display:flex;justify-content:space-between;font-size:13px;"><span>${escapeHtml(it.ingredient_name)}</span><span class="muted">${it.received_quantity}/${it.quantity} ${escapeHtml(it.ingredient_unit)}</span></div>
-        <input type="number" min="0" step="0.01" placeholder="Teslim alınan miktar (kalan ${Math.max(0, it.quantity - it.received_quantity)})" data-item-id="${it.id}" data-left="${Math.max(0, it.quantity - it.received_quantity)}" data-name="${escapeAttr(it.ingredient_name)}" data-unit="${escapeAttr(it.ingredient_unit || '')}" class="recv-qty-input" style="margin-top:4px;">
+        <input type="number" min="0" step="0.01" placeholder="Teslim alınan miktar (kalan ${Math.max(0, it.quantity - it.received_quantity)})" value="${Math.round(Math.max(0, it.quantity - it.received_quantity) * 1000) / 1000 || ''}" title="Sipariş edilen kalan miktar hazır gelir; farklı geldiyse değiştirin" data-item-id="${it.id}" data-left="${Math.max(0, it.quantity - it.received_quantity)}" data-name="${escapeAttr(it.ingredient_name)}" data-unit="${escapeAttr(it.ingredient_unit || '')}" class="recv-qty-input" style="margin-top:4px;">
       </div>`).join('')}
     </div>
     <button class="u-mt12" ${act('confirmReceivePO')}>Teslim Alındı Olarak Kaydet</button>
