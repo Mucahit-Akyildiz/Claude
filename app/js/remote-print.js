@@ -92,3 +92,55 @@ async function rpHostTick(){
 setInterval(rpHostTick, 2000);
 setInterval(() => { if(getSession() && document.visibilityState === 'visible') refreshRemotePrinters(); }, 60000);
 setTimeout(() => { if(getSession()){ refreshRemotePrinters(); if(rpSharedIds().length) rpResyncShares(); } }, 2500);
+
+/* ---- Arka planda mutfak fişi (yalnız masaüstü uygulaması) ----
+   Seçilen istasyonların yeni siparişleri, sipariş hangi cihazdan verilirse verilsin, bu bilgisayarın
+   istasyon yazıcısından basılır. Mutfak ekranının açık olması gerekmez; uygulama açık (küçültülmüş olabilir) olmalı. */
+const BG_KEY = 'peyk_bg_print_stations', BG_SEEN_KEY = 'peyk_bg_print_seen';
+function bgStations(){ try{ return JSON.parse(localStorage.getItem(BG_KEY) || '[]') || []; }catch(e){ return []; } }
+function bgSetStations(a){ try{ localStorage.setItem(BG_KEY, JSON.stringify(a)); }catch(e){} }
+function bgSeen(){ try{ return JSON.parse(localStorage.getItem(BG_SEEN_KEY) || '{}') || {}; }catch(e){ return {}; } }
+function bgSaveSeen(m){
+  const cut = Date.now() - 24 * 3600e3; Object.keys(m).forEach(k => { if(m[k] < cut) delete m[k]; });
+  try{ localStorage.setItem(BG_SEEN_KEY, JSON.stringify(m)); }catch(e){}
+}
+function bgPrintBoxHtml(){
+  if(!(typeof isDesktopApp === 'function' && isDesktopApp())) return '';
+  const st = (APP.config && APP.config.stations) || [], on = bgStations();
+  return `<div class="sw-card bgp-box" style="margin-top:10px !important;display:block;">
+    <b>🖨️ Arka planda mutfak fişi bas</b><br><span class="u-fs125 muted">Seçilen istasyonların yeni sipariş fişleri, sipariş hangi cihazdan (tablet, telefon, başka bilgisayar) verilirse verilsin bu bilgisayardan basılır. Mutfak ekranını açmanız gerekmez; uygulama açık (küçültülmüş) kalsın. Fiş, <b>İstasyon → Yazıcı</b>'da o istasyona seçilen yazıcıdan çıkar. Çift fiş çıkmaması için siparişi veren cihazlarda "Sipariş verilince fişi hemen bu cihazdan yazdır"ı kapatın.</span>
+    <div class="bgp-st">${st.map(x => `<label class="bgp-chip ${on.includes(x.id) ? 'on' : ''}"><input type="checkbox" ${on.includes(x.id) ? 'checked' : ''} ${actOn('change','bgToggleStation',[x.id,'$checked'])}> ${escapeHtml(x.name)}</label>`).join('') || '<span class="muted u-fs12">İstasyon tanımlı değil.</span>'}</div></div>`;
+}
+function bgToggleStation(id, on){
+  const a = bgStations().filter(x => x !== id); if(on) a.push(id); bgSetStations(a);
+  APP.bgPrimed = false; // açılan istasyonun mevcut siparişleri yeniden basılmasın
+  showToast(on ? '🖨️ Bu istasyonun fişleri bu bilgisayardan arka planda basılacak' : 'Arka plan yazdırma kapatıldı');
+  document.querySelectorAll('.bgp-chip input').forEach(i => i.closest('.bgp-chip').classList.toggle('on', i.checked));
+}
+let BG_BUSY = false;
+async function bgPrintTick(){
+  if(BG_BUSY || !(typeof isDesktopApp === 'function' && isDesktopApp())) return;
+  const s = getSession();
+  // Mutfak ekranı açıksa o istasyonun fişini mutfak ekranı basar (çift fiş olmasın).
+  const on = bgStations().filter(id => !(APP.view === 'kitchen' && APP.kitchenStation === id));
+  if(!s || !on.length) return;
+  BG_BUSY = true;
+  try{
+    if(!APP.config){ const { data } = await sb.rpc('get_restaurant_config', { p_token: s.session_token }); if(data) APP.config = data; }
+    const { data, error } = await _sbRpcRaw('get_live_orders', { p_token: s.session_token });
+    if(error || !Array.isArray(data)) return;
+    const seen = bgSeen(), now = Date.now(), first = !APP.bgPrimed;
+    APP.bgPrimed = true;
+    APP.locallyPrintedItemIds = APP.locallyPrintedItemIds || new Set();
+    for(const o of data){
+      const fresh = (o.items || []).filter(i => i.status === 'pending' && on.includes(i.station_id) && !seen[i.id] && !APP.locallyPrintedItemIds.has(i.id));
+      fresh.forEach(i => { seen[i.id] = now; });
+      if(!fresh.length || first) continue; // ilk açılışta mevcut siparişler basılmaz, yalnız yenileri
+      fresh.forEach(i => APP.locallyPrintedItemIds.add(i.id));
+      try{ await printKitchenTicketGrouped(typeof orderDisplayName === 'function' ? orderDisplayName(o) : (o.table_name || ''), fresh, true, o.daily_number, typeof pkgInfoFromOrder === 'function' ? pkgInfoFromOrder(o) : null, o.tags || []); }
+      catch(e){ console.error('Arka plan fiş hatası', e); }
+    }
+    bgSaveSeen(seen);
+  }finally{ BG_BUSY = false; }
+}
+setInterval(bgPrintTick, 3000);

@@ -553,6 +553,7 @@ async function renderPrinterSettingsView(main, session){
         <input type="checkbox" class="sw" ${printOnOrderEnabled()?'checked':''} ${actOn('change','setPrintOnOrder',['$checked'])}>
         <span><b>Sipariş verilince fişi hemen bu cihazdan yazdır</b><br><span class="u-fs125 muted">Sipariş Al / Paket Servis'te sipariş gönderilince fiş bu cihazın yazıcısına basılır. Fişi başka cihazdaki mutfak ekranı basıyorsa kapatın (çift fiş çıkmasın).</span></span>
       </label>
+      ${typeof bgPrintBoxHtml === 'function' ? bgPrintBoxHtml() : ''}
       <label class="sw-card" style="margin-top:10px !important;">
         <input type="checkbox" class="sw" ${printEachItemEnabled()?'checked':''} ${actOn('change','setPrintEachItem',['$checked'])}>
         <span><b>Ürünleri tek tek yazdır</b><br><span class="u-fs125 muted">Mutfak fişinde her ürün ayrı fişe basılır (örn. 3 Döner → 3 ayrı fiş). Paketleme ve etiketleme için kullanışlıdır. Bu cihazdaki tüm sipariş fişleri için geçerlidir.</span></span>
