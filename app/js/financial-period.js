@@ -942,6 +942,11 @@ function podCostSave(id){ clearTimeout(POD_SAVE_T[id]); POD_SAVE_T[id] = setTime
 async function podCostSaveNow(id){
   const c = document.getElementById('podC-' + id), ok = document.getElementById('podOk-' + id); if(!c || String(c.value).trim() === '') return;
   const v = Math.round(podBaseCost(id) * 1e6) / 1e6;
+  if(v === 0 && c.dataset.zeroOk !== '1'){
+    if(!await uiConfirm('Fiyat 0 girildi: bu kalem bedelsiz (ücretsiz) olarak kaydedilir. Emin misiniz?', { title: 'Bedelsiz kalem', icon: '🎁', okText: 'Evet, bedelsiz', cancelText: 'Vazgeç', danger: false })){ c.value = c.defaultValue; podCostInput(id); return; }
+    c.dataset.zeroOk = '1';
+  }
+  podSavePackUnit(id);
   if(isNaN(v) || v < 0){ showToast('Geçerli bir birim fiyat girin'); return; }
   if(ok){ ok.textContent = '…'; ok.className = 'pod-ok'; }
   const { error } = await sb.rpc('set_purchase_item_cost', { p_token: getSession().session_token, p_item_id: id, p_unit_cost: v });
@@ -961,6 +966,18 @@ async function podReceive(poId){
   const ok = await submitPoReceipts(poId, recvRows(bg));
   if(!ok) return;
   APP.podDirty = true; closePcDetail();
+}
+// 📦 ile koli içi adet girildiyse ve hammaddenin alış birimi yoksa "koli = N" alış birimi olarak kalıcı kaydedilir.
+async function podSavePackUnit(id){
+  const pnEl = document.getElementById('podPN-' + id), box = document.getElementById('podP-' + id), pn = parseFloat(pnEl ? pnEl.value : '');
+  if(!pnEl || !box || box.hidden || !(pn > 1)) return;
+  const ig = ((APP.config && APP.config.ingredients) || []).find(x => x.name === pnEl.dataset.name);
+  if(!ig || ingDefaultPack(ig)) return;
+  const units = [{ n: 'koli', f: pn, d: true }];
+  const { error } = await sb.rpc('set_ingredient_units', { p_token: getSession().session_token, p_id: ig.id, p_units: units, p_piece_weight: ig.piece_weight || null });
+  if(error) return; // yetki yoksa sessizce yalnız bu cihazda hatırlanır
+  ig.purchase_units = units;
+  showToast('📦 ' + ig.name + ': 1 koli = ' + fmtIngQty(pn, ig) + ' olarak kaydedildi · fiyat bundan sonra ₺/koli');
 }
 function closePcDetail(){
   removeEl('poDetailBg');
