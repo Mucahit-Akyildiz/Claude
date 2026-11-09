@@ -591,3 +591,12 @@ async function syncServerClock(){
   }catch(e){}
 }
 if(typeof sb !== 'undefined'){ setTimeout(syncServerClock, 1500); setInterval(syncServerClock, 10 * 60000); }
+
+/* Yan menü (.set-nav) yüksekliği: sayfanın neresinde olunursa olsun menünün tamamı ekranda kalsın, kendi içinde kaysın. */
+function fitSideNav(){
+  const n = document.querySelector('.set-nav'); if(!n) return;
+  const top = Math.max(12, n.getBoundingClientRect().top);
+  n.style.setProperty('--navmax', Math.max(240, window.innerHeight - top - 12) + 'px');
+}
+['scroll', 'resize'].forEach(ev => window.addEventListener(ev, () => requestAnimationFrame(fitSideNav), { passive: true, capture: true }));
+new MutationObserver(() => requestAnimationFrame(fitSideNav)).observe(document.documentElement, { childList: true, subtree: true });
