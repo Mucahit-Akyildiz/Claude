@@ -904,7 +904,14 @@ async function savePodPrices(){
   for(const i of inputs){ const v = parseFloat(String(i.value).replace(',', '.')); if(isNaN(v) || v < 0){ showToast('Geçerli bir birim fiyat girin'); i.focus(); return; } }
   const tok = getSession().session_token;
   const res = await withLoadingOverlay(Promise.all(inputs.map(i => sb.rpc('set_purchase_item_cost', { p_token: tok, p_item_id: i.dataset.itemId, p_unit_cost: parseFloat(String(i.value).replace(',', '.')) }))));
-  const err = res.find(r => r.error); if(err){ alert(err.error.message); return; }
+  const bad = res.filter(r => r.error), okN = res.length - bad.length;
+  if(bad.length){
+    removeEl('poDetailBg');
+    // Sipariş bu arada değişmiş olabilir (ör. tedarikçi seçilince aynı tedarikçinin açık siparişleriyle birleşir): liste yenilenir.
+    await renderPurchaseReportContent(getSession());
+    await uiAlert((okN ? okN + ' fiyat kaydedildi. ' : '') + (bad.some(r => /bulunamad/i.test(r.error.message)) ? bad.length + ' kalem bu arada değişmiş (sipariş başka bir siparişle birleşmiş olabilir). Liste yenilendi, lütfen fiyatları güncel karttan tekrar girin.' : bad[0].error.message));
+    return;
+  }
   removeEl('poDetailBg'); showToast(inputs.length + ' fiyat kaydedildi ✓');
   renderPurchaseReportContent(getSession());
 }
