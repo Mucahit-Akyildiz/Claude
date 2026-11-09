@@ -639,7 +639,7 @@ function fmtPackQty(q, ig){
 }
 // <option> listesi: value = f (temel birim çarpanı), data-n = birim adı.
 function unitOptionsHtml(ig, sel, opts){
-  return ingUnits(ig, opts).map(u => `<option value="${u.f}" data-n="${escapeAttr(u.n)}" ${u.n === sel ? 'selected' : ''}>${u.approx ? '≈ ' : ''}${escapeHtml(unitShort(u.n))}${u.pack ? ' (' + fmtQty(u.f) + ' ' + escapeHtml(unitShort(ig.unit)) + ')' : ''}</option>`).join('');
+  return ingUnits(ig, opts).map(u => `<option value="${u.f}" data-n="${escapeAttr(u.n)}" ${u.n === sel ? 'selected' : ''}>${u.approx ? '≈ ' : ''}${escapeHtml(unitShort(u.n))}${u.pack && !(opts && opts.short) ? ' (' + fmtQty(u.f) + ' ' + escapeHtml(unitShort(ig.unit)) + ')' : ''}</option>`).join('');
 }
 
 /* ---- Arama kutularında ✕ temizle ----

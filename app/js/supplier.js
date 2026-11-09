@@ -199,7 +199,7 @@ function lowStockBannerHtml(){
   return `<div class="ls-banner">
     <div class="ls-head"><span class="ls-ic">📉</span><div><b>${low.length} hammadde kritik seviyede</b><small>Minimum stok seviyesinin altına inenler</small></div>
       <button type="button" class="ls-btn" ${act('draftLowStockOrder')}>🛒 Sipariş taslağı hazırla</button></div>
-    <div class="ls-chips">${low.map(i => `<span class="pchip ${Number(i.stock) <= 0 ? 'warn' : ''}">${escapeHtml(i.name)} · <b>${fmtQty(Number(i.stock)||0)}</b> / ${fmtQty(Number(i.min_stock))} ${escapeHtml(i.unit||'')}</span>`).join('')}</div>
+    <div class="ls-chips">${low.map(i => `<span class="pchip ${Number(i.stock) <= 0 ? 'warn' : ''}">${escapeHtml(i.name)} · <b>${escapeHtml(fmtPackQty(i.stock, i))}</b> / ${escapeHtml(fmtIngQty(i.min_stock, i))}</span>`).join('')}</div>
   </div>`;
 }
 // Yeni Sipariş her zaman boş başlar (önceki taslak / kritik stok önerisi taşınmaz).
@@ -215,7 +215,8 @@ async function editPO(id){
   APP.poDraftItems = (p.items || []).map(it => {
     const ig = ings.find(g => g.name === it.name && (g.unit || '') === (it.unit || '')) || ings.find(g => g.name === it.name);
     if(!ig){ miss.push(it.name); return null; }
-    return { ingredient_id: ig.id, quantity: String(Number(it.quantity) || ''), unit_cost: '' };
+    const pf = poPackF(ig), bq = Number(it.quantity) || 0, f = pf > 1 && bq > 0 && Math.abs(bq / pf - Math.round(bq / pf)) < 1e-9 ? pf : 1;
+    return { ingredient_id: ig.id, f, quantity: String(unitRound(bq / f) || ''), unit_cost: '' };
   }).filter(Boolean);
   APP.poEditId = id; APP.poEditSupplier = p.supplier_id || null;
   const w = document.getElementById('poItemsWrap'); if(w) w.innerHTML = renderPoDraftItemsHtml();
@@ -238,7 +239,7 @@ async function draftLowStockOrder(){
   APP.poEditId = null; APP.poEditSupplier = null; poSheetMode(false);
   APP.poDraftItems = []; // taslak her seferinde kritik stoktan yeniden hazırlanır
   const have = new Set();
-  low.forEach(i => { if(!have.has(i.id)) APP.poDraftItems.push({ ingredient_id: i.id, quantity: String(poSuggest(i).qty), unit_cost: '' }); });
+  low.forEach(i => { if(!have.has(i.id)) APP.poDraftItems.push(poNewItem(i)); });
   document.getElementById('poItemsWrap').innerHTML = renderPoDraftItemsHtml();
   openSheet('poSheet');
 }
@@ -251,10 +252,11 @@ function renderPoDraftItemsHtml(){
     return `<div class="po-line pos-line">
     <div class="pos-row">
       <div class="pos-name"><b>${escapeHtml(ig ? ig.name : '?')}</b><small class="${low ? 'u-red' : 'muted'}">Elde ${fmtQty(Number(ig && ig.stock) || 0)} ${escapeHtml(un)}${ig && Number(ig.min_stock) > 0 ? ' · min ' + fmtQty(Number(ig.min_stock)) : ''}</small></div>
-      <div class="pos-qty"><input type="number" min="0" step="0.01" placeholder="Miktar" value="${it.quantity||''}" ${actOn('input','setPoDraftField',[idx,'quantity','$value'])}><span>${escapeHtml(un)}</span></div>
+      <div class="pos-qty"><input type="number" min="0" step="any" placeholder="Miktar" value="${it.quantity||''}" ${actOn('input','poQtyInput',[idx,'$value'])}>${ig && ingUnits(ig, { purchase: true }).length > 1 ? `<select class="pos-us" ${actOn('change','setPoDraftUnit',[idx,'$value'])}>${unitOptionsHtml(ig, poUnitName(ig, Number(it.f) || 1), { purchase: true })}</select>` : `<span>${escapeHtml(unitShort(un))}</span>`}</div>
       <button type="button" class="qty-btn" title="Çıkar" ${act('removePoDraftItemRow', idx)}>✕</button>
     </div>
-    ${sg ? `<div class="po-sg"><span>💡 Öneri <b>${fmtQty(sg.qty)} ${escapeHtml(un)}</b> <small class="muted">· ${sg.why}</small></span>${String(sg.qty) !== String(it.quantity) && sg.qty > 0 ? `<button type="button" class="pc-btn" ${act('applyPoSuggest', idx)}>Uygula</button>` : ''}</div>` : ''}
+    ${(Number(it.f) || 1) !== 1 && parseFloat(it.quantity) > 0 ? `<div class="pos-eq" id="poEq-${idx}">= ${escapeHtml(fmtIngQty(parseFloat(it.quantity) * it.f, ig))}</div>` : `<div class="pos-eq" id="poEq-${idx}"></div>`}
+    ${sg ? (() => { const f = Number(it.f) || 1, sq = poSugIn(ig, f), su = poUnitName(ig, f); return `<div class="po-sg"><span>💡 Öneri <b>${fmtQty(sq)} ${escapeHtml(unitShort(su))}</b>${f !== 1 ? ` <small class="muted">(${escapeHtml(fmtIngQty(sg.qty, ig))} gerekli)</small>` : ''} <small class="muted">· ${sg.why}</small></span>${String(sq) !== String(it.quantity) && sq > 0 ? `<button type="button" class="pc-btn" ${act('applyPoSuggest', idx)}>Uygula</button>` : ''}</div>`; })() : ''}
     </div>`; }).join('');
 }
 /* Hammadde arama: yazdıkça süzülür; kritik stoktakiler önce. Tıklayınca kalem eklenir (zaten varsa o satıra gider). */
@@ -281,12 +283,23 @@ async function poPickIng(id){
   await loadIngUsage();
   const ig = ((APP.config && APP.config.ingredients) || []).find(x => x.id === id); if(!ig) return;
   let idx = APP.poDraftItems.findIndex(x => x.ingredient_id === id);
-  if(idx < 0){ APP.poDraftItems.push({ ingredient_id: id, quantity: String(poSuggest(ig).qty || ''), unit_cost: '' }); idx = APP.poDraftItems.length - 1; }
+  if(idx < 0){ APP.poDraftItems.push(poNewItem(ig)); idx = APP.poDraftItems.length - 1; }
   document.getElementById('poItemsWrap').innerHTML = renderPoDraftItemsHtml();
   const inp = document.getElementById('poIngSearch'); if(inp){ inp.value = ''; }
   const box = document.getElementById('poIngResults'); if(box) box.hidden = true;
   const row = document.querySelectorAll('#poItemsWrap .pos-line')[idx];
   if(row){ row.scrollIntoView({ block: 'nearest' }); const q = row.querySelector('input'); if(q){ q.focus(); q.select(); } }
+}
+/* Alış birimi: kalem miktarı ekranda seçilen birimle (f = kaç temel birim) tutulur, kayıtta temel birime çevrilir. */
+function poPackF(ig){ const pk = ingDefaultPack(ig); return pk ? pk.f : 1; }
+function poSugIn(ig, f){ const b = Number(poSuggest(ig).qty) || 0; return f > 1 ? Math.ceil(b / f - 1e-9) : b; }
+function poNewItem(ig){ const f = poPackF(ig); return { ingredient_id: ig.id, f, quantity: String(poSugIn(ig, f) || ''), unit_cost: '' }; }
+function poUnitName(ig, f){ const u = ingUnits(ig, { purchase: true }).find(x => Math.abs(x.f - f) < 1e-9 && (f !== 1 || x.base)); return u ? u.n : ig.unit; }
+function setPoDraftUnit(idx, v){
+  const it = APP.poDraftItems[idx]; if(!it) return;
+  const oldF = Number(it.f) || 1, newF = parseFloat(v) || 1, q = parseFloat(it.quantity);
+  it.f = newF; if(q > 0) it.quantity = String(unitRound(q * oldF / newF));
+  document.getElementById('poItemsWrap').innerHTML = renderPoDraftItemsHtml();
 }
 // Toplu seçim: arama listesinde işaretlenenler tek düğmeyle eklenir.
 function poSelToggle(id, on){ APP.poSel = APP.poSel || new Set(); if(on) APP.poSel.add(id); else APP.poSel.delete(id); poIngFilter((document.getElementById('poIngSearch') || {}).value, true); }
@@ -295,7 +308,7 @@ async function poAddSelected(){
   const ids = [...(APP.poSel || [])]; if(!ids.length) return;
   await loadIngUsage();
   const ings = (APP.config && APP.config.ingredients) || [], have = new Set(APP.poDraftItems.map(x => x.ingredient_id)); let n = 0;
-  ids.forEach(id => { const ig = ings.find(x => x.id === id); if(ig && !have.has(id)){ APP.poDraftItems.push({ ingredient_id: id, quantity: String(poSuggest(ig).qty || ''), unit_cost: '' }); n++; } });
+  ids.forEach(id => { const ig = ings.find(x => x.id === id); if(ig && !have.has(id)){ APP.poDraftItems.push(poNewItem(ig)); n++; } });
   APP.poSel = new Set();
   document.getElementById('poItemsWrap').innerHTML = renderPoDraftItemsHtml();
   const inp = document.getElementById('poIngSearch'); if(inp) inp.value = '';
@@ -305,7 +318,7 @@ async function poAddSelected(){
 async function poAddLowStock(){
   await loadIngUsage();
   const have = new Set(APP.poDraftItems.map(x => x.ingredient_id)); let n = 0;
-  lowStockList().forEach(i => { if(!have.has(i.id)){ APP.poDraftItems.push({ ingredient_id: i.id, quantity: String(poSuggest(i).qty || ''), unit_cost: '' }); n++; } });
+  lowStockList().forEach(i => { if(!have.has(i.id)){ APP.poDraftItems.push(poNewItem(i)); n++; } });
   document.getElementById('poItemsWrap').innerHTML = renderPoDraftItemsHtml();
   showToast(n ? n + ' kritik hammadde eklendi' : 'Kritik stoktaki hammaddeler zaten ekli');
 }
@@ -328,7 +341,7 @@ async function createPurchaseOrder(){
   const expected = document.getElementById('po_expected').value || null;
   const notes = document.getElementById('po_notes').value.trim() || null;
   const items = (APP.poDraftItems||[]).filter(it => it.ingredient_id && parseFloat(it.quantity) > 0)
-    .map(it => ({ ingredient_id: it.ingredient_id, quantity: parseFloat(it.quantity), unit_cost: 0 }));
+    .map(it => ({ ingredient_id: it.ingredient_id, quantity: Math.round(parseFloat(it.quantity) * (Number(it.f) || 1) * 1e6) / 1e6, unit_cost: 0 }));
   if(items.length===0){ alert('En az bir hammadde ekleyin'); return; }
   const { error } = await sb.rpc('upsert_purchase_order', { p_token: session.session_token, p_id: editId, p_supplier_id: supplierId, p_expected_date: expected, p_notes: notes, p_items: items });
   if(error){ alert(error.message); return; }
@@ -367,39 +380,73 @@ async function openReceivePOModal(id){
     <div id="receivePOItemsWrap" style="margin-top:10px;">
     ${items.map(it => `
       <div style="padding:8px 0;border-bottom:1px solid var(--border);">
-        <div style="display:flex;justify-content:space-between;font-size:13px;"><span>${escapeHtml(it.ingredient_name)}</span><span class="muted">${it.received_quantity}/${it.quantity} ${escapeHtml(it.ingredient_unit)}</span></div>
-        <input type="number" min="0" step="0.01" placeholder="Teslim alınan miktar (kalan ${Math.max(0, it.quantity - it.received_quantity)})" value="${Math.round(Math.max(0, it.quantity - it.received_quantity) * 1000) / 1000 || ''}" title="Sipariş edilen kalan miktar hazır gelir; farklı geldiyse değiştirin" data-item-id="${it.id}" data-left="${Math.max(0, it.quantity - it.received_quantity)}" data-name="${escapeAttr(it.ingredient_name)}" data-unit="${escapeAttr(it.ingredient_unit || '')}" class="recv-qty-input" style="margin-top:4px;">
+        <div style="display:flex;justify-content:space-between;font-size:13px;"><span>${escapeHtml(it.ingredient_name)}</span><span class="muted">${escapeHtml(fmtIngQty(it.received_quantity, poIgOf(it)))} / ${escapeHtml(fmtIngQty(it.quantity, poIgOf(it)))}</span></div>
+        ${recvInputHtml(it, poIgOf(it))}
       </div>`).join('')}
     </div>
     <button class="u-mt12" ${act('confirmReceivePO')}>Teslim Alındı Olarak Kaydet</button>
   </div>`;
   document.body.appendChild(bg);
 }
-async function confirmReceivePO(){
-  const bg = document.getElementById('receivePOModalBg');
-  const poId = bg.dataset.poId;
-  const receipts = Array.from(bg.querySelectorAll('.recv-qty-input'))
-    .map(inp => ({ item_id: inp.dataset.itemId, quantity: parseFloat(inp.value)||0, left: Number(inp.dataset.left)||0, name: inp.dataset.name, unit: inp.dataset.unit }))
-    .filter(r => r.quantity > 0);
-  if(receipts.length===0){ alert('En az bir kalem için miktar girin'); return; }
-  // Sipariş edilenden fazla girilen kalemler: onay alınırsa fazlası da stoğa girer ve sipariş miktarı gelen miktara güncellenir.
+/* Teslim kaydı: r = { item_id, quantity (temel birim), left (kalan, temel), name, ig }.
+   Fazla girilen kalem için onay istenir (fazlası stoğa girer, sipariş miktarı güncellenir);
+   eksik girilenler için bilgi verilir (sipariş "kısmen teslim" kalır, kalanı sonra teslim alınır). */
+async function submitPoReceipts(poId, list){
+  const receipts = list.filter(r => r.quantity > 0);
+  if(receipts.length===0){ alert('En az bir kalem için miktar girin'); return false; }
+  const q = (x, r) => fmtIngQty(x, r.ig || { unit: r.unit });
   const over = receipts.filter(r => r.quantity > r.left + 1e-9);
   if(over.length){
-    const lines = over.map(r => '• ' + r.name + ': kalan ' + fmtQty(r.left) + ' ' + r.unit + ', girilen ' + fmtQty(r.quantity) + ' (+' + fmtQty(r.quantity - r.left) + ' fazla)').join('\n');
-    const ok = await uiConfirm('Sipariş edilenden fazla teslim alıyorsunuz:\n\n' + lines + '\n\nOnaylarsanız fazlası da stoğa eklenir ve siparişteki miktar gelen miktara güncellenir. Emin misiniz?', { title: 'Siparişten fazla teslim', icon: '⚠️', okText: 'Evet, fazlasını da al', cancelText: 'Geri dön', danger: false });
-    if(!ok) return;
+    const lines = over.map(r => '• ' + r.name + ': kalan ' + q(r.left, r) + ', girilen ' + q(r.quantity, r) + ' (+' + q(r.quantity - r.left, r) + ' fazla)').join('\n');
+    const ok = await uiConfirm('Sipariş edilenden fazla teslim alıyorsunuz:\n\n' + lines + '\n\nOnaylarsanız fazlası da stoğa eklenir ve siparişteki miktar gelen miktara güncellenir. Emin misiniz?', { title: 'Siparişten fazla teslim', icon: '⚠️', okText: 'Evet, teslim al', cancelText: 'Vazgeç', danger: false });
+    if(!ok) return false;
     over.forEach(r => { r.allow_over = true; });
   }
-  receipts.forEach(r => { delete r.left; delete r.name; delete r.unit; });
+  const under = list.filter(r => r.left > 1e-9 && r.quantity < r.left - 1e-9);
+  if(under.length){
+    const lines = under.map(r => '• ' + r.name + ': kalan ' + q(r.left, r) + ', gelen ' + q(r.quantity, r) + ' (' + q(r.left - r.quantity, r) + ' eksik)').join('\n');
+    const ok = await uiConfirm('Eksik teslim:\n\n' + lines + '\n\nSipariş "kısmen teslim" olarak kalır; eksik kalanı geldiğinde tekrar teslim alabilirsiniz.', { title: 'Eksik teslim', icon: '📦', okText: 'Tamam, kaydet', cancelText: 'Vazgeç', danger: false });
+    if(!ok) return false;
+  }
+  const payload = receipts.map(r => Object.assign({ item_id: r.item_id, quantity: Math.round(r.quantity * 1e6) / 1e6 }, r.allow_over ? { allow_over: true } : {}));
   const session = getSession();
-  const { error } = await sb.rpc('receive_purchase_order_items', { p_token: session.session_token, p_id: poId, p_receipts: receipts });
-  if(error){ alert(error.message); return; }
-  bg.remove();
-  if(APP.view==='procurement') renderPurchaseReportContent(session); else renderPurchaseOrdersContent(session);
+  const { error } = await withLoadingOverlay(sb.rpc('receive_purchase_order_items', { p_token: session.session_token, p_id: poId, p_receipts: payload }));
+  if(error){ alert(error.message); return false; }
   if(typeof refreshNavBadges === 'function') refreshNavBadges();
   showToast('Teslim alındı, stok güncellendi ✓');
+  return true;
+}
+function poIgOf(it){ const ings = (APP.config && APP.config.ingredients) || []; return ings.find(x => x.id === it.ingredient_id) || ings.find(x => x.name === (it.ingredient_name || it.name)) || { unit: it.ingredient_unit || it.unit || '' }; }
+function recvRows(root){
+  return Array.from(root.querySelectorAll('.recv-qty-input')).map(inp => {
+    const us = inp.parentElement.querySelector('.recv-unit'), f = us ? (parseFloat(us.value) || 1) : 1;
+    const ig = ((APP.config && APP.config.ingredients) || []).find(x => x.id === inp.dataset.ing) || { unit: inp.dataset.unit };
+    return { item_id: inp.dataset.itemId, quantity: (parseFloat(String(inp.value).replace(',', '.')) || 0) * f, left: Number(inp.dataset.left) || 0, name: inp.dataset.name, unit: inp.dataset.unit, ig };
+  });
+}
+// Teslim miktar kutusu + birim seçici (alış birimi varsa ona tam bölünen kalan o birimle hazır gelir).
+function recvInputHtml(it, ig, extraCls){
+  const left = Math.max(0, Number(it.quantity) - Number(it.received_quantity != null ? it.received_quantity : it.received || 0));
+  const pk = ingDefaultPack(ig), useF = pk && left > 0 && Math.abs(left / pk.f - Math.round(left / pk.f)) < 1e-9 ? pk.f : 1;
+  const name = it.ingredient_name || it.name || '', unit = it.ingredient_unit || it.unit || '';
+  const units = ingUnits(ig, { purchase: true });
+  return `<div class="recv-w ${extraCls || ''}"><input type="number" min="0" step="any" class="recv-qty-input" placeholder="kalan ${escapeAttr(fmtIngQty(left, ig))}" value="${left > 0 ? unitRound(left / useF) : ''}" title="Sipariş edilen kalan miktar hazır gelir; farklı geldiyse değiştirin" data-item-id="${it.id}" data-ing="${escapeAttr(ig.id || '')}" data-left="${left}" data-name="${escapeAttr(name)}" data-unit="${escapeAttr(unit)}">
+    ${units.length > 1 ? `<select class="recv-unit" title="Birim">${unitOptionsHtml(ig, poUnitName(ig, useF), { purchase: true, short: extraCls === 'pod-recv' })}</select>` : `<span class="recv-u">${escapeHtml(unitShort(unit))}</span>`}</div>`;
+}
+async function confirmReceivePO(){
+  const bg = document.getElementById('receivePOModalBg'); if(!bg) return;
+  const ok = await submitPoReceipts(bg.dataset.poId, recvRows(bg));
+  if(!ok) return;
+  bg.remove();
+  const session = getSession();
+  if(APP.view==='procurement') renderPurchaseReportContent(session); else renderPurchaseOrdersContent(session);
 }
 
+function poQtyInput(idx, v){
+  const it = APP.poDraftItems[idx]; if(!it) return; it.quantity = v;
+  const ig = ((APP.config && APP.config.ingredients) || []).find(x => x.id === it.ingredient_id), eq = document.getElementById('poEq-' + idx);
+  if(eq && ig) eq.textContent = (Number(it.f) || 1) !== 1 && parseFloat(v) > 0 ? '= ' + fmtIngQty(parseFloat(v) * it.f, ig) : '';
+}
 function setPoDraftField(idx, field, v){
   if(!APP.poDraftItems[idx]) return; APP.poDraftItems[idx][field] = v;
   // Hammadde değişince satır yeniden çizilir (öneri yeni hammaddeye göre); miktar boşsa öneri yazılır.
@@ -431,7 +478,7 @@ function poSuggest(ig){
 function applyPoSuggest(idx){
   const it = APP.poDraftItems[idx]; if(!it) return;
   const ig = ((APP.config && APP.config.ingredients) || []).find(x => x.id === it.ingredient_id); if(!ig) return;
-  it.quantity = String(poSuggest(ig).qty);
+  it.quantity = String(poSugIn(ig, Number(it.f) || 1));
   document.getElementById('poItemsWrap').innerHTML = renderPoDraftItemsHtml();
 }
 function refreshPoSuggest(){ const w = document.getElementById('poItemsWrap'); if(w && (APP.poDraftItems || []).length) w.innerHTML = renderPoDraftItemsHtml(); }

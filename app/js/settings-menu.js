@@ -109,6 +109,7 @@ function renderIngredientsSettings(el, session){
           <span class="ig-st ${out?'out':isLow(i)?'low':uses?'ok':'idle'}">${out ? '● Bitti' : isLow(i) ? '● Kritik' : uses ? '● Kullanımda' : '○ Kullanılmıyor'}</span></div>
         <div class="ig-stock"><input type="number" step="0.01" value="${i.stock}" id="ing_stock_${i.id}" class="ig-qty">
           <select id="ing_unit_${i.id}" class="ig-unit">${['adet','gram','kg','ml','lt'].map(u => `<option value="${u}" ${u===i.unit?'selected':''}>${u}</option>`).join('')}</select></div>
+        ${ingDefaultPack(i) ? `<div class="ig-pack muted">📦 ${escapeHtml(fmtPackQty(i.stock, i))} · 1 ${escapeHtml(ingDefaultPack(i).n)} = ${escapeHtml(fmtIngQty(ingDefaultPack(i).f, i))}</div>` : ''}
         <div class="pcard-mbar"><i style="width:${out?0:pct}%;background:${out?'var(--danger,#ef4444)':isLow(i)||pct<15?'var(--c3)':'var(--ok,#22c55e)'};"></i></div>
         <div class="ig-foot">
           <label class="ig-waste" title="Temizleme/kesim kaybı">Fire % <input type="number" step="0.1" min="0" max="99" value="${Number(i.waste_pct)||0}" id="ing_waste_${i.id}"></label>
