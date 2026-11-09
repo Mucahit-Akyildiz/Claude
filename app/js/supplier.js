@@ -225,6 +225,7 @@ async function editPO(id){
   if(miss.length) uiAlert('Şu kalemler hammadde listesinde bulunamadı, taslaktan çıkarılacak: ' + miss.join(', '));
 }
 function openNewPoSheet(){
+  APP.poSel = new Set();
   APP.poEditId = null; APP.poEditSupplier = null; poSheetMode(false);
   APP.poDraftItems = [];
   const w = document.getElementById('poItemsWrap'); if(w) w.innerHTML = renderPoDraftItemsHtml();
@@ -257,7 +258,7 @@ function renderPoDraftItemsHtml(){
     </div>`; }).join('');
 }
 /* Hammadde arama: yazdıkça süzülür; kritik stoktakiler önce. Tıklayınca kalem eklenir (zaten varsa o satıra gider). */
-function poIngFilter(v){
+function poIngFilter(v, keep){
   const box = document.getElementById('poIngResults'); if(!box) return;
   const q = String(v || '').trim().toLocaleLowerCase('tr');
   const have = new Set((APP.poDraftItems || []).map(x => x.ingredient_id));
@@ -265,10 +266,15 @@ function poIngFilter(v){
   const low = i => Number(i.min_stock) > 0 && Number(i.stock) <= Number(i.min_stock);
   const list = all.filter(i => !q || String(i.name).toLocaleLowerCase('tr').includes(q))
     .sort((a, b) => (low(b) - low(a)) || String(a.name).localeCompare(String(b.name), 'tr')).slice(0, 40);
-  if(!q && document.activeElement !== document.getElementById('poIngSearch')){ box.hidden = true; return; }
-  box.innerHTML = list.length ? list.map(i => `<button type="button" class="pos-opt ${have.has(i.id) ? 'in' : ''}" ${act('poPickIng', i.id)}>
-      <span><b>${escapeHtml(i.name)}</b><small>${escapeHtml(i.unit || '')} · elde ${fmtQty(Number(i.stock) || 0)}</small></span>${have.has(i.id) ? '<em>✓ Ekli</em>' : low(i) ? '<em class="u-red">Kritik</em>' : '<em>+ Ekle</em>'}</button>`).join('')
+  if(!q && !keep && document.activeElement !== document.getElementById('poIngSearch')){ box.hidden = true; return; }
+  APP.poSel = APP.poSel || new Set();
+  const sel = APP.poSel, free = list.filter(i => !have.has(i.id));
+  box.innerHTML = list.length ? `<div class="pos-bar"><label><input type="checkbox" ${free.length && free.every(i => sel.has(i.id)) ? 'checked' : ''} ${actOn('change','poSelAll',['$checked'])}> Görünenlerin tümünü seç</label>
+      <button type="button" class="pos-addsel" ${sel.size ? '' : 'disabled'} ${act('poAddSelected')}>＋ Seçilenleri ekle${sel.size ? ' (' + sel.size + ')' : ''}</button></div>` + list.map(i => `<div class="pos-opt ${have.has(i.id) ? 'in' : ''}">
+      ${have.has(i.id) ? '<span class="pos-chk"></span>' : `<label class="pos-chk"><input type="checkbox" data-id="${i.id}" ${sel.has(i.id) ? 'checked' : ''} ${actOn('change','poSelToggle',[i.id,'$checked'])}></label>`}
+      <button type="button" class="pos-optb" ${act('poPickIng', i.id)}><span><b>${escapeHtml(i.name)}</b><small>${escapeHtml(unitShort(i.unit))} · elde ${escapeHtml(fmtIngQty(i.stock, i))}</small></span>${have.has(i.id) ? '<em>✓ Ekli</em>' : low(i) ? '<em class="u-red">Kritik</em>' : '<em>+ Ekle</em>'}</button></div>`).join('')
     : '<p class="muted u-fs13" style="margin:8px;">Bu adla hammadde yok. Ayarlar › Hammaddeler\'den ekleyebilirsiniz.</p>';
+  APP.poVisible = free.map(i => i.id);
   box.hidden = false;
 }
 async function poPickIng(id){
@@ -282,6 +288,20 @@ async function poPickIng(id){
   const row = document.querySelectorAll('#poItemsWrap .pos-line')[idx];
   if(row){ row.scrollIntoView({ block: 'nearest' }); const q = row.querySelector('input'); if(q){ q.focus(); q.select(); } }
 }
+// Toplu seçim: arama listesinde işaretlenenler tek düğmeyle eklenir.
+function poSelToggle(id, on){ APP.poSel = APP.poSel || new Set(); if(on) APP.poSel.add(id); else APP.poSel.delete(id); poIngFilter((document.getElementById('poIngSearch') || {}).value, true); }
+function poSelAll(on){ APP.poSel = APP.poSel || new Set(); (APP.poVisible || []).forEach(id => { if(on) APP.poSel.add(id); else APP.poSel.delete(id); }); poIngFilter((document.getElementById('poIngSearch') || {}).value, true); }
+async function poAddSelected(){
+  const ids = [...(APP.poSel || [])]; if(!ids.length) return;
+  await loadIngUsage();
+  const ings = (APP.config && APP.config.ingredients) || [], have = new Set(APP.poDraftItems.map(x => x.ingredient_id)); let n = 0;
+  ids.forEach(id => { const ig = ings.find(x => x.id === id); if(ig && !have.has(id)){ APP.poDraftItems.push({ ingredient_id: id, quantity: String(poSuggest(ig).qty || ''), unit_cost: '' }); n++; } });
+  APP.poSel = new Set();
+  document.getElementById('poItemsWrap').innerHTML = renderPoDraftItemsHtml();
+  const inp = document.getElementById('poIngSearch'); if(inp) inp.value = '';
+  const box = document.getElementById('poIngResults'); if(box) box.hidden = true;
+  showToast(n + ' hammadde eklendi');
+}
 async function poAddLowStock(){
   await loadIngUsage();
   const have = new Set(APP.poDraftItems.map(x => x.ingredient_id)); let n = 0;
@@ -289,7 +309,7 @@ async function poAddLowStock(){
   document.getElementById('poItemsWrap').innerHTML = renderPoDraftItemsHtml();
   showToast(n ? n + ' kritik hammadde eklendi' : 'Kritik stoktaki hammaddeler zaten ekli');
 }
-document.addEventListener('click', e => { const box = document.getElementById('poIngResults'); if(box && !box.hidden && !e.target.closest('.pos-search')) box.hidden = true; });
+document.addEventListener('click', e => { const box = document.getElementById('poIngResults'); if(box && !box.hidden && !e.target.closest('.pos-search') && !e.target.closest('.srch-x')) box.hidden = true; });
 async function addPoDraftItemRow(){
   await loadIngUsage();
   const ingredients = (APP.config && APP.config.ingredients) || [];

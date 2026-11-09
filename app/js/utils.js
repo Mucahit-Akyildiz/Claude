@@ -641,3 +641,31 @@ function fmtPackQty(q, ig){
 function unitOptionsHtml(ig, sel, opts){
   return ingUnits(ig, opts).map(u => `<option value="${u.f}" data-n="${escapeAttr(u.n)}" ${u.n === sel ? 'selected' : ''}>${u.approx ? '≈ ' : ''}${escapeHtml(unitShort(u.n))}${u.pack ? ' (' + fmtQty(u.f) + ' ' + escapeHtml(unitShort(ig.unit)) + ')' : ''}</option>`).join('');
 }
+
+/* ---- Arama kutularında ✕ temizle ----
+   Odaktaki arama kutusu (type=search, .list-search/.an-search ya da 🔍 ile başlayan yer tutucu) doluysa sağ ucunda
+   şeffaf bir ✕ çıkar; basınca kutu boşalır ve sonuçlar yenilenir (input olayı tetiklenir). DOM yapısı değişmez. */
+(function(){
+  const isSearch = el => el && el.tagName === 'INPUT' && (el.type === 'search' || el.classList.contains('list-search') || el.classList.contains('an-search') || /^\s*🔍/.test(el.placeholder || ''));
+  let btn = null, cur = null;
+  function place(){
+    if(!btn) return;
+    if(!cur || !document.contains(cur) || !cur.value || document.activeElement !== cur){ btn.hidden = true; return; }
+    const r = cur.getBoundingClientRect(); if(!r.width){ btn.hidden = true; return; }
+    btn.style.top = (r.top + r.height / 2) + 'px'; btn.style.left = (r.right - 30) + 'px';
+    const z = [...document.querySelectorAll('.dg-bg,.modal-bg,.fsheet.open,.iu-bg')].reduce((m, e) => Math.max(m, parseInt(getComputedStyle(e).zIndex) || 0), 0);
+    btn.style.zIndex = String(Math.max(9500, z + 1)); btn.hidden = false;
+  }
+  function ensure(){
+    if(btn) return;
+    btn = document.createElement('button'); btn.type = 'button'; btn.className = 'srch-x'; btn.hidden = true; btn.setAttribute('aria-label', 'Aramayı temizle'); btn.textContent = '✕';
+    btn.addEventListener('mousedown', e => e.preventDefault());
+    btn.addEventListener('click', () => { if(!cur) return; cur.value = ''; cur.focus(); cur.dispatchEvent(new Event('input', { bubbles: true })); cur.dispatchEvent(new Event('change', { bubbles: true })); place(); });
+    document.body.appendChild(btn);
+  }
+  document.addEventListener('focusin', e => { if(isSearch(e.target)){ ensure(); cur = e.target; place(); } });
+  document.addEventListener('focusout', () => setTimeout(place, 0));
+  document.addEventListener('input', e => { if(e.target === cur) place(); });
+  window.addEventListener('scroll', () => place(), { passive: true, capture: true });
+  window.addEventListener('resize', () => place());
+})();
