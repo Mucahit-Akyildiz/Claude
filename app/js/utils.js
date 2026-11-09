@@ -120,7 +120,7 @@ function showToast(msg, durationMs, position, onClick, nativeNotify){
   if(!stack){
     stack = document.createElement('div');
     stack.id = stackId;
-    stack.style.cssText = 'position:fixed;top:16px;'+(isLeft?'left':'right')+':16px;z-index:400;display:flex;flex-direction:column;gap:8px;max-width:340px;width:calc(100vw - 32px);';
+    stack.style.cssText = 'position:fixed;top:16px;'+(isLeft?'left':'right')+':16px;z-index:9000;display:flex;flex-direction:column;gap:8px;max-width:340px;width:calc(100vw - 32px);';
     document.body.appendChild(stack);
   }
   const isWarning = msg.indexOf('⚠️')===0 || msg.indexOf('⏰')===0;
@@ -455,7 +455,9 @@ function uiConfirm(message, o){
 function uiAlert(message, o){
   o = o || {};
   return new Promise(resolve => {
-    const bg = document.createElement('div'); bg.className = 'dg-bg ui-alert'; bg.style.zIndex = 3001;
+    const bg = document.createElement('div'); bg.className = 'dg-bg ui-alert';
+    // Açık pencerelerin (ör. zorunlu şifre değiştirme, z-index 4000) her zaman üstünde görünsün.
+    bg.style.zIndex = Math.max(3001, ...[...document.querySelectorAll('.dg-bg, .modal-bg, .fsheet')].map(e => (parseInt(getComputedStyle(e).zIndex, 10) || 0) + 1));
     const txt = String(message == null ? '' : message);
     const bad = /hata|başarısız|geçersiz|yüklenemedi|edilemedi|gönderilemedi|bulunamadı|yetki|izin|olmalı|giriniz|girin|seçin/i.test(txt);
     bg.innerHTML = `<div class="dg-card uc-card ${bad ? 'warn' : ''}"><div class="dg-ic">${o.icon || (bad ? '⚠️' : 'ℹ️')}</div>

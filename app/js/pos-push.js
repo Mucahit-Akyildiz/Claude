@@ -413,11 +413,20 @@ async function addPrinterEntry(){
   let usbInfo = null;
   let osPrinterName = null;
   if(type==='usb'){
+    // Masaüstü uygulamasında USB seçim penceresi yok; yazıcı Windows/Mac'e tanıtılmışsa doğrudan oradan basılır.
+    if(typeof isDesktopApp === 'function' && isDesktopApp()){
+      await uiAlert('Masaüstü uygulamasında USB türüne gerek yok. Yazıcıyı bilgisayara USB ile takıp sürücüsünü kurun, sonra tür olarak "Masaüstü Uygulaması" seçin ve listeden yazıcınızı seçin.', { icon: '🖨️' });
+      const t = document.getElementById('np_ptype'); if(t){ t.value = 'electron'; t.dispatchEvent(new Event('change')); }
+      return;
+    }
     try{
       const device = await navigator.usb.requestDevice({ filters: [] });
       usbInfo = { vendorId: device.vendorId, productId: device.productId };
     }catch(e){
-      alert('USB yazıcı seçilmedi/eşleştirilemedi: ' + e.message);
+      const none = e && (e.name === 'NotFoundError' || /no device selected/i.test(e.message || ''));
+      await uiAlert(none
+        ? 'USB yazıcı seçilmedi. Açılan listede yazıcınız görünmediyse:\n\n• Yazıcının USB kablosunun takılı ve açık olduğundan emin olun.\n• Windows\'ta yazıcının sürücüsü kuruluysa tarayıcı onu USB üzerinden göremez. Bu durumda Peyktan masaüstü uygulamasını kurup "Masaüstü Uygulaması" türünü kullanın (önerilir) veya "Sessiz Tarayıcı Yazdırma" türünü seçin.\n• Tablet/telefonda yazıcıyı OTG kablosuyla bağlayın ve Chrome kullanın.'
+        : 'USB yazıcı eşleştirilemedi: ' + (e && e.message || e), { icon: '🖨️' });
       return;
     }
   } else if(type==='electron'){

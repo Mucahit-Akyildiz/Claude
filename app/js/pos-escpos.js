@@ -246,6 +246,11 @@ async function printKitchenTicketRaw(tableName, items, printerOverride, silent, 
     setTimeout(() => window.print(), 100);
     PRINT_RESULT = { ok: true, note: 'tarayıcı (sessiz)' };
     return;
+  } else if(printer && printer.type==='electron' && !isDesktopApp()){
+    // "Masaüstü Uygulaması" türündeki yazıcı yalnız Peyktan masaüstü uygulamasının içinden basabilir.
+    PRINT_RESULT = { ok: false, err: 'Bu yazıcı yalnız Peyktan masaüstü uygulamasından basar' };
+    showToast('⚠️ "'+printer.name+'" Masaüstü Uygulaması türünde: fiş yalnız Peyktan masaüstü uygulaması açıkken basılır. Şu an tarayıcıdasınız — masaüstündeki Peyktan simgesinden açın.');
+    if(silent) return;
   } else if(!printer && silent){
     PRINT_RESULT = { ok: false, err: 'Yazıcı seçili değil' };
     showToast('⚠️ Fiş yazdırılamadı: bu ekran/istasyon için yazıcı seçili değil');
