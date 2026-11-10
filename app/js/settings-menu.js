@@ -1848,7 +1848,7 @@ function renderOverheads(){
     <div class="oh-list">
       <label class="oh-row oh-auto"><span class="oh-ic">👥</span><div><b>Personel (vardiya kayıtlarından)</b><small>Son 30 gün çalışılan saat × saatlik ücret${d.labor_staff ? ' · ' + d.labor_staff + ' kişi' : ' · saatlik ücret girilmiş personel yok'}</small></div>
         <b>${money(d.labor_30d || 0)}</b><span class="oo-switch"><input type="checkbox" ${d.auto_labor ? 'checked' : ''} ${actOn('change','toggleOhLabor',['$checked'])}><span class="oo-track"><span class="oo-thumb"></span></span></span></label>
-      ${(d.items || []).map(i => `<div class="oh-row ${i.active ? '' : 'off'}"><span class="oh-ic">${escapeHtml(i.icon || '💸')}</span><div><b>${escapeHtml(i.name)}</b><small>${money(i.amount)} · ${OH_PERIOD[i.period] || i.period}${i.period !== 'monthly' ? ' → aylık ' + money(i.monthly) : ''}${i.active ? '' : ' · hesaba katılmıyor'}</small></div>
+      ${(d.items || []).map(i => `<div class="oh-row ${i.active ? '' : 'off'}"><span class="oh-ic">${escapeHtml(i.icon || '💸')}</span><div><b>${escapeHtml(i.name)}</b>${i.note ? `<small class="oh-noteln">📝 ${escapeHtml(i.note)}</small>` : ''}<small>${money(i.amount)} · ${OH_PERIOD[i.period] || i.period}${i.period !== 'monthly' ? ' → aylık ' + money(i.monthly) : ''}${i.active ? '' : ' · hesaba katılmıyor'}</small></div>
         <b>${money(i.monthly)}</b><span class="oh-acts"><button type="button" class="pc-btn" ${act('editOverhead', i.id)}>✏️</button><button type="button" class="pc-btn" ${act('removeOverhead', i.id)}>🗑️</button></span></div>`).join('')}
     </div>
     <div class="oh-add-h">➕ Gider ekle</div>
@@ -1865,6 +1865,7 @@ function editOverhead(id, icon, name){
     <div style="display:flex;gap:8px;"><input id="ohIc" value="${escapeAttr(it.icon || '💸')}" maxlength="4" style="width:56px;text-align:center;margin:0;"><input id="ohName" value="${escapeAttr(it.name || '')}" placeholder="Gider adı (örn. Kira)" style="flex:1;margin:0;"></div>
     <div style="display:flex;gap:8px;margin-top:8px;"><input id="ohAmt" type="number" min="0" inputmode="decimal" value="${it.amount}" placeholder="Tutar ₺" style="flex:1;margin:0;">
       <select id="ohPer" style="width:auto;margin:0;">${Object.entries(OH_PERIOD).map(([k, l]) => `<option value="${k}" ${it.period === k ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
+    <textarea id="ohNote" rows="2" maxlength="500" placeholder="Not (opsiyonel) — örn. hangi fatura, ödeme günü, kime ödendi" style="width:100%;margin:8px 0 0;resize:vertical;">${escapeHtml(it.note || '')}</textarea>
     <label class="pdrawer-check" style="margin-top:8px;"><input type="checkbox" id="ohAct" ${it.active !== false ? 'checked' : ''}> Maliyete dahil et</label>
     <div class="fsheet-foot"><button type="button" class="ghost-btn" ${act('cancelOhForm')}>Vazgeç</button><button ${act('saveOverhead')}>Kaydet</button></div></div>`;
   const f = document.getElementById(it.name ? 'ohAmt' : 'ohName'); if(f) f.focus();
@@ -1881,7 +1882,7 @@ async function saveOverhead(){
   const f = document.querySelector('.oh-form'); if(!f) return;
   const v = id => (document.getElementById(id) || {}).value;
   const ok = await ohApply(await sb.rpc('upsert_overhead_item', { p_token: getSession().session_token, p_id: f.dataset.id || null, p_name: v('ohName'), p_icon: v('ohIc'),
-    p_amount: parseFloat(v('ohAmt')), p_period: v('ohPer'), p_active: document.getElementById('ohAct').checked }));
+    p_amount: parseFloat(v('ohAmt')), p_period: v('ohPer'), p_active: document.getElementById('ohAct').checked, p_note: (v('ohNote') || '').trim() || null }));
   if(ok) showToast('Gider kaydedildi ✓');
 }
 async function removeOverhead(id){

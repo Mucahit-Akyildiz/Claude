@@ -242,3 +242,6 @@ alter table customers add column if not exists created_by uuid, add column if no
 -- 14 günden ileri rezervasyonlar listede görünmüyordu).
 
 -- 2026-11-10: Rezervasyon ufku 90 gün: list_reservations varsayılan aralığı 91 gün, submit_public_reservation en fazla 90 gün sonrası.
+
+-- 2026-11-10: overhead_items.note (gider notu). upsert_overhead_item'a p_note eklendi (eski 7 parametreli sürüm kaldırıldı),
+-- _overhead_summary kalemlerde note döndürür. grant ... to anon, authenticated.
