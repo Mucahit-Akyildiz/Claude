@@ -551,6 +551,27 @@ function setReviewFilter(k){ APP.reviewFilter = k; renderReviewsBody(); }
 
 /* ---- Müşteri geri kazanım: X gündür gelmeyen müşterilere SMS / e-posta (get_winback / send_winback) ---- */
 // Kampanya mesajına online sipariş / online rezervasyon linki (imlecin olduğu yere) eklenir.
+/* Kampanya mesaj şablonları: işletme bazında sunucuda saklanır (tüm cihazlarda görünür). */
+function wbUseTpl(id){ const t = (APP.wbTpl || []).find(x => x.id === id), ta = document.getElementById('wbText'); if(!t || !ta) return; ta.value = t.text; ta.focus(); }
+async function wbSaveTpl(){
+  const ta = document.getElementById('wbText'); const text = ta ? ta.value.trim() : '';
+  if(text.length < 5){ uiAlert('Önce mesaj metnini yazın'); return; }
+  const same = (APP.wbTpl || []).find(x => x.text.trim() === text); if(same){ showToast('Bu metin zaten "' + same.name + '" şablonunda'); return; }
+  const name = await uiPrompt('Şablona bir ad verin (örn. Hafta sonu indirimi)', '', { title: 'Şablon olarak kaydet', okText: 'Kaydet' }); if(!name || !String(name).trim()) return;
+  const ex = (APP.wbTpl || []).find(x => x.name.toLocaleLowerCase('tr') === String(name).trim().toLocaleLowerCase('tr'));
+  if(ex && !await uiConfirm('"' + ex.name + '" şablonu zaten var. Üzerine yazılsın mı?', { title: 'Şablonu güncelle', okText: 'Üzerine yaz', danger: false })) return;
+  const { data, error } = await sb.rpc('save_campaign_template', { p_token: getSession().session_token, p_id: ex ? ex.id : null, p_name: String(name).trim(), p_text: text });
+  if(error){ uiAlert(error.message); return; }
+  APP.wbTpl = data || []; drawWinback(); const t2 = document.getElementById('wbText'); if(t2) t2.value = text; showToast('💾 Şablon kaydedildi');
+}
+async function wbDelTpl(id){
+  const t = (APP.wbTpl || []).find(x => x.id === id); if(!t) return;
+  if(!await uiConfirm('"' + t.name + '" şablonu silinsin mi?', { title: 'Şablonu sil', okText: 'Sil' })) return;
+  const ta = document.getElementById('wbText'), v = ta && ta.value;
+  const { data, error } = await sb.rpc('delete_campaign_template', { p_token: getSession().session_token, p_id: id });
+  if(error){ uiAlert(error.message); return; }
+  APP.wbTpl = data || []; drawWinback(); if(v != null) document.getElementById('wbText').value = v;
+}
 function wbInsertLink(kind){
   const ta = document.getElementById('wbText'); if(!ta) return;
   const code = (APP.config && ((APP.config.online_ordering || {}).code || APP.config.code)) || '';
@@ -574,7 +595,8 @@ async function openWinback(days){
   APP.wb = Object.assign({ days: 30, sel: {}, channel: 'sms' }, APP.wb || {}, days != null && days !== '' ? { days: Number(days), sel: {} } : {});
   if(prevMode !== null && prevMode !== (APP.wb.days <= 0)) APP.wb.textReset = true;
   const args = { p_token: getSession().session_token, p_days: APP.wb.days }; if(APP.wb.group) args.p_group = APP.wb.group;
-  const [{ data, error }, gRes] = await withLoadingOverlay(Promise.all([sb.rpc('get_winback', args), sb.rpc('list_customer_groups', { p_token: getSession().session_token })]));
+  const [{ data, error }, gRes, tRes] = await withLoadingOverlay(Promise.all([sb.rpc('get_winback', args), sb.rpc('list_customer_groups', { p_token: getSession().session_token }), APP.wbTpl ? Promise.resolve(null) : sb.rpc('get_campaign_templates', { p_token: getSession().session_token })]));
+  if(tRes && Array.isArray(tRes.data)) APP.wbTpl = tRes.data;
   APP.crmGroups = (gRes && gRes.data) || APP.crmGroups || [];
   if(error){ alert(error.message); return; }
   APP.wb.data = data || {}; drawWinback();
@@ -602,6 +624,7 @@ function drawWinback(){
     <p class="muted u-fs12">Kampanya iznini reddeden müşteriler bu listede gösterilmez ve onlara mesaj gönderilmez. Kendi eklediğiniz müşteriler için kampanya onayını almak işletmenin sorumluluğundadır.</p>
     <div class="wb-compose"><label>Mesaj <small class="muted">({ad} = müşterinin adı, {isletme} = işletme adı)</small></label>
       ${camp && W.channel !== 'sms' ? `<input id="wbSubject" placeholder="E-posta konusu (örn. Hafta sonuna özel %15 indirim)" maxlength="120" value="${escapeAttr(W.subject || '')}" ${actOn('input','wbSubjectSet',['$value'])} style="margin:4px 0 8px;">` : ''}
+      <div class="wb-links wb-tpl"><span class="muted">Şablonlarım:</span>${(APP.wbTpl || []).map(t => `<span class="wb-tchip"><button type="button" class="rvf-chip" title="Mesaja yükle" ${act('wbUseTpl', t.id)}>📝 ${escapeHtml(t.name)}</button><button type="button" class="wb-tdel" title="Şablonu sil" ${act('wbDelTpl', t.id)}>✕</button></span>`).join('') || '<span class="muted">henüz yok</span>'}<button type="button" class="rvf-chip" ${act('wbSaveTpl')}>💾 Şablon olarak kaydet</button></div>
       <textarea id="wbText" rows="3" maxlength="320">${escapeHtml(prevText != null ? prevText : (camp ? CAMPAIGN_DEFAULT : WINBACK_DEFAULT))}</textarea>
       <div class="wb-links"><span class="muted">Mesaja ekle:</span><button type="button" class="rvf-chip" ${act('wbInsertLink','order')}>🛵 Online sipariş linki</button><button type="button" class="rvf-chip" ${act('wbInsertLink','resv')}>📅 Rezervasyon linki</button></div>
       <div class="wb-send"><div class="seg">${[['sms','📱 SMS'],['mail','✉️ E-posta'],['both','İkisi de']].map(([k, l]) => `<button type="button" class="${W.channel === k ? 'on' : ''}" ${act('wbChannel', k)}>${l}</button>`).join('')}</div>
