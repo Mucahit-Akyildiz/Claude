@@ -245,3 +245,8 @@ alter table customers add column if not exists created_by uuid, add column if no
 
 -- 2026-11-10: overhead_items.note (gider notu). upsert_overhead_item'a p_note eklendi (eski 7 parametreli sürüm kaldırıldı),
 -- _overhead_summary kalemlerde note döndürür. grant ... to anon, authenticated.
+
+-- 2026-11-10: Günlük hazırlık (ör. döner şişi). ingredients.prep_source_id (kaynak/depo hammaddesi, aynı birim), prep_default.
+-- ingredient_prep_log (prep/keep/waste/return). set_ingredient_prep (settings_ingredients), prep_ingredient (kitchen; kaynaktan düşer,
+-- hazırlanana ekler, maliyet ağırlıklı ortalanır; depoda yetersizse reddeder), prep_leftover (kitchen; keep / waste → waste_log
+-- "Gün sonu kalan" / return → kaynağa), list_prep_log. get_restaurant_config ingredients'a prep_source_id, prep_default eklendi.

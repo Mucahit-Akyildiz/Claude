@@ -23,6 +23,7 @@ async function renderKitchenView(main, session){
       <button class="u-red ghost-btn" ${act('openManualWasteModal')} title="Siparişe bağlı olmayan israf (yanan, düşen, bozulan ürün)">🔥 İsraf Gir</button>
       <button class="ghost-btn" ${act('clearKitchenStation')}>İstasyon Değiştir</button>
     </div></div>
+    <div id="prepBar">${prepBarHtml()}</div>
     <div id="kitchenWrap"></div>`;
   APP.kitchenSeenItemIds = null; // yeni istasyona gecince onceki urunler icin zil calmasin
   kitchenLateWarnedSet(); // uyarılan ürünler ekran yenilense de hatırlanır (tekrar uyarı çıkmaz)
@@ -37,6 +38,8 @@ function kitchenLateWarnedSet(){
   return APP.kitchenLateWarned;
 }
 async function refreshKitchenItems(session){
+  // Şiş paneli: satış oldukça kalan azalır; en fazla 60 sn'de bir stok tazelenir (veritabanı yükü düşük kalsın).
+  if(prepIngs().length && document.getElementById('prepBar') && Date.now() - (APP.prepAt || 0) > 60000){ APP.prepAt = Date.now(); prepReloadConfig(); }
   const [{ data, error }, cancRes] = await Promise.all([
     sb.rpc('get_live_orders', { p_token: session.session_token }),
     sb.rpc('list_kitchen_cancellations', { p_token: session.session_token })
@@ -737,4 +740,84 @@ async function setSoldOut(pid, on){
   if(error){ uiAlert(error.message); }
   else { p.available = !!on; if(typeof clearRpcCache === 'function') clearRpcCache(); showToast(on ? '✓ ' + p.name + ' tekrar satışta' : '⛔ ' + p.name + ' satışa kapatıldı'); }
   const s = document.getElementById('soSearch'); soFilter(s ? s.value : '');
+}
+
+/* ---- Günlük hazırlık (ör. 🥙 şiş tak): depodaki hammaddeden o gün kullanılacak kadarı hazırlanana aktarılır;
+   satış yalnız hazırlanandan düşer, bitince bağlı ürünler kendiliğinden tükenir. Kalan için her seferinde sorulur. ---- */
+function prepIngs(){ return ((APP.config && APP.config.ingredients) || []).filter(i => i.prep_source_id); }
+// Kalan miktarın kaç porsiyon ettiği: bu hammaddeyi kullanan ürünlerdeki en küçük porsiyon miktarına göre.
+function prepPortions(ig){
+  let per = 0;
+  ((APP.config && APP.config.products) || []).forEach(p => (p.recipe || []).forEach(r => { const q = Number(r.qty_per_unit) || 0; if(r.ingredient_id === ig.id && q > 0 && (!per || q < per)) per = q; }));
+  return per ? Math.floor((Number(ig.stock) || 0) / per + 1e-9) : null;
+}
+function prepBarHtml(){
+  const list = prepIngs(); if(!list.length) return '';
+  const ings = (APP.config && APP.config.ingredients) || [];
+  return `<div class="prep-bar">${list.map(ig => {
+    const src = ings.find(x => x.id === ig.prep_source_id) || {}, st = Number(ig.stock) || 0, n = prepPortions(ig), low = n != null && n <= 10;
+    return `<div class="prep-card ${st <= 0 ? 'out' : low ? 'low' : ''}">
+      <div class="prep-t"><b>🥙 ${escapeHtml(ig.name)}</b><small>${st > 0 ? 'Kalan <b>' + escapeHtml(fmtIngQty(st, ig)) + '</b>' + (n != null ? ' ≈ ' + n + ' porsiyon' : '') : '<b>Bitti</b> · ürünler tükendi'} · Depo ${escapeHtml(fmtIngQty(src.stock, src))}</small></div>
+      <div class="prep-a"><button type="button" class="u-wa-m0" ${act('openPrepModal', ig.id)}>➕ Hazırla</button>${st > 0 ? `<button type="button" class="ghost-btn u-wa-m0" title="Gün sonu: kalan ne olsun?" ${act('openPrepLeftover', ig.id, '')}>🌙 Gün sonu</button>` : ''}</div></div>`;
+  }).join('')}</div>`;
+}
+async function prepReloadConfig(){
+  const s = getSession(); const { data } = await sb.rpc('get_restaurant_config', { p_token: s.session_token });
+  if(data) APP.config = data;
+  if(typeof clearRpcCache === 'function') clearRpcCache();
+  const b = document.getElementById('prepBar'); if(b) b.innerHTML = prepBarHtml();
+}
+function prepModalShell(id, inner){
+  removeEl('prepModalBg');
+  const bg = document.createElement('div'); bg.id = 'prepModalBg'; bg.className = 'modal-bg';
+  bg.onclick = (e) => { if(e.target === bg) bg.remove(); };
+  bg.innerHTML = `<div class="box prep-box">${inner}</div>`;
+  document.body.appendChild(bg);
+}
+// Hazırla: şişte kalan varsa önce kalanı sorar, sonra miktar.
+function openPrepModal(id){
+  const ig = prepIngs().find(x => x.id === id); if(!ig) return;
+  if((Number(ig.stock) || 0) > 0) return openPrepLeftover(id, 'prep');
+  openPrepQty(id);
+}
+function openPrepLeftover(id, next){
+  const ig = prepIngs().find(x => x.id === id); if(!ig) return;
+  const src = ((APP.config && APP.config.ingredients) || []).find(x => x.id === ig.prep_source_id) || {};
+  prepModalShell(id, `<div class="u-row-sb"><h2 class="u-m0">🌙 Kalan: ${escapeHtml(fmtIngQty(ig.stock, ig))}</h2><span class="u-xclose" ${act('removeEl','prepModalBg')}>✕</span></div>
+    <p class="muted u-tl u-fs13" style="margin:6px 0 12px;">${escapeHtml(ig.name)} içinde kalan ne olsun?</p>
+    <div class="prep-opts">
+      <button type="button" class="prep-opt" ${act('doPrepLeftover', id, 'keep', next || '')}><b>➡️ Kalsın</b><small>Yeni hazırlığın üstüne eklenir</small></button>
+      <button type="button" class="prep-opt" ${act('doPrepLeftover', id, 'return', next || '')}><b>↩️ Depoya dönsün</b><small>${escapeHtml(src.name || 'Depo')} stoğuna geri eklenir</small></button>
+      <button type="button" class="prep-opt warn" ${act('doPrepLeftover', id, 'waste', next || '')}><b>🔥 İsraf say</b><small>Stok sıfırlanır, maliyeti İsraf raporuna yazılır</small></button>
+    </div>`);
+}
+async function doPrepLeftover(id, action, next){
+  const { error } = await withLoadingOverlay(sb.rpc('prep_leftover', { p_token: getSession().session_token, p_id: id, p_action: action }));
+  if(error){ uiAlert(error.message); return; }
+  removeEl('prepModalBg');
+  showToast(action === 'waste' ? '🔥 Kalan israf olarak kaydedildi' : action === 'return' ? '↩️ Kalan depoya döndü' : '➡️ Kalan bırakıldı');
+  await prepReloadConfig();
+  if(next === 'prep') openPrepQty(id);
+}
+function openPrepQty(id){
+  const ig = prepIngs().find(x => x.id === id); if(!ig) return;
+  const src = ((APP.config && APP.config.ingredients) || []).find(x => x.id === ig.prep_source_id) || {};
+  const def = Number(ig.prep_default) || '';
+  prepModalShell(id, `<div class="u-row-sb"><h2 class="u-m0">🥙 ${escapeHtml(ig.name)} · hazırla</h2><span class="u-xclose" ${act('removeEl','prepModalBg')}>✕</span></div>
+    <p class="muted u-tl u-fs13" style="margin:6px 0 10px;">Depodan alınacak miktar. Depoda <b>${escapeHtml(fmtIngQty(src.stock, src))}</b> var.</p>
+    <div class="prep-qty"><input type="number" id="prepQty" min="0" step="any" value="${def}" placeholder="Miktar"><span>${escapeHtml(unitShort(ig.unit))}</span></div>
+    <div class="prep-quick">${[10, 15, 20, 25, 30].map(n => `<button type="button" class="rvf-chip" ${act('setPrepQty', n)}>${n} ${escapeHtml(unitShort(ig.unit))}</button>`).join('')}</div>
+    <button type="button" style="margin-top:12px;" ${act('doPrep', id)}>✅ Hazırla ve stoğa ekle</button>`);
+  const q = document.getElementById('prepQty'); if(q){ q.focus(); q.select(); }
+}
+function setPrepQty(n){ const q = document.getElementById('prepQty'); if(q) q.value = n; }
+async function doPrep(id){
+  const q = parseFloat(String((document.getElementById('prepQty') || {}).value || '').replace(',', '.'));
+  if(!(q > 0)){ uiAlert('Geçerli bir miktar girin'); return; }
+  const { error } = await withLoadingOverlay(sb.rpc('prep_ingredient', { p_token: getSession().session_token, p_id: id, p_qty: q }));
+  if(error){ uiAlert(error.message); return; }
+  removeEl('prepModalBg');
+  const ig = prepIngs().find(x => x.id === id);
+  showToast('🥙 ' + (ig ? ig.name : '') + ': ' + fmtIngQty(q, ig || {}) + ' hazırlandı');
+  await prepReloadConfig();
 }
