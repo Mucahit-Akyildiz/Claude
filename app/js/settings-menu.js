@@ -111,7 +111,7 @@ function renderIngredientsSettings(el, session){
   function ingCardHtml(i, k){ const st = Number(i.stock)||0, out = st <= 0 && !i.prep_source_id, uses = useCount(i.id), pct = Math.max(4, Math.min(100, st / maxStock * 100));
         return `<div class="pcard ig-card ${out?'ig-out':''}" data-iid="${i.id}" data-name="${escapeAttr(String(i.name||'').toLocaleLowerCase('tr'))}" style="--i:${Math.min(k,12)};">
         <div class="pcard-top"><input type="checkbox" class="ing-sel" value="${i.id}" ${actOn('change','updateIngSelection',[])}>
-          <input class="ig-name" value="${escapeAttr(i.name)}" id="ing_name_${i.id}">
+          <textarea class="ig-name" rows="1" maxlength="120" title="${escapeAttr(i.name)}" id="ing_name_${i.id}" ${actOn('keydown','igNameKey',['$event'])}>${escapeHtml(i.name)}</textarea>
           <span class="ig-st ${out?'out':isLow(i)?'low':uses?'ok':'idle'}">${i.prep_source_id ? '🥙 Hazırlık' : out ? '● Bitti' : isLow(i) ? '● Kritik' : uses ? '● Kullanımda' : '○ Kullanılmıyor'}</span></div>
         <div class="ig-stock"><input type="number" step="0.01" value="${i.stock}" id="ing_stock_${i.id}" class="ig-qty">
           <select id="ing_unit_${i.id}" class="ig-unit">${['adet','gram','kg','ml','lt'].map(u => `<option value="${u}" ${u===i.unit?'selected':''}>${u}</option>`).join('')}</select></div>
@@ -149,10 +149,11 @@ function updateIngSelection(){
   const info = document.getElementById('ingSelInfo');
   if(info) info.innerHTML = [n ? `<b>${n}</b> hammadde seçili` : '', dirty ? `<b>${dirty}</b> satırda kaydedilmemiş değişiklik` : ''].filter(Boolean).join(' · ');
 }
+function igNameKey(e){ if(e && e.key === 'Enter'){ e.preventDefault(); e.target.blur(); } }
 async function saveAllIngredients(){
   const rows = [...document.querySelectorAll('[data-iid][data-dirty]')].map(tr => {
     const id = tr.dataset.iid;
-    return { id, name: document.getElementById('ing_name_'+id).value.trim(), unit: document.getElementById('ing_unit_'+id).value,
+    return { id, name: document.getElementById('ing_name_'+id).value.replace(/\s+/g, ' ').trim(), unit: document.getElementById('ing_unit_'+id).value,
       stock: parseFloat(document.getElementById('ing_stock_'+id).value)||0, waste: parseFloat(document.getElementById('ing_waste_'+id).value)||0,
       min: parseFloat(document.getElementById('ing_min_'+id).value)||0, uc: (() => { const e = document.getElementById('ing_uc_'+id); return e && e.value !== '' ? parseFloat(e.value) : null; })() };
   });
