@@ -4551,3 +4551,19 @@ select.ss-hidden{display:none !important;}
 .ph-go{flex:1.3;white-space:nowrap;margin:0 !important;padding:10px !important;border-radius:11px !important;font-weight:700;}
 .ph-end{flex:1;white-space:nowrap;margin:0 !important;padding:10px 12px !important;border-radius:11px !important;background:transparent !important;color:var(--text) !important;border:1px solid var(--border) !important;font-weight:600;}
 .ph-end:hover{border-color:var(--accent) !important;}
+/* Yeni hammadde · tür seçimi */
+.ni-kind-q{margin:2px 0 12px;font-size:14px;font-weight:700;color:var(--text);text-align:left;}
+.ni-kind-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;}
+.ni-kc{display:flex !important;flex-direction:column;align-items:flex-start;gap:6px;width:100% !important;margin:0 !important;padding:18px !important;text-align:left !important;border-radius:16px !important;border:1.5px solid var(--border) !important;background:var(--panel2) !important;color:var(--text) !important;cursor:pointer;box-shadow:none !important;text-transform:none !important;letter-spacing:0 !important;transition:border-color .15s,transform .15s;}
+.ni-kc:hover{border-color:var(--accent) !important;transform:translateY(-1px);}
+.ni-kc.prep:hover{border-color:#f59e0b !important;}
+.ni-kc-ic{font-size:30px;line-height:1;margin-bottom:2px;}
+.ni-kc b{font-size:16.5px;} .ni-kc small{font-size:13px;color:var(--muted);font-weight:500;}
+.ni-kc em{font-style:normal;font-size:12.5px;font-weight:600;color:var(--text);opacity:.85;}
+.ni-kc i{font-style:normal;font-size:12px;color:var(--muted);margin-top:4px;padding-top:8px;border-top:1px dashed var(--border);width:100%;}
+.ni-kind-bar{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0 0 10px;padding:8px 12px;border-radius:12px;background:var(--panel2);font-size:13.5px;}
+.ni-kind-chg{width:auto !important;margin:0 !important;padding:5px 10px !important;font-size:12.5px !important;border-radius:8px !important;background:transparent !important;color:var(--accent) !important;border:1px solid var(--border) !important;box-shadow:none !important;}
+.ni-preptop{margin:4px 0 12px;padding:12px;border-radius:14px;border:1.5px dashed color-mix(in srgb,#f59e0b 55%,var(--border));background:color-mix(in srgb,#f59e0b 6%,transparent);}
+.ni-preptop .field-group{margin:0;} .ni-preptop small{display:block;margin-top:6px;}
+.ig-mkprep{flex-basis:100%;justify-content:center;border-style:dashed !important;}
+#ingSheet [hidden]{display:none !important;}
