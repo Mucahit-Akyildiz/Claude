@@ -572,6 +572,12 @@ async function wbDelTpl(id){
   if(error){ uiAlert(error.message); return; }
   APP.wbTpl = data || []; drawWinback(); if(v != null) document.getElementById('wbText').value = v;
 }
+function wbInsertVar(v){
+  const ta = document.getElementById('wbText'); if(!ta) return;
+  const a = ta.selectionStart != null ? ta.selectionStart : ta.value.length, b = ta.selectionEnd != null ? ta.selectionEnd : a;
+  ta.value = (ta.value.slice(0, a) + v + ta.value.slice(b)).slice(0, Number(ta.maxLength) > 0 ? ta.maxLength : 1000);
+  ta.focus(); ta.selectionStart = ta.selectionEnd = a + v.length;
+}
 function wbInsertLink(kind){
   const ta = document.getElementById('wbText'); if(!ta) return;
   const code = (APP.config && ((APP.config.online_ordering || {}).code || APP.config.code)) || '';
@@ -622,11 +628,11 @@ function drawWinback(){
       <span class="wb-m"><small>Son geliş</small>${ago(r.last_visit_at)}</span><span class="wb-m"><small>${r.total_visits} ziyaret</small>${money(r.total_spent || 0)}</span>
       ${r.sms_blocked ? '<span class="pchip warn" title="SMS gitmez; e-posta seçiliyse e-posta gider. Ayarlar › SMS › SMS istemeyenler">📵 SMS istemiyor</span>' : r.sms_opt_out ? '<span class="pchip" title="SMS istemiyor ama bu tür SMS\'e Ayarlar › SMS › SMS istemeyenler\'den izin verilmiş">📵 izinli</span>' : ''}${r.recently_sent ? `<span class="pchip warn" title="Aynı müşteriye ${camp ? '24 saat' : '14 gün'} içinde ikinci mesaj gönderilmez">⏱ ${camp ? '24 saat' : '14 gün'} dolmadı</span>` : ''}${r.marketing_consent ? '<span class="pchip" title="Kampanya SMS onayı verdi">✅ Onaylı</span>' : ''}${r.last_contact ? `<span class="pchip" title="Son kampanya">📨 ${ago(r.last_contact)}</span>` : ''}</label>`).join('') || '<p class="muted">Bu aralıkta müşteri yok.</p>'}</div>
     <p class="muted u-fs12">Kampanya iznini reddeden müşteriler bu listede gösterilmez ve onlara mesaj gönderilmez. Kendi eklediğiniz müşteriler için kampanya onayını almak işletmenin sorumluluğundadır.</p>
-    <div class="wb-compose"><label>Mesaj <small class="muted">({ad} = müşterinin adı, {isletme} = işletme adı)</small></label>
+    <div class="wb-compose"><label>Mesaj <small class="muted">({ad} = adı, {soyad} = soyadı, {adsoyad} = adı soyadı, {isletme} = işletme adı)</small></label>
       ${camp && W.channel !== 'sms' ? `<input id="wbSubject" placeholder="E-posta konusu (örn. Hafta sonuna özel %15 indirim)" maxlength="120" value="${escapeAttr(W.subject || '')}" ${actOn('input','wbSubjectSet',['$value'])} style="margin:4px 0 8px;">` : ''}
       <div class="wb-links wb-tpl"><span class="muted">Şablonlarım:</span>${(APP.wbTpl || []).map(t => `<span class="wb-tchip"><button type="button" class="rvf-chip" title="Mesaja yükle" ${act('wbUseTpl', t.id)}>📝 ${escapeHtml(t.name)}</button><button type="button" class="wb-tdel" title="Şablonu sil" ${act('wbDelTpl', t.id)}>✕</button></span>`).join('') || '<span class="muted">henüz yok</span>'}<button type="button" class="rvf-chip" ${act('wbSaveTpl')}>💾 Şablon olarak kaydet</button></div>
       <textarea id="wbText" rows="3" maxlength="320">${escapeHtml(prevText != null ? prevText : (camp ? CAMPAIGN_DEFAULT : WINBACK_DEFAULT))}</textarea>
-      <div class="wb-links"><span class="muted">Mesaja ekle:</span><button type="button" class="rvf-chip" ${act('wbInsertLink','order')}>🛵 Online sipariş linki</button><button type="button" class="rvf-chip" ${act('wbInsertLink','resv')}>📅 Rezervasyon linki</button></div>
+      <div class="wb-links"><span class="muted">Mesaja ekle:</span><button type="button" class="rvf-chip" ${act('wbInsertVar','{ad}')}>👤 Ad</button><button type="button" class="rvf-chip" ${act('wbInsertVar','{soyad}')}>👤 Soyad</button><button type="button" class="rvf-chip" ${act('wbInsertVar','{adsoyad}')}>👤 Ad Soyad</button><button type="button" class="rvf-chip" ${act('wbInsertLink','order')}>🛵 Online sipariş linki</button><button type="button" class="rvf-chip" ${act('wbInsertLink','resv')}>📅 Rezervasyon linki</button></div>
       <div class="wb-send"><div class="seg">${[['sms','📱 SMS'],['mail','✉️ E-posta'],['both','İkisi de']].map(([k, l]) => `<button type="button" class="${W.channel === k ? 'on' : ''}" ${act('wbChannel', k)}>${l}</button>`).join('')}</div>
         <button type="button" ${selN ? '' : 'disabled'} ${act('sendWinback')}>${selN} müşteriye gönder</button></div></div>`
     : '<p class="muted">Yukarıdan bir aralık seçin.</p>'}</div>`;
