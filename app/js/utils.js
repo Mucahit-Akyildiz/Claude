@@ -702,11 +702,12 @@ function ssOpen(sel){
   p.id = 'ssPop'; p.className = 'ss-pop';
   p.innerHTML = '<div class="ss-sr"><input type="search" class="ss-q" placeholder="Ara…" autocomplete="off"><button type="button" class="ss-x" title="Temizle">✕</button></div><div class="ss-list" role="listbox"></div><div class="ss-empty" hidden>Sonuç yok</div>';
   document.body.appendChild(p);
-  const w = Math.max(r.width, 280), below = window.innerHeight - r.bottom, h = Math.min(360, Math.max(below, r.top) - 16);
-  p.style.width = Math.min(w, window.innerWidth - 16) + 'px';
+  const w = Math.min(Math.max(r.width, 280), window.innerWidth - 16), below = window.innerHeight - r.bottom - 12, above = r.top - 12;
+  const down = below >= 300 || below >= above, h = Math.max(160, Math.min(380, down ? below : above));
+  p.style.width = w + 'px';
   p.style.left = Math.max(8, Math.min(r.left, window.innerWidth - w - 8)) + 'px';
   p.style.maxHeight = h + 'px';
-  if(below >= Math.min(360, r.top)) p.style.top = (r.bottom + 4) + 'px'; else p.style.bottom = (window.innerHeight - r.top + 4) + 'px';
+  if(down) p.style.top = (r.bottom + 4) + 'px'; else p.style.bottom = (window.innerHeight - r.top + 4) + 'px';
   const q = p.querySelector('.ss-q'), list = p.querySelector('.ss-list'), empty = p.querySelector('.ss-empty');
   let items = [], hi = -1;
   const render = () => {
