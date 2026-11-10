@@ -2084,7 +2084,7 @@ CREATE FUNCTION public._overhead_summary(p_rid uuid) RETURNS jsonb
     SET search_path TO 'public', 'pg_temp'
     AS $$
   with items as (
-    select id, name, icon, amount, period, active,
+    select id, name, icon, amount, period, active, note,
       round(amount * case period when 'daily' then 30 when 'weekly' then 30/7.0 when 'yearly' then 1/12.0 else 1 end, 2) monthly
     from overhead_items where restaurant_id = p_rid and deleted_at is null),
   labor as (
@@ -5520,6 +5520,32 @@ end $_$;
 
 
 --
+-- Name: bulk_customer_group(uuid, uuid[], uuid, boolean); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.bulk_customer_group(p_token uuid, p_ids uuid[], p_group_id uuid, p_add boolean) RETURNS integer
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+-- Seçili müşterileri bir gruba toplu ekler (p_add=true) ya da gruptan çıkarır.
+declare s staff_sessions%rowtype; n int;
+begin
+  s := _session_check(p_token, 'crm');
+  if not exists (select 1 from customer_groups g where g.id = p_group_id and g.restaurant_id = s.restaurant_id and g.deleted_at is null) then raise exception 'Grup bulunamadı'; end if;
+  if coalesce(array_length(p_ids, 1), 0) = 0 then return 0; end if;
+  if coalesce(p_add, true) then
+    update customers set group_ids = array_append(coalesce(group_ids, '{}'), p_group_id)
+      where restaurant_id = s.restaurant_id and id = any(p_ids) and not (p_group_id = any(coalesce(group_ids, '{}')));
+  else
+    update customers set group_ids = array_remove(group_ids, p_group_id)
+      where restaurant_id = s.restaurant_id and id = any(p_ids) and p_group_id = any(coalesce(group_ids, '{}'));
+  end if;
+  get diagnostics n = row_count;
+  return n;
+end $$;
+
+
+--
 -- Name: call_waiter(uuid, text); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -6359,6 +6385,23 @@ begin
   s := _session_check(p_token, 'settings_allowances');
   execute 'de'||'lete from allowances where id = $1 and restaurant_id = $2' using p_id, s.restaurant_id;
 end $_$;
+
+
+--
+-- Name: delete_campaign_template(uuid, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.delete_campaign_template(p_token uuid, p_id text) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+declare s staff_sessions%rowtype; v jsonb;
+begin
+  s := _session_check(p_token, 'crm');
+  select coalesce(jsonb_agg(e), '[]'::jsonb) into v from restaurants r, jsonb_array_elements(r.campaign_templates) e where r.id = s.restaurant_id and e->>'id' <> p_id;
+  update restaurants set campaign_templates = v where id = s.restaurant_id;
+  return v;
+end $$;
 
 
 --
@@ -7288,6 +7331,18 @@ begin
   );
 end;
 $$;
+
+
+--
+-- Name: get_campaign_templates(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.get_campaign_templates(p_token uuid) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+declare s staff_sessions%rowtype; v jsonb;
+begin s := _session_check(p_token, 'crm'); select campaign_templates into v from restaurants where id = s.restaurant_id; return coalesce(v,'[]'::jsonb); end $$;
 
 
 --
@@ -8311,11 +8366,12 @@ end; $$;
 
 CREATE FUNCTION public.get_online_reservation_settings(p_token uuid) RETURNS json
     LANGUAGE plpgsql SECURITY DEFINER
-    SET search_path TO 'public', 'extensions', 'pg_temp'
-    AS $$ declare s staff_sessions%rowtype;
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+declare s staff_sessions%rowtype;
 begin
   s := _session_check(p_token, 'reservations');
-  return (select json_build_object('enabled', online_reservations_enabled, 'code', code) from restaurants where id = s.restaurant_id);
+  return (select json_build_object('enabled', online_reservations_enabled, 'code', code, 'from', to_char(online_resv_from, 'HH24:MI'), 'to', to_char(online_resv_to, 'HH24:MI')) from restaurants where id = s.restaurant_id);
 end $$;
 
 
@@ -8738,12 +8794,13 @@ CREATE FUNCTION public.get_public_po(p_token uuid) RETURNS jsonb
 
 CREATE FUNCTION public.get_public_reservation_info(p_restaurant_code text) RETURNS json
     LANGUAGE plpgsql SECURITY DEFINER
-    SET search_path TO 'public', 'extensions', 'pg_temp'
-    AS $$ declare r restaurants%rowtype;
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+declare r restaurants%rowtype;
 begin
   select * into r from restaurants where code = p_restaurant_code;
   if r.id is null or not coalesce(r.is_active, false) then return null; end if;
-  return json_build_object('name', r.name, 'enabled', r.online_reservations_enabled);
+  return json_build_object('name', r.name, 'enabled', r.online_reservations_enabled, 'from', to_char(r.online_resv_from, 'HH24:MI'), 'to', to_char(r.online_resv_to, 'HH24:MI'));
 end $$;
 
 
@@ -9013,7 +9070,7 @@ begin
                floor(min(i.stock / pi.qty_per_unit) filter (where pi.qty_per_unit > 0)) available_qty
         from product_ingredients pi join ingredients i on i.id = pi.ingredient_id where pi.product_id = p.id) rc on true
       where p.restaurant_id = r.id),
-    'ingredients', (select coalesce(json_agg(json_build_object('id', id, 'name', name, 'unit', unit, 'stock', stock, 'waste_pct', waste_pct, 'min_stock', min_stock, 'unit_cost', unit_cost, 'pack_mode', pack_mode, 'purchase_units', purchase_units, 'piece_weight', piece_weight, 'free', _ing_is_free(id))), '[]'::json) from ingredients where restaurant_id = r.id and not archived),
+    'ingredients', (select coalesce(json_agg(json_build_object('id', id, 'name', name, 'unit', unit, 'stock', stock, 'waste_pct', waste_pct, 'min_stock', min_stock, 'unit_cost', unit_cost, 'pack_mode', pack_mode, 'purchase_units', purchase_units, 'piece_weight', piece_weight, 'prep_source_id', prep_source_id, 'prep_default', prep_default, 'free', _ing_is_free(id))), '[]'::json) from ingredients where restaurant_id = r.id and not archived),
     'users', (
       select coalesce(json_agg(json_build_object('id', au.id, 'username', au.username, 'role_ids', au.role_ids, 'is_active', au.is_active, 'phone', au.phone, 'email', au.email, 'has_pin', au.pin_hash is not null,
         'role_names', (select coalesce(array_agg(rl.name), '{}') from roles rl where rl.id = any(au.role_ids)))), '[]'::json)
@@ -10359,6 +10416,23 @@ $$;
 
 
 --
+-- Name: list_prep_log(uuid, integer); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.list_prep_log(p_token uuid, p_days integer DEFAULT 14) RETURNS json
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+declare s staff_sessions%rowtype;
+begin
+  s := _session_check(p_token, 'kitchen');
+  return (select coalesce(json_agg(json_build_object('ingredient_id', l.ingredient_id, 'name', i.name, 'unit', i.unit, 'kind', l.kind, 'qty', l.qty, 'at', l.at, 'user', u.username) order by l.at desc), '[]'::json)
+    from ingredient_prep_log l join ingredients i on i.id = l.ingredient_id left join app_users u on u.id = l.user_id
+    where l.restaurant_id = s.restaurant_id and l.at > now() - make_interval(days => least(greatest(coalesce(p_days, 14), 1), 90)));
+end $$;
+
+
+--
 -- Name: list_product_media(uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -10506,7 +10580,7 @@ begin
       where rv.restaurant_id = s.restaurant_id
         and rv.status in ('pending','confirmed')
         and (
-          (p_date is null and rv.reservation_time >= now() - interval '1 day' and (rv.reservation_time < now() + interval '14 days' or (rv.source = 'online' and rv.status = 'pending')))
+          (p_date is null and rv.reservation_time >= now() - interval '1 day' and (rv.reservation_time < now() + interval '91 days' or (rv.source = 'online' and rv.status = 'pending')))
           or
           (p_date is not null and rv.reservation_time >= (p_date::timestamp at time zone 'Europe/Istanbul') and rv.reservation_time < ((p_date+1)::timestamp at time zone 'Europe/Istanbul'))
         )
@@ -11439,6 +11513,60 @@ end $_$;
 
 
 --
+-- Name: prep_ingredient(uuid, uuid, numeric); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.prep_ingredient(p_token uuid, p_id uuid, p_qty numeric) RETURNS json
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+declare s staff_sessions%rowtype; a ingredients%rowtype; b ingredients%rowtype; st numeric; nc numeric;
+begin
+  s := _session_check(p_token, 'kitchen');
+  if p_qty is null or p_qty <= 0 then raise exception 'Geçerli bir miktar girin'; end if;
+  select * into a from ingredients where id = p_id and restaurant_id = s.restaurant_id for update;
+  if a.id is null then raise exception 'Hammadde bulunamadı'; end if;
+  if a.prep_source_id is null then raise exception 'Bu hammadde için kaynak (depo) tanımlı değil'; end if;
+  select * into b from ingredients where id = a.prep_source_id and restaurant_id = s.restaurant_id for update;
+  if coalesce(b.stock, 0) < p_qty then raise exception 'Depoda yeterli % yok: % % var, % % isteniyor', b.name, round(coalesce(b.stock,0), 3), b.unit, p_qty, b.unit; end if;
+  st := greatest(coalesce(a.stock, 0), 0);
+  nc := case when coalesce(b.unit_cost, 0) > 0 then round((st * coalesce(a.unit_cost, b.unit_cost) + p_qty * b.unit_cost) / (st + p_qty), 4) else a.unit_cost end;
+  update ingredients set stock = stock - p_qty where id = b.id;
+  update ingredients set stock = st + p_qty, unit_cost = nc, prep_default = p_qty where id = a.id;
+  insert into ingredient_prep_log(restaurant_id, ingredient_id, source_id, kind, qty, unit_cost, user_id) values (s.restaurant_id, a.id, b.id, 'prep', p_qty, b.unit_cost, s.user_id);
+  return json_build_object('stock', st + p_qty, 'source_stock', b.stock - p_qty);
+end $$;
+
+
+--
+-- Name: prep_leftover(uuid, uuid, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.prep_leftover(p_token uuid, p_id uuid, p_action text) RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+declare s staff_sessions%rowtype; a ingredients%rowtype; q numeric;
+begin
+  s := _session_check(p_token, 'kitchen');
+  if p_action not in ('keep','waste','return') then raise exception 'Geçersiz seçim'; end if;
+  select * into a from ingredients where id = p_id and restaurant_id = s.restaurant_id for update;
+  if a.id is null then raise exception 'Hammadde bulunamadı'; end if;
+  q := greatest(coalesce(a.stock, 0), 0);
+  if p_action = 'waste' and q > 0 then
+    insert into waste_log(restaurant_id, product_name, qty, unit_cost, total_cost, reason, staff_user_id)
+      values (s.restaurant_id, a.name || ' (' || a.unit || ')', q, coalesce(a.unit_cost, 0), round(q * coalesce(a.unit_cost, 0), 2), 'Gün sonu kalan', s.user_id);
+    update ingredients set stock = 0 where id = a.id;
+  elsif p_action = 'return' and q > 0 then
+    if a.prep_source_id is null then raise exception 'Kaynak (depo) tanımlı değil'; end if;
+    update ingredients set stock = coalesce(stock, 0) + q where id = a.prep_source_id and restaurant_id = s.restaurant_id;
+    update ingredients set stock = 0 where id = a.id;
+  end if;
+  insert into ingredient_prep_log(restaurant_id, ingredient_id, source_id, kind, qty, unit_cost, user_id) values (s.restaurant_id, a.id, a.prep_source_id, p_action, q, a.unit_cost, s.user_id);
+end $$;
+
+
+--
 -- Name: recalc_recipe_costs(uuid, boolean); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -12159,6 +12287,28 @@ end $_$;
 
 
 --
+-- Name: save_campaign_template(uuid, text, text, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.save_campaign_template(p_token uuid, p_id text, p_name text, p_text text) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+declare s staff_sessions%rowtype; v jsonb; v_id text := coalesce(nullif(p_id,''), gen_random_uuid()::text);
+begin
+  s := _session_check(p_token, 'crm');
+  if length(trim(coalesce(p_name,''))) = 0 then raise exception 'Şablon adı girin'; end if;
+  if length(trim(coalesce(p_text,''))) < 5 then raise exception 'Mesaj metni girin'; end if;
+  if length(p_name) > 60 or length(p_text) > 2000 then raise exception 'Şablon çok uzun'; end if;
+  select coalesce(jsonb_agg(e), '[]'::jsonb) into v from restaurants r, jsonb_array_elements(r.campaign_templates) e where r.id = s.restaurant_id and e->>'id' <> v_id;
+  if jsonb_array_length(v) >= 50 then raise exception 'En fazla 50 şablon'; end if;
+  v := v || jsonb_build_array(jsonb_build_object('id', v_id, 'name', trim(p_name), 'text', p_text, 'updated_at', now()));
+  update restaurants set campaign_templates = v where id = s.restaurant_id;
+  return v;
+end $$;
+
+
+--
 -- Name: save_cash_count(uuid, date, numeric, numeric, text); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -12630,7 +12780,7 @@ begin
     -- Kampanya: aynı müşteriye 24 saat içinde ikinci mesaj gönderilmez (yanlışlıkla çift gönderim).
     if exists(select 1 from winback_log where customer_id = c.id and sent_at > now() - interval '24 hours'
                   and not (p_channel in ('sms','both') and c.phone_changed_at is not null and c.phone_changed_at > sent_at)) then n_skip := n_skip + 1; continue; end if;
-    v_msg := replace(replace(p_text, '{ad}', coalesce(split_part(c.name, ' ', 1), '')), '{isletme}', coalesce(v_name, ''));
+    v_msg := replace(replace(replace(replace(p_text, '{adsoyad}', coalesce(trim(c.name), '')), '{soyad}', coalesce(case when strpos(trim(c.name), ' ') > 0 then regexp_replace(trim(c.name), '^.*\s', '') else '' end, '')), '{ad}', coalesce(split_part(c.name, ' ', 1), '')), '{isletme}', coalesce(v_name, ''));
     if p_channel in ('sms','both') and nullif(c.phone,'') is not null then perform _send_sms(v_rid, c.phone, v_msg, 'campaign'); n_sms := n_sms + 1; end if;
     if p_channel in ('mail','both') and nullif(c.email,'') is not null then
       perform set_config('peyktan.mail_purpose', 'campaign', true);
@@ -13303,7 +13453,7 @@ begin
   for c in select * from customers where restaurant_id = v_rid and id = any(p_ids) and marketing_consent is not false loop
     -- Aynı müşteriye 14 gün içinde ikinci kampanya gönderilmez (rahatsız etmemek için).
     if exists(select 1 from winback_log where customer_id = c.id and sent_at > now() - interval '14 days') then n_skip := n_skip + 1; continue; end if;
-    v_msg := replace(replace(p_text, '{ad}', coalesce(split_part(c.name, ' ', 1), '')), '{isletme}', coalesce(v_name, ''));
+    v_msg := replace(replace(replace(replace(p_text, '{adsoyad}', coalesce(trim(c.name), '')), '{soyad}', coalesce(case when strpos(trim(c.name), ' ') > 0 then regexp_replace(trim(c.name), '^.*\s', '') else '' end, '')), '{ad}', coalesce(split_part(c.name, ' ', 1), '')), '{isletme}', coalesce(v_name, ''));
     if p_channel in ('sms','both') and nullif(c.phone,'') is not null then perform _send_sms(v_rid, c.phone, v_msg, 'winback'); n_sms := n_sms + 1; end if;
     if p_channel in ('mail','both') and nullif(c.email,'') is not null then
       perform set_config('peyktan.mail_purpose', 'winback', true);
@@ -13520,6 +13670,34 @@ end $$;
 
 
 --
+-- Name: set_ingredient_prep(uuid, uuid, uuid, numeric); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.set_ingredient_prep(p_token uuid, p_id uuid, p_source_id uuid, p_default numeric) RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+declare s staff_sessions%rowtype; a ingredients%rowtype; b ingredients%rowtype;
+begin
+  s := _session_check(p_token, 'settings_ingredients');
+  select * into a from ingredients where id = p_id and restaurant_id = s.restaurant_id;
+  if a.id is null then raise exception 'Hammadde bulunamadı'; end if;
+  if p_source_id is not null then
+    if p_source_id = p_id then raise exception 'Hammadde kendisinden hazırlanamaz'; end if;
+    select * into b from ingredients where id = p_source_id and restaurant_id = s.restaurant_id and not archived;
+    if b.id is null then raise exception 'Kaynak hammadde bulunamadı'; end if;
+    if b.unit is distinct from a.unit then raise exception 'Kaynak ve hazırlanan hammaddenin birimi aynı olmalı (%: %, %: %)', a.name, a.unit, b.name, b.unit; end if;
+    if b.prep_source_id = p_id then raise exception 'Döngü: % zaten bu hammaddeden hazırlanıyor', b.name; end if;
+  end if;
+  update ingredients set prep_source_id = p_source_id, prep_default = case when p_default > 0 then p_default else null end where id = p_id;
+  -- Hazırlanan hammaddenin maliyeti boşsa kaynağın (depo) ortalama maliyeti alınır; reçeteli ürün maliyetleri tetikleyiciyle güncellenir.
+  if p_source_id is not null and coalesce(a.unit_cost, 0) = 0 and coalesce(b.unit_cost, 0) > 0 then
+    update ingredients set unit_cost = b.unit_cost where id = p_id;
+  end if;
+end $$;
+
+
+--
 -- Name: set_ingredient_units(uuid, uuid, jsonb, numeric); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -13714,6 +13892,23 @@ begin
   s := _session_check(p_token, 'int_online');
   if p_mode not in ('both','pickup','delivery') then raise exception 'Geçersiz seçim'; end if;
   update restaurants set online_order_modes = p_mode where id = s.restaurant_id;
+end $$;
+
+
+--
+-- Name: set_online_reservation_hours(uuid, text, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.set_online_reservation_hours(p_token uuid, p_from text, p_to text) RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+declare s staff_sessions%rowtype; f time; t time;
+begin
+  s := _session_check(p_token, 'reservations');
+  begin f := p_from::time; t := p_to::time; exception when others then raise exception 'Geçersiz saat'; end;
+  if f >= t then raise exception 'Başlangıç saati bitişten önce olmalı'; end if;
+  update restaurants set online_resv_from = f, online_resv_to = t where id = s.restaurant_id;
 end $$;
 
 
@@ -15576,7 +15771,9 @@ begin
   if length(regexp_replace(coalesce(p_phone,''), '\D', '', 'g')) < 10 then raise exception 'Geçerli bir telefon numarası girin'; end if;
   if p_party is null or p_party < 1 or p_party > 30 then raise exception 'Kişi sayısı 1-30 arasında olmalı'; end if;
   if p_time is null or p_time < now() + interval '30 minutes' then raise exception 'Rezervasyon en az 30 dakika sonrası için olmalı'; end if;
-  if p_time > now() + interval '60 days' then raise exception 'En fazla 60 gün sonrası için rezervasyon yapılabilir'; end if;
+  if p_time > now() + interval '90 days' then raise exception 'En fazla 90 gün sonrası için rezervasyon yapılabilir'; end if;
+  if exists (select 1 from restaurants rr where rr.code = p_restaurant_code and ((p_time at time zone 'Europe/Istanbul')::time < rr.online_resv_from or (p_time at time zone 'Europe/Istanbul')::time > rr.online_resv_to)) then
+    raise exception 'Bu saat için online rezervasyon alınmıyor'; end if;
   select count(*) into n from reservations where restaurant_id = r.id and phone = trim(p_phone) and created_at > now() - interval '10 minutes';
   if n >= 3 then raise exception 'Çok sık istek gönderildi, lütfen biraz bekleyin'; end if;
   -- Numara değiştirerek doldurmaya karşı: işletme başına saatlik ve IP başına sınır.
@@ -16358,20 +16555,21 @@ end $$;
 
 
 --
--- Name: upsert_overhead_item(uuid, uuid, text, text, numeric, text, boolean); Type: FUNCTION; Schema: public; Owner: -
+-- Name: upsert_overhead_item(uuid, uuid, text, text, numeric, text, boolean, text); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.upsert_overhead_item(p_token uuid, p_id uuid, p_name text, p_icon text, p_amount numeric, p_period text, p_active boolean) RETURNS jsonb
+CREATE FUNCTION public.upsert_overhead_item(p_token uuid, p_id uuid, p_name text, p_icon text, p_amount numeric, p_period text, p_active boolean, p_note text DEFAULT NULL::text) RETURNS jsonb
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public', 'pg_temp'
     AS $$
-declare s staff_sessions%rowtype; begin
+declare s staff_sessions%rowtype; v_note text := nullif(left(trim(coalesce(p_note,'')), 500), '');
+begin
   s := _session_check(p_token, 'settings_products');
   if coalesce(trim(p_name),'') = '' then raise exception 'Gider adı girin'; end if;
   if p_amount is null or p_amount < 0 then raise exception 'Geçersiz tutar'; end if;
   if p_period not in ('daily','weekly','monthly','yearly') then raise exception 'Geçersiz dönem'; end if;
-  if p_id is null then insert into overhead_items(restaurant_id, name, icon, amount, period, active) values (s.restaurant_id, left(trim(p_name),80), left(p_icon,8), p_amount, p_period, coalesce(p_active,true));
-  else update overhead_items set name = left(trim(p_name),80), icon = left(p_icon,8), amount = p_amount, period = p_period, active = coalesce(p_active,true) where id = p_id and restaurant_id = s.restaurant_id and deleted_at is null;
+  if p_id is null then insert into overhead_items(restaurant_id, name, icon, amount, period, active, note) values (s.restaurant_id, left(trim(p_name),80), left(p_icon,8), p_amount, p_period, coalesce(p_active,true), v_note);
+  else update overhead_items set name = left(trim(p_name),80), icon = left(p_icon,8), amount = p_amount, period = p_period, active = coalesce(p_active,true), note = v_note where id = p_id and restaurant_id = s.restaurant_id and deleted_at is null;
     if not found then raise exception 'Gider bulunamadı'; end if; end if;
   return _overhead_summary(s.restaurant_id);
 end $$;
@@ -17509,6 +17707,24 @@ CREATE TABLE public.ingredient_cost_log (
 
 
 --
+-- Name: ingredient_prep_log; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.ingredient_prep_log (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    restaurant_id uuid NOT NULL,
+    ingredient_id uuid NOT NULL,
+    source_id uuid,
+    kind text NOT NULL,
+    qty numeric NOT NULL,
+    unit_cost numeric,
+    user_id uuid,
+    at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT ingredient_prep_log_kind_check CHECK ((kind = ANY (ARRAY['prep'::text, 'keep'::text, 'waste'::text, 'return'::text])))
+);
+
+
+--
 -- Name: ingredients; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -17525,6 +17741,8 @@ CREATE TABLE public.ingredients (
     purchase_units jsonb DEFAULT '[]'::jsonb NOT NULL,
     piece_weight numeric,
     archived boolean DEFAULT false NOT NULL,
+    prep_source_id uuid,
+    prep_default numeric,
     CONSTRAINT ingredients_pack_mode_check CHECK ((pack_mode = ANY (ARRAY['per_product'::text, 'per_order'::text]))),
     CONSTRAINT ingredients_stock_nonneg CHECK (((stock IS NULL) OR (stock >= (0)::numeric))),
     CONSTRAINT ingredients_waste_pct_chk CHECK (((waste_pct >= (0)::numeric) AND (waste_pct < (100)::numeric)))
@@ -17913,6 +18131,7 @@ CREATE TABLE public.overhead_items (
     active boolean DEFAULT true NOT NULL,
     deleted_at timestamp with time zone,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
+    note text,
     CONSTRAINT overhead_items_amount_check CHECK ((amount >= (0)::numeric)),
     CONSTRAINT overhead_items_period_check CHECK ((period = ANY (ARRAY['daily'::text, 'weekly'::text, 'monthly'::text, 'yearly'::text])))
 );
@@ -18445,6 +18664,9 @@ CREATE TABLE public.restaurants (
     online_order_modes text DEFAULT 'both'::text NOT NULL,
     online_sms_verify boolean DEFAULT false NOT NULL,
     sms_optout_allow text[] DEFAULT '{}'::text[] NOT NULL,
+    online_resv_from time without time zone DEFAULT '11:00:00'::time without time zone NOT NULL,
+    online_resv_to time without time zone DEFAULT '23:00:00'::time without time zone NOT NULL,
+    campaign_templates jsonb DEFAULT '[]'::jsonb NOT NULL,
     CONSTRAINT restaurants_day_end_hour_check CHECK (((day_end_hour >= 0) AND (day_end_hour <= 23))),
     CONSTRAINT restaurants_default_vat_rate_check CHECK (((default_vat_rate >= (0)::numeric) AND (default_vat_rate <= (100)::numeric))),
     CONSTRAINT restaurants_online_order_modes_chk CHECK ((online_order_modes = ANY (ARRAY['both'::text, 'pickup'::text, 'delivery'::text])))
@@ -19189,6 +19411,14 @@ ALTER TABLE ONLY public.gift_cards
 
 ALTER TABLE ONLY public.ingredient_cost_log
     ADD CONSTRAINT ingredient_cost_log_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: ingredient_prep_log ingredient_prep_log_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ingredient_prep_log
+    ADD CONSTRAINT ingredient_prep_log_pkey PRIMARY KEY (id);
 
 
 --
@@ -20306,6 +20536,13 @@ CREATE INDEX idx_payments_restaurant_id ON public.payments USING btree (restaura
 --
 
 CREATE INDEX idx_platform_admin_sessions_admin_id ON public.platform_admin_sessions USING btree (admin_id);
+
+
+--
+-- Name: idx_prep_log_rest_at; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_prep_log_rest_at ON public.ingredient_prep_log USING btree (restaurant_id, at DESC);
 
 
 --
@@ -21959,6 +22196,38 @@ ALTER TABLE ONLY public.ingredient_cost_log
 
 
 --
+-- Name: ingredient_prep_log ingredient_prep_log_ingredient_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ingredient_prep_log
+    ADD CONSTRAINT ingredient_prep_log_ingredient_id_fkey FOREIGN KEY (ingredient_id) REFERENCES public.ingredients(id) ON DELETE CASCADE;
+
+
+--
+-- Name: ingredient_prep_log ingredient_prep_log_restaurant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ingredient_prep_log
+    ADD CONSTRAINT ingredient_prep_log_restaurant_id_fkey FOREIGN KEY (restaurant_id) REFERENCES public.restaurants(id) ON DELETE CASCADE;
+
+
+--
+-- Name: ingredient_prep_log ingredient_prep_log_source_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ingredient_prep_log
+    ADD CONSTRAINT ingredient_prep_log_source_id_fkey FOREIGN KEY (source_id) REFERENCES public.ingredients(id) ON DELETE SET NULL;
+
+
+--
+-- Name: ingredients ingredients_prep_source_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ingredients
+    ADD CONSTRAINT ingredients_prep_source_id_fkey FOREIGN KEY (prep_source_id) REFERENCES public.ingredients(id) ON DELETE SET NULL;
+
+
+--
 -- Name: ingredients ingredients_restaurant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -22887,6 +23156,12 @@ ALTER TABLE public.gift_cards ENABLE ROW LEVEL SECURITY;
 --
 
 ALTER TABLE public.ingredient_cost_log ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: ingredient_prep_log; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.ingredient_prep_log ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: ingredients; Type: ROW SECURITY; Schema: public; Owner: -
