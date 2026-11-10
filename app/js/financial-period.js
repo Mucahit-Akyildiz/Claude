@@ -888,7 +888,7 @@ function openPcDetail(id){
         <span data-l="Sipariş">${escapeHtml(fmtIngQty(q, ig))}${pkTxt ? '<br>' + pkTxt : ''}</span>
         <span data-l="Teslim" class="${r >= q && q > 0 ? 'ok' : r > 0 ? 'warn' : 'muted'}">${canRecv ? recvInputHtml({ id: i.id, quantity: q, received: r, name: i.name, unit: i.unit }, ig, 'pod-recv') + (r > 0 ? `<small class="muted">önceden ${escapeHtml(fmtIngQty(r, ig))}</small>` : '') : escapeHtml(fmtIngQty(r, ig)) + (r > q ? ' <small>(+' + escapeHtml(fmtIngQty(r - q, ig)) + ' fazla)</small>' : '')}</span>
         <span data-l="Birim fiyat">${i.free ? '🎁 Bedelsiz' : p.status === 'cancelled' ? (c > 0 ? money(c) + ' / ' + escapeHtml(unitShort(i.unit || '')) : '<span class="pchip warn">fiyat yok</span>') : podCostCellHtml(i, q, ig, c)}</span>
-        <span data-l="Tutar"><b id="podT-${i.id}" data-q="${q}" data-c="${c > 0 ? c : ''}" class="pod-tv">${c > 0 ? money(q * c) : i.free ? '0,00 TL' : '—'}</b></span></div>`; }).join('') || '<p class="muted">Kalem yok.</p>'}
+        <span data-l="Tutar"><b id="podT-${i.id}" data-q="${q}" data-r="${r}" data-c="${c > 0 ? c : ''}" class="pod-tv">${c > 0 ? money(q * c) : i.free ? '0,00 TL' : '—'}</b></span></div>`; }).join('') || '<p class="muted">Kalem yok.</p>'}
       <div class="pod-row pod-tot"><span>Toplam</span><span></span><span></span><span></span><span><b id="podTotal">${money(p.total_amount)}</b></span></div></div>
     ${p.notes ? `<div class="pc-note">📝 ${escapeHtml(p.notes)}</div>` : ''}
     <div class="pod-acts"><button type="button" class="pc-btn" ${act('poExport', p.id, 'pdf')}>📄 PDF</button><button type="button" class="pc-btn" ${act('poExport', p.id, 'print')}>🖨️ Yazdır</button>
@@ -929,12 +929,19 @@ function podPackCalc(id){
   if(pnEl && pn > 0){ const m = podPackSizes(); m[String(pnEl.dataset.name || '').toLocaleLowerCase('tr')] = pn; try{ localStorage.setItem(POD_PACK_KEY, JSON.stringify(m)); }catch(e){} }
   if(pp >= 0 && pn > 0){ const c = document.getElementById('podC-' + id); if(c){ c.value = String(Math.round(pp / pn * 10000) / 10000); podCostInput(id); } }
 }
+// Satır miktarı: teslim kutusu varsa girilen teslim (önceden teslim alınanla birlikte), yoksa sipariş miktarı.
+function podLineQty(id, t){
+  const inp = document.querySelector('#poDetailBg .recv-qty-input[data-item-id="' + id + '"]');
+  if(!inp) return Number(t && t.dataset.q) || 0;
+  const us = inp.parentElement.querySelector('.recv-unit'), f = us ? (parseFloat(us.value) || 1) : 1;
+  return (Number(t && t.dataset.r) || 0) + (parseFloat(String(inp.value).replace(',', '.')) || 0) * f;
+}
 function podCostInput(id){
   const c = document.getElementById('podC-' + id), t = document.getElementById('podT-' + id); if(!c || !t) return;
-  const v = podBaseCost(id), q = Number(t.dataset.q) || 0, us = document.getElementById('podU-' + id), eq = document.getElementById('podE-' + id);
-  t.dataset.c = isNaN(v) ? '' : v; t.textContent = isNaN(v) ? '—' : money(q * v);
+  const v = podBaseCost(id), us = document.getElementById('podU-' + id), eq = document.getElementById('podE-' + id);
+  t.dataset.c = isNaN(v) ? '' : v; t.textContent = isNaN(v) ? '—' : money(podLineQty(id, t) * v);
   if(eq){ const f = us ? (parseFloat(us.value) || 1) : 1; eq.textContent = !isNaN(v) && f !== 1 ? '= ' + money(v) + ' / ' + (eq.dataset.u || 'birim') : ''; }
-  let sum = 0; document.querySelectorAll('#poDetailBg .pod-tv').forEach(x => { const cc = parseFloat(x.dataset.c); if(!isNaN(cc)) sum += (Number(x.dataset.q) || 0) * cc; });
+  let sum = 0; document.querySelectorAll('#poDetailBg .pod-tv').forEach(x => { const cc = parseFloat(x.dataset.c); if(!isNaN(cc)) sum += podLineQty(x.id.slice(5), x) * cc; });
   const tot = document.getElementById('podTotal'); if(tot) tot.textContent = money(sum);
 }
 const POD_SAVE_T = {};

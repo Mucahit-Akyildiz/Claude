@@ -430,9 +430,11 @@ function recvInputHtml(it, ig, extraCls){
   const pk = ingDefaultPack(ig), useF = pk && left > 0 && Math.abs(left / pk.f - Math.round(left / pk.f)) < 1e-9 ? pk.f : 1;
   const name = it.ingredient_name || it.name || '', unit = it.ingredient_unit || it.unit || '';
   const units = ingUnits(ig, { purchase: true });
-  return `<div class="recv-w ${extraCls || ''}"><input type="number" min="0" step="any" class="recv-qty-input" placeholder="kalan ${escapeAttr(fmtIngQty(left, ig))}" value="${left > 0 ? unitRound(left / useF) : ''}" title="Sipariş edilen kalan miktar hazır gelir; farklı geldiyse değiştirin" data-item-id="${it.id}" data-ing="${escapeAttr(ig.id || '')}" data-left="${left}" data-name="${escapeAttr(name)}" data-unit="${escapeAttr(unit)}">
-    ${units.length > 1 ? `<select class="recv-unit" title="Birim">${unitOptionsHtml(ig, poUnitName(ig, useF), { purchase: true, short: extraCls === 'pod-recv' })}</select>` : `<span class="recv-u">${escapeHtml(unitShort(unit))}</span>`}</div>`;
+  return `<div class="recv-w ${extraCls || ''}"><input type="number" min="0" step="any" class="recv-qty-input" ${actOn('input','recvQtyChanged',[it.id])} placeholder="kalan ${escapeAttr(fmtIngQty(left, ig))}" value="${left > 0 ? unitRound(left / useF) : ''}" title="Sipariş edilen kalan miktar hazır gelir; farklı geldiyse değiştirin" data-item-id="${it.id}" data-ing="${escapeAttr(ig.id || '')}" data-left="${left}" data-name="${escapeAttr(name)}" data-unit="${escapeAttr(unit)}">
+    ${units.length > 1 ? `<select class="recv-unit" title="Birim" ${actOn('change','recvQtyChanged',[it.id])}>${unitOptionsHtml(ig, poUnitName(ig, useF), { purchase: true, short: extraCls === 'pod-recv' })}</select>` : `<span class="recv-u">${escapeHtml(unitShort(unit))}</span>`}</div>`;
 }
+// Teslim miktarı değişince (Mal Kabul detayında) satır tutarı gelen miktara göre yeniden hesaplanır.
+function recvQtyChanged(id){ if(typeof podCostInput === 'function' && document.getElementById('podT-' + id)) podCostInput(id); }
 async function confirmReceivePO(){
   const bg = document.getElementById('receivePOModalBg'); if(!bg) return;
   const ok = await submitPoReceipts(bg.dataset.poId, recvRows(bg));
