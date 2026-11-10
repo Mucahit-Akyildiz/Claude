@@ -669,3 +669,85 @@ function unitOptionsHtml(ig, sel, opts){
   window.addEventListener('scroll', () => place(), { passive: true, capture: true });
   window.addEventListener('resize', () => place());
 })();
+
+/* Aranabilir seçim: 12+ seçenekli her <select> otomatik olarak arama kutulu bir seçiciye dönüşür.
+   Asıl <select> gizli kalır ve değer/‘change’ olayı onun üzerinden yürür; mevcut kod değişmeden çalışır.
+   Hariç tutmak için: <select data-ss="off">. */
+const SS_MIN = 12;
+function ssNorm(t){ return String(t || '').toLocaleLowerCase('tr').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/ı/g, 'i'); }
+function ssLabel(sel){ const o = sel.options[sel.selectedIndex]; return o ? o.textContent : ''; }
+function ssSync(sel){
+  const b = sel._ssBtn; if(!b) return;
+  b.querySelector('.ss-v').textContent = ssLabel(sel) || '— Seçin —';
+  b.disabled = sel.disabled;
+}
+function ssEnhance(sel){
+  if(sel._ssBtn || sel.multiple || sel.dataset.ss === 'off' || sel.options.length < SS_MIN) return;
+  const b = document.createElement('button'); b.type = 'button'; b.className = 'ss-btn ' + sel.className;
+  if(sel.style.cssText) b.style.cssText = sel.style.cssText;
+  b.innerHTML = '<span class="ss-v"></span><span class="ss-car">▾</span>';
+  sel.insertAdjacentElement('afterend', b); sel._ssBtn = b; sel.classList.add('ss-hidden');
+  b.addEventListener('click', () => ssOpen(sel));
+  sel.addEventListener('change', () => ssSync(sel));
+  const d = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value');
+  try{ Object.defineProperty(sel, 'value', { configurable: true, get(){ return d.get.call(this); }, set(v){ d.set.call(this, v); ssSync(this); } }); }catch(e){}
+  new MutationObserver(() => ssSync(sel)).observe(sel, { childList: true, subtree: true, attributes: true, attributeFilter: ['disabled'] });
+  ssSync(sel);
+}
+function ssClose(){ const p = document.getElementById('ssPop'); if(p){ p.remove(); } document.removeEventListener('mousedown', ssOutside, true); }
+function ssOutside(e){ const p = document.getElementById('ssPop'); if(p && !p.contains(e.target)) ssClose(); }
+function ssOpen(sel){
+  ssClose();
+  const b = sel._ssBtn, r = b.getBoundingClientRect(), p = document.createElement('div');
+  p.id = 'ssPop'; p.className = 'ss-pop';
+  p.innerHTML = '<div class="ss-sr"><input type="search" class="ss-q" placeholder="Ara…" autocomplete="off"><button type="button" class="ss-x" title="Temizle">✕</button></div><div class="ss-list" role="listbox"></div><div class="ss-empty" hidden>Sonuç yok</div>';
+  document.body.appendChild(p);
+  const w = Math.max(r.width, 280), below = window.innerHeight - r.bottom, h = Math.min(360, Math.max(below, r.top) - 16);
+  p.style.width = Math.min(w, window.innerWidth - 16) + 'px';
+  p.style.left = Math.max(8, Math.min(r.left, window.innerWidth - w - 8)) + 'px';
+  p.style.maxHeight = h + 'px';
+  if(below >= Math.min(360, r.top)) p.style.top = (r.bottom + 4) + 'px'; else p.style.bottom = (window.innerHeight - r.top + 4) + 'px';
+  const q = p.querySelector('.ss-q'), list = p.querySelector('.ss-list'), empty = p.querySelector('.ss-empty');
+  let items = [], hi = -1;
+  const render = () => {
+    const t = ssNorm(q.value.trim()); list.innerHTML = ''; items = []; let lastGroup = null;
+    [...sel.options].forEach(o => {
+      if(o.hidden || (o.disabled && !o.value)) return;
+      if(t && !ssNorm(o.textContent).includes(t)) return;
+      const g = o.parentElement.tagName === 'OPTGROUP' ? o.parentElement.label : null;
+      if(g && g !== lastGroup){ const gh = document.createElement('div'); gh.className = 'ss-g'; gh.textContent = g; list.appendChild(gh); } lastGroup = g;
+      const it = document.createElement('div'); it.className = 'ss-it' + (o.selected ? ' on' : '') + (o.disabled ? ' dis' : '');
+      it.textContent = o.textContent; it.setAttribute('role', 'option');
+      if(!o.disabled) it.addEventListener('click', () => pick(o));
+      list.appendChild(it); items.push({ it, o });
+    });
+    empty.hidden = !!items.length;
+    hi = t ? items.findIndex(x => !x.o.disabled) : items.findIndex(x => x.o.selected); mark(true);
+  };
+  const mark = (scroll) => { items.forEach((x, k) => x.it.classList.toggle('hi', k === hi)); if(scroll && items[hi]) items[hi].it.scrollIntoView({ block: 'nearest' }); };
+  const pick = (o) => { sel.value = o.value; sel.dispatchEvent(new Event('input', { bubbles: true })); sel.dispatchEvent(new Event('change', { bubbles: true })); ssClose(); b.focus(); };
+  q.addEventListener('input', render);
+  p.querySelector('.ss-x').addEventListener('click', () => { q.value = ''; render(); q.focus(); });
+  q.addEventListener('keydown', e => {
+    if(e.key === 'ArrowDown' || e.key === 'ArrowUp'){ e.preventDefault(); if(!items.length) return; hi = (hi + (e.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length; mark(true); }
+    else if(e.key === 'Enter'){ e.preventDefault(); if(items[hi] && !items[hi].o.disabled) pick(items[hi].o); }
+    else if(e.key === 'Escape'){ e.preventDefault(); e.stopPropagation(); ssClose(); b.focus(); }
+    else if(e.key === 'Tab') ssClose();
+  });
+  render(); setTimeout(() => q.focus(), 0);
+  setTimeout(() => document.addEventListener('mousedown', ssOutside, true), 0);
+}
+(function ssBoot(){
+  if(typeof document === 'undefined' || typeof MutationObserver === 'undefined') return;
+  const scan = (root) => { if(root.querySelectorAll) root.querySelectorAll('select').forEach(ssEnhance); };
+  const start = () => {
+    scan(document);
+    new MutationObserver(ms => ms.forEach(m => {
+      m.addedNodes.forEach(n => { if(n.nodeType !== 1) return; if(n.tagName === 'SELECT') ssEnhance(n); else scan(n); });
+      if(m.target.tagName === 'SELECT') ssEnhance(m.target);
+    })).observe(document.body, { childList: true, subtree: true });
+    window.addEventListener('resize', ssClose);
+    document.addEventListener('scroll', e => { const p = document.getElementById('ssPop'); if(p && !p.contains(e.target)) ssClose(); }, true);
+  };
+  if(document.body) start(); else document.addEventListener('DOMContentLoaded', start);
+})();
