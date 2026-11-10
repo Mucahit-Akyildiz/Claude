@@ -1052,7 +1052,8 @@ function tableTreatBoxHtml(){
     ${on ? `<div class="tt-body">
       <div class="ix-form" style="grid-template-columns:minmax(0,1fr) minmax(0,1fr);">
         <div><label>İkram ürünü <small class="muted">(reçetesine kişi başı miktarları girin)</small></label><select id="ttProd" ${actOn('change','saveTableTreat',[])}><option value="">— Ürün seçin —</option>${prods.map(p => `<option value="${p.id}" ${p.id === tr.product_id ? 'selected' : ''}>${escapeHtml(p.name)}${p.recipe && p.recipe.length ? '' : ' (reçete yok)'}</option>`).join('')}</select></div>
-        <div><label>Bölgeler <small class="muted">(hiçbiri seçilmezse tümü)</small></label><div class="tt-zones">${zones.map(z => `<label class="al-u"><input type="checkbox" class="tt-z" value="${z.id}" ${zsel.includes(z.id) ? 'checked' : ''} ${actOn('change','saveTableTreat',[])}><span>${escapeHtml(z.name)}</span></label>`).join('') || '<small class="muted">Bölge yok</small>'}</div></div>
+        <div><label>İkram verilecek bölgeler</label><div class="tt-zones">${zones.length ? `<button type="button" class="tt-zc ${zsel.length ? '' : 'on'}" title="Tüm bölgelerde ikram verilir" ${act('ttAllZones')}>${zsel.length ? '' : '✓ '}Tüm bölgeler</button>` + zones.map(z => `<label class="tt-zc ${zsel.includes(z.id) ? 'on' : ''}"><input type="checkbox" class="tt-z" value="${z.id}" ${zsel.includes(z.id) ? 'checked' : ''} ${actOn('change','saveTableTreat',[])}>${zsel.includes(z.id) ? '✓ ' : ''}${escapeHtml(z.name)}</label>`).join('') : '<small class="muted">Bölge yok</small>'}</div>
+          <small class="muted tt-zhint">${zsel.length ? zsel.length + ' bölgede ikram verilir' : 'Hiç bölge seçilmezse tüm bölgelerde verilir'}</small></div>
       </div>
       <div class="tt-info">
         ${cur ? (Number(cur.cost) ? `<span class="pchip">💰 Kişi başı maliyet: <b>${money(cur.cost)}</b></span>` : '<span class="pchip u-red">⚠️ Ürünün maliyeti yok — reçete girin</span>') : '<span class="pchip">Ürün seçince kaydedilir</span>'}
@@ -1075,6 +1076,7 @@ async function setTreatOn(on){
   }
   renderSettingsContent(getSession());
 }
+function ttAllZones(){ document.querySelectorAll('.tt-z:checked').forEach(c => { c.checked = false; }); saveTableTreat(); }
 async function saveTableTreat(){
   const pid = document.getElementById('ttProd').value || null, zones = [...document.querySelectorAll('.tt-z:checked')].map(c => c.value);
   if(!pid) return;
@@ -1097,7 +1099,7 @@ function renderZonesSettings(el, session){
     <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:14px;">
       <h2 class="u-m0">Bölgeler & Masalar</h2><span class="u-f1"></span>
       <button type="button" class="pc-btn" ${act('showAllTableQrs')}>▦ Tüm QR'ları Yazdır</button>
-      <button type="button" class="pc-btn" ${act('downloadAllTableQrs')}>⬇ Tüm QR'ları İndir</button>
+      <button type="button" class="pc-btn" ${act('downloadZoneQrPdf', '')} title="Her bölüm için ayrı A4 PDF">⬇ QR'ları Bölüm Bölüm İndir</button>
     </div>
     <div class="zn-layout">
       <div class="zn-list">
@@ -1325,11 +1327,12 @@ async function showAllTableQrs(){
       <h2 class="u-m0">▦ Masa QR Kodları <span class="muted" style="font-size:13px;font-weight:600;">(${list.length})</span></h2>
       <div style="display:flex;gap:8px;">
         <button type="button" class="u-wa-m0" ${act('printAllTableQrs')}>🖨️ Yazdır / PDF</button>
-        <button type="button" class="u-wa-m0 ghost-btn" ${act('downloadAllTableQrs')}>⬇ İndir</button>
+        <button type="button" class="u-wa-m0 ghost-btn" title="Her bölüm için ayrı A4 PDF (sayfada 12 QR)" ${act('downloadZoneQrPdf', '')}>⬇ Bölüm bölüm indir (PDF)</button>
+        <button type="button" class="u-wa-m0 ghost-btn" title="Her masa için ayrı PNG" ${act('downloadAllTableQrs')}>🖼️ Tek tek PNG</button>
         <button type="button" class="u-wa-m0 ghost-btn" ${act('removeEl', 'qrSheetBg')}>✕</button>
       </div>
     </div>
-    ${zones.map(z => `<h3 style="margin:14px 0 8px;font-size:14px;">${escapeHtml(z)}</h3><div class="qr-sheet">${list.filter(t => t.zone === z).map(t => `<div class="qr-cell"><img src="${qrImg(t.url, 300)}" alt=""><b>${escapeHtml(t.name)}</b><small>${escapeHtml(z)}</small></div>`).join('')}</div>`).join('')}
+    ${zones.map(z => `<h3 class="qr-zh" style="margin:14px 0 8px;font-size:14px;display:flex;align-items:center;gap:10px;">${escapeHtml(z)} <span class="muted" style="font-weight:600;font-size:12px;">${list.filter(t => t.zone === z).length} masa</span><button type="button" class="ghost-btn u-wa-m0" style="margin-left:auto !important;padding:5px 10px !important;font-size:12px;" ${act('downloadZoneQrPdf', z)}>⬇ Bu bölümü indir</button></h3><div class="qr-sheet">${list.filter(t => t.zone === z).map(t => `<div class="qr-cell"><img src="${qrImg(t.url, 300)}" alt=""><b>${escapeHtml(t.name)}</b><small>${escapeHtml(z)}</small></div>`).join('')}</div>`).join('')}
   </div>`;
   document.body.appendChild(bg);
 }
@@ -1338,6 +1341,49 @@ function printAllTableQrs(){
   const done = () => { document.body.classList.remove('printing-qr'); window.removeEventListener('afterprint', done); };
   window.addEventListener('afterprint', done);
   setTimeout(() => window.print(), 300);
+}
+/* Bölüm bölüm QR: her bölüm (salon, bahçe…) için tek A4 PDF; sayfada 3×4 = 12 QR. Yazılar tuvalde çizilir (Türkçe harfler doğru çıkar). */
+async function downloadZoneQrPdf(zone){
+  const all = allTablesForQr(); if(!all.length){ showToast('Henüz masa yok'); return; }
+  const zones = zone ? [zone] : [...new Set(all.map(t => t.zone))];
+  if(!zone && zones.length > 1 && !await uiConfirm(zones.length + ' bölüm için ayrı ayrı PDF indirilecek (' + zones.join(', ') + '). Tarayıcı "birden fazla dosya" izni sorarsa İzin Ver deyin.', { title: 'Bölüm bölüm QR indir', okText: 'İndir', danger: false })) return;
+  const load = (src) => new Promise((res, rej) => { const im = new Image(); im.crossOrigin = 'anonymous'; im.onload = () => res(im); im.onerror = rej; im.src = src; });
+  let files = 0, fail = 0;
+  await withLoadingOverlay((async () => {
+    try{ await _qrLib(); }catch(e){}
+    await loadScriptOnce('/assets/vendor/jspdf.umd.min.js');
+    for(const z of zones){
+      const list = all.filter(t => t.zone === z); if(!list.length) continue;
+      const pdf = new window.jspdf.jsPDF({ unit: 'mm', format: 'a4' });
+      const COLS = 3, ROWS = 4, PER = COLS * ROWS, M = 10, CW = (210 - M * 2) / COLS, CH = (297 - M * 2 - 8) / ROWS;
+      for(let i = 0; i < list.length; i++){
+        const t = list[i], k = i % PER;
+        if(i && !k) pdf.addPage();
+        if(!k){ // sayfa başlığı
+          const hc = document.createElement('canvas'); hc.width = 1900; hc.height = 70; const hg = hc.getContext('2d');
+          hg.fillStyle = '#fff'; hg.fillRect(0, 0, hc.width, hc.height); hg.fillStyle = '#111'; hg.font = 'bold 44px sans-serif'; hg.textBaseline = 'middle';
+          hg.fillText(z + '  ·  ' + list.length + ' masa' + (list.length > PER ? '  ·  sayfa ' + (Math.floor(i / PER) + 1) + '/' + Math.ceil(list.length / PER) : ''), 10, 35);
+          pdf.addImage(hc.toDataURL('image/png'), 'PNG', M, 4, 190, 7);
+        }
+        try{
+          const im = await load(qrImg(t.url, 600));
+          const c = document.createElement('canvas'); c.width = 600; c.height = 720; const g = c.getContext('2d');
+          g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height);
+          g.strokeStyle = '#d0d5d4'; g.lineWidth = 3; g.setLineDash([14, 10]); g.strokeRect(4, 4, c.width - 8, c.height - 8); g.setLineDash([]);
+          g.drawImage(im, 60, 40, 480, 480);
+          g.fillStyle = '#111'; g.textAlign = 'center'; g.font = 'bold 54px sans-serif'; g.fillText(t.name, 300, 600, 560);
+          g.fillStyle = '#666'; g.font = '30px sans-serif'; g.fillText(z, 300, 650, 560);
+          const col = k % COLS, row = Math.floor(k / COLS), w = Math.min(CW - 4, (CH - 4) * 600 / 720), h = w * 720 / 600;
+          pdf.addImage(c.toDataURL('image/png'), 'PNG', M + col * CW + (CW - w) / 2, M + 8 + row * CH + (CH - h) / 2, w, h);
+        }catch(e){ fail++; }
+      }
+      { const a = document.createElement('a'); a.href = URL.createObjectURL(pdf.output('blob')); a.download = ('QR-' + z).replace(/[\\/:*?"<>|]+/g, '_') + '.pdf';
+        document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 8000); } files++;
+      await new Promise(r => setTimeout(r, 400));
+    }
+  })());
+  if(fail) alert(fail + ' QR çizilemedi. Diğerleri indirildi; eksikler için "Yazdır / PDF" kullanın.');
+  else showToast('📄 ' + files + ' bölüm PDF indirildi ✓');
 }
 // Her masa için ayrı PNG (QR + masa adı) indirilir; görseller CORS'lu yüklenip tuvale çizilir.
 async function downloadAllTableQrs(){
