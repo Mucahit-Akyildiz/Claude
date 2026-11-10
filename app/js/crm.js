@@ -550,6 +550,21 @@ async function openReviewPhoto(id, i){
 function setReviewFilter(k){ APP.reviewFilter = k; renderReviewsBody(); }
 
 /* ---- Müşteri geri kazanım: X gündür gelmeyen müşterilere SMS / e-posta (get_winback / send_winback) ---- */
+// Kampanya mesajına online sipariş / online rezervasyon linki (imlecin olduğu yere) eklenir.
+function wbInsertLink(kind){
+  const ta = document.getElementById('wbText'); if(!ta) return;
+  const code = (APP.config && ((APP.config.online_ordering || {}).code || APP.config.code)) || '';
+  if(!code){ uiAlert('İşletme kodu bulunamadı. Ayarlar › Entegrasyonlar › Online Sipariş bölümünü bir kez açın.'); return; }
+  const url = location.origin + (kind === 'resv' ? '/rezervasyon/?r=' : '/siparis/?r=') + encodeURIComponent(code);
+  const add = (kind === 'resv' ? 'Rezervasyon: ' : 'Online sipariş: ') + url;
+  const a = ta.selectionStart != null ? ta.selectionStart : ta.value.length, b = ta.selectionEnd != null ? ta.selectionEnd : a;
+  const before = ta.value.slice(0, a), after = ta.value.slice(b), sep = before && !/\s$/.test(before) ? ' ' : '';
+  ta.value = (before + sep + add + (after && !/^\s/.test(after) ? ' ' : '') + after).slice(0, Number(ta.maxLength) > 0 ? ta.maxLength : 1000);
+  ta.focus(); const pos = (before + sep + add).length; try{ ta.setSelectionRange(pos, pos); }catch(e){}
+  ta.dispatchEvent(new Event('input', { bubbles: true }));
+  const on = kind === 'resv' ? (APP.config && APP.config.online_reservations_enabled) : (APP.config && APP.config.online_ordering && APP.config.online_ordering.enabled);
+  if(on === false) showToast('⚠️ ' + (kind === 'resv' ? 'Online rezervasyon' : 'Online sipariş') + ' şu an kapalı; müşteri linki açınca "kapalı" görür', 6000);
+}
 const WINBACK_DEFAULT = '{isletme}: {ad}, sizi özledik! Bu hafta gelişinizde %10 indirim sizi bekliyor. Kasada bu mesajı göstermeniz yeterli.';
 const CAMPAIGN_DEFAULT = '{isletme}: Merhaba {ad}, bu hafta sonuna özel tüm menüde %15 indirim! Kasada bu mesajı göstermeniz yeterli.';
 // Mod: 0 = tüm müşteriler, -1 = son 30 günde gelenler (kampanya); >0 = X gündür gelmeyenler (geri kazanım).
@@ -588,6 +603,7 @@ function drawWinback(){
     <div class="wb-compose"><label>Mesaj <small class="muted">({ad} = müşterinin adı, {isletme} = işletme adı)</small></label>
       ${camp && W.channel !== 'sms' ? `<input id="wbSubject" placeholder="E-posta konusu (örn. Hafta sonuna özel %15 indirim)" maxlength="120" value="${escapeAttr(W.subject || '')}" ${actOn('input','wbSubjectSet',['$value'])} style="margin:4px 0 8px;">` : ''}
       <textarea id="wbText" rows="3" maxlength="320">${escapeHtml(prevText != null ? prevText : (camp ? CAMPAIGN_DEFAULT : WINBACK_DEFAULT))}</textarea>
+      <div class="wb-links"><span class="muted">Mesaja ekle:</span><button type="button" class="rvf-chip" ${act('wbInsertLink','order')}>🛵 Online sipariş linki</button><button type="button" class="rvf-chip" ${act('wbInsertLink','resv')}>📅 Rezervasyon linki</button></div>
       <div class="wb-send"><div class="seg">${[['sms','📱 SMS'],['mail','✉️ E-posta'],['both','İkisi de']].map(([k, l]) => `<button type="button" class="${W.channel === k ? 'on' : ''}" ${act('wbChannel', k)}>${l}</button>`).join('')}</div>
         <button type="button" ${selN ? '' : 'disabled'} ${act('sendWinback')}>${selN} müşteriye gönder</button></div></div>`
     : '<p class="muted">Yukarıdan bir aralık seçin.</p>'}</div>`;
