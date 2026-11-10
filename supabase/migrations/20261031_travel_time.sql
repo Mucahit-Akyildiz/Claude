@@ -260,3 +260,4 @@ alter table customers add column if not exists created_by uuid, add column if no
 -- 2026-11-10: bulk_call izin listesine set_ingredient_cost, set_recipe, upsert_menu, set_station_menus eklendi (hammadde toplu kaydet 'Bu işlem toplu yapılamaz' hatası).
 
 -- 2026-11-10: restaurants.campaign_templates jsonb + get_campaign_templates / save_campaign_template / delete_campaign_template (crm yetkisi; kampanya mesaj şablonları).
+-- 2026-11-10: send_campaign/send_winback: {soyad} (son kelime) ve {adsoyad} (tam ad) yer tutucuları.
