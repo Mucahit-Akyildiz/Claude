@@ -261,3 +261,5 @@ alter table customers add column if not exists created_by uuid, add column if no
 
 -- 2026-11-10: restaurants.campaign_templates jsonb + get_campaign_templates / save_campaign_template / delete_campaign_template (crm yetkisi; kampanya mesaj şablonları).
 -- 2026-11-10: send_campaign/send_winback: {soyad} (son kelime) ve {adsoyad} (tam ad) yer tutucuları.
+-- 2026-11-10: _nav_badges: _order15 (masa siparişi verileli 15–25 dk; siparişi alan garson + yönetici; rozet sayısına eklenmez) — sesli 'order15' bildirimi.
+-- 2026-11-10: _cron_pkg_alerts: paket teslim aşaması 'son 20 dk' -> 'son 15 dk'.

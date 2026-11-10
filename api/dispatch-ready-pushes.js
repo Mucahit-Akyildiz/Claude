@@ -496,10 +496,10 @@ async function dispatchPackageAlerts(supabase, deadlineIds, courierIds) {
       const travel = del ? (o.travel_min || (o.restaurants && o.restaurants.travel_default_min) || 10) : 0;
       const left = Math.round((new Date(o.pickup_at).getTime() - travel * 60000 - Date.now()) / 60000);
       const what = del ? 'yola çıkış' : 'teslim';
-      // Aşamalar: son 30 dk → son 20 dk → 10 dk altı geç kalıyor → süre doldu geç kaldı.
+      // Aşamalar: son 30 dk → son 15 dk → 10 dk altı geç kalıyor → süre doldu geç kaldı.
       const title = left < 0 ? '🔴 ' + who + ': sipariş geç kaldı'
         : left < 10 ? '🔴 ' + who + ': sipariş geç kalıyor (' + left + ' dk)'
-        : left < 20 ? '🟡 ' + who + ': ' + what + ' için son 20 dakika'
+        : left < 15 ? '🟡 ' + who + ': ' + what + ' için son 15 dakika'
         : '⏱️ ' + who + ': ' + what + ' için son 30 dakika';
       const r = await sendToUsers(supabase, to, {
         title, body: (left < 0 ? (del ? 'Yola çıkış saati ' : 'Teslim saati ') + Math.abs(left) + ' dk geçti, sipariş hâlâ hazırlanıyor.' : 'Sipariş hâlâ hazırlanıyor' + (del ? ' (adrese yol ' + travel + ' dk)' : '') + '. Mutfak ekranından takip edin.'),
