@@ -55,15 +55,16 @@ function renderIngredientsSettings(el, session){
   const maxStock = Math.max(1, ...ings.map(i => Number(i.stock)||0));
   const f = APP.ingFilter || 'all';
   const isPrep = (i) => !!i.prep_source_id;
+  const srcIds = new Set(ings.filter(x => x.prep_source_id).map(x => x.prep_source_id)), isSrc = (i) => srcIds.has(i.id);
   const isLow = (i) => !isPrep(i) && Number(i.min_stock) > 0 && Number(i.stock) <= Number(i.min_stock);
   const ingSort = APP.ingSort || 'status', ingView = APP.ingView || (() => { try{ return localStorage.getItem('peyk_ing_view'); }catch(e){ return null; } })() || 'grid';
-  const shownIngs0 = f==='low' ? ings.filter(isLow) : f==='out' ? ings.filter(i => !isPrep(i) && Number(i.stock)<=0) : f==='idle' ? ings.filter(i => !useCount(i.id)) : f==='waste' ? ings.filter(i => Number(i.waste_pct)>0) : ings;
-  const stRank = (i) => isPrep(i) ? -1 : Number(i.stock)<=0 ? 0 : isLow(i) ? 1 : useCount(i.id) ? 2 : 3;
+  const shownIngs0 = f==='low' ? ings.filter(isLow) : f==='out' ? ings.filter(i => !isPrep(i) && Number(i.stock)<=0) : f==='idle' ? ings.filter(i => !useCount(i.id) && !isSrc(i) && !isPrep(i)) : f==='waste' ? ings.filter(i => Number(i.waste_pct)>0) : ings;
+  const stRank = (i) => isPrep(i) ? -1 : isSrc(i) ? -0.5 : Number(i.stock)<=0 ? 0 : isLow(i) ? 1 : useCount(i.id) ? 2 : 3;
   const shownIngs = shownIngs0.slice().sort((a, b) => { const c = String(a.name).localeCompare(String(b.name), 'tr', { numeric: true });
     return ingSort==='za' ? -c : ingSort==='stock' ? (Number(a.stock)-Number(b.stock)) || c : ingSort==='stockd' ? (Number(b.stock)-Number(a.stock)) || c
       : ingSort==='uses' ? (useCount(b.id)-useCount(a.id)) || c : ingSort==='status' ? (stRank(a)-stRank(b)) || c : ingSort==='unit' ? String(a.unit).localeCompare(String(b.unit)) || c : c; });
   const chip = (k, ic, v, l, c) => `<div class="os-chip os-click ${f===k?'on':''}" role="button" title="Listeyi filtrele" style="--oc:${c};" ${act('setIngFilter', k)}><span class="os-ic">${ic}</span><div><b>${v}</b><small>${l}</small></div></div>`;
-  el.innerHTML = `<div class="order-summary stat-chips" style="--n:5;">${chip('all','🥕', ings.length, 'Hammadde', 'var(--c1)')}${chip('low','📉', ings.filter(isLow).length, 'Kritik stok', 'var(--c3)')}${chip('out','⛔', ings.filter(i => !isPrep(i) && Number(i.stock)<=0).length, 'Stoğu biten', 'var(--danger,#ef4444)')}${chip('idle','💤', ings.filter(i => !useCount(i.id)).length, 'Reçetede kullanılmayan', 'var(--c3)')}${chip('waste','✂️', ings.filter(i => Number(i.waste_pct)>0).length, 'Fire tanımlı', 'var(--c2)')}</div>
+  el.innerHTML = `<div class="order-summary stat-chips" style="--n:5;">${chip('all','🥕', ings.length, 'Hammadde', 'var(--c1)')}${chip('low','📉', ings.filter(isLow).length, 'Kritik stok', 'var(--c3)')}${chip('out','⛔', ings.filter(i => !isPrep(i) && Number(i.stock)<=0).length, 'Stoğu biten', 'var(--danger,#ef4444)')}${chip('idle','💤', ings.filter(i => !useCount(i.id) && !isSrc(i) && !isPrep(i)).length, 'Reçetede kullanılmayan', 'var(--c3)')}${chip('waste','✂️', ings.filter(i => Number(i.waste_pct)>0).length, 'Fire tanımlı', 'var(--c2)')}</div>
   <div class="u-mwn box">
     <div class="fsheet-bar" style="margin:0 0 12px;"><h2 class="u-m0">Hammaddeler / Stok Kalemleri</h2>${sheetBtnHtml('ingSheet','+ Yeni Hammadde')}</div>
     <details class="prod-info"><summary>ℹ️ Nasıl çalışır</summary><p class="muted" style="text-align:left;margin:0 0 12px;">Örn: "Köfte" (birim: adet, stok: 200), "Döner Eti" (birim: kg, stok: 20). Yeni bir hammadde eklediğinizde hangi ürünlerin onu kullandığını hemen soracağız — istediğiniz zaman "Kullanıldığı Ürünler" ile bunu tekrar düzenleyebilirsiniz. Aynı hammaddeyi paylaşan ürünlerin stoğu her zaman ortak ve anlık hesaplanır. <b>Min</b>: stok bu seviyeye inince Malzeme Siparişi Ver menüsünde uyarı çıkar ve tek tıkla sipariş taslağı hazırlanır. <b>Fire %</b>: temizleme/kesim kaybıdır; reçeteye net miktarı girersiniz, stoktan fire eklenerek düşülür (örn. %10 fire, 60 g net → 66,7 g düşer). Kartları değiştirip <b>Kaydet</b>'e basın; silmek için kartları seçin.</p></details>
@@ -100,7 +101,7 @@ function renderIngredientsSettings(el, session){
       <div class="fsheet-foot"><button type="button" class="ghost-btn" ${act('niCancel')}>Vazgeç</button><button ${act('addIngredient')}>Devam › Kullanım şekli</button></div>`, 'var(--c3)')}
     <div style="display:flex;align-items:center;gap:8px;margin:4px 0 10px;"><label style="display:flex;align-items:center;gap:6px;margin:0;font-size:13px;font-weight:600;"><input type="checkbox" class="u-wa-m0" ${actOn('change','selectAllIngredients',['$checked'])}> Tümünü seç</label></div>
     <div class="ig-grid ${ingView === 'list' ? 'ig-list' : ''}" ${actOn('input','markIngDirty',['$event'])} ${actOn('change','markIngDirty',['$event'])}>
-      ${(() => { const GL = { '-1': ['🥙', 'Günlük hazırlık (mutfakta ➕ Hazırla ile dolar)', 'var(--accent)'], 0: ['⛔', 'Stoğu biten', 'var(--danger,#ef4444)'], 1: ['📉', 'Kritik seviyede', 'var(--c3)'], 2: ['✅', 'Kullanımda', 'var(--ok,#22c55e)'], 3: ['○', 'Reçetede kullanılmayan', 'var(--muted)'] };
+      ${(() => { const GL = { '-0.5': ['🏬', 'Depo · günlük hazırlık kaynakları (satış hazırlıktan düşer)', 'var(--c2)'], '-1': ['🥙', 'Günlük hazırlık (mutfakta ➕ Hazırla ile dolar)', 'var(--accent)'], 0: ['⛔', 'Stoğu biten', 'var(--danger,#ef4444)'], 1: ['📉', 'Kritik seviyede', 'var(--c3)'], 2: ['✅', 'Kullanımda', 'var(--ok,#22c55e)'], 3: ['○', 'Reçetede kullanılmayan', 'var(--muted)'] };
         const gk = (i) => ingSort === 'status' ? stRank(i) : ingSort === 'unit' ? (i.unit || '—') : null;
         let last; return shownIngs.map((i, k) => { const g = gk(i); let head = '';
           if(g !== null && g !== last){ last = g; const n = shownIngs.filter(x => gk(x) === g).length, L = ingSort === 'status' ? GL[g] : ['📏', 'Birim: ' + g, 'var(--accent)'];
@@ -112,7 +113,7 @@ function renderIngredientsSettings(el, session){
         return `<div class="pcard ig-card ${out?'ig-out':''}" data-iid="${i.id}" data-name="${escapeAttr(String(i.name||'').toLocaleLowerCase('tr'))}" style="--i:${Math.min(k,12)};">
         <div class="pcard-top"><input type="checkbox" class="ing-sel" value="${i.id}" ${actOn('change','updateIngSelection',[])}>
           <textarea class="ig-name" rows="1" maxlength="120" title="${escapeAttr(i.name)}" id="ing_name_${i.id}" ${actOn('keydown','igNameKey',['$event'])}>${escapeHtml(i.name)}</textarea>
-          <span class="ig-st ${out?'out':isLow(i)?'low':uses?'ok':'idle'}">${i.prep_source_id ? '🥙 Hazırlık' : out ? '● Bitti' : isLow(i) ? '● Kritik' : uses ? '● Kullanımda' : '○ Kullanılmıyor'}</span></div>
+          <span class="ig-st ${out?'out':isLow(i)?'low':uses?'ok':'idle'}">${i.prep_source_id ? '🥙 Hazırlık' : srcIds.has(i.id) ? (isLow(i) || out ? '● Depo · az' : '🏬 Depo') : out ? '● Bitti' : isLow(i) ? '● Kritik' : uses ? '● Kullanımda' : '○ Kullanılmıyor'}</span></div>
         <div class="ig-stock"><input type="number" step="0.01" value="${i.stock}" id="ing_stock_${i.id}" class="ig-qty">
           <select id="ing_unit_${i.id}" class="ig-unit">${['adet','gram','kg','ml','lt'].map(u => `<option value="${u}" ${u===i.unit?'selected':''}>${u}</option>`).join('')}</select></div>
         ${ingDefaultPack(i) ? `<div class="ig-pack muted">📦 ${escapeHtml(fmtPackQty(i.stock, i))} · 1 ${escapeHtml(ingDefaultPack(i).n)} = ${escapeHtml(fmtIngQty(ingDefaultPack(i).f, i))}</div>` : ''}
