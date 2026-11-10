@@ -4480,3 +4480,6 @@ input[type=search]::-webkit-search-cancel-button{-webkit-appearance:none;display
 .ni-prep{margin-top:10px;padding:10px 12px;border:1px dashed var(--border);border-radius:12px;text-align:left;}
 .ni-prep-h{display:flex;align-items:flex-start;gap:6px;flex-wrap:wrap;margin:0;font-size:13.5px;cursor:pointer;} .ni-prep-h small{font-size:12px;font-weight:500;flex-basis:100%;margin-left:22px;}
 .ni-prep #niPrepBox{margin-top:8px;} .ni-prep #niPrepBox[hidden]{display:none;} #niPrepHint{display:block;font-size:12px;margin-top:4px;}
+.pc2-pricero{width:auto !important;margin:0 !important;padding:6px 10px !important;background:var(--panel) !important;color:var(--text) !important;border:1px solid var(--border) !important;border-radius:10px !important;font-weight:700;font-size:13px;white-space:nowrap;}
+.pc2-pricero small{font-weight:500;color:var(--muted);margin-left:2px;} .pc2-pricero.missing{color:var(--red) !important;border-color:color-mix(in srgb,var(--red) 50%,var(--border)) !important;}
+.pc2-pricero:hover{border-color:var(--accent) !important;}
