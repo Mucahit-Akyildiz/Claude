@@ -223,10 +223,91 @@ async function importIngredientsExcel(){
   xlReport('Hammadde içe aktarma tamamlandı', ok, errs);
   renderSettingsView(document.getElementById('main'), session);
 }
+/* Reçeteler: her satır bir ürünün bir hammaddesi. Miktar okunaklı birimle (kg hammadde → gram, lt → ml);
+   içe aktarırken birim hammaddenin birimine çevrilir. Dosyadaki her ürünün reçetesi dosyadakiyle DEĞİŞTİRİLİR. */
+const RC_HEAD = ['Ürün Adı', 'Hammadde', 'Miktar', 'Birim'];
+async function exportRecipesExcel(){
+  const c = APP.config || {}, ings = c.ingredients || [], rows = [];
+  (c.products || []).filter(p => !p.parent_id).forEach(p => (p.recipe || []).forEach(r => {
+    const ig = ings.find(x => x.id === r.ingredient_id) || { unit: r.ingredient_unit, name: r.ingredient_name }, ru = ingRecipeUnit(ig), f = (ingUnits(ig).find(u => u.n === ru) || { f: 1 }).f;
+    rows.push([p.name, ig.name || r.ingredient_name || '', unitRound((Number(r.qty_per_unit) || 0) / f), unitShort(ru)]);
+  }));
+  await xlDownload('receteler-' + todayLocalDateStr() + '.xlsx', 'Reçeteler', RC_HEAD, rows, [30, 26, 10, 8]);
+}
+async function downloadRecipeTemplate(){
+  await xlDownload('recete-sablonu.xlsx', 'Reçeteler', RC_HEAD, [['Döner Porsiyon', 'Döner Eti', 120, 'g'], ['Döner Porsiyon', 'Lavaş', 1, 'adet'], ['Sütlaç', 'Süt', 250, 'ml'], ['Sütlaç', 'Şeker', 40, 'g']], [30, 26, 10, 8]);
+}
+function xlUnitFactor(ig, u){
+  const k = String(u || '').toLocaleLowerCase('tr').trim().replace(/^gr$|^g$/, 'gram').replace(/^litre$|^l$/, 'lt').replace(/^kilo(gram)?$/, 'kg').replace(/^ad\.?$/, 'adet');
+  if(!k) return 1;
+  const m = ingUnits(ig, { purchase: true }).find(x => x.n.toLocaleLowerCase('tr') === k || unitShort(x.n) === k);
+  return m ? m.f : null;
+}
+async function importRecipesExcel(){
+  const rows = await xlPickRows(); if(!rows) return;
+  if(!rows.length){ alert('Dosyada satır bulunamadı'); return; }
+  const c = APP.config || {}, session = getSession(), errs = [], byProd = new Map();
+  const prods = (c.products || []).filter(p => !p.parent_id), ings = c.ingredients || [];
+  rows.forEach((r, i) => {
+    const line = 'Satır ' + (i + 2), pn = xlPick(r, 'Ürün Adı', 'Ürün'), inn = xlPick(r, 'Hammadde', 'Malzeme');
+    if(!pn || !inn){ errs.push(line + ': ürün ya da hammadde boş'); return; }
+    const p = prods.find(x => xlKey(x.name) === xlKey(pn)); if(!p){ errs.push(line + `: "${pn}" ürünü yok (önce Ürünler'den ekleyin)`); return; }
+    const ig = ings.find(x => xlKey(x.name) === xlKey(inn)); if(!ig){ errs.push(line + `: "${inn}" hammaddesi yok (önce Hammaddeler'den ekleyin)`); return; }
+    const q = xlNum(xlPick(r, 'Miktar')); if(!isFinite(q) || q <= 0){ errs.push(line + ` (${pn}): miktar geçersiz`); return; }
+    const f = xlUnitFactor(ig, xlPick(r, 'Birim')); if(f == null){ errs.push(line + ` (${pn} · ${inn}): "${xlPick(r, 'Birim')}" birimi ${ig.unit} ile uyumsuz`); return; }
+    if(!byProd.has(p.id)) byProd.set(p.id, { p, items: new Map() });
+    const it = byProd.get(p.id).items; it.set(ig.id, (it.get(ig.id) || 0) + q * f);
+  });
+  if(!byProd.size){ xlReport('Reçete içe aktarma', 0, errs); return; }
+  if(!await uiConfirm(byProd.size + ' ürünün reçetesi dosyadakiyle değiştirilecek. Dosyada olmayan ürünlerin reçetesine dokunulmaz. Devam edilsin mi?', { title: 'Reçeteleri içe aktar', okText: 'İçe aktar', danger: false })) return;
+  let ok = 0; const list = [...byProd.values()];
+  await withLoadingOverlay((async () => {
+    const res = await bulkRpc('set_recipe', list.map(x => ({ p_product_id: x.p.id, p_items: [...x.items].map(([id, q]) => ({ ingredient_id: id, qty_per_unit: Math.round(q * 1e6) / 1e6 })) })));
+    res.forEach((r, k) => { if(r.error) errs.push(`${list[k].p.name}: ${r.error.message}`); else ok++; });
+  })());
+  xlReport('Reçete içe aktarma tamamlandı', ok, errs);
+  const { data } = await sb.rpc('get_restaurant_config', { p_token: session.session_token }); if(data) APP.config = data;
+  renderSettingsView(document.getElementById('main'), session);
+}
+/* Menüler: Menü Adı + İstasyon. Olmayan menü oluşturulur; istasyon yazıldıysa menü o istasyona bağlanır. */
+const MN_HEAD = ['Menü Adı', 'İstasyon'];
+async function exportMenusExcel(){
+  const c = APP.config || {}, st = (id) => ((c.stations || []).find(x => x.id === id) || {}).name || '';
+  await xlDownload('menuler-' + todayLocalDateStr() + '.xlsx', 'Menüler', MN_HEAD.concat(['Ürün sayısı']), (c.menus || []).map(m => [m.name, st(m.station_id), (c.products || []).filter(p => p.menu_id === m.id).length]), [28, 20, 12]);
+}
+async function downloadMenuTemplate(){
+  const s0 = ((APP.config || {}).stations || [])[0];
+  await xlDownload('menu-sablonu.xlsx', 'Menüler', MN_HEAD, [['Çorbalar', s0 ? s0.name : 'Mutfak'], ['Izgaralar', s0 ? s0.name : 'Izgara'], ['İçecekler', '']], [28, 20]);
+}
+async function importMenusExcel(){
+  const rows = await xlPickRows(); if(!rows) return;
+  if(!rows.length){ alert('Dosyada satır bulunamadı'); return; }
+  const session = getSession(), errs = [], plan = []; let ok = 0;
+  const c = APP.config || {}, menus = c.menus || [], stations = c.stations || [];
+  rows.forEach((r, i) => {
+    const line = 'Satır ' + (i + 2), name = xlPick(r, 'Menü Adı', 'Menü', 'Ad'), stN = xlPick(r, 'İstasyon', 'Istasyon');
+    if(!name){ errs.push(line + ': menü adı boş'); return; }
+    const stn = stN ? stations.find(x => xlKey(x.name) === xlKey(stN)) : null;
+    if(stN && !stn){ errs.push(line + ` (${name}): "${stN}" istasyonu yok`); }
+    plan.push({ line, name, ex: menus.find(m => xlKey(m.name) === xlKey(name)), stn });
+  });
+  await withLoadingOverlay((async () => {
+    const created = await bulkRpc('upsert_menu', plan.filter(x => !x.ex).map(x => ({ p_id: null, p_name: x.name })));
+    let k = 0; plan.forEach(x => { if(x.ex){ x.id = x.ex.id; ok++; return; } const r = created[k++]; if(r.error) errs.push(x.line + ` (${x.name}): ${r.error.message}`); else { x.id = r.data; ok++; } });
+    // İstasyon bağları: her istasyonun menü listesi (mevcut + dosyadakiler; başka istasyona taşınanlar çıkarılır).
+    const want = new Map(stations.map(st => [st.id, new Set(menus.filter(m => m.station_id === st.id).map(m => m.id))]));
+    plan.filter(x => x.id && x.stn).forEach(x => { want.forEach(set => set.delete(x.id)); want.get(x.stn.id).add(x.id); });
+    const changed = [...want].filter(([sid, set]) => { const cur = menus.filter(m => m.station_id === sid).map(m => m.id); return cur.length !== set.size || cur.some(id => !set.has(id)); });
+    (await bulkRpc('set_station_menus', changed.map(([sid, set]) => ({ p_station_id: sid, p_menu_ids: [...set] })))).forEach((r, i2) => { if(r.error) errs.push('İstasyon bağı: ' + r.error.message); });
+  })());
+  xlReport('Menü içe aktarma tamamlandı', ok, errs);
+  const { data } = await sb.rpc('get_restaurant_config', { p_token: session.session_token }); if(data) APP.config = data;
+  renderSettingsView(document.getElementById('main'), session);
+}
 /* Ortak araç çubuğu: Dışa aktar · İçe aktar · Şablon */
 function excelBarHtml(kind){
-  const fn = kind === 'users' ? ['exportUsersExcel', 'importUsersExcel', 'downloadUserTemplate'] : kind === 'products' ? ['exportProductsExcel', 'importProductsExcel', 'downloadProductTemplate'] : kind === 'ingredients' ? ['exportIngredientsExcel', 'importIngredientsExcel', 'downloadIngredientTemplate'] : ['exportAllowancesExcel', 'importAllowancesExcel', 'downloadAllowanceTemplate'];
-  return `<div class="xl-bar">
+  const fn = kind === 'recipes' ? ['exportRecipesExcel', 'importRecipesExcel', 'downloadRecipeTemplate'] : kind === 'menus' ? ['exportMenusExcel', 'importMenusExcel', 'downloadMenuTemplate'] : kind === 'users' ? ['exportUsersExcel', 'importUsersExcel', 'downloadUserTemplate'] : kind === 'products' ? ['exportProductsExcel', 'importProductsExcel', 'downloadProductTemplate'] : kind === 'ingredients' ? ['exportIngredientsExcel', 'importIngredientsExcel', 'downloadIngredientTemplate'] : ['exportAllowancesExcel', 'importAllowancesExcel', 'downloadAllowanceTemplate'];
+  return `<div class="xl-bar">${kind === 'recipes' ? '<b style="font-size:12.5px;align-self:center;">Reçeteler:</b>' : kind === 'menus' ? '<b style="font-size:12.5px;align-self:center;">Menüler (Excel):</b>' : ''}
     <button type="button" class="xl-btn" ${act(fn[0])}><span>⬇️</span>Dışa aktar</button>
     <button type="button" class="xl-btn" ${act(fn[1])}><span>⬆️</span>İçe aktar</button>
     <button type="button" class="xl-link" ${act(fn[2])}>📄 Şablon indir</button>
