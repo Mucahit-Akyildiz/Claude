@@ -9958,6 +9958,22 @@ end $$;
 
 
 --
+-- Name: list_archived_ingredients(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.list_archived_ingredients(p_token uuid) RETURNS json
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+declare s staff_sessions%rowtype;
+begin
+  s := _session_check(p_token, 'settings_ingredients');
+  return (select coalesce(json_agg(json_build_object('id', id, 'name', name, 'unit', unit, 'stock', stock) order by name), '[]'::json)
+          from ingredients where restaurant_id = s.restaurant_id and archived);
+end $$;
+
+
+--
 -- Name: list_audit_log(uuid, text, timestamp with time zone); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -12011,6 +12027,22 @@ begin
   s := _session_check(p_token);
   update waiter_calls set status = 'done', done_at = now(), done_by = s.user_id where id = p_id and restaurant_id = s.restaurant_id and status = 'pending';
 end; $$;
+
+
+--
+-- Name: restore_ingredient(uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.restore_ingredient(p_token uuid, p_id uuid) RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+declare s staff_sessions%rowtype;
+begin
+  s := _session_check(p_token, 'settings_ingredients');
+  update ingredients set archived = false where id = p_id and restaurant_id = s.restaurant_id and archived;
+  if not found then raise exception 'Arşivde böyle bir hammadde yok'; end if;
+end $$;
 
 
 --
