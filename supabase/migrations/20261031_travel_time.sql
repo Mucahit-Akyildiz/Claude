@@ -233,3 +233,7 @@ alter table customers add column if not exists created_by uuid, add column if no
 
 -- 2026-11-10: list_archived_ingredients(p_token) ve restore_ingredient(p_token, p_id) — arşivlenen hammaddeyi listeler / geri getirir.
 -- settings_ingredients. grant ... to anon, authenticated.
+
+-- 2026-11-10: Online rezervasyon saatleri. restaurants.online_resv_from/online_resv_to (time, vars. 11:00–23:00).
+-- set_online_reservation_hours(p_token, p_from, p_to) — reservations; get_online_reservation_settings ve
+-- get_public_reservation_info from/to döndürür; submit_public_reservation aralık dışını reddeder (Europe/Istanbul).

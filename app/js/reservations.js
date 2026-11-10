@@ -527,9 +527,19 @@ async function renderOnlineResvBody(){
   const qr = 'https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=' + encodeURIComponent(url);
   body.innerHTML = `<p class="muted" style="text-align:left;margin:0 0 12px;font-size:13px;">Müşterileriniz bu sayfadan gün, saat ve kişi sayısı seçip rezervasyon isteği gönderir. İstekler <b>Onay bekliyor</b> olarak listeye ve menü rozetine düşer; siz onaylarsınız.</p>
     <label class="olr-toggle ${data.enabled ? 'on' : ''}"><input type="checkbox" ${data.enabled ? 'checked' : ''} ${actOn('change','toggleOnlineResv',['$checked'])}><span class="olr-sw"></span><b>${data.enabled ? 'Online rezervasyon açık' : 'Online rezervasyon kapalı'}</b></label>
+    ${data.enabled ? `<div class="olr-hours"><b>🕐 Rezervasyon saatleri</b><span>Müşteri yalnız bu aralıktaki saatleri seçebilir (yarım saatlik dilimler).</span>
+      <div><input type="time" id="olrFrom" step="1800" value="${escapeAttr(data.from || '11:00')}"><em>–</em><input type="time" id="olrTo" step="1800" value="${escapeAttr(data.to || '23:00')}"><button type="button" class="u-wa-m0" ${act('saveOnlineResvHours')}>Kaydet</button></div></div>` : ''}
     ${data.enabled ? `<div class="olr-link"><img src="${qr}" alt="QR"><div><p class="muted" style="margin:0 0 6px;font-size:12px;">Instagram bio'nuza, Google İşletme profilinize, web sitenize ya da masa standına koyun.</p>
       <p style="font-size:13px;overflow-wrap:anywhere;margin:0 0 10px;">${escapeHtml(url)}</p>
       <div style="display:flex;gap:8px;flex-wrap:wrap;"><button type="button" class="u-wa-m0" ${act('copyText', url, 'Link kopyalandı ✓')}>🔗 Linki Kopyala</button><a class="ghost-btn" style="width:auto;margin:0;display:inline-flex;align-items:center;padding:10px 14px;border-radius:12px;text-decoration:none;" href="${url}" target="_blank" rel="noopener">👁 Sayfayı Aç</a></div></div></div>` : ''}`;
+}
+async function saveOnlineResvHours(){
+  const f = (document.getElementById('olrFrom') || {}).value, t = (document.getElementById('olrTo') || {}).value;
+  if(!f || !t){ uiAlert('Başlangıç ve bitiş saatini girin'); return; }
+  if(f >= t){ uiAlert('Başlangıç saati bitişten önce olmalı'); return; }
+  const { error } = await sb.rpc('set_online_reservation_hours', { p_token: getSession().session_token, p_from: f, p_to: t });
+  if(error){ uiAlert(error.message); return; }
+  showToast('🕐 Online rezervasyon saatleri: ' + f + '–' + t);
 }
 async function toggleOnlineResv(on){
   const { error } = await sb.rpc('set_online_reservations', { p_token: getSession().session_token, p_enabled: on });

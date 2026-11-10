@@ -9,10 +9,10 @@ const STATE = { info: null, day: null, time: '', party: 2 };
 const LANGS = [{ code:'tr', label:'TR' }, { code:'en', label:'EN' }];
 const I18N = {
   tr: { title:'Online Rezervasyon', invalidTitle:'Geçersiz Bağlantı', invalidMsg:'Bu sayfaya işletmenin paylaştığı rezervasyon linkiyle ulaşmalısınız.', closedTitle:'Online rezervasyon kapalı', closedMsg:'Bu işletme şu anda online rezervasyon almıyor. Lütfen telefonla iletişime geçin.', errorTitle:'Sayfa yüklenemedi', errorMsg:'Bir hata oluştu, lütfen daha sonra tekrar deneyin.',
-    day:'📅 Gün', otherDate:'Takvimden tarih seç', time:'🕐 Saat', party:'👥 Kişi sayısı', you:'👤 Bilgileriniz', name:'Adınız Soyadınız', phone:'Telefon Numaranız', email:'E-posta (opsiyonel)', notes:'Not (opsiyonel) — örn. doğum günü, bebek sandalyesi', today:'Bugün', tomorrow:'Yarın', send:'📅 Rezervasyon İsteği Gönder', sending:'Gönderiliyor...',
+    day:'📅 Gün', otherDate:'Takvimden tarih seç', time:'🕐 Saat', hours:'Rezervasyon saatleri', party:'👥 Kişi sayısı', you:'👤 Bilgileriniz', name:'Adınız Soyadınız', phone:'Telefon Numaranız', email:'E-posta (opsiyonel)', notes:'Not (opsiyonel) — örn. doğum günü, bebek sandalyesi', today:'Bugün', tomorrow:'Yarın', send:'📅 Rezervasyon İsteği Gönder', sending:'Gönderiliyor...',
     pick:'Gün ve saat seçin', people:'kişi', successTitle:'İsteğiniz alındı', successMsg:'Rezervasyon isteğiniz işletmeye iletildi. Onaylandığında sizinle iletişime geçilecek.', errName:'Adınızı girin', errPhone:'Telefon numaranızı girin', errTime:'Gün ve saat seçin', noTimes:'Bu gün için uygun saat kalmadı', other:'Diğer saat' },
   en: { title:'Online Reservation', invalidTitle:'Invalid Link', invalidMsg:'Please use the reservation link shared by the business.', closedTitle:'Online reservations closed', closedMsg:'This business is not accepting online reservations right now. Please call them.', errorTitle:'Page could not load', errorMsg:'Something went wrong, please try again later.',
-    day:'📅 Day', otherDate:'Pick a date', time:'🕐 Time', party:'👥 Party size', you:'👤 Your details', name:'Full name', phone:'Phone number', email:'Email (optional)', notes:'Note (optional) — e.g. birthday, high chair', today:'Today', tomorrow:'Tomorrow', send:'📅 Send Reservation Request', sending:'Sending...',
+    day:'📅 Day', otherDate:'Pick a date', time:'🕐 Time', hours:'Reservation hours', party:'👥 Party size', you:'👤 Your details', name:'Full name', phone:'Phone number', email:'Email (optional)', notes:'Note (optional) — e.g. birthday, high chair', today:'Today', tomorrow:'Tomorrow', send:'📅 Send Reservation Request', sending:'Sending...',
     pick:'Choose a day and time', people:'people', successTitle:'Request received', successMsg:'Your reservation request was sent to the business. They will contact you once it is confirmed.', errName:'Please enter your name', errPhone:'Please enter your phone number', errTime:'Choose a day and time', noTimes:'No times left for this day', other:'Other time' },
 };
 function getLang(){ try{ const s = localStorage.getItem('rys_rez_lang'); if(s && I18N[s]) return s; }catch(e){} return (navigator.language||'tr').startsWith('tr') ? 'tr' : 'en'; }
@@ -21,7 +21,8 @@ function t(k){ return (I18N[STATE.lang] && I18N[STATE.lang][k]) || I18N.tr[k] ||
 function setLang(code){ if(!I18N[code]) return; try{ localStorage.setItem('rys_rez_lang', code); }catch(e){} STATE.lang = code; document.documentElement.lang = code; render(); }
 function escapeHtml(s){ return String(s==null?'':s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]); }
 function iso(d){ return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0'); }
-const TIMES = []; for(let h = 11; h <= 23; h++){ TIMES.push(String(h).padStart(2,'0') + ':00'); if(h < 23) TIMES.push(String(h).padStart(2,'0') + ':30'); }
+const TIMES_DEFAULT = []; for(let h = 11; h <= 23; h++){ TIMES_DEFAULT.push(String(h).padStart(2,'0') + ':00'); if(h < 23) TIMES_DEFAULT.push(String(h).padStart(2,'0') + ':30'); }
+function toMin(hm){ const [h, m] = String(hm).split(':').map(Number); return (h || 0) * 60 + (m || 0); }
 
 function shell(inner){
   return `<header><span class="ic">📅</span><div class="titles"><h1>${escapeHtml(STATE.info ? STATE.info.name : t('title'))}</h1><p>${t('title')}</p></div>
@@ -41,7 +42,10 @@ async function init(){
   render();
 }
 function timesFor(day){
-  // Bugün için en az 30 dakika sonrası seçilebilir (sunucu da kontrol eder).
+  // Yalnız işletmenin online rezervasyon saatleri (ör. 15:00–17:00); bugün için en az 30 dakika sonrası (sunucu da kontrol eder).
+  const fr = (STATE.info && STATE.info.from) || '00:00', to = (STATE.info && STATE.info.to) || '23:59';
+  const all = []; for(let m = toMin(fr); m <= toMin(to); m += 30) all.push(String(Math.floor(m / 60)).padStart(2,'0') + ':' + String(m % 60).padStart(2,'0'));
+  const TIMES = (STATE.info && STATE.info.from) ? all : TIMES_DEFAULT;
   if(day !== iso(new Date())) return TIMES;
   const lim = new Date(Date.now() + 30*60000);
   return TIMES.filter(tm => { const [h, m] = tm.split(':').map(Number); const d = new Date(); d.setHours(h, m, 0, 0); return d >= lim; });
@@ -62,7 +66,7 @@ function render(){
   setApp(shell(`<main>
     <div class="card"><h2>${t('day')}</h2><div class="chips scroll">${days.map((d, i) => `<button type="button" class="chip ${STATE.day===iso(d)?'on':''}" ${act('pickDay', iso(d))}>${i===0 ? t('today') : i===1 ? t('tomorrow') : d.toLocaleDateString(loc, { weekday:'short' })}<small>${d.toLocaleDateString(loc, { day:'numeric', month:'short' })}</small></button>`).join('')}${extraDay ? `<button type="button" class="chip on">${extraDay.toLocaleDateString(loc, { weekday:'short' })}<small>${extraDay.toLocaleDateString(loc, { day:'numeric', month:'short' })}</small></button>` : ''}</div>
       <label class="dpick">📆 ${t('otherDate')} <input type="date" id="rzDate" min="${iso(d0)}" max="${iso(maxD)}" value="${STATE.day || ''}" ${actOn('change','pickDay',['$value'])}></label></div>
-    <div class="card"><h2>${t('time')}</h2>${times.length ? `<div class="chips">${times.map(tm => `<button type="button" class="chip ${STATE.time===tm?'on':''}" ${act('pickTime', tm)}>${tm}</button>`).join('')}</div>` : `<p class="hint">${t('noTimes')}</p>`}</div>
+    <div class="card"><h2>${t('time')}${STATE.info.from ? ` <small class="hrs">${t('hours')}: ${escapeHtml(STATE.info.from)}–${escapeHtml(STATE.info.to)}</small>` : ''}</h2>${times.length ? `<div class="chips">${times.map(tm => `<button type="button" class="chip ${STATE.time===tm?'on':''}" ${act('pickTime', tm)}>${tm}</button>`).join('')}</div>` : `<p class="hint">${t('noTimes')}</p>`}</div>
     <div class="card"><h2>${t('party')}</h2><div class="chips">${[1,2,3,4,5,6,8,10].map(n => `<button type="button" class="chip ${STATE.party===n?'on':''}" ${act('pickParty', n)}>${n}</button>`).join('')}<input id="rzParty" class="party-in" type="number" min="1" max="30" value="${STATE.party}" ${actOn('input','typeParty',['$value'])}></div></div>
     <div class="card"><h2>${t('you')}</h2>
       <input id="rzName" placeholder="${t('name')}" autocomplete="name" value="${vals.name}">
