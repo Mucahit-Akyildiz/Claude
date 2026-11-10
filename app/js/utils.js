@@ -531,6 +531,12 @@ function sheetBtnHtml(id, label){
 }
 function openSheet(id){
   const el = document.getElementById(id); if(!el) return;
+  // Sayfa içeriğinin giriş animasyonundaki transform, position:fixed pencereyi sayfaya göre konumlandırıyordu
+  // (önce altta görünüp sonra ortaya kayıyordu). Açılırken doğrudan <body> altına taşınır; eski kopya silinir.
+  if(el.parentElement !== document.body){
+    document.querySelectorAll('body > .fsheet').forEach(x => { if(x !== el && x.id === id) x.remove(); });
+    document.body.appendChild(el);
+  }
   el.classList.add('open'); document.body.classList.add('fsheet-lock');
   const f = el.querySelector('input:not([type=hidden]):not([type=checkbox]),select,textarea'); if(f && window.innerWidth > 600) setTimeout(() => f.focus(), 60);
 }
