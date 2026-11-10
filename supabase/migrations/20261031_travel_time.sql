@@ -250,3 +250,6 @@ alter table customers add column if not exists created_by uuid, add column if no
 -- ingredient_prep_log (prep/keep/waste/return). set_ingredient_prep (settings_ingredients), prep_ingredient (kitchen; kaynaktan düşer,
 -- hazırlanana ekler, maliyet ağırlıklı ortalanır; depoda yetersizse reddeder), prep_leftover (kitchen; keep / waste → waste_log
 -- "Gün sonu kalan" / return → kaynağa), list_prep_log. get_restaurant_config ingredients'a prep_source_id, prep_default eklendi.
+
+-- 2026-11-10: bulk_customer_group(p_token, p_ids uuid[], p_group_id, p_add) — seçili müşterileri gruba toplu ekler / çıkarır (crm).
+-- grant ... to anon, authenticated.
