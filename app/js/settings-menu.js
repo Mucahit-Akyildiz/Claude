@@ -306,11 +306,13 @@ function openIngredientUsageModal(ingredientId, edit){
     </label>`;
   }).join('');
   filterIngUsage(); iuRecalc();
+  // Günlük hazırlıkta (yeni ya da henüz ürüne bağlanmamış): kaynağı kullanan ürünler otomatik seçilir.
+  if(ing.prep_source_id && !products.some(p => (p.recipe || []).some(r => r.ingredient_id === ingredientId))) iuPrepSrcChange(ing.prep_source_id);
 
 }
 /* Kaynak seçilince: kaynağı reçetesinde kullanan ürünler aynı miktarla otomatik işaretlenir. */
-function iuPrepSrcChange(){
-  const srcId = (document.getElementById('iue_prepsrc') || {}).value; if(!srcId) return;
+function iuPrepSrcChange(forceSrc){
+  const srcId = typeof forceSrc === 'string' ? forceSrc : (document.getElementById('iue_prepsrc') || {}).value; if(!srcId) return;
   const ruEl = document.getElementById('iuRU'), f = ruEl ? (parseFloat(ruEl.value) || 1) : 1; let n = 0;
   ((APP.config && APP.config.products) || []).forEach(p => {
     const r = (p.recipe || []).find(x => x.ingredient_id === srcId), chk = document.getElementById('ingu_chk_' + p.id), q = document.getElementById('ingu_qty_' + p.id);
@@ -460,7 +462,7 @@ async function saveIngredientUsage(ingredientId){
   const { error } = await sb.rpc('set_ingredient_usage2', { p_token: session.session_token, p_ingredient_id: ingredientId, p_usages: mode === 'per_order' ? [] : usages, p_packaging: [] });
   if(error){ alert(error.message); return; }
   // Günlük hazırlık: bu hammaddeyi kullanan ürünlerin reçetesinde kaynak (depo) hammadde de varsa, stok iki kez düşmesin diye kaynak çıkarılır.
-  const srcId = ((document.getElementById('iue_prepsrc') || {}).value) || null;
+  const srcEl = document.getElementById('iue_prepsrc'), srcId = (srcEl ? srcEl.value : ((APP.config.ingredients || []).find(x => x.id === ingredientId) || {}).prep_source_id) || null;
   if(srcId && mode !== 'per_order' && usages.length){
     const both = products.filter(p => usages.some(u => u.product_id === p.id) && (p.recipe || []).some(r => r.ingredient_id === srcId));
     const srcName = ((APP.config.ingredients || []).find(x => x.id === srcId) || {}).name || 'kaynak';
