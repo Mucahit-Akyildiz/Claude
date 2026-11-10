@@ -589,6 +589,97 @@ async function dispatchResvReminders(supabase, ids) {
   return { sent };
 }
 
+// Sesli bildirimlerde olup push'ta olmayan türler (Bildirimler > Kime Gitsin'de ayarlanır):
+// mutfağa yeni sipariş, masa siparişi 15 dk, misafir oturdu, rezervasyona 15 dk, gel-al alış saati, yeni rezervasyon / bekleme.
+async function roleUsers(supabase, restaurantId, type, perm, cache) {
+  const key = restaurantId + '|' + type;
+  if (cache.has(key)) return cache.get(key);
+  const { data: appUsers } = await supabase.from('app_users').select('id, role_ids, is_active').eq('restaurant_id', restaurantId);
+  const { data: roles } = await supabase.from('roles').select('id, is_system, permissions').eq('restaurant_id', restaurantId);
+  const roleIds = await notifyRoleIds(supabase, restaurantId, type, roles, perm);
+  const ids = (appUsers || []).filter((u) => u.is_active !== false && (u.role_ids || []).some((rid) => roleIds.has(rid))).map((u) => u.id);
+  cache.set(key, ids);
+  return ids;
+}
+const hmTR = (t) => new Date(t).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Istanbul' });
+async function dispatchExtra(supabase, ev) {
+  const cache = new Map(); let sent = 0;
+  const ids = (k) => (Array.isArray(ev[k]) ? ev[k].slice(0, 300) : []);
+  const send = async (rid, type, perm, payload, onlyUsers) => {
+    let u = await roleUsers(supabase, rid, type, perm, cache);
+    if (onlyUsers) u = u.filter((x) => onlyUsers.includes(x));
+    const r = await sendToUsers(supabase, u, payload); sent += (r && r.sent) || 0;
+  };
+  // Mutfağa yeni sipariş: sipariş + istasyon başına tek bildirim.
+  if (ids('kitchen_new').length) {
+    const { data: items } = await supabase.from('order_items')
+      .select('id, name, qty, order_id, orders(id, restaurant_id, kind, customer_name, daily_number, restaurant_tables(name)), products(station_id, stations(name))')
+      .in('id', ids('kitchen_new'));
+    const groups = new Map();
+    for (const it of items || []) {
+      const o = it.orders; if (!o) continue;
+      const st = (it.products && it.products.stations && it.products.stations.name) || '';
+      const k = o.id + '|' + st; if (!groups.has(k)) groups.set(k, { o, st, items: [] });
+      groups.get(k).items.push((Number(it.qty) > 1 ? it.qty + 'x ' : '') + (it.name || 'ürün'));
+    }
+    for (const g of groups.values()) {
+      const who = g.o.kind === 'takeaway' ? '📦 Paket' + (g.o.customer_name ? ' - ' + g.o.customer_name : (g.o.daily_number ? ' #' + g.o.daily_number : '')) : ((g.o.restaurant_tables && g.o.restaurant_tables.name) || 'Masa');
+      await send(g.o.restaurant_id, 'kitchen_new', 'kitchen', {
+        title: '🍳 Yeni sipariş · ' + who + (g.st ? ' (' + g.st + ')' : ''),
+        body: g.items.slice(0, 6).join(', ') + (g.items.length > 6 ? ' +' + (g.items.length - 6) : ''),
+        url: '/app/', view: 'kitchen', tag: 'kitchen-new-' + g.o.id,
+      });
+    }
+  }
+  // Masa siparişi verileli 15 dk: siparişi alan garson (ve seçili roller içinde ise).
+  if (ids('order15').length) {
+    const { data: orders } = await supabase.from('orders').select('id, restaurant_id, status, created_by, restaurant_tables(name), order_items(status)').in('id', ids('order15'));
+    for (const o of orders || []) {
+      if (o.status !== 'open') continue;
+      const pend = (o.order_items || []).some((i) => i.status === 'pending');
+      const table = (o.restaurant_tables && o.restaurant_tables.name) || 'Bir masa';
+      const roleU = await roleUsers(supabase, o.restaurant_id, 'order15', 'order', cache);
+      const custom = await supabase.from('restaurants').select('notification_roles').eq('id', o.restaurant_id).maybeSingle();
+      const hasCfg = custom && custom.data && custom.data.notification_roles && Array.isArray(custom.data.notification_roles.order15);
+      // Ayar yoksa yalnız siparişi alan garsona; ayar varsa seçili rollere.
+      const to = hasCfg ? roleU : (o.created_by ? [o.created_by] : roleU);
+      const r = await sendToUsers(supabase, to, {
+        title: '⏲️ ' + table + ': sipariş verileli 15 dakika oldu',
+        body: pend ? 'Sipariş hâlâ hazırlanıyor, masayı kontrol edin.' : 'Tüm ürünler hazır.',
+        url: '/app/', view: 'order', tag: 'order15-' + o.id,
+      });
+      sent += (r && r.sent) || 0;
+    }
+  }
+  // Rezervasyonlar: oturdu / 15 dk kala / yeni.
+  const resvIds = [...new Set([...ids('seated'), ...ids('resv_soon'), ...ids('reservation_new')])];
+  if (resvIds.length) {
+    const { data: rs } = await supabase.from('reservations').select('id, restaurant_id, status, customer_name, party_size, reservation_time, source, restaurant_tables(name)').in('id', resvIds);
+    const { data: ws } = await supabase.from('waitlist_entries').select('id, restaurant_id, status, customer_name, party_size').in('id', resvIds);
+    const byId = new Map(); (rs || []).forEach((x) => byId.set(x.id, Object.assign({ t: 'resv' }, x))); (ws || []).forEach((x) => byId.set(x.id, Object.assign({ t: 'wl' }, x)));
+    for (const id of ids('seated')) { const x = byId.get(id); if (!x) continue;
+      const table = x.restaurant_tables && x.restaurant_tables.name;
+      await send(x.restaurant_id, 'seated', 'order', { title: '🪑 Misafir masaya oturdu', body: (x.t === 'wl' ? 'Bekleme listesindeki ' : 'Rezervasyonlu ') + (x.customer_name || 'misafir') + ' oturdu' + (table ? ' (' + masa(table, 'nom') + ')' : '') + ' · ' + (x.party_size || '?') + ' kişi', url: '/app/', view: 'order', tag: 'seated-' + id }); }
+    for (const id of ids('resv_soon')) { const x = byId.get(id); if (!x || x.t !== 'resv') continue;
+      const table = x.restaurant_tables && x.restaurant_tables.name;
+      await send(x.restaurant_id, 'resv_soon', 'reservations', { title: '⏳ 15 dk sonra rezervasyon · ' + hmTR(x.reservation_time), body: (x.customer_name || 'Misafir') + ' adına ' + (x.party_size || '?') + ' kişi' + (table ? ', ' + masa(table, 'nom') : '') + (x.status === 'pending' ? ' (onay bekliyor)' : ''), url: '/app/', view: 'reservations', tag: 'resv-soon-' + id }); }
+    for (const id of ids('reservation_new')) { const x = byId.get(id); if (!x) continue;
+      await send(x.restaurant_id, 'reservation_new', 'reservations', x.t === 'wl'
+        ? { title: '🧾 Bekleme listesine yeni misafir', body: (x.customer_name || 'Misafir') + ' · ' + (x.party_size || '?') + ' kişi', url: '/app/', view: 'reservations', tag: 'wl-new-' + id }
+        : { title: x.status === 'pending' ? '📅 Yeni rezervasyon talebi (onay bekliyor)' : '📅 Yeni rezervasyon', body: (x.customer_name || 'Misafir') + ' · ' + (x.party_size || '?') + ' kişi · ' + new Date(x.reservation_time).toLocaleString('tr-TR', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Istanbul' }) + (x.source ? ' · ' + x.source : ''), url: '/app/', view: 'reservations', tag: 'resv-new-' + id }); }
+  }
+  // Gel-al alış saati geldi.
+  if (ids('pickup_due').length) {
+    const { data: orders } = await supabase.from('orders').select('id, restaurant_id, status, customer_name, daily_number, pickup_at, order_items(status)').in('id', ids('pickup_due'));
+    for (const o of orders || []) {
+      if (o.status !== 'open') continue;
+      const ready = !(o.order_items || []).some((i) => i.status === 'pending');
+      await send(o.restaurant_id, 'pickup_due', 'packages', { title: '🥡 Gel-al alış saati geldi · ' + hmTR(o.pickup_at), body: (o.customer_name || ('Paket #' + (o.daily_number || ''))) + (ready ? ' · sipariş hazır' : ' · sipariş henüz hazır değil'), url: '/app/', view: 'packages', tag: 'pickup-' + o.id });
+    }
+  }
+  return { sent };
+}
+
 // Telsiz kanalina yeni eklenen uyelere bildirim. Sadece gercekten o kanalin
 // uyesi olan kullanicilara gonderilir (govdedeki listeye korce guvenilmez).
 async function dispatchRadioAdded(supabase, channelId, userIds, by) {
@@ -744,6 +835,10 @@ module.exports = async function handler(req, res) {
       const dl = Array.isArray(req.body && req.body.deadline_ids) ? req.body.deadline_ids.slice(0, 200) : [];
       const cr = Array.isArray(req.body && req.body.courier_ids) ? req.body.courier_ids.slice(0, 200) : [];
       res.status(200).json(await dispatchPackageAlerts(supabase, dl, cr));
+      return;
+    }
+    if (mode === 'extra') {
+      res.status(200).json(await dispatchExtra(supabase, (req.body && req.body.events) || {}));
       return;
     }
     if (mode === 'no_guests') {
