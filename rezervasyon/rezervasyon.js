@@ -9,10 +9,10 @@ const STATE = { info: null, day: null, time: '', party: 2 };
 const LANGS = [{ code:'tr', label:'TR' }, { code:'en', label:'EN' }];
 const I18N = {
   tr: { title:'Online Rezervasyon', invalidTitle:'Geçersiz Bağlantı', invalidMsg:'Bu sayfaya işletmenin paylaştığı rezervasyon linkiyle ulaşmalısınız.', closedTitle:'Online rezervasyon kapalı', closedMsg:'Bu işletme şu anda online rezervasyon almıyor. Lütfen telefonla iletişime geçin.', errorTitle:'Sayfa yüklenemedi', errorMsg:'Bir hata oluştu, lütfen daha sonra tekrar deneyin.',
-    day:'📅 Gün', time:'🕐 Saat', party:'👥 Kişi sayısı', you:'👤 Bilgileriniz', name:'Adınız Soyadınız', phone:'Telefon Numaranız', email:'E-posta (opsiyonel)', notes:'Not (opsiyonel) — örn. doğum günü, bebek sandalyesi', today:'Bugün', tomorrow:'Yarın', send:'📅 Rezervasyon İsteği Gönder', sending:'Gönderiliyor...',
+    day:'📅 Gün', otherDate:'Takvimden tarih seç', time:'🕐 Saat', party:'👥 Kişi sayısı', you:'👤 Bilgileriniz', name:'Adınız Soyadınız', phone:'Telefon Numaranız', email:'E-posta (opsiyonel)', notes:'Not (opsiyonel) — örn. doğum günü, bebek sandalyesi', today:'Bugün', tomorrow:'Yarın', send:'📅 Rezervasyon İsteği Gönder', sending:'Gönderiliyor...',
     pick:'Gün ve saat seçin', people:'kişi', successTitle:'İsteğiniz alındı', successMsg:'Rezervasyon isteğiniz işletmeye iletildi. Onaylandığında sizinle iletişime geçilecek.', errName:'Adınızı girin', errPhone:'Telefon numaranızı girin', errTime:'Gün ve saat seçin', noTimes:'Bu gün için uygun saat kalmadı', other:'Diğer saat' },
   en: { title:'Online Reservation', invalidTitle:'Invalid Link', invalidMsg:'Please use the reservation link shared by the business.', closedTitle:'Online reservations closed', closedMsg:'This business is not accepting online reservations right now. Please call them.', errorTitle:'Page could not load', errorMsg:'Something went wrong, please try again later.',
-    day:'📅 Day', time:'🕐 Time', party:'👥 Party size', you:'👤 Your details', name:'Full name', phone:'Phone number', email:'Email (optional)', notes:'Note (optional) — e.g. birthday, high chair', today:'Today', tomorrow:'Tomorrow', send:'📅 Send Reservation Request', sending:'Sending...',
+    day:'📅 Day', otherDate:'Pick a date', time:'🕐 Time', party:'👥 Party size', you:'👤 Your details', name:'Full name', phone:'Phone number', email:'Email (optional)', notes:'Note (optional) — e.g. birthday, high chair', today:'Today', tomorrow:'Tomorrow', send:'📅 Send Reservation Request', sending:'Sending...',
     pick:'Choose a day and time', people:'people', successTitle:'Request received', successMsg:'Your reservation request was sent to the business. They will contact you once it is confirmed.', errName:'Please enter your name', errPhone:'Please enter your phone number', errTime:'Choose a day and time', noTimes:'No times left for this day', other:'Other time' },
 };
 function getLang(){ try{ const s = localStorage.getItem('rys_rez_lang'); if(s && I18N[s]) return s; }catch(e){} return (navigator.language||'tr').startsWith('tr') ? 'tr' : 'en'; }
@@ -51,13 +51,17 @@ function render(){
   if(!STATE.info.enabled){ setApp(stateHtml('🔒', t('closedTitle'), t('closedMsg'))); return; }
   const d0 = new Date(); d0.setHours(0,0,0,0);
   const days = Array.from({ length: 14 }, (_, i) => { const d = new Date(d0); d.setDate(d.getDate() + i); return d; });
+  // 14 günden ileri bir tarih takvimden seçildiyse düğmelerin sonunda seçili olarak gösterilir (sunucu sınırı: 60 gün).
+  const maxD = new Date(d0); maxD.setDate(maxD.getDate() + 59);
+  const extraDay = STATE.day && !days.some(d => iso(d) === STATE.day) ? new Date(STATE.day + 'T12:00:00') : null;
   const loc = STATE.lang === 'tr' ? 'tr-TR' : 'en-GB';
   const times = timesFor(STATE.day);
   if(STATE.time && !times.includes(STATE.time)) STATE.time = '';
   const keep = (id) => { const el = document.getElementById(id); return el ? escapeHtml(el.value) : ''; };
   const vals = { name: keep('rzName'), phone: keep('rzPhone'), email: keep('rzEmail'), notes: document.getElementById('rzNotes') ? escapeHtml(document.getElementById('rzNotes').value) : '' };
   setApp(shell(`<main>
-    <div class="card"><h2>${t('day')}</h2><div class="chips scroll">${days.map((d, i) => `<button type="button" class="chip ${STATE.day===iso(d)?'on':''}" ${act('pickDay', iso(d))}>${i===0 ? t('today') : i===1 ? t('tomorrow') : d.toLocaleDateString(loc, { weekday:'short' })}<small>${d.toLocaleDateString(loc, { day:'numeric', month:'short' })}</small></button>`).join('')}</div></div>
+    <div class="card"><h2>${t('day')}</h2><div class="chips scroll">${days.map((d, i) => `<button type="button" class="chip ${STATE.day===iso(d)?'on':''}" ${act('pickDay', iso(d))}>${i===0 ? t('today') : i===1 ? t('tomorrow') : d.toLocaleDateString(loc, { weekday:'short' })}<small>${d.toLocaleDateString(loc, { day:'numeric', month:'short' })}</small></button>`).join('')}${extraDay ? `<button type="button" class="chip on">${extraDay.toLocaleDateString(loc, { weekday:'short' })}<small>${extraDay.toLocaleDateString(loc, { day:'numeric', month:'short' })}</small></button>` : ''}</div>
+      <label class="dpick">📆 ${t('otherDate')} <input type="date" id="rzDate" min="${iso(d0)}" max="${iso(maxD)}" value="${STATE.day || ''}" ${actOn('change','pickDay',['$value'])}></label></div>
     <div class="card"><h2>${t('time')}</h2>${times.length ? `<div class="chips">${times.map(tm => `<button type="button" class="chip ${STATE.time===tm?'on':''}" ${act('pickTime', tm)}>${tm}</button>`).join('')}</div>` : `<p class="hint">${t('noTimes')}</p>`}</div>
     <div class="card"><h2>${t('party')}</h2><div class="chips">${[1,2,3,4,5,6,8,10].map(n => `<button type="button" class="chip ${STATE.party===n?'on':''}" ${act('pickParty', n)}>${n}</button>`).join('')}<input id="rzParty" class="party-in" type="number" min="1" max="30" value="${STATE.party}" ${actOn('input','typeParty',['$value'])}></div></div>
     <div class="card"><h2>${t('you')}</h2>
@@ -79,7 +83,12 @@ function updateSummary(){
   const d = new Date(STATE.day + 'T' + STATE.time);
   el.innerHTML = `<span>✨</span>${d.toLocaleDateString(STATE.lang==='tr'?'tr-TR':'en-GB', { weekday:'long', day:'numeric', month:'long' })} · ${STATE.time} · ${STATE.party} ${t('people')}`;
 }
-function pickDay(d){ STATE.day = d; render(); }
+function pickDay(d){
+  if(!d || !/^\d{4}-\d{2}-\d{2}$/.test(d)) return;
+  const d0 = new Date(); d0.setHours(0,0,0,0); const mx = new Date(d0); mx.setDate(mx.getDate() + 59);
+  if(d < iso(d0) || d > iso(mx)) return;
+  STATE.day = d; render();
+}
 function pickTime(tm){ STATE.time = tm; document.querySelectorAll('.chip').forEach(c => { if(/^\d\d:\d\d$/.test(c.textContent)) c.classList.toggle('on', c.textContent === tm); }); updateSummary(); }
 function pickParty(n){ STATE.party = n; const i = document.getElementById('rzParty'); if(i) i.value = n; render(); }
 function typeParty(v){ const n = parseInt(v); if(n >= 1 && n <= 30){ STATE.party = n; updateSummary(); } }
