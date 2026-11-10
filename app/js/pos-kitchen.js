@@ -744,11 +744,11 @@ async function setSoldOut(pid, on){
 
 /* ---- Günlük hazırlık (ör. 🥙 şiş tak): depodaki hammaddeden o gün kullanılacak kadarı hazırlanana aktarılır;
    satış yalnız hazırlanandan düşer, bitince bağlı ürünler kendiliğinden tükenir. Kalan için her seferinde sorulur. ---- */
-/* Günlük hazırlık kartı yalnızca o hammaddeyi reçetesinde kullanan ürünlerin istasyonunda görünür (hiçbir üründe yoksa her yerde). */
+/* Günlük hazırlık kartı yalnızca o hammaddeyi reçetesinde kullanan ürünlerin istasyonunda görünür (hiçbir ürüne bağlı değilse hiçbir istasyonda görünmez). */
 function prepIngsForStation(st){
   const prods = (APP.config && APP.config.products) || [];
   return prepIngs().filter(ig => { const sts = new Set(prods.filter(p => (p.recipe || []).some(r => r.ingredient_id === ig.id)).map(p => p.station_id || null));
-    return !sts.size || sts.has(st) || sts.has(null); });
+    return sts.has(st) || sts.has(null); });
 }
 function prepIngs(){ return ((APP.config && APP.config.ingredients) || []).filter(i => i.prep_source_id); }
 // Kalan miktarın kaç porsiyon ettiği: bu hammaddeyi kullanan ürünlerdeki en küçük porsiyon miktarına göre.
