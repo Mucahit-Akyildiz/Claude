@@ -201,20 +201,21 @@ function niStart(srcId){
   openSheet('ingSheet');
 }
 function niPickKind(k){
-  const sh = document.getElementById('ingSheet'); if(!sh) return;
+  const sh = document.querySelector('#ingSheet.open') || document.getElementById('ingSheet'); if(!sh) return;
+  const $ = (id) => sh.querySelector('#' + id);
   const prep = k === 'prep';
   sh.dataset.kind = k || '';
   const show = (sel, on) => sh.querySelectorAll(sel).forEach(e => { e.hidden = !on; });
-  document.getElementById('niKind').hidden = !!k; document.getElementById('niForm').hidden = !k; document.getElementById('niFoot').hidden = !k;
+  $('niKind').hidden = !!k; $('niForm').hidden = !k; $('niFoot').hidden = !k;
   show('.ni-dep', !prep); show('.ni-prp', prep);
-  document.getElementById('niPrepTop').hidden = !prep; document.getElementById('niPrepBox').hidden = !prep;
-  const cb = document.getElementById('ni_prep_on'); if(cb) cb.checked = prep;
-  const un = document.getElementById('ni_unit'); if(un) un.disabled = prep;
-  const lbl = document.getElementById('niKindLbl'); if(lbl) lbl.innerHTML = prep ? '🥙 <b>Günlük hazırlık</b>' : k ? '🏬 <b>Depo / stok hammaddesi</b>' : '';
-  const t = document.getElementById('ingSheetTitle'); if(t) t.textContent = prep ? 'Yeni Günlük Hazırlık' : 'Yeni Hammadde';
-  const nm = document.getElementById('ni_name'); if(nm) nm.placeholder = prep ? 'örn. Tavuk Bonfile Şiş' : 'örn. Döner Eti';
+  $('niPrepTop').hidden = !prep; $('niPrepBox').hidden = !prep;
+  const cb = $('ni_prep_on'); if(cb) cb.checked = prep;
+  const un = $('ni_unit'); if(un) un.disabled = prep;
+  const lbl = $('niKindLbl'); if(lbl) lbl.innerHTML = prep ? '🥙 <b>Günlük hazırlık</b>' : k ? '🏬 <b>Depo / stok hammaddesi</b>' : '';
+  const t = $('ingSheetTitle'); if(t) t.textContent = prep ? 'Yeni Günlük Hazırlık' : 'Yeni Hammadde';
+  const nm = $('ni_name'); if(nm) nm.placeholder = prep ? 'örn. Tavuk Bonfile Şiş' : 'örn. Döner Eti';
   if(prep) niPrepFill();
-  if(k) setTimeout(() => { const f = prep ? document.querySelector('#niPrepTop .ss-btn, #ni_prepsrc') : nm; if(f && window.innerWidth > 600) f.focus(); }, 60);
+  if(k) setTimeout(() => { const f = prep ? sh.querySelector('#niPrepTop .ss-btn, #ni_prepsrc') : nm; if(f && window.innerWidth > 600) f.focus(); }, 60);
 }
 function niPrepToggle(on){ const b = document.getElementById('niPrepBox'); if(b) b.hidden = !on; if(on) niPrepFill(); }
 function niPrepFill(){
