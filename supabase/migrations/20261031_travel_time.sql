@@ -230,3 +230,6 @@ alter table customers add column if not exists created_by uuid, add column if no
 
 -- 2026-11-09: Hammadde arşivleme. ingredients.archived boolean. delete_ingredient: satın alma geçmişinde kullanılan hammadde
 -- silinmez, arşivlenir (reçete/paket bağları kaldırılır, min_stock=0). get_restaurant_config ve get_analytics_bundle arşivlileri göstermez.
+
+-- 2026-11-10: list_archived_ingredients(p_token) ve restore_ingredient(p_token, p_id) — arşivlenen hammaddeyi listeler / geri getirir.
+-- settings_ingredients. grant ... to anon, authenticated.
