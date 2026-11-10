@@ -2086,24 +2086,32 @@ async function downloadMenuPdf(withPrice){
   const s = getSession(), name = (s && s.restaurant_name) || 'Menü';
   const blocks = menuPdfBlocks(withPrice);
   if(!blocks.length){ uiAlert('Menüde satışta olan ürün yok'); return; }
+  await blocksToPdf(name, (withPrice ? 'Menü ve fiyat listesi' : 'Menü') + ' · ' + new Date().toLocaleDateString('tr-TR'), blocks, name + '-menu' + (withPrice ? '-fiyatli' : ''));
+  showToast('📄 Menü PDF indirildi');
+}
+/* Ortak A4 PDF: bloklar (h2 başlık + satırlar) ölçülerek sayfalara bölünür; başlık sayfa sonunda tek kalmaz, satır kesilmez. */
+const PDF_CSS = `*{box-sizing:border-box}body{margin:0;font-family:"Segoe UI",Roboto,Arial,sans-serif;color:#1d2422;background:#fff}
+  .pg{width:794px;height:1123px;padding:56px 64px;overflow:hidden;background:#fff;position:relative}
+  .mp-title{text-align:center;margin:0 0 4px;font-size:34px;letter-spacing:.5px}.mp-sub{text-align:center;color:#6b7673;margin:0 0 26px;font-size:14px}
+  .mp-h{font-size:20px;margin:22px 0 10px;padding-bottom:6px;border-bottom:2px solid #1d2422;text-transform:uppercase;letter-spacing:1px}
+  .mp-it{display:flex;align-items:baseline;gap:8px;padding:7px 0}.mp-l{display:flex;flex-direction:column;max-width:72%}.mp-l b{font-size:16px}.mp-l small{color:#6b7673;font-size:12.5px;margin-top:2px}
+  .mp-dots{flex:1;border-bottom:1.5px dotted #b9c1bf;transform:translateY(-4px)}.mp-p{font-weight:700;font-size:16px;white-space:nowrap}
+  .rc{border:1px solid #d8dedc;border-radius:10px;padding:10px 14px;margin:0 0 10px}.rc-h{display:flex;justify-content:space-between;align-items:baseline;gap:10px}.rc-h b{font-size:15.5px}.rc-h span{font-size:12.5px;color:#6b7673;white-space:nowrap}
+  .rc table{width:100%;border-collapse:collapse;margin-top:6px;font-size:13px}.rc td{padding:3px 0;border-top:1px solid #eef1f0}.rc td.q{text-align:right;width:110px;font-weight:600}.rc td.c{text-align:right;width:100px;color:#6b7673}
+  .rc .none{color:#b45309;font-size:12.5px;margin-top:4px}.rc .tot td{font-weight:700;color:#1d2422}
+  .mp-foot{position:absolute;bottom:26px;left:0;right:0;text-align:center;color:#9aa4a1;font-size:11px}`;
+async function blocksToPdf(title, sub, blocks, fileBase){
   await withLoadingOverlay((async () => {
     await loadScriptOnce('/assets/vendor/html2canvas.min.js'); await loadScriptOnce('/assets/vendor/jspdf.umd.min.js');
-    const css = `*{box-sizing:border-box}body{margin:0;font-family:"Segoe UI",Roboto,Arial,sans-serif;color:#1d2422;background:#fff}
-      .pg{width:794px;height:1123px;padding:56px 64px;overflow:hidden;background:#fff}
-      .mp-title{text-align:center;margin:0 0 4px;font-size:34px;letter-spacing:.5px}.mp-sub{text-align:center;color:#6b7673;margin:0 0 26px;font-size:14px}
-      .mp-h{font-size:20px;margin:22px 0 10px;padding-bottom:6px;border-bottom:2px solid #1d2422;text-transform:uppercase;letter-spacing:1px}
-      .mp-it{display:flex;align-items:baseline;gap:8px;padding:7px 0}.mp-l{display:flex;flex-direction:column;max-width:72%}.mp-l b{font-size:16px}.mp-l small{color:#6b7673;font-size:12.5px;margin-top:2px}
-      .mp-dots{flex:1;border-bottom:1.5px dotted #b9c1bf;transform:translateY(-4px)}.mp-p{font-weight:700;font-size:16px;white-space:nowrap}
-      .mp-foot{position:absolute;bottom:26px;left:0;right:0;text-align:center;color:#9aa4a1;font-size:11px}`;
+    const css = PDF_CSS;
     const fr = document.createElement('iframe'); fr.style.cssText = 'position:fixed;left:-10000px;top:0;width:794px;height:1123px;border:0;';
     document.body.appendChild(fr);
     try{
       const doc = fr.contentDocument; doc.open(); doc.write(`<!doctype html><html><head><meta charset="utf-8"></head><body><div id="m" class="pg"></div></body></html>`); doc.close(); adoptDocCss(doc, css);
       await new Promise(r => setTimeout(r, 150));
-      // Ölçerek sayfalara böl: bir başlık sayfanın en altında tek başına kalmaz.
-      const meas = doc.getElementById('m'), pages = [], head = `<h1 class="mp-title">${escapeHtml(name)}</h1><p class="mp-sub">${withPrice ? 'Menü ve fiyat listesi' : 'Menü'} · ${new Date().toLocaleDateString('tr-TR')}</p>`;
+      const meas = doc.getElementById('m'), pages = [], head = `<h1 class="mp-title">${escapeHtml(title)}</h1><p class="mp-sub">${escapeHtml(sub)}</p>`;
       const LIMIT = 1123 - 56 * 2 - 30;
-      let cur = [head]; meas.innerHTML = head;
+      let cur = [head];
       for(let i = 0; i < blocks.length; i++){
         const isHead = blocks[i].startsWith('<h2'), add = isHead && blocks[i + 1] ? blocks[i] + blocks[i + 1] : blocks[i];
         meas.innerHTML = '<div id="mc">' + cur.join('') + add + '</div>';
@@ -2113,16 +2121,41 @@ async function downloadMenuPdf(withPrice){
       pages.push(cur);
       const pdf = new window.jspdf.jsPDF({ unit: 'mm', format: 'a4' });
       for(let k = 0; k < pages.length; k++){
-        meas.style.position = 'relative';
         meas.innerHTML = pages[k].join('') + (pages.length > 1 ? `<div class="mp-foot">${k + 1} / ${pages.length}</div>` : '');
         await new Promise(r => setTimeout(r, 30));
         const canvas = await window.html2canvas(meas, { scale: 2, backgroundColor: '#ffffff', windowWidth: 794, onclone: (cd) => adoptDocCss(cd, css) });
         if(k) pdf.addPage();
         pdf.addImage(canvas.toDataURL('image/jpeg', 0.92), 'JPEG', 0, 0, 210, 297);
       }
-      const safe = String(name).replace(/[^\p{L}\p{N}]+/gu, '-').replace(/^-|-$/g, '');
-      pdf.save(safe + '-menu' + (withPrice ? '-fiyatli' : '') + '.pdf');
+      pdf.save(String(fileBase).replace(/[^\p{L}\p{N}]+/gu, '-').replace(/^-|-$/g, '') + '.pdf');
     } finally { fr.remove(); }
   })());
-  showToast('📄 Menü PDF indirildi');
+}
+/* Reçeteler PDF: her ürün için hammaddeler, porsiyon başı miktar ve maliyet payı (fire dahil), toplam malzeme maliyeti. */
+function recipePdfBlocks(){
+  const menus = APP.config.menus || [], prods = APP.config.products || [], ings = APP.config.ingredients || [];
+  const groups = menus.map(m => ({ name: m.name, items: prods.filter(p => p.menu_id === m.id) }))
+    .concat([{ name: 'Diğer', items: prods.filter(p => !p.menu_id || !menus.some(m => m.id === p.menu_id)) }]).filter(g => g.items.length);
+  const out = [];
+  groups.forEach(g => {
+    out.push(`<h2 class="mp-h">${escapeHtml(g.name)}</h2>`);
+    g.items.slice().sort((a, b) => String(a.name).localeCompare(String(b.name), 'tr', { numeric: true })).forEach(p => {
+      let tot = 0, miss = 0;
+      const rows = (p.recipe || []).map(r => {
+        const ig = ings.find(x => x.id === r.ingredient_id) || { unit: r.ingredient_unit, name: r.ingredient_name }, q = Number(r.qty_per_unit) || 0, uc = Number(ig.unit_cost) || 0, w = Number(ig.waste_pct) || 0;
+        const c = uc ? q * uc / Math.max(0.01, 1 - w / 100) : 0; tot += c; if(!uc) miss++;
+        return `<tr><td>${escapeHtml(ig.name || r.ingredient_name || '?')}${w ? ` <small style="color:#6b7673">(fire %${w})</small>` : ''}</td><td class="q">${escapeHtml(fmtIngQty(q, ig))}</td><td class="c">${uc ? money(c) : 'maliyet yok'}</td></tr>`;
+      });
+      out.push(`<div class="rc"><div class="rc-h"><b>${escapeHtml(p.name)}</b><span>Fiyat ${money(p.price)}${rows.length ? ' · Malzeme ' + money(tot) + (Number(p.price) > 0 && tot ? ' · %' + Math.round(tot / Number(p.price) * 100) : '') : ''}</span></div>
+        ${rows.length ? `<table>${rows.join('')}<tr class="tot"><td>Toplam malzeme maliyeti${miss ? ` <small style="color:#b45309">(${miss} hammaddenin maliyeti eksik)</small>` : ''}</td><td></td><td class="c">${money(tot)}</td></tr></table>` : '<div class="none">Reçete tanımlı değil</div>'}</div>`);
+    });
+  });
+  return out;
+}
+async function downloadRecipePdf(){
+  const s = getSession(), name = (s && s.restaurant_name) || 'Reçeteler';
+  const blocks = recipePdfBlocks();
+  if(!blocks.length){ uiAlert('Ürün yok'); return; }
+  await blocksToPdf(name + ' · Reçeteler', 'Porsiyon başı hammadde ve maliyet · ' + new Date().toLocaleDateString('tr-TR'), blocks, name + '-receteler');
+  showToast('📄 Reçeteler PDF indirildi');
 }

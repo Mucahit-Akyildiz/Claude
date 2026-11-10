@@ -231,6 +231,7 @@ function excelBarHtml(kind){
     <button type="button" class="xl-btn" ${act(fn[1])}><span>⬆️</span>İçe aktar</button>
     <button type="button" class="xl-link" ${act(fn[2])}>📄 Şablon indir</button>
     ${kind === 'ingredients' ? `<button type="button" class="xl-btn" title="Silinen (arşivlenen) hammaddeleri gör ve geri getir" ${act('openIngArchive')}><span>🗄️</span>Arşiv</button>` : ''}
+    ${kind === 'products' ? `<button type="button" class="xl-btn" title="Her ürünün reçetesi, porsiyon başı miktar ve maliyet (A4 PDF)" ${act('downloadRecipePdf')}><span>📄</span>Reçeteler PDF</button>` : ''}
   </div>`;
 }
 /* Arşivlenen hammaddeler: satın alma geçmişi olduğu için silinmek yerine arşivlenenler; geri getirilebilir. */
