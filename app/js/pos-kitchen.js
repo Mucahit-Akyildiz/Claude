@@ -18,12 +18,12 @@ async function renderKitchenView(main, session){
   }
   const station = APP.config.stations.find(s => s.id===APP.kitchenStation);
   main.innerHTML = `<div style="display:flex;justify-content:space-between;"><h1>${escapeHtml(station.icon||"🍳")} ${escapeHtml(station.name)}</h1>
-    <div style="display:flex;gap:8px;align-items:flex-start;">
+    <div style="display:flex;gap:8px;align-items:flex-start;flex-wrap:wrap;justify-content:flex-end;">
+      <span id="prepBtnWrap">${prepBtnHtml()}</span>
       <button class="ghost-btn" ${act('openSoldOutModal')} title="Stok bitti / yanlış girildi: ürünü hemen satışa kapat">⛔ Satışa Kapat${(() => { const n = ((APP.config && APP.config.products) || []).filter(p => p.station_id === APP.kitchenStation && p.available === false).length; return n ? ` <span class="ks-badge">${n}</span>` : ''; })()}</button>
       <button class="u-red ghost-btn" ${act('openManualWasteModal')} title="Siparişe bağlı olmayan israf (yanan, düşen, bozulan ürün)">🔥 İsraf Gir</button>
       <button class="ghost-btn" ${act('clearKitchenStation')}>İstasyon Değiştir</button>
     </div></div>
-    <div id="prepBar">${prepBarHtml()}</div>
     <div id="kitchenWrap"></div>`;
   APP.kitchenSeenItemIds = null; // yeni istasyona gecince onceki urunler icin zil calmasin
   kitchenLateWarnedSet(); // uyarılan ürünler ekran yenilense de hatırlanır (tekrar uyarı çıkmaz)
@@ -39,7 +39,7 @@ function kitchenLateWarnedSet(){
 }
 async function refreshKitchenItems(session){
   // Şiş paneli: satış oldukça kalan azalır; en fazla 60 sn'de bir stok tazelenir (veritabanı yükü düşük kalsın).
-  if(prepIngs().length && document.getElementById('prepBar') && Date.now() - (APP.prepAt || 0) > 60000){ APP.prepAt = Date.now(); prepReloadConfig(); }
+  if(prepIngs().length && document.getElementById('prepBtnWrap') && Date.now() - (APP.prepAt || 0) > 60000){ APP.prepAt = Date.now(); prepReloadConfig(); }
   const [{ data, error }, cancRes] = await Promise.all([
     sb.rpc('get_live_orders', { p_token: session.session_token }),
     sb.rpc('list_kitchen_cancellations', { p_token: session.session_token })
@@ -757,21 +757,45 @@ function prepPortions(ig){
   ((APP.config && APP.config.products) || []).forEach(p => (p.recipe || []).forEach(r => { const q = Number(r.qty_per_unit) || 0; if(r.ingredient_id === ig.id && q > 0 && (!per || q < per)) per = q; }));
   return per ? Math.floor((Number(ig.stock) || 0) / per + 1e-9) : null;
 }
-function prepBarHtml(){
+/* Mutfak başlığında tek düğme: bu istasyonun günlük hazırlıkları; biten/azalan sayısı rozetle gösterilir. */
+function prepState(ig){ const st = Number(ig.stock) || 0, n = prepPortions(ig); return st <= 0 ? 'out' : (n != null && n <= 10) ? 'low' : 'ok'; }
+function prepBtnHtml(){
   const list = prepIngsForStation(APP.kitchenStation); if(!list.length) return '';
-  const ings = (APP.config && APP.config.ingredients) || [];
-  return `<div class="prep-bar">${list.map(ig => {
-    const src = ings.find(x => x.id === ig.prep_source_id) || {}, st = Number(ig.stock) || 0, n = prepPortions(ig), low = n != null && n <= 10;
-    return `<div class="prep-card ${st <= 0 ? 'out' : low ? 'low' : ''}">
-      <div class="prep-t"><b>🥙 ${escapeHtml(ig.name)}</b><small>${st > 0 ? 'Kalan <b>' + escapeHtml(fmtIngQty(st, ig)) + '</b>' + (n != null ? ' ≈ ' + n + ' porsiyon' : '') : '<b>Bitti</b> · ürünler tükendi'} · Depo ${escapeHtml(fmtIngQty(src.stock, src))}</small></div>
-      <div class="prep-a"><button type="button" class="u-wa-m0" ${act('openPrepModal', ig.id)}>➕ Hazırla</button>${st > 0 ? `<button type="button" class="ghost-btn u-wa-m0" title="Gün sonu: kalan ne olsun?" ${act('openPrepLeftover', ig.id, '')}>🌙 Gün sonu</button>` : ''}</div></div>`;
-  }).join('')}</div>`;
+  const out = list.filter(ig => prepState(ig) === 'out').length, low = list.filter(ig => prepState(ig) === 'low').length, warn = out + low;
+  return `<button type="button" class="ghost-btn prep-hub-btn ${out ? 'out' : low ? 'low' : ''}" title="Günlük hazırlıklar: şiş tak, tencere hazırla, gün sonu" ${act('openPrepHub')}>🥙 Günlük Hazırlık${warn ? ` <span class="ks-badge">${warn}</span>` : ` <span class="prep-hub-n">${list.length}</span>`}</button>`;
 }
+function prepHubBodyHtml(){
+  const list = prepIngsForStation(APP.kitchenStation), ings = (APP.config && APP.config.ingredients) || [];
+  if(!list.length) return '<p class="muted">Bu istasyonda günlük hazırlık yok.</p>';
+  const ord = { out: 0, low: 1, ok: 2 };
+  return `<div class="ph-grid">${list.slice().sort((a, b) => ord[prepState(a)] - ord[prepState(b)] || String(a.name).localeCompare(String(b.name), 'tr')).map(ig => {
+    const src = ings.find(x => x.id === ig.prep_source_id) || {}, st = Number(ig.stock) || 0, n = prepPortions(ig), k = prepState(ig);
+    const def = Number(ig.prep_default) || 0, pct = st <= 0 ? 0 : Math.max(6, Math.min(100, def ? st / def * 100 : 100));
+    const pill = k === 'out' ? '<span class="ph-pill out">● Bitti</span>' : k === 'low' ? '<span class="ph-pill low">● Azaldı</span>' : '<span class="ph-pill ok">● Hazır</span>';
+    return `<div class="ph-card ${k}">
+      <div class="ph-top"><b>${escapeHtml(ig.name)}</b>${pill}</div>
+      <div class="ph-big"><span>${st > 0 ? escapeHtml(fmtIngQty(st, ig)) : '0'}</span><small>${st > 0 ? (n != null ? '≈ ' + n + ' porsiyon kaldı' : 'kaldı') : 'bağlı ürünler satışta görünmez'}</small></div>
+      <div class="ph-meter"><i style="width:${pct}%"></i></div>
+      <div class="ph-meta"><span>🏬 Depo <b>${escapeHtml(fmtIngQty(src.stock, src))}</b></span>${def ? `<span>Günlük <b>${escapeHtml(fmtIngQty(def, ig))}</b></span>` : ''}</div>
+      <div class="ph-act"><button type="button" class="ph-go" ${act('openPrepModal', ig.id)}>➕ Hazırla</button>${st > 0 ? `<button type="button" class="ph-end" title="Gün sonu: kalan ne olsun?" ${act('openPrepLeftover', ig.id, '')}>🌙 Gün sonu</button>` : ''}</div>
+    </div>`; }).join('')}</div>`;
+}
+function openPrepHub(){
+  removeEl('prepHubBg');
+  const station = ((APP.config && APP.config.stations) || []).find(s => s.id === APP.kitchenStation) || {};
+  const bg = document.createElement('div'); bg.id = 'prepHubBg'; bg.className = 'modal-bg';
+  bg.onclick = (e) => { if(e.target === bg) bg.remove(); };
+  bg.innerHTML = `<div class="box prep-hub"><div class="ph-head"><div><h2>🥙 Günlük Hazırlık</h2><small class="muted">${escapeHtml(station.name || '')} · depodan alınan miktar buraya eklenir, satış buradan düşer</small></div><button type="button" class="ph-x" title="Kapat" ${act('removeEl','prepHubBg')}>✕</button></div>
+    <div id="prepHubBody">${prepHubBodyHtml()}</div></div>`;
+  document.body.appendChild(bg);
+}
+function prepBarHtml(){ return ''; }
 async function prepReloadConfig(){
   const s = getSession(); const { data } = await sb.rpc('get_restaurant_config', { p_token: s.session_token });
   if(data) APP.config = data;
   if(typeof clearRpcCache === 'function') clearRpcCache();
-  const b = document.getElementById('prepBar'); if(b) b.innerHTML = prepBarHtml();
+  const w = document.getElementById('prepBtnWrap'); if(w) w.innerHTML = prepBtnHtml();
+  const hb = document.getElementById('prepHubBody'); if(hb) hb.innerHTML = prepHubBodyHtml();
 }
 function prepModalShell(id, inner){
   removeEl('prepModalBg');

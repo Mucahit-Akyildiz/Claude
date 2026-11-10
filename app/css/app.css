@@ -4521,3 +4521,28 @@ select.ss-hidden{display:none !important;}
 .wb-tchip .rvf-chip{border-top-right-radius:0 !important;border-bottom-right-radius:0 !important;}
 .wb-tdel{width:auto !important;margin:0 !important;padding:4px 8px !important;border:1px solid var(--border) !important;border-left:0 !important;border-radius:0 999px 999px 0 !important;background:var(--panel2) !important;color:var(--muted) !important;font-size:11px !important;cursor:pointer;box-shadow:none !important;min-height:0 !important;align-self:stretch;}
 .wb-tdel:hover{color:var(--red) !important;}
+/* Mutfak · Günlük Hazırlık düğmesi ve penceresi */
+.prep-hub-btn{display:inline-flex !important;align-items:center;gap:6px;border-color:color-mix(in srgb,var(--accent) 55%,var(--border)) !important;color:var(--text) !important;}
+.prep-hub-btn.low{border-color:#f59e0b !important;} .prep-hub-btn.out{border-color:var(--red) !important;background:color-mix(in srgb,var(--red) 10%,transparent) !important;}
+.prep-hub-n{font-size:11px;font-weight:700;padding:1px 7px;border-radius:999px;background:var(--panel2);color:var(--muted);}
+.prep-hub{max-width:900px;width:calc(100% - 24px);text-align:left;padding:22px !important;}
+.ph-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:16px;}
+.ph-head h2{margin:0 0 2px;font-size:22px;} .ph-head small{font-size:12.5px;}
+.ph-x{width:38px !important;height:38px !important;margin:0 !important;padding:0 !important;border-radius:10px !important;background:var(--panel2) !important;color:var(--text) !important;border:1px solid var(--border) !important;font-size:16px !important;flex:none;}
+.ph-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:12px;max-height:68vh;overflow:auto;padding:2px;}
+.ph-card{display:flex;flex-direction:column;gap:10px;padding:14px;border-radius:16px;background:var(--panel2);border:1.5px solid var(--border);}
+.ph-card.ok{border-color:color-mix(in srgb,var(--green,#22c55e) 45%,var(--border));}
+.ph-card.low{border-color:#f59e0b;} .ph-card.out{border-color:color-mix(in srgb,var(--red) 70%,var(--border));background:color-mix(in srgb,var(--red) 7%,var(--panel2));}
+.ph-top{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;} .ph-top b{font-size:15.5px;line-height:1.3;}
+.ph-pill{font-size:11px;font-weight:800;white-space:nowrap;padding:3px 9px;border-radius:999px;}
+.ph-pill.ok{color:var(--green,#22c55e);background:color-mix(in srgb,var(--green,#22c55e) 14%,transparent);}
+.ph-pill.low{color:#f59e0b;background:color-mix(in srgb,#f59e0b 14%,transparent);}
+.ph-pill.out{color:var(--red);background:color-mix(in srgb,var(--red) 14%,transparent);}
+.ph-big{display:flex;flex-direction:column;} .ph-big span{font-size:28px;font-weight:800;line-height:1.1;} .ph-big small{font-size:12px;color:var(--muted);margin-top:2px;}
+.ph-meter{height:6px;border-radius:99px;background:color-mix(in srgb,var(--text) 10%,transparent);overflow:hidden;} .ph-meter i{display:block;height:100%;border-radius:99px;background:var(--green,#22c55e);}
+.ph-card.low .ph-meter i{background:#f59e0b;} .ph-card.out .ph-meter i{background:var(--red);}
+.ph-meta{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:12.5px;color:var(--muted);} .ph-meta b{color:var(--text);}
+.ph-act{display:flex;gap:8px;margin-top:auto;}
+.ph-go{flex:1.3;white-space:nowrap;margin:0 !important;padding:10px !important;border-radius:11px !important;font-weight:700;}
+.ph-end{flex:1;white-space:nowrap;margin:0 !important;padding:10px 12px !important;border-radius:11px !important;background:transparent !important;color:var(--text) !important;border:1px solid var(--border) !important;font-weight:600;}
+.ph-end:hover{border-color:var(--accent) !important;}
