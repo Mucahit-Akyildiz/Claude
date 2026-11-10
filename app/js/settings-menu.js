@@ -90,6 +90,11 @@ function renderIngredientsSettings(el, session){
         <div class="field-group"><label>Birim maliyet (₺) <small class="muted">— 1 birimin alış fiyatı</small></label><input type="number" step="0.01" min="0" id="ni_uc" placeholder="örn. 250" ${actOn('input','niCalc',[])}></div>
       </div>
       <div class="ni-sum" id="niSum">💰 Stok değeri: —</div>
+      <div class="ni-prep"><label class="ni-prep-h"><input type="checkbox" id="ni_prep_on" class="u-wa-m0" ${actOn('change','niPrepToggle',['$checked'])}> 🥙 <b>Günlük hazırlık</b> <small class="muted">— döner şişi, günlük tencere gibi: her gün depodaki hammaddeden alınıp buna aktarılır, satış yalnız bundan düşer</small></label>
+        <div id="niPrepBox" hidden><div class="fsheet-grid">
+          <div class="field-group"><label>Kaynak (depo) hammadde</label><select id="ni_prepsrc"></select></div>
+          <div class="field-group"><label>Varsayılan günlük miktar</label><input type="number" id="ni_prepdef" min="0" step="any" placeholder="örn. 20"></div>
+        </div><small class="muted" id="niPrepHint"></small></div></div>
       <p class="muted" style="font-size:12px;text-align:left;margin:10px 0 0;">Maliyet sonra Mal Kabul'de fiyatlı teslim aldıkça ortalanarak güncellenir. Ekledikten sonra hangi ürünlerin bu hammaddeyi kullandığını soracağız; ürün maliyetleri otomatik hesaplanır.</p>
       <div class="fsheet-foot"><button type="button" class="ghost-btn" ${act('niCancel')}>Vazgeç</button><button ${act('addIngredient')}>Devam › Kullanım şekli</button></div>`, 'var(--c3)')}
     <div style="display:flex;align-items:center;gap:8px;margin:4px 0 10px;"><label style="display:flex;align-items:center;gap:6px;margin:0;font-size:13px;font-weight:600;"><input type="checkbox" class="u-wa-m0" ${actOn('change','selectAllIngredients',['$checked'])}> Tümünü seç</label></div>
@@ -173,6 +178,15 @@ async function bulkDeleteIngredients(){
   renderSettingsView(document.getElementById('main'), session);
   if(errors.length) alert('Bazı hammaddeler silinemedi:\n\n' + errors.join('\n')); else showToast(list.length + ' hammadde silindi');
 }
+// Yeni hammadde: günlük hazırlık seçilirse kaynak listesi aynı birimdeki hammaddelerle doldurulur.
+function niPrepToggle(on){ const b = document.getElementById('niPrepBox'); if(b) b.hidden = !on; if(on) niPrepFill(); }
+function niPrepFill(){
+  const sel = document.getElementById('ni_prepsrc'); if(!sel) return;
+  const u = (document.getElementById('ni_unit') || {}).value || '', cur = sel.value;
+  const list = ((APP.config && APP.config.ingredients) || []).filter(x => x.unit === u);
+  sel.innerHTML = list.length ? list.map(x => `<option value="${x.id}" ${x.id === cur ? 'selected' : ''}>${escapeHtml(x.name)} (${escapeHtml(fmtIngQty(x.stock, x))})</option>`).join('') : '<option value="">— Bu birimde hammadde yok —</option>';
+  const h = document.getElementById('niPrepHint'); if(h) h.textContent = list.length ? 'Kaynak ile aynı birim (' + unitShort(u) + ') olmalı. Mutfak ekranında ➕ Hazırla çıkar.' : 'Önce depo hammaddesini (ör. Döner Eti, ' + unitShort(u) + ') ekleyin ya da birimi değiştirin.';
+}
 async function addIngredient(){
   const session = getSession();
   const name = document.getElementById('ni_name').value.trim();
@@ -187,6 +201,11 @@ async function addIngredient(){
   const data = editId || newId;
   const ucv = parseFloat((document.getElementById('ni_uc') || {}).value);
   if(data && ucv > 0){ const { error: e2 } = await sb.rpc('set_ingredient_cost', { p_token: session.session_token, p_id: data, p_cost: ucv }); if(e2) alert(e2.message); }
+  const prepOn = (document.getElementById('ni_prep_on') || {}).checked, prepSrc = (document.getElementById('ni_prepsrc') || {}).value;
+  if(data && prepOn && prepSrc){
+    const { error: e3 } = await sb.rpc('set_ingredient_prep', { p_token: session.session_token, p_id: data, p_source_id: prepSrc, p_default: parseFloat((document.getElementById('ni_prepdef') || {}).value) || null });
+    if(e3) alert('Günlük hazırlık kaydedilemedi: ' + e3.message);
+  }
   delete document.getElementById('ni_name').dataset.editId;
   closeSheet('ingSheet');
   await renderSettingsView(document.getElementById('main'), session);
@@ -1968,6 +1987,7 @@ async function openIngCostLog(id){
 }
 
 function niCalc(){
+  if((document.getElementById("ni_prep_on") || {}).checked) niPrepFill();
   const st = parseFloat((document.getElementById('ni_stock')||{}).value) || 0, uc = parseFloat((document.getElementById('ni_uc')||{}).value) || 0, u = (document.getElementById('ni_unit')||{}).value || '';
   const el = document.getElementById('niSum'); if(el) el.innerHTML = uc ? `💰 ${st} ${escapeHtml(u)} × ${money(uc)} = stok değeri <b>${money(st * uc)}</b>` : '💰 Stok değeri: —';
 }
