@@ -765,6 +765,7 @@ function renderStationsSettings(el, session){
     `<div class="u-mwn box">
     <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;"><h2 class="u-m0">Menüler & İstasyonlar</h2>
       <span style="margin-left:auto;display:flex;gap:8px;flex-wrap:wrap;"><button type="button" class="ghost-btn u-wa-m0" title="Ürünler ve fiyatlarıyla menü (A4 PDF)" ${act('downloadMenuPdf', true)}>📄 Menü PDF · fiyatlı</button><button type="button" class="ghost-btn u-wa-m0" title="Fiyatsız menü (A4 PDF)" ${act('downloadMenuPdf', false)}>📄 Menü PDF · fiyatsız</button></span></div>
+    ${typeof excelBarHtml === 'function' ? excelBarHtml('menus') : ''}
     <p class="muted" style="text-align:left;margin:6px 0 14px;font-size:13px;">Her sütun bir mutfak istasyonu. İçindeki menülerin ürünleri o istasyonun ekranına ve yazıcısına düşer. Menüyü başka istasyona taşımak için kartındaki seçimi değiştirin.</p>
     <div class="st-board" data-cf-scope="menus">
       <div class="st-col st-free" data-cf-tags="free" style="--sc:#94a3b8;">
@@ -1490,7 +1491,7 @@ function renderProductsSettings(el, session){
     <div class="add-row-panel">
     <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:0 0 10px;">
         ${listSearchHtml('products', 'Ürün ara…').replace('margin:0 0 12px;','margin:0;')}
-        ${sheetBtnHtml('prodSheet','+ Yeni Ürün')}${typeof excelBarHtml === 'function' ? excelBarHtml('products') : ''}
+        ${sheetBtnHtml('prodSheet','+ Yeni Ürün')}${typeof excelBarHtml === 'function' ? excelBarHtml('products') + excelBarHtml('recipes') : ''}
         <span class="u-f1"></span>
         <div class="act-row">
           <button type="button" class="act-btn act-save" id="prodSaveAllBtn" ${act('saveAllProducts')} disabled>${ICON_SAVE}<span>Kaydet</span></button>
