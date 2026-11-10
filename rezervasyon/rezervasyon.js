@@ -55,8 +55,8 @@ function render(){
   if(!STATE.info.enabled){ setApp(stateHtml('🔒', t('closedTitle'), t('closedMsg'))); return; }
   const d0 = new Date(); d0.setHours(0,0,0,0);
   const days = Array.from({ length: 14 }, (_, i) => { const d = new Date(d0); d.setDate(d.getDate() + i); return d; });
-  // 14 günden ileri bir tarih takvimden seçildiyse düğmelerin sonunda seçili olarak gösterilir (sunucu sınırı: 60 gün).
-  const maxD = new Date(d0); maxD.setDate(maxD.getDate() + 59);
+  // 14 günden ileri bir tarih takvimden seçildiyse düğmelerin sonunda seçili olarak gösterilir (sunucu sınırı: 90 gün).
+  const maxD = new Date(d0); maxD.setDate(maxD.getDate() + 89);
   const extraDay = STATE.day && !days.some(d => iso(d) === STATE.day) ? new Date(STATE.day + 'T12:00:00') : null;
   const loc = STATE.lang === 'tr' ? 'tr-TR' : 'en-GB';
   const times = timesFor(STATE.day);
@@ -89,7 +89,7 @@ function updateSummary(){
 }
 function pickDay(d){
   if(!d || !/^\d{4}-\d{2}-\d{2}$/.test(d)) return;
-  const d0 = new Date(); d0.setHours(0,0,0,0); const mx = new Date(d0); mx.setDate(mx.getDate() + 59);
+  const d0 = new Date(); d0.setHours(0,0,0,0); const mx = new Date(d0); mx.setDate(mx.getDate() + 89);
   if(d < iso(d0) || d > iso(mx)) return;
   STATE.day = d; render();
 }

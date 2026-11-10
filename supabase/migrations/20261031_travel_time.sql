@@ -240,3 +240,5 @@ alter table customers add column if not exists created_by uuid, add column if no
 
 -- 2026-11-10: list_reservations varsayılan aralığı 14 günden 61 güne çıkarıldı (online rezervasyon 60 gün ileriye alınabildiği için;
 -- 14 günden ileri rezervasyonlar listede görünmüyordu).
+
+-- 2026-11-10: Rezervasyon ufku 90 gün: list_reservations varsayılan aralığı 91 gün, submit_public_reservation en fazla 90 gün sonrası.
