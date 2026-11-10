@@ -659,8 +659,17 @@ function unitOptionsHtml(ig, sel, opts){
   function ensure(){
     if(btn) return;
     btn = document.createElement('button'); btn.type = 'button'; btn.className = 'srch-x'; btn.hidden = true; btn.setAttribute('aria-label', 'Aramayı temizle'); btn.textContent = '✕';
+    // Basıldığı anda temizle (pointerdown): click'i beklemek bazı cihazlarda odak/yeniden çizim yüzünden kaçabiliyor.
+    const clear = (e) => {
+      if(e){ e.preventDefault(); e.stopPropagation(); }
+      const t = (cur && document.contains(cur)) ? cur : (isSearch(document.activeElement) ? document.activeElement : null);
+      if(!t || !t.value) { place(); return; }
+      t.value = ''; t.dispatchEvent(new Event('input', { bubbles: true })); t.dispatchEvent(new Event('change', { bubbles: true }));
+      cur = t; try{ t.focus(); }catch(_){} place();
+    };
+    btn.addEventListener('pointerdown', clear);
     btn.addEventListener('mousedown', e => e.preventDefault());
-    btn.addEventListener('click', () => { if(!cur) return; cur.value = ''; cur.focus(); cur.dispatchEvent(new Event('input', { bubbles: true })); cur.dispatchEvent(new Event('change', { bubbles: true })); place(); });
+    btn.addEventListener('click', clear);
     document.body.appendChild(btn);
   }
   document.addEventListener('focusin', e => { if(isSearch(e.target)){ ensure(); cur = e.target; place(); } });
