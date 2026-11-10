@@ -139,7 +139,7 @@ async function renderPurchaseReportContent(session){
           ${p.status !== 'cancelled' ? `<input type="checkbox" class="pc2-chk" title="Tedarikçi atamak için seç" data-po="${p.id}" data-item="${i.id}" ${poSel().has(i.id) ? 'checked' : ''} ${actOn('change','poSelItem',[i.id,'$checked'])}>` : ''}
           <span class="pc2-ic">🥕</span>
           <div class="pc2-nm"><b>${escapeHtml(i.name)}</b><small>${q} ${escapeHtml(i.unit||'')}${Number(i.received)>0 && Number(i.received)<q ? ` · teslim ${Number(i.received)}` : ''}</small></div>
-          <label class="pc2-price"><input type="number" min="0" step="0.01" placeholder="Fiyat" value="${(APP.pcDrafts||{})[i.id] ?? (ok ? c : '')}" data-item-id="${i.id}" data-orig="${ok ? c : ''}" title="Bedelsiz (ücretsiz) gelen için 0 yazın" class="pc-cost ${ok ? '' : 'missing'}" ${actOn('input','markPcDirty',[p.id])}><span>₺/${escapeHtml(i.unit||'')}</span></label>
+          <button type="button" class="pc2-pricero ${ok ? '' : 'missing'}" title="Fiyatı detayda girin" ${act('openPcDetail', p.id)}>${c > 0 ? money(c) + '<small>/' + escapeHtml(unitShort(i.unit || '')) + '</small>' : i.free ? '🎁' : 'Fiyat gir ›'}</button>
           <b class="pc2-line">${c>0 ? money(q*c) : i.free ? '<span class="pchip ok" title="Ücretsiz geldi; maliyete 0 TL olarak girer">🎁 Bedelsiz</span>' : '<span class="pchip warn">fiyat yok</span>'}</b></div>`; }).join('') || '<p class="muted">Kalem yok.</p>'}
         <button type="button" class="pc2-moreln" ${act('openPcDetail', p.id)}>${items.length > PC_MAX_ROWS ? `⋯ +${items.length - PC_MAX_ROWS} kalem daha · ` : ''}<u>Detaylı görmek için tıklayınız</u></button>
       </div>
@@ -170,7 +170,7 @@ async function renderPurchaseReportContent(session){
         ${total ? (() => { const e = Object.entries(bySup).sort((a,b)=>b[1]-a[1]); const top = e.slice(0,3), rest = e.slice(3).reduce((t,x)=>t+x[1],0);
           return svgDonut(top.map(([k,v], i) => ({ label:k, value:v, color:`var(--c${i+1})` })).concat(rest ? [{ label:'Diğer', value:rest, color:'var(--c4)' }] : []), { center: shortMoney(total), sub:'₺ toplam', title:'Tedarikçi payları', money:true }); })() : ''}
         ${Object.keys(bySup).length ? Object.entries(bySup).sort((a,b)=>b[1]-a[1]).map(([k,v]) => `<div class="sup-row" role="button" tabindex="0" title="${escapeAttr(k)}: malzemeler, fiyatlar ve siparişler" ${act('openSupplierSummary', k)}>${fsRow(escapeHtml(k) + ' <em class="sup-go">Ürünleri gör ›</em>', money(v), total ? '%'+Math.round(v/total*100) : '')}</div>`).join('') : '<p class="u-fs13 muted">Veri yok.</p>'}
-        <p class="fs-note">Ücretsiz (bedelsiz) gelen kalem için fiyata <b>0</b> yazın; 🎁 Bedelsiz olarak işaretlenir ve maliyete 0 TL girer. Fiyatı girilmemiş kalemler tutara katılmaz. Fiyatları yazın; siparişin <b>Kaydet</b> düğmesiyle ya da üstteki <b>Tümünü Kaydet</b> ile hepsini birden kaydedin.</p>
+        <p class="fs-note">Ücretsiz (bedelsiz) gelen kalem için fiyata <b>0</b> yazın; 🎁 Bedelsiz olarak işaretlenir ve maliyete 0 TL girer. Fiyatı girilmemiş kalemler tutara katılmaz. Fiyatlar siparişin <b>detayında</b> girilir (karttaki fiyata ya da "Detaylı görmek için tıklayınız"a basın); yazınca otomatik kaydedilir.</p>
       </div>
     </div>`;
   restorePcDrafts();
@@ -251,7 +251,7 @@ async function savePcInputs(changed, btn, sups){
     cards.add(inp.closest('.pc-card'));
   });
   cards.forEach(card => {
-    let t = 0; card.querySelectorAll('.pc2-it').forEach(row => { const q = parseFloat(row.querySelector('.pc2-nm small').textContent) || 0; const c = parseFloat(row.querySelector('.pc-cost').dataset.orig) || 0; t += q * c; });
+    let t = 0; card.querySelectorAll('.pc2-it').forEach(row => { const q = parseFloat(row.querySelector('.pc2-nm small').textContent) || 0; const ce = row.querySelector('.pc-cost'), c = ce ? (parseFloat(ce.dataset.orig) || 0) : 0; t += q * c; });
     const tot = card.querySelector('.pc2-total'); if(tot) tot.textContent = money(t);
     const sb2 = card.querySelector('.pc-save'); if(sb2) markPcDirty(sb2.id.slice(7));
   });
