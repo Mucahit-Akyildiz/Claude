@@ -204,6 +204,9 @@ async function addIngredient(){
   const stock = parseFloat(document.getElementById('ni_stock').value)||0;
   const waste = parseFloat(document.getElementById('ni_waste').value)||0;
   if(!name){ alert('Hammadde adı gerekli'); return; }
+  { const editId = document.getElementById('ni_name').dataset.editId, key = (t) => String(t || '').toLocaleLowerCase('tr').replace(/\s+/g, ' ').trim();
+    const dup = ((APP.config && APP.config.ingredients) || []).find(x => x.id !== editId && key(x.name) === key(name));
+    if(dup){ uiAlert('"' + dup.name + '" adında bir hammadde zaten var. Aynısını tekrar eklemek yerine mevcut olanı ✏️ Düzenle ile değiştirin ya da farklı bir ad verin.'); return; } }
   // Sihirbazda 2. adımdan "‹ Geri" ile dönüldüyse aynı hammadde güncellenir (yeni kayıt açılmaz).
   const editId = document.getElementById('ni_name').dataset.editId || null;
   const { data: newId, error } = await sb.rpc('upsert_ingredient', { p_token: session.session_token, p_id: editId, p_name: name, p_unit: unit, p_stock: stock, p_waste_pct: waste });
