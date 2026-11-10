@@ -1,5 +1,34 @@
 /* CRM / Sadakat - app/index.html'den çıkarıldı. Klasik <script src>. */
 /* ================= CRM / SADAKAT ================= */
+/* Toplu gruplama: kartlardaki onay kutularıyla seçilen müşteriler tek seferde bir gruba eklenir / gruptan çıkarılır. */
+function crmSel(){ return APP.crmSel = APP.crmSel || new Set(); }
+function crmBulkBarHtml(rows){
+  const sel = crmSel(), n = rows.filter(c => sel.has(c.id)).length, gs = APP.crmGroups || [];
+  APP.crmVisibleIds = rows.map(c => c.id);
+  return `<div class="cu-bulk ${n ? 'on' : ''}" id="crmBulk">
+    <label><input type="checkbox" ${n && n === rows.length ? 'checked' : ''} ${actOn('change','crmSelAll',['$checked'])}> Görünenlerin tümünü seç (${rows.length})</label>
+    ${n ? `<b>${n} müşteri seçili</b>
+      ${gs.length ? `<select id="crmBulkGroup">${gs.map(g => `<option value="${g.id}" ${APP.crmBulkGroup === g.id ? 'selected' : ''}>${escapeHtml((g.icon ? g.icon + ' ' : '') + g.name)}</option>`).join('')}</select>
+      <button type="button" class="u-wa-m0" ${act('crmBulkGroupApply', true)}>➕ Gruba ekle</button>
+      <button type="button" class="ghost-btn u-wa-m0" ${act('crmBulkGroupApply', false)}>➖ Gruptan çıkar</button>` : `<button type="button" class="xl-link" ${act('openCustomerGroups')}>Önce grup oluşturun</button>`}
+      <button type="button" class="ghost-btn u-wa-m0" ${act('crmSelClear')}>Seçimi temizle</button>` : '<span class="muted">Kartlardaki kutuları işaretleyerek birden fazla müşteriyi gruba ekleyin.</span>'}
+  </div>`;
+}
+function crmRedrawBulk(){ const b = document.getElementById('crmBulk'); if(b) b.outerHTML = crmBulkBarHtml((APP.crmRows || []).filter(c => (APP.crmVisibleIds || []).includes(c.id))); }
+function crmSelToggle(id, on){ const s = crmSel(); if(on) s.add(id); else s.delete(id); crmRedrawBulk(); }
+function crmSelAll(on){ const s = crmSel(); (APP.crmVisibleIds || []).forEach(id => { if(on) s.add(id); else s.delete(id); }); document.querySelectorAll('.cu-sel').forEach(i => { i.checked = !!on; }); crmRedrawBulk(); }
+function crmSelClear(){ APP.crmSel = new Set(); document.querySelectorAll('.cu-sel').forEach(i => { i.checked = false; }); crmRedrawBulk(); }
+async function crmBulkGroupApply(add){
+  const gid = (document.getElementById('crmBulkGroup') || {}).value, ids = [...crmSel()];
+  if(!gid || !ids.length) return;
+  APP.crmBulkGroup = gid;
+  const g = (APP.crmGroups || []).find(x => x.id === gid) || {};
+  const { data, error } = await withLoadingOverlay(sb.rpc('bulk_customer_group', { p_token: getSession().session_token, p_ids: ids, p_group_id: gid, p_add: !!add }));
+  if(error){ uiAlert(error.message); return; }
+  showToast((add ? '➕ ' : '➖ ') + (data || 0) + ' müşteri ' + (add ? '"' + (g.name || 'grup') + '" grubuna eklendi' : '"' + (g.name || 'grup') + '" grubundan çıkarıldı') + (ids.length > (data || 0) ? ' (' + (ids.length - (data || 0)) + ' zaten ' + (add ? 'gruptaydı' : 'grupta değildi') + ')' : ''));
+  APP.crmSel = new Set();
+  renderCrmView(document.getElementById('main'), getSession());
+}
 async function renderCrmView(main, session){
   if(!APP.config){ const { data } = await withLoadingOverlay(sb.rpc('get_restaurant_config', { p_token: session.session_token })); if(data) APP.config = data; }
   const [{ data, error }, gRes] = await withLoadingOverlay(Promise.all([
@@ -32,10 +61,11 @@ async function renderCrmView(main, session){
       </div>
       <p class="muted" style="font-size:12px;margin:6px 0 10px;text-align:left;">Harcama/ziyaret/doğum günü gibi detaylı analizler için <b>Finansal Analiz &gt; Müşteri Analizleri</b> sekmesine bakın.</p>
       ${crmGroupBarHtml(allRows)}
+      ${canManage(session, 'crm') && rows.length ? crmBulkBarHtml(rows) : ''}
       ${rows.length ? `<div class="cu-grid" data-cf-scope="crm">${rows.map((c, i) => { const bd = crmBirthdayInfo(c.birthday), custom = (c.spend_per_point!=null || c.point_value!=null || c.birthday_discount_percent!=null);
         const pts = Number(c.points_balance)||0, tr = crmTier(c), tier = [tr.icon, tr.name, tr.color];
         return `<div class="cu-card" data-cf-tags="${(Number(c.points_balance)||0) > 0 ? 'pts' : ''}${bd && bd.days <= 30 ? ' bday' : ''}${crmTier(c).rank >= 2 ? ' gold' : ''}" style="--i:${Math.min(i,12)};--tc:${tier[2]};">
-          <div class="cu-top">${avatarHtml(c.name)}<div class="cu-id"><b>${escapeHtml(c.name)}</b><small>${c.phone ? phoneHtml(c.phone) : 'telefon yok'}</small></div><span class="cu-tier">${tier[0]} ${tier[1]}</span></div>
+          <div class="cu-top">${canManage(session, 'crm') ? `<input type="checkbox" class="cu-sel" title="Seç" ${crmSel().has(c.id) ? 'checked' : ''} ${actOn('change','crmSelToggle',[c.id,'$checked'])}>` : ''}${avatarHtml(c.name)}<div class="cu-id"><b>${escapeHtml(c.name)}</b><small>${c.phone ? phoneHtml(c.phone) : 'telefon yok'}</small></div><span class="cu-tier">${tier[0]} ${tier[1]}</span></div>
           <div class="cu-pts"><b>${pts}</b><span>puan</span>${loyalty.enabled && loyalty.point_value ? `<small>≈ ${money(pts * Number(c.point_value ?? loyalty.point_value))} indirim</small>` : ''}</div>
           <div class="pcard-chips">
             ${c.email ? `<span class="pchip">${emailHtml(c.email)}</span>` : ''}
