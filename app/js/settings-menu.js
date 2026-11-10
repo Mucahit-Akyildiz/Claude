@@ -254,7 +254,7 @@ function openIngredientUsageModal(ingredientId, edit){
         <div id="iuPuRows">${(ing.purchase_units || []).map(x => iuPuRowHtml(x, unit)).join('')}</div>
         <button type="button" class="ghost-btn iu-pu-add" ${act('iuPuAdd')}>+ Alış birimi ekle</button>
         <div class="iu-prep"><b>🥙 Günlük hazırlık</b><small class="muted">Döner şişi, günlük tencere gibi: depodaki hammaddeden her gün bir miktar alınıp bu hammaddeye aktarılır. Satış yalnız bundan düşer; bitince bağlı ürünler tükenir. Mutfak ekranında <b>➕ Hazırla</b> çıkar.</small>
-          <div><label>Kaynak (depo)</label><select id="iue_prepsrc"><option value="">— Kullanılmıyor —</option>${(APP.config.ingredients || []).filter(x => x.id !== ing.id && x.unit === ing.unit).map(x => `<option value="${x.id}" ${ing.prep_source_id === x.id ? 'selected' : ''}>${escapeHtml(x.name)} (${escapeHtml(fmtIngQty(x.stock, x))})</option>`).join('')}</select>
+          <div><label>Kaynak (depo)</label><select id="iue_prepsrc" ${actOn('change','iuPrepSrcChange',[])}><option value="">— Kullanılmıyor —</option>${(APP.config.ingredients || []).filter(x => x.id !== ing.id && x.unit === ing.unit).map(x => `<option value="${x.id}" ${ing.prep_source_id === x.id ? 'selected' : ''}>${escapeHtml(x.name)} (${escapeHtml(fmtIngQty(x.stock, x))})</option>`).join('')}</select>
           <label>Varsayılan miktar</label><input type="number" id="iue_prepdef" min="0" step="any" value="${Number(ing.prep_default) || ''}" placeholder="ör. 20"><em class="iu-u">${escapeHtml(unitShort(unit))}</em></div></div>
         <div class="iu-piece" id="iuPiece" ${['adet', ''].includes(unit) ? 'hidden' : ''}><span>Reçetede adetle kullanmak için: <b>1 adet ≈</b></span><input type="number" step="0.001" min="0" id="iue_piece" value="${Number(ing.piece_weight) || ''}" placeholder="—"><em class="iu-u">${escapeHtml(unit)}</em><small class="muted">ör. 1 limon ≈ 0,12 kg</small></div>
       </section>` : ''}
@@ -307,6 +307,20 @@ function openIngredientUsageModal(ingredientId, edit){
   }).join('');
   filterIngUsage(); iuRecalc();
 
+}
+/* Kaynak seçilince: kaynağı reçetesinde kullanan ürünler aynı miktarla otomatik işaretlenir. */
+function iuPrepSrcChange(){
+  const srcId = (document.getElementById('iue_prepsrc') || {}).value; if(!srcId) return;
+  const ruEl = document.getElementById('iuRU'), f = ruEl ? (parseFloat(ruEl.value) || 1) : 1; let n = 0;
+  ((APP.config && APP.config.products) || []).forEach(p => {
+    const r = (p.recipe || []).find(x => x.ingredient_id === srcId), chk = document.getElementById('ingu_chk_' + p.id), q = document.getElementById('ingu_qty_' + p.id);
+    if(!r || !chk || !q) return;
+    if(!chk.checked){ chk.checked = true; toggleIngUsageQty(p.id, true); }
+    if(!q.value) q.value = unitRound((Number(r.qty_per_unit) || 0) / f);
+    n++;
+  });
+  if(typeof iuRecalc === 'function') iuRecalc();
+  if(n) showToast('🍽️ ' + n + ' ürün kaynağın reçetesinden seçildi · Kaydet ile uygulanır');
 }
 function iuPuRowHtml(x, unit){
   x = x || {};
@@ -445,6 +459,17 @@ async function saveIngredientUsage(ingredientId){
   if((ing0.pack_mode || '') !== mode){ const { error: em } = await sb.rpc('set_ingredient_pack_mode', { p_token: session.session_token, p_id: ingredientId, p_mode: mode || null }); if(em){ alert(em.message); return; } }
   const { error } = await sb.rpc('set_ingredient_usage2', { p_token: session.session_token, p_ingredient_id: ingredientId, p_usages: mode === 'per_order' ? [] : usages, p_packaging: [] });
   if(error){ alert(error.message); return; }
+  // Günlük hazırlık: bu hammaddeyi kullanan ürünlerin reçetesinde kaynak (depo) hammadde de varsa, stok iki kez düşmesin diye kaynak çıkarılır.
+  const srcId = ((document.getElementById('iue_prepsrc') || {}).value) || null;
+  if(srcId && mode !== 'per_order' && usages.length){
+    const both = products.filter(p => usages.some(u => u.product_id === p.id) && (p.recipe || []).some(r => r.ingredient_id === srcId));
+    const srcName = ((APP.config.ingredients || []).find(x => x.id === srcId) || {}).name || 'kaynak';
+    if(both.length && await uiConfirm(both.length + ' ürünün reçetesinde "' + srcName + '" de var. Satış artık bu hazırlık hammaddesinden düşeceği için "' + srcName + '" bu reçetelerden çıkarılsın mı? (Çıkarılmazsa stok iki kez düşer.)\n\n' + both.map(p => p.name).join(', '), { title: 'Reçeteleri güncelle', okText: 'Evet, çıkar', danger: false })){
+      const res = await bulkRpc('set_recipe', both.map(p => ({ p_product_id: p.id, p_items: (p.recipe || []).filter(r => r.ingredient_id !== srcId && r.ingredient_id !== ingredientId).map(r => ({ ingredient_id: r.ingredient_id, qty_per_unit: Number(r.qty_per_unit) || 0 }))
+        .concat([{ ingredient_id: ingredientId, qty_per_unit: usages.find(u => u.product_id === p.id).qty_per_unit }]) })));
+      const bad = res.map((r, k) => r.error ? both[k].name + ': ' + r.error.message : null).filter(Boolean); if(bad.length) uiAlert('Bazı reçeteler güncellenemedi:\n' + bad.join('\n'));
+    }
+  }
   // Kayıt sürerken pencere kapatılmış olabilir (Sonra/Vazgeç ya da çift tıklama).
   document.getElementById('ingUsageModalBg')?.remove();
   showToast('Kaydedildi ✓');
