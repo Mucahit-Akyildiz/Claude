@@ -1434,7 +1434,8 @@ body.anim-done .tc.tc-ready{animation:tcPulse 2.2s ease-in-out infinite !importa
 .ig-card{box-shadow:inset 0 3px 0 var(--c2);gap:10px;animation-delay:calc(var(--i)*.03s);}
 .ig-card.ig-out{box-shadow:inset 0 3px 0 var(--danger,#ef4444);background:color-mix(in srgb,var(--danger,#ef4444) 6%,var(--panel));}
 .ig-card.is-dirty,.pcard.is-dirty{outline:2px solid var(--accent);outline-offset:-2px;}
-.ig-name{flex:1;min-width:0;margin:0;font-weight:700;font-size:14.5px;background:transparent;border-color:transparent;padding:4px 6px;}
+.ig-name{flex:1;min-width:0;margin:0;font-weight:700;font-size:14.5px;line-height:1.3;background:transparent;border-color:transparent;padding:4px 6px;resize:none;overflow:hidden;white-space:normal;overflow-wrap:anywhere;field-sizing:content;min-height:0;height:auto;font-family:inherit;color:inherit;}
+.ig-card .pcard-top{align-items:flex-start;} .ig-card .pcard-top .ig-st{margin-top:6px;} .ig-card .pcard-top .ing-sel{margin-top:6px;}
 .ig-name:hover,.ig-name:focus{background:var(--panel2);border-color:var(--border);}
 .ig-st{font-size:11px;font-weight:700;white-space:nowrap;} .ig-st.out{color:var(--danger,#ef4444);} .ig-st.ok{color:var(--ok,#22c55e);} .ig-st.idle{color:var(--muted);}
 .ig-stock{display:flex;align-items:center;gap:8px;}
