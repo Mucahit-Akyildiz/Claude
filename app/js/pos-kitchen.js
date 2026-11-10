@@ -674,12 +674,12 @@ function wasteGoStockSettings(tab){ removeEl('wasteStockModalBg'); closeWasteMod
 function wastePickOtherProduct(){ removeEl('wasteStockModalBg'); const el = document.getElementById('wasteProduct'); if(el) el.focus(); }
 
 const PKG_WARN_MIN = 20; // mutfak kartı renkleri: 20+ yeşil, 10–20 sarı, <10 kırmızı
-/* Teslim saatli, hâlâ hazırlanan paketler: son 30 dk, son 20 dk, geç kalıyor (<10), geç kaldı — her aşamada bir kez sesli ve görsel uyarı. */
+/* Teslim saatli, hâlâ hazırlanan paketler: son 30 dk, son 15 dk, geç kalıyor (<10), geç kaldı — her aşamada bir kez sesli ve görsel uyarı. */
 function warnPackageDeadlines(){
   if(!(APP.pkgWarned instanceof Map)) APP.pkgWarned = new Map();
   (APP.liveOrders || []).filter(o => o.kind === 'takeaway' && o.pickup_at && (o.items || []).some(i => i.status === 'pending' && !i.paid)).forEach(o => {
     const left = Math.round(((typeof pkgKitchenDeadline === 'function' ? pkgKitchenDeadline(o) : new Date(o.pickup_at).getTime()) - serverNow()) / 60000);
-    const st = typeof pkgDeadlineStage === 'function' ? pkgDeadlineStage(left) : (left < 20 ? 2 : 0);
+    const st = typeof pkgDeadlineStage === 'function' ? pkgDeadlineStage(left) : (left < 15 ? 2 : 0);
     if(!st || (APP.pkgWarned.get(o.order_id) || 0) >= st) return;
     APP.pkgWarned.set(o.order_id, st);
     const del = (o.takeaway_type || (o.delivery_address ? 'delivery' : 'pickup')) !== 'pickup';
