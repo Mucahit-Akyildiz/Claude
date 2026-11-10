@@ -1867,17 +1867,32 @@ function renderOverheads(){
       <div style="display:flex;gap:8px;"><input type="number" id="ohBase" min="1" placeholder="Son 30 gün: ${money(d.revenue_30d || 0)}" value="${d.revenue_base || ''}" style="flex:1;margin:0;"><button type="button" class="u-wa-m0" ${act('saveOhBase')}>Kaydet</button></div></details>`;
 }
 function editOverhead(id, icon, name){
+  APP.ohAdds = [];
   const it = id ? ((APP.overheads && APP.overheads.items) || []).find(x => x.id === id) : { icon, name, amount: '', period: 'monthly', active: true };
   if(!it) return;
   document.getElementById('ohForm').innerHTML = `<div class="oh-form" data-id="${id || ''}">
     <div style="display:flex;gap:8px;"><input id="ohIc" value="${escapeAttr(it.icon || '💸')}" maxlength="4" style="width:56px;text-align:center;margin:0;"><input id="ohName" value="${escapeAttr(it.name || '')}" placeholder="Gider adı (örn. Kira)" style="flex:1;margin:0;"></div>
     <div style="display:flex;gap:8px;margin-top:8px;"><input id="ohAmt" type="number" min="0" inputmode="decimal" value="${it.amount}" placeholder="Tutar ₺" style="flex:1;margin:0;">
       <select id="ohPer" style="width:auto;margin:0;">${Object.entries(OH_PERIOD).map(([k, l]) => `<option value="${k}" ${it.period === k ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
+    <div class="oh-addrow"><input id="ohAdd" type="number" min="0" inputmode="decimal" placeholder="Eklenecek tutar ₺ (ör. yeni fatura)" ${actOn('keydown','ohAddKey',['$event'])}><button type="button" class="u-wa-m0" ${act('ohAddAmt')}>➕ Ekle</button></div>
+    <small class="muted oh-addlog" id="ohAddLog"></small>
     <textarea id="ohNote" rows="2" maxlength="500" placeholder="Not (opsiyonel) — örn. hangi fatura, ödeme günü, kime ödendi" style="width:100%;margin:8px 0 0;resize:vertical;">${escapeHtml(it.note || '')}</textarea>
     <label class="pdrawer-check" style="margin-top:8px;"><input type="checkbox" id="ohAct" ${it.active !== false ? 'checked' : ''}> Maliyete dahil et</label>
     <div class="fsheet-foot"><button type="button" class="ghost-btn" ${act('cancelOhForm')}>Vazgeç</button><button ${act('saveOverhead')}>Kaydet</button></div></div>`;
   const f = document.getElementById(it.name ? 'ohAmt' : 'ohName'); if(f) f.focus();
 }
+// Ekle: yazılan tutar mevcut tutara eklenir (ör. ay içinde gelen her ambalaj faturası); Kaydet ile kalıcı olur.
+function ohAddAmt(){
+  const a = document.getElementById('ohAdd'), t = document.getElementById('ohAmt'); if(!a || !t) return;
+  const v = parseFloat(String(a.value).replace(',', '.'));
+  if(!(v > 0)){ a.focus(); return; }
+  const cur = parseFloat(String(t.value).replace(',', '.')) || 0;
+  t.value = String(Math.round((cur + v) * 100) / 100);
+  APP.ohAdds = (APP.ohAdds || []).concat(v);
+  const lg = document.getElementById('ohAddLog'); if(lg) lg.textContent = 'Eklenen: ' + APP.ohAdds.map(x => '+' + money(x)).join(' ') + ' · toplam ' + money(t.value) + ' · kalıcı olması için Kaydet\'e basın';
+  a.value = ''; a.focus();
+}
+function ohAddKey(e){ if(e && e.key === 'Enter'){ e.preventDefault(); ohAddAmt(); } }
 function cancelOhForm(){ const f = document.getElementById('ohForm'); if(f) f.innerHTML = ''; }
 async function ohApply(res){
   if(res.error){ alert(res.error.message); return false; }

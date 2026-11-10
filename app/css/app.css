@@ -4475,3 +4475,5 @@ input[type=search]::-webkit-search-cancel-button{-webkit-appearance:none;display
 .iu-prep{display:flex;flex-direction:column;gap:4px;border-top:1px dashed var(--border);padding-top:8px;text-align:left;} .iu-prep small{font-size:12px;}
 .iu-prep div{display:grid;grid-template-columns:auto minmax(0,1fr);gap:6px 8px;align-items:center;margin-top:4px;font-size:12.5px;}
 .iu-prep select,.iu-prep input{margin:0;} .iu-prep em{font-style:normal;color:var(--muted);grid-column:2;}
+.oh-addrow{display:flex;gap:8px;margin-top:8px;} .oh-addrow input{flex:1;margin:0;}
+.oh-addlog{display:block;margin-top:4px;font-size:12px;text-align:left;} .oh-addlog:empty{display:none;}
