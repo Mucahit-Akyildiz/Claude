@@ -225,6 +225,9 @@ function openIngredientUsageModal(ingredientId, edit){
         <div class="iu-pu-h"><b>📦 Alış birimleri</b><small class="muted">Tedarikçiden koli, çuval, bidon gibi alıyorsanız tanımlayın. Sipariş ve teslim alma bu birimle yapılır; stok ve reçete <b class="iu-u">${escapeHtml(unit)}</b> kalır.</small></div>
         <div id="iuPuRows">${(ing.purchase_units || []).map(x => iuPuRowHtml(x, unit)).join('')}</div>
         <button type="button" class="ghost-btn iu-pu-add" ${act('iuPuAdd')}>+ Alış birimi ekle</button>
+        <div class="iu-prep"><b>🥙 Günlük hazırlık</b><small class="muted">Döner şişi, günlük tencere gibi: depodaki hammaddeden her gün bir miktar alınıp bu hammaddeye aktarılır. Satış yalnız bundan düşer; bitince bağlı ürünler tükenir. Mutfak ekranında <b>➕ Hazırla</b> çıkar.</small>
+          <div><label>Kaynak (depo)</label><select id="iue_prepsrc"><option value="">— Kullanılmıyor —</option>${(APP.config.ingredients || []).filter(x => x.id !== ing.id && x.unit === ing.unit).map(x => `<option value="${x.id}" ${ing.prep_source_id === x.id ? 'selected' : ''}>${escapeHtml(x.name)} (${escapeHtml(fmtIngQty(x.stock, x))})</option>`).join('')}</select>
+          <label>Varsayılan miktar</label><input type="number" id="iue_prepdef" min="0" step="any" value="${Number(ing.prep_default) || ''}" placeholder="ör. 20"><em class="iu-u">${escapeHtml(unitShort(unit))}</em></div></div>
         <div class="iu-piece" id="iuPiece" ${['adet', ''].includes(unit) ? 'hidden' : ''}><span>Reçetede adetle kullanmak için: <b>1 adet ≈</b></span><input type="number" step="0.001" min="0" id="iue_piece" value="${Number(ing.piece_weight) || ''}" placeholder="—"><em class="iu-u">${escapeHtml(unit)}</em><small class="muted">ör. 1 limon ≈ 0,12 kg</small></div>
       </section>` : ''}
       <section class="iu-cost">
@@ -395,6 +398,11 @@ async function saveIngredientUsage(ingredientId){
     if(document.getElementById('iuPuRows')){
       const units = [...document.querySelectorAll('#iuPuRows .iu-pur')].map(r => ({ n: r.querySelector('.pu-n').value.trim(), f: parseFloat(r.querySelector('.pu-f').value), d: r.querySelector('.pu-d').checked })).filter(x => x.n && x.f > 0);
       const pw = parseFloat(fv('iue_piece', '')) || null;
+      const ps = fv('iue_prepsrc', curIng.prep_source_id || '') || null, pd = parseFloat(fv('iue_prepdef', '')) || null;
+      if(ps !== (curIng.prep_source_id || null) || pd !== (Number(curIng.prep_default) || null)){
+        const { error: e5 } = await sb.rpc('set_ingredient_prep', { p_token: session.session_token, p_id: ingredientId, p_source_id: ps, p_default: pd });
+        if(e5){ alert(e5.message); return; }
+      }
       const { error: e4 } = await sb.rpc('set_ingredient_units', { p_token: session.session_token, p_id: ingredientId, p_units: units, p_piece_weight: pw });
       if(e4){ alert(e4.message); return; }
     }

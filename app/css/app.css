@@ -4458,3 +4458,20 @@ input[type=search]::-webkit-search-cancel-button{-webkit-appearance:none;display
 .olr-hours span{font-size:12.5px;color:var(--muted);} .olr-hours div{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:6px;}
 .olr-hours input{width:auto;margin:0;} .olr-hours em{font-style:normal;color:var(--muted);}
 .oh-noteln{display:block;color:var(--text) !important;opacity:.85;white-space:pre-wrap;overflow-wrap:anywhere;}
+
+/* Günlük hazırlık (şiş tak) */
+.prep-bar{display:flex;flex-wrap:wrap;gap:10px;margin:6px 0 14px;}
+.prep-card{flex:1 1 320px;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 14px;border-radius:14px;border:1.5px solid color-mix(in srgb,var(--green,#22c55e) 45%,var(--border));background:color-mix(in srgb,var(--green,#22c55e) 8%,var(--panel));}
+.prep-card.low{border-color:#f59e0b;background:color-mix(in srgb,#f59e0b 10%,var(--panel));}
+.prep-card.out{border-color:var(--red);background:color-mix(in srgb,var(--red) 10%,var(--panel));}
+.prep-t{display:flex;flex-direction:column;min-width:0;text-align:left;} .prep-t small{font-size:12.5px;color:var(--muted);} .prep-t small b{color:var(--text);}
+.prep-a{display:flex;gap:6px;flex-wrap:wrap;} .prep-a button{padding:8px 12px;font-size:13px;}
+.prep-box{max-width:420px;width:100%;text-align:left;}
+.prep-opts{display:flex;flex-direction:column;gap:8px;}
+.prep-opt{display:flex !important;flex-direction:column;align-items:flex-start;gap:2px;width:100% !important;margin:0 !important;padding:11px 14px !important;background:var(--panel2) !important;color:var(--text) !important;border:1.5px solid var(--border) !important;border-radius:12px !important;text-align:left;}
+.prep-opt:hover{border-color:var(--accent) !important;} .prep-opt.warn:hover{border-color:var(--red) !important;} .prep-opt small{font-size:12px;color:var(--muted);font-weight:500;}
+.prep-qty{display:flex;align-items:center;gap:8px;} .prep-qty input{flex:1;margin:0;font-size:20px;font-weight:700;} .prep-qty span{color:var(--muted);font-weight:700;}
+.prep-quick{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;}
+.iu-prep{display:flex;flex-direction:column;gap:4px;border-top:1px dashed var(--border);padding-top:8px;text-align:left;} .iu-prep small{font-size:12px;}
+.iu-prep div{display:grid;grid-template-columns:auto minmax(0,1fr);gap:6px 8px;align-items:center;margin-top:4px;font-size:12.5px;}
+.iu-prep select,.iu-prep input{margin:0;} .iu-prep em{font-style:normal;color:var(--muted);grid-column:2;}
