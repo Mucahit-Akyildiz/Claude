@@ -66,7 +66,7 @@ function renderIngredientsSettings(el, session){
   const chip = (k, ic, v, l, c) => `<div class="os-chip os-click ${f===k?'on':''}" role="button" title="Listeyi filtrele" style="--oc:${c};" ${act('setIngFilter', k)}><span class="os-ic">${ic}</span><div><b>${v}</b><small>${l}</small></div></div>`;
   el.innerHTML = `<div class="order-summary stat-chips" style="--n:5;">${chip('all','🥕', ings.length, 'Hammadde', 'var(--c1)')}${chip('low','📉', ings.filter(isLow).length, 'Kritik stok', 'var(--c3)')}${chip('out','⛔', ings.filter(i => !isPrep(i) && Number(i.stock)<=0).length, 'Stoğu biten', 'var(--danger,#ef4444)')}${chip('idle','💤', ings.filter(i => !useCount(i.id) && !isSrc(i) && !isPrep(i)).length, 'Reçetede kullanılmayan', 'var(--c3)')}${chip('waste','✂️', ings.filter(i => Number(i.waste_pct)>0).length, 'Fire tanımlı', 'var(--c2)')}</div>
   <div class="u-mwn box">
-    <div class="fsheet-bar" style="margin:0 0 12px;"><h2 class="u-m0">Hammaddeler / Stok Kalemleri</h2>${sheetBtnHtml('ingSheet','+ Yeni Hammadde')}</div>
+    <div class="fsheet-bar" style="margin:0 0 12px;"><h2 class="u-m0">Hammaddeler / Stok Kalemleri</h2><button type="button" class="fsheet-open" ${act('niStart', '')}>+ Yeni Hammadde</button></div>
     <details class="prod-info"><summary>ℹ️ Nasıl çalışır</summary><p class="muted" style="text-align:left;margin:0 0 12px;">Örn: "Köfte" (birim: adet, stok: 200), "Döner Eti" (birim: kg, stok: 20). Yeni bir hammadde eklediğinizde hangi ürünlerin onu kullandığını hemen soracağız — istediğiniz zaman "Kullanıldığı Ürünler" ile bunu tekrar düzenleyebilirsiniz. Aynı hammaddeyi paylaşan ürünlerin stoğu her zaman ortak ve anlık hesaplanır. <b>Min</b>: stok bu seviyeye inince Malzeme Siparişi Ver menüsünde uyarı çıkar ve tek tıkla sipariş taslağı hazırlanır. <b>Fire %</b>: temizleme/kesim kaybıdır; reçeteye net miktarı girersiniz, stoktan fire eklenerek düşülür (örn. %10 fire, 60 g net → 66,7 g düşer). Kartları değiştirip <b>Kaydet</b>'e basın; silmek için kartları seçin.</p></details>
     <div class="add-row-panel">
       <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:0 0 10px;">
@@ -83,22 +83,30 @@ function renderIngredientsSettings(el, session){
       </div>
       <p class="muted" id="ingSelInfo" style="text-align:left;font-size:12.5px;margin:-4px 0 8px;text-transform:none;letter-spacing:0;font-weight:400;"></p>
     </div>
-    ${sheetHtml('ingSheet', '🥕', 'Yeni Hammadde', `${ingStepsHtml(1)}
+    ${sheetHtml('ingSheet', '🥕', 'Yeni Hammadde', `<div id="niKind" class="ni-kind">
+        <p class="muted ni-kind-q">Ne ekliyorsunuz?</p>
+        <div class="ni-kind-grid">
+          <button type="button" class="ni-kc" ${act('niPickKind', 'depot')}><span class="ni-kc-ic">🏬</span><b>Depo / stok hammaddesi</b><small>Satın alınan, depoda duran malzeme</small><em>Et Döner, Tavuk Bonfile, Süt, Lavaş, Poşet…</em><i>Alış fiyatı · alış birimi · minimum stok · Mal Kabul'den stok girer</i></button>
+          <button type="button" class="ni-kc prep" ${act('niPickKind', 'prep')}><span class="ni-kc-ic">🥙</span><b>Günlük hazırlık</b><small>Her gün depodan alınıp hazırlanan, satışın düştüğü kalem</small><em>Döner Satış, Tavuk Bonfile Şiş, Tiramisu Dilim Günlük…</em><i>Maliyet ve birim kaynaktan gelir · mutfakta ➕ Hazırla ile dolar</i></button>
+        </div></div>
+      <div id="niForm" hidden>
+      <div class="ni-kind-bar"><span id="niKindLbl"></span><button type="button" class="ni-kind-chg" ${act('niPickKind', '')}>‹ Türü değiştir</button></div>
+      ${ingStepsHtml(1)}
+      <div id="niPrepTop" class="ni-preptop" hidden><div class="field-group"><label>1 · Kaynak (depo) hammadde <small class="muted">— hazırlık bundan alınır</small></label><select id="ni_prepsrc" ${actOn('change','niPrepSrcChange',[])}></select></div><small class="muted" id="niPrepHint"></small></div>
       <div class="fsheet-grid">
         <div class="field-group wide"><label>Hammadde Adı</label><input id="ni_name" placeholder="örn. Döner Eti"></div>
         <div class="field-group"><label>Birim</label><select id="ni_unit" ${actOn('change','niCalc',[])}><option value="adet">adet</option><option value="gram">gram</option><option value="kg">kg</option><option value="ml">ml</option><option value="lt">lt</option></select></div>
-        <div class="field-group"><label>Başlangıç Stoku</label><input type="number" step="0.01" id="ni_stock" placeholder="0" ${actOn('input','niCalc',[])}></div>
+        <div class="field-group ni-dep"><label>Başlangıç Stoku</label><input type="number" step="0.01" id="ni_stock" placeholder="0" ${actOn('input','niCalc',[])}></div>
         <div class="field-group"><label>Fire %</label><input type="number" step="0.1" min="0" max="99" id="ni_waste" placeholder="0"></div>
-        <div class="field-group"><label>Birim maliyet (₺) <small class="muted">— 1 birimin alış fiyatı</small></label><input type="number" step="0.01" min="0" id="ni_uc" placeholder="örn. 250" ${actOn('input','niCalc',[])}></div>
+        <div class="field-group ni-dep"><label>Birim maliyet (₺) <small class="muted">— 1 birimin alış fiyatı</small></label><input type="number" step="0.01" min="0" id="ni_uc" placeholder="örn. 250" ${actOn('input','niCalc',[])}></div>
       </div>
-      <div class="ni-sum" id="niSum">💰 Stok değeri: —</div>
-      <div class="ni-prep"><label class="ni-prep-h"><input type="checkbox" id="ni_prep_on" class="u-wa-m0" ${actOn('change','niPrepToggle',['$checked'])}> 🥙 <b>Günlük hazırlık</b> <small class="muted">— döner şişi, günlük tencere gibi: her gün depodaki hammaddeden alınıp buna aktarılır, satış yalnız bundan düşer</small></label>
-        <div id="niPrepBox" hidden><div class="fsheet-grid">
-          <div class="field-group"><label>Kaynak (depo) hammadde</label><select id="ni_prepsrc" ${actOn('change','niPrepSrcChange',[])}></select></div>
-          <div class="field-group"><label>Varsayılan günlük miktar</label><input type="number" id="ni_prepdef" min="0" step="any" placeholder="örn. 20"></div>
-        </div><small class="muted" id="niPrepHint"></small></div></div>
-      <p class="muted" style="font-size:12px;text-align:left;margin:10px 0 0;">Maliyet sonra Mal Kabul'de fiyatlı teslim aldıkça ortalanarak güncellenir. Ekledikten sonra hangi ürünlerin bu hammaddeyi kullandığını soracağız; ürün maliyetleri otomatik hesaplanır.</p>
-      <div class="fsheet-foot"><button type="button" class="ghost-btn" ${act('niCancel')}>Vazgeç</button><button ${act('addIngredient')}>Devam › Kullanım şekli</button></div>`, 'var(--c3)')}
+      <div class="ni-sum ni-dep" id="niSum">💰 Stok değeri: —</div>
+      <input type="checkbox" id="ni_prep_on" hidden>
+      <div id="niPrepBox" class="ni-prep" hidden><div class="fsheet-grid"><div class="field-group"><label>Varsayılan günlük miktar <small class="muted">— mutfakta ➕ Hazırla açılınca hazır gelir</small></label><input type="number" id="ni_prepdef" min="0" step="any" placeholder="örn. 20"></div></div></div>
+      <p class="muted ni-dep" style="font-size:12px;text-align:left;margin:10px 0 0;">Maliyet sonra Mal Kabul'de fiyatlı teslim aldıkça ortalanarak güncellenir. Ekledikten sonra hangi ürünlerin bu hammaddeyi kullandığını soracağız; ürün maliyetleri otomatik hesaplanır.</p>
+      <p class="muted ni-prp" style="font-size:12px;text-align:left;margin:10px 0 0;">Maliyet kaynaktan gelir. Devam edince, kaynağı reçetesinde kullanan ürünler hazır işaretli gelir; kaydedince kaynak o reçetelerden çıkarılır (stok iki kez düşmez).</p>
+      </div>
+      <div class="fsheet-foot" id="niFoot" hidden><button type="button" class="ghost-btn" ${act('niCancel')}>Vazgeç</button><button ${act('addIngredient')}>Devam › Kullanım şekli</button></div>`, 'var(--c3)')}
     <div style="display:flex;align-items:center;gap:8px;margin:4px 0 10px;"><label style="display:flex;align-items:center;gap:6px;margin:0;font-size:13px;font-weight:600;"><input type="checkbox" class="u-wa-m0" ${actOn('change','selectAllIngredients',['$checked'])}> Tümünü seç</label></div>
     <div class="ig-grid ${ingView === 'list' ? 'ig-list' : ''}" ${actOn('input','markIngDirty',['$event'])} ${actOn('change','markIngDirty',['$event'])}>
       ${(() => { const GL = { '-0.5': ['🏬', 'Depo · günlük hazırlık kaynakları (satış hazırlıktan düşer)', 'var(--c2)'], '-1': ['🥙', 'Günlük hazırlık (mutfakta ➕ Hazırla ile dolar)', 'var(--accent)'], 0: ['⛔', 'Stoğu biten', 'var(--danger,#ef4444)'], 1: ['📉', 'Kritik seviyede', 'var(--c3)'], 2: ['✅', 'Kullanımda', 'var(--ok,#22c55e)'], 3: ['○', 'Reçetede kullanılmayan', 'var(--muted)'] };
@@ -124,6 +132,7 @@ function renderIngredientsSettings(el, session){
           <label class="ig-waste" title="Birim (${escapeAttr(i.unit||'')}) başına ağırlıklı ortalama alış maliyeti. Mal Kabul'de fiyatlı teslim alınca eldeki stokla ortalanarak otomatik güncellenir; reçeteli ürünlerin maliyeti bundan hesaplanır.">Ort. ₺/${escapeHtml(i.unit||'birim')} <input type="number" step="0.01" min="0" value="${Number(i.unit_cost) ? Math.round(Number(i.unit_cost) * 100) / 100 : ''}" placeholder="—" id="ing_uc_${i.id}"></label><button type="button" class="pc-btn" title="Maliyet geçmişi" ${act('openIngCostLog', i.id)}>📈</button>
           <button type="button" class="pc-btn" ${act('openIngredientUsageModal', i.id)}>🍽️ ${uses} ürün</button>
           <button type="button" class="pc-btn" title="Hammaddeyi ve kullanıldığı ürünleri düzenle" ${act('openIngredientUsageModal', i.id, true)}>✏️ Düzenle</button>
+          ${i.prep_source_id ? '' : `<button type="button" class="pc-btn ig-mkprep" title="Bu depo hammaddesinden günlük hazırlık (şiş, dilim, tencere) oluştur" ${act('niStart', i.id)}>🥙 Günlük hazırlık oluştur</button>`}
         </div>
       </div>`; }
 }
@@ -182,6 +191,31 @@ async function bulkDeleteIngredients(){
   if(errors.length) alert('Bazı hammaddeler silinemedi:\n\n' + errors.join('\n')); else showToast(list.length + ' hammadde silindi');
 }
 // Yeni hammadde: günlük hazırlık seçilirse kaynak listesi aynı birimdeki hammaddelerle doldurulur.
+/* Yeni hammadde: önce tür seçilir (🏬 depo / 🥙 günlük hazırlık); form türe göre sadeleşir. */
+function niStart(srcId){
+  const nm = document.getElementById('ni_name'); if(nm){ delete nm.dataset.editId; delete nm.dataset.auto; }
+  ['ni_name','ni_stock','ni_waste','ni_uc','ni_prepdef'].forEach(id => { const e = document.getElementById(id); if(e) e.value = ''; });
+  const ps = document.getElementById('ni_prepsrc'); if(ps) ps.value = '';
+  niPickKind(srcId ? 'prep' : '');
+  if(srcId){ niPrepFill(); const sel = document.getElementById('ni_prepsrc'); if(sel){ sel.value = srcId; niPrepSrcChange(); } }
+  openSheet('ingSheet');
+}
+function niPickKind(k){
+  const sh = document.getElementById('ingSheet'); if(!sh) return;
+  const prep = k === 'prep';
+  sh.dataset.kind = k || '';
+  const show = (sel, on) => sh.querySelectorAll(sel).forEach(e => { e.hidden = !on; });
+  document.getElementById('niKind').hidden = !!k; document.getElementById('niForm').hidden = !k; document.getElementById('niFoot').hidden = !k;
+  show('.ni-dep', !prep); show('.ni-prp', prep);
+  document.getElementById('niPrepTop').hidden = !prep; document.getElementById('niPrepBox').hidden = !prep;
+  const cb = document.getElementById('ni_prep_on'); if(cb) cb.checked = prep;
+  const un = document.getElementById('ni_unit'); if(un) un.disabled = prep;
+  const lbl = document.getElementById('niKindLbl'); if(lbl) lbl.innerHTML = prep ? '🥙 <b>Günlük hazırlık</b>' : k ? '🏬 <b>Depo / stok hammaddesi</b>' : '';
+  const t = document.getElementById('ingSheetTitle'); if(t) t.textContent = prep ? 'Yeni Günlük Hazırlık' : 'Yeni Hammadde';
+  const nm = document.getElementById('ni_name'); if(nm) nm.placeholder = prep ? 'örn. Tavuk Bonfile Şiş' : 'örn. Döner Eti';
+  if(prep) niPrepFill();
+  if(k) setTimeout(() => { const f = prep ? document.querySelector('#niPrepTop .ss-btn, #ni_prepsrc') : nm; if(f && window.innerWidth > 600) f.focus(); }, 60);
+}
 function niPrepToggle(on){ const b = document.getElementById('niPrepBox'); if(b) b.hidden = !on; if(on) niPrepFill(); }
 function niPrepFill(){
   const sel = document.getElementById('ni_prepsrc'); if(!sel) return;
@@ -195,6 +229,10 @@ function niPrepFill(){
 function niPrepSrcChange(){
   const id = (document.getElementById('ni_prepsrc') || {}).value, ig = ((APP.config && APP.config.ingredients) || []).find(x => x.id === id), un = document.getElementById('ni_unit');
   if(ig && un && ig.unit && un.value !== ig.unit){ un.value = ig.unit; niCalc(); }
+  // Ad önerisi: boşsa ya da önceki öneri değiştirilmediyse kaynağın adından.
+  const nm = document.getElementById('ni_name');
+  if(ig && nm && (!nm.value.trim() || nm.dataset.auto === nm.value)){ nm.value = ig.name + ' Günlük'; nm.dataset.auto = nm.value; }
+  if(ig){ const w = document.getElementById('ni_waste'); if(w && !w.value && Number(ig.waste_pct)) w.value = ig.waste_pct; }
 }
 async function addIngredient(){
   const session = getSession();
@@ -301,7 +339,8 @@ function openIngredientUsageModal(ingredientId, edit){
   box.innerHTML = products.length===0 ? '<p class="muted">Henüz ürün eklenmemiş.</p>' : products.map(p => {
     const exR = (p.recipe||[]).find(r => r.ingredient_id===ingredientId), exP = (p.packaging||[]).find(r => r.ingredient_id===ingredientId);
     const ex = ing.pack_mode === 'per_product' ? (exP ? { qty_per_unit: exP.qty } : null) : exR;
-    const mn = menus.length > 1 && p.menu_id ? ((menus.find(m => m.id === p.menu_id)||{}).name||'') : (p.category || '');
+    const mm = menus.find(m => m.id === p.menu_id) || {}, stn = (((APP.config.stations || []).find(x => x.id === (p.station_id || mm.station_id)) || {}).name) || '';
+    const mn = [menus.length > 1 && p.menu_id ? (mm.name || '') : (p.category || ''), stn].filter(Boolean).join(' · ');
     return `<label class="iu-item ${ex?'on':''}" data-pid="${p.id}" data-name="${escapeAttr(p.name)}" data-menu="${escapeAttr(p.menu_id||'')}" data-price="${Number(p.price)||0}" data-cost="${Number(p.cost)||0}">
       <input type="checkbox" id="ingu_chk_${p.id}" ${ex?'checked':''} ${actOn('change','toggleIngUsageQty',[p.id,'$checked'])}>
       <span class="iu-pn"><b>${escapeHtml(p.name)}</b><small class="muted">${escapeHtml(mn)}${mn ? ' · ' : ''}${money(p.price)} · ürün maliyeti ${money(p.cost)}</small></span>
@@ -2124,6 +2163,8 @@ function iuBackToStep1(ingredientId){
   const set = (id, v) => { const e = document.getElementById(id); if(e) e.value = v == null ? '' : v; };
   set('ni_name', ing.name); set('ni_unit', ing.unit || 'adet'); set('ni_stock', ing.stock); set('ni_waste', ing.waste_pct); set('ni_uc', Number(ing.unit_cost) > 0 ? ing.unit_cost : '');
   const nm = document.getElementById('ni_name'); if(nm) nm.dataset.editId = ingredientId;
+  niPickKind(ing.prep_source_id ? 'prep' : 'depot');
+  if(ing.prep_source_id){ const sel = document.getElementById('ni_prepsrc'); if(sel) sel.value = ing.prep_source_id; const d = document.getElementById('ni_prepdef'); if(d) d.value = ing.prep_default || ''; }
   if(typeof niCalc === 'function') niCalc();
   openSheet('ingSheet');
 }
