@@ -253,3 +253,6 @@ alter table customers add column if not exists created_by uuid, add column if no
 
 -- 2026-11-10: bulk_customer_group(p_token, p_ids uuid[], p_group_id, p_add) — seçili müşterileri gruba toplu ekler / çıkarır (crm).
 -- grant ... to anon, authenticated.
+
+-- 2026-11-10: set_ingredient_prep — hazırlanan hammaddenin maliyeti boşsa kaynağın (depo) maliyetini alır.
+-- Mevcut bağlantılarda maliyeti boş olanlar kaynağın maliyetiyle dolduruldu (ürün maliyetleri tetikleyiciyle güncellendi).
