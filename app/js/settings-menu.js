@@ -763,7 +763,8 @@ function renderStationsSettings(el, session){
   el.innerHTML = statChips([['📋', menus.length, 'Menü', 'var(--c1)', 'all'], ['🍳', stations.length, 'İstasyon', 'var(--c2)', 'station'],
       ['🍽️', (APP.config.products||[]).length, 'Ürün', 'var(--c3)', 'go:setSettingsTab:products'], ['⚠️', free.length, 'İstasyonsuz menü', free.length ? 'var(--danger,#ef4444)' : 'var(--c4)', 'free']], '', 'menus') +
     `<div class="u-mwn box">
-    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;"><h2 class="u-m0">Menüler & İstasyonlar</h2></div>
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;"><h2 class="u-m0">Menüler & İstasyonlar</h2>
+      <span style="margin-left:auto;display:flex;gap:8px;flex-wrap:wrap;"><button type="button" class="ghost-btn u-wa-m0" title="Ürünler ve fiyatlarıyla menü (A4 PDF)" ${act('downloadMenuPdf', true)}>📄 Menü PDF · fiyatlı</button><button type="button" class="ghost-btn u-wa-m0" title="Fiyatsız menü (A4 PDF)" ${act('downloadMenuPdf', false)}>📄 Menü PDF · fiyatsız</button></span></div>
     <p class="muted" style="text-align:left;margin:6px 0 14px;font-size:13px;">Her sütun bir mutfak istasyonu. İçindeki menülerin ürünleri o istasyonun ekranına ve yazıcısına düşer. Menüyü başka istasyona taşımak için kartındaki seçimi değiştirin.</p>
     <div class="st-board" data-cf-scope="menus">
       <div class="st-col st-free" data-cf-tags="free" style="--sc:#94a3b8;">
@@ -2064,4 +2065,64 @@ async function resetIngredientStock(){
   showToast('↺ ' + (data || 0) + ' hammaddenin stoğu sıfırlandı');
   const { data: cfg } = await sb.rpc('get_restaurant_config', { p_token: getSession().session_token }); if(cfg) APP.config = cfg;
   renderSettingsContent(getSession());
+}
+
+/* Menü PDF (fiyatlı / fiyatsız): menüler Sipariş Al sırasıyla, satışta olan ürünler; A4 sayfalara satır bölünmeden yerleştirilir. */
+function menuPdfBlocks(withPrice){
+  const menus = (APP.config.menus || []), prods = (APP.config.products || []).filter(p => p.available !== false);
+  const groups = menus.map(m => ({ name: m.name, items: prods.filter(p => p.menu_id === m.id) }))
+    .concat([{ name: 'Diğer', items: prods.filter(p => !p.menu_id || !menus.some(m => m.id === p.menu_id)) }]).filter(g => g.items.length);
+  const out = [];
+  groups.forEach(g => {
+    out.push(`<h2 class="mp-h">${escapeHtml(g.name)}</h2>`);
+    g.items.slice().sort((a, b) => (Number(a.sort_order) || 0) - (Number(b.sort_order) || 0) || String(a.name).localeCompare(String(b.name), 'tr', { numeric: true })).forEach(p => {
+      const d = p.description || p.menu_description || '';
+      out.push(`<div class="mp-it"><div class="mp-l"><b>${escapeHtml(p.name)}</b>${d ? `<small>${escapeHtml(d)}</small>` : ''}</div>${withPrice ? `<span class="mp-dots"></span><span class="mp-p">${money(p.price)}</span>` : ''}</div>`);
+    });
+  });
+  return out;
+}
+async function downloadMenuPdf(withPrice){
+  const s = getSession(), name = (s && s.restaurant_name) || 'Menü';
+  const blocks = menuPdfBlocks(withPrice);
+  if(!blocks.length){ uiAlert('Menüde satışta olan ürün yok'); return; }
+  await withLoadingOverlay((async () => {
+    await loadScriptOnce('/assets/vendor/html2canvas.min.js'); await loadScriptOnce('/assets/vendor/jspdf.umd.min.js');
+    const css = `*{box-sizing:border-box}body{margin:0;font-family:"Segoe UI",Roboto,Arial,sans-serif;color:#1d2422;background:#fff}
+      .pg{width:794px;height:1123px;padding:56px 64px;overflow:hidden;background:#fff}
+      .mp-title{text-align:center;margin:0 0 4px;font-size:34px;letter-spacing:.5px}.mp-sub{text-align:center;color:#6b7673;margin:0 0 26px;font-size:14px}
+      .mp-h{font-size:20px;margin:22px 0 10px;padding-bottom:6px;border-bottom:2px solid #1d2422;text-transform:uppercase;letter-spacing:1px}
+      .mp-it{display:flex;align-items:baseline;gap:8px;padding:7px 0}.mp-l{display:flex;flex-direction:column;max-width:72%}.mp-l b{font-size:16px}.mp-l small{color:#6b7673;font-size:12.5px;margin-top:2px}
+      .mp-dots{flex:1;border-bottom:1.5px dotted #b9c1bf;transform:translateY(-4px)}.mp-p{font-weight:700;font-size:16px;white-space:nowrap}
+      .mp-foot{position:absolute;bottom:26px;left:0;right:0;text-align:center;color:#9aa4a1;font-size:11px}`;
+    const fr = document.createElement('iframe'); fr.style.cssText = 'position:fixed;left:-10000px;top:0;width:794px;height:1123px;border:0;';
+    document.body.appendChild(fr);
+    try{
+      const doc = fr.contentDocument; doc.open(); doc.write(`<!doctype html><html><head><meta charset="utf-8"></head><body><div id="m" class="pg"></div></body></html>`); doc.close(); adoptDocCss(doc, css);
+      await new Promise(r => setTimeout(r, 150));
+      // Ölçerek sayfalara böl: bir başlık sayfanın en altında tek başına kalmaz.
+      const meas = doc.getElementById('m'), pages = [], head = `<h1 class="mp-title">${escapeHtml(name)}</h1><p class="mp-sub">${withPrice ? 'Menü ve fiyat listesi' : 'Menü'} · ${new Date().toLocaleDateString('tr-TR')}</p>`;
+      const LIMIT = 1123 - 56 * 2 - 30;
+      let cur = [head]; meas.innerHTML = head;
+      for(let i = 0; i < blocks.length; i++){
+        const isHead = blocks[i].startsWith('<h2'), add = isHead && blocks[i + 1] ? blocks[i] + blocks[i + 1] : blocks[i];
+        meas.innerHTML = '<div id="mc">' + cur.join('') + add + '</div>';
+        if(doc.getElementById('mc').offsetHeight > LIMIT && cur.length > 1){ pages.push(cur); cur = []; }
+        cur.push(blocks[i]); if(isHead && blocks[i + 1]){ cur.push(blocks[i + 1]); i++; }
+      }
+      pages.push(cur);
+      const pdf = new window.jspdf.jsPDF({ unit: 'mm', format: 'a4' });
+      for(let k = 0; k < pages.length; k++){
+        meas.style.position = 'relative';
+        meas.innerHTML = pages[k].join('') + (pages.length > 1 ? `<div class="mp-foot">${k + 1} / ${pages.length}</div>` : '');
+        await new Promise(r => setTimeout(r, 30));
+        const canvas = await window.html2canvas(meas, { scale: 2, backgroundColor: '#ffffff', windowWidth: 794, onclone: (cd) => adoptDocCss(cd, css) });
+        if(k) pdf.addPage();
+        pdf.addImage(canvas.toDataURL('image/jpeg', 0.92), 'JPEG', 0, 0, 210, 297);
+      }
+      const safe = String(name).replace(/[^\p{L}\p{N}]+/gu, '-').replace(/^-|-$/g, '');
+      pdf.save(safe + '-menu' + (withPrice ? '-fiyatli' : '') + '.pdf');
+    } finally { fr.remove(); }
+  })());
+  showToast('📄 Menü PDF indirildi');
 }
