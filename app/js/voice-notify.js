@@ -135,12 +135,15 @@ function voiceStop(){
 }
 // Bildirimler sıraya alınır: biri bitmeden diğeri başlamaz (üst üste binmesin).
 const VOICE_QUEUE = []; let VOICE_BUSY = false;
-function voiceSpeak(text){
-  // Aynı cümle 4 sn içinde ikinci kez gelirse (ör. aynı anda iki tetikleme) tekrar okunmaz.
-  if(!text || (text===VOICE_LAST.t && Date.now() - VOICE_LAST.at < 4000) || VOICE_QUEUE.includes(text)) return;
+function voiceSpeak(text, key){
+  // Tekrar engeli OLAYA göre (key: bildirim türü + kayıt kimlikleri): aynı olay iki kez / iki sekmede okunmaz;
+  // cümlesi aynı olsa da farklı olaylar (ör. aynı masaya 20 sn arayla iki sipariş, arka arkaya iki rezervasyon) okunur.
+  // key verilmezse (deneme, mutfak) eski davranış: aynı cümle 4 sn içinde tekrar okunmaz.
+  const k = key || text;
+  if(!text || (k===VOICE_LAST.t && Date.now() - VOICE_LAST.at < 4000) || (!key && VOICE_QUEUE.includes(text))) return;
   // Uygulama birden fazla sekmede/pencerede açıksa aynı bildirimi yalnızca biri okur.
-  if(voiceRecentAcrossTabs(text)) return;
-  VOICE_LAST = { t: text, at: Date.now() };
+  if(voiceRecentAcrossTabs(k)) return;
+  VOICE_LAST = { t: k, at: Date.now() };
   if(VOICE_QUEUE.length >= 6) VOICE_QUEUE.shift();
   VOICE_QUEUE.push(text);
   voiceNext();
@@ -367,7 +370,7 @@ function processVoiceBadges(data, visibleViews){
     const tp = p.types[type]; if(!tp) return;
     // Sesli okunan bildirimde zil ayrıca çalınmaz; zil yalnızca sesli okuma kapalı türlerde.
     if(tp.sound && !tp.voice && type!=='kitchen') sound = true;
-    if(tp.voice) voiceSpeak(voiceTextFor(type, list));
+    if(tp.voice) voiceSpeak(voiceTextFor(type, list), type + ':' + list.map(x => String(x.id || x.label || '') + (x.lateMin ? '@' + x.lateMin : '') + (x.at && type === 'pickup' ? '@' + x.at : '')).join('|'));
     // Uygulama arka plandaysa (başka pencere/sekme açık) bilgisayarda da bildirim kutusu çıksın.
     voiceDesktopNotify(type, list);
   });

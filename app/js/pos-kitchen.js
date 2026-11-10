@@ -687,7 +687,7 @@ function warnPackageDeadlines(){
     const txt = typeof pkgDeadlineText === 'function' ? pkgDeadlineText(who, left, del) : who + ': ' + left + ' dk kaldı';
     showToast((st >= 3 ? '🔴 ' : '⏱️ ') + txt, 8000);
     const vp = typeof getVoicePrefs === 'function' ? getVoicePrefs() : null, ty = vp && vp.types.pkgsoon;
-    if(vp && vp.enabled && ty && ty.voice && typeof voiceSpeak === 'function') voiceSpeak(txt);
+    if(vp && vp.enabled && ty && ty.voice && typeof voiceSpeak === 'function') voiceSpeak(txt, 'pkgsoon:' + o.order_id + ':' + st);
     else if((!vp || (vp.enabled && (!ty || ty.sound))) && typeof playPeyktanSound === 'function') playPeyktanSound();
   });
 }
