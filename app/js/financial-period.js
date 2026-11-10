@@ -705,16 +705,26 @@ function poDocHtml(p){
 }
 // PDF: sipariş belgesi gizli bir çerçevede çizilip doğrudan .pdf dosyası olarak indirilir (yazdırma penceresi açılmaz).
 function loadScriptOnce(src){ return new Promise((ok, fail) => { if(document.querySelector('script[data-src="' + src + '"]')) return ok(); const s = document.createElement('script'); s.src = src; s.dataset.src = src; s.onload = ok; s.onerror = () => fail(new Error('Yüklenemedi: ' + src)); document.head.appendChild(s); }); }
+/* Site güvenlik ayarı (CSP: style-src-elem) sayfaya yazılan <style> bloklarını engeller; stil bu yüzden
+   belgeye stil nesnesi olarak (adoptedStyleSheets, CSP'ye takılmaz) uygulanır. <style> içerikleri de okunup aynı yolla eklenir. */
+function adoptDocCss(doc, css){
+  try{
+    const win = doc.defaultView, text = (css || '') + [...doc.querySelectorAll('style')].map(x => x.textContent).join('\n');
+    if(!text.trim()) return;
+    if(win && win.CSSStyleSheet && 'adoptedStyleSheets' in doc){ const sh = new win.CSSStyleSheet(); sh.replaceSync(text); doc.adoptedStyleSheets = [...doc.adoptedStyleSheets, sh]; return; }
+  }catch(e){}
+}
 async function poDownloadPdf(p){
   await withLoadingOverlay((async () => {
     await loadScriptOnce('/assets/vendor/html2canvas.min.js'); await loadScriptOnce('/assets/vendor/jspdf.umd.min.js');
     const fr = document.createElement('iframe'); fr.style.cssText = 'position:fixed;left:-10000px;top:0;width:794px;height:1123px;border:0;';
     document.body.appendChild(fr);
     try{
-      fr.contentDocument.open(); fr.contentDocument.write(poDocHtml(p)); fr.contentDocument.close();
+      fr.contentDocument.open(); fr.contentDocument.write(poDocHtml(p)); fr.contentDocument.close(); adoptDocCss(fr.contentDocument);
       await new Promise(r => setTimeout(r, 250));
       const body = fr.contentDocument.body; body.style.background = '#fff';
-      const canvas = await window.html2canvas(body, { scale: 2, backgroundColor: '#ffffff', windowWidth: 794 });
+      const poCss = [...fr.contentDocument.querySelectorAll('style')].map(x => x.textContent).join('\n');
+      const canvas = await window.html2canvas(body, { scale: 2, backgroundColor: '#ffffff', windowWidth: 794, onclone: (cd) => adoptDocCss(cd, poCss) });
       const pdf = new window.jspdf.jsPDF({ unit: 'mm', format: 'a4' });
       const W = 210, H = 297, imgH = canvas.height * W / canvas.width, img = canvas.toDataURL('image/jpeg', 0.92);
       let y = 0; pdf.addImage(img, 'JPEG', 0, y, W, imgH);
@@ -729,7 +739,7 @@ function poExport(poId, mode){
   const p = (APP.procRows || []).find(x => x.id === poId); if(!p) return;
   if(mode === 'pdf'){ poDownloadPdf(p).catch(e => alert('PDF oluşturulamadı: ' + e.message)); return; }
   const w = window.open('', '_blank', 'width=820,height=900'); if(!w){ alert('Açılır pencere engellendi. Tarayıcıda bu site için açılır pencerelere izin verin.'); return; }
-  w.document.open(); w.document.write(poDocHtml(p)); w.document.close();
+  w.document.open(); w.document.write(poDocHtml(p)); w.document.close(); adoptDocCss(w.document);
   setTimeout(() => { try{ w.focus(); w.print(); }catch(e){} }, 350);
 }
 async function poSend(poId, channel){
