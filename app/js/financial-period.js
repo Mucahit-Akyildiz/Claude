@@ -912,7 +912,7 @@ function openPcDetail(id){
     <div class="pod-acts"><button type="button" class="pc-btn" ${act('poExport', p.id, 'pdf')}>📄 PDF</button><button type="button" class="pc-btn" ${act('poExport', p.id, 'print')}>🖨️ Yazdır</button>
       <button type="button" class="pc-btn" ${act('poSend', p.id, 'email')}>📧 E-posta</button><button type="button" class="pc-btn" ${act('poSend', p.id, 'sms')}>💬 SMS</button>
       ${p.status !== 'cancelled' ? `<span class="pod-auto muted">💾 Fiyatlar otomatik kaydedilir · yanlışsa üzerine yazın, silmek için kutuyu boşaltın</span>` : ''}
-      ${p.status !== 'cancelled' ? `<button type="button" class="pc-btn pod-savechg" title="Fiyat değişikliklerini kaydedip kapat (teslim kaydetmez)" ${act('podSaveChanges')}>💾 Değişiklikleri kaydet</button>` : ''}      ${['ordered', 'partial'].includes(p.status) && items.some(i => n(i.received) < n(i.quantity) - 1e-9) ? `<button type="button" class="pod-save" ${act('podReceive', p.id)}>📦 Teslim alındı olarak kaydet</button>` : ''}${['ordered', 'partial'].includes(p.status) && items.some(i => n(i.received) > 0) && items.some(i => n(i.received) < n(i.quantity) - 1e-9) ? `<button type="button" class="pc-btn" title="Kalan gelmeyecek: siparişi gelen miktarla kapat" ${act('closePoShort', p.id)}>✅ Eksiği kapat</button>` : ''}${['draft','ordered'].includes(p.status) ? `<button type="button" class="pc-btn" ${act('poDetailGo', 'edit', p.id)}>✏️ Düzenle</button>` : ''}</div>
+      ${p.status !== 'cancelled' ? `<button type="button" class="pc-btn pod-savechg" title="Fiyat değişikliklerini kaydedip kapat (teslim kaydetmez)" ${act('podSaveChanges', p.id)}>💾 Değişiklikleri kaydet</button>` : ''}      ${['ordered', 'partial'].includes(p.status) && items.some(i => n(i.received) < n(i.quantity) - 1e-9) ? `<button type="button" class="pod-save" ${act('podReceive', p.id)}>📦 Teslim alındı olarak kaydet</button>` : ''}${['ordered', 'partial'].includes(p.status) && items.some(i => n(i.received) > 0) && items.some(i => n(i.received) < n(i.quantity) - 1e-9) ? `<button type="button" class="pc-btn" title="Kalan gelmeyecek: siparişi gelen miktarla kapat" ${act('closePoShort', p.id)}>✅ Eksiği kapat</button>` : ''}${['draft','ordered'].includes(p.status) ? `<button type="button" class="pc-btn" ${act('poDetailGo', 'edit', p.id)}>✏️ Düzenle</button>` : ''}</div>
   </div>`;
   document.body.appendChild(bg);
 }
@@ -997,11 +997,15 @@ async function podCostSaveNow(id){
   if(ok){ ok.textContent = '✓'; ok.className = 'pod-ok saved'; ok.title = 'Kaydedildi'; }
 }
 // Değişiklikleri kaydet: henüz kaydedilmemiş fiyat kutuları kaydedilir, pencere kapanır (teslim kaydı yapılmaz).
-async function podSaveChanges(){
+async function podSaveChanges(poId){
   const ins = [...document.querySelectorAll('#poDetailBg .pod-cost')].filter(c => c.value !== c.defaultValue);
   for(const c of ins){ clearTimeout(POD_SAVE_T[c.dataset.itemId]); await podCostSaveNow(c.dataset.itemId); }
   const bad = [...document.querySelectorAll('#poDetailBg .pod-cost')].some(c => c.value !== c.defaultValue);
   if(bad) return; // onaydan vazgeçildi ya da hata: pencere açık kalır
+  // Teslim kutusu ya da birimi değiştirildiyse teslim de kaydedilir (fazla / eksik kontrolleriyle).
+  const recvChanged = [...document.querySelectorAll('#poDetailBg .recv-qty-input')].some(i => i.value !== i.defaultValue)
+    || [...document.querySelectorAll('#poDetailBg .recv-unit')].some(u => { const d = [...u.options].find(o => o.defaultSelected); return d && !d.selected; });
+  if(recvChanged && poId){ APP.podDirty = APP.podDirty || ins.length > 0; return podReceive(poId); }
   APP.podDirty = APP.podDirty || ins.length > 0;
   closePcDetail(); showToast(ins.length ? '💾 Değişiklikler kaydedildi' : 'Kaydedilecek değişiklik yoktu');
 }
