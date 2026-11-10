@@ -230,5 +230,27 @@ function excelBarHtml(kind){
     <button type="button" class="xl-btn" ${act(fn[0])}><span>⬇️</span>Dışa aktar</button>
     <button type="button" class="xl-btn" ${act(fn[1])}><span>⬆️</span>İçe aktar</button>
     <button type="button" class="xl-link" ${act(fn[2])}>📄 Şablon indir</button>
+    ${kind === 'ingredients' ? `<button type="button" class="xl-btn" title="Silinen (arşivlenen) hammaddeleri gör ve geri getir" ${act('openIngArchive')}><span>🗄️</span>Arşiv</button>` : ''}
   </div>`;
+}
+/* Arşivlenen hammaddeler: satın alma geçmişi olduğu için silinmek yerine arşivlenenler; geri getirilebilir. */
+async function openIngArchive(){
+  const { data, error } = await withLoadingOverlay(sb.rpc('list_archived_ingredients', { p_token: getSession().session_token }));
+  if(error){ alert(error.message); return; }
+  removeEl('ingArchBg');
+  const list = data || [];
+  const bg = document.createElement('div'); bg.id = 'ingArchBg'; bg.className = 'modal-bg';
+  bg.onclick = (e) => { if(e.target === bg) bg.remove(); };
+  bg.innerHTML = `<div class="box ia-box"><div class="u-row-sb"><h2 class="u-m0">🗄️ Arşivlenen hammaddeler</h2><span class="u-xclose" ${act('removeEl','ingArchBg')}>✕</span></div>
+    <p class="muted u-tl u-fs13" style="margin:6px 0 10px;">Satın alma geçmişi olduğu için silinmek yerine arşivlenen hammaddeler. Geri getirince listelere döner; reçete bağlarını yeniden kurmanız gerekir.</p>
+    ${list.length ? list.map(i => `<div class="ia-row"><span><b>${escapeHtml(i.name)}</b><small class="muted">${escapeHtml(fmtIngQty(i.stock, i))} stok</small></span><button type="button" class="pc-btn" ${act('restoreIngredient', i.id)}>↩️ Geri getir</button></div>`).join('') : '<p class="muted">Arşivde hammadde yok.</p>'}
+  </div>`;
+  document.body.appendChild(bg);
+}
+async function restoreIngredient(id){
+  const session = getSession();
+  const { error } = await sb.rpc('restore_ingredient', { p_token: session.session_token, p_id: id });
+  if(error){ alert(error.message); return; }
+  removeEl('ingArchBg'); showToast('↩️ Hammadde geri getirildi');
+  renderSettingsView(document.getElementById('main'), session);
 }
