@@ -263,3 +263,4 @@ alter table customers add column if not exists created_by uuid, add column if no
 -- 2026-11-10: send_campaign/send_winback: {soyad} (son kelime) ve {adsoyad} (tam ad) yer tutucuları.
 -- 2026-11-10: _nav_badges: _order15 (masa siparişi verileli 15–25 dk; siparişi alan garson + yönetici; rozet sayısına eklenmez) — sesli 'order15' bildirimi.
 -- 2026-11-10: _cron_pkg_alerts: paket teslim aşaması 'son 20 dk' -> 'son 15 dk'.
+-- 2026-11-10: push_once tablosu + _cron_extra_pushes (kitchen_new, order15, seated, resv_soon, pickup_due, reservation_new) -> dispatcher mode 'extra'; set_notification_roles izin listesine eklendi.
