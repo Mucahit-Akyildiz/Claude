@@ -2132,7 +2132,7 @@ async function blocksToPdf(title, sub, blocks, fileBase){
   })());
 }
 /* Reçeteler PDF: her ürün için hammaddeler, porsiyon başı miktar ve maliyet payı (fire dahil), toplam malzeme maliyeti. */
-function recipePdfBlocks(){
+function recipePdfBlocks(withCost){
   const menus = APP.config.menus || [], prods = APP.config.products || [], ings = APP.config.ingredients || [];
   const groups = menus.map(m => ({ name: m.name, items: prods.filter(p => p.menu_id === m.id) }))
     .concat([{ name: 'Diğer', items: prods.filter(p => !p.menu_id || !menus.some(m => m.id === p.menu_id)) }]).filter(g => g.items.length);
@@ -2144,18 +2144,20 @@ function recipePdfBlocks(){
       const rows = (p.recipe || []).map(r => {
         const ig = ings.find(x => x.id === r.ingredient_id) || { unit: r.ingredient_unit, name: r.ingredient_name }, q = Number(r.qty_per_unit) || 0, uc = Number(ig.unit_cost) || 0, w = Number(ig.waste_pct) || 0;
         const c = uc ? q * uc / Math.max(0.01, 1 - w / 100) : 0; tot += c; if(!uc) miss++;
-        return `<tr><td>${escapeHtml(ig.name || r.ingredient_name || '?')}${w ? ` <small style="color:#6b7673">(fire %${w})</small>` : ''}</td><td class="q">${escapeHtml(fmtIngQty(q, ig))}</td><td class="c">${uc ? money(c) : 'maliyet yok'}</td></tr>`;
+        return `<tr><td>${escapeHtml(ig.name || r.ingredient_name || '?')}${w && withCost ? ` <small style="color:#6b7673">(fire %${w})</small>` : ''}</td><td class="q">${escapeHtml(fmtIngQty(q, ig))}</td>${withCost ? `<td class="c">${uc ? money(c) : 'maliyet yok'}</td>` : ''}</tr>`;
       });
-      out.push(`<div class="rc"><div class="rc-h"><b>${escapeHtml(p.name)}</b><span>Fiyat ${money(p.price)}${rows.length ? ' · Malzeme ' + money(tot) + (Number(p.price) > 0 && tot ? ' · %' + Math.round(tot / Number(p.price) * 100) : '') : ''}</span></div>
-        ${rows.length ? `<table>${rows.join('')}<tr class="tot"><td>Toplam malzeme maliyeti${miss ? ` <small style="color:#b45309">(${miss} hammaddenin maliyeti eksik)</small>` : ''}</td><td></td><td class="c">${money(tot)}</td></tr></table>` : '<div class="none">Reçete tanımlı değil</div>'}</div>`);
+      out.push(`<div class="rc"><div class="rc-h"><b>${escapeHtml(p.name)}</b>${withCost ? `<span>Fiyat ${money(p.price)}${rows.length ? ' · Malzeme ' + money(tot) + (Number(p.price) > 0 && tot ? ' · %' + Math.round(tot / Number(p.price) * 100) : '') : ''}</span>` : `<span>1 porsiyon</span>`}</div>
+        ${rows.length ? `<table>${rows.join('')}${withCost ? `<tr class="tot"><td>Toplam malzeme maliyeti${miss ? ` <small style="color:#b45309">(${miss} hammaddenin maliyeti eksik)</small>` : ''}</td><td></td><td class="c">${money(tot)}</td></tr>` : ''}</table>` : '<div class="none">Reçete tanımlı değil</div>'}</div>`);
     });
   });
   return out;
 }
-async function downloadRecipePdf(){
+// withCost: true = fiyat ve maliyetli (yönetim), false = yalnız hammadde ve miktar (mutfağa asmak için).
+async function downloadRecipePdf(withCost){
+  withCost = withCost !== false;
   const s = getSession(), name = (s && s.restaurant_name) || 'Reçeteler';
-  const blocks = recipePdfBlocks();
+  const blocks = recipePdfBlocks(withCost);
   if(!blocks.length){ uiAlert('Ürün yok'); return; }
-  await blocksToPdf(name + ' · Reçeteler', 'Porsiyon başı hammadde ve maliyet · ' + new Date().toLocaleDateString('tr-TR'), blocks, name + '-receteler');
+  await blocksToPdf(name + ' · Reçeteler', (withCost ? 'Porsiyon başı hammadde ve maliyet' : 'Porsiyon başı hammadde ve miktar') + ' · ' + new Date().toLocaleDateString('tr-TR'), blocks, name + '-receteler' + (withCost ? '-maliyetli' : ''));
   showToast('📄 Reçeteler PDF indirildi');
 }
