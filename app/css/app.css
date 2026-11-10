@@ -4457,3 +4457,4 @@ input[type=search]::-webkit-search-cancel-button{-webkit-appearance:none;display
 .olr-hours{display:flex;flex-direction:column;gap:4px;margin:12px 0;padding:12px;border:1px solid var(--border);border-radius:12px;background:var(--panel2);text-align:left;}
 .olr-hours span{font-size:12.5px;color:var(--muted);} .olr-hours div{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:6px;}
 .olr-hours input{width:auto;margin:0;} .olr-hours em{font-style:normal;color:var(--muted);}
+.oh-noteln{display:block;color:var(--text) !important;opacity:.85;white-space:pre-wrap;overflow-wrap:anywhere;}
