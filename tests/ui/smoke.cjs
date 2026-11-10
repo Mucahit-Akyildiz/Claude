@@ -118,7 +118,7 @@ const assert = (c, m) => { if(!c) throw new Error(m); };
     });
     await check(T('Ayarlar: hammaddeler ve kullanıcılar'), async () => {
       await page.evaluate(() => { document.getElementById('main').innerHTML = '<div id="tst"></div>'; renderIngredientsSettings(document.getElementById('tst'), getSession()); });
-      await page.waitForSelector('.ig-grid'); await page.evaluate(() => openSheet('ingSheet')); await page.waitForSelector('#ingSheet.open #ni_name'); await page.evaluate(() => closeSheet());
+      await page.waitForSelector('.ig-grid'); await page.evaluate(() => niStart('')); await page.waitForSelector('#ingSheet.open .ni-kc'); await page.evaluate(() => niPickKind('depot')); await page.waitForSelector('#ingSheet.open #ni_name'); await page.evaluate(() => niPickKind('prep')); await page.waitForSelector('#ingSheet.open #niPrepTop'); await page.evaluate(() => closeSheet());
     });
     await check(T('çevrimdışı: sipariş kuyruğa alınır, bağlantı gelince gönderilir'), async () => {
       await view('order', '#zoneTabs');
