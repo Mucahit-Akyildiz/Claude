@@ -4483,3 +4483,7 @@ input[type=search]::-webkit-search-cancel-button{-webkit-appearance:none;display
 .pc2-pricero{width:auto !important;margin:0 !important;padding:6px 10px !important;background:var(--panel) !important;color:var(--text) !important;border:1px solid var(--border) !important;border-radius:10px !important;font-weight:700;font-size:13px;white-space:nowrap;}
 .pc2-pricero small{font-weight:500;color:var(--muted);margin-left:2px;} .pc2-pricero.missing{color:var(--red) !important;border-color:color-mix(in srgb,var(--red) 50%,var(--border)) !important;}
 .pc2-pricero:hover{border-color:var(--accent) !important;}
+/* Kartta fiyat düz metin (giriş kutusu gibi görünmesin); tıklayınca detay açılır. */
+.pc2-pricero{background:transparent !important;border:0 !important;padding:2px 4px !important;font-weight:600;color:var(--muted) !important;cursor:pointer;}
+.pc2-pricero:hover{color:var(--accent) !important;text-decoration:underline;}
+.pc2-pricero.missing{color:var(--red) !important;}
