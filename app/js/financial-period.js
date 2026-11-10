@@ -129,7 +129,7 @@ async function renderPurchaseReportContent(session){
     return `<div class="pc-card pc2" style="--pc:${tone};--i:${Math.min(idx||0,12)};">
       <div class="pc2-head">
         <span class="pc2-open" title="Detayı aç" ${act('openPcDetail', p.id)}>${avatarHtml(p.supplier_name || 'T')}</span>
-        <div class="pc2-title"><select class="pc2-sup ${p.supplier_id ? '' : 'missing'}" title="Tedarikçi seç" data-po="${p.id}" data-orig="${p.supplier_id || ''}" ${actOn('change','markPcDirty',[p.id])}><option value="">⚠️ Tedarikçi seçin</option>${(APP.procSuppliers||[]).map(sp => `<option value="${sp.id}" ${sp.id===p.supplier_id?'selected':''}>${escapeHtml(sp.name)}</option>`).join('')}</select>
+        <div class="pc2-title"><select class="pc2-sup ${p.supplier_id ? '' : 'missing'}" title="Tedarikçi seç" data-po="${p.id}" data-orig="${p.supplier_id || ''}" ${actOn('change','pcSupplierChange',[p.id, '$value'])}><option value="">⚠️ Tedarikçi seçin</option>${(APP.procSuppliers||[]).map(sp => `<option value="${sp.id}" ${sp.id===p.supplier_id?'selected':''}>${escapeHtml(sp.name)}</option>`).join('')}</select>
           <small>📅 ${new Date(p.order_date).toLocaleDateString('tr-TR')}${p.expected_date ? ' · 🎯 ' + new Date(p.expected_date).toLocaleDateString('tr-TR') : ''} · 👤 ${escapeHtml(p.created_by_name || '—')}</small></div>
         <div class="pc2-right pc2-open" title="Detayı aç" ${act('openPcDetail', p.id)}><span class="pc2-total">${money(p.total_amount)}</span>${statusOf(p)}${p.status === 'received' && needPrice(p) ? '<span class="pchip warn" title="Teslim alındı ama birim fiyatlar girilmedi; fiyat girilince Tamamlananlar\'a geçer">🏷️ Fiyat bekliyor</span>' : ''}</div>
       </div>
@@ -198,6 +198,14 @@ const PC_MAX_ROWS = 5; // kartta en fazla bu kadar kalem; fazlası detay pencere
 function setProcFilter(k){ APP.procFilter = k; renderPurchaseReportContent(getSession()); }
 function setPurchRepSub(sub){ APP.purchRepSub = sub; renderPurchaseReportContent(getSession()); }
 /* Birim fiyatlar yazılınca otomatik kaydedilmez: siparişin Kaydet düğmesi açılır. */
+// Kartta tedarikçi seçilince hemen kaydedilir (Kaydet'e basmayı unutup sipariş "tedarikçi bekleyen"de kalmasın).
+// Aynı tedarikçinin açık siparişleriyle birleşebileceği için liste yenilenir.
+async function pcSupplierChange(poId, v){
+  const { error } = await withLoadingOverlay(sb.rpc('set_purchase_order_supplier', { p_token: getSession().session_token, p_po_id: poId, p_supplier_id: v || null }));
+  if(error){ uiAlert(error.message); }
+  else showToast(v ? '🏭 Tedarikçi kaydedildi' : 'Tedarikçi kaldırıldı');
+  renderPurchaseReportContent(getSession());
+}
 function markPcDirty(poId){
   const card = document.getElementById('pcSave_'+poId); if(!card) return;
   const inputs = card.closest('.pc-card').querySelectorAll('.pc-cost');
