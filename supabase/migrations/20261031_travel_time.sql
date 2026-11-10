@@ -256,3 +256,5 @@ alter table customers add column if not exists created_by uuid, add column if no
 
 -- 2026-11-10: set_ingredient_prep — hazırlanan hammaddenin maliyeti boşsa kaynağın (depo) maliyetini alır.
 -- Mevcut bağlantılarda maliyeti boş olanlar kaynağın maliyetiyle dolduruldu (ürün maliyetleri tetikleyiciyle güncellendi).
+
+-- 2026-11-10: bulk_call izin listesine set_ingredient_cost, set_recipe, upsert_menu, set_station_menus eklendi (hammadde toplu kaydet 'Bu işlem toplu yapılamaz' hatası).

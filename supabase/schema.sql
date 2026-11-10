@@ -5491,7 +5491,7 @@ declare
   v_item jsonb; v_res jsonb; i int; k text; t oid;
 begin
   if p_fn not in ('cancel_order_item','delete_ingredient','upsert_ingredient','set_ingredient_min','delete_staff_user',
-    'set_staff_user_active','upsert_table','set_notification_roles','set_voice_policy','upsert_product','delete_product','set_product_options','mark_item_ready','save_allowance','update_staff_user','create_staff_user','set_product_menu','set_product_vat','set_staff_phone','set_staff_email')
+    'set_staff_user_active','upsert_table','set_notification_roles','set_voice_policy','upsert_product','delete_product','set_product_options','mark_item_ready','save_allowance','update_staff_user','create_staff_user','set_product_menu','set_product_vat','set_staff_phone','set_staff_email','set_ingredient_cost','set_recipe','upsert_menu','set_station_menus')
   then raise exception 'Bu işlem toplu yapılamaz'; end if;
   if jsonb_typeof(p_items) <> 'array' or jsonb_array_length(p_items) > 500 then raise exception 'Geçersiz liste'; end if;
   select p.oid, p.proargnames, p.proargtypes::oid[] into v_oid, v_names, v_types
