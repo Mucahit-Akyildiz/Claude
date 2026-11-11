@@ -727,7 +727,7 @@ function ssOpen(sel){
   p.id = 'ssPop'; p.className = 'ss-pop';
   p.innerHTML = '<div class="ss-sr"><input type="search" class="ss-q" placeholder="Ara…" autocomplete="off"><button type="button" class="ss-x" title="Temizle">✕</button></div><div class="ss-list" role="listbox"></div><div class="ss-empty" hidden>Sonuç yok</div>';
   document.body.appendChild(p);
-  p._btn = b; ssPlace(p);
+  p._btn = b; p._sel = sel; ssPlace(p);
   const q = p.querySelector('.ss-q'), list = p.querySelector('.ss-list'), empty = p.querySelector('.ss-empty');
   let items = [], hi = -1;
   const render = () => {
@@ -746,7 +746,7 @@ function ssOpen(sel){
     hi = t ? items.findIndex(x => !x.o.disabled) : items.findIndex(x => x.o.selected); mark(true);
   };
   const mark = (scroll) => { items.forEach((x, k) => x.it.classList.toggle('hi', k === hi)); if(scroll && items[hi]) items[hi].it.scrollIntoView({ block: 'nearest' }); };
-  const pick = (o) => { sel.value = o.value; sel.dispatchEvent(new Event('input', { bubbles: true })); sel.dispatchEvent(new Event('change', { bubbles: true })); ssClose(); b.focus(); };
+  const pick = (o) => { const cur = p._sel || sel; cur.value = o.value; cur.dispatchEvent(new Event('input', { bubbles: true })); cur.dispatchEvent(new Event('change', { bubbles: true })); ssClose(); try{ (p._btn || b).focus(); }catch(e){} };
   q.addEventListener('input', render);
   p.querySelector('.ss-x').addEventListener('click', () => { q.value = ''; render(); q.focus(); });
   q.addEventListener('keydown', e => {
@@ -765,6 +765,14 @@ function ssOpen(sel){
     scan(document);
     new MutationObserver(ms => ms.forEach(m => {
       m.addedNodes.forEach(n => { if(n.nodeType !== 1) return; if(n.tagName === 'SELECT') ssEnhance(n); else scan(n); });
+      // Seçim kutusu sayfadan kaldırıldıysa (yeniden çizim) yanındaki seçici düğmesi de kalkar.
+      // Açık seçicinin kutusu yeniden çizildiyse pencere kapanmaz: aynı kimlikli yeni kutuya bağlanır.
+      m.removedNodes.forEach(n => { if(n.nodeType !== 1) return; [n.tagName === 'SELECT' ? n : null, ...(n.querySelectorAll ? n.querySelectorAll('select') : [])].forEach(x => {
+        if(!x || document.contains(x)) return;
+        const pop = document.getElementById('ssPop');
+        if(pop && pop._sel === x) setTimeout(() => { const nx = x.id && document.getElementById(x.id); if(nx && nx.tagName === 'SELECT' && nx !== x){ ssEnhance(nx); pop._sel = nx; pop._btn = nx._ssBtn || pop._btn; ssPlace(pop); } else if(!document.contains(pop._btn)) ssClose(); }, 0);
+        if(x._ssBtn && document.contains(x._ssBtn)) x._ssBtn.remove();
+      }); });
       if(m.target.tagName === 'SELECT') ssEnhance(m.target);
     })).observe(document.body, { childList: true, subtree: true });
     // Tablet/telefonda klavye açılınca ekran boyutu ve kaydırma değişir: kapatmak yerine yeniden yerleştir.

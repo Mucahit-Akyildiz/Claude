@@ -68,10 +68,10 @@ function voiceLoadCloudList(){
       .filter(v => !v.category || v.category === 'premade')
       .map(v => [v.id, v.name.split(' - ')[0] + ' — ' + [VOICE_GENDER_TR[v.gender] || v.gender, v.desc].filter(Boolean).join(', ')]);
     VOICE_CLOUD_LIST.elevenlabs = VOICE_CLOUD_LIST.elevenlabs.concat(extra);
-    const el = document.getElementById('voiceNameSel'); if(el) el.outerHTML = voiceSelectHtml();
+    voiceRefreshSel();
   }).catch(() => {});
 }
-fetch('/api/tts').then(r => r.json()).then(j => { VOICE_CLOUD = !!j.enabled; VOICE_CLOUD_PROVIDER = j.provider || 'azure'; if(j.provider==='elevenlabs') voiceLoadCloudList(); const el = document.getElementById('voiceNameSel'); if(el) el.outerHTML = voiceSelectHtml(); }).catch(() => { VOICE_CLOUD = false; });
+fetch('/api/tts').then(r => r.json()).then(j => { VOICE_CLOUD = !!j.enabled; VOICE_CLOUD_PROVIDER = j.provider || 'azure'; if(j.provider==='elevenlabs') voiceLoadCloudList(); voiceRefreshSel(); }).catch(() => { VOICE_CLOUD = false; });
 async function voiceCloudPlay(text, voice){
   const p = getVoicePrefs(), s = getSession(); if(!s) throw new Error('no session');
   const k = voice + '|' + p.rate + '|' + text;
@@ -224,7 +224,19 @@ function voicePick(){
   return list.find(v => v.name===name) || list[0] || null;
 }
 function setVoiceName(n){ const p = getVoicePrefs(); p.voiceName = n; setVoicePrefs(p); VOICE_LAST.t = ''; VOICE_SHOW_ERR = true; voiceSpeak('12 numaralı masadan yeni sipariş geldi'); setTimeout(() => { VOICE_SHOW_ERR = false; }, 8000); }
-try{ if(window.speechSynthesis) speechSynthesis.onvoiceschanged = () => { const el = document.getElementById('voiceNameSel'); if(el) el.outerHTML = voiceSelectHtml(); }; }catch(e){}
+try{ if(window.speechSynthesis) speechSynthesis.onvoiceschanged = () => { voiceRefreshSel(); }; }catch(e){}
+/* Ses listesi yenilenince kutuyu yeniden çiz: liste aynıysa dokunma, seçici açıkken bekle (Android/tablette
+   onvoiceschanged sık gelir; her seferinde yeniden çizmek açılan listeyi kapatıyordu). */
+function voiceRefreshSel(){
+  const el = document.getElementById('voiceNameSel'); if(!el) return;
+  const html = voiceSelectHtml(), tmp = document.createElement('div'); tmp.innerHTML = html;
+  const nu = tmp.firstElementChild; if(!nu) return;
+  if(nu.innerHTML === el.innerHTML) return;
+  const pop = document.getElementById('ssPop');
+  if(pop && el._ssBtn && pop._btn === el._ssBtn){ clearTimeout(voiceRefreshSel._t); voiceRefreshSel._t = setTimeout(voiceRefreshSel, 1500); return; }
+  if(el._ssBtn) el._ssBtn.remove();
+  el.replaceWith(nu);
+}
 function voiceSelectHtml(){
   const list = voiceList(), pn = getVoicePrefs().voiceName;
   const cloudCur = pn.startsWith('cloud:') ? pn : (!pn && VOICE_CLOUD ? 'cloud:emel' : '');
