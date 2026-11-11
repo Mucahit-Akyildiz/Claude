@@ -4572,3 +4572,5 @@ select.ss-hidden{display:none !important;}
 .pk-paid-rb{background:color-mix(in srgb,var(--green,#22c55e) 16%,transparent) !important;color:var(--green,#22c55e) !important;}
 .pk-close-btn{width:auto !important;margin:0 !important;padding:9px 14px !important;border-radius:11px !important;font-weight:800;font-size:13.5px;background:var(--text) !important;color:var(--bg) !important;border:0 !important;}
 .pk-close-btn:hover{filter:brightness(.9);}
+.ig-waste-lock input{opacity:.55;cursor:not-allowed;} .ig-waste-lock small{font-weight:600;color:var(--accent);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:90px;}
+.ig-waste-warn small{font-weight:700;color:#f59e0b;white-space:nowrap;}

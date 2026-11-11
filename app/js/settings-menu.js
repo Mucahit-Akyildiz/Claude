@@ -127,7 +127,10 @@ function renderIngredientsSettings(el, session){
         ${ingDefaultPack(i) ? `<div class="ig-pack muted">📦 ${escapeHtml(fmtPackQty(i.stock, i))} · 1 ${escapeHtml(ingDefaultPack(i).n)} = ${escapeHtml(fmtIngQty(ingDefaultPack(i).f, i))}</div>` : ''}
         <div class="pcard-mbar"><i style="width:${out?0:pct}%;background:${out?'var(--danger,#ef4444)':isLow(i)||pct<15?'var(--c3)':'var(--ok,#22c55e)'};"></i></div>
         <div class="ig-foot">
-          <label class="ig-waste" title="Temizleme/kesim kaybı">Fire % <input type="number" step="0.1" min="0" max="99" value="${Number(i.waste_pct)||0}" id="ing_waste_${i.id}"></label>
+          ${(() => { const preps = ings.filter(x => x.prep_source_id === i.id), lock = preps.length && !uses && !Number(i.waste_pct);
+            if(preps.length && !uses && Number(i.waste_pct)) return `<label class="ig-waste ig-waste-warn" title="Bu fire hesaba girmiyor: satış ve reçeteler günlük hazırlıktan (${escapeAttr(preps.map(x => x.name).join(', '))}) düşer. Fireyi orada girin, burayı 0 yapın.">Fire % <input type="number" step="0.1" min="0" max="99" value="${Number(i.waste_pct)||0}" id="ing_waste_${i.id}"> <small>⚠️ 0 yapın</small></label>`;
+            return lock ? `<label class="ig-waste ig-waste-lock" title="Bu depo hammaddesi reçetelerde doğrudan kullanılmıyor; fire, satışın düştüğü günlük hazırlıkta (${escapeAttr(preps.map(x => x.name).join(', '))}) girilir.">Fire % <input type="number" value="${Number(i.waste_pct)||0}" id="ing_waste_${i.id}" disabled> <small>→ ${escapeHtml(preps[0].name)}</small></label>`
+              : `<label class="ig-waste" title="Temizleme/kesim kaybı">Fire % <input type="number" step="0.1" min="0" max="99" value="${Number(i.waste_pct)||0}" id="ing_waste_${i.id}"></label>`; })()}
           <label class="ig-waste" title="Stok bu seviyeye inince uyarı verilir (boş = uyarı yok)">Min <input type="number" step="0.01" min="0" value="${Number(i.min_stock)||''}" placeholder="—" id="ing_min_${i.id}"></label>
           <label class="ig-waste" title="Birim (${escapeAttr(i.unit||'')}) başına ağırlıklı ortalama alış maliyeti. Mal Kabul'de fiyatlı teslim alınca eldeki stokla ortalanarak otomatik güncellenir; reçeteli ürünlerin maliyeti bundan hesaplanır.">Ort. ₺/${escapeHtml(i.unit||'birim')} <input type="number" step="0.01" min="0" value="${Number(i.unit_cost) ? Math.round(Number(i.unit_cost) * 100) / 100 : ''}" placeholder="—" id="ing_uc_${i.id}"></label><button type="button" class="pc-btn" title="Maliyet geçmişi" ${act('openIngCostLog', i.id)}>📈</button>
           <button type="button" class="pc-btn" ${act('openIngredientUsageModal', i.id)}>🍽️ ${uses} ürün</button>
@@ -288,7 +291,9 @@ function openIngredientUsageModal(ingredientId, edit){
           <div class="iu-f iu-wide"><label>Hammadde adı</label><input id="iue_name" value="${escapeAttr(ing.name||'')}"></div>
           <div class="iu-f"><label>Birim</label>${unitSel('iue_unit', ing.unit)}</div>
           <div class="iu-f"><label>Stok</label><input type="number" step="0.01" id="iue_stock" value="${Number(ing.stock)||0}" ${actOn('input','iuRecalc',[])}></div>
-          <div class="iu-f"><label>Fire %</label><input type="number" step="0.1" min="0" max="99" id="iue_waste" value="${w}" ${actOn('input','iuRecalc',[])}></div>
+          ${(() => { const preps = (APP.config.ingredients || []).filter(x => x.prep_source_id === ingredientId), used = products.some(p => (p.recipe || []).some(r => r.ingredient_id === ingredientId));
+            return preps.length && !used && !Number(w) ? `<div class="iu-f" title="Fire, satışın düştüğü günlük hazırlıkta girilir"><label>Fire % <small class="muted">→ ${escapeHtml(preps.map(x => x.name).join(', '))}'da girilir</small></label><input type="number" id="iue_waste" value="${w}" disabled></div>`
+              : `<div class="iu-f"><label>Fire %</label><input type="number" step="0.1" min="0" max="99" id="iue_waste" value="${w}" ${actOn('input','iuRecalc',[])}></div>`; })()}
           <div class="iu-f"><label>Min stok</label><input type="number" step="0.01" min="0" id="iue_min" value="${Number(ing.min_stock)||''}" placeholder="Uyarı yok"></div>
         </div>
       </section>
