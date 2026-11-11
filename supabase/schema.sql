@@ -5931,6 +5931,23 @@ end $$;
 
 
 --
+-- Name: close_paid_order(uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.close_paid_order(p_token uuid, p_order_id uuid) RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+declare s staff_sessions%rowtype;
+begin
+  s := _session_check(p_token, 'payments');
+  if not exists(select 1 from orders where id = p_order_id and restaurant_id = s.restaurant_id and status = 'open') then raise exception 'Açık hesap bulunamadı'; end if;
+  if exists(select 1 from order_items where order_id = p_order_id and not paid) then raise exception 'Ödenmemiş ürün var, önce ödemeyi alın'; end if;
+  update orders set status = 'closed' where id = p_order_id and restaurant_id = s.restaurant_id;
+end $$;
+
+
+--
 -- Name: close_purchase_order_short(uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -11424,7 +11441,8 @@ begin
   end if;
   -- Mutfağa giden (istasyonu olan) ürünler hazır olmadan ödeme alınamaz / açık hesaba atılamaz.
   if exists(select 1 from order_items oi join products p on p.id = oi.product_id
-            where oi.id = any(v_paid_item_ids) and oi.status <> 'ready' and p.station_id is not null) then
+            where oi.id = any(v_paid_item_ids) and oi.status <> 'ready' and p.station_id is not null)
+            and coalesce(current_setting('peyk.allow_unready', true), '') <> '1' then
     raise exception 'HAZIR_DEGIL';
   end if;
 
@@ -11527,16 +11545,32 @@ begin
     ready_at = (select max(ready_at) from order_items where id = any(v_paid_item_ids)) where id = v_hist_id;
 
   select count(*) into v_remaining from order_items where order_id = p_order_id and paid = false;
-  if v_remaining = 0 then
+  -- Hazırlanmadan alınan ödemede masa açık kalır; personel "Masayı Kapat" ile kapatır.
+  if v_remaining = 0 and coalesce(current_setting('peyk.allow_unready', true), '') <> '1' then
     update orders set status='closed' where id = p_order_id and restaurant_id = s.restaurant_id;
   end if;
 
   return json_build_object(
-    'history_id', v_hist_id, 'order_closed', v_remaining=0, 'remaining_items', v_remaining,
+    'history_id', v_hist_id, 'order_closed', v_remaining=0 and coalesce(current_setting('peyk.allow_unready', true), '') <> '1', 'remaining_items', v_remaining,
     'points_earned', v_points_earned, 'birthday_discount_applied', v_is_birthday, 'birthday_discount_amount', v_birthday_discount
   );
 end;
 $$;
+
+
+--
+-- Name: pay_order_items_early(uuid, uuid, text, numeric, numeric, numeric, jsonb, numeric, uuid, numeric, text, numeric); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.pay_order_items_early(p_token uuid, p_order_id uuid, p_payment_method text, p_cash numeric, p_card numeric, p_discount_amount numeric DEFAULT 0, p_item_qtys jsonb DEFAULT NULL::jsonb, p_tip_amount numeric DEFAULT 0, p_customer_id uuid DEFAULT NULL::uuid, p_redeem_points numeric DEFAULT 0, p_gift_card_code text DEFAULT NULL::text, p_gift_card_amount numeric DEFAULT 0) RETURNS json
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+begin
+  perform set_config('peyk.allow_unready', '1', true);
+  return public.pay_order_items(p_token, p_order_id, p_payment_method, p_cash, p_card, p_discount_amount, p_item_qtys,
+    p_tip_amount, p_customer_id, p_redeem_points, p_gift_card_code, p_gift_card_amount);
+end $$;
 
 
 --
@@ -16019,6 +16053,20 @@ begin
   end if;
   return json_build_object('order_closed', r->'order_closed', 'amount', v_total, 'account', a.name);
 end; $$;
+
+
+--
+-- Name: transfer_to_open_account_early(uuid, uuid, uuid, jsonb, numeric, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.transfer_to_open_account_early(p_token uuid, p_order_id uuid, p_account_id uuid, p_item_qtys jsonb DEFAULT NULL::jsonb, p_discount_amount numeric DEFAULT 0, p_note text DEFAULT NULL::text) RETURNS json
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+begin
+  perform set_config('peyk.allow_unready', '1', true);
+  return public.transfer_to_open_account(p_token, p_order_id, p_account_id, p_item_qtys, p_discount_amount, p_note);
+end $$;
 
 
 --
