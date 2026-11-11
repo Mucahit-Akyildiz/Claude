@@ -422,6 +422,8 @@ async function checkDataVersion(fromRealtime){
 function uiBusyForAutoRefresh(){
   const ae = document.activeElement;
   if(ae && /^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName) && ae.type!=='checkbox' && ae.type!=='radio') return true;
+  // Aranabilir seçici ya da açık form/onay penceresi açıkken (tablette odak arama kutusunda olmayabilir).
+  if(document.getElementById('ssPop') || document.querySelector('.fsheet.open, .dg-bg, #prepHubBg, #payModalBg')) return true;
   for(const el of document.body.children){
     if(el.id==='app') continue;
     const cs = getComputedStyle(el);
