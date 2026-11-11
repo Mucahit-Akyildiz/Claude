@@ -37,7 +37,7 @@ async function renderCrmView(main, session){
   APP.crmGroups = (gRes && gRes.data) || [];
   const allRows = error ? [] : (data||[]);
   const gf = APP.crmGroupFilter || '';
-  const rows = !gf ? allRows : gf === '__nosms' ? allRows.filter(c => c.sms_opt_out) : allRows.filter(c => (c.group_ids || []).includes(gf));
+  const rows = !gf ? allRows : gf === '__nosms' ? allRows.filter(c => c.sms_opt_out) : gf === '__nogroup' ? allRows.filter(c => !(c.group_ids || []).some(g => (APP.crmGroups || []).some(x => x.id === g))) : allRows.filter(c => (c.group_ids || []).includes(gf));
   APP.crmRows = allRows;
   const loyalty = (APP.config && APP.config.loyalty) || { enabled:false, spend_per_point:10, point_value:1, birthday_discount_percent:0 };
   const bdays = rows.filter(c => { const b = crmBirthdayInfo(c.birthday); return b && b.days <= 30; }).length;
@@ -649,6 +649,7 @@ function crmGroupBarHtml(rows){
   if(!gs.length && !nosms) return `<div class="cg-bar"><button type="button" class="cg-f add" ${act('openCustomerGroups')}>🏷️ Müşteri grubu oluştur (VIP, Gold…)</button></div>`;
   return `<div class="cg-bar"><button type="button" class="cg-f ${!f ? 'on' : ''}" ${act('setCrmGroupFilter', '')}>Tümü <span>${rows.length}</span></button>
     ${gs.map(g => `<button type="button" class="cg-f ${f === g.id ? 'on' : ''}" style="--gc:${escapeAttr(g.color || 'var(--accent)')}" ${act('setCrmGroupFilter', g.id)}>${escapeHtml((g.icon ? g.icon + ' ' : '') + g.name)} <span>${g.count}</span></button>`).join('')}
+    ${gs.length ? (() => { const n = (APP.crmRows || rows).filter(c => !(c.group_ids || []).some(g => gs.some(x => x.id === g))).length; return `<button type="button" class="cg-f nogroup ${f === '__nogroup' ? 'on' : ''}" title="Hiçbir gruba eklenmemiş müşteriler" ${act('setCrmGroupFilter', '__nogroup')}>➖ Grubu yok <span>${n}</span></button>`; })() : ''}
     ${nosms ? `<button type="button" class="cg-f ${f === '__nosms' ? 'on' : ''}" ${act('setCrmGroupFilter', '__nosms')}>📵 SMS istemeyen <span>${nosms}</span></button>` : ''}
     <button type="button" class="cg-f add" ${act('openCustomerGroups')}>⚙️ Grupları yönet</button></div>`;
 }
