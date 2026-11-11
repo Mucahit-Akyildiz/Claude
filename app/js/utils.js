@@ -711,18 +711,23 @@ function ssEnhance(sel){
 }
 function ssClose(){ const p = document.getElementById('ssPop'); if(p){ p.remove(); } document.removeEventListener('mousedown', ssOutside, true); }
 function ssOutside(e){ const p = document.getElementById('ssPop'); if(p && !p.contains(e.target)) ssClose(); }
+// Pencereyi düğmeye göre yerleştir (açılışta, ekran boyutu değişince ya da kaydırınca yeniden).
+function ssPlace(p){
+  const b = p._btn; if(!b || !document.contains(b)){ ssClose(); return; }
+  const r = b.getBoundingClientRect(), vh = (window.visualViewport && window.visualViewport.height) || window.innerHeight;
+  if(r.bottom < 0 || r.top > vh){ ssClose(); return; } // düğme ekrandan çıktıysa kapat
+  const w = Math.min(Math.max(r.width, 280), window.innerWidth - 16), below = vh - r.bottom - 12, above = r.top - 12;
+  const down = below >= 300 || below >= above, h = Math.max(160, Math.min(380, down ? below : above));
+  p.style.width = w + 'px'; p.style.left = Math.max(8, Math.min(r.left, window.innerWidth - w - 8)) + 'px'; p.style.maxHeight = h + 'px';
+  if(down){ p.style.top = (r.bottom + 4) + 'px'; p.style.bottom = ''; } else { p.style.bottom = (window.innerHeight - r.top + 4) + 'px'; p.style.top = ''; }
+}
 function ssOpen(sel){
   ssClose();
-  const b = sel._ssBtn, r = b.getBoundingClientRect(), p = document.createElement('div');
+  const b = sel._ssBtn, p = document.createElement('div');
   p.id = 'ssPop'; p.className = 'ss-pop';
   p.innerHTML = '<div class="ss-sr"><input type="search" class="ss-q" placeholder="Ara…" autocomplete="off"><button type="button" class="ss-x" title="Temizle">✕</button></div><div class="ss-list" role="listbox"></div><div class="ss-empty" hidden>Sonuç yok</div>';
   document.body.appendChild(p);
-  const w = Math.min(Math.max(r.width, 280), window.innerWidth - 16), below = window.innerHeight - r.bottom - 12, above = r.top - 12;
-  const down = below >= 300 || below >= above, h = Math.max(160, Math.min(380, down ? below : above));
-  p.style.width = w + 'px';
-  p.style.left = Math.max(8, Math.min(r.left, window.innerWidth - w - 8)) + 'px';
-  p.style.maxHeight = h + 'px';
-  if(down) p.style.top = (r.bottom + 4) + 'px'; else p.style.bottom = (window.innerHeight - r.top + 4) + 'px';
+  p._btn = b; ssPlace(p);
   const q = p.querySelector('.ss-q'), list = p.querySelector('.ss-list'), empty = p.querySelector('.ss-empty');
   let items = [], hi = -1;
   const render = () => {
@@ -750,7 +755,7 @@ function ssOpen(sel){
     else if(e.key === 'Escape'){ e.preventDefault(); e.stopPropagation(); ssClose(); b.focus(); }
     else if(e.key === 'Tab') ssClose();
   });
-  render(); setTimeout(() => q.focus(), 0);
+  render(); if(!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches)) setTimeout(() => q.focus(), 0);
   setTimeout(() => document.addEventListener('mousedown', ssOutside, true), 0);
 }
 (function ssBoot(){
@@ -762,8 +767,11 @@ function ssOpen(sel){
       m.addedNodes.forEach(n => { if(n.nodeType !== 1) return; if(n.tagName === 'SELECT') ssEnhance(n); else scan(n); });
       if(m.target.tagName === 'SELECT') ssEnhance(m.target);
     })).observe(document.body, { childList: true, subtree: true });
-    window.addEventListener('resize', ssClose);
-    document.addEventListener('scroll', e => { const p = document.getElementById('ssPop'); if(p && !p.contains(e.target)) ssClose(); }, true);
+    // Tablet/telefonda klavye açılınca ekran boyutu ve kaydırma değişir: kapatmak yerine yeniden yerleştir.
+    const re = () => { const p = document.getElementById('ssPop'); if(p) ssPlace(p); };
+    window.addEventListener('resize', re);
+    if(window.visualViewport) window.visualViewport.addEventListener('resize', re);
+    document.addEventListener('scroll', e => { const p = document.getElementById('ssPop'); if(p && !p.contains(e.target)) ssPlace(p); }, true);
   };
   if(document.body) start(); else document.addEventListener('DOMContentLoaded', start);
 })();
