@@ -759,6 +759,58 @@ $$;
 
 
 --
+-- Name: _cron_extra_pushes(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public._cron_extra_pushes() RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+declare v_url text; v_secret text; v jsonb := '{}'::jsonb; a uuid[];
+begin
+  delete from push_once where created_at < now() - interval '2 days';
+  -- Mutfağa yeni sipariş (mutfağa giden ürün, son 3 dk)
+  with c as (select oi.id from order_items oi join orders o on o.id = oi.order_id left join products p on p.id = oi.product_id
+              where oi.added_at > now() - interval '3 minutes' and oi.status = 'pending' and o.status = 'open' and coalesce(p.kitchen_skip, false) = false),
+       ins as (insert into push_once(kind, ref) select 'kitchen_new', id from c on conflict do nothing returning ref)
+  select array_agg(ref) into a from ins; if a is not null then v := v || jsonb_build_object('kitchen_new', to_jsonb(a)); end if;
+  -- Masa siparişi verileli 15 dk
+  with c as (select o.id from orders o join order_items oi on oi.order_id = o.id
+              where o.status = 'open' and o.table_id is not null and o.created_at > now() - interval '6 hours'
+              group by o.id having min(oi.added_at) between now() - interval '25 minutes' and now() - interval '15 minutes'),
+       ins as (insert into push_once(kind, ref) select 'order15', id from c on conflict do nothing returning ref)
+  select array_agg(ref) into a from ins; if a is not null then v := v || jsonb_build_object('order15', to_jsonb(a)); end if;
+  -- Misafir masaya oturdu (rezervasyon + bekleme listesi, son 5 dk)
+  with c as (select id from reservations where seated_at > now() - interval '5 minutes'
+             union all select id from waitlist_entries where seated_at > now() - interval '5 minutes'),
+       ins as (insert into push_once(kind, ref) select 'seated', id from c on conflict do nothing returning ref)
+  select array_agg(ref) into a from ins; if a is not null then v := v || jsonb_build_object('seated', to_jsonb(a)); end if;
+  -- Rezervasyona 15 dk kala
+  with c as (select id from reservations where status in ('pending','confirmed') and seated_at is null
+              and reservation_time between now() and now() + interval '15 minutes'),
+       ins as (insert into push_once(kind, ref) select 'resv_soon', id from c on conflict do nothing returning ref)
+  select array_agg(ref) into a from ins; if a is not null then v := v || jsonb_build_object('resv_soon', to_jsonb(a)); end if;
+  -- Gel-al alış saati geldi
+  with c as (select id from orders where kind = 'takeaway' and status = 'open' and takeaway_type = 'pickup'
+              and pickup_at between now() - interval '5 minutes' and now()),
+       ins as (insert into push_once(kind, ref) select 'pickup_due', id from c on conflict do nothing returning ref)
+  select array_agg(ref) into a from ins; if a is not null then v := v || jsonb_build_object('pickup_due', to_jsonb(a)); end if;
+  -- Yeni rezervasyon / bekleme listesi (son 3 dk)
+  with c as (select id from reservations where created_at > now() - interval '3 minutes'
+             union all select id from waitlist_entries where joined_at > now() - interval '3 minutes'),
+       ins as (insert into push_once(kind, ref) select 'reservation_new', id from c on conflict do nothing returning ref)
+  select array_agg(ref) into a from ins; if a is not null then v := v || jsonb_build_object('reservation_new', to_jsonb(a)); end if;
+  if v = '{}'::jsonb then return; end if;
+  select value into v_url from _psv where key = 'push_dispatch_url';
+  select value into v_secret from _psv where key = 'push_dispatch_secret';
+  if coalesce(v_url,'') = '' then return; end if;
+  perform net.http_post(url := v_url,
+    headers := jsonb_build_object('Content-Type','application/json','x-push-secret', coalesce(v_secret,'')),
+    body := jsonb_build_object('mode', 'extra', 'events', v), timeout_milliseconds := 25000);
+end $$;
+
+
+--
 -- Name: _cron_idle_tables(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -819,7 +871,7 @@ CREATE FUNCTION public._cron_minutely() RETURNS void
 -- Dakikalık işler aynı anda değil sırayla çalışır (küçük sunucuda ani yük ve ekran sorgularında zaman aşımı olmasın).
 declare j text;
 begin
-  foreach j in array array['_cron_dispatch_late_kitchen_items','_cron_update_shift_pauses','_cron_waitlist_reminders','_cron_idle_tables','_cron_integration_worker','_cron_no_guests','_cron_pkg_alerts','_cron_travel_recheck','_cron_courier_eta'] loop
+  foreach j in array array['_cron_dispatch_late_kitchen_items','_cron_update_shift_pauses','_cron_waitlist_reminders','_cron_idle_tables','_cron_integration_worker','_cron_no_guests','_cron_pkg_alerts','_cron_travel_recheck','_cron_courier_eta','_cron_extra_pushes'] loop
     begin execute format('select public.%I()', j); exception when others then raise warning '% hata: %', j, sqlerrm; end;
   end loop;
 end $$;
@@ -892,9 +944,9 @@ CREATE FUNCTION public._cron_pkg_alerts() RETURNS void
     AS $$
 declare v_url text; v_secret text; v_dl uuid[]; v_cr uuid[];
 begin
-  -- Teslim saatine <30, <20, <10 dk ve süre geçti (hâlâ hazırlanan ürün varken): her aşamada bir kez.
+  -- Teslim saatine <30, <15, <10 dk ve süre geçti (hâlâ hazırlanan ürün varken): her aşamada bir kez.
   with due as (
-    select o.id, case when _pkg_deadline(o) < now() then 4 when _pkg_deadline(o) < now() + interval '10 minutes' then 3 when _pkg_deadline(o) < now() + interval '20 minutes' then 2 else 1 end st
+    select o.id, case when _pkg_deadline(o) < now() then 4 when _pkg_deadline(o) < now() + interval '10 minutes' then 3 when _pkg_deadline(o) < now() + interval '15 minutes' then 2 else 1 end st
     from orders o where o.kind = 'takeaway' and o.status = 'open' and o.pickup_at is not null
       and _pkg_deadline(o) < now() + interval '30 minutes' and o.pickup_at > now() - interval '2 hours'
       and exists (select 1 from order_items i where i.order_id = o.id and i.status = 'pending' and not i.paid)
@@ -1911,6 +1963,17 @@ begin
       where po_.restaurant_id = r and po_.kind = 'takeaway' and po_.status = 'open' and po_.takeaway_type = 'pickup'
         and po_.pickup_at <= now() and po_.pickup_at > now() - interval '2 hours';
     v := v || jsonb_build_object('_pickups', arr);
+  end if;
+  -- Masa siparişi verileli 15 dakika oldu (15–25 dk arası, siparişi alan garsona ve yöneticiye): sesli hatırlatma, rozet sayısına eklenmez.
+  if (v_mgr or 'order' = any(v_perms)) then
+    select coalesce(jsonb_agg(jsonb_build_object('id', o15.id, 'table', t15.name, 'mins', o15.m, 'pending', o15.pend)), '[]') into arr
+      from (select o.id, o.table_id, floor(extract(epoch from now() - min(oi.added_at)) / 60)::int m, bool_or(oi.status = 'pending') pend
+              from orders o join order_items oi on oi.order_id = o.id
+             where o.restaurant_id = r and o.status = 'open' and o.table_id is not null and (o.created_by = u or v_mgr)
+             group by o.id, o.table_id) o15
+      join restaurant_tables t15 on t15.id = o15.table_id
+     where o15.m between 15 and 25;
+    v := v || jsonb_build_object('_order15', arr);
   end if;
   return v || jsonb_build_object('_items', it);
 end; $$;
@@ -13873,7 +13936,7 @@ CREATE FUNCTION public.set_notification_roles(p_token uuid, p_type text, p_role_
 declare s staff_sessions%rowtype;
 begin s := _session_check(p_token, null);
   if not exists(select 1 from app_users au join roles rl on rl.id = any(au.role_ids) where au.id = s.user_id and (rl.is_system or 'settings_notifs' = any(rl.permissions))) then raise exception 'Bu ayarı yalnızca Yönetici değiştirebilir'; end if;
-  if p_type not in ('customer_request','kitchen_late','shift','purchase_order','idle_table','waiter_order','waiter_payment','reservation_reminder','pkg_deadline','pkg_courier') then raise exception 'Geçersiz bildirim türü'; end if;
+  if p_type not in ('customer_request','kitchen_late','shift','purchase_order','idle_table','waiter_order','waiter_payment','reservation_reminder','pkg_deadline','pkg_courier','kitchen_new','order15','seated','resv_soon','reservation_new','pickup_due') then raise exception 'Geçersiz bildirim türü'; end if;
   update restaurants set notification_roles = case when p_role_ids is null then coalesce(notification_roles,'{}'::jsonb) - p_type
     else coalesce(notification_roles,'{}'::jsonb) || jsonb_build_object(p_type, to_jsonb(p_role_ids)) end where id = s.restaurant_id;
 end; $$;
@@ -18437,6 +18500,17 @@ CREATE TABLE public.purchase_orders (
 
 
 --
+-- Name: push_once; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.push_once (
+    kind text NOT NULL,
+    ref uuid NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
 -- Name: push_subscriptions; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -19859,6 +19933,14 @@ ALTER TABLE ONLY public.purchase_order_items
 
 ALTER TABLE ONLY public.purchase_orders
     ADD CONSTRAINT purchase_orders_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: push_once push_once_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.push_once
+    ADD CONSTRAINT push_once_pkey PRIMARY KEY (kind, ref);
 
 
 --
@@ -23396,6 +23478,12 @@ ALTER TABLE public.purchase_order_items ENABLE ROW LEVEL SECURITY;
 --
 
 ALTER TABLE public.purchase_orders ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: push_once; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.push_once ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: push_subscriptions; Type: ROW SECURITY; Schema: public; Owner: -
