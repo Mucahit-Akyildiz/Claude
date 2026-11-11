@@ -726,9 +726,10 @@ function updatePayReadiness(){
   }
   warn.style.display = notReady.length ? '' : 'none';
   warn.innerHTML = notReady.length ? '⏳ Mutfakta hazır olmayan ürün var: ' + notReady.map(i => escapeHtml(i.name)).join(', ') + '<br><small style="font-weight:500;">Yine de ödeme alabilirsiniz; masa açık kalır, ürünler çıkınca <b>🔒 Masayı Kapat</b> ile kapatırsınız.</small>' : '';
+  // Hazırlanmamış ürün ödemeyi kilitlemez (onay sorulur); hediye kartı düğmesi yalnız kart girilince açılır.
   bg.querySelectorAll('.pay-alt').forEach(b => {
-    if(b.id === 'payGiftCardPayBtn' && !bg.dataset.giftCardCode) return;
-    b.disabled = notReady.length > 0; b.style.opacity = notReady.length ? '.5' : '';
+    if(b.id === 'payGiftCardPayBtn') return;
+    b.disabled = false; b.style.opacity = '';
   });
 }
 function recomputePaySelection(){

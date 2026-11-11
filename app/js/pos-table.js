@@ -642,9 +642,12 @@ async function transferToOpenAccount(accountId, nameHint){
   const bg = document.getElementById('payModalBg'); if(!bg) return;
   const acc = (APP.openAccounts||[]).find(a => a.id===accountId);
   const total = Math.round(payFinalTotal()*100)/100;
-  if(!await uiConfirm(money(total) + ' "' + ((acc && acc.name) || nameHint || 'açık hesap') + '" hesabına aktarılsın mı?')) return;
+  const ord0 = (APP.liveOrders || []).find(o => o.order_id === bg.dataset.orderId), nr = ord0 && typeof payNotReadyItems === 'function' ? payNotReadyItems(ord0) : [];
+  const q = money(total) + ' "' + ((acc && acc.name) || nameHint || 'açık hesap') + '" hesabına aktarılsın mı?';
+  if(!await uiConfirm(nr.length ? 'Siparişler henüz hazırlanmadı:\n' + nr.map(i => '• ' + i.qty + '× ' + i.name).join('\n') + '\n\n' + q + ' Masa açık kalır; ürünler çıkınca "🔒 Masayı Kapat" ile kapatırsınız.' : q,
+    nr.length ? { title: '⏳ Siparişler hazırlanmadı', okText: 'Evet, aktar', danger: false } : undefined)) return;
   const subtotal = parseFloat(bg.dataset.subtotal||0);
-  const { data, error } = await withLoadingOverlay(sb.rpc('transfer_to_open_account', { p_token: getSession().session_token,
+  const { data, error } = await withLoadingOverlay(sb.rpc(nr.length ? 'transfer_to_open_account_early' : 'transfer_to_open_account', { p_token: getSession().session_token,
     p_order_id: bg.dataset.orderId, p_account_id: accountId, p_item_qtys: buildPayItemQtys(), p_discount_amount: Math.max(0, Math.round((subtotal - total)*100)/100) }));
   if(error){ alert(error.message); return; }
   const m = document.getElementById('openAccModalBg'); if(m) m.remove();
