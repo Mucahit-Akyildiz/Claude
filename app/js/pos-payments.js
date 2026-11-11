@@ -160,6 +160,17 @@ function payCellName(name){
   const fs = longest > 14 ? 11.5 : longest > 9 ? 13 : null;
   return `<span lang="tr" style="display:block;hyphens:auto;-webkit-hyphens:auto;overflow-wrap:break-word;word-break:normal;${fs ? 'font-size:'+fs+'px;' : ''}">${escapeHtml(name)}</span>`;
 }
+async function closePaidOrder(orderId){
+  const o = (APP.liveOrders || []).find(x => x.order_id === orderId);
+  const pend = o ? o.items.filter(i => i.status !== 'ready').length : 0;
+  if(!await uiConfirm(pend ? pend + ' ürün henüz hazır değil. Masa yine de kapatılsın mı? (Mutfak ekranından da düşer.)' : 'Ödemesi alınmış masa kapatılsın mı?', { title: '🔒 Masayı Kapat', okText: 'Kapat', danger: !!pend })) return;
+  const s = getSession();
+  const { error } = await sb.rpc('close_paid_order', { p_token: s.session_token, p_order_id: orderId });
+  if(error){ uiAlert(error.message); return; }
+  const { data } = await sb.rpc('get_live_orders', { p_token: s.session_token }); APP.liveOrders = data || [];
+  if(APP.view === 'payments') renderPayGrid();
+  showToast('🔒 Masa kapatıldı');
+}
 function renderPayGrid(){
   const grid = document.getElementById('payGrid'); if(!grid) return;
   // Açık hesaplar adisyon görünümünde kartlar: ürün özeti, hazır durumu, büyük tutar, Hesabı Al.
@@ -187,8 +198,23 @@ function renderPayGrid(){
       <div class="pk-foot"><span class="pk-total">${comp ? '<s class="muted" style="font-size:.7em;">' + money(total) + '</s> 0,00 TL' : money(total)}</span><span class="pk-btn">${comp ? '🎁 İkram' : '💳 Hesabı Al'}</span></div>
     </div>`;
   };
+  // Ödemesi alınmış ama açık kalan hesap (hazırlanmadan ödeme): ürün durumu + elle "Masayı Kapat".
+  const paidCard = (o, name) => {
+    const all = o.items, ready = all.filter(i => i.status === 'ready').length, allReady = ready === all.length;
+    const total = all.reduce((x, i) => x + i.price * i.qty, 0);
+    return `<div class="pk pk-paid ${allReady ? 'pk-ready' : 'pk-busy'}" data-badge-id="${o.order_id}">
+      <div class="pk-comp pk-paid-rb">✅ Ödeme alındı · masa açık</div>
+      <div class="pk-head"><b>${name}</b></div>
+      <div class="pk-status">${allReady ? '✅ Hepsi çıktı' : '🔥 ' + ready + '/' + all.length + ' hazır · mutfakta'}</div>
+      <div class="pk-lines">${all.slice(0, 3).map(i => `<div class="pk-line"><span>${i.qty}× ${escapeHtml(i.name)}</span><span>${i.status === 'ready' ? '✅' : '⏳'}</span></div>`).join('')}${all.length > 3 ? `<div class="pk-more">+${all.length - 3} ürün daha</div>` : ''}</div>
+      <div class="pk-foot"><span class="pk-total">${money(total)}</span><button type="button" class="pk-close-btn" ${act('closePaidOrder', o.order_id)}>🔒 Masayı Kapat</button></div>
+    </div>`;
+  };
+  const paidOpen = [];
   const orders = [];
-  ((APP.config && APP.config.zones) || []).flatMap(z => z.tables || []).forEach(t => { const o = liveOrderForTable(t.id); if(o && o.items.some(i => !i.paid)) orders.push({ o, name: escapeHtml(tableNameForId(t.id)) }); });
+  ((APP.config && APP.config.zones) || []).flatMap(z => z.tables || []).forEach(t => { const o = liveOrderForTable(t.id); if(o && o.items.some(i => !i.paid)) orders.push({ o, name: escapeHtml(tableNameForId(t.id)) });
+    else if(o && o.items.length && o.items.every(i => i.paid)) paidOpen.push({ o, name: escapeHtml(tableNameForId(t.id)) }); });
+  (APP.liveOrders || []).filter(o => o.kind === 'takeaway' && o.items.length && o.items.every(i => i.paid)).forEach(o => paidOpen.push({ o, name: '📦 ' + escapeHtml(o.customer_name || ('Paket #' + (o.daily_number || ''))) }));
   (APP.liveOrders || []).filter(o => o.kind === 'takeaway' && o.items.some(i => !i.paid)).forEach(o => orders.push({ o, name: '📦 ' + escapeHtml(o.customer_name || ('Paket #' + (o.daily_number || ''))) }));
   const due = (o) => { const t = o.items.filter(i => !i.paid).reduce((y, i) => y + i.price * i.qty, 0);
     if(o.allowance_id) return Math.max(0, t - Number(o.allowance_remaining || 0));
@@ -203,7 +229,7 @@ function renderPayGrid(){
         <div class="os-chip os-viz os-old"><span class="os-ic">⏳</span><div class="os-old-l">${old.map(x => `<span class="${x.m >= 60 ? 'bad' : x.m >= 30 ? 'warn' : ''}"><b>${x.n}</b> ${x.m} dk</span>`).join('')}<small>en uzun açık kalan hesaplar</small></div></div>`; })() : '');
   orders.sort((x, y) => new Date(x.o.created_at || 0) - new Date(y.o.created_at || 0));
   grid.className = 'pk-grid';
-  grid.innerHTML = orders.length ? orders.map(r => card(r.o, r.name)).join('') : '<div class="kb-none">🎉 Açık hesap yok</div>';
+  grid.innerHTML = (orders.length || paidOpen.length) ? orders.map(r => card(r.o, r.name)).join('') + paidOpen.map(r => paidCard(r.o, r.name)).join('') : '<div class="kb-none">🎉 Açık hesap yok</div>';
   startCompTicker();
 }
 /* İkram geri sayımı: süresi dolan ikram siparişi close_comp_order ile ödemesiz kapanır
@@ -699,8 +725,8 @@ function updatePayReadiness(){
     const grid = bg.querySelector('.pay-method-grid'); if(grid) grid.parentNode.insertBefore(warn, grid);
   }
   warn.style.display = notReady.length ? '' : 'none';
-  warn.innerHTML = notReady.length ? '⏳ Mutfakta hazır olmayan ürün var, ödeme alınamaz: ' + notReady.map(i => escapeHtml(i.name)).join(', ') : '';
-  bg.querySelectorAll('.pay-method-btn, .pay-alt').forEach(b => {
+  warn.innerHTML = notReady.length ? '⏳ Mutfakta hazır olmayan ürün var: ' + notReady.map(i => escapeHtml(i.name)).join(', ') + '<br><small style="font-weight:500;">Yine de ödeme alabilirsiniz; masa açık kalır, ürünler çıkınca <b>🔒 Masayı Kapat</b> ile kapatırsınız.</small>' : '';
+  bg.querySelectorAll('.pay-alt').forEach(b => {
     if(b.id === 'payGiftCardPayBtn' && !bg.dataset.giftCardCode) return;
     b.disabled = notReady.length > 0; b.style.opacity = notReady.length ? '.5' : '';
   });
@@ -958,11 +984,18 @@ async function finishPayment(orderId, method, total, cash, card, discountAmount,
   // Bu yüzden aynı sipariş için ödeme isteği tamamlanana kadar yenisi engellenir.
   if(!window._payInFlight) window._payInFlight = new Set();
   if(window._payInFlight.has(orderId)){ return; }
+  // Hazırlanmamış ürün varsa sorulur; onaylanırsa ödeme alınır ama masa açık kalır (sonra "Masayı Kapat").
+  const ord0 = (APP.liveOrders || []).find(o => o.order_id === orderId), nr = ord0 ? payNotReadyItems(ord0) : [];
+  let early = false;
+  if(nr.length){
+    if(!await uiConfirm('Siparişler henüz hazırlanmadı:\n' + nr.map(i => '• ' + i.qty + '× ' + i.name).join('\n') + '\n\nÖdemeyi şimdi almak istediğinize emin misiniz? Masa açık kalır; ürünler çıkınca Ödemeler ekranından "🔒 Masayı Kapat" ile kapatırsınız.', { title: '⏳ Siparişler hazırlanmadı', okText: 'Evet, ödemeyi al', danger: false })) return;
+    early = true;
+  }
   window._payInFlight.add(orderId);
   let data, error;
   try{
     const session = getSession();
-    ({ data, error } = await sb.rpc('pay_order_items', {
+    ({ data, error } = await sb.rpc(early ? 'pay_order_items_early' : 'pay_order_items', {
       p_token: session.session_token, p_order_id: orderId, p_payment_method: method,
       p_cash: cash, p_card: card, p_discount_amount: discountAmount||0, p_item_qtys: itemQtys||null,
       p_tip_amount: tipAmount||0, p_customer_id: customerId||null, p_redeem_points: redeemPoints||0,
@@ -985,7 +1018,11 @@ async function finishPayment(orderId, method, total, cash, card, discountAmount,
   if(APP.view==='payments') renderPayGrid();
   APP.lastPaidHistoryId = data && data.history_id;
   if(typeof maybeAskStoreReview === 'function') maybeAskStoreReview();
-  if(data && data.order_closed===false){
+  if(data && data.order_closed===false && Number(data.remaining_items) === 0){
+    // Hazırlanmadan alınan ödeme: her şey ödendi ama masa açık (ürünler çıkınca elle kapatılır).
+    showToast('Ödeme alındı ✓ Masa açık kaldı; ürünler çıkınca "🔒 Masayı Kapat" deyin', 6000);
+    if(APP.view!=='payments') renderPaymentsView(document.getElementById('main'), session);
+  } else if(data && data.order_closed===false){
     // Kısmi ödeme: hesaptaki geri kalan ürünler için ödeme ekranı hemen tekrar açılır.
     showToast('Ödeme alındı ✓ (kalan ürünler için hesap açık kaldı)');
     const remainingOrder = APP.liveOrders.find(o => o.order_id===orderId);
