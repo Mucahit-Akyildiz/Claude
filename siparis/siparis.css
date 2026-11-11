@@ -126,3 +126,14 @@
 .otp-row{display:flex;justify-content:space-between;margin-top:10px;} .otp-link{background:none;border:0;color:#06b6d4;cursor:pointer;font-size:13px;padding:4px;}
 /* Emoji: Apple dışı cihazlarda Noto Color Emoji (assets/js/emoji-font.js html.emoji-noto ekler). */
 html.emoji-noto body,html.emoji-noto input,html.emoji-noto select,html.emoji-noto textarea,html.emoji-noto button{font-family:'Plus Jakarta Sans','Noto Color Emoji',-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;}
+
+/* Gel-Al / Teslimat seçimi: büyük, seçili olan nabız gibi yanıp söner */
+.order-type-tabs{gap:10px;margin-bottom:8px;}
+.order-type-tab{padding:16px 12px;font-size:19px;font-weight:800;border-radius:16px;letter-spacing:.2px;transition:transform .15s,background .2s,color .2s;}
+.order-type-tab.active{position:relative;animation:otPulse 1.6s ease-in-out infinite;box-shadow:0 0 0 0 color-mix(in srgb,var(--accent) 60%,transparent);}
+.order-type-tab:not(.active):hover{border-color:var(--accent);color:var(--text);}
+@keyframes otPulse{0%{box-shadow:0 0 0 0 color-mix(in srgb,var(--accent) 65%,transparent);filter:brightness(1);}50%{box-shadow:0 0 0 9px color-mix(in srgb,var(--accent) 0%,transparent);filter:brightness(1.15);}100%{box-shadow:0 0 0 0 color-mix(in srgb,var(--accent) 0%,transparent);filter:brightness(1);}}
+.order-type-hint{text-align:center;font-size:14px;margin:0 0 14px;padding:9px 12px;border-radius:12px;background:color-mix(in srgb,var(--accent) 14%,transparent);color:var(--text);border:1px dashed color-mix(in srgb,var(--accent) 55%,transparent);animation:otBlink 1.6s ease-in-out infinite;}
+.order-type-hint b{color:var(--accent);}
+@keyframes otBlink{0%,100%{opacity:1;}50%{opacity:.55;}}
+@media (prefers-reduced-motion:reduce){.order-type-tab.active,.order-type-hint{animation:none;}}
