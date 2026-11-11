@@ -767,3 +767,44 @@ function ssOpen(sel){
   };
   if(document.body) start(); else document.addEventListener('DOMContentLoaded', start);
 })();
+
+/* ---- Android uygulamasında dosya indirme ----
+   Capacitor WebView, sayfada üretilen dosyaları (blob:/data: — PDF, Excel, PNG) kaydedemez. Uygulamada bu
+   bağlantılar yakalanır: dosya /api/file-share ile geçici, özel bir bağlantıya yüklenir ve telefonun tarayıcısında
+   açılır; indirme orada olur. Masaüstü/tarayıcıda hiçbir şey değişmez. */
+(function(){
+  const native = () => !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+  const want = (a) => a && a.download && /^(blob|data):/i.test(a.href || '');
+  let busy = false;
+  const BLOBS = new Map(), origCreate = URL.createObjectURL.bind(URL);
+  URL.createObjectURL = function(obj){ const u = origCreate(obj); if(native() && obj instanceof Blob){ BLOBS.set(u, obj); if(BLOBS.size > 20) BLOBS.delete(BLOBS.keys().next().value); } return u; };
+  async function shareDownload(href, name){
+    if(busy) return; busy = true;
+    const s = typeof getSession === 'function' ? getSession() : null;
+    const run = async () => {
+      if(!s || !s.session_token) throw new Error('Oturum bulunamadı');
+      // CSP blob: okumaya izin vermez: dosya, oluşturulduğu anda (URL.createObjectURL) saklanır.
+      let blob = BLOBS.get(href);
+      if(!blob && /^data:/i.test(href)){ const [h, d] = href.split(','); const bin = /;base64/i.test(h) ? atob(d) : decodeURIComponent(d); const u = new Uint8Array(bin.length); for(let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); blob = new Blob([u]); }
+      if(!blob) throw new Error('Dosya bulunamadı');
+      const r = await fetch('/api/file-share', { method: 'POST', headers: { 'Content-Type': 'application/octet-stream', 'x-session-token': s.session_token, 'x-name': encodeURIComponent(name || 'dosya') }, body: blob });
+      const j = await r.json().catch(() => ({}));
+      if(!r.ok || !j.url) throw new Error(j.error || 'Dosya hazırlanamadı');
+      return j.url;
+    };
+    try{
+      const url = typeof withLoadingOverlay === 'function' ? await withLoadingOverlay(run()) : await run();
+      if(typeof showToast === 'function') showToast('📥 ' + (name || 'Dosya') + ' tarayıcıda indiriliyor…', 5000);
+      window.location.assign(url); // uygulama dışı adres: Capacitor telefonun tarayıcısında açar
+    }catch(e){ if(typeof uiAlert === 'function') uiAlert('İndirilemedi: ' + (e.message || e)); else alert('İndirilemedi'); }
+    finally{ busy = false; }
+  }
+  const origClick = HTMLAnchorElement.prototype.click;
+  HTMLAnchorElement.prototype.click = function(){ if(native() && want(this)) return shareDownload(this.href, this.download); return origClick.apply(this, arguments); };
+  const origDispatch = EventTarget.prototype.dispatchEvent;
+  EventTarget.prototype.dispatchEvent = function(ev){
+    if(native() && this instanceof HTMLAnchorElement && ev && ev.type === 'click' && want(this)){ shareDownload(this.href, this.download); return false; }
+    return origDispatch.apply(this, arguments);
+  };
+  document.addEventListener('click', (e) => { const a = e.target && e.target.closest && e.target.closest('a[download]'); if(native() && want(a)){ e.preventDefault(); shareDownload(a.href, a.download); } }, true);
+})();
