@@ -275,3 +275,4 @@ alter table customers add column if not exists created_by uuid, add column if no
 -- 2026-11-12: move_open_account_entry (hareketi başka açık hesaba taşı, nota iz) + update_open_account (ad/telefon/not); payments izni.
 -- 2026-11-12: open_accounts.customer_id + open_account_for_customer(p_token,p_name,p_phone): müşteriyi bul/ekle, hesabını bul/bağla/aç.
 -- 2026-11-12: get_restaurant_config ürünleri sabit sırada (order by p.name, p.id) döner; ekranda yer değişmesi giderildi.
+-- 2026-11-12: set_table_customer masaya yazılan adı _ensure_customer(.., true) ile Müşteriler'e de kaydeder.
