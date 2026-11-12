@@ -43,6 +43,9 @@ neyin neden yapıldığını öğrenir. En yeni en üstte. Ayrıntılı DB notla
 - Kampanya mesajı: şablon kaydet/yükle/sil (`restaurants.campaign_templates`), `{ad}`, `{soyad}`, `{adsoyad}`, `{isletme}`.
 
 ### Hammadde, satınalma, raporlar
+- **📋 Stok Sayımı** (isteğe bağlı, gün sonuna bağlı değil): Hammaddeler araç çubuğu ve Mutfak başlığında düğme. Personel
+  (`stock_count` izni) sayar, **Onay Yetkisi** (`approvals`) olan onaylar; onayda stok sayım anındaki farka göre düzelir.
+  ⭐ ile günlük sayım listesi. Yönetici onayı gereken yeni işlemler `approvals` iznine bağlanacak.
 - Alış birimleri (koli/çuval), sipariş/teslim/fiyat alış biriminde; Mal Kabul detayında satır içi teslim alma, fiyat
   düzeltme/silme, "Eksiği kapat"; hammadde arşivi (geçmişi olan yumuşak silinir) + geri getirme.
 - Excel içe/dışa aktarma + şablon: ürünler, hammaddeler, **reçeteler**, **menüler**.

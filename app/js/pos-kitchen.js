@@ -19,7 +19,7 @@ async function renderKitchenView(main, session){
   const station = APP.config.stations.find(s => s.id===APP.kitchenStation);
   main.innerHTML = `<div style="display:flex;justify-content:space-between;"><h1>${escapeHtml(station.icon||"🍳")} ${escapeHtml(station.name)}</h1>
     <div style="display:flex;gap:8px;align-items:flex-start;flex-wrap:wrap;justify-content:flex-end;">
-      <span id="prepBtnWrap">${prepBtnHtml()}</span>
+      <span id="prepBtnWrap">${prepBtnHtml()}</span>${typeof stockCountBtnHtml === 'function' ? stockCountBtnHtml() : ''}
       <button class="ghost-btn" ${act('openSoldOutModal')} title="Stok bitti / yanlış girildi: ürünü hemen satışa kapat">⛔ Satışa Kapat${(() => { const n = ((APP.config && APP.config.products) || []).filter(p => p.station_id === APP.kitchenStation && p.available === false).length; return n ? ` <span class="ks-badge">${n}</span>` : ''; })()}</button>
       <button class="u-red ghost-btn" ${act('openManualWasteModal')} title="Siparişe bağlı olmayan israf (yanan, düşen, bozulan ürün)">🔥 İsraf Gir</button>
       <button class="ghost-btn" ${act('clearKitchenStation')}>İstasyon Değiştir</button>

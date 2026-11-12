@@ -277,3 +277,4 @@ alter table customers add column if not exists created_by uuid, add column if no
 -- 2026-11-12: get_restaurant_config ürünleri sabit sırada (order by p.name, p.id) döner; ekranda yer değişmesi giderildi.
 -- 2026-11-12: set_table_customer masaya yazılan adı _ensure_customer(.., true) ile Müşteriler'e de kaydeder.
 -- 2026-11-12: _ensure_customer: telefonla bulunamazsa aynı adlı telefonsuz müşteriye telefon eklenir.
+-- 2026-11-12: Stok sayımı: stock_counts/stock_count_lines, ingredients.count_daily; submit_stock_count, list_stock_counts, decide_stock_count (onayda sayım anındaki fark uygulanır), set_ingredient_count_daily. Yeni izinler stock_count ve approvals (_session_check paket kontrolü dışı, _role_permission_catalog Yönetim).
