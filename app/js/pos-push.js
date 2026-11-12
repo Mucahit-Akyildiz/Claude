@@ -78,7 +78,7 @@ async function togglePushNotifications(){
     const saved = getSavedFcmToken();
     if(saved){
       await sb.rpc('remove_push_subscription', { p_token: session.session_token, p_endpoint: saved });
-      setSavedFcmToken('');
+      setSavedFcmToken(''); setPushOptOut(true);
       updatePushUI(false);
       showToast('Push bildirimleri kapatıldı');
       return;
@@ -91,7 +91,7 @@ async function togglePushNotifications(){
     await APP.nativeChannelReady;
     const { error } = await sb.rpc('save_fcm_token', { p_token: session.session_token, p_fcm_token: token, p_channel: APP.nativePushChannel || 'default' });
     if(error){ setStatus('Kaydedilemedi: ' + error.message); return; }
-    setSavedFcmToken(token);
+    setSavedFcmToken(token); setPushOptOut(false);
     updatePushUI(true);
     showToast('Push bildirimleri açıldı ✓');
     render();
@@ -102,7 +102,7 @@ async function togglePushNotifications(){
   const existing = await reg.pushManager.getSubscription();
   if(existing){
     await sb.rpc('remove_push_subscription', { p_token: session.session_token, p_endpoint: existing.endpoint });
-    await existing.unsubscribe();
+    await existing.unsubscribe(); setPushOptOut(true);
     updatePushUI(false);
     showToast('Push bildirimleri kapatıldı');
     return;
@@ -131,6 +131,7 @@ async function togglePushNotifications(){
     p_auth: subJson.keys.auth
   });
   if(error){ setStatus('Kaydedilemedi: ' + error.message); return; }
+  setPushOptOut(false);
   updatePushUI(true);
   showToast('Push bildirimleri açıldı ✓');
   render();
@@ -185,6 +186,7 @@ async function maybeShowPushPrompt(session){
     if(data){ APP.config = data; render(); }
   }
   if(!hasFeature('push_notifications')) return;
+  if(pushOptedOut()) return; // kullanıcı bu cihazda kapattı: sessizce yeniden açma
   if(isNativeApp()){
     const PN = window.Capacitor.Plugins && window.Capacitor.Plugins.PushNotifications;
     if(!PN) return;
@@ -203,6 +205,7 @@ async function maybeShowPushPrompt(session){
   togglePushNotifications();
 }
 async function resyncNativePushSubscription(session){
+  if(!getSavedFcmToken()){ setPushOptOut(true); return; } // kapatılmış: yeniden kaydetme
   const token = await requestNativeFcmToken();
   if(!token) return;
   await APP.nativeChannelReady;
@@ -212,11 +215,9 @@ async function resyncNativePushSubscription(session){
 async function resyncWebPushSubscription(session){
   const reg = await registerServiceWorker();
   if(!reg) return;
-  let sub = await reg.pushManager.getSubscription();
-  if(!sub){
-    try{ sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY) }); }
-    catch(e){ return; }
-  }
+  const sub = await reg.pushManager.getSubscription();
+  // Cihazda abonelik yoksa kullanıcı kapatmıştır: yeniden açma (yalnız mevcut aboneliğin sunucu kaydı tazelenir).
+  if(!sub){ setPushOptOut(true); return; }
   const subJson = sub.toJSON();
   await sb.rpc('save_push_subscription', { p_token: session.session_token, p_endpoint: subJson.endpoint, p_p256dh: subJson.keys.p256dh, p_auth: subJson.keys.auth });
 }
