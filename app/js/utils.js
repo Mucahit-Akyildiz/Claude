@@ -112,8 +112,10 @@ function notifyDesktop(msg, onClick){
   if(Notification.permission==='granted') fire();
   else if(Notification.permission!=='denied') Notification.requestPermission().then(p => { if(p==='granted') fire(); });
 }
-function showToast(msg, durationMs, position, onClick, nativeNotify){
+function showToast(msg, durationMs, position, onClick, nativeNotify, tag){
   if(nativeNotify) notifyDesktop(msg, onClick);
+  // Aynı etiketli bildirim varsa yenisi onun yerini alır (tekrarlayan hatırlatmalar üst üste birikmesin).
+  if(tag) document.querySelectorAll('[data-toast-tag="' + tag + '"]').forEach(x => x.remove());
   const isLeft = position==='left';
   const stackId = isLeft ? 'notifStackLeft' : 'notifStack';
   let stack = document.getElementById(stackId);
@@ -125,6 +127,7 @@ function showToast(msg, durationMs, position, onClick, nativeNotify){
   }
   const isWarning = msg.indexOf('⚠️')===0 || msg.indexOf('⏰')===0;
   const card = document.createElement('div');
+  if(tag) card.dataset.toastTag = tag;
   card.style.cssText = 'background:var(--panel);border:1px solid var(--border);border-left:4px solid '+(isWarning?'var(--red)':'var(--green)')+';border-radius:10px;padding:10px 30px 10px 14px;font-size:13px;line-height:1.4;box-shadow:0 4px 16px rgba(0,0,0,.35);position:relative;animation:'+(isLeft?'notifSlideInLeft':'notifSlideIn')+' .18s ease;'+(onClick?'cursor:pointer;':'');
   card.textContent = msg;
   if(onClick) card.onclick = () => { card.remove(); onClick(); };
