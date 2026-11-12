@@ -407,7 +407,9 @@ function tableCustomerInnerHtml(tableId, editing){
     // Buton yok: doğrudan arama. Ad ya da telefon yazılır; müşteri, limitli kişi ve kullanıcı birlikte önerilir.
     return `<div class="om-csearch"><span class="om-cs-ic">🔍</span>
       <input id="tableCustName" data-table="${tableId}" placeholder="Müşteri, limitli kişi veya kullanıcı ara — ad / telefon" autocomplete="off" ${actOn('input','tableCustSearch',['$value'])} ${actOn('change','saveTableCustomer',[tableId, true])}>
-      <input id="tableCustPhone" type="hidden" value=""></div>
+</div>
+      <div class="om-csearch" style="margin-top:8px;"><span class="om-cs-ic">📞</span>
+      <input id="tableCustPhone" placeholder="Telefon (isteğe bağlı)" inputmode="tel" autocomplete="off" ${actOn('input','tableCustSearch',['$value'])} ${actOn('change','saveTableCustomer',[tableId, true])}></div>
       <div id="tableCustSuggest" class="om-cs-sug"></div>`;
   }
   return (typeof birthdayBadgeHtml === 'function' ? birthdayBadgeHtml(name, phone) : '') + `<div style="background:var(--panel2);border:1px solid var(--border);border-radius:12px;padding:10px 12px;margin-bottom:12px;font-size:13.5px;display:flex;gap:10px;align-items:flex-start;">
