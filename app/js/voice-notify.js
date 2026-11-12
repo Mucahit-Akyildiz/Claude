@@ -348,6 +348,11 @@ function processVoiceBadges(data, visibleViews){
     const key = 'soon:' + x.id; ids.add(key);
     if(!VOICE_RESV_SEEN.has(x.id)){ VOICE_RESV_SEEN.add(x.id); (fresh.resvsoon = fresh.resvsoon || []).push(x); }
   });
+  // Ödemesi önceden alınmış açık siparişler hazır olunca (sunucudan _readypaid): "sipariş hazır", her sipariş bir kez.
+  if(visibleViews.includes('payments')) (data && data._readypaid || []).forEach(x => {
+    const key = 'rp:' + x.id; ids.add(key);
+    if(VOICE_SEEN && !VOICE_SEEN.has(key)) (fresh.ready = fresh.ready || []).push(x);
+  });
   // Masa siparişi verileli 15 dakika oldu (sunucudan _order15): her sipariş bir kez.
   (data && data._order15 || []).forEach(x => {
     const key = 'o15:' + x.id; ids.add(key);
