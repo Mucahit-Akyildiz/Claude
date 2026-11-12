@@ -395,9 +395,9 @@ function tableCustomerInnerHtml(tableId, editing){
   const name = (o && o.customer_name) || '', phone = (o && o.customer_phone) || '';
   if(editing){
     return `<div style="background:var(--panel2);border:1px solid var(--border);border-radius:12px;padding:10px 12px;margin-bottom:12px;">
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
-        <input id="tableCustName" data-table="${tableId}" placeholder="Ad: müşteri, limitli kişi veya kullanıcı ara" autocomplete="off" value="${escapeAttr(name)}" class="u-m0" ${actOn('input','tableCustSearch',['$value'])} ${actOn('change','saveTableCustomer',[tableId, true])}>
-        <input id="tableCustPhone" placeholder="Telefon (opsiyonel)" inputmode="tel" autocomplete="off" value="${escapeAttr(phone)}" class="u-m0" ${actOn('input','tableCustSearch',['$value'])} ${actOn('change','saveTableCustomer',[tableId, true])}>
+      <div style="display:grid;grid-template-columns:1fr;gap:8px;">
+        <input id="tableCustName" data-table="${tableId}" placeholder="👤 Ad: müşteri, limitli kişi veya kullanıcı ara" autocomplete="off" value="${escapeAttr(name)}" class="u-m0" ${actOn('input','tableCustSearch',['$value'])} ${actOn('change','saveTableCustomer',[tableId, true])}>
+        <input id="tableCustPhone" placeholder="📞 Telefon (isteğe bağlı)" inputmode="tel" autocomplete="off" value="${escapeAttr(phone)}" class="u-m0" ${actOn('input','tableCustSearch',['$value'])} ${actOn('change','saveTableCustomer',[tableId, true])}>
       </div>
       <div id="tableCustSuggest"></div>
       <p class="muted" style="font-size:11.5px;margin:6px 2px 0;">Otomatik kaydedilir.</p>
