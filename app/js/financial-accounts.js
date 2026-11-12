@@ -96,17 +96,20 @@ function oaModal(title, inner, okText, onOk){
   document.getElementById('oaEditOk').addEventListener('click', onOk);
 }
 async function moveOaEntry(entryId, fromId){
-  const accs = ((APP.openAccReport || {}).accounts || []).filter(x => x.id !== fromId).sort((x, y) => String(x.name).localeCompare(String(y.name), 'tr'));
   const from = ((APP.openAccReport || {}).accounts || []).find(x => x.id === fromId) || {};
-  if(!accs.length){ uiAlert('Taşınabilecek başka açık hesap yok. Önce Ödemeler ekranından doğru kişi için açık hesap oluşturun.'); return; }
-  oaModal('↪ Hareketi taşı', `<p class="muted u-tl" style="margin:8px 0 12px;"><b>${escapeHtml(from.name || '')}</b> hesabındaki bu hareket seçtiğiniz kişinin hesabına taşınır. Bakiyeler kendiliğinden düzelir; taşıma, kim yaptığıyla birlikte hareketin notuna yazılır.</p>
-    <label class="u-tl" style="display:block;font-weight:700;margin-bottom:6px;">Doğru kişi</label>
-    <select id="oaMoveTo"><option value="">— Hesap seçin —</option>${accs.map(x => `<option value="${x.id}">${escapeHtml(x.name)}${x.phone ? ' · ' + escapeHtml(maskPhone(x.phone)) : ''}</option>`).join('')}</select>`, '↪ Taşı', async () => {
-    const to = (document.getElementById('oaMoveTo') || {}).value; if(!to){ uiAlert('Taşınacak hesabı seçin'); return; }
-    const { error } = await withLoadingOverlay(sb.rpc('move_open_account_entry', { p_token: getSession().session_token, p_entry_id: entryId, p_to_account: to }));
+  oaModal('↪ Hareketi taşı', `<p class="muted u-tl" style="margin:8px 0 12px;"><b>${escapeHtml(from.name || '')}</b> hesabındaki bu hareket seçtiğiniz müşterinin açık hesabına taşınır (hesabı yoksa açılır, müşteri kayıtlı değilse eklenir). Bakiyeler kendiliğinden düzelir.</p>
+    <div class="oa-edit-f"><label>Doğru kişi — müşteri ara</label><input id="oamvName" maxlength="60" placeholder="Ad soyad" autocomplete="off" ${actOn('input','tableCustSearch',['$value','oamv'])}>
+    <input id="oamvPhone" maxlength="20" inputmode="tel" placeholder="Telefon (yeni müşteriyse)" autocomplete="off" ${actOn('input','tableCustSearch',['$value','oamv'])}>
+    <div id="oamvSuggest"></div></div>`, '↪ Taşı', async () => {
+    const name = document.getElementById('oamvName').value.trim(); if(!name){ uiAlert('Müşteri seçin ya da ad yazın'); return; }
+    const tok = getSession().session_token;
+    const { data: to, error: e1 } = await withLoadingOverlay(sb.rpc('open_account_for_customer', { p_token: tok, p_name: name, p_phone: document.getElementById('oamvPhone').value.trim() || null }));
+    if(e1){ uiAlert(e1.message); return; }
+    if(to === fromId){ uiAlert('Bu hareket zaten bu kişinin hesabında'); return; }
+    const { error } = await withLoadingOverlay(sb.rpc('move_open_account_entry', { p_token: tok, p_entry_id: entryId, p_to_account: to }));
     if(error){ uiAlert(error.message); return; }
     removeEl('oaEditBg'); removeEl('oaEntriesModalBg');
-    showToast('↪ Hareket ' + ((accs.find(x => x.id === to) || {}).name || '') + ' hesabına taşındı');
+    showToast('↪ Hareket ' + name + ' hesabına taşındı');
     await renderOpenAccountsContent(getSession()); showOpenAccEntries(to);
   });
 }

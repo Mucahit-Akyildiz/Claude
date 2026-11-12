@@ -45,3 +45,6 @@ yapılan geliştirmelerin ve kararların kaydı için `docs/GELISTIRME-GECMISI.m
 - Uzun `<select>` listeleri otomatik aranabilir seçiciye dönüşür (`ssEnhance`, 12+ seçenek). Kullanıcı "kullanışsız arama yardımı" istemiyor.
 - Tablet ve Android uygulaması (Capacitor WebView) önemli: dokunmatikte otomatik odak, yeniden çizim ve `blob:` indirme sorunlarına dikkat.
 - Sesli bildirim kuralları (`voice_policy`): kural yoksa herkese, cihaz ayarına göre; tüm rolleri içeren kural kaydedilmez.
+- **Açık hesap = müşteri**: Açık hesaba atarken ve hareket taşırken kişi her zaman **Müşteriler'den** seçilir
+  (`open_account_for_customer`): müşterinin açık hesabı varsa ona yazılır/birleşir, yoksa açılır; müşteri kayıtlı
+  değilse önce Müşteriler'e eklenir. `open_accounts.customer_id` ile bağlıdır. Serbest ad ile ayrı hesap açılmaz.

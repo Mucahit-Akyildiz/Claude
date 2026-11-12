@@ -453,6 +453,7 @@ function pickTableCustomer(i, prefix){
     lookupPayCustomer(c);
     return;
   }
+  if(prefix === 'oamv'){ document.getElementById('oamvName').value = c.name || ''; document.getElementById('oamvPhone').value = c.phone || ''; document.getElementById('oamvSuggest').innerHTML = ''; return; }
   document.getElementById(prefix + 'Name').value = c.name || '';
   document.getElementById(prefix + 'Phone').value = c.phone || '';
   // Paket siparişte kayıtlı adres otomatik doldurulur (boşsa).
@@ -460,6 +461,7 @@ function pickTableCustomer(i, prefix){
   const emailEl = document.getElementById(prefix + 'Email');
   if(emailEl && c.email && !emailEl.value) emailEl.value = c.email;
   document.getElementById(prefix + 'Suggest').innerHTML = '';
+  if(prefix === 'oa'){ createOpenAccountAndTransfer(); return; }
   if(typeof autoAllowanceForCustomer === 'function') autoAllowanceForCustomer(c.name, c.phone);
   if(typeof checkCustomerBirthday === 'function'){ const bg = document.getElementById('tableModalBg'); checkCustomerBirthday(c.name, c.phone, bg ? bg.dataset.tableId : null); }
   if(prefix !== 'tableCust') return;
@@ -605,13 +607,12 @@ async function openOpenAccountTransfer(){
     <input id="oaSearch" placeholder="🔍 Açık hesap ara (ad / telefon)…" ${actOn('input','drawOpenAccountList',['$value'])} style="margin:0 0 10px;border-radius:12px;">
     <div id="oaList"></div>
     <div class="oa-new">
-      <p>➕ Yeni Açık Hesap</p>
-      <input id="oaName" maxlength="60" placeholder="Ad Soyad / Firma — kayıtlı müşteri ara" autocomplete="off" ${actOn('input','tableCustSearch',['$value','oa'])}>
+      <p>👤 Müşteriden seç</p>
+      <input id="oaName" maxlength="60" placeholder="Müşteri ara (ad / telefon)" autocomplete="off" ${actOn('input','tableCustSearch',['$value','oa'])}>
       <input id="oaPhone" placeholder="Telefon (opsiyonel)" inputmode="tel" autocomplete="off" ${actOn('input','tableCustSearch',['$value','oa'])}>
       <div id="oaSuggest" style="margin:-4px 0 8px;"></div>
-      <small class="muted" style="display:block;margin:-2px 0 8px;font-size:11.5px;">Kayıtlı müşteri değilse Müşteriler'e otomatik eklenir.</small>
-      <input id="oaNote" placeholder="Not (opsiyonel)">
-      <button type="button" ${act('createOpenAccountAndTransfer')}>Oluştur ve Aktar</button>
+      <small class="muted" style="display:block;margin:-2px 0 8px;font-size:11.5px;">Müşteriyi seçin; açık hesabı varsa ona yazılır, yoksa açılır. Kayıtlı değilse ad + telefon yazın, Müşteriler'e de eklenir.</small>
+      <button type="button" ${act('createOpenAccountAndTransfer')}>Hesaba Aktar</button>
     </div>
     <button type="button" class="ghost-btn" style="width:100%;margin-top:10px;" ${act('removeEl','openAccModalBg')}>Vazgeç</button>
   </div>`;
@@ -630,11 +631,9 @@ function drawOpenAccountList(q){
 async function createOpenAccountAndTransfer(){
   const name = document.getElementById('oaName').value.trim();
   if(!name){ alert('Açık hesap için ad girin'); return; }
-  // Seçilen müşterinin zaten açık hesabı varsa yenisi açılmaz, mevcut hesaba aktarılır.
-  const same = (APP.openAccounts||[]).find(a => a.name.toLocaleLowerCase('tr') === name.toLocaleLowerCase('tr'));
-  if(same){ transferToOpenAccount(same.id, same.name); return; }
-  const { data, error } = await withLoadingOverlay(sb.rpc('create_open_account', { p_token: getSession().session_token, p_name: name,
-    p_phone: document.getElementById('oaPhone').value.trim() || null, p_note: document.getElementById('oaNote').value.trim() || null }));
+  // Açık hesap her zaman müşteriye bağlı: müşteri yoksa eklenir, hesabı varsa ona yazılır, yoksa açılır.
+  const { data, error } = await withLoadingOverlay(sb.rpc('open_account_for_customer', { p_token: getSession().session_token, p_name: name,
+    p_phone: document.getElementById('oaPhone').value.trim() || null }));
   if(error){ alert(error.message); return; }
   transferToOpenAccount(data, name);
 }
