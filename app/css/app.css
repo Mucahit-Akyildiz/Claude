@@ -4676,3 +4676,21 @@ select.ss-hidden{display:none !important;}
   .order-modal.om-pkg .pp-cats .pp-cat-t span{white-space:nowrap;}
   .order-modal.om-pkg .pp-grid{grid-template-columns:repeat(auto-fill,minmax(138px,1fr)) !important;}
 }
+/* 📋 Stok Sayımı */
+.sc-box{max-width:760px;width:calc(100vw - 24px);max-height:calc(100dvh - 40px);overflow:auto;}
+.sc-tabs{margin:12px 0;display:flex;gap:6px;flex-wrap:wrap;}
+.sc-hint{font-size:12.5px;margin:0 0 10px;}
+.sc-tools{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px;} .sc-tools input{flex:1;min-width:160px;margin:0;}
+.sc-list{display:flex;flex-direction:column;gap:6px;}
+.sc-row{display:grid;grid-template-columns:auto minmax(0,1fr) 120px 40px minmax(90px,auto);gap:8px;align-items:center;padding:8px 10px;border:1px solid var(--border);border-radius:12px;background:var(--panel);}
+.sc-row input{margin:0;min-height:44px;font-size:16px;text-align:right;}
+.sc-n{display:flex;flex-direction:column;min-width:0;} .sc-n b{overflow:hidden;text-overflow:ellipsis;}
+.sc-star{background:none !important;border:0 !important;font-size:20px;padding:4px !important;min-width:36px;box-shadow:none !important;color:var(--muted) !important;}
+.sc-u{font-size:12px;color:var(--muted);} .sc-d{font-size:12.5px;text-align:right;}
+.sc-neg{color:var(--red);} .sc-pos{color:#16a34a;} .sc-ok{color:#16a34a;}
+.sc-foot{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:12px;position:sticky;bottom:-1px;background:var(--bg-elev,var(--panel));padding:10px 0;}
+.sc-card{border:1px solid var(--border);border-radius:14px;padding:12px;margin-bottom:10px;background:var(--panel);} .sc-card.pend{border-color:#f59e0b;}
+.sc-st{font-size:12px;font-weight:700;padding:3px 8px;border-radius:999px;background:color-mix(in srgb,var(--muted) 15%,transparent);} .sc-st.pend{color:#f59e0b;} .sc-st.ok{color:#16a34a;} .sc-st.rej{color:var(--red);}
+.sc-t{width:100%;border-collapse:collapse;margin:8px 0;font-size:13px;} .sc-t th,.sc-t td{padding:5px 6px;border-bottom:1px solid var(--border);text-align:right;} .sc-t th:first-child,.sc-t td:first-child{text-align:left;}
+.sc-cfoot{gap:8px;flex-wrap:wrap;} .sc-acts{display:flex;gap:8px;}
+@media (max-width:600px){ .sc-row{grid-template-columns:auto minmax(0,1fr) 96px;} .sc-u{display:none;} .sc-d{grid-column:2 / 4;} }
