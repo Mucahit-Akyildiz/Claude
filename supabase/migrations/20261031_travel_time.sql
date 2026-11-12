@@ -268,3 +268,4 @@ alter table customers add column if not exists created_by uuid, add column if no
 -- 2026-11-11: transfer_to_open_account_early (hazırlanmadan açık hesaba aktarma; masa açık kalır).
 -- 2026-11-12: Peyktan voice_policy: tüm rolleri 'voice' modunda içeren 18 kural kaldırıldı (varsayılanla aynı sonuç, cihazları kilitliyordu).
 -- 2026-11-12: bulk_call: dizi parametresine JSON null gelirse NULL geçer (önce jsonb_array_elements_text 'cannot extract elements from a scalar' hatası veriyordu; sesli bildirim sütun anahtarı varsayılana dönerken).
+-- 2026-11-12: _nav_badges: _readypaid (ödemesi alınmış açık siparişin tüm ürünleri hazır, son 30 dk) -> sesli 'Sipariş hazır'; rozete sayılmaz.
