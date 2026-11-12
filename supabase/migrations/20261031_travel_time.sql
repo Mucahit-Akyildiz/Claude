@@ -272,3 +272,4 @@ alter table customers add column if not exists created_by uuid, add column if no
 -- 2026-11-12: set_public_order_wanted / set_payment_wanted: ileri saat en az 25 dk (hazırlık süresi; önce 10 dk).
 -- 2026-11-12: restaurants.online_lead_min (varsayılan 25, 5-180) + set_online_lead_min (int_online); get_public_payment_option.lead_min, get_restaurant_config.online_ordering.lead_min; set_public_order_wanted/set_payment_wanted işletmenin süresini kullanır.
 -- 2026-11-12: order_items.ticket_printed_at + claim_ticket_items(p_token, p_item_ids): otomatik mutfak fişi cihazlar arası tek basılır (sipariş veren cihaz / mutfak ekranı / arka plan).
+-- 2026-11-12: move_open_account_entry (hareketi başka açık hesaba taşı, nota iz) + update_open_account (ad/telefon/not); payments izni.
