@@ -346,7 +346,8 @@ function setSavedFcmToken(t){ try{ if(t) localStorage.setItem('rys_fcm_token', t
 /* Sipariş veren cihazda anında fiş (varsayılan açık); yazıcısı olmayan cihazda etkisiz. */
 function printEachItemEnabled(){ try{ return localStorage.getItem('rys_print_each_item') === '1'; }catch(e){ return false; } }
 function setPrintEachItem(on){ try{ localStorage.setItem('rys_print_each_item', on ? '1' : '0'); }catch(e){} showToast(on ? 'Mutfak fişlerinde her ürün ayrı fişe basılacak' : 'Mutfak fişleri tek fişte toplu basılacak'); }
-function printOnOrderEnabled(){ try{ return localStorage.getItem('rys_print_on_order') !== '0'; }catch(e){ return true; } }
+// Varsayılan kapalı: fişi mutfak ekranı / arka plan yazdırma basar; siparişi veren cihazda yalnızca elle açılınca basılır.
+function printOnOrderEnabled(){ try{ return localStorage.getItem('rys_print_on_order') === '1'; }catch(e){ return false; } }
 function setPrintOnOrder(on){ try{ localStorage.setItem('rys_print_on_order', on ? '1' : '0'); }catch(e){} showToast(on ? 'Sipariş verilince fiş bu cihazda yazdırılacak' : 'Sipariş fişi bu cihazda otomatik yazdırılmayacak'); }
 // Bu cihazda gerçekten sessiz yazdırabilen bir yazıcı tanımlı mı (masaüstü / USB / kiosk)?
 function deviceHasSilentPrinter(){
