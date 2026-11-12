@@ -30,12 +30,22 @@ function getVoicePrefs(){
   // Açık/kapalı işletme genelinde yöneticinin elinde (Ayarlar → Bildirim Ayarları); cihazda ses, hız ve türler ayarlanır.
   const out = { enabled: !(APP.config && APP.config.voice_enabled === false), rate: p.rate || 1, voiceName: p.voiceName || '', types: {} };
   VOICE_TYPES.forEach(t => { const v = (p.types || {})[t.id] || {}; out.types[t.id] = { sound: v.sound !== false, voice: v.voice != null ? !!v.voice : !['messages','other'].includes(t.id) }; });
+  // Bu cihazda tümü kapalı (kişisel): kilitli (yöneticinin kuralı) olmayan türler susar.
+  out.deviceOff = !!p.deviceOff;
+  if(out.deviceOff) Object.keys(out.types).forEach(k => { out.types[k] = { sound: false, voice: false }; });
   // Yöneticinin belirlediği kural (rol bazlı) cihaz ayarının önüne geçer.
   const mine = (APP.voicePolicy && APP.voicePolicy.mine) || {};
   Object.keys(mine).forEach(k => { if(!out.types[k]) return; const m = mine[k]; out.types[k] = { sound: m !== 'off', voice: m === 'voice', locked: m }; });
   return out;
 }
 function setVoicePrefs(p){ try{ localStorage.setItem(VOICE_KEY, JSON.stringify(p)); }catch(e){} }
+function setVoiceDevice(on){
+  let p = {}; try{ p = JSON.parse(localStorage.getItem(VOICE_KEY) || '{}') || {}; }catch(e){}
+  p.deviceOff = !on; setVoicePrefs(p);
+  const box = document.querySelector('.vn-dev'); const host = box && box.closest('.box');
+  if(host) host.outerHTML = voiceSettingsHtml();
+  showToast(on ? '🔊 Bu cihazda sesli bildirimler açıldı' : '🔇 Bu cihazda sesli bildirimler kapatıldı');
+}
 function setVoiceOpt(type, key, on){
   const p = getVoicePrefs();
   if(type==='*') p[key] = key==='rate' ? Number(on) || 1 : !!on;
@@ -416,13 +426,15 @@ function voiceSettingsHtml(){
     <h2>🗣️ Sesli Bildirimler</h2>
     <p class="u-tl muted">Her bildirim türü için bu cihazda <b>zil sesi</b> çalınsın mı ve bildirim <b>sesli okunsun</b> mu (ör. “12 numaralı masadan yeni sipariş geldi”) seçin. Mutfakta ${VOICE_LATE_MIN} dakikayı geçen ürünler “… dakikadır bekliyor” diye okunur ve hazır olana kadar 5 dakikada bir tekrarlanır.</p>
     ${p.enabled ? '' : `<div class="vn-off">🔇 Sesli bildirimler yönetici tarafından kapatıldı. ${getSession() && getSession().isManager ? 'Açmak için <b>Ayarlar → Bildirim Ayarları → Sesli Bildirimler</b>.' : 'Açılması için yöneticinize başvurun.'}</div>`}
-    <div style="display:flex;align-items:center;gap:10px;margin:10px 0 14px;flex-wrap:wrap;${p.enabled ? '' : 'opacity:.5;pointer-events:none;'}"><b>${p.enabled ? '✅ Sesli bildirimler açık' : 'Sesli bildirimler kapalı'}</b>
+    <div class="vn-dev ${p.deviceOff ? 'off' : ''}" style="${p.enabled ? '' : 'opacity:.5;pointer-events:none;'}"><label class="toggle-switch" title="Yalnız bu cihaz (bilgisayar / tablet / telefon)"><input type="checkbox" ${p.deviceOff ? '' : 'checked'} ${actOn('change','setVoiceDevice',['$checked'])}><span class="slider"></span></label>
+      <div><b>${p.deviceOff ? '🔇 Bu cihazda sesli bildirimler kapalı' : '🔊 Bu cihazda sesli bildirimler açık'}</b><small class="muted">Yalnızca bu cihazı etkiler; diğer cihazlar ve personel etkilenmez.${Object.values(p.types).some(t => t.locked) ? ' 🔒 işaretliler yöneticinin kuralıdır, kapanmaz.' : ''}</small></div></div>
+    <div style="display:flex;align-items:center;gap:10px;margin:10px 0 14px;flex-wrap:wrap;${p.enabled && !p.deviceOff ? '' : 'opacity:.5;pointer-events:none;'}"><b>${p.enabled ? 'Ayrıntılı ayarlar' : 'Sesli bildirimler kapalı'}</b>
       <span class="muted" style="margin-left:auto;font-size:12.5px;">Ses</span>${voiceSelectHtml()}
       <span class="u-fs125 muted">Hız</span>
       <select style="width:auto;" ${actOn('change','setVoiceOpt',['*','rate','$value'])}>
         ${[[0.8,'Yavaş'],[1,'Normal'],[1.2,'Hızlı']].map(([v,l]) => `<option value="${v}" ${p.rate==v?'selected':''}>${l}</option>`).join('')}
       </select></div>
-    <div class="vn-list" style="${p.enabled ? '' : 'opacity:.5;pointer-events:none;'}">
+    <div class="vn-list" style="${p.enabled && !p.deviceOff ? '' : 'opacity:.5;pointer-events:none;'}">
       <div class="vn-row vn-head"><span>Bildirim</span><span>Zil</span><span>Sesli Oku</span><span></span></div>
       ${VOICE_TYPES.map(t => `<div class="vn-row">
         <span>${t.ic} ${escapeHtml(t.label)}<small class="muted">“${escapeHtml(t.sample)}”</small></span>

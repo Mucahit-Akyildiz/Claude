@@ -941,7 +941,9 @@ async function setNotifRoleColumn(roleId, on){
       const allV = (APP.voicePolicy && APP.voicePolicy.all) || {};
       const todo = VOICE_TYPES.filter(t => voiceEffRoles(t.id).includes(roleId) !== on);
       (await bulkRpc('set_voice_policy', todo.map(t => { const pol = allV[t.id], cur = voiceEffRoles(t.id);
-        return { p_type: t.id, p_role_ids: on ? cur.concat(roleId) : cur.filter(x => x !== roleId), p_mode: pol ? pol.mode : 'voice' }; })))
+        const next = on ? cur.concat(roleId) : cur.filter(x => x !== roleId), allIds = (APP.config.roles || []).map(r => r.id);
+        const full = (!pol || pol.mode !== 'sound') && allIds.every(id => next.includes(id));
+        return { p_type: t.id, p_role_ids: full ? null : next, p_mode: full ? null : (pol ? pol.mode : 'voice') }; })))
         .forEach((r, k) => { if(r.error) errs.push(todo[k].label + ': ' + r.error.message); });
       await loadVoicePolicy();
     }
@@ -951,6 +953,9 @@ async function setNotifRoleColumn(roleId, on){
 }
 function setNotifRolesTab(t){ APP.notifRolesTab = t; drawNotifRoles(); }
 async function saveVoicePolicy(type, roles, mode){
+  // Bütün roller açıksa (sesli oku) kural gereksizdir ve cihazları kilitler: varsayılana dön, herkes kendi cihazında ayarlar.
+  const allIds = (APP.config.roles || []).map(r => r.id);
+  if(roles && mode !== 'sound' && allIds.length && allIds.every(id => roles.includes(id))){ roles = null; mode = null; }
   const { error } = await sb.rpc('set_voice_policy', { p_token: getSession().session_token, p_type: type, p_role_ids: roles, p_mode: mode });
   if(error){ alert(error.message); return; }
   await loadVoicePolicy(); drawNotifRoles(); showToast(roles ? 'Kaydedildi ✓' : 'Varsayılana döndü');
