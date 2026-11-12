@@ -129,9 +129,9 @@ async function refreshKitchenItems(session){
     Object.values(newItemsByTable).forEach(entry => {
       // Bu cihazda sipariş verilirken zaten basılan ürünler tekrar basılmaz.
       const printed = APP.locallyPrintedItemIds || new Set();
-      const toPrint = entry.items.filter(it => !printed.has(it.id));
-      if(!toPrint.length) return;
-      printKitchenTicketGrouped(entry.tableName, toPrint, true, entry.dailyNumber, entry.pkg, entry.tags)
+      const toPrint0 = entry.items.filter(it => !printed.has(it.id));
+      if(!toPrint0.length) return;
+      claimTicketItems(toPrint0).then(toPrint => toPrint.length ? printKitchenTicketGrouped(entry.tableName, toPrint, true, entry.dailyNumber, entry.pkg, entry.tags) : null)
         .catch(e => { console.error('Fiş yazdırma hatası:', e); showToast('⚠️ Fiş yazdırılırken beklenmeyen bir hata oluştu'); });
     });
   }

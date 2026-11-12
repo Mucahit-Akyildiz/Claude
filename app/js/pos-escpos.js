@@ -137,6 +137,17 @@ function reprintKitchenTicket(tableId){
 }
 /* Ürünleri istasyona göre gruplar, her istasyonun fişini o istasyona atanmış
    yazıcıya (atanmamışsa "Bu Ekranın Yazıcısı"na) ayrı ayrı gönderir. */
+/* Otomatik fiş: basmadan önce sunucudan "bu ürünleri ben basıyorum" onayı alınır; başka cihaz (sipariş veren cihaz,
+   başka mutfak ekranı, arka plan yazdırma) zaten bastıysa o ürünler atlanır. Sunucuya ulaşılamazsa fiş kaybolmasın diye hepsi basılır. */
+async function claimTicketItems(items){
+  const ids = (items || []).map(i => i.id).filter(Boolean); if(!ids.length) return items || [];
+  try{
+    const s = getSession(); if(!s) return items;
+    const { data, error } = await _sbRpcRaw('claim_ticket_items', { p_token: s.session_token, p_item_ids: ids });
+    if(error || !Array.isArray(data)) return items;
+    const ok = new Set(data); return items.filter(i => !i.id || ok.has(i.id));
+  }catch(e){ return items; }
+}
 async function printKitchenTicketGrouped(tableName, items, silent, dailyNumber, pkg, tags, single){
   const groups = {};
   // "Fişe gönderme" işaretli ürünler (Ayarlar → Ürünler → 🖨️ Fiş) yazdırılmaz.

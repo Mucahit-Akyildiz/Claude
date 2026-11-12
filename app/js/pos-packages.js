@@ -565,7 +565,7 @@ async function confirmOrder(tableId){
       const fresh = (o.items || []).filter(i => !prevItemIds.has(i.id) && i.status==='pending' && !APP.locallyPrintedItemIds.has(i.id));
       if(!fresh.length) return;
       fresh.forEach(i => APP.locallyPrintedItemIds.add(i.id));
-      printKitchenTicketGrouped(orderDisplayName(o), fresh, true, o.daily_number, pkgInfoFromOrder(o), o.tags || [])
+      claimTicketItems(fresh).then(ok => ok.length ? printKitchenTicketGrouped(orderDisplayName(o), ok, true, o.daily_number, pkgInfoFromOrder(o), o.tags || []) : null)
         .catch(e => { console.error('Fiş yazdırma hatası:', e); showToast('⚠️ Fiş yazdırılırken beklenmeyen bir hata oluştu'); });
     });
   }
