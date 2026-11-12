@@ -228,7 +228,22 @@ function onlineOrderingLinkHtml(){
 function onlineOrderModesHtml(){
   const cur = (APP.config.online_ordering && APP.config.online_ordering.modes) || 'both';
   return `<div class="oo-modes"><small class="muted">Sipariş türü</small><div class="seg">${[['both','🥡🛵 İkisi de'],['pickup','🥡 Sadece Gel-Al'],['delivery','🛵 Sadece Adrese Teslim']].map(([k, l]) =>
-    `<button type="button" class="${cur === k ? 'on' : ''}" ${act('setOnlineOrderModes', k)}>${l}</button>`).join('')}</div></div>${onlineSmsVerifyHtml()}`;
+    `<button type="button" class="${cur === k ? 'on' : ''}" ${act('setOnlineOrderModes', k)}>${l}</button>`).join('')}</div></div>${onlineLeadHtml()}${onlineSmsVerifyHtml()}`;
+}
+/* İleri saatli siparişte en erken süre (hazırlık + pişirme): müşteri "ileri bir saat" seçerken şimdiden bu kadar sonrasını seçebilir. */
+function onlineLeadHtml(){
+  const cur = Number((APP.config.online_ordering || {}).lead_min) || 25, opts = [10, 15, 20, 25, 30, 40, 45, 60, 90];
+  if(!opts.includes(cur)) opts.push(cur), opts.sort((a, b) => a - b);
+  return `<div class="oo-modes oo-lead"><small class="muted">⏳ İleri saatli siparişte en erken süre <span class="oo-lead-h">(hazırlık + pişirme)</span></small>
+    <div class="oo-lead-row"><select ${actOn('change','setOnlineLeadMin',['$value'])}>${opts.map(m => `<option value="${m}" ${m === cur ? 'selected' : ''}>${m} dakika sonrası</option>`).join('')}</select>
+    <small class="muted">Müşteri "ileri bir saat" seçerken en erken bu kadar sonrasını seçebilir. "En kısa sürede" etkilenmez.</small></div></div>`;
+}
+async function setOnlineLeadMin(v){
+  const m = parseInt(v, 10); if(!m) return;
+  const { error } = await withLoadingOverlay(sb.rpc('set_online_lead_min', { p_token: getSession().session_token, p_min: m }));
+  if(error){ alert(error.message); return; }
+  APP.config.online_ordering = Object.assign({}, APP.config.online_ordering, { lead_min: m });
+  showToast('⏳ En erken süre: ' + m + ' dakika ✓');
 }
 /* SMS doğrulama: açıksa müşteri sipariş vermeden önce telefonuna gelen 6 haneli kodu girer (işletmenin SMS hesabından, kredi harcar). */
 function onlineSmsVerifyHtml(){
