@@ -910,21 +910,23 @@ function notifRolesFor(type){
   const cfg = (APP.notifRoles || {})[type.k], roles = APP.config.roles || [];
   return Array.isArray(cfg) ? cfg : roles.filter(r => r.is_system || (r.permissions || []).includes(type.perm)).map(r => r.id);
 }
+// Sesli/zil: kural yoksa herkese gider (cihaz ayarı) → anahtarlar açık görünür; bir rol kapatılınca kural başlar.
+function voiceEffRoles(typeId){ const pol = ((APP.voicePolicy && APP.voicePolicy.all) || {})[typeId]; return pol ? (pol.roles || []) : (APP.config.roles || []).map(r => r.id); }
 function drawNotifRoles(){
   const box = document.getElementById('notifRolesBody'); if(!box) return;
   const roles = APP.config.roles || [], tab = APP.notifRolesTab || 'push';
   const allV = (APP.voicePolicy && APP.voicePolicy.all) || {};
-  const colOn = (rid) => tab === 'push' ? NOTIF_TYPES.every(t => notifRolesFor(t).includes(rid)) : VOICE_TYPES.every(t => ((allV[t.id] || {}).roles || []).includes(rid));
+  const colOn = (rid) => tab === 'push' ? NOTIF_TYPES.every(t => notifRolesFor(t).includes(rid)) : VOICE_TYPES.every(t => voiceEffRoles(t.id).includes(rid));
   const head = `<tr><th class="nm-type">Bildirim</th>${roles.map(r => { const on = colOn(r.id); return `<th><div class="nm-colh"><span>${escapeHtml(r.name)}</span><button type="button" role="switch" aria-checked="${on}" class="nm-sw nm-sw-sm ${on?'on':''}" title="${on?'Bu rolde tümünü kapat':'Bu rolde tümünü aç'}" ${act('setNotifRoleColumn', r.id, !on)}><i></i></button></div></th>`; }).join('')}<th></th></tr>`;
   const cell = (on, fn, k, rid) => `<td><button type="button" role="switch" aria-checked="${on}" class="nm-sw ${on?'on':''}" title="${on?'Açık — kapatmak için dokunun':'Kapalı — açmak için dokunun'}" ${act(fn, k, rid)}><i></i></button></td>`;
   const rowsPush = NOTIF_TYPES.map(t => { const sel = notifRolesFor(t), custom = Array.isArray((APP.notifRoles||{})[t.k]);
     return `<tr><td class="nm-type"><span class="nm-ic">${t.ic}</span><div><b>${t.t}</b><small>${t.d}</small></div></td>${roles.map(r => cell(sel.includes(r.id), 'toggleNotifRole', t.k, r.id)).join('')}
       <td class="nm-act">${custom ? `<button type="button" class="nm-reset" title="İzne göre varsayılana dön" ${act('resetNotifRoles', t.k)}>↺</button>` : ''}${sel.length ? '' : '<span class="nm-warn" title="Kimseye gitmez">⚠️</span>'}</td></tr>`; }).join('');
-  const rowsVoice = VOICE_TYPES.map(t => { const pol = allV[t.id], sel = pol ? (pol.roles || []) : [];
-    return `<tr class="${pol?'':'nm-def'}"><td class="nm-type"><span class="nm-ic">${t.ic}</span><div><b>${escapeHtml(t.label)}</b><small>${pol ? '' : 'Varsayılan · her cihaz kendi ayarı'}</small></div></td>${roles.map(r => cell(sel.includes(r.id), 'toggleVoicePolicyRole', t.id, r.id)).join('')}
+  const rowsVoice = VOICE_TYPES.map(t => { const pol = allV[t.id], sel = voiceEffRoles(t.id);
+    return `<tr class="${pol?'':'nm-def'}"><td class="nm-type"><span class="nm-ic">${t.ic}</span><div><b>${escapeHtml(t.label)}</b><small>${pol ? (sel.length ? '' : '⚠️ Kimsede çalmaz') : 'Herkese · sesli/zil her cihazın kendi ayarına göre'}</small></div></td>${roles.map(r => cell(sel.includes(r.id), 'toggleVoicePolicyRole', t.id, r.id)).join('')}
       <td class="nm-act">${pol ? `<select class="nm-mode" ${actOn('change','setVoicePolicyMode',[t.id,'$value'])}><option value="voice" ${pol.mode!=='sound'?'selected':''}>🗣️ Sesli oku</option><option value="sound" ${pol.mode==='sound'?'selected':''}>🔔 Sadece zil</option></select><button type="button" class="nm-reset" title="Varsayılana dön" ${act('resetVoicePolicy', t.id)}>↺</button>` : ''}</td></tr>`; }).join('');
   box.innerHTML = `<div class="seg nm-tabs">${[['push','📱 Push bildirimleri'],['voice','🔊 Sesli ve zilli']].map(([k, l]) => `<button type="button" class="${tab===k?'on':''}" ${act('setNotifRolesTab', k)}>${l}</button>`).join('')}</div>
-    <p class="muted nm-help">${tab==='push' ? 'Telefona / masaüstüne gidecek bildirimler. Kutucuğa tıklayarak o role açıp kapatın; değişiklik hemen kaydedilir. Ekrandaki kırmızı rozetler yetkisi olan herkese görünmeye devam eder.' : 'Uygulama açıkken çalan zil ve sesli okuma. Bir role işaret koyduğunuzda kural başlar: işaretli rollerde seçtiğiniz şekilde (sesli / zil) çalar, diğerlerinde sessizdir ve personel bunu değiştiremez. ↺ ile varsayılana (cihaz ayarı) dönülür.'}</p>
+    <p class="muted nm-help">${tab==='push' ? 'Telefona / masaüstüne gidecek bildirimler. Kutucuğa tıklayarak o role açıp kapatın; değişiklik hemen kaydedilir. Ekrandaki kırmızı rozetler yetkisi olan herkese görünmeye devam eder.' : 'Uygulama açıkken çalan zil ve sesli okuma. Açık rollerde çalar, kapattığınız rollerde sessizdir (personel değiştiremez). Hiç dokunulmamış satırlar herkese açıktır; sesli mi zil mi olacağını her cihaz kendi ayarından seçer. ↺ ile bu varsayılana dönülür.'}</p>
     <div class="nm-wrap"><table class="nm-table">${head}${tab==='push' ? rowsPush : rowsVoice}</table></div>`;
 }
 /* Sütun anahtarı: o rol için tüm bildirimleri birden açar / kapatır. */
@@ -937,8 +939,8 @@ async function setNotifRoleColumn(roleId, on){
         if(r.error) errs.push(x.t.t + ': ' + r.error.message); else APP.notifRoles = Object.assign({}, APP.notifRoles, { [x.t.k]: x.next }); });
     } else {
       const allV = (APP.voicePolicy && APP.voicePolicy.all) || {};
-      const todo = VOICE_TYPES.filter(t => { const pol = allV[t.id]; return (pol ? (pol.roles || []) : []).includes(roleId) !== on; });
-      (await bulkRpc('set_voice_policy', todo.map(t => { const pol = allV[t.id], cur = pol ? (pol.roles || []) : [];
+      const todo = VOICE_TYPES.filter(t => voiceEffRoles(t.id).includes(roleId) !== on);
+      (await bulkRpc('set_voice_policy', todo.map(t => { const pol = allV[t.id], cur = voiceEffRoles(t.id);
         return { p_type: t.id, p_role_ids: on ? cur.concat(roleId) : cur.filter(x => x !== roleId), p_mode: pol ? pol.mode : 'voice' }; })))
         .forEach((r, k) => { if(r.error) errs.push(todo[k].label + ': ' + r.error.message); });
       await loadVoicePolicy();
@@ -955,7 +957,7 @@ async function saveVoicePolicy(type, roles, mode){
 }
 function toggleVoicePolicyRole(type, roleId){
   const pol = ((APP.voicePolicy && APP.voicePolicy.all) || {})[type];
-  const cur = pol ? (pol.roles || []) : [], next = cur.includes(roleId) ? cur.filter(x => x !== roleId) : cur.concat(roleId);
+  const cur = voiceEffRoles(type), next = cur.includes(roleId) ? cur.filter(x => x !== roleId) : cur.concat(roleId);
   saveVoicePolicy(type, next, pol ? pol.mode : 'voice');
 }
 function setVoicePolicyMode(type, mode){ const pol = ((APP.voicePolicy && APP.voicePolicy.all) || {})[type]; saveVoicePolicy(type, pol ? pol.roles || [] : [], mode); }
