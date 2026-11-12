@@ -237,16 +237,17 @@ function applyLocalStockDelta(productId, delta){
     const touchedIngredientIds = new Set();
     prod.recipe.forEach(r => {
       const ing = APP.config.ingredients.find(i => i.id===r.ingredient_id);
-      if(ing){ ing.stock -= r.qty_per_unit*delta; touchedIngredientIds.add(ing.id); }
+      if(ing){ ing.stock -= (r.gross_qty ?? r.qty_per_unit)*delta; touchedIngredientIds.add(ing.id); }
     });
     APP.config.products.forEach(p => {
       if(!p.recipe || !p.recipe.some(r => touchedIngredientIds.has(r.ingredient_id))) return;
       let minQty = null;
       p.recipe.forEach(r => {
-        if(r.qty_per_unit<=0) return;
+        const per = r.gross_qty ?? r.qty_per_unit; // sunucu (adjust_stock / available_qty) brüt miktarı kullanır
+        if(!(per > 0)) return;
         const ing = APP.config.ingredients.find(i => i.id===r.ingredient_id);
         if(!ing) return;
-        const q = Math.floor(ing.stock / r.qty_per_unit);
+        const q = Math.floor(ing.stock / per);
         if(minQty===null || q<minQty) minQty = q;
       });
       p.available_qty = minQty;
@@ -256,12 +257,18 @@ function applyLocalStockDelta(productId, delta){
   }
 }
 let _configResyncTimer = null;
+let _stockPending = 0, _stockSeq = 0;
 function scheduleConfigResync(tableId){
   clearTimeout(_configResyncTimer);
   _configResyncTimer = setTimeout(async () => {
     const session = getSession();
     if(!session) return;
-    await refreshConfigKeepDraft(session);
+    // Hâlâ sunucuya giden stok düşümü varsa ya da bu arada yeni tıklama olduysa eski sayı ekrana basılmaz.
+    if(_stockPending > 0){ scheduleConfigResync(tableId); return; }
+    const seq = _stockSeq;
+    const { data } = await sb.rpc('get_restaurant_config', { p_token: session.session_token });
+    if(seq !== _stockSeq || _stockPending > 0 || !data) return;
+    APP.config = data;
     const bg = document.getElementById('tableModalBg');
     if(bg && bg.dataset.tableId===tableId){
       const activeTab = document.querySelector('#prodStationTabs .tab.active');
@@ -290,7 +297,9 @@ function addToDraft(tableId, productId, noExtrasPrompt){
   renderProductPick(null, tableId);
   // Sepete ekleme ekranda anında görünür; stok düşümü arka planda sunucuya gönderilir.
   const session = getSession();
+  _stockPending++; _stockSeq++;
   sb.rpc('adjust_stock', { p_token: session.session_token, p_product_id: productId, p_delta: -1 }).then(({error}) => {
+    _stockPending--;
     if(!error){ scheduleConfigResync(tableId); return; }
     if(isNetworkError(error)){
       // Çevrimdışı: ürün sepette kalır, stoğu sipariş gönderilirken ayrılır (bkz. offline.js).
@@ -324,7 +333,8 @@ async function changeDraftQty(tableId, idx, delta){
   renderProductPick(null, tableId);
   if(serverDelta === 0) return;
   const session = getSession();
-  const { error } = await sb.rpc('adjust_stock', { p_token: session.session_token, p_product_id: productId, p_delta: -serverDelta });
+  _stockPending++; _stockSeq++;
+  const { error } = await Promise.resolve(sb.rpc('adjust_stock', { p_token: session.session_token, p_product_id: productId, p_delta: -serverDelta })).finally(() => { _stockPending--; });
   if(error && isNetworkError(error)){
     if(serverDelta > 0){ const it = APP.draftCart[tableId].find(i => i.product_id===productId); if(it) it.unreserved = (it.unreserved || 0) + serverDelta; }
     else queueStockReturn(productId, -serverDelta);

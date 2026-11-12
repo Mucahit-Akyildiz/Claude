@@ -274,3 +274,4 @@ alter table customers add column if not exists created_by uuid, add column if no
 -- 2026-11-12: order_items.ticket_printed_at + claim_ticket_items(p_token, p_item_ids): otomatik mutfak fişi cihazlar arası tek basılır (sipariş veren cihaz / mutfak ekranı / arka plan).
 -- 2026-11-12: move_open_account_entry (hareketi başka açık hesaba taşı, nota iz) + update_open_account (ad/telefon/not); payments izni.
 -- 2026-11-12: open_accounts.customer_id + open_account_for_customer(p_token,p_name,p_phone): müşteriyi bul/ekle, hesabını bul/bağla/aç.
+-- 2026-11-12: get_restaurant_config ürünleri sabit sırada (order by p.name, p.id) döner; ekranda yer değişmesi giderildi.
