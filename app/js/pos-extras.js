@@ -197,6 +197,26 @@ async function refreshOrderLiveStatus(session){
    her istek için her turda tekrar tekrar toast bildirimi gösterilir -
    personel onaylayana/reddedene kadar (tek seferlik değil, bilinçli
    olarak) - böylece başka bir ekranda olsa bile QR siparişini kaçırmaz. */
+/* Müşteri sipariş istekleri (QR / online): kartlı, bekleme süresi renkli, telefon maskeli. */
+function corBannerHtml(rows){
+  const now = Date.now(), hm = (t) => new Date(t).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
+  const card = (r) => {
+    const mins = Math.max(0, Math.floor((now - new Date(r.created_at).getTime()) / 60000)), lvl = mins >= 10 ? 'late' : mins >= 5 ? 'warn' : 'new';
+    const type = r.table_name ? ['🪑', escapeHtml(r.table_name), 'table'] : r.order_type === 'delivery' ? ['🛵', 'Teslimat', 'dl'] : ['🥡', 'Gel-Al', 'pk'];
+    const items = r.items || [], total = items.reduce((x, it) => x + (Number(it.price) || 0) * (Number(it.qty) || 0), 0);
+    return `<div class="cor-card cor-${lvl}">
+      <div class="cor-top"><span class="cor-type cor-t-${type[2]}">${type[0]} ${type[1]}</span><span class="cor-age" title="Geliş ${hm(r.created_at)}">⏱ ${mins ? mins + ' dk' : 'şimdi'}</span></div>
+      ${r.customer_name ? `<div class="cor-name">${escapeHtml(r.customer_name)}</div>` : ''}
+      <div class="cor-meta">${r.customer_phone ? `<span>📞 ${escapeHtml(maskPhone(r.customer_phone))}</span>` : ''}${r.delivery_address ? `<span class="cor-addr">📍 ${escapeHtml(r.delivery_address)}</span>` : ''}</div>
+      ${r.wanted_at || r.payment_status === 'paid' ? `<div class="cor-chips">${r.wanted_at ? `<span class="cor-chip when">🕒 ${r.order_type === 'delivery' ? 'Teslim' : 'Alış'} ${hm(r.wanted_at)}</span>` : ''}${r.payment_status === 'paid' ? `<span class="cor-chip paid">💳 Online ödendi${r.paid_amount ? ' · ' + money(r.paid_amount) : ''}</span>` : ''}</div>` : ''}
+      <div class="cor-items">${items.map(it => `<div class="cor-it"><span><b>${Number(it.qty) || 1}×</b> ${escapeHtml(it.name || '?')}${it.note ? `<small>📝 ${escapeHtml(it.note)}</small>` : ''}</span>${it.price != null ? `<em>${money((Number(it.price) || 0) * (Number(it.qty) || 0))}</em>` : ''}</div>`).join('')}</div>
+      ${total ? `<div class="cor-total"><span>Toplam</span><b>${money(total)}</b></div>` : ''}
+      <div class="cor-acts"><button type="button" class="cor-ok" ${act('approveCustomerRequest', r.id)}>✅ Onayla</button><button type="button" class="cor-no" title="Reddet" ${act('rejectCustomerRequest', r.id)}>✕ Reddet</button></div>
+    </div>`;
+  };
+  return `<section class="cor-wrap"><div class="cor-head"><span class="cor-pulse"></span><h2>📱 Onay bekleyen müşteri siparişleri</h2><span class="cor-n">${rows.length}</span></div>
+    <div class="cor-grid">${rows.map(card).join('')}</div></section>`;
+}
 function customerRequestLabel(r){
   if(r.table_name) return escapeHtml(r.table_name);
   return r.order_type==='delivery' ? '🛵 Teslimat' : '🥡 Gel-Al';
@@ -213,26 +233,7 @@ async function refreshCustomerOrderRequests(session){
     const isPkgB = banner.dataset.kind === 'pkg';
     const allRows = APP.customerRequests || [];
     { const rows = allRows.filter(r => isPkgB ? !r.table_name : !!r.table_name);
-    banner.innerHTML = rows.length===0 ? '' : `<div class="box" style="max-width:none;border-color:var(--accent);background:rgba(0,143,168,.08);">
-    <h2 class="u-mb8">📱 Müşteri Sipariş İstekleri (${rows.length})</h2>
-    ${rows.map(r => `
-      <div style="padding:8px 0;border-top:1px dashed var(--border);">
-        <div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;">
-          <b style="overflow-wrap:anywhere;word-break:break-word;">${customerRequestLabel(r)}${r.customer_name?' · '+escapeHtml(r.customer_name):''}</b>
-          <span class="u-fs12 muted">${new Date(r.created_at).toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'})}</span>
-        </div>
-        ${r.payment_status==='paid' ? `<div style="margin-top:4px;"><span class="pchip" style="background:color-mix(in srgb,var(--ok,#22c55e) 18%,transparent);color:var(--ok,#16a34a);font-weight:800;">💳 Online ödendi${r.paid_amount ? ' · ' + money(r.paid_amount) : ''}</span></div>` : ''}
-        ${(r.customer_phone||r.delivery_address) ? `<div class="muted" style="font-size:12px;margin-top:2px;overflow-wrap:anywhere;word-break:break-word;">${r.customer_phone?'📞 '+escapeHtml(r.customer_phone):''}${r.customer_phone&&r.delivery_address?' · ':''}${r.delivery_address?'📍 '+escapeHtml(r.delivery_address):''}</div>` : ''}
-        ${r.wanted_at ? `<div class="cor-when">🕒 ${r.order_type==='delivery' ? 'Teslim' : 'Alış'} saati: <b>${new Date(r.wanted_at).toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'})}</b></div>` : ''}
-        <div style="font-size:13px;margin-top:4px;">
-          ${r.items.map(it => `${it.qty}x ${escapeHtml(it.name||'?')}${it.note?' <span class="muted">('+escapeHtml(it.note)+')</span>':''}`).join(', ')}
-        </div>
-        <div style="margin-top:8px;">
-          <button class="sbtn" style="background:var(--green);color:var(--btn-ink);" ${act('approveCustomerRequest', r.id)}>✅ Onayla</button>
-          <button class="sbtn" style="background:var(--red);color:var(--btn-ink);" ${act('rejectCustomerRequest', r.id)}>✕ Reddet</button>
-        </div>
-      </div>`).join('')}
-  </div>`; }
+    banner.innerHTML = rows.length===0 ? '' : corBannerHtml(rows); }
   }
   // Sipariş Al ekranındaki şerit görünür olsa bile bildirim AYRICA gösterilir
   // (ekran arka planda/simge durumunda/başka monitörde olabilir - şerit
@@ -240,7 +241,7 @@ async function refreshCustomerOrderRequests(session){
   if(rows.length>0){
     const labels = rows.map(r => (r.table_name || (r.order_type==='delivery'?'Teslimat':r.order_type==='pickup'?'Gel-Al':'Masa')) + (r.customer_name?' · '+r.customer_name:''));
     const shown = labels.slice(0,3).join(', ') + (labels.length>3 ? ' ve ' + (labels.length-3) + ' tane daha' : '');
-    showToast('📱 Onay bekleyen müşteri sipariş isteği: ' + shown, 20000, null, () => goToView(rows.some(r => r.table_name) ? 'order' : 'packages'), true);
+    showToast('📱 Onay bekleyen müşteri sipariş isteği: ' + shown, 20000, null, () => goToView(rows.some(r => r.table_name) ? 'order' : 'packages'), true, 'cor');
   }
 }
 /* Sipariş Al ekranına girilmese bile QR sipariş isteklerinin fark
