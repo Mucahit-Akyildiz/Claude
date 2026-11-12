@@ -150,7 +150,9 @@ async function bgPrintTick(){
       if(!fresh.length || first) continue; // ilk açılışta mevcut siparişler basılmaz, yalnız yenileri
       fresh.forEach(i => APP.locallyPrintedItemIds.add(i.id));
       const tDet = Date.now(), tAdd = Date.parse(fresh[0].added_at || fresh[0].created_at || '') || tDet;
-      try{ await printKitchenTicketGrouped(typeof orderDisplayName === 'function' ? orderDisplayName(o) : (o.table_name || ''), fresh, true, o.daily_number, typeof pkgInfoFromOrder === 'function' ? pkgInfoFromOrder(o) : null, o.tags || []); }
+      const mine = typeof claimTicketItems === 'function' ? await claimTicketItems(fresh) : fresh;
+      if(!mine.length) continue;
+      try{ await printKitchenTicketGrouped(typeof orderDisplayName === 'function' ? orderDisplayName(o) : (o.table_name || ''), mine, true, o.daily_number, typeof pkgInfoFromOrder === 'function' ? pkgInfoFromOrder(o) : null, o.tags || []); }
       catch(e){ console.error('Arka plan fiş hatası', e); }
       // Teşhis: fiş 4 sn'den geç çıktıysa nerede beklediği kaydedilir (Admin → Hatalar).
       const tEnd = Date.now();
