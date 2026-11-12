@@ -269,3 +269,4 @@ alter table customers add column if not exists created_by uuid, add column if no
 -- 2026-11-12: Peyktan voice_policy: tüm rolleri 'voice' modunda içeren 18 kural kaldırıldı (varsayılanla aynı sonuç, cihazları kilitliyordu).
 -- 2026-11-12: bulk_call: dizi parametresine JSON null gelirse NULL geçer (önce jsonb_array_elements_text 'cannot extract elements from a scalar' hatası veriyordu; sesli bildirim sütun anahtarı varsayılana dönerken).
 -- 2026-11-12: _nav_badges: _readypaid (ödemesi alınmış açık siparişin tüm ürünleri hazır, son 30 dk) -> sesli 'Sipariş hazır'; rozete sayılmaz.
+-- 2026-11-12: set_public_order_wanted / set_payment_wanted: ileri saat en az 25 dk (hazırlık süresi; önce 10 dk).
