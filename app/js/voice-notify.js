@@ -424,6 +424,7 @@ const VOICE_TYPE_VIEW = { kitchen:'kitchen', late:'kitchen', qr:'order', online:
 function voiceDesktopNotify(type, list){
   try{
     if(!document.hidden && document.hasFocus()) return;
+    if(typeof pushOptedOut === 'function' && pushOptedOut()) return; // bu cihazda bildirimler kapatıldı
     if(!('Notification' in window) || Notification.permission !== 'granted') return;
     const t = VOICE_TYPES.find(x => x.id===type) || {};
     const n = new Notification('Peyktan · ' + (t.label || 'Bildirim'), { body: voiceTextFor(type, list), icon: '/assets/images/logo.webp', tag: 'peyk-' + type, renotify: true });

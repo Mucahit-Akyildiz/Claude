@@ -99,8 +99,12 @@ function money(n){ return (Math.round((n||0)*100)/100).toLocaleString('tr-TR',{m
    ayırt ediliyor.
    'Peyktan' başlıklı isletim sistemi bildirimi tiklaninca pencereyi one
    getirir (window.electronAPI.focusWindow) ve varsa onClick'i cagirir. */
+/* Bu cihazda bildirimler kapatıldı mı (Bildirimler › Push'ta "Kapat"): otomatik yeniden abonelik ve masaüstü bildirim kutuları da kapanır. */
+function pushOptedOut(){ try{ return localStorage.getItem('peyk_push_off') === '1'; }catch(e){ return false; } }
+function setPushOptOut(on){ try{ if(on) localStorage.setItem('peyk_push_off', '1'); else localStorage.removeItem('peyk_push_off'); }catch(e){} }
 function notifyDesktop(msg, onClick){
   if(!(window.electronAPI && window.electronAPI.isElectron)) return;
+  if(pushOptedOut()) return;
   if(!('Notification' in window)) return;
   const fire = () => {
     const n = new Notification('Peyktan', { body: msg, icon: '/assets/images/logo.webp' });
