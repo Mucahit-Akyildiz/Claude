@@ -1269,6 +1269,11 @@ begin
   else
     return null;
   end if;
+  -- Telefonla bulunamadıysa, aynı adla telefonsuz kaydedilmiş müşteriye telefon eklenir (ikinci kayıt açılmaz).
+  if v_id is null and length(v_digits) >= 7 then
+    select id into v_id from customers where restaurant_id = p_rest and lower(name) = lower(v_name) and coalesce(regexp_replace(phone, '\D', '', 'g'), '') = '' limit 1;
+    if v_id is not null then update customers set phone = btrim(p_phone) where id = v_id; end if;
+  end if;
   if v_id is null then
     insert into customers (restaurant_id, name, phone) values (p_rest, v_name, nullif(btrim(coalesce(p_phone,'')), '')) returning id into v_id;
   end if;
@@ -1835,6 +1840,15 @@ begin
       where o.restaurant_id = r and o.status = 'open' and oi.status = 'ready' and not oi.paid and o.kind <> 'waitlist'
         and not exists(select 1 from order_items p2 where p2.order_id = o.id and p2.status = 'pending' and not p2.paid)) x;
     v := v || jsonb_build_object('payments', jsonb_array_length(arr)); it := it || jsonb_build_object('payments', arr);
+    -- Ödemesi önceden alınmış (hazırlanmadan ödeme / online ödeme) açık siparişlerin ürünleri hazır olunca: sesli "sipariş hazır" (rozete sayılmaz).
+    select coalesce(jsonb_agg(jsonb_build_object('id', x.id, 'label', x.label, 'kind', 'ready', 'table', x.tname)), '[]') into arr from (
+      select o.id, coalesce(t.name, '📦 ' || coalesce(o.customer_name, 'Paket #' || o.daily_number)) label, coalesce(t.name, 'Paket ' || coalesce(o.customer_name, '')) tname
+      from orders o left join restaurant_tables t on t.id = o.table_id
+      where o.restaurant_id = r and o.status = 'open' and o.kind <> 'waitlist'
+        and exists(select 1 from order_items i where i.order_id = o.id)
+        and not exists(select 1 from order_items i where i.order_id = o.id and (not i.paid or i.status <> 'ready'))
+        and (select max(i.ready_at) from order_items i where i.order_id = o.id) > now() - interval '30 minutes') x;
+    v := v || jsonb_build_object('_readypaid', arr);
   end if;
   if (v_mgr or 'reservations' = any(v_perms)) then
     select coalesce(jsonb_agg(x.j), '[]') into arr from (
@@ -5565,7 +5579,7 @@ begin
       k := v_names[i]; t := v_types[i-1];
       continue when k = 'p_token' or not (v_item ? k);
       if (select typcategory from pg_type where oid = t) = 'A' then
-        v_parts := v_parts || format('%I => (select coalesce(array_agg(x), ''{}'') from jsonb_array_elements_text($2->%L) x)::%s', k, k, format_type(t, null));
+        v_parts := v_parts || format('%I => (case when jsonb_typeof($2->%L) = ''array'' then (select coalesce(array_agg(x), ''{}'') from jsonb_array_elements_text($2->%L) x) end)::%s', k, k, k, format_type(t, null));
       else
         v_parts := v_parts || format('%I => ($2->>%L)::%s', k, k, format_type(t, null));
       end if;
@@ -5824,6 +5838,29 @@ begin
     returning j.id, j.payload, sp.printer_local_id, j.created_at)
   select coalesce(json_agg(json_build_object('id', id, 'payload', payload, 'printer_id', printer_local_id) order by created_at), '[]'::json) into res from picked;
   return res;
+end $$;
+
+
+--
+-- Name: claim_ticket_items(uuid, uuid[]); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.claim_ticket_items(p_token uuid, p_item_ids uuid[]) RETURNS uuid[]
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+declare s staff_sessions%rowtype; v uuid[];
+begin
+  s := _session_check(p_token, null);
+  if coalesce(array_length(p_item_ids, 1), 0) = 0 then return '{}'; end if;
+  with u as (
+    update order_items oi set ticket_printed_at = now()
+      from orders o
+     where oi.order_id = o.id and o.restaurant_id = s.restaurant_id
+       and oi.id = any(p_item_ids[1:300]) and oi.ticket_printed_at is null
+    returning oi.id)
+  select coalesce(array_agg(id), '{}') into v from u;
+  return v;
 end $$;
 
 
@@ -8849,7 +8886,8 @@ CREATE FUNCTION public.get_public_payment_option(p_restaurant_code text) RETURNS
     'mode', coalesce((select case when t.pay_provider = 'iyzico' and t.pay_api_key is not null and t.pay_secret is not null then t.pay_mode else 'off' end
                       from tenant_integrations t join restaurants r on r.id = t.restaurant_id where r.code = p_restaurant_code), 'off'),
     'order_modes', coalesce((select online_order_modes from restaurants where code = p_restaurant_code), 'both'),
-    'sms_verify', coalesce((select online_sms_verify from restaurants where code = p_restaurant_code), false));
+    'sms_verify', coalesce((select online_sms_verify from restaurants where code = p_restaurant_code), false),
+    'lead_min', coalesce((select online_lead_min from restaurants where code = p_restaurant_code), 25));
 $$;
 
 
@@ -9142,7 +9180,7 @@ begin
         'recipe', coalesce(rc.recipe, '[]'::json),
         'packaging', (select coalesce(json_agg(json_build_object('ingredient_id', pp.ingredient_id, 'qty', pp.qty, 'ingredient_name', i.name, 'ingredient_unit', i.unit, 'unit_cost', i.unit_cost)), '[]'::json)
           from product_packaging pp join ingredients i on i.id = pp.ingredient_id where pp.product_id = p.id),
-        'available_qty', rc.available_qty)), '[]'::json)
+        'available_qty', rc.available_qty) order by p.name, p.id), '[]'::json)
       from products p
       left join lateral (
         select json_agg(json_build_object('ingredient_id', pi.ingredient_id, 'qty_per_unit', round(pi.qty_per_unit * (1 - i.waste_pct/100), 6), 'gross_qty', pi.qty_per_unit, 'waste_pct', i.waste_pct,
@@ -9162,7 +9200,7 @@ begin
     'loyalty', json_build_object('enabled', r.loyalty_enabled, 'spend_per_point', r.loyalty_spend_per_point, 'point_value', r.loyalty_point_value, 'birthday_discount_percent', r.birthday_discount_percent, 'tiers', r.loyalty_tiers),
     'tip_pool', json_build_object('enabled', r.tip_pool_enabled, 'mode', r.tip_pool_mode),
     'google_review_url', case when 'google_reviews' = any(v_feat) then r.google_review_url end,
-    'online_ordering', json_build_object('enabled', r.online_ordering_enabled, 'code', r.code, 'modes', r.online_order_modes, 'sms_verify', r.online_sms_verify, 'sms_ready', coalesce(r.sms_enabled, false)),
+    'online_ordering', json_build_object('enabled', r.online_ordering_enabled, 'code', r.code, 'modes', r.online_order_modes, 'sms_verify', r.online_sms_verify, 'sms_ready', coalesce(r.sms_enabled, false), 'lead_min', r.online_lead_min),
     'ticket_design', r.ticket_design,
     'guest_reminder', r.guest_reminder,
     'voice_enabled', r.voice_enabled,
@@ -11213,6 +11251,31 @@ end $$;
 
 
 --
+-- Name: move_open_account_entry(uuid, uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.move_open_account_entry(p_token uuid, p_entry_id uuid, p_to_account uuid) RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+declare s staff_sessions%rowtype; e open_account_entries%rowtype; v_from text; v_to text; v_user text;
+begin
+  s := _session_check(p_token, 'payments');
+  select * into e from open_account_entries where id = p_entry_id and restaurant_id = s.restaurant_id for update;
+  if e.id is null then raise exception 'Hareket bulunamadı'; end if;
+  if e.account_id = p_to_account then raise exception 'Hareket zaten bu hesapta'; end if;
+  select name into v_to from open_accounts where id = p_to_account and restaurant_id = s.restaurant_id;
+  if v_to is null then raise exception 'Hedef hesap bulunamadı'; end if;
+  select name into v_from from open_accounts where id = e.account_id;
+  select username into v_user from app_users where id = s.user_id;
+  update open_account_entries
+     set account_id = p_to_account,
+         note = left(concat_ws(' · ', nullif(note, ''), '↪ ' || coalesce(v_from, '?') || ' hesabından taşındı (' || coalesce(v_user, '') || ', ' || to_char(now() at time zone 'Europe/Istanbul', 'DD.MM.YYYY HH24:MI') || ')'), 300)
+   where id = e.id;
+end $$;
+
+
+--
 -- Name: move_table_order(uuid, uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -11301,6 +11364,37 @@ begin
   perform _send_sms(s.restaurant_id, w.phone, _sms_text(s.restaurant_id, 'waitlist_ready', v_name || ': Masaniz hazir! Lutfen girise gelin.', jsonb_build_object('isletme', v_name, 'ad', w.customer_name, 'kisi', w.party_size)), 'waitlist_ready');
   perform _send_mail_event(s.restaurant_id, coalesce(w.email, _cust_email_by_phone(s.restaurant_id, w.phone)), 'wl_ready', jsonb_build_object('isletme', v_name, 'ad', w.customer_name, 'kisi', w.party_size),
     v_name || ' - Masanız hazır', 'Masanız hazır', '<p>Merhaba ' || replace(replace(coalesce(w.customer_name,''),'<','&lt;'),'>','&gt;') || ',</p><p>Masanız hazır! Lütfen girişe gelin.</p>');
+end $$;
+
+
+--
+-- Name: open_account_for_customer(uuid, text, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.open_account_for_customer(p_token uuid, p_name text, p_phone text) RETURNS uuid
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+declare s record; v_cid uuid; v_acc uuid; c record; v_d text;
+begin
+  select * into s from _session_check(p_token, 'payments');
+  v_cid := _ensure_customer(s.restaurant_id, p_name, p_phone, true);
+  if v_cid is null then raise exception 'Kişi adı gerekli'; end if;
+  select * into c from customers where id = v_cid;
+  select id into v_acc from open_accounts where restaurant_id = s.restaurant_id and customer_id = v_cid and is_active order by created_at limit 1;
+  if v_acc is null then
+    v_d := right(regexp_replace(coalesce(c.phone,''), '\D', '', 'g'), 10);
+    select id into v_acc from open_accounts where restaurant_id = s.restaurant_id and is_active and customer_id is null
+      and ((length(v_d) >= 7 and right(regexp_replace(coalesce(phone,''), '\D', '', 'g'), 10) = v_d) or lower(btrim(name)) = lower(btrim(c.name)))
+      order by created_at limit 1;
+    if v_acc is not null then
+      update open_accounts set customer_id = v_cid, phone = coalesce(nullif(phone,''), c.phone) where id = v_acc;
+    else
+      insert into open_accounts (restaurant_id, name, phone, created_by, customer_id)
+        values (s.restaurant_id, c.name, c.phone, s.user_id, v_cid) returning id into v_acc;
+    end if;
+  end if;
+  return v_acc;
 end $$;
 
 
@@ -13977,6 +14071,22 @@ end; $$;
 
 
 --
+-- Name: set_online_lead_min(uuid, integer); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.set_online_lead_min(p_token uuid, p_min integer) RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+declare s staff_sessions%rowtype;
+begin
+  s := _session_check(p_token, 'int_online');
+  if p_min is null or p_min < 5 or p_min > 180 then raise exception 'Süre 5 ile 180 dakika arasında olmalı'; end if;
+  update restaurants set online_lead_min = p_min where id = s.restaurant_id;
+end $$;
+
+
+--
 -- Name: set_online_order_modes(uuid, text); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -14199,8 +14309,11 @@ CREATE FUNCTION public.set_payment_wanted(p_payment_id uuid, p_minutes integer) 
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public', 'pg_temp'
     AS $$
+declare v_min int;
 begin
-  if p_minutes is null or p_minutes < 10 or p_minutes > 600 then raise exception 'Geçersiz saat (en az 10 dakika, en fazla 10 saat sonrası)'; end if;
+  select coalesce(r.online_lead_min, 25) into v_min from online_payments op join restaurants r on r.id = op.restaurant_id where op.id = p_payment_id;
+  v_min := coalesce(v_min, 25);
+  if p_minutes is null or p_minutes < v_min or p_minutes > 600 then raise exception 'Hazırlık süresi nedeniyle en erken % dakika sonrası seçilebilir (en fazla 10 saat)', v_min; end if;
   update online_payments set payload = payload || jsonb_build_object('wanted_at', now() + make_interval(mins => p_minutes))
    where id = p_payment_id and status = 'pending' and created_at > now() - interval '10 minutes' and not (payload ? 'wanted_at');
   return found;
@@ -14362,8 +14475,11 @@ CREATE FUNCTION public.set_public_order_wanted(p_request_id uuid, p_minutes inte
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public', 'pg_temp'
     AS $$
+declare v_min int;
 begin
-  if p_minutes is null or p_minutes < 10 or p_minutes > 600 then raise exception 'Geçersiz saat (en az 10 dakika, en fazla 10 saat sonrası)'; end if;
+  select coalesce(r.online_lead_min, 25) into v_min from customer_order_requests c join restaurants r on r.id = c.restaurant_id where c.id = p_request_id;
+  v_min := coalesce(v_min, 25);
+  if p_minutes is null or p_minutes < v_min or p_minutes > 600 then raise exception 'Hazırlık süresi nedeniyle en erken % dakika sonrası seçilebilir (en fazla 10 saat)', v_min; end if;
   update customer_order_requests set wanted_at = now() + make_interval(mins => p_minutes)
    where id = p_request_id and status = 'pending' and wanted_at is null and created_at > now() - interval '2 minutes';
   return found;
@@ -14961,6 +15077,8 @@ begin
       update orders set status = 'cancelled' where id = v_order;
     end if;
   end if;
+  -- Masaya yazılan kişi Müşteriler'e de kaydedilir (telefonsuzsa adla eşleşir).
+  if v_name is not null then perform _ensure_customer(s.restaurant_id, v_name, v_phone, true); end if;
   return json_build_object('order_id', v_order);
 end; $$;
 
@@ -16335,6 +16453,26 @@ begin
   update restaurants set online_ordering_enabled = coalesce(p_enabled,false) where id = s.restaurant_id;
 end;
 $$;
+
+
+--
+-- Name: update_open_account(uuid, uuid, text, text, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.update_open_account(p_token uuid, p_id uuid, p_name text, p_phone text, p_note text) RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+declare s staff_sessions%rowtype;
+begin
+  s := _session_check(p_token, 'payments');
+  if length(trim(coalesce(p_name, ''))) < 2 then raise exception 'Ad en az 2 karakter olmalı'; end if;
+  if exists(select 1 from open_accounts where restaurant_id = s.restaurant_id and id <> p_id and lower(trim(name)) = lower(trim(p_name))) then
+    raise exception 'Bu adda başka bir açık hesap var'; end if;
+  update open_accounts set name = left(trim(p_name), 80), phone = nullif(left(trim(coalesce(p_phone, '')), 20), ''), note = nullif(left(trim(coalesce(p_note, '')), 200), '')
+   where id = p_id and restaurant_id = s.restaurant_id;
+  if not found then raise exception 'Hesap bulunamadı'; end if;
+end $$;
 
 
 --
@@ -18182,7 +18320,8 @@ CREATE TABLE public.open_accounts (
     note text,
     created_by uuid,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
-    is_active boolean DEFAULT true NOT NULL
+    is_active boolean DEFAULT true NOT NULL,
+    customer_id uuid
 );
 
 
@@ -18224,7 +18363,8 @@ CREATE TABLE public.order_items (
     ready_notified_at timestamp with time zone,
     packed boolean DEFAULT false NOT NULL,
     pack_applied boolean DEFAULT false NOT NULL,
-    pack_cost numeric DEFAULT 0 NOT NULL
+    pack_cost numeric DEFAULT 0 NOT NULL,
+    ticket_printed_at timestamp with time zone
 );
 
 
@@ -18789,8 +18929,10 @@ CREATE TABLE public.restaurants (
     online_resv_from time without time zone DEFAULT '11:00:00'::time without time zone NOT NULL,
     online_resv_to time without time zone DEFAULT '23:00:00'::time without time zone NOT NULL,
     campaign_templates jsonb DEFAULT '[]'::jsonb NOT NULL,
+    online_lead_min integer DEFAULT 25 NOT NULL,
     CONSTRAINT restaurants_day_end_hour_check CHECK (((day_end_hour >= 0) AND (day_end_hour <= 23))),
     CONSTRAINT restaurants_default_vat_rate_check CHECK (((default_vat_rate >= (0)::numeric) AND (default_vat_rate <= (100)::numeric))),
+    CONSTRAINT restaurants_online_lead_min_check CHECK (((online_lead_min >= 5) AND (online_lead_min <= 180))),
     CONSTRAINT restaurants_online_order_modes_chk CHECK ((online_order_modes = ANY (ARRAY['both'::text, 'pickup'::text, 'delivery'::text])))
 );
 
@@ -21054,6 +21196,13 @@ CREATE INDEX open_accounts_created_by_idx ON public.open_accounts USING btree (c
 
 
 --
+-- Name: open_accounts_customer_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX open_accounts_customer_idx ON public.open_accounts USING btree (customer_id);
+
+
+--
 -- Name: open_accounts_restaurant_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -22483,6 +22632,14 @@ ALTER TABLE ONLY public.open_account_entries
 
 ALTER TABLE ONLY public.open_accounts
     ADD CONSTRAINT open_accounts_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.app_users(id) ON DELETE SET NULL;
+
+
+--
+-- Name: open_accounts open_accounts_customer_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.open_accounts
+    ADD CONSTRAINT open_accounts_customer_id_fkey FOREIGN KEY (customer_id) REFERENCES public.customers(id) ON DELETE SET NULL;
 
 
 --
