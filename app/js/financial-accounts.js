@@ -76,13 +76,52 @@ async function showOpenAccEntries(id){
             <div class="cu-id"><b>${ch ? 'Hesaba yazıldı' + (e.item_count ? ' · ' + e.item_count + ' ürün' : '') : 'Tahsilat' + (e.method ? ' (' + (e.method==='cash'?'Nakit':e.method==='card'?'Kart':escapeHtml(e.method)) + ')' : '')}</b>
               <small>${new Date(e.created_at).toLocaleString('tr-TR', { day:'numeric', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' })}${e.table_name ? ' · ' + escapeHtml(e.table_name) : ''}${e.staff ? ' · ' + escapeHtml(e.staff) : ''}${e.note ? ' · ' + escapeHtml(e.note) : ''}</small></div>
             <b class="oa-amt">${ch ? '+' : '−'}${money(e.amount)}</b>
+            <button type="button" class="pc-btn oad-move" title="Bu hareketi başka kişinin hesabına taşı" ${act('moveOaEntry', e.id, a.id)}>↪ Taşı</button>
             ${e.sales_history_id ? `<button type="button" class="pc-btn oad-toggle" ${act('toggleOaSale', e.sales_history_id, 'oas_'+i)}>🧾 Ürünler</button><div class="oad-items" id="oas_${i}" hidden></div>` : ''}
           </div>`; }).join('')}</div>` : '<div class="empty-state"><div style="font-size:34px;">🕘</div><p class="muted">Hareket yok.</p></div>'}
       </div>
-      <div class="pdrawer-foot">${debt ? `<button type="button" ${act('collectOpenAccount', a.id)}>₺ Tahsilat Al</button>` : ''}<button type="button" class="ghost-btn" ${act('removeEl','oaEntriesModalBg')}>Kapat</button></div>
+      <div class="pdrawer-foot">${debt ? `<button type="button" ${act('collectOpenAccount', a.id)}>₺ Tahsilat Al</button>` : ''}<button type="button" class="ghost-btn" ${act('editOpenAccount', a.id)}>✏️ Kişiyi düzenle</button><button type="button" class="ghost-btn" ${act('removeEl','oaEntriesModalBg')}>Kapat</button></div>
     </aside>`;
   document.body.appendChild(w);
   requestAnimationFrame(() => w.classList.add('open'));
+}
+/* Yanlış kişiye yazılan hareketi başka hesaba taşı. */
+function oaModal(title, inner, okText, onOk){
+  removeEl('oaEditBg');
+  const bg = document.createElement('div'); bg.id = 'oaEditBg'; bg.className = 'modal-bg'; bg.style.zIndex = 4200;
+  bg.onclick = (e) => { if(e.target === bg) bg.remove(); };
+  bg.innerHTML = `<div class="box oa-edit"><div class="u-row-sb"><h2 class="u-m0">${title}</h2><span class="u-xclose" ${act('removeEl','oaEditBg')}>✕</span></div>${inner}
+    <div class="oa-edit-acts"><button type="button" class="ghost-btn" ${act('removeEl','oaEditBg')}>Vazgeç</button><button type="button" id="oaEditOk">${okText}</button></div></div>`;
+  document.body.appendChild(bg);
+  document.getElementById('oaEditOk').addEventListener('click', onOk);
+}
+async function moveOaEntry(entryId, fromId){
+  const accs = ((APP.openAccReport || {}).accounts || []).filter(x => x.id !== fromId).sort((x, y) => String(x.name).localeCompare(String(y.name), 'tr'));
+  const from = ((APP.openAccReport || {}).accounts || []).find(x => x.id === fromId) || {};
+  if(!accs.length){ uiAlert('Taşınabilecek başka açık hesap yok. Önce Ödemeler ekranından doğru kişi için açık hesap oluşturun.'); return; }
+  oaModal('↪ Hareketi taşı', `<p class="muted u-tl" style="margin:8px 0 12px;"><b>${escapeHtml(from.name || '')}</b> hesabındaki bu hareket seçtiğiniz kişinin hesabına taşınır. Bakiyeler kendiliğinden düzelir; taşıma, kim yaptığıyla birlikte hareketin notuna yazılır.</p>
+    <label class="u-tl" style="display:block;font-weight:700;margin-bottom:6px;">Doğru kişi</label>
+    <select id="oaMoveTo"><option value="">— Hesap seçin —</option>${accs.map(x => `<option value="${x.id}">${escapeHtml(x.name)}${x.phone ? ' · ' + escapeHtml(maskPhone(x.phone)) : ''}</option>`).join('')}</select>`, '↪ Taşı', async () => {
+    const to = (document.getElementById('oaMoveTo') || {}).value; if(!to){ uiAlert('Taşınacak hesabı seçin'); return; }
+    const { error } = await withLoadingOverlay(sb.rpc('move_open_account_entry', { p_token: getSession().session_token, p_entry_id: entryId, p_to_account: to }));
+    if(error){ uiAlert(error.message); return; }
+    removeEl('oaEditBg'); removeEl('oaEntriesModalBg');
+    showToast('↪ Hareket ' + ((accs.find(x => x.id === to) || {}).name || '') + ' hesabına taşındı');
+    await renderOpenAccountsContent(getSession()); showOpenAccEntries(to);
+  });
+}
+/* Açık hesabın kişi bilgisini düzelt (ad, telefon, not). */
+function editOpenAccount(id){
+  const a = ((APP.openAccReport || {}).accounts || []).find(x => x.id === id); if(!a) return;
+  oaModal('✏️ Kişiyi düzenle', `<div class="oa-edit-f"><label>Ad soyad</label><input id="oaEdName" value="${escapeAttr(a.name || '')}" maxlength="80">
+    <label>Telefon</label><input id="oaEdPhone" value="${escapeAttr(a.phone || '')}" maxlength="20" inputmode="tel" placeholder="05XX XXX XX XX">
+    <label>Not</label><input id="oaEdNote" value="${escapeAttr(a.note || '')}" maxlength="200" placeholder="isteğe bağlı"></div>`, '💾 Kaydet', async () => {
+    const { error } = await withLoadingOverlay(sb.rpc('update_open_account', { p_token: getSession().session_token, p_id: id,
+      p_name: document.getElementById('oaEdName').value, p_phone: document.getElementById('oaEdPhone').value, p_note: document.getElementById('oaEdNote').value }));
+    if(error){ uiAlert(error.message); return; }
+    removeEl('oaEditBg'); removeEl('oaEntriesModalBg'); showToast('✏️ Kişi bilgisi güncellendi');
+    await renderOpenAccountsContent(getSession()); showOpenAccEntries(id);
+  });
 }
 /* Açık hesap hareketinin sipariş kalemlerini panelin içinde açar/kapatır. */
 async function toggleOaSale(historyId, boxId){
