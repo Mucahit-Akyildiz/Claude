@@ -4664,3 +4664,15 @@ select.ss-hidden{display:none !important;}
 .oa-edit-f label{display:block;font-weight:700;font-size:13px;margin:6px 0 4px;}
 .oa-edit-acts{display:flex;gap:8px;justify-content:flex-end;margin-top:8px;} .oa-edit-acts button{width:auto;margin:0;}
 .oad-move{font-size:12px !important;}
+/* Yatay tablet (1000–1366px): bilgisayardaki gibi 3 sütun — ürünler | masa & müşteri | sipariş, hepsi tam boy. */
+@media (min-width:1000px) and (max-width:1366px){
+  .order-modal.om-pkg .order-modal-grid{grid-template-columns:minmax(0,1fr) 250px 290px;grid-template-rows:minmax(0,1fr);gap:12px;}
+  .order-modal.om-pkg .order-modal-menu{grid-row:auto;}
+  .order-modal.om-pkg .order-modal-info{max-height:none;min-height:0;}
+  .order-modal.om-pkg .pp-wrap.has-cats{display:flex;flex-direction:column;gap:10px;}
+  .order-modal.om-pkg .pp-wrap.has-cats > *{min-width:0;width:100%;}
+  .order-modal.om-pkg .pp-wrap.has-cats > .pp-cats{display:flex;flex-direction:row;flex:0 0 auto;max-height:none;overflow-x:auto;overflow-y:hidden;gap:6px;padding:4px;}
+  .order-modal.om-pkg .pp-cats .pp-cat{flex:0 0 auto;width:auto;min-height:44px;}
+  .order-modal.om-pkg .pp-cats .pp-cat-t span{white-space:nowrap;}
+  .order-modal.om-pkg .pp-grid{grid-template-columns:repeat(auto-fill,minmax(138px,1fr)) !important;}
+}
