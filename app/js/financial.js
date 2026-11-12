@@ -1083,6 +1083,14 @@ async function downloadAccountingExport(){
    Son fiyat bir önceki alışla karşılaştırılır; ortalama, en düşük / en yüksek ve güncel ağırlıklı ortalama maliyet. --- */
 async function renderPurchasePricesContent(session){
   const el = document.getElementById('reportContent'); if(!el) return;
+  // Alış fiyatları tek günde çoğu zaman boş kalır: tek gün seçiliyse varsayılan son 30 gün.
+  if(!APP.reportDateTo || APP.reportDateTo === APP.reportDate){
+    const to = new Date(), from = new Date(to); from.setDate(from.getDate() - 29);
+    const fmt = (d) => d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+    APP.reportDate = fmt(from); APP.reportDateTo = fmt(to);
+    const fi = document.getElementById('reportDateInput'); if(fi) fi.value = APP.reportDate;
+    const ti = document.getElementById('reportDateToInput'); if(ti) ti.value = APP.reportDateTo;
+  }
   const { data, error } = await withLoadingOverlay(sb.rpc('get_purchase_prices', { p_token: session.session_token, p_date: APP.reportDate, p_date_to: APP.reportDateTo }));
   if(error){ el.innerHTML = '<p class="muted">Yüklenemedi: ' + escapeHtml(error.message) + '</p>'; return; }
   APP.ppRows = data || []; renderPurchasePricesView();
