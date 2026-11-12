@@ -388,6 +388,13 @@ function processVoiceBadges(data, visibleViews){
     const maxMin = Math.max(...late.map(x => x.lateMin || VOICE_LATE_MIN));
     showToast('⏰ ' + names.slice(0, 3).join(', ') + (names.length > 3 ? ' ve ' + (names.length - 3) + ' ürün daha' : '') + ' ' + maxMin + ' dakikayı geçti!', 30000, null, () => goToView('kitchen'), true);
   }
+  // Paket teslim uyarısı iki yerden gelir (rozet listesi + paket/mutfak ekranı): aynı paket için daha acil bir
+  // aşama söylendiyse daha az acil olan bir daha söylenmez (önce "son 15", sonra "son 30" okunuyordu).
+  if(fresh.pkgsoon){
+    if(!(APP.pkgWarned instanceof Map)) APP.pkgWarned = new Map();
+    fresh.pkgsoon = fresh.pkgsoon.filter(x => { const st = pkgDeadlineStage(Number(x.left)); if(!st || (APP.pkgWarned.get(x.id) || 0) >= st) return false; APP.pkgWarned.set(x.id, st); return true; });
+    if(!fresh.pkgsoon.length) delete fresh.pkgsoon;
+  }
   const first = !VOICE_SEEN;
   VOICE_SEEN = ids;
   // Uygulama ilk açıldığında eski bildirimler okunmaz; ama 15 dk içindeki rezervasyon yine hatırlatılır.
