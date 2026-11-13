@@ -76,7 +76,7 @@ async function refreshKitchenItems(session){
     // En uzun bekleyen sipariş önce: kart, içindeki en eski bekleyen ürünün zamanına göre sıralanır.
     const oldest = Math.min(...pending.map(it => it.added_at ? new Date(it.added_at).getTime() : Infinity));
     // Teslim/alış saati olan paket: renk geçen süreye değil teslime kalan süreye göre (20+ yeşil, 10–20 sarı, 10 altı kırmızı).
-    const dl = o.kind === 'takeaway' && o.pickup_at ? (typeof pkgKitchenDeadline === 'function' ? pkgKitchenDeadline(o) : new Date(o.pickup_at).getTime()) : null;
+    const dl = kitchenDeadline(o);
     cards.push({ at: isFinite(oldest) ? oldest : Infinity, dl, html: `<div class="kitchen-card" data-order-id="${o.order_id}">
       <div class="kc-age"><i data-age-from="${isFinite(oldest) ? new Date(oldest).toISOString() : ''}"${dl ? ` data-deadline="${new Date(dl).toISOString()}"` : ''}></i></div>
       <div class="kc-head">
@@ -185,6 +185,15 @@ function tableNameForId(tableId){
   }
   return 'Masa';
 }
+/* Kartın rengi/geri sayımı için hedef saat: paket teslim/alış, rezervasyon saati, bekleme listesinde tahmini oturma.
+   Hedef yoksa renk siparişten bu yana geçen süreye göre. */
+function kitchenDeadline(o){
+  if(!o) return null;
+  if(o.kind === 'takeaway' && o.pickup_at) return typeof pkgKitchenDeadline === 'function' ? pkgKitchenDeadline(o) : new Date(o.pickup_at).getTime();
+  if(o.kind === 'waitlist' && o.reservation_id && o.reservation && o.reservation.time) return new Date(o.reservation.time).getTime();
+  if(o.kind === 'waitlist' && o.waitlist && o.waitlist.quoted_wait_minutes && o.waitlist.joined_at) return new Date(o.waitlist.joined_at).getTime() + o.waitlist.quoted_wait_minutes * 60000;
+  return null;
+}
 /* Bekleme listesinden gelen sipariş: etiket + kişi sayısı + (süre verildiyse) tahmini oturma saati. */
 function waitlistInfoHtml(o){
   // Rezervasyon ön siparişi: rezervasyon saatine geri sayım.
@@ -253,6 +262,9 @@ function updateKitchenTimers(){
     const secs = Math.max(0, Math.floor((serverNow() - new Date(added).getTime())/1000));
     const mm = Math.floor(secs/60), ss = secs%60;
     el.textContent = mm + ':' + String(ss).padStart(2,'0');
+    // Hedef saatli sipariş (paket, rezervasyon, bekleme listesi): renk/uyarı geçen süreye göre değil, karttaki hedefe göre.
+    const hasDl = !!(el.closest('.kitchen-card') && el.closest('.kitchen-card').querySelector('.kc-age i[data-deadline]'));
+    if(hasDl){ el.classList.remove('kt-warn','kt-danger'); const r0 = el.closest('.kitchen-item-row'); if(r0) r0.classList.remove('ki-warn','ki-danger'); return; }
     // 0-10 dk yesil (varsayilan), 10-20 dk sari, 20 dk+ kirmizi.
     el.classList.toggle('kt-warn', secs>=600 && secs<1200);
     el.classList.toggle('kt-danger', secs>=1200);
@@ -279,7 +291,7 @@ function updateKitchenTimers(){
   }
   // Kartin arka plani, icindeki en gec kalmis urunun rengine gore hafifce tonlanir.
   document.querySelectorAll('.kitchen-card').forEach(card => {
-    if(card.querySelector('.kc-age i[data-deadline]')) return; // teslim saatli paket: rengi teslime kalan süre belirler
+    if(card.querySelector('.kc-age i[data-deadline]')) return; // hedef saatli sipariş: rengi hedefe kalan süre belirler
     const timers = card.querySelectorAll('.kitchen-timer');
     let worst = 'ok';
     timers.forEach(t => {
