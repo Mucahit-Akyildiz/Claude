@@ -143,7 +143,7 @@ function renderMenu(){
   const cardHtml = (list) => list.map(p => `
       <div class="product-card ${p.max_qty===0 && !STATE.cart[p.id]?'sold-out':''}">
         ${p.image ? `<img class="product-thumb" src="${p.image}" alt="" loading="lazy" ${act('zoomProductImage', p.image)}>` : ''}
-        <div class="product-name">${escapeHtml(productName(p))}${p.description ? `<div class="product-desc">${escapeHtml(p.description)}</div>` : ''}<div class="product-price">${money(p.price)}${p.max_qty!=null && p.max_qty>0 && p.max_qty<=5 ? ` · <span class="stock-left">${escapeHtml(stockTxt('left', p.max_qty))}</span>` : ''}</div></div>
+        <div class="product-name">${escapeHtml(productName(p))}${p.description ? `<div class="product-desc">${escapeHtml(p.description)}</div>` : ''}<div class="product-price">${money(p.price)}${p.max_qty!=null && p.max_qty>0 && p.max_qty<=10 ? ` · <span class="stock-left">${escapeHtml(stockTxt('left', p.max_qty))}</span>` : ''}</div></div>
         ${p.max_qty===0 && !STATE.cart[p.id] ? `<span class="sold-badge">${escapeHtml(stockTxt('sold'))}</span>` : canOrder ? `<button class="qty-btn" ${act('stepCart', p.id, -1)}>-</button>
         <span class="qty-val" id="qty_${p.id}">${STATE.cart[p.id]||0}</span>
         <button class="qty-btn" ${act('stepCart', p.id, 1)}>+</button>` : ''}
