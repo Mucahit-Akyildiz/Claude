@@ -2936,7 +2936,8 @@ CREATE FUNCTION public._role_permission_catalog(p_restaurant_id uuid) RETURNS js
     from (values ('reports','Finansal Analiz (raporlar)',1), ('printer_settings','Yazıcı Ayarları & Fiş Tasarımı',2), ('settings_roles','Ayarlar · Roller',3),
                  ('settings_billing','Ayarlar · Abonelik',4), ('settings_notifs','Ayarlar · Bildirim Ayarları (kime gitsin, hatırlatma, sesli)',6),
                  ('settings_reports','Ayarlar · Özet E-postaları',7), ('settings_allowances','Ayarlar · Limitli Hesaplar (limit verme, açma/kapama)',7), ('settings_datareset','Ayarlar · Veri Sıfırlama',8), ('users_assign_roles','Kullanıcı Yönetimi (ekleme, rol, pasife alma, silme)',9),
-                 ('shift_exempt','⏱ Vardiya Açmadan Çalışma',10), ('settings_support','Ayarlar · Destek Erişimi',11), ('settings_audit','Ayarlar · Değişiklik Kaydı',12)) v(id,label,sub)
+                 ('shift_exempt','⏱ Vardiya Açmadan Çalışma',10), ('settings_support','Ayarlar · Destek Erişimi',11), ('settings_audit','Ayarlar · Değişiklik Kaydı',12),
+                 ('stock_count','📋 Stok Sayımı (sayım girme)',13), ('approvals','✅ Onay Yetkisi (stok sayımı onayı vb.)',14)) v(id,label,sub)
     where v.id <> 'reports' or 'reports' = any(_restaurant_features(p_restaurant_id))
   ) x;
 $$;
@@ -3306,7 +3307,7 @@ begin
                    when p_required_permission = 'int_online' then 'online_ordering'
                    when p_required_permission in ('int_efatura','int_marketplace','int_accounting') then substr(p_required_permission, 5)
                    when p_required_permission like 'int\_%' then null
-                   when p_required_permission = 'settings_allowances' then null
+                   when p_required_permission in ('settings_allowances','stock_count','approvals') then null
                    else p_required_permission end;
     select features || included_addons into v_package_features from packages where id = v_package_id;
     if v_feat is not null and not (v_feat = any(coalesce(v_package_features, '{}'))) then
@@ -6456,6 +6457,31 @@ end $$;
 
 
 --
+-- Name: decide_stock_count(uuid, uuid, boolean, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.decide_stock_count(p_token uuid, p_id uuid, p_approve boolean, p_note text) RETURNS json
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+declare s staff_sessions%rowtype; c stock_counts%rowtype; n int := 0;
+begin
+  s := _session_check(p_token, 'approvals');
+  select * into c from stock_counts where id = p_id and restaurant_id = s.restaurant_id for update;
+  if c.id is null then raise exception 'Sayım bulunamadı'; end if;
+  if c.status <> 'pending' then raise exception 'Bu sayım zaten sonuçlandırılmış'; end if;
+  if p_approve then
+    update ingredients i set stock = coalesce(i.stock,0) + (l.counted_qty - l.system_qty)
+      from stock_count_lines l where l.count_id = c.id and i.id = l.ingredient_id and i.restaurant_id = s.restaurant_id and l.counted_qty <> l.system_qty;
+    get diagnostics n = row_count;
+  end if;
+  update stock_counts set status = case when p_approve then 'approved' else 'rejected' end, decided_by = s.user_id, decided_at = now(),
+    decide_note = nullif(btrim(coalesce(p_note,'')),'') where id = c.id;
+  return json_build_object('status', case when p_approve then 'approved' else 'rejected' end, 'adjusted', n);
+end $$;
+
+
+--
 -- Name: delete_account_with_credentials(text, text, text, text); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -9188,7 +9214,7 @@ begin
                floor(min(i.stock / pi.qty_per_unit) filter (where pi.qty_per_unit > 0)) available_qty
         from product_ingredients pi join ingredients i on i.id = pi.ingredient_id where pi.product_id = p.id) rc on true
       where p.restaurant_id = r.id),
-    'ingredients', (select coalesce(json_agg(json_build_object('id', id, 'name', name, 'unit', unit, 'stock', stock, 'waste_pct', waste_pct, 'min_stock', min_stock, 'unit_cost', unit_cost, 'pack_mode', pack_mode, 'purchase_units', purchase_units, 'piece_weight', piece_weight, 'prep_source_id', prep_source_id, 'prep_default', prep_default, 'free', _ing_is_free(id))), '[]'::json) from ingredients where restaurant_id = r.id and not archived),
+    'ingredients', (select coalesce(json_agg(json_build_object('id', id, 'name', name, 'unit', unit, 'stock', stock, 'waste_pct', waste_pct, 'min_stock', min_stock, 'unit_cost', unit_cost, 'pack_mode', pack_mode, 'purchase_units', purchase_units, 'piece_weight', piece_weight, 'prep_source_id', prep_source_id, 'prep_default', prep_default, 'count_daily', count_daily, 'free', _ing_is_free(id))), '[]'::json) from ingredients where restaurant_id = r.id and not archived),
     'users', (
       select coalesce(json_agg(json_build_object('id', au.id, 'username', au.username, 'role_ids', au.role_ids, 'is_active', au.is_active, 'phone', au.phone, 'email', au.email, 'has_pin', au.pin_hash is not null,
         'role_names', (select coalesce(array_agg(rl.name), '{}') from roles rl where rl.id = any(au.role_ids)))), '[]'::json)
@@ -10780,6 +10806,27 @@ begin
       where ss.restaurant_id = s.restaurant_id and ss.status = 'approved'
         and (ss.clock_in at time zone 'Europe/Istanbul')::date = p_date) t));
 end; $$;
+
+
+--
+-- Name: list_stock_counts(uuid, integer); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.list_stock_counts(p_token uuid, p_limit integer DEFAULT 30) RETURNS json
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+declare s staff_sessions%rowtype;
+begin
+  begin s := _session_check(p_token, 'approvals'); exception when others then s := _session_check(p_token, 'stock_count'); end;
+  return (select coalesce(json_agg(json_build_object('id', c.id, 'status', c.status, 'note', c.note, 'created_at', c.created_at,
+      'created_by', (select username from app_users where id = c.created_by), 'decided_by', (select username from app_users where id = c.decided_by),
+      'decided_at', c.decided_at, 'decide_note', c.decide_note, 'diff_value', c.diff_value,
+      'lines', (select coalesce(json_agg(json_build_object('ingredient_id', l.ingredient_id, 'name', i.name, 'unit', i.unit, 'system_qty', l.system_qty,
+          'counted_qty', l.counted_qty, 'diff', l.counted_qty - l.system_qty, 'unit_cost', l.unit_cost, 'now_stock', i.stock) order by i.name), '[]'::json)
+        from stock_count_lines l join ingredients i on i.id = l.ingredient_id where l.count_id = c.id)) order by c.created_at desc), '[]'::json)
+    from (select * from stock_counts where restaurant_id = s.restaurant_id order by created_at desc limit greatest(1, least(coalesce(p_limit,30), 200))) c);
+end $$;
 
 
 --
@@ -13818,6 +13865,22 @@ end $$;
 
 
 --
+-- Name: set_ingredient_count_daily(uuid, uuid[], boolean); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.set_ingredient_count_daily(p_token uuid, p_ids uuid[], p_on boolean) RETURNS integer
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+declare s staff_sessions%rowtype; n int;
+begin
+  s := _session_check(p_token, 'approvals');
+  update ingredients set count_daily = coalesce(p_on,false) where id = any(p_ids) and restaurant_id = s.restaurant_id;
+  get diagnostics n = row_count; return n;
+end $$;
+
+
+--
 -- Name: set_ingredient_min(uuid, uuid, numeric); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -16022,6 +16085,31 @@ end $$;
 
 
 --
+-- Name: submit_stock_count(uuid, jsonb, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.submit_stock_count(p_token uuid, p_lines jsonb, p_note text) RETURNS uuid
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+declare s staff_sessions%rowtype; v_id uuid; v_val numeric := 0; r record;
+begin
+  s := _session_check(p_token, 'stock_count');
+  if jsonb_typeof(p_lines) <> 'array' or jsonb_array_length(p_lines) = 0 then raise exception 'Sayılan kalem yok'; end if;
+  insert into stock_counts(restaurant_id, note, created_by) values (s.restaurant_id, nullif(btrim(coalesce(p_note,'')),''), s.user_id) returning id into v_id;
+  for r in select (x->>'ingredient_id')::uuid iid, (x->>'counted')::numeric cnt from jsonb_array_elements(p_lines) x loop
+    if r.cnt is null or r.cnt < 0 then raise exception 'Geçersiz sayım miktarı'; end if;
+    insert into stock_count_lines(count_id, ingredient_id, system_qty, counted_qty, unit_cost)
+      select v_id, i.id, coalesce(i.stock,0), r.cnt, i.unit_cost from ingredients i where i.id = r.iid and i.restaurant_id = s.restaurant_id and not i.archived;
+    if not found then raise exception 'Hammadde bulunamadı'; end if;
+  end loop;
+  select coalesce(sum((counted_qty - system_qty) * coalesce(unit_cost,0)),0) into v_val from stock_count_lines where count_id = v_id;
+  update stock_counts set diff_value = round(v_val,2) where id = v_id;
+  return v_id;
+end $$;
+
+
+--
 -- Name: switch_to_branch(uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -17992,6 +18080,7 @@ CREATE TABLE public.ingredients (
     archived boolean DEFAULT false NOT NULL,
     prep_source_id uuid,
     prep_default numeric,
+    count_daily boolean DEFAULT false NOT NULL,
     CONSTRAINT ingredients_pack_mode_check CHECK ((pack_mode = ANY (ARRAY['per_product'::text, 'per_order'::text]))),
     CONSTRAINT ingredients_stock_nonneg CHECK (((stock IS NULL) OR (stock >= (0)::numeric))),
     CONSTRAINT ingredients_waste_pct_chk CHECK (((waste_pct >= (0)::numeric) AND (waste_pct < (100)::numeric)))
@@ -19116,6 +19205,39 @@ CREATE TABLE public.stations (
     color text DEFAULT '#8b93a3'::text,
     icon text DEFAULT '🍳'::text NOT NULL,
     categories text[] DEFAULT '{}'::text[] NOT NULL
+);
+
+
+--
+-- Name: stock_count_lines; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.stock_count_lines (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    count_id uuid NOT NULL,
+    ingredient_id uuid NOT NULL,
+    system_qty numeric NOT NULL,
+    counted_qty numeric NOT NULL,
+    unit_cost numeric
+);
+
+
+--
+-- Name: stock_counts; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.stock_counts (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    restaurant_id uuid NOT NULL,
+    status text DEFAULT 'pending'::text NOT NULL,
+    note text,
+    created_by uuid,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    decided_by uuid,
+    decided_at timestamp with time zone,
+    decide_note text,
+    diff_value numeric DEFAULT 0 NOT NULL,
+    CONSTRAINT stock_counts_status_check CHECK ((status = ANY (ARRAY['pending'::text, 'approved'::text, 'rejected'::text])))
 );
 
 
@@ -20350,6 +20472,22 @@ ALTER TABLE ONLY public.stations
 
 
 --
+-- Name: stock_count_lines stock_count_lines_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.stock_count_lines
+    ADD CONSTRAINT stock_count_lines_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: stock_counts stock_counts_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.stock_counts
+    ADD CONSTRAINT stock_counts_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: suppliers suppliers_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -21515,6 +21653,20 @@ CREATE INDEX staff_shifts_restaurant_idx ON public.staff_shifts USING btree (res
 --
 
 CREATE INDEX staff_shifts_user_open_idx ON public.staff_shifts USING btree (user_id) WHERE (clock_out IS NULL);
+
+
+--
+-- Name: stock_count_lines_count_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX stock_count_lines_count_idx ON public.stock_count_lines USING btree (count_id);
+
+
+--
+-- Name: stock_counts_rest_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX stock_counts_rest_idx ON public.stock_counts USING btree (restaurant_id, created_at DESC);
 
 
 --
@@ -23163,6 +23315,30 @@ ALTER TABLE ONLY public.stations
 
 
 --
+-- Name: stock_count_lines stock_count_lines_count_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.stock_count_lines
+    ADD CONSTRAINT stock_count_lines_count_id_fkey FOREIGN KEY (count_id) REFERENCES public.stock_counts(id) ON DELETE CASCADE;
+
+
+--
+-- Name: stock_count_lines stock_count_lines_ingredient_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.stock_count_lines
+    ADD CONSTRAINT stock_count_lines_ingredient_id_fkey FOREIGN KEY (ingredient_id) REFERENCES public.ingredients(id) ON DELETE CASCADE;
+
+
+--
+-- Name: stock_counts stock_counts_restaurant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.stock_counts
+    ADD CONSTRAINT stock_counts_restaurant_id_fkey FOREIGN KEY (restaurant_id) REFERENCES public.restaurants(id) ON DELETE CASCADE;
+
+
+--
 -- Name: suppliers suppliers_restaurant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -23810,6 +23986,18 @@ ALTER TABLE public.staff_shifts ENABLE ROW LEVEL SECURITY;
 --
 
 ALTER TABLE public.stations ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: stock_count_lines; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.stock_count_lines ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: stock_counts; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.stock_counts ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: suppliers; Type: ROW SECURITY; Schema: public; Owner: -
