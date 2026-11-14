@@ -19,6 +19,7 @@ const VOICE_TYPES = [
   { id:'courier',      ic:'🛵', label:'Adrese teslim paket hazır, kuryeye verilmedi', sample:'Hakan Bey paketi hazır, kuryeye verilmedi' },
   { id:'pkgsoon',      ic:'⏱️', label:'Paket teslim saati (son 30 / 15 dk, geç kalıyor, geç kaldı)', sample:'Hakan Bey paketinin yola çıkışı için son 15 dakika, sipariş hâlâ hazırlanıyor' },
   { id:'reservations', ic:'📅', label:'Yeni rezervasyon / bekleme listesi', sample:'Yeni rezervasyon talebi var' },
+  { id:'shift',        ic:'🕐', label:'Vardiya başlatma / bitirme isteği', sample:'Izgara vardiya başlatmak istiyor' },
   { id:'messages',     ic:'💬', label:'Mesajlar', sample:'Yeni mesajınız var' },
   { id:'other',        ic:'🔔', label:'Diğer bildirimler', sample:'Yeni bildiriminiz var' },
 ];
@@ -266,6 +267,7 @@ function voiceTypeOf(view, x){
   if(view==='order') return k==='customer_request' ? (x.table ? 'qr' : 'online') : k==='waiter_call' ? 'waiter' : k==='idle_table' ? 'idle' : k==='no_guests' ? 'guests' : 'other';
   if(view==='payments') return k==='waiter_call' ? 'bill' : k==='ready' ? 'ready' : 'other';
   if(view==='packages') return k==='customer_request' ? 'online' : k==='not_dispatched' ? 'courier' : k==='pkg_deadline' ? 'pkgsoon' : 'other';
+  if(view==='settings' && /vardiya/.test(String(x && x.label || ''))) return 'shift';
   if(view==='reservations' || view==='messages') return view;
   return 'other';
 }
@@ -304,6 +306,7 @@ function voiceTextFor(type, items){
       if(x.kind === 'waitlist') return 'Bekleme listesine yeni misafir eklendi' + (name ? ': ' + name : '');
       return /onay bekliyor/.test(x.label || '') ? 'Yeni rezervasyon talebi var' + (name ? ', ' + name + ' adına' : '') : (name ? name + ' adına rezervasyon yaklaşıyor' : 'Rezervasyon yaklaşıyor');
     }).join('. ');
+    case 'shift': return items.map(x => String(x.label || '').replace(' · ', ' ')).join('. ') || 'Vardiya isteği var';
     case 'messages': return 'Yeni mesajınız var';
     case 'other': return items.length === 1 && items[0].label ? String(items[0].label).replace(/^\W+/u, '') : 'Yeni bildiriminiz var';
     case 'resvsoon': return items.map(x => {
