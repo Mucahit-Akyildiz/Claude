@@ -2066,6 +2066,34 @@ end; $$;
 
 
 --
+-- Name: _oa_charge_link_customer(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public._oa_charge_link_customer() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+declare v_cid uuid; h sales_history%rowtype;
+begin
+  if new.kind = 'charge' and new.sales_history_id is not null then
+    select customer_id into v_cid from open_accounts where id = new.account_id;
+    if v_cid is null then return new; end if;
+    select * into h from sales_history where id = new.sales_history_id;
+    if h.id is null or h.customer_id is not distinct from v_cid then return new; end if;
+    if h.customer_id is not null and tg_op <> 'UPDATE' then return new; end if;
+    -- Taşımada eski müşteriden düş, yeni müşteriye ekle (harcama / ziyaret / son ziyaret).
+    if h.customer_id is not null then
+      update customers set total_visits = greatest(coalesce(total_visits,0) - 1, 0), total_spent = greatest(coalesce(total_spent,0) - coalesce(h.total,0), 0) where id = h.customer_id;
+    end if;
+    update sales_history set customer_id = v_cid where id = h.id;
+    update customers set total_visits = coalesce(total_visits,0) + 1, total_spent = coalesce(total_spent,0) + coalesce(h.total,0),
+      last_visit_at = greatest(coalesce(last_visit_at, h.closed_at), coalesce(h.closed_at, now())) where id = v_cid;
+  end if;
+  return new;
+end $$;
+
+
+--
 -- Name: _order_item_kitchen_skip(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -21876,6 +21904,13 @@ CREATE TRIGGER customers_audit BEFORE INSERT OR UPDATE ON public.customers FOR E
 --
 
 CREATE TRIGGER customers_phone_changed BEFORE UPDATE OF phone ON public.customers FOR EACH ROW EXECUTE FUNCTION public._customers_phone_changed_trg();
+
+
+--
+-- Name: open_account_entries oa_charge_link_customer; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER oa_charge_link_customer AFTER INSERT OR UPDATE OF account_id ON public.open_account_entries FOR EACH ROW EXECUTE FUNCTION public._oa_charge_link_customer();
 
 
 --
