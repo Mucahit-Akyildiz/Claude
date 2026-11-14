@@ -85,6 +85,7 @@ async function refreshKitchenItems(session){
         <button type="button" class="kc-print" ${act('reprintKitchenTicket', o.order_id)} title="Fişi tekrar yazdır">🖨️</button>
       </div>
       <div class="kc-meta">${orderWaiters(o).length ? '<span>👤 ' + escapeHtml(orderWaiters(o).join(', ')) + '</span>' : ''}<span class="kc-since"></span><span class="kc-late-badge">⏰ GECİKTİ</span></div>
+      ${o.customer_name && o.kind !== 'takeaway' && o.kind !== 'waitlist' ? `<div class="kc-cust">🧑 ${escapeHtml(o.customer_name)}</div>` : ''}
       ${waitlistInfoHtml(o)}
       ${kitchenPickupHtml(o)}
       ${o.kind === 'takeaway' && o.note ? `<div class="kc-note kc-onote">📝 ${escapeHtml(o.note)}</div>` : ''}
