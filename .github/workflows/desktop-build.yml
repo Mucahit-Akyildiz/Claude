@@ -47,7 +47,10 @@ jobs:
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: peyktan-windows
-          path: desktop/dist/*.exe
+          path: |
+            desktop/dist/*.exe
+            desktop/dist/*.exe.blockmap
+            desktop/dist/latest.yml
 
   build-mac:
     runs-on: macos-latest
@@ -82,6 +85,8 @@ jobs:
         run: |
           mkdir out
           cp dl/peyktan-windows/*.exe out/Peyktan-Kurulum.exe
+          # Otomatik güncelleme: latest.yml + sürümlü kurulum dosyası + blockmap (electron-updater bunları okur).
+          cp dl/peyktan-windows/Peyktan-Kurulum-*.exe dl/peyktan-windows/*.blockmap dl/peyktan-windows/latest.yml out/
           cp dl/peyktan-mac/*.dmg out/Peyktan.dmg
           ls -la out
       - name: Masaüstü sürümünü güncelle (masaustu etiketi)
@@ -92,4 +97,6 @@ jobs:
           if ! gh release view masaustu >/dev/null 2>&1; then
             gh release create masaustu --title "Peyktan Masaüstü" --notes "Windows ve macOS kurulum dosyaları. peyktan.com/#indir" --latest=false
           fi
-          gh release upload masaustu out/Peyktan-Kurulum.exe out/Peyktan.dmg --clobber
+          # Önce sürümlü kurulum dosyası, en son latest.yml: uygulamalar dosya yüklenmeden yeni sürümü görmesin.
+          gh release upload masaustu out/Peyktan-Kurulum-*.exe out/*.blockmap out/Peyktan-Kurulum.exe out/Peyktan.dmg --clobber
+          gh release upload masaustu out/latest.yml --clobber

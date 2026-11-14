@@ -1,6 +1,6 @@
 {
   "name": "peyktan-desktop",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "Peyktan - Restoran Yönetim Sistemi Masaüstü Uygulaması",
   "main": "main.js",
   "author": "Peyktan",
@@ -29,7 +29,8 @@
       "icon": "build/icon.ico",
       "signtoolOptions": {
         "publisherName": "Peyktan"
-      }
+      },
+      "verifyUpdateCodeSignature": false
     },
     "nsis": {
       "oneClick": false,
@@ -53,6 +54,15 @@
     },
     "dmg": {
       "artifactName": "Peyktan-${version}.${ext}"
-    }
+    },
+    "publish": [
+      {
+        "provider": "generic",
+        "url": "https://github.com/Mucahit-Akyildiz/Claude/releases/download/masaustu"
+      }
+    ]
+  },
+  "dependencies": {
+    "electron-updater": "^6.6.2"
   }
 }
