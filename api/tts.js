@@ -4,6 +4,7 @@
 // Emel/Ahmet Neural). Anahtarlar yalnızca Vercel ortam değişkeninde. Anahtar yoksa
 // 503 döner ve istemci cihazın kendi sesine düşer. Oturum _session_check ile
 // doğrulanır; yanıtlar tarayıcıda önbelleğe alınır (aynı cümle tekrar ücretlenmez).
+const crypto = require('crypto');
 const { createClient } = require('@supabase/supabase-js');
 
 const VOICES = { emel: 'tr-TR-EmelNeural', ahmet: 'tr-TR-AhmetNeural' };
@@ -56,21 +57,33 @@ module.exports = async function handler(req, res) {
     const rate = Math.min(1.5, Math.max(0.7, Number(b.rate) || 1));
     if (!text || !b.token) { res.status(400).json({ error: 'Eksik bilgi' }); return; }
     const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
-    // Oturum + işletme başına günlük kota (ElevenLabs kredisini korur).
-    const { error: sErr } = await supabase.rpc('_tts_quota', { p_token: b.token });
-    if (sErr) { const quota = /Çok fazla/.test(sErr.message || ''); res.status(quota ? 429 : 403).json({ error: quota ? 'Günlük sesli bildirim kotası doldu' : 'Yetkisiz' }); return; }
-    if (eleven) {
+    // Oturum + işletmenin kendi ElevenLabs anahtarı (Entegrasyonlar › Sesli Bildirim).
+    const { data: ctx, error: cErr } = await supabase.rpc('_tts_ctx', { p_token: b.token });
+    if (cErr || !ctx) { res.status(403).json({ error: 'Yetkisiz' }); return; }
+    const ownKey = ctx.key || null, elevenKey = ownKey || eleven;
+    // Ortak önbellek: aynı cümle (ses + hız + metin) bir kez üretilir, tüm cihazlar ve sonraki günler buradan çalar.
+    const prov = elevenKey ? 'el' : 'az';
+    const hash = crypto.createHash('sha256').update([prov, b.voice || '', rate.toFixed(2), text].join('|')).digest('hex');
+    const path = (ownKey ? ctx.rid : 'shared') + '/' + hash + '.mp3';
+    const send = (buf) => { res.setHeader('Content-Type', 'audio/mpeg'); res.setHeader('Cache-Control', 'private, max-age=2592000'); res.status(200).send(buf); };
+    try { const { data: hit } = await supabase.storage.from('tts-cache').download(path); if (hit) { send(Buffer.from(await hit.arrayBuffer())); return; } } catch (e) { /* önbellek yoksa üret */ }
+    const store = (buf) => supabase.storage.from('tts-cache').upload(path, buf, { contentType: 'audio/mpeg', upsert: true }).catch(() => {});
+    // Platform anahtarında işletme başına günlük kota (yalnız yeni cümleler sayılır); kendi anahtarında kota yok.
+    if (!ownKey) {
+      const { error: sErr } = await supabase.rpc('_tts_quota', { p_token: b.token });
+      if (sErr) { const quota = /Çok fazla/.test(sErr.message || ''); res.status(quota ? 429 : 403).json({ error: quota ? 'Günlük sesli bildirim kotası doldu' : 'Yetkisiz' }); return; }
+    }
+    if (elevenKey) {
       // Hazır sesler (ortam değişkeniyle değiştirilebilir): kadın / erkek.
       const vid = ELEVEN_VOICES[b.voice] || (/^[A-Za-z0-9]{16,32}$/.test(String(b.voice || '')) ? b.voice : null) || (b.voice === 'ahmet' ? (process.env.ELEVENLABS_VOICE_MALE || ELEVEN_VOICES.adam) : (process.env.ELEVENLABS_VOICE_FEMALE || ELEVEN_VOICES.sarah));
       const r = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${vid}?output_format=mp3_44100_64`, {
         method: 'POST',
-        headers: { 'xi-api-key': eleven, 'Content-Type': 'application/json', Accept: 'audio/mpeg' },
+        headers: { 'xi-api-key': elevenKey, 'Content-Type': 'application/json', Accept: 'audio/mpeg' },
         body: JSON.stringify({ text, model_id: 'eleven_flash_v2_5', language_code: 'tr', voice_settings: { stability: 0.5, similarity_boost: 0.75, speed: Math.min(1.2, Math.max(0.7, rate)) } }),
       });
       if (!r.ok) { const t = await r.text(); console.error('elevenlabs tts', r.status, t.slice(0, 300)); res.status(502).json({ error: elevenErr(r.status, t) }); return; }
-      res.setHeader('Content-Type', 'audio/mpeg');
-      res.setHeader('Cache-Control', 'private, max-age=2592000');
-      res.status(200).send(Buffer.from(await r.arrayBuffer()));
+      const buf = Buffer.from(await r.arrayBuffer());
+      await store(buf); send(buf);
       return;
     }
     const ssml = `<speak version="1.0" xml:lang="tr-TR"><voice name="${voice}"><prosody rate="${Math.round((rate - 1) * 100)}%">${esc(text)}</prosody></voice></speak>`;
@@ -81,9 +94,7 @@ module.exports = async function handler(req, res) {
     });
     if (!r.ok) { res.status(502).json({ error: 'Ses üretilemedi (' + r.status + ')' }); return; }
     const buf = Buffer.from(await r.arrayBuffer());
-    res.setHeader('Content-Type', 'audio/mpeg');
-    res.setHeader('Cache-Control', 'private, max-age=2592000');
-    res.status(200).send(buf);
+    await store(buf); send(buf);
   } catch (e) {
     res.status(500).json({ error: 'Sunucu hatası' });
   }
