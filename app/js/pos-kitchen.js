@@ -87,6 +87,7 @@ async function refreshKitchenItems(session){
       <div class="kc-meta">${orderWaiters(o).length ? '<span>👤 ' + escapeHtml(orderWaiters(o).join(', ')) + '</span>' : ''}<span class="kc-since"></span><span class="kc-late-badge">⏰ GECİKTİ</span></div>
       ${waitlistInfoHtml(o)}
       ${kitchenPickupHtml(o)}
+      ${o.kind === 'takeaway' && o.note ? `<div class="kc-note kc-onote">📝 ${escapeHtml(o.note)}</div>` : ''}
       <div class="kc-items">
       ${kitchenGroupExtras(pending).map(({ it, extras }) => `<div class="kitchen-item-row kc-item">
         <span class="kc-qty">${it.qty}</span>
