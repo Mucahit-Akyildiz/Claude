@@ -633,7 +633,7 @@ function drawWinback(){
     <div class="wb-cards">${card('all', 0, '👥 Tüm müşteriler', b.all, 'var(--accent)')}${card('a', -1, 'Son 30 günde geldi', b.active, 'var(--green,#22c55e)')}${card('3', 30, '30–60 gündür yok', b.d30, '#f59e0b')}${card('6', 60, '60–90 gündür yok', b.d60, '#f97316')}${card('9', 90, '90+ gündür yok', b.d90, 'var(--red,#ef4444)')}</div>
     ${(APP.crmGroups || []).length ? `<div class="cg-bar wb-groups"><small>🏷️ Grup:</small><button type="button" class="cg-f ${!W.group ? 'on' : ''}" ${act('wbGroup', '')}>Hepsi</button>${APP.crmGroups.map(g => `<button type="button" class="cg-f ${W.group === g.id ? 'on' : ''}" style="--gc:${escapeAttr(g.color || 'var(--accent)')}" ${act('wbGroup', g.id)}>${escapeHtml((g.icon ? g.icon + ' ' : '') + g.name)} <span>${g.count}</span></button>`).join('')}</div>` : ''}
     <p class="wb-stat">📨 Son 90 günde <b>${d.contacted || 0}</b> müşteriye ulaşıldı, bunlardan <b>${d.returned || 0}</b> tanesi geri geldi${d.contacted ? ' (%' + Math.round((d.returned || 0) / d.contacted * 100) + ')' : ''}.</p>
-    ${W.days != null ? `<div class="wb-listhead"><b>${W.days === 0 ? 'Tüm müşteriler · ' + rows.length : W.days < 0 ? 'Son 30 günde gelen ' + rows.length + ' müşteri' : W.days + '+ gündür gelmeyen ' + rows.length + ' müşteri'}</b><span><button type="button" class="ghost-btn" ${act('wbSelAll', true)}>Hepsini seç</button><button type="button" class="ghost-btn" ${act('wbSelAll', false)}>Seçimi kaldır</button></span></div>
+    ${W.days != null ? `<div class="wb-listhead"><b>${W.days === 0 ? 'Tüm müşteriler · ' + rows.length : W.days < 0 ? 'Son 30 günde gelen ' + rows.length + ' müşteri' : W.days + '+ gündür gelmeyen ' + rows.length + ' müşteri'}</b><span>${camp ? `<label class="wb-24" title="Açıkken son 24 saatte mesaj gönderilen müşterilere de gönderilir"><input type="checkbox" ${W.ignore24 ? 'checked' : ''} ${actOn('change','wbIgnore24',['$checked'])}> 24 saat kuralını uygulama</label>` : ''}<button type="button" class="ghost-btn" ${act('wbSelAll', true)}>Hepsini seç</button><button type="button" class="ghost-btn" ${act('wbSelAll', false)}>Seçimi kaldır</button></span></div>
     <div class="wb-list">${rows.map(r => `<label class="wb-row"><input type="checkbox" ${W.sel[r.id] ? 'checked' : ''} ${actOn('change','wbToggle',[r.id,'$checked'])}>
       <span class="wb-n"><b>${escapeHtml(r.name || '—')}</b><small>${r.phone ? escapeHtml(maskPhone(r.phone)) : ''}${r.has_email ? ' · ✉️' : ''}</small></span>
       <span class="wb-m"><small>Son geliş</small>${ago(r.last_visit_at)}</span><span class="wb-m"><small>${r.total_visits} ziyaret</small>${money(r.total_spent || 0)}</span>
@@ -650,7 +650,8 @@ function drawWinback(){
   bg.onclick = (e) => { if(e.target === bg) bg.remove(); };
 }
 function wbToggle(id, on){ APP.wb.sel[id] = !!on; const t = document.getElementById('wbText'); const v = t && t.value; drawWinback(); if(v != null) document.getElementById('wbText').value = v; }
-function wbSelAll(on){ (APP.wb.data.rows || []).forEach(r => { APP.wb.sel[r.id] = !!on && !r.recently_sent && !(r.sms_blocked && APP.wb.channel === 'sms'); }); drawWinback(); }
+function wbIgnore24(on){ APP.wb.ignore24 = !!on; const t = document.getElementById('wbText'); const v = t && t.value; drawWinback(); if(v != null) document.getElementById('wbText').value = v; }
+function wbSelAll(on){ (APP.wb.data.rows || []).forEach(r => { APP.wb.sel[r.id] = !!on && (!r.recently_sent || (APP.wb.ignore24 && APP.wb.days <= 0)) && !(r.sms_blocked && APP.wb.channel === 'sms'); }); drawWinback(); }
 function wbGroup(id){ APP.wb.group = id || null; APP.wb.sel = {}; const t = document.getElementById('wbText'); APP.wb.keepText = t && t.value; openWinback().then(() => { if(APP.wb.keepText != null && document.getElementById('wbText')) document.getElementById('wbText').value = APP.wb.keepText; }); }
 
 /* ---- Müşteri grupları (VIP, Gold…) ---- */
@@ -719,7 +720,7 @@ async function sendWinback(){
   if(!await uiConfirm(ids.length + ' müşteriye ' + ({ sms:'SMS', mail:'e-posta', both:'SMS ve e-posta' }[APP.wb.channel]) + ' gönderilecek. Devam edilsin mi?')) return;
   const camp = wbIsCampaign();
   const { data, error } = await withLoadingOverlay(camp
-    ? sb.rpc('send_campaign', { p_token: getSession().session_token, p_ids: ids, p_text: text, p_channel: APP.wb.channel, p_subject: APP.wb.subject || null })
+    ? sb.rpc('send_campaign', { p_token: getSession().session_token, p_ids: ids, p_text: text, p_channel: APP.wb.channel, p_subject: APP.wb.subject || null, p_ignore_24h: !!APP.wb.ignore24 })
     : sb.rpc('send_winback', { p_token: getSession().session_token, p_ids: ids, p_text: text, p_channel: APP.wb.channel }));
   if(error){ await uiAlert(error.message); return; }
   if(data.skipped && !data.sms && !data.mail) await uiAlert('Mesaj gönderilmedi: seçilen ' + data.skipped + ' müşteri son ' + (camp ? '24 saatte' : '14 günde') + ' zaten mesaj aldı. Aynı müşteriye bu süre dolmadan ikinci mesaj gönderilmez.');
