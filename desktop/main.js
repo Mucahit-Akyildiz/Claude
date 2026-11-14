@@ -89,6 +89,28 @@ ipcMain.handle('list-printers', async (event) => {
 // göstermeden doğrudan belirtilen (veya işletim sistemi varsayılanı) yazıcıya
 // gönderir. Electron'un native yazdırma API'si bunu destekliyor - tarayıcıdaki
 // gibi bir bayrağa (--kiosk-printing) veya WebUSB'ye ihtiyaç yok.
+// Hızlı fiş: yalnız fişin HTML'i, gizli küçük bir pencerede basılır. Tüm uygulama sayfasını yazıcıya
+// hazırlamak (silent-print) 3-5 sn sürüyordu; tek fişlik sayfa ~0.5 sn. Pencere bir kez açılıp tekrar kullanılır.
+let ticketWin = null, ticketQueue = Promise.resolve();
+function getTicketWin() {
+  if (ticketWin && !ticketWin.isDestroyed()) return ticketWin;
+  ticketWin = new BrowserWindow({ show: false, width: 400, height: 800, webPreferences: { sandbox: true, contextIsolation: true, javascript: false } });
+  return ticketWin;
+}
+ipcMain.handle('silent-print-html', (event, { printerName, html } = {}) => {
+  const job = ticketQueue.then(() => new Promise((resolve) => {
+    try {
+      const w = getTicketWin();
+      w.webContents.once('did-finish-load', () => {
+        w.webContents.print({ silent: true, printBackground: false, deviceName: printerName || undefined, margins: { marginType: 'none' } },
+          (success, errorType) => resolve({ success, errorType: success ? null : errorType }));
+      });
+      w.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(String(html || ''))).catch((e) => resolve({ success: false, errorType: String(e && e.message || e) }));
+    } catch (e) { resolve({ success: false, errorType: String(e && e.message || e) }); }
+  }));
+  ticketQueue = job.catch(() => {});
+  return job;
+});
 ipcMain.handle('silent-print', async (event, { printerName } = {}) => {
   const win = BrowserWindow.fromWebContents(event.sender) || mainWindow;
   return new Promise((resolve) => {

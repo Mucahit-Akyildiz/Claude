@@ -197,6 +197,21 @@ async function printKitchenTicket(tableName, items, printerOverride, silent, dai
     items: (items || []).slice(0, 60).map(it => ({ qty: it.qty, name: it.name, price: it.price, note: it.note || '', product_id: it.product_id, station_id: it.station_id, added_at: it.added_at })),
     extra: designExtra ? JSON.parse(JSON.stringify(designExtra)) : null });
 }
+/* Fişin tek başına basılabilir sayfası: #printArea içeriği + fiş CSS kuralları (ticket-*, #printArea). */
+let _ticketCss = null;
+function ticketStandaloneHtml(el){
+  try{
+    if(_ticketCss == null){
+      const out = [];
+      const walk = (rules) => { for(const r of rules){ if(r.cssRules && !r.selectorText){ if(r.media && /print/.test(r.media.mediaText)) walk(r.cssRules); continue; } if(r.selectorText && /ticket|printArea/.test(r.selectorText)) out.push(r.cssText); } };
+      for(const sh of document.styleSheets){ try{ walk(sh.cssRules); }catch(e){} }
+      _ticketCss = out.join('\n');
+    }
+    return '<!doctype html><html><head><meta charset="utf-8"><style>@page{margin:0;size:80mm auto;}html,body{margin:0;padding:0;background:#fff;}'
+      + _ticketCss + '\n#printArea{display:block !important;visibility:visible !important;position:static;width:72mm;box-sizing:border-box;font-family:\'Courier New\',monospace;color:#000;padding:4mm;overflow:hidden;}#printArea.pw58{width:48mm;}#printArea *{box-sizing:border-box;max-width:100%;visibility:visible !important;}</style></head><body>'
+      + '<div id="printArea" class="' + escapeAttr(el.className || '') + '" style="' + escapeAttr(el.getAttribute('style') || '') + '">' + el.innerHTML + '</div></body></html>';
+  }catch(e){ return null; }
+}
 async function printKitchenTicketRaw(tableName, items, printerOverride, silent, dailyNumber, designExtra){
   PRINT_RESULT = { ok: false, err: '' };
   const session = getSession();
@@ -220,9 +235,11 @@ async function printKitchenTicketRaw(tableName, items, printerOverride, silent, 
     const el = document.getElementById('printArea');
     applyTicketDesignStyle(el, design);
     el.innerHTML = buildTicketHtml(restaurantName, tableName, items, design, dailyNumber);
-    await new Promise(r => setTimeout(r, 80));
+    // Yeni masaüstü sürümü: yalnız fiş basılır (hızlı); eskisinde tüm sayfa.
+    const fast = typeof window.electronAPI.silentPrintHtml === 'function' ? ticketStandaloneHtml(el) : null;
+    if(!fast) await new Promise(r => setTimeout(r, 80));
     for(let c=0;c<copies;c++){
-      const result = await window.electronAPI.silentPrint(printer.osPrinterName);
+      const result = fast ? await window.electronAPI.silentPrintHtml(printer.osPrinterName, fast) : await window.electronAPI.silentPrint(printer.osPrinterName);
       if(!result || !result.success){
         console.warn('Masaustu uygulamasi yazdirma basarisiz:', result && result.errorType);
         PRINT_RESULT = { ok: false, err: (result && result.errorType) || 'Masaüstü yazdırma başarısız' };

@@ -7,6 +7,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   isElectron: true,
   listPrinters: () => ipcRenderer.invoke('list-printers'),
   silentPrint: (printerName) => ipcRenderer.invoke('silent-print', { printerName }),
+  silentPrintHtml: (printerName, html) => ipcRenderer.invoke('silent-print-html', { printerName, html }),
   // Bir bildirime (Electron'un yerel Notification API'siyle gösterilen,
   // isletim sisteminin kendi bildirim merkezinde/koseden cikan gercek
   // bildirim) tiklandiginda pencere simge durumundaysa/arka plandaysa

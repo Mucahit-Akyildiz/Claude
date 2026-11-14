@@ -154,9 +154,9 @@ async function bgPrintTick(){
       if(!mine.length) continue;
       try{ await printKitchenTicketGrouped(typeof orderDisplayName === 'function' ? orderDisplayName(o) : (o.table_name || ''), mine, true, o.daily_number, typeof pkgInfoFromOrder === 'function' ? pkgInfoFromOrder(o) : null, o.tags || []); }
       catch(e){ console.error('Arka plan fiş hatası', e); }
-      // Teşhis: fiş 10 sn'den geç çıktıysa (yazıcının kendi 3–5 sn'si normal sayılır) nerede beklediği kaydedilir (Admin → Hatalar).
+      // Teşhis: fiş 3 sn'den geç çıktıysa nerede beklediği kaydedilir (Admin → Hatalar) nerede beklediği kaydedilir (Admin → Hatalar).
       const tEnd = Date.now();
-      if(tEnd - tAdd > 10000 && typeof reportClientError === 'function')
+      if(tEnd - tAdd > 3000 && typeof reportClientError === 'function')
         reportClientError('print_delay', 'Arka plan fişi ' + Math.round((tEnd - tAdd) / 1000) + ' sn: fark etme ' + Math.round((tDet - tAdd) / 1000) + ' sn, yazdırma ' + Math.round((tEnd - tDet) / 1000) + ' sn', 'bgPrint');
     }
     bgSaveSeen(seen);
