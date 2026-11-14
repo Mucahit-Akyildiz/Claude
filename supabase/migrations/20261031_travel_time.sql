@@ -284,3 +284,4 @@ alter table customers add column if not exists created_by uuid, add column if no
 -- 2026-11-14: approve_customer_order_request: QR masa isteğindeki müşteri adı, masada ad yoksa orders.customer_name'e yazılır.
 -- 2026-11-14: customer_order_requests.guest_count; submit_customer_order_request(.., p_guests); approve_customer_order_request kişi sayısını (boşsa) masaya yazar.
 -- 2026-11-14: open_account_entries.tip_amount, points_earned; collect_open_account(.., p_overpay_tip): fazlası bahşiş, tahsilatta sadakat puanı (hesabın müşterisine); pay_order_items açık hesap aktarımında puan vermez; get_tip_pool_report ve analytics open_acc_paid* bahşişi içerir.
+-- 2026-11-14: Peyktan geçmiş açık hesap tahsilatlarına sadakat puanı yüklendi (kullanıcı onayıyla; 4 hesap, open_account_entries.points_earned).

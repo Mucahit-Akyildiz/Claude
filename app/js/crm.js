@@ -552,7 +552,7 @@ function setReviewFilter(k){ APP.reviewFilter = k; renderReviewsBody(); }
 /* ---- Müşteri geri kazanım: X gündür gelmeyen müşterilere SMS / e-posta (get_winback / send_winback) ---- */
 // Kampanya mesajına online sipariş / online rezervasyon linki (imlecin olduğu yere) eklenir.
 /* Kampanya mesaj şablonları: işletme bazında sunucuda saklanır (tüm cihazlarda görünür). */
-function wbUseTpl(id){ const t = (APP.wbTpl || []).find(x => x.id === id), ta = document.getElementById('wbText'); if(!t || !ta) return; ta.value = t.text; ta.focus(); }
+function wbUseTpl(id){ const t = (APP.wbTpl || []).find(x => x.id === id), ta = document.getElementById('wbText'); if(!t || !ta) return; ta.value = t.text; ta.focus(); wbCountText(); }
 async function wbSaveTpl(){
   const ta = document.getElementById('wbText'); const text = ta ? ta.value.trim() : '';
   if(text.length < 5){ uiAlert('Önce mesaj metnini yazın'); return; }
@@ -578,12 +578,22 @@ function wbInsertVar(v){
   ta.value = (ta.value.slice(0, a) + v + ta.value.slice(b)).slice(0, Number(ta.maxLength) > 0 ? ta.maxLength : 1000);
   ta.focus(); ta.selectionStart = ta.selectionEnd = a + v.length;
 }
+/* Mesaj uzunluğu: SMS'te Türkçe karakter varsa 70, yoksa 160 karakterde bir yeni SMS (uzun mesajda 67/153). */
+function wbCountText(){
+  const ta = document.getElementById('wbText'), el = document.getElementById('wbCount'); if(!ta || !el) return;
+  const n = ta.value.length, uni = /[^\x00-\x7F]/.test(ta.value), one = uni ? 70 : 160, part = uni ? 67 : 153;
+  const sms = n <= one ? 1 : Math.ceil(n / part);
+  el.textContent = n + ' / 1000 karakter · SMS\'te yaklaşık ' + sms + ' mesaj' + (sms > 1 ? ' (her alıcı için ' + sms + ' SMS ücreti)' : '');
+}
 function wbInsertLink(kind){
   const ta = document.getElementById('wbText'); if(!ta) return;
+  // Değerlendirme: işletmenin Google yorum bağlantısı (Ayarlar › Entegrasyonlar › Google Yorumları).
+  const review = kind === 'review' ? ((APP.config && APP.config.google_review_url) || '') : '';
+  if(kind === 'review' && !review){ uiAlert('Değerlendirme bağlantısı yok. Ayarlar › Entegrasyonlar › Google Yorumları bölümünden işletmenizin Google yorum bağlantısını girin.'); return; }
   const code = (APP.config && ((APP.config.online_ordering || {}).code || APP.config.code)) || '';
-  if(!code){ uiAlert('İşletme kodu bulunamadı. Ayarlar › Entegrasyonlar › Online Sipariş bölümünü bir kez açın.'); return; }
-  const url = location.origin + (kind === 'resv' ? '/rezervasyon/?r=' : '/siparis/?r=') + encodeURIComponent(code);
-  const add = (kind === 'resv' ? 'Rezervasyon: ' : 'Online sipariş: ') + url;
+  if(!code && kind !== 'review'){ uiAlert('İşletme kodu bulunamadı. Ayarlar › Entegrasyonlar › Online Sipariş bölümünü bir kez açın.'); return; }
+  const url = kind === 'review' ? review : location.origin + (kind === 'resv' ? '/rezervasyon/?r=' : '/siparis/?r=') + encodeURIComponent(code);
+  const add = (kind === 'review' ? 'Değerlendirme: ' : kind === 'resv' ? 'Rezervasyon: ' : 'Online sipariş: ') + url;
   const a = ta.selectionStart != null ? ta.selectionStart : ta.value.length, b = ta.selectionEnd != null ? ta.selectionEnd : a;
   const before = ta.value.slice(0, a), after = ta.value.slice(b), sep = before && !/\s$/.test(before) ? ' ' : '';
   ta.value = (before + sep + add + (after && !/^\s/.test(after) ? ' ' : '') + after).slice(0, Number(ta.maxLength) > 0 ? ta.maxLength : 1000);
@@ -608,6 +618,7 @@ async function openWinback(days){
   APP.wb.data = data || {}; drawWinback();
 }
 function drawWinback(){
+  setTimeout(wbCountText, 0);
   let bg = document.getElementById('wbBg');
   if(!bg){ bg = document.createElement('div'); bg.id = 'wbBg'; bg.className = 'modal-bg'; document.body.appendChild(bg); }
   const W = APP.wb, d = W.data, b = d.buckets || {}, rows = d.rows || [], selN = rows.filter(r => W.sel[r.id]).length;
@@ -631,8 +642,8 @@ function drawWinback(){
     <div class="wb-compose"><label>Mesaj <small class="muted">({ad} = adı, {soyad} = soyadı, {adsoyad} = adı soyadı, {isletme} = işletme adı)</small></label>
       ${camp && W.channel !== 'sms' ? `<input id="wbSubject" placeholder="E-posta konusu (örn. Hafta sonuna özel %15 indirim)" maxlength="120" value="${escapeAttr(W.subject || '')}" ${actOn('input','wbSubjectSet',['$value'])} style="margin:4px 0 8px;">` : ''}
       <div class="wb-links wb-tpl"><span class="muted">Şablonlarım:</span>${(APP.wbTpl || []).map(t => `<span class="wb-tchip"><button type="button" class="rvf-chip" title="Mesaja yükle" ${act('wbUseTpl', t.id)}>📝 ${escapeHtml(t.name)}</button><button type="button" class="wb-tdel" title="Şablonu sil" ${act('wbDelTpl', t.id)}>✕</button></span>`).join('') || '<span class="muted">henüz yok</span>'}<button type="button" class="rvf-chip" ${act('wbSaveTpl')}>💾 Şablon olarak kaydet</button></div>
-      <textarea id="wbText" rows="3" maxlength="320">${escapeHtml(prevText != null ? prevText : (camp ? CAMPAIGN_DEFAULT : WINBACK_DEFAULT))}</textarea>
-      <div class="wb-links"><span class="muted">Mesaja ekle:</span><button type="button" class="rvf-chip" ${act('wbInsertVar','{ad}')}>👤 Ad</button><button type="button" class="rvf-chip" ${act('wbInsertVar','{soyad}')}>👤 Soyad</button><button type="button" class="rvf-chip" ${act('wbInsertVar','{adsoyad}')}>👤 Ad Soyad</button><button type="button" class="rvf-chip" ${act('wbInsertLink','order')}>🛵 Online sipariş linki</button><button type="button" class="rvf-chip" ${act('wbInsertLink','resv')}>📅 Rezervasyon linki</button></div>
+      <textarea id="wbText" rows="6" maxlength="1000" ${actOn('input','wbCountText',[])}>${escapeHtml(prevText != null ? prevText : (camp ? CAMPAIGN_DEFAULT : WINBACK_DEFAULT))}</textarea><div class="muted" id="wbCount" style="font-size:12px;text-align:right;margin-top:2px;"></div>
+      <div class="wb-links"><span class="muted">Mesaja ekle:</span><button type="button" class="rvf-chip" ${act('wbInsertVar','{ad}')}>👤 Ad</button><button type="button" class="rvf-chip" ${act('wbInsertVar','{soyad}')}>👤 Soyad</button><button type="button" class="rvf-chip" ${act('wbInsertVar','{adsoyad}')}>👤 Ad Soyad</button><button type="button" class="rvf-chip" ${act('wbInsertLink','order')}>🛵 Online sipariş linki</button><button type="button" class="rvf-chip" ${act('wbInsertLink','resv')}>📅 Rezervasyon linki</button><button type="button" class="rvf-chip" ${act('wbInsertLink','review')}>⭐ Değerlendirme linki</button></div>
       <div class="wb-send"><div class="seg">${[['sms','📱 SMS'],['mail','✉️ E-posta'],['both','İkisi de']].map(([k, l]) => `<button type="button" class="${W.channel === k ? 'on' : ''}" ${act('wbChannel', k)}>${l}</button>`).join('')}</div>
         <button type="button" ${selN ? '' : 'disabled'} ${act('sendWinback')}>${selN} müşteriye gönder</button></div></div>`
     : '<p class="muted">Yukarıdan bir aralık seçin.</p>'}</div>`;
