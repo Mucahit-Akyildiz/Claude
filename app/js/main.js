@@ -1028,7 +1028,7 @@ new MutationObserver(muts => {
 /* ---- Yeni sürüm algılama: mobil (Capacitor) ve masaüstü (Electron) uygulamaları canlı siteyi
    açar ama sayfayı kendiliğinden yeniden yüklemez. Sayfadaki kod dosyalarının (js/css) ETag'leri
    birkaç dakikada bir ve uygulama öne geldiğinde kontrol edilir; değişmişse alttaki çubukla
-   kullanıcıya bildirilir, uygulama arka plandan öne gelirken (bir şey yazılmıyorsa) kendiliğinden yenilenir. ---- */
+   kullanıcıya bildirilir; sayfa kendiliğinden yenilenmez, kullanıcı "Yenile"ye basınca yenilenir. ---- */
 const UPDATE_WATCH = { tags: null, ready: false, checking: false, last: 0 };
 function updateWatchFiles(){
   return [...document.querySelectorAll('script[src], link[rel="stylesheet"][href]')]
@@ -1073,8 +1073,9 @@ setTimeout(checkForAppUpdate, 5000);
 setInterval(() => { if(document.visibilityState === 'visible') checkForAppUpdate(); }, 5 * 60 * 1000);
 document.addEventListener('visibilitychange', () => {
   if(document.visibilityState !== 'visible') return;
-  if(UPDATE_WATCH.ready){ maybeAutoReloadForUpdate(); return; }
-  if(Date.now() - UPDATE_WATCH.last > 60 * 1000) checkForAppUpdate().then(maybeAutoReloadForUpdate);
+  // Kendiliğinden yenileme kapalı: yeni sürümde yalnız "Yenile" çubuğu çıkar, kullanıcı basınca yenilenir.
+  if(UPDATE_WATCH.ready) return;
+  if(Date.now() - UPDATE_WATCH.last > 60 * 1000) checkForAppUpdate();
 });
 
 /* ---- Android uygulaması güncelleme uyarısı ----
@@ -1254,7 +1255,7 @@ async function acceptDeliveryOffer(){
 
 /* ---- Yeni sürüm algılama: yayın sonrası açık kalan ekranlar eski dosyalarla çalışmasın.
    Yüklü sürüm script etiketlerindeki ?vNNN'den okunur; /app/version.json daha yeniyse
-   uygulama tüm dosyaları birlikte yenilemek için sayfayı yeniden yükler (açık sipariş penceresi yoksa). ---- */
+   "Yeni sürüm hazır · Yenile" çubuğu gösterilir; sayfa kullanıcı basınca yenilenir. ---- */
 const APP_BUILD = (() => { const s = document.querySelector('script[src*="?v"]'); const m = s && s.getAttribute('src').match(/\?v(\d+)/); return m ? +m[1] : 0; })();
 async function checkAppVersion(){
   if(!APP_BUILD || !navigator.onLine) return;
@@ -1262,9 +1263,8 @@ async function checkAppVersion(){
     const r = await fetch('/app/version.json?t=' + Date.now(), { cache: 'no-store' }); if(!r.ok) return;
     const v = +((await r.json()) || {}).v || 0;
     if(v <= APP_BUILD) return;
-    const busy = document.getElementById('tableModalBg') || document.querySelector('.fsheet.open, .dg-bg');
-    if(!busy || document.hidden){ location.reload(); return; }
-    if(!APP._verToast){ APP._verToast = true; showToast('🔄 Yeni sürüm hazır — dokunarak yenileyin', 60000, null, () => location.reload(), false); }
+    // Kendiliğinden yenilenmez: alttaki "Yenile" çubuğu gösterilir, kullanıcı basınca yenilenir.
+    if(typeof showWebUpdateBar === 'function') showWebUpdateBar();
   }catch(e){}
 }
 setInterval(checkAppVersion, 5 * 60000);
