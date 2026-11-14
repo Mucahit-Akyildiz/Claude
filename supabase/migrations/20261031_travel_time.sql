@@ -282,3 +282,4 @@ alter table customers add column if not exists created_by uuid, add column if no
 -- 2026-11-14: tts_usage_daily + _tts_log (service_role, api/tts.js yeni/önbellek sayacı); admin_usage_report'a tts, tts_chars, tts_hits, tts_own, tts_today, tts_own_key; geçmiş rate_limit_events'ten dolduruldu.
 -- 2026-11-14: _nav_badges: mutfak öğelerine 'by' (oi.added_by); mutfak izni olmayana _mine (kendi bekleyen ürünleri), ödeme izni olmayana _mine_ready (kendi hazır siparişleri) — sesli bildirim istasyon/garson kapsamı.
 -- 2026-11-14: approve_customer_order_request: QR masa isteğindeki müşteri adı, masada ad yoksa orders.customer_name'e yazılır.
+-- 2026-11-14: customer_order_requests.guest_count; submit_customer_order_request(.., p_guests); approve_customer_order_request kişi sayısını (boşsa) masaya yazar.

@@ -116,3 +116,9 @@
   .modal .bill-pay{background:var(--accent);color:var(--btn-ink,#fff);} .modal .bill-close{background:var(--panel2);color:var(--text);margin-top:8px;}
 /* Emoji: Apple dışı cihazlarda Noto Color Emoji (assets/js/emoji-font.js html.emoji-noto ekler). */
 html.emoji-noto body,html.emoji-noto input,html.emoji-noto select,html.emoji-noto textarea,html.emoji-noto button{font-family:'Plus Jakarta Sans','Noto Color Emoji',-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;}
+.guest-pick{text-align:left;}
+.guest-q{font-weight:700;margin-bottom:8px;}
+.guest-chips{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;}
+.guest-chip{min-height:44px;border-radius:12px;border:1.5px solid rgba(127,127,127,.35);background:transparent;color:inherit;font-weight:700;font-size:16px;cursor:pointer;}
+.guest-chip.on{background:#0e8fa3;border-color:#0e8fa3;color:#fff;}
+.guest-pick.need .guest-chips{outline:2px solid #ef4444;outline-offset:4px;border-radius:12px;}

@@ -247,6 +247,10 @@ function headerHtml(){
     ${langPickerHtml()}
   </header>` + waiterHtml() + trustHtml();
 }
+// QR siparişte kişi sayısı (zorunlu): onaylanınca masaya yazılır.
+const GUEST_I18N = { q: {"tr": "Kaç kişisiniz?", "en": "How many people?", "ar": "كم عددكم؟", "de": "Wie viele Personen?", "ru": "Сколько вас человек?"}, need: {"tr": "Lütfen kaç kişi olduğunuzu seçin.", "en": "Please choose how many people you are.", "ar": "يرجى اختيار عدد الأشخاص.", "de": "Bitte wählen Sie die Personenanzahl.", "ru": "Пожалуйста, выберите количество человек."} };
+function guestTxt(k){ const d = GUEST_I18N[k]; return d[STATE.lang||'tr'] || d.tr; }
+function pickGuests(n){ STATE.guests = n; document.querySelectorAll('.guest-chip').forEach(b => b.classList.toggle('on', Number(b.dataset.n) === n)); const g = document.querySelector('.guest-pick'); if(g) g.classList.remove('need'); const e = document.getElementById('ckErr'); if(e) e.textContent = ''; }
 const STOCK_I18N = { sold: {"tr": "Tükendi", "en": "Sold out", "ar": "نفد", "de": "Ausverkauft", "ru": "Нет в наличии"}, changed: {"tr": "Bazı ürünlerin stoğu azaldı, sepetiniz güncellendi.", "en": "Some items are running low; your cart was updated.", "ar": "انخفض مخزون بعض المنتجات وتم تحديث سلتك.", "de": "Einige Artikel sind knapp; Ihr Warenkorb wurde aktualisiert.", "ru": "Некоторых товаров стало меньше, корзина обновлена."}, left: {"tr": "Son {n}", "en": "{n} left", "ar": "متبقي {n}", "de": "Noch {n}", "ru": "Осталось {n}"} };
 function stockTxt(k, n){ const d = STOCK_I18N[k]; return (d[STATE.lang||'tr'] || d.tr).replace('{n}', n); }
 // Seçilebilecek en fazla adet: herkese kalan + kendi sepetimizde zaten ayrılmış olan.
@@ -306,6 +310,8 @@ function openCheckout(){
     <h2>${escapeHtml(t('checkoutTitle'))}</h2>
     ${rows.map(r => `<div class="item-row"><span>${r.qty}x ${escapeHtml(productName(r.p))}</span><span>${money(r.p.price*r.qty)}</span></div>`).join('')}
     <div class="u-total item-row"><span>${escapeHtml(t('total'))}</span><span>${money(total)}</span></div>
+    <div class="guest-pick u-mt14"><div class="guest-q">${escapeHtml(guestTxt('q'))}</div>
+      <div class="guest-chips">${[1,2,3,4,5,6,7,8,9,10].map(n => `<button type="button" class="guest-chip ${STATE.guests===n?'on':''}" data-n="${n}" ${act('pickGuests', n)}>${n}${n===10?'+':''}</button>`).join('')}</div></div>
     <input class="u-mt14" id="ckName" placeholder="${escapeHtml(t('namePlaceholder'))}">
     <p class="u-fine muted">${t('privacyNotice')}</p>
     <div class="err" id="ckErr"></div>
@@ -321,8 +327,9 @@ async function sendCustomerOrder(){
   const btn = document.getElementById('ckSendBtn');
   const errEl = document.getElementById('ckErr');
   errEl.textContent = '';
+  if(!STATE.guests){ errEl.textContent = guestTxt('need'); const g = document.querySelector('.guest-pick'); if(g) g.classList.add('need'); return; }
   btn.disabled = true; btn.textContent = t('sending');
-  const { error } = await sb.rpc('submit_customer_order_request', { p_qr_token: QR_TOKEN, p_customer_name: name||null, p_items: items, p_client_id: CLIENT_ID });
+  const { error } = await sb.rpc('submit_customer_order_request', { p_qr_token: QR_TOKEN, p_customer_name: name||null, p_items: items, p_client_id: CLIENT_ID, p_guests: STATE.guests || null });
   btn.disabled = false; btn.textContent = t('sendRequest');
   if(error){ errEl.textContent = error.message; refreshMenuStock(true); return; }
   STATE.cart = {};
