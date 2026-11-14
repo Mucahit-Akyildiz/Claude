@@ -587,9 +587,9 @@ function wbCountText(){
 }
 function wbInsertLink(kind){
   const ta = document.getElementById('wbText'); if(!ta) return;
-  // Değerlendirme: işletmenin Google yorum bağlantısı (Ayarlar › Entegrasyonlar › Google Yorumları).
-  const review = kind === 'review' ? ((APP.config && APP.config.google_review_url) || '') : '';
-  if(kind === 'review' && !review){ uiAlert('Değerlendirme bağlantısı yok. Ayarlar › Entegrasyonlar › Google Yorumları bölümünden işletmenizin Google yorum bağlantısını girin.'); return; }
+  // Değerlendirme: {degerlendirme} gönderimde her müşteriye özel Peyktan değerlendirme bağlantısına dönüşür
+  // (cevaplar Finansal Analiz › Değerlendirmeler'e düşer).
+  const review = kind === 'review' ? '{degerlendirme}' : '';
   const code = (APP.config && ((APP.config.online_ordering || {}).code || APP.config.code)) || '';
   if(!code && kind !== 'review'){ uiAlert('İşletme kodu bulunamadı. Ayarlar › Entegrasyonlar › Online Sipariş bölümünü bir kez açın.'); return; }
   const url = kind === 'review' ? review : location.origin + (kind === 'resv' ? '/rezervasyon/?r=' : '/siparis/?r=') + encodeURIComponent(code);
@@ -639,7 +639,7 @@ function drawWinback(){
       <span class="wb-m"><small>Son geliş</small>${ago(r.last_visit_at)}</span><span class="wb-m"><small>${r.total_visits} ziyaret</small>${money(r.total_spent || 0)}</span>
       ${r.sms_blocked ? '<span class="pchip warn" title="SMS gitmez; e-posta seçiliyse e-posta gider. Ayarlar › SMS › SMS istemeyenler">📵 SMS istemiyor</span>' : r.sms_opt_out ? '<span class="pchip" title="SMS istemiyor ama bu tür SMS\'e Ayarlar › SMS › SMS istemeyenler\'den izin verilmiş">📵 izinli</span>' : ''}${r.recently_sent ? `<span class="pchip warn" title="Aynı müşteriye ${camp ? '24 saat' : '14 gün'} içinde ikinci mesaj gönderilmez">⏱ ${camp ? '24 saat' : '14 gün'} dolmadı</span>` : ''}${r.marketing_consent ? '<span class="pchip" title="Kampanya SMS onayı verdi">✅ Onaylı</span>' : ''}${r.last_contact ? `<span class="pchip" title="Son kampanya">📨 ${ago(r.last_contact)}</span>` : ''}</label>`).join('') || '<p class="muted">Bu aralıkta müşteri yok.</p>'}</div>
     <p class="muted u-fs12">Kampanya iznini reddeden müşteriler bu listede gösterilmez ve onlara mesaj gönderilmez. Kendi eklediğiniz müşteriler için kampanya onayını almak işletmenin sorumluluğundadır.</p>
-    <div class="wb-compose"><label>Mesaj <small class="muted">({ad} = adı, {soyad} = soyadı, {adsoyad} = adı soyadı, {isletme} = işletme adı)</small></label>
+    <div class="wb-compose"><label>Mesaj <small class="muted">({ad} = adı, {soyad} = soyadı, {adsoyad} = adı soyadı, {isletme} = işletme adı, {degerlendirme} = müşteriye özel değerlendirme linki)</small></label>
       ${camp && W.channel !== 'sms' ? `<input id="wbSubject" placeholder="E-posta konusu (örn. Hafta sonuna özel %15 indirim)" maxlength="120" value="${escapeAttr(W.subject || '')}" ${actOn('input','wbSubjectSet',['$value'])} style="margin:4px 0 8px;">` : ''}
       <div class="wb-links wb-tpl"><span class="muted">Şablonlarım:</span>${(APP.wbTpl || []).map(t => `<span class="wb-tchip"><button type="button" class="rvf-chip" title="Mesaja yükle" ${act('wbUseTpl', t.id)}>📝 ${escapeHtml(t.name)}</button><button type="button" class="wb-tdel" title="Şablonu sil" ${act('wbDelTpl', t.id)}>✕</button></span>`).join('') || '<span class="muted">henüz yok</span>'}<button type="button" class="rvf-chip" ${act('wbSaveTpl')}>💾 Şablon olarak kaydet</button></div>
       <textarea id="wbText" rows="6" maxlength="1000" ${actOn('input','wbCountText',[])}>${escapeHtml(prevText != null ? prevText : (camp ? CAMPAIGN_DEFAULT : WINBACK_DEFAULT))}</textarea><div class="muted" id="wbCount" style="font-size:12px;text-align:right;margin-top:2px;"></div>
