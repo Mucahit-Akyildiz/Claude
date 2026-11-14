@@ -67,7 +67,11 @@ function bdayBadges(c){
     c.visits ? `<span class="bd-b visit">🔁 ${c.visits} ziyaret</span>` : ''].join('');
 }
 /* Uygulama açılışında günde bir kez kutlama kartı. */
+/* Doğum günü kartı yalnız müşteriyle ilgilenen rollere (yönetici, müşteriler, sipariş, ödeme) çıkar;
+   mutfak/ızgara gibi rollere müşteri bilgisi gösterilmez (KVKK). */
+function bdayAllowed(){ const s = getSession(); return !!s && (s.isManager || ['crm','order','payments'].some(p => hasPerm(s, p))); }
 async function maybeShowBirthdayCard(force){
+  if(!bdayAllowed()) return;
   if(!force && bdayPref('popup', '1') !== '1') return;
   const today = new Date().toLocaleDateString('sv-SE');
   const list = await loadBirthdays();

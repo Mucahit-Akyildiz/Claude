@@ -866,8 +866,9 @@ function renderNotifAdminSettings(el, session){
     canManage(session, 'settings_notifs') ? { id:'roles', ic:'👥', label:'Kime Gitsin' } : null,
     canManage(session, 'settings_notifs') ? { id:'guests', ic:'🔔', label:'Kişi Sayısı Hatırlatması' } : null,
     canManage(session, 'settings_notifs') && typeof voiceMasterSettingHtml === 'function' ? { id:'voice', ic:'🗣️', label:'Sesli Bildirimler' } : null,
-    typeof birthdaySettingsHtml === 'function' ? { id:'bday', ic:'🎂', label:'Doğum Günü Uyarıları' } : null,
+    typeof birthdaySettingsHtml === 'function' && typeof bdayAllowed === 'function' && bdayAllowed() ? { id:'bday', ic:'🎂', label:'Doğum Günü Uyarıları' } : null,
   ].filter(Boolean);
+  if(!tabs.length){ el.innerHTML = '<p class="muted">Bu bölüm için yetkiniz yok.</p>'; return; }
   if(!tabs.some(t => t.id === APP.notifAdminSub)) APP.notifAdminSub = tabs[0].id;
   const sub = APP.notifAdminSub;
   el.innerHTML = `<div class="u-mwn box sub-tabs-box">
