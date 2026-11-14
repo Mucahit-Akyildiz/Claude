@@ -1617,6 +1617,27 @@ function openUsageFor(companyId){ APP.usageFocus = companyId; setAdminView('usag
 function setUsageRange(k){ APP.usageRangeKey = k; if(k !== 'custom'){ const r = usageRange(k); APP.usageFrom = r[0]; APP.usageTo = r[1]; } renderUsageAdmin(document.getElementById('main'), getAdminSession()); }
 function setUsageCustom(){ APP.usageRangeKey = 'custom'; APP.usageFrom = document.getElementById('usFrom').value; APP.usageTo = document.getElementById('usTo').value; renderUsageAdmin(document.getElementById('main'), getAdminSession()); }
 function toggleUsageGroup(id){ document.querySelectorAll('[data-ug="' + id + '"]').forEach(r => r.classList.toggle('u-hide')); }
+/* ElevenLabs ortak hesabının kredi durumu (api/tts?account=1) + günlük sınıra yaklaşan işletmeler. */
+async function loadTtsAccount(admin, rows){
+  const box = document.getElementById('ttsAcct'); if(!box) return;
+  let j = {}; try{ j = await (await fetch('/api/tts?account=1&token=' + encodeURIComponent(admin.session_token))).json(); }catch(e){ j = { error: 'Bağlantı hatası' }; }
+  if(!document.getElementById('ttsAcct')) return;
+  const N = v => Number(v || 0).toLocaleString('tr-TR');
+  const near = (rows || []).filter(r => !r.tts_own_key && Number(r.tts_today) >= 200).map(r => `${escapeHtml(r.name)} (${N(r.tts_today)}/300)`);
+  const own = (rows || []).filter(r => r.tts_own_key).map(r => escapeHtml(r.name));
+  let top = '';
+  if(j.error) top = `<div class="u-fs13" style="color:var(--red);">⚠️ ${escapeHtml(j.error)}</div>`;
+  else if(j.provider !== 'elevenlabs') top = '<div class="u-fs13 muted">Sunucuda ElevenLabs anahtarı yok.</div>';
+  else {
+    const pct = j.limit ? Math.min(100, Math.round(j.used / j.limit * 100)) : 0, col = pct >= 90 ? 'var(--red)' : pct >= 70 ? '#f59e0b' : 'var(--c1)';
+    top = `<div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;font-size:13.5px;"><b>${N(j.used)} / ${N(j.limit)} kredi (%${pct})</b><span class="muted">Plan: ${escapeHtml(j.tier || '—')}${j.reset ? ' · yenilenme ' + new Date(j.reset).toLocaleDateString('tr-TR', { day:'numeric', month:'long' }) : ''}</span></div>
+      <div style="height:10px;border-radius:6px;background:color-mix(in srgb,var(--muted) 20%,transparent);margin:8px 0;overflow:hidden;"><i style="display:block;height:100%;width:${pct}%;background:${col};"></i></div>
+      ${pct >= 90 ? '<div class="u-fs13" style="color:var(--red);">⚠️ Kota dolmak üzere: dolunca kendi anahtarı olmayan işletmelerde bildirimler cihaz sesiyle okunur.</div>' : ''}`;
+  }
+  box.innerHTML = `<p>🔊 ElevenLabs (Peyktan ortak hesabı)</p>${top}
+    ${near.length ? `<div class="u-fs13" style="margin-top:6px;">⏳ Bugün günlük sınıra yaklaşan: ${near.join(', ')}</div>` : ''}
+    <div class="u-fs13 muted" style="margin-top:6px;">Kendi anahtarını kullanan işletme: ${own.length ? own.join(', ') : 'yok'}</div>`;
+}
 async function renderUsageAdmin(main, admin){
   const k = APP.usageRangeKey || '7d';
   if(k !== 'custom' || !APP.usageFrom){ const r = usageRange(k); APP.usageFrom = r[0]; APP.usageTo = r[1]; }
@@ -1628,11 +1649,11 @@ async function renderUsageAdmin(main, admin){
   const N = v => Number(v || 0).toLocaleString('tr-TR');
   const groups = {};
   rows.forEach(r => { const g = r.company_id || ('r_' + r.id); (groups[g] = groups[g] || { id: g, name: r.company_id ? r.company_name : r.name, company: !!r.company_id, rows: [] }).rows.push(r); });
-  const KEYS = ['requests','sms','mail','maps','errors','open_errors','active_users','users','orders','revenue'];
+  const KEYS = ['requests','sms','mail','maps','tts','tts_chars','tts_hits','tts_own','errors','open_errors','active_users','users','orders','revenue'];
   const list = Object.values(groups).map(g => { g.t = {}; KEYS.forEach(x => g.t[x] = g.rows.reduce((a, r) => a + Number(r[x] || 0), 0)); return g; }).sort((a, b) => b.t.requests - a.t.requests);
   const tot = {}; KEYS.forEach(x => tot[x] = list.reduce((a, g) => a + g.t[x], 0));
   const max = Math.max(1, ...daily.map(d => Number(d.n)));
-  const cells = t => `<td><b>${N(t.requests)}</b></td><td>${N(t.sms)}</td><td>${N(t.mail)}</td><td>${N(t.maps)}</td><td style="${t.errors ? 'color:var(--red);' : ''}">${N(t.errors)}${t.open_errors ? ` <small title="Çözülmemiş">(${N(t.open_errors)} açık)</small>` : ''}</td><td>${N(t.active_users)} / ${N(t.users)}</td><td>${N(t.orders)}</td><td>${money(t.revenue)}</td>`;
+  const cells = t => `<td><b>${N(t.requests)}</b></td><td>${N(t.sms)}</td><td>${N(t.mail)}</td><td>${N(t.maps)}</td><td title="Ortak hesapla üretilen yeni cümle · önbellekten çalınan">${N(t.tts)}${t.tts_hits ? ` <small class="muted">(+${N(t.tts_hits)} önbellek)</small>` : ''}${t.tts_own ? ` <small class="muted">· ${N(t.tts_own)} kendi</small>` : ''}</td><td style="${t.errors ? 'color:var(--red);' : ''}">${N(t.errors)}${t.open_errors ? ` <small title="Çözülmemiş">(${N(t.open_errors)} açık)</small>` : ''}</td><td>${N(t.active_users)} / ${N(t.users)}</td><td>${N(t.orders)}</td><td>${money(t.revenue)}</td>`;
   const chip = (key, label) => `<button type="button" class="sbtn ${k === key ? '' : 'ghost-btn'}" style="margin:0;width:auto;padding:8px 14px;" ${act('setUsageRange', key)}>${label}</button>`;
   el.innerHTML = `
     <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:14px;">
@@ -1641,15 +1662,16 @@ async function renderUsageAdmin(main, admin){
       <button type="button" class="sbtn" style="margin:0;width:auto;padding:8px 14px;" ${act('setUsageCustom')}>Uygula</button>
     </div>
     <div class="home-grid" style="margin-top:0;margin-bottom:16px;">
-      ${statCard('API isteği', N(tot.requests))}${statCard('SMS', N(tot.sms))}${statCard('E-posta', N(tot.mail))}${statCard('Harita sorgusu', N(tot.maps))}
+      ${statCard('API isteği', N(tot.requests))}${statCard('SMS', N(tot.sms))}${statCard('E-posta', N(tot.mail))}${statCard('Harita sorgusu', N(tot.maps))}${statCard('Sesli bildirim (yeni cümle)', N(tot.tts))}
       ${statCard('Hata', N(tot.errors), tot.errors ? 'var(--red)' : null)}${statCard('Aktif kullanıcı', N(tot.active_users))}${statCard('Sipariş', N(tot.orders))}${statCard('Ciro', money(tot.revenue))}
     </div>
+    <div class="add-row-panel" id="ttsAcct" style="margin-bottom:16px;"><p>🔊 ElevenLabs (Peyktan ortak hesabı)</p><div class="muted u-fs13">Yükleniyor…</div></div>
     <div class="add-row-panel" style="margin-bottom:16px;"><p>Günlük API isteği (tüm işletmeler)</p>
       <div style="display:flex;align-items:flex-end;gap:3px;height:120px;">${daily.map(d => `<div title="${new Date(d.day).toLocaleDateString('tr-TR')}: ${N(d.n)} istek" style="flex:1;min-width:3px;background:var(--c1);border-radius:4px 4px 0 0;height:${Math.max(2, Math.round(Number(d.n) / max * 110))}px;"></div>`).join('')}</div>
       <div class="u-fs12 muted" style="display:flex;justify-content:space-between;"><span>${new Date(APP.usageFrom).toLocaleDateString('tr-TR')}</span><span>${new Date(APP.usageTo).toLocaleDateString('tr-TR')}</span></div>
     </div>
     <div class="settings-table-wrap"><table class="settings-table">
-      <thead><tr><th>Şirket / İşletme</th><th>API isteği</th><th>SMS</th><th>E-posta</th><th>Harita</th><th>Hata</th><th>Aktif / Kullanıcı</th><th>Sipariş</th><th>Ciro</th></tr></thead>
+      <thead><tr><th>Şirket / İşletme</th><th>API isteği</th><th>SMS</th><th>E-posta</th><th>Harita</th><th>Ses 🔊</th><th>Hata</th><th>Aktif / Kullanıcı</th><th>Sipariş</th><th>Ciro</th></tr></thead>
       <tbody>${list.map(g => `
         <tr class="${g.company ? 'adm-company' : ''}" ${g.company ? `style="cursor:pointer;" ${act('toggleUsageGroup', g.id)}` : ''}>
           <td><b>${g.company ? '🏢 ' : '🏬 '}${escapeHtml(g.name || '—')}</b>${g.company ? `<div class="u-fs12 muted">${g.rows.length} şube · ayrıntı için tıklayın</div>` : ''}</td>${cells(g.t)}</tr>
@@ -1663,9 +1685,11 @@ async function renderUsageAdmin(main, admin){
         <li><b>SMS:</b> Gönderim kuyruğuna giren SMS sayısı (sipariş/ödeme bildirimi, rezervasyon, kampanya, şifre). Ücretli kalemdir.</li>
         <li><b>E-posta:</b> Gönderilen e-posta sayısı (fatura, özet raporu, bildirim, şifre sıfırlama).</li>
         <li><b>Harita:</b> Adrese teslim paketlerde sürüş süresi için yapılan Google harita sorgusu. Ücretli kalemdir; günlük kotası işletme ayarlarındadır.</li>
+        <li><b>Ses 🔊:</b> Peyktan ortak ElevenLabs hesabıyla üretilen <i>yeni</i> sesli bildirim cümlesi (kredi harcar). Parantezdeki <i>önbellek</i>, daha önce üretilmiş sesin tekrar çalınmasıdır (kredi harcamaz); <i>kendi</i>, işletmenin kendi anahtarıyla üretilenlerdir (sizin kotanızdan düşmez). Platform anahtarında işletme başına günde 300 yeni cümle sınırı vardır.</li>
         <li><b>Hata:</b> Seçilen aralıkta uygulamada oluşan hataların toplam tekrar sayısı. Parantezdeki <i>açık</i>, tarihten bağımsız henüz "çözüldü" işaretlenmemiş farklı hata sayısıdır (Hatalar sekmesi).</li>
         <li><b>Aktif / Kullanıcı:</b> Aralıkta uygulamayı kullanan farklı personel / işletmedeki toplam aktif personel.</li>
         <li><b>Sipariş, Ciro:</b> Aralıkta açılan sipariş sayısı ve kapanan hesapların toplamı.</li>
       </ul></div>`;
   APP.usageFocus = null;
+  loadTtsAccount(admin, rows);
 }

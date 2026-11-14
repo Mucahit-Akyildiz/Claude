@@ -47,6 +47,21 @@ module.exports = async function handler(req, res) {
     } catch (e) { res.status(200).json({ voices: [], error: 'Bağlantı hatası' }); }
     return;
   }
+  // Admin paneli: Peyktan ortak ElevenLabs hesabının kredi durumu (yalnız platform yöneticisi oturumu).
+  if (req.method === 'GET' && req.query && req.query.account) {
+    try {
+      const sb = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
+      const { error: aErr } = await sb.rpc('_platform_admin_check', { p_token: String(req.query.token || '') });
+      if (aErr) { res.status(403).json({ error: 'Yetkisiz' }); return; }
+      if (!eleven) { res.status(200).json({ provider: key ? 'azure' : null }); return; }
+      const r = await fetch('https://api.elevenlabs.io/v1/user/subscription', { headers: { 'xi-api-key': eleven } });
+      if (!r.ok) { const t = await r.text(); res.status(200).json({ provider: 'elevenlabs', error: /missing_permissions/.test(t) ? 'Sunucudaki ElevenLabs anahtarında "User: Read" izni yok' : elevenErr(r.status, t) }); return; }
+      const j = await r.json();
+      res.setHeader('Cache-Control', 'no-store');
+      res.status(200).json({ provider: 'elevenlabs', tier: j.tier || '', used: j.character_count || 0, limit: j.character_limit || 0, reset: j.next_character_count_reset_unix ? j.next_character_count_reset_unix * 1000 : null, status: j.status || '' });
+    } catch (e) { res.status(200).json({ error: 'Bağlantı hatası' }); }
+    return;
+  }
   if (req.method === 'GET') { res.status(200).json({ enabled: !!key, provider: eleven ? 'elevenlabs' : (key ? 'azure' : null) }); return; }
   if (req.method !== 'POST') { res.status(405).json({ error: 'method not allowed' }); return; }
   if (!key) { res.status(503).json({ error: 'TTS yapılandırılmamış' }); return; }
@@ -66,8 +81,10 @@ module.exports = async function handler(req, res) {
     const hash = crypto.createHash('sha256').update([prov, b.voice || '', rate.toFixed(2), text].join('|')).digest('hex');
     const path = (ownKey ? ctx.rid : 'shared') + '/' + hash + '.mp3';
     const send = (buf) => { res.setHeader('Content-Type', 'audio/mpeg'); res.setHeader('Cache-Control', 'private, max-age=2592000'); res.status(200).send(buf); };
-    try { const { data: hit } = await supabase.storage.from('tts-cache').download(path); if (hit) { send(Buffer.from(await hit.arrayBuffer())); return; } } catch (e) { /* önbellek yoksa üret */ }
-    const store = (buf) => supabase.storage.from('tts-cache').upload(path, buf, { contentType: 'audio/mpeg', upsert: true }).catch(() => {});
+    // Admin › Kullanım sayacı: yeni üretilen cümle (harf sayısıyla) ve önbellekten çalınan.
+    const log = (hit) => supabase.rpc('_tts_log', { p_rid: ctx.rid, p_hit: hit, p_chars: text.length, p_own: !!ownKey }).then(() => {}, () => {});
+    try { const { data: hit } = await supabase.storage.from('tts-cache').download(path); if (hit) { await log(true); send(Buffer.from(await hit.arrayBuffer())); return; } } catch (e) { /* önbellek yoksa üret */ }
+    const store = async (buf) => { await log(false); return supabase.storage.from('tts-cache').upload(path, buf, { contentType: 'audio/mpeg', upsert: true }).catch(() => {}); };
     // Platform anahtarında işletme başına günlük kota (yalnız yeni cümleler sayılır); kendi anahtarında kota yok.
     if (!ownKey) {
       const { error: sErr } = await supabase.rpc('_tts_quota', { p_token: b.token });
