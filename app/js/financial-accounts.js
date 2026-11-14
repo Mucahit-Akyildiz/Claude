@@ -149,10 +149,16 @@ async function collectOpenAccount(id){
   if(v === null) return;
   const amount = parseFloat(String(v).replace(',', '.'));
   if(!(amount > 0)){ alert('Geçerli bir tutar girin'); return; }
+  // Bakiyeden fazla ödeme: borç kapanır, fazlası bahşiş havuzuna eklenir (onay istenir).
+  const bal = Math.round(Number(a.balance || 0) * 100) / 100, extra = Math.round((amount - bal) * 100) / 100;
+  if(extra > 0.009){
+    if(bal <= 0.009){ uiAlert('Bu hesapta borç yok.'); return; }
+    if(!await uiConfirm('Bakiyeden ' + money(extra) + ' fazla ödeme yapıyorsunuz.\n\nBorç (' + money(bal) + ') kapanacak, fazla olan ' + money(extra) + ' bahşişlere eklenecek.', { title: '💝 Fazla ödeme → bahşiş', okText: 'Evet, bahşişe ekle', danger: false })) return;
+  }
   const pick = await pickCollectMethod(amount); if(!pick) return;
-  const { error } = await withLoadingOverlay(sb.rpc('collect_open_account', { p_token: getSession().session_token, p_account_id: id, p_amount: amount, p_method: pick.method, p_bank: pick.bank || null }));
+  const { error } = await withLoadingOverlay(sb.rpc('collect_open_account', { p_token: getSession().session_token, p_account_id: id, p_amount: amount, p_method: pick.method, p_bank: pick.bank || null, p_overpay_tip: extra > 0.009 }));
   if(error){ alert(error.message); return; }
-  showToast('✅ ' + money(amount) + ' tahsil edildi · ' + pick.label);
+  showToast('✅ ' + money(amount) + ' tahsil edildi · ' + pick.label + (extra > 0.009 ? ' · ' + money(extra) + ' bahşişe eklendi' : ''));
   renderOpenAccountsContent(getSession());
 }
 
