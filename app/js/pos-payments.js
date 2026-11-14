@@ -74,7 +74,7 @@ async function renderPaymentsView(main, session){
   ]));
   if(!APP.config) APP.config = cfgRes.data;
   APP.liveOrders = liveRes.data || [];
-  main.innerHTML = `<h1>Ödemeler <button class="sbtn" style="width:auto;display:inline-flex;vertical-align:middle;margin-left:10px;" ${act('openTableScanModal')}>📷 Masa Tara</button></h1>${dayCloseBannerHtml()}<div class="muted" id="payStatus"></div><div class="order-summary pay-summary" id="paySummary"></div><div class="pk-grid" id="payGrid"></div>`;
+  main.innerHTML = `<h1>Ödemeler <button class="sbtn" style="width:auto;display:inline-flex;vertical-align:middle;margin-left:10px;" ${act('openTableScanModal')}>📷 Masa Tara</button></h1>${dayCloseBannerHtml()}<div class="muted" id="payStatus"></div><div class="order-summary pay-summary" id="paySummary"></div><div class="tabs" id="payZoneTabs" style="margin:14px 0 12px;"></div><div class="pk-grid" id="payGrid"></div>`;
   renderPayGrid();
 }
 /* --- Hediye Kartları: yeni kart oluşturma (kod üretimi) ve mevcut
@@ -171,6 +171,7 @@ async function closePaidOrder(orderId){
   if(APP.view === 'payments') renderPayGrid();
   showToast('🔒 Masa kapatıldı');
 }
+function selectPayZone(id){ APP.payZone = id; renderPayGrid(); }
 function renderPayGrid(){
   const grid = document.getElementById('payGrid'); if(!grid) return;
   // Açık hesaplar adisyon görünümünde kartlar: ürün özeti, hazır durumu, büyük tutar, Hesabı Al.
@@ -212,10 +213,12 @@ function renderPayGrid(){
   };
   const paidOpen = [];
   const orders = [];
-  ((APP.config && APP.config.zones) || []).flatMap(z => z.tables || []).forEach(t => { const o = liveOrderForTable(t.id); if(o && o.items.some(i => !i.paid)) orders.push({ o, name: escapeHtml(tableNameForId(t.id)) });
-    else if(o && o.items.length && o.items.every(i => i.paid)) paidOpen.push({ o, name: escapeHtml(tableNameForId(t.id)) }); });
-  (APP.liveOrders || []).filter(o => o.kind === 'takeaway' && o.items.length && o.items.every(i => i.paid)).forEach(o => paidOpen.push({ o, name: '📦 ' + escapeHtml(o.customer_name || ('Paket #' + (o.daily_number || ''))) }));
-  (APP.liveOrders || []).filter(o => o.kind === 'takeaway' && o.items.some(i => !i.paid)).forEach(o => orders.push({ o, name: '📦 ' + escapeHtml(o.customer_name || ('Paket #' + (o.daily_number || ''))) }));
+  // Her hesabın bölümü (zone): Sipariş Al gibi bölüm sekmeleriyle gruplanır; paketler ayrı "Paket" grubunda.
+  ((APP.config && APP.config.zones) || []).forEach(z => (z.tables || []).forEach(t => { const o = liveOrderForTable(t.id); const nm = escapeHtml(t.name);
+    if(o && o.items.some(i => !i.paid)) orders.push({ o, name: nm, zone: z.id });
+    else if(o && o.items.length && o.items.every(i => i.paid)) paidOpen.push({ o, name: nm, zone: z.id }); }));
+  (APP.liveOrders || []).filter(o => o.kind === 'takeaway' && o.items.length && o.items.every(i => i.paid)).forEach(o => paidOpen.push({ o, name: '📦 ' + escapeHtml(o.customer_name || ('Paket #' + (o.daily_number || ''))), zone: '__pkg' }));
+  (APP.liveOrders || []).filter(o => o.kind === 'takeaway' && o.items.some(i => !i.paid)).forEach(o => orders.push({ o, name: '📦 ' + escapeHtml(o.customer_name || ('Paket #' + (o.daily_number || ''))), zone: '__pkg' }));
   const due = (o) => { const t = o.items.filter(i => !i.paid).reduce((y, i) => y + i.price * i.qty, 0);
     if(o.allowance_id) return Math.max(0, t - Number(o.allowance_remaining || 0));
     return (o.tags || []).length ? 0 : t; };
@@ -228,8 +231,19 @@ function renderPayGrid(){
       return `<div class="os-chip os-viz"><div class="gx-ring-c" style="--p:${p};--c:#22c55e;width:46px;max-width:46px;"><b style="margin:0;font-size:12px;">%${p}</b></div><div><b>${readyN}/${orders.length}</b><small>hazır oranı</small></div></div>
         <div class="os-chip os-viz os-old"><span class="os-ic">⏳</span><div class="os-old-l">${old.map(x => `<span class="${x.m >= 60 ? 'bad' : x.m >= 30 ? 'warn' : ''}"><b>${x.n}</b> ${x.m} dk</span>`).join('')}<small>en uzun açık kalan hesaplar</small></div></div>`; })() : '');
   orders.sort((x, y) => new Date(x.o.created_at || 0) - new Date(y.o.created_at || 0));
+  // Bölüm sekmeleri: Tümü + yalnız açık hesabı olan bölümler + Paket. Tümü'nde bölüm başlıklarıyla gruplu.
+  const groups = [...((APP.config && APP.config.zones) || []).map(z => ({ id: z.id, name: z.name })), { id: '__pkg', name: '📦 Paket' }]
+    .map(g => ({ ...g, list: orders.filter(r => r.zone === g.id), paid: paidOpen.filter(r => r.zone === g.id) })).filter(g => g.list.length || g.paid.length);
+  if(APP.payZone && APP.payZone !== 'all' && !groups.some(g => g.id === APP.payZone)) APP.payZone = 'all';
+  const zsel = APP.payZone || 'all';
+  const zt = document.getElementById('payZoneTabs');
+  if(zt) zt.innerHTML = groups.length > 1 ? [`<div class="tab ${zsel==='all'?'active':''}" ${act('selectPayZone','all')}>Tümü<span class="zone-occ">${orders.length + paidOpen.length}</span></div>`,
+    ...groups.map(g => `<div class="tab ${zsel===g.id?'active':''}" ${act('selectPayZone', g.id)}>${escapeHtml(g.name)}<span class="zone-occ">${g.list.length + g.paid.length}</span></div>`)].join('') : '';
+  const cardsOf = (g) => g.list.map(r => card(r.o, r.name)).join('') + g.paid.map(r => paidCard(r.o, r.name)).join('');
   grid.className = 'pk-grid';
-  grid.innerHTML = (orders.length || paidOpen.length) ? orders.map(r => card(r.o, r.name)).join('') + paidOpen.map(r => paidCard(r.o, r.name)).join('') : '<div class="kb-none">🎉 Açık hesap yok</div>';
+  grid.innerHTML = !groups.length ? '<div class="kb-none">🎉 Açık hesap yok</div>'
+    : zsel === 'all' ? groups.map(g => (groups.length > 1 ? `<div class="tc-zone-h"><b>${escapeHtml(g.name)}</b><span>${g.list.length + g.paid.length} hesap · ${money(g.list.reduce((x, r) => x + due(r.o), 0))}</span></div>` : '') + cardsOf(g)).join('')
+    : cardsOf(groups.find(g => g.id === zsel));
   startCompTicker();
 }
 /* İkram geri sayımı: süresi dolan ikram siparişi close_comp_order ile ödemesiz kapanır
