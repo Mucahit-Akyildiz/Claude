@@ -287,3 +287,4 @@ alter table customers add column if not exists created_by uuid, add column if no
 -- 2026-11-14: Peyktan geçmiş açık hesap tahsilatlarına sadakat puanı yüklendi (kullanıcı onayıyla; 4 hesap, open_account_entries.points_earned).
 -- 2026-11-14: _campaign_review_link(customer): kampanya/geri kazanımda {degerlendirme} müşteriye özel reviews bağlantısına dönüşür (send_campaign, send_winback).
 -- 2026-11-14: send_campaign(.., p_ignore_24h): işletme isterse 24 saat tekrar gönderim kuralı atlanır.
+-- 2026-11-14: trigger oa_charge_link_customer: açık hesaba atılan satışın sales_history.customer_id'si hesabın müşterisine bağlanır (taşımada yeni kişiye).
