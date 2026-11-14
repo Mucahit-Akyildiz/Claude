@@ -331,8 +331,24 @@ function voiceIsSelf(x){
 }
 let VOICE_SEEN = null, VOICE_LATE_SEEN = new Map(), VOICE_RESV_SEEN = new Set(), VOICE_GUEST_LAST = new Map();
 const VOICE_GUEST_REPEAT_MS = 2 * 60 * 1000;
+/* Mutfak siparişlerinin (yeni / bekleyen) sesli okunması kimde?
+   - Yönetici ya da Onay Yetkisi olan: hepsi.
+   - Mutfak ekranında bir istasyon açıksa: yalnız o istasyonun ürünleri (ör. Izgara tableti çayı okumaz).
+   - Diğerleri: yalnız kendi girdiği siparişler (garson kendi masasını duyar). */
+function voiceKitchenScope(){
+  const s = getSession() || {};
+  if(s.isManager || hasPerm(s, 'approvals')) return () => true;
+  if(APP.view === 'kitchen' && APP.kitchenStation) return (x) => x.station === APP.kitchenStation;
+  return (x) => !!x.by && x.by === s.user_id;
+}
 function processVoiceBadges(data, visibleViews){
-  const items = (data && data._items) || {};
+  const items0 = (data && data._items) || {};
+  // Mutfak listesi kapsama göre süzülür; mutfak izni olmayan garsona sunucu yalnız kendi ürünlerini (_mine) gönderir.
+  const scope = voiceKitchenScope();
+  const kitchenList = (items0.kitchen ? items0.kitchen : (items0._mine || [])).filter(scope);
+  const items = Object.assign({}, items0, { kitchen: kitchenList });
+  if(!items0.kitchen && items0._mine && !visibleViews.includes('kitchen')){ visibleViews = visibleViews.concat('kitchen'); }
+  if(!items0.payments && items0._mine_ready && items0._mine_ready.length){ items.payments = items0._mine_ready; if(!visibleViews.includes('payments')) visibleViews = visibleViews.concat('payments'); }
   const ids = new Set();
   const fresh = {};
   visibleViews.forEach(v => (items[v] || []).forEach(x => {
@@ -388,7 +404,7 @@ function processVoiceBadges(data, visibleViews){
   });
   if(late.length && visibleViews.includes('kitchen')) fresh.late = late;
   // Yazılı uyarı sesli okumayla aynı anda çıksın (mutfak ekranının kendi uyarısı bu ürünler için tekrar çıkmaz).
-  if(late.length && visibleViews.includes('kitchen') && typeof kitchenLateWarnedSet === 'function'){
+  if(late.length && items0.kitchen && visibleViews.includes('kitchen') && typeof kitchenLateWarnedSet === 'function'){
     const seen = kitchenLateWarnedSet();
     late.forEach(x => seen.add(String(x.id)));
     try{ sessionStorage.setItem('peyk_kitchen_late', JSON.stringify([...seen].slice(-500))); }catch(e){}
