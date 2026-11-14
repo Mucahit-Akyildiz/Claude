@@ -1113,6 +1113,28 @@ function openPlayStoreUpdate(){ location.href = PLAY_URL; }
 function dismissAppUpdate(latest){ try{ localStorage.setItem('rys_upd_dismiss', latest + '|' + new Date().toDateString()); }catch(e){} removeEl('appUpdateBar'); }
 setTimeout(checkAndroidAppUpdate, 4000);
 
+/* ---- Masaüstü (Windows) otomatik güncelleme ----
+   Kabuk (Peyktan-Kurulum) yeni sürümü arka planda indirir; hazır olunca çubuk çıkar. "Yeniden başlat"
+   uygulamayı kapatıp yeni sürümü kurar; denmezse uygulama kapanınca kurulur. */
+function desktopUpdateBar(st){
+  if(!st || st.status !== 'ready' || document.getElementById('deskUpdBar')) return;
+  const bar = document.createElement('div'); bar.id = 'deskUpdBar';
+  bar.style.cssText = 'position:fixed;left:12px;right:12px;bottom:12px;z-index:97;background:var(--accent);color:#fff;border-radius:14px;padding:10px 12px;display:flex;align-items:center;gap:10px;box-shadow:0 8px 24px rgba(0,0,0,.3);font-size:14px;max-width:640px;margin:0 auto;';
+  bar.innerHTML = `<span class="u-f1">🔄 Masaüstü uygulamasının yeni sürümü (${escapeHtml(st.version || '')}) indirildi.</span>
+    <button type="button" style="margin:0;width:auto;padding:7px 14px;background:#fff;color:var(--accent);border:0;font-weight:800;" ${act('installDesktopUpdate')}>Yeniden başlat</button>
+    <button type="button" style="margin:0;width:auto;padding:7px 10px;background:transparent;color:#fff;border:1px solid rgba(255,255,255,.5);box-shadow:none;" ${act('removeEl','deskUpdBar')}>Sonra</button>`;
+  document.body.appendChild(bar);
+}
+async function installDesktopUpdate(){
+  if(!(await uiConfirm('Uygulama kapanıp yeni sürüm kurulacak, birkaç saniye sonra yeniden açılır. Devam edilsin mi?', { okText: 'Yeniden başlat', danger: false }))) return;
+  try{ await window.electronAPI.installUpdate(); }catch(e){}
+}
+(function(){
+  const E = window.electronAPI; if(!E || typeof E.onUpdate !== 'function') return;
+  E.onUpdate(desktopUpdateBar);
+  setTimeout(() => { E.updateState().then(desktopUpdateBar).catch(() => {}); }, 5000);
+})();
+
 /* ---- Destek modu (Platform Yönetimi > İşletmeler > "Destek olarak gir") ----
    Yönetim paneli oturumu localStorage'a bırakır; bu sekme bir kez okuyup siler (60 sn geçerli).
    Destek oturumu bu sekmeye özeldir (kalıcı kaydedilmez) ve en fazla 1 saat sürer. */

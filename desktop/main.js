@@ -53,9 +53,36 @@ function createWindow() {
   mainWindow.loadURL(APP_URL);
 }
 
+// Otomatik güncelleme (yalnız kurulu Windows uygulaması): yeni sürüm GitHub'daki "masaustu" sürümünden
+// (latest.yml) arka planda indirilir; uygulama kapanınca kurulur ya da kullanıcı "Yeniden başlat" der.
+// macOS'ta imzasız uygulama kendini güncelleyemediği için orada elle kurulum sürer.
+let updateState = { status: 'idle', version: null };
+function sendUpdateState() { try { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('desktop-update', updateState); } catch (e) {} }
+function setupAutoUpdate() {
+  if (!app.isPackaged || process.platform !== 'win32') return null;
+  let autoUpdater;
+  try { ({ autoUpdater } = require('electron-updater')); } catch (e) { return null; }
+  autoUpdater.autoDownload = true;
+  autoUpdater.autoInstallOnAppQuit = true;
+  autoUpdater.on('update-available', (i) => { updateState = { status: 'downloading', version: i && i.version }; sendUpdateState(); });
+  autoUpdater.on('update-downloaded', (i) => { updateState = { status: 'ready', version: i && i.version }; sendUpdateState(); });
+  autoUpdater.on('update-not-available', () => { updateState = { status: 'latest', version: app.getVersion() }; sendUpdateState(); });
+  autoUpdater.on('error', (e) => { updateState = { status: 'error', version: null, error: String((e && e.message) || e).slice(0, 200) }; sendUpdateState(); });
+  const check = () => autoUpdater.checkForUpdates().catch(() => {});
+  setTimeout(check, 15000);
+  setInterval(check, 6 * 60 * 60 * 1000);
+  return { check, install: () => autoUpdater.quitAndInstall(false, true) };
+}
+let updater = null;
+ipcMain.handle('desktop-version', () => app.getVersion());
+ipcMain.handle('desktop-update-state', () => updateState);
+ipcMain.handle('desktop-update-check', async () => { if (updater) await updater.check(); return updateState; });
+ipcMain.handle('desktop-update-install', () => { if (updater && updateState.status === 'ready') { setImmediate(() => updater.install()); return true; } return false; });
+
 app.whenReady().then(() => {
   Menu.setApplicationMenu(null);
   createWindow();
+  updater = setupAutoUpdate();
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
