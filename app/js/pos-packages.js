@@ -53,7 +53,7 @@ function renderPackageGrid(){
         : `<div class="cr-row"><button type="button" class="cr-btn" disabled title="Mutfak tüm ürünleri hazırlayınca kuryeye verilebilir">⏳ Hazırlanıyor — kurye bekliyor</button></div>`;
     }
     return `<div class="table-cell pk-cell ${o.delivered_at ? 'pk-delivered' : o.dispatched_at ? 'pk-way' : ''}" style="cursor:pointer;background:rgba(244,63,94,.14);border-color:var(--red);color:var(--red);overflow-wrap:anywhere;word-break:break-word;" ${act('openPackageModal', 'pkg_'+o.order_id)}>
-      ${pickup ? '🥡' : '🛵'} ${escapeHtml(label)}<div style="font-size:11px;margin-top:4px;font-weight:400;">${pickup ? 'Gel-Al' : 'Paket'} · ${o.items.length} ürün - ${allReady?'Hazır':'hazırlanıyor'} · ${money(total)}</div>${eta}${courier}</div>`;
+      ${pickup ? '🥡' : '🛵'} ${escapeHtml(label)}<div style="font-size:11px;margin-top:4px;font-weight:400;">${pickup ? 'Gel-Al' : 'Paket'} · ${o.items.length} ürün - ${allReady?'Hazır':'hazırlanıyor'} · ${money(total)}</div>${o.note ? `<div class="pk-note" title="Sipariş notu">📝 ${escapeHtml(o.note)}</div>` : ''}${eta}${courier}</div>`;
   });
   const del = pkgOrders.filter(o => pkgTypeOf(o) !== 'pickup');
   const sum = document.getElementById('pkgStatus');

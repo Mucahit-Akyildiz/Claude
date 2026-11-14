@@ -4694,3 +4694,5 @@ select.ss-hidden{display:none !important;}
 .sc-t{width:100%;border-collapse:collapse;margin:8px 0;font-size:13px;} .sc-t th,.sc-t td{padding:5px 6px;border-bottom:1px solid var(--border);text-align:right;} .sc-t th:first-child,.sc-t td:first-child{text-align:left;}
 .sc-cfoot{gap:8px;flex-wrap:wrap;} .sc-acts{display:flex;gap:8px;}
 @media (max-width:600px){ .sc-row{grid-template-columns:auto minmax(0,1fr) 96px;} .sc-u{display:none;} .sc-d{grid-column:2 / 4;} }
+.pk-note{margin-top:5px;font-size:11.5px;font-weight:600;color:var(--text);background:color-mix(in srgb,#f59e0b 16%,transparent);border-radius:8px;padding:4px 7px;text-align:left;overflow-wrap:anywhere;}
+.kc-onote{margin:4px 0;}
