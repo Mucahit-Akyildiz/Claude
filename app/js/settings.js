@@ -323,7 +323,7 @@ async function renderIntegrationsSettings(el, session){
   const INT_TABS = [
     { id:'online', ic:'🛵', label:'Online Sipariş' }, { id:'geo', ic:'📍', label:'Konum & Teslimat' }, { id:'google', ic:'⭐', label:'Google Yorumları' },
     { id:'sms', ic:'📱', label:'SMS' }, { id:'invoice', ic:'🧾', label:'Fatura Bilgileri' },
-    { id:'mail', ic:'✉️', label:'E-posta' }, { id:'bank', ic:'🏦', label:'Banka / IBAN' },
+    { id:'mail', ic:'✉️', label:'E-posta' }, { id:'bank', ic:'🏦', label:'Banka / IBAN' }, { id:'voice', ic:'🔊', label:'Sesli Bildirim' },
     { id:'efatura', ic:'🧾', label:'ÖKC / e-Fatura' }, { id:'marketplace', ic:'🛍️', label:'Pazaryeri' }, { id:'accounting', ic:'📊', label:'Muhasebe' },
   ];
   // Her entegrasyon ayrı rol izniyle (int_*) açılır; "Ayarlar · Entegrasyonlar (hepsi)" ve Yönetici hepsini görür.
@@ -341,6 +341,8 @@ async function renderIntegrationsSettings(el, session){
   // Banka / IBAN: birden fazla hesap; Havale/EFT ödemesinde seçilip müşteriye SMS / e-postayla gönderilir.
   { const g = document.createElement('div'); g.className = 'box int-pane ix-box'; g.style.maxWidth = 'none'; g.dataset.int = 'geo'; g.id = 'geoPane';
     g.innerHTML = geoPaneHtml(session); el.appendChild(g); boxes.push(g); }
+  { const v = document.createElement('div'); v.className = 'box int-pane ix-box'; v.style.maxWidth = 'none'; v.dataset.int = 'voice'; v.id = 'voicePane';
+    v.innerHTML = voiceKeyPaneHtml(session); el.appendChild(v); boxes.push(v); }
   { const b = document.createElement('div'); b.className = 'box int-pane ix-box'; b.style.maxWidth = 'none'; b.dataset.int = 'bank'; b.id = 'bankPane';
     b.innerHTML = bankPaneHtml(session); el.appendChild(b); boxes.push(b); }
   loadMailTemplates();
@@ -352,12 +354,12 @@ async function renderIntegrationsSettings(el, session){
   boxes.forEach(b => { if(b.dataset.int && !intAllowed(b.dataset.int)) b.remove(); });
   if(!INT_TABS.some(t => t.id === APP.integrationsSubTab)) APP.integrationsSubTab = INT_TABS.length ? INT_TABS[0].id : 'online';
   const INT_DESC = { online:'Kendi sipariş sayfanız ve kartla ödeme', google:'İşletme yorumlarını takip edin', sms:'Müşterilere SMS bildirimi', mail:'Kendi alan adınızdan e-posta', pay:'iyzico / PayTR ile kartla ödeme', invoice:'Faturada görünecek bilgiler',
-    efatura:'Yazarkasa ve e-Fatura/e-Arşiv', marketplace:'Pazaryeri menü eşitleme', accounting:'Muhasebe yazılımına aktarım', bank:'Havale/EFT için IBAN', geo:'Adrese teslim yol süresi' };
+    efatura:'Yazarkasa ve e-Fatura/e-Arşiv', marketplace:'Pazaryeri menü eşitleme', accounting:'Muhasebe yazılımına aktarım', bank:'Havale/EFT için IBAN', voice:'Kendi ElevenLabs hesabınızla doğal ses', geo:'Adrese teslim yol süresi' };
   const stOf = (id) => { const b = boxes.find(x => x.dataset.int === id); const t = b ? b.textContent : '';
     if(/paketinizde yok/i.test(t)) return ['lock','🔒 Eklenti'];
     const c = APP.config || {}, on = { online: !!(c.online_ordering && c.online_ordering.enabled), google: !!c.google_review_url,
       marketplace: !!(data.marketplace_enabled && (data.marketplace_getir_configured || data.marketplace_trendyol_configured || data.marketplace_yemeksepeti_configured)),
-      invoice: !!(data.invoice_title && data.tax_number), bank: !!(c.banks && c.banks.length), geo: !!(c.geo && c.geo.geo_lat != null), efatura: !!(data.efatura_enabled && data.efatura_configured), accounting: !!(data.accounting_enabled && data.accounting_configured),
+      invoice: !!(data.invoice_title && data.tax_number), bank: !!(c.banks && c.banks.length), voice: !!c.tts_key_set, geo: !!(c.geo && c.geo.geo_lat != null), efatura: !!(data.efatura_enabled && data.efatura_configured), accounting: !!(data.accounting_enabled && data.accounting_configured),
       sms: !!data.sms_enabled && (APP.intLive || {}).sms !== false, mail: !!(APP.intLive || {}).mail }[id];
     return on ? ['ok','Aktif'] : ['off','Kapalı']; };
   const bar = document.createElement('div');
@@ -553,6 +555,35 @@ function setIntTileStatus(id, on){
   const st = b.querySelector('.int-st'); if(st) st.textContent = on ? '● Aktif' : '○ Kapalı';
 }
 
+/* Sesli Bildirim (ElevenLabs): işletme kendi API anahtarını girerse sesler onun hesabından üretilir (günlük sınır yok);
+   girmezse Peyktan'ın ortak hesabı günlük sınırla kullanılır. Üretilen cümleler sunucuda saklanır, tekrar ücretlenmez. */
+function voiceKeyPaneHtml(session){
+  const on = !!(APP.config && APP.config.tts_key_set), mgr = canManage(session || getSession(), 'settings_integrations') || hasPerm(session || getSession(), 'int_voice');
+  return `<h2>🔊 Sesli Bildirim</h2>
+    <div class="oo-hero ${on?'on':''}"><div class="oo-hero-ic">🗣️</div>
+      <div class="oo-hero-t"><b>Doğal Türkçe sesli bildirimler (ElevenLabs)</b><small>"12 numaralı masa hesap istiyor" gibi bildirimler doğal sesle okunur. Kendi ElevenLabs anahtarınızı girerseniz sesler sizin hesabınızdan üretilir ve günlük sınır olmaz. Girmezseniz Peyktan'ın ortak hesabı günlük sınırla kullanılır; sınır dolunca cihazın kendi sesi okur.</small></div>
+      <span class="ti-st ${on?'ok':''}">${on ? '● Kendi anahtarınız' : '○ Ortak hesap'}</span></div>
+    <div class="ix-sec"><div class="ix-st">ElevenLabs API anahtarı</div><div class="ix-form">
+      <div style="grid-column:1/-1;"><div style="display:flex;gap:8px;flex-wrap:wrap;"><input id="tts_key" type="password" autocomplete="off" placeholder="${on ? '●●●●●●●● kayıtlı — değiştirmek için yenisini yazın' : 'sk_… ile başlayan anahtar'}" style="flex:1;min-width:220px;margin:0;font-family:monospace;" ${mgr?'':'disabled'}>${mgr ? `<button type="button" class="ghost-btn" style="width:auto;margin:0;white-space:nowrap;" ${act('saveTtsKey')}>🔑 Anahtarı kaydet</button>${on ? `<button type="button" class="ghost-btn" style="width:auto;margin:0;color:var(--red);" ${act('removeTtsKey')}>Kaldır</button>` : ''}` : ''}</div>
+        <small class="muted">Nasıl alınır: elevenlabs.io → hesabınız → <b>Developers › API Keys</b> → Create API Key. İzinlerden <b>Text to Speech</b> açık olsun (sesleri listelemek için <b>Voices: Read</b> da). Anahtar şifreli saklanır ve tarayıcıya geri gönderilmez.</small></div>
+    </div></div>`;
+}
+async function saveTtsKey(){
+  const k = ((document.getElementById('tts_key') || {}).value || '').trim();
+  if(k.length < 20){ showToast('Geçerli bir ElevenLabs API anahtarı yazın'); return; }
+  const { error } = await sb.rpc('save_tts_key', { p_token: getSession().session_token, p_key: k });
+  if(error){ showToast(error.message); return; }
+  if(APP.config) APP.config.tts_key_set = true;
+  const p = document.getElementById('voicePane'); if(p) p.innerHTML = voiceKeyPaneHtml();
+  showToast('Anahtar kaydedildi ✓ Sesli bildirimler artık sizin ElevenLabs hesabınızdan');
+}
+async function removeTtsKey(){
+  if(!(await uiConfirm('ElevenLabs anahtarı kaldırılsın mı? Peyktan ortak hesabı günlük sınırla kullanılır.', { danger: true }))) return;
+  const { error } = await sb.rpc('save_tts_key', { p_token: getSession().session_token, p_key: '' });
+  if(error){ showToast(error.message); return; }
+  if(APP.config) APP.config.tts_key_set = false;
+  const p = document.getElementById('voicePane'); if(p) p.innerHTML = voiceKeyPaneHtml();
+}
 async function saveMapsKey(){
   const k = ((document.getElementById('geo_key') || {}).value || '').trim();
   if(!/^AIza[\w-]{30,}$/.test(k)){ showToast('Geçerli bir Google API anahtarı yazın (AIza… ile başlar)'); return; }

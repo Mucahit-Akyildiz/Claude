@@ -278,3 +278,4 @@ alter table customers add column if not exists created_by uuid, add column if no
 -- 2026-11-12: set_table_customer masaya yazılan adı _ensure_customer(.., true) ile Müşteriler'e de kaydeder.
 -- 2026-11-12: _ensure_customer: telefonla bulunamazsa aynı adlı telefonsuz müşteriye telefon eklenir.
 -- 2026-11-12: Stok sayımı: stock_counts/stock_count_lines, ingredients.count_daily; submit_stock_count, list_stock_counts, decide_stock_count (onayda sayım anındaki fark uygulanır), set_ingredient_count_daily. Yeni izinler stock_count ve approvals (_session_check paket kontrolü dışı, _role_permission_catalog Yönetim).
+-- 2026-11-14: Sesli bildirim: tenant_integrations.tts_api_key (save_tts_key, _tts_ctx yalnız service_role), int_voice izni, config.tts_key_set; storage 'tts-cache' (api/tts.js ortak önbellek; kendi anahtarında günlük kota yok).
