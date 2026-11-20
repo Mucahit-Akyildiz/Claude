@@ -2888,6 +2888,45 @@ $$;
 
 
 --
+-- Name: _resv_apply_special(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public._resv_apply_special() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+declare sd special_days%rowtype;
+begin
+  if tg_op = 'INSERT' or new.reservation_time is distinct from old.reservation_time or new.party_size is distinct from old.party_size then
+    select * into sd from _special_day_for(new.restaurant_id, new.reservation_time, new.party_size);
+    new.special_day_id := sd.id; new.discount_pct := sd.discount_pct;
+  end if;
+  return new;
+end $$;
+
+
+--
+-- Name: _resv_capacity_check(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public._resv_capacity_check() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+declare sd special_days%rowtype; d date := (new.reservation_time at time zone 'Europe/Istanbul')::date; b int;
+begin
+  if coalesce(new.source,'') <> 'online' then return new; end if;
+  for sd in select * from _special_days_on(new.restaurant_id, d) where capacity is not null loop
+    b := _special_day_booked(new.restaurant_id, d, new.id);
+    if b + coalesce(new.party_size,0) > sd.capacity then
+      raise exception 'Bu tarih (%) için yer kalmadı. Lütfen başka bir gün seçin ya da bizi arayın.', to_char(d, 'DD.MM.YYYY');
+    end if;
+  end loop;
+  return new;
+end $$;
+
+
+--
 -- Name: _reverse_po_item(uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -3633,6 +3672,78 @@ begin
   for k, v in select * from jsonb_each_text(coalesce(p_vars,'{}'::jsonb)) loop s := replace(s, '{' || k || '}', coalesce(v,'')); end loop;
   return left(s, 480);
 end $$;
+
+
+--
+-- Name: _special_day_booked(uuid, date, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public._special_day_booked(p_rest uuid, p_day date, p_except uuid DEFAULT NULL::uuid) RETURNS integer
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+  select coalesce(sum(party_size),0)::int from reservations where restaurant_id = p_rest and status in ('pending','confirmed','seated')
+    and (reservation_time at time zone 'Europe/Istanbul')::date = p_day and id is distinct from p_except $$;
+
+
+--
+-- Name: special_days; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.special_days (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    restaurant_id uuid NOT NULL,
+    name text NOT NULL,
+    color text,
+    on_date date,
+    weekday integer,
+    date_from date,
+    date_to date,
+    time_from time without time zone,
+    time_to time without time zone,
+    min_party integer,
+    discount_pct numeric,
+    note text,
+    active boolean DEFAULT true NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    capacity integer,
+    zone_ids uuid[] DEFAULT '{}'::uuid[] NOT NULL,
+    show_online boolean DEFAULT true NOT NULL,
+    CONSTRAINT special_days_capacity_check CHECK (((capacity IS NULL) OR (capacity > 0))),
+    CONSTRAINT special_days_check CHECK (((on_date IS NOT NULL) OR (weekday IS NOT NULL))),
+    CONSTRAINT special_days_discount_pct_check CHECK (((discount_pct IS NULL) OR ((discount_pct >= (0)::numeric) AND (discount_pct <= (100)::numeric)))),
+    CONSTRAINT special_days_weekday_check CHECK (((weekday >= 1) AND (weekday <= 7)))
+);
+
+
+--
+-- Name: _special_day_for(uuid, timestamp with time zone, integer); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public._special_day_for(p_rest uuid, p_at timestamp with time zone, p_party integer) RETURNS public.special_days
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+  select sd.* from special_days sd, lateral (select (p_at at time zone 'Europe/Istanbul') lt) x
+  where sd.restaurant_id = p_rest and sd.active
+    and (sd.on_date = x.lt::date or (sd.on_date is null and sd.weekday = extract(isodow from x.lt)::int))
+    and (sd.date_from is null or x.lt::date >= sd.date_from) and (sd.date_to is null or x.lt::date <= sd.date_to)
+    and (sd.time_from is null or x.lt::time >= sd.time_from) and (sd.time_to is null or x.lt::time <= sd.time_to)
+    and (sd.min_party is null or coalesce(p_party,0) >= sd.min_party)
+  order by coalesce(sd.discount_pct,0) desc, sd.on_date nulls last limit 1 $$;
+
+
+--
+-- Name: _special_days_on(uuid, date); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public._special_days_on(p_rest uuid, p_day date) RETURNS SETOF public.special_days
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+  select sd.* from special_days sd where sd.restaurant_id = p_rest and sd.active
+    and (sd.on_date = p_day or (sd.on_date is null and sd.weekday = extract(isodow from p_day)::int))
+    and (sd.date_from is null or p_day >= sd.date_from) and (sd.date_to is null or p_day <= sd.date_to) $$;
 
 
 --
@@ -5628,6 +5739,21 @@ begin
     update bank_accounts set is_default = true where id = (select id from bank_accounts where restaurant_id = s.restaurant_id and active order by created_at limit 1); end if;
   insert into audit_log(restaurant_id, user_id, entity, action, label) values (s.restaurant_id, s.user_id, 'settings', 'update', 'Banka hesabı kaldırıldı');
   return _banks_json(s.restaurant_id);
+end $$;
+
+
+--
+-- Name: archive_special_day(uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.archive_special_day(p_token uuid, p_id uuid) RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+declare s staff_sessions%rowtype; begin
+  s := _session_check(p_token, 'reservations');
+  update special_days set active = false where id = p_id and restaurant_id = s.restaurant_id;
+  update reservations set special_day_id = null, discount_pct = null where special_day_id = p_id and status in ('pending','confirmed');
 end $$;
 
 
@@ -8343,7 +8469,7 @@ begin
       'order_id', o.id, 'table_id', o.table_id, 'kind', o.kind, 'created_at', o.created_at,
       'daily_number', o.daily_number, 'tags', o.tags, 'guest_count', o.guest_count, 'treat_off', o.treat_off, 'allowance_id', o.allowance_id, 'allowance_name', (select coalesce(al.name, au.username) from allowances al left join app_users au on au.id = al.user_id where al.id = o.allowance_id), 'allowance_remaining', case when o.allowance_id is not null then _allowance_remaining(o.allowance_id) end,
       'customer_name', o.customer_name, 'customer_phone', o.customer_phone, 'delivery_address', o.delivery_address, 'takeaway_type', o.takeaway_type, 'pickup_at', o.pickup_at, 'travel_min', o.travel_min, 'travel_src', o.travel_src, 'travel_checked_at', o.travel_checked_at, 'note', o.note,
-      'created_by', o.created_by, 'created_by_name', (select username from app_users where id = o.created_by), 'waitlist_id', o.waitlist_id, 'reservation_id', o.reservation_id, 'reservation', (select json_build_object('time', rr.reservation_time, 'party_size', rr.party_size, 'status', rr.status) from reservations rr where rr.id = o.reservation_id), 'courier_user_id', o.courier_user_id, 'courier_name', (select username from app_users where id = o.courier_user_id), 'dispatched_at', o.dispatched_at, 'delivered_at', o.delivered_at, 'tracking_token', o.tracking_token, 'courier_at', o.courier_at, 'packaging', o.packaging, 'pack_cost', o.pack_cost, 'courier_accepted_at', o.courier_accepted_at, 'courier_offer_at', o.courier_offer_at, 'courier_eta_min', o.courier_eta_min, 'courier_eta_at', o.courier_eta_at,
+      'created_by', o.created_by, 'created_by_name', (select username from app_users where id = o.created_by), 'waitlist_id', o.waitlist_id, 'reservation_id', o.reservation_id, 'reservation', (select json_build_object('time', rr.reservation_time, 'party_size', rr.party_size, 'status', rr.status, 'discount_pct', rr.discount_pct, 'special_name', (select name from special_days where id = rr.special_day_id), 'group_name', rr.group_name, 'deposit_amount', rr.deposit_amount, 'deposit_method', rr.deposit_method, 'deposit_at', rr.deposit_at) from reservations rr where rr.id = o.reservation_id), 'courier_user_id', o.courier_user_id, 'courier_name', (select username from app_users where id = o.courier_user_id), 'dispatched_at', o.dispatched_at, 'delivered_at', o.delivered_at, 'tracking_token', o.tracking_token, 'courier_at', o.courier_at, 'packaging', o.packaging, 'pack_cost', o.pack_cost, 'courier_accepted_at', o.courier_accepted_at, 'courier_offer_at', o.courier_offer_at, 'courier_eta_min', o.courier_eta_min, 'courier_eta_at', o.courier_eta_at,
       'waitlist', (select json_build_object('joined_at', w.joined_at, 'quoted_wait_minutes', w.quoted_wait_minutes, 'party_size', w.party_size, 'status', w.status) from waitlist_entries w where w.id = o.waitlist_id),
       'items', (
         select coalesce(json_agg(json_build_object(
@@ -9077,7 +9203,12 @@ declare r restaurants%rowtype;
 begin
   select * into r from restaurants where code = p_restaurant_code;
   if r.id is null or not coalesce(r.is_active, false) then return null; end if;
-  return json_build_object('name', r.name, 'enabled', r.online_reservations_enabled, 'from', to_char(r.online_resv_from, 'HH24:MI'), 'to', to_char(r.online_resv_to, 'HH24:MI'));
+  return json_build_object('name', r.name, 'enabled', r.online_reservations_enabled, 'from', to_char(r.online_resv_from, 'HH24:MI'), 'to', to_char(r.online_resv_to, 'HH24:MI'),
+    'special_days', (select coalesce(json_agg(json_build_object('name', sd.name, 'on_date', sd.on_date, 'weekday', sd.weekday, 'date_from', sd.date_from, 'date_to', sd.date_to,
+        'time_from', to_char(sd.time_from, 'HH24:MI'), 'time_to', to_char(sd.time_to, 'HH24:MI'), 'min_party', sd.min_party, 'discount_pct', sd.discount_pct, 'note', sd.note, 'color', sd.color)), '[]'::json)
+      from special_days sd where sd.restaurant_id = r.id and sd.active and sd.show_online and (sd.on_date is null or sd.on_date >= current_date) and (sd.date_to is null or sd.date_to >= current_date)),
+    'full_days', (select coalesce(json_agg(x.d), '[]'::json) from (select g::date d from generate_series(current_date, current_date + 89, interval '1 day') g
+      where exists(select 1 from _special_days_on(r.id, g::date) s where s.capacity is not null and _special_day_booked(r.id, g::date) >= s.capacity)) x));
 end $$;
 
 
@@ -10843,6 +10974,21 @@ end; $$;
 
 
 --
+-- Name: list_reservation_participants(uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.list_reservation_participants(p_token uuid, p_id uuid) RETURNS json
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+declare s staff_sessions%rowtype; begin
+  s := _session_check(p_token, 'reservations');
+  return (select coalesce(json_agg(json_build_object('id', p.id, 'name', p.name, 'phone', p.phone, 'arrived', p.arrived, 'customer_id', p.customer_id) order by p.created_at), '[]'::json)
+    from reservation_participants p join reservations r on r.id = p.reservation_id where r.id = p_id and r.restaurant_id = s.restaurant_id);
+end $$;
+
+
+--
 -- Name: list_reservations(uuid, date); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -10857,6 +11003,8 @@ begin
     select coalesce(json_agg(row_to_json(r) order by r.reservation_time), '[]'::json)
     from (
       select rv.id, rv.customer_name, rv.phone, rv.email, rv.party_size, rv.reservation_time, rv.table_id, rv.status, rv.notes, rv.source, (select username from app_users where id = rv.created_by) created_by_name,
+             rv.special_day_id, rv.discount_pct, (select name from special_days where id = rv.special_day_id) special_name, (select color from special_days where id = rv.special_day_id) special_color,
+             rv.group_name, rv.women, rv.men, rv.children, rv.deposit_amount, rv.deposit_method, rv.deposit_at, (select count(*) from reservation_participants p where p.reservation_id = rv.id) participants,
              rt.name as table_name
       from reservations rv left join restaurant_tables rt on rt.id = rv.table_id
       where rv.restaurant_id = s.restaurant_id
@@ -10912,6 +11060,25 @@ begin
   return (select coalesce(json_agg(json_build_object('id', id, 'device_id', device_id, 'device_name', device_name, 'printer_name', printer_name,
       'online', last_seen > now() - interval '120 seconds') order by device_name, printer_name), '[]'::json)
     from shared_printers where restaurant_id = s.restaurant_id);
+end $$;
+
+
+--
+-- Name: list_special_days(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.list_special_days(p_token uuid) RETURNS json
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+declare s staff_sessions%rowtype; begin
+  s := _session_check(p_token, 'reservations');
+  return (select coalesce(json_agg(row_to_json(x) order by x.on_date nulls first, x.weekday, x.name), '[]'::json) from (
+    select sd.*, (select count(*) from reservations r where r.special_day_id = sd.id and r.status in ('pending','confirmed') and r.reservation_time >= now() - interval '1 day') upcoming,
+      (select json_build_object('resv', count(distinct r.id), 'guests', coalesce(sum(distinct_r.party_size),0), 'revenue', coalesce((select sum(sh.total) from sales_history sh join orders o on o.id = sh.order_id join reservations r2 on r2.id = o.reservation_id where r2.special_day_id = sd.id and sh.closed_at > now() - interval '90 days'),0),
+         'discount', coalesce((select sum(sh.discount_amount) from sales_history sh join orders o on o.id = sh.order_id join reservations r2 on r2.id = o.reservation_id where r2.special_day_id = sd.id and sh.closed_at > now() - interval '90 days'),0))
+       from reservations r cross join lateral (select r.party_size) distinct_r where r.special_day_id = sd.id and r.status in ('seated','closed') and r.reservation_time > now() - interval '90 days') stats
+    from special_days sd where sd.restaurant_id = s.restaurant_id and sd.active) x);
 end $$;
 
 
@@ -12902,6 +13069,45 @@ end $_$;
 
 
 --
+-- Name: save_reservation_group(uuid, uuid, text, integer, integer, integer, jsonb); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.save_reservation_group(p_token uuid, p_id uuid, p_group_name text, p_women integer, p_men integer, p_children integer, p_participants jsonb) RETURNS json
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+declare s staff_sessions%rowtype; r reservations%rowtype; x jsonb; v_cid uuid; v_new boolean; n int := 0; v_name text; v_phone text;
+begin
+  s := _session_check(p_token, 'reservations');
+  select * into r from reservations where id = p_id and restaurant_id = s.restaurant_id;
+  if r.id is null then raise exception 'Rezervasyon bulunamadı'; end if;
+  if coalesce(p_women,0) < 0 or coalesce(p_men,0) < 0 or coalesce(p_children,0) < 0 then raise exception 'Sayılar eksi olamaz'; end if;
+  update reservations set group_name = nullif(left(btrim(coalesce(p_group_name,'')),100),''), women = p_women, men = p_men, children = p_children where id = r.id;
+  if p_participants is not null and jsonb_typeof(p_participants) = 'array' then
+    if jsonb_array_length(p_participants) > 500 then raise exception 'En fazla 500 katılımcı'; end if;
+    delete from reservation_participants where reservation_id = r.id and not arrived and not exists (select 1 from jsonb_array_elements(p_participants) e where (e->>'id') = reservation_participants.id::text);
+    for x in select * from jsonb_array_elements(p_participants) loop
+      v_name := left(btrim(coalesce(x->>'name','')), 80); v_phone := nullif(left(btrim(coalesce(x->>'phone','')), 30), '');
+      if v_name = '' then continue; end if;
+      v_cid := null; v_new := false;
+      if length(regexp_replace(coalesce(v_phone,''), '\D', '', 'g')) >= 7 then
+        v_new := not exists(select 1 from customers where restaurant_id = s.restaurant_id and right(regexp_replace(coalesce(phone,''), '\D', '', 'g'), 10) = right(regexp_replace(v_phone, '\D', '', 'g'), 10));
+        v_cid := _ensure_customer(s.restaurant_id, v_name, v_phone, false);
+        if v_new and v_cid is not null then update customers set marketing_consent = false where id = v_cid and marketing_consent is null; end if;
+      end if;
+      if nullif(x->>'id','') is not null and exists(select 1 from reservation_participants where id = (x->>'id')::uuid and reservation_id = r.id) then
+        update reservation_participants set name = v_name, phone = v_phone, customer_id = coalesce(v_cid, customer_id) where id = (x->>'id')::uuid;
+      else
+        insert into reservation_participants(reservation_id, restaurant_id, name, phone, customer_id) values (r.id, s.restaurant_id, v_name, v_phone, v_cid);
+      end if;
+      n := n + 1;
+    end loop;
+  end if;
+  return json_build_object('participants', n);
+end $$;
+
+
+--
 -- Name: save_review_contact(uuid, text, text, boolean); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -14526,6 +14732,27 @@ end $$;
 
 
 --
+-- Name: set_participant_arrived(uuid, uuid, boolean); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.set_participant_arrived(p_token uuid, p_participant uuid, p_arrived boolean) RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+declare s staff_sessions%rowtype; p reservation_participants%rowtype; begin
+  s := _session_check(p_token, 'reservations');
+  select * into p from reservation_participants where id = p_participant and restaurant_id = s.restaurant_id for update;
+  if p.id is null then raise exception 'Katılımcı bulunamadı'; end if;
+  if p.arrived = coalesce(p_arrived,false) then return; end if;
+  update reservation_participants set arrived = coalesce(p_arrived,false) where id = p.id;
+  if p.customer_id is not null then
+    update customers set total_visits = greatest(coalesce(total_visits,0) + case when p_arrived then 1 else -1 end, 0),
+      last_visit_at = case when p_arrived then now() else last_visit_at end where id = p.customer_id;
+  end if;
+end $$;
+
+
+--
 -- Name: set_payment_wanted(uuid, integer); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -14930,6 +15157,25 @@ begin
   update restaurants set reports_password_hash = crypt(p_new_password, gen_salt('bf')) where id = s.restaurant_id;
 end;
 $$;
+
+
+--
+-- Name: set_reservation_deposit(uuid, uuid, numeric, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.set_reservation_deposit(p_token uuid, p_id uuid, p_amount numeric, p_method text) RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+declare s staff_sessions%rowtype; begin
+  s := _session_check(p_token, 'reservations');
+  if p_amount is not null and p_amount < 0 then raise exception 'Tutar eksi olamaz'; end if;
+  if coalesce(p_amount,0) > 0 and coalesce(p_method,'') not in ('cash','card','transfer') then raise exception 'Ödeme yöntemi seçin'; end if;
+  update reservations set deposit_amount = nullif(p_amount,0), deposit_method = case when coalesce(p_amount,0) > 0 then p_method end,
+    deposit_at = case when coalesce(p_amount,0) > 0 then coalesce(deposit_at, now()) end, deposit_by = case when coalesce(p_amount,0) > 0 then s.user_id end
+  where id = p_id and restaurant_id = s.restaurant_id;
+  if not found then raise exception 'Rezervasyon bulunamadı'; end if;
+end $$;
 
 
 --
@@ -17264,6 +17510,42 @@ end; $_$;
 
 
 --
+-- Name: upsert_special_day(uuid, uuid, jsonb); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.upsert_special_day(p_token uuid, p_id uuid, p_data jsonb) RETURNS uuid
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+declare s staff_sessions%rowtype; v_id uuid; v_name text := left(btrim(coalesce(p_data->>'name','')), 80);
+begin
+  s := _session_check(p_token, 'reservations');
+  if v_name = '' then raise exception 'Ad girin'; end if;
+  if nullif(p_data->>'on_date','') is null and nullif(p_data->>'weekday','') is null then raise exception 'Tarih ya da haftanın günü seçin'; end if;
+  if p_id is null then
+    insert into special_days(restaurant_id, name, on_date, weekday) values (s.restaurant_id, v_name, nullif(p_data->>'on_date','')::date, case when nullif(p_data->>'on_date','') is null then nullif(p_data->>'weekday','')::int end) returning id into v_id;
+  else
+    select id into v_id from special_days where id = p_id and restaurant_id = s.restaurant_id;
+    if v_id is null then raise exception 'Özel gün bulunamadı'; end if;
+  end if;
+  update special_days set name = v_name, color = nullif(p_data->>'color',''),
+    on_date = nullif(p_data->>'on_date','')::date, weekday = case when nullif(p_data->>'on_date','') is null then nullif(p_data->>'weekday','')::int end,
+    date_from = nullif(p_data->>'date_from','')::date, date_to = nullif(p_data->>'date_to','')::date,
+    time_from = nullif(p_data->>'time_from','')::time, time_to = nullif(p_data->>'time_to','')::time,
+    min_party = nullif(p_data->>'min_party','')::int, discount_pct = nullif(p_data->>'discount_pct','')::numeric,
+    note = nullif(left(btrim(coalesce(p_data->>'note','')), 300),''),
+    capacity = nullif(p_data->>'capacity','')::int,
+    zone_ids = coalesce((select array_agg(z.id) from zones z where z.restaurant_id = s.restaurant_id and z.id::text in (select jsonb_array_elements_text(coalesce(p_data->'zone_ids','[]'::jsonb)))), '{}'),
+    show_online = coalesce((p_data->>'show_online')::boolean, true)
+  where id = v_id;
+  -- Yaklaşan rezervasyonların özel gün eşleşmesi yeniden hesaplanır.
+  update reservations r set (special_day_id, discount_pct) = (select x.id, x.discount_pct from _special_day_for(r.restaurant_id, r.reservation_time, r.party_size) x)
+    where r.restaurant_id = s.restaurant_id and r.status in ('pending','confirmed') and r.reservation_time >= now() - interval '1 day';
+  return v_id;
+end $$;
+
+
+--
 -- Name: upsert_station(uuid, uuid, text, text, text); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -19053,6 +19335,22 @@ CREATE TABLE public.reports_password_reset_otps (
 
 
 --
+-- Name: reservation_participants; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.reservation_participants (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    reservation_id uuid NOT NULL,
+    restaurant_id uuid NOT NULL,
+    name text NOT NULL,
+    phone text,
+    customer_id uuid,
+    arrived boolean DEFAULT false NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
 -- Name: reservations; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -19073,7 +19371,17 @@ CREATE TABLE public.reservations (
     email text,
     staff_reminder_sent_at timestamp with time zone,
     source text,
-    created_by uuid DEFAULT (NULLIF(current_setting('peyk.uid'::text, true), ''::text))::uuid
+    created_by uuid DEFAULT (NULLIF(current_setting('peyk.uid'::text, true), ''::text))::uuid,
+    special_day_id uuid,
+    discount_pct numeric,
+    group_name text,
+    women integer,
+    men integer,
+    children integer,
+    deposit_amount numeric,
+    deposit_method text,
+    deposit_at timestamp with time zone,
+    deposit_by uuid
 );
 
 
@@ -20492,6 +20800,14 @@ ALTER TABLE ONLY public.reports_password_reset_otps
 
 
 --
+-- Name: reservation_participants reservation_participants_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.reservation_participants
+    ADD CONSTRAINT reservation_participants_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: reservations reservations_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -20625,6 +20941,14 @@ ALTER TABLE ONLY public.signup_otps
 
 ALTER TABLE ONLY public.sms_outbox
     ADD CONSTRAINT sms_outbox_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: special_days special_days_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.special_days
+    ADD CONSTRAINT special_days_pkey PRIMARY KEY (id);
 
 
 --
@@ -21788,6 +22112,13 @@ CREATE INDEX reviews_table_id_idx ON public.reviews USING btree (table_id);
 
 
 --
+-- Name: rp_resv_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX rp_resv_idx ON public.reservation_participants USING btree (reservation_id);
+
+
+--
 -- Name: sales_history_rest_closed; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -21820,6 +22151,13 @@ CREATE INDEX sms_outbox_report_idx ON public.sms_outbox USING btree (created_at)
 --
 
 CREATE INDEX sms_outbox_restaurant_id_idx ON public.sms_outbox USING btree (restaurant_id);
+
+
+--
+-- Name: special_days_rest_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX special_days_rest_idx ON public.special_days USING btree (restaurant_id) WHERE active;
 
 
 --
@@ -21953,6 +22291,20 @@ CREATE TRIGGER restaurants_auto_company BEFORE UPDATE OF package_id, expires_at 
 --
 
 CREATE TRIGGER restaurants_sync_max_users BEFORE UPDATE OF package_id ON public.restaurants FOR EACH ROW EXECUTE FUNCTION public._sync_restaurant_max_users();
+
+
+--
+-- Name: reservations resv_apply_special; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER resv_apply_special BEFORE INSERT OR UPDATE OF reservation_time, party_size ON public.reservations FOR EACH ROW EXECUTE FUNCTION public._resv_apply_special();
+
+
+--
+-- Name: reservations resv_capacity_check; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER resv_capacity_check BEFORE INSERT ON public.reservations FOR EACH ROW EXECUTE FUNCTION public._resv_capacity_check();
 
 
 --
@@ -23326,11 +23678,43 @@ ALTER TABLE ONLY public.reports_password_reset_otps
 
 
 --
+-- Name: reservation_participants reservation_participants_customer_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.reservation_participants
+    ADD CONSTRAINT reservation_participants_customer_id_fkey FOREIGN KEY (customer_id) REFERENCES public.customers(id) ON DELETE SET NULL;
+
+
+--
+-- Name: reservation_participants reservation_participants_reservation_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.reservation_participants
+    ADD CONSTRAINT reservation_participants_reservation_id_fkey FOREIGN KEY (reservation_id) REFERENCES public.reservations(id) ON DELETE CASCADE;
+
+
+--
+-- Name: reservation_participants reservation_participants_restaurant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.reservation_participants
+    ADD CONSTRAINT reservation_participants_restaurant_id_fkey FOREIGN KEY (restaurant_id) REFERENCES public.restaurants(id) ON DELETE CASCADE;
+
+
+--
 -- Name: reservations reservations_restaurant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.reservations
     ADD CONSTRAINT reservations_restaurant_id_fkey FOREIGN KEY (restaurant_id) REFERENCES public.restaurants(id) ON DELETE CASCADE;
+
+
+--
+-- Name: reservations reservations_special_day_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.reservations
+    ADD CONSTRAINT reservations_special_day_id_fkey FOREIGN KEY (special_day_id) REFERENCES public.special_days(id) ON DELETE SET NULL;
 
 
 --
@@ -23467,6 +23851,14 @@ ALTER TABLE ONLY public.shift_plan
 
 ALTER TABLE ONLY public.sms_outbox
     ADD CONSTRAINT sms_outbox_restaurant_id_fkey FOREIGN KEY (restaurant_id) REFERENCES public.restaurants(id) ON DELETE CASCADE;
+
+
+--
+-- Name: special_days special_days_restaurant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.special_days
+    ADD CONSTRAINT special_days_restaurant_id_fkey FOREIGN KEY (restaurant_id) REFERENCES public.restaurants(id) ON DELETE CASCADE;
 
 
 --
@@ -24113,6 +24505,12 @@ CREATE POLICY realtime_read ON public.data_versions FOR SELECT TO authenticated,
 ALTER TABLE public.reports_password_reset_otps ENABLE ROW LEVEL SECURITY;
 
 --
+-- Name: reservation_participants; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.reservation_participants ENABLE ROW LEVEL SECURITY;
+
+--
 -- Name: reservations; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -24171,6 +24569,12 @@ ALTER TABLE public.signup_otps ENABLE ROW LEVEL SECURITY;
 --
 
 ALTER TABLE public.sms_outbox ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: special_days; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.special_days ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: staff_sessions; Type: ROW SECURITY; Schema: public; Owner: -
