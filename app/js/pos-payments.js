@@ -432,6 +432,14 @@ function openPayModal(orderId){
     bg.dataset.promoName = '💳 Limit · ' + (order.allowance_name || '');
     recomputePaySelection();
   }
+  // Rezervasyonun özel gün indirimi (ör. Perşembe 10+ kişi %15): başka indirim yoksa otomatik uygulanır.
+  const rsv = order.reservation || {};
+  if(Number(rsv.discount_pct) > 0 && !(parseFloat(bg.dataset.discountValue || 0) > 0)){
+    bg.dataset.discountType = 'percent'; bg.dataset.discountValue = String(Number(rsv.discount_pct));
+    bg.dataset.promoName = '🎉 ' + (rsv.special_name || 'Özel gün') + (rsv.group_name ? ' · ' + rsv.group_name : '');
+    recomputePaySelection();
+    showToast('🎉 ' + (rsv.special_name || 'Özel gün') + ': %' + Number(rsv.discount_pct) + ' indirim uygulandı');
+  }
   // Ödeme düğmesine arama bitmeden basılırsa müşteri kaybolmasın: ödeme bu aramayı bekler (bkz. finishPaymentFull).
   window._payCustP = autoSelectPayCustomer(order).catch(() => {});
   loadActivePromos();
