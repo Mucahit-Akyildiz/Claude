@@ -18,8 +18,8 @@ neyin neden yapıldığını öğrenir. En yeni en üstte. Ayrıntılı DB notla
 ### Rezervasyon
 - **🎉 Özel Günler** (Rezervasyonlar › Özel Günler): her hafta tekrar (ör. Perşembe 10+ kişi %15) ya da tek gün etkinlik;
   uyan rezervasyon otomatik işaretlenir, oturunca hesapta indirim otomatik. **👥 Grup**: kurum, kadın/erkek/çocuk,
-  katılımcı listesi (Excel'den de); katılımcılar Müşteriler'e kaydedilir, yeni açılanlar kampanya onaysız. 2. adım bekliyor:
-  kontenjan, bölüm ayırma, online sayfada vurgulama, rapor, kapora.
+  katılımcı listesi (Excel'den de); katılımcılar Müşteriler'e kaydedilir, yeni açılanlar kampanya onaysız.
+  2. adım tamam: kontenjan (online reddeder, personele uyarı), bölüm ayırma (oturtmada uyarı), online sayfada vurgu + dolu gün, 90 günlük rapor, kapora.
 
 ### Sipariş, ödeme, mutfak
 - **Hazırlanmadan ödeme**: hazır olmayan ürün varken onay sorulur; `pay_order_items_early` /

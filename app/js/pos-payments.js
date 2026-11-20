@@ -440,6 +440,14 @@ function openPayModal(orderId){
     recomputePaySelection();
     showToast('🎉 ' + (rsv.special_name || 'Özel gün') + ': %' + Number(rsv.discount_pct) + ' indirim uygulandı');
   }
+  // Kapora: rezervasyonda önceden alınmış tutar ödemede hatırlatılır (kasaya o gün girmiş para).
+  if(Number(rsv.deposit_amount) > 0){
+    const mm = { cash:'nakit', card:'kart', transfer:'havale' }[rsv.deposit_method] || '';
+    const note = document.createElement('div'); note.className = 'pay-dep-note';
+    note.innerHTML = '💰 <b>Kapora alındı: ' + money(rsv.deposit_amount) + '</b>' + (mm ? ' (' + mm + (rsv.deposit_at ? ', ' + new Date(rsv.deposit_at).toLocaleDateString('tr-TR') : '') + ')' : '') + ' — ödemeyi girerken bu tutarı ' + (mm || 'alındığı yöntemle') + ' olarak ayırın, kalanını tahsil edin.';
+    const host = bg.querySelector('.pay-modal-header'); if(host && host.parentNode) host.parentNode.insertBefore(note, host.nextSibling);
+    showToast('💰 Bu rezervasyonda ' + money(rsv.deposit_amount) + ' kapora alınmış', 8000);
+  }
   // Ödeme düğmesine arama bitmeden basılırsa müşteri kaybolmasın: ödeme bu aramayı bekler (bkz. finishPaymentFull).
   window._payCustP = autoSelectPayCustomer(order).catch(() => {});
   loadActivePromos();
