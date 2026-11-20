@@ -64,8 +64,9 @@ function render(){
   const keep = (id) => { const el = document.getElementById(id); return el ? escapeHtml(el.value) : ''; };
   const vals = { name: keep('rzName'), phone: keep('rzPhone'), email: keep('rzEmail'), notes: document.getElementById('rzNotes') ? escapeHtml(document.getElementById('rzNotes').value) : '' };
   setApp(shell(`<main>
-    <div class="card"><h2>${t('day')}</h2><div class="chips scroll">${days.map((d, i) => `<button type="button" class="chip ${STATE.day===iso(d)?'on':''}" ${act('pickDay', iso(d))}>${i===0 ? t('today') : i===1 ? t('tomorrow') : d.toLocaleDateString(loc, { weekday:'short' })}<small>${d.toLocaleDateString(loc, { day:'numeric', month:'short' })}</small></button>`).join('')}${extraDay ? `<button type="button" class="chip on">${extraDay.toLocaleDateString(loc, { weekday:'short' })}<small>${extraDay.toLocaleDateString(loc, { day:'numeric', month:'short' })}</small></button>` : ''}</div>
+    <div class="card"><h2>${t('day')}</h2><div class="chips scroll">${days.map((d, i) => `<button type="button" class="chip ${STATE.day===iso(d)?'on':''} ${rzFull(iso(d)) ? 'full' : ''} ${rzSpecials(iso(d)).length ? 'spec' : ''}" ${rzFull(iso(d)) ? 'disabled' : act('pickDay', iso(d))}>${i===0 ? t('today') : i===1 ? t('tomorrow') : d.toLocaleDateString(loc, { weekday:'short' })}<small>${rzFull(iso(d)) ? rzTxt('full') : d.toLocaleDateString(loc, { day:'numeric', month:'short' })}</small></button>`).join('')}${extraDay ? `<button type="button" class="chip on">${extraDay.toLocaleDateString(loc, { weekday:'short' })}<small>${extraDay.toLocaleDateString(loc, { day:'numeric', month:'short' })}</small></button>` : ''}</div>
       <label class="dpick">📆 ${t('otherDate')} <input type="date" id="rzDate" min="${iso(d0)}" max="${iso(maxD)}" value="${STATE.day || ''}" ${actOn('change','pickDay',['$value'])}></label></div>
+    ${rzSpecials(STATE.day).map(x => `<div class="spec-card" style="--sc:${escapeHtml(x.color || '#a855f7')}"><b>🎉 ${escapeHtml(x.name)}</b>${[x.time_from || x.time_to ? (x.time_from || '') + '–' + (x.time_to || '') : '', x.min_party ? x.min_party + '+ ' + t('people') : '', Number(x.discount_pct) > 0 ? '%' + Number(x.discount_pct) + ' ' + rzTxt('disc') : ''].filter(Boolean).map(z => `<span>${escapeHtml(z)}</span>`).join('')}${x.note ? `<small>${escapeHtml(x.note)}</small>` : ''}</div>`).join('')}
     <div class="card"><h2>${t('time')}${STATE.info.from ? ` <small class="hrs">${t('hours')}: ${escapeHtml(STATE.info.from)}–${escapeHtml(STATE.info.to)}</small>` : ''}</h2>${times.length ? `<div class="chips">${times.map(tm => `<button type="button" class="chip ${STATE.time===tm?'on':''}" ${act('pickTime', tm)}>${tm}</button>`).join('')}</div>` : `<p class="hint">${t('noTimes')}</p>`}</div>
     <div class="card"><h2>${t('party')}</h2><div class="chips">${[1,2,3,4,5,6,8,10].map(n => `<button type="button" class="chip ${STATE.party===n?'on':''}" ${act('pickParty', n)}>${n}</button>`).join('')}<input id="rzParty" class="party-in" type="number" min="1" max="30" value="${STATE.party}" ${actOn('input','typeParty',['$value'])}></div></div>
     <div class="card"><h2>${t('you')}</h2>
@@ -81,6 +82,15 @@ function render(){
   // Giriş animasyonu yalnızca ilk açılışta; seçim yaptıkça kartlar yeniden soluklaşmasın.
   setTimeout(() => document.body.classList.add('ready'), 400);
 }
+// Özel günler (işletmenin "online sayfada göster" dediği) ve kontenjanı dolan günler.
+const RZ_I18N = { full: { tr:'Dolu', en:'Full' }, disc: { tr:'indirim', en:'off' } };
+function rzTxt(k){ return (RZ_I18N[k] || {})[STATE.lang] || (RZ_I18N[k] || {}).tr || ''; }
+function rzFull(dk){ return ((STATE.info && STATE.info.full_days) || []).includes(dk); }
+function rzSpecials(dk){
+  if(!dk) return [];
+  const wd = ((new Date(dk + 'T12:00').getDay() + 6) % 7) + 1;
+  return ((STATE.info && STATE.info.special_days) || []).filter(x => x.on_date ? x.on_date === dk : (x.weekday === wd && (!x.date_from || dk >= x.date_from) && (!x.date_to || dk <= x.date_to)));
+}
 function updateSummary(){
   const el = document.getElementById('rzSummary'); if(!el) return;
   if(!STATE.day || !STATE.time){ el.innerHTML = `<span>🗓️</span>${t('pick')}`; return; }
@@ -91,6 +101,7 @@ function pickDay(d){
   if(!d || !/^\d{4}-\d{2}-\d{2}$/.test(d)) return;
   const d0 = new Date(); d0.setHours(0,0,0,0); const mx = new Date(d0); mx.setDate(mx.getDate() + 89);
   if(d < iso(d0) || d > iso(mx)) return;
+  if(rzFull(d)){ const e = document.getElementById('rzErr'); if(e) e.textContent = rzTxt('full'); return; }
   STATE.day = d; render();
 }
 function pickTime(tm){ STATE.time = tm; document.querySelectorAll('.chip').forEach(c => { if(/^\d\d:\d\d$/.test(c.textContent)) c.classList.toggle('on', c.textContent === tm); }); updateSummary(); }

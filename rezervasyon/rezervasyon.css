@@ -39,3 +39,7 @@ textarea{min-height:70px;resize:vertical;}
 .dpick{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:10px;font-size:13.5px;font-weight:600;color:var(--muted);}
 .dpick input{flex:1;min-width:160px;max-width:220px;border:1.5px solid var(--border);background:var(--panel2);color:var(--text);border-radius:12px;padding:9px 12px;font:inherit;font-weight:700;}
 .hrs{font-size:12px;font-weight:600;color:var(--muted);text-transform:none;letter-spacing:0;margin-left:6px;}
+.chip.spec{border-color:#a855f7;box-shadow:inset 0 -3px 0 #a855f7;}
+.chip.full{opacity:.45;text-decoration:line-through;cursor:not-allowed;}
+.spec-card{margin-top:10px;padding:10px 12px;border-radius:12px;border:1.5px solid var(--sc);background:color-mix(in srgb,var(--sc) 12%,transparent);display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center;}
+.spec-card b{color:var(--sc);} .spec-card span{font-size:13px;font-weight:600;padding:2px 8px;border-radius:999px;background:color-mix(in srgb,var(--sc) 18%,transparent);} .spec-card small{flex-basis:100%;opacity:.8;}

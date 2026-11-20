@@ -98,7 +98,7 @@ async function renderReservationsContent(session, forceRefresh, quiet){
       <div class="rv-main">
         <div class="rv-who">${avatarHtml(r.customer_name)}<div><b>${escapeHtml(r.customer_name)}</b><small>${r.phone ? phoneHtml(r.phone) : 'telefon yok'}</small></div></div>
         <div class="rv-meta"><span class="pchip">👥 ${r.party_size} kişi</span><span class="pchip">🪑 ${escapeHtml(r.table_name||'Masa seçilmedi')}</span>${r.source==='online' ? '<span class="pchip rv-online" title="Müşteri online rezervasyon sayfasından gönderdi">🌐 Online</span>' : ''}${r.created_by_name ? `<span class="pchip by-chip" title="Kaydı oluşturan">✍️ ${escapeHtml(r.created_by_name)}</span>` : (r.source==='online' ? '' : '')}${late ? '<span class="pchip warn">⏰ saati geçti</span>' : ''}${soon ? `<span class="pchip rv-soon">⏳ ${mins} dk kaldı</span>` : ''}</div>
-        ${r.special_name || r.group_name || r.participants ? `<div class="rv-meta">${r.special_name ? `<span class="sd-badge" style="--sd:${escapeAttr(r.special_color || '#a855f7')}">🎉 ${escapeHtml(r.special_name)}${Number(r.discount_pct) > 0 ? ' · %' + Number(r.discount_pct) + ' indirim' : ''}</span>` : ''}${r.group_name ? `<span class="pchip">🏢 ${escapeHtml(r.group_name)}</span>` : ''}${r.women || r.men || r.children ? `<span class="pchip">${[r.women ? '👩 ' + r.women : '', r.men ? '👨 ' + r.men : '', r.children ? '🧒 ' + r.children : ''].filter(Boolean).join(' · ')}</span>` : ''}${r.participants ? `<span class="pchip">📋 ${r.participants} katılımcı</span>` : ''}</div>` : ''}
+        ${r.special_name || r.group_name || r.participants || Number(r.deposit_amount) > 0 ? `<div class="rv-meta">${r.special_name ? `<span class="sd-badge" style="--sd:${escapeAttr(r.special_color || '#a855f7')}">🎉 ${escapeHtml(r.special_name)}${Number(r.discount_pct) > 0 ? ' · %' + Number(r.discount_pct) + ' indirim' : ''}</span>` : ''}${r.group_name ? `<span class="pchip">🏢 ${escapeHtml(r.group_name)}</span>` : ''}${r.women || r.men || r.children ? `<span class="pchip">${[r.women ? '👩 ' + r.women : '', r.men ? '👨 ' + r.men : '', r.children ? '🧒 ' + r.children : ''].filter(Boolean).join(' · ')}</span>` : ''}${r.participants ? `<span class="pchip">📋 ${r.participants} katılımcı</span>` : ''}${Number(r.deposit_amount) > 0 ? `<span class="pchip rv-dep">💰 Kapora ${money(r.deposit_amount)}</span>` : ''}</div>` : ''}
         ${r.notes ? `<div class="rv-note">📝 ${escapeHtml(r.notes)}</div>` : ''}
       </div>
       <div class="rv-acts">
@@ -120,7 +120,7 @@ async function renderReservationsContent(session, forceRefresh, quiet){
   <div class="u-mwn box">
     <div class="fsheet-bar" style="margin:0 0 12px;"><h2 class="u-m0">Yaklaşan Rezervasyonlar</h2><div style="display:flex;gap:8px;flex-wrap:wrap;"><button type="button" class="u-wa-m0 ghost-btn" ${act('openOnlineResvSheet')} title="Müşterilerin kendisi rezervasyon yapabileceği sayfa">🌐 Online Rezervasyon</button><button type="button" class="u-wa-m0 ghost-btn" ${act('openSpecialDays')} title="Haftalık indirim günleri ve etkinlikler">🎉 Özel Günler</button>${sheetBtnHtml('rvSheet','+ Yeni Rezervasyon')}</div></div>
     ${sheetHtml('onlineResvSheet', '🌐', 'Online Rezervasyon', '<div id="onlineResvBody"><p class="muted">Yükleniyor…</p></div>', 'var(--c2)')}<div data-cf-scope="resv">
-    ${days.length ? days.map(k => `<div class="rv-day" data-cf-tags="${[...new Set(sorted.filter(r => dkey(r)===k).flatMap(r => rvTags(r).split(' ')))].join(' ')}"><div class="rv-day-h">${dayLabel(k)}${typeof specialDaysOn === 'function' ? specialDaysOn(k).map(sdBadgeHtml).join('') : ''}<span class="muted">${sorted.filter(r => dkey(r)===k).length} rezervasyon</span></div>
+    ${days.length ? days.map(k => `<div class="rv-day" data-cf-tags="${[...new Set(sorted.filter(r => dkey(r)===k).flatMap(r => rvTags(r).split(' ')))].join(' ')}"><div class="rv-day-h">${dayLabel(k)}${typeof specialDaysOn === 'function' ? specialDaysOn(k).map(x => sdBadgeHtml(x, k)).join('') : ''}<span class="muted">${sorted.filter(r => dkey(r)===k).length} rezervasyon</span></div>
       <div class="rv-list">${sorted.filter(r => dkey(r)===k).map(card).join('')}</div></div>`).join('')
       : '<div class="empty-state rv-empty"><div class="om-empty-ic">📅</div><b>Yaklaşan rezervasyon yok</b><p class="muted">Yukarıdaki formdan birkaç dokunuşla yeni rezervasyon ekleyebilirsiniz.</p></div>'}
   </div></div>
@@ -186,6 +186,9 @@ async function openSeatReservationModal(id){
 async function confirmSeatReservation(id){
   const tableId = document.getElementById('seatResvTable').value;
   const session = getSession();
+  // Bölüm ayırma: masa o gün başka bir özel güne (grup/etkinlik) ayrılmış bölümdeyse uyarılır.
+  { const r0 = (APP.reservationsCache||[]).find(x => x.id===id), w = typeof sdZoneWarning === 'function' && r0 ? sdZoneWarning(r0, tableId) : '';
+    if(w && !await uiConfirm(w + '\n\nYine de bu masaya oturtulsun mu?', { title: '🎉 Ayrılmış bölüm', okText: 'Evet, oturt', danger: false })) return; }
   const { error } = await withLoadingOverlay(sb.rpc('seat_reservation', { p_token: session.session_token, p_id: id, p_table_id: tableId }));
   if(error){ alert(error.message); return; }
   const bg = document.getElementById('seatResvModalBg'); if(bg) bg.remove();
@@ -203,6 +206,9 @@ async function addReservation(){
   const tableId = document.getElementById('rv_table').value || null;
   const notes = document.getElementById('rv_notes').value.trim();
   if(!name || !timeVal){ alert(!name ? 'Müşteri adını yazın' : 'Gün ve saat seçin'); return; }
+  // Kontenjan: o günün özel gün kontenjanı aşılacaksa personel uyarılır (online'da sunucu reddeder).
+  { const w = typeof sdCapacityWarning === 'function' ? sdCapacityWarning(new Date(timeVal), party) : '';
+    if(w && !await uiConfirm(w + '\n\nYine de eklensin mi?', { title: '🎉 Kontenjan', okText: 'Evet, ekle', danger: false })) return; }
   const { error } = await sb.rpc('upsert_reservation', { p_token: session.session_token, p_id: null, p_customer_name: name, p_phone: phone||null, p_party_size: party, p_reservation_time: new Date(timeVal).toISOString(), p_table_id: tableId, p_notes: notes||null, p_email: email||null });
   if(error){ alert(error.message); return; }
   APP.rvForm = null;

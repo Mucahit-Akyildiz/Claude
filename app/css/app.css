@@ -4714,3 +4714,9 @@ select.ss-hidden{display:none !important;}
 .rg-arr{display:flex;align-items:center;justify-content:center;gap:2px;font-size:12px;} .rg-arr input{width:auto;margin:0;}
 @media (max-width:600px){ .sd-2,.sd-3{grid-template-columns:1fr 1fr;} .rg-row{grid-template-columns:28px 1fr 40px;} .rg-row input[inputmode=tel]{grid-column:2;} }
 @media (max-width:1366px){ .rv-card{grid-template-columns:76px minmax(0,1fr);} .rv-card .rv-acts{grid-column:1/-1;justify-content:flex-start;max-width:none;} }
+.sd-chk{display:flex;align-items:center;gap:6px;font-weight:600;font-size:13px;min-height:40px;} .sd-chk input{width:auto;margin:0;}
+.sd-zones{display:flex;flex-wrap:wrap;gap:4px 14px;}
+.sd-stats{color:var(--c1,#0e8fa3);font-weight:600;}
+.rg-dep{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:12px;padding:10px 12px;border:1px dashed var(--border);border-radius:12px;} .rg-dep input{width:130px;margin:0;} .rg-dep .seg{display:flex;gap:4px;}
+.pchip.rv-dep{background:color-mix(in srgb,#22c55e 16%,transparent);}
+.pay-dep-note{margin:8px 0;padding:10px 12px;border-radius:12px;font-size:13.5px;background:color-mix(in srgb,#22c55e 14%,transparent);border:1px solid color-mix(in srgb,#22c55e 40%,transparent);}
