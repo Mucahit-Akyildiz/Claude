@@ -82,6 +82,7 @@ async function renderReservationsContent(session, forceRefresh, quiet){
     if(quiet && sig === APP.resvSig && el.querySelector('.rvz-grid, .rv-day, .rv-empty')) return;
     APP.resvSig = sig; APP.reservationsCache = data || []; APP.rvRecentCache = recent;
   }
+  if(typeof loadSpecialDays === 'function' && (!APP.specialDays || forceRefresh)) await loadSpecialDays(true).catch(() => {});
   const rows = APP.reservationsCache;
   const allTables = (APP.config.zones||[]).flatMap(z => z.tables);
   const today = todayLocalDateStr(), dkey = (r) => { const d = new Date(r.reservation_time); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); };
@@ -97,9 +98,11 @@ async function renderReservationsContent(session, forceRefresh, quiet){
       <div class="rv-main">
         <div class="rv-who">${avatarHtml(r.customer_name)}<div><b>${escapeHtml(r.customer_name)}</b><small>${r.phone ? phoneHtml(r.phone) : 'telefon yok'}</small></div></div>
         <div class="rv-meta"><span class="pchip">👥 ${r.party_size} kişi</span><span class="pchip">🪑 ${escapeHtml(r.table_name||'Masa seçilmedi')}</span>${r.source==='online' ? '<span class="pchip rv-online" title="Müşteri online rezervasyon sayfasından gönderdi">🌐 Online</span>' : ''}${r.created_by_name ? `<span class="pchip by-chip" title="Kaydı oluşturan">✍️ ${escapeHtml(r.created_by_name)}</span>` : (r.source==='online' ? '' : '')}${late ? '<span class="pchip warn">⏰ saati geçti</span>' : ''}${soon ? `<span class="pchip rv-soon">⏳ ${mins} dk kaldı</span>` : ''}</div>
+        ${r.special_name || r.group_name || r.participants ? `<div class="rv-meta">${r.special_name ? `<span class="sd-badge" style="--sd:${escapeAttr(r.special_color || '#a855f7')}">🎉 ${escapeHtml(r.special_name)}${Number(r.discount_pct) > 0 ? ' · %' + Number(r.discount_pct) + ' indirim' : ''}</span>` : ''}${r.group_name ? `<span class="pchip">🏢 ${escapeHtml(r.group_name)}</span>` : ''}${r.women || r.men || r.children ? `<span class="pchip">${[r.women ? '👩 ' + r.women : '', r.men ? '👨 ' + r.men : '', r.children ? '🧒 ' + r.children : ''].filter(Boolean).join(' · ')}</span>` : ''}${r.participants ? `<span class="pchip">📋 ${r.participants} katılımcı</span>` : ''}</div>` : ''}
         ${r.notes ? `<div class="rv-note">📝 ${escapeHtml(r.notes)}</div>` : ''}
       </div>
       <div class="rv-acts">
+        <button type="button" class="pc-btn" title="Kurum, kadın/erkek sayısı ve katılımcı listesi" ${act('openResvGroup', r.id)}>👥 Grup</button>
         ${r.status==='pending' ? `<button type="button" class="pc-btn rv-ok" ${act('changeReservationStatus', r.id, 'confirmed')}>✓ Onayla</button>` : ''}
         <button type="button" class="pc-btn" title="Gelmeden önce sipariş al (oturunca masaya taşınır)" ${act('openReservationOrderModal', r.id)}>🍽️ Sipariş${(APP.liveOrders||[]).some(o => o.kind==='waitlist' && o.reservation_id===r.id) ? ' ✓' : ''}</button>
         <button type="button" class="pc-btn rv-seat" ${act('changeReservationStatus', r.id, 'seated')}>🪑 Oturdu</button>
@@ -115,9 +118,9 @@ async function renderReservationsContent(session, forceRefresh, quiet){
       ['⏭️', next ? new Date(next.reservation_time).toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'}) : '—', next ? 'Sıradaki: '+escapeHtml(next.customer_name) : 'Sıradaki yok', 'var(--c4)', next ? 'next' : '']
     ], '', 'resv') + resvTodayVisual(todays, rows) + `${sheetHtml('rvSheet', '📅', 'Yeni Rezervasyon', rvFormHtml(), 'var(--c1)')}
   <div class="u-mwn box">
-    <div class="fsheet-bar" style="margin:0 0 12px;"><h2 class="u-m0">Yaklaşan Rezervasyonlar</h2><div style="display:flex;gap:8px;flex-wrap:wrap;"><button type="button" class="u-wa-m0 ghost-btn" ${act('openOnlineResvSheet')} title="Müşterilerin kendisi rezervasyon yapabileceği sayfa">🌐 Online Rezervasyon</button>${sheetBtnHtml('rvSheet','+ Yeni Rezervasyon')}</div></div>
+    <div class="fsheet-bar" style="margin:0 0 12px;"><h2 class="u-m0">Yaklaşan Rezervasyonlar</h2><div style="display:flex;gap:8px;flex-wrap:wrap;"><button type="button" class="u-wa-m0 ghost-btn" ${act('openOnlineResvSheet')} title="Müşterilerin kendisi rezervasyon yapabileceği sayfa">🌐 Online Rezervasyon</button><button type="button" class="u-wa-m0 ghost-btn" ${act('openSpecialDays')} title="Haftalık indirim günleri ve etkinlikler">🎉 Özel Günler</button>${sheetBtnHtml('rvSheet','+ Yeni Rezervasyon')}</div></div>
     ${sheetHtml('onlineResvSheet', '🌐', 'Online Rezervasyon', '<div id="onlineResvBody"><p class="muted">Yükleniyor…</p></div>', 'var(--c2)')}<div data-cf-scope="resv">
-    ${days.length ? days.map(k => `<div class="rv-day" data-cf-tags="${[...new Set(sorted.filter(r => dkey(r)===k).flatMap(r => rvTags(r).split(' ')))].join(' ')}"><div class="rv-day-h">${dayLabel(k)}<span class="muted">${sorted.filter(r => dkey(r)===k).length} rezervasyon</span></div>
+    ${days.length ? days.map(k => `<div class="rv-day" data-cf-tags="${[...new Set(sorted.filter(r => dkey(r)===k).flatMap(r => rvTags(r).split(' ')))].join(' ')}"><div class="rv-day-h">${dayLabel(k)}${typeof specialDaysOn === 'function' ? specialDaysOn(k).map(sdBadgeHtml).join('') : ''}<span class="muted">${sorted.filter(r => dkey(r)===k).length} rezervasyon</span></div>
       <div class="rv-list">${sorted.filter(r => dkey(r)===k).map(card).join('')}</div></div>`).join('')
       : '<div class="empty-state rv-empty"><div class="om-empty-ic">📅</div><b>Yaklaşan rezervasyon yok</b><p class="muted">Yukarıdaki formdan birkaç dokunuşla yeni rezervasyon ekleyebilirsiniz.</p></div>'}
   </div></div>

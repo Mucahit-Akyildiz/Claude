@@ -4698,3 +4698,19 @@ select.ss-hidden{display:none !important;}
 .kc-onote{margin:4px 0;}
 .kc-cust{font-size:14px;font-weight:700;margin:2px 0 4px;color:var(--c1,#0e8fa3);overflow-wrap:anywhere;}
 .wb-24{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;margin-right:8px;cursor:pointer;color:var(--muted);} .wb-24 input{width:auto;margin:0;}
+/* 🎉 Özel günler & grup */
+.sd-badge{display:inline-flex;align-items:center;gap:4px;font-size:12px;font-weight:700;padding:3px 9px;border-radius:999px;margin-left:8px;color:var(--sd);background:color-mix(in srgb,var(--sd) 14%,transparent);border:1px solid color-mix(in srgb,var(--sd) 45%,transparent);}
+.rv-meta .sd-badge{margin-left:0;}
+.sd-box{max-width:620px;width:calc(100vw - 24px);max-height:calc(100dvh - 40px);overflow:auto;}
+.sd-row{display:flex;align-items:center;gap:8px;padding:10px 12px;border:1px solid var(--border);border-left:4px solid var(--sd);border-radius:12px;margin-bottom:8px;background:var(--panel);}
+.sd-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px;} .sd-main small{font-size:12.5px;}
+.sd-form{display:flex;flex-direction:column;gap:6px;margin-top:10px;} .sd-form label{font-weight:700;font-size:13px;margin-top:4px;} .sd-form input,.sd-form select{margin:0;}
+.sd-2{display:grid;grid-template-columns:1fr 1fr;gap:10px;} .sd-3{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;}
+.sd-kind{display:flex;gap:6px;margin-bottom:6px;}
+.sd-colors{display:flex;gap:8px;} .sd-c{width:32px;height:32px;min-height:0;border-radius:50%;padding:0;border:3px solid transparent;} .sd-c.on{border-color:var(--text);}
+.rg-head{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin:14px 0 8px;} .rg-head span{display:flex;gap:6px;flex-wrap:wrap;} .rg-head button{width:auto;margin:0;}
+.rg-list{display:flex;flex-direction:column;gap:6px;max-height:42vh;overflow:auto;}
+.rg-row{display:grid;grid-template-columns:34px minmax(0,1.4fr) minmax(0,1fr) 40px;gap:6px;align-items:center;} .rg-row input{margin:0;}
+.rg-arr{display:flex;align-items:center;justify-content:center;gap:2px;font-size:12px;} .rg-arr input{width:auto;margin:0;}
+@media (max-width:600px){ .sd-2,.sd-3{grid-template-columns:1fr 1fr;} .rg-row{grid-template-columns:28px 1fr 40px;} .rg-row input[inputmode=tel]{grid-column:2;} }
+@media (max-width:1366px){ .rv-card{grid-template-columns:76px minmax(0,1fr);} .rv-card .rv-acts{grid-column:1/-1;justify-content:flex-start;max-width:none;} }
