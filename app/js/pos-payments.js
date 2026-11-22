@@ -440,13 +440,14 @@ function openPayModal(orderId){
     recomputePaySelection();
     showToast('🎉 ' + (rsv.special_name || 'Özel gün') + ': %' + Number(rsv.discount_pct) + ' indirim uygulandı');
   }
-  // Kapora: rezervasyonda önceden alınmış tutar ödemede hatırlatılır (kasaya o gün girmiş para).
-  if(Number(rsv.deposit_amount) > 0){
+  // Kapora: rezervasyonda önceden alınan tutar hesaptan düşülür (bir kez); ödeme kaydında kendi yöntemine eklenir.
+  if(Number(rsv.deposit_amount) > 0 && !rsv.deposit_applied){
+    bg.dataset.depositAmt = String(Number(rsv.deposit_amount)); bg.dataset.depositMethod = rsv.deposit_method || 'cash';
     const mm = { cash:'nakit', card:'kart', transfer:'havale' }[rsv.deposit_method] || '';
     const note = document.createElement('div'); note.className = 'pay-dep-note';
-    note.innerHTML = '💰 <b>Kapora alındı: ' + money(rsv.deposit_amount) + '</b>' + (mm ? ' (' + mm + (rsv.deposit_at ? ', ' + new Date(rsv.deposit_at).toLocaleDateString('tr-TR') : '') + ')' : '') + ' — ödemeyi girerken bu tutarı ' + (mm || 'alındığı yöntemle') + ' olarak ayırın, kalanını tahsil edin.';
+    note.innerHTML = '💰 <b>Kapora ' + money(rsv.deposit_amount) + '</b>' + (mm ? ' (' + mm + (rsv.deposit_at ? ', ' + new Date(rsv.deposit_at).toLocaleDateString('tr-TR') : '') + ')' : '') + ' hesaptan düşüldü. Kalanı tahsil edin.';
     const host = bg.querySelector('.pay-modal-header'); if(host && host.parentNode) host.parentNode.insertBefore(note, host.nextSibling);
-    showToast('💰 Bu rezervasyonda ' + money(rsv.deposit_amount) + ' kapora alınmış', 8000);
+    updatePayFinalTotalLine();
   }
   // Ödeme düğmesine arama bitmeden basılırsa müşteri kaybolmasın: ödeme bu aramayı bekler (bkz. finishPaymentFull).
   window._payCustP = autoSelectPayCustomer(order).catch(() => {});
@@ -501,13 +502,13 @@ function syncCashReceivedFromTip(){
   const receivedInput = document.getElementById('cashReceivedInput');
   if(!receivedInput || document.activeElement===receivedInput) return;
   const tip = parseFloat(bg.dataset.tipAmount||0);
-  const due = payFinalTotal();
+  const due = payDueNet(bg);
   receivedInput.value = tip>0 ? (Math.round((due+tip)*100)/100) : '';
 }
 function handleCashReceivedInput(v){
   const bg = document.getElementById('payModalBg');
   const received = parseFloat(v)||0;
-  const due = payFinalTotal();
+  const due = payDueNet(bg);
   const tip = received>due ? Math.round((received-due)*100)/100 : 0;
   bg.dataset.tipAmount = String(tip);
   const tipValueInput = document.getElementById('tipValue');
@@ -665,15 +666,24 @@ async function finishGiftCardPartial(method){
   const redeemPoints = parseFloat(bg.dataset.redeemPoints||0);
   await finishPayment(orderId, 'split', total, method==='cash'?remaining:0, method==='card'?remaining:0, parseFloat(bg.dataset.discountAmount||0), itemQtys, tip, customerId, redeemPoints, code, giftAmount);
 }
+// Kapora düşülmüş tahsil edilecek tutar (bahşiş hariç).
+function payDueNet(bg){ const n = payFinalTotal(); return Math.max(0, n - Math.min(parseFloat((bg && bg.dataset && bg.dataset.depositAmt) || 0), n)); }
+// Bu ödemede düşülecek kapora (hesaptan fazla olamaz).
+function payDepositApplied(bg, amountWithTip){ const d = parseFloat((bg && bg.dataset.depositAmt) || 0); return d > 0 ? Math.min(d, Math.max(0, amountWithTip)) : 0; }
+// Kapora tutarı ödeme kaydında alındığı yönteme eklenir (sunucuda toplam = hesap + bahşiş).
+function payWithDeposit(bg, cash, card, amountWithTip){
+  const dep = payDepositApplied(bg, amountWithTip); if(!dep) return { cash, card, dep: 0 };
+  return (bg.dataset.depositMethod || 'cash') === 'cash' ? { cash: Math.round((cash + dep) * 100) / 100, card, dep } : { cash, card: Math.round((card + dep) * 100) / 100, dep };
+}
 function updatePayFinalTotalLine(){
   const bg = document.getElementById('payModalBg'); if(!bg) return;
   const net = payFinalTotal();
   const tip = parseFloat(bg.dataset.tipAmount||0);
   const el = document.getElementById('payFinalTotal');
-  // İndirim/puan/doğum günü indirimi varsa normal fiyat üstü çizili olarak da gösterilir.
-  const gross = parseFloat(bg.dataset.subtotal||0);
-  const orig = gross - net > 0.009 ? `<span style="font-size:15px;font-weight:600;color:var(--muted);text-decoration:line-through;margin-right:8px;">${money(gross+tip)}</span>` : '';
-  if(el) el.innerHTML = orig+money(net+tip)+(tip>0?' <span style="font-size:12px;font-weight:600;color:var(--muted);">(bahşiş dahil)</span>':'');
+  // İndirim/puan/doğum günü indirimi ya da kapora varsa normal fiyat üstü çizili olarak da gösterilir.
+  const gross = parseFloat(bg.dataset.subtotal||0), dep = payDepositApplied(bg, net + tip), due = Math.max(0, net + tip - dep);
+  const orig = gross + tip - due > 0.009 ? `<span style="font-size:15px;font-weight:600;color:var(--muted);text-decoration:line-through;margin-right:8px;">${money(gross+tip)}</span>` : '';
+  if(el) el.innerHTML = orig+money(due)+(dep>0?` <span style="font-size:12px;font-weight:600;color:var(--ok,#22c55e);">(💰 ${money(dep)} kapora düşüldü)</span>`:'')+(tip>0?' <span style="font-size:12px;font-weight:600;color:var(--muted);">(bahşiş dahil)</span>':'');
 }
 function stepPayItemQty(itemId, delta){
   const bg = document.getElementById('payModalBg'); if(!bg) return;
@@ -870,7 +880,9 @@ async function finishPaymentFull(method){
     await finishPayment(orderId, method, total, 0, 0, parseFloat(bg.dataset.discountAmount||0), itemQtys, tip, customerId, redeemPoints, code, amountWithTip);
     return;
   }
-  await finishPayment(orderId, method, total, method==='cash'?amountWithTip:0, (method==='card'||method==='transfer')?amountWithTip:0, parseFloat(bg.dataset.discountAmount||0), itemQtys, tip, customerId, redeemPoints);
+  { const dep = payDepositApplied(bg, amountWithTip), rest = Math.round((amountWithTip - dep) * 100) / 100;
+    const w = payWithDeposit(bg, method==='cash'?rest:0, (method==='card'||method==='transfer')?rest:0, amountWithTip);
+    await finishPayment(orderId, dep > 0 && method !== (bg.dataset.depositMethod || 'cash') ? 'split' : method, total, w.cash, w.card, parseFloat(bg.dataset.discountAmount||0), itemQtys, tip, customerId, redeemPoints); }
 }
 async function openSplitPay(){
   const bg = document.getElementById('payModalBg');
@@ -879,7 +891,9 @@ async function openSplitPay(){
   if(!(await waitPayCustomer())) return;
   const itemTotal = Math.round(payFinalTotal()*100)/100;
   const tip = parseFloat(bg.dataset.tipAmount||0);
-  const total = Math.round((itemTotal+tip)*100)/100;
+  const dep0 = payDepositApplied(bg, Math.round((itemTotal+tip)*100)/100);
+  APP.splitDeposit = dep0 > 0 ? { amt: dep0, method: bg.dataset.depositMethod || 'cash', orderId } : null;
+  const total = Math.round((itemTotal+tip-dep0)*100)/100;
   const discountAmount = parseFloat(bg.dataset.discountAmount||0);
   const customerId = bg.dataset.customerId || '';
   const redeemPoints = parseFloat(bg.dataset.redeemPoints||0);
@@ -1004,9 +1018,12 @@ async function confirmSplitPay(orderId, total, discountAmount, tipAmount, custom
   const pbg = document.getElementById('payModalBg'); if(pbg && pbg.dataset.customerId) customerId = pbg.dataset.customerId;
   let cash = parseFloat(document.getElementById('splitCash').value)||0;
   if(cash<0) cash=0; if(cash>total) cash=total;
-  const card = Math.round((total-cash)*100)/100;
+  let card = Math.round((total-cash)*100)/100;
   document.getElementById('splitPayBg').remove();
-  await finishPayment(orderId, 'split', total, cash, card, discountAmount, buildPayItemQtys(), tipAmount, customerId||null, redeemPoints);
+  // Kapora (ekranda düşülmüş tutar) alındığı yönteme eklenir; ürün toplamı kaporalı haliyle gönderilir.
+  const sd = APP.splitDeposit && APP.splitDeposit.orderId === orderId ? APP.splitDeposit : null; let itemsTotal = total - tipAmount;
+  if(sd){ if(sd.method === 'cash') cash = Math.round((cash + sd.amt) * 100) / 100; else card = Math.round((card + sd.amt) * 100) / 100; itemsTotal = Math.round((total + sd.amt - tipAmount) * 100) / 100; }
+  await finishPayment(orderId, 'split', itemsTotal, cash, card, discountAmount, buildPayItemQtys(), tipAmount, customerId||null, redeemPoints);
 }
 async function finishPayment(orderId, method, total, cash, card, discountAmount, itemQtys, tipAmount, customerId, redeemPoints, giftCardCode, giftCardAmount){
   // Aynı hesap için üst üste tıklama/çift dokunma pay_order_items'ı iki kez
@@ -1038,6 +1055,7 @@ async function finishPayment(orderId, method, total, cash, card, discountAmount,
   const session = getSession();
   if(error){ alert('Ödeme kaydedilemedi: '+error.message); return; }
   const bg = document.getElementById('payModalBg');
+  if((bg && parseFloat(bg.dataset.depositAmt || 0) > 0) || (APP.splitDeposit && APP.splitDeposit.orderId === orderId)){ sb.rpc('mark_deposit_applied', { p_token: session.session_token, p_order_id: orderId }); APP.splitDeposit = null; }
   if(bg && bg.dataset.promoId && (discountAmount||0) > 0){
     sb.rpc('redeem_promotion', { p_token: session.session_token, p_id: bg.dataset.promoId, p_history_id: (data && data.history_id) || null, p_amount: discountAmount });
   }
@@ -1090,7 +1108,7 @@ async function openTransferPay(){
   if(!trBanks().some(b => b.id === APP.trBankId)) APP.trBankId = (trBanks()[0] || {}).id;
   const bk = trBank();
   const bg = document.getElementById('payModalBg') || { dataset:{} };
-  const amt = Math.round((payFinalTotal() + parseFloat(bg.dataset.tipAmount || 0)) * 100) / 100;
+  const amt = Math.round((payDueNet(bg) + parseFloat(bg.dataset.tipAmount || 0)) * 100) / 100;
   // Siparişte / ödemede müşteri varsa telefon, e-posta ve ad otomatik dolar.
   let cust = { name:'', phone:'', email:'' };
   const order = (APP.liveOrders || []).find(o => o.order_id === bg.dataset.orderId);
@@ -1130,7 +1148,7 @@ async function sendIban(kind){
   const email = kind === 'email' ? ((document.getElementById('trEmail') || {}).value || '').trim() : '';
   if(kind === 'sms' && phone.replace(/\D/g, '').length < 10){ showToast('Geçerli bir telefon girin'); return; }
   if(kind === 'email' && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)){ showToast('Geçerli bir e-posta girin'); return; }
-  const amt = Math.round((payFinalTotal() + parseFloat((document.getElementById('payModalBg') || {dataset:{}}).dataset.tipAmount || 0)) * 100) / 100;
+  const amt = Math.round((payDueNet(document.getElementById('payModalBg')) + parseFloat((document.getElementById('payModalBg') || {dataset:{}}).dataset.tipAmount || 0)) * 100) / 100;
   const bg = document.getElementById('payModalBg') || { dataset:{} };
   const name = ((document.getElementById('trName') || {}).value || '').trim();
   const { data, error } = await sb.rpc('send_iban_to_bank', { p_token: getSession().session_token, p_phone: phone || null, p_email: email || null, p_amount: amt, p_name: name || null, p_customer_id: bg.dataset.customerId || null, p_bank_id: trBank().id || null });
