@@ -495,6 +495,7 @@ function rvFormHtml(){
       </div>
       <div class="rvf-sec">
         <div class="rvf-t">📅 Ne zaman?</div>
+        ${rvSpecialChipsHtml()}
         <div class="rvf-chips" id="rvDays">${days.map((d, i) => `<button type="button" class="rvf-chip rvf-day ${f.day===iso(d)?'on':''}" data-v="${iso(d)}" ${act('setRvDay', iso(d))}><b>${dl(d, i)}</b><small>${d.getDate()} ${d.toLocaleDateString('tr-TR',{month:'short'})}</small></button>`).join('')}</div>
         <div class="rvf-chips" id="rvTimes">${RV_TIMES.map(t => `<button type="button" class="rvf-chip ${f.time===t?'on':''}" data-v="${t}" ${act('setRvTime', t)}>${t}</button>`).join('')}</div>
         <div class="rvf-row"><span class="muted">veya</span><input id="rv_time" type="datetime-local" ${actOn('change','rvFromInput',['$value'])}></div>
@@ -504,13 +505,39 @@ function rvFormHtml(){
         <div class="rvf-chips" id="rvParty">${[1,2,3,4,5,6,8,10].map(n => `<button type="button" class="rvf-chip rvf-n ${f.party===n?'on':''}" data-v="${n}" ${act('setRvParty', n)}>${n}</button>`).join('')}
           <input id="rv_party" type="number" min="1" value="${f.party}" class="rvf-pin" ${actOn('input','setRvParty',['$value'])}></div>
         ${famHtml('rvFam')}
-        <div class="u-mt12 rvf-t">🪑 Masa ve not</div>
-        <div class="rvf-2"><select id="rv_table" ${actOn('change','rvSummary',[])}><option value="">Masa seçilmedi</option>${tableOptionsHtml(null)}</select>
-          <input id="rv_notes" placeholder="📝 Not (doğum günü, cam kenarı…)"></div>
+      </div>
+      <div class="rvf-sec">
+        <div class="rvf-t">🪑 Masa ve not</div>
+        <select id="rv_table" ${actOn('change','rvSummary',[])}><option value="">Masa seçilmedi</option>${tableOptionsHtml(null)}</select>
+        <textarea id="rv_notes" class="rvf-note" rows="4" maxlength="500" placeholder="📝 Not: doğum günü pastası, cam kenarı, süsleme, özel istekler…"></textarea>
       </div>
     </div>
     <div class="rvf-foot"><div id="rvSummary" class="rvf-sum"></div><button type="button" class="rvf-save" ${act('addReservation')}>📅 Rezervasyonu Kaydet</button></div>
   </div>`;
+}
+/* Özel günden hızlı seçim: yaklaşan özel günler (30 gün) düğme olarak; dokununca gün (ve varsa saat) ayarlanır. */
+function rvSpecialOccurrences(){
+  const out = [], d0 = new Date(); d0.setHours(0,0,0,0);
+  const iso = (d) => d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+  for(let i = 0; i < 30 && out.length < 8; i++){ const d = new Date(d0); d.setDate(d.getDate() + i); const k = iso(d);
+    (typeof specialDaysOn === 'function' ? specialDaysOn(k) : []).forEach(s => { if(out.length < 8 && !out.some(o => o.s.id === s.id && o.n >= 2)) out.push({ s, k, d, n: out.filter(o => o.s.id === s.id).length + 1 }); }); }
+  return out;
+}
+function rvSpecialChipsHtml(){
+  const occ = rvSpecialOccurrences(); if(!occ.length) return '';
+  return `<div class="rvf-chips rvf-spec">${occ.map(o => `<button type="button" class="rvf-chip rvf-sd" data-sd="${o.s.id}" data-k="${o.k}" style="--sd:${escapeAttr(o.s.color || '#a855f7')}" ${act('pickRvSpecial', o.s.id, o.k)}><b>🎉 ${escapeHtml(o.s.name)}</b><small>${o.d.toLocaleDateString('tr-TR', { weekday:'short', day:'numeric', month:'short' })}${o.s.time_from ? ' · ' + o.s.time_from.slice(0, 5) : ''}${o.s.min_party ? ' · ' + o.s.min_party + '+ kişi' : ''}</small></button>`).join('')}</div>`;
+}
+function pickRvSpecial(id, k){
+  const s = (APP.specialDays || []).find(x => x.id === id); if(!s) return;
+  APP.rvForm.day = k;
+  // Gün düğmeleri 7 günle sınırlı: ileri tarihte gün/saat alttaki tarih kutusuna yazılır.
+  const t = s.time_from ? s.time_from.slice(0, 5) : (APP.rvForm.time || '');
+  APP.rvForm.time = t; rvMark('rvDays', k); rvMark('rvTimes', t);
+  const inp = document.getElementById('rv_time'); if(inp) inp.value = t ? k + 'T' + t : '';
+  if(s.min_party && APP.rvFam && APP.rvFam.adults + APP.rvFam.kids.length < s.min_party){ APP.rvFam.adults = Math.max(APP.rvFam.adults, s.min_party - APP.rvFam.kids.length); famRedraw('rvFam'); }
+  document.querySelectorAll('.rvf-sd').forEach(b => b.classList.toggle('on', b.dataset.sd === id && b.dataset.k === k));
+  if(typeof rvSummary === 'function') rvSummary();
+  showToast('🎉 ' + s.name + ' · ' + new Date(k + 'T12:00').toLocaleDateString('tr-TR', { weekday:'long', day:'numeric', month:'long' }) + (t ? ' ' + t : ' · saati seçin'));
 }
 function rvApplyTime(){
   const f = APP.rvForm || {}; const inp = document.getElementById('rv_time');

@@ -4734,3 +4734,6 @@ select.ss-hidden{display:none !important;}
 .fam-zone{margin-top:8px;} .kc-kids{color:#f59e0b;}
 .gp-kids{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:8px;font-weight:700;font-size:13px;width:100%;}
 .gp-box{flex-wrap:wrap;}
+.rvf-note{width:100%;min-height:96px;resize:vertical;margin:8px 0 0;font-size:14px;line-height:1.4;}
+.rvf-spec{margin-bottom:8px;} .rvf-sd{display:flex;flex-direction:column;align-items:flex-start;border-color:color-mix(in srgb,var(--sd) 55%,var(--border)) !important;background:color-mix(in srgb,var(--sd) 10%,transparent);}
+.rvf-sd b{color:var(--sd);} .rvf-sd.on{background:var(--sd) !important;} .rvf-sd.on b,.rvf-sd.on small{color:#fff;}
