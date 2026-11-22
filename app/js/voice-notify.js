@@ -312,7 +312,10 @@ function voiceTextFor(type, items){
     case 'resvsoon': return items.map(x => {
       const mins = Math.round((new Date(x.time).getTime() - Date.now()) / 60000);
       const when = mins > 1 ? mins + ' dakika sonra' : 'şimdi';
-      return (x.name ? x.name + ' adına ' : '') + (x.party ? x.party + ' kişilik ' : '') + 'rezervasyon ' + when + (x.table ? ', ' + voiceMasa(x.table, 'nom') : '');
+      // Çocuklu aile: masaya hazırlanacaklar (mama sandalyesi vb.) da okunur.
+      const rc = (APP.reservationsCache || []).find(r => r.id === x.id) || {};
+      const prep = (Number(rc.children) > 0 ? ', ' + rc.children + ' çocuk' : '') + ((rc.needs || []).length && typeof famNeedLabel === 'function' ? ', hazırlayın: ' + rc.needs.map(n => famNeedLabel(n).replace(/^\S+\s/, '')).join(', ') : '');
+      return (x.name ? x.name + ' adına ' : '') + (x.party ? x.party + ' kişilik ' : '') + 'rezervasyon ' + when + (x.table ? ', ' + voiceMasa(x.table, 'nom') : '') + prep;
     }).join('. ');
   }
   const t = VOICE_TYPES.find(x => x.id===type);

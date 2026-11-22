@@ -69,6 +69,8 @@ function render(){
     ${rzSpecials(STATE.day).map(x => `<div class="spec-card" style="--sc:${escapeHtml(x.color || '#a855f7')}"><b>🎉 ${escapeHtml(x.name)}</b>${[x.time_from || x.time_to ? (x.time_from || '') + '–' + (x.time_to || '') : '', x.min_party ? x.min_party + '+ ' + t('people') : '', Number(x.discount_pct) > 0 ? '%' + Number(x.discount_pct) + ' ' + rzTxt('disc') : ''].filter(Boolean).map(z => `<span>${escapeHtml(z)}</span>`).join('')}${x.note ? `<small>${escapeHtml(x.note)}</small>` : ''}</div>`).join('')}
     <div class="card"><h2>${t('time')}${STATE.info.from ? ` <small class="hrs">${t('hours')}: ${escapeHtml(STATE.info.from)}–${escapeHtml(STATE.info.to)}</small>` : ''}</h2>${times.length ? `<div class="chips">${times.map(tm => `<button type="button" class="chip ${STATE.time===tm?'on':''}" ${act('pickTime', tm)}>${tm}</button>`).join('')}</div>` : `<p class="hint">${t('noTimes')}</p>`}</div>
     <div class="card"><h2>${t('party')}</h2><div class="chips">${[1,2,3,4,5,6,8,10].map(n => `<button type="button" class="chip ${STATE.party===n?'on':''}" ${act('pickParty', n)}>${n}</button>`).join('')}<input id="rzParty" class="party-in" type="number" min="1" max="30" value="${STATE.party}" ${actOn('input','typeParty',['$value'])}></div></div>
+    <div class="card"><h2>🧒 ${rzTxt('kidsQ')}</h2><div class="kidrow"><button type="button" class="chip" ${act('pickKids', -1)}>−</button><b>${STATE.kids || 0}</b><button type="button" class="chip" ${act('pickKids', 1)}>+</button><small>${rzTxt('kidsHint')}</small></div>
+      ${STATE.kids ? `<label class="hc"><input type="checkbox" id="rzHigh" ${STATE.high ? 'checked' : ''} ${actOn('change','pickHigh',['$checked'])}> 🪑 ${rzTxt('high')}</label>` : ''}</div>
     <div class="card"><h2>${t('you')}</h2>
       <input id="rzName" placeholder="${t('name')}" autocomplete="name" value="${vals.name}">
       <div class="two"><input id="rzPhone" placeholder="${t('phone')}" inputmode="tel" autocomplete="tel" value="${vals.phone}"><input id="rzEmail" type="email" placeholder="${t('email')}" autocomplete="email" autocapitalize="none" value="${vals.email}"></div>
@@ -83,7 +85,10 @@ function render(){
   setTimeout(() => document.body.classList.add('ready'), 400);
 }
 // Özel günler (işletmenin "online sayfada göster" dediği) ve kontenjanı dolan günler.
-const RZ_I18N = { full: { tr:'Dolu', en:'Full' }, disc: { tr:'indirim', en:'off' } };
+const RZ_I18N = { full: { tr:'Dolu', en:'Full' }, disc: { tr:'indirim', en:'off' }, kidsQ: { tr:'Çocuk var mı?', en:'Any children?' },
+  kidsHint: { tr:'kişi sayısına dahil', en:'included in party size' }, high: { tr:'Mama sandalyesi istiyorum', en:'I need a high chair' }, kids: { tr:'çocuk', en:'children' } };
+function pickKids(d){ STATE.kids = Math.max(0, Math.min((STATE.kids || 0) + d, Math.max(0, (STATE.party || 1) - 1))); if(!STATE.kids) STATE.high = false; render(); }
+function pickHigh(on){ STATE.high = !!on; }
 function rzTxt(k){ return (RZ_I18N[k] || {})[STATE.lang] || (RZ_I18N[k] || {}).tr || ''; }
 function rzFull(dk){ return ((STATE.info && STATE.info.full_days) || []).includes(dk); }
 function rzSpecials(dk){
@@ -95,7 +100,7 @@ function updateSummary(){
   const el = document.getElementById('rzSummary'); if(!el) return;
   if(!STATE.day || !STATE.time){ el.innerHTML = `<span>🗓️</span>${t('pick')}`; return; }
   const d = new Date(STATE.day + 'T' + STATE.time);
-  el.innerHTML = `<span>✨</span>${d.toLocaleDateString(STATE.lang==='tr'?'tr-TR':'en-GB', { weekday:'long', day:'numeric', month:'long' })} · ${STATE.time} · ${STATE.party} ${t('people')}`;
+  el.innerHTML = `<span>✨</span>${d.toLocaleDateString(STATE.lang==='tr'?'tr-TR':'en-GB', { weekday:'long', day:'numeric', month:'long' })} · ${STATE.time} · ${STATE.party} ${t('people')}${STATE.kids ? ' (🧒 ' + STATE.kids + ' ' + rzTxt('kids') + ')' : ''}`;
 }
 function pickDay(d){
   if(!d || !/^\d{4}-\d{2}-\d{2}$/.test(d)) return;
@@ -105,7 +110,7 @@ function pickDay(d){
   STATE.day = d; render();
 }
 function pickTime(tm){ STATE.time = tm; document.querySelectorAll('.chip').forEach(c => { if(/^\d\d:\d\d$/.test(c.textContent)) c.classList.toggle('on', c.textContent === tm); }); updateSummary(); }
-function pickParty(n){ STATE.party = n; const i = document.getElementById('rzParty'); if(i) i.value = n; render(); }
+function pickParty(n){ STATE.party = n; if((STATE.kids || 0) > n - 1) STATE.kids = Math.max(0, n - 1); const i = document.getElementById('rzParty'); if(i) i.value = n; render(); }
 function typeParty(v){ const n = parseInt(v); if(n >= 1 && n <= 30){ STATE.party = n; updateSummary(); } }
 async function sendReservation(){
   const err = document.getElementById('rzErr'), btn = document.getElementById('rzSend');
@@ -117,7 +122,7 @@ async function sendReservation(){
   if(!phone){ err.textContent = t('errPhone'); return; }
   btn.disabled = true; btn.textContent = t('sending');
   const { error } = await sb.rpc('submit_public_reservation', { p_restaurant_code: RESTAURANT_CODE, p_name: name, p_phone: phone, p_email: email || null,
-    p_party: STATE.party, p_time: new Date(STATE.day + 'T' + STATE.time).toISOString(), p_notes: notes || null });
+    p_party: STATE.party, p_time: new Date(STATE.day + 'T' + STATE.time).toISOString(), p_notes: notes || null, p_children: STATE.kids || 0, p_needs: STATE.high ? ['high_chair'] : [] });
   btn.disabled = false; btn.textContent = t('send');
   if(error){ err.textContent = error.message; return; }
   setApp(stateHtml('✅', t('successTitle'), t('successMsg')));

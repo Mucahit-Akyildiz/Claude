@@ -119,6 +119,7 @@ async function openResvGroup(id){
   if(error){ uiAlert(error.message); return; }
   APP.rgParts = (data || []).map(p => ({ ...p }));
   APP.rgDepM = r.deposit_method || 'cash';
+  APP.rgFam = famFromResv(r);
   APP.rgId = id;
   removeEl('rgBg');
   const bg = document.createElement('div'); bg.id = 'rgBg'; bg.className = 'modal-bg';
@@ -127,7 +128,7 @@ async function openResvGroup(id){
   bg.innerHTML = `<div class="box sd-box rg-box"><div class="u-row-sb"><h2 class="u-m0">👥 Grup · ${escapeHtml(r.customer_name)}</h2><span class="u-xclose" ${act('removeEl','rgBg')}>✕</span></div>
     <p class="muted u-fs13" style="margin:4px 0 10px;">${new Date(r.reservation_time).toLocaleString('tr-TR', { day:'numeric', month:'long', weekday:'long', hour:'2-digit', minute:'2-digit' })} · ${r.party_size} kişi${r.special_name ? ' · 🎉 ' + escapeHtml(r.special_name) + (Number(r.discount_pct) > 0 ? ' %' + Number(r.discount_pct) : '') : ''}</p>
     <div class="sd-form"><label>Kurum / grup adı</label><input id="rg_name" maxlength="100" value="${escapeAttr(r.group_name || '')}" placeholder="örn. ABC Şirketi">
-      <div class="sd-3">${num('rg_w','👩 Kadın', r.women)}${num('rg_m','👨 Erkek', r.men)}${num('rg_c','🧒 Çocuk', r.children)}</div></div>
+      ${famHtml('rgFam')}</div>
     <div class="rg-dep"><b>💰 Kapora</b><input type="number" id="rg_dep" min="0" step="0.01" inputmode="decimal" placeholder="Tutar" value="${Number(r.deposit_amount) > 0 ? escapeAttr(String(Number(r.deposit_amount))) : ''}">
       <div class="seg">${[['cash','💵 Nakit'],['card','💳 Kart'],['transfer','🏦 Havale']].map(([k, l]) => `<button type="button" class="rg-dm ${ (r.deposit_method || 'cash') === k ? 'on' : ''}" data-m="${k}" ${act('rgDepMethod', k)}>${l}</button>`).join('')}</div>
       ${r.deposit_at ? `<small class="muted">${new Date(r.deposit_at).toLocaleDateString('tr-TR')} tarihinde alındı</small>` : ''}</div>
@@ -161,8 +162,9 @@ async function rgArrived(i, on){
 async function saveResvGroup(){
   const v = (k) => ((document.getElementById(k) || {}).value || '').trim(), n = (k) => v(k) === '' ? null : parseInt(v(k), 10);
   const parts = APP.rgParts.filter(p => (p.name || '').trim()).map(p => ({ id: p.id || null, name: p.name.trim(), phone: (p.phone || '').trim() }));
-  const { data, error } = await withLoadingOverlay(sb.rpc('save_reservation_group', { p_token: getSession().session_token, p_id: APP.rgId, p_group_name: v('rg_name'), p_women: n('rg_w'), p_men: n('rg_m'), p_children: n('rg_c'), p_participants: parts }));
+  const { data, error } = await withLoadingOverlay(sb.rpc('save_reservation_group', { p_token: getSession().session_token, p_id: APP.rgId, p_group_name: v('rg_name'), p_women: APP.rgFam.detail ? APP.rgFam.women : null, p_men: APP.rgFam.detail ? APP.rgFam.men : null, p_children: APP.rgFam.kids.length, p_participants: parts }));
   if(error){ uiAlert(error.message); return; }
+  { const e3 = await famSave(APP.rgId, APP.rgFam); if(e3){ uiAlert(e3.message); return; } }
   const r0 = (APP.reservationsCache || []).find(x => x.id === APP.rgId) || {}, dep = parseFloat(v('rg_dep').replace(',', '.')) || 0;
   if(dep !== (Number(r0.deposit_amount) || 0) || (dep > 0 && APP.rgDepM !== r0.deposit_method)){
     const { error: e2 } = await sb.rpc('set_reservation_deposit', { p_token: getSession().session_token, p_id: APP.rgId, p_amount: dep, p_method: APP.rgDepM });
