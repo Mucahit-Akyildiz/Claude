@@ -287,8 +287,19 @@ function guestPickHtml(tableId){
   if(APP.guestSel[tableId] == null && o && o.guest_count) APP.guestSel[tableId] = o.guest_count;
   const n = APP.guestSel[tableId] || 0;
   const tr = APP.config && APP.config.treat, treatOn = tr && tr.product_id && o && n;
-  return `<div class="gp-box" data-gp="1"><span>👥 Kişi sayısı${treatOn ? `<button type="button" class="gp-rem ${o.treat_off ? '' : 'on'}" title="Masa ikramı (meze) — dokunarak verilmedi olarak işaretleyin" ${act('toggleTreatOff', o.order_id, !o.treat_off)}>🥗 ${o.treat_off ? 'İkram verilmedi' : 'İkram ×' + n}</button>` : ''}</span>
-    <div class="gp-step"><button type="button" ${act('stepGuests', tableId, -1)} ${n ? '' : 'disabled'}>−</button><b>${n || '—'}</b><button type="button" ${act('stepGuests', tableId, 1)}>+</button></div></div>`;
+  return `<div class="gp-box" data-gp="1"><span>👥 Kişi sayısı${treatOn ? `<button type="button" class="gp-rem ${o.treat_off ? '' : 'on'}" title="Masa ikramı (meze) — dokunarak verilmedi olarak işaretleyin" ${act('toggleTreatOff', o.order_id, !o.treat_off)}>🥗 ${o.treat_off ? 'İkram verilmedi' : 'İkram ×' + (n - Math.min(Number(o.child_count) || 0, n) + Math.ceil(Math.min(Number(o.child_count) || 0, n) * (APP.config && APP.config.child_serving_pct != null ? Number(APP.config.child_serving_pct) : 50) / 100))}</button>` : ''}</span>
+    <div class="gp-step"><button type="button" ${act('stepGuests', tableId, -1)} ${n ? '' : 'disabled'}>−</button><b>${n || '—'}</b><button type="button" ${act('stepGuests', tableId, 1)}>+</button></div>
+    ${o && n ? `<div class="gp-kids"><span>🧒 Çocuk</span><div class="gp-step"><button type="button" ${act('stepChildren', tableId, -1)} ${Number(o.child_count) > 0 ? '' : 'disabled'}>−</button><b>${Number(o.child_count) || 0}</b><button type="button" ${act('stepChildren', tableId, 1)} ${Number(o.child_count) >= n ? 'disabled' : ''}>+</button></div></div>` : ''}</div>`;
+}
+/* Masadaki çocuk sayısı: masa ikramı çocuk başına "çocuk servis oranı" kadar sayılır (🧒 Çocuk & Masa ayarı). */
+async function stepChildren(tableId, d){
+  const o = liveOrderForTable(tableId); if(!o) return;
+  const next = Math.max(0, Math.min((Number(o.child_count) || 0) + d, Number(o.guest_count) || 0));
+  const { error } = await sb.rpc('set_order_children', { p_token: getSession().session_token, p_order_id: o.order_id, p_count: next });
+  if(error){ uiAlert(error.message); return; }
+  o.child_count = next;
+  document.querySelectorAll('.gp-box[data-gp]').forEach(el => { el.outerHTML = guestPickHtml(tableId); });
+  if(typeof refreshOrderLiveStatus === 'function') refreshOrderLiveStatus(getSession());
 }
 async function toggleTreatOff(orderId, off){
   const { error } = await sb.rpc('set_order_treat_off', { p_token: getSession().session_token, p_order_id: orderId, p_off: off });

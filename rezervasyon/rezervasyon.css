@@ -43,3 +43,5 @@ textarea{min-height:70px;resize:vertical;}
 .chip.full{opacity:.45;text-decoration:line-through;cursor:not-allowed;}
 .spec-card{margin-top:10px;padding:10px 12px;border-radius:12px;border:1.5px solid var(--sc);background:color-mix(in srgb,var(--sc) 12%,transparent);display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center;}
 .spec-card b{color:var(--sc);} .spec-card span{font-size:13px;font-weight:600;padding:2px 8px;border-radius:999px;background:color-mix(in srgb,var(--sc) 18%,transparent);} .spec-card small{flex-basis:100%;opacity:.8;}
+.kidrow{display:flex;align-items:center;gap:12px;} .kidrow b{font-size:18px;min-width:20px;text-align:center;} .kidrow small{opacity:.7;}
+.hc{display:flex;align-items:center;gap:8px;margin-top:10px;font-weight:600;} .hc input{width:auto;}
