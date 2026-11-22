@@ -147,6 +147,7 @@ function drawRgList(){
     ${p.id ? `<label class="rg-arr" title="Geldi"><input type="checkbox" ${p.arrived ? 'checked' : ''} ${actOn('change','rgArrived',[i,'$checked'])}>✓</label>` : '<span class="rg-arr muted">·</span>'}
     <input placeholder="Ad soyad" maxlength="80" value="${escapeAttr(p.name || '')}" ${actOn('input','rgSet',[i,'name','$value'])}>
     <input placeholder="Telefon" inputmode="tel" maxlength="30" value="${escapeAttr(p.phone || '')}" ${actOn('input','rgSet',[i,'phone','$value'])}>
+    <input class="rg-note" placeholder="📝 Not (alerji, menü, koltuk…)" maxlength="300" value="${escapeAttr(p.note || '')}" ${actOn('input','rgSet',[i,'note','$value'])}>
     <button type="button" class="pc-btn rv-del" title="Çıkar" ${act('rgDel', i)}>✕</button></div>`).join('');
   const n = document.getElementById('rgN'); if(n) n.textContent = '(' + APP.rgParts.filter(p => (p.name || '').trim()).length + ')';
 }
@@ -161,7 +162,7 @@ async function rgArrived(i, on){
 }
 async function saveResvGroup(){
   const v = (k) => ((document.getElementById(k) || {}).value || '').trim(), n = (k) => v(k) === '' ? null : parseInt(v(k), 10);
-  const parts = APP.rgParts.filter(p => (p.name || '').trim()).map(p => ({ id: p.id || null, name: p.name.trim(), phone: (p.phone || '').trim() }));
+  const parts = APP.rgParts.filter(p => (p.name || '').trim()).map(p => ({ id: p.id || null, name: p.name.trim(), phone: (p.phone || '').trim(), note: (p.note || '').trim() }));
   const { data, error } = await withLoadingOverlay(sb.rpc('save_reservation_group', { p_token: getSession().session_token, p_id: APP.rgId, p_group_name: v('rg_name'), p_women: APP.rgFam.detail ? APP.rgFam.women : null, p_men: APP.rgFam.detail ? APP.rgFam.men : null, p_children: APP.rgFam.kids.length, p_participants: parts }));
   if(error){ uiAlert(error.message); return; }
   { const e3 = await famSave(APP.rgId, APP.rgFam); if(e3){ uiAlert(e3.message); return; } }
