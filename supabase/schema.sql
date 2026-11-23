@@ -2415,6 +2415,7 @@ CREATE TABLE public.orders (
     packaging jsonb DEFAULT '{}'::jsonb NOT NULL,
     pack_cost numeric DEFAULT 0 NOT NULL,
     treat_off boolean DEFAULT false NOT NULL,
+    child_count integer DEFAULT 0 NOT NULL,
     CONSTRAINT orders_guest_count_check CHECK (((guest_count >= 1) AND (guest_count <= 99)))
 );
 
@@ -2924,6 +2925,17 @@ begin
   end loop;
   return new;
 end $$;
+
+
+--
+-- Name: _resv_needs_text(text[]); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public._resv_needs_text(p text[]) RETURNS text
+    LANGUAGE sql IMMUTABLE
+    AS $$
+    select nullif(array_to_string(array(select case n when 'high_chair' then '🪑 mama sandalyesi' when 'warmer' then '🍼 mama ısıtma' when 'kids_menu' then '🧸 çocuk menüsü'
+      when 'coloring' then '🖍️ boyama seti' when 'kid_table' then '🧒 çocuk dostu masa' when 'wheelchair' then '♿ tekerlekli sandalye' when 'birthday' then '🎂 doğum günü' when 'quiet' then '🤫 sessiz köşe' else n end from unnest(coalesce(p,'{}')) n), ', '), '') $$;
 
 
 --
@@ -3798,7 +3810,8 @@ begin
   select zone_id into v_zone from restaurant_tables where id = o.table_id;
   if r.treat_zone_ids is not null and array_length(r.treat_zone_ids,1) > 0 and not (v_zone = any(r.treat_zone_ids)) then return; end if;
   select * into p from products where id = r.treat_product_id; if p.id is null then return; end if;
-  v_want := case when o.treat_off then 0 else greatest(coalesce(o.guest_count,0),0) end;
+  v_want := case when o.treat_off then 0 else greatest(coalesce(o.guest_count,0) - least(coalesce(o.child_count,0), coalesce(o.guest_count,0)), 0)
+      + ceil(least(coalesce(o.child_count,0), coalesce(o.guest_count,0)) * coalesce(r.child_serving_pct, 50) / 100.0)::int end;
   select id, qty into v_item, v_have from order_items where order_id = o.id and product_id = p.id and not paid and price = 0 order by added_at limit 1;
   v_have := coalesce(v_have, 0); d := v_want - v_have;
   if d = 0 then return; end if;
@@ -8469,7 +8482,7 @@ begin
       'order_id', o.id, 'table_id', o.table_id, 'kind', o.kind, 'created_at', o.created_at,
       'daily_number', o.daily_number, 'tags', o.tags, 'guest_count', o.guest_count, 'treat_off', o.treat_off, 'allowance_id', o.allowance_id, 'allowance_name', (select coalesce(al.name, au.username) from allowances al left join app_users au on au.id = al.user_id where al.id = o.allowance_id), 'allowance_remaining', case when o.allowance_id is not null then _allowance_remaining(o.allowance_id) end,
       'customer_name', o.customer_name, 'customer_phone', o.customer_phone, 'delivery_address', o.delivery_address, 'takeaway_type', o.takeaway_type, 'pickup_at', o.pickup_at, 'travel_min', o.travel_min, 'travel_src', o.travel_src, 'travel_checked_at', o.travel_checked_at, 'note', o.note,
-      'created_by', o.created_by, 'created_by_name', (select username from app_users where id = o.created_by), 'waitlist_id', o.waitlist_id, 'reservation_id', o.reservation_id, 'reservation', (select json_build_object('time', rr.reservation_time, 'party_size', rr.party_size, 'status', rr.status, 'discount_pct', rr.discount_pct, 'special_name', (select name from special_days where id = rr.special_day_id), 'group_name', rr.group_name, 'deposit_amount', rr.deposit_amount, 'deposit_method', rr.deposit_method, 'deposit_at', rr.deposit_at) from reservations rr where rr.id = o.reservation_id), 'courier_user_id', o.courier_user_id, 'courier_name', (select username from app_users where id = o.courier_user_id), 'dispatched_at', o.dispatched_at, 'delivered_at', o.delivered_at, 'tracking_token', o.tracking_token, 'courier_at', o.courier_at, 'packaging', o.packaging, 'pack_cost', o.pack_cost, 'courier_accepted_at', o.courier_accepted_at, 'courier_offer_at', o.courier_offer_at, 'courier_eta_min', o.courier_eta_min, 'courier_eta_at', o.courier_eta_at,
+      'created_by', o.created_by, 'created_by_name', (select username from app_users where id = o.created_by), 'waitlist_id', o.waitlist_id, 'reservation_id', o.reservation_id, 'child_count', o.child_count, 'reservation', (select json_build_object('time', rr.reservation_time, 'party_size', rr.party_size, 'status', rr.status, 'discount_pct', rr.discount_pct, 'special_name', (select name from special_days where id = rr.special_day_id), 'group_name', rr.group_name, 'deposit_amount', rr.deposit_amount, 'deposit_method', rr.deposit_method, 'deposit_at', rr.deposit_at, 'deposit_applied', rr.deposit_applied_at is not null) from reservations rr where rr.id = o.reservation_id), 'courier_user_id', o.courier_user_id, 'courier_name', (select username from app_users where id = o.courier_user_id), 'dispatched_at', o.dispatched_at, 'delivered_at', o.delivered_at, 'tracking_token', o.tracking_token, 'courier_at', o.courier_at, 'packaging', o.packaging, 'pack_cost', o.pack_cost, 'courier_accepted_at', o.courier_accepted_at, 'courier_offer_at', o.courier_offer_at, 'courier_eta_min', o.courier_eta_min, 'courier_eta_at', o.courier_eta_at,
       'waitlist', (select json_build_object('joined_at', w.joined_at, 'quoted_wait_minutes', w.quoted_wait_minutes, 'party_size', w.party_size, 'status', w.status) from waitlist_entries w where w.id = o.waitlist_id),
       'items', (
         select coalesce(json_agg(json_build_object(
@@ -9456,7 +9469,7 @@ begin
     'order_show_closed', r.order_show_closed,
     'zones', (
       select coalesce(json_agg(json_build_object('id', z.id, 'name', z.name,
-        'tables', (select coalesce(json_agg(json_build_object('id', t.id, 'name', t.name, 'qr_token', t.qr_token, 'pos_x', t.pos_x, 'pos_y', t.pos_y)), '[]'::json) from restaurant_tables t where t.zone_id = z.id))), '[]'::json)
+        'tables', (select coalesce(json_agg(json_build_object('id', t.id, 'name', t.name, 'qr_token', t.qr_token, 'pos_x', t.pos_x, 'pos_y', t.pos_y, 'kid_friendly', t.kid_friendly)), '[]'::json) from restaurant_tables t where t.zone_id = z.id))), '[]'::json)
       from zones z where z.restaurant_id = r.id),
     'menus', (select coalesce(json_agg(json_build_object('id', id, 'name', name, 'station_id', station_id, 'sort', sort) order by sort, created_at), '[]'::json) from menus where restaurant_id = r.id),
     'stations', (select coalesce(json_agg(json_build_object('id', id, 'name', name, 'color', color, 'icon', icon, 'categories', categories)), '[]'::json) from stations where restaurant_id = r.id),
@@ -9493,7 +9506,7 @@ begin
     'online_ordering', json_build_object('enabled', r.online_ordering_enabled, 'code', r.code, 'modes', r.online_order_modes, 'sms_verify', r.online_sms_verify, 'sms_ready', coalesce(r.sms_enabled, false), 'lead_min', r.online_lead_min),
     'ticket_design', r.ticket_design,
     'guest_reminder', r.guest_reminder,
-    'voice_enabled', r.voice_enabled,
+    'voice_enabled', r.voice_enabled, 'child_serving_pct', r.child_serving_pct,
     'tts_key_set', exists(select 1 from tenant_integrations ti where ti.restaurant_id = r.id and ti.tts_api_key is not null),
     'overhead_pct', case when r.overhead_method = 'revenue' then _overhead_pct(r.id) end,
     'geo', json_build_object('geo_address', r.geo_address, 'geo_lat', r.geo_lat, 'geo_lng', r.geo_lng, 'travel_default_min', r.travel_default_min, 'travel_buffer_min', r.travel_buffer_min, 'travel_recheck_min', r.travel_recheck_min, 'travel_refresh_min', r.travel_refresh_min,
@@ -10983,7 +10996,7 @@ CREATE FUNCTION public.list_reservation_participants(p_token uuid, p_id uuid) RE
     AS $$
 declare s staff_sessions%rowtype; begin
   s := _session_check(p_token, 'reservations');
-  return (select coalesce(json_agg(json_build_object('id', p.id, 'name', p.name, 'phone', p.phone, 'arrived', p.arrived, 'customer_id', p.customer_id) order by p.created_at), '[]'::json)
+  return (select coalesce(json_agg(json_build_object('id', p.id, 'name', p.name, 'phone', p.phone, 'arrived', p.arrived, 'customer_id', p.customer_id, 'note', p.note) order by p.created_at), '[]'::json)
     from reservation_participants p join reservations r on r.id = p.reservation_id where r.id = p_id and r.restaurant_id = s.restaurant_id);
 end $$;
 
@@ -11004,7 +11017,7 @@ begin
     from (
       select rv.id, rv.customer_name, rv.phone, rv.email, rv.party_size, rv.reservation_time, rv.table_id, rv.status, rv.notes, rv.source, (select username from app_users where id = rv.created_by) created_by_name,
              rv.special_day_id, rv.discount_pct, (select name from special_days where id = rv.special_day_id) special_name, (select color from special_days where id = rv.special_day_id) special_color,
-             rv.group_name, rv.women, rv.men, rv.children, rv.deposit_amount, rv.deposit_method, rv.deposit_at, (select count(*) from reservation_participants p where p.reservation_id = rv.id) participants,
+             rv.group_name, rv.women, rv.men, rv.children, rv.adults, rv.child_ages, rv.needs, rv.allergy, rv.deposit_amount, rv.deposit_method, rv.deposit_at, (select count(*) from reservation_participants p where p.reservation_id = rv.id) participants,
              rt.name as table_name
       from reservations rv left join restaurant_tables rt on rt.id = rv.table_id
       where rv.restaurant_id = s.restaurant_id
@@ -11552,6 +11565,21 @@ begin
   end if;
   return v_id;
 end; $$;
+
+
+--
+-- Name: mark_deposit_applied(uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.mark_deposit_applied(p_token uuid, p_order_id uuid) RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+declare s staff_sessions%rowtype; begin
+  s := _session_check(p_token, 'payments');
+  update reservations r set deposit_applied_at = now() from orders o
+    where o.id = p_order_id and o.restaurant_id = s.restaurant_id and r.id = o.reservation_id and r.deposit_applied_at is null and coalesce(r.deposit_amount,0) > 0;
+end $$;
 
 
 --
@@ -12450,6 +12478,8 @@ begin
     select json_build_object(
       'total', (select count(*) from r),
       'people', (select coalesce(sum(party_size),0) from r),
+      'children', (select coalesce(sum(children),0) from r), 'with_children', (select count(*) from r where coalesce(children,0) > 0),
+      'needs', coalesce((select json_object_agg(n, c) from (select n, count(*) c from r, unnest(r.needs) n group by n) x), '{}'::json),
       'by_status', coalesce((select json_object_agg(status, n) from (select status, count(*) n from r group by status) x), '{}'::json),
       'by_source', coalesce((select json_object_agg(coalesce(source,'manual'), n) from (select source, count(*) n from r group by source) x), '{}'::json),
       'by_dow', coalesce((select json_agg(x order by x.dow) from (select extract(isodow from reservation_time at time zone 'Europe/Istanbul')::int dow, count(*) n, count(*) filter (where status = 'no_show') ns from r group by 1) x), '[]'::json),
@@ -13096,9 +13126,9 @@ begin
         if v_new and v_cid is not null then update customers set marketing_consent = false where id = v_cid and marketing_consent is null; end if;
       end if;
       if nullif(x->>'id','') is not null and exists(select 1 from reservation_participants where id = (x->>'id')::uuid and reservation_id = r.id) then
-        update reservation_participants set name = v_name, phone = v_phone, customer_id = coalesce(v_cid, customer_id) where id = (x->>'id')::uuid;
+        update reservation_participants set name = v_name, phone = v_phone, note = nullif(left(btrim(coalesce(x->>'note','')),300),''), customer_id = coalesce(v_cid, customer_id) where id = (x->>'id')::uuid;
       else
-        insert into reservation_participants(reservation_id, restaurant_id, name, phone, customer_id) values (r.id, s.restaurant_id, v_name, v_phone, v_cid);
+        insert into reservation_participants(reservation_id, restaurant_id, name, phone, customer_id, note) values (r.id, s.restaurant_id, v_name, v_phone, v_cid, nullif(left(btrim(coalesce(x->>'note','')),300),''));
       end if;
       n := n + 1;
     end loop;
@@ -13289,7 +13319,8 @@ begin
     raise exception 'Bu masa dolu: başka bir müşteri oturuyor. Lütfen boş bir masa seçin.';
   end if;
   update reservations set status = 'seated', table_id = v_table, seated_at = now(), closed_at = null where id = p_id;
-  v_note := '📅 Rezervasyon · ' || v_r.party_size || ' kişi' || coalesce(' · ' || nullif(trim(v_r.notes),''), '');
+  v_note := '📅 Rezervasyon · ' || v_r.party_size || ' kişi' || case when coalesce(v_r.children,0) > 0 then ' (🧒 ' || v_r.children || ' çocuk)' else '' end
+      || coalesce(' · ' || _resv_needs_text(v_r.needs), '') || coalesce(' · 🥜 ' || nullif(trim(v_r.allergy),''), '') || coalesce(' · ' || nullif(trim(v_r.notes),''), '');
   select id into v_order from orders where restaurant_id = s.restaurant_id and table_id = v_table and status = 'open' limit 1;
   -- Rezervasyon için alınmış ön sipariş masaya taşınır.
   select id into v_pre from orders where restaurant_id = s.restaurant_id and reservation_id = v_r.id and kind = 'waitlist' and status = 'open' limit 1 for update;
@@ -13310,7 +13341,8 @@ begin
     update orders set customer_name = coalesce(customer_name, v_r.customer_name), customer_phone = coalesce(customer_phone, v_r.phone),
       note = case when note is null or note = '' then v_note else note end, reservation_id = coalesce(reservation_id, v_r.id) where id = v_order;
   end if;
-  update orders set guest_count = coalesce(guest_count, v_r.party_size) where id = v_order and v_r.party_size > 0;
+  update orders set guest_count = coalesce(guest_count, v_r.party_size), child_count = case when coalesce(child_count,0) = 0 then coalesce(v_r.children,0) else child_count end where id = v_order and v_r.party_size > 0;
+  perform _sync_table_treat(v_order);
   return json_build_object('order_id', v_order, 'table_id', v_table);
 end; $$;
 
@@ -14096,6 +14128,21 @@ declare s staff_sessions%rowtype; begin s := _session_check(p_token, 'settings_a
 
 
 --
+-- Name: set_child_serving_pct(uuid, numeric); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.set_child_serving_pct(p_token uuid, p_pct numeric) RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+declare s staff_sessions%rowtype; begin
+  s := _session_check(p_token, 'reservations');
+  if p_pct is null or p_pct < 0 or p_pct > 100 then raise exception '0-100 arası girin'; end if;
+  update restaurants set child_serving_pct = p_pct where id = s.restaurant_id;
+end $$;
+
+
+--
 -- Name: set_close_no_cost(uuid, boolean); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -14599,6 +14646,22 @@ begin
     where id = p_order_id and restaurant_id = s.restaurant_id and status = 'open' returning tags into v_tags;
   if not found then raise exception 'Sipariş bulunamadı'; end if;
   return json_build_object('tags', v_tags, 'remaining', case when p_allowance_id is null then null else _allowance_remaining(p_allowance_id) end);
+end $$;
+
+
+--
+-- Name: set_order_children(uuid, uuid, integer); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.set_order_children(p_token uuid, p_order_id uuid, p_count integer) RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+declare s staff_sessions%rowtype; begin
+  s := _session_check(p_token, 'order');
+  if coalesce(p_count,0) < 0 or coalesce(p_count,0) > 50 then raise exception 'Çocuk sayısı 0-50 arası olmalı'; end if;
+  update orders set child_count = coalesce(p_count,0) where id = p_order_id and restaurant_id = s.restaurant_id;
+  perform _sync_table_treat(p_order_id);
 end $$;
 
 
@@ -15179,6 +15242,30 @@ end $$;
 
 
 --
+-- Name: set_reservation_family(uuid, uuid, integer, integer, integer, text[], text[], text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.set_reservation_family(p_token uuid, p_id uuid, p_adults integer, p_women integer, p_men integer, p_child_ages text[], p_needs text[], p_allergy text) RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+declare s staff_sessions%rowtype; v_ages text[]; v_needs text[]; v_kids int;
+begin
+  s := _session_check(p_token, 'reservations');
+  if coalesce(p_adults,0) < 0 or coalesce(p_women,0) < 0 or coalesce(p_men,0) < 0 then raise exception 'Sayılar eksi olamaz'; end if;
+  select coalesce(array_agg(x.a), '{}') into v_ages from unnest(coalesce(p_child_ages,'{}')) as x(a) where x.a in ('0-2','3-6','7-12');
+  select coalesce(array_agg(distinct x.nd), '{}') into v_needs from unnest(coalesce(p_needs,'{}')) as x(nd) where x.nd in ('high_chair','warmer','kids_menu','coloring','kid_table','wheelchair','birthday','quiet');
+  v_kids := coalesce(array_length(v_ages,1),0);
+  if coalesce(p_adults,0) + v_kids < 1 then raise exception 'En az 1 kişi olmalı'; end if;
+  if coalesce(p_adults,0) + v_kids > 500 then raise exception 'Kişi sayısı çok fazla'; end if;
+  update reservations set adults = p_adults, women = p_women, men = p_men, children = v_kids, child_ages = v_ages, needs = v_needs,
+    allergy = nullif(left(btrim(coalesce(p_allergy,'')),200),''), party_size = coalesce(p_adults,0) + v_kids
+  where id = p_id and restaurant_id = s.restaurant_id;
+  if not found then raise exception 'Rezervasyon bulunamadı'; end if;
+end $$;
+
+
+--
 -- Name: set_reservation_status(uuid, uuid, text); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -15551,6 +15638,20 @@ begin
   if v_name is not null then perform _ensure_customer(s.restaurant_id, v_name, v_phone, true); end if;
   return json_build_object('order_id', v_order);
 end; $$;
+
+
+--
+-- Name: set_table_kid_friendly(uuid, uuid, boolean); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.set_table_kid_friendly(p_token uuid, p_table uuid, p_on boolean) RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+declare s staff_sessions%rowtype; begin
+  s := _session_check(p_token, 'reservations');
+  update restaurant_tables set kid_friendly = coalesce(p_on,false) where id = p_table and restaurant_id = s.restaurant_id;
+end $$;
 
 
 --
@@ -16442,10 +16543,10 @@ $_$;
 
 
 --
--- Name: submit_public_reservation(text, text, text, text, integer, timestamp with time zone, text); Type: FUNCTION; Schema: public; Owner: -
+-- Name: submit_public_reservation(text, text, text, text, integer, timestamp with time zone, text, integer, text[]); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.submit_public_reservation(p_restaurant_code text, p_name text, p_phone text, p_email text, p_party integer, p_time timestamp with time zone, p_notes text) RETURNS uuid
+CREATE FUNCTION public.submit_public_reservation(p_restaurant_code text, p_name text, p_phone text, p_email text, p_party integer, p_time timestamp with time zone, p_notes text, p_children integer DEFAULT NULL::integer, p_needs text[] DEFAULT NULL::text[]) RETURNS uuid
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public', 'extensions', 'pg_temp'
     AS $$ declare r restaurants%rowtype; v uuid; n int;
@@ -16465,8 +16566,11 @@ begin
   -- Numara değiştirerek doldurmaya karşı: işletme başına saatlik ve IP başına sınır.
   perform _rate_limit('pub_resv_rest', r.id::text, 30, interval '1 hour');
   if _client_ip() is not null then perform _rate_limit('pub_resv_ip', _client_ip(), 8, interval '1 hour'); end if;
-  insert into reservations(restaurant_id, customer_name, phone, email, party_size, reservation_time, status, notes, source)
-    values (r.id, left(trim(p_name), 80), left(trim(p_phone), 30), nullif(left(trim(coalesce(p_email,'')), 120), ''), p_party, p_time, 'pending', nullif(left(trim(coalesce(p_notes,'')), 300), ''), 'online')
+  -- Müşterinin seçtiği çocuk sayısı ve ihtiyaçlar (mama sandalyesi vb.); kişi sayısının içindedir.
+  insert into reservations(restaurant_id, customer_name, phone, email, party_size, reservation_time, status, notes, source, children, adults, needs)
+    values (r.id, left(trim(p_name), 80), left(trim(p_phone), 30), nullif(left(trim(coalesce(p_email,'')), 120), ''), p_party, p_time, 'pending', nullif(left(trim(coalesce(p_notes,'')), 300), ''), 'online',
+      least(greatest(coalesce(p_children,0),0), p_party), p_party - least(greatest(coalesce(p_children,0),0), p_party),
+      coalesce((select array_agg(distinct x.nd) from unnest(coalesce(p_needs,'{}')) as x(nd) where x.nd in ('high_chair','kids_menu','wheelchair','birthday')), '{}'))
     returning id into v;
   return v;
 end $$;
@@ -19346,7 +19450,8 @@ CREATE TABLE public.reservation_participants (
     phone text,
     customer_id uuid,
     arrived boolean DEFAULT false NOT NULL,
-    created_at timestamp with time zone DEFAULT now() NOT NULL
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    note text
 );
 
 
@@ -19381,7 +19486,12 @@ CREATE TABLE public.reservations (
     deposit_amount numeric,
     deposit_method text,
     deposit_at timestamp with time zone,
-    deposit_by uuid
+    deposit_by uuid,
+    adults integer,
+    child_ages text[] DEFAULT '{}'::text[] NOT NULL,
+    needs text[] DEFAULT '{}'::text[] NOT NULL,
+    allergy text,
+    deposit_applied_at timestamp with time zone
 );
 
 
@@ -19396,7 +19506,8 @@ CREATE TABLE public.restaurant_tables (
     name text NOT NULL,
     qr_token uuid DEFAULT gen_random_uuid() NOT NULL,
     pos_x numeric DEFAULT 20 NOT NULL,
-    pos_y numeric DEFAULT 20 NOT NULL
+    pos_y numeric DEFAULT 20 NOT NULL,
+    kid_friendly boolean DEFAULT false NOT NULL
 );
 
 
@@ -19492,6 +19603,8 @@ CREATE TABLE public.restaurants (
     online_resv_to time without time zone DEFAULT '23:00:00'::time without time zone NOT NULL,
     campaign_templates jsonb DEFAULT '[]'::jsonb NOT NULL,
     online_lead_min integer DEFAULT 25 NOT NULL,
+    child_serving_pct numeric DEFAULT 50 NOT NULL,
+    CONSTRAINT restaurants_child_serving_pct_check CHECK (((child_serving_pct >= (0)::numeric) AND (child_serving_pct <= (100)::numeric))),
     CONSTRAINT restaurants_day_end_hour_check CHECK (((day_end_hour >= 0) AND (day_end_hour <= 23))),
     CONSTRAINT restaurants_default_vat_rate_check CHECK (((default_vat_rate >= (0)::numeric) AND (default_vat_rate <= (100)::numeric))),
     CONSTRAINT restaurants_online_lead_min_check CHECK (((online_lead_min >= 5) AND (online_lead_min <= 180))),
