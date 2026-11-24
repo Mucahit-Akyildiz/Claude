@@ -563,7 +563,7 @@ async function renderPrinterSettingsView(main, session){
     <div class="u-mwn box">
       <div class="fsheet-bar" style="margin:0 0 12px;"><h2 class="u-m0">Yazıcılar</h2>${sheetBtnHtml('printerSheet','+ Yeni Yazıcı')}</div>
       ${!usbSupported ? '<p class="u-tl muted">⚠️ Bu tarayıcı USB yazıcı bağlantısını (WebUSB) desteklemiyor — Chrome veya Edge kullanmanız gerekiyor. Yine de "Tarayıcı Yazdırma Penceresi" tipinde yazıcı ekleyebilirsiniz.</p>' : ''}
-      ${printers.length ? `<div class="pp-grid">${printers.map((p, i) => { const [ic, tl] = PR_TYPE(p.type);
+      ${printers.length ? `<div class="pp-grid pp-list">${printers.map((p, i) => { const [ic, tl] = PR_TYPE(p.type);
         return `<div class="pp-card pp-static" style="--sc:var(--c${i%4+1});">
           <span class="pp-ic">${ic}</span><span class="pp-txt"><b>${escapeHtml(p.name)}</b><small>${tl}${p.type==='electron' && p.osPrinterName ? ' · '+escapeHtml(p.osPrinterName) : ''}</small></span>
           <span class="pp-acts">${p.type==='usb' ? `<button type="button" class="pc-btn" ${act('reconnectUsbPrinter', p.id)}>Bağlan</button>` : ''}

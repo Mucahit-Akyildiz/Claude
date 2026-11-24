@@ -4737,3 +4737,9 @@ select.ss-hidden{display:none !important;}
 .rvf-note{width:100%;min-height:96px;resize:vertical;margin:8px 0 0;font-size:14px;line-height:1.4;}
 .rvf-spec{margin-bottom:8px;} .rvf-sd{display:flex;flex-direction:column;align-items:flex-start;border-color:color-mix(in srgb,var(--sd) 55%,var(--border)) !important;background:color-mix(in srgb,var(--sd) 10%,transparent);}
 .rvf-sd b{color:var(--sd);} .rvf-sd.on{background:var(--sd) !important;} .rvf-sd.on b,.rvf-sd.on small{color:#fff;}
+/* Cihaz Yazıcısı > Yazıcılar listesi: sipariş ekranı ürün kartlarıyla (.pp-grid/.pp-card) çakışmasın. */
+.pp-grid.pp-list{grid-template-columns:repeat(auto-fill,minmax(min(100%,340px),1fr))!important;gap:10px!important;}
+.pp-grid.pp-list .pp-card.pp-static{flex-direction:row!important;flex-wrap:wrap;align-items:center!important;min-height:0;padding:12px!important;gap:10px 12px;cursor:default;}
+.pp-grid.pp-list .pp-card.pp-static::before,.pp-grid.pp-list .pp-card.pp-static::after{display:none!important;}
+.pp-grid.pp-list .pp-static .pp-acts{flex:1 0 100%;display:flex;flex-wrap:wrap;gap:6px;}
+.pp-grid.pp-list .pp-static .pp-acts .pc-btn{flex:1 1 auto;width:auto;margin:0;white-space:nowrap;}
