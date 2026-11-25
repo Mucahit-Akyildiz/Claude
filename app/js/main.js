@@ -151,7 +151,8 @@ function render(){
         <nav>
           ${NAV_GROUPS.map(([g, gl]) => { const gi = items.filter(i => (i.grp || 'manage') === g); if(!gi.length) return '';
             const one = (i, k) => `<div class="sb-item ${g==='tools'?'sb-tool':''} ${APP.view===i.view?'active':''}" style="--sc:var(--c${k%4+1});" data-view="${i.view}" ${act('goToView', i.view)} title="${i.label}"><span class="ic">${i.icon}</span><span class="label">${i.label}</span></div>`;
-            return `<div class="sb-grp sb-grp-${g}"><div class="sb-grp-t label">${gl}</div>${g==='tools' ? `<div class="sb-tools">${gi.map(one).join('')}</div>` : gi.map(one).join('')}</div>`; }).join('')}
+            const shut = sbGrpClosed(g) && !gi.some(i => i.view === APP.view);
+            return `<div class="sb-grp sb-grp-${g} ${shut ? 'shut' : ''}" data-grp="${g}"><div class="sb-grp-t label" role="button" ${act('toggleSbGrp', g)}>${gl}<span class="sb-grp-car">▾</span></div>${g==='tools' ? `<div class="sb-tools">${gi.map(one).join('')}</div>` : gi.map(one).join('')}</div>`; }).join('')}
         </nav>
         <div class="sb-bottom">
           <div id="shiftWidget" class="shift-widget">${shiftWidgetHtml()}</div>

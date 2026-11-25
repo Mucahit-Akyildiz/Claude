@@ -130,6 +130,13 @@ const NAV_ITEMS = [
   { view:'help', icon:'❓', label:'Yardım', grp:'tools' },
 ];
 // Sol menü grupları: Günlük işler, Yönetim; Araçlar alt kısımda küçük simgeler.
+function sbGrpClosed(g){ try{ return (JSON.parse(localStorage.getItem('rys_sb_shut')) || []).includes(g); }catch(e){ return false; } }
+function toggleSbGrp(g){
+  let a = []; try{ a = JSON.parse(localStorage.getItem('rys_sb_shut')) || []; }catch(e){}
+  a = a.includes(g) ? a.filter(x => x !== g) : a.concat(g);
+  try{ localStorage.setItem('rys_sb_shut', JSON.stringify(a)); }catch(e){}
+  const el = document.querySelector('.sb-grp[data-grp="' + g + '"]'); if(el) el.classList.toggle('shut', a.includes(g));
+}
 const NAV_GROUPS = [['daily','Günlük'],['manage','Yönetim'],['tools','Araçlar']];
 /* notificationSettings her personel için her zaman görünür (izin
    gerektirmez, cihaza özel). printerSettings ise artık SADECE Yönetici'ye

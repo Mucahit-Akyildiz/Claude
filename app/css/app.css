@@ -4758,4 +4758,11 @@ select.ss-hidden{display:none !important;}
 .set-grp-t{font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);padding:2px 6px;}
 .set-ext{font-size:11px;color:var(--muted);font-weight:600;}
 @media (max-width:900px){ .set-grp{flex-direction:row;flex:0 0 auto;align-items:center;} .set-grp + .set-grp{margin:0;padding:0 0 0 8px;border-top:0;border-left:1px solid var(--border);} .set-grp-t{display:none;} .set-search{display:none;} }
+.sb-grp-t{display:flex;align-items:center;justify-content:space-between;cursor:pointer;user-select:none;border-radius:8px;}
+.sb-grp-t:hover{color:var(--text);background:var(--panel2);}
+.sb-grp-car{font-size:12px;transition:transform .2s;}
+.sb-grp.shut .sb-grp-car{transform:rotate(-90deg);}
+.sb-grp.shut > .sb-item,.sb-grp.shut > .sb-tools{display:none;}
+.sidebar.collapsed .sb-grp.shut > .sb-item,.sidebar.collapsed .sb-grp.shut > .sb-tools{display:flex;}
+.sidebar.collapsed .sb-grp.shut > .sb-tools{display:grid;}
 
