@@ -833,34 +833,29 @@ function renderStationsSettings(el, session){
         <div class="me-foot"><span class="me-price">${money(p.price)}</span>
           <button type="button" role="switch" aria-checked="${!off}" class="nm-sw ${off ? '' : 'on'}" title="${off ? 'Satışa kapalı — açmak için dokunun' : 'Satışta — kapatmak için dokunun'}" ${act('meToggleAvail', p.id)}><i></i></button></div></div>
     </div>`; };
-  el.innerHTML = `<div class="u-mwn box me-wrap">
-    <div class="me-top">
-      <h2 class="u-m0">Menü & Ürünler</h2>
-      <input class="me-search" type="search" placeholder="🔍 Ürün ara…" value="${escapeAttr(APP.meQ || '')}" ${actOn('input','meSearch',['$value'])}>
-      <button type="button" class="fsheet-open me-newbtn" ${act('meNewMenu')}>＋ Yeni kategori</button>
-      <button type="button" class="ghost-btn me-newbtn" title="Siparişlerin düştüğü mutfak ekranları ve yazıcılar: ekle, düzenle" ${act('meKitchens')}>🍳 Mutfakları yönet <em class="me-kn">${stations.length}</em></button>
-      <details class="ux-more"><summary title="Diğer işlemler">⋯ Diğer</summary><div class="ux-more-pop">
-        <div class="ux-more-t">Düzen</div><div class="xl-bar"><button type="button" class="xl-btn" ${act('msOrderOpen')}>↕ Kategori sırasını değiştir</button><button type="button" class="xl-btn" ${act('meGoProducts', 'media')}>📷 Ürün fotoğrafları & açıklamaları</button><button type="button" class="xl-btn" ${act('meGoProducts', 'table')}>☰ Toplu düzenle (tablo, maliyet, KDV)</button></div>
-
-        <div class="ux-more-t">Menü PDF</div><div class="xl-bar"><button type="button" class="xl-btn" ${act('downloadMenuPdf', true)}>📄 Fiyatlı</button><button type="button" class="xl-btn" ${act('downloadMenuPdf', false)}>📄 Fiyatsız</button></div>
-        <div class="ux-more-t">Excel</div>${typeof excelBarHtml === 'function' ? excelBarHtml('menus') : ''}</div></details>
+  const kitSel = (m, s0) => `<select class="me-ksel ${s0 ? '' : 'warn'}" title="Bu kategorinin siparişlerinin düştüğü mutfak (ekran + fiş yazıcısı)" ${actOn('change','meKitSel',[m.id,'$value'])}>
+      ${s0 ? '' : '<option value="">⚠️ Mutfak seçin</option>'}${stations.map(x => `<option value="${x.id}" ${x.id === m.station_id ? 'selected' : ''}>${escapeHtml(x.icon || '🍳')} ${escapeHtml(x.name)}</option>`).join('')}
+      ${s0 ? '<option value="">✕ Mutfak yok</option>' : ''}<option value="__new">＋ Yeni mutfak…</option></select>`;
+  el.innerHTML = `<div class="u-mwn box me-wrap me2">
+    <div class="me2-bar">
+      <div class="me2-tabs">
+        <button type="button" class="me2-tab ${cur === 'all' && !q ? 'on' : ''}" ${act('meSel', 'all')}>Tümü</button>
+        ${menus.map(m => `<button type="button" class="me2-tab ${cur === m.id && !q ? 'on' : ''}" style="--mc:${escapeAttr(col(m))};" ${act('meSel', m.id)}>${escapeHtml(m.name)}${stOf(m) ? '' : ' <i class="me2-warn" title="Mutfak seçilmedi">!</i>'}</button>`).join('')}
+        <button type="button" class="me2-tab me2-add" ${act('meNewMenu')}>＋ Kategori</button>
+      </div>
+      <div class="me2-tools">
+        <input class="me2-search" type="search" placeholder="🔍 Ara" value="${escapeAttr(APP.meQ || '')}" ${actOn('input','meSearch',['$value'])}>
+        <button type="button" class="ghost-btn me2-tool" ${act('meKitchens')}>🍳 Mutfaklar</button>
+        <details class="ux-more"><summary title="Diğer işlemler">⋯</summary><div class="ux-more-pop">
+          <div class="ux-more-t">Düzen</div><div class="xl-bar"><button type="button" class="xl-btn" ${act('msOrderOpen')}>↕ Kategori sırası</button><button type="button" class="xl-btn" ${act('meGoProducts', 'media')}>📷 Fotoğraflar & açıklamalar</button><button type="button" class="xl-btn" ${act('meGoProducts', 'table')}>☰ Toplu düzenle (tablo)</button></div>
+          <div class="ux-more-t">Menü PDF</div><div class="xl-bar"><button type="button" class="xl-btn" ${act('downloadMenuPdf', true)}>📄 Fiyatlı</button><button type="button" class="xl-btn" ${act('downloadMenuPdf', false)}>📄 Fiyatsız</button></div>
+          <div class="ux-more-t">Excel</div>${typeof excelBarHtml === 'function' ? excelBarHtml('menus') : ''}</div></details>
+      </div>
     </div>
-    ${!stations.length ? `<div class="me-knone me-kbanner">🍳 <b>Önce mutfaklarınızı tanımlayın (bir kez yapılır).</b> Mutfak, siparişlerin düştüğü yerdir: mutfak ekranı ve fiş yazıcısı (örn. Izgara, Fırın, Bar). Tek mutfağınız varsa "Mutfak" adıyla bir tane ekleyin. Sonra her kategoride hangi mutfağa gideceğini seçersiniz. <button type="button" class="fsheet-open" ${act('openStationEdit', '')}>＋ Mutfak ekle</button></div>` : ''}
-    <p class="muted me-help">📂 <b>Kategoriler</b> Sipariş Al ekranında ürünlerin gruplandığı başlıklardır (örn. Izgaralar, İçecekler, Tatlılar). Bir kategori seçin, ürünlerini aşağıda görün ve ekleyin.</p>
-    <div class="me-tabs"><span class="me-tabs-l">📂 Kategoriler:</span>
-      <button type="button" class="me-tab ${cur === 'all' && !q ? 'on' : ''}" ${act('meSel', 'all')}>Tümü <em>${prods.length}</em></button>
-      ${menus.map(m => `<button type="button" class="me-tab ${cur === m.id && !q ? 'on' : ''}" style="--mc:${escapeAttr(col(m))};" ${act('meSel', m.id)}><i class="me-dot"></i>${escapeHtml(m.name)} <em>${prods.filter(p => p.menu_id === m.id).length}</em>${stOf(m) ? '' : ' <span title="Mutfağa gitmiyor">⚠️</span>'}</button>`).join('')}
-    </div>
-    ${q ? `<div class="me-ctx"><b>"${escapeHtml(APP.meQ)}" için ${list.length} sonuç</b><span class="u-f1"></span><button type="button" class="ghost-btn" ${act('meSearch', '')}>✕ Aramayı temizle</button></div>`
-      : menu ? `<div class="me-ctx" style="--mc:${escapeAttr(col(menu))};">
-        <div class="me-ctx-t"><b>📂 ${escapeHtml(menu.name)} <small class="muted" style="font-size:12px;font-weight:600;">kategorisi</small></b>
-          <label class="me-st ${st ? '' : 'warn'}">${st ? `${escapeHtml(st.icon || '🍳')} <span>Siparişleri <b>${escapeHtml(st.name)}</b> mutfağına gider</span>` : (stations.length ? '⚠️ <span>Bu kategorinin siparişleri hiçbir mutfağa gitmiyor — aşağıdan bir mutfak seçin:</span>' : '⚠️ <span>Mutfak seçilmedi — önce yukarıdan mutfak ekleyin</span>')}
-</label>
-          ${stations.length ? `<div class="me-kpick">${stations.map(x => `<button type="button" class="me-kc ${x.id === menu.station_id ? 'on' : ''}" style="--kc:${escapeAttr(x.color || '#94a3b8')};" ${act('moveMenuToStation', menu.id, x.id)}>${escapeHtml(x.icon || '🍳')} ${escapeHtml(x.name)}</button>`).join('')}<button type="button" class="me-kc none ${st ? '' : 'on'}" title="Bu kategori hiçbir mutfağa gitmesin" ${act('moveMenuToStation', menu.id, '')}>✕ Mutfak yok</button></div>` : ''}</div>
-        <span class="u-f1"></span>
-        <span class="me-ctx-a"><button type="button" class="ghost-btn" ${act('msMenuOpen', menu.id)}>✏️ Kategoriyi düzenle</button></span></div>`
-      : `<div class="me-ctx"><b>Tüm ürünler</b><span class="u-f1"></span><small class="muted">Ürün eklemek için üstten bir kategori seçin</small></div>`}
-    <div class="me-grid">${list.map(card).join('')}${menu && !q ? (st ? `<button type="button" class="me-card me-add" ${act('kvAddProduct', menu.id)}><span>＋</span><b>Ürün ekle</b></button>` : `<div class="me-card me-add me-locked"><span>🔒</span><b>Ürün eklemek için önce yukarıdan mutfak seçin</b></div>`) : ''}</div>
+    ${q ? `<div class="me2-sub"><span>"${escapeHtml(APP.meQ)}" · ${list.length} sonuç</span><button type="button" class="xl-link" ${act('meSearch', '')}>Temizle</button></div>`
+      : menu ? `<div class="me2-sub"><b>${escapeHtml(menu.name)}</b><span class="me2-arrow">→</span>${kitSel(menu, st)}<span class="u-f1"></span><button type="button" class="xl-link" ${act('msMenuOpen', menu.id)}>Düzenle</button></div>`
+      : ''}
+    <div class="me-grid">${list.map(card).join('')}${menu && !q ? (st ? `<button type="button" class="me-card me-add" ${act('kvAddProduct', menu.id)}><span>＋</span><b>Ürün ekle</b></button>` : `<div class="me-card me-add me-locked"><span>🔒</span><b>Önce mutfak seçin</b></div>`) : ''}</div>
     ${!list.length && !menu ? '<div class="empty-state"><p class="muted">Ürün bulunamadı.</p></div>' : ''}
   </div>`;
 }
@@ -887,6 +882,7 @@ function renderProductsGrid(el, session){
 }
 function setProdClassic(on){ APP.prodClassic = !!on; renderSettingsContent(getSession()); }
 function meGoProducts(k){ APP.settingsTab = 'products'; APP.productsSubTab = k === 'media' ? 'media' : 'products'; APP.prodClassic = k === 'table'; renderSettingsView(document.getElementById('main'), getSession()); }
+function meKitSel(mid, v){ if(v === '__new'){ renderSettingsContent(getSession()); openStationEdit(''); return; } moveMenuToStation(mid, v); }
 function meSel(id){ APP.meMenu = id; APP.meQ = ''; renderSettingsContent(getSession()); }
 function meSearch(v){ APP.meQ = v; renderSettingsContent(getSession()); const i = document.querySelector('.me-search'); if(i && v){ i.focus(); i.setSelectionRange(v.length, v.length); } }
 async function meNewMenu(){
