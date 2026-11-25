@@ -845,6 +845,7 @@ function renderStationsSettings(el, session){
         <div class="ux-more-t">Menü PDF</div><div class="xl-bar"><button type="button" class="xl-btn" ${act('downloadMenuPdf', true)}>📄 Fiyatlı</button><button type="button" class="xl-btn" ${act('downloadMenuPdf', false)}>📄 Fiyatsız</button></div>
         <div class="ux-more-t">Excel</div>${typeof excelBarHtml === 'function' ? excelBarHtml('menus') : ''}</div></details>
     </div>
+    ${!stations.length ? `<div class="me-knone me-kbanner">🍳 <b>Önce mutfaklarınızı tanımlayın (bir kez yapılır).</b> Mutfak, siparişlerin düştüğü yerdir: mutfak ekranı ve fiş yazıcısı (örn. Izgara, Fırın, Bar). Tek mutfağınız varsa "Mutfak" adıyla bir tane ekleyin. Sonra her kategoride hangi mutfağa gideceğini seçersiniz. <button type="button" class="fsheet-open" ${act('openStationEdit', '')}>＋ Mutfak ekle</button></div>` : ''}
     <p class="muted me-help">📂 <b>Kategoriler</b> Sipariş Al ekranında ürünlerin gruplandığı başlıklardır (örn. Izgaralar, İçecekler, Tatlılar). Bir kategori seçin, ürünlerini aşağıda görün ve ekleyin.</p>
     <div class="me-tabs"><span class="me-tabs-l">📂 Kategoriler:</span>
       <button type="button" class="me-tab ${cur === 'all' && !q ? 'on' : ''}" ${act('meSel', 'all')}>Tümü <em>${prods.length}</em></button>
@@ -853,10 +854,9 @@ function renderStationsSettings(el, session){
     ${q ? `<div class="me-ctx"><b>"${escapeHtml(APP.meQ)}" için ${list.length} sonuç</b><span class="u-f1"></span><button type="button" class="ghost-btn" ${act('meSearch', '')}>✕ Aramayı temizle</button></div>`
       : menu ? `<div class="me-ctx" style="--mc:${escapeAttr(col(menu))};">
         <div class="me-ctx-t"><b>📂 ${escapeHtml(menu.name)} <small class="muted" style="font-size:12px;font-weight:600;">kategorisi</small></b>
-          <label class="me-st ${st ? '' : 'warn'}">${st ? `${escapeHtml(st.icon || '🍳')} <span>Siparişleri <b>${escapeHtml(st.name)}</b> mutfağına gider</span>` : '⚠️ <span>Bu kategorinin siparişleri hiçbir mutfağa gitmiyor — aşağıdan bir mutfak seçin:</span>'}
+          <label class="me-st ${st ? '' : 'warn'}">${st ? `${escapeHtml(st.icon || '🍳')} <span>Siparişleri <b>${escapeHtml(st.name)}</b> mutfağına gider</span>` : (stations.length ? '⚠️ <span>Bu kategorinin siparişleri hiçbir mutfağa gitmiyor — aşağıdan bir mutfak seçin:</span>' : '⚠️ <span>Mutfak seçilmedi — önce yukarıdan mutfak ekleyin</span>')}
 </label>
-          ${!stations.length ? `<div class="me-knone">🍳 <b>Henüz mutfak yok.</b> Mutfak, bu kategorinin siparişlerinin düştüğü yerdir: <b>mutfak ekranı ve fiş yazıcısı</b> (örn. Izgara, Fırın, Bar, Tatlı). Tek mutfağınız varsa "Mutfak" adıyla bir tane ekleyin. <button type="button" class="fsheet-open" ${act('openStationEdit', '')}>＋ İlk mutfağı ekle</button></div>` : ''}
-          <div class="me-kpick">${stations.map(x => `<button type="button" class="me-kc ${x.id === menu.station_id ? 'on' : ''}" style="--kc:${escapeAttr(x.color || '#94a3b8')};" ${act('moveMenuToStation', menu.id, x.id)}>${escapeHtml(x.icon || '🍳')} ${escapeHtml(x.name)}</button>`).join('')}<button type="button" class="me-kc none ${st ? '' : 'on'}" title="Bu kategori hiçbir mutfağa gitmesin" ${act('moveMenuToStation', menu.id, '')}>✕ Mutfak yok</button></div></div>
+          ${stations.length ? `<div class="me-kpick">${stations.map(x => `<button type="button" class="me-kc ${x.id === menu.station_id ? 'on' : ''}" style="--kc:${escapeAttr(x.color || '#94a3b8')};" ${act('moveMenuToStation', menu.id, x.id)}>${escapeHtml(x.icon || '🍳')} ${escapeHtml(x.name)}</button>`).join('')}<button type="button" class="me-kc none ${st ? '' : 'on'}" title="Bu kategori hiçbir mutfağa gitmesin" ${act('moveMenuToStation', menu.id, '')}>✕ Mutfak yok</button></div>` : ''}</div>
         <span class="u-f1"></span>
         <span class="me-ctx-a"><button type="button" class="ghost-btn" ${act('msMenuOpen', menu.id)}>✏️ Kategoriyi düzenle</button></span></div>`
       : `<div class="me-ctx"><b>Tüm ürünler</b><span class="u-f1"></span><small class="muted">Ürün eklemek için üstten bir kategori seçin</small></div>`}
