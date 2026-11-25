@@ -295,3 +295,5 @@ alter table customers add column if not exists created_by uuid, add column if no
 -- 2026-11-22: reservations.deposit_applied_at, mark_deposit_applied(), get_live_orders rezervasyon JSON'una deposit_applied eklendi (kapora hesaptan düşülür).
 -- 2026-11-22: reservation_participants.note; save_reservation_group/list_reservation_participants not alanı.
 -- 2026-11-25: feature_catalog'a 19 yeni özellik (stock_count_f, daily_prep, waste, cost_overheads, day_close, voice_notify, shift_plan, allowances, open_accounts, loyalty, campaigns, coupons, review_links, waitlist, online_resv, special_days, family_resv, qr_pay, courier_sms) eklendi, tüm paketlere işaretli; _session_check: stock_count→stock_count_f, settings_allowances→allowances paket kontrolü.
+-- 2026-11-25: waiter_calls, bank_accounts, chat_groups, chat_messages, online_menu_items, online_menu_sections, product_images restaurant FK'leri ON DELETE CASCADE (admin işletme silme hatası).
+-- 2026-11-25: _feat_gate_tok eklendi; 30 yazma fonksiyonuna paket özelliği kilidi; _tts_ctx voice_notify, _qr_bill_allowed qr_pay kontrolü.

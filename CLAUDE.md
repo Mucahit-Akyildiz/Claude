@@ -48,3 +48,12 @@ yapılan geliştirmelerin ve kararların kaydı için `docs/GELISTIRME-GECMISI.m
 - **Açık hesap = müşteri**: Açık hesaba atarken ve hareket taşırken kişi her zaman **Müşteriler'den** seçilir
   (`open_account_for_customer`): müşterinin açık hesabı varsa ona yazılır/birleşir, yoksa açılır; müşteri kayıtlı
   değilse önce Müşteriler'e eklenir. `open_accounts.customer_id` ile bağlıdır. Serbest ad ile ayrı hesap açılmaz.
+
+## Arayüz tasarım kuralları (kullanıcının isteği — her ekran değişikliğinde uygula)
+1. **Her işin tek bir yeri olur.** Aynı işi yapan iki düğme / iki ekran olmaz. Bir şey eklemeden önce aynı işi yapan başka yer var mı diye ara; varsa önce onu kaldır ya da birleştir.
+2. **Bir kez yapılan kurulum (mutfak, bölge, rol… tanımlamak) tekrar eden öğelerin içine konmaz.** Her kategori / her satır / her kartın içine "ekle" düğmesi koyma. Tek yer: ekranın başı ya da ilgili "yönet" düğmesi. Eksikse ekranın en üstünde tek bir uyarı + tek bir ekle düğmesi.
+3. **Ekranda sadece o ekranın asıl işi durur.** Nadir işler (Excel, PDF, sıralama, toplu düzenleme) "⋯ Diğer" menüsüne.
+4. **Her düğmenin üzerinde ne yaptığı yazar.** Yalnız "+" ya da yalnız simge olan düğme yok. Teknik kavram (istasyon, menü…) kullanıcının dilinde ve kısa açıklamayla (mutfak, kategori…).
+5. **Sayfa gibi olan şey sayfada açılır**; açılır pencere yalnızca kısa soru / tek kayıt düzenleme için. Açılır menüler dışarı tıklanınca kapanır.
+6. **Düzeltmeden önce bütüne bak:** kullanıcının gösterdiği tek noktayı değil, aynı hatanın diğer ekranlardaki benzerlerini de bul ve birlikte düzelt.
+7. Büyük arayüz değişiklikleri önce deneme dalında (`claude/arayuz-*`, Vercel önizleme) yapılır; kullanıcı "canlıya al" demeden canlı dala geçmez.
