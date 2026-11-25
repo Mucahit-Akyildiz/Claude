@@ -5181,3 +5181,8 @@ p.me2-hint{text-align:left!important;margin:-4px 0 12px!important;}
 #niBuyPack:not([hidden]){display:inline-flex;align-items:center;gap:6px;}
 #niBuyPack input{width:90px;margin:0;} #niBuyPack em{font-style:normal;font-weight:700;}
 .ni-buy > small{display:block;margin-top:6px;font-size:12px;}
+/* Sipariş penceresi alt butonları: İptal küçük ve solda (çerçeveli), Onayla sağda ana buton */
+.order-modal .modal-sticky-actions{display:flex;align-items:center;gap:10px;}
+.order-modal .modal-sticky-actions > .ghost-btn{flex:0 0 auto!important;width:auto!important;padding:10px 16px!important;font-size:14px;background:transparent!important;border:1px solid color-mix(in srgb,var(--red) 55%,var(--border))!important;}
+.order-modal .modal-sticky-actions > #confirmBtn{flex:0 1 360px!important;margin-left:auto!important;width:auto!important;padding:13px 22px!important;border-radius:12px!important;}
+@media (max-width:600px){.order-modal .modal-sticky-actions > #confirmBtn{flex:1 1 auto!important;}}
