@@ -837,15 +837,15 @@ function renderStationsSettings(el, session){
     <div class="me-top">
       <h2 class="u-m0">Menü</h2>
       <input class="me-search" type="search" placeholder="🔍 Ürün ara…" value="${escapeAttr(APP.meQ || '')}" ${actOn('input','meSearch',['$value'])}>
+      <button type="button" class="fsheet-open me-newbtn" ${act('meNewMenu')}>＋ Yeni menü</button>
       <details class="ux-more"><summary title="Diğer işlemler">⋯ Diğer</summary><div class="ux-more-pop">
-        <div class="xl-bar"><button type="button" class="xl-btn" ${act('msOrderOpen')}>↕ Menü sırasını değiştir</button></div>
+        <div class="ux-more-t">Düzen</div><div class="xl-bar"><button type="button" class="xl-btn" ${act('msOrderOpen')}>↕ Menü sırasını değiştir</button></div>
         <div class="ux-more-t">Menü PDF</div><div class="xl-bar"><button type="button" class="xl-btn" ${act('downloadMenuPdf', true)}>📄 Fiyatlı</button><button type="button" class="xl-btn" ${act('downloadMenuPdf', false)}>📄 Fiyatsız</button></div>
         <div class="ux-more-t">Excel</div>${typeof excelBarHtml === 'function' ? excelBarHtml('menus') : ''}</div></details>
     </div>
     <div class="me-tabs">
       <button type="button" class="me-tab ${cur === 'all' && !q ? 'on' : ''}" ${act('meSel', 'all')}>Tümü <em>${prods.length}</em></button>
       ${menus.map(m => `<button type="button" class="me-tab ${cur === m.id && !q ? 'on' : ''}" style="--mc:${escapeAttr(col(m))};" ${act('meSel', m.id)}><i class="me-dot"></i>${escapeHtml(m.name)} <em>${prods.filter(p => p.menu_id === m.id).length}</em>${stOf(m) ? '' : ' <span title="Mutfağa gitmiyor">⚠️</span>'}</button>`).join('')}
-      <button type="button" class="me-tab me-new" ${act('meNewMenu')}>＋ Menü</button>
     </div>
     ${q ? `<div class="me-ctx"><b>"${escapeHtml(APP.meQ)}" için ${list.length} sonuç</b><span class="u-f1"></span><button type="button" class="ghost-btn" ${act('meSearch', '')}>✕ Aramayı temizle</button></div>`
       : menu ? `<div class="me-ctx" style="--mc:${escapeAttr(col(menu))};">

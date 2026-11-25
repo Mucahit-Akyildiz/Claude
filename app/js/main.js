@@ -1314,3 +1314,9 @@ function openPinSwitch(){
   document.addEventListener('keydown', onKey);
   document.body.appendChild(bg); draw();
 }
+// Açılır "⋯ Diğer" menüleri: dışarı tıklanınca ya da içinden bir işlem seçilince kapanır.
+document.addEventListener('click', (e) => {
+  document.querySelectorAll('details.ux-more[open]').forEach(d => {
+    if(!d.contains(e.target) || (e.target.closest && e.target.closest('.ux-more-pop button'))) d.open = false;
+  });
+});
