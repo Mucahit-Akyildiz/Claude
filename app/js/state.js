@@ -113,22 +113,24 @@ function productExtras(pid){ return ((APP.config && APP.config.extras) || []).fi
 function findProductAny(pid){ const c = APP.config || {}; return (c.products || []).find(p => p.id === pid) || (c.extras || []).find(p => p.id === pid); }
 
 const NAV_ITEMS = [
-  { view:'order', icon:'🍽️', label:'Sipariş Al', perm:'order' },
-  { view:'packages', icon:'📦', label:'Paket Servis', perm:'packages' },
-  { view:'kitchen', icon:'🧑‍🍳', label:'Mutfak Ekranı', perm:'kitchen' },
-  { view:'reservations', icon:'📅', label:'Rezervasyonlar ve Bekleme Listesi', perm:'reservations' },
-  { view:'crm', icon:'👥', label:'Müşteriler', perm:'crm' },
-  { view:'purchasing', icon:'🛒', label:'Malzeme Siparişi Ver', perm:'purchasing' },
-  { view:'notificationSettings', icon:'🔔', label:'Bildirimler' },
-  { view:'payments', icon:'💳', label:'Ödemeler', perm:'payments' },
-  { view:'procurement', icon:'📦', label:'Mal Kabul' },
-  { view:'reports', icon:'📊', label:'Finansal Analiz' },
-  { view:'messages', icon:'💬', label:'Mesajlar' },
-  { view:'radio', icon:'📻', label:'Peyk Bas-Konuş' },
-  { view:'settings', icon:'⚙️', label:'Ayarlar' },
-  { view:'devicePrinters', icon:'🖨️', label:'Cihaz Yazıcısı' },
-  { view:'help', icon:'❓', label:'Yardım' },
+  { view:'order', icon:'🍽️', label:'Sipariş Al', perm:'order', grp:'daily' },
+  { view:'packages', icon:'📦', label:'Paket Servis', perm:'packages', grp:'daily' },
+  { view:'kitchen', icon:'🧑‍🍳', label:'Mutfak Ekranı', perm:'kitchen', grp:'daily' },
+  { view:'reservations', icon:'📅', label:'Rezervasyonlar ve Bekleme Listesi', perm:'reservations', grp:'daily' },
+  { view:'crm', icon:'👥', label:'Müşteriler', perm:'crm', grp:'daily' },
+  { view:'purchasing', icon:'🛒', label:'Malzeme Siparişi Ver', perm:'purchasing', grp:'manage' },
+  { view:'notificationSettings', icon:'🔔', label:'Bildirimler', grp:'tools' },
+  { view:'payments', icon:'💳', label:'Ödemeler', perm:'payments', grp:'daily' },
+  { view:'procurement', icon:'📦', label:'Mal Kabul', grp:'manage' },
+  { view:'reports', icon:'📊', label:'Finansal Analiz', grp:'manage' },
+  { view:'messages', icon:'💬', label:'Mesajlar', grp:'tools' },
+  { view:'radio', icon:'📻', label:'Peyk Bas-Konuş', grp:'tools' },
+  { view:'settings', icon:'⚙️', label:'Ayarlar', grp:'manage' },
+  { view:'devicePrinters', icon:'🖨️', label:'Cihaz Yazıcısı', grp:'tools' },
+  { view:'help', icon:'❓', label:'Yardım', grp:'tools' },
 ];
+// Sol menü grupları: Günlük işler, Yönetim; Araçlar alt kısımda küçük simgeler.
+const NAV_GROUPS = [['daily','Günlük'],['manage','Yönetim'],['tools','Araçlar']];
 /* notificationSettings her personel için her zaman görünür (izin
    gerektirmez, cihaza özel). printerSettings ise artık SADECE Yönetici'ye
    açık - yazıcı seçimi/istasyon eşleştirme yine cihaza özel kalıyor (fiziksel

@@ -4,19 +4,32 @@
    sadece Yönetici'ye (is_manager) açık - bir role bu yetkiyi vermek
    mümkün değil (bkz. manager_upsert_role'un izin backend'i). */
 const SETTINGS_TABS = [
-  { tab:'stations', perm:'settings_stations', label:'Menüler & İstasyonlar', ico:'🍳', desc:'Menüler, mutfak istasyonları' },
-  { tab:'zones', perm:'settings_zones', label:'Bölgeler & Masalar', ico:'🪑', desc:'Salon, masa planı' },
-  { tab:'products', label:'Ürünler & Hammaddeler', ico:'🍔', desc:'Fiyat, reçete, stok' }, // alt sekmeler: Ürünler, Hammaddeler
-  { tab:'flags', perm:'settings_flags', label:'Sipariş Etiketleri', ico:'🏷️', desc:'Sipariş notu etiketleri' },
-  { tab:'users', label:'Kullanıcılar & Vardiyalar', ico:'👥', desc:'Personel, vardiya' }, // alt sekmeler: Kullanıcılar, Aktif, Vardiyalar
-  { tab:'roles', perm:'settings_roles', label:'Roller', ico:'🔑', desc:'Yetkiler' },
-  { tab:'integrations', perm:'settings_integrations', label:'Entegrasyonlar', ico:'🔌', desc:'Platformlar, yazıcılar' },
-  { tab:'billing', label:'Abonelik, Hediye Kartı & Kampanya', ico:'💳', desc:'Plan, fatura, kartlar, kuponlar' }, // alt sekmeler
-  { tab:'printers', label:'Fiş Tasarımı', ico:'🧾', desc:'Mutfak, kasa ve paket fişi' },
-  { tab:'notifs', label:'Bildirim Ayarları', ico:'🔔', desc:'Kime gitsin, hatırlatmalar' },
-  { tab:'reports', label:'Özet E-postaları', ico:'📬', desc:'Gün sonu ve haftalık özet' },
-  { tab:'security', label:'Güvenlik', ico:'🛡️', desc:'Destek, kayıt, sıfırlama' }, // alt sekmeler: Destek Erişimi, Değişiklik Kaydı, Veri Sıfırlama
+  { tab:'stations', grp:'biz', perm:'settings_stations', label:'Menüler & İstasyonlar', ico:'🍳', desc:'Menüler, mutfak istasyonları' },
+  { tab:'zones', grp:'biz', perm:'settings_zones', label:'Bölgeler & Masalar', ico:'🪑', desc:'Salon, masa planı' },
+  { tab:'products', grp:'biz', label:'Ürünler & Hammaddeler', ico:'🍔', desc:'Fiyat, reçete, stok' }, // alt sekmeler: Ürünler, Hammaddeler
+  { tab:'flags', grp:'biz', perm:'settings_flags', label:'Sipariş Etiketleri', ico:'🏷️', desc:'Sipariş notu etiketleri' },
+  { tab:'users', grp:'staff', label:'Kullanıcılar & Vardiyalar', ico:'👥', desc:'Personel, vardiya' }, // alt sekmeler: Kullanıcılar, Aktif, Vardiyalar
+  { tab:'roles', grp:'staff', perm:'settings_roles', label:'Roller', ico:'🔑', desc:'Yetkiler' },
+  { tab:'integrations', grp:'account', perm:'settings_integrations', label:'Entegrasyonlar', ico:'🔌', desc:'Platformlar, yazıcılar' },
+  { tab:'billing', grp:'sales', label:'Abonelik, Hediye Kartı & Kampanya', ico:'💳', desc:'Plan, fatura, kartlar, kuponlar' }, // alt sekmeler
+  { tab:'printers', grp:'device', label:'Fiş Tasarımı', ico:'🧾', desc:'Mutfak, kasa ve paket fişi' },
+  { tab:'notifs', grp:'device', label:'Bildirim Ayarları', ico:'🔔', desc:'Kime gitsin, hatırlatmalar' },
+  { tab:'reports', grp:'account', label:'Özet E-postaları', ico:'📬', desc:'Gün sonu ve haftalık özet' },
+  { tab:'security', grp:'account', label:'Güvenlik', ico:'🛡️', desc:'Destek, kayıt, sıfırlama' }, // alt sekmeler: Destek Erişimi, Değişiklik Kaydı, Veri Sıfırlama
 ];
+// Ayarlar grupları ve başka ekranlarda duran ayarlara kısayollar (aynı ayar tek yerden bulunsun).
+const SETTINGS_GROUPS = [['biz','🏪 İşletme'],['staff','👥 Personel'],['device','🖨️ Cihaz & Fiş'],['sales','🎁 Satış & Müşteri'],['account','🔐 Hesap & Sistem']];
+const SETTINGS_LINKS = [
+  { id:'devPrn', grp:'device', ico:'🔌', label:'Bu Cihazın Yazıcısı', desc:'Yazıcı bağla, istasyon eşle', fn:'goToView', args:['devicePrinters'], ok: () => true },
+  { id:'specialDays', grp:'sales', ico:'🎉', label:'Özel Günler', desc:'Kapasite, indirim, kapora', fn:'openSpecialDays', args:[], ok: (s) => typeof openSpecialDays === 'function' && hasFeature('reservations') && canManage(s, 'reservations') },
+  { id:'family', grp:'sales', ico:'🧒', label:'Çocuk & Masa', desc:'Çocuk servis oranı, çocuk dostu masa', fn:'openFamilySettings', args:[], ok: (s) => typeof openFamilySettings === 'function' && hasFeature('reservations') && canManage(s, 'reservations') },
+  { id:'stockCount', grp:'biz', ico:'📋', label:'Stok Sayımı', desc:'Sayım gir, onayla', fn:'openStockCount', args:[], ok: () => typeof openStockCount === 'function' && typeof scCanCount === 'function' && scCanCount() },
+];
+function settingsSearch(q){
+  q = String(q || '').trim().toLocaleLowerCase('tr');
+  document.querySelectorAll('.set-nav .set-item').forEach(el => { el.style.display = !q || el.textContent.toLocaleLowerCase('tr').includes(q) ? '' : 'none'; });
+  document.querySelectorAll('.set-nav .set-grp').forEach(g => { g.style.display = [...g.querySelectorAll('.set-item')].some(x => x.style.display !== 'none') ? '' : 'none'; });
+}
 function settingsTabVisible(t, session){
   if(t.feature && !hasFeature(t.feature)) return false;
   if(t.tab==='reports') return canManage(session, 'settings_reports');
@@ -42,7 +55,15 @@ async function renderSettingsView(main, session){
   main.innerHTML = `<h1>Ayarlar</h1>
     <div class="set-layout">
       <nav class="tabs settings-tabs set-nav">
-        ${visibleTabs.map((t, i) => `<div class="tab set-item ${APP.settingsTab===t.tab?'active':''}" data-tab="${t.tab}" style="--i:${i};--sc:var(--c${i%4+1});" ${act('setSettingsTab', t.tab)}><span class="set-ico">${t.ico||'⚙️'}</span><span class="set-txt"><b>${t.label}</b><small>${t.desc||''}</small></span></div>`).join('')}
+        <input class="set-search" type="search" placeholder="🔍 Ayar ara (örn. yazıcı)" ${actOn('input','settingsSearch',['$value'])}>
+        ${(() => { let i = 0; const links = SETTINGS_LINKS.filter(l => l.ok(session));
+          return SETTINGS_GROUPS.map(([g, gl]) => {
+            const tabs = visibleTabs.filter(t => (t.grp || 'account') === g), ls = links.filter(l => l.grp === g);
+            if(!tabs.length && !ls.length) return '';
+            return `<div class="set-grp"><div class="set-grp-t">${gl}</div>`
+              + tabs.map(t => { const k = i++; return `<div class="tab set-item ${APP.settingsTab===t.tab?'active':''}" data-tab="${t.tab}" style="--i:${k};--sc:var(--c${k%4+1});" ${act('setSettingsTab', t.tab)}><span class="set-ico">${t.ico||'⚙️'}</span><span class="set-txt"><b>${t.label}</b><small>${t.desc||''}</small></span></div>`; }).join('')
+              + ls.map(l => { const k = i++; return `<div class="tab set-item set-link" style="--i:${k};--sc:var(--c${k%4+1});" ${act(l.fn, ...l.args)}><span class="set-ico">${l.ico}</span><span class="set-txt"><b>${l.label} <span class="set-ext">↗</span></b><small>${l.desc}</small></span></div>`; }).join('')
+              + `</div>`; }).join(''); })()}
       </nav>
       <div id="settingsContent" class="set-content"></div>
     </div>`;
