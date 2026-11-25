@@ -51,9 +51,9 @@ async function renderCrmView(main, session){
         <h2 class="u-m0">Müşteri Listesi</h2>
         <div class="crm-hbtns" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;flex:1 1 auto;justify-content:flex-end;min-width:0;">
           <button type="button" class="fsheet-open" style="flex:0 0 auto;" ${act('newCustomer')}>+ Yeni Müşteri</button>
-          ${canManage(session, 'crm') ? `<button type="button" class="ghost-btn" style="width:auto;flex:0 0 auto;white-space:nowrap;margin:0;" ${act('openWinback', 0)} title="Tüm müşterilere, son gelenlere ya da bir süredir gelmeyenlere SMS / e-posta">📣 Kampanya & Geri Kazanım</button>` : ''}
+          ${featOn('campaigns') && canManage(session, 'crm') ? `<button type="button" class="ghost-btn" style="width:auto;flex:0 0 auto;white-space:nowrap;margin:0;" ${act('openWinback', 0)} title="Tüm müşterilere, son gelenlere ya da bir süredir gelmeyenlere SMS / e-posta">📣 Kampanya & Geri Kazanım</button>` : ''}
           <input id="crmSearchInput" type="search" name="crm-list-search" autocomplete="off" data-lpignore="true" placeholder="İsim veya telefon ara..." style="flex:0 1 260px;min-width:120px;width:auto;margin:0;" value="${escapeAttr(APP.crmSearch||'')}" ${actOn('input', 'debouncedCrmSearch', ['$value'])}>
-          ${canManage(session, 'crm') ? `<button type="button" class="ghost-btn" style="width:auto;flex:0 0 auto;white-space:nowrap;margin:0;" ${act('openSheet','crmLoySheet')} title="Puan ve doğum günü indirimi ayarları">⭐ Sadakat${loyalty.enabled ? '' : ' (kapalı)'}</button>` : ''}
+          ${featOn('loyalty') && canManage(session, 'crm') ? `<button type="button" class="ghost-btn" style="width:auto;flex:0 0 auto;white-space:nowrap;margin:0;" ${act('openSheet','crmLoySheet')} title="Puan ve doğum günü indirimi ayarları">⭐ Sadakat${loyalty.enabled ? '' : ' (kapalı)'}</button>` : ''}
           <details class="ux-more"><summary title="Diğer işlemler">⋯ Diğer</summary><div class="ux-more-pop"><div class="ux-more-t">Excel</div><div class="xl-bar">
           <button type="button" class="xl-btn" ${act('exportCustomersCsv')} title="Tüm müşterileri Excel (.xlsx) olarak indir">⬇️ Dışa aktar</button>
           ${canManage(session, 'crm') ? `<button type="button" class="xl-btn" ${act('openCustomerImport')} title="Excel (.xlsx) veya CSV dosyasından müşteri yükle">⬆️ İçe aktar</button>

@@ -1196,7 +1196,7 @@ function renderBillingTabWithSubtabs(el, session){
   const tabs = [
     canManage(session, 'settings_billing') ? { id:'billing', ic:'💳', label:'Abonelik' } : null,
     (canManage(session, 'giftcards') || hasPerm(session, 'payments')) ? { id:'giftcards', ic:'🎁', label:'Hediye Kartları' } : null,
-    canManage(session, 'crm') ? { id:'promos', ic:'🎟️', label:'Kampanya & Kuponlar' } : null,
+    featOn('coupons') && canManage(session, 'crm') ? { id:'promos', ic:'🎟️', label:'Kampanya & Kuponlar' } : null,
   ].filter(Boolean);
   if(!tabs.length){ el.innerHTML = ''; return; }
   if(!tabs.some(t => t.id === APP.billingSubTab)) APP.billingSubTab = tabs[0].id;
@@ -1781,14 +1781,14 @@ function renderProductsSettings(el, session){
     </div>
     ${Number(APP.config.default_vat_rate ?? 10) === 0 ? `<div class="vat0-warn">⚠️ <b>Varsayılan KDV %0</b> görünüyor. Restoran yemeklerinde KDV genelde %10'dur; %0 iken kâr hesaplarından KDV düşülmez, fiş ve KDV raporu da yanlış görünebilir. Aşağıdaki <b>Nasıl çalışır · Varsayılan KDV</b> bölümünden düzeltin.</div>` : ''}
     <details class="ux-set"><summary>⚙️ Maliyet, KDV ve ekran ayarları</summary><div class="ux-set-body">
-    <div class="cost-hub" role="button" ${act('openOverheads')}>
+    ${featOn('cost_overheads') ? '' : '<!--'}<div class="cost-hub" role="button" ${act('openOverheads')}>
       <div class="ch-ic">📊</div>
       <div class="ch-main"><b>Maliyet & Giderler</b>
         <ul><li>🧾 Reçeteli ürünlerin maliyeti hammaddelerin <b>ortalama alış maliyetinden</b> otomatik hesaplanır.</li>
           <li>${overheadPct() ? `📊 Genel giderler cironun <b>%${overheadPct()}</b>'i olarak ürünlere ekleniyor.` : '⚖️ Kira, personel, fatura gibi giderleri ekleyin; bu ay <b>başa baş</b> noktasına ne kadar kaldığını görün.'}</li></ul>
         <div class="ch-be" id="costHubBe"></div></div>
       <span class="ch-go">Aç ›</span>
-    </div>
+    </div>${featOn('cost_overheads') ? '' : '-->'}
     <div class="cost-tip ch-tip">💡 <b>Hazır alıp sattığınız ürünler</b> (ayran, kola, su…): ürün adıyla bir hammadde açıp ürüne <b>1 adet</b> reçete ekleyin; Mal Kabul'deki alış maliyeti otomatik yansır.</div>
     <label class="sc-toggle"><span class="oo-switch"><input type="checkbox" ${APP.config.close_no_cost !== false ? 'checked' : ''} ${actOn('change','toggleCloseNoCost',['$checked', '$this'])}><span class="oo-track"><span class="oo-thumb"></span></span><em>${APP.config.close_no_cost !== false ? 'Açık' : 'Kapalı'}</em></span><span>💸 Maliyeti girilmemiş ürünler satışa <b>kapalı</b> gelsin <small class="muted">(istediğiniz ürünü yine "Satışa Aç" ile açabilirsiniz)</small></span></label>
     <label class="sc-toggle" title="Kapalıyken satışa kapattığınız ürünler Sipariş Al ve Paket Servis ürün listesinde hiç görünmez"><span class="oo-switch"><input type="checkbox" ${APP.config.order_show_closed !== false ? 'checked' : ''} ${actOn('change','toggleOrderShowClosed',['$checked', '$this'])}><span class="oo-track"><span class="oo-thumb"></span></span><em>${APP.config.order_show_closed !== false ? 'Açık' : 'Kapalı'}</em></span><span>⛔ Satışa kapalı ürünler <b>Sipariş Al</b> ekranında görünsün <small class="muted">(kapalıyken listeden tamamen gizlenir)</small></span></label>

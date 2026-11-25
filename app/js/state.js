@@ -152,6 +152,8 @@ const NAV_GROUPS = [['daily','Günlük'],['manage','Yönetim'],['tools','Araçla
 /* İşletmenin etkin özellikleri (paket + satın alınan eklentiler), bkz.
    get_restaurant_config.features / _restaurant_features. Config henüz
    yüklenmediyse false döner - eklenti arayüzü config gelene kadar gizli kalır. */
+/* Paket özelliği açık mı? Config yüklenmemişse açık sayılır (yanlışlıkla gizlenmesin). */
+function featOn(f){ const fs = APP.config && APP.config.features; return !Array.isArray(fs) || fs.includes(f); }
 function hasFeature(f){ return !!(APP.config && (APP.config.features||[]).includes(f)); }
 function navItemVisible(item, session){
   if(item.view==='reports') return canManage(session, 'reports');

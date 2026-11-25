@@ -775,6 +775,7 @@ function prepPortions(ig){
 /* Mutfak başlığında tek düğme: bu istasyonun günlük hazırlıkları; biten/azalan sayısı rozetle gösterilir. */
 function prepState(ig){ const st = Number(ig.stock) || 0, n = prepPortions(ig); return st <= 0 ? 'out' : (n != null && n <= 10) ? 'low' : 'ok'; }
 function prepBtnHtml(){
+  if(!featOn('daily_prep')) return '';
   const list = prepIngsForStation(APP.kitchenStation); if(!list.length) return '';
   const out = list.filter(ig => prepState(ig) === 'out').length, low = list.filter(ig => prepState(ig) === 'low').length, warn = out + low;
   return `<button type="button" class="ghost-btn prep-hub-btn ${out ? 'out' : low ? 'low' : ''}" title="Günlük hazırlıklar: şiş tak, tencere hazırla, gün sonu" ${act('openPrepHub')}>🥙 Günlük Hazırlık${warn ? ` <span class="ks-badge">${warn}</span>` : ` <span class="prep-hub-n">${list.length}</span>`}</button>`;

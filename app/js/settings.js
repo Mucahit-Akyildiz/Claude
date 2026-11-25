@@ -39,6 +39,9 @@ function settingsTabVisible(t, session){
   if(t.tab==='integrations') return canManage(session, 'settings_integrations') || (session.permissions || []).some(p => /^int_/.test(p));
   if(t.tab==='printers') return canManage(session, 'printer_settings');
   if(t.tab==='devprn') return true;
+  if(t.tab==='specialdays' && !featOn('special_days')) return false;
+  if(t.tab==='family' && !featOn('family_resv')) return false;
+  if(t.tab==='onlineresv' && !featOn('online_resv')) return false;
   if(t.tab==='specialdays' || t.tab==='family' || t.tab==='onlineresv') return hasFeature('reservations') && canManage(session, 'reservations');
   if(t.tab==='stockcount') return typeof scCanCount === 'function' && scCanCount();
   if(t.tab==='notifs') return true; // Kime Gitsin / hatırlatma yalnızca yöneticiye; doğum günü uyarıları cihaz ayarı, herkese
@@ -136,8 +139,8 @@ function renderUsersTabWithSubtabs(el, session){
     canManage(session, 'settings_users') ? { id:'list', ic:'👥', label:'Kullanıcılar' } : null,
     canManage(session, 'settings_users') ? { id:'active', ic:'🟢', label:'Aktif Kullanıcılar' } : null,
     hasPerm(session, 'shifts') || canManage(session, 'shifts') ? { id:'shifts', ic:'⏱️', label:'Vardiyalar' } : null,
-    hasPerm(session, 'shifts') || canManage(session, 'shifts') ? { id:'plan', ic:'📅', label:'Vardiya Planı' } : null,
-    canManage(session, 'settings_allowances') ? { id:'limits', ic:'💳', label:'Limitler' } : null,
+    featOn('shift_plan') && (hasPerm(session, 'shifts') || canManage(session, 'shifts')) ? { id:'plan', ic:'📅', label:'Vardiya Planı' } : null,
+    featOn('allowances') && canManage(session, 'settings_allowances') ? { id:'limits', ic:'💳', label:'Limitler' } : null,
   ].filter(Boolean);
   if(!tabs.length){ el.innerHTML = ''; return; }
   if(!tabs.some(t => t.id === APP.usersSubTab)) APP.usersSubTab = tabs[0].id;

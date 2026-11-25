@@ -55,6 +55,7 @@ async function submitDayCloseSkip(){
   dayCloseDone('Gün sonu gerekçeyle kapatıldı');
 }
 function dayCloseBannerHtml(){
+  if(!featOn('day_close')) return '';
   const d = APP.dayClose; if(!d || !d.pending) return '';
   return d.can_close
     ? `<button type="button" class="dc-banner" ${act('openDayCloseSheet')}>🧾 <span><b>${escapeHtml(dayCloseDateTxt(d.date))}</b> gün sonu kapanışı yapılmadı.</span><b class="dc-go">Şimdi kapat →</b></button>`

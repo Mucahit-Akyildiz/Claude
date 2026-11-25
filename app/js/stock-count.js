@@ -3,7 +3,7 @@
    Onay yetkisi (approvals) olan kişi onaylayınca stok, sayım anındaki farka göre düzeltilir
    (sayımdan sonraki satışlar korunur). Stok sayımı isteğe bağlıdır; gün sonuna bağlı değildir.
    Sunucu: submit_stock_count, list_stock_counts, decide_stock_count, set_ingredient_count_daily. */
-function scCanCount(s){ s = s || getSession(); return !!s && (s.isManager || hasPerm(s, 'stock_count') || hasPerm(s, 'approvals')); }
+function scCanCount(s){ s = s || getSession(); return !!s && featOn('stock_count_f') && (s.isManager || hasPerm(s, 'stock_count') || hasPerm(s, 'approvals')); }
 function scCanApprove(s){ s = s || getSession(); return !!s && (s.isManager || hasPerm(s, 'approvals')); }
 function stockCountBtnHtml(cls){
   if(!scCanCount()) return '';
