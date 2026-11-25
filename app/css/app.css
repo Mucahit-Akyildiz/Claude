@@ -5081,3 +5081,5 @@ select.ss-hidden{display:none !important;}
 .sub-tabs-box{padding-top:14px!important;}
 .sub-tabs-content > .box,.sub-tabs-content .me-wrap{border:0!important;box-shadow:none!important;padding:0!important;background:transparent!important;}
 .sub-tabs-content .me-wrap::before{display:none!important;}
+.sub-tab:not(.active){background:var(--panel2)!important;border:1px solid var(--border)!important;color:var(--text)!important;}
+.sub-tab:not(.active):hover{border-color:var(--accent)!important;}
