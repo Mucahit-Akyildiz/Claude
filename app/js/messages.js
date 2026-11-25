@@ -109,7 +109,7 @@ async function renderMessagesView(main, session){
         <div class="cm-head">
           <div class="cm-me"><span class="cm-me-av">${escapeHtml((session.username||'?').slice(0,1).toLocaleUpperCase('tr'))}</span>
             <span class="cm-me-t"><b>Mesajlar</b><small id="cmSub">${escapeHtml(session.restaurant_name || '')}</small></span>
-            <button type="button" class="cm-new" ${act('openChatGroupEditor')} title="Yeni grup">＋</button></div>
+            <button type="button" class="cm-new cm-new-l" ${act('openChatGroupEditor')}>＋ Grup</button></div>
           <div class="cm-tabs" id="cmTabs"></div>
         </div>
         <div class="cm-search"><input id="chatSearch" placeholder="🔍 Ara…" value="${escapeAttr(APP.chatSearch||'')}" ${actOn('input','setChatSearch',['$value'])}></div>
@@ -132,7 +132,6 @@ function chatEmptyPaneHtml(){
     <p class="muted">${unread ? `<span class="cw-unread">${unread} okunmamış mesaj</span> var` : 'Soldan bir kişi ya da kanal seçin.'}</p>
     <div class="cw-acts">
       ${all ? `<button type="button" class="cw-btn" ${act('openChatConv', all.conv)}>📢 Genel kanala yaz</button>` : ''}
-      <button type="button" class="cw-btn ghost" ${act('openChatGroupEditor')}>👥 Yeni grup</button>
     </div>
     ${online.length ? `<div class="cw-online"><small>🟢 Şu an çevrimiçi (${online.length})</small><div>${online.slice(0, 12).map(c => `<button type="button" class="cw-av" title="${escapeAttr(c.name)}" ${act('openChatConv', c.conv)}>${chatAvatar(c, 44)}<span>${escapeHtml(c.name)}</span></button>`).join('')}</div></div>` : ''}
   </div>`;
@@ -198,7 +197,7 @@ function drawChatList(){
   const byRecent = (a, b) => ((b.unread>0) - (a.unread>0)) || String(b.last_at||'').localeCompare(String(a.last_at||''));
   let html;
   if(q) html = items.map(row).join('');
-  else if(tab==='channels') html = items.filter(c => c.is_all || c.is_group).sort(byRecent).map(row).join('') + `<button type="button" class="cm-addch" ${act('openChatGroupEditor')}>＋ Yeni grup oluştur</button>`;
+  else if(tab==='channels') html = items.filter(c => c.is_all || c.is_group).sort(byRecent).map(row).join('');
   else if(tab==='team'){
     const people = items.filter(c => !c.is_all && !c.is_group).sort((a, b) => ((b.online?1:0) - (a.online?1:0)) || String(a.name).localeCompare(String(b.name), 'tr'));
     html = `<div class="cm-grid">${people.map(tile).join('')}</div>`;
