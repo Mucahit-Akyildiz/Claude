@@ -5189,3 +5189,10 @@ p.me2-hint{text-align:left!important;margin:-4px 0 12px!important;}
 /* Pencerelerde ikiye bölünmüş dev butonlar yerine: sağa yaslı, içeriği kadar butonlar */
 :is([id$="Bg"],.modal-bg,.dg-bg,.iu-bg) :is(button.u-f1-m0,button[style*="flex:1"]):not(#confirmBtn){flex:0 1 auto!important;width:auto!important;padding:10px 16px!important;}
 :is([id$="Bg"],.modal-bg,.dg-bg,.iu-bg) div:has(> :is(button.u-f1-m0,button[style*="flex:1"]):not(#confirmBtn)){display:flex;gap:8px;justify-content:flex-end;flex-direction:row!important;flex-wrap:nowrap;}
+/* Rol şablonları: tek satırda küçük seçenek düğmeleri */
+.role-templates .sbtn{width:auto!important;flex:0 0 auto;padding:7px 14px!important;font-size:13px!important;border-radius:999px!important;background:transparent!important;color:var(--accent)!important;border:1px solid color-mix(in srgb,var(--accent) 50%,var(--border))!important;box-shadow:none!important;}
+.role-templates .sbtn:hover{background:color-mix(in srgb,var(--accent) 12%,transparent)!important;}
+/* Kısa soru pencereleri: sağa yaslı, içeriği kadar butonlar; onay = ana renk */
+.uc-acts:not(.one){display:flex!important;justify-content:flex-end;gap:8px;}
+.uc-acts:not(.one) button{width:auto!important;padding:10px 20px!important;border-radius:10px!important;}
+.uc-card:not(.danger):not(.warn) .uc-yes{background:var(--accent)!important;color:var(--btn-ink)!important;}
