@@ -843,8 +843,8 @@ function renderStationsSettings(el, session){
         ${menus.map(m => `<button type="button" class="me2-tab ${cur === m.id && !q ? 'on' : ''}" style="--mc:${escapeAttr(col(m))};" ${act('meSel', m.id)}>${escapeHtml(m.name)}${stOf(m) ? '' : ' <i class="me2-warn" title="Siparişin gideceği yer seçilmedi">!</i>'}</button>`).join('')}
         
       </div>
-      <div class="me2-adds"><button type="button" class="me2-tab me2-add" ${act('meNewMenu')}>＋ Kategori</button><button type="button" class="me2-tab me2-add" title="Siparişi hazırlayan yerler (Izgara, Bar…): ekle, düzenle" ${act('meKitchens')}>🍳 Sipariş nereye gitsin</button></div>
       <div class="me2-tools">
+      <span class="me2-adds"><button type="button" class="me2-tab me2-add" ${act('meNewMenu')}>＋ Kategori</button><button type="button" class="me2-tab me2-add" title="Siparişi hazırlayan yerler (Izgara, Bar…): ekle, düzenle" ${act('meKitchens')}>🍳 Sipariş nereye gitsin</button></span>
         <input class="me2-search" type="search" placeholder="🔍 Ara" value="${escapeAttr(APP.meQ || '')}" ${actOn('input','meSearch',['$value'])}>
         <details class="ux-more"><summary title="Diğer işlemler">⋯</summary><div class="ux-more-pop">
           <div class="ux-more-t">Düzen</div><div class="xl-bar"><button type="button" class="xl-btn" ${act('msOrderOpen')}>↕ Kategori sırası</button><button type="button" class="xl-btn" ${act('meGoProducts', 'media')}>📷 Fotoğraflar & açıklamalar</button><button type="button" class="xl-btn" ${act('meGoProducts', 'table')}>☰ Toplu düzenle (tablo)</button></div>
@@ -852,7 +852,7 @@ function renderStationsSettings(el, session){
           <div class="ux-more-t">Excel</div>${typeof excelBarHtml === 'function' ? excelBarHtml('menus') : ''}</div></details>
       </div>
     </div>
-    ${(() => { try{ if(localStorage.getItem('me_hint_off')) return ''; }catch(e){} return `<div class="me2-hint">📂 <b>Kategori</b> = Sipariş Al'daki başlık (Çorbalar, İçecekler) · 🍳 <b>Sipariş nereye gitsin</b> = o kategorinin siparişini hazırlayan ekran ve yazıcı (Izgara, Bar)<button type="button" class="me2-hx" title="Kapat" ${act('meHintOff')}>✕</button></div>`; })()}
+    ${(() => `<div class="me2-hint">📂 <b>Kategori</b> = Sipariş Al'daki başlık (Çorbalar, İçecekler) · 🍳 <b>Sipariş nereye gitsin</b> = o kategorinin siparişini hazırlayan ekran ve yazıcı (Izgara, Bar)</div>`)()}
     ${q ? `<div class="me2-sub"><span>"${escapeHtml(APP.meQ)}" · ${list.length} sonuç</span><button type="button" class="xl-link" ${act('meSearch', '')}>Temizle</button></div>`
       : menu ? `<div class="me2-sub"><b>${escapeHtml(menu.name)}</b><span class="me2-arrow">→ Sipariş nereye gitsin:</span>${kitSel(menu, st)}<span class="u-f1"></span><button type="button" class="xl-link" ${act('msMenuOpen', menu.id)}>Düzenle</button></div>`
       : ''}
