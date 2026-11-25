@@ -4895,3 +4895,7 @@ select.ss-hidden{display:none !important;}
 .zn2-ib{width:30px;height:30px;padding:0;margin:0;flex:0 0 30px;border-radius:9px;background:var(--panel);border:1px solid var(--border);color:var(--text);box-shadow:none;font-size:13px;}
 .zn2-ib.danger{color:var(--danger,#ef4444);}
 @media (max-width:700px){ .zn2-add,.zn2-add input{width:100%;} .zn2-add{flex:1 0 100%;} }
+.ms-sec-h{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin:16px 0 8px;}
+.ms-sec-h .ms-sec-t{margin:0;}
+.ms-hbtn{width:auto!important;margin:0!important;white-space:nowrap;}
+.ms-sec-h .ms-add{display:flex;gap:6px;margin:0;flex:0 1 420px;} .ms-sec-h .ms-add input{flex:1;margin:0;min-width:160px;}

@@ -832,13 +832,13 @@ function renderStationsSettings(el, session){
         <div class="ux-more-t">Excel</div>${typeof excelBarHtml === 'function' ? excelBarHtml('menus') : ''}
       </div></details>
     </div>
-    <div class="ms-sec-t">🍳 İstasyonlar <small>— mutfak ekranları ve yazıcılar. Düzenlemek için dokunun.</small></div>
+    <div class="ms-sec-h"><div class="ms-sec-t">🍳 İstasyonlar <small>— mutfak ekranları ve yazıcılar. Düzenlemek için dokunun.</small></div><button type="button" class="fsheet-open ms-hbtn" ${act('openStationEdit', '')}>+ İstasyon ekle</button></div>
     <div class="ms-stations">
       ${stations.map(s => { const n = menus.filter(m => m.station_id === s.id).length, pc = (APP.config.products||[]).filter(p => p.station_id === s.id).length;
         return `<button type="button" class="ms-st" style="--sc:${escapeAttr(s.color || '#94a3b8')};" ${act('openStationEdit', s.id)}><span class="ms-st-ic">${escapeHtml(s.icon || '🍳')}</span><span class="ms-st-t"><b>${escapeHtml(s.name)}</b><small>${n} menü · ${pc} ürün</small></span><span class="ms-st-e">✏️</span></button>`; }).join('')}
-      <button type="button" class="ms-st ms-st-new" ${act('openStationEdit', '')}><span class="ms-st-ic">＋</span><span class="ms-st-t"><b>İstasyon ekle</b><small>örn. Fırın, Bar</small></span></button>
     </div>
-    <div class="ms-sec-t">📋 Menüler <small>— sıra, Sipariş Al ekranındaki sıradır. Ad değiştirip başka yere dokunmanız yeterli, otomatik kaydedilir.</small></div>
+    <div class="ms-sec-h"><div class="ms-sec-t">📋 Menüler <small>— sıra, Sipariş Al ekranındaki sıradır. Adı değiştirip başka yere dokunun, kendiliğinden kaydedilir.</small></div>
+      <span class="ms-add"><input id="newMenuName" placeholder="Yeni menü adı (örn. Çorbalar)" ${actOn('keydown','newMenuKey',['$event'])}><button type="button" class="fsheet-open ms-hbtn" ${act('addMenu')}>+ Menü ekle</button></span></div>
     ${free.length ? `<div class="ms-warn">⚠️ ${free.length} menü bir istasyona bağlı değil: ürünleri mutfak ekranına ve fişe düşmez. Satırdaki "İstasyon" seçiminden bağlayın.</div>` : ''}
     <div class="ms-table">
       <div class="ms-row ms-head"><span>Sıra</span><span>Menü adı</span><span>İstasyon</span><span>Ürün</span><span>Satış</span><span></span></div>
@@ -851,7 +851,6 @@ function renderStationsSettings(el, session){
         <span class="ms-av">${!list.length ? '<small class="muted">—</small>' : `<button type="button" role="switch" aria-checked="${!closed}" class="nm-sw ${closed ? '' : 'on'}" title="${closed ? closed + '/' + list.length + ' ürün kapalı — açmak için dokunun' : 'Satışta — kapatmak için dokunun'}" ${act('setMenuAvailable', m.id, !!closed)}><i></i></button>${closed && closed < list.length ? `<small class="muted">${closed} kapalı</small>` : ''}`}</span>
         <span class="ms-del"><button type="button" class="ico-btn danger" title="Menüyü sil" ${act('removeMenu', m.id)}>🗑</button></span>
       </div>`; }).join('') || '<p class="muted">Henüz menü yok.</p>'}
-      <div class="ms-add"><input id="newMenuName" placeholder="Yeni menü adı (örn. Çorbalar)" ${actOn('keydown','newMenuKey',['$event'])}><button type="button" ${act('addMenu')}>+ Menü ekle</button></div>
     </div>
   </div>`;
 }
