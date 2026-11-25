@@ -144,7 +144,7 @@ async function importUsersExcel(){
   renderSettingsView(document.getElementById('main'), session);
 }
 /* Ürünler */
-const PR_HEAD = ['Ürün Adı', 'Fiyat', 'Maliyet', 'Menü', 'İstasyon', 'KDV %', 'Stok', 'Satışta'];
+const PR_HEAD = ['Ürün Adı', 'Fiyat', 'Maliyet', 'Kategori', 'İstasyon', 'KDV %', 'Stok', 'Satışta'];
 async function exportProductsExcel(){
   const c = APP.config || {}, mn = (id) => ((c.menus || []).find(m => m.id === id) || {}).name || '', st = (id) => ((c.stations || []).find(x => x.id === id) || {}).name || '';
   await xlDownload('urunler-' + todayLocalDateStr() + '.xlsx', 'Ürünler', PR_HEAD, (c.products || []).filter(p => !p.parent_id).map(p => [p.name, Number(p.price) || 0, Number(p.cost) || 0, mn(p.menu_id), st(p.station_id),
@@ -165,8 +165,8 @@ async function importProductsExcel(){
       if(!name){ errs.push(line + ': ürün adı boş'); return; }
       const price = xlNum(xlPick(r, 'Fiyat', 'Satış Fiyatı')); if(!isFinite(price) || price < 0){ errs.push(line + ` (${name}): fiyat geçersiz`); return; }
       const costRaw = xlPick(r, 'Maliyet'), cost = costRaw === '' ? 0 : xlNum(costRaw); if(!isFinite(cost) || cost < 0){ errs.push(line + ` (${name}): maliyet geçersiz`); return; }
-      const menuN = xlPick(r, 'Menü', 'Kategori'), stN = xlPick(r, 'İstasyon', 'Istasyon');
-      const menu = menuN ? find(c.menus, menuN) : null; if(menuN && !menu){ errs.push(line + ` (${name}): "${menuN}" menüsü yok`); return; }
+      const menuN = xlPick(r, 'Kategori', 'Menü'), stN = xlPick(r, 'İstasyon', 'Istasyon');
+      const menu = menuN ? find(c.menus, menuN) : null; if(menuN && !menu){ errs.push(line + ` (${name}): "${menuN}" kategorisi yok`); return; }
       const stn = stN ? find(c.stations, stN) : null; if(stN && !stn){ errs.push(line + ` (${name}): "${stN}" istasyonu yok`); return; }
       const stockRaw = xlPick(r, 'Stok'), stock = stockRaw === '' ? null : parseInt(xlNum(stockRaw), 10);
       const vatRaw = xlPick(r, 'KDV %', 'KDV');
@@ -182,7 +182,7 @@ async function importProductsExcel(){
       if(pid && x.vatRaw !== '') vats.push({ x, a: { p_product_id: pid, p_rate: xlNum(x.vatRaw) } });
     });
     const [rm, rv] = await Promise.all([bulkRpc('set_product_menu', menus.map(m => m.a)), bulkRpc('set_product_vat', vats.map(v => v.a))]);
-    rm.forEach((r, k) => { if(r.error) errs.push(menus[k].x.line + ` (${menus[k].x.name}): menü — ${r.error.message}`); });
+    rm.forEach((r, k) => { if(r.error) errs.push(menus[k].x.line + ` (${menus[k].x.name}): kategori — ${r.error.message}`); });
     rv.forEach((r, k) => { if(r.error) errs.push(vats[k].x.line + ` (${vats[k].x.name}): KDV — ${r.error.message}`); });
   })());
   xlReport('Ürün içe aktarma tamamlandı', ok, errs.concat(nocost ? [`ℹ️ ${nocost} ürünün maliyeti boş — ayar açıksa satışa kapalı geldi`] : []));
@@ -270,14 +270,14 @@ async function importRecipesExcel(){
   renderSettingsView(document.getElementById('main'), session);
 }
 /* Menüler: Menü Adı + İstasyon. Olmayan menü oluşturulur; istasyon yazıldıysa menü o istasyona bağlanır. */
-const MN_HEAD = ['Menü Adı', 'İstasyon'];
+const MN_HEAD = ['Kategori Adı', 'İstasyon'];
 async function exportMenusExcel(){
   const c = APP.config || {}, st = (id) => ((c.stations || []).find(x => x.id === id) || {}).name || '';
-  await xlDownload('menuler-' + todayLocalDateStr() + '.xlsx', 'Menüler', MN_HEAD.concat(['Ürün sayısı']), (c.menus || []).map(m => [m.name, st(m.station_id), (c.products || []).filter(p => p.menu_id === m.id).length]), [28, 20, 12]);
+  await xlDownload('kategoriler-' + todayLocalDateStr() + '.xlsx', 'Kategoriler', MN_HEAD.concat(['Ürün sayısı']), (c.menus || []).map(m => [m.name, st(m.station_id), (c.products || []).filter(p => p.menu_id === m.id).length]), [28, 20, 12]);
 }
 async function downloadMenuTemplate(){
   const s0 = ((APP.config || {}).stations || [])[0];
-  await xlDownload('menu-sablonu.xlsx', 'Menüler', MN_HEAD, [['Çorbalar', s0 ? s0.name : 'Mutfak'], ['Izgaralar', s0 ? s0.name : 'Izgara'], ['İçecekler', '']], [28, 20]);
+  await xlDownload('kategori-sablonu.xlsx', 'Kategoriler', MN_HEAD, [['Çorbalar', s0 ? s0.name : 'Mutfak'], ['Izgaralar', s0 ? s0.name : 'Izgara'], ['İçecekler', '']], [28, 20]);
 }
 async function importMenusExcel(){
   const rows = await xlPickRows(); if(!rows) return;
@@ -285,8 +285,8 @@ async function importMenusExcel(){
   const session = getSession(), errs = [], plan = []; let ok = 0;
   const c = APP.config || {}, menus = c.menus || [], stations = c.stations || [];
   rows.forEach((r, i) => {
-    const line = 'Satır ' + (i + 2), name = xlPick(r, 'Menü Adı', 'Menü', 'Ad'), stN = xlPick(r, 'İstasyon', 'Istasyon');
-    if(!name){ errs.push(line + ': menü adı boş'); return; }
+    const line = 'Satır ' + (i + 2), name = xlPick(r, 'Kategori Adı', 'Kategori', 'Menü Adı', 'Menü', 'Ad'), stN = xlPick(r, 'İstasyon', 'Istasyon');
+    if(!name){ errs.push(line + ': kategori adı boş'); return; }
     const stn = stN ? stations.find(x => xlKey(x.name) === xlKey(stN)) : null;
     if(stN && !stn){ errs.push(line + ` (${name}): "${stN}" istasyonu yok`); }
     plan.push({ line, name, ex: menus.find(m => xlKey(m.name) === xlKey(name)), stn });
@@ -300,14 +300,14 @@ async function importMenusExcel(){
     const changed = [...want].filter(([sid, set]) => { const cur = menus.filter(m => m.station_id === sid).map(m => m.id); return cur.length !== set.size || cur.some(id => !set.has(id)); });
     (await bulkRpc('set_station_menus', changed.map(([sid, set]) => ({ p_station_id: sid, p_menu_ids: [...set] })))).forEach((r, i2) => { if(r.error) errs.push('İstasyon bağı: ' + r.error.message); });
   })());
-  xlReport('Menü içe aktarma tamamlandı', ok, errs);
+  xlReport('Kategori içe aktarma tamamlandı', ok, errs);
   const { data } = await sb.rpc('get_restaurant_config', { p_token: session.session_token }); if(data) APP.config = data;
   renderSettingsView(document.getElementById('main'), session);
 }
 /* Ortak araç çubuğu: Dışa aktar · İçe aktar · Şablon */
 function excelBarHtml(kind){
   const fn = kind === 'recipes' ? ['exportRecipesExcel', 'importRecipesExcel', 'downloadRecipeTemplate'] : kind === 'menus' ? ['exportMenusExcel', 'importMenusExcel', 'downloadMenuTemplate'] : kind === 'users' ? ['exportUsersExcel', 'importUsersExcel', 'downloadUserTemplate'] : kind === 'products' ? ['exportProductsExcel', 'importProductsExcel', 'downloadProductTemplate'] : kind === 'ingredients' ? ['exportIngredientsExcel', 'importIngredientsExcel', 'downloadIngredientTemplate'] : ['exportAllowancesExcel', 'importAllowancesExcel', 'downloadAllowanceTemplate'];
-  return `<div class="xl-bar">${kind === 'recipes' ? '<b style="font-size:12.5px;align-self:center;">Reçeteler:</b>' : kind === 'menus' ? '<b style="font-size:12.5px;align-self:center;">Menüler (Excel):</b>' : ''}
+  return `<div class="xl-bar">${kind === 'recipes' ? '<b style="font-size:12.5px;align-self:center;">Reçeteler:</b>' : kind === 'menus' ? '<b style="font-size:12.5px;align-self:center;">Kategoriler (Excel):</b>' : ''}
     <button type="button" class="xl-btn" ${act(fn[0])}><span>⬇️</span>Dışa aktar</button>
     <button type="button" class="xl-btn" ${act(fn[1])}><span>⬆️</span>İçe aktar</button>
     <button type="button" class="xl-link" ${act(fn[2])}>📄 Şablon indir</button>

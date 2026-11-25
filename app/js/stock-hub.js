@@ -123,7 +123,7 @@ function openShProduct(id, tab){
   const info = `<div class="sh-form">
       <label class="wide">Ürün adı<input id="shp_name" maxlength="120" value="${escapeAttr(p.name)}"></label>
       <label>Satış fiyatı (₺)<input id="shp_price" type="number" step="0.01" min="0" inputmode="decimal" value="${Number(p.price) || 0}"></label>
-      <label>Menü<select id="shp_menu">${prodMenuOptions(p.menu_id)}</select></label>
+      <label>Kategori<select id="shp_menu">${prodMenuOptions(p.menu_id)}</select></label>
       ${rc.length ? `<label>Maliyet<input disabled value="${money(p.cost || 0)} · reçeteden"></label>` : `<label>Maliyet (₺) <small>(reçete yoksa elle)</small><input id="shp_cost" type="number" step="0.01" min="0" inputmode="decimal" value="${Number(p.cost) || ''}"></label>`}
       ${rc.length ? '' : `<label>Stok <small>(boş = sınırsız)</small><input id="shp_stock" type="number" step="1" min="0" inputmode="numeric" value="${p.stock != null ? p.stock : ''}"></label>`}
       <label class="sh-chk wide"><input type="checkbox" id="shp_av" ${p.available !== false ? 'checked' : ''}> Satışta</label>

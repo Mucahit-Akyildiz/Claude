@@ -693,7 +693,7 @@ function stationPrintProductsHtml(st){
   const groups = {};
   prods.forEach(p => { const k = p.menu_id || ''; (groups[k] = groups[k] || []).push(p); });
   const order = [...menus.map(m => m.id).filter(id => groups[id]), ...Object.keys(groups).filter(k => k && !menus.some(m => m.id===k)), ...(groups[''] ? [''] : [])];
-  const menuName = (k) => k ? ((menus.find(m => m.id===k) || {}).name || 'Menü') : 'Menüsüz';
+  const menuName = (k) => k ? ((menus.find(m => m.id===k) || {}).name || 'Kategori') : 'Kategorisiz';
   return `<details ${APP.prOpenSt===st.id?'open':''} style="background:var(--panel2);border:1px solid var(--border);border-radius:10px;padding:8px 12px;">
     <summary style="cursor:pointer;font-size:13px;font-weight:700;">🧾 Fişe çıkacak ürünler · ${prods.length - off}/${prods.length}${off ? ` <span class="u-fw4 muted">(${off} ürün fişe çıkmaz)</span>` : ''}</summary>
     ${canEdit ? `<div style="display:flex;gap:8px;margin:10px 0 6px;flex-wrap:wrap;">

@@ -328,7 +328,7 @@ function openIngredientUsageModal(ingredientId, edit){
         <p class="muted iu-hint" id="iuHint">${ing.pack_mode === 'per_product' ? 'Paket olarak satıldığında hangi ürünlerde, 1 porsiyon için kaç adet kullanılıyor?' : 'İşaretleyip 1 porsiyonda kullanılan <b>net</b> miktarı girin; maliyet payı yanında görünür.'}</p>
         ${products.length ? `<div class="iu-tools">
           <input id="iuSearch" placeholder="🔍 Ürün ara…" autocomplete="off" ${actOn('input','filterIngUsage',[])}>
-          <select id="iuMenu" ${actOn('change','filterIngUsage',[])}><option value="">Tüm menüler</option>${menus.map(m => `<option value="${escapeAttr(m.id)}">${escapeHtml(m.name)}</option>`).join('')}</select>
+          <select id="iuMenu" ${actOn('change','filterIngUsage',[])}><option value="">Tüm kategoriler</option>${menus.map(m => `<option value="${escapeAttr(m.id)}">${escapeHtml(m.name)}</option>`).join('')}</select>
           <select id="iuSort" ${actOn('change','filterIngUsage',[])}><option value="sel">Seçililer önce</option><option value="az">A → Z</option><option value="za">Z → A</option><option value="menu">Menüye göre</option></select>
           <label class="iu-only"><input type="checkbox" id="iuOnly" ${actOn('change','filterIngUsage',[])}> Sadece seçililer</label>
           <button type="button" class="pc-btn" id="iuAllBtn" ${act('iuSelectAll')}>☑️ Tümünü seç</button>
@@ -869,7 +869,7 @@ function meKitchens(){
   const bg = document.createElement('div'); bg.id = 'meKBg'; bg.className = 'modal-bg';
   bg.onclick = (e) => { if(e.target === bg) bg.remove(); };
   bg.innerHTML = `<div class="box sd-box sh-chain"><div class="u-row-sb"><h2 class="u-m0">🍳 Mutfaklar</h2><span class="u-xclose" ${act('removeEl','meKBg')}>✕</span></div>
-    <p class="muted u-fs13">Siparişlerin düştüğü mutfak ekranları ve yazıcılar. Her menü bir mutfağa gider.</p>
+    <p class="muted u-fs13">Siparişlerin düştüğü mutfak ekranları ve yazıcılar. Her kategori bir mutfağa gider.</p>
     <div class="sh-list">${st.map(x => `<button type="button" class="sh-row" style="border-left:5px solid ${escapeAttr(x.color || '#94a3b8')};" ${act('meKEdit', x.id)}><span class="sh-ic">${escapeHtml(x.icon || '🍳')}</span><span class="sh-name"><b>${escapeHtml(x.name)}</b><small>${menus.filter(m => m.station_id === x.id).map(m => escapeHtml(m.name)).join(' · ') || 'menü bağlı değil'}</small></span><span class="sh-go">✏️</span></button>`).join('')}</div>
     <div class="oa-edit-acts"><button type="button" class="ghost-btn" ${act('removeEl','meKBg')}>Kapat</button><button type="button" ${act('meKEdit', '')}>＋ Yeni mutfak</button></div></div>`;
   document.body.appendChild(bg);
@@ -944,7 +944,7 @@ function msInitDnD(root){
 }
 async function msAddMenuTo(stationId){
   const st = (APP.config.stations || []).find(x => x.id === stationId) || {};
-  const name = ((await uiPrompt('Yeni menü adı (' + (st.name || '') + ' istasyonuna eklenecek):', '')) || '').trim(); if(!name) return;
+  const name = ((await uiPrompt('Yeni kategori adı (' + (st.name || '') + ' mutfağına bağlanacak):', '')) || '').trim(); if(!name) return;
   const session = getSession();
   const { data, error } = await withLoadingOverlay(sb.rpc('upsert_menu', { p_token: session.session_token, p_id: null, p_name: name }));
   if(error){ uiAlert(error.message); return; }
@@ -973,7 +973,7 @@ function msMenuOpen(mid){
 async function msMenuSave(mid){
   const m = (APP.config.menus || []).find(x => x.id === mid); if(!m) return;
   const name = ((document.getElementById('menu_name_' + mid) || {}).value || '').trim(), st = (document.getElementById('msm_st') || {}).value || '';
-  if(!name){ uiAlert('Menü adı boş olamaz'); return; }
+  if(!name){ uiAlert('Kategori adı boş olamaz'); return; }
   const session = getSession();
   await withLoadingOverlay((async () => {
     if(name !== m.name){ const r = await sb.rpc('upsert_menu', { p_token: session.session_token, p_id: mid, p_name: name }); if(r.error){ uiAlert(r.error.message); return; } }
@@ -1020,7 +1020,7 @@ function openStationEdit(id){
     <div class="ms-stform">${stationIconPickerHtml(isNew ? 'newStIcon' : 'st_icon' + k, isNew ? '🍳' : (s.icon || '🍳'), '')}
       <input id="${isNew ? 'newStName' : 'st_name' + k}" placeholder="İstasyon adı (örn. Fırın)" value="${isNew ? '' : escapeAttr(s.name)}">
       <input type="color" id="${isNew ? 'newStColor' : 'st_color' + k}" value="${isNew ? '#b6a48d' : escapeAttr(s.color || '#94a3b8')}" title="Renk" class="st-col-color"></div>
-    ${isNew ? '' : `<div class="ms-sub">Bağlı menüler: ${(APP.config.menus || []).filter(m => m.station_id === s.id).map(m => `<span class="pchip">${escapeHtml(m.name)}</span>`).join(' ') || '<small class="muted">yok — menü listesindeki "İstasyon" seçiminden bağlayın</small>'}</div>${stationKitchenProductsHtml(s)}`}
+    ${isNew ? '' : `<div class="ms-sub">Bağlı kategoriler: ${(APP.config.menus || []).filter(m => m.station_id === s.id).map(m => `<span class="pchip">${escapeHtml(m.name)}</span>`).join(' ') || '<small class="muted">yok — menü listesindeki "İstasyon" seçiminden bağlayın</small>'}</div>${stationKitchenProductsHtml(s)}`}
     <div class="oa-edit-acts">${isNew ? '' : `<button type="button" class="ghost-btn danger" ${act('msStationDel', s.id)}>🗑 Sil</button>`}<span class="u-f1"></span><button type="button" class="ghost-btn" ${act('removeEl','stEditBg')}>Vazgeç</button><button type="button" ${act('msStationSave', id || '')}>💾 Kaydet</button></div></div>`;
   document.body.appendChild(bg);
 }
@@ -1036,7 +1036,7 @@ function initMenuOrderDnD(){
       if(!drag) return; drag = null;
       const ids = [...list.querySelectorAll('.mo-item[data-id]')].map(x => x.dataset.id);
       const cur = (APP.config.menus || []).map(m => m.id);
-      if(ids.join() !== cur.join()) menuRpc('set_menu_order', { p_ids: ids }, 'Menü sırası kaydedildi ✓');
+      if(ids.join() !== cur.join()) menuRpc('set_menu_order', { p_ids: ids }, 'Kategori sırası kaydedildi ✓');
     });
     it.addEventListener('dragover', e => {
       e.preventDefault(); if(!drag || drag === it) return;
@@ -1092,8 +1092,8 @@ function saveMenu(id){ const v = (document.getElementById('menu_name_'+id)||{}).
 async function removeMenu(id){
   const m = (APP.config.menus||[]).find(x => x.id === id) || {};
   const n = (APP.config.products||[]).filter(p => p.menu_id === id).length;
-  if(!await uiConfirm(`"${m.name}" menüsü silinsin mi?` + (n ? `\n\n${n} ürün menüsüz kalacak (ürünler silinmez, istasyonları değişmez).` : ''))) return;
-  menuRpc('delete_menu', { p_id: id }, 'Menü silindi');
+  if(!await uiConfirm(`"${m.name}" kategorisi silinsin mi?` + (n ? `\n\n${n} ürün kategorisiz kalacak (ürünler silinmez, istasyonları değişmez).` : ''))) return;
+  menuRpc('delete_menu', { p_id: id }, 'Kategori silindi');
 }
 function moveMenu(id, dir){
   const ids = (APP.config.menus||[]).map(m => m.id); const i = ids.indexOf(id); const j = i + dir;
@@ -1655,7 +1655,7 @@ async function saveDefaultVat(v){
 // Ürünün menü seçenekleri: tüm menüler (yanında bağlı olduğu istasyon).
 function prodMenuOptions(current){
   const st = (id) => ((APP.config.stations||[]).find(x => x.id === id) || {}).name;
-  return `<option value="">— Menü yok —</option>` + (APP.config.menus||[]).map(m => `<option value="${m.id}" ${m.id===current?'selected':''}>${escapeHtml(m.name)}${m.station_id ? ' · ' + escapeHtml(st(m.station_id)||'') : ' · istasyonsuz'}</option>`).join('');
+  return `<option value="">— Kategori yok —</option>` + (APP.config.menus||[]).map(m => `<option value="${m.id}" ${m.id===current?'selected':''}>${escapeHtml(m.name)}${m.station_id ? ' · ' + escapeHtml(st(m.station_id)||'') : ' · istasyonsuz'}</option>`).join('');
 }
 function prodCatOptions(stationId, current){
   const st = (APP.config.stations||[]).find(s => s.id === stationId) || {};
@@ -1674,7 +1674,7 @@ function renderProductsSettings(el, session){
         <tr data-pid="${p.id}" style="${p.available===false?'opacity:.6;':''}">
           <td><input type="checkbox" class="u-wa-m0 prod-sel" value="${p.id}" ${actOn('change','updateProdSelection',[])}></td>
           <td class="col-name"><input value="${escapeAttr(p.name)}" id="pr_name_${p.id}"></td>
-          <td class="col-name"><select id="pr_st_${p.id}" ${p.menu_id ? 'title="İstasyon normalde menüden gelir; burada değiştirirseniz bu ürün için ayrı istasyon kullanılır. Menünün istasyonunu seçerseniz tekrar menüye bağlanır."' : ''}>
+          <td class="col-name"><select id="pr_st_${p.id}" ${p.menu_id ? 'title="İstasyon normalde kategoriden gelir; burada değiştirirseniz bu ürün için ayrı istasyon kullanılır. Menünün istasyonunu seçerseniz tekrar menüye bağlanır."' : ''}>
             ${!p.station_id ? '<option value="" selected>— İstasyon yok —</option>' : ''}
             ${stations.map(s => `<option value="${s.id}" ${s.id===p.station_id?'selected':''}>${escapeHtml(s.name)}</option>`).join('')}
           </select></td>
@@ -1793,7 +1793,7 @@ function renderProductsSettings(el, session){
     <label class="sc-toggle"><span class="oo-switch"><input type="checkbox" ${APP.config.close_no_cost !== false ? 'checked' : ''} ${actOn('change','toggleCloseNoCost',['$checked', '$this'])}><span class="oo-track"><span class="oo-thumb"></span></span><em>${APP.config.close_no_cost !== false ? 'Açık' : 'Kapalı'}</em></span><span>💸 Maliyeti girilmemiş ürünler satışa <b>kapalı</b> gelsin <small class="muted">(istediğiniz ürünü yine "Satışa Aç" ile açabilirsiniz)</small></span></label>
     <label class="sc-toggle" title="Kapalıyken satışa kapattığınız ürünler Sipariş Al ve Paket Servis ürün listesinde hiç görünmez"><span class="oo-switch"><input type="checkbox" ${APP.config.order_show_closed !== false ? 'checked' : ''} ${actOn('change','toggleOrderShowClosed',['$checked', '$this'])}><span class="oo-track"><span class="oo-thumb"></span></span><em>${APP.config.order_show_closed !== false ? 'Açık' : 'Kapalı'}</em></span><span>⛔ Satışa kapalı ürünler <b>Sipariş Al</b> ekranında görünsün <small class="muted">(kapalıyken listeden tamamen gizlenir)</small></span></label>
     <details class="prod-info"><summary>ℹ️ Nasıl çalışır · Varsayılan KDV: %${APP.config.default_vat_rate ?? 10}</summary>
-    <p class="muted" style="text-align:left;margin:-6px 0 12px;font-size:13px;"><b>Menü</b>: ürünün menüsü (menüleri ve hangi istasyona gideceklerini <b>Menüler & İstasyonlar</b> sekmesinde ayarlayın); ürünün istasyonu menüden gelir. <b>🖨️ Fiş</b> işareti kaldırılan ürünler mutfak fişine yazdırılmaz (ekranda yine görünür).</p>
+    <p class="muted" style="text-align:left;margin:-6px 0 12px;font-size:13px;"><b>Kategori</b>: ürünün kategorisi (kategorileri ve hangi istasyona gideceklerini <b>Menüler & İstasyonlar</b> sekmesinde ayarlayın); ürünün istasyonu menüden gelir. <b>🖨️ Fiş</b> işareti kaldırılan ürünler mutfak fişine yazdırılmaz (ekranda yine görünür).</p>
     <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 10px;">
       <label style="margin:0;font-weight:700;font-size:13.5px;">Varsayılan KDV oranı</label>
       <div style="width:130px;">${vatSelectHtml('defaultVatSel', APP.config.default_vat_rate ?? 10, false, `${actOn('change','saveDefaultVat',['$value'])} style="margin:0;"`)}</div>
@@ -1818,7 +1818,7 @@ function renderProductsSettings(el, session){
 ${sheetHtml('prodSheet', '🍽️', 'Yeni Ürün', `
       <div class="fsheet-grid">
         <div class="field-group wide"><label>Ürün Adı</label><input id="np_name" placeholder="örn. Izgara Köfte"></div>
-        <div class="field-group"><label>Menü</label><select id="np_menu">${prodMenuOptions((APP.config.menus[0]||{}).id)}</select></div>
+        <div class="field-group"><label>Kategori</label><select id="np_menu">${prodMenuOptions((APP.config.menus[0]||{}).id)}</select></div>
         <div class="field-group"><label>KDV</label>${vatSelectHtml('np_vat', null, true, '')}</div>
         <div class="field-group"><label>Fiyat (₺)</label><input type="number" id="np_price" placeholder="0" inputmode="decimal"></div>
         <div class="field-group"><label>Maliyet (₺)</label><input type="number" id="np_cost" placeholder="0" inputmode="decimal"></div>
@@ -1836,7 +1836,7 @@ ${sheetHtml('prodSheet', '🍽️', 'Yeni Ürün', `
     </div>
     <div id="prodGroups" ${actOn('input','markProdDirty',['$event'])} ${actOn('change','markProdDirty',['$event'])}>
     ${(APP.config.menus||[]).map(m => { const st = stations.find(x => x.id===m.station_id); return groupHtml(m.name, st ? st.color : null, shown.filter(p => p.menu_id===m.id), null, m.id, st ? st.name : 'istasyon seçilmedi'); }).join('')}
-    ${groupHtml('Menüsüz', null, shown.filter(p => !p.menu_id || !(APP.config.menus||[]).some(m => m.id===p.menu_id)))}
+    ${groupHtml('Kategorisiz', null, shown.filter(p => !p.menu_id || !(APP.config.menus||[]).some(m => m.id===p.menu_id)))}
     </div>
 
   </div>`;
@@ -1912,7 +1912,7 @@ function editProductRow(pid){
         <div class="pdrawer-margin"><div class="pcard-mbar"><i id="ed_mbar"></i></div><span id="ed_mtxt"></span></div>
         <div class="ed-mwarn" id="ed_mwarn" hidden></div>
         ${!rec ? `<div class="cost-tip">💡 <b>Hazır alıp olduğu gibi satıyorsanız</b> (ayran, kola, su…): Hammaddeler'de bu ürün adıyla bir hammadde açın ve ürüne <b>1 adet</b> reçete ekleyin. Böylece Mal Kabul'deki alış fiyatı ortalanarak maliyete otomatik yansır, stok da düşer.${APP.view==='settings' ? ` <button type="button" class="pc-btn" ${act('openRecipeModal', p.id)}>📋 Reçete ekle</button>` : ''}</div>` : ''}
-        <div class="pdrawer-2"><div><label>Menü</label><select id="ed_menu">${prodMenuOptions(p.menu_id)}</select></div>
+        <div class="pdrawer-2"><div><label>Kategori</label><select id="ed_menu">${prodMenuOptions(p.menu_id)}</select></div>
         <div><label>İstasyon</label><select id="ed_st">${!p.station_id ? '<option value="" selected>— İstasyon yok —</option>' : ''}${stations.map(x => `<option value="${x.id}" ${x.id===p.station_id?'selected':''}>${escapeHtml(x.name)}</option>`).join('')}</select></div></div>
         <div class="pdrawer-2"><div><label>KDV</label>${vatSelectHtml('ed_vat', p.vat_rate, true)}</div>
           <div><label>Stok</label>${rec ? `<input disabled value="Reçeteli: ${p.available_qty==null?'?':p.available_qty} porsiyon">` : `<input type="number" id="ed_stock" value="${p.stock==null?'':p.stock}" placeholder="Sınırsız">`}</div></div>
@@ -2010,7 +2010,7 @@ function updateProdSelection(){
    "Satışa Kapat", en az biri kapalıysa "Satışa Aç" gösterilir. */
 function menuAvailBtn(menuId){
   const list = (APP.config.products || []).filter(p => p.menu_id === menuId);
-  if(!list.length) return `<button type="button" class="act-btn act-close" disabled title="Bu menüde henüz ürün yok; ürün ekleyince satışa açıp kapatabilirsiniz"><b>✕</b><span>Satışa Kapat</span></button>`;
+  if(!list.length) return `<button type="button" class="act-btn act-close" disabled title="Bu kategoride henüz ürün yok; ürün ekleyince satışa açıp kapatabilirsiniz"><b>✕</b><span>Satışa Kapat</span></button>`;
   const closed = list.filter(p => p.available === false).length;
   return closed
     ? `<button type="button" class="act-btn act-open" title="${closed}/${list.length} ürün satışta değil" ${act('setMenuAvailable', menuId, true)}><b>✓</b><span>Satışa Aç</span></button>`
@@ -2020,10 +2020,10 @@ async function setMenuAvailable(menuId, open){
   const menu = (APP.config.menus || []).find(m => m.id === menuId);
   const list = (APP.config.products || []).filter(p => p.menu_id === menuId && (p.available !== false) !== open);
   if(!list.length) return;
-  if(!open && !await uiConfirm((menu ? menu.name : 'Bu menü') + ' menüsündeki ' + list.length + ' ürün satışa kapatılsın mı?')) return;
+  if(!open && !await uiConfirm((menu ? menu.name : 'Bu kategori') + ' kategorisindeki ' + list.length + ' ürün satışa kapatılsın mı?')) return;
   const errors = await runProductBulk(list, 'upsert_product', p => productPayload(p, { p_available: open }));
   if(errors.length) alert('Bazı ürünler güncellenemedi:\n\n' + errors.join('\n'));
-  else showToast((menu ? menu.name : 'Menü') + ': ' + list.length + ' ürün ' + (open ? 'satışa açıldı ✓' : 'satışa kapatıldı'));
+  else showToast((menu ? menu.name : 'Kategori') + ': ' + list.length + ' ürün ' + (open ? 'satışa açıldı ✓' : 'satışa kapatıldı'));
 }
 function productPayload(p, over){
   return Object.assign({ p_id: p.id, p_station_id: p.station_id, p_name: p.name, p_price: p.price, p_cost: p.cost, p_stock: p.stock, p_available: p.available!==false }, over || {});
