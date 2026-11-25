@@ -4833,3 +4833,12 @@ select.ss-hidden{display:none !important;}
 .sh-node b{font-size:13.5px;} .sh-node small{color:var(--muted);font-size:12px;flex:1;} .sh-node.on{border-color:var(--accent);}
 .sh-prods{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:6px;} .sh-prods .sh-node{margin:0;}
 @media (max-width:600px){ .sh-qty{display:none;} }
+.sh-form{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+.sh-form label{display:flex;flex-direction:column;gap:4px;font-size:12.5px;font-weight:700;margin:0;}
+.sh-form label small{font-weight:500;color:var(--muted);} .sh-form input,.sh-form select{margin:0;}
+.sh-form .wide{grid-column:1/-1;} .sh-form .sh-chk{flex-direction:row;align-items:center;gap:8px;}
+.sh-form .sh-chk input{width:auto;}
+.sh-links{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;}
+.sh-edit{margin:12px 0 0;}
+.sh-ptabs{margin:10px 0 12px;}
+@media (max-width:600px){ .sh-form{grid-template-columns:1fr;} }

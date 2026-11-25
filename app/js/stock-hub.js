@@ -35,12 +35,12 @@ function renderStockHub(el){
   } else {
     const list = shProds().filter(p => match(p.name)).sort((a, b) => String(a.name).localeCompare(String(b.name), 'tr'));
     body = `<p class="muted ux-hint">Reçete yalnızca buradan, ürünün içinden düzenlenir. Ürün satılınca reçetedeki miktarlar stoktan düşer.</p><div class="sh-list">${list.map(p => { const rc = p.recipe || [];
-      return `<button type="button" class="sh-row" ${act('openRecipeModal', p.id)}>
+      return `<button type="button" class="sh-row" ${act('openShProduct', p.id)}>
         <span class="sh-ic">🍽️</span><span class="sh-name"><b>${escapeHtml(p.name)}</b><small>${rc.length ? rc.map(r => escapeHtml(r.ingredient_name || '') + ' ' + escapeHtml(recipeQtyLabel(r))).join(' · ') : '<span class="u-red">Reçete yok — stok ve maliyet düşmez</span>'}</small></span>
         <span class="sh-qty">${Number(p.cost) > 0 ? money(p.cost) : '—'}</span><span class="sh-pill ${rc.length ? 'ok' : 'warn'}">${rc.length ? rc.length + ' kalem' : 'Reçetesiz'}</span><span class="sh-go">›</span></button>`; }).join('')}</div>`;
   }
   el.innerHTML = `<div class="u-mwn box ux-prod sh-hub">
-    <div class="sh-draft">🧪 Taslak ekran — sadece görüntüler; düzenleme mevcut pencerelerden yapılır.</div>
+    <div class="sh-draft">🧪 Yeni ekran (deneme) — satıra dokunun: zinciri görün ve aynı pencereden düzenleyin.</div>
     <div class="ux-bar"><h2 class="u-m0">📦 Stok & Reçete</h2>
       <input class="list-search" placeholder="🔍 Ara…" value="${escapeAttr(APP.shQ || '')}" ${actOn('input', 'shSearch', ['$value'])}>
       <button type="button" class="fsheet-open" ${act('shNew')}>+ Yeni</button></div>
@@ -74,11 +74,79 @@ function openStockChain(id){
       <div class="sh-step"><div class="sh-step-t">🥙 Günlük hazırlık</div>${preps.length ? preps.map(x => node(x, '🥙', 'Tezgâhta: ' + escapeHtml(shQty(x.stock, x)))).join('') : '<div class="sh-node sh-static"><small>Hazırlık yok — satış doğrudan depodan düşer</small></div>'}</div>
       <div class="sh-arrow">↓</div>
       <div class="sh-step"><div class="sh-step-t">🍽️ Kullanıldığı ürünler · ${prods.length}</div><div class="sh-prods">${prods.length ? prods.map(({ p, via }) => { const r = (p.recipe || []).find(x => x.ingredient_id === via.id);
-        return `<button type="button" class="sh-node" ${act('openRecipeModal', p.id)}><span>🍽️</span><b>${escapeHtml(p.name)}</b><small>${r ? escapeHtml(recipeQtyLabel(r)) + ' · ' : ''}${via.prep_source_id ? '🥙 hazırlıktan' : '🏬 depodan'}</small></button>`; }).join('') : '<small class="muted">Hiçbir üründe kullanılmıyor.</small>'}</div></div>
+        return `<button type="button" class="sh-node" ${act('openShProduct', p.id)}><span>🍽️</span><b>${escapeHtml(p.name)}</b><small>${r ? escapeHtml(recipeQtyLabel(r)) + ' · ' : ''}${via.prep_source_id ? '🥙 hazırlıktan' : '🏬 depodan'}</small></button>`; }).join('') : '<small class="muted">Hiçbir üründe kullanılmıyor.</small>'}</div></div>
     </div>
-    <div class="oa-edit-acts">
-      ${depot ? `<button type="button" class="ghost-btn" ${act('openIngCostLog', depot.id)}>📈 Fiyat geçmişi</button>` : ''}
-      <button type="button" class="ghost-btn" ${act('openIngredientUsageModal', id, true)}>⚙️ Düzenle</button>
-      <button type="button" ${act('removeEl','shChainBg')}>Tamam</button></div></div>`;
+    <details class="ux-set sh-edit" open><summary>✏️ ${escapeHtml(i.name)} — düzenle</summary><div class="ux-set-body"><div class="sh-form">
+      <label>Ad<input id="she_name" maxlength="80" value="${escapeAttr(i.name)}"></label>
+      <label>${i.prep_source_id ? 'Tezgâhtaki miktar' : 'Depodaki stok'} <small>(${escapeHtml(unitShort(i.unit))})</small><input id="she_stock" type="number" step="any" inputmode="decimal" value="${Number(i.stock) || 0}"></label>
+      ${i.prep_source_id ? '' : `<label>Min stok <small>(uyarı seviyesi)</small><input id="she_min" type="number" step="any" min="0" inputmode="decimal" value="${Number(i.min_stock) || ''}"></label>
+      <label>Birim alış fiyatı <small>(₺ / ${escapeHtml(unitShort(i.unit))})</small><input id="she_uc" type="number" step="0.01" min="0" inputmode="decimal" value="${Number(i.unit_cost) || ''}"></label>`}
+      <label>Fire % <small>(temizleme kaybı)</small><input id="she_waste" type="number" step="0.1" min="0" max="99" inputmode="decimal" value="${Number(i.waste_pct) || ''}"></label>
+    </div>
+    <div class="sh-links"><button type="button" class="xl-btn" ${act('openIngredientUsageModal', id, true)}>🔗 Kullanıldığı ürünler / hazırlık ayarı</button>${depot ? `<button type="button" class="xl-btn" ${act('openIngCostLog', depot.id)}>📈 Fiyat geçmişi</button>` : ''}</div>
+    </div></details>
+    <div class="oa-edit-acts"><button type="button" class="ghost-btn" ${act('removeEl','shChainBg')}>Kapat</button><button type="button" ${act('saveShIngredient', id)}>💾 Kaydet</button></div></div>`;
   document.body.appendChild(bg);
+}
+
+async function shReload(){ await renderSettingsView(document.getElementById('main'), getSession()); }
+async function saveShIngredient(id){
+  const i = shIngs().find(x => x.id === id); if(!i) return;
+  const v = (k) => { const e = document.getElementById(k); return e ? e.value.trim() : null; }, num = (k) => { const x = v(k); return x === null || x === '' ? null : parseFloat(x.replace(',', '.')); };
+  const name = v('she_name'); if(!name){ uiAlert('Ad boş olamaz'); return; }
+  const errs = [];
+  await withLoadingOverlay((async () => {
+    const r1 = await bulkRpc('upsert_ingredient', [{ p_id: id, p_name: name, p_unit: i.unit, p_stock: num('she_stock') ?? 0, p_waste_pct: num('she_waste') ?? 0 }]); if(r1[0].error) errs.push(r1[0].error.message);
+    if(!i.prep_source_id){
+      const r2 = await bulkRpc('set_ingredient_min', [{ p_id: id, p_min: num('she_min') ?? 0 }]); if(r2[0].error) errs.push(r2[0].error.message);
+      if(num('she_uc') !== null && num('she_uc') !== (Number(i.unit_cost) || null)){ const r3 = await bulkRpc('set_ingredient_cost', [{ p_id: id, p_cost: num('she_uc') }]); if(r3[0].error) errs.push(r3[0].error.message); }
+    }
+  })());
+  if(errs.length){ uiAlert(errs.join('\n')); return; }
+  showToast('💾 ' + name + ' kaydedildi'); await shReload(); openStockChain(id);
+}
+
+/* Tek ürün penceresi: Bilgi · Reçete · Ekstralar. */
+function openShProduct(id, tab){
+  const p = shProds().find(x => x.id === id); if(!p) return;
+  tab = tab || 'info';
+  const rc = p.recipe || [], ings = shIngs();
+  removeEl('shProdBg'); removeEl('shChainBg');
+  const bg = document.createElement('div'); bg.id = 'shProdBg'; bg.className = 'modal-bg';
+  bg.onclick = (e) => { if(e.target === bg) bg.remove(); };
+  const tabs = [['info','ℹ️ Bilgi'],['recipe','🥕 Reçete'],['extras','➕ Ekstralar']];
+  const info = `<div class="sh-form">
+      <label class="wide">Ürün adı<input id="shp_name" maxlength="120" value="${escapeAttr(p.name)}"></label>
+      <label>Satış fiyatı (₺)<input id="shp_price" type="number" step="0.01" min="0" inputmode="decimal" value="${Number(p.price) || 0}"></label>
+      <label>Menü<select id="shp_menu">${prodMenuOptions(p.menu_id)}</select></label>
+      ${rc.length ? `<label>Maliyet<input disabled value="${money(p.cost || 0)} · reçeteden"></label>` : `<label>Maliyet (₺) <small>(reçete yoksa elle)</small><input id="shp_cost" type="number" step="0.01" min="0" inputmode="decimal" value="${Number(p.cost) || ''}"></label>`}
+      ${rc.length ? '' : `<label>Stok <small>(boş = sınırsız)</small><input id="shp_stock" type="number" step="1" min="0" inputmode="numeric" value="${p.stock != null ? p.stock : ''}"></label>`}
+      <label class="sh-chk wide"><input type="checkbox" id="shp_av" ${p.available !== false ? 'checked' : ''}> Satışta</label>
+    </div>
+    ${Number(p.price) > 0 && Number(p.cost) > 0 ? `<p class="muted u-fs12">Marj: %${Math.round((1 - Number(p.cost) / Number(p.price)) * 100)} (KDV dahil fiyattan)</p>` : ''}
+    <div class="oa-edit-acts"><button type="button" class="ghost-btn" ${act('removeEl','shProdBg')}>Kapat</button><button type="button" ${act('saveShProduct', id)}>💾 Kaydet</button></div>`;
+  const recipe = `${rc.length ? `<div class="sh-list">${rc.map(r => { const ig = ings.find(x => x.id === r.ingredient_id) || {};
+      return `<button type="button" class="sh-row" ${act('openStockChain', r.ingredient_id)}><span class="sh-ic">${ig.prep_source_id ? '🥙' : '🏬'}</span><span class="sh-name"><b>${escapeHtml(r.ingredient_name || ig.name || '')}</b><small>${ig.prep_source_id ? 'tezgâhtan düşer' : 'depodan düşer'}</small></span><span class="sh-qty">${escapeHtml(recipeQtyLabel(r))}</span>${ig.id ? shPill(ig) : ''}<span class="sh-go">›</span></button>`; }).join('')}</div>`
+      : '<div class="empty-state"><p class="muted">Bu ürünün reçetesi yok: satılınca stok ve maliyet düşmez.</p></div>'}
+    <div class="oa-edit-acts"><button type="button" ${act('shOpenRecipe', id)}>🥕 Reçeteyi düzenle</button></div>`;
+  const extras = `<p class="muted u-fs13">Ekstralar (sos, ekstra et, boy seçimi…) siparişte ürüne eklenir.</p><div class="oa-edit-acts"><button type="button" ${act('shOpenExtras', id)}>➕ Ekstraları düzenle</button></div>`;
+  bg.innerHTML = `<div class="box sd-box sh-chain"><div class="u-row-sb"><h2 class="u-m0">🍽️ ${escapeHtml(p.name)}</h2><span class="u-xclose" ${act('removeEl','shProdBg')}>✕</span></div>
+    <div class="seg ux-tabs sh-ptabs">${tabs.map(([k, l]) => `<button type="button" class="${tab===k?'on':''}" ${act('openShProduct', id, k)}>${l}${k==='recipe' ? ' · ' + rc.length : ''}</button>`).join('')}</div>
+    ${tab === 'recipe' ? recipe : tab === 'extras' ? extras : info}</div>`;
+  document.body.appendChild(bg);
+}
+function shOpenRecipe(id){ removeEl('shProdBg'); openRecipeModal(id); }
+function shOpenExtras(id){ removeEl('shProdBg'); openExtrasModal(id); }
+async function saveShProduct(id){
+  const p = shProds().find(x => x.id === id); if(!p) return;
+  const v = (k) => { const e = document.getElementById(k); return e ? e.value.trim() : null; };
+  const name = v('shp_name'); if(!name){ uiAlert('Ürün adı boş olamaz'); return; }
+  const over = { p_name: name, p_price: parseFloat((v('shp_price') || '0').replace(',', '.')) || 0, p_available: !!(document.getElementById('shp_av') || {}).checked };
+  if(v('shp_cost') !== null) over.p_cost = parseFloat((v('shp_cost') || '0').replace(',', '.')) || 0;
+  if(v('shp_stock') !== null) over.p_stock = v('shp_stock') === '' ? null : parseInt(v('shp_stock'), 10);
+  const s = getSession(), menu = v('shp_menu') || null;
+  const { error } = await withLoadingOverlay(sb.rpc('upsert_product', Object.assign({ p_token: s.session_token }, productPayload(p, over))));
+  if(error){ uiAlert(error.message); return; }
+  if(menu !== (p.menu_id || null)){ const o = await sb.rpc('set_product_menu', { p_token: s.session_token, p_product_id: id, p_menu_id: menu }); if(o.error){ uiAlert(o.error.message); return; } }
+  showToast('💾 ' + name + ' kaydedildi'); await shReload(); openShProduct(id, 'info');
 }
