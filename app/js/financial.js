@@ -184,9 +184,9 @@ async function renderReportsView(main, session){
   if(!APP.reportDate) APP.reportDate = todayLocalDateStr();
   if(!APP.reportDateTo) APP.reportDateTo = APP.reportDate;
   main.innerHTML = `<h1>Finansal Analiz</h1>
-    <div class="u-mwn box">
-      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-        <span class="u-nw muted">Tarih Aralığı</span>
+    <div class="u-mwn box rp-bar">
+      <div class="rp-bar-r">
+        <span class="u-nw muted">📅</span>
         <input type="date" id="reportDateInput" value="${APP.reportDate}" ${actOn('change','changeReportDate',['$value'])} class="u-wa-m0">
         <span class="muted">–</span>
         <input type="date" id="reportDateToInput" value="${APP.reportDateTo}" ${actOn('change','changeReportDateTo',['$value'])} class="u-wa-m0">
@@ -195,11 +195,9 @@ async function renderReportsView(main, session){
         <button type="button" class="range-preset-btn" ${act('setReportDateRangeDays', 6)}>Son 7 Gün</button>
         <button type="button" class="range-preset-btn" ${act('setReportDateRangeDays', 9)}>Son 10 Gün</button>
         <button type="button" class="range-preset-btn" ${act('setReportDateRangeDays', 29)}>Son 30 Gün</button>
-        <span class="u-f1"></span>
-        <button type="button" class="range-preset-btn" ${act('exportAnalytics')} title="Bu sekmeyi Excel'de açılabilir dosya olarak indir">⬇ Excel</button>
-        <button type="button" class="range-preset-btn" ${act('printAnalytics')} title="Yazdır veya PDF olarak kaydet">🖨️ PDF</button>
+        <div class="an-search-wrap"><input id="anSearch" class="an-search" placeholder="🔍 Raporlarda ara (ürün, masa, personel…)" autocomplete="off" ${actOn('input','anSearch',['$value'])}><div id="anSearchRes" class="an-sres" hidden></div></div>
+        <details class="ux-more"><summary title="Diğer işlemler">⋯</summary><div class="ux-more-pop"><button type="button" class="ghost-btn" ${act('exportAnalytics')}>⬇ Bu raporu Excel'e indir</button><button type="button" class="ghost-btn" ${act('printAnalytics')}>🖨️ Yazdır / PDF</button></div></details>
       </div>
-      <div class="an-search-wrap"><input id="anSearch" class="an-search" placeholder="🔍 Raporlarda ara: ürün, masa, personel, hammadde ya da “nakit”, “stok”, “kâr”…" autocomplete="off" ${actOn('input','anSearch',['$value'])}><div id="anSearchRes" class="an-sres" hidden></div></div>
     </div>
     <div class="set-layout rp-layout">
       <nav class="tabs settings-tabs set-nav" id="reportTabs">

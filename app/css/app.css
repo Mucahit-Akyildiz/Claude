@@ -5206,3 +5206,10 @@ p.me2-hint{text-align:left!important;margin:-4px 0 12px!important;}
 .kb-stats{display:flex!important;flex-wrap:wrap;gap:8px;margin:10px 0 12px;}
 .kb-stats>div{display:inline-flex;align-items:baseline;gap:6px;padding:6px 12px!important;border-radius:999px!important;}
 .kb-stats b{display:inline!important;font-size:15px!important;}
+/* Finansal Analiz üst çubuğu: tarih + hazır aralıklar + arama + ⋯ tek satırda */
+.rp-bar{padding:10px 14px!important;}
+.rp-bar-r{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+.rp-bar-r .an-search-wrap{flex:1 1 240px;min-width:200px;margin:0!important;position:relative;}
+.rp-bar-r .an-search{margin:0!important;}
+.rp-bar-r .ux-more-pop{display:flex;flex-direction:column;gap:6px;min-width:220px;}
+.rp-bar-r .ux-more-pop button{width:100%!important;margin:0!important;text-align:left;}
