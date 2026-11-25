@@ -820,41 +820,64 @@ function pickStationIcon(targetId, icon){
 function setStTab(t){ APP.stTab = t; renderSettingsContent(getSession()); }
 function renderStationsSettings(el, session){
   const menus = APP.config.menus || [], stations = APP.config.stations || [], prods = (APP.config.products || []).filter(p => !p.parent_id);
-  const free = menus.filter(m => !m.station_id || !stations.some(x => x.id === m.station_id));
-  let pmap = {}, plist = []; try{ pmap = getStationPrinterMap() || {}; plist = getAllPrinters() || []; }catch(e){}
-  const prnName = (sid) => { const p = plist.find(x => x.id === pmap[sid]); return p ? p.name : null; };
-  const menuBlock = (m, inFree) => { const list = prods.filter(p => p.menu_id === m.id).sort((a, b) => String(a.name).localeCompare(String(b.name), 'tr'));
-    return `<div class="kv-menu">
-      <div class="kv-mh"><b class="kv-mn" role="button" title="Menüyü düzenle" ${act('msMenuOpen', m.id)}>📋 ${escapeHtml(m.name)} <em>${list.length}</em></b>
-        ${inFree ? `<select class="kv-stsel" ${actOn('change','moveMenuToStation',[m.id,'$value'])}><option value="">→ Mutfak seçin…</option>${stations.map(x => `<option value="${x.id}">${escapeHtml(x.icon || '🍳')} ${escapeHtml(x.name)}</option>`).join('')}</select>` : ''}
-        <button type="button" class="kv-addp" ${act('kvAddProduct', m.id)}>＋ Ürün ekle</button></div>
-      <div class="kv-prods">${list.map(p => `<button type="button" class="kv-p ${p.available === false ? 'off' : ''}" title="${p.available === false ? 'Satışa kapalı · ' : ''}Düzenlemek için dokunun" ${act('openShProduct', p.id)}>${escapeHtml(p.name)}<i>${money(p.price)}</i></button>`).join('') || '<span class="kv-none">Bu menüde ürün yok — "＋ Ürün ekle" ile ekleyin</span>'}</div>
+  if(APP.meMenu && APP.meMenu !== 'all' && !menus.some(m => m.id === APP.meMenu)) APP.meMenu = null;
+  const cur = APP.meMenu || (menus[0] ? menus[0].id : 'all'), q = String(APP.meQ || '').trim().toLocaleLowerCase('tr');
+  const stOf = (m) => m && stations.find(x => x.id === m.station_id);
+  const menu = cur === 'all' ? null : menus.find(m => m.id === cur), st = stOf(menu);
+  const list = prods.filter(p => q ? String(p.name).toLocaleLowerCase('tr').includes(q) : (cur === 'all' || p.menu_id === cur)).sort((a, b) => String(a.name).localeCompare(String(b.name), 'tr', { numeric: true }));
+  const col = (m) => (stOf(m) || {}).color || '#94a3b8';
+  const card = (p) => { const m = menus.find(x => x.id === p.menu_id), off = p.available === false;
+    return `<div class="me-card ${off ? 'off' : ''}" style="--mc:${escapeAttr(col(m))};" role="button" tabindex="0" ${act('openShProduct', p.id)}>
+      <div class="me-img">${p.image ? `<img src="${escapeAttr(p.image)}" alt="" loading="lazy">` : `<span>${escapeHtml(String(p.name || '?').trim().charAt(0).toLocaleUpperCase('tr'))}</span>`}</div>
+      <div class="me-info"><b>${escapeHtml(p.name)}</b>${(cur === 'all' || q) && m ? `<small>${escapeHtml(m.name)}</small>` : ''}
+        <div class="me-foot"><span class="me-price">${money(p.price)}</span>
+          <button type="button" role="switch" aria-checked="${!off}" class="nm-sw ${off ? '' : 'on'}" title="${off ? 'Satışa kapalı — açmak için dokunun' : 'Satışta — kapatmak için dokunun'}" ${act('meToggleAvail', p.id)}><i></i></button></div></div>
     </div>`; };
-  el.innerHTML = `<div class="u-mwn box kv-wrap">
-    <div class="sb-top">
-      <div><h2 class="u-m0">Menüler & Mutfaklar</h2><p class="muted kv-sub">Her mutfağa (istasyona) hangi menülerin ve ürünlerin düştüğünü buradan görün. Ürüne dokunun: fiyat, reçete, ekstra.</p></div>
-      <div class="sb-tacts">
-        <button type="button" class="ghost-btn" ${act('msOrderOpen')}>↕ Sipariş ekranı sırası</button>
-        <details class="ux-more"><summary title="Diğer işlemler">⋯ Diğer</summary><div class="ux-more-pop">
-          <div class="ux-more-t">Menü PDF</div><div class="xl-bar"><button type="button" class="xl-btn" ${act('downloadMenuPdf', true)}>📄 Fiyatlı</button><button type="button" class="xl-btn" ${act('downloadMenuPdf', false)}>📄 Fiyatsız</button></div>
-          <div class="ux-more-t">Excel</div>${typeof excelBarHtml === 'function' ? excelBarHtml('menus') : ''}</div></details>
-        <button type="button" class="fsheet-open" ${act('openStationEdit', '')}>+ Yeni mutfak</button>
-      </div>
+  el.innerHTML = `<div class="u-mwn box me-wrap">
+    <div class="me-top">
+      <h2 class="u-m0">Menü</h2>
+      <input class="me-search" type="search" placeholder="🔍 Ürün ara…" value="${escapeAttr(APP.meQ || '')}" ${actOn('input','meSearch',['$value'])}>
+      <details class="ux-more"><summary title="Diğer işlemler">⋯ Diğer</summary><div class="ux-more-pop">
+        <div class="xl-bar"><button type="button" class="xl-btn" ${act('msOrderOpen')}>↕ Menü sırasını değiştir</button></div>
+        <div class="ux-more-t">Menü PDF</div><div class="xl-bar"><button type="button" class="xl-btn" ${act('downloadMenuPdf', true)}>📄 Fiyatlı</button><button type="button" class="xl-btn" ${act('downloadMenuPdf', false)}>📄 Fiyatsız</button></div>
+        <div class="ux-more-t">Excel</div>${typeof excelBarHtml === 'function' ? excelBarHtml('menus') : ''}</div></details>
     </div>
-    ${stations.map(s => { const list = menus.filter(m => m.station_id === s.id), pn = prnName(s.id), pc = prods.filter(p => p.station_id === s.id).length;
-      return `<section class="kv-st" style="--sc:${escapeAttr(s.color || '#94a3b8')};">
-        <header class="kv-sh"><span class="sb-ic">${escapeHtml(s.icon || '🍳')}</span>
-          <span class="kv-st-t"><b>${escapeHtml(s.name)}</b><small>${list.length} menü · ${pc} ürün · 🖨️ ${pn ? escapeHtml(pn) : '<span class="muted">bu cihazda yazıcı eşlenmemiş</span>'}</small></span>
-          <button type="button" class="ghost-btn kv-sbtn" ${act('msAddMenuTo', s.id)}>＋ Menü ekle</button>
-          <button type="button" class="sb-edit" title="Mutfağı düzenle (ad, simge, renk)" ${act('openStationEdit', s.id)}>⚙️</button></header>
-        ${list.map(m => menuBlock(m, false)).join('') || '<div class="kv-none kv-pad">Bu mutfağa henüz menü bağlı değil.</div>'}
-      </section>`; }).join('')}
-    ${free.length ? `<section class="kv-st kv-free" style="--sc:#ef4444;">
-      <header class="kv-sh"><span class="sb-ic">⚠️</span><span class="kv-st-t"><b>Mutfağa gitmeyen menüler</b><small>Bu menülerin ürünleri hiçbir mutfak ekranına ve fişe düşmez. Bir mutfak seçin.</small></span>
-        <button type="button" class="ghost-btn kv-sbtn" ${act('msAddMenuTo', '')}>＋ Menü ekle</button></header>
-      ${free.map(m => menuBlock(m, true)).join('')}</section>` : ''}
-    ${stations.length ? '' : `<div class="empty-state"><div style="font-size:42px;">🍳</div><p class="muted">Önce bir mutfak (istasyon) ekleyin: örn. Izgara, Fırın, Bar.</p></div>`}
+    <div class="me-tabs">
+      <button type="button" class="me-tab ${cur === 'all' && !q ? 'on' : ''}" ${act('meSel', 'all')}>Tümü <em>${prods.length}</em></button>
+      ${menus.map(m => `<button type="button" class="me-tab ${cur === m.id && !q ? 'on' : ''}" style="--mc:${escapeAttr(col(m))};" ${act('meSel', m.id)}><i class="me-dot"></i>${escapeHtml(m.name)} <em>${prods.filter(p => p.menu_id === m.id).length}</em>${stOf(m) ? '' : ' <span title="Mutfağa gitmiyor">⚠️</span>'}</button>`).join('')}
+      <button type="button" class="me-tab me-new" ${act('meNewMenu')}>＋ Menü</button>
+    </div>
+    ${q ? `<div class="me-ctx"><b>"${escapeHtml(APP.meQ)}" için ${list.length} sonuç</b><span class="u-f1"></span><button type="button" class="ghost-btn" ${act('meSearch', '')}>✕ Aramayı temizle</button></div>`
+      : menu ? `<div class="me-ctx" style="--mc:${escapeAttr(col(menu))};">
+        <div class="me-ctx-t"><b>${escapeHtml(menu.name)}</b>
+          <label class="me-st ${st ? '' : 'warn'}">${st ? `${escapeHtml(st.icon || '🍳')} <span>Siparişleri <b>${escapeHtml(st.name)}</b> mutfağına gider</span>` : '⚠️ <span>Mutfağa gitmiyor — seçin:</span>'}
+            <select ${actOn('change','moveMenuToStation',[menu.id,'$value'])}><option value="">— değiştir —</option>${stations.map(x => `<option value="${x.id}">${escapeHtml(x.icon || '🍳')} ${escapeHtml(x.name)}</option>`).join('')}</select></label></div>
+        <span class="u-f1"></span>
+        <span class="me-ctx-a"><button type="button" class="ghost-btn" ${act('msMenuOpen', menu.id)}>✏️ Menüyü düzenle</button>
+        <button type="button" class="fsheet-open" ${act('kvAddProduct', menu.id)}>＋ Ürün ekle</button></span></div>`
+      : `<div class="me-ctx"><b>Tüm ürünler</b><span class="u-f1"></span><small class="muted">Ürün eklemek için üstten bir menü seçin</small></div>`}
+    <div class="me-grid">${list.map(card).join('')}${menu && !q ? `<button type="button" class="me-card me-add" ${act('kvAddProduct', menu.id)}><span>＋</span><b>Ürün ekle</b></button>` : ''}</div>
+    ${!list.length && !menu ? '<div class="empty-state"><p class="muted">Ürün bulunamadı.</p></div>' : ''}
+    <div class="me-kitchens"><span class="me-k-t">🍳 Mutfaklar</span>
+      ${stations.map(x => `<button type="button" class="me-k" style="--mc:${escapeAttr(x.color || '#94a3b8')};" title="Mutfağı düzenle" ${act('openStationEdit', x.id)}>${escapeHtml(x.icon || '🍳')} ${escapeHtml(x.name)} <small>${menus.filter(m => m.station_id === x.id).length} menü</small></button>`).join('')}
+      <button type="button" class="me-k me-k-new" ${act('openStationEdit', '')}>＋ Yeni mutfak</button></div>
   </div>`;
+}
+function meSel(id){ APP.meMenu = id; APP.meQ = ''; renderSettingsContent(getSession()); }
+function meSearch(v){ APP.meQ = v; renderSettingsContent(getSession()); const i = document.querySelector('.me-search'); if(i && v){ i.focus(); i.setSelectionRange(v.length, v.length); } }
+async function meNewMenu(){
+  const name = ((await uiPrompt('Yeni menü adı (örn. Çorbalar):', '')) || '').trim(); if(!name) return;
+  const s = getSession(); const { data, error } = await withLoadingOverlay(sb.rpc('upsert_menu', { p_token: s.session_token, p_id: null, p_name: name }));
+  if(error){ uiAlert(error.message); return; }
+  if(data) APP.meMenu = data; showToast('📋 ' + name + ' eklendi — mutfağını seçin'); renderSettingsView(document.getElementById('main'), s);
+}
+async function meToggleAvail(pid){
+  const ev = window.event; if(ev && ev.stopPropagation) ev.stopPropagation();
+  const p = (APP.config.products || []).find(x => x.id === pid); if(!p) return;
+  const open = p.available === false, s = getSession();
+  const { error } = await sb.rpc('upsert_product', Object.assign({ p_token: s.session_token }, productPayload(p, { p_available: open })));
+  if(error){ uiAlert(error.message); return; }
+  p.available = open; showToast(p.name + (open ? ' satışa açıldı' : ' satışa kapatıldı')); renderSettingsContent(s);
 }
 /* Menüye hızlı ürün ekleme: ad + fiyat; ürün menünün mutfağına düşer. */
 function kvAddProduct(mid){
