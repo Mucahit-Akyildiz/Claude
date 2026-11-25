@@ -1304,6 +1304,21 @@ end $$;
 
 
 --
+-- Name: _feat_gate_tok(uuid, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public._feat_gate_tok(p_token uuid, p_feat text) RETURNS void
+    LANGUAGE plpgsql STABLE SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+declare v_rid uuid; begin
+  select restaurant_id into v_rid from staff_sessions where token = p_token;
+  if v_rid is null then return; end if; -- oturum hatası asıl fonksiyonun kendi kontrolünde verilir
+  if not (p_feat = any(_restaurant_features(v_rid))) then raise exception 'PAKET_OZELLIK_YOK'; end if;
+end $$;
+
+
+--
 -- Name: _finalize_online_payment(uuid, text, numeric); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -2657,6 +2672,7 @@ CREATE FUNCTION public._qr_bill_allowed(p_device text, p_table uuid, p_order uui
     AS $$
 begin
   if coalesce(length(p_device),0) < 16 then return false; end if;
+  if not ('qr_pay' = any(_restaurant_features((select restaurant_id from orders where id = p_order)))) then return false; end if;
   if exists(select 1 from qr_bill_devices where device = p_device and order_id = p_order) then return true; end if;
   if exists(select 1 from qr_bill_devices d join orders o on o.id = d.order_id
             where d.device = p_device and d.table_id = p_table and d.order_id <> p_order and o.status <> 'open'
@@ -3425,7 +3441,9 @@ begin
                    when p_required_permission = 'int_online' then 'online_ordering'
                    when p_required_permission in ('int_efatura','int_marketplace','int_accounting') then substr(p_required_permission, 5)
                    when p_required_permission like 'int\_%' then null
-                   when p_required_permission in ('settings_allowances','stock_count','approvals') then null
+                   when p_required_permission = 'settings_allowances' then 'allowances'
+                   when p_required_permission = 'stock_count' then 'stock_count_f'
+                   when p_required_permission = 'approvals' then null
                    else p_required_permission end;
     select features || included_addons into v_package_features from packages where id = v_package_id;
     if v_feat is not null and not (v_feat = any(coalesce(v_package_features, '{}'))) then
@@ -4301,6 +4319,7 @@ CREATE FUNCTION public._tts_ctx(p_token uuid) RETURNS json
     AS $$
 declare s staff_sessions%rowtype; begin
   s := _session_check(p_token);
+  if not ('voice_notify' = any(_restaurant_features(s.restaurant_id))) then raise exception 'PAKET_OZELLIK_YOK'; end if;
   return json_build_object('rid', s.restaurant_id, 'key', (select _dec(tts_api_key) from tenant_integrations where restaurant_id = s.restaurant_id and tts_api_key is not null));
 end $$;
 
@@ -4536,6 +4555,7 @@ CREATE FUNCTION public.add_waitlist_entry(p_token uuid, p_customer_name text, p_
     AS $_$
 declare s staff_sessions%rowtype; v_id uuid; v_email text := nullif(lower(trim(coalesce(p_email,''))),'');
 begin
+  perform _feat_gate_tok(p_token, 'waitlist');
   s := _session_check(p_token, 'reservations');
   if p_customer_name is null or trim(p_customer_name) = '' then raise exception 'Müşteri adı gerekli'; end if;
   if v_email is not null and (length(v_email) > 120 or v_email !~ '^[^@\s]+@[^@\s]+\.[^@\s]+$') then raise exception 'Geçersiz e-posta'; end if;
@@ -6431,6 +6451,7 @@ CREATE FUNCTION public.copy_shift_plan_week(p_token uuid, p_week_start date) RET
     AS $$
 declare s staff_sessions%rowtype; n int;
 begin
+  perform _feat_gate_tok(p_token, 'shift_plan');
   s := _session_check(p_token, 'shifts');
   insert into shift_plan(restaurant_id, user_id, day, start_time, end_time, note)
     select restaurant_id, user_id, day + 7, start_time, end_time, note from shift_plan
@@ -6590,6 +6611,7 @@ CREATE FUNCTION public.create_open_account(p_token uuid, p_name text, p_phone te
     AS $$
 declare s staff_sessions%rowtype; v_id uuid;
 begin
+  perform _feat_gate_tok(p_token, 'open_accounts');
   s := _session_check(p_token, 'payments');
   if coalesce(trim(p_name),'') = '' then raise exception 'Açık hesap için ad gerekli'; end if;
   if length(p_name) > 100 or length(coalesce(p_phone,'')) > 30 or length(coalesce(p_note,'')) > 300 then raise exception 'Bilgi çok uzun'; end if;
@@ -6636,6 +6658,7 @@ CREATE FUNCTION public.create_promo_code(p_token uuid, p_code text, p_discount_t
     AS $$
 declare v_id uuid;
 begin
+  perform _feat_gate_tok(p_token, 'coupons');
   perform _platform_admin_check(p_token);
   insert into promo_codes (code, discount_type, discount_value, max_uses, expires_at)
   values (upper(p_code), p_discount_type, p_discount_value, p_max_uses, p_expires_at)
@@ -6654,6 +6677,7 @@ CREATE FUNCTION public.create_review_link(p_token uuid, p_history_id uuid, p_sen
     SET search_path TO 'public', 'extensions', 'pg_temp'
     AS $$ declare s staff_sessions%rowtype; h sales_history%rowtype; v_tok uuid; v_phone text; v_name text; v_sent boolean := false;
 begin
+  perform _feat_gate_tok(p_token, 'review_links');
   s := _session_check(p_token, 'payments');
   select * into h from sales_history where id = p_history_id and restaurant_id = s.restaurant_id;
   if h.id is null then raise exception 'Hesap bulunamadı'; end if;
@@ -11757,6 +11781,7 @@ CREATE FUNCTION public.open_account_for_customer(p_token uuid, p_name text, p_ph
     AS $$
 declare s record; v_cid uuid; v_acc uuid; c record; v_d text;
 begin
+  perform _feat_gate_tok(p_token, 'open_accounts');
   select * into s from _session_check(p_token, 'payments');
   v_cid := _ensure_customer(s.restaurant_id, p_name, p_phone, true);
   if v_cid is null then raise exception 'Kişi adı gerekli'; end if;
@@ -12094,6 +12119,7 @@ CREATE FUNCTION public.prep_ingredient(p_token uuid, p_id uuid, p_qty numeric) R
     AS $$
 declare s staff_sessions%rowtype; a ingredients%rowtype; b ingredients%rowtype; st numeric; nc numeric;
 begin
+  perform _feat_gate_tok(p_token, 'daily_prep');
   s := _session_check(p_token, 'kitchen');
   if p_qty is null or p_qty <= 0 then raise exception 'Geçerli bir miktar girin'; end if;
   select * into a from ingredients where id = p_id and restaurant_id = s.restaurant_id for update;
@@ -12120,6 +12146,7 @@ CREATE FUNCTION public.prep_leftover(p_token uuid, p_id uuid, p_action text) RET
     AS $$
 declare s staff_sessions%rowtype; a ingredients%rowtype; q numeric;
 begin
+  perform _feat_gate_tok(p_token, 'daily_prep');
   s := _session_check(p_token, 'kitchen');
   if p_action not in ('keep','waste','return') then raise exception 'Geçersiz seçim'; end if;
   select * into a from ingredients where id = p_id and restaurant_id = s.restaurant_id for update;
@@ -12361,6 +12388,7 @@ declare
   s staff_sessions%rowtype; v_item order_items%rowtype; v_product_id uuid; v_name text; v_unit_cost numeric;
   v_qty numeric; v_order_id uuid; v_has_recipe boolean; v_waste_id uuid; v_total_cost numeric; v_max_qty numeric;
 begin
+  perform _feat_gate_tok(p_token, 'waste');
   s := _session_check(p_token, 'kitchen');
   if p_order_item_id is not null then
     select oi.* into v_item from order_items oi join orders o on o.id = oi.order_id
@@ -12451,6 +12479,7 @@ CREATE FUNCTION public.resend_courier_notify(p_token uuid, p_order_id uuid) RETU
     AS $$
 declare s staff_sessions%rowtype; o orders%rowtype;
 begin
+  perform _feat_gate_tok(p_token, 'courier_sms');
   s := _session_check(p_token, 'packages');
   select * into o from orders where id = p_order_id and restaurant_id = s.restaurant_id;
   if o.id is null or o.dispatched_at is null or o.courier_user_id is null then raise exception 'Kuryeye verilmiş sipariş bulunamadı'; end if;
@@ -12891,6 +12920,7 @@ CREATE FUNCTION public.save_cash_count(p_token uuid, p_date date, p_expected num
     SET search_path TO 'public', 'extensions', 'pg_temp'
     AS $$ declare s staff_sessions%rowtype; v uuid; v_today date := (now() at time zone 'Europe/Istanbul')::date; v_d date; h int;
 begin
+  perform _feat_gate_tok(p_token, 'day_close');
   s := _session_check(p_token, 'reports');
   if p_counted is null or p_counted < 0 then raise exception 'Sayılan nakit geçersiz'; end if;
   select coalesce(day_end_hour,5) into h from restaurants where id = s.restaurant_id;
@@ -13235,6 +13265,7 @@ CREATE FUNCTION public.save_tts_key(p_token uuid, p_key text) RETURNS boolean
     SET search_path TO 'public', 'extensions', 'pg_temp'
     AS $$
 declare s staff_sessions%rowtype; begin
+  perform _feat_gate_tok(p_token, 'voice_notify');
   s := _session_check(p_token);
   if not exists(select 1 from app_users au join roles rl on rl.id = any(au.role_ids) where au.id = s.user_id and (rl.is_system or rl.permissions && array['settings_integrations','int_voice'])) then raise exception 'Bu ayarı yalnızca yönetici değiştirebilir'; end if;
   if coalesce(trim(p_key),'') <> '' and length(trim(p_key)) not between 20 and 200 then raise exception 'Anahtar geçersiz görünüyor'; end if;
@@ -13404,6 +13435,7 @@ CREATE FUNCTION public.send_campaign(p_token uuid, p_ids uuid[], p_text text, p_
     AS $$
 declare v_rid uuid; v_uid uuid; v_name text; c record; v_msg text; n_sms int := 0; n_mail int := 0; n_skip int := 0;
 begin
+  perform _feat_gate_tok(p_token, 'campaigns');
   select (x).restaurant_id, (x).user_id into v_rid, v_uid from (select _session_check(p_token, 'crm') x) z;
   if coalesce(array_length(p_ids,1),0) = 0 then raise exception 'Müşteri seçin'; end if;
   if array_length(p_ids,1) > 2000 then raise exception 'Tek seferde en fazla 2000 müşteri'; end if;
@@ -14081,6 +14113,7 @@ CREATE FUNCTION public.send_winback(p_token uuid, p_ids uuid[], p_text text, p_c
     AS $$
 declare v_rid uuid; v_uid uuid; v_name text; c record; v_msg text; n_sms int := 0; n_mail int := 0; n_skip int := 0;
 begin
+  perform _feat_gate_tok(p_token, 'campaigns');
   select (x).restaurant_id, (x).user_id into v_rid, v_uid from (select _session_check(p_token, 'crm') x) z;
   if coalesce(array_length(p_ids,1),0) = 0 then raise exception 'Müşteri seçin'; end if;
   if array_length(p_ids,1) > 500 then raise exception 'Tek seferde en fazla 500 müşteri'; end if;
@@ -14136,6 +14169,7 @@ CREATE FUNCTION public.set_child_serving_pct(p_token uuid, p_pct numeric) RETURN
     SET search_path TO 'public', 'pg_temp'
     AS $$
 declare s staff_sessions%rowtype; begin
+  perform _feat_gate_tok(p_token, 'family_resv');
   s := _session_check(p_token, 'reservations');
   if p_pct is null or p_pct < 0 or p_pct > 100 then raise exception '0-100 arası girin'; end if;
   update restaurants set child_serving_pct = p_pct where id = s.restaurant_id;
@@ -14347,6 +14381,7 @@ CREATE FUNCTION public.set_ingredient_prep(p_token uuid, p_id uuid, p_source_id 
     AS $$
 declare s staff_sessions%rowtype; a ingredients%rowtype; b ingredients%rowtype;
 begin
+  perform _feat_gate_tok(p_token, 'daily_prep');
   s := _session_check(p_token, 'settings_ingredients');
   select * into a from ingredients where id = p_id and restaurant_id = s.restaurant_id;
   if a.id is null then raise exception 'Hammadde bulunamadı'; end if;
@@ -14605,6 +14640,7 @@ CREATE FUNCTION public.set_online_reservations(p_token uuid, p_enabled boolean) 
     SET search_path TO 'public', 'extensions', 'pg_temp'
     AS $$ declare s staff_sessions%rowtype;
 begin
+  perform _feat_gate_tok(p_token, 'online_resv');
   s := _session_check(p_token, 'reservations');
   update restaurants set online_reservations_enabled = coalesce(p_enabled, false) where id = s.restaurant_id;
 end $$;
@@ -14754,6 +14790,7 @@ CREATE FUNCTION public.set_overhead_settings(p_token uuid, p_revenue_base numeri
     SET search_path TO 'public', 'pg_temp'
     AS $$
 declare s staff_sessions%rowtype; begin
+  perform _feat_gate_tok(p_token, 'cost_overheads');
   s := _session_check(p_token, 'settings_products');
   if p_revenue_base is not null and p_revenue_base <= 0 then raise exception 'Geçersiz ciro'; end if;
   if p_method is not null and p_method not in ('breakeven','revenue') then raise exception 'Geçersiz yöntem'; end if;
@@ -15251,6 +15288,7 @@ CREATE FUNCTION public.set_reservation_family(p_token uuid, p_id uuid, p_adults 
     AS $$
 declare s staff_sessions%rowtype; v_ages text[]; v_needs text[]; v_kids int;
 begin
+  perform _feat_gate_tok(p_token, 'family_resv');
   s := _session_check(p_token, 'reservations');
   if coalesce(p_adults,0) < 0 or coalesce(p_women,0) < 0 or coalesce(p_men,0) < 0 then raise exception 'Sayılar eksi olamaz'; end if;
   select coalesce(array_agg(x.a), '{}') into v_ages from unnest(coalesce(p_child_ages,'{}')) as x(a) where x.a in ('0-2','3-6','7-12');
@@ -15364,6 +15402,7 @@ CREATE FUNCTION public.set_shift_plan(p_token uuid, p_user_id uuid, p_day date, 
     AS $$
 declare s staff_sessions%rowtype;
 begin
+  perform _feat_gate_tok(p_token, 'shift_plan');
   s := _session_check(p_token, 'shifts');
   if not exists(select 1 from app_users where id = p_user_id and restaurant_id = s.restaurant_id) then raise exception 'Kullanıcı bulunamadı'; end if;
   if nullif(p_start,'') is null or nullif(p_end,'') is null then
@@ -15649,6 +15688,7 @@ CREATE FUNCTION public.set_table_kid_friendly(p_token uuid, p_table uuid, p_on b
     SET search_path TO 'public', 'pg_temp'
     AS $$
 declare s staff_sessions%rowtype; begin
+  perform _feat_gate_tok(p_token, 'family_resv');
   s := _session_check(p_token, 'reservations');
   update restaurant_tables set kid_friendly = coalesce(p_on,false) where id = p_table and restaurant_id = s.restaurant_id;
 end $$;
@@ -15701,6 +15741,7 @@ CREATE FUNCTION public.set_voice_policy(p_token uuid, p_type text, p_role_ids uu
     AS $_$
 declare s staff_sessions%rowtype;
 begin
+  perform _feat_gate_tok(p_token, 'voice_notify');
   s := _session_check(p_token, null);
   if not exists(select 1 from app_users au join roles rl on rl.id = any(au.role_ids) where au.id = s.user_id and (rl.is_system or 'settings_notifs' = any(rl.permissions))) then raise exception 'Bu ayarı yalnızca Yönetici değiştirebilir'; end if;
   if p_type !~ '^[a-z]{2,20}$' then raise exception 'Geçersiz bildirim türü'; end if;
@@ -16758,6 +16799,7 @@ CREATE FUNCTION public.transfer_to_open_account(p_token uuid, p_order_id uuid, p
     AS $$
 declare s staff_sessions%rowtype; a open_accounts%rowtype; r json; v_total numeric; v_table text;
 begin
+  perform _feat_gate_tok(p_token, 'open_accounts');
   s := _session_check(p_token, 'payments');
   select * into a from open_accounts where id = p_account_id and restaurant_id = s.restaurant_id and is_active for update;
   if a.id is null then raise exception 'Açık hesap bulunamadı'; end if;
@@ -16782,6 +16824,7 @@ CREATE FUNCTION public.transfer_to_open_account_early(p_token uuid, p_order_id u
     SET search_path TO 'public', 'pg_temp'
     AS $$
 begin
+  perform _feat_gate_tok(p_token, 'open_accounts');
   perform set_config('peyk.allow_unready', '1', true);
   return public.transfer_to_open_account(p_token, p_order_id, p_account_id, p_item_qtys, p_discount_amount, p_note);
 end $$;
@@ -16959,6 +17002,7 @@ CREATE FUNCTION public.update_loyalty_settings(p_token uuid, p_enabled boolean, 
     AS $$
 declare s staff_sessions%rowtype; v_is_manager boolean;
 begin
+  perform _feat_gate_tok(p_token, 'loyalty');
   s := _session_check(p_token);
   select exists(select 1 from app_users au join roles rl on rl.id = any(au.role_ids) where au.id = s.user_id and (rl.is_system or 'crm' = any(rl.permissions))) into v_is_manager;
   if not v_is_manager then raise exception 'Bu işlem için yetkiniz yok'; end if;
@@ -16979,6 +17023,7 @@ CREATE FUNCTION public.update_loyalty_settings(p_token uuid, p_enabled boolean, 
     AS $$
 declare s staff_sessions%rowtype; v_is_manager boolean;
 begin
+  perform _feat_gate_tok(p_token, 'loyalty');
   s := _session_check(p_token);
   select exists(select 1 from app_users au join roles rl on rl.id = any(au.role_ids) where au.id = s.user_id and (rl.is_system or 'crm' = any(rl.permissions))) into v_is_manager;
   if not v_is_manager then raise exception 'Bu işlem için yetkiniz yok'; end if;
@@ -17006,6 +17051,7 @@ CREATE FUNCTION public.update_loyalty_tiers(p_token uuid, p_tiers jsonb) RETURNS
     SET search_path TO 'public', 'extensions', 'pg_temp'
     AS $$ declare s staff_sessions%rowtype; t jsonb;
 begin
+  perform _feat_gate_tok(p_token, 'loyalty');
   s := _session_check(p_token, 'crm');
   if jsonb_typeof(p_tiers) <> 'array' or jsonb_array_length(p_tiers) > 6 then raise exception 'Geçersiz seviye listesi'; end if;
   for t in select * from jsonb_array_elements(p_tiers) loop
@@ -17104,6 +17150,7 @@ CREATE FUNCTION public.update_promo_code(p_token uuid, p_id uuid, p_code text, p
     SET search_path TO 'public', 'extensions', 'pg_temp'
     AS $$
 begin
+  perform _feat_gate_tok(p_token, 'coupons');
   perform _platform_admin_check(p_token);
   update promo_codes set code=upper(p_code), discount_type=p_discount_type, discount_value=p_discount_value,
     max_uses=p_max_uses, expires_at=p_expires_at, active=p_active
@@ -17413,6 +17460,7 @@ CREATE FUNCTION public.upsert_overhead_item(p_token uuid, p_id uuid, p_name text
     AS $$
 declare s staff_sessions%rowtype; v_note text := nullif(left(trim(coalesce(p_note,'')), 500), '');
 begin
+  perform _feat_gate_tok(p_token, 'cost_overheads');
   s := _session_check(p_token, 'settings_products');
   if coalesce(trim(p_name),'') = '' then raise exception 'Gider adı girin'; end if;
   if p_amount is null or p_amount < 0 then raise exception 'Geçersiz tutar'; end if;
@@ -17505,6 +17553,7 @@ CREATE FUNCTION public.upsert_promotion(p_token uuid, p_data jsonb) RETURNS uuid
     SET search_path TO 'public', 'extensions', 'pg_temp'
     AS $$ declare s staff_sessions%rowtype; v uuid := nullif(p_data->>'id','')::uuid; k text := coalesce(p_data->>'kind','coupon'); c text := nullif(upper(trim(p_data->>'code')),'');
 begin
+  perform _feat_gate_tok(p_token, 'coupons');
   s := _session_check(p_token, 'crm');
   if coalesce(trim(p_data->>'name'),'') = '' then raise exception 'Kampanya adı gerekli'; end if;
   if k = 'coupon' and c is null then raise exception 'Kupon kodu gerekli'; end if;
@@ -17623,6 +17672,7 @@ CREATE FUNCTION public.upsert_special_day(p_token uuid, p_id uuid, p_data jsonb)
     AS $$
 declare s staff_sessions%rowtype; v_id uuid; v_name text := left(btrim(coalesce(p_data->>'name','')), 80);
 begin
+  perform _feat_gate_tok(p_token, 'special_days');
   s := _session_check(p_token, 'reservations');
   if v_name = '' then raise exception 'Ad girin'; end if;
   if nullif(p_data->>'on_date','') is null and nullif(p_data->>'weekday','') is null then raise exception 'Tarih ya da haftanın günü seçin'; end if;
@@ -23011,7 +23061,7 @@ ALTER TABLE ONLY public.app_users
 --
 
 ALTER TABLE ONLY public.bank_accounts
-    ADD CONSTRAINT bank_accounts_restaurant_id_fkey FOREIGN KEY (restaurant_id) REFERENCES public.restaurants(id);
+    ADD CONSTRAINT bank_accounts_restaurant_id_fkey FOREIGN KEY (restaurant_id) REFERENCES public.restaurants(id) ON DELETE CASCADE;
 
 
 --
@@ -23083,7 +23133,7 @@ ALTER TABLE ONLY public.chat_groups
 --
 
 ALTER TABLE ONLY public.chat_groups
-    ADD CONSTRAINT chat_groups_restaurant_id_fkey FOREIGN KEY (restaurant_id) REFERENCES public.restaurants(id);
+    ADD CONSTRAINT chat_groups_restaurant_id_fkey FOREIGN KEY (restaurant_id) REFERENCES public.restaurants(id) ON DELETE CASCADE;
 
 
 --
@@ -23115,7 +23165,7 @@ ALTER TABLE ONLY public.chat_messages
 --
 
 ALTER TABLE ONLY public.chat_messages
-    ADD CONSTRAINT chat_messages_restaurant_id_fkey FOREIGN KEY (restaurant_id) REFERENCES public.restaurants(id);
+    ADD CONSTRAINT chat_messages_restaurant_id_fkey FOREIGN KEY (restaurant_id) REFERENCES public.restaurants(id) ON DELETE CASCADE;
 
 
 --
@@ -23395,7 +23445,7 @@ ALTER TABLE ONLY public.online_menu_items
 --
 
 ALTER TABLE ONLY public.online_menu_items
-    ADD CONSTRAINT online_menu_items_restaurant_id_fkey FOREIGN KEY (restaurant_id) REFERENCES public.restaurants(id);
+    ADD CONSTRAINT online_menu_items_restaurant_id_fkey FOREIGN KEY (restaurant_id) REFERENCES public.restaurants(id) ON DELETE CASCADE;
 
 
 --
@@ -23411,7 +23461,7 @@ ALTER TABLE ONLY public.online_menu_items
 --
 
 ALTER TABLE ONLY public.online_menu_sections
-    ADD CONSTRAINT online_menu_sections_restaurant_id_fkey FOREIGN KEY (restaurant_id) REFERENCES public.restaurants(id);
+    ADD CONSTRAINT online_menu_sections_restaurant_id_fkey FOREIGN KEY (restaurant_id) REFERENCES public.restaurants(id) ON DELETE CASCADE;
 
 
 --
@@ -23595,7 +23645,7 @@ ALTER TABLE ONLY public.product_images
 --
 
 ALTER TABLE ONLY public.product_images
-    ADD CONSTRAINT product_images_restaurant_id_fkey FOREIGN KEY (restaurant_id) REFERENCES public.restaurants(id);
+    ADD CONSTRAINT product_images_restaurant_id_fkey FOREIGN KEY (restaurant_id) REFERENCES public.restaurants(id) ON DELETE CASCADE;
 
 
 --
@@ -24083,7 +24133,7 @@ ALTER TABLE ONLY public.tts_usage_daily
 --
 
 ALTER TABLE ONLY public.waiter_calls
-    ADD CONSTRAINT waiter_calls_restaurant_id_fkey FOREIGN KEY (restaurant_id) REFERENCES public.restaurants(id) ON UPDATE CASCADE;
+    ADD CONSTRAINT waiter_calls_restaurant_id_fkey FOREIGN KEY (restaurant_id) REFERENCES public.restaurants(id) ON UPDATE CASCADE ON DELETE CASCADE;
 
 
 --
