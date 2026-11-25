@@ -57,7 +57,12 @@ function shNew(){
   if((APP.shTab || 'depot') === 'recipes'){ APP.settingsTab = 'products'; APP.productsSubTab = 'products'; renderSettingsView(document.getElementById('main'), getSession()).then(() => typeof openSheet === 'function' && openSheet('prodSheet')); return; }
   // Hangi sekmedeysek tür zaten bellidir: Depo'da depo hammaddesi, Günlük hazırlık'ta hazırlık (tür sorulmaz).
   const kind = APP.shTab === 'prep' ? 'prep' : 'dep', back = APP.shTab || 'depot';
-  APP.shTab = 'depot'; if(!APP.shBulk) APP.shNewHub = back; APP.shBulk = true; renderSettingsContent(getSession());
+  // Form eski tablonun içinde çiziliyor: tabloyu bir anlığına çizip formu sayfaya taşıyoruz,
+  // ardından kart görünümünü geri çiziyoruz; arka plan değişmez.
+  const wasBulk = !!APP.shBulk;
+  document.querySelectorAll('body > #ingSheet').forEach(e => e.remove());
+  APP.shTab = 'depot'; APP.shBulk = true; renderSettingsContent(getSession());
+  if(!wasBulk){ const sh = document.getElementById('ingSheet'); if(sh){ sh.dataset.hub = '1'; document.body.appendChild(sh); } APP.shTab = back; APP.shBulk = false; renderSettingsContent(getSession()); }
   if(typeof niStart === 'function'){ niStart(''); niPickKind(kind); }
 }
 
