@@ -834,28 +834,29 @@ function renderStationsSettings(el, session){
           <button type="button" role="switch" aria-checked="${!off}" class="nm-sw ${off ? '' : 'on'}" title="${off ? 'Satışa kapalı — açmak için dokunun' : 'Satışta — kapatmak için dokunun'}" ${act('meToggleAvail', p.id)}><i></i></button></div></div>
     </div>`; };
   const kitSel = (m, s0) => `<select class="me-ksel ${s0 ? '' : 'warn'}" title="Bu kategorinin siparişlerinin düştüğü mutfak (ekran + fiş yazıcısı)" ${actOn('change','meKitSel',[m.id,'$value'])}>
-      ${s0 ? '' : '<option value="">⚠️ Mutfak seçin</option>'}${stations.map(x => `<option value="${x.id}" ${x.id === m.station_id ? 'selected' : ''}>${escapeHtml(x.icon || '🍳')} ${escapeHtml(x.name)}</option>`).join('')}
-      ${s0 ? '<option value="">✕ Mutfak yok</option>' : ''}<option value="__new">＋ Yeni mutfak…</option></select>`;
+      ${s0 ? '' : '<option value="">⚠️ Seçin</option>'}${stations.map(x => `<option value="${x.id}" ${x.id === m.station_id ? 'selected' : ''}>${escapeHtml(x.icon || '🍳')} ${escapeHtml(x.name)}</option>`).join('')}
+      ${s0 ? '<option value="">✕ Hiçbir yere</option>' : ''}<option value="__new">＋ Yeni hazırlık yeri…</option></select>`;
   el.innerHTML = `<div class="u-mwn box me-wrap me2">
     <div class="me2-bar">
       <div class="me2-tabs">
         <button type="button" class="me2-tab ${cur === 'all' && !q ? 'on' : ''}" ${act('meSel', 'all')}>Tümü</button>
-        ${menus.map(m => `<button type="button" class="me2-tab ${cur === m.id && !q ? 'on' : ''}" style="--mc:${escapeAttr(col(m))};" ${act('meSel', m.id)}>${escapeHtml(m.name)}${stOf(m) ? '' : ' <i class="me2-warn" title="Mutfak seçilmedi">!</i>'}</button>`).join('')}
+        ${menus.map(m => `<button type="button" class="me2-tab ${cur === m.id && !q ? 'on' : ''}" style="--mc:${escapeAttr(col(m))};" ${act('meSel', m.id)}>${escapeHtml(m.name)}${stOf(m) ? '' : ' <i class="me2-warn" title="Siparişin gideceği yer seçilmedi">!</i>'}</button>`).join('')}
         <button type="button" class="me2-tab me2-add" ${act('meNewMenu')}>＋ Kategori</button>
       </div>
       <div class="me2-tools">
         <input class="me2-search" type="search" placeholder="🔍 Ara" value="${escapeAttr(APP.meQ || '')}" ${actOn('input','meSearch',['$value'])}>
-        <button type="button" class="ghost-btn me2-tool" ${act('meKitchens')}>🍳 Mutfaklar</button>
+        <button type="button" class="ghost-btn me2-tool" ${act('meKitchens')}>🍳 Hazırlık yerleri</button>
         <details class="ux-more"><summary title="Diğer işlemler">⋯</summary><div class="ux-more-pop">
           <div class="ux-more-t">Düzen</div><div class="xl-bar"><button type="button" class="xl-btn" ${act('msOrderOpen')}>↕ Kategori sırası</button><button type="button" class="xl-btn" ${act('meGoProducts', 'media')}>📷 Fotoğraflar & açıklamalar</button><button type="button" class="xl-btn" ${act('meGoProducts', 'table')}>☰ Toplu düzenle (tablo)</button></div>
           <div class="ux-more-t">Menü PDF</div><div class="xl-bar"><button type="button" class="xl-btn" ${act('downloadMenuPdf', true)}>📄 Fiyatlı</button><button type="button" class="xl-btn" ${act('downloadMenuPdf', false)}>📄 Fiyatsız</button></div>
           <div class="ux-more-t">Excel</div>${typeof excelBarHtml === 'function' ? excelBarHtml('menus') : ''}</div></details>
       </div>
     </div>
+    ${(() => { try{ if(localStorage.getItem('me_hint_off')) return ''; }catch(e){} return `<div class="me2-hint">📂 <b>Kategori</b> = Sipariş Al'daki başlık (Çorbalar, İçecekler) · 🍳 <b>Sipariş nereye gitsin</b> = o kategorinin siparişini hazırlayan ekran ve yazıcı (Izgara, Bar)<button type="button" class="me2-hx" title="Kapat" ${act('meHintOff')}>✕</button></div>`; })()}
     ${q ? `<div class="me2-sub"><span>"${escapeHtml(APP.meQ)}" · ${list.length} sonuç</span><button type="button" class="xl-link" ${act('meSearch', '')}>Temizle</button></div>`
-      : menu ? `<div class="me2-sub"><b>${escapeHtml(menu.name)}</b><span class="me2-arrow">→</span>${kitSel(menu, st)}<span class="u-f1"></span><button type="button" class="xl-link" ${act('msMenuOpen', menu.id)}>Düzenle</button></div>`
+      : menu ? `<div class="me2-sub"><b>${escapeHtml(menu.name)}</b><span class="me2-arrow">→ Sipariş nereye gitsin:</span>${kitSel(menu, st)}<span class="u-f1"></span><button type="button" class="xl-link" ${act('msMenuOpen', menu.id)}>Düzenle</button></div>`
       : ''}
-    <div class="me-grid">${list.map(card).join('')}${menu && !q ? (st ? `<button type="button" class="me-card me-add" ${act('kvAddProduct', menu.id)}><span>＋</span><b>Ürün ekle</b></button>` : `<div class="me-card me-add me-locked"><span>🔒</span><b>Önce mutfak seçin</b></div>`) : ''}</div>
+    <div class="me-grid">${list.map(card).join('')}${menu && !q ? (st ? `<button type="button" class="me-card me-add" ${act('kvAddProduct', menu.id)}><span>＋</span><b>Ürün ekle</b></button>` : `<div class="me-card me-add me-locked"><span>🔒</span><b>Önce siparişin nereye gideceğini seçin</b></div>`) : ''}</div>
     ${!list.length && !menu ? '<div class="empty-state"><p class="muted">Ürün bulunamadı.</p></div>' : ''}
   </div>`;
 }
@@ -865,10 +866,10 @@ function meKitchens(){
   removeEl('meKBg');
   const bg = document.createElement('div'); bg.id = 'meKBg'; bg.className = 'modal-bg';
   bg.onclick = (e) => { if(e.target === bg) bg.remove(); };
-  bg.innerHTML = `<div class="box sd-box sh-chain"><div class="u-row-sb"><h2 class="u-m0">🍳 Mutfaklar</h2><span class="u-xclose" ${act('removeEl','meKBg')}>✕</span></div>
-    <p class="muted u-fs13"><b>Mutfak</b> = siparişin düştüğü yer: o mutfağın ekranı ve fiş yazıcısı (örn. Izgara, Fırın, Bar). Her kategori bir mutfağa gider; örneğin "İçecekler" → Bar.</p>
+  bg.innerHTML = `<div class="box sd-box sh-chain"><div class="u-row-sb"><h2 class="u-m0">🍳 Hazırlık yerleri</h2><span class="u-xclose" ${act('removeEl','meKBg')}>✕</span></div>
+    <p class="muted u-fs13">Siparişi hazırlayan yerler: her birinin kendi ekranı ve fiş yazıcısı olur (örn. Izgara, Fırın, Bar). Her kategori birine gider; örneğin "İçecekler" → Bar.</p>
     <div class="sh-list">${st.map(x => `<button type="button" class="sh-row" style="border-left:5px solid ${escapeAttr(x.color || '#94a3b8')};" ${act('meKEdit', x.id)}><span class="sh-ic">${escapeHtml(x.icon || '🍳')}</span><span class="sh-name"><b>${escapeHtml(x.name)}</b><small>${menus.filter(m => m.station_id === x.id).map(m => escapeHtml(m.name)).join(' · ') || 'menü bağlı değil'}</small></span><span class="sh-go">✏️</span></button>`).join('')}</div>
-    <div class="oa-edit-acts"><button type="button" class="ghost-btn" ${act('removeEl','meKBg')}>Kapat</button><button type="button" ${act('meKEdit', '')}>＋ Yeni mutfak</button></div></div>`;
+    <div class="oa-edit-acts"><button type="button" class="ghost-btn" ${act('removeEl','meKBg')}>Kapat</button><button type="button" ${act('meKEdit', '')}>＋ Yeni hazırlık yeri</button></div></div>`;
   document.body.appendChild(bg);
 }
 function meKEdit(id){ removeEl('meKBg'); openStationEdit(id); }
@@ -883,6 +884,7 @@ function renderProductsGrid(el, session){
 function setProdClassic(on){ APP.prodClassic = !!on; renderSettingsContent(getSession()); }
 function meGoProducts(k){ APP.settingsTab = 'products'; APP.productsSubTab = k === 'media' ? 'media' : 'products'; APP.prodClassic = k === 'table'; renderSettingsView(document.getElementById('main'), getSession()); }
 function meKitSel(mid, v){ if(v === '__new'){ renderSettingsContent(getSession()); openStationEdit(''); return; } moveMenuToStation(mid, v); }
+function meHintOff(){ try{ localStorage.setItem('me_hint_off','1'); }catch(e){} const h = document.querySelector('.me2-hint'); if(h) h.remove(); }
 function meSel(id){ APP.meMenu = id; APP.meQ = ''; renderSettingsContent(getSession()); }
 function meSearch(v){ APP.meQ = v; renderSettingsContent(getSession()); const i = document.querySelector('.me-search'); if(i && v){ i.focus(); i.setSelectionRange(v.length, v.length); } }
 async function meNewMenu(){
