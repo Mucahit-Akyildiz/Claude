@@ -1182,10 +1182,13 @@ function setProductsSubTab(t){
 /* Kampanya & Kuponlar (Abonelik / Hediye Kartları'nın yanında): yönetim crm.js'teki renderPromoBody ile. */
 function renderPromosSettings(el){
   APP.promoEdit = null;
-  el.innerHTML = `<div class="u-mwn box"><h2>🎟️ Kampanya & Kuponlar</h2>
+  el.innerHTML = `<div class="u-mwn box"><div class="u-row-sb"><h2 class="u-m0">🎟️ Kampanya & Kuponlar</h2>${featOn('campaigns') ? `<button type="button" class="me2-tab me2-add" ${act('openWinback', 0)}>📣 Müşterilere kampanya mesajı gönder</button>` : ''}</div>
     <p class="muted" style="text-align:left;margin:-6px 0 14px;font-size:13px;">Kupon kodu ödeme ekranında İndirim bölümünden girilir; otomatik kampanyalar (happy hour) belirlenen gün ve saatte ödeme ekranında tek tıkla önerilir.</p>
     <div id="promoBody"><p class="muted">Yükleniyor…</p></div></div>`;
   renderPromoBody();
+}
+function renderLoyaltySettings(el){
+  el.innerHTML = `<div class="u-mwn box"><h2>⭐ Sadakat Programı</h2><p class="muted" style="text-align:left;margin:-6px 0 14px;font-size:13px;">Müşteriler harcadıkça puan kazanır, puanı ödemede indirim olarak kullanır.</p>${crmLoyFormHtml()}</div>`;
 }
 /* Abonelik & Hediye Kartları sekmesi: yetkiye göre alt sekmeler. */
 function billingBox(){ return document.getElementById('billingSubContent') || document.getElementById('settingsContent'); }
@@ -1194,10 +1197,11 @@ function renderBillingTabWithSubtabs(el, session){
     canManage(session, 'settings_billing') ? { id:'billing', ic:'💳', label:'Abonelik' } : null,
     (canManage(session, 'giftcards') || hasPerm(session, 'payments')) ? { id:'giftcards', ic:'🎁', label:'Hediye Kartları' } : null,
     featOn('coupons') && canManage(session, 'crm') ? { id:'promos', ic:'🎟️', label:'Kampanya & Kuponlar' } : null,
+    featOn('loyalty') && canManage(session, 'crm') ? { id:'loyalty', ic:'⭐', label:'Sadakat' } : null,
   ].filter(Boolean);
   if(!tabs.length){ el.innerHTML = ''; return; }
   if(!tabs.some(t => t.id === APP.billingSubTab)) APP.billingSubTab = tabs[0].id;
-  const draw = (box) => APP.billingSubTab === 'giftcards' ? renderGiftCardsSettings(box, session) : APP.billingSubTab === 'promos' ? renderPromosSettings(box) : renderBillingSettings(box, session);
+  const draw = (box) => APP.billingSubTab === 'giftcards' ? renderGiftCardsSettings(box, session) : APP.billingSubTab === 'promos' ? renderPromosSettings(box) : APP.billingSubTab === 'loyalty' ? renderLoyaltySettings(box) : renderBillingSettings(box, session);
   if(tabs.length === 1){ draw(el); return; }
   el.innerHTML = `<div class="u-mwn box sub-tabs-box">
       <div class="sub-tabs">${tabs.map(t => `<div role="tab" tabindex="0" class="sub-tab ${APP.billingSubTab===t.id?'active':''}" ${act('setBillingSubTab', t.id)}><span class="sub-tab-ic">${t.ic}</span>${t.label}</div>`).join('')}</div>

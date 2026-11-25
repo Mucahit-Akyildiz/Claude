@@ -835,7 +835,7 @@ async function renderNotificationSettingsView(main, session){
       </div>
       <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px;flex-wrap:wrap;">
         <span style="font-size:12.5px;font-weight:700;color:var(--muted);">Yüklediğiniz Sesler <span class="u-fw4">(en fazla ${BELL_LIBRARY_MAX})</span></span>
-        <label style="width:auto;cursor:pointer;display:inline-flex;align-items:center;margin:0;padding:9px 16px;border-radius:10px;background:var(--accent);color:var(--btn-ink);font-weight:700;font-size:13px;">
+        <label class="me2-tab me2-add u-lbl-add" style="cursor:pointer;display:inline-flex;align-items:center;margin:0;font-size:13px;">
           ＋ Ses Dosyası Yükle
           <input id="bellFileInput" type="file" accept="audio/*" style="display:none;" ${act('clearValue','$this')} ${actOn('change','uploadBellSound',[])}>
         </label>
@@ -844,8 +844,8 @@ async function renderNotificationSettingsView(main, session){
       <div class="field-group"><label>Hazır Zil Sesleri</label></div>
       <div id="bellPresetList" class="bell-grid"></div>
       <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:14px;">
-        <button class="sbtn" style="width:auto;" ${act('testBellSound')}>▶️ Seçili Sesi Test Et</button>
-        <button class="sbtn" style="width:auto;background:var(--red);color:var(--btn-ink);" ${act('resetBellSound')}>Sıfırla (Varsayılan Zil)</button>
+        <button class="sbtn sbtn-sec" style="width:auto;" ${act('testBellSound')}>▶️ Seçili Sesi Test Et</button>
+        <button class="sbtn sbtn-sec danger" style="width:auto;" ${act('resetBellSound')}>Sıfırla (Varsayılan Zil)</button>
       </div>
       <p class="muted" style="text-align:left;margin-top:14px;font-size:12px;">
         Not: Dosya boyutu en fazla 800KB olmalı (kısa bir bildirim sesi yeterlidir). Tarayıcılar otomatik ses çalmayı

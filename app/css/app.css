@@ -5134,3 +5134,40 @@ p.me2-hint{text-align:left!important;margin:-4px 0 12px!important;}
 .pc-save-all[hidden],.po-bulk[hidden]{display:none!important;}
 .me2 #procContent .box,.me2 #purchRepContent > .box{border:0!important;box-shadow:none!important;padding:0!important;background:transparent!important;}
 .me2 #purchRepContent .box::before{display:none!important;}
+/* Ortak düğme dili: "＋ Yeni …" ekleme düğmeleri kesikli çerçeve; kaydet/gönder ana düğmeleri aynı boy ve köşe */
+#main .fsheet-open,.set-content .fsheet-open,.modal-bg .fsheet-open{width:auto!important;margin:0!important;padding:9px 14px!important;border-radius:10px!important;background:transparent!important;color:var(--accent)!important;border:1px dashed color-mix(in srgb,var(--accent) 45%,var(--border))!important;box-shadow:none!important;font-weight:700!important;font-size:14px!important;}
+#main .fsheet-open:hover,.set-content .fsheet-open:hover{background:color-mix(in srgb,var(--accent) 10%,transparent)!important;}
+#main button:not(.ghost-btn):not(.me2-tab):not(.ico-btn):not(.pc-btn):not(.xl-btn):not(.xl-link):not(.act-btn):not(.nm-sw):not(.fsheet-open):not(.sb-item):not([class*="pp-"]):not([class*="me-"]):not([class*="sh-"]):not([class*="zn"]):not([class*="tt-"]):not(.danger),
+.modal-bg .oa-edit-acts > button:not(.ghost-btn),.modal-bg .box > button:last-child:not(.ghost-btn):not(.u-xclose){border-radius:10px!important;font-size:14px!important;}
+.set-content .td-save > button,.set-content .sc-foot > button,.set-content .box > button,.modal-bg .oa-edit-acts > button{width:auto!important;flex:0 0 auto!important;padding:10px 22px!important;}
+.set-content .td-save{display:flex;justify-content:flex-end;gap:8px;}
+/* İkincil eylemler (Dinle, Test et, Sıfırla, çal): çerçeveli, dolu değil */
+.sbtn.sbtn-sec{background:transparent!important;color:var(--accent)!important;border:1px solid color-mix(in srgb,var(--accent) 50%,var(--border))!important;box-shadow:none!important;border-radius:10px!important;}
+.sbtn.sbtn-sec.danger{color:#ef4444!important;border-color:color-mix(in srgb,#ef4444 50%,var(--border))!important;}
+.sbtn.sbtn-sec:hover{background:color-mix(in srgb,var(--accent) 10%,transparent)!important;}
+.u-lbl-add{border:1px dashed color-mix(in srgb,var(--accent) 45%,var(--border))!important;background:transparent!important;color:var(--accent)!important;padding:9px 14px!important;border-radius:10px!important;font-weight:700;}
+/* Zil kartlarındaki ▶ çal yuvarlakları: çerçeveli */
+.set-content button[title*="Dinle"],.set-content button[title*="çal"],.set-content [class*="bell"] button.play,.set-content .bl-play{background:transparent!important;color:var(--accent)!important;border:1px solid var(--accent)!important;}
+.set-content .ix-save.al-on-btn{width:auto!important;padding:10px 22px!important;border-radius:10px!important;}
+/* === Ayarlar: tek buton dili ===
+   Düz (sınıfsız) butonlar ve kayıt butonları: tam genişlik dolu camgöbeği yerine
+   küçük, yumuşak renkli birincil buton. Ekleme = kesikli, ikincil = çerçeveli. */
+.set-content button:not([class]),.set-content button.sp-btn,.set-content button.ix-save,
+.set-content .box button:not([class]),.modal-bg .box button:not([class]){
+  width:auto!important;max-width:none!important;flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;gap:6px;
+  padding:9px 18px!important;margin-top:10px;border-radius:10px!important;font-size:14px!important;font-weight:700;
+  background:color-mix(in srgb,var(--accent) 16%,transparent)!important;color:var(--accent)!important;
+  border:1px solid color-mix(in srgb,var(--accent) 55%,var(--border))!important;box-shadow:none!important;}
+.set-content button:not([class]):hover,.set-content button.sp-btn:hover,.set-content button.ix-save:hover,.modal-bg .box button:not([class]):hover{background:color-mix(in srgb,var(--accent) 26%,transparent)!important;}
+.set-content button:not([class]):disabled{opacity:.5;}
+.set-content .me2-tab.me2-add{width:auto!important;}
+.set-content button[class=""],.set-content .sbtn,.set-content .dr-bk-btn,.set-content .fsheet-foot > button:not(.ghost-btn){
+  width:auto!important;max-width:none!important;padding:9px 18px!important;border-radius:10px!important;font-size:14px!important;font-weight:700;
+  background:color-mix(in srgb,var(--accent) 16%,transparent)!important;color:var(--accent)!important;
+  border:1px solid color-mix(in srgb,var(--accent) 55%,var(--border))!important;box-shadow:none!important;}
+.set-content .sbtn.sbtn-sec{background:transparent!important;}
+.set-content .sbtn.sbtn-sec.danger{color:#ef4444!important;border-color:color-mix(in srgb,#ef4444 50%,var(--border))!important;}
+.set-content button[class^="u-"],.set-content .fam-pct button,.modal-bg .box button[class^="u-"]:not(.ghost-btn){
+  width:auto!important;padding:9px 18px!important;border-radius:10px!important;font-weight:700;
+  background:color-mix(in srgb,var(--accent) 16%,transparent)!important;color:var(--accent)!important;
+  border:1px solid color-mix(in srgb,var(--accent) 55%,var(--border))!important;box-shadow:none!important;}

@@ -47,7 +47,7 @@ async function renderCrmView(main, session){
     ${typeof crmBirthdayStripHtml === 'function' ? crmBirthdayStripHtml(rows) : ''}
     ${crmVisualsHtml(rows)}
     <div class="u-mwn box">
-      <div class="me2-bar"><div class="me2-tabs"><span class="me2-title">👥 Müşteri listesi</span></div><div class="me2-tools"><span class="me2-adds"><button type="button" class="me2-tab me2-add" ${act('newCustomer')}>＋ Müşteri</button>${featOn('campaigns') && canManage(session, 'crm') ? `<button type="button" class="me2-tab me2-add" ${act('openWinback', 0)} title="Tüm müşterilere, son gelenlere ya da bir süredir gelmeyenlere SMS / e-posta">📣 Kampanya</button>` : ''}${featOn('loyalty') && canManage(session, 'crm') ? `<button type="button" class="me2-tab me2-add" ${act('openSheet','crmLoySheet')} title="Puan ve doğum günü indirimi ayarları">⭐ Sadakat${loyalty.enabled ? '' : ' (kapalı)'}</button>` : ''}</span><input id="crmSearchInput" type="search" name="crm-list-search" autocomplete="off" data-lpignore="true" placeholder="🔍 İsim / telefon" class="me2-search" value="${escapeAttr(APP.crmSearch||'')}" ${actOn('input', 'debouncedCrmSearch', ['$value'])}><details class="ux-more"><summary title="Diğer işlemler">⋯</summary><div class="ux-more-pop"><div class="ux-more-t">Excel</div><div class="xl-bar">
+      <div class="me2-bar"><div class="me2-tabs"><span class="me2-title">👥 Müşteri listesi</span></div><div class="me2-tools"><span class="me2-adds"><button type="button" class="me2-tab me2-add" ${act('newCustomer')}>＋ Müşteri</button></span><input id="crmSearchInput" type="search" name="crm-list-search" autocomplete="off" data-lpignore="true" placeholder="🔍 İsim / telefon" class="me2-search" value="${escapeAttr(APP.crmSearch||'')}" ${actOn('input', 'debouncedCrmSearch', ['$value'])}><details class="ux-more"><summary title="Diğer işlemler">⋯</summary><div class="ux-more-pop"><div class="ux-more-t">Excel</div><div class="xl-bar">
           <button type="button" class="xl-btn" ${act('exportCustomersCsv')} title="Tüm müşterileri Excel (.xlsx) olarak indir">⬇️ Dışa aktar</button>
           ${canManage(session, 'crm') ? `<button type="button" class="xl-btn" ${act('openCustomerImport')} title="Excel (.xlsx) veya CSV dosyasından müşteri yükle">⬆️ İçe aktar</button>
           <button type="button" class="xl-btn" ${act('downloadCustomerTemplate')}>📄 Şablon indir</button>` : ''}</div></div></details></div></div>
@@ -90,22 +90,7 @@ async function renderCrmView(main, session){
           </div>
         </details>
         <div class="fsheet-foot"><button type="button" class="ghost-btn" ${act('closeSheet','crmSheet')}>Vazgeç</button><button ${act('saveCrmCustomer')}>${ICON_SAVE}<span>Kaydet</span></button></div>`, 'var(--c1)')}
-    ${canManage(session, 'crm') ? sheetHtml('crmLoySheet', '⭐', 'Sadakat Programı', `<label style="display:flex;align-items:center;gap:8px;font-weight:600;margin:0 0 14px;">
-          <input type="checkbox" id="loy_enabled" ${loyalty.enabled?'checked':''} class="u-wa-m0"> Sadakat puanları aktif
-        </label>
-        <div class="fsheet-grid">
-          <div class="field-group"><label>Kaç TL harcamada 1 puan</label><input id="loy_spend" type="number" min="1" step="0.01" value="${loyalty.spend_per_point}"></div>
-          <div class="field-group"><label>1 puan kaç TL indirim</label><input id="loy_value" type="number" min="0" step="0.01" value="${loyalty.point_value}"></div>
-          <div class="field-group wide"><label>🎂 Doğum günü indirimi (%)</label><input id="loy_birthday_pct" type="number" min="0" max="100" step="1" value="${loyalty.birthday_discount_percent||0}"></div>
-        </div>
-        <p class="muted" style="font-size:12px;margin:10px 0 0;text-align:left;">Müşterinin doğum günü kaydedilmişse, o gün ödeme alırken bu yüzde otomatik indirim olarak uygulanır (0 = kapalı).</p>
-        <div class="fsheet-foot"><button type="button" class="ghost-btn" ${act('closeSheet','crmLoySheet')}>Vazgeç</button><button ${act('saveLoyaltySettings')}>${ICON_SAVE}<span>Kaydet</span></button></div>
-        <div class="tier-box">
-          <div class="rvf-t">🏆 Sadakat seviyeleri</div>
-          <p class="muted" style="font-size:12px;margin:0 0 10px;text-align:left;">Seviye, müşterinin <b>toplam kazandığı</b> puana göre belirlenir (puan harcanınca düşmez). <b>Çarpan</b>: o seviyedeki müşteri her harcamada kaç kat puan kazanır (örn. 1,5). <b>İndirim</b>: ödeme ekranında müşteri seçilince otomatik uygulanır.</p>
-          <div id="tierRows">${tierRowsHtml()}</div>
-          <div class="fsheet-foot"><button type="button" class="ghost-btn" ${act('addTierRow')}>+ Seviye ekle</button><button ${act('saveLoyaltyTiers')}>🏆 Seviyeleri Kaydet</button></div>
-        </div>`, 'var(--c3)') : ''}`;
+    `;
 }
 /* Sadakat seviyesi: yaşam boyu kazanılan puana göre (puan harcanınca seviye düşmez).
    Seviyeler Müşteriler > ⭐ Sadakat'tan düzenlenir; puan çarpanı sunucuda uygulanır. */
@@ -159,8 +144,7 @@ async function saveLoyaltyTiers(){
   const { error } = await sb.rpc('update_loyalty_tiers', { p_token: getSession().session_token, p_tiers: tiers });
   if(error){ alert(error.message); return; }
   APP.config.loyalty = Object.assign({}, APP.config.loyalty, { tiers });
-  closeSheet('crmLoySheet');
-  renderCrmView(document.getElementById('main'), getSession());
+  if(APP.view === 'crm') renderCrmView(document.getElementById('main'), getSession());
   showToast('Sadakat seviyeleri kaydedildi ✓');
 }
 function crmBirthdayInfo(b){
@@ -266,8 +250,7 @@ async function saveLoyaltySettings(){
   const { error } = await sb.rpc('update_loyalty_settings', { p_token: session.session_token, p_enabled: enabled, p_spend_per_point: spend, p_point_value: value, p_birthday_discount_percent: birthdayPct });
   if(error){ alert(error.message); return; }
   APP.config.loyalty = { enabled, spend_per_point: spend, point_value: value, birthday_discount_percent: birthdayPct };
-  closeSheet('crmLoySheet');
-  renderCrmView(document.getElementById('main'), session);
+  if(APP.view === 'crm') renderCrmView(document.getElementById('main'), session);
   showToast('Sadakat ayarları kaydedildi ✓');
 }
 
@@ -717,4 +700,25 @@ async function sendWinback(){
   if(data.skipped && !data.sms && !data.mail) await uiAlert('Mesaj gönderilmedi: seçilen ' + data.skipped + ' müşteri son ' + (camp ? '24 saatte' : '14 günde') + ' zaten mesaj aldı. Aynı müşteriye bu süre dolmadan ikinci mesaj gönderilmez.');
   else showToast(`Gönderildi ✓ ${data.sms} SMS, ${data.mail} e-posta${data.skipped ? ' · ' + data.skipped + ' müşteri son ' + (camp ? '24 saatte' : '14 günde') + ' zaten mesaj aldığı için atlandı' : ''}`, 6000);
   APP.wb.sel = {}; openWinback();
+}
+
+/* Sadakat programı formu: Ayarlar > Abonelik, Hediye Kartı & Kampanya > ⭐ Sadakat'ta satır içi gösterilir. */
+function crmLoyFormHtml(){
+  const loyalty = (APP.config && APP.config.loyalty) || { enabled:false, spend_per_point:10, point_value:1, birthday_discount_percent:0 };
+  return `<label style="display:flex;align-items:center;gap:8px;font-weight:600;margin:0 0 14px;">
+          <input type="checkbox" id="loy_enabled" ${loyalty.enabled?'checked':''} class="u-wa-m0"> Sadakat puanları aktif
+        </label>
+        <div class="fsheet-grid">
+          <div class="field-group"><label>Kaç TL harcamada 1 puan</label><input id="loy_spend" type="number" min="1" step="0.01" value="${loyalty.spend_per_point}"></div>
+          <div class="field-group"><label>1 puan kaç TL indirim</label><input id="loy_value" type="number" min="0" step="0.01" value="${loyalty.point_value}"></div>
+          <div class="field-group wide"><label>🎂 Doğum günü indirimi (%)</label><input id="loy_birthday_pct" type="number" min="0" max="100" step="1" value="${loyalty.birthday_discount_percent||0}"></div>
+        </div>
+        <p class="muted" style="font-size:12px;margin:10px 0 0;text-align:left;">Müşterinin doğum günü kaydedilmişse, o gün ödeme alırken bu yüzde otomatik indirim olarak uygulanır (0 = kapalı).</p>
+        <div class="fsheet-foot"><button ${act('saveLoyaltySettings')}>${ICON_SAVE}<span>Kaydet</span></button></div>
+        <div class="tier-box">
+          <div class="rvf-t">🏆 Sadakat seviyeleri</div>
+          <p class="muted" style="font-size:12px;margin:0 0 10px;text-align:left;">Seviye, müşterinin <b>toplam kazandığı</b> puana göre belirlenir (puan harcanınca düşmez). <b>Çarpan</b>: o seviyedeki müşteri her harcamada kaç kat puan kazanır (örn. 1,5). <b>İndirim</b>: ödeme ekranında müşteri seçilince otomatik uygulanır.</p>
+          <div id="tierRows">${tierRowsHtml()}</div>
+          <div class="fsheet-foot"><button type="button" class="ghost-btn" ${act('addTierRow')}>+ Seviye ekle</button><button ${act('saveLoyaltyTiers')}>🏆 Seviyeleri Kaydet</button></div>
+        </div>`;
 }
