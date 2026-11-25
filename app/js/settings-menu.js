@@ -835,28 +835,29 @@ function renderStationsSettings(el, session){
     </div>`; };
   el.innerHTML = `<div class="u-mwn box me-wrap">
     <div class="me-top">
-      <h2 class="u-m0">Menü</h2>
+      <h2 class="u-m0">Menü & Ürünler</h2>
       <input class="me-search" type="search" placeholder="🔍 Ürün ara…" value="${escapeAttr(APP.meQ || '')}" ${actOn('input','meSearch',['$value'])}>
-      <button type="button" class="fsheet-open me-newbtn" ${act('meNewMenu')}>＋ Yeni menü</button>
+      <button type="button" class="fsheet-open me-newbtn" ${act('meNewMenu')}>＋ Yeni kategori</button>
       <button type="button" class="ghost-btn me-newbtn" ${act('meKitchens')}>🍳 Mutfaklar <em class="me-kn">${stations.length}</em></button>
       <details class="ux-more"><summary title="Diğer işlemler">⋯ Diğer</summary><div class="ux-more-pop">
-        <div class="ux-more-t">Düzen</div><div class="xl-bar"><button type="button" class="xl-btn" ${act('msOrderOpen')}>↕ Menü sırasını değiştir</button></div>
+        <div class="ux-more-t">Düzen</div><div class="xl-bar"><button type="button" class="xl-btn" ${act('msOrderOpen')}>↕ Kategori sırasını değiştir</button></div>
 
         <div class="ux-more-t">Menü PDF</div><div class="xl-bar"><button type="button" class="xl-btn" ${act('downloadMenuPdf', true)}>📄 Fiyatlı</button><button type="button" class="xl-btn" ${act('downloadMenuPdf', false)}>📄 Fiyatsız</button></div>
         <div class="ux-more-t">Excel</div>${typeof excelBarHtml === 'function' ? excelBarHtml('menus') : ''}</div></details>
     </div>
-    <div class="me-tabs">
+    <p class="muted me-help">📂 <b>Kategoriler</b> Sipariş Al ekranında ürünlerin gruplandığı başlıklardır (örn. Izgaralar, İçecekler, Tatlılar). Bir kategori seçin, ürünlerini aşağıda görün ve ekleyin.</p>
+    <div class="me-tabs"><span class="me-tabs-l">📂 Kategoriler:</span>
       <button type="button" class="me-tab ${cur === 'all' && !q ? 'on' : ''}" ${act('meSel', 'all')}>Tümü <em>${prods.length}</em></button>
       ${menus.map(m => `<button type="button" class="me-tab ${cur === m.id && !q ? 'on' : ''}" style="--mc:${escapeAttr(col(m))};" ${act('meSel', m.id)}><i class="me-dot"></i>${escapeHtml(m.name)} <em>${prods.filter(p => p.menu_id === m.id).length}</em>${stOf(m) ? '' : ' <span title="Mutfağa gitmiyor">⚠️</span>'}</button>`).join('')}
     </div>
     ${q ? `<div class="me-ctx"><b>"${escapeHtml(APP.meQ)}" için ${list.length} sonuç</b><span class="u-f1"></span><button type="button" class="ghost-btn" ${act('meSearch', '')}>✕ Aramayı temizle</button></div>`
       : menu ? `<div class="me-ctx" style="--mc:${escapeAttr(col(menu))};">
-        <div class="me-ctx-t"><b>${escapeHtml(menu.name)}</b>
+        <div class="me-ctx-t"><b>📂 ${escapeHtml(menu.name)} <small class="muted" style="font-size:12px;font-weight:600;">kategorisi</small></b>
           <label class="me-st ${st ? '' : 'warn'}">${st ? `${escapeHtml(st.icon || '🍳')} <span>Siparişleri <b>${escapeHtml(st.name)}</b> mutfağına gider</span>` : '⚠️ <span>Mutfağa gitmiyor — seçin:</span>'}
             <select ${actOn('change','moveMenuToStation',[menu.id,'$value'])}><option value="">— değiştir —</option>${stations.map(x => `<option value="${x.id}">${escapeHtml(x.icon || '🍳')} ${escapeHtml(x.name)}</option>`).join('')}</select></label></div>
         <span class="u-f1"></span>
-        <span class="me-ctx-a"><button type="button" class="ghost-btn" ${act('msMenuOpen', menu.id)}>✏️ Menüyü düzenle</button></span></div>`
-      : `<div class="me-ctx"><b>Tüm ürünler</b><span class="u-f1"></span><small class="muted">Ürün eklemek için üstten bir menü seçin</small></div>`}
+        <span class="me-ctx-a"><button type="button" class="ghost-btn" ${act('msMenuOpen', menu.id)}>✏️ Kategoriyi düzenle</button></span></div>`
+      : `<div class="me-ctx"><b>Tüm ürünler</b><span class="u-f1"></span><small class="muted">Ürün eklemek için üstten bir kategori seçin</small></div>`}
     <div class="me-grid">${list.map(card).join('')}${menu && !q ? `<button type="button" class="me-card me-add" ${act('kvAddProduct', menu.id)}><span>＋</span><b>Ürün ekle</b></button>` : ''}</div>
     ${!list.length && !menu ? '<div class="empty-state"><p class="muted">Ürün bulunamadı.</p></div>' : ''}
   </div>`;
@@ -886,10 +887,10 @@ function setProdClassic(on){ APP.prodClassic = !!on; renderSettingsContent(getSe
 function meSel(id){ APP.meMenu = id; APP.meQ = ''; renderSettingsContent(getSession()); }
 function meSearch(v){ APP.meQ = v; renderSettingsContent(getSession()); const i = document.querySelector('.me-search'); if(i && v){ i.focus(); i.setSelectionRange(v.length, v.length); } }
 async function meNewMenu(){
-  const name = ((await uiPrompt('Yeni menü adı (örn. Çorbalar):', '')) || '').trim(); if(!name) return;
+  const name = ((await uiPrompt('Yeni kategori adı (örn. Çorbalar, Izgaralar):', '')) || '').trim(); if(!name) return;
   const s = getSession(); const { data, error } = await withLoadingOverlay(sb.rpc('upsert_menu', { p_token: s.session_token, p_id: null, p_name: name }));
   if(error){ uiAlert(error.message); return; }
-  if(data) APP.meMenu = data; showToast('📋 ' + name + ' eklendi — mutfağını seçin'); renderSettingsView(document.getElementById('main'), s);
+  if(data) APP.meMenu = data; showToast('📋 ' + name + ' kategorisi eklendi — siparişlerin gideceği mutfağı seçin'); renderSettingsView(document.getElementById('main'), s);
 }
 async function meToggleAvail(pid){
   const ev = window.event; if(ev && ev.stopPropagation) ev.stopPropagation();
@@ -905,7 +906,7 @@ function kvAddProduct(mid){
   removeEl('kvAddBg');
   const bg = document.createElement('div'); bg.id = 'kvAddBg'; bg.className = 'modal-bg';
   bg.onclick = (e) => { if(e.target === bg) bg.remove(); };
-  bg.innerHTML = `<div class="box sd-box zn3-modal"><div class="u-row-sb"><h2 class="u-m0">＋ ${escapeHtml(m.name)} menüsüne ürün</h2><span class="u-xclose" ${act('removeEl','kvAddBg')}>✕</span></div>
+  bg.innerHTML = `<div class="box sd-box zn3-modal"><div class="u-row-sb"><h2 class="u-m0">＋ ${escapeHtml(m.name)} kategorisine ürün</h2><span class="u-xclose" ${act('removeEl','kvAddBg')}>✕</span></div>
     <div class="sh-form" style="margin-top:12px;">
       <label class="wide">Ürün adı<input id="kv_name" placeholder="örn. Adana Kebap" ${actOn('keydown','onEnterCall',['$event','kvAddSave', mid])}></label>
       <label>Fiyat (₺)<input id="kv_price" type="number" min="0" step="0.01" inputmode="decimal" ${actOn('keydown','onEnterCall',['$event','kvAddSave', mid])}></label>
@@ -960,11 +961,11 @@ function msMenuOpen(mid){
   bg.onclick = (e) => { if(e.target === bg) bg.remove(); };
   bg.innerHTML = `<div class="box sd-box sh-chain"><div class="u-row-sb"><h2 class="u-m0">📋 ${escapeHtml(m.name)}</h2><span class="u-xclose" ${act('removeEl','msMenuBg')}>✕</span></div>
     <div class="sh-form" style="margin-top:12px;">
-      <label class="wide">Menü adı<input id="menu_name_${m.id}" value="${escapeAttr(m.name)}" data-orig="${escapeAttr(m.name)}"></label>
+      <label class="wide">Kategori adı<input id="menu_name_${m.id}" value="${escapeAttr(m.name)}" data-orig="${escapeAttr(m.name)}"></label>
       <label class="wide">Hangi istasyona gitsin?<select id="msm_st">${stations.map(x => `<option value="${x.id}" ${x.id === m.station_id ? 'selected' : ''}>${escapeHtml(x.icon || '🍳')} ${escapeHtml(x.name)}</option>`).join('')}<option value="" ${m.station_id ? '' : 'selected'}>⚠️ Hiçbiri (mutfağa gitmez)</option></select></label>
     </div>
     <div class="ms-sub" style="margin-top:12px;"><b>${list.length} ürün</b>${closed ? ` · <span class="u-red">${closed} satışa kapalı</span>` : ''}</div>
-    <div class="msm-prods">${list.map(p => `<span class="pchip ${p.available === false ? 'off' : ''}">${escapeHtml(p.name)} · ${money(p.price)}</span>`).join('') || '<small class="muted">Bu menüde ürün yok. Ürünler ekranından ürün eklerken bu menüyü seçin.</small>'}</div>
+    <div class="msm-prods">${list.map(p => `<span class="pchip ${p.available === false ? 'off' : ''}">${escapeHtml(p.name)} · ${money(p.price)}</span>`).join('') || '<small class="muted">Bu kategoride ürün yok.</small>'}</div>
     ${list.length ? `<div class="sh-links"><button type="button" class="xl-btn" ${act('msMenuAvail', mid, true)}>✓ Hepsini satışa aç</button><button type="button" class="xl-btn" ${act('msMenuAvail', mid, false)}>✕ Hepsini satışa kapat</button></div>` : ''}
     <div class="oa-edit-acts"><button type="button" class="ghost-btn danger" ${act('msMenuDel', mid)}>🗑 Sil</button><span class="u-f1"></span><button type="button" class="ghost-btn" ${act('removeEl','msMenuBg')}>Vazgeç</button><button type="button" ${act('msMenuSave', mid)}>💾 Kaydet</button></div></div>`;
   document.body.appendChild(bg);
@@ -991,8 +992,8 @@ function msOrderOpen(){
   removeEl('msOrderBg');
   const bg = document.createElement('div'); bg.id = 'msOrderBg'; bg.className = 'modal-bg';
   bg.onclick = (e) => { if(e.target === bg) bg.remove(); };
-  bg.innerHTML = `<div class="box sd-box sh-chain"><div class="u-row-sb"><h2 class="u-m0">↕ Sipariş ekranı sırası</h2><span class="u-xclose" ${act('removeEl','msOrderBg')}>✕</span></div>
-    <p class="muted u-fs13">Sipariş Al ekranında menüler bu sırayla görünür. Sürükleyin ya da oklarla taşıyın; anında kaydedilir.</p>
+  bg.innerHTML = `<div class="box sd-box sh-chain"><div class="u-row-sb"><h2 class="u-m0">↕ Kategori sırası</h2><span class="u-xclose" ${act('removeEl','msOrderBg')}>✕</span></div>
+    <p class="muted u-fs13">Sipariş Al ekranında kategoriler bu sırayla görünür. Sürükleyin ya da oklarla taşıyın; anında kaydedilir.</p>
     <div class="mo-list" id="menuOrderList"><div class="mo-item mo-fixed"><span class="mo-no">★</span><b>Tümü</b><small>her zaman en üstte</small></div>
       ${menus.map((m, i) => { const st = stations.find(x => x.id === m.station_id);
         return `<div class="mo-item" draggable="true" data-id="${m.id}" style="--sc:${(st && st.color) || '#94a3b8'};"><span class="mo-grip">⋮⋮</span><span class="mo-no">${i + 1}</span>

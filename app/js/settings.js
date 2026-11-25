@@ -4,7 +4,7 @@
    sadece Yönetici'ye (is_manager) açık - bir role bu yetkiyi vermek
    mümkün değil (bkz. manager_upsert_role'un izin backend'i). */
 const SETTINGS_TABS = [
-  { tab:'stations', grp:'biz', perm:'settings_stations', label:'Menü', ico:'🍳', desc:'Menüler, ürünler, mutfaklar' },
+  { tab:'stations', grp:'biz', perm:'settings_stations', label:'Menü & Ürünler', ico:'🍳', desc:'Kategoriler, ürünler, mutfaklar' },
   { tab:'zones', grp:'biz', perm:'settings_zones', label:'Bölgeler & Masalar', ico:'🪑', desc:'Salon, masa planı' },
   { tab:'products', grp:'biz', label:'Ürünler', ico:'🍔', desc:'Fiyat, menü, fotoğraf' }, // alt sekmeler: Ürünler, Hammaddeler
   { tab:'stockhub', grp:'biz', label:'Stok & Reçete', ico:'📦', desc:'Hammadde, hazırlık, reçete' },
