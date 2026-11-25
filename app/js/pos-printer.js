@@ -795,7 +795,7 @@ async function renderNotificationSettingsView(main, session){
   main.innerHTML = `
     <h1>Bildirimler</h1>
     <div id="notifSettingsPart">
-    <p class="u-tl muted">${session.isManager ? 'Bu sayfadaki ayarlar (push, sesli okuma, zil sesi) yalnızca bu cihaza özeldir. Bildirimlerin hangi rollere gideceği, sesli bildirimleri açma/kapama ve kişi sayısı hatırlatması <b>Ayarlar → Bildirim Ayarları</b>\'nda.' : 'Hangi bildirimlerin size gideceğini yöneticiniz belirler (🔒 işaretli olanlar). Ses seçimi, sesli okuma ve zil sesi ayarları yalnızca bu cihaza özeldir.'}</p>
+    <p class="u-tl muted">Bu sekmedeki ayarlar (push, sesli okuma, zil sesi) yalnızca bu cihaza özeldir; her cihazda ayrı yapılır.</p>
 
     ${!hasFeature('push_notifications') ? `<div class="u-mwn box"><h2>📱 Push Bildirimleri (Uygulama Kapalıyken de)</h2>${lockedFeatureHtml()}</div>` : ''}
     ${isDesktopApp() && hasFeature('push_notifications') ? `<div class="u-mwn box">
@@ -863,6 +863,7 @@ async function renderNotificationSettingsView(main, session){
 /* Ayarlar > Bildirim Ayarları: işletme geneli bildirim kuralları (Kime Gitsin, kişi sayısı hatırlatması) ve doğum günü uyarıları. */
 function renderNotifAdminSettings(el, session){
   const tabs = [
+    { id:'device', ic:'📱', label:'Bu Cihaz (ses, push)' },
     canManage(session, 'settings_notifs') ? { id:'roles', ic:'👥', label:'Kime Gitsin' } : null,
     canManage(session, 'settings_notifs') ? { id:'guests', ic:'🔔', label:'Kişi Sayısı Hatırlatması' } : null,
     canManage(session, 'settings_notifs') && typeof voiceMasterSettingHtml === 'function' ? { id:'voice', ic:'🗣️', label:'Sesli Bildirimler' } : null,
@@ -874,10 +875,11 @@ function renderNotifAdminSettings(el, session){
   el.innerHTML = `<div class="u-mwn box sub-tabs-box">
       <div class="sub-tabs">${tabs.map(t => `<div role="tab" tabindex="0" class="sub-tab ${sub===t.id?'active':''}" ${act('setNotifAdminSub', t.id)}><span class="sub-tab-ic">${t.ic}</span>${t.label}</div>`).join('')}</div>
       <div class="sub-tabs-content" id="notifAdminContent">${
-        sub === 'roles' ? '<div id="notifRolesBox" class="box" style="max-width:none;"><h2>👥 Kime Gitsin</h2><div id="notifRolesBody"><p class="muted">Yükleniyor…</p></div></div>'
+        sub === 'device' ? '<div id="notifDeviceBox"></div>' : sub === 'roles' ? '<div id="notifRolesBox" class="box" style="max-width:none;"><h2>👥 Kime Gitsin</h2><div id="notifRolesBody"><p class="muted">Yükleniyor…</p></div></div>'
         : sub === 'guests' ? guestReminderSettingHtml() : sub === 'voice' ? voiceMasterSettingHtml() : birthdaySettingsHtml()}</div>
     </div>`;
   if(sub === 'roles') loadNotifRoles();
+  if(sub === 'device'){ const b = document.getElementById('notifDeviceBox'); if(b){ Promise.resolve(renderNotificationSettingsView(b, session)).then(() => { const h = b.querySelector('h1'); if(h) h.remove(); }); } }
 }
 function setNotifAdminSub(id){ APP.notifAdminSub = id; const el = document.getElementById('settingsContent'); if(el) renderNotifAdminSettings(el, getSession()); }
 

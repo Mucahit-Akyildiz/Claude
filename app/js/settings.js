@@ -69,7 +69,7 @@ async function renderSettingsView(main, session){
         <input class="set-search" type="search" placeholder="🔍 Ayar ara (örn. yazıcı)" ${actOn('input','settingsSearch',['$value'])}>
         ${(() => { let i = 0; const links = SETTINGS_LINKS.filter(l => l.ok(session));
           return SETTINGS_GROUPS.map(([g, gl]) => {
-            const tabs = visibleTabs.filter(t => (t.grp || 'account') === g), ls = links.filter(l => l.grp === g);
+            const tabs = visibleTabs.filter(t => (t.grp || 'account') === g && t.tab !== 'products'), ls = links.filter(l => l.grp === g);
             if(!tabs.length && !ls.length) return '';
             return `<div class="set-grp"><div class="set-grp-t">${gl}</div>`
               + tabs.map(t => { const k = i++; return `<div class="tab set-item ${APP.settingsTab===t.tab?'active':''}" data-tab="${t.tab}" style="--i:${k};--sc:var(--c${k%4+1});" ${act('setSettingsTab', t.tab)}><span class="set-ico">${t.ico||'⚙️'}</span><span class="set-txt"><b>${t.label}</b><small>${t.desc||''}</small></span></div>`; }).join('')

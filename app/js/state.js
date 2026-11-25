@@ -119,7 +119,7 @@ const NAV_ITEMS = [
   { view:'reservations', icon:'📅', label:'Rezervasyonlar ve Bekleme Listesi', perm:'reservations', grp:'daily' },
   { view:'crm', icon:'👥', label:'Müşteriler', perm:'crm', grp:'daily' },
   { view:'purchasing', icon:'🛒', label:'Malzeme Siparişi Ver', perm:'purchasing', grp:'manage' },
-  { view:'notificationSettings', icon:'🔔', label:'Bildirimler', grp:'tools' },
+  { view:'notificationSettings', icon:'🔔', label:'Bildirimler', grp:'hidden' },
   { view:'payments', icon:'💳', label:'Ödemeler', perm:'payments', grp:'daily' },
   { view:'procurement', icon:'📦', label:'Mal Kabul', grp:'manage' },
   { view:'reports', icon:'📊', label:'Finansal Analiz', grp:'manage' },

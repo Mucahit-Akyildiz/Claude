@@ -74,7 +74,7 @@ function renderMainView(main, session){
   else if(APP.view==='settings') p = renderSettingsView(main, session);
   else if(APP.view==='reports') p = renderReportsView(main, session);
   else if(APP.view==='printerSettings' || APP.view==='devicePrinters'){ APP.view = 'settings'; APP.settingsTab = 'devprn'; p = renderSettingsView(main, session); }
-  else if(APP.view==='notificationSettings') p = renderNotificationSettingsView(main, session);
+  else if(APP.view==='notificationSettings'){ APP.view = 'settings'; APP.settingsTab = 'notifs'; APP.notifAdminSub = 'device'; p = renderSettingsView(main, session); }
   else if(APP.view==='reservations') p = renderReservationsView(main, session);
   else if(APP.view==='crm') p = renderCrmView(main, session);
   else if(APP.view==='purchasing') p = renderPurchasingView(main, session);

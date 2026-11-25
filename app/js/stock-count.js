@@ -11,6 +11,7 @@ function stockCountBtnHtml(cls){
 }
 function scFmt(n){ const v = Math.round((Number(n) || 0) * 1000) / 1000; return v.toLocaleString('tr-TR', { maximumFractionDigits: 3 }); }
 async function openStockCount(tab){
+  if(APP.view === 'settings' && APP.settingsTab !== 'stockcount'){ if(tab) APP.scTab = tab; setSettingsTab('stockcount'); return; }
   if(!scCanCount()){ uiAlert('Stok sayımı için yetkiniz yok. Yöneticiniz rolünüze "Stok Sayımı" iznini verebilir.'); return; }
   APP.scTab = tab || APP.scTab || 'count';
   if(APP.scTab === 'approve' && !scCanApprove()) APP.scTab = 'count';

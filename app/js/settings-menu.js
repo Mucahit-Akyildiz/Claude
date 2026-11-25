@@ -840,7 +840,7 @@ function renderStationsSettings(el, session){
       <button type="button" class="fsheet-open me-newbtn" ${act('meNewMenu')}>＋ Yeni kategori</button>
       <button type="button" class="ghost-btn me-newbtn" ${act('meKitchens')}>🍳 Mutfaklar <em class="me-kn">${stations.length}</em></button>
       <details class="ux-more"><summary title="Diğer işlemler">⋯ Diğer</summary><div class="ux-more-pop">
-        <div class="ux-more-t">Düzen</div><div class="xl-bar"><button type="button" class="xl-btn" ${act('msOrderOpen')}>↕ Kategori sırasını değiştir</button></div>
+        <div class="ux-more-t">Düzen</div><div class="xl-bar"><button type="button" class="xl-btn" ${act('msOrderOpen')}>↕ Kategori sırasını değiştir</button><button type="button" class="xl-btn" ${act('meGoProducts', 'media')}>📷 Ürün fotoğrafları & açıklamaları</button><button type="button" class="xl-btn" ${act('meGoProducts', 'table')}>☰ Toplu düzenle (tablo, maliyet, KDV)</button></div>
 
         <div class="ux-more-t">Menü PDF</div><div class="xl-bar"><button type="button" class="xl-btn" ${act('downloadMenuPdf', true)}>📄 Fiyatlı</button><button type="button" class="xl-btn" ${act('downloadMenuPdf', false)}>📄 Fiyatsız</button></div>
         <div class="ux-more-t">Excel</div>${typeof excelBarHtml === 'function' ? excelBarHtml('menus') : ''}</div></details>
@@ -885,6 +885,7 @@ function renderProductsGrid(el, session){
   const pop = el.querySelector('.ux-more-pop'); if(pop) pop.insertAdjacentHTML('afterbegin', `<div class="ux-more-t">Görünüm</div><div class="xl-bar"><button type="button" class="xl-btn" ${act('setProdClassic', true)}>☰ Tablo görünümü (toplu düzenle, Excel, maliyet)</button></div>`);
 }
 function setProdClassic(on){ APP.prodClassic = !!on; renderSettingsContent(getSession()); }
+function meGoProducts(k){ APP.settingsTab = 'products'; APP.productsSubTab = k === 'media' ? 'media' : 'products'; APP.prodClassic = k === 'table'; renderSettingsView(document.getElementById('main'), getSession()); }
 function meSel(id){ APP.meMenu = id; APP.meQ = ''; renderSettingsContent(getSession()); }
 function meSearch(v){ APP.meQ = v; renderSettingsContent(getSession()); const i = document.querySelector('.me-search'); if(i && v){ i.focus(); i.setSelectionRange(v.length, v.length); } }
 async function meNewMenu(){
@@ -1763,7 +1764,7 @@ function renderProductsSettings(el, session){
   el.innerHTML = `<div class="u-mwn box ux-prod">
     <div class="ux-bar">
       <h2 class="u-m0">Ürünler</h2>
-      <button type="button" class="ghost-btn me-newbtn" ${act('setProdClassic', false)}>▦ Kart görünümüne dön</button>
+      <button type="button" class="ghost-btn me-newbtn" ${act('setSettingsTab', 'stations')}>← Menü & Ürünler'e dön</button>
       ${listSearchHtml('products', 'Ürün ara…').replace('margin:0 0 12px;','margin:0;')}
       ${sheetBtnHtml('prodSheet','+ Yeni Ürün')}
       <div class="seg">${[['cards','▦'],['table','☰']].map(([k,l]) => `<button type="button" title="${k==='cards'?'Kart':'Tablo'} görünümü" class="${(cardMode?'cards':'table')===k?'on':''}" ${act('setProdView', k)}>${l}</button>`).join('')}</div>
