@@ -27,7 +27,7 @@ function renderStockHub(el){
       : '<div class="empty-state"><p class="muted">Depo hammaddesi yok.</p></div>';
   } else if(tab === 'prep'){
     const list = prep.filter(i => match(i.name));
-    body = `<p class="muted ux-hint">Her gün depodan alınıp hazırlanan kalemler. Mutfakta <b>➕ Hazırla</b> ile tezgâha eklenir, depodan otomatik düşer; satışlar tezgâhtan düşer.</p>` + (list.length ? `<div class="sh-list">${list.map(i => { const src = ings.find(x => x.id === i.prep_source_id);
+    body = `<div class="ux-bar" style="margin:0 0 8px;"><button type="button" class="fsheet-open" ${act('openPrepHub', true)}>📋 Bugünün hazırlığı</button></div><p class="muted ux-hint">Her gün depodan alınıp hazırlanan kalemler. Mutfakta <b>➕ Hazırla</b> ile tezgâha eklenir, depodan otomatik düşer; satışlar tezgâhtan düşer.</p>` + (list.length ? `<div class="sh-list">${list.map(i => { const src = ings.find(x => x.id === i.prep_source_id);
       return `<button type="button" class="sh-row" ${act('openStockChain', i.id)}>
         <span class="sh-ic">🥙</span><span class="sh-name"><b>${escapeHtml(i.name)}</b><small>🏬 ${escapeHtml(src ? src.name : '—')}'dan · günlük ${escapeHtml(i.prep_default ? shQty(i.prep_default, i) : 'miktar yok')}</small></span>
         <span class="sh-qty">${escapeHtml(shQty(i.stock, i))}</span>${shPill(i)}<span class="sh-go">›</span></button>`; }).join('')}</div>`
