@@ -16,6 +16,7 @@ const SETTINGS_TABS = [
   { tab:'onlineresv', grp:'resv', label:'Online Rezervasyon', ico:'🌐', desc:'Müşterinin rezervasyon sayfası' },
   { tab:'specialdays', grp:'resv', label:'Özel Günler', ico:'🎉', desc:'Kapasite, indirim, kapora' },
   { tab:'family', grp:'resv', label:'Çocuk & Masa', ico:'🧒', desc:'Çocuk servis oranı, çocuk dostu masa' },
+  { tab:'customers', grp:'sales', label:'Müşteriler', ico:'👥', desc:'Sadakat puanı, kampanya mesajı' },
   { tab:'billing', grp:'sales', label:'Abonelik, Hediye Kartı & Kampanya', ico:'💳', desc:'Plan, fatura, kartlar, kuponlar' }, // alt sekmeler
   { tab:'printers', grp:'device', label:'Fiş Tasarımı', ico:'🧾', desc:'Mutfak, kasa ve paket fişi' },
   { tab:'devprn', grp:'device', label:'Bu Cihazın Yazıcısı', ico:'🔌', desc:'Yazıcı bağla, istasyon eşle' },
@@ -41,6 +42,7 @@ function settingsTabVisible(t, session){
   if(t.tab==='devprn') return true;
   if(t.tab==='specialdays' && !featOn('special_days')) return false;
   if(t.tab==='family' && !featOn('family_resv')) return false;
+  if(t.tab==='customers') return hasPerm(session, 'crm') && canManage(session, 'crm');
   if(t.tab==='onlineresv' && !featOn('online_resv')) return false;
   if(t.tab==='specialdays' || t.tab==='family' || t.tab==='onlineresv') return hasFeature('reservations') && canManage(session, 'reservations');
   if(t.tab==='stockcount') return typeof scCanCount === 'function' && scCanCount();
@@ -120,6 +122,7 @@ function renderSettingsContent(session){
   else if(APP.settingsTab==='stockcount') openStockCount();
   else if(APP.settingsTab==='specialdays'){ el.innerHTML = ''; openSpecialDays(); }
   else if(APP.settingsTab==='onlineresv'){ el.innerHTML = '<div class="u-mwn box"><h2 class="u-m0" style="margin:0 0 10px;">🌐 Online Rezervasyon</h2><div id="onlineResvBody"><p class="muted">Yükleniyor…</p></div></div>'; renderOnlineResvBody(); }
+  else if(APP.settingsTab==='customers') renderCustomerSettings(el);
   else if(APP.settingsTab==='family'){ el.innerHTML = ''; openFamilySettings(); }
   else if(APP.settingsTab==='zones') renderZonesTabWithSubtabs(el, session);
   else if(APP.settingsTab==='products') renderProductsTabWithSubtabs(el, session);

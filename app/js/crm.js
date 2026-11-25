@@ -47,7 +47,7 @@ async function renderCrmView(main, session){
     ${typeof crmBirthdayStripHtml === 'function' ? crmBirthdayStripHtml(rows) : ''}
     ${crmVisualsHtml(rows)}
     <div class="u-mwn box">
-      <div class="me2-bar"><div class="me2-tabs"><span class="me2-title">👥 Müşteri listesi</span></div><div class="me2-tools"><span class="me2-adds"><button type="button" class="me2-tab me2-add" ${act('newCustomer')}>＋ Müşteri</button></span><input id="crmSearchInput" type="search" name="crm-list-search" autocomplete="off" data-lpignore="true" placeholder="🔍 İsim / telefon" class="me2-search" value="${escapeAttr(APP.crmSearch||'')}" ${actOn('input', 'debouncedCrmSearch', ['$value'])}><details class="ux-more"><summary title="Diğer işlemler">⋯</summary><div class="ux-more-pop"><div class="ux-more-t">Excel</div><div class="xl-bar">
+      <div class="me2-bar"><div class="me2-tabs"><span class="me2-title">👥 Müşteri listesi</span></div><div class="me2-tools"><span class="me2-adds"><button type="button" class="me2-tab me2-add" ${act('newCustomer')}>＋ Müşteri</button></span><input id="crmSearchInput" type="search" name="crm-list-search" autocomplete="off" data-lpignore="true" placeholder="🔍 İsim / telefon" class="me2-search" value="${escapeAttr(APP.crmSearch||'')}" ${actOn('input', 'debouncedCrmSearch', ['$value'])}><details class="ux-more"><summary title="Diğer işlemler">⋯</summary><div class="ux-more-pop">${canManage(session, 'crm') ? `<button type="button" class="ghost-btn" ${act('crmGoSettings')}>⚙️ Sadakat & kampanya ayarları</button>` : ''}<div class="ux-more-t">Excel</div><div class="xl-bar">
           <button type="button" class="xl-btn" ${act('exportCustomersCsv')} title="Tüm müşterileri Excel (.xlsx) olarak indir">⬇️ Dışa aktar</button>
           ${canManage(session, 'crm') ? `<button type="button" class="xl-btn" ${act('openCustomerImport')} title="Excel (.xlsx) veya CSV dosyasından müşteri yükle">⬆️ İçe aktar</button>
           <button type="button" class="xl-btn" ${act('downloadCustomerTemplate')}>📄 Şablon indir</button>` : ''}</div></div></details></div></div>
@@ -93,7 +93,7 @@ async function renderCrmView(main, session){
     `;
 }
 /* Sadakat seviyesi: yaşam boyu kazanılan puana göre (puan harcanınca seviye düşmez).
-   Seviyeler Müşteriler > ⭐ Sadakat'tan düzenlenir; puan çarpanı sunucuda uygulanır. */
+   Seviyeler Ayarlar > Müşteriler'den düzenlenir; puan çarpanı sunucuda uygulanır. */
 const TIER_COLORS = ['var(--c1)', 'var(--c3)', 'var(--c2)', 'var(--c4)', '#a855f7', '#ef4444'];
 /* Müşteri seviyeleri halka grafiği + en çok puanı olanlar (göz atınca okunur özet). */
 /* Müşteri ekranı kayıt odaklı: bilgileri eksik müşteriler ve kayıt doluluğu. Seviye/puan analizi Finansal Analiz > Müşteri Yolculuğu'nda. */
@@ -722,3 +722,5 @@ function crmLoyFormHtml(){
           <div class="fsheet-foot"><button type="button" class="ghost-btn" ${act('addTierRow')}>+ Seviye ekle</button><button ${act('saveLoyaltyTiers')}>🏆 Seviyeleri Kaydet</button></div>
         </div>`;
 }
+
+function crmGoSettings(){ APP.settingsTab = 'customers'; goToView('settings'); }
