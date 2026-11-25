@@ -104,7 +104,7 @@ function renderIngredientsSettings(el, session){
       <p class="muted ni-dep" style="font-size:12px;text-align:left;margin:10px 0 0;">Maliyet sonra Mal Kabul'de fiyatlı teslim aldıkça ortalanarak güncellenir. Ekledikten sonra hangi ürünlerin bu hammaddeyi kullandığını soracağız; ürün maliyetleri otomatik hesaplanır.</p>
       <p class="muted ni-prp" style="font-size:12px;text-align:left;margin:10px 0 0;">Maliyet kaynaktan gelir. Devam edince, kaynağı reçetesinde kullanan ürünler hazır işaretli gelir; kaydedince kaynak o reçetelerden çıkarılır (stok iki kez düşmez).</p>
       </div>
-      <div class="fsheet-foot" id="niFoot" hidden><button type="button" class="ghost-btn" ${act('niCancel')}>Vazgeç</button><button ${act('addIngredient')}>Devam › Kullanım şekli</button></div>`, 'var(--c3)')}
+      <div class="fsheet-foot" id="niFoot" hidden><button type="button" class="ghost-btn" ${act('niCancel')}>Vazgeç</button><button type="button" class="ghost-btn" title="Kaydeder ve bu hammaddenin hangi ürünlerde kullanıldığını seçmenizi sağlar" ${act('addIngredient', 1)}>Kaydet ve ürünlere bağla ›</button><button ${act('addIngredient')}>${ICON_SAVE}<span>Kaydet</span></button></div>`, 'var(--c3)')}
     <div style="display:flex;align-items:center;gap:8px;margin:4px 0 10px;"><label style="display:flex;align-items:center;gap:6px;margin:0;font-size:13px;font-weight:600;"><input type="checkbox" class="u-wa-m0" ${actOn('change','selectAllIngredients',['$checked'])}> Tümünü seç</label></div>
     <div class="ig-grid ${ingView === 'list' ? 'ig-list' : ''}" ${actOn('input','markIngDirty',['$event'])} ${actOn('change','markIngDirty',['$event'])}>
       ${(() => { const GL = { '-0.5': ['🏬', 'Depo · günlük hazırlık kaynakları (satış hazırlıktan düşer)', 'var(--c2)'], '-1': ['🥙', 'Günlük hazırlık (mutfakta ➕ Hazırla ile dolar)', 'var(--accent)'], 0: ['⛔', 'Stoğu biten', 'var(--danger,#ef4444)'], 1: ['📉', 'Kritik seviyede', 'var(--c3)'], 2: ['✅', 'Kullanımda', 'var(--ok,#22c55e)'], 3: ['○', 'Reçetede kullanılmayan', 'var(--muted)'] };
@@ -236,7 +236,7 @@ function niPrepSrcChange(){
   if(ig && nm && (!nm.value.trim() || nm.dataset.auto === nm.value)){ nm.value = ig.name + ' Günlük'; nm.dataset.auto = nm.value; }
   if(ig){ const w = document.getElementById('ni_waste'); if(w && !w.value && Number(ig.waste_pct)) w.value = ig.waste_pct; }
 }
-async function addIngredient(){
+async function addIngredient(link){
   const session = getSession();
   const name = document.getElementById('ni_name').value.trim();
   const unit = document.getElementById('ni_unit').value;
@@ -262,8 +262,8 @@ async function addIngredient(){
   delete document.getElementById('ni_name').dataset.editId;
   closeSheet('ingSheet');
   await renderSettingsView(document.getElementById('main'), session);
-  // Hammadde eklenir eklenmez, hangi urunlerin kullandigini sormaya devam et.
-  if(data) openIngredientUsageModal(data);
+  // Ürünlere bağlama yalnızca istenirse ("Kaydet ve ürünlere bağla"); düz Kaydet sadece kaydeder.
+  if(data && link) openIngredientUsageModal(data); else showToast('Hammadde kaydedildi ✓');
 }
 
 /* --- Bir hammaddeyi hangi urunlerin kullandigini duzenleme penceresi

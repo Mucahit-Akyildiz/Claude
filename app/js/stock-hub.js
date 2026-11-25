@@ -55,7 +55,7 @@ function setShTab(t){ APP.shTab = t; renderSettingsContent(getSession()); }
 function shSearch(v){ APP.shQ = v; const el = document.getElementById('settingsContent'); renderStockHub(el); const inp = el.querySelector('.me2-search'); if(inp){ inp.focus(); inp.setSelectionRange(v.length, v.length); } }
 function shNew(){
   if((APP.shTab || 'depot') === 'recipes'){ APP.settingsTab = 'products'; APP.productsSubTab = 'products'; renderSettingsView(document.getElementById('main'), getSession()).then(() => typeof openSheet === 'function' && openSheet('prodSheet')); return; }
-  APP.shTab = 'depot'; APP.shBulk = true; renderSettingsContent(getSession()); if(typeof niStart === 'function') niStart('');
+  APP.shTab = 'depot'; if(!APP.shBulk) APP.shNewHub = true; APP.shBulk = true; renderSettingsContent(getSession()); if(typeof niStart === 'function') niStart('');
 }
 
 /* Hammadde zinciri: nereden geliyor, nereye gidiyor. */
