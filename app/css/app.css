@@ -4857,3 +4857,41 @@ select.ss-hidden{display:none !important;}
 .pt-q{display:flex;align-items:center;gap:4px;} .pt-q input{width:90px;margin:0;text-align:right;} .pt-q em{font-style:normal;font-size:12px;color:var(--muted);min-width:24px;}
 .pt-go{width:100%;margin:10px 0 4px;}
 .pt-note{display:block;font-size:11.5px;}
+/* Menüler & İstasyonlar (yeni) */
+.ms-sec-t{font-weight:800;font-size:14px;margin:14px 0 8px;} .ms-sec-t small{font-weight:500;color:var(--muted);font-size:12px;}
+.ms-stations{display:flex;flex-wrap:wrap;gap:8px;}
+.ms-st{display:flex;align-items:center;gap:10px;width:auto;min-width:180px;margin:0;padding:10px 14px;border-radius:14px;border:1px solid var(--border);border-left:5px solid var(--sc,var(--accent));background:var(--panel2);color:var(--text);text-align:left;box-shadow:none;}
+.ms-st:hover{border-color:var(--sc,var(--accent));}
+.ms-st-ic{font-size:22px;} .ms-st-t{display:flex;flex-direction:column;flex:1;} .ms-st-t b{font-size:14px;} .ms-st-t small{font-size:12px;color:var(--muted);} .ms-st-e{opacity:.5;font-size:13px;}
+.ms-st-new{border-style:dashed;border-left-width:1px;}
+.ms-warn{font-size:12.5px;padding:8px 12px;border-radius:10px;background:color-mix(in srgb,#ef4444 10%,var(--panel2));color:var(--danger,#ef4444);margin:0 0 8px;}
+.ms-table{display:flex;flex-direction:column;gap:6px;}
+.ms-row{display:grid;grid-template-columns:96px minmax(0,1.6fr) minmax(0,1.2fr) 56px 120px 44px;gap:10px;align-items:center;padding:8px 10px;border-radius:12px;background:var(--panel2);border:1px solid var(--border);border-left:5px solid var(--sc);}
+.ms-row.nost{border-color:color-mix(in srgb,#ef4444 45%,var(--border));border-left-color:#ef4444;}
+.ms-head{background:none;border:0;padding:0 10px;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);}
+.ms-row input,.ms-row select{margin:0;width:100%;}
+.ms-name input{font-weight:700;}
+.ms-ord{display:flex;align-items:center;gap:4px;} .ms-ord button{width:30px;height:30px;padding:0;margin:0;font-size:11px;} .ms-ord em{font-style:normal;font-weight:800;min-width:18px;text-align:center;}
+.ms-cnt{font-weight:700;text-align:center;} .ms-av{display:flex;align-items:center;gap:6px;}
+.ms-del .ico-btn{margin:0;}
+.ms-add{display:flex;gap:8px;margin-top:4px;} .ms-add input{flex:1;margin:0;} .ms-add button{width:auto;margin:0;}
+.ms-stform{display:grid;grid-template-columns:auto 1fr 56px;gap:8px;align-items:center;margin:12px 0;} .ms-stform input{margin:0;}
+.ms-sub{font-size:13px;margin:0 0 10px;display:flex;flex-wrap:wrap;gap:6px;align-items:center;}
+@media (max-width:760px){ .ms-row{grid-template-columns:80px 1fr 44px;} .ms-row .ms-stsel{grid-column:1/-1;} .ms-row .ms-cnt{display:none;} .ms-row .ms-av{grid-column:1/-1;} .ms-head{display:none;} }
+/* Bölgeler & Masalar (yeni) */
+.zn2-tabs{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:0 0 12px;}
+.zn2-tab{width:auto;margin:0;padding:8px 14px;border-radius:999px;border:1px solid var(--border);background:var(--panel2);color:var(--text);font-weight:700;font-size:13.5px;box-shadow:none;}
+.zn2-tab em{font-style:normal;font-size:11px;padding:1px 7px;border-radius:999px;background:var(--panel);margin-left:4px;}
+.zn2-tab.on{background:var(--accent);color:#fff;border-color:var(--accent);} .zn2-tab.on em{background:rgba(255,255,255,.25);}
+.zn2-new{display:flex;gap:4px;} .zn2-new input{margin:0;width:190px;padding:8px 12px;border-radius:999px;} .zn2-new button{width:36px;height:36px;padding:0;margin:0;border-radius:50%;}
+.zn2-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 12px;border-radius:14px;background:var(--panel2);border:1px solid var(--border);margin:0 0 10px;}
+.zn2-title{margin:0;width:auto;max-width:240px;font-size:18px;font-weight:800;background:transparent;border-color:transparent;}
+.zn2-title:hover,.zn2-title:focus{border-color:var(--border);background:var(--panel);}
+.zn2-add{display:flex;gap:6px;} .zn2-add input{margin:0;width:200px;} .zn2-add button{width:auto;margin:0;}
+.zn2-bar .ico-btn{margin:0;}
+.zn2-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(175px,1fr));gap:8px;}
+.zn2-t{display:flex;align-items:center;gap:4px;padding:4px;border-radius:12px;border:1px solid var(--border);background:var(--panel2);}
+.zn2-tn{flex:1;min-width:0;margin:0;padding:8px;text-align:left;background:none;border:0;box-shadow:none;color:var(--text);font-weight:700;font-size:13.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.zn2-ib{width:30px;height:30px;padding:0;margin:0;flex:0 0 30px;border-radius:9px;background:var(--panel);border:1px solid var(--border);color:var(--text);box-shadow:none;font-size:13px;}
+.zn2-ib.danger{color:var(--danger,#ef4444);}
+@media (max-width:700px){ .zn2-add,.zn2-add input{width:100%;} .zn2-add{flex:1 0 100%;} }

@@ -821,87 +821,58 @@ function setStTab(t){ APP.stTab = t; renderSettingsContent(getSession()); }
 function renderStationsSettings(el, session){
   const menus = APP.config.menus || [], stations = APP.config.stations || [];
   const prodCount = (mid) => (APP.config.products||[]).filter(p => p.menu_id === mid).length;
-  const menuCard = (m) => { const i = menus.indexOf(m);
-    return `<div class="mn-card">
-      <div class="mn-row">
-        <input class="mn-name" value="${escapeAttr(m.name)}" id="menu_name_${m.id}" title="Adı değiştirip Enter'a basın" ${actOn('keydown','onEnterCall',['$event','saveMenu', m.id])}>
-        <button type="button" class="ico-btn" title="Adı kaydet" ${act('saveMenu', m.id)}>💾</button>
-        <button type="button" class="ico-btn danger" title="Menüyü sil" ${act('removeMenu', m.id)}>🗑</button>
-      </div>
-      <div class="mn-row mn-foot">
-        <span class="pchip">🍽️ ${prodCount(m.id)} ürün</span>
-        <select class="mn-move" title="Bu menünün gideceği istasyon" ${actOn('change','moveMenuToStation',[m.id,'$value'])}>
-          <option value="">— İstasyon yok —</option>${stations.map(x => `<option value="${x.id}" ${x.id===m.station_id?'selected':''}>${escapeHtml(x.icon||'🍳')} ${escapeHtml(x.name)}</option>`).join('')}
-        </select>
-        ${menuAvailBtn(m.id)}
-      </div>
-    </div>`; };
-  const col = (s) => { const list = menus.filter(m => m.station_id === s.id);
-    return `<div class="st-col" data-cf-tags="station" style="--sc:${s.color||'var(--c1)'};">
-      <div class="st-col-head">
-        ${stationIconPickerHtml('st_icon_'+s.id, s.icon||'🍳', '')}
-        <input class="st-col-name" value="${escapeAttr(s.name)}" id="st_name_${s.id}" placeholder="İstasyon adı" ${actOn('keydown','onEnterCall',['$event','saveStation', s.id])}>
-      </div>
-      <div class="st-col-tools">
-        <span class="st-col-sub">${list.length} menü · ${(APP.config.products||[]).filter(p => p.station_id===s.id).length} ürün</span>
-        <input type="color" class="st-col-color" value="${s.color}" id="st_color_${s.id}" title="İstasyon rengi">
-        <button type="button" class="ico-btn" title="Kaydet" ${act('saveStation', s.id)}>💾</button>
-        <button type="button" class="ico-btn danger" title="İstasyonu sil" ${act('removeStation', s.id)}>🗑</button>
-      </div>
-      <div class="st-col-body">${list.map(menuCard).join('') || '<div class="st-empty">Bu istasyona menü bağlı değil.<br>Bir menünün altındaki seçimden buraya taşıyın.</div>'}</div>
-      ${stationKitchenProductsHtml(s)}
-    </div>`; };
   const free = menus.filter(m => !m.station_id || !stations.some(x => x.id === m.station_id));
-  const stTab = APP.stTab || 'board';
-  el.innerHTML = `<div class="u-mwn box ux-st">
+  const stOf = (m) => stations.find(x => x.id === m.station_id);
+  el.innerHTML = `<div class="u-mwn box ux-st2">
     <div class="ux-bar">
-      <h2 class="u-m0">Menüler & İstasyonlar</h2>
-      <div class="seg ux-tabs">${[['board','🍳 İstasyonlar'],['order','📋 Sipariş ekranı sırası']].map(([k,l]) => `<button type="button" class="${stTab===k?'on':''}" ${act('setStTab', k)}>${l}</button>`).join('')}</div>
-      <span class="u-f1"></span>
-      <span class="ux-meta">${menus.length} menü · ${stations.length} istasyon${free.length ? ` · <b class="ux-warn">⚠️ ${free.length} istasyonsuz menü</b>` : ''}</span>
+      <h2 class="u-m0">Menüler & İstasyonlar</h2><span class="u-f1"></span>
       <details class="ux-more"><summary title="Diğer işlemler">⋯ Diğer</summary><div class="ux-more-pop">
         <div class="ux-more-t">Menü PDF</div>
-        <div class="xl-bar"><button type="button" class="xl-btn" title="Ürünler ve fiyatlarıyla menü (A4 PDF)" ${act('downloadMenuPdf', true)}>📄 Menü PDF · fiyatlı</button><button type="button" class="xl-btn" title="Fiyatsız menü (A4 PDF)" ${act('downloadMenuPdf', false)}>📄 Menü PDF · fiyatsız</button></div>
+        <div class="xl-bar"><button type="button" class="xl-btn" ${act('downloadMenuPdf', true)}>📄 Menü PDF · fiyatlı</button><button type="button" class="xl-btn" ${act('downloadMenuPdf', false)}>📄 Menü PDF · fiyatsız</button></div>
         <div class="ux-more-t">Excel</div>${typeof excelBarHtml === 'function' ? excelBarHtml('menus') : ''}
       </div></details>
     </div>
-    ${stTab === 'board' ? `<p class="muted ux-hint">Her sütun bir mutfak istasyonu: içindeki menülerin ürünleri o istasyonun ekranına ve yazıcısına düşer. Menüyü taşımak için kartındaki seçimi değiştirin.</p>
-    <div class="st-board" data-cf-scope="menus">
-      <div class="st-col st-free" data-cf-tags="free" style="--sc:#94a3b8;">
-        <div class="st-col-head"><span class="st-free-ic">📋</span><b class="st-col-title">İstasyonsuz menüler</b></div>
-        <div class="st-col-sub">${free.length ? 'Bu menülerin ürünleri hiçbir istasyona düşmez' : 'Tüm menüler bir istasyona bağlı ✓'}</div>
-        <div class="st-col-body">${free.map(menuCard).join('')}</div>
-        <div class="st-add"><input id="newMenuName" placeholder="Yeni menü (örn. Çorbalar)" ${actOn('keydown','newMenuKey',['$event'])}><button type="button" ${act('addMenu')}>+ Menü</button></div>
-      </div>
-      ${stations.map(col).join('')}
-      <div class="st-col st-new" data-cf-tags="station">
-        <div class="st-col-head">${stationIconPickerHtml('newStIcon','🍳', '')}<b class="st-col-title">Yeni istasyon</b></div>
-        <div class="st-add" style="flex-direction:column;align-items:stretch;">
-          <input id="newStName" placeholder="İstasyon adı (örn. Fırın)" ${actOn('keydown','onEnterCall',['$event','addStation'])}>
-          <div style="display:flex;gap:8px;"><input type="color" id="newStColor" value="#b6a48d" title="Renk" class="st-col-color"><button type="button" class="u-f1" ${act('addStation')}>+ İstasyon Ekle</button></div>
-        </div>
-      </div>
+    <div class="ms-sec-t">🍳 İstasyonlar <small>— mutfak ekranları ve yazıcılar. Düzenlemek için dokunun.</small></div>
+    <div class="ms-stations">
+      ${stations.map(s => { const n = menus.filter(m => m.station_id === s.id).length, pc = (APP.config.products||[]).filter(p => p.station_id === s.id).length;
+        return `<button type="button" class="ms-st" style="--sc:${escapeAttr(s.color || '#94a3b8')};" ${act('openStationEdit', s.id)}><span class="ms-st-ic">${escapeHtml(s.icon || '🍳')}</span><span class="ms-st-t"><b>${escapeHtml(s.name)}</b><small>${n} menü · ${pc} ürün</small></span><span class="ms-st-e">✏️</span></button>`; }).join('')}
+      <button type="button" class="ms-st ms-st-new" ${act('openStationEdit', '')}><span class="ms-st-ic">＋</span><span class="ms-st-t"><b>İstasyon ekle</b><small>örn. Fırın, Bar</small></span></button>
     </div>
-` : `<div class="mo-box">
-    <p class="muted ux-hint">Menüleri sürükleyip bırakın ya da oklarla taşıyın. Sipariş Al ekranındaki soldaki menü listesi bu sırayla görünür.</p>
-    <div class="mo-wrap">
-      <div class="mo-list" id="menuOrderList">
-        <div class="mo-item mo-fixed"><span class="mo-no">★</span><b>Tümü</b><small>her zaman en üstte</small></div>
-        ${menus.map((m, i) => { const st = stations.find(x => x.id === m.station_id);
-          return `<div class="mo-item" draggable="true" data-id="${m.id}" style="--sc:${(st && st.color) || '#94a3b8'};">
-            <span class="mo-grip" title="Sürükle">⋮⋮</span><span class="mo-no">${i + 1}</span>
-            <div class="mo-txt"><b>${escapeHtml(m.name)}</b><small>${prodCount(m.id)} ürün${st ? ' · ' + escapeHtml(st.icon || '🍳') + ' ' + escapeHtml(st.name) : ' · istasyonsuz'}</small></div>
-            <div class="mo-arrows"><button type="button" ${i===0?'disabled':''} title="Yukarı" ${act('moveMenu', m.id, -1)}>▲</button><button type="button" ${i===menus.length-1?'disabled':''} title="Aşağı" ${act('moveMenu', m.id, 1)}>▼</button></div>
-          </div>`; }).join('')}
-      </div>
-      <div class="mo-preview"><small class="muted">Önizleme · Sipariş Al</small>
-        <div class="mo-pv"><div class="mo-pv-i on">Tümü <em>${(APP.config.products||[]).length}</em></div>${menus.map(m => `<div class="mo-pv-i">${escapeHtml(m.name)} <em>${prodCount(m.id)}</em></div>`).join('')}</div>
-      </div>
+    <div class="ms-sec-t">📋 Menüler <small>— sıra, Sipariş Al ekranındaki sıradır. Ad değiştirip başka yere dokunmanız yeterli, otomatik kaydedilir.</small></div>
+    ${free.length ? `<div class="ms-warn">⚠️ ${free.length} menü bir istasyona bağlı değil: ürünleri mutfak ekranına ve fişe düşmez. Satırdaki "İstasyon" seçiminden bağlayın.</div>` : ''}
+    <div class="ms-table">
+      <div class="ms-row ms-head"><span>Sıra</span><span>Menü adı</span><span>İstasyon</span><span>Ürün</span><span>Satış</span><span></span></div>
+      ${menus.map((m, i) => { const st = stOf(m), list = (APP.config.products||[]).filter(p => p.menu_id === m.id), closed = list.filter(p => p.available === false).length;
+        return `<div class="ms-row ${st ? '' : 'nost'}" style="--sc:${escapeAttr((st && st.color) || '#94a3b8')};">
+        <span class="ms-ord"><button type="button" ${i===0?'disabled':''} title="Yukarı" ${act('moveMenu', m.id, -1)}>▲</button><em>${i + 1}</em><button type="button" ${i===menus.length-1?'disabled':''} title="Aşağı" ${act('moveMenu', m.id, 1)}>▼</button></span>
+        <span class="ms-name"><input id="menu_name_${m.id}" value="${escapeAttr(m.name)}" data-orig="${escapeAttr(m.name)}" ${actOn('change','msRename',[m.id])} ${actOn('keydown','onEnterCall',['$event','msRename', m.id])}></span>
+        <span class="ms-stsel"><select ${actOn('change','moveMenuToStation',[m.id,'$value'])}><option value="">⚠️ İstasyon yok</option>${stations.map(x => `<option value="${x.id}" ${x.id===m.station_id?'selected':''}>${escapeHtml(x.icon||'🍳')} ${escapeHtml(x.name)}</option>`).join('')}</select></span>
+        <span class="ms-cnt">${list.length}</span>
+        <span class="ms-av">${!list.length ? '<small class="muted">—</small>' : `<button type="button" role="switch" aria-checked="${!closed}" class="nm-sw ${closed ? '' : 'on'}" title="${closed ? closed + '/' + list.length + ' ürün kapalı — açmak için dokunun' : 'Satışta — kapatmak için dokunun'}" ${act('setMenuAvailable', m.id, !!closed)}><i></i></button>${closed && closed < list.length ? `<small class="muted">${closed} kapalı</small>` : ''}`}</span>
+        <span class="ms-del"><button type="button" class="ico-btn danger" title="Menüyü sil" ${act('removeMenu', m.id)}>🗑</button></span>
+      </div>`; }).join('') || '<p class="muted">Henüz menü yok.</p>'}
+      <div class="ms-add"><input id="newMenuName" placeholder="Yeni menü adı (örn. Çorbalar)" ${actOn('keydown','newMenuKey',['$event'])}><button type="button" ${act('addMenu')}>+ Menü ekle</button></div>
     </div>
-  </div>`}
   </div>`;
-  initMenuOrderDnD();
 }
+function msRename(id){ const e = document.getElementById('menu_name_' + id); if(!e) return; const v = e.value.trim(); if(!v || v === e.dataset.orig) return; e.dataset.orig = v; saveMenu(id); }
+/* İstasyon düzenle / ekle: ad, simge, renk, istasyona düşen ürünler, sil. */
+function openStationEdit(id){
+  const s = (APP.config.stations || []).find(x => x.id === id), isNew = !s;
+  removeEl('stEditBg');
+  const bg = document.createElement('div'); bg.id = 'stEditBg'; bg.className = 'modal-bg';
+  bg.onclick = (e) => { if(e.target === bg) bg.remove(); };
+  const k = isNew ? '' : '_' + s.id;
+  bg.innerHTML = `<div class="box sd-box sh-chain"><div class="u-row-sb"><h2 class="u-m0">${isNew ? '＋ Yeni istasyon' : '🍳 ' + escapeHtml(s.name)}</h2><span class="u-xclose" ${act('removeEl','stEditBg')}>✕</span></div>
+    <div class="ms-stform">${stationIconPickerHtml(isNew ? 'newStIcon' : 'st_icon' + k, isNew ? '🍳' : (s.icon || '🍳'), '')}
+      <input id="${isNew ? 'newStName' : 'st_name' + k}" placeholder="İstasyon adı (örn. Fırın)" value="${isNew ? '' : escapeAttr(s.name)}">
+      <input type="color" id="${isNew ? 'newStColor' : 'st_color' + k}" value="${isNew ? '#b6a48d' : escapeAttr(s.color || '#94a3b8')}" title="Renk" class="st-col-color"></div>
+    ${isNew ? '' : `<div class="ms-sub">Bağlı menüler: ${(APP.config.menus || []).filter(m => m.station_id === s.id).map(m => `<span class="pchip">${escapeHtml(m.name)}</span>`).join(' ') || '<small class="muted">yok — menü listesindeki "İstasyon" seçiminden bağlayın</small>'}</div>${stationKitchenProductsHtml(s)}`}
+    <div class="oa-edit-acts">${isNew ? '' : `<button type="button" class="ghost-btn danger" ${act('msStationDel', s.id)}>🗑 Sil</button>`}<span class="u-f1"></span><button type="button" class="ghost-btn" ${act('removeEl','stEditBg')}>Vazgeç</button><button type="button" ${act('msStationSave', id || '')}>💾 Kaydet</button></div></div>`;
+  document.body.appendChild(bg);
+}
+async function msStationSave(id){ if(id){ await saveStation(id); } else { if(!((document.getElementById('newStName') || {}).value || '').trim()){ uiAlert('İstasyon adı girin'); return; } await addStation(); } removeEl('stEditBg'); }
+async function msStationDel(id){ removeEl('stEditBg'); await removeStation(id); }
 /* Menü sırası: sürükle-bırak (HTML5 DnD + dokunmatik için oklar). */
 function initMenuOrderDnD(){
   const list = document.getElementById('menuOrderList'); if(!list) return;
@@ -1164,37 +1135,28 @@ function renderZonesSettings(el, session){
     </div>
     <details class="ux-set" ${APP.zSetOpen ? 'open' : ''}><summary>⚙️ Masa ayarları <span class="ux-meta">· 🥗 İkram: ${trOn ? 'Açık' : 'Kapalı'} · 🔒 Kişi sayısı zorunlu: ${grOn ? 'Açık' : 'Kapalı'}</span></summary>
       <div class="ux-set-body">${tableTreatBoxHtml()}${guestRequiredBoxHtml()}</div></details>
-    <div class="zn-layout">
-      <div class="zn-list">
-        ${zones.map((q, i) => `<button type="button" class="zn-item ${q.id===APP.zoneSel?'on':''}" style="--zc:var(--c${i%4+1});" ${act('selectZoneSetting', q.id)}>
-          <span class="zn-dot">📍</span><span class="zn-txt"><b>${escapeHtml(q.name)}</b><small>${q.tables.length} masa</small></span></button>`).join('')}
-        <div class="zn-new"><input id="newZoneName" placeholder="Yeni bölge (örn. Teras)" ${actOn('keydown','onEnterCall',['$event','addZone'])}><button type="button" ${act('addZone')}>+</button></div>
-      </div>
-      <div class="zn-panel">
-        ${z ? `<div class="zn-head">
-            <input value="${escapeAttr(z.name)}" id="zn_name_${z.id}" class="zn-title" title="Adı değiştirip Enter'a basın" ${actOn('keydown','onEnterCall',['$event','saveZone', z.id])}>
-            <button type="button" class="ico-btn" title="Bölge adını kaydet" ${act('saveZone', z.id)}>💾</button>
-            <button type="button" class="ico-btn danger" title="Bölgeyi sil" ${act('removeZone', z.id)}>🗑</button>
-          </div>
-          <div class="zn-tiles" data-cf-scope="zones">
-            ${z.tables.slice().sort(natural).map((t, i) => `<div class="zn-tile" data-cf-tags="${t.qr_token ? 'qr' : 'noqr'}" style="--i:${Math.min(i,20)};">
-              <button type="button" class="zn-tname" title="Yeniden adlandır" ${act('renameTable', t.id, z.id, t.name)}>${escapeHtml(t.name)}</button>
-              <div class="zn-tacts">
-                <button type="button" title="QR Menü Kodu" ${act('showTableQr', t.id, t.qr_token)}>▦ QR</button>
-                <button type="button" class="danger" title="Masayı sil" ${act('removeTable', t.id)}>✕</button>
-              </div>
-            </div>`).join('')}
-            <div class="zn-tile zn-addtile">
-              <input id="newTable_${z.id}" placeholder="Masa 21 ya da Masa 1-10" ${actOn('keydown','onEnterCall',['$event','addTable', z.id])}>
-              <button type="button" ${act('addTable', z.id)}>+ Masa Ekle</button>
-            </div>
-          </div>
-          <p class="muted" style="font-size:12px;margin:12px 0 0;text-align:left;">İpucu: Masa adına tıklayıp yeniden adlandırabilirsiniz. Toplu eklemek için <b>Masa 1-10</b> yazın.</p>`
-        : '<div class="empty-state"><div style="font-size:42px;">📍</div><p class="muted">Soldan ilk bölgenizi ekleyin (örn. Salon, Bahçe).</p></div>'}
-      </div>
+    <div class="zn2-tabs">
+      ${zones.map((q, i) => `<button type="button" class="zn2-tab ${q.id===APP.zoneSel?'on':''}" ${act('selectZoneSetting', q.id)}>📍 ${escapeHtml(q.name)} <em>${q.tables.length}</em></button>`).join('')}
+      <span class="zn2-new"><input id="newZoneName" placeholder="+ Yeni bölge (örn. Teras)" ${actOn('keydown','onEnterCall',['$event','addZone'])}><button type="button" title="Bölge ekle" ${act('addZone')}>+</button></span>
     </div>
+    ${z ? `<div class="zn2-bar">
+        <input value="${escapeAttr(z.name)}" id="zn_name_${z.id}" class="zn2-title" title="Bölge adı — değiştirip başka yere dokunun" data-orig="${escapeAttr(z.name)}" ${actOn('change','znRename',[z.id])} ${actOn('keydown','onEnterCall',['$event','znRename', z.id])}>
+        <span class="ux-meta">${z.tables.length} masa</span><span class="u-f1"></span>
+        <span class="zn2-add"><input id="newTable_${z.id}" placeholder="Masa 21 ya da Masa 1-10" ${actOn('keydown','onEnterCall',['$event','addTable', z.id])}><button type="button" ${act('addTable', z.id)}>+ Masa</button></span>
+        <button type="button" class="ico-btn danger" title="Bölgeyi sil" ${act('removeZone', z.id)}>🗑</button>
+      </div>
+      <div class="zn2-grid">
+        ${z.tables.slice().sort(natural).map(t => `<div class="zn2-t">
+          <button type="button" class="zn2-tn" title="Yeniden adlandır" ${act('renameTable', t.id, z.id, t.name)}>${escapeHtml(t.name)}</button>
+          <button type="button" class="zn2-ib" title="QR menü kodu" ${act('showTableQr', t.id, t.qr_token)}>▦</button>
+          <button type="button" class="zn2-ib danger" title="Masayı sil" ${act('removeTable', t.id)}>✕</button>
+        </div>`).join('') || '<p class="muted">Bu bölgede masa yok. Yukarıdan ekleyin; toplu eklemek için <b>Masa 1-10</b> yazın.</p>'}
+      </div>
+      <p class="muted ux-hint" style="margin:10px 0 0!important;">Masa adına dokunup yeniden adlandırın · ▦ QR kodu · toplu ekleme: <b>Masa 1-10</b></p>`
+    : '<div class="empty-state"><div style="font-size:42px;">📍</div><p class="muted">Yukarıdan ilk bölgenizi ekleyin (örn. Salon, Bahçe).</p></div>'}
   </div>`;
 }
+function znRename(id){ const e = document.getElementById('zn_name_' + id); if(!e) return; const v = e.value.trim(); if(!v || v === e.dataset.orig) return; e.dataset.orig = v; saveZone(id); }
 function selectZoneSetting(id){ APP.zoneSel = id; renderSettingsContent(getSession()); }
 async function renameTable(id, zoneId, current){
   const name = (await uiPrompt('Masa adı:', current) || '').trim();
