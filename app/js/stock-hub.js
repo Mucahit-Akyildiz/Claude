@@ -25,35 +25,34 @@ function renderStockHub(el){
   let body = '', ctx = '';
   if(tab === 'depot' && APP.shBulk){ body = '<div id="shBulkBox"></div>'; ctx = `<div class="me-ctx"><div class="me-ctx-t"><b>✏️ Toplu düzenle / Excel</b><span class="me-st">Eski hammadde tablosu</span></div><span class="u-f1"></span><span class="me-ctx-a"><button type="button" class="ghost-btn" ${act('setShBulk', '0')}>▦ Kart görünümüne dön</button></span></div>`; }
   else if(tab === 'depot'){
-    ctx = `<div class="me-ctx"><div class="me-ctx-t"><b>🏬 Depo</b><span class="me-st">Satın alınıp depoda duran malzemeler. Stok Mal Kabul'den girer; satış ya da hazırlık buradan düşer.</span></div></div>`;
     body = `<div class="me-grid">${depot.filter(i => match(i.name)).sort((a, b) => String(a.name).localeCompare(String(b.name), 'tr')).map(i => { const n = prep.filter(x => x.prep_source_id === i.id).length, u = shUsedIn(i.id).length;
       return card(i, '🏬', `${n ? '🥙 ' + n + ' hazırlık · ' : ''}🍽️ ${u} üründe`, 'openStockChain'); }).join('')}<button type="button" class="me-card me-add" ${act('shNew')}><span>＋</span><b>Hammadde ekle</b></button></div>`;
   } else if(tab === 'prep'){
-    ctx = `<div class="me-ctx"><div class="me-ctx-t"><b>🥙 Günlük hazırlık</b><span class="me-st">Her gün depodan alınıp hazırlanan kalemler; satış buradan düşer.</span></div><span class="u-f1"></span><span class="me-ctx-a"><button type="button" class="fsheet-open" ${act('openPrepHub', true)}>📋 Bugünün hazırlığı</button></span></div>`;
     body = `<div class="me-grid">${prep.filter(i => match(i.name)).map(i => { const src = ings.find(x => x.id === i.prep_source_id);
       return card(i, '🥙', `🏬 ${escapeHtml(src ? src.name : '—')} · günlük ${escapeHtml(i.prep_default ? shQty(i.prep_default, i) : '—')}`, 'openStockChain'); }).join('') || '<div class="kv-none">Günlük hazırlık yok. Bir depo kalemine dokunup "hazırlık ayarı"ndan ekleyin.</div>'}</div>`;
   } else {
-    ctx = `<div class="me-ctx"><div class="me-ctx-t"><b>🍽️ Ürünler & reçeteler</b><span class="me-st">Ürün satılınca reçetedeki miktarlar stoktan düşer. Reçetesi olmayan ürünler turuncu.</span></div></div>`;
     body = `<div class="me-grid">${shProds().filter(p => match(p.name)).sort((a, b) => String(a.name).localeCompare(String(b.name), 'tr')).map(p => { const rc = p.recipe || [];
       return `<div class="me-card sh-card" style="--mc:${rc.length ? '#22c55e' : '#f59e0b'};" role="button" tabindex="0" ${act('openShProduct', p.id, 'recipe')}>
         <div class="sh-ctop"><span class="sh-cic">🍽️</span><span class="sh-pill ${rc.length ? 'ok' : 'warn'}">${rc.length ? rc.length + ' malzeme' : 'Reçetesiz'}</span></div>
         <b class="sh-cn">${escapeHtml(p.name)}</b><span class="sh-cq">${Number(p.cost) > 0 ? money(p.cost) : '—'}</span><small class="sh-cs">${rc.length ? rc.slice(0, 3).map(r => escapeHtml(r.ingredient_name || '')).join(' · ') + (rc.length > 3 ? '…' : '') : 'stok ve maliyet düşmez'}</small></div>`; }).join('')}</div>`;
   }
-  el.innerHTML = `<div class="u-mwn box me-wrap">
-    <div class="me-top"><h2 class="u-m0">Stok & Reçete</h2>
-      <input class="me-search" type="search" placeholder="🔍 Ara…" value="${escapeAttr(APP.shQ || '')}" ${actOn('input', 'shSearch', ['$value'])}>
-      <button type="button" class="fsheet-open me-newbtn" ${act('shNew')}>＋ ${tab === 'recipes' ? 'Yeni ürün' : 'Yeni hammadde'}</button>
-      <details class="ux-more"><summary title="Diğer işlemler">⋯ Diğer</summary><div class="ux-more-pop">
-        <div class="ux-more-t">Hazırlık</div><div class="xl-bar"><button type="button" class="xl-btn" ${act('openPrepHub', true)}>📋 Bugünün hazırlığı</button></div>
-        <div class="ux-more-t">Depo</div><div class="xl-bar"><button type="button" class="xl-btn" ${act('shBulkGo')}>✏️ Toplu düzenle / Excel / sayım</button></div></div></details>
+  el.innerHTML = `<div class="u-mwn box me-wrap me2">
+    <div class="me2-bar">
+      <div class="me2-tabs">${[['depot','🏬 Depo',depot.length,'#0ea5e9'],['prep','🥙 Günlük hazırlık',prep.length,'#f59e0b'],['recipes','🍽️ Reçeteler',shProds().length,'#22c55e']].map(([k, l, n, c]) => `<button type="button" class="me2-tab ${tab === k ? 'on' : ''}" style="--mc:${c};" ${act('setShTab', k)}>${l} <em class="me-kn">${n}</em></button>`).join('')}</div>
+      <div class="me2-tools">
+        <span class="me2-adds"><button type="button" class="me2-tab me2-add" ${act('shNew')}>＋ ${tab === 'recipes' ? 'Ürün' : 'Hammadde'}</button>${tab === 'prep' ? `<button type="button" class="me2-tab me2-add" ${act('openPrepHub', true)}>📋 Bugünün hazırlığı</button>` : ''}</span>
+        <input class="me2-search" type="search" placeholder="🔍 Ara" value="${escapeAttr(APP.shQ || '')}" ${actOn('input', 'shSearch', ['$value'])}>
+        <details class="ux-more"><summary title="Diğer işlemler">⋯</summary><div class="ux-more-pop">
+          <div class="ux-more-t">Depo</div><div class="xl-bar"><button type="button" class="xl-btn" ${act('shBulkGo')}>✏️ Toplu düzenle / Excel / sayım</button></div></div></details>
+      </div>
     </div>
-    <div class="me-tabs">${[['depot','🏬 Depo',depot.length,'#0ea5e9'],['prep','🥙 Günlük hazırlık',prep.length,'#f59e0b'],['recipes','🍽️ Ürünler & reçeteler',shProds().length,'#22c55e']].map(([k, l, n, c]) => `<button type="button" class="me-tab ${tab === k ? 'on' : ''}" style="--mc:${c};" ${act('setShTab', k)}>${l} <em>${n}</em></button>`).join('')}</div>
+    <div class="me2-hint">🏬 <b>Depo</b> = satın alınan malzeme · 🥙 <b>Günlük hazırlık</b> = depodan alınıp tezgâha hazırlanan · 🍽️ <b>Reçete</b> = ürün satılınca hangi malzemeden ne kadar düşer</div>
     ${ctx}<div id="shBody">${body}</div></div>`;
   const bb = document.getElementById('shBulkBox'); if(bb) renderIngredientsSettings(bb, getSession());
 }
 function shBulkGo(){ APP.shTab = 'depot'; APP.shBulk = true; renderSettingsContent(getSession()); }
 function setShTab(t){ APP.shTab = t; renderSettingsContent(getSession()); }
-function shSearch(v){ APP.shQ = v; const el = document.getElementById('settingsContent'); renderStockHub(el); const inp = el.querySelector('.me-search'); if(inp){ inp.focus(); inp.setSelectionRange(v.length, v.length); } }
+function shSearch(v){ APP.shQ = v; const el = document.getElementById('settingsContent'); renderStockHub(el); const inp = el.querySelector('.me2-search'); if(inp){ inp.focus(); inp.setSelectionRange(v.length, v.length); } }
 function shNew(){
   if((APP.shTab || 'depot') === 'recipes'){ APP.settingsTab = 'products'; APP.productsSubTab = 'products'; renderSettingsView(document.getElementById('main'), getSession()).then(() => typeof openSheet === 'function' && openSheet('prodSheet')); return; }
   APP.shTab = 'depot'; APP.shBulk = true; renderSettingsContent(getSession()); if(typeof niStart === 'function') niStart('');

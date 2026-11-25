@@ -1276,17 +1276,17 @@ function renderZonesSettings(el, session){
   if(!zones.some(z => z.id === APP.zoneSel)) APP.zoneSel = zones.length ? zones[0].id : null;
   const z = zones.find(x => x.id === APP.zoneSel);
   const trOn = !!(APP.config.treat && APP.config.treat.product_id) || !!APP.ttOn, grOn = !!APP.config.guest_required;
-  el.innerHTML = `<div class="u-mwn box me-wrap">
-    <div class="me-top">
-      <h2 class="u-m0">Masalar</h2><span class="u-f1"></span>
-      <button type="button" class="fsheet-open me-newbtn" ${act('znAddPrompt')}>＋ Yeni bölge</button>
-      <button type="button" class="ghost-btn me-newbtn" ${act('znSettingsOpen')}>⚙️ Masa ayarları</button>
-      <details class="ux-more"><summary title="Diğer işlemler">⋯ Diğer</summary><div class="ux-more-pop">
-        <div class="ux-more-t">QR kodları</div><div class="xl-bar"><button type="button" class="xl-btn" ${act('showAllTableQrs')}>▦ Tüm QR'ları yazdır</button><button type="button" class="xl-btn" ${act('downloadZoneQrPdf', '')}>⬇ Bölüm bölüm PDF indir</button></div></div></details>
+  el.innerHTML = `<div class="u-mwn box me-wrap me2">
+    <div class="me2-bar">
+      <div class="me2-tabs">${zones.map((q, k) => `<button type="button" class="me2-tab ${q.id === APP.zoneSel ? 'on' : ''}" style="--mc:var(--c${k % 4 + 1});" ${act('selectZoneSetting', q.id)}>${escapeHtml(q.name)} <em class="me-kn">${q.tables.length}</em></button>`).join('')}</div>
+      <div class="me2-tools">
+        <span class="me2-adds"><button type="button" class="me2-tab me2-add" ${act('znAddPrompt')}>＋ Bölge</button><button type="button" class="me2-tab me2-add" ${act('znSettingsOpen')}>⚙️ Masa ayarları</button></span>
+        <details class="ux-more"><summary title="Diğer işlemler">⋯</summary><div class="ux-more-pop">
+          <div class="ux-more-t">QR kodları</div><div class="xl-bar"><button type="button" class="xl-btn" ${act('showAllTableQrs')}>▦ Tüm QR'ları yazdır</button><button type="button" class="xl-btn" ${act('downloadZoneQrPdf', '')}>⬇ Bölüm bölüm PDF indir</button></div></div></details>
+      </div>
     </div>
-    <div class="me-tabs">${zones.map((q, k) => `<button type="button" class="me-tab ${q.id === APP.zoneSel ? 'on' : ''}" style="--mc:var(--c${k % 4 + 1});" ${act('selectZoneSetting', q.id)}><i class="me-dot"></i>${escapeHtml(q.name)} <em>${q.tables.length}</em></button>`).join('')}</div>
-    ${z ? `<div class="me-ctx"><div class="me-ctx-t"><b>📍 ${escapeHtml(z.name)}</b><span class="me-st">${z.tables.length} masa · 🥗 İkram: ${trOn ? 'açık' : 'kapalı'} · 🔒 Kişi sayısı zorunlu: ${grOn ? 'açık' : 'kapalı'}</span></div>
-        <span class="u-f1"></span><span class="me-ctx-a"><button type="button" class="ghost-btn" ${act('znEditOpen', z.id)}>✏️ Bölgeyi düzenle</button></span></div>
+    <div class="me2-hint">📍 <b>Bölge</b> = salon, bahçe, kat gibi alanlar · 🪑 <b>Masa</b> = o bölgedeki masalar; masaya dokunun: ad, QR, sil</div>
+    ${z ? `<div class="me2-sub"><b>${escapeHtml(z.name)}</b><span class="me2-arrow">${z.tables.length} masa · 🥗 İkram ${trOn ? 'açık' : 'kapalı'} · 🔒 Kişi sayısı ${grOn ? 'zorunlu' : 'serbest'}</span><span class="u-f1"></span><button type="button" class="xl-link" ${act('znEditOpen', z.id)}>Düzenle</button></div>
       <div class="me-grid zn4-grid">${z.tables.slice().sort(natural).map(t => `<div class="me-card zn4-t" role="button" tabindex="0" ${act('znTableOpen', t.id, z.id)}><span class="zn4-ic">🪑</span><b>${escapeHtml(t.name)}</b><small>${t.qr_token ? '▦ QR hazır' : 'QR yok'}</small></div>`).join('')}
         <button type="button" class="me-card me-add zn4-add" ${act('znAddTablePrompt', z.id)}><span>＋</span><b>Masa ekle</b><small>Toplu: Masa 1-10</small></button></div>`
     : `<div class="empty-state"><div style="font-size:42px;">📍</div><p class="muted">Önce bir bölge ekleyin (örn. Salon, Bahçe).</p></div>`}

@@ -5071,3 +5071,4 @@ select.ss-hidden{display:none !important;}
 .me2-bar{flex-wrap:nowrap;} .me2-tabs{order:0;flex:1 1 auto;min-width:0;} .me2-tools{order:1;margin-left:0;flex:0 0 auto;} .me2-adds{order:0;}
 .me2-hint{padding-right:0;}
 @media (max-width:1100px){ .me2-bar{flex-wrap:wrap;} .me2-tabs{order:2;flex:1 1 100%;} .me2-tools{flex:1 1 100%;flex-wrap:wrap;} }
+.me2-tab .me-kn{margin-left:4px;}
