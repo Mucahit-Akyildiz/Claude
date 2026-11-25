@@ -54,12 +54,12 @@ async function renderCrmView(main, session){
           ${canManage(session, 'crm') ? `<button type="button" class="ghost-btn" style="width:auto;flex:0 0 auto;white-space:nowrap;margin:0;" ${act('openWinback', 0)} title="Tüm müşterilere, son gelenlere ya da bir süredir gelmeyenlere SMS / e-posta">📣 Kampanya & Geri Kazanım</button>` : ''}
           <input id="crmSearchInput" type="search" name="crm-list-search" autocomplete="off" data-lpignore="true" placeholder="İsim veya telefon ara..." style="flex:0 1 260px;min-width:120px;width:auto;margin:0;" value="${escapeAttr(APP.crmSearch||'')}" ${actOn('input', 'debouncedCrmSearch', ['$value'])}>
           ${canManage(session, 'crm') ? `<button type="button" class="ghost-btn" style="width:auto;flex:0 0 auto;white-space:nowrap;margin:0;" ${act('openSheet','crmLoySheet')} title="Puan ve doğum günü indirimi ayarları">⭐ Sadakat${loyalty.enabled ? '' : ' (kapalı)'}</button>` : ''}
-          <button type="button" class="ghost-btn" style="width:auto;flex:0 0 auto;white-space:nowrap;margin:0;" ${act('exportCustomersCsv')} title="Tüm müşterileri Excel (.xlsx) olarak indir">⬇️ Dışa aktar</button>
-          ${canManage(session, 'crm') ? `<button type="button" class="ghost-btn" style="width:auto;flex:0 0 auto;white-space:nowrap;margin:0;" ${act('openCustomerImport')} title="Excel (.xlsx) veya CSV dosyasından müşteri yükle">⬆️ İçe aktar</button>
-          <button type="button" class="xl-link" style="flex:0 0 auto;" ${act('downloadCustomerTemplate')}>📄 Şablon indir</button>` : ''}
+          <details class="ux-more"><summary title="Diğer işlemler">⋯ Diğer</summary><div class="ux-more-pop"><div class="ux-more-t">Excel</div><div class="xl-bar">
+          <button type="button" class="xl-btn" ${act('exportCustomersCsv')} title="Tüm müşterileri Excel (.xlsx) olarak indir">⬇️ Dışa aktar</button>
+          ${canManage(session, 'crm') ? `<button type="button" class="xl-btn" ${act('openCustomerImport')} title="Excel (.xlsx) veya CSV dosyasından müşteri yükle">⬆️ İçe aktar</button>
+          <button type="button" class="xl-btn" ${act('downloadCustomerTemplate')}>📄 Şablon indir</button>` : ''}</div></div></details>
         </div>
       </div>
-      <p class="muted" style="font-size:12px;margin:6px 0 10px;text-align:left;">Harcama/ziyaret/doğum günü gibi detaylı analizler için <b>Finansal Analiz &gt; Müşteri Analizleri</b> sekmesine bakın.</p>
       ${crmGroupBarHtml(allRows)}
       ${canManage(session, 'crm') && rows.length ? crmBulkBarHtml(rows) : ''}
       ${rows.length ? `<div class="cu-grid" data-cf-scope="crm">${rows.map((c, i) => { const bd = crmBirthdayInfo(c.birthday), custom = (c.spend_per_point!=null || c.point_value!=null || c.birthday_discount_percent!=null);
@@ -127,7 +127,7 @@ function crmVisualsHtml(rows){
   const ring = (v, l, c, i) => { const p = rows.length ? Math.round(v / rows.length * 100) : 0; return `<div class="gx-ring" style="--p:${p};--c:${c};--i:${i};"><div class="gx-ring-c"><b>%${p}</b></div><small>${l}</small><em>${v} / ${rows.length}</em></div>`; };
   const miss = rows.map(c => ({ c, m: [!c.phone && '📞 telefon', !c.birthday && '🎂 doğum günü', !c.email && '✉️ e-posta'].filter(Boolean) })).filter(x => x.m.length).sort((a, b) => b.m.length - a.m.length);
   const recent = rows.slice().sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0)).slice(0, 5);
-  return `<div class="ch-row crm-vis">
+  return `<details class="ux-set crm-vis-wrap"><summary>📊 Kayıt özeti <span class="ux-meta">· ${miss.length} müşterinin bilgisi eksik</span></summary><div class="ux-set-body"><div class="ch-row crm-vis">
     <div class="fs-panel pa-sec" style="--t:var(--c2);"><h3><i>📇</i>Kayıt Doluluğu</h3><div class="gx-rings">${ring(withPhone, 'Telefon', '#22c55e', 0)}${ring(withMail, 'E-posta', 'var(--accent)', 1)}${ring(withBd, 'Doğum günü', '#ec4899', 2)}</div>
       <p class="fs-note">Doğum günü ve telefonu girilen müşterilere otomatik indirim ve SMS gönderilebilir.</p></div>
     <div class="fs-panel pa-sec" style="--t:#f59e0b;"><h3><i>✍️</i>Bilgisi Eksik Müşteriler <small class="muted">· ${miss.length}</small></h3>
@@ -135,7 +135,7 @@ function crmVisualsHtml(rows){
     <div class="fs-panel pa-sec" style="--t:var(--c1);"><h3><i>🆕</i>Son Eklenenler</h3>
       <div class="crm-miss">${recent.map(c => `<button type="button" class="crm-miss-r" ${act('editCustomer', c.id)}><b>${escapeHtml(c.name || '')}</b><span><em>${c.created_at ? new Date(c.created_at).toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' }) : ''}</em></span><i>✏️</i></button>`).join('')}</div>
       <p class="fs-note">Seviye ve puan analizleri: Finansal Analiz › Müşteri Yolculuğu.</p></div>
-  </div>`;
+  </div></div></details>`;
 }
 function crmTiers(){
   const t = (APP.config && APP.config.loyalty && APP.config.loyalty.tiers) || [{ name:'Gümüş', icon:'🥈', min:50, mult:1, disc:0 }, { name:'Altın', icon:'🥇', min:200, mult:1, disc:0 }, { name:'Elmas', icon:'💎', min:500, mult:1, disc:0 }];

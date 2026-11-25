@@ -4803,3 +4803,11 @@ select.ss-hidden{display:none !important;}
 .ux-zn .ux-set .tt-box{margin:0;}
 .ux-zn .zn-tile{min-height:0;}
 .ux-zn .zn-tiles{grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px;}
+.crm-vis-wrap,.rv-vis-wrap{margin:0 0 12px;}
+@media (min-width:901px){ .td-prev{position:sticky;top:12px;align-self:start;} }
+/* Ödemeler: tutar ve "Hesabı Al" düğmesi dar kartta taşmasın. */
+.pk-foot{flex-wrap:wrap;gap:8px;}
+.pk-foot .pk-total{white-space:nowrap;}
+.pk-foot .pk-btn{white-space:nowrap;flex:1 0 auto;text-align:center;justify-content:center;}
+.nm-table tr.nm-grp td{background:var(--panel2);font-size:11.5px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);padding:8px 10px;}
+.fs-more{margin:0 0 14px;}

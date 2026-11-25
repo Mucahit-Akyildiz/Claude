@@ -476,6 +476,7 @@ async function renderReportContent(session){
       </div>
     </div>
     <div class="fs-panel pa-sec" id="fsAllowance" style="--t:#14b8a6;display:none;"></div>
+    <details class="ux-set fs-more"><summary>📈 Saatlik ciro, ödeme türleri, yoğunluk ve personel performansı</summary><div class="ux-set-body">
     <div class="ch-row">
       <div class="fs-panel pa-sec" style="--t:var(--c1);"><h3><i>📊</i>Saatlik Ciro${peakHour!==null?' <span class="muted" style="font-size:12px;font-weight:400;">en yoğun: '+(peakHour<10?'0'+peakHour:peakHour)+':00</span>':''}</h3>
         ${(() => { if(!hourKeys.length) return '<p class="muted">Bu tarihte veri yok.</p>'; const lo = Math.min(...hourKeys), hi = Math.max(...hourKeys); const hrs = []; for(let h = lo; h <= hi; h++) hrs.push(h);
@@ -486,6 +487,7 @@ async function renderReportContent(session){
     ${heatmapHtml(untaggedHist)}
     <details class="fs-panel pa-sec" style="--t:#f97316;"><summary style="cursor:pointer;"><h3 style="display:inline-flex;margin:0;"><i>⏰</i>Saatlik Yoğunluk Tablosu</h3></summary>${hourlyHtml}</details>
     <div class="fs-panel pa-sec" style="--t:#a78bfa;"><h3><i>👤</i>Personel Performansı</h3>${staffRowsHtml}</div>
+    </div></details>
     <div class="fs-panel pa-sec" style="--t:var(--green);">
       <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:6px;">
         <h3 class="u-m0"><i>🧾</i>Kapatılan Hesaplar</h3>
