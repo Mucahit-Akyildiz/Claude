@@ -5083,3 +5083,4 @@ select.ss-hidden{display:none !important;}
 .sub-tabs-content .me-wrap::before{display:none!important;}
 .sub-tab:not(.active){background:var(--panel2)!important;border:1px solid var(--border)!important;color:var(--text)!important;}
 .sub-tab:not(.active):hover{border-color:var(--accent)!important;}
+.set-content,.sub-tabs-box,.sub-tabs-content,.me2,.me2-bar{min-width:0;max-width:100%;} .set-content{overflow-x:hidden;}
