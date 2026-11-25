@@ -838,9 +838,10 @@ function renderStationsSettings(el, session){
       <h2 class="u-m0">Menü</h2>
       <input class="me-search" type="search" placeholder="🔍 Ürün ara…" value="${escapeAttr(APP.meQ || '')}" ${actOn('input','meSearch',['$value'])}>
       <button type="button" class="fsheet-open me-newbtn" ${act('meNewMenu')}>＋ Yeni menü</button>
+      <button type="button" class="ghost-btn me-newbtn" ${act('meKitchens')}>🍳 Mutfaklar <em class="me-kn">${stations.length}</em></button>
       <details class="ux-more"><summary title="Diğer işlemler">⋯ Diğer</summary><div class="ux-more-pop">
         <div class="ux-more-t">Düzen</div><div class="xl-bar"><button type="button" class="xl-btn" ${act('msOrderOpen')}>↕ Menü sırasını değiştir</button></div>
-        <div class="ux-more-t">Mutfaklar (siparişin gittiği istasyon)</div><div class="xl-bar">${stations.map(x => `<button type="button" class="xl-btn" ${act('openStationEdit', x.id)}>${escapeHtml(x.icon || '🍳')} ${escapeHtml(x.name)} — düzenle</button>`).join('')}<button type="button" class="xl-btn" ${act('openStationEdit', '')}>＋ Yeni mutfak ekle</button></div>
+
         <div class="ux-more-t">Menü PDF</div><div class="xl-bar"><button type="button" class="xl-btn" ${act('downloadMenuPdf', true)}>📄 Fiyatlı</button><button type="button" class="xl-btn" ${act('downloadMenuPdf', false)}>📄 Fiyatsız</button></div>
         <div class="ux-more-t">Excel</div>${typeof excelBarHtml === 'function' ? excelBarHtml('menus') : ''}</div></details>
     </div>
@@ -861,6 +862,19 @@ function renderStationsSettings(el, session){
     ${!list.length && !menu ? '<div class="empty-state"><p class="muted">Ürün bulunamadı.</p></div>' : ''}
   </div>`;
 }
+/* Mutfaklar penceresi: her mutfak, bağlı menüleri, düzenle / yeni. */
+function meKitchens(){
+  const st = APP.config.stations || [], menus = APP.config.menus || [];
+  removeEl('meKBg');
+  const bg = document.createElement('div'); bg.id = 'meKBg'; bg.className = 'modal-bg';
+  bg.onclick = (e) => { if(e.target === bg) bg.remove(); };
+  bg.innerHTML = `<div class="box sd-box sh-chain"><div class="u-row-sb"><h2 class="u-m0">🍳 Mutfaklar</h2><span class="u-xclose" ${act('removeEl','meKBg')}>✕</span></div>
+    <p class="muted u-fs13">Siparişlerin düştüğü mutfak ekranları ve yazıcılar. Her menü bir mutfağa gider.</p>
+    <div class="sh-list">${st.map(x => `<button type="button" class="sh-row" style="border-left:5px solid ${escapeAttr(x.color || '#94a3b8')};" ${act('meKEdit', x.id)}><span class="sh-ic">${escapeHtml(x.icon || '🍳')}</span><span class="sh-name"><b>${escapeHtml(x.name)}</b><small>${menus.filter(m => m.station_id === x.id).map(m => escapeHtml(m.name)).join(' · ') || 'menü bağlı değil'}</small></span><span class="sh-go">✏️</span></button>`).join('')}</div>
+    <div class="oa-edit-acts"><button type="button" class="ghost-btn" ${act('removeEl','meKBg')}>Kapat</button><button type="button" ${act('meKEdit', '')}>＋ Yeni mutfak</button></div></div>`;
+  document.body.appendChild(bg);
+}
+function meKEdit(id){ removeEl('meKBg'); openStationEdit(id); }
 function meSel(id){ APP.meMenu = id; APP.meQ = ''; renderSettingsContent(getSession()); }
 function meSearch(v){ APP.meQ = v; renderSettingsContent(getSession()); const i = document.querySelector('.me-search'); if(i && v){ i.focus(); i.setSelectionRange(v.length, v.length); } }
 async function meNewMenu(){

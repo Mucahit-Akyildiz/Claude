@@ -4997,3 +4997,4 @@ select.ss-hidden{display:none !important;}
 .ux-more-pop .xl-bar>b{display:none;}
 .ux-more-pop .xl-btn,.ux-more-pop .xl-link{width:100%;justify-content:flex-start;text-align:left;margin:0;padding:9px 12px;border-radius:10px;}
 .ux-more-t{margin-top:4px;}
+.me-kn{font-style:normal;font-size:11px;padding:1px 7px;border-radius:999px;background:var(--panel2);margin-left:4px;}
