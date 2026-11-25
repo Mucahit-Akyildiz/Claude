@@ -819,40 +819,123 @@ function pickStationIcon(targetId, icon){
 }
 function setStTab(t){ APP.stTab = t; renderSettingsContent(getSession()); }
 function renderStationsSettings(el, session){
-  const menus = APP.config.menus || [], stations = APP.config.stations || [];
-  const prodCount = (mid) => (APP.config.products||[]).filter(p => p.menu_id === mid).length;
+  const menus = APP.config.menus || [], stations = APP.config.stations || [], prods = APP.config.products || [];
   const free = menus.filter(m => !m.station_id || !stations.some(x => x.id === m.station_id));
-  const stOf = (m) => stations.find(x => x.id === m.station_id);
-  el.innerHTML = `<div class="u-mwn box ux-st2">
-    <div class="ux-bar">
-      <h2 class="u-m0">Menüler & İstasyonlar</h2><span class="u-f1"></span>
-      <details class="ux-more"><summary title="Diğer işlemler">⋯ Diğer</summary><div class="ux-more-pop">
-        <div class="ux-more-t">Menü PDF</div>
-        <div class="xl-bar"><button type="button" class="xl-btn" ${act('downloadMenuPdf', true)}>📄 Menü PDF · fiyatlı</button><button type="button" class="xl-btn" ${act('downloadMenuPdf', false)}>📄 Menü PDF · fiyatsız</button></div>
-        <div class="ux-more-t">Excel</div>${typeof excelBarHtml === 'function' ? excelBarHtml('menus') : ''}
-      </div></details>
+  const menuCard = (m) => { const list = prods.filter(p => p.menu_id === m.id), closed = list.filter(p => p.available === false).length;
+    return `<div class="sb-menu" draggable="true" data-mid="${m.id}" role="button" tabindex="0" ${act('msMenuOpen', m.id)}>
+      <span class="sb-grip" aria-hidden="true">⋮⋮</span>
+      <span class="sb-mt"><b>${escapeHtml(m.name)}</b><small>${list.length} ürün${closed ? ` · <i class="sb-off">${closed === list.length ? 'satışa kapalı' : closed + ' kapalı'}</i>` : ''}</small></span>
+      <span class="sb-go">›</span></div>`; };
+  const col = (s) => { const list = menus.filter(m => m.station_id === s.id), pc = prods.filter(p => p.station_id === s.id).length;
+    return `<section class="sb-col" data-st="${s.id}" style="--sc:${escapeAttr(s.color || '#94a3b8')};">
+      <header class="sb-ch"><span class="sb-ic">${escapeHtml(s.icon || '🍳')}</span><span class="sb-ct"><b>${escapeHtml(s.name)}</b><small>${list.length} menü · ${pc} ürün</small></span>
+        <button type="button" class="sb-edit" title="İstasyonu düzenle" ${act('openStationEdit', s.id)}>⚙️</button></header>
+      <div class="sb-body">${list.map(menuCard).join('') || '<div class="sb-empty">Menü yok — aşağıdan ekleyin ya da başka istasyondan buraya sürükleyin</div>'}</div>
+      <button type="button" class="sb-add" ${act('msAddMenuTo', s.id)}>＋ Bu istasyona menü ekle</button>
+    </section>`; };
+  el.innerHTML = `<div class="u-mwn box sb-wrap">
+    <div class="sb-top">
+      <div><h2 class="u-m0">Menüler & İstasyonlar</h2>
+        <div class="sb-flow"><span>📋 Menü</span><i>→</i><span>🍳 İstasyon</span><i>→</i><span>🖥️ Mutfak ekranı + 🖨️ fiş</span></div></div>
+      <div class="sb-tacts">
+        <button type="button" class="ghost-btn" ${act('msOrderOpen')} title="Sipariş Al ekranındaki menü sırası">↕ Sipariş ekranı sırası</button>
+        <details class="ux-more"><summary title="Diğer işlemler">⋯ Diğer</summary><div class="ux-more-pop">
+          <div class="ux-more-t">Menü PDF</div><div class="xl-bar"><button type="button" class="xl-btn" ${act('downloadMenuPdf', true)}>📄 Fiyatlı</button><button type="button" class="xl-btn" ${act('downloadMenuPdf', false)}>📄 Fiyatsız</button></div>
+          <div class="ux-more-t">Excel</div>${typeof excelBarHtml === 'function' ? excelBarHtml('menus') : ''}</div></details>
+        <button type="button" class="fsheet-open" ${act('openStationEdit', '')}>+ Yeni istasyon</button>
+      </div>
     </div>
-    <div class="ms-sec-h"><div class="ms-sec-t">🍳 İstasyonlar <small>— mutfak ekranları ve yazıcılar. Düzenlemek için dokunun.</small></div><button type="button" class="fsheet-open ms-hbtn" ${act('openStationEdit', '')}>+ İstasyon ekle</button></div>
-    <div class="ms-stations">
-      ${stations.map(s => { const n = menus.filter(m => m.station_id === s.id).length, pc = (APP.config.products||[]).filter(p => p.station_id === s.id).length;
-        return `<button type="button" class="ms-st" style="--sc:${escapeAttr(s.color || '#94a3b8')};" ${act('openStationEdit', s.id)}><span class="ms-st-ic">${escapeHtml(s.icon || '🍳')}</span><span class="ms-st-t"><b>${escapeHtml(s.name)}</b><small>${n} menü · ${pc} ürün</small></span><span class="ms-st-e">✏️</span></button>`; }).join('')}
-    </div>
-    <div class="ms-sec-h"><div class="ms-sec-t">📋 Menüler <small>— sıra, Sipariş Al ekranındaki sıradır. Adı değiştirip başka yere dokunun, kendiliğinden kaydedilir.</small></div>
-      <span class="ms-add"><input id="newMenuName" placeholder="Yeni menü adı (örn. Çorbalar)" ${actOn('keydown','newMenuKey',['$event'])}><button type="button" class="fsheet-open ms-hbtn" ${act('addMenu')}>+ Menü ekle</button></span></div>
-    ${free.length ? `<div class="ms-warn">⚠️ ${free.length} menü bir istasyona bağlı değil: ürünleri mutfak ekranına ve fişe düşmez. Satırdaki "İstasyon" seçiminden bağlayın.</div>` : ''}
-    <div class="ms-table">
-      <div class="ms-row ms-head"><span>Sıra</span><span>Menü adı</span><span>İstasyon</span><span>Ürün</span><span>Satış</span><span></span></div>
-      ${menus.map((m, i) => { const st = stOf(m), list = (APP.config.products||[]).filter(p => p.menu_id === m.id), closed = list.filter(p => p.available === false).length;
-        return `<div class="ms-row ${st ? '' : 'nost'}" style="--sc:${escapeAttr((st && st.color) || '#94a3b8')};">
-        <span class="ms-ord"><button type="button" ${i===0?'disabled':''} title="Yukarı" ${act('moveMenu', m.id, -1)}>▲</button><em>${i + 1}</em><button type="button" ${i===menus.length-1?'disabled':''} title="Aşağı" ${act('moveMenu', m.id, 1)}>▼</button></span>
-        <span class="ms-name"><input id="menu_name_${m.id}" value="${escapeAttr(m.name)}" data-orig="${escapeAttr(m.name)}" ${actOn('change','msRename',[m.id])} ${actOn('keydown','onEnterCall',['$event','msRename', m.id])}></span>
-        <span class="ms-stsel"><select ${actOn('change','moveMenuToStation',[m.id,'$value'])}><option value="">⚠️ İstasyon yok</option>${stations.map(x => `<option value="${x.id}" ${x.id===m.station_id?'selected':''}>${escapeHtml(x.icon||'🍳')} ${escapeHtml(x.name)}</option>`).join('')}</select></span>
-        <span class="ms-cnt">${list.length}</span>
-        <span class="ms-av">${!list.length ? '<small class="muted">—</small>' : `<button type="button" role="switch" aria-checked="${!closed}" class="nm-sw ${closed ? '' : 'on'}" title="${closed ? closed + '/' + list.length + ' ürün kapalı — açmak için dokunun' : 'Satışta — kapatmak için dokunun'}" ${act('setMenuAvailable', m.id, !!closed)}><i></i></button>${closed && closed < list.length ? `<small class="muted">${closed} kapalı</small>` : ''}`}</span>
-        <span class="ms-del"><button type="button" class="ico-btn danger" title="Menüyü sil" ${act('removeMenu', m.id)}>🗑</button></span>
-      </div>`; }).join('') || '<p class="muted">Henüz menü yok.</p>'}
+    <p class="muted sb-tip">Her sütun bir mutfak istasyonu. Menünün ürünleri o istasyonun ekranına ve yazıcısına gider. <b>Menüyü taşımak için sürükleyin</b> ya da menüye dokunup istasyonunu seçin.</p>
+    <div class="sb-board">
+      ${free.length ? `<section class="sb-col sb-free" data-st="" style="--sc:#ef4444;">
+        <header class="sb-ch"><span class="sb-ic">⚠️</span><span class="sb-ct"><b>İstasyonu olmayan</b><small>Bu menülerin ürünleri mutfağa gitmez</small></span></header>
+        <div class="sb-body">${free.map(menuCard).join('')}</div></section>` : ''}
+      ${stations.map(col).join('')}
+      ${stations.length ? '' : `<div class="empty-state"><div style="font-size:42px;">🍳</div><p class="muted">Önce bir istasyon ekleyin (örn. Mutfak, Izgara, Bar).</p></div>`}
     </div>
   </div>`;
+  msInitDnD(el);
+}
+/* Sürükle-bırak: menüyü başka istasyon sütununa taşır. */
+function msInitDnD(root){
+  let drag = null;
+  root.querySelectorAll('.sb-menu[draggable]').forEach(c => {
+    c.addEventListener('dragstart', e => { drag = c.dataset.mid; c.classList.add('dragging'); try{ e.dataTransfer.setData('text/plain', drag); e.dataTransfer.effectAllowed = 'move'; }catch(x){} });
+    c.addEventListener('dragend', () => { c.classList.remove('dragging'); root.querySelectorAll('.sb-col.over').forEach(x => x.classList.remove('over')); });
+  });
+  root.querySelectorAll('.sb-col').forEach(col => {
+    col.addEventListener('dragover', e => { if(!drag) return; e.preventDefault(); col.classList.add('over'); });
+    col.addEventListener('dragleave', () => col.classList.remove('over'));
+    col.addEventListener('drop', e => { e.preventDefault(); col.classList.remove('over'); const mid = drag; drag = null; if(!mid) return;
+      const m = (APP.config.menus || []).find(x => x.id === mid); if(!m || (m.station_id || '') === col.dataset.st) return;
+      moveMenuToStation(mid, col.dataset.st); showToast('📋 ' + m.name + ' taşındı'); });
+  });
+}
+async function msAddMenuTo(stationId){
+  const st = (APP.config.stations || []).find(x => x.id === stationId) || {};
+  const name = ((await uiPrompt('Yeni menü adı (' + (st.name || '') + ' istasyonuna eklenecek):', '')) || '').trim(); if(!name) return;
+  const session = getSession();
+  const { data, error } = await withLoadingOverlay(sb.rpc('upsert_menu', { p_token: session.session_token, p_id: null, p_name: name }));
+  if(error){ uiAlert(error.message); return; }
+  if(data && stationId){ const mine = (APP.config.menus || []).filter(m => m.station_id === stationId).map(m => m.id);
+    const r = await sb.rpc('set_station_menus', { p_token: session.session_token, p_station_id: stationId, p_menu_ids: mine.concat(data) }); if(r.error){ uiAlert(r.error.message); } }
+  showToast('📋 ' + name + ' eklendi'); renderSettingsView(document.getElementById('main'), session);
+}
+/* Menü penceresi: ad, istasyon, ürünler, satış, sil. */
+function msMenuOpen(mid){
+  const m = (APP.config.menus || []).find(x => x.id === mid); if(!m) return;
+  const stations = APP.config.stations || [], list = (APP.config.products || []).filter(p => p.menu_id === mid), closed = list.filter(p => p.available === false).length;
+  removeEl('msMenuBg');
+  const bg = document.createElement('div'); bg.id = 'msMenuBg'; bg.className = 'modal-bg';
+  bg.onclick = (e) => { if(e.target === bg) bg.remove(); };
+  bg.innerHTML = `<div class="box sd-box sh-chain"><div class="u-row-sb"><h2 class="u-m0">📋 ${escapeHtml(m.name)}</h2><span class="u-xclose" ${act('removeEl','msMenuBg')}>✕</span></div>
+    <div class="sh-form" style="margin-top:12px;">
+      <label class="wide">Menü adı<input id="menu_name_${m.id}" value="${escapeAttr(m.name)}" data-orig="${escapeAttr(m.name)}"></label>
+      <label class="wide">Hangi istasyona gitsin?<select id="msm_st">${stations.map(x => `<option value="${x.id}" ${x.id === m.station_id ? 'selected' : ''}>${escapeHtml(x.icon || '🍳')} ${escapeHtml(x.name)}</option>`).join('')}<option value="" ${m.station_id ? '' : 'selected'}>⚠️ Hiçbiri (mutfağa gitmez)</option></select></label>
+    </div>
+    <div class="ms-sub" style="margin-top:12px;"><b>${list.length} ürün</b>${closed ? ` · <span class="u-red">${closed} satışa kapalı</span>` : ''}</div>
+    <div class="msm-prods">${list.map(p => `<span class="pchip ${p.available === false ? 'off' : ''}">${escapeHtml(p.name)} · ${money(p.price)}</span>`).join('') || '<small class="muted">Bu menüde ürün yok. Ürünler ekranından ürün eklerken bu menüyü seçin.</small>'}</div>
+    ${list.length ? `<div class="sh-links"><button type="button" class="xl-btn" ${act('msMenuAvail', mid, true)}>✓ Hepsini satışa aç</button><button type="button" class="xl-btn" ${act('msMenuAvail', mid, false)}>✕ Hepsini satışa kapat</button></div>` : ''}
+    <div class="oa-edit-acts"><button type="button" class="ghost-btn danger" ${act('msMenuDel', mid)}>🗑 Sil</button><span class="u-f1"></span><button type="button" class="ghost-btn" ${act('removeEl','msMenuBg')}>Vazgeç</button><button type="button" ${act('msMenuSave', mid)}>💾 Kaydet</button></div></div>`;
+  document.body.appendChild(bg);
+}
+async function msMenuSave(mid){
+  const m = (APP.config.menus || []).find(x => x.id === mid); if(!m) return;
+  const name = ((document.getElementById('menu_name_' + mid) || {}).value || '').trim(), st = (document.getElementById('msm_st') || {}).value || '';
+  if(!name){ uiAlert('Menü adı boş olamaz'); return; }
+  const session = getSession();
+  await withLoadingOverlay((async () => {
+    if(name !== m.name){ const r = await sb.rpc('upsert_menu', { p_token: session.session_token, p_id: mid, p_name: name }); if(r.error){ uiAlert(r.error.message); return; } }
+    if(st !== (m.station_id || '')){
+      if(m.station_id){ const old = (APP.config.menus || []).filter(x => x.station_id === m.station_id && x.id !== mid).map(x => x.id); const r = await sb.rpc('set_station_menus', { p_token: session.session_token, p_station_id: m.station_id, p_menu_ids: old }); if(r.error){ uiAlert(r.error.message); return; } }
+      if(st){ const cur = (APP.config.menus || []).filter(x => x.station_id === st).map(x => x.id).concat(mid); const r = await sb.rpc('set_station_menus', { p_token: session.session_token, p_station_id: st, p_menu_ids: cur }); if(r.error){ uiAlert(r.error.message); return; } }
+    }
+  })());
+  removeEl('msMenuBg'); showToast('💾 ' + name + ' kaydedildi'); renderSettingsView(document.getElementById('main'), session);
+}
+async function msMenuAvail(mid, open){ await setMenuAvailable(mid, open); await renderSettingsView(document.getElementById('main'), getSession()); msMenuOpen(mid); }
+async function msMenuDel(mid){ removeEl('msMenuBg'); await removeMenu(mid); }
+/* Sipariş Al ekranındaki menü sırası (ayrı pencere). */
+function msOrderOpen(){
+  const menus = APP.config.menus || [], stations = APP.config.stations || [];
+  removeEl('msOrderBg');
+  const bg = document.createElement('div'); bg.id = 'msOrderBg'; bg.className = 'modal-bg';
+  bg.onclick = (e) => { if(e.target === bg) bg.remove(); };
+  bg.innerHTML = `<div class="box sd-box sh-chain"><div class="u-row-sb"><h2 class="u-m0">↕ Sipariş ekranı sırası</h2><span class="u-xclose" ${act('removeEl','msOrderBg')}>✕</span></div>
+    <p class="muted u-fs13">Sipariş Al ekranında menüler bu sırayla görünür. Sürükleyin ya da oklarla taşıyın; anında kaydedilir.</p>
+    <div class="mo-list" id="menuOrderList"><div class="mo-item mo-fixed"><span class="mo-no">★</span><b>Tümü</b><small>her zaman en üstte</small></div>
+      ${menus.map((m, i) => { const st = stations.find(x => x.id === m.station_id);
+        return `<div class="mo-item" draggable="true" data-id="${m.id}" style="--sc:${(st && st.color) || '#94a3b8'};"><span class="mo-grip">⋮⋮</span><span class="mo-no">${i + 1}</span>
+          <div class="mo-txt"><b>${escapeHtml(m.name)}</b><small>${st ? escapeHtml(st.icon || '🍳') + ' ' + escapeHtml(st.name) : 'istasyonsuz'}</small></div>
+          <div class="mo-arrows"><button type="button" ${i===0?'disabled':''} ${act('msMove', m.id, -1)}>▲</button><button type="button" ${i===menus.length-1?'disabled':''} ${act('msMove', m.id, 1)}>▼</button></div></div>`; }).join('')}</div></div>`;
+  document.body.appendChild(bg);
+  initMenuOrderDnD();
+}
+async function msMove(id, dir){
+  const ids = (APP.config.menus || []).map(m => m.id), i = ids.indexOf(id), j = i + dir; if(i < 0 || j < 0 || j >= ids.length) return;
+  [ids[i], ids[j]] = [ids[j], ids[i]];
+  const { error } = await sb.rpc('set_menu_order', { p_token: getSession().session_token, p_ids: ids }); if(error){ uiAlert(error.message); return; }
+  await renderSettingsView(document.getElementById('main'), getSession()); msOrderOpen();
 }
 function msRename(id){ const e = document.getElementById('menu_name_' + id); if(!e) return; const v = e.value.trim(); if(!v || v === e.dataset.orig) return; e.dataset.orig = v; saveMenu(id); }
 /* İstasyon düzenle / ekle: ad, simge, renk, istasyona düşen ürünler, sil. */
@@ -1118,39 +1201,73 @@ async function saveTableTreat(){
 function renderZonesSettings(el, session){
   const natural = (a, b) => String(a.name).localeCompare(String(b.name), 'tr', { numeric:true, sensitivity:'base' });
   const zones = APP.config.zones || [];
-  if(!zones.some(z => z.id === APP.zoneSel)) APP.zoneSel = zones.length ? zones[0].id : null;
-  const z = zones.find(x => x.id === APP.zoneSel);
   const total = zones.reduce((x, q) => x + q.tables.length, 0);
   const trOn = !!(APP.config.treat && APP.config.treat.product_id) || !!APP.ttOn, grOn = !!APP.config.guest_required;
-  el.innerHTML = `<div class="u-mwn box ux-zn">
-    <div class="ux-bar">
-      <h2 class="u-m0">Bölgeler & Masalar</h2>
-      <span class="ux-meta">${zones.length} bölge · ${total} masa</span>
-      <span class="u-f1"></span>
-      <details class="ux-more"><summary title="QR işlemleri">▦ QR kodları</summary><div class="ux-more-pop">
-        <div class="xl-bar"><button type="button" class="xl-btn" ${act('showAllTableQrs')}>▦ Tüm QR'ları Yazdır</button>
-        <button type="button" class="xl-btn" ${act('downloadZoneQrPdf', '')} title="Her bölüm için ayrı A4 PDF">⬇ QR'ları Bölüm Bölüm İndir</button></div>
-      </div></details>
-    </div>
-    <details class="ux-set" ${APP.zSetOpen ? 'open' : ''}><summary>⚙️ Masa ayarları <span class="ux-meta">· 🥗 İkram: ${trOn ? 'Açık' : 'Kapalı'} · 🔒 Kişi sayısı zorunlu: ${grOn ? 'Açık' : 'Kapalı'}</span></summary>
-      <div class="ux-set-body">${tableTreatBoxHtml()}${guestRequiredBoxHtml()}</div></details>
-    <div class="ms-sec-h"><div class="ms-sec-t">📍 Bölgeler <small>— salon, bahçe, kat… Birine dokunun, masaları aşağıda açılır.</small></div><button type="button" class="fsheet-open ms-hbtn" ${act('znAddPrompt')}>+ Bölge ekle</button></div>
-    <div class="zn2-tabs">
-      ${zones.map(q => `<button type="button" class="zn2-tab ${q.id===APP.zoneSel?'on':''}" ${act('selectZoneSetting', q.id)}>📍 ${escapeHtml(q.name)} <em>${q.tables.length} masa</em></button>`).join('')}
-    </div>
-    ${z ? `<div class="ms-sec-h"><div class="ms-sec-t">🪑 ${escapeHtml(z.name)} masaları <small>— ${z.tables.length} masa · ada dokunup yeniden adlandırın · ▦ QR kodu</small></div>
-        <span class="ms-add"><input id="newTable_${z.id}" placeholder="Masa 21 ya da toplu: Masa 1-10" ${actOn('keydown','onEnterCall',['$event','addTable', z.id])}><button type="button" class="fsheet-open ms-hbtn" ${act('addTable', z.id)}>+ Masa ekle</button></span></div>
-      <div class="zn2-grid">
-        ${z.tables.slice().sort(natural).map(t => `<div class="zn2-t">
-          <button type="button" class="zn2-tn" title="Yeniden adlandır" ${act('renameTable', t.id, z.id, t.name)}>${escapeHtml(t.name)}</button>
-          <button type="button" class="zn2-ib" title="QR menü kodu" ${act('showTableQr', t.id, t.qr_token)}>▦</button>
-          <button type="button" class="zn2-ib danger" title="Masayı sil" ${act('removeTable', t.id)}>✕</button>
-        </div>`).join('') || '<p class="muted">Bu bölgede masa yok. Sağ üstten ekleyin; toplu eklemek için <b>Masa 1-10</b> yazın.</p>'}
+  el.innerHTML = `<div class="u-mwn box sb-wrap">
+    <div class="sb-top">
+      <div><h2 class="u-m0">Bölgeler & Masalar</h2>
+        <div class="sb-flow"><span>📍 ${zones.length} bölge</span><span>🪑 ${total} masa</span></div></div>
+      <div class="sb-tacts">
+        <details class="ux-more"><summary title="QR işlemleri">▦ QR kodları</summary><div class="ux-more-pop">
+          <div class="xl-bar"><button type="button" class="xl-btn" ${act('showAllTableQrs')}>▦ Tüm QR'ları yazdır</button>
+          <button type="button" class="xl-btn" ${act('downloadZoneQrPdf', '')}>⬇ Bölüm bölüm PDF indir</button></div></div></details>
+        <button type="button" class="fsheet-open" ${act('znAddPrompt')}>+ Yeni bölge</button>
       </div>
-      <div class="zn2-zacts"><button type="button" class="ghost-btn" ${act('znRenamePrompt', z.id)}>✏️ "${escapeHtml(z.name)}" bölgesinin adını değiştir</button><button type="button" class="ghost-btn danger" ${act('removeZone', z.id)}>🗑 Bölgeyi sil</button></div>`
-    : '<div class="empty-state"><div style="font-size:42px;">📍</div><p class="muted">Yukarıdan ilk bölgenizi ekleyin (örn. Salon, Bahçe).</p></div>'}
+    </div>
+    <details class="ux-set" style="margin-top:12px;" ${APP.zSetOpen ? 'open' : ''}><summary>⚙️ Masa ayarları <span class="ux-meta">· 🥗 İkram: ${trOn ? 'Açık' : 'Kapalı'} · 🔒 Kişi sayısı zorunlu: ${grOn ? 'Açık' : 'Kapalı'}</span></summary>
+      <div class="ux-set-body">${tableTreatBoxHtml()}${guestRequiredBoxHtml()}</div></details>
+    <p class="muted sb-tip">Her kutu bir bölge (salon, bahçe, kat…). Masaya dokunun: adını değiştirin, QR kodunu açın ya da silin.</p>
+    <div class="sb-board zn3-board">
+      ${zones.map((z, k) => `<section class="sb-col" style="--sc:var(--c${k % 4 + 1});">
+        <header class="sb-ch"><span class="sb-ic">📍</span><span class="sb-ct"><b>${escapeHtml(z.name)}</b><small>${z.tables.length} masa</small></span>
+          <button type="button" class="sb-edit" title="Bölgeyi düzenle" ${act('znEditOpen', z.id)}>⚙️</button></header>
+        <div class="zn3-tables">${z.tables.slice().sort(natural).map(t => `<button type="button" class="zn3-t" ${act('znTableOpen', t.id, z.id)}>🪑<b>${escapeHtml(t.name)}</b></button>`).join('') || '<div class="sb-empty" style="grid-column:1/-1;">Masa yok</div>'}</div>
+        <button type="button" class="sb-add" ${act('znAddTablePrompt', z.id)}>＋ Bu bölgeye masa ekle</button>
+      </section>`).join('')}
+      ${zones.length ? '' : `<div class="empty-state"><div style="font-size:42px;">📍</div><p class="muted">Önce bir bölge ekleyin (örn. Salon, Bahçe).</p></div>`}
+    </div>
   </div>`;
 }
+async function znAddTablePrompt(zoneId){
+  const z = (APP.config.zones || []).find(x => x.id === zoneId) || {};
+  const name = ((await uiPrompt('"' + (z.name || '') + '" bölgesine masa ekle.\nTek masa: Masa 21 · Toplu: Masa 1-10', '')) || '').trim(); if(!name) return;
+  if(ADD_TABLE_BUSY) return; ADD_TABLE_BUSY = true;
+  try{ await addTableInner(getSession(), zoneId, name); } finally { ADD_TABLE_BUSY = false; }
+}
+function znTableOpen(tid, zid){
+  const z = (APP.config.zones || []).find(x => x.id === zid) || {}, t = (z.tables || []).find(x => x.id === tid); if(!t) return;
+  removeEl('znTBg');
+  const bg = document.createElement('div'); bg.id = 'znTBg'; bg.className = 'modal-bg';
+  bg.onclick = (e) => { if(e.target === bg) bg.remove(); };
+  bg.innerHTML = `<div class="box sd-box zn3-modal"><div class="u-row-sb"><h2 class="u-m0">🪑 ${escapeHtml(t.name)}</h2><span class="u-xclose" ${act('removeEl','znTBg')}>✕</span></div>
+    <p class="muted u-fs13">📍 ${escapeHtml(z.name || '')}</p>
+    <div class="zn3-acts">
+      <button type="button" class="ghost-btn" ${act('znTRename', tid, zid)}>✏️ Adını değiştir</button>
+      <button type="button" class="ghost-btn" ${act('znTQr', tid, t.qr_token || '')}>▦ QR kodu</button>
+      <button type="button" class="ghost-btn danger" ${act('znTDel', tid)}>🗑 Masayı sil</button>
+    </div></div>`;
+  document.body.appendChild(bg);
+}
+async function znTRename(tid, zid){ const t = ((APP.config.zones || []).find(x => x.id === zid) || { tables: [] }).tables.find(x => x.id === tid) || {}; removeEl('znTBg'); await renameTable(tid, zid, t.name || ''); }
+function znTQr(tid, tok){ removeEl('znTBg'); showTableQr(tid, tok); }
+async function znTDel(tid){ removeEl('znTBg'); await removeTable(tid); }
+function znEditOpen(zid){
+  const z = (APP.config.zones || []).find(x => x.id === zid); if(!z) return;
+  removeEl('znTBg');
+  const bg = document.createElement('div'); bg.id = 'znTBg'; bg.className = 'modal-bg';
+  bg.onclick = (e) => { if(e.target === bg) bg.remove(); };
+  bg.innerHTML = `<div class="box sd-box zn3-modal"><div class="u-row-sb"><h2 class="u-m0">📍 ${escapeHtml(z.name)}</h2><span class="u-xclose" ${act('removeEl','znTBg')}>✕</span></div>
+    <p class="muted u-fs13">${z.tables.length} masa</p>
+    <div class="zn3-acts">
+      <button type="button" class="ghost-btn" ${act('znZRename', zid)}>✏️ Bölgenin adını değiştir</button>
+      <button type="button" class="ghost-btn" ${act('znZQr', z.name)}>⬇ Bu bölgenin QR'larını indir</button>
+      <button type="button" class="ghost-btn danger" ${act('znZDel', zid)}>🗑 Bölgeyi sil</button>
+    </div></div>`;
+  document.body.appendChild(bg);
+}
+async function znZRename(zid){ removeEl('znTBg'); await znRenamePrompt(zid); }
+function znZQr(name){ removeEl('znTBg'); downloadZoneQrPdf(name); }
+async function znZDel(zid){ removeEl('znTBg'); await removeZone(zid); }
 async function znAddPrompt(){
   const name = ((await uiPrompt('Yeni bölge adı (örn. Teras, Bahçe, 2. Kat):', '')) || '').trim(); if(!name) return;
   const session = getSession(); const { error } = await sb.rpc('upsert_zone', { p_token: session.session_token, p_id: null, p_name: name });
