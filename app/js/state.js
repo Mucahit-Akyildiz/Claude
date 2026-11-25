@@ -126,7 +126,7 @@ const NAV_ITEMS = [
   { view:'messages', icon:'💬', label:'Mesajlar', grp:'tools' },
   { view:'radio', icon:'📻', label:'Peyk Bas-Konuş', grp:'tools' },
   { view:'settings', icon:'⚙️', label:'Ayarlar', grp:'manage' },
-  { view:'devicePrinters', icon:'🖨️', label:'Cihaz Yazıcısı', grp:'tools' },
+  { view:'devicePrinters', icon:'🖨️', label:'Cihaz Yazıcısı', grp:'hidden' },
   { view:'help', icon:'❓', label:'Yardım', grp:'tools' },
 ];
 // Sol menü grupları: Günlük işler, Yönetim; Araçlar alt kısımda küçük simgeler.

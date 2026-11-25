@@ -7,6 +7,7 @@ const SETTINGS_TABS = [
   { tab:'stations', grp:'biz', perm:'settings_stations', label:'Menüler & İstasyonlar', ico:'🍳', desc:'Menüler, mutfak istasyonları' },
   { tab:'zones', grp:'biz', perm:'settings_zones', label:'Bölgeler & Masalar', ico:'🪑', desc:'Salon, masa planı' },
   { tab:'products', grp:'biz', label:'Ürünler & Hammaddeler', ico:'🍔', desc:'Fiyat, reçete, stok' }, // alt sekmeler: Ürünler, Hammaddeler
+  { tab:'stockhub', grp:'biz', label:'Stok & Reçete', ico:'📦', desc:'Depo → hazırlık → ürün (taslak)' },
   { tab:'flags', grp:'biz', perm:'settings_flags', label:'Sipariş Etiketleri', ico:'🏷️', desc:'Sipariş notu etiketleri' },
   { tab:'users', grp:'staff', label:'Kullanıcılar & Vardiyalar', ico:'👥', desc:'Personel, vardiya' }, // alt sekmeler: Kullanıcılar, Aktif, Vardiyalar
   { tab:'roles', grp:'staff', perm:'settings_roles', label:'Roller', ico:'🔑', desc:'Yetkiler' },
@@ -32,6 +33,7 @@ function settingsSearch(q){
 }
 function settingsTabVisible(t, session){
   if(t.feature && !hasFeature(t.feature)) return false;
+  if(t.tab==='stockhub') return canManage(session, 'settings_products') || canManage(session, 'settings_ingredients');
   if(t.tab==='reports') return canManage(session, 'settings_reports');
   if(t.tab==='integrations') return canManage(session, 'settings_integrations') || (session.permissions || []).some(p => /^int_/.test(p));
   if(t.tab==='printers') return canManage(session, 'printer_settings');
@@ -105,6 +107,7 @@ function renderSettingsContent(session){
   const el = document.getElementById('settingsContent'); if(!el) return;
   if(!APP.settingsTab){ el.innerHTML = '<p class="muted">Görüntüleme yetkiniz olan bir ayar bölümü yok.</p>'; return; }
   if(APP.settingsTab==='stations') renderStationsSettings(el, session);
+  else if(APP.settingsTab==='stockhub') renderStockHub(el);
   else if(APP.settingsTab==='zones') renderZonesTabWithSubtabs(el, session);
   else if(APP.settingsTab==='products') renderProductsTabWithSubtabs(el, session);
   else if(APP.settingsTab==='flags') renderOrderFlagsSettings(el, session);
