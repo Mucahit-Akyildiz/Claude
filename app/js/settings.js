@@ -13,6 +13,8 @@ const SETTINGS_TABS = [
   { tab:'users', grp:'staff', label:'Kullanıcılar & Vardiyalar', ico:'👥', desc:'Personel, vardiya' }, // alt sekmeler: Kullanıcılar, Aktif, Vardiyalar
   { tab:'roles', grp:'staff', perm:'settings_roles', label:'Roller', ico:'🔑', desc:'Yetkiler' },
   { tab:'integrations', grp:'account', perm:'settings_integrations', label:'Entegrasyonlar', ico:'🔌', desc:'Platformlar, yazıcılar' },
+  { tab:'specialdays', grp:'sales', label:'Özel Günler', ico:'🎉', desc:'Kapasite, indirim, kapora' },
+  { tab:'family', grp:'sales', label:'Çocuk & Masa', ico:'🧒', desc:'Çocuk servis oranı, çocuk dostu masa' },
   { tab:'billing', grp:'sales', label:'Abonelik, Hediye Kartı & Kampanya', ico:'💳', desc:'Plan, fatura, kartlar, kuponlar' }, // alt sekmeler
   { tab:'printers', grp:'device', label:'Fiş Tasarımı', ico:'🧾', desc:'Mutfak, kasa ve paket fişi' },
   { tab:'devprn', grp:'device', label:'Bu Cihazın Yazıcısı', ico:'🔌', desc:'Yazıcı bağla, istasyon eşle' },
@@ -23,8 +25,6 @@ const SETTINGS_TABS = [
 // Ayarlar grupları ve başka ekranlarda duran ayarlara kısayollar (aynı ayar tek yerden bulunsun).
 const SETTINGS_GROUPS = [['biz','🏪 İşletme'],['staff','👥 Personel'],['device','🖨️ Cihaz & Fiş'],['sales','🎁 Satış & Müşteri'],['account','🔐 Hesap & Sistem']];
 const SETTINGS_LINKS = [
-  { id:'specialDays', grp:'sales', ico:'🎉', label:'Özel Günler', desc:'Kapasite, indirim, kapora', fn:'openSpecialDays', args:[], ok: (s) => typeof openSpecialDays === 'function' && hasFeature('reservations') && canManage(s, 'reservations') },
-  { id:'family', grp:'sales', ico:'🧒', label:'Çocuk & Masa', desc:'Çocuk servis oranı, çocuk dostu masa', fn:'openFamilySettings', args:[], ok: (s) => typeof openFamilySettings === 'function' && hasFeature('reservations') && canManage(s, 'reservations') },
 ];
 function settingsSearch(q){
   q = String(q || '').trim().toLocaleLowerCase('tr');
@@ -38,6 +38,7 @@ function settingsTabVisible(t, session){
   if(t.tab==='integrations') return canManage(session, 'settings_integrations') || (session.permissions || []).some(p => /^int_/.test(p));
   if(t.tab==='printers') return canManage(session, 'printer_settings');
   if(t.tab==='devprn') return true;
+  if(t.tab==='specialdays' || t.tab==='family') return hasFeature('reservations') && canManage(session, 'reservations');
   if(t.tab==='stockcount') return typeof scCanCount === 'function' && scCanCount();
   if(t.tab==='notifs') return true; // Kime Gitsin / hatırlatma yalnızca yöneticiye; doğum günü uyarıları cihaz ayarı, herkese
   if(t.tab==='users') return canManage(session, 'settings_users') || canManage(session, 'shifts');
@@ -113,6 +114,8 @@ function renderSettingsContent(session){
   if(APP.settingsTab==='stations') renderStationsSettings(el, session);
   else if(APP.settingsTab==='stockhub') renderStockHub(el);
   else if(APP.settingsTab==='stockcount') openStockCount();
+  else if(APP.settingsTab==='specialdays'){ el.innerHTML = ''; openSpecialDays(); }
+  else if(APP.settingsTab==='family'){ el.innerHTML = ''; openFamilySettings(); }
   else if(APP.settingsTab==='zones') renderZonesTabWithSubtabs(el, session);
   else if(APP.settingsTab==='products') renderProductsTabWithSubtabs(el, session);
   else if(APP.settingsTab==='flags') renderOrderFlagsSettings(el, session);
@@ -629,3 +632,15 @@ async function removeMapsKey(){
   if(APP.config){ APP.config.geo = Object.assign({}, APP.config.geo, { maps_key_set: false }); }
   const p = document.getElementById('geoPane'); if(p) p.innerHTML = geoPaneHtml();
 }
+
+/* Ayarlar sekmesi olarak açılan pencereler (Özel Günler, Çocuk & Masa): pencere açılınca Ayarlar'ın içine yerleşir; yeniden çizilince de. */
+const SETTINGS_INLINE_MODALS = { sdBg: 'specialdays', famSetBg: 'family' };
+new MutationObserver(muts => {
+  if(APP.view !== 'settings') return;
+  muts.forEach(m => m.addedNodes.forEach(n => {
+    if(!n || n.nodeType !== 1 || SETTINGS_INLINE_MODALS[n.id] !== APP.settingsTab) return;
+    const host = document.getElementById('settingsContent'); const box = n.firstElementChild; if(!host || !box) return;
+    const x = box.querySelector('.u-xclose'); if(x) x.remove();
+    box.classList.add('sc-inline'); host.innerHTML = ''; host.appendChild(box); n.remove();
+  }));
+}).observe(document.body, { childList: true });
