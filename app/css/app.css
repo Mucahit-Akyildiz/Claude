@@ -5128,3 +5128,9 @@ p.me2-hint{text-align:left!important;margin:-4px 0 12px!important;}
 #main .pay-summary b{font-size:15px!important;}
 #main .pay-summary > *{display:inline-flex!important;align-items:center;gap:6px;height:auto!important;max-height:44px;overflow:hidden;}
 #main .pay-summary svg,#main .pay-summary canvas{max-width:28px!important;max-height:28px!important;}
+.me2-date{width:auto!important;margin:0!important;padding:6px 8px!important;}
+.pc-sum{margin:0 0 10px;} .pc-s{display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:999px;background:var(--panel2);border:1px solid var(--border);font-size:12.5px;}
+.pc-s b{font-size:14px;} .pc-s.warn{border-color:#ef4444;color:#ef4444;}
+.pc-save-all[hidden],.po-bulk[hidden]{display:none!important;}
+.me2 #procContent .box,.me2 #purchRepContent > .box{border:0!important;box-shadow:none!important;padding:0!important;background:transparent!important;}
+.me2 #purchRepContent .box::before{display:none!important;}

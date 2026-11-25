@@ -792,22 +792,22 @@ async function renderTipPoolContent(session){
 async function renderProcurementView(main, session){
   if(!APP.procFrom){ const d = new Date(); d.setDate(d.getDate()-29); APP.procFrom = d.toISOString().slice(0,10); }
   if(!APP.procTo) APP.procTo = todayLocalDateStr();
-  main.innerHTML = `<h1>Mal Kabul</h1><p class="muted page-sub">Tedarikçiden sipariş ettiğiniz malzemeler burada. Malzeme restorana gelince <b>📦 Teslim Al</b> deyin, gelen miktar stoğa eklenir. Tedarikçiyi seçin ve birim fiyatı girin. Yeni malzeme siparişi için <b>Malzeme Siparişi Ver</b> menüsü.</p>
-    <div class="u-mwn box">
-      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-        <span class="u-nw muted">Tarih Aralığı</span>
-        <input type="date" value="${APP.procFrom}" ${actOn('change','setProcDate',['from','$value'])} class="u-wa-m0">
-        <span class="muted">–</span>
-        <input type="date" value="${APP.procTo}" ${actOn('change','setProcDate',['to','$value'])} class="u-wa-m0">
-        <span class="u-f1"></span>
-        ${[[7,'Son 7 gün'],[30,'Son 30 gün'],[90,'Son 3 ay'],[365,'Son 1 yıl']].map(([d,l]) => `<button type="button" class="pc-btn" ${act('setProcRange', d)}>${l}</button>`).join('')}
+  const sub = APP.purchRepSub || 'orders', rng = APP.procRng || 30;
+  main.innerHTML = `<h1>Mal Kabul</h1>
+    <div class="u-mwn box me2">
+      <div class="me2-bar">
+        <div class="me2-tabs">${[['orders','🧾 Gelen siparişler'],['suppliers','🏭 Tedarikçiler']].map(([k, l]) => `<button type="button" class="me2-tab ${sub===k?'on':''}" ${act('setPurchRepSub', k)}>${l}</button>`).join('')}</div>
+        <div class="me2-tools">${sub === 'orders' ? `<select class="me-ksel" title="Tarih aralığı" ${actOn('change','setProcRangeSel',['$value'])}>${[[7,'Son 7 gün'],[30,'Son 30 gün'],[90,'Son 3 ay'],[365,'Son 1 yıl'],['c','Özel tarih…']].map(([d,l]) => `<option value="${d}" ${String(rng)===String(d)?'selected':''}>📅 ${l}</option>`).join('')}</select>
+          ${rng === 'c' ? `<input type="date" value="${APP.procFrom}" ${actOn('change','setProcDate',['from','$value'])} class="me2-date"><input type="date" value="${APP.procTo}" ${actOn('change','setProcDate',['to','$value'])} class="me2-date">` : ''}` : ''}</div>
       </div>
-    </div>
-    <div id="procContent"></div>`;
+      <p class="me2-hint">📦 Tedarikçiden gelen malzemeyi <b>Teslim Al</b> ile stoğa ekleyin · tedarikçi ve birim fiyatı girin · yeni sipariş <b>Malzeme Siparişi Ver</b>'den</p>
+      <div id="procContent"></div>
+    </div>`;
   applyNavBadges();
   await renderPurchaseReportContent(session);
 }
 function setProcRange(days){ const d = new Date(); d.setDate(d.getDate()-(days-1)); APP.procFrom = d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); APP.procTo = todayLocalDateStr(); renderProcurementView(document.getElementById('main'), getSession()); }
+function setProcRangeSel(v){ if(v === 'c'){ APP.procRng = 'c'; renderProcurementView(document.getElementById('main'), getSession()); return; } APP.procRng = Number(v); setProcRange(Number(v)); }
 function setProcDate(which, v){ if(!v) return; if(which==='from') APP.procFrom = v; else APP.procTo = v; renderPurchaseReportContent(getSession()); }
 /* --- Satınalma: seçilen tarih aralığında Tedarik & Satınalma'dan verilen siparişler
    (bkz. get_purchase_report). Taslak ve iptaller toplamlara katılmaz. --- */

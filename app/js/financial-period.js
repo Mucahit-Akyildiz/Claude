@@ -93,12 +93,7 @@ async function renderPurchaseReportContent(session){
   const host = document.getElementById('procContent'); if(!host) return;
   const sub = APP.purchRepSub || 'orders';
   // Diğer ekranlar gibi soldaki kartlı menü (mobilde üstte şerit).
-  host.innerHTML = `<div class="set-layout">
-      <nav class="tabs settings-tabs set-nav" id="purchRepTabs">
-        <div class="tab set-item ${sub==='orders'?'active on':''}" style="--i:0;--sc:var(--c1);" data-tab="purchRepOrders" ${act('setPurchRepSub','orders')}><span class="set-ico">🧾</span><span class="set-txt"><b>Siparişler &amp; Fiyatlar</b><small>Tedarikçi, fiyat, teslim bekleyen</small></span></div>
-        <div class="tab set-item ${sub==='suppliers'?'active on':''}" style="--i:1;--sc:var(--c2);" data-tab="purchRepSuppliers" ${act('setPurchRepSub','suppliers')}><span class="set-ico">🏭</span><span class="set-txt"><b>Tedarikçiler</b><small>Firma ve iletişim</small></span></div>
-      </nav>
-      <div id="purchRepContent" class="set-content"></div></div>`;
+  host.innerHTML = `<div id="purchRepContent"></div>`;
   if(sub==='suppliers'){ APP.supplierTarget = 'purchRepContent'; return renderSuppliersContent(session); }
   const el = document.getElementById('purchRepContent');
   const [{ data, error }, supRes] = await withLoadingOverlay(Promise.all([sb.rpc('get_purchase_report', { p_token: session.session_token, p_date: APP.procFrom, p_date_to: APP.procTo }), sb.rpc('list_suppliers', { p_token: session.session_token })]));
@@ -149,14 +144,7 @@ async function renderPurchaseReportContent(session){
     </div>`;
   };
   el.innerHTML = `
-    <div class="fs-hero">
-      <div class="fs-hero-main"><div class="fs-cap">🧾 Sipariş Tutarı</div><div class="fs-big">${money(total)}</div><div class="fs-line">${live.length} sipariş</div></div>
-      <div class="fs-hero-side">
-        <div class="fs-k" style="--k:var(--green);"><div class="fs-cap">📦 Teslim Alınan</div><div class="fs-mid">${money(recv)}</div><div class="fs-line">${total ? '%'+Math.round(recv/total*100) : '—'}</div></div>
-        <div class="fs-k" style="--k:#f59e0b;"><div class="fs-cap">⏳ Teslim Bekleyen</div><div class="fs-mid">${money(Math.max(0,total-recv))}</div><div class="fs-line">${cnt.recv} sipariş</div></div>
-        <div class="fs-k fs-click" style="--k:${cnt.price?'var(--red)':'#a78bfa'};" ${act('setProcFilter','price')}><div class="fs-cap">🏷️ Fiyat Bekleyen</div><div class="fs-mid">${cnt.price}</div><div class="fs-line">sipariş · göster ›</div></div>
-      </div>
-    </div>
+    <div class="ux-chips pc-sum"><span class="pc-s">🧾 Sipariş <b>${money(total)}</b> · ${live.length}</span><span class="pc-s">📦 Teslim alınan <b>${money(recv)}</b></span><span class="pc-s">⏳ Bekleyen <b>${money(Math.max(0,total-recv))}</b> · ${cnt.recv}</span><span class="pc-s ${cnt.price ? 'warn' : ''}">🏷️ Fiyat bekleyen <b>${cnt.price}</b></span></div>
     <div class="pc-layout">
       <div>
         <div class="pc-chips">${chip('wait','Bekleyenler')}${chip('all','Tümü')}${chip('sup','Tedarikçi bekleyen')}${chip('price','Fiyat bekleyen')}${chip('recv','Teslim bekleyen')}${chip('done','Tamamlanan')}${chip('cx','İptal edilen')}
@@ -196,7 +184,7 @@ async function saveAllPoPrices(){
 }
 const PC_MAX_ROWS = 5; // kartta en fazla bu kadar kalem; fazlası detay penceresinde
 function setProcFilter(k){ APP.procFilter = k; renderPurchaseReportContent(getSession()); }
-function setPurchRepSub(sub){ APP.purchRepSub = sub; renderPurchaseReportContent(getSession()); }
+function setPurchRepSub(sub){ APP.purchRepSub = sub; renderProcurementView(document.getElementById('main'), getSession()); }
 /* Birim fiyatlar yazılınca otomatik kaydedilmez: siparişin Kaydet düğmesi açılır. */
 // Kartta tedarikçi seçilince hemen kaydedilir (Kaydet'e basmayı unutup sipariş "tedarikçi bekleyen"de kalmasın).
 // Aynı tedarikçinin açık siparişleriyle birleşebileceği için liste yenilenir.
