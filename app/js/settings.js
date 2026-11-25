@@ -14,6 +14,7 @@ const SETTINGS_TABS = [
   { tab:'integrations', grp:'account', perm:'settings_integrations', label:'Entegrasyonlar', ico:'🔌', desc:'Platformlar, yazıcılar' },
   { tab:'billing', grp:'sales', label:'Abonelik, Hediye Kartı & Kampanya', ico:'💳', desc:'Plan, fatura, kartlar, kuponlar' }, // alt sekmeler
   { tab:'printers', grp:'device', label:'Fiş Tasarımı', ico:'🧾', desc:'Mutfak, kasa ve paket fişi' },
+  { tab:'devprn', grp:'device', label:'Bu Cihazın Yazıcısı', ico:'🔌', desc:'Yazıcı bağla, istasyon eşle' },
   { tab:'notifs', grp:'device', label:'Bildirim Ayarları', ico:'🔔', desc:'Kime gitsin, hatırlatmalar' },
   { tab:'reports', grp:'account', label:'Özet E-postaları', ico:'📬', desc:'Gün sonu ve haftalık özet' },
   { tab:'security', grp:'account', label:'Güvenlik', ico:'🛡️', desc:'Destek, kayıt, sıfırlama' }, // alt sekmeler: Destek Erişimi, Değişiklik Kaydı, Veri Sıfırlama
@@ -21,7 +22,6 @@ const SETTINGS_TABS = [
 // Ayarlar grupları ve başka ekranlarda duran ayarlara kısayollar (aynı ayar tek yerden bulunsun).
 const SETTINGS_GROUPS = [['biz','🏪 İşletme'],['staff','👥 Personel'],['device','🖨️ Cihaz & Fiş'],['sales','🎁 Satış & Müşteri'],['account','🔐 Hesap & Sistem']];
 const SETTINGS_LINKS = [
-  { id:'devPrn', grp:'device', ico:'🔌', label:'Bu Cihazın Yazıcısı', desc:'Yazıcı bağla, istasyon eşle', fn:'goToView', args:['devicePrinters'], ok: () => true },
   { id:'specialDays', grp:'sales', ico:'🎉', label:'Özel Günler', desc:'Kapasite, indirim, kapora', fn:'openSpecialDays', args:[], ok: (s) => typeof openSpecialDays === 'function' && hasFeature('reservations') && canManage(s, 'reservations') },
   { id:'family', grp:'sales', ico:'🧒', label:'Çocuk & Masa', desc:'Çocuk servis oranı, çocuk dostu masa', fn:'openFamilySettings', args:[], ok: (s) => typeof openFamilySettings === 'function' && hasFeature('reservations') && canManage(s, 'reservations') },
   { id:'stockCount', grp:'biz', ico:'📋', label:'Stok Sayımı', desc:'Sayım gir, onayla', fn:'openStockCount', args:[], ok: () => typeof openStockCount === 'function' && typeof scCanCount === 'function' && scCanCount() },
@@ -37,6 +37,7 @@ function settingsTabVisible(t, session){
   if(t.tab==='reports') return canManage(session, 'settings_reports');
   if(t.tab==='integrations') return canManage(session, 'settings_integrations') || (session.permissions || []).some(p => /^int_/.test(p));
   if(t.tab==='printers') return canManage(session, 'printer_settings');
+  if(t.tab==='devprn') return true;
   if(t.tab==='notifs') return true; // Kime Gitsin / hatırlatma yalnızca yöneticiye; doğum günü uyarıları cihaz ayarı, herkese
   if(t.tab==='users') return canManage(session, 'settings_users') || canManage(session, 'shifts');
   if(t.tab==='products') return canManage(session, 'settings_products') || canManage(session, 'settings_ingredients');
@@ -119,7 +120,7 @@ function renderSettingsContent(session){
   else if(APP.settingsTab==='security') renderSecuritySettings(el, session);
   else if(APP.settingsTab==='reports') renderOwnerReportSettings(el, session);
   else if(APP.settingsTab==='notifs') renderNotifAdminSettings(el, session);
-  else if(APP.settingsTab==='printers') renderPrinterSettingsView(el, session);
+  else if(APP.settingsTab==='printers' || APP.settingsTab==='devprn') renderPrinterSettingsView(el, session);
   else renderUsersTabWithSubtabs(el, session);
 }
 /* Kullanıcılar sekmesi alt sekmeli: Kullanıcılar | Aktif Kullanıcılar | Vardiyalar (yetkiye göre). */

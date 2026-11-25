@@ -401,8 +401,8 @@ const PR_TYPE = (t) => t==='remote' ? ['🌐','Uzak yazıcı (başka cihaz)'] : 
 function pickActivePrinter(id){ setActivePrinterId(id); document.querySelectorAll('.pp-card[data-pid], .pp-grid .pp-card:not(.pp-static)').forEach(c => c.classList.remove('on')); renderPrinterSettingsView(document.getElementById('main'), getSession()); showToast('Bu ekranın yazıcısı güncellendi ✓'); }
 async function renderPrinterSettingsView(main, session){
   // Ayarlar → Fiş Tasarımı sekmesinde gösterilir; eski çağrılar (#main) sekmenin içine yönlendirilir.
-  const embedded = APP.view === 'settings';
-  if(embedded && main && main.id === 'main'){ const sc = document.getElementById('settingsContent'); if(!sc) return; main = sc; }
+  const inSettings = APP.view === 'settings', embedded = inSettings && APP.settingsTab !== 'devprn';
+  if(inSettings && main && main.id === 'main'){ const sc = document.getElementById('settingsContent'); if(!sc) return; main = sc; }
   // Mutfak rolündeki kullanıcıların menüsünde "Sipariş Al"/"Ayarlar" yok -
   // bu yüzden APP.config hiç yüklenmemiş olabilir (istasyon listesi burada
   // kullanılıyor). Eksikse burada da yüklenir; önceden bu eksiklik sayfanın
@@ -418,7 +418,7 @@ async function renderPrinterSettingsView(main, session){
   const stationPrinterMap = getStationPrinterMap();
   const usbSupported = !!(navigator.usb);
   main.innerHTML = `
-    ${embedded ? '' : '<h1>Cihaz Yazıcısı</h1><p class="u-tl muted">Bu cihazın bağlı olduğu yazıcılar ve hangi istasyonun hangi yazıcıya basacağı. Ayarlar yalnızca bu cihaza özeldir; her cihazda ayrı yapılır. Fiş tasarımı <b>Ayarlar → Fiş Tasarımı</b>\'nda.</p>'}
+    ${embedded ? '' : inSettings ? '<h2 class="u-m0" style="margin:0 0 6px;">🔌 Bu Cihazın Yazıcısı</h2><p class="u-tl muted u-fs13" style="margin:0 0 10px;">Bu cihaza bağlı yazıcılar ve hangi istasyonun hangi yazıcıya basacağı. Her cihazda ayrı ayarlanır.</p>' : '<h1>Cihaz Yazıcısı</h1><p class="u-tl muted">Bu cihazın bağlı olduğu yazıcılar ve hangi istasyonun hangi yazıcıya basacağı. Ayarlar yalnızca bu cihaza özeldir; her cihazda ayrı yapılır. Fiş tasarımı <b>Ayarlar → Fiş Tasarımı</b>\'nda.</p>'}
     <details class="pr-note" ${embedded ? '' : 'hidden'}>
       <summary style="cursor:pointer;font-weight:700;font-size:13px;">ℹ️ Fiş tasarımı tüm işletmede ortaktır; yazıcı seçimleri ise bu cihaza özeldir. <span class="muted" style="font-weight:500;">(ayrıntı)</span></summary>
       <p class="muted" style="margin:8px 0 0;text-align:left;font-size:12px;">⚠️ <b>Yazıcılar</b> ve <b>İstasyon → Yazıcı Eşleştirme</b> ise hâlâ <u>şu an bu ekranı açtığınız cihaza</u> özeldir (bir yazıcı fiziksel olarak hangi bilgisayara bağlıysa fiş oradan basılır, bu merkezi bir ayarla belirlenemez). Yeni bir kasa/mutfak bilgisayarı kurduğunuzda, o bilgisayarda da Yönetici olarak giriş yapıp yazıcı seçimini orada tekrar yapmanız gerekir.</p>
