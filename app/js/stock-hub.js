@@ -125,15 +125,23 @@ function openShProduct(id, tab){
     </div>
     ${Number(p.price) > 0 && Number(p.cost) > 0 ? `<p class="muted u-fs12">Marj: %${Math.round((1 - Number(p.cost) / Number(p.price)) * 100)} (KDV dahil fiyattan)</p>` : ''}
     <div class="oa-edit-acts"><button type="button" class="ghost-btn" ${act('removeEl','shProdBg')}>Kapat</button><button type="button" ${act('saveShProduct', id)}>💾 Kaydet</button></div>`;
-  const recipe = `${rc.length ? `<div class="sh-list">${rc.map(r => { const ig = ings.find(x => x.id === r.ingredient_id) || {};
-      return `<button type="button" class="sh-row" ${act('openStockChain', r.ingredient_id)}><span class="sh-ic">${ig.prep_source_id ? '🥙' : '🏬'}</span><span class="sh-name"><b>${escapeHtml(r.ingredient_name || ig.name || '')}</b><small>${ig.prep_source_id ? 'tezgâhtan düşer' : 'depodan düşer'}</small></span><span class="sh-qty">${escapeHtml(recipeQtyLabel(r))}</span>${ig.id ? shPill(ig) : ''}<span class="sh-go">›</span></button>`; }).join('')}</div>`
-      : '<div class="empty-state"><p class="muted">Bu ürünün reçetesi yok: satılınca stok ve maliyet düşmez.</p></div>'}
-    <div class="oa-edit-acts"><button type="button" ${act('shOpenRecipe', id)}>🥕 Reçeteyi düzenle</button></div>`;
-  const extras = `<p class="muted u-fs13">Ekstralar (sos, ekstra et, boy seçimi…) siparişte ürüne eklenir.</p><div class="oa-edit-acts"><button type="button" ${act('shOpenExtras', id)}>➕ Ekstraları düzenle</button></div>`;
+  const recipe = `<p class="muted u-fs13" style="margin:0 0 8px;">1 porsiyon satılınca hangi malzemeden ne kadar düşsün? (🥙 hazırlık kalemleri tezgâhtan, 🏬 depo kalemleri depodan düşer)</p>
+    <div id="recipeItemsBox"></div>
+    <div class="sh-radd">
+      <select id="recipeIngSelect" ${actOn('change','recipeUnitOpts',['recipeIngSelect','recipeUnitSel'])}>${ings.slice().sort((a, b) => String(a.name).localeCompare(String(b.name), 'tr')).map(i => `<option value="${i.id}" data-unit="${i.unit}" data-name="${escapeAttr(i.name)}">${i.prep_source_id ? '🥙' : '🏬'} ${escapeHtml(i.name)} (${escapeHtml(unitShort(i.unit))})</option>`).join('')}</select>
+      <input type="number" step="any" id="recipeQtyInput" placeholder="Miktar" inputmode="decimal">
+      <select id="recipeUnitSel" class="rc-unit"></select>
+      <button type="button" ${act('addRecipeItem', id)}>+ Ekle</button>
+    </div>
+    <div class="sh-links"><button type="button" class="xl-btn" ${act('copyRecipeDraft', id)}>📋 Kopyala</button><button type="button" class="xl-btn" id="recipePasteBtn" ${act('pasteRecipeDraft')} ${APP.recipeClip ? '' : 'disabled'}>📥 Yapıştır</button></div>
+    <div class="oa-edit-acts"><button type="button" class="ghost-btn" ${act('removeEl','shProdBg')}>Kapat</button><button type="button" ${act('saveRecipe', id)}>💾 Reçeteyi kaydet</button></div>`;
+  const extras = `<div id="shXtBox"></div>`;
   bg.innerHTML = `<div class="box sd-box sh-chain"><div class="u-row-sb"><h2 class="u-m0">🍽️ ${escapeHtml(p.name)}</h2><span class="u-xclose" ${act('removeEl','shProdBg')}>✕</span></div>
     <div class="seg ux-tabs sh-ptabs">${tabs.map(([k, l]) => `<button type="button" class="${tab===k?'on':''}" ${act('openShProduct', id, k)}>${l}${k==='recipe' ? ' · ' + rc.length : ''}</button>`).join('')}</div>
     ${tab === 'recipe' ? recipe : tab === 'extras' ? extras : info}</div>`;
   document.body.appendChild(bg);
+  if(tab === 'recipe'){ RECIPE_DRAFT = rc.map(r => ({ ingredient_id: r.ingredient_id, qty_per_unit: r.qty_per_unit, ingredient_name: r.ingredient_name, ingredient_unit: r.ingredient_unit })); recipeUnitOpts('recipeIngSelect', 'recipeUnitSel'); renderRecipeItems(); }
+  if(tab === 'extras') openExtrasModal(id);
 }
 function shOpenRecipe(id){ removeEl('shProdBg'); openRecipeModal(id); }
 function shOpenExtras(id){ removeEl('shProdBg'); openExtrasModal(id); }

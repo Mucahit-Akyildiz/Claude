@@ -567,6 +567,8 @@ function openExtrasModal(productId){
       <button type="button" class="u-wa-m0" ${act('saveProductExtra', productId, '')}>+ Ekle</button>
     </div>
   </div>`;
+  const shBox = document.getElementById('shXtBox');
+  if(shBox){ const w = bg.firstElementChild; const h = w.querySelector('h2'); if(h && h.parentElement) h.parentElement.remove(); shBox.innerHTML = w.innerHTML; return; }
   document.body.appendChild(bg);
 }
 /* Seçenek grupları: ekstralar gruplara ayrılır (örn. "Pişirme" zorunlu tek seçim, "Çıkarılacaklar" ücretsiz, en çok 3).
@@ -719,8 +721,10 @@ async function saveRecipe(productId){
   const items = RECIPE_DRAFT.map(r => ({ ingredient_id: r.ingredient_id, qty_per_unit: parseFloat(r.qty_per_unit) }));
   const { error } = await sb.rpc('set_recipe', { p_token: session.session_token, p_product_id: productId, p_items: items });
   if(error){ alert(error.message); return; }
-  document.getElementById('recipeModalBg').remove();
-  renderSettingsView(document.getElementById('main'), session);
+  removeEl('recipeModalBg');
+  const inSh = !!document.getElementById('shProdBg');
+  await renderSettingsView(document.getElementById('main'), session);
+  if(inSh && typeof openShProduct === 'function'){ showToast('🥕 Reçete kaydedildi'); openShProduct(productId, 'recipe'); }
 }
 
 /* --- Çok dilli QR menü: ürün adının diğer dillerdeki karşılığı (opsiyonel,
