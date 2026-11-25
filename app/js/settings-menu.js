@@ -854,7 +854,8 @@ function renderStationsSettings(el, session){
       : menu ? `<div class="me-ctx" style="--mc:${escapeAttr(col(menu))};">
         <div class="me-ctx-t"><b>📂 ${escapeHtml(menu.name)} <small class="muted" style="font-size:12px;font-weight:600;">kategorisi</small></b>
           <label class="me-st ${st ? '' : 'warn'}">${st ? `${escapeHtml(st.icon || '🍳')} <span>Siparişleri <b>${escapeHtml(st.name)}</b> mutfağına gider</span>` : '⚠️ <span>Mutfağa gitmiyor — seçin:</span>'}
-            <select ${actOn('change','moveMenuToStation',[menu.id,'$value'])}><option value="">${st ? '— değiştir —' : '👉 Mutfak seçin'}</option>${stations.map(x => `<option value="${x.id}">${escapeHtml(x.icon || '🍳')} ${escapeHtml(x.name)}</option>`).join('')}</select></label></div>
+</label>
+          <div class="me-kpick">${stations.map(x => `<button type="button" class="me-kc ${x.id === menu.station_id ? 'on' : ''}" style="--kc:${escapeAttr(x.color || '#94a3b8')};" ${act('moveMenuToStation', menu.id, x.id)}>${escapeHtml(x.icon || '🍳')} ${escapeHtml(x.name)}</button>`).join('')}<button type="button" class="me-kc none ${st ? '' : 'on'}" title="Bu kategori hiçbir mutfağa gitmesin" ${act('moveMenuToStation', menu.id, '')}>✕ Mutfak yok</button><button type="button" class="me-kc add" ${act('openStationEdit', '')}>＋ Yeni mutfak</button></div></div>
         <span class="u-f1"></span>
         <span class="me-ctx-a"><button type="button" class="ghost-btn" ${act('msMenuOpen', menu.id)}>✏️ Kategoriyi düzenle</button></span></div>`
       : `<div class="me-ctx"><b>Tüm ürünler</b><span class="u-f1"></span><small class="muted">Ürün eklemek için üstten bir kategori seçin</small></div>`}
@@ -1130,13 +1131,12 @@ async function addStation(){
   renderSettingsView(document.getElementById('main'), session);
 }
 async function removeStation(id){
-  const linkedCount = APP.config.products.filter(p => p.station_id===id).length;
-  if(linkedCount>0){
-    alert('Bu istasyona bağlı '+linkedCount+' ürün var. Önce Ürünler sekmesinden bu ürünleri başka bir istasyona taşıyın veya silin, sonra bu istasyonu silebilirsiniz.');
-    return;
-  }
-  if(!await uiConfirm('İstasyonu silmek istediğinize emin misiniz?')) return;
+  const st = (APP.config.stations || []).find(x => x.id === id) || {};
+  const linked = (APP.config.products || []).filter(p => p.station_id===id), cats = (APP.config.menus || []).filter(m => m.station_id === id);
+  if(!await uiConfirm('"' + (st.name || 'Mutfak') + '" silinsin mi?' + (linked.length || cats.length ? '\n\n' + cats.length + ' kategori ve ' + linked.length + ' ürün mutfaksız kalacak (silinmez). Sonra başka bir mutfak seçebilirsiniz.' : ''))) return;
   const session = getSession();
+  if(cats.length){ const r = await sb.rpc('set_station_menus', { p_token: session.session_token, p_station_id: id, p_menu_ids: [] }); if(r.error){ uiAlert(r.error.message); return; } }
+  if(linked.length){ const errs = await runProductBulk(linked, 'upsert_product', p => productPayload(p, { p_station_id: null })); if(errs.length){ uiAlert('Bazı ürünler mutfaktan ayrılamadı:\n' + errs.join('\n')); return; } }
   const { error } = await sb.rpc('delete_station', { p_token: session.session_token, p_id: id });
   if(error){
     if(error.message.includes('foreign key')) alert('Bu istasyona bağlı ürünler var, önce onları taşıyın veya silin.');
