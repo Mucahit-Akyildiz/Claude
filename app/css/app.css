@@ -5066,3 +5066,5 @@ select.ss-hidden{display:none !important;}
 .me2-tab.on::after{display:none;}
 .me2-tab:first-child.on{background:var(--text);color:var(--panel);}
 .me2-tabs{gap:6px;}
+.me2-adds{display:flex;gap:4px;flex:0 0 auto;} .me2-adds .me2-tab{border:1px dashed color-mix(in srgb,var(--accent) 45%,var(--border));}
+.me2-bar{row-gap:10px;} .me2-adds{order:1;} .me2-tools{order:2;margin-left:auto;} .me2-tabs{order:3;flex:1 1 100%;}

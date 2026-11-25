@@ -841,11 +841,11 @@ function renderStationsSettings(el, session){
       <div class="me2-tabs">
         <button type="button" class="me2-tab ${cur === 'all' && !q ? 'on' : ''}" ${act('meSel', 'all')}>Tümü</button>
         ${menus.map(m => `<button type="button" class="me2-tab ${cur === m.id && !q ? 'on' : ''}" style="--mc:${escapeAttr(col(m))};" ${act('meSel', m.id)}>${escapeHtml(m.name)}${stOf(m) ? '' : ' <i class="me2-warn" title="Siparişin gideceği yer seçilmedi">!</i>'}</button>`).join('')}
-        <button type="button" class="me2-tab me2-add" ${act('meNewMenu')}>＋ Kategori</button>
+        
       </div>
+      <div class="me2-adds"><button type="button" class="me2-tab me2-add" ${act('meNewMenu')}>＋ Kategori</button><button type="button" class="me2-tab me2-add" title="Siparişi hazırlayan yerler (Izgara, Bar…): ekle, düzenle" ${act('meKitchens')}>🍳 Sipariş nereye gitsin</button></div>
       <div class="me2-tools">
         <input class="me2-search" type="search" placeholder="🔍 Ara" value="${escapeAttr(APP.meQ || '')}" ${actOn('input','meSearch',['$value'])}>
-        <button type="button" class="ghost-btn me2-tool" ${act('meKitchens')}>🍳 Hazırlık yerleri</button>
         <details class="ux-more"><summary title="Diğer işlemler">⋯</summary><div class="ux-more-pop">
           <div class="ux-more-t">Düzen</div><div class="xl-bar"><button type="button" class="xl-btn" ${act('msOrderOpen')}>↕ Kategori sırası</button><button type="button" class="xl-btn" ${act('meGoProducts', 'media')}>📷 Fotoğraflar & açıklamalar</button><button type="button" class="xl-btn" ${act('meGoProducts', 'table')}>☰ Toplu düzenle (tablo)</button></div>
           <div class="ux-more-t">Menü PDF</div><div class="xl-bar"><button type="button" class="xl-btn" ${act('downloadMenuPdf', true)}>📄 Fiyatlı</button><button type="button" class="xl-btn" ${act('downloadMenuPdf', false)}>📄 Fiyatsız</button></div>
