@@ -184,7 +184,7 @@ function renderUsersSettings(el, session){
   const us = APP.config.users || [], lic = APP.config.license || {};
   el.innerHTML = statChips([['👥', us.length, 'Kullanıcı', 'var(--c1)', 'all'], ['✅', us.filter(u => u.is_active!==false).length, 'Aktif', 'var(--ok,#22c55e)', 'on'],
       ['⏸', us.filter(u => u.is_active===false).length, 'Pasif', 'var(--c3)', 'off'], ['🎫', lic.max_users ? Math.max(0, lic.max_users - us.length) : '—', 'Eklenebilir kullanıcı', 'var(--c2)']], '', 'users') + `<div class="u-mwn box">
-    <div class="us-top"><h2 class="u-m0">Kullanıcılar</h2><span style="flex:1"></span>${canAssign && typeof excelBarHtml === 'function' ? excelBarHtml('users') : ''}${canAssign ? sheetBtnHtml('userSheet','+ Yeni Kullanıcı') : ''}</div>
+    <div class="me2-bar"><div class="me2-tabs"><span class="me2-title">👥 Kullanıcılar</span></div><div class="me2-tools">${canAssign ? `<span class="me2-adds"><button type="button" class="me2-tab me2-add" ${act('openSheet','userSheet')}>＋ Kullanıcı</button></span>` : ''}${canAssign && typeof excelBarHtml === 'function' ? `<details class="ux-more"><summary title="Diğer işlemler">⋯</summary><div class="ux-more-pop"><div class="ux-more-t">Excel</div>${excelBarHtml('users')}</div></details>` : ''}</div></div>
     ${canAssign ? '' : '<p class="muted" style="text-align:left;font-size:12.5px;margin:-4px 0 12px;">🔒 Kullanıcı ekleme, rol değiştirme, pasife alma ve silme için <b>Kullanıcı Yönetimi</b> izni gerekir; yetkili kişilerin hesapları da kilitlidir. Diğer personelin adını ve şifresini değiştirebilirsiniz.</p>'}
     ${canAssign ? sheetHtml('userSheet', '👤', 'Yeni Kullanıcı', `
       <div class="fsheet-grid">

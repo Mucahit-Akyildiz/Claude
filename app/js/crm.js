@@ -47,19 +47,10 @@ async function renderCrmView(main, session){
     ${typeof crmBirthdayStripHtml === 'function' ? crmBirthdayStripHtml(rows) : ''}
     ${crmVisualsHtml(rows)}
     <div class="u-mwn box">
-      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
-        <h2 class="u-m0">Müşteri Listesi</h2>
-        <div class="crm-hbtns" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;flex:1 1 auto;justify-content:flex-end;min-width:0;">
-          <button type="button" class="fsheet-open" style="flex:0 0 auto;" ${act('newCustomer')}>+ Yeni Müşteri</button>
-          ${featOn('campaigns') && canManage(session, 'crm') ? `<button type="button" class="ghost-btn" style="width:auto;flex:0 0 auto;white-space:nowrap;margin:0;" ${act('openWinback', 0)} title="Tüm müşterilere, son gelenlere ya da bir süredir gelmeyenlere SMS / e-posta">📣 Kampanya & Geri Kazanım</button>` : ''}
-          <input id="crmSearchInput" type="search" name="crm-list-search" autocomplete="off" data-lpignore="true" placeholder="İsim veya telefon ara..." style="flex:0 1 260px;min-width:120px;width:auto;margin:0;" value="${escapeAttr(APP.crmSearch||'')}" ${actOn('input', 'debouncedCrmSearch', ['$value'])}>
-          ${featOn('loyalty') && canManage(session, 'crm') ? `<button type="button" class="ghost-btn" style="width:auto;flex:0 0 auto;white-space:nowrap;margin:0;" ${act('openSheet','crmLoySheet')} title="Puan ve doğum günü indirimi ayarları">⭐ Sadakat${loyalty.enabled ? '' : ' (kapalı)'}</button>` : ''}
-          <details class="ux-more"><summary title="Diğer işlemler">⋯ Diğer</summary><div class="ux-more-pop"><div class="ux-more-t">Excel</div><div class="xl-bar">
+      <div class="me2-bar"><div class="me2-tabs"><span class="me2-title">👥 Müşteri listesi</span></div><div class="me2-tools"><span class="me2-adds"><button type="button" class="me2-tab me2-add" ${act('newCustomer')}>＋ Müşteri</button>${featOn('campaigns') && canManage(session, 'crm') ? `<button type="button" class="me2-tab me2-add" ${act('openWinback', 0)} title="Tüm müşterilere, son gelenlere ya da bir süredir gelmeyenlere SMS / e-posta">📣 Kampanya</button>` : ''}${featOn('loyalty') && canManage(session, 'crm') ? `<button type="button" class="me2-tab me2-add" ${act('openSheet','crmLoySheet')} title="Puan ve doğum günü indirimi ayarları">⭐ Sadakat${loyalty.enabled ? '' : ' (kapalı)'}</button>` : ''}</span><input id="crmSearchInput" type="search" name="crm-list-search" autocomplete="off" data-lpignore="true" placeholder="🔍 İsim / telefon" class="me2-search" value="${escapeAttr(APP.crmSearch||'')}" ${actOn('input', 'debouncedCrmSearch', ['$value'])}><details class="ux-more"><summary title="Diğer işlemler">⋯</summary><div class="ux-more-pop"><div class="ux-more-t">Excel</div><div class="xl-bar">
           <button type="button" class="xl-btn" ${act('exportCustomersCsv')} title="Tüm müşterileri Excel (.xlsx) olarak indir">⬇️ Dışa aktar</button>
           ${canManage(session, 'crm') ? `<button type="button" class="xl-btn" ${act('openCustomerImport')} title="Excel (.xlsx) veya CSV dosyasından müşteri yükle">⬆️ İçe aktar</button>
-          <button type="button" class="xl-btn" ${act('downloadCustomerTemplate')}>📄 Şablon indir</button>` : ''}</div></div></details>
-        </div>
-      </div>
+          <button type="button" class="xl-btn" ${act('downloadCustomerTemplate')}>📄 Şablon indir</button>` : ''}</div></div></details></div></div>
       ${crmGroupBarHtml(allRows)}
       ${canManage(session, 'crm') && rows.length ? crmBulkBarHtml(rows) : ''}
       ${rows.length ? `<div class="cu-grid" data-cf-scope="crm">${rows.map((c, i) => { const bd = crmBirthdayInfo(c.birthday), custom = (c.spend_per_point!=null || c.point_value!=null || c.birthday_discount_percent!=null);
