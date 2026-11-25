@@ -5036,3 +5036,5 @@ select.ss-hidden{display:none !important;}
 .me-kc:hover{border-color:var(--kc,var(--accent));}
 .me-kc.on{background:var(--kc,var(--accent));border-color:var(--kc,var(--accent));color:#fff;}
 .me-kc.none.on{background:#ef4444;border-color:#ef4444;} .me-kc.add{border-style:dashed;color:var(--accent);}
+.me-knone{margin-top:8px;padding:10px 12px;border-radius:12px;background:var(--panel);border:1px dashed var(--border);font-size:13px;line-height:1.5;}
+.me-knone button{width:auto!important;margin:8px 0 0!important;display:block;}

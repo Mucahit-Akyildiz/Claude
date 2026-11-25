@@ -838,7 +838,7 @@ function renderStationsSettings(el, session){
       <h2 class="u-m0">Menü & Ürünler</h2>
       <input class="me-search" type="search" placeholder="🔍 Ürün ara…" value="${escapeAttr(APP.meQ || '')}" ${actOn('input','meSearch',['$value'])}>
       <button type="button" class="fsheet-open me-newbtn" ${act('meNewMenu')}>＋ Yeni kategori</button>
-      <button type="button" class="ghost-btn me-newbtn" ${act('meKitchens')}>🍳 Mutfaklar <em class="me-kn">${stations.length}</em></button>
+      <button type="button" class="ghost-btn me-newbtn" title="Siparişlerin düştüğü mutfak ekranları ve yazıcılar: ekle, düzenle" ${act('meKitchens')}>🍳 Mutfakları yönet <em class="me-kn">${stations.length}</em></button>
       <details class="ux-more"><summary title="Diğer işlemler">⋯ Diğer</summary><div class="ux-more-pop">
         <div class="ux-more-t">Düzen</div><div class="xl-bar"><button type="button" class="xl-btn" ${act('msOrderOpen')}>↕ Kategori sırasını değiştir</button><button type="button" class="xl-btn" ${act('meGoProducts', 'media')}>📷 Ürün fotoğrafları & açıklamaları</button><button type="button" class="xl-btn" ${act('meGoProducts', 'table')}>☰ Toplu düzenle (tablo, maliyet, KDV)</button></div>
 
@@ -853,8 +853,9 @@ function renderStationsSettings(el, session){
     ${q ? `<div class="me-ctx"><b>"${escapeHtml(APP.meQ)}" için ${list.length} sonuç</b><span class="u-f1"></span><button type="button" class="ghost-btn" ${act('meSearch', '')}>✕ Aramayı temizle</button></div>`
       : menu ? `<div class="me-ctx" style="--mc:${escapeAttr(col(menu))};">
         <div class="me-ctx-t"><b>📂 ${escapeHtml(menu.name)} <small class="muted" style="font-size:12px;font-weight:600;">kategorisi</small></b>
-          <label class="me-st ${st ? '' : 'warn'}">${st ? `${escapeHtml(st.icon || '🍳')} <span>Siparişleri <b>${escapeHtml(st.name)}</b> mutfağına gider</span>` : '⚠️ <span>Mutfağa gitmiyor — seçin:</span>'}
+          <label class="me-st ${st ? '' : 'warn'}">${st ? `${escapeHtml(st.icon || '🍳')} <span>Siparişleri <b>${escapeHtml(st.name)}</b> mutfağına gider</span>` : '⚠️ <span>Bu kategorinin siparişleri hiçbir mutfağa gitmiyor — aşağıdan bir mutfak seçin:</span>'}
 </label>
+          ${!stations.length ? `<div class="me-knone">🍳 <b>Henüz mutfak yok.</b> Mutfak, bu kategorinin siparişlerinin düştüğü yerdir: <b>mutfak ekranı ve fiş yazıcısı</b> (örn. Izgara, Fırın, Bar, Tatlı). Tek mutfağınız varsa "Mutfak" adıyla bir tane ekleyin. <button type="button" class="fsheet-open" ${act('openStationEdit', '')}>＋ İlk mutfağı ekle</button></div>` : ''}
           <div class="me-kpick">${stations.map(x => `<button type="button" class="me-kc ${x.id === menu.station_id ? 'on' : ''}" style="--kc:${escapeAttr(x.color || '#94a3b8')};" ${act('moveMenuToStation', menu.id, x.id)}>${escapeHtml(x.icon || '🍳')} ${escapeHtml(x.name)}</button>`).join('')}<button type="button" class="me-kc none ${st ? '' : 'on'}" title="Bu kategori hiçbir mutfağa gitmesin" ${act('moveMenuToStation', menu.id, '')}>✕ Mutfak yok</button></div></div>
         <span class="u-f1"></span>
         <span class="me-ctx-a"><button type="button" class="ghost-btn" ${act('msMenuOpen', menu.id)}>✏️ Kategoriyi düzenle</button></span></div>`
@@ -870,7 +871,7 @@ function meKitchens(){
   const bg = document.createElement('div'); bg.id = 'meKBg'; bg.className = 'modal-bg';
   bg.onclick = (e) => { if(e.target === bg) bg.remove(); };
   bg.innerHTML = `<div class="box sd-box sh-chain"><div class="u-row-sb"><h2 class="u-m0">🍳 Mutfaklar</h2><span class="u-xclose" ${act('removeEl','meKBg')}>✕</span></div>
-    <p class="muted u-fs13">Siparişlerin düştüğü mutfak ekranları ve yazıcılar. Her kategori bir mutfağa gider.</p>
+    <p class="muted u-fs13"><b>Mutfak</b> = siparişin düştüğü yer: o mutfağın ekranı ve fiş yazıcısı (örn. Izgara, Fırın, Bar). Her kategori bir mutfağa gider; örneğin "İçecekler" → Bar.</p>
     <div class="sh-list">${st.map(x => `<button type="button" class="sh-row" style="border-left:5px solid ${escapeAttr(x.color || '#94a3b8')};" ${act('meKEdit', x.id)}><span class="sh-ic">${escapeHtml(x.icon || '🍳')}</span><span class="sh-name"><b>${escapeHtml(x.name)}</b><small>${menus.filter(m => m.station_id === x.id).map(m => escapeHtml(m.name)).join(' · ') || 'menü bağlı değil'}</small></span><span class="sh-go">✏️</span></button>`).join('')}</div>
     <div class="oa-edit-acts"><button type="button" class="ghost-btn" ${act('removeEl','meKBg')}>Kapat</button><button type="button" ${act('meKEdit', '')}>＋ Yeni mutfak</button></div></div>`;
   document.body.appendChild(bg);
