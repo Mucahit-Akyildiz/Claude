@@ -819,42 +819,69 @@ function pickStationIcon(targetId, icon){
 }
 function setStTab(t){ APP.stTab = t; renderSettingsContent(getSession()); }
 function renderStationsSettings(el, session){
-  const menus = APP.config.menus || [], stations = APP.config.stations || [], prods = APP.config.products || [];
+  const menus = APP.config.menus || [], stations = APP.config.stations || [], prods = (APP.config.products || []).filter(p => !p.parent_id);
   const free = menus.filter(m => !m.station_id || !stations.some(x => x.id === m.station_id));
-  const menuCard = (m) => { const list = prods.filter(p => p.menu_id === m.id), closed = list.filter(p => p.available === false).length;
-    return `<div class="sb-menu" draggable="true" data-mid="${m.id}" role="button" tabindex="0" ${act('msMenuOpen', m.id)}>
-      <span class="sb-grip" aria-hidden="true">⋮⋮</span>
-      <span class="sb-mt"><b>${escapeHtml(m.name)}</b><small>${list.length} ürün${closed ? ` · <i class="sb-off">${closed === list.length ? 'satışa kapalı' : closed + ' kapalı'}</i>` : ''}</small></span>
-      <span class="sb-go">›</span></div>`; };
-  const col = (s) => { const list = menus.filter(m => m.station_id === s.id), pc = prods.filter(p => p.station_id === s.id).length;
-    return `<section class="sb-col" data-st="${s.id}" style="--sc:${escapeAttr(s.color || '#94a3b8')};">
-      <header class="sb-ch"><span class="sb-ic">${escapeHtml(s.icon || '🍳')}</span><span class="sb-ct"><b>${escapeHtml(s.name)}</b><small>${list.length} menü · ${pc} ürün</small></span>
-        <button type="button" class="sb-edit" title="İstasyonu düzenle" ${act('openStationEdit', s.id)}>⚙️</button></header>
-      <div class="sb-body">${list.map(menuCard).join('') || '<div class="sb-empty">Menü yok — aşağıdan ekleyin ya da başka istasyondan buraya sürükleyin</div>'}</div>
-      <button type="button" class="sb-add" ${act('msAddMenuTo', s.id)}>＋ Bu istasyona menü ekle</button>
-    </section>`; };
-  el.innerHTML = `<div class="u-mwn box sb-wrap">
+  let pmap = {}, plist = []; try{ pmap = getStationPrinterMap() || {}; plist = getAllPrinters() || []; }catch(e){}
+  const prnName = (sid) => { const p = plist.find(x => x.id === pmap[sid]); return p ? p.name : null; };
+  const menuBlock = (m, inFree) => { const list = prods.filter(p => p.menu_id === m.id).sort((a, b) => String(a.name).localeCompare(String(b.name), 'tr'));
+    return `<div class="kv-menu">
+      <div class="kv-mh"><b class="kv-mn" role="button" title="Menüyü düzenle" ${act('msMenuOpen', m.id)}>📋 ${escapeHtml(m.name)} <em>${list.length}</em></b>
+        ${inFree ? `<select class="kv-stsel" ${actOn('change','moveMenuToStation',[m.id,'$value'])}><option value="">→ Mutfak seçin…</option>${stations.map(x => `<option value="${x.id}">${escapeHtml(x.icon || '🍳')} ${escapeHtml(x.name)}</option>`).join('')}</select>` : ''}
+        <button type="button" class="kv-addp" ${act('kvAddProduct', m.id)}>＋ Ürün ekle</button></div>
+      <div class="kv-prods">${list.map(p => `<button type="button" class="kv-p ${p.available === false ? 'off' : ''}" title="${p.available === false ? 'Satışa kapalı · ' : ''}Düzenlemek için dokunun" ${act('openShProduct', p.id)}>${escapeHtml(p.name)}<i>${money(p.price)}</i></button>`).join('') || '<span class="kv-none">Bu menüde ürün yok — "＋ Ürün ekle" ile ekleyin</span>'}</div>
+    </div>`; };
+  el.innerHTML = `<div class="u-mwn box kv-wrap">
     <div class="sb-top">
-      <div><h2 class="u-m0">Menüler & İstasyonlar</h2>
-        <div class="sb-flow"><span>📋 Menü</span><i>→</i><span>🍳 İstasyon</span><i>→</i><span>🖥️ Mutfak ekranı + 🖨️ fiş</span></div></div>
+      <div><h2 class="u-m0">Menüler & Mutfaklar</h2><p class="muted kv-sub">Her mutfağa (istasyona) hangi menülerin ve ürünlerin düştüğünü buradan görün. Ürüne dokunun: fiyat, reçete, ekstra.</p></div>
       <div class="sb-tacts">
-        <button type="button" class="ghost-btn" ${act('msOrderOpen')} title="Sipariş Al ekranındaki menü sırası">↕ Sipariş ekranı sırası</button>
+        <button type="button" class="ghost-btn" ${act('msOrderOpen')}>↕ Sipariş ekranı sırası</button>
         <details class="ux-more"><summary title="Diğer işlemler">⋯ Diğer</summary><div class="ux-more-pop">
           <div class="ux-more-t">Menü PDF</div><div class="xl-bar"><button type="button" class="xl-btn" ${act('downloadMenuPdf', true)}>📄 Fiyatlı</button><button type="button" class="xl-btn" ${act('downloadMenuPdf', false)}>📄 Fiyatsız</button></div>
           <div class="ux-more-t">Excel</div>${typeof excelBarHtml === 'function' ? excelBarHtml('menus') : ''}</div></details>
-        <button type="button" class="fsheet-open" ${act('openStationEdit', '')}>+ Yeni istasyon</button>
+        <button type="button" class="fsheet-open" ${act('openStationEdit', '')}>+ Yeni mutfak</button>
       </div>
     </div>
-    <p class="muted sb-tip">Her sütun bir mutfak istasyonu. Menünün ürünleri o istasyonun ekranına ve yazıcısına gider. <b>Menüyü taşımak için sürükleyin</b> ya da menüye dokunup istasyonunu seçin.</p>
-    <div class="sb-board">
-      ${free.length ? `<section class="sb-col sb-free" data-st="" style="--sc:#ef4444;">
-        <header class="sb-ch"><span class="sb-ic">⚠️</span><span class="sb-ct"><b>İstasyonu olmayan</b><small>Bu menülerin ürünleri mutfağa gitmez</small></span></header>
-        <div class="sb-body">${free.map(menuCard).join('')}</div></section>` : ''}
-      ${stations.map(col).join('')}
-      ${stations.length ? '' : `<div class="empty-state"><div style="font-size:42px;">🍳</div><p class="muted">Önce bir istasyon ekleyin (örn. Mutfak, Izgara, Bar).</p></div>`}
-    </div>
+    ${stations.map(s => { const list = menus.filter(m => m.station_id === s.id), pn = prnName(s.id), pc = prods.filter(p => p.station_id === s.id).length;
+      return `<section class="kv-st" style="--sc:${escapeAttr(s.color || '#94a3b8')};">
+        <header class="kv-sh"><span class="sb-ic">${escapeHtml(s.icon || '🍳')}</span>
+          <span class="kv-st-t"><b>${escapeHtml(s.name)}</b><small>${list.length} menü · ${pc} ürün · 🖨️ ${pn ? escapeHtml(pn) : '<span class="muted">bu cihazda yazıcı eşlenmemiş</span>'}</small></span>
+          <button type="button" class="ghost-btn kv-sbtn" ${act('msAddMenuTo', s.id)}>＋ Menü ekle</button>
+          <button type="button" class="sb-edit" title="Mutfağı düzenle (ad, simge, renk)" ${act('openStationEdit', s.id)}>⚙️</button></header>
+        ${list.map(m => menuBlock(m, false)).join('') || '<div class="kv-none kv-pad">Bu mutfağa henüz menü bağlı değil.</div>'}
+      </section>`; }).join('')}
+    ${free.length ? `<section class="kv-st kv-free" style="--sc:#ef4444;">
+      <header class="kv-sh"><span class="sb-ic">⚠️</span><span class="kv-st-t"><b>Mutfağa gitmeyen menüler</b><small>Bu menülerin ürünleri hiçbir mutfak ekranına ve fişe düşmez. Bir mutfak seçin.</small></span>
+        <button type="button" class="ghost-btn kv-sbtn" ${act('msAddMenuTo', '')}>＋ Menü ekle</button></header>
+      ${free.map(m => menuBlock(m, true)).join('')}</section>` : ''}
+    ${stations.length ? '' : `<div class="empty-state"><div style="font-size:42px;">🍳</div><p class="muted">Önce bir mutfak (istasyon) ekleyin: örn. Izgara, Fırın, Bar.</p></div>`}
   </div>`;
-  msInitDnD(el);
+}
+/* Menüye hızlı ürün ekleme: ad + fiyat; ürün menünün mutfağına düşer. */
+function kvAddProduct(mid){
+  const m = (APP.config.menus || []).find(x => x.id === mid); if(!m) return;
+  removeEl('kvAddBg');
+  const bg = document.createElement('div'); bg.id = 'kvAddBg'; bg.className = 'modal-bg';
+  bg.onclick = (e) => { if(e.target === bg) bg.remove(); };
+  bg.innerHTML = `<div class="box sd-box zn3-modal"><div class="u-row-sb"><h2 class="u-m0">＋ ${escapeHtml(m.name)} menüsüne ürün</h2><span class="u-xclose" ${act('removeEl','kvAddBg')}>✕</span></div>
+    <div class="sh-form" style="margin-top:12px;">
+      <label class="wide">Ürün adı<input id="kv_name" placeholder="örn. Adana Kebap" ${actOn('keydown','onEnterCall',['$event','kvAddSave', mid])}></label>
+      <label>Fiyat (₺)<input id="kv_price" type="number" min="0" step="0.01" inputmode="decimal" ${actOn('keydown','onEnterCall',['$event','kvAddSave', mid])}></label>
+      <label>Maliyet (₺) <small>(isteğe bağlı)</small><input id="kv_cost" type="number" min="0" step="0.01" inputmode="decimal"></label>
+    </div>
+    <p class="muted u-fs12">Reçete ve ekstraları kaydettikten sonra ürüne dokunarak ekleyebilirsiniz.</p>
+    <div class="oa-edit-acts"><button type="button" class="ghost-btn" ${act('removeEl','kvAddBg')}>Kapat</button><button type="button" ${act('kvAddSave', mid)}>＋ Ekle</button></div></div>`;
+  document.body.appendChild(bg);
+  setTimeout(() => { const i = document.getElementById('kv_name'); if(i) i.focus(); }, 50);
+}
+async function kvAddSave(mid){
+  const m = (APP.config.menus || []).find(x => x.id === mid); if(!m) return;
+  const name = ((document.getElementById('kv_name') || {}).value || '').trim(); if(!name){ uiAlert('Ürün adı girin'); return; }
+  const price = parseFloat(String((document.getElementById('kv_price') || {}).value || '0').replace(',', '.')) || 0, cost = parseFloat(String((document.getElementById('kv_cost') || {}).value || '0').replace(',', '.')) || 0;
+  const s = getSession();
+  const { data: id, error } = await withLoadingOverlay(sb.rpc('upsert_product', { p_token: s.session_token, p_id: null, p_station_id: m.station_id || null, p_name: name, p_price: price, p_cost: cost, p_stock: null, p_available: true }));
+  if(error){ uiAlert(error.message); return; }
+  if(id){ const r = await sb.rpc('set_product_menu', { p_token: s.session_token, p_product_id: id, p_menu_id: mid }); if(r.error) uiAlert('Ürün eklendi ama menüye bağlanamadı: ' + r.error.message); }
+  showToast('🍽️ ' + name + ' eklendi'); await renderSettingsView(document.getElementById('main'), s); kvAddProduct(mid);
 }
 /* Sürükle-bırak: menüyü başka istasyon sütununa taşır. */
 function msInitDnD(root){
