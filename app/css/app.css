@@ -5173,3 +5173,4 @@ p.me2-hint{text-align:left!important;margin:-4px 0 12px!important;}
   border:1px solid color-mix(in srgb,var(--accent) 55%,var(--border))!important;box-shadow:none!important;}
 .cm-new.cm-new-l{width:auto!important;padding:0 12px!important;font-size:13px;font-weight:700;border-radius:10px!important;}
 .cw-btn:not(.ghost){background:color-mix(in srgb,var(--accent) 16%,transparent)!important;color:var(--accent)!important;border:1px solid color-mix(in srgb,var(--accent) 55%,var(--border))!important;box-shadow:none!important;}
+.ni-kind-bar[hidden]{display:none!important;}

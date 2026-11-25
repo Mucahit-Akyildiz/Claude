@@ -72,7 +72,7 @@ function renderIngredientsSettings(el, session){
       </div></details>
     </div>
     <div class="ux-chips">${chip('all','🥕', ings.length, 'Hammadde', 'var(--c1)')}${chip('low','📉', ings.filter(isLow).length, 'Kritik stok', 'var(--c3)')}${chip('out','⛔', ings.filter(i => !isPrep(i) && Number(i.stock)<=0).length, 'Stoğu biten', 'var(--danger,#ef4444)')}${chip('idle','💤', ings.filter(i => !useCount(i.id) && !isSrc(i) && !isPrep(i)).length, 'Reçetede kullanılmayan', 'var(--c3)')}${chip('waste','✂️', ings.filter(i => Number(i.waste_pct)>0).length, 'Fire tanımlı', 'var(--c2)')}</div>
-    <details class="prod-info"><summary>ℹ️ Nasıl çalışır</summary><p class="muted" style="text-align:left;margin:0 0 12px;">Örn: "Köfte" (birim: adet, stok: 200), "Döner Eti" (birim: kg, stok: 20). Yeni bir hammadde eklediğinizde hangi ürünlerin onu kullandığını hemen soracağız — istediğiniz zaman "Kullanıldığı Ürünler" ile bunu tekrar düzenleyebilirsiniz. Aynı hammaddeyi paylaşan ürünlerin stoğu her zaman ortak ve anlık hesaplanır. <b>Min</b>: stok bu seviyeye inince Malzeme Siparişi Ver menüsünde uyarı çıkar ve tek tıkla sipariş taslağı hazırlanır. <b>Fire %</b>: temizleme/kesim kaybıdır; reçeteye net miktarı girersiniz, stoktan fire eklenerek düşülür (örn. %10 fire, 60 g net → 66,7 g düşer). Kartları değiştirip <b>Kaydet</b>'e basın; silmek için kartları seçin.</p></details>
+    <details class="prod-info"><summary>ℹ️ Nasıl çalışır</summary><p class="muted" style="text-align:left;margin:0 0 12px;">Örn: "Köfte" (birim: adet, stok: 200), "Döner Eti" (birim: kg, stok: 20). Reçetede kullanılan hammaddeyi "Kaydet ve ürünlere bağla" ya da sonradan "Kullanıldığı Ürünler" ile ürünlere bağlayabilirsiniz. Aynı hammaddeyi paylaşan ürünlerin stoğu her zaman ortak ve anlık hesaplanır. <b>Min</b>: stok bu seviyeye inince Malzeme Siparişi Ver menüsünde uyarı çıkar ve tek tıkla sipariş taslağı hazırlanır. <b>Fire %</b>: temizleme/kesim kaybıdır; reçeteye net miktarı girersiniz, stoktan fire eklenerek düşülür (örn. %10 fire, 60 g net → 66,7 g düşer). Kartları değiştirip <b>Kaydet</b>'e basın; silmek için kartları seçin.</p></details>
     <div class="add-row-panel">
       <div class="ux-sel"><div class="act-row">
           <button type="button" class="act-btn act-save" id="ingSaveAllBtn" ${act('saveAllIngredients')} disabled>${ICON_SAVE}<span>Kaydet</span></button>
@@ -88,8 +88,7 @@ function renderIngredientsSettings(el, session){
           <button type="button" class="ni-kc prep" ${act('niPickKind', 'prep')}><span class="ni-kc-ic">🥙</span><b>Günlük hazırlık</b><small>Her gün depodan alınıp hazırlanan, satışın düştüğü kalem</small><em>Döner Satış, Tavuk Bonfile Şiş, Tiramisu Dilim Günlük…</em><i>Maliyet ve birim kaynaktan gelir · mutfakta ➕ Hazırla ile dolar</i></button>
         </div></div>
       <div id="niForm" hidden>
-      <div class="ni-kind-bar"><span id="niKindLbl"></span><button type="button" class="ni-kind-chg" ${act('niPickKind', '')}>‹ Türü değiştir</button></div>
-      ${ingStepsHtml(1)}
+      <div class="ni-kind-bar" hidden><span id="niKindLbl"></span><button type="button" class="ni-kind-chg" ${act('niPickKind', '')}>‹ Türü değiştir</button></div>
       <div id="niPrepTop" class="ni-preptop" hidden><div class="field-group"><label>1 · Kaynak (depo) hammadde <small class="muted">— hazırlık bundan alınır</small></label><select id="ni_prepsrc" ${actOn('change','niPrepSrcChange',[])}></select></div><small class="muted" id="niPrepHint"></small></div>
       <div class="fsheet-grid">
         <div class="field-group wide"><label>Hammadde Adı</label><input id="ni_name" placeholder="örn. Döner Eti"></div>
@@ -101,7 +100,7 @@ function renderIngredientsSettings(el, session){
       <div class="ni-sum ni-dep" id="niSum">💰 Stok değeri: —</div>
       <input type="checkbox" id="ni_prep_on" hidden>
       <div id="niPrepBox" class="ni-prep" hidden><div class="fsheet-grid"><div class="field-group"><label>Varsayılan günlük miktar <small class="muted">— mutfakta ➕ Hazırla açılınca hazır gelir</small></label><input type="number" id="ni_prepdef" min="0" step="any" placeholder="örn. 20"></div></div></div>
-      <p class="muted ni-dep" style="font-size:12px;text-align:left;margin:10px 0 0;">Maliyet sonra Mal Kabul'de fiyatlı teslim aldıkça ortalanarak güncellenir. Ekledikten sonra hangi ürünlerin bu hammaddeyi kullandığını soracağız; ürün maliyetleri otomatik hesaplanır.</p>
+      <p class="muted ni-dep" style="font-size:12px;text-align:left;margin:10px 0 0;">Maliyet sonra Mal Kabul'de fiyatlı teslim aldıkça ortalanarak güncellenir. Reçetede kullanıyorsanız "Kaydet ve ürünlere bağla" ile hangi ürünlerde kullanıldığını seçebilirsiniz.</p>
       <p class="muted ni-prp" style="font-size:12px;text-align:left;margin:10px 0 0;">Maliyet kaynaktan gelir. Devam edince, kaynağı reçetesinde kullanan ürünler hazır işaretli gelir; kaydedince kaynak o reçetelerden çıkarılır (stok iki kez düşmez).</p>
       </div>
       <div class="fsheet-foot" id="niFoot" hidden><button type="button" class="ghost-btn" ${act('niCancel')}>Vazgeç</button><button type="button" class="ghost-btn" title="Kaydeder ve bu hammaddenin hangi ürünlerde kullanıldığını seçmenizi sağlar" ${act('addIngredient', 1)}>Kaydet ve ürünlere bağla ›</button><button ${act('addIngredient')}>${ICON_SAVE}<span>Kaydet</span></button></div>`, 'var(--c3)')}
