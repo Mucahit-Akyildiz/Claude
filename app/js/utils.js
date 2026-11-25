@@ -551,7 +551,7 @@ function closeSheet(id){
   const el = id ? document.getElementById(id) : document.querySelector('.fsheet.open'); if(el) el.classList.remove('open');
   if(!document.querySelector('.fsheet.open')) document.body.classList.remove('fsheet-lock');
   // Stok & Reçete'den "＋ Hammadde" ile açıldıysa kapanınca kart görünümüne geri dön (ekran değişmesin).
-  if(el && el.id === 'ingSheet' && typeof APP !== 'undefined' && APP.shNewHub){ APP.shNewHub = false; APP.shBulk = false; if(typeof renderSettingsContent === 'function') renderSettingsContent(getSession()); }
+  if(el && el.id === 'ingSheet' && typeof APP !== 'undefined' && APP.shNewHub){ APP.shTab = typeof APP.shNewHub === 'string' ? APP.shNewHub : APP.shTab; APP.shNewHub = false; APP.shBulk = false; if(typeof renderSettingsContent === 'function') renderSettingsContent(getSession()); }
 }
 
 /* Etiketli (personel / ikram / limitli hesap) siparişler ciro getirmediği için kâr analizlerine katılmaz.

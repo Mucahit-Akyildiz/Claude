@@ -40,7 +40,7 @@ function renderStockHub(el){
     <div class="me2-bar">
       <div class="me2-tabs">${[['depot','🏬 Depo',depot.length,'#0ea5e9'],['prep','🥙 Günlük hazırlık',prep.length,'#f59e0b'],['recipes','🍽️ Reçeteler',shProds().length,'#22c55e']].map(([k, l, n, c]) => `<button type="button" class="me2-tab ${tab === k ? 'on' : ''}" style="--mc:${c};" ${act('setShTab', k)}>${l} <em class="me-kn">${n}</em></button>`).join('')}</div>
       <div class="me2-tools">
-        <span class="me2-adds"><button type="button" class="me2-tab me2-add" ${act('shNew')}>＋ ${tab === 'recipes' ? 'Ürün' : 'Hammadde'}</button>${tab === 'prep' ? `<button type="button" class="me2-tab me2-add" ${act('openPrepHub', true)}>📋 Bugünün hazırlığı</button>` : ''}</span>
+        <span class="me2-adds"><button type="button" class="me2-tab me2-add" ${act('shNew')}>＋ ${tab === 'recipes' ? 'Ürün' : tab === 'prep' ? 'Günlük hazırlık' : 'Hammadde'}</button>${tab === 'prep' ? `<button type="button" class="me2-tab me2-add" ${act('openPrepHub', true)}>📋 Bugünün hazırlığı</button>` : ''}</span>
         <input class="me2-search" type="search" placeholder="🔍 Ara" value="${escapeAttr(APP.shQ || '')}" ${actOn('input', 'shSearch', ['$value'])}>
         <details class="ux-more"><summary title="Diğer işlemler">⋯</summary><div class="ux-more-pop">
           <div class="ux-more-t">Depo</div><div class="xl-bar"><button type="button" class="xl-btn" ${act('shBulkGo')}>✏️ Toplu düzenle / Excel / sayım</button></div></div></details>
@@ -55,7 +55,10 @@ function setShTab(t){ APP.shTab = t; renderSettingsContent(getSession()); }
 function shSearch(v){ APP.shQ = v; const el = document.getElementById('settingsContent'); renderStockHub(el); const inp = el.querySelector('.me2-search'); if(inp){ inp.focus(); inp.setSelectionRange(v.length, v.length); } }
 function shNew(){
   if((APP.shTab || 'depot') === 'recipes'){ APP.settingsTab = 'products'; APP.productsSubTab = 'products'; renderSettingsView(document.getElementById('main'), getSession()).then(() => typeof openSheet === 'function' && openSheet('prodSheet')); return; }
-  APP.shTab = 'depot'; if(!APP.shBulk) APP.shNewHub = true; APP.shBulk = true; renderSettingsContent(getSession()); if(typeof niStart === 'function') niStart('');
+  // Hangi sekmedeysek tür zaten bellidir: Depo'da depo hammaddesi, Günlük hazırlık'ta hazırlık (tür sorulmaz).
+  const kind = APP.shTab === 'prep' ? 'prep' : 'dep', back = APP.shTab || 'depot';
+  APP.shTab = 'depot'; if(!APP.shBulk) APP.shNewHub = back; APP.shBulk = true; renderSettingsContent(getSession());
+  if(typeof niStart === 'function'){ niStart(''); niPickKind(kind); }
 }
 
 /* Hammadde zinciri: nereden geliyor, nereye gidiyor. */
