@@ -5213,3 +5213,19 @@ p.me2-hint{text-align:left!important;margin:-4px 0 12px!important;}
 .rp-bar-r .an-search{margin:0!important;}
 .rp-bar-r .ux-more-pop{display:flex;flex-direction:column;gap:6px;min-width:220px;}
 .rp-bar-r .ux-more-pop button{width:100%!important;margin:0!important;text-align:left;}
+@media (max-width:1100px){ .me2-tabs:has(> .me2-title:only-child){order:0;flex:1 1 100%;} }
+/* Telefon: taşmalar */
+@media (max-width:700px){
+  .me2-tools{flex-wrap:wrap;min-width:0;}
+  .me2-adds{display:flex;flex-wrap:wrap;gap:6px;min-width:0;}
+  .me2-search{flex:1 1 140px!important;width:auto!important;min-width:0!important;}
+  .user-cards .settings-table{min-width:0!important;}
+  .user-cards .settings-table tbody{grid-template-columns:minmax(0,1fr)!important;}
+  .int-groups{grid-template-columns:minmax(0,1fr)!important;}
+  .int-group,.int-row{min-width:0;max-width:100%;}
+}
+@media (max-width:700px){
+  .me2-adds{flex:1 1 100%;}
+  .me2-adds > .me2-tab{max-width:100%;white-space:nowrap;}
+  .ct-mask{max-width:100%;overflow:hidden;text-overflow:ellipsis;display:inline-block;vertical-align:bottom;}
+}
