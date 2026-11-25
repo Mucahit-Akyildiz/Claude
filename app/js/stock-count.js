@@ -3,7 +3,7 @@
    Onay yetkisi (approvals) olan kişi onaylayınca stok, sayım anındaki farka göre düzeltilir
    (sayımdan sonraki satışlar korunur). Stok sayımı isteğe bağlıdır; gün sonuna bağlı değildir.
    Sunucu: submit_stock_count, list_stock_counts, decide_stock_count, set_ingredient_count_daily. */
-function scCanCount(s){ s = s || getSession(); return !!s && (s.isManager || hasPerm(s, 'stock_count') || hasPerm(s, 'approvals')); }
+function scCanCount(s){ s = s || getSession(); return !!s && featOn('stock_count_f') && (s.isManager || hasPerm(s, 'stock_count') || hasPerm(s, 'approvals')); }
 function scCanApprove(s){ s = s || getSession(); return !!s && (s.isManager || hasPerm(s, 'approvals')); }
 function stockCountBtnHtml(cls){
   if(!scCanCount()) return '';
@@ -11,6 +11,7 @@ function stockCountBtnHtml(cls){
 }
 function scFmt(n){ const v = Math.round((Number(n) || 0) * 1000) / 1000; return v.toLocaleString('tr-TR', { maximumFractionDigits: 3 }); }
 async function openStockCount(tab){
+  if(APP.view === 'settings' && APP.settingsTab !== 'stockcount'){ if(tab) APP.scTab = tab; setSettingsTab('stockcount'); return; }
   if(!scCanCount()){ uiAlert('Stok sayımı için yetkiniz yok. Yöneticiniz rolünüze "Stok Sayımı" iznini verebilir.'); return; }
   APP.scTab = tab || APP.scTab || 'count';
   if(APP.scTab === 'approve' && !scCanApprove()) APP.scTab = 'count';
@@ -21,7 +22,9 @@ async function openStockCount(tab){
   bg.innerHTML = `<div class="box sc-box"><div class="u-row-sb"><h2 class="u-m0">📋 Stok Sayımı</h2><span class="u-xclose" ${act('removeEl','stockCountBg')}>✕</span></div>
     <div class="seg sc-tabs"><button type="button" data-t="count" ${act('scSetTab','count')}>✍️ Sayım gir</button>${scCanApprove() ? `<button type="button" data-t="approve" ${act('scSetTab','approve')}>✅ Onaylar <span id="scPendN"></span></button>` : ''}<button type="button" data-t="history" ${act('scSetTab','history')}>🕘 Geçmiş</button></div>
     <div id="scBody"></div></div>`;
-  document.body.appendChild(bg);
+  const host = APP.view === 'settings' && APP.settingsTab === 'stockcount' && document.getElementById('settingsContent');
+  if(host){ host.innerHTML = ''; const box = bg.firstElementChild; box.classList.add('sc-inline'); const x = box.querySelector('.u-xclose'); if(x) x.remove(); host.appendChild(box); }
+  else document.body.appendChild(bg);
   await scLoadCounts();
   scRender();
 }

@@ -113,22 +113,31 @@ function productExtras(pid){ return ((APP.config && APP.config.extras) || []).fi
 function findProductAny(pid){ const c = APP.config || {}; return (c.products || []).find(p => p.id === pid) || (c.extras || []).find(p => p.id === pid); }
 
 const NAV_ITEMS = [
-  { view:'order', icon:'🍽️', label:'Sipariş Al', perm:'order' },
-  { view:'packages', icon:'📦', label:'Paket Servis', perm:'packages' },
-  { view:'kitchen', icon:'🧑‍🍳', label:'Mutfak Ekranı', perm:'kitchen' },
-  { view:'reservations', icon:'📅', label:'Rezervasyonlar ve Bekleme Listesi', perm:'reservations' },
-  { view:'crm', icon:'👥', label:'Müşteriler', perm:'crm' },
-  { view:'purchasing', icon:'🛒', label:'Malzeme Siparişi Ver', perm:'purchasing' },
-  { view:'notificationSettings', icon:'🔔', label:'Bildirimler' },
-  { view:'payments', icon:'💳', label:'Ödemeler', perm:'payments' },
-  { view:'procurement', icon:'📦', label:'Mal Kabul' },
-  { view:'reports', icon:'📊', label:'Finansal Analiz' },
-  { view:'messages', icon:'💬', label:'Mesajlar' },
-  { view:'radio', icon:'📻', label:'Peyk Bas-Konuş' },
-  { view:'settings', icon:'⚙️', label:'Ayarlar' },
-  { view:'devicePrinters', icon:'🖨️', label:'Cihaz Yazıcısı' },
-  { view:'help', icon:'❓', label:'Yardım' },
+  { view:'order', icon:'🍽️', label:'Sipariş Al', perm:'order', grp:'daily' },
+  { view:'packages', icon:'📦', label:'Paket Servis', perm:'packages', grp:'daily' },
+  { view:'kitchen', icon:'🧑‍🍳', label:'Mutfak Ekranı', perm:'kitchen', grp:'daily' },
+  { view:'reservations', icon:'📅', label:'Rezervasyonlar ve Bekleme Listesi', perm:'reservations', grp:'daily' },
+  { view:'crm', icon:'👥', label:'Müşteriler', perm:'crm', grp:'daily' },
+  { view:'purchasing', icon:'🛒', label:'Malzeme Siparişi Ver', perm:'purchasing', grp:'manage' },
+  { view:'notificationSettings', icon:'🔔', label:'Bildirimler', grp:'hidden' },
+  { view:'payments', icon:'💳', label:'Ödemeler', perm:'payments', grp:'daily' },
+  { view:'procurement', icon:'📦', label:'Mal Kabul', grp:'manage' },
+  { view:'reports', icon:'📊', label:'Finansal Analiz', grp:'manage' },
+  { view:'messages', icon:'💬', label:'Mesajlar', grp:'tools' },
+  { view:'radio', icon:'📻', label:'Peyk Bas-Konuş', grp:'tools' },
+  { view:'settings', icon:'⚙️', label:'Ayarlar', grp:'manage' },
+  { view:'devicePrinters', icon:'🖨️', label:'Cihaz Yazıcısı', grp:'hidden' },
+  { view:'help', icon:'❓', label:'Yardım', grp:'tools' },
 ];
+// Sol menü grupları: Günlük işler, Yönetim; Araçlar alt kısımda küçük simgeler.
+function sbGrpClosed(g){ try{ return (JSON.parse(localStorage.getItem('rys_sb_shut')) || []).includes(g); }catch(e){ return false; } }
+function toggleSbGrp(g){
+  let a = []; try{ a = JSON.parse(localStorage.getItem('rys_sb_shut')) || []; }catch(e){}
+  a = a.includes(g) ? a.filter(x => x !== g) : a.concat(g);
+  try{ localStorage.setItem('rys_sb_shut', JSON.stringify(a)); }catch(e){}
+  const el = document.querySelector('.sb-grp[data-grp="' + g + '"]'); if(el) el.classList.toggle('shut', a.includes(g));
+}
+const NAV_GROUPS = [['daily','Günlük'],['manage','Yönetim'],['tools','Araçlar']];
 /* notificationSettings her personel için her zaman görünür (izin
    gerektirmez, cihaza özel). printerSettings ise artık SADECE Yönetici'ye
    açık - yazıcı seçimi/istasyon eşleştirme yine cihaza özel kalıyor (fiziksel
@@ -143,6 +152,8 @@ const NAV_ITEMS = [
 /* İşletmenin etkin özellikleri (paket + satın alınan eklentiler), bkz.
    get_restaurant_config.features / _restaurant_features. Config henüz
    yüklenmediyse false döner - eklenti arayüzü config gelene kadar gizli kalır. */
+/* Paket özelliği açık mı? Config yüklenmemişse açık sayılır (yanlışlıkla gizlenmesin). */
+function featOn(f){ const fs = APP.config && APP.config.features; return !Array.isArray(fs) || fs.includes(f); }
 function hasFeature(f){ return !!(APP.config && (APP.config.features||[]).includes(f)); }
 function navItemVisible(item, session){
   if(item.view==='reports') return canManage(session, 'reports');

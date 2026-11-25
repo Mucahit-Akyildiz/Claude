@@ -155,7 +155,7 @@ const HMAP_QUICK = [
   ['Ürünü acil satışa kapatmak (stok bitti)', ['Mutfak Ekranı','⛔ Satışa Kapat']],
   ['Ürünü kalıcı kapatmak / açmak', ['Ayarlar','Ürünler & Hammaddeler','Ürünler','Satışta / Kapalı düğmesi']],
   ['Hangi ürün mutfak fişine çıksın', ['Cihaz Yazıcısı','Bu Ekranın Yazıcısı','İstasyon Fişleri','Fişe çıkacak ürünler']],
-  ['Mutfak istasyonu, menü başlığı eklemek', ['Ayarlar','Menüler & İstasyonlar']],
+  ['Mutfak istasyonu, kategori eklemek', ['Ayarlar','Menü & Ürünler']],
   ['Masa / bölge eklemek, masa QR kodu', ['Ayarlar','Bölgeler & Masalar']],
   ['Tedarikçiden malzeme sipariş etmek', ['Malzeme Siparişi Ver']],
   ['Gelen malı teslim almak, birim fiyat girmek', ['Mal Kabul','Siparişler & Fiyatlar']],
@@ -262,7 +262,7 @@ const HMAP_CARDS = [
  { ic:'📻', n:'Peyk Bas-Konuş', who:'herkes', d:'Telsiz gibi anlık sesli iletişim.', enter:['Bas-konuş'], read:['Kim çevrim içi'] },
  { ic:'⚙️', n:'Ayarlar', who:'her sekme ayrı izinle', d:'İşletme genelindeki tanımlar. Buradaki değişiklikler bütün cihazlarda geçerlidir.',
    subs:[
-    ['🍳 Menüler & İstasyonlar','Menü başlıkları ve mutfak istasyonları (Izgara, Çayhane…).'],
+    ['🍳 Menü & Ürünler','Kategoriler (Izgaralar, İçecekler…), ürünler ve mutfak istasyonları (Izgara, Çayhane…).'],
     ['🪑 Bölgeler & Masalar','Salon / bahçe, masalar (toplu: "Masa 1-10"), masa QR kodu (▦).'],
     ['🍔 Ürünler & Hammaddeler','Ürünler (fiyat, maliyet, KDV, istasyon, stok, reçete, Satışta / Kapalı) · Fotoğraf & Açıklama · Hammaddeler (birim, stok, ortalama maliyet).'],
     ['🏷️ Sipariş Etiketleri','Personel yemeği, ikram gibi etiketler.'],

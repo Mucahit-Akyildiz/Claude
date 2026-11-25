@@ -401,8 +401,8 @@ const PR_TYPE = (t) => t==='remote' ? ['🌐','Uzak yazıcı (başka cihaz)'] : 
 function pickActivePrinter(id){ setActivePrinterId(id); document.querySelectorAll('.pp-card[data-pid], .pp-grid .pp-card:not(.pp-static)').forEach(c => c.classList.remove('on')); renderPrinterSettingsView(document.getElementById('main'), getSession()); showToast('Bu ekranın yazıcısı güncellendi ✓'); }
 async function renderPrinterSettingsView(main, session){
   // Ayarlar → Fiş Tasarımı sekmesinde gösterilir; eski çağrılar (#main) sekmenin içine yönlendirilir.
-  const embedded = APP.view === 'settings';
-  if(embedded && main && main.id === 'main'){ const sc = document.getElementById('settingsContent'); if(!sc) return; main = sc; }
+  const inSettings = APP.view === 'settings', embedded = inSettings && APP.settingsTab !== 'devprn';
+  if(inSettings && main && main.id === 'main'){ const sc = document.getElementById('settingsContent'); if(!sc) return; main = sc; }
   // Mutfak rolündeki kullanıcıların menüsünde "Sipariş Al"/"Ayarlar" yok -
   // bu yüzden APP.config hiç yüklenmemiş olabilir (istasyon listesi burada
   // kullanılıyor). Eksikse burada da yüklenir; önceden bu eksiklik sayfanın
@@ -418,7 +418,7 @@ async function renderPrinterSettingsView(main, session){
   const stationPrinterMap = getStationPrinterMap();
   const usbSupported = !!(navigator.usb);
   main.innerHTML = `
-    ${embedded ? '' : '<h1>Cihaz Yazıcısı</h1><p class="u-tl muted">Bu cihazın bağlı olduğu yazıcılar ve hangi istasyonun hangi yazıcıya basacağı. Ayarlar yalnızca bu cihaza özeldir; her cihazda ayrı yapılır. Fiş tasarımı <b>Ayarlar → Fiş Tasarımı</b>\'nda.</p>'}
+    ${embedded ? '' : inSettings ? '<h2 class="u-m0" style="margin:0 0 6px;">🔌 Bu Cihazın Yazıcısı</h2><p class="u-tl muted u-fs13" style="margin:0 0 10px;">Bu cihaza bağlı yazıcılar ve hangi istasyonun hangi yazıcıya basacağı. Her cihazda ayrı ayarlanır.</p>' : '<h1>Cihaz Yazıcısı</h1><p class="u-tl muted">Bu cihazın bağlı olduğu yazıcılar ve hangi istasyonun hangi yazıcıya basacağı. Ayarlar yalnızca bu cihaza özeldir; her cihazda ayrı yapılır. Fiş tasarımı <b>Ayarlar → Fiş Tasarımı</b>\'nda.</p>'}
     <details class="pr-note" ${embedded ? '' : 'hidden'}>
       <summary style="cursor:pointer;font-weight:700;font-size:13px;">ℹ️ Fiş tasarımı tüm işletmede ortaktır; yazıcı seçimleri ise bu cihaza özeldir. <span class="muted" style="font-weight:500;">(ayrıntı)</span></summary>
       <p class="muted" style="margin:8px 0 0;text-align:left;font-size:12px;">⚠️ <b>Yazıcılar</b> ve <b>İstasyon → Yazıcı Eşleştirme</b> ise hâlâ <u>şu an bu ekranı açtığınız cihaza</u> özeldir (bir yazıcı fiziksel olarak hangi bilgisayara bağlıysa fiş oradan basılır, bu merkezi bir ayarla belirlenemez). Yeni bir kasa/mutfak bilgisayarı kurduğunuzda, o bilgisayarda da Yönetici olarak giriş yapıp yazıcı seçimini orada tekrar yapmanız gerekir.</p>
@@ -693,7 +693,7 @@ function stationPrintProductsHtml(st){
   const groups = {};
   prods.forEach(p => { const k = p.menu_id || ''; (groups[k] = groups[k] || []).push(p); });
   const order = [...menus.map(m => m.id).filter(id => groups[id]), ...Object.keys(groups).filter(k => k && !menus.some(m => m.id===k)), ...(groups[''] ? [''] : [])];
-  const menuName = (k) => k ? ((menus.find(m => m.id===k) || {}).name || 'Menü') : 'Menüsüz';
+  const menuName = (k) => k ? ((menus.find(m => m.id===k) || {}).name || 'Kategori') : 'Kategorisiz';
   return `<details ${APP.prOpenSt===st.id?'open':''} style="background:var(--panel2);border:1px solid var(--border);border-radius:10px;padding:8px 12px;">
     <summary style="cursor:pointer;font-size:13px;font-weight:700;">🧾 Fişe çıkacak ürünler · ${prods.length - off}/${prods.length}${off ? ` <span class="u-fw4 muted">(${off} ürün fişe çıkmaz)</span>` : ''}</summary>
     ${canEdit ? `<div style="display:flex;gap:8px;margin:10px 0 6px;flex-wrap:wrap;">
@@ -795,7 +795,7 @@ async function renderNotificationSettingsView(main, session){
   main.innerHTML = `
     <h1>Bildirimler</h1>
     <div id="notifSettingsPart">
-    <p class="u-tl muted">${session.isManager ? 'Bu sayfadaki ayarlar (push, sesli okuma, zil sesi) yalnızca bu cihaza özeldir. Bildirimlerin hangi rollere gideceği, sesli bildirimleri açma/kapama ve kişi sayısı hatırlatması <b>Ayarlar → Bildirim Ayarları</b>\'nda.' : 'Hangi bildirimlerin size gideceğini yöneticiniz belirler (🔒 işaretli olanlar). Ses seçimi, sesli okuma ve zil sesi ayarları yalnızca bu cihaza özeldir.'}</p>
+    <p class="u-tl muted">Bu sekmedeki ayarlar (push, sesli okuma, zil sesi) yalnızca bu cihaza özeldir; her cihazda ayrı yapılır.</p>
 
     ${!hasFeature('push_notifications') ? `<div class="u-mwn box"><h2>📱 Push Bildirimleri (Uygulama Kapalıyken de)</h2>${lockedFeatureHtml()}</div>` : ''}
     ${isDesktopApp() && hasFeature('push_notifications') ? `<div class="u-mwn box">
@@ -835,7 +835,7 @@ async function renderNotificationSettingsView(main, session){
       </div>
       <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px;flex-wrap:wrap;">
         <span style="font-size:12.5px;font-weight:700;color:var(--muted);">Yüklediğiniz Sesler <span class="u-fw4">(en fazla ${BELL_LIBRARY_MAX})</span></span>
-        <label style="width:auto;cursor:pointer;display:inline-flex;align-items:center;margin:0;padding:9px 16px;border-radius:10px;background:var(--accent);color:var(--btn-ink);font-weight:700;font-size:13px;">
+        <label class="me2-tab me2-add u-lbl-add" style="cursor:pointer;display:inline-flex;align-items:center;margin:0;font-size:13px;">
           ＋ Ses Dosyası Yükle
           <input id="bellFileInput" type="file" accept="audio/*" style="display:none;" ${act('clearValue','$this')} ${actOn('change','uploadBellSound',[])}>
         </label>
@@ -844,8 +844,8 @@ async function renderNotificationSettingsView(main, session){
       <div class="field-group"><label>Hazır Zil Sesleri</label></div>
       <div id="bellPresetList" class="bell-grid"></div>
       <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:14px;">
-        <button class="sbtn" style="width:auto;" ${act('testBellSound')}>▶️ Seçili Sesi Test Et</button>
-        <button class="sbtn" style="width:auto;background:var(--red);color:var(--btn-ink);" ${act('resetBellSound')}>Sıfırla (Varsayılan Zil)</button>
+        <button class="sbtn sbtn-sec" style="width:auto;" ${act('testBellSound')}>▶️ Seçili Sesi Test Et</button>
+        <button class="sbtn sbtn-sec danger" style="width:auto;" ${act('resetBellSound')}>Sıfırla (Varsayılan Zil)</button>
       </div>
       <p class="muted" style="text-align:left;margin-top:14px;font-size:12px;">
         Not: Dosya boyutu en fazla 800KB olmalı (kısa bir bildirim sesi yeterlidir). Tarayıcılar otomatik ses çalmayı
@@ -863,6 +863,7 @@ async function renderNotificationSettingsView(main, session){
 /* Ayarlar > Bildirim Ayarları: işletme geneli bildirim kuralları (Kime Gitsin, kişi sayısı hatırlatması) ve doğum günü uyarıları. */
 function renderNotifAdminSettings(el, session){
   const tabs = [
+    { id:'device', ic:'📱', label:'Bu Cihaz (ses, push)' },
     canManage(session, 'settings_notifs') ? { id:'roles', ic:'👥', label:'Kime Gitsin' } : null,
     canManage(session, 'settings_notifs') ? { id:'guests', ic:'🔔', label:'Kişi Sayısı Hatırlatması' } : null,
     canManage(session, 'settings_notifs') && typeof voiceMasterSettingHtml === 'function' ? { id:'voice', ic:'🗣️', label:'Sesli Bildirimler' } : null,
@@ -874,10 +875,11 @@ function renderNotifAdminSettings(el, session){
   el.innerHTML = `<div class="u-mwn box sub-tabs-box">
       <div class="sub-tabs">${tabs.map(t => `<div role="tab" tabindex="0" class="sub-tab ${sub===t.id?'active':''}" ${act('setNotifAdminSub', t.id)}><span class="sub-tab-ic">${t.ic}</span>${t.label}</div>`).join('')}</div>
       <div class="sub-tabs-content" id="notifAdminContent">${
-        sub === 'roles' ? '<div id="notifRolesBox" class="box" style="max-width:none;"><h2>👥 Kime Gitsin</h2><div id="notifRolesBody"><p class="muted">Yükleniyor…</p></div></div>'
+        sub === 'device' ? '<div id="notifDeviceBox"></div>' : sub === 'roles' ? '<div id="notifRolesBox" class="box" style="max-width:none;"><h2>👥 Kime Gitsin</h2><div id="notifRolesBody"><p class="muted">Yükleniyor…</p></div></div>'
         : sub === 'guests' ? guestReminderSettingHtml() : sub === 'voice' ? voiceMasterSettingHtml() : birthdaySettingsHtml()}</div>
     </div>`;
   if(sub === 'roles') loadNotifRoles();
+  if(sub === 'device'){ const b = document.getElementById('notifDeviceBox'); if(b){ Promise.resolve(renderNotificationSettingsView(b, session)).then(() => { const h = b.querySelector('h1'); if(h) h.remove(); }); } }
 }
 function setNotifAdminSub(id){ APP.notifAdminSub = id; const el = document.getElementById('settingsContent'); if(el) renderNotifAdminSettings(el, getSession()); }
 
@@ -921,9 +923,14 @@ function drawNotifRoles(){
   const colOn = (rid) => tab === 'push' ? NOTIF_TYPES.every(t => notifRolesFor(t).includes(rid)) : VOICE_TYPES.every(t => voiceEffRoles(t.id).includes(rid));
   const head = `<tr><th class="nm-type">Bildirim</th>${roles.map(r => { const on = colOn(r.id); return `<th><div class="nm-colh"><span>${escapeHtml(r.name)}</span><button type="button" role="switch" aria-checked="${on}" class="nm-sw nm-sw-sm ${on?'on':''}" title="${on?'Bu rolde tümünü kapat':'Bu rolde tümünü aç'}" ${act('setNotifRoleColumn', r.id, !on)}><i></i></button></div></th>`; }).join('')}<th></th></tr>`;
   const cell = (on, fn, k, rid) => `<td><button type="button" role="switch" aria-checked="${on}" class="nm-sw ${on?'on':''}" title="${on?'Açık — kapatmak için dokunun':'Kapalı — açmak için dokunun'}" ${act(fn, k, rid)}><i></i></button></td>`;
-  const rowsPush = NOTIF_TYPES.map(t => { const sel = notifRolesFor(t), custom = Array.isArray((APP.notifRoles||{})[t.k]);
+  const NG = [['🍽️ Sipariş ve masa',['customer_request','order15','seated','idle_table','waiter_order','waiter_payment']],['🍳 Mutfak',['kitchen_new','kitchen_late']],['📅 Rezervasyon',['reservation_reminder','resv_soon','reservation_new']],['📦 Paket servis',['pickup_due','pkg_deadline','pkg_courier']],['👥 Personel ve satınalma',['shift','purchase_order']]];
+  const ngOf = (k) => { const g = NG.find(x => x[1].includes(k)); return g ? NG.indexOf(g) : NG.length; };
+  const pushSorted = NOTIF_TYPES.slice().sort((x, y) => ngOf(x.k) - ngOf(y.k));
+  let ngLast = -1;
+  const rowsPush = pushSorted.map(t => { const gi = ngOf(t.k), gh = gi !== ngLast ? (ngLast = gi, `<tr class="nm-grp"><td colspan="${roles.length + 2}">${(NG[gi] || ['Diğer'])[0]}</td></tr>`) : '';
+    return gh + (() => { const sel = notifRolesFor(t), custom = Array.isArray((APP.notifRoles||{})[t.k]);
     return `<tr><td class="nm-type"><span class="nm-ic">${t.ic}</span><div><b>${t.t}</b><small>${t.d}</small></div></td>${roles.map(r => cell(sel.includes(r.id), 'toggleNotifRole', t.k, r.id)).join('')}
-      <td class="nm-act">${custom ? `<button type="button" class="nm-reset" title="İzne göre varsayılana dön" ${act('resetNotifRoles', t.k)}>↺</button>` : ''}${sel.length ? '' : '<span class="nm-warn" title="Kimseye gitmez">⚠️</span>'}</td></tr>`; }).join('');
+      <td class="nm-act">${custom ? `<button type="button" class="nm-reset" title="İzne göre varsayılana dön" ${act('resetNotifRoles', t.k)}>↺</button>` : ''}${sel.length ? '' : '<span class="nm-warn" title="Kimseye gitmez">⚠️</span>'}</td></tr>`; })(); }).join('');
   const rowsVoice = VOICE_TYPES.map(t => { const pol = allV[t.id], sel = voiceEffRoles(t.id);
     return `<tr class="${pol?'':'nm-def'}"><td class="nm-type"><span class="nm-ic">${t.ic}</span><div><b>${escapeHtml(t.label)}</b><small>${pol ? (sel.length ? '' : '⚠️ Kimsede çalmaz') : 'Herkese · sesli/zil her cihazın kendi ayarına göre'}</small></div></td>${roles.map(r => cell(sel.includes(r.id), 'toggleVoicePolicyRole', t.id, r.id)).join('')}
       <td class="nm-act">${pol ? `<select class="nm-mode" ${actOn('change','setVoicePolicyMode',[t.id,'$value'])}><option value="voice" ${pol.mode!=='sound'?'selected':''}>🗣️ Sesli oku</option><option value="sound" ${pol.mode==='sound'?'selected':''}>🔔 Sadece zil</option></select><button type="button" class="nm-reset" title="Varsayılana dön" ${act('resetVoicePolicy', t.id)}>↺</button>` : ''}</td></tr>`; }).join('');

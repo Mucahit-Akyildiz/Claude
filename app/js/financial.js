@@ -184,9 +184,9 @@ async function renderReportsView(main, session){
   if(!APP.reportDate) APP.reportDate = todayLocalDateStr();
   if(!APP.reportDateTo) APP.reportDateTo = APP.reportDate;
   main.innerHTML = `<h1>Finansal Analiz</h1>
-    <div class="u-mwn box">
-      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-        <span class="u-nw muted">Tarih Aralığı</span>
+    <div class="u-mwn box rp-bar">
+      <div class="rp-bar-r">
+        <span class="u-nw muted">📅</span>
         <input type="date" id="reportDateInput" value="${APP.reportDate}" ${actOn('change','changeReportDate',['$value'])} class="u-wa-m0">
         <span class="muted">–</span>
         <input type="date" id="reportDateToInput" value="${APP.reportDateTo}" ${actOn('change','changeReportDateTo',['$value'])} class="u-wa-m0">
@@ -195,11 +195,9 @@ async function renderReportsView(main, session){
         <button type="button" class="range-preset-btn" ${act('setReportDateRangeDays', 6)}>Son 7 Gün</button>
         <button type="button" class="range-preset-btn" ${act('setReportDateRangeDays', 9)}>Son 10 Gün</button>
         <button type="button" class="range-preset-btn" ${act('setReportDateRangeDays', 29)}>Son 30 Gün</button>
-        <span class="u-f1"></span>
-        <button type="button" class="range-preset-btn" ${act('exportAnalytics')} title="Bu sekmeyi Excel'de açılabilir dosya olarak indir">⬇ Excel</button>
-        <button type="button" class="range-preset-btn" ${act('printAnalytics')} title="Yazdır veya PDF olarak kaydet">🖨️ PDF</button>
+        <div class="an-search-wrap"><input id="anSearch" class="an-search" placeholder="🔍 Raporlarda ara (ürün, masa, personel…)" autocomplete="off" ${actOn('input','anSearch',['$value'])}><div id="anSearchRes" class="an-sres" hidden></div></div>
+        <details class="ux-more"><summary title="Diğer işlemler">⋯</summary><div class="ux-more-pop"><button type="button" class="ghost-btn" ${act('exportAnalytics')}>⬇ Bu raporu Excel'e indir</button><button type="button" class="ghost-btn" ${act('printAnalytics')}>🖨️ Yazdır / PDF</button></div></details>
       </div>
-      <div class="an-search-wrap"><input id="anSearch" class="an-search" placeholder="🔍 Raporlarda ara: ürün, masa, personel, hammadde ya da “nakit”, “stok”, “kâr”…" autocomplete="off" ${actOn('input','anSearch',['$value'])}><div id="anSearchRes" class="an-sres" hidden></div></div>
     </div>
     <div class="set-layout rp-layout">
       <nav class="tabs settings-tabs set-nav" id="reportTabs">
@@ -476,6 +474,7 @@ async function renderReportContent(session){
       </div>
     </div>
     <div class="fs-panel pa-sec" id="fsAllowance" style="--t:#14b8a6;display:none;"></div>
+    <details class="ux-set fs-more"><summary>📈 Saatlik ciro, ödeme türleri, yoğunluk ve personel performansı</summary><div class="ux-set-body">
     <div class="ch-row">
       <div class="fs-panel pa-sec" style="--t:var(--c1);"><h3><i>📊</i>Saatlik Ciro${peakHour!==null?' <span class="muted" style="font-size:12px;font-weight:400;">en yoğun: '+(peakHour<10?'0'+peakHour:peakHour)+':00</span>':''}</h3>
         ${(() => { if(!hourKeys.length) return '<p class="muted">Bu tarihte veri yok.</p>'; const lo = Math.min(...hourKeys), hi = Math.max(...hourKeys); const hrs = []; for(let h = lo; h <= hi; h++) hrs.push(h);
@@ -486,6 +485,7 @@ async function renderReportContent(session){
     ${heatmapHtml(untaggedHist)}
     <details class="fs-panel pa-sec" style="--t:#f97316;"><summary style="cursor:pointer;"><h3 style="display:inline-flex;margin:0;"><i>⏰</i>Saatlik Yoğunluk Tablosu</h3></summary>${hourlyHtml}</details>
     <div class="fs-panel pa-sec" style="--t:#a78bfa;"><h3><i>👤</i>Personel Performansı</h3>${staffRowsHtml}</div>
+    </div></details>
     <div class="fs-panel pa-sec" style="--t:var(--green);">
       <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:6px;">
         <h3 class="u-m0"><i>🧾</i>Kapatılan Hesaplar</h3>
@@ -790,22 +790,22 @@ async function renderTipPoolContent(session){
 async function renderProcurementView(main, session){
   if(!APP.procFrom){ const d = new Date(); d.setDate(d.getDate()-29); APP.procFrom = d.toISOString().slice(0,10); }
   if(!APP.procTo) APP.procTo = todayLocalDateStr();
-  main.innerHTML = `<h1>Mal Kabul</h1><p class="muted page-sub">Tedarikçiden sipariş ettiğiniz malzemeler burada. Malzeme restorana gelince <b>📦 Teslim Al</b> deyin, gelen miktar stoğa eklenir. Tedarikçiyi seçin ve birim fiyatı girin. Yeni malzeme siparişi için <b>Malzeme Siparişi Ver</b> menüsü.</p>
-    <div class="u-mwn box">
-      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-        <span class="u-nw muted">Tarih Aralığı</span>
-        <input type="date" value="${APP.procFrom}" ${actOn('change','setProcDate',['from','$value'])} class="u-wa-m0">
-        <span class="muted">–</span>
-        <input type="date" value="${APP.procTo}" ${actOn('change','setProcDate',['to','$value'])} class="u-wa-m0">
-        <span class="u-f1"></span>
-        ${[[7,'Son 7 gün'],[30,'Son 30 gün'],[90,'Son 3 ay'],[365,'Son 1 yıl']].map(([d,l]) => `<button type="button" class="pc-btn" ${act('setProcRange', d)}>${l}</button>`).join('')}
+  const sub = APP.purchRepSub || 'orders', rng = APP.procRng || 30;
+  main.innerHTML = `<h1>Mal Kabul</h1>
+    <div class="u-mwn box me2">
+      <div class="me2-bar">
+        <div class="me2-tabs">${[['orders','🧾 Gelen siparişler'],['suppliers','🏭 Tedarikçiler']].map(([k, l]) => `<button type="button" class="me2-tab ${sub===k?'on':''}" ${act('setPurchRepSub', k)}>${l}</button>`).join('')}</div>
+        <div class="me2-tools">${sub === 'orders' ? `<select class="me-ksel" title="Tarih aralığı" ${actOn('change','setProcRangeSel',['$value'])}>${[[7,'Son 7 gün'],[30,'Son 30 gün'],[90,'Son 3 ay'],[365,'Son 1 yıl'],['c','Özel tarih…']].map(([d,l]) => `<option value="${d}" ${String(rng)===String(d)?'selected':''}>📅 ${l}</option>`).join('')}</select>
+          ${rng === 'c' ? `<input type="date" value="${APP.procFrom}" ${actOn('change','setProcDate',['from','$value'])} class="me2-date"><input type="date" value="${APP.procTo}" ${actOn('change','setProcDate',['to','$value'])} class="me2-date">` : ''}` : ''}</div>
       </div>
-    </div>
-    <div id="procContent"></div>`;
+      <p class="me2-hint">📦 Tedarikçiden gelen malzemeyi <b>Teslim Al</b> ile stoğa ekleyin · tedarikçi ve birim fiyatı girin · yeni sipariş <b>Malzeme Siparişi Ver</b>'den</p>
+      <div id="procContent"></div>
+    </div>`;
   applyNavBadges();
   await renderPurchaseReportContent(session);
 }
 function setProcRange(days){ const d = new Date(); d.setDate(d.getDate()-(days-1)); APP.procFrom = d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); APP.procTo = todayLocalDateStr(); renderProcurementView(document.getElementById('main'), getSession()); }
+function setProcRangeSel(v){ if(v === 'c'){ APP.procRng = 'c'; renderProcurementView(document.getElementById('main'), getSession()); return; } APP.procRng = Number(v); setProcRange(Number(v)); }
 function setProcDate(which, v){ if(!v) return; if(which==='from') APP.procFrom = v; else APP.procTo = v; renderPurchaseReportContent(getSession()); }
 /* --- Satınalma: seçilen tarih aralığında Tedarik & Satınalma'dan verilen siparişler
    (bkz. get_purchase_report). Taslak ve iptaller toplamlara katılmaz. --- */

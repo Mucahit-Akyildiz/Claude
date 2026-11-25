@@ -73,8 +73,8 @@ function renderMainView(main, session){
   else if(APP.view==='payments') p = renderPaymentsView(main, session);
   else if(APP.view==='settings') p = renderSettingsView(main, session);
   else if(APP.view==='reports') p = renderReportsView(main, session);
-  else if(APP.view==='printerSettings' || APP.view==='devicePrinters'){ APP.view = 'devicePrinters'; p = renderPrinterSettingsView(main, session); }
-  else if(APP.view==='notificationSettings') p = renderNotificationSettingsView(main, session);
+  else if(APP.view==='printerSettings' || APP.view==='devicePrinters'){ APP.view = 'settings'; APP.settingsTab = 'devprn'; p = renderSettingsView(main, session); }
+  else if(APP.view==='notificationSettings'){ APP.view = 'settings'; APP.settingsTab = 'notifs'; APP.notifAdminSub = 'device'; p = renderSettingsView(main, session); }
   else if(APP.view==='reservations') p = renderReservationsView(main, session);
   else if(APP.view==='crm') p = renderCrmView(main, session);
   else if(APP.view==='purchasing') p = renderPurchasingView(main, session);
@@ -149,7 +149,10 @@ function render(){
           <button type="button" class="sb-pdel label" title="Hesabımı Sil" aria-label="Hesabımı Sil" ${act('openDeleteAccountModal')}>🗑️</button>
         </div>
         <nav>
-          ${items.map((i, k) => `<div class="sb-item ${APP.view===i.view?'active':''}" style="--sc:var(--c${k%4+1});" data-view="${i.view}" ${act('goToView', i.view)} title="${i.label}"><span class="ic">${i.icon}</span><span class="label">${i.label}</span></div>`).join('')}
+          ${NAV_GROUPS.map(([g, gl]) => { const gi = items.filter(i => (i.grp || 'manage') === g); if(!gi.length) return '';
+            const one = (i, k) => `<div class="sb-item ${APP.view===i.view?'active':''}" style="--sc:var(--c${k%4+1});" data-view="${i.view}" ${act('goToView', i.view)} title="${i.label}"><span class="ic">${i.icon}</span><span class="label">${i.label}</span></div>`;
+            const shut = sbGrpClosed(g) && !gi.some(i => i.view === APP.view);
+            return `<div class="sb-grp sb-grp-${g} ${shut ? 'shut' : ''}" data-grp="${g}"><div class="sb-grp-t label" role="button" ${act('toggleSbGrp', g)}>${gl}<span class="sb-grp-car">▾</span></div>${gi.map(one).join('')}</div>`; }).join('')}
         </nav>
         <div class="sb-bottom">
           <div id="shiftWidget" class="shift-widget">${shiftWidgetHtml()}</div>
@@ -289,7 +292,7 @@ async function refreshNavBadges(){
   APP.navBadges = data;
   applyNavBadges();
   handleDeliveryOffer(data.delivery_offer);
-  if(APP.view==='home'){ homeFillBadges(); if(!APP.homeSumAt || Date.now() - APP.homeSumAt > 30000){ APP.homeSumAt = Date.now(); homeLoadSummary(s); } }
+  if(APP.view==='home'){ homeFillBadges(); homeAttention(); if(!APP.homeSumAt || Date.now() - APP.homeSumAt > 30000){ APP.homeSumAt = Date.now(); homeLoadSummary(s); } }
   // Uygulama simgesindeki sayı (kurulu web uygulamasında / destekleyen tarayıcıda).
   const visible = NAV_ITEMS.filter(i => navItemVisible(i, s));
   const total = visible.reduce((t, i) => t + (data[i.view] || 0), 0);
@@ -630,13 +633,10 @@ function renderHome(main, session){
   main.innerHTML = `<h1>${greet} ${escapeHtml(session.username)} 👋</h1>
     <p class="u-tl muted hm-date">${new Date().toLocaleDateString('tr-TR', { weekday:'long', day:'numeric', month:'long' })}</p>
     ${setupWizardHtml(session)}
-    <div id="homeShift" class="hm-shift"></div>
-    <div id="homeMyPlan"></div>
     <div id="homeNow"></div>
-    ${items.length ? `<h3 class="hq-title">🚀 Hızlı Başla</h3><div class="hm-grid">${items.map((it, i) => `<button type="button" class="hm-tile" data-hview="${it.view}" style="--sc:var(--c${i%4+1});" ${act('goToView', it.view)}><span class="hm-ic">${it.icon}</span><b>${escapeHtml(it.label)}</b><small class="hm-sub"></small></button>`).join('')}</div>` : ''}
-    ${quick.length ? `<h3 class="hq-title">⚡ Hızlı Yönetim</h3><div class="hq-row">${quick.map((q, i) => `<button type="button" class="hq-card" style="--sc:var(--c${i+1});" ${act('goQuickManage', q.tab)}><span class="hq-ic">${q.ic}</span><span><b>${q.t}</b><small>${q.d}</small></span></button>`).join('')}</div>` : ''}
+    <div class="hx-row"><div id="homeAttn" class="hx-attn"></div><div id="homeMyPlan" class="hx-side"></div></div>
     ${discoverHtml(session)}`;
-  homeFillBadges(); homeFillShift(); homeLoadSummary(session); homeMyPlan(session);
+  homeLoadSummary(session); homeMyPlan(session); homeAttention();
 }
 /* Bu haftaki planlı vardiyalarım (Vardiya Planı'ndan); plan yoksa hiçbir şey göstermez. */
 async function homeMyPlan(session){
@@ -686,9 +686,9 @@ const DISCOVER_TIPS = [
 ];
 function discoverHtml(session){
   let seen = []; try{ seen = JSON.parse(localStorage.getItem('pk_discover_off') || '[]'); }catch(e){}
-  const list = DISCOVER_TIPS.filter(t => !seen.includes(t.k) && (() => { try{ return t.ok(session); }catch(e){ return false; } })()).slice(0, 3);
+  const list = DISCOVER_TIPS.filter(t => !seen.includes(t.k) && (() => { try{ return t.ok(session); }catch(e){ return false; } })()).slice(0, 1);
   if(!list.length) return '';
-  return `<h3 class="hq-title">✨ Bunları denediniz mi?</h3><div class="dc-row">${list.map(t => `<div class="dc-card" data-dc="${t.k}" ${act('discoverGo', t.k)}><span class="dc-ic">${t.ic}</span><span><b>${t.t}</b><small>${t.d}</small></span><span class="dc-x" title="Bir daha gösterme" ${actOn('click', 'discoverOff', [t.k, '$event'])}>✕</span></div>`).join('')}</div>`;
+  return `<div class="dc-row hx-tip">${list.map(t => `<div class="dc-card" data-dc="${t.k}" ${act('discoverGo', t.k)}><span class="dc-ic">${t.ic}</span><span><b>${t.t}</b><small>${t.d}</small></span><span class="dc-x" title="Bir daha gösterme" ${actOn('click', 'discoverOff', [t.k, '$event'])}>✕</span></div>`).join('')}</div>`;
 }
 function discoverOff(k, ev){ if(ev) ev.stopPropagation(); let seen = []; try{ seen = JSON.parse(localStorage.getItem('pk_discover_off') || '[]'); seen.push(k); localStorage.setItem('pk_discover_off', JSON.stringify(seen)); }catch(e){} const el = document.querySelector(`.dc-card[data-dc="${k}"]`); if(el) el.remove(); }
 function discoverGo(k){
@@ -740,6 +740,14 @@ async function homeLoadSummary(session){
     c('💰', money(d.revenue_today), 'Bugünkü ciro · ' + d.bills_today + ' hesap' + (pct != null ? ' · hedefin %' + pct + "'i" : ''), null);
   }
   el.innerHTML = (typeof dayCloseBannerHtml === 'function' ? dayCloseBannerHtml() : '') + (cards.length ? `<h3 class="hq-title">📍 Şu an</h3><div class="hm-stats">${cards.join('')}</div>` : '');
+}
+/* Dikkat edilmesi gerekenler: menü rozetlerindeki bekleyen işler, ekran ekran. */
+function homeAttention(){
+  const el = document.getElementById('homeAttn'); if(!el) return;
+  const b = APP.navBadges || {}, s = getSession(); if(!s) return;
+  const rows = NAV_ITEMS.filter(i => i.view !== 'home' && navItemVisible(i, s) && (b[i.view] || 0) > 0)
+    .map(i => `<button type="button" class="hx-it" ${act('goToView', i.view)}><span class="hx-ic">${i.icon}</span><span class="hx-t"><b>${escapeHtml(i.label)}</b><small>${b[i.view]} iş bekliyor</small></span><span class="hx-n">${b[i.view]}</span><span class="sh-go">›</span></button>`);
+  el.innerHTML = `<h3 class="hq-title">🔔 Dikkat edilmesi gerekenler</h3>${rows.length ? `<div class="hx-list">${rows.join('')}</div>` : '<div class="hx-ok">✓ Her şey yolunda — bekleyen iş yok</div>'}`;
 }
 function goQuickManage(tab){ APP.settingsTab = tab; if(tab==='products') APP.productsSubTab = 'products'; goToView('settings'); }
 function notReadyYet(){ alert('Bu ekran bir sonraki adımda eklenecek.'); }
@@ -1311,3 +1319,9 @@ function openPinSwitch(){
   document.addEventListener('keydown', onKey);
   document.body.appendChild(bg); draw();
 }
+// Açılır "⋯ Diğer" menüleri: dışarı tıklanınca ya da içinden bir işlem seçilince kapanır.
+document.addEventListener('click', (e) => {
+  document.querySelectorAll('details.ux-more[open]').forEach(d => {
+    if(!d.contains(e.target) || (e.target.closest && e.target.closest('.ux-more-pop button'))) d.open = false;
+  });
+});

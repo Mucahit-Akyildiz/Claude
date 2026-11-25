@@ -47,7 +47,7 @@ async function renderRadioView(main, session){
     <div class="u-mwn box">
       <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;">
         <h2 class="u-m0">Kanallar</h2>
-        <button type="button" style="margin:0;width:auto;" ${act('openRadioChannelEditor', null)}>＋ Yeni kanal</button>
+        <button type="button" class="me2-tab me2-add" ${act('openRadioChannelEditor', null)}>＋ Yeni kanal</button>
       </div>
       <p class="muted" style="font-size:12.5px;text-align:left;margin:6px 0 12px;">Bir kanala bağlanın; alttaki telsiz paneli siz kapatana ya da çıkış yapana kadar tüm ekranlarda açık kalır. Konuşmak için <b>Bas-Konuş</b> düğmesini basılı tutun (bilgisayarda boşluk tuşu da çalışır).</p>
       ${list.length ? `<div class="rd-grid">${list.map((c, i) => { const on = c.id===cur;

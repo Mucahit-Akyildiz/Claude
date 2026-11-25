@@ -57,7 +57,7 @@ function renderPackageGrid(){
   });
   const del = pkgOrders.filter(o => pkgTypeOf(o) !== 'pickup');
   const sum = document.getElementById('pkgStatus');
-  if(sum && del.length) sum.innerHTML = (del.some(o => o.dispatched_at && !o.delivered_at) ? `<button type="button" class="cr-btn hot" style="float:right;margin:0 0 8px 8px;" ${act('openCourierMap')}>🗺️ Kuryeler</button>` : '') + statChips([['👨‍🍳', del.filter(o => !o.dispatched_at).length, 'Hazırlanıyor / kurye bekliyor', 'var(--c3)'], ['🛵', del.filter(o => o.dispatched_at && !o.delivered_at).length, 'Yolda', 'var(--c1)'], ['✅', del.filter(o => o.delivered_at).length, 'Teslim edildi, ödeme bekliyor', 'var(--ok,#22c55e)']], '', 'pkg');
+  if(sum && del.length) sum.innerHTML = (del.some(o => o.dispatched_at && !o.delivered_at) ? `<button type="button" class="sbtn sbtn-sec" style="float:right;width:auto;margin:0 0 8px 8px;padding:7px 14px;font-size:13px;" ${act('openCourierMap')}>🗺️ Kuryeler</button>` : '') + statChips([['👨‍🍳', del.filter(o => !o.dispatched_at).length, 'Hazırlanıyor / kurye bekliyor', 'var(--c3)'], ['🛵', del.filter(o => o.dispatched_at && !o.delivered_at).length, 'Yolda', 'var(--c1)'], ['✅', del.filter(o => o.delivered_at).length, 'Teslim edildi, ödeme bekliyor', 'var(--ok,#22c55e)']], '', 'pkg');
   if(!document.getElementById('courierSheet')) document.body.insertAdjacentHTML('beforeend', sheetHtml('courierSheet', '🛵', 'Kuryeye Ver', '<div id="courierBody"></div>', 'var(--c1)'));
   cards.push(`<div class="table-cell" style="cursor:pointer;" ${act('openPackageModal','pkg_new')}>➕<div style="font-size:11px;margin-top:4px;font-weight:400;">Yeni Paket Sipariş</div></div>`);
   el.innerHTML = cards.join('');

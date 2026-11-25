@@ -49,8 +49,8 @@ async function openSpecialDays(){
   const bg = document.createElement('div'); bg.id = 'sdBg'; bg.className = 'modal-bg';
   bg.onclick = (e) => { if(e.target === bg) bg.remove(); };
   bg.innerHTML = `<div class="box sd-box"><div class="u-row-sb"><h2 class="u-m0">🎉 Özel Günler</h2><span class="u-xclose" ${act('removeEl','sdBg')}>✕</span></div>
-    <p class="muted u-fs13" style="margin:6px 0 12px;">Her hafta tekrar eden indirim günleri ya da tek seferlik etkinlikler. Uyan rezervasyonlar kendiliğinden işaretlenir, indirim hesapta otomatik uygulanır.</p>
-    <div id="sdList"></div><button type="button" style="margin-top:10px;" ${act('editSpecialDay', '')}>➕ Yeni özel gün</button></div>`;
+    <div style="margin:6px 0 8px;"><button type="button" class="me2-tab me2-add" ${act('editSpecialDay', '')}>＋ Özel gün</button></div><p class="muted u-fs13" style="margin:0 0 12px;">Her hafta tekrar eden indirim günleri ya da tek seferlik etkinlikler. Uyan rezervasyonlar kendiliğinden işaretlenir, indirim hesapta otomatik uygulanır.</p>
+    <div id="sdList"></div></div>`;
   document.body.appendChild(bg);
   drawSpecialDays();
 }

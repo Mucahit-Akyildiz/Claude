@@ -55,6 +55,7 @@ async function submitDayCloseSkip(){
   dayCloseDone('Gün sonu gerekçeyle kapatıldı');
 }
 function dayCloseBannerHtml(){
+  if(!featOn('day_close')) return '';
   const d = APP.dayClose; if(!d || !d.pending) return '';
   return d.can_close
     ? `<button type="button" class="dc-banner" ${act('openDayCloseSheet')}>🧾 <span><b>${escapeHtml(dayCloseDateTxt(d.date))}</b> gün sonu kapanışı yapılmadı.</span><b class="dc-go">Şimdi kapat →</b></button>`
@@ -74,7 +75,7 @@ async function renderPaymentsView(main, session){
   ]));
   if(!APP.config) APP.config = cfgRes.data;
   APP.liveOrders = liveRes.data || [];
-  main.innerHTML = `<h1>Ödemeler <button class="sbtn" style="width:auto;display:inline-flex;vertical-align:middle;margin-left:10px;" ${act('openTableScanModal')}>📷 Masa Tara</button></h1>${dayCloseBannerHtml()}<div class="muted" id="payStatus"></div><div class="order-summary pay-summary" id="paySummary"></div><div class="tabs" id="payZoneTabs" style="margin:14px 0 12px;"></div><div class="pk-grid" id="payGrid"></div>`;
+  main.innerHTML = `<h1>Ödemeler <button class="sbtn sbtn-sec" style="width:auto;display:inline-flex;vertical-align:middle;margin-left:10px;padding:7px 12px;font-size:13px;" ${act('openTableScanModal')}>📷 Masa Tara</button></h1>${dayCloseBannerHtml()}<div class="muted" id="payStatus"></div><div class="order-summary pay-summary" id="paySummary"></div><div class="tabs" id="payZoneTabs" style="margin:14px 0 12px;"></div><div class="pk-grid" id="payGrid"></div>`;
   renderPayGrid();
 }
 /* --- Hediye Kartları: yeni kart oluşturma (kod üretimi) ve mevcut

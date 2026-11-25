@@ -116,9 +116,9 @@ async function renderReservationsContent(session, forceRefresh, quiet){
       ['👥', todays.reduce((x, r) => x + (Number(r.party_size)||0), 0), 'Bugün beklenen kişi', 'var(--c2)', 'today'],
       ['⏳', rows.filter(r => r.status==='pending').length, 'Onay bekleyen', 'var(--c3)', 'pending'],
       ['⏭️', next ? new Date(next.reservation_time).toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'}) : '—', next ? 'Sıradaki: '+escapeHtml(next.customer_name) : 'Sıradaki yok', 'var(--c4)', next ? 'next' : '']
-    ], '', 'resv') + (typeof famDaySummary === 'function' && famDaySummary(todays) ? `<div class="fam-day">📋 <b>Bugünün hazırlığı:</b> ${famDaySummary(todays)}</div>` : '') + resvTodayVisual(todays, rows) + `${sheetHtml('rvSheet', '📅', 'Yeni Rezervasyon', rvFormHtml(), 'var(--c1)')}
+    ], '', 'resv') + (typeof famDaySummary === 'function' && famDaySummary(todays) ? `<div class="fam-day">📋 <b>Bugünün hazırlığı:</b> ${famDaySummary(todays)}</div>` : '') + `<details class="ux-set rv-vis-wrap"><summary>📊 Bugün ve son 7 gün grafikleri</summary><div class="ux-set-body">${resvTodayVisual(todays, rows)}</div></details>` + `${sheetHtml('rvSheet', '📅', 'Yeni Rezervasyon', rvFormHtml(), 'var(--c1)')}
   <div class="u-mwn box">
-    <div class="fsheet-bar" style="margin:0 0 12px;"><h2 class="u-m0">Yaklaşan Rezervasyonlar</h2><div style="display:flex;gap:8px;flex-wrap:wrap;"><button type="button" class="u-wa-m0 ghost-btn" ${act('openOnlineResvSheet')} title="Müşterilerin kendisi rezervasyon yapabileceği sayfa">🌐 Online Rezervasyon</button><button type="button" class="u-wa-m0 ghost-btn" ${act('openSpecialDays')} title="Haftalık indirim günleri ve etkinlikler">🎉 Özel Günler</button><button type="button" class="u-wa-m0 ghost-btn" ${act('openFamilySettings')} title="Çocuk servis oranı ve çocuk dostu masalar">🧒 Çocuk & Masa</button>${sheetBtnHtml('rvSheet','+ Yeni Rezervasyon')}</div></div>
+    <div class="me2-bar"><div class="me2-tabs"><span class="me2-title">📅 Yaklaşan rezervasyonlar</span></div><div class="me2-tools"><span class="me2-adds"><button type="button" class="me2-tab me2-add" ${act('openSheet','rvSheet')}>＋ Rezervasyon</button></span></div></div>
     ${sheetHtml('onlineResvSheet', '🌐', 'Online Rezervasyon', '<div id="onlineResvBody"><p class="muted">Yükleniyor…</p></div>', 'var(--c2)')}<div data-cf-scope="resv">
     ${days.length ? days.map(k => `<div class="rv-day" data-cf-tags="${[...new Set(sorted.filter(r => dkey(r)===k).flatMap(r => rvTags(r).split(' ')))].join(' ')}"><div class="rv-day-h">${dayLabel(k)}${typeof specialDaysOn === 'function' ? specialDaysOn(k).map(x => sdBadgeHtml(x, k)).join('') : ''}<span class="muted">${sorted.filter(r => dkey(r)===k).length} rezervasyon</span></div>
       <div class="rv-list">${sorted.filter(r => dkey(r)===k).map(card).join('')}</div></div>`).join('')
@@ -270,8 +270,8 @@ async function renderWaitlistContent(session, forceRefresh, quiet){
       ['⏱', avgWait + ' dk', 'Ortalama bekleme', 'var(--c3)'],
       ['🍽️', rows.filter(hasOrder).length, 'Beklerken sipariş veren', 'var(--c4)', 'ordered'],
       ...(est ? [['🎯', est.next <= 0 ? 'Hemen' : '≈ ' + est.next + ' dk', 'Yeni gelen için tahmini', 'var(--c1)']] : [])
-    ], '', 'wl') + wlVisual(rows, est) + wlTodayHtml(APP.wlTodayCache) + `<div class="u-mwn box">
-    <div class="fsheet-bar" style="margin:0 0 12px;"><h2 class="u-m0">Bekleme Listesi</h2>${sheetBtnHtml('wlSheet','+ Sıraya Ekle')}</div>
+    ], '', 'wl') + `<div class="u-mwn box">
+    <div class="me2-bar"><div class="me2-tabs"><span class="me2-title">⏳ Bekleme listesi</span></div><div class="me2-tools"><span class="me2-adds"><button type="button" class="me2-tab me2-add" ${act('openSheet','wlSheet')}>＋ Sıraya ekle</button></span></div></div>
     ${sheetHtml('wlSheet', '🧍', 'Bekleme Listesine Ekle', `
       <div class="rvf-sec">
         <div class="rvf-t">👤 Müşteri</div>
@@ -309,7 +309,7 @@ async function renderWaitlistContent(session, forceRefresh, quiet){
         </div>
       </div>`).join('')}</div>`
       : `<div class="empty-state rv-empty"><div class="om-empty-ic">🧍</div><b>Sırada bekleyen yok</b><p class="muted">Masa boşalmasını bekleyen müşteriyi eklemek için <b>+ Sıraya Ekle</b>.</p></div>`}
-  </div>`;
+  </div>` + wlVisual(rows, est) + wlTodayHtml(APP.wlTodayCache);
   el.insertAdjacentHTML('beforeend', `<div class="box" style="max-width:none;margin-top:18px;">
     <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;">
       <h2 class="u-m0">Geçmiş</h2>

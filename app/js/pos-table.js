@@ -319,7 +319,7 @@ function guestReminderSettingHtml(){
     ${guestRequiredOn() ? '<p class="u-tl muted u-fs12" style="margin:10px 0 0;">🔒 Kişi sayısı zorunlu açık (Bölgeler & Masalar); hatırlatmaya genelde gerek kalmaz.</p>' : ''}</div></div>`;
 }
 function guestRequiredOn(){ return !!(APP.config && APP.config.guest_required); }
-async function toggleGuestRequired(){
+async function toggleGuestRequired(){ APP.zSetOpen = true;
   const on = !guestRequiredOn();
   const { error } = await sb.rpc('set_guest_required', { p_token: getSession().session_token, p_on: on });
   if(error){ showToast(error.message); return; }

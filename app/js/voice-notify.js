@@ -475,7 +475,7 @@ function voiceSettingsHtml(){
         <span>${t.ic} ${escapeHtml(t.label)}<small class="muted">“${escapeHtml(t.sample)}”</small></span>
         ${p.types[t.id].locked ? `<span style="grid-column:span 2;"><small class="pchip" title="Yönetici belirledi">🔒 ${{ voice:'Sesli okunur', sound:'Sadece zil', off:'Size gönderilmiyor' }[p.types[t.id].locked]}</small></span>` : `<span>${t.id==='kitchen' ? '<small class="muted">Mutfak zili</small>' : sw(t.id,'sound',p.types[t.id].sound)}</span>
         <span>${sw(t.id,'voice',p.types[t.id].voice)}</span>`}
-        <span><button type="button" class="sbtn" style="width:auto;padding:6px 12px;" ${act('testVoice', t.id)}>▶ Dinle</button></span>
+        <span><button type="button" class="sbtn sbtn-sec" style="width:auto;padding:6px 12px;" ${act('testVoice', t.id)}>▶ Dinle</button></span>
       </div>`).join('')}
     </div>
     ${window.speechSynthesis ? '' : '<p class="muted" style="color:var(--danger);">Bu cihaz/tarayıcı sesli okumayı desteklemiyor.</p>'}

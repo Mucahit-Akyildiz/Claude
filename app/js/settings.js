@@ -4,24 +4,48 @@
    sadece Yönetici'ye (is_manager) açık - bir role bu yetkiyi vermek
    mümkün değil (bkz. manager_upsert_role'un izin backend'i). */
 const SETTINGS_TABS = [
-  { tab:'stations', perm:'settings_stations', label:'Menüler & İstasyonlar', ico:'🍳', desc:'Menüler, mutfak istasyonları' },
-  { tab:'zones', perm:'settings_zones', label:'Bölgeler & Masalar', ico:'🪑', desc:'Salon, masa planı' },
-  { tab:'products', label:'Ürünler & Hammaddeler', ico:'🍔', desc:'Fiyat, reçete, stok' }, // alt sekmeler: Ürünler, Hammaddeler
-  { tab:'flags', perm:'settings_flags', label:'Sipariş Etiketleri', ico:'🏷️', desc:'Sipariş notu etiketleri' },
-  { tab:'users', label:'Kullanıcılar & Vardiyalar', ico:'👥', desc:'Personel, vardiya' }, // alt sekmeler: Kullanıcılar, Aktif, Vardiyalar
-  { tab:'roles', perm:'settings_roles', label:'Roller', ico:'🔑', desc:'Yetkiler' },
-  { tab:'integrations', perm:'settings_integrations', label:'Entegrasyonlar', ico:'🔌', desc:'Platformlar, yazıcılar' },
-  { tab:'billing', label:'Abonelik, Hediye Kartı & Kampanya', ico:'💳', desc:'Plan, fatura, kartlar, kuponlar' }, // alt sekmeler
-  { tab:'printers', label:'Fiş Tasarımı', ico:'🧾', desc:'Mutfak, kasa ve paket fişi' },
-  { tab:'notifs', label:'Bildirim Ayarları', ico:'🔔', desc:'Kime gitsin, hatırlatmalar' },
-  { tab:'reports', label:'Özet E-postaları', ico:'📬', desc:'Gün sonu ve haftalık özet' },
-  { tab:'security', label:'Güvenlik', ico:'🛡️', desc:'Destek, kayıt, sıfırlama' }, // alt sekmeler: Destek Erişimi, Değişiklik Kaydı, Veri Sıfırlama
+  { tab:'stations', grp:'biz', perm:'settings_stations', label:'Menü & Ürünler', ico:'🍳', desc:'Kategoriler, ürünler, mutfaklar' },
+  { tab:'zones', grp:'biz', perm:'settings_zones', label:'Bölgeler & Masalar', ico:'🪑', desc:'Salon, masa planı' },
+  { tab:'products', grp:'biz', label:'Ürünler', ico:'🍔', desc:'Fiyat, menü, fotoğraf' }, // alt sekmeler: Ürünler, Hammaddeler
+  { tab:'stockhub', grp:'biz', label:'Stok & Reçete', ico:'📦', desc:'Hammadde, hazırlık, reçete' },
+  { tab:'stockcount', grp:'biz', label:'Stok Sayımı', ico:'📋', desc:'Sayım gir, onayla' },
+  { tab:'flags', grp:'biz', perm:'settings_flags', label:'Sipariş Etiketleri', ico:'🏷️', desc:'Sipariş notu etiketleri' },
+  { tab:'users', grp:'staff', label:'Kullanıcılar & Vardiyalar', ico:'👥', desc:'Personel, vardiya' }, // alt sekmeler: Kullanıcılar, Aktif, Vardiyalar
+  { tab:'roles', grp:'staff', perm:'settings_roles', label:'Roller', ico:'🔑', desc:'Yetkiler' },
+  { tab:'integrations', grp:'account', perm:'settings_integrations', label:'Entegrasyonlar', ico:'🔌', desc:'Platformlar, yazıcılar' },
+  { tab:'onlineresv', grp:'resv', label:'Online Rezervasyon', ico:'🌐', desc:'Müşterinin rezervasyon sayfası' },
+  { tab:'specialdays', grp:'resv', label:'Özel Günler', ico:'🎉', desc:'Kapasite, indirim, kapora' },
+  { tab:'family', grp:'resv', label:'Çocuk & Masa', ico:'🧒', desc:'Çocuk servis oranı, çocuk dostu masa' },
+  { tab:'customers', grp:'sales', label:'Müşteriler', ico:'👥', desc:'Sadakat puanı, kampanya mesajı' },
+  { tab:'billing', grp:'sales', label:'Abonelik, Hediye Kartı & Kampanya', ico:'💳', desc:'Plan, fatura, kartlar, kuponlar' }, // alt sekmeler
+  { tab:'printers', grp:'device', label:'Fiş Tasarımı', ico:'🧾', desc:'Mutfak, kasa ve paket fişi' },
+  { tab:'devprn', grp:'device', label:'Bu Cihazın Yazıcısı', ico:'🔌', desc:'Yazıcı bağla, istasyon eşle' },
+  { tab:'notifs', grp:'device', label:'Bildirim Ayarları', ico:'🔔', desc:'Kime gitsin, hatırlatmalar' },
+  { tab:'reports', grp:'account', label:'Özet E-postaları', ico:'📬', desc:'Gün sonu ve haftalık özet' },
+  { tab:'security', grp:'account', label:'Güvenlik', ico:'🛡️', desc:'Destek, kayıt, sıfırlama' }, // alt sekmeler: Destek Erişimi, Değişiklik Kaydı, Veri Sıfırlama
 ];
+// Ayarlar grupları ve başka ekranlarda duran ayarlara kısayollar (aynı ayar tek yerden bulunsun).
+const SETTINGS_GROUPS = [['biz','🏪 İşletme'],['staff','👥 Personel'],['device','🖨️ Cihaz & Fiş'],['resv','📅 Rezervasyon'],['sales','🎁 Satış & Müşteri'],['account','🔐 Hesap & Sistem']];
+const SETTINGS_LINKS = [
+];
+function settingsSearch(q){
+  q = String(q || '').trim().toLocaleLowerCase('tr');
+  document.querySelectorAll('.set-nav .set-item').forEach(el => { el.style.display = !q || el.textContent.toLocaleLowerCase('tr').includes(q) ? '' : 'none'; });
+  document.querySelectorAll('.set-nav .set-grp').forEach(g => { g.style.display = [...g.querySelectorAll('.set-item')].some(x => x.style.display !== 'none') ? '' : 'none'; });
+}
 function settingsTabVisible(t, session){
   if(t.feature && !hasFeature(t.feature)) return false;
+  if(t.tab==='stockhub') return canManage(session, 'settings_products') || canManage(session, 'settings_ingredients');
   if(t.tab==='reports') return canManage(session, 'settings_reports');
   if(t.tab==='integrations') return canManage(session, 'settings_integrations') || (session.permissions || []).some(p => /^int_/.test(p));
   if(t.tab==='printers') return canManage(session, 'printer_settings');
+  if(t.tab==='devprn') return true;
+  if(t.tab==='specialdays' && !featOn('special_days')) return false;
+  if(t.tab==='family' && !featOn('family_resv')) return false;
+  if(t.tab==='customers') return hasPerm(session, 'crm') && canManage(session, 'crm');
+  if(t.tab==='onlineresv' && !featOn('online_resv')) return false;
+  if(t.tab==='specialdays' || t.tab==='family' || t.tab==='onlineresv') return hasFeature('reservations') && canManage(session, 'reservations');
+  if(t.tab==='stockcount') return typeof scCanCount === 'function' && scCanCount();
   if(t.tab==='notifs') return true; // Kime Gitsin / hatırlatma yalnızca yöneticiye; doğum günü uyarıları cihaz ayarı, herkese
   if(t.tab==='users') return canManage(session, 'settings_users') || canManage(session, 'shifts');
   if(t.tab==='products') return canManage(session, 'settings_products') || canManage(session, 'settings_ingredients');
@@ -34,15 +58,25 @@ async function renderSettingsView(main, session){
   if(error){ main.innerHTML = '<h1>Ayarlar</h1><p class="muted">Yüklenemedi: '+error.message+'</p>'; return; }
   APP.config = data;
   // Eski sekme adları (bildirimden/kayıtlı ekrandan gelebilir) yeni sekme + alt sekmeye çevrilir.
-  const LEGACY_TABS = { shifts:['users','usersSubTab','shifts'], ingredients:['products','productsSubTab','ingredients'], floorplan:['zones','zonesSubTab','floorplan'],
+  const LEGACY_TABS = { shifts:['users','usersSubTab','shifts'], ingredients:['stockhub','shTab','depot'], floorplan:['zones','zonesSubTab','floorplan'],
     giftcards:['billing','billingSubTab','giftcards'], promos:['billing','billingSubTab','promos'], datareset:['security','securitySubTab','datareset'], support:['security','securitySubTab','support'], audit:['security','securitySubTab','audit'] };
   const lg = LEGACY_TABS[APP.settingsTab]; if(lg){ APP.settingsTab = lg[0]; APP[lg[1]] = lg[2]; }
+  // Hammaddeler artık Stok & Reçete'de.
+  if(APP.settingsTab === 'products' && APP.productsSubTab === 'ingredients'){ APP.settingsTab = 'stockhub'; APP.shTab = 'depot'; APP.productsSubTab = 'products'; }
   const visibleTabs = SETTINGS_TABS.filter(t => settingsTabVisible(t, session));
   if(!visibleTabs.some(t => t.tab===APP.settingsTab)) APP.settingsTab = visibleTabs.length ? visibleTabs[0].tab : null;
   main.innerHTML = `<h1>Ayarlar</h1>
     <div class="set-layout">
       <nav class="tabs settings-tabs set-nav">
-        ${visibleTabs.map((t, i) => `<div class="tab set-item ${APP.settingsTab===t.tab?'active':''}" data-tab="${t.tab}" style="--i:${i};--sc:var(--c${i%4+1});" ${act('setSettingsTab', t.tab)}><span class="set-ico">${t.ico||'⚙️'}</span><span class="set-txt"><b>${t.label}</b><small>${t.desc||''}</small></span></div>`).join('')}
+        <input class="set-search" type="search" placeholder="🔍 Ayar ara (örn. yazıcı)" ${actOn('input','settingsSearch',['$value'])}>
+        ${(() => { let i = 0; const links = SETTINGS_LINKS.filter(l => l.ok(session));
+          return SETTINGS_GROUPS.map(([g, gl]) => {
+            const tabs = visibleTabs.filter(t => (t.grp || 'account') === g && t.tab !== 'products'), ls = links.filter(l => l.grp === g);
+            if(!tabs.length && !ls.length) return '';
+            return `<div class="set-grp"><div class="set-grp-t">${gl}</div>`
+              + tabs.map(t => { const k = i++; return `<div class="tab set-item ${APP.settingsTab===t.tab?'active':''}" data-tab="${t.tab}" style="--i:${k};--sc:var(--c${k%4+1});" ${act('setSettingsTab', t.tab)}><span class="set-ico">${t.ico||'⚙️'}</span><span class="set-txt"><b>${t.label}</b><small>${t.desc||''}</small></span></div>`; }).join('')
+              + ls.map(l => { const k = i++; return `<div class="tab set-item set-link" style="--i:${k};--sc:var(--c${k%4+1});" ${act(l.fn, ...l.args)}><span class="set-ico">${l.ico}</span><span class="set-txt"><b>${l.label} <span class="set-ext">↗</span></b><small>${l.desc}</small></span></div>`; }).join('')
+              + `</div>`; }).join(''); })()}
       </nav>
       <div id="settingsContent" class="set-content"></div>
     </div>`;
@@ -84,6 +118,12 @@ function renderSettingsContent(session){
   const el = document.getElementById('settingsContent'); if(!el) return;
   if(!APP.settingsTab){ el.innerHTML = '<p class="muted">Görüntüleme yetkiniz olan bir ayar bölümü yok.</p>'; return; }
   if(APP.settingsTab==='stations') renderStationsSettings(el, session);
+  else if(APP.settingsTab==='stockhub') renderStockHub(el);
+  else if(APP.settingsTab==='stockcount') openStockCount();
+  else if(APP.settingsTab==='specialdays'){ el.innerHTML = ''; openSpecialDays(); }
+  else if(APP.settingsTab==='onlineresv'){ el.innerHTML = '<div class="u-mwn box"><h2 class="u-m0" style="margin:0 0 10px;">🌐 Online Rezervasyon</h2><div id="onlineResvBody"><p class="muted">Yükleniyor…</p></div></div>'; renderOnlineResvBody(); }
+  else if(APP.settingsTab==='customers') renderCustomerSettings(el);
+  else if(APP.settingsTab==='family'){ el.innerHTML = ''; openFamilySettings(); }
   else if(APP.settingsTab==='zones') renderZonesTabWithSubtabs(el, session);
   else if(APP.settingsTab==='products') renderProductsTabWithSubtabs(el, session);
   else if(APP.settingsTab==='flags') renderOrderFlagsSettings(el, session);
@@ -93,7 +133,7 @@ function renderSettingsContent(session){
   else if(APP.settingsTab==='security') renderSecuritySettings(el, session);
   else if(APP.settingsTab==='reports') renderOwnerReportSettings(el, session);
   else if(APP.settingsTab==='notifs') renderNotifAdminSettings(el, session);
-  else if(APP.settingsTab==='printers') renderPrinterSettingsView(el, session);
+  else if(APP.settingsTab==='printers' || APP.settingsTab==='devprn') renderPrinterSettingsView(el, session);
   else renderUsersTabWithSubtabs(el, session);
 }
 /* Kullanıcılar sekmesi alt sekmeli: Kullanıcılar | Aktif Kullanıcılar | Vardiyalar (yetkiye göre). */
@@ -102,8 +142,8 @@ function renderUsersTabWithSubtabs(el, session){
     canManage(session, 'settings_users') ? { id:'list', ic:'👥', label:'Kullanıcılar' } : null,
     canManage(session, 'settings_users') ? { id:'active', ic:'🟢', label:'Aktif Kullanıcılar' } : null,
     hasPerm(session, 'shifts') || canManage(session, 'shifts') ? { id:'shifts', ic:'⏱️', label:'Vardiyalar' } : null,
-    hasPerm(session, 'shifts') || canManage(session, 'shifts') ? { id:'plan', ic:'📅', label:'Vardiya Planı' } : null,
-    canManage(session, 'settings_allowances') ? { id:'limits', ic:'💳', label:'Limitler' } : null,
+    featOn('shift_plan') && (hasPerm(session, 'shifts') || canManage(session, 'shifts')) ? { id:'plan', ic:'📅', label:'Vardiya Planı' } : null,
+    featOn('allowances') && canManage(session, 'settings_allowances') ? { id:'limits', ic:'💳', label:'Limitler' } : null,
   ].filter(Boolean);
   if(!tabs.length){ el.innerHTML = ''; return; }
   if(!tabs.some(t => t.id === APP.usersSubTab)) APP.usersSubTab = tabs[0].id;
@@ -600,3 +640,15 @@ async function removeMapsKey(){
   if(APP.config){ APP.config.geo = Object.assign({}, APP.config.geo, { maps_key_set: false }); }
   const p = document.getElementById('geoPane'); if(p) p.innerHTML = geoPaneHtml();
 }
+
+/* Ayarlar sekmesi olarak açılan pencereler (Özel Günler, Çocuk & Masa): pencere açılınca Ayarlar'ın içine yerleşir; yeniden çizilince de. */
+const SETTINGS_INLINE_MODALS = { sdBg: 'specialdays', famSetBg: 'family' };
+new MutationObserver(muts => {
+  if(APP.view !== 'settings') return;
+  muts.forEach(m => m.addedNodes.forEach(n => {
+    if(!n || n.nodeType !== 1 || SETTINGS_INLINE_MODALS[n.id] !== APP.settingsTab) return;
+    const host = document.getElementById('settingsContent'); const box = n.firstElementChild; if(!host || !box) return;
+    const x = box.querySelector('.u-xclose'); if(x) x.remove();
+    box.classList.add('sc-inline'); host.innerHTML = ''; host.appendChild(box); n.remove();
+  }));
+}).observe(document.body, { childList: true });
