@@ -97,6 +97,10 @@ function renderIngredientsSettings(el, session){
         <div class="field-group"><label>Fire %</label><input type="number" step="0.1" min="0" max="99" id="ni_waste" placeholder="0"></div>
         <div class="field-group ni-dep"><label>Birim maliyet (₺) <small class="muted">— 1 birimin alış fiyatı</small></label><input type="number" step="0.01" min="0" id="ni_uc" placeholder="örn. 250" ${actOn('input','niCalc',[])}></div>
       </div>
+      <div class="ni-dep ni-buy"><label>Nasıl alıyorsunuz? <small class="muted">— isteğe bağlı</small></label>
+        <div class="ni-buy-r"><select id="ni_buy" ${actOn('change','niBuyChg',[])}><option value="">Aynı birimle (tek tek / kg)</option><option value="pack">Koli / çuval / bidon ile</option></select>
+        <span id="niBuyPack" hidden><span>1</span><input id="ni_buy_n" maxlength="20" placeholder="koli" value="koli"><span>=</span><input id="ni_buy_f" type="number" step="any" min="0" placeholder="12"><em id="niBuyU"></em></span></div>
+        <small class="muted">Koli seçerseniz Malzeme Siparişi ve Mal Kabul'de koli ile girersiniz; stok yine birim cinsinden tutulur.</small></div>
       <div class="ni-sum ni-dep" id="niSum">💰 Stok değeri: —</div>
       <input type="checkbox" id="ni_prep_on" hidden>
       <div id="niPrepBox" class="ni-prep" hidden><div class="fsheet-grid"><div class="field-group"><label>Varsayılan günlük miktar <small class="muted">— mutfakta ➕ Hazırla açılınca hazır gelir</small></label><input type="number" id="ni_prepdef" min="0" step="any" placeholder="örn. 20"></div></div></div>
@@ -196,6 +200,7 @@ function niStart(srcId){
   const nm = document.getElementById('ni_name'); if(nm){ delete nm.dataset.editId; delete nm.dataset.auto; }
   ['ni_name','ni_stock','ni_waste','ni_uc','ni_prepdef'].forEach(id => { const e = document.getElementById(id); if(e) e.value = ''; });
   const ps = document.getElementById('ni_prepsrc'); if(ps) ps.value = '';
+  const nb = document.getElementById('ni_buy'); if(nb){ nb.value = ''; document.getElementById('ni_buy_f').value = ''; document.getElementById('ni_buy_n').value = 'koli'; niBuyChg(); }
   niPickKind(srcId ? 'prep' : '');
   if(srcId){ niPrepFill(); const sel = document.getElementById('ni_prepsrc'); if(sel){ sel.value = srcId; niPrepSrcChange(); } }
   openSheet('ingSheet');
@@ -253,6 +258,10 @@ async function addIngredient(link){
   const data = editId || newId;
   const ucv = parseFloat((document.getElementById('ni_uc') || {}).value);
   if(data && ucv > 0){ const { error: e2 } = await sb.rpc('set_ingredient_cost', { p_token: session.session_token, p_id: data, p_cost: ucv }); if(e2) alert(e2.message); }
+  if(data && (document.getElementById('ni_buy') || {}).value === 'pack'){
+    const bn = (document.getElementById('ni_buy_n').value || '').trim() || 'koli', bf = parseFloat(document.getElementById('ni_buy_f').value);
+    if(bf > 0){ const { error: e6 } = await sb.rpc('set_ingredient_units', { p_token: session.session_token, p_id: data, p_units: [{ n: bn, f: bf, d: true }], p_piece_weight: null }); if(e6) alert('Alış birimi kaydedilemedi: ' + e6.message); }
+  }
   const prepOn = (document.getElementById('ni_prep_on') || {}).checked, prepSrc = (document.getElementById('ni_prepsrc') || {}).value;
   if(data && prepOn && prepSrc){
     const { error: e3 } = await sb.rpc('set_ingredient_prep', { p_token: session.session_token, p_id: data, p_source_id: prepSrc, p_default: parseFloat((document.getElementById('ni_prepdef') || {}).value) || null });
@@ -2304,7 +2313,7 @@ async function openIngCostLog(id){
   openSheet('icSheet');
 }
 
-function niCalc(){
+function niCalc(){ { const u = document.getElementById("niBuyU"); if(u) u.textContent = unitShort((document.getElementById("ni_unit") || {}).value || ""); }
   if((document.getElementById("ni_prep_on") || {}).checked) niPrepFill();
   const st = parseFloat((document.getElementById('ni_stock')||{}).value) || 0, uc = parseFloat((document.getElementById('ni_uc')||{}).value) || 0, u = (document.getElementById('ni_unit')||{}).value || '';
   const el = document.getElementById('niSum'); if(el) el.innerHTML = uc ? `💰 ${st} ${escapeHtml(u)} × ${money(uc)} = stok değeri <b>${money(st * uc)}</b>` : '💰 Stok değeri: —';
@@ -2358,6 +2367,11 @@ function iuBackToStep1(ingredientId){
   if(ing.prep_source_id){ const sel = document.getElementById('ni_prepsrc'); if(sel) sel.value = ing.prep_source_id; const d = document.getElementById('ni_prepdef'); if(d) d.value = ing.prep_default || ''; }
   if(typeof niCalc === 'function') niCalc();
   openSheet('ingSheet');
+}
+function niBuyChg(){
+  const on = (document.getElementById('ni_buy') || {}).value === 'pack', p = document.getElementById('niBuyPack'); if(p) p.hidden = !on;
+  const u = document.getElementById('niBuyU'); if(u) u.textContent = unitShort((document.getElementById('ni_unit') || {}).value || '');
+  if(on){ const f = document.getElementById('ni_buy_f'); if(f && window.innerWidth > 600) f.focus(); }
 }
 function niCancel(){
   const nm = document.getElementById('ni_name');

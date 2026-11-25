@@ -5174,3 +5174,10 @@ p.me2-hint{text-align:left!important;margin:-4px 0 12px!important;}
 .cm-new.cm-new-l{width:auto!important;padding:0 12px!important;font-size:13px;font-weight:700;border-radius:10px!important;}
 .cw-btn:not(.ghost){background:color-mix(in srgb,var(--accent) 16%,transparent)!important;color:var(--accent)!important;border:1px solid color-mix(in srgb,var(--accent) 55%,var(--border))!important;box-shadow:none!important;}
 .ni-kind-bar[hidden]{display:none!important;}
+.ni-buy{margin:12px 0 0;text-align:left;}
+.ni-buy > label{display:block;font-size:13px;font-weight:700;margin:0 0 6px;}
+.ni-buy-r{display:flex;flex-wrap:wrap;align-items:center;gap:8px;}
+.ni-buy-r select{flex:1 1 220px;margin:0;}
+#niBuyPack:not([hidden]){display:inline-flex;align-items:center;gap:6px;}
+#niBuyPack input{width:90px;margin:0;} #niBuyPack em{font-style:normal;font-weight:700;}
+.ni-buy > small{display:block;margin-top:6px;font-size:12px;}
