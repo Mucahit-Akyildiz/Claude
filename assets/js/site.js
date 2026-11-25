@@ -178,7 +178,7 @@
       ];
       const pr = PERSONA[Math.min(i, PERSONA.length - 1)];
       const daily = monthlyPrice ? monthlyPrice / 30 : 0;
-      const treat = daily <= 8 ? 'bir çay parası ☕' : daily <= 20 ? 'bir simit parası 🥯' : daily <= 40 ? 'bir tost parası 🥪' : daily <= 80 ? 'bir dürüm parası 🌯' : 'bir pide parası 🫓';
+      const treat = daily <= 12 ? '☕ Bir çaydan bile ucuz' : daily <= 25 ? '🥯 Bir simit fiyatına' : daily <= 45 ? '🥛 Bir ayran fiyatına' : daily <= 100 ? '☕ Bir Türk kahvesi fiyatına' : '🫓 Bir lahmacun fiyatına';
       const allFeats = inheritsPrev ? extras : (extras.length ? extras : common);
       const TOP = 5, top = allFeats.slice(0, TOP), rest = allFeats.slice(TOP);
       const inheritTxt = inheritsPrev ? `<b>${escapeHtml(packages[i-1].name)}</b>'daki her şey +` : (extras.length && common.length ? 'Tüm standart özellikler +' : 'Başlamak için gereken her şey:');
@@ -190,7 +190,7 @@
         <p class="pc2-who">${escapeHtml(p.description || pr.who)}</p>
         <div class="amount">${monthlyPrice ? money(displayPrice)+' <small>'+(yearly?'TL/yıl':'TL/ay')+'</small>' : '—'}</div>
         ${hasDiscount ? `<p class="u-saving desc">🎉 Yıllıkta ${money(savings)} TL cebinizde kalır</p>` : ''}
-        ${daily ? `<p class="pc2-daily">Günde <b>${money(daily)} TL</b> — ${treat}</p>` : ''}
+        ${daily ? `<p class="pc2-daily">Günde <b>${money(daily)} TL</b></p><p class="pc2-treat">${treat}</p>` : ''}
         <p class="pc2-line">“${escapeHtml(pr.line)}”</p>
         <div class="pc2-users">👥 <b>${p.max_users}</b> kullanıcıya kadar</div>
         <div class="pc2-inh">${inheritTxt}</div>
