@@ -1041,7 +1041,6 @@ function renderProductsTabWithSubtabs(el, session){
   const tabs = [
     canManage(session, 'settings_products') ? { id:'products', ic:'🍽️', label:'Ürünler' } : null,
     canManage(session, 'settings_products') ? { id:'media', ic:'📷', label:'Fotoğraf & Açıklama' } : null,
-    canManage(session, 'settings_ingredients') ? { id:'ingredients', ic:'🥕', label:'Hammaddeler' } : null,
   ].filter(Boolean);
   if(!tabs.length){ el.innerHTML = ''; return; }
   if(!tabs.some(t => t.id === APP.productsSubTab)) APP.productsSubTab = tabs[0].id;

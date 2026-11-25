@@ -18,13 +18,15 @@ function renderStockHub(el){
   const depot = ings.filter(i => !i.prep_source_id), prep = ings.filter(i => i.prep_source_id);
   const q = String(APP.shQ || '').trim().toLocaleLowerCase('tr'), match = (n) => !q || String(n || '').toLocaleLowerCase('tr').includes(q);
   let body = '';
-  if(tab === 'depot'){
+  if(tab === 'depot' && APP.shBulk){
+    body = '<div id="shBulkBox"></div>';
+  } else if(tab === 'depot'){
     const list = depot.filter(i => match(i.name)).sort((a, b) => String(a.name).localeCompare(String(b.name), 'tr'));
-    body = list.length ? `<div class="sh-list">${list.map(i => { const preps = prep.filter(x => x.prep_source_id === i.id), used = shUsedIn(i.id).length + preps.reduce((n, x) => n + shUsedIn(x.id).length, 0);
+    body = `<p class="muted ux-hint">Satın alınıp depoda duran malzemeler. Stok Mal Kabul'den girer; satış ya da günlük hazırlık depodan düşer. Satıra dokunup zinciri görün ve düzenleyin.</p>` + (list.length ? `<div class="sh-list">${list.map(i => { const preps = prep.filter(x => x.prep_source_id === i.id), used = shUsedIn(i.id).length + preps.reduce((n, x) => n + shUsedIn(x.id).length, 0);
       return `<button type="button" class="sh-row" ${act('openStockChain', i.id)}>
         <span class="sh-ic">🏬</span><span class="sh-name"><b>${escapeHtml(i.name)}</b><small>${preps.length ? '🥙 ' + preps.length + ' hazırlık · ' : ''}🍽️ ${used} üründe</small></span>
         <span class="sh-qty">${escapeHtml(shQty(i.stock, i))}</span>${shPill(i)}<span class="sh-go">›</span></button>`; }).join('')}</div>`
-      : '<div class="empty-state"><p class="muted">Depo hammaddesi yok.</p></div>';
+      : '<div class="empty-state"><p class="muted">Depo hammaddesi yok.</p></div>');
   } else if(tab === 'prep'){
     const list = prep.filter(i => match(i.name));
     body = `<div class="ux-bar" style="margin:0 0 8px;"><button type="button" class="fsheet-open" ${act('openPrepHub', true)}>📋 Bugünün hazırlığı</button></div><p class="muted ux-hint">Her gün depodan alınıp hazırlanan kalemler. Mutfakta <b>➕ Hazırla</b> ile tezgâha eklenir, depodan otomatik düşer; satışlar tezgâhtan düşer.</p>` + (list.length ? `<div class="sh-list">${list.map(i => { const src = ings.find(x => x.id === i.prep_source_id);
@@ -43,16 +45,21 @@ function renderStockHub(el){
     <div class="sh-draft">🧪 Yeni ekran (deneme) — satıra dokunun: zinciri görün ve aynı pencereden düzenleyin.</div>
     <div class="ux-bar"><h2 class="u-m0">📦 Stok & Reçete</h2>
       <input class="list-search" placeholder="🔍 Ara…" value="${escapeAttr(APP.shQ || '')}" ${actOn('input', 'shSearch', ['$value'])}>
-      <button type="button" class="fsheet-open" ${act('shNew')}>+ Yeni</button></div>
+      <button type="button" class="fsheet-open" ${act('shNew')}>+ Yeni</button>
+      ${tab === 'depot' ? `<div class="seg">${[['0','☰ Liste'],['1','✏️ Toplu düzenle / Excel']].map(([k, l]) => `<button type="button" class="${(APP.shBulk ? '1' : '0') === k ? 'on' : ''}" ${act('setShBulk', k)}>${l}</button>`).join('')}</div>` : ''}</div>
     <div class="sh-flow"><span class="${tab==='depot'?'on':''}" role="button" ${act('setShTab','depot')}>🏬 Depo <em>${depot.length}</em></span><i>→</i>
       <span class="${tab==='prep'?'on':''}" role="button" ${act('setShTab','prep')}>🥙 Günlük Hazırlık <em>${prep.length}</em></span><i>→</i>
       <span class="${tab==='recipes'?'on':''}" role="button" ${act('setShTab','recipes')}>🍽️ Ürünler & Reçeteler <em>${shProds().length}</em></span></div>
     <div id="shBody">${body}</div></div>`;
+  const bb = document.getElementById('shBulkBox'); if(bb) renderIngredientsSettings(bb, getSession());
 }
+function setShBulk(k){ APP.shBulk = k === '1'; renderSettingsContent(getSession()); }
 function setShTab(t){ APP.shTab = t; renderSettingsContent(getSession()); }
 function shSearch(v){ APP.shQ = v; const el = document.getElementById('settingsContent'); renderStockHub(el); const inp = el.querySelector('.sh-hub .list-search'); if(inp){ inp.focus(); inp.setSelectionRange(v.length, v.length); } }
-function shNew(){ if((APP.shTab || 'depot') === 'recipes'){ APP.settingsTab = 'products'; APP.productsSubTab = 'products'; renderSettingsView(document.getElementById('main'), getSession()).then(() => typeof openSheet === 'function' && openSheet('prodSheet')); return; }
-  APP.settingsTab = 'products'; APP.productsSubTab = 'ingredients'; renderSettingsView(document.getElementById('main'), getSession()).then(() => typeof niStart === 'function' && niStart('')); }
+function shNew(){
+  if((APP.shTab || 'depot') === 'recipes'){ APP.settingsTab = 'products'; APP.productsSubTab = 'products'; renderSettingsView(document.getElementById('main'), getSession()).then(() => typeof openSheet === 'function' && openSheet('prodSheet')); return; }
+  APP.shTab = 'depot'; APP.shBulk = true; renderSettingsContent(getSession()); if(typeof niStart === 'function') niStart('');
+}
 
 /* Hammadde zinciri: nereden geliyor, nereye gidiyor. */
 function openStockChain(id){

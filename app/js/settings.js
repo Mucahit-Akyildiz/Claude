@@ -6,8 +6,8 @@
 const SETTINGS_TABS = [
   { tab:'stations', grp:'biz', perm:'settings_stations', label:'Menüler & İstasyonlar', ico:'🍳', desc:'Menüler, mutfak istasyonları' },
   { tab:'zones', grp:'biz', perm:'settings_zones', label:'Bölgeler & Masalar', ico:'🪑', desc:'Salon, masa planı' },
-  { tab:'products', grp:'biz', label:'Ürünler & Hammaddeler', ico:'🍔', desc:'Fiyat, reçete, stok' }, // alt sekmeler: Ürünler, Hammaddeler
-  { tab:'stockhub', grp:'biz', label:'Stok & Reçete', ico:'📦', desc:'Depo → hazırlık → ürün (taslak)' },
+  { tab:'products', grp:'biz', label:'Ürünler', ico:'🍔', desc:'Fiyat, menü, fotoğraf' }, // alt sekmeler: Ürünler, Hammaddeler
+  { tab:'stockhub', grp:'biz', label:'Stok & Reçete', ico:'📦', desc:'Hammadde, hazırlık, reçete' },
   { tab:'flags', grp:'biz', perm:'settings_flags', label:'Sipariş Etiketleri', ico:'🏷️', desc:'Sipariş notu etiketleri' },
   { tab:'users', grp:'staff', label:'Kullanıcılar & Vardiyalar', ico:'👥', desc:'Personel, vardiya' }, // alt sekmeler: Kullanıcılar, Aktif, Vardiyalar
   { tab:'roles', grp:'staff', perm:'settings_roles', label:'Roller', ico:'🔑', desc:'Yetkiler' },
@@ -49,9 +49,11 @@ async function renderSettingsView(main, session){
   if(error){ main.innerHTML = '<h1>Ayarlar</h1><p class="muted">Yüklenemedi: '+error.message+'</p>'; return; }
   APP.config = data;
   // Eski sekme adları (bildirimden/kayıtlı ekrandan gelebilir) yeni sekme + alt sekmeye çevrilir.
-  const LEGACY_TABS = { shifts:['users','usersSubTab','shifts'], ingredients:['products','productsSubTab','ingredients'], floorplan:['zones','zonesSubTab','floorplan'],
+  const LEGACY_TABS = { shifts:['users','usersSubTab','shifts'], ingredients:['stockhub','shTab','depot'], floorplan:['zones','zonesSubTab','floorplan'],
     giftcards:['billing','billingSubTab','giftcards'], promos:['billing','billingSubTab','promos'], datareset:['security','securitySubTab','datareset'], support:['security','securitySubTab','support'], audit:['security','securitySubTab','audit'] };
   const lg = LEGACY_TABS[APP.settingsTab]; if(lg){ APP.settingsTab = lg[0]; APP[lg[1]] = lg[2]; }
+  // Hammaddeler artık Stok & Reçete'de.
+  if(APP.settingsTab === 'products' && APP.productsSubTab === 'ingredients'){ APP.settingsTab = 'stockhub'; APP.shTab = 'depot'; APP.productsSubTab = 'products'; }
   const visibleTabs = SETTINGS_TABS.filter(t => settingsTabVisible(t, session));
   if(!visibleTabs.some(t => t.tab===APP.settingsTab)) APP.settingsTab = visibleTabs.length ? visibleTabs[0].tab : null;
   main.innerHTML = `<h1>Ayarlar</h1>
