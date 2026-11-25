@@ -5020,3 +5020,7 @@ select.ss-hidden{display:none !important;}
 .me-grid .me-card.zn4-t small{font-size:12px;color:var(--muted);}
 .zn4-grid{grid-template-columns:repeat(auto-fill,minmax(150px,1fr))!important;}
 .me-grid .zn4-add{min-height:120px!important;}
+.me-grid .me-card.sh-card{display:flex!important;flex-direction:column!important;padding:14px 16px!important;gap:6px;min-height:0;border-top:4px solid var(--mc);}
+.me-grid .me-card.sh-card .sh-ctop{display:flex;justify-content:space-between;align-items:center;width:100%;}
+.me-grid .me-card.sh-card .sh-cq{font-size:22px;font-weight:800;}
+.me-grid .me-add{min-height:150px;}
