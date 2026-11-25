@@ -4988,7 +4988,7 @@ select.ss-hidden{display:none !important;}
 .me-ctx-a{display:flex;gap:8px;align-items:center;} .me-ctx-a button{width:auto;margin:0;white-space:nowrap;}
 .me-foot .nm-sw{flex:0 0 auto;} .me-price{font-size:15px;white-space:nowrap;}
 .me-tab.on em{background:rgba(255,255,255,.22);color:#fff;}
-.content-inner.content-inner-wide{max-width:none;}
+.content-inner,.content-inner.content-inner-wide{max-width:none;}
 .me-foot{gap:6px;} .me-foot .me-price{min-width:0;overflow:hidden;text-overflow:ellipsis;font-size:14px;}
 .me-foot .nm-sw{position:absolute;top:8px;right:8px;}
 .me-newbtn{width:auto!important;margin:0!important;white-space:nowrap;}
