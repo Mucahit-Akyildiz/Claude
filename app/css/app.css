@@ -5104,9 +5104,9 @@ p.me2-hint{text-align:left!important;margin:-4px 0 12px!important;}
 #main .crm-hbtns > *{white-space:nowrap;}
 /* Ayarlar içindeki tüm segment seçicileri (Sayım gir / Onaylar, Günlük liste / Tümü, Kart / Tablo…) üst menü sekmesi gibi */
 .set-content .seg{display:inline-flex;gap:6px;padding:0;background:transparent!important;border:0!important;box-shadow:none!important;flex-wrap:wrap;}
-.set-content .seg > button{width:auto!important;margin:0!important;padding:8px 14px!important;border-radius:10px!important;background:var(--panel2)!important;border:1px solid var(--border)!important;color:var(--text)!important;font-weight:700;font-size:13px;box-shadow:none!important;}
-.set-content .seg > button:hover{border-color:var(--accent)!important;}
-.set-content .seg > button.on,.set-content .seg > button.active,.set-content .seg > button[aria-selected="true"]{background:var(--text)!important;color:var(--panel)!important;border-color:var(--text)!important;}
+:is(.set-content,.modal-bg,[id$="Bg"],.fsheet) .seg > button{width:auto!important;margin:0!important;padding:8px 14px!important;border-radius:10px!important;background:var(--panel2)!important;border:1px solid var(--border)!important;color:var(--text)!important;font-weight:700;font-size:13px;box-shadow:none!important;}
+:is(.set-content,.modal-bg,[id$="Bg"],.fsheet) .seg > button:hover{border-color:var(--accent)!important;}
+:is(.set-content,.modal-bg,[id$="Bg"],.fsheet) .seg > button.on,:is(.set-content,.modal-bg,[id$="Bg"],.fsheet) .seg > button.active,:is(.set-content,.modal-bg,[id$="Bg"],.fsheet) .seg > button[aria-selected="true"]{background:var(--text)!important;color:var(--panel)!important;border-color:var(--text)!important;}
 .sc-inline .sc-tabs{margin:4px 0 12px;padding-bottom:10px!important;border-bottom:1px solid var(--border)!important;display:flex;}
 .sc-foot{display:flex;align-items:center;justify-content:flex-end;gap:12px;}
 .sc-foot > button{width:auto!important;flex:0 0 auto!important;padding:10px 22px!important;margin:0!important;}
@@ -5152,16 +5152,16 @@ p.me2-hint{text-align:left!important;margin:-4px 0 12px!important;}
 /* === Ayarlar: tek buton dili ===
    Düz (sınıfsız) butonlar ve kayıt butonları: tam genişlik dolu camgöbeği yerine
    küçük, yumuşak renkli birincil buton. Ekleme = kesikli, ikincil = çerçeveli. */
-.set-content button:not([class]),.set-content button.sp-btn,.set-content button.ix-save,
-.set-content .box button:not([class]),.modal-bg .box button:not([class]){
+.set-content button:not([class]):not(.seg > *),.set-content button.sp-btn,.set-content button.ix-save,
+.set-content .box button:not([class]):not(.seg > *),.modal-bg .box button:not([class]):not(.seg > *){
   width:auto!important;max-width:none!important;flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;gap:6px;
   padding:9px 18px!important;margin-top:10px;border-radius:10px!important;font-size:14px!important;font-weight:700;
   background:color-mix(in srgb,var(--accent) 16%,transparent)!important;color:var(--accent)!important;
   border:1px solid color-mix(in srgb,var(--accent) 55%,var(--border))!important;box-shadow:none!important;}
-.set-content button:not([class]):hover,.set-content button.sp-btn:hover,.set-content button.ix-save:hover,.modal-bg .box button:not([class]):hover{background:color-mix(in srgb,var(--accent) 26%,transparent)!important;}
-.set-content button:not([class]):disabled{opacity:.5;}
+.set-content button:not([class]):not(.seg > *):hover,.set-content button.sp-btn:hover,.set-content button.ix-save:hover,.modal-bg .box button:not([class]):not(.seg > *):hover{background:color-mix(in srgb,var(--accent) 26%,transparent)!important;}
+.set-content button:not([class]):not(.seg > *):disabled{opacity:.5;}
 .set-content .me2-tab.me2-add{width:auto!important;}
-.set-content button[class=""],.set-content .sbtn,.set-content .dr-bk-btn,.set-content .fsheet-foot > button:not(.ghost-btn){
+.set-content button[class=""]:not(.seg > *),.set-content .sbtn,.set-content .dr-bk-btn,.set-content .fsheet-foot > button:not(.ghost-btn){
   width:auto!important;max-width:none!important;padding:9px 18px!important;border-radius:10px!important;font-size:14px!important;font-weight:700;
   background:color-mix(in srgb,var(--accent) 16%,transparent)!important;color:var(--accent)!important;
   border:1px solid color-mix(in srgb,var(--accent) 55%,var(--border))!important;box-shadow:none!important;}
