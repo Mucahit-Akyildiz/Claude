@@ -1134,26 +1134,35 @@ function renderZonesSettings(el, session){
     </div>
     <details class="ux-set" ${APP.zSetOpen ? 'open' : ''}><summary>⚙️ Masa ayarları <span class="ux-meta">· 🥗 İkram: ${trOn ? 'Açık' : 'Kapalı'} · 🔒 Kişi sayısı zorunlu: ${grOn ? 'Açık' : 'Kapalı'}</span></summary>
       <div class="ux-set-body">${tableTreatBoxHtml()}${guestRequiredBoxHtml()}</div></details>
+    <div class="ms-sec-h"><div class="ms-sec-t">📍 Bölgeler <small>— salon, bahçe, kat… Birine dokunun, masaları aşağıda açılır.</small></div><button type="button" class="fsheet-open ms-hbtn" ${act('znAddPrompt')}>+ Bölge ekle</button></div>
     <div class="zn2-tabs">
-      ${zones.map((q, i) => `<button type="button" class="zn2-tab ${q.id===APP.zoneSel?'on':''}" ${act('selectZoneSetting', q.id)}>📍 ${escapeHtml(q.name)} <em>${q.tables.length}</em></button>`).join('')}
-      <span class="zn2-new"><input id="newZoneName" placeholder="+ Yeni bölge (örn. Teras)" ${actOn('keydown','onEnterCall',['$event','addZone'])}><button type="button" title="Bölge ekle" ${act('addZone')}>+</button></span>
+      ${zones.map(q => `<button type="button" class="zn2-tab ${q.id===APP.zoneSel?'on':''}" ${act('selectZoneSetting', q.id)}>📍 ${escapeHtml(q.name)} <em>${q.tables.length} masa</em></button>`).join('')}
     </div>
-    ${z ? `<div class="zn2-bar">
-        <input value="${escapeAttr(z.name)}" id="zn_name_${z.id}" class="zn2-title" title="Bölge adı — değiştirip başka yere dokunun" data-orig="${escapeAttr(z.name)}" ${actOn('change','znRename',[z.id])} ${actOn('keydown','onEnterCall',['$event','znRename', z.id])}>
-        <span class="ux-meta">${z.tables.length} masa</span><span class="u-f1"></span>
-        <span class="zn2-add"><input id="newTable_${z.id}" placeholder="Masa 21 ya da Masa 1-10" ${actOn('keydown','onEnterCall',['$event','addTable', z.id])}><button type="button" ${act('addTable', z.id)}>+ Masa</button></span>
-        <button type="button" class="ico-btn danger" title="Bölgeyi sil" ${act('removeZone', z.id)}>🗑</button>
-      </div>
+    ${z ? `<div class="ms-sec-h"><div class="ms-sec-t">🪑 ${escapeHtml(z.name)} masaları <small>— ${z.tables.length} masa · ada dokunup yeniden adlandırın · ▦ QR kodu</small></div>
+        <span class="ms-add"><input id="newTable_${z.id}" placeholder="Masa 21 ya da toplu: Masa 1-10" ${actOn('keydown','onEnterCall',['$event','addTable', z.id])}><button type="button" class="fsheet-open ms-hbtn" ${act('addTable', z.id)}>+ Masa ekle</button></span></div>
       <div class="zn2-grid">
         ${z.tables.slice().sort(natural).map(t => `<div class="zn2-t">
           <button type="button" class="zn2-tn" title="Yeniden adlandır" ${act('renameTable', t.id, z.id, t.name)}>${escapeHtml(t.name)}</button>
           <button type="button" class="zn2-ib" title="QR menü kodu" ${act('showTableQr', t.id, t.qr_token)}>▦</button>
           <button type="button" class="zn2-ib danger" title="Masayı sil" ${act('removeTable', t.id)}>✕</button>
-        </div>`).join('') || '<p class="muted">Bu bölgede masa yok. Yukarıdan ekleyin; toplu eklemek için <b>Masa 1-10</b> yazın.</p>'}
+        </div>`).join('') || '<p class="muted">Bu bölgede masa yok. Sağ üstten ekleyin; toplu eklemek için <b>Masa 1-10</b> yazın.</p>'}
       </div>
-      <p class="muted ux-hint" style="margin:10px 0 0!important;">Masa adına dokunup yeniden adlandırın · ▦ QR kodu · toplu ekleme: <b>Masa 1-10</b></p>`
+      <div class="zn2-zacts"><button type="button" class="ghost-btn" ${act('znRenamePrompt', z.id)}>✏️ "${escapeHtml(z.name)}" bölgesinin adını değiştir</button><button type="button" class="ghost-btn danger" ${act('removeZone', z.id)}>🗑 Bölgeyi sil</button></div>`
     : '<div class="empty-state"><div style="font-size:42px;">📍</div><p class="muted">Yukarıdan ilk bölgenizi ekleyin (örn. Salon, Bahçe).</p></div>'}
   </div>`;
+}
+async function znAddPrompt(){
+  const name = ((await uiPrompt('Yeni bölge adı (örn. Teras, Bahçe, 2. Kat):', '')) || '').trim(); if(!name) return;
+  const session = getSession(); const { error } = await sb.rpc('upsert_zone', { p_token: session.session_token, p_id: null, p_name: name });
+  if(error){ uiAlert(error.message); return; }
+  showToast('📍 ' + name + ' eklendi'); renderSettingsView(document.getElementById('main'), session);
+}
+async function znRenamePrompt(id){
+  const z = (APP.config.zones || []).find(x => x.id === id); if(!z) return;
+  const name = ((await uiPrompt('Bölge adı:', z.name)) || '').trim(); if(!name || name === z.name) return;
+  const session = getSession(); const { error } = await sb.rpc('upsert_zone', { p_token: session.session_token, p_id: id, p_name: name });
+  if(error){ uiAlert(error.message); return; }
+  renderSettingsView(document.getElementById('main'), session);
 }
 function znRename(id){ const e = document.getElementById('zn_name_' + id); if(!e) return; const v = e.value.trim(); if(!v || v === e.dataset.orig) return; e.dataset.orig = v; saveZone(id); }
 function selectZoneSetting(id){ APP.zoneSel = id; renderSettingsContent(getSession()); }
