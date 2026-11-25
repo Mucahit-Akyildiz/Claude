@@ -5102,3 +5102,14 @@ p.me2-hint{text-align:left!important;margin:-4px 0 12px!important;}
 #main > .box > h2:first-child,#main .fsheet-bar h2{font-size:18px;}
 #main .fsheet-bar{padding-bottom:10px;border-bottom:1px solid var(--border);margin-bottom:12px!important;}
 #main .crm-hbtns > *{white-space:nowrap;}
+/* Ayarlar içindeki tüm segment seçicileri (Sayım gir / Onaylar, Günlük liste / Tümü, Kart / Tablo…) üst menü sekmesi gibi */
+.set-content .seg{display:inline-flex;gap:6px;padding:0;background:transparent!important;border:0!important;box-shadow:none!important;flex-wrap:wrap;}
+.set-content .seg > button{width:auto!important;margin:0!important;padding:8px 14px!important;border-radius:10px!important;background:var(--panel2)!important;border:1px solid var(--border)!important;color:var(--text)!important;font-weight:700;font-size:13px;box-shadow:none!important;}
+.set-content .seg > button:hover{border-color:var(--accent)!important;}
+.set-content .seg > button.on,.set-content .seg > button.active,.set-content .seg > button[aria-selected="true"]{background:var(--text)!important;color:var(--panel)!important;border-color:var(--text)!important;}
+.sc-inline .sc-tabs{margin:4px 0 12px;padding-bottom:10px!important;border-bottom:1px solid var(--border)!important;display:flex;}
+.sc-foot{display:flex;align-items:center;justify-content:flex-end;gap:12px;}
+.sc-foot > button{width:auto!important;flex:0 0 auto!important;padding:10px 22px!important;margin:0!important;}
+.sc-inline p.muted{text-align:left!important;font-size:12px!important;}
+/* Ayarlar: tam genişlik dev düğmeler yerine normal boy (sağa hizalı) */
+.set-content .box > button:not(.me2-tab):not(.ico-btn),.set-content .sc-inline > button,.set-content .box form > button,.set-content .ix-card > button,.set-content .box > div:not([class*="grid"]):not(.oa-edit-acts) > button:only-child{width:auto!important;display:block;margin-left:auto!important;padding:10px 22px!important;}
