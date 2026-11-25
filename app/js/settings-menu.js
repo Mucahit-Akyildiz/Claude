@@ -854,11 +854,11 @@ function renderStationsSettings(el, session){
       : menu ? `<div class="me-ctx" style="--mc:${escapeAttr(col(menu))};">
         <div class="me-ctx-t"><b>📂 ${escapeHtml(menu.name)} <small class="muted" style="font-size:12px;font-weight:600;">kategorisi</small></b>
           <label class="me-st ${st ? '' : 'warn'}">${st ? `${escapeHtml(st.icon || '🍳')} <span>Siparişleri <b>${escapeHtml(st.name)}</b> mutfağına gider</span>` : '⚠️ <span>Mutfağa gitmiyor — seçin:</span>'}
-            <select ${actOn('change','moveMenuToStation',[menu.id,'$value'])}><option value="">— değiştir —</option>${stations.map(x => `<option value="${x.id}">${escapeHtml(x.icon || '🍳')} ${escapeHtml(x.name)}</option>`).join('')}</select></label></div>
+            <select ${actOn('change','moveMenuToStation',[menu.id,'$value'])}><option value="">${st ? '— değiştir —' : '👉 Mutfak seçin'}</option>${stations.map(x => `<option value="${x.id}">${escapeHtml(x.icon || '🍳')} ${escapeHtml(x.name)}</option>`).join('')}</select></label></div>
         <span class="u-f1"></span>
         <span class="me-ctx-a"><button type="button" class="ghost-btn" ${act('msMenuOpen', menu.id)}>✏️ Kategoriyi düzenle</button></span></div>`
       : `<div class="me-ctx"><b>Tüm ürünler</b><span class="u-f1"></span><small class="muted">Ürün eklemek için üstten bir kategori seçin</small></div>`}
-    <div class="me-grid">${list.map(card).join('')}${menu && !q ? `<button type="button" class="me-card me-add" ${act('kvAddProduct', menu.id)}><span>＋</span><b>Ürün ekle</b></button>` : ''}</div>
+    <div class="me-grid">${list.map(card).join('')}${menu && !q ? (st ? `<button type="button" class="me-card me-add" ${act('kvAddProduct', menu.id)}><span>＋</span><b>Ürün ekle</b></button>` : `<div class="me-card me-add me-locked"><span>🔒</span><b>Ürün eklemek için önce yukarıdan mutfak seçin</b></div>`) : ''}</div>
     ${!list.length && !menu ? '<div class="empty-state"><p class="muted">Ürün bulunamadı.</p></div>' : ''}
   </div>`;
 }
@@ -903,6 +903,7 @@ async function meToggleAvail(pid){
 /* Menüye hızlı ürün ekleme: ad + fiyat; ürün menünün mutfağına düşer. */
 function kvAddProduct(mid){
   const m = (APP.config.menus || []).find(x => x.id === mid); if(!m) return;
+  if(!m.station_id || !(APP.config.stations || []).some(x => x.id === m.station_id)){ uiAlert('Önce bu kategorinin siparişlerinin gideceği mutfağı seçin. Mutfak seçilmezse ürünler mutfak ekranına ve fişe düşmez.'); const sel = document.querySelector('.me-st select'); if(sel){ sel.focus(); sel.classList.add('me-need'); } return; }
   removeEl('kvAddBg');
   const bg = document.createElement('div'); bg.id = 'kvAddBg'; bg.className = 'modal-bg';
   bg.onclick = (e) => { if(e.target === bg) bg.remove(); };

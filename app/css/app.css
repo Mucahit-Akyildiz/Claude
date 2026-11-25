@@ -5028,3 +5028,6 @@ select.ss-hidden{display:none !important;}
 .me-tabs-l{flex:0 0 auto;align-self:center;font-size:12px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;}
 .sc-box.sc-inline{max-width:none;width:100%;max-height:none;box-shadow:none;}
 .box.sc-inline{max-width:none!important;width:100%!important;max-height:none!important;box-shadow:none;}
+.me-locked{cursor:default;border-color:color-mix(in srgb,#ef4444 45%,var(--border))!important;color:var(--danger,#ef4444)!important;text-align:center;padding:12px;}
+.me-locked b{font-size:13px;}
+.me-st.warn select,.me-need{border:2px solid #ef4444!important;font-weight:700;animation:dgPop .3s;}
