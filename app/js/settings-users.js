@@ -664,11 +664,8 @@ function renderRolesSettings(el, session){
   const custom = roles.filter(r => !r.is_system);
   el.innerHTML = statChips([['🔑', roles.length, 'Rol', 'var(--c1)', 'all'], ['👥', roles.reduce((x, r) => x + (Number(r.user_count)||0), 0), 'Rol atanmış kullanıcı', 'var(--c2)', 'used'],
       ['⏱', custom.filter(r => r.shift_exempt).length, 'Vardiyasız rol', 'var(--c3)', 'exempt'], ['💤', custom.filter(r => !Number(r.user_count)).length, 'Kullanılmayan rol', 'var(--c4)', 'unused']], '', 'roles') + `<div class="u-mwn box">
-    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;">
-      <div><h2 style="margin-bottom:4px;">Roller</h2>
-        <p class="muted" style="margin:0 0 16px;">Bir role tıklayarak hangi ekranlara erişebileceğini seçin. Bir kullanıcıya en fazla 2 rol verilebilir; izinleri birleşir.</p></div>
-      <button class="u-wa-m0" ${act('openNewRoleCard')}>+ Yeni Rol</button>
-    </div>
+    <div class="me2-bar"><div class="me2-tabs"><span class="me2-title">🔑 Roller</span></div><div class="me2-tools"><span class="me2-adds"><button type="button" class="me2-tab me2-add" ${act('openNewRoleCard')}>＋ Rol</button></span></div></div>
+    <p class="me2-hint">🔑 Rol = hangi ekranlara erişileceği · bir role dokunup izinlerini seçin · kişiye en fazla 2 rol, izinleri birleşir</p>
     <div class="role-list" data-cf-scope="roles">${roles.map((r, i) => roleCardHtml(r, i).replace('<div class="role-card', `<div data-cf-tags="${Number(r.user_count) ? 'used' : 'unused'}${r.shift_exempt ? ' exempt' : ''}" class="role-card`)).join('')}</div>
     <div class="role-card" data-role-card="new_role" style="border-style:dashed;">
       <div class="role-head" ${act('openNewRoleCard')}>

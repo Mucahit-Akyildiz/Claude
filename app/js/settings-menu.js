@@ -1,11 +1,12 @@
 // Ayarlar: sipariş etiketleri, hammadde/reçete, istasyonlar, bölge/masa/kat planı, QR, ürünler (settings.js'ten ayrıldı; klasik script, fonksiyonlar global).
 
 /* --- Sipariş Etiketleri (Personel Yemeği, İkram vb. checkbox'lar) --- */
+function flFocusNew(){ const i = document.getElementById('nf_label'); if(i){ i.scrollIntoView({ block: 'center' }); i.focus(); } }
 function renderOrderFlagsSettings(el, session){
   const flags = APP.config.order_flags || [];
-  el.innerHTML = `<div class="u-mwn box">
-    <h2>Sipariş Etiketleri</h2>
-    <p class="muted" style="text-align:left;margin:0 0 16px;">Sipariş al ekranında, siparişi mutfağa göndermeden önce işaretlenebilecek checkbox'lar (örn. "Personel Yemeği", "İkram"). İşaretlenen siparişlerde stok yine düşer, ama Finansal Analiz'deki ciro/net kârdan hariç tutulup ayrı bir toplam olarak gösterilir. İstediğiniz kadar etiket ekleyebilirsiniz.</p>
+  el.innerHTML = `<div class="u-mwn box me2">
+    <div class="me2-bar"><div class="me2-tabs"><span class="me2-title">🏷️ Sipariş Etiketleri</span></div><div class="me2-tools"><span class="me2-adds"><button type="button" class="me2-tab me2-add" ${act('flFocusNew')}>＋ Etiket</button></span></div></div>
+    <p class="me2-hint">Sipariş al ekranında, siparişi mutfağa göndermeden önce işaretlenebilecek checkbox'lar (örn. "Personel Yemeği", "İkram"). İşaretlenen siparişlerde stok yine düşer, ama Finansal Analiz'deki ciro/net kârdan hariç tutulup ayrı bir toplam olarak gösterilir. İstediğiniz kadar etiket ekleyebilirsiniz.</p>
     <div class="fl-grid">
       ${flags.map((f, i) => `<div class="fl-card" style="--sc:var(--c${i%4+1});--i:${Math.min(i,12)};">
         <span class="fl-ic">🏷️</span>
