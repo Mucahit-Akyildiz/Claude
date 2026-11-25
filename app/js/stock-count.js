@@ -21,7 +21,9 @@ async function openStockCount(tab){
   bg.innerHTML = `<div class="box sc-box"><div class="u-row-sb"><h2 class="u-m0">📋 Stok Sayımı</h2><span class="u-xclose" ${act('removeEl','stockCountBg')}>✕</span></div>
     <div class="seg sc-tabs"><button type="button" data-t="count" ${act('scSetTab','count')}>✍️ Sayım gir</button>${scCanApprove() ? `<button type="button" data-t="approve" ${act('scSetTab','approve')}>✅ Onaylar <span id="scPendN"></span></button>` : ''}<button type="button" data-t="history" ${act('scSetTab','history')}>🕘 Geçmiş</button></div>
     <div id="scBody"></div></div>`;
-  document.body.appendChild(bg);
+  const host = APP.view === 'settings' && APP.settingsTab === 'stockcount' && document.getElementById('settingsContent');
+  if(host){ host.innerHTML = ''; const box = bg.firstElementChild; box.classList.add('sc-inline'); const x = box.querySelector('.u-xclose'); if(x) x.remove(); host.appendChild(box); }
+  else document.body.appendChild(bg);
   await scLoadCounts();
   scRender();
 }

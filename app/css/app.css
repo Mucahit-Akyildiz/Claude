@@ -5026,3 +5026,4 @@ select.ss-hidden{display:none !important;}
 .me-grid .me-add{min-height:150px;}
 .me-help{text-align:left!important;font-size:12.5px!important;margin:-4px 0 10px!important;padding:8px 12px;border-radius:10px;background:var(--panel2);}
 .me-tabs-l{flex:0 0 auto;align-self:center;font-size:12px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;}
+.sc-box.sc-inline{max-width:none;width:100%;max-height:none;box-shadow:none;}
