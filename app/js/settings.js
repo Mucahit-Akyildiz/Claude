@@ -13,8 +13,9 @@ const SETTINGS_TABS = [
   { tab:'users', grp:'staff', label:'Kullanıcılar & Vardiyalar', ico:'👥', desc:'Personel, vardiya' }, // alt sekmeler: Kullanıcılar, Aktif, Vardiyalar
   { tab:'roles', grp:'staff', perm:'settings_roles', label:'Roller', ico:'🔑', desc:'Yetkiler' },
   { tab:'integrations', grp:'account', perm:'settings_integrations', label:'Entegrasyonlar', ico:'🔌', desc:'Platformlar, yazıcılar' },
-  { tab:'specialdays', grp:'sales', label:'Özel Günler', ico:'🎉', desc:'Kapasite, indirim, kapora' },
-  { tab:'family', grp:'sales', label:'Çocuk & Masa', ico:'🧒', desc:'Çocuk servis oranı, çocuk dostu masa' },
+  { tab:'onlineresv', grp:'resv', label:'Online Rezervasyon', ico:'🌐', desc:'Müşterinin rezervasyon sayfası' },
+  { tab:'specialdays', grp:'resv', label:'Özel Günler', ico:'🎉', desc:'Kapasite, indirim, kapora' },
+  { tab:'family', grp:'resv', label:'Çocuk & Masa', ico:'🧒', desc:'Çocuk servis oranı, çocuk dostu masa' },
   { tab:'billing', grp:'sales', label:'Abonelik, Hediye Kartı & Kampanya', ico:'💳', desc:'Plan, fatura, kartlar, kuponlar' }, // alt sekmeler
   { tab:'printers', grp:'device', label:'Fiş Tasarımı', ico:'🧾', desc:'Mutfak, kasa ve paket fişi' },
   { tab:'devprn', grp:'device', label:'Bu Cihazın Yazıcısı', ico:'🔌', desc:'Yazıcı bağla, istasyon eşle' },
@@ -23,7 +24,7 @@ const SETTINGS_TABS = [
   { tab:'security', grp:'account', label:'Güvenlik', ico:'🛡️', desc:'Destek, kayıt, sıfırlama' }, // alt sekmeler: Destek Erişimi, Değişiklik Kaydı, Veri Sıfırlama
 ];
 // Ayarlar grupları ve başka ekranlarda duran ayarlara kısayollar (aynı ayar tek yerden bulunsun).
-const SETTINGS_GROUPS = [['biz','🏪 İşletme'],['staff','👥 Personel'],['device','🖨️ Cihaz & Fiş'],['sales','🎁 Satış & Müşteri'],['account','🔐 Hesap & Sistem']];
+const SETTINGS_GROUPS = [['biz','🏪 İşletme'],['staff','👥 Personel'],['device','🖨️ Cihaz & Fiş'],['resv','📅 Rezervasyon'],['sales','🎁 Satış & Müşteri'],['account','🔐 Hesap & Sistem']];
 const SETTINGS_LINKS = [
 ];
 function settingsSearch(q){
@@ -38,7 +39,7 @@ function settingsTabVisible(t, session){
   if(t.tab==='integrations') return canManage(session, 'settings_integrations') || (session.permissions || []).some(p => /^int_/.test(p));
   if(t.tab==='printers') return canManage(session, 'printer_settings');
   if(t.tab==='devprn') return true;
-  if(t.tab==='specialdays' || t.tab==='family') return hasFeature('reservations') && canManage(session, 'reservations');
+  if(t.tab==='specialdays' || t.tab==='family' || t.tab==='onlineresv') return hasFeature('reservations') && canManage(session, 'reservations');
   if(t.tab==='stockcount') return typeof scCanCount === 'function' && scCanCount();
   if(t.tab==='notifs') return true; // Kime Gitsin / hatırlatma yalnızca yöneticiye; doğum günü uyarıları cihaz ayarı, herkese
   if(t.tab==='users') return canManage(session, 'settings_users') || canManage(session, 'shifts');
@@ -115,6 +116,7 @@ function renderSettingsContent(session){
   else if(APP.settingsTab==='stockhub') renderStockHub(el);
   else if(APP.settingsTab==='stockcount') openStockCount();
   else if(APP.settingsTab==='specialdays'){ el.innerHTML = ''; openSpecialDays(); }
+  else if(APP.settingsTab==='onlineresv'){ el.innerHTML = '<div class="u-mwn box"><h2 class="u-m0" style="margin:0 0 10px;">🌐 Online Rezervasyon</h2><div id="onlineResvBody"><p class="muted">Yükleniyor…</p></div></div>'; renderOnlineResvBody(); }
   else if(APP.settingsTab==='family'){ el.innerHTML = ''; openFamilySettings(); }
   else if(APP.settingsTab==='zones') renderZonesTabWithSubtabs(el, session);
   else if(APP.settingsTab==='products') renderProductsTabWithSubtabs(el, session);
