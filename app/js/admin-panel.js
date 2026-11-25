@@ -267,8 +267,8 @@ async function refreshPackagesAdmin(admin){
         </tbody>
       </table>
     </div>`}
-    <div class="add-row-panel" style="margin-top:20px;">
-      <p>Yeni Paket Oluştur</p>
+    <details class="add-row-panel" style="margin-top:20px;">
+      <summary style="cursor:pointer;font-weight:800;">＋ Yeni paket oluştur</summary>
       <div style="display:grid;grid-template-columns:1fr 1fr 1.4fr 0.8fr 0.8fr 0.8fr 0.8fr;gap:10px;align-items:end;">
         <div class="field-group"><label>Kimlik (benzersiz, örn. paket4)</label><input id="npkgId" placeholder="paket4" autocapitalize="none"></div>
         <div class="field-group"><label>Ad</label><input id="npkgName" placeholder="örn. Kurumsal"></div>
@@ -283,7 +283,7 @@ async function refreshPackagesAdmin(admin){
       ${includedAddonsHtml('npkg_inc', [])}
       <button style="margin-top:12px;max-width:220px;" ${act('createPackage')}>+ Paket Oluştur</button>
       <div class="u-tl error" id="pkgCreateErr"></div>
-    </div>`;
+    </details>`;
 }
 /* Paket düzenleme/oluşturma satırlarında ortak kullanılan özellik seçim
    ızgarası - feature_catalog'daki HER özelliği kategoriye göre gruplayıp
