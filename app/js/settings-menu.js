@@ -840,6 +840,7 @@ function renderStationsSettings(el, session){
       <button type="button" class="fsheet-open me-newbtn" ${act('meNewMenu')}>＋ Yeni menü</button>
       <details class="ux-more"><summary title="Diğer işlemler">⋯ Diğer</summary><div class="ux-more-pop">
         <div class="ux-more-t">Düzen</div><div class="xl-bar"><button type="button" class="xl-btn" ${act('msOrderOpen')}>↕ Menü sırasını değiştir</button></div>
+        <div class="ux-more-t">Mutfaklar (siparişin gittiği istasyon)</div><div class="xl-bar">${stations.map(x => `<button type="button" class="xl-btn" ${act('openStationEdit', x.id)}>${escapeHtml(x.icon || '🍳')} ${escapeHtml(x.name)} — düzenle</button>`).join('')}<button type="button" class="xl-btn" ${act('openStationEdit', '')}>＋ Yeni mutfak ekle</button></div>
         <div class="ux-more-t">Menü PDF</div><div class="xl-bar"><button type="button" class="xl-btn" ${act('downloadMenuPdf', true)}>📄 Fiyatlı</button><button type="button" class="xl-btn" ${act('downloadMenuPdf', false)}>📄 Fiyatsız</button></div>
         <div class="ux-more-t">Excel</div>${typeof excelBarHtml === 'function' ? excelBarHtml('menus') : ''}</div></details>
     </div>
@@ -858,9 +859,6 @@ function renderStationsSettings(el, session){
       : `<div class="me-ctx"><b>Tüm ürünler</b><span class="u-f1"></span><small class="muted">Ürün eklemek için üstten bir menü seçin</small></div>`}
     <div class="me-grid">${list.map(card).join('')}${menu && !q ? `<button type="button" class="me-card me-add" ${act('kvAddProduct', menu.id)}><span>＋</span><b>Ürün ekle</b></button>` : ''}</div>
     ${!list.length && !menu ? '<div class="empty-state"><p class="muted">Ürün bulunamadı.</p></div>' : ''}
-    <div class="me-kitchens"><span class="me-k-t">🍳 Mutfaklar</span>
-      ${stations.map(x => `<button type="button" class="me-k" style="--mc:${escapeAttr(x.color || '#94a3b8')};" title="Mutfağı düzenle" ${act('openStationEdit', x.id)}>${escapeHtml(x.icon || '🍳')} ${escapeHtml(x.name)} <small>${menus.filter(m => m.station_id === x.id).length} menü</small></button>`).join('')}
-      <button type="button" class="me-k me-k-new" ${act('openStationEdit', '')}>＋ Yeni mutfak</button></div>
   </div>`;
 }
 function meSel(id){ APP.meMenu = id; APP.meQ = ''; renderSettingsContent(getSession()); }
