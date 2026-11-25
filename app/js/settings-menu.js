@@ -64,23 +64,25 @@ function renderIngredientsSettings(el, session){
     return ingSort==='za' ? -c : ingSort==='stock' ? (Number(a.stock)-Number(b.stock)) || c : ingSort==='stockd' ? (Number(b.stock)-Number(a.stock)) || c
       : ingSort==='uses' ? (useCount(b.id)-useCount(a.id)) || c : ingSort==='status' ? (stRank(a)-stRank(b)) || c : ingSort==='unit' ? String(a.unit).localeCompare(String(b.unit)) || c : c; });
   const chip = (k, ic, v, l, c) => `<div class="os-chip os-click ${f===k?'on':''}" role="button" title="Listeyi filtrele" style="--oc:${c};" ${act('setIngFilter', k)}><span class="os-ic">${ic}</span><div><b>${v}</b><small>${l}</small></div></div>`;
-  el.innerHTML = `<div class="order-summary stat-chips" style="--n:5;">${chip('all','🥕', ings.length, 'Hammadde', 'var(--c1)')}${chip('low','📉', ings.filter(isLow).length, 'Kritik stok', 'var(--c3)')}${chip('out','⛔', ings.filter(i => !isPrep(i) && Number(i.stock)<=0).length, 'Stoğu biten', 'var(--danger,#ef4444)')}${chip('idle','💤', ings.filter(i => !useCount(i.id) && !isSrc(i) && !isPrep(i)).length, 'Reçetede kullanılmayan', 'var(--c3)')}${chip('waste','✂️', ings.filter(i => Number(i.waste_pct)>0).length, 'Fire tanımlı', 'var(--c2)')}</div>
-  <div class="u-mwn box">
-    <div class="fsheet-bar" style="margin:0 0 12px;"><h2 class="u-m0">Hammaddeler / Stok Kalemleri</h2><button type="button" class="fsheet-open" ${act('niStart', '')}>+ Yeni Hammadde</button></div>
+  el.innerHTML = `<div class="u-mwn box ux-prod ux-ing">
+    <div class="ux-bar">
+      <h2 class="u-m0">Hammaddeler</h2>
+      ${listSearchHtml('ingredients', 'Hammadde ara…').replace('margin:0 0 12px;','margin:0;')}
+      <button type="button" class="fsheet-open" ${act('niStart', '')}>+ Yeni Hammadde</button>
+      <div class="ig-view" title="Görünüm"><button type="button" class="${ingView !== 'list' ? 'on' : ''}" ${act('setIngView', 'grid')} title="Kart görünümü">▦ Kart</button><button type="button" class="${ingView === 'list' ? 'on' : ''}" ${act('setIngView', 'list')} title="Liste görünümü">☰ Liste</button></div>
+        <select class="ig-sort" title="Sırala" ${actOn('change','setIngSort',['$value'])}>${[['status','Duruma göre (gruplu)'],['name','A → Z'],['za','Z → A'],['stock','Stok: azdan çoğa'],['stockd','Stok: çoktan aza'],['uses','En çok üründe kullanılan'],['unit','Birime göre (gruplu)']].map(([k,l]) => `<option value="${k}" ${ingSort===k?'selected':''}>↕ ${l}</option>`).join('')}</select>
+      <details class="ux-more"><summary title="Diğer işlemler">⋯ Diğer</summary><div class="ux-more-pop">
+        <div class="ux-more-t">Excel, arşiv, sayım</div>${typeof excelBarHtml === 'function' ? excelBarHtml('ingredients') : ''}
+      </div></details>
+    </div>
+    <div class="ux-chips">${chip('all','🥕', ings.length, 'Hammadde', 'var(--c1)')}${chip('low','📉', ings.filter(isLow).length, 'Kritik stok', 'var(--c3)')}${chip('out','⛔', ings.filter(i => !isPrep(i) && Number(i.stock)<=0).length, 'Stoğu biten', 'var(--danger,#ef4444)')}${chip('idle','💤', ings.filter(i => !useCount(i.id) && !isSrc(i) && !isPrep(i)).length, 'Reçetede kullanılmayan', 'var(--c3)')}${chip('waste','✂️', ings.filter(i => Number(i.waste_pct)>0).length, 'Fire tanımlı', 'var(--c2)')}</div>
     <details class="prod-info"><summary>ℹ️ Nasıl çalışır</summary><p class="muted" style="text-align:left;margin:0 0 12px;">Örn: "Köfte" (birim: adet, stok: 200), "Döner Eti" (birim: kg, stok: 20). Yeni bir hammadde eklediğinizde hangi ürünlerin onu kullandığını hemen soracağız — istediğiniz zaman "Kullanıldığı Ürünler" ile bunu tekrar düzenleyebilirsiniz. Aynı hammaddeyi paylaşan ürünlerin stoğu her zaman ortak ve anlık hesaplanır. <b>Min</b>: stok bu seviyeye inince Malzeme Siparişi Ver menüsünde uyarı çıkar ve tek tıkla sipariş taslağı hazırlanır. <b>Fire %</b>: temizleme/kesim kaybıdır; reçeteye net miktarı girersiniz, stoktan fire eklenerek düşülür (örn. %10 fire, 60 g net → 66,7 g düşer). Kartları değiştirip <b>Kaydet</b>'e basın; silmek için kartları seçin.</p></details>
     <div class="add-row-panel">
-      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:0 0 10px;">
-        ${listSearchHtml('ingredients', 'Hammadde ara…').replace('margin:0 0 12px;','margin:0;')}
-        ${typeof excelBarHtml === 'function' ? excelBarHtml('ingredients') : ''}
-        <div class="ig-view" title="Görünüm"><button type="button" class="${ingView !== 'list' ? 'on' : ''}" ${act('setIngView', 'grid')} title="Kart görünümü">▦ Kart</button><button type="button" class="${ingView === 'list' ? 'on' : ''}" ${act('setIngView', 'list')} title="Liste görünümü">☰ Liste</button></div>
-        <select class="ig-sort" title="Sırala" ${actOn('change','setIngSort',['$value'])}>${[['status','Duruma göre (gruplu)'],['name','A → Z'],['za','Z → A'],['stock','Stok: azdan çoğa'],['stockd','Stok: çoktan aza'],['uses','En çok üründe kullanılan'],['unit','Birime göre (gruplu)']].map(([k,l]) => `<option value="${k}" ${ingSort===k?'selected':''}>↕ ${l}</option>`).join('')}</select>
-        <span class="u-f1"></span>
-        <div class="act-row">
+      <div class="ux-sel"><div class="act-row">
           <button type="button" class="act-btn act-save" id="ingSaveAllBtn" ${act('saveAllIngredients')} disabled>${ICON_SAVE}<span>Kaydet</span></button>
           <button type="button" class="act-btn act-reset" title="Seçili hammaddelerin stoğunu sıfırla (önce hammadde seçin)" data-ing-sel ${act('resetIngredientStock')} disabled><b>↺</b><span>Stokları sıfırla</span></button>
           <button type="button" class="act-btn act-delete" data-ing-sel ${act('bulkDeleteIngredients')} disabled>${ICON_TRASH}<span>Sil</span></button>
-        </div>
-      </div>
+        </div></div>
       <p class="muted" id="ingSelInfo" style="text-align:left;font-size:12.5px;margin:-4px 0 8px;text-transform:none;letter-spacing:0;font-weight:400;"></p>
     </div>
     ${sheetHtml('ingSheet', '🥕', 'Yeni Hammadde', `<div id="niKind" class="ni-kind">
@@ -811,6 +813,7 @@ function pickStationIcon(targetId, icon){
   const bg = document.getElementById('iconPickerBg');
   if(bg) bg.remove();
 }
+function setStTab(t){ APP.stTab = t; renderSettingsContent(getSession()); }
 function renderStationsSettings(el, session){
   const menus = APP.config.menus || [], stations = APP.config.stations || [];
   const prodCount = (mid) => (APP.config.products||[]).filter(p => p.menu_id === mid).length;
@@ -845,13 +848,20 @@ function renderStationsSettings(el, session){
       ${stationKitchenProductsHtml(s)}
     </div>`; };
   const free = menus.filter(m => !m.station_id || !stations.some(x => x.id === m.station_id));
-  el.innerHTML = statChips([['📋', menus.length, 'Menü', 'var(--c1)', 'all'], ['🍳', stations.length, 'İstasyon', 'var(--c2)', 'station'],
-      ['🍽️', (APP.config.products||[]).length, 'Ürün', 'var(--c3)', 'go:setSettingsTab:products'], ['⚠️', free.length, 'İstasyonsuz menü', free.length ? 'var(--danger,#ef4444)' : 'var(--c4)', 'free']], '', 'menus') +
-    `<div class="u-mwn box">
-    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;"><h2 class="u-m0">Menüler & İstasyonlar</h2>
-      <span style="margin-left:auto;display:flex;gap:8px;flex-wrap:wrap;"><button type="button" class="ghost-btn u-wa-m0" title="Ürünler ve fiyatlarıyla menü (A4 PDF)" ${act('downloadMenuPdf', true)}>📄 Menü PDF · fiyatlı</button><button type="button" class="ghost-btn u-wa-m0" title="Fiyatsız menü (A4 PDF)" ${act('downloadMenuPdf', false)}>📄 Menü PDF · fiyatsız</button></span></div>
-    ${typeof excelBarHtml === 'function' ? excelBarHtml('menus') : ''}
-    <p class="muted" style="text-align:left;margin:6px 0 14px;font-size:13px;">Her sütun bir mutfak istasyonu. İçindeki menülerin ürünleri o istasyonun ekranına ve yazıcısına düşer. Menüyü başka istasyona taşımak için kartındaki seçimi değiştirin.</p>
+  const stTab = APP.stTab || 'board';
+  el.innerHTML = `<div class="u-mwn box ux-st">
+    <div class="ux-bar">
+      <h2 class="u-m0">Menüler & İstasyonlar</h2>
+      <div class="seg ux-tabs">${[['board','🍳 İstasyonlar'],['order','📋 Sipariş ekranı sırası']].map(([k,l]) => `<button type="button" class="${stTab===k?'on':''}" ${act('setStTab', k)}>${l}</button>`).join('')}</div>
+      <span class="u-f1"></span>
+      <span class="ux-meta">${menus.length} menü · ${stations.length} istasyon${free.length ? ` · <b class="ux-warn">⚠️ ${free.length} istasyonsuz menü</b>` : ''}</span>
+      <details class="ux-more"><summary title="Diğer işlemler">⋯ Diğer</summary><div class="ux-more-pop">
+        <div class="ux-more-t">Menü PDF</div>
+        <div class="xl-bar"><button type="button" class="xl-btn" title="Ürünler ve fiyatlarıyla menü (A4 PDF)" ${act('downloadMenuPdf', true)}>📄 Menü PDF · fiyatlı</button><button type="button" class="xl-btn" title="Fiyatsız menü (A4 PDF)" ${act('downloadMenuPdf', false)}>📄 Menü PDF · fiyatsız</button></div>
+        <div class="ux-more-t">Excel</div>${typeof excelBarHtml === 'function' ? excelBarHtml('menus') : ''}
+      </div></details>
+    </div>
+    ${stTab === 'board' ? `<p class="muted ux-hint">Her sütun bir mutfak istasyonu: içindeki menülerin ürünleri o istasyonun ekranına ve yazıcısına düşer. Menüyü taşımak için kartındaki seçimi değiştirin.</p>
     <div class="st-board" data-cf-scope="menus">
       <div class="st-col st-free" data-cf-tags="free" style="--sc:#94a3b8;">
         <div class="st-col-head"><span class="st-free-ic">📋</span><b class="st-col-title">İstasyonsuz menüler</b></div>
@@ -868,10 +878,8 @@ function renderStationsSettings(el, session){
         </div>
       </div>
     </div>
-  </div>
-  <div class="box mo-box" style="max-width:none;margin-top:18px;">
-    <h2 style="margin:0 0 4px;">📋 Sipariş Al Ekranında Menü Sırası</h2>
-    <p class="muted" style="text-align:left;margin:0 0 14px;font-size:13px;">Menüleri sürükleyip bırakın ya da oklarla taşıyın. Sipariş Al ekranındaki soldaki menü listesi bu sırayla görünür.</p>
+` : `<div class="mo-box">
+    <p class="muted ux-hint">Menüleri sürükleyip bırakın ya da oklarla taşıyın. Sipariş Al ekranındaki soldaki menü listesi bu sırayla görünür.</p>
     <div class="mo-wrap">
       <div class="mo-list" id="menuOrderList">
         <div class="mo-item mo-fixed"><span class="mo-no">★</span><b>Tümü</b><small>her zaman en üstte</small></div>
@@ -886,6 +894,7 @@ function renderStationsSettings(el, session){
         <div class="mo-pv"><div class="mo-pv-i on">Tümü <em>${(APP.config.products||[]).length}</em></div>${menus.map(m => `<div class="mo-pv-i">${escapeHtml(m.name)} <em>${prodCount(m.id)}</em></div>`).join('')}</div>
       </div>
     </div>
+  </div>`}
   </div>`;
   initMenuOrderDnD();
 }
@@ -1113,7 +1122,7 @@ function guestRequiredBoxHtml(){
     <label class="oo-switch" title="Aç / kapat"><input type="checkbox" ${on ? 'checked' : ''} ${actOn('change','toggleGuestRequired',[])}><span class="oo-track"><span class="oo-thumb"></span></span><em>${on ? 'Açık' : 'Kapalı'}</em></label></div></div>`;
 }
 async function setTreatOn(on){
-  APP.ttOn = !!on;
+  APP.ttOn = !!on; APP.zSetOpen = true;
   if(!on && APP.config && APP.config.treat && APP.config.treat.product_id){
     const s = getSession(); const { error } = await sb.rpc('set_table_treat', { p_token: s.session_token, p_product_id: null, p_zone_ids: [] });
     if(error){ alert(error.message); return; }
@@ -1123,6 +1132,7 @@ async function setTreatOn(on){
 }
 function ttAllZones(){ document.querySelectorAll('.tt-z:checked').forEach(c => { c.checked = false; }); saveTableTreat(); }
 async function saveTableTreat(){
+  APP.zSetOpen = true;
   const pid = document.getElementById('ttProd').value || null, zones = [...document.querySelectorAll('.tt-z:checked')].map(c => c.value);
   if(!pid) return;
   const s = getSession();
@@ -1138,14 +1148,19 @@ function renderZonesSettings(el, session){
   if(!zones.some(z => z.id === APP.zoneSel)) APP.zoneSel = zones.length ? zones[0].id : null;
   const z = zones.find(x => x.id === APP.zoneSel);
   const total = zones.reduce((x, q) => x + q.tables.length, 0);
-  el.innerHTML = statChips([['📍', zones.length, 'Bölge', 'var(--c1)'], ['🪑', total, 'Toplam masa', 'var(--c2)', 'all'],
-      ['▦', zones.reduce((x, q) => x + q.tables.filter(t => t.qr_token).length, 0), 'QR kodlu masa', 'var(--c3)', 'qr'], ['⬜', zones.reduce((x, q) => x + q.tables.filter(t => !t.qr_token).length, 0), 'QR kodsuz masa', 'var(--c4)', 'noqr']], '', 'zones') +
-    tableTreatBoxHtml() + guestRequiredBoxHtml() + `<div class="u-mwn box">
-    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:14px;">
-      <h2 class="u-m0">Bölgeler & Masalar</h2><span class="u-f1"></span>
-      <button type="button" class="pc-btn" ${act('showAllTableQrs')}>▦ Tüm QR'ları Yazdır</button>
-      <button type="button" class="pc-btn" ${act('downloadZoneQrPdf', '')} title="Her bölüm için ayrı A4 PDF">⬇ QR'ları Bölüm Bölüm İndir</button>
+  const trOn = !!(APP.config.treat && APP.config.treat.product_id) || !!APP.ttOn, grOn = !!APP.config.guest_required;
+  el.innerHTML = `<div class="u-mwn box ux-zn">
+    <div class="ux-bar">
+      <h2 class="u-m0">Bölgeler & Masalar</h2>
+      <span class="ux-meta">${zones.length} bölge · ${total} masa</span>
+      <span class="u-f1"></span>
+      <details class="ux-more"><summary title="QR işlemleri">▦ QR kodları</summary><div class="ux-more-pop">
+        <div class="xl-bar"><button type="button" class="xl-btn" ${act('showAllTableQrs')}>▦ Tüm QR'ları Yazdır</button>
+        <button type="button" class="xl-btn" ${act('downloadZoneQrPdf', '')} title="Her bölüm için ayrı A4 PDF">⬇ QR'ları Bölüm Bölüm İndir</button></div>
+      </div></details>
     </div>
+    <details class="ux-set" ${APP.zSetOpen ? 'open' : ''}><summary>⚙️ Masa ayarları <span class="ux-meta">· 🥗 İkram: ${trOn ? 'Açık' : 'Kapalı'} · 🔒 Kişi sayısı zorunlu: ${grOn ? 'Açık' : 'Kapalı'}</span></summary>
+      <div class="ux-set-body">${tableTreatBoxHtml()}${guestRequiredBoxHtml()}</div></details>
     <div class="zn-layout">
       <div class="zn-list">
         ${zones.map((q, i) => `<button type="button" class="zn-item ${q.id===APP.zoneSel?'on':''}" style="--zc:var(--c${i%4+1});" ${act('selectZoneSetting', q.id)}>
@@ -1584,10 +1599,17 @@ function renderProductsSettings(el, session){
     : pf==='nocost' ? products.filter(p => !(Number(p.cost) > 0)) : pf==='low' ? products.filter(isLow) : pf==='lowmargin' ? products.filter(p => Number(p.price)>0 && mOf(p) < .35) : products;
   const lowN = products.filter(p => { const q = p.recipe && p.recipe.length ? p.available_qty : p.stock; return q!=null && q<=5; }).length;
   setTimeout(loadCostHub, 0);
-  el.innerHTML = `<div class="u-mwn box">
-    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;"><h2 class="u-m0">Ürünler</h2><span class="u-f1"></span>
-      <div class="seg">${[['cards','▦ Kart'],['table','☰ Tablo']].map(([k,l]) => `<button type="button" class="${(cardMode?'cards':'table')===k?'on':''}" ${act('setProdView', k)}>${l}</button>`).join('')}</div></div>
-    <div class="order-summary prod-summary" style="margin:12px 0 14px;">
+  el.innerHTML = `<div class="u-mwn box ux-prod">
+    <div class="ux-bar">
+      <h2 class="u-m0">Ürünler</h2>
+      ${listSearchHtml('products', 'Ürün ara…').replace('margin:0 0 12px;','margin:0;')}
+      ${sheetBtnHtml('prodSheet','+ Yeni Ürün')}
+      <div class="seg">${[['cards','▦'],['table','☰']].map(([k,l]) => `<button type="button" title="${k==='cards'?'Kart':'Tablo'} görünümü" class="${(cardMode?'cards':'table')===k?'on':''}" ${act('setProdView', k)}>${l}</button>`).join('')}</div>
+      <details class="ux-more"><summary title="Diğer işlemler">⋯ Diğer</summary><div class="ux-more-pop">
+        <div class="ux-more-t">Excel & PDF</div>${typeof excelBarHtml === 'function' ? excelBarHtml('products') + excelBarHtml('recipes') : ''}
+      </div></details>
+    </div>
+    <div class="ux-chips">
       <div class="os-chip os-click ${pf==='all'?'on':''}" role="button" title="Listeyi filtrele" ${act('setProdFilter', 'all')} style="--oc:var(--c1);"><span class="os-ic">🍔</span><div><b>${products.length}</b><small>Ürün</small></div></div>
       <div class="os-chip os-click ${pf==='on'?'on':''}" role="button" title="Listeyi filtrele" ${act('setProdFilter', 'on')} style="--oc:var(--ok,#22c55e);"><span class="os-ic">✅</span><div><b>${sale}</b><small>Satışta</small></div></div>
       <div class="os-chip os-click ${pf==='off'?'on':''}" role="button" title="Listeyi filtrele" ${act('setProdFilter', 'off')} style="--oc:var(--danger,#ef4444);"><span class="os-ic">⛔</span><div><b>${products.length-sale}</b><small>Kapalı</small></div></div>
@@ -1596,6 +1618,8 @@ function renderProductsSettings(el, session){
       <div class="os-chip os-click ${pf==='nocost'?'on':''}" role="button" title="Listeyi filtrele" ${act('setProdFilter', 'nocost')} style="--oc:#ef4444;"><span class="os-ic">💸</span><div><b>${products.filter(p => !(Number(p.cost) > 0)).length}</b><small>Maliyet girilmemiş</small></div></div>
       <div class="os-chip os-click ${pf==='norecipe'?'on':''}" role="button" title="Reçetesi olmayan ürünler (stok ve maliyet otomatik düşmez)" ${act('setProdFilter', 'norecipe')} style="--oc:#f97316;"><span class="os-ic">📋</span><div><b>${products.filter(p => !(p.recipe || []).length).length}</b><small>Reçetesiz</small></div></div>
     </div>
+    ${Number(APP.config.default_vat_rate ?? 10) === 0 ? `<div class="vat0-warn">⚠️ <b>Varsayılan KDV %0</b> görünüyor. Restoran yemeklerinde KDV genelde %10'dur; %0 iken kâr hesaplarından KDV düşülmez, fiş ve KDV raporu da yanlış görünebilir. Aşağıdaki <b>Nasıl çalışır · Varsayılan KDV</b> bölümünden düzeltin.</div>` : ''}
+    <details class="ux-set"><summary>⚙️ Maliyet, KDV ve ekran ayarları</summary><div class="ux-set-body">
     <div class="cost-hub" role="button" ${act('openOverheads')}>
       <div class="ch-ic">📊</div>
       <div class="ch-main"><b>Maliyet & Giderler</b>
@@ -1604,12 +1628,9 @@ function renderProductsSettings(el, session){
         <div class="ch-be" id="costHubBe"></div></div>
       <span class="ch-go">Aç ›</span>
     </div>
-    ${Number(APP.config.default_vat_rate ?? 10) === 0 ? `<div class="vat0-warn">⚠️ <b>Varsayılan KDV %0</b> görünüyor. Restoran yemeklerinde KDV genelde %10'dur; %0 iken kâr hesaplarından KDV düşülmez, fiş ve KDV raporu da yanlış görünebilir. Aşağıdaki <b>Nasıl çalışır · Varsayılan KDV</b> bölümünden düzeltin.</div>` : ''}
     <div class="cost-tip ch-tip">💡 <b>Hazır alıp sattığınız ürünler</b> (ayran, kola, su…): ürün adıyla bir hammadde açıp ürüne <b>1 adet</b> reçete ekleyin; Mal Kabul'deki alış maliyeti otomatik yansır.</div>
     <label class="sc-toggle"><span class="oo-switch"><input type="checkbox" ${APP.config.close_no_cost !== false ? 'checked' : ''} ${actOn('change','toggleCloseNoCost',['$checked', '$this'])}><span class="oo-track"><span class="oo-thumb"></span></span><em>${APP.config.close_no_cost !== false ? 'Açık' : 'Kapalı'}</em></span><span>💸 Maliyeti girilmemiş ürünler satışa <b>kapalı</b> gelsin <small class="muted">(istediğiniz ürünü yine "Satışa Aç" ile açabilirsiniz)</small></span></label>
     <label class="sc-toggle" title="Kapalıyken satışa kapattığınız ürünler Sipariş Al ve Paket Servis ürün listesinde hiç görünmez"><span class="oo-switch"><input type="checkbox" ${APP.config.order_show_closed !== false ? 'checked' : ''} ${actOn('change','toggleOrderShowClosed',['$checked', '$this'])}><span class="oo-track"><span class="oo-thumb"></span></span><em>${APP.config.order_show_closed !== false ? 'Açık' : 'Kapalı'}</em></span><span>⛔ Satışa kapalı ürünler <b>Sipariş Al</b> ekranında görünsün <small class="muted">(kapalıyken listeden tamamen gizlenir)</small></span></label>
-    ${pf!=='all' ? `<div class="pf-note">🔎 <b>${{on:'Satıştaki',off:'Kapalı',low:'Stoğu azalan',lowmargin:'Düşük marjlı',nocost:'Maliyeti girilmemiş'}[pf]} ürünler</b> gösteriliyor (${shown.length})<button type="button" class="pc-btn" ${act('setProdFilter', 'all')}>✕ Tümünü göster</button></div>` : ''}
-    ${pf!=='all' && !shown.length ? '<div class="empty-state"><div style="font-size:38px;">🎉</div><p class="muted">Bu filtrede ürün yok.</p></div>' : ''}
     <details class="prod-info"><summary>ℹ️ Nasıl çalışır · Varsayılan KDV: %${APP.config.default_vat_rate ?? 10}</summary>
     <p class="muted" style="text-align:left;margin:-6px 0 12px;font-size:13px;"><b>Menü</b>: ürünün menüsü (menüleri ve hangi istasyona gideceklerini <b>Menüler & İstasyonlar</b> sekmesinde ayarlayın); ürünün istasyonu menüden gelir. <b>🖨️ Fiş</b> işareti kaldırılan ürünler mutfak fişine yazdırılmaz (ekranda yine görünür).</p>
     <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 10px;">
@@ -1619,17 +1640,18 @@ function renderProductsSettings(el, session){
     </div>
     <p class="muted" style="text-align:left;margin:0 0 16px;">Stok alanını boş bırakırsanız o ürün için stok takibi yapılmaz. Satırları değiştirip <b>Kaydet</b>'e basın; satışa açmak / kapatmak / silmek için satırları seçin.</p>
     </details>
+    </div></details>
+    ${pf!=='all' ? `<div class="pf-note">🔎 <b>${{on:'Satıştaki',off:'Kapalı',low:'Stoğu azalan',lowmargin:'Düşük marjlı',nocost:'Maliyeti girilmemiş'}[pf]} ürünler</b> gösteriliyor (${shown.length})<button type="button" class="pc-btn" ${act('setProdFilter', 'all')}>✕ Tümünü göster</button></div>` : ''}
+    ${pf!=='all' && !shown.length ? '<div class="empty-state"><div style="font-size:38px;">🎉</div><p class="muted">Bu filtrede ürün yok.</p></div>' : ''}
     <div class="add-row-panel">
-    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:0 0 10px;">
-        ${listSearchHtml('products', 'Ürün ara…').replace('margin:0 0 12px;','margin:0;')}
-        ${sheetBtnHtml('prodSheet','+ Yeni Ürün')}${typeof excelBarHtml === 'function' ? excelBarHtml('products') + excelBarHtml('recipes') : ''}
-        <span class="u-f1"></span>
+    <div class="ux-sel">
         <div class="act-row">
           <button type="button" class="act-btn act-save" id="prodSaveAllBtn" ${act('saveAllProducts')} disabled>${ICON_SAVE}<span>Kaydet</span></button>
           <button type="button" class="act-btn act-open" data-prod-sel ${act('bulkProductAvailable', true)} disabled><b>✓</b><span>Satışa Aç</span></button>
           <button type="button" class="act-btn act-close" data-prod-sel ${act('bulkProductAvailable', false)} disabled><b>✕</b><span>Satışa Kapat</span></button>
           <button type="button" class="act-btn act-delete" data-prod-sel ${act('bulkDeleteProducts')} disabled>${ICON_TRASH}<span>Sil</span></button>
         </div>
+      </div>
       </div>
       <p class="muted" id="prodSelInfo" style="text-align:left;font-size:12.5px;margin:-4px 0 8px;text-transform:none;letter-spacing:0;font-weight:400;min-height:0;"></p>
 ${sheetHtml('prodSheet', '🍽️', 'Yeni Ürün', `
