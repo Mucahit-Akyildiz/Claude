@@ -169,20 +169,34 @@
       const displayPrice = yearly ? yearlyPrice : monthlyPrice;
       const hasDiscount = yearly && p.price_yearly!=null && p.price_yearly < monthlyPrice*12;
       const savings = hasDiscount ? (monthlyPrice*12 - p.price_yearly) : 0;
+      // Karakter + günlük fiyat esprisi: kart sırasına ve fiyata göre (paket adları adminden değişebilir).
+      const PERSONA = [
+        { ic:'☕', who:'Küçük kafe, büfe, kahveci', line:'Kasayı açın, gerisini bize bırakın.' },
+        { ic:'🍲', who:'Esnaf lokantası, mahalle restoranı', line:'Mutfak, servis, stok… hepsi tek ekranda.' },
+        { ic:'🔥', who:'Yoğun, kalabalık restoran', line:'Öğlen saati koşturması? Biz alışkınız.' },
+        { ic:'🏢', who:'Şubeli işletme, zincir', line:'Tüm şubeleriniz tek bakışta.' },
+      ];
+      const pr = PERSONA[Math.min(i, PERSONA.length - 1)];
+      const daily = monthlyPrice ? monthlyPrice / 30 : 0;
+      const treat = daily <= 8 ? 'bir çay parası ☕' : daily <= 20 ? 'bir simit parası 🥯' : daily <= 40 ? 'bir tost parası 🥪' : daily <= 80 ? 'bir dürüm parası 🌯' : 'bir pide parası 🫓';
+      const allFeats = inheritsPrev ? extras : (extras.length ? extras : common);
+      const TOP = 5, top = allFeats.slice(0, TOP), rest = allFeats.slice(TOP);
+      const inheritTxt = inheritsPrev ? `<b>${escapeHtml(packages[i-1].name)}</b>'daki her şey +` : (extras.length && common.length ? 'Tüm standart özellikler +' : 'Başlamak için gereken her şey:');
       return `
-      <div class="price-card ${p.is_popular?'popular':''} ${CART.pkg===p.id?'in-cart':''}">
-        ${p.is_popular ? '<span class="badge">EN ÇOK TERCİH EDİLEN</span>' : ''}
+      <div class="price-card pc2 ${p.is_popular?'popular':''} ${CART.pkg===p.id?'in-cart':''}">
+        ${p.is_popular ? '<span class="badge">⭐ EN ÇOK TERCİH EDİLEN</span>' : ''}
+        <div class="pc2-ic" aria-hidden="true">${pr.ic}</div>
         <h3>${escapeHtml(p.name)}</h3>
+        <p class="pc2-who">${escapeHtml(p.description || pr.who)}</p>
         <div class="amount">${monthlyPrice ? money(displayPrice)+' <small>'+(yearly?'TL/yıl':'TL/ay')+'</small>' : '—'}</div>
-        ${hasDiscount ? `<p class="u-saving desc">Yıllıkta ${money(savings)} TL tasarruf</p>` : ''}
-        <p class="desc">${escapeHtml(p.description)}</p>
-        <ul>
-          <li><b>${p.max_users} kullanıcıya kadar</b></li>
-          ${inheritLine ? `<li class="u-inherit inherit">${inheritLine}</li>` : ''}
-          ${extras.map(f => `<li class="plus">${escapeHtml(label(f))}</li>`).join('')}
-          ${(!extras.length && inheritsPrev) ? '<li class="inherit">Ek özellik yok</li>' : ''}
-        </ul>
-        <button type="button" class="u-full btn ${CART.pkg===p.id?'btn-primary':'btn-outline'}" ${act('selectCartPackage', p.id)}>${CART.pkg===p.id?'✓ Sepette':'Sepete Ekle'}</button>
+        ${hasDiscount ? `<p class="u-saving desc">🎉 Yıllıkta ${money(savings)} TL cebinizde kalır</p>` : ''}
+        ${daily ? `<p class="pc2-daily">Günde <b>${money(daily)} TL</b> — ${treat}</p>` : ''}
+        <p class="pc2-line">“${escapeHtml(pr.line)}”</p>
+        <div class="pc2-users">👥 <b>${p.max_users}</b> kullanıcıya kadar</div>
+        <div class="pc2-inh">${inheritTxt}</div>
+        <ul>${top.map(f => `<li class="plus">${escapeHtml(label(f))}</li>`).join('')}</ul>
+        ${rest.length ? `<details class="pc2-more"><summary>+ ${rest.length} özellik daha</summary><ul>${rest.map(f => `<li class="plus">${escapeHtml(label(f))}</li>`).join('')}</ul></details>` : ''}
+        <button type="button" class="u-full btn ${CART.pkg===p.id?'btn-primary':(p.is_popular?'btn-primary':'btn-outline')}" ${act('selectCartPackage', p.id)}>${CART.pkg===p.id?'✓ Sepette':'7 gün ücretsiz dene'}</button>
       </div>`;
     }).join('');
     const commonSection = document.getElementById('commonSection');

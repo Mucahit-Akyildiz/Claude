@@ -211,3 +211,30 @@
 .site-lang{width:auto;height:38px;padding:0 10px;border-radius:999px;border:1.5px solid var(--border);background:transparent;color:var(--text);font-weight:700;font-size:13px;cursor:pointer}
 html[dir=rtl] body{direction:rtl}
 html[dir=rtl] .hero{text-align:right}
+  /* Fiyat kartları v2: karakter, günlük fiyat esprisi, öne çıkan özellikler */
+  .price-card.pc2{display:flex;flex-direction:column;padding:30px 22px 22px;transition:transform .2s ease,box-shadow .2s ease;animation:pc2In .5s ease both;}
+  .price-card.pc2:hover{transform:translateY(-6px);box-shadow:0 18px 40px rgba(0,0,0,.25);}
+  .price-card.pc2.popular{transform:scale(1.03);box-shadow:0 20px 50px color-mix(in srgb,var(--accent) 25%,transparent);}
+  .price-card.pc2.popular:hover{transform:scale(1.03) translateY(-6px);}
+  @keyframes pc2In{from{opacity:0;transform:translateY(14px)}to{opacity:1}}
+  .pc2-ic{font-size:44px;line-height:1;margin:0 auto 8px;width:72px;height:72px;display:grid;place-items:center;border-radius:22px;background:var(--accent-soft);}
+  .price-card.pc2:hover .pc2-ic{animation:pc2Wig .6s ease;}
+  @keyframes pc2Wig{0%,100%{transform:rotate(0)}25%{transform:rotate(-10deg)}75%{transform:rotate(10deg)}}
+  .pc2 h3{color:var(--text)!important;font-size:17px!important;}
+  .pc2-who{font-size:13px;color:var(--muted);margin:0 0 6px;min-height:34px;}
+  .pc2 .amount{margin:6px 0 4px;}
+  .pc2-daily{display:inline-block;margin:4px auto 10px;padding:6px 12px;border-radius:999px;background:color-mix(in srgb,var(--accent) 12%,transparent);color:var(--text);font-size:13px;}
+  .pc2-daily b{color:var(--accent);}
+  .pc2-line{font-style:italic;font-size:13.5px;color:var(--text);opacity:.85;margin:0 0 14px;}
+  .pc2-users{font-size:14px;padding:10px 0;border-top:1px dashed var(--border);border-bottom:1px dashed var(--border);margin-bottom:12px;}
+  .pc2-inh{font-size:12.5px;color:var(--muted);text-align:left;margin-bottom:4px;}
+  .pc2 ul{margin:0 0 8px!important;}
+  .pc2 li{border-top:none!important;padding:5px 0!important;}
+  .pc2 li.plus::before{content:'✓ '!important;}
+  .pc2-more{text-align:left;margin:0 0 16px;}
+  .pc2-more summary{cursor:pointer;color:var(--accent);font-weight:700;font-size:13px;padding:6px 0;list-style:none;}
+  .pc2-more summary::-webkit-details-marker{display:none;}
+  .pc2-more[open] summary{opacity:.7;}
+  .pc2 > .btn{margin-top:auto;}
+  @media (prefers-reduced-motion:reduce){.price-card.pc2,.price-card.pc2:hover .pc2-ic{animation:none;}}
+  .pc2:nth-child(2){animation-delay:.08s} .pc2:nth-child(3){animation-delay:.16s} .pc2:nth-child(4){animation-delay:.24s} .pc2:nth-child(5){animation-delay:.32s}

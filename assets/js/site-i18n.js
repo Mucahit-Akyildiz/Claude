@@ -1,6 +1,26 @@
 /* Ana sayfa çevirileri (bkz. /app/js/i18n.js). "Türkçe|English|العربية|Русский|Deutsch" */
 (function(){
 const L = `
+“Kasayı açın, gerisini bize bırakın.”|“Open the till, leave the rest to us.”|“افتح الصندوق واترك الباقي لنا.”|«Откройте кассу — остальное за нами.»|„Kasse auf, den Rest übernehmen wir.“
+“Mutfak, servis, stok… hepsi tek ekranda.”|“Kitchen, service, stock… all on one screen.”|“المطبخ والخدمة والمخزون… كلها في شاشة واحدة.”|«Кухня, зал, склад… всё на одном экране.»|„Küche, Service, Lager… alles auf einem Bildschirm.“
+“Öğlen saati koşturması? Biz alışkınız.”|“Lunch-hour rush? We're used to it.”|“زحمة الغداء؟ اعتدنا عليها.”|«Обеденный наплыв? Мы привыкли.»|„Mittagsansturm? Sind wir gewohnt.“
+“Tüm şubeleriniz tek bakışta.”|“All your branches at a glance.”|“كل فروعك بنظرة واحدة.”|«Все филиалы — одним взглядом.»|„Alle Filialen auf einen Blick.“
+Günde|Per day|يوميًا|В день|Pro Tag
+— bir çay parası ☕|— the price of a tea ☕|— ثمن كوب شاي ☕|— как стакан чая ☕|— so viel wie ein Tee ☕
+— bir simit parası 🥯|— the price of a bagel 🥯|— ثمن كعكة سميت 🥯|— как бублик 🥯|— so viel wie ein Sesamkringel 🥯
+— bir tost parası 🥪|— the price of a toastie 🥪|— ثمن توست 🥪|— как тост 🥪|— so viel wie ein Toast 🥪
+— bir dürüm parası 🌯|— the price of a wrap 🌯|— ثمن لفافة 🌯|— как шаурма 🌯|— so viel wie ein Dürüm 🌯
+— bir pide parası 🫓|— the price of a pide 🫓|— ثمن فطيرة 🫓|— как пиде 🫓|— so viel wie eine Pide 🫓
+kullanıcıya kadar|users|مستخدمين كحد أقصى|пользователей|Benutzer
+Başlamak için gereken her şey:|Everything you need to start:|كل ما تحتاجه للبدء:|Всё, чтобы начать:|Alles für den Start:
+Tüm standart özellikler +|All standard features +|كل الميزات القياسية +|Все стандартные функции +|Alle Standardfunktionen +
+'daki her şey +|: everything, plus|: كل شيء، بالإضافة إلى|: всё, плюс|: alles, plus
+7 gün ücretsiz dene|Try free for 7 days|جرّب مجانًا 7 أيام|7 дней бесплатно|7 Tage kostenlos testen
+⭐ EN ÇOK TERCİH EDİLEN|⭐ MOST POPULAR|⭐ الأكثر اختيارًا|⭐ САМЫЙ ПОПУЛЯРНЫЙ|⭐ AM BELIEBTESTEN
+Küçük kafe, büfe, kahveci|Small café, kiosk, coffee shop|مقهى صغير، كشك|Небольшое кафе, киоск|Kleines Café, Kiosk
+Esnaf lokantası, mahalle restoranı|Local eatery, neighbourhood restaurant|مطعم الحي|Столовая, ресторан у дома|Lokal, Nachbarschaftsrestaurant
+Yoğun, kalabalık restoran|Busy, crowded restaurant|مطعم مزدحم|Загруженный ресторан|Gut besuchtes Restaurant
+Şubeli işletme, zincir|Multi-branch business, chain|سلسلة متعددة الفروع|Сеть, несколько филиалов|Filialbetrieb, Kette
 Neden Peyktan|Why Peyktan|لماذا Peyktan|Почему Peyktan|Warum Peyktan
 Neden Peyktan?|Why Peyktan?|لماذا Peyktan؟|Почему Peyktan?|Warum Peyktan?
 Özellikler|Features|المزايا|Возможности|Funktionen
