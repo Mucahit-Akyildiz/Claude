@@ -134,7 +134,7 @@ async function renderPurchaseOrdersContent(session){
   const shown = (pf==='all' ? rows.filter(p => p.status !== 'cancelled') : pf==='late' ? rows.filter(isLate) : rows.filter(p => p.status===pf)).map((p, i) => [p, i]).sort((a, b) => rank(a[0]) - rank(b[0]) || a[1] - b[1]).map(x => x[0]);
   el.innerHTML = `
   ${lowStockBannerHtml()}
-  <div class="fsheet-bar" style="margin:0 0 14px;"><p class="muted" style="margin:0;font-size:13px;text-align:left;">Hammadde ihtiyacınızı tedarikçiye sipariş olarak iletin.</p><button type="button" class="fsheet-open" ${act('openNewPoSheet')}>📝 Sipariş Taslağı Oluştur</button></div>
+  <div class="me2-bar"><div class="me2-tabs"><span class="me2-title">🛒 Malzeme siparişleri</span></div><div class="me2-tools"><span class="me2-adds"><button type="button" class="me2-tab me2-add" ${act('openNewPoSheet')}>＋ Yeni sipariş</button></span></div></div>
   ${sheetHtml('poSheet', '📝', 'Yeni Sipariş Taslağı', `<p class="muted" style="text-align:left;margin:0 0 12px;font-size:13px;">İhtiyaç duyduğunuz hammaddeleri ve miktarları girip <b>Taslağı Oluştur</b>'a basın. Taslak, kartındaki <b>🚚 Sipariş Ver</b> ile tedarikçiye iletilir; teslim alma, tedarikçi seçimi ve birim fiyat <b>Mal Kabul</b> menüsünden yapılır.</p>
       <div class="pos-search"><input id="poIngSearch" type="search" autocomplete="off" placeholder="🔍 Hammadde ara ve ekle… (ör. süt, tavuk, coala)" ${actOn('input','poIngFilter',['$value'])} ${actOn('click','poIngFilter',['$value'])}>
         <div id="poIngResults" class="pos-res" hidden></div></div>
@@ -198,7 +198,7 @@ function lowStockBannerHtml(){
   const low = lowStockList(); if(!low.length) return '';
   return `<div class="ls-banner">
     <div class="ls-head"><span class="ls-ic">📉</span><div><b>${low.length} hammadde kritik seviyede</b><small>Minimum stok seviyesinin altına inenler</small></div>
-      <button type="button" class="ls-btn" ${act('draftLowStockOrder')}>🛒 Sipariş taslağı hazırla</button></div>
+      <button type="button" class="ls-btn" ${act('draftLowStockOrder')}>🛒 Kritik olanları siparişe ekle</button></div>
     <div class="ls-chips">${low.map(i => `<span class="pchip ${Number(i.stock) <= 0 ? 'warn' : ''}">${escapeHtml(i.name)} · <b>${escapeHtml(fmtPackQty(i.stock, i))}</b> / ${escapeHtml(fmtIngQty(i.min_stock, i))}</span>`).join('')}</div>
   </div>`;
 }
