@@ -5196,3 +5196,13 @@ p.me2-hint{text-align:left!important;margin:-4px 0 12px!important;}
 .uc-acts:not(.one){display:flex!important;justify-content:flex-end;gap:8px;}
 .uc-acts:not(.one) button{width:auto!important;padding:10px 20px!important;border-radius:10px!important;}
 .uc-card:not(.danger):not(.warn) .uc-yes{background:var(--accent)!important;color:var(--btn-ink)!important;}
+/* Mutfak ekranı başlığı: butonlar taşmaz, nadir işler ⋯ içinde; sayılar küçük çipler */
+.kh-bar{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;min-width:0;}
+.kh-bar h1{margin:0;}
+.kh-tools{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end;min-width:0;}
+.kh-tools > button,.kh-tools > span > button{width:auto!important;margin:0!important;padding:8px 14px!important;font-size:13.5px;}
+.kh-tools .ux-more-pop{display:flex;flex-direction:column;gap:6px;min-width:200px;}
+.kh-tools .ux-more-pop button{width:100%!important;margin:0!important;text-align:left;}
+.kb-stats{display:flex!important;flex-wrap:wrap;gap:8px;margin:10px 0 12px;}
+.kb-stats>div{display:inline-flex;align-items:baseline;gap:6px;padding:6px 12px!important;border-radius:999px!important;}
+.kb-stats b{display:inline!important;font-size:15px!important;}
