@@ -5,7 +5,7 @@ function flFocusNew(){ const i = document.getElementById('nf_label'); if(i){ i.s
 function renderOrderFlagsSettings(el, session){
   const flags = APP.config.order_flags || [];
   el.innerHTML = `<div class="u-mwn box me2">
-    <div class="me2-bar"><div class="me2-tabs"><span class="me2-title">🏷️ Sipariş Etiketleri</span></div><div class="me2-tools"><span class="me2-adds"><button type="button" class="me2-tab me2-add" ${act('flFocusNew')}>＋ Etiket</button></span></div></div>
+    <div class="me2-bar"><div class="me2-tabs"><span class="me2-title">🏷️ Sipariş Etiketleri</span></div><div class="me2-tools"><span class="me2-adds"><button type="button" class="me2-tab me2-add" ${act('addOrderFlag')}>＋ Etiket</button></span></div></div>
     <p class="me2-hint">Sipariş al ekranında, siparişi mutfağa göndermeden önce işaretlenebilecek checkbox'lar (örn. "Personel Yemeği", "İkram"). İşaretlenen siparişlerde stok yine düşer, ama Finansal Analiz'deki ciro/net kârdan hariç tutulup ayrı bir toplam olarak gösterilir. İstediğiniz kadar etiket ekleyebilirsiniz.</p>
     <div class="fl-grid">
       ${flags.map((f, i) => `<div class="fl-card" style="--sc:var(--c${i%4+1});--i:${Math.min(i,12)};">
@@ -14,11 +14,6 @@ function renderOrderFlagsSettings(el, session){
         <button type="button" class="ico-btn" title="Kaydet" ${act('saveOrderFlag', f.id)}>💾</button>
         <button type="button" class="ico-btn danger" title="Sil" ${act('removeOrderFlag', f.id)}>🗑</button>
       </div>`).join('')}
-      <div class="fl-card fl-new">
-        <span class="fl-ic">＋</span>
-        <input class="fl-name" id="nf_label" placeholder="Yeni etiket (örn. Personel Yemeği)" ${actOn('keydown','onEnterCall',['$event','addOrderFlag'])}>
-        <button type="button" class="fl-add" ${act('addOrderFlag')}>Ekle</button>
-      </div>
     </div>
     ${flags.length ? `<div class="fl-prev"><small>👀 Sipariş ekranında böyle görünür</small>
       <div>${flags.map((f, i) => `<span class="fl-chip" style="--sc:var(--c${i%4+1});"><i>${i===0?'✓':''}</i>${escapeHtml(f.label)}</span>`).join('')}</div></div>` : ''}
@@ -35,7 +30,7 @@ async function saveOrderFlag(id){
 }
 async function addOrderFlag(){
   const session = getSession();
-  const label = document.getElementById('nf_label').value.trim();
+  const label = ((await uiPrompt('Yeni etiket adı (örn. Personel Yemeği, İkram):', '')) || '').trim();
   if(!label) return;
   const { error } = await sb.rpc('create_order_flag', { p_token: session.session_token, p_label: label });
   if(error){ alert(error.message); return; }

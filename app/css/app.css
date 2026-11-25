@@ -5087,10 +5087,18 @@ select.ss-hidden{display:none !important;}
 /* Ayarlar genel birlik: başlık satırı, kısa ipucu, küçük çipler */
 .me2-title{font-size:18px;font-weight:800;padding:6px 2px;white-space:nowrap;}
 p.me2-hint{text-align:left!important;margin:-4px 0 12px!important;}
-.set-content .order-summary,.set-content .stat-chips{display:flex!important;flex-wrap:wrap;gap:6px!important;margin:0 0 12px!important;}
-.set-content .order-summary .os-chip,.set-content .stat-chips .os-chip{display:inline-flex!important;align-items:center;gap:6px;min-height:0!important;padding:6px 12px!important;border-radius:999px!important;background:var(--panel2)!important;border:1px solid var(--border)!important;box-shadow:none!important;flex:0 0 auto!important;}
-.set-content .order-summary .os-chip::before,.set-content .order-summary .os-chip::after,.set-content .stat-chips .os-chip::before,.set-content .stat-chips .os-chip::after{display:none!important;}
+.set-content .order-summary,.set-content .stat-chips,#main > .order-summary,#main > .stat-chips,#main .ux-chips-all{display:flex!important;flex-wrap:wrap;gap:6px!important;margin:0 0 12px!important;}
+#main > .order-summary .os-chip,#main > .stat-chips .os-chip,.set-content .order-summary .os-chip,.set-content .stat-chips .os-chip{display:inline-flex!important;align-items:center;gap:6px;min-height:0!important;padding:6px 12px!important;border-radius:999px!important;background:var(--panel2)!important;border:1px solid var(--border)!important;box-shadow:none!important;flex:0 0 auto!important;}
+#main > .order-summary .os-chip::before,#main > .order-summary .os-chip::after,#main > .stat-chips .os-chip::before,#main > .stat-chips .os-chip::after,.set-content .order-summary .os-chip::before,.set-content .order-summary .os-chip::after,.set-content .stat-chips .os-chip::before,.set-content .stat-chips .os-chip::after{display:none!important;}
 .set-content .os-chip .os-ic{width:auto!important;height:auto!important;background:none!important;font-size:14px!important;}
 .set-content .os-chip>div{display:flex;align-items:baseline;gap:5px;} .set-content .os-chip b{font-size:14px!important;} .set-content .os-chip small{font-size:12px!important;}
 .set-content .os-chip.on{border-color:var(--accent)!important;background:color-mix(in srgb,var(--accent) 14%,var(--panel2))!important;}
 .set-content .box > h2:first-child{font-size:18px;padding-bottom:10px;border-bottom:1px solid var(--border);margin:0 0 10px;}
+
+#main > .order-summary .os-ic,#main > .stat-chips .os-ic{width:auto!important;height:auto!important;background:none!important;font-size:14px!important;}
+#main > .order-summary .os-chip>div,#main > .stat-chips .os-chip>div{display:flex;align-items:baseline;gap:5px;}
+#main > .order-summary .os-chip b,#main > .stat-chips .os-chip b{font-size:15px!important;} #main > .order-summary .os-chip small,#main > .stat-chips .os-chip small{font-size:12px!important;}
+/* Ana ekranlar: kutu başlıkları sade, eylem satırı tek hizada */
+#main > .box > h2:first-child,#main .fsheet-bar h2{font-size:18px;}
+#main .fsheet-bar{padding-bottom:10px;border-bottom:1px solid var(--border);margin-bottom:12px!important;}
+#main .crm-hbtns > *{white-space:nowrap;}
