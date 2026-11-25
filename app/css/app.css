@@ -5186,3 +5186,6 @@ p.me2-hint{text-align:left!important;margin:-4px 0 12px!important;}
 .order-modal .modal-sticky-actions > .ghost-btn{flex:0 0 auto!important;width:auto!important;padding:10px 16px!important;font-size:14px;background:transparent!important;border:1px solid color-mix(in srgb,var(--red) 55%,var(--border))!important;}
 .order-modal .modal-sticky-actions > #confirmBtn{flex:0 1 360px!important;margin-left:auto!important;width:auto!important;padding:13px 22px!important;border-radius:12px!important;}
 @media (max-width:600px){.order-modal .modal-sticky-actions > #confirmBtn{flex:1 1 auto!important;}}
+/* Pencerelerde ikiye bölünmüş dev butonlar yerine: sağa yaslı, içeriği kadar butonlar */
+:is([id$="Bg"],.modal-bg,.dg-bg,.iu-bg) :is(button.u-f1-m0,button[style*="flex:1"]):not(#confirmBtn){flex:0 1 auto!important;width:auto!important;padding:10px 16px!important;}
+:is([id$="Bg"],.modal-bg,.dg-bg,.iu-bg) div:has(> :is(button.u-f1-m0,button[style*="flex:1"]):not(#confirmBtn)){display:flex;gap:8px;justify-content:flex-end;flex-direction:row!important;flex-wrap:nowrap;}
