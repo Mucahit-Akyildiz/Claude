@@ -5256,3 +5256,6 @@ p.me2-hint{text-align:left!important;margin:-4px 0 12px!important;}
 .fp-ed input{width:72px!important;margin:0!important;padding:5px 6px!important;font-size:13px;}
 .fp-ed input.fp-u{width:58px!important;}
 .fp-ocr{font-size:12.5px;padding:8px 10px;border-radius:10px;background:color-mix(in srgb,#f59e0b 14%,transparent);border:1px solid color-mix(in srgb,#f59e0b 45%,var(--border));margin:0 0 8px;text-align:left;}
+.rp-off-ban{display:flex;align-items:flex-start;gap:10px;padding:10px 14px;margin:0 0 12px;border-radius:10px;border:1px solid #ef4444;background:color-mix(in srgb,#ef4444 12%,transparent);font-size:13.5px;}
+.rp-off-ban > span:first-child{flex:1;}
+.rp-off-x{cursor:pointer;color:var(--muted);font-size:16px;}
