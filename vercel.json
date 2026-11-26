@@ -77,5 +77,10 @@
   "ignoreCommand": "bash vercel-ignore.sh",
   "regions": [
     "fra1"
-  ]
+  ],
+  "functions": {
+    "api/invoice-read.js": {
+      "maxDuration": 60
+    }
+  }
 }

@@ -3,6 +3,7 @@
   "private": true,
   "dependencies": {
     "@supabase/supabase-js": "^2",
-    "web-push": "^3"
+    "web-push": "^3",
+    "@anthropic-ai/sdk": "^1.14.0"
   }
 }
