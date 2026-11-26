@@ -4,7 +4,6 @@
 // Sağlayıcı sırası (anahtarlar yalnızca Vercel ortam değişkeninde):
 //   1) Google Gemini ücretsiz kota (GEMINI_API_KEY, model GEMINI_MODEL)
 //   2) Claude (ANTHROPIC_API_KEY, model CLAUDE_MODEL) - Gemini yoksa, kota dolduysa ya da okuyamazsa.
-const Anthropic = require('@anthropic-ai/sdk').default;
 const { createClient } = require('@supabase/supabase-js');
 
 const MEDIA = { 'image/jpeg': 'image', 'image/png': 'image', 'image/webp': 'image', 'image/gif': 'image', 'application/pdf': 'document' };
@@ -70,17 +69,25 @@ module.exports = async function handler(req, res) {
   }
   if (!process.env.ANTHROPIC_API_KEY) { res.status(503).json({ error: 'Okuma servisinin ücretsiz kotası doldu, biraz sonra tekrar deneyin.' }); return; }
   // 2) Claude
-  const client = new Anthropic();
+  // Claude Messages API (doğrudan HTTP: projede ek paket kurulmaz).
   const fileBlock = kind === 'image'
     ? { type: 'image', source: { type: 'base64', media_type: mime, data } }
     : { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data } };
   try {
-    const msg = await client.messages.create({
-      model: process.env.CLAUDE_MODEL || 'claude-opus-5-5',
-      max_tokens: 16000,
-      output_config: { effort: 'low', format: { type: 'json_schema', schema: SCHEMA } },
-      messages: [{ role: 'user', content: [fileBlock, { type: 'text', text: PROMPT }] }],
+    const r = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-api-key': process.env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' },
+      body: JSON.stringify({
+        model: process.env.CLAUDE_MODEL || 'claude-opus-5-5',
+        max_tokens: 16000,
+        output_config: { effort: 'low', format: { type: 'json_schema', schema: SCHEMA } },
+        messages: [{ role: 'user', content: [fileBlock, { type: 'text', text: PROMPT }] }],
+      }),
     });
+    if (r.status === 429) { res.status(429).json({ error: 'Çok sık deneme yapıldı, biraz sonra tekrar deneyin.' }); return; }
+    if (r.status === 400) { res.status(400).json({ error: 'Belge işlenemedi (dosya bozuk ya da çok büyük olabilir).' }); return; }
+    if (!r.ok) { res.status(502).json({ error: 'Okuma servisi şu an yanıt vermiyor (' + r.status + ').' }); return; }
+    const msg = await r.json();
     if (msg.stop_reason === 'refusal') { res.status(422).json({ error: 'Belge okunamadı.' }); return; }
     const text = (msg.content || []).filter((b) => b.type === 'text').map((b) => b.text).join('');
     let out;
@@ -88,10 +95,7 @@ module.exports = async function handler(req, res) {
     res.setHeader('Cache-Control', 'no-store');
     res.status(200).json(Object.assign(out, { via: 'claude' }));
   } catch (e) {
-    if (e instanceof Anthropic.RateLimitError) { res.status(429).json({ error: 'Çok sık deneme yapıldı, biraz sonra tekrar deneyin.' }); return; }
-    if (e instanceof Anthropic.BadRequestError) { res.status(400).json({ error: 'Belge işlenemedi (dosya bozuk ya da çok büyük olabilir).' }); return; }
-    if (e instanceof Anthropic.APIError) { res.status(502).json({ error: 'Okuma servisi şu an yanıt vermiyor (' + e.status + ').' }); return; }
-    res.status(500).json({ error: 'Beklenmeyen hata.' });
+    res.status(500).json({ error: 'Okuma servisine bağlanılamadı.' });
   }
 };
 
