@@ -35,8 +35,9 @@ function fpBarHtml(p){
   return `<div class="fp-bar"><span class="fp-t">⚡ Fiyatları hızlı gir:</span>
     <button type="button" class="pc-btn" ${act('fpFillLast')} title="Boş fiyat kutularına her malzemenin son alış fiyatını yazar (önce aynı tedarikçi)">↺ Son fiyatlarla doldur</button>
     ${sp ? `<button type="button" class="pc-btn fp-sp" ${act('fpFillSupplier')} title="Tedarikçinin sipariş bağlantısından girdiği fiyatları alır">✅ Tedarikçinin fiyatlarını al (${sp})</button>` : ''}
-    <button type="button" class="pc-btn" ${act('fpPick', 'photo')} title="Faturanın / irsaliyenin fotoğrafını çekin ya da PDF seçin">📷 Faturayı okut</button>
-    <button type="button" class="pc-btn" ${act('fpPick', 'xml')} title="GİB portalından ya da entegratörünüzden indirdiğiniz e-Fatura XML dosyası">🧾 e-Fatura dosyası</button></div>`;
+    <button type="button" class="pc-btn" ${act('fpPick', 'photo')} title="Faturanın / irsaliyenin fotoğrafını çekin ya da PDF seçin">${fpTouch() ? '📷 Faturayı okut' : '📄 Fatura dosyası seç (PDF / fotoğraf)'}</button>
+    <button type="button" class="pc-btn" ${act('fpPick', 'xml')} title="GİB portalından ya da entegratörünüzden indirdiğiniz e-Fatura XML dosyası">🧾 e-Fatura dosyası</button>
+    ${fpTouch() ? '' : '<span class="fp-hint">ya da faturayı bu pencereye sürükleyin · ekran görüntüsünü Ctrl+V ile yapıştırın</span>'}</div>`;
 }
 // Boş fiyat kutularına "son: 120 ₺" ipucu.
 async function fpDecorate(p){
@@ -81,6 +82,21 @@ async function fpFillSupplier(){
 }
 
 /* ---- Dosyadan okuma ---- */
+function fpTouch(){ try{ return matchMedia('(pointer: coarse)').matches; }catch(e){ return false; } }
+function fpOpen(){ return !!document.querySelector('#poDetailBg .fp-bar') && !document.getElementById('fpRevBg'); }
+function fpKindOf(f){ return /\.xml$/i.test(f.name || '') || /xml/.test(f.type || '') ? 'xml' : 'photo'; }
+// Sürükle-bırak ve Ctrl+V: Mal Kabul sipariş penceresi açıkken fatura dosyası / ekran görüntüsü.
+document.addEventListener('dragover', (e) => { if(!fpOpen()) return; e.preventDefault(); document.querySelector('#poDetailBg .pod-modal')?.classList.add('fp-drop'); });
+document.addEventListener('dragleave', (e) => { if(e.target === document.getElementById('poDetailBg')) document.querySelector('#poDetailBg .pod-modal')?.classList.remove('fp-drop'); });
+document.addEventListener('drop', (e) => {
+  if(!fpOpen()) return; e.preventDefault(); document.querySelector('#poDetailBg .pod-modal')?.classList.remove('fp-drop');
+  const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]; if(f) fpReadFile(f, fpKindOf(f));
+});
+document.addEventListener('paste', (e) => {
+  if(!fpOpen()) return;
+  const f = [...((e.clipboardData && e.clipboardData.files) || [])].find(x => /^image\/|pdf|xml/.test(x.type) || /\.(xml|pdf)$/i.test(x.name || ''));
+  if(!f) return; e.preventDefault(); fpReadFile(f, fpKindOf(f));
+});
 function fpPick(kind){
   const inp = document.createElement('input'); inp.type = 'file';
   inp.accept = kind === 'xml' ? '.xml,text/xml,application/xml' : 'image/*,application/pdf';

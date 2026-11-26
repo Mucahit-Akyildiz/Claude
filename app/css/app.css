@@ -5248,3 +5248,5 @@ p.me2-hint{text-align:left!important;margin:-4px 0 12px!important;}
 .fp-foot button{width:auto!important;margin:0!important;padding:10px 18px!important;}
 @media (max-width:600px){.fp-row{grid-template-columns:minmax(0,1fr);} .fp-arrow{display:none;}}
 .fp-rev .fp-meta{text-align:left!important;}
+.fp-bar .fp-hint{font-size:12px;color:var(--muted);flex-basis:100%;}
+.pod-modal.fp-drop{outline:3px dashed var(--accent);outline-offset:-6px;}
