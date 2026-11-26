@@ -19,7 +19,10 @@ function readRaw(req) {
   });
 }
 
+// Vercel ücretsiz planı 12 fonksiyonla sınırlı: Mal Kabul fatura okuma da bu fonksiyon üzerinden çalışır (?invoice=1).
+const invoiceRead = require('./_invoice-read');
 module.exports = async function handler(req, res) {
+  if (req.query && req.query.invoice) return invoiceRead(req, res);
   const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
   try {
     if (req.method === 'GET') {

@@ -887,6 +887,7 @@ function openPcDetail(id){
     <div class="pod-kpis"><div><small>Sipariş tutarı</small><b>${money(p.total_amount)}</b></div><div><small>Teslim alınan</small><b>${money(p.received_amount || 0)}</b></div>
       <div><small>Kalem</small><b>${items.length}</b></div><div><small>Teslim oranı</small><b>${ordQ ? Math.round(recQ / ordQ * 100) : 0}%</b></div></div>
     <div class="pod-steps">${steps.map(([l, ok, sub]) => `<div class="pod-step ${ok ? 'ok' : ''}"><i>${ok ? '✓' : '•'}</i><b>${l}</b><small>${sub}</small></div>`).join('')}</div>
+    ${typeof fpBarHtml === 'function' ? fpBarHtml(p) : ''}
     <div class="pod-table"><div class="pod-row pod-th"><span>Malzeme</span><span>Sipariş</span><span>Teslim</span><span>Birim fiyat</span><span>Tutar</span></div>
       ${items.map(i => { const q = n(i.quantity), r = n(i.received), c = n(i.unit_cost), ig = poIgOf(i), pk = ingDefaultPack(ig), canRecv = ['ordered', 'partial'].includes(p.status) && r < q - 1e-9;
         const pkTxt = pk && q >= pk.f ? `<small class="muted">${fmtQty(unitRound(q / pk.f))} ${escapeHtml(pk.n)}</small>` : '';
@@ -903,6 +904,7 @@ function openPcDetail(id){
       ${p.status !== 'cancelled' ? `<button type="button" class="pc-btn pod-savechg" title="Fiyat değişikliklerini kaydedip kapat (teslim kaydetmez)" ${act('podSaveChanges', p.id)}>💾 Değişiklikleri kaydet</button>` : ''}      ${['ordered', 'partial'].includes(p.status) && items.some(i => n(i.received) < n(i.quantity) - 1e-9) ? `<button type="button" class="pod-save" ${act('podReceive', p.id)}>📦 Teslim alındı olarak kaydet</button>` : ''}${['ordered', 'partial'].includes(p.status) && items.some(i => n(i.received) > 0) && items.some(i => n(i.received) < n(i.quantity) - 1e-9) ? `<button type="button" class="pc-btn" title="Kalan gelmeyecek: siparişi gelen miktarla kapat" ${act('closePoShort', p.id)}>✅ Eksiği kapat</button>` : ''}${['draft','ordered'].includes(p.status) ? `<button type="button" class="pc-btn" ${act('poDetailGo', 'edit', p.id)}>✏️ Düzenle</button>` : ''}</div>
   </div>`;
   document.body.appendChild(bg);
+  if(typeof fpDecorate === 'function') fpDecorate(p);
 }
 /* Malzeme adları Türkçe alfabeyle (Ç, Ğ, İ, Ö, Ş, Ü doğru yerde); veritabanı sıralaması bunları sona atıyordu. */
 function trItemSort(a, b){ return String(a.name || a.ingredient_name || '').localeCompare(String(b.name || b.ingredient_name || ''), 'tr', { sensitivity: 'base', numeric: true }); }
