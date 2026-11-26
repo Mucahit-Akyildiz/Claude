@@ -2,7 +2,7 @@
    Fiyatları tek tek yazmak yerine:
    1) Son fiyatlarla doldur: her malzemenin son alış fiyatı (aynı tedarikçi önce) kutulara gelir.
    2) Tedarikçinin fiyatları: tedarikçi sipariş bağlantısından fiyat girdiyse tek tuşla alınır.
-   3) Faturayı okut: fotoğraf / PDF yapay zekayla okunur (api/invoice-read).
+   3) Faturayı okut: fotoğraf / PDF yapay zekayla okunur (api/review-photo?invoice=1 → api/_invoice-read.js).
    4) e-Fatura dosyası: GİB / entegratörden inen UBL-TR XML doğrudan okunur (internet gerekmez).
    3 ve 4'te satırlar siparişteki malzemelerle eşleştirilip onaya sunulur; eşleşen isimler hatırlanır. */
 let FP_LAST = null, FP_ALIAS = null, FP_CUR = null;
@@ -114,7 +114,7 @@ async function fpReadFile(file, kind){
     const blob = isPdf ? file : await fpShrink(file);
     if(blob.size > 3.2 * 1024 * 1024){ uiAlert('Dosya çok büyük (en fazla 3 MB). PDF ise sadece fatura sayfasını kaydedin.', { title: 'Dosya büyük', icon: '⚠️' }); return; }
     const data = await fpB64(blob);
-    const r = await withLoadingOverlay(fetch('/api/invoice-read', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+    const r = await withLoadingOverlay(fetch('/api/review-photo?invoice=1', { method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ token: getSession().session_token, mime: isPdf ? 'application/pdf' : 'image/jpeg', data }) }));
     const j = await r.json().catch(() => ({}));
     if(!r.ok){ uiAlert(j.error || 'Belge okunamadı.', { title: 'Fatura okunamadı', icon: '⚠️' }); return; }
