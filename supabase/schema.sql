@@ -42,6 +42,44 @@ $$;
 
 
 --
+-- Name: _ai_ctx(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public._ai_ctx(p_token uuid) RETURNS json
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'extensions', 'pg_temp'
+    AS $$
+declare s staff_sessions%rowtype; begin
+  s := _session_check(p_token);
+  return json_build_object('rid', s.restaurant_id,
+    'key', (select _dec(ai_api_key) from tenant_integrations where restaurant_id = s.restaurant_id and ai_api_key is not null),
+    'used', coalesce((select n from ai_usage where restaurant_id = s.restaurant_id and day = current_date), 0),
+    'limit', _ai_daily_limit());
+end $$;
+
+
+--
+-- Name: _ai_daily_limit(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public._ai_daily_limit() RETURNS integer
+    LANGUAGE sql IMMUTABLE
+    AS $$ select 20 $$;
+
+
+--
+-- Name: _ai_take(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public._ai_take(p_restaurant uuid) RETURNS integer
+    LANGUAGE sql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+  insert into ai_usage(restaurant_id, day, n) values (p_restaurant, current_date, 1)
+  on conflict (restaurant_id, day) do update set n = ai_usage.n + 1 returning n $$;
+
+
+--
 -- Name: _allowance_remaining(uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -7531,6 +7569,21 @@ end; $$;
 
 
 --
+-- Name: get_ai_status(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.get_ai_status(p_token uuid) RETURNS json
+    LANGUAGE plpgsql STABLE SECURITY DEFINER
+    SET search_path TO 'public', 'extensions', 'pg_temp'
+    AS $$
+declare s staff_sessions%rowtype; begin
+  s := _session_check(p_token);
+  return json_build_object('own_key', exists(select 1 from tenant_integrations where restaurant_id = s.restaurant_id and ai_api_key is not null),
+    'used', coalesce((select n from ai_usage where restaurant_id = s.restaurant_id and day = current_date), 0), 'limit', _ai_daily_limit());
+end $$;
+
+
+--
 -- Name: get_allowance_settings(uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -8490,6 +8543,25 @@ $$;
 
 
 --
+-- Name: get_last_purchase_prices(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.get_last_purchase_prices(p_token uuid) RETURNS jsonb
+    LANGUAGE plpgsql STABLE SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+declare s staff_sessions%rowtype;
+begin
+  s := _session_check_any(p_token, array['purchasing_reports','purchasing']);
+  return coalesce((select jsonb_agg(jsonb_build_object('i', x.ingredient_id, 's', x.supplier_id, 'c', x.unit_cost, 'd', x.dt)) from (
+    select distinct on (i.ingredient_id, p.supplier_id) i.ingredient_id, p.supplier_id, i.unit_cost, coalesce(p.received_date, p.order_date) dt
+    from purchase_order_items i join purchase_orders p on p.id = i.purchase_order_id
+    where p.restaurant_id = s.restaurant_id and i.price_set and coalesce(i.unit_cost,0) > 0 and p.status <> 'cancelled'
+    order by i.ingredient_id, p.supplier_id, coalesce(p.received_date, p.order_date) desc, p.created_at desc) x), '[]'::jsonb);
+end $$;
+
+
+--
 -- Name: get_live_orders(uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -9222,8 +9294,8 @@ CREATE FUNCTION public.get_public_po(p_token uuid) RETURNS jsonb
     SET search_path TO 'public', 'pg_temp'
     AS $$
   select jsonb_build_object('restaurant', r.name, 'phone', r.phone, 'supplier', sp.name, 'order_date', po.order_date, 'expected_date', po.expected_date, 'notes', po.notes,
-    'by', (select username from app_users where id = po.created_by),
-    'items', coalesce((select jsonb_agg(jsonb_build_object('name', ig.name, 'qty', i.quantity, 'unit', ig.unit) order by ig.name) from purchase_order_items i join ingredients ig on ig.id = i.ingredient_id where i.purchase_order_id = po.id), '[]'::jsonb))
+    'status', po.status, 'by', (select username from app_users where id = po.created_by),
+    'items', coalesce((select jsonb_agg(jsonb_build_object('id', i.id, 'name', ig.name, 'qty', i.quantity, 'unit', ig.unit, 'price', i.supplier_price, 'priced', coalesce(i.price_set,false)) order by ig.name) from purchase_order_items i join ingredients ig on ig.id = i.ingredient_id where i.purchase_order_id = po.id), '[]'::jsonb))
   from purchase_orders po join restaurants r on r.id = po.restaurant_id left join suppliers sp on sp.id = po.supplier_id
   where p_token is not null and po.share_token = p_token and po.created_at > now() - interval '60 days' $$;
 
@@ -9375,7 +9447,7 @@ begin
         p.supplier_id, sp.name as supplier_name, (select username from app_users where id = p.created_by) as created_by_name,
         (select coalesce(sum(i.quantity*i.unit_cost),0) from purchase_order_items i where i.purchase_order_id = p.id) as total_amount,
         (select coalesce(sum(least(i.received_quantity, i.quantity)*i.unit_cost),0) from purchase_order_items i where i.purchase_order_id = p.id) as received_amount,
-        (select coalesce(json_agg(json_build_object('id', i.id, 'name', ig.name, 'unit', ig.unit, 'quantity', i.quantity, 'received', i.received_quantity, 'unit_cost', i.unit_cost, 'free', i.price_set and coalesce(i.unit_cost,0) = 0) order by ig.name), '[]'::json)
+        (select coalesce(json_agg(json_build_object('id', i.id, 'name', ig.name, 'unit', ig.unit, 'quantity', i.quantity, 'received', i.received_quantity, 'unit_cost', i.unit_cost, 'free', i.price_set and coalesce(i.unit_cost,0) = 0, 'sp', i.supplier_price, 'ingredient_id', i.ingredient_id) order by ig.name), '[]'::json)
            from purchase_order_items i join ingredients ig on ig.id = i.ingredient_id where i.purchase_order_id = p.id) as items
       from purchase_orders p left join suppliers sp on sp.id = p.supplier_id
       where p.restaurant_id = s.restaurant_id and p.order_date between p_date and coalesce(p_date_to, p_date)
@@ -10931,6 +11003,21 @@ begin
     select p.*, _promo_valid_now(p) as valid_now,
       (select coalesce(sum(amount),0) from promotion_uses u where u.promotion_id = p.id) as total_discount
     from promotions p where p.restaurant_id = s.restaurant_id) x), '[]'::json);
+end $$;
+
+
+--
+-- Name: list_purchase_aliases(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.list_purchase_aliases(p_token uuid) RETURNS jsonb
+    LANGUAGE plpgsql STABLE SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+declare s staff_sessions%rowtype;
+begin
+  s := _session_check_any(p_token, array['purchasing_reports','purchasing']);
+  return coalesce((select jsonb_object_agg(raw_key, ingredient_id) from purchase_name_aliases where restaurant_id = s.restaurant_id), '{}'::jsonb);
 end $$;
 
 
@@ -12804,6 +12891,25 @@ begin raise exception 'Kayıtlı şifreler artık görüntülenemez. Yeni şifre
 
 
 --
+-- Name: save_ai_key(uuid, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.save_ai_key(p_token uuid, p_key text) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'extensions', 'pg_temp'
+    AS $$
+declare s staff_sessions%rowtype; begin
+  s := _session_check(p_token);
+  if not exists(select 1 from app_users au join roles rl on rl.id = any(au.role_ids) where au.id = s.user_id and (rl.is_system or rl.permissions && array['settings_integrations'])) then raise exception 'Bu ayarı yalnızca yönetici değiştirebilir'; end if;
+  if coalesce(trim(p_key),'') <> '' and length(trim(p_key)) not between 20 and 200 then raise exception 'Anahtar geçersiz görünüyor'; end if;
+  insert into tenant_integrations(restaurant_id) values (s.restaurant_id) on conflict (restaurant_id) do nothing;
+  update tenant_integrations set ai_api_key = case when coalesce(trim(p_key),'') = '' then null else _enc(trim(p_key)) end, updated_at = now() where restaurant_id = s.restaurant_id;
+  insert into audit_log(restaurant_id, user_id, entity, action, label) values (s.restaurant_id, s.user_id, 'settings', 'update', 'Gemini (fatura okuma) anahtarı ' || case when coalesce(trim(p_key),'') = '' then 'kaldırıldı' else 'güncellendi' end);
+  return coalesce(trim(p_key),'') <> '';
+end $$;
+
+
+--
 -- Name: save_allowance(uuid, jsonb); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -13052,6 +13158,26 @@ begin
   end if;
   return v_id;
 end; $_$;
+
+
+--
+-- Name: save_purchase_aliases(uuid, jsonb); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.save_purchase_aliases(p_token uuid, p_items jsonb) RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+declare s staff_sessions%rowtype; e jsonb; k text;
+begin
+  s := _session_check_any(p_token, array['purchasing_reports','purchasing']);
+  for e in select * from jsonb_array_elements(coalesce(p_items,'[]'::jsonb)) loop
+    k := left(lower(trim(e->>'k')), 200);
+    if k = '' or not exists (select 1 from ingredients where id = (e->>'i')::uuid and restaurant_id = s.restaurant_id) then continue; end if;
+    insert into purchase_name_aliases(restaurant_id, raw_key, ingredient_id) values (s.restaurant_id, k, (e->>'i')::uuid)
+      on conflict (restaurant_id, raw_key) do update set ingredient_id = excluded.ingredient_id, updated_at = now();
+  end loop;
+end $$;
 
 
 --
@@ -13754,14 +13880,14 @@ begin
       _mail_layout('Malzeme siparişi', '<p>Merhaba' || coalesce(' ' || replace(replace(sp.name,'<','&lt;'),'>','&gt;'), '') || ',</p><p><b>' || replace(replace(v_rest,'<','&lt;'),'>','&gt;') || '</b> olarak aşağıdaki malzemeleri sipariş ediyoruz:</p>'
         || '<table style="border-collapse:collapse;width:100%;font-size:15px"><tr><th style="text-align:left;padding:8px 10px;background:#f4f4f4">#</th><th style="text-align:left;padding:8px 10px;background:#f4f4f4">Ürün</th><th style="text-align:right;padding:8px 10px;background:#f4f4f4">Miktar</th></tr>' || v_html || '</table>'
         || coalesce('<p>Teslim tarihi: <b>' || to_char(po.expected_date, 'DD.MM.YYYY') || '</b></p>', '') || coalesce('<p>Not: ' || replace(replace(po.notes,'<','&lt;'),'>','&gt;') || '</p>', '')
-        || '<div style="text-align:center;margin:20px 0"><a href="' || v_link || '" style="display:inline-block;background:#0891b2;color:#fff;font-weight:800;padding:12px 22px;border-radius:12px;text-decoration:none">📄 Siparişi aç / PDF indir</a></div><p>Teşekkürler.</p>'));
+        || '<div style="text-align:center;margin:20px 0"><a href="' || v_link || '" style="display:inline-block;background:#0891b2;color:#fff;font-weight:800;padding:12px 22px;border-radius:12px;text-decoration:none">📄 Siparişi aç · fiyatları girin</a></div><p style="color:#64748b;font-size:13px">Birim fiyatları bu bağlantıdan girerseniz faturanız bizim tarafta otomatik işlenir.</p><p>Teşekkürler.</p>'));
     return jsonb_build_object('sent', coalesce(ok, false), 'to', v_to, 'link', v_link);
   elsif p_channel = 'sms' then
     v_to := coalesce(nullif(trim(p_to),''), nullif(trim(sp.phone),''));
     if v_to is null then raise exception 'Tedarikçinin telefonu kayıtlı değil — numara girin'; end if;
     if not coalesce((select sms_enabled from restaurants where id = s.restaurant_id), false) then raise exception 'SMS kapalı (Ayarlar › Entegrasyonlar)'; end if;
     -- Link başta: uzun listede SMS 480 karakterde kesilse de belge linki kaybolmasın.
-    perform _send_sms(s.restaurant_id, v_to, v_rest || ' malzeme siparisi' || coalesce(' (teslim ' || to_char(po.expected_date, 'DD.MM') || ')', '') || E'\nTum liste/PDF: ' || v_link || E'\n' || v_list, 'purchase_order');
+    perform _send_sms(s.restaurant_id, v_to, v_rest || ' malzeme siparisi' || coalesce(' (teslim ' || to_char(po.expected_date, 'DD.MM') || ')', '') || E'\nListe/PDF ve fiyat girisi: ' || v_link || E'\n' || v_list, 'purchase_order');
     return jsonb_build_object('sent', true, 'to', v_to, 'link', v_link);
   end if;
   raise exception 'Geçersiz kanal';
@@ -16584,6 +16710,30 @@ $_$;
 
 
 --
+-- Name: submit_public_po_prices(uuid, jsonb); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.submit_public_po_prices(p_token uuid, p_prices jsonb) RETURNS integer
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+declare po purchase_orders%rowtype; e jsonb; v numeric; n int := 0;
+begin
+  select * into po from purchase_orders where p_token is not null and share_token = p_token and created_at > now() - interval '60 days';
+  if po.id is null then raise exception 'Bağlantı geçersiz ya da süresi dolmuş'; end if;
+  if po.status = 'cancelled' then raise exception 'Bu sipariş iptal edilmiş'; end if;
+  for e in select * from jsonb_array_elements(coalesce(p_prices,'[]'::jsonb)) loop
+    begin v := (e->>'p')::numeric; exception when others then continue; end;
+    if v is null or v < 0 or v > 10000000 then continue; end if;
+    update purchase_order_items set supplier_price = round(v, 4), supplier_price_at = now()
+      where id = (e->>'id')::uuid and purchase_order_id = po.id and not coalesce(price_set, false);
+    if found then n := n + 1; end if;
+  end loop;
+  return n;
+end $$;
+
+
+--
 -- Name: submit_public_reservation(text, text, text, text, integer, timestamp with time zone, text, integer, text[]); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -18150,6 +18300,17 @@ UNION ALL
 
 
 --
+-- Name: ai_usage; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.ai_usage (
+    restaurant_id uuid NOT NULL,
+    day date DEFAULT CURRENT_DATE NOT NULL,
+    n integer DEFAULT 0 NOT NULL
+);
+
+
+--
 -- Name: allowance_usage; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -19343,6 +19504,19 @@ ALTER SEQUENCE public.public_order_otps_id_seq OWNED BY public.public_order_otps
 
 
 --
+-- Name: purchase_name_aliases; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.purchase_name_aliases (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    restaurant_id uuid NOT NULL,
+    raw_key text NOT NULL,
+    ingredient_id uuid NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
 -- Name: purchase_order_items; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -19354,7 +19528,9 @@ CREATE TABLE public.purchase_order_items (
     unit_cost numeric DEFAULT 0 NOT NULL,
     received_quantity numeric DEFAULT 0 NOT NULL,
     cost_applied_qty numeric DEFAULT 0 NOT NULL,
-    price_set boolean DEFAULT false NOT NULL
+    price_set boolean DEFAULT false NOT NULL,
+    supplier_price numeric,
+    supplier_price_at timestamp with time zone
 );
 
 
@@ -19988,7 +20164,8 @@ CREATE TABLE public.tenant_integrations (
     sms_url text,
     mail_other text,
     maps_api_key text,
-    tts_api_key text
+    tts_api_key text,
+    ai_api_key text
 );
 
 
@@ -20192,6 +20369,14 @@ ALTER TABLE ONLY public.winback_log ALTER COLUMN id SET DEFAULT nextval('public.
 
 ALTER TABLE ONLY public.feature_catalog
     ADD CONSTRAINT add_ons_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: ai_usage ai_usage_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ai_usage
+    ADD CONSTRAINT ai_usage_pkey PRIMARY KEY (restaurant_id, day);
 
 
 --
@@ -20880,6 +21065,22 @@ ALTER TABLE ONLY public.public_cart_holds
 
 ALTER TABLE ONLY public.public_order_otps
     ADD CONSTRAINT public_order_otps_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: purchase_name_aliases purchase_name_aliases_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.purchase_name_aliases
+    ADD CONSTRAINT purchase_name_aliases_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: purchase_name_aliases purchase_name_aliases_restaurant_id_raw_key_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.purchase_name_aliases
+    ADD CONSTRAINT purchase_name_aliases_restaurant_id_raw_key_key UNIQUE (restaurant_id, raw_key);
 
 
 --
@@ -23017,6 +23218,14 @@ CREATE TRIGGER trg_trim_customer_name BEFORE INSERT OR UPDATE OF customer_name O
 
 
 --
+-- Name: ai_usage ai_usage_restaurant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ai_usage
+    ADD CONSTRAINT ai_usage_restaurant_id_fkey FOREIGN KEY (restaurant_id) REFERENCES public.restaurants(id) ON DELETE CASCADE;
+
+
+--
 -- Name: allowance_usage allowance_usage_allowance_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -23753,6 +23962,22 @@ ALTER TABLE ONLY public.public_order_otps
 
 
 --
+-- Name: purchase_name_aliases purchase_name_aliases_ingredient_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.purchase_name_aliases
+    ADD CONSTRAINT purchase_name_aliases_ingredient_id_fkey FOREIGN KEY (ingredient_id) REFERENCES public.ingredients(id) ON DELETE CASCADE;
+
+
+--
+-- Name: purchase_name_aliases purchase_name_aliases_restaurant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.purchase_name_aliases
+    ADD CONSTRAINT purchase_name_aliases_restaurant_id_fkey FOREIGN KEY (restaurant_id) REFERENCES public.restaurants(id) ON DELETE CASCADE;
+
+
+--
 -- Name: purchase_order_items purchase_order_items_ingredient_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -24217,6 +24442,12 @@ ALTER TABLE ONLY public.zones
 
 
 --
+-- Name: ai_usage; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.ai_usage ENABLE ROW LEVEL SECURITY;
+
+--
 -- Name: allowance_usage; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -24605,6 +24836,12 @@ ALTER TABLE public.public_cart_holds ENABLE ROW LEVEL SECURITY;
 --
 
 ALTER TABLE public.public_order_otps ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: purchase_name_aliases; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.purchase_name_aliases ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: purchase_order_items; Type: ROW SECURITY; Schema: public; Owner: -
