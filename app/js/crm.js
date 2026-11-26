@@ -47,7 +47,7 @@ async function renderCrmView(main, session){
     ${typeof crmBirthdayStripHtml === 'function' ? crmBirthdayStripHtml(rows) : ''}
     ${crmVisualsHtml(rows)}
     <div class="u-mwn box">
-      <div class="me2-bar"><div class="me2-tabs"><span class="me2-title">👥 Müşteri listesi</span></div><div class="me2-tools"><span class="me2-adds"><button type="button" class="me2-tab me2-add" ${act('newCustomer')}>＋ Müşteri</button></span><input id="crmSearchInput" type="search" name="crm-list-search" autocomplete="off" data-lpignore="true" placeholder="🔍 İsim / telefon" class="me2-search" value="${escapeAttr(APP.crmSearch||'')}" ${actOn('input', 'debouncedCrmSearch', ['$value'])}><details class="ux-more"><summary title="Diğer işlemler">⋯</summary><div class="ux-more-pop">${canManage(session, 'crm') ? `<button type="button" class="ghost-btn" ${act('crmGoSettings')}>⚙️ Sadakat & kampanya ayarları</button>` : ''}<div class="ux-more-t">Excel</div><div class="xl-bar">
+      <div class="me2-bar"><div class="me2-tabs"><span class="me2-title">👥 Müşteri listesi</span></div><div class="me2-tools"><span class="me2-adds"><button type="button" class="me2-tab me2-add" ${act('newCustomer')}>＋ Müşteri</button>${canManage(session, 'crm') ? `<button type="button" class="me2-tab me2-add" ${act('openCustomerGroups')} title="VIP, Gold gibi gruplar oluşturun ve düzenleyin">🏷️ Müşteri grupları</button>` : ''}</span><input id="crmSearchInput" type="search" name="crm-list-search" autocomplete="off" data-lpignore="true" placeholder="🔍 İsim / telefon" class="me2-search" value="${escapeAttr(APP.crmSearch||'')}" ${actOn('input', 'debouncedCrmSearch', ['$value'])}><details class="ux-more"><summary title="Diğer işlemler">⋯</summary><div class="ux-more-pop">${canManage(session, 'crm') ? `<button type="button" class="ghost-btn" ${act('crmGoSettings')}>⚙️ Sadakat & kampanya ayarları</button>` : ''}<div class="ux-more-t">Excel</div><div class="xl-bar">
           <button type="button" class="xl-btn" ${act('exportCustomersCsv')} title="Tüm müşterileri Excel (.xlsx) olarak indir">⬇️ Dışa aktar</button>
           ${canManage(session, 'crm') ? `<button type="button" class="xl-btn" ${act('openCustomerImport')} title="Excel (.xlsx) veya CSV dosyasından müşteri yükle">⬆️ İçe aktar</button>
           <button type="button" class="xl-btn" ${act('downloadCustomerTemplate')}>📄 Şablon indir</button>` : ''}</div></div></details></div></div>
@@ -632,19 +632,18 @@ function wbGroup(id){ APP.wb.group = id || null; APP.wb.sel = {}; const t = docu
 const CG_COLORS = ['#f59e0b', '#8b5cf6', '#ef4444', '#22c55e', '#3b82f6', '#ec4899', '#14b8a6', '#64748b'];
 function crmGroupBarHtml(rows){
   const gs = APP.crmGroups || [], f = APP.crmGroupFilter || '', nosms = rows.filter(c => c.sms_opt_out).length;
-  if(!gs.length && !nosms) return `<div class="cg-bar"><button type="button" class="cg-f add" ${act('openCustomerGroups')}>🏷️ Müşteri grubu oluştur (VIP, Gold…)</button></div>`;
+  if(!gs.length && !nosms) return '';
   return `<div class="cg-bar"><button type="button" class="cg-f ${!f ? 'on' : ''}" ${act('setCrmGroupFilter', '')}>Tümü <span>${rows.length}</span></button>
     ${gs.map(g => `<button type="button" class="cg-f ${f === g.id ? 'on' : ''}" style="--gc:${escapeAttr(g.color || 'var(--accent)')}" ${act('setCrmGroupFilter', g.id)}>${escapeHtml((g.icon ? g.icon + ' ' : '') + g.name)} <span>${g.count}</span></button>`).join('')}
     ${gs.length ? (() => { const n = (APP.crmRows || rows).filter(c => !(c.group_ids || []).some(g => gs.some(x => x.id === g))).length; return `<button type="button" class="cg-f nogroup ${f === '__nogroup' ? 'on' : ''}" title="Hiçbir gruba eklenmemiş müşteriler" ${act('setCrmGroupFilter', '__nogroup')}>➖ Grubu yok <span>${n}</span></button>`; })() : ''}
-    ${nosms ? `<button type="button" class="cg-f ${f === '__nosms' ? 'on' : ''}" ${act('setCrmGroupFilter', '__nosms')}>📵 SMS istemeyen <span>${nosms}</span></button>` : ''}
-    <button type="button" class="cg-f add" ${act('openCustomerGroups')}>⚙️ Grupları yönet</button></div>`;
+    ${nosms ? `<button type="button" class="cg-f ${f === '__nosms' ? 'on' : ''}" ${act('setCrmGroupFilter', '__nosms')}>📵 SMS istemeyen <span>${nosms}</span></button>` : ''}</div>`;
 }
 function setCrmGroupFilter(id){ APP.crmGroupFilter = id || ''; renderCrmView(document.getElementById('main'), getSession()); }
 function crmDrawGroupPick(){
   const el = document.getElementById('crm_groups'); if(!el) return;
   const gs = APP.crmGroups || [], sel = APP.crmSelGroups || [];
   el.innerHTML = gs.length ? gs.map(g => `<button type="button" class="cg-f ${sel.includes(g.id) ? 'on' : ''}" style="--gc:${escapeAttr(g.color || 'var(--accent)')}" ${act('crmToggleGroup', g.id)}>${sel.includes(g.id) ? '✓ ' : ''}${escapeHtml((g.icon ? g.icon + ' ' : '') + g.name)}</button>`).join('')
-    : `<span class="muted u-fs12">Henüz grup yok — "Grupları yönet"ten VIP, Gold gibi gruplar oluşturun.</span>`;
+    : `<span class="muted u-fs12">Henüz grup yok — "Grupları yönet" ya da üstteki "Müşteri grupları" ile VIP, Gold gibi gruplar oluşturun.</span>`;
 }
 function crmToggleGroup(id){ const s = APP.crmSelGroups = APP.crmSelGroups || []; const i = s.indexOf(id); if(i >= 0) s.splice(i, 1); else s.push(id); crmDrawGroupPick(); }
 async function openCustomerGroups(){
