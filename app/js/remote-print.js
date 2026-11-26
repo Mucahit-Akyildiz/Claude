@@ -163,3 +163,35 @@ async function bgPrintTick(){
   }finally{ BG_BUSY = false; }
 }
 setInterval(bgPrintTick, 1000);
+
+/* Uyarı: bu cihaz mutfak fişini başka bir cihazın paylaştığı yazıcıya gönderiyorsa ve o cihaz
+   (ör. yazıcıya bağlı Windows bilgisayar) kapalıysa, sipariş ekranlarında üstte uyarı çıkar. */
+const RP_WARN_VIEWS = ['order', 'packages', 'kitchen', 'payments', 'home'];
+function rpUsedRemoteIds(){
+  const map = typeof getStationPrinterMap === 'function' ? getStationPrinterMap() : {};
+  const ids = Object.values(map || {}); const a = typeof getActivePrinterId === 'function' ? getActivePrinterId() : '';
+  if(a) ids.push(a);
+  return [...new Set(ids.filter(id => String(id || '').startsWith('remote:')))];
+}
+let RP_OFF_ANY = false;
+function rpOfflineUsed(){ const used = rpUsedRemoteIds(); const r = getRemotePrinters().filter(p => used.includes(p.id) && !p.online); RP_OFF_ANY = r.length > 0; return r; }
+function rpWarnDraw(){
+  let ban = document.getElementById('rpOfflineBan');
+  const show = getSession() && RP_WARN_VIEWS.includes(APP.view) && !APP.rpWarnHide;
+  const off = show ? rpOfflineUsed() : [];
+  if(!off.length){ if(ban) ban.remove(); return; }
+  const main = document.getElementById('main'); if(!main) return;
+  if(!ban){ ban = document.createElement('div'); ban.id = 'rpOfflineBan'; ban.className = 'rp-off-ban'; }
+  if(ban.parentElement !== main || main.firstElementChild !== ban) main.prepend(ban);
+  ban.innerHTML = `<span>⚠️ <b>Yazıcının bilgisayarı kapalı, fiş basılmayacak.</b> ${off.map(p => escapeHtml(p.name)).join(', ')} şu an çevrimdışı. Yazıcının bağlı olduğu cihazda Peyktan'ı açıp giriş yapın.</span><span class="rp-off-x" title="Bu oturum için gizle" ${act('rpWarnClose')}>✕</span>`;
+}
+function rpWarnClose(){ APP.rpWarnHide = true; rpWarnDraw(); }
+async function rpWarnTick(){
+  if(!getSession() || !rpUsedRemoteIds().length){ rpWarnDraw(); return; }
+  if(document.visibilityState === 'visible') await refreshRemotePrinters();
+  rpWarnDraw();
+}
+setInterval(rpWarnTick, 30000);
+setTimeout(rpWarnTick, 4000);
+// Ekran değişince uyarı yeniden yerleşir (ekran çizimi #main'i sıfırlar).
+new MutationObserver(() => { if(RP_OFF_ANY && !APP.rpWarnHide && !document.getElementById('rpOfflineBan') && RP_WARN_VIEWS.includes(APP.view)) rpWarnDraw(); }).observe(document.documentElement, { childList: true, subtree: true });
