@@ -48,27 +48,26 @@ Belgedeki her ürün satırını çıkar. Kurallar:
 
 module.exports = async function handler(req, res) {
   if (req.method !== 'POST') { res.status(405).json({ error: 'POST gerekli' }); return; }
-  if (!process.env.GEMINI_API_KEY && !process.env.ANTHROPIC_API_KEY) { res.status(503).json({ error: 'Fatura okuma henüz etkin değil (sunucu anahtarı tanımlı değil).' }); return; }
   const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
   const { token, mime, data } = body;
   const kind = MEDIA[mime];
   if (!kind || typeof data !== 'string' || !data) { res.status(400).json({ error: 'Desteklenmeyen dosya. JPG, PNG, WEBP ya da PDF yükleyin.' }); return; }
   if (data.length > MAX_B64) { res.status(413).json({ error: 'Dosya çok büyük (en fazla ~10 MB).' }); return; }
+  let sb, ctx;
   try {
-    const sb = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
-    const { error: sErr } = token ? await sb.rpc('_session_check', { p_token: String(token) }) : { error: true };
-    if (sErr) { res.status(403).json({ error: 'Oturum geçersiz, yeniden giriş yapın.' }); return; }
+    sb = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
+    const r = token ? await sb.rpc('_ai_ctx', { p_token: String(token) }) : { error: true };
+    if (r.error) { res.status(403).json({ error: 'Oturum geçersiz, yeniden giriş yapın.' }); return; }
+    ctx = r.data || {};
   } catch (e) { res.status(500).json({ error: 'Oturum doğrulanamadı.' }); return; }
-
-  // 1) Gemini ücretsiz kota
-  if (process.env.GEMINI_API_KEY) {
-    try {
-      const out = await readWithGemini(mime, data);
-      if (out && Array.isArray(out.lines)) { res.setHeader('Cache-Control', 'no-store'); res.status(200).json(Object.assign(out, { via: 'gemini' })); return; }
-    } catch (e) { /* kota dolu / hata: Claude'a geç */ }
-  }
-  if (!process.env.ANTHROPIC_API_KEY) { res.status(503).json({ error: 'Okuma servisinin ücretsiz kotası doldu, biraz sonra tekrar deneyin.' }); return; }
-  // 2) Claude
+  const send = (out, via) => { res.setHeader('Cache-Control', 'no-store'); res.status(200).json(Object.assign(out, { via })); };
+  // 1) İşletmenin kendi (ücretsiz) Gemini anahtarı: sınırsız, ortak kotadan düşmez.
+  if (ctx.key) { try { return send(await readWithGemini(mime, data, ctx.key), 'own'); } catch (e) { /* kendi kotası doldu: ortak kotaya geç */ } }
+  // 2) Peyktan'ın ortak anahtarları: işletme başına günlük sınır.
+  if (Number(ctx.used) >= Number(ctx.limit)) { res.status(429).json({ code: 'QUOTA', error: 'Bugünkü ücretsiz fatura okuma hakkınız doldu.' }); return; }
+  const take = () => sb.rpc('_ai_take', { p_restaurant: ctx.rid }).then(() => {}, () => {});
+  if (process.env.GEMINI_API_KEY) { try { const out = await readWithGemini(mime, data, process.env.GEMINI_API_KEY); await take(); return send(out, 'gemini'); } catch (e) { /* Claude'a geç */ } }
+  if (!process.env.ANTHROPIC_API_KEY) { res.status(503).json({ code: 'UNAVAILABLE', error: 'Okuma servisi şu an kullanılamıyor.' }); return; }
   // Claude Messages API (doğrudan HTTP: projede ek paket kurulmaz).
   const fileBlock = kind === 'image'
     ? { type: 'image', source: { type: 'base64', media_type: mime, data } }
@@ -86,27 +85,27 @@ module.exports = async function handler(req, res) {
     });
     if (r.status === 429) { res.status(429).json({ error: 'Çok sık deneme yapıldı, biraz sonra tekrar deneyin.' }); return; }
     if (r.status === 400) { res.status(400).json({ error: 'Belge işlenemedi (dosya bozuk ya da çok büyük olabilir).' }); return; }
-    if (!r.ok) { res.status(502).json({ error: 'Okuma servisi şu an yanıt vermiyor (' + r.status + ').' }); return; }
+    if (!r.ok) { res.status(503).json({ code: 'UNAVAILABLE', error: 'Okuma servisi şu an yanıt vermiyor (' + r.status + ').' }); return; }
     const msg = await r.json();
     if (msg.stop_reason === 'refusal') { res.status(422).json({ error: 'Belge okunamadı.' }); return; }
     const text = (msg.content || []).filter((b) => b.type === 'text').map((b) => b.text).join('');
     let out;
     try { out = JSON.parse(text); } catch (e) { res.status(502).json({ error: 'Belge okunamadı, daha net bir fotoğraf deneyin.' }); return; }
     res.setHeader('Cache-Control', 'no-store');
-    res.status(200).json(Object.assign(out, { via: 'claude' }));
+    await take(); send(out, 'claude');
   } catch (e) {
     res.status(500).json({ error: 'Okuma servisine bağlanılamadı.' });
   }
 };
 
 // Gemini REST (generateContent): görsel / PDF satır içi, yanıt JSON.
-async function readWithGemini(mime, data) {
+async function readWithGemini(mime, data, key) {
   const model = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
   const ctrl = new AbortController(); const t = setTimeout(() => ctrl.abort(), 40000);
   try {
     const r = await fetch('https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(model) + ':generateContent', {
       method: 'POST', signal: ctrl.signal,
-      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': process.env.GEMINI_API_KEY },
+      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
       body: JSON.stringify({
         contents: [{ role: 'user', parts: [{ inline_data: { mime_type: mime, data } }, { text: PROMPT + '\n\nYanıtı yalnızca şu JSON şemasına uyan tek bir JSON nesnesi olarak ver:\n' + JSON.stringify(SCHEMA) }] }],
         generationConfig: { responseMimeType: 'application/json', temperature: 0 },

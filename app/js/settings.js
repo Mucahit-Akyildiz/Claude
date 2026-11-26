@@ -363,7 +363,7 @@ async function renderIntegrationsSettings(el, session){
   const INT_TABS = [
     { id:'online', ic:'🛵', label:'Online Sipariş' }, { id:'geo', ic:'📍', label:'Konum & Teslimat' }, { id:'google', ic:'⭐', label:'Google Yorumları' },
     { id:'sms', ic:'📱', label:'SMS' }, { id:'invoice', ic:'🧾', label:'Fatura Bilgileri' },
-    { id:'mail', ic:'✉️', label:'E-posta' }, { id:'bank', ic:'🏦', label:'Banka / IBAN' }, { id:'voice', ic:'🔊', label:'Sesli Bildirim' },
+    { id:'mail', ic:'✉️', label:'E-posta' }, { id:'bank', ic:'🏦', label:'Banka / IBAN' }, { id:'voice', ic:'🔊', label:'Sesli Bildirim' }, { id:'ai', ic:'🤖', label:'Fatura Okuma (Yapay Zeka)' },
     { id:'efatura', ic:'🧾', label:'ÖKC / e-Fatura' }, { id:'marketplace', ic:'🛍️', label:'Pazaryeri' }, { id:'accounting', ic:'📊', label:'Muhasebe' },
   ];
   // Her entegrasyon ayrı rol izniyle (int_*) açılır; "Ayarlar · Entegrasyonlar (hepsi)" ve Yönetici hepsini görür.
@@ -383,6 +383,8 @@ async function renderIntegrationsSettings(el, session){
     g.innerHTML = geoPaneHtml(session); el.appendChild(g); boxes.push(g); }
   { const v = document.createElement('div'); v.className = 'box int-pane ix-box'; v.style.maxWidth = 'none'; v.dataset.int = 'voice'; v.id = 'voicePane';
     v.innerHTML = voiceKeyPaneHtml(session); el.appendChild(v); boxes.push(v); }
+  { const a = document.createElement('div'); a.className = 'box int-pane ix-box'; a.style.maxWidth = 'none'; a.dataset.int = 'ai'; a.id = 'aiPane';
+    a.innerHTML = aiKeyPaneHtml(session); el.appendChild(a); boxes.push(a); loadAiStat(); }
   { const b = document.createElement('div'); b.className = 'box int-pane ix-box'; b.style.maxWidth = 'none'; b.dataset.int = 'bank'; b.id = 'bankPane';
     b.innerHTML = bankPaneHtml(session); el.appendChild(b); boxes.push(b); }
   loadMailTemplates();
@@ -394,17 +396,17 @@ async function renderIntegrationsSettings(el, session){
   boxes.forEach(b => { if(b.dataset.int && !intAllowed(b.dataset.int)) b.remove(); });
   if(!INT_TABS.some(t => t.id === APP.integrationsSubTab)) APP.integrationsSubTab = INT_TABS.length ? INT_TABS[0].id : 'online';
   const INT_DESC = { online:'Kendi sipariş sayfanız ve kartla ödeme', google:'İşletme yorumlarını takip edin', sms:'Müşterilere SMS bildirimi', mail:'Kendi alan adınızdan e-posta', pay:'iyzico / PayTR ile kartla ödeme', invoice:'Faturada görünecek bilgiler',
-    efatura:'Yazarkasa ve e-Fatura/e-Arşiv', marketplace:'Pazaryeri menü eşitleme', accounting:'Muhasebe yazılımına aktarım', bank:'Havale/EFT için IBAN', voice:'Kendi ElevenLabs hesabınızla doğal ses', geo:'Adrese teslim yol süresi' };
+    efatura:'Yazarkasa ve e-Fatura/e-Arşiv', marketplace:'Pazaryeri menü eşitleme', accounting:'Muhasebe yazılımına aktarım', bank:'Havale/EFT için IBAN', voice:'Kendi ElevenLabs hesabınızla doğal ses', ai:'Mal Kabul\'de faturayı fotoğraftan okuma', geo:'Adrese teslim yol süresi' };
   const stOf = (id) => { const b = boxes.find(x => x.dataset.int === id); const t = b ? b.textContent : '';
     if(/paketinizde yok/i.test(t)) return ['lock','🔒 Eklenti'];
     const c = APP.config || {}, on = { online: !!(c.online_ordering && c.online_ordering.enabled), google: !!c.google_review_url,
       marketplace: !!(data.marketplace_enabled && (data.marketplace_getir_configured || data.marketplace_trendyol_configured || data.marketplace_yemeksepeti_configured)),
-      invoice: !!(data.invoice_title && data.tax_number), bank: !!(c.banks && c.banks.length), voice: !!c.tts_key_set, geo: !!(c.geo && c.geo.geo_lat != null), efatura: !!(data.efatura_enabled && data.efatura_configured), accounting: !!(data.accounting_enabled && data.accounting_configured),
+      invoice: !!(data.invoice_title && data.tax_number), bank: !!(c.banks && c.banks.length), voice: !!c.tts_key_set, ai: !!(APP.aiStat && APP.aiStat.own_key), geo: !!(c.geo && c.geo.geo_lat != null), efatura: !!(data.efatura_enabled && data.efatura_configured), accounting: !!(data.accounting_enabled && data.accounting_configured),
       sms: !!data.sms_enabled && (APP.intLive || {}).sms !== false, mail: !!(APP.intLive || {}).mail }[id];
     return on ? ['ok','Aktif'] : ['off','Kapalı']; };
   const bar = document.createElement('div');
   bar.className = 'int-groups';
-  const GROUPS = [['🛒 Satış kanalları', ['online','geo','marketplace','google']], ['💬 Müşteri iletişimi', ['sms','mail','bank','voice']], ['🧾 Fatura & muhasebe', ['invoice','efatura','accounting']]];
+  const GROUPS = [['🛒 Satış kanalları', ['online','geo','marketplace','google']], ['💬 Müşteri iletişimi', ['sms','mail','bank','voice']], ['🧾 Fatura & muhasebe', ['invoice','efatura','accounting','ai']]];
   bar.innerHTML = GROUPS.map(([g, ids]) => `<div class="int-group"><div class="int-gt">${g}</div><div class="int-gl">${ids.map(id => { const t = INT_TABS.find(x => x.id === id); if(!t) return ''; const [k, l] = stOf(id);
     return `<button type="button" class="int-row ${APP.integrationsSubTab===id?'active':''} st-${k}" data-int-tab="${id}" ${act('setIntegrationsSubTab', id)}>
       <span class="int-ic">${t.ic}</span><span class="int-txt"><b>${t.label}</b><small>${INT_DESC[id]||''}</small></span><span class="int-st" title="${l}">${k==='lock' ? '🔒' : k==='ok' ? '● Aktif' : '○ Kapalı'}</span></button>`; }).join('')}</div></div>`).join('');
@@ -607,6 +609,33 @@ function voiceKeyPaneHtml(session){
       <div style="grid-column:1/-1;"><div style="display:flex;gap:8px;flex-wrap:wrap;"><input id="tts_key" type="password" autocomplete="off" placeholder="${on ? '●●●●●●●● kayıtlı — değiştirmek için yenisini yazın' : 'sk_… ile başlayan anahtar'}" style="flex:1;min-width:220px;margin:0;font-family:monospace;" ${mgr?'':'disabled'}>${mgr ? `<button type="button" class="ghost-btn" style="width:auto;margin:0;white-space:nowrap;" ${act('saveTtsKey')}>🔑 Anahtarı kaydet</button>${on ? `<button type="button" class="ghost-btn" style="width:auto;margin:0;color:var(--red);" ${act('removeTtsKey')}>Kaldır</button>` : ''}` : ''}</div>
         <small class="muted">Nasıl alınır: elevenlabs.io → hesabınız → <b>Developers › API Keys</b> → Create API Key. İzinlerden <b>Text to Speech</b> açık olsun (sesleri listelemek için <b>Voices: Read</b> da). Anahtar şifreli saklanır ve tarayıcıya geri gönderilmez.</small></div>
     </div></div>`;
+}
+/* Fatura okuma (Gemini): işletme kendi ücretsiz anahtarını girerse okuma sınırsız olur; girmezse
+   Peyktan'ın ortak kotası günlük sınırla kullanılır, dolunca fotoğraf cihazda ücretsiz okunur. */
+function aiKeyPaneHtml(session){
+  const st = APP.aiStat || {}, on = !!st.own_key, mgr = canManage(session || getSession(), 'settings_integrations');
+  return `<h2>🤖 Fatura Okuma (Yapay Zeka)</h2>
+    <div class="oo-hero ${on?'on':''}"><div class="oo-hero-ic">🧾</div>
+      <div class="oo-hero-t"><b>Faturayı fotoğraftan okuma</b><small>Mal Kabul'de faturanın fotoğrafı ya da PDF'i yapay zekayla okunur, fiyatlar kendiliğinden dolar. Kendi <b>ücretsiz</b> Google Gemini anahtarınızı girerseniz okuma sınırsız olur; girmezseniz günde ${st.limit || 20} okuma ortak hesaptan yapılır, sonrası cihazınızda ücretsiz okunur.${st.limit && !on ? ` <b>Bugün: ${st.used || 0} / ${st.limit}</b>` : ''}</small></div>
+      <span class="ti-st ${on?'ok':''}">${on ? '● Kendi anahtarınız' : '○ Ortak hesap'}</span></div>
+    <div class="ix-sec"><div class="ix-st">Google Gemini API anahtarı (ücretsiz)</div><div class="ix-form">
+      <div style="grid-column:1/-1;"><div style="display:flex;gap:8px;flex-wrap:wrap;"><input id="ai_key" type="password" autocomplete="off" placeholder="${on ? '●●●●●●●● kayıtlı — değiştirmek için yenisini yazın' : 'AIza… ile başlayan anahtar'}" style="flex:1;min-width:220px;margin:0;font-family:monospace;" ${mgr?'':'disabled'}>${mgr ? `<button type="button" class="ghost-btn" style="width:auto;margin:0;white-space:nowrap;" ${act('saveAiKey')}>🔑 Anahtarı kaydet</button>${on ? `<button type="button" class="ghost-btn" style="width:auto;margin:0;color:var(--red);" ${act('removeAiKey')}>Kaldır</button>` : ''}` : ''}</div>
+        <small class="muted">Nasıl alınır (1 dakika, kredi kartı gerekmez): <b>aistudio.google.com</b> → Google hesabınızla giriş → <b>Get API key</b> → Create API key → çıkan anahtarı buraya yapıştırın. Anahtar şifreli saklanır, ekranda bir daha gösterilmez.</small></div>
+    </div></div>`;
+}
+async function loadAiStat(){ try{ const { data } = await sb.rpc('get_ai_status', { p_token: getSession().session_token }); APP.aiStat = data || {}; }catch(e){ APP.aiStat = {}; } const p = document.getElementById('aiPane'); if(p) p.innerHTML = aiKeyPaneHtml(); }
+async function saveAiKey(){
+  const k = ((document.getElementById('ai_key') || {}).value || '').trim();
+  if(k.length < 20){ showToast('Geçerli bir Gemini API anahtarı yazın'); return; }
+  const { error } = await sb.rpc('save_ai_key', { p_token: getSession().session_token, p_key: k });
+  if(error){ showToast(error.message); return; }
+  await loadAiStat(); showToast('Anahtar kaydedildi ✓ Fatura okuma artık sınırsız');
+}
+async function removeAiKey(){
+  if(!await uiConfirm('Gemini anahtarı kaldırılsın mı? Fatura okuma ortak hesabın günlük sınırıyla devam eder.')) return;
+  const { error } = await sb.rpc('save_ai_key', { p_token: getSession().session_token, p_key: '' });
+  if(error){ showToast(error.message); return; }
+  await loadAiStat(); showToast('Anahtar kaldırıldı');
 }
 async function saveTtsKey(){
   const k = ((document.getElementById('tts_key') || {}).value || '').trim();

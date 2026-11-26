@@ -35,12 +35,14 @@ function fpBarHtml(p){
   return `<div class="fp-bar"><span class="fp-t">⚡ Fiyatları hızlı gir:</span>
     <button type="button" class="pc-btn" ${act('fpFillLast')} title="Boş fiyat kutularına her malzemenin son alış fiyatını yazar (önce aynı tedarikçi)">↺ Son fiyatlarla doldur</button>
     ${sp ? `<button type="button" class="pc-btn fp-sp" ${act('fpFillSupplier')} title="Tedarikçinin sipariş bağlantısından girdiği fiyatları alır">✅ Tedarikçinin fiyatlarını al (${sp})</button>` : ''}
+    <button type="button" class="pc-btn" ${act('fpPick', 'xml')} title="GİB portalından ya da entegratörünüzden indirdiğiniz e-Fatura XML dosyası">🧾 e-Fatura dosyası <small>(ücretsiz, en kesin)</small></button>
     <button type="button" class="pc-btn" ${act('fpPick', 'photo')} title="Faturanın / irsaliyenin fotoğrafını çekin ya da PDF seçin">${fpTouch() ? '📷 Faturayı okut' : '📄 Fatura dosyası seç (PDF / fotoğraf)'}</button>
-    <button type="button" class="pc-btn" ${act('fpPick', 'xml')} title="GİB portalından ya da entegratörünüzden indirdiğiniz e-Fatura XML dosyası">🧾 e-Fatura dosyası</button>
-    ${fpTouch() ? '' : '<span class="fp-hint">ya da faturayı bu pencereye sürükleyin · ekran görüntüsünü Ctrl+V ile yapıştırın</span>'}</div>`;
+    ${fpTouch() ? '' : '<span class="fp-hint">ya da faturayı bu pencereye sürükleyin · ekran görüntüsünü Ctrl+V ile yapıştırın</span>'}<span class="fp-quota" id="fpQuota"></span></div>`;
 }
 // Boş fiyat kutularına "son: 120 ₺" ipucu.
 async function fpDecorate(p){
+  fpAiStatus().then(a => { const q = document.getElementById('fpQuota'); if(!q || !a) return;
+    q.textContent = a.own_key ? '🔑 Kendi Gemini anahtarınız: fatura okuma sınırsız' : (a.limit ? `🤖 Bugünkü ücretsiz fatura okuma: ${a.used || 0} / ${a.limit} · dolunca cihazda okunur · sınırsız için Ayarlar › Entegrasyonlar'a kendi ücretsiz Gemini anahtarınızı girin` : ''); });
   try{ await fpLoadLast(); }catch(e){ return; }
   (p.items || []).forEach(i => {
     const c = document.getElementById('podC-' + i.id); if(!c || String(c.value).trim() !== '') return;
@@ -130,10 +132,17 @@ async function fpReadFile(file, kind){
     const blob = isPdf ? file : await fpShrink(file);
     if(blob.size > 3.2 * 1024 * 1024){ uiAlert('Dosya çok büyük (en fazla 3 MB). PDF ise sadece fatura sayfasını kaydedin.', { title: 'Dosya büyük', icon: '⚠️' }); return; }
     const data = await fpB64(blob);
-    const r = await withLoadingOverlay(fetch('/api/review-photo?invoice=1', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ token: getSession().session_token, mime: isPdf ? 'application/pdf' : 'image/jpeg', data }) }));
+    let r;
+    try{ r = await withLoadingOverlay(fetch('/api/review-photo?invoice=1', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: getSession().session_token, mime: isPdf ? 'application/pdf' : 'image/jpeg', data }) })); }
+    catch(e){ if(!isPdf){ showToast('İnternet yok · cihaz içi okumaya geçiliyor…'); return fpOcrRead(blob); } throw e; }
     const j = await r.json().catch(() => ({}));
-    if(!r.ok){ uiAlert(j.error || 'Belge okunamadı.', { title: 'Fatura okunamadı', icon: '⚠️' }); return; }
+    if(!r.ok){
+      // Kota doldu / servis yok: fotoğraf cihazda ücretsiz okunur (daha az isabetli; satırlar düzeltilebilir).
+      if(!isPdf && r.status !== 403 && r.status !== 413){ showToast((j.error ? j.error + ' · ' : '') + 'Ücretsiz cihaz içi okumaya geçiliyor…'); return fpOcrRead(blob); }
+      uiAlert((j.error || 'Belge okunamadı.') + (isPdf ? '\n\nPDF yerine faturanın fotoğrafını ya da e-Fatura XML dosyasını deneyin; onlar her zaman okunur.' : ''), { title: 'Fatura okunamadı', icon: '⚠️' }); return;
+    }
+    if(j.via !== 'own') FP_AI = null;
     fpReview({ supplier: j.supplier, no: j.invoice_no, date: j.date, incl: !!j.prices_include_vat, lines: j.lines || [] });
   }catch(e){ uiAlert('Belge okunamadı: ' + (e && e.message || e), { title: 'Hata', icon: '⚠️' }); }
 }
@@ -201,14 +210,21 @@ function fpReview(doc){
   bg.innerHTML = `<div class="box fp-rev">
     <div class="u-row-sb"><h2 class="u-m0">🧾 Faturadan fiyatlar</h2><span class="u-xclose" ${act('removeEl', 'fpRevBg')}>✕</span></div>
     <p class="muted fp-meta">${escapeHtml([doc.supplier, doc.no && ('No ' + doc.no), doc.date].filter(Boolean).join(' · ') || 'Belge okundu')} · ${doc.lines.length} satır, ${rows.filter(r => r.m).length} tanesi siparişle eşleşti. Eşleşmeyenleri listeden seçin; bir kez seçtiğiniz isim sonra hatırlanır.</p>
+    ${doc.ocr ? '<p class="fp-ocr">📱 Bu belge cihazınızda ücretsiz okundu; rakamlar hatalı olabilir, miktar ve fiyatları kontrol edip düzeltin.</p>' : ''}
     ${doc.incl ? '' : `<label class="fp-vat"><input type="checkbox" id="fpVat" ${addVat ? 'checked' : ''} ${actOn('change', 'fpRecalc', [])}> Fiyatlara KDV ekle <small class="muted">(faturadaki birim fiyatlar KDV hariç)</small></label>`}
     <div class="fp-rows">${rows.map(r => `<div class="fp-row" data-k="${r.k}">
-      <div class="fp-src"><b>${escapeHtml(r.l.name)}</b><small>${fmtQty(r.l.quantity)} ${escapeHtml(r.l.unit || '')} × ${money(r.l.unit_price)}${r.l.vat_rate ? ' · KDV %' + fmtQty(r.l.vat_rate) : ''}</small></div>
+      <div class="fp-src"><b>${escapeHtml(r.l.name)}</b><span class="fp-ed"><input type="number" step="any" min="0" class="fp-q" value="${unitRound(Number(r.l.quantity) || 0)}" title="Miktar" ${actOn('input', 'fpEdit', ['$this'])}><input class="fp-u" value="${escapeAttr(r.l.unit || '')}" title="Birim (kg, adet, koli…)" ${actOn('input', 'fpEdit', ['$this'])}><span>×</span><input type="number" step="any" min="0" class="fp-p" value="${Math.round((Number(r.l.unit_price) || 0) * 100) / 100}" title="Birim fiyat ₺" ${actOn('input', 'fpEdit', ['$this'])}><span>₺</span>${r.l.vat_rate ? `<small>KDV %${fmtQty(r.l.vat_rate)}</small>` : ''}</span></div>
       <span class="fp-arrow">→</span>
       <div class="fp-dst"><select class="fp-sel" ${actOn('change', 'fpRecalc', [])}>${opts(r.m)}</select><small class="fp-eq muted"></small></div></div>`).join('')}</div>
     ${p.status === 'ordered' || p.status === 'partial' ? `<label class="fp-vat"><input type="checkbox" id="fpQty" checked> Gelen miktarları da faturadaki gibi doldur</label>` : ''}
     <div class="fp-foot"><button type="button" class="ghost-btn" ${act('removeEl', 'fpRevBg')}>Vazgeç</button><button type="button" id="fpGo" ${act('fpCommit')}>✓ Fiyatları aktar</button></div></div>`;
   document.body.appendChild(bg);
+  fpRecalc();
+}
+function fpEdit(el){
+  const row = el.closest('.fp-row'), st = APP.fpDoc; if(!row || !st) return;
+  const l = st.rows[Number(row.dataset.k)].l, n = (c) => parseFloat(String(row.querySelector(c).value).replace(',', '.')) || 0;
+  l.quantity = n('.fp-q'); l.unit_price = n('.fp-p'); l.unit = row.querySelector('.fp-u').value; l.line_total = l.quantity * l.unit_price;
   fpRecalc();
 }
 function fpRowCalc(r, itemId){
@@ -243,4 +259,49 @@ async function fpCommit(){
   if(alias.length){ sb.rpc('save_purchase_aliases', { p_token: getSession().session_token, p_items: alias }).then(() => { FP_ALIAS = null; }); }
   await fpApply(map, 'faturadan aktarıldı');
   if(qtyOn) showToast('Miktarlar da dolduruldu · kontrol edip "Teslim al" deyin');
+}
+
+/* ---- Cihaz içi ücretsiz okuma (Tesseract, Türkçe) ----
+   Kota dolunca ya da servis yokken kullanılır; internete bir şey göndermez, sınırsızdır. */
+let FP_TESS = null, FP_AI = null;
+function fpLoadScript(src){ return new Promise((ok, no) => { if(window.Tesseract) return ok(); const sc = document.createElement('script'); sc.src = src; sc.onload = ok; sc.onerror = () => no(new Error('Okuma modülü yüklenemedi')); document.head.appendChild(sc); }); }
+async function fpTess(){
+  if(FP_TESS) return FP_TESS;
+  const base = '/assets/vendor/tesseract';
+  await fpLoadScript(base + '/tesseract.min.js');
+  FP_TESS = window.Tesseract.createWorker('tur', 1, { workerPath: base + '/worker.min.js', corePath: base + '/core', langPath: base + '/lang', workerBlobURL: false, gzip: true });
+  return FP_TESS;
+}
+async function fpOcrRead(blob){
+  const doc = await withLoadingOverlay((async () => { const w = await fpTess(); const { data } = await w.recognize(blob); return fpParseText(data && data.text || ''); })());
+  if(!doc.lines.length){ uiAlert('Fotoğraftaki satırlar okunamadı. Daha yakından, düz ve aydınlık bir fotoğraf deneyin ya da e-Fatura XML dosyasını kullanın.', { title: 'Okunamadı', icon: '⚠️' }); return; }
+  doc.ocr = true; fpReview(doc);
+}
+// Düz metinden fatura satırı tahmini: "DÖNER ETİ 5 KG 350,00 1.750,00" → ad, miktar, birim, birim fiyat, tutar.
+function fpNum(t){ const s = String(t).replace(/\s/g, ''); if(/,\d{1,3}$/.test(s)) return parseFloat(s.replace(/\./g, '').replace(',', '.')); if(/^\d{1,3}(\.\d{3})+$/.test(s)) return parseFloat(s.replace(/\./g, '')); return parseFloat(s.replace(',', '.')); }
+function fpParseText(text){
+  const SKIP = /toplam|kdv|ara\s*top|genel|iskonto|indirim|yekun|matrah|tutar[ıi]\s*:|vergi|fatura\s*no|tarih|sayfa|banka|iban|vkn|tckn|tel|adres/i;
+  const UNIT = /^(kg|kilo|gr|g|gram|lt|l|litre|ml|ad|adet|ade|pk|paket|koli|kasa|kutu|çuval|cuval|bidon|şişe|sise|demet|bağ)\.?$/i;
+  const lines = [];
+  String(text).split(/\n+/).forEach(raw => {
+    const t = raw.replace(/[|_]/g, ' ').replace(/\s+/g, ' ').trim(); if(t.length < 5 || SKIP.test(t)) return;
+    const nums = [...t.matchAll(/\d{1,3}(?:\.\d{3})+(?:,\d{1,3})?|\d+(?:,\d{1,3})?/g)];
+    if(nums.length < 2) return;
+    const name = t.slice(0, nums[0].index).replace(/[^A-Za-zÇĞİÖŞÜçğıöşü0-9%\s.\-]/g, ' ').replace(/\s+/g, ' ').trim();
+    if((name.match(/[A-Za-zÇĞİÖŞÜçğıöşü]/g) || []).length < 3) return;
+    const v = nums.map(m => fpNum(m[0]));
+    const after = t.slice(nums[0].index + nums[0][0].length).trim().split(' ')[0] || '';
+    const unit = UNIT.test(after) ? after.replace('.', '').toLowerCase() : 'adet';
+    let qty = v[0], total = v[v.length - 1], price = v.length >= 3 ? v[v.length - 2] : (qty ? total / qty : 0);
+    if(v.length >= 3 && qty && Math.abs(qty * price - total) > Math.max(1, total * 0.05)) price = total / qty;
+    if(!(qty > 0) || !(price > 0)) return;
+    lines.push({ name, quantity: qty, unit, unit_price: Math.round(price * 100) / 100, vat_rate: 0, line_total: total });
+  });
+  return { supplier: '', no: '', date: '', incl: true, lines };
+}
+// Bugünkü ücretsiz okuma hakkı (işletmenin kendi anahtarı varsa sınırsız).
+async function fpAiStatus(){
+  if(FP_AI && Date.now() - FP_AI.at < 60000) return FP_AI;
+  try{ const { data } = await sb.rpc('get_ai_status', { p_token: getSession().session_token }); FP_AI = Object.assign({ at: Date.now() }, data || {}); }catch(e){ FP_AI = { at: Date.now() }; }
+  return FP_AI;
 }
