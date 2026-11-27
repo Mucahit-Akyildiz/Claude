@@ -61,7 +61,19 @@ function dayCloseBannerHtml(){
     ? `<button type="button" class="dc-banner" ${act('openDayCloseSheet')}>🧾 <span><b>${escapeHtml(dayCloseDateTxt(d.date))}</b> gün sonu kapanışı yapılmadı.</span><b class="dc-go">Şimdi kapat →</b></button>`
     : `<div class="dc-banner info">🧾 <span>Dünün gün sonu kapanışı yapılmadı. Yönetici/kasa sorumlusu kapatmalı.</span></div>`;
 }
+/* Ödemeler › Açık Hesaplar: ödeme yetkisi olan, borçlu hesapları görür ve tahsilat alıp kapatır
+   (liste ve hareketler Finansal Analiz'deki açık hesap ekranıyla aynı; tarih aralığı son 30 gün). */
+function openPayAccounts(){ if(typeof pushScreen === 'function') pushScreen(); APP.payOaView = true; render(); }
+function closePayAccounts(){ APP.payOaView = false; render(); }
+async function renderPayAccounts(main, session){
+  if(!APP.reportDate){ const d = new Date(); APP.reportDateTo = todayLocalDateStr(); d.setDate(d.getDate() - 29); APP.reportDate = d.toISOString().slice(0, 10); }
+  main.innerHTML = `<div class="me2-bar"><div class="me2-tabs"><span class="me2-title">📒 Açık Hesaplar</span></div><div class="me2-tools"><button type="button" class="me2-tab" ${act('closePayAccounts')}>← Ödemelere dön</button></div></div>
+    <div class="me2-hint">Borcu olan hesaplar üstte. <b>₺ Tahsilat Al</b> ile ödemeyi alın; borç bitince hesap kapanır. <b>🔍 Detay</b> hangi gün ne yazıldığını gösterir.</div>
+    <div id="reportContent"><p class="muted">Yükleniyor…</p></div>`;
+  await renderOpenAccountsContent(session);
+}
 async function renderPaymentsView(main, session){
+  if(APP.payOaView && featOn('open_accounts')) return renderPayAccounts(main, session);
   // Gün sonu kapanmadıysa rapor yetkilisi önce kapatır.
   await dayCloseCheck(session);
   if(dayCloseBlocks()){
@@ -75,8 +87,12 @@ async function renderPaymentsView(main, session){
   ]));
   if(!APP.config) APP.config = cfgRes.data;
   APP.liveOrders = liveRes.data || [];
-  main.innerHTML = `<h1>Ödemeler <button class="sbtn sbtn-sec" style="width:auto;display:inline-flex;vertical-align:middle;margin-left:10px;padding:7px 12px;font-size:13px;" ${act('openTableScanModal')}>📷 Masa Tara</button></h1>${dayCloseBannerHtml()}<div class="muted" id="payStatus"></div><div class="order-summary pay-summary" id="paySummary"></div><div class="tabs" id="payZoneTabs" style="margin:14px 0 12px;"></div><div class="pk-grid" id="payGrid"></div>`;
+  main.innerHTML = `<h1>Ödemeler <button class="sbtn sbtn-sec" style="width:auto;display:inline-flex;vertical-align:middle;margin-left:10px;padding:7px 12px;font-size:13px;" ${act('openTableScanModal')}>📷 Masa Tara</button>${featOn('open_accounts') ? `<button class="sbtn sbtn-sec" id="payOaBtn" style="width:auto;display:inline-flex;vertical-align:middle;margin-left:8px;padding:7px 12px;font-size:13px;" ${act('openPayAccounts')}>📒 Açık Hesaplar</button>` : ''}</h1>${dayCloseBannerHtml()}<div class="muted" id="payStatus"></div><div class="order-summary pay-summary" id="paySummary"></div><div class="tabs" id="payZoneTabs" style="margin:14px 0 12px;"></div><div class="pk-grid" id="payGrid"></div>`;
   renderPayGrid();
+  // Borçlu hesap sayısı butonun üzerinde.
+  if(featOn('open_accounts')) sb.rpc('list_open_accounts', { p_token: session.session_token }).then(({ data }) => {
+    const n = (data || []).filter(a => Number(a.balance) > 0.009).length, b = document.getElementById('payOaBtn');
+    if(b && n) b.innerHTML = '📒 Açık Hesaplar <span class="pchip warn" style="margin-left:6px;">' + n + ' borçlu</span>'; }, () => {});
 }
 /* --- Hediye Kartları: yeni kart oluşturma (kod üretimi) ve mevcut
    kartları arama/görme, bkz. issue_gift_card / list_gift_cards. Ayarlar

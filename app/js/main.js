@@ -491,6 +491,7 @@ function goToView(view, fromHistory){
   // Geri tuşu/kaydırma için her ekran değişimi tarayıcı geçmişine yazılır
   // (bkz. goBack / popstate). Geçmişten gelinen geçişler tekrar yazılmaz.
   if(!fromHistory && view !== APP.view) pushScreen();
+  if(!fromHistory) APP.payOaView = false;
   APP.view = view;
   // Finansal Analiz'e her girişte, en son baktiginiz tarihi hatirlamak yerine
   // dogrudan bugunun raporunu getirir - farkli bir tarihe bakmak isterseniz
@@ -553,7 +554,7 @@ function goBack(){
    Satınalma sekmesi, Kullanıcılar alt sekmesi, açık sohbet, mutfak istasyonu). Geri her
    zaman bir önceki ekrana/sekmeye döner. Yığın sessionStorage'da tutulur; uygulama
    arka planda yeniden yüklense bile kaldığı ekrandan ve geri geçmişiyle açılır. */
-const SCREEN_KEYS = ['view','settingsTab','reportTab','usersSubTab','resvTab','purchTab','notifPane','chatConv','kitchenStation'];
+const SCREEN_KEYS = ['payOaView', 'view','settingsTab','reportTab','usersSubTab','resvTab','purchTab','notifPane','chatConv','kitchenStation'];
 function screenSnapshot(){ const o = {}; SCREEN_KEYS.forEach(k => { if(APP[k] !== undefined) o[k] = APP[k]; }); o.view = o.view || 'home'; return o; }
 function saveNavState(){ try{ sessionStorage.setItem('peyktan_nav', JSON.stringify({ cur: screenSnapshot(), stack: APP.viewStack || [] })); }catch(e){} }
 function pushScreen(){
