@@ -299,3 +299,4 @@ alter table customers add column if not exists created_by uuid, add column if no
 -- 2026-11-25: _feat_gate_tok eklendi; 30 yazma fonksiyonuna paket özelliği kilidi; _tts_ctx voice_notify, _qr_bill_allowed qr_pay kontrolü.
 -- 2026-11-26: Hızlı fiyat girişi: purchase_order_items.supplier_price/_at; purchase_name_aliases tablosu; get_last_purchase_prices, list_purchase_aliases, save_purchase_aliases, submit_public_po_prices; get_public_po kalem id/fiyat/durum döner; get_purchase_report kalemlerine sp (tedarikçi fiyatı) ve ingredient_id eklendi.
 -- 2026-11-26: Fatura okuma kotası: tenant_integrations.ai_api_key (şifreli), ai_usage tablosu (günlük sayım), _ai_daily_limit()=20, _ai_ctx/_ai_take (yalnız service_role), get_ai_status, save_ai_key.
+-- 2026-11-27: get_open_accounts_report ve get_open_account_entries artık 'reports' ya da 'payments' yetkisiyle (Ödemeler › Açık Hesaplar ekranı için).
