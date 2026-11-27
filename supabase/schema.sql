@@ -8896,7 +8896,7 @@ CREATE FUNCTION public.get_open_account_entries(p_token uuid, p_account_id uuid)
     AS $$
 declare s staff_sessions%rowtype;
 begin
-  s := _session_check(p_token, 'reports');
+  s := _session_check_any(p_token, array['reports','payments']);
   return (select coalesce(json_agg(row_to_json(y) order by y.created_at desc), '[]'::json) from (
     select e.id, e.kind, e.amount, e.method, e.table_name, e.note, e.created_at, e.sales_history_id, u.username staff,
       (select coalesce(sum(oi.qty), 0) from order_items oi where oi.order_id = e.order_id) item_count
@@ -8916,7 +8916,7 @@ CREATE FUNCTION public.get_open_accounts_report(p_token uuid, p_from date, p_to 
     AS $$
 declare s staff_sessions%rowtype; v_from timestamptz; v_to timestamptz;
 begin
-  s := _session_check(p_token, 'reports');
+  s := _session_check_any(p_token, array['reports','payments']);
   v_from := (p_from::timestamp) at time zone 'Europe/Istanbul';
   v_to := ((p_to + 1)::timestamp) at time zone 'Europe/Istanbul';
   return json_build_object(
