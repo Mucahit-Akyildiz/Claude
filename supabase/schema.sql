@@ -7157,9 +7157,12 @@ CREATE FUNCTION public.delete_table(p_token uuid, p_id uuid) RETURNS void
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public', 'extensions', 'pg_temp'
     AS $$
-declare s staff_sessions%rowtype;
+declare s staff_sessions%rowtype; v_name text;
 begin
   s := _session_check(p_token, 'settings_zones');
+  select t.name into v_name from restaurant_tables t where t.id = p_id and t.restaurant_id = s.restaurant_id
+    and exists (select 1 from orders o where o.table_id = t.id and o.status = 'open');
+  if v_name is not null then raise exception 'Önce % masasının açık hesabını kapatın, sonra silin.', v_name; end if;
   delete from restaurant_tables where id = p_id and restaurant_id = s.restaurant_id;
 end;
 $$;
@@ -7190,9 +7193,12 @@ CREATE FUNCTION public.delete_zone(p_token uuid, p_id uuid) RETURNS void
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public', 'extensions', 'pg_temp'
     AS $$
-declare s staff_sessions%rowtype;
+declare s staff_sessions%rowtype; v_names text;
 begin
   s := _session_check(p_token, 'settings_zones');
+  select string_agg(t.name, ', ' order by t.name) into v_names from restaurant_tables t
+    where t.zone_id = p_id and t.restaurant_id = s.restaurant_id and exists (select 1 from orders o where o.table_id = t.id and o.status = 'open');
+  if v_names is not null then raise exception 'Bu bölgede açık hesap var (%). Önce bu masaların hesabını kapatın, sonra silin.', v_names; end if;
   delete from zones where id = p_id and restaurant_id = s.restaurant_id;
 end;
 $$;
@@ -23774,7 +23780,7 @@ ALTER TABLE ONLY public.orders
 --
 
 ALTER TABLE ONLY public.orders
-    ADD CONSTRAINT orders_table_id_fkey FOREIGN KEY (table_id) REFERENCES public.restaurant_tables(id);
+    ADD CONSTRAINT orders_table_id_fkey FOREIGN KEY (table_id) REFERENCES public.restaurant_tables(id) ON DELETE SET NULL;
 
 
 --
@@ -24366,7 +24372,7 @@ ALTER TABLE ONLY public.waiter_calls
 --
 
 ALTER TABLE ONLY public.waiter_calls
-    ADD CONSTRAINT waiter_calls_table_id_fkey FOREIGN KEY (table_id) REFERENCES public.restaurant_tables(id);
+    ADD CONSTRAINT waiter_calls_table_id_fkey FOREIGN KEY (table_id) REFERENCES public.restaurant_tables(id) ON DELETE SET NULL;
 
 
 --
